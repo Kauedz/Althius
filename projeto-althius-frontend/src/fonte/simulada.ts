@@ -1,0 +1,210 @@
+// Implementação simulada da fonte de dados dos Agentes. O estado vive em memória:
+// as mudanças valem até recarregar a página.
+import * as demo from './dados-demo'
+import { ROTULO_DA_DECISAO } from './regras'
+import { respostaDeMencao, respostaGenerica, roteiros, type PassoDeRoteiro } from './roteiros'
+import type {
+  AgenteId,
+  CanalId,
+  FonteDeAgentes,
+  IntegracaoId,
+  ItemDeAtividade,
+  NovaRotina,
+  PassoDaConversa,
+} from './tipos'
+
+interface Opcoes {
+  /** Atraso simulado de cada resposta e de cada passo da Conversa. */
+  atrasoMs?: number
+}
+
+export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgentes {
+  const estado = structuredClone({
+    agentes: demo.agentes,
+    fatos: demo.fatos,
+    habilidades: demo.habilidades,
+    rotinas: demo.rotinas,
+    atividade: demo.atividade,
+    canais: demo.canais,
+    integracoes: demo.integracoes,
+    personalizacoes: demo.personalizacoes,
+    aprovacoes: demo.aprovacoes,
+    previas: demo.previas,
+  })
+  const ouvintes = new Set<() => void>()
+  let proximoId = 1
+
+  const novoId = (prefixo: string) => `${prefixo}-${proximoId++}`
+  const esperar = (ms = atrasoMs) => new Promise<void>((resolver) => setTimeout(resolver, ms))
+  const avisar = () => ouvintes.forEach((ouvinte) => ouvinte())
+
+  async function responder<T>(valor: () => T): Promise<T> {
+    await esperar(Math.min(atrasoMs, 120))
+    return structuredClone(valor())
+  }
+
+  async function mudar(alteracao: () => void): Promise<void> {
+    await esperar(Math.min(atrasoMs, 120))
+    alteracao()
+    avisar()
+  }
+
+  function buscar<T extends { id: string }>(lista: T[], id: string): T {
+    const item = lista.find((i) => i.id === id)
+    if (!item) throw new Error(`Não encontrado: ${id}`)
+    return item
+  }
+
+  function registrarAtividade(item: Omit<ItemDeAtividade, 'id' | 'quando'>) {
+    estado.atividade.unshift({ ...item, id: novoId('atividade'), quando: 'Agora' })
+  }
+
+  function nomeDe(id: AgenteId) {
+    return buscar(estado.agentes, id).nome
+  }
+
+  /** Agentes mencionados com @Nome no texto, na ordem em que aparecem. */
+  function mencoes(texto: string): AgenteId[] {
+    return [...texto.matchAll(/@(\p{L}+)/gu)]
+      .map(([, nome]) => estado.agentes.find((a) => a.nome.toLowerCase() === nome.toLowerCase())?.id)
+      .filter((id): id is AgenteId => id !== undefined)
+  }
+
+  function roteiroPara(id: AgenteId, texto: string, sugestaoId?: string): PassoDeRoteiro[] {
+    if (sugestaoId && roteiros[sugestaoId]) return roteiros[sugestaoId]
+    const outro = mencoes(texto).find((mencionado) => mencionado !== id)
+    if (outro) return respostaDeMencao(id, outro, nomeDe(outro))
+    return respostaGenerica(id, nomeDe(id))
+  }
+
+  return {
+    observar(ouvinte) {
+      ouvintes.add(ouvinte)
+      return () => ouvintes.delete(ouvinte)
+    },
+
+    workspace: () => responder(() => demo.workspace),
+
+    painel: () =>
+      responder(() => ({
+        aprovacoesPendentes: estado.aprovacoes.filter((a) => a.estado === 'pendente').length,
+        rotinasDeHoje: estado.rotinas.filter(
+          (r) => !r.pausada && (r.frequencia === 'diaria' || (r.frequencia === 'semanal' && r.diaDaSemana === demo.HOJE.diaDaSemana)),
+        ),
+        atividadeRecente: estado.atividade.slice(0, 4),
+        tarefasFeitas: estado.agentes.reduce((soma, a) => soma + a.tarefasFeitas, 0),
+        horasEconomizadas: estado.agentes.reduce((soma, a) => soma + a.horasEconomizadas, 0),
+      })),
+
+    agentes: () => responder(() => estado.agentes),
+    agente: (id) => responder(() => buscar(estado.agentes, id)),
+
+    memoria: (id) => responder(() => estado.fatos.filter((f) => f.agenteId === id)),
+    editarFato: (fatoId, texto) =>
+      mudar(() => {
+        buscar(estado.fatos, fatoId).texto = texto
+      }),
+    apagarFato: (fatoId) =>
+      mudar(() => {
+        estado.fatos = estado.fatos.filter((f) => f.id !== fatoId)
+      }),
+
+    habilidades: (id) => responder(() => estado.habilidades.filter((h) => h.agenteId === id)),
+    definirHabilidadeAtiva: (habilidadeId, ativa) =>
+      mudar(() => {
+        buscar(estado.habilidades, habilidadeId).ativa = ativa
+      }),
+
+    rotinas: (id) => responder(() => estado.rotinas.filter((r) => r.agenteId === id)),
+    criarRotina: (rotina: NovaRotina) =>
+      mudar(() => {
+        estado.rotinas.push({ ...rotina, id: novoId('rotina'), pausada: false })
+      }),
+    editarRotina: (rotinaId, rotina) =>
+      mudar(() => {
+        Object.assign(buscar(estado.rotinas, rotinaId), rotina)
+      }),
+    definirRotinaPausada: (rotinaId, pausada) =>
+      mudar(() => {
+        buscar(estado.rotinas, rotinaId).pausada = pausada
+      }),
+    excluirRotina: (rotinaId) =>
+      mudar(() => {
+        estado.rotinas = estado.rotinas.filter((r) => r.id !== rotinaId)
+      }),
+
+    atividade: (id, gatilho) =>
+      responder(() => estado.atividade.filter((a) => a.agenteId === id && (!gatilho || a.gatilho === gatilho))),
+
+    personalizacao: (id) => responder(() => estado.personalizacoes[id]),
+    salvarPersonalizacao: (id, personalizacao) =>
+      mudar(() => {
+        estado.personalizacoes[id] = structuredClone(personalizacao)
+      }),
+
+    canais: () => responder(() => estado.canais),
+    integracoes: () => responder(() => estado.integracoes),
+    integracoesFuturas: () => responder(() => demo.integracoesFuturas),
+    conectar: (conexao: CanalId | IntegracaoId) =>
+      mudar(() => {
+        const canal = estado.canais.find((c) => c.id === conexao)
+        if (canal) canal.conectado = true
+        const integracao = estado.integracoes.find((i) => i.id === conexao)
+        if (integracao) integracao.conectada = true
+      }),
+    previaDeCanal: (canalId) =>
+      responder(() => {
+        const previa = estado.previas.find((p) => p.canalId === canalId)
+        if (!previa) throw new Error(`Sem prévia para o canal: ${canalId}`)
+        return previa
+      }),
+
+    aprovacoes: () => responder(() => estado.aprovacoes),
+    decidirAprovacao: (aprovacaoId, decisao, onde) =>
+      mudar(() => {
+        const aprovacao = buscar(estado.aprovacoes, aprovacaoId)
+        aprovacao.estado = decisao
+        registrarAtividade({
+          agenteId: aprovacao.agenteId,
+          gatilho: onde === 'althius' ? 'conversa' : 'canal',
+          descricao: `${ROTULO_DA_DECISAO[decisao]}: ${aprovacao.acao}`,
+          resultado: decisao === 'aprovada' ? 'Ação executada.' : 'Nada foi alterado.',
+          link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
+        })
+      }),
+
+    async *conversar(id, { texto, sugestaoId }): AsyncGenerator<PassoDaConversa> {
+      const passos = roteiroPara(id, texto, sugestaoId)
+      for (const passo of passos) {
+        await esperar()
+        if (passo.tipo === 'aprovacao') {
+          const aprovacaoId = novoId('aprovacao')
+          estado.aprovacoes.unshift({ ...passo.aprovacao, id: aprovacaoId, agenteId: passo.agenteId, estado: 'pendente' })
+          // A Aprovação também chega no Canal de origem, com os botões de decisão.
+          const origem = passo.aprovacao.origem
+          if (origem !== 'althius') {
+            estado.previas
+              .find((p) => p.canalId === origem)
+              ?.mensagens.push({
+                autor: nomeDe(passo.agenteId),
+                ehAgente: true,
+                texto: `Preparei uma proposta: ${passo.aprovacao.acao}. Posso seguir?`,
+                aprovacaoId,
+              })
+          }
+          avisar()
+          yield { tipo: 'aprovacao', agenteId: passo.agenteId, aprovacaoId }
+        } else {
+          yield passo
+        }
+      }
+      registrarAtividade({
+        agenteId: id,
+        gatilho: mencoes(texto).some((m) => m !== id) ? 'mencao' : 'conversa',
+        descricao: `Respondeu: "${texto}"`,
+        resultado: `${passos.length} passos na Conversa.`,
+      })
+      avisar()
+    },
+  }
+}

@@ -1,0 +1,175 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource/oswald/200.css";
+@import "@fontsource/oswald/300.css";
+@import "@fontsource/oswald/400.css";
+@import "@fontsource/oswald/500.css";
+@import "@fontsource/oswald/600.css";
+@import "@fontsource/indie-flower/400.css";
+
+@custom-variant dark (&:is([data-theme="escuro"] *));
+
+/* Tokens do Manual da Marca Althius v2.0 · capítulo 11. Nunca escrever valor cru. */
+:root,
+[data-theme="escuro"] {
+  --al-bg: #131313;
+  --al-surface: #212121;
+  --al-line: #353535;
+  --al-ink: #f4f4f4;
+  --al-ink-muted: #8e8e8e;
+  --al-accent: #f7054f;
+  --al-accent-2: #fd6d1f;
+  --al-on-accent: #131313;
+  --al-gradient: linear-gradient(100deg, var(--al-accent) 0%, var(--al-accent) 45%, var(--al-accent-2) 100%);
+  --al-sucesso: #2e7d5b;
+  --al-atencao: #c79a1f;
+  --al-erro: #c0392b;
+  color-scheme: dark;
+}
+
+/* Tema claro: derivado das páginas claras do manual (osso como fundo, cartão branco). */
+[data-theme="claro"] {
+  --al-bg: #f4f4f4;
+  --al-surface: #ffffff;
+  --al-line: #c1c1c1;
+  --al-ink: #131313;
+  --al-ink-muted: #8e8e8e;
+  color-scheme: light;
+}
+
+:root {
+  --radius-field: 0px;
+  --radius-card: 16px;
+
+  /* Ponte para as variáveis que os componentes shadcn/ui esperam. */
+  --background: var(--al-bg);
+  --foreground: var(--al-ink);
+  --card: var(--al-surface);
+  --card-foreground: var(--al-ink);
+  --popover: var(--al-surface);
+  --popover-foreground: var(--al-ink);
+  --primary: var(--al-accent);
+  --primary-foreground: var(--al-on-accent);
+  --secondary: transparent;
+  --secondary-foreground: var(--al-ink);
+  --muted: var(--al-surface);
+  --muted-foreground: var(--al-ink-muted);
+  --accent: var(--al-line);
+  --accent-foreground: var(--al-ink);
+  --destructive: var(--al-erro);
+  --border: var(--al-line);
+  --input: var(--al-line);
+  --ring: var(--al-accent);
+  --radius: var(--radius-field);
+}
+
+@theme inline {
+  --font-sans: "Oswald", "Arial Narrow", sans-serif;
+  --font-heading: "Oswald", "Arial Narrow", sans-serif;
+  --font-mao: "Indie Flower", "Segoe Script", cursive;
+  --tracking-rotulo: 0.18em;
+
+  --color-al-bg: var(--al-bg);
+  --color-al-surface: var(--al-surface);
+  --color-al-line: var(--al-line);
+  --color-al-ink: var(--al-ink);
+  --color-al-muted: var(--al-ink-muted);
+  --color-al-accent: var(--al-accent);
+  --color-al-accent-2: var(--al-accent-2);
+  --color-al-sucesso: var(--al-sucesso);
+  --color-al-atencao: var(--al-atencao);
+  --color-al-erro: var(--al-erro);
+
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  --radius-sm: var(--radius-field);
+  --radius-md: var(--radius-field);
+  --radius-lg: var(--radius-field);
+  --radius-xl: var(--radius-field);
+  --radius-card: var(--radius-card);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-weight: 300;
+    line-height: 1.6;
+  }
+  /* Foco sempre visível: contorno rosa de 2px com 3px de afastamento. */
+  :focus-visible {
+    outline: 2px solid var(--al-accent);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  /* Rótulo / etiqueta: Oswald 400 maiúsculo, entreletra 0,18em. */
+  .rotulo {
+    font-weight: 400;
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--al-ink-muted);
+  }
+  .titulo-display {
+    font-weight: 200;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .titulo-secao {
+    font-weight: 300;
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+  /* Campo de formulário: raio 0, linha do token; o foco usa o anel global. */
+  .campo {
+    width: 100%;
+    border: 1px solid var(--al-line);
+    background: var(--al-bg);
+    padding: 0.5rem 1rem;
+  }
+  .cartao {
+    background: var(--al-surface);
+    border-radius: var(--radius-card);
+  }
+  .anotacao {
+    font-family: var(--font-mao);
+    color: var(--al-ink-muted);
+  }
+}
+
+/* O pulso: anéis que substituem o spinner genérico. */
+@keyframes pulso {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.pulso-anel {
+  animation: pulso 1.6s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulso-anel { animation: none; }
+}
