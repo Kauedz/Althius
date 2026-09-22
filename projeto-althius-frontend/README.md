@@ -1,6 +1,6 @@
 # Althius · protótipo da aba de Agentes
 
-Protótipo navegável, só front-end, com dados simulados. A especificação está em [SPEC.md](SPEC.md) (issue #1). O vocabulário do domínio está no `CONTEXT.md` da raiz, e as decisões, em `docs/adr/`.
+Protótipo navegável, só front-end, com dados simulados. A especificação está em [`.scratch/pagina-de-agentes/spec.md`](../.scratch/pagina-de-agentes/spec.md) (a primeira versão foi a issue #1). O vocabulário do domínio está no `CONTEXT.md` da raiz, e as decisões, em `docs/adr/`.
 
 ## Rodar
 

@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues are tracked in GitHub Issues on Kauedz/Althius (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+Issues and specs are tracked as local markdown files under `.scratch/<feature-slug>/` (spec in `spec.md`, one ticket per file in `issues/`). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

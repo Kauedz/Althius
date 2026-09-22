@@ -26,26 +26,37 @@ _Avoid_: buying committee, stakeholders, decisores
 
 ## Agentes
 
+**Especialidade**:
+Um dos quatro tipos fixos de trabalho do catálogo da Althius (Scopus, Ethos, Rhetor, Oraculum). O Cliente não cria Especialidades.
+_Avoid_: template, modelo, tipo de agente
+
 **Agente**:
-Um especialista fixo, criado pela Althius. O Cliente não cria Agentes, apenas os personaliza.
+Um trabalhador de uma Especialidade dentro de um Workspace. É um Agente padrão ou um Agente criado.
 _Avoid_: bot, assistente, "agente de X"
 
+**Agente padrão**:
+O Agente que todo Workspace tem para cada Especialidade, com o nome dela (ex.: "Scopus"). Não pode ser excluído.
+
+**Agente criado**:
+Um Agente que o Cliente cria a partir de uma Especialidade, nomeado "Especialidade · complemento" (ex.: "Scopus · Enterprise LATAM"). Começa com uma cópia da Personalização, das Permissões e das Habilidades do Agente padrão, com Memória vazia e sem Rotinas, e pode ser excluído.
+_Avoid_: agente personalizado, cópia, clone
+
 **Scopus**:
-O Agente de ICP: define o perfil de cliente ideal e dá nota de fit às Contas-alvo.
+A Especialidade de ICP: define o perfil de cliente ideal e dá nota de fit às Contas-alvo.
 
 **Ethos**:
-O Agente de Persona: descreve dores, objeções e gatilhos de cada papel do Comitê de compra.
+A Especialidade de Persona: descreve dores, objeções e gatilhos de cada papel do Comitê de compra.
 
 **Rhetor**:
-O Agente de escrita persuasiva: produz e-mails, sequências, posts e copy no tom da marca e por persona.
+A Especialidade de escrita persuasiva: produz e-mails, sequências, posts e copy no tom da marca e por persona.
 
 **Oraculum**:
-O Agente de GEO (Generative Engine Optimization): mede e melhora como a marca aparece e é citada em respostas de LLMs.
+A Especialidade de GEO (Generative Engine Optimization): mede e melhora como a marca aparece e é citada em respostas de LLMs.
 _Avoid_: agente de SEO, agente geográfico
 
 **Personalização**:
 Os ajustes que o Cliente faz num Agente: instruções, tom de voz, base de conhecimento, ferramentas e canais. Não inclui renomear o Agente.
-_Avoid_: customização, criar agente
+_Avoid_: customização
 
 **Memória**:
 Os fatos que um Agente aprendeu sobre o Cliente e seus usuários, cada um com origem e editável.
@@ -55,7 +66,7 @@ Um procedimento que o Agente criou ou refinou com o uso e passa a reaplicar.
 _Avoid_: skill, prompt, template
 
 **Conversa**:
-Uma troca direta entre um usuário e um Agente dentro da Althius.
+Uma troca entre um usuário e a Althius: direta com um Agente, ou coordenada, quando o pedido é feito sem escolher um Agente e a Coordenação distribui o trabalho.
 _Avoid_: chat
 
 **Rotina**:
@@ -63,15 +74,19 @@ Uma tarefa agendada que o Agente executa sozinho de forma recorrente.
 _Avoid_: automação, cron
 
 **Atividade**:
-O histórico de tudo que um Agente fez, com o gatilho (Conversa, Menção, Rotina ou Canal) e o resultado.
+O histórico de tudo que um Agente fez, com o gatilho (Conversa, Menção, Coordenação, Rotina ou Canal) e o resultado.
 _Avoid_: log
 
 **Menção**:
-Chamar um Agente com @ no meio de uma conversa ou pela barra de comando, no estilo Grok.
+Chamar um Agente com @ no meio de uma Conversa, no estilo Grok. "@Scopus" chama o Agente padrão; um Agente criado é chamado pelo nome completo.
 
 **Colaboração**:
-Quando um Agente repassa trabalho a outro (ex.: Scopus → Ethos → Rhetor).
+Quando um Agente repassa trabalho a outro por conta própria (ex.: Scopus → Ethos → Rhetor).
 _Avoid_: orquestração, pipeline
+
+**Coordenação**:
+Quando a Althius, sem ser um Agente e sem nome próprio, divide um pedido de uma Conversa coordenada entre os Agentes necessários e junta as respostas numa só. Um Agente @mencionado no pedido é sempre incluído; um pedido genérico pode ser respondido sem chamar nenhum Agente. A Coordenação não usa Integrações: quem age são os Agentes, cada um com a sua Permissão.
+_Avoid_: orquestração, orquestrador, 5º agente
 
 ## Conexões e permissões
 
