@@ -1,7 +1,7 @@
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom'
 import { Carregando, IconeAgente, ROTULO_DO_ESTADO } from '@/components/marca'
 import { useDados } from '@/fonte/contexto'
-import type { Agente, AgenteId } from '@/fonte/tipos'
+import type { Agente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 import { SecaoAtividade } from '@/paginas/secoes/atividade'
 import { SecaoCanais } from '@/paginas/secoes/canais'
@@ -23,14 +23,13 @@ const SECOES = {
 
 type SecaoId = keyof typeof SECOES
 
-const IDS_DE_AGENTE: AgenteId[] = ['scopus', 'ethos', 'rhetor', 'oraculum']
-
 export function PaginaAgente() {
   const { agenteId, secao } = useParams()
-  const idValido = IDS_DE_AGENTE.includes(agenteId as AgenteId)
-  const agente = useDados((fonte) => (idValido ? fonte.agente(agenteId as AgenteId) : Promise.resolve(null)), [agenteId])
+  const agentes = useDados((fonte) => fonte.agentes(), [])
+  if (!agentes) return <Carregando />
 
-  if (!idValido) {
+  const agente = agentes.find((a) => a.id === agenteId)
+  if (!agente) {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="titulo-display text-5xl">Agente não encontrado</h1>
@@ -40,8 +39,7 @@ export function PaginaAgente() {
       </div>
     )
   }
-  if (!(secao && secao in SECOES)) return <Navigate to={`/agentes/${agenteId}/conversa`} replace />
-  if (!agente) return <Carregando />
+  if (!(secao && secao in SECOES)) return <Navigate to={`/agentes/${agente.id}/conversa`} replace />
 
   const { Componente } = SECOES[secao as SecaoId]
 
@@ -54,7 +52,9 @@ export function PaginaAgente() {
             <h1 className="titulo-display text-6xl">{agente.nome}</h1>
             <span className="rotulo">{ROTULO_DO_ESTADO[agente.estado]}</span>
           </div>
-          <span className="rotulo">{agente.especialidade}</span>
+          <span className="rotulo">
+            {agente.especialidade} · entrega: {agente.entrega}
+          </span>
           <p className="max-w-2xl text-al-muted">{agente.descricao}</p>
         </div>
       </div>
@@ -67,7 +67,7 @@ export function PaginaAgente() {
                 to={`/agentes/${agente.id}/${id}`}
                 className={({ isActive }) =>
                   cn(
-                    '-mb-px block border-b-2 py-4 text-sm font-normal tracking-[0.18em] uppercase',
+                    '-mb-px block border-b-2 py-4 text-sm font-normal tracking-rotulo uppercase',
                     isActive ? 'border-al-accent text-al-ink' : 'border-transparent text-al-muted hover:text-al-ink',
                   )
                 }

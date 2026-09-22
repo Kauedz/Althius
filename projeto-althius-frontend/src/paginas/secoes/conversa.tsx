@@ -4,7 +4,9 @@ import { IconeAgente, Pulso } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import { MS_POR_CARACTERE, useConversas, type ItemDaConversa } from '@/conversa/contexto'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
-import { useDados, useFonte } from '@/fonte/contexto'
+import { DecisaoDeAprovacao } from '@/components/decisao'
+import { useDados } from '@/fonte/contexto'
+import { ROTULO_DA_DECISAO } from '@/fonte/regras'
 import type { Agente, AgenteId } from '@/fonte/tipos'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
@@ -85,9 +87,9 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
           onChange={(evento) => setTexto(evento.target.value)}
           onKeyDown={(evento) => mencao.aoTeclar(evento)}
           placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
-          className="flex-1 border border-al-line bg-transparent px-4 py-3 outline-none focus-visible:border-al-accent"
+          className="campo flex-1"
         />
-        <Button type="submit" disabled={respondendo || !texto.trim()} className="h-auto px-6 tracking-[0.18em] uppercase">
+        <Button type="submit" disabled={respondendo || !texto.trim()} className="h-auto px-6 tracking-rotulo uppercase">
           Enviar
         </Button>
       </form>
@@ -98,7 +100,7 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
 function Item({ item, nomes, animar }: { item: ItemDaConversa; nomes: Record<AgenteId, string>; animar: boolean }) {
   switch (item.tipo) {
     case 'usuario':
-      return <p className="self-end bg-al-surface px-4 py-3">{item.texto}</p>
+      return <p className="self-end bg-al-surface px-4 py-2">{item.texto}</p>
     case 'ferramenta':
       return (
         <p className="flex items-center gap-2 text-sm text-al-muted">
@@ -203,13 +205,11 @@ function TextoFormatado({ texto }: { texto: string }) {
 }
 
 function CartaoDeAprovacao({ aprovacaoId }: { aprovacaoId: string }) {
-  const fonte = useFonte()
   const aprovacoes = useDados((f) => f.aprovacoes(), [])
   const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
   if (!aprovacao) return null
 
-  const rotuloDoEstado =
-    aprovacao.estado === 'pendente' ? 'Aprovação pendente' : aprovacao.estado === 'aprovada' ? 'Aprovada' : 'Rejeitada'
+  const rotuloDoEstado = aprovacao.estado === 'pendente' ? 'Aprovação pendente' : ROTULO_DA_DECISAO[aprovacao.estado]
 
   return (
     <article
@@ -220,18 +220,9 @@ function CartaoDeAprovacao({ aprovacaoId }: { aprovacaoId: string }) {
       <p className="text-lg font-normal">{aprovacao.acao}</p>
       <p className="text-sm text-al-muted">{aprovacao.impacto}</p>
       {aprovacao.origem !== 'althius' && (
-        <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]} #growth</p>
+        <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>
       )}
-      {aprovacao.estado === 'pendente' && (
-        <div className="flex gap-2">
-          <Button onClick={() => fonte.decidirAprovacao(aprovacao.id, 'aprovada')} className="px-6 tracking-[0.18em] uppercase">
-            Aprovar
-          </Button>
-          <Button variant="outline" onClick={() => fonte.decidirAprovacao(aprovacao.id, 'rejeitada')} className="px-6 tracking-[0.18em] uppercase">
-            Rejeitar
-          </Button>
-        </div>
-      )}
+      {aprovacao.estado === 'pendente' && <DecisaoDeAprovacao aprovacao={aprovacao} onde="althius" />}
     </article>
   )
 }

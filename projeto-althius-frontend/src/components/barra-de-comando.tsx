@@ -51,7 +51,7 @@ export function BarraDeComando({ aberta, aoMudar }: { aberta: boolean; aoMudar: 
             }}
             onKeyDown={(evento) => mencao.aoTeclar(evento)}
             placeholder="@Oraculum como estamos no Perplexity?"
-            className="w-full border border-al-line bg-transparent px-4 py-3 text-lg outline-none focus-visible:border-al-accent"
+            className="campo py-4 text-lg"
           />
           {mencao.aberta && (
             <ListaDeMencoes

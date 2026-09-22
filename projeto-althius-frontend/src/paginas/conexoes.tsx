@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Carregando } from '@/components/marca'
+import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
@@ -155,7 +156,7 @@ function DialogoDeConexao({
               if (conexao) await fonte.conectar(conexao.id)
               aoFechar()
             }}
-            className="px-6 tracking-[0.18em] uppercase"
+            className="px-6 tracking-rotulo uppercase"
           >
             Autorizar
           </Button>
@@ -189,8 +190,8 @@ function DialogoDePrevia({ canalId, aoFechar }: { canalId: CanalId | null; aoFec
                   {mensagem.ehAgente && <span className="rotulo ml-2">Agente Althius</span>}
                 </span>
                 <p className="whitespace-pre-line">{mensagem.texto}</p>
-                {mensagem.aprovacaoId && (
-                  <DecisaoNoCanal aprovacao={aprovacoes?.find((a) => a.id === mensagem.aprovacaoId)} />
+                {mensagem.aprovacaoId && canalId && (
+                  <DecisaoNoCanal aprovacao={aprovacoes?.find((a) => a.id === mensagem.aprovacaoId)} canalId={canalId} />
                 )}
               </li>
             ))}
@@ -201,20 +202,11 @@ function DialogoDePrevia({ canalId, aoFechar }: { canalId: CanalId | null; aoFec
   )
 }
 
-function DecisaoNoCanal({ aprovacao }: { aprovacao?: Aprovacao }) {
-  const fonte = useFonte()
+function DecisaoNoCanal({ aprovacao, canalId }: { aprovacao?: Aprovacao; canalId: CanalId }) {
   if (!aprovacao) return null
-  if (aprovacao.estado !== 'pendente') {
-    return <span className="rotulo">{aprovacao.estado === 'aprovada' ? 'Aprovada' : 'Rejeitada'}</span>
-  }
   return (
-    <div className="flex gap-2 pt-2">
-      <Button onClick={() => fonte.decidirAprovacao(aprovacao.id, 'aprovada')} className="px-4">
-        Aprovar
-      </Button>
-      <Button variant="outline" onClick={() => fonte.decidirAprovacao(aprovacao.id, 'rejeitada')} className="px-4">
-        Rejeitar
-      </Button>
+    <div className="pt-2">
+      <DecisaoDeAprovacao aprovacao={aprovacao} onde={canalId} />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import type { Agente, Fato } from '@/fonte/tipos'
 
 export function SecaoMemoria({ agente }: { agente: Agente }) {
   const fatos = useDados((fonte) => fonte.memoria(agente.id), [agente.id])
+  const workspace = useDados((fonte) => fonte.workspace(), [])
 
   return (
     <section aria-labelledby="titulo-memoria" className="flex max-w-3xl flex-col gap-6">
@@ -13,7 +14,7 @@ export function SecaoMemoria({ agente }: { agente: Agente }) {
         <h2 id="titulo-memoria" className="titulo-secao text-3xl">
           Memória
         </h2>
-        <p className="text-al-muted">O que {agente.nome} aprendeu sobre a Databricks e sobre você. Corrija o que estiver errado.</p>
+        <p className="text-al-muted">O que {agente.nome} aprendeu sobre a {workspace?.cliente} e sobre você. Corrija o que estiver errado.</p>
       </div>
       {!fatos ? (
         <Carregando />
@@ -50,7 +51,7 @@ function ItemDeFato({ fato }: { fato: Fato }) {
             value={texto}
             onChange={(evento) => setTexto(evento.target.value)}
             rows={2}
-            className="w-full border border-al-line bg-transparent px-4 py-2 outline-none focus-visible:border-al-accent"
+            className="campo"
           />
         ) : (
           <p>{fato.texto}</p>

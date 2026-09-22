@@ -48,7 +48,7 @@ export function Casca() {
           <Button variant="outline" onClick={() => setComandoAberto(true)} className="gap-2 px-4">
             <Command strokeWidth={1.8} aria-hidden />
             <span>Comando</span>
-            <kbd className="rotulo text-[0.625rem]">Ctrl K</kbd>
+            <kbd className="rotulo text-xs">Ctrl K</kbd>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -107,7 +107,7 @@ function ItemDeNavegacao({ para, fim, children }: { para: string; fim?: boolean;
         end={fim}
         className={({ isActive }) =>
           cn(
-            'flex items-center border-l-2 px-4 py-2 font-normal uppercase tracking-[0.18em] text-sm',
+            'flex items-center border-l-2 px-4 py-2 font-normal uppercase tracking-rotulo text-sm',
             isActive ? 'border-al-accent text-al-ink' : 'border-transparent text-al-muted hover:text-al-ink',
           )
         }

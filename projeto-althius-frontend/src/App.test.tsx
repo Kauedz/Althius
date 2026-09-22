@@ -167,8 +167,9 @@ describe('Personalização e Permissões', () => {
     const { usuario } = renderizarApp('/agentes/rhetor/configuracao')
     const metaAds = await screen.findByRole('radiogroup', { name: 'Permissão em Meta Ads' })
     expect(within(metaAds).getByRole('radio', { name: 'Propor' })).toBeChecked()
+    // O Notion recebe pautas: escreve, então também começa em Propor.
     const notion = screen.getByRole('radiogroup', { name: 'Permissão em Notion' })
-    expect(within(notion).getByRole('radio', { name: 'Ler' })).toBeChecked()
+    expect(within(notion).getByRole('radio', { name: 'Propor' })).toBeChecked()
     await usuario.click(within(metaAds).getByRole('radio', { name: 'Executar' }))
     await usuario.click(screen.getByRole('button', { name: 'Salvar personalização' }))
     expect(await screen.findByText('Personalização salva.')).toBeInTheDocument()
@@ -178,6 +179,12 @@ describe('Personalização e Permissões', () => {
     await usuario.click(within(subabas).getByRole('link', { name: 'Configuração' }))
     const denovo = await screen.findByRole('radiogroup', { name: 'Permissão em Meta Ads' })
     expect(within(denovo).getByRole('radio', { name: 'Executar' })).toBeChecked()
+  })
+
+  it('integração que só lê começa em Ler', async () => {
+    renderizarApp('/agentes/scopus/configuracao')
+    const clay = await screen.findByRole('radiogroup', { name: 'Permissão em Clay' })
+    expect(within(clay).getByRole('radio', { name: 'Ler' })).toBeChecked()
   })
 
   it('escolhe em quais Canais o Agente atende', async () => {
@@ -219,6 +226,34 @@ describe('Conexões e Aprovações', () => {
     const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
     await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
     expect(await screen.findByText(/Aprovada: Subir campanha no Meta Ads/)).toBeInTheDocument()
+  })
+
+  it('a Aprovação criada na Colaboração chega na thread do Slack', async () => {
+    const { usuario } = renderizarApp('/agentes/scopus/conversa')
+    await usuario.click(await screen.findByRole('button', { name: /abordagem completa/ }))
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await usuario.click(screen.getByRole('link', { name: 'Conexões' }))
+    const slack = await screen.findByRole('article', { name: 'Slack' })
+    await usuario.click(within(slack).getByRole('button', { name: 'Ver prévia' }))
+    const previa = await screen.findByRole('dialog', { name: /Prévia do Slack/ })
+    expect(await within(previa).findByText(/Criar sequência de 3 e-mails no HubSpot/)).toBeInTheDocument()
+  })
+
+  it('a decisão registra na Atividade o Canal onde foi tomada, com link', async () => {
+    const { usuario } = renderizarApp('/conexoes')
+    const slack = await screen.findByRole('article', { name: 'Slack' })
+    await usuario.click(within(slack).getByRole('button', { name: 'Ver prévia' }))
+    const previa = await screen.findByRole('dialog', { name: /Prévia do Slack/ })
+    await usuario.click(await within(previa).findByRole('button', { name: 'Aprovar' }))
+    await within(previa).findByText('Aprovada')
+    await usuario.keyboard('{Escape}')
+    await usuario.click(screen.getByRole('link', { name: 'Agentes' }))
+    await usuario.click(await screen.findByRole('link', { name: /Scopus/ }))
+    const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
+    await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
+    const item = (await screen.findByText(/Aprovada: Atualizar 14 Contas-alvo/)).closest('li')!
+    expect(within(item).getByText('Canal')).toBeInTheDocument()
+    expect(within(item).getByRole('link', { name: 'Ver Aprovações' })).toBeInTheDocument()
   })
 
   it('rejeita uma proposta pela prévia do Slack', async () => {

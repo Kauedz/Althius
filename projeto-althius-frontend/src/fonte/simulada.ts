@@ -1,6 +1,7 @@
 // Implementação simulada da fonte de dados dos Agentes. O estado vive em memória:
 // as mudanças valem até recarregar a página.
 import * as demo from './dados-demo'
+import { ROTULO_DA_DECISAO } from './regras'
 import { respostaDeMencao, respostaGenerica, roteiros, type PassoDeRoteiro } from './roteiros'
 import type {
   AgenteId,
@@ -28,6 +29,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     integracoes: demo.integracoes,
     personalizacoes: demo.personalizacoes,
     aprovacoes: demo.aprovacoes,
+    previas: demo.previas,
   })
   const ouvintes = new Set<() => void>()
   let proximoId = 1
@@ -152,21 +154,22 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       }),
     previaDeCanal: (canalId) =>
       responder(() => {
-        const previa = demo.previas.find((p) => p.canalId === canalId)
+        const previa = estado.previas.find((p) => p.canalId === canalId)
         if (!previa) throw new Error(`Sem prévia para o canal: ${canalId}`)
         return previa
       }),
 
     aprovacoes: () => responder(() => estado.aprovacoes),
-    decidirAprovacao: (aprovacaoId, decisao) =>
+    decidirAprovacao: (aprovacaoId, decisao, onde) =>
       mudar(() => {
         const aprovacao = buscar(estado.aprovacoes, aprovacaoId)
         aprovacao.estado = decisao
         registrarAtividade({
           agenteId: aprovacao.agenteId,
-          gatilho: aprovacao.origem === 'althius' ? 'conversa' : 'canal',
-          descricao: `${decisao === 'aprovada' ? 'Aprovada' : 'Rejeitada'}: ${aprovacao.acao}`,
+          gatilho: onde === 'althius' ? 'conversa' : 'canal',
+          descricao: `${ROTULO_DA_DECISAO[decisao]}: ${aprovacao.acao}`,
           resultado: decisao === 'aprovada' ? 'Ação executada.' : 'Nada foi alterado.',
+          link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
         })
       }),
 
@@ -177,6 +180,18 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         if (passo.tipo === 'aprovacao') {
           const aprovacaoId = novoId('aprovacao')
           estado.aprovacoes.unshift({ ...passo.aprovacao, id: aprovacaoId, agenteId: passo.agenteId, estado: 'pendente' })
+          // A Aprovação também chega no Canal de origem, com os botões de decisão.
+          const origem = passo.aprovacao.origem
+          if (origem !== 'althius') {
+            estado.previas
+              .find((p) => p.canalId === origem)
+              ?.mensagens.push({
+                autor: nomeDe(passo.agenteId),
+                ehAgente: true,
+                texto: `Preparei uma proposta: ${passo.aprovacao.acao}. Posso seguir?`,
+                aprovacaoId,
+              })
+          }
           avisar()
           yield { tipo: 'aprovacao', agenteId: passo.agenteId, aprovacaoId }
         } else {

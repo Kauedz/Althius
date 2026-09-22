@@ -11,6 +11,8 @@ export interface Agente {
   descricao: string
   entrega: string
   estado: EstadoAgente
+  /** Ferramentas próprias do Agente, sem Integração (ex.: busca nos LLMs do Oraculum). */
+  ferramentasNativas: string[]
   tarefasFeitas: number
   horasEconomizadas: number
   sugestoes: Sugestao[]
@@ -68,7 +70,8 @@ export interface ItemDeAtividade {
   quando: string
   descricao: string
   resultado: string
-  link?: string
+  /** Onde ver o resultado dentro da Althius. */
+  link?: { rotulo: string; para: string }
 }
 
 export type CanalId = 'slack' | 'whatsapp' | 'teams' | 'email'
@@ -117,6 +120,9 @@ export interface FonteDeConhecimento {
 }
 
 export type EstadoAprovacao = 'pendente' | 'aprovada' | 'rejeitada'
+export type Decisao = Exclude<EstadoAprovacao, 'pendente'>
+/** Onde uma Aprovação foi pedida ou decidida. */
+export type Origem = 'althius' | CanalId
 
 export interface Aprovacao {
   id: string
@@ -125,7 +131,7 @@ export interface Aprovacao {
   integracaoId: IntegracaoId
   impacto: string
   justificativa: string
-  origem: 'althius' | CanalId
+  origem: Origem
   estado: EstadoAprovacao
 }
 
@@ -196,7 +202,7 @@ export interface FonteDeAgentes {
   previaDeCanal(canalId: CanalId): Promise<PreviaDeCanal>
 
   aprovacoes(): Promise<Aprovacao[]>
-  decidirAprovacao(aprovacaoId: string, decisao: 'aprovada' | 'rejeitada'): Promise<void>
+  decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: Origem): Promise<void>
 
   /** Envia uma mensagem ou sugestão e recebe a resposta passo a passo. */
   conversar(id: AgenteId, mensagem: { texto: string; sugestaoId?: string }): AsyncIterable<PassoDaConversa>

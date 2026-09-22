@@ -21,7 +21,7 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
           <p className="text-al-muted">Tarefas que {agente.nome} executa sozinho, no horário combinado.</p>
         </div>
         {!criando && (
-          <Button onClick={() => setCriando(true)} className="px-6 tracking-[0.18em] uppercase">
+          <Button onClick={() => setCriando(true)} className="px-6 tracking-rotulo uppercase">
             Nova rotina
           </Button>
         )}
@@ -96,8 +96,6 @@ function ItemDeRotina({ rotina, aoEditar }: { rotina: Rotina; aoEditar: () => vo
   )
 }
 
-const CLASSE_DE_CAMPO = 'w-full border border-al-line bg-al-bg px-4 py-2 outline-none focus-visible:border-al-accent'
-
 function FormularioDeRotina({
   titulo,
   rotuloDoBotao,
@@ -134,11 +132,11 @@ function FormularioDeRotina({
     <form aria-label={titulo} onSubmit={enviar} className="cartao grid grid-cols-2 gap-4 p-6">
       <label className="col-span-2 flex flex-col gap-2">
         <span className="rotulo">Tarefa</span>
-        <input required value={tarefa} onChange={(e) => setTarefa(e.target.value)} className={CLASSE_DE_CAMPO} />
+        <input required value={tarefa} onChange={(e) => setTarefa(e.target.value)} className="campo" />
       </label>
       <label className="flex flex-col gap-2">
         <span className="rotulo">Frequência</span>
-        <select value={frequencia} onChange={(e) => setFrequencia(e.target.value as Frequencia)} className={CLASSE_DE_CAMPO}>
+        <select value={frequencia} onChange={(e) => setFrequencia(e.target.value as Frequencia)} className="campo">
           {Object.entries(ROTULO_DA_FREQUENCIA).map(([valor, rotulo]) => (
             <option key={valor} value={valor}>
               {rotulo}
@@ -149,7 +147,7 @@ function FormularioDeRotina({
       {frequencia === 'semanal' && (
         <label className="flex flex-col gap-2">
           <span className="rotulo">Dia da semana</span>
-          <select value={diaDaSemana} onChange={(e) => setDiaDaSemana(e.target.value)} className={CLASSE_DE_CAMPO}>
+          <select value={diaDaSemana} onChange={(e) => setDiaDaSemana(e.target.value)} className="campo">
             {DIAS_DA_SEMANA.map((dia) => (
               <option key={dia} value={dia}>
                 {dia}
@@ -160,11 +158,11 @@ function FormularioDeRotina({
       )}
       <label className="flex flex-col gap-2">
         <span className="rotulo">Horário</span>
-        <input type="time" required value={horario} onChange={(e) => setHorario(e.target.value)} className={CLASSE_DE_CAMPO} />
+        <input type="time" required value={horario} onChange={(e) => setHorario(e.target.value)} className="campo" />
       </label>
       <label className="flex flex-col gap-2">
         <span className="rotulo">Canal de destino</span>
-        <select value={canalDestino} onChange={(e) => setCanalDestino(e.target.value as CanalId | '')} className={CLASSE_DE_CAMPO}>
+        <select value={canalDestino} onChange={(e) => setCanalDestino(e.target.value as CanalId | '')} className="campo">
           <option value="">Nenhum</option>
           {canais.map((canal) => (
             <option key={canal.id} value={canal.id} disabled={!canal.conectado}>
@@ -175,7 +173,7 @@ function FormularioDeRotina({
         </select>
       </label>
       <div className="col-span-2 flex gap-2">
-        <Button type="submit" className="px-6 tracking-[0.18em] uppercase">
+        <Button type="submit" className="px-6 tracking-rotulo uppercase">
           {rotuloDoBotao}
         </Button>
         <Button type="button" variant="ghost" onClick={aoCancelar}>

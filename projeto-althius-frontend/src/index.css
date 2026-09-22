@@ -68,6 +68,7 @@
   --font-sans: "Oswald", "Arial Narrow", sans-serif;
   --font-heading: "Oswald", "Arial Narrow", sans-serif;
   --font-mao: "Indie Flower", "Segoe Script", cursive;
+  --tracking-rotulo: 0.18em;
 
   --color-al-bg: var(--al-bg);
   --color-al-surface: var(--al-surface);
@@ -143,6 +144,13 @@
     font-weight: 300;
     line-height: 1.1;
     text-transform: uppercase;
+  }
+  /* Campo de formulário: raio 0, linha do token; o foco usa o anel global. */
+  .campo {
+    width: 100%;
+    border: 1px solid var(--al-line);
+    background: var(--al-bg);
+    padding: 0.5rem 1rem;
   }
   .cartao {
     background: var(--al-surface);

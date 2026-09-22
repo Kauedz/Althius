@@ -17,6 +17,7 @@ import type {
   Rotina,
   Workspace,
 } from './tipos'
+import { permissaoPadrao } from './regras'
 
 export const HOJE = { data: '22/09/2026', diaDaSemana: 'terça' }
 
@@ -29,10 +30,11 @@ export const workspace: Workspace = {
 export const agentes: Agente[] = [
   {
     id: 'scopus',
+    ferramentasNativas: [],
     nome: 'Scopus',
     especialidade: 'Especialista em ICP',
     descricao: 'Define o ICP a partir dos seus melhores clientes e dá nota de aderência a cada Conta-alvo.',
-    entrega: 'ICP e aderência de contas',
+    entrega: 'ICP e aderência de Contas-alvo',
     estado: 'detectou',
     tarefasFeitas: 312,
     horasEconomizadas: 41,
@@ -44,6 +46,7 @@ export const agentes: Agente[] = [
   },
   {
     id: 'ethos',
+    ferramentasNativas: [],
     nome: 'Ethos',
     especialidade: 'Especialista em Persona',
     descricao: 'Descreve dores, objeções e gatilhos de cada papel do Comitê de compra.',
@@ -58,6 +61,7 @@ export const agentes: Agente[] = [
   },
   {
     id: 'rhetor',
+    ferramentasNativas: [],
     nome: 'Rhetor',
     especialidade: 'Especialista em escrita persuasiva',
     descricao: 'Escreve e-mails, sequências, posts e copy no tom da marca, para cada persona.',
@@ -72,6 +76,7 @@ export const agentes: Agente[] = [
   },
   {
     id: 'oraculum',
+    ferramentasNativas: ['Busca no ChatGPT, Perplexity, Gemini e Claude'],
     nome: 'Oraculum',
     especialidade: 'Especialista em GEO',
     descricao: 'Mede como a marca aparece no ChatGPT, Perplexity, Gemini e Claude e recomenda o que publicar para ser citada.',
@@ -88,8 +93,8 @@ export const agentes: Agente[] = [
 
 export const fatos: Fato[] = [
   { id: 'f1', agenteId: 'scopus', texto: 'O ciclo de venda enterprise da Databricks leva em média 6 meses.', origem: 'Aprendido na Conversa de 12/09/2026' },
-  { id: 'f2', agenteId: 'scopus', texto: 'Contas com mais de 2.000 funcionários e time de dados próprio convertem 3 vezes mais.', origem: 'Aprendido no HubSpot em 03/09/2026' },
-  { id: 'f3', agenteId: 'scopus', texto: 'Marina prefere a lista de contas ordenada por aderência, não por receita.', origem: 'Aprendido na Conversa de 29/08/2026' },
+  { id: 'f2', agenteId: 'scopus', texto: 'Contas-alvo com mais de 2.000 funcionários e time de dados próprio convertem 3 vezes mais.', origem: 'Aprendido no HubSpot em 03/09/2026' },
+  { id: 'f3', agenteId: 'scopus', texto: 'Marina prefere a lista de Contas-alvo ordenada por aderência, não por receita.', origem: 'Aprendido na Conversa de 29/08/2026' },
   { id: 'f4', agenteId: 'ethos', texto: 'O Comitê de compra típico tem CDO, VP de Engenharia e alguém de Procurement.', origem: 'Aprendido na Conversa de 10/09/2026' },
   { id: 'f5', agenteId: 'ethos', texto: 'A objeção mais comum de CFOs é o custo de computação imprevisível.', origem: 'Aprendido no Notion em 05/09/2026' },
   { id: 'f6', agenteId: 'rhetor', texto: 'E-mails com até 90 palavras têm a maior taxa de resposta da equipe.', origem: 'Aprendido no HubSpot em 15/09/2026' },
@@ -100,7 +105,7 @@ export const fatos: Fato[] = [
 
 export const habilidades: Habilidade[] = [
   { id: 'h1', agenteId: 'scopus', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 148, ultimaMelhoria: '18/09/2026', ativa: true },
-  { id: 'h2', agenteId: 'scopus', nome: 'Encontrar contas parecidas', descricao: 'Parte dos melhores clientes e procura contas com o mesmo perfil.', usos: 37, ultimaMelhoria: '09/09/2026', ativa: true },
+  { id: 'h2', agenteId: 'scopus', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 37, ultimaMelhoria: '09/09/2026', ativa: true },
   { id: 'h3', agenteId: 'ethos', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 64, ultimaMelhoria: '14/09/2026', ativa: true },
   { id: 'h4', agenteId: 'ethos', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 29, ultimaMelhoria: '02/09/2026', ativa: false },
   { id: 'h5', agenteId: 'rhetor', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 121, ultimaMelhoria: '19/09/2026', ativa: true },
@@ -111,19 +116,19 @@ export const habilidades: Habilidade[] = [
 
 export const rotinas: Rotina[] = [
   { id: 'r1', agenteId: 'oraculum', tarefa: 'Auditar a presença da Databricks nos LLMs e postar o resumo', frequencia: 'semanal', diaDaSemana: 'segunda', horario: '09:00', canalDestino: 'slack', pausada: false },
-  { id: 'r2', agenteId: 'scopus', tarefa: 'Reavaliar a aderência das 50 contas prioritárias', frequencia: 'semanal', diaDaSemana: 'terça', horario: '08:00', canalDestino: 'email', pausada: false },
+  { id: 'r2', agenteId: 'scopus', tarefa: 'Reavaliar a aderência das 50 Contas-alvo prioritárias', frequencia: 'semanal', diaDaSemana: 'terça', horario: '08:00', canalDestino: 'email', pausada: false },
   { id: 'r3', agenteId: 'rhetor', tarefa: 'Sugerir respostas para os e-mails recebidos ontem', frequencia: 'diaria', horario: '07:30', canalDestino: 'slack', pausada: false },
   { id: 'r4', agenteId: 'ethos', tarefa: 'Atualizar as personas com as calls gravadas do mês', frequencia: 'mensal', horario: '10:00', canalDestino: null, pausada: true },
 ]
 
 export const atividade: ItemDeAtividade[] = [
-  { id: 'a1', agenteId: 'scopus', gatilho: 'rotina', quando: 'Hoje, 08:00', descricao: 'Reavaliou a aderência das 50 contas prioritárias', resultado: '14 contas mudaram de nota; a Anthropic subiu para 91.' },
+  { id: 'a1', agenteId: 'scopus', gatilho: 'rotina', quando: 'Hoje, 08:00', descricao: 'Reavaliou a aderência das 50 Contas-alvo prioritárias', resultado: '14 Contas-alvo mudaram de nota; a Anthropic subiu para 91.' },
   { id: 'a2', agenteId: 'rhetor', gatilho: 'rotina', quando: 'Hoje, 07:30', descricao: 'Sugeriu respostas para os e-mails de ontem', resultado: '6 rascunhos prontos no HubSpot.' },
-  { id: 'a3', agenteId: 'scopus', gatilho: 'canal', quando: 'Ontem, 17:42', descricao: 'Respondeu a uma Menção no Slack #growth', resultado: 'Propôs atualizar 14 contas no HubSpot.' },
+  { id: 'a3', agenteId: 'scopus', gatilho: 'canal', quando: 'Ontem, 17:42', descricao: 'Respondeu a uma Menção no Slack #growth', resultado: 'Propôs atualizar 14 Contas-alvo no HubSpot.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
   { id: 'a4', agenteId: 'oraculum', gatilho: 'rotina', quando: 'Segunda, 09:00', descricao: 'Auditou 12 prompts-alvo em 4 LLMs', resultado: 'Citada em 29 de 48 respostas; a Snowflake apareceu em 33.' },
   { id: 'a5', agenteId: 'oraculum', gatilho: 'conversa', quando: 'Segunda, 11:15', descricao: 'Recomendou conteúdo sobre lakehouse', resultado: '3 pautas enviadas para o Notion.' },
   { id: 'a6', agenteId: 'ethos', gatilho: 'mencao', quando: 'Sexta, 15:03', descricao: 'Foi mencionado pelo Scopus numa Conversa sobre a Stripe', resultado: '4 personas descritas.' },
-  { id: 'a7', agenteId: 'rhetor', gatilho: 'conversa', quando: 'Sexta, 10:20', descricao: 'Escreveu uma campanha para Meta Ads', resultado: 'Propôs subir a campanha; aguarda Aprovação.' },
+  { id: 'a7', agenteId: 'rhetor', gatilho: 'conversa', quando: 'Sexta, 10:20', descricao: 'Escreveu uma campanha para Meta Ads', resultado: 'Propôs subir a campanha; aguarda Aprovação.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
 ]
 
 export const canais: Canal[] = [
@@ -138,7 +143,7 @@ export const integracoes: Integracao[] = [
   { id: 'clay', nome: 'Clay', categoria: 'Enriquecimento', descricao: 'Dados firmográficos e de tecnologia.', conectada: true, escreve: false },
   { id: 'apollo', nome: 'Apollo', categoria: 'Enriquecimento', descricao: 'Contatos e sinais de compra.', conectada: true, escreve: false },
   { id: 'lusha', nome: 'Lusha', categoria: 'Enriquecimento', descricao: 'Cargos e contatos do Comitê de compra.', conectada: false, escreve: false },
-  { id: 'notion', nome: 'Notion', categoria: 'Conhecimento', descricao: 'Páginas usadas como base de conhecimento.', conectada: true, escreve: false },
+  { id: 'notion', nome: 'Notion', categoria: 'Conhecimento', descricao: 'Páginas usadas como base de conhecimento e pautas.', conectada: true, escreve: true },
   { id: 'meta-ads', nome: 'Meta Ads', categoria: 'Mídia paga', descricao: 'Campanhas no Facebook e no Instagram.', conectada: true, escreve: true },
   { id: 'google-ads', nome: 'Google Ads', categoria: 'Mídia paga', descricao: 'Campanhas de busca e display.', conectada: false, escreve: true },
 ]
@@ -157,19 +162,19 @@ const MAPEAMENTO_PADRAO: Record<AgenteId, IntegracaoId[]> = {
   oraculum: ['notion', 'google-ads'],
 }
 
-/** ADR 0002: Ler por padrão; Propor em qualquer Integração que escreve ou gasta. */
 function permissoesPadrao(id: AgenteId): Partial<Record<IntegracaoId, Permissao>> {
   return Object.fromEntries(
     MAPEAMENTO_PADRAO[id].map((integracaoId) => {
-      const escreve = integracoes.find((i) => i.id === integracaoId)?.escreve
-      return [integracaoId, escreve ? 'propor' : 'ler']
+      const integracao = integracoes.find((i) => i.id === integracaoId)
+      if (!integracao) throw new Error(`Integração desconhecida: ${integracaoId}`)
+      return [integracaoId, permissaoPadrao(integracao)]
     }),
   )
 }
 
 export const personalizacoes: Record<AgenteId, Personalizacao> = {
   scopus: {
-    instrucoes: 'Priorize contas com time de dados próprio e mais de 2.000 funcionários.',
+    instrucoes: 'Priorize Contas-alvo com time de dados próprio e mais de 2.000 funcionários.',
     tomDeVoz: 'Analítico e objetivo.',
     baseDeConhecimento: [
       { id: 'k1', tipo: 'documento', nome: 'Clientes fechados 2025-2026.csv' },
@@ -218,10 +223,10 @@ export const aprovacoes: Aprovacao[] = [
   {
     id: 'ap2',
     agenteId: 'scopus',
-    acao: 'Atualizar 14 contas no HubSpot com a nova aderência ao ICP',
+    acao: 'Atualizar 14 Contas-alvo no HubSpot com a nova aderência ao ICP',
     integracaoId: 'hubspot',
     impacto: '14 registros alterados',
-    justificativa: 'A reavaliação desta manhã mudou a nota de 14 contas prioritárias.',
+    justificativa: 'A reavaliação desta manhã mudou a nota de 14 Contas-alvo prioritárias.',
     origem: 'slack',
     estado: 'pendente',
   },
@@ -232,8 +237,8 @@ export const previas: PreviaDeCanal[] = [
     canalId: 'slack',
     titulo: '#growth',
     mensagens: [
-      { autor: 'Marina Alves', ehAgente: false, texto: '@Scopus atualiza a aderência das contas prioritárias?' },
-      { autor: 'Scopus', ehAgente: true, texto: 'Recalculei as 50 contas. 14 mudaram de nota; a Anthropic subiu para 91. Posso atualizar no HubSpot?', aprovacaoId: 'ap2' },
+      { autor: 'Marina Alves', ehAgente: false, texto: '@Scopus atualiza a aderência das Contas-alvo prioritárias?' },
+      { autor: 'Scopus', ehAgente: true, texto: 'Recalculei as 50 Contas-alvo. 14 mudaram de nota; a Anthropic subiu para 91. Posso atualizar no HubSpot?', aprovacaoId: 'ap2' },
     ],
   },
   {

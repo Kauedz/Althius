@@ -15,7 +15,7 @@ export const roteiros: Record<string, PassoDeRoteiro[]> = {
       tipo: 'texto',
       agenteId: 'scopus',
       texto:
-        'Aderência ao ICP: 87 de 100.\n\nO que pesa a favor:\n- Time de dados e de infraestrutura com mais de 400 pessoas\n- Volume de dados de treino e avaliação que cresce a cada modelo\n- Já usa Spark em parte dos pipelines\n\nO que pesa contra:\n- Infraestrutura própria madura, o que alonga o ciclo de venda\n\nSugiro tratar como conta prioritária e começar pelo time de avaliação de modelos.',
+        'Aderência ao ICP: 87 de 100.\n\nO que pesa a favor:\n- Time de dados e de infraestrutura com mais de 400 pessoas\n- Volume de dados de treino e avaliação que cresce a cada modelo\n- Já usa Spark em parte dos pipelines\n\nO que pesa contra:\n- Infraestrutura própria madura, o que alonga o ciclo de venda\n\nSugiro tratar como Conta-alvo prioritária e começar pelo time de avaliação de modelos.',
     },
   ],
   'scopus-revisar-icp': [
@@ -25,11 +25,11 @@ export const roteiros: Record<string, PassoDeRoteiro[]> = {
       tipo: 'texto',
       agenteId: 'scopus',
       texto:
-        'Revisei o ICP com os 38 clientes que fecharam em 2026.\n\nMudanças propostas:\n- Tamanho mínimo sobe de 1.000 para 2.000 funcionários\n- Entra um critério novo: time de dados próprio com 20 pessoas ou mais\n- Setores com maior conversão: tecnologia, serviços financeiros e saúde\n\nCom o ICP novo, 212 contas da base deixam de ser prioritárias e 64 entram.',
+        'Revisei o ICP com os 38 clientes que fecharam em 2026.\n\nMudanças propostas:\n- Tamanho mínimo sobe de 1.000 para 2.000 funcionários\n- Entra um critério novo: time de dados próprio com 20 pessoas ou mais\n- Setores com maior conversão: tecnologia, serviços financeiros e saúde\n\nCom o ICP novo, 212 Contas-alvo da base deixam de ser prioritárias e 64 entram.',
     },
   ],
   'colaboracao-openai': [
-    { tipo: 'ferramenta', agenteId: 'scopus', descricao: 'Consultando HubSpot: histórico da conta OpenAI' },
+    { tipo: 'ferramenta', agenteId: 'scopus', descricao: 'Consultando HubSpot: histórico da OpenAI' },
     { tipo: 'ferramenta', agenteId: 'scopus', descricao: 'Buscando no Apollo: sinais públicos da OpenAI' },
     { tipo: 'texto', agenteId: 'scopus', texto: 'A OpenAI tem aderência de 87 ao ICP. O sinal mais forte: três vagas abertas para engenharia de dados de avaliação.' },
     { tipo: 'repasse', de: 'scopus', para: 'ethos', resumo: 'Aderência 87 · foco em dados de avaliação de modelos' },
@@ -67,7 +67,7 @@ export const roteiros: Record<string, PassoDeRoteiro[]> = {
       tipo: 'texto',
       agenteId: 'ethos',
       texto:
-        'Personas do Comitê de compra da Stripe:\n\n- Head de Infraestrutura de Dados (decide). Dor: pipelines de risco e fraude duplicados. Gatilho: novo produto que exige dados em tempo real.\n- VP de Engenharia (influencia). Dor: plataforma interna difícil de manter. Objeção: "migrar vai parar o time por meses".\n- CFO (aprova acima de US$ 500 mil por ano). Dor: custo de computação imprevisível. Onde se informa: relatórios de analistas e colegas de outras fintechs.',
+        'Personas do Comitê de compra da Stripe:\n\nHead de Infraestrutura de Dados (decide)\n- Dor: pipelines de risco e fraude duplicados\n- Objeção: "já temos um time de plataforma"\n- Gatilho: novo produto que exige dados em tempo real\n- Onde se informa: blogs de engenharia e conferências de dados\n\nVP de Engenharia (influencia)\n- Dor: plataforma interna difícil de manter\n- Objeção: "migrar vai parar o time por meses"\n- Gatilho: saída de engenheiros-chave da plataforma\n- Onde se informa: colegas de outras fintechs e comunidades técnicas\n\nCFO (aprova acima de US$ 500 mil por ano)\n- Dor: custo de computação imprevisível\n- Objeção: "já pagamos por um data warehouse"\n- Gatilho: revisão de orçamento anual\n- Onde se informa: relatórios de analistas e colegas de outras fintechs',
     },
   ],
   'ethos-objecoes-cfo': [
@@ -136,6 +136,13 @@ export function respostaGenerica(agenteId: AgenteId, nome: string): PassoDeRotei
   ]
 }
 
+const COMPLEMENTO_DA_MENCAO: Record<AgenteId, string> = {
+  scopus: 'Do lado do ICP: a Conta-alvo desta Conversa tem aderência alta; vale priorizar.',
+  ethos: 'Do lado do Comitê de compra: quem decide aqui costuma ser a Head de Infraestrutura de Dados, e a objeção mais provável é o tempo de migração.',
+  rhetor: 'Do lado da escrita: sugiro abrir com um dado do próprio cliente e fechar com um único pedido de 20 minutos.',
+  oraculum: 'Do lado da presença em IA: a Databricks aparece em 29 de 48 respostas dos LLMs; um comparativo recente ajudaria.',
+}
+
 /** Quando outro Agente é mencionado com @ numa Conversa. */
 export function respostaDeMencao(de: AgenteId, para: AgenteId, nomePara: string): PassoDeRoteiro[] {
   return [
@@ -143,7 +150,7 @@ export function respostaDeMencao(de: AgenteId, para: AgenteId, nomePara: string)
     {
       tipo: 'texto',
       agenteId: para,
-      texto: `${nomePara} entrou na Conversa. Li o contexto e posso complementar a partir daqui.`,
+      texto: `${nomePara} entrou na Conversa.\n\n${COMPLEMENTO_DA_MENCAO[para]}`,
     },
   ]
 }

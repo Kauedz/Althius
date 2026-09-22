@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Carregando, IconeAgente } from '@/components/marca'
-import { Button } from '@/components/ui/button'
-import { useDados, useFonte } from '@/fonte/contexto'
+import { DecisaoDeAprovacao } from '@/components/decisao'
+import { useDados } from '@/fonte/contexto'
 import type { Aprovacao } from '@/fonte/tipos'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
@@ -57,7 +57,6 @@ function CartaoDeAprovacao({
   nomeDoAgente?: string
   nomeDaIntegracao?: string
 }) {
-  const fonte = useFonte()
   return (
     <article aria-label={aprovacao.acao} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center gap-4">
@@ -77,20 +76,7 @@ function CartaoDeAprovacao({
         <dt className="rotulo">Por quê</dt>
         <dd className="text-al-muted">{aprovacao.justificativa}</dd>
       </dl>
-      {aprovacao.estado === 'pendente' ? (
-        <div className="flex gap-2">
-          <Button onClick={() => fonte.decidirAprovacao(aprovacao.id, 'aprovada')} className="px-6 tracking-[0.18em] uppercase">
-            Aprovar
-          </Button>
-          <Button variant="outline" onClick={() => fonte.decidirAprovacao(aprovacao.id, 'rejeitada')} className="px-6 tracking-[0.18em] uppercase">
-            Rejeitar
-          </Button>
-        </div>
-      ) : (
-        <span className={aprovacao.estado === 'aprovada' ? 'rotulo text-al-sucesso' : 'rotulo text-al-erro'}>
-          {aprovacao.estado === 'aprovada' ? 'Aprovada' : 'Rejeitada'}
-        </span>
-      )}
+      <DecisaoDeAprovacao aprovacao={aprovacao} onde="althius" />
     </article>
   )
 }

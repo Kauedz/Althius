@@ -6,13 +6,14 @@ import { descreverFrequencia, ROTULO_DO_GATILHO } from '@/paginas/rotulos'
 export function PaginaInicial() {
   const painel = useDados((fonte) => fonte.painel(), [])
   const agentes = useDados((fonte) => fonte.agentes(), [])
+  const workspace = useDados((fonte) => fonte.workspace(), [])
 
   return (
     <div className="flex flex-col gap-16">
       <div className="flex flex-col gap-2">
         <h1 className="titulo-display text-7xl">Agentes</h1>
         <p className="max-w-2xl text-lg text-al-muted">
-          Quatro especialistas trabalhando o go-to-market da Databricks, inclusive quando ninguém está olhando.
+          Quatro especialistas trabalhando o go-to-market da {workspace?.cliente}, inclusive quando ninguém está olhando.
         </p>
       </div>
 

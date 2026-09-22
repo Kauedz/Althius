@@ -4,10 +4,9 @@ import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
+import { permissaoPadrao } from '@/fonte/regras'
 import type { Agente, FonteDeConhecimento, Integracao, IntegracaoId, Permissao, Personalizacao } from '@/fonte/tipos'
 import { ROTULO_DA_PERMISSAO } from '@/paginas/rotulos'
-
-const CLASSE_DE_CAMPO = 'w-full border border-al-line bg-transparent px-4 py-2 outline-none focus-visible:border-al-accent'
 
 const DESCRICAO_DA_PERMISSAO: Record<Permissao, string> = {
   ler: 'Só consulta dados.',
@@ -18,6 +17,7 @@ const DESCRICAO_DA_PERMISSAO: Record<Permissao, string> = {
 export function SecaoConfiguracao({ agente }: { agente: Agente }) {
   const salva = useDados((fonte) => fonte.personalizacao(agente.id), [agente.id])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
+  const workspace = useDados((fonte) => fonte.workspace(), [])
 
   return (
     <section aria-labelledby="titulo-configuracao" className="flex max-w-3xl flex-col gap-10">
@@ -26,7 +26,7 @@ export function SecaoConfiguracao({ agente }: { agente: Agente }) {
           Configuração
         </h2>
         <p className="text-al-muted">
-          Personalize {agente.nome} para a Databricks. O comportamento base do agente continua o mesmo.
+          Personalize {agente.nome} para a {workspace?.cliente}. O comportamento base do agente continua o mesmo.
         </p>
       </div>
       {!salva || !integracoes ? (
@@ -72,8 +72,8 @@ function FormularioDePersonalizacao({
           rows={3}
           value={rascunho.instrucoes}
           onChange={(e) => alterar({ instrucoes: e.target.value })}
-          placeholder="Ex.: priorize contas com time de dados próprio."
-          className={CLASSE_DE_CAMPO}
+          placeholder="Ex.: priorize Contas-alvo com time de dados próprio."
+          className="campo"
         />
       </Bloco>
 
@@ -83,7 +83,7 @@ function FormularioDePersonalizacao({
           rows={2}
           value={rascunho.tomDeVoz}
           onChange={(e) => alterar({ tomDeVoz: e.target.value })}
-          className={CLASSE_DE_CAMPO}
+          className="campo"
         />
       </Bloco>
 
@@ -113,7 +113,7 @@ function FormularioDePersonalizacao({
                     <label
                       key={permissao}
                       title={DESCRICAO_DA_PERMISSAO[permissao]}
-                      className="cursor-pointer border border-al-line px-4 py-2 text-sm has-[:checked]:border-al-ink has-[:checked]:bg-al-ink has-[:checked]:text-al-bg has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-al-accent"
+                      className="cursor-pointer border border-al-line px-4 py-2 text-sm has-[:checked]:border-al-ink has-[:checked]:bg-al-ink has-[:checked]:text-al-bg has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-3 has-[:focus-visible]:outline-al-accent"
                     >
                       <input
                         type="radio"
@@ -142,12 +142,12 @@ function FormularioDePersonalizacao({
               </li>
             )
           })}
-          {agente.id === 'oraculum' && (
-            <li className="flex items-center gap-6 border-b border-al-line py-4">
-              <span className="flex-1 font-normal">Busca no ChatGPT, Perplexity, Gemini e Claude</span>
+          {agente.ferramentasNativas.map((ferramenta) => (
+            <li key={ferramenta} className="flex items-center gap-6 border-b border-al-line py-4">
+              <span className="flex-1 font-normal">{ferramenta}</span>
               <span className="rotulo">Ferramenta nativa · Ler</span>
             </li>
-          )}
+          ))}
         </ul>
         {disponiveis.length > 0 && (
           <label className="flex items-center gap-4">
@@ -155,11 +155,10 @@ function FormularioDePersonalizacao({
             <select
               value=""
               onChange={(e) => {
-                const id = e.target.value as IntegracaoId
-                const escreve = integracoes.find((i) => i.id === id)?.escreve
-                alterar({ permissoes: { ...rascunho.permissoes, [id]: escreve ? 'propor' : 'ler' } })
+                const integracao = integracoes.find((i) => i.id === e.target.value)
+                if (integracao) alterar({ permissoes: { ...rascunho.permissoes, [integracao.id]: permissaoPadrao(integracao) } })
               }}
-              className="border border-al-line bg-al-bg px-4 py-2"
+              className="campo w-auto"
             >
               <option value="">Escolha uma integração</option>
               {disponiveis.map((i) => (
@@ -174,7 +173,7 @@ function FormularioDePersonalizacao({
       </fieldset>
 
       <div className="flex items-center gap-6">
-        <Button type="submit" className="h-auto px-6 py-3 tracking-[0.18em] uppercase">
+        <Button type="submit" className="h-auto px-6 py-4 tracking-rotulo uppercase">
           Salvar personalização
         </Button>
         <p role="status" className="text-al-sucesso">
@@ -243,7 +242,7 @@ function BaseDeConhecimento({
           aria-label="Tipo de fonte"
           value={tipo}
           onChange={(e) => setTipo(e.target.value as FonteDeConhecimento['tipo'])}
-          className="border border-al-line bg-al-bg px-4 py-2"
+          className="campo w-auto"
         >
           {Object.entries(ROTULO_DO_TIPO).map(([valor, rotulo]) => (
             <option key={valor} value={valor}>
@@ -262,7 +261,7 @@ function BaseDeConhecimento({
             }
           }}
           placeholder="databricks.com/blog"
-          className={CLASSE_DE_CAMPO}
+          className="campo"
         />
         <Button type="button" variant="outline" onClick={adicionar} className="px-4">
           Adicionar

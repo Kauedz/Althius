@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { useDados } from '@/fonte/contexto'
 import type { Agente, Gatilho } from '@/fonte/tipos'
@@ -22,7 +23,7 @@ export function SecaoAtividade({ agente }: { agente: Agente }) {
           <select
             value={gatilho}
             onChange={(e) => setGatilho(e.target.value as Gatilho | '')}
-            className="border border-al-line bg-al-bg px-4 py-2 outline-none focus-visible:border-al-accent"
+            className="campo w-auto"
           >
             <option value="">Todos</option>
             {Object.entries(ROTULO_DO_GATILHO).map(([valor, rotulo]) => (
@@ -49,6 +50,11 @@ export function SecaoAtividade({ agente }: { agente: Agente }) {
               <div className="flex flex-col gap-1">
                 <span className="font-normal">{item.descricao}</span>
                 <span className="text-al-muted">{item.resultado}</span>
+                {item.link && (
+                  <Link to={item.link.para} className="text-sm underline underline-offset-4">
+                    {item.link.rotulo}
+                  </Link>
+                )}
               </div>
             </li>
           ))}
