@@ -1,11 +1,17 @@
 // Roteiros pré-gravados da Conversa. Valem só para o protótipo (ADR 0003):
 // no produto real, os Agentes respondem de forma robusta a qualquer entrada.
-import type { AgenteId, Aprovacao, PassoDaConversa } from './tipos'
+import type { AgenteId, Aprovacao, EspecialidadeId } from './tipos'
 
-/** Um passo de roteiro. A Aprovação é criada pela fonte no momento em que o passo acontece. */
-export type PassoDeRoteiro =
-  | Exclude<PassoDaConversa, { tipo: 'aprovacao' }>
-  | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacao: Omit<Aprovacao, 'id' | 'estado' | 'agenteId'> }
+/**
+ * Um passo de roteiro. Os roteiros são escritos por Especialidade (`Ator` = EspecialidadeId), e a fonte
+ * troca cada Especialidade pelo Agente que faz o passo. A Aprovação é criada pela fonte no momento
+ * em que o passo acontece.
+ */
+export type PassoDeRoteiro<Ator = EspecialidadeId> =
+  | { tipo: 'ferramenta'; agenteId: Ator; descricao: string }
+  | { tipo: 'texto'; agenteId: Ator; texto: string }
+  | { tipo: 'repasse'; de: Ator; para: Ator; resumo: string }
+  | { tipo: 'aprovacao'; agenteId: Ator; aprovacao: Omit<Aprovacao, 'id' | 'estado' | 'agenteId'> }
 
 export const roteiros: Record<string, PassoDeRoteiro[]> = {
   'scopus-aderencia': [
@@ -118,39 +124,41 @@ export const roteiros: Record<string, PassoDeRoteiro[]> = {
   ],
 }
 
-/** Resposta para texto livre: o protótipo não entende pedidos fora do roteiro. */
-export function respostaGenerica(agenteId: AgenteId, nome: string): PassoDeRoteiro[] {
-  const ferramentas: Record<AgenteId, string> = {
+/** Resposta para texto livre: o protótipo não entende pedidos fora do roteiro. `nome` é o do Agente que responde. */
+export function respostaGenerica(especialidadeId: EspecialidadeId, nome: string): PassoDeRoteiro[] {
+  const ferramentas: Record<EspecialidadeId, string> = {
     scopus: 'Consultando HubSpot e Clay',
     ethos: 'Consultando Lusha e Notion',
     rhetor: 'Consultando o tom de voz e a base de conhecimento',
     oraculum: 'Consultando Perplexity, ChatGPT, Gemini e Claude',
   }
   return [
-    { tipo: 'ferramenta', agenteId, descricao: ferramentas[agenteId] },
+    { tipo: 'ferramenta', agenteId: especialidadeId, descricao: ferramentas[especialidadeId] },
     {
       tipo: 'texto',
-      agenteId,
+      agenteId: especialidadeId,
       texto: `Ainda não tenho um roteiro para esse pedido nesta demonstração. No produto, ${nome} responderia com os dados das Integrações do Workspace. Experimente uma das sugestões abaixo.`,
     },
   ]
 }
 
-const COMPLEMENTO_DA_MENCAO: Record<AgenteId, string> = {
+const COMPLEMENTO_DA_MENCAO: Record<EspecialidadeId, string> = {
   scopus: 'Do lado do ICP: a Conta-alvo desta Conversa tem aderência alta; vale priorizar.',
   ethos: 'Do lado do Comitê de compra: quem decide aqui costuma ser a Head de Infraestrutura de Dados, e a objeção mais provável é o tempo de migração.',
   rhetor: 'Do lado da escrita: sugiro abrir com um dado do próprio cliente e fechar com um único pedido de 20 minutos.',
   oraculum: 'Do lado da presença em IA: a Databricks aparece em 29 de 48 respostas dos LLMs; um comparativo recente ajudaria.',
 }
 
+type AgenteDaMencao = { id: AgenteId; nome: string; especialidadeId: EspecialidadeId }
+
 /** Quando outro Agente é mencionado com @ numa Conversa. */
-export function respostaDeMencao(de: AgenteId, para: AgenteId, nomePara: string): PassoDeRoteiro[] {
+export function respostaDeMencao(de: AgenteId, para: AgenteDaMencao): PassoDeRoteiro<AgenteId>[] {
   return [
-    { tipo: 'repasse', de, para, resumo: 'Contexto da Conversa até aqui' },
+    { tipo: 'repasse', de, para: para.id, resumo: 'Contexto da Conversa até aqui' },
     {
       tipo: 'texto',
-      agenteId: para,
-      texto: `${nomePara} entrou na Conversa.\n\n${COMPLEMENTO_DA_MENCAO[para]}`,
+      agenteId: para.id,
+      texto: `${para.nome} entrou na Conversa.\n\n${COMPLEMENTO_DA_MENCAO[para.especialidadeId]}`,
     },
   ]
 }

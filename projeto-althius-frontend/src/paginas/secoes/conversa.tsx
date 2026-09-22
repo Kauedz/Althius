@@ -18,7 +18,7 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
   const [texto, setTexto] = useState('')
   const mencao = useMencao(texto, setTexto, agentes)
   const fim = useRef<HTMLDivElement>(null)
-  const nomes = Object.fromEntries(agentes.map((a) => [a.id, a.nome])) as Record<AgenteId, string>
+  const porId: Record<AgenteId, Agente> = Object.fromEntries(agentes.map((a) => [a.id, a]))
 
   useEffect(() => {
     fim.current?.scrollIntoView({ block: 'end' })
@@ -43,7 +43,7 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
           <p className="anotacao text-lg">comece por uma sugestão, ou mencione outro agente com @</p>
         )}
         {itens.map((item) => (
-          <Item key={item.id} item={item} nomes={nomes} animar={conversas.animarDigitacao} />
+          <Item key={item.id} item={item} agentes={porId} animar={conversas.animarDigitacao} />
         ))}
         {respondendo && (
           <div role="status" className="flex items-center gap-4 text-al-muted">
@@ -57,7 +57,7 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {agente.sugestoes.map((sugestao) => (
+        {agente.especialidade.sugestoes.map((sugestao) => (
           <Button
             key={sugestao.id}
             variant="outline"
@@ -97,7 +97,8 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
   )
 }
 
-function Item({ item, nomes, animar }: { item: ItemDaConversa; nomes: Record<AgenteId, string>; animar: boolean }) {
+function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record<AgenteId, Agente>; animar: boolean }) {
+  const nome = (id: AgenteId) => agentes[id]?.nome
   switch (item.tipo) {
     case 'usuario':
       return <p className="self-end bg-al-surface px-4 py-2">{item.texto}</p>
@@ -111,10 +112,10 @@ function Item({ item, nomes, animar }: { item: ItemDaConversa; nomes: Record<Age
     case 'texto':
       return (
         <div className="flex gap-4">
-          <IconeAgente id={item.agenteId} />
+          {agentes[item.agenteId] && <IconeAgente especialidade={agentes[item.agenteId].especialidade.id} />}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="rotulo">{nomes[item.agenteId]}</span>
+              <span className="rotulo">{nome(item.agenteId)}</span>
               <BotaoCopiar texto={item.texto} />
             </div>
             <TextoDigitado texto={item.texto} animar={animar} />
@@ -125,12 +126,12 @@ function Item({ item, nomes, animar }: { item: ItemDaConversa; nomes: Record<Age
       return (
         <div
           role="note"
-          aria-label={`Repasse de ${nomes[item.de]} para ${nomes[item.para]}`}
+          aria-label={`Repasse de ${nome(item.de)} para ${nome(item.para)}`}
           className="flex items-center gap-4 border-l-2 border-al-accent-2 py-2 pl-4"
         >
-          <span className="rotulo text-al-ink">{nomes[item.de]}</span>
+          <span className="rotulo text-al-ink">{nome(item.de)}</span>
           <ArrowRight strokeWidth={1.8} className="size-4 text-al-accent-2" aria-hidden />
-          <span className="rotulo text-al-ink">{nomes[item.para]}</span>
+          <span className="rotulo text-al-ink">{nome(item.para)}</span>
           <span className="text-sm text-al-muted">{item.resumo}</span>
         </div>
       )

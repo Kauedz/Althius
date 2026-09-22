@@ -5,6 +5,7 @@ import type {
   AgenteId,
   Aprovacao,
   Canal,
+  EspecialidadeId,
   Fato,
   Habilidade,
   Integracao,
@@ -17,6 +18,7 @@ import type {
   Rotina,
   Workspace,
 } from './tipos'
+import { especialidade } from './especialidades'
 import { permissaoPadrao } from './regras'
 
 export const HOJE = { data: '22/09/2026', diaDaSemana: 'terça' }
@@ -27,68 +29,14 @@ export const workspace: Workspace = {
   usuario: { nome: 'Marina Alves', cargo: 'Head de Growth, LATAM' },
 }
 
-export const agentes: Agente[] = [
-  {
-    id: 'scopus',
-    ferramentasNativas: [],
-    nome: 'Scopus',
-    especialidade: 'Especialista em ICP',
-    descricao: 'Define o ICP a partir dos seus melhores clientes e dá nota de aderência a cada Conta-alvo.',
-    entrega: 'ICP e aderência de Contas-alvo',
-    estado: 'detectou',
-    tarefasFeitas: 312,
-    horasEconomizadas: 41,
-    sugestoes: [
-      { id: 'scopus-aderencia', texto: 'Pontue a aderência da OpenAI ao nosso ICP' },
-      { id: 'scopus-revisar-icp', texto: 'Revise nosso ICP com os clientes que fecharam em 2026' },
-      { id: 'colaboracao-openai', texto: 'Monte a abordagem completa para a OpenAI' },
-    ],
-  },
-  {
-    id: 'ethos',
-    ferramentasNativas: [],
-    nome: 'Ethos',
-    especialidade: 'Especialista em Persona',
-    descricao: 'Descreve dores, objeções e gatilhos de cada papel do Comitê de compra.',
-    entrega: 'Personas do Comitê de compra',
-    estado: 'ocioso',
-    tarefasFeitas: 187,
-    horasEconomizadas: 26,
-    sugestoes: [
-      { id: 'ethos-comite-stripe', texto: 'Monte as personas do Comitê de compra da Stripe' },
-      { id: 'ethos-objecoes-cfo', texto: 'Quais objeções um CFO levanta contra a Databricks?' },
-    ],
-  },
-  {
-    id: 'rhetor',
-    ferramentasNativas: [],
-    nome: 'Rhetor',
-    especialidade: 'Especialista em escrita persuasiva',
-    descricao: 'Escreve e-mails, sequências, posts e copy no tom da marca, para cada persona.',
-    entrega: 'E-mails, sequências e copy',
-    estado: 'trabalhando',
-    tarefasFeitas: 244,
-    horasEconomizadas: 58,
-    sugestoes: [
-      { id: 'rhetor-email-meta', texto: 'Escreva um e-mail frio para a Head de Dados da Meta' },
-      { id: 'rhetor-sequencia', texto: 'Crie uma sequência de 4 toques para VPs de Engenharia' },
-    ],
-  },
-  {
-    id: 'oraculum',
-    ferramentasNativas: ['Busca no ChatGPT, Perplexity, Gemini e Claude'],
-    nome: 'Oraculum',
-    especialidade: 'Especialista em GEO',
-    descricao: 'Mede como a marca aparece no ChatGPT, Perplexity, Gemini e Claude e recomenda o que publicar para ser citada.',
-    entrega: 'Presença da marca nos LLMs',
-    estado: 'ocioso',
-    tarefasFeitas: 96,
-    horasEconomizadas: 19,
-    sugestoes: [
-      { id: 'oraculum-auditoria', texto: 'Audite nossa presença para "melhor plataforma de dados para IA"' },
-      { id: 'oraculum-conteudo', texto: 'Que conteúdo publicar para ser citado no Perplexity?' },
-    ],
-  },
+/** Um Agente como a fonte o guarda: aponta para a Especialidade pelo identificador. */
+export type RegistroDeAgente = Omit<Agente, 'especialidade'> & { especialidadeId: EspecialidadeId }
+
+export const agentes: RegistroDeAgente[] = [
+  { id: 'scopus', nome: 'Scopus', tipo: 'padrao', especialidadeId: 'scopus', estado: 'detectou', tarefasFeitas: 312, horasEconomizadas: 41 },
+  { id: 'ethos', nome: 'Ethos', tipo: 'padrao', especialidadeId: 'ethos', estado: 'ocioso', tarefasFeitas: 187, horasEconomizadas: 26 },
+  { id: 'rhetor', nome: 'Rhetor', tipo: 'padrao', especialidadeId: 'rhetor', estado: 'trabalhando', tarefasFeitas: 244, horasEconomizadas: 58 },
+  { id: 'oraculum', nome: 'Oraculum', tipo: 'padrao', especialidadeId: 'oraculum', estado: 'ocioso', tarefasFeitas: 96, horasEconomizadas: 19 },
 ]
 
 export const fatos: Fato[] = [
@@ -155,16 +103,9 @@ export const integracoesFuturas: IntegracaoFutura[] = [
   { nome: 'LinkedIn Ads', categoria: 'Mídia paga' },
 ]
 
-const MAPEAMENTO_PADRAO: Record<AgenteId, IntegracaoId[]> = {
-  scopus: ['hubspot', 'clay', 'apollo', 'lusha'],
-  ethos: ['hubspot', 'apollo', 'lusha', 'notion'],
-  rhetor: ['hubspot', 'notion', 'meta-ads', 'google-ads'],
-  oraculum: ['notion', 'google-ads'],
-}
-
-function permissoesPadrao(id: AgenteId): Partial<Record<IntegracaoId, Permissao>> {
+function permissoesPadrao(id: EspecialidadeId): Partial<Record<IntegracaoId, Permissao>> {
   return Object.fromEntries(
-    MAPEAMENTO_PADRAO[id].map((integracaoId) => {
+    especialidade(id).integracoesPadrao.map((integracaoId) => {
       const integracao = integracoes.find((i) => i.id === integracaoId)
       if (!integracao) throw new Error(`Integração desconhecida: ${integracaoId}`)
       return [integracaoId, permissaoPadrao(integracao)]

@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] A fonte de dados dos agentes expõe o catálogo de Especialidades, e esse catálogo é fixo (não há operação para criar uma Especialidade)
-- [ ] Cada Agente sabe a sua Especialidade e se é padrão ou criado; os 4 Agentes atuais são os Agentes padrão
-- [ ] Os roteiros e a resposta genérica da Conversa são escolhidos pela Especialidade do Agente
-- [ ] O ícone e o rótulo da Especialidade de um Agente vêm do catálogo
-- [ ] Nada muda na tela: os testes de comportamento atuais passam sem alteração no que verificam
-- [ ] Os tipos usam o vocabulário do `CONTEXT.md` (Especialidade, Agente padrão, Agente criado)
+- [x] A fonte de dados dos agentes expõe o catálogo de Especialidades, e esse catálogo é fixo (não há operação para criar uma Especialidade)
+- [x] Cada Agente sabe a sua Especialidade e se é padrão ou criado; os 4 Agentes atuais são os Agentes padrão
+- [x] Os roteiros e a resposta genérica da Conversa são escolhidos pela Especialidade do Agente
+- [x] O ícone e o rótulo da Especialidade de um Agente vêm do catálogo
+- [x] Nada muda na tela: os testes de comportamento atuais passam sem alteração no que verificam
+- [x] Os tipos usam o vocabulário do `CONTEXT.md` (Especialidade, Agente padrão, Agente criado)

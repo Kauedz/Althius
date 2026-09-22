@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { Carregando, IconeAgente } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { useDados } from '@/fonte/contexto'
-import type { Aprovacao } from '@/fonte/tipos'
+import type { Agente, Aprovacao } from '@/fonte/tipos'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
 export function PaginaAprovacoes() {
@@ -36,7 +36,7 @@ export function PaginaAprovacoes() {
               <li key={aprovacao.id}>
                 <CartaoDeAprovacao
                   aprovacao={aprovacao}
-                  nomeDoAgente={agentes.find((a) => a.id === aprovacao.agenteId)?.nome}
+                  agente={agentes.find((a) => a.id === aprovacao.agenteId)}
                   nomeDaIntegracao={integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome}
                 />
               </li>
@@ -50,19 +50,19 @@ export function PaginaAprovacoes() {
 
 function CartaoDeAprovacao({
   aprovacao,
-  nomeDoAgente,
+  agente,
   nomeDaIntegracao,
 }: {
   aprovacao: Aprovacao
-  nomeDoAgente?: string
+  agente?: Agente
   nomeDaIntegracao?: string
 }) {
   return (
     <article aria-label={aprovacao.acao} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center gap-4">
-        <IconeAgente id={aprovacao.agenteId} />
+        {agente && <IconeAgente especialidade={agente.especialidade.id} />}
         <Link to={`/agentes/${aprovacao.agenteId}`} className="font-normal underline-offset-4 hover:underline">
-          {nomeDoAgente}
+          {agente?.nome}
         </Link>
         <span className="rotulo">{nomeDaIntegracao}</span>
         <span className="rotulo ml-auto">

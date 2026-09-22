@@ -1,21 +1,40 @@
 // Tipos do domínio, com o vocabulário do CONTEXT.md na raiz do repositório.
 
-export type AgenteId = 'scopus' | 'ethos' | 'rhetor' | 'oraculum'
+/** As 4 Especialidades do catálogo fixo da Althius (ADR 0005). */
+export type EspecialidadeId = 'scopus' | 'ethos' | 'rhetor' | 'oraculum'
+
+export interface Especialidade {
+  id: EspecialidadeId
+  /** O nome da Especialidade, que é também o nome do seu Agente padrão (ex.: "Scopus"). */
+  nome: string
+  /** Rótulo curto do que ela é (ex.: "Especialista em ICP"). */
+  rotulo: string
+  descricao: string
+  entrega: string
+  /** Ferramentas próprias da Especialidade, sem Integração (ex.: busca nos LLMs do Oraculum). */
+  ferramentasNativas: string[]
+  /** Sugestões clicáveis da Conversa, que disparam os roteiros da Especialidade. */
+  sugestoes: Sugestao[]
+  /** Integrações que o Agente padrão usa de saída; os Agentes criados herdam as dele. */
+  integracoesPadrao: IntegracaoId[]
+}
+
+/** Identificador aberto: além dos Agentes padrão, o Cliente cria os seus. */
+export type AgenteId = string
+
+/** Agente padrão (um por Especialidade, não pode ser excluído) ou Agente criado pelo Cliente. */
+export type TipoDeAgente = 'padrao' | 'criado'
 
 export type EstadoAgente = 'ocioso' | 'trabalhando' | 'detectou'
 
 export interface Agente {
   id: AgenteId
   nome: string
-  especialidade: string
-  descricao: string
-  entrega: string
+  tipo: TipoDeAgente
+  especialidade: Especialidade
   estado: EstadoAgente
-  /** Ferramentas próprias do Agente, sem Integração (ex.: busca nos LLMs do Oraculum). */
-  ferramentasNativas: string[]
   tarefasFeitas: number
   horasEconomizadas: number
-  sugestoes: Sugestao[]
 }
 
 export interface Sugestao {
@@ -173,6 +192,9 @@ export interface FonteDeAgentes {
 
   workspace(): Promise<Workspace>
   painel(): Promise<Painel>
+
+  /** O catálogo fixo: não há operação para criar uma Especialidade. */
+  especialidades(): Promise<Especialidade[]>
 
   agentes(): Promise<Agente[]>
   agente(id: AgenteId): Promise<Agente>

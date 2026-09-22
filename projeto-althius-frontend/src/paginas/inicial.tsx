@@ -78,14 +78,14 @@ export function PaginaInicial() {
                   className="cartao flex h-full flex-col gap-6 p-10 hover:outline hover:outline-al-line"
                 >
                   <div className="flex items-start justify-between">
-                    <IconeAgente id={agente.id} estado={agente.estado} tamanho="lg" />
+                    <IconeAgente especialidade={agente.especialidade.id} estado={agente.estado} tamanho="lg" />
                     <span className="rotulo">{ROTULO_DO_ESTADO[agente.estado]}</span>
                   </div>
                   <div className="flex flex-col gap-2">
                     <span className="titulo-secao text-4xl">{agente.nome}</span>
-                    <span className="rotulo">{agente.especialidade}</span>
+                    <span className="rotulo">{agente.especialidade.rotulo}</span>
                   </div>
-                  <p className="text-al-muted">{agente.descricao}</p>
+                  <p className="text-al-muted">{agente.especialidade.descricao}</p>
                   <dl className="mt-auto grid grid-cols-2 gap-4 border-t border-al-line pt-4">
                     <div>
                       <dt className="rotulo">Tarefas feitas</dt>

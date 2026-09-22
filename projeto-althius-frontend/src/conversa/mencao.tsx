@@ -86,9 +86,9 @@ export function ListaDeMencoes({
             i === indice && 'bg-al-line',
           )}
         >
-          <IconeAgente id={agente.id} />
+          <IconeAgente especialidade={agente.especialidade.id} />
           <span className="font-normal">{agente.nome}</span>
-          <span className="text-sm text-al-muted">{agente.especialidade}</span>
+          <span className="text-sm text-al-muted">{agente.especialidade.rotulo}</span>
         </li>
       ))}
     </ul>

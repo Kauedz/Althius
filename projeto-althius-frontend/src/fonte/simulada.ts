@@ -1,11 +1,15 @@
 // Implementação simulada da fonte de dados dos Agentes. O estado vive em memória:
 // as mudanças valem até recarregar a página.
 import * as demo from './dados-demo'
+import type { RegistroDeAgente } from './dados-demo'
+import { especialidade, especialidades } from './especialidades'
 import { ROTULO_DA_DECISAO } from './regras'
 import { respostaDeMencao, respostaGenerica, roteiros, type PassoDeRoteiro } from './roteiros'
 import type {
+  Agente,
   AgenteId,
   CanalId,
+  EspecialidadeId,
   FonteDeAgentes,
   IntegracaoId,
   ItemDeAtividade,
@@ -63,18 +67,43 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     return buscar(estado.agentes, id).nome
   }
 
-  /** Agentes mencionados com @Nome no texto, na ordem em que aparecem. */
-  function mencoes(texto: string): AgenteId[] {
-    return [...texto.matchAll(/@(\p{L}+)/gu)]
-      .map(([, nome]) => estado.agentes.find((a) => a.nome.toLowerCase() === nome.toLowerCase())?.id)
-      .filter((id): id is AgenteId => id !== undefined)
+  function comEspecialidade({ especialidadeId, ...agente }: RegistroDeAgente): Agente {
+    return { ...agente, especialidade: especialidade(especialidadeId) }
   }
 
-  function roteiroPara(id: AgenteId, texto: string, sugestaoId?: string): PassoDeRoteiro[] {
-    if (sugestaoId && roteiros[sugestaoId]) return roteiros[sugestaoId]
-    const outro = mencoes(texto).find((mencionado) => mencionado !== id)
-    if (outro) return respostaDeMencao(id, outro, nomeDe(outro))
-    return respostaGenerica(id, nomeDe(id))
+  function agentePadrao(especialidadeId: EspecialidadeId): RegistroDeAgente {
+    const padrao = estado.agentes.find((a) => a.tipo === 'padrao' && a.especialidadeId === especialidadeId)
+    if (!padrao) throw new Error(`Sem Agente padrão para: ${especialidadeId}`)
+    return padrao
+  }
+
+  /**
+   * Troca a Especialidade de cada passo pelo Agente que o faz: o próprio Agente da Conversa
+   * nos passos da sua Especialidade, e o Agente padrão nos das outras.
+   */
+  function atribuir(passos: PassoDeRoteiro[], atual: RegistroDeAgente): PassoDeRoteiro<AgenteId>[] {
+    const quem = (especialidadeId: EspecialidadeId) =>
+      especialidadeId === atual.especialidadeId ? atual.id : agentePadrao(especialidadeId).id
+    return passos.map((passo) =>
+      passo.tipo === 'repasse'
+        ? { ...passo, de: quem(passo.de), para: quem(passo.para) }
+        : { ...passo, agenteId: quem(passo.agenteId) },
+    )
+  }
+
+  /** Agentes mencionados com @Nome no texto, na ordem em que aparecem. */
+  function mencoes(texto: string): RegistroDeAgente[] {
+    return [...texto.matchAll(/@(\p{L}+)/gu)]
+      .map(([, nome]) => estado.agentes.find((a) => a.nome.toLowerCase() === nome.toLowerCase()))
+      .filter((agente): agente is RegistroDeAgente => agente !== undefined)
+  }
+
+  function roteiroPara(id: AgenteId, texto: string, sugestaoId?: string): PassoDeRoteiro<AgenteId>[] {
+    const atual = buscar(estado.agentes, id)
+    if (sugestaoId && roteiros[sugestaoId]) return atribuir(roteiros[sugestaoId], atual)
+    const outro = mencoes(texto).find((mencionado) => mencionado.id !== id)
+    if (outro) return respostaDeMencao(id, outro)
+    return atribuir(respostaGenerica(atual.especialidadeId, atual.nome), atual)
   }
 
   return {
@@ -96,8 +125,10 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         horasEconomizadas: estado.agentes.reduce((soma, a) => soma + a.horasEconomizadas, 0),
       })),
 
-    agentes: () => responder(() => estado.agentes),
-    agente: (id) => responder(() => buscar(estado.agentes, id)),
+    especialidades: () => responder(() => especialidades),
+
+    agentes: () => responder(() => estado.agentes.map(comEspecialidade)),
+    agente: (id) => responder(() => comEspecialidade(buscar(estado.agentes, id))),
 
     memoria: (id) => responder(() => estado.fatos.filter((f) => f.agenteId === id)),
     editarFato: (fatoId, texto) =>
@@ -200,7 +231,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       }
       registrarAtividade({
         agenteId: id,
-        gatilho: mencoes(texto).some((m) => m !== id) ? 'mencao' : 'conversa',
+        gatilho: mencoes(texto).some((m) => m.id !== id) ? 'mencao' : 'conversa',
         descricao: `Respondeu: "${texto}"`,
         resultado: `${passos.length} passos na Conversa.`,
       })

@@ -46,16 +46,16 @@ export function PaginaAgente() {
   return (
     <div className="flex flex-col gap-10">
       <div className="flex items-start gap-6">
-        <IconeAgente id={agente.id} estado={agente.estado} tamanho="lg" />
+        <IconeAgente especialidade={agente.especialidade.id} estado={agente.estado} tamanho="lg" />
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline gap-4">
             <h1 className="titulo-display text-6xl">{agente.nome}</h1>
             <span className="rotulo">{ROTULO_DO_ESTADO[agente.estado]}</span>
           </div>
           <span className="rotulo">
-            {agente.especialidade} · entrega: {agente.entrega}
+            {agente.especialidade.rotulo} · entrega: {agente.especialidade.entrega}
           </span>
-          <p className="max-w-2xl text-al-muted">{agente.descricao}</p>
+          <p className="max-w-2xl text-al-muted">{agente.especialidade.descricao}</p>
         </div>
       </div>
 

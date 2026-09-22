@@ -1,5 +1,5 @@
 import { Eye, Feather, Target, UserRound, type LucideIcon } from 'lucide-react'
-import type { AgenteId, EstadoAgente } from '@/fonte/tipos'
+import type { EspecialidadeId, EstadoAgente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 
 /**
@@ -28,7 +28,8 @@ export function Logo({ className }: { className?: string }) {
 }
 
 // Lucide é provisório: os ícones desenhados à mão do manual entram quando chegarem os vetores.
-const ICONES: Record<AgenteId, LucideIcon> = {
+// Cada Especialidade tem um ícone, e todos os Agentes dela usam o mesmo.
+const ICONES: Record<EspecialidadeId, LucideIcon> = {
   scopus: Target,
   ethos: UserRound,
   rhetor: Feather,
@@ -36,15 +37,15 @@ const ICONES: Record<AgenteId, LucideIcon> = {
 }
 
 export function IconeAgente({
-  id,
+  especialidade,
   estado = 'ocioso',
   tamanho = 'md',
 }: {
-  id: AgenteId
+  especialidade: EspecialidadeId
   estado?: EstadoAgente
   tamanho?: 'md' | 'lg'
 }) {
-  const Icone = ICONES[id]
+  const Icone = ICONES[especialidade]
   return (
     <span className={cn('relative inline-flex shrink-0 items-center justify-center', tamanho === 'lg' ? 'size-12' : 'size-8')}>
       {estado === 'trabalhando' && <Pulso className="absolute inset-0" />}
