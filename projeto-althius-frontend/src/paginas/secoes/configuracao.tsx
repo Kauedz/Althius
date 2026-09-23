@@ -142,7 +142,7 @@ function FormularioDePersonalizacao({
               </li>
             )
           })}
-          {agente.ferramentasNativas.map((ferramenta) => (
+          {agente.especialidade.ferramentasNativas.map((ferramenta) => (
             <li key={ferramenta} className="flex items-center gap-6 border-b border-al-line py-4">
               <span className="flex-1 font-normal">{ferramenta}</span>
               <span className="rotulo">Ferramenta nativa · Ler</span>

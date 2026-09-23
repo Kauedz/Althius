@@ -1,6 +1,8 @@
+import { Plug } from 'lucide-react'
 import { useState } from 'react'
 import { Carregando } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
+import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
@@ -16,9 +18,8 @@ export function PaginaConexoes() {
   const [previa, setPrevia] = useState<CanalId | null>(null)
 
   return (
-    <div className="flex flex-col gap-16">
+    <Pagina titulo="Conexões" icone={Plug} className="gap-16">
       <div className="flex flex-col gap-2">
-        <h1 className="titulo-display text-7xl">Conexões</h1>
         <p className="max-w-2xl text-lg text-al-muted">
           Conecte cada ferramenta uma vez para o Workspace. Depois, escolha em cada agente o que ele pode usar.
         </p>
@@ -96,7 +97,7 @@ export function PaginaConexoes() {
 
       <DialogoDeConexao conexao={conectando} aoFechar={() => setConectando(null)} />
       <DialogoDePrevia canalId={previa} aoFechar={() => setPrevia(null)} />
-    </div>
+    </Pagina>
   )
 }
 

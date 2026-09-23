@@ -1,21 +1,60 @@
 // Tipos do domínio, com o vocabulário do CONTEXT.md na raiz do repositório.
 
-export type AgenteId = 'scopus' | 'ethos' | 'rhetor' | 'oraculum'
+/** As 4 Especialidades do catálogo fixo da Althius (ADR 0005). */
+export type EspecialidadeId = 'scopus' | 'ethos' | 'rhetor' | 'oraculum'
+
+export interface Especialidade {
+  id: EspecialidadeId
+  /** O nome da Especialidade, que é também o nome do seu Agente padrão (ex.: "Scopus"). */
+  nome: string
+  /** Rótulo curto do que ela é (ex.: "Especialista em ICP"). */
+  rotulo: string
+  descricao: string
+  entrega: string
+  /** Ferramentas próprias da Especialidade, sem Integração (ex.: busca nos LLMs do Oraculum). */
+  ferramentasNativas: string[]
+  /** Sugestões clicáveis da Conversa, que disparam os roteiros da Especialidade. */
+  sugestoes: Sugestao[]
+  /** Integrações que o Agente padrão usa de saída; os Agentes criados herdam as dele. */
+  integracoesPadrao: IntegracaoId[]
+}
+
+/** Identificador aberto: além dos Agentes padrão, o Cliente cria os seus. */
+export type AgenteId = string
+
+/** O que o Cliente escolhe ao criar um Agente: o nome é sempre "Especialidade · complemento". */
+export interface NovoAgente {
+  especialidadeId: EspecialidadeId
+  complemento: string
+  /** Instruções do Agente criado; vazias, ele fica com as do Agente padrão. */
+  instrucoes: string
+}
+
+/** Agente padrão (um por Especialidade, não pode ser excluído) ou Agente criado pelo Cliente. */
+export type TipoDeAgente = 'padrao' | 'criado'
 
 export type EstadoAgente = 'ocioso' | 'trabalhando' | 'detectou'
 
 export interface Agente {
   id: AgenteId
   nome: string
-  especialidade: string
-  descricao: string
-  entrega: string
+  tipo: TipoDeAgente
+  especialidade: Especialidade
   estado: EstadoAgente
-  /** Ferramentas próprias do Agente, sem Integração (ex.: busca nos LLMs do Oraculum). */
-  ferramentasNativas: string[]
-  tarefasFeitas: number
-  horasEconomizadas: number
-  sugestoes: Sugestao[]
+  /** Quantas Execuções o Agente já fez, contadas exatas. */
+  execucoes: number
+  /** A descrição da Especialidade no Agente padrão; as instruções no Agente criado. */
+  descricao: string
+  /** A Rotina que faz o Agente rodar sozinho; sem ela, ele roda sob demanda. */
+  rotinaAtiva: Rotina | null
+  /** As Integrações que o Agente pode usar, pela sua Permissão. */
+  integracoes: IntegracaoId[]
+}
+
+/** Uma mensagem enviada a um Agente ou à Coordenação: texto livre ou uma sugestão clicável. */
+export interface Mensagem {
+  texto: string
+  sugestaoId?: string
 }
 
 export interface Sugestao {
@@ -27,6 +66,7 @@ export interface Workspace {
   cliente: string
   descricao: string
   usuario: { nome: string; cargo: string }
+  aprovacoesPendentes: number
 }
 
 export interface Fato {
@@ -61,11 +101,16 @@ export interface Rotina {
 
 export type NovaRotina = Omit<Rotina, 'id' | 'pausada'>
 
-export type Gatilho = 'conversa' | 'mencao' | 'rotina' | 'canal'
+export type Gatilho = 'conversa' | 'mencao' | 'coordenacao' | 'rotina' | 'canal'
+
+/** Uma Execução (o Agente foi acionado e entregou um resultado) ou uma ação dentro dela. */
+export type TipoDeAtividade = 'execucao' | 'acao'
 
 export interface ItemDeAtividade {
   id: string
   agenteId: AgenteId
+  tipo: TipoDeAtividade
+  /** O que acionou o trabalho; uma ação herda o gatilho da Execução que a gerou. */
   gatilho: Gatilho
   quando: string
   descricao: string
@@ -121,17 +166,25 @@ export interface FonteDeConhecimento {
 
 export type EstadoAprovacao = 'pendente' | 'aprovada' | 'rejeitada'
 export type Decisao = Exclude<EstadoAprovacao, 'pendente'>
-/** Onde uma Aprovação foi pedida ou decidida. */
+/** Onde uma Aprovação foi pedida e pode ser decidida. */
 export type Origem = 'althius' | CanalId
+/** Onde uma Aprovação foi decidida: na fila de Aprovações, na página da Conversa ou no Canal de origem. */
+export type LugarDaDecisao = 'fila' | 'conversa' | CanalId
 
-export interface Aprovacao {
-  id: string
-  agenteId: AgenteId
+/** Uma ação que um Agente quer fazer numa Integração; a Permissão dele decide o que acontece. */
+export interface AcaoProposta {
   acao: string
   integracaoId: IntegracaoId
   impacto: string
   justificativa: string
+}
+
+export interface Aprovacao extends AcaoProposta {
+  id: string
+  agenteId: AgenteId
   origem: Origem
+  /** O gatilho da Execução que propôs a Aprovação; a decisão entra na Atividade com ele. */
+  gatilho: Gatilho
   estado: EstadoAprovacao
 }
 
@@ -155,13 +208,19 @@ export type PassoDaConversa =
   | { tipo: 'repasse'; de: AgenteId; para: AgenteId; resumo: string }
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
 
-export interface Painel {
-  aprovacoesPendentes: number
-  rotinasDeHoje: Rotina[]
-  atividadeRecente: ItemDeAtividade[]
-  tarefasFeitas: number
-  horasEconomizadas: number
-}
+/**
+ * Um passo de uma Conversa coordenada (ADR 0004). Cada Agente chamado é uma etapa: começa na chamada,
+ * faz as suas consultas e termina com o que fez. No fim vem a resposta consolidada (ou a direta,
+ * sem etapas) e, quando um Agente quer agir, o que a Permissão dele permitiu.
+ */
+export type PassoDaCoordenacao =
+  | { tipo: 'chamada'; agenteId: AgenteId }
+  | { tipo: 'ferramenta'; agenteId: AgenteId; descricao: string }
+  | { tipo: 'feito'; agenteId: AgenteId; resumo: string }
+  | { tipo: 'resposta'; texto: string }
+  | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
+  /** Sem Aprovação: com Executar, o Agente agiu sozinho; com Ler, não pôde agir. */
+  | { tipo: 'acao'; agenteId: AgenteId; acao: AcaoProposta; executada: boolean }
 
 /**
  * A única fronteira entre as telas e os Agentes. Hoje só existe a implementação simulada;
@@ -172,10 +231,19 @@ export interface FonteDeAgentes {
   observar(ouvinte: () => void): () => void
 
   workspace(): Promise<Workspace>
-  painel(): Promise<Painel>
+
+  /** O catálogo fixo: não há operação para criar uma Especialidade. */
+  especialidades(): Promise<Especialidade[]>
 
   agentes(): Promise<Agente[]>
   agente(id: AgenteId): Promise<Agente>
+  /**
+   * Cria um Agente a partir de uma Especialidade (ADR 0005), com uma cópia da Personalização, das
+   * Permissões e das Habilidades do Agente padrão, Memória vazia e sem Rotinas.
+   */
+  criarAgente(novo: NovoAgente): Promise<Agente>
+  /** Exclui um Agente criado e tudo que é dele. O Agente padrão não pode ser excluído. */
+  excluirAgente(id: AgenteId): Promise<void>
 
   memoria(id: AgenteId): Promise<Fato[]>
   editarFato(fatoId: string, texto: string): Promise<void>
@@ -202,8 +270,17 @@ export interface FonteDeAgentes {
   previaDeCanal(canalId: CanalId): Promise<PreviaDeCanal>
 
   aprovacoes(): Promise<Aprovacao[]>
-  decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: Origem): Promise<void>
+  decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao): Promise<void>
 
   /** Envia uma mensagem ou sugestão e recebe a resposta passo a passo. */
-  conversar(id: AgenteId, mensagem: { texto: string; sugestaoId?: string }): AsyncIterable<PassoDaConversa>
+  conversar(id: AgenteId, mensagem: Mensagem): AsyncIterable<PassoDaConversa>
+
+  /** As sugestões clicáveis de pedidos coordenados, abaixo do composer. */
+  sugestoesCoordenadas(): Promise<Sugestao[]>
+  /**
+   * Envia um pedido no composer, sem escolher um Agente, e recebe passo a passo as etapas de cada
+   * Agente que a Coordenação chamou e a resposta consolidada. Com os pedidos anteriores da mesma
+   * Conversa (nenhum, numa Conversa nova), a Coordenação continua a partir do que já foi feito, em vez de recomeçar.
+   */
+  conversarCoordenado(pedido: Mensagem, anteriores: Mensagem[]): AsyncIterable<PassoDaCoordenacao>
 }

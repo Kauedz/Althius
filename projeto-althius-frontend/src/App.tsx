@@ -4,9 +4,10 @@ import { ConversasProvider } from '@/conversa/contexto'
 import { FonteProvider } from '@/fonte/contexto'
 import type { FonteDeAgentes } from '@/fonte/tipos'
 import { PaginaAgente } from '@/paginas/agente'
+import { PaginaAgentes } from '@/paginas/agentes'
 import { PaginaAprovacoes } from '@/paginas/aprovacoes'
 import { PaginaConexoes } from '@/paginas/conexoes'
-import { PaginaInicial } from '@/paginas/inicial'
+import { PaginaConversaCoordenada } from '@/paginas/conversa-coordenada'
 
 interface Props {
   fonte: FonteDeAgentes
@@ -19,7 +20,8 @@ export function App({ fonte, rotaInicial, animarDigitacao = true }: Props) {
   const rotas = (
     <Routes>
       <Route element={<Casca />}>
-        <Route index element={<PaginaInicial />} />
+        <Route index element={<PaginaAgentes />} />
+        <Route path="conversa" element={<PaginaConversaCoordenada />} />
         <Route path="aprovacoes" element={<PaginaAprovacoes />} />
         <Route path="conexoes" element={<PaginaConexoes />} />
         <Route path="agentes/:agenteId" element={<Navigate to="conversa" replace />} />

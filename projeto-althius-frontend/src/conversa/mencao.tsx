@@ -1,35 +1,23 @@
 import { useState, type KeyboardEvent } from 'react'
 import { IconeAgente } from '@/components/marca'
+import { completarMencao, sugerirMencoes } from '@/fonte/mencoes'
 import type { Agente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 
-const TOKEN_DE_MENCAO = /@(\p{L}*)$/u
-
-/** Primeiro Agente mencionado com @Nome num texto. */
-export function primeiroMencionado(texto: string, agentes: Agente[]): Agente | undefined {
-  for (const [, nome] of texto.matchAll(/@(\p{L}+)/gu)) {
-    const agente = agentes.find((a) => a.nome.toLowerCase() === nome.toLowerCase())
-    if (agente) return agente
-  }
-  return undefined
-}
-
 /**
- * Autocompletar de @menção: abre quando a última palavra começa com @ e
- * troca a palavra pelo nome do Agente escolhido.
+ * Autocompletar de @menção: abre enquanto o que vem depois do último @ é o começo do nome de um
+ * Agente (inclusive o nome completo de um Agente criado) e completa com o nome escolhido.
  */
 export function useMencao(valor: string, setValor: (valor: string) => void, agentes: Agente[]) {
   const [destacada, setDestacada] = useState(0)
   const [fechadaEm, setFechadaEm] = useState<string | null>(null)
 
-  const token = valor.match(TOKEN_DE_MENCAO)?.[1]
-  const opcoes =
-    token === undefined ? [] : agentes.filter((a) => a.nome.toLowerCase().startsWith(token.toLowerCase()))
+  const opcoes = sugerirMencoes(valor, agentes)
   const aberta = opcoes.length > 0 && fechadaEm !== valor
   const indice = Math.min(destacada, Math.max(opcoes.length - 1, 0))
 
   function selecionar(agente: Agente) {
-    setValor(valor.replace(TOKEN_DE_MENCAO, `@${agente.nome} `))
+    setValor(completarMencao(valor, agente.nome))
     setDestacada(0)
   }
 
@@ -78,6 +66,7 @@ export function ListaDeMencoes({
           key={agente.id}
           id={`${id}-${agente.id}`}
           role="option"
+          aria-label={agente.nome}
           aria-selected={i === indice}
           onMouseDown={(evento) => evento.preventDefault()}
           onClick={() => aoSelecionar(agente)}
@@ -86,9 +75,9 @@ export function ListaDeMencoes({
             i === indice && 'bg-al-line',
           )}
         >
-          <IconeAgente id={agente.id} />
+          <IconeAgente especialidade={agente.especialidade.id} />
           <span className="font-normal">{agente.nome}</span>
-          <span className="text-sm text-al-muted">{agente.especialidade}</span>
+          <span className="text-sm text-al-muted">{agente.especialidade.rotulo}</span>
         </li>
       ))}
     </ul>

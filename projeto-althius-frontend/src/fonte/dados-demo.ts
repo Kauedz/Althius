@@ -5,6 +5,7 @@ import type {
   AgenteId,
   Aprovacao,
   Canal,
+  EspecialidadeId,
   Fato,
   Habilidade,
   Integracao,
@@ -17,78 +18,33 @@ import type {
   Rotina,
   Workspace,
 } from './tipos'
+import { especialidade } from './especialidades'
 import { permissaoPadrao } from './regras'
 
-export const HOJE = { data: '22/09/2026', diaDaSemana: 'terça' }
-
-export const workspace: Workspace = {
+export const workspace: Omit<Workspace, 'aprovacoesPendentes'> = {
   cliente: 'Databricks',
   descricao: 'Workspace de demonstração',
   usuario: { nome: 'Marina Alves', cargo: 'Head de Growth, LATAM' },
 }
 
-export const agentes: Agente[] = [
-  {
-    id: 'scopus',
-    ferramentasNativas: [],
-    nome: 'Scopus',
-    especialidade: 'Especialista em ICP',
-    descricao: 'Define o ICP a partir dos seus melhores clientes e dá nota de aderência a cada Conta-alvo.',
-    entrega: 'ICP e aderência de Contas-alvo',
-    estado: 'detectou',
-    tarefasFeitas: 312,
-    horasEconomizadas: 41,
-    sugestoes: [
-      { id: 'scopus-aderencia', texto: 'Pontue a aderência da OpenAI ao nosso ICP' },
-      { id: 'scopus-revisar-icp', texto: 'Revise nosso ICP com os clientes que fecharam em 2026' },
-      { id: 'colaboracao-openai', texto: 'Monte a abordagem completa para a OpenAI' },
-    ],
-  },
-  {
-    id: 'ethos',
-    ferramentasNativas: [],
-    nome: 'Ethos',
-    especialidade: 'Especialista em Persona',
-    descricao: 'Descreve dores, objeções e gatilhos de cada papel do Comitê de compra.',
-    entrega: 'Personas do Comitê de compra',
-    estado: 'ocioso',
-    tarefasFeitas: 187,
-    horasEconomizadas: 26,
-    sugestoes: [
-      { id: 'ethos-comite-stripe', texto: 'Monte as personas do Comitê de compra da Stripe' },
-      { id: 'ethos-objecoes-cfo', texto: 'Quais objeções um CFO levanta contra a Databricks?' },
-    ],
-  },
-  {
-    id: 'rhetor',
-    ferramentasNativas: [],
-    nome: 'Rhetor',
-    especialidade: 'Especialista em escrita persuasiva',
-    descricao: 'Escreve e-mails, sequências, posts e copy no tom da marca, para cada persona.',
-    entrega: 'E-mails, sequências e copy',
-    estado: 'trabalhando',
-    tarefasFeitas: 244,
-    horasEconomizadas: 58,
-    sugestoes: [
-      { id: 'rhetor-email-meta', texto: 'Escreva um e-mail frio para a Head de Dados da Meta' },
-      { id: 'rhetor-sequencia', texto: 'Crie uma sequência de 4 toques para VPs de Engenharia' },
-    ],
-  },
-  {
-    id: 'oraculum',
-    ferramentasNativas: ['Busca no ChatGPT, Perplexity, Gemini e Claude'],
-    nome: 'Oraculum',
-    especialidade: 'Especialista em GEO',
-    descricao: 'Mede como a marca aparece no ChatGPT, Perplexity, Gemini e Claude e recomenda o que publicar para ser citada.',
-    entrega: 'Presença da marca nos LLMs',
-    estado: 'ocioso',
-    tarefasFeitas: 96,
-    horasEconomizadas: 19,
-    sugestoes: [
-      { id: 'oraculum-auditoria', texto: 'Audite nossa presença para "melhor plataforma de dados para IA"' },
-      { id: 'oraculum-conteudo', texto: 'Que conteúdo publicar para ser citado no Perplexity?' },
-    ],
-  },
+/**
+ * Um Agente como a fonte o guarda: aponta para a Especialidade pelo identificador. A descrição,
+ * a Rotina ativa e as Integrações a fonte calcula a partir da Personalização e das Rotinas.
+ */
+export type RegistroDeAgente = Omit<Agente, 'especialidade' | 'descricao' | 'rotinaAtiva' | 'integracoes'> & {
+  especialidadeId: EspecialidadeId
+}
+
+export const agentes: RegistroDeAgente[] = [
+  { id: 'scopus', nome: 'Scopus', tipo: 'padrao', especialidadeId: 'scopus', estado: 'detectou', execucoes: 312 },
+  { id: 'ethos', nome: 'Ethos', tipo: 'padrao', especialidadeId: 'ethos', estado: 'ocioso', execucoes: 187 },
+  { id: 'rhetor', nome: 'Rhetor', tipo: 'padrao', especialidadeId: 'rhetor', estado: 'trabalhando', execucoes: 244 },
+  { id: 'oraculum', nome: 'Oraculum', tipo: 'padrao', especialidadeId: 'oraculum', estado: 'ocioso', execucoes: 96 },
+  { id: 'scopus-enterprise-latam', nome: 'Scopus · Enterprise LATAM', tipo: 'criado', especialidadeId: 'scopus', estado: 'ocioso', execucoes: 58 },
+  { id: 'ethos-comite-financeiro', nome: 'Ethos · Comitê financeiro', tipo: 'criado', especialidadeId: 'ethos', estado: 'ocioso', execucoes: 23 },
+  { id: 'rhetor-sequencias-outbound', nome: 'Rhetor · Sequências outbound', tipo: 'criado', especialidadeId: 'rhetor', estado: 'ocioso', execucoes: 71 },
+  { id: 'rhetor-anuncios-meta', nome: 'Rhetor · Anúncios Meta', tipo: 'criado', especialidadeId: 'rhetor', estado: 'ocioso', execucoes: 17 },
+  { id: 'oraculum-concorrencia-snowflake', nome: 'Oraculum · Concorrência Snowflake', tipo: 'criado', especialidadeId: 'oraculum', estado: 'detectou', execucoes: 12 },
 ]
 
 export const fatos: Fato[] = [
@@ -101,6 +57,12 @@ export const fatos: Fato[] = [
   { id: 'f7', agenteId: 'rhetor', texto: 'O tom da Databricks é técnico e direto, sem superlativos.', origem: 'Aprendido na Configuração em 01/09/2026' },
   { id: 'f8', agenteId: 'oraculum', texto: 'A Snowflake é a concorrente mais citada ao lado da Databricks nos LLMs.', origem: 'Aprendido na Rotina de 15/09/2026' },
   { id: 'f9', agenteId: 'oraculum', texto: 'Os prompts-alvo prioritários são sobre lakehouse e plataforma de dados para IA.', origem: 'Aprendido na Conversa de 02/09/2026' },
+  { id: 'f10', agenteId: 'scopus-enterprise-latam', texto: 'As Contas-alvo no México com mais aderência são do setor financeiro, como Banorte e BBVA México.', origem: 'Aprendido na Rotina de 15/09/2026' },
+  { id: 'f11', agenteId: 'scopus-enterprise-latam', texto: 'No Brasil, varejo e telecom têm time de dados próprio com mais frequência.', origem: 'Aprendido no Clay em 08/09/2026' },
+  { id: 'f12', agenteId: 'ethos-comite-financeiro', texto: 'Em empresas abertas, o controller entra no Comitê de compra quando o contrato passa de US$ 250 mil por ano.', origem: 'Aprendido na Conversa de 11/09/2026' },
+  { id: 'f13', agenteId: 'rhetor-sequencias-outbound', texto: 'O terceiro toque é o que mais gera resposta nas sequências da equipe.', origem: 'Aprendido no HubSpot em 17/09/2026' },
+  { id: 'f14', agenteId: 'rhetor-anuncios-meta', texto: 'Anúncios com um número no título tiveram o dobro de cliques em VPs de Engenharia.', origem: 'Aprendido no Meta Ads em 16/09/2026' },
+  { id: 'f15', agenteId: 'oraculum-concorrencia-snowflake', texto: 'A Snowflake é citada antes da Databricks em 7 dos 12 prompts-alvo no Perplexity.', origem: 'Aprendido na Rotina de 19/09/2026' },
 ]
 
 export const habilidades: Habilidade[] = [
@@ -112,6 +74,17 @@ export const habilidades: Habilidade[] = [
   { id: 'h6', agenteId: 'rhetor', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 43, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h7', agenteId: 'oraculum', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 52, ultimaMelhoria: '15/09/2026', ativa: true },
   { id: 'h8', agenteId: 'oraculum', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 18, ultimaMelhoria: '08/09/2026', ativa: true },
+  // Os Agentes criados começaram com uma cópia das Habilidades do Agente padrão e seguiram refinando com o uso.
+  { id: 'h9', agenteId: 'scopus-enterprise-latam', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 41, ultimaMelhoria: '15/09/2026', ativa: true },
+  { id: 'h10', agenteId: 'scopus-enterprise-latam', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 9, ultimaMelhoria: '01/09/2026', ativa: true },
+  { id: 'h11', agenteId: 'ethos-comite-financeiro', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 14, ultimaMelhoria: '11/09/2026', ativa: true },
+  { id: 'h12', agenteId: 'ethos-comite-financeiro', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 8, ultimaMelhoria: '11/09/2026', ativa: true },
+  { id: 'h13', agenteId: 'rhetor-sequencias-outbound', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 26, ultimaMelhoria: '12/09/2026', ativa: true },
+  { id: 'h14', agenteId: 'rhetor-sequencias-outbound', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 38, ultimaMelhoria: '17/09/2026', ativa: true },
+  { id: 'h15', agenteId: 'rhetor-anuncios-meta', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 0, ultimaMelhoria: '05/09/2026', ativa: false },
+  { id: 'h16', agenteId: 'rhetor-anuncios-meta', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 11, ultimaMelhoria: '16/09/2026', ativa: true },
+  { id: 'h17', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 8, ultimaMelhoria: '19/09/2026', ativa: true },
+  { id: 'h18', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 3, ultimaMelhoria: '12/09/2026', ativa: true },
 ]
 
 export const rotinas: Rotina[] = [
@@ -119,16 +92,24 @@ export const rotinas: Rotina[] = [
   { id: 'r2', agenteId: 'scopus', tarefa: 'Reavaliar a aderência das 50 Contas-alvo prioritárias', frequencia: 'semanal', diaDaSemana: 'terça', horario: '08:00', canalDestino: 'email', pausada: false },
   { id: 'r3', agenteId: 'rhetor', tarefa: 'Sugerir respostas para os e-mails recebidos ontem', frequencia: 'diaria', horario: '07:30', canalDestino: 'slack', pausada: false },
   { id: 'r4', agenteId: 'ethos', tarefa: 'Atualizar as personas com as calls gravadas do mês', frequencia: 'mensal', horario: '10:00', canalDestino: null, pausada: true },
+  { id: 'r5', agenteId: 'scopus-enterprise-latam', tarefa: 'Reavaliar a aderência das Contas-alvo enterprise da América Latina', frequencia: 'semanal', diaDaSemana: 'segunda', horario: '08:30', canalDestino: 'slack', pausada: false },
+  { id: 'r6', agenteId: 'rhetor-sequencias-outbound', tarefa: 'Montar a sequência da semana para as Contas-alvo novas', frequencia: 'semanal', diaDaSemana: 'quarta', horario: '10:00', canalDestino: 'email', pausada: false },
+  { id: 'r7', agenteId: 'oraculum-concorrencia-snowflake', tarefa: 'Comparar as citações da Databricks e da Snowflake nos prompts-alvo', frequencia: 'semanal', diaDaSemana: 'sexta', horario: '09:00', canalDestino: 'slack', pausada: false },
 ]
 
 export const atividade: ItemDeAtividade[] = [
-  { id: 'a1', agenteId: 'scopus', gatilho: 'rotina', quando: 'Hoje, 08:00', descricao: 'Reavaliou a aderência das 50 Contas-alvo prioritárias', resultado: '14 Contas-alvo mudaram de nota; a Anthropic subiu para 91.' },
-  { id: 'a2', agenteId: 'rhetor', gatilho: 'rotina', quando: 'Hoje, 07:30', descricao: 'Sugeriu respostas para os e-mails de ontem', resultado: '6 rascunhos prontos no HubSpot.' },
-  { id: 'a3', agenteId: 'scopus', gatilho: 'canal', quando: 'Ontem, 17:42', descricao: 'Respondeu a uma Menção no Slack #growth', resultado: 'Propôs atualizar 14 Contas-alvo no HubSpot.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
-  { id: 'a4', agenteId: 'oraculum', gatilho: 'rotina', quando: 'Segunda, 09:00', descricao: 'Auditou 12 prompts-alvo em 4 LLMs', resultado: 'Citada em 29 de 48 respostas; a Snowflake apareceu em 33.' },
-  { id: 'a5', agenteId: 'oraculum', gatilho: 'conversa', quando: 'Segunda, 11:15', descricao: 'Recomendou conteúdo sobre lakehouse', resultado: '3 pautas enviadas para o Notion.' },
-  { id: 'a6', agenteId: 'ethos', gatilho: 'mencao', quando: 'Sexta, 15:03', descricao: 'Foi mencionado pelo Scopus numa Conversa sobre a Stripe', resultado: '4 personas descritas.' },
-  { id: 'a7', agenteId: 'rhetor', gatilho: 'conversa', quando: 'Sexta, 10:20', descricao: 'Escreveu uma campanha para Meta Ads', resultado: 'Propôs subir a campanha; aguarda Aprovação.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
+  { id: 'a1', agenteId: 'scopus', tipo: 'execucao', gatilho: 'rotina', quando: 'Hoje, 08:00', descricao: 'Reavaliou a aderência das 50 Contas-alvo prioritárias', resultado: '14 Contas-alvo mudaram de nota; a Anthropic subiu para 91.' },
+  { id: 'a2', agenteId: 'rhetor', tipo: 'execucao', gatilho: 'rotina', quando: 'Hoje, 07:30', descricao: 'Sugeriu respostas para os e-mails de ontem', resultado: '6 rascunhos prontos no HubSpot.' },
+  { id: 'a3', agenteId: 'scopus', tipo: 'execucao', gatilho: 'canal', quando: 'Ontem, 17:42', descricao: 'Respondeu a uma Menção no Slack #growth', resultado: 'Propôs atualizar 14 Contas-alvo no HubSpot.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
+  { id: 'a4', agenteId: 'oraculum', tipo: 'execucao', gatilho: 'rotina', quando: 'Segunda, 09:00', descricao: 'Auditou 12 prompts-alvo em 4 LLMs', resultado: 'Citada em 29 de 48 respostas; a Snowflake apareceu em 33.' },
+  { id: 'a5', agenteId: 'oraculum', tipo: 'execucao', gatilho: 'conversa', quando: 'Segunda, 11:15', descricao: 'Recomendou conteúdo sobre lakehouse', resultado: '3 pautas enviadas para o Notion.' },
+  { id: 'a6', agenteId: 'ethos', tipo: 'execucao', gatilho: 'mencao', quando: 'Sexta, 15:03', descricao: 'Foi mencionado pelo Scopus numa Conversa sobre a Stripe', resultado: '4 personas descritas.' },
+  { id: 'a7', agenteId: 'rhetor', tipo: 'execucao', gatilho: 'conversa', quando: 'Sexta, 10:20', descricao: 'Escreveu uma campanha para Meta Ads', resultado: 'Propôs subir a campanha; aguarda Aprovação.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
+  { id: 'a8', agenteId: 'scopus-enterprise-latam', tipo: 'execucao', gatilho: 'rotina', quando: 'Segunda, 08:30', descricao: 'Reavaliou 40 Contas-alvo enterprise na América Latina', resultado: '6 Contas-alvo mudaram de nota; o Nubank subiu para 88.' },
+  { id: 'a9', agenteId: 'ethos-comite-financeiro', tipo: 'execucao', gatilho: 'conversa', quando: 'Quinta, 16:40', descricao: 'Descreveu o Comitê financeiro da Stripe', resultado: 'CFO, controller e Procurement, com as objeções de cada um.' },
+  { id: 'a10', agenteId: 'rhetor-sequencias-outbound', tipo: 'execucao', gatilho: 'rotina', quando: 'Quarta, 10:00', descricao: 'Montou a sequência da semana', resultado: '5 toques para 12 Contas-alvo novas, prontos no HubSpot.' },
+  { id: 'a11', agenteId: 'rhetor-anuncios-meta', tipo: 'execucao', gatilho: 'mencao', quando: 'Terça, 14:12', descricao: 'Foi mencionado numa Conversa do Rhetor sobre a campanha de IA', resultado: '3 variações de anúncio por persona.' },
+  { id: 'a12', agenteId: 'oraculum-concorrencia-snowflake', tipo: 'execucao', gatilho: 'rotina', quando: 'Sexta, 09:00', descricao: 'Comparou 12 prompts-alvo com a Snowflake', resultado: 'A Snowflake aparece antes em 7; a maior diferença está no Perplexity.' },
 ]
 
 export const canais: Canal[] = [
@@ -155,16 +136,14 @@ export const integracoesFuturas: IntegracaoFutura[] = [
   { nome: 'LinkedIn Ads', categoria: 'Mídia paga' },
 ]
 
-const MAPEAMENTO_PADRAO: Record<AgenteId, IntegracaoId[]> = {
-  scopus: ['hubspot', 'clay', 'apollo', 'lusha'],
-  ethos: ['hubspot', 'apollo', 'lusha', 'notion'],
-  rhetor: ['hubspot', 'notion', 'meta-ads', 'google-ads'],
-  oraculum: ['notion', 'google-ads'],
+function permissoesPadrao(id: EspecialidadeId): Partial<Record<IntegracaoId, Permissao>> {
+  return permissoesEm(especialidade(id).integracoesPadrao)
 }
 
-function permissoesPadrao(id: AgenteId): Partial<Record<IntegracaoId, Permissao>> {
+/** Permissões padrão só nas Integrações escolhidas, para os Agentes criados que tiraram alguma. */
+function permissoesEm(ids: IntegracaoId[]): Partial<Record<IntegracaoId, Permissao>> {
   return Object.fromEntries(
-    MAPEAMENTO_PADRAO[id].map((integracaoId) => {
+    ids.map((integracaoId) => {
       const integracao = integracoes.find((i) => i.id === integracaoId)
       if (!integracao) throw new Error(`Integração desconhecida: ${integracaoId}`)
       return [integracaoId, permissaoPadrao(integracao)]
@@ -207,6 +186,44 @@ export const personalizacoes: Record<AgenteId, Personalizacao> = {
     canais: ['slack'],
     permissoes: permissoesPadrao('oraculum'),
   },
+  'scopus-enterprise-latam': {
+    instrucoes: 'Pontue só Contas-alvo enterprise no Brasil, no México e na Colômbia, com mais de 5.000 funcionários.',
+    tomDeVoz: 'Analítico e objetivo.',
+    baseDeConhecimento: [
+      { id: 'k7', tipo: 'documento', nome: 'Clientes fechados 2025-2026.csv' },
+      { id: 'k8', tipo: 'notion', nome: 'Playbook de expansão LATAM' },
+    ],
+    canais: ['slack', 'email'],
+    permissoes: permissoesPadrao('scopus'),
+  },
+  'ethos-comite-financeiro': {
+    instrucoes: 'Descreva só os papéis financeiros do Comitê de compra: CFO, controller e Procurement.',
+    tomDeVoz: 'Empático e concreto.',
+    baseDeConhecimento: [{ id: 'k9', tipo: 'notion', nome: 'Objeções de CFOs em negócios perdidos' }],
+    canais: ['slack'],
+    permissoes: permissoesPadrao('ethos'),
+  },
+  'rhetor-sequencias-outbound': {
+    instrucoes: 'Escreva sequências outbound de 4 a 6 toques, com um único pedido por e-mail.',
+    tomDeVoz: 'Técnico e direto, como a Databricks fala com engenheiros.',
+    baseDeConhecimento: [{ id: 'k10', tipo: 'notion', nome: 'Guia de marca Databricks' }],
+    canais: ['slack', 'email'],
+    permissoes: permissoesEm(['hubspot', 'notion']),
+  },
+  'rhetor-anuncios-meta': {
+    instrucoes: 'Escreva copy de anúncios para o Meta Ads, com variações por persona e verba de até R$ 15.000 por campanha.',
+    tomDeVoz: 'Técnico e direto, com um número no título.',
+    baseDeConhecimento: [{ id: 'k11', tipo: 'notion', nome: 'Guia de marca Databricks' }],
+    canais: ['slack'],
+    permissoes: permissoesEm(['hubspot', 'notion', 'meta-ads']),
+  },
+  'oraculum-concorrencia-snowflake': {
+    instrucoes: 'Compare a presença da Databricks e da Snowflake em cada prompt-alvo e aponte onde a Snowflake ganha.',
+    tomDeVoz: 'Factual, com fontes.',
+    baseDeConhecimento: [{ id: 'k12', tipo: 'url', nome: 'snowflake.com/blog' }],
+    canais: ['slack'],
+    permissoes: permissoesEm(['notion']),
+  },
 }
 
 export const aprovacoes: Aprovacao[] = [
@@ -218,6 +235,7 @@ export const aprovacoes: Aprovacao[] = [
     impacto: 'R$ 12.000 em 14 dias',
     justificativa: 'Três variações de anúncio para VPs de Engenharia, com base nas personas do Ethos.',
     origem: 'althius',
+    gatilho: 'conversa',
     estado: 'pendente',
   },
   {
@@ -228,6 +246,7 @@ export const aprovacoes: Aprovacao[] = [
     impacto: '14 registros alterados',
     justificativa: 'A reavaliação desta manhã mudou a nota de 14 Contas-alvo prioritárias.',
     origem: 'slack',
+    gatilho: 'canal',
     estado: 'pendente',
   },
 ]

@@ -1,5 +1,5 @@
 import { Eye, Feather, Target, UserRound, type LucideIcon } from 'lucide-react'
-import type { AgenteId, EstadoAgente } from '@/fonte/tipos'
+import type { EspecialidadeId, EstadoAgente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 
 /**
@@ -28,30 +28,30 @@ export function Logo({ className }: { className?: string }) {
 }
 
 // Lucide é provisório: os ícones desenhados à mão do manual entram quando chegarem os vetores.
-const ICONES: Record<AgenteId, LucideIcon> = {
+// Cada Especialidade tem um ícone, e todos os Agentes dela usam o mesmo.
+const ICONES: Record<EspecialidadeId, LucideIcon> = {
   scopus: Target,
   ethos: UserRound,
   rhetor: Feather,
   oraculum: Eye,
 }
 
-export function IconeAgente({
-  id,
-  estado = 'ocioso',
-  tamanho = 'md',
-}: {
-  id: AgenteId
-  estado?: EstadoAgente
-  tamanho?: 'md' | 'lg'
-}) {
-  const Icone = ICONES[id]
+/** O ícone da Especialidade, solto (sidebar, composer). */
+export function IconeDaEspecialidade({ especialidade, className }: { especialidade: EspecialidadeId; className?: string }) {
+  const Icone = ICONES[especialidade]
+  return <Icone strokeWidth={1.8} className={cn('size-4 shrink-0', className)} aria-hidden />
+}
+
+/** O ícone da Especialidade num quadro: a identidade de um Agente, sem avatar de personagem. */
+export function IconeAgente({ especialidade, tamanho = 'md' }: { especialidade: EspecialidadeId; tamanho?: 'sm' | 'md' | 'lg' }) {
   return (
-    <span className={cn('relative inline-flex shrink-0 items-center justify-center', tamanho === 'lg' ? 'size-12' : 'size-8')}>
-      {estado === 'trabalhando' && <Pulso className="absolute inset-0" />}
-      <Icone strokeWidth={1.8} className={tamanho === 'lg' ? 'size-8' : 'size-5'} aria-hidden />
-      {estado === 'detectou' && (
-        <span className="absolute top-0 right-0 size-2 rounded-full bg-al-accent" aria-hidden />
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center border border-al-line bg-al-bg text-al-ink',
+        { sm: 'size-6', md: 'size-7', lg: 'size-12' }[tamanho],
       )}
+    >
+      <IconeDaEspecialidade especialidade={especialidade} className={cn(tamanho === 'sm' && 'size-3.5', tamanho === 'lg' && 'size-6')} />
     </span>
   )
 }
@@ -60,6 +60,27 @@ export const ROTULO_DO_ESTADO: Record<EstadoAgente, string> = {
   ocioso: 'Disponível',
   trabalhando: 'Trabalhando',
   detectou: 'Detectou algo',
+}
+
+/** O pulso quando o Agente trabalha e o ponto rosa quando detectou algo; nada quando está disponível. */
+export function IndicadorDeEstado({ estado, className }: { estado: EstadoAgente; className?: string }) {
+  if (estado === 'ocioso') return null
+  return (
+    <span className={cn('relative inline-flex size-2 shrink-0 items-center justify-center', className)} aria-hidden>
+      {estado === 'trabalhando' && <span className="pulso-anel absolute -inset-1 rounded-full border border-al-accent" />}
+      <span className="size-1.5 rounded-full bg-al-accent" />
+    </span>
+  )
+}
+
+/** Selo de estado de um Agente: o indicador e o rótulo. */
+export function SeloDeEstado({ estado }: { estado: EstadoAgente }) {
+  return (
+    <span className="selo">
+      <IndicadorDeEstado estado={estado} />
+      {ROTULO_DO_ESTADO[estado]}
+    </span>
+  )
 }
 
 /** O pulso do manual: anéis que saem do ponto. Substitui o spinner genérico. */

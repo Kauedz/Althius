@@ -1,8 +1,10 @@
+import { ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Carregando, IconeAgente } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
+import { Pagina } from '@/components/pagina'
 import { useDados } from '@/fonte/contexto'
-import type { Aprovacao } from '@/fonte/tipos'
+import type { Agente, Aprovacao } from '@/fonte/tipos'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
 export function PaginaAprovacoes() {
@@ -17,9 +19,8 @@ export function PaginaAprovacoes() {
   )
 
   return (
-    <div className="flex max-w-4xl flex-col gap-16">
+    <Pagina titulo="Aprovações" icone={ShieldCheck} className="max-w-4xl gap-10">
       <div className="flex flex-col gap-2">
-        <h1 className="titulo-display text-7xl">Aprovações</h1>
         <p className="max-w-2xl text-lg text-al-muted">
           O que os agentes propuseram e só acontece com o seu ok. Também dá para decidir no canal de onde veio o pedido.
         </p>
@@ -36,7 +37,7 @@ export function PaginaAprovacoes() {
               <li key={aprovacao.id}>
                 <CartaoDeAprovacao
                   aprovacao={aprovacao}
-                  nomeDoAgente={agentes.find((a) => a.id === aprovacao.agenteId)?.nome}
+                  agente={agentes.find((a) => a.id === aprovacao.agenteId)}
                   nomeDaIntegracao={integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome}
                 />
               </li>
@@ -44,25 +45,25 @@ export function PaginaAprovacoes() {
           </ul>
         </section>
       )}
-    </div>
+    </Pagina>
   )
 }
 
 function CartaoDeAprovacao({
   aprovacao,
-  nomeDoAgente,
+  agente,
   nomeDaIntegracao,
 }: {
   aprovacao: Aprovacao
-  nomeDoAgente?: string
+  agente?: Agente
   nomeDaIntegracao?: string
 }) {
   return (
     <article aria-label={aprovacao.acao} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center gap-4">
-        <IconeAgente id={aprovacao.agenteId} />
+        {agente && <IconeAgente especialidade={agente.especialidade.id} />}
         <Link to={`/agentes/${aprovacao.agenteId}`} className="font-normal underline-offset-4 hover:underline">
-          {nomeDoAgente}
+          {agente?.nome}
         </Link>
         <span className="rotulo">{nomeDaIntegracao}</span>
         <span className="rotulo ml-auto">
@@ -76,7 +77,7 @@ function CartaoDeAprovacao({
         <dt className="rotulo">Por quê</dt>
         <dd className="text-al-muted">{aprovacao.justificativa}</dd>
       </dl>
-      <DecisaoDeAprovacao aprovacao={aprovacao} onde="althius" />
+      <DecisaoDeAprovacao aprovacao={aprovacao} onde="fila" />
     </article>
   )
 }

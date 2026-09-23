@@ -25,6 +25,10 @@
   --al-sucesso: #2e7d5b;
   --al-atencao: #c79a1f;
   --al-erro: #c0392b;
+  /* Cores próprias das marcas das Integrações, usadas só nos logos. */
+  --logo-hubspot: #ff7a59;
+  --logo-meta: #0467df;
+  --logo-google-ads: #4285f4;
   color-scheme: dark;
 }
 
@@ -41,6 +45,10 @@
 :root {
   --radius-field: 0px;
   --radius-card: 16px;
+  /* Exceção aprovada no mock (ticket 02) ao raio 0 dos campos: o composer é arredondado. */
+  --radius-composer: 24px;
+  /* O campo do composer cresce até esta altura e só então rola. */
+  --altura-maxima-composer: 17.5rem;
 
   /* Ponte para as variáveis que os componentes shadcn/ui esperam. */
   --background: var(--al-bg);
@@ -152,9 +160,64 @@
     background: var(--al-bg);
     padding: 0.5rem 1rem;
   }
+  /* Selo: etiqueta quadrada e discreta, como o de estado e o de demonstração. */
+  .selo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.375rem;
+    padding: 0 0.5rem;
+    border: 1px solid var(--al-line);
+    font-weight: 400;
+    font-size: 0.625rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--al-ink-muted);
+  }
   .cartao {
     background: var(--al-surface);
     border-radius: var(--radius-card);
+  }
+  /* Composer: uma superfície única e arredondada, com o campo que cresce com a mensagem. */
+  .composer {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--al-line);
+    border-radius: var(--radius-composer);
+    background: var(--al-surface);
+    transition: border-color 0.15s;
+  }
+  .composer:hover,
+  .composer:has(textarea:focus-visible) {
+    border-color: var(--al-ink-muted);
+  }
+  .composer:has(textarea:focus-visible) {
+    outline: 2px solid var(--al-accent);
+    outline-offset: 3px;
+  }
+  .composer textarea {
+    display: block;
+    width: 100%;
+    max-height: var(--altura-maxima-composer);
+    padding: 1rem 1.5rem 0.5rem;
+    border: 0;
+    background: none;
+    resize: none;
+    font-size: 1rem;
+  }
+  .composer textarea::placeholder {
+    color: var(--al-ink-muted);
+  }
+  .composer textarea:focus-visible {
+    outline: none;
+  }
+  /* O rodapé da Conversa coordenada: o composer fixo, sobre um degradê que esconde a Conversa que passa por baixo. */
+  .rodape-da-conversa {
+    position: sticky;
+    bottom: 0;
+    padding: --spacing(6) 0 --spacing(10);
+    background: linear-gradient(to bottom, transparent, var(--al-bg) --spacing(6));
   }
   .anotacao {
     font-family: var(--font-mao);
