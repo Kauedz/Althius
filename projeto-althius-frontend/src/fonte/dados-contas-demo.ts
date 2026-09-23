@@ -27,6 +27,7 @@ interface ContaDefinicao {
   siteUrl?: string
   linkedinUrl?: string
   logo?: string
+  logoDeUmaCor?: boolean
   segmento?: string
   aderencia?: Aderencia
   origem: OrigemDaConta
@@ -1579,6 +1580,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       siteUrl: 'https://notion.so',
       linkedinUrl: 'https://www.linkedin.com/company/notionhq',
       logo: '/logos/notion.svg',
+      logoDeUmaCor: true,
       segmento: 'Produtividade',
       aderencia: 'quente',
       origem: { tipo: 'recomendada' },
@@ -1645,6 +1647,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       siteUrl: 'https://vercel.com',
       linkedinUrl: 'https://www.linkedin.com/company/vercel',
       logo: '/logos/vercel.svg',
+      logoDeUmaCor: true,
       segmento: 'Infraestrutura',
       aderencia: 'quente',
       origem: { tipo: 'recomendada' },
@@ -1702,6 +1705,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       siteUrl: 'https://zendesk.com',
       linkedinUrl: 'https://www.linkedin.com/company/zendesk',
       logo: '/logos/zendesk.svg',
+      logoDeUmaCor: true,
       segmento: 'Atendimento',
       aderencia: 'fit',
       origem: { tipo: 'recomendada' },
@@ -1833,6 +1837,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       siteUrl: def.siteUrl,
       linkedinUrl: def.linkedinUrl,
       logo: def.logo,
+      logoDeUmaCor: def.logoDeUmaCor,
       segmento: def.segmento,
       aderencia: def.aderencia,
       origem: def.origem,

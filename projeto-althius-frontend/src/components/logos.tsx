@@ -1,5 +1,6 @@
-// Logos oficiais das Integrações (ADR 0003 permite marcas reais na demo). HubSpot, Notion, Meta e
-// Google Ads vêm do Simple Icons (CC0), na cor da marca; Clay, Apollo e Lusha, do ícone do site de cada uma.
+// Logos oficiais das Integrações e das Contas-alvo (ADR 0003 permite marcas reais na demo). Nas Integrações,
+// HubSpot, Notion, Meta e Google Ads vêm do Simple Icons (CC0), na cor da marca; Clay, Apollo e Lusha, do
+// ícone do site de cada uma. Os das Contas-alvo são arquivos em public/logos, com o endereço vindo da fonte.
 import apollo from '@/assets/logos/apollo.png'
 import clay from '@/assets/logos/clay.png'
 import lusha from '@/assets/logos/lusha.png'
@@ -31,15 +32,37 @@ export function LogoDaIntegracao({ id, nome, className }: { id: IntegracaoId; no
 
 /**
  * O logo de uma Conta-alvo, com 24px, ou as iniciais do nome num quadrado discreto quando não há logo.
- * É decorativo: o nome da empresa sempre aparece ao lado.
+ * `nome` é o nome da Conta-alvo, lido por leitores de tela, como nos logos das Integrações.
  */
-export function LogoDaConta({ nome, logo, className }: { nome: string; logo?: string; className?: string }) {
+export function LogoDaConta({
+  nome,
+  logo,
+  deUmaCor,
+  className,
+}: {
+  nome: string
+  logo?: string
+  /** O logo é de uma cor só: como imagem, sumiria num dos temas, e por isso é pintado com a cor do texto. */
+  deUmaCor?: boolean
+  className?: string
+}) {
+  if (logo && deUmaCor) {
+    return (
+      <span
+        role="img"
+        aria-label={nome}
+        style={{ maskImage: `url(${logo})` }}
+        className={cn('size-6 shrink-0 bg-al-ink p-px mask-contain mask-center mask-no-repeat mask-origin-content', className)}
+      />
+    )
+  }
   if (logo) {
-    return <img src={logo} alt="" className={cn('size-6 shrink-0 object-contain p-px', className)} />
+    return <img src={logo} alt={nome} className={cn('size-6 shrink-0 object-contain p-px', className)} />
   }
   return (
     <span
-      aria-hidden
+      role="img"
+      aria-label={nome}
       className={cn(
         'grid size-6 shrink-0 place-items-center rounded-[4px] border border-al-line bg-al-surface text-[0.625rem] font-semibold text-al-muted',
         className,

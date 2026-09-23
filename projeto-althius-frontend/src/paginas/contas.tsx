@@ -46,9 +46,8 @@ function ordenarPorPrioridade(a: ContaAlvo, b: ContaAlvo): number {
   return a.nome.localeCompare(b.nome, 'pt-BR')
 }
 
-// Cabeçalho fixo ao rolar a página, logo abaixo da barra de topo da Pagina (h-16).
-const CABECALHO =
-  'sticky top-16 z-2 h-9.5 border-b border-al-line bg-al-bg pr-4 text-[0.625rem] font-normal tracking-rotulo whitespace-nowrap text-al-muted uppercase'
+// Cabeçalho fixo no topo do quadro que rola.
+const CABECALHO = 'rotulo sticky top-0 z-2 h-9.5 border-b border-al-line bg-al-bg pr-4 text-[0.625rem] whitespace-nowrap'
 // Linhas compactas, separadas só pela linha do token.
 const CELULA = 'border-b border-al-line pr-4'
 
@@ -63,7 +62,7 @@ export function PaginaContas() {
   const contasOrdenadas = contas ? [...contas].sort(ordenarPorPrioridade) : []
 
   return (
-    <Pagina titulo="Contas" icone={Building2}>
+    <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
       <AbasSublinhadas rotuloAcessivel="Abas de contas e contatos" abas={ABAS_MODULO} />
 
       <div className="flex flex-col gap-1">
@@ -101,60 +100,63 @@ export function PaginaContas() {
       )}
 
       {!carregando && !erro && contas && contas.length > 0 && (
-        // Sem contêiner de rolagem em volta: é a página que rola, nos dois sentidos. Assim o cabeçalho
-        // fica fixo logo abaixo da barra de topo da Pagina (h-16), e a coluna Empresa, fixa à esquerda.
-        <table
-          aria-label="Tabela de Contas"
-          className="w-full min-w-[64rem] table-fixed border-separate border-spacing-0 text-left text-sm"
-        >
-          <thead>
-            <tr>
-              <th scope="col" className={cn(CABECALHO, 'left-0 z-3 w-52')}>
-                Empresa
-              </th>
-              <th scope="col" className={cn(CABECALHO, 'w-24')}>
-                Aderência
-              </th>
-              <th scope="col" className={cn(CABECALHO, 'w-40')}>
-                Contatos
-              </th>
-              {/* Sem largura fixa: o Último sinal fica com o resto, e é a coluna mais larga. */}
-              <th scope="col" className={CABECALHO}>
-                Último sinal
-              </th>
-              <th scope="col" className={cn(CABECALHO, 'w-36')}>
-                Segmento
-              </th>
-              <th scope="col" className={cn(CABECALHO, 'w-28')}>
-                Último contato
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {contasOrdenadas.map((conta) => (
-              <tr key={conta.id} className="h-11">
-                <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
-                  <CelulaEmpresa conta={conta} />
-                </td>
-                <td className={CELULA}>
-                  <CelulaAderencia aderencia={conta.aderencia} />
-                </td>
-                <td className={CELULA}>
-                  <CelulaContatos total={conta.totalContatos} previa={conta.previaContatos} />
-                </td>
-                <td className={CELULA}>
-                  <CelulaUltimoSinal sinal={conta.ultimoSinal} hoje={hoje} />
-                </td>
-                <td className={CELULA}>
-                  <CelulaSegmento segmento={conta.segmento} />
-                </td>
-                <td className={CELULA}>
-                  <CelulaUltimoContato data={conta.ultimoContatoEm} hoje={hoje} />
-                </td>
+        // A tabela rola num quadro próprio, nos dois sentidos, que vai até o pé da janela. Assim o cabeçalho
+        // fica fixo na rolagem vertical e a coluna Empresa, na horizontal, sem tirar do lugar a sidebar e a
+        // barra de topo.
+        <div className="min-h-0 overflow-auto">
+          <table
+            aria-label="Tabela de Contas"
+            className="w-full min-w-[64rem] table-fixed border-separate border-spacing-0 text-left text-sm"
+          >
+            <thead>
+              <tr>
+                <th scope="col" className={cn(CABECALHO, 'left-0 z-3 w-52')}>
+                  Empresa
+                </th>
+                <th scope="col" className={cn(CABECALHO, 'w-24')}>
+                  Aderência
+                </th>
+                <th scope="col" className={cn(CABECALHO, 'w-40')}>
+                  Contatos
+                </th>
+                {/* Sem largura fixa: o Último sinal fica com o resto, e é a coluna mais larga. */}
+                <th scope="col" className={CABECALHO}>
+                  Último sinal
+                </th>
+                <th scope="col" className={cn(CABECALHO, 'w-36')}>
+                  Segmento
+                </th>
+                <th scope="col" className={cn(CABECALHO, 'w-28')}>
+                  Último contato
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {contasOrdenadas.map((conta) => (
+                <tr key={conta.id} className="h-11">
+                  <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
+                    <CelulaEmpresa conta={conta} />
+                  </td>
+                  <td className={CELULA}>
+                    <CelulaAderencia aderencia={conta.aderencia} />
+                  </td>
+                  <td className={CELULA}>
+                    <CelulaContatos total={conta.totalContatos} previa={conta.previaContatos} />
+                  </td>
+                  <td className={CELULA}>
+                    <CelulaUltimoSinal sinal={conta.ultimoSinal} hoje={hoje} />
+                  </td>
+                  <td className={CELULA}>
+                    <CelulaSegmento segmento={conta.segmento} />
+                  </td>
+                  <td className={CELULA}>
+                    <CelulaUltimoContato data={conta.ultimoContatoEm} hoje={hoje} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Pagina>
   )
@@ -163,10 +165,10 @@ export function PaginaContas() {
 function CelulaEmpresa({ conta }: { conta: ContaAlvo }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <LogoDaConta nome={conta.nome} logo={conta.logo} />
+      <LogoDaConta nome={conta.nome} logo={conta.logo} deUmaCor={conta.logoDeUmaCor} />
       <div className="flex min-w-0 flex-col leading-tight">
         <span className="truncate font-normal text-al-ink">{conta.nome}</span>
-        {conta.dominio && <span className="truncate text-[0.6875rem] text-al-muted">{conta.dominio}</span>}
+        <span className="truncate text-[0.6875rem] text-al-muted">{conta.dominio ?? 'Domínio não informado'}</span>
       </div>
     </div>
   )
@@ -238,7 +240,8 @@ function CelulaUltimoSinal({ sinal, hoje }: { sinal?: ContaAlvo['ultimoSinal']; 
   const dataRelativa = formatarDataDoModulo(sinal.data, hoje, { maiuscula: false })
   const textoCompleto = `${sinal.frase} · ${formatarDataCompleta(sinal.data)}`
 
-  // Numa linha só: a frase é truncada e a data continua sempre visível.
+  // Numa linha só: a frase é truncada e a data continua sempre visível. O espaço entre as duas não aparece no
+  // flex, mas mantém "frase · data" no texto da célula, ao copiar.
   return (
     <span title={textoCompleto} aria-label={textoCompleto} className="flex min-w-0 items-center gap-1.5">
       <RadioTower strokeWidth={1.8} className="size-3.5 shrink-0 text-al-accent" aria-hidden />

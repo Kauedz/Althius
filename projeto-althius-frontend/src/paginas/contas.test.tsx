@@ -1,6 +1,10 @@
-import { screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { renderizarApp } from '@/test/renderizar'
+import { App } from '@/App'
+import type { FonteDeContas } from '@/fonte/contas-tipos'
+import { criarFonteDeContasSimulada } from '@/fonte/simulada-contas'
+import { criarFonteSimulada } from '@/fonte/simulada'
+import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
 
 describe('Aba Contas (ponta a ponta)', () => {
   it('o item "Contas e Contatos" aparece na seção Workspace da sidebar acima de Agentes e abre a aba Contas', async () => {
@@ -92,7 +96,7 @@ describe('Aba Contas (ponta a ponta)', () => {
       'BBVA México',
     ]
 
-    // A célula Empresa também traz as iniciais e o domínio: basta que o nome esperado esteja nela
+    // A célula Empresa também traz o logo ou as iniciais e o domínio: basta que o nome esperado esteja nela
     expect(linhas).toHaveLength(ordemEsperada.length)
     linhas.forEach((linha, i) => {
       const empresa = within(linha).getAllByRole('cell')[0]
@@ -231,20 +235,45 @@ describe('Células da tabela de Contas', () => {
     renderizarApp('/contas')
 
     const [openai] = await celulasDaConta('OpenAI')
-    expect(openai.querySelector('img')).toHaveAttribute('src', '/logos/openai.svg')
+    expect(within(openai).getByRole('img', { name: 'OpenAI' })).toHaveAttribute('src', '/logos/openai.svg')
     expect(within(openai).getByText('OpenAI')).toBeInTheDocument()
     expect(within(openai).getByText('openai.com')).toBeInTheDocument()
 
-    // Sem logo, as iniciais num quadrado, sem imagem nem ícone de pessoa
+    // Um logo de uma cor só também é o logo, e não as iniciais
+    const [notion] = await celulasDaConta('Notion')
+    expect(within(notion).getByRole('img', { name: 'Notion' })).toBeInTheDocument()
+    expect(within(notion).queryByText('N')).not.toBeInTheDocument()
+    expect(within(notion).getByText('notion.so')).toBeInTheDocument()
+
+    // Sem logo, só as iniciais no quadrado, sem ícone de pessoa
     const [bbva] = await celulasDaConta('BBVA México')
-    expect(bbva.querySelector('img, svg')).toBeNull()
-    expect(within(bbva).getByText('BM')).toBeInTheDocument()
+    expect(within(bbva).getByRole('img', { name: 'BBVA México' })).toHaveTextContent(/^BM$/)
     expect(within(bbva).getByText('bbva.mx')).toBeInTheDocument()
 
     const [miro] = await celulasDaConta('Miro')
-    expect(miro.querySelector('img, svg')).toBeNull()
-    expect(within(miro).getByText('M')).toBeInTheDocument()
+    expect(within(miro).getByRole('img', { name: 'Miro' })).toHaveTextContent(/^M$/)
     expect(within(miro).getByText('miro.com')).toBeInTheDocument()
+  })
+
+  it('sem domínio, a célula Empresa mostra "Domínio não informado"', async () => {
+    // Nenhuma Conta-alvo da demo está sem domínio: só neste teste, a fonte entrega a Miro sem ele
+    const fonteDeContas = criarFonteDeContasSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES })
+    const semDominioNaMiro: FonteDeContas = {
+      ...fonteDeContas,
+      contas: async () =>
+        (await fonteDeContas.contas()).map((conta) => (conta.id === 'miro' ? { ...conta, dominio: undefined } : conta)),
+    }
+    render(
+      <App
+        fonte={criarFonteSimulada({ atrasoMs: 0 })}
+        fonteDeContas={semDominioNaMiro}
+        rotaInicial="/contas"
+        animarDigitacao={false}
+      />,
+    )
+
+    const [miro] = await celulasDaConta('Miro')
+    expect(within(miro).getByText('Domínio não informado')).toBeInTheDocument()
   })
 
   it('a Aderência aparece como "🔥 Quente", "Fit", "Não fit" ou "—" com "Aderência ainda não avaliada"', async () => {

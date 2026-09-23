@@ -11,12 +11,14 @@ interface Props {
   voltar?: { para: string; rotulo: string }
   /** Ações à direita da barra de topo. */
   acoes?: ReactNode
+  /** O conteúdo ocupa a janela abaixo da barra de topo, e quem rola é um quadro dentro dele (ex.: uma tabela). */
+  ocupaAJanela?: boolean
   className?: string
   children: ReactNode
 }
 
 /** Uma página da casca: barra de topo fixa com o título e, abaixo, o conteúdo. */
-export function Pagina({ titulo, icone: Icone, voltar, acoes, className, children }: Props) {
+export function Pagina({ titulo, icone: Icone, voltar, acoes, ocupaAJanela, className, children }: Props) {
   return (
     <>
       <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b border-al-line bg-al-bg px-10">
@@ -37,7 +39,16 @@ export function Pagina({ titulo, icone: Icone, voltar, acoes, className, childre
         </div>
         {acoes && <div className="flex items-center gap-2">{acoes}</div>}
       </header>
-      <div className={cn('flex flex-col gap-6 px-10 pt-6 pb-16', className)}>{children}</div>
+      <div
+        className={cn(
+          'flex flex-col gap-6 px-10 pt-6 pb-16',
+          // A altura da janela menos a da barra de topo (h-16).
+          ocupaAJanela && 'h-[calc(100vh-4rem)] pb-0',
+          className,
+        )}
+      >
+        {children}
+      </div>
     </>
   )
 }
