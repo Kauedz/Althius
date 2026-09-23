@@ -4,10 +4,10 @@
 
 **Blocked by:** 02 (FonteDeSequencias e item Sequências na casca)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] A lista mostra Conta-alvo, status, cobertura e próximo step a partir da fonte
-- [ ] Busca e filtro por status funcionam na sessão
-- [ ] Estado vazio e erro com "Tentar de novo" seguem o padrão de Contas
-- [ ] "Nova sequência" cria via fonte para uma Conta-alvo (máx. uma por Conta)
-- [ ] Testes cobrem lista populada, vazia, erro e criação básica
+- [x] A lista mostra Conta-alvo, status, cobertura e próximo step a partir da fonte
+- [x] Busca e filtro por status funcionam na sessão
+- [x] Estado vazio e erro com "Tentar de novo" seguem o padrão de Contas
+- [x] "Nova sequência" cria via fonte para uma Conta-alvo (máx. uma por Conta)
+- [x] Testes cobrem lista populada, vazia, erro e criação básica
