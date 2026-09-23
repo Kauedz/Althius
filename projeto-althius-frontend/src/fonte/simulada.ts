@@ -3,6 +3,7 @@
 import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
+import { reconhecerMencoes } from './mencoes'
 import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
 import { respostaDeMencao, respostaGenerica, roteiros, type PassoDeRoteiro } from './roteiros'
 import type {
@@ -99,17 +100,16 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     )
   }
 
-  /** Agentes mencionados com @Nome no texto, na ordem em que aparecem. */
-  function mencoes(texto: string): RegistroDeAgente[] {
-    return [...texto.matchAll(/@(\p{L}+)/gu)]
-      .map(([, nome]) => estado.agentes.find((a) => a.nome.toLowerCase() === nome.toLowerCase()))
-      .filter((agente): agente is RegistroDeAgente => agente !== undefined)
+  /** O outro Agente que a mensagem traz para a Conversa com @, se houver. */
+  function mencionado(id: AgenteId, texto: string, sugestaoId?: string): RegistroDeAgente | undefined {
+    if (sugestaoId && roteiros[sugestaoId]) return undefined
+    return reconhecerMencoes(texto, estado.agentes).find((agente) => agente.id !== id)
   }
 
   function roteiroPara(id: AgenteId, texto: string, sugestaoId?: string): PassoDeRoteiro<AgenteId>[] {
     const atual = buscar(estado.agentes, id)
     if (sugestaoId && roteiros[sugestaoId]) return atribuir(roteiros[sugestaoId], atual)
-    const outro = mencoes(texto).find((mencionado) => mencionado.id !== id)
+    const outro = mencionado(id, texto)
     if (outro) return respostaDeMencao(id, outro)
     return atribuir(respostaGenerica(atual.especialidadeId, atual.nome), atual)
   }
@@ -263,10 +263,19 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       }
       registrarAtividade({
         agenteId: id,
-        gatilho: mencoes(texto).some((m) => m.id !== id) ? 'mencao' : 'conversa',
+        gatilho: 'conversa',
         descricao: `Respondeu: "${texto}"`,
         resultado: `${passos.length} passos na Conversa.`,
       })
+      const outro = mencionado(id, texto, sugestaoId)
+      if (outro) {
+        registrarAtividade({
+          agenteId: outro.id,
+          gatilho: 'mencao',
+          descricao: `Foi mencionado por ${nomeDe(id)}: "${texto}"`,
+          resultado: 'Entrou na Conversa e complementou a resposta.',
+        })
+      }
       avisar()
     },
   }

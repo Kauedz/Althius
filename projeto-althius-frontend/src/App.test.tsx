@@ -332,6 +332,68 @@ describe('Conversa', () => {
   })
 })
 
+describe('Conversa com Agentes criados e Menções', () => {
+  it('uma sugestão na Conversa de um Agente criado produz o roteiro da Especialidade, em nome dele', async () => {
+    const { usuario } = renderizarApp('/agentes/scopus-enterprise-latam/conversa')
+    await usuario.click(await screen.findByRole('button', { name: /aderência da OpenAI/ }))
+    const conversa = screen.getByRole('region', { name: 'Conversa' })
+    expect(await within(conversa).findByText(/Consultando HubSpot/)).toBeInTheDocument()
+    expect(await within(conversa).findByText(/Aderência ao ICP: 87/)).toBeInTheDocument()
+    expect(within(conversa).getByText('Scopus · Enterprise LATAM')).toBeInTheDocument()
+  })
+
+  it('texto livre na Conversa de um Agente criado recebe a resposta genérica, em nome dele', async () => {
+    const { usuario } = renderizarApp('/agentes/ethos-comite-financeiro/conversa')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Ethos · Comitê financeiro' }), 'e o CFO da Nubank?{Enter}')
+    expect(await screen.findByText(/No produto, Ethos · Comitê financeiro responderia/)).toBeInTheDocument()
+  })
+
+  it('o autocompletar de @ lista os Agentes criados pelo nome completo e filtra enquanto se digita', async () => {
+    const { usuario } = renderizarApp('/agentes/ethos/conversa')
+    const campo = await screen.findByRole('textbox', { name: 'Mensagem para Ethos' })
+    await usuario.type(campo, '@Scop')
+    const opcoes = await screen.findByRole('listbox', { name: 'Agentes' })
+    expect(within(opcoes).getAllByRole('option').map((o) => o.getAttribute('aria-label'))).toEqual([
+      'Scopus',
+      'Scopus · Enterprise LATAM',
+    ])
+    await usuario.type(campo, 'us ent')
+    await waitFor(() =>
+      expect(within(screen.getByRole('listbox', { name: 'Agentes' })).getAllByRole('option').map((o) => o.getAttribute('aria-label'))).toEqual([
+        'Scopus · Enterprise LATAM',
+      ]),
+    )
+    await usuario.click(screen.getByRole('option', { name: 'Scopus · Enterprise LATAM' }))
+    expect(campo).toHaveValue('@Scopus · Enterprise LATAM ')
+  })
+
+  it('"@Scopus · Enterprise LATAM" traz o Agente criado; "@Scopus" traz o Agente padrão', async () => {
+    const { usuario } = renderizarApp('/agentes/ethos/conversa')
+    const campo = await screen.findByRole('textbox', { name: 'Mensagem para Ethos' })
+    await usuario.type(campo, '@Scopus · Enterprise LATAM prioriza a Stripe?{Enter}')
+    expect(await screen.findByRole('note', { name: 'Repasse de Ethos para Scopus · Enterprise LATAM' })).toBeInTheDocument()
+    expect(await screen.findByText(/Scopus · Enterprise LATAM entrou na Conversa/)).toBeInTheDocument()
+
+    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+    await usuario.type(campo, '@Scopus e a aderência dela?{Enter}')
+    expect(await screen.findByRole('note', { name: 'Repasse de Ethos para Scopus' })).toBeInTheDocument()
+    expect(await screen.findByText(/^Scopus entrou na Conversa/)).toBeInTheDocument()
+  })
+
+  it('o trabalho do Agente mencionado entra na Atividade dele com o gatilho Menção', async () => {
+    const { usuario } = renderizarApp('/agentes/ethos/conversa')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Ethos' }), '@Scopus · Enterprise LATAM prioriza a Stripe?{Enter}')
+    await screen.findByText(/Scopus · Enterprise LATAM entrou na Conversa/)
+    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+    await usuario.click(within(await grade()).getByRole('link', { name: 'Scopus · Enterprise LATAM' }))
+    await usuario.click(within(await screen.findByRole('navigation', { name: 'Seções do agente' })).getByRole('link', { name: 'Atividade' }))
+    const item = (await screen.findByText(/Foi mencionado por Ethos/)).closest('li')!
+    expect(within(item).getByText('Menção')).toBeInTheDocument()
+  })
+})
+
 describe('Memória, Habilidades, Rotinas e Atividade', () => {
   it('edita e apaga um fato da Memória', async () => {
     const { usuario } = renderizarApp('/agentes/scopus/memoria')

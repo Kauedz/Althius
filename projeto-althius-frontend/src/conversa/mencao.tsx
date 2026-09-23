@@ -1,26 +1,23 @@
 import { useState, type KeyboardEvent } from 'react'
 import { IconeAgente } from '@/components/marca'
+import { completarMencao, sugerirMencoes } from '@/fonte/mencoes'
 import type { Agente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 
-const TOKEN_DE_MENCAO = /@(\p{L}*)$/u
-
 /**
- * Autocompletar de @menção: abre quando a última palavra começa com @ e
- * troca a palavra pelo nome do Agente escolhido.
+ * Autocompletar de @menção: abre enquanto o que vem depois do último @ é o começo do nome de um
+ * Agente (inclusive o nome completo de um Agente criado) e completa com o nome escolhido.
  */
 export function useMencao(valor: string, setValor: (valor: string) => void, agentes: Agente[]) {
   const [destacada, setDestacada] = useState(0)
   const [fechadaEm, setFechadaEm] = useState<string | null>(null)
 
-  const token = valor.match(TOKEN_DE_MENCAO)?.[1]
-  const opcoes =
-    token === undefined ? [] : agentes.filter((a) => a.nome.toLowerCase().startsWith(token.toLowerCase()))
+  const opcoes = sugerirMencoes(valor, agentes)
   const aberta = opcoes.length > 0 && fechadaEm !== valor
   const indice = Math.min(destacada, Math.max(opcoes.length - 1, 0))
 
   function selecionar(agente: Agente) {
-    setValor(valor.replace(TOKEN_DE_MENCAO, `@${agente.nome} `))
+    setValor(completarMencao(valor, agente.nome))
     setDestacada(0)
   }
 

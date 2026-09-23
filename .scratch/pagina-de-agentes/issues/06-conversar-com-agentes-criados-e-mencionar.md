@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] Uma sugestão na Conversa de um Agente criado produz o roteiro da Especialidade dele, com os passos de ferramenta
-- [ ] Texto livre na Conversa de um Agente criado recebe a resposta genérica da Especialidade, em nome desse Agente
-- [ ] O autocompletar de @ lista os Agentes criados pelo nome completo e filtra enquanto se digita
-- [ ] "@Scopus · Enterprise LATAM" traz esse Agente criado para a Conversa; "@Scopus" traz o Agente padrão
-- [ ] O roteiro de Colaboração (Scopus → Ethos → Rhetor → Aprovação no Slack) continua funcionando
-- [ ] O trabalho do Agente mencionado entra na Atividade dele com o gatilho Menção
+- [x] Uma sugestão na Conversa de um Agente criado produz o roteiro da Especialidade dele, com os passos de ferramenta
+- [x] Texto livre na Conversa de um Agente criado recebe a resposta genérica da Especialidade, em nome desse Agente
+- [x] O autocompletar de @ lista os Agentes criados pelo nome completo e filtra enquanto se digita
+- [x] "@Scopus · Enterprise LATAM" traz esse Agente criado para a Conversa; "@Scopus" traz o Agente padrão
+- [x] O roteiro de Colaboração (Scopus → Ethos → Rhetor → Aprovação no Slack) continua funcionando
+- [x] O trabalho do Agente mencionado entra na Atividade dele com o gatilho Menção
