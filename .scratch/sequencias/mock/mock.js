@@ -19,7 +19,7 @@ const icons = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-10 6L2 7"/>',
   linkedin: '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6ZM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/>',
-  whatsapp: '<path d="M3 21l1.65-4.95A9 9 0 1 1 8 20.1Z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2Z"/>',
+  whatsapp: '<path d="M3.5 20.5l1.35-4.1A8.6 8.6 0 1 1 8 19.4Z"/><path d="M9.2 8.3c.3-.4.8-.4 1 0l.8 1.6c.1.3 0 .6-.2.8l-.5.5a6 6 0 0 0 2.6 2.6l.5-.5c.2-.2.5-.3.8-.2l1.6.8c.4.2.4.7 0 1l-.8.7c-.5.4-1.2.5-1.8.3a8.3 8.3 0 0 1-4.9-4.9c-.2-.6-.1-1.3.3-1.8Z" fill="currentColor" stroke="none"/>',
   sms: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/>',
   phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.3 1.73.5 2.63.62A2 2 0 0 1 22 16.92Z"/>',
   task: '<rect width="18" height="18" x="3" y="3"/><path d="m8 12 3 3 5-6"/>',
@@ -340,11 +340,13 @@ const state = {
   stepId: null,
   search: '',
   status: 'todos',
-  preview: false,
+  preview: params.get('preview') === '1',
   addingStep: false,
   approvals: 3,
   modal: null,
 }
+
+if (params.get('step')) state.stepId = sequenceById(state.sequenceId)?.steps[Number(params.get('step')) - 1]?.id ?? null
 
 function currentSequence() {
   return sequenceById(state.sequenceId)
@@ -490,6 +492,93 @@ function varBar() {
   </div>`
 }
 
+// ---------- Pré-visualização com a cara de cada canal ----------
+
+const senderPerson = { name: SENDER, avatarUrl: `${ASSETS}/avatars/avatar-1.jpg` }
+
+function emailOf(name, domain) {
+  return `${normalize(name).replace(/\s+/g, '.')}@${domain}`
+}
+
+function previewAttachments(item, cls) {
+  return item.attachments.map((file) => {
+    const media = file.url
+      ? (file.kind === 'video' ? `<video src="${file.url}" muted></video>` : `<img src="${file.url}" alt="" />`)
+      : `<span class="pv-att-fake ${file.kind}">${icon(file.kind === 'video' ? 'play' : 'image')}</span>`
+    return `<div class="${cls}">${media}${file.kind === 'video' ? `<span class="pv-att-dur">${icon('video')}${file.duration ?? 'vídeo'}</span>` : ''}</div>`
+  }).join('')
+}
+
+function channelPreview(sequence, item) {
+  const text = (value) => renderPreview(value, sequence, item)
+  const account = accountById(sequence.accountId)
+  const contact = contactById(item.contactId) ?? { name: 'Contato', role: '' }
+  const hours = item.window ?? sequence.window
+
+  if (item.channel === 'whatsapp') {
+    return `<div class="pv pv-wa">
+      <div class="pv-wa-head">${avatar(contact)}<span class="pv-who"><strong>${esc(contact.name)}</strong><small>online</small></span><span class="pv-wa-tools">${icon('video')}${icon('phone')}</span></div>
+      <div class="pv-wa-chat"><span class="pv-wa-day">Hoje</span>
+        ${item.attachments.length ? `<div class="wa-bubble media">${previewAttachments(item, 'pv-att')}</div>` : ''}
+        <div class="wa-bubble">${text(item.body)}<small>${hours.from.replace(':00', ':02')} ✓✓</small></div>
+      </div>
+      <div class="pv-wa-input"><span>Mensagem</span>${icon('send')}</div>
+    </div>`
+  }
+
+  if (item.channel === 'sms') {
+    return `<div class="pv pv-sms"><div class="pv-phone">
+      <div class="sms-head"><span class="sms-avatar">${initials(contact.name)}</span><small>${esc(contact.name)} ›</small></div>
+      <div class="sms-chat"><span class="sms-meta">Mensagem de texto · SMS<br />Hoje ${hours.from.replace(':00', ':02')}</span>
+        ${item.attachments.length ? `<div class="sms-media">${previewAttachments(item, 'pv-att')}</div>` : ''}
+        <div class="sms-bubble">${text(item.body)}</div><span class="sms-status">Entregue</span>
+      </div>
+      <div class="sms-input"><span>Mensagem de texto</span><span class="sms-send">${icon('up')}</span></div>
+    </div></div>`
+  }
+
+  if (item.channel === 'linkedin') {
+    const person = (who, headline) => `<div class="li-person">${avatar(who)}<span class="pv-who"><strong>${esc(who.name)}</strong><small>${esc(headline)}</small></span></div>`
+    if (item.linkedinKind === 'convite') {
+      return `<div class="pv pv-li">
+        <div class="li-bar"><span class="li-mark">in</span><strong>Convites</strong><small>1 novo</small></div>
+        <div class="li-card">${person(senderPerson, 'Head de Receita na Databricks')}<small class="li-when">Convite para se conectar · agora</small>
+          <div class="li-note">${text(item.body)}</div>
+          ${item.attachments.length ? '<small class="li-when">Convites não levam anexo — o arquivo vai na próxima mensagem.</small>' : ''}
+          <div class="li-actions"><span class="li-btn ghost">Ignorar</span><span class="li-btn">Aceitar</span></div>
+        </div>
+      </div>`
+    }
+    return `<div class="pv pv-li">
+      <div class="li-bar"><span class="li-mark">in</span><strong>Mensagens</strong>${item.linkedinKind === 'inmail' ? '<span class="li-tag">InMail</span>' : ''}</div>
+      <div class="li-thread-head">${person(contact, `${contact.role ?? ''} na ${account.name}`)}</div>
+      <div class="li-thread"><span class="li-day">Hoje</span>
+        <div class="li-msg">${avatar(senderPerson)}<div><div class="li-msg-meta"><strong>${SENDER}</strong><small>${hours.from.replace(':00', ':02')}</small></div>
+          ${item.linkedinKind === 'inmail' ? `<p class="li-subject">${text(item.subject)}</p>` : ''}<div class="li-text">${text(item.body)}</div>
+          ${item.attachments.length ? `<div class="li-media">${previewAttachments(item, 'pv-att')}</div>` : ''}</div></div>
+      </div>
+      <div class="li-input">Escreva uma mensagem…</div>
+    </div>`
+  }
+
+  if (item.channel === 'email') {
+    return `<div class="pv pv-mail">
+      <div class="mail-toolbar"><span>${icon('back')}</span><span>${icon('trash')}</span><span>${icon('mail')}</span><span class="mail-folder">Caixa de entrada</span></div>
+      <h4 class="mail-subject">${text(item.subject) || '<span class="muted">(sem assunto)</span>'}</h4>
+      <div class="mail-from">${avatar(senderPerson)}<span class="pv-who"><span><strong>${SENDER}</strong> <small>&lt;${emailOf(SENDER, 'databricks.com')}&gt;</small></span><small>para ${esc(contact.name)} &lt;${emailOf(contact.name, account.domain)}&gt;</small></span><time>${hours.from.replace(':00', ':02')}</time></div>
+      <div class="mail-body">${text(item.body)}</div>
+      ${item.attachments.length ? `<div class="mail-atts">${item.attachments.map((file) => `<span class="mail-att">${icon(file.kind === 'video' ? 'video' : 'image')}<span>${esc(file.name)}</span></span>`).join('')}</div>` : ''}
+      <div class="mail-actions"><span>${icon('back')}Responder</span><span>Encaminhar ${icon('arrow')}</span></div>
+    </div>`
+  }
+
+  const kind = item.channel === 'ligacao' ? 'Tarefa de ligação' : 'Tarefa'
+  return `<div class="pv pv-task">
+    <div class="task-head">${channelBadge(item.channel, true)}<span class="pv-who"><strong>${kind} · ${esc(contact.name)}</strong><small>Vence no dia do step · ${hours.from}–${hours.to} · dona: ${SENDER}</small></span><span class="task-check">${icon('check')}Concluir</span></div>
+    <div class="task-body">${text(item.body)}</div>
+  </div>`
+}
+
 function composer(sequence) {
   const item = currentStep(sequence)
   const index = sequence.steps.indexOf(item)
@@ -510,7 +599,7 @@ function composer(sequence) {
   }
 
   const bodyField = state.preview
-    ? `<div class="preview">${hasSubject ? `<div class="preview-subject">${renderPreview(item.subject, sequence, item)}</div>` : ''}${item.channel === 'whatsapp' ? `<div class="wa-preview"><div class="wa-bubble">${renderPreview(item.body, sequence, item)}<small>10:02 ✓✓</small></div></div>` : renderPreview(item.body, sequence, item)}</div>`
+    ? `<div class="preview">${channelPreview(sequence, item)}</div>`
     : `<textarea class="c-textarea ${limit ? 'short' : ''}" data-field="body" placeholder="${isNote ? 'Escreva o roteiro ou a nota da tarefa…' : 'Escreva a mensagem…'}">${esc(item.body)}</textarea>${limit ? `<span class="counter ${item.body.length > limit ? 'over' : ''}" data-counter data-limit="${limit}">${item.body.length}/${limit}</span>` : ''}`
 
   const metrics = item.metrics
