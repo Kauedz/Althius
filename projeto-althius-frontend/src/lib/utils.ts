@@ -9,3 +9,13 @@ export function cn(...inputs: ClassValue[]) {
 export function porId<T extends { id: string }>(lista: T[] = []): Record<string, T> {
   return Object.fromEntries(lista.map((item) => [item.id, item]))
 }
+
+/** As iniciais das duas primeiras palavras de um nome, em maiúsculas (ex.: "BBVA México" → "BM"). */
+export function iniciais(nome: string): string {
+  return nome
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((parte) => parte[0])
+    .join('')
+    .toUpperCase()
+}

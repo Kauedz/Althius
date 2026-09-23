@@ -21,6 +21,7 @@ export interface ContaAlvo {
   dominio?: string
   siteUrl?: string
   linkedinUrl?: string
+  /** Endereço da imagem do logo. Sem logo, a tela mostra as iniciais do nome. */
   logo?: string
   segmento?: string
   aderencia?: Aderencia

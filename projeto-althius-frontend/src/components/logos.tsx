@@ -4,7 +4,7 @@ import apollo from '@/assets/logos/apollo.png'
 import clay from '@/assets/logos/clay.png'
 import lusha from '@/assets/logos/lusha.png'
 import type { IntegracaoId } from '@/fonte/tipos'
-import { cn } from '@/lib/utils'
+import { cn, iniciais } from '@/lib/utils'
 
 const VETORES: Partial<Record<IntegracaoId, { d: string; cor: string }>> = {
   hubspot: { cor: 'var(--logo-hubspot)', d: 'M18.164 7.93V5.084a2.198 2.198 0 001.267-1.978v-.067A2.2 2.2 0 0017.238.845h-.067a2.2 2.2 0 00-2.193 2.193v.067a2.196 2.196 0 001.252 1.973l.013.006v2.852a6.22 6.22 0 00-2.969 1.31l.012-.01-7.828-6.095A2.497 2.497 0 104.3 4.656l-.012.006 7.697 5.991a6.176 6.176 0 00-1.038 3.446c0 1.343.425 2.588 1.147 3.607l-.013-.02-2.342 2.343a1.968 1.968 0 00-.58-.095h-.002a2.033 2.033 0 102.033 2.033 1.978 1.978 0 00-.1-.595l.005.014 2.317-2.317a6.247 6.247 0 104.782-11.134l-.036-.005zm-.964 9.378a3.206 3.206 0 113.215-3.207v.002a3.206 3.206 0 01-3.207 3.207z' },
@@ -27,4 +27,25 @@ export function LogoDaIntegracao({ id, nome, className }: { id: IntegracaoId; no
     )
   }
   return <img src={IMAGENS[id]} alt={nome} title={nome} className={cn('size-4 shrink-0 rounded-[3px] object-contain', className)} />
+}
+
+/**
+ * O logo de uma Conta-alvo, com 24px, ou as iniciais do nome num quadrado discreto quando não há logo.
+ * É decorativo: o nome da empresa sempre aparece ao lado.
+ */
+export function LogoDaConta({ nome, logo, className }: { nome: string; logo?: string; className?: string }) {
+  if (logo) {
+    return <img src={logo} alt="" className={cn('size-6 shrink-0 object-contain p-px', className)} />
+  }
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'grid size-6 shrink-0 place-items-center rounded-[4px] border border-al-line bg-al-surface text-[0.625rem] font-semibold text-al-muted',
+        className,
+      )}
+    >
+      {iniciais(nome)}
+    </span>
+  )
 }
