@@ -1,6 +1,6 @@
 # Althius
 
-Althius é um Revenue OS: uma plataforma em que empresas B2B operam o seu go-to-market com a ajuda de agentes especialistas. O primeiro módulo é a aba de Agentes.
+Althius é um Revenue OS: uma plataforma em que empresas B2B operam o seu go-to-market com a ajuda de agentes especialistas. Os módulos são a aba de Agentes e Contas e Contatos.
 
 ## Plataforma
 
@@ -17,8 +17,28 @@ A empresa que contrata a Althius e é dona de um Workspace.
 _Avoid_: usuário, conta
 
 **Conta-alvo**:
-Uma empresa que o Cliente quer vender para; é o objeto que os agentes analisam.
+Uma empresa que o Cliente quer vender para: recomendada pela Althius, sempre com Fit, ou importada pelo Cliente, com qualquer Aderência. É o objeto que os agentes analisam. "Contas" é aceito só como rótulo curto no menu e na aba.
 _Avoid_: lead, prospect, conta
+
+**Aderência**:
+A classificação de uma Conta-alvo pelo Scopus: **Quente** (tem Fit e deve ser abordada agora), **Fit** (encaixa no ICP) ou **Não fit**. Quente implica Fit. Uma Conta-alvo importada fica sem Aderência até ser avaliada.
+_Avoid_: momento, temperatura, fit score, nota, score, morna, frio
+
+**Contato**:
+Uma pessoa de uma Conta-alvo registrada no Workspace, venha do CRM, de enriquecimento ou de um Agente. Pode ou não fazer parte do Comitê de compra.
+_Avoid_: lead, pessoa, prospect
+
+**Persona**:
+A classificação de um Contato por um papel do Comitê de compra descrito pelo Ethos. Um Contato tem no máximo uma Persona, e pode não ter nenhuma.
+_Avoid_: perfil, papel, arquétipo
+
+**Sinal**:
+Um acontecimento detectado numa Conta-alvo (ex.: "Abriu 3 vagas comerciais"), com data e, quando houver, fonte e evidência. Um Sinal nunca é uma Interação.
+_Avoid_: evento, alerta, gatilho
+
+**Interação**:
+Um contato comercial registrado entre alguém do Cliente e um Contato: e-mail enviado ou recebido, mensagem enviada, ligação ou reunião. Uma sequência só criada, sem envio, não é Interação. O "Último contato" de uma Conta-alvo é a Interação mais recente com qualquer Contato dela.
+_Avoid_: toque, atividade, engajamento
 
 **Comitê de compra**:
 O conjunto de pessoas de uma Conta-alvo que influenciam ou decidem a compra.
@@ -42,7 +62,7 @@ Um Agente que o Cliente cria a partir de uma Especialidade, nomeado "Especialida
 _Avoid_: agente personalizado, cópia, clone
 
 **Scopus**:
-A Especialidade de ICP: define o perfil de cliente ideal e dá nota de fit às Contas-alvo.
+A Especialidade de ICP: define o perfil de cliente ideal e avalia a Aderência das Contas-alvo.
 
 **Ethos**:
 A Especialidade de Persona: descreve dores, objeções e gatilhos de cada papel do Comitê de compra.
