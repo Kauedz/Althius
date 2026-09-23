@@ -569,10 +569,17 @@ async function pedirNoComposer(usuario: ReturnType<typeof renderizarApp>['usuari
   await screen.findByRole('heading', { level: 1, name: 'Conversa' })
 }
 
-/** Os Agentes chamados, na ordem das etapas (sem as consultas de cada um). */
-function agentesChamados() {
-  const etapas = screen.getByRole('list', { name: 'Agentes chamados' })
+/** Os Agentes chamados, na ordem das etapas (sem as consultas de cada um), no único pedido ou no indicado. */
+function agentesChamados(etapas = screen.getByRole('list', { name: 'Agentes chamados' })) {
   return Array.from(etapas.children, (etapa) => etapa.getAttribute('aria-label'))
+}
+
+/** Abre a Atividade de um Especialista, filtrada pelo gatilho Coordenação. */
+async function atividadeDaCoordenacao(usuario: ReturnType<typeof renderizarApp>['usuario'], especialista: string) {
+  await usuario.click(within(screen.getByRole('navigation', { name: 'Especialistas' })).getByRole('link', { name: especialista }))
+  await usuario.click(within(await screen.findByRole('navigation', { name: 'Seções do agente' })).getByRole('link', { name: 'Atividade' }))
+  await screen.findByRole('list', { name: 'Linha do tempo' })
+  await usuario.selectOptions(screen.getByRole('combobox', { name: 'Gatilho' }), 'Coordenação')
 }
 
 async function coordenacaoTerminada() {
@@ -711,6 +718,114 @@ describe('Composer e Coordenação', () => {
     await usuario.click(within(aviso).getByRole('link', { name: 'Abrir conversa' }))
     expect(await screen.findByText('o que é ICP?')).toBeInTheDocument()
     expect(screen.getByText(/responderia direto/)).toBeInTheDocument()
+  })
+
+  it('o pedido do Perplexity, pela sugestão, chama o Oraculum e o Rhetor e consolida', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Como estamos no Perplexity e o que publicar?' }))
+    await screen.findByRole('region', { name: 'Resposta consolidada' })
+    await coordenacaoTerminada()
+
+    expect(agentesChamados()).toEqual(['Oraculum', 'Rhetor'])
+    const etapas = screen.getByRole('list', { name: 'Agentes chamados' })
+    expect(within(etapas).getByText(/Auditou 12 prompts-alvo no Perplexity/)).toBeInTheDocument()
+    expect(within(etapas).getByText(/Propôs 3 conteúdos/)).toBeInTheDocument()
+    const resposta = screen.getByRole('region', { name: 'Resposta consolidada' })
+    expect(within(resposta).getByText(/lakehouse vs\. data warehouse em 2026/)).toBeInTheDocument()
+  })
+
+  it('o composer da Conversa continua o fio, só com o chip do Workspace', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await pedirNoComposer(usuario, 'o que é ICP?')
+    const composer = screen.getByRole('form', { name: 'Continuar o fio' })
+    expect(within(composer).getByText('Databricks')).toBeInTheDocument()
+    expect(within(composer).queryByRole('list', { name: 'Especialidades disponíveis' })).not.toBeInTheDocument()
+    expect(within(composer).getByRole('button', { name: 'Enviar' })).toBeDisabled()
+    await coordenacaoTerminada()
+    await usuario.type(within(composer).getByRole('textbox', { name: 'Continue o fio' }), 'e o que é GEO?')
+    expect(within(composer).getByRole('button', { name: 'Enviar' })).toBeEnabled()
+  })
+
+  it('um pedido seguinte aparece abaixo da resposta anterior e continua a partir dela', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await coordenacaoTerminada()
+
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), 'agora faz um e-mail pro CFO{Enter}')
+    await waitFor(() => expect(screen.getAllByRole('region', { name: 'Resposta consolidada' })).toHaveLength(2))
+    await coordenacaoTerminada()
+
+    const [primeira, segunda] = screen.getAllByRole('list', { name: 'Agentes chamados' })
+    expect(agentesChamados(primeira)).toEqual(['Scopus', 'Ethos', 'Rhetor'])
+    expect(agentesChamados(segunda)).toEqual(['Rhetor'])
+    expect(screen.getByText('Coordenação · 1 agente chamado')).toBeInTheDocument()
+
+    const [anterior, seguinte] = screen.getAllByRole('region', { name: 'Resposta consolidada' })
+    const pedido = screen.getByText('agora faz um e-mail pro CFO')
+    expect(anterior.compareDocumentPosition(pedido) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(seguinte).getByText(/E-mail para o CFO da OpenAI/)).toBeInTheDocument()
+    expect(within(segunda).getByText(/Comitê de compra já levantados no fio/)).toBeInTheDocument()
+
+    // O fio inteiro continua lá depois de voltar para a grade.
+    await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
+    const aviso = await screen.findByRole('region', { name: 'Conversa coordenada em andamento' })
+    expect(within(aviso).getByText('agora faz um e-mail pro CFO')).toBeInTheDocument()
+    await usuario.click(within(aviso).getByRole('link', { name: 'Abrir conversa' }))
+    expect(await screen.findByText('Monte a abordagem completa para a OpenAI')).toBeInTheDocument()
+    expect(screen.getAllByRole('region', { name: 'Resposta consolidada' })).toHaveLength(2)
+  })
+
+  it('a continuação chama o mesmo Agente criado que trabalhou no pedido anterior', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await pedirNoComposer(usuario, '@Rhetor · Sequências outbound monte a abordagem completa para a OpenAI')
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await coordenacaoTerminada()
+
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), 'agora faz um e-mail pro CFO{Enter}')
+    await waitFor(() => expect(screen.getAllByRole('list', { name: 'Agentes chamados' })).toHaveLength(2))
+    await coordenacaoTerminada()
+    expect(agentesChamados(screen.getAllByRole('list', { name: 'Agentes chamados' })[1])).toEqual(['Rhetor · Sequências outbound'])
+  })
+
+  it('o trabalho da continuação e do pedido do Perplexity entra na Atividade com o gatilho Coordenação', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Como estamos no Perplexity e o que publicar?' }))
+    await screen.findByRole('region', { name: 'Resposta consolidada' })
+    await coordenacaoTerminada()
+
+    // Um pedido na página de Agentes começa um fio novo; o seguinte continua esse.
+    await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await coordenacaoTerminada()
+    expect(screen.queryByText('Como estamos no Perplexity e o que publicar?')).not.toBeInTheDocument()
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), 'agora faz um e-mail pro CFO{Enter}')
+    await waitFor(() => expect(screen.getAllByRole('region', { name: 'Resposta consolidada' })).toHaveLength(2))
+    await coordenacaoTerminada()
+
+    await atividadeDaCoordenacao(usuario, 'Rhetor')
+    await waitFor(() => {
+      const itens = within(screen.getByRole('list', { name: 'Linha do tempo' })).getAllByRole('listitem')
+      expect(itens.map((item) => item.textContent)).toEqual([
+        expect.stringContaining('agora faz um e-mail pro CFO'),
+        expect.stringContaining('Monte a abordagem completa para a OpenAI'),
+        expect.stringContaining('Como estamos no Perplexity e o que publicar?'),
+      ])
+    })
+
+    await atividadeDaCoordenacao(usuario, 'Oraculum')
+    await waitFor(() => {
+      const itens = within(screen.getByRole('list', { name: 'Linha do tempo' })).getAllByRole('listitem')
+      expect(itens).toHaveLength(1)
+      expect(within(itens[0]).getByText(/Como estamos no Perplexity/)).toBeInTheDocument()
+    })
   })
 
   it('sem Conversa coordenada, a página da Conversa volta para a grade', async () => {

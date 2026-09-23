@@ -270,7 +270,8 @@ export interface FonteDeAgentes {
   sugestoesCoordenadas(): Promise<Sugestao[]>
   /**
    * Envia um pedido no composer, sem escolher um Agente, e recebe passo a passo as etapas de cada
-   * Agente que a Coordenação chamou e a resposta consolidada.
+   * Agente que a Coordenação chamou e a resposta consolidada. Com os pedidos anteriores do mesmo
+   * fio (nenhum, num fio novo), a Coordenação continua a partir do que já foi feito, em vez de recomeçar.
    */
-  conversarCoordenado(pedido: Mensagem): AsyncIterable<PassoDaCoordenacao>
+  conversarCoordenado(pedido: Mensagem, fio: Mensagem[]): AsyncIterable<PassoDaCoordenacao>
 }

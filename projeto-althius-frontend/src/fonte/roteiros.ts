@@ -181,6 +181,8 @@ export interface RoteiroCoordenado {
   /** O pedido, que também é a sugestão clicável abaixo do composer. */
   pedido: Sugestao
   passos: PassoDeRoteiroCoordenado[]
+  /** Pedidos seguintes no mesmo fio, reconhecidos por um termo, que partem do que este roteiro fez. */
+  continuacoes?: { termo: string; passos: PassoDeRoteiroCoordenado[] }[]
 }
 
 export const roteirosCoordenados: RoteiroCoordenado[] = [
@@ -215,6 +217,49 @@ export const roteirosCoordenados: RoteiroCoordenado[] = [
           impacto: '3 contatos entram na sequência; nenhum e-mail sai antes da Aprovação',
           justificativa: 'Scopus deu aderência 87 e Ethos priorizou a Head de Infraestrutura de Dados.',
         },
+      },
+    ],
+    continuacoes: [
+      {
+        termo: 'cfo',
+        passos: [
+          { tipo: 'chamada', agenteId: 'rhetor' },
+          { tipo: 'ferramenta', agenteId: 'rhetor', descricao: 'Consultou HubSpot: o CFO no Comitê de compra da OpenAI' },
+          { tipo: 'ferramenta', agenteId: 'rhetor', descricao: 'Consultou o tom de voz e a base de conhecimento' },
+          {
+            tipo: 'feito',
+            agenteId: 'rhetor',
+            resumo: 'Escreveu um e-mail para o CFO da OpenAI, com o argumento de custo, a partir da aderência e do Comitê de compra já levantados no fio.',
+          },
+          {
+            tipo: 'resposta',
+            texto:
+              'E-mail para o CFO da OpenAI, na mesma abordagem: o argumento técnico fica com a Head de Infraestrutura de Dados, e o CFO recebe o de custo.\n\n- Assunto: o custo de cada ciclo de avaliação\n- Abertura: as três vagas abertas para engenharia de dados de avaliação\n- Argumento: menos tempo entre coleta e treino reduz o custo por modelo avaliado\n- Pedido: 20 minutos com o time financeiro e a Head de Infraestrutura de Dados',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    pedido: { id: 'coordenacao-perplexity', texto: 'Como estamos no Perplexity e o que publicar?' },
+    passos: [
+      { tipo: 'chamada', agenteId: 'oraculum' },
+      { tipo: 'ferramenta', agenteId: 'oraculum', descricao: 'Perguntou ao Perplexity os 12 prompts-alvo' },
+      { tipo: 'ferramenta', agenteId: 'oraculum', descricao: 'Comparou as fontes citadas com as da Snowflake' },
+      {
+        tipo: 'feito',
+        agenteId: 'oraculum',
+        resumo:
+          'Auditou 12 prompts-alvo no Perplexity: a Databricks é citada em 5, e a Snowflake aparece antes dela em 7. As fontes citadas são comparativos recentes, e a Databricks não tem um publicado em 2026.',
+      },
+      { tipo: 'chamada', agenteId: 'rhetor' },
+      { tipo: 'ferramenta', agenteId: 'rhetor', descricao: 'Consultou o tom de voz e a base de conhecimento' },
+      { tipo: 'ferramenta', agenteId: 'rhetor', descricao: 'Buscou no Notion: pautas e materiais já publicados' },
+      { tipo: 'feito', agenteId: 'rhetor', resumo: 'Propôs 3 conteúdos para as lacunas que o Oraculum encontrou, no tom da Databricks.' },
+      {
+        tipo: 'resposta',
+        texto:
+          'No Perplexity, a Databricks é citada em 5 de 12 prompts-alvo, e a Snowflake aparece antes dela em 7. O Perplexity prefere páginas com dados verificáveis e data recente.\n\n- Primeiro: o comparativo "lakehouse vs. data warehouse em 2026", com tabela e metodologia aberta\n- Depois: um benchmark público de custo por consulta\n- Por fim: um estudo de caso com números de um cliente brasileiro',
       },
     ],
   },

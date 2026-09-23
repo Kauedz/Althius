@@ -15,6 +15,7 @@ import {
   roteirosCoordenados,
   type PassoDeRoteiro,
   type PassoDeRoteiroCoordenado,
+  type RoteiroCoordenado,
 } from './roteiros'
 import type {
   AcaoProposta,
@@ -25,6 +26,7 @@ import type {
   FonteDeAgentes,
   IntegracaoId,
   ItemDeAtividade,
+  Mensagem,
   NovaRotina,
   Origem,
   PassoDaConversa,
@@ -145,26 +147,46 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     return aprovacaoId
   }
 
-  /**
-   * O plano de uma Conversa coordenada (ADR 0004): o roteiro do pedido, se houver, com os Agentes
-   * @mencionados sempre incluídos; sem roteiro, a resposta genérica de cada mencionado; e sem @, a
-   * resposta direta, sem chamar nenhum Agente.
-   */
-  function planoCoordenado(texto: string, sugestaoId?: string): PassoDeRoteiroCoordenado<AgenteId>[] {
-    const mencionados = reconhecerMencoes(texto, estado.agentes)
+  /** O roteiro coordenado de um pedido: o da sugestão clicada, ou o da sugestão escrita no texto. */
+  function roteiroDo({ texto, sugestaoId }: Mensagem): RoteiroCoordenado | undefined {
     const pedido = normalizarNome(texto)
-    const roteiro = roteirosCoordenados.find(
+    return roteirosCoordenados.find(
       ({ pedido: sugestao }) => sugestao.id === sugestaoId || pedido.includes(normalizarNome(sugestao.texto)),
     )
-    if (!roteiro) {
+  }
+
+  /**
+   * Os passos roteirizados de um pedido: os do roteiro dele ou, num pedido seguinte do fio, a
+   * continuação do último roteiro do fio que reconhece o pedido.
+   */
+  function passosRoteirizados(pedido: Mensagem, fio: Mensagem[]): PassoDeRoteiroCoordenado[] | undefined {
+    const roteiro = roteiroDo(pedido)
+    if (roteiro) return roteiro.passos
+    const palavras = normalizarNome(pedido.texto).split(/[^\p{L}\p{N}]+/u)
+    const doFio = fio.map(roteiroDo).findLast((r) => r !== undefined)
+    return doFio?.continuacoes?.find(({ termo }) => palavras.includes(termo))?.passos
+  }
+
+  /**
+   * O plano de uma Conversa coordenada (ADR 0004): o roteiro do pedido ou a continuação do fio, se
+   * houver, com os Agentes @mencionados sempre incluídos; sem roteiro, a resposta genérica de cada
+   * mencionado; e sem @, a resposta direta, sem chamar nenhum Agente.
+   */
+  function planoCoordenado(pedido: Mensagem, fio: Mensagem[]): PassoDeRoteiroCoordenado<AgenteId>[] {
+    const mencionadosNoFio = [...fio, pedido].map((mensagem) => reconhecerMencoes(mensagem.texto, estado.agentes))
+    const mencionados = mencionadosNoFio.at(-1) ?? []
+    const roteirizados = passosRoteirizados(pedido, fio)
+    if (!roteirizados) {
       if (mencionados.length === 0) return [RESPOSTA_DIRETA]
       return [...mencionados.flatMap(etapaGenerica), consolidadaGenerica(mencionados.map((a) => a.nome))]
     }
 
-    // Quando precisa de uma Especialidade, chama o Agente padrão, a menos que o pedido mencione um Agente criado dela.
+    // Quando precisa de uma Especialidade, chama o Agente padrão, a menos que o fio mencione um Agente
+    // criado dela: o mais recente, para a continuação seguir com quem já trabalhou no pedido.
     const quem = (especialidadeId: EspecialidadeId) =>
-      (mencionados.find((a) => a.tipo === 'criado' && a.especialidadeId === especialidadeId) ?? agentePadrao(especialidadeId)).id
-    const passos = roteiro.passos.map((passo) =>
+      (mencionadosNoFio.flat().findLast((a) => a.tipo === 'criado' && a.especialidadeId === especialidadeId) ??
+        agentePadrao(especialidadeId)).id
+    const passos = roteirizados.map((passo) =>
       passo.tipo === 'resposta' ? passo : { ...passo, agenteId: quem(passo.agenteId) },
     )
     const chamados = new Set(passos.flatMap((passo) => (passo.tipo === 'chamada' ? [passo.agenteId] : [])))
@@ -345,8 +367,8 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
 
     sugestoesCoordenadas: () => responder(() => roteirosCoordenados.map((roteiro) => roteiro.pedido)),
 
-    async *conversarCoordenado({ texto, sugestaoId }): AsyncGenerator<PassoDaCoordenacao> {
-      for (const passo of planoCoordenado(texto, sugestaoId)) {
+    async *conversarCoordenado(pedido, fio): AsyncGenerator<PassoDaCoordenacao> {
+      for (const passo of planoCoordenado(pedido, fio)) {
         await esperar()
         if (passo.tipo === 'acao') {
           yield agir(passo.agenteId, passo.acao)
@@ -357,7 +379,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
           registrarAtividade({
             agenteId: passo.agenteId,
             gatilho: 'coordenacao',
-            descricao: `Chamado pela Coordenação: "${texto}"`,
+            descricao: `Chamado pela Coordenação: "${pedido.texto}"`,
             resultado: passo.resumo,
           })
           avisar()

@@ -6,7 +6,15 @@
 
 **Status:** ready-for-agent
 
-- [ ] O pedido do Perplexity mostra os passos do Oraculum e do Rhetor e a resposta consolidada
-- [ ] Esse pedido também está entre as sugestões clicáveis abaixo do composer
-- [ ] Um pedido seguinte no mesmo fio aparece abaixo da resposta anterior e produz uma resposta que usa o contexto dela (ex.: o e-mail para o CFO da OpenAI chama só o Rhetor)
-- [ ] O trabalho dos Agentes chamados entra na Atividade de cada um com o gatilho Coordenação
+- [x] O pedido do Perplexity mostra os passos do Oraculum e do Rhetor e a resposta consolidada
+- [x] Esse pedido também está entre as sugestões clicáveis abaixo do composer
+- [x] Um pedido seguinte no mesmo fio aparece abaixo da resposta anterior e produz uma resposta que usa o contexto dela (ex.: o e-mail para o CFO da OpenAI chama só o Rhetor)
+- [x] O trabalho dos Agentes chamados entra na Atividade de cada um com o gatilho Coordenação
+
+## Comments
+
+**Implementação (23/09/2026):**
+- A fonte recebe, junto do pedido, os pedidos anteriores do mesmo fio (`conversarCoordenado(pedido, fio)`). Um roteiro coordenado pode ter continuações, reconhecidas por um termo no pedido seguinte; a do roteiro da OpenAI é "CFO", que chama só o Rhetor e parte da aderência e do Comitê de compra já levantados.
+- Na continuação, um Agente criado mencionado antes no fio continua sendo chamado no lugar do padrão da Especialidade dele.
+- O composer de continuar o fio fica fixo no rodapé da página da Conversa, só com o chip do Workspace. Um pedido na página de Agentes continua começando um fio novo.
+- Um pedido seguinte sem roteiro nem continuação recebe a resposta direta (ou a genérica de quem for mencionado), como no primeiro pedido.

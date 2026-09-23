@@ -212,6 +212,13 @@
   .composer textarea:focus-visible {
     outline: none;
   }
+  /* O rodapé da Conversa coordenada: o composer fixo, sobre um degradê que esconde o fio que passa por baixo. */
+  .rodape-da-conversa {
+    position: sticky;
+    bottom: 0;
+    padding: --spacing(6) 0 --spacing(10);
+    background: linear-gradient(to bottom, transparent, var(--al-bg) --spacing(6));
+  }
   .anotacao {
     font-family: var(--font-mao);
     color: var(--al-ink-muted);

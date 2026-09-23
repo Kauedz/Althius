@@ -5,6 +5,7 @@ import { DecisaoDeAprovacao } from '@/components/decisao'
 import { LogoDaIntegracao } from '@/components/logos'
 import { IconeAgente, IndicadorDeEstado, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { Composer } from '@/conversa/composer'
 import { useConversas, type ItemDaCoordenacao } from '@/conversa/contexto'
 import { TextoDigitado } from '@/conversa/texto'
 import { useDados } from '@/fonte/contexto'
@@ -58,7 +59,10 @@ function emTurnos(itens: ItemDaCoordenacao[]): Turno[] {
   return turnos
 }
 
-/** A página da Conversa coordenada: o fio do composer, que vale até recarregar a página. */
+/**
+ * A página da Conversa coordenada: o fio do composer, que vale até recarregar a página. O composer
+ * fixo no rodapé continua o fio: cada pedido seguinte aparece abaixo da resposta anterior.
+ */
 export function PaginaConversaCoordenada() {
   const conversas = useConversas()
   const agentes = useDados((fonte) => fonte.agentes(), [])
@@ -88,7 +92,7 @@ export function PaginaConversaCoordenada() {
           Voltar para a grade
         </Link>
       }
-      className="flex-1"
+      className="flex-1 pb-0"
     >
       <div className="mx-auto flex w-full max-w-180 flex-1 flex-col">
         <div ref={fio} aria-live="polite" className="flex flex-1 flex-col gap-10 pb-10">
@@ -104,6 +108,15 @@ export function PaginaConversaCoordenada() {
               />
             )
           })}
+        </div>
+        <div className="rodape-da-conversa">
+          <Composer
+            nome="Continuar o fio"
+            rotulo="Continue o fio"
+            placeholder="Ex.: agora faz um e-mail pro CFO"
+            ocupado={respondendo}
+            aoEnviar={(texto) => conversas.continuar({ texto })}
+          />
         </div>
         <div ref={fim} />
       </div>

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFonte } from '@/fonte/contexto'
 import type { AgenteId, Mensagem, PassoDaConversa, PassoDaCoordenacao } from '@/fonte/tipos'
 
@@ -24,6 +24,8 @@ interface Conversas {
   coordenada: EstadoDasConversas['coordenada']
   /** Um pedido no composer da página de Agentes: começa uma nova Conversa coordenada. */
   coordenar(pedido: Mensagem): void
+  /** Um pedido seguinte no composer da Conversa: continua o fio a partir do que já foi feito. */
+  continuar(pedido: Mensagem): void
   animarDigitacao: boolean
 }
 
@@ -80,11 +82,18 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
     setEstado((atual) => ({ ...atual, coordenada: mudanca(atual.coordenada) }))
   }, [])
 
-  const coordenar = useCallback(
-    async (pedido: Mensagem) => {
-      mudarCoordenada(() => ({ itens: [{ id: proximoId++, tipo: 'pedido', texto: pedido.texto }], respondendo: true }))
+  // Os pedidos do fio, que a Coordenação recebe para continuar a partir do que já foi feito.
+  const pedidosDoFio = useRef<Mensagem[]>([])
+
+  /** Envia um pedido à Coordenação: num fio novo, ou continuando o atual. */
+  const pedirACoordenacao = useCallback(
+    async (pedido: Mensagem, continuando: boolean) => {
+      const anteriores = continuando ? pedidosDoFio.current : []
+      pedidosDoFio.current = [...anteriores, pedido]
+      const item: ItemDaCoordenacao = { id: proximoId++, tipo: 'pedido', texto: pedido.texto }
+      mudarCoordenada((atual) => ({ itens: continuando ? [...atual.itens, item] : [item], respondendo: true }))
       try {
-        for await (const passo of fonte.conversarCoordenado(pedido)) {
+        for await (const passo of fonte.conversarCoordenado(pedido, anteriores)) {
           mudarCoordenada((atual) => ({ ...atual, itens: [...atual.itens, { id: proximoId++, ...passo }] }))
           if (passo.tipo === 'resposta') await esperarDigitacao(passo.texto)
         }
@@ -101,10 +110,11 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       respondendo: (agenteId) => estado.respondendo[agenteId] ?? false,
       enviar: (agenteId, mensagem) => void enviar(agenteId, mensagem),
       coordenada: estado.coordenada,
-      coordenar: (pedido) => void coordenar(pedido),
+      coordenar: (pedido) => void pedirACoordenacao(pedido, false),
+      continuar: (pedido) => void pedirACoordenacao(pedido, true),
       animarDigitacao,
     }),
-    [estado, enviar, coordenar, animarDigitacao],
+    [estado, enviar, pedirACoordenacao, animarDigitacao],
   )
 
   return <ContextoDasConversas.Provider value={valor}>{children}</ContextoDasConversas.Provider>
