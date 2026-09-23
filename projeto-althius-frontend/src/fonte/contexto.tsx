@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { FonteDeAgentes, FonteObservavel } from './tipos'
+import type { FonteDeAgentes, FonteDeContas, FonteObservavel } from './tipos'
 
 const ContextoDaFonte = createContext<FonteDeAgentes | null>(null)
 
@@ -10,6 +10,18 @@ export function FonteProvider({ fonte, children }: { fonte: FonteDeAgentes; chil
 export function useFonte(): FonteDeAgentes {
   const fonte = useContext(ContextoDaFonte)
   if (!fonte) throw new Error('useFonte precisa de um FonteProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeContas = createContext<FonteDeContas | null>(null)
+
+export function FonteDeContasProvider({ fonte, children }: { fonte: FonteDeContas; children: ReactNode }) {
+  return <ContextoDaFonteDeContas.Provider value={fonte}>{children}</ContextoDaFonteDeContas.Provider>
+}
+
+export function useFonteDeContas(): FonteDeContas {
+  const fonte = useContext(ContextoDaFonteDeContas)
+  if (!fonte) throw new Error('useFonteDeContas precisa de um FonteDeContasProvider')
   return fonte
 }
 
@@ -110,4 +122,15 @@ export function useDados<T>(
 
   const { dados } = useCarregamento(fonte, carregar, dependencias)
   return dados
+}
+
+/**
+ * Carrega dados da FonteDeContas do contexto com estado completo de carregamento (dados, carregando, erro e recarregar).
+ */
+export function useDadosDeContas<T>(
+  carregar: (fonte: FonteDeContas) => Promise<T>,
+  dependencias: unknown[] = [],
+): EstadoDoCarregamento<T> {
+  const fonte = useFonteDeContas()
+  return useCarregamento(fonte, carregar, dependencias)
 }

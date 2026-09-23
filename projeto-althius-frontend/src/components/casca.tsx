@@ -1,4 +1,4 @@
-import { Bot, ChevronsUpDown, Plug, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { Bot, Building2, ChevronsUpDown, Plug, ShieldCheck, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
@@ -32,6 +32,7 @@ function Sidebar() {
   const { pathname } = useLocation()
   // A aba de Agentes inclui a página de cada Agente e a Conversa coordenada.
   const naAbaDeAgentes = pathname === '/' || pathname.startsWith('/agentes/') || pathname.startsWith('/conversa')
+  const naAbaDeContas = pathname === '/contas' || pathname.startsWith('/contas/') || pathname.startsWith('/contatos')
   const pendentes = workspace?.aprovacoesPendentes ?? 0
 
   return (
@@ -65,6 +66,9 @@ function Sidebar() {
       </Secao>
 
       <Secao titulo="Workspace">
+        <ItemDeNavegacao para="/contas" ativo={naAbaDeContas} icone={<IconeDeNavegacao icone={Building2} />}>
+          Contas e Contatos
+        </ItemDeNavegacao>
         <ItemDeNavegacao para="/" ativo={naAbaDeAgentes} icone={<IconeDeNavegacao icone={Bot} />}>
           Agentes
         </ItemDeNavegacao>

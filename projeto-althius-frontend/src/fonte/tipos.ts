@@ -287,3 +287,5 @@ export interface FonteDeAgentes extends FonteObservavel {
    */
   conversarCoordenado(pedido: Mensagem, anteriores: Mensagem[]): AsyncIterable<PassoDaCoordenacao>
 }
+
+export * from './contas-tipos'
