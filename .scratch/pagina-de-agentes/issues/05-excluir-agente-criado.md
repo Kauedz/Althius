@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Um Agente criado oferece a exclusão, com confirmação, e some da grade depois de excluído
-- [ ] Depois de excluir, o usuário volta para a página de Agentes se estava na página do Agente excluído
-- [ ] O Agente padrão não oferece exclusão
-- [ ] Não existe opção de renomear nenhum Agente, nem de criar Especialidade
+- [x] Um Agente criado oferece a exclusão, com confirmação, e some da grade depois de excluído
+- [x] Depois de excluir, o usuário volta para a página de Agentes se estava na página do Agente excluído
+- [x] O Agente padrão não oferece exclusão
+- [x] Não existe opção de renomear nenhum Agente, nem de criar Especialidade

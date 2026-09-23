@@ -227,6 +227,58 @@ describe('Criar Agente', () => {
   })
 })
 
+describe('Excluir Agente', () => {
+  it('um Agente criado oferece a exclusão, com confirmação, e some da grade', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor-anuncios-meta/conversa')
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor · Anúncios Meta' })
+    await usuario.click(screen.getByRole('button', { name: 'Excluir agente' }))
+    const confirmacao = await screen.findByRole('dialog', { name: 'Excluir Rhetor · Anúncios Meta?' })
+    await usuario.click(within(confirmacao).getByRole('button', { name: 'Excluir' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    const lista = await grade()
+    await waitFor(() => expect(within(lista).getAllByRole('listitem')).toHaveLength(8))
+    expect(within(lista).queryByRole('link', { name: 'Rhetor · Anúncios Meta' })).not.toBeInTheDocument()
+  })
+
+  it('cancelar a confirmação mantém o Agente', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor-anuncios-meta/conversa')
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor · Anúncios Meta' })
+    await usuario.click(screen.getByRole('button', { name: 'Excluir agente' }))
+    const confirmacao = await screen.findByRole('dialog', { name: 'Excluir Rhetor · Anúncios Meta?' })
+    await usuario.click(within(confirmacao).getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { level: 1, name: 'Rhetor · Anúncios Meta' })).toBeInTheDocument()
+  })
+
+  it('o Agente excluído sai do autocompletar de @', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor-anuncios-meta/conversa')
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor · Anúncios Meta' })
+    await usuario.click(screen.getByRole('button', { name: 'Excluir agente' }))
+    await usuario.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Excluir' }))
+    await usuario.click(within(await grade()).getByRole('link', { name: 'Scopus' }))
+    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Scopus' }), '@Rhe')
+    const opcoes = await screen.findByRole('listbox', { name: 'Agentes' })
+    expect(within(opcoes).getByRole('option', { name: 'Rhetor' })).toBeInTheDocument()
+    expect(within(opcoes).queryByRole('option', { name: 'Rhetor · Anúncios Meta' })).not.toBeInTheDocument()
+  })
+
+  it('o Agente padrão não oferece exclusão, e nenhum Agente pode ser renomeado', async () => {
+    renderizarApp('/agentes/rhetor/configuracao')
+    await screen.findByRole('heading', { level: 2, name: 'Configuração' })
+    expect(screen.queryByRole('button', { name: 'Excluir agente' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /nome/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /renomear/i })).not.toBeInTheDocument()
+  })
+
+  it('um Agente criado também não pode ser renomeado', async () => {
+    renderizarApp('/agentes/scopus-enterprise-latam/configuracao')
+    await screen.findByRole('heading', { level: 2, name: 'Configuração' })
+    expect(screen.queryByRole('textbox', { name: /nome/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /renomear/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('Página do Agente', () => {
   it('abre um Agente pela galeria e navega pelas 7 sub-abas', async () => {
     const { usuario } = renderizarApp('/')

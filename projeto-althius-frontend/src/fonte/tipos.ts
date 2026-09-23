@@ -209,6 +209,8 @@ export interface FonteDeAgentes {
    * Permissões e das Habilidades do Agente padrão, Memória vazia e sem Rotinas.
    */
   criarAgente(novo: NovoAgente): Promise<Agente>
+  /** Exclui um Agente criado e tudo que é dele. O Agente padrão não pode ser excluído. */
+  excluirAgente(id: AgenteId): Promise<void>
 
   memoria(id: AgenteId): Promise<Fato[]>
   editarFato(fatoId: string, texto: string): Promise<void>

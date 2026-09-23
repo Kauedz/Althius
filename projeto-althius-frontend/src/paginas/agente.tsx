@@ -1,7 +1,11 @@
-import { Link, Navigate, NavLink, useParams } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Link, Navigate, NavLink, useNavigate, useParams } from 'react-router-dom'
 import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
-import { useDados } from '@/fonte/contexto'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
+import { useDados, useFonte } from '@/fonte/contexto'
 import type { Agente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 import { SecaoAtividade } from '@/paginas/secoes/atividade'
@@ -44,7 +48,12 @@ export function PaginaAgente() {
   const { Componente } = SECOES[secao as SecaoId]
 
   return (
-    <Pagina titulo={agente.nome} voltar={{ para: '/', rotulo: 'Agentes' }} className="gap-8">
+    <Pagina
+      titulo={agente.nome}
+      voltar={{ para: '/', rotulo: 'Agentes' }}
+      acoes={agente.tipo === 'criado' && <ExcluirAgente agente={agente} />}
+      className="gap-8"
+    >
       <div className="flex items-start gap-4">
         <IconeAgente especialidade={agente.especialidade.id} tamanho="lg" />
         <div className="flex flex-col gap-2">
@@ -80,5 +89,43 @@ export function PaginaAgente() {
 
       <Componente key={agente.id} agente={agente} />
     </Pagina>
+  )
+}
+
+/** Só o Agente criado pode ser excluído (ADR 0005), sempre com confirmação. */
+function ExcluirAgente({ agente }: { agente: Agente }) {
+  const fonte = useFonte()
+  const navegar = useNavigate()
+  const [confirmando, setConfirmando] = useState(false)
+
+  async function excluir() {
+    await fonte.excluirAgente(agente.id)
+    navegar('/')
+  }
+
+  return (
+    <>
+      <Button variant="outline" onClick={() => setConfirmando(true)} className="h-8 gap-2 px-4 tracking-rotulo uppercase">
+        <Trash2 strokeWidth={1.8} aria-hidden />
+        Excluir agente
+      </Button>
+      <Dialog open={confirmando} onOpenChange={setConfirmando}>
+        <DialogContent className="gap-6 p-6">
+          <DialogTitle className="titulo-secao text-2xl">Excluir {agente.nome}?</DialogTitle>
+          <DialogDescription className="text-al-muted">
+            A memória, as habilidades, as rotinas e a atividade de {agente.nome} também saem. O agente padrão de{' '}
+            {agente.especialidade.nome} continua.
+          </DialogDescription>
+          <DialogFooter className="flex gap-2">
+            <Button variant="ghost" onClick={() => setConfirmando(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={excluir} className="px-6 tracking-rotulo uppercase">
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

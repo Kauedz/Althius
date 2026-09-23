@@ -149,6 +149,18 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       avisar()
       return structuredClone(montarAgente(buscar(estado.agentes, id)))
     },
+    excluirAgente: (id) =>
+      mudar(() => {
+        if (buscar(estado.agentes, id).tipo === 'padrao') throw new Error('O Agente padrão não pode ser excluído.')
+        const deOutro = <T extends { agenteId: AgenteId }>(item: T) => item.agenteId !== id
+        estado.agentes = estado.agentes.filter((a) => a.id !== id)
+        estado.fatos = estado.fatos.filter(deOutro)
+        estado.habilidades = estado.habilidades.filter(deOutro)
+        estado.rotinas = estado.rotinas.filter(deOutro)
+        estado.atividade = estado.atividade.filter(deOutro)
+        estado.aprovacoes = estado.aprovacoes.filter(deOutro)
+        delete estado.personalizacoes[id]
+      }),
 
     memoria: (id) => responder(() => estado.fatos.filter((f) => f.agenteId === id)),
     editarFato: (fatoId, texto) =>
