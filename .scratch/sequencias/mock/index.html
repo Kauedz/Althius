@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="escuro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Althius · Mock de Sequências</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <div class="workspace-switcher">
+          <span class="workspace-mark" aria-hidden="true">D</span>
+          <span class="workspace-copy">
+            <span class="eyebrow">Workspace</span>
+            <strong>Databricks</strong>
+          </span>
+          <span class="chevrons" aria-hidden="true">⌃⌄</span>
+        </div>
+        <span class="demo-badge">Demonstração</span>
+
+        <nav class="side-section" aria-label="Especialistas">
+          <span class="side-label">Especialistas</span>
+          <a class="side-link" href="#"><span class="agent-dot pink"></span>Scopus<span class="online-dot"></span></a>
+          <a class="side-link" href="#"><span class="agent-dot orange"></span>Ethos<span class="online-dot"></span></a>
+          <a class="side-link" href="#"><span class="agent-dot violet"></span>Rhetor<span class="online-dot"></span></a>
+          <a class="side-link" href="#"><span class="agent-dot blue"></span>Oraculum<span class="online-dot"></span></a>
+        </nav>
+
+        <nav class="side-section" aria-label="Workspace">
+          <span class="side-label">Workspace</span>
+          <button class="side-link" type="button" data-nav="account">
+            <span class="side-icon" data-icon="building"></span>Contas e Contatos
+          </button>
+          <button class="side-link active" type="button" data-nav="list">
+            <span class="side-icon" data-icon="route"></span>Sequências
+          </button>
+          <a class="side-link" href="#"><span class="side-icon" data-icon="bot"></span>Agentes</a>
+          <a class="side-link" href="#"><span class="side-icon" data-icon="shield"></span>Aprovações<span id="approvals-count" class="nav-count">3</span></a>
+          <a class="side-link" href="#"><span class="side-icon" data-icon="plug"></span>Conexões</a>
+        </nav>
+
+        <div class="profile">
+          <span class="avatar avatar-user has-photo" title="Marina Costa"><img src="../../contas-e-contatos/mock/avatars/avatar-1.jpg" alt="Marina Costa" onerror="this.remove();this.parentElement.textContent='MC'" /></span>
+          <span class="profile-copy"><strong>Marina Costa</strong><small>Head de Receita</small></span>
+          <span aria-hidden="true">•••</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div id="topbar-title" class="topbar-title">
+            <span id="topbar-icon" class="topbar-icon" data-icon="route"></span>
+            <h1 id="topbar-heading">Sequências</h1>
+          </div>
+          <div class="topbar-actions">
+            <button id="theme-toggle" class="icon-button" type="button" aria-label="Alternar para tema claro" title="Alternar tema">
+              <span data-icon="sun"></span>
+            </button>
+            <button class="help-button" type="button"><span data-icon="help"></span>Ajuda</button>
+          </div>
+        </header>
+
+        <section class="module-shell">
+          <div id="view" class="view" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="toast" class="toast" role="status" hidden></div>
+
+    <script src="./mock.js"></script>
+  </body>
+</html>
