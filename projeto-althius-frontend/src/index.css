@@ -236,3 +236,100 @@
 @media (prefers-reduced-motion: reduce) {
   .pulso-anel { animation: none; }
 }
+
+
+/* ========================================================
+   Composer de Step - Pre-visualizacoes por canal (Ticket 06)
+   ======================================================== */
+
+/* Variaveis inline */
+.al-preview-var {
+  background: color-mix(in srgb, var(--al-accent) 15%, transparent);
+  color: var(--al-accent);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-style: normal;
+}
+.al-preview-var-missing {
+  background: color-mix(in srgb, var(--al-atencao) 15%, transparent);
+  color: var(--al-atencao);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-style: normal;
+}
+.al-pv-empty { color: var(--al-ink-muted); font-style: italic; }
+
+.al-pv { border: 1px solid var(--al-line); font-size: 0.75rem; color: var(--al-ink); background: var(--al-bg); overflow: hidden; max-width: 400px; width: 100%; }
+.al-pv-avatar { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--al-line); color: var(--al-ink); font-size: 0.6875rem; font-weight: 600; flex-shrink: 0; }
+.al-pv-who { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.al-pv-who strong { font-weight: 600; font-size: 0.75rem; }
+.al-pv-who small, .al-pv-who time { font-size: 0.6875rem; color: var(--al-ink-muted); }
+
+/* WhatsApp */
+.al-pv-wa { display: flex; flex-direction: column; }
+.al-pv-wa-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #075E54; color: #fff; }
+.al-pv-wa-head .al-pv-avatar { background: #128C7E; color: #fff; }
+.al-pv-wa-head .al-pv-who strong { color: #fff; }
+.al-pv-wa-head .al-pv-who small { color: rgba(255,255,255,.7); }
+.al-pv-wa-chat { flex: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding: 12px; background: #ECE5DD; min-height: 80px; }
+.al-pv-wa-day { align-self: center; font-size: 0.625rem; background: rgba(0,0,0,.12); color: #555; padding: 2px 8px; border-radius: 8px; }
+.al-pv-wa-bubble { background: #DCF8C6; color: #111; padding: 6px 10px; border-radius: 8px 0 8px 8px; max-width: 90%; line-height: 1.4; }
+.al-pv-wa-input { padding: 8px 12px; background: var(--al-surface); color: var(--al-ink-muted); border-top: 1px solid var(--al-line); }
+
+/* SMS */
+.al-pv-sms { display: flex; flex-direction: column; }
+.al-pv-phone { display: flex; flex-direction: column; }
+.al-pv-sms-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--al-surface); border-bottom: 1px solid var(--al-line); }
+.al-pv-sms-avatar { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--al-line); font-size: 0.6875rem; font-weight: 600; }
+.al-pv-sms-chat { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 12px; background: var(--al-bg); min-height: 80px; }
+.al-pv-sms-meta { font-size: 0.625rem; color: var(--al-ink-muted); align-self: center; }
+.al-pv-sms-bubble { background: var(--al-accent); color: var(--al-on-accent); padding: 6px 10px; border-radius: 16px 16px 2px 16px; max-width: 90%; line-height: 1.4; }
+.al-pv-sms-status { font-size: 0.5625rem; color: var(--al-ink-muted); }
+.al-pv-sms-input { padding: 8px 12px; background: var(--al-surface); color: var(--al-ink-muted); border-top: 1px solid var(--al-line); }
+
+/* LinkedIn */
+.al-pv-li { display: flex; flex-direction: column; }
+.al-pv-li-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #0073b1; color: #fff; font-size: 0.75rem; }
+.al-pv-li-bar strong { font-weight: 600; }
+.al-pv-li-bar small { font-size: 0.6875rem; opacity: .8; }
+.al-pv-li-mark { font-weight: 700; font-size: 0.875rem; background: #fff; color: #0073b1; padding: 0 4px; border-radius: 2px; }
+.al-pv-li-tag { font-size: 0.5625rem; background: rgba(255,255,255,.2); padding: 1px 5px; border-radius: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.al-pv-li-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--al-bg); }
+.al-pv-li-person { display: flex; align-items: center; gap: 8px; }
+.al-pv-li-when { font-size: 0.625rem; color: var(--al-ink-muted); }
+.al-pv-li-note { line-height: 1.5; color: var(--al-ink); font-size: 0.75rem; }
+.al-pv-li-actions { display: flex; gap: 8px; margin-top: 4px; }
+.al-pv-li-btn { flex: 1; text-align: center; padding: 6px; border: 1px solid #0073b1; color: #0073b1; font-size: 0.6875rem; font-weight: 600; cursor: default; border-radius: 16px; }
+.al-pv-li-btn.ghost { color: var(--al-ink-muted); border-color: var(--al-line); }
+.al-pv-li-thread { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--al-bg); min-height: 80px; }
+.al-pv-li-day { align-self: center; font-size: 0.625rem; color: var(--al-ink-muted); }
+.al-pv-li-msg { display: flex; gap: 8px; align-items: flex-start; }
+.al-pv-li-msg-meta { display: flex; gap: 8px; align-items: baseline; }
+.al-pv-li-msg-meta strong { font-size: 0.75rem; }
+.al-pv-li-msg-meta small { font-size: 0.625rem; color: var(--al-ink-muted); }
+.al-pv-li-subject { font-weight: 600; font-size: 0.75rem; margin: 0; }
+.al-pv-li-text { line-height: 1.5; color: var(--al-ink); }
+.al-pv-li-input { padding: 8px 12px; background: var(--al-surface); color: var(--al-ink-muted); border-top: 1px solid var(--al-line); }
+
+/* E-mail */
+.al-pv-mail { display: flex; flex-direction: column; }
+.al-pv-mail-toolbar { padding: 6px 12px; background: var(--al-surface); color: var(--al-ink-muted); font-size: 0.6875rem; border-bottom: 1px solid var(--al-line); }
+.al-pv-mail-subject { padding: 10px 12px 4px; font-size: 0.875rem; font-weight: 600; margin: 0; }
+.al-pv-mail-from { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--al-line); }
+.al-pv-mail-from time { font-size: 0.625rem; color: var(--al-ink-muted); margin-left: auto; }
+.al-pv-mail-body { padding: 12px; line-height: 1.6; min-height: 80px; white-space: pre-wrap; }
+.al-pv-mail-atts { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--al-line); }
+.al-pv-mail-att { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--al-line); padding: 3px 8px; font-size: 0.6875rem; color: var(--al-ink); }
+.al-pv-mail-actions { display: flex; gap: 16px; padding: 8px 12px; border-top: 1px solid var(--al-line); color: var(--al-ink-muted); font-size: 0.6875rem; }
+
+/* Tarefa / Ligacao */
+.al-pv-task { display: flex; flex-direction: column; }
+.al-pv-task-head { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: var(--al-surface); border-bottom: 1px solid var(--al-line); }
+.al-pv-task-check { margin-left: auto; font-size: 0.6875rem; color: var(--al-sucesso); white-space: nowrap; }
+.al-pv-task-body { padding: 12px; line-height: 1.6; min-height: 60px; white-space: pre-wrap; }
+
+/* Miniaturas de anexo */
+.al-pv-anexos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.al-pv-anexo { width: 60px; height: 60px; overflow: hidden; border: 1px solid var(--al-line); border-radius: 4px; }
+.al-pv-media { width: 100%; height: 100%; object-fit: cover; display: block; }
+.al-pv-media-fake { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--al-surface); color: var(--al-ink-muted); }

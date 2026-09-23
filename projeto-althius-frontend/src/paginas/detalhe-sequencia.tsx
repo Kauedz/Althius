@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ArrowLeft,
   Calendar,
@@ -6,21 +6,26 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Eye,
+  Image,
   ListTodo,
   Mail,
   MessageCircle,
   Pause,
+  Pencil,
   Phone,
   Plus,
   Smartphone,
   Trash2,
+  Video,
   X,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useDadosDeSequencias, useFonteDeSequencias } from '@/fonte/contexto'
-import type { CanalStep, StatusSequencia, StepSequencia } from '@/fonte/sequencias-tipos'
+import type { AnexoStep, CanalStep, StatusSequencia, StepSequencia } from '@/fonte/sequencias-tipos'
+import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 
 interface Props {
   sequenciaId: string
@@ -77,6 +82,9 @@ export function DetalheSequencia({ sequenciaId }: Props) {
   const [stepSelecionadoId, setStepSelecionadoId] = useState<string | null>(null)
   const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false)
   const [edicoesLocais, setEdicoesLocais] = useState<Record<string, Partial<StepSequencia>>>({})
+  const [modoPrevia, setModoPrevia] = useState(false)
+  // Ref para inserir variáveis no campo que estava com foco (assunto ou corpo)
+  const ultimoCampoRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
 
   if (carregando) {
     return <Carregando />
@@ -246,11 +254,56 @@ export function DetalheSequencia({ sequenciaId }: Props) {
       titulo: CANAIS_CONFIG[canal].titulo,
       corpo: '',
       objetivo: '',
+      modoEmail: canal === 'email' ? 'auto' : undefined,
+      subtipoLinkedIn: canal === 'linkedin' ? 'convite' : undefined,
+      anexos: [],
     }
     setStepSelecionadoId(novoId)
     setMenuAdicionarAberto(false)
+    setModoPrevia(false)
     await atualizarDoc({ steps: [...sequencia!.steps, novoStep] })
   }
+
+  // Insere o token {{variavel}} na posição do cursor do campo atualmente focado
+  function handleInserirVariavel(token: string) {
+    const campo = ultimoCampoRef.current
+    if (!campo || !stepAtivo) return
+    const start = campo.selectionStart ?? campo.value.length
+    const end = campo.selectionEnd ?? start
+    const novoValor = campo.value.slice(0, start) + token + campo.value.slice(end)
+    // Identifica se o campo é assunto ou corpo
+    const campo_id = campo.getAttribute('data-campo')
+    const patch =
+      campo_id === 'assunto' ? { assunto: novoValor } : { corpo: novoValor }
+    handleSalvarStep(patch)
+    // Restaura o foco e a posição do cursor após o re-render
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        `[data-campo="${campo_id}"]`,
+      )
+      if (el) {
+        el.focus()
+        const pos = start + token.length
+        el.setSelectionRange(pos, pos)
+        ultimoCampoRef.current = el
+      }
+    })
+  }
+
+  function handleAnexar(arquivo: File, tipo: 'imagem' | 'video') {
+    if (!stepAtivo) return
+    const url = URL.createObjectURL(arquivo)
+    const novoAnexo: AnexoStep = { tipo, nome: arquivo.name, url }
+    const anexosAtuais = stepAtivo.anexos ?? []
+    handleSalvarStep({ anexos: [...anexosAtuais, novoAnexo] })
+  }
+
+  function handleRemoverAnexo(indice: number) {
+    if (!stepAtivo) return
+    const novosAnexos = (stepAtivo.anexos ?? []).filter((_, i) => i !== indice)
+    handleSalvarStep({ anexos: novosAnexos })
+  }
+
 
   return (
     <div className="flex flex-col gap-6 py-2">
@@ -594,233 +647,828 @@ export function DetalheSequencia({ sequenciaId }: Props) {
 
         {/* Coluna 2: Editor de Step Selecionado (seq-editor) */}
         {stepAtivo ? (
-          <div className="p-6 flex flex-col gap-5 bg-al-surface">
-            {/* Cabeçalho do step: ícone, input de título, índice e controles de movimentação */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-al-line pb-4">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <span className="size-8 shrink-0 border border-al-line bg-al-bg flex items-center justify-center text-al-ink">
-                  <IconeCanal canal={stepAtivo.canal} />
-                </span>
-                <input
-                  aria-label="Nome do step"
-                  value={stepAtivo.titulo}
-                  onChange={(e) => handleSalvarStep({ titulo: e.target.value })}
-                  placeholder="Nome do step"
-                  className="flex-1 min-w-0 bg-transparent text-base font-normal text-al-ink border-b border-transparent focus:border-al-ink outline-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-al-muted">
-                  Step {indiceStepAtivo + 1} de {stepsMesclados.length}
-                </span>
-                <button
-                  type="button"
-                  disabled={indiceStepAtivo === 0}
-                  onClick={() => handleMoverStep(-1)}
-                  aria-label="Mover para cima"
-                  className="p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
-                >
-                  <ChevronUp className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={indiceStepAtivo === stepsMesclados.length - 1}
-                  onClick={() => handleMoverStep(1)}
-                  aria-label="Mover para baixo"
-                  className="p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
-                >
-                  <ChevronDown className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={stepsMesclados.length <= 1}
-                  onClick={handleExcluirStep}
-                  aria-label="Excluir step"
-                  className="p-1 border border-al-line bg-al-bg text-al-erro hover:bg-al-erro/10 disabled:opacity-30 disabled:pointer-events-none"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Abas de canal */}
-            <div className="flex flex-wrap gap-1 border-b border-al-line pb-3">
-              {(Object.keys(CANAIS_CONFIG) as CanalStep[]).map((canal) => (
-                <button
-                  key={canal}
-                  type="button"
-                  onClick={() => {
-                    const novoTitulo =
-                      stepAtivo.titulo === CANAIS_CONFIG[stepAtivo.canal].titulo
-                        ? CANAIS_CONFIG[canal].titulo
-                        : stepAtivo.titulo
-                    handleSalvarStep({ canal, titulo: novoTitulo })
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors border ${
-                    stepAtivo.canal === canal
-                      ? 'border-al-accent bg-al-accent/10 text-al-ink font-medium'
-                      : 'border-transparent text-al-muted hover:text-al-ink hover:bg-al-bg'
-                  }`}
-                >
-                  <IconeCanal canal={canal} />
-                  <span>{CANAIS_CONFIG[canal].rotulo}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Linha Para: Destinatário */}
-            <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line pb-3">
-              <span className="text-xs text-al-muted">Para:</span>
-              <div className="flex items-center gap-2">
-                <select
-                  aria-label="Destinatário"
-                  value={stepAtivo.contatoId}
-                  onChange={(e) => handleSalvarStep({ contatoId: e.target.value })}
-                  className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
-                >
-                  {sequencia.participantesIds.map((id) => {
-                    const c = contatosMap.get(id)
-                    return (
-                      <option key={id} value={id} className="bg-al-surface text-al-ink">
-                        {c?.nome ?? id} {c?.cargo ? `· ${c.cargo}` : ''}
-                      </option>
-                    )
-                  })}
-                </select>
-              </div>
-            </div>
-
-            {/* Assunto (quando aplicável) */}
-            {(stepAtivo.canal === 'email' ||
-              (stepAtivo.canal === 'linkedin' && stepAtivo.subtipoLinkedIn === 'inmail')) && (
-              <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line pb-3">
-                <span className="text-xs text-al-muted">Assunto:</span>
-                <input
-                  aria-label="Assunto do e-mail"
-                  value={stepAtivo.assunto ?? ''}
-                  onChange={(e) => handleSalvarStep({ assunto: e.target.value })}
-                  placeholder="Assunto da mensagem"
-                  className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
-                />
-              </div>
-            )}
-
-            {/* Mensagem / Roteiro / Nota */}
-            <div className="grid grid-cols-[80px_1fr] items-start gap-3 border-b border-al-line pb-3">
-              <span className="text-xs text-al-muted pt-1">
-                {stepAtivo.canal === 'ligacao'
-                  ? 'Roteiro:'
-                  : stepAtivo.canal === 'tarefa'
-                    ? 'Nota:'
-                    : 'Mensagem:'}
-              </span>
-              <textarea
-                aria-label="Corpo da mensagem"
-                rows={6}
-                value={stepAtivo.corpo ?? ''}
-                onChange={(e) => handleSalvarStep({ corpo: e.target.value })}
-                placeholder={
-                  stepAtivo.canal === 'ligacao'
-                    ? 'Roteiro ou instruções da chamada...'
-                    : stepAtivo.canal === 'tarefa'
-                      ? 'Nota ou detalhes da tarefa...'
-                      : 'Texto da mensagem...'
-                }
-                className="border border-al-line bg-al-bg p-2.5 text-xs text-al-ink outline-none leading-relaxed resize-y font-sans"
-              />
-            </div>
-
-            {/* Quando: Delay e Janela */}
-            <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line pb-3">
-              <span className="text-xs text-al-muted">Quando:</span>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-al-ink">
-                {indiceStepAtivo === 0 ? (
-                  <span className="text-al-muted">Começa assim que a sequência for aprovada</span>
-                ) : (
-                  <>
-                    <span className="text-al-muted">Aguardar</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={30}
-                      aria-label="Dias úteis de espera"
-                      value={stepAtivo.delayDiasUteis}
-                      onChange={(e) =>
-                        handleSalvarStep({
-                          delayDiasUteis: Math.max(0, parseInt(e.target.value, 10) || 0),
-                        })
-                      }
-                      className="w-14 border border-al-line bg-al-bg px-2 py-0.5 text-center text-xs text-al-ink outline-none"
-                    />
-                    <span className="text-al-muted">
-                      dias úteis após o step {indiceStepAtivo}
-                    </span>
-                  </>
-                )}
-                <span className="text-al-muted">·</span>
-                <select
-                  aria-label="Janela do step"
-                  value={
-                    stepAtivo.janela?.de === '10:00'
-                      ? 'manha'
-                      : stepAtivo.janela?.de === '14:00'
-                        ? 'tarde'
-                        : 'herdar'
-                  }
-                  onChange={(e) => {
-                    const opcao = e.target.value
-                    if (opcao === 'manha') {
-                      handleSalvarStep({ janela: { de: '10:00', ate: '12:00' } })
-                    } else if (opcao === 'tarde') {
-                      handleSalvarStep({ janela: { de: '14:00', ate: '17:00' } })
-                    } else {
-                      handleSalvarStep({ janela: null })
-                    }
-                  }}
-                  className="border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
-                >
-                  <option value="herdar">
-                    Janela da sequência ({sequencia.janelaPadrao.de}–{sequencia.janelaPadrao.ate})
-                  </option>
-                  <option value="manha">Manhã (10:00–12:00)</option>
-                  <option value="tarde">Tarde (14:00–17:00)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Objetivo */}
-            <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line pb-3">
-              <span className="text-xs text-al-muted">Objetivo:</span>
-              <div className="flex flex-col gap-1">
-                <input
-                  aria-label="Objetivo do step"
-                  value={stepAtivo.objetivo ?? ''}
-                  onChange={(e) => handleSalvarStep({ objetivo: e.target.value })}
-                  placeholder="O que este step precisa conseguir"
-                  className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
-                />
-                {stepAtivo.objetivo && (
-                  <span className="text-[0.6875rem] text-al-muted">
-                    Objetivo: {stepAtivo.objetivo}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Rodapé de demonstração */}
-            <div className="flex items-center gap-2 text-xs text-al-muted pt-1">
-              <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
-                Demonstração
-              </span>
-              <span>Ainda não enviado · nada sai deste protótipo</span>
-            </div>
-          </div>
+          <ComposerStep
+            step={stepAtivo}
+            indice={indiceStepAtivo}
+            total={stepsMesclados.length}
+            janelaPadrao={sequencia.janelaPadrao}
+            participantesIds={sequencia.participantesIds}
+            contatosMap={contatosMap}
+            modoPrevia={modoPrevia}
+            onModoPrevia={setModoPrevia}
+            conta={conta}
+            contatos={contatos ?? []}
+            onSalvar={handleSalvarStep}
+            onMover={handleMoverStep}
+            onExcluir={handleExcluirStep}
+            onInserirVariavel={handleInserirVariavel}
+            onAnexar={handleAnexar}
+            onRemoverAnexo={handleRemoverAnexo}
+            ultimoCampoRef={ultimoCampoRef}
+          />
         ) : (
           <div className="p-8 flex items-center justify-center text-sm text-al-muted">
             Nenhum step selecionado
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Variáveis disponíveis para inserção ----------
+
+const VARIAVEIS: Array<{ nome: string; grupo: string; token: string }> = [
+  { nome: 'conta.nome', grupo: 'Conta', token: '{{conta.nome}}' },
+  { nome: 'conta.sinal', grupo: 'Conta', token: '{{conta.sinal}}' },
+  { nome: 'conta.segmento', grupo: 'Conta', token: '{{conta.segmento}}' },
+  { nome: 'contato.primeiro_nome', grupo: 'Contato', token: '{{contato.primeiro_nome}}' },
+  { nome: 'contato.cargo', grupo: 'Contato', token: '{{contato.cargo}}' },
+  { nome: 'persona', grupo: 'Persona', token: '{{persona}}' },
+  { nome: 'remetente.nome', grupo: 'Você', token: '{{remetente.nome}}' },
+]
+
+// ---------- Substituição de variáveis para preview ----------
+
+function resolverVariavel(
+  nome: string,
+  conta: ContaAlvo | undefined,
+  contato: Contato | undefined,
+): string | null {
+  const primeiroNome = (contato?.nome ?? '').split(/\s+/)[0] ?? ''
+  const mapa: Record<string, string | undefined | null> = {
+    'conta.nome': conta?.nome,
+    'conta.sinal': conta?.ultimoSinal?.frase,
+    'conta.segmento': conta?.segmento,
+    'contato.primeiro_nome': primeiroNome || undefined,
+    'contato.cargo': contato?.cargo,
+    persona: contato?.persona,
+    'remetente.nome': 'Marina Costa',
+  }
+  return mapa[nome] ?? null
+}
+
+function renderizarPreview(
+  texto: string,
+  conta: ContaAlvo | undefined,
+  contato: Contato | undefined,
+): string {
+  return texto.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, nome: string) => {
+    const valor = resolverVariavel(nome, conta, contato)
+    if (valor) return `<mark class="al-preview-var">${valor}</mark>`
+    return `<mark class="al-preview-var-missing">{{${nome}}}</mark>`
+  })
+}
+
+// ---------- Composer de Step ----------
+
+interface ComposerStepProps {
+  step: StepSequencia
+  indice: number
+  total: number
+  janelaPadrao: { de: string; ate: string }
+  participantesIds: string[]
+  contatosMap: Map<string, Contato>
+  modoPrevia: boolean
+  onModoPrevia: (v: boolean) => void
+  conta: ContaAlvo | undefined
+  contatos: Contato[]
+  onSalvar: (patch: Partial<StepSequencia>) => void
+  onMover: (direcao: -1 | 1) => void
+  onExcluir: () => void
+  onInserirVariavel: (token: string) => void
+  onAnexar: (arquivo: File, tipo: 'imagem' | 'video') => void
+  onRemoverAnexo: (indice: number) => void
+  ultimoCampoRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
+}
+
+function ComposerStep({
+  step,
+  indice,
+  total,
+  janelaPadrao,
+  participantesIds,
+  contatosMap,
+  modoPrevia,
+  onModoPrevia,
+  conta,
+  onSalvar,
+  onMover,
+  onExcluir,
+  onInserirVariavel,
+  onAnexar,
+  onRemoverAnexo,
+  ultimoCampoRef,
+}: ComposerStepProps) {
+  const contato = contatosMap.get(step.contatoId)
+  const ehNota = step.canal === 'ligacao' || step.canal === 'tarefa'
+  const temAssunto =
+    step.canal === 'email' ||
+    (step.canal === 'linkedin' && step.subtipoLinkedIn === 'inmail')
+  const limiteCaracteres =
+    step.canal === 'sms'
+      ? 160
+      : step.canal === 'linkedin' && step.subtipoLinkedIn === 'convite'
+        ? 300
+        : null
+  const corpo = step.corpo ?? ''
+  const anexos = step.anexos ?? []
+
+  const rotuloMensagem = step.canal === 'ligacao' ? 'Roteiro:' : step.canal === 'tarefa' ? 'Nota:' : 'Mensagem:'
+
+  return (
+    <div className="flex flex-col bg-al-surface" data-testid="composer-step">
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-al-line px-5 py-3.5">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className="size-8 shrink-0 border border-al-line bg-al-bg flex items-center justify-center text-al-ink">
+            <IconeCanal canal={step.canal} />
+          </span>
+          <input
+            aria-label="Nome do step"
+            value={step.titulo}
+            onChange={(e) => onSalvar({ titulo: e.target.value })}
+            placeholder="Nome do step"
+            className="flex-1 min-w-0 bg-transparent text-base font-normal text-al-ink border-b border-transparent focus:border-al-ink outline-none"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-al-muted">Step {indice + 1} de {total}</span>
+          <button
+            type="button"
+            disabled={indice === 0}
+            onClick={() => onMover(-1)}
+            aria-label="Mover para cima"
+            className="p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <ChevronUp className="size-4" />
+          </button>
+          <button
+            type="button"
+            disabled={indice === total - 1}
+            onClick={() => onMover(1)}
+            aria-label="Mover para baixo"
+            className="p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <ChevronDown className="size-4" />
+          </button>
+          <button
+            type="button"
+            disabled={total <= 1}
+            onClick={onExcluir}
+            aria-label="Excluir step"
+            className="p-1 border border-al-line bg-al-bg text-al-erro hover:bg-al-erro/10 disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Abas de canal */}
+      <div className="flex flex-wrap gap-1 border-b border-al-line px-4 pt-2 pb-0">
+        {(Object.keys(CANAIS_CONFIG) as CanalStep[]).map((canal) => (
+          <button
+            key={canal}
+            type="button"
+            role="tab"
+            aria-selected={step.canal === canal}
+            onClick={() => {
+              const novoTitulo =
+                step.titulo === CANAIS_CONFIG[step.canal].titulo
+                  ? CANAIS_CONFIG[canal].titulo
+                  : step.titulo
+              onSalvar({
+                canal,
+                titulo: novoTitulo,
+                modoEmail: canal === 'email' ? (step.modoEmail ?? 'auto') : undefined,
+                subtipoLinkedIn: canal === 'linkedin' ? (step.subtipoLinkedIn ?? 'convite') : undefined,
+              })
+              onModoPrevia(false)
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs transition-colors border-b-2 -mb-px ${
+              step.canal === canal
+                ? 'border-b-al-accent text-al-ink font-medium'
+                : 'border-b-transparent text-al-muted hover:text-al-ink'
+            }`}
+          >
+            <IconeCanal canal={canal} />
+            <span>{CANAIS_CONFIG[canal].rotulo}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Linha Para: Destinatário */}
+      <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
+        <span className="text-xs text-al-muted">Para:</span>
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="Destinatário"
+            value={step.contatoId}
+            onChange={(e) => onSalvar({ contatoId: e.target.value })}
+            className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
+          >
+            {participantesIds.map((id) => {
+              const c = contatosMap.get(id)
+              return (
+                <option key={id} value={id} className="bg-al-surface text-al-ink">
+                  {c?.nome ?? id} {c?.cargo ? `· ${c.cargo}` : ''}
+                </option>
+              )
+            })}
+          </select>
+          {contato?.persona && (
+            <span className="text-xs text-al-muted">· {contato.persona}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Opções específicas por canal (Envio/Modo/Subtipo) */}
+      <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
+        <span className="text-xs text-al-muted">Envio:</span>
+        <OpcoesPorCanal step={step} onSalvar={onSalvar} />
+      </div>
+
+      {/* Assunto (e-mail ou LinkedIn InMail) */}
+      {temAssunto && !modoPrevia && (
+        <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
+          <span className="text-xs text-al-muted">Assunto:</span>
+          <input
+            aria-label="Assunto do e-mail"
+            data-campo="assunto"
+            value={step.assunto ?? ''}
+            onChange={(e) => onSalvar({ assunto: e.target.value })}
+            onFocus={(e) => { ultimoCampoRef.current = e.currentTarget }}
+            placeholder="Assunto da mensagem"
+            className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none w-full"
+          />
+        </div>
+      )}
+
+      {/* Barra de variáveis + botão de preview */}
+      <BarraVariaveis
+        onInserir={onInserirVariavel}
+        modoPrevia={modoPrevia}
+        onModoPrevia={onModoPrevia}
+      />
+
+      {/* Mensagem / Roteiro / Nota ou Preview */}
+      <div className="grid grid-cols-[80px_1fr] items-start gap-3 border-b border-al-line px-4 py-3">
+        <span className="text-xs text-al-muted pt-1">
+          {modoPrevia ? 'Como chega:' : rotuloMensagem}
+        </span>
+        {modoPrevia ? (
+          <PreviaCanal step={step} conta={conta} contato={contato} />
+        ) : (
+          <div className="relative">
+            <textarea
+              aria-label="Corpo da mensagem"
+              data-campo="corpo"
+              rows={6}
+              value={corpo}
+              onChange={(e) => onSalvar({ corpo: e.target.value })}
+              onFocus={(e) => { ultimoCampoRef.current = e.currentTarget }}
+              placeholder={
+                step.canal === 'ligacao'
+                  ? 'Roteiro ou instruções da chamada...'
+                  : step.canal === 'tarefa'
+                    ? 'Nota ou detalhes da tarefa...'
+                    : 'Texto da mensagem...'
+              }
+              className="w-full border border-al-line bg-al-bg p-2.5 text-xs text-al-ink outline-none leading-relaxed resize-y font-sans"
+            />
+            {limiteCaracteres !== null && (
+              <span
+                className={`absolute bottom-2 right-2 text-[0.6875rem] tabular-nums ${
+                  corpo.length > limiteCaracteres ? 'text-al-erro font-medium' : 'text-al-muted'
+                }`}
+                aria-label="Contador de caracteres"
+              >
+                {corpo.length}/{limiteCaracteres}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Anexos */}
+      {!ehNota && (
+        <LinhaAnexos
+          anexos={anexos}
+          onAnexar={onAnexar}
+          onRemover={onRemoverAnexo}
+        />
+      )}
+
+      {/* Quando: Delay e Janela */}
+      <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
+        <span className="text-xs text-al-muted">Quando:</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-al-ink">
+          {indice === 0 ? (
+            <span className="text-al-muted">Começa assim que a sequência for aprovada</span>
+          ) : (
+            <>
+              <span className="text-al-muted">Aguardar</span>
+              <input
+                type="number"
+                min={0}
+                max={30}
+                aria-label="Dias úteis de espera"
+                value={step.delayDiasUteis}
+                onChange={(e) =>
+                  onSalvar({
+                    delayDiasUteis: Math.max(0, parseInt(e.target.value, 10) || 0),
+                  })
+                }
+                className="w-14 border border-al-line bg-al-bg px-2 py-0.5 text-center text-xs text-al-ink outline-none"
+              />
+              <span className="text-al-muted">dias úteis após o step {indice}</span>
+            </>
+          )}
+          <span className="text-al-muted">·</span>
+          <select
+            aria-label="Janela do step"
+            value={
+              step.janela?.de === '10:00'
+                ? 'manha'
+                : step.janela?.de === '14:00'
+                  ? 'tarde'
+                  : 'herdar'
+            }
+            onChange={(e) => {
+              const opcao = e.target.value
+              if (opcao === 'manha') {
+                onSalvar({ janela: { de: '10:00', ate: '12:00' } })
+              } else if (opcao === 'tarde') {
+                onSalvar({ janela: { de: '14:00', ate: '17:00' } })
+              } else {
+                onSalvar({ janela: null })
+              }
+            }}
+            className="border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
+          >
+            <option value="herdar">
+              Janela da sequência ({janelaPadrao.de}–{janelaPadrao.ate})
+            </option>
+            <option value="manha">Manhã (10:00–12:00)</option>
+            <option value="tarde">Tarde (14:00–17:00)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Objetivo */}
+      <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
+        <span className="text-xs text-al-muted">Objetivo:</span>
+        <input
+          aria-label="Objetivo do step"
+          value={step.objetivo ?? ''}
+          onChange={(e) => onSalvar({ objetivo: e.target.value })}
+          placeholder="O que este step precisa conseguir"
+          className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none w-full"
+        />
+      </div>
+
+      {/* Rodapé de demonstração */}
+      <div className="flex items-center gap-2 text-xs text-al-muted px-4 py-3">
+        <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
+          Demonstração
+        </span>
+        <span>Ainda não enviado · nada sai deste protótipo</span>
+      </div>
+    </div>
+  )
+}
+
+// ---------- Opções específicas por canal ----------
+
+function OpcoesPorCanal({
+  step,
+  onSalvar,
+}: {
+  step: StepSequencia
+  onSalvar: (patch: Partial<StepSequencia>) => void
+}) {
+  if (step.canal === 'email') {
+    return (
+      <div className="flex items-center gap-1 border border-al-line">
+        {(['auto', 'manual'] as const).map((modo) => (
+          <button
+            key={modo}
+            type="button"
+            onClick={() => onSalvar({ modoEmail: modo })}
+            aria-pressed={step.modoEmail === modo}
+            className={`px-3 py-1 text-xs transition-colors ${
+              step.modoEmail === modo
+                ? 'bg-al-surface text-al-ink shadow-[inset_0_-2px_0_var(--al-accent)]'
+                : 'text-al-muted hover:text-al-ink'
+            }`}
+          >
+            {modo === 'auto' ? 'Automático' : 'Manual — revisar antes'}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  if (step.canal === 'linkedin') {
+    const opcoes: Array<{ valor: typeof step.subtipoLinkedIn; rotulo: string }> = [
+      { valor: 'convite', rotulo: 'Convite com nota' },
+      { valor: 'mensagem', rotulo: 'Mensagem' },
+      { valor: 'inmail', rotulo: 'InMail' },
+    ]
+    return (
+      <div className="flex items-center gap-1 border border-al-line flex-wrap">
+        {opcoes.map(({ valor, rotulo }) => (
+          <button
+            key={valor}
+            type="button"
+            onClick={() => onSalvar({ subtipoLinkedIn: valor })}
+            aria-pressed={step.subtipoLinkedIn === valor}
+            className={`px-3 py-1 text-xs transition-colors ${
+              step.subtipoLinkedIn === valor
+                ? 'bg-al-surface text-al-ink shadow-[inset_0_-2px_0_var(--al-accent)]'
+                : 'text-al-muted hover:text-al-ink'
+            }`}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  if (step.canal === 'whatsapp') {
+    return <span className="text-xs text-al-muted">Enviado do número do vendedor · sem envio neste protótipo</span>
+  }
+  if (step.canal === 'sms') {
+    return <span className="text-xs text-al-muted">Até 160 caracteres</span>
+  }
+  if (step.canal === 'ligacao') {
+    return <span className="text-xs text-al-muted">Vira uma tarefa de ligação na data do step</span>
+  }
+  if (step.canal === 'tarefa') {
+    return <span className="text-xs text-al-muted">Tarefa manual para quem é dono da Conta-alvo</span>
+  }
+  return null
+}
+
+// ---------- Barra de variáveis ----------
+
+function BarraVariaveis({
+  onInserir,
+  modoPrevia,
+  onModoPrevia,
+}: {
+  onInserir: (token: string) => void
+  modoPrevia: boolean
+  onModoPrevia: (v: boolean) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 border-b border-al-line px-4 py-2">
+      <span className="text-[0.6875rem] text-al-muted mr-1">Inserir variável</span>
+      {VARIAVEIS.map(({ nome, grupo, token }) => (
+        <button
+          key={nome}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()} // mantém foco no campo de texto
+          onClick={() => onInserir(token)}
+          aria-label={`Inserir variável ${token}`}
+          className="inline-flex h-6 items-center gap-1 border border-al-line bg-al-bg px-2 font-mono text-[0.6875rem] text-al-ink hover:border-al-accent hover:text-al-accent"
+        >
+          <em className="not-italic text-[0.5625rem] uppercase tracking-widest text-al-muted font-sans">
+            {grupo}
+          </em>
+          {token}
+        </button>
+      ))}
+      <div className="ml-auto flex items-center gap-1 border border-al-line">
+        <button
+          type="button"
+          onClick={() => onModoPrevia(false)}
+          aria-pressed={!modoPrevia}
+          aria-label="Modo edição"
+          className={`p-1.5 transition-colors ${!modoPrevia ? 'bg-al-surface text-al-ink' : 'text-al-muted hover:text-al-ink'}`}
+        >
+          <Pencil className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onModoPrevia(true)}
+          aria-pressed={modoPrevia}
+          aria-label="Pré-visualizar"
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[0.6875rem] transition-colors ${modoPrevia ? 'bg-al-surface text-al-ink' : 'text-al-muted hover:text-al-ink'}`}
+        >
+          <Eye className="size-3.5" />
+          Pré-visualizar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------- Pré-visualização por canal ----------
+
+function PreviaCanal({
+  step,
+  conta,
+  contato,
+}: {
+  step: StepSequencia
+  conta: ContaAlvo | undefined
+  contato: Contato | undefined
+}) {
+  const corpo = step.corpo ?? ''
+  const assunto = step.assunto ?? ''
+  const janela = step.janela
+  const hora = janela ? `${janela.de}–${janela.ate}` : '09:02'
+  const nomeContato = contato?.nome ?? 'Contato'
+  const inicContato = iniciais(nomeContato)
+  const nomeRemetente = 'Marina Costa'
+  const emailRemetente = 'marina.costa@databricks.com'
+  const emailContato = `${nomeContato.toLowerCase().replace(/\s+/g, '.')
+    }@${conta?.nome?.toLowerCase().replace(/\s+/g, '') ?? 'empresa'}.com`
+
+  const corpoHtml = renderizarPreview(corpo, conta, contato)
+  const assuntoHtml = renderizarPreview(assunto, conta, contato)
+
+  if (step.canal === 'whatsapp') {
+    return (
+      <div className="al-pv al-pv-wa" data-testid="preview-whatsapp">
+        <div className="al-pv-wa-head">
+          <span className="al-pv-avatar">{inicContato}</span>
+          <span className="al-pv-who">
+            <strong>{nomeContato}</strong>
+            <small>online</small>
+          </span>
+        </div>
+        <div className="al-pv-wa-chat">
+          <span className="al-pv-wa-day">Hoje</span>
+          <PreviewAnexos anexos={step.anexos ?? []} />
+          <div
+            className="al-pv-wa-bubble"
+            dangerouslySetInnerHTML={{ __html: corpoHtml || '<span class="al-pv-empty">Mensagem…</span>' }}
+          />
+        </div>
+        <div className="al-pv-wa-input">
+          <span>Mensagem</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (step.canal === 'sms') {
+    return (
+      <div className="al-pv al-pv-sms" data-testid="preview-sms">
+        <div className="al-pv-phone">
+          <div className="al-pv-sms-head">
+            <span className="al-pv-sms-avatar">{inicContato}</span>
+            <small>{nomeContato}</small>
+          </div>
+          <div className="al-pv-sms-chat">
+            <span className="al-pv-sms-meta">Mensagem de texto · SMS · Hoje {hora}</span>
+            <PreviewAnexos anexos={step.anexos ?? []} />
+            <div
+              className="al-pv-sms-bubble"
+              dangerouslySetInnerHTML={{ __html: corpoHtml || '<span class="al-pv-empty">Mensagem…</span>' }}
+            />
+            <span className="al-pv-sms-status">Entregue</span>
+          </div>
+          <div className="al-pv-sms-input">Mensagem de texto</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (step.canal === 'linkedin') {
+    if (step.subtipoLinkedIn === 'convite') {
+      return (
+        <div className="al-pv al-pv-li" data-testid="preview-linkedin">
+          <div className="al-pv-li-bar">
+            <span className="al-pv-li-mark">in</span>
+            <strong>Convites</strong>
+            <small>1 novo</small>
+          </div>
+          <div className="al-pv-li-card">
+            <div className="al-pv-li-person">
+              <span className="al-pv-avatar">MC</span>
+              <span className="al-pv-who">
+                <strong>{nomeRemetente}</strong>
+                <small>Head de Receita na Databricks</small>
+              </span>
+            </div>
+            <small className="al-pv-li-when">Convite para se conectar · agora</small>
+            <div
+              className="al-pv-li-note"
+              dangerouslySetInnerHTML={{ __html: corpoHtml || '<span class="al-pv-empty">Nota do convite…</span>' }}
+            />
+            <div className="al-pv-li-actions">
+              <span className="al-pv-li-btn ghost">Ignorar</span>
+              <span className="al-pv-li-btn">Aceitar</span>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="al-pv al-pv-li" data-testid="preview-linkedin">
+        <div className="al-pv-li-bar">
+          <span className="al-pv-li-mark">in</span>
+          <strong>Mensagens</strong>
+          {step.subtipoLinkedIn === 'inmail' && (
+            <span className="al-pv-li-tag">InMail</span>
+          )}
+        </div>
+        <div className="al-pv-li-thread">
+          <span className="al-pv-li-day">Hoje</span>
+          <div className="al-pv-li-msg">
+            <span className="al-pv-avatar">MC</span>
+            <div>
+              <div className="al-pv-li-msg-meta">
+                <strong>{nomeRemetente}</strong>
+                <small>{hora}</small>
+              </div>
+              {step.subtipoLinkedIn === 'inmail' && assunto && (
+                <p className="al-pv-li-subject" dangerouslySetInnerHTML={{ __html: assuntoHtml }} />
+              )}
+              <div
+                className="al-pv-li-text"
+                dangerouslySetInnerHTML={{ __html: corpoHtml || '<span class="al-pv-empty">Mensagem…</span>' }}
+              />
+              <PreviewAnexos anexos={step.anexos ?? []} />
+            </div>
+          </div>
+        </div>
+        <div className="al-pv-li-input">Escreva uma mensagem…</div>
+      </div>
+    )
+  }
+
+  if (step.canal === 'email') {
+    return (
+      <div className="al-pv al-pv-mail" data-testid="preview-email">
+        <div className="al-pv-mail-toolbar">
+          <span>← Caixa de entrada</span>
+        </div>
+        <h4
+          className="al-pv-mail-subject"
+          dangerouslySetInnerHTML={{ __html: assuntoHtml || '<span class="al-pv-empty">(sem assunto)</span>' }}
+        />
+        <div className="al-pv-mail-from">
+          <span className="al-pv-avatar">MC</span>
+          <span className="al-pv-who">
+            <span>
+              <strong>{nomeRemetente}</strong>{' '}
+              <small>&lt;{emailRemetente}&gt;</small>
+            </span>
+            <small>para {nomeContato} &lt;{emailContato}&gt;</small>
+          </span>
+          <time>{hora}</time>
+        </div>
+        <div
+          className="al-pv-mail-body"
+          dangerouslySetInnerHTML={{ __html: corpoHtml || '<span class="al-pv-empty">Corpo do e-mail…</span>' }}
+        />
+        {(step.anexos ?? []).length > 0 && (
+          <div className="al-pv-mail-atts">
+            {(step.anexos ?? []).map((a, i) => (
+              <span key={i} className="al-pv-mail-att">
+                {a.tipo === 'video' ? <Video className="size-3.5" /> : <Image className="size-3.5" />}
+                <span>{a.nome}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="al-pv-mail-actions">
+          <span>← Responder</span>
+          <span>Encaminhar →</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Ligação / Tarefa — cartão de tarefa
+  const tipoTarefa = step.canal === 'ligacao' ? 'Tarefa de ligação' : 'Tarefa'
+  return (
+    <div className="al-pv al-pv-task" data-testid="preview-task">
+      <div className="al-pv-task-head">
+        <IconeCanal canal={step.canal} />
+        <span className="al-pv-who">
+          <strong>{tipoTarefa} · {nomeContato}</strong>
+          <small>Vence no dia do step · {hora} · dona: {nomeRemetente}</small>
+        </span>
+        <span className="al-pv-task-check">✓ Concluir</span>
+      </div>
+      <div
+        className="al-pv-task-body"
+        dangerouslySetInnerHTML={{ __html: corpoHtml || `<span class="al-pv-empty">${step.canal === 'ligacao' ? 'Roteiro da ligação…' : 'Nota da tarefa…'}</span>` }}
+      />
+    </div>
+  )
+}
+
+// Miniaturas dos anexos na pré-visualização
+function PreviewAnexos({ anexos }: { anexos: AnexoStep[] }) {
+  if (!anexos.length) return null
+  return (
+    <div className="al-pv-anexos">
+      {anexos.map((a, i) => (
+        <div key={i} className="al-pv-anexo">
+          {a.url ? (
+            a.tipo === 'video' ? (
+              <video src={a.url} className="al-pv-media" muted />
+            ) : (
+              <img src={a.url} alt={a.nome} className="al-pv-media" />
+            )
+          ) : (
+            <span className={`al-pv-media-fake ${a.tipo}`}>
+              {a.tipo === 'video' ? <Video className="size-5" /> : <Image className="size-5" />}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------- Linha de Anexos ----------
+
+function LinhaAnexos({
+  anexos,
+  onAnexar,
+  onRemover,
+}: {
+  anexos: AnexoStep[]
+  onAnexar: (arquivo: File, tipo: 'imagem' | 'video') => void
+  onRemover: (i: number) => void
+}) {
+  return (
+    <div className="grid grid-cols-[80px_1fr] items-start gap-3 border-b border-al-line px-4 py-3">
+      <span className="text-xs text-al-muted pt-1">Anexos:</span>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-2">
+          {anexos.map((a, i) => (
+            <div key={i} className="relative flex flex-col border border-al-line bg-al-bg w-28">
+              <div className="h-16 flex items-center justify-center overflow-hidden bg-al-surface">
+                {a.url ? (
+                  a.tipo === 'video' ? (
+                    <video src={a.url} className="h-full w-full object-cover" muted />
+                  ) : (
+                    <img src={a.url} alt={a.nome} className="h-full w-full object-cover" />
+                  )
+                ) : (
+                  <span className="text-al-muted">
+                    {a.tipo === 'video' ? <Video className="size-5" /> : <Image className="size-5" />}
+                  </span>
+                )}
+              </div>
+              <span className="px-1.5 py-1 text-[0.625rem] text-al-muted truncate">{a.nome}</span>
+              <button
+                type="button"
+                onClick={() => onRemover(i)}
+                aria-label={`Remover anexo ${a.nome}`}
+                className="absolute top-1 right-1 size-4 flex items-center justify-center bg-black/60 text-white"
+              >
+                <X className="size-2.5" />
+              </button>
+            </div>
+          ))}
+
+          {/* Botão para imagem */}
+          <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
+            <Image className="size-4" />
+            Imagem ou print
+            <input
+              type="file"
+              accept="image/*"
+              aria-label="Anexar imagem"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onAnexar(f, 'imagem')
+                e.target.value = ''
+              }}
+            />
+          </label>
+
+          {/* Botão para vídeo */}
+          <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
+            <Video className="size-4" />
+            Vídeo
+            <input
+              type="file"
+              accept="video/*"
+              aria-label="Anexar vídeo"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onAnexar(f, 'video')
+                e.target.value = ''
+              }}
+            />
+          </label>
+        </div>
+        <p className="text-[0.6875rem] text-al-muted">
+          O arquivo fica só neste protótipo — nada é enviado.
+        </p>
       </div>
     </div>
   )

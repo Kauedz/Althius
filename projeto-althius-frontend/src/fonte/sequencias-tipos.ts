@@ -23,6 +23,8 @@ export interface AnexoStep {
   tipo: 'imagem' | 'video'
   nome: string
   duracao?: string
+  /** URL local (blob:) criada via URL.createObjectURL — só persiste na sessão. */
+  url?: string
 }
 
 export interface MetricasDemoStep {
