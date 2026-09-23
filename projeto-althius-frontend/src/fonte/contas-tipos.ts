@@ -21,7 +21,10 @@ export interface ContaAlvo {
   dominio?: string
   siteUrl?: string
   linkedinUrl?: string
+  /** Endereço da imagem do logo. Sem logo, a tela mostra as iniciais do nome. */
   logo?: string
+  /** O logo é um vetor de uma cor só, que a tela pinta com a cor do texto para aparecer nos dois temas. */
+  logoDeUmaCor?: boolean
   segmento?: string
   aderencia?: Aderencia
   origem?: OrigemDaConta
