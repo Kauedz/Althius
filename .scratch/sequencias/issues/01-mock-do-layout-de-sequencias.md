@@ -25,9 +25,9 @@ Conta com um único Contato continua válida no mock. Sem Unipile, sem CSV, sem 
 - [x] O mock mostra composers de e-mail, LinkedIn, WhatsApp/SMS e ligação/tarefa com variáveis e anexo de imagem/vídeo na UI
 - [x] Criar/editar uma sequência no mock parece simples (poucos cliques, sem builder de workflow)
 - [x] Delays/janela e a regra de pause (qualquer resposta pausa a Conta inteira) estão visíveis
-- [ ] O mock aparece nos dois temas e segue o Manual da Marca
+- [x] O mock aparece nos dois temas e segue o Manual da Marca
 - [x] O mock não entra no app nem nos testes: é descartável
-- [ ] O fundador aprovou o visual, e os ajustes decididos foram registrados na spec
+- [x] O fundador aprovou o visual, e os ajustes decididos foram registrados na spec
 
 ## Onde está o mock
 
