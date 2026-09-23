@@ -1,4 +1,5 @@
 import { Building2 } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { Aderencia, ContaAlvo } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import { DetalheConta } from './detalhe-conta'
 
 const ABAS_MODULO = [
   { rotulo: 'Contas', para: '/contas' },
@@ -45,6 +47,21 @@ function ordenarPorPrioridade(a: ContaAlvo, b: ContaAlvo): number {
 }
 
 export function PaginaContas() {
+  const { contaId } = useParams<{ contaId?: string }>()
+
+  if (contaId) {
+    return (
+      <Pagina titulo="Contas" icone={Building2}>
+        <DetalheConta contaId={contaId} />
+      </Pagina>
+    )
+  }
+
+  return <ListaContas />
+}
+
+function ListaContas() {
+  const navegar = useNavigate()
   const fonte = useFonteDeContas()
   const { dados: contas, carregando, erro, recarregar } = useDadosDeContas(
     (f) => f.contas(),
@@ -120,8 +137,22 @@ export function PaginaContas() {
             <tbody className="divide-y divide-al-line">
               {contasOrdenadas.map((conta) => {
                 return (
-                  <tr key={conta.id} className="h-11">
-                    <td className="py-3 pr-4 font-medium text-al-ink">{conta.nome}</td>
+                  <tr
+                    key={conta.id}
+                    className="h-11 cursor-pointer hover:bg-al-surface/40 transition-colors"
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest('a, button')) return
+                      navegar(`/contas/${conta.id}`)
+                    }}
+                  >
+                    <td className="py-3 pr-4 font-medium text-al-ink">
+                      <Link
+                        to={`/contas/${conta.id}`}
+                        className="hover:underline hover:text-al-accent focus:outline-none"
+                      >
+                        {conta.nome}
+                      </Link>
+                    </td>
                     <td className="py-3 px-4">
                       <CelulaAderencia aderencia={conta.aderencia} />
                     </td>

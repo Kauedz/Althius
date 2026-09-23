@@ -4,10 +4,10 @@
 
 **Blocked by:** 02 (FonteDeSequencias e item Sequências na casca)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] O detalhe da Conta-alvo mostra a seção Sequência com status e cobertura quando houver uma
-- [ ] Sem sequência, o vazio oferece criar
-- [ ] Conta com 1 Contato consegue ter sequência
-- [ ] Tentativa de segunda sequência na mesma Conta é rejeitada ou atualiza a existente (um único comportamento, testado)
-- [ ] Testes cobrem vazio, preenchido e regra de uma por Conta
+- [x] O detalhe da Conta-alvo mostra a seção Sequência com status e cobertura quando houver uma
+- [x] Sem sequência, o vazio oferece criar
+- [x] Conta com 1 Contato consegue ter sequência
+- [x] Tentativa de segunda sequência na mesma Conta é rejeitada ou atualiza a existente (um único comportamento, testado)
+- [x] Testes cobrem vazio, preenchido e regra de uma por Conta

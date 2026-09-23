@@ -90,7 +90,10 @@ export function DetalheSequencia({ sequenciaId }: Props) {
               </>
             )}
             <span>·</span>
-            <Link to="/contas" className="text-al-ink underline underline-offset-2 hover:text-al-accent">
+            <Link
+              to={`/contas/${sequencia.contaId}`}
+              className="text-al-ink underline underline-offset-2 hover:text-al-accent"
+            >
               Ver Conta-alvo
             </Link>
           </div>

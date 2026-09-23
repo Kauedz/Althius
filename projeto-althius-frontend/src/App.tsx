@@ -34,6 +34,7 @@ export function App({
       <Route element={<Casca />}>
         <Route index element={<PaginaAgentes />} />
         <Route path="contas" element={<PaginaContas />} />
+        <Route path="contas/:contaId" element={<PaginaContas />} />
         <Route path="sequencias" element={<PaginaSequencias />} />
         <Route path="sequencias/:sequenciaId" element={<PaginaSequencias />} />
         <Route path="conversa" element={<PaginaConversaCoordenada />} />
