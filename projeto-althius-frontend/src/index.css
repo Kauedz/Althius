@@ -212,7 +212,7 @@
   .composer textarea:focus-visible {
     outline: none;
   }
-  /* O rodapé da Conversa coordenada: o composer fixo, sobre um degradê que esconde o fio que passa por baixo. */
+  /* O rodapé da Conversa coordenada: o composer fixo, sobre um degradê que esconde a Conversa que passa por baixo. */
   .rodape-da-conversa {
     position: sticky;
     bottom: 0;

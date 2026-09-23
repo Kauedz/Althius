@@ -129,7 +129,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     return passos.map((passo) =>
       passo.tipo === 'repasse'
         ? { ...passo, de: quem(passo.de), para: quem(passo.para) }
-        : { ...passo, agenteId: quem(passo.agenteId) },
+        : { ...passo, ator: quem(passo.ator) },
     )
   }
 
@@ -177,40 +177,40 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
   }
 
   /**
-   * Os passos roteirizados de um pedido: os do roteiro dele ou, num pedido seguinte do fio, a
-   * continuação do último roteiro do fio que reconhece o pedido.
+   * Os passos roteirizados de um pedido: os do roteiro dele ou, num pedido seguinte da Conversa, a
+   * continuação do último roteiro da Conversa que reconhece o pedido.
    */
-  function passosRoteirizados(pedido: Mensagem, fio: Mensagem[]): PassoDeRoteiroCoordenado[] | undefined {
+  function passosRoteirizados(pedido: Mensagem, anteriores: Mensagem[]): PassoDeRoteiroCoordenado[] | undefined {
     const roteiro = roteiroDo(pedido)
     if (roteiro) return roteiro.passos
     const palavras = normalizarNome(pedido.texto).split(/[^\p{L}\p{N}]+/u)
-    const doFio = fio.map(roteiroDo).findLast((r) => r !== undefined)
-    return doFio?.continuacoes?.find(({ termo }) => palavras.includes(termo))?.passos
+    const roteiroAnterior = anteriores.map(roteiroDo).findLast((r) => r !== undefined)
+    return roteiroAnterior?.continuacoes?.find(({ termo }) => palavras.includes(termo))?.passos
   }
 
   /**
-   * O plano de uma Conversa coordenada (ADR 0004): o roteiro do pedido ou a continuação do fio, se
+   * O plano de uma Conversa coordenada (ADR 0004): o roteiro do pedido ou a continuação da Conversa, se
    * houver, com os Agentes @mencionados sempre incluídos; sem roteiro, a resposta genérica de cada
    * mencionado; e sem @, a resposta direta, sem chamar nenhum Agente.
    */
-  function planoCoordenado(pedido: Mensagem, fio: Mensagem[]): PassoDeRoteiroCoordenado<AgenteId>[] {
-    const mencionadosNoFio = [...fio, pedido].map((mensagem) => reconhecerMencoes(mensagem.texto, estado.agentes))
-    const mencionados = mencionadosNoFio.at(-1) ?? []
-    const roteirizados = passosRoteirizados(pedido, fio)
+  function planoCoordenado(pedido: Mensagem, anteriores: Mensagem[]): PassoDeRoteiroCoordenado<AgenteId>[] {
+    const mencionadosNaConversa = [...anteriores, pedido].map((mensagem) => reconhecerMencoes(mensagem.texto, estado.agentes))
+    const mencionados = mencionadosNaConversa.at(-1) ?? []
+    const roteirizados = passosRoteirizados(pedido, anteriores)
     if (!roteirizados) {
       if (mencionados.length === 0) return [RESPOSTA_DIRETA]
       return [...mencionados.flatMap(etapaGenerica), consolidadaGenerica(mencionados.map((a) => a.nome))]
     }
 
-    // Quando precisa de uma Especialidade, chama o Agente padrão, a menos que o fio mencione um Agente
+    // Quando precisa de uma Especialidade, chama o Agente padrão, a menos que a Conversa mencione um Agente
     // criado dela: o mais recente, para a continuação seguir com quem já trabalhou no pedido.
     const quem = (especialidadeId: EspecialidadeId) =>
-      (mencionadosNoFio.flat().findLast((a) => a.tipo === 'criado' && a.especialidadeId === especialidadeId) ??
+      (mencionadosNaConversa.flat().findLast((a) => a.tipo === 'criado' && a.especialidadeId === especialidadeId) ??
         agentePadrao(especialidadeId)).id
     const passos = roteirizados.map((passo) =>
-      passo.tipo === 'resposta' ? passo : { ...passo, agenteId: quem(passo.agenteId) },
+      passo.tipo === 'resposta' ? passo : { ...passo, ator: quem(passo.ator) },
     )
-    const chamados = new Set(passos.flatMap((passo) => (passo.tipo === 'chamada' ? [passo.agenteId] : [])))
+    const chamados = new Set(passos.flatMap((passo) => (passo.tipo === 'chamada' ? [passo.ator] : [])))
     const extras = mencionados.filter((a) => !chamados.has(a.id)).flatMap(etapaGenerica)
     const indiceDaResposta = passos.findIndex((passo) => passo.tipo === 'resposta')
     return [...passos.slice(0, indiceDaResposta), ...extras, ...passos.slice(indiceDaResposta)]
@@ -363,9 +363,12 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         await esperar()
         if (passo.tipo === 'aprovacao') {
           const { origem, ...acao } = passo.aprovacao
-          yield { tipo: 'aprovacao', agenteId: passo.agenteId, aprovacaoId: criarAprovacao(passo.agenteId, acao, origem, 'conversa') }
-        } else {
+          yield { tipo: 'aprovacao', agenteId: passo.ator, aprovacaoId: criarAprovacao(passo.ator, acao, origem, 'conversa') }
+        } else if (passo.tipo === 'repasse') {
           yield passo
+        } else {
+          const { ator, ...resto } = passo
+          yield { ...resto, agenteId: ator }
         }
       }
       registrarExecucao({
@@ -388,24 +391,29 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
 
     sugestoesCoordenadas: () => responder(() => roteirosCoordenados.map((roteiro) => roteiro.pedido)),
 
-    async *conversarCoordenado(pedido, fio): AsyncGenerator<PassoDaCoordenacao> {
-      for (const passo of planoCoordenado(pedido, fio)) {
+    async *conversarCoordenado(pedido, anteriores): AsyncGenerator<PassoDaCoordenacao> {
+      for (const passo of planoCoordenado(pedido, anteriores)) {
         await esperar()
+        if (passo.tipo === 'resposta') {
+          yield passo
+          continue
+        }
         if (passo.tipo === 'acao') {
-          yield agir(passo.agenteId, passo.acao)
+          yield agir(passo.ator, passo.acao)
           continue
         }
         if (passo.tipo === 'feito') {
           // Quem trabalha é o Agente chamado: o trabalho entra na Atividade dele.
           registrarExecucao({
-            agenteId: passo.agenteId,
+            agenteId: passo.ator,
             gatilho: 'coordenacao',
             descricao: `Chamado pela Coordenação: "${pedido.texto}"`,
             resultado: passo.resumo,
           })
           avisar()
         }
-        yield passo
+        const { ator, ...resto } = passo
+        yield { ...resto, agenteId: ator }
       }
     },
   }

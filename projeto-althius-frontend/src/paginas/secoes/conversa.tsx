@@ -5,11 +5,10 @@ import { Button } from '@/components/ui/button'
 import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
 import { TextoDigitado } from '@/conversa/texto'
-import { DecisaoDeAprovacao } from '@/components/decisao'
 import { useDados } from '@/fonte/contexto'
-import { ROTULO_DA_DECISAO } from '@/fonte/regras'
 import type { Agente, AgenteId } from '@/fonte/tipos'
-import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
+import { porId } from '@/lib/utils'
+import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 
 export function SecaoConversa({ agente }: { agente: Agente }) {
   const conversas = useConversas()
@@ -19,7 +18,7 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
   const [texto, setTexto] = useState('')
   const mencao = useMencao(texto, setTexto, agentes)
   const fim = useRef<HTMLDivElement>(null)
-  const porId: Record<AgenteId, Agente> = Object.fromEntries(agentes.map((a) => [a.id, a]))
+  const agentesPorId = porId(agentes)
 
   useEffect(() => {
     fim.current?.scrollIntoView({ block: 'end' })
@@ -44,7 +43,7 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
           <p className="anotacao text-lg">comece por uma sugestão, ou mencione outro agente com @</p>
         )}
         {itens.map((item) => (
-          <Item key={item.id} item={item} agentes={porId} animar={conversas.animarDigitacao} />
+          <Item key={item.id} item={item} agentes={agentesPorId} animar={conversas.animarDigitacao} />
         ))}
         {respondendo && (
           <div role="status" className="flex items-center gap-4 text-al-muted">
@@ -137,7 +136,13 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
         </div>
       )
     case 'aprovacao':
-      return <CartaoDeAprovacao aprovacaoId={item.aprovacaoId} />
+      return (
+        <AprovacaoNaConversa
+          aprovacaoId={item.aprovacaoId}
+          cabecalho={(_, rotuloDoEstado) => <span className="rotulo text-al-accent">{rotuloDoEstado}</span>}
+          className="cartao gap-4 border-l-2 border-al-accent p-6"
+        />
+      )
   }
 }
 
@@ -156,28 +161,5 @@ function BotaoCopiar({ texto }: { texto: string }) {
     <Button variant="ghost" size="sm" onClick={copiar} aria-label={copiado ? 'Copiado' : 'Copiar resposta'}>
       {copiado ? <Check strokeWidth={1.8} aria-hidden /> : <Copy strokeWidth={1.8} aria-hidden />}
     </Button>
-  )
-}
-
-function CartaoDeAprovacao({ aprovacaoId }: { aprovacaoId: string }) {
-  const aprovacoes = useDados((f) => f.aprovacoes(), [])
-  const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
-  if (!aprovacao) return null
-
-  const rotuloDoEstado = aprovacao.estado === 'pendente' ? 'Aprovação pendente' : ROTULO_DA_DECISAO[aprovacao.estado]
-
-  return (
-    <article
-      aria-label={`${rotuloDoEstado}: ${aprovacao.acao}`}
-      className="cartao flex flex-col gap-4 border-l-2 border-al-accent p-6"
-    >
-      <span className="rotulo text-al-accent">{rotuloDoEstado}</span>
-      <p className="text-lg font-normal">{aprovacao.acao}</p>
-      <p className="text-sm text-al-muted">{aprovacao.impacto}</p>
-      {aprovacao.origem !== 'althius' && (
-        <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>
-      )}
-      {aprovacao.estado === 'pendente' && <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" />}
-    </article>
   )
 }

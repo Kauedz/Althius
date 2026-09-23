@@ -13,7 +13,7 @@ export type ItemDaCoordenacao =
 interface EstadoDasConversas {
   itens: Partial<Record<AgenteId, ItemDaConversa[]>>
   respondendo: Partial<Record<AgenteId, boolean>>
-  /** O fio do composer: a Conversa coordenada, que vale até recarregar a página. */
+  /** A Conversa coordenada do composer, que vale até recarregar a página. */
   coordenada: { itens: ItemDaCoordenacao[]; respondendo: boolean }
 }
 
@@ -24,7 +24,7 @@ interface Conversas {
   coordenada: EstadoDasConversas['coordenada']
   /** Um pedido no composer da página de Agentes: começa uma nova Conversa coordenada. */
   coordenar(pedido: Mensagem): void
-  /** Um pedido seguinte no composer da Conversa: continua o fio a partir do que já foi feito. */
+  /** Um pedido seguinte no composer da Conversa: continua a Conversa coordenada a partir do que já foi feito. */
   continuar(pedido: Mensagem): void
   animarDigitacao: boolean
 }
@@ -36,7 +36,7 @@ export const MS_POR_CARACTERE = 6
 
 let proximoId = 1
 
-/** Guarda as Conversas de cada Agente e o fio do composer durante a sessão, mesmo trocando de tela. */
+/** Guarda as Conversas de cada Agente e a Conversa coordenada do composer durante a sessão, mesmo trocando de tela. */
 export function ConversasProvider({ children, animarDigitacao }: { children: ReactNode; animarDigitacao: boolean }) {
   const fonte = useFonte()
   const [estado, setEstado] = useState<EstadoDasConversas>({
@@ -82,14 +82,14 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
     setEstado((atual) => ({ ...atual, coordenada: mudanca(atual.coordenada) }))
   }, [])
 
-  // Os pedidos do fio, que a Coordenação recebe para continuar a partir do que já foi feito.
-  const pedidosDoFio = useRef<Mensagem[]>([])
+  // Os pedidos da Conversa coordenada, que a Coordenação recebe para continuar a partir do que já foi feito.
+  const pedidosDaConversa = useRef<Mensagem[]>([])
 
-  /** Envia um pedido à Coordenação: num fio novo, ou continuando o atual. */
+  /** Envia um pedido à Coordenação: numa Conversa nova, ou continuando a atual. */
   const pedirACoordenacao = useCallback(
     async (pedido: Mensagem, continuando: boolean) => {
-      const anteriores = continuando ? pedidosDoFio.current : []
-      pedidosDoFio.current = [...anteriores, pedido]
+      const anteriores = continuando ? pedidosDaConversa.current : []
+      pedidosDaConversa.current = [...anteriores, pedido]
       const item: ItemDaCoordenacao = { id: proximoId++, tipo: 'pedido', texto: pedido.texto }
       mudarCoordenada((atual) => ({ itens: continuando ? [...atual.itens, item] : [item], respondendo: true }))
       try {

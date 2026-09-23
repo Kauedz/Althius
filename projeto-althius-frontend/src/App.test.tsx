@@ -701,7 +701,7 @@ describe('Composer e Coordenação', () => {
     })
   })
 
-  it('o fio continua depois de abrir um Agente e voltar', async () => {
+  it('a Conversa coordenada continua depois de abrir um Agente e voltar', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
     await pedirNoComposer(usuario, 'o que é ICP?')
@@ -735,16 +735,16 @@ describe('Composer e Coordenação', () => {
     expect(within(resposta).getByText(/lakehouse vs\. data warehouse em 2026/)).toBeInTheDocument()
   })
 
-  it('o composer da Conversa continua o fio, só com o chip do Workspace', async () => {
+  it('o composer da Conversa a continua, só com o chip do Workspace', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
     await pedirNoComposer(usuario, 'o que é ICP?')
-    const composer = screen.getByRole('form', { name: 'Continuar o fio' })
+    const composer = screen.getByRole('form', { name: 'Continuar a Conversa' })
     expect(within(composer).getByText('Databricks')).toBeInTheDocument()
     expect(within(composer).queryByRole('list', { name: 'Especialidades disponíveis' })).not.toBeInTheDocument()
     expect(within(composer).getByRole('button', { name: 'Enviar' })).toBeDisabled()
     await coordenacaoTerminada()
-    await usuario.type(within(composer).getByRole('textbox', { name: 'Continue o fio' }), 'e o que é GEO?')
+    await usuario.type(within(composer).getByRole('textbox', { name: 'Continue a Conversa' }), 'e o que é GEO?')
     expect(within(composer).getByRole('button', { name: 'Enviar' })).toBeEnabled()
   })
 
@@ -755,7 +755,7 @@ describe('Composer e Coordenação', () => {
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
 
-    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), 'agora faz um e-mail pro CFO{Enter}')
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue a Conversa' }), 'agora faz um e-mail pro CFO{Enter}')
     await waitFor(() => expect(screen.getAllByRole('region', { name: 'Resposta consolidada' })).toHaveLength(2))
     await coordenacaoTerminada()
 
@@ -768,9 +768,9 @@ describe('Composer e Coordenação', () => {
     const pedido = screen.getByText('agora faz um e-mail pro CFO')
     expect(anterior.compareDocumentPosition(pedido) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(within(seguinte).getByText(/E-mail para o CFO da OpenAI/)).toBeInTheDocument()
-    expect(within(segunda).getByText(/Comitê de compra já levantados no fio/)).toBeInTheDocument()
+    expect(within(segunda).getByText(/Comitê de compra já levantados nesta Conversa/)).toBeInTheDocument()
 
-    // O fio inteiro continua lá depois de voltar para a grade.
+    // A Conversa inteira continua lá depois de voltar para a grade.
     await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
     const aviso = await screen.findByRole('region', { name: 'Conversa coordenada em andamento' })
     expect(within(aviso).getByText('agora faz um e-mail pro CFO')).toBeInTheDocument()
@@ -786,7 +786,7 @@ describe('Composer e Coordenação', () => {
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
 
-    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), 'agora faz um e-mail pro CFO{Enter}')
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue a Conversa' }), 'agora faz um e-mail pro CFO{Enter}')
     await waitFor(() => expect(screen.getAllByRole('list', { name: 'Agentes chamados' })).toHaveLength(2))
     await coordenacaoTerminada()
     expect(agentesChamados(screen.getAllByRole('list', { name: 'Agentes chamados' })[1])).toEqual(['Rhetor · Sequências outbound'])
@@ -799,14 +799,14 @@ describe('Composer e Coordenação', () => {
     await screen.findByRole('region', { name: 'Resposta consolidada' })
     await coordenacaoTerminada()
 
-    // Um pedido na página de Agentes começa um fio novo; o seguinte continua esse.
+    // Um pedido na página de Agentes começa uma Conversa nova; o seguinte continua essa.
     await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
     await grade()
     await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
     expect(screen.queryByText('Como estamos no Perplexity e o que publicar?')).not.toBeInTheDocument()
-    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), 'agora faz um e-mail pro CFO{Enter}')
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue a Conversa' }), 'agora faz um e-mail pro CFO{Enter}')
     await waitFor(() => expect(screen.getAllByRole('region', { name: 'Resposta consolidada' })).toHaveLength(2))
     await coordenacaoTerminada()
 
@@ -976,7 +976,7 @@ describe('Excluir Agente com Aprovações', () => {
     await pedirNoComposer(usuario, pedido)
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
-    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), `${pedido}{Enter}`)
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue a Conversa' }), `${pedido}{Enter}`)
     await waitFor(() => expect(screen.getAllByRole('article', { name: /Aprovação pendente/ })).toHaveLength(2))
     await coordenacaoTerminada()
     const workspace = screen.getByRole('navigation', { name: 'Workspace' })

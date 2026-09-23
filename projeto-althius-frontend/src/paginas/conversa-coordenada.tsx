@@ -1,7 +1,6 @@
 import { ChevronRight, Wrench } from 'lucide-react'
 import { useEffect, useRef, type RefObject } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { DecisaoDeAprovacao } from '@/components/decisao'
 import { LogoDaIntegracao } from '@/components/logos'
 import { IconeAgente, IndicadorDeEstado, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
@@ -9,8 +8,9 @@ import { Composer } from '@/conversa/composer'
 import { useConversas, type ItemDaCoordenacao } from '@/conversa/contexto'
 import { TextoDigitado } from '@/conversa/texto'
 import { useDados } from '@/fonte/contexto'
-import { ROTULO_DA_DECISAO } from '@/fonte/regras'
 import type { AcaoProposta, Agente, AgenteId, Integracao } from '@/fonte/tipos'
+import { porId } from '@/lib/utils'
+import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 
 /** Cada Agente chamado é uma etapa: ativa enquanto não diz o que fez. */
 interface Etapa {
@@ -21,7 +21,7 @@ interface Etapa {
 
 type Desfecho = Extract<ItemDaCoordenacao, { tipo: 'aprovacao' | 'acao' }>
 
-/** Um pedido do fio e o que a Coordenação fez com ele. */
+/** Um pedido da Conversa e o que a Coordenação fez com ele. */
 interface Turno {
   pedido: Extract<ItemDaCoordenacao, { tipo: 'pedido' }>
   etapas: Etapa[]
@@ -60,23 +60,23 @@ function emTurnos(itens: ItemDaCoordenacao[]): Turno[] {
 }
 
 /**
- * A página da Conversa coordenada: o fio do composer, que vale até recarregar a página. O composer
- * fixo no rodapé continua o fio: cada pedido seguinte aparece abaixo da resposta anterior.
+ * A página da Conversa coordenada, que vale até recarregar a página. O composer fixo no rodapé
+ * continua a Conversa: cada pedido seguinte aparece abaixo da resposta anterior.
  */
 export function PaginaConversaCoordenada() {
   const conversas = useConversas()
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
   const { itens, respondendo } = conversas.coordenada
-  const fio = useRef<HTMLDivElement>(null)
+  const conteudo = useRef<HTMLDivElement>(null)
   const fim = useRef<HTMLDivElement>(null)
-  useSeguirOFim(fio, fim)
+  useSeguirOFim(conteudo, fim)
 
   if (itens.length === 0) return <Navigate to="/" replace />
 
   const turnos = emTurnos(itens)
   const referencias: Referencias = {
-    agentes: Object.fromEntries((agentes ?? []).map((a) => [a.id, a])),
+    agentes: porId(agentes),
     integracoes: integracoes ?? [],
   }
 
@@ -95,7 +95,7 @@ export function PaginaConversaCoordenada() {
       className="flex-1 pb-0"
     >
       <div className="mx-auto flex w-full max-w-180 flex-1 flex-col">
-        <div ref={fio} aria-live="polite" className="flex flex-1 flex-col gap-10 pb-10">
+        <div ref={conteudo} aria-live="polite" className="flex flex-1 flex-col gap-10 pb-10">
           {turnos.map((turno, i) => {
             const emAndamento = respondendo && i === turnos.length - 1
             return (
@@ -111,8 +111,8 @@ export function PaginaConversaCoordenada() {
         </div>
         <div className="rodape-da-conversa">
           <Composer
-            nome="Continuar o fio"
-            rotulo="Continue o fio"
+            nome="Continuar a Conversa"
+            rotulo="Continue a Conversa"
             placeholder="Ex.: agora faz um e-mail pro CFO"
             ocupado={respondendo}
             aoEnviar={(texto) => conversas.continuar({ texto })}
@@ -125,7 +125,7 @@ export function PaginaConversaCoordenada() {
 }
 
 /**
- * Enquanto o usuário está no fim da página, acompanha o fio que cresce (etapas, digitação, a
+ * Enquanto o usuário está no fim da página, acompanha a Conversa que cresce (etapas, digitação, a
  * Aprovação que carrega depois); se ele rolar para cima, deixa a página onde está.
  */
 function useSeguirOFim(conteudo: RefObject<HTMLElement | null>, fim: RefObject<HTMLElement | null>) {
@@ -208,7 +208,19 @@ function TurnoDaConversa({
 
       {desfechos.map((desfecho) =>
         desfecho.tipo === 'aprovacao' ? (
-          <AprovacaoNaConversa key={desfecho.id} aprovacaoId={desfecho.aprovacaoId} referencias={referencias} />
+          <AprovacaoNaConversa
+            key={desfecho.id}
+            aprovacaoId={desfecho.aprovacaoId}
+            cabecalho={(aprovacao, rotuloDoEstado) => (
+              <QuemAgeOnde
+                agenteId={aprovacao.agenteId}
+                integracaoId={aprovacao.integracaoId}
+                estado={rotuloDoEstado}
+                referencias={referencias}
+              />
+            )}
+            className="gap-1.5"
+          />
         ) : (
           <AcaoSemAprovacao key={desfecho.id} {...desfecho} referencias={referencias} />
         ),
@@ -301,27 +313,6 @@ function QuemAgeOnde({
       </span>
       <span className="rotulo">{estado}</span>
     </div>
-  )
-}
-
-/** A Aprovação como o próximo item da conversa, sem cartão nem linha de alerta. */
-function AprovacaoNaConversa({ aprovacaoId, referencias }: { aprovacaoId: string; referencias: Referencias }) {
-  const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
-  const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
-  if (!aprovacao) return null
-
-  const estado = aprovacao.estado === 'pendente' ? 'Aprovação pendente' : ROTULO_DA_DECISAO[aprovacao.estado]
-  return (
-    <article aria-label={`${estado}: ${aprovacao.acao}`} className="flex flex-col gap-1.5">
-      <QuemAgeOnde agenteId={aprovacao.agenteId} integracaoId={aprovacao.integracaoId} estado={estado} referencias={referencias} />
-      <p className="text-lg leading-snug font-normal">{aprovacao.acao}</p>
-      <p className="text-sm text-al-muted">{aprovacao.impacto}</p>
-      {aprovacao.estado === 'pendente' && (
-        <div className="pt-1.5">
-          <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" />
-        </div>
-      )}
-    </article>
   )
 }
 
