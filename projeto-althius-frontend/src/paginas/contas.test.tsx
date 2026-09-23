@@ -32,7 +32,7 @@ describe('Aba Contas (ponta a ponta)', () => {
     expect(
       screen.getByText('Empresas do seu mercado organizadas pelo momento de abordagem'),
     ).toBeInTheDocument()
-    expect(screen.getByText('5 contas')).toBeInTheDocument()
+    expect(screen.getByText('30 contas')).toBeInTheDocument()
 
     const tabela = screen.getByRole('table', { name: 'Tabela de Contas' })
     const cabecalhos = within(tabela)
@@ -59,15 +59,40 @@ describe('Aba Contas (ponta a ponta)', () => {
       (linha) => within(linha).getAllByRole('cell')[0].textContent?.trim(),
     )
 
-    // Quentes (OpenAI sinal há 2 dias > Stripe sinal há 10 dias)
-    // Fit (Anthropic)
-    // Não fit (Nubank)
-    // Não avaliada (BBVA México)
+    // 18 Quentes (OpenAI sinal há 2 dias até Ramp há 24 dias)
+    // 8 Fit (SAP até Okta, depois Miro e Oracle sem sinal empatados e desfeitos pelo nome)
+    // 3 Não fit (Mercado Livre, Rappi e Banorte sem sinal)
+    // 1 Não avaliada (BBVA México)
     expect(nomesDasEmpresas).toEqual([
       'OpenAI',
       'Stripe',
       'Anthropic',
       'Nubank',
+      'Databricks',
+      'Snowflake',
+      'Cloudflare',
+      'GitLab',
+      'Figma',
+      'Notion',
+      'Canva',
+      'MongoDB',
+      'HubSpot',
+      'Rippling',
+      'Deel',
+      'Vercel',
+      'Brex',
+      'Ramp',
+      'SAP',
+      'Twilio',
+      'Zendesk',
+      'Asana',
+      'monday.com',
+      'Okta',
+      'Miro',
+      'Oracle',
+      'Mercado Livre',
+      'Rappi',
+      'Banorte',
       'BBVA México',
     ])
   })
@@ -78,11 +103,11 @@ describe('Aba Contas (ponta a ponta)', () => {
     const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
     const linhas = within(tabela).getAllByRole('row').slice(1)
 
-    // OpenAI: Quente, 3 contatos, sinal há 2 dias, IA, último contato Há 5 dias
+    // OpenAI: Quente, 4 contatos, sinal há 2 dias, IA, último contato Há 5 dias
     const openaiCells = within(linhas[0]).getAllByRole('cell')
     expect(openaiCells[0]).toHaveTextContent('OpenAI')
     expect(openaiCells[1]).toHaveTextContent('🔥 Quente')
-    expect(openaiCells[2]).toHaveTextContent('3 contatos')
+    expect(openaiCells[2]).toHaveTextContent('4 contatos')
     expect(openaiCells[3]).toHaveTextContent('Abriu 3 vagas de engenharia de dados de avaliação · há 2 dias')
     expect(openaiCells[4]).toHaveTextContent('Inteligência Artificial')
     expect(openaiCells[5]).toHaveTextContent('Há 5 dias')
@@ -91,35 +116,61 @@ describe('Aba Contas (ponta a ponta)', () => {
     const stripeCells = within(linhas[1]).getAllByRole('cell')
     expect(stripeCells[0]).toHaveTextContent('Stripe')
     expect(stripeCells[1]).toHaveTextContent('🔥 Quente')
-    expect(stripeCells[2]).toHaveTextContent('2 contatos')
-    expect(stripeCells[3]).toHaveTextContent('Lançamento de suporte a pagamentos de agentes · há 1 semana')
-    expect(stripeCells[4]).toHaveTextContent('Infraestrutura de pagamentos')
+    expect(stripeCells[2]).toHaveTextContent('4 contatos')
+    expect(stripeCells[3]).toHaveTextContent('Expansão da operação enterprise no Brasil · há 3 dias')
+    expect(stripeCells[4]).toHaveTextContent('Serviços financeiros')
     expect(stripeCells[5]).toHaveTextContent('Ontem')
 
-    // Anthropic: Fit, último contato há 45 dias (data explícita: 9 ago.)
+    // Anthropic: Quente, 3 contatos, sinal há 4 dias, último contato Há 1 semana
     const anthropicCells = within(linhas[2]).getAllByRole('cell')
     expect(anthropicCells[0]).toHaveTextContent('Anthropic')
-    expect(anthropicCells[1]).toHaveTextContent('Fit')
-    expect(anthropicCells[2]).toHaveTextContent('1 contato')
-    expect(anthropicCells[3]).toHaveTextContent('Anúncio de novas ferramentas para empresas · há 2 semanas')
+    expect(anthropicCells[1]).toHaveTextContent('🔥 Quente')
+    expect(anthropicCells[2]).toHaveTextContent('3 contatos')
+    expect(anthropicCells[3]).toHaveTextContent('Nova liderança de receita para América Latina · há 4 dias')
     expect(anthropicCells[4]).toHaveTextContent('Inteligência Artificial')
-    expect(anthropicCells[5]).toHaveTextContent('9 ago.')
+    expect(anthropicCells[5]).toHaveTextContent('Há 1 semana')
 
-    // Nubank: Não fit, sem contatos, sem sinal, nunca contatada
+    // Nubank: Quente, 5 contatos, sinal há 5 dias, último contato Há 3 dias
     const nubankCells = within(linhas[3]).getAllByRole('cell')
     expect(nubankCells[0]).toHaveTextContent('Nubank')
-    expect(nubankCells[1]).toHaveTextContent('Não fit')
-    expect(nubankCells[2]).toHaveTextContent('Nenhum contato')
-    expect(nubankCells[3]).toHaveTextContent('Nenhum sinal')
+    expect(nubankCells[1]).toHaveTextContent('🔥 Quente')
+    expect(nubankCells[2]).toHaveTextContent('5 contatos')
+    expect(nubankCells[3]).toHaveTextContent('Contratando liderança de IA para atendimento · há 5 dias')
     expect(nubankCells[4]).toHaveTextContent('Serviços financeiros')
-    expect(nubankCells[5]).toHaveTextContent('Nunca')
+    expect(nubankCells[5]).toHaveTextContent('Há 3 dias')
+
+    // Miro: Fit, sem contatos, sem sinal, nunca contatada
+    const miroCells = within(linhas[24]).getAllByRole('cell')
+    expect(miroCells[0]).toHaveTextContent('Miro')
+    expect(miroCells[1]).toHaveTextContent('Fit')
+    expect(miroCells[2]).toHaveTextContent('Nenhum contato')
+    expect(miroCells[3]).toHaveTextContent('Nenhum sinal')
+    expect(miroCells[4]).toHaveTextContent('Produtividade')
+    expect(miroCells[5]).toHaveTextContent('Nunca')
+
+    // Oracle: Fit, 4 contatos, sem sinal
+    const oracleCells = within(linhas[25]).getAllByRole('cell')
+    expect(oracleCells[0]).toHaveTextContent('Oracle')
+    expect(oracleCells[1]).toHaveTextContent('Fit')
+    expect(oracleCells[2]).toHaveTextContent('4 contatos')
+    expect(oracleCells[3]).toHaveTextContent('Nenhum sinal')
+    expect(oracleCells[4]).toHaveTextContent('Software corporativo')
+
+    // Banorte: Não fit, sem contatos, sem sinal, nunca contatada
+    const banorteCells = within(linhas[28]).getAllByRole('cell')
+    expect(banorteCells[0]).toHaveTextContent('Banorte')
+    expect(banorteCells[1]).toHaveTextContent('Não fit')
+    expect(banorteCells[2]).toHaveTextContent('Nenhum contato')
+    expect(banorteCells[3]).toHaveTextContent('Nenhum sinal')
+    expect(banorteCells[4]).toHaveTextContent('Serviços financeiros')
+    expect(banorteCells[5]).toHaveTextContent('Nunca')
 
     // BBVA México: sem aderência ("—" com tooltip), segmento ausente ("—"), nunca contatada
-    const bbvaCells = within(linhas[4]).getAllByRole('cell')
+    const bbvaCells = within(linhas[29]).getAllByRole('cell')
     expect(bbvaCells[0]).toHaveTextContent('BBVA México')
     expect(within(bbvaCells[1]).getByTitle('Aderência ainda não avaliada')).toBeInTheDocument()
     expect(bbvaCells[2]).toHaveTextContent('2 contatos')
-    expect(bbvaCells[3]).toHaveTextContent('Expansão da equipe de inovação digital · há 2 semanas')
+    expect(bbvaCells[3]).toHaveTextContent('Nova unidade de inovação para serviços corporativos · 24 jun.')
     expect(bbvaCells[4]).toHaveTextContent('—')
     expect(bbvaCells[5]).toHaveTextContent('Nunca')
   })
