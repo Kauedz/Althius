@@ -1,11 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Sparkles, Users } from 'lucide-react'
 import { IconeAgente } from '@/components/marca'
 import { Button } from '@/components/ui/button'
-import { useDadosDeContas, useDadosDeSequencias, useFonteDeSequencias } from '@/fonte/contexto'
+import {
+  useDados,
+  useDadosDeContas,
+  useDadosDeSequencias,
+  useFonte,
+  useFonteDeSequencias,
+} from '@/fonte/contexto'
 import type { Contato } from '@/fonte/contas-tipos'
 import type { StepSequencia } from '@/fonte/sequencias-tipos'
 import type { Agente, AgenteId, Integracao } from '@/fonte/tipos'
+import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { DetalheSequencia } from '@/paginas/detalhe-sequencia'
 
 interface Referencias {
@@ -118,7 +125,9 @@ export function NascimentoSequenciaNaConversa({
   sequenciaId,
   referencias,
 }: NascimentoSequenciaNaConversaProps) {
+  const fonteDeAgentes = useFonte()
   const fonteDeSequencias = useFonteDeSequencias()
+  const aprovacoes = useDados((f) => f.aprovacoes(), [])
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: todosContatos } = useDadosDeContas((f) => f.contatos(), [])
   const { dados: sequenciaExistente } = useDadosDeSequencias(
@@ -137,6 +146,17 @@ export function NascimentoSequenciaNaConversa({
   const [participantesSugeridos, setParticipantesSugeridos] = useState<string[]>([])
   const [sequenciaAtivaId, setSequenciaAtivaId] = useState<string | null>(sequenciaId ?? null)
   const [salvando, setSalvando] = useState(false)
+  const [aprovacaoId, setAprovacaoId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const idDoc = sequenciaAtivaId ?? sequenciaExistente?.id
+    if (estagio === 'documento' && idDoc && !aprovacaoId && aprovacoes) {
+      const encontrada = aprovacoes.find((a) => a.sequenciaId === idDoc)
+      if (encontrada) {
+        setAprovacaoId(encontrada.id)
+      }
+    }
+  }, [estagio, sequenciaAtivaId, sequenciaExistente, aprovacaoId, aprovacoes])
 
   // Transição 1: Oferta confirmada pelo humano -> Rhetor sugere participantes
   function handleConfirmarOferta() {
@@ -159,19 +179,43 @@ export function NascimentoSequenciaNaConversa({
     try {
       const existente = sequenciaExistente ?? (await fonteDeSequencias.sequenciaPorConta(contaId))
       let idFinal: string
+      let stepsCriados: StepSequencia[] = []
       if (existente) {
         await fonteDeSequencias.confirmarParticipantes(existente.id, participantesSelecionados)
         idFinal = existente.id
+        stepsCriados = existente.steps ?? []
       } else {
+        stepsCriados = gerarStepsIniciais(contaId, nomeConta, contatosConta, participantesSelecionados)
         const nova = await fonteDeSequencias.criarSequencia({
           contaId,
           participantesIds: participantesSelecionados,
-          steps: gerarStepsIniciais(contaId, nomeConta, contatosConta, participantesSelecionados),
+          steps: stepsCriados,
         })
         idFinal = nova.id
       }
       setSequenciaAtivaId(idFinal)
       setEstagio('documento')
+
+      // Propor Aprovação simulada pós-documento no padrão do app (ADR 0002 / Propor)
+      const totalSteps = stepsCriados.length || 4
+      fonteDeAgentes
+        .proporAprovacao({
+          agenteId: agenteId || 'rhetor',
+          acao: `Ativar sequência da Conta-alvo ${nomeConta} (${totalSteps} steps)`,
+          integracaoId: 'hubspot',
+          impacto: `${totalSteps} steps multicanal para ${participantesSelecionados.length} ${
+            participantesSelecionados.length === 1 ? 'contato' : 'contatos'
+          } (simulação, sem envio real)`,
+          justificativa: `Sequência estruturada pelo Rhetor a partir do sinal recente da ${nomeConta}.`,
+          origem: 'althius',
+          gatilho: 'coordenacao',
+          contaId,
+          contaNome: nomeConta,
+          sequenciaId: idFinal,
+        })
+        .then((novaAprovacao) => {
+          setAprovacaoId(novaAprovacao.id)
+        })
     } finally {
       setSalvando(false)
     }
@@ -358,24 +402,49 @@ export function NascimentoSequenciaNaConversa({
   const idDoc = sequenciaAtivaId ?? sequenciaExistente?.id
   if (!idDoc) return null
 
-  return (
-    <article
-      aria-label={`Documento da sequência: ${nomeConta}`}
-      className="flex flex-col gap-3 border border-al-line bg-al-surface p-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-al-line pb-3 text-xs text-al-muted">
-        <div className="flex items-center gap-2">
-          <IconeAgente especialidade="rhetor" tamanho="sm" />
-          <span className="font-normal text-al-ink">{agente?.nome ?? 'Rhetor'}</span>
-          <span className="text-al-line">·</span>
-          <span className="rotulo text-al-accent font-medium">Documento vivo da sequência</span>
-        </div>
-        <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
-          Espelhado com Detalhe da Conta e Lista Global
-        </span>
-      </div>
+  const idAprovacao = aprovacaoId ?? aprovacoes?.find((a) => a.sequenciaId === idDoc)?.id
 
-      <DetalheSequencia sequenciaId={idDoc} incorporado={true} />
-    </article>
+  return (
+    <div className="flex flex-col gap-6">
+      <article
+        aria-label={`Documento da sequência: ${nomeConta}`}
+        className="flex flex-col gap-3 border border-al-line bg-al-surface p-4"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-al-line pb-3 text-xs text-al-muted">
+          <div className="flex items-center gap-2">
+            <IconeAgente especialidade="rhetor" tamanho="sm" />
+            <span className="font-normal text-al-ink">{agente?.nome ?? 'Rhetor'}</span>
+            <span className="text-al-line">·</span>
+            <span className="rotulo text-al-accent font-medium">Documento vivo da sequência</span>
+          </div>
+          <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
+            Espelhado com Detalhe da Conta e Lista Global
+          </span>
+        </div>
+
+        <DetalheSequencia sequenciaId={idDoc} incorporado={true} />
+      </article>
+
+      {idAprovacao && (
+        <section aria-label="Aprovação pós-documento" className="flex flex-col gap-2">
+          <AprovacaoNaConversa
+            aprovacaoId={idAprovacao}
+            cabecalho={(aprovacao, rotuloDoEstado) => (
+              <div className="flex items-center gap-2 text-sm text-al-muted mb-1">
+                <IconeAgente especialidade="rhetor" tamanho="sm" />
+                <span className="font-normal text-al-ink">{agente?.nome ?? 'Rhetor'}</span>
+                <span className="text-al-line">·</span>
+                <span className="rotulo">{rotuloDoEstado}</span>
+                <span className="text-al-line">·</span>
+                <span className="text-xs uppercase tracking-rotulo text-al-muted">
+                  Simulação (sem envio real)
+                </span>
+              </div>
+            )}
+            className="border border-al-line bg-al-surface p-5 gap-2"
+          />
+        </section>
+      )}
+    </div>
   )
 }

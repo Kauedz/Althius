@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { useDados } from '@/fonte/contexto'
 import { ROTULO_DA_DECISAO } from '@/fonte/regras'
@@ -28,6 +29,31 @@ export function AprovacaoNaConversa({
     <article aria-label={`${rotuloDoEstado}: ${aprovacao.acao}`} className={cn('flex flex-col', className)}>
       {cabecalho(aprovacao, rotuloDoEstado)}
       <p className="text-lg leading-snug font-normal">{aprovacao.acao}</p>
+      {(aprovacao.contaNome || aprovacao.sequenciaId) && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-al-muted">
+          {aprovacao.contaNome && (
+            <span>
+              Conta-alvo:{' '}
+              {aprovacao.contaId ? (
+                <Link to={`/contas/${aprovacao.contaId}`} className="text-al-ink font-normal underline-offset-4 hover:underline">
+                  {aprovacao.contaNome}
+                </Link>
+              ) : (
+                <span className="text-al-ink font-normal">{aprovacao.contaNome}</span>
+              )}
+            </span>
+          )}
+          {aprovacao.contaNome && aprovacao.sequenciaId && <span className="text-al-line">·</span>}
+          {aprovacao.sequenciaId && (
+            <span>
+              Sequência:{' '}
+              <Link to={`/sequencias/${aprovacao.sequenciaId}`} className="text-al-ink font-normal underline-offset-4 hover:underline">
+                Ver sequência
+              </Link>
+            </span>
+          )}
+        </div>
+      )}
       <p className="text-sm text-al-muted">{aprovacao.impacto}</p>
       {aprovacao.origem !== 'althius' && (
         <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>

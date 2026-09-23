@@ -186,6 +186,22 @@ export interface Aprovacao extends AcaoProposta {
   /** O gatilho da Execução que propôs a Aprovação; a decisão entra na Atividade com ele. */
   gatilho: Gatilho
   estado: EstadoAprovacao
+  contaId?: string
+  contaNome?: string
+  sequenciaId?: string
+}
+
+export interface NovaAprovacao {
+  agenteId: AgenteId
+  acao: string
+  integracaoId?: IntegracaoId
+  impacto: string
+  justificativa: string
+  origem?: Origem
+  gatilho?: Gatilho
+  contaId?: string
+  contaNome?: string
+  sequenciaId?: string
 }
 
 export interface MensagemDeCanal {
@@ -282,6 +298,8 @@ export interface FonteDeAgentes extends FonteObservavel {
 
   aprovacoes(): Promise<Aprovacao[]>
   decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao): Promise<void>
+  /** Propõe uma nova Aprovação (ex.: para ativação de sequência simulada). */
+  proporAprovacao(aprovacao: NovaAprovacao): Promise<Aprovacao>
 
   /** Envia uma mensagem ou sugestão e recebe a resposta passo a passo. */
   conversar(id: AgenteId, mensagem: Mensagem): AsyncIterable<PassoDaConversa>

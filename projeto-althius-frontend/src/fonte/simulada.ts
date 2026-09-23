@@ -21,6 +21,7 @@ import type {
   AcaoProposta,
   Agente,
   AgenteId,
+  Aprovacao,
   CanalId,
   EspecialidadeId,
   FonteDeAgentes,
@@ -29,6 +30,7 @@ import type {
   ItemDeAtividade,
   LugarDaDecisao,
   Mensagem,
+  NovaAprovacao,
   NovaRotina,
   Origem,
   PassoDaConversa,
@@ -365,9 +367,46 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
           gatilho: aprovacao.gatilho,
           descricao: `${ROTULO_DA_DECISAO[decisao]} ${ondeFoiDecidida(onde)}: ${aprovacao.acao}`,
           resultado: decisao === 'aprovada' ? 'Ação executada.' : 'Nada foi alterado.',
-          link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
+          link: aprovacao.sequenciaId
+            ? { rotulo: 'Ver sequência', para: `/sequencias/${aprovacao.sequenciaId}` }
+            : { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
         })
       }),
+    proporAprovacao: async (proposta) => {
+      await esperar(Math.min(atrasoMs, 120))
+      if (proposta.sequenciaId) {
+        const existente = estado.aprovacoes.find((a) => a.sequenciaId === proposta.sequenciaId)
+        if (existente) return structuredClone(existente)
+      }
+      const aprovacaoId = novoId('aprovacao')
+      const nova: Aprovacao = {
+        id: aprovacaoId,
+        agenteId: proposta.agenteId,
+        acao: proposta.acao,
+        integracaoId: proposta.integracaoId ?? 'hubspot',
+        impacto: proposta.impacto,
+        justificativa: proposta.justificativa,
+        origem: proposta.origem ?? 'althius',
+        gatilho: proposta.gatilho ?? 'conversa',
+        estado: 'pendente',
+        contaId: proposta.contaId,
+        contaNome: proposta.contaNome,
+        sequenciaId: proposta.sequenciaId,
+      }
+      estado.aprovacoes.unshift(nova)
+      if (nova.origem !== 'althius') {
+        estado.previas
+          .find((p) => p.canalId === nova.origem)
+          ?.mensagens.push({
+            autor: nomeDe(proposta.agenteId),
+            ehAgente: true,
+            texto: `Preparei uma proposta: ${proposta.acao}. Posso seguir?`,
+            aprovacaoId,
+          })
+      }
+      avisar()
+      return structuredClone(nova)
+    },
 
     async *conversar(id, { texto, sugestaoId }): AsyncGenerator<PassoDaConversa> {
       const passos = roteiroPara(id, texto, sugestaoId)
