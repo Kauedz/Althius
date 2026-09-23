@@ -67,8 +67,16 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     return buscar(estado.agentes, id).nome
   }
 
-  function comEspecialidade({ especialidadeId, ...agente }: RegistroDeAgente): Agente {
-    return { ...agente, especialidade: especialidade(especialidadeId) }
+  function montarAgente({ especialidadeId, ...agente }: RegistroDeAgente): Agente {
+    const daEspecialidade = especialidade(especialidadeId)
+    const personalizacao = estado.personalizacoes[agente.id]
+    return {
+      ...agente,
+      especialidade: daEspecialidade,
+      descricao: agente.tipo === 'padrao' ? daEspecialidade.descricao : personalizacao.instrucoes,
+      rotinaAtiva: estado.rotinas.find((r) => r.agenteId === agente.id && !r.pausada) ?? null,
+      integracoes: Object.keys(personalizacao.permissoes) as IntegracaoId[],
+    }
   }
 
   function agentePadrao(especialidadeId: EspecialidadeId): RegistroDeAgente {
@@ -112,23 +120,16 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       return () => ouvintes.delete(ouvinte)
     },
 
-    workspace: () => responder(() => demo.workspace),
-
-    painel: () =>
+    workspace: () =>
       responder(() => ({
+        ...demo.workspace,
         aprovacoesPendentes: estado.aprovacoes.filter((a) => a.estado === 'pendente').length,
-        rotinasDeHoje: estado.rotinas.filter(
-          (r) => !r.pausada && (r.frequencia === 'diaria' || (r.frequencia === 'semanal' && r.diaDaSemana === demo.HOJE.diaDaSemana)),
-        ),
-        atividadeRecente: estado.atividade.slice(0, 4),
-        tarefasFeitas: estado.agentes.reduce((soma, a) => soma + a.tarefasFeitas, 0),
-        horasEconomizadas: estado.agentes.reduce((soma, a) => soma + a.horasEconomizadas, 0),
       })),
 
     especialidades: () => responder(() => especialidades),
 
-    agentes: () => responder(() => estado.agentes.map(comEspecialidade)),
-    agente: (id) => responder(() => comEspecialidade(buscar(estado.agentes, id))),
+    agentes: () => responder(() => estado.agentes.map(montarAgente)),
+    agente: (id) => responder(() => montarAgente(buscar(estado.agentes, id))),
 
     memoria: (id) => responder(() => estado.fatos.filter((f) => f.agenteId === id)),
     editarFato: (fatoId, texto) =>

@@ -1,6 +1,8 @@
+import { ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Carregando, IconeAgente } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
+import { Pagina } from '@/components/pagina'
 import { useDados } from '@/fonte/contexto'
 import type { Agente, Aprovacao } from '@/fonte/tipos'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
@@ -17,9 +19,8 @@ export function PaginaAprovacoes() {
   )
 
   return (
-    <div className="flex max-w-4xl flex-col gap-16">
+    <Pagina titulo="Aprovações" icone={ShieldCheck} className="max-w-4xl gap-10">
       <div className="flex flex-col gap-2">
-        <h1 className="titulo-display text-7xl">Aprovações</h1>
         <p className="max-w-2xl text-lg text-al-muted">
           O que os agentes propuseram e só acontece com o seu ok. Também dá para decidir no canal de onde veio o pedido.
         </p>
@@ -44,7 +45,7 @@ export function PaginaAprovacoes() {
           </ul>
         </section>
       )}
-    </div>
+    </Pagina>
   )
 }
 

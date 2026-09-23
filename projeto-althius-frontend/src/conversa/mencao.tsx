@@ -5,15 +5,6 @@ import { cn } from '@/lib/utils'
 
 const TOKEN_DE_MENCAO = /@(\p{L}*)$/u
 
-/** Primeiro Agente mencionado com @Nome num texto. */
-export function primeiroMencionado(texto: string, agentes: Agente[]): Agente | undefined {
-  for (const [, nome] of texto.matchAll(/@(\p{L}+)/gu)) {
-    const agente = agentes.find((a) => a.nome.toLowerCase() === nome.toLowerCase())
-    if (agente) return agente
-  }
-  return undefined
-}
-
 /**
  * Autocompletar de @menção: abre quando a última palavra começa com @ e
  * troca a palavra pelo nome do Agente escolhido.
@@ -78,6 +69,7 @@ export function ListaDeMencoes({
           key={agente.id}
           id={`${id}-${agente.id}`}
           role="option"
+          aria-label={agente.nome}
           aria-selected={i === indice}
           onMouseDown={(evento) => evento.preventDefault()}
           onClick={() => aoSelecionar(agente)}

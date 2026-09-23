@@ -8,11 +8,11 @@ Saem o painel de métricas (horas economizadas, rotinas de hoje, atividade recen
 
 **Status:** ready-for-agent
 
-- [ ] A grade mostra os 9 Agentes, com estado, descrição, quando roda, execuções e logos das Integrações
-- [ ] Os números são exatos e plausíveis, nunca arredondados para cima
-- [ ] Clicar num Agente criado abre a página dele, e todas as sub-abas mostram os dados dele
-- [ ] Não há painel de métricas, barra de comando, atalho Ctrl/Cmd+K nem busca
-- [ ] A sidebar tem o seletor do Workspace, o selo "Demonstração", Especialistas, Workspace (com o número de Aprovações pendentes) e o usuário no rodapé com a troca de tema
-- [ ] A contagem de Aprovações pendentes vem do Workspace na fonte de dados, não de um painel
-- [ ] Os testes antigos do painel e da barra de comando são trocados pelos da grade e da nova sidebar; a troca de tema continua testada
-- [ ] O layout segue o que foi escolhido no mock e o Manual da Marca
+- [x] A grade mostra os 9 Agentes, com estado, descrição, quando roda, execuções e logos das Integrações
+- [x] Os números são exatos e plausíveis, nunca arredondados para cima
+- [x] Clicar num Agente criado abre a página dele, e todas as sub-abas mostram os dados dele
+- [x] Não há painel de métricas, barra de comando, atalho Ctrl/Cmd+K nem busca
+- [x] A sidebar tem o seletor do Workspace, o selo "Demonstração", Especialistas, Workspace (com o número de Aprovações pendentes) e o usuário no rodapé com a troca de tema
+- [x] A contagem de Aprovações pendentes vem do Workspace na fonte de dados, não de um painel
+- [x] Os testes antigos do painel e da barra de comando são trocados pelos da grade e da nova sidebar; a troca de tema continua testada
+- [x] O layout segue o que foi escolhido no mock e o Manual da Marca

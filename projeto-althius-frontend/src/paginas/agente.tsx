@@ -1,5 +1,6 @@
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom'
-import { Carregando, IconeAgente, ROTULO_DO_ESTADO } from '@/components/marca'
+import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
+import { Pagina } from '@/components/pagina'
 import { useDados } from '@/fonte/contexto'
 import type { Agente } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
@@ -31,12 +32,11 @@ export function PaginaAgente() {
   const agente = agentes.find((a) => a.id === agenteId)
   if (!agente) {
     return (
-      <div className="flex flex-col gap-4">
-        <h1 className="titulo-display text-5xl">Agente não encontrado</h1>
-        <Link to="/" className="text-al-accent underline">
+      <Pagina titulo="Agente não encontrado" voltar={{ para: '/', rotulo: 'Agentes' }}>
+        <Link to="/" className="self-start underline underline-offset-4">
           Voltar para os agentes
         </Link>
-      </div>
+      </Pagina>
     )
   }
   if (!(secao && secao in SECOES)) return <Navigate to={`/agentes/${agente.id}/conversa`} replace />
@@ -44,18 +44,17 @@ export function PaginaAgente() {
   const { Componente } = SECOES[secao as SecaoId]
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="flex items-start gap-6">
-        <IconeAgente especialidade={agente.especialidade.id} estado={agente.estado} tamanho="lg" />
+    <Pagina titulo={agente.nome} voltar={{ para: '/', rotulo: 'Agentes' }} className="gap-8">
+      <div className="flex items-start gap-4">
+        <IconeAgente especialidade={agente.especialidade.id} tamanho="lg" />
         <div className="flex flex-col gap-2">
-          <div className="flex items-baseline gap-4">
-            <h1 className="titulo-display text-6xl">{agente.nome}</h1>
-            <span className="rotulo">{ROTULO_DO_ESTADO[agente.estado]}</span>
+          <div className="flex items-center gap-3">
+            <span className="rotulo">
+              {agente.especialidade.rotulo} · entrega: {agente.especialidade.entrega}
+            </span>
+            <SeloDeEstado estado={agente.estado} />
           </div>
-          <span className="rotulo">
-            {agente.especialidade.rotulo} · entrega: {agente.especialidade.entrega}
-          </span>
-          <p className="max-w-2xl text-al-muted">{agente.especialidade.descricao}</p>
+          <p className="max-w-2xl text-al-muted">{agente.descricao}</p>
         </div>
       </div>
 
@@ -80,6 +79,6 @@ export function PaginaAgente() {
       </nav>
 
       <Componente key={agente.id} agente={agente} />
-    </div>
+    </Pagina>
   )
 }

@@ -2,49 +2,134 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { renderizarApp } from '@/test/renderizar'
 
-const AGENTES = ['Scopus', 'Ethos', 'Rhetor', 'Oraculum']
+const ESPECIALISTAS = ['Scopus', 'Ethos', 'Rhetor', 'Oraculum']
+const AGENTES_CRIADOS = [
+  'Scopus · Enterprise LATAM',
+  'Ethos · Comitê financeiro',
+  'Rhetor · Sequências outbound',
+  'Rhetor · Anúncios Meta',
+  'Oraculum · Concorrência Snowflake',
+]
 
-describe('Painel e galeria', () => {
-  it('mostra o painel com aprovações, rotinas, atividade e horas economizadas', async () => {
+async function grade() {
+  const lista = await screen.findByRole('list', { name: 'Agentes do Workspace' })
+  await within(lista).findByRole('link', { name: 'Scopus' })
+  return lista
+}
+
+describe('Grade de Agentes', () => {
+  it('mostra os 9 Agentes do Workspace, padrão e criados', async () => {
     renderizarApp('/')
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
-    const painel = screen.getByRole('region', { name: 'Painel' })
-    expect(within(painel).getByText('Aprovações pendentes')).toBeInTheDocument()
-    expect(within(painel).getByText('Rotinas de hoje')).toBeInTheDocument()
-    expect(within(painel).getByText('Atividade recente')).toBeInTheDocument()
-    expect(within(painel).getByText('Horas economizadas')).toBeInTheDocument()
-  })
-
-  it('mostra os 4 Agentes na galeria, com a especialidade de cada um', async () => {
-    renderizarApp('/')
-    const galeria = await screen.findByRole('region', { name: 'Galeria de agentes' })
-    await within(galeria).findByRole('link', { name: /Scopus/ })
-    for (const nome of AGENTES) {
-      expect(within(galeria).getByRole('link', { name: new RegExp(nome) })).toBeInTheDocument()
+    const lista = await grade()
+    expect(within(lista).getAllByRole('listitem')).toHaveLength(9)
+    for (const nome of [...ESPECIALISTAS, ...AGENTES_CRIADOS]) {
+      expect(within(lista).getByRole('link', { name: nome })).toBeInTheDocument()
     }
-    expect(within(galeria).getByText('Especialista em ICP')).toBeInTheDocument()
-    expect(within(galeria).getByText('Especialista em GEO')).toBeInTheDocument()
   })
 
-  it('mostra o selo de demonstração e o Workspace da Databricks', async () => {
+  it('cada cartão mostra o estado, quando roda, as execuções exatas e os logos das Integrações', async () => {
     renderizarApp('/')
-    const cabecalho = await screen.findByRole('banner')
-    expect(within(cabecalho).getByText('Demonstração')).toBeInTheDocument()
-    expect(await within(cabecalho).findByText('Databricks')).toBeInTheDocument()
+    const lista = await grade()
+
+    const scopus = within(lista).getByRole('link', { name: 'Scopus' })
+    expect(within(scopus).getByText('Detectou algo')).toBeInTheDocument()
+    expect(
+      within(scopus).getByText('Define o ICP a partir dos seus melhores clientes e dá nota de aderência a cada Conta-alvo.'),
+    ).toBeInTheDocument()
+    expect(within(scopus).getByText('Toda terça às 08:00')).toBeInTheDocument()
+    expect(within(scopus).getByText('312')).toBeInTheDocument()
+    for (const integracao of ['HubSpot', 'Clay', 'Apollo', 'Lusha']) {
+      expect(within(scopus).getByRole('img', { name: integracao })).toBeInTheDocument()
+    }
+
+    const rhetor = within(lista).getByRole('link', { name: 'Rhetor' })
+    expect(within(rhetor).getByText('Trabalhando')).toBeInTheDocument()
+    expect(within(rhetor).getByText('Todo dia às 07:30')).toBeInTheDocument()
+
+    // A Rotina do Ethos está pausada: ele roda sob demanda.
+    const ethos = within(lista).getByRole('link', { name: 'Ethos' })
+    expect(within(ethos).getByText('Disponível')).toBeInTheDocument()
+    expect(within(ethos).getByText('Sob demanda')).toBeInTheDocument()
+
+    // No Agente criado, a descrição são as instruções dele, e os logos são só os das Integrações que usa.
+    const anuncios = within(lista).getByRole('link', { name: 'Rhetor · Anúncios Meta' })
+    expect(within(anuncios).getByText(/copy de anúncios para o Meta Ads/)).toBeInTheDocument()
+    expect(within(anuncios).getByText('Sob demanda')).toBeInTheDocument()
+    expect(within(anuncios).getByText('17')).toBeInTheDocument()
+    expect(within(anuncios).getByRole('img', { name: 'Meta Ads' })).toBeInTheDocument()
+    expect(within(anuncios).queryByRole('img', { name: 'Google Ads' })).not.toBeInTheDocument()
   })
 
-  it('não oferece criar nem renomear Agentes', async () => {
+  it('não tem painel de métricas, barra de comando nem busca', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    expect(screen.queryByRole('region', { name: 'Painel' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Horas economizadas')).not.toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    await usuario.keyboard('{Control>}k{/Control}')
+    expect(screen.queryByRole('combobox', { name: 'Comando' })).not.toBeInTheDocument()
+  })
+
+  it('abre a página de um Agente criado, e as sub-abas mostram os dados dele', async () => {
+    const { usuario } = renderizarApp('/')
+    await usuario.click(within(await grade()).getByRole('link', { name: 'Scopus · Enterprise LATAM' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Scopus · Enterprise LATAM' })).toBeInTheDocument()
+    const subabas = screen.getByRole('navigation', { name: 'Seções do agente' })
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Memória' }))
+    expect(await screen.findByText(/Contas-alvo no México/)).toBeInTheDocument()
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Rotinas' }))
+    expect(await screen.findByText(/Toda segunda às 08:30/)).toBeInTheDocument()
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Configuração' }))
+    expect(await screen.findByRole('textbox', { name: 'Instruções adicionais' })).toHaveValue(
+      'Pontue só Contas-alvo enterprise no Brasil, no México e na Colômbia, com mais de 5.000 funcionários.',
+    )
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
+    expect(await screen.findByText(/Reavaliou 40 Contas-alvo enterprise/)).toBeInTheDocument()
+  })
+})
+
+describe('Casca', () => {
+  it('a sidebar tem o Workspace, o selo de demonstração, os Especialistas e o Workspace', async () => {
     renderizarApp('/')
-    await screen.findByRole('region', { name: 'Galeria de agentes' })
-    expect(screen.queryByRole('button', { name: /criar agente/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /criar agente/i })).not.toBeInTheDocument()
+    const sidebar = await screen.findByRole('complementary', { name: 'Navegação' })
+    expect(await within(sidebar).findByText('Databricks')).toBeInTheDocument()
+    expect(within(sidebar).getByText('Demonstração')).toBeInTheDocument()
+
+    const especialistas = within(sidebar).getByRole('navigation', { name: 'Especialistas' })
+    await within(especialistas).findByRole('link', { name: 'Scopus' })
+    expect(within(especialistas).getAllByRole('link').map((l) => l.textContent)).toEqual(ESPECIALISTAS)
+
+    const workspace = within(sidebar).getByRole('navigation', { name: 'Workspace' })
+    expect(within(workspace).getByRole('link', { name: 'Agentes' })).toBeInTheDocument()
+    expect(within(workspace).getByRole('link', { name: 'Conexões' })).toBeInTheDocument()
+    expect(await within(workspace).findByRole('link', { name: 'Aprovações, 2 pendentes' })).toBeInTheDocument()
+  })
+
+  it('a contagem de Aprovações pendentes acompanha as decisões', async () => {
+    const { usuario } = renderizarApp('/aprovacoes')
+    const proposta = await screen.findByRole('article', { name: /Subir campanha no Meta Ads/ })
+    await usuario.click(within(proposta).getByRole('button', { name: 'Aprovar' }))
+    const workspace = screen.getByRole('navigation', { name: 'Workspace' })
+    expect(await within(workspace).findByRole('link', { name: 'Aprovações, 1 pendente' })).toBeInTheDocument()
+  })
+
+  it('um Especialista na sidebar abre a página do Agente padrão', async () => {
+    const { usuario } = renderizarApp('/')
+    const especialistas = await screen.findByRole('navigation', { name: 'Especialistas' })
+    await usuario.click(await within(especialistas).findByRole('link', { name: 'Oraculum' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Oraculum' })).toBeInTheDocument()
   })
 })
 
 describe('Página do Agente', () => {
   it('abre um Agente pela galeria e navega pelas 7 sub-abas', async () => {
     const { usuario } = renderizarApp('/')
-    await usuario.click(await screen.findByRole('link', { name: /Scopus/ }))
+    await usuario.click(within(await grade()).getByRole('link', { name: 'Scopus' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Scopus' })).toBeInTheDocument()
     const subabas = screen.getByRole('navigation', { name: 'Seções do agente' })
     for (const nome of ['Conversa', 'Memória', 'Habilidades', 'Rotinas', 'Canais', 'Configuração', 'Atividade']) {
@@ -75,7 +160,7 @@ describe('Conversa', () => {
     const { usuario } = renderizarApp('/agentes/scopus/conversa')
     const campo = await screen.findByRole('textbox', { name: 'Mensagem para Scopus' })
     await usuario.type(campo, '@Et')
-    await usuario.click(await screen.findByRole('option', { name: /Ethos/ }))
+    await usuario.click(await screen.findByRole('option', { name: 'Ethos' }))
     expect(campo).toHaveValue('@Ethos ')
     await usuario.type(campo, 'complementa isso{Enter}')
     const repasse = await screen.findByRole('note', { name: 'Repasse de Scopus para Ethos' })
@@ -91,19 +176,6 @@ describe('Conversa', () => {
     const aprovacao = await screen.findByRole('article', { name: /Aprovação pendente/ })
     expect(within(aprovacao).getByText(/HubSpot/)).toBeInTheDocument()
     expect(within(aprovacao).getByText(/Slack/)).toBeInTheDocument()
-  })
-})
-
-describe('Barra de comando', () => {
-  it('Ctrl+K abre a barra, e uma @menção leva ao Agente com a resposta', async () => {
-    const { usuario } = renderizarApp('/')
-    await screen.findByRole('region', { name: 'Galeria de agentes' })
-    await usuario.keyboard('{Control>}k{/Control}')
-    const campo = await screen.findByRole('combobox', { name: 'Comando' })
-    await usuario.type(campo, '@Oraculum como estamos no Perplexity?{Enter}')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Oraculum' })).toBeInTheDocument()
-    expect(await screen.findByText('@Oraculum como estamos no Perplexity?')).toBeInTheDocument()
-    expect(await screen.findByText(/Consultando Perplexity/)).toBeInTheDocument()
   })
 })
 
@@ -222,7 +294,7 @@ describe('Conexões e Aprovações', () => {
     await usuario.click(within(proposta).getByRole('button', { name: 'Aprovar' }))
     expect(await within(proposta).findByText('Aprovada')).toBeInTheDocument()
 
-    await usuario.click(screen.getByRole('link', { name: /Rhetor/ }))
+    await usuario.click(within(proposta).getByRole('link', { name: 'Rhetor' }))
     const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
     await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
     expect(await screen.findByText(/Aprovada: Subir campanha no Meta Ads/)).toBeInTheDocument()
@@ -248,7 +320,7 @@ describe('Conexões e Aprovações', () => {
     await within(previa).findByText('Aprovada')
     await usuario.keyboard('{Escape}')
     await usuario.click(screen.getByRole('link', { name: 'Agentes' }))
-    await usuario.click(await screen.findByRole('link', { name: /Scopus/ }))
+    await usuario.click(within(await grade()).getByRole('link', { name: 'Scopus' }))
     const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
     await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
     const item = (await screen.findByText(/Aprovada: Atualizar 14 Contas-alvo/)).closest('li')!
@@ -269,7 +341,7 @@ describe('Conexões e Aprovações', () => {
 describe('Tema', () => {
   it('começa no escuro e troca para o claro pelo menu do usuário', async () => {
     const { usuario } = renderizarApp('/')
-    await screen.findByRole('region', { name: 'Galeria de agentes' })
+    await grade()
     expect(document.documentElement.dataset.theme).toBe('escuro')
     await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
     await usuario.click(await screen.findByRole('menuitem', { name: 'Tema claro' }))

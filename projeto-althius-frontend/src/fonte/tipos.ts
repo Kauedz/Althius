@@ -33,8 +33,14 @@ export interface Agente {
   tipo: TipoDeAgente
   especialidade: Especialidade
   estado: EstadoAgente
-  tarefasFeitas: number
-  horasEconomizadas: number
+  /** Quantas vezes o Agente já trabalhou, contado exato. */
+  execucoes: number
+  /** A descrição da Especialidade no Agente padrão; as instruções no Agente criado. */
+  descricao: string
+  /** A Rotina que faz o Agente rodar sozinho; sem ela, ele roda sob demanda. */
+  rotinaAtiva: Rotina | null
+  /** As Integrações que o Agente pode usar, pela sua Permissão. */
+  integracoes: IntegracaoId[]
 }
 
 export interface Sugestao {
@@ -46,6 +52,7 @@ export interface Workspace {
   cliente: string
   descricao: string
   usuario: { nome: string; cargo: string }
+  aprovacoesPendentes: number
 }
 
 export interface Fato {
@@ -174,14 +181,6 @@ export type PassoDaConversa =
   | { tipo: 'repasse'; de: AgenteId; para: AgenteId; resumo: string }
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
 
-export interface Painel {
-  aprovacoesPendentes: number
-  rotinasDeHoje: Rotina[]
-  atividadeRecente: ItemDeAtividade[]
-  tarefasFeitas: number
-  horasEconomizadas: number
-}
-
 /**
  * A única fronteira entre as telas e os Agentes. Hoje só existe a implementação simulada;
  * uma implementação real vai substituí-la sem mudar as telas (ADR 0003).
@@ -191,7 +190,6 @@ export interface FonteDeAgentes {
   observar(ouvinte: () => void): () => void
 
   workspace(): Promise<Workspace>
-  painel(): Promise<Painel>
 
   /** O catálogo fixo: não há operação para criar uma Especialidade. */
   especialidades(): Promise<Especialidade[]>
