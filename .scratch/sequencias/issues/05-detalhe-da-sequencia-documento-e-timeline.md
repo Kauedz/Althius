@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] O detalhe mostra participantes, steps ordenados, delay/janela e regra de pause
-- [ ] O visual segue o mock aprovado (timeline simples, marca Althius)
-- [ ] Atualizar o documento reflete nos observadores da fonte na mesma sessão
-- [ ] Status Ativa / Pausada / Reunião / Esgotada aparece no detalhe
-- [ ] Testes cobrem leitura do documento completo e update básico de step/participantes
+- [x] O detalhe mostra participantes, steps ordenados, delay/janela e regra de pause
+- [x] O visual segue o mock aprovado (timeline simples, marca Althius)
+- [x] Atualizar o documento reflete nos observadores da fonte na mesma sessão
+- [x] Status Ativa / Pausada / Reunião / Esgotada aparece no detalhe
+- [x] Testes cobrem leitura do documento completo e update básico de step/participantes
