@@ -22,6 +22,14 @@ export interface Especialidade {
 /** Identificador aberto: além dos Agentes padrão, o Cliente cria os seus. */
 export type AgenteId = string
 
+/** O que o Cliente escolhe ao criar um Agente: o nome é sempre "Especialidade · complemento". */
+export interface NovoAgente {
+  especialidadeId: EspecialidadeId
+  complemento: string
+  /** Instruções do Agente criado; vazias, ele fica com as do Agente padrão. */
+  instrucoes: string
+}
+
 /** Agente padrão (um por Especialidade, não pode ser excluído) ou Agente criado pelo Cliente. */
 export type TipoDeAgente = 'padrao' | 'criado'
 
@@ -196,6 +204,11 @@ export interface FonteDeAgentes {
 
   agentes(): Promise<Agente[]>
   agente(id: AgenteId): Promise<Agente>
+  /**
+   * Cria um Agente a partir de uma Especialidade (ADR 0005), com uma cópia da Personalização, das
+   * Permissões e das Habilidades do Agente padrão, Memória vazia e sem Rotinas.
+   */
+  criarAgente(novo: NovoAgente): Promise<Agente>
 
   memoria(id: AgenteId): Promise<Fato[]>
   editarFato(fatoId: string, texto: string): Promise<void>

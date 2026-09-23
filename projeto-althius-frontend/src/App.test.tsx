@@ -126,6 +126,107 @@ describe('Casca', () => {
   })
 })
 
+async function criarAgente(
+  usuario: ReturnType<typeof renderizarApp>['usuario'],
+  { especialidade, complemento, instrucoes }: { especialidade: string; complemento: string; instrucoes?: string },
+) {
+  await usuario.click(await screen.findByRole('button', { name: 'Novo agente' }))
+  const dialogo = await screen.findByRole('dialog', { name: 'Novo agente' })
+  await usuario.click(within(dialogo).getByRole('radio', { name: new RegExp(`^${especialidade}`) }))
+  await usuario.type(within(dialogo).getByRole('textbox', { name: 'Complemento do nome' }), complemento)
+  if (instrucoes) await usuario.type(within(dialogo).getByRole('textbox', { name: /Instruções/ }), instrucoes)
+  await usuario.click(within(dialogo).getByRole('button', { name: 'Criar agente' }))
+}
+
+describe('Criar Agente', () => {
+  it('Novo agente abre o formulário com as 4 Especialidades, sem opção de criar Especialidade', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Novo agente' }))
+    const dialogo = await screen.findByRole('dialog', { name: 'Novo agente' })
+    const especialidades = within(dialogo).getByRole('radiogroup', { name: 'Especialidade' })
+    expect(within(especialidades).getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual(ESPECIALISTAS)
+    expect(within(dialogo).queryByRole('button', { name: /especialidade/i })).not.toBeInTheDocument()
+    expect(within(dialogo).queryByRole('textbox', { name: /especialidade/i })).not.toBeInTheDocument()
+  })
+
+  it('só cria com uma Especialidade e um complemento', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Novo agente' }))
+    const dialogo = await screen.findByRole('dialog', { name: 'Novo agente' })
+    const criar = within(dialogo).getByRole('button', { name: 'Criar agente' })
+    expect(criar).toBeDisabled()
+    await usuario.click(within(dialogo).getByRole('radio', { name: 'Ethos' }))
+    expect(criar).toBeDisabled()
+    await usuario.type(within(dialogo).getByRole('textbox', { name: 'Complemento do nome' }), '   ')
+    expect(criar).toBeDisabled()
+    await usuario.type(within(dialogo).getByRole('textbox', { name: 'Complemento do nome' }), 'Saúde')
+    expect(within(dialogo).getByText('Ethos · Saúde')).toBeInTheDocument()
+    expect(criar).toBeEnabled()
+  })
+
+  it('o Agente criado entra na grade, sob demanda e sem execuções, e a página dele abre', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await criarAgente(usuario, { especialidade: 'Ethos', complemento: 'Saúde', instrucoes: 'Foque em hospitais privados.' })
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ethos · Saúde' })).toBeInTheDocument()
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+    const cartao = within(await grade()).getByRole('link', { name: 'Ethos · Saúde' })
+    expect(within(cartao).getByText('Foque em hospitais privados.')).toBeInTheDocument()
+    expect(within(cartao).getByText('Sob demanda')).toBeInTheDocument()
+    expect(within(cartao).getByText('0')).toBeInTheDocument()
+  })
+
+  it('começa com a Personalização, as Permissões e as Habilidades do padrão, sem Memória nem Rotinas', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await criarAgente(usuario, { especialidade: 'Rhetor', complemento: 'Eventos', instrucoes: 'Convites para eventos de dados.' })
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor · Eventos' })
+    const subabas = screen.getByRole('navigation', { name: 'Seções do agente' })
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Configuração' }))
+    expect(await screen.findByRole('textbox', { name: 'Instruções adicionais' })).toHaveValue('Convites para eventos de dados.')
+    expect(screen.getByRole('textbox', { name: 'Tom de voz' })).toHaveValue('Técnico e direto, como a Databricks fala com engenheiros.')
+    const metaAds = screen.getByRole('radiogroup', { name: 'Permissão em Meta Ads' })
+    expect(within(metaAds).getByRole('radio', { name: 'Propor' })).toBeChecked()
+    expect(screen.getByRole('radiogroup', { name: 'Permissão em Google Ads' })).toBeInTheDocument()
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Habilidades' }))
+    expect(await screen.findByRole('switch', { name: /E-mail frio curto/ })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /Sequência por persona/ })).toBeInTheDocument()
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Memória' }))
+    expect(await screen.findByText('Rhetor · Eventos ainda não guardou nenhum fato.')).toBeInTheDocument()
+
+    await usuario.click(within(subabas).getByRole('link', { name: 'Rotinas' }))
+    expect(await screen.findByText('Nenhuma rotina ainda.')).toBeInTheDocument()
+  })
+
+  it('mudar a Personalização do Agente criado não muda a do Agente padrão', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await criarAgente(usuario, { especialidade: 'Rhetor', complemento: 'Eventos' })
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor · Eventos' })
+    const subabas = screen.getByRole('navigation', { name: 'Seções do agente' })
+    await usuario.click(within(subabas).getByRole('link', { name: 'Configuração' }))
+    const tom = await screen.findByRole('textbox', { name: 'Tom de voz' })
+    await usuario.clear(tom)
+    await usuario.type(tom, 'Leve e convidativo.')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar personalização' }))
+    await screen.findByText('Personalização salva.')
+
+    const especialistas = screen.getByRole('navigation', { name: 'Especialistas' })
+    await usuario.click(within(especialistas).getByRole('link', { name: 'Rhetor' }))
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor' })
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Seções do agente' })).getByRole('link', { name: 'Configuração' }))
+    expect(await screen.findByRole('textbox', { name: 'Tom de voz' })).toHaveValue(
+      'Técnico e direto, como a Databricks fala com engenheiros.',
+    )
+  })
+})
+
 describe('Página do Agente', () => {
   it('abre um Agente pela galeria e navega pelas 7 sub-abas', async () => {
     const { usuario } = renderizarApp('/')

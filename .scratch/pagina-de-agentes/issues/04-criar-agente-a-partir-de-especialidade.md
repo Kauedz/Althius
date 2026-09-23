@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] "Novo agente" abre o formulário com as 4 Especialidades, o complemento do nome e as instruções opcionais
-- [ ] Não é possível criar sem escolher uma Especialidade e sem um complemento
-- [ ] O Agente criado aparece na grade com o nome "Especialidade · complemento" e abre a página dele logo depois de criado
-- [ ] A Configuração do Agente criado mostra a Personalização e as Permissões copiadas do Agente padrão, com as instruções do formulário
-- [ ] As Habilidades são copiadas do padrão; a Memória está vazia; não há Rotinas
-- [ ] Mudar a Personalização do Agente criado não muda a do Agente padrão, e vice-versa
-- [ ] O formulário não oferece criar uma Especialidade nova
+- [x] "Novo agente" abre o formulário com as 4 Especialidades, o complemento do nome e as instruções opcionais
+- [x] Não é possível criar sem escolher uma Especialidade e sem um complemento
+- [x] O Agente criado aparece na grade com o nome "Especialidade · complemento" e abre a página dele logo depois de criado
+- [x] A Configuração do Agente criado mostra a Personalização e as Permissões copiadas do Agente padrão, com as instruções do formulário
+- [x] As Habilidades são copiadas do padrão; a Memória está vazia; não há Rotinas
+- [x] Mudar a Personalização do Agente criado não muda a do Agente padrão, e vice-versa
+- [x] O formulário não oferece criar uma Especialidade nova

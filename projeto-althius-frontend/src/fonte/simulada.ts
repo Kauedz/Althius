@@ -3,7 +3,7 @@
 import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
-import { ROTULO_DA_DECISAO } from './regras'
+import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
 import { respostaDeMencao, respostaGenerica, roteiros, type PassoDeRoteiro } from './roteiros'
 import type {
   Agente,
@@ -73,7 +73,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     return {
       ...agente,
       especialidade: daEspecialidade,
-      descricao: agente.tipo === 'padrao' ? daEspecialidade.descricao : personalizacao.instrucoes,
+      descricao: (agente.tipo === 'criado' && personalizacao.instrucoes) || daEspecialidade.descricao,
       rotinaAtiva: estado.rotinas.find((r) => r.agenteId === agente.id && !r.pausada) ?? null,
       integracoes: Object.keys(personalizacao.permissoes) as IntegracaoId[],
     }
@@ -130,6 +130,25 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
 
     agentes: () => responder(() => estado.agentes.map(montarAgente)),
     agente: (id) => responder(() => montarAgente(buscar(estado.agentes, id))),
+    async criarAgente({ especialidadeId, complemento, instrucoes }) {
+      await esperar(Math.min(atrasoMs, 120))
+      if (!complemento.trim()) throw new Error('O Agente criado precisa de um complemento no nome.')
+      const nome = nomeDeAgenteCriado(especialidade(especialidadeId), complemento)
+      if (estado.agentes.some((a) => a.nome === nome)) throw new Error(`Já existe um Agente chamado ${nome}.`)
+
+      const padrao = agentePadrao(especialidadeId)
+      const id = novoId(`agente-${especialidadeId}`)
+      estado.agentes.push({ id, nome, tipo: 'criado', especialidadeId, estado: 'ocioso', execucoes: 0 })
+      const personalizacao = structuredClone(estado.personalizacoes[padrao.id])
+      estado.personalizacoes[id] = { ...personalizacao, instrucoes: instrucoes.trim() || personalizacao.instrucoes }
+      estado.habilidades.push(
+        ...estado.habilidades
+          .filter((h) => h.agenteId === padrao.id)
+          .map((h) => ({ ...h, id: novoId('habilidade'), agenteId: id, usos: 0 })),
+      )
+      avisar()
+      return structuredClone(montarAgente(buscar(estado.agentes, id)))
+    },
 
     memoria: (id) => responder(() => estado.fatos.filter((f) => f.agenteId === id)),
     editarFato: (fatoId, texto) =>

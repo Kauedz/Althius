@@ -1,4 +1,5 @@
 import { Bot, CalendarClock, MousePointerClick, Plus, Repeat2 } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LogoDaIntegracao } from '@/components/logos'
 import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
@@ -6,18 +7,23 @@ import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { useDados } from '@/fonte/contexto'
 import type { Agente, Integracao } from '@/fonte/tipos'
+import { DialogoNovoAgente } from '@/paginas/novo-agente'
 import { descreverFrequencia } from '@/paginas/rotulos'
 
 export function PaginaAgentes() {
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
+  const [criando, setCriando] = useState(false)
 
   return (
     <Pagina
       titulo="Agentes"
       icone={Bot}
       acoes={
-        <Button className="h-8 gap-2 bg-al-ink px-4 tracking-rotulo text-al-bg uppercase hover:bg-al-ink/90">
+        <Button
+          onClick={() => setCriando(true)}
+          className="h-8 gap-2 bg-al-ink px-4 tracking-rotulo text-al-bg uppercase hover:bg-al-ink/90"
+        >
           <Plus strokeWidth={1.8} aria-hidden />
           Novo agente
         </Button>
@@ -34,6 +40,7 @@ export function PaginaAgentes() {
           ))}
         </ul>
       )}
+      <DialogoNovoAgente aberto={criando} aoMudar={setCriando} />
     </Pagina>
   )
 }
