@@ -222,14 +222,17 @@ export type PassoDaCoordenacao =
   /** Sem Aprovação: com Executar, o Agente agiu sozinho; com Ler, não pôde agir. */
   | { tipo: 'acao'; agenteId: AgenteId; acao: AcaoProposta; executada: boolean }
 
+/** Qualquer fonte de dados observável da aplicação: avisa as telas quando os dados mudam. */
+export interface FonteObservavel {
+  /** Avisa as telas quando algum dado muda. Devolve a função para cancelar. */
+  observar(ouvinte: () => void): () => void
+}
+
 /**
  * A única fronteira entre as telas e os Agentes. Hoje só existe a implementação simulada;
  * uma implementação real vai substituí-la sem mudar as telas (ADR 0003).
  */
-export interface FonteDeAgentes {
-  /** Avisa as telas quando algum dado muda. Devolve a função para cancelar. */
-  observar(ouvinte: () => void): () => void
-
+export interface FonteDeAgentes extends FonteObservavel {
   workspace(): Promise<Workspace>
 
   /** O catálogo fixo: não há operação para criar uma Especialidade. */
@@ -284,3 +287,5 @@ export interface FonteDeAgentes {
    */
   conversarCoordenado(pedido: Mensagem, anteriores: Mensagem[]): AsyncIterable<PassoDaCoordenacao>
 }
+
+export * from './contas-tipos'

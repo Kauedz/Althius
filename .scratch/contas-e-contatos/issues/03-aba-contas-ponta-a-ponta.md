@@ -21,13 +21,13 @@ As datas seguem a regra única do módulo:
 
 **Status:** ready-for-agent
 
-- [ ] O item "Contas e Contatos" aparece na seção Workspace da sidebar, acima de Agentes, com um ícone Lucide coerente, e abre a aba Contas
-- [ ] A página inicial continua sendo a grade de Agentes
-- [ ] A aba Contas mostra o título, a descrição, a contagem "N contas" e a tabela com as seis colunas nessa ordem
-- [ ] A ordem padrão é a Prioridade: Quente, Fit, Não fit e não avaliada. Dentro de cada grupo, o Sinal mais recente vem primeiro, as contas sem Sinal vão para o fim e o empate é desfeito pelo nome
-- [ ] Último sinal mostra "frase · data relativa" ou "Nenhum sinal"; Último contato mostra a data ou "Nunca"
-- [ ] As datas relativas e explícitas saem como decidido, a partir da data fixa de "hoje" nos testes
-- [ ] Enquanto carrega, aparece o pulso do app
-- [ ] Com a fonte vazia, aparece "Nenhuma Conta-alvo ainda. As empresas aparecem aqui quando o Scopus encontrá-las ou quando forem importadas.", sem botão e sem pedido de configuração
-- [ ] Com a fonte em falha, aparece uma mensagem de erro curta com "Tentar de novo", e o botão dispara uma nova leitura
-- [ ] O selo "Demonstração" continua visível
+- [x] O item "Contas e Contatos" aparece na seção Workspace da sidebar, acima de Agentes, com um ícone Lucide coerente, e abre a aba Contas
+- [x] A página inicial continua sendo a grade de Agentes
+- [x] A aba Contas mostra o título, a descrição, a contagem "N contas" e a tabela com as seis colunas nessa ordem
+- [x] A ordem padrão é a Prioridade: Quente, Fit, Não fit e não avaliada. Dentro de cada grupo, o Sinal mais recente vem primeiro, as contas sem Sinal vão para o fim e o empate é desfeito pelo nome
+- [x] Último sinal mostra "frase · data relativa" ou "Nenhum sinal"; Último contato mostra a data ou "Nunca"
+- [x] As datas relativas e explícitas saem como decidido, a partir da data fixa de "hoje" nos testes
+- [x] Enquanto carrega, aparece o pulso do app
+- [x] Com a fonte vazia, aparece "Nenhuma Conta-alvo ainda. As empresas aparecem aqui quando o Scopus encontrá-las ou quando forem importadas.", sem botão e sem pedido de configuração
+- [x] Com a fonte em falha, aparece uma mensagem de erro curta com "Tentar de novo", e o botão dispara uma nova leitura
+- [x] O selo "Demonstração" continua visível

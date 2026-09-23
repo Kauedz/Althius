@@ -1,13 +1,13 @@
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { Link, Navigate, NavLink, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { AbasSublinhadas } from '@/components/abas'
 import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
 import type { Agente } from '@/fonte/tipos'
-import { cn } from '@/lib/utils'
 import { SecaoAtividade } from '@/paginas/secoes/atividade'
 import { SecaoCanais } from '@/paginas/secoes/canais'
 import { SecaoConfiguracao } from '@/paginas/secoes/configuracao'
@@ -67,25 +67,13 @@ export function PaginaAgente() {
         </div>
       </div>
 
-      <nav aria-label="Seções do agente" className="border-b border-al-line">
-        <ul className="flex gap-6">
-          {Object.entries(SECOES).map(([id, { rotulo }]) => (
-            <li key={id}>
-              <NavLink
-                to={`/agentes/${agente.id}/${id}`}
-                className={({ isActive }) =>
-                  cn(
-                    '-mb-px block border-b-2 py-4 text-sm font-normal tracking-rotulo uppercase',
-                    isActive ? 'border-al-accent text-al-ink' : 'border-transparent text-al-muted hover:text-al-ink',
-                  )
-                }
-              >
-                {rotulo}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <AbasSublinhadas
+        rotuloAcessivel="Seções do agente"
+        abas={Object.entries(SECOES).map(([id, { rotulo }]) => ({
+          rotulo,
+          para: `/agentes/${agente.id}/${id}`,
+        }))}
+      />
 
       <Componente key={agente.id} agente={agente} />
     </Pagina>

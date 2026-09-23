@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="escuro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Althius · Mock de Contas e Contatos</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <div class="workspace-switcher">
+          <span class="workspace-mark" aria-hidden="true">D</span>
+          <span class="workspace-copy">
+            <span class="eyebrow">Workspace</span>
+            <strong>Databricks</strong>
+          </span>
+          <span class="chevrons" aria-hidden="true">⌃⌄</span>
+        </div>
+        <span class="demo-badge">Demonstração</span>
+
+        <nav class="side-section" aria-label="Especialistas">
+          <span class="side-label">Especialistas</span>
+          <a class="side-link" href="#"><span class="agent-dot pink"></span>Scopus<span class="online-dot"></span></a>
+          <a class="side-link" href="#"><span class="agent-dot orange"></span>Ethos<span class="online-dot"></span></a>
+          <a class="side-link" href="#"><span class="agent-dot violet"></span>Rhetor<span class="online-dot"></span></a>
+          <a class="side-link" href="#"><span class="agent-dot blue"></span>Oraculum<span class="online-dot"></span></a>
+        </nav>
+
+        <nav class="side-section" aria-label="Workspace">
+          <span class="side-label">Workspace</span>
+          <button class="side-link active" type="button" data-nav="accounts">
+            <span class="side-icon" data-icon="building"></span>Contas e Contatos
+          </button>
+          <a class="side-link" href="#"><span class="side-icon" data-icon="bot"></span>Agentes</a>
+          <a class="side-link" href="#"><span class="side-icon" data-icon="shield"></span>Aprovações<span class="nav-count">3</span></a>
+          <a class="side-link" href="#"><span class="side-icon" data-icon="plug"></span>Conexões</a>
+        </nav>
+
+        <div class="profile">
+          <span class="avatar avatar-user has-photo" title="Marina Costa"><img src="./avatars/avatar-1.jpg" alt="Marina Costa" onerror="this.remove();this.parentElement.textContent='MC'" /></span>
+          <span class="profile-copy"><strong>Marina Costa</strong><small>Head de Receita</small></span>
+          <span aria-hidden="true">•••</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div id="topbar-title" class="topbar-title">
+            <span class="topbar-icon" data-icon="building"></span>
+            <h1>Contas e Contatos</h1>
+          </div>
+          <div class="topbar-actions">
+            <button id="theme-toggle" class="icon-button" type="button" aria-label="Alternar para tema claro" title="Alternar tema">
+              <span data-icon="sun"></span>
+            </button>
+            <button class="help-button" type="button"><span data-icon="help"></span>Ajuda</button>
+          </div>
+        </header>
+
+        <section class="module-shell">
+          <nav id="module-tabs" class="tabs" aria-label="Contas e Contatos">
+            <button class="tab active" type="button" data-view="accounts">Contas <span id="accounts-tab-count">30</span></button>
+            <button class="tab" type="button" data-view="contacts">Contatos <span id="contacts-tab-count">0</span></button>
+          </nav>
+          <div id="view" class="view" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./mock.js"></script>
+  </body>
+</html>

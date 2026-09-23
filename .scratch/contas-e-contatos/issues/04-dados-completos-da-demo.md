@@ -4,17 +4,17 @@
 
 **Blocked by:** 03 (Aba Contas: primeira fatia de ponta a ponta)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] 18 Quentes (todas com Sinal recente), 8 Fit, 3 Não fit e 1 não avaliada
-- [ ] As 3 Não fit e a não avaliada têm origem "importada", pela usuária da demo; as demais, "recomendada pela Althius"
-- [ ] O Sinal mais recente da OpenAI é a abertura de três vagas de engenharia de dados de avaliação, como no roteiro do Rhetor
-- [ ] Os Sinais têm frase e fonte plausíveis, sem URL de evidência
-- [ ] Os Contatos têm nomes fictícios e cargos reais, com e sem Persona e com disponibilidade de canais variada, sem nenhum valor de e-mail, telefone ou perfil
-- [ ] Algumas empresas têm quatro ou mais Contatos, outras menos, e três não têm nenhum
-- [ ] As Interações são coerentes com os roteiros e as Aprovações existentes, quando se referem às mesmas empresas
-- [ ] Os dados ausentes seguem a spec: 4 sem logo, 3 sem Contatos, 3 sem Sinal, 5 com "Nunca" no Último contato, 2 sem segmento e 3 sem site nem LinkedIn
-- [ ] Os sites e LinkedIn preenchidos são os endereços públicos reais
-- [ ] Os logos são os SVGs oficiais do Simple Icons (CC0) das empresas que os têm, como nas Integrações
-- [ ] Nenhum dado exposto ao módulo tem nota numérica de Aderência
-- [ ] Os testes existentes continuam verdes; as expectativas que dependiam do conjunto inicial são ajustadas ao conjunto completo
+- [x] 18 Quentes (todas com Sinal recente), 8 Fit, 3 Não fit e 1 não avaliada
+- [x] As 3 Não fit e a não avaliada têm origem "importada", pela usuária da demo; as demais, "recomendada pela Althius"
+- [x] O Sinal mais recente da OpenAI é a abertura de três vagas de engenharia de dados de avaliação, como no roteiro do Rhetor
+- [x] Os Sinais têm frase e fonte plausíveis, sem URL de evidência
+- [x] Os Contatos têm nomes fictícios e cargos reais, com e sem Persona e com disponibilidade de canais variada, sem nenhum valor de e-mail, telefone ou perfil
+- [x] Algumas empresas têm quatro ou mais Contatos, outras menos, e três não têm nenhum
+- [x] As Interações são coerentes com os roteiros e as Aprovações existentes, quando se referem às mesmas empresas
+- [x] Os dados ausentes seguem a spec: 4 sem logo, 3 sem Contatos, 3 sem Sinal, 5 com "Nunca" no Último contato, 2 sem segmento e 3 sem site nem LinkedIn
+- [x] Os sites e LinkedIn preenchidos são os endereços públicos reais
+- [x] Os logos são os SVGs oficiais do Simple Icons (CC0) das empresas que os têm, como nas Integrações
+- [x] Nenhum dado exposto ao módulo tem nota numérica de Aderência
+- [x] Os testes existentes continuam verdes; as expectativas que dependiam do conjunto inicial são ajustadas ao conjunto completo
