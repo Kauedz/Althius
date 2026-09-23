@@ -75,6 +75,8 @@ const personas = ['Patrocinador executivo', 'Campeão interno', 'Líder técnico
 let contactIndex = 0
 const contacts = accounts.flatMap((account, accountIndex) => Array.from({ length: account.contacts }, (_, localIndex) => {
   const index = contactIndex++
+  const hasPhoto = (index % 5 !== 3) && (localIndex !== 2 || index % 2 === 0)
+  const photoId = ((index * 3 + localIndex) % 16) + 1
   return {
     id: `${account.id}-${localIndex + 1}`,
     accountId: account.id,
@@ -85,6 +87,7 @@ const contacts = accounts.flatMap((account, accountIndex) => Array.from({ length
     email: index % 5 !== 0,
     phone: index % 3 === 0,
     linkedin: index % 4 !== 1,
+    avatarUrl: hasPhoto ? `./avatars/avatar-${photoId}.jpg` : null,
     lastContact: localIndex === 0 ? account.lastContact : index % 7 === 0 ? 'Nunca' : account.lastContact,
   }
 }))
@@ -157,14 +160,43 @@ function initials(name) {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
 }
 
-function logo(account, extraClass = '') {
-  if (!account.slug) return `<span class="company-logo fallback ${extraClass}" aria-hidden="true">${initials(account.name)}</span>`
-  return `<span class="company-logo ${extraClass}" aria-hidden="true"><img src="https://cdn.simpleicons.org/${account.slug}/111111" alt="" onerror="this.remove();this.parentElement.classList.add('fallback');this.parentElement.textContent='${initials(account.name)}'" /></span>`
+const svgLogos = new Set([
+  'openai', 'anthropic', 'stripe', 'nubank', 'databricks',
+  'snowflake', 'cloudflare', 'gitlab', 'figma', 'notion',
+  'mongodb', 'hubspot', 'vercel', 'brex', 'sap',
+  'twilio', 'zendesk', 'asana', 'okta', 'oracle', 'mercadolivre'
+])
+
+function getLogoUrl(account) {
+  if (svgLogos.has(account.id)) {
+    return `./logos/${account.id}.svg`
+  }
+  return `./logos/${account.id}.png`
 }
 
-function avatar(name, index = 0) {
+function logo(account, extraClass = '') {
+  const logoUrl = getLogoUrl(account)
+  return `<span class="company-logo ${extraClass}" aria-hidden="true"><img src="${logoUrl}" alt="${account.name}" loading="lazy" onerror="this.remove();this.parentElement.classList.add('fallback');this.parentElement.textContent='${initials(account.name)}'" /></span>`
+}
+
+function avatar(target, index = 0) {
+  let name = ''
+  let avatarUrl = null
+  if (typeof target === 'object' && target !== null) {
+    name = target.name || ''
+    avatarUrl = target.avatarUrl || null
+  } else {
+    name = String(target || '')
+    const found = contacts.find((c) => c.name === name)
+    if (found) avatarUrl = found.avatarUrl
+  }
   const hues = [345, 22, 165, 204, 262, 43]
-  return `<span class="avatar" style="background:hsl(${hues[index % hues.length]} 34% 24%);color:#fff" aria-hidden="true">${initials(name)}</span>`
+  const bg = `hsl(${hues[index % hues.length]} 34% 24%)`
+
+  if (avatarUrl) {
+    return `<span class="avatar has-photo" aria-hidden="true" title="${name} (foto do LinkedIn)"><img src="${avatarUrl}" alt="${name}" loading="lazy" onerror="this.remove();this.parentElement.classList.remove('has-photo');this.parentElement.style.background='${bg}';this.parentElement.style.color='#fff';this.parentElement.textContent='${initials(name)}'" /></span>`
+  }
+  return `<span class="avatar" style="background:${bg};color:#fff" aria-hidden="true" title="${name}">${initials(name)}</span>`
 }
 
 function adherence(value) {
@@ -201,7 +233,7 @@ function contactPreview(account) {
   if (account.contacts === 0) return '<span class="muted">Nenhum contato</span>'
   const accountContacts = contacts.filter((contact) => contact.accountId === account.id).slice(0, 3)
   const label = `${account.contacts} ${account.contacts === 1 ? 'contato' : 'contatos'}`
-  return `<div class="contact-stack">${accountContacts.map((contact, index) => avatar(contact.name, index)).join('')}<button class="contact-count" type="button" data-open-contacts="${account.id}">${label}</button></div>`
+  return `<div class="contact-stack">${accountContacts.map((contact, index) => avatar(contact, index)).join('')}<button class="contact-count" type="button" data-open-contacts="${account.id}">${label}</button></div>`
 }
 
 function signalCell(account) {
@@ -325,7 +357,7 @@ function renderContacts() {
     <div class="table-frame"><table class="data-table contacts-table"><thead><tr><th>Nome</th><th>Cargo</th><th>Empresa</th><th>Área</th><th>Persona</th><th>Dados de contato</th><th>Último contato</th></tr></thead><tbody>
       ${items.map((contact, index) => {
         const account = accountById(contact.accountId)
-        return `<tr><td><div class="company-cell">${avatar(contact.name, index)}<span class="company-copy"><strong class="company-name">${contact.name}</strong></span></div></td><td>${contact.role ?? '<span class="muted">—</span>'}</td><td><button class="company-name" type="button" data-open-detail="${account.id}">${account.name}</button></td><td>${contact.area ?? '<span class="muted">—</span>'}</td><td>${contact.persona ?? '<span class="muted">—</span>'}</td><td><span class="channel-icons">${channelIcon('mail', contact.email)}${channelIcon('phone', contact.phone)}${channelIcon('linkedin', contact.linkedin)}</span></td><td class="${contact.lastContact === 'Nunca' ? 'muted' : ''}">${contact.lastContact}</td></tr>`
+        return `<tr><td><div class="company-cell">${avatar(contact, index)}<span class="company-copy"><strong class="company-name">${contact.name}</strong></span></div></td><td>${contact.role ?? '<span class="muted">—</span>'}</td><td><button class="company-name" type="button" data-open-detail="${account.id}">${account.name}</button></td><td>${contact.area ?? '<span class="muted">—</span>'}</td><td>${contact.persona ?? '<span class="muted">—</span>'}</td><td><span class="channel-icons">${channelIcon('mail', contact.email)}${channelIcon('phone', contact.phone)}${channelIcon('linkedin', contact.linkedin)}</span></td><td class="${contact.lastContact === 'Nunca' ? 'muted' : ''}">${contact.lastContact}</td></tr>`
       }).join('')}
     </tbody></table></div>`
 }
@@ -352,7 +384,7 @@ function renderDetail(account) {
           ${account.signal ? `<article class="featured-signal"><p>${account.signal}</p><div class="signal-meta"><span>Hoje, 09:42</span><span>Fonte: ${account.signalSource}</span><span>Detectado por Scopus</span></div></article><div class="timeline" style="margin-top:22px">${historicSignals.map(([text, meta]) => `<div class="timeline-item"><p>${text}</p><small>${meta}</small></div>`).join('')}</div>` : '<div class="section-empty">Nenhum sinal</div>'}
         </section>
         <section class="detail-section" id="contacts"><div class="section-heading"><h3>Contatos</h3><span>${accountContacts.length} ${accountContacts.length === 1 ? 'contato' : 'contatos'}</span></div>
-          ${accountContacts.length ? `<table class="mini-table"><thead><tr><th>Nome</th><th>Cargo</th><th>Persona</th><th>Dados</th></tr></thead><tbody>${accountContacts.map((contact, index) => `<tr><td><div class="person-cell">${avatar(contact.name, index)}<span>${contact.name}</span></div></td><td>${contact.role ?? '<span class="muted">—</span>'}</td><td>${contact.persona ?? '<span class="muted">—</span>'}</td><td><span class="channel-icons">${channelIcon('mail', contact.email)}${channelIcon('phone', contact.phone)}${channelIcon('linkedin', contact.linkedin)}</span></td></tr>`).join('')}</tbody></table>` : '<div class="section-empty">Nenhum contato</div>'}
+          ${accountContacts.length ? `<table class="mini-table"><thead><tr><th>Nome</th><th>Cargo</th><th>Persona</th><th>Dados</th></tr></thead><tbody>${accountContacts.map((contact, index) => `<tr><td><div class="person-cell">${avatar(contact, index)}<span>${contact.name}</span></div></td><td>${contact.role ?? '<span class="muted">—</span>'}</td><td>${contact.persona ?? '<span class="muted">—</span>'}</td><td><span class="channel-icons">${channelIcon('mail', contact.email)}${channelIcon('phone', contact.phone)}${channelIcon('linkedin', contact.linkedin)}</span></td></tr>`).join('')}</tbody></table>` : '<div class="section-empty">Nenhum contato</div>'}
         </section>
         <section class="detail-section" id="interactions"><div class="section-heading"><h3>Interações</h3><span>${hasInteractions ? '3 interações' : '0 interações'}</span></div>
           ${hasInteractions ? `<div class="timeline"><div class="timeline-item"><p>E-mail enviado para ${accountContacts[0]?.name ?? 'Contato principal'}</p><small>${account.lastContact} · Marina Costa · Althius</small></div><div class="timeline-item"><p>Reunião de descoberta</p><small>há 3 semanas · HubSpot</small></div><div class="timeline-item"><p>Mensagem enviada no LinkedIn</p><small>12 ago. · Marina Costa</small></div></div>` : '<div class="section-empty">Nenhuma interação registrada</div>'}
