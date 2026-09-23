@@ -14,7 +14,7 @@ npm run build    # typecheck + build de produção
 ## Como está organizado
 
 - `src/fonte/`: a **fonte de dados dos agentes**, a única fronteira entre as telas e os agentes. `tipos.ts` define a interface; `simulada.ts` é a implementação da demo, com os dados em `dados-demo.ts` e os roteiros da Conversa e da Coordenação em `roteiros.ts`. Um back-end real entra implementando a mesma interface (ADR 0003).
-- `src/paginas/`: painel e galeria, página do agente (7 seções), Conexões e Aprovações.
+- `src/paginas/`: grade de Agentes, criação de Agente, página do agente (7 seções), Conversa coordenada, Conexões e Aprovações.
 - `src/conversa/`: estado das Conversas (diretas e coordenadas), o composer e o autocompletar de @menção.
 - `src/index.css`: tokens do Manual da Marca v2.0 (tema escuro padrão e tema claro).
 
