@@ -9,6 +9,6 @@
 
 **Status:** ready-for-agent
 
-- [ ] O carregamento de dados não depende mais do tipo `FonteDeAgentes` e continua recarregando quando a fonte avisa uma mudança
-- [ ] As abas sublinhadas são um componente compartilhado, e a página do Agente passa a usá-lo
-- [ ] Nada muda na tela: os testes de comportamento atuais passam sem alteração no que verificam
+- [x] O carregamento de dados não depende mais do tipo `FonteDeAgentes` e continua recarregando quando a fonte avisa uma mudança
+- [x] As abas sublinhadas são um componente compartilhado, e a página do Agente passa a usá-lo
+- [x] Nada muda na tela: os testes de comportamento atuais passam sem alteração no que verificam
