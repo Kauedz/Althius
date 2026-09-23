@@ -9,7 +9,8 @@ describe('Aba Contas (ponta a ponta)', () => {
     const nav = screen.getByRole('navigation', { name: 'Workspace' })
     const links = within(nav).getAllByRole('link')
     expect(links[0]).toHaveTextContent('Contas e Contatos')
-    expect(links[1]).toHaveTextContent('Agentes')
+    expect(links[1]).toHaveTextContent('Sequências')
+    expect(links[2]).toHaveTextContent('Agentes')
 
     // O selo de demonstração continua visível
     expect(screen.getByText('Demonstração')).toBeInTheDocument()

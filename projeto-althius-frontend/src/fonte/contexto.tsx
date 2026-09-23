@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { FonteDeAgentes, FonteDeContas, FonteObservavel } from './tipos'
+import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
 
 const ContextoDaFonte = createContext<FonteDeAgentes | null>(null)
 
@@ -22,6 +22,24 @@ export function FonteDeContasProvider({ fonte, children }: { fonte: FonteDeConta
 export function useFonteDeContas(): FonteDeContas {
   const fonte = useContext(ContextoDaFonteDeContas)
   if (!fonte) throw new Error('useFonteDeContas precisa de um FonteDeContasProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeSequencias = createContext<FonteDeSequencias | null>(null)
+
+export function FonteDeSequenciasProvider({
+  fonte,
+  children,
+}: {
+  fonte: FonteDeSequencias
+  children: ReactNode
+}) {
+  return <ContextoDaFonteDeSequencias.Provider value={fonte}>{children}</ContextoDaFonteDeSequencias.Provider>
+}
+
+export function useFonteDeSequencias(): FonteDeSequencias {
+  const fonte = useContext(ContextoDaFonteDeSequencias)
+  if (!fonte) throw new Error('useFonteDeSequencias precisa de um FonteDeSequenciasProvider')
   return fonte
 }
 
@@ -132,5 +150,16 @@ export function useDadosDeContas<T>(
   dependencias: unknown[] = [],
 ): EstadoDoCarregamento<T> {
   const fonte = useFonteDeContas()
+  return useCarregamento(fonte, carregar, dependencias)
+}
+
+/**
+ * Carrega dados da FonteDeSequencias do contexto com estado completo de carregamento (dados, carregando, erro e recarregar).
+ */
+export function useDadosDeSequencias<T>(
+  carregar: (fonte: FonteDeSequencias) => Promise<T>,
+  dependencias: unknown[] = [],
+): EstadoDoCarregamento<T> {
+  const fonte = useFonteDeSequencias()
   return useCarregamento(fonte, carregar, dependencias)
 }

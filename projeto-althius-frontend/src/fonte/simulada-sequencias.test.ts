@@ -1,0 +1,154 @@
+import { describe, expect, it, vi } from 'vitest'
+import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
+
+describe('FonteDeSequenciasSimulada', () => {
+  const hojeFixo = new Date(2026, 8, 23, 12, 0, 0)
+
+  it('hoje() devolve a data de referência configurada', () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    expect(fonte.hoje()).toEqual(hojeFixo)
+  })
+
+  it('lista as sequências da demo com dados iniciais completos', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const lista = await fonte.sequencias()
+
+    expect(lista.length).toBe(7)
+    const contas = lista.map((s) => s.contaId)
+    expect(contas).toContain('openai')
+    expect(contas).toContain('anthropic')
+    expect(contas).toContain('stripe')
+    expect(contas).toContain('nubank')
+    expect(contas).toContain('snowflake')
+    expect(contas).toContain('cloudflare')
+    expect(contas).toContain('gitlab')
+
+    const openai = lista.find((s) => s.contaId === 'openai')
+    expect(openai).toBeDefined()
+    expect(openai?.status).toBe('ativa')
+    expect(openai?.totalParticipantes).toBe(3)
+    expect(openai?.steps.length).toBe(6)
+    expect(openai?.regraDePause).toContain('Qualquer resposta nesta Conta-alvo')
+  })
+
+  it('sequencia(id) devolve a sequência por id ou rejeita se não existir', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const seq = await fonte.sequencia('sequencia-openai')
+    expect(seq.contaId).toBe('openai')
+
+    await expect(fonte.sequencia('inexistente')).rejects.toThrow('não encontrada')
+  })
+
+  it('sequenciaPorConta(contaId) devolve a sequência ou null se não houver', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const seqOpenAI = await fonte.sequenciaPorConta('openai')
+    expect(seqOpenAI?.id).toBe('sequencia-openai')
+
+    const seqInexistente = await fonte.sequenciaPorConta('conta-sem-sequencia')
+    expect(seqInexistente).toBeNull()
+  })
+
+  it('criarSequencia cria nova sequência para uma Conta-alvo e rejeita se já existir', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+
+    const nova = await fonte.criarSequencia({
+      contaId: 'figma',
+      participantesIds: ['contato-figma-1'],
+    })
+
+    expect(nova.id).toBe('sequencia-figma')
+    expect(nova.contaId).toBe('figma')
+    expect(nova.status).toBe('ativa')
+    expect(nova.totalParticipantes).toBe(1)
+    expect(nova.regraDePause).toContain('Qualquer resposta nesta Conta-alvo')
+
+    // Tentar criar outra sequência para a mesma Conta-alvo deve falhar
+    await expect(
+      fonte.criarSequencia({
+        contaId: 'figma',
+        participantesIds: ['contato-figma-2'],
+      }),
+    ).rejects.toThrow('já possui uma sequência')
+  })
+
+  it('atualizarDocumento atualiza participantes, steps e regra de pause, notificando observadores', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const ouvinte = vi.fn()
+    const cancelar = fonte.observar(ouvinte)
+
+    const atualizada = await fonte.atualizarDocumento('sequencia-openai', {
+      regraDePause: 'Regra customizada de pause',
+      participantesIds: ['contato-openai-1'],
+    })
+
+    expect(atualizada.regraDePause).toBe('Regra customizada de pause')
+    expect(atualizada.participantesIds).toEqual(['contato-openai-1'])
+    expect(atualizada.totalParticipantes).toBe(1)
+    expect(atualizada.atualizadaEm).toBeDefined()
+    expect(ouvinte).toHaveBeenCalled()
+
+    cancelar()
+  })
+
+  it('confirmarParticipantes atualiza os participantes da sequência', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const seq = await fonte.confirmarParticipantes('sequencia-openai', [
+      'contato-openai-1',
+      'contato-openai-2',
+    ])
+
+    expect(seq.participantesIds).toEqual(['contato-openai-1', 'contato-openai-2'])
+    expect(seq.totalParticipantes).toBe(2)
+  })
+
+  it('metricasDeDemo devolve resumo de cobertura, steps e status', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const metricasStripe = await fonte.metricasDeDemo('sequencia-stripe')
+
+    expect(metricasStripe).toBeDefined()
+    expect(metricasStripe?.status).toBe('reuniao')
+    expect(metricasStripe?.reunioes).toBe(1)
+    expect(metricasStripe?.coberturaContatos).toBe(2)
+    expect(metricasStripe?.totalSteps).toBe(5)
+
+    const metricasInexistente = await fonte.metricasDeDemo('inexistente')
+    expect(metricasInexistente).toBeNull()
+  })
+
+  it('definirFalha faz operações lançarem erro e notifica ouvintes', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const ouvinte = vi.fn()
+    fonte.observar(ouvinte)
+
+    fonte.definirFalha(true)
+    expect(ouvinte).toHaveBeenCalledTimes(1)
+
+    await expect(fonte.sequencias()).rejects.toThrow('Falha ao carregar dados de sequências')
+
+    fonte.definirFalha(false)
+    expect(ouvinte).toHaveBeenCalledTimes(2)
+    const lista = await fonte.sequencias()
+    expect(lista.length).toBe(7)
+  })
+
+  it('definirVazia limpa a lista de sequências e pode restaurar os dados iniciais', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const ouvinte = vi.fn()
+    fonte.observar(ouvinte)
+
+    fonte.definirVazia(true)
+    expect(ouvinte).toHaveBeenCalledTimes(1)
+    expect(await fonte.sequencias()).toEqual([])
+
+    fonte.definirVazia(false)
+    expect(ouvinte).toHaveBeenCalledTimes(2)
+    const restaurada = await fonte.sequencias()
+    expect(restaurada.length).toBe(7)
+  })
+
+  it('inicialização com vazia: true inicia com lista vazia', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ vazia: true })
+    expect(await fonte.sequencias()).toEqual([])
+    expect(await fonte.sequenciaPorConta('openai')).toBeNull()
+  })
+})
