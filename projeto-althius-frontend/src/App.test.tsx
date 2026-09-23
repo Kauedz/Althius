@@ -563,3 +563,158 @@ describe('Tema', () => {
     expect(document.documentElement.dataset.theme).toBe('claro')
   })
 })
+
+async function pedirNoComposer(usuario: ReturnType<typeof renderizarApp>['usuario'], texto: string) {
+  await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), `${texto}{Enter}`)
+  await screen.findByRole('heading', { level: 1, name: 'Conversa' })
+}
+
+/** Os Agentes chamados, na ordem das etapas (sem as consultas de cada um). */
+function agentesChamados() {
+  const etapas = screen.getByRole('list', { name: 'Agentes chamados' })
+  return Array.from(etapas.children, (etapa) => etapa.getAttribute('aria-label'))
+}
+
+async function coordenacaoTerminada() {
+  await waitFor(() => expect(screen.queryByText('Trabalhando')).not.toBeInTheDocument())
+}
+
+describe('Composer e Coordenação', () => {
+  it('o composer fica abaixo da grade, com o Workspace, as Especialidades e o Enviar apagado', async () => {
+    renderizarApp('/')
+    await grade()
+    const composer = screen.getByRole('form', { name: 'Pedido aos agentes' })
+    expect(within(composer).getByText('Databricks')).toBeInTheDocument()
+    const especialidades = within(composer).getByRole('list', { name: 'Especialidades disponíveis' })
+    expect(within(especialidades).getAllByRole('listitem').map((e) => e.getAttribute('title'))).toEqual(ESPECIALISTAS)
+    expect(within(composer).getByRole('button', { name: 'Enviar' })).toBeDisabled()
+  })
+
+  it('o pedido da OpenAI chama Scopus, Ethos e Rhetor, consolida e termina numa Aprovação no HubSpot', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Conversa' })).toBeInTheDocument()
+
+    const aprovacao = await screen.findByRole('article', { name: /Aprovação pendente: Criar sequência de 3 e-mails/ })
+    expect(within(aprovacao).getByText('Rhetor')).toBeInTheDocument()
+    expect(within(aprovacao).getByRole('img', { name: 'HubSpot' })).toBeInTheDocument()
+    await coordenacaoTerminada()
+
+    expect(agentesChamados()).toEqual(['Scopus', 'Ethos', 'Rhetor'])
+    const etapas = screen.getByRole('list', { name: 'Agentes chamados' })
+    expect(screen.getByText('Coordenação · 3 agentes chamados')).toBeInTheDocument()
+    expect(within(etapas).getByText(/Deu aderência de 87 ao ICP/)).toBeInTheDocument()
+    expect(within(etapas).getByText('2 consultas')).toBeInTheDocument()
+    const resposta = screen.getByRole('region', { name: 'Resposta consolidada' })
+    expect(within(resposta).getByText(/A OpenAI é Conta-alvo prioritária/)).toBeInTheDocument()
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: /Aprovações/ }))
+    expect(await screen.findByRole('article', { name: /Criar sequência de 3 e-mails no HubSpot/ })).toBeInTheDocument()
+  })
+
+  it('com a Permissão Executar no HubSpot, o Rhetor age sem pedir Aprovação', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor/configuracao')
+    const hubspot = await screen.findByRole('radiogroup', { name: 'Permissão em HubSpot' })
+    await usuario.click(within(hubspot).getByRole('radio', { name: 'Executar' }))
+    await usuario.click(screen.getByRole('button', { name: 'Salvar personalização' }))
+    await screen.findByText('Personalização salva.')
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    expect(await screen.findByRole('note', { name: /Executada: Criar sequência de 3 e-mails/ })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: /Aprovação pendente/ })).not.toBeInTheDocument()
+  })
+
+  it('com a Permissão Ler no HubSpot, o Rhetor não age e nada é alterado', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor/configuracao')
+    const hubspot = await screen.findByRole('radiogroup', { name: 'Permissão em HubSpot' })
+    await usuario.click(within(hubspot).getByRole('radio', { name: 'Ler' }))
+    await usuario.click(screen.getByRole('button', { name: 'Salvar personalização' }))
+    await screen.findByText('Personalização salva.')
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    expect(await screen.findByRole('note', { name: /Sem Permissão para agir: Criar sequência de 3 e-mails/ })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: /Aprovação pendente/ })).not.toBeInTheDocument()
+  })
+
+  it('texto livre sem @ recebe resposta direta, sem chamar nenhum Agente', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await pedirNoComposer(usuario, 'o que é ICP?')
+    expect(await screen.findByText(/responderia direto/)).toBeInTheDocument()
+    await coordenacaoTerminada()
+    expect(screen.getByText('o que é ICP?')).toBeInTheDocument()
+    expect(screen.getByText('Resposta direta · nenhum agente chamado')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Agentes chamados' })).not.toBeInTheDocument()
+  })
+
+  it('um @Agente no composer é sempre incluído, e o Agente criado pelo nome completo no lugar do padrão', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    const campo = screen.getByRole('textbox', { name: 'Peça algo aos agentes' })
+    await usuario.type(campo, '@Scopus · Ent')
+    await usuario.click(await screen.findByRole('option', { name: 'Scopus · Enterprise LATAM' }))
+    expect(campo).toHaveValue('@Scopus · Enterprise LATAM ')
+    await usuario.type(campo, 'e o Nubank?{Enter}')
+    await screen.findByRole('heading', { level: 1, name: 'Conversa' })
+    await screen.findByRole('region', { name: 'Resposta consolidada' })
+    await coordenacaoTerminada()
+
+    expect(agentesChamados()).toEqual(['Scopus · Enterprise LATAM'])
+    expect(within(screen.getByRole('list', { name: 'Agentes chamados' })).getByText(/No produto, Scopus · Enterprise LATAM responderia/)).toBeInTheDocument()
+  })
+
+  it('no pedido roteirizado, o Agente criado mencionado substitui o padrão, e outro mencionado também é chamado', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await pedirNoComposer(usuario, '@Scopus · Enterprise LATAM @Oraculum monte a abordagem completa para a OpenAI')
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await coordenacaoTerminada()
+    expect(agentesChamados()).toEqual(['Scopus · Enterprise LATAM', 'Ethos', 'Rhetor', 'Oraculum'])
+  })
+
+  it('o trabalho de cada Agente chamado entra na Atividade dele com o gatilho Coordenação', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await coordenacaoTerminada()
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Especialistas' })).getByRole('link', { name: 'Ethos' }))
+    await usuario.click(within(await screen.findByRole('navigation', { name: 'Seções do agente' })).getByRole('link', { name: 'Atividade' }))
+    await screen.findByRole('list', { name: 'Linha do tempo' })
+    await usuario.selectOptions(screen.getByRole('combobox', { name: 'Gatilho' }), 'Coordenação')
+    await waitFor(() => {
+      const itens = within(screen.getByRole('list', { name: 'Linha do tempo' })).getAllByRole('listitem')
+      expect(itens).toHaveLength(1)
+      expect(within(itens[0]).getByText('Coordenação')).toBeInTheDocument()
+      expect(within(itens[0]).getByText(/Monte a abordagem completa para a OpenAI/)).toBeInTheDocument()
+    })
+  })
+
+  it('o fio continua depois de abrir um Agente e voltar', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await pedirNoComposer(usuario, 'o que é ICP?')
+    await screen.findByText(/responderia direto/)
+    await coordenacaoTerminada()
+
+    await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
+    await usuario.click(within(await grade()).getByRole('link', { name: 'Oraculum' }))
+    await screen.findByRole('heading', { level: 1, name: 'Oraculum' })
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+
+    const aviso = await screen.findByRole('region', { name: 'Conversa coordenada em andamento' })
+    expect(within(aviso).getByText('o que é ICP?')).toBeInTheDocument()
+    await usuario.click(within(aviso).getByRole('link', { name: 'Abrir conversa' }))
+    expect(await screen.findByText('o que é ICP?')).toBeInTheDocument()
+    expect(screen.getByText(/responderia direto/)).toBeInTheDocument()
+  })
+
+  it('sem Conversa coordenada, a página da Conversa volta para a grade', async () => {
+    renderizarApp('/conversa')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+  })
+})

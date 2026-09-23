@@ -1,12 +1,14 @@
-import { Bot, CalendarClock, MousePointerClick, Plus, Repeat2 } from 'lucide-react'
+import { Bot, CalendarClock, MessageSquare, MousePointerClick, Plus, Repeat2 } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { LogoDaIntegracao } from '@/components/logos'
 import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
+import { Composer } from '@/conversa/composer'
+import { useConversas } from '@/conversa/contexto'
 import { useDados } from '@/fonte/contexto'
-import type { Agente, Integracao } from '@/fonte/tipos'
+import type { Agente, Integracao, Mensagem } from '@/fonte/tipos'
 import { DialogoNovoAgente } from '@/paginas/novo-agente'
 import { descreverFrequencia } from '@/paginas/rotulos'
 
@@ -40,8 +42,70 @@ export function PaginaAgentes() {
           ))}
         </ul>
       )}
+      <PedidoCoordenado />
       <DialogoNovoAgente aberto={criando} aoMudar={setCriando} />
     </Pagina>
+  )
+}
+
+/** O composer abaixo da grade: um pedido sem escolher um Agente abre a Conversa coordenada (ADR 0004). */
+function PedidoCoordenado() {
+  const conversas = useConversas()
+  const sugestoes = useDados((fonte) => fonte.sugestoesCoordenadas(), [])
+  const navegar = useNavigate()
+  const { itens, respondendo } = conversas.coordenada
+  const ultimoPedido = itens.findLast((item) => item.tipo === 'pedido')
+
+  function coordenar(pedido: Mensagem) {
+    conversas.coordenar(pedido)
+    navegar('/conversa')
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Composer
+        nome="Pedido aos agentes"
+        rotulo="Peça algo aos agentes"
+        placeholder="Descreva o trabalho. A Althius chama os agentes certos. Use @ para chamar um agente específico."
+        comEspecialidades
+        ocupado={respondendo}
+        aoEnviar={(texto) => coordenar({ texto })}
+      />
+      <div className="flex flex-wrap gap-2">
+        {sugestoes?.map((sugestao) => (
+          <button
+            key={sugestao.id}
+            type="button"
+            disabled={respondendo}
+            onClick={() => coordenar({ texto: sugestao.texto, sugestaoId: sugestao.id })}
+            className="inline-flex h-8 items-center gap-2 border border-al-line px-3 text-sm hover:border-al-ink disabled:opacity-50"
+          >
+            <MessageSquare strokeWidth={1.8} className="size-3.5 text-al-muted" aria-hidden />
+            {sugestao.texto}
+          </button>
+        ))}
+      </div>
+      {ultimoPedido && (
+        <section
+          aria-label="Conversa coordenada em andamento"
+          className="flex items-center justify-between gap-6 border border-al-line bg-al-surface py-3 pr-6 pl-5"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <MessageSquare strokeWidth={1.8} className="size-4 shrink-0 text-al-muted" aria-hidden />
+            <span className="flex min-w-0 flex-col">
+              <span className="rotulo">Conversa coordenada em andamento</span>
+              <span className="truncate">{ultimoPedido.texto}</span>
+            </span>
+          </span>
+          <Link
+            to="/conversa"
+            className="inline-flex h-8 shrink-0 items-center border border-al-line px-4 text-xs font-normal tracking-rotulo uppercase hover:border-al-ink"
+          >
+            Abrir conversa
+          </Link>
+        </section>
+      )}
+    </div>
   )
 }
 

@@ -51,6 +51,12 @@ export interface Agente {
   integracoes: IntegracaoId[]
 }
 
+/** Uma mensagem enviada a um Agente ou à Coordenação: texto livre ou uma sugestão clicável. */
+export interface Mensagem {
+  texto: string
+  sugestaoId?: string
+}
+
 export interface Sugestao {
   id: string
   texto: string
@@ -95,7 +101,7 @@ export interface Rotina {
 
 export type NovaRotina = Omit<Rotina, 'id' | 'pausada'>
 
-export type Gatilho = 'conversa' | 'mencao' | 'rotina' | 'canal'
+export type Gatilho = 'conversa' | 'mencao' | 'coordenacao' | 'rotina' | 'canal'
 
 export interface ItemDeAtividade {
   id: string
@@ -158,13 +164,17 @@ export type Decisao = Exclude<EstadoAprovacao, 'pendente'>
 /** Onde uma Aprovação foi pedida ou decidida. */
 export type Origem = 'althius' | CanalId
 
-export interface Aprovacao {
-  id: string
-  agenteId: AgenteId
+/** Uma ação que um Agente quer fazer numa Integração; a Permissão dele decide o que acontece. */
+export interface AcaoProposta {
   acao: string
   integracaoId: IntegracaoId
   impacto: string
   justificativa: string
+}
+
+export interface Aprovacao extends AcaoProposta {
+  id: string
+  agenteId: AgenteId
   origem: Origem
   estado: EstadoAprovacao
 }
@@ -188,6 +198,20 @@ export type PassoDaConversa =
   | { tipo: 'texto'; agenteId: AgenteId; texto: string }
   | { tipo: 'repasse'; de: AgenteId; para: AgenteId; resumo: string }
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
+
+/**
+ * Um passo de uma Conversa coordenada (ADR 0004). Cada Agente chamado é uma etapa: começa na chamada,
+ * faz as suas consultas e termina com o que fez. No fim vem a resposta consolidada (ou a direta,
+ * sem etapas) e, quando um Agente quer agir, o que a Permissão dele permitiu.
+ */
+export type PassoDaCoordenacao =
+  | { tipo: 'chamada'; agenteId: AgenteId }
+  | { tipo: 'ferramenta'; agenteId: AgenteId; descricao: string }
+  | { tipo: 'feito'; agenteId: AgenteId; resumo: string }
+  | { tipo: 'resposta'; texto: string }
+  | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
+  /** Sem Aprovação: com Executar, o Agente agiu sozinho; com Ler, não pôde agir. */
+  | { tipo: 'acao'; agenteId: AgenteId; acao: AcaoProposta; executada: boolean }
 
 /**
  * A única fronteira entre as telas e os Agentes. Hoje só existe a implementação simulada;
@@ -240,5 +264,13 @@ export interface FonteDeAgentes {
   decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: Origem): Promise<void>
 
   /** Envia uma mensagem ou sugestão e recebe a resposta passo a passo. */
-  conversar(id: AgenteId, mensagem: { texto: string; sugestaoId?: string }): AsyncIterable<PassoDaConversa>
+  conversar(id: AgenteId, mensagem: Mensagem): AsyncIterable<PassoDaConversa>
+
+  /** As sugestões clicáveis de pedidos coordenados, abaixo do composer. */
+  sugestoesCoordenadas(): Promise<Sugestao[]>
+  /**
+   * Envia um pedido no composer, sem escolher um Agente, e recebe passo a passo as etapas de cada
+   * Agente que a Coordenação chamou e a resposta consolidada.
+   */
+  conversarCoordenado(pedido: Mensagem): AsyncIterable<PassoDaCoordenacao>
 }

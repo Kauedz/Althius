@@ -1,6 +1,6 @@
-// Roteiros pré-gravados da Conversa. Valem só para o protótipo (ADR 0003):
+// Roteiros pré-gravados da Conversa e da Coordenação. Valem só para o protótipo (ADR 0003):
 // no produto real, os Agentes respondem de forma robusta a qualquer entrada.
-import type { AgenteId, Aprovacao, EspecialidadeId } from './tipos'
+import type { AcaoProposta, AgenteId, Aprovacao, EspecialidadeId, Sugestao } from './tipos'
 
 /**
  * Um passo de roteiro. Os roteiros são escritos por Especialidade (`Ator` = EspecialidadeId), e a fonte
@@ -124,20 +124,23 @@ export const roteiros: Record<string, PassoDeRoteiro[]> = {
   ],
 }
 
+const FERRAMENTAS_DA_RESPOSTA_GENERICA: Record<EspecialidadeId, string> = {
+  scopus: 'Consultando HubSpot e Clay',
+  ethos: 'Consultando Lusha e Notion',
+  rhetor: 'Consultando o tom de voz e a base de conhecimento',
+  oraculum: 'Consultando Perplexity, ChatGPT, Gemini e Claude',
+}
+
+const noProduto = (nome: string) => `No produto, ${nome} responderia com os dados das Integrações do Workspace.`
+
 /** Resposta para texto livre: o protótipo não entende pedidos fora do roteiro. `nome` é o do Agente que responde. */
 export function respostaGenerica(especialidadeId: EspecialidadeId, nome: string): PassoDeRoteiro[] {
-  const ferramentas: Record<EspecialidadeId, string> = {
-    scopus: 'Consultando HubSpot e Clay',
-    ethos: 'Consultando Lusha e Notion',
-    rhetor: 'Consultando o tom de voz e a base de conhecimento',
-    oraculum: 'Consultando Perplexity, ChatGPT, Gemini e Claude',
-  }
   return [
-    { tipo: 'ferramenta', agenteId: especialidadeId, descricao: ferramentas[especialidadeId] },
+    { tipo: 'ferramenta', agenteId: especialidadeId, descricao: FERRAMENTAS_DA_RESPOSTA_GENERICA[especialidadeId] },
     {
       tipo: 'texto',
       agenteId: especialidadeId,
-      texto: `Ainda não tenho um roteiro para esse pedido nesta demonstração. No produto, ${nome} responderia com os dados das Integrações do Workspace. Experimente uma das sugestões abaixo.`,
+      texto: `Ainda não tenho um roteiro para esse pedido nesta demonstração. ${noProduto(nome)} Experimente uma das sugestões abaixo.`,
     },
   ]
 }
@@ -161,4 +164,83 @@ export function respostaDeMencao(de: AgenteId, para: AgenteDaMencao): PassoDeRot
       texto: `${para.nome} entrou na Conversa.\n\n${COMPLEMENTO_DA_MENCAO[para.especialidadeId]}`,
     },
   ]
+}
+
+/**
+ * Um passo de roteiro coordenado, escrito por Especialidade como os da Conversa: a fonte troca cada
+ * Especialidade pelo Agente que a Coordenação chama. A ação vira Aprovação ou não pela Permissão dele.
+ */
+export type PassoDeRoteiroCoordenado<Ator = EspecialidadeId> =
+  | { tipo: 'chamada'; agenteId: Ator }
+  | { tipo: 'ferramenta'; agenteId: Ator; descricao: string }
+  | { tipo: 'feito'; agenteId: Ator; resumo: string }
+  | { tipo: 'resposta'; texto: string }
+  | { tipo: 'acao'; agenteId: Ator; acao: AcaoProposta }
+
+export interface RoteiroCoordenado {
+  /** O pedido, que também é a sugestão clicável abaixo do composer. */
+  pedido: Sugestao
+  passos: PassoDeRoteiroCoordenado[]
+}
+
+export const roteirosCoordenados: RoteiroCoordenado[] = [
+  {
+    pedido: { id: 'coordenacao-openai', texto: 'Monte a abordagem completa para a OpenAI' },
+    passos: [
+      { tipo: 'chamada', agenteId: 'scopus' },
+      { tipo: 'ferramenta', agenteId: 'scopus', descricao: 'Consultou HubSpot: histórico da OpenAI' },
+      { tipo: 'ferramenta', agenteId: 'scopus', descricao: 'Buscou no Apollo: sinais públicos da OpenAI' },
+      {
+        tipo: 'feito',
+        agenteId: 'scopus',
+        resumo: 'Deu aderência de 87 ao ICP. Sinal mais forte: três vagas abertas para engenharia de dados de avaliação.',
+      },
+      { tipo: 'chamada', agenteId: 'ethos' },
+      { tipo: 'ferramenta', agenteId: 'ethos', descricao: 'Buscou no Lusha: cargos do Comitê de compra' },
+      { tipo: 'feito', agenteId: 'ethos', resumo: 'Mapeou 3 papéis do Comitê de compra e priorizou a Head de Infraestrutura de Dados.' },
+      { tipo: 'chamada', agenteId: 'rhetor' },
+      { tipo: 'ferramenta', agenteId: 'rhetor', descricao: 'Consultou o tom de voz e a base de conhecimento' },
+      { tipo: 'feito', agenteId: 'rhetor', resumo: 'Escreveu o primeiro e-mail e uma sequência de 3 toques, no tom da Databricks.' },
+      {
+        tipo: 'resposta',
+        texto:
+          'A OpenAI é Conta-alvo prioritária (aderência 87). A abordagem começa pela Head de Infraestrutura de Dados, com o argumento de tempo entre coleta e treino.\n\n- Assunto: dados de avaliação em horas, não em dias\n- Sequência de 3 e-mails, um por papel do Comitê de compra\n- Próximo passo: aprovar a sequência no HubSpot',
+      },
+      {
+        tipo: 'acao',
+        agenteId: 'rhetor',
+        acao: {
+          acao: 'Criar sequência de 3 e-mails no HubSpot para o Comitê de compra da OpenAI',
+          integracaoId: 'hubspot',
+          impacto: '3 contatos entram na sequência; nenhum e-mail sai antes da Aprovação',
+          justificativa: 'Scopus deu aderência 87 e Ethos priorizou a Head de Infraestrutura de Dados.',
+        },
+      },
+    ],
+  },
+]
+
+/** A etapa de um Agente chamado num pedido fora do roteiro: a resposta genérica dele. */
+export function etapaGenerica(agente: AgenteDaMencao): PassoDeRoteiroCoordenado<AgenteId>[] {
+  return [
+    { tipo: 'chamada', agenteId: agente.id },
+    { tipo: 'ferramenta', agenteId: agente.id, descricao: FERRAMENTAS_DA_RESPOSTA_GENERICA[agente.especialidadeId] },
+    { tipo: 'feito', agenteId: agente.id, resumo: `Ainda sem roteiro para esse pedido nesta demonstração. ${noProduto(agente.nome)}` },
+  ]
+}
+
+/** A resposta consolidada de um pedido fora do roteiro, que juntaria o trabalho dos Agentes chamados. */
+export function consolidadaGenerica(nomes: string[]): PassoDeRoteiroCoordenado<AgenteId> {
+  const quem = nomes.length === 1 ? `${nomes[0]} trabalhou` : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)} trabalharam`
+  return {
+    tipo: 'resposta',
+    texto: `${quem} neste pedido. Ainda não há um roteiro para ele nesta demonstração; no produto, a resposta juntaria aqui o que cada agente fez.`,
+  }
+}
+
+/** Um pedido genérico, sem @: a Coordenação responde direto, sem chamar nenhum Agente. */
+export const RESPOSTA_DIRETA: PassoDeRoteiroCoordenado<AgenteId> = {
+  tipo: 'resposta',
+  texto:
+    'Ainda não há um roteiro para esse pedido nesta demonstração. No produto, a Althius responderia direto a perguntas gerais como esta, sem chamar nenhum agente, e chamaria os agentes quando o pedido precisasse de uma Especialidade.\n\nPara ver a Coordenação trabalhar, use uma sugestão da página de Agentes ou mencione um agente com @.',
 }

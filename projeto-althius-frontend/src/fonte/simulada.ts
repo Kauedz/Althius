@@ -3,10 +3,21 @@
 import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
-import { reconhecerMencoes } from './mencoes'
+import { normalizarNome, reconhecerMencoes } from './mencoes'
 import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
-import { respostaDeMencao, respostaGenerica, roteiros, type PassoDeRoteiro } from './roteiros'
+import {
+  consolidadaGenerica,
+  etapaGenerica,
+  RESPOSTA_DIRETA,
+  respostaDeMencao,
+  respostaGenerica,
+  roteiros,
+  roteirosCoordenados,
+  type PassoDeRoteiro,
+  type PassoDeRoteiroCoordenado,
+} from './roteiros'
 import type {
+  AcaoProposta,
   Agente,
   AgenteId,
   CanalId,
@@ -15,7 +26,9 @@ import type {
   IntegracaoId,
   ItemDeAtividade,
   NovaRotina,
+  Origem,
   PassoDaConversa,
+  PassoDaCoordenacao,
 } from './tipos'
 
 interface Opcoes {
@@ -112,6 +125,71 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     const outro = mencionado(id, texto)
     if (outro) return respostaDeMencao(id, outro)
     return atribuir(respostaGenerica(atual.especialidadeId, atual.nome), atual)
+  }
+
+  /** Cria a Aprovação de uma ação proposta; fora da Althius, ela também chega no Canal de origem, com os botões de decisão. */
+  function criarAprovacao(agenteId: AgenteId, acao: AcaoProposta, origem: Origem): string {
+    const aprovacaoId = novoId('aprovacao')
+    estado.aprovacoes.unshift({ ...acao, id: aprovacaoId, agenteId, origem, estado: 'pendente' })
+    if (origem !== 'althius') {
+      estado.previas
+        .find((p) => p.canalId === origem)
+        ?.mensagens.push({
+          autor: nomeDe(agenteId),
+          ehAgente: true,
+          texto: `Preparei uma proposta: ${acao.acao}. Posso seguir?`,
+          aprovacaoId,
+        })
+    }
+    avisar()
+    return aprovacaoId
+  }
+
+  /**
+   * O plano de uma Conversa coordenada (ADR 0004): o roteiro do pedido, se houver, com os Agentes
+   * @mencionados sempre incluídos; sem roteiro, a resposta genérica de cada mencionado; e sem @, a
+   * resposta direta, sem chamar nenhum Agente.
+   */
+  function planoCoordenado(texto: string, sugestaoId?: string): PassoDeRoteiroCoordenado<AgenteId>[] {
+    const mencionados = reconhecerMencoes(texto, estado.agentes)
+    const pedido = normalizarNome(texto)
+    const roteiro = roteirosCoordenados.find(
+      ({ pedido: sugestao }) => sugestao.id === sugestaoId || pedido.includes(normalizarNome(sugestao.texto)),
+    )
+    if (!roteiro) {
+      if (mencionados.length === 0) return [RESPOSTA_DIRETA]
+      return [...mencionados.flatMap(etapaGenerica), consolidadaGenerica(mencionados.map((a) => a.nome))]
+    }
+
+    // Quando precisa de uma Especialidade, chama o Agente padrão, a menos que o pedido mencione um Agente criado dela.
+    const quem = (especialidadeId: EspecialidadeId) =>
+      (mencionados.find((a) => a.tipo === 'criado' && a.especialidadeId === especialidadeId) ?? agentePadrao(especialidadeId)).id
+    const passos = roteiro.passos.map((passo) =>
+      passo.tipo === 'resposta' ? passo : { ...passo, agenteId: quem(passo.agenteId) },
+    )
+    const chamados = new Set(passos.flatMap((passo) => (passo.tipo === 'chamada' ? [passo.agenteId] : [])))
+    const extras = mencionados.filter((a) => !chamados.has(a.id)).flatMap(etapaGenerica)
+    const indiceDaResposta = passos.findIndex((passo) => passo.tipo === 'resposta')
+    return [...passos.slice(0, indiceDaResposta), ...extras, ...passos.slice(indiceDaResposta)]
+  }
+
+  /** A Permissão do Agente na Integração decide: Propor vira Aprovação, Executar age sozinho, Ler não age. */
+  function agir(agenteId: AgenteId, acao: AcaoProposta): PassoDaCoordenacao {
+    const permissao = estado.personalizacoes[agenteId].permissoes[acao.integracaoId]
+    if (permissao === 'propor') {
+      return { tipo: 'aprovacao', agenteId, aprovacaoId: criarAprovacao(agenteId, acao, 'althius') }
+    }
+    const executada = permissao === 'executar'
+    if (executada) {
+      registrarAtividade({
+        agenteId,
+        gatilho: 'coordenacao',
+        descricao: `Executou: ${acao.acao}`,
+        resultado: 'Feito sem Aprovação, pela Permissão Executar.',
+      })
+      avisar()
+    }
+    return { tipo: 'acao', agenteId, acao, executada }
   }
 
   return {
@@ -241,22 +319,8 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       for (const passo of passos) {
         await esperar()
         if (passo.tipo === 'aprovacao') {
-          const aprovacaoId = novoId('aprovacao')
-          estado.aprovacoes.unshift({ ...passo.aprovacao, id: aprovacaoId, agenteId: passo.agenteId, estado: 'pendente' })
-          // A Aprovação também chega no Canal de origem, com os botões de decisão.
-          const origem = passo.aprovacao.origem
-          if (origem !== 'althius') {
-            estado.previas
-              .find((p) => p.canalId === origem)
-              ?.mensagens.push({
-                autor: nomeDe(passo.agenteId),
-                ehAgente: true,
-                texto: `Preparei uma proposta: ${passo.aprovacao.acao}. Posso seguir?`,
-                aprovacaoId,
-              })
-          }
-          avisar()
-          yield { tipo: 'aprovacao', agenteId: passo.agenteId, aprovacaoId }
+          const { origem, ...acao } = passo.aprovacao
+          yield { tipo: 'aprovacao', agenteId: passo.agenteId, aprovacaoId: criarAprovacao(passo.agenteId, acao, origem) }
         } else {
           yield passo
         }
@@ -277,6 +341,29 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         })
       }
       avisar()
+    },
+
+    sugestoesCoordenadas: () => responder(() => roteirosCoordenados.map((roteiro) => roteiro.pedido)),
+
+    async *conversarCoordenado({ texto, sugestaoId }): AsyncGenerator<PassoDaCoordenacao> {
+      for (const passo of planoCoordenado(texto, sugestaoId)) {
+        await esperar()
+        if (passo.tipo === 'acao') {
+          yield agir(passo.agenteId, passo.acao)
+          continue
+        }
+        if (passo.tipo === 'feito') {
+          // Quem trabalha é o Agente chamado: o trabalho entra na Atividade dele.
+          registrarAtividade({
+            agenteId: passo.agenteId,
+            gatilho: 'coordenacao',
+            descricao: `Chamado pela Coordenação: "${texto}"`,
+            resultado: passo.resumo,
+          })
+          avisar()
+        }
+        yield passo
+      }
     },
   }
 }

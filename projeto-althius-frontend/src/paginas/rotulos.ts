@@ -3,6 +3,7 @@ import type { CanalId, Frequencia, Gatilho, Permissao, Rotina } from '@/fonte/ti
 export const ROTULO_DO_GATILHO: Record<Gatilho, string> = {
   conversa: 'Conversa',
   mencao: 'Menção',
+  coordenacao: 'Coordenação',
   rotina: 'Rotina',
   canal: 'Canal',
 }

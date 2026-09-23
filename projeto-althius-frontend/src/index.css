@@ -45,6 +45,10 @@
 :root {
   --radius-field: 0px;
   --radius-card: 16px;
+  /* Exceção aprovada no mock (ticket 02) ao raio 0 dos campos: o composer é arredondado. */
+  --radius-composer: 24px;
+  /* O campo do composer cresce até esta altura e só então rola. */
+  --altura-maxima-composer: 17.5rem;
 
   /* Ponte para as variáveis que os componentes shadcn/ui esperam. */
   --background: var(--al-bg);
@@ -174,6 +178,39 @@
   .cartao {
     background: var(--al-surface);
     border-radius: var(--radius-card);
+  }
+  /* Composer: uma superfície única e arredondada, com o campo que cresce com a mensagem. */
+  .composer {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--al-line);
+    border-radius: var(--radius-composer);
+    background: var(--al-surface);
+    transition: border-color 0.15s;
+  }
+  .composer:hover,
+  .composer:has(textarea:focus-visible) {
+    border-color: var(--al-ink-muted);
+  }
+  .composer:has(textarea:focus-visible) {
+    outline: 2px solid var(--al-accent);
+    outline-offset: 3px;
+  }
+  .composer textarea {
+    display: block;
+    width: 100%;
+    max-height: var(--altura-maxima-composer);
+    padding: 1rem 1.5rem 0.5rem;
+    border: 0;
+    background: none;
+    resize: none;
+    font-size: 1rem;
+  }
+  .composer textarea::placeholder {
+    color: var(--al-ink-muted);
+  }
+  .composer textarea:focus-visible {
+    outline: none;
   }
   .anotacao {
     font-family: var(--font-mao);
