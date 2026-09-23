@@ -176,6 +176,7 @@ export type PassoDeRoteiroCoordenado<Ator = EspecialidadeId> =
   | { tipo: 'feito'; ator: Ator; resumo: string }
   | { tipo: 'resposta'; texto: string }
   | { tipo: 'acao'; ator: Ator; acao: AcaoProposta }
+  | { tipo: 'nascimento-sequencia'; ator: Ator; contaId: string; sinal?: string; sequenciaId?: string }
 
 export interface RoteiroCoordenado {
   /** O pedido, que também é a sugestão clicável abaixo do composer. */
@@ -260,6 +261,66 @@ export const roteirosCoordenados: RoteiroCoordenado[] = [
         tipo: 'resposta',
         texto:
           'No Perplexity, a Databricks é citada em 5 de 12 prompts-alvo, e a Snowflake aparece antes dela em 7. O Perplexity prefere páginas com dados verificáveis e data recente.\n\n- Primeiro: o comparativo "lakehouse vs. data warehouse em 2026", com tabela e metodologia aberta\n- Depois: um benchmark público de custo por consulta\n- Por fim: um estudo de caso com números de um cliente brasileiro',
+      },
+    ],
+  },
+  {
+    pedido: { id: 'coordenacao-sequencia-sinal', texto: 'Montar sequência para Conta Quente com Sinal' },
+    passos: [
+      { tipo: 'chamada', ator: 'scopus' },
+      { tipo: 'ferramenta', ator: 'scopus', descricao: 'Consultou HubSpot e Apollo: identificou Conta Quente com Sinal' },
+      {
+        tipo: 'feito',
+        ator: 'scopus',
+        resumo: 'OpenAI é Conta Quente (aderência 87). Sinal mais forte: três vagas abertas para engenharia de dados de avaliação.',
+      },
+      { tipo: 'chamada', ator: 'ethos' },
+      { tipo: 'ferramenta', ator: 'ethos', descricao: 'Mapeou o Comitê de compra da OpenAI' },
+      {
+        tipo: 'feito',
+        ator: 'ethos',
+        resumo: 'Mapeou 3 papéis do Comitê de compra: Decisor técnico, Influenciador e Usuário-chave.',
+      },
+      {
+        tipo: 'resposta',
+        texto:
+          'A OpenAI tem sinal quente recente e Comitê mapeado. A Coordenação oferece estruturar uma sequência de abordagem multicanal com o Rhetor. Confirme abaixo para iniciar.',
+      },
+      {
+        tipo: 'nascimento-sequencia',
+        ator: 'rhetor',
+        contaId: 'openai',
+        sinal: 'Abriu 3 vagas de engenharia de dados de avaliação',
+      },
+    ],
+  },
+  {
+    pedido: { id: 'coordenacao-sequencia-okta', texto: 'Montar sequência para Conta com 1 Contato (Okta)' },
+    passos: [
+      { tipo: 'chamada', ator: 'scopus' },
+      { tipo: 'ferramenta', ator: 'scopus', descricao: 'Consultou HubSpot e Apollo: histórico da Okta' },
+      {
+        tipo: 'feito',
+        ator: 'scopus',
+        resumo: 'Okta é Conta Quente. Sinal recente: Anunciou nova rodada de expansão em segurança de identidade.',
+      },
+      { tipo: 'chamada', ator: 'ethos' },
+      { tipo: 'ferramenta', ator: 'ethos', descricao: 'Mapeou contatos da Okta' },
+      {
+        tipo: 'feito',
+        ator: 'ethos',
+        resumo: 'Identificou 1 contato-chave mapeado: Fernando Guedes (Líder técnico).',
+      },
+      {
+        tipo: 'resposta',
+        texto:
+          'A Okta tem sinal recente e 1 contato-chave mapeado. Mesmo com um único contato, uma sequência focada é recomendada. A Coordenação oferece montar a sequência com o Rhetor.',
+      },
+      {
+        tipo: 'nascimento-sequencia',
+        ator: 'rhetor',
+        contaId: 'okta',
+        sinal: 'Anunciou nova rodada de expansão em segurança de identidade',
       },
     ],
   },

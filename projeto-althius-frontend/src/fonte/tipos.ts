@@ -221,6 +221,14 @@ export type PassoDaCoordenacao =
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
   /** Sem Aprovação: com Executar, o Agente agiu sozinho; com Ler, não pôde agir. */
   | { tipo: 'acao'; agenteId: AgenteId; acao: AcaoProposta; executada: boolean }
+  /** Nascimento na Conversa: oferta de sequência, confirmação humana de participantes e documento incorporado. */
+  | {
+      tipo: 'nascimento-sequencia'
+      agenteId: AgenteId
+      contaId: string
+      sinal?: string
+      sequenciaId?: string
+    }
 
 /** Qualquer fonte de dados observável da aplicação: avisa as telas quando os dados mudam. */
 export interface FonteObservavel {

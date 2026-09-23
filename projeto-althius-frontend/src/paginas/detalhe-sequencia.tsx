@@ -29,6 +29,7 @@ import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 
 interface Props {
   sequenciaId: string
+  incorporado?: boolean
 }
 
 export const CANAIS_CONFIG: Record<
@@ -67,7 +68,7 @@ function iniciais(nome: string): string {
     .toUpperCase()
 }
 
-export function DetalheSequencia({ sequenciaId }: Props) {
+export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const fonteDeSequencias = useFonteDeSequencias()
   const {
     dados: sequencia,
@@ -306,16 +307,18 @@ export function DetalheSequencia({ sequenciaId }: Props) {
 
 
   return (
-    <div className="flex flex-col gap-6 py-2">
+    <div className={`flex flex-col gap-6 ${incorporado ? 'border border-al-line bg-al-bg p-4' : 'py-2'}`}>
       {/* Navegação de volta */}
-      <div>
-        <Link
-          to="/sequencias"
-          className="inline-flex items-center gap-1.5 text-xs text-al-muted hover:text-al-ink tracking-rotulo uppercase"
-        >
-          <ArrowLeft className="size-4" /> Sequências / {nomeConta}
-        </Link>
-      </div>
+      {!incorporado && (
+        <div>
+          <Link
+            to="/sequencias"
+            className="inline-flex items-center gap-1.5 text-xs text-al-muted hover:text-al-ink tracking-rotulo uppercase"
+          >
+            <ArrowLeft className="size-4" /> Sequências / {nomeConta}
+          </Link>
+        </div>
+      )}
 
       {/* Cabeçalho da Sequência (alinhado ao mock aprovado) */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-al-line pb-6">

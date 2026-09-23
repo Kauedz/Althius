@@ -170,9 +170,21 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
 
   /** O roteiro coordenado de um pedido: o da sugestão clicada, ou o da sugestão escrita no texto. */
   function roteiroDo({ texto, sugestaoId }: Mensagem): RoteiroCoordenado | undefined {
+    if (sugestaoId) {
+      const porId = roteirosCoordenados.find((r) => r.pedido.id === sugestaoId)
+      if (porId) return porId
+    }
     const pedido = normalizarNome(texto)
+    if (pedido.includes('sequencia') || pedido.includes('sequencias')) {
+      if (pedido.includes('okta') || pedido.includes('1 contato') || pedido.includes('um contato')) {
+        return roteirosCoordenados.find((r) => r.pedido.id === 'coordenacao-sequencia-okta')
+      }
+      if (pedido.includes('openai') || pedido.includes('sinal') || pedido.includes('quente')) {
+        return roteirosCoordenados.find((r) => r.pedido.id === 'coordenacao-sequencia-sinal')
+      }
+    }
     return roteirosCoordenados.find(
-      ({ pedido: sugestao }) => sugestao.id === sugestaoId || pedido.includes(normalizarNome(sugestao.texto)),
+      ({ pedido: sugestao }) => pedido.includes(normalizarNome(sugestao.texto)),
     )
   }
 
@@ -400,6 +412,16 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         }
         if (passo.tipo === 'acao') {
           yield agir(passo.ator, passo.acao)
+          continue
+        }
+        if (passo.tipo === 'nascimento-sequencia') {
+          yield {
+            tipo: 'nascimento-sequencia',
+            agenteId: passo.ator,
+            contaId: passo.contaId,
+            sinal: passo.sinal,
+            sequenciaId: passo.sequenciaId,
+          }
           continue
         }
         if (passo.tipo === 'feito') {

@@ -1062,7 +1062,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       canais: { email: true, telefone: false, linkedin: false },
     },
 
-    // Okta (2 contatos)
+    // Okta (1 contato)
     {
       id: 'contato-okta-1',
       contaId: 'okta',
@@ -1071,14 +1071,6 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       area: 'Parcerias',
       persona: 'Líder técnico',
       canais: { email: true, telefone: false, linkedin: true },
-    },
-    {
-      id: 'contato-okta-2',
-      contaId: 'okta',
-      nome: 'Monica Prado',
-      cargo: 'Gerente de Contas Enterprise',
-      area: 'Vendas',
-      canais: { email: true, telefone: true, linkedin: false },
     },
 
     // Oracle (4 contatos)

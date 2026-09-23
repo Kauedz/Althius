@@ -4,10 +4,10 @@
 
 **Blocked by:** 05 (Detalhe da sequência — documento e timeline)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] O roteiro oferece a sequência e exige confirmação humana antes de gravar
-- [ ] O Rhetor sugere participantes e a confirmação humana altera a lista antes de persistir
-- [ ] O documento na Conversa usa a mesma sequência da fonte que o detalhe
-- [ ] Conta com 1 Contato no roteiro ainda consegue nascer sequência
-- [ ] Testes cobrem oferta → confirmação → sugestão → confirmação de participantes → documento na Conversa
+- [x] O roteiro oferece a sequência e exige confirmação humana antes de gravar
+- [x] O Rhetor sugere participantes e a confirmação humana altera a lista antes de persistir
+- [x] O documento na Conversa usa a mesma sequência da fonte que o detalhe
+- [x] Conta com 1 Contato no roteiro ainda consegue nascer sequência
+- [x] Testes cobrem oferta → confirmação → sugestão → confirmação de participantes → documento na Conversa
