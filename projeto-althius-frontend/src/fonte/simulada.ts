@@ -24,8 +24,10 @@ import type {
   CanalId,
   EspecialidadeId,
   FonteDeAgentes,
+  Gatilho,
   IntegracaoId,
   ItemDeAtividade,
+  LugarDaDecisao,
   Mensagem,
   NovaRotina,
   Origem,
@@ -75,8 +77,24 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     return item
   }
 
-  function registrarAtividade(item: Omit<ItemDeAtividade, 'id' | 'quando'>) {
-    estado.atividade.unshift({ ...item, id: novoId('atividade'), quando: 'Agora' })
+  type NovoItem = Omit<ItemDeAtividade, 'id' | 'quando' | 'tipo'>
+
+  /** Registra uma Execução na Atividade do Agente: é só aqui que as execuções dele sobem. */
+  function registrarExecucao(item: NovoItem) {
+    estado.atividade.unshift({ ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' })
+    buscar(estado.agentes, item.agenteId).execucoes++
+  }
+
+  /** Registra uma ação dentro de uma Execução (agir pela Permissão Executar, decidir uma Aprovação). */
+  function registrarAcao(item: NovoItem) {
+    estado.atividade.unshift({ ...item, tipo: 'acao', id: novoId('atividade'), quando: 'Agora' })
+  }
+
+  /** O lugar da decisão, para a descrição na Atividade (ex.: "na fila", "no Slack"). */
+  function ondeFoiDecidida(onde: LugarDaDecisao) {
+    if (onde === 'fila') return 'na fila'
+    if (onde === 'conversa') return 'na Conversa'
+    return `no ${buscar(estado.canais, onde).nome}`
   }
 
   function nomeDe(id: AgenteId) {
@@ -129,10 +147,13 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     return atribuir(respostaGenerica(atual.especialidadeId, atual.nome), atual)
   }
 
-  /** Cria a Aprovação de uma ação proposta; fora da Althius, ela também chega no Canal de origem, com os botões de decisão. */
-  function criarAprovacao(agenteId: AgenteId, acao: AcaoProposta, origem: Origem): string {
+  /**
+   * Cria a Aprovação de uma ação proposta na Execução acionada pelo gatilho; fora da Althius, ela
+   * também chega no Canal de origem, com os botões de decisão.
+   */
+  function criarAprovacao(agenteId: AgenteId, acao: AcaoProposta, origem: Origem, gatilho: Gatilho): string {
     const aprovacaoId = novoId('aprovacao')
-    estado.aprovacoes.unshift({ ...acao, id: aprovacaoId, agenteId, origem, estado: 'pendente' })
+    estado.aprovacoes.unshift({ ...acao, id: aprovacaoId, agenteId, origem, gatilho, estado: 'pendente' })
     if (origem !== 'althius') {
       estado.previas
         .find((p) => p.canalId === origem)
@@ -199,11 +220,11 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
   function agir(agenteId: AgenteId, acao: AcaoProposta): PassoDaCoordenacao {
     const permissao = estado.personalizacoes[agenteId].permissoes[acao.integracaoId]
     if (permissao === 'propor') {
-      return { tipo: 'aprovacao', agenteId, aprovacaoId: criarAprovacao(agenteId, acao, 'althius') }
+      return { tipo: 'aprovacao', agenteId, aprovacaoId: criarAprovacao(agenteId, acao, 'althius', 'coordenacao') }
     }
     const executada = permissao === 'executar'
     if (executada) {
-      registrarAtividade({
+      registrarAcao({
         agenteId,
         gatilho: 'coordenacao',
         descricao: `Executou: ${acao.acao}`,
@@ -327,10 +348,10 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       mudar(() => {
         const aprovacao = buscar(estado.aprovacoes, aprovacaoId)
         aprovacao.estado = decisao
-        registrarAtividade({
+        registrarAcao({
           agenteId: aprovacao.agenteId,
-          gatilho: onde === 'althius' ? 'conversa' : 'canal',
-          descricao: `${ROTULO_DA_DECISAO[decisao]}: ${aprovacao.acao}`,
+          gatilho: aprovacao.gatilho,
+          descricao: `${ROTULO_DA_DECISAO[decisao]} ${ondeFoiDecidida(onde)}: ${aprovacao.acao}`,
           resultado: decisao === 'aprovada' ? 'Ação executada.' : 'Nada foi alterado.',
           link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
         })
@@ -342,12 +363,12 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         await esperar()
         if (passo.tipo === 'aprovacao') {
           const { origem, ...acao } = passo.aprovacao
-          yield { tipo: 'aprovacao', agenteId: passo.agenteId, aprovacaoId: criarAprovacao(passo.agenteId, acao, origem) }
+          yield { tipo: 'aprovacao', agenteId: passo.agenteId, aprovacaoId: criarAprovacao(passo.agenteId, acao, origem, 'conversa') }
         } else {
           yield passo
         }
       }
-      registrarAtividade({
+      registrarExecucao({
         agenteId: id,
         gatilho: 'conversa',
         descricao: `Respondeu: "${texto}"`,
@@ -355,7 +376,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       })
       const outro = mencionado(id, texto, sugestaoId)
       if (outro) {
-        registrarAtividade({
+        registrarExecucao({
           agenteId: outro.id,
           gatilho: 'mencao',
           descricao: `Foi mencionado por ${nomeDe(id)}: "${texto}"`,
@@ -376,7 +397,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         }
         if (passo.tipo === 'feito') {
           // Quem trabalha é o Agente chamado: o trabalho entra na Atividade dele.
-          registrarAtividade({
+          registrarExecucao({
             agenteId: passo.agenteId,
             gatilho: 'coordenacao',
             descricao: `Chamado pela Coordenação: "${pedido.texto}"`,

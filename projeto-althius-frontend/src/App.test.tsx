@@ -512,7 +512,7 @@ describe('Conexões e Aprovações', () => {
     await usuario.click(within(proposta).getByRole('link', { name: 'Rhetor' }))
     const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
     await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
-    expect(await screen.findByText(/Aprovada: Subir campanha no Meta Ads/)).toBeInTheDocument()
+    expect(await screen.findByText(/Aprovada na fila: Subir campanha no Meta Ads/)).toBeInTheDocument()
   })
 
   it('a Aprovação criada na Colaboração chega na thread do Slack', async () => {
@@ -526,7 +526,7 @@ describe('Conexões e Aprovações', () => {
     expect(await within(previa).findByText(/Criar sequência de 3 e-mails no HubSpot/)).toBeInTheDocument()
   })
 
-  it('a decisão registra na Atividade o Canal onde foi tomada, com link', async () => {
+  it('a decisão no Canal entra na Atividade com o gatilho Canal e o lugar da decisão, com link', async () => {
     const { usuario } = renderizarApp('/conexoes')
     const slack = await screen.findByRole('article', { name: 'Slack' })
     await usuario.click(within(slack).getByRole('button', { name: 'Ver prévia' }))
@@ -538,7 +538,7 @@ describe('Conexões e Aprovações', () => {
     await usuario.click(within(await grade()).getByRole('link', { name: 'Scopus' }))
     const subabas = await screen.findByRole('navigation', { name: 'Seções do agente' })
     await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
-    const item = (await screen.findByText(/Aprovada: Atualizar 14 Contas-alvo/)).closest('li')!
+    const item = (await screen.findByText(/Aprovada no Slack: Atualizar 14 Contas-alvo/)).closest('li')!
     expect(within(item).getByText('Canal')).toBeInTheDocument()
     expect(within(item).getByRole('link', { name: 'Ver Aprovações' })).toBeInTheDocument()
   })
@@ -831,5 +831,167 @@ describe('Composer e Coordenação', () => {
   it('sem Conversa coordenada, a página da Conversa volta para a grade', async () => {
     renderizarApp('/conversa')
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+  })
+})
+
+/** Volta para a grade e devolve o cartão de um Agente. */
+async function cartaoNaGrade(usuario: ReturnType<typeof renderizarApp>['usuario'], nome: string) {
+  await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+  return within(await grade()).getByRole('link', { name: nome })
+}
+
+// Os números esperados são os da demo mais as Execuções do teste (ex.: Rhetor tem 244 na demo).
+describe('Execuções', () => {
+  it('uma resposta numa Conversa direta aumenta em 1 as execuções do Agente', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor/conversa')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' }), 'qual é a previsão do tempo?{Enter}')
+    await screen.findByText(/Ainda não tenho um roteiro para esse pedido/)
+    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+
+    const rhetor = await cartaoNaGrade(usuario, 'Rhetor')
+    expect(await within(rhetor).findByText('245')).toBeInTheDocument()
+  })
+
+  it('uma Menção aumenta em 1 as execuções do Agente mencionado', async () => {
+    const { usuario } = renderizarApp('/agentes/ethos/conversa')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Ethos' }), '@Scopus · Enterprise LATAM prioriza a Stripe?{Enter}')
+    await screen.findByText(/Scopus · Enterprise LATAM entrou na Conversa/)
+    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+
+    const mencionado = await cartaoNaGrade(usuario, 'Scopus · Enterprise LATAM')
+    expect(await within(mencionado).findByText('59')).toBeInTheDocument()
+    expect(within(within(await grade()).getByRole('link', { name: 'Ethos' })).getByText('188')).toBeInTheDocument()
+  })
+
+  it('um pedido coordenado aumenta em 1 as execuções de cada Agente chamado; o que o Agente executa sozinho não conta', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor/configuracao')
+    const hubspot = await screen.findByRole('radiogroup', { name: 'Permissão em HubSpot' })
+    await usuario.click(within(hubspot).getByRole('radio', { name: 'Executar' }))
+    await usuario.click(screen.getByRole('button', { name: 'Salvar personalização' }))
+    await screen.findByText('Personalização salva.')
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    await screen.findByRole('note', { name: /Executada: Criar sequência de 3 e-mails/ })
+    await coordenacaoTerminada()
+
+    const scopus = await cartaoNaGrade(usuario, 'Scopus')
+    expect(await within(scopus).findByText('313')).toBeInTheDocument()
+    const lista = await grade()
+    expect(within(within(lista).getByRole('link', { name: 'Ethos' })).getByText('188')).toBeInTheDocument()
+    expect(within(within(lista).getByRole('link', { name: 'Rhetor' })).getByText('245')).toBeInTheDocument()
+    expect(within(within(lista).getByRole('link', { name: 'Oraculum' })).getByText('96')).toBeInTheDocument()
+  })
+})
+
+/** Abre a Atividade de um Agente pela grade e devolve o item com o texto. */
+async function itemDaAtividade(usuario: ReturnType<typeof renderizarApp>['usuario'], agente: string, texto: RegExp) {
+  await usuario.click(await cartaoNaGrade(usuario, agente))
+  await usuario.click(within(await screen.findByRole('navigation', { name: 'Seções do agente' })).getByRole('link', { name: 'Atividade' }))
+  return (await screen.findByText(texto)).closest('li')!
+}
+
+describe('Gatilho das ações', () => {
+  it('decidir uma Aprovação registra uma ação na Atividade e não muda as execuções', async () => {
+    const { usuario } = renderizarApp('/aprovacoes')
+    const proposta = await screen.findByRole('article', { name: /Subir campanha no Meta Ads/ })
+    await usuario.click(within(proposta).getByRole('button', { name: 'Aprovar' }))
+    await within(proposta).findByText('Aprovada')
+
+    expect(within(await cartaoNaGrade(usuario, 'Rhetor')).getByText('244')).toBeInTheDocument()
+    const item = await itemDaAtividade(usuario, 'Rhetor', /Aprovada na fila: Subir campanha no Meta Ads/)
+    expect(within(item).getByText('Conversa')).toBeInTheDocument()
+  })
+
+  it('a Aprovação da Coordenação, decidida na página da Conversa, entra na Atividade com o gatilho Coordenação', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
+    const aprovacao = await screen.findByRole('article', { name: /Aprovação pendente: Criar sequência de 3 e-mails/ })
+    await coordenacaoTerminada()
+    await usuario.click(within(aprovacao).getByRole('button', { name: 'Aprovar' }))
+    await screen.findByRole('article', { name: /Aprovada: Criar sequência de 3 e-mails/ })
+
+    const item = await itemDaAtividade(usuario, 'Rhetor', /Aprovada na Conversa: Criar sequência de 3 e-mails/)
+    expect(within(item).getByText('Coordenação')).toBeInTheDocument()
+  })
+
+  it('a Aprovação da Coordenação, decidida na fila, entra na Atividade com o gatilho Coordenação', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
+    await screen.findByRole('article', { name: /Aprovação pendente: Criar sequência de 3 e-mails/ })
+    await coordenacaoTerminada()
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: /Aprovações/ }))
+    const proposta = await screen.findByRole('article', { name: /Criar sequência de 3 e-mails no HubSpot/ })
+    await usuario.click(within(proposta).getByRole('button', { name: 'Rejeitar' }))
+    await within(proposta).findByText('Rejeitada')
+
+    const item = await itemDaAtividade(usuario, 'Rhetor', /Rejeitada na fila: Criar sequência de 3 e-mails/)
+    expect(within(item).getByText('Coordenação')).toBeInTheDocument()
+  })
+
+  it('a Aprovação de uma Conversa direta, decidida no Slack, mantém o gatilho Conversa', async () => {
+    const { usuario } = renderizarApp('/agentes/scopus/conversa')
+    await usuario.click(await screen.findByRole('button', { name: /abordagem completa/ }))
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await usuario.click(screen.getByRole('link', { name: 'Conexões' }))
+    const slack = await screen.findByRole('article', { name: 'Slack' })
+    await usuario.click(within(slack).getByRole('button', { name: 'Ver prévia' }))
+    const previa = await screen.findByRole('dialog', { name: /Prévia do Slack/ })
+    const mensagem = (await within(previa).findByText(/Criar sequência de 3 e-mails no HubSpot/)).closest('li')!
+    await usuario.click(within(mensagem).getByRole('button', { name: 'Aprovar' }))
+    await within(mensagem).findByText('Aprovada')
+    await usuario.keyboard('{Escape}')
+
+    const item = await itemDaAtividade(usuario, 'Rhetor', /Aprovada no Slack: Criar sequência de 3 e-mails/)
+    expect(within(item).getByText('Conversa')).toBeInTheDocument()
+  })
+
+  it('a Aprovação pedida num Canal, decidida na fila, mantém o gatilho Canal', async () => {
+    const { usuario } = renderizarApp('/aprovacoes')
+    const proposta = await screen.findByRole('article', { name: /Atualizar 14 Contas-alvo/ })
+    await usuario.click(within(proposta).getByRole('button', { name: 'Aprovar' }))
+    await within(proposta).findByText('Aprovada')
+
+    const item = await itemDaAtividade(usuario, 'Scopus', /Aprovada na fila: Atualizar 14 Contas-alvo/)
+    expect(within(item).getByText('Canal')).toBeInTheDocument()
+  })
+})
+
+describe('Excluir Agente com Aprovações', () => {
+  it('o diálogo diz que tudo do Agente será excluído, Aprovações inclusive, sem falar em pendentes quando não há', async () => {
+    const { usuario } = renderizarApp('/agentes/rhetor-anuncios-meta/conversa')
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor · Anúncios Meta' })
+    await usuario.click(screen.getByRole('button', { name: 'Excluir agente' }))
+    const confirmacao = await screen.findByRole('dialog', { name: 'Excluir Rhetor · Anúncios Meta?' })
+    expect(within(confirmacao).getByText(/Memória, Habilidades, Rotinas, Atividade e Aprovações/)).toBeInTheDocument()
+    expect(within(confirmacao).queryByText(/pendentes? ser(á|ão) cancelada/)).not.toBeInTheDocument()
+  })
+
+  it('com Aprovações pendentes, diz quantas serão canceladas, e elas saem da fila depois da exclusão', async () => {
+    const { usuario } = renderizarApp('/')
+    await grade()
+    const pedido = '@Rhetor · Anúncios Meta monte a abordagem completa para a OpenAI'
+    await pedirNoComposer(usuario, pedido)
+    await screen.findByRole('article', { name: /Aprovação pendente/ })
+    await coordenacaoTerminada()
+    await usuario.type(screen.getByRole('textbox', { name: 'Continue o fio' }), `${pedido}{Enter}`)
+    await waitFor(() => expect(screen.getAllByRole('article', { name: /Aprovação pendente/ })).toHaveLength(2))
+    await coordenacaoTerminada()
+    const workspace = screen.getByRole('navigation', { name: 'Workspace' })
+    expect(await within(workspace).findByRole('link', { name: 'Aprovações, 4 pendentes' })).toBeInTheDocument()
+
+    await usuario.click(await cartaoNaGrade(usuario, 'Rhetor · Anúncios Meta'))
+    await usuario.click(await screen.findByRole('button', { name: 'Excluir agente' }))
+    const confirmacao = await screen.findByRole('dialog', { name: 'Excluir Rhetor · Anúncios Meta?' })
+    expect(await within(confirmacao).findByText('2 Aprovações pendentes serão canceladas.')).toBeInTheDocument()
+    await usuario.click(within(confirmacao).getByRole('button', { name: 'Excluir' }))
+    await grade()
+
+    expect(await within(workspace).findByRole('link', { name: 'Aprovações, 2 pendentes' })).toBeInTheDocument()
+    await usuario.click(within(workspace).getByRole('link', { name: /Aprovações/ }))
+    await screen.findByRole('article', { name: /Subir campanha no Meta Ads/ })
+    expect(screen.queryByRole('article', { name: /Criar sequência de 3 e-mails/ })).not.toBeInTheDocument()
   })
 })

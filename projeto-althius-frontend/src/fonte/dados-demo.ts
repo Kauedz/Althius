@@ -98,18 +98,18 @@ export const rotinas: Rotina[] = [
 ]
 
 export const atividade: ItemDeAtividade[] = [
-  { id: 'a1', agenteId: 'scopus', gatilho: 'rotina', quando: 'Hoje, 08:00', descricao: 'Reavaliou a aderência das 50 Contas-alvo prioritárias', resultado: '14 Contas-alvo mudaram de nota; a Anthropic subiu para 91.' },
-  { id: 'a2', agenteId: 'rhetor', gatilho: 'rotina', quando: 'Hoje, 07:30', descricao: 'Sugeriu respostas para os e-mails de ontem', resultado: '6 rascunhos prontos no HubSpot.' },
-  { id: 'a3', agenteId: 'scopus', gatilho: 'canal', quando: 'Ontem, 17:42', descricao: 'Respondeu a uma Menção no Slack #growth', resultado: 'Propôs atualizar 14 Contas-alvo no HubSpot.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
-  { id: 'a4', agenteId: 'oraculum', gatilho: 'rotina', quando: 'Segunda, 09:00', descricao: 'Auditou 12 prompts-alvo em 4 LLMs', resultado: 'Citada em 29 de 48 respostas; a Snowflake apareceu em 33.' },
-  { id: 'a5', agenteId: 'oraculum', gatilho: 'conversa', quando: 'Segunda, 11:15', descricao: 'Recomendou conteúdo sobre lakehouse', resultado: '3 pautas enviadas para o Notion.' },
-  { id: 'a6', agenteId: 'ethos', gatilho: 'mencao', quando: 'Sexta, 15:03', descricao: 'Foi mencionado pelo Scopus numa Conversa sobre a Stripe', resultado: '4 personas descritas.' },
-  { id: 'a7', agenteId: 'rhetor', gatilho: 'conversa', quando: 'Sexta, 10:20', descricao: 'Escreveu uma campanha para Meta Ads', resultado: 'Propôs subir a campanha; aguarda Aprovação.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
-  { id: 'a8', agenteId: 'scopus-enterprise-latam', gatilho: 'rotina', quando: 'Segunda, 08:30', descricao: 'Reavaliou 40 Contas-alvo enterprise na América Latina', resultado: '6 Contas-alvo mudaram de nota; o Nubank subiu para 88.' },
-  { id: 'a9', agenteId: 'ethos-comite-financeiro', gatilho: 'conversa', quando: 'Quinta, 16:40', descricao: 'Descreveu o Comitê financeiro da Stripe', resultado: 'CFO, controller e Procurement, com as objeções de cada um.' },
-  { id: 'a10', agenteId: 'rhetor-sequencias-outbound', gatilho: 'rotina', quando: 'Quarta, 10:00', descricao: 'Montou a sequência da semana', resultado: '5 toques para 12 Contas-alvo novas, prontos no HubSpot.' },
-  { id: 'a11', agenteId: 'rhetor-anuncios-meta', gatilho: 'mencao', quando: 'Terça, 14:12', descricao: 'Foi mencionado numa Conversa do Rhetor sobre a campanha de IA', resultado: '3 variações de anúncio por persona.' },
-  { id: 'a12', agenteId: 'oraculum-concorrencia-snowflake', gatilho: 'rotina', quando: 'Sexta, 09:00', descricao: 'Comparou 12 prompts-alvo com a Snowflake', resultado: 'A Snowflake aparece antes em 7; a maior diferença está no Perplexity.' },
+  { id: 'a1', agenteId: 'scopus', tipo: 'execucao', gatilho: 'rotina', quando: 'Hoje, 08:00', descricao: 'Reavaliou a aderência das 50 Contas-alvo prioritárias', resultado: '14 Contas-alvo mudaram de nota; a Anthropic subiu para 91.' },
+  { id: 'a2', agenteId: 'rhetor', tipo: 'execucao', gatilho: 'rotina', quando: 'Hoje, 07:30', descricao: 'Sugeriu respostas para os e-mails de ontem', resultado: '6 rascunhos prontos no HubSpot.' },
+  { id: 'a3', agenteId: 'scopus', tipo: 'execucao', gatilho: 'canal', quando: 'Ontem, 17:42', descricao: 'Respondeu a uma Menção no Slack #growth', resultado: 'Propôs atualizar 14 Contas-alvo no HubSpot.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
+  { id: 'a4', agenteId: 'oraculum', tipo: 'execucao', gatilho: 'rotina', quando: 'Segunda, 09:00', descricao: 'Auditou 12 prompts-alvo em 4 LLMs', resultado: 'Citada em 29 de 48 respostas; a Snowflake apareceu em 33.' },
+  { id: 'a5', agenteId: 'oraculum', tipo: 'execucao', gatilho: 'conversa', quando: 'Segunda, 11:15', descricao: 'Recomendou conteúdo sobre lakehouse', resultado: '3 pautas enviadas para o Notion.' },
+  { id: 'a6', agenteId: 'ethos', tipo: 'execucao', gatilho: 'mencao', quando: 'Sexta, 15:03', descricao: 'Foi mencionado pelo Scopus numa Conversa sobre a Stripe', resultado: '4 personas descritas.' },
+  { id: 'a7', agenteId: 'rhetor', tipo: 'execucao', gatilho: 'conversa', quando: 'Sexta, 10:20', descricao: 'Escreveu uma campanha para Meta Ads', resultado: 'Propôs subir a campanha; aguarda Aprovação.', link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' } },
+  { id: 'a8', agenteId: 'scopus-enterprise-latam', tipo: 'execucao', gatilho: 'rotina', quando: 'Segunda, 08:30', descricao: 'Reavaliou 40 Contas-alvo enterprise na América Latina', resultado: '6 Contas-alvo mudaram de nota; o Nubank subiu para 88.' },
+  { id: 'a9', agenteId: 'ethos-comite-financeiro', tipo: 'execucao', gatilho: 'conversa', quando: 'Quinta, 16:40', descricao: 'Descreveu o Comitê financeiro da Stripe', resultado: 'CFO, controller e Procurement, com as objeções de cada um.' },
+  { id: 'a10', agenteId: 'rhetor-sequencias-outbound', tipo: 'execucao', gatilho: 'rotina', quando: 'Quarta, 10:00', descricao: 'Montou a sequência da semana', resultado: '5 toques para 12 Contas-alvo novas, prontos no HubSpot.' },
+  { id: 'a11', agenteId: 'rhetor-anuncios-meta', tipo: 'execucao', gatilho: 'mencao', quando: 'Terça, 14:12', descricao: 'Foi mencionado numa Conversa do Rhetor sobre a campanha de IA', resultado: '3 variações de anúncio por persona.' },
+  { id: 'a12', agenteId: 'oraculum-concorrencia-snowflake', tipo: 'execucao', gatilho: 'rotina', quando: 'Sexta, 09:00', descricao: 'Comparou 12 prompts-alvo com a Snowflake', resultado: 'A Snowflake aparece antes em 7; a maior diferença está no Perplexity.' },
 ]
 
 export const canais: Canal[] = [
@@ -235,6 +235,7 @@ export const aprovacoes: Aprovacao[] = [
     impacto: 'R$ 12.000 em 14 dias',
     justificativa: 'Três variações de anúncio para VPs de Engenharia, com base nas personas do Ethos.',
     origem: 'althius',
+    gatilho: 'conversa',
     estado: 'pendente',
   },
   {
@@ -245,6 +246,7 @@ export const aprovacoes: Aprovacao[] = [
     impacto: '14 registros alterados',
     justificativa: 'A reavaliação desta manhã mudou a nota de 14 Contas-alvo prioritárias.',
     origem: 'slack',
+    gatilho: 'canal',
     estado: 'pendente',
   },
 ]

@@ -73,8 +73,11 @@ _Avoid_: chat
 Uma tarefa agendada que o Agente executa sozinho de forma recorrente.
 _Avoid_: automação, cron
 
+**Execução**:
+Cada vez que um Agente é acionado (por Conversa, Menção, Coordenação, Rotina ou Canal) e entrega um resultado. A decisão de uma Aprovação não é uma Execução nova: é uma ação dentro da Execução que a propôs.
+
 **Atividade**:
-O histórico de tudo que um Agente fez, com o gatilho (Conversa, Menção, Coordenação, Rotina ou Canal) e o resultado.
+O histórico de tudo que um Agente fez, com o gatilho e o resultado: um item por Execução e um item por ação (agir sozinho pela Permissão Executar ou a decisão de uma Aprovação). O gatilho é o que acionou o trabalho (Conversa, Menção, Coordenação, Rotina ou Canal); uma ação herda o gatilho da Execução que a gerou, onde quer que a Aprovação seja decidida.
 _Avoid_: log
 
 **Menção**:
@@ -105,5 +108,5 @@ _Avoid_: canal, conector
 O nível de ação de um Agente sobre uma Integração: **Ler**, **Propor** (exige Aprovação) ou **Executar** (age sozinho).
 
 **Aprovação**:
-Uma ação proposta por um Agente que só acontece depois que um humano a aceita, na fila de Aprovações ou no Canal de origem.
+Uma ação proposta por um Agente que só acontece depois que um humano a aceita, na fila de Aprovações ou no Canal de origem. Guarda o gatilho da Execução que a propôs. Quando um Agente criado é excluído, as Aprovações dele, pendentes ou decididas, são excluídas junto.
 _Avoid_: revisão, confirmação

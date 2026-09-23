@@ -11,7 +11,7 @@ export type PassoDeRoteiro<Ator = EspecialidadeId> =
   | { tipo: 'ferramenta'; agenteId: Ator; descricao: string }
   | { tipo: 'texto'; agenteId: Ator; texto: string }
   | { tipo: 'repasse'; de: Ator; para: Ator; resumo: string }
-  | { tipo: 'aprovacao'; agenteId: Ator; aprovacao: Omit<Aprovacao, 'id' | 'estado' | 'agenteId'> }
+  | { tipo: 'aprovacao'; agenteId: Ator; aprovacao: Omit<Aprovacao, 'id' | 'estado' | 'agenteId' | 'gatilho'> }
 
 export const roteiros: Record<string, PassoDeRoteiro[]> = {
   'scopus-aderencia': [

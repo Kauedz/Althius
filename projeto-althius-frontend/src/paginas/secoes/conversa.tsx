@@ -177,7 +177,7 @@ function CartaoDeAprovacao({ aprovacaoId }: { aprovacaoId: string }) {
       {aprovacao.origem !== 'althius' && (
         <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>
       )}
-      {aprovacao.estado === 'pendente' && <DecisaoDeAprovacao aprovacao={aprovacao} onde="althius" />}
+      {aprovacao.estado === 'pendente' && <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" />}
     </article>
   )
 }

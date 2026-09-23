@@ -41,7 +41,7 @@ export interface Agente {
   tipo: TipoDeAgente
   especialidade: Especialidade
   estado: EstadoAgente
-  /** Quantas vezes o Agente já trabalhou, contado exato. */
+  /** Quantas Execuções o Agente já fez, contadas exatas. */
   execucoes: number
   /** A descrição da Especialidade no Agente padrão; as instruções no Agente criado. */
   descricao: string
@@ -103,9 +103,14 @@ export type NovaRotina = Omit<Rotina, 'id' | 'pausada'>
 
 export type Gatilho = 'conversa' | 'mencao' | 'coordenacao' | 'rotina' | 'canal'
 
+/** Uma Execução (o Agente foi acionado e entregou um resultado) ou uma ação dentro dela. */
+export type TipoDeAtividade = 'execucao' | 'acao'
+
 export interface ItemDeAtividade {
   id: string
   agenteId: AgenteId
+  tipo: TipoDeAtividade
+  /** O que acionou o trabalho; uma ação herda o gatilho da Execução que a gerou. */
   gatilho: Gatilho
   quando: string
   descricao: string
@@ -161,8 +166,10 @@ export interface FonteDeConhecimento {
 
 export type EstadoAprovacao = 'pendente' | 'aprovada' | 'rejeitada'
 export type Decisao = Exclude<EstadoAprovacao, 'pendente'>
-/** Onde uma Aprovação foi pedida ou decidida. */
+/** Onde uma Aprovação foi pedida e pode ser decidida. */
 export type Origem = 'althius' | CanalId
+/** Onde uma Aprovação foi decidida: na fila de Aprovações, na página da Conversa ou no Canal de origem. */
+export type LugarDaDecisao = 'fila' | 'conversa' | CanalId
 
 /** Uma ação que um Agente quer fazer numa Integração; a Permissão dele decide o que acontece. */
 export interface AcaoProposta {
@@ -176,6 +183,8 @@ export interface Aprovacao extends AcaoProposta {
   id: string
   agenteId: AgenteId
   origem: Origem
+  /** O gatilho da Execução que propôs a Aprovação; a decisão entra na Atividade com ele. */
+  gatilho: Gatilho
   estado: EstadoAprovacao
 }
 
@@ -261,7 +270,7 @@ export interface FonteDeAgentes {
   previaDeCanal(canalId: CanalId): Promise<PreviaDeCanal>
 
   aprovacoes(): Promise<Aprovacao[]>
-  decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: Origem): Promise<void>
+  decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao): Promise<void>
 
   /** Envia uma mensagem ou sugestão e recebe a resposta passo a passo. */
   conversar(id: AgenteId, mensagem: Mensagem): AsyncIterable<PassoDaConversa>

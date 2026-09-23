@@ -318,7 +318,7 @@ function AprovacaoNaConversa({ aprovacaoId, referencias }: { aprovacaoId: string
       <p className="text-sm text-al-muted">{aprovacao.impacto}</p>
       {aprovacao.estado === 'pendente' && (
         <div className="pt-1.5">
-          <DecisaoDeAprovacao aprovacao={aprovacao} onde="althius" />
+          <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" />
         </div>
       )}
     </article>

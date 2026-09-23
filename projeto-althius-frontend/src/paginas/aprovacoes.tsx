@@ -77,7 +77,7 @@ function CartaoDeAprovacao({
         <dt className="rotulo">Por quê</dt>
         <dd className="text-al-muted">{aprovacao.justificativa}</dd>
       </dl>
-      <DecisaoDeAprovacao aprovacao={aprovacao} onde="althius" />
+      <DecisaoDeAprovacao aprovacao={aprovacao} onde="fila" />
     </article>
   )
 }

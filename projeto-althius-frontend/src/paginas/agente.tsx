@@ -92,11 +92,16 @@ export function PaginaAgente() {
   )
 }
 
-/** Só o Agente criado pode ser excluído (ADR 0005), sempre com confirmação. */
+/**
+ * Só o Agente criado pode ser excluído (ADR 0005), sempre com confirmação. Tudo dele sai junto,
+ * inclusive as Aprovações; as pendentes são canceladas.
+ */
 function ExcluirAgente({ agente }: { agente: Agente }) {
   const fonte = useFonte()
   const navegar = useNavigate()
   const [confirmando, setConfirmando] = useState(false)
+  const aprovacoes = useDados((f) => f.aprovacoes(), [])
+  const pendentes = aprovacoes?.filter((a) => a.agenteId === agente.id && a.estado === 'pendente').length ?? 0
 
   async function excluir() {
     await fonte.excluirAgente(agente.id)
@@ -113,9 +118,16 @@ function ExcluirAgente({ agente }: { agente: Agente }) {
         <DialogContent className="gap-6 p-6">
           <DialogTitle className="titulo-secao text-2xl">Excluir {agente.nome}?</DialogTitle>
           <DialogDescription className="text-al-muted">
-            A memória, as habilidades, as rotinas e a atividade de {agente.nome} também saem. O agente padrão de{' '}
-            {agente.especialidade.nome} continua.
+            Tudo de {agente.nome} será excluído: Memória, Habilidades, Rotinas, Atividade e Aprovações. O agente
+            padrão de {agente.especialidade.nome} continua.
           </DialogDescription>
+          {pendentes > 0 && (
+            <p>
+              {pendentes === 1
+                ? '1 Aprovação pendente será cancelada.'
+                : `${pendentes} Aprovações pendentes serão canceladas.`}
+            </p>
+          )}
           <DialogFooter className="flex gap-2">
             <Button variant="ghost" onClick={() => setConfirmando(false)}>
               Cancelar
