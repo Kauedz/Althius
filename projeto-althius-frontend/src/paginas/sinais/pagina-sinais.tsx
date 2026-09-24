@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
 import { Pagina } from '@/components/pagina'
-import { useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
+import { useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import {
@@ -118,7 +118,8 @@ function Catalogo({
   const totalPorOrigem = (origem: Filtro) =>
     origem === 'todos' ? catalogoTipos.length : catalogoTipos.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length
 
-  const encontrados = SINAIS_MOCK.length
+  const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
+  const encontrados = (sinaisCarregados ?? SINAIS_MOCK).length
 
   return (
     <>
@@ -295,7 +296,9 @@ function CartaoPersonalizado({ quantidade }: { quantidade: number }) {
 function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
   const navegar = useNavigate()
   const hoje = useFonteDeContas().hoje()
-  const sinais = [...SINAIS_MOCK].sort((a, b) => b.data.localeCompare(a.data))
+  const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
+  const { dados: contasCarregadas = [] } = useDadosDeContas((f) => f.contas(), [])
+  const sinais = (sinaisCarregados ?? SINAIS_MOCK).slice().sort((a, b) => b.data.localeCompare(a.data))
 
   return (
     <>
@@ -334,14 +337,15 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
             </thead>
             <tbody>
               {sinais.map((sinal) => {
-                const conta = CONTAS_MOCK.find((c) => c.id === sinal.contaId) ?? {
-                  id: sinal.contaId,
-                  nome: sinal.contaId,
-                  segmento: 'Geral',
-                  origem: 'importada' as const,
-                  logo: undefined,
-                  logoDeUmaCor: undefined,
-                }
+                const conta = contasCarregadas.find((c) => c.id === sinal.contaId) ??
+                  CONTAS_MOCK.find((c) => c.id === sinal.contaId) ?? {
+                    id: sinal.contaId,
+                    nome: sinal.contaId,
+                    segmento: 'Geral',
+                    origem: 'importada' as const,
+                    logo: undefined,
+                    logoDeUmaCor: undefined,
+                  }
                 const expirado = !estaValido(sinal, hoje)
                 return (
                   <tr

@@ -2,7 +2,7 @@ import { RadioTower } from 'lucide-react'
 import { Navigate, useParams } from 'react-router-dom'
 import { LogoDaConta } from '@/components/logos'
 import { Pagina } from '@/components/pagina'
-import { useFonteDeContas } from '@/fonte/contexto'
+import { useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import { tipoPorId } from './catalogo'
@@ -10,11 +10,11 @@ import { Foguinho, SeloDeAderencia } from './componentes'
 import {
   CONTAS_MOCK,
   ROTULO_DA_ADERENCIA,
+  SINAIS_MOCK,
   VALIDADE_EM_DIAS,
   dataDoDisparo,
   estaValido,
   expiraEm,
-  sinaisDaConta,
   type SinalMock,
 } from './dados-mock'
 import { useSinaisDoMockup } from './estado'
@@ -27,15 +27,18 @@ function useNomeDoMonitoramento() {
 
 /**
  * A Conta-alvo vista a partir de um Sinal encontrado, no mockup. Mostra como o foguinho, a Aderência, o Último sinal
- * e o histórico ficam depois do ADR 0007, sem ainda mudar o módulo Contas (tickets 02 em diante).
+ * e o histórico ficam depois do ADR 0007, conectado ao armazenamento compartilhado (Tickets 02 a 04).
  */
 export function ContaComSinais() {
   const { contaId = '' } = useParams<{ contaId: string }>()
   const hoje = useFonteDeContas().hoje()
+  const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
   const conta = CONTAS_MOCK.find((c) => c.id === contaId)
   if (!conta) return <Navigate to="/sinais?vista=encontrados" replace />
 
-  const sinais = sinaisDaConta(conta.id)
+  const sinais = (sinaisCarregados ?? SINAIS_MOCK)
+    .filter((s) => s.contaId === conta.id)
+    .sort((a, b) => b.data.localeCompare(a.data))
   const validos = sinais.filter((s) => estaValido(s, hoje))
   const ultimo = sinais[0]
 

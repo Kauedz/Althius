@@ -80,6 +80,7 @@ export interface TipoDeSinal {
 export interface SinalEncontrado {
   id: string
   contaId: string
+  acontecimentoId?: string
   tipoId: string
   monitoramentoId: string
   frase: string
@@ -87,6 +88,17 @@ export interface SinalEncontrado {
   fonte: string
   evidencia: string
   reencontrado?: { data: string; monitoramentoId: string }
+}
+
+export interface ParametrosSimulacaoDisparo {
+  id?: string
+  monitoramentoId: string
+  contaId?: string
+  acontecimentoId?: string
+  frase?: string
+  evidencia?: string
+  fonte?: string
+  data?: string | Date
 }
 
 /**
@@ -123,4 +135,8 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Lista os sinais encontrados da demonstração. */
   sinaisEncontrados(): Promise<SinalEncontrado[]>
+
+  /** Simula um disparo para um Monitoramento Ativo (Ticket 04). */
+  simularDisparo(parametros: ParametrosSimulacaoDisparo): Promise<SinalEncontrado>
 }
+

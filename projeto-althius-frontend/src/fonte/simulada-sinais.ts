@@ -6,6 +6,7 @@ import type {
   FonteDeSinais,
   Monitoramento,
   NovoMonitoramento,
+  ParametrosSimulacaoDisparo,
   SinalEncontrado,
   TipoDeSinal,
 } from './sinais-tipos'
@@ -47,7 +48,7 @@ function clonarMonitoramento(m: Monitoramento): Monitoramento {
 }
 
 /**
- * Cria a implementação simulada da FonteDeSinais (ADR 0003 e Ticket 03).
+ * Cria a implementação simulada da FonteDeSinais (ADR 0003 e Ticket 03/04).
  * Suporta opções para testes (atraso, data de hoje fixa, falha e lista vazia).
  */
 export function criarFonteDeSinaisSimulada(
@@ -78,6 +79,12 @@ export function criarFonteDeSinaisSimulada(
     }
   }
 
+  if (fonteDeContasVinculada) {
+    fonteDeContasVinculada.observar(() => {
+      notificar()
+    })
+  }
+
   return {
     hoje() {
       return fonteDeContasVinculada ? fonteDeContasVinculada.hoje() : hoje
@@ -101,6 +108,9 @@ export function criarFonteDeSinaisSimulada(
 
     vincularFonteDeContas(fonte: FonteDeContas) {
       fonteDeContasVinculada = fonte
+      fonte.observar(() => {
+        notificar()
+      })
     },
 
     observar(ouvinte: () => void) {
@@ -204,5 +214,110 @@ export function criarFonteDeSinaisSimulada(
       await aguardar()
       return [...sinais]
     },
+
+    async simularDisparo(parametros: ParametrosSimulacaoDisparo): Promise<SinalEncontrado> {
+      await aguardar()
+      const m = monitoramentos.find((item) => item.id === parametros.monitoramentoId)
+      if (!m) {
+        throw new Error(`Monitoramento "${parametros.monitoramentoId}" não encontrado`)
+      }
+      if (m.estado !== 'ativo') {
+        throw new Error(
+          `Não é possível produzir disparos para o Monitoramento "${m.nome}", pois ele está ${m.estado}. Apenas Monitoramentos Ativos produzem disparos.`,
+        )
+      }
+
+      // Escolhe contaId se não fornecido
+      let contaId = parametros.contaId
+      if (!contaId) {
+        if (m.publico.modo === 'descoberta') {
+          // Descoberta: sempre contas recomendadas (que possuem Fit)
+          contaId = 'stripe'
+        } else if (m.publico.modo === 'listas') {
+          // Listas: pode ser importada com qualquer aderência (ex: rappi = não fit, bbva-mexico = sem avaliação)
+          contaId = m.publico.listas.includes('fintechs-brasil') ? 'rappi' : 'bbva-mexico'
+        } else {
+          contaId = 'openai'
+        }
+      }
+
+      const refHoje = fonteDeContasVinculada ? fonteDeContasVinculada.hoje() : hoje
+      const rawData = parametros.data ?? refHoje
+      const dataIso = rawData instanceof Date ? rawData.toISOString().slice(0, 10) : String(rawData)
+      const acontecimentoId =
+        parametros.acontecimentoId ?? parametros.id ?? `acont-${m.tipoId}-${contaId}-${dataIso}`
+
+      // Verifica reencontro / duplicata existente
+      const existente = sinais.find(
+        (s) =>
+          s.contaId === contaId &&
+          (s.id === acontecimentoId || s.acontecimentoId === acontecimentoId),
+      )
+
+      if (existente) {
+        // Reencontro: mantém data original e não renova validade
+        existente.reencontrado = {
+          data: dataIso,
+          monitoramentoId: m.id,
+        }
+        if (fonteDeContasVinculada) {
+          await fonteDeContasVinculada.adicionarSinal({
+            id: existente.id,
+            contaId,
+            acontecimentoId,
+            tipoId: m.tipoId,
+            monitoramentoId: m.id,
+            frase: existente.frase,
+            data: dataIso,
+            dataDisparo: dataIso,
+            fonte: parametros.fonte ?? existente.fonte,
+            evidencia: parametros.evidencia ?? existente.evidencia,
+          })
+        }
+        notificar()
+        return { ...existente }
+      }
+
+      const id = parametros.id ?? `sinal-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+      const frase = parametros.frase ?? `Disparo simulado de ${m.nome}`
+      const fonte = parametros.fonte ?? 'Página de carreiras (simulada)'
+      const evidencia =
+        parametros.evidencia ??
+        `Evidência observada em ${dataIso} (simulada). Não constitui garantia de compra.`
+
+      const novoSinal: SinalEncontrado = {
+        id,
+        contaId,
+        acontecimentoId,
+        tipoId: m.tipoId,
+        monitoramentoId: m.id,
+        frase,
+        data: dataIso,
+        fonte,
+        evidencia,
+      }
+
+      sinais = [novoSinal, ...sinais]
+
+      if (fonteDeContasVinculada) {
+        await fonteDeContasVinculada.adicionarSinal({
+          id,
+          contaId,
+          acontecimentoId,
+          tipoId: m.tipoId,
+          monitoramentoId: m.id,
+          frase,
+          descricao: frase,
+          data: dataIso,
+          dataDisparo: dataIso,
+          fonte,
+          evidencia,
+        })
+      }
+
+      notificar()
+      return { ...novoSinal }
+    },
   }
 }
+

@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Pause, Play, Plus } from 'lucide-react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { useDadosDeSinais } from '@/fonte/contexto'
+import type { EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, familiaDoTipo, tipoPorId } from './catalogo'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO, SeloDoEstado } from './componentes'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
@@ -12,6 +14,7 @@ import { ACAO_DO_ESTADO, resumoDoPublico, resumoDosCriterios } from './resumos'
 export function PaginaDoTipo() {
   const { tipoId = '' } = useParams<{ tipoId: string }>()
   const { state } = useLocation() as { state?: { aviso?: string } }
+  const [erroAcao, setErroAcao] = useState<string | null>(null)
   const tipo = tipoPorId(tipoId)
   const monitoramentos = useMonitoramentos(tipoId)
   const { mudarEstado } = useSinaisDoMockup()
@@ -20,11 +23,23 @@ export function PaginaDoTipo() {
     erro,
     recarregar,
   } = useDadosDeSinais((f) => f.monitoramentosDoTipo(tipoId), [tipoId])
+  const { dados: sinaisEncontrados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
 
   if (!tipo) return <Navigate to="/sinais" replace />
   const familia = familiaDoTipo(tipo)
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
   const ativos = monitoramentos.filter((m) => m.estado === 'ativo').length
+
+  const alternarEstado = async (id: string, novoEstado: EstadoDoMonitoramento) => {
+    setErroAcao(null)
+    try {
+      await mudarEstado(id, novoEstado)
+    } catch {
+      setErroAcao(
+        `Não foi possível ${novoEstado === 'pausado' ? 'pausar' : 'retomar'} o monitoramento. Tente de novo.`,
+      )
+    }
+  }
 
   return (
     <Pagina
@@ -60,6 +75,20 @@ export function PaginaDoTipo() {
           {state.aviso}
         </p>
       )}
+
+      {erroAcao && (
+        <div role="alert" className="flex items-center justify-between border-l-2 border-al-perigo bg-al-surface px-4 py-3 text-sm text-al-perigo">
+          <span>{erroAcao}</span>
+          <button
+            type="button"
+            onClick={() => setErroAcao(null)}
+            className="text-xs text-al-muted hover:text-al-ink underline underline-offset-4"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
 
       {carregando && monitoramentos.length === 0 && <Carregando />}
 
@@ -101,7 +130,9 @@ export function PaginaDoTipo() {
         ) : (
           <ul aria-label="Monitoramentos deste tipo" className="flex flex-col border-t border-al-line">
             {monitoramentos.map((m) => {
-              const disparados = sinaisDisparadosPor(m.id)
+              const disparados = sinaisEncontrados
+                ? sinaisEncontrados.filter((s) => s.monitoramentoId === m.id).length
+                : sinaisDisparadosPor(m.id)
               return (
               <li
                 key={m.id}
@@ -125,13 +156,13 @@ export function PaginaDoTipo() {
                 </div>
                 <div className="flex items-center gap-1">
                   {m.estado === 'ativo' && (
-                    <button type="button" onClick={() => mudarEstado(m.id, 'pausado')} className={BOTAO_DISCRETO}>
+                    <button type="button" onClick={() => alternarEstado(m.id, 'pausado')} className={BOTAO_DISCRETO}>
                       <Pause strokeWidth={1.8} className="size-3.5" aria-hidden />
                       Pausar
                     </button>
                   )}
                   {m.estado === 'pausado' && (
-                    <button type="button" onClick={() => mudarEstado(m.id, 'ativo')} className={BOTAO_DISCRETO}>
+                    <button type="button" onClick={() => alternarEstado(m.id, 'ativo')} className={BOTAO_DISCRETO}>
                       <Play strokeWidth={1.8} className="size-3.5" aria-hidden />
                       Retomar
                     </button>

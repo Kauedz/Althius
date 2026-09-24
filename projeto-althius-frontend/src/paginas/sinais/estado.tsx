@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useFonteDeSinais } from '@/fonte/contexto'
-import type { FonteDeSinais } from '@/fonte/sinais-tipos'
+import type { FonteDeSinais, ParametrosSimulacaoDisparo, SinalEncontrado } from '@/fonte/sinais-tipos'
 import { MONITORAMENTOS_INICIAIS, type EstadoDoMonitoramento, type Monitoramento } from './dados-mock'
 
 interface SinaisDoMockup {
   monitoramentos: Monitoramento[]
-  salvar: (monitoramento: Monitoramento) => void
-  mudarEstado: (id: string, estado: EstadoDoMonitoramento) => void
+  salvar: (monitoramento: Monitoramento) => Promise<Monitoramento>
+  mudarEstado: (id: string, estado: EstadoDoMonitoramento) => Promise<Monitoramento>
+  simularDisparo: (parametros: ParametrosSimulacaoDisparo) => Promise<SinalEncontrado>
 }
 
 const Contexto = createContext<SinaisDoMockup | null>(null)
@@ -47,32 +48,61 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
   }, [fonte])
 
   const salvar = useCallback(
-    (monitoramento: Monitoramento) => {
+    async (monitoramento: Monitoramento): Promise<Monitoramento> => {
+      if (fonte) {
+        const salvo = await fonte.salvarMonitoramento(monitoramento)
+        setMonitoramentos((atuais) => {
+          const index = atuais.findIndex((m) => m.id === monitoramento.id || m.id === salvo.id)
+          if (index >= 0) {
+            const copia = [...atuais]
+            copia[index] = salvo
+            return copia
+          }
+          return [...atuais, salvo]
+        })
+        return salvo
+      }
       setMonitoramentos((atuais) =>
         atuais.some((m) => m.id === monitoramento.id)
           ? atuais.map((m) => (m.id === monitoramento.id ? monitoramento : m))
           : [...atuais, monitoramento],
       )
-      if (fonte) {
-        fonte.salvarMonitoramento(monitoramento).catch((err) => console.error(err))
-      }
+      return monitoramento
     },
     [fonte],
   )
 
   const mudarEstado = useCallback(
-    (id: string, estado: EstadoDoMonitoramento) => {
-      setMonitoramentos((atuais) => atuais.map((m) => (m.id === id ? { ...m, estado } : m)))
+    async (id: string, estado: EstadoDoMonitoramento): Promise<Monitoramento> => {
       if (fonte) {
-        fonte.mudarEstado(id, estado).catch((err) => console.error(err))
+        const atualizado = await fonte.mudarEstado(id, estado)
+        setMonitoramentos((atuais) =>
+          atuais.map((m) => (m.id === id ? atualizado : m)),
+        )
+        return atualizado
       }
+      setMonitoramentos((atuais) =>
+        atuais.map((m) => (m.id === id ? { ...m, estado } : m)),
+      )
+      const enc = monitoramentos.find((m) => m.id === id)
+      return enc ? { ...enc, estado } : ({ id, estado } as Monitoramento)
+    },
+    [fonte, monitoramentos],
+  )
+
+  const simularDisparo = useCallback(
+    async (parametros: ParametrosSimulacaoDisparo): Promise<SinalEncontrado> => {
+      if (fonte) {
+        return fonte.simularDisparo(parametros)
+      }
+      throw new Error('Fonte de sinais não disponível')
     },
     [fonte],
   )
 
   const valor = useMemo(
-    () => ({ monitoramentos, salvar, mudarEstado }),
-    [monitoramentos, salvar, mudarEstado],
+    () => ({ monitoramentos, salvar, mudarEstado, simularDisparo }),
+    [monitoramentos, salvar, mudarEstado, simularDisparo],
   )
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
 }

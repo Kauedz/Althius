@@ -97,6 +97,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   })
 
   const jaFunciona = existente?.estado === 'ativo' || existente?.estado === 'pausado'
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null)
   const mudar = (parcial: Partial<Monitoramento>) => setMonitoramento((atual) => ({ ...atual, ...parcial }))
   const voltarAoTipo = (aviso: string) => navegar(`/sinais/tipos/${tipo.id}`, { state: { aviso } })
   const nomeValido = monitoramento.nome.trim().length > 0
@@ -112,6 +113,19 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
           {!personalizado && <span className="text-sm text-al-muted">{tipo.descricao}</span>}
         </div>
 
+        {erroSalvar && (
+          <div role="alert" className="flex items-center justify-between border-l-2 border-al-perigo bg-al-surface px-4 py-3 text-sm text-al-perigo">
+            <span>{erroSalvar}</span>
+            <button
+              type="button"
+              onClick={() => setErroSalvar(null)}
+              className="text-xs text-al-muted hover:text-al-ink underline underline-offset-4"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
+
         {etapa === 'descrever' && (
           <Descrever
             monitoramento={monitoramento}
@@ -126,13 +140,18 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
         {etapa === 'preparando' && (
           <Preparando
             descricao={monitoramento.descricao ?? ''}
-            aoSairEVoltarDepois={() => {
-              salvar({
-                ...monitoramento,
-                estado: 'em-preparacao',
-                nome: monitoramento.nome.trim() || resumir(monitoramento.descricao ?? ''),
-              })
-              voltarAoTipo('Sinal personalizado em preparação. Você revisa os critérios antes de ativar.')
+            aoSairEVoltarDepois={async () => {
+              try {
+                setErroSalvar(null)
+                await salvar({
+                  ...monitoramento,
+                  estado: 'em-preparacao',
+                  nome: monitoramento.nome.trim() || resumir(monitoramento.descricao ?? ''),
+                })
+                voltarAoTipo('Sinal personalizado em preparação. Você revisa os critérios antes de ativar.')
+              } catch {
+                setErroSalvar('Não foi possível salvar o sinal em preparação. Tente de novo.')
+              }
             }}
             aoConcluir={() => {
               mudar({
@@ -181,9 +200,14 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                 <button
                   type="button"
                   disabled={!nomeValido}
-                  onClick={() => {
-                    salvar(monitoramento)
-                    voltarAoTipo(`Alterações salvas em “${monitoramento.nome}”.`)
+                  onClick={async () => {
+                    try {
+                      setErroSalvar(null)
+                      await salvar(monitoramento)
+                      voltarAoTipo(`Alterações salvas em “${monitoramento.nome}”.`)
+                    } catch {
+                      setErroSalvar('Não foi possível salvar as alterações. Tente de novo.')
+                    }
                   }}
                   className={BOTAO_PRIMARIO}
                 >
@@ -194,9 +218,14 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                   <button
                     type="button"
                     disabled={!nomeValido}
-                    onClick={() => {
-                      salvar({ ...monitoramento, estado: 'rascunho' })
-                      voltarAoTipo(`Rascunho “${monitoramento.nome}” salvo.`)
+                    onClick={async () => {
+                      try {
+                        setErroSalvar(null)
+                        await salvar({ ...monitoramento, estado: 'rascunho' })
+                        voltarAoTipo(`Rascunho “${monitoramento.nome}” salvo.`)
+                      } catch {
+                        setErroSalvar('Não foi possível salvar o rascunho. Tente de novo.')
+                      }
                     }}
                     className={BOTAO_SECUNDARIO}
                   >
@@ -215,9 +244,14 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
           <Revisao
             monitoramento={monitoramento}
             aoVoltar={() => setEtapa('editar')}
-            aoAtivar={() => {
-              salvar({ ...monitoramento, estado: 'ativo' })
-              voltarAoTipo(`“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`)
+            aoAtivar={async () => {
+              try {
+                setErroSalvar(null)
+                await salvar({ ...monitoramento, estado: 'ativo' })
+                voltarAoTipo(`“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`)
+              } catch {
+                setErroSalvar('Não foi possível ativar o monitoramento. Tente de novo.')
+              }
             }}
           />
         )}
