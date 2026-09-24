@@ -4,10 +4,10 @@
 
 **Blocked by:** 04 (Bloco Sequência no detalhe da Conta-alvo), 05 (Detalhe da sequência — documento e timeline)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Interação de resposta na demo leva a sequência da Conta a Pausada
-- [ ] Fica explícito na UI que o pause é da Conta inteira
-- [ ] Métricas de demo aparecem rotuladas como demonstração e são opcionais
-- [ ] Criar sequência sozinha não cria Interação
-- [ ] Testes cobrem transição para Pausada e UI sem métricas
+- [x] Interação de resposta na demo leva a sequência da Conta a Pausada
+- [x] Fica explícito na UI que o pause é da Conta inteira
+- [x] Métricas de demo aparecem rotuladas como demonstração e são opcionais
+- [x] Criar sequência sozinha não cria Interação
+- [x] Testes cobrem transição para Pausada e UI sem métricas

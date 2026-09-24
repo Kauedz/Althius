@@ -134,7 +134,7 @@ describe('Nascimento de Sequência na Conversa (Ticket 07)', () => {
     expect(docConversa).toBeInTheDocument()
 
     // Tem timeline, regra de pause e campos de composer
-    expect(within(docConversa).getByText(/Regra de pause na Conta-alvo/i)).toBeInTheDocument()
+    expect(await within(docConversa).findByText(/Regra de pause na Conta-alvo/i)).toBeInTheDocument()
     expect(within(docConversa).getByText('Abertura pelo Sinal')).toBeInTheDocument()
 
     // Atalho para Ver Conta-alvo navega para o detalhe da empresa

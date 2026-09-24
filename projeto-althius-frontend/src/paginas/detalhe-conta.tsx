@@ -251,10 +251,15 @@ export function DetalheConta({ contaId }: Props) {
               {sequencia.status === 'pausada' && (
                 <div className="mt-2 flex items-start gap-2.5 border border-al-atencao/40 bg-al-atencao/10 p-3 text-xs text-al-ink">
                   <Pause className="size-4 shrink-0 text-al-atencao mt-0.5" />
-                  <p>
-                    <strong>Sequência pausada:</strong>{' '}
-                    {sequencia.motivoPause ?? 'resposta recebida na Conta-alvo'}. Toda a abordagem da empresa está em pausa aguardando análise humana.
-                  </p>
+                  <div className="flex flex-col gap-0.5">
+                    <p>
+                      <strong>Sequência pausada · Pausa da Conta inteira:</strong>{' '}
+                      {sequencia.motivoPause ?? 'resposta recebida na Conta-alvo'}. Toda a abordagem da empresa está em pausa aguardando análise humana.
+                    </p>
+                    <span className="text-[0.6875rem] text-al-muted">
+                      Nenhum Contato da empresa recebe os próximos steps enquanto a sequência estiver pausada.
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

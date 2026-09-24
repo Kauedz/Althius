@@ -24,6 +24,7 @@ export function renderizarApp(
     hoje: DATA_HOJE_TESTES,
     ...opcoesSequencias,
   })
+  fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
   const usuario = userEvent.setup()
   const resultado = render(
     <App

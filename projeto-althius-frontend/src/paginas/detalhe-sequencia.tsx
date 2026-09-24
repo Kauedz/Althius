@@ -23,7 +23,13 @@ import {
 import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Button } from '@/components/ui/button'
-import { useDadosDeContas, useDadosDeSequencias, useFonteDeSequencias } from '@/fonte/contexto'
+import {
+  useDadosDeContas,
+  useDadosDeSequencias,
+  useFonteDeContas,
+  useFonteDeSequencias,
+} from '@/fonte/contexto'
+import { formatarDataDoModulo } from '@/fonte/formatar-data'
 import type { AnexoStep, CanalStep, StatusSequencia, StepSequencia } from '@/fonte/sequencias-tipos'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 
@@ -68,14 +74,45 @@ function iniciais(nome: string): string {
     .toUpperCase()
 }
 
+function adicionarDiasUteis(dataBase: Date, dias: number): Date {
+  const d = new Date(dataBase)
+  let restantes = Math.abs(dias)
+  const sinal = dias < 0 ? -1 : 1
+  while (restantes > 0) {
+    d.setDate(d.getDate() + sinal)
+    if (d.getDay() !== 0 && d.getDay() !== 6) {
+      restantes--
+    }
+  }
+  return d
+}
+
+function calcularDatasDosSteps(criadaEm: string, steps: StepSequencia[]): Date[] {
+  let atual = new Date(criadaEm)
+  return steps.map((s, idx) => {
+    if (idx > 0) {
+      atual = adicionarDiasUteis(atual, s.delayDiasUteis)
+    }
+    return new Date(atual)
+  })
+}
+
 export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const fonteDeSequencias = useFonteDeSequencias()
+  const fonteDeContas = useFonteDeContas()
+  const hoje = fonteDeSequencias.hoje()
+
   const {
     dados: sequencia,
     carregando,
     erro,
     recarregar,
   } = useDadosDeSequencias((f) => f.sequencia(sequenciaId), [sequenciaId])
+
+  const { dados: metricasDemo } = useDadosDeSequencias(
+    (f) => f.metricasDeDemo(sequenciaId),
+    [sequenciaId],
+  )
 
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: contatos } = useDadosDeContas((f) => f.contatos(), [])
@@ -144,6 +181,12 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     0,
   )
 
+  const datasDosSteps = calcularDatasDosSteps(sequencia.criadaEm, stepsMesclados)
+  const dataStepAtivo = datasDosSteps[indiceStepAtivo]
+  const dataFormatadaStepAtivo = dataStepAtivo
+    ? formatarDataDoModulo(dataStepAtivo, hoje, { maiuscula: false })
+    : undefined
+
   // --- Handlers de Atualização via Fonte ---
   async function atualizarDoc(patch: Parameters<typeof fonteDeSequencias.atualizarDocumento>[1]) {
     await fonteDeSequencias.atualizarDocumento(sequencia!.id, patch)
@@ -155,10 +198,21 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     const contato = stepTocado ? contatosMap.get(stepTocado.contatoId) : null
     const nomeResp = contato?.nome ?? 'Contato'
     const canalResp = stepTocado ? CANAIS_CONFIG[stepTocado.canal].rotulo : 'E-mail'
+    const contatoId = stepTocado?.contatoId ?? sequencia!.participantesIds[0] ?? ''
+    const motivo = `${nomeResp} respondeu via ${canalResp} hoje.`
+
+    // Registra a resposta como Interação na Conta-alvo
+    await fonteDeContas.registrarInteracao({
+      contaId: sequencia!.contaId,
+      contatoId,
+      tipo: 'email-recebido',
+      origem: canalResp,
+      participanteCliente: 'Marina Costa',
+    })
 
     await atualizarDoc({
       status: 'pausada',
-      motivoPause: `${nomeResp} respondeu via ${canalResp} hoje.`,
+      motivoPause: motivo,
     })
   }
 
@@ -170,6 +224,15 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   }
 
   async function handleMarcarReuniao() {
+    const contatoId = sequencia!.participantesIds[0] ?? ''
+    await fonteDeContas.registrarInteracao({
+      contaId: sequencia!.contaId,
+      contatoId,
+      tipo: 'reuniao',
+      origem: 'Calendário',
+      participanteCliente: 'Marina Costa',
+    })
+
     await atualizarDoc({
       status: 'reuniao',
       motivoPause: 'Reunião marcada com a Conta-alvo.',
@@ -348,6 +411,26 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               </span>
               <span>·</span>
               <span>{sequencia.steps.length} steps ordenados</span>
+              {metricasDemo && (metricasDemo.respostas > 0 || metricasDemo.reunioes > 0) && (
+                <>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1.5" title="Métricas de demonstração">
+                    <span className="px-1.5 py-0.2 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
+                      Demonstração
+                    </span>
+                    <span className="text-al-ink font-medium">
+                      {metricasDemo.respostas}{' '}
+                      {metricasDemo.respostas === 1 ? 'resposta' : 'respostas'}
+                    </span>
+                    {metricasDemo.reunioes > 0 && (
+                      <span className="text-al-accent font-medium">
+                        · {metricasDemo.reunioes}{' '}
+                        {metricasDemo.reunioes === 1 ? 'reunião' : 'reuniões'}
+                      </span>
+                    )}
+                  </span>
+                </>
+              )}
               {conta?.dominio && (
                 <>
                   <span>·</span>
@@ -401,9 +484,16 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             <Pause className="size-5 shrink-0 text-al-atencao mt-0.5" />
           )}
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">
-              Regra de pause na Conta-alvo
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">
+                Regra de pause na Conta-alvo
+              </span>
+              {sequencia.status === 'pausada' && (
+                <span className="text-[0.6875rem] font-semibold tracking-rotulo uppercase text-al-atencao px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10">
+                  Pausa da Conta inteira
+                </span>
+              )}
+            </div>
             <p className="text-sm font-medium leading-relaxed">
               {sequencia.status === 'pausada'
                 ? `Sequência pausada: ${sequencia.motivoPause ?? 'Resposta de contato recebida'}. Toda a sequência da ${nomeConta} está parada — nenhum Contato recebe o próximo step até alguém analisar.`
@@ -546,7 +636,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             </span>
           </div>
 
-          <ol className="flex flex-col gap-1 list-none p-0 m-0">
+          <ol aria-label="Linha do tempo de passos" className="flex flex-col gap-1 list-none p-0 m-0">
             {stepsMesclados.map((step, idx) => {
               const selecionado = step.id === stepAtivo?.id
               const concluido = idx < sequencia.passoAtual
@@ -591,7 +681,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                       {concluido ? <Check className="size-3 text-al-sucesso" /> : idx + 1}
                     </span>
 
-                    {/* Título e delay */}
+                    {/* Título e delay/data */}
                     <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
                       <span
                         className={`truncate font-normal ${
@@ -601,9 +691,31 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                         {step.titulo}
                       </span>
                       <span className="text-[0.6875rem] text-al-muted shrink-0">
-                        {idx === 0 ? '· Início' : `· +${step.delayDiasUteis}d`}
+                        {idx === 0
+                          ? '· Início'
+                          : datasDosSteps[idx]
+                            ? `· ${formatarDataDoModulo(datasDosSteps[idx], hoje, { maiuscula: false })}`
+                            : `· +${step.delayDiasUteis}d`}
                       </span>
                     </div>
+
+                    {/* Indicador de resposta ou desfecho de demo */}
+                    {step.metricas?.respondeu && (
+                      <span
+                        className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0"
+                        title="Demonstração: obteve resposta"
+                      >
+                        1 resposta
+                      </span>
+                    )}
+                    {step.metricas?.desfecho && (
+                      <span
+                        className="px-1.5 py-0.5 border border-al-line bg-al-surface text-al-muted text-[0.625rem] font-medium shrink-0"
+                        title="Demonstração: desfecho"
+                      >
+                        {step.metricas.desfecho}
+                      </span>
+                    )}
 
                     {/* Ícone do canal e avatar */}
                     <IconeCanal canal={step.canal} />
@@ -661,6 +773,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             onModoPrevia={setModoPrevia}
             conta={conta}
             contatos={contatos ?? []}
+            dataPrevista={dataFormatadaStepAtivo}
             onSalvar={handleSalvarStep}
             onMover={handleMoverStep}
             onExcluir={handleExcluirStep}
@@ -736,6 +849,7 @@ interface ComposerStepProps {
   onModoPrevia: (v: boolean) => void
   conta: ContaAlvo | undefined
   contatos: Contato[]
+  dataPrevista?: string
   onSalvar: (patch: Partial<StepSequencia>) => void
   onMover: (direcao: -1 | 1) => void
   onExcluir: () => void
@@ -755,6 +869,7 @@ function ComposerStep({
   modoPrevia,
   onModoPrevia,
   conta,
+  dataPrevista,
   onSalvar,
   onMover,
   onExcluir,
@@ -1030,12 +1145,40 @@ function ComposerStep({
         />
       </div>
 
-      {/* Rodapé de demonstração */}
-      <div className="flex items-center gap-2 text-xs text-al-muted px-4 py-3">
-        <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
+      {/* Rodapé de demonstração e métricas do step */}
+      <div className="flex flex-wrap items-center gap-3 text-xs text-al-muted px-4 py-3 border-t border-al-line bg-al-surface/40">
+        <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted font-medium">
           Demonstração
         </span>
-        <span>Ainda não enviado · nada sai deste protótipo</span>
+        {step.metricas ? (
+          <>
+            {step.metricas.desfecho ? (
+              <span>
+                Resultado: <strong className="font-normal text-al-ink">{step.metricas.desfecho}</strong>
+              </span>
+            ) : (
+              <>
+                {dataPrevista && (
+                  <span>
+                    Enviado em <strong className="font-normal text-al-ink">{dataPrevista}</strong>
+                  </span>
+                )}
+                {step.metricas.aberturas !== null && step.metricas.aberturas !== undefined && (
+                  <span>
+                    Aberto <strong className="font-normal text-al-ink">{step.metricas.aberturas}×</strong>
+                  </span>
+                )}
+                <span>
+                  <strong className="font-normal text-al-ink">
+                    {step.metricas.respondeu ? '1 resposta' : '0 respostas'}
+                  </strong>
+                </span>
+              </>
+            )}
+          </>
+        ) : (
+          <span>Ainda não enviado · nada sai deste protótipo</span>
+        )}
       </div>
     </div>
   )

@@ -78,9 +78,18 @@ export interface Interacao {
   origem?: string
 }
 
+export interface NovaInteracao {
+  contaId: string
+  contatoId: string
+  tipo: TipoDeInteracao
+  data?: string
+  participanteCliente?: string
+  origem?: string
+}
+
 /**
  * A fronteira de dados do módulo Contas e Contatos.
- * Só de leitura, com operações assíncronas e observador de mudanças.
+ * Operações assíncronas com observador de mudanças (ADR 0003).
  */
 export interface FonteDeContas extends FonteObservavel {
   /** A data de referência de "hoje" adotada pela fonte. */
@@ -103,4 +112,7 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Lista as Interações de uma Conta-alvo, da mais recente à mais antiga. */
   interacoesDaConta(contaId: string): Promise<Interacao[]>
+
+  /** Registra uma nova Interação na Conta-alvo. */
+  registrarInteracao(nova: NovaInteracao): Promise<Interacao>
 }

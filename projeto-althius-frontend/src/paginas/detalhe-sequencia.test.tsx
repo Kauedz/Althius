@@ -112,7 +112,7 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     await usuario.click(botaoMoverCima)
 
     // Agora Convite no LinkedIn virou o Step 1
-    expect(screen.getByText(/Step 1 de 6/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Step 1 de 6/i)).toBeInTheDocument()
   })
 
   it('permite excluir um step da timeline', async () => {

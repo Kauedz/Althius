@@ -250,7 +250,7 @@ function ListaGlobalSequencias() {
 
                         <td className="py-3 px-4 text-xs text-al-muted">
                           {seq.status === 'pausada' ? (
-                            <span className="inline-flex items-center gap-1.5 text-al-atencao">
+                            <span className="inline-flex items-center gap-1.5 text-al-atencao" title="Pausa da Conta inteira">
                               <Pause className="size-3.5 shrink-0" />
                               <span className="truncate">
                                 {seq.motivoPause
@@ -258,6 +258,9 @@ function ListaGlobalSequencias() {
                                       ? seq.motivoPause
                                       : `Pausada · ${seq.motivoPause}`)
                                   : 'Pausada · aguardando análise humana'}
+                              </span>
+                              <span className="px-1 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0">
+                                Pausa da Conta
                               </span>
                             </span>
                           ) : seq.status === 'reuniao' ? (

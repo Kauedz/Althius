@@ -29,6 +29,16 @@ export function App({
   rotaInicial,
   animarDigitacao = true,
 }: Props) {
+  if (
+    'vincularFonteDeSequencias' in fonteDeContas &&
+    typeof (fonteDeContas as { vincularFonteDeSequencias?: (f: FonteDeSequencias) => void })
+      .vincularFonteDeSequencias === 'function'
+  ) {
+    (
+      fonteDeContas as { vincularFonteDeSequencias: (f: FonteDeSequencias) => void }
+    ).vincularFonteDeSequencias(fonteDeSequencias)
+  }
+
   const rotas = (
     <Routes>
       <Route element={<Casca />}>
