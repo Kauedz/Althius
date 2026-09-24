@@ -8,43 +8,62 @@ import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { Aderencia, ContaAlvo, PreviaContato } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn, iniciais } from '@/lib/utils'
 import { DetalheConta } from './detalhe-conta'
+import { Foguinho } from './sinais/componentes'
 
 const ABAS_MODULO = [
   { rotulo: 'Contas', para: '/contas' },
   { rotulo: 'Contatos', para: '/contatos' },
 ]
 
-const ORDEM_ADERENCIA: Record<Aderencia, number> = {
-  quente: 1,
-  fit: 2,
-  'nao-fit': 3,
-}
-
 /**
- * Ordena as Contas-alvo pela regra de Prioridade:
- * 1. Aderência: Quente > Fit > Não fit > Não avaliada
- * 2. Dentro de cada grupo: Sinal mais recente primeiro; contas sem Sinal por último
- * 3. Empate: ordem alfabética do nome da empresa
+ * Ordena as Contas-alvo pela regra de Prioridade (ADR 0007):
+ * 1. Quente (ao menos um sinal válido): contas Quentes vêm primeiro.
+ * 2. Dentro do grupo de Quentes: sinal mais recente primeiro (desempate por recência); se igual, Fit > Não fit > Não avaliada; depois alfabética.
+ * 3. Dentro do grupo de Não quentes: Aderência (Fit > Não fit > Não avaliada); dentro de cada grupo, sinal mais recente primeiro (mesmo expirado); depois alfabética.
  */
-function ordenarPorPrioridade(a: ContaAlvo, b: ContaAlvo): number {
-  const rankA = a.aderencia ? ORDEM_ADERENCIA[a.aderencia] : 4
-  const rankB = b.aderencia ? ORDEM_ADERENCIA[b.aderencia] : 4
+export function ordenarPorPrioridade(a: ContaAlvo, b: ContaAlvo): number {
+  const quenteA = (a.totalSinaisValidos ?? 0) > 0
+  const quenteB = (b.totalSinaisValidos ?? 0) > 0
 
+  if (quenteA !== quenteB) {
+    return quenteA ? -1 : 1
+  }
+
+  const rankAderencia = (c: ContaAlvo) => {
+    if (c.aderencia === 'fit') return 1
+    if (c.aderencia === 'nao-fit') return 2
+    return 3 // Não avaliada
+  }
+
+  if (quenteA && quenteB) {
+    const dataSinalA = a.ultimoSinal ? parseDataDisparo(a.ultimoSinal.data).getTime() : -1
+    const dataSinalB = b.ultimoSinal ? parseDataDisparo(b.ultimoSinal.data).getTime() : -1
+    if (dataSinalA !== dataSinalB) {
+      return dataSinalB - dataSinalA
+    }
+    const rankA = rankAderencia(a)
+    const rankB = rankAderencia(b)
+    if (rankA !== rankB) {
+      return rankA - rankB
+    }
+    return a.nome.localeCompare(b.nome, 'pt-BR')
+  }
+
+  const rankA = rankAderencia(a)
+  const rankB = rankAderencia(b)
   if (rankA !== rankB) {
     return rankA - rankB
   }
 
-  // Dentro do grupo: sinal mais recente primeiro, sem sinal por último
-  const dataSinalA = a.ultimoSinal ? new Date(a.ultimoSinal.data).getTime() : -1
-  const dataSinalB = b.ultimoSinal ? new Date(b.ultimoSinal.data).getTime() : -1
-
+  const dataSinalA = a.ultimoSinal ? parseDataDisparo(a.ultimoSinal.data).getTime() : -1
+  const dataSinalB = b.ultimoSinal ? parseDataDisparo(b.ultimoSinal.data).getTime() : -1
   if (dataSinalA !== dataSinalB) {
     return dataSinalB - dataSinalA
   }
 
-  // Empate: ordem alfabética pelo nome
   return a.nome.localeCompare(b.nome, 'pt-BR')
 }
 
@@ -130,6 +149,9 @@ function ListaContas() {
                 <th scope="col" className={cn(CABECALHO, 'left-0 z-3 w-52')}>
                   Empresa
                 </th>
+                <th scope="col" className={cn(CABECALHO, 'w-28')}>
+                  Quente
+                </th>
                 <th scope="col" className={cn(CABECALHO, 'w-24')}>
                   Aderência
                 </th>
@@ -160,6 +182,9 @@ function ListaContas() {
                 >
                   <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
                     <CelulaEmpresa conta={conta} />
+                  </td>
+                  <td className={CELULA}>
+                    <CelulaQuente totalSinaisValidos={conta.totalSinaisValidos ?? 0} />
                   </td>
                   <td className={CELULA}>
                     <CelulaAderencia aderencia={conta.aderencia} />
@@ -203,6 +228,22 @@ function CelulaEmpresa({ conta }: { conta: ContaAlvo }) {
   )
 }
 
+function CelulaQuente({ totalSinaisValidos }: { totalSinaisValidos: number }) {
+  if (totalSinaisValidos > 0) {
+    return <Foguinho quantidade={totalSinaisValidos} />
+  }
+
+  return (
+    <span
+      title="Sem sinais válidos"
+      aria-label="Sem sinais válidos"
+      className="text-al-muted"
+    >
+      —
+    </span>
+  )
+}
+
 function CelulaAderencia({ aderencia }: { aderencia?: Aderencia }) {
   if (!aderencia) {
     return (
@@ -214,10 +255,6 @@ function CelulaAderencia({ aderencia }: { aderencia?: Aderencia }) {
         —
       </span>
     )
-  }
-
-  if (aderencia === 'quente') {
-    return <span className="text-al-ink">🔥 Quente</span>
   }
 
   if (aderencia === 'fit') {

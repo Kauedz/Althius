@@ -15,7 +15,8 @@ describe('Bloco Sequência no detalhe da Conta-alvo (Ticket 04)', () => {
     // Abre o detalhe com cabeçalho e migalha
     expect(await screen.findByRole('heading', { level: 2, name: 'OpenAI' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Contas \/ OpenAI/i })).toBeInTheDocument()
-    expect(screen.getByText('🔥 Quente')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Quente, 2 sinais válidos' })).toBeInTheDocument()
+    expect(screen.getByText('Fit')).toBeInTheDocument()
     expect(screen.getByText('Recomendada pela Althius')).toBeInTheDocument()
   })
 

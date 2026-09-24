@@ -1,10 +1,11 @@
 import type { FonteObservavel } from './tipos'
 
 /**
- * Aderência ao perfil de cliente ideal (ICP), avaliada pelo Scopus.
- * Quente implica Fit. Sem valor, a Conta-alvo importada ainda não foi avaliada.
+ * Aderência ao perfil de cliente ideal (ICP), avaliada pelo Scopus (ADR 0007).
+ * 'fit' ou 'nao-fit'. Sem valor, a Conta-alvo importada ainda não foi avaliada.
+ * Quente não faz parte da Aderência: é derivado da presença de sinais válidos.
  */
-export type Aderencia = 'quente' | 'fit' | 'nao-fit'
+export type Aderencia = 'fit' | 'nao-fit'
 
 export type OrigemDaConta =
   | { tipo: 'recomendada' }
@@ -13,6 +14,55 @@ export type OrigemDaConta =
 export interface PreviaContato {
   nome: string
   foto?: string
+}
+
+export interface ReencontroSinal {
+  data: string
+  monitoramentoId?: string
+  fonte?: string
+  vezes?: number
+}
+
+export interface Sinal {
+  id: string
+  contaId: string
+  /** Identidade estável do acontecimento para deduplicação por Conta-alvo. */
+  acontecimentoId?: string
+  tipo?: string
+  tipoId?: string
+  monitoramentoId?: string
+  titulo?: string
+  frase: string
+  descricao?: string
+  /** Data do disparo, que define a janela de validade de 30 dias. */
+  data: string
+  dataDisparo?: string
+  /** Data do acontecimento, se distinta da data de disparo (não substitui data de disparo na validade). */
+  dataAcontecimento?: string
+  fonte?: string
+  evidencia?: string
+  detectadoPor?: string
+  /** Registro de reencontro do mesmo acontecimento (mantém data original e não renova validade). */
+  reencontrado?: ReencontroSinal
+}
+
+export interface NovoSinal {
+  id?: string
+  contaId: string
+  acontecimentoId?: string
+  tipo?: string
+  tipoId?: string
+  monitoramentoId?: string
+  titulo?: string
+  frase?: string
+  descricao?: string
+  data?: string | Date
+  dataDisparo?: string | Date
+  dataAcontecimento?: string | Date
+  fonte?: string
+  evidencia?: string
+  detectadoPor?: string
+  reencontrado?: ReencontroSinal
 }
 
 export interface ContaAlvo {
@@ -32,8 +82,12 @@ export interface ContaAlvo {
   totalContatos: number
   /** Até três pré-visualizações de contato para os avatares (calculado pela fonte). */
   previaContatos?: PreviaContato[]
-  /** O sinal mais recente detectado na conta (calculado pela fonte). */
+  /** O sinal mais recente detectado na conta (calculado pela fonte, mesmo se expirado). */
   ultimoSinal?: Sinal
+  /** Quantidade de sinais válidos disparados nos últimos 30 dias (calculado pela fonte). */
+  totalSinaisValidos?: number
+  /** Conta Quente: ao menos um sinal válido nos últimos 30 dias (calculado pela fonte). */
+  quente?: boolean
   /** Data da interação mais recente com qualquer contato (calculada pela fonte, ou undefined para 'Nunca'). */
   ultimoContatoEm?: string
 }
@@ -52,16 +106,6 @@ export interface Contato {
     linkedin: boolean
   }
   ultimoContatoEm?: string
-}
-
-export interface Sinal {
-  id: string
-  contaId: string
-  frase: string
-  data: string
-  fonte?: string
-  evidencia?: string
-  detectadoPor?: string
 }
 
 export type TipoDeInteracao =
@@ -92,13 +136,13 @@ export interface NovaInteracao {
 
 /**
  * A fronteira de dados do módulo Contas e Contatos.
- * Operações assíncronas com observador de mudanças (ADR 0003).
+ * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
  */
 export interface FonteDeContas extends FonteObservavel {
   /** A data de referência de "hoje" adotada pela fonte. */
   hoje(): Date
 
-  /** Lista todas as Contas-alvo. */
+  /** Lista todas as Contas-alvo com suas projeções de sinais e Aderência. */
   contas(): Promise<ContaAlvo[]>
 
   /** Busca uma Conta-alvo pelo identificador. Rejeita se não existir. */
@@ -110,8 +154,14 @@ export interface FonteDeContas extends FonteObservavel {
   /** Lista os Contatos de uma Conta-alvo específica. */
   contatosDaConta(contaId: string): Promise<Contato[]>
 
-  /** Lista os Sinais de uma Conta-alvo, do mais recente ao mais antigo. */
+  /** Lista todos os Sinais disparados até a data de hoje. */
+  sinais(): Promise<Sinal[]>
+
+  /** Lista os Sinais de uma Conta-alvo, do mais recente ao mais antigo (mesmo expirados). */
   sinaisDaConta(contaId: string): Promise<Sinal[]>
+
+  /** Registra/adiciona um novo Sinal, deduplicando acontecimentos na Conta-alvo. */
+  adicionarSinal(sinal: NovoSinal): Promise<Sinal>
 
   /** Lista as Interações de uma Conta-alvo, da mais recente à mais antiga. */
   interacoesDaConta(contaId: string): Promise<Interacao[]>

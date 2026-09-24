@@ -7,6 +7,7 @@ import type {
   PreviaContato,
   Sinal,
 } from './contas-tipos'
+import { estaValido, foiDisparado, parseDataDisparo } from './regras-sinais'
 
 function deslocarDias(hoje: Date, dias: number): string {
   const d = new Date(hoje.getTime() + dias * 24 * 60 * 60 * 1000)
@@ -1474,7 +1475,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/openai',
       logo: '/logos/openai.svg',
       segmento: 'Inteligência Artificial',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1485,7 +1486,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/stripe',
       logo: '/logos/stripe.svg',
       segmento: 'Serviços financeiros',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1496,7 +1497,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/anthropicresearch',
       logo: '/logos/anthropic.svg',
       segmento: 'Inteligência Artificial',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1507,7 +1508,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/nubank',
       logo: '/logos/nubank.svg',
       segmento: 'Serviços financeiros',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1518,7 +1519,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/databricks',
       logo: '/logos/databricks.svg',
       segmento: 'Dados e analytics',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1529,7 +1530,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/snowflake-computing',
       logo: '/logos/snowflake.svg',
       segmento: 'Dados e analytics',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1540,7 +1541,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/cloudflare',
       logo: '/logos/cloudflare.svg',
       segmento: 'Infraestrutura',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1551,7 +1552,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/gitlab-com',
       logo: '/logos/gitlab.svg',
       segmento: 'DevOps',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1562,7 +1563,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/figma',
       logo: '/logos/figma.svg',
       segmento: 'Produtividade',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1574,7 +1575,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       logo: '/logos/notion.svg',
       logoDeUmaCor: true,
       segmento: 'Produtividade',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1585,7 +1586,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/canva',
       logo: '/logos/canva.png',
       segmento: 'Produtividade',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1596,7 +1597,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/mongodbinc',
       logo: '/logos/mongodb.svg',
       segmento: 'Dados e analytics',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1607,7 +1608,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/hubspot',
       logo: '/logos/hubspot.svg',
       segmento: 'Marketing e vendas',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1618,7 +1619,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/rippling',
       logo: '/logos/rippling.png',
       segmento: 'Gestão de pessoas',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1629,7 +1630,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/deel',
       logo: '/logos/deel.png',
       segmento: 'Gestão de pessoas',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1641,7 +1642,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       logo: '/logos/vercel.svg',
       logoDeUmaCor: true,
       segmento: 'Infraestrutura',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1652,7 +1653,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/brexhq',
       logo: '/logos/brex.svg',
       segmento: 'Serviços financeiros',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
     {
@@ -1663,7 +1664,7 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       linkedinUrl: 'https://www.linkedin.com/company/ramp',
       logo: '/logos/ramp.png',
       segmento: 'Serviços financeiros',
-      aderencia: 'quente',
+      aderencia: 'fit',
       origem: { tipo: 'recomendada' },
     },
 
@@ -1812,7 +1813,9 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
     const contatosDaConta = contatos.filter((c) => c.contaId === def.id)
     const sinaisDaConta = sinais
       .filter((s) => s.contaId === def.id)
-      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+      .sort((a, b) => parseDataDisparo(b.data).getTime() - parseDataDisparo(a.data).getTime())
+    const sinaisDisparados = sinaisDaConta.filter((s) => foiDisparado(s, hoje))
+    const sinaisValidos = sinaisDisparados.filter((s) => estaValido(s, hoje))
     const interacoesDaConta = interacoes
       .filter((i) => i.contaId === def.id)
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
@@ -1835,7 +1838,9 @@ export function criarDadosIniciais(hoje: Date): DadosContasIniciais {
       origem: def.origem,
       totalContatos: contatosDaConta.length,
       previaContatos,
-      ultimoSinal: sinaisDaConta[0],
+      ultimoSinal: sinaisDisparados[0],
+      totalSinaisValidos: sinaisValidos.length,
+      quente: sinaisValidos.length > 0,
       ultimoContatoEm: interacoesDaConta[0]?.data,
     }
   })

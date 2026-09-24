@@ -380,23 +380,13 @@ export const SINAIS_MOCK: SinalMock[] = [
   },
 ]
 
-const DIA_EM_MS = 24 * 60 * 60 * 1000
-export const VALIDADE_EM_DIAS = 30
-
-/** O dia do disparo, à meia-noite local: a mesma referência nas listas, no Último sinal e na validade. */
-export function dataDoDisparo(data: string): Date {
-  const [ano, mes, dia] = data.split('-').map(Number)
-  return new Date(ano, mes - 1, dia)
-}
-
-/** O instante em que o Sinal deixa de valer: ao completar os 30 dias. */
-export function expiraEm(sinal: SinalMock): Date {
-  return new Date(dataDoDisparo(sinal.data).getTime() + VALIDADE_EM_DIAS * DIA_EM_MS)
-}
-
-export function estaValido(sinal: SinalMock, hoje: Date): boolean {
-  return dataDoDisparo(sinal.data).getTime() <= hoje.getTime() && hoje.getTime() < expiraEm(sinal).getTime()
-}
+export {
+  DIA_EM_MS,
+  VALIDADE_EM_DIAS,
+  dataDoDisparo,
+  expiraEm,
+  estaValido,
+} from '@/fonte/regras-sinais'
 
 export function sinaisDaConta(contaId: string): SinalMock[] {
   return SINAIS_MOCK.filter((sinal) => sinal.contaId === contaId).sort((a, b) => b.data.localeCompare(a.data))

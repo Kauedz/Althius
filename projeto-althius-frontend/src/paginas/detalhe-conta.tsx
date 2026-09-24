@@ -14,8 +14,10 @@ import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useDadosDeSequencias, useFonteDeContas } from '@/fonte/contexto'
 import type { Aderencia, TipoDeInteracao } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import { estaValido } from '@/fonte/regras-sinais'
 import { SeloStatus } from './detalhe-sequencia'
 import { DialogoNovaSequencia } from './nova-sequencia'
+import { Foguinho } from './sinais/componentes'
 
 interface Props {
   contaId: string
@@ -141,6 +143,9 @@ export function DetalheConta({ contaId }: Props) {
               <h2 className="titulo-secao text-2xl font-light uppercase text-al-ink">
                 {conta.nome}
               </h2>
+              {(conta.totalSinaisValidos ?? 0) > 0 && (
+                <Foguinho quantidade={conta.totalSinaisValidos!} />
+              )}
               <BadgeAderencia aderencia={conta.aderencia} />
             </div>
 
@@ -313,7 +318,23 @@ export function DetalheConta({ contaId }: Props) {
             <div className="flex flex-col gap-3">
               {/* Sinal mais recente em destaque */}
               <div className="border border-al-line bg-al-surface p-4 flex flex-col gap-2">
-                <p className="text-sm font-medium text-al-ink">{sinalMaisRecente.frase}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-al-ink">{sinalMaisRecente.frase}</p>
+                  <span className="selo shrink-0">
+                    {estaValido(sinalMaisRecente, hoje) ? 'Válido' : 'Expirado'}
+                  </span>
+                </div>
+                {sinalMaisRecente.evidencia && (
+                  <blockquote className="border-l-2 border-al-line pl-3 text-xs text-al-muted">
+                    {sinalMaisRecente.evidencia}
+                  </blockquote>
+                )}
+                {sinalMaisRecente.reencontrado && (
+                  <p className="text-xs text-al-muted">
+                    Reencontrado em {formatarDataDoModulo(sinalMaisRecente.reencontrado.data, hoje, { maiuscula: false })}:
+                    o mesmo acontecimento não conta de novo nem renova validade.
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-al-muted">
                   <span>
                     {formatarDataDoModulo(sinalMaisRecente.data, hoje, { maiuscula: true })}
@@ -334,10 +355,20 @@ export function DetalheConta({ contaId }: Props) {
                 <div className="flex flex-col divide-y divide-al-line border border-al-line bg-al-surface/40">
                   {outrosSinais.map((s) => (
                     <div key={s.id} className="p-3 flex items-center justify-between gap-3 text-xs">
-                      <span className="text-al-ink font-normal">{s.frase}</span>
-                      <span className="text-al-muted shrink-0">
-                        {formatarDataDoModulo(s.data, hoje, { maiuscula: false })}
-                      </span>
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="text-al-ink font-normal">{s.frase}</span>
+                        {s.evidencia && (
+                          <span className="text-[0.6875rem] text-al-muted truncate">{s.evidencia}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="selo text-[0.625rem]">
+                          {estaValido(s, hoje) ? 'Válido' : 'Expirado'}
+                        </span>
+                        <span className="text-al-muted shrink-0 whitespace-nowrap">
+                          {formatarDataDoModulo(s.data, hoje, { maiuscula: false })}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -495,10 +526,6 @@ function BadgeAderencia({ aderencia }: { aderencia?: Aderencia }) {
         —
       </span>
     )
-  }
-
-  if (aderencia === 'quente') {
-    return <span className="text-xs font-normal text-al-ink">🔥 Quente</span>
   }
 
   if (aderencia === 'fit') {
