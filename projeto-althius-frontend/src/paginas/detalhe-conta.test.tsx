@@ -164,7 +164,8 @@ describe('Detalhe da Conta-alvo', () => {
       'https://www.linkedin.com/company/openai',
     )
     expect(within(cabecalho).getByText('Inteligência Artificial')).toBeInTheDocument()
-    expect(within(cabecalho).getByText('🔥 Quente')).toBeInTheDocument()
+    expect(within(cabecalho).getByRole('img', { name: 'Quente, 2 sinais válidos' })).toBeInTheDocument()
+    expect(within(cabecalho).getByText('Fit')).toBeInTheDocument()
     expect(within(cabecalho).getByText('Recomendada pela Althius')).toBeInTheDocument()
   })
 
@@ -262,7 +263,7 @@ describe('Detalhe da Conta-alvo', () => {
     await usuario.click(screen.getByRole('link', { name: 'Contas' }))
     const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
     const linha = within(tabela).getByText('Banorte').closest('tr')!
-    expect(within(linha).getAllByRole('cell')[5]).toHaveTextContent('Nunca')
+    expect(within(linha).getAllByRole('cell')[6]).toHaveTextContent('Nunca')
   })
 
   it('a seção Contatos mostra só as pessoas daquela Conta-alvo, na tabela da aba Contatos sem a coluna Empresa', async () => {
@@ -301,7 +302,7 @@ describe('Detalhe da Conta-alvo', () => {
 
     const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
     const linha = within(tabela).getByRole('link', { name: 'Stripe' }).closest('tr')!
-    const contatos = within(within(linha).getAllByRole('cell')[2]).getByRole('link')
+    const contatos = within(within(linha).getAllByRole('cell')[3]).getByRole('link')
     expect(contatos).toHaveAttribute('href', '/contas/stripe#contatos')
     await usuario.click(contatos)
 
@@ -317,7 +318,7 @@ describe('Detalhe da Conta-alvo', () => {
 
     const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
     const linha = within(tabela).getByRole('link', { name: 'Miro' }).closest('tr')!
-    const contatos = within(within(linha).getAllByRole('cell')[2]).getByRole('link', { name: 'Nenhum contato' })
+    const contatos = within(within(linha).getAllByRole('cell')[3]).getByRole('link', { name: 'Nenhum contato' })
     expect(contatos).toHaveAttribute('href', '/contas/miro#contatos')
   })
 

@@ -5,34 +5,44 @@ describe('Dados completos da demo (ticket 04)', () => {
   const hoje = new Date(2026, 8, 23, 12, 0, 0)
   const dados = criarDadosIniciais(hoje)
 
-  it('possui exatamente 30 Contas-alvo: 18 Quentes, 8 Fit, 3 Não fit e 1 não avaliada', () => {
+  it('possui exatamente 30 Contas-alvo: 18 Quentes derivadas dos sinais, 26 Fit, 3 Não fit e 1 não avaliada', () => {
     expect(dados.contas).toHaveLength(30)
 
-    const quentes = dados.contas.filter((c) => c.aderencia === 'quente')
+    const quentes = dados.contas.filter((c) => c.quente)
     const fits = dados.contas.filter((c) => c.aderencia === 'fit')
     const naoFits = dados.contas.filter((c) => c.aderencia === 'nao-fit')
     const naoAvaliadas = dados.contas.filter((c) => c.aderencia === undefined)
 
     expect(quentes).toHaveLength(18)
-    expect(fits).toHaveLength(8)
+    expect(fits).toHaveLength(26)
     expect(naoFits).toHaveLength(3)
     expect(naoAvaliadas).toHaveLength(1)
 
-    // Todas as 18 Quentes têm sinal recente
+    // Todas as 18 Quentes têm Fit preservado e ao menos um sinal válido nos últimos 30 dias
     for (const conta of quentes) {
+      expect(conta.aderencia).toBe('fit')
+      expect(conta.totalSinaisValidos).toBeGreaterThanOrEqual(1)
       expect(conta.ultimoSinal).toBeDefined()
       const dataSinal = new Date(conta.ultimoSinal!.data).getTime()
       const diffDias = Math.round((hoje.getTime() - dataSinal) / (1000 * 60 * 60 * 24))
       expect(diffDias).toBeLessThanOrEqual(30)
     }
+
+    // OpenAI tem 2 sinais válidos nos dados da demo
+    const openai = dados.contas.find((c) => c.id === 'openai')
+    expect(openai?.totalSinaisValidos).toBe(2)
+
+    // Contas recomendadas sem sinal recente continuam com Fit, sem ser Quente
+    const sap = dados.contas.find((c) => c.id === 'sap')
+    expect(sap?.aderencia).toBe('fit')
+    expect(sap?.quente).toBe(false)
+    expect(sap?.totalSinaisValidos).toBe(0)
   })
 
   it('as 3 Não fit e a não avaliada têm origem "importada" por Marina; as demais têm origem "recomendada"', () => {
     const naoFits = dados.contas.filter((c) => c.aderencia === 'nao-fit')
     const naoAvaliadas = dados.contas.filter((c) => c.aderencia === undefined)
-    const recomendadas = dados.contas.filter(
-      (c) => c.aderencia === 'quente' || c.aderencia === 'fit',
-    )
+    const recomendadas = dados.contas.filter((c) => c.aderencia === 'fit')
 
     for (const conta of [...naoFits, ...naoAvaliadas]) {
       expect(conta.origem).toEqual(
@@ -165,10 +175,10 @@ describe('Dados completos da demo (ticket 04)', () => {
     }
   })
 
-  it('nenhum dado exposto tem nota numérica de Aderência', () => {
+  it('nenhum dado exposto tem nota numérica de Aderência e Quente não é valor de Aderência', () => {
     for (const conta of dados.contas) {
       if (conta.aderencia !== undefined) {
-        expect(['quente', 'fit', 'nao-fit']).toContain(conta.aderencia)
+        expect(['fit', 'nao-fit']).toContain(conta.aderencia)
       }
       expect(conta).not.toHaveProperty('score')
       expect(conta).not.toHaveProperty('nota')

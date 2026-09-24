@@ -2,7 +2,6 @@ import { Building2 } from 'lucide-react'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
-import type { Aderencia } from '@/fonte/contas-tipos'
 import { normalizarParaBusca } from '@/lib/utils'
 import {
   AbasDoModulo,
@@ -17,7 +16,7 @@ import {
   OPCAO,
   SemResultado,
 } from './modulo-contas-e-contatos'
-import { ADERENCIAS, posicaoDaAderencia, ROTULO_ADERENCIA } from './ordem-da-aderencia'
+import { ADERENCIAS, type GrupoDaPrioridade, grupoDaConta, posicaoDaAderencia, ROTULO_ADERENCIA } from './ordem-da-aderencia'
 import { useRecorteNoEndereco } from './recorte-no-endereco'
 import { type LinhaDeContato, TabelaDeContatos, temDadosDeContato } from './tabela-de-contatos'
 import { useEstadoParaODetalhe, useRolagemDaLista } from './voltar-para-a-lista'
@@ -25,7 +24,7 @@ import { useEstadoParaODetalhe, useRolagemDaLista } from './voltar-para-a-lista'
 /** Aderência da empresa, na ordem de grupos da Prioridade; depois o nome da empresa e o da pessoa. */
 function compararLinhas(a: LinhaDeContato, b: LinhaDeContato): number {
   return (
-    posicaoDaAderencia(a.conta?.aderencia) - posicaoDaAderencia(b.conta?.aderencia) ||
+    posicaoDaAderencia(grupoDaConta(a.conta)) - posicaoDaAderencia(grupoDaConta(b.conta)) ||
     (a.conta?.nome ?? '').localeCompare(b.conta?.nome ?? '', 'pt-BR') ||
     a.contato.nome.localeCompare(b.contato.nome, 'pt-BR')
   )
@@ -33,8 +32,8 @@ function compararLinhas(a: LinhaDeContato, b: LinhaDeContato): number {
 
 /** Opções da Aderência se combinam com "ou"; os dois filtros, com "e". Um filtro vazio não se aplica. */
 interface FiltrosDosContatos {
-  /** A Aderência da empresa do Contato. */
-  aderencia: Aderencia[]
+  /** O grupo da empresa do Contato: Quente, Fit ou Não fit. */
+  aderencia: GrupoDaPrioridade[]
   /** Só quem tem pelo menos um canal disponível. */
   comDados: boolean
 }
@@ -54,7 +53,7 @@ function useRecorteDosContatos() {
   return {
     ...recorte,
     filtros,
-    alternarAderencia: (aderencia: Aderencia) => recorte.alternarOpcao('aderencia', aderencia),
+    alternarAderencia: (aderencia: GrupoDaPrioridade) => recorte.alternarOpcao('aderencia', aderencia),
     alternarComDados: () => recorte.definir('dados', filtros.comDados ? '' : 'com', ''),
   }
 }
@@ -74,7 +73,7 @@ function buscarLinhas(linhas: LinhaDeContato[], busca: string): LinhaDeContato[]
 function filtrarLinhas(linhas: LinhaDeContato[], filtros: FiltrosDosContatos): LinhaDeContato[] {
   return linhas.filter(
     ({ contato, conta }) =>
-      (filtros.aderencia.length === 0 || (conta?.aderencia !== undefined && filtros.aderencia.includes(conta.aderencia))) &&
+      (filtros.aderencia.length === 0 || filtros.aderencia.some((grupo) => grupo === grupoDaConta(conta))) &&
       (!filtros.comDados || temDadosDeContato(contato)),
   )
 }

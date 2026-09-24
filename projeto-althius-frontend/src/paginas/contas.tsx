@@ -7,8 +7,9 @@ import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
-import type { Aderencia, ContaAlvo } from '@/fonte/contas-tipos'
+import type { ContaAlvo } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn, normalizarParaBusca } from '@/lib/utils'
 import { DetalheConta } from './detalhe-conta'
 import {
@@ -28,11 +29,61 @@ import {
   OPCAO,
   SemResultado,
 } from './modulo-contas-e-contatos'
-import { ADERENCIAS, posicaoDaAderencia, ROTULO_ADERENCIA } from './ordem-da-aderencia'
+import { ADERENCIAS, type GrupoDaPrioridade, grupoDaConta, ROTULO_ADERENCIA } from './ordem-da-aderencia'
 import { useRecorteNoEndereco } from './recorte-no-endereco'
+import { Foguinho } from './sinais/componentes'
 import { type EstadoDaNavegacao, useEstadoParaODetalhe, useRolagemDaLista } from './voltar-para-a-lista'
 
 type Comparacao = (a: ContaAlvo, b: ContaAlvo) => number
+
+/**
+ * Ordena as Contas-alvo pela regra de Prioridade (ADR 0007):
+ * 1. Quente (ao menos um sinal válido): contas Quentes vêm primeiro.
+ * 2. Dentro do grupo de Quentes: sinal mais recente primeiro (desempate por recência); se igual, Fit > Não fit > Não avaliada; depois alfabética.
+ * 3. Dentro do grupo de Não quentes: Aderência (Fit > Não fit > Não avaliada); dentro de cada grupo, sinal mais recente primeiro (mesmo expirado); depois alfabética.
+ */
+export function ordenarPorPrioridade(a: ContaAlvo, b: ContaAlvo): number {
+  const quenteA = (a.totalSinaisValidos ?? 0) > 0
+  const quenteB = (b.totalSinaisValidos ?? 0) > 0
+
+  if (quenteA !== quenteB) {
+    return quenteA ? -1 : 1
+  }
+
+  const rankAderencia = (c: ContaAlvo) => {
+    if (c.aderencia === 'fit') return 1
+    if (c.aderencia === 'nao-fit') return 2
+    return 3 // Não avaliada
+  }
+
+  if (quenteA && quenteB) {
+    const dataSinalA = a.ultimoSinal ? parseDataDisparo(a.ultimoSinal.data).getTime() : -1
+    const dataSinalB = b.ultimoSinal ? parseDataDisparo(b.ultimoSinal.data).getTime() : -1
+    if (dataSinalA !== dataSinalB) {
+      return dataSinalB - dataSinalA
+    }
+    const rankA = rankAderencia(a)
+    const rankB = rankAderencia(b)
+    if (rankA !== rankB) {
+      return rankA - rankB
+    }
+    return a.nome.localeCompare(b.nome, 'pt-BR')
+  }
+
+  const rankA = rankAderencia(a)
+  const rankB = rankAderencia(b)
+  if (rankA !== rankB) {
+    return rankA - rankB
+  }
+
+  const dataSinalA = a.ultimoSinal ? parseDataDisparo(a.ultimoSinal.data).getTime() : -1
+  const dataSinalB = b.ultimoSinal ? parseDataDisparo(b.ultimoSinal.data).getTime() : -1
+  if (dataSinalA !== dataSinalB) {
+    return dataSinalB - dataSinalA
+  }
+
+  return a.nome.localeCompare(b.nome, 'pt-BR')
+}
 
 /** A data mais recente primeiro; sem data, no fim. */
 function maisRecentePrimeiro(data: (conta: ContaAlvo) => string | undefined): Comparacao {
@@ -48,7 +99,6 @@ function maisRecentePrimeiro(data: (conta: ContaAlvo) => string | undefined): Co
 }
 
 const porNome: Comparacao = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR')
-const porAderencia: Comparacao = (a, b) => posicaoDaAderencia(a.aderencia) - posicaoDaAderencia(b.aderencia)
 const porUltimoSinal = maisRecentePrimeiro((conta) => conta.ultimoSinal?.data)
 
 /** Aplica os critérios em sequência: o seguinte só desfaz o empate do anterior. */
@@ -58,8 +108,8 @@ function emSequencia(...criterios: Comparacao[]): Comparacao {
 
 /** As opções de "Ordenar por", cada uma com direção fixa. Empates, em todas, pelo nome. */
 const ORDENACOES = {
-  // Quente, Fit, Não fit e não avaliada; dentro do grupo, o Sinal mais recente primeiro e sem Sinal no fim.
-  prioridade: { rotulo: 'Prioridade', comparar: emSequencia(porAderencia, porUltimoSinal, porNome) },
+  // Quentes primeiro, depois Fit, Não fit e não avaliada (ADR 0007).
+  prioridade: { rotulo: 'Prioridade', comparar: ordenarPorPrioridade },
   'ultimo-sinal': { rotulo: 'Último sinal', comparar: emSequencia(porUltimoSinal, porNome) },
   contatos: { rotulo: 'Contatos', comparar: emSequencia((a, b) => b.totalContatos - a.totalContatos, porNome) },
   'ultimo-contato': {
@@ -92,7 +142,7 @@ function ePresenca(valor: string | null): valor is Presenca {
 
 /** Opções do mesmo grupo se combinam com "ou"; grupos diferentes, com "e". Um grupo vazio não filtra. */
 interface FiltrosDasContas {
-  aderencia: Aderencia[]
+  aderencia: GrupoDaPrioridade[]
   segmento: string[]
   sinal?: Presenca
   contatos?: Presenca
@@ -144,7 +194,7 @@ function filtrarContas(contas: ContaAlvo[], filtros: FiltrosDasContas): ContaAlv
     opcoes.length === 0 || (valor !== undefined && opcoes.includes(valor))
   return contas.filter(
     (conta) =>
-      atendeOpcoes(filtros.aderencia, conta.aderencia) &&
+      atendeOpcoes(filtros.aderencia, grupoDaConta(conta)) &&
       atendeOpcoes(filtros.segmento, conta.segmento) &&
       atendePresenca(filtros.sinal, !!conta.ultimoSinal) &&
       atendePresenca(filtros.contatos, conta.totalContatos > 0),
@@ -266,6 +316,9 @@ function ListaContas() {
                 <th scope="col" className={cn(CABECALHO, 'left-0 z-3 w-52')}>
                   Empresa
                 </th>
+                <th scope="col" className={cn(CABECALHO, 'w-28')}>
+                  Quente
+                </th>
                 <th scope="col" className={cn(CABECALHO, 'w-24')}>
                   Aderência
                 </th>
@@ -296,6 +349,9 @@ function ListaContas() {
                 >
                   <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
                     <CelulaEmpresa conta={conta} estadoDoLink={estadoDoLink} />
+                  </td>
+                  <td className={CELULA}>
+                    <CelulaQuente totalSinaisValidos={conta.totalSinaisValidos ?? 0} />
                   </td>
                   <td className={CELULA}>
                     <SeloDeAderencia aderencia={conta.aderencia} />
@@ -369,7 +425,7 @@ function MenuDeFiltrosDasContas({ contas, recorte }: { contas: ContaAlvo[]; reco
             />
             <span>{ROTULO_ADERENCIA[aderencia]}</span>
             <small className="ml-auto text-xs text-al-muted" aria-hidden>
-              {contas.filter((conta) => conta.aderencia === aderencia).length}
+              {contas.filter((conta) => grupoDaConta(conta) === aderencia).length}
             </small>
           </label>
         ))}
@@ -436,6 +492,22 @@ function CelulaEmpresa({ conta, estadoDoLink }: { conta: ContaAlvo; estadoDoLink
         <span className="truncate text-[0.6875rem] text-al-muted">{conta.dominio ?? 'Domínio não informado'}</span>
       </div>
     </div>
+  )
+}
+
+function CelulaQuente({ totalSinaisValidos }: { totalSinaisValidos: number }) {
+  if (totalSinaisValidos > 0) {
+    return <Foguinho quantidade={totalSinaisValidos} />
+  }
+
+  return (
+    <span
+      title="Sem sinais válidos"
+      aria-label="Sem sinais válidos"
+      className="text-al-muted"
+    >
+      —
+    </span>
   )
 }
 

@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (FonteDeSequencias e item Sequências na casca)
 
-**Status:** ready-for-human
+**Status:** closed
 
 - [x] O detalhe da Conta-alvo mostra a seção Sequência com status e cobertura quando houver uma
 - [x] Sem sequência, o vazio oferece criar

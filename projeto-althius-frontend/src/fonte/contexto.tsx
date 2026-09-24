@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { FonteDeOnboarding } from './onboarding-tipos'
+import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
 
 const ContextoDaFonte = createContext<FonteDeAgentes | null>(null)
@@ -40,6 +42,42 @@ export function FonteDeSequenciasProvider({
 export function useFonteDeSequencias(): FonteDeSequencias {
   const fonte = useContext(ContextoDaFonteDeSequencias)
   if (!fonte) throw new Error('useFonteDeSequencias precisa de um FonteDeSequenciasProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeOnboarding = createContext<FonteDeOnboarding | null>(null)
+
+export function FonteDeOnboardingProvider({
+  fonte,
+  children,
+}: {
+  fonte: FonteDeOnboarding
+  children: ReactNode
+}) {
+  return <ContextoDaFonteDeOnboarding.Provider value={fonte}>{children}</ContextoDaFonteDeOnboarding.Provider>
+}
+
+export function useFonteDeOnboarding(): FonteDeOnboarding {
+  const fonte = useContext(ContextoDaFonteDeOnboarding)
+  if (!fonte) throw new Error('useFonteDeOnboarding precisa de um FonteDeOnboardingProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeSinais = createContext<FonteDeSinais | null>(null)
+
+export function FonteDeSinaisProvider({
+  fonte,
+  children,
+}: {
+  fonte: FonteDeSinais
+  children: ReactNode
+}) {
+  return <ContextoDaFonteDeSinais.Provider value={fonte}>{children}</ContextoDaFonteDeSinais.Provider>
+}
+
+export function useFonteDeSinais(): FonteDeSinais {
+  const fonte = useContext(ContextoDaFonteDeSinais)
+  if (!fonte) throw new Error('useFonteDeSinais precisa de um FonteDeSinaisProvider')
   return fonte
 }
 
@@ -161,5 +199,16 @@ export function useDadosDeSequencias<T>(
   dependencias: unknown[] = [],
 ): EstadoDoCarregamento<T> {
   const fonte = useFonteDeSequencias()
+  return useCarregamento(fonte, carregar, dependencias)
+}
+
+/**
+ * Carrega dados da FonteDeSinais do contexto com estado completo de carregamento (dados, carregando, erro e recarregar).
+ */
+export function useDadosDeSinais<T>(
+  carregar: (fonte: FonteDeSinais) => Promise<T>,
+  dependencias: unknown[] = [],
+): EstadoDoCarregamento<T> {
+  const fonte = useFonteDeSinais()
   return useCarregamento(fonte, carregar, dependencias)
 }

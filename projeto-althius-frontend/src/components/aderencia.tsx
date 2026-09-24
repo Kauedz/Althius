@@ -1,6 +1,6 @@
 import type { Aderencia } from '@/fonte/contas-tipos'
 
-/** A Aderência de uma Conta-alvo como aparece no módulo, ou "—" quando ainda não foi avaliada. */
+/** A Aderência de uma Conta-alvo (Fit ou Não fit) como aparece no módulo, ou "—" quando ainda não foi avaliada. */
 export function SeloDeAderencia({ aderencia }: { aderencia?: Aderencia }) {
   if (!aderencia) {
     return (
@@ -12,10 +12,6 @@ export function SeloDeAderencia({ aderencia }: { aderencia?: Aderencia }) {
         —
       </span>
     )
-  }
-
-  if (aderencia === 'quente') {
-    return <span className="text-al-ink">🔥 Quente</span>
   }
 
   if (aderencia === 'fit') {

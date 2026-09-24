@@ -4,12 +4,12 @@ import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
 import { normalizarNome, reconhecerMencoes } from './mencoes'
-import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
+import { ehEmailValido, nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
 import {
   consolidadaGenerica,
   etapaGenerica,
-  RESPOSTA_DIRETA,
   respostaDeMencao,
+  respostaDireta,
   respostaGenerica,
   roteiros,
   roteirosCoordenados,
@@ -24,6 +24,7 @@ import type {
   Aprovacao,
   CanalId,
   EspecialidadeId,
+  EstadoAgente,
   FonteDeAgentes,
   Gatilho,
   IntegracaoId,
@@ -34,14 +35,44 @@ import type {
   Origem,
   PassoDaConversa,
   PassoDaCoordenacao,
+  Perfil,
 } from './tipos'
 
-interface Opcoes {
-  /** Atraso simulado de cada resposta e de cada passo da Conversa. */
-  atrasoMs?: number
+const CHAVE_DO_PERFIL = 'althius:perfil'
+
+export interface ArmazenamentoDoPerfil {
+  getItem(chave: string): string | null
+  setItem(chave: string, valor: string): void
 }
 
-export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgentes {
+export interface OpcoesFonteSimulada {
+  /** Atraso simulado de cada resposta e de cada passo da Conversa. */
+  atrasoMs?: number
+  /**
+   * Quando presente, o perfil pessoal (nome, e-mail, foto) sobrevive a um refresh, associado à
+   * Conta de usuário. Sem isso, vale só na instância — útil para isolar os testes.
+   */
+  armazenamento?: ArmazenamentoDoPerfil | null
+}
+
+/** Lê o perfil salvo, ignorando o que não reconhece; sem armazenamento ou sem valor salvo, nada muda. */
+function perfilSalvo(armazenamento: ArmazenamentoDoPerfil | null): Partial<Perfil> {
+  if (!armazenamento) return {}
+  try {
+    const bruto = armazenamento.getItem(CHAVE_DO_PERFIL)
+    if (!bruto) return {}
+    const lido = JSON.parse(bruto) as Record<string, unknown>
+    const perfil: Partial<Perfil> = {}
+    if (typeof lido.nome === 'string') perfil.nome = lido.nome
+    if (typeof lido.email === 'string') perfil.email = lido.email
+    if (typeof lido.foto === 'string') perfil.foto = lido.foto
+    return perfil
+  } catch {
+    return {}
+  }
+}
+
+export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: OpcoesFonteSimulada = {}): FonteDeAgentes {
   const estado = structuredClone({
     agentes: demo.agentes,
     fatos: demo.fatos,
@@ -53,6 +84,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     personalizacoes: demo.personalizacoes,
     aprovacoes: demo.aprovacoes,
     previas: demo.previas,
+    usuario: { ...demo.workspace.usuario, ...perfilSalvo(armazenamento) },
   })
   const ouvintes = new Set<() => void>()
   let proximoId = 1
@@ -100,6 +132,47 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
 
   function nomeDe(id: AgenteId) {
     return buscar(estado.agentes, id).nome
+  }
+
+  function gravarEstado(id: AgenteId, novo: EstadoAgente) {
+    const agente = buscar(estado.agentes, id)
+    if (agente.estado === novo) return false
+    agente.estado = novo
+    return true
+  }
+
+  /** A primeira linha do que o Agente entregou neste roteiro. */
+  function resultadoDe(passos: PassoDeRoteiro<AgenteId>[], agenteId: AgenteId): string {
+    for (const passo of passos) {
+      if (passo.tipo === 'texto' && passo.ator === agenteId) {
+        return passo.texto.split('\n').find((linha) => linha.trim())?.trim() ?? passo.texto
+      }
+    }
+    for (const passo of passos) {
+      if (passo.tipo === 'repasse' && passo.de === agenteId) return passo.resumo
+    }
+    return 'Complementou a Conversa.'
+  }
+
+  function participantesDe(passos: PassoDeRoteiro<AgenteId>[]): AgenteId[] {
+    const ids: AgenteId[] = []
+    const visto = new Set<AgenteId>()
+    const incluir = (id: AgenteId) => {
+      if (visto.has(id)) return
+      visto.add(id)
+      ids.push(id)
+    }
+    for (const passo of passos) {
+      if (passo.tipo === 'repasse') {
+        incluir(passo.de)
+        incluir(passo.para)
+      } else incluir(passo.ator)
+    }
+    return ids
+  }
+
+  function linkDaConversa(agenteId: AgenteId) {
+    return { rotulo: 'Ver Conversa', para: `/agentes/${agenteId}/conversa` }
   }
 
   function montarAgente({ especialidadeId, ...agente }: RegistroDeAgente): Agente {
@@ -211,7 +284,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     const mencionados = mencionadosNaConversa.at(-1) ?? []
     const roteirizados = passosRoteirizados(pedido, anteriores)
     if (!roteirizados) {
-      if (mencionados.length === 0) return [RESPOSTA_DIRETA]
+      if (mencionados.length === 0) return [respostaDireta(pedido.texto)]
       return [...mencionados.flatMap(etapaGenerica), consolidadaGenerica(mencionados.map((a) => a.nome))]
     }
 
@@ -257,8 +330,18 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     workspace: () =>
       responder(() => ({
         ...demo.workspace,
+        usuario: estado.usuario,
         aprovacoesPendentes: estado.aprovacoes.filter((a) => a.estado === 'pendente').length,
       })),
+    salvarPerfil: (perfil) =>
+      mudar(() => {
+        const nome = perfil.nome.trim()
+        if (!nome) throw new Error('Informe seu nome.')
+        const email = perfil.email.trim()
+        if (!ehEmailValido(email)) throw new Error('Informe um e-mail em formato válido.')
+        estado.usuario = { ...estado.usuario, nome, email: email.toLowerCase(), foto: perfil.foto }
+        armazenamento?.setItem(CHAVE_DO_PERFIL, JSON.stringify(estado.usuario))
+      }),
 
     especialidades: () => responder(() => especialidades),
 
@@ -278,7 +361,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
       estado.habilidades.push(
         ...estado.habilidades
           .filter((h) => h.agenteId === padrao.id)
-          .map((h) => ({ ...h, id: novoId('habilidade'), agenteId: id, usos: 0 })),
+          .map((h) => ({ ...h, id: novoId('habilidade'), agenteId: id })),
       )
       avisar()
       return structuredClone(montarAgente(buscar(estado.agentes, id)))
@@ -409,6 +492,10 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
 
     async *conversar(id, { texto, sugestaoId }): AsyncGenerator<PassoDaConversa> {
       const passos = roteiroPara(id, texto, sugestaoId)
+      const roteirizado = Boolean(sugestaoId && roteiros[sugestaoId])
+      const participantes = participantesDe(passos)
+      const anteriores = new Map(participantes.map((agenteId) => [agenteId, buscar(estado.agentes, agenteId).estado]))
+      if (participantes.some((agenteId) => gravarEstado(agenteId, 'trabalhando'))) avisar()
       for (const passo of passos) {
         await esperar()
         if (passo.tipo === 'aprovacao') {
@@ -421,20 +508,21 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
           yield { ...resto, agenteId: ator }
         }
       }
-      registrarExecucao({
-        agenteId: id,
-        gatilho: 'conversa',
-        descricao: `Respondeu: "${texto}"`,
-        resultado: `${passos.length} passos na Conversa.`,
-      })
-      const outro = mencionado(id, texto, sugestaoId)
-      if (outro) {
+      const mencionadoId = mencionado(id, texto, sugestaoId)?.id
+      for (const agenteId of participantes) {
+        const anfitriao = agenteId === id
         registrarExecucao({
-          agenteId: outro.id,
-          gatilho: 'mencao',
-          descricao: `Foi mencionado por ${nomeDe(id)}: "${texto}"`,
-          resultado: 'Entrou na Conversa e complementou a resposta.',
+          agenteId,
+          gatilho: anfitriao ? 'conversa' : 'mencao',
+          descricao: anfitriao
+            ? `Respondeu: "${texto}"`
+            : agenteId === mencionadoId
+              ? `Foi mencionado por ${nomeDe(id)}: "${texto}"`
+              : `Entrou na Conversa de ${nomeDe(id)}: "${texto}"`,
+          resultado: resultadoDe(passos, agenteId),
+          link: linkDaConversa(id),
         })
+        gravarEstado(agenteId, roteirizado ? 'detectou' : anteriores.get(agenteId)!)
       }
       avisar()
     },
@@ -442,7 +530,14 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     sugestoesCoordenadas: () => responder(() => roteirosCoordenados.map((roteiro) => roteiro.pedido)),
 
     async *conversarCoordenado(pedido, anteriores): AsyncGenerator<PassoDaCoordenacao> {
-      for (const passo of planoCoordenado(pedido, anteriores)) {
+      const plano = planoCoordenado(pedido, anteriores)
+      const chamados = new Set(
+        plano.flatMap((passo) => (passo.tipo === 'resposta' ? [] : [passo.ator])),
+      )
+      const antes = new Map([...chamados].map((agenteId) => [agenteId, buscar(estado.agentes, agenteId).estado]))
+      const comFeito = new Set<AgenteId>()
+      if ([...chamados].some((agenteId) => gravarEstado(agenteId, 'trabalhando'))) avisar()
+      for (const passo of plano) {
         await esperar()
         if (passo.tipo === 'resposta') {
           yield passo
@@ -463,18 +558,24 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
           continue
         }
         if (passo.tipo === 'feito') {
+          comFeito.add(passo.ator)
           // Quem trabalha é o Agente chamado: o trabalho entra na Atividade dele.
           registrarExecucao({
             agenteId: passo.ator,
             gatilho: 'coordenacao',
             descricao: `Chamado pela Coordenação: "${pedido.texto}"`,
             resultado: passo.resumo,
+            link: { rotulo: 'Ver Conversa', para: '/conversa' },
           })
           avisar()
         }
         const { ator, ...resto } = passo
         yield { ...resto, agenteId: ator }
       }
+      for (const agenteId of chamados) {
+        gravarEstado(agenteId, comFeito.has(agenteId) ? 'detectou' : antes.get(agenteId)!)
+      }
+      if (chamados.size > 0) avisar()
     },
   }
 }

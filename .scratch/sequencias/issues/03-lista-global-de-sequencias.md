@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (FonteDeSequencias e item Sequências na casca)
 
-**Status:** ready-for-human
+**Status:** closed
 
 - [x] A lista mostra Conta-alvo, status, cobertura e próximo step a partir da fonte
 - [x] Busca e filtro por status funcionam na sessão

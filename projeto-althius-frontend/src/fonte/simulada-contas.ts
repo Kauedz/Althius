@@ -4,9 +4,11 @@ import type {
   FonteDeContas,
   Interacao,
   NovaInteracao,
+  NovoSinal,
   Sinal,
 } from './contas-tipos'
 import { criarDadosIniciais } from './dados-contas-demo'
+import { estaValido, foiDisparado, parseDataDisparo } from './regras-sinais'
 import type { FonteDeSequencias } from './sequencias-tipos'
 
 export interface OpcoesFonteDeContasSimulada {
@@ -18,9 +20,24 @@ export interface OpcoesFonteDeContasSimulada {
 }
 
 export interface FonteDeContasSimulada extends FonteDeContas {
+  definirHoje(hoje: Date): void
   definirFalha(falha: boolean): void
   definirVazia(vazia: boolean): void
   vincularFonteDeSequencias(fonteDeSequencias: FonteDeSequencias): void
+}
+
+function projetarConta(conta: ContaAlvo, todosSinais: Sinal[], refHoje: Date): ContaAlvo {
+  const sinaisDaConta = todosSinais
+    .filter((s) => s.contaId === conta.id)
+    .sort((a, b) => parseDataDisparo(b.data).getTime() - parseDataDisparo(a.data).getTime())
+  const sinaisDisparados = sinaisDaConta.filter((s) => foiDisparado(s, refHoje))
+  const sinaisValidos = sinaisDisparados.filter((s) => estaValido(s, refHoje))
+  return {
+    ...conta,
+    ultimoSinal: sinaisDisparados[0],
+    totalSinaisValidos: sinaisValidos.length,
+    quente: sinaisValidos.length > 0,
+  }
 }
 
 /**
@@ -58,6 +75,11 @@ export function criarFonteDeContasSimulada(
       return hoje
     },
 
+    definirHoje(novaData: Date) {
+      hoje = novaData
+      notificar()
+    },
+
     definirFalha(novaFalha: boolean) {
       falha = novaFalha
       notificar()
@@ -84,7 +106,7 @@ export function criarFonteDeContasSimulada(
 
     async contas(): Promise<ContaAlvo[]> {
       await aguardar()
-      return [...dados.contas]
+      return dados.contas.map((c) => projetarConta(c, dados.sinais, hoje))
     },
 
     async conta(id: string): Promise<ContaAlvo> {
@@ -93,7 +115,7 @@ export function criarFonteDeContasSimulada(
       if (!encontrada) {
         throw new Error(`Conta-alvo "${id}" não encontrada`)
       }
-      return encontrada
+      return projetarConta(encontrada, dados.sinais, hoje)
     },
 
     async contatos(): Promise<Contato[]> {
@@ -106,11 +128,75 @@ export function criarFonteDeContasSimulada(
       return dados.contatos.filter((c) => c.contaId === contaId)
     },
 
+    async sinais(): Promise<Sinal[]> {
+      await aguardar()
+      return dados.sinais
+        .filter((s) => foiDisparado(s, hoje))
+        .sort((a, b) => parseDataDisparo(b.data).getTime() - parseDataDisparo(a.data).getTime())
+    },
+
     async sinaisDaConta(contaId: string): Promise<Sinal[]> {
       await aguardar()
       return dados.sinais
-        .filter((s) => s.contaId === contaId)
-        .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+        .filter((s) => s.contaId === contaId && foiDisparado(s, hoje))
+        .sort((a, b) => parseDataDisparo(b.data).getTime() - parseDataDisparo(a.data).getTime())
+    },
+
+    async adicionarSinal(novoSinal: NovoSinal): Promise<Sinal> {
+      await aguardar()
+      const rawData = novoSinal.dataDisparo ?? novoSinal.dataAcontecimento ?? novoSinal.data ?? new Date()
+      const dataIso = rawData instanceof Date ? rawData.toISOString() : String(rawData)
+      const dataAcontecimento = novoSinal.dataAcontecimento
+        ? (novoSinal.dataAcontecimento instanceof Date ? novoSinal.dataAcontecimento.toISOString() : String(novoSinal.dataAcontecimento))
+        : dataIso
+      const acontecimentoId = novoSinal.acontecimentoId ?? novoSinal.id
+
+      // Deduplicação pelo mesmo acontecimento na Conta-alvo
+      const existente = dados.sinais.find((s) => {
+        if (s.contaId !== novoSinal.contaId) return false
+        const idExistente = s.acontecimentoId ?? s.id
+        return acontecimentoId && idExistente === acontecimentoId
+      })
+
+      if (existente) {
+        // Reencontro: mantém data original e não renova validade
+        const vezesAnteriores = existente.reencontrado?.vezes ?? 0
+        existente.reencontrado = {
+          data: dataIso,
+          monitoramentoId: novoSinal.monitoramentoId ?? existente.monitoramentoId,
+          fonte: novoSinal.fonte ?? existente.fonte,
+          vezes: vezesAnteriores + 1,
+        }
+        notificar()
+        return existente
+      }
+
+      const id = novoSinal.id ?? `sinal-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+      const frase = novoSinal.frase ?? novoSinal.titulo ?? novoSinal.descricao ?? ''
+      const descricao = novoSinal.descricao ?? novoSinal.frase ?? novoSinal.titulo
+      const titulo = novoSinal.titulo ?? novoSinal.frase
+      const sinal: Sinal = {
+        id,
+        contaId: novoSinal.contaId,
+        acontecimentoId: acontecimentoId ?? id,
+        tipo: novoSinal.tipo,
+        tipoId: novoSinal.tipoId,
+        monitoramentoId: novoSinal.monitoramentoId,
+        titulo,
+        frase,
+        descricao,
+        data: dataIso,
+        dataDisparo: dataIso,
+        dataAcontecimento,
+        fonte: novoSinal.fonte,
+        evidencia: novoSinal.evidencia,
+        detectadoPor: novoSinal.detectadoPor,
+        reencontrado: novoSinal.reencontrado,
+      }
+
+      dados.sinais = [sinal, ...dados.sinais]
+      notificar()
+      return sinal
     },
 
     async interacoesDaConta(contaId: string): Promise<Interacao[]> {

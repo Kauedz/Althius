@@ -1,21 +1,36 @@
-import type { Aderencia } from '@/fonte/contas-tipos'
+import type { Aderencia, ContaAlvo } from '@/fonte/contas-tipos'
 
-const ORDEM_ADERENCIA: Record<Aderencia, number> = {
+/**
+ * Os grupos da Prioridade no menu de filtros e na ordem: Quente, Fit e Não fit. Quente não é Aderência (ADR 0007):
+ * vem dos Sinais válidos da conta. Os dois só se juntam aqui, para ordenar e filtrar.
+ */
+export type GrupoDaPrioridade = 'quente' | Aderencia
+
+const ORDEM_DO_GRUPO: Record<GrupoDaPrioridade, number> = {
   quente: 1,
   fit: 2,
   'nao-fit': 3,
 }
-// Sem Aderência, a Conta-alvo ainda não foi avaliada: fica depois das Não fit.
+// Sem Aderência nem Sinal válido, a Conta-alvo ainda não foi avaliada: fica depois das Não fit.
 const ORDEM_NAO_AVALIADA = 4
 
-/** A posição do grupo da Aderência na Prioridade: Quente, Fit, Não fit e não avaliada. */
-export const posicaoDaAderencia = (aderencia?: Aderencia) => (aderencia ? ORDEM_ADERENCIA[aderencia] : ORDEM_NAO_AVALIADA)
+/** O grupo da conta: Quente se tiver ao menos um Sinal válido; senão, a Aderência dela. */
+export function grupoDaConta(
+  conta?: Pick<ContaAlvo, 'aderencia' | 'quente' | 'totalSinaisValidos'>,
+): GrupoDaPrioridade | undefined {
+  if (!conta) return undefined
+  if (conta.quente || (conta.totalSinaisValidos ?? 0) > 0) return 'quente'
+  return conta.aderencia
+}
 
-/** As Aderências, na ordem de grupos da Prioridade. */
-export const ADERENCIAS = Object.keys(ORDEM_ADERENCIA) as Aderencia[]
+/** A posição do grupo na Prioridade: Quente, Fit, Não fit e não avaliada. */
+export const posicaoDaAderencia = (grupo?: GrupoDaPrioridade) => (grupo ? ORDEM_DO_GRUPO[grupo] : ORDEM_NAO_AVALIADA)
 
-/** Como cada Aderência aparece no menu de filtros e nos chips. */
-export const ROTULO_ADERENCIA: Record<Aderencia, string> = {
+/** Os grupos, na ordem da Prioridade. */
+export const ADERENCIAS = Object.keys(ORDEM_DO_GRUPO) as GrupoDaPrioridade[]
+
+/** Como cada grupo aparece no menu de filtros e nos chips. */
+export const ROTULO_ADERENCIA: Record<GrupoDaPrioridade, string> = {
   quente: 'Quente',
   fit: 'Fit',
   'nao-fit': 'Não fit',

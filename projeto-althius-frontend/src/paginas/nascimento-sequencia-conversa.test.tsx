@@ -29,7 +29,7 @@ describe('Nascimento de Sequência na Conversa (Ticket 07)', () => {
     // Coordenação chamou Scopus e Ethos
     const etapas = screen.getByRole('list', { name: 'Agentes chamados' })
     expect(within(etapas).getByText(/OpenAI é Conta Quente \(aderência 87\)/i)).toBeInTheDocument()
-    expect(within(etapas).getByText(/Mapeou 3 papéis do Comitê de compra/i)).toBeInTheDocument()
+    expect(within(etapas).getByText(/Carla Nogueira \(Head de Infraestrutura de Dados/)).toBeInTheDocument()
 
     // Botão de confirmação de montagem disponível
     const botaoMontar = within(oferta).getByRole('button', { name: /Montar sequência/i })

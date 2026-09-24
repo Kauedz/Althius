@@ -99,6 +99,7 @@ describe('Casca', () => {
     const sidebar = await screen.findByRole('complementary', { name: 'Navegação' })
     expect(await within(sidebar).findByText('Databricks')).toBeInTheDocument()
     expect(within(sidebar).getByText('Demonstração')).toBeInTheDocument()
+    expect(within(sidebar).getByRole('img', { name: 'Althius' })).toBeInTheDocument()
 
     const especialistas = within(sidebar).getByRole('navigation', { name: 'Especialistas' })
     await within(especialistas).findByRole('link', { name: 'Scopus' })
@@ -195,7 +196,9 @@ describe('Criar Agente', () => {
 
     await usuario.click(within(subabas).getByRole('link', { name: 'Habilidades' }))
     expect(await screen.findByRole('switch', { name: /E-mail frio curto/ })).toBeInTheDocument()
+    expect(screen.getByText(/121 usos/)).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: /Sequência por persona/ })).toBeInTheDocument()
+    expect(screen.getByText(/43 usos/)).toBeInTheDocument()
 
     await usuario.click(within(subabas).getByRole('link', { name: 'Memória' }))
     expect(await screen.findByText('Rhetor · Eventos ainda não guardou nenhum fato.')).toBeInTheDocument()
@@ -306,7 +309,7 @@ describe('Conversa', () => {
     const campo = await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' })
     await usuario.type(campo, 'qual é a previsão do tempo?{Enter}')
     expect(await screen.findByText('qual é a previsão do tempo?')).toBeInTheDocument()
-    expect(await screen.findByText(/Ainda não tenho um roteiro para esse pedido/)).toBeInTheDocument()
+    expect(await screen.findByText(/90 palavras/)).toBeInTheDocument()
   })
 
   it('@menção mostra o autocompletar e traz outro Agente para a Conversa', async () => {
@@ -327,8 +330,24 @@ describe('Conversa', () => {
     expect(await screen.findByRole('note', { name: 'Repasse de Scopus para Ethos' })).toBeInTheDocument()
     expect(await screen.findByRole('note', { name: 'Repasse de Ethos para Rhetor' })).toBeInTheDocument()
     const aprovacao = await screen.findByRole('article', { name: /Aprovação pendente/ })
-    expect(within(aprovacao).getByText(/HubSpot/)).toBeInTheDocument()
+    expect(within(aprovacao).getByRole('img', { name: 'HubSpot' })).toBeInTheDocument()
     expect(within(aprovacao).getByText(/Slack/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Especialistas' })).getByRole('link', { name: 'Ethos' }))
+    expect(await screen.findByText('Detectou algo')).toBeInTheDocument()
+    await usuario.click(within(await screen.findByRole('navigation', { name: 'Seções do agente' })).getByRole('link', { name: 'Atividade' }))
+    const doEthos = (await screen.findByText(/Entrou na Conversa de Scopus/)).closest('li')!
+    expect(within(doEthos).getByText('Menção')).toBeInTheDocument()
+    expect(within(doEthos).getByText(/Carla Nogueira/)).toBeInTheDocument()
+    expect(within(doEthos).getByRole('link', { name: 'Ver Conversa' })).toHaveAttribute('href', '/agentes/scopus/conversa')
+
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Especialistas' })).getByRole('link', { name: 'Rhetor' }))
+    await screen.findByRole('heading', { level: 1, name: 'Rhetor' })
+    await usuario.click(within(screen.getByRole('navigation', { name: 'Seções do agente' })).getByRole('link', { name: 'Atividade' }))
+    const doRhetor = (await screen.findByText(/Entrou na Conversa de Scopus/)).closest('li')!
+    expect(within(doRhetor).getByText(/Assunto: dados de avaliação/)).toBeInTheDocument()
+    expect(within(doRhetor).queryByText(/Ação executada/)).not.toBeInTheDocument()
   })
 })
 
@@ -345,7 +364,7 @@ describe('Conversa com Agentes criados e Menções', () => {
   it('texto livre na Conversa de um Agente criado recebe a resposta genérica, em nome dele', async () => {
     const { usuario } = renderizarApp('/agentes/ethos-comite-financeiro/conversa')
     await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Ethos · Comitê financeiro' }), 'e o CFO da Nubank?{Enter}')
-    expect(await screen.findByText(/No produto, Ethos · Comitê financeiro responderia/)).toBeInTheDocument()
+    expect(await screen.findByText(/Ethos · Comitê financeiro: O Comitê de compra/)).toBeInTheDocument()
   })
 
   it('o autocompletar de @ lista os Agentes criados pelo nome completo e filtra enquanto se digita', async () => {
@@ -439,6 +458,7 @@ describe('Memória, Habilidades, Rotinas e Atividade', () => {
       const itens = within(screen.getByRole('list', { name: 'Linha do tempo' })).getAllByRole('listitem')
       expect(itens).toHaveLength(1)
       expect(within(itens[0]).getByText('Rotina')).toBeInTheDocument()
+      expect(within(itens[0]).getByRole('link', { name: 'Ver Conversa' })).toBeInTheDocument()
     })
   })
 })
@@ -562,6 +582,24 @@ describe('Tema', () => {
     await usuario.click(await screen.findByRole('menuitem', { name: 'Tema claro' }))
     expect(document.documentElement.dataset.theme).toBe('claro')
   })
+
+  it('um tema gravado no navegador volta na abertura seguinte', () => {
+    localStorage.setItem('althius:tema', 'claro')
+    renderizarApp('/')
+    expect(document.documentElement.dataset.theme).toBe('claro')
+  })
+
+  it('a escolha de tema persiste depois de a app ser remontada', async () => {
+    const { usuario, unmount } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
+    await usuario.click(await screen.findByRole('menuitem', { name: 'Tema claro' }))
+    expect(document.documentElement.dataset.theme).toBe('claro')
+
+    unmount()
+    renderizarApp('/')
+    expect(document.documentElement.dataset.theme).toBe('claro')
+  })
 })
 
 async function pedirNoComposer(usuario: ReturnType<typeof renderizarApp>['usuario'], texto: string) {
@@ -650,7 +688,7 @@ describe('Composer e Coordenação', () => {
     const { usuario } = renderizarApp('/')
     await grade()
     await pedirNoComposer(usuario, 'o que é ICP?')
-    expect(await screen.findByText(/responderia direto/)).toBeInTheDocument()
+    expect(await screen.findByText(/ICP é o perfil da empresa/)).toBeInTheDocument()
     await coordenacaoTerminada()
     expect(screen.getByText('o que é ICP?')).toBeInTheDocument()
     expect(screen.getByText('Resposta direta · nenhum agente chamado')).toBeInTheDocument()
@@ -670,7 +708,7 @@ describe('Composer e Coordenação', () => {
     await coordenacaoTerminada()
 
     expect(agentesChamados()).toEqual(['Scopus · Enterprise LATAM'])
-    expect(within(screen.getByRole('list', { name: 'Agentes chamados' })).getByText(/No produto, Scopus · Enterprise LATAM responderia/)).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Agentes chamados' })).getByText(/Scopus · Enterprise LATAM: ICP é o perfil/)).toBeInTheDocument()
   })
 
   it('no pedido roteirizado, o Agente criado mencionado substitui o padrão, e outro mencionado também é chamado', async () => {
@@ -705,7 +743,7 @@ describe('Composer e Coordenação', () => {
     const { usuario } = renderizarApp('/')
     await grade()
     await pedirNoComposer(usuario, 'o que é ICP?')
-    await screen.findByText(/responderia direto/)
+    await screen.findByText(/ICP é o perfil da empresa/)
     await coordenacaoTerminada()
 
     await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
@@ -717,7 +755,7 @@ describe('Composer e Coordenação', () => {
     expect(within(aviso).getByText('o que é ICP?')).toBeInTheDocument()
     await usuario.click(within(aviso).getByRole('link', { name: 'Abrir conversa' }))
     expect(await screen.findByText('o que é ICP?')).toBeInTheDocument()
-    expect(screen.getByText(/responderia direto/)).toBeInTheDocument()
+    expect(screen.getByText(/ICP é o perfil da empresa/)).toBeInTheDocument()
   })
 
   it('o pedido do Perplexity, pela sugestão, chama o Oraculum e o Rhetor e consolida', async () => {
@@ -735,7 +773,7 @@ describe('Composer e Coordenação', () => {
     expect(within(resposta).getByText(/lakehouse vs\. data warehouse em 2026/)).toBeInTheDocument()
   })
 
-  it('o composer da Conversa a continua, só com o chip do Workspace', async () => {
+  it('o composer continua a Conversa, só com o chip do Workspace', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
     await pedirNoComposer(usuario, 'o que é ICP?')
@@ -845,7 +883,7 @@ describe('Execuções', () => {
   it('uma resposta numa Conversa direta aumenta em 1 as execuções do Agente', async () => {
     const { usuario } = renderizarApp('/agentes/rhetor/conversa')
     await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' }), 'qual é a previsão do tempo?{Enter}')
-    await screen.findByText(/Ainda não tenho um roteiro para esse pedido/)
+    await screen.findByText(/90 palavras/)
     await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
 
     const rhetor = await cartaoNaGrade(usuario, 'Rhetor')

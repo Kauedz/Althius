@@ -10,9 +10,11 @@ import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useDadosDeSequencias, useFonteDeContas } from '@/fonte/contexto'
 import type { ContaAlvo, Interacao, Sinal, TipoDeInteracao } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo, formatarDataExplicita } from '@/fonte/formatar-data'
+import { estaValido } from '@/fonte/regras-sinais'
 import { porId } from '@/lib/utils'
 import { SeloStatus } from './detalhe-sequencia'
 import { DialogoNovaSequencia } from './nova-sequencia'
+import { Foguinho } from './sinais/componentes'
 import { TabelaDeContatos } from './tabela-de-contatos'
 import { useMigalhaParaALista } from './voltar-para-a-lista'
 
@@ -296,6 +298,7 @@ function CabecalhoDaConta({ conta, hoje }: { conta: ContaAlvo; hoje: Date }) {
             ))}
           {conta.linkedinUrl && <LinkExterno href={conta.linkedinUrl}>LinkedIn</LinkExterno>}
           {conta.segmento && <span>{conta.segmento}</span>}
+          {(conta.totalSinaisValidos ?? 0) > 0 && <Foguinho quantidade={conta.totalSinaisValidos!} />}
           <SeloDeAderencia aderencia={conta.aderencia} />
         </div>
         {origem && (
@@ -415,15 +418,27 @@ function SinaisDaConta({ sinais, hoje }: { sinais: Sinal[]; hoje: Date }) {
   )
 }
 
-/** A data do Sinal e, quando existirem, a fonte, a evidência e quem o detectou. */
+/**
+ * Se o Sinal ainda vale (30 dias do disparo, ADR 0007), a data e, quando existirem, a fonte, a evidência e quem o
+ * detectou. Um reencontro do mesmo acontecimento aparece como nota: não conta de novo nem renova a validade.
+ */
 function DetalhesDoSinal({ sinal, hoje }: { sinal: Sinal; hoje: Date }) {
   return (
-    <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-al-muted">
-      <DataDoModulo data={sinal.data} hoje={hoje} />
-      {sinal.fonte && <span>Fonte: {sinal.fonte}</span>}
-      {sinal.evidencia && <LinkExterno href={sinal.evidencia}>Evidência</LinkExterno>}
-      {sinal.detectadoPor && <span>Detectado por {sinal.detectadoPor}</span>}
-    </div>
+    <>
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-al-muted">
+        <span className="selo">{estaValido(sinal, hoje) ? 'Válido' : 'Expirado'}</span>
+        <DataDoModulo data={sinal.data} hoje={hoje} />
+        {sinal.fonte && <span>Fonte: {sinal.fonte}</span>}
+        {sinal.evidencia && <LinkExterno href={sinal.evidencia}>Evidência</LinkExterno>}
+        {sinal.detectadoPor && <span>Detectado por {sinal.detectadoPor}</span>}
+      </div>
+      {sinal.reencontrado && (
+        <p className="mt-1 text-xs text-al-muted">
+          Reencontrado em {formatarDataDoModulo(sinal.reencontrado.data, hoje, { maiuscula: false })}: o mesmo
+          acontecimento não conta de novo nem renova validade.
+        </p>
+      )}
+    </>
   )
 }
 
