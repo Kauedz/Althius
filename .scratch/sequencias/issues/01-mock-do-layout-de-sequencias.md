@@ -19,7 +19,7 @@ Conta com um único Contato continua válida no mock. Sem Unipile, sem CSV, sem 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** closed
 
 - [x] O mock mostra a lista Workspace, o bloco no detalhe da Conta-alvo e o documento em timeline, todos coerentes entre si
 - [x] O mock mostra composers de e-mail, LinkedIn, WhatsApp/SMS e ligação/tarefa com variáveis e anexo de imagem/vídeo na UI

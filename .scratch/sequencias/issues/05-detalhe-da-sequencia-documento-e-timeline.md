@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Mock do layout de Sequências), 02 (FonteDeSequencias e item Sequências na casca)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O detalhe mostra participantes, steps ordenados, delay/janela e regra de pause
 - [x] O visual segue o mock aprovado (timeline simples, marca Althius)

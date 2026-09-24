@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Mock do layout de Sequências)
 
-**Status:** ready-for-human
+**Status:** closed
 
 - [x] O App recebe `FonteDeSequencias` como dependência e a injeta no contexto
 - [x] A sidebar Workspace mostra o item Sequências, ativo nas rotas do módulo
