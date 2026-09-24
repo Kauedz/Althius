@@ -25,6 +25,7 @@ import { PaginaAprovacoes } from '@/paginas/aprovacoes'
 import { PaginaConexoes } from '@/paginas/conexoes'
 import { PaginaConfiguracoes } from '@/paginas/configuracoes/pagina-configuracoes'
 import { PaginaContas } from '@/paginas/contas'
+import { PaginaContatos } from '@/paginas/contatos'
 import { PaginaConversaCoordenada } from '@/paginas/conversa-coordenada'
 import { PaginaOnboarding, RegistrarAberturaDeSinais, RetornoDoChecklist } from '@/paginas/onboarding'
 import { PaginaSequencias } from '@/paginas/sequencias'
@@ -78,6 +79,7 @@ export function App({
         <Route index element={<PaginaAgentes />} />
         <Route path="contas" element={<PaginaContas />} />
         <Route path="contas/:contaId" element={<PaginaContas />} />
+        <Route path="contatos" element={<PaginaContatos />} />
         <Route path="sequencias" element={<PaginaSequencias />} />
         <Route path="sequencias/:sequenciaId" element={<PaginaSequencias />} />
         <Route path="sinais" element={<SinaisNaCasca />}>

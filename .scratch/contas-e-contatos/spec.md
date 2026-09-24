@@ -64,7 +64,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 20. Como usuário, quero ver o domínio em texto secundário, sem aumentar a altura da linha, para distinguir empresas de nome parecido.
 21. Como usuário, quero clicar no nome para abrir o detalhe da Conta-alvo, para ir fundo numa empresa.
 22. Como usuário, quero clicar em qualquer ponto da linha para abrir o detalhe, para não precisar mirar no nome.
-23. Como usuário, quero que um pop-up pequeno com os links para o site e o LinkedIn da empresa apareça ao passar o mouse sobre ela, para visitar essas páginas sem abrir o detalhe.
+23. Como usuário, quero que um pop-up pequeno com os links para o site e o LinkedIn da empresa apareça ao passar o mouse sobre o nome dela (não sobre o logo nem o domínio), para visitar essas páginas sem abrir o detalhe.
 24. Como usuário de teclado, quero que o mesmo pop-up apareça quando o nome da empresa recebe o foco, para ter o mesmo acesso sem mouse.
 25. Como usuário, quero que o pop-up continue aberto enquanto levo o mouse até ele, para conseguir clicar no link.
 26. Como usuário, quero que o pop-up mostre só os links que existem (só o site, quando não houver LinkedIn) e que não apareça quando não houver nenhum, para nunca clicar num link inventado.
@@ -132,11 +132,11 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 ### Voltar sem perder o lugar
 
 63. Como usuário, quero que busca, filtros e ordenação fiquem no endereço da página, para voltar do detalhe ou compartilhar o recorte.
-64. Como usuário, quero voltar do detalhe (pela migalha "Contas" ou pelo voltar do navegador) e reencontrar a lista na mesma posição de rolagem, para continuar de onde parei.
+64. Como usuário, quero voltar do detalhe (pela migalha da aba de onde vim, "Contas" ou "Contatos", ou pelo voltar do navegador) e reencontrar a lista na mesma posição de rolagem, para continuar de onde parei.
 
 ### Detalhe da Conta-alvo
 
-65. Como usuário, quero que o detalhe abra numa página própria com a migalha "Contas / Nome da empresa", no padrão das outras páginas do app.
+65. Como usuário, quero que o detalhe abra numa página própria com a migalha "Contas / Nome da empresa", no padrão das outras páginas do app. Aberto pela aba Contatos, a migalha é "Contatos / Nome da empresa" e volta para a aba Contatos.
 66. Como usuário, quero ver no cabeçalho o logo (ou as iniciais), o nome, o domínio com link para o site, o link do LinkedIn, o segmento e a Aderência, quando esses dados existirem, para identificar a empresa.
 67. Como usuário, quero ver discretamente de onde veio a Conta-alvo ("Importada por Marina em 12 set."), quando essa informação existir, para entender por que ela está na lista.
 68. Como usuário, quero ver na seção Sinais o Sinal mais recente em destaque, com a frase, a data e, quando existirem, a fonte, a evidência e quem o detectou, para entender o motivo de agir agora.
@@ -193,11 +193,13 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 ### Fronteira de dados: `FonteDeContas`
 
 - Nasce uma interface nova, **`FonteDeContas`**, separada de `FonteDeAgentes`, no mesmo estilo: operações assíncronas e um `observar` para avisar mudanças. Ela é a única fronteira entre as telas do módulo e os dados. Um back-end real entra implementando a mesma interface (ADR 0003).
-- As operações são só de leitura:
+- As operações deste módulo são só de leitura:
   - listar as Contas-alvo;
-  - buscar uma Conta-alvo pelo identificador;
+  - buscar uma Conta-alvo pelo identificador. Um identificador inexistente rejeita com uma mensagem que contém "não encontrada"; é assim que a tela distingue "Conta não encontrada" de um erro de carregamento, e um back-end real precisa manter esse contrato;
   - listar todos os Contatos;
-  - listar os Contatos, os Sinais e as Interações de uma Conta-alvo.
+  - listar os Contatos, os Sinais e as Interações de uma Conta-alvo;
+  - `hoje()`: a data de referência de "hoje" que a fonte adota, para a tela formatar as datas relativas a partir do mesmo dia que gerou os dados.
+- **Antecipado para o módulo Sequências** (não é usado pelas telas deste módulo): `registrarInteracao` grava uma nova Interação e atualiza o Último contato da Conta-alvo. A fonte simulada também aceita ser vinculada à fonte de Sequências (`vincularFonteDeSequencias`) para aplicar a regra account-first: um e-mail recebido pausa a sequência ativa da empresa e uma reunião a marca como "reunião".
 - A **Conta-alvo** carrega:
   - campos obrigatórios: identificador e nome;
   - campos opcionais: domínio, URL do site, URL do LinkedIn, logo, segmento, Aderência e origem (recomendada pela Althius, ou importada, com quem importou e quando);
@@ -215,7 +217,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 ### Implementação simulada
 
 - Uma implementação simulada de `FonteDeContas`, com os dados da demo num módulo próprio de dados, como já acontece com os Agentes.
-- Opções da fábrica, todas invisíveis na interface:
+- Opções da fábrica, invisíveis na interface (a data de "hoje" escolhida é exposta pela operação `hoje()`):
   - atraso simulado, como na fonte dos Agentes;
   - uma data de "hoje": os dados da demo são descritos como deslocamentos a partir dela (por exemplo, "há 2 dias"). No app, é o dia atual; nos testes, é uma data fixa;
   - falha: toda leitura rejeita, para exercitar o estado de erro. Só os testes usam essa opção;
@@ -223,7 +225,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 
 ### App, provedores e carregamento
 
-- O App recebe a `FonteDeContas` como uma segunda dependência, ao lado da `FonteDeAgentes`, com o próprio provedor de contexto.
+- O App recebe a `FonteDeContas` como uma segunda dependência, ao lado da `FonteDeAgentes`, com o próprio provedor de contexto. A dependência é opcional: sem ela, o App usa a fonte simulada. Ao montar, o App vincula a fonte de Contas à de Sequências quando a fonte oferece essa vinculação.
 - O carregamento de dados ganha um estado de erro e uma forma de tentar de novo. É a primeira mensagem de erro de carregamento do app: um texto curto no padrão do app e o botão "Tentar de novo", que refaz a leitura.
 - O carregamento usa o componente de carregamento existente (o pulso).
 
@@ -237,7 +239,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 - A rota inicial continua sendo a grade de Agentes.
 - A sidebar ganha o item "Contas e Contatos" na seção Workspace, acima de Agentes, ativo nas duas abas e no detalhe. O ícone é um Lucide coerente com os demais itens (por exemplo, um prédio).
 - As duas abas usam o componente de página existente, com barra de topo e título, e a navegação de abas sublinhadas da página do Agente.
-- O detalhe usa a migalha de volta do componente de página ("Contas / Nome").
+- O detalhe usa a migalha de volta do componente de página: "Contas / Nome", ou "Contatos / Nome" quando aberto pela aba Contatos. Os links das listas levam, no estado da navegação, o endereço da lista com o recorte e o rótulo da migalha; aberto direto pelo endereço, a migalha é "Contas".
 
 ### Estado da lista no endereço
 
@@ -252,7 +254,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 - A linha inteira é clicável e leva ao detalhe. O nome é o alvo evidente: é um link e o elemento de maior peso na linha.
 - A célula de Contatos é um link próprio para a seção Contatos do detalhe. Clicar nela não dispara o clique da linha.
 - **Célula Empresa:** logo ou iniciais, o nome e o domínio em texto secundário ao lado ou abaixo, sem aumentar a linha.
-- **Pop-up da empresa:** abre ao passar o mouse, depois de um pequeno atraso para não piscar ao percorrer a tabela, e também quando o nome recebe o foco do teclado. Continua aberto enquanto o ponteiro está nele. Mostra o link do site e o do LinkedIn que existirem, e abre os dois em outra aba. Sem nenhum dos dois links, o pop-up não aparece.
+- **Pop-up da empresa:** abre ao passar o mouse sobre o nome (o logo e o domínio não abrem), depois de um pequeno atraso para não piscar ao percorrer a tabela, e também quando o nome recebe o foco do teclado. Continua aberto enquanto o ponteiro está nele. Mostra o link do site e o do LinkedIn que existirem, e abre os dois em outra aba. Sem nenhum dos dois links, o pop-up não aparece.
 - **Célula Aderência:**
   - "🔥 Quente", com o emoji literal;
   - "Fit", em texto normal;
@@ -277,6 +279,8 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
   - Segmento: com seleção múltipla, com as opções tiradas dos dados;
   - Sinal: com ou sem;
   - Contatos: com ou sem.
+- Cada opção de Aderência mostra, discretamente, quantas Contas-alvo têm aquela classificação.
+- O botão "Filtros" mostra quantos filtros estão ativos (nome acessível "Filtros, N ativos"), nas duas abas.
 - Grupos diferentes se combinam com "e". Opções do mesmo grupo se combinam com "ou". Os filtros ativos aparecem como chips removíveis abaixo da barra, com "Limpar filtros".
 - A busca compara com o nome e o domínio, sem diferenciar maiúsculas e acentos, e se combina com os filtros.
 - A contagem mostra "N contas" sem recorte e "N de M contas" com busca ou filtro.
@@ -307,6 +311,8 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 
 ### Aba Contatos
 
+- Topo: a descrição "Pessoas das Contas-alvo, organizadas para a próxima abordagem." e a contagem, no mesmo padrão da aba Contas.
+- Lista vazia: "Nenhum Contato ainda. As pessoas aparecem aqui quando vierem do CRM, de enriquecimento ou de um Agente."
 - Colunas: Nome, Cargo, Empresa (um link para a Conta-alvo), Área, Persona, Dados de contato e Último contato.
 - Ausências aparecem como "—" em Cargo, Área e Persona e como "Nunca" em Último contato.
 - **Dados de contato:** três ícones Lucide (e-mail, telefone, LinkedIn). O disponível aparece normal e o ausente, apagado. Cada ícone tem nome acessível com o estado. Não há valores nem links.
@@ -327,13 +333,15 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 - Os Sinais têm frase e fonte plausíveis ("Vaga publicada no LinkedIn"), sem URL de evidência. O Sinal mais recente da OpenAI é a abertura de três vagas de engenharia de dados de avaliação, como no roteiro do Rhetor.
 - Os Contatos têm nomes fictícios e cargos reais. Algumas empresas têm quatro ou mais Contatos, outras menos, e três não têm nenhum. Parte dos Contatos tem Persona e parte não.
 - As Interações são coerentes com os roteiros e as Aprovações existentes, quando se referirem às mesmas empresas.
+- Sarah Chen, Contato da OpenAI, mostra "Nunca" no Último contato da aba Contatos, embora a Interação de 1º de setembro com ela conte para o Último contato da OpenAI. A divergência é intencional.
 - Dados propositalmente ausentes: 4 sem logo, 3 sem Contatos, 3 sem nenhum Sinal, 5 com "Nunca" no Último contato, 2 sem segmento e 3 sem site nem LinkedIn.
 - Os sites e LinkedIn preenchidos são os endereços públicos reais das empresas.
 
 ## Testing Decisions
 
 - **Um bom teste** verifica o comportamento visível pelo usuário: o que aparece na tela depois de uma ação. Nunca testa estado interno, nomes de componentes ou detalhes de implementação.
-- **Uma única camada de teste**, como no resto do app: o app inteiro renderizado sobre as fontes simuladas e dirigido como um usuário faria (clicar, digitar, usar o teclado). Não há teste de componente isolado nem teste direto da ordenação ou dos filtros.
+- **A camada principal de teste**, como no resto do app: o app inteiro renderizado sobre as fontes simuladas e dirigido como um usuário faria (clicar, digitar, usar o teclado). Não há teste direto da ordenação ou dos filtros.
+- **Testes unitários de apoio** são aceitos para regras puras e peças compartilhadas que valem por si: a formatação de datas, a coerência dos dados da demo (contagens e ausências), o carregamento genérico do contexto e as abas sublinhadas.
 - **A única costura nova** é a `FonteDeContas` simulada, entregue ao App ao lado da fonte dos Agentes. O utilitário de renderização dos testes passa a montar as duas fontes e aceita as opções só de teste: data de "hoje" fixa (para as datas relativas darem sempre o mesmo texto), falha nas leituras e lista de Contas-alvo vazia.
 - **Referência:** os testes de comportamento do app atual (Vitest + Testing Library, jsdom), que já renderizam o app inteiro a partir de uma rota.
 - **Cobertura mínima:**
@@ -381,6 +389,16 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 - Decisões de domínio: `CONTEXT.md` (Conta-alvo, Aderência, Contato, Persona, Sinal, Interação) e ADR 0006 (Aderência como classificação única, com Quente dentro dela). A ADR 0003 continua valendo: marcas e empresas reais, pessoas fictícias e o selo "Demonstração".
 - As capturas de referência da Monaco e da Frontrunner não chegaram a esta conversa. Da Monaco, a intenção é a tabela compacta, com logos, divisões discretas e leitura rápida de status. Da Frontrunner, a hierarquia da página, a barra de busca, filtros e ordenação, e o Sinal numa frase curta. Nada da identidade visual, dos dados ou dos nomes de colunas dessas ferramentas deve ser copiado. Se as capturas forem adicionadas em `.scratch/contas-e-contatos/referencias/`, os tickets de layout devem consultá-las.
 - A aba de Agentes ainda fala em "nota de aderência" (a descrição do Scopus e o roteiro com "Aderência ao ICP: 87 de 100"). O glossário agora diz que o Scopus "avalia a Aderência". Alinhar esses textos fica para um ticket à parte, fora deste módulo.
+- **Decisões registradas depois da implementação** (revisão de código de 2026-09-24): a implementação dos tickets 01 a 13 antecipou coisas que seriam pedidas depois, e todas foram aceitas. A spec foi atualizada para descrevê-las, para que uma próxima revisão ou um próximo ticket não as trate como erro:
+  - `hoje()` e `registrarInteracao` na `FonteDeContas`, e a vinculação com a fonte de Sequências (regra account-first);
+  - a `FonteDeContas` opcional no App, com a fonte simulada como padrão;
+  - "Conta não encontrada" reconhecida pela mensagem de rejeição da fonte;
+  - a migalha "Contatos / Nome" quando o detalhe é aberto pela aba Contatos;
+  - o pop-up da empresa aberto só pelo nome;
+  - a contagem por opção de Aderência no filtro e o número de filtros ativos no botão "Filtros";
+  - a descrição e o texto de lista vazia da aba Contatos;
+  - os testes unitários de apoio, ao lado da camada de testes do app inteiro;
+  - o Último contato "Nunca" de Sarah Chen (OpenAI) nos dados da demo.
 - Critério de qualidade para a revisão final:
   - a tabela é o foco visual;
   - numa olhada se identificam empresa, Aderência, Contatos, Sinal, segmento e Último contato;

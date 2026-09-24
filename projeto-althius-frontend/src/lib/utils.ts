@@ -19,3 +19,12 @@ export function iniciais(nome: string): string {
     .join('')
     .toUpperCase()
 }
+
+/** Um texto pronto para a busca: sem diferença de maiúsculas, sem acentos e sem espaços nas pontas. */
+export function normalizarParaBusca(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}

@@ -6,16 +6,9 @@ import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useDadosDeSequencias } from '@/fonte/contexto'
 import type { StatusSequencia } from '@/fonte/sequencias-tipos'
+import { normalizarParaBusca } from '@/lib/utils'
 import { DetalheSequencia, IconeCanal, SeloStatus } from './detalhe-sequencia'
 import { DialogoNovaSequencia } from './nova-sequencia'
-
-function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-}
 
 export function PaginaSequencias() {
   const { sequenciaId } = useParams<{ sequenciaId?: string }>()
@@ -50,7 +43,7 @@ function ListaGlobalSequencias() {
   const contasMap = new Map(contas?.map((c) => [c.id, c]) ?? [])
   const contatosMap = new Map(contatos?.map((c) => [c.id, c]) ?? [])
 
-  const termoBuscaNormalizado = normalizar(busca)
+  const termoBuscaNormalizado = normalizarParaBusca(busca)
 
   const sequenciasFiltradas = (sequencias ?? []).filter((seq) => {
     // Filtro por status
@@ -61,8 +54,8 @@ function ListaGlobalSequencias() {
     // Busca por Conta-alvo (nome da empresa ou id)
     if (termoBuscaNormalizado) {
       const conta = contasMap.get(seq.contaId)
-      const nomeConta = normalizar(conta?.nome ?? seq.contaId)
-      const idConta = normalizar(seq.contaId)
+      const nomeConta = normalizarParaBusca(conta?.nome ?? seq.contaId)
+      const idConta = normalizarParaBusca(seq.contaId)
       if (!nomeConta.includes(termoBuscaNormalizado) && !idConta.includes(termoBuscaNormalizado)) {
         return false
       }

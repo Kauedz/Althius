@@ -13,9 +13,16 @@ As opções de ordenação:
 
 **Status:** ready-for-agent
 
-- [ ] O controle "Ordenar por" mostra as quatro opções, e cada uma reordena a lista como decidido
-- [ ] A busca encontra pelo nome e pelo domínio, ignorando maiúsculas e acentos
-- [ ] Com busca, a contagem mostra "N de M contas"
-- [ ] Uma busca sem resultado mostra "Nenhuma conta encontrada para “x”." e "Limpar busca e filtros", que restaura a lista
-- [ ] Busca e ordenação ficam nos parâmetros do endereço, e abrir o endereço reconstrói a lista com elas
-- [ ] A barra do topo segue o mock aprovado
+- [x] O controle "Ordenar por" mostra as quatro opções, e cada uma reordena a lista como decidido
+- [x] A busca encontra pelo nome e pelo domínio, ignorando maiúsculas e acentos
+- [x] Com busca, a contagem mostra "N de M contas"
+- [x] Uma busca sem resultado mostra "Nenhuma conta encontrada para “x”." e "Limpar busca e filtros", que restaura a lista
+- [x] Busca e ordenação ficam nos parâmetros do endereço, e abrir o endereço reconstrói a lista com elas
+- [x] A barra do topo segue o mock aprovado
+
+## Comments
+
+- Busca e ordenação ficam em `?busca=` e `?ordem=` (`prioridade`, `ultimo-sinal`, `contatos`, `ultimo-contato`), e só lá: a lista lê o recorte do endereço. Os valores padrão não aparecem no endereço, e uma ordem desconhecida cai na Prioridade. Cada mudança substitui a entrada do histórico, para o voltar não refazer a digitação.
+- "Ordenar por" é um `<select>` nativo, como no mock. Em todas as opções, o empate é desfeito pelo nome.
+- O botão "Filtros" fica para o ticket 08. Hoje "Limpar busca e filtros" limpa só a busca, e o 08 deve estender o botão e o estado sem resultado aos filtros.
+- A função que normaliza o texto da busca, sem acentos e sem diferença de maiúsculas, foi para `lib/utils.ts`, e a página de Sequências passou a usá-la.

@@ -70,13 +70,17 @@ export function formatarDataDoModulo(
     return maiuscula ? `Há ${textoSemana}` : `há ${textoSemana}`
   }
 
-  // Depois de 30 dias: data explícita
-  const dia = dAlvo.getDate()
-  const mes = MESES_ABREV[dAlvo.getMonth()]
-  if (dAlvo.getFullYear() === hoje.getFullYear()) {
-    return `${dia} ${mes}`
-  }
-  return `${dia} ${mes} ${dAlvo.getFullYear()}`
+  return formatarDataExplicita(dAlvo, hoje)
+}
+
+/**
+ * A data explícita da regra do módulo, sem forma relativa: '12 mar.' no mesmo ano e '12 mar. 2025' em outro ano.
+ * Serve onde a data vem depois de "em" (ex.: 'Importada por Marina em 12 set.').
+ */
+export function formatarDataExplicita(data: string | Date, hoje: Date): string {
+  const d = typeof data === 'string' ? new Date(data) : data
+  const diaEMes = `${d.getDate()} ${MESES_ABREV[d.getMonth()]}`
+  return d.getFullYear() === hoje.getFullYear() ? diaEMes : `${diaEMes} ${d.getFullYear()}`
 }
 
 /**
