@@ -7,6 +7,7 @@ import {
   ORIGENS_HDYHAU,
   etapasDoRamo,
   PAPEIS_DO_DAY0,
+  RAMOS_DE_ONBOARDING,
   type EstadoDeOnboarding,
   type EtapaDeOnboarding,
   type FonteDeOnboarding,
@@ -152,9 +153,7 @@ export function criarFonteDeOnboardingSimulada(
 
     async iniciar(ramo) {
       if (!ehRamo(ramo) || estado.ramo) return devolver()
-      estado.ramo = ramo
-      estado.etapa = 'papel'
-      estado.workspace = ramo === 'criador' ? { id: ID_DO_WORKSPACE, nomeSugerido: '' } : null
+      estado = inicioDoRamo(ramo)
       publicar()
       return devolver()
     },
@@ -300,6 +299,24 @@ export function criarFonteDeOnboardingSimulada(
       publicar()
       return devolver()
     },
+
+    async trocarRamoDaDemonstracao(ramo) {
+      if (!ehRamo(ramo) || estado.ramo === ramo) return devolver()
+      // Uma leitura do site em andamento é do ramo anterior e não chega ao novo.
+      leituraAtual++
+      estado = inicioDoRamo(ramo)
+      publicar()
+      return devolver()
+    },
+  }
+}
+
+/** O começo do wizard no ramo: o criador ganha o Workspace dele, ainda sem nome; o convidado entra no que já existe. */
+function inicioDoRamo(ramo: RamoDeOnboarding): EstadoDeOnboarding {
+  return {
+    ...estadoInicial(),
+    ramo,
+    workspace: ramo === 'criador' ? { id: ID_DO_WORKSPACE, nomeSugerido: '' } : null,
   }
 }
 
@@ -392,7 +409,7 @@ function normalizar(bruto: unknown): EstadoDeOnboarding {
 }
 
 function ehRamo(valor: unknown): valor is RamoDeOnboarding {
-  return valor === 'criador' || valor === 'convidado'
+  return typeof valor === 'string' && (RAMOS_DE_ONBOARDING as readonly string[]).includes(valor)
 }
 
 function ehPapel(valor: unknown): valor is PapelNoDay0 {

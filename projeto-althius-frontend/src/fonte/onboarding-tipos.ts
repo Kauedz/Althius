@@ -34,7 +34,9 @@ export const ORIGENS_HDYHAU = [
 export type OrigemHdyhau = (typeof ORIGENS_HDYHAU)[number]
 
 /** Criador por padrão. Convidado só quando a pessoa chega por um link de convite. */
-export type RamoDeOnboarding = 'criador' | 'convidado'
+export const RAMOS_DE_ONBOARDING = ['criador', 'convidado'] as const
+
+export type RamoDeOnboarding = (typeof RAMOS_DE_ONBOARDING)[number]
 
 export type EtapaDeOnboarding = 'papel' | 'empresa' | 'dominio' | 'hdyhau' | 'convite' | 'checklist'
 
@@ -175,4 +177,9 @@ export interface FonteDeOnboarding extends FonteObservavel {
   pedirRetornoAoChecklist(): Promise<EstadoDeOnboarding>
   dispensarRetorno(): Promise<EstadoDeOnboarding>
   concluirOnboarding(): Promise<EstadoDeOnboarding>
+  /**
+   * Só na demonstração, para smoke test: recomeça o onboarding do zero no outro ramo, como uma entrada nova com ou
+   * sem link de convite. Sem login nem Participação no Workspace. Uma Fonte real não oferece a troca.
+   */
+  trocarRamoDaDemonstracao?(ramo: RamoDeOnboarding): Promise<EstadoDeOnboarding>
 }

@@ -1,7 +1,13 @@
-import { act, fireEvent, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { LeituraDoSite } from '@/fonte/onboarding-tipos'
-import type { ArmazenamentoDeOnboarding, OpcoesFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
+import { App } from '@/App'
+import type { FonteDeOnboarding, LeituraDoSite } from '@/fonte/onboarding-tipos'
+import {
+  criarFonteDeOnboardingSimulada,
+  type ArmazenamentoDeOnboarding,
+  type OpcoesFonteDeOnboardingSimulada,
+} from '@/fonte/simulada-onboarding'
+import { criarFonteSimulada } from '@/fonte/simulada'
 import { renderizarApp } from '@/test/renderizar'
 
 type Usuario = ReturnType<typeof renderizarApp>['usuario']
@@ -577,6 +583,148 @@ describe('Onboarding pós-login: entrada na Casca', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Contas' })).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Onboarding pós-login: switch de demonstração entre criador e convidado', () => {
+  function trocaDeRamo() {
+    return screen.getByRole('group', { name: 'Ramo da demonstração' })
+  }
+
+  /** Troca de ramo com algo preenchido: a troca pede confirmação antes de recomeçar. */
+  async function trocarConfirmando(usuario: Usuario, ramo: 'Criador' | 'Convidado') {
+    await usuario.click(within(trocaDeRamo()).getByRole('button', { name: ramo }))
+    const dialogo = await screen.findByRole('dialog', { name: `Trocar para ${ramo}` })
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Trocar e recomeçar' }))
+  }
+
+  it('troca de criador para convidado e passa a mostrar o caminho do convidado, sem login', async () => {
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', {}, true)
+    await usuario.click(await screen.findByRole('radio', { name: 'Founder' }))
+    await continuar(usuario)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
+    await continuar(usuario)
+    expect(await screen.findByText('Passo 3 de 6')).toBeInTheDocument()
+    expect(within(trocaDeRamo()).getByRole('button', { name: 'Criador' })).toHaveAttribute('aria-pressed', 'true')
+
+    await trocarConfirmando(usuario, 'Convidado')
+
+    expect(await screen.findByText('Passo 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).toBeInTheDocument()
+    expect(within(trocaDeRamo()).getByRole('button', { name: 'Convidado' })).toHaveAttribute('aria-pressed', 'true')
+    expect(window.location.search).toBe('?convite=demo')
+    await usuario.click(screen.getByRole('radio', { name: 'SDR/BDR' }))
+    await continuar(usuario)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Como nos conheceu?' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Empresa' })).not.toBeInTheDocument()
+
+    const estado = await fonteDeOnboarding.ler()
+    expect(estado).toMatchObject({ ramo: 'convidado', workspace: null, empresa: '', dominio: '', papel: 'SDR/BDR' })
+  })
+
+  it('troca de convidado para criador e recomeça no caminho do criador, com o Workspace dele', async () => {
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding?convite=demo', {}, true)
+    await usuario.click(await screen.findByRole('radio', { name: 'Head de Vendas' }))
+    await continuar(usuario)
+    expect(await screen.findByText('Passo 2 de 4')).toBeInTheDocument()
+    expect(within(trocaDeRamo()).getByRole('button', { name: 'Convidado' })).toHaveAttribute('aria-pressed', 'true')
+
+    await trocarConfirmando(usuario, 'Criador')
+
+    expect(await screen.findByText('Passo 1 de 6')).toBeInTheDocument()
+    expect(within(trocaDeRamo()).getByRole('button', { name: 'Criador' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('radio', { name: 'Head de Vendas' })).toHaveAttribute('aria-checked', 'false')
+    expect(window.location.search).toBe('')
+    await usuario.click(screen.getByRole('radio', { name: 'Founder' }))
+    await continuar(usuario)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
+    await continuar(usuario)
+    expect(await screen.findByRole('textbox', { name: 'Domínio do site' })).toBeInTheDocument()
+
+    const estado = await fonteDeOnboarding.ler()
+    expect(estado).toMatchObject({ ramo: 'criador', papel: 'Founder', comoConheceu: null, empresa: 'Norte Dados' })
+    expect(estado.workspace).toEqual({ id: expect.any(String), nomeSugerido: 'Norte Dados' })
+  })
+
+  it('a leitura do site que o criador deixou em andamento não chega ao convidado depois da troca', async () => {
+    let entregar: (leitura: LeituraDoSite) => void = () => {}
+    const leitorDeSite = () =>
+      new Promise<LeituraDoSite>((resolver) => {
+        entregar = resolver
+      })
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
+    await usuario.click(await screen.findByRole('radio', { name: 'RevOps' }))
+    await continuar(usuario)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
+    await continuar(usuario)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'nortedados.com.br')
+    await continuar(usuario)
+    expect(await screen.findByRole('status')).toHaveTextContent(/Lendo o site nortedados\.com\.br/)
+
+    await trocarConfirmando(usuario, 'Convidado')
+    expect(await screen.findByText('Passo 1 de 4')).toBeInTheDocument()
+    await act(async () => entregar(LEITURA_DE_TESTE))
+    await day0Convidado(usuario)
+
+    expect(screen.queryByRole('region', { name: 'Leitura do site' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Personas possíveis' })).toHaveValue('')
+    const estado = await fonteDeOnboarding.ler()
+    expect(estado.leitura).toEqual({ situacao: 'inativa', resultado: null })
+    expect(estado.checklist.miniIcp).toBe('')
+  })
+
+  it('com o Day0 feito, a troca avisa que recomeça do zero e pede confirmação; cancelar não muda nada', async () => {
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(usuario)
+
+    await usuario.click(within(trocaDeRamo()).getByRole('button', { name: 'Convidado' }))
+    const dialogo = await screen.findByRole('dialog', { name: 'Trocar para Convidado' })
+    expect(dialogo).toHaveTextContent(/recomeça o onboarding do zero, sem login/)
+    expect(dialogo).toHaveTextContent(/O que foi preenchido é descartado/)
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
+    expect(within(trocaDeRamo()).getByRole('button', { name: 'Criador' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await fonteDeOnboarding.ler()).toMatchObject({ ramo: 'criador', empresa: 'Norte Dados', day0Concluido: true })
+
+    await trocarConfirmando(usuario, 'Convidado')
+    expect(await screen.findByText('Passo 1 de 4')).toBeInTheDocument()
+    expect(await fonteDeOnboarding.ler()).toMatchObject({ ramo: 'convidado', day0Concluido: false, concluido: false })
+  })
+
+  it('sem nada preenchido, troca na hora; a troca fica guardada e reabrir segue no ramo escolhido', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento })
+    await screen.findByText('Passo 1 de 6')
+    await primeira.usuario.click(within(trocaDeRamo()).getByRole('button', { name: 'Convidado' }))
+    expect(await screen.findByText('Passo 1 de 4')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    primeira.unmount()
+
+    renderizarSemOnboarding('/onboarding', { armazenamento })
+    expect(await screen.findByText('Passo 1 de 4')).toBeInTheDocument()
+    expect(within(trocaDeRamo()).getByRole('button', { name: 'Convidado' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('fica restrito à demonstração: uma Fonte que não oferece a troca não mostra o switch', async () => {
+    const fonteSemTroca: FonteDeOnboarding = {
+      ...criarFonteDeOnboardingSimulada({ jaConcluido: false }),
+      trocarRamoDaDemonstracao: undefined,
+    }
+    render(
+      <App
+        fonte={criarFonteSimulada({ atrasoMs: 0 })}
+        fonteDeOnboarding={fonteSemTroca}
+        rotaInicial="/onboarding"
+        animarDigitacao={false}
+      />,
+    )
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Ramo da demonstração' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Convidado' })).not.toBeInTheDocument()
   })
 })
 
