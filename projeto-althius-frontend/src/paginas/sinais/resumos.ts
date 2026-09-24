@@ -1,13 +1,6 @@
 import { CAMPOS, ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, formularioDoTipo, tipoPorId } from './catalogo'
-import {
-  FILTROS_FIRMOGRAFICOS,
-  LISTAS,
-  PUBLICO_RECOMENDADO,
-  type EstadoDoMonitoramento,
-  type Monitoramento,
-  type PerfilFirmografico,
-  type Publico,
-} from './dados-mock'
+import { LISTAS, PUBLICO_RECOMENDADO, type EstadoDoMonitoramento, type Monitoramento, type Publico } from './dados-mock'
+import { resumoDoPerfil } from './perfil'
 
 // Textos de resumo de um Monitoramento, compartilhados pela página do tipo e pela revisão.
 
@@ -27,15 +20,6 @@ export interface CriterioFormatado {
   texto: string
   /** Um número só se entende com o rótulo (ex.: "Há pelo menos 45 dias"). */
   numerico: boolean
-}
-
-/** Os filtros escolhidos no perfil personalizado, na ordem dos dropdowns. */
-export function resumoDoPerfil(perfil: PerfilFirmografico): string {
-  const partes = FILTROS_FIRMOGRAFICOS.flatMap(({ id, noResumo }) => {
-    const valor = perfil[id]
-    return valor ? [noResumo ? noResumo(valor) : valor] : []
-  })
-  return partes.length > 0 ? partes.join(' · ') : 'qualquer empresa'
 }
 
 /** Cada critério preenchido de um Monitoramento pronto, como rótulo e texto. */

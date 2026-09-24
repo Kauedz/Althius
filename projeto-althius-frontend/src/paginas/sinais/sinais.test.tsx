@@ -109,30 +109,57 @@ describe('Mockup do módulo Sinais', () => {
     expect(screen.queryByRole('radio', { name: 'Descobrir por perfil' })).not.toBeInTheDocument()
   })
 
-  it('no público personalizado, a descoberta usa o perfil firmográfico escolhido nos dropdowns', async () => {
+  it('no público personalizado, o perfil combina várias UFs e cidades, faixas de porte, tempo de empresa e CNAE', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/rodadas/novo')
-    await usuario.type(await screen.findByRole('textbox', { name: 'Nome do monitoramento' }), 'Rodadas em SP')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Nome do monitoramento' }), 'Rodadas no Sudeste')
     await usuario.click(screen.getByRole('radio', { name: 'Público personalizado' }))
-
     const perfil = screen.getByRole('group', { name: 'Perfil firmográfico' })
+
     await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'País' }), 'Brasil')
-    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'UF' }), 'SP')
-    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Funcionários' }), '1.001 a 5.000')
-    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Faturamento anual' }), 'R$ 100 a 500 mi')
-    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Setor' }), 'Serviços financeiros')
+    for (const uf of ['SP', 'RJ']) {
+      await usuario.type(await within(perfil).findByRole('combobox', { name: 'UFs' }), uf)
+      await usuario.click(within(perfil).getByRole('option', { name: new RegExp(`^${uf} `) }))
+    }
+    await usuario.type(within(perfil).getByRole('combobox', { name: 'Cidades' }), 'Campinas')
+    await usuario.click(within(perfil).getByRole('option', { name: /^Campinas \(SP\)/ }))
+    expect(within(perfil).getByRole('button', { name: 'Remover Campinas (SP)' })).toBeInTheDocument()
+
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Funcionários, mínimo' }), '11')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Funcionários, máximo' }), '50')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Faturamento anual, mínimo' }), '360000')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Faturamento anual, máximo' }), '4800000')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Tempo de empresa, mínimo' }), '2')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Tempo de empresa, máximo' }), '5')
+
+    // CNAE pelos cinco níveis, cada um filtrado pelo anterior.
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Seção' }), 'J')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Divisão' }), '62')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Grupo' }), '62.0')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Classe' }), '62.01-5')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Subclasse' }), '6201-5/01')
+    await usuario.click(within(perfil).getByRole('button', { name: 'Adicionar CNAE' }))
+    // Ou por busca, em qualquer nível.
+    await usuario.type(within(perfil).getByRole('combobox', { name: 'CNAEs' }), '6311-9/00')
+    await usuario.click(within(perfil).getByRole('option', { name: /^6311-9\/00/ }))
+    await usuario.click(within(perfil).getByRole('radio', { name: 'Principal ou secundário' }))
 
     await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
     expect(screen.getByRole('region', { name: 'Revisão antes de ativar' })).toHaveTextContent(
-      'descoberta por perfil personalizado: Brasil · SP · 1.001 a 5.000 funcionários · R$ 100 a 500 mi · Serviços financeiros',
+      'descoberta por perfil personalizado: Brasil · SP, RJ · Campinas (SP) · 11 a 50 funcionários · faturamento R$ 360 mil a R$ 4,8 mi · 2 a 5 anos de empresa · CNAE 6201-5/01, 6311-9/00 (principal ou secundário)',
     )
   })
 
-  it('a UF só vale para empresas no Brasil', async () => {
+  it('fora do Brasil, a localização é só por estado', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/rodadas/novo')
     await usuario.click(await screen.findByRole('radio', { name: 'Público personalizado' }))
     const perfil = screen.getByRole('group', { name: 'Perfil firmográfico' })
     await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'País' }), 'México')
-    expect(within(perfil).getByRole('combobox', { name: 'UF' })).toBeDisabled()
+
+    expect(within(perfil).queryByRole('combobox', { name: 'UFs' })).not.toBeInTheDocument()
+    expect(within(perfil).queryByRole('combobox', { name: 'Cidades' })).not.toBeInTheDocument()
+    await usuario.type(within(perfil).getByRole('combobox', { name: 'Estados' }), 'Nuevo')
+    await usuario.click(within(perfil).getByRole('option', { name: 'Nuevo León' }))
+    expect(within(perfil).getByRole('button', { name: 'Remover Nuevo León' })).toBeInTheDocument()
   })
 
   it('cria um sinal personalizado por descrição: Em preparação, critérios editáveis e ativação sem API', async () => {
