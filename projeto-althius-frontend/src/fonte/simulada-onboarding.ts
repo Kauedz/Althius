@@ -3,6 +3,7 @@
 // A leitura do site é a única IA do onboarding; aqui ela é fixa, pela mesma interface que a leitura real vai usar.
 import {
   ETAPAS_DO_RAMO,
+  ITENS_DO_CHECKLIST,
   ORIGENS_HDYHAU,
   etapasDoRamo,
   PAPEIS_DO_DAY0,
@@ -96,6 +97,7 @@ export function criarFonteDeOnboardingSimulada(
     const lista = etapas()
     const seguinte = lista[lista.indexOf(etapa) + 1]
     if (seguinte) estado.etapa = seguinte
+    if (seguinte === 'checklist') estado.day0Concluido = true
   }
 
   /**
@@ -153,6 +155,13 @@ export function criarFonteDeOnboardingSimulada(
       estado.ramo = ramo
       estado.etapa = 'papel'
       estado.workspace = ramo === 'criador' ? { id: ID_DO_WORKSPACE, nomeSugerido: '' } : null
+      publicar()
+      return devolver()
+    },
+
+    async retomar() {
+      if (!estado.day0Concluido || estado.etapa === 'checklist') return devolver()
+      estado.etapa = 'checklist'
       publicar()
       return devolver()
     },
@@ -225,7 +234,7 @@ export function criarFonteDeOnboardingSimulada(
     },
 
     async salvarProduto(campos) {
-      if (estado.etapa !== 'checklist') return devolver()
+      if (!estado.day0Concluido) return devolver()
       estado.checklist.miniIcp = campos.miniIcp.trim()
       estado.checklist.oQueVende = campos.oQueVende.trim()
       estado.checklist.porQueCompram = campos.porQueCompram.trim()
@@ -234,14 +243,14 @@ export function criarFonteDeOnboardingSimulada(
     },
 
     async salvarPersonas(personas) {
-      if (estado.etapa !== 'checklist') return devolver()
+      if (!estado.day0Concluido) return devolver()
       estado.checklist.personas = personas.trim()
       publicar()
       return devolver()
     },
 
     async concluirProduto() {
-      if (estado.etapa !== 'checklist') return devolver()
+      if (!estado.day0Concluido) return devolver()
       const { miniIcp, oQueVende, porQueCompram } = estado.checklist
       if (!miniIcp || !oQueVende || !porQueCompram) return devolver()
       estado.checklist.produto = 'concluido'
@@ -250,14 +259,14 @@ export function criarFonteDeOnboardingSimulada(
     },
 
     async concluirPersona() {
-      if (estado.etapa !== 'checklist' || !estado.checklist.personas) return devolver()
+      if (!estado.day0Concluido || !estado.checklist.personas) return devolver()
       estado.checklist.persona = 'concluido'
       publicar()
       return devolver()
     },
 
     async pularItem(item) {
-      if (estado.etapa !== 'checklist' || !ehItem(item)) return devolver()
+      if (!estado.day0Concluido || !ehItem(item)) return devolver()
       if (estado.checklist[item] === 'concluido') return devolver()
       estado.checklist[item] = 'pulado'
       publicar()
@@ -265,14 +274,14 @@ export function criarFonteDeOnboardingSimulada(
     },
 
     async registrarVisitaASinais() {
-      if (estado.etapa !== 'checklist' || estado.checklist.sinal === 'concluido') return devolver()
+      if (!estado.day0Concluido || estado.checklist.sinal === 'concluido') return devolver()
       estado.checklist.sinal = 'concluido'
       publicar()
       return devolver()
     },
 
     async pedirRetornoAoChecklist() {
-      if (estado.etapa !== 'checklist' || estado.retornoAoChecklist) return devolver()
+      if (!estado.day0Concluido || estado.retornoAoChecklist) return devolver()
       estado.retornoAoChecklist = true
       publicar()
       return devolver()
@@ -286,7 +295,7 @@ export function criarFonteDeOnboardingSimulada(
     },
 
     async concluirOnboarding() {
-      if (estado.etapa !== 'checklist' || estado.concluido) return devolver()
+      if (!estado.day0Concluido || estado.concluido) return devolver()
       estado.concluido = true
       publicar()
       return devolver()
@@ -307,6 +316,7 @@ function estadoInicial(): EstadoDeOnboarding {
     convitePulado: false,
     workspace: null,
     retornoAoChecklist: false,
+    day0Concluido: false,
     concluido: false,
     checklist: {
       miniIcp: '',
@@ -322,7 +332,7 @@ function estadoInicial(): EstadoDeOnboarding {
 
 /** O onboarding já concluído de quem entrou num Workspace que existia: sem Workspace novo nem leitura do site. */
 function estadoConcluido(): EstadoDeOnboarding {
-  return { ...estadoInicial(), ramo: 'convidado', etapa: 'checklist', concluido: true }
+  return { ...estadoInicial(), ramo: 'convidado', etapa: 'checklist', day0Concluido: true, concluido: true }
 }
 
 /** O onboarding guardado, ou nenhum quando o armazenamento não guarda um legível. */
@@ -351,6 +361,8 @@ function normalizar(bruto: unknown): EstadoDeOnboarding {
   if (ehOrigem(lido.comoConheceu)) base.comoConheceu = lido.comoConheceu
   if (lido.convitePulado === true) base.convitePulado = true
   if (lido.retornoAoChecklist === true) base.retornoAoChecklist = true
+  // Sem a marca guardada, estar no checklist já mostra que o Day0 foi feito.
+  if (lido.day0Concluido === true || base.etapa === 'checklist') base.day0Concluido = true
   if (lido.concluido === true) base.concluido = true
 
   if (lido.checklist && typeof lido.checklist === 'object') {
@@ -358,7 +370,7 @@ function normalizar(bruto: unknown): EstadoDeOnboarding {
     for (const campo of [...CAMPOS_DO_PRODUTO, 'personas'] as const) {
       if (typeof checklist[campo] === 'string') base.checklist[campo] = checklist[campo]
     }
-    for (const item of ['produto', 'persona', 'sinal'] as const) {
+    for (const item of ITENS_DO_CHECKLIST) {
       if (ehSituacao(checklist[item])) base.checklist[item] = checklist[item]
     }
   }
@@ -412,5 +424,5 @@ function ehLeitura(valor: unknown): valor is LeituraDoSite {
 }
 
 function ehItem(valor: string): valor is ItemDoChecklist {
-  return valor === 'produto' || valor === 'persona' || valor === 'sinal'
+  return (ITENS_DO_CHECKLIST as readonly string[]).includes(valor)
 }

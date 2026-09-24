@@ -1,4 +1,15 @@
-import { Bot, Building2, ChevronsUpDown, Plug, RadioTower, Route, Settings, ShieldCheck, type LucideIcon } from 'lucide-react'
+import {
+  Bot,
+  Building2,
+  ChevronsUpDown,
+  ListChecks,
+  Plug,
+  RadioTower,
+  Route,
+  Settings,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, Logo, ROTULO_DO_ESTADO } from '@/components/marca'
@@ -13,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { checklistPendente, progressoDoChecklist, type ChecklistNorte } from '@/fonte/onboarding-tipos'
 import { ROTULO_DO_PAPEL } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
 import { useTema } from '@/tema'
@@ -57,6 +69,8 @@ function Sidebar() {
           <span className="selo self-start">Demonstração</span>
         </div>
       </div>
+
+      {onboarding && checklistPendente(onboarding) && <AtalhoDoChecklist checklist={onboarding.checklist} />}
 
       <Secao titulo="Especialistas">
         {agentes
@@ -120,6 +134,28 @@ function Sidebar() {
 
       <MenuDoUsuario />
     </aside>
+  )
+}
+
+/** Enquanto o checklist do onboarding está pendente, a Casca leva de volta a ele com o progresso guardado. */
+function AtalhoDoChecklist({ checklist }: { checklist: ChecklistNorte }) {
+  const { concluidos, total } = progressoDoChecklist(checklist)
+  return (
+    <Secao titulo="Primeiros passos">
+      <ItemDeNavegacao
+        para="/onboarding"
+        ativo={false}
+        icone={<IconeDeNavegacao icone={ListChecks} />}
+        rotulo={`Checklist do Norte, ${concluidos} de ${total} concluídos`}
+        fim={
+          <span className="text-xs tabular-nums">
+            {concluidos}/{total}
+          </span>
+        }
+      >
+        Checklist do Norte
+      </ItemDeNavegacao>
+    </Secao>
   )
 }
 

@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-router-dom'
 import { LogoDoWorkspace } from '@/components/logos'
@@ -5,10 +6,13 @@ import { Carregando, Logo } from '@/components/marca'
 import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
 import { dominioUtil, logoDoSite } from '@/fonte/dominio-do-site'
 import {
+  ITENS_DO_CHECKLIST,
   ORIGENS_HDYHAU,
   PAPEIS_DO_DAY0,
   etapasDoRamo,
   precisaDoOnboarding,
+  progressoDoChecklist,
+  type ChecklistNorte,
   type EstadoDeOnboarding,
   type EtapaDeOnboarding,
   type FonteDeOnboarding,
@@ -53,6 +57,7 @@ export function PaginaOnboarding() {
 
   useEffect(() => {
     void fonte.dispensarRetorno()
+    void fonte.retomar()
   }, [fonte])
 
   const precisaIniciar = estado !== undefined && !estado.ramo
@@ -103,7 +108,7 @@ export function RegistrarAberturaDeSinais() {
 export function RetornoDoChecklist() {
   const fonte = useFonteDeOnboarding()
   const estado = useDados(fonte, (f) => f.ler(), [])
-  if (!estado?.retornoAoChecklist || estado.etapa !== 'checklist') return null
+  if (!estado?.retornoAoChecklist) return null
 
   return (
     <div
@@ -275,6 +280,7 @@ function EtapaChecklist({ estado, fonte }: PropsDaEtapa) {
       )}
       {estado.ramo === 'criador' && <LeituraDoSiteNoChecklist estado={estado} fonte={fonte} />}
       <p>A ordem do Norte: mini-ICP e produto, depois Persona, depois Sinal de compra.</p>
+      <ResumoDoChecklist checklist={estado.checklist} />
       <ol aria-label="Checklist do Norte" className="flex flex-col gap-4">
         <ItemProduto estado={estado} fonte={fonte} />
         <ItemPersona estado={estado} fonte={fonte} />
@@ -459,6 +465,21 @@ function ItemSinal({ estado, fonte }: PropsDaEtapa) {
   )
 }
 
+/** Quantos itens estão concluídos, com um segmento por item na ordem do Norte. Um item pulado não conta. */
+function ResumoDoChecklist({ checklist }: { checklist: ChecklistNorte }) {
+  const { concluidos, total } = progressoDoChecklist(checklist)
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="rotulo" aria-live="polite">{`${concluidos} de ${total} concluídos`}</p>
+      <div className="flex gap-1" aria-hidden>
+        {ITENS_DO_CHECKLIST.map((item) => (
+          <span key={item} className={cn('h-1 flex-1', checklist[item] === 'concluido' ? 'bg-al-ink' : 'bg-al-line')} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** Depois do Sinal de compra, o caminho do Norte segue pelas experiências que já existem no App. */
 function ProximosPassos() {
   return (
@@ -486,11 +507,18 @@ function ProximosPassos() {
 }
 
 function Item({ nome, situacao, children }: { nome: string; situacao: SituacaoDoItem; children: ReactNode }) {
+  const concluido = situacao === 'concluido'
   return (
-    <li aria-label={nome} className="flex flex-col gap-3 border border-al-line bg-al-surface p-4">
+    <li
+      aria-label={nome}
+      className={cn('flex flex-col gap-3 border bg-al-surface p-4', concluido ? 'border-al-ink' : 'border-al-line')}
+    >
       <div className="flex items-center justify-between gap-3">
         <h2 className="titulo-secao text-lg">{nome}</h2>
-        <span className="selo">{ROTULO_DA_SITUACAO[situacao]}</span>
+        <span className={cn('selo', concluido && 'border-al-ink bg-al-ink text-al-bg')}>
+          {concluido && <Check strokeWidth={2} className="size-3" aria-hidden />}
+          {ROTULO_DA_SITUACAO[situacao]}
+        </span>
       </div>
       {children}
     </li>

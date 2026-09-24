@@ -51,7 +51,10 @@ export function etapasDoRamo(ramo: RamoDeOnboarding | null): readonly EtapaDeOnb
 
 export type SituacaoDoItem = 'pendente' | 'concluido' | 'pulado'
 
-export type ItemDoChecklist = 'produto' | 'persona' | 'sinal'
+/** Os itens do checklist na ordem do Norte. */
+export const ITENS_DO_CHECKLIST = ['produto', 'persona', 'sinal'] as const
+
+export type ItemDoChecklist = (typeof ITENS_DO_CHECKLIST)[number]
 
 /** Workspace do criador. O nome sugere Workspace e Cliente; não é uma Conta-alvo. */
 export interface WorkspaceSugerido {
@@ -106,6 +109,8 @@ export interface EstadoDeOnboarding {
   checklist: ChecklistNorte
   /** A pessoa abriu Sinais a partir do checklist e ainda pode voltar. */
   retornoAoChecklist: boolean
+  /** O wizard já chegou ao checklist uma vez: daí em diante o checklist fica aberto, mesmo voltando a um passo do Day0. */
+  day0Concluido: boolean
   concluido: boolean
 }
 
@@ -114,7 +119,18 @@ export interface EstadoDeOnboarding {
  * não prende a sessão, que pode explorar a Casca e voltar a ele depois.
  */
 export function precisaDoOnboarding(estado: EstadoDeOnboarding): boolean {
-  return !estado.concluido && estado.etapa !== 'checklist'
+  return !estado.concluido && !estado.day0Concluido
+}
+
+/** Quantos dos três itens do checklist estão concluídos. Um item pulado não conta. */
+export function progressoDoChecklist(checklist: ChecklistNorte) {
+  const concluidos = ITENS_DO_CHECKLIST.filter((item) => checklist[item] === 'concluido').length
+  return { concluidos, total: ITENS_DO_CHECKLIST.length }
+}
+
+/** Com o Day0 feito e o onboarding ainda aberto, o checklist fica pendente e a Casca leva de volta a ele. */
+export function checklistPendente(estado: EstadoDeOnboarding): boolean {
+  return estado.day0Concluido && !estado.concluido
 }
 
 export interface ProdutoDoChecklist {
@@ -131,6 +147,8 @@ export interface FonteDeOnboarding extends FonteObservavel {
   ler(): Promise<EstadoDeOnboarding>
   /** Começa o onboarding no ramo que a entrada indica. Não troca um ramo já começado. */
   iniciar(ramo: RamoDeOnboarding): Promise<EstadoDeOnboarding>
+  /** Reabre o fluxo guardado: com o Day0 concluído, começa no checklist, sem refazer o Day0. */
+  retomar(): Promise<EstadoDeOnboarding>
   /** Volta ao passo anterior do wizard, sem apagar nada do que foi preenchido. */
   voltar(): Promise<EstadoDeOnboarding>
   definirPapel(papel: PapelNoDay0): Promise<EstadoDeOnboarding>

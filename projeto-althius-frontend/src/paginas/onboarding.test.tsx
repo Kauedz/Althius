@@ -579,3 +579,84 @@ describe('Onboarding pós-login: entrada na Casca', () => {
     expect(screen.queryByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).not.toBeInTheDocument()
   })
 })
+
+describe('Onboarding pós-login: reentrada e progresso do checklist', () => {
+  it('com o Day0 concluído, reabrir o fluxo começa no checklist, mesmo depois de voltar a um passo do Day0', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(primeira.usuario)
+    await voltar(primeira.usuario)
+    await voltar(primeira.usuario)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Como nos conheceu?' })).toBeInTheDocument()
+    primeira.unmount()
+
+    renderizarSemOnboarding('/onboarding', { armazenamento })
+    expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
+    expect(screen.getByText('Passo 6 de 6')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Como nos conheceu?' })).not.toBeInTheDocument()
+  })
+
+  it('visitar Sinais pela Casca conclui o item 3 sem Monitoramento, mesmo depois de voltar a um passo do Day0', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(primeira.usuario)
+    await voltar(primeira.usuario)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Convide colegas' })).toBeInTheDocument()
+    primeira.unmount()
+
+    const segunda = renderizarSemOnboarding('/sinais', { armazenamento }, true)
+    const monitoramentosAntes = (await segunda.fonteDeSinais.monitoramentos()).length
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sinais' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/sinais')
+    await vi.waitFor(async () => expect((await segunda.fonteDeOnboarding.ler()).checklist.sinal).toBe('concluido'))
+    expect((await segunda.fonteDeSinais.monitoramentos()).length).toBe(monitoramentosAntes)
+  })
+
+  it('com o checklist pendente, a Casca mostra o progresso e reabre o checklist onde a sessão parou', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
+    await usuario.click(screen.getByRole('link', { name: 'Criar a Sequência' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sequências' })).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('link', { name: 'Checklist do Norte, 1 de 3 concluídos' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Concluído')).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Checklist do Norte/ })).not.toBeInTheDocument()
+  })
+
+  it('cada item concluído aparece como concluído, e o progresso do checklist fica guardado na Fonte', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(primeira.usuario)
+    expect(screen.getByText('0 de 3 concluídos')).toBeInTheDocument()
+
+    await primeira.usuario.click(screen.getByRole('button', { name: 'Concluir Persona' }))
+    expect(await within(screen.getByRole('listitem', { name: '2. Persona' })).findByText('Concluído')).toBeInTheDocument()
+    expect(screen.getByText('1 de 3 concluídos')).toBeInTheDocument()
+
+    await primeira.usuario.click(screen.getByRole('button', { name: 'Pular Sinal' }))
+    expect(await within(screen.getByRole('listitem', { name: '3. Sinal de compra' })).findByText('Pulado')).toBeInTheDocument()
+    expect(screen.getByText('1 de 3 concluídos')).toBeInTheDocument()
+
+    await primeira.usuario.click(screen.getByRole('button', { name: 'Abrir Sinais' }))
+    await primeira.usuario.click(await screen.findByRole('link', { name: 'Voltar ao checklist' }))
+    expect(await within(await screen.findByRole('listitem', { name: '3. Sinal de compra' })).findByText('Concluído')).toBeInTheDocument()
+    expect(screen.getByText('2 de 3 concluídos')).toBeInTheDocument()
+    primeira.unmount()
+
+    const segunda = renderizarSemOnboarding('/onboarding', { armazenamento })
+    expect(await screen.findByText('2 de 3 concluídos')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Pendente')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '2. Persona' })).getByText('Concluído')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '3. Sinal de compra' })).getByText('Concluído')).toBeInTheDocument()
+    expect((await segunda.fonteDeOnboarding.ler()).checklist).toMatchObject({
+      produto: 'pendente',
+      persona: 'concluido',
+      sinal: 'concluido',
+    })
+  })
+})
