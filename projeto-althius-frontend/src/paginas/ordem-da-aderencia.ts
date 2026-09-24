@@ -13,3 +13,10 @@ export const posicaoDaAderencia = (aderencia?: Aderencia) => (aderencia ? ORDEM_
 
 /** As Aderências, na ordem de grupos da Prioridade. */
 export const ADERENCIAS = Object.keys(ORDEM_ADERENCIA) as Aderencia[]
+
+/** Como cada Aderência aparece no menu de filtros e nos chips. */
+export const ROTULO_ADERENCIA: Record<Aderencia, string> = {
+  quente: 'Quente',
+  fit: 'Fit',
+  'nao-fit': 'Não fit',
+}

@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '@/App'
 import type { FonteDeContas } from '@/fonte/contas-tipos'
@@ -239,5 +240,218 @@ describe('Aba Contatos', () => {
 
     expect(await screen.findByRole('table', { name: 'Tabela de Contatos' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+type Usuario = ReturnType<typeof renderizarApp>['usuario']
+
+/** Os nomes das pessoas na tabela de Contatos, na ordem exibida, sem as iniciais do avatar. */
+async function nomesDosContatos() {
+  return (await linhasDosContatos()).map(
+    (linha) => within(linha).getAllByRole('cell')[0].lastElementChild?.lastElementChild?.textContent,
+  )
+}
+
+/** A contagem ao lado do título: "N contatos" ou, com busca ou filtro, "N de M contatos". */
+function contagem() {
+  return screen.getByText(
+    (_, elemento) => elemento?.tagName === 'SPAN' && /^\d+( de \d+)? contatos?$/.test(elemento.textContent ?? ''),
+  )
+}
+
+/** Abre o menu "Filtros" da aba Contatos e devolve o painel. */
+async function abrirFiltros(usuario: Usuario) {
+  await usuario.click(await screen.findByRole('button', { name: /^Filtros/ }))
+  return screen.findByRole('dialog', { name: 'Filtrar contatos' })
+}
+
+/** Marca uma opção do grupo de filtros com esse nome. */
+async function filtrar(usuario: Usuario, grupo: string, opcao: string) {
+  const painel = screen.queryByRole('dialog', { name: 'Filtrar contatos' }) ?? (await abrirFiltros(usuario))
+  await usuario.click(within(within(painel).getByRole('group', { name: grupo })).getByRole('checkbox', { name: opcao }))
+}
+
+/** Os rótulos dos chips de filtros ativos, na ordem em que aparecem. */
+function chips() {
+  return screen
+    .queryAllByRole('button', { name: /^Remover filtro / })
+    .map((botao) => botao.getAttribute('aria-label')?.replace(/^Remover filtro /, ''))
+}
+
+/** O app sobre a demo, com essas pessoas (por padrão, a Clara Dupont e o Carlos Mendoza) sem nenhum canal. */
+function renderizarComContatosSemCanais(rota: string, semCanal = ['Clara Dupont', 'Carlos Mendoza']) {
+  const fonteDeContas = criarFonteDeContasSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES })
+  const semCanais: FonteDeContas = {
+    ...fonteDeContas,
+    contatos: async () =>
+      (await fonteDeContas.contatos()).map((contato) =>
+        semCanal.includes(contato.nome)
+          ? { ...contato, canais: { email: false, telefone: false, linkedin: false } }
+          : contato,
+      ),
+  }
+  const usuario = userEvent.setup()
+  render(
+    <App fonte={criarFonteSimulada({ atrasoMs: 0 })} fonteDeContas={semCanais} rotaInicial={rota} animarDigitacao={false} />,
+  )
+  return { usuario }
+}
+
+describe('Busca da aba Contatos', () => {
+  it('a busca encontra pelo nome ignorando maiúsculas e acentos, e a contagem mostra "N de M contatos"', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contatos' }), 'JOAO')
+
+    expect(await nomesDosContatos()).toEqual(['João Bosco'])
+    expect(contagem()).toHaveTextContent(/^1 de 94 contatos$/)
+  })
+
+  it('a busca encontra pelo cargo', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contatos' }), 'cfo')
+
+    expect(await nomesDosContatos()).toEqual(['Robert Thorne'])
+  })
+
+  it('a busca encontra pela empresa, e mantém a ordem fixa', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contatos' }), 'mexico')
+
+    expect(await nomesDosContatos()).toEqual(['Carlos Mendoza', 'Sofia Ortiz'])
+    expect(contagem()).toHaveTextContent(/^2 de 94 contatos$/)
+  })
+
+  it('uma busca sem resultado mostra a mensagem e "Limpar busca e filtros" restaura a lista', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    await filtrar(usuario, 'Aderência da empresa', 'Fit')
+    await usuario.keyboard('{Escape}')
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contatos' }), 'xyz')
+
+    expect(screen.getByText('Nenhum contato encontrado para “xyz”.')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Tabela de Contatos' })).not.toBeInTheDocument()
+    expect(contagem()).toHaveTextContent(/^0 de 94 contatos$/)
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar busca e filtros' }))
+
+    expect(await nomesDosContatos()).toHaveLength(94)
+    expect(screen.getByRole('searchbox', { name: 'Buscar contatos' })).toHaveValue('')
+    expect(chips()).toEqual([])
+    expect(contagem()).toHaveTextContent(/^94 contatos$/)
+  })
+})
+
+describe('Filtros da aba Contatos', () => {
+  it('"Filtros" abre um menu com a Aderência da empresa e os Dados de contato, sem Persona nem ordenação', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    const painel = await abrirFiltros(usuario)
+
+    expect(within(painel).getAllByRole('group').map((g) => g.querySelector('legend')?.textContent)).toEqual([
+      'Aderência da empresa',
+      'Dados de contato',
+    ])
+    const opcoes = (grupo: string, nomes: string[]) => {
+      const doGrupo = within(within(painel).getByRole('group', { name: grupo }))
+      expect(doGrupo.getAllByRole('checkbox')).toEqual(nomes.map((nome) => doGrupo.getByRole('checkbox', { name: nome })))
+    }
+    opcoes('Aderência da empresa', ['Quente', 'Fit', 'Não fit'])
+    opcoes('Dados de contato', ['Com algum canal'])
+    expect(screen.queryByRole('combobox', { name: 'Ordenar por' })).not.toBeInTheDocument()
+  })
+
+  it('a Aderência da empresa reduz a lista, e opções marcadas juntas se combinam com "ou"', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    await filtrar(usuario, 'Aderência da empresa', 'Não fit')
+    expect(await nomesDosContatos()).toEqual(['Gustavo Lima', 'Renan Coelho', 'Sandra Esteves'])
+    expect(contagem()).toHaveTextContent(/^3 de 94 contatos$/)
+
+    await filtrar(usuario, 'Aderência da empresa', 'Fit')
+    expect(await nomesDosContatos()).toHaveLength(23)
+    expect(screen.getByRole('button', { name: 'Filtros, 2 ativos' })).toBeInTheDocument()
+  })
+
+  it('"Com algum canal" deixa só quem tem pelo menos um canal disponível', async () => {
+    const { usuario } = renderizarComContatosSemCanais('/contatos')
+
+    await filtrar(usuario, 'Dados de contato', 'Com algum canal')
+
+    const nomes = await nomesDosContatos()
+    expect(nomes).toHaveLength(92)
+    expect(nomes).not.toContain('Clara Dupont')
+    expect(nomes).not.toContain('Carlos Mendoza')
+    expect(chips()).toEqual(['Com dados de contato'])
+  })
+
+  it('cada filtro ativo aparece como um chip, e remover o chip desfaz o filtro', async () => {
+    const { usuario } = renderizarComContatosSemCanais('/contatos')
+
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument()
+
+    await filtrar(usuario, 'Aderência da empresa', 'Quente')
+    await filtrar(usuario, 'Dados de contato', 'Com algum canal')
+    await usuario.keyboard('{Escape}')
+
+    expect(chips()).toEqual(['Aderência: Quente', 'Com dados de contato'])
+    expect(await nomesDosContatos()).toHaveLength(68)
+
+    await usuario.click(screen.getByRole('button', { name: 'Remover filtro Com dados de contato' }))
+    expect(chips()).toEqual(['Aderência: Quente'])
+    expect(await nomesDosContatos()).toContain('Clara Dupont')
+
+    // O menu reflete a remoção
+    const painel = await abrirFiltros(usuario)
+    expect(within(painel).getByRole('checkbox', { name: 'Com algum canal' })).not.toBeChecked()
+    expect(within(painel).getByRole('checkbox', { name: 'Quente' })).toBeChecked()
+  })
+
+  it('"Limpar filtros" desfaz todos os filtros e mantém a busca', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contatos' }), 'head')
+    const comBusca = (await nomesDosContatos()).length
+    await filtrar(usuario, 'Aderência da empresa', 'Fit')
+    await filtrar(usuario, 'Dados de contato', 'Com algum canal')
+    await usuario.keyboard('{Escape}')
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+
+    expect(chips()).toEqual([])
+    expect(screen.getByRole('searchbox', { name: 'Buscar contatos' })).toHaveValue('head')
+    expect(await nomesDosContatos()).toHaveLength(comBusca)
+  })
+
+  it('só com filtros, a mensagem sem resultado não menciona busca', async () => {
+    renderizarComContatosSemCanais('/contatos?aderencia=nao-fit&dados=com', ['Gustavo Lima', 'Sandra Esteves', 'Renan Coelho'])
+
+    expect(await screen.findByText('Nenhum contato encontrado.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Limpar busca e filtros' })).toBeInTheDocument()
+  })
+
+  it('abrir o endereço com busca e filtros reconstrói a lista, os chips e o menu', async () => {
+    const { usuario } = renderizarComContatosSemCanais('/contatos?aderencia=quente&aderencia=fit&dados=com&busca=head')
+
+    const nomes = await nomesDosContatos()
+    expect(nomes).toContain('Sarah Chen')
+    expect(nomes).toContain('Eduardo Pires')
+    expect(nomes).not.toContain('Andre Prado')
+    expect(screen.getByRole('searchbox', { name: 'Buscar contatos' })).toHaveValue('head')
+    expect(chips()).toEqual(['Aderência: Quente', 'Aderência: Fit', 'Com dados de contato'])
+
+    const painel = await abrirFiltros(usuario)
+    expect(within(painel).getByRole('checkbox', { name: 'Fit' })).toBeChecked()
+    expect(within(painel).getByRole('checkbox', { name: 'Não fit' })).not.toBeChecked()
+    expect(within(painel).getByRole('checkbox', { name: 'Com algum canal' })).toBeChecked()
+  })
+
+  it('filtros desconhecidos no endereço são ignorados', async () => {
+    renderizarApp('/contatos?aderencia=morna&dados=talvez&segmento=Produtividade')
+
+    expect(await nomesDosContatos()).toHaveLength(94)
+    expect(chips()).toEqual([])
   })
 })
