@@ -30,7 +30,6 @@ import type {
   ItemDeAtividade,
   LugarDaDecisao,
   Mensagem,
-  NovaAprovacao,
   NovaRotina,
   Origem,
   PassoDaConversa,

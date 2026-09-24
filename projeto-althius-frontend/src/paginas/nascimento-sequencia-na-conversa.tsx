@@ -429,7 +429,7 @@ export function NascimentoSequenciaNaConversa({
         <section aria-label="Aprovação pós-documento" className="flex flex-col gap-2">
           <AprovacaoNaConversa
             aprovacaoId={idAprovacao}
-            cabecalho={(aprovacao, rotuloDoEstado) => (
+            cabecalho={(_aprovacao, rotuloDoEstado) => (
               <div className="flex items-center gap-2 text-sm text-al-muted mb-1">
                 <IconeAgente especialidade="rhetor" tamanho="sm" />
                 <span className="font-normal text-al-ink">{agente?.nome ?? 'Rhetor'}</span>
