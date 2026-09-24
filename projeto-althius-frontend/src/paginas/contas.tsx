@@ -4,6 +4,7 @@ import { Building2, ExternalLink, ListFilter, RadioTower, Search, X } from 'luci
 import { useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
+import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
@@ -204,11 +205,7 @@ export function PaginaContas() {
   const { contaId } = useParams<{ contaId?: string }>()
 
   if (contaId) {
-    return (
-      <Pagina titulo="Contas" icone={Building2}>
-        <DetalheConta contaId={contaId} />
-      </Pagina>
-    )
+    return <DetalheConta contaId={contaId} />
   }
 
   return <ListaContas />
@@ -364,7 +361,7 @@ function ListaContas() {
                     <CelulaEmpresa conta={conta} />
                   </td>
                   <td className={CELULA}>
-                    <CelulaAderencia aderencia={conta.aderencia} />
+                    <SeloDeAderencia aderencia={conta.aderencia} />
                   </td>
                   <td className={CELULA}>
                     <CelulaContatos total={conta.totalContatos} previa={conta.previaContatos} />
@@ -656,30 +653,6 @@ function PopUpDaEmpresa({ conta, children }: { conta: ContaAlvo; children: React
       </PreviewCard.Portal>
     </PreviewCard.Root>
   )
-}
-
-function CelulaAderencia({ aderencia }: { aderencia?: Aderencia }) {
-  if (!aderencia) {
-    return (
-      <span
-        title="Aderência ainda não avaliada"
-        aria-label="Aderência ainda não avaliada"
-        className="text-al-muted"
-      >
-        —
-      </span>
-    )
-  }
-
-  if (aderencia === 'quente') {
-    return <span className="text-al-ink">🔥 Quente</span>
-  }
-
-  if (aderencia === 'fit') {
-    return <span className="text-al-ink">Fit</span>
-  }
-
-  return <span className="text-al-muted">Não fit</span>
 }
 
 function CelulaContatos({ total, previa = [] }: { total: number; previa?: PreviaContato[] }) {
