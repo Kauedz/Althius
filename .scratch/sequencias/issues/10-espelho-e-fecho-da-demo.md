@@ -4,10 +4,10 @@
 
 **Blocked by:** 03 (Lista global de Sequências), 04 (Bloco Sequência no detalhe da Conta-alvo), 05 (Detalhe da sequência — documento e timeline), 06 (Composer de step por canal), 07 (Nascimento na Conversa — Rhetor e confirmação)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Editar numa superfície atualiza as outras na mesma sessão
-- [ ] Roteiro demo completo navega lista ↔ Conta ↔ Conversa sem divergência
-- [ ] Selo Demonstração permanece; nada finge envio real
-- [ ] Suite de testes cobre espelho e caminho feliz account-first
-- [ ] Revisão final: Conta como unidade, pause visível, Conta com 1 Contato ok, módulo convive com Contas e Agentes
+- [x] Editar numa superfície atualiza as outras na mesma sessão
+- [x] Roteiro demo completo navega lista ↔ Conta ↔ Conversa sem divergência
+- [x] Selo Demonstração permanece; nada finge envio real
+- [x] Suite de testes cobre espelho e caminho feliz account-first
+- [x] Revisão final: Conta como unidade, pause visível, Conta com 1 Contato ok, módulo convive com Contas e Agentes
