@@ -1,11 +1,21 @@
 import { CAMPOS, ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, formularioDoTipo, tipoPorId } from './catalogo'
-import { LISTAS, PUBLICO_RECOMENDADO, type EstadoDoMonitoramento, type Monitoramento, type Publico } from './dados-mock'
+import {
+  FILTROS_FIRMOGRAFICOS,
+  LISTAS,
+  PUBLICO_RECOMENDADO,
+  type EstadoDoMonitoramento,
+  type Monitoramento,
+  type PerfilFirmografico,
+  type Publico,
+} from './dados-mock'
 
 // Textos de resumo de um Monitoramento, compartilhados pela página do tipo e pela revisão.
 
 export function resumoDoPublico(publico: Publico): string {
   const listas = publico.listas.map((id) => LISTAS.find((l) => l.id === id)?.nome).filter(Boolean)
-  const descoberta = publico.usaRecomendado ? `descoberta por ${PUBLICO_RECOMENDADO.nome}` : 'descoberta por perfil próprio'
+  const descoberta = publico.usaRecomendado
+    ? `descoberta por ${PUBLICO_RECOMENDADO.nome}`
+    : `descoberta por perfil personalizado: ${resumoDoPerfil(publico.perfil ?? {})}`
   const textoListas = listas.length > 0 ? `Listas ${listas.join(', ')}` : 'Nenhuma lista'
   if (publico.modo === 'listas') return textoListas
   if (publico.modo === 'descoberta') return descoberta.charAt(0).toUpperCase() + descoberta.slice(1)
@@ -17,6 +27,15 @@ export interface CriterioFormatado {
   texto: string
   /** Um número só se entende com o rótulo (ex.: "Há pelo menos 45 dias"). */
   numerico: boolean
+}
+
+/** Os filtros escolhidos no perfil personalizado, na ordem dos dropdowns. */
+export function resumoDoPerfil(perfil: PerfilFirmografico): string {
+  const partes = FILTROS_FIRMOGRAFICOS.flatMap(({ id, noResumo }) => {
+    const valor = perfil[id]
+    return valor ? [noResumo ? noResumo(valor) : valor] : []
+  })
+  return partes.length > 0 ? partes.join(' · ') : 'qualquer empresa'
 }
 
 /** Cada critério preenchido de um Monitoramento pronto, como rótulo e texto. */

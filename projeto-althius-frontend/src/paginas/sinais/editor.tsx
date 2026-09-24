@@ -19,7 +19,19 @@ import {
   type TipoDeSinal,
 } from './catalogo'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Opcao, SecaoDoFormulario, SeloDoEstado } from './componentes'
-import { LISTAS, PUBLICO_RECOMENDADO, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
+import {
+  FILTROS_FIRMOGRAFICOS,
+  LISTAS,
+  PUBLICO_RECOMENDADO,
+  VALIDADE_EM_DIAS,
+  publicoInicial,
+  ufSeAplica,
+  type FiltroFirmografico,
+  type ModoDePublico,
+  type Monitoramento,
+  type PerfilFirmografico,
+  type Publico,
+} from './dados-mock'
 import { useSinaisDoMockup } from './estado'
 import { criteriosFormatados, resumoDoPublico } from './resumos'
 
@@ -432,16 +444,52 @@ function SecaoPublico({
             Usar o público recomendado
           </Opcao>
           <Opcao papel="radio" marcada={!publico.usaRecomendado} aoClicar={() => aoMudar({ ...publico, usaRecomendado: false })}>
-            Definir outro perfil
+            Público personalizado
           </Opcao>
         </Grupo>
       )}
       {comDescoberta && !publico.usaRecomendado && (
-        <p className="-mt-3 text-xs text-al-muted">
-          A definição de outros perfis fica nas configurações de público, fora desta demonstração.
-        </p>
+        <PerfilPersonalizado perfil={publico.perfil ?? {}} aoMudar={(perfil) => aoMudar({ ...publico, perfil })} />
       )}
     </SecaoDoFormulario>
+  )
+}
+
+/** Os filtros firmográficos do público personalizado, em dropdowns. "Qualquer" não restringe. */
+function PerfilPersonalizado({ perfil, aoMudar }: { perfil: PerfilFirmografico; aoMudar: (perfil: PerfilFirmografico) => void }) {
+  const mudarFiltro = (id: FiltroFirmografico, valor: string) => {
+    const novo = { ...perfil, [id]: valor || undefined }
+    // Ao sair do Brasil, a UF escolhida deixa de fazer sentido.
+    aoMudar(ufSeAplica(novo) ? novo : { ...novo, uf: undefined })
+  }
+  return (
+    <div className="-mt-2 flex flex-col gap-3">
+      <div role="group" aria-label="Perfil firmográfico" className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-4 border border-al-line p-4">
+        {FILTROS_FIRMOGRAFICOS.map((filtro) => {
+          const desativado = filtro.id === 'uf' && !ufSeAplica(perfil)
+          return (
+            <label key={filtro.id} className="flex flex-col gap-2">
+              <span className="rotulo text-al-ink">{filtro.rotulo}</span>
+              <select
+                value={perfil[filtro.id] ?? ''}
+                disabled={desativado}
+                title={desativado ? 'A UF vale só para empresas no Brasil' : undefined}
+                onChange={(e) => mudarFiltro(filtro.id, e.target.value)}
+                className="campo h-10 text-sm disabled:opacity-50"
+              >
+                <option value="">Qualquer</option>
+                {filtro.opcoes.map((opcao) => (
+                  <option key={opcao} value={opcao}>
+                    {opcao}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )
+        })}
+      </div>
+      <p className="text-xs text-al-muted">Deixe “Qualquer” onde não quiser restringir. Vale só para este Monitoramento.</p>
+    </div>
   )
 }
 

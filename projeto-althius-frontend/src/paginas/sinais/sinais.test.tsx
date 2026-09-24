@@ -109,6 +109,32 @@ describe('Mockup do módulo Sinais', () => {
     expect(screen.queryByRole('radio', { name: 'Descobrir por perfil' })).not.toBeInTheDocument()
   })
 
+  it('no público personalizado, a descoberta usa o perfil firmográfico escolhido nos dropdowns', async () => {
+    const { usuario } = renderizarApp('/sinais/tipos/rodadas/novo')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Nome do monitoramento' }), 'Rodadas em SP')
+    await usuario.click(screen.getByRole('radio', { name: 'Público personalizado' }))
+
+    const perfil = screen.getByRole('group', { name: 'Perfil firmográfico' })
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'País' }), 'Brasil')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'UF' }), 'SP')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Funcionários' }), '1.001 a 5.000')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Faturamento anual' }), 'R$ 100 a 500 mi')
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'Setor' }), 'Serviços financeiros')
+
+    await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
+    expect(screen.getByRole('region', { name: 'Revisão antes de ativar' })).toHaveTextContent(
+      'descoberta por perfil personalizado: Brasil · SP · 1.001 a 5.000 funcionários · R$ 100 a 500 mi · Serviços financeiros',
+    )
+  })
+
+  it('a UF só vale para empresas no Brasil', async () => {
+    const { usuario } = renderizarApp('/sinais/tipos/rodadas/novo')
+    await usuario.click(await screen.findByRole('radio', { name: 'Público personalizado' }))
+    const perfil = screen.getByRole('group', { name: 'Perfil firmográfico' })
+    await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'País' }), 'México')
+    expect(within(perfil).getByRole('combobox', { name: 'UF' })).toBeDisabled()
+  })
+
   it('cria um sinal personalizado por descrição: Em preparação, critérios editáveis e ativação sem API', async () => {
     const { usuario } = renderizarApp('/sinais')
     await usuario.click(await screen.findByRole('link', { name: 'Descrever um sinal' }))

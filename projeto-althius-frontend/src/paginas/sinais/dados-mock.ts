@@ -13,11 +13,47 @@ export const ROTULO_DO_ESTADO: Record<EstadoDoMonitoramento, string> = {
 
 export type ModoDePublico = 'listas' | 'descoberta' | 'ambos'
 
+export type FiltroFirmografico = 'pais' | 'uf' | 'funcionarios' | 'faturamento' | 'setor'
+
+/** O perfil de um público personalizado. Filtro vazio significa "Qualquer". */
+export type PerfilFirmografico = Partial<Record<FiltroFirmografico, string>>
+
+export const FILTROS_FIRMOGRAFICOS: { id: FiltroFirmografico; rotulo: string; opcoes: string[]; noResumo?: (valor: string) => string }[] = [
+  { id: 'pais', rotulo: 'País', opcoes: ['Brasil', 'México', 'Colômbia', 'Argentina', 'Chile', 'Estados Unidos'] },
+  {
+    id: 'uf',
+    rotulo: 'UF',
+    opcoes: ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'],
+  },
+  {
+    id: 'funcionarios',
+    rotulo: 'Funcionários',
+    opcoes: ['1 a 50', '51 a 200', '201 a 1.000', '1.001 a 5.000', '5.001 a 10.000', 'Mais de 10.000'],
+    noResumo: (valor) => `${valor} funcionários`,
+  },
+  {
+    id: 'faturamento',
+    rotulo: 'Faturamento anual',
+    opcoes: ['Até R$ 10 mi', 'R$ 10 a 100 mi', 'R$ 100 a 500 mi', 'R$ 500 mi a 1 bi', 'Acima de R$ 1 bi'],
+  },
+  {
+    id: 'setor',
+    rotulo: 'Setor',
+    opcoes: ['Serviços financeiros', 'Varejo e e-commerce', 'Tecnologia e software', 'Saúde', 'Indústria', 'Logística', 'Educação', 'Agronegócio', 'Energia'],
+  },
+]
+
+/** A UF só se aplica a empresas no Brasil (ou quando o país não foi restringido). */
+export function ufSeAplica(perfil: PerfilFirmografico): boolean {
+  return !perfil.pais || perfil.pais === 'Brasil'
+}
+
 export interface Publico {
   modo: ModoDePublico
   listas: string[]
-  /** Na descoberta, usa o público recomendado das configurações do Cliente. */
+  /** Na descoberta, usa o público recomendado das configurações do Cliente; senão, o perfil personalizado. */
   usaRecomendado: boolean
+  perfil?: PerfilFirmografico
 }
 
 export interface Monitoramento {
@@ -82,7 +118,12 @@ export const MONITORAMENTOS_INICIAIS: Monitoramento[] = [
     tipoId: 'abertura-de-vagas',
     nome: 'Vagas de IA no México',
     estado: 'pausado',
-    publico: { modo: 'descoberta', listas: [], usaRecomendado: true },
+    publico: {
+      modo: 'descoberta',
+      listas: [],
+      usaRecomendado: false,
+      perfil: { pais: 'México', funcionarios: '1.001 a 5.000', setor: 'Serviços financeiros' },
+    },
     criterios: { funcoes: ['IA e machine learning'], senioridade: 'Liderança', localizacao: ['México'], periodo: 'Últimos 14 dias', palavras: '' },
   }),
   monitoramento({
