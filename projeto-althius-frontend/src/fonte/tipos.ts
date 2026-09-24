@@ -315,4 +315,6 @@ export interface FonteDeAgentes extends FonteObservavel {
 }
 
 export * from './contas-tipos'
+export * from './onboarding-tipos'
 export * from './sequencias-tipos'
+

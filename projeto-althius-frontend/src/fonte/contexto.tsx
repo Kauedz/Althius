@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
 
 const ContextoDaFonte = createContext<FonteDeAgentes | null>(null)
@@ -40,6 +41,24 @@ export function FonteDeSequenciasProvider({
 export function useFonteDeSequencias(): FonteDeSequencias {
   const fonte = useContext(ContextoDaFonteDeSequencias)
   if (!fonte) throw new Error('useFonteDeSequencias precisa de um FonteDeSequenciasProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeOnboarding = createContext<FonteDeOnboarding | null>(null)
+
+export function FonteDeOnboardingProvider({
+  fonte,
+  children,
+}: {
+  fonte: FonteDeOnboarding
+  children: ReactNode
+}) {
+  return <ContextoDaFonteDeOnboarding.Provider value={fonte}>{children}</ContextoDaFonteDeOnboarding.Provider>
+}
+
+export function useFonteDeOnboarding(): FonteDeOnboarding {
+  const fonte = useContext(ContextoDaFonteDeOnboarding)
+  if (!fonte) throw new Error('useFonteDeOnboarding precisa de um FonteDeOnboardingProvider')
   return fonte
 }
 

@@ -2,6 +2,10 @@ import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
 import { criarFonteDeContasSimulada, type OpcoesFonteDeContasSimulada } from '@/fonte/simulada-contas'
+import {
+  criarFonteDeOnboardingSimulada,
+  type OpcoesFonteDeOnboardingSimulada,
+} from '@/fonte/simulada-onboarding'
 import { criarFonteDeSequenciasSimulada, type OpcoesFonteDeSequenciasSimulada } from '@/fonte/simulada-sequencias'
 import { criarFonteSimulada } from '@/fonte/simulada'
 
@@ -12,6 +16,7 @@ export function renderizarApp(
   rota = '/',
   opcoesContas: OpcoesFonteDeContasSimulada = {},
   opcoesSequencias: OpcoesFonteDeSequenciasSimulada = {},
+  opcoesOnboarding: OpcoesFonteDeOnboardingSimulada = {},
 ) {
   const fonte = criarFonteSimulada({ atrasoMs: 0 })
   const fonteDeContas = criarFonteDeContasSimulada({
@@ -24,6 +29,7 @@ export function renderizarApp(
     hoje: DATA_HOJE_TESTES,
     ...opcoesSequencias,
   })
+  const fonteDeOnboarding = criarFonteDeOnboardingSimulada(opcoesOnboarding)
   fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
   const usuario = userEvent.setup()
   const resultado = render(
@@ -31,9 +37,10 @@ export function renderizarApp(
       fonte={fonte}
       fonteDeContas={fonteDeContas}
       fonteDeSequencias={fonteDeSequencias}
+      fonteDeOnboarding={fonteDeOnboarding}
       rotaInicial={rota}
       animarDigitacao={false}
     />,
   )
-  return { ...resultado, fonte, fonteDeContas, fonteDeSequencias, usuario }
+  return { ...resultado, fonte, fonteDeContas, fonteDeSequencias, fonteDeOnboarding, usuario }
 }
