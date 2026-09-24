@@ -1,5 +1,7 @@
 # Aderência como classificação única, com Quente dentro dela
 
+> A classificação única e a relação "Quente implica Fit" foram substituídas pelo [ADR 0007](0007-sinal-disparado-torna-conta-quente.md). O texto abaixo preserva a decisão anterior.
+
 Contas e Contatos mostra, para cada Conta-alvo, uma só classificação do Scopus, a **Aderência**, com três valores: **Quente**, **Fit** e **Não fit**. Quente implica Fit: é a Conta-alvo que encaixa no ICP e deve ser abordada agora. Não existe um "Momento" separado. Decidimos assim para que a tabela responda numa leitura só a pergunta "quem eu trabalho agora", com uma coluna, um filtro e uma ordem padrão (Quente, depois Fit, depois Não fit). A nota numérica que o Scopus calcula não aparece em nenhuma parte do módulo. Uma Conta-alvo Não fit só está na lista porque o Cliente a importou: a Althius não a recomenda. Enquanto não é avaliada, uma Conta-alvo importada fica sem Aderência ("—").
 
 ## Considered Options

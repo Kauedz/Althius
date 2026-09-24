@@ -1,0 +1,3 @@
+# Responsabilidade comercial exclusiva por Conta-alvo
+
+Cada Conta-alvo tem um único Vendedor responsável e no máximo uma Sequência dentro do Workspace: permitir uma Sequência por vendedor para a mesma empresa criaria disputas pela oportunidade e pela comissão depois do trabalho de prospecção já realizado. Outro participante acompanha apenas eventos e status, sem editar, assumir ou criar uma Sequência concorrente; qualquer resposta pausa todos os passos daquela Conta-alvo, sem afetar as demais. O desligamento do responsável pode justificar uma futura transferência controlada, mas tempo parado, perda da oportunidade ou passagem de quatro meses não liberam a Conta-alvo automaticamente nesta entrega.

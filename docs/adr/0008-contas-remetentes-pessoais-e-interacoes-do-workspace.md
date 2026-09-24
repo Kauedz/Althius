@@ -1,0 +1,3 @@
+# Contas remetentes pessoais e Interações do Workspace
+
+Na execução real das Sequências, cada usuário conecta suas próprias identidades de E-mail, LinkedIn e WhatsApp via Unipile; cada Sequência tem um único responsável e usa exclusivamente as Contas remetentes dele, sem permitir que outro participante altere a Sequência ou aprove envios em seu nome. O Workspace compartilha apenas eventos e status, como “Contato respondeu; sequência pausada”, enquanto mensagens recebidas e Propostas de resposta ficam restritas ao titular; a IA sempre depende da Aprovação dele para enviar uma resposta. Isso substitui a hipótese de uma conexão coletiva para os canais de abordagem, preserva a responsabilidade individual e mantém distinto o Canal usado para conversar com Agentes.
