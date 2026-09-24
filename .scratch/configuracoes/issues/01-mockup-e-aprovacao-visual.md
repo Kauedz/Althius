@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 **Spec:** [Configurações pessoais e do Workspace](../spec.md)
 
@@ -12,18 +12,18 @@
 
 ## Acceptance criteria
 
-- [ ] Apresentar Meu perfil, Preferências, Workspace / Pessoas e acesso, Memória do Workspace, Plano e Ajuda e informações, com navegação coerente e distinção entre dados pessoais e compartilhados.
-- [ ] Seguir a identidade visual e os componentes de referência do aplicativo atual, em português, desktop e temas claro/escuro.
-- [ ] Representar edição de nome/e-mail/foto, avatar por iniciais, formulário de senha, salvar/cancelar e mensagens de validação.
-- [ ] Representar notificações desligadas, ativadas, bloqueadas e não suportadas, sem pedir permissão real ao navegador.
-- [ ] Mostrar Administrador e Membro, convites pendentes, mudança de papel e remoção do Workspace com preservação da Conta de usuário; mostrar proteção do último Administrador.
-- [ ] Mostrar ICP e Personas na Memória do Workspace e o fluxo de solicitação por Scopus/Ethos, proposta pendente e decisão exclusiva do Administrador.
-- [ ] Demonstrar visualmente que aprovação substitui o contexto vigente e atualiza as configurações dependentes sem nova rodada de aprovações; recusa mantém o contexto. Não incluir histórico de versões.
-- [ ] Mostrar plano atual, participantes, Execuções no período e upgrade “Em breve”, sem preços ou franquias inventadas.
-- [ ] Apresentar ajuda básica, formulário de feedback, termos e privacidade com estrutura navegável e conteúdo provisório identificado.
-- [ ] Disponibilizar o mock para revisão e registrar o retorno do usuário e os ajustes visuais aprovados no próprio ticket.
-- [ ] Concluir este ticket somente depois de aprovação explícita do usuário ao mockup. Entrega do artefato, silêncio ou aprovação da lista de tickets não equivalem à aprovação do mockup.
-- [ ] Não iniciar implementação funcional nem integrar o mock ao aplicativo neste ticket.
+- [x] Apresentar Meu perfil, Preferências, Workspace / Pessoas e acesso, Memória do Workspace, Plano e Ajuda e informações, com navegação coerente e distinção entre dados pessoais e compartilhados.
+- [x] Seguir a identidade visual e os componentes de referência do aplicativo atual, em português, desktop e temas claro/escuro.
+- [x] Representar edição de nome/e-mail/foto, avatar por iniciais, formulário de senha, salvar/cancelar e mensagens de validação.
+- [x] Representar notificações desligadas, ativadas, bloqueadas e não suportadas, sem pedir permissão real ao navegador.
+- [x] Mostrar Administrador e Membro, convites pendentes, mudança de papel e remoção do Workspace com preservação da Conta de usuário; mostrar proteção do último Administrador.
+- [x] Mostrar ICP e Personas na Memória do Workspace e o fluxo de solicitação por Scopus/Ethos, proposta pendente e decisão exclusiva do Administrador.
+- [x] Demonstrar visualmente que aprovação substitui o contexto vigente e atualiza as configurações dependentes sem nova rodada de aprovações; recusa mantém o contexto. Não incluir histórico de versões.
+- [x] Mostrar plano atual, participantes, Execuções no período e upgrade “Em breve”, sem preços ou franquias inventadas.
+- [x] Apresentar ajuda básica, formulário de feedback, termos e privacidade com estrutura navegável e conteúdo provisório identificado.
+- [x] Disponibilizar o mock para revisão e registrar o retorno do usuário e os ajustes visuais aprovados no próprio ticket.
+- [x] Concluir este ticket somente depois de aprovação explícita do usuário ao mockup. Entrega do artefato, silêncio ou aprovação da lista de tickets não equivalem à aprovação do mockup.
+- [x] Não iniciar implementação funcional nem integrar o mock ao aplicativo neste ticket.
 
 ## Delivery constraints
 
@@ -83,3 +83,13 @@ No mockup, a autoria aparece como "Atualizado automaticamente … pelo <Agente>"
 Pendência para a implementação funcional: registrar essa regra na spec e no glossário (CONTEXT.md). Hoje a Memória do Workspace contém ICP e Personas, e a spec diz que o contexto só muda com Aprovação; o resumo é a exceção deliberada.
 
 **Continua pendente a aprovação visual explícita do usuário.**
+
+### 2026-09-24: aprovação visual
+
+**Aprovação visual explícita do usuário em 2026-09-24: "MOCKUP APROVADO".** O ticket está encerrado, e os tickets 02 a 09 estão liberados.
+
+Pendências para os tickets funcionais:
+
+- Os "Controles do mockup" ("Ver como" e "Navegador") e as ações marcadas como do mockup ("Simular aceite", "Simular um aviso" e "Simular atualização da IA") não vão para o aplicativo. A spec proíbe um seletor de papéis acessível em produção.
+- Registrar na spec e no CONTEXT.md o Resumo da memória: documento do Workspace, mantido pela IA sem Aprovação e editável só por Administradores. É a exceção deliberada à regra de que o contexto do Workspace só muda com Aprovação.
+- O mockup em `projeto-althius-frontend/mockups/` e `src/mockups/configuracoes/` serve de referência visual e deve ser removido quando a implementação funcional o substituir.
