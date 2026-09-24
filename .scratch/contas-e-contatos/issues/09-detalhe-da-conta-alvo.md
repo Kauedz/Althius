@@ -20,7 +20,7 @@ A seção Contatos entra entre Sinais e Interações no ticket 12. Não há text
 - [x] A seção Sinais mostra o mais recente em destaque e o histórico; sem Sinal, mostra "Nenhum sinal"
 - [x] A seção Interações lista as Interações da mais recente à mais antiga; sem Interações, mostra "Nenhuma interação registrada", e o Último contato da tabela é "Nunca"
 - [x] Um endereço de Conta-alvo inexistente mostra "Conta não encontrada" com um link de volta para Contas
-- [ ] O visual segue o mock aprovado
+- [x] O visual segue o mock aprovado
 
 ## Comments
 
@@ -31,4 +31,4 @@ A seção Contatos entra entre Sinais e Interações no ticket 12. Não há text
 - As seções seguem o mock: título grande, contagem à direita, Sinal em destaque com a borda na cor de destaque, histórico de Sinais e Interações numa linha do tempo, e estados vazios tracejados. A coluna lateral do mock ("Visão geral" e "Próxima ação") ficou de fora: repete o cabeçalho e a tabela, e a "Próxima ação" não está no ticket.
 - A seção Sequência (das Sequências) e a seção Contatos, que já existiam, foram mantidas e passaram ao mesmo estilo de seção. A Sequência foi para o fim, depois de Interações, para as seções começarem por Sinais, Contatos e Interações. A seção Contatos tem o id `contatos` para a âncora do ticket 12, mas a tabela fica para esse ticket.
 - O histórico de Sinais mostra as mesmas informações do destaque (data, fonte, evidência e "detectado por"), e a data da origem tem a data completa no tooltip e no nome acessível.
-- "O visual segue o mock aprovado" fica sem marcar: não houve como abrir o app num navegador nesta sessão.
+- "O visual segue o mock aprovado" foi conferido e aprovado pelo usuário, com o app e o mock abertos lado a lado.
