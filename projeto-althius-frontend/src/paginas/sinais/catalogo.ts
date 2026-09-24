@@ -117,12 +117,12 @@ export const TIPOS: TipoDeSinal[] = [
   { id: 'pesquisa-de-temas', familiaId: 'comunidades-e-intencao', nome: 'Pesquisa de temas e categorias', descricao: 'Recebe de fornecedores de dados de intenção as empresas que pesquisam os seus temas.', padroes: { canais: ['Fornecedor de dados de intenção'], temas: ['Modernização de dados', 'IA generativa'] } },
   { id: 'interesse-em-concorrentes', familiaId: 'comunidades-e-intencao', nome: 'Interesse em soluções concorrentes', descricao: 'Percebe interesse público em soluções concorrentes, como comparações e avaliações.', padroes: { canais: ['Fornecedor de dados de intenção'], temas: ['IA generativa'] } },
   // Comportamento no site
-  { id: 'visitas-ao-site', familiaId: 'comportamento-no-site', nome: 'Visitas ao site', descricao: 'Identifica empresas que visitam o seu site e conta pessoas por empresa, não acessos.', padroes: { paginas: ['Qualquer página'] } },
-  { id: 'pagina-de-precos', familiaId: 'comportamento-no-site', nome: 'Visitas às páginas de preço e produto', descricao: 'Associa visitantes identificados nas páginas de preço e produto às Contas-alvo.', padroes: { paginas: ['Preços', 'Produto'] } },
-  { id: 'paginas-especificas', familiaId: 'comportamento-no-site', nome: 'Páginas específicas', descricao: 'Acompanha as páginas que você escolher, como cases, integrações ou documentação.', padroes: { paginas: ['Cases', 'Integrações'] } },
+  { id: 'visitas-ao-site', familiaId: 'comportamento-no-site', nome: 'Visitas ao site', descricao: 'Identifica empresas que visitam o seu site e conta pessoas por empresa, não acessos.', padroes: { paginas: ['Qualquer página'], caminhos: '', pessoas: '2', periodo: 'Últimos 14 dias' } },
+  { id: 'pagina-de-precos', familiaId: 'comportamento-no-site', nome: 'Visitas às páginas de preço e produto', descricao: 'Associa visitantes identificados nas páginas de preços e produto às Contas-alvo.', padroes: { paginas: ['Preços', 'Produto'], caminhos: '', pessoas: '2', periodo: 'Últimos 7 dias' } },
+  { id: 'paginas-especificas', familiaId: 'comportamento-no-site', nome: 'Páginas específicas', descricao: 'Acompanha as páginas que você escolher, como cases, integrações ou documentação.', padroes: { paginas: ['Cases', 'Integrações'], caminhos: '/cases, /integracoes', pessoas: '2', periodo: 'Últimos 30 dias' } },
   // Histórico comercial
   { id: 'negociacao-parada', familiaId: 'historico-comercial', nome: 'Negociação parada', descricao: 'Aponta negociações sem atividade há o período que você definir e o último assunto tratado.', padroes: { condicao: 'Negociação parada', prazo: '30', etapas: ['Negociação'] } },
-  { id: 'sem-resposta', familiaId: 'historico-comercial', nome: 'Ausência de resposta', descricao: 'Retoma Contas-alvo que não respondem há o período que você definir, preservando as Interações.', padroes: { condicao: 'Sem resposta', prazo: '45', etapas: ['Descoberta', 'Proposta'] } },
+  { id: 'sem-resposta', familiaId: 'historico-comercial', nome: 'Ausência de resposta', descricao: 'Retoma Contas-alvo sem resposta há o período que você definir, preservando as Interações.', padroes: { condicao: 'Sem resposta', prazo: '45', etapas: ['Descoberta', 'Proposta'] } },
   { id: 'proposta-recusada', familiaId: 'historico-comercial', nome: 'Proposta recusada', descricao: 'Traz de volta Contas-alvo cuja proposta foi recusada há o tempo que você escolher.', padroes: { condicao: 'Proposta recusada', prazo: '90', etapas: ['Proposta'] } },
   // Testes e verificações
   { id: 'lead-oculto', familiaId: 'testes-e-verificacoes', nome: 'Teste de atendimento (lead oculto)', descricao: 'Simula o contato de um cliente e mede tempo e qualidade da resposta pelos seus critérios.', padroes: { canais: ['WhatsApp', 'Formulário do site'], criterio: 'não houver resposta em 24 horas úteis' } },
@@ -238,12 +238,13 @@ export const CAMPOS: Record<Formulario, Campo[]> = {
   ],
   site: [
     { id: 'paginas', rotulo: 'Páginas', tipo: 'opcoes', opcoes: ['Qualquer página', 'Preços', 'Produto', 'Cases', 'Integrações', 'Documentação'] },
+    { id: 'caminhos', rotulo: 'URLs ou caminhos específicos', tipo: 'texto', exemplo: '/precos, /cases/enterprise', ajuda: 'Opcional. Separe por vírgulas.' },
     { id: 'pessoas', rotulo: 'Pessoas distintas da mesma empresa', tipo: 'numero', sufixo: 'ou mais', padrao: '2' },
     PERIODO,
   ],
   historico: [
     { id: 'condicao', rotulo: 'Condição', tipo: 'escolha', opcoes: ['Sem resposta', 'Negociação parada', 'Proposta recusada'] },
-    { id: 'prazo', rotulo: 'Há pelo menos', tipo: 'numero', sufixo: 'dias', padrao: '45', ajuda: 'Ajuste ao ciclo comercial do seu negócio.' },
+    { id: 'prazo', rotulo: 'Há pelo menos', tipo: 'numero', sufixo: 'dias', padrao: '45', ajuda: 'Tempo sem atividade ou resposta para detectar o sinal. A validade após o disparo é fixa em 30 dias.' },
     { id: 'etapas', rotulo: 'Etapas do funil', tipo: 'opcoes', opcoes: ['Descoberta', 'Proposta', 'Negociação'] },
   ],
   verificacao: [

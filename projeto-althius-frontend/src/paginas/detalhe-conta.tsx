@@ -400,7 +400,15 @@ function SinaisDaConta({ sinais, hoje }: { sinais: Sinal[]; hoje: Date }) {
         aria-label="Sinal mais recente"
         className="border-l-2 border-al-accent bg-al-surface px-5 py-4.5"
       >
-        <p className="mb-3 text-lg font-light text-al-ink">{maisRecente.frase}</p>
+        <p className="mb-2 text-lg font-light text-al-ink">{maisRecente.frase}</p>
+        {maisRecente.descricao && maisRecente.descricao !== maisRecente.frase && (
+          <p className="mb-2 text-sm text-al-muted">{maisRecente.descricao}</p>
+        )}
+        {maisRecente.evidencia && !maisRecente.evidencia.startsWith('http') && (
+          <blockquote className="mb-3 border-l-2 border-al-line pl-3 text-xs italic text-al-muted">
+            {maisRecente.evidencia}
+          </blockquote>
+        )}
         <DetalhesDoSinal sinal={maisRecente} hoje={hoje} />
       </article>
 
@@ -409,6 +417,14 @@ function SinaisDaConta({ sinais, hoje }: { sinais: Sinal[]; hoje: Date }) {
           {historico.map((sinal) => (
             <li key={sinal.id} className={ITEM_DA_LINHA_DO_TEMPO}>
               <p className="mb-0.5 text-sm text-al-ink">{sinal.frase}</p>
+              {sinal.descricao && sinal.descricao !== sinal.frase && (
+                <p className="mb-1 text-xs text-al-muted">{sinal.descricao}</p>
+              )}
+              {sinal.evidencia && !sinal.evidencia.startsWith('http') && (
+                <blockquote className="my-1 border-l-2 border-al-line pl-3 text-xs italic text-al-muted">
+                  {sinal.evidencia}
+                </blockquote>
+              )}
               <DetalhesDoSinal sinal={sinal} hoje={hoje} />
             </li>
           ))}
@@ -429,7 +445,11 @@ function DetalhesDoSinal({ sinal, hoje }: { sinal: Sinal; hoje: Date }) {
         <span className="selo">{estaValido(sinal, hoje) ? 'Válido' : 'Expirado'}</span>
         <DataDoModulo data={sinal.data} hoje={hoje} />
         {sinal.fonte && <span>Fonte: {sinal.fonte}</span>}
-        {sinal.evidencia && <LinkExterno href={sinal.evidencia}>Evidência</LinkExterno>}
+        {sinal.evidencia && (
+          sinal.evidencia.startsWith('http://') || sinal.evidencia.startsWith('https://') ? (
+            <LinkExterno href={sinal.evidencia}>Evidência</LinkExterno>
+          ) : null
+        )}
         {sinal.detectadoPor && <span>Detectado por {sinal.detectadoPor}</span>}
       </div>
       {sinal.reencontrado && (

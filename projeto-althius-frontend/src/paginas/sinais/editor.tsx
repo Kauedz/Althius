@@ -329,6 +329,16 @@ function CriteriosProntos({
       {CAMPOS[formulario].map((campo) => (
         <CampoDeCriterio key={campo.id} campo={campo} valor={criterios[campo.id]} aoMudar={(valor) => aoMudar({ ...criterios, [campo.id]: valor })} />
       ))}
+      {formulario === 'site' && (
+        <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
+          Na demonstração, as visitas e pessoas identificadas são simuladas. Não há identificação real de visitantes nem conexões externas.
+        </p>
+      )}
+      {formulario === 'historico' && (
+        <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
+          O prazo define o tempo de inatividade no CRM para que a condição seja detectada. Uma vez disparado, o Sinal tem validade fixa de 30 dias para manter a Conta-alvo Quente. Uma resposta comercial isolada continua sendo Interação e não gera Sinal automaticamente.
+        </p>
+      )}
       {formulario === 'verificacao' && (
         <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
           Na demonstração, nenhuma verificação é executada e nenhuma mensagem é enviada.
