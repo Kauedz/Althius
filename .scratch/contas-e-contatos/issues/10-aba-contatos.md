@@ -21,7 +21,7 @@ A ordem é fixa: Aderência da empresa (na ordem de grupos da Prioridade), depoi
 - [x] Cada ícone de canal tem o nome acessível com o estado de disponibilidade
 - [x] A ordem padrão é a Aderência da empresa, o nome da empresa e o nome da pessoa
 - [x] A aba tem os mesmos estados de carregamento, lista vazia e erro com "Tentar de novo" da aba Contas
-- [ ] O visual segue o mock aprovado
+- [x] O visual segue o mock aprovado
 
 ## Comments
 
@@ -30,4 +30,4 @@ A ordem é fixa: Aderência da empresa (na ordem de grupos da Prioridade), depoi
 - Contatos e contas vêm num carregamento só, porque a empresa dá o nome e a Aderência de cada linha. Um Contato sem a sua Conta-alvo na fonte fica com "—" em Empresa e vai para o fim.
 - O Lucide não tem mais ícones de marca: o LinkedIn usa o desenho do antigo ícone "linkedin" do Lucide, no mesmo traço do e-mail e do telefone. O canal ausente usa a cor apagada com opacidade, como no mock; o app não tem o token `ink-faint` do mock.
 - O título, a descrição e a contagem "N contatos" seguem o mock. A mensagem de lista vazia ("Nenhum Contato ainda. As pessoas aparecem aqui quando vierem do CRM, de enriquecimento ou de um Agente.") não tem texto no spec: vale confirmar.
-- "O visual segue o mock aprovado" fica sem marcar: não houve como abrir o app num navegador nesta sessão.
+- "O visual segue o mock aprovado" foi conferido e aprovado pelo usuário, com o app e o mock abertos lado a lado.
