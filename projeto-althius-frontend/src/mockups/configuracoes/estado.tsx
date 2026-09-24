@@ -4,7 +4,10 @@ import {
   CONVITES_INICIAIS,
   DOCUMENTOS,
   HOJE,
+  ATUALIZACOES_DA_IA,
   MEMORIA_INICIAL,
+  PALAVRAS_DO_RESUMO,
+  RESUMO_INICIAL,
   PARTICIPANTES_INICIAIS,
   ROTEIROS,
   type Convite,
@@ -12,6 +15,7 @@ import {
   type DocumentoId,
   type Papel,
   type Participante,
+  type Resumo,
   type Secao,
 } from './dados'
 
@@ -52,6 +56,7 @@ interface Estado {
   tema: Tema
   notificacoes: { preferencia: boolean; navegador: PermissaoDoNavegador }
   memoria: Record<DocumentoId, Documento>
+  resumo: Resumo
   propostas: Proposta[]
   avisos: Aviso[]
 }
@@ -64,6 +69,7 @@ function estadoInicial(tema: Tema): Estado {
     tema,
     notificacoes: { preferencia: false, navegador: 'perguntar' },
     memoria: MEMORIA_INICIAL,
+    resumo: RESUMO_INICIAL,
     propostas: [],
     avisos: [],
   }
@@ -89,6 +95,10 @@ interface MockupDeConfiguracoes extends Estado {
   decidir: (propostaId: string, decisao: 'aprovada' | 'recusada') => Erro
   avisar: (titulo: string, texto: string, para?: string[]) => void
   dispensarAviso: (id: number) => void
+  /** Uma pergunta é respondida pelo resumo; um pedido de atualização só vale para Administradores. */
+  conversarComOResumo: (mensagem: string) => string
+  editarResumo: (secoes: Secao[]) => Erro
+  simularAtualizacaoDaIA: () => void
   recomecar: () => void
 }
 
@@ -114,6 +124,7 @@ export function MockupProvider({ atrasoMs, temaInicial, children }: { atrasoMs: 
   // As operações validam sobre o estado mais recente, como faria a fonte, e não sobre o da renderização.
   const atual = useRef(estado)
   const proximoId = useRef(1)
+  const proximaAtualizacaoDaIA = useRef(0)
 
   const setEstado = useCallback((mudar: (e: Estado) => Estado) => {
     atual.current = mudar(atual.current)
@@ -289,11 +300,79 @@ export function MockupProvider({ atrasoMs, temaInicial, children }: { atrasoMs: 
 
       avisar,
       dispensarAviso: (id) => setEstado((e) => ({ ...e, avisos: e.avisos.filter((a) => a.id !== id) })),
+      conversarComOResumo: (mensagem) => {
+        const e = atual.current
+        const secao = secaoDoResumo(e.resumo, mensagem)
+        const pedido = mensagem.trim().match(PEDIDO_DE_ATUALIZACAO)
+        if (!pedido) {
+          return secao
+            ? `Segundo o resumo, em ${secao.titulo}: ${secao.texto}`
+            : `Não encontrei isso no resumo. O mais próximo está na Visão geral: ${e.resumo.secoes[0].texto}`
+        }
+        if (visitanteDe(e).papel !== 'administrador') {
+          return 'Só Administradores atualizam o resumo. Os Agentes também o atualizam sozinhos com o que aprendem nas Execuções.'
+        }
+        const acrescimo = frase(mensagem.trim().slice(pedido[0].length))
+        const destino = secao ?? e.resumo.secoes[0]
+        setEstado((anterior) => ({
+          ...anterior,
+          resumo: {
+            secoes: anterior.resumo.secoes.map((s) => (s.titulo === destino.titulo ? { ...s, texto: `${s.texto} ${acrescimo}` } : s)),
+            atualizadoEm: 'agora',
+            atualizadoPor: visitanteDe(anterior).nome,
+            automatico: false,
+            secaoAtualizada: destino.titulo,
+          },
+        }))
+        return `Atualizei ${destino.titulo}: “${acrescimo}” Já vale para os Agentes do Workspace.`
+      },
+
+      editarResumo: (secoes) => {
+        const erro = exigirAdministrador()
+        if (erro) return 'Só Administradores editam o resumo.'
+        setEstado((e) => ({
+          ...e,
+          resumo: { secoes, atualizadoEm: 'agora', atualizadoPor: visitanteDe(e).nome, automatico: false },
+        }))
+        return null
+      },
+
+      simularAtualizacaoDaIA: () => {
+        const atualizacao = ATUALIZACOES_DA_IA[proximaAtualizacaoDaIA.current++ % ATUALIZACOES_DA_IA.length]
+        setEstado((e) => ({
+          ...e,
+          resumo: {
+            secoes: e.resumo.secoes.map((s) => (s.titulo === atualizacao.secao ? { ...s, texto: `${s.texto} ${atualizacao.acrescimo}` } : s)),
+            atualizadoEm: 'agora',
+            atualizadoPor: atualizacao.agente,
+            automatico: true,
+            secaoAtualizada: atualizacao.secao,
+          },
+        }))
+      },
+
       recomecar: () => setEstado((e) => estadoInicial(e.tema)),
     }
   }, [estado, atrasoMs, avisar, setEstado])
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
+}
+
+/** Pedidos que acrescentam ao resumo; o resto da conversa é pergunta. */
+const PEDIDO_DE_ATUALIZACAO = /^(adicione|inclua|acrescente|registre|anote|atualize)\s+(que\s+)?/i
+
+/** A seção com mais palavras em comum com a mensagem, se houver alguma. */
+function secaoDoResumo(resumo: Resumo, mensagem: string): Secao | undefined {
+  const texto = mensagem.toLowerCase()
+  const pontos = resumo.secoes.map((s) => (PALAVRAS_DO_RESUMO[s.titulo] ?? []).filter((p) => texto.includes(p)).length)
+  const melhor = Math.max(...pontos)
+  return melhor > 0 ? resumo.secoes[pontos.indexOf(melhor)] : undefined
+}
+
+function frase(texto: string): string {
+  const limpo = texto.trim()
+  const comMaiuscula = limpo.charAt(0).toUpperCase() + limpo.slice(1)
+  return /[.!?]$/.test(comMaiuscula) ? comMaiuscula : `${comMaiuscula}.`
 }
 
 export function useMockup(): MockupDeConfiguracoes {

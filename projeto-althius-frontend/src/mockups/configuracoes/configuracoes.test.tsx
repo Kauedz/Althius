@@ -179,6 +179,7 @@ describe('Mockup de Configurações', () => {
     // Enquanto pendente, o ICP vigente não muda.
     await usuario.click(screen.getByRole('link', { name: 'Configurações' }))
     await usuario.click(screen.getByRole('link', { name: 'Memória do Workspace' }))
+    await usuario.click(screen.getByRole('link', { name: 'ICP' }))
     expect(screen.getByRole('region', { name: 'ICP vigente' })).toHaveTextContent('Brasil e México.')
     expect(screen.getByRole('listitem', { name: 'Público recomendado dos Monitoramentos' })).toHaveTextContent('2.000 funcionários ou mais · Brasil e México')
 
@@ -191,6 +192,7 @@ describe('Mockup de Configurações', () => {
 
     await usuario.click(screen.getByRole('link', { name: 'Configurações' }))
     await usuario.click(screen.getByRole('link', { name: 'Memória do Workspace' }))
+    await usuario.click(screen.getByRole('link', { name: 'ICP' }))
     const icp = screen.getByRole('region', { name: 'ICP vigente' })
     expect(icp).toHaveTextContent('Brasil, México, Colômbia e Chile.')
     expect(icp).not.toHaveTextContent('Brasil e México.')
@@ -232,6 +234,50 @@ describe('Mockup de Configurações', () => {
     expect(screen.queryByText(/versões anteriores|restaurar/i)).not.toBeInTheDocument()
   }, 30000)
 
+  it('o Resumo da memória abre primeiro; um Membro lê e pergunta, mas não edita nem atualiza', async () => {
+    const { usuario } = renderizarMockup('/configuracoes/perfil')
+    await usuario.selectOptions(screen.getByRole('combobox', { name: 'Ver como' }), 'Lucas Moreira · Membro')
+    await usuario.click(screen.getByRole('link', { name: 'Memória do Workspace' }))
+
+    const resumo = screen.getByRole('region', { name: 'Resumo da memória' })
+    expect(within(resumo).getByRole('heading', { name: 'Visão geral' })).toBeInTheDocument()
+    expect(resumo).toHaveTextContent('Atualizado automaticamente')
+    expect(screen.queryByRole('button', { name: 'Editar resumo' })).not.toBeInTheDocument()
+
+    const campo = screen.getByLabelText('Pergunte ou atualize as informações')
+    await usuario.type(campo, 'Quais são as prioridades?')
+    await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(screen.getByRole('log', { name: 'Conversa sobre o resumo' })).toHaveTextContent('Segundo o resumo')
+
+    await usuario.type(campo, 'Adicione que a Colômbia virou prioridade.')
+    await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(screen.getByRole('log', { name: 'Conversa sobre o resumo' })).toHaveTextContent('Só Administradores atualizam o resumo')
+    expect(resumo).not.toHaveTextContent('A Colômbia virou prioridade')
+  })
+
+  it('um Administrador atualiza o resumo pelo campo e editando o texto; a IA também atualiza sozinha', async () => {
+    const { usuario } = renderizarMockup('/configuracoes/memoria/resumo')
+    const resumo = screen.getByRole('region', { name: 'Resumo da memória' })
+
+    await usuario.type(screen.getByLabelText('Pergunte ou atualize as informações'), 'Adicione que a Colômbia virou prioridade.')
+    await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(resumo).toHaveTextContent('A Colômbia virou prioridade.')
+    expect(resumo).toHaveTextContent('Atualizado agora por Marina Alves')
+
+    await usuario.click(screen.getByRole('button', { name: 'Editar resumo' }))
+    const visaoGeral = screen.getByLabelText('Visão geral')
+    await usuario.clear(visaoGeral)
+    await usuario.type(visaoGeral, 'Texto revisado pela Marina.')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar resumo' }))
+    expect(resumo).toHaveTextContent('Texto revisado pela Marina.')
+
+    await usuario.click(screen.getByRole('button', { name: 'Simular atualização da IA' }))
+    expect(resumo).toHaveTextContent('Atualizado automaticamente agora pelo Oraculum')
+    // O ICP não muda com o resumo: continua exigindo aprovação.
+    await usuario.click(screen.getByRole('link', { name: 'ICP' }))
+    expect(screen.getByRole('region', { name: 'ICP vigente' })).toHaveTextContent('Brasil e México.')
+  })
+
   it('com notificações ativadas, avisa os Administradores do pedido e quem pediu do resultado', async () => {
     const { usuario } = renderizarMockup('/configuracoes/preferencias')
     await usuario.selectOptions(screen.getByRole('combobox', { name: 'Navegador simulado' }), 'Permissão concedida')
@@ -240,6 +286,7 @@ describe('Mockup de Configurações', () => {
 
     await usuario.selectOptions(verComo, 'Lucas Moreira · Membro')
     await usuario.click(screen.getByRole('link', { name: 'Memória do Workspace' }))
+    await usuario.click(screen.getByRole('link', { name: 'ICP' }))
     await usuario.click(screen.getByRole('button', { name: 'Solicitar revisão ao Scopus' }))
     await usuario.click(screen.getByLabelText('O que deveria mudar?'))
     await usuario.paste('Inclua a Colômbia.')

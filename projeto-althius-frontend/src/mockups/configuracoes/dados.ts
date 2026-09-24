@@ -269,6 +269,76 @@ export function dependentesDe(documento: Documento): Dependente[] {
   ]
 }
 
+// ── Resumo da memória ──────────────────────────────────────────────────
+
+/**
+ * O Resumo da memória: o que os Agentes sabem do Cliente, mantido pela IA sem Aprovação.
+ * Só Administradores editam. Não substitui o ICP nem as Personas, que continuam exigindo Aprovação.
+ */
+export interface Resumo {
+  secoes: Secao[]
+  atualizadoEm: string
+  /** Quem atualizou por último: um Agente, quando automático, ou um Administrador. */
+  atualizadoPor: string
+  automatico: boolean
+  secaoAtualizada?: string
+}
+
+export const RESUMO_INICIAL: Resumo = {
+  atualizadoEm: 'há 5 horas',
+  atualizadoPor: 'Scopus',
+  automatico: true,
+  secoes: [
+    {
+      titulo: 'Visão geral',
+      texto:
+        'A Databricks vende a plataforma de dados e IA para empresas com time de dados próprio na América Latina. O Workspace usa a Althius para prospecção outbound e acompanhamento de Contas-alvo enterprise.',
+    },
+    {
+      titulo: 'Mercado e clientes',
+      texto:
+        'Foco em serviços financeiros, varejo e telecomunicações no Brasil e no México. Os fechamentos recentes vieram de migrações de data warehouse legado para a nuvem.',
+    },
+    {
+      titulo: 'Oferta e diferenciais',
+      texto:
+        'Lakehouse que une engenharia, análise e IA num só lugar, com governança unificada. Concorre principalmente com a Snowflake e com as soluções nativas das nuvens.',
+    },
+    {
+      titulo: 'Tom e mensagens',
+      texto:
+        'Consultivo e técnico, sem jargão de marketing. As mensagens partem de um problema concreto do time de dados e citam casos do mesmo setor.',
+    },
+    {
+      titulo: 'Prioridades',
+      texto: 'Neste trimestre, abrir Contas-alvo enterprise no México e acelerar provas de conceito de IA generativa em bancos.',
+    },
+  ],
+}
+
+/** Palavras que levam uma pergunta ou atualização à seção certa do resumo. */
+export const PALAVRAS_DO_RESUMO: Record<string, string[]> = {
+  'Visão geral': ['empresa', 'workspace', 'geral', 'databricks', 'althius'],
+  'Mercado e clientes': ['mercado', 'cliente', 'segmento', 'setor', 'região', 'país', 'méxico', 'brasil', 'colômbia', 'chile'],
+  'Oferta e diferenciais': ['oferta', 'produto', 'diferencia', 'concorr', 'snowflake', 'plataforma'],
+  'Tom e mensagens': ['tom', 'mensage', 'escrita', 'linguagem', 'e-mail', 'copy'],
+  Prioridades: ['prioridade', 'trimestre', 'meta', 'foco', 'objetivo'],
+}
+
+/** Atualizações automáticas simuladas: cada Agente acrescenta o que aprendeu numa Execução. */
+export const ATUALIZACOES_DA_IA: { agente: string; secao: string; acrescimo: string }[] = [
+  {
+    agente: 'Oraculum',
+    secao: 'Oferta e diferenciais',
+    acrescimo: 'A Snowflake anunciou desconto para migrações na América Latina; vale antecipar a objeção de preço.',
+  },
+  {
+    agente: 'Ethos',
+    secao: 'Tom e mensagens',
+    acrescimo: 'Nas calls recentes, líderes de dados reagiram melhor a números de custo de nuvem do que a promessas de IA.',
+  },
+]
+
 // ── Plano ──────────────────────────────────────────────────────────────
 
 /** Execuções de Agentes no período, demonstrativas. Não há preço, franquia nem limite. */

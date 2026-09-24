@@ -8,26 +8,30 @@ import { cn } from '@/lib/utils'
 import { Bloco, BOTAO_PRIMARIO, BOTAO_SECUNDARIO, CabecalhoDaSecao, Mensagem } from '../componentes'
 import { DOCUMENTOS, dependentesDe, type DocumentoId } from '../dados'
 import { useMockup } from '../estado'
+import { ResumoDaMemoria } from './resumo'
 
 export function SecaoMemoria() {
   const { documentoId } = useParams()
-  if (documentoId !== 'icp' && documentoId !== 'personas') return <Navigate to="/configuracoes/memoria/icp" replace />
+  if (documentoId !== 'resumo' && documentoId !== 'icp' && documentoId !== 'personas') {
+    return <Navigate to="/configuracoes/memoria/resumo" replace />
+  }
 
   return (
     <>
       <CabecalhoDaSecao
         titulo="Memória do Workspace"
         alcance="workspace"
-        descricao="O contexto que os Agentes e os módulos usam como referência. Qualquer pessoa pede revisões ao Agente responsável; a mudança só vale depois da aprovação de um Administrador."
+        descricao="O contexto que os Agentes e os módulos usam como referência. O resumo é mantido pela IA; o ICP e as Personas mudam só depois da aprovação de um Administrador."
       />
       <AbasSublinhadas
         rotuloAcessivel="Documentos da Memória do Workspace"
         abas={[
+          { rotulo: 'Resumo', para: '/configuracoes/memoria/resumo' },
           { rotulo: 'ICP', para: '/configuracoes/memoria/icp' },
           { rotulo: 'Personas', para: '/configuracoes/memoria/personas' },
         ]}
       />
-      <DocumentoVigente key={documentoId} documentoId={documentoId} />
+      {documentoId === 'resumo' ? <ResumoDaMemoria /> : <DocumentoVigente key={documentoId} documentoId={documentoId} />}
     </>
   )
 }

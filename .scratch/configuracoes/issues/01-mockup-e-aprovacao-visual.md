@@ -68,3 +68,18 @@ Mockup navegável e descartável, **fora do aplicativo**: entrada própria em `p
 Inspecionado no navegador (capturas headless, desktop, temas claro e escuro): perfil, preferências, pessoas, Memória, Conversa com o Scopus, Aprovações como Membro e como Administrador, aprovação concluída, Memória atualizada, plano e termos. Testes do mockup em `configuracoes.test.tsx`.
 
 **Pendente: aprovação visual explícita do usuário.** O ticket continua aberto, e os tickets funcionais continuam bloqueados até essa aprovação.
+
+### 2026-09-24: ajuste pedido na revisão, Resumo da memória
+
+Pedido do usuário: um resumo da memória como o do ChatGPT, que todos consultam, que só Administradores editam e que a IA atualiza e salva sozinha conforme o contexto. Decisões confirmadas pelo usuário:
+
+- **Escopo:** é do Workspace (o que os Agentes sabem do Cliente), não de cada usuário.
+- **Relação com ICP e Personas:** é um documento à parte, atualizado pela IA **sem Aprovação**. O ICP e as Personas continuam exigindo revisão pelo Agente e aprovação de Administrador.
+- **Edição:** Administradores editam pelo campo "Pergunte ou atualize as informações" e diretamente no texto ("Editar resumo"). Membros leem e fazem perguntas; um pedido de atualização vindo de Membro é recusado com explicação, também na operação.
+- **Lugar:** primeira aba ("Resumo") da Memória do Workspace, antes de ICP e Personas. O item de navegação abre nela.
+
+No mockup, a autoria aparece como "Atualizado automaticamente … pelo <Agente>" ou "Atualizado … por <Administrador>", e a seção alterada ganha o selo "Atualizado agora". A ação "Simular atualização da IA", marcada como do mockup, representa um Agente acrescentando o que aprendeu numa Execução.
+
+Pendência para a implementação funcional: registrar essa regra na spec e no glossário (CONTEXT.md). Hoje a Memória do Workspace contém ICP e Personas, e a spec diz que o contexto só muda com Aprovação; o resumo é a exceção deliberada.
+
+**Continua pendente a aprovação visual explícita do usuário.**

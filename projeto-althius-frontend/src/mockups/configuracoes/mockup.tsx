@@ -62,7 +62,7 @@ function LayoutDeConfiguracoes() {
           </Grupo>
           <Grupo titulo={`Workspace ${WORKSPACE.nome}`}>
             <Item para="/configuracoes/pessoas">Pessoas e acesso</Item>
-            <Item para="/configuracoes/memoria/icp" prefixo="/configuracoes/memoria">
+            <Item para="/configuracoes/memoria/resumo" prefixo="/configuracoes/memoria">
               Memória do Workspace
             </Item>
             <Item para="/configuracoes/plano">Plano</Item>
