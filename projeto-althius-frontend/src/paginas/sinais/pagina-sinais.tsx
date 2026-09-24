@@ -263,10 +263,10 @@ function CartaoDeTipo({ tipo, ativos }: { tipo: TipoDeSinal; ativos: number }) {
           <span className="rotulo opacity-60">Nenhum ativo</span>
         )}
         <span
-          className="grid size-8 place-items-center border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent group-hover:text-al-on-accent"
+          className="grid size-8 place-items-center border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
           aria-hidden
         >
-          <ArrowRight strokeWidth={1.8} className="size-4" />
+          <ArrowRight strokeWidth={1.8} className="size-4 transition-transform group-hover:translate-x-0.5" />
         </span>
       </div>
     </Link>
