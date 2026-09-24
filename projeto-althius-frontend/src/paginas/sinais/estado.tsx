@@ -1,4 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useFonteDeSinais } from '@/fonte/contexto'
+import type { FonteDeSinais } from '@/fonte/sinais-tipos'
 import { MONITORAMENTOS_INICIAIS, type EstadoDoMonitoramento, type Monitoramento } from './dados-mock'
 
 interface SinaisDoMockup {
@@ -9,21 +11,64 @@ interface SinaisDoMockup {
 
 const Contexto = createContext<SinaisDoMockup | null>(null)
 
-/** Guarda em memória os Monitoramentos do mockup enquanto a pessoa navega; recarregar a página recomeça. */
+/** Guarda em memória os Monitoramentos da sessão enquanto a pessoa navega, sincronizado com a FonteDeSinais. */
 export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
-  const [monitoramentos, setMonitoramentos] = useState(MONITORAMENTOS_INICIAIS)
+  let fonte: FonteDeSinais | null = null
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    fonte = useFonteDeSinais()
+  } catch {
+    // Permite uso sem FonteDeSinaisProvider se algum teste isolado renderizar diretamente
+  }
 
-  const salvar = useCallback((monitoramento: Monitoramento) => {
-    setMonitoramentos((atuais) =>
-      atuais.some((m) => m.id === monitoramento.id)
-        ? atuais.map((m) => (m.id === monitoramento.id ? monitoramento : m))
-        : [...atuais, monitoramento],
-    )
-  }, [])
+  const [monitoramentos, setMonitoramentos] = useState<Monitoramento[]>(() => {
+    return MONITORAMENTOS_INICIAIS
+  })
 
-  const mudarEstado = useCallback((id: string, estado: EstadoDoMonitoramento) => {
-    setMonitoramentos((atuais) => atuais.map((m) => (m.id === id ? { ...m, estado } : m)))
-  }, [])
+  useEffect(() => {
+    if (!fonte) return
+    let ativo = true
+    fonte
+      .monitoramentos()
+      .then((dados) => {
+        if (ativo) setMonitoramentos(dados)
+      })
+      .catch(() => {})
+
+    return fonte.observar(() => {
+      if (!fonte) return
+      fonte
+        .monitoramentos()
+        .then((dados) => {
+          if (ativo) setMonitoramentos(dados)
+        })
+        .catch(() => {})
+    })
+  }, [fonte])
+
+  const salvar = useCallback(
+    (monitoramento: Monitoramento) => {
+      setMonitoramentos((atuais) =>
+        atuais.some((m) => m.id === monitoramento.id)
+          ? atuais.map((m) => (m.id === monitoramento.id ? monitoramento : m))
+          : [...atuais, monitoramento],
+      )
+      if (fonte) {
+        fonte.salvarMonitoramento(monitoramento).catch((err) => console.error(err))
+      }
+    },
+    [fonte],
+  )
+
+  const mudarEstado = useCallback(
+    (id: string, estado: EstadoDoMonitoramento) => {
+      setMonitoramentos((atuais) => atuais.map((m) => (m.id === id ? { ...m, estado } : m)))
+      if (fonte) {
+        fonte.mudarEstado(id, estado).catch((err) => console.error(err))
+      }
+    },
+    [fonte],
+  )
 
   const valor = useMemo(
     () => ({ monitoramentos, salvar, mudarEstado }),

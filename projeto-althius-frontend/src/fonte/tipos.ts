@@ -65,8 +65,15 @@ export interface Sugestao {
 export interface Workspace {
   cliente: string
   descricao: string
-  usuario: { nome: string; cargo: string }
+  usuario: { nome: string; email: string; foto?: string; cargo: string }
   aprovacoesPendentes: number
+}
+
+/** Os dados editáveis em Meu perfil: nome, e-mail e foto da Conta de usuário. Sem foto, iniciais. */
+export interface Perfil {
+  nome: string
+  email: string
+  foto?: string
 }
 
 export interface Fato {
@@ -258,6 +265,8 @@ export interface FonteObservavel {
  */
 export interface FonteDeAgentes extends FonteObservavel {
   workspace(): Promise<Workspace>
+  /** Atualiza nome, e-mail e foto da Conta de usuário; valida nome não vazio e formato do e-mail. */
+  salvarPerfil(perfil: Perfil): Promise<void>
 
   /** O catálogo fixo: não há operação para criar uma Especialidade. */
   especialidades(): Promise<Especialidade[]>
@@ -317,4 +326,18 @@ export interface FonteDeAgentes extends FonteObservavel {
 export * from './contas-tipos'
 export * from './onboarding-tipos'
 export * from './sequencias-tipos'
+export type {
+  FonteDeSinais,
+  TipoDeSinal,
+  Familia,
+  Formulario,
+  EstadoDoMonitoramento,
+  ModoDePublico,
+  Publico,
+  Criterios,
+  Monitoramento,
+  NovoMonitoramento,
+  SinalEncontrado,
+  Origem as OrigemDoSinal,
+} from './sinais-tipos'
 

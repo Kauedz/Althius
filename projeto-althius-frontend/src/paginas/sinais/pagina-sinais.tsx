@@ -1,9 +1,10 @@
 import { ArrowLeft, ArrowRight, Plus, RadioTower, Search, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
 import { Pagina } from '@/components/pagina'
-import { useFonteDeContas } from '@/fonte/contexto'
+import { useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import {
@@ -37,6 +38,12 @@ function normalizar(texto: string): string {
 export function PaginaSinais() {
   const [parametros, setParametros] = useSearchParams()
   const vendoEncontrados = parametros.get('vista') === 'encontrados'
+  const {
+    dados: tiposCarregados,
+    carregando,
+    erro,
+    recarregar,
+  } = useDadosDeSinais((f) => f.tipos(), [])
 
   return (
     <Pagina
@@ -49,20 +56,48 @@ export function PaginaSinais() {
         </Link>
       }
     >
-      {vendoEncontrados ? (
-        <SinaisEncontrados aoVoltar={() => setParametros({})} />
-      ) : (
-        <Catalogo aoVerEncontrados={() => setParametros({ vista: 'encontrados' })} />
+      {carregando && !tiposCarregados && <Carregando />}
+
+      {erro && (
+        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+          <p className="text-sm text-al-muted">Não foi possível carregar os sinais.</p>
+          <button
+            type="button"
+            onClick={recarregar}
+            className={BOTAO_SECUNDARIO}
+          >
+            Tentar de novo
+          </button>
+        </div>
+      )}
+
+      {!erro && (!carregando || tiposCarregados) && (
+        vendoEncontrados ? (
+          <SinaisEncontrados aoVoltar={() => setParametros({})} />
+        ) : (
+          <Catalogo
+            tiposDisponiveis={tiposCarregados}
+            aoVerEncontrados={() => setParametros({ vista: 'encontrados' })}
+          />
+        )
       )}
     </Pagina>
   )
 }
 
-function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
+function Catalogo({
+  tiposDisponiveis,
+  aoVerEncontrados,
+}: {
+  tiposDisponiveis?: TipoDeSinal[]
+  aoVerEncontrados: () => void
+}) {
   const navegar = useNavigate()
   const monitoramentos = useMonitoramentos()
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('todos')
+
+  const catalogoTipos = tiposDisponiveis ?? TIPOS
 
   const ativosPorTipo = new Map<string, number>()
   for (const m of monitoramentos) {
@@ -77,11 +112,11 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
     (!termo || normalizar(`${tipo.nome} ${tipo.descricao} ${familiaDoTipo(tipo)?.nome ?? ''}`).includes(termo))
   const familias = FAMILIAS.map((familia) => ({
     familia,
-    tipos: TIPOS.filter((tipo) => tipo.familiaId === familia.id && corresponde(tipo)),
+    tipos: catalogoTipos.filter((tipo) => tipo.familiaId === familia.id && corresponde(tipo)),
   })).filter((grupo) => grupo.tipos.length > 0)
 
   const totalPorOrigem = (origem: Filtro) =>
-    origem === 'todos' ? TIPOS.length : TIPOS.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length
+    origem === 'todos' ? catalogoTipos.length : catalogoTipos.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length
 
   const encontrados = SINAIS_MOCK.length
 
@@ -299,7 +334,14 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
             </thead>
             <tbody>
               {sinais.map((sinal) => {
-                const conta = CONTAS_MOCK.find((c) => c.id === sinal.contaId)!
+                const conta = CONTAS_MOCK.find((c) => c.id === sinal.contaId) ?? {
+                  id: sinal.contaId,
+                  nome: sinal.contaId,
+                  segmento: 'Geral',
+                  origem: 'importada' as const,
+                  logo: undefined,
+                  logoDeUmaCor: undefined,
+                }
                 const expirado = !estaValido(sinal, hoje)
                 return (
                   <tr

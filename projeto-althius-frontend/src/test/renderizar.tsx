@@ -7,7 +7,8 @@ import {
   type OpcoesFonteDeOnboardingSimulada,
 } from '@/fonte/simulada-onboarding'
 import { criarFonteDeSequenciasSimulada, type OpcoesFonteDeSequenciasSimulada } from '@/fonte/simulada-sequencias'
-import { criarFonteSimulada } from '@/fonte/simulada'
+import { criarFonteDeSinaisSimulada, type OpcoesFonteDeSinaisSimulada } from '@/fonte/simulada-sinais'
+import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
 
 export const DATA_HOJE_TESTES = new Date(2026, 8, 23, 12, 0, 0) // 23 de setembro de 2026
 
@@ -17,8 +18,10 @@ export function renderizarApp(
   opcoesContas: OpcoesFonteDeContasSimulada = {},
   opcoesSequencias: OpcoesFonteDeSequenciasSimulada = {},
   opcoesOnboarding: OpcoesFonteDeOnboardingSimulada = {},
+  opcoesSinais: OpcoesFonteDeSinaisSimulada = {},
+  opcoesFonte: OpcoesFonteSimulada = {},
 ) {
-  const fonte = criarFonteSimulada({ atrasoMs: 0 })
+  const fonte = criarFonteSimulada({ atrasoMs: 0, ...opcoesFonte })
   const fonteDeContas = criarFonteDeContasSimulada({
     atrasoMs: 0,
     hoje: DATA_HOJE_TESTES,
@@ -30,7 +33,14 @@ export function renderizarApp(
     ...opcoesSequencias,
   })
   const fonteDeOnboarding = criarFonteDeOnboardingSimulada(opcoesOnboarding)
+  const fonteDeSinais = criarFonteDeSinaisSimulada({
+    atrasoMs: 0,
+    hoje: DATA_HOJE_TESTES,
+    fonteDeContas,
+    ...opcoesSinais,
+  })
   fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
+  fonteDeSinais.vincularFonteDeContas(fonteDeContas)
   const usuario = userEvent.setup()
   const resultado = render(
     <App
@@ -38,9 +48,18 @@ export function renderizarApp(
       fonteDeContas={fonteDeContas}
       fonteDeSequencias={fonteDeSequencias}
       fonteDeOnboarding={fonteDeOnboarding}
+      fonteDeSinais={fonteDeSinais}
       rotaInicial={rota}
       animarDigitacao={false}
     />,
   )
-  return { ...resultado, fonte, fonteDeContas, fonteDeSequencias, fonteDeOnboarding, usuario }
+  return {
+    ...resultado,
+    fonte,
+    fonteDeContas,
+    fonteDeSequencias,
+    fonteDeOnboarding,
+    fonteDeSinais,
+    usuario,
+  }
 }

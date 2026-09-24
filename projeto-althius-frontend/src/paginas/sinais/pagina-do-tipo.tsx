@@ -1,8 +1,10 @@
 import { Pause, Play, Plus } from 'lucide-react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
+import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { useDadosDeSinais } from '@/fonte/contexto'
 import { ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, familiaDoTipo, tipoPorId } from './catalogo'
-import { BOTAO_DISCRETO, BOTAO_PRIMARIO, SeloDoEstado } from './componentes'
+import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO, SeloDoEstado } from './componentes'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
 import { VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
 import { ACAO_DO_ESTADO, resumoDoPublico, resumoDosCriterios } from './resumos'
@@ -13,6 +15,11 @@ export function PaginaDoTipo() {
   const tipo = tipoPorId(tipoId)
   const monitoramentos = useMonitoramentos(tipoId)
   const { mudarEstado } = useSinaisDoMockup()
+  const {
+    carregando,
+    erro,
+    recarregar,
+  } = useDadosDeSinais((f) => f.monitoramentosDoTipo(tipoId), [tipoId])
 
   if (!tipo) return <Navigate to="/sinais" replace />
   const familia = familiaDoTipo(tipo)
@@ -54,6 +61,22 @@ export function PaginaDoTipo() {
         </p>
       )}
 
+      {carregando && monitoramentos.length === 0 && <Carregando />}
+
+      {erro && (
+        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+          <p className="text-sm text-al-muted">Não foi possível carregar os monitoramentos.</p>
+          <button
+            type="button"
+            onClick={recarregar}
+            className={BOTAO_SECUNDARIO}
+          >
+            Tentar de novo
+          </button>
+        </div>
+      )}
+
+      {!erro && (
       <section aria-labelledby="titulo-monitoramentos" className="flex flex-col gap-4">
         <h2 id="titulo-monitoramentos" className="flex items-baseline gap-3">
           <span className="titulo-secao text-lg">Monitoramentos</span>
@@ -123,6 +146,7 @@ export function PaginaDoTipo() {
           </ul>
         )}
       </section>
+      )}
     </Pagina>
   )
 }
