@@ -1,18 +1,20 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { LogoDoWorkspace } from '@/components/logos'
 import { Carregando, Logo } from '@/components/marca'
 import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { dominioUtil, logoDoSite } from '@/fonte/dominio-do-site'
 import {
   ORIGENS_HDYHAU,
   PAPEIS_DO_DAY0,
+  etapasDoRamo,
   type EstadoDeOnboarding,
+  type EtapaDeOnboarding,
   type FonteDeOnboarding,
   type OrigemHdyhau,
   type PapelNoDay0,
-  type RamoDeOnboarding,
   type SituacaoDoItem,
 } from '@/fonte/onboarding-tipos'
-import { dominioUtil, lerEmpresa } from '@/fonte/simulada-onboarding'
 import { cn } from '@/lib/utils'
 
 const BOTAO_PRIMARIO =
@@ -26,33 +28,50 @@ const ROTULO_DA_SITUACAO: Record<SituacaoDoItem, string> = {
   pulado: 'Pulado',
 }
 
-const RAMOS: readonly { valor: RamoDeOnboarding; rotulo: string }[] = [
-  { valor: 'criador', rotulo: 'Criar um Workspace' },
-  { valor: 'convidado', rotulo: 'Fui convidado para um Workspace' },
-]
+const ROTULO_DA_ETAPA: Record<EtapaDeOnboarding, string> = {
+  papel: 'Papel',
+  empresa: 'Empresa',
+  dominio: 'Site',
+  hdyhau: 'Como nos conheceu',
+  convite: 'Convite',
+  checklist: 'Checklist',
+}
 
-/** Onboarding fora da Casca. O estado vem só da Fonte de onboarding. */
+const AVISO_DA_PERSONA =
+  'Esta definição fica na Memória do Workspace. Não é a classificação de um Contato e não é a Memória do Agente.'
+
+/**
+ * Onboarding fora da Casca. O estado vem só da Fonte de onboarding. Sem link de convite, a pessoa entra como
+ * criadora; o parâmetro `convite` no endereço simula a chegada por um link de convite.
+ */
 export function PaginaOnboarding() {
   const fonte = useFonteDeOnboarding()
   const estado = useDados(fonte, (f) => f.ler(), [])
+  const [parametros] = useSearchParams()
+  const chegouPorConvite = parametros.has('convite')
 
   useEffect(() => {
     void fonte.dispensarRetorno()
   }, [fonte])
 
-  if (!estado) return <Carregando rotulo="Carregando onboarding" />
+  const precisaIniciar = estado !== undefined && !estado.ramo
+  useEffect(() => {
+    if (precisaIniciar) void fonte.iniciar(chegouPorConvite ? 'convidado' : 'criador')
+  }, [fonte, precisaIniciar, chegouPorConvite])
+
+  if (!estado?.ramo) return <Carregando rotulo="Carregando onboarding" />
 
   switch (estado.etapa) {
-    case 'ramo':
-      return <EtapaRamo fonte={fonte} />
     case 'papel':
       return <EtapaPapel estado={estado} fonte={fonte} />
     case 'empresa':
       return <EtapaEmpresa estado={estado} fonte={fonte} />
+    case 'dominio':
+      return <EtapaDominio estado={estado} fonte={fonte} />
     case 'hdyhau':
       return <EtapaHdyhau estado={estado} fonte={fonte} />
     case 'convite':
-      return <EtapaConvite fonte={fonte} />
+      return <EtapaConvite estado={estado} fonte={fonte} />
     case 'checklist':
       return <EtapaChecklist estado={estado} fonte={fonte} />
   }
@@ -92,24 +111,19 @@ export function RetornoDoChecklist() {
   )
 }
 
-function EtapaRamo({ fonte }: { fonte: FonteDeOnboarding }) {
-  const [ramo, setRamo] = useState<RamoDeOnboarding | null>(null)
-  return (
-    <Moldura
-      titulo="Como você entra"
-      acoes={<Continuar disabled={!ramo} aoContinuar={() => ramo && void fonte.escolherRamo(ramo)} />}
-    >
-      <EscolhaUnica rotulo="Como você entra" opcoes={RAMOS} valor={ramo} aoEscolher={setRamo} />
-    </Moldura>
-  )
+interface PropsDaEtapa {
+  estado: EstadoDeOnboarding
+  fonte: FonteDeOnboarding
 }
 
-function EtapaPapel({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: FonteDeOnboarding }) {
+function EtapaPapel({ estado, fonte }: PropsDaEtapa) {
   const [papel, setPapel] = useState<PapelNoDay0 | null>(estado.papel)
   return (
     <Moldura
+      estado={estado}
+      fonte={fonte}
       titulo="Qual é o seu papel?"
-      acoes={<Continuar disabled={!papel} aoContinuar={() => papel && void fonte.definirPapel(papel)} />}
+      continuar={{ disabled: !papel, aoContinuar: () => papel && void fonte.definirPapel(papel) }}
     >
       <EscolhaUnica
         rotulo="Papel"
@@ -121,65 +135,75 @@ function EtapaPapel({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: Font
   )
 }
 
-function EtapaEmpresa({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: FonteDeOnboarding }) {
-  const [dominio, setDominio] = useState(estado.dominio)
+function EtapaEmpresa({ estado, fonte }: PropsDaEtapa) {
   const [nome, setNome] = useState(estado.empresa)
-  const leitura = lerEmpresa(dominio, nome)
-  const host = dominioUtil(dominio)
+  const sugerido = nome.trim()
   return (
     <Moldura
-      titulo="Qual é o domínio?"
-      acoes={
-        <Continuar
-          disabled={!leitura}
-          aoContinuar={() => leitura && void fonte.definirCliente({ dominio: leitura.dominio, nome })}
-        />
-      }
+      estado={estado}
+      fonte={fonte}
+      titulo="Qual é a sua empresa?"
+      continuar={{ disabled: !sugerido, aoContinuar: () => void fonte.definirEmpresa(sugerido) }}
     >
-      <Campo rotulo="Domínio">
+      <Campo rotulo="Empresa">
         <input
           className="campo"
-          aria-label="Domínio"
-          inputMode="url"
-          placeholder="empresa.com"
-          value={dominio}
-          onChange={(evento) => setDominio(evento.target.value)}
-        />
-      </Campo>
-      <Campo rotulo="Nome">
-        <input
-          className="campo"
-          aria-label="Nome"
-          placeholder="Opcional. Sem ele, o nome sai do domínio."
+          aria-label="Empresa"
+          placeholder="Nome da empresa"
           value={nome}
           onChange={(evento) => setNome(evento.target.value)}
         />
       </Campo>
-      {leitura ? (
-        <div className="flex items-center gap-3">
-          <img src={leitura.logoUrl} alt={`Logo de ${leitura.nome}`} className="size-8 object-contain" />
-          <p>Nome sugerido do Workspace e do Cliente: {leitura.nome}.</p>
-        </div>
-      ) : (
-        <p>Nome sugerido do Workspace e do Cliente: {host ? 'lendo o domínio' : 'aguardando o domínio'}.</p>
-      )}
+      <p>Nome sugerido do Workspace e do Cliente: {sugerido || 'aguardando o nome'}.</p>
+      <p>O Workspace é criado para você com esse nome. Nenhuma Conta-alvo nasce daqui.</p>
+    </Moldura>
+  )
+}
+
+function EtapaDominio({ estado, fonte }: PropsDaEtapa) {
+  const [dominio, setDominio] = useState(estado.dominio)
+  const host = dominioUtil(dominio)
+  const nome = estado.workspace?.nomeSugerido || estado.empresa
+  return (
+    <Moldura
+      estado={estado}
+      fonte={fonte}
+      titulo="Qual é o site da empresa?"
+      continuar={{ disabled: !host, aoContinuar: () => host && void fonte.definirDominio(host) }}
+    >
+      <Campo rotulo="Domínio do site">
+        <input
+          className="campo"
+          aria-label="Domínio do site"
+          inputMode="url"
+          placeholder="empresa.com.br"
+          value={dominio}
+          onChange={(evento) => setDominio(evento.target.value)}
+        />
+      </Campo>
+      <div className="flex items-center gap-3">
+        <LogoDoWorkspace nome={nome} enderecos={host ? logoDoSite(host) : []} className="size-10" />
+        <p>O logo do Workspace vem do site. Sem logo, fica a inicial de {nome}.</p>
+      </div>
       <p>
-        O domínio tem prioridade. A leitura simulada usa o favicon como logo e preenche o checklist com o contexto do
-        Cliente. Nenhuma Conta-alvo nasce daqui.
+        Ao continuar, a Althius lê o site para sugerir o que você vende, o ICP provável e as Personas possíveis. É só
+        uma base: você revisa tudo no checklist, e pode seguir enquanto a leitura acontece.
       </p>
     </Moldura>
   )
 }
 
-function EtapaHdyhau({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: FonteDeOnboarding }) {
+function EtapaHdyhau({ estado, fonte }: PropsDaEtapa) {
   const [origem, setOrigem] = useState<OrigemHdyhau | null>(estado.comoConheceu)
   return (
     <Moldura
-      titulo="Como você conheceu a Althius?"
-      acoes={<Continuar disabled={!origem} aoContinuar={() => origem && void fonte.definirComoConheceu(origem)} />}
+      estado={estado}
+      fonte={fonte}
+      titulo="Como nos conheceu?"
+      continuar={{ disabled: !origem, aoContinuar: () => origem && void fonte.definirComoConheceu(origem) }}
     >
       <EscolhaUnica
-        rotulo="Como você conheceu a Althius?"
+        rotulo="Como nos conheceu?"
         opcoes={ORIGENS_HDYHAU.map((valor) => ({ valor, rotulo: valor }))}
         valor={origem}
         aoEscolher={setOrigem}
@@ -188,39 +212,213 @@ function EtapaHdyhau({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: Fon
   )
 }
 
-function EtapaConvite({ fonte }: { fonte: FonteDeOnboarding }) {
+function EtapaConvite({ estado, fonte }: PropsDaEtapa) {
+  // Os e-mails ficam só na tela: nada é enviado nem guardado na Fonte.
+  const [emails, setEmails] = useState('')
   return (
     <Moldura
+      estado={estado}
+      fonte={fonte}
       titulo="Convide colegas"
-      acoes={
-        <button type="button" className={BOTAO_PRIMARIO} onClick={() => void fonte.pularConvite()}>
-          Pular convite
-        </button>
-      }
+      continuar={{ disabled: !emails.trim(), aoContinuar: () => void fonte.confirmarConvite() }}
+      pular={{ rotulo: 'Pular convite', aoPular: () => void fonte.pularConvite() }}
     >
-      <p>
-        Este passo é só demonstração. Nenhum e-mail é enviado e nenhuma Participação no Workspace é criada.
-      </p>
+      <p>Este passo é só demonstração. Nenhum e-mail é enviado e nenhuma Participação no Workspace é criada.</p>
       <Campo rotulo="E-mails">
-        <input className="campo" aria-label="E-mails dos colegas" placeholder="colegas@empresa.com" />
+        <input
+          className="campo"
+          aria-label="E-mails dos colegas"
+          placeholder="colegas@empresa.com"
+          value={emails}
+          onChange={(evento) => setEmails(evento.target.value)}
+        />
       </Campo>
     </Moldura>
   )
 }
 
-function EtapaChecklist({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: FonteDeOnboarding }) {
+function EtapaChecklist({ estado, fonte }: PropsDaEtapa) {
   const navegar = useNavigate()
-  const [campos, setCampos] = useState({
-    miniIcp: estado.checklist.miniIcp,
-    oQueVende: estado.checklist.oQueVende,
-    porQueCompram: estado.checklist.porQueCompram,
-  })
-  const produtoVazio = !campos.miniIcp.trim() || !campos.oQueVende.trim() || !campos.porQueCompram.trim()
 
-  async function concluirProduto() {
+  async function concluir() {
+    await fonte.concluirOnboarding()
+    navegar('/')
+  }
+
+  return (
+    <Moldura
+      estado={estado}
+      fonte={fonte}
+      titulo="Checklist do Norte"
+      continuar={{ rotulo: 'Concluir onboarding', aoContinuar: () => void concluir() }}
+    >
+      {estado.workspace ? (
+        <div className="flex items-center gap-3">
+          <LogoDoWorkspace nome={estado.workspace.nomeSugerido} enderecos={estado.logoDoSite} />
+          <p>Workspace: {estado.workspace.nomeSugerido}. Criado para você, sem nenhuma Conta-alvo.</p>
+        </div>
+      ) : (
+        <p>Você entra no Workspace para o qual foi convidado. A empresa do Cliente fica como está.</p>
+      )}
+      {estado.ramo === 'criador' && <LeituraDoSiteNoChecklist estado={estado} fonte={fonte} />}
+      <p>A ordem do Norte: mini-ICP e produto, depois Persona, depois Sinal de compra.</p>
+      <ol aria-label="Checklist do Norte" className="flex flex-col gap-4">
+        <ItemProduto estado={estado} fonte={fonte} />
+        <ItemPersona estado={estado} fonte={fonte} />
+        <ItemSinal estado={estado} fonte={fonte} />
+      </ol>
+      <ProximosPassos />
+    </Moldura>
+  )
+}
+
+function LeituraDoSiteNoChecklist({ estado, fonte }: PropsDaEtapa) {
+  const { situacao } = estado.leitura
+  if (situacao === 'inativa') return null
+  return (
+    <section aria-label="Leitura do site" className="flex flex-col gap-2 border border-al-line p-4">
+      <p className="rotulo">Leitura do site</p>
+      <p aria-live="polite">
+        {situacao === 'lendo' && `Lendo o site ${estado.dominio}. Você pode editar os campos enquanto isso.`}
+        {situacao === 'pronta' &&
+          `Base sugerida pela leitura de ${estado.dominio}. Revise, edite ou descarte: o que você escrever prevalece.`}
+        {situacao === 'falhou' && `Não foi possível ler o site ${estado.dominio}. Preencha os campos ou tente de novo.`}
+      </p>
+      {situacao === 'falhou' && (
+        <button type="button" className={cn(BOTAO_SECUNDARIO, 'self-start')} onClick={() => void fonte.lerSite()}>
+          Tentar de novo
+        </button>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Os campos ficam na tela e vão para a Fonte a cada edição, para a leitura do site nunca sobrescrever o que a
+ * pessoa escreveu. Quando a leitura muda de situação, a tela adota o que a Fonte tem.
+ */
+function useCamposDoChecklist<T>(estado: EstadoDeOnboarding, daFonte: T) {
+  const [campos, setCampos] = useState(daFonte)
+  const [leituraVista, setLeituraVista] = useState(estado.leitura.situacao)
+  if (leituraVista !== estado.leitura.situacao) {
+    setLeituraVista(estado.leitura.situacao)
+    setCampos(daFonte)
+  }
+  return [campos, setCampos] as const
+}
+
+function ItemProduto({ estado, fonte }: PropsDaEtapa) {
+  const { miniIcp, oQueVende, porQueCompram, produto } = estado.checklist
+  const [campos, setCampos] = useCamposDoChecklist(estado, { miniIcp, oQueVende, porQueCompram })
+  const vazio = !campos.miniIcp.trim() || !campos.oQueVende.trim() || !campos.porQueCompram.trim()
+
+  function editar(mudanca: Partial<typeof campos>) {
+    const novos = { ...campos, ...mudanca }
+    setCampos(novos)
+    void fonte.salvarProduto(novos)
+  }
+
+  async function concluir() {
     await fonte.salvarProduto(campos)
     await fonte.concluirProduto()
   }
+
+  return (
+    <Item nome="1. Mini-ICP e produto" situacao={produto}>
+      <Campo rotulo="O que você vende">
+        <textarea
+          className="campo min-h-20"
+          aria-label="O que você vende"
+          value={campos.oQueVende}
+          onChange={(evento) => editar({ oQueVende: evento.target.value })}
+        />
+      </Campo>
+      <Campo rotulo="Mini-ICP">
+        <textarea
+          className="campo min-h-20"
+          aria-label="Mini-ICP"
+          value={campos.miniIcp}
+          onChange={(evento) => editar({ miniIcp: evento.target.value })}
+        />
+      </Campo>
+      <Campo rotulo="Por que compram">
+        <textarea
+          className="campo min-h-20"
+          aria-label="Por que compram"
+          value={campos.porQueCompram}
+          onChange={(evento) => editar({ porQueCompram: evento.target.value })}
+        />
+      </Campo>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={BOTAO_PRIMARIO} disabled={vazio} onClick={() => void concluir()}>
+          Concluir mini-ICP
+        </button>
+        {estado.leitura.resultado && (
+          <button
+            type="button"
+            className={BOTAO_SECUNDARIO}
+            onClick={() => editar({ miniIcp: '', oQueVende: '', porQueCompram: '' })}
+          >
+            Descartar sugestão
+          </button>
+        )}
+        {produto !== 'concluido' && (
+          <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void fonte.pularItem('produto')}>
+            Pular mini-ICP
+          </button>
+        )}
+      </div>
+    </Item>
+  )
+}
+
+function ItemPersona({ estado, fonte }: PropsDaEtapa) {
+  const { personas, persona } = estado.checklist
+  const [texto, setTexto] = useCamposDoChecklist(estado, personas)
+
+  function editar(novo: string) {
+    setTexto(novo)
+    void fonte.salvarPersonas(novo)
+  }
+
+  async function concluir() {
+    await fonte.salvarPersonas(texto)
+    await fonte.concluirPersona()
+  }
+
+  return (
+    <Item nome="2. Persona" situacao={persona}>
+      <p>As Personas possíveis do Workspace, considerando para quem você vende. Uma por linha. {AVISO_DA_PERSONA}</p>
+      <Campo rotulo="Personas possíveis">
+        <textarea
+          className="campo min-h-24"
+          aria-label="Personas possíveis"
+          value={texto}
+          onChange={(evento) => editar(evento.target.value)}
+        />
+      </Campo>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={BOTAO_PRIMARIO} disabled={!texto.trim()} onClick={() => void concluir()}>
+          Concluir Persona
+        </button>
+        {estado.leitura.resultado && (
+          <button type="button" className={BOTAO_SECUNDARIO} onClick={() => editar('')}>
+            Descartar sugestão
+          </button>
+        )}
+        {persona !== 'concluido' && (
+          <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void fonte.pularItem('persona')}>
+            Pular Persona
+          </button>
+        )}
+      </div>
+    </Item>
+  )
+}
+
+function ItemSinal({ estado, fonte }: PropsDaEtapa) {
+  const navegar = useNavigate()
+  const { sinal } = estado.checklist
 
   function abrirSinais() {
     void fonte.pedirRetornoAoChecklist()
@@ -229,102 +427,48 @@ function EtapaChecklist({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: 
   }
 
   return (
-    <Moldura
-      titulo="Checklist do Norte"
-      acoes={
-        <Link to="/" className={BOTAO_PRIMARIO}>
-          Ir para a home
-        </Link>
-      }
-    >
-      {estado.workspace?.nomeSugerido ? (
-        <div className="flex items-center gap-3">
-          {estado.logoUrl && (
-            <img src={estado.logoUrl} alt={`Logo de ${estado.workspace.nomeSugerido}`} className="size-8 object-contain" />
-          )}
-          <p>
-            Workspace sugerido: {estado.workspace.nomeSugerido}
-            {estado.dominio ? `, lido de ${estado.dominio}` : ''}. Nenhuma Conta-alvo foi criada.
-          </p>
-        </div>
-      ) : (
-        <p>Você entra no Workspace para o qual foi convidado. A empresa do Cliente fica como está.</p>
-      )}
-      {estado.contextoDaIa && (
-        <section aria-label="Contexto para os Agentes" className="border border-al-line p-4">
-          <p className="rotulo">Contexto para os Agentes</p>
-          <p>{estado.contextoDaIa}</p>
-        </section>
-      )}
+    <Item nome="3. Sinal de compra" situacao={sinal}>
       <p>
-        A ordem é mini-ICP e produto, depois Persona, depois Sinal. Em seguida vêm Conta-alvo com Sinal, Cadência e
-        reunião. Cadência fica de fora deste checklist. Reunião no App segue só como status de demonstração.
+        Abra Sinais para ver como um Sinal de compra indica a hora de abordar uma Conta-alvo. Abrir a página basta: não
+        é preciso criar um Monitoramento.
       </p>
-      <ol aria-label="Checklist do Norte" className="flex flex-col gap-4">
-        <Item nome="1. Mini-ICP e produto" situacao={estado.checklist.produto}>
-          <Campo rotulo="Mini-ICP">
-            <textarea
-              className="campo min-h-20"
-              aria-label="Mini-ICP"
-              value={campos.miniIcp}
-              onChange={(evento) => setCampos({ ...campos, miniIcp: evento.target.value })}
-            />
-          </Campo>
-          <Campo rotulo="O que você vende">
-            <textarea
-              className="campo min-h-20"
-              aria-label="O que você vende"
-              value={campos.oQueVende}
-              onChange={(evento) => setCampos({ ...campos, oQueVende: evento.target.value })}
-            />
-          </Campo>
-          <Campo rotulo="Por que compram">
-            <textarea
-              className="campo min-h-20"
-              aria-label="Por que compram"
-              value={campos.porQueCompram}
-              onChange={(evento) => setCampos({ ...campos, porQueCompram: evento.target.value })}
-            />
-          </Campo>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={BOTAO_PRIMARIO} disabled={produtoVazio} onClick={() => void concluirProduto()}>
-              Concluir mini-ICP
-            </button>
-            {estado.checklist.produto !== 'concluido' && (
-              <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void fonte.pularItem('produto')}>
-                Pular mini-ICP
-              </button>
-            )}
-          </div>
-        </Item>
-        <Item nome="2. Persona" situacao={estado.checklist.persona}>
-          <p>{estado.checklist.personaTexto}</p>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={BOTAO_PRIMARIO} onClick={() => void fonte.concluirPersona()}>
-              Concluir Persona
-            </button>
-            {estado.checklist.persona !== 'concluido' && (
-              <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void fonte.pularItem('persona')}>
-                Pular Persona
-              </button>
-            )}
-          </div>
-        </Item>
-        <Item nome="3. Sinal" situacao={estado.checklist.sinal}>
-          <p>{estado.checklist.sinalTexto}</p>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={BOTAO_PRIMARIO} onClick={abrirSinais}>
-              Abrir Sinais
-            </button>
-            {estado.checklist.sinal !== 'concluido' && (
-              <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void fonte.pularItem('sinal')}>
-                Pular Sinal
-              </button>
-            )}
-          </div>
-        </Item>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={BOTAO_PRIMARIO} onClick={abrirSinais}>
+          Abrir Sinais
+        </button>
+        {sinal !== 'concluido' && (
+          <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void fonte.pularItem('sinal')}>
+            Pular Sinal
+          </button>
+        )}
+      </div>
+    </Item>
+  )
+}
+
+/** Depois do Sinal de compra, o caminho do Norte segue pelas experiências que já existem no App. */
+function ProximosPassos() {
+  return (
+    <section aria-labelledby="proximos-passos" className="flex flex-col gap-3">
+      <h2 id="proximos-passos" className="titulo-secao text-lg">
+        Depois do checklist
+      </h2>
+      <ol aria-label="Próximos passos" className="flex flex-col gap-3">
+        <li className="flex flex-col gap-1 border border-al-line p-4">
+          <Link to="/sinais?vista=encontrados" className="font-medium underline underline-offset-4">
+            Ver Contas-alvo indicadas
+          </Link>
+          <p className="text-sm text-al-muted">As Contas-alvo com Sinal de compra encontrado vêm primeiro.</p>
+        </li>
+        <li className="flex flex-col gap-1 border border-al-line p-4">
+          <Link to="/sequencias" className="font-medium underline underline-offset-4">
+            Criar a Sequência
+          </Link>
+          <p className="text-sm text-al-muted">Com a Conta-alvo escolhida, monte a Sequência de abordagem.</p>
+        </li>
       </ol>
-    </Moldura>
+      <p className="text-sm text-al-muted">Reunião no App segue só como status de demonstração.</p>
+    </section>
   )
 }
 
@@ -340,7 +484,27 @@ function Item({ nome, situacao, children }: { nome: string; situacao: SituacaoDo
   )
 }
 
-function Moldura({ titulo, acoes, children }: { titulo: string; acoes?: ReactNode; children: ReactNode }) {
+/**
+ * Todo passo tem o mesmo rodapé: Voltar à esquerda (desabilitado só no primeiro passo) e, à direita, o pulo
+ * permitido e Continuar. Nenhum passo fica sem saída.
+ */
+function Moldura({
+  estado,
+  fonte,
+  titulo,
+  continuar,
+  pular,
+  children,
+}: PropsDaEtapa & {
+  titulo: string
+  continuar: { rotulo?: string; disabled?: boolean; aoContinuar: () => void }
+  pular?: { rotulo: string; aoPular: () => void }
+  children: ReactNode
+}) {
+  const etapas = etapasDoRamo(estado.ramo)
+  const indice = etapas.indexOf(estado.etapa)
+  const lendoOSite = estado.leitura.situacao === 'lendo' && estado.etapa !== 'checklist'
+
   return (
     <div className="min-h-screen bg-al-bg text-al-ink">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-8 px-6 py-10">
@@ -348,21 +512,54 @@ function Moldura({ titulo, acoes, children }: { titulo: string; acoes?: ReactNod
           <Logo />
           <span className="selo">Demonstração</span>
         </header>
+        <nav aria-label="Progresso do onboarding" className="flex flex-col gap-2">
+          <p className="rotulo">
+            Passo {indice + 1} de {etapas.length}
+          </p>
+          <ol className="flex gap-1">
+            {etapas.map((etapa, posicao) => (
+              <li
+                key={etapa}
+                aria-current={etapa === estado.etapa ? 'step' : undefined}
+                title={ROTULO_DA_ETAPA[etapa]}
+                className={cn('h-1 flex-1', posicao <= indice ? 'bg-al-ink' : 'bg-al-line')}
+              >
+                <span className="sr-only">{ROTULO_DA_ETAPA[etapa]}</span>
+              </li>
+            ))}
+          </ol>
+        </nav>
         <div className="flex flex-col gap-6">
           <h1 className="titulo-display text-3xl">{titulo}</h1>
           {children}
-          {acoes && <div className="flex flex-wrap gap-2">{acoes}</div>}
+          {lendoOSite && (
+            <p role="status" className="text-sm text-al-muted">
+              Lendo o site {estado.dominio}. Você pode seguir enquanto isso.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-al-line pt-6">
+            <button type="button" className={BOTAO_SECUNDARIO} disabled={indice <= 0} onClick={() => void fonte.voltar()}>
+              Voltar
+            </button>
+            <div className="flex flex-wrap gap-2">
+              {pular && (
+                <button type="button" className={BOTAO_SECUNDARIO} onClick={pular.aoPular}>
+                  {pular.rotulo}
+                </button>
+              )}
+              <button
+                type="button"
+                className={BOTAO_PRIMARIO}
+                disabled={continuar.disabled}
+                onClick={continuar.aoContinuar}
+              >
+                {continuar.rotulo ?? 'Continuar'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  )
-}
-
-function Continuar({ disabled, aoContinuar }: { disabled?: boolean; aoContinuar: () => void }) {
-  return (
-    <button type="button" className={BOTAO_PRIMARIO} disabled={disabled} onClick={aoContinuar}>
-      Continuar
-    </button>
   )
 }
 

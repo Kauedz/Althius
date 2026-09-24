@@ -2,6 +2,7 @@ import { Bot, Building2, ChevronsUpDown, Plug, RadioTower, Route, Settings, Shie
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, Logo, ROTULO_DO_ESTADO } from '@/components/marca'
+import { LogoDoWorkspace } from '@/components/logos'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -33,8 +34,8 @@ function Sidebar() {
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const clienteDoOnboarding = onboarding?.workspace?.nomeSugerido
   const cliente = clienteDoOnboarding || workspace?.cliente
-  const descricao = onboarding?.contextoDaIa || workspace?.descricao
-  const logoUrl = clienteDoOnboarding ? onboarding?.logoUrl : undefined
+  const descricao = (clienteDoOnboarding && onboarding?.checklist.oQueVende) || workspace?.descricao
+  const logoDoSite = clienteDoOnboarding ? onboarding?.logoDoSite : undefined
   const { pathname } = useLocation()
   // A aba de Agentes inclui a página de cada Agente e a Conversa coordenada.
   const naAbaDeAgentes = pathname === '/' || pathname.startsWith('/agentes/') || pathname.startsWith('/conversa')
@@ -51,7 +52,7 @@ function Sidebar() {
       <div className="flex flex-col gap-4">
         <Logo />
         <div className="flex flex-col gap-2">
-          <SeletorDeWorkspace cliente={cliente} descricao={descricao} logoUrl={logoUrl} />
+          <SeletorDeWorkspace cliente={cliente} descricao={descricao} logoDoSite={logoDoSite} />
           <span className="selo self-start">Demonstração</span>
         </div>
       </div>
@@ -124,11 +125,11 @@ function Sidebar() {
 function SeletorDeWorkspace({
   cliente,
   descricao,
-  logoUrl,
+  logoDoSite = [],
 }: {
   cliente?: string
   descricao?: string
-  logoUrl?: string
+  logoDoSite?: readonly string[]
 }) {
   return (
     <DropdownMenu>
@@ -141,13 +142,7 @@ function SeletorDeWorkspace({
           />
         }
       >
-        {logoUrl ? (
-          <img src={logoUrl} alt={`Logo de ${cliente ?? 'Cliente'}`} className="size-7 object-contain" />
-        ) : (
-          <span className="grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg" aria-hidden>
-            {cliente?.[0]}
-          </span>
-        )}
+        <LogoDoWorkspace nome={cliente ?? ''} enderecos={logoDoSite} />
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="rotulo text-[0.5625rem]">Workspace</span>
           <span className="truncate font-normal">{cliente}</span>

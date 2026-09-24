@@ -34,7 +34,7 @@ export function renderizarApp(
     hoje: DATA_HOJE_TESTES,
     ...opcoesSequencias,
   })
-  const fonteDeOnboarding = criarFonteDeOnboardingSimulada(opcoesOnboarding)
+  const fonteDeOnboarding = criarFonteDeOnboardingSimulada({ atrasoDaLeituraMs: 0, ...opcoesOnboarding })
   const fonteDeSinais = criarFonteDeSinaisSimulada({
     atrasoMs: 0,
     hoje: DATA_HOJE_TESTES,
