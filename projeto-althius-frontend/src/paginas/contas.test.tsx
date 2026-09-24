@@ -37,7 +37,7 @@ describe('Aba Contas (ponta a ponta)', () => {
     expect(
       screen.getByText('Empresas do seu mercado organizadas pelo momento de abordagem'),
     ).toBeInTheDocument()
-    expect(screen.getByText('30 contas')).toBeInTheDocument()
+    expect(contagem()).toHaveTextContent(/^30 contas$/)
 
     const tabela = screen.getByRole('table', { name: 'Tabela de Contas' })
     const cabecalhos = within(tabela)
@@ -469,5 +469,167 @@ describe('Pop-up da empresa', () => {
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
     }
+  })
+})
+
+/** Os nomes das empresas na tabela de Contas, na ordem das linhas. */
+async function nomesNaTabela() {
+  const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+  return within(tabela)
+    .getAllByRole('row')
+    .slice(1)
+    .map((linha) => within(linha).getAllByRole('link')[0].textContent)
+}
+
+/** A contagem de contas exibidas, no topo da aba Contas ("30 contas" ou "N de 30 contas"). */
+function contagem() {
+  return screen.getByText((_, elemento) => /^\d+( de \d+)? contas?$/.test(elemento?.textContent ?? '') && elemento?.tagName === 'SPAN')
+}
+
+/** Escolhe uma opção de "Ordenar por" na aba Contas. */
+async function ordenarPor(usuario: ReturnType<typeof renderizarApp>['usuario'], rotulo: string) {
+  await usuario.selectOptions(await screen.findByRole('combobox', { name: 'Ordenar por' }), `Ordenar por: ${rotulo}`)
+}
+
+describe('"Ordenar por" e busca na aba Contas', () => {
+  it('"Ordenar por" mostra as quatro opções, com Prioridade escolhida por padrão', async () => {
+    renderizarApp('/contas')
+
+    const ordenar = await screen.findByRole('combobox', { name: 'Ordenar por' })
+    expect(within(ordenar).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Ordenar por: Prioridade',
+      'Ordenar por: Último sinal',
+      'Ordenar por: Contatos',
+      'Ordenar por: Último contato',
+    ])
+    expect(ordenar).toHaveDisplayValue('Ordenar por: Prioridade')
+  })
+
+  it('os cabeçalhos da tabela não são clicáveis', async () => {
+    renderizarApp('/contas')
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+    for (const cabecalho of within(tabela).getAllByRole('columnheader')) {
+      expect(within(cabecalho).queryByRole('button')).not.toBeInTheDocument()
+      expect(cabecalho).not.toHaveAttribute('aria-sort')
+    }
+  })
+
+  it('Último sinal põe o mais recente primeiro e as contas sem Sinal no fim', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Último sinal')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 3)).toEqual(['OpenAI', 'Stripe', 'Anthropic'])
+    // Depois das Quentes e das Fit, os Sinais mais antigos misturam os grupos: Mercado Livre (Não fit) antes de BBVA México
+    expect(nomes.slice(18, 27)).toEqual([
+      'SAP',
+      'Twilio',
+      'Zendesk',
+      'Asana',
+      'monday.com',
+      'Okta',
+      'Mercado Livre',
+      'Rappi',
+      'BBVA México',
+    ])
+    expect(nomes.slice(27)).toEqual(['Banorte', 'Miro', 'Oracle'])
+  })
+
+  it('Contatos põe a conta com mais Contatos primeiro e as sem Contatos no fim', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Contatos')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 3)).toEqual(['Canva', 'HubSpot', 'Nubank'])
+    expect(nomes.slice(-4)).toEqual(['Okta', 'Banorte', 'Miro', 'Rappi'])
+  })
+
+  it('Último contato põe o mais recente primeiro e "Nunca" no fim', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Último contato')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 4)).toEqual(['Stripe', 'Nubank', 'Databricks', 'OpenAI'])
+    expect(nomes.slice(-6)).toEqual(['Mercado Livre', 'Banorte', 'BBVA México', 'Miro', 'Okta', 'Rappi'])
+  })
+
+  it('voltar para Prioridade restaura a ordem padrão', async () => {
+    const { usuario } = renderizarApp('/contas')
+    const ordenar = await screen.findByRole('combobox', { name: 'Ordenar por' })
+
+    await usuario.selectOptions(ordenar, 'Ordenar por: Contatos')
+    await usuario.selectOptions(ordenar, 'Ordenar por: Prioridade')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 2)).toEqual(['OpenAI', 'Stripe'])
+    expect(nomes.at(-1)).toBe('BBVA México')
+  })
+
+  it('a busca encontra pelo nome ignorando maiúsculas e acentos, e a contagem mostra "N de M contas"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'MEXICO')
+
+    expect(await nomesNaTabela()).toEqual(['BBVA México'])
+    expect(contagem()).toHaveTextContent(/^1 de 30 contas$/)
+  })
+
+  it('a busca encontra pelo domínio', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'mercadolivre.com')
+
+    expect(await nomesNaTabela()).toEqual(['Mercado Livre'])
+  })
+
+  it('a busca mantém a ordenação escolhida', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Contatos')
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contas' }), 'n')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes[0]).toBe('Canva')
+    expect(contagem()).toHaveTextContent(`${nomes.length} de 30 contas`)
+  })
+
+  it('uma busca sem resultado mostra a mensagem e "Limpar busca e filtros" restaura a lista', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'xyz')
+
+    expect(screen.getByText('Nenhuma conta encontrada para “xyz”.')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Tabela de Contas' })).not.toBeInTheDocument()
+    expect(contagem()).toHaveTextContent(/^0 de 30 contas$/)
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar busca e filtros' }))
+
+    expect(await nomesNaTabela()).toHaveLength(30)
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('')
+    expect(contagem()).toHaveTextContent(/^30 contas$/)
+  })
+
+  it('abrir o endereço com busca e ordenação reconstrói a lista com elas', async () => {
+    renderizarApp('/contas?busca=an&ordem=ultimo-contato')
+
+    expect(await screen.findByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('an')
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveDisplayValue('Ordenar por: Último contato')
+    // "an" no nome ou no domínio: Stripe (Ontem) fica fora, Anthropic antes de Canva e Banorte (Nunca) no fim
+    const nomes = await nomesNaTabela()
+    expect(nomes).not.toContain('Stripe')
+    expect(nomes.indexOf('Anthropic')).toBeLessThan(nomes.indexOf('Canva'))
+    expect(nomes.at(-1)).toBe('Banorte')
+    expect(contagem()).toHaveTextContent(`${nomes.length} de 30 contas`)
+  })
+
+  it('uma ordenação desconhecida no endereço cai na Prioridade', async () => {
+    renderizarApp('/contas?ordem=inventada')
+
+    expect(await screen.findByRole('combobox', { name: 'Ordenar por' })).toHaveDisplayValue('Ordenar por: Prioridade')
+    expect((await nomesNaTabela())[0]).toBe('OpenAI')
   })
 })

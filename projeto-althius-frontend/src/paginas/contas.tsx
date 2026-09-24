@@ -1,7 +1,7 @@
 import { PreviewCard } from '@base-ui/react/preview-card'
-import { Building2, ExternalLink, RadioTower } from 'lucide-react'
+import { Building2, ExternalLink, RadioTower, Search } from 'lucide-react'
 import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { Aderencia, ContaAlvo, PreviaContato } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
-import { cn, iniciais } from '@/lib/utils'
+import { cn, iniciais, normalizarParaBusca } from '@/lib/utils'
 import { DetalheConta } from './detalhe-conta'
 
 const ABAS_MODULO = [
@@ -23,31 +23,93 @@ const ORDEM_ADERENCIA: Record<Aderencia, number> = {
   fit: 2,
   'nao-fit': 3,
 }
+// Sem Aderência, a Conta-alvo ainda não foi avaliada: fica depois das Não fit.
+const ORDEM_NAO_AVALIADA = 4
+
+type Comparacao = (a: ContaAlvo, b: ContaAlvo) => number
+
+/** A data mais recente primeiro; sem data, no fim. */
+function maisRecentePrimeiro(data: (conta: ContaAlvo) => string | undefined): Comparacao {
+  const instante = (conta: ContaAlvo) => {
+    const valor = data(conta)
+    return valor ? new Date(valor).getTime() : -Infinity
+  }
+  return (a, b) => {
+    const [instanteA, instanteB] = [instante(a), instante(b)]
+    // Comparados antes da subtração: dois "sem data" (-Infinity) dariam NaN, e não empate.
+    return instanteA === instanteB ? 0 : instanteB > instanteA ? 1 : -1
+  }
+}
+
+const porNome: Comparacao = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR')
+const rankDaAderencia = (conta: ContaAlvo) => (conta.aderencia ? ORDEM_ADERENCIA[conta.aderencia] : ORDEM_NAO_AVALIADA)
+const porAderencia: Comparacao = (a, b) => rankDaAderencia(a) - rankDaAderencia(b)
+const porUltimoSinal = maisRecentePrimeiro((conta) => conta.ultimoSinal?.data)
+
+/** Aplica os critérios em sequência: o seguinte só desfaz o empate do anterior. */
+function emSequencia(...criterios: Comparacao[]): Comparacao {
+  return (a, b) => criterios.reduce((resultado, criterio) => resultado || criterio(a, b), 0)
+}
+
+/** As opções de "Ordenar por", cada uma com direção fixa. Empates, em todas, pelo nome. */
+const ORDENACOES = {
+  // Quente, Fit, Não fit e não avaliada; dentro do grupo, o Sinal mais recente primeiro e sem Sinal no fim.
+  prioridade: { rotulo: 'Prioridade', comparar: emSequencia(porAderencia, porUltimoSinal, porNome) },
+  'ultimo-sinal': { rotulo: 'Último sinal', comparar: emSequencia(porUltimoSinal, porNome) },
+  contatos: { rotulo: 'Contatos', comparar: emSequencia((a, b) => b.totalContatos - a.totalContatos, porNome) },
+  'ultimo-contato': {
+    rotulo: 'Último contato',
+    comparar: emSequencia(
+      maisRecentePrimeiro((conta) => conta.ultimoContatoEm),
+      porNome,
+    ),
+  },
+} satisfies Record<string, { rotulo: string; comparar: Comparacao }>
+
+type Ordenacao = keyof typeof ORDENACOES
+const ORDENACAO_PADRAO: Ordenacao = 'prioridade'
+
+function eOrdenacao(valor: string | null): valor is Ordenacao {
+  return valor !== null && Object.hasOwn(ORDENACOES, valor)
+}
 
 /**
- * Ordena as Contas-alvo pela regra de Prioridade:
- * 1. Aderência: Quente > Fit > Não fit > Não avaliada
- * 2. Dentro de cada grupo: Sinal mais recente primeiro; contas sem Sinal por último
- * 3. Empate: ordem alfabética do nome da empresa
+ * A busca e a ordenação da lista vivem nos parâmetros do endereço (`busca` e `ordem`), e só lá: abrir o
+ * endereço reconstrói o recorte. Os valores padrão não aparecem no endereço.
  */
-function ordenarPorPrioridade(a: ContaAlvo, b: ContaAlvo): number {
-  const rankA = a.aderencia ? ORDEM_ADERENCIA[a.aderencia] : 4
-  const rankB = b.aderencia ? ORDEM_ADERENCIA[b.aderencia] : 4
+function useRecorteDasContas() {
+  const [parametros, setParametros] = useSearchParams()
+  const busca = parametros.get('busca') ?? ''
+  const ordemNoEndereco = parametros.get('ordem')
+  const ordem = eOrdenacao(ordemNoEndereco) ? ordemNoEndereco : ORDENACAO_PADRAO
 
-  if (rankA !== rankB) {
-    return rankA - rankB
+  // Cada tecla da busca substitui a entrada do histórico, para o voltar não refazer a digitação.
+  function alterar(parametro: 'busca' | 'ordem', valor: string, padrao: string) {
+    setParametros(
+      (atuais) => {
+        const novos = new URLSearchParams(atuais)
+        if (valor === padrao) novos.delete(parametro)
+        else novos.set(parametro, valor)
+        return novos
+      },
+      { replace: true },
+    )
   }
 
-  // Dentro do grupo: sinal mais recente primeiro, sem sinal por último
-  const dataSinalA = a.ultimoSinal ? new Date(a.ultimoSinal.data).getTime() : -1
-  const dataSinalB = b.ultimoSinal ? new Date(b.ultimoSinal.data).getTime() : -1
-
-  if (dataSinalA !== dataSinalB) {
-    return dataSinalB - dataSinalA
+  return {
+    busca,
+    ordem,
+    buscar: (valor: string) => alterar('busca', valor, ''),
+    ordenar: (valor: Ordenacao) => alterar('ordem', valor, ORDENACAO_PADRAO),
   }
+}
 
-  // Empate: ordem alfabética pelo nome
-  return a.nome.localeCompare(b.nome, 'pt-BR')
+/** As contas cujo nome ou domínio contém a busca, sem diferenciar maiúsculas e acentos. */
+function buscarContas(contas: ContaAlvo[], busca: string): ContaAlvo[] {
+  const termo = normalizarParaBusca(busca)
+  return contas.filter((conta) =>
+    [conta.nome, conta.dominio ?? ''].some((campo) => normalizarParaBusca(campo).includes(termo)),
+  )
 }
 
 // Cabeçalho fixo no topo do quadro que rola.
@@ -77,24 +139,58 @@ function ListaContas() {
     [],
   )
 
+  const { busca, ordem, buscar, ordenar } = useRecorteDasContas()
+
   const hoje = fonte.hoje()
-  const contasOrdenadas = contas ? [...contas].sort(ordenarPorPrioridade) : []
+  const contasExibidas = buscarContas(contas ?? [], busca).toSorted(ORDENACOES[ordem].comparar)
+  const recortada = normalizarParaBusca(busca) !== ''
 
   return (
     <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
       <AbasSublinhadas rotuloAcessivel="Abas de contas e contatos" abas={ABAS_MODULO} />
 
-      <div className="flex flex-col gap-1">
+      <div className="flex items-end justify-between gap-8">
         <h2 className="sr-only">Empresas</h2>
         <p className="text-sm text-al-muted">
           Empresas do seu mercado organizadas pelo momento de abordagem
         </p>
         {contas && (
-          <span className="rotulo text-xs text-al-muted">
-            {contas.length} {contas.length === 1 ? 'conta' : 'contas'}
+          <span className="text-[0.8125rem] whitespace-nowrap text-al-muted">
+            {/* O número em destaque; com busca, "N de M contas", no singular só quando M é 1. */}
+            <strong className="font-normal text-al-ink">{recortada ? contasExibidas.length : contas.length}</strong>
+            {recortada && ` de ${contas.length}`} {contas.length === 1 ? 'conta' : 'contas'}
           </span>
         )}
       </div>
+
+      {contas && contas.length > 0 && (
+        <div className="flex items-center gap-2.5 border-y border-al-line py-2">
+          <label className="flex h-9 w-full max-w-105 items-center gap-2 border border-al-line bg-al-surface px-3 text-al-muted focus-within:border-al-muted">
+            <Search className="size-4 shrink-0" aria-hidden />
+            <input
+              type="search"
+              aria-label="Buscar contas"
+              placeholder="Buscar por empresa ou domínio"
+              value={busca}
+              onChange={(e) => buscar(e.target.value)}
+              className="w-full bg-transparent text-sm text-al-ink outline-none placeholder:text-al-muted"
+            />
+          </label>
+          <span className="flex-1" />
+          <select
+            aria-label="Ordenar por"
+            value={ordem}
+            onChange={(e) => eOrdenacao(e.target.value) && ordenar(e.target.value)}
+            className="h-9 cursor-pointer border border-al-line bg-al-surface pr-8 pl-3 text-sm text-al-ink"
+          >
+            {Object.entries(ORDENACOES).map(([valor, { rotulo }]) => (
+              <option key={valor} value={valor}>
+                Ordenar por: {rotulo}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {carregando && <Carregando />}
 
@@ -118,7 +214,21 @@ function ListaContas() {
         </p>
       )}
 
-      {!carregando && !erro && contas && contas.length > 0 && (
+      {!carregando && !erro && contas && contas.length > 0 && contasExibidas.length === 0 && (
+        <div className="flex flex-col items-start gap-3 py-12">
+          <p className="text-sm text-al-muted">Nenhuma conta encontrada para “{busca.trim()}”.</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => buscar('')}
+            className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+          >
+            Limpar busca e filtros
+          </Button>
+        </div>
+      )}
+
+      {!carregando && !erro && contasExibidas.length > 0 && (
         // A tabela rola num quadro próprio, nos dois sentidos, que vai até o pé da janela. Assim o cabeçalho
         // fica fixo na rolagem vertical e a coluna Empresa, na horizontal, sem tirar do lugar a sidebar e a
         // barra de topo.
@@ -151,7 +261,7 @@ function ListaContas() {
               </tr>
             </thead>
             <tbody>
-              {contasOrdenadas.map((conta) => (
+              {contasExibidas.map((conta) => (
                 <tr
                   key={conta.id}
                   className="h-11 cursor-pointer transition-colors hover:bg-al-surface/40"
