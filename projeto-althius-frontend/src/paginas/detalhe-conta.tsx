@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { ArrowRight, Building2, ExternalLink, Mail, Pause, Phone, Plus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowRight, Building2, ExternalLink, Pause, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
@@ -13,6 +13,7 @@ import { formatarDataCompleta, formatarDataDoModulo, formatarDataExplicita } fro
 import { porId } from '@/lib/utils'
 import { SeloStatus } from './detalhe-sequencia'
 import { DialogoNovaSequencia } from './nova-sequencia'
+import { TabelaDeContatos } from './tabela-de-contatos'
 
 interface Props {
   contaId: string
@@ -60,6 +61,19 @@ export function DetalheConta({ contaId }: Props) {
     dados: sequencia,
     carregando: carregandoSequencia,
   } = useDadosDeSequencias((f) => f.sequenciaPorConta(contaId), [contaId])
+
+  // A âncora do endereço (a seção Contatos, vindo da tabela de Contas) só tem onde cair quando as seções acima dela
+  // já têm a altura final. Rola uma vez por navegação: um "Tentar de novo" não devolve a página à âncora.
+  const { hash, key } = useLocation()
+  const navegacaoJaRolada = useRef<string | null>(null)
+  const secoesAcimaProntas = !carregandoConta && !carregandoSinais && !carregandoContatos
+  useEffect(() => {
+    if (!hash || !secoesAcimaProntas || navegacaoJaRolada.current === key) return
+    const secao = document.getElementById(decodeURIComponent(hash.slice(1)))
+    if (!secao) return
+    navegacaoJaRolada.current = key
+    secao.scrollIntoView()
+  }, [hash, key, secoesAcimaProntas])
 
   if (carregandoConta) {
     return (
@@ -116,7 +130,6 @@ export function DetalheConta({ contaId }: Props) {
         </Secao>
 
         <Secao id="contatos" titulo="Contatos" contagem={contatos && contar(contatos.length, 'contato', 'contatos')}>
-
           {carregandoContatos && <Carregando />}
 
           {!carregandoContatos && (!contatos || contatos.length === 0) && (
@@ -124,54 +137,15 @@ export function DetalheConta({ contaId }: Props) {
           )}
 
           {!carregandoContatos && contatos && contatos.length > 0 && (
-            <div className="overflow-x-auto border border-al-line bg-al-surface">
-              <table aria-label="Tabela de Contatos da Conta" className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-al-line text-xs font-medium tracking-rotulo text-al-muted uppercase">
-                    <th scope="col" className="py-2.5 px-4 font-normal">Nome</th>
-                    <th scope="col" className="py-2.5 px-4 font-normal">Cargo</th>
-                    <th scope="col" className="py-2.5 px-4 font-normal">Persona</th>
-                    <th scope="col" className="py-2.5 px-4 font-normal">Canais</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-al-line">
-                  {contatos.map((contato) => (
-                    <tr key={contato.id} className="h-10 text-xs">
-                      <td className="py-2 px-4 font-medium text-al-ink">{contato.nome}</td>
-                      <td className="py-2 px-4 text-al-muted">{contato.cargo ?? '—'}</td>
-                      <td className="py-2 px-4 text-al-muted">{contato.persona ?? '—'}</td>
-                      <td className="py-2 px-4">
-                        <div className="flex items-center gap-2">
-                          <span title={`E-mail ${contato.canais.email ? 'disponível' : 'indisponível'}`}>
-                            <Mail
-                              className={`size-3.5 ${contato.canais.email ? 'text-al-ink' : 'text-al-muted/20'}`}
-                            />
-                          </span>
-                          <span title={`Telefone ${contato.canais.telefone ? 'disponível' : 'indisponível'}`}>
-                            <Phone
-                              className={`size-3.5 ${contato.canais.telefone ? 'text-al-ink' : 'text-al-muted/20'}`}
-                            />
-                          </span>
-                          <span title={`LinkedIn ${contato.canais.linkedin ? 'disponível' : 'indisponível'}`}>
-                            <svg
-                              viewBox="0 0 24 24"
-                              role="img"
-                              aria-label={`LinkedIn ${contato.canais.linkedin ? 'disponível' : 'indisponível'}`}
-                              className={`size-3.5 fill-none stroke-current ${contato.canais.linkedin ? 'text-al-ink' : 'text-al-muted/20'}`}
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6ZM2 9h4v12H2z" />
-                              <circle cx="4" cy="4" r="2" />
-                            </svg>
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="overflow-x-auto">
+              <TabelaDeContatos
+                linhas={contatos
+                  .toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                  .map((contato) => ({ contato, conta }))}
+                hoje={hoje}
+                rotulo="Contatos da Conta-alvo"
+                comEmpresa={false}
+              />
             </div>
           )}
         </Secao>

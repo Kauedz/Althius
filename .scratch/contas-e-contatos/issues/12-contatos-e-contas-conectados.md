@@ -10,7 +10,13 @@
 
 **Status:** ready-for-agent
 
-- [ ] O detalhe mostra as seções Sinais, Contatos e Interações nessa ordem
-- [ ] A seção Contatos mostra só os Contatos daquela Conta-alvo, sem a coluna Empresa, e mostra "Nenhum contato" quando não há nenhum
-- [ ] Clicar nos Contatos de uma linha da tabela de Contas abre o detalhe na seção Contatos
-- [ ] Clicar no nome da empresa na aba Contatos abre aquela Conta-alvo
+- [x] O detalhe mostra as seções Sinais, Contatos e Interações nessa ordem
+- [x] A seção Contatos mostra só os Contatos daquela Conta-alvo, sem a coluna Empresa, e mostra "Nenhum contato" quando não há nenhum
+- [x] Clicar nos Contatos de uma linha da tabela de Contas abre o detalhe na seção Contatos
+- [x] Clicar no nome da empresa na aba Contatos abre aquela Conta-alvo
+
+## Comments
+
+- A seção Contatos do detalhe troca a tabela própria do ticket 09 (em caixa com fundo `bg-al-surface`) pela tabela da aba Contatos, sem a Empresa, como o ticket pede. Vale conferir o visual no detalhe. As pessoas aparecem pelo nome, a mesma ordem que têm dentro de uma empresa na aba Contatos.
+- "Nenhum contato" na tabela de Contas também é link para a seção, que mostra "Nenhum contato".
+- O detalhe rola até a âncora do endereço uma vez por navegação, depois que Sinais e Contatos carregam. O ticket 13 (voltar sem perder o lugar) precisa conviver com essa rolagem.

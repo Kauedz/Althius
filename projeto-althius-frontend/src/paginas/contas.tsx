@@ -7,7 +7,7 @@ import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
-import type { Aderencia, ContaAlvo, PreviaContato } from '@/fonte/contas-tipos'
+import type { Aderencia, ContaAlvo } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn, normalizarParaBusca } from '@/lib/utils'
 import { DetalheConta } from './detalhe-conta'
@@ -297,7 +297,7 @@ function ListaContas() {
                     <SeloDeAderencia aderencia={conta.aderencia} />
                   </td>
                   <td className={CELULA}>
-                    <CelulaContatos total={conta.totalContatos} previa={conta.previaContatos} />
+                    <CelulaContatos conta={conta} />
                   </td>
                   <td className={CELULA}>
                     <CelulaUltimoSinal sinal={conta.ultimoSinal} hoje={hoje} />
@@ -510,19 +510,26 @@ function PopUpDaEmpresa({ conta, children }: { conta: ContaAlvo; children: React
   )
 }
 
-function CelulaContatos({ total, previa = [] }: { total: number; previa?: PreviaContato[] }) {
-  if (total === 0) {
-    return <span className="text-al-muted">Nenhum contato</span>
-  }
+/**
+ * Um link próprio para a seção Contatos do detalhe, mesmo sem nenhum Contato. É um link, então o clique da linha,
+ * que abre o detalhe no topo, o ignora.
+ */
+function CelulaContatos({ conta: { id, totalContatos: total, previaContatos: previa = [] } }: { conta: ContaAlvo }) {
   return (
-    <div className="flex items-center">
-      {previa.slice(0, 3).map((contato, i) => (
-        <AvatarDoContato key={i} contato={contato} className={i > 0 ? '-ml-1.5' : undefined} />
-      ))}
-      <span className="ml-2 text-[0.8125rem] whitespace-nowrap text-al-muted">
-        {total} {total === 1 ? 'contato' : 'contatos'}
-      </span>
-    </div>
+    <Link to={`/contas/${id}#contatos`} className="group inline-flex max-w-full items-center">
+      {total === 0 ? (
+        <span className="text-al-muted group-hover:text-al-accent group-hover:underline">Nenhum contato</span>
+      ) : (
+        <>
+          {previa.slice(0, 3).map((contato, i) => (
+            <AvatarDoContato key={i} contato={contato} className={i > 0 ? '-ml-1.5' : undefined} />
+          ))}
+          <span className="ml-2 text-[0.8125rem] whitespace-nowrap text-al-muted group-hover:text-al-accent group-hover:underline">
+            {total} {total === 1 ? 'contato' : 'contatos'}
+          </span>
+        </>
+      )}
+    </Link>
   )
 }
 

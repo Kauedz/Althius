@@ -1,0 +1,155 @@
+import { createLucideIcon, Mail, Phone, type LucideIcon } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
+import { cn } from '@/lib/utils'
+import { AvatarDoContato, CABECALHO, CELULA, CelulaUltimoContato } from './modulo-contas-e-contatos'
+
+// O Lucide tirou os ícones de marca; este é o desenho do antigo "linkedin" dele, no mesmo traço dos outros dois.
+const LinkedIn = createLucideIcon('linkedin', [
+  ['path', { d: 'M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z', key: 'c2jq2r' }],
+  ['rect', { width: '4', height: '12', x: '2', y: '9', key: 'mk3on5' }],
+  ['circle', { cx: '4', cy: '4', r: '2', key: 'bt5ra8' }],
+])
+
+const CANAIS: { canal: keyof Contato['canais']; rotulo: string; icone: LucideIcon }[] = [
+  { canal: 'email', rotulo: 'E-mail', icone: Mail },
+  { canal: 'telefone', rotulo: 'Telefone', icone: Phone },
+  { canal: 'linkedin', rotulo: 'LinkedIn', icone: LinkedIn },
+]
+
+/** Se o Contato tem pelo menos um dos canais que a coluna Dados de contato mostra. */
+export const temDadosDeContato = (contato: Contato) => CANAIS.some(({ canal }) => contato.canais[canal])
+
+export interface LinhaDeContato {
+  contato: Contato
+  /** A Conta-alvo do Contato. Sem ela na fonte, a linha fica sem empresa. */
+  conta?: ContaAlvo
+}
+
+/**
+ * A tabela de Contatos, na ordem em que as linhas chegam. A linha não é clicável; o nome da empresa leva à Conta-alvo.
+ * No detalhe de uma Conta-alvo, a coluna Empresa sai: todas as linhas são da mesma empresa.
+ */
+export function TabelaDeContatos({
+  linhas,
+  hoje,
+  rotulo,
+  comEmpresa = true,
+}: {
+  linhas: LinhaDeContato[]
+  hoje: Date
+  rotulo: string
+  comEmpresa?: boolean
+}) {
+  return (
+    <table
+      aria-label={rotulo}
+      className={cn(
+        'w-full table-fixed border-separate border-spacing-0 text-left text-sm',
+        comEmpresa ? 'min-w-[74rem]' : 'min-w-[63rem]',
+      )}
+    >
+      <thead>
+        <tr>
+          <th scope="col" className={cn(CABECALHO, 'left-0 z-3 w-52.5')}>
+            Nome
+          </th>
+          <th scope="col" className={cn(CABECALHO, 'w-52.5')}>
+            Cargo
+          </th>
+          {comEmpresa && (
+            <th scope="col" className={cn(CABECALHO, 'w-45')}>
+              Empresa
+            </th>
+          )}
+          <th scope="col" className={cn(CABECALHO, 'w-37.5')}>
+            Área
+          </th>
+          <th scope="col" className={cn(CABECALHO, 'w-42.5')}>
+            Persona
+          </th>
+          <th scope="col" className={cn(CABECALHO, 'w-37.5')}>
+            Dados de contato
+          </th>
+          <th scope="col" className={cn(CABECALHO, 'w-30')}>
+            Último contato
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {linhas.map(({ contato, conta }) => (
+          <tr key={contato.id} className="h-11">
+            <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <AvatarDoContato contato={contato} />
+                <span className="truncate text-al-ink">{contato.nome}</span>
+              </div>
+            </td>
+            <td className={CELULA}>
+              <TextoOuTraco texto={contato.cargo} />
+            </td>
+            {comEmpresa && (
+              <td className={CELULA}>
+                {conta ? (
+                  <Link
+                    to={`/contas/${conta.id}`}
+                    title={conta.nome}
+                    className="block truncate text-al-ink hover:text-al-accent hover:underline"
+                  >
+                    {conta.nome}
+                  </Link>
+                ) : (
+                  <TextoOuTraco />
+                )}
+              </td>
+            )}
+            <td className={CELULA}>
+              <TextoOuTraco texto={contato.area} />
+            </td>
+            <td className={CELULA}>
+              <TextoOuTraco texto={contato.persona} />
+            </td>
+            <td className={CELULA}>
+              <DadosDeContato canais={contato.canais} />
+            </td>
+            <td className={CELULA}>
+              <CelulaUltimoContato data={contato.ultimoContatoEm} hoje={hoje} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+/** O texto que a fonte entrega, numa linha só, ou "—" quando falta. */
+function TextoOuTraco({ texto }: { texto?: string }) {
+  if (!texto) {
+    return <span className="text-al-muted">—</span>
+  }
+  return (
+    <span title={texto} className="block truncate">
+      {texto}
+    </span>
+  )
+}
+
+/** Um ícone por canal: o disponível normal e o ausente apagado. Só a disponibilidade, sem valores nem links. */
+function DadosDeContato({ canais }: { canais: Contato['canais'] }) {
+  return (
+    <span className="flex items-center gap-2.5">
+      {CANAIS.map(({ canal, rotulo, icone: Icone }) => {
+        const nome = `${rotulo} ${canais[canal] ? 'disponível' : 'não disponível'}`
+        return (
+          <span key={canal} role="img" aria-label={nome} title={nome}>
+            <Icone
+              strokeWidth={1.8}
+              className={cn('size-4', canais[canal] ? 'text-al-ink' : 'text-al-muted opacity-45')}
+              aria-hidden
+            />
+          </span>
+        )
+      })}
+    </span>
+  )
+}

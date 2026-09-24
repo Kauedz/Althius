@@ -1,5 +1,5 @@
-import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { renderizarApp } from '@/test/renderizar'
 
 describe('Bloco Sequência no detalhe da Conta-alvo (Ticket 04)', () => {
@@ -263,6 +263,62 @@ describe('Detalhe da Conta-alvo', () => {
     const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
     const linha = within(tabela).getByText('Banorte').closest('tr')!
     expect(within(linha).getAllByRole('cell')[5]).toHaveTextContent('Nunca')
+  })
+
+  it('a seção Contatos mostra só as pessoas daquela Conta-alvo, na tabela da aba Contatos sem a coluna Empresa', async () => {
+    renderizarApp('/contas/stripe')
+
+    const secao = await screen.findByRole('region', { name: 'Contatos' })
+    const tabela = await within(secao).findByRole('table', { name: 'Contatos da Conta-alvo' })
+    expect(within(tabela).getAllByRole('columnheader').map((th) => th.textContent?.trim())).toEqual([
+      'Nome',
+      'Cargo',
+      'Área',
+      'Persona',
+      'Dados de contato',
+      'Último contato',
+    ])
+    const linhas = within(tabela).getAllByRole('row').slice(1)
+    const nomes = ['David Kim', 'Rachel Green', 'Robert Thorne', 'Sofia Mendez']
+    expect(linhas).toHaveLength(nomes.length)
+    linhas.forEach((linha, i) => expect(within(linha).getByText(nomes[i], { exact: true })).toBeInTheDocument())
+    const [david] = linhas
+    expect(within(david).getAllByRole('cell')[1]).toHaveTextContent('Head de Infraestrutura de Dados')
+    expect(within(david).getByRole('img', { name: 'E-mail disponível' })).toBeInTheDocument()
+  })
+
+  it('sem Contatos, a seção Contatos mostra "Nenhum contato"', async () => {
+    renderizarApp('/contas/banorte')
+
+    const secao = await screen.findByRole('region', { name: 'Contatos' })
+    expect(await within(secao).findByText('Nenhum contato')).toBeInTheDocument()
+    expect(within(secao).queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('clicar nos Contatos de uma linha da tabela de Contas abre o detalhe na seção Contatos', async () => {
+    const rolagem = vi.spyOn(Element.prototype, 'scrollIntoView')
+    const { usuario } = renderizarApp('/contas')
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+    const linha = within(tabela).getByRole('link', { name: 'Stripe' }).closest('tr')!
+    const contatos = within(within(linha).getAllByRole('cell')[2]).getByRole('link')
+    expect(contatos).toHaveAttribute('href', '/contas/stripe#contatos')
+    await usuario.click(contatos)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Stripe' })).toBeInTheDocument()
+    const secao = await screen.findByRole('region', { name: 'Contatos' })
+    await within(secao).findByRole('table', { name: 'Contatos da Conta-alvo' })
+    await waitFor(() => expect(rolagem.mock.contexts).toContain(secao))
+    rolagem.mockRestore()
+  })
+
+  it('sem Contatos, a célula da tabela de Contas também leva à seção Contatos', async () => {
+    renderizarApp('/contas')
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+    const linha = within(tabela).getByRole('link', { name: 'Miro' }).closest('tr')!
+    const contatos = within(within(linha).getAllByRole('cell')[2]).getByRole('link', { name: 'Nenhum contato' })
+    expect(contatos).toHaveAttribute('href', '/contas/miro#contatos')
   })
 
   it('não há texto explicando "por que importa"', async () => {

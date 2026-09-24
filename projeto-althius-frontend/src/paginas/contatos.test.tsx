@@ -157,6 +157,16 @@ describe('Aba Contatos', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Contatos' })).toBeInTheDocument()
   })
 
+  it('o nome da empresa é um link que abre aquela Conta-alvo', async () => {
+    const { usuario } = renderizarApp('/contatos')
+
+    const empresa = within((await celulasDoContato('Alex Rivera'))[2]).getByRole('link', { name: 'Anthropic' })
+    expect(empresa).toHaveAttribute('href', '/contas/anthropic')
+    await usuario.click(empresa)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anthropic' })).toBeInTheDocument()
+  })
+
   it('a ordem é a Aderência da empresa, depois o nome da empresa e depois o nome da pessoa', async () => {
     renderizarApp('/contatos')
 
