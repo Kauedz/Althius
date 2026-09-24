@@ -8,7 +8,7 @@ interface Props {
   /** Ícone ao lado do título, nas páginas de primeiro nível. */
   icone?: LucideIcon
   /** Caminho de volta, nas páginas de dentro de outra (ex.: "Agentes / Scopus"). */
-  voltar?: { para: string; rotulo: string }
+  voltar?: { para: string; rotulo: string; estado?: unknown }
   /** Ações à direita da barra de topo. */
   acoes?: ReactNode
   /** O conteúdo ocupa a janela abaixo da barra de topo, e quem rola é um quadro dentro dele (ex.: uma tabela). */
@@ -25,7 +25,7 @@ export function Pagina({ titulo, icone: Icone, voltar, acoes, ocupaAJanela, clas
         <div className="flex min-w-0 items-center gap-2">
           {voltar && (
             <>
-              <Link to={voltar.para} className="rotulo inline-flex items-center gap-1.5 hover:text-al-ink">
+              <Link to={voltar.para} state={voltar.estado} className="rotulo inline-flex items-center gap-1.5 hover:text-al-ink">
                 <ArrowLeft strokeWidth={1.8} className="size-3.5" aria-hidden />
                 {voltar.rotulo}
               </Link>

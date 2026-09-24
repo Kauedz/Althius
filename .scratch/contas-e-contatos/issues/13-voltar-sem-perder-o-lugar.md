@@ -6,7 +6,13 @@
 
 **Status:** ready-for-agent
 
-- [ ] Voltar do detalhe pela migalha mantém a busca, os filtros e a ordenação da aba Contas
-- [ ] Voltar pelo voltar do navegador mantém o mesmo recorte
-- [ ] A posição de rolagem da lista é restaurada nos dois caminhos
-- [ ] Voltar de uma Conta-alvo aberta pela aba Contatos devolve a aba Contatos com a busca e os filtros que estavam aplicados
+- [x] Voltar do detalhe pela migalha mantém a busca, os filtros e a ordenação da aba Contas
+- [x] Voltar pelo voltar do navegador mantém o mesmo recorte
+- [x] A posição de rolagem da lista é restaurada nos dois caminhos
+- [x] Voltar de uma Conta-alvo aberta pela aba Contatos devolve a aba Contatos com a busca e os filtros que estavam aplicados
+
+## Comments
+
+- Os links da lista para o detalhe levam, no estado da navegação, o endereço da lista com o recorte e o rótulo da migalha. Aberto pela aba Contatos, a migalha é "Contatos" e volta para a aba Contatos; aberto direto pelo endereço, continua "Contas" para `/contas`.
+- A posição do quadro da tabela fica guardada por endereço (com o recorte) enquanto o app está aberto, e volta só pelo voltar do navegador ou pela migalha. Entrar pela sidebar ou pelas abas abre a lista no topo.
+- A rolagem até a âncora `#contatos` do detalhe (ticket 12) não mexe na rolagem da lista: são quadros diferentes.

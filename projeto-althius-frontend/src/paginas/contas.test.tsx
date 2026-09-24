@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { App } from '@/App'
 import type { FonteDeContas } from '@/fonte/contas-tipos'
@@ -37,7 +37,7 @@ describe('Aba Contas (ponta a ponta)', () => {
     expect(
       screen.getByText('Empresas do seu mercado organizadas pelo momento de abordagem'),
     ).toBeInTheDocument()
-    expect(screen.getByText('30 contas')).toBeInTheDocument()
+    expect(contagem()).toHaveTextContent(/^30 contas$/)
 
     const tabela = screen.getByRole('table', { name: 'Tabela de Contas' })
     const cabecalhos = within(tabela)
@@ -356,5 +356,508 @@ describe('Células da tabela de Contas', () => {
     expect(modulo.queryAllByText(/\d+\s*(\/|de)\s*100\b/)).toHaveLength(0)
     expect(modulo.queryAllByText(/\bEtapa\b/i)).toHaveLength(0)
     expect(modulo.queryAllByText(/\bCRM\b/)).toHaveLength(0)
+  })
+})
+
+/** O link com o nome da empresa na tabela de Contas, que abre o pop-up. */
+async function nomeDaEmpresa(nome: string) {
+  const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+  return within(tabela).getByRole('link', { name: nome })
+}
+
+/** Mais que o atraso de abrir e o de fechar o pop-up da empresa somados. */
+const ALEM_DOS_ATRASOS_DO_POP_UP_MS = 800
+
+describe('Pop-up da empresa', () => {
+  it('abre ao passar o mouse sobre a empresa, depois de um pequeno atraso, com os links do site e do LinkedIn', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('OpenAI'))
+
+    // Não abre na hora, para não piscar ao percorrer a tabela
+    expect(screen.queryByRole('link', { name: /Site/ })).not.toBeInTheDocument()
+
+    const site = await screen.findByRole('link', { name: /Site/ })
+    expect(site).toHaveAttribute('href', 'https://openai.com')
+    expect(screen.getByRole('link', { name: /LinkedIn/ })).toHaveAttribute(
+      'href',
+      'https://www.linkedin.com/company/openai',
+    )
+  })
+
+  it('abre quando o nome da empresa recebe o foco do teclado', async () => {
+    renderizarApp('/contas')
+
+    const nome = await nomeDaEmpresa('Stripe')
+    act(() => nome.focus())
+
+    expect(await screen.findByRole('link', { name: /Site/ })).toHaveAttribute('href', 'https://stripe.com')
+  })
+
+  it('pelo teclado, o Tab leva do nome aos links do pop-up e depois segue a tabela', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    const nome = await nomeDaEmpresa('OpenAI')
+    act(() => nome.focus())
+    const site = await screen.findByRole('link', { name: /Site/ })
+
+    await usuario.tab()
+    expect(site).toHaveFocus()
+    await usuario.tab()
+    expect(screen.getByRole('link', { name: /LinkedIn/ })).toHaveFocus()
+
+    // Shift+Tab volta pelo mesmo caminho
+    await usuario.tab({ shift: true })
+    expect(site).toHaveFocus()
+    await usuario.tab({ shift: true })
+    expect(nome).toHaveFocus()
+
+    // Saindo do último link, o foco segue para o que vem depois do nome, e o pop-up fecha
+    await usuario.tab()
+    await usuario.tab()
+    await usuario.tab()
+    const tabela = screen.getByRole('table', { name: 'Tabela de Contas' })
+    expect(tabela).toContainElement(document.activeElement as HTMLElement)
+    expect(nome).not.toHaveFocus()
+    await waitFor(() => expect(screen.queryByRole('link', { name: /Site/ })).not.toBeInTheDocument())
+  })
+
+  it('continua aberto enquanto o ponteiro está nele, e o link pode ser clicado', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('OpenAI'))
+    const linkedin = await screen.findByRole('link', { name: /LinkedIn/ })
+
+    await usuario.hover(linkedin)
+    await new Promise((r) => setTimeout(r, ALEM_DOS_ATRASOS_DO_POP_UP_MS))
+    expect(screen.getByRole('link', { name: /LinkedIn/ })).toBeInTheDocument()
+
+    // Clicar no link do pop-up não abre o detalhe da conta
+    await usuario.click(screen.getByRole('link', { name: /LinkedIn/ }))
+    expect(screen.getByRole('table', { name: 'Tabela de Contas' })).toBeInTheDocument()
+  })
+
+  it('mostra só os links que existem: só o site, quando não há LinkedIn', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('Banorte'))
+
+    expect(await screen.findByRole('link', { name: /Site/ })).toHaveAttribute('href', 'https://banorte.com')
+    expect(screen.queryByRole('link', { name: /LinkedIn/ })).not.toBeInTheDocument()
+  })
+
+  it('sem site nem LinkedIn, o pop-up não aparece', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    const nome = await nomeDaEmpresa('Miro')
+    await usuario.hover(nome)
+    act(() => nome.focus())
+    await new Promise((r) => setTimeout(r, ALEM_DOS_ATRASOS_DO_POP_UP_MS))
+
+    expect(screen.queryByRole('link', { name: /Site|LinkedIn/ })).not.toBeInTheDocument()
+  })
+
+  it('os links abrem em outra aba', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('OpenAI'))
+
+    for (const link of [
+      await screen.findByRole('link', { name: /Site/ }),
+      screen.getByRole('link', { name: /LinkedIn/ }),
+    ]) {
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
+    }
+  })
+})
+
+/** Os nomes das empresas na tabela de Contas, na ordem das linhas. */
+async function nomesNaTabela() {
+  const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+  return within(tabela)
+    .getAllByRole('row')
+    .slice(1)
+    .map((linha) => within(linha).getAllByRole('link')[0].textContent)
+}
+
+/** A contagem de contas exibidas, no topo da aba Contas ("30 contas" ou "N de 30 contas"). */
+function contagem() {
+  return screen.getByText((_, elemento) => /^\d+( de \d+)? contas?$/.test(elemento?.textContent ?? '') && elemento?.tagName === 'SPAN')
+}
+
+type Usuario = ReturnType<typeof renderizarApp>['usuario']
+
+/** Escolhe uma opção de "Ordenar por" na aba Contas. */
+async function ordenarPor(usuario: Usuario, rotulo: string) {
+  await usuario.selectOptions(await screen.findByRole('combobox', { name: 'Ordenar por' }), `Ordenar por: ${rotulo}`)
+}
+
+describe('"Ordenar por" e busca na aba Contas', () => {
+  it('"Ordenar por" mostra as quatro opções, com Prioridade escolhida por padrão', async () => {
+    renderizarApp('/contas')
+
+    const ordenar = await screen.findByRole('combobox', { name: 'Ordenar por' })
+    expect(within(ordenar).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Ordenar por: Prioridade',
+      'Ordenar por: Último sinal',
+      'Ordenar por: Contatos',
+      'Ordenar por: Último contato',
+    ])
+    expect(ordenar).toHaveDisplayValue('Ordenar por: Prioridade')
+  })
+
+  it('os cabeçalhos da tabela não são clicáveis', async () => {
+    renderizarApp('/contas')
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+    for (const cabecalho of within(tabela).getAllByRole('columnheader')) {
+      expect(within(cabecalho).queryByRole('button')).not.toBeInTheDocument()
+      expect(cabecalho).not.toHaveAttribute('aria-sort')
+    }
+  })
+
+  it('Último sinal põe o mais recente primeiro e as contas sem Sinal no fim', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Último sinal')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 3)).toEqual(['OpenAI', 'Stripe', 'Anthropic'])
+    // Depois das Quentes e das Fit, os Sinais mais antigos misturam os grupos: Mercado Livre (Não fit) antes de BBVA México
+    expect(nomes.slice(18, 27)).toEqual([
+      'SAP',
+      'Twilio',
+      'Zendesk',
+      'Asana',
+      'monday.com',
+      'Okta',
+      'Mercado Livre',
+      'Rappi',
+      'BBVA México',
+    ])
+    expect(nomes.slice(27)).toEqual(['Banorte', 'Miro', 'Oracle'])
+  })
+
+  it('Contatos põe a conta com mais Contatos primeiro e as sem Contatos no fim', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Contatos')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 3)).toEqual(['Canva', 'HubSpot', 'Nubank'])
+    expect(nomes.slice(-4)).toEqual(['Okta', 'Banorte', 'Miro', 'Rappi'])
+  })
+
+  it('Último contato põe o mais recente primeiro e "Nunca" no fim', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Último contato')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 4)).toEqual(['Stripe', 'Nubank', 'Databricks', 'OpenAI'])
+    expect(nomes.slice(-6)).toEqual(['Mercado Livre', 'Banorte', 'BBVA México', 'Miro', 'Okta', 'Rappi'])
+  })
+
+  it('voltar para Prioridade restaura a ordem padrão', async () => {
+    const { usuario } = renderizarApp('/contas')
+    const ordenar = await screen.findByRole('combobox', { name: 'Ordenar por' })
+
+    await usuario.selectOptions(ordenar, 'Ordenar por: Contatos')
+    await usuario.selectOptions(ordenar, 'Ordenar por: Prioridade')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes.slice(0, 2)).toEqual(['OpenAI', 'Stripe'])
+    expect(nomes.at(-1)).toBe('BBVA México')
+  })
+
+  it('a busca encontra pelo nome ignorando maiúsculas e acentos, e a contagem mostra "N de M contas"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'MEXICO')
+
+    expect(await nomesNaTabela()).toEqual(['BBVA México'])
+    expect(contagem()).toHaveTextContent(/^1 de 30 contas$/)
+  })
+
+  it('a busca encontra pelo domínio', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'mercadolivre.com')
+
+    expect(await nomesNaTabela()).toEqual(['Mercado Livre'])
+  })
+
+  it('a busca mantém a ordenação escolhida', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await ordenarPor(usuario, 'Contatos')
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contas' }), 'n')
+
+    const nomes = await nomesNaTabela()
+    expect(nomes[0]).toBe('Canva')
+    expect(contagem()).toHaveTextContent(`${nomes.length} de 30 contas`)
+  })
+
+  it('uma busca sem resultado mostra a mensagem e "Limpar busca e filtros" restaura a lista', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'xyz')
+
+    expect(screen.getByText('Nenhuma conta encontrada para “xyz”.')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Tabela de Contas' })).not.toBeInTheDocument()
+    expect(contagem()).toHaveTextContent(/^0 de 30 contas$/)
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar busca e filtros' }))
+
+    expect(await nomesNaTabela()).toHaveLength(30)
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('')
+    expect(contagem()).toHaveTextContent(/^30 contas$/)
+  })
+
+  it('abrir o endereço com busca e ordenação reconstrói a lista com elas', async () => {
+    renderizarApp('/contas?busca=an&ordem=ultimo-contato')
+
+    expect(await screen.findByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('an')
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveDisplayValue('Ordenar por: Último contato')
+    // "an" no nome ou no domínio: Stripe (Ontem) fica fora, Anthropic antes de Canva e Banorte (Nunca) no fim
+    const nomes = await nomesNaTabela()
+    expect(nomes).not.toContain('Stripe')
+    expect(nomes.indexOf('Anthropic')).toBeLessThan(nomes.indexOf('Canva'))
+    expect(nomes.at(-1)).toBe('Banorte')
+    expect(contagem()).toHaveTextContent(`${nomes.length} de 30 contas`)
+  })
+
+  it('uma ordenação desconhecida no endereço cai na Prioridade', async () => {
+    renderizarApp('/contas?ordem=inventada')
+
+    expect(await screen.findByRole('combobox', { name: 'Ordenar por' })).toHaveDisplayValue('Ordenar por: Prioridade')
+    expect((await nomesNaTabela())[0]).toBe('OpenAI')
+  })
+})
+
+/** Abre o menu "Filtros" da aba Contas e devolve o painel. */
+async function abrirFiltros(usuario: Usuario) {
+  await usuario.click(await screen.findByRole('button', { name: /^Filtros/ }))
+  return screen.findByRole('dialog', { name: 'Filtrar contas' })
+}
+
+/** Marca uma opção do grupo de filtros com esse nome. */
+async function filtrar(usuario: Usuario, grupo: string, opcao: string) {
+  const painel = screen.queryByRole('dialog', { name: 'Filtrar contas' }) ?? (await abrirFiltros(usuario))
+  const doGrupo = within(within(painel).getByRole('group', { name: grupo }))
+  await usuario.click(doGrupo.queryByRole('checkbox', { name: opcao }) ?? doGrupo.getByRole('radio', { name: opcao }))
+}
+
+/** Os rótulos dos chips de filtros ativos, na ordem em que aparecem. */
+function chips() {
+  return screen
+    .queryAllByRole('button', { name: /^Remover filtro / })
+    .map((botao) => botao.getAttribute('aria-label')?.replace(/^Remover filtro /, ''))
+}
+
+describe('Filtros da aba Contas', () => {
+  it('"Filtros" abre um menu com os grupos Aderência, Segmento, Sinal e Contatos, e os Segmentos vêm dos dados', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    const painel = await abrirFiltros(usuario)
+
+    expect(within(painel).getAllByRole('group').map((g) => g.querySelector('legend')?.textContent)).toEqual([
+      'Aderência',
+      'Segmento',
+      'Sinal',
+      'Contatos',
+    ])
+    // As opções do grupo, nesta ordem e com estes nomes; o nome é o rótulo, sem a contagem ao lado
+    const opcoes = (grupo: string, papel: 'checkbox' | 'radio', nomes: string[]) => {
+      const doGrupo = within(within(painel).getByRole('group', { name: grupo }))
+      expect(doGrupo.getAllByRole(papel)).toEqual(nomes.map((nome) => doGrupo.getByRole(papel, { name: nome })))
+    }
+    opcoes('Aderência', 'checkbox', ['Quente', 'Fit', 'Não fit'])
+    opcoes('Segmento', 'checkbox', [
+      'Atendimento',
+      'Comércio eletrônico',
+      'Comunicação',
+      'Dados e analytics',
+      'DevOps',
+      'Gestão de pessoas',
+      'Infraestrutura',
+      'Inteligência Artificial',
+      'Marketing e vendas',
+      'Produtividade',
+      'Segurança',
+      'Serviços financeiros',
+      'Software corporativo',
+    ])
+    opcoes('Sinal', 'radio', ['Com sinal', 'Sem sinal'])
+    opcoes('Contatos', 'radio', ['Com contatos', 'Sem contatos'])
+  })
+
+  it('cada filtro reduz a lista e atualiza a contagem "N de M contas"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    expect(await nomesNaTabela()).toHaveLength(18)
+    expect(contagem()).toHaveTextContent(/^18 de 30 contas$/)
+  })
+
+  it('opções do mesmo grupo se combinam com "ou"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Fit')
+    await filtrar(usuario, 'Aderência', 'Não fit')
+    expect(await nomesNaTabela()).toHaveLength(11)
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+    await filtrar(usuario, 'Segmento', 'Inteligência Artificial')
+    await filtrar(usuario, 'Segmento', 'Serviços financeiros')
+    expect((await nomesNaTabela()).toSorted()).toEqual(['Anthropic', 'Banorte', 'Brex', 'Nubank', 'OpenAI', 'Ramp', 'Stripe'])
+  })
+
+  it('grupos diferentes se combinam com "e"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Fit')
+    await filtrar(usuario, 'Sinal', 'Sem sinal')
+    expect(await nomesNaTabela()).toEqual(['Miro', 'Oracle'])
+
+    await filtrar(usuario, 'Contatos', 'Sem contatos')
+    expect(await nomesNaTabela()).toEqual(['Miro'])
+    expect(contagem()).toHaveTextContent(/^1 de 30 contas$/)
+  })
+
+  it('Sinal e Contatos têm uma escolha só: "Com" ou "Sem"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Contatos', 'Com contatos')
+    expect(await nomesNaTabela()).toHaveLength(27)
+    await filtrar(usuario, 'Contatos', 'Sem contatos')
+    expect(await nomesNaTabela()).toEqual(['Miro', 'Rappi', 'Banorte'])
+    expect(chips()).toEqual(['Sem contatos'])
+  })
+
+  it('busca e filtros se combinam', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Segmento', 'Serviços financeiros')
+    await usuario.keyboard('{Escape}')
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contas' }), 'b')
+
+    // Nubank e Brex têm "b" no nome; Banorte, no nome e no domínio. Stripe e Ramp não.
+    expect((await nomesNaTabela()).toSorted()).toEqual(['Banorte', 'Brex', 'Nubank'])
+    expect(contagem()).toHaveTextContent(/^3 de 30 contas$/)
+  })
+
+  it('cada filtro ativo aparece como um chip abaixo da barra, e remover o chip desfaz o filtro', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument()
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    await filtrar(usuario, 'Aderência', 'Fit')
+    await filtrar(usuario, 'Segmento', 'Produtividade')
+    await filtrar(usuario, 'Sinal', 'Com sinal')
+    await filtrar(usuario, 'Contatos', 'Com contatos')
+    await usuario.keyboard('{Escape}')
+
+    expect(chips()).toEqual([
+      'Aderência: Quente',
+      'Aderência: Fit',
+      'Segmento: Produtividade',
+      'Com sinal',
+      'Com contatos',
+    ])
+    // Figma, Notion, Canva, Asana e monday.com; Miro fica fora, sem Sinal nem Contatos
+    expect(await nomesNaTabela()).toHaveLength(5)
+
+    await usuario.click(screen.getByRole('button', { name: 'Remover filtro Com sinal' }))
+    await usuario.click(screen.getByRole('button', { name: 'Remover filtro Com contatos' }))
+    expect(chips()).toEqual(['Aderência: Quente', 'Aderência: Fit', 'Segmento: Produtividade'])
+    expect(await nomesNaTabela()).toContain('Miro')
+
+    await usuario.click(screen.getByRole('button', { name: 'Remover filtro Aderência: Quente' }))
+    expect(await nomesNaTabela()).toEqual(['Asana', 'monday.com', 'Miro'])
+
+    // O menu reflete a remoção
+    const painel = await abrirFiltros(usuario)
+    expect(within(painel).getByRole('checkbox', { name: 'Quente' })).not.toBeChecked()
+    expect(within(painel).getByRole('checkbox', { name: 'Fit' })).toBeChecked()
+  })
+
+  it('"Limpar filtros" desfaz todos os filtros e mantém a busca', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'a')
+    const comBusca = (await nomesNaTabela()).length
+    await filtrar(usuario, 'Aderência', 'Não fit')
+    await filtrar(usuario, 'Sinal', 'Com sinal')
+    await usuario.keyboard('{Escape}')
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+
+    expect(chips()).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('a')
+    expect(await nomesNaTabela()).toHaveLength(comBusca)
+  })
+
+  it('filtros sem resultado mostram "Nenhuma conta encontrada", e "Limpar busca e filtros" restaura a lista', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    await filtrar(usuario, 'Sinal', 'Sem sinal')
+    await usuario.keyboard('{Escape}')
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contas' }), 'o')
+
+    expect(screen.getByText(/^Nenhuma conta encontrada/)).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Tabela de Contas' })).not.toBeInTheDocument()
+    expect(contagem()).toHaveTextContent(/^0 de 30 contas$/)
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar busca e filtros' }))
+
+    expect(await nomesNaTabela()).toHaveLength(30)
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('')
+    expect(chips()).toEqual([])
+    expect(contagem()).toHaveTextContent(/^30 contas$/)
+  })
+
+  it('só com filtros, a mensagem sem resultado não menciona busca', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    await filtrar(usuario, 'Sinal', 'Sem sinal')
+
+    expect(screen.getByText('Nenhuma conta encontrada.')).toBeInTheDocument()
+  })
+
+  it('abrir o endereço com filtros, busca e ordenação reconstrói a lista, os chips e o menu', async () => {
+    const { usuario } = renderizarApp(
+      '/contas?aderencia=fit&aderencia=nao-fit&segmento=Produtividade&segmento=Com%C3%A9rcio+eletr%C3%B4nico&contatos=com&ordem=contatos&busca=a',
+    )
+
+    // Fit ou Não fit, de Produtividade ou Comércio eletrônico, com Contatos e "a" no nome ou domínio: Miro fica fora
+    expect((await nomesNaTabela()).toSorted()).toEqual(['Asana', 'Mercado Livre', 'monday.com'])
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('a')
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveDisplayValue('Ordenar por: Contatos')
+    expect(chips()).toEqual([
+      'Aderência: Fit',
+      'Aderência: Não fit',
+      'Segmento: Comércio eletrônico',
+      'Segmento: Produtividade',
+      'Com contatos',
+    ])
+
+    const painel = await abrirFiltros(usuario)
+    expect(within(painel).getByRole('checkbox', { name: 'Fit' })).toBeChecked()
+    expect(within(painel).getByRole('checkbox', { name: 'Produtividade' })).toBeChecked()
+    expect(within(painel).getByRole('radio', { name: 'Com contatos' })).toBeChecked()
+    expect(within(painel).getByRole('radio', { name: 'Com sinal' })).not.toBeChecked()
+  })
+
+  it('filtros desconhecidos no endereço são ignorados', async () => {
+    renderizarApp('/contas?aderencia=morna&sinal=talvez')
+
+    expect(await nomesNaTabela()).toHaveLength(30)
+    expect(chips()).toEqual([])
   })
 })

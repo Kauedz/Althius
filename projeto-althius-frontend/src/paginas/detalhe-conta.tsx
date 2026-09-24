@@ -1,21 +1,20 @@
-import { useState } from 'react'
-import {
-  ArrowLeft,
-  ArrowRight,
-  ExternalLink,
-  Mail,
-  Pause,
-  Phone,
-  Plus,
-} from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowRight, Building2, ExternalLink, Pause, Plus } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { SeloDeAderencia } from '@/components/aderencia'
+import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
+import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useDadosDeSequencias, useFonteDeContas } from '@/fonte/contexto'
-import type { Aderencia, TipoDeInteracao } from '@/fonte/contas-tipos'
-import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import type { ContaAlvo, Interacao, Sinal, TipoDeInteracao } from '@/fonte/contas-tipos'
+import { formatarDataCompleta, formatarDataDoModulo, formatarDataExplicita } from '@/fonte/formatar-data'
+import { porId } from '@/lib/utils'
 import { SeloStatus } from './detalhe-sequencia'
 import { DialogoNovaSequencia } from './nova-sequencia'
+import { TabelaDeContatos } from './tabela-de-contatos'
+import { useMigalhaParaALista } from './voltar-para-a-lista'
 
 interface Props {
   contaId: string
@@ -29,10 +28,15 @@ const ROTULOS_INTERACOES: Record<TipoDeInteracao, string> = {
   reuniao: 'Reunião',
 }
 
+const VOLTAR_PARA_CONTAS = { para: '/contas', rotulo: 'Contas' }
+
+/** O detalhe de uma Conta-alvo, numa página só: cabeçalho e, abaixo, as seções em sequência. */
 export function DetalheConta({ contaId }: Props) {
   const fonte = useFonteDeContas()
   const hoje = fonte.hoje()
   const [dialogoNovaAberto, setDialogoNovaAberto] = useState(false)
+  // A migalha volta para a lista de onde o detalhe foi aberto (Contas ou Contatos), com o recorte que ela tinha.
+  const voltar = useMigalhaParaALista(VOLTAR_PARA_CONTAS)
 
   const {
     dados: conta,
@@ -61,25 +65,43 @@ export function DetalheConta({ contaId }: Props) {
     carregando: carregandoSequencia,
   } = useDadosDeSequencias((f) => f.sequenciaPorConta(contaId), [contaId])
 
+  // A âncora do endereço (a seção Contatos, vindo da tabela de Contas) só tem onde cair quando as seções acima dela
+  // já têm a altura final. Rola uma vez por navegação: um "Tentar de novo" não devolve a página à âncora.
+  const { hash, key } = useLocation()
+  const navegacaoJaRolada = useRef<string | null>(null)
+  const secoesAcimaProntas = !carregandoConta && !carregandoSinais && !carregandoContatos
+  useEffect(() => {
+    if (!hash || !secoesAcimaProntas || navegacaoJaRolada.current === key) return
+    const secao = document.getElementById(decodeURIComponent(hash.slice(1)))
+    if (!secao) return
+    navegacaoJaRolada.current = key
+    secao.scrollIntoView()
+  }, [hash, key, secoesAcimaProntas])
+
   if (carregandoConta) {
-    return <Carregando />
+    return (
+      <Pagina titulo="Contas" icone={Building2}>
+        <Carregando />
+      </Pagina>
+    )
   }
 
-  const naoEncontrada = !conta || (erroConta !== null && erroConta.message.includes('não encontrada'))
-
-  if (erroConta || !conta) {
+  // A fonte rejeita um identificador que não existe; qualquer outra falha é um erro de carregamento.
+  if (!conta && (!erroConta || erroConta.message.includes('não encontrada'))) {
     return (
-      <div role="alert" className="flex flex-col items-start gap-4 py-8">
-        <Link
-          to="/contas"
-          className="inline-flex items-center gap-1.5 text-xs text-al-muted hover:text-al-ink tracking-rotulo uppercase"
-        >
-          <ArrowLeft className="size-4" /> Voltar para Contas
+      <Pagina titulo="Conta não encontrada" voltar={voltar}>
+        <Link to={voltar.para} state={voltar.estado} className="self-start underline underline-offset-4">
+          Voltar para {voltar.rotulo}
         </Link>
-        <p className="text-sm text-al-muted">
-          {naoEncontrada ? 'Conta não encontrada.' : 'Não foi possível carregar a conta.'}
-        </p>
-        {!naoEncontrada && erroConta && (
+      </Pagina>
+    )
+  }
+
+  if (!conta) {
+    return (
+      <Pagina titulo="Contas" icone={Building2}>
+        <div role="alert" className="flex flex-col items-start gap-3 py-6">
+          <p className="text-sm text-al-muted">Não foi possível carregar a Conta-alvo.</p>
           <Button
             type="button"
             variant="outline"
@@ -88,124 +110,77 @@ export function DetalheConta({ contaId }: Props) {
           >
             Tentar de novo
           </Button>
-        )}
-      </div>
+        </div>
+      </Pagina>
     )
   }
 
-  const contatosMap = new Map(contatos?.map((c) => [c.id, c]) ?? [])
-  const sinalMaisRecente = sinais && sinais.length > 0 ? sinais[0] : null
-  const outrosSinais = sinais && sinais.length > 1 ? sinais.slice(1) : []
-
-  // Iniciais para o logo quando não houver imagem
-  const iniciais = conta.nome
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join('')
-    .toUpperCase()
+  const contatosPorId = porId(contatos ?? [])
 
   return (
-    <div className="flex flex-col gap-6 py-2">
-      {/* Navegação / Migalha */}
-      <div>
-        <Link
-          to="/contas"
-          className="inline-flex items-center gap-1.5 text-xs text-al-muted hover:text-al-ink tracking-rotulo uppercase"
-        >
-          <ArrowLeft className="size-4" /> Contas / {conta.nome}
-        </Link>
-      </div>
+    <Pagina titulo={conta.nome} voltar={voltar} className="gap-0">
+      <CabecalhoDaConta conta={conta} hoje={hoje} />
 
-      {/* Cabeçalho da Conta-alvo */}
-      <div className="flex flex-col gap-3 border-b border-al-line pb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          {conta.logo ? (
-            <img
-              src={conta.logo}
-              alt={`Logo da ${conta.nome}`}
-              className="size-12 rounded-none border border-al-line object-cover"
-            />
+      <div className="flex flex-col">
+        <Secao id="sinais" titulo="Sinais" contagem={sinais && contar(sinais.length, 'sinal', 'sinais')}>
+          {carregandoSinais ? (
+            <Carregando />
+          ) : sinais && sinais.length > 0 ? (
+            <SinaisDaConta sinais={sinais} hoje={hoje} />
           ) : (
-            <div
-              aria-hidden="true"
-              className="size-12 shrink-0 border border-al-line bg-al-surface flex items-center justify-center font-bold text-base text-al-ink"
-            >
-              {iniciais}
-            </div>
+            <SecaoVazia>Nenhum sinal</SecaoVazia>
+          )}
+        </Secao>
+
+        <Secao id="contatos" titulo="Contatos" contagem={contatos && contar(contatos.length, 'contato', 'contatos')}>
+          {carregandoContatos && <Carregando />}
+
+          {!carregandoContatos && (!contatos || contatos.length === 0) && (
+            <SecaoVazia>Nenhum contato</SecaoVazia>
           )}
 
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="titulo-secao text-2xl font-light uppercase text-al-ink">
-                {conta.nome}
-              </h2>
-              <BadgeAderencia aderencia={conta.aderencia} />
+          {!carregandoContatos && contatos && contatos.length > 0 && (
+            <div className="overflow-x-auto">
+              <TabelaDeContatos
+                linhas={contatos
+                  .toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                  .map((contato) => ({ contato, conta }))}
+                hoje={hoje}
+                rotulo="Contatos da Conta-alvo"
+                comEmpresa={false}
+              />
             </div>
+          )}
+        </Secao>
 
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-al-muted">
-              {conta.dominio && (
-                <a
-                  href={conta.siteUrl ?? `https://${conta.dominio}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-al-ink underline underline-offset-2"
-                >
-                  {conta.dominio}
-                  <ExternalLink className="size-3" />
-                </a>
-              )}
+        <Secao
+          id="interacoes"
+          titulo="Interações"
+          contagem={interacoes && contar(interacoes.length, 'interação', 'interações')}
+        >
+          {carregandoInteracoes ? (
+            <Carregando />
+          ) : interacoes && interacoes.length > 0 ? (
+            <ol aria-label="Interações" className={LINHA_DO_TEMPO}>
+              {interacoes.map((interacao) => (
+                <ItemDeInteracao
+                  key={interacao.id}
+                  interacao={interacao}
+                  nomeDoContato={contatosPorId[interacao.contatoId]?.nome}
+                  hoje={hoje}
+                />
+              ))}
+            </ol>
+          ) : (
+            <SecaoVazia>Nenhuma interação registrada</SecaoVazia>
+          )}
+        </Secao>
 
-              {conta.linkedinUrl && (
-                <>
-                  <span>·</span>
-                  <a
-                    href={conta.linkedinUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 hover:text-al-ink underline underline-offset-2"
-                  >
-                    LinkedIn
-                    <ExternalLink className="size-3" />
-                  </a>
-                </>
-              )}
-
-              {conta.segmento && (
-                <>
-                  <span>·</span>
-                  <span>{conta.segmento}</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Linha discreta de origem */}
-        {conta.origem && (
-          <p className="text-xs text-al-muted">
-            {conta.origem.tipo === 'recomendada' && 'Recomendada pela Althius'}
-            {conta.origem.tipo === 'importada' &&
-              `Importada por ${conta.origem.importadaPor} em ${formatarDataDoModulo(conta.origem.importadaEm, hoje, { maiuscula: false })}.`}
-          </p>
-        )}
-      </div>
-
-      {/* Seções principais do Detalhe */}
-      <div className="flex flex-col gap-8">
-        {/* SEÇÃO SEQUÊNCIA (TICKET 04) */}
-        <section aria-labelledby="secao-sequencia" className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h3 id="secao-sequencia" className="rotulo text-xs font-semibold uppercase text-al-muted">
-              Sequência
-            </h3>
-            {sequencia && (
-              <span className="text-xs text-al-muted">
-                {sequencia.steps.length} {sequencia.steps.length === 1 ? 'step' : 'steps'} ordenados
-              </span>
-            )}
-          </div>
+        <Secao
+          id="sequencia"
+          titulo="Sequência"
+          contagem={sequencia && `${contar(sequencia.steps.length, 'step', 'steps')} ordenados`}
+        >
 
           {carregandoSequencia && (
             <div className="border border-al-line bg-al-surface p-4">
@@ -286,224 +261,192 @@ export function DetalheConta({ contaId }: Props) {
               </Button>
             </div>
           )}
-        </section>
-
-        {/* SEÇÃO SINAIS */}
-        <section aria-labelledby="secao-sinais" className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h3 id="secao-sinais" className="rotulo text-xs font-semibold uppercase text-al-muted">
-              Sinais
-            </h3>
-            {sinais && (
-              <span className="text-xs text-al-muted">
-                {sinais.length} {sinais.length === 1 ? 'sinal' : 'sinais'}
-              </span>
-            )}
-          </div>
-
-          {carregandoSinais && <Carregando />}
-
-          {!carregandoSinais && (!sinais || sinais.length === 0) && (
-            <div className="border border-al-line bg-al-surface p-4 text-xs text-al-muted">
-              Nenhum sinal
-            </div>
-          )}
-
-          {!carregandoSinais && sinalMaisRecente && (
-            <div className="flex flex-col gap-3">
-              {/* Sinal mais recente em destaque */}
-              <div className="border border-al-line bg-al-surface p-4 flex flex-col gap-2">
-                <p className="text-sm font-medium text-al-ink">{sinalMaisRecente.frase}</p>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-al-muted">
-                  <span>
-                    {formatarDataDoModulo(sinalMaisRecente.data, hoje, { maiuscula: true })}
-                  </span>
-                  {sinalMaisRecente.fonte && (
-                    <>
-                      <span>·</span>
-                      <span>Fonte: {sinalMaisRecente.fonte}</span>
-                    </>
-                  )}
-                  <span>·</span>
-                  <span>Detectado por {sinalMaisRecente.detectadoPor ?? 'Scopus'}</span>
-                </div>
-              </div>
-
-              {/* Histórico dos outros sinais */}
-              {outrosSinais.length > 0 && (
-                <div className="flex flex-col divide-y divide-al-line border border-al-line bg-al-surface/40">
-                  {outrosSinais.map((s) => (
-                    <div key={s.id} className="p-3 flex items-center justify-between gap-3 text-xs">
-                      <span className="text-al-ink font-normal">{s.frase}</span>
-                      <span className="text-al-muted shrink-0">
-                        {formatarDataDoModulo(s.data, hoje, { maiuscula: false })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* SEÇÃO CONTATOS */}
-        <section aria-labelledby="secao-contatos" className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h3 id="secao-contatos" className="rotulo text-xs font-semibold uppercase text-al-muted">
-              Contatos
-            </h3>
-            {contatos && (
-              <span className="text-xs text-al-muted">
-                {contatos.length} {contatos.length === 1 ? 'contato' : 'contatos'}
-              </span>
-            )}
-          </div>
-
-          {carregandoContatos && <Carregando />}
-
-          {!carregandoContatos && (!contatos || contatos.length === 0) && (
-            <div className="border border-al-line bg-al-surface p-4 text-xs text-al-muted">
-              Nenhum contato
-            </div>
-          )}
-
-          {!carregandoContatos && contatos && contatos.length > 0 && (
-            <div className="overflow-x-auto border border-al-line bg-al-surface">
-              <table aria-label="Tabela de Contatos da Conta" className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-al-line text-xs font-medium tracking-rotulo text-al-muted uppercase">
-                    <th scope="col" className="py-2.5 px-4 font-normal">Nome</th>
-                    <th scope="col" className="py-2.5 px-4 font-normal">Cargo</th>
-                    <th scope="col" className="py-2.5 px-4 font-normal">Persona</th>
-                    <th scope="col" className="py-2.5 px-4 font-normal">Canais</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-al-line">
-                  {contatos.map((contato) => (
-                    <tr key={contato.id} className="h-10 text-xs">
-                      <td className="py-2 px-4 font-medium text-al-ink">{contato.nome}</td>
-                      <td className="py-2 px-4 text-al-muted">{contato.cargo ?? '—'}</td>
-                      <td className="py-2 px-4 text-al-muted">{contato.persona ?? '—'}</td>
-                      <td className="py-2 px-4">
-                        <div className="flex items-center gap-2">
-                          <span title={`E-mail ${contato.canais.email ? 'disponível' : 'indisponível'}`}>
-                            <Mail
-                              className={`size-3.5 ${contato.canais.email ? 'text-al-ink' : 'text-al-muted/20'}`}
-                            />
-                          </span>
-                          <span title={`Telefone ${contato.canais.telefone ? 'disponível' : 'indisponível'}`}>
-                            <Phone
-                              className={`size-3.5 ${contato.canais.telefone ? 'text-al-ink' : 'text-al-muted/20'}`}
-                            />
-                          </span>
-                          <span title={`LinkedIn ${contato.canais.linkedin ? 'disponível' : 'indisponível'}`}>
-                            <svg
-                              viewBox="0 0 24 24"
-                              role="img"
-                              aria-label={`LinkedIn ${contato.canais.linkedin ? 'disponível' : 'indisponível'}`}
-                              className={`size-3.5 fill-none stroke-current ${contato.canais.linkedin ? 'text-al-ink' : 'text-al-muted/20'}`}
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6ZM2 9h4v12H2z" />
-                              <circle cx="4" cy="4" r="2" />
-                            </svg>
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* SEÇÃO INTERAÇÕES */}
-        <section aria-labelledby="secao-interacoes" className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h3 id="secao-interacoes" className="rotulo text-xs font-semibold uppercase text-al-muted">
-              Interações
-            </h3>
-            {interacoes && (
-              <span className="text-xs text-al-muted">
-                {interacoes.length} {interacoes.length === 1 ? 'interação' : 'interações'}
-              </span>
-            )}
-          </div>
-
-          {carregandoInteracoes && <Carregando />}
-
-          {!carregandoInteracoes && (!interacoes || interacoes.length === 0) && (
-            <div className="border border-al-line bg-al-surface p-4 text-xs text-al-muted">
-              Nenhuma interação registrada
-            </div>
-          )}
-
-          {!carregandoInteracoes && interacoes && interacoes.length > 0 && (
-            <div className="flex flex-col divide-y divide-al-line border border-al-line bg-al-surface">
-              {interacoes.map((item) => {
-                const contato = contatosMap.get(item.contatoId)
-                const rotuloTipo = ROTULOS_INTERACOES[item.tipo] ?? item.tipo
-                const dataFormatada = formatarDataDoModulo(item.data, hoje, { maiuscula: true })
-                const dataCompleta = formatarDataCompleta(item.data)
-
-                return (
-                  <div key={item.id} className="p-3.5 flex flex-col gap-1 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-al-ink">
-                        {rotuloTipo}
-                        {contato?.nome && ` · ${contato.nome}`}
-                      </span>
-                      <span title={dataCompleta} className="text-al-muted shrink-0">
-                        {dataFormatada}
-                      </span>
-                    </div>
-
-                    {(item.participanteCliente || item.origem) && (
-                      <span className="text-al-muted text-xs">
-                        {[item.participanteCliente, item.origem].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
+        </Secao>
       </div>
 
-      {/* Modal para criar sequência caso o estado esteja vazio */}
       <DialogoNovaSequencia
         aberto={dialogoNovaAberto}
         aoMudar={setDialogoNovaAberto}
         contaIdInicial={conta.id}
       />
+    </Pagina>
+  )
+}
+
+/** Logo, nome, links, segmento, Aderência e origem: só o que a fonte entregar. */
+function CabecalhoDaConta({ conta, hoje }: { conta: ContaAlvo; hoje: Date }) {
+  const { origem } = conta
+
+  return (
+    <header className="flex items-start gap-4 border-b border-al-line pt-2 pb-7">
+      <LogoDaConta
+        nome={conta.nome}
+        logo={conta.logo}
+        deUmaCor={conta.logoDeUmaCor}
+        className="size-11 rounded-[6px] text-sm"
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <h2 className="titulo-display text-[2.375rem] leading-none">{conta.nome}</h2>
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-al-muted">
+          {conta.dominio &&
+            (conta.siteUrl ? (
+              <LinkExterno href={conta.siteUrl}>{conta.dominio}</LinkExterno>
+            ) : (
+              <span>{conta.dominio}</span>
+            ))}
+          {conta.linkedinUrl && <LinkExterno href={conta.linkedinUrl}>LinkedIn</LinkExterno>}
+          {conta.segmento && <span>{conta.segmento}</span>}
+          <SeloDeAderencia aderencia={conta.aderencia} />
+        </div>
+        {origem && (
+          <p className="mt-2.5 text-xs text-al-muted">
+            {origem.tipo === 'recomendada' ? (
+              'Recomendada pela Althius'
+            ) : (
+              <>
+                Importada por {origem.importadaPor} em{' '}
+                <span title={formatarDataCompleta(origem.importadaEm)} aria-label={formatarDataCompleta(origem.importadaEm)}>
+                  {formatarDataExplicita(origem.importadaEm, hoje)}
+                </span>
+                .
+              </>
+            )}
+          </p>
+        )}
+      </div>
+    </header>
+  )
+}
+
+function LinkExterno({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 hover:text-al-ink hover:underline underline-offset-2"
+    >
+      {children}
+      <ExternalLink className="size-3" aria-hidden />
+    </a>
+  )
+}
+
+function Secao({
+  id,
+  titulo,
+  contagem,
+  children,
+}: {
+  id: string
+  titulo: string
+  contagem?: string | null
+  children: ReactNode
+}) {
+  return (
+    <section
+      id={id}
+      aria-labelledby={`secao-${id}`}
+      className="flex scroll-mt-22 flex-col gap-4 border-b border-al-line py-8"
+    >
+      <div className="flex items-baseline justify-between">
+        <h3 id={`secao-${id}`} className="titulo-display text-[1.3125rem]">
+          {titulo}
+        </h3>
+        {contagem && <span className="text-xs text-al-muted">{contagem}</span>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function SecaoVazia({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid min-h-30 place-items-center border border-dashed border-al-line text-sm text-al-muted">
+      {children}
     </div>
   )
 }
 
-function BadgeAderencia({ aderencia }: { aderencia?: Aderencia }) {
-  if (!aderencia) {
-    return (
-      <span
-        title="Aderência ainda não avaliada"
-        aria-label="Aderência ainda não avaliada"
-        className="text-xs text-al-muted"
+function contar(n: number, singular: string, plural: string) {
+  return `${n} ${n === 1 ? singular : plural}`
+}
+
+const LINHA_DO_TEMPO = 'flex flex-col'
+// Cada item desenha o seu trecho da linha vertical à esquerda e o seu ponto.
+const ITEM_DA_LINHA_DO_TEMPO =
+  "relative border-l border-al-line pb-5 pl-5 last:pb-0 before:absolute before:top-1.5 before:-left-1 before:size-[7px] before:rounded-full before:bg-al-muted before:content-['']"
+
+/** A data do módulo, com a data completa no tooltip e no nome acessível. */
+function DataDoModulo({ data, hoje }: { data: string; hoje: Date }) {
+  const completa = formatarDataCompleta(data)
+  return (
+    <span title={completa} aria-label={completa}>
+      {formatarDataDoModulo(data, hoje, { maiuscula: true })}
+    </span>
+  )
+}
+
+/** O Sinal mais recente em destaque e, abaixo, o histórico dos outros, do mais recente ao mais antigo. */
+function SinaisDaConta({ sinais, hoje }: { sinais: Sinal[]; hoje: Date }) {
+  const [maisRecente, ...historico] = sinais
+
+  return (
+    <>
+      <article
+        aria-label="Sinal mais recente"
+        className="border-l-2 border-al-accent bg-al-surface px-5 py-4.5"
       >
-        —
-      </span>
-    )
-  }
+        <p className="mb-3 text-lg font-light text-al-ink">{maisRecente.frase}</p>
+        <DetalhesDoSinal sinal={maisRecente} hoje={hoje} />
+      </article>
 
-  if (aderencia === 'quente') {
-    return <span className="text-xs font-normal text-al-ink">🔥 Quente</span>
-  }
+      {historico.length > 0 && (
+        <ol aria-label="Histórico de sinais" className={`${LINHA_DO_TEMPO} mt-2`}>
+          {historico.map((sinal) => (
+            <li key={sinal.id} className={ITEM_DA_LINHA_DO_TEMPO}>
+              <p className="mb-0.5 text-sm text-al-ink">{sinal.frase}</p>
+              <DetalhesDoSinal sinal={sinal} hoje={hoje} />
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
+  )
+}
 
-  if (aderencia === 'fit') {
-    return <span className="text-xs font-normal text-al-ink">Fit</span>
-  }
+/** A data do Sinal e, quando existirem, a fonte, a evidência e quem o detectou. */
+function DetalhesDoSinal({ sinal, hoje }: { sinal: Sinal; hoje: Date }) {
+  return (
+    <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-al-muted">
+      <DataDoModulo data={sinal.data} hoje={hoje} />
+      {sinal.fonte && <span>Fonte: {sinal.fonte}</span>}
+      {sinal.evidencia && <LinkExterno href={sinal.evidencia}>Evidência</LinkExterno>}
+      {sinal.detectadoPor && <span>Detectado por {sinal.detectadoPor}</span>}
+    </div>
+  )
+}
 
-  return <span className="text-xs font-normal text-al-muted">Não fit</span>
+function ItemDeInteracao({
+  interacao,
+  nomeDoContato,
+  hoje,
+}: {
+  interacao: Interacao
+  nomeDoContato?: string
+  hoje: Date
+}) {
+  return (
+    <li className={ITEM_DA_LINHA_DO_TEMPO}>
+      <p className="mb-0.5 text-sm text-al-ink">
+        {ROTULOS_INTERACOES[interacao.tipo]}
+        {nomeDoContato && ` · ${nomeDoContato}`}
+      </p>
+      <p className="text-xs text-al-muted">
+        <DataDoModulo data={interacao.data} hoje={hoje} />
+        {interacao.participanteCliente && ` · ${interacao.participanteCliente}`}
+        {interacao.origem && ` · ${interacao.origem}`}
+      </p>
+    </li>
+  )
 }

@@ -12,6 +12,8 @@ export function renderizarApp(
   rota = '/',
   opcoesContas: OpcoesFonteDeContasSimulada = {},
   opcoesSequencias: OpcoesFonteDeSequenciasSimulada = {},
+  /** Roteia no histórico do navegador (o do jsdom), para o teste usar o voltar do navegador. */
+  noNavegador = false,
 ) {
   const fonte = criarFonteSimulada({ atrasoMs: 0 })
   const fonteDeContas = criarFonteDeContasSimulada({
@@ -26,14 +28,20 @@ export function renderizarApp(
   })
   fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
   const usuario = userEvent.setup()
+  if (noNavegador) window.history.replaceState(null, '', rota)
   const resultado = render(
     <App
       fonte={fonte}
       fonteDeContas={fonteDeContas}
       fonteDeSequencias={fonteDeSequencias}
-      rotaInicial={rota}
+      rotaInicial={noNavegador ? undefined : rota}
       animarDigitacao={false}
     />,
   )
   return { ...resultado, fonte, fonteDeContas, fonteDeSequencias, usuario }
+}
+
+/** O app no histórico do navegador, a partir desta rota: o voltar do navegador é `window.history.back()`. */
+export function renderizarAppNoNavegador(rota: string) {
+  return renderizarApp(rota, {}, {}, true)
 }
