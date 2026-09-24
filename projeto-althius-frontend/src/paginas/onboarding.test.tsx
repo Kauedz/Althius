@@ -1,10 +1,15 @@
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { LeituraDoSite } from '@/fonte/onboarding-tipos'
-import type { ArmazenamentoDeOnboarding } from '@/fonte/simulada-onboarding'
+import type { ArmazenamentoDeOnboarding, OpcoesFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
 import { renderizarApp } from '@/test/renderizar'
 
 type Usuario = ReturnType<typeof renderizarApp>['usuario']
+
+/** O app de uma sessão que ainda não passou pelo onboarding, a partir desta rota. */
+function renderizarSemOnboarding(rota: string, opcoes: OpcoesFonteDeOnboardingSimulada = {}, noNavegador = false) {
+  return renderizarApp(rota, {}, {}, { jaConcluido: false, ...opcoes }, {}, {}, noNavegador)
+}
 
 const PAPEIS = ['Founder', 'Head de Vendas', 'SDR/BDR', 'AE', 'Marketing', 'RevOps', 'Outro']
 const ORIGENS = [
@@ -73,7 +78,7 @@ async function day0Convidado(usuario: Usuario) {
 
 describe('Onboarding pós-login: entrada', () => {
   it('sem link de convite entra direto no fluxo de criador, sem perguntar o caminho', async () => {
-    const { fonteDeOnboarding } = renderizarApp('/onboarding')
+    const { fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: /Criar um Workspace|Fui convidado/ })).not.toBeInTheDocument()
@@ -90,7 +95,7 @@ describe('Onboarding pós-login: entrada', () => {
 
   it('com parâmetro de convite entra no ramo de convidado, sem empresa, domínio nem leitura do site', async () => {
     const leitorDeSite = vi.fn(async () => LEITURA_DE_TESTE)
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding?convite=demo', {}, {}, { leitorDeSite })
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding?convite=demo', { leitorDeSite })
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).toBeInTheDocument()
     expect(screen.getByText('Passo 1 de 4')).toBeInTheDocument()
@@ -124,7 +129,7 @@ describe('Onboarding pós-login: entrada', () => {
 
 describe('Onboarding pós-login: Day0 do criador', () => {
   it('a empresa sugere o nome do Workspace, o domínio dá o logo e nenhuma Conta-alvo é semeada', async () => {
-    const { usuario, fonteDeOnboarding, fonteDeContas } = renderizarApp('/onboarding')
+    const { usuario, fonteDeOnboarding, fonteDeContas } = renderizarSemOnboarding('/onboarding')
     const contasAntes = (await fonteDeContas.contas()).map((conta) => conta.id).sort()
     await screen.findByText('Passo 1 de 6')
     const id = (await fonteDeOnboarding.ler()).workspace?.id
@@ -176,7 +181,7 @@ describe('Onboarding pós-login: Day0 do criador', () => {
   })
 
   it('o logo tenta o SVG, depois o favicon, e cai para a inicial do nome', async () => {
-    const { usuario } = renderizarApp('/onboarding')
+    const { usuario } = renderizarSemOnboarding('/onboarding')
     await usuario.click(await screen.findByRole('radio', { name: 'Founder' }))
     await continuar(usuario)
     await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
@@ -195,7 +200,7 @@ describe('Onboarding pós-login: Day0 do criador', () => {
   })
 
   it('Voltar e Continuar existem em todos os passos, e Voltar preserva o que foi preenchido', async () => {
-    const { usuario } = renderizarApp('/onboarding')
+    const { usuario } = renderizarSemOnboarding('/onboarding')
     await screen.findByText('Passo 1 de 6')
     expect(screen.getByRole('button', { name: 'Voltar' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
@@ -224,7 +229,7 @@ describe('Onboarding pós-login: Day0 do criador', () => {
   })
 
   it('o papel Outro segue para a empresa sem campo extra', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding')
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
     await usuario.click(await screen.findByRole('radio', { name: 'Outro' }))
     await continuar(usuario)
 
@@ -234,7 +239,7 @@ describe('Onboarding pós-login: Day0 do criador', () => {
   })
 
   it('convidar colegas é só interface: Continuar segue sem guardar os e-mails', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding?convite=demo')
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding?convite=demo')
     await usuario.click(await screen.findByRole('radio', { name: 'Marketing' }))
     await continuar(usuario)
     await usuario.click(await screen.findByRole('radio', { name: 'Evento' }))
@@ -252,7 +257,7 @@ describe('Onboarding pós-login: Day0 do criador', () => {
 
 describe('Onboarding pós-login: leitura do site', () => {
   it('a leitura fixa da Fonte simulada pré-preenche o mini-ICP e as Personas como base editável', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding')
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
     const leitura = screen.getByRole('region', { name: 'Leitura do site' })
@@ -283,7 +288,7 @@ describe('Onboarding pós-login: leitura do site', () => {
   })
 
   it('edições e descarte prevalecem sobre a leitura e persistem na Fonte', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding', {}, {}, { leitorDeSite: async () => LEITURA_DE_TESTE })
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
     await day0Criador(usuario)
 
     const miniIcp = screen.getByRole('textbox', { name: 'Mini-ICP' })
@@ -323,7 +328,7 @@ describe('Onboarding pós-login: leitura do site', () => {
       personas: ['Gestora da Clínica'],
     }
     const leitorDeSite = async (dominio: string) => (dominio === 'nortedados.com.br' ? LEITURA_DE_TESTE : OUTRA_LEITURA)
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding', {}, {}, { leitorDeSite })
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
     await day0Criador(usuario)
 
     const persona = screen.getByRole('listitem', { name: '2. Persona' })
@@ -361,7 +366,7 @@ describe('Onboarding pós-login: leitura do site', () => {
           entregar = resolver
         }),
     )
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding', {}, {}, { leitorDeSite })
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
     await usuario.click(await screen.findByRole('radio', { name: 'RevOps' }))
     await continuar(usuario)
     await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
@@ -394,7 +399,7 @@ describe('Onboarding pós-login: leitura do site', () => {
       .fn<(dominio: string) => Promise<LeituraDoSite>>()
       .mockRejectedValueOnce(new Error('site fora do ar'))
       .mockResolvedValueOnce(LEITURA_DE_TESTE)
-    const { usuario } = renderizarApp('/onboarding', {}, {}, { leitorDeSite })
+    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite })
     await day0Criador(usuario)
 
     const leitura = screen.getByRole('region', { name: 'Leitura do site' })
@@ -413,7 +418,7 @@ describe('Onboarding pós-login: leitura do site', () => {
 
 describe('Onboarding pós-login: checklist e próximos passos', () => {
   it('mostra três itens na ordem do Norte e, depois deles, Contas-alvo indicadas e a Sequência como próximos passos', async () => {
-    const { usuario } = renderizarApp('/onboarding')
+    const { usuario } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
     const lista = screen.getByRole('list', { name: 'Checklist do Norte' })
@@ -436,7 +441,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
   })
 
   it('abrir Sinais conclui o item sem Monitoramento e permite voltar ao checklist ou à home', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding')
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
     await usuario.click(screen.getByRole('button', { name: 'Abrir Sinais' }))
@@ -463,7 +468,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
   })
 
   it('o convidado pula um item e o convite e ainda aterra na home dentro da Casca', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding?convite=demo')
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding?convite=demo')
     await day0Convidado(usuario)
 
     await usuario.click(screen.getByRole('button', { name: 'Pular mini-ICP' }))
@@ -477,7 +482,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
   })
 
   it('Voltar no checklist leva ao convite sem perder o Day0', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding')
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
     await voltar(usuario)
@@ -488,7 +493,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
 
   it('reabrir restaura Day0, leitura e checklist e não cria outro Workspace', async () => {
     const armazenamento = memoria()
-    const primeira = renderizarApp('/onboarding', {}, {}, { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
     await day0Criador(primeira.usuario)
 
     const miniIcp = screen.getByRole('textbox', { name: 'Mini-ICP' })
@@ -501,7 +506,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     primeira.unmount()
 
     const leitorDaSegunda = vi.fn(async () => LEITURA_DE_TESTE)
-    const segunda = renderizarApp('/onboarding', {}, {}, { armazenamento, leitorDeSite: leitorDaSegunda })
+    const segunda = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: leitorDaSegunda })
     expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Mini-ICP' })).toHaveValue('Times de receita com operação no Brasil.')
     expect(screen.getByRole('textbox', { name: 'O que você vende' })).toHaveValue(LEITURA_DE_TESTE.oQueVende)
@@ -515,5 +520,62 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     expect(estado.convitePulado).toBe(true)
     expect(estado.leitura.situacao).toBe('pronta')
     expect(leitorDaSegunda).not.toHaveBeenCalled()
+  })
+})
+
+describe('Onboarding pós-login: entrada na Casca', () => {
+  it('uma sessão sem onboarding que abre a Casca é levada a /onboarding, fora da Casca', async () => {
+    renderizarSemOnboarding('/contas', {}, true)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/onboarding')
+    expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
+  })
+
+  it('com o Day0 pela metade, a Casca leva de volta ao passo em que a sessão parou', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento })
+    await primeira.usuario.click(await screen.findByRole('radio', { name: 'Founder' }))
+    await continuar(primeira.usuario)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Qual é a sua empresa?' })).toBeInTheDocument()
+    primeira.unmount()
+
+    renderizarSemOnboarding('/', { armazenamento })
+    expect(await screen.findByRole('heading', { level: 1, name: 'Qual é a sua empresa?' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
+  })
+
+  it('com o Day0 concluído, o checklist pendente não prende: a Casca abre sem redirecionar', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(primeira.usuario)
+    primeira.unmount()
+
+    const segunda = renderizarSemOnboarding('/', { armazenamento })
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
+    expect((await segunda.fonteDeOnboarding.ler()).concluido).toBe(false)
+  })
+
+  it('depois de concluir o onboarding, entrar de novo na Casca não força o onboarding', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding?convite=demo', { armazenamento })
+    await day0Convidado(primeira.usuario)
+    await primeira.usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    primeira.unmount()
+
+    renderizarSemOnboarding('/contas', { armazenamento }, true)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Contas' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/contas')
+    expect(screen.queryByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).not.toBeInTheDocument()
+  })
+
+  it('uma sessão que já concluiu o onboarding entra direto na Casca', async () => {
+    renderizarApp('/contas', {}, {}, { jaConcluido: true })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Contas' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).not.toBeInTheDocument()
   })
 })

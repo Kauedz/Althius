@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, Outlet, useNavigate, useSearchParams } from 'react-router-dom'
 import { LogoDoWorkspace } from '@/components/logos'
 import { Carregando, Logo } from '@/components/marca'
 import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
@@ -8,6 +8,7 @@ import {
   ORIGENS_HDYHAU,
   PAPEIS_DO_DAY0,
   etapasDoRamo,
+  precisaDoOnboarding,
   type EstadoDeOnboarding,
   type EtapaDeOnboarding,
   type FonteDeOnboarding,
@@ -75,6 +76,18 @@ export function PaginaOnboarding() {
     case 'checklist':
       return <EtapaChecklist estado={estado} fonte={fonte} />
   }
+}
+
+/**
+ * A entrada na Casca. Só o estado da Fonte de onboarding decide: sem o Day0 feito, a sessão vai para
+ * `/onboarding`; com ele, entra normalmente, sem o onboarding ser forçado de novo. Enquanto a Fonte responde, a
+ * Casca abre como sempre, carregando os próprios dados.
+ */
+export function EntradaNaCasca() {
+  const fonte = useFonteDeOnboarding()
+  const estado = useDados(fonte, (f) => f.ler(), [])
+  if (estado && precisaDoOnboarding(estado)) return <Navigate to="/onboarding" replace />
+  return <Outlet />
 }
 
 /** Marca o item de Sinal quando a experiência de Sinais abre. Não cria Monitoramento. */

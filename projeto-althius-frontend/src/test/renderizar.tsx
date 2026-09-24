@@ -12,7 +12,10 @@ import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
 
 export const DATA_HOJE_TESTES = new Date(2026, 8, 23, 12, 0, 0) // 23 de setembro de 2026
 
-/** Renderiza o app inteiro sobre as fontes simuladas, sem atrasos nem animação de digitação. */
+/**
+ * Renderiza o app inteiro sobre as fontes simuladas, sem atrasos nem animação de digitação. A sessão já concluiu
+ * o onboarding, salvo quando `opcoesOnboarding` diz o contrário.
+ */
 export function renderizarApp(
   rota = '/',
   opcoesContas: OpcoesFonteDeContasSimulada = {},
@@ -34,7 +37,11 @@ export function renderizarApp(
     hoje: DATA_HOJE_TESTES,
     ...opcoesSequencias,
   })
-  const fonteDeOnboarding = criarFonteDeOnboardingSimulada({ atrasoDaLeituraMs: 0, ...opcoesOnboarding })
+  const fonteDeOnboarding = criarFonteDeOnboardingSimulada({
+    atrasoDaLeituraMs: 0,
+    jaConcluido: true,
+    ...opcoesOnboarding,
+  })
   const fonteDeSinais = criarFonteDeSinaisSimulada({
     atrasoMs: 0,
     hoje: DATA_HOJE_TESTES,

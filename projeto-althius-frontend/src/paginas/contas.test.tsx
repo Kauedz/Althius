@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { App } from '@/App'
 import type { FonteDeContas } from '@/fonte/contas-tipos'
 import { criarFonteDeContasSimulada } from '@/fonte/simulada-contas'
+import { criarFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
 import { criarFonteSimulada } from '@/fonte/simulada'
 import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
 
@@ -276,6 +277,7 @@ describe('Células da tabela de Contas', () => {
     render(
       <App
         fonte={criarFonteSimulada({ atrasoMs: 0 })}
+        fonteDeOnboarding={criarFonteDeOnboardingSimulada({ jaConcluido: true })}
         fonteDeContas={semDominioNaMiro}
         rotaInicial="/contas"
         animarDigitacao={false}

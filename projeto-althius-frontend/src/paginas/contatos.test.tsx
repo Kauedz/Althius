@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { App } from '@/App'
 import type { FonteDeContas } from '@/fonte/contas-tipos'
 import { criarFonteDeContasSimulada } from '@/fonte/simulada-contas'
+import { criarFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
 import { criarFonteSimulada } from '@/fonte/simulada'
 import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
 
@@ -117,6 +118,7 @@ describe('Aba Contatos', () => {
     render(
       <App
         fonte={criarFonteSimulada({ atrasoMs: 0 })}
+        fonteDeOnboarding={criarFonteDeOnboardingSimulada({ jaConcluido: true })}
         fonteDeContas={semDadosNaClara}
         rotaInicial="/contatos"
         animarDigitacao={false}
@@ -302,7 +304,13 @@ function renderizarComContatosSemCanais(rota: string, semCanal = ['Clara Dupont'
   }
   const usuario = userEvent.setup()
   render(
-    <App fonte={criarFonteSimulada({ atrasoMs: 0 })} fonteDeContas={semCanais} rotaInicial={rota} animarDigitacao={false} />,
+    <App
+      fonte={criarFonteSimulada({ atrasoMs: 0 })}
+      fonteDeOnboarding={criarFonteDeOnboardingSimulada({ jaConcluido: true })}
+      fonteDeContas={semCanais}
+      rotaInicial={rota}
+      animarDigitacao={false}
+    />,
   )
   return { usuario }
 }

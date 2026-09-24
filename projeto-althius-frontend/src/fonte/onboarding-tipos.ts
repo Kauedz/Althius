@@ -109,6 +109,14 @@ export interface EstadoDeOnboarding {
   concluido: boolean
 }
 
+/**
+ * A Casca exige o Day0: enquanto o wizard não chega ao checklist, a entrada leva a `/onboarding`. O checklist
+ * não prende a sessão, que pode explorar a Casca e voltar a ele depois.
+ */
+export function precisaDoOnboarding(estado: EstadoDeOnboarding): boolean {
+  return !estado.concluido && estado.etapa !== 'checklist'
+}
+
 export interface ProdutoDoChecklist {
   miniIcp: string
   oQueVende: string

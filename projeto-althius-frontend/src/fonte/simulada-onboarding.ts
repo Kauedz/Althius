@@ -47,6 +47,11 @@ export interface OpcoesFonteDeOnboardingSimulada {
   leitorDeSite?: (dominio: string) => Promise<LeituraDoSite>
   /** Duração do carregamento da leitura fixa. */
   atrasoDaLeituraMs?: number
+  /**
+   * A sessão já passou pelo onboarding no Workspace da demonstração, que ela não criou: a Casca abre direto. É o
+   * ponto de partida dos testes da Casca. Vale só quando o armazenamento não guarda um onboarding legível.
+   */
+  jaConcluido?: boolean
 }
 
 const CAMPOS_DO_PRODUTO = ['miniIcp', 'oQueVende', 'porQueCompram'] as const
@@ -67,7 +72,7 @@ export function criarFonteDeOnboardingSimulada(
   const leitorDeSite =
     opcoes.leitorDeSite ??
     (() => new Promise<LeituraDoSite>((resolver) => setTimeout(() => resolver(structuredClone(LEITURA_FIXA)), atraso)))
-  let estado = carregar(armazenamento)
+  let estado = carregar(armazenamento) ?? (opcoes.jaConcluido ? estadoConcluido() : estadoInicial())
   // Só a leitura mais recente vale: uma leitura de um domínio anterior que chegue depois é descartada.
   let leituraAtual = 0
   const ouvintes = new Set<() => void>()
@@ -315,14 +320,20 @@ function estadoInicial(): EstadoDeOnboarding {
   }
 }
 
-function carregar(armazenamento: ArmazenamentoDeOnboarding | null): EstadoDeOnboarding {
-  if (!armazenamento) return estadoInicial()
+/** O onboarding já concluído de quem entrou num Workspace que existia: sem Workspace novo nem leitura do site. */
+function estadoConcluido(): EstadoDeOnboarding {
+  return { ...estadoInicial(), ramo: 'convidado', etapa: 'checklist', concluido: true }
+}
+
+/** O onboarding guardado, ou nenhum quando o armazenamento não guarda um legível. */
+function carregar(armazenamento: ArmazenamentoDeOnboarding | null): EstadoDeOnboarding | null {
+  if (!armazenamento) return null
   const bruto = armazenamento.getItem(CHAVE)
-  if (!bruto) return estadoInicial()
+  if (!bruto) return null
   try {
     return normalizar(JSON.parse(bruto))
   } catch {
-    return estadoInicial()
+    return null
   }
 }
 
