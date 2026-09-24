@@ -12,6 +12,7 @@ import { PaginaConexoes } from '@/paginas/conexoes'
 import { PaginaContas } from '@/paginas/contas'
 import { PaginaConversaCoordenada } from '@/paginas/conversa-coordenada'
 import { PaginaSequencias } from '@/paginas/sequencias'
+import { ContaComSinais, LayoutSinais, PaginaDoTipo, PaginaSinais, RotaDoEditor } from '@/paginas/sinais/rotas'
 
 interface Props {
   fonte: FonteDeAgentes
@@ -47,6 +48,13 @@ export function App({
         <Route path="contas/:contaId" element={<PaginaContas />} />
         <Route path="sequencias" element={<PaginaSequencias />} />
         <Route path="sequencias/:sequenciaId" element={<PaginaSequencias />} />
+        <Route path="sinais" element={<LayoutSinais />}>
+          <Route index element={<PaginaSinais />} />
+          <Route path="tipos/:tipoId" element={<PaginaDoTipo />} />
+          <Route path="tipos/:tipoId/novo" element={<RotaDoEditor />} />
+          <Route path="tipos/:tipoId/:monitoramentoId" element={<RotaDoEditor />} />
+          <Route path="contas/:contaId" element={<ContaComSinais />} />
+        </Route>
         <Route path="conversa" element={<PaginaConversaCoordenada />} />
         <Route path="aprovacoes" element={<PaginaAprovacoes />} />
         <Route path="conexoes" element={<PaginaConexoes />} />

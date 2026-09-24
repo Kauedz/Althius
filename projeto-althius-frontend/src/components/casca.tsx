@@ -1,4 +1,4 @@
-import { Bot, Building2, ChevronsUpDown, Plug, Route, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { Bot, Building2, ChevronsUpDown, Plug, RadioTower, Route, ShieldCheck, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
@@ -34,6 +34,7 @@ function Sidebar() {
   const naAbaDeAgentes = pathname === '/' || pathname.startsWith('/agentes/') || pathname.startsWith('/conversa')
   const naAbaDeContas = pathname === '/contas' || pathname.startsWith('/contas/') || pathname.startsWith('/contatos')
   const naAbaDeSequencias = pathname === '/sequencias' || pathname.startsWith('/sequencias/')
+  const naAbaDeSinais = pathname === '/sinais' || pathname.startsWith('/sinais/')
   const pendentes = workspace?.aprovacoesPendentes ?? 0
 
   return (
@@ -75,6 +76,9 @@ function Sidebar() {
         </ItemDeNavegacao>
         <ItemDeNavegacao para="/" ativo={naAbaDeAgentes} icone={<IconeDeNavegacao icone={Bot} />}>
           Agentes
+        </ItemDeNavegacao>
+        <ItemDeNavegacao para="/sinais" ativo={naAbaDeSinais} icone={<IconeDeNavegacao icone={RadioTower} />}>
+          Sinais
         </ItemDeNavegacao>
         <ItemDeNavegacao
           para="/aprovacoes"
