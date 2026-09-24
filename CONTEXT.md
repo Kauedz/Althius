@@ -35,6 +35,10 @@ _Avoid_: CP
 **Memória do Workspace**:
 A documentação compartilhada do Cliente, incluindo o ICP e as definições de Personas, que serve de referência para todo o Workspace. É distinta da Memória individual de cada Agente.
 
+**Revisão da Memória do Workspace**:
+A proposta de um Agente para substituir o ICP (Scopus) ou as definições de Personas (Ethos), pedida por qualquer participante numa Conversa. É uma categoria de Aprovação que só um Administrador ativo decide: enquanto pendente ou recusada, nada muda; aprovada, substitui o documento vigente e atualiza de uma vez as configurações que dependem dele. Não é uma versão do documento: a Memória do Workspace guarda só o vigente.
+_Avoid_: versão, rascunho
+
 **Conta-alvo**:
 Uma empresa que o Cliente quer vender para: recomendada pela Althius, sempre com Fit, ou importada pelo Cliente, com qualquer Aderência. É o objeto que os agentes analisam. "Contas" é aceito só como rótulo curto no menu e na aba.
 _Avoid_: lead, prospect, conta
@@ -184,5 +188,5 @@ _Avoid_: canal, conector
 O nível de ação de um Agente sobre uma Integração: **Ler**, **Propor** (exige Aprovação) ou **Executar** (age sozinho).
 
 **Aprovação**:
-Uma ação proposta por um Agente que só acontece depois que um humano a aceita, na fila de Aprovações ou no Canal de origem. Guarda o gatilho da Execução que a propôs. Quando um Agente criado é excluído, as Aprovações dele, pendentes ou decididas, são excluídas junto.
+Uma ação proposta por um Agente que só acontece depois que um humano a aceita, na fila de Aprovações ou no Canal de origem. Guarda o gatilho da Execução que a propôs. Quando um Agente criado é excluído, as Aprovações dele, pendentes ou decididas, são excluídas junto. A Revisão da Memória do Workspace é a única categoria que só Administradores decidem; as demais seguem como antes.
 _Avoid_: revisão, confirmação

@@ -1,8 +1,11 @@
 import { Plus, Sparkles, X } from 'lucide-react'
 import { cloneElement, useId, useState, type ReactElement, type ReactNode } from 'react'
-import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Pulso } from '@/components/marca'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Carregando, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { useDados } from '@/fonte/contexto'
+import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
+import { publicoRecomendado } from '@/fonte/regras-memoria'
 import { cn } from '@/lib/utils'
 import {
   CAMPOS,
@@ -19,7 +22,7 @@ import {
   type TipoDeSinal,
 } from './catalogo'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Opcao, SecaoDoFormulario, SeloDoEstado } from './componentes'
-import { LISTAS, PUBLICO_RECOMENDADO, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
+import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
 import { criteriosFormatados, resumoDoPublico } from './resumos'
@@ -411,6 +414,9 @@ function SecaoPublico({
   const modos: ModoDePublico[] = aceitaDescoberta ? ['listas', 'descoberta', 'ambos'] : ['listas']
   const comListas = publico.modo !== 'descoberta'
   const comDescoberta = publico.modo !== 'listas'
+  // O público recomendado é lido do ICP vigente a cada abertura: aprovar uma revisão do ICP o atualiza aqui.
+  const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
+  const recomendado = memoria && publicoRecomendado(memoria.icp.secoes)
 
   return (
     <SecaoDoFormulario numero="03" titulo="Público" descricao="Onde procurar os Sinais.">
@@ -419,10 +425,20 @@ function SecaoPublico({
           <Sparkles strokeWidth={1.8} className="size-3.5" aria-hidden />
           Recomendado pelas suas configurações
         </span>
-        <p className="text-base">{PUBLICO_RECOMENDADO.nome}</p>
-        <p className="text-sm text-al-muted">
-          {PUBLICO_RECOMENDADO.resumo}. Vem de {PUBLICO_RECOMENDADO.origem} (simulado).
-        </p>
+        {memoria && recomendado ? (
+          <>
+            <p className="text-base">{recomendado.nome}</p>
+            <p className="text-sm text-al-muted">
+              {recomendado.resumo}. Vem do ICP vigente na{' '}
+              <Link to="/configuracoes/memoria" className="text-al-ink underline-offset-4 hover:underline">
+                Memória do Workspace
+              </Link>
+              , aprovado em {formatarDiaIsoPorExtenso(memoria.icp.aprovadoEm)}.
+            </p>
+          </>
+        ) : (
+          <Carregando />
+        )}
         {aceitaDescoberta && !comDescoberta && (
           <button type="button" onClick={() => aoMudar({ ...publico, modo: 'ambos', usaRecomendado: true })} className={cn(BOTAO_SECUNDARIO, 'self-start')}>
             Incluir descoberta com este público

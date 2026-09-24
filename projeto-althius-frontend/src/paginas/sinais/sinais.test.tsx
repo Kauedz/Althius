@@ -79,13 +79,13 @@ describe('Mockup do módulo Sinais', () => {
     await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Fusões no México')
     const acontecimentos = screen.getByRole('group', { name: 'Acontecimentos' })
     await usuario.click(within(acontecimentos).getByRole('checkbox', { name: 'Fusão ou aquisição' }))
-    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP Enterprise dados e IA')
+    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP do Workspace')
     await usuario.click(screen.getByRole('radio', { name: 'Descobrir por perfil' }))
 
     await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
     const revisao = screen.getByRole('region', { name: 'Revisão antes de ativar' })
     expect(revisao).toHaveTextContent('Rodada, Fusão ou aquisição')
-    expect(revisao).toHaveTextContent('Descoberta por ICP Enterprise dados e IA')
+    expect(revisao).toHaveTextContent('Descoberta pelo ICP do Workspace')
     await usuario.click(within(revisao).getByRole('button', { name: 'Ativar monitoramento' }))
 
     const lista = await screen.findByRole('list', { name: 'Monitoramentos deste tipo' })

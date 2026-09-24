@@ -1,6 +1,7 @@
 // Participações da fonte simulada: Contas de usuário, o Workspace atual e as Participações que ligam uma
 // ao outro. O papel é da Participação, não da Conta de usuário; remover alguém encerra só a Participação.
 import * as demo from './dados-demo'
+import { dataDeHoje } from './formatar-data'
 import type { RegistroDeParticipacao } from './dados-demo'
 import { ehEmailValido, ERRO_DE_EMAIL, PAPEIS } from './regras'
 import type {
@@ -109,12 +110,6 @@ function dadosDeExemplo(sessao: Sessao): EstadoDoWorkspace {
     participacoes,
     convites: structuredClone(demo.convites),
   }
-}
-
-function dataDeHoje(): string {
-  const hoje = new Date()
-  const doisDigitos = (n: number) => String(n).padStart(2, '0')
-  return `${hoje.getFullYear()}-${doisDigitos(hoje.getMonth() + 1)}-${doisDigitos(hoje.getDate())}`
 }
 
 /**

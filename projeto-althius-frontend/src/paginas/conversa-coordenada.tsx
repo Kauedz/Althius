@@ -307,7 +307,7 @@ function QuemAgeOnde({
   referencias,
 }: {
   agenteId: AgenteId
-  integracaoId: AcaoProposta['integracaoId']
+  integracaoId?: AcaoProposta['integracaoId']
   estado: string
   referencias: Referencias
 }) {
@@ -320,11 +320,15 @@ function QuemAgeOnde({
       <span className="text-al-line" aria-hidden>
         ·
       </span>
-      <LogoDaIntegracao id={integracaoId} nome={integracao?.nome ?? integracaoId} />
-      <span>{integracao?.nome}</span>
-      <span className="text-al-line" aria-hidden>
-        ·
-      </span>
+      {integracaoId && (
+        <>
+          <LogoDaIntegracao id={integracaoId} nome={integracao?.nome ?? integracaoId} />
+          <span>{integracao?.nome}</span>
+          <span className="text-al-line" aria-hidden>
+            ·
+          </span>
+        </>
+      )}
       <span className="rotulo">{estado}</span>
     </div>
   )

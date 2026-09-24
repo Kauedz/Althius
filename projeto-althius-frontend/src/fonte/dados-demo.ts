@@ -10,6 +10,7 @@ import type {
   EspecialidadeId,
   Fato,
   Habilidade,
+  IcpVigente,
   InformacoesDoWorkspace,
   Integracao,
   IntegracaoFutura,
@@ -63,6 +64,20 @@ export const convites: Convite[] = [
   { id: 'convite-carla', email: 'carla.nunes@databricks.com', papel: 'membro', registradoEm: '2026-09-22' },
 ]
 
+/** O ICP vigente na Memória do Workspace da demonstração, aprovado antes da sessão começar. */
+export const icpInicial: IcpVigente = {
+  aprovadoEm: '2026-09-12',
+  aprovadoPor: { contaId: 'marina', nome: 'Marina Alves' },
+  secoes: [
+    { titulo: 'Segmentos', texto: 'Serviços financeiros, varejo e telecomunicações.' },
+    { titulo: 'Porte', texto: 'Empresas com 2.000 funcionários ou mais.' },
+    { titulo: 'Regiões', texto: 'Brasil e México.' },
+    { titulo: 'Tecnologia', texto: 'Nuvem pública (AWS, Azure ou Google Cloud) e data warehouse legado em migração.' },
+    { titulo: 'Maturidade de dados', texto: 'Time de dados próprio, com engenharia e ciência de dados.' },
+    { titulo: 'Fora do ICP', texto: 'Empresas sem time de dados próprio ou com operação só em servidores locais.' },
+  ],
+}
+
 /**
  * Um Agente como a fonte o guarda: aponta para a Especialidade pelo identificador. A descrição,
  * a Rotina ativa e as Integrações a fonte calcula a partir da Personalização e das Rotinas.
@@ -102,7 +117,7 @@ export const fatos: Fato[] = [
 ]
 
 export const habilidades: Habilidade[] = [
-  { id: 'h1', agenteId: 'scopus', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 148, ultimaMelhoria: '18/09/2026', ativa: true },
+  { id: 'h1', agenteId: 'scopus', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 148, ultimaMelhoria: '18/09/2026', ativa: true, usaIcp: true },
   { id: 'h2', agenteId: 'scopus', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 37, ultimaMelhoria: '09/09/2026', ativa: true },
   { id: 'h3', agenteId: 'ethos', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 64, ultimaMelhoria: '14/09/2026', ativa: true },
   { id: 'h4', agenteId: 'ethos', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 29, ultimaMelhoria: '02/09/2026', ativa: false },
@@ -111,7 +126,7 @@ export const habilidades: Habilidade[] = [
   { id: 'h7', agenteId: 'oraculum', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 52, ultimaMelhoria: '15/09/2026', ativa: true },
   { id: 'h8', agenteId: 'oraculum', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 18, ultimaMelhoria: '08/09/2026', ativa: true },
   // Os Agentes criados começaram com uma cópia das Habilidades do Agente padrão e seguiram refinando com o uso.
-  { id: 'h9', agenteId: 'scopus-enterprise-latam', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 41, ultimaMelhoria: '15/09/2026', ativa: true },
+  { id: 'h9', agenteId: 'scopus-enterprise-latam', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 41, ultimaMelhoria: '15/09/2026', ativa: true, usaIcp: true },
   { id: 'h10', agenteId: 'scopus-enterprise-latam', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 9, ultimaMelhoria: '01/09/2026', ativa: true },
   { id: 'h11', agenteId: 'ethos-comite-financeiro', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 14, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h12', agenteId: 'ethos-comite-financeiro', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 8, ultimaMelhoria: '11/09/2026', ativa: true },

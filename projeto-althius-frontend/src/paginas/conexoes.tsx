@@ -218,15 +218,14 @@ function DecisaoNoCanal({
   integracoes?: Integracao[]
   canalId: CanalId
 }) {
-  if (!aprovacao) return null
-  const nome = nomeDaIntegracao(
-    aprovacao.integracaoId,
-    integracoes?.find((i) => i.id === aprovacao.integracaoId)?.nome,
-  )
+  // Nos Canais chegam só as Aprovações de ação numa Integração.
+  if (!aprovacao?.integracaoId) return null
+  const { integracaoId } = aprovacao
+  const nome = nomeDaIntegracao(integracaoId, integracoes?.find((i) => i.id === integracaoId)?.nome)
   return (
     <div className="flex flex-col gap-2 pt-2">
       <div className="flex items-center gap-2">
-        <LogoDaIntegracao id={aprovacao.integracaoId} nome={nome} />
+        <LogoDaIntegracao id={integracaoId} nome={nome} />
         <span className="rotulo">{nome}</span>
       </div>
       <DecisaoDeAprovacao aprovacao={aprovacao} onde={canalId} />

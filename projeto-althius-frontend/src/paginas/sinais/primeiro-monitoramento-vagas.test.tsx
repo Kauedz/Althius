@@ -90,7 +90,7 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
 
     // Público: verifica que o público recomendado das configurações simuladas é ofertado
     expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent(
-      'ICP Enterprise dados e IA',
+      'ICP do Workspace',
     )
 
     // Seleciona a lista de Contas-alvo importadas

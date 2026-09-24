@@ -28,3 +28,8 @@ export function normalizarParaBusca(texto: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
 }
+
+/** A mensagem de um erro da fonte para o usuário. */
+export function mensagemDeErro(erro: unknown): string {
+  return erro instanceof Error ? erro.message : 'Não foi possível concluir a operação.'
+}

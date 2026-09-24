@@ -1,12 +1,15 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
-import type { Agente, Fato } from '@/fonte/tipos'
+import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
+import type { Agente, Fato, IcpVigente } from '@/fonte/tipos'
 
 export function SecaoMemoria({ agente }: { agente: Agente }) {
   const fatos = useDados((fonte) => fonte.memoria(agente.id), [agente.id])
   const workspace = useDados((fonte) => fonte.workspace(), [])
+  const memoriaDoWorkspace = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
 
   return (
     <section aria-labelledby="titulo-memoria" className="flex max-w-3xl flex-col gap-6">
@@ -27,6 +30,36 @@ export function SecaoMemoria({ agente }: { agente: Agente }) {
           ))}
         </ul>
       )}
+      {memoriaDoWorkspace && <ContextoDoWorkspace icp={memoriaDoWorkspace.icp} />}
+    </section>
+  )
+}
+
+/**
+ * O contexto compartilhado que o Agente usa, lido da Memória do Workspace a cada abertura: não é um Fato
+ * dele nem uma cópia. Muda só com a aprovação de uma revisão, feita em Configurações.
+ */
+function ContextoDoWorkspace({ icp }: { icp: IcpVigente }) {
+  return (
+    <section aria-label="Contexto do Workspace" className="flex flex-col gap-4 border-t border-al-line pt-6">
+      <div className="flex flex-col gap-1">
+        <h3 className="titulo-secao text-lg">Contexto do Workspace</h3>
+        <p className="text-sm text-al-muted">
+          O ICP vigente da{' '}
+          <Link to="/configuracoes/memoria" className="text-al-ink underline-offset-4 hover:underline">
+            Memória do Workspace
+          </Link>
+          , aprovado em {formatarDiaIsoPorExtenso(icp.aprovadoEm)}. Vale para todos os Agentes e não se edita aqui.
+        </p>
+      </div>
+      <dl className="grid grid-cols-[12rem_1fr] gap-x-8 gap-y-2 text-sm">
+        {icp.secoes.map((secao) => (
+          <div key={secao.titulo} className="contents">
+            <dt className="rotulo pt-0.5">{secao.titulo}</dt>
+            <dd>{secao.texto}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   )
 }

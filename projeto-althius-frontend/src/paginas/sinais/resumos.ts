@@ -1,5 +1,6 @@
 import { CAMPOS, ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, formularioDoTipo, tipoPorId } from './catalogo'
-import { LISTAS, PUBLICO_RECOMENDADO, type EstadoDoMonitoramento, type Monitoramento, type Publico } from './dados-mock'
+import { NOME_DO_PUBLICO_RECOMENDADO } from '@/fonte/regras-memoria'
+import { LISTAS, type EstadoDoMonitoramento, type Monitoramento, type Publico } from './dados-mock'
 import { resumoDoPerfil } from './perfil'
 
 // Textos de resumo de um Monitoramento, compartilhados pela página do tipo e pela revisão.
@@ -7,7 +8,7 @@ import { resumoDoPerfil } from './perfil'
 export function resumoDoPublico(publico: Publico): string {
   const listas = publico.listas.map((id) => LISTAS.find((l) => l.id === id)?.nome).filter(Boolean)
   const descoberta = publico.usaRecomendado
-    ? `descoberta por ${PUBLICO_RECOMENDADO.nome}`
+    ? `descoberta pelo ${NOME_DO_PUBLICO_RECOMENDADO}`
     : `descoberta por perfil personalizado: ${resumoDoPerfil(publico.perfil ?? {})}`
   const textoListas = listas.length > 0 ? `Listas ${listas.join(', ')}` : 'Nenhuma lista'
   if (publico.modo === 'listas') return textoListas

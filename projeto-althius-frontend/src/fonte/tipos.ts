@@ -146,6 +146,55 @@ export interface Perfil {
   foto?: string
 }
 
+/** Uma seção de um documento da Memória do Workspace (ex.: "Porte" do ICP). */
+export interface SecaoDoDocumento {
+  titulo: string
+  texto: string
+}
+
+/** Quem pediu ou decidiu uma revisão, como era no momento: a Conta de usuário e o nome. */
+export interface Autor {
+  contaId: string
+  nome: string
+}
+
+/** O ICP vigente. A Memória do Workspace guarda só a última versão aprovada, sem histórico nem restauração. */
+export interface IcpVigente {
+  secoes: SecaoDoDocumento[]
+  /** Data da aprovação, em ISO (aaaa-mm-dd). */
+  aprovadoEm: string
+  aprovadoPor: Autor
+}
+
+/**
+ * A documentação compartilhada do Cliente, distinta da Memória individual de cada Agente. É a única
+ * referência dos módulos que dependem dela: nenhum guarda uma cópia.
+ */
+export interface MemoriaDoWorkspace {
+  icp: IcpVigente
+}
+
+/** Os documentos da Memória do Workspace que mudam só por revisão de um Agente e Aprovação de Administrador. */
+export type DocumentoDaMemoria = 'icp'
+
+/**
+ * A proposta de um Agente para um documento da Memória do Workspace. Pendente, não é versão aprovada:
+ * o documento vigente só muda quando um Administrador ativo aprova.
+ */
+export interface RevisaoDaMemoria {
+  documento: DocumentoDaMemoria
+  /** O que o participante pediu ao Agente na Conversa. */
+  pedido: string
+  solicitante: Autor
+  /** Data do pedido, em ISO (aaaa-mm-dd). */
+  pedidaEm: string
+  /** O documento inteiro como ficaria: a aprovação troca o vigente por este de uma vez. */
+  proposto: SecaoDoDocumento[]
+  /** O documento vigente no momento do pedido, para mostrar o que muda. */
+  vigenteNoPedido: SecaoDoDocumento[]
+  decididaPor?: Autor
+}
+
 export interface Fato {
   id: string
   agenteId: AgenteId
@@ -161,6 +210,8 @@ export interface Habilidade {
   usos: number
   ultimaMelhoria: string
   ativa: boolean
+  /** Pontua pelo ICP vigente da Memória do Workspace, lido a cada uso: não guarda uma cópia dele. */
+  usaIcp?: boolean
 }
 
 export type Frequencia = 'diaria' | 'semanal' | 'mensal'
@@ -194,6 +245,8 @@ export interface ItemDeAtividade {
   resultado: string
   /** Onde ver o resultado dentro da Althius. */
   link?: { rotulo: string; para: string }
+  /** A ação não se concluiu e nada foi alterado: um evento de falha para quem acompanha a Atividade. */
+  falhou?: boolean
 }
 
 export type CanalId = 'slack' | 'whatsapp' | 'teams' | 'email'
@@ -256,7 +309,13 @@ export interface AcaoProposta {
   justificativa: string
 }
 
-export interface Aprovacao extends AcaoProposta {
+/**
+ * Uma Aprovação é uma ação numa Integração ou, com `revisao`, uma revisão da Memória do Workspace, que não
+ * passa por Integração e só um Administrador ativo decide.
+ */
+export interface Aprovacao extends Omit<AcaoProposta, 'integracaoId'> {
+  integracaoId?: IntegracaoId
+  revisao?: RevisaoDaMemoria
   id: string
   agenteId: AgenteId
   origem: Origem
@@ -393,7 +452,21 @@ export interface FonteDeAgentes extends FonteObservavel {
   conectar(conexao: CanalId | IntegracaoId): Promise<void>
   previaDeCanal(canalId: CanalId): Promise<PreviaDeCanal>
 
+  /** O ICP vigente, a referência compartilhada que Configurações, Sinais e Agentes leem. */
+  memoriaDoWorkspace(): Promise<MemoriaDoWorkspace>
+  /**
+   * Um participante ativo pede a revisão ao Agente do documento (o Scopus, no ICP). Numa Conversa
+   * demonstrativa, o Agente prepara a proposta e a envia para Aprovações; o documento vigente não muda.
+   * Recusa quem não participa do Workspace e um segundo pedido enquanto houver proposta pendente.
+   */
+  solicitarRevisao(documento: DocumentoDaMemoria, pedido: string): Promise<Aprovacao>
+
   aprovacoes(): Promise<Aprovacao[]>
+  /**
+   * Decide uma Aprovação: é uma ação da Execução que a propôs, não uma Execução nova. Uma revisão da Memória do
+   * Workspace exige Administrador ativo; aprovada, substitui o documento vigente numa mudança só, e todas as
+   * configurações que dependem dele passam a usar o novo. Se falhar, nada muda e a proposta continua pendente.
+   */
   decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao): Promise<void>
   /** Propõe uma nova Aprovação (ex.: para ativação de sequência simulada). */
   proporAprovacao(aprovacao: NovaAprovacao): Promise<Aprovacao>

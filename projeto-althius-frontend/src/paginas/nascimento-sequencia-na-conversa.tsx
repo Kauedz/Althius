@@ -435,13 +435,15 @@ export function NascimentoSequenciaNaConversa({
                 <IconeAgente especialidade="rhetor" tamanho="sm" />
                 <span className="font-normal text-al-ink">{agente?.nome ?? 'Rhetor'}</span>
                 <span className="text-al-line">·</span>
-                <LogoDaIntegracao
-                  id={aprovacao.integracaoId}
-                  nome={nomeDaIntegracao(
-                    aprovacao.integracaoId,
-                    referencias?.integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome,
-                  )}
-                />
+                {aprovacao.integracaoId && (
+                  <LogoDaIntegracao
+                    id={aprovacao.integracaoId}
+                    nome={nomeDaIntegracao(
+                      aprovacao.integracaoId,
+                      referencias?.integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome,
+                    )}
+                  />
+                )}
                 <span className="rotulo">{rotuloDoEstado}</span>
                 <span className="text-al-line">·</span>
                 <span className="text-xs uppercase tracking-rotulo text-al-muted">

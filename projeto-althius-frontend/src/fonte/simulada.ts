@@ -17,6 +17,8 @@ import {
   type PassoDeRoteiroCoordenado,
   type RoteiroCoordenado,
 } from './roteiros'
+import { DOCUMENTOS_DA_MEMORIA } from './regras-memoria'
+import { criarMemoriaSimulada, FalhaAoGravar } from './simulada-memoria'
 import { criarParticipacoesSimuladas, type ArmazenamentoDemonstrativo, type Sessao } from './simulada-participacoes'
 import type {
   AcaoProposta,
@@ -24,6 +26,7 @@ import type {
   AgenteId,
   Aprovacao,
   CanalId,
+  Decisao,
   EspecialidadeId,
   EstadoAgente,
   FonteDeAgentes,
@@ -45,7 +48,8 @@ export interface OpcoesFonteSimulada {
   atrasoMs?: number
   /**
    * Quando presente, o perfil pessoal (nome, e-mail, foto), associado à Conta de usuário, e o Workspace
-   * (informações, Participações e convites), associado ao Workspace, sobrevivem a um refresh. Sem isso,
+   * (informações, Participações, convites e a Memória do Workspace com as revisões propostas), associado ao
+   * Workspace, sobrevivem a um refresh. Sem isso,
    * valem só na instância — útil para isolar os testes.
    */
   armazenamento?: ArmazenamentoDemonstrativo | null
@@ -59,6 +63,7 @@ export function criarFonteSimulada({
   sessao,
 }: OpcoesFonteSimulada = {}): FonteDeAgentes {
   const participacoes = criarParticipacoesSimuladas({ armazenamento, sessao })
+  const memoriaDoWorkspace = criarMemoriaSimulada({ armazenamento, participacoes })
   const estado = structuredClone({
     agentes: demo.agentes,
     fatos: demo.fatos,
@@ -287,6 +292,48 @@ export function criarFonteSimulada({
     return [...passos.slice(0, indiceDaResposta), ...extras, ...passos.slice(indiceDaResposta)]
   }
 
+  /** Toda a fila: as revisões da Memória do Workspace, que persistem com ele, e as demais Aprovações. */
+  function todasAsAprovacoes(): Aprovacao[] {
+    return [...memoriaDoWorkspace.revisoes(), ...estado.aprovacoes]
+  }
+
+  /**
+   * Decide uma revisão da Memória do Workspace. Como toda decisão, é uma ação da Execução que a propôs; se a
+   * gravação falhar, a falha entra na Atividade e nada muda.
+   */
+  function decidirRevisao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {
+    const { agenteId, gatilho, acao, revisao } = buscar(memoriaDoWorkspace.revisoes(), aprovacaoId)
+    const { nome } = DOCUMENTOS_DA_MEMORIA[revisao!.documento]
+    const link = { rotulo: 'Ver Memória do Workspace', para: '/configuracoes/memoria' }
+    try {
+      memoriaDoWorkspace.decidir(aprovacaoId, decisao)
+    } catch (erro) {
+      if (!(erro instanceof FalhaAoGravar)) throw erro
+      registrarAcao({
+        agenteId,
+        gatilho,
+        descricao: `Falhou ao decidir ${ondeFoiDecidida(onde)}: ${acao}`,
+        resultado: `Nada foi alterado: o ${nome} vigente e as configurações que dependem dele continuam como estavam.`,
+        link,
+        falhou: true,
+      })
+      avisar()
+      throw new Error(
+        `Não foi possível concluir a decisão. O ${nome} vigente e as configurações que dependem dele continuam como estavam; a proposta segue pendente.`,
+      )
+    }
+    registrarAcao({
+      agenteId,
+      gatilho,
+      descricao: `${decisao === 'aprovada' ? 'Aprovada' : 'Recusada'} ${ondeFoiDecidida(onde)}: ${acao}`,
+      resultado:
+        decisao === 'aprovada'
+          ? `O ${nome} vigente foi substituído e as configurações que dependem dele já usam o novo. Nenhuma ação externa foi refeita.`
+          : `O ${nome} vigente não mudou.`,
+      link,
+    })
+  }
+
   /** A Permissão do Agente na Integração decide: Propor vira Aprovação, Executar age sozinho, Ler não age. */
   function agir(agenteId: AgenteId, acao: AcaoProposta): PassoDaCoordenacao {
     const permissao = estado.personalizacoes[agenteId].permissoes[acao.integracaoId]
@@ -318,7 +365,7 @@ export function criarFonteSimulada({
         descricao: participacoes.informacoes().descricao,
         usuario: participacoes.usuario(),
         papel: participacoes.papelDaSessao(),
-        aprovacoesPendentes: estado.aprovacoes.filter((a) => a.estado === 'pendente').length,
+        aprovacoesPendentes: todasAsAprovacoes().filter((a) => a.estado === 'pendente').length,
       })),
     salvarPerfil: (perfil) => mudar(() => participacoes.salvarPerfil(perfil)),
 
@@ -431,9 +478,42 @@ export function criarFonteSimulada({
         return previa
       }),
 
-    aprovacoes: () => responder(() => estado.aprovacoes),
+    memoriaDoWorkspace: () => responder(() => memoriaDoWorkspace.memoria()),
+    async solicitarRevisao(documento, pedido) {
+      await esperar()
+      const { agenteId, nome } = DOCUMENTOS_DA_MEMORIA[documento]
+      let aprovacao: Aprovacao
+      try {
+        aprovacao = memoriaDoWorkspace.solicitar(documento, pedido)
+      } catch (erro) {
+        if (!(erro instanceof FalhaAoGravar)) throw erro
+        registrarExecucao({
+          agenteId,
+          gatilho: 'conversa',
+          descricao: `Respondeu a um pedido de revisão: "${pedido.trim()}"`,
+          resultado: `Não registrou a proposta: o ${nome} vigente não mudou.`,
+          falhou: true,
+        })
+        avisar()
+        throw new Error(`Não foi possível registrar a proposta. O ${nome} vigente não mudou; tente de novo.`)
+      }
+      const { revisao } = aprovacao
+      // O pedido é uma Conversa com o Agente: a proposta é o resultado dessa Execução.
+      registrarExecucao({
+        agenteId,
+        gatilho: 'conversa',
+        descricao: `Respondeu ao pedido de revisão de ${revisao!.solicitante.nome}: "${revisao!.pedido}"`,
+        resultado: `Propôs: ${aprovacao.acao}. Aguardando a decisão de um Administrador.`,
+        link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
+      })
+      avisar()
+      return structuredClone(aprovacao)
+    },
+
+    aprovacoes: () => responder(todasAsAprovacoes),
     decidirAprovacao: (aprovacaoId, decisao, onde) =>
       mudar(() => {
+        if (memoriaDoWorkspace.ehRevisao(aprovacaoId)) return decidirRevisao(aprovacaoId, decisao, onde)
         const aprovacao = buscar(estado.aprovacoes, aprovacaoId)
         aprovacao.estado = decisao
         registrarAcao({

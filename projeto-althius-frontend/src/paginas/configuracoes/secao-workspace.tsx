@@ -3,23 +3,15 @@ import { useState, type FormEvent } from 'react'
 import { AvatarDePessoa, Carregando } from '@/components/marca'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
-import { formatarDataCompleta } from '@/fonte/formatar-data'
+import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { PAPEIS, ROTULO_DO_PAPEL } from '@/fonte/regras'
 import type { Papel, Participante, ParticipantesDoWorkspace } from '@/fonte/tipos'
-import { cn } from '@/lib/utils'
+import { cn, mensagemDeErro } from '@/lib/utils'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Opcao } from '@/paginas/sinais/componentes'
 import { Bloco, Mensagem } from './componentes'
 
 type Resultado = { tipo: 'sucesso' | 'erro'; texto: string }
 type AoConcluir = (resultado: Resultado) => void
-
-const mensagemDe = (erro: unknown) => (erro instanceof Error ? erro.message : 'Não foi possível concluir a operação.')
-
-/** Data em ISO (aaaa-mm-dd) por extenso, no dia do calendário, sem deslocar pelo fuso. */
-function dataPorExtenso(iso: string) {
-  const [ano, mes, dia] = iso.split('-').map(Number)
-  return formatarDataCompleta(new Date(ano, mes - 1, dia))
-}
 
 /**
  * Workspace / Pessoas e acesso: todos os Participantes consultam as informações, quem participa e os
@@ -96,7 +88,7 @@ function Informacoes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; a
           )}
         </dd>
         <dt className="rotulo">Criado em</dt>
-        <dd>{dataPorExtenso(informacoes.criadoEm)}</dd>
+        <dd>{formatarDiaIsoPorExtenso(informacoes.criadoEm)}</dd>
         <dt className="rotulo">Participantes</dt>
         <dd>{papel ? participantes.length : '—'}</dd>
         <dt className="rotulo">Seu papel</dt>
@@ -128,7 +120,7 @@ function FormularioDeDescricao({
       await fonte.salvarDescricaoDoWorkspace(descricao)
       aoConcluir({ tipo: 'sucesso', texto: 'Descrição do Workspace salva. Todas as pessoas do Workspace já veem a mudança.' })
     } catch (e) {
-      setErro(mensagemDe(e))
+      setErro(mensagemDeErro(e))
     } finally {
       setSalvando(false)
     }
@@ -176,7 +168,7 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
       await fonte.mudarPapel(participante.conta.id, novo)
       aoConcluir({ tipo: 'sucesso', texto: `${participante.conta.nome} agora é ${ROTULO_DO_PAPEL[novo]} neste Workspace.` })
     } catch (e) {
-      aoConcluir({ tipo: 'erro', texto: mensagemDe(e) })
+      aoConcluir({ tipo: 'erro', texto: mensagemDeErro(e) })
     }
   }
 
@@ -312,7 +304,7 @@ function DialogoDeRemocao({
         texto: `O acesso de ${participante.conta.nome} ao Workspace ${nomeDoWorkspace} foi encerrado. A Conta de usuário continua ativa${preservadas}.`,
       })
     } catch (e) {
-      aoConcluir({ tipo: 'erro', texto: mensagemDe(e) })
+      aoConcluir({ tipo: 'erro', texto: mensagemDeErro(e) })
     } finally {
       setRemovendo(false)
     }
@@ -371,7 +363,7 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
       await fonte.cancelarConvite(conviteId)
       aoConcluir({ tipo: 'sucesso', texto: `Convite para ${email} cancelado.` })
     } catch (e) {
-      aoConcluir({ tipo: 'erro', texto: mensagemDe(e) })
+      aoConcluir({ tipo: 'erro', texto: mensagemDeErro(e) })
     }
   }
 
@@ -407,7 +399,7 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
               <div className="flex flex-1 flex-col leading-tight">
                 <span className="font-normal">{convite.email}</span>
                 <span className="text-sm text-al-muted">
-                  {ROTULO_DO_PAPEL[convite.papel]} · registrado em {dataPorExtenso(convite.registradoEm)}
+                  {ROTULO_DO_PAPEL[convite.papel]} · registrado em {formatarDiaIsoPorExtenso(convite.registradoEm)}
                 </span>
               </div>
               <span className="selo">Convite pendente</span>
@@ -465,7 +457,7 @@ function DialogoDeConvite({
       })
       fechar()
     } catch (e) {
-      setErro(mensagemDe(e))
+      setErro(mensagemDeErro(e))
     } finally {
       setEnviando(false)
     }

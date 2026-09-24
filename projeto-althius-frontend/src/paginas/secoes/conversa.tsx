@@ -153,14 +153,16 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
 
 function CabecalhoDaAprovacao({ aprovacao, rotulo }: { aprovacao: Aprovacao; rotulo: string }) {
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
-  const nome = nomeDaIntegracao(
-    aprovacao.integracaoId,
-    integracoes?.find((i) => i.id === aprovacao.integracaoId)?.nome,
-  )
+  const { integracaoId } = aprovacao
+  const nome = integracaoId && nomeDaIntegracao(integracaoId, integracoes?.find((i) => i.id === integracaoId)?.nome)
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <LogoDaIntegracao id={aprovacao.integracaoId} nome={nome} />
-      <span className="rotulo">{nome}</span>
+      {integracaoId && nome && (
+        <>
+          <LogoDaIntegracao id={integracaoId} nome={nome} />
+          <span className="rotulo">{nome}</span>
+        </>
+      )}
       <span className="rotulo text-al-accent">{rotulo}</span>
     </div>
   )

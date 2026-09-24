@@ -3,28 +3,20 @@ import { Navigate, useParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
 import { Pagina } from '@/components/pagina'
 import { SecaoEmPreparo } from './secao-em-preparo'
+import { SecaoMemoria } from './secao-memoria'
 import { SecaoPerfil } from './secao-perfil'
 import { SecaoPreferencias } from './secao-preferencias'
 import { SecaoWorkspace } from './secao-workspace'
 
 /**
- * As seis seções aprovadas no mockup (ticket 01). Meu perfil, Preferências e Workspace já têm
+ * As seis seções aprovadas no mockup (ticket 01). Meu perfil, Preferências, Workspace e Memória do Workspace (ICP) já têm
  * implementação funcional; as demais chegam nos tickets seguintes (ver comentário do ticket 01).
  */
 const SECOES: Record<string, { rotulo: string; Componente: () => ReactNode }> = {
   perfil: { rotulo: 'Meu perfil', Componente: SecaoPerfil },
   preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias },
   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace },
-  memoria: {
-    rotulo: 'Memória do Workspace',
-    Componente: () => (
-      <SecaoEmPreparo
-        titulo="Memória do Workspace"
-        descricao="O ICP e as Personas vigentes, com pedido de revisão pelo Scopus e pelo Ethos."
-        alcance="Compartilhado com o Workspace"
-      />
-    ),
-  },
+  memoria: { rotulo: 'Memória do Workspace', Componente: SecaoMemoria },
   plano: {
     rotulo: 'Plano',
     Componente: () => (
