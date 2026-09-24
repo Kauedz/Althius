@@ -3,7 +3,6 @@ import { PreviewCard } from '@base-ui/react/preview-card'
 import { Building2, ExternalLink, ListFilter, RadioTower, Search, X } from 'lucide-react'
 import { useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { AbasSublinhadas } from '@/components/abas'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
@@ -12,21 +11,17 @@ import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { Aderencia, ContaAlvo, PreviaContato } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
-import { cn, iniciais, normalizarParaBusca } from '@/lib/utils'
+import { cn, normalizarParaBusca } from '@/lib/utils'
 import { DetalheConta } from './detalhe-conta'
-
-const ABAS_MODULO = [
-  { rotulo: 'Contas', para: '/contas' },
-  { rotulo: 'Contatos', para: '/contatos' },
-]
-
-const ORDEM_ADERENCIA: Record<Aderencia, number> = {
-  quente: 1,
-  fit: 2,
-  'nao-fit': 3,
-}
-// Sem Aderência, a Conta-alvo ainda não foi avaliada: fica depois das Não fit.
-const ORDEM_NAO_AVALIADA = 4
+import {
+  AbasDoModulo,
+  AvatarDoContato,
+  CABECALHO,
+  CELULA,
+  CelulaUltimoContato,
+  FalhaAoCarregar,
+} from './modulo-contas-e-contatos'
+import { ADERENCIAS, posicaoDaAderencia } from './ordem-da-aderencia'
 
 type Comparacao = (a: ContaAlvo, b: ContaAlvo) => number
 
@@ -44,8 +39,7 @@ function maisRecentePrimeiro(data: (conta: ContaAlvo) => string | undefined): Co
 }
 
 const porNome: Comparacao = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR')
-const rankDaAderencia = (conta: ContaAlvo) => (conta.aderencia ? ORDEM_ADERENCIA[conta.aderencia] : ORDEM_NAO_AVALIADA)
-const porAderencia: Comparacao = (a, b) => rankDaAderencia(a) - rankDaAderencia(b)
+const porAderencia: Comparacao = (a, b) => posicaoDaAderencia(a.aderencia) - posicaoDaAderencia(b.aderencia)
 const porUltimoSinal = maisRecentePrimeiro((conta) => conta.ultimoSinal?.data)
 
 /** Aplica os critérios em sequência: o seguinte só desfaz o empate do anterior. */
@@ -80,7 +74,6 @@ const ROTULO_ADERENCIA: Record<Aderencia, string> = {
   fit: 'Fit',
   'nao-fit': 'Não fit',
 }
-const ADERENCIAS = Object.keys(ORDEM_ADERENCIA) as Aderencia[]
 const ROTULO_PRESENCA = {
   sinal: { com: 'Com sinal', sem: 'Sem sinal' },
   contatos: { com: 'Com contatos', sem: 'Sem contatos' },
@@ -196,11 +189,6 @@ function buscarContas(contas: ContaAlvo[], busca: string): ContaAlvo[] {
   )
 }
 
-// Cabeçalho fixo no topo do quadro que rola.
-const CABECALHO = 'rotulo sticky top-0 z-2 h-9.5 border-b border-al-line bg-al-bg pr-4 text-[0.625rem] whitespace-nowrap'
-// Linhas compactas, separadas só pela linha do token.
-const CELULA = 'border-b border-al-line pr-4'
-
 export function PaginaContas() {
   const { contaId } = useParams<{ contaId?: string }>()
 
@@ -229,7 +217,7 @@ function ListaContas() {
 
   return (
     <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
-      <AbasSublinhadas rotuloAcessivel="Abas de contas e contatos" abas={ABAS_MODULO} />
+      <AbasDoModulo />
 
       <div className="flex items-end justify-between gap-8">
         <h2 className="sr-only">Empresas</h2>
@@ -279,19 +267,7 @@ function ListaContas() {
 
       {carregando && <Carregando />}
 
-      {erro && (
-        <div role="alert" className="flex flex-col items-start gap-3 py-6">
-          <p className="text-sm text-al-muted">Não foi possível carregar as contas.</p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={recarregar}
-            className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
-          >
-            Tentar de novo
-          </Button>
-        </div>
-      )}
+      {erro && <FalhaAoCarregar mensagem="Não foi possível carregar as contas." tentarDeNovo={recarregar} />}
 
       {!carregando && !erro && contas && contas.length === 0 && (
         <p className="py-12 text-sm text-al-muted">
@@ -671,24 +647,6 @@ function CelulaContatos({ total, previa = [] }: { total: number; previa?: Previa
   )
 }
 
-/** A foto do Contato num círculo, ou as iniciais do nome quando não há foto. */
-function AvatarDoContato({ contato, className }: { contato: PreviaContato; className?: string }) {
-  const circulo = cn('size-6.5 shrink-0 rounded-full border border-al-line ring-[1.5px] ring-al-bg', className)
-  if (contato.foto) {
-    return <img src={contato.foto} alt={contato.nome} title={contato.nome} className={cn(circulo, 'object-cover')} />
-  }
-  return (
-    <span
-      role="img"
-      aria-label={contato.nome}
-      title={contato.nome}
-      className={cn(circulo, 'grid place-items-center bg-al-surface text-[0.625rem] font-normal text-al-ink')}
-    >
-      {iniciais(contato.nome)}
-    </span>
-  )
-}
-
 function CelulaUltimoSinal({ sinal, hoje }: { sinal?: ContaAlvo['ultimoSinal']; hoje: Date }) {
   if (!sinal) {
     return <span className="text-al-muted">Nenhum sinal</span>
@@ -715,21 +673,6 @@ function CelulaSegmento({ segmento }: { segmento?: string }) {
   return (
     <span title={segmento} className="block truncate">
       {segmento}
-    </span>
-  )
-}
-
-function CelulaUltimoContato({ data, hoje }: { data?: string; hoje: Date }) {
-  if (!data) {
-    return <span className="text-al-muted">Nunca</span>
-  }
-
-  const dataRelativaOuExplicita = formatarDataDoModulo(data, hoje, { maiuscula: true })
-  const dataCompleta = formatarDataCompleta(data)
-
-  return (
-    <span title={dataCompleta} aria-label={dataCompleta} className="whitespace-nowrap">
-      {dataRelativaOuExplicita}
     </span>
   )
 }
