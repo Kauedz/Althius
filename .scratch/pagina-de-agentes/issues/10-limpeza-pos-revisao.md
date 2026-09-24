@@ -10,11 +10,13 @@
 
 **Status:** ready-for-agent
 
-- [ ] Existe um só componente para mostrar uma Aprovação dentro de uma Conversa, usado na Conversa direta e na coordenada
-- [ ] Nenhum campo chamado `agenteId` guarda um `EspecialidadeId`
-- [ ] Nenhum identificador nem texto do código usa "fio"
-- [ ] `npm test` e `npm run build` passam
+- [x] Existe um só componente para mostrar uma Aprovação dentro de uma Conversa, usado na Conversa direta e na coordenada
+- [x] Nenhum campo chamado `agenteId` guarda um `EspecialidadeId`
+- [x] Nenhum identificador nem texto do código usa "fio"
+- [x] `npm test` e `npm run build` passam
 
 ## Comments
 
 **Origem (23/09/2026):** achados de padrões da revisão de `0941f6c...HEAD`. "fio" e "etapa" ficam fora do CONTEXT.md; "etapa" continua como termo de implementação.
+
+**Verificação (24/09/2026):** o código já estava em `866c3f3`. Reconferido em `main`: um só `AprovacaoNaConversa` na Conversa direta e na coordenada; `PassoDeRoteiro` guarda a Especialidade em `ator`; nenhum identificador nem texto do código usa "fio" (tickets e spec antigos ficam). O título do teste do composer, que tinha ficado "o composer da Conversa a continua", voltou a descrever o que o teste faz. `npm test` (175) e `npm run build` passaram antes desse ajuste de título.

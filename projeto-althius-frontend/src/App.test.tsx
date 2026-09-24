@@ -735,7 +735,7 @@ describe('Composer e Coordenação', () => {
     expect(within(resposta).getByText(/lakehouse vs\. data warehouse em 2026/)).toBeInTheDocument()
   })
 
-  it('o composer da Conversa a continua, só com o chip do Workspace', async () => {
+  it('o composer continua a Conversa, só com o chip do Workspace', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
     await pedirNoComposer(usuario, 'o que é ICP?')
