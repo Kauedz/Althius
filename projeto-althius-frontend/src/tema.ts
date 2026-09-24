@@ -2,29 +2,50 @@ import { useCallback, useEffect, useState } from 'react'
 
 export type Tema = 'escuro' | 'claro'
 
-const CHAVE = 'althius:tema'
+const CHAVE_DO_TEMA = 'althius:tema'
 
-function temaSalvo(): Tema {
+/** Quem usa `useTema()` em outro ponto da árvore (ex.: Casca e Preferências) fica sincronizado. */
+const ouvintes = new Set<() => void>()
+
+function ehTema(valor: unknown): valor is Tema {
+  return valor === 'escuro' || valor === 'claro'
+}
+
+/** Lê sempre do navegador: sem cache em módulo, para não vazar o tema de um teste para o outro. */
+function lerTema(): Tema {
   try {
-    return localStorage.getItem(CHAVE) === 'claro' ? 'claro' : 'escuro'
+    const bruto = localStorage.getItem(CHAVE_DO_TEMA)
+    return ehTema(bruto) ? bruto : 'escuro'
   } catch {
     return 'escuro'
   }
 }
 
-/** Tema escuro por padrão; a escolha fica só neste navegador. */
+function definirTema(tema: Tema) {
+  document.documentElement.dataset.theme = tema
+  try {
+    localStorage.setItem(CHAVE_DO_TEMA, tema)
+  } catch {
+    // Sem armazenamento disponível, o tema vale só até recarregar.
+  }
+  ouvintes.forEach((ouvinte) => ouvinte())
+}
+
+/** Tema escuro por padrão; a escolha é gravada no navegador e volta na abertura seguinte. */
 export function useTema() {
-  const [tema, setTema] = useState<Tema>(temaSalvo)
+  const [tema, setTema] = useState<Tema>(lerTema)
 
   useEffect(() => {
     document.documentElement.dataset.theme = tema
-    try {
-      localStorage.setItem(CHAVE, tema)
-    } catch {
-      // Sem armazenamento disponível: o tema vale só nesta visita.
+    const ouvinte = () => setTema(lerTema())
+    ouvintes.add(ouvinte)
+    return () => {
+      ouvintes.delete(ouvinte)
     }
-  }, [tema])
+    // Só na montagem: mudanças próprias já passam por `definirTema`, que também avisa este ouvinte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const alternar = useCallback(() => setTema((atual) => (atual === 'escuro' ? 'claro' : 'escuro')), [])
-  return { tema, alternar }
+  const alternar = useCallback(() => definirTema(lerTema() === 'escuro' ? 'claro' : 'escuro'), [])
+  return { tema, alternar, escolher: definirTema }
 }

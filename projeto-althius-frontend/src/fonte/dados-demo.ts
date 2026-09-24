@@ -24,7 +24,7 @@ import { permissaoPadrao } from './regras'
 export const workspace: Omit<Workspace, 'aprovacoesPendentes'> = {
   cliente: 'Databricks',
   descricao: 'Workspace de demonstração',
-  usuario: { nome: 'Marina Alves', cargo: 'Head de Growth, LATAM' },
+  usuario: { nome: 'Marina Alves', email: 'marina.alves@databricks.com', cargo: 'Head de Growth, LATAM' },
 }
 
 /**

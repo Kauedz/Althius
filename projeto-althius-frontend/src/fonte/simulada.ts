@@ -4,7 +4,7 @@ import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
 import { normalizarNome, reconhecerMencoes } from './mencoes'
-import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
+import { ehEmailValido, nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
 import {
   consolidadaGenerica,
   etapaGenerica,
@@ -34,14 +34,44 @@ import type {
   Origem,
   PassoDaConversa,
   PassoDaCoordenacao,
+  Perfil,
 } from './tipos'
 
-interface Opcoes {
-  /** Atraso simulado de cada resposta e de cada passo da Conversa. */
-  atrasoMs?: number
+const CHAVE_DO_PERFIL = 'althius:perfil'
+
+export interface ArmazenamentoDoPerfil {
+  getItem(chave: string): string | null
+  setItem(chave: string, valor: string): void
 }
 
-export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgentes {
+export interface OpcoesFonteSimulada {
+  /** Atraso simulado de cada resposta e de cada passo da Conversa. */
+  atrasoMs?: number
+  /**
+   * Quando presente, o perfil pessoal (nome, e-mail, foto) sobrevive a um refresh, associado à
+   * Conta de usuário. Sem isso, vale só na instância — útil para isolar os testes.
+   */
+  armazenamento?: ArmazenamentoDoPerfil | null
+}
+
+/** Lê o perfil salvo, ignorando o que não reconhece; sem armazenamento ou sem valor salvo, nada muda. */
+function perfilSalvo(armazenamento: ArmazenamentoDoPerfil | null): Partial<Perfil> {
+  if (!armazenamento) return {}
+  try {
+    const bruto = armazenamento.getItem(CHAVE_DO_PERFIL)
+    if (!bruto) return {}
+    const lido = JSON.parse(bruto) as Record<string, unknown>
+    const perfil: Partial<Perfil> = {}
+    if (typeof lido.nome === 'string') perfil.nome = lido.nome
+    if (typeof lido.email === 'string') perfil.email = lido.email
+    if (typeof lido.foto === 'string') perfil.foto = lido.foto
+    return perfil
+  } catch {
+    return {}
+  }
+}
+
+export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: OpcoesFonteSimulada = {}): FonteDeAgentes {
   const estado = structuredClone({
     agentes: demo.agentes,
     fatos: demo.fatos,
@@ -53,6 +83,7 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     personalizacoes: demo.personalizacoes,
     aprovacoes: demo.aprovacoes,
     previas: demo.previas,
+    usuario: { ...demo.workspace.usuario, ...perfilSalvo(armazenamento) },
   })
   const ouvintes = new Set<() => void>()
   let proximoId = 1
@@ -257,8 +288,18 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
     workspace: () =>
       responder(() => ({
         ...demo.workspace,
+        usuario: estado.usuario,
         aprovacoesPendentes: estado.aprovacoes.filter((a) => a.estado === 'pendente').length,
       })),
+    salvarPerfil: (perfil) =>
+      mudar(() => {
+        const nome = perfil.nome.trim()
+        if (!nome) throw new Error('Informe seu nome.')
+        const email = perfil.email.trim()
+        if (!ehEmailValido(email)) throw new Error('Informe um e-mail em formato válido.')
+        estado.usuario = { ...estado.usuario, nome, email: email.toLowerCase(), foto: perfil.foto }
+        armazenamento?.setItem(CHAVE_DO_PERFIL, JSON.stringify(estado.usuario))
+      }),
 
     especialidades: () => responder(() => especialidades),
 

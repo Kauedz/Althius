@@ -1,7 +1,7 @@
-import { Bot, Building2, ChevronsUpDown, Plug, RadioTower, Route, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { Bot, Building2, ChevronsUpDown, Plug, RadioTower, Route, Settings, ShieldCheck, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
+import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -98,6 +98,13 @@ function Sidebar() {
         <ItemDeNavegacao para="/conexoes" ativo={pathname.startsWith('/conexoes')} icone={<IconeDeNavegacao icone={Plug} />}>
           Conexões
         </ItemDeNavegacao>
+        <ItemDeNavegacao
+          para="/configuracoes/perfil"
+          ativo={pathname.startsWith('/configuracoes')}
+          icone={<IconeDeNavegacao icone={Settings} />}
+        >
+          Configurações
+        </ItemDeNavegacao>
       </Secao>
 
       <MenuDoUsuario />
@@ -145,12 +152,7 @@ function MenuDoUsuario() {
 
   return (
     <div className="mt-auto flex items-center gap-2.5 border-t border-al-line pt-4">
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-al-line text-xs font-normal" aria-hidden>
-        {nome
-          .split(' ')
-          .map((parte) => parte[0])
-          .join('')}
-      </span>
+      <AvatarDePessoa nome={nome} foto={workspace?.usuario.foto} />
       <span className="flex min-w-0 flex-1 flex-col leading-tight">
         <span className="truncate text-sm font-normal">{nome}</span>
         <span className="rotulo text-[0.5625rem]">{tema === 'escuro' ? 'Tema escuro' : 'Tema claro'}</span>
@@ -166,6 +168,7 @@ function MenuDoUsuario() {
               <span className="block text-al-muted">{workspace?.usuario.cargo}</span>
             </DropdownMenuLabel>
           </DropdownMenuGroup>
+          <DropdownMenuItem render={<Link to="/configuracoes/perfil" />}>Meu perfil</DropdownMenuItem>
           <DropdownMenuItem onClick={alternar}>{tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -14,3 +14,10 @@ export const ROTULO_DA_DECISAO: Record<Decisao, string> = {
   aprovada: 'Aprovada',
   rejeitada: 'Rejeitada',
 }
+
+/** Validação simples de formato, sem verificação real de e-mail (fluxo demonstrativo). */
+export const FORMATO_DE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export function ehEmailValido(email: string): boolean {
+  return FORMATO_DE_EMAIL.test(email.trim())
+}

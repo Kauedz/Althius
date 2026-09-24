@@ -1,6 +1,6 @@
 import { Eye, Feather, Target, UserRound, type LucideIcon } from 'lucide-react'
 import type { EspecialidadeId, EstadoAgente } from '@/fonte/tipos'
-import { cn } from '@/lib/utils'
+import { cn, iniciais } from '@/lib/utils'
 
 /**
  * Logo provisório, reconstruído pela malha do manual (x = espessura da haste):
@@ -52,6 +52,36 @@ export function IconeAgente({ especialidade, tamanho = 'md' }: { especialidade: 
       )}
     >
       <IconeDaEspecialidade especialidade={especialidade} className={cn(tamanho === 'sm' && 'size-3.5', tamanho === 'lg' && 'size-6')} />
+    </span>
+  )
+}
+
+const TAMANHOS_DO_AVATAR = { sm: 'size-6.5 text-[0.625rem]', md: 'size-8 text-xs', lg: 'size-16 text-lg' } as const
+
+/** A foto de uma pessoa num círculo, ou as iniciais do nome quando não há foto. */
+export function AvatarDePessoa({
+  nome,
+  foto,
+  tamanho = 'md',
+  className,
+}: {
+  nome: string
+  foto?: string
+  tamanho?: keyof typeof TAMANHOS_DO_AVATAR
+  className?: string
+}) {
+  const circulo = cn('shrink-0 rounded-full', TAMANHOS_DO_AVATAR[tamanho], className)
+  if (foto) {
+    return <img src={foto} alt={nome} title={nome} className={cn(circulo, 'object-cover')} />
+  }
+  return (
+    <span
+      role="img"
+      aria-label={nome}
+      title={nome}
+      className={cn(circulo, 'grid place-items-center bg-al-line font-normal text-al-ink')}
+    >
+      {nome ? iniciais(nome) : null}
     </span>
   )
 }

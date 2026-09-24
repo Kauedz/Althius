@@ -52,7 +52,9 @@ Integrado ao aplicativo, fora do mockup descartável (`src/mockups/configuracoes
 
 ### 2026-09-24: verificação
 
-- Testes novos: `src/paginas/configuracoes/configuracoes.test.tsx` (10 testes — navegação, mesma fonte no formulário e no menu, salvar/cancelar/validação, foto, persistência entre remontagens, tema sincronizado com a Casca).
+- Testes novos: `src/paginas/configuracoes/configuracoes.test.tsx` (11 testes — navegação, mesma fonte no formulário e no menu, salvar/cancelar/validação, foto, persistência entre remontagens, tema sincronizado com a Casca, seleção explícita do tema).
+- Validação feita no **snapshot isolado do commit** (extraído com `git archive`, sem o trabalho não commitado de outras sessões que estava no working tree): typecheck completo não-incremental, suíte completa (234 testes), testes afetados após o ajuste da revisão (80 testes), lint e build — todos sem erros.
+- Revisão de código (`/code-review`): corrigido o `SeletorDeTema`, que ignorava a opção clicada e só alternava (agora `useTema().escolher(tema)`). Ficam como sugestão de refatoração futura, sem bug: `AvatarDePessoa` repete o padrão de `AvatarDoContato`; `ArmazenamentoDoPerfil` tem o mesmo formato de `ArmazenamentoDeOnboarding` (valeria um tipo compartilhado); `renderizarApp` já tem 6 parâmetros posicionais (valeria um objeto de opções).
 - Teste de tema em `App.test.tsx` atualizado: o comportamento mudou de "não persiste" para "persiste e sincroniza após remontar".
 - Suíte completa do frontend: `vitest run` — 234 testes, 20 arquivos, todos passando (rodado com `--maxWorkers=4`; sob concorrência máxima da caixa de execução, o runner ficou instável em arquivos que não têm relação com este ticket — sinal de contenção de recursos do ambiente, não de regressão).
 - `tsc --noEmit` (typecheck do projeto): sem erros.

@@ -562,6 +562,24 @@ describe('Tema', () => {
     await usuario.click(await screen.findByRole('menuitem', { name: 'Tema claro' }))
     expect(document.documentElement.dataset.theme).toBe('claro')
   })
+
+  it('um tema gravado no navegador volta na abertura seguinte', () => {
+    localStorage.setItem('althius:tema', 'claro')
+    renderizarApp('/')
+    expect(document.documentElement.dataset.theme).toBe('claro')
+  })
+
+  it('a escolha de tema persiste depois de a app ser remontada', async () => {
+    const { usuario, unmount } = renderizarApp('/')
+    await grade()
+    await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
+    await usuario.click(await screen.findByRole('menuitem', { name: 'Tema claro' }))
+    expect(document.documentElement.dataset.theme).toBe('claro')
+
+    unmount()
+    renderizarApp('/')
+    expect(document.documentElement.dataset.theme).toBe('claro')
+  })
 })
 
 async function pedirNoComposer(usuario: ReturnType<typeof renderizarApp>['usuario'], texto: string) {

@@ -6,7 +6,7 @@ import { criarFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
 import { criarFonteSimulada } from '@/fonte/simulada'
 import './index.css'
 
-const fonte = criarFonteSimulada()
+const fonte = criarFonteSimulada({ armazenamento: window.localStorage })
 const fonteDeContas = criarFonteDeContasSimulada()
 const fonteDeOnboarding = criarFonteDeOnboardingSimulada({ armazenamento: window.localStorage })
 
