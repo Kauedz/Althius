@@ -21,6 +21,7 @@ import type {
   AcaoProposta,
   Agente,
   AgenteId,
+  Aprovacao,
   CanalId,
   EspecialidadeId,
   FonteDeAgentes,
@@ -170,9 +171,21 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
 
   /** O roteiro coordenado de um pedido: o da sugestão clicada, ou o da sugestão escrita no texto. */
   function roteiroDo({ texto, sugestaoId }: Mensagem): RoteiroCoordenado | undefined {
+    if (sugestaoId) {
+      const porId = roteirosCoordenados.find((r) => r.pedido.id === sugestaoId)
+      if (porId) return porId
+    }
     const pedido = normalizarNome(texto)
+    if (pedido.includes('sequencia') || pedido.includes('sequencias')) {
+      if (pedido.includes('okta') || pedido.includes('1 contato') || pedido.includes('um contato')) {
+        return roteirosCoordenados.find((r) => r.pedido.id === 'coordenacao-sequencia-okta')
+      }
+      if (pedido.includes('openai') || pedido.includes('sinal') || pedido.includes('quente')) {
+        return roteirosCoordenados.find((r) => r.pedido.id === 'coordenacao-sequencia-sinal')
+      }
+    }
     return roteirosCoordenados.find(
-      ({ pedido: sugestao }) => sugestao.id === sugestaoId || pedido.includes(normalizarNome(sugestao.texto)),
+      ({ pedido: sugestao }) => pedido.includes(normalizarNome(sugestao.texto)),
     )
   }
 
@@ -353,9 +366,46 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
           gatilho: aprovacao.gatilho,
           descricao: `${ROTULO_DA_DECISAO[decisao]} ${ondeFoiDecidida(onde)}: ${aprovacao.acao}`,
           resultado: decisao === 'aprovada' ? 'Ação executada.' : 'Nada foi alterado.',
-          link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
+          link: aprovacao.sequenciaId
+            ? { rotulo: 'Ver sequência', para: `/sequencias/${aprovacao.sequenciaId}` }
+            : { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
         })
       }),
+    proporAprovacao: async (proposta) => {
+      await esperar(Math.min(atrasoMs, 120))
+      if (proposta.sequenciaId) {
+        const existente = estado.aprovacoes.find((a) => a.sequenciaId === proposta.sequenciaId)
+        if (existente) return structuredClone(existente)
+      }
+      const aprovacaoId = novoId('aprovacao')
+      const nova: Aprovacao = {
+        id: aprovacaoId,
+        agenteId: proposta.agenteId,
+        acao: proposta.acao,
+        integracaoId: proposta.integracaoId ?? 'hubspot',
+        impacto: proposta.impacto,
+        justificativa: proposta.justificativa,
+        origem: proposta.origem ?? 'althius',
+        gatilho: proposta.gatilho ?? 'conversa',
+        estado: 'pendente',
+        contaId: proposta.contaId,
+        contaNome: proposta.contaNome,
+        sequenciaId: proposta.sequenciaId,
+      }
+      estado.aprovacoes.unshift(nova)
+      if (nova.origem !== 'althius') {
+        estado.previas
+          .find((p) => p.canalId === nova.origem)
+          ?.mensagens.push({
+            autor: nomeDe(proposta.agenteId),
+            ehAgente: true,
+            texto: `Preparei uma proposta: ${proposta.acao}. Posso seguir?`,
+            aprovacaoId,
+          })
+      }
+      avisar()
+      return structuredClone(nova)
+    },
 
     async *conversar(id, { texto, sugestaoId }): AsyncGenerator<PassoDaConversa> {
       const passos = roteiroPara(id, texto, sugestaoId)
@@ -400,6 +450,16 @@ export function criarFonteSimulada({ atrasoMs = 450 }: Opcoes = {}): FonteDeAgen
         }
         if (passo.tipo === 'acao') {
           yield agir(passo.ator, passo.acao)
+          continue
+        }
+        if (passo.tipo === 'nascimento-sequencia') {
+          yield {
+            tipo: 'nascimento-sequencia',
+            agenteId: passo.ator,
+            contaId: passo.contaId,
+            sinal: passo.sinal,
+            sequenciaId: passo.sequenciaId,
+          }
           continue
         }
         if (passo.tipo === 'feito') {

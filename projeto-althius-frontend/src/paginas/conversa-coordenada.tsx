@@ -11,6 +11,7 @@ import { useDados } from '@/fonte/contexto'
 import type { AcaoProposta, Agente, AgenteId, Integracao } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
+import { NascimentoSequenciaNaConversa } from '@/paginas/nascimento-sequencia-na-conversa'
 
 /** Cada Agente chamado é uma etapa: ativa enquanto não diz o que fez. */
 interface Etapa {
@@ -19,7 +20,7 @@ interface Etapa {
   resumo?: string
 }
 
-type Desfecho = Extract<ItemDaCoordenacao, { tipo: 'aprovacao' | 'acao' }>
+type Desfecho = Extract<ItemDaCoordenacao, { tipo: 'aprovacao' | 'acao' | 'nascimento-sequencia' }>
 
 /** Um pedido da Conversa e o que a Coordenação fez com ele. */
 interface Turno {
@@ -206,25 +207,38 @@ function TurnoDaConversa({
         </section>
       )}
 
-      {desfechos.map((desfecho) =>
-        desfecho.tipo === 'aprovacao' ? (
-          <AprovacaoNaConversa
-            key={desfecho.id}
-            aprovacaoId={desfecho.aprovacaoId}
-            cabecalho={(aprovacao, rotuloDoEstado) => (
-              <QuemAgeOnde
-                agenteId={aprovacao.agenteId}
-                integracaoId={aprovacao.integracaoId}
-                estado={rotuloDoEstado}
-                referencias={referencias}
-              />
-            )}
-            className="gap-1.5"
-          />
-        ) : (
-          <AcaoSemAprovacao key={desfecho.id} {...desfecho} referencias={referencias} />
-        ),
-      )}
+      {desfechos.map((desfecho) => {
+        if (desfecho.tipo === 'aprovacao') {
+          return (
+            <AprovacaoNaConversa
+              key={desfecho.id}
+              aprovacaoId={desfecho.aprovacaoId}
+              cabecalho={(aprovacao, rotuloDoEstado) => (
+                <QuemAgeOnde
+                  agenteId={aprovacao.agenteId}
+                  integracaoId={aprovacao.integracaoId}
+                  estado={rotuloDoEstado}
+                  referencias={referencias}
+                />
+              )}
+              className="gap-1.5"
+            />
+          )
+        }
+        if (desfecho.tipo === 'nascimento-sequencia') {
+          return (
+            <NascimentoSequenciaNaConversa
+              key={desfecho.id}
+              contaId={desfecho.contaId}
+              agenteId={desfecho.agenteId}
+              sinal={desfecho.sinal}
+              sequenciaId={desfecho.sequenciaId}
+              referencias={referencias}
+            />
+          )
+        }
+        return <AcaoSemAprovacao key={desfecho.id} {...desfecho} referencias={referencias} />
+      })}
     </div>
   )
 }

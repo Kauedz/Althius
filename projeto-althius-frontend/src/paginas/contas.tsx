@@ -1,4 +1,5 @@
 import { Building2, RadioTower } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
@@ -8,6 +9,7 @@ import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { Aderencia, ContaAlvo, PreviaContato } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn, iniciais } from '@/lib/utils'
+import { DetalheConta } from './detalhe-conta'
 
 const ABAS_MODULO = [
   { rotulo: 'Contas', para: '/contas' },
@@ -52,6 +54,21 @@ const CABECALHO = 'rotulo sticky top-0 z-2 h-9.5 border-b border-al-line bg-al-b
 const CELULA = 'border-b border-al-line pr-4'
 
 export function PaginaContas() {
+  const { contaId } = useParams<{ contaId?: string }>()
+
+  if (contaId) {
+    return (
+      <Pagina titulo="Contas" icone={Building2}>
+        <DetalheConta contaId={contaId} />
+      </Pagina>
+    )
+  }
+
+  return <ListaContas />
+}
+
+function ListaContas() {
+  const navegar = useNavigate()
   const fonte = useFonteDeContas()
   const { dados: contas, carregando, erro, recarregar } = useDadosDeContas(
     (f) => f.contas(),
@@ -133,7 +150,14 @@ export function PaginaContas() {
             </thead>
             <tbody>
               {contasOrdenadas.map((conta) => (
-                <tr key={conta.id} className="h-11">
+                <tr
+                  key={conta.id}
+                  className="h-11 cursor-pointer transition-colors hover:bg-al-surface/40"
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('a, button')) return
+                    navegar(`/contas/${conta.id}`)
+                  }}
+                >
                   <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
                     <CelulaEmpresa conta={conta} />
                   </td>
@@ -167,7 +191,12 @@ function CelulaEmpresa({ conta }: { conta: ContaAlvo }) {
     <div className="flex min-w-0 items-center gap-2.5">
       <LogoDaConta nome={conta.nome} logo={conta.logo} deUmaCor={conta.logoDeUmaCor} />
       <div className="flex min-w-0 flex-col leading-tight">
-        <span className="truncate font-normal text-al-ink">{conta.nome}</span>
+        <Link
+          to={`/contas/${conta.id}`}
+          className="truncate font-normal text-al-ink hover:text-al-accent hover:underline focus:outline-none"
+        >
+          {conta.nome}
+        </Link>
         <span className="truncate text-[0.6875rem] text-al-muted">{conta.dominio ?? 'Domínio não informado'}</span>
       </div>
     </div>

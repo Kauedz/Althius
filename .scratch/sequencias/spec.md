@@ -205,3 +205,25 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
   - nada finge envio real;
   - Conta com 1 Contato funciona;
   - o módulo conversa com Contas e Agentes sem quebrar o que já existe.
+
+## Decisões da aprovação do mock (ticket 01)
+
+O fundador aprovou o mock em `.scratch/sequencias/mock/` com estes ajustes:
+
+- **Documento como timeline no estilo Monaco/Apollo:**
+  - À esquerda, steps numerados, intercalados com "Aguardar N dias úteis" e com a data prevista de cada step.
+  - À direita, o composer do step selecionado, com rótulos inline (Para, Assunto, Mensagem).
+- **Pré-visualizar mostra a mensagem com a cara de cada canal**, como referência e sem copiar a marca:
+  - **WhatsApp:** tela de conversa.
+  - **LinkedIn:** cartão de convite ou conversa.
+  - **SMS:** tela de celular.
+  - **E-mail:** leitura de caixa de entrada.
+  - **Ligação e tarefa:** cartão de tarefa.
+- **Linhas de divisão mais marcadas** que no módulo Contas, para separar bem cada bloco.
+
+Os pontos em aberto listados no ticket 01 continuam valendo para os próximos tickets, até decisão explícita:
+
+- rótulos próximos da referência;
+- alvo por Persona;
+- extras de demonstração;
+- termos "step" e "pause".

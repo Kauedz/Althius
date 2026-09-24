@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 (Mock do layout de Sequências)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] O App recebe `FonteDeSequencias` como dependência e a injeta no contexto
-- [ ] A sidebar Workspace mostra o item Sequências, ativo nas rotas do módulo
-- [ ] Abrir Sequências com lista vazia não quebra Contas, Contatos nem Agentes
-- [ ] A fonte expõe listar / obter / criar / atualizar / observar de forma testável na sessão
-- [ ] Testes cobrem item na sidebar e fonte vazia sem regressão nas outras áreas
+- [x] O App recebe `FonteDeSequencias` como dependência e a injeta no contexto
+- [x] A sidebar Workspace mostra o item Sequências, ativo nas rotas do módulo
+- [x] Abrir Sequências com lista vazia não quebra Contas, Contatos nem Agentes
+- [x] A fonte expõe listar / obter / criar / atualizar / observar de forma testável na sessão
+- [x] Testes cobrem item na sidebar e fonte vazia sem regressão nas outras áreas

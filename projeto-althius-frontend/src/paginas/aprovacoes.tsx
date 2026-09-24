@@ -72,6 +72,30 @@ function CartaoDeAprovacao({
       </div>
       <p className="text-xl font-normal">{aprovacao.acao}</p>
       <dl className="grid grid-cols-[8rem_1fr] gap-x-6 gap-y-2">
+        {aprovacao.contaNome && (
+          <>
+            <dt className="rotulo">Conta-alvo</dt>
+            <dd>
+              {aprovacao.contaId ? (
+                <Link to={`/contas/${aprovacao.contaId}`} className="font-normal underline-offset-4 hover:underline">
+                  {aprovacao.contaNome}
+                </Link>
+              ) : (
+                aprovacao.contaNome
+              )}
+            </dd>
+          </>
+        )}
+        {aprovacao.sequenciaId && (
+          <>
+            <dt className="rotulo">Sequência</dt>
+            <dd>
+              <Link to={`/sequencias/${aprovacao.sequenciaId}`} className="font-normal underline-offset-4 hover:underline">
+                Ver sequência
+              </Link>
+            </dd>
+          </>
+        )}
         <dt className="rotulo">Impacto</dt>
         <dd>{aprovacao.impacto}</dd>
         <dt className="rotulo">Por quê</dt>

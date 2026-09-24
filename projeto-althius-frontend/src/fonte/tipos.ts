@@ -186,6 +186,22 @@ export interface Aprovacao extends AcaoProposta {
   /** O gatilho da Execução que propôs a Aprovação; a decisão entra na Atividade com ele. */
   gatilho: Gatilho
   estado: EstadoAprovacao
+  contaId?: string
+  contaNome?: string
+  sequenciaId?: string
+}
+
+export interface NovaAprovacao {
+  agenteId: AgenteId
+  acao: string
+  integracaoId?: IntegracaoId
+  impacto: string
+  justificativa: string
+  origem?: Origem
+  gatilho?: Gatilho
+  contaId?: string
+  contaNome?: string
+  sequenciaId?: string
 }
 
 export interface MensagemDeCanal {
@@ -221,6 +237,14 @@ export type PassoDaCoordenacao =
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
   /** Sem Aprovação: com Executar, o Agente agiu sozinho; com Ler, não pôde agir. */
   | { tipo: 'acao'; agenteId: AgenteId; acao: AcaoProposta; executada: boolean }
+  /** Nascimento na Conversa: oferta de sequência, confirmação humana de participantes e documento incorporado. */
+  | {
+      tipo: 'nascimento-sequencia'
+      agenteId: AgenteId
+      contaId: string
+      sinal?: string
+      sequenciaId?: string
+    }
 
 /** Qualquer fonte de dados observável da aplicação: avisa as telas quando os dados mudam. */
 export interface FonteObservavel {
@@ -274,6 +298,8 @@ export interface FonteDeAgentes extends FonteObservavel {
 
   aprovacoes(): Promise<Aprovacao[]>
   decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao): Promise<void>
+  /** Propõe uma nova Aprovação (ex.: para ativação de sequência simulada). */
+  proporAprovacao(aprovacao: NovaAprovacao): Promise<Aprovacao>
 
   /** Envia uma mensagem ou sugestão e recebe a resposta passo a passo. */
   conversar(id: AgenteId, mensagem: Mensagem): AsyncIterable<PassoDaConversa>
@@ -289,3 +315,4 @@ export interface FonteDeAgentes extends FonteObservavel {
 }
 
 export * from './contas-tipos'
+export * from './sequencias-tipos'

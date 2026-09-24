@@ -4,9 +4,9 @@
 
 **Blocked by:** 07 (Nascimento na Conversa — Rhetor e confirmação)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Após gravar a sequência, surge Aprovação pendente no padrão do app
-- [ ] A Aprovação identifica Conta-alvo e sequência
-- [ ] Aprovar ou rejeitar não chama Unipile nem envia mensagem real
-- [ ] Testes cobrem aparecer Aprovação e decidir sem side-effect externo
+- [x] Após gravar a sequência, surge Aprovação pendente no padrão do app
+- [x] A Aprovação identifica Conta-alvo e sequência
+- [x] Aprovar ou rejeitar não chama Unipile nem envia mensagem real
+- [x] Testes cobrem aparecer Aprovação e decidir sem side-effect externo
