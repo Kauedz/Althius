@@ -486,8 +486,10 @@ function contagem() {
   return screen.getByText((_, elemento) => /^\d+( de \d+)? contas?$/.test(elemento?.textContent ?? '') && elemento?.tagName === 'SPAN')
 }
 
+type Usuario = ReturnType<typeof renderizarApp>['usuario']
+
 /** Escolhe uma opção de "Ordenar por" na aba Contas. */
-async function ordenarPor(usuario: ReturnType<typeof renderizarApp>['usuario'], rotulo: string) {
+async function ordenarPor(usuario: Usuario, rotulo: string) {
   await usuario.selectOptions(await screen.findByRole('combobox', { name: 'Ordenar por' }), `Ordenar por: ${rotulo}`)
 }
 
@@ -631,5 +633,231 @@ describe('"Ordenar por" e busca na aba Contas', () => {
 
     expect(await screen.findByRole('combobox', { name: 'Ordenar por' })).toHaveDisplayValue('Ordenar por: Prioridade')
     expect((await nomesNaTabela())[0]).toBe('OpenAI')
+  })
+})
+
+/** Abre o menu "Filtros" da aba Contas e devolve o painel. */
+async function abrirFiltros(usuario: Usuario) {
+  await usuario.click(await screen.findByRole('button', { name: /^Filtros/ }))
+  return screen.findByRole('dialog', { name: 'Filtrar contas' })
+}
+
+/** Marca uma opção do grupo de filtros com esse nome. */
+async function filtrar(usuario: Usuario, grupo: string, opcao: string) {
+  const painel = screen.queryByRole('dialog', { name: 'Filtrar contas' }) ?? (await abrirFiltros(usuario))
+  const doGrupo = within(within(painel).getByRole('group', { name: grupo }))
+  await usuario.click(doGrupo.queryByRole('checkbox', { name: opcao }) ?? doGrupo.getByRole('radio', { name: opcao }))
+}
+
+/** Os rótulos dos chips de filtros ativos, na ordem em que aparecem. */
+function chips() {
+  return screen
+    .queryAllByRole('button', { name: /^Remover filtro / })
+    .map((botao) => botao.getAttribute('aria-label')?.replace(/^Remover filtro /, ''))
+}
+
+describe('Filtros da aba Contas', () => {
+  it('"Filtros" abre um menu com os grupos Aderência, Segmento, Sinal e Contatos, e os Segmentos vêm dos dados', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    const painel = await abrirFiltros(usuario)
+
+    expect(within(painel).getAllByRole('group').map((g) => g.querySelector('legend')?.textContent)).toEqual([
+      'Aderência',
+      'Segmento',
+      'Sinal',
+      'Contatos',
+    ])
+    // As opções do grupo, nesta ordem e com estes nomes; o nome é o rótulo, sem a contagem ao lado
+    const opcoes = (grupo: string, papel: 'checkbox' | 'radio', nomes: string[]) => {
+      const doGrupo = within(within(painel).getByRole('group', { name: grupo }))
+      expect(doGrupo.getAllByRole(papel)).toEqual(nomes.map((nome) => doGrupo.getByRole(papel, { name: nome })))
+    }
+    opcoes('Aderência', 'checkbox', ['Quente', 'Fit', 'Não fit'])
+    opcoes('Segmento', 'checkbox', [
+      'Atendimento',
+      'Comércio eletrônico',
+      'Comunicação',
+      'Dados e analytics',
+      'DevOps',
+      'Gestão de pessoas',
+      'Infraestrutura',
+      'Inteligência Artificial',
+      'Marketing e vendas',
+      'Produtividade',
+      'Segurança',
+      'Serviços financeiros',
+      'Software corporativo',
+    ])
+    opcoes('Sinal', 'radio', ['Com sinal', 'Sem sinal'])
+    opcoes('Contatos', 'radio', ['Com contatos', 'Sem contatos'])
+  })
+
+  it('cada filtro reduz a lista e atualiza a contagem "N de M contas"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    expect(await nomesNaTabela()).toHaveLength(18)
+    expect(contagem()).toHaveTextContent(/^18 de 30 contas$/)
+  })
+
+  it('opções do mesmo grupo se combinam com "ou"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Fit')
+    await filtrar(usuario, 'Aderência', 'Não fit')
+    expect(await nomesNaTabela()).toHaveLength(11)
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+    await filtrar(usuario, 'Segmento', 'Inteligência Artificial')
+    await filtrar(usuario, 'Segmento', 'Serviços financeiros')
+    expect((await nomesNaTabela()).toSorted()).toEqual(['Anthropic', 'Banorte', 'Brex', 'Nubank', 'OpenAI', 'Ramp', 'Stripe'])
+  })
+
+  it('grupos diferentes se combinam com "e"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Fit')
+    await filtrar(usuario, 'Sinal', 'Sem sinal')
+    expect(await nomesNaTabela()).toEqual(['Miro', 'Oracle'])
+
+    await filtrar(usuario, 'Contatos', 'Sem contatos')
+    expect(await nomesNaTabela()).toEqual(['Miro'])
+    expect(contagem()).toHaveTextContent(/^1 de 30 contas$/)
+  })
+
+  it('Sinal e Contatos têm uma escolha só: "Com" ou "Sem"', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Contatos', 'Com contatos')
+    expect(await nomesNaTabela()).toHaveLength(27)
+    await filtrar(usuario, 'Contatos', 'Sem contatos')
+    expect(await nomesNaTabela()).toEqual(['Miro', 'Rappi', 'Banorte'])
+    expect(chips()).toEqual(['Sem contatos'])
+  })
+
+  it('busca e filtros se combinam', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Segmento', 'Serviços financeiros')
+    await usuario.keyboard('{Escape}')
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contas' }), 'b')
+
+    // Nubank e Brex têm "b" no nome; Banorte, no nome e no domínio. Stripe e Ramp não.
+    expect((await nomesNaTabela()).toSorted()).toEqual(['Banorte', 'Brex', 'Nubank'])
+    expect(contagem()).toHaveTextContent(/^3 de 30 contas$/)
+  })
+
+  it('cada filtro ativo aparece como um chip abaixo da barra, e remover o chip desfaz o filtro', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument()
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    await filtrar(usuario, 'Aderência', 'Fit')
+    await filtrar(usuario, 'Segmento', 'Produtividade')
+    await filtrar(usuario, 'Sinal', 'Com sinal')
+    await filtrar(usuario, 'Contatos', 'Com contatos')
+    await usuario.keyboard('{Escape}')
+
+    expect(chips()).toEqual([
+      'Aderência: Quente',
+      'Aderência: Fit',
+      'Segmento: Produtividade',
+      'Com sinal',
+      'Com contatos',
+    ])
+    // Figma, Notion, Canva, Asana e monday.com; Miro fica fora, sem Sinal nem Contatos
+    expect(await nomesNaTabela()).toHaveLength(5)
+
+    await usuario.click(screen.getByRole('button', { name: 'Remover filtro Com sinal' }))
+    await usuario.click(screen.getByRole('button', { name: 'Remover filtro Com contatos' }))
+    expect(chips()).toEqual(['Aderência: Quente', 'Aderência: Fit', 'Segmento: Produtividade'])
+    expect(await nomesNaTabela()).toContain('Miro')
+
+    await usuario.click(screen.getByRole('button', { name: 'Remover filtro Aderência: Quente' }))
+    expect(await nomesNaTabela()).toEqual(['Asana', 'monday.com', 'Miro'])
+
+    // O menu reflete a remoção
+    const painel = await abrirFiltros(usuario)
+    expect(within(painel).getByRole('checkbox', { name: 'Quente' })).not.toBeChecked()
+    expect(within(painel).getByRole('checkbox', { name: 'Fit' })).toBeChecked()
+  })
+
+  it('"Limpar filtros" desfaz todos os filtros e mantém a busca', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.type(await screen.findByRole('searchbox', { name: 'Buscar contas' }), 'a')
+    const comBusca = (await nomesNaTabela()).length
+    await filtrar(usuario, 'Aderência', 'Não fit')
+    await filtrar(usuario, 'Sinal', 'Com sinal')
+    await usuario.keyboard('{Escape}')
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+
+    expect(chips()).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('a')
+    expect(await nomesNaTabela()).toHaveLength(comBusca)
+  })
+
+  it('filtros sem resultado mostram "Nenhuma conta encontrada", e "Limpar busca e filtros" restaura a lista', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    await filtrar(usuario, 'Sinal', 'Sem sinal')
+    await usuario.keyboard('{Escape}')
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contas' }), 'o')
+
+    expect(screen.getByText(/^Nenhuma conta encontrada/)).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Tabela de Contas' })).not.toBeInTheDocument()
+    expect(contagem()).toHaveTextContent(/^0 de 30 contas$/)
+
+    await usuario.click(screen.getByRole('button', { name: 'Limpar busca e filtros' }))
+
+    expect(await nomesNaTabela()).toHaveLength(30)
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('')
+    expect(chips()).toEqual([])
+    expect(contagem()).toHaveTextContent(/^30 contas$/)
+  })
+
+  it('só com filtros, a mensagem sem resultado não menciona busca', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await filtrar(usuario, 'Aderência', 'Quente')
+    await filtrar(usuario, 'Sinal', 'Sem sinal')
+
+    expect(screen.getByText('Nenhuma conta encontrada.')).toBeInTheDocument()
+  })
+
+  it('abrir o endereço com filtros, busca e ordenação reconstrói a lista, os chips e o menu', async () => {
+    const { usuario } = renderizarApp(
+      '/contas?aderencia=fit&aderencia=nao-fit&segmento=Produtividade&segmento=Com%C3%A9rcio+eletr%C3%B4nico&contatos=com&ordem=contatos&busca=a',
+    )
+
+    // Fit ou Não fit, de Produtividade ou Comércio eletrônico, com Contatos e "a" no nome ou domínio: Miro fica fora
+    expect((await nomesNaTabela()).toSorted()).toEqual(['Asana', 'Mercado Livre', 'monday.com'])
+    expect(screen.getByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('a')
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveDisplayValue('Ordenar por: Contatos')
+    expect(chips()).toEqual([
+      'Aderência: Fit',
+      'Aderência: Não fit',
+      'Segmento: Comércio eletrônico',
+      'Segmento: Produtividade',
+      'Com contatos',
+    ])
+
+    const painel = await abrirFiltros(usuario)
+    expect(within(painel).getByRole('checkbox', { name: 'Fit' })).toBeChecked()
+    expect(within(painel).getByRole('checkbox', { name: 'Produtividade' })).toBeChecked()
+    expect(within(painel).getByRole('radio', { name: 'Com contatos' })).toBeChecked()
+    expect(within(painel).getByRole('radio', { name: 'Com sinal' })).not.toBeChecked()
+  })
+
+  it('filtros desconhecidos no endereço são ignorados', async () => {
+    renderizarApp('/contas?aderencia=morna&sinal=talvez')
+
+    expect(await nomesNaTabela()).toHaveLength(30)
+    expect(chips()).toEqual([])
   })
 })

@@ -1,6 +1,7 @@
+import { Popover } from '@base-ui/react/popover'
 import { PreviewCard } from '@base-ui/react/preview-card'
-import { Building2, ExternalLink, RadioTower, Search } from 'lucide-react'
-import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
+import { Building2, ExternalLink, ListFilter, RadioTower, Search, X } from 'lucide-react'
+import { useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
 import { LogoDaConta } from '@/components/logos'
@@ -73,35 +74,117 @@ function eOrdenacao(valor: string | null): valor is Ordenacao {
   return valor !== null && Object.hasOwn(ORDENACOES, valor)
 }
 
+const ROTULO_ADERENCIA: Record<Aderencia, string> = {
+  quente: 'Quente',
+  fit: 'Fit',
+  'nao-fit': 'Não fit',
+}
+const ADERENCIAS = Object.keys(ORDEM_ADERENCIA) as Aderencia[]
+const ROTULO_PRESENCA = {
+  sinal: { com: 'Com sinal', sem: 'Sem sinal' },
+  contatos: { com: 'Com contatos', sem: 'Sem contatos' },
+} satisfies Record<GrupoDePresenca, Record<Presenca, string>>
+
+/** Nos filtros de Sinal e de Contatos, a conta tem ou não tem. Sem escolha, o filtro não se aplica. */
+type Presenca = 'com' | 'sem'
+
+function ePresenca(valor: string | null): valor is Presenca {
+  return valor === 'com' || valor === 'sem'
+}
+
+/** Opções do mesmo grupo se combinam com "ou"; grupos diferentes, com "e". Um grupo vazio não filtra. */
+interface FiltrosDasContas {
+  aderencia: Aderencia[]
+  segmento: string[]
+  sinal?: Presenca
+  contatos?: Presenca
+}
+
+type GrupoDeOpcoes = 'aderencia' | 'segmento'
+type GrupoDePresenca = 'sinal' | 'contatos'
+const PARAMETROS_DOS_FILTROS = ['aderencia', 'segmento', 'sinal', 'contatos'] as const
+
+const porTexto = (a: string, b: string) => a.localeCompare(b, 'pt-BR')
+
 /**
- * A busca e a ordenação da lista vivem nos parâmetros do endereço (`busca` e `ordem`), e só lá: abrir o
- * endereço reconstrói o recorte. Os valores padrão não aparecem no endereço.
+ * A busca, a ordenação e os filtros da lista vivem nos parâmetros do endereço (`busca`, `ordem`, `aderencia`,
+ * `segmento`, `sinal` e `contatos`), e só lá: abrir o endereço reconstrói o recorte. Os valores padrão não
+ * aparecem no endereço, e cada opção marcada de Aderência e de Segmento é um parâmetro repetido.
  */
 function useRecorteDasContas() {
   const [parametros, setParametros] = useSearchParams()
   const busca = parametros.get('busca') ?? ''
   const ordemNoEndereco = parametros.get('ordem')
   const ordem = eOrdenacao(ordemNoEndereco) ? ordemNoEndereco : ORDENACAO_PADRAO
+  const sinal = parametros.get('sinal')
+  const contatos = parametros.get('contatos')
+  // Na ordem do menu, sem repetições, e sem Aderências desconhecidas.
+  const filtros: FiltrosDasContas = {
+    aderencia: ADERENCIAS.filter((aderencia) => parametros.getAll('aderencia').includes(aderencia)),
+    segmento: [...new Set(parametros.getAll('segmento'))].toSorted(porTexto),
+    sinal: ePresenca(sinal) ? sinal : undefined,
+    contatos: ePresenca(contatos) ? contatos : undefined,
+  }
 
-  // Cada tecla da busca substitui a entrada do histórico, para o voltar não refazer a digitação.
-  function alterar(parametro: 'busca' | 'ordem', valor: string, padrao: string) {
+  // Cada mudança substitui a entrada do histórico, para o voltar não refazer a digitação nem cada clique.
+  function alterar(mudar: (parametros: URLSearchParams) => void) {
     setParametros(
       (atuais) => {
         const novos = new URLSearchParams(atuais)
-        if (valor === padrao) novos.delete(parametro)
-        else novos.set(parametro, valor)
+        mudar(novos)
         return novos
       },
       { replace: true },
     )
   }
 
+  function definir(parametro: string, valor: string, padrao: string) {
+    alterar((novos) => {
+      if (valor === padrao) novos.delete(parametro)
+      else novos.set(parametro, valor)
+    })
+  }
+
+  const removerFiltros = (novos: URLSearchParams) => PARAMETROS_DOS_FILTROS.forEach((p) => novos.delete(p))
+
   return {
     busca,
     ordem,
-    buscar: (valor: string) => alterar('busca', valor, ''),
-    ordenar: (valor: Ordenacao) => alterar('ordem', valor, ORDENACAO_PADRAO),
+    filtros,
+    buscar: (valor: string) => definir('busca', valor, ''),
+    ordenar: (valor: Ordenacao) => definir('ordem', valor, ORDENACAO_PADRAO),
+    alternarOpcao: (grupo: GrupoDeOpcoes, valor: string) =>
+      alterar((novos) => {
+        if (novos.getAll(grupo).includes(valor)) novos.delete(grupo, valor)
+        else novos.append(grupo, valor)
+      }),
+    escolherPresenca: (grupo: GrupoDePresenca, valor: Presenca | undefined) => definir(grupo, valor ?? '', ''),
+    limparFiltros: () => alterar(removerFiltros),
+    limparBuscaEFiltros: () =>
+      alterar((novos) => {
+        removerFiltros(novos)
+        novos.delete('busca')
+      }),
   }
+}
+
+const contarFiltros = (filtros: FiltrosDasContas) =>
+  filtros.aderencia.length + filtros.segmento.length + (filtros.sinal ? 1 : 0) + (filtros.contatos ? 1 : 0)
+const temFiltros = (filtros: FiltrosDasContas) => contarFiltros(filtros) > 0
+
+const atendePresenca = (filtro: Presenca | undefined, tem: boolean) => !filtro || (filtro === 'com') === tem
+
+/** As contas que passam em todos os grupos de filtros, e em pelo menos uma opção de cada grupo. */
+function filtrarContas(contas: ContaAlvo[], filtros: FiltrosDasContas): ContaAlvo[] {
+  const atendeOpcoes = <T,>(opcoes: T[], valor: T | undefined) =>
+    opcoes.length === 0 || (valor !== undefined && opcoes.includes(valor))
+  return contas.filter(
+    (conta) =>
+      atendeOpcoes(filtros.aderencia, conta.aderencia) &&
+      atendeOpcoes(filtros.segmento, conta.segmento) &&
+      atendePresenca(filtros.sinal, !!conta.ultimoSinal) &&
+      atendePresenca(filtros.contatos, conta.totalContatos > 0),
+  )
 }
 
 /** As contas cujo nome ou domínio contém a busca, sem diferenciar maiúsculas e acentos. */
@@ -139,11 +222,13 @@ function ListaContas() {
     [],
   )
 
-  const { busca, ordem, buscar, ordenar } = useRecorteDasContas()
+  const recorte = useRecorteDasContas()
+  const { busca, ordem, filtros, buscar, ordenar } = recorte
 
   const hoje = fonte.hoje()
-  const contasExibidas = buscarContas(contas ?? [], busca).toSorted(ORDENACOES[ordem].comparar)
-  const recortada = normalizarParaBusca(busca) !== ''
+  const contasExibidas = filtrarContas(buscarContas(contas ?? [], busca), filtros).toSorted(ORDENACOES[ordem].comparar)
+  const comBusca = normalizarParaBusca(busca) !== ''
+  const recortada = comBusca || temFiltros(filtros)
 
   return (
     <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
@@ -156,7 +241,7 @@ function ListaContas() {
         </p>
         {contas && (
           <span className="text-[0.8125rem] whitespace-nowrap text-al-muted">
-            {/* O número em destaque; com busca, "N de M contas", no singular só quando M é 1. */}
+            {/* O número em destaque; com busca ou filtro, "N de M contas", no singular só quando M é 1. */}
             <strong className="font-normal text-al-ink">{recortada ? contasExibidas.length : contas.length}</strong>
             {recortada && ` de ${contas.length}`} {contas.length === 1 ? 'conta' : 'contas'}
           </span>
@@ -177,6 +262,7 @@ function ListaContas() {
             />
           </label>
           <span className="flex-1" />
+          <MenuDeFiltros contas={contas} recorte={recorte} />
           <select
             aria-label="Ordenar por"
             value={ordem}
@@ -191,6 +277,8 @@ function ListaContas() {
           </select>
         </div>
       )}
+
+      {temFiltros(filtros) && <ChipsDosFiltros recorte={recorte} />}
 
       {carregando && <Carregando />}
 
@@ -216,11 +304,13 @@ function ListaContas() {
 
       {!carregando && !erro && contas && contas.length > 0 && contasExibidas.length === 0 && (
         <div className="flex flex-col items-start gap-3 py-12">
-          <p className="text-sm text-al-muted">Nenhuma conta encontrada para “{busca.trim()}”.</p>
+          <p className="text-sm text-al-muted">
+            {comBusca ? `Nenhuma conta encontrada para “${busca.trim()}”.` : 'Nenhuma conta encontrada.'}
+          </p>
           <Button
             type="button"
             variant="outline"
-            onClick={() => buscar('')}
+            onClick={recorte.limparBuscaEFiltros}
             className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
           >
             Limpar busca e filtros
@@ -295,6 +385,181 @@ function ListaContas() {
         </div>
       )}
     </Pagina>
+  )
+}
+
+type Recorte = ReturnType<typeof useRecorteDasContas>
+
+const OPCAO = 'flex min-h-7 cursor-pointer items-center gap-2 text-sm text-al-ink'
+const CAIXA = 'size-3.5 shrink-0 cursor-pointer accent-al-accent'
+
+/**
+ * O botão "Filtros" e o menu que ele abre, com os quatro grupos lado a lado. Aderência e Segmento têm seleção
+ * múltipla; Sinal e Contatos, uma escolha só, que se desfaz clicando nela de novo. O menu não fecha a cada
+ * escolha: a lista atrás dele muda na hora.
+ */
+function MenuDeFiltros({ contas, recorte }: { contas: ContaAlvo[]; recorte: Recorte }) {
+  const { filtros, alternarOpcao, escolherPresenca, limparFiltros } = recorte
+  const segmentos = [...new Set(contas.flatMap((conta) => conta.segmento ?? []))].toSorted(porTexto)
+  const ativos = contarFiltros(filtros)
+
+  const opcaoDePresenca = (grupo: GrupoDePresenca, valor: Presenca) => (
+    <label className={OPCAO}>
+      <input
+        type="radio"
+        name={`filtro-${grupo}`}
+        className={CAIXA}
+        checked={filtros[grupo] === valor}
+        onChange={() => escolherPresenca(grupo, valor)}
+        // Clicar na escolha já marcada a desfaz; o rádio sozinho não tem como voltar a "sem filtro".
+        onClick={() => filtros[grupo] === valor && escolherPresenca(grupo, undefined)}
+      />
+      <span>{ROTULO_PRESENCA[grupo][valor]}</span>
+    </label>
+  )
+
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        aria-label={ativos ? `Filtros, ${ativos} ${ativos === 1 ? 'ativo' : 'ativos'}` : 'Filtros'}
+        className={cn(
+          'flex h-9 cursor-pointer items-center gap-2 border bg-al-surface px-3 text-sm whitespace-nowrap text-al-ink hover:border-al-muted',
+          ativos ? 'border-al-accent' : 'border-al-line',
+        )}
+      >
+        <ListFilter className="size-4" aria-hidden />
+        Filtros
+        {ativos > 0 && (
+          <span className="grid h-4.5 min-w-4.5 place-items-center bg-al-accent text-[0.625rem] font-semibold text-[var(--al-on-accent)]">
+            {ativos}
+          </span>
+        )}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="bottom" align="end" sideOffset={6} className="z-50">
+          <Popover.Popup className="w-148 max-w-[calc(100vw-2rem)] border border-al-line bg-al-surface text-al-ink shadow-md outline-none">
+            <div className="flex items-center justify-between border-b border-al-line px-4 py-3.5">
+              <Popover.Title className="text-[0.9375rem] font-normal uppercase">Filtrar contas</Popover.Title>
+              <button
+                type="button"
+                onClick={limparFiltros}
+                className="cursor-pointer text-xs text-al-muted underline underline-offset-3 hover:text-al-ink"
+              >
+                Limpar tudo
+              </button>
+            </div>
+            {/* Em telas estreitas, como no mock, os grupos ficam em duas colunas. */}
+            <div className="grid grid-cols-2 sm:grid-cols-[1.15fr_1.45fr_1fr_1fr]">
+              <GrupoDeFiltros titulo="Aderência">
+                {ADERENCIAS.map((aderencia) => (
+                  <label key={aderencia} className={OPCAO}>
+                    <input
+                      type="checkbox"
+                      className={CAIXA}
+                      checked={filtros.aderencia.includes(aderencia)}
+                      onChange={() => alternarOpcao('aderencia', aderencia)}
+                    />
+                    <span>{ROTULO_ADERENCIA[aderencia]}</span>
+                    <small className="ml-auto text-xs text-al-muted" aria-hidden>
+                      {contas.filter((conta) => conta.aderencia === aderencia).length}
+                    </small>
+                  </label>
+                ))}
+              </GrupoDeFiltros>
+              <GrupoDeFiltros titulo="Segmento" className="max-h-64 overflow-y-auto">
+                {segmentos.map((segmento) => (
+                  <label key={segmento} className={OPCAO}>
+                    <input
+                      type="checkbox"
+                      className={CAIXA}
+                      checked={filtros.segmento.includes(segmento)}
+                      onChange={() => alternarOpcao('segmento', segmento)}
+                    />
+                    <span className="truncate" title={segmento}>
+                      {segmento}
+                    </span>
+                  </label>
+                ))}
+              </GrupoDeFiltros>
+              <GrupoDeFiltros titulo="Sinal">
+                {opcaoDePresenca('sinal', 'com')}
+                {opcaoDePresenca('sinal', 'sem')}
+              </GrupoDeFiltros>
+              <GrupoDeFiltros titulo="Contatos">
+                {opcaoDePresenca('contatos', 'com')}
+                {opcaoDePresenca('contatos', 'sem')}
+              </GrupoDeFiltros>
+            </div>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+function GrupoDeFiltros({ titulo, className, children }: { titulo: string; className?: string; children: ReactNode }) {
+  return (
+    <fieldset
+      className={cn(
+        'min-w-0 border-al-line px-4 pt-3.5 pb-4 not-last:border-r max-sm:nth-2:border-r-0 max-sm:nth-[-n+2]:border-b',
+        className,
+      )}
+    >
+      <legend className="contents">
+        {/* O título do grupo, como os cabeçalhos da tabela. */}
+        <span className="rotulo mb-2.5 block text-[0.625rem]">{titulo}</span>
+      </legend>
+      {children}
+    </fieldset>
+  )
+}
+
+/** Um chip por opção marcada, na ordem do menu. */
+function filtrosAtivos({ filtros, alternarOpcao, escolherPresenca }: Recorte) {
+  return [
+    ...filtros.aderencia.map((aderencia) => ({
+      rotulo: `Aderência: ${ROTULO_ADERENCIA[aderencia]}`,
+      remover: () => alternarOpcao('aderencia', aderencia),
+    })),
+    ...filtros.segmento.map((segmento) => ({
+      rotulo: `Segmento: ${segmento}`,
+      remover: () => alternarOpcao('segmento', segmento),
+    })),
+    ...(['sinal', 'contatos'] as const).flatMap((grupo) => {
+      const valor = filtros[grupo]
+      return valor ? [{ rotulo: ROTULO_PRESENCA[grupo][valor], remover: () => escolherPresenca(grupo, undefined) }] : []
+    }),
+  ]
+}
+
+/** Os filtros ativos, abaixo da barra, cada um removível, e "Limpar filtros". */
+function ChipsDosFiltros({ recorte }: { recorte: Recorte }) {
+  return (
+    <div className="flex min-h-11.5 shrink-0 items-center gap-1.75 overflow-x-auto border-b border-al-line">
+      {filtrosAtivos(recorte).map(({ rotulo, remover }) => (
+        <span
+          key={rotulo}
+          className="inline-flex h-6.75 shrink-0 items-center gap-1.75 border border-al-line bg-al-surface px-2 text-xs whitespace-nowrap text-al-ink"
+        >
+          {rotulo}
+          <button
+            type="button"
+            aria-label={`Remover filtro ${rotulo}`}
+            onClick={remover}
+            className="cursor-pointer text-al-muted hover:text-al-ink"
+          >
+            <X className="size-3" aria-hidden />
+          </button>
+        </span>
+      ))}
+      <button
+        type="button"
+        onClick={recorte.limparFiltros}
+        className="ml-1 shrink-0 cursor-pointer text-xs whitespace-nowrap text-al-muted underline underline-offset-3 hover:text-al-ink"
+      >
+        Limpar filtros
+      </button>
+    </div>
   )
 }
 
