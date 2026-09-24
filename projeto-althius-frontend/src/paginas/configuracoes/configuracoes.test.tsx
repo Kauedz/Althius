@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ArmazenamentoDoPerfil } from '@/fonte/simulada'
 import { renderizarApp } from '@/test/renderizar'
 
@@ -137,6 +137,137 @@ describe('Meu perfil', () => {
 
     renderizarApp('/configuracoes/perfil', {}, {}, {}, {}, { armazenamento })
     expect(await screen.findByRole('textbox', { name: 'Nome' })).toHaveValue('Marina Persistida')
+  })
+})
+
+describe('Alteração de senha (demonstrativa)', () => {
+  const CAMPOS_DE_SENHA = ['Senha atual', 'Nova senha', 'Confirmar nova senha']
+
+  async function abrirFormularioDeSenha(usuario: ReturnType<typeof renderizarApp>['usuario']) {
+    await usuario.click(await screen.findByRole('button', { name: 'Alterar senha' }))
+    return within(screen.getByRole('form', { name: 'Alterar senha' }))
+  }
+
+  it('abre com senha atual, nova senha e confirmação mascaradas e vazias', async () => {
+    const { usuario } = renderizarApp('/configuracoes/perfil')
+    const formulario = await abrirFormularioDeSenha(usuario)
+    for (const campo of CAMPOS_DE_SENHA) {
+      expect(formulario.getByLabelText(campo)).toHaveAttribute('type', 'password')
+      expect(formulario.getByLabelText(campo)).toHaveValue('')
+    }
+    expect(formulario.getByLabelText('Senha atual')).toHaveFocus()
+  })
+
+  it('exige os três campos antes de concluir, levando o foco ao primeiro com erro', async () => {
+    const { usuario } = renderizarApp('/configuracoes/perfil')
+    const formulario = await abrirFormularioDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), 'antiga-123')
+    await usuario.click(formulario.getByRole('button', { name: 'Alterar senha' }))
+
+    expect(formulario.getByLabelText('Nova senha')).toHaveAccessibleDescription('Informe a nova senha.')
+    expect(formulario.getByLabelText('Nova senha')).toBeInvalid()
+    expect(formulario.getByLabelText('Confirmar nova senha')).toHaveAccessibleDescription('Repita a nova senha.')
+    expect(formulario.getByLabelText('Senha atual')).toBeValid()
+    expect(formulario.getByLabelText('Nova senha')).toHaveFocus()
+    expect(screen.queryByText(/Demonstração: nenhuma senha foi alterada/)).not.toBeInTheDocument()
+  })
+
+  it('recusa uma confirmação diferente da nova senha', async () => {
+    const { usuario } = renderizarApp('/configuracoes/perfil')
+    const formulario = await abrirFormularioDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), 'antiga-123')
+    await usuario.type(formulario.getByLabelText('Nova senha'), 'nova-senha-1')
+    await usuario.type(formulario.getByLabelText('Confirmar nova senha'), 'outra-coisa')
+    await usuario.click(formulario.getByRole('button', { name: 'Alterar senha' }))
+
+    const confirmacao = formulario.getByLabelText('Confirmar nova senha')
+    expect(confirmacao).toHaveAccessibleDescription('A confirmação não é igual à nova senha.')
+    expect(confirmacao).toHaveFocus()
+    expect(screen.queryByText(/Demonstração: nenhuma senha foi alterada/)).not.toBeInTheDocument()
+  })
+
+  it('concluir limpa os campos e avisa que é demonstração, sem alegar troca nem conferência da senha', async () => {
+    const { usuario } = renderizarApp('/configuracoes/perfil')
+    let formulario = await abrirFormularioDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), 'antiga-123')
+    await usuario.type(formulario.getByLabelText('Nova senha'), 'nova-senha-1')
+    await usuario.type(formulario.getByLabelText('Confirmar nova senha'), 'nova-senha-1')
+    await usuario.click(formulario.getByRole('button', { name: 'Alterar senha' }))
+
+    const aviso = within(screen.getByRole('region', { name: 'Senha' })).getByRole('status')
+    expect(aviso).toHaveTextContent(/Demonstração: nenhuma senha foi alterada/)
+    expect(aviso).toHaveTextContent(/senha atual não foi conferida/)
+    expect(screen.queryByText(/senha (foi )?alterada com sucesso/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Alterar senha' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alterar senha' })).toHaveFocus()
+
+    formulario = await abrirFormularioDeSenha(usuario)
+    for (const campo of CAMPOS_DE_SENHA) expect(formulario.getByLabelText(campo)).toHaveValue('')
+    expect(screen.queryByText(/Demonstração: nenhuma senha foi alterada/)).not.toBeInTheDocument()
+  })
+
+  it('cancelar limpa os campos e não altera nenhum dado do perfil', async () => {
+    const { usuario } = renderizarApp('/configuracoes/perfil')
+    let formulario = await abrirFormularioDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), 'antiga-123')
+    await usuario.type(formulario.getByLabelText('Nova senha'), 'nova-senha-1')
+    await usuario.click(formulario.getByRole('button', { name: 'Alterar senha' }))
+    await usuario.click(formulario.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('form', { name: 'Alterar senha' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alterar senha' })).toHaveFocus()
+    expect(screen.queryByText(/Demonstração: nenhuma senha foi alterada/)).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toHaveValue('Marina Alves')
+    expect(screen.getByRole('textbox', { name: 'E-mail' })).toHaveValue('marina.alves@databricks.com')
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+
+    formulario = await abrirFormularioDeSenha(usuario)
+    for (const campo of CAMPOS_DE_SENHA) {
+      expect(formulario.getByLabelText(campo)).toHaveValue('')
+      expect(formulario.getByLabelText(campo)).toBeValid()
+    }
+  })
+
+  it('não guarda nem registra as senhas digitadas na persistência usada pela experiência', async () => {
+    const armazenamento = memoria()
+    const gravacoes: string[] = []
+    const gravar = armazenamento.setItem
+    armazenamento.setItem = (chave, valor) => {
+      gravacoes.push(`${chave}=${valor}`)
+      gravar(chave, valor)
+    }
+    const registros = (['log', 'info', 'warn', 'error', 'debug'] as const).map((metodo) =>
+      vi.spyOn(console, metodo).mockImplementation(() => {}),
+    )
+    const envio = vi.spyOn(globalThis, 'fetch')
+    try {
+      const { usuario } = renderizarApp('/configuracoes/perfil', {}, {}, {}, {}, { armazenamento })
+
+      const formulario = await abrirFormularioDeSenha(usuario)
+      await usuario.type(formulario.getByLabelText('Senha atual'), 'Atual-Secreta-1')
+      await usuario.type(formulario.getByLabelText('Nova senha'), 'Nova-Secreta-2')
+      await usuario.type(formulario.getByLabelText('Confirmar nova senha'), 'Nova-Secreta-2')
+      await usuario.click(formulario.getByRole('button', { name: 'Alterar senha' }))
+      await screen.findByText(/Demonstração: nenhuma senha foi alterada/)
+
+      // Salvar o perfil depois garante que a persistência foi de fato usada na mesma sessão.
+      const nome = screen.getByRole('textbox', { name: 'Nome' })
+      await usuario.clear(nome)
+      await usuario.type(nome, 'Marina Depois da Senha')
+      await usuario.click(screen.getByRole('button', { name: 'Salvar' }))
+      await screen.findByText(/Perfil salvo/)
+      expect(gravacoes.some((g) => g.includes('Marina Depois da Senha'))).toBe(true)
+
+      const doNavegador = Object.keys(window.localStorage).map((chave) => `${chave}=${window.localStorage.getItem(chave)}`)
+      const registrado = registros.flatMap((espiao) => espiao.mock.calls.map((chamada) => chamada.map(String).join(' ')))
+      for (const rastro of [...gravacoes, ...doNavegador, ...registrado]) {
+        expect(rastro).not.toContain('Secreta')
+      }
+      expect(envio).not.toHaveBeenCalled()
+    } finally {
+      registros.forEach((espiao) => espiao.mockRestore())
+      envio.mockRestore()
+    }
   })
 })
 

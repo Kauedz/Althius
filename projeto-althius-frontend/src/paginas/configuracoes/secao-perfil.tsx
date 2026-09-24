@@ -4,8 +4,12 @@ import { Button } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { ehEmailValido } from '@/fonte/regras'
 import type { Workspace } from '@/fonte/tipos'
+import { BlocoSenha } from './bloco-senha'
 
-/** Meu perfil: nome, e-mail e foto da Conta de usuário. A mesma fonte alimenta o menu pessoal da Casca. */
+/**
+ * Meu perfil: nome, e-mail e foto da Conta de usuário (a mesma fonte alimenta o menu pessoal da Casca)
+ * e a alteração demonstrativa de senha.
+ */
 export function SecaoPerfil() {
   const workspace = useDados((fonte) => fonte.workspace(), [])
 
@@ -23,6 +27,7 @@ export function SecaoPerfil() {
         </p>
       </div>
       {!workspace ? <Carregando /> : <FormularioDePerfil usuario={workspace.usuario} />}
+      <BlocoSenha />
     </section>
   )
 }
