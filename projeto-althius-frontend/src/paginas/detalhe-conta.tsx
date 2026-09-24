@@ -14,6 +14,7 @@ import { porId } from '@/lib/utils'
 import { SeloStatus } from './detalhe-sequencia'
 import { DialogoNovaSequencia } from './nova-sequencia'
 import { TabelaDeContatos } from './tabela-de-contatos'
+import { useMigalhaParaALista } from './voltar-para-a-lista'
 
 interface Props {
   contaId: string
@@ -34,6 +35,8 @@ export function DetalheConta({ contaId }: Props) {
   const fonte = useFonteDeContas()
   const hoje = fonte.hoje()
   const [dialogoNovaAberto, setDialogoNovaAberto] = useState(false)
+  // A migalha volta para a lista de onde o detalhe foi aberto (Contas ou Contatos), com o recorte que ela tinha.
+  const voltar = useMigalhaParaALista(VOLTAR_PARA_CONTAS)
 
   const {
     dados: conta,
@@ -86,9 +89,9 @@ export function DetalheConta({ contaId }: Props) {
   // A fonte rejeita um identificador que não existe; qualquer outra falha é um erro de carregamento.
   if (!conta && (!erroConta || erroConta.message.includes('não encontrada'))) {
     return (
-      <Pagina titulo="Conta não encontrada" voltar={VOLTAR_PARA_CONTAS}>
-        <Link to="/contas" className="self-start underline underline-offset-4">
-          Voltar para Contas
+      <Pagina titulo="Conta não encontrada" voltar={voltar}>
+        <Link to={voltar.para} state={voltar.estado} className="self-start underline underline-offset-4">
+          Voltar para {voltar.rotulo}
         </Link>
       </Pagina>
     )
@@ -115,7 +118,7 @@ export function DetalheConta({ contaId }: Props) {
   const contatosPorId = porId(contatos ?? [])
 
   return (
-    <Pagina titulo={conta.nome} voltar={VOLTAR_PARA_CONTAS} className="gap-0">
+    <Pagina titulo={conta.nome} voltar={voltar} className="gap-0">
       <CabecalhoDaConta conta={conta} hoje={hoje} />
 
       <div className="flex flex-col">

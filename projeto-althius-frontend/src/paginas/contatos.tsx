@@ -20,6 +20,7 @@ import {
 import { ADERENCIAS, posicaoDaAderencia, ROTULO_ADERENCIA } from './ordem-da-aderencia'
 import { useRecorteNoEndereco } from './recorte-no-endereco'
 import { type LinhaDeContato, TabelaDeContatos, temDadosDeContato } from './tabela-de-contatos'
+import { useEstadoParaODetalhe, useRolagemDaLista } from './voltar-para-a-lista'
 
 /** Aderência da empresa, na ordem de grupos da Prioridade; depois o nome da empresa e o da pessoa. */
 function compararLinhas(a: LinhaDeContato, b: LinhaDeContato): number {
@@ -96,6 +97,9 @@ export function PaginaContatos() {
   const linhas = filtrarLinhas(buscarLinhas(todas, busca), filtros).toSorted(compararLinhas)
   const comBusca = normalizarParaBusca(busca) !== ''
   const recortada = comBusca || contarFiltros(filtros) > 0
+  const listaVisivel = !carregando && !erro && linhas.length > 0
+  const quadro = useRolagemDaLista(listaVisivel)
+  const estadoDoLink = useEstadoParaODetalhe('Contatos')
 
   return (
     <Pagina titulo="Contatos" icone={Building2} ocupaAJanela>
@@ -150,10 +154,10 @@ export function PaginaContatos() {
         />
       )}
 
-      {!carregando && !erro && linhas.length > 0 && (
+      {listaVisivel && (
         // O mesmo quadro da tabela de Contas: cabeçalho fixo na rolagem vertical e o Nome fixo na horizontal.
-        <div className="min-h-0 overflow-auto">
-          <TabelaDeContatos linhas={linhas} hoje={hoje} rotulo="Tabela de Contatos" />
+        <div ref={quadro} className="min-h-0 overflow-auto">
+          <TabelaDeContatos linhas={linhas} hoje={hoje} rotulo="Tabela de Contatos" estadoDoLink={estadoDoLink} />
         </div>
       )}
     </Pagina>

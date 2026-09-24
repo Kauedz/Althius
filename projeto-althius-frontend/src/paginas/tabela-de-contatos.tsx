@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 import { cn } from '@/lib/utils'
 import { AvatarDoContato, CABECALHO, CELULA, CelulaUltimoContato } from './modulo-contas-e-contatos'
+import type { EstadoDaNavegacao } from './voltar-para-a-lista'
 
 // O Lucide tirou os ícones de marca; este é o desenho do antigo "linkedin" dele, no mesmo traço dos outros dois.
 const LinkedIn = createLucideIcon('linkedin', [
@@ -35,11 +36,14 @@ export function TabelaDeContatos({
   hoje,
   rotulo,
   comEmpresa = true,
+  estadoDoLink,
 }: {
   linhas: LinhaDeContato[]
   hoje: Date
   rotulo: string
   comEmpresa?: boolean
+  /** O estado da navegação do link da empresa, para o detalhe saber voltar a esta lista. */
+  estadoDoLink?: EstadoDaNavegacao
 }) {
   return (
     <table
@@ -93,6 +97,7 @@ export function TabelaDeContatos({
                 {conta ? (
                   <Link
                     to={`/contas/${conta.id}`}
+                    state={estadoDoLink}
                     title={conta.nome}
                     className="block truncate text-al-ink hover:text-al-accent hover:underline"
                   >

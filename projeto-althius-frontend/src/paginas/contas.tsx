@@ -30,6 +30,7 @@ import {
 } from './modulo-contas-e-contatos'
 import { ADERENCIAS, posicaoDaAderencia, ROTULO_ADERENCIA } from './ordem-da-aderencia'
 import { useRecorteNoEndereco } from './recorte-no-endereco'
+import { type EstadoDaNavegacao, useEstadoParaODetalhe, useRolagemDaLista } from './voltar-para-a-lista'
 
 type Comparacao = (a: ContaAlvo, b: ContaAlvo) => number
 
@@ -183,6 +184,9 @@ function ListaContas() {
   const contasExibidas = filtrarContas(buscarContas(contas ?? [], busca), filtros).toSorted(ORDENACOES[ordem].comparar)
   const comBusca = normalizarParaBusca(busca) !== ''
   const recortada = comBusca || temFiltros(filtros)
+  const listaVisivel = !carregando && !erro && contasExibidas.length > 0
+  const quadro = useRolagemDaLista(listaVisivel)
+  const estadoDoLink = useEstadoParaODetalhe('Contas')
 
   return (
     <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
@@ -248,11 +252,11 @@ function ListaContas() {
         />
       )}
 
-      {!carregando && !erro && contasExibidas.length > 0 && (
+      {listaVisivel && (
         // A tabela rola num quadro próprio, nos dois sentidos, que vai até o pé da janela. Assim o cabeçalho
         // fica fixo na rolagem vertical e a coluna Empresa, na horizontal, sem tirar do lugar a sidebar e a
         // barra de topo.
-        <div className="min-h-0 overflow-auto">
+        <div ref={quadro} className="min-h-0 overflow-auto">
           <table
             aria-label="Tabela de Contas"
             className="w-full min-w-[64rem] table-fixed border-separate border-spacing-0 text-left text-sm"
@@ -287,17 +291,17 @@ function ListaContas() {
                   className="h-11 cursor-pointer transition-colors hover:bg-al-surface/40"
                   onClick={(e) => {
                     if ((e.target as HTMLElement).closest('a, button')) return
-                    navegar(`/contas/${conta.id}`)
+                    navegar(`/contas/${conta.id}`, { state: estadoDoLink })
                   }}
                 >
                   <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
-                    <CelulaEmpresa conta={conta} />
+                    <CelulaEmpresa conta={conta} estadoDoLink={estadoDoLink} />
                   </td>
                   <td className={CELULA}>
                     <SeloDeAderencia aderencia={conta.aderencia} />
                   </td>
                   <td className={CELULA}>
-                    <CelulaContatos conta={conta} />
+                    <CelulaContatos conta={conta} estadoDoLink={estadoDoLink} />
                   </td>
                   <td className={CELULA}>
                     <CelulaUltimoSinal sinal={conta.ultimoSinal} hoje={hoje} />
@@ -415,7 +419,7 @@ function filtrosAtivos({ filtros, alternarOpcao, escolherPresenca }: Recorte): F
   ]
 }
 
-function CelulaEmpresa({ conta }: { conta: ContaAlvo }) {
+function CelulaEmpresa({ conta, estadoDoLink }: { conta: ContaAlvo; estadoDoLink: EstadoDaNavegacao }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <LogoDaConta nome={conta.nome} logo={conta.logo} deUmaCor={conta.logoDeUmaCor} />
@@ -423,6 +427,7 @@ function CelulaEmpresa({ conta }: { conta: ContaAlvo }) {
         <PopUpDaEmpresa conta={conta}>
           <Link
             to={`/contas/${conta.id}`}
+            state={estadoDoLink}
             className="truncate font-normal text-al-ink hover:text-al-accent hover:underline focus:outline-none"
           >
             {conta.nome}
@@ -514,9 +519,15 @@ function PopUpDaEmpresa({ conta, children }: { conta: ContaAlvo; children: React
  * Um link próprio para a seção Contatos do detalhe, mesmo sem nenhum Contato. É um link, então o clique da linha,
  * que abre o detalhe no topo, o ignora.
  */
-function CelulaContatos({ conta: { id, totalContatos: total, previaContatos: previa = [] } }: { conta: ContaAlvo }) {
+function CelulaContatos({
+  conta: { id, totalContatos: total, previaContatos: previa = [] },
+  estadoDoLink,
+}: {
+  conta: ContaAlvo
+  estadoDoLink: EstadoDaNavegacao
+}) {
   return (
-    <Link to={`/contas/${id}#contatos`} className="group inline-flex max-w-full items-center">
+    <Link to={`/contas/${id}#contatos`} state={estadoDoLink} className="group inline-flex max-w-full items-center">
       {total === 0 ? (
         <span className="text-al-muted group-hover:text-al-accent group-hover:underline">Nenhum contato</span>
       ) : (
