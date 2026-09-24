@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, Sparkles, Users } from 'lucide-react'
+import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import {
@@ -429,11 +430,18 @@ export function NascimentoSequenciaNaConversa({
         <section aria-label="Aprovação pós-documento" className="flex flex-col gap-2">
           <AprovacaoNaConversa
             aprovacaoId={idAprovacao}
-            cabecalho={(_aprovacao, rotuloDoEstado) => (
+            cabecalho={(aprovacao, rotuloDoEstado) => (
               <div className="flex items-center gap-2 text-sm text-al-muted mb-1">
                 <IconeAgente especialidade="rhetor" tamanho="sm" />
                 <span className="font-normal text-al-ink">{agente?.nome ?? 'Rhetor'}</span>
                 <span className="text-al-line">·</span>
+                <LogoDaIntegracao
+                  id={aprovacao.integracaoId}
+                  nome={nomeDaIntegracao(
+                    aprovacao.integracaoId,
+                    referencias?.integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome,
+                  )}
+                />
                 <span className="rotulo">{rotuloDoEstado}</span>
                 <span className="text-al-line">·</span>
                 <span className="text-xs uppercase tracking-rotulo text-al-muted">

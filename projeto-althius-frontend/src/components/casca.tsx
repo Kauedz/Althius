@@ -1,7 +1,7 @@
 import { Bot, Building2, ChevronsUpDown, Plug, RadioTower, Route, Settings, ShieldCheck, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
+import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, Logo, ROTULO_DO_ESTADO } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useDados } from '@/fonte/contexto'
+import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
 import { cn } from '@/lib/utils'
 import { useTema } from '@/tema'
 
@@ -28,7 +28,13 @@ export function Casca() {
 
 function Sidebar() {
   const workspace = useDados((fonte) => fonte.workspace(), [])
+  const fonteDeOnboarding = useFonteDeOnboarding()
+  const onboarding = useDados(fonteDeOnboarding, (fonte) => fonte.ler(), [])
   const agentes = useDados((fonte) => fonte.agentes(), [])
+  const clienteDoOnboarding = onboarding?.workspace?.nomeSugerido
+  const cliente = clienteDoOnboarding || workspace?.cliente
+  const descricao = onboarding?.contextoDaIa || workspace?.descricao
+  const logoUrl = clienteDoOnboarding ? onboarding?.logoUrl : undefined
   const { pathname } = useLocation()
   // A aba de Agentes inclui a página de cada Agente e a Conversa coordenada.
   const naAbaDeAgentes = pathname === '/' || pathname.startsWith('/agentes/') || pathname.startsWith('/conversa')
@@ -42,9 +48,12 @@ function Sidebar() {
       aria-label="Navegação"
       className="sticky top-0 flex h-screen flex-col gap-6 border-r border-al-line p-4"
     >
-      <div className="flex flex-col gap-2">
-        <SeletorDeWorkspace cliente={workspace?.cliente} descricao={workspace?.descricao} />
-        <span className="selo self-start">Demonstração</span>
+      <div className="flex flex-col gap-4">
+        <Logo />
+        <div className="flex flex-col gap-2">
+          <SeletorDeWorkspace cliente={cliente} descricao={descricao} logoUrl={logoUrl} />
+          <span className="selo self-start">Demonstração</span>
+        </div>
       </div>
 
       <Secao titulo="Especialistas">
@@ -112,7 +121,15 @@ function Sidebar() {
   )
 }
 
-function SeletorDeWorkspace({ cliente, descricao }: { cliente?: string; descricao?: string }) {
+function SeletorDeWorkspace({
+  cliente,
+  descricao,
+  logoUrl,
+}: {
+  cliente?: string
+  descricao?: string
+  logoUrl?: string
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -124,9 +141,13 @@ function SeletorDeWorkspace({ cliente, descricao }: { cliente?: string; descrica
           />
         }
       >
-        <span className="grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg" aria-hidden>
-          {cliente?.[0]}
-        </span>
+        {logoUrl ? (
+          <img src={logoUrl} alt={`Logo de ${cliente ?? 'Cliente'}`} className="size-7 object-contain" />
+        ) : (
+          <span className="grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg" aria-hidden>
+            {cliente?.[0]}
+          </span>
+        )}
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="rotulo text-[0.5625rem]">Workspace</span>
           <span className="truncate font-normal">{cliente}</span>

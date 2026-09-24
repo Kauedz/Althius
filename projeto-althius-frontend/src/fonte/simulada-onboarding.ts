@@ -14,7 +14,7 @@ import {
   type SituacaoDoItem,
 } from './onboarding-tipos'
 
-const CHAVE = 'althius.onboarding'
+const CHAVE = 'althius.onboarding.v2'
 const ID_DO_WORKSPACE = 'ws-criador'
 
 /** Defaults curtos de um Cliente B2B de dados, coerentes com a demo. Não são placeholder vazio. */
@@ -22,6 +22,60 @@ export const PRODUTO_INICIAL: ProdutoDoChecklist = {
   miniIcp: 'Empresas B2B com time comercial e operação de dados no Brasil.',
   oQueVende: 'Plataforma de dados para unificar análise e IA.',
   porQueCompram: 'Para decidir com uma base única e reduzir ferramentas soltas.',
+}
+
+export const PERSONA_INICIAL =
+  'Exemplo fixo de Persona do Workspace: Diretora de Dados. A dor é operar com plataformas espalhadas; a compra acontece quando o time precisa de uma base única. Esta definição fica na Memória do Workspace. Não é a classificação de um Contato e não é a Memória do Agente.'
+
+export const SINAL_INICIAL =
+  'Abra Sinais para entender um Sinal. Abrir a página basta: não é preciso criar um Monitoramento.'
+
+export interface LeituraDeEmpresa {
+  dominio: string
+  nome: string
+  logoUrl: string
+  miniIcp: string
+  oQueVende: string
+  porQueCompram: string
+  personaTexto: string
+  sinalTexto: string
+  contextoDaIa: string
+}
+
+/** Normaliza um domínio. Devolve null quando ainda não é um host utilizável. */
+export function dominioUtil(bruto: string): string | null {
+  const host = bruto
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .split('/')[0]
+    .split('?')[0]
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) || host.includes('..')) return null
+  return host
+}
+
+/**
+ * Leitura simulada do domínio: favicon público e texto fixo com o nome do Cliente.
+ * Não chama modelo. O nome digitado tem prioridade sobre o rótulo do domínio.
+ */
+export function lerEmpresa(dominioBruto: string, nomeInformado: string): LeituraDeEmpresa | null {
+  const dominio = dominioUtil(dominioBruto)
+  if (!dominio) return null
+  const nome = nomeInformado.trim() || nomeDoDominio(dominio)
+  const logoUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(dominio)}&sz=128`
+  const miniIcp = `Empresas B2B que compram de ${nome} e já operam com time comercial.`
+  const oQueVende = `A oferta pública de ${nome}, lida em ${dominio}.`
+  const porQueCompram = `Para resolver o problema que ${nome} comunica em ${dominio}.`
+  const personaTexto = `Persona lida em ${dominio}: quem patrocina a compra em ${nome}. Esta definição fica na Memória do Workspace. Não é a classificação de um Contato e não é a Memória do Agente.`
+  const sinalTexto = `Sinal sugerido para ${nome}: um acontecimento ligado a ${dominio} que indica necessidade agora. Abrir Sinais basta; nenhum Monitoramento é criado.`
+  const contextoDaIa = `Cliente ${nome}. Domínio ${dominio}. Mini-ICP: ${miniIcp} O que vende: ${oQueVende} Por que compram: ${porQueCompram}`
+  return { dominio, nome, logoUrl, miniIcp, oQueVende, porQueCompram, personaTexto, sinalTexto, contextoDaIa }
+}
+
+function nomeDoDominio(dominio: string): string {
+  const rotulo = dominio.split('.')[0].replace(/-/g, ' ')
+  return rotulo.charAt(0).toUpperCase() + rotulo.slice(1)
 }
 
 export interface ArmazenamentoDeOnboarding {
@@ -88,11 +142,23 @@ export function criarFonteDeOnboardingSimulada(
       return devolver()
     },
 
-    async definirEmpresa(empresa) {
-      const nome = empresa.trim()
-      if (estado.ramo !== 'criador' || !estado.workspace || !nome) return devolver()
-      estado.empresa = nome
-      estado.workspace = { id: estado.workspace.id, nomeSugerido: nome }
+    async definirCliente(entrada) {
+      if (estado.ramo !== 'criador' || !estado.workspace) return devolver()
+      const leitura = lerEmpresa(entrada.dominio, entrada.nome)
+      if (!leitura) return devolver()
+      estado.empresa = leitura.nome
+      estado.dominio = leitura.dominio
+      estado.logoUrl = leitura.logoUrl
+      estado.contextoDaIa = leitura.contextoDaIa
+      estado.workspace = { id: estado.workspace.id, nomeSugerido: leitura.nome }
+      estado.checklist.miniIcp = leitura.miniIcp
+      estado.checklist.oQueVende = leitura.oQueVende
+      estado.checklist.porQueCompram = leitura.porQueCompram
+      estado.checklist.personaTexto = leitura.personaTexto
+      estado.checklist.sinalTexto = leitura.sinalTexto
+      estado.checklist.produto = 'concluido'
+      estado.checklist.persona = 'concluido'
+      estado.checklist.sinal = 'concluido'
       if (estado.etapa === 'empresa') estado.etapa = 'hdyhau'
       publicar()
       return devolver()
@@ -176,12 +242,17 @@ function estadoInicial(): EstadoDeOnboarding {
     ramo: null,
     papel: null,
     empresa: '',
+    dominio: '',
+    logoUrl: '',
+    contextoDaIa: '',
     comoConheceu: null,
     convitePulado: false,
     workspace: null,
     retornoAoChecklist: false,
     checklist: {
       ...PRODUTO_INICIAL,
+      personaTexto: PERSONA_INICIAL,
+      sinalTexto: SINAL_INICIAL,
       produto: 'pendente',
       persona: 'pendente',
       sinal: 'pendente',
@@ -209,6 +280,9 @@ function normalizar(bruto: unknown): EstadoDeOnboarding {
   if (ehRamo(lido.ramo)) base.ramo = lido.ramo
   if (ehPapel(lido.papel)) base.papel = lido.papel
   if (typeof lido.empresa === 'string') base.empresa = lido.empresa
+  if (typeof lido.dominio === 'string') base.dominio = lido.dominio
+  if (typeof lido.logoUrl === 'string') base.logoUrl = lido.logoUrl
+  if (typeof lido.contextoDaIa === 'string') base.contextoDaIa = lido.contextoDaIa
   if (ehOrigem(lido.comoConheceu)) base.comoConheceu = lido.comoConheceu
   if (lido.convitePulado === true) base.convitePulado = true
   if (lido.retornoAoChecklist === true) base.retornoAoChecklist = true
@@ -218,6 +292,8 @@ function normalizar(bruto: unknown): EstadoDeOnboarding {
     if (typeof checklist.miniIcp === 'string') base.checklist.miniIcp = checklist.miniIcp
     if (typeof checklist.oQueVende === 'string') base.checklist.oQueVende = checklist.oQueVende
     if (typeof checklist.porQueCompram === 'string') base.checklist.porQueCompram = checklist.porQueCompram
+    if (typeof checklist.personaTexto === 'string') base.checklist.personaTexto = checklist.personaTexto
+    if (typeof checklist.sinalTexto === 'string') base.checklist.sinalTexto = checklist.sinalTexto
     if (ehSituacao(checklist.produto)) base.checklist.produto = checklist.produto
     if (ehSituacao(checklist.persona)) base.checklist.persona = checklist.persona
     if (ehSituacao(checklist.sinal)) base.checklist.sinal = checklist.sinal

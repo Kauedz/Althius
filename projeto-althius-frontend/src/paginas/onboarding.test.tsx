@@ -8,9 +8,9 @@ type Usuario = ReturnType<typeof renderizarApp>['usuario']
 const PAPEIS = ['Founder', 'Head de Vendas', 'SDR/BDR', 'AE', 'Marketing', 'RevOps', 'Outro']
 const ORIGENS = ['Indicação', 'LinkedIn', 'Busca', 'Evento', 'Conteúdo', 'Outro']
 
-const MINI_ICP = 'Empresas B2B com time comercial e operação de dados no Brasil.'
-const O_QUE_VENDE = 'Plataforma de dados para unificar análise e IA.'
-const POR_QUE_COMPRAM = 'Para decidir com uma base única e reduzir ferramentas soltas.'
+const MINI_ICP = 'Empresas B2B que compram de Norte Dados e já operam com time comercial.'
+const O_QUE_VENDE = 'A oferta pública de Norte Dados, lida em nortedados.com.br.'
+const POR_QUE_COMPRAM = 'Para resolver o problema que Norte Dados comunica em nortedados.com.br.'
 
 function memoria(): ArmazenamentoDeOnboarding {
   const dados = new Map<string, string>()
@@ -27,11 +27,12 @@ async function entrarComoCriador(usuario: Usuario) {
   await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
 }
 
-async function day0Criador(usuario: Usuario, empresa = 'Norte Dados') {
+async function day0Criador(usuario: Usuario, dominio = 'nortedados.com.br', nome = 'Norte Dados') {
   await entrarComoCriador(usuario)
   await usuario.click(await screen.findByRole('radio', { name: 'RevOps' }))
   await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
-  await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), empresa)
+  await usuario.type(await screen.findByRole('textbox', { name: 'Domínio' }), dominio)
+  if (nome) await usuario.type(screen.getByRole('textbox', { name: 'Nome' }), nome)
   await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
   await usuario.click(await screen.findByRole('radio', { name: 'Indicação' }))
   await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
@@ -59,9 +60,14 @@ describe('Onboarding pós-login', () => {
     expect(criado.workspace?.nomeSugerido).toBe('')
     const id = criado.workspace?.id
 
-    await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio' }), 'nortedados.com.br')
+    await usuario.type(screen.getByRole('textbox', { name: 'Nome' }), 'Norte Dados')
+    expect(screen.getByRole('img', { name: 'Logo de Norte Dados' })).toHaveAttribute(
+      'src',
+      'https://www.google.com/s2/favicons?domain=nortedados.com.br&sz=128',
+    )
     expect(screen.getByText(/Nome sugerido do Workspace e do Cliente: Norte Dados/)).toBeInTheDocument()
-    expect(screen.getByText(/Nenhuma Conta-alvo nasce da empresa/)).toBeInTheDocument()
+    expect(screen.getByText(/Nenhuma Conta-alvo nasce daqui/)).toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
 
     for (const origem of ORIGENS) {
@@ -80,7 +86,13 @@ describe('Onboarding pós-login', () => {
     const estado = await fonteDeOnboarding.ler()
     expect(estado.workspace).toEqual({ id, nomeSugerido: 'Norte Dados' })
     expect(estado.papel).toBe('RevOps')
+    expect(estado.dominio).toBe('nortedados.com.br')
     expect(estado.empresa).toBe('Norte Dados')
+    expect(estado.checklist.produto).toBe('concluido')
+    expect(estado.checklist.persona).toBe('concluido')
+    expect(estado.checklist.sinal).toBe('concluido')
+    expect(estado.checklist.miniIcp).toBe(MINI_ICP)
+    expect(estado.contextoDaIa).toContain('nortedados.com.br')
     expect(estado.comoConheceu).toBe('Indicação')
     expect(estado.convitePulado).toBe(true)
     expect(JSON.stringify(estado)).not.toContain('ana@norte.dev')
@@ -94,7 +106,8 @@ describe('Onboarding pós-login', () => {
     await usuario.click(await screen.findByRole('radio', { name: 'Outro' }))
     await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
 
-    expect(await screen.findByRole('textbox', { name: 'Empresa' })).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Domínio' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /descreva|qual papel/i })).not.toBeInTheDocument()
     expect((await fonteDeOnboarding.ler()).papel).toBe('Outro')
   })
@@ -108,7 +121,7 @@ describe('Onboarding pós-login', () => {
     await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Como você conheceu a Althius?' })).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: 'Empresa' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Domínio' })).not.toBeInTheDocument()
 
     await usuario.click(screen.getByRole('radio', { name: 'LinkedIn' }))
     await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
@@ -177,7 +190,7 @@ describe('Onboarding pós-login', () => {
     await day0Criador(usuario)
 
     const persona = screen.getByRole('listitem', { name: '2. Persona' })
-    expect(within(persona).getByText(/Diretora de Dados/)).toBeInTheDocument()
+    expect(within(persona).getByText(/quem patrocina a compra em Norte Dados/)).toBeInTheDocument()
     expect(within(persona).getByText(/Memória do Workspace/)).toBeInTheDocument()
     expect(within(persona).getByText(/Não é a classificação de um Contato/)).toBeInTheDocument()
     expect(within(persona).getByText(/não é a Memória do Agente/)).toBeInTheDocument()
@@ -207,11 +220,20 @@ describe('Onboarding pós-login', () => {
     await usuario.click(screen.getByRole('link', { name: 'Ir para a home' }))
     expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Workspace: Norte Dados' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Logo de Norte Dados' })).toBeInTheDocument()
   })
 
   it('pular um item do checklist ainda aterra na home dentro da Casca', async () => {
     const { usuario, fonteDeOnboarding } = renderizarApp('/onboarding')
-    await day0Criador(usuario)
+    await usuario.click(await screen.findByRole('radio', { name: 'Fui convidado para um Workspace' }))
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'RevOps' }))
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'Indicação' }))
+    await usuario.click(screen.getByRole('button', { name: 'Continuar' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Pular convite' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: 'Pular mini-ICP' }))
     expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Pulado')).toBeInTheDocument()
@@ -247,6 +269,7 @@ describe('Onboarding pós-login', () => {
     expect(estado.workspace?.nomeSugerido).toBe('Norte Dados')
     expect(estado.papel).toBe('RevOps')
     expect(estado.empresa).toBe('Norte Dados')
+    expect(estado.dominio).toBe('nortedados.com.br')
     expect(estado.comoConheceu).toBe('Indicação')
     expect(estado.convitePulado).toBe(true)
     expect(estado.checklist.produto).toBe('concluido')

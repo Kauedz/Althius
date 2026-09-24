@@ -1,12 +1,13 @@
 import { ArrowRight, Check, Copy, Wrench } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente, Pulso } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
 import { TextoDigitado } from '@/conversa/texto'
 import { useDados } from '@/fonte/contexto'
-import type { Agente, AgenteId } from '@/fonte/tipos'
+import type { Agente, AgenteId, Aprovacao } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 
@@ -124,26 +125,45 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
       )
     case 'repasse':
       return (
-        <div
+        <article
           role="note"
           aria-label={`Repasse de ${nome(item.de)} para ${nome(item.para)}`}
-          className="flex items-center gap-4 border-l-2 border-al-accent-2 py-2 pl-4"
+          className="cartao flex flex-col gap-3 border border-al-line p-4"
         >
-          <span className="rotulo text-al-ink">{nome(item.de)}</span>
-          <ArrowRight strokeWidth={1.8} className="size-4 text-al-accent-2" aria-hidden />
-          <span className="rotulo text-al-ink">{nome(item.para)}</span>
-          <span className="text-sm text-al-muted">{item.resumo}</span>
-        </div>
+          <div className="flex items-center gap-3">
+            <span className="rotulo text-al-ink">{nome(item.de)}</span>
+            <ArrowRight strokeWidth={1.8} className="size-4 text-al-accent-2" aria-hidden />
+            <span className="rotulo text-al-ink">{nome(item.para)}</span>
+          </div>
+          <p>{item.resumo}</p>
+        </article>
       )
     case 'aprovacao':
       return (
         <AprovacaoNaConversa
           aprovacaoId={item.aprovacaoId}
-          cabecalho={(_, rotuloDoEstado) => <span className="rotulo text-al-accent">{rotuloDoEstado}</span>}
-          className="cartao gap-4 border-l-2 border-al-accent p-6"
+          cabecalho={(aprovacao, rotuloDoEstado) => (
+            <CabecalhoDaAprovacao aprovacao={aprovacao} rotulo={rotuloDoEstado} />
+          )}
+          className="cartao gap-4 border border-al-line p-6"
         />
       )
   }
+}
+
+function CabecalhoDaAprovacao({ aprovacao, rotulo }: { aprovacao: Aprovacao; rotulo: string }) {
+  const integracoes = useDados((fonte) => fonte.integracoes(), [])
+  const nome = nomeDaIntegracao(
+    aprovacao.integracaoId,
+    integracoes?.find((i) => i.id === aprovacao.integracaoId)?.nome,
+  )
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <LogoDaIntegracao id={aprovacao.integracaoId} nome={nome} />
+      <span className="rotulo">{nome}</span>
+      <span className="rotulo text-al-accent">{rotulo}</span>
+    </div>
+  )
 }
 
 function BotaoCopiar({ texto }: { texto: string }) {

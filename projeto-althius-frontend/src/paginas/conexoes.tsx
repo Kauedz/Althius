@@ -1,12 +1,13 @@
 import { Plug } from 'lucide-react'
 import { useState } from 'react'
+import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
-import type { Aprovacao, CanalId, CategoriaDeIntegracao, IntegracaoId } from '@/fonte/tipos'
+import type { Aprovacao, CanalId, CategoriaDeIntegracao, Integracao, IntegracaoId } from '@/fonte/tipos'
 
 const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga']
 
@@ -170,6 +171,7 @@ function DialogoDeConexao({
 function DialogoDePrevia({ canalId, aoFechar }: { canalId: CanalId | null; aoFechar: () => void }) {
   const previa = useDados((fonte) => (canalId ? fonte.previaDeCanal(canalId) : Promise.resolve(null)), [canalId])
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
+  const integracoes = useDados((fonte) => fonte.integracoes(), [])
   const canais = useDados((fonte) => fonte.canais(), [])
   const nome = canais?.find((c) => c.id === canalId)?.nome
 
@@ -192,7 +194,11 @@ function DialogoDePrevia({ canalId, aoFechar }: { canalId: CanalId | null; aoFec
                 </span>
                 <p className="whitespace-pre-line">{mensagem.texto}</p>
                 {mensagem.aprovacaoId && canalId && (
-                  <DecisaoNoCanal aprovacao={aprovacoes?.find((a) => a.id === mensagem.aprovacaoId)} canalId={canalId} />
+                  <DecisaoNoCanal
+                    aprovacao={aprovacoes?.find((a) => a.id === mensagem.aprovacaoId)}
+                    integracoes={integracoes}
+                    canalId={canalId}
+                  />
                 )}
               </li>
             ))}
@@ -203,10 +209,26 @@ function DialogoDePrevia({ canalId, aoFechar }: { canalId: CanalId | null; aoFec
   )
 }
 
-function DecisaoNoCanal({ aprovacao, canalId }: { aprovacao?: Aprovacao; canalId: CanalId }) {
+function DecisaoNoCanal({
+  aprovacao,
+  integracoes,
+  canalId,
+}: {
+  aprovacao?: Aprovacao
+  integracoes?: Integracao[]
+  canalId: CanalId
+}) {
   if (!aprovacao) return null
+  const nome = nomeDaIntegracao(
+    aprovacao.integracaoId,
+    integracoes?.find((i) => i.id === aprovacao.integracaoId)?.nome,
+  )
   return (
-    <div className="pt-2">
+    <div className="flex flex-col gap-2 pt-2">
+      <div className="flex items-center gap-2">
+        <LogoDaIntegracao id={aprovacao.integracaoId} nome={nome} />
+        <span className="rotulo">{nome}</span>
+      </div>
       <DecisaoDeAprovacao aprovacao={aprovacao} onde={canalId} />
     </div>
   )

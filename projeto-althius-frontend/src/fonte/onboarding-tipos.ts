@@ -37,6 +37,8 @@ export interface ChecklistNorte {
   miniIcp: string
   oQueVende: string
   porQueCompram: string
+  personaTexto: string
+  sinalTexto: string
   produto: SituacaoDoItem
   persona: SituacaoDoItem
   sinal: SituacaoDoItem
@@ -46,7 +48,13 @@ export interface EstadoDeOnboarding {
   etapa: EtapaDeOnboarding
   ramo: RamoDeOnboarding | null
   papel: PapelNoDay0 | null
+  /** Nome do Cliente. O domínio tem prioridade para sugerir este nome. */
   empresa: string
+  dominio: string
+  /** Favicon do domínio, usado como logo do Cliente no protótipo. */
+  logoUrl: string
+  /** Texto que os Agentes leem como contexto do Cliente. Simulado, sem modelo. */
+  contextoDaIa: string
   comoConheceu: OrigemHdyhau | null
   convitePulado: boolean
   workspace: WorkspaceSugerido | null
@@ -69,7 +77,11 @@ export interface FonteDeOnboarding extends FonteObservavel {
   ler(): Promise<EstadoDeOnboarding>
   escolherRamo(ramo: RamoDeOnboarding): Promise<EstadoDeOnboarding>
   definirPapel(papel: PapelNoDay0): Promise<EstadoDeOnboarding>
-  definirEmpresa(empresa: string): Promise<EstadoDeOnboarding>
+  /**
+   * O domínio é obrigatório e tem prioridade. O nome é opcional.
+   * A leitura simulada preenche logo, checklist e o contexto dos Agentes.
+   */
+  definirCliente(entrada: { dominio: string; nome: string }): Promise<EstadoDeOnboarding>
   definirComoConheceu(origem: OrigemHdyhau): Promise<EstadoDeOnboarding>
   pularConvite(): Promise<EstadoDeOnboarding>
   salvarProduto(campos: ProdutoDoChecklist): Promise<EstadoDeOnboarding>

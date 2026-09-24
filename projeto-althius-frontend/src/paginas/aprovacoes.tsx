@@ -1,10 +1,11 @@
 import { ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { Carregando, IconeAgente } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { useDados } from '@/fonte/contexto'
-import type { Agente, Aprovacao } from '@/fonte/tipos'
+import type { Agente, Aprovacao, Integracao } from '@/fonte/tipos'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
 export function PaginaAprovacoes() {
@@ -38,7 +39,7 @@ export function PaginaAprovacoes() {
                 <CartaoDeAprovacao
                   aprovacao={aprovacao}
                   agente={agentes.find((a) => a.id === aprovacao.agenteId)}
-                  nomeDaIntegracao={integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome}
+                  integracao={integracoes.find((i) => i.id === aprovacao.integracaoId)}
                 />
               </li>
             ))}
@@ -52,12 +53,13 @@ export function PaginaAprovacoes() {
 function CartaoDeAprovacao({
   aprovacao,
   agente,
-  nomeDaIntegracao,
+  integracao,
 }: {
   aprovacao: Aprovacao
   agente?: Agente
-  nomeDaIntegracao?: string
+  integracao?: Integracao
 }) {
+  const rotuloDaIntegracao = nomeDaIntegracao(aprovacao.integracaoId, integracao?.nome)
   return (
     <article aria-label={aprovacao.acao} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center gap-4">
@@ -65,7 +67,8 @@ function CartaoDeAprovacao({
         <Link to={`/agentes/${aprovacao.agenteId}`} className="font-normal underline-offset-4 hover:underline">
           {agente?.nome}
         </Link>
-        <span className="rotulo">{nomeDaIntegracao}</span>
+        <LogoDaIntegracao id={aprovacao.integracaoId} nome={rotuloDaIntegracao} />
+        <span className="rotulo">{rotuloDaIntegracao}</span>
         <span className="rotulo ml-auto">
           {aprovacao.origem === 'althius' ? 'Pedido na Althius' : `Pedido no ${ROTULO_DO_CANAL[aprovacao.origem]}`}
         </span>

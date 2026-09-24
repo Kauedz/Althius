@@ -12,6 +12,7 @@ import {
   type RamoDeOnboarding,
   type SituacaoDoItem,
 } from '@/fonte/onboarding-tipos'
+import { dominioUtil, lerEmpresa } from '@/fonte/simulada-onboarding'
 import { cn } from '@/lib/utils'
 
 const BOTAO_PRIMARIO =
@@ -121,18 +122,51 @@ function EtapaPapel({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: Font
 }
 
 function EtapaEmpresa({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: FonteDeOnboarding }) {
-  const [empresa, setEmpresa] = useState(estado.empresa)
-  const nome = empresa.trim()
+  const [dominio, setDominio] = useState(estado.dominio)
+  const [nome, setNome] = useState(estado.empresa)
+  const leitura = lerEmpresa(dominio, nome)
+  const host = dominioUtil(dominio)
   return (
     <Moldura
-      titulo="Qual é a empresa?"
-      acoes={<Continuar disabled={!nome} aoContinuar={() => void fonte.definirEmpresa(nome)} />}
+      titulo="Qual é o domínio?"
+      acoes={
+        <Continuar
+          disabled={!leitura}
+          aoContinuar={() => leitura && void fonte.definirCliente({ dominio: leitura.dominio, nome })}
+        />
+      }
     >
-      <Campo rotulo="Empresa">
-        <input className="campo" aria-label="Empresa" value={empresa} onChange={(evento) => setEmpresa(evento.target.value)} />
+      <Campo rotulo="Domínio">
+        <input
+          className="campo"
+          aria-label="Domínio"
+          inputMode="url"
+          placeholder="empresa.com"
+          value={dominio}
+          onChange={(evento) => setDominio(evento.target.value)}
+        />
       </Campo>
-      <p>Nome sugerido do Workspace e do Cliente: {nome || 'aguardando a empresa'}.</p>
-      <p>O Workspace já foi criado. Nenhuma Conta-alvo nasce da empresa.</p>
+      <Campo rotulo="Nome">
+        <input
+          className="campo"
+          aria-label="Nome"
+          placeholder="Opcional. Sem ele, o nome sai do domínio."
+          value={nome}
+          onChange={(evento) => setNome(evento.target.value)}
+        />
+      </Campo>
+      {leitura ? (
+        <div className="flex items-center gap-3">
+          <img src={leitura.logoUrl} alt={`Logo de ${leitura.nome}`} className="size-8 object-contain" />
+          <p>Nome sugerido do Workspace e do Cliente: {leitura.nome}.</p>
+        </div>
+      ) : (
+        <p>Nome sugerido do Workspace e do Cliente: {host ? 'lendo o domínio' : 'aguardando o domínio'}.</p>
+      )}
+      <p>
+        O domínio tem prioridade. A leitura simulada usa o favicon como logo e preenche o checklist com o contexto do
+        Cliente. Nenhuma Conta-alvo nasce daqui.
+      </p>
     </Moldura>
   )
 }
@@ -204,9 +238,23 @@ function EtapaChecklist({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: 
       }
     >
       {estado.workspace?.nomeSugerido ? (
-        <p>Workspace sugerido: {estado.workspace.nomeSugerido}. Nenhuma Conta-alvo foi criada.</p>
+        <div className="flex items-center gap-3">
+          {estado.logoUrl && (
+            <img src={estado.logoUrl} alt={`Logo de ${estado.workspace.nomeSugerido}`} className="size-8 object-contain" />
+          )}
+          <p>
+            Workspace sugerido: {estado.workspace.nomeSugerido}
+            {estado.dominio ? `, lido de ${estado.dominio}` : ''}. Nenhuma Conta-alvo foi criada.
+          </p>
+        </div>
       ) : (
         <p>Você entra no Workspace para o qual foi convidado. A empresa do Cliente fica como está.</p>
+      )}
+      {estado.contextoDaIa && (
+        <section aria-label="Contexto para os Agentes" className="border border-al-line p-4">
+          <p className="rotulo">Contexto para os Agentes</p>
+          <p>{estado.contextoDaIa}</p>
+        </section>
       )}
       <p>
         A ordem é mini-ICP e produto, depois Persona, depois Sinal. Em seguida vêm Conta-alvo com Sinal, Cadência e
@@ -250,11 +298,7 @@ function EtapaChecklist({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: 
           </div>
         </Item>
         <Item nome="2. Persona" situacao={estado.checklist.persona}>
-          <p>
-            Exemplo fixo de Persona do Workspace: Diretora de Dados. A dor é operar com plataformas espalhadas; a compra
-            acontece quando o time precisa de uma base única.
-          </p>
-          <p>Esta definição fica na Memória do Workspace. Não é a classificação de um Contato e não é a Memória do Agente.</p>
+          <p>{estado.checklist.personaTexto}</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={BOTAO_PRIMARIO} onClick={() => void fonte.concluirPersona()}>
               Concluir Persona
@@ -267,7 +311,7 @@ function EtapaChecklist({ estado, fonte }: { estado: EstadoDeOnboarding; fonte: 
           </div>
         </Item>
         <Item nome="3. Sinal" situacao={estado.checklist.sinal}>
-          <p>Abra Sinais para entender um Sinal. Abrir a página basta: não é preciso criar um Monitoramento.</p>
+          <p>{estado.checklist.sinalTexto}</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={BOTAO_PRIMARIO} onClick={abrirSinais}>
               Abrir Sinais

@@ -16,6 +16,21 @@ const VETORES: Partial<Record<IntegracaoId, { d: string; cor: string }>> = {
 
 const IMAGENS: Partial<Record<IntegracaoId, string>> = { clay, apollo, lusha }
 
+const NOME_DA_INTEGRACAO: Record<IntegracaoId, string> = {
+  hubspot: 'HubSpot',
+  clay: 'Clay',
+  apollo: 'Apollo',
+  lusha: 'Lusha',
+  notion: 'Notion',
+  'meta-ads': 'Meta Ads',
+  'google-ads': 'Google Ads',
+}
+
+/** O nome da Integração para o logo, já na primeira pintura, antes da lista assíncrona chegar. */
+export function nomeDaIntegracao(id: IntegracaoId, nome?: string) {
+  return nome && nome !== id ? nome : NOME_DA_INTEGRACAO[id]
+}
+
 /** O logo de uma Integração, com 16px. `nome` é o nome da Integração, lido por leitores de tela. */
 export function LogoDaIntegracao({ id, nome, className }: { id: IntegracaoId; nome: string; className?: string }) {
   const vetor = VETORES[id]
