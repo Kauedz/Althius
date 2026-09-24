@@ -14,6 +14,8 @@ describe('Mockup do módulo Sinais', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Sinais' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Sinais' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
+    // O seletor de estados ilustrativos do mockup saiu depois da aprovação.
+    expect(screen.queryByRole('combobox', { name: 'Estado do mockup' })).not.toBeInTheDocument()
   })
 
   it('busca e filtra o catálogo por origem e oferece continuidade quando nada corresponde', async () => {
@@ -220,21 +222,5 @@ describe('Mockup do módulo Sinais', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Zendesk' })).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: /Quente/ })).not.toBeInTheDocument()
     expect(screen.getByRole('listitem', { name: 'Negociação parada há 30 dias' })).toHaveTextContent('Expirado')
-  })
-
-  it('representa falha recuperável e ausência de resultados pelo estado do mockup', async () => {
-    const { usuario } = renderizarApp('/sinais')
-    const estado = await screen.findByRole('combobox', { name: 'Estado do mockup' })
-
-    await usuario.selectOptions(estado, 'Falha recuperável')
-    expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar o catálogo de sinais.')
-    await usuario.click(screen.getByRole('button', { name: 'Tentar de novo' }))
-    expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
-
-    await usuario.selectOptions(estado, 'Sem Sinais encontrados')
-    await usuario.click(screen.getByRole('button', { name: /Sinais encontrados/ }))
-    expect(screen.getByText('Nenhum Sinal encontrado ainda.')).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: 'Voltar ao catálogo' }))
-    expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
   })
 })

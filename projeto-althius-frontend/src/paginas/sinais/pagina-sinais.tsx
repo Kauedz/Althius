@@ -2,7 +2,6 @@ import { ArrowLeft, ArrowRight, Plus, RadioTower, Search, Sparkles } from 'lucid
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { LogoDaConta } from '@/components/logos'
-import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
@@ -20,7 +19,7 @@ import {
 } from './catalogo'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from './componentes'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido } from './dados-mock'
-import { ROTULO_DO_ESTADO_DA_TELA, useMonitoramentos, useSinaisDoMockup, type EstadoDaTela } from './estado'
+import { useMonitoramentos } from './estado'
 
 type Filtro = 'todos' | Origem
 
@@ -44,13 +43,10 @@ export function PaginaSinais() {
       titulo="Sinais"
       icone={RadioTower}
       acoes={
-        <>
-          <SeletorDeEstadoDaTela />
-          <Link to="/sinais/tipos/personalizado/novo" className={BOTAO_PRIMARIO}>
-            <Sparkles strokeWidth={1.8} className="size-4" aria-hidden />
-            Criar sinal personalizado
-          </Link>
-        </>
+        <Link to="/sinais/tipos/personalizado/novo" className={BOTAO_PRIMARIO}>
+          <Sparkles strokeWidth={1.8} className="size-4" aria-hidden />
+          Criar sinal personalizado
+        </Link>
       }
     >
       {vendoEncontrados ? (
@@ -62,48 +58,8 @@ export function PaginaSinais() {
   )
 }
 
-/** Só no mockup: escolhe o estado ilustrativo da página, para revisar carregamento, vazios e falha. */
-function SeletorDeEstadoDaTela() {
-  const { estadoDaTela, mudarEstadoDaTela } = useSinaisDoMockup()
-  return (
-    <label className="flex items-center gap-2">
-      <span className="rotulo text-[0.625rem]">Estado do mockup</span>
-      <select
-        value={estadoDaTela}
-        onChange={(e) => mudarEstadoDaTela(e.target.value as EstadoDaTela)}
-        className="campo h-9 w-auto text-xs"
-      >
-        {Object.entries(ROTULO_DO_ESTADO_DA_TELA).map(([valor, rotulo]) => (
-          <option key={valor} value={valor}>
-            {rotulo}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
-/** Sem Monitoramentos, ou no estado ilustrativo sem resultados, não há Sinais encontrados para mostrar. */
-function semResultados(estado: EstadoDaTela): boolean {
-  return estado === 'sem-resultados' || estado === 'sem-monitoramentos'
-}
-
-function FalhaRecuperavel({ mensagem }: { mensagem: string }) {
-  const { mudarEstadoDaTela } = useSinaisDoMockup()
-  return (
-    <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
-      <p className="text-sm">{mensagem}</p>
-      <p className="text-sm text-al-muted">Os seus Monitoramentos continuam salvos. Tente de novo em instantes.</p>
-      <button type="button" onClick={() => mudarEstadoDaTela('normal')} className={BOTAO_SECUNDARIO}>
-        Tentar de novo
-      </button>
-    </div>
-  )
-}
-
 function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
   const navegar = useNavigate()
-  const { estadoDaTela } = useSinaisDoMockup()
   const monitoramentos = useMonitoramentos()
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -127,10 +83,7 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
   const totalPorOrigem = (origem: Filtro) =>
     origem === 'todos' ? TIPOS.length : TIPOS.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length
 
-  const encontrados = semResultados(estadoDaTela) ? 0 : SINAIS_MOCK.length
-
-  if (estadoDaTela === 'carregando') return <Carregando rotulo="Carregando o catálogo de sinais" />
-  if (estadoDaTela === 'falha') return <FalhaRecuperavel mensagem="Não foi possível carregar o catálogo de sinais." />
+  const encontrados = SINAIS_MOCK.length
 
   return (
     <>
@@ -306,9 +259,8 @@ function CartaoPersonalizado({ quantidade }: { quantidade: number }) {
 /** Lista simples: empresa, sinal disparado e data. Sem dashboard nem gráficos. */
 function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
   const navegar = useNavigate()
-  const { estadoDaTela } = useSinaisDoMockup()
   const hoje = useFonteDeContas().hoje()
-  const sinais = semResultados(estadoDaTela) ? [] : [...SINAIS_MOCK].sort((a, b) => b.data.localeCompare(a.data))
+  const sinais = [...SINAIS_MOCK].sort((a, b) => b.data.localeCompare(a.data))
 
   return (
     <>
@@ -323,11 +275,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
         </button>
       </div>
 
-      {estadoDaTela === 'carregando' && <Carregando rotulo="Carregando os sinais encontrados" />}
-      {estadoDaTela === 'falha' && <FalhaRecuperavel mensagem="Não foi possível carregar os sinais encontrados." />}
-
-      {(estadoDaTela === 'normal' || estadoDaTela === 'sem-monitoramentos' || estadoDaTela === 'sem-resultados') &&
-        (sinais.length === 0 ? (
+      {sinais.length === 0 ? (
           <div className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
             <p className="text-sm">Nenhum Sinal encontrado ainda.</p>
             <p className="text-sm text-al-muted">
@@ -387,7 +335,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
               })}
             </tbody>
           </table>
-        ))}
+        )}
     </>
   )
 }
