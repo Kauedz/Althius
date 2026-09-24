@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { App } from '@/App'
 import type { FonteDeContas } from '@/fonte/contas-tipos'
@@ -356,5 +356,118 @@ describe('Células da tabela de Contas', () => {
     expect(modulo.queryAllByText(/\d+\s*(\/|de)\s*100\b/)).toHaveLength(0)
     expect(modulo.queryAllByText(/\bEtapa\b/i)).toHaveLength(0)
     expect(modulo.queryAllByText(/\bCRM\b/)).toHaveLength(0)
+  })
+})
+
+/** O link com o nome da empresa na tabela de Contas, que abre o pop-up. */
+async function nomeDaEmpresa(nome: string) {
+  const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+  return within(tabela).getByRole('link', { name: nome })
+}
+
+/** Mais que o atraso de abrir e o de fechar o pop-up da empresa somados. */
+const ALEM_DOS_ATRASOS_DO_POP_UP_MS = 800
+
+describe('Pop-up da empresa', () => {
+  it('abre ao passar o mouse sobre a empresa, depois de um pequeno atraso, com os links do site e do LinkedIn', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('OpenAI'))
+
+    // Não abre na hora, para não piscar ao percorrer a tabela
+    expect(screen.queryByRole('link', { name: /Site/ })).not.toBeInTheDocument()
+
+    const site = await screen.findByRole('link', { name: /Site/ })
+    expect(site).toHaveAttribute('href', 'https://openai.com')
+    expect(screen.getByRole('link', { name: /LinkedIn/ })).toHaveAttribute(
+      'href',
+      'https://www.linkedin.com/company/openai',
+    )
+  })
+
+  it('abre quando o nome da empresa recebe o foco do teclado', async () => {
+    renderizarApp('/contas')
+
+    const nome = await nomeDaEmpresa('Stripe')
+    act(() => nome.focus())
+
+    expect(await screen.findByRole('link', { name: /Site/ })).toHaveAttribute('href', 'https://stripe.com')
+  })
+
+  it('pelo teclado, o Tab leva do nome aos links do pop-up e depois segue a tabela', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    const nome = await nomeDaEmpresa('OpenAI')
+    act(() => nome.focus())
+    const site = await screen.findByRole('link', { name: /Site/ })
+
+    await usuario.tab()
+    expect(site).toHaveFocus()
+    await usuario.tab()
+    expect(screen.getByRole('link', { name: /LinkedIn/ })).toHaveFocus()
+
+    // Shift+Tab volta pelo mesmo caminho
+    await usuario.tab({ shift: true })
+    expect(site).toHaveFocus()
+    await usuario.tab({ shift: true })
+    expect(nome).toHaveFocus()
+
+    // Saindo do último link, o foco segue para o que vem depois do nome, e o pop-up fecha
+    await usuario.tab()
+    await usuario.tab()
+    await usuario.tab()
+    const tabela = screen.getByRole('table', { name: 'Tabela de Contas' })
+    expect(tabela).toContainElement(document.activeElement as HTMLElement)
+    expect(nome).not.toHaveFocus()
+    await waitFor(() => expect(screen.queryByRole('link', { name: /Site/ })).not.toBeInTheDocument())
+  })
+
+  it('continua aberto enquanto o ponteiro está nele, e o link pode ser clicado', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('OpenAI'))
+    const linkedin = await screen.findByRole('link', { name: /LinkedIn/ })
+
+    await usuario.hover(linkedin)
+    await new Promise((r) => setTimeout(r, ALEM_DOS_ATRASOS_DO_POP_UP_MS))
+    expect(screen.getByRole('link', { name: /LinkedIn/ })).toBeInTheDocument()
+
+    // Clicar no link do pop-up não abre o detalhe da conta
+    await usuario.click(screen.getByRole('link', { name: /LinkedIn/ }))
+    expect(screen.getByRole('table', { name: 'Tabela de Contas' })).toBeInTheDocument()
+  })
+
+  it('mostra só os links que existem: só o site, quando não há LinkedIn', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('Banorte'))
+
+    expect(await screen.findByRole('link', { name: /Site/ })).toHaveAttribute('href', 'https://banorte.com')
+    expect(screen.queryByRole('link', { name: /LinkedIn/ })).not.toBeInTheDocument()
+  })
+
+  it('sem site nem LinkedIn, o pop-up não aparece', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    const nome = await nomeDaEmpresa('Miro')
+    await usuario.hover(nome)
+    act(() => nome.focus())
+    await new Promise((r) => setTimeout(r, ALEM_DOS_ATRASOS_DO_POP_UP_MS))
+
+    expect(screen.queryByRole('link', { name: /Site|LinkedIn/ })).not.toBeInTheDocument()
+  })
+
+  it('os links abrem em outra aba', async () => {
+    const { usuario } = renderizarApp('/contas')
+
+    await usuario.hover(await nomeDaEmpresa('OpenAI'))
+
+    for (const link of [
+      await screen.findByRole('link', { name: /Site/ }),
+      screen.getByRole('link', { name: /LinkedIn/ }),
+    ]) {
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
+    }
   })
 })

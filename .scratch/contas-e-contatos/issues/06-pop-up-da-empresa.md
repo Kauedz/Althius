@@ -6,9 +6,15 @@
 
 **Status:** ready-for-agent
 
-- [ ] O pop-up abre ao passar o mouse sobre a empresa, depois de um pequeno atraso
-- [ ] O pop-up abre quando o nome da empresa recebe o foco do teclado
-- [ ] O pop-up continua aberto enquanto o ponteiro está nele, e o link pode ser clicado
-- [ ] O pop-up mostra só os links que existem: só o site, quando não há LinkedIn
-- [ ] Sem site nem LinkedIn, o pop-up não aparece
-- [ ] Os links abrem em outra aba
+- [x] O pop-up abre ao passar o mouse sobre a empresa, depois de um pequeno atraso
+- [x] O pop-up abre quando o nome da empresa recebe o foco do teclado
+- [x] O pop-up continua aberto enquanto o ponteiro está nele, e o link pode ser clicado
+- [x] O pop-up mostra só os links que existem: só o site, quando não há LinkedIn
+- [x] Sem site nem LinkedIn, o pop-up não aparece
+- [x] Os links abrem em outra aba
+
+## Comments
+
+- O pop-up usa o PreviewCard do Base UI, num portal (o quadro da tabela corta o que transborda). Abre 400 ms depois do mouse ou do foco no nome e fecha 200 ms depois que o ponteiro sai, com uma ponte até o pop-up.
+- Teclado: o portal fica fora da ordem do Tab, e ela é refeita à mão. Do nome, o Tab entra nos links. Do primeiro link, o Shift+Tab volta ao nome. Do último, o Tab segue a tabela a partir do nome.
+- O pop-up usa só o `siteUrl` e o `linkedinUrl` da fonte. O detalhe da conta monta o link do site a partir do domínio quando falta o `siteUrl`, e o pop-up não faz isso, para não mostrar um link inventado. Alinhar o detalhe a essa regra fica para o ticket 09.

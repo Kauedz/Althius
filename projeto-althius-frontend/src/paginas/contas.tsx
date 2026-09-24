@@ -1,4 +1,6 @@
-import { Building2, RadioTower } from 'lucide-react'
+import { PreviewCard } from '@base-ui/react/preview-card'
+import { Building2, ExternalLink, RadioTower } from 'lucide-react'
+import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
 import { LogoDaConta } from '@/components/logos'
@@ -191,15 +193,93 @@ function CelulaEmpresa({ conta }: { conta: ContaAlvo }) {
     <div className="flex min-w-0 items-center gap-2.5">
       <LogoDaConta nome={conta.nome} logo={conta.logo} deUmaCor={conta.logoDeUmaCor} />
       <div className="flex min-w-0 flex-col leading-tight">
-        <Link
-          to={`/contas/${conta.id}`}
-          className="truncate font-normal text-al-ink hover:text-al-accent hover:underline focus:outline-none"
-        >
-          {conta.nome}
-        </Link>
+        <PopUpDaEmpresa conta={conta}>
+          <Link
+            to={`/contas/${conta.id}`}
+            className="truncate font-normal text-al-ink hover:text-al-accent hover:underline focus:outline-none"
+          >
+            {conta.nome}
+          </Link>
+        </PopUpDaEmpresa>
         <span className="truncate text-[0.6875rem] text-al-muted">{conta.dominio ?? 'Domínio não informado'}</span>
       </div>
     </div>
+  )
+}
+
+/**
+ * Os links do site e do LinkedIn da empresa, num pop-up que abre ao passar o mouse sobre o nome (depois de um
+ * pequeno atraso, para não piscar ao percorrer a tabela) ou quando o nome recebe o foco. Mostra só os links que
+ * existem e, sem nenhum, não aparece. Fica num portal, porque o quadro da tabela corta o que transborda.
+ */
+function PopUpDaEmpresa({ conta, children }: { conta: ContaAlvo; children: ReactElement }) {
+  const [aberto, setAberto] = useState(false)
+  const nomeRef = useRef<HTMLAnchorElement>(null)
+  const popUpRef = useRef<HTMLDivElement>(null)
+
+  const links = [
+    conta.siteUrl && { rotulo: 'Site', href: conta.siteUrl },
+    conta.linkedinUrl && { rotulo: 'LinkedIn', href: conta.linkedinUrl },
+  ].filter((link) => !!link)
+
+  if (links.length === 0) return children
+
+  // No fim do <body>, o portal fica fora da ordem do Tab. Ela é refeita à mão: do nome, o Tab entra nos links;
+  // do primeiro link, o Shift+Tab volta ao nome; do último, o Tab devolve o foco ao nome e segue dali.
+  function tabNoNome(e: KeyboardEvent) {
+    const primeiro = popUpRef.current?.querySelector('a')
+    if (e.key !== 'Tab' || e.shiftKey || !aberto || !primeiro) return
+    e.preventDefault()
+    primeiro.focus()
+  }
+
+  function tabNoPopUp(e: KeyboardEvent) {
+    if (e.key !== 'Tab') return
+    const linksDoPopUp = [...(popUpRef.current?.querySelectorAll('a') ?? [])]
+    const primeiro = e.shiftKey && e.target === linksDoPopUp[0]
+    const ultimo = !e.shiftKey && e.target === linksDoPopUp.at(-1)
+    if (!primeiro && !ultimo) return
+    // Voltando, o foco para no nome. Seguindo, o Tab continua a partir do nome, para o que vem depois dele.
+    if (primeiro) e.preventDefault()
+    setAberto(false)
+    nomeRef.current?.focus()
+  }
+
+  return (
+    <PreviewCard.Root open={aberto} onOpenChange={setAberto}>
+      <PreviewCard.Trigger
+        ref={nomeRef}
+        delay={400}
+        closeDelay={200}
+        onKeyDown={tabNoNome}
+        render={children}
+      />
+      <PreviewCard.Portal>
+        <PreviewCard.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
+          <PreviewCard.Popup
+            ref={popUpRef}
+            aria-label={`Links de ${conta.nome}`}
+            onKeyDown={tabNoPopUp}
+            // O portal tira o pop-up da linha no DOM, mas não na árvore do React: o clique não pode abrir o detalhe.
+            onClick={(e) => e.stopPropagation()}
+            className="flex min-w-40 flex-col border border-al-line bg-al-surface py-1 text-sm text-al-ink shadow-md outline-none"
+          >
+            {links.map((link) => (
+              <a
+                key={link.rotulo}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-al-bg hover:text-al-accent focus-visible:bg-al-bg focus-visible:outline-none"
+              >
+                {link.rotulo}
+                <ExternalLink className="size-3 text-al-muted" aria-hidden />
+              </a>
+            ))}
+          </PreviewCard.Popup>
+        </PreviewCard.Positioner>
+      </PreviewCard.Portal>
+    </PreviewCard.Root>
   )
 }
 
