@@ -2,13 +2,14 @@ import { useRef, useState, type FormEvent } from 'react'
 import { AvatarDePessoa, Carregando } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
-import { ehEmailValido } from '@/fonte/regras'
+import { ehEmailValido, ERRO_DE_EMAIL, ROTULO_DO_PAPEL } from '@/fonte/regras'
 import type { Workspace } from '@/fonte/tipos'
 import { BlocoSenha } from './bloco-senha'
+import { Bloco } from './componentes'
 
 /**
- * Meu perfil: nome, e-mail e foto da Conta de usuário (a mesma fonte alimenta o menu pessoal da Casca)
- * e a alteração demonstrativa de senha.
+ * Meu perfil: nome, e-mail e foto da Conta de usuário (a mesma fonte alimenta o menu pessoal da Casca),
+ * as Participações dela em cada Workspace e a alteração demonstrativa de senha.
  */
 export function SecaoPerfil() {
   const workspace = useDados((fonte) => fonte.workspace(), [])
@@ -27,6 +28,7 @@ export function SecaoPerfil() {
         </p>
       </div>
       {!workspace ? <Carregando /> : <FormularioDePerfil usuario={workspace.usuario} />}
+      {workspace && <SeusWorkspaces contaId={workspace.usuario.id} />}
       <BlocoSenha />
     </section>
   )
@@ -77,7 +79,7 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
     const nomeValido = nome.trim() !== ''
     const emailValido = ehEmailValido(email)
     setErroNome(nomeValido ? '' : 'Informe seu nome.')
-    setErroEmail(emailValido ? '' : 'Informe um e-mail em formato válido, como nome@empresa.com.')
+    setErroEmail(emailValido ? '' : ERRO_DE_EMAIL)
     if (!nomeValido || !emailValido) {
       limparResultado()
       return
@@ -214,5 +216,35 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
         )}
       </div>
     </form>
+  )
+}
+
+/** A Conta de usuário existe por si e participa de um ou mais Workspaces, com um papel em cada. */
+function SeusWorkspaces({ contaId }: { contaId: string }) {
+  const contaComParticipacoes = useDados((fonte) => fonte.contaDeUsuario(contaId), [contaId])
+
+  return (
+    <Bloco titulo="Seus Workspaces" descricao="Sua Conta de usuário pode participar de mais de um Workspace, com um papel em cada.">
+      {!contaComParticipacoes ? (
+        <Carregando />
+      ) : (
+        <ul className="flex flex-col">
+          {contaComParticipacoes.participacoes.map((participacao) => (
+            <li
+              key={participacao.workspaceId}
+              aria-label={participacao.nomeDoWorkspace}
+              className="flex items-center gap-3 border-b border-al-line py-3 last:border-b-0"
+            >
+              <span className="grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg" aria-hidden>
+                {participacao.nomeDoWorkspace[0]}
+              </span>
+              <span className="font-normal">{participacao.nomeDoWorkspace}</span>
+              {participacao.atual && <span className="selo">Atual</span>}
+              <span className="rotulo ml-auto">{ROTULO_DO_PAPEL[participacao.papel]}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Bloco>
   )
 }

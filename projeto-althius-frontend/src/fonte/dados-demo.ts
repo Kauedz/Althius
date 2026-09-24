@@ -5,27 +5,63 @@ import type {
   AgenteId,
   Aprovacao,
   Canal,
+  ContaDeUsuario,
+  Convite,
   EspecialidadeId,
   Fato,
   Habilidade,
+  InformacoesDoWorkspace,
   Integracao,
   IntegracaoFutura,
   IntegracaoId,
   ItemDeAtividade,
+  Papel,
   Permissao,
   Personalizacao,
   PreviaDeCanal,
   Rotina,
-  Workspace,
 } from './tipos'
 import { especialidade } from './especialidades'
 import { permissaoPadrao } from './regras'
 
-export const workspace: Omit<Workspace, 'aprovacoesPendentes'> = {
-  cliente: 'Databricks',
-  descricao: 'Workspace de demonstração',
-  usuario: { nome: 'Marina Alves', email: 'marina.alves@databricks.com', cargo: 'Head de Growth, LATAM' },
+/** O Workspace aberto na demonstração. */
+export const WORKSPACE_ATUAL = 'databricks'
+
+export const workspaces: Record<string, InformacoesDoWorkspace> = {
+  databricks: { nome: 'Databricks', descricao: 'Workspace de demonstração', criadoEm: '2026-06-02' },
+  'evolut-trading': { nome: 'Evolut Trading', descricao: 'Outro Workspace da Althius', criadoEm: '2026-04-15' },
 }
+
+/** A sessão padrão da demonstração: Marina, Administradora do Workspace da Databricks. */
+export const CONTA_DA_SESSAO = 'marina'
+
+/** As Contas de usuário existem por si: a Participação no Workspace é que as liga a cada Workspace. */
+export const contasDeUsuario: ContaDeUsuario[] = [
+  { id: 'marina', nome: 'Marina Alves', email: 'marina.alves@databricks.com', cargo: 'Head de Growth, LATAM' },
+  { id: 'rafael', nome: 'Rafael Couto', email: 'rafael.couto@databricks.com', foto: '/avatars/avatar-8.jpg', cargo: 'Diretor de Vendas, Brasil' },
+  { id: 'lucas', nome: 'Lucas Moreira', email: 'lucas.moreira@databricks.com', cargo: 'SDR Enterprise' },
+  { id: 'beatriz', nome: 'Beatriz Santos', email: 'beatriz.santos@databricks.com', foto: '/avatars/avatar-5.jpg', cargo: 'Marketing de Produto' },
+  { id: 'thiago', nome: 'Thiago Ramos', email: 'thiago.ramos@databricks.com', cargo: 'Consultor de parcerias' },
+]
+
+export interface RegistroDeParticipacao {
+  contaId: string
+  workspaceId: string
+  papel: Papel
+}
+
+export const participacoes: RegistroDeParticipacao[] = [
+  { contaId: 'marina', workspaceId: 'databricks', papel: 'administrador' },
+  { contaId: 'rafael', workspaceId: 'databricks', papel: 'administrador' },
+  { contaId: 'lucas', workspaceId: 'databricks', papel: 'membro' },
+  { contaId: 'beatriz', workspaceId: 'databricks', papel: 'membro' },
+  { contaId: 'thiago', workspaceId: 'databricks', papel: 'membro' },
+  { contaId: 'thiago', workspaceId: 'evolut-trading', papel: 'membro' },
+]
+
+export const convites: Convite[] = [
+  { id: 'convite-carla', email: 'carla.nunes@databricks.com', papel: 'membro', registradoEm: '2026-09-22' },
+]
 
 /**
  * Um Agente como a fonte o guarda: aponta para a Especialidade pelo identificador. A descrição,

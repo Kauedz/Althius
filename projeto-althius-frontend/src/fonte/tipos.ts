@@ -65,8 +65,78 @@ export interface Sugestao {
 export interface Workspace {
   cliente: string
   descricao: string
-  usuario: { nome: string; email: string; foto?: string; cargo: string }
+  /** A Conta de usuário da sessão. */
+  usuario: ContaDeUsuario
+  /** O papel da Participação da sessão neste Workspace; `null` quando a Conta de usuário não participa dele. */
+  papel: Papel | null
   aprovacoesPendentes: number
+}
+
+/** Os dois únicos papéis de acesso de uma Participação no Workspace, sem matriz individualizada. */
+export type Papel = 'administrador' | 'membro'
+
+/** A identidade pessoal de acesso à Althius: existe independente de qualquer Participação no Workspace. */
+export interface ContaDeUsuario {
+  id: string
+  nome: string
+  email: string
+  foto?: string
+  cargo: string
+}
+
+/** As informações gerais do Workspace: todos consultam; Administradores alteram a descrição (o nome é o do Cliente). */
+export interface InformacoesDoWorkspace {
+  nome: string
+  descricao: string
+  /** Data da criação, em ISO (aaaa-mm-dd). */
+  criadoEm: string
+}
+
+/** Uma Participação no Workspace de uma Conta de usuário, vista a partir da Conta: o papel é do vínculo. */
+export interface ParticipacaoDaConta {
+  workspaceId: string
+  nomeDoWorkspace: string
+  papel: Papel
+  /** Se é o Workspace aberto agora. */
+  atual: boolean
+}
+
+/** Uma pessoa ativa no Workspace: a Conta de usuário e o papel da sua Participação neste Workspace. */
+export interface Participante {
+  conta: ContaDeUsuario
+  papel: Papel
+  /** As Participações da mesma Conta de usuário em outros Workspaces, que a remoção deste preserva. */
+  outrasParticipacoes: ParticipacaoDaConta[]
+}
+
+/** Convite demonstrativo, pendente até ser aceito: não é Participante nem conta como um. Nenhum e-mail é enviado. */
+export interface Convite {
+  id: string
+  email: string
+  papel: Papel
+  /** Data do registro, em ISO (aaaa-mm-dd). */
+  registradoEm: string
+}
+
+export interface NovoConvite {
+  email: string
+  papel: Papel
+}
+
+/** Workspace / Pessoas e acesso: informações, Participantes ativos e convites pendentes, com o papel da sessão. */
+export interface ParticipantesDoWorkspace {
+  informacoes: InformacoesDoWorkspace
+  /** A Conta de usuário da sessão. */
+  contaId: string
+  papel: Papel | null
+  participantes: Participante[]
+  convites: Convite[]
+}
+
+/** Uma Conta de usuário com todas as suas Participações, em qualquer Workspace. */
+export interface ContaComParticipacoes {
+  conta: ContaDeUsuario
+  participacoes: ParticipacaoDaConta[]
 }
 
 /** Os dados editáveis em Meu perfil: nome, e-mail e foto da Conta de usuário. Sem foto, iniciais. */
@@ -267,6 +337,24 @@ export interface FonteDeAgentes extends FonteObservavel {
   workspace(): Promise<Workspace>
   /** Atualiza nome, e-mail e foto da Conta de usuário; valida nome não vazio e formato do e-mail. */
   salvarPerfil(perfil: Perfil): Promise<void>
+
+  /** Informações, Participantes e convites do Workspace atual, com o papel da sessão. Todos os Participantes consultam. */
+  participantesDoWorkspace(): Promise<ParticipantesDoWorkspace>
+  /** A Conta de usuário e suas Participações: ela continua existindo depois de removida de um Workspace. */
+  contaDeUsuario(contaId: string): Promise<ContaComParticipacoes>
+  // As operações administrativas abaixo validam a Participação e o papel da sessão: só Administradores as executam.
+  /** Altera a descrição do Workspace; o nome é o do Cliente, definido no onboarding. */
+  salvarDescricaoDoWorkspace(descricao: string): Promise<void>
+  /** Registra um convite pendente, sem enviar e-mail; recusa quem já participa ou já foi convidado. */
+  convidarParaWorkspace(convite: NovoConvite): Promise<Convite>
+  cancelarConvite(conviteId: string): Promise<void>
+  /** Alterna o papel entre Administrador e Membro; recusa rebaixar o último Administrador. */
+  mudarPapel(contaId: string, papel: Papel): Promise<void>
+  /**
+   * Encerra só a Participação neste Workspace: a Conta de usuário e as outras Participações continuam.
+   * Recusa remover o último Administrador e a própria sessão.
+   */
+  removerDoWorkspace(contaId: string): Promise<void>
 
   /** O catálogo fixo: não há operação para criar uma Especialidade. */
   especialidades(): Promise<Especialidade[]>

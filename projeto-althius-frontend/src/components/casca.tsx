@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { ROTULO_DO_PAPEL } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
 import { useTema } from '@/tema'
 
@@ -182,6 +183,9 @@ function MenuDoUsuario() {
             <DropdownMenuLabel>
               <span className="block font-normal text-al-ink">{nome}</span>
               <span className="block text-al-muted">{workspace?.usuario.cargo}</span>
+              {workspace?.papel && (
+                <span className="block text-al-muted">{ROTULO_DO_PAPEL[workspace.papel]} neste Workspace</span>
+              )}
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuItem render={<Link to="/configuracoes/perfil" />}>Meu perfil</DropdownMenuItem>

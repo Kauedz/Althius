@@ -5,24 +5,16 @@ import { Pagina } from '@/components/pagina'
 import { SecaoEmPreparo } from './secao-em-preparo'
 import { SecaoPerfil } from './secao-perfil'
 import { SecaoPreferencias } from './secao-preferencias'
+import { SecaoWorkspace } from './secao-workspace'
 
 /**
- * As seis seções aprovadas no mockup (ticket 01). Só Meu perfil e Preferências têm implementação
- * funcional nesta entrega; as demais chegam nos tickets seguintes (ver comentário do ticket 01).
+ * As seis seções aprovadas no mockup (ticket 01). Meu perfil, Preferências e Workspace já têm
+ * implementação funcional; as demais chegam nos tickets seguintes (ver comentário do ticket 01).
  */
 const SECOES: Record<string, { rotulo: string; Componente: () => ReactNode }> = {
   perfil: { rotulo: 'Meu perfil', Componente: SecaoPerfil },
   preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias },
-  workspace: {
-    rotulo: 'Workspace',
-    Componente: () => (
-      <SecaoEmPreparo
-        titulo="Workspace"
-        descricao="Informações do Workspace, participantes, convites e papéis de Administrador e Membro."
-        alcance="Compartilhado com o Workspace"
-      />
-    ),
-  },
+  workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace },
   memoria: {
     rotulo: 'Memória do Workspace',
     Componente: () => (

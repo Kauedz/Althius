@@ -4,7 +4,7 @@ import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
 import { normalizarNome, reconhecerMencoes } from './mencoes'
-import { ehEmailValido, nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
+import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
 import {
   consolidadaGenerica,
   etapaGenerica,
@@ -17,6 +17,7 @@ import {
   type PassoDeRoteiroCoordenado,
   type RoteiroCoordenado,
 } from './roteiros'
+import { criarParticipacoesSimuladas, type ArmazenamentoDemonstrativo, type Sessao } from './simulada-participacoes'
 import type {
   AcaoProposta,
   Agente,
@@ -35,44 +36,29 @@ import type {
   Origem,
   PassoDaConversa,
   PassoDaCoordenacao,
-  Perfil,
 } from './tipos'
 
-const CHAVE_DO_PERFIL = 'althius:perfil'
-
-export interface ArmazenamentoDoPerfil {
-  getItem(chave: string): string | null
-  setItem(chave: string, valor: string): void
-}
+export type { ArmazenamentoDemonstrativo, Sessao } from './simulada-participacoes'
 
 export interface OpcoesFonteSimulada {
   /** Atraso simulado de cada resposta e de cada passo da Conversa. */
   atrasoMs?: number
   /**
-   * Quando presente, o perfil pessoal (nome, e-mail, foto) sobrevive a um refresh, associado à
-   * Conta de usuário. Sem isso, vale só na instância — útil para isolar os testes.
+   * Quando presente, o perfil pessoal (nome, e-mail, foto), associado à Conta de usuário, e o Workspace
+   * (informações, Participações e convites), associado ao Workspace, sobrevivem a um refresh. Sem isso,
+   * valem só na instância — útil para isolar os testes.
    */
-  armazenamento?: ArmazenamentoDoPerfil | null
+  armazenamento?: ArmazenamentoDemonstrativo | null
+  /** A Conta de usuário da sessão e, se preciso, o seu papel: só para preparar cenários de teste. */
+  sessao?: Sessao
 }
 
-/** Lê o perfil salvo, ignorando o que não reconhece; sem armazenamento ou sem valor salvo, nada muda. */
-function perfilSalvo(armazenamento: ArmazenamentoDoPerfil | null): Partial<Perfil> {
-  if (!armazenamento) return {}
-  try {
-    const bruto = armazenamento.getItem(CHAVE_DO_PERFIL)
-    if (!bruto) return {}
-    const lido = JSON.parse(bruto) as Record<string, unknown>
-    const perfil: Partial<Perfil> = {}
-    if (typeof lido.nome === 'string') perfil.nome = lido.nome
-    if (typeof lido.email === 'string') perfil.email = lido.email
-    if (typeof lido.foto === 'string') perfil.foto = lido.foto
-    return perfil
-  } catch {
-    return {}
-  }
-}
-
-export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: OpcoesFonteSimulada = {}): FonteDeAgentes {
+export function criarFonteSimulada({
+  atrasoMs = 450,
+  armazenamento = null,
+  sessao,
+}: OpcoesFonteSimulada = {}): FonteDeAgentes {
+  const participacoes = criarParticipacoesSimuladas({ armazenamento, sessao })
   const estado = structuredClone({
     agentes: demo.agentes,
     fatos: demo.fatos,
@@ -84,7 +70,6 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
     personalizacoes: demo.personalizacoes,
     aprovacoes: demo.aprovacoes,
     previas: demo.previas,
-    usuario: { ...demo.workspace.usuario, ...perfilSalvo(armazenamento) },
   })
   const ouvintes = new Set<() => void>()
   let proximoId = 1
@@ -329,19 +314,26 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
 
     workspace: () =>
       responder(() => ({
-        ...demo.workspace,
-        usuario: estado.usuario,
+        cliente: participacoes.informacoes().nome,
+        descricao: participacoes.informacoes().descricao,
+        usuario: participacoes.usuario(),
+        papel: participacoes.papelDaSessao(),
         aprovacoesPendentes: estado.aprovacoes.filter((a) => a.estado === 'pendente').length,
       })),
-    salvarPerfil: (perfil) =>
-      mudar(() => {
-        const nome = perfil.nome.trim()
-        if (!nome) throw new Error('Informe seu nome.')
-        const email = perfil.email.trim()
-        if (!ehEmailValido(email)) throw new Error('Informe um e-mail em formato válido.')
-        estado.usuario = { ...estado.usuario, nome, email: email.toLowerCase(), foto: perfil.foto }
-        armazenamento?.setItem(CHAVE_DO_PERFIL, JSON.stringify(estado.usuario))
-      }),
+    salvarPerfil: (perfil) => mudar(() => participacoes.salvarPerfil(perfil)),
+
+    participantesDoWorkspace: () => responder(() => participacoes.participantesDoWorkspace()),
+    contaDeUsuario: (contaId) => responder(() => participacoes.contaComParticipacoes(contaId)),
+    salvarDescricaoDoWorkspace: (descricao) => mudar(() => participacoes.salvarDescricao(descricao)),
+    async convidarParaWorkspace(novo) {
+      await esperar(Math.min(atrasoMs, 120))
+      const convite = participacoes.convidar(novo)
+      avisar()
+      return structuredClone(convite)
+    },
+    cancelarConvite: (conviteId) => mudar(() => participacoes.cancelarConvite(conviteId)),
+    mudarPapel: (contaId, papel) => mudar(() => participacoes.mudarPapel(contaId, papel)),
+    removerDoWorkspace: (contaId) => mudar(() => participacoes.remover(contaId)),
 
     especialidades: () => responder(() => especialidades),
 

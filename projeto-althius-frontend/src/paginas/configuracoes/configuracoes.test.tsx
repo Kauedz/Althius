@@ -1,18 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { ArmazenamentoDoPerfil } from '@/fonte/simulada'
+import { armazenamentoEmMemoria } from '@/test/armazenamento'
 import { renderizarApp } from '@/test/renderizar'
-
-function memoria(): ArmazenamentoDoPerfil {
-  const dados = new Map<string, string>()
-  return {
-    getItem: (chave) => dados.get(chave) ?? null,
-    setItem: (chave, valor) => {
-      dados.set(chave, valor)
-    },
-  }
-}
 
 function arquivoDeImagem(nome = 'foto.png') {
   return new File(['conteudo'], nome, { type: 'image/png' })
@@ -126,7 +116,7 @@ describe('Meu perfil', () => {
   })
 
   it('o perfil salvo persiste depois de a app ser remontada, quando há armazenamento', async () => {
-    const armazenamento = memoria()
+    const armazenamento = armazenamentoEmMemoria()
     const primeira = renderizarApp('/configuracoes/perfil', {}, {}, {}, {}, { armazenamento })
     const nome = await screen.findByRole('textbox', { name: 'Nome' })
     await primeira.usuario.clear(nome)
@@ -229,7 +219,7 @@ describe('Alteração de senha (demonstrativa)', () => {
   })
 
   it('não guarda nem registra as senhas digitadas na persistência usada pela experiência', async () => {
-    const armazenamento = memoria()
+    const armazenamento = armazenamentoEmMemoria()
     const gravacoes: string[] = []
     const gravar = armazenamento.setItem
     armazenamento.setItem = (chave, valor) => {
