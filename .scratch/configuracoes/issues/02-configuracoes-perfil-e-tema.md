@@ -4,9 +4,11 @@
 
 **Blocked by:** 01: Mockup de Configurações e aprovação visual
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent (implementado e commitado em `79b346f`; falta só a pendência abaixo para fechar)
 
 **Spec:** [Configurações pessoais e do Workspace](../spec.md)
+
+> **Próxima IA: comece por "Pendências para fechar o ticket", no fim deste arquivo.** O código já está pronto; não reimplemente.
 
 **User Stories:** 1–5, 7–9.
 
@@ -61,4 +63,36 @@ Integrado ao aplicativo, fora do mockup descartável (`src/mockups/configuracoes
 - `npm run build`: build de produção concluído sem erros (aviso pré-existente de chunk grande, não relacionado a esta entrega).
 - `oxlint`: sem erros novos (só os avisos `only-export-components`/`purity` já existentes em outros arquivos do projeto).
 - **Não realizado:** inspeção visual em navegador (claro/escuro) — este ambiente não tinha um navegador headless disponível para capturas, ao contrário do que foi feito no ticket 01. As telas novas reutilizam só componentes e classes utilitárias (`campo`, `rotulo`, `selo`, `text-al-erro`, `text-al-sucesso`, `AvatarDePessoa`, `Pagina`, `AbasSublinhadas`, `Button`) já usados e comprovados em ambos os temas no restante do aplicativo, sem CSS novo. Recomendo uma conferência visual manual (`npm run dev`, alternar tema) antes de considerar este item 100% fechado.
+
+## Pendências para fechar o ticket
+
+Registradas em 2026-09-24 para a próxima IA. O código está pronto e commitado (`79b346f`, mais os tipos/rotas em `b6c7cb1`). **Não reimplemente**; só faça o que está abaixo.
+
+### 1. Inspeção visual em claro e escuro (único critério de aceite em aberto, marcado `[~]`)
+
+1. Em `projeto-althius-frontend`, rode `npm run dev` e abra o endereço que o Vite mostrar.
+2. Confira em **ambos os temas** (alterne pelo menu pessoal ou por Configurações → Preferências), no desktop:
+   - `/configuracoes/perfil`: avatar com iniciais; adicionar/trocar/remover foto; mensagens de erro de nome vazio, e-mail inválido e arquivo que não é imagem; mensagem de "Perfil salvo"; foco visível nos campos e botões.
+   - `/configuracoes/preferencias`: seletor Escuro/Claro com a opção marcada legível.
+   - Uma seção ainda não implementada (ex.: `/configuracoes/plano`): aviso "ainda não foi implementada" legível.
+   - Barra lateral: item "Configurações" ativo; menu pessoal com "Meu perfil"; avatar com a foto depois de salvar.
+3. Recarregue a página: o tema escolhido e o perfil salvo devem continuar.
+4. Se estiver tudo certo: marque o critério como `[x]`, troque o `Status:` para `closed` e registre a conferência num comentário datado. Se achar defeito visual, corrija, rode `configuracoes.test.tsx` e `App.test.tsx`, e registre.
+
+Precisa de navegador. Se o ambiente não tiver um (headless ou o navegador integrado), peça a conferência ao usuário em vez de marcar o item como feito.
+
+### 2. Refatorações sugeridas pela revisão (opcional, não bloqueia o fechamento)
+
+- `AvatarDePessoa` (`components/marca.tsx`) repete o padrão de `AvatarDoContato` (`paginas/contas.tsx`): unificar.
+- `ArmazenamentoDoPerfil` (`fonte/simulada.ts`) tem o mesmo formato de `ArmazenamentoDeOnboarding` (`fonte/simulada-onboarding.ts`): criar um tipo compartilhado.
+- `renderizarApp` (`test/renderizar.tsx`) já tem 6 parâmetros posicionais: trocar por um objeto de opções.
+
+### Aviso sobre o working tree (não é tarefa deste ticket)
+
+Nesta pasta trabalham várias sessões ao mesmo tempo, sem worktree isolado. Em 2026-09-24 havia código **não commitado** de outras sessões nos mesmos arquivos deste ticket (`fonte/simulada.ts`, `fonte/roteiros.ts`, `fonte/dados-demo.ts`, `components/casca.tsx`, `App.test.tsx`):
+
+- Estado do Agente (trabalhando/detectou) durante a Conversa e a Coordenação, links "Ver Conversa" na Atividade e `respostaDireta(texto)` em `roteiros.ts`. **Não há ticket dono identificado**: pergunte ao usuário antes de commitar.
+- Logo do Workspace na barra lateral a partir do onboarding: pertence ao ticket 01 de `.scratch/onboarding-pos-login/` (anotado lá).
+
+Ao commitar qualquer coisa, **não use `git add` no arquivo inteiro** quando ele misturar trabalho de tickets diferentes. Monte só as suas mudanças no índice e valide o snapshot commitado isolado (`git archive` do commit), não o working tree. Neste ticket, um commit de arquivo inteiro levou código alheio e deixou o commit sem compilar sozinho.
 
