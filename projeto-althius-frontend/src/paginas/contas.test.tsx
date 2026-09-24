@@ -1,6 +1,10 @@
-import { screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { renderizarApp } from '@/test/renderizar'
+import { App } from '@/App'
+import type { FonteDeContas } from '@/fonte/contas-tipos'
+import { criarFonteDeContasSimulada } from '@/fonte/simulada-contas'
+import { criarFonteSimulada } from '@/fonte/simulada'
+import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
 
 describe('Aba Contas (ponta a ponta)', () => {
   it('o item "Contas e Contatos" aparece na seção Workspace da sidebar acima de Agentes e abre a aba Contas', async () => {
@@ -56,15 +60,11 @@ describe('Aba Contas (ponta a ponta)', () => {
     const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
     const linhas = within(tabela).getAllByRole('row').slice(1) // ignora o header
 
-    const nomesDasEmpresas = linhas.map(
-      (linha) => within(linha).getAllByRole('cell')[0].textContent?.trim(),
-    )
-
     // 18 Quentes (OpenAI sinal há 2 dias até Ramp há 24 dias)
     // 8 Fit (SAP até Okta, depois Miro e Oracle sem sinal empatados e desfeitos pelo nome)
     // 3 Não fit (Mercado Livre, Rappi e Banorte sem sinal)
     // 1 Não avaliada (BBVA México)
-    expect(nomesDasEmpresas).toEqual([
+    const ordemEsperada = [
       'OpenAI',
       'Stripe',
       'Anthropic',
@@ -95,7 +95,14 @@ describe('Aba Contas (ponta a ponta)', () => {
       'Rappi',
       'Banorte',
       'BBVA México',
-    ])
+    ]
+
+    // A célula Empresa também traz o logo ou as iniciais e o domínio: basta que o nome esperado esteja nela
+    expect(linhas).toHaveLength(ordemEsperada.length)
+    linhas.forEach((linha, i) => {
+      const empresa = within(linha).getAllByRole('cell')[0]
+      expect(within(empresa).queryAllByText(ordemEsperada[i], { exact: true }), `linha ${i + 1}`).not.toHaveLength(0)
+    })
   })
 
   it('Último sinal mostra "frase · data relativa" ou "Nenhum sinal"; Último contato mostra data ou "Nunca"', async () => {
@@ -214,5 +221,140 @@ describe('Aba Contas (ponta a ponta)', () => {
 
     expect(await screen.findByRole('table', { name: 'Tabela de Contas' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+/** As células da linha de uma Conta-alvo na tabela de Contas, achada pelo nome da empresa. */
+async function celulasDaConta(nome: string) {
+  const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+  const linha = within(tabela).getAllByText(nome, { exact: true })[0].closest('tr')!
+  return within(linha).getAllByRole('cell')
+}
+
+describe('Células da tabela de Contas', () => {
+  it('a célula Empresa mostra o logo ou as iniciais, o nome e o domínio', async () => {
+    renderizarApp('/contas')
+
+    const [openai] = await celulasDaConta('OpenAI')
+    expect(within(openai).getByRole('img', { name: 'OpenAI' })).toHaveAttribute('src', '/logos/openai.svg')
+    expect(within(openai).getByText('OpenAI')).toBeInTheDocument()
+    expect(within(openai).getByText('openai.com')).toBeInTheDocument()
+
+    // Um logo de uma cor só também é o logo, e não as iniciais
+    const [notion] = await celulasDaConta('Notion')
+    expect(within(notion).getByRole('img', { name: 'Notion' })).toBeInTheDocument()
+    expect(within(notion).queryByText('N')).not.toBeInTheDocument()
+    expect(within(notion).getByText('notion.so')).toBeInTheDocument()
+
+    // Sem logo, só as iniciais no quadrado, sem ícone de pessoa
+    const [bbva] = await celulasDaConta('BBVA México')
+    expect(within(bbva).getByRole('img', { name: 'BBVA México' })).toHaveTextContent(/^BM$/)
+    expect(within(bbva).getByText('bbva.mx')).toBeInTheDocument()
+
+    const [miro] = await celulasDaConta('Miro')
+    expect(within(miro).getByRole('img', { name: 'Miro' })).toHaveTextContent(/^M$/)
+    expect(within(miro).getByText('miro.com')).toBeInTheDocument()
+  })
+
+  it('sem domínio, a célula Empresa mostra "Domínio não informado"', async () => {
+    // Nenhuma Conta-alvo da demo está sem domínio: só neste teste, a fonte entrega a Miro sem ele
+    const fonteDeContas = criarFonteDeContasSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES })
+    const semDominioNaMiro: FonteDeContas = {
+      ...fonteDeContas,
+      contas: async () =>
+        (await fonteDeContas.contas()).map((conta) => (conta.id === 'miro' ? { ...conta, dominio: undefined } : conta)),
+    }
+    render(
+      <App
+        fonte={criarFonteSimulada({ atrasoMs: 0 })}
+        fonteDeContas={semDominioNaMiro}
+        rotaInicial="/contas"
+        animarDigitacao={false}
+      />,
+    )
+
+    const [miro] = await celulasDaConta('Miro')
+    expect(within(miro).getByText('Domínio não informado')).toBeInTheDocument()
+  })
+
+  it('a Aderência aparece como "🔥 Quente", "Fit", "Não fit" ou "—" com "Aderência ainda não avaliada"', async () => {
+    renderizarApp('/contas')
+
+    const [, openai] = await celulasDaConta('OpenAI')
+    expect(openai).toHaveTextContent(/^🔥 Quente$/)
+    const [, sap] = await celulasDaConta('SAP')
+    expect(sap).toHaveTextContent(/^Fit$/)
+    const [, rappi] = await celulasDaConta('Rappi')
+    expect(rappi).toHaveTextContent(/^Não fit$/)
+    const [, bbva] = await celulasDaConta('BBVA México')
+    expect(bbva).toHaveTextContent(/^—$/)
+    expect(within(bbva).getByTitle('Aderência ainda não avaliada')).toHaveTextContent('—')
+  })
+
+  it('a célula Contatos mostra até três avatares, com foto ou iniciais, e a contagem, ou "Nenhum contato"', async () => {
+    renderizarApp('/contas')
+
+    const [, , stripe] = await celulasDaConta('Stripe')
+    expect(within(stripe).getAllByRole('img')).toHaveLength(3)
+    expect(within(stripe).getByRole('img', { name: 'David Kim' })).toHaveAttribute('src', '/avatars/avatar-4.jpg')
+    expect(within(stripe).getByRole('img', { name: 'Rachel Green' })).toHaveAttribute('src', '/avatars/avatar-5.jpg')
+    // Sem foto, as iniciais
+    expect(within(stripe).getByRole('img', { name: 'Robert Thorne' })).toHaveTextContent(/^RT$/)
+    expect(stripe).toHaveTextContent('4 contatos')
+
+    // Com mais de três Contatos, só três avatares
+    const [, , nubank] = await celulasDaConta('Nubank')
+    expect(within(nubank).getAllByRole('img')).toHaveLength(3)
+    expect(nubank).toHaveTextContent('5 contatos')
+
+    const [, , miro] = await celulasDaConta('Miro')
+    expect(within(miro).queryAllByRole('img')).toHaveLength(0)
+    expect(miro).toHaveTextContent(/^Nenhum contato$/)
+  })
+
+  it('o Último sinal longo é truncado em uma linha e tem o texto completo, com a data completa, no tooltip', async () => {
+    renderizarApp('/contas')
+
+    const [, , , openai] = await celulasDaConta('OpenAI')
+    expect(
+      within(openai).getByTitle('Abriu 3 vagas de engenharia de dados de avaliação · 21 de setembro de 2026'),
+    ).toHaveTextContent(/^Abriu 3 vagas de engenharia de dados de avaliação · há 2 dias$/)
+
+    const [, , , bbva] = await celulasDaConta('BBVA México')
+    expect(
+      within(bbva).getByTitle('Nova unidade de inovação para serviços corporativos · 24 de junho de 2026'),
+    ).toHaveTextContent(/^Nova unidade de inovação para serviços corporativos · 24 jun\.$/)
+  })
+
+  it('o segmento aparece em texto simples, ou "—" quando está ausente', async () => {
+    renderizarApp('/contas')
+
+    const [, , , , openai] = await celulasDaConta('OpenAI')
+    expect(openai).toHaveTextContent(/^Inteligência Artificial$/)
+    const [, , , , rappi] = await celulasDaConta('Rappi')
+    expect(rappi).toHaveTextContent(/^—$/)
+    const [, , , , bbva] = await celulasDaConta('BBVA México')
+    expect(bbva).toHaveTextContent(/^—$/)
+  })
+
+  it('não há caixas de seleção nas linhas, e nenhuma nota, letra, score, "Etapa" ou "CRM" aparece no módulo', async () => {
+    renderizarApp('/contas')
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+    expect(within(tabela).queryAllByRole('checkbox')).toHaveLength(0)
+
+    // A Aderência é só a classificação: nenhuma linha traz nota, letra ou número no lugar dela
+    const aderencias = within(tabela)
+      .getAllByRole('row')
+      .slice(1)
+      .map((linha) => within(linha).getAllByRole('cell')[1].textContent)
+    expect(new Set(aderencias)).toEqual(new Set(['🔥 Quente', 'Fit', 'Não fit', '—']))
+
+    // O texto de cada elemento, e não o do módulo inteiro, que cola as células umas nas outras
+    const modulo = within(screen.getByRole('main'))
+    expect(modulo.queryAllByText(/\b(score|nota|pontuação)\b/i)).toHaveLength(0)
+    expect(modulo.queryAllByText(/\d+\s*(\/|de)\s*100\b/)).toHaveLength(0)
+    expect(modulo.queryAllByText(/\bEtapa\b/i)).toHaveLength(0)
+    expect(modulo.queryAllByText(/\bCRM\b/)).toHaveLength(0)
   })
 })
