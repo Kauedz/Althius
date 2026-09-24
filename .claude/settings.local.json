@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(break)",
+      "Read(//home/codespace/.cache/**)",
+      "Bash(timeout 240 npx -y playwright@1 screenshot --full-page http://localhost:5173/ shot.png)"
+    ]
+  }
+}
