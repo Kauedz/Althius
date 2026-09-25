@@ -4,13 +4,19 @@
 
 **Blocked by:** 04: Criar e consultar Contas-alvo reais.
 
-**Status:** ready-for-agent
+**Status:** done (pending-apply da migration `20260925160000_contatos_e_vinculos.sql`)
 
-- [ ] Contato possui identidade persistente única por Workspace, com e-mail, telefone e LinkedIn opcionais.
-- [ ] Cadastro, leitura, edição, busca, filtros e detalhe usam dados reais na experiência existente.
-- [ ] Um Contato pode ter vínculos simultâneos com múltiplas Contas quando atua nelas; o nome sozinho não mescla Contatos.
-- [ ] Encerrar vínculo e abrir outro preserva Interações anteriores na Conta de origem.
-- [ ] Membro só cria/edita Contatos das Contas sob sua responsabilidade; Administrador tem permissões administrativas definidas.
-- [ ] Contato sem e-mail, telefone, LinkedIn ou foto continua consultável e exibe os fallbacks existentes.
-- [ ] Dados e vínculos respeitam isolamento por Workspace também em consultas e atualizações concorrentes.
+- [x] Contato possui identidade persistente única por Workspace, com e-mail, telefone e LinkedIn opcionais. — `public.contacts` (UUID, índices únicos parciais por Workspace); pgTAP `contatos_e_vinculos.sql` 1–10, 33.
+- [x] Cadastro, leitura, edição, busca, filtros e detalhe usam dados reais na experiência existente. — adapter `supabase-contas.ts` (visão `target_contacts`, RPCs `create_contact`/`update_contact`); 'contatos' saiu de `indisponiveis`; `raiz.test.tsx` "Contatos reais no Workspace operacional" e `supabase-contas.test.ts`.
+- [x] Um Contato pode ter vínculos simultâneos com múltiplas Contas quando atua nelas; o nome sozinho não mescla Contatos. — `contact_account_links` (um ativo por Contato+Conta); pgTAP 5, 11–13, 36; raiz "cadastra um Contato... mesmo com o nome de outro" e "vincula... e encerra".
+- [x] Encerrar vínculo e abrir outro preserva Interações anteriores na Conta de origem. — `end_contact_link`; `account_interactions.contact_id` exige Vínculo ativo; pgTAP 14–21.
+- [x] Membro só cria/edita Contatos das Contas sob sua responsabilidade; Administrador tem permissões administrativas definidas. — Administrador ativo cria/edita/vincula/encerra em qualquer Conta do Workspace; pgTAP 22–30; raiz "quem não é o Vendedor responsável não cadastra".
+- [x] Contato sem e-mail, telefone, LinkedIn ou foto continua consultável e exibe os fallbacks existentes. — pgTAP 6; raiz "lista os Contatos..." (iniciais RL, canais apagados); adapter mapeia sem campos.
+- [x] Dados e vínculos respeitam isolamento por Workspace também em consultas e atualizações concorrentes. — RLS por Participação ativa, FKs compostas (workspace_id, …), índice único de Vínculo ativo, `for share` no Vínculo ao registrar Interação; pgTAP 31–32, 34–36.
 
+
+## Comments
+
+- CRM-05 (ralph/crm-05-contatos-e-vinculos): Contato canônico em `public.contacts` + Vínculos em `public.contact_account_links`. A tabela antiga `target_contacts` (canais-02) foi movida para `private.target_contacts_canais02` (dados preservados, fora da API); `public.target_contacts` agora é a visão dos Vínculos ativos com as mesmas colunas de destino (`email`, `whatsapp`, `linkedin_identity`) e `upsert_target_contact` mantém a assinatura, exigindo UUID de Conta-alvo real (contact_id vazio cria; UUID existente atualiza). Teste `documento_com_destinatarios_reais.sql` ajustado para Conta real: 12 ok antes e depois (mesmo erro pré-existente de `private`).
+- Loop: pgTAP `contatos_e_vinculos.sql` 36/36 (vermelho antes: `create_contact` inexistente); vitest 602 verdes (6 vermelhos antes no adapter, 5 na raiz); tsc limpo; oxlint 34 avisos (base).
+- Pending-apply: `supabase/migrations/20260925160000_contatos_e_vinculos.sql`. Pending-human: decidir o destino de linhas legadas em `private.target_contacts_canais02`, se houver no remoto.

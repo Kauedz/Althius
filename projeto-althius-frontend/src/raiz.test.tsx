@@ -92,7 +92,7 @@ describe('Workspace operacional e Demonstração', () => {
     ['/conversa', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Scopus'],
     ['/contas', 'Nenhuma Conta-alvo ainda.', 'OpenAI'],
     ['/contas/openai', 'Conta não encontrada', 'OpenAI'],
-    ['/contatos', 'Contatos ainda não estão disponíveis neste Workspace.', 'Sarah Chen'],
+    ['/contatos', 'Nenhum Contato ainda.', 'Sarah Chen'],
     ['/sinais', 'Sinais ainda não estão disponíveis neste Workspace.', 'Vagas'],
     ['/sinais/contas/openai', 'Sinais ainda não estão disponíveis neste Workspace.', 'OpenAI'],
     ['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads'],
@@ -172,10 +172,11 @@ describe('Workspace operacional e Demonstração', () => {
       tabelas: { workspace_memberships: [participacao('ws-norte')], sequences: [] },
     })
 
+    // Com Contatos reais, a Sequência pode nascer de uma Conta-alvo; o Rhetor (Agentes) ainda não está disponível.
     expect(await screen.findByText(/Nenhuma sequência ainda/)).toHaveTextContent(
-      'Nenhuma sequência ainda. Criar uma depende dos Contatos, que ainda não estão disponíveis neste Workspace.',
+      'Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo.',
     )
-    expect(screen.queryByRole('button', { name: /Nova sequência/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Nova sequência/ })).toBeInTheDocument()
   })
 
   it('trocar de Workspace não leva as Sequências nem a inscrição do Workspace anterior', async () => {
@@ -222,6 +223,14 @@ function contaNoBanco(id: string, nome: string, dominio: string) {
   }
 }
 
+/** Um Contato com Vínculo ativo numa Conta, como a visão `target_contacts` o devolve. */
+function contatoNoBanco(id: string, contaId: string, nome: string, extra: Record<string, unknown> = {}) {
+  return {
+    id, workspace_id: 'ws-norte', target_account_id: contaId, name: nome, role: null,
+    email: null, whatsapp: null, linkedin: null, last_interaction_at: null, ...extra,
+  }
+}
+
 /** O Workspace da empresa com a Alfa, da Marina, e a Beta, de outro Vendedor responsável; as RPCs gravam nas tabelas. */
 function abrirContasDoNorte(rota: string) {
   window.history.replaceState(null, '', rota)
@@ -233,6 +242,12 @@ function abrirContasDoNorte(rota: string) {
       { workspace_id: 'ws-norte', target_account_id: ID_DA_BETA, owner_user_id: 'usuario-outro-vendedor' },
     ],
     account_interactions: [],
+    target_contacts: [
+      contatoNoBanco('7a1c2d3e-4a5b-4c6d-8e7f-000000000001', ID_DA_ALFA, 'Maria Souza', {
+        role: 'CFO', email: 'maria@alfa.com.br', whatsapp: '+5511988887777',
+      }),
+      contatoNoBanco('7a1c2d3e-4a5b-4c6d-8e7f-000000000002', ID_DA_BETA, 'Rui Lima'),
+    ],
   }
   const aberto = abrirAlthius({
     ultimoAmbiente: 'real',
@@ -246,6 +261,22 @@ function abrirContasDoNorte(rota: string) {
         tabelas.target_accounts.push(nova)
         tabelas.sales_responsibilities.push({ workspace_id: 'ws-norte', target_account_id: nova.id, owner_user_id: MARINA.id })
         return nova
+      },
+      create_contact: ({ p_target_account_id, p_name, p_role }) => {
+        const id = `7a1c2d3e-4a5b-4c6d-8e7f-00000000010${tabelas.target_contacts.length}`
+        tabelas.target_contacts.push(contatoNoBanco(id, String(p_target_account_id), String(p_name), { role: p_role }))
+        return { id }
+      },
+      link_contact: ({ p_contact_id, p_target_account_id }) => {
+        const existente = tabelas.target_contacts.find((c) => c.id === p_contact_id)!
+        tabelas.target_contacts.push({ ...existente, target_account_id: p_target_account_id })
+        return {}
+      },
+      end_contact_link: ({ p_contact_id, p_target_account_id }) => {
+        tabelas.target_contacts = tabelas.target_contacts.filter(
+          (c) => !(c.id === p_contact_id && c.target_account_id === p_target_account_id),
+        )
+        return {}
       },
       register_account_interaction: ({ p_target_account_id, p_kind }) => {
         const interacao = {
@@ -285,7 +316,6 @@ describe('Contas-alvo reais no Workspace operacional', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Alfa Varejo' })).toBeInTheDocument()
     expect(await screen.findByText('Nenhum sinal')).toBeInTheDocument()
-    expect(await screen.findByText('Nenhum contato')).toBeInTheDocument()
     expect(await screen.findByText('Nenhuma interação registrada')).toBeInTheDocument()
     expect(screen.queryByText(/Recomendada pela Althius|Importada por/)).not.toBeInTheDocument()
   })
@@ -328,6 +358,67 @@ describe('Contas-alvo reais no Workspace operacional', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Beta Logística' })).toBeInTheDocument()
     expect(await screen.findByText('Nenhuma interação registrada')).toBeInTheDocument()
     expect(screen.queryByRole('form', { name: 'Registrar interação' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Contatos reais no Workspace operacional', () => {
+  it('lista os Contatos do Workspace com a empresa, busca e filtra por dados de contato', async () => {
+    const { usuario } = abrirContasDoNorte('/contatos')
+
+    const tabela = await screen.findByRole('table')
+    expect(within(tabela).getByText('Maria Souza')).toBeInTheDocument()
+    expect(within(tabela).getByRole('link', { name: 'Beta Logística' })).toBeInTheDocument()
+    expect(screen.queryByText(/Sarah Chen|OpenAI/)).not.toBeInTheDocument()
+    // Sem foto nem canais, o Rui aparece com as iniciais e os canais apagados.
+    expect(within(tabela).getByRole('img', { name: 'Rui Lima' })).toHaveTextContent('RL')
+
+    await usuario.type(screen.getByRole('searchbox', { name: 'Buscar contatos' }), 'beta')
+    expect(within(await screen.findByRole('table')).queryByText('Maria Souza')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('table')).getByText('Rui Lima')).toBeInTheDocument()
+  })
+
+  it('o detalhe da Conta mostra os Contatos dela e a lista de Contas os conta', async () => {
+    abrirContasDoNorte(`/contas/${ID_DA_ALFA}`)
+
+    const secao = await screen.findByRole('table', { name: 'Contatos da Conta-alvo' })
+    expect(within(secao).getByText('Maria Souza')).toBeInTheDocument()
+    expect(within(secao).queryByText('Rui Lima')).not.toBeInTheDocument()
+  })
+
+  it('o Vendedor responsável cadastra um Contato na Conta, mesmo com o nome de outro', async () => {
+    const { usuario, tabelas } = abrirContasDoNorte(`/contas/${ID_DA_ALFA}`)
+
+    await usuario.click(await screen.findByRole('button', { name: 'Novo Contato' }))
+    const formulario = screen.getByRole('form', { name: 'Novo Contato' })
+    await usuario.type(within(formulario).getByLabelText('Nome'), 'Maria Souza')
+    await usuario.type(within(formulario).getByLabelText('Cargo (opcional)'), 'Compras')
+    await usuario.click(within(formulario).getByRole('button', { name: 'Salvar' }))
+
+    const secao = await screen.findByRole('table', { name: 'Contatos da Conta-alvo' })
+    await waitFor(() => expect(within(secao).getAllByText('Maria Souza')).toHaveLength(2))
+    expect(tabelas.target_contacts.filter((c) => c.name === 'Maria Souza')).toHaveLength(2)
+  })
+
+  it('quem não é o Vendedor responsável não cadastra Contato na Conta', async () => {
+    abrirContasDoNorte(`/contas/${ID_DA_BETA}`)
+
+    expect(await screen.findByRole('table', { name: 'Contatos da Conta-alvo' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Novo Contato' })).not.toBeInTheDocument()
+  })
+
+  it('o responsável vincula um Contato de outra Conta e encerra o Vínculo', async () => {
+    const { usuario } = abrirContasDoNorte(`/contas/${ID_DA_ALFA}`)
+
+    const vincular = await screen.findByRole('form', { name: 'Vincular Contato' })
+    await usuario.selectOptions(within(vincular).getByLabelText('Contato de outra Conta'), 'Rui Lima')
+    await usuario.click(within(vincular).getByRole('button', { name: 'Vincular' }))
+    const secao = await screen.findByRole('table', { name: 'Contatos da Conta-alvo' })
+    expect(await within(secao).findByText('Rui Lima')).toBeInTheDocument()
+
+    const encerrar = screen.getByRole('form', { name: 'Encerrar Vínculo' })
+    await usuario.selectOptions(within(encerrar).getByLabelText('Contato desta Conta'), 'Maria Souza')
+    await usuario.click(within(encerrar).getByRole('button', { name: 'Encerrar vínculo' }))
+    await waitFor(() => expect(within(screen.getByRole('table', { name: 'Contatos da Conta-alvo' })).queryByText('Maria Souza')).not.toBeInTheDocument())
   })
 })
 

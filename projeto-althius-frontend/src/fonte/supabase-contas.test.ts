@@ -35,6 +35,7 @@ function fonteDaMarina({ rpcs = {} }: { rpcs?: Record<string, (parametros: Recor
       { workspace_id: 'ws-norte', target_account_id: ID_DA_BETA, owner_user_id: 'usuario-outro' },
     ],
     account_interactions: [],
+    target_contacts: [],
   }
   const { cliente } = criarSupabaseFalso({ sessao: sessaoDe(MARINA), tabelas, rpcs })
   return { fonte: criarFonteDeContasSupabase(cliente, () => 'ws-norte', () => MARINA.id), tabelas }
@@ -132,11 +133,172 @@ describe('FonteDeContas do Workspace operacional', () => {
     ])
   })
 
-  it('não inventa Contatos nem Sinais que o Workspace ainda não guarda', async () => {
+  it('não inventa Contatos nem Sinais que o Workspace não guarda', async () => {
     const { fonte } = fonteDaMarina()
 
     expect(await fonte.contatos()).toEqual([])
     expect(await fonte.contatosDaConta(ID_DA_ALFA)).toEqual([])
     expect(await fonte.sinaisDaConta(ID_DA_ALFA)).toEqual([])
+  })
+})
+
+const ID_DA_MARIA = '7a1c2d3e-4a5b-4c6d-8e7f-000000000001'
+const ID_DO_RUI = '7a1c2d3e-4a5b-4c6d-8e7f-000000000002'
+
+/** Um Contato com Vínculo ativo, como a visão `target_contacts` o devolve. */
+function contatoNoBanco(id: string, contaId: string, nome: string, extra: Record<string, unknown> = {}) {
+  return {
+    id,
+    workspace_id: 'ws-norte',
+    target_account_id: contaId,
+    link_id: `vinculo-${id}-${contaId}`,
+    name: nome,
+    role: null,
+    email: null,
+    phone: null,
+    whatsapp: null,
+    linkedin: null,
+    linkedin_identity: null,
+    is_real: true,
+    last_interaction_at: null,
+    ...extra,
+  }
+}
+
+describe('Contatos e Vínculos do Contato no Workspace operacional', () => {
+  it('lê os Contatos com Vínculo ativo, um por Conta onde atuam, e os conta nas Contas', async () => {
+    const { fonte, tabelas } = fonteDaMarina()
+    tabelas.target_contacts.push(
+      contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', {
+        role: 'CFO', email: 'maria@alfa.com.br', phone: '+5511988887777', whatsapp: '+5511988887777',
+        linkedin: 'https://www.linkedin.com/in/maria-souza', last_interaction_at: '2026-09-24T15:00:00Z',
+      }),
+      contatoNoBanco(ID_DA_MARIA, ID_DA_BETA, 'Maria Souza', { role: 'CFO', email: 'maria@alfa.com.br' }),
+      contatoNoBanco(ID_DO_RUI, ID_DA_ALFA, 'Rui'),
+    )
+
+    const daAlfa = await fonte.contatosDaConta(ID_DA_ALFA)
+
+    expect(daAlfa).toEqual([
+      {
+        id: ID_DA_MARIA, contaId: ID_DA_ALFA, nome: 'Maria Souza', cargo: 'CFO',
+        canais: { email: true, telefone: true, linkedin: true },
+        email: 'maria@alfa.com.br', whatsapp: '+5511988887777', linkedin: 'https://www.linkedin.com/in/maria-souza',
+        ultimoContatoEm: '2026-09-24T15:00:00Z', ehReal: true,
+      },
+      // Sem e-mail, telefone, LinkedIn nem foto: a tela usa os fallbacks.
+      { id: ID_DO_RUI, contaId: ID_DA_ALFA, nome: 'Rui', canais: { email: false, telefone: false, linkedin: false }, ehReal: true },
+    ])
+    expect((await fonte.contatos()).map((c) => [c.nome, c.contaId])).toEqual([
+      ['Maria Souza', ID_DA_ALFA], ['Maria Souza', ID_DA_BETA], ['Rui', ID_DA_ALFA],
+    ])
+    const [alfa, beta] = await fonte.contas()
+    expect(alfa).toMatchObject({ totalContatos: 2, previaContatos: [{ nome: 'Maria Souza' }, { nome: 'Rui' }] })
+    expect(beta).toMatchObject({ totalContatos: 1 })
+    expect(await fonte.conta(ID_DA_ALFA)).toMatchObject({ totalContatos: 2 })
+  })
+
+  it('cadastra o Contato na Conta pelo backend e avisa quem observa', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte, tabelas } = fonteDaMarina({
+      rpcs: {
+        create_contact: (parametros) => {
+          chamadas.push(parametros)
+          tabelas.target_contacts.push(contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { email: 'maria@alfa.com.br' }))
+          return { id: ID_DA_MARIA, workspace_id: 'ws-norte', name: 'Maria Souza', email: 'maria@alfa.com.br' }
+        },
+      },
+    })
+    let avisos = 0
+    fonte.observar(() => avisos++)
+
+    const contato = await fonte.salvarContato!({ contaId: ID_DA_ALFA, nome: ' Maria Souza ', email: 'maria@alfa.com.br', cargo: '' })
+
+    expect(chamadas).toEqual([{
+      p_target_account_id: ID_DA_ALFA, p_name: 'Maria Souza', p_role: null,
+      p_email: 'maria@alfa.com.br', p_phone: null, p_linkedin: null,
+    }])
+    expect(contato).toMatchObject({ id: ID_DA_MARIA, contaId: ID_DA_ALFA, canais: { email: true } })
+    expect(avisos).toBe(1)
+  })
+
+  it('traduz as recusas do backend ao cadastrar um Contato', async () => {
+    const recusas = [
+      [Object.assign(new Error('only the responsible seller or an admin can manage contacts of this target account'), { code: '42501' }),
+        'Só o Vendedor responsável pela Conta-alvo ou um Administrador pode cadastrar e editar os Contatos dela.'],
+      [Object.assign(new Error('duplicate key value violates unique constraint "contacts_email_per_workspace"'), { code: '23505' }),
+        'Já existe um Contato com este e-mail neste Workspace.'],
+      [Object.assign(new Error('invalid whatsapp number: must have 8 to 15 digits'), { code: '22023' }),
+        'Informe um telefone com DDD ou código do país.'],
+    ] as const
+    for (const [recusa, mensagem] of recusas) {
+      const { fonte } = fonteDaMarina({ rpcs: { create_contact: () => { throw recusa } } })
+      await expect(fonte.salvarContato!({ contaId: ID_DA_BETA, nome: 'Joana' })).rejects.toThrow(mensagem)
+    }
+  })
+
+  it('atualiza os destinos do Contato substituindo os três canais', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte, tabelas } = fonteDaMarina({
+      rpcs: {
+        update_contact: (parametros) => {
+          chamadas.push(parametros)
+          return { id: ID_DA_MARIA }
+        },
+      },
+    })
+    tabelas.target_contacts.push(contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { email: 'maria@alfa.com.br', whatsapp: '+5511988887777' }))
+
+    const contato = await fonte.atualizarDestinosContato(ID_DA_MARIA, { email: 'maria@alfa.com.br', whatsapp: '(11) 98888-7777' })
+
+    expect(chamadas).toEqual([{
+      p_contact_id: ID_DA_MARIA, p_email: 'maria@alfa.com.br', p_phone: '(11) 98888-7777', p_linkedin: '',
+    }])
+    expect(contato).toMatchObject({ id: ID_DA_MARIA, whatsapp: '+5511988887777' })
+  })
+
+  it('vincula o Contato a outra Conta e encerra o Vínculo pelo backend', async () => {
+    const chamadas: [string, Record<string, unknown>][] = []
+    const { fonte } = fonteDaMarina({
+      rpcs: {
+        link_contact: (parametros) => { chamadas.push(['link_contact', parametros]); return {} },
+        end_contact_link: (parametros) => { chamadas.push(['end_contact_link', parametros]); return {} },
+      },
+    })
+    let avisos = 0
+    fonte.observar(() => avisos++)
+
+    await fonte.vincularContato!(ID_DA_MARIA, ID_DA_BETA)
+    await fonte.encerrarVinculo!(ID_DA_MARIA, ID_DA_ALFA)
+
+    expect(chamadas).toEqual([
+      ['link_contact', { p_contact_id: ID_DA_MARIA, p_target_account_id: ID_DA_BETA }],
+      ['end_contact_link', { p_contact_id: ID_DA_MARIA, p_target_account_id: ID_DA_ALFA }],
+    ])
+    expect(avisos).toBe(2)
+  })
+
+  it('registra a Interação com o Contato e a mantém na Conta onde aconteceu', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte, tabelas } = fonteDaMarina({
+      rpcs: {
+        register_account_interaction: (parametros) => {
+          chamadas.push(parametros)
+          const linha = {
+            id: 'interacao-1', workspace_id: 'ws-norte', target_account_id: parametros.p_target_account_id,
+            contact_id: parametros.p_contact_id, kind: parametros.p_kind, occurred_at: '2026-09-25T10:00:00Z',
+          }
+          tabelas.account_interactions.push(linha)
+          return linha
+        },
+      },
+    })
+
+    await fonte.registrarInteracao({ contaId: ID_DA_ALFA, contatoId: ID_DA_MARIA, tipo: 'reuniao' })
+
+    expect(chamadas[0]).toMatchObject({ p_contact_id: ID_DA_MARIA })
+    expect(await fonte.interacoesDaConta(ID_DA_ALFA)).toEqual([
+      { id: 'interacao-1', contaId: ID_DA_ALFA, contatoId: ID_DA_MARIA, tipo: 'reuniao', data: '2026-09-25T10:00:00Z', origem: 'Registro manual' },
+    ])
   })
 })

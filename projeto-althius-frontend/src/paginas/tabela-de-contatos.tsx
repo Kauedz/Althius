@@ -88,7 +88,7 @@ export function TabelaDeContatos({
       </thead>
       <tbody>
         {linhas.map(({ contato, conta }) => (
-          <tr key={contato.id} className="h-11">
+          <tr key={`${contato.id}:${contato.contaId}`} className="h-11">
             <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
               <div className="flex min-w-0 items-center gap-2.5">
                 <AvatarDoContato contato={contato} />

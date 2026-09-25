@@ -8,10 +8,10 @@ import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { useAmbiente, useDadosDeContas, useDadosDeSequencias, useFonteDeContas } from '@/fonte/contexto'
-import type { ContaAlvo, Interacao, Sinal, TipoDeInteracao } from '@/fonte/contas-tipos'
+import type { ContaAlvo, Contato, Interacao, Sinal, TipoDeInteracao } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo, formatarDataExplicita } from '@/fonte/formatar-data'
 import { estaValido } from '@/fonte/regras-sinais'
-import { porId } from '@/lib/utils'
+import { cn, porId } from '@/lib/utils'
 import { SeloStatus } from './detalhe-sequencia'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 import { DialogoNovaSequencia } from './nova-sequencia'
@@ -143,6 +143,7 @@ export function DetalheConta({ contaId }: Props) {
         </Secao>
 
         <Secao id="contatos" titulo="Contatos" contagem={contatos && contar(contatos.length, 'contato', 'contatos')}>
+          {conta.sobMinhaResponsabilidade && <VinculosDaConta contaId={conta.id} contatosDaConta={contatos ?? []} />}
           {carregandoContatos && <Carregando />}
 
           {!carregandoContatos && (!contatos || contatos.length === 0) && (
@@ -544,6 +545,170 @@ function FormularioDeInteracao({ contaId }: { contaId: string }) {
         className="h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
       >
         Registrar
+      </Button>
+      {erro && (
+        <p role="alert" className="w-full text-sm text-al-atencao">
+          {erro}
+        </p>
+      )}
+    </form>
+  )
+}
+
+const CAMPO = 'h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
+const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
+
+/**
+ * O que o Vendedor responsável faz com os Contatos da Conta: cadastrar um Contato novo, vincular um Contato que já
+ * atua em outra Conta e encerrar o Vínculo de quem saiu da empresa (as Interações ficam nesta Conta).
+ */
+function VinculosDaConta({ contaId, contatosDaConta }: { contaId: string; contatosDaConta: Contato[] }) {
+  const fonte = useFonteDeContas()
+  const [cadastrando, setCadastrando] = useState(false)
+  const { dados: todos } = useDadosDeContas((f) => f.contatos(), [])
+  const nestaConta = new Set(contatosDaConta.map((c) => c.id))
+  const deOutrasContas = [...new Map((todos ?? []).filter((c) => !nestaConta.has(c.id)).map((c) => [c.id, c])).values()]
+
+  return (
+    <div className="flex flex-col gap-3 pb-3">
+      {fonte.salvarContato && !cadastrando && (
+        <Button type="button" variant="outline" onClick={() => setCadastrando(true)} className={cn(BOTAO_SECUNDARIO, 'self-start')}>
+          <Plus className="mr-1.5 size-4" /> Novo Contato
+        </Button>
+      )}
+      {cadastrando && fonte.salvarContato && (
+        <FormularioNovoContato contaId={contaId} fechar={() => setCadastrando(false)} />
+      )}
+      {fonte.vincularContato && deOutrasContas.length > 0 && (
+        <AcaoDeVinculo
+          rotulo="Vincular Contato"
+          campo="Contato de outra Conta"
+          botao="Vincular"
+          opcoes={deOutrasContas}
+          agir={(contatoId) => fonte.vincularContato!(contatoId, contaId)}
+        />
+      )}
+      {fonte.encerrarVinculo && contatosDaConta.length > 0 && (
+        <AcaoDeVinculo
+          rotulo="Encerrar Vínculo"
+          campo="Contato desta Conta"
+          botao="Encerrar vínculo"
+          opcoes={contatosDaConta}
+          agir={(contatoId) => fonte.encerrarVinculo!(contatoId, contaId)}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Escolhe um Contato e age sobre o Vínculo dele com a Conta. */
+function AcaoDeVinculo({
+  rotulo,
+  campo,
+  botao,
+  opcoes,
+  agir,
+}: {
+  rotulo: string
+  campo: string
+  botao: string
+  opcoes: Contato[]
+  agir: (contatoId: string) => Promise<void>
+}) {
+  const [contatoId, setContatoId] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    if (!contatoId) return
+    setSalvando(true)
+    setErro(null)
+    try {
+      await agir(contatoId)
+      setContatoId('')
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível atualizar o Vínculo do Contato.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <form aria-label={rotulo} onSubmit={enviar} className="flex flex-wrap items-end gap-3">
+      <label className="flex flex-col gap-1 text-xs text-al-muted">
+        {campo}
+        <select value={contatoId} onChange={(e) => setContatoId(e.target.value)} className={cn(CAMPO, 'cursor-pointer pr-8')}>
+          <option value="">Escolha um Contato</option>
+          {opcoes.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button type="submit" variant="outline" disabled={salvando || !contatoId} className={BOTAO_SECUNDARIO}>
+        {botao}
+      </Button>
+      {erro && (
+        <p role="alert" className="w-full text-sm text-al-atencao">
+          {erro}
+        </p>
+      )}
+    </form>
+  )
+}
+
+/** O cadastro de um Contato na Conta: só o nome é obrigatório; o nome sozinho não mescla com outro Contato. */
+function FormularioNovoContato({ contaId, fechar }: { contaId: string; fechar: () => void }) {
+  const fonte = useFonteDeContas()
+  const [campos, setCampos] = useState({ nome: '', cargo: '', email: '', whatsapp: '', linkedin: '' })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const editar = (nome: keyof typeof campos) => (e: { target: { value: string } }) =>
+    setCampos((atuais) => ({ ...atuais, [nome]: e.target.value }))
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    setSalvando(true)
+    setErro(null)
+    try {
+      await fonte.salvarContato!({ contaId, ...campos })
+      fechar()
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível salvar o Contato.')
+      setSalvando(false)
+    }
+  }
+
+  const rotulos: [keyof typeof campos, string][] = [
+    ['cargo', 'Cargo (opcional)'],
+    ['email', 'E-mail (opcional)'],
+    ['whatsapp', 'Telefone (opcional)'],
+    ['linkedin', 'LinkedIn (opcional)'],
+  ]
+
+  return (
+    <form aria-label="Novo Contato" onSubmit={enviar} className="flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4">
+      <label className="flex flex-col gap-1 text-xs text-al-muted">
+        Nome
+        <input required value={campos.nome} onChange={editar('nome')} className={CAMPO} />
+      </label>
+      {rotulos.map(([nome, rotulo]) => (
+        <label key={nome} className="flex flex-col gap-1 text-xs text-al-muted">
+          {rotulo}
+          <input value={campos[nome]} onChange={editar(nome)} className={CAMPO} />
+        </label>
+      ))}
+      <Button
+        type="submit"
+        disabled={salvando}
+        className="h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
+      >
+        Salvar
+      </Button>
+      <Button type="button" variant="outline" onClick={fechar} className={BOTAO_SECUNDARIO}>
+        Cancelar
       </Button>
       {erro && (
         <p role="alert" className="w-full text-sm text-al-atencao">
