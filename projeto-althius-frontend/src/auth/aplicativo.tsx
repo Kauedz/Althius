@@ -132,7 +132,6 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     return (
       <TelaDeEstado>
         <p role="alert">Não foi possível preparar seu Workspace pessoal. Verifique sua conexão e tente novamente.</p>
-        <p className="text-xs text-al-muted">{erroWorkspacePessoal}</p>
         <div className="flex gap-2">
           <Button onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button>
           <Sair />

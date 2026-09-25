@@ -597,6 +597,7 @@ describe('Workspace pessoal no primeiro acesso', () => {
     await act(async () => concluirPrimeira(new Error('connection reset')))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível preparar seu Workspace pessoal.')
+    expect(screen.queryByText('connection reset')).not.toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: 'Tentar novamente' }))
 
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
