@@ -104,6 +104,16 @@ function recusarCaptcha(error: { code?: string } | null) {
   if (error?.code === 'captcha_failed') throw new Error(ERRO_DO_CAPTCHA)
 }
 
+const ERRO_DE_ENVIO_DO_CODIGO = 'Não foi possível enviar o código agora. Tente novamente em instantes.'
+
+/**
+ * O Auth só devolve o limite de envio (`over_email_send_rate_limit`, 429) para um e-mail que tem conta e acabou de
+ * receber outro: tratá-lo como sucesso mantém a resposta igual à de um e-mail sem conta.
+ */
+function atingiuLimiteDeEnvio(error: { code?: string; status?: number } | null) {
+  return error?.code === 'over_email_send_rate_limit' || error?.status === 429
+}
+
 const Contexto = createContext<Autenticacao | null>(null)
 
 export function ContextoDeAutenticacao({
@@ -190,7 +200,9 @@ export function ContextoDeAutenticacao({
         })
         recusarCaptcha(error)
         // Sem conta para o e-mail, o Auth recusa criar uma; a tela responde igual, para não revelar quem tem conta.
-        if (error && error.code !== 'otp_disabled' && error.code !== 'user_not_found') throw error
+        if (error && error.code !== 'otp_disabled' && error.code !== 'user_not_found' && !atingiuLimiteDeEnvio(error)) {
+          throw new Error(ERRO_DE_ENVIO_DO_CODIGO)
+        }
       } finally {
         setCarregando(false)
       }
@@ -247,7 +259,7 @@ export function ContextoDeAutenticacao({
         const captcha = await comCaptcha(servicos, 'redefinicao_de_senha')
         const { error } = await cliente.auth.resetPasswordForEmail(email.trim(), { redirectTo: enderecoDeRedefinicao(destino), ...captcha })
         recusarCaptcha(error)
-        if (error) throw new Error('Não foi possível enviar o código agora. Tente novamente em instantes.')
+        if (error && !atingiuLimiteDeEnvio(error)) throw new Error(ERRO_DE_ENVIO_DO_CODIGO)
       } finally {
         setCarregando(false)
       }

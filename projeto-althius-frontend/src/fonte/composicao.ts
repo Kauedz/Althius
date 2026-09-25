@@ -53,6 +53,6 @@ export function criarAmbienteDoWorkspace({
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
-    indisponiveis: new Set(['agentes', 'contatos', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
+    indisponiveis: new Set(['agentes', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
   }
 }

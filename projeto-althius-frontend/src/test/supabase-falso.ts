@@ -24,6 +24,12 @@ interface OpcoesDoSupabaseFalso {
    * `captchaToken` são recusados com `captcha_failed`, sem enviar e-mail nem abrir sessão.
    */
   exigeCaptcha?: boolean
+  /**
+   * Os e-mails que já receberam envio recente do Supabase Auth: um novo código de entrada ou de redefinição para uma
+   * Conta de usuário existente é recusado com `over_email_send_rate_limit` (HTTP 429), sem e-mail. Para um e-mail sem
+   * conta o Auth não envia nada, então não há limite a atingir.
+   */
+  limiteDeEnvioAtingido?: string[]
 }
 
 /** Uma Conta de usuário no Supabase Auth do teste. Salvo `verificada: false`, o e-mail já foi confirmado. */
@@ -73,7 +79,7 @@ export function sessaoDe(usuario: { id: string; email: string }): Session {
  * O cliente do Supabase na fronteira com o fornecedor: Auth, as tabelas filtradas por `eq`, as RPCs e os canais do
  * Realtime, em memória. Só cobre o que o app usa; o resto não existe, para um uso novo falhar alto.
  */
-export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false }: OpcoesDoSupabaseFalso = {}) {
+export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [] }: OpcoesDoSupabaseFalso = {}) {
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
@@ -134,6 +140,12 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
 
   if (sessao) idDaSessaoAtual = abrirSessao(sessao.user.id)
 
+  /** A recusa do Auth a um novo envio para uma Conta de usuário existente que acabou de receber e-mail. */
+  function conferirLimiteDeEnvio(email: string) {
+    if (!contaCom(email) || !limiteDeEnvioAtingido.includes(email.trim().toLowerCase())) return null
+    return { message: 'For security purposes, you can only request this after 60 seconds.', status: 429, code: 'over_email_send_rate_limit' }
+  }
+
   function consulta(tabela: string) {
     const filtros: [string, unknown][] = []
     let ordem: { coluna: string; ascendente: boolean } | null = null
@@ -176,6 +188,8 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
           if (options?.shouldCreateUser !== false) throw new Error('signInWithOtp criaria uma Conta de usuário: simule antes de usar')
           return { data: {}, error: { message: 'Signups not allowed for otp', status: 422, code: 'otp_disabled' } }
         }
+        const recusaDoLimite = conferirLimiteDeEnvio(email)
+        if (recusaDoLimite) return { data: {}, error: recusaDoLimite }
         enviarEmail(email, 'email', options?.emailRedirectTo)
         return { data: {}, error: null }
       },
@@ -255,6 +269,8 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
       async resetPasswordForEmail(email: string, options?: { redirectTo?: string; captchaToken?: string }) {
         const recusaDoCaptcha = conferirCaptcha('resetPasswordForEmail', options?.captchaToken)
         if (recusaDoCaptcha) return { data: {}, error: recusaDoCaptcha }
+        const recusaDoLimite = conferirLimiteDeEnvio(email)
+        if (recusaDoLimite) return { data: {}, error: recusaDoLimite }
         if (contaCom(email)) enviarEmail(email, 'recovery', options?.redirectTo)
         return { data: {}, error: null }
       },

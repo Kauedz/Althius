@@ -131,6 +131,16 @@ export interface Contato {
   ehReal?: boolean
 }
 
+/** O cadastro de um Contato numa Conta-alvo, que abre o Vínculo do Contato com ela. Só o nome é obrigatório. */
+export interface NovoContato {
+  contaId: string
+  nome: string
+  cargo?: string
+  email?: string
+  whatsapp?: string
+  linkedin?: string
+}
+
 export type TipoDeInteracao =
   | 'email-enviado'
   | 'email-recebido'
@@ -183,6 +193,18 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Lista os Contatos de uma Conta-alvo específica. */
   contatosDaConta(contaId: string): Promise<Contato[]>
+
+  /**
+   * Cadastra um Contato na Conta-alvo, abrindo o Vínculo do Contato com ela. O nome sozinho não mescla Contatos;
+   * e-mail, telefone ou LinkedIn de outro Contato do Workspace são recusados. Sem este método, não há cadastro.
+   */
+  salvarContato?(novo: NovoContato): Promise<Contato>
+
+  /** Abre um Vínculo do Contato com outra Conta-alvo, mantendo os que ele já tem. */
+  vincularContato?(contatoId: string, contaId: string): Promise<void>
+
+  /** Encerra o Vínculo do Contato com a Conta-alvo; as Interações ficam na Conta onde aconteceram. */
+  encerrarVinculo?(contatoId: string, contaId: string): Promise<void>
 
   /** Lista todos os Sinais disparados até a data de hoje. */
   sinais(): Promise<Sinal[]>
