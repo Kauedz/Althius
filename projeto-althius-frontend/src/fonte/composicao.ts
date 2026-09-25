@@ -4,7 +4,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Ambiente, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
 import {
   criarFonteDeAgentesIndisponivel,
-  criarFonteDeContasIndisponivel,
   criarFonteDeOnboardingIndisponivel,
   criarFonteDeSinaisIndisponivel,
 } from './indisponivel'
@@ -13,6 +12,7 @@ import { criarFonteDeContasSimulada } from './simulada-contas'
 import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
+import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
@@ -49,10 +49,10 @@ export function criarAmbienteDoWorkspace({
   return {
     modo: 'real',
     fonte: criarFonteDeAgentesIndisponivel({ usuario, participacao }),
-    fonteDeContas: criarFonteDeContasIndisponivel(),
+    fonteDeContas: criarFonteDeContasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
-    indisponiveis: new Set(['agentes', 'contas', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
+    indisponiveis: new Set(['agentes', 'contatos', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
   }
 }

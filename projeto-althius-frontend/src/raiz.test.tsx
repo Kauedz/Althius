@@ -90,9 +90,9 @@ describe('Workspace operacional e Demonstração', () => {
     ['/', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Scopus'],
     ['/agentes/scopus/conversa', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Scopus'],
     ['/conversa', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Scopus'],
-    ['/contas', 'Contas e Contatos ainda não estão disponíveis neste Workspace.', 'OpenAI'],
-    ['/contas/openai', 'Contas e Contatos ainda não estão disponíveis neste Workspace.', 'OpenAI'],
-    ['/contatos', 'Contas e Contatos ainda não estão disponíveis neste Workspace.', 'Sarah Chen'],
+    ['/contas', 'Nenhuma Conta-alvo ainda.', 'OpenAI'],
+    ['/contas/openai', 'Conta não encontrada', 'OpenAI'],
+    ['/contatos', 'Contatos ainda não estão disponíveis neste Workspace.', 'Sarah Chen'],
     ['/sinais', 'Sinais ainda não estão disponíveis neste Workspace.', 'Vagas'],
     ['/sinais/contas/openai', 'Sinais ainda não estão disponíveis neste Workspace.', 'OpenAI'],
     ['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads'],
@@ -106,7 +106,7 @@ describe('Workspace operacional e Demonstração', () => {
       tabelas: { workspace_memberships: [participacao('ws-norte')] },
     })
 
-    expect(await screen.findByText(aviso)).toBeInTheDocument()
+    expect((await screen.findAllByText(new RegExp(aviso))).length).toBeGreaterThan(0)
     expect(screen.queryByText(new RegExp(daDemonstracao))).not.toBeInTheDocument()
   })
 
@@ -173,7 +173,7 @@ describe('Workspace operacional e Demonstração', () => {
     })
 
     expect(await screen.findByText(/Nenhuma sequência ainda/)).toHaveTextContent(
-      'Nenhuma sequência ainda. Criar uma depende das Contas-alvo, que ainda não estão disponíveis neste Workspace.',
+      'Nenhuma sequência ainda. Criar uma depende dos Contatos, que ainda não estão disponíveis neste Workspace.',
     )
     expect(screen.queryByRole('button', { name: /Nova sequência/ })).not.toBeInTheDocument()
   })
@@ -205,6 +205,132 @@ describe('Workspace operacional e Demonstração', () => {
   })
 })
 
+const ID_DA_ALFA = '6f1c2d3e-4a5b-4c6d-8e7f-000000000001'
+const ID_DA_BETA = '6f1c2d3e-4a5b-4c6d-8e7f-000000000002'
+
+/** Uma Conta-alvo como o banco a guarda no Workspace da empresa. */
+function contaNoBanco(id: string, nome: string, dominio: string) {
+  return {
+    id,
+    workspace_id: 'ws-norte',
+    name: nome,
+    canonical_url: `https://${dominio}`,
+    domain: dominio,
+    linkedin_url: null,
+    segment: null,
+    last_interaction_at: null,
+  }
+}
+
+/** O Workspace da empresa com a Alfa, da Marina, e a Beta, de outro Vendedor responsável; as RPCs gravam nas tabelas. */
+function abrirContasDoNorte(rota: string) {
+  window.history.replaceState(null, '', rota)
+  const tabelas: Record<string, Record<string, unknown>[]> = {
+    workspace_memberships: [participacao('ws-norte', 'member')],
+    target_accounts: [contaNoBanco(ID_DA_ALFA, 'Alfa Varejo', 'alfa.com.br'), contaNoBanco(ID_DA_BETA, 'Beta Logística', 'beta.com.br')],
+    sales_responsibilities: [
+      { workspace_id: 'ws-norte', target_account_id: ID_DA_ALFA, owner_user_id: MARINA.id },
+      { workspace_id: 'ws-norte', target_account_id: ID_DA_BETA, owner_user_id: 'usuario-outro-vendedor' },
+    ],
+    account_interactions: [],
+  }
+  const aberto = abrirAlthius({
+    ultimoAmbiente: 'real',
+    ultimoWorkspace: 'ws-norte',
+    sessao: sessaoDe(MARINA),
+    tabelas,
+    rpcs: {
+      save_target_account: ({ p_name, p_url }) => {
+        const dominio = String(p_url).replace(/^https?:\/\//, '').replace(/\/$/, '')
+        const nova = contaNoBanco('6f1c2d3e-4a5b-4c6d-8e7f-000000000003', String(p_name), dominio)
+        tabelas.target_accounts.push(nova)
+        tabelas.sales_responsibilities.push({ workspace_id: 'ws-norte', target_account_id: nova.id, owner_user_id: MARINA.id })
+        return nova
+      },
+      register_account_interaction: ({ p_target_account_id, p_kind }) => {
+        const interacao = {
+          id: `interacao-${tabelas.account_interactions.length + 1}`,
+          workspace_id: 'ws-norte',
+          target_account_id: p_target_account_id,
+          kind: p_kind,
+          occurred_at: new Date().toISOString(),
+        }
+        tabelas.account_interactions.push(interacao)
+        return interacao
+      },
+    },
+  })
+  return { ...aberto, tabelas }
+}
+
+describe('Contas-alvo reais no Workspace operacional', () => {
+  it('lista as Contas do Workspace, busca, abre o detalhe e volta com a busca', async () => {
+    const { usuario } = abrirContasDoNorte('/contas?busca=alfa')
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
+    expect(within(tabela).getByRole('link', { name: 'Alfa Varejo' })).toBeInTheDocument()
+    expect(within(tabela).queryByRole('link', { name: 'Beta Logística' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/OpenAI|Databricks/)).not.toBeInTheDocument()
+
+    await usuario.click(within(tabela).getByRole('link', { name: 'Alfa Varejo' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Alfa Varejo' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe(`/contas/${ID_DA_ALFA}`)
+
+    await usuario.click(screen.getByRole('link', { name: 'Contas' }))
+    expect(await screen.findByRole('searchbox', { name: 'Buscar contas' })).toHaveValue('alfa')
+  })
+
+  it('o detalhe mostra só o que existe, com estados vazios, sem preencher lacunas com a Demonstração', async () => {
+    abrirContasDoNorte(`/contas/${ID_DA_ALFA}`)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Alfa Varejo' })).toBeInTheDocument()
+    expect(await screen.findByText('Nenhum sinal')).toBeInTheDocument()
+    expect(await screen.findByText('Nenhum contato')).toBeInTheDocument()
+    expect(await screen.findByText('Nenhuma interação registrada')).toBeInTheDocument()
+    expect(screen.queryByText(/Recomendada pela Althius|Importada por/)).not.toBeInTheDocument()
+  })
+
+  it('uma Conta que não existe no Workspace aparece como não encontrada', async () => {
+    abrirContasDoNorte('/contas/6f1c2d3e-4a5b-4c6d-8e7f-00000000ffff')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Conta não encontrada' })).toBeInTheDocument()
+  })
+
+  it('a pessoa cadastra uma Conta-alvo manualmente e ela entra na lista', async () => {
+    const { usuario, tabelas } = abrirContasDoNorte('/contas')
+
+    await usuario.click(await screen.findByRole('button', { name: 'Nova Conta-alvo' }))
+    const formulario = screen.getByRole('form', { name: 'Nova Conta-alvo' })
+    await usuario.type(within(formulario).getByLabelText('Nome da empresa'), 'Gama Energia')
+    await usuario.type(within(formulario).getByLabelText('URL da empresa'), 'gama.com.br')
+    await usuario.click(within(formulario).getByRole('button', { name: 'Salvar' }))
+
+    expect(await screen.findByRole('link', { name: 'Gama Energia' })).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Nova Conta-alvo' })).not.toBeInTheDocument()
+    expect(tabelas.sales_responsibilities.at(-1)).toMatchObject({ owner_user_id: MARINA.id })
+  })
+
+  it('o Vendedor responsável registra uma Interação manual e a vê no histórico da Conta', async () => {
+    const { usuario } = abrirContasDoNorte(`/contas/${ID_DA_ALFA}`)
+
+    const formulario = await screen.findByRole('form', { name: 'Registrar interação' })
+    await usuario.selectOptions(within(formulario).getByLabelText('Tipo de interação'), 'ligacao')
+    await usuario.click(within(formulario).getByRole('button', { name: 'Registrar' }))
+
+    const historico = await screen.findByRole('list', { name: 'Interações' })
+    expect(within(historico).getByText(/Ligação/)).toBeInTheDocument()
+    expect(within(historico).getByText(/Registro manual/)).toBeInTheDocument()
+  })
+
+  it('quem não é o Vendedor responsável consulta a Conta, mas não registra Interação nela', async () => {
+    abrirContasDoNorte(`/contas/${ID_DA_BETA}`)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Beta Logística' })).toBeInTheDocument()
+    expect(await screen.findByText('Nenhuma interação registrada')).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Registrar interação' })).not.toBeInTheDocument()
+  })
+})
+
 describe('Alternar entre a Demonstração e o Workspace operacional', () => {
   it('cada ambiente mantém o próprio selo e os próprios dados', async () => {
     window.history.replaceState(null, '', '/contas')
@@ -219,7 +345,7 @@ describe('Alternar entre a Demonstração e o Workspace operacional', () => {
     expect(within(navegacao()).getByText('Demonstração')).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: 'Acessar tela de login Supabase' }))
-    expect(await screen.findByText('Contas e Contatos ainda não estão disponíveis neste Workspace.')).toBeInTheDocument()
+    expect(await screen.findByText(/Nenhuma Conta-alvo ainda\./)).toBeInTheDocument()
     expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'OpenAI' })).not.toBeInTheDocument()
 
@@ -293,7 +419,7 @@ describe('Telas de acesso', () => {
 
     // A pessoa abre o link do e-mail neste navegador.
     act(() => iniciarSessao(sessaoDe(MARINA)))
-    expect(await screen.findByText('Contas e Contatos ainda não estão disponíveis neste Workspace.')).toBeInTheDocument()
+    expect(await screen.findByText(/Nenhuma Conta-alvo ainda\./)).toBeInTheDocument()
     expect(window.location.pathname).toBe('/contas')
   })
 
