@@ -61,7 +61,7 @@ Facilitar cadastro e entrada na Althius, com experiência responsiva, segura e c
 
 ## Regras de senha e acesso
 
-- **Política (NIST SP 800-63B):** mínimo de 8 caracteres, sem regras de composição obrigatórias nem troca periódica. Bloquear senhas vazadas (proteção HaveIBeenPwned do Supabase). Medidor de força e botão de mostrar/ocultar. Campos com `autocomplete` correto (`new-password`, `current-password`, `one-time-code`) para gerenciadores de senha.
+- **Política (NIST SP 800-63B):** mínimo de 8 caracteres, sem regras de composição obrigatórias nem troca periódica. Bloquear senhas vazadas na própria tela, consultando a API gratuita Pwned Passwords do HaveIBeenPwned por k-anonimato (só os 5 primeiros caracteres do hash SHA-1 saem do navegador), no cadastro, na redefinição e na troca de senha. O plano Pro do Supabase, que faria esse bloqueio no servidor, não será contratado; por isso a verificação é uma barreira de interface, contornável por quem chama a API do Supabase diretamente. Se a consulta falhar, não bloquear o cadastro. Medidor de força e botão de mostrar/ocultar. Campos com `autocomplete` correto (`new-password`, `current-password`, `one-time-code`) para gerenciadores de senha.
 - **Cadastro com e-mail já existente:** a tela responde da mesma forma que um cadastro novo ("Enviamos um código para seu e-mail"). O e-mail enviado explica que a conta já existe e como entrar (Google, senha ou "definir senha"). A tela nunca revela quais e-mails estão cadastrados.
 - **Definir senha depois:** quem entrou só com Google pode definir uma senha pelo "Esqueci a senha" ou em Perfil (CRM-08), sem perder a identidade Google.
 - **Esqueci a senha:** envia código de 6 dígitos + link no mesmo e-mail, pede a nova senha seguindo a mesma política e, após a troca, encerra as outras sessões ativas da Conta de usuário. A resposta ao pedido é genérica, como no cadastro.
@@ -132,7 +132,6 @@ Ainda não executadas:
 - Projeto no Google Cloud com tela de consentimento, Client ID Web, domínio verificado, página inicial e **Termos de Uso e Política de Privacidade publicados**.
 - Verificação de marca do Google para exibir nome e logo da Althius: automática pode levar minutos; revisão manual normalmente leva 2–3 dias úteis, sem prazo garantido. Login básico usa só `openid`, `email` e `profile` e não implica acesso a Gmail ou Drive.
 - Conta no provedor de SMTP e domínio de envio configurado.
-- Plano Pro do Supabase para o bloqueio de senhas vazadas. Até lá, vale o mínimo de 8 caracteres com medidor de força.
 - Conta Cloudflare com site Turnstile e chave secreta configurada no Supabase Auth.
 
 ## Tickets
@@ -166,3 +165,4 @@ A conferir na implementação:
 - [Supabase: SMTP próprio](https://supabase.com/docs/guides/auth/auth-smtp)
 - [Supabase: CAPTCHA](https://supabase.com/docs/guides/auth/auth-captcha)
 - [NIST SP 800-63B: autenticadores memorizados](https://pages.nist.gov/800-63-4/sp800-63b.html)
+- [HaveIBeenPwned: API Pwned Passwords (k-anonimato)](https://haveibeenpwned.com/API/v3#PwnedPasswords)
