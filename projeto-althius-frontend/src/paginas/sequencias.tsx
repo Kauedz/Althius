@@ -26,7 +26,8 @@ export function PaginaSequencias() {
 
 function ListaGlobalSequencias() {
   // Criar uma Sequência escolhe Conta-alvo e Contatos: sem eles no Workspace, a criação ficaria com IDs inventados.
-  const permiteCriarSequencia = useAmbiente().disponivel('contas')
+  const { disponivel } = useAmbiente()
+  const permiteCriarSequencia = disponivel('contatos')
   const navegar = useNavigate()
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<StatusSequencia | 'todos'>('todos')
@@ -116,8 +117,8 @@ function ListaGlobalSequencias() {
         <div className="flex flex-col items-start gap-4 py-12">
           <p className="text-sm text-al-muted">
             {permiteCriarSequencia
-              ? 'Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo ou solicite ao Rhetor na Conversa.'
-              : 'Nenhuma sequência ainda. Criar uma depende das Contas-alvo, que ainda não estão disponíveis neste Workspace.'}
+              ? `Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo${disponivel('agentes') ? ' ou solicite ao Rhetor na Conversa' : ''}.`
+              : 'Nenhuma sequência ainda. Criar uma depende dos Contatos, que ainda não estão disponíveis neste Workspace.'}
           </p>
           {permiteCriarSequencia && <Button
             type="button"

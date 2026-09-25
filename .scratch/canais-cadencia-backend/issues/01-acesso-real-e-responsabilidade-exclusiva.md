@@ -25,3 +25,21 @@
 - No modo autenticado, ações simuladas de resposta/reunião e a criação baseada na lista local de Contas/Contatos ficam indisponíveis; habilitá-las depende da fonte real de Contas e Contatos, para não gravar IDs de demonstração no backend.
 - Migrations aplicadas: `supabase/migrations/20260925130153_real_sequence_access.sql`, `supabase/migrations/20260925131144_sequence_document_owner_policy.sql` e `supabase/migrations/20260925131327_sequence_membership_fk_indexes.sql`.
 - Para login operacional ainda é necessário permitir as origens do app em Auth Redirect URLs, convidar/criar as identidades no Auth, e provisionar cada linha de `workspace_memberships` por operação administrativa confiável. Não foi possível validar com uma conta real do produto nesta execução.
+
+## Validação com contas reais (2026-09-25)
+
+Ambiente preparado com `scripts/wizard-teste-real.sh` no projeto `ycbdilsmydvzezhlymty`: Redirect URL `http://localhost:5173/**`, SMTP próprio pelo Resend com `althius.com.br`, e cinco identidades reais. No Workspace A estão o Vendedor responsável e o Outro Membro, como Membros, e o Administrador. No Workspace B está o Membro de outro Workspace. A persona Sem Participação não tem linha em `workspace_memberships`. O Kauê entrou pelo link de acesso no navegador e caiu no Workspace operacional.
+
+- `npm run teste:real`: 20/20 regras confirmadas pela API pública, com a sessão real de cada persona.
+  - O Vendedor responsável cria a Sequência, lê o documento privado e a pausa pela RPC. Nem ele cria uma segunda Sequência na mesma Conta-alvo (23505).
+  - Outro Membro e Administrador não criam Sequência concorrente nem alteram a existente (42501). Os dois leem a projeção só com status e contagens; um campo extra do resumo não chega a ela.
+  - Duas criações simultâneas numa Conta-alvo nova tiveram um único vencedor.
+  - Edição direta da tabela, exclusão e troca de responsável são recusadas, e o documento privado não sai pela API.
+  - Membro de outro Workspace e Sem Participação não veem nem criam Sequência no Workspace A.
+- Tela, com as sessões reais no Chromium: o Vendedor responsável abre o detalhe completo. Outro Membro e Administrador veem as duas Sequências na lista, e no detalhe só o resumo da Conta-alvo, com o aviso de que há outro Vendedor responsável. O Membro de outro Workspace vê a lista vazia, e a persona Sem Participação cai em "Nenhum Workspace ativo".
+
+Pendências:
+
+- O pgTAP `supabase/tests/responsabilidade_exclusiva.sql` precisa voltar a passar. Na `main`, ele já falhava 7/12 pela validação de canal de `validate_sequence_document`. No banco remoto, também esbarra na chave estrangeira de `workspace_memberships` para `workspaces`, que chega com o Auth-02.
+- Realtime: o endpoint responde 101 por HTTP/1.1, mas o WebSocket do Chromium no ambiente de nuvem falhou no handshake (500). A atualização ao vivo ainda não foi vista num navegador comum.
+- As Sequências de teste ficam no Workspace A, nas Contas-alvo com prefixo `teste-real-`. O fluxo público não as apaga, então o CRM-17 terá de removê-las por operação administrativa antes de ligar Sequência e Conta-alvo por chave estrangeira.

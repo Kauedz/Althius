@@ -9,7 +9,7 @@ import {
   type ContaDeUsuarioDaSessao,
 } from './ambiente'
 import type { FonteDeSinais } from './sinais-tipos'
-import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding } from './tipos'
+import type { FonteDeAgentes, FonteDeOnboarding } from './tipos'
 
 /** Nada muda numa fonte sem backend: não há o que observar. */
 const semMudancas = () => () => {}
@@ -93,24 +93,6 @@ export function criarFonteDeAgentesIndisponivel({
     conversar: semConversa,
     sugestoesCoordenadas: nenhum,
     conversarCoordenado: semConversa,
-  }
-}
-
-/** Contas-alvo, Contatos e Interações do Workspace operacional, que ainda não guardou nenhum. */
-export function criarFonteDeContasIndisponivel(): FonteDeContas {
-  return {
-    observar: semMudancas,
-    hoje: () => new Date(),
-    contas: nenhum,
-    conta: recusar('contas'),
-    contatos: nenhum,
-    contatosDaConta: nenhum,
-    sinais: nenhum,
-    sinaisDaConta: nenhum,
-    adicionarSinal: recusar('sinais'),
-    interacoesDaConta: nenhum,
-    registrarInteracao: recusar('contas'),
-    atualizarDestinosContato: recusar('contas'),
   }
 }
 

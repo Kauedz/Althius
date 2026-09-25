@@ -49,7 +49,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
           <Route index element={<TelaDoModulo modulo="agentes" titulo="Agentes" icone={Bot}><PaginaAgentes /></TelaDoModulo>} />
           <Route path="contas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
           <Route path="contas/:contaId" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
-          <Route path="contatos" element={<TelaDoModulo modulo="contas" titulo="Contatos" icone={Building2}><PaginaContatos /></TelaDoModulo>} />
+          <Route path="contatos" element={<TelaDoModulo modulo="contatos" titulo="Contatos" icone={Building2}><PaginaContatos /></TelaDoModulo>} />
           <Route path="sequencias" element={<PaginaSequencias />} />
           <Route path="sequencias/:sequenciaId" element={<PaginaSequencias />} />
           <Route path="sinais" element={<TelaDoModulo modulo="sinais" titulo="Sinais" icone={RadioTower}><SinaisNaCasca /></TelaDoModulo>}>

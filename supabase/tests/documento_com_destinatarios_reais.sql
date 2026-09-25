@@ -13,6 +13,10 @@ values
   ('10000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'admin@example.test', '', now(), now(), now(), '{}', '{}', false, false)
 on conflict (id) do nothing;
 
+insert into public.workspaces(id, kind, name) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'empresa', 'Workspace da empresa')
+on conflict do nothing;
+
 insert into public.workspace_memberships(workspace_id, user_id, role, active) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '10000000-0000-0000-0000-000000000001', 'member', true),
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '10000000-0000-0000-0000-000000000002', 'member', true),
@@ -34,12 +38,16 @@ select lives_ok(
   'responsible seller creates sequence with valid email step'
 );
 
+-- Os Contatos são canônicos (CRM-05): o destinatário fica numa Conta-alvo real sob a responsabilidade do Vendedor.
+create temporary table conta_real on commit drop as
+  select id from public.save_target_account('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'OpenAI', 'openai.test');
+
 -- Test 2: Seller registers real contact with email, normalized WhatsApp, and LinkedIn
 select lives_ok(
   $$select public.upsert_target_contact(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'target-real',
-    'c-1',
+    (select id::text from conta_real),
+    null,
     'Sarah Chen',
     'Head of Evaluation',
     'sarah.chen@openai.test',
@@ -51,14 +59,14 @@ select lives_ok(
 
 -- Test 3: WhatsApp number was normalized to E.164 (+5511999998888)
 select is(
-  (select whatsapp from public.target_contacts where id = 'c-1'),
+  (select whatsapp from public.target_contacts where name = 'Sarah Chen'),
   '+5511999998888',
   'whatsapp number was normalized to E.164'
 );
 
 -- Test 4: Email was validated and normalized (lowercase)
 select is(
-  (select email from public.target_contacts where id = 'c-1'),
+  (select email from public.target_contacts where name = 'Sarah Chen'),
   'sarah.chen@openai.test',
   'email was validated and saved'
 );
@@ -67,8 +75,8 @@ select is(
 select throws_ok(
   $$select public.upsert_target_contact(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'target-real',
-    'c-2',
+    (select id::text from conta_real),
+    null,
     'Elena Rostova',
     'Product Lead',
     'not-an-email',
@@ -83,8 +91,8 @@ select throws_ok(
 select throws_ok(
   $$select public.upsert_target_contact(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'target-real',
-    'c-2',
+    (select id::text from conta_real),
+    null,
     'Elena Rostova',
     'Product Lead',
     'elena@openai.test',
@@ -100,8 +108,8 @@ select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000002
 select throws_ok(
   $$select public.upsert_target_contact(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'target-real',
-    'c-3',
+    (select id::text from conta_real),
+    null,
     'Marcus Thorne',
     'Staff Engineer',
     'marcus@openai.test',
@@ -114,7 +122,7 @@ select throws_ok(
 
 -- Test 8: Non-responsible member can consult public contacts of the target
 select is(
-  (select name from public.target_contacts where id = 'c-1'),
+  (select name from public.target_contacts where name = 'Sarah Chen'),
   'Sarah Chen',
   'workspace member can consult target contact name'
 );
