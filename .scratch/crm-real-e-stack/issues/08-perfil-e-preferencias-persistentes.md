@@ -2,7 +2,7 @@
 
 **What to build:** cada participante edita o perfil e as preferências já apresentadas em Configurações e encontra seus valores salvos após sair e entrar novamente.
 
-**Blocked by:** 02: Cadastrar e criar o Workspace do usuário.
+**Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md); Auth-05: [Esqueci a senha](../../autenticacao-google-email/issues/05-esqueci-a-senha.md) (substituem o CRM-02).
 
 **Status:** ready-for-agent
 

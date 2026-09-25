@@ -2,7 +2,7 @@
 
 **What to build:** Administradores convidam pessoas para o Workspace, pessoal ou da empresa, e gerenciam as Participações; convidados entram somente após aceitar um convite válido com a identidade correspondente.
 
-**Blocked by:** 02: Cadastrar e criar o Workspace pessoal.
+**Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md); Auth-04: [Entrar com senha ou com código](../../autenticacao-google-email/issues/04-entrar-com-senha-ou-codigo.md) (substituem o CRM-02).
 
 **Status:** ready-for-agent
 

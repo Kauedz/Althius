@@ -6,7 +6,7 @@
 
 **Blocked by:** 01: Separar modo real e Demonstração.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [ ] Rotas `/cadastro`, `/entrar` e `/esqueci-a-senha` da Althius, com tela dividida no desktop e coluna única no celular (360px), usando Supabase Auth.
 - [ ] "Continuar com Google" pelo botão oficial do Google (ID token) e One Tap em `/entrar` e `/cadastro`; a escolha de conta mostra a Althius, não `*.supabase.co`.
@@ -30,3 +30,7 @@
 - Trocar ou definir senha em Perfil (CRM-08).
 - MFA (autenticador TOTP).
 - SMTP de produção, verificação de marca no Google Cloud e conta Turnstile são pré-requisitos de ambiente, listados na spec de autenticação.
+
+## Comments
+
+**2026-09-25:** fechado sem implementação, dividido em tickets verticais em [`.scratch/autenticacao-google-email/issues/`](../../autenticacao-google-email/issues/) (01 a 10). Os critérios acima estão distribuídos entre eles; implementar por lá.

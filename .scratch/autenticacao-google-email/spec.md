@@ -206,6 +206,6 @@ A tela nunca revela quais e-mails têm conta, recusa senhas fracas ou vazadas e 
 
 ## Further Notes
 
-- Implementação na fila do CRM Real, que é dona do modelo de Workspace e Participação: principalmente o [CRM-02](../crm-real-e-stack/issues/02-cadastro-e-criacao-do-workspace.md).
+- Implementação nos tickets [01 a 10](./issues/) desta pasta, que substituem o CRM-02 da fila do CRM Real (fechado). O CRM Real continua dono do modelo de Workspace e Participação; os convites vêm do CRM-03.
 - O ADR-0003 (protótipo só desktop) vale para a Demonstração; estas telas do Workspace operacional precisam funcionar no celular.
 - Fontes consultadas em 2026-09-25: [Google: requisitos de OAuth](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview) e [verificação de marca](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification). A conferir na implementação: [Supabase: login com Google](https://supabase.com/docs/guides/auth/social-login/auth-google), [senhas](https://supabase.com/docs/guides/auth/passwords), [login sem senha](https://supabase.com/docs/guides/auth/auth-email-passwordless), [vinculação de identidades](https://supabase.com/docs/guides/auth/auth-identity-linking), [SMTP](https://supabase.com/docs/guides/auth/auth-smtp), [CAPTCHA](https://supabase.com/docs/guides/auth/auth-captcha), [NIST SP 800-63B](https://pages.nist.gov/800-63-4/sp800-63b.html) e [Pwned Passwords](https://haveibeenpwned.com/API/v3#PwnedPasswords).

@@ -2,7 +2,7 @@
 
 **What to build:** a partir do Workspace pessoal, a pessoa escolhe explicitamente criar um Workspace da empresa, torna-se sua Administradora e passa a operar nele, com dados e plano separados do pessoal. Regras na [spec de autenticação](../../autenticacao-google-email/spec.md) e na [ADR-0011](../../../docs/adr/0011-workspace-pessoal-independente-da-empresa.md).
 
-**Blocked by:** 02: Cadastrar e criar o Workspace pessoal.
+**Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md) (substitui o CRM-02).
 
 **Status:** ready-for-agent
 
