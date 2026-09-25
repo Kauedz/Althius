@@ -286,7 +286,7 @@ export function criarFonteDeSinaisSimulada(
       const rawData = parametros.data ?? refHoje
       const dataIso = rawData instanceof Date ? rawData.toISOString().slice(0, 10) : String(rawData)
       const acontecimentoId =
-        parametros.acontecimentoId ?? parametros.id ?? `acont-${m.tipoId}-${contaId}-${dataIso}`
+        parametros.acontecimentoId ?? parametros.id ?? `acont-${m.tipoId}-${contaId}`
 
       // Verifica reencontro / duplicata existente
       const existente = sinais.find(

@@ -19,7 +19,7 @@ import {
   type TipoDeSinal,
 } from './catalogo'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from './componentes'
-import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, parseDataDisparo } from './dados-mock'
+import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { useMonitoramentos } from './estado'
 
 type Filtro = 'todos' | Origem
@@ -307,10 +307,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
   const { dados: contasCarregadas = [] } = useDadosDeContas((f) => f.contas(), [])
 
   const todosSinais = sinaisCarregados ?? SINAIS_MOCK
-  const sinais = todosSinais
-    .filter((s) => foiDisparado(s.data, hoje))
-    .slice()
-    .sort((a, b) => parseDataDisparo(b.data).getTime() - parseDataDisparo(a.data).getTime())
+  const sinais = ordenarSinaisPorData(todosSinais.filter((s) => foiDisparado(s.data, hoje)))
 
   return (
     <>

@@ -1,7 +1,9 @@
 // Catálogo do mockup do módulo Sinais (ticket 01). Mostra a abrangência desejada, não promete coleta real:
 // tipos da mesma família compartilham o mesmo formulário de critérios.
 
-export type Origem = 'externo' | 'interno' | 'originado'
+import type { Criterios, Familia, Formulario, Origem, TipoDeSinal } from '@/fonte/sinais-tipos'
+
+export type { Criterios, Familia, Formulario, Origem, TipoDeSinal }
 
 export const ROTULO_DA_ORIGEM: Record<Origem, string> = {
   externo: 'Externo',
@@ -13,41 +15,6 @@ export const ROTULO_DA_ORIGEM_NO_PLURAL: Record<Origem, string> = {
   externo: 'Externos',
   interno: 'Internos',
   originado: 'Originados',
-}
-
-export type Formulario =
-  | 'vagas'
-  | 'pessoas'
-  | 'capital'
-  | 'expansao'
-  | 'tecnologia'
-  | 'noticias'
-  | 'eventos'
-  | 'reputacao'
-  | 'comunidade'
-  | 'site'
-  | 'historico'
-  | 'verificacao'
-  | 'seguranca'
-
-export interface Familia {
-  id: string
-  nome: string
-  origem: Origem
-  formulario: Formulario
-  /** A família aceita descobrir empresas novas por perfil, além de acompanhar listas. */
-  descoberta: boolean
-}
-
-export interface TipoDeSinal {
-  id: string
-  nome: string
-  descricao: string
-  familiaId: string
-  /** Quando o tipo não usa o formulário da família. */
-  formulario?: Formulario
-  /** Valores iniciais próprios do tipo, sobre os da família. */
-  padroes?: Criterios
 }
 
 export const FAMILIAS: Familia[] = [

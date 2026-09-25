@@ -1,39 +1,25 @@
 // Dados simulados do mockup de Sinais (ticket 01). Fontes e evidências são ilustrativas e identificadas como
 // simuladas: nenhum acontecimento aqui foi coletado ou verificado.
-import type { PerfilFirmografico } from './perfil'
-import { criteriosIniciais, tipoPorId, TIPO_PERSONALIZADO, type Criterios, type Origem } from './catalogo'
+import { criteriosIniciais, tipoPorId, TIPO_PERSONALIZADO } from './catalogo'
 
-export type EstadoDoMonitoramento = 'rascunho' | 'em-preparacao' | 'ativo' | 'pausado'
+export type {
+  EstadoDoMonitoramento,
+  ModoDePublico,
+  Publico,
+  Monitoramento,
+} from '@/fonte/sinais-tipos'
+
+import type {
+  EstadoDoMonitoramento,
+  Publico,
+  Monitoramento,
+} from '@/fonte/sinais-tipos'
 
 export const ROTULO_DO_ESTADO: Record<EstadoDoMonitoramento, string> = {
   rascunho: 'Rascunho',
   'em-preparacao': 'Em preparação',
   ativo: 'Ativo',
   pausado: 'Pausado',
-}
-
-export type ModoDePublico = 'listas' | 'descoberta' | 'ambos'
-
-export interface Publico {
-  modo: ModoDePublico
-  listas: string[]
-  /** Na descoberta, usa o público recomendado das configurações do Cliente; senão, o perfil personalizado. */
-  usaRecomendado: boolean
-  perfil?: PerfilFirmografico
-}
-
-export interface Monitoramento {
-  id: string
-  tipoId: string
-  nome: string
-  estado: EstadoDoMonitoramento
-  publico: Publico
-  criterios: Criterios
-  /** Só nos personalizados: o pedido em linguagem livre, a fonte indicada e os critérios preparados. */
-  descricao?: string
-  fonte?: string
-  origem?: Origem
-  criteriosLivres?: string[]
 }
 
 export const LISTAS = [
@@ -574,6 +560,7 @@ export {
   expiraEm,
   estaValido,
   foiDisparado,
+  ordenarSinaisPorData,
   parseDataDisparo,
 } from '@/fonte/regras-sinais'
 

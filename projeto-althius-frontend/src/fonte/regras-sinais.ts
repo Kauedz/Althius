@@ -2,13 +2,16 @@ export const VALIDADE_EM_DIAS = 30
 export const DIA_EM_MS = 24 * 60 * 60 * 1000
 export const VALIDADE_SINAL_MS = VALIDADE_EM_DIAS * DIA_EM_MS
 
+export type ReferenciaDeDataSinal =
+  | string
+  | Date
+  | { data?: string | Date; dataDisparo?: string | Date; dataAcontecimento?: string | Date }
+
 /**
  * Converte data de disparo (ISO, YYYY-MM-DD, Date ou objeto contendo a data) para Date.
  * Se for YYYY-MM-DD puro, interpreta à meia-noite local para consistência com o mockup.
  */
-export function parseDataDisparo(
-  data: string | Date | { data?: string | Date; dataDisparo?: string | Date; dataAcontecimento?: string | Date },
-): Date {
+export function parseDataDisparo(data: ReferenciaDeDataSinal): Date {
   if (data instanceof Date) {
     return data
   }
@@ -38,19 +41,14 @@ export const dataDoDisparo = parseDataDisparo
 /**
  * O instante exato em que o Sinal expira: ao completar os 30 dias a partir do disparo.
  */
-export function expiraEm(
-  sinal: string | Date | { data?: string | Date; dataDisparo?: string | Date; dataAcontecimento?: string | Date },
-): Date {
+export function expiraEm(sinal: ReferenciaDeDataSinal): Date {
   return new Date(parseDataDisparo(sinal).getTime() + VALIDADE_SINAL_MS)
 }
 
 /**
  * Verifica se o sinal já foi disparado na data de referência (não é uma data futura).
  */
-export function foiDisparado(
-  sinal: string | Date | { data?: string | Date; dataDisparo?: string | Date; dataAcontecimento?: string | Date },
-  hoje: Date,
-): boolean {
+export function foiDisparado(sinal: ReferenciaDeDataSinal, hoje: Date): boolean {
   return parseDataDisparo(sinal).getTime() <= hoje.getTime()
 }
 
@@ -59,12 +57,19 @@ export function foiDisparado(
  * válido desde o disparo até antes de completar 30 dias (no instante da expiração deixa de contar).
  * Datas futuras não contam como sinais já disparados.
  */
-export function estaValido(
-  sinal: string | Date | { data?: string | Date; dataDisparo?: string | Date; dataAcontecimento?: string | Date },
-  hoje: Date,
-): boolean {
+export function estaValido(sinal: ReferenciaDeDataSinal, hoje: Date): boolean {
   const disparo = parseDataDisparo(sinal).getTime()
   const expira = disparo + VALIDADE_SINAL_MS
   const agora = hoje.getTime()
   return disparo <= agora && agora < expira
 }
+
+/**
+ * Ordena sinais ou referências por data de disparo, do mais recente para o mais antigo.
+ */
+export function ordenarSinaisPorData<T extends ReferenciaDeDataSinal>(sinais: T[]): T[] {
+  return sinais
+    .slice()
+    .sort((a, b) => parseDataDisparo(b).getTime() - parseDataDisparo(a).getTime())
+}
+

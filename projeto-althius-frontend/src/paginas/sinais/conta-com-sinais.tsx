@@ -18,7 +18,7 @@ import {
   estaValido,
   expiraEm,
   foiDisparado,
-  parseDataDisparo,
+  ordenarSinaisPorData,
   type SinalMock,
 } from './dados-mock'
 import { useSinaisDoMockup } from './estado'
@@ -45,7 +45,7 @@ export function ContaComSinais() {
   const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
 
   const contaMock = CONTAS_MOCK.find((c) => c.id === contaId)
-  const conta = contaMock ?? contaCarregada
+  const conta = contaCarregada ?? contaMock
 
   if (carregandoConta && !conta) {
     return (
@@ -71,9 +71,9 @@ export function ContaComSinais() {
   if (!conta) return <Navigate to="/sinais?vista=encontrados" replace />
 
   const todosSinais = sinaisCarregados ?? SINAIS_MOCK
-  const sinais = todosSinais
-    .filter((s) => s.contaId === conta.id && foiDisparado(s.data, hoje))
-    .sort((a, b) => parseDataDisparo(b.data).getTime() - parseDataDisparo(a.data).getTime())
+  const sinais = ordenarSinaisPorData(
+    todosSinais.filter((s) => s.contaId === conta.id && foiDisparado(s.data, hoje)),
+  )
   const validos = sinais.filter((s) => estaValido(s.data, hoje))
   const ultimo = sinais[0]
   const origemEhRecomendada =
