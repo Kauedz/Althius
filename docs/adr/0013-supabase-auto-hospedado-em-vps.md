@@ -1,6 +1,6 @@
 # Supabase gerenciado no plano Free agora, auto-hospedado em VPS com os primeiros clientes
 
-Durante a construção da aplicação, a Althius usa o Supabase gerenciado no plano Free. Quando tiver os primeiros clientes (um ou dois), passa a rodar o Supabase open source numa VPS própria, em vez de contratar o plano Pro do Supabase gerenciado.
+Durante a construção da aplicação, a Althius usa o Supabase gerenciado no plano Free. Quando tiver os primeiros clientes (um ou dois), passa a rodar o Supabase open source numa VPS própria, em vez de contratar o plano Pro do Supabase gerenciado. O motivo é custo: a VPS sai muito mais barata que o plano Pro. O preço disso é assumir a operação que o Supabase gerenciado faria.
 
 A escolha muda de onde vêm alguns recursos. O bloqueio de senhas vazadas, que no Supabase gerenciado exige o plano Pro, existe no Supabase Auth open source e é ligado por configuração (`GOTRUE_PASSWORD_HIBP_ENABLED`). Enquanto o projeto estiver no plano Free, a verificação é feita na tela da Althius ([spec de autenticação](../../.scratch/autenticacao-google-email/spec.md)).
 
