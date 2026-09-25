@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T17:35-03:00
+Updated: 2026-09-25T18:00-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -9,9 +9,9 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | CRM-01 | skipped | — | closed |
 | CRM-02 | skipped | — | substituído por Auth-02…08 |
 | Auth-01 | skipped | — | closed (PR #18, merged) |
-| Auth-02 | running | ralph/auth-02-workspace-pessoal | Workspace pessoal + bootstrap |
-| Auth-03 | queued | | ∥ Auth-04, ambos a partir de Auth-02 |
-| Auth-04 | queued | | ∥ Auth-03 |
+| Auth-02 | done | ralph/auth-02-workspace-pessoal · PR #19 (draft) | AC 7/7; pgTAP 19/19; suíte 530/530; **pending-apply** migration 20260925140000 |
+| Auth-03 | running | ralph/auth-03-cadastro-com-senha | ∥ Auth-04, ambos a partir de Auth-02 |
+| Auth-04 | running | ralph/auth-04-entrar-com-senha-ou-codigo | ∥ Auth-03 |
 | Auth-05 | queued | | junta Auth-03 e Auth-04 |
 | Auth-06 | queued | | HIBP k-anon |
 | Auth-07 | queued | | Google GIS + One Tap; ∥ Auth-08 |
@@ -30,7 +30,14 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 ## Parallel (max 3)
 - Auth-03 ∥ Auth-04 e Auth-07 ∥ Auth-08, conforme pedido. O half seguinte (Auth-05, CRM-04) junta as duas branches e resolve conflitos.
 
+## Spend (estimativa grosseira)
+| Half | Tokens reportados |
+|------|-------------------|
+| Auth-02 | ~133k |
+
 ## Alerts
+- ALERTA RALPH | Auth-02 | pending-apply | aplicar `supabase/migrations/20260925140000_workspace_pessoal.sql` no Supabase ANTES de mergear o PR #19; sem ela o app real cai em "Tentar novamente" após o login.
+- Pré-existente: `responsabilidade_exclusiva.sql` falha 7/12 localmente também na `main` (validação de canal em `validate_sequence_document`). Relevante para canais-01/02.
 - ALERTA RALPH | canais-02 | GATE | ready-for-human: não spawnar. canais-04 depende dele; a cadeia para no gate do canais-04 se o canais-02 não for dado como done por um humano.
 - ALERTA RALPH | canais-01 | GATE | in-progress com AC de código completos; pendente validação com conta real (humano). Decidir se conta como done para canais-02/03/04.
 - Pré-existente: `20260925100000_documento_com_destinatarios_reais.sql` e `20260925120000_contas_remetentes_unipile.sql` dependem de `20260925130153_real_sequence_access.sql` (timestamp posterior). Um `supabase db reset` do zero falha.
