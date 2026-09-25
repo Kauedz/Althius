@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T21:05-03:00
+Updated: 2026-09-25T21:25-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -24,6 +24,8 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | canais-02 | gate-fail | — | ready-for-human (AC de código todos [x]) |
 | canais-03 | gate-fail | — | Blocked by canais-01 (in-progress, não done); 2 AC abertos |
 | canais-04 | blocked | | Blocked by canais-02 (ready-for-human) e canais-03 |
+| Review final | done | — | 0 bloqueantes; 2 importantes + 2 menores em correção |
+| Correções da revisão | running | ralph/revisao-correcoes | vincular+editar Contato (CRM-05); enumeração pelo rate limit (Auth); aceite dos Termos só no 1º acesso; erro cru de RPC |
 | Auth-09 | out | — | fora do corte; exige CRM-03 |
 | Auth-10 | human | — | ready-for-human; não spawnar |
 | CRM-03, 16, 19, 20, 21, 22–24 | out | — | fora do corte / ponteiros |
@@ -43,7 +45,8 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-07 | ~153k |
 | CRM-04 | ~201k |
 | CRM-05 | ~204k |
-| **Total halves** | **~1,48M** (mais a matriz) |
+| Review | ~141k |
+| **Total halves** | **~1,62M** (mais a matriz) |
 
 ## STOP
 Corrida parada no gate de canais (2026-09-25 21:05). canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana: dar canais-01 e canais-02 como done (teste real no fim) ou validar antes. Review final (só leitura) disparado sobre o topo da pilha.
