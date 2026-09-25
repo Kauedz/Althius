@@ -31,7 +31,7 @@ function abrirAlthius({
 }: Parameters<typeof criarSupabaseFalso>[0] & {
   ultimoAmbiente?: 'real' | 'demonstracao'
   ultimoWorkspace?: string
-  /** Como os serviços do navegador (Pwned Passwords) respondem; nenhum chama a rede. */
+  /** Como os serviços do navegador (Pwned Passwords, Turnstile) respondem; nenhum chama a rede. */
   navegador?: OpcoesDosServicosFalsos
 } = {}) {
   if (ultimoAmbiente) localStorage.setItem('althius:modo_demo', String(ultimoAmbiente === 'demonstracao'))
@@ -41,10 +41,10 @@ function abrirAlthius({
     tabelas,
     rpcs: { bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas), ...rpcs },
   })
-  const { servicos, senhasConsultadas } = criarServicosDoNavegadorFalsos(navegador)
+  const { servicos, senhasConsultadas, captchasPedidos } = criarServicosDoNavegadorFalsos(navegador)
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={servicos} />)
-  return { ...supabase, servicos, senhasConsultadas, usuario }
+  return { ...supabase, servicos, senhasConsultadas, captchasPedidos, usuario }
 }
 
 function participacao(workspaceId: string, role: 'admin' | 'member' = 'admin') {
@@ -928,5 +928,137 @@ describe('Bloqueio de senhas vazadas', () => {
     await chegarANovaSenha(redefinicao)
     await salvarNovaSenha(redefinicao.usuario, VAZADA)
     expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+  })
+})
+
+describe('CAPTCHA invisível', () => {
+  const SENHA_NOVA = 'correta cavalo bateria'
+  const MENSAGEM = 'Não foi possível confirmar que você é uma pessoa. Tente novamente.'
+
+  it('cadastro, login com senha, envio de código, reenvio e redefinição mandam um token novo ao Supabase Auth, sem desafio na tela', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const { usuario, captchasRecebidos, captchasPedidos } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      contas: [CONTA_DA_MARINA],
+      exigeCaptcha: true,
+      navegador: { captcha: 'ligado' },
+    })
+
+    await usuario.type(await screen.findByLabelText('Nome'), 'Ana Lima')
+    await usuario.type(screen.getByLabelText('E-mail'), 'ana@cliente.com.br')
+    await usuario.type(screen.getByLabelText('Senha'), SENHA_NOVA)
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    cleanup()
+    window.history.replaceState(null, '', '/entrar')
+    const entrada = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], exigeCaptcha: true, navegador: { captcha: 'ligado' } })
+    await entrada.usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await entrada.usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('enviamos um código de 6 dígitos')
+    await entrada.usuario.click(screen.getByRole('button', { name: 'Usar senha' }))
+    await entrada.usuario.click(await screen.findByRole('link', { name: 'Esqueci a senha' }))
+    await entrada.usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await entrada.usuario.click(screen.getByRole('button', { name: 'Enviar código' }))
+    expect(await screen.findByRole('status')).toHaveTextContent(MARINA.email)
+    expect(entrada.codigoEnviadoPara(MARINA.email)).toBeDefined()
+
+    cleanup()
+    window.history.replaceState(null, '', '/entrar')
+    const login = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], exigeCaptcha: true, navegador: { captcha: 'ligado' } })
+    await entrarComSenha(login.usuario, MARINA.email, CONTA_DA_MARINA.senha)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+
+    expect(captchasPedidos()).toEqual(['cadastro'])
+    expect(captchasRecebidos()).toEqual([{ chamada: 'signUp', token: 'token-captcha-1' }])
+    expect(entrada.captchasPedidos()).toEqual(['codigo_de_entrada', 'redefinicao_de_senha'])
+    expect(entrada.captchasRecebidos()).toEqual([
+      { chamada: 'signInWithOtp', token: 'token-captcha-1' },
+      { chamada: 'resetPasswordForEmail', token: 'token-captcha-2' },
+    ])
+    expect(login.captchasPedidos()).toEqual(['login_com_senha'])
+    expect(login.captchasRecebidos()).toEqual([{ chamada: 'signInWithPassword', token: 'token-captcha-1' }])
+  })
+
+  it('o reenvio do código do cadastro também leva um token', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      window.history.replaceState(null, '', '/cadastro')
+      const { usuario, captchasRecebidos } = abrirAlthius({ ultimoAmbiente: 'real', exigeCaptcha: true, navegador: { captcha: 'ligado' } })
+      await usuario.type(await screen.findByLabelText('Nome'), 'Ana Lima')
+      await usuario.type(screen.getByLabelText('E-mail'), 'ana@cliente.com.br')
+      await usuario.type(screen.getByLabelText('Senha'), SENHA_NOVA)
+      await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+      await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
+      act(() => vi.advanceTimersByTime(60_000))
+      await usuario.click(await screen.findByRole('button', { name: 'Reenviar código' }))
+
+      await waitFor(() => expect(captchasRecebidos()).toEqual([
+        { chamada: 'signUp', token: 'token-captcha-1' },
+        { chamada: 'resend', token: 'token-captcha-2' },
+      ]))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('se o Turnstile não confirmar a pessoa, a tela explica e a nova tentativa pede outro token e entra', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, captchasRecebidos } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      contas: [CONTA_DA_MARINA],
+      exigeCaptcha: true,
+      navegador: { captcha: 'ligado', falhasDoCaptcha: 1 },
+    })
+
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+    expect(captchasRecebidos()).toEqual([])
+
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(captchasRecebidos()).toEqual([{ chamada: 'signInWithPassword', token: 'token-captcha-2' }])
+  })
+
+  it('se o Supabase Auth recusar o CAPTCHA, cadastro, envio de código e redefinição mostram a mesma mensagem clara', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const cadastro = abrirAlthius({ ultimoAmbiente: 'real', exigeCaptcha: true })
+    await cadastro.usuario.type(await screen.findByLabelText('Nome'), 'Ana Lima')
+    await cadastro.usuario.type(screen.getByLabelText('E-mail'), 'ana@cliente.com.br')
+    await cadastro.usuario.type(screen.getByLabelText('Senha'), SENHA_NOVA)
+    await cadastro.usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+    expect(cadastro.nomeCadastrado('ana@cliente.com.br')).toBeUndefined()
+
+    cleanup()
+    window.history.replaceState(null, '', '/entrar')
+    const entrada = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], exigeCaptcha: true })
+    await entrada.usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await entrada.usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+    await entrada.usuario.type(screen.getByLabelText('Senha'), CONTA_DA_MARINA.senha)
+    await entrada.usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(MENSAGEM))
+
+    cleanup()
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const redefinicao = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], exigeCaptcha: true })
+    await redefinicao.usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await redefinicao.usuario.click(screen.getByRole('button', { name: 'Enviar código' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+    expect(redefinicao.codigoEnviadoPara(MARINA.email)).toBeUndefined()
+  })
+
+  it('sem a site key do Turnstile, nenhum token é pedido nem enviado e o acesso funciona como antes', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, captchasRecebidos, captchasPedidos } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
+
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(captchasPedidos()).toEqual([])
+    expect(captchasRecebidos()).toEqual([{ chamada: 'signInWithPassword', token: undefined }])
   })
 })

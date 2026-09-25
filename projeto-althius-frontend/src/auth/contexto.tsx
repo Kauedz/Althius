@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { ROTA_DE_REDEFINICAO_DA_SENHA, enderecoDeRedefinicao } from './destino'
-import type { ServicosDoNavegador } from './servicos-do-navegador'
+import type { AcaoDoCaptcha, ServicosDoNavegador } from './servicos-do-navegador'
 
 interface Autenticacao {
   cliente: SupabaseClient
@@ -65,6 +65,28 @@ async function recusarSenhaVazada(servicos: ServicosDoNavegador, senha: string) 
   if (vazada) throw new Error(ERRO_DE_SENHA_VAZADA)
 }
 
+/** A falha do CAPTCHA, venha do Turnstile no navegador ou da recusa `captcha_failed` do Supabase Auth. */
+const ERRO_DO_CAPTCHA = 'Não foi possível confirmar que você é uma pessoa. Tente novamente.'
+
+/**
+ * As opções com o token do Turnstile para esta ação, a espalhar nas `options` da chamada ao Supabase Auth; vazias
+ * sem Turnstile configurado. Cada tentativa pede um token novo, porque o Supabase aceita cada token uma vez só.
+ */
+async function comCaptcha(servicos: ServicosDoNavegador, acao: AcaoDoCaptcha): Promise<{ captchaToken?: string }> {
+  let token: string | null
+  try {
+    token = await servicos.tokenDoCaptcha(acao)
+  } catch {
+    throw new Error(ERRO_DO_CAPTCHA)
+  }
+  return token ? { captchaToken: token } : {}
+}
+
+/** Troca a recusa do CAPTCHA pelo Supabase Auth pela mensagem clara, antes de qualquer outra leitura do erro. */
+function recusarCaptcha(error: { code?: string } | null) {
+  if (error?.code === 'captcha_failed') throw new Error(ERRO_DO_CAPTCHA)
+}
+
 const Contexto = createContext<Autenticacao | null>(null)
 
 export function ContextoDeAutenticacao({
@@ -109,7 +131,9 @@ export function ContextoDeAutenticacao({
     async entrarComSenha(email, senha) {
       setCarregando(true)
       try {
-        const { error } = await cliente.auth.signInWithPassword({ email: email.trim(), password: senha })
+        const captcha = await comCaptcha(servicos, 'login_com_senha')
+        const { error } = await cliente.auth.signInWithPassword({ email: email.trim(), password: senha, options: captcha })
+        recusarCaptcha(error)
         if (error) throw new Error(ERRO_DE_LOGIN)
       } finally {
         setCarregando(false)
@@ -118,10 +142,12 @@ export function ContextoDeAutenticacao({
     async pedirCodigoDeEntrada(email, destino) {
       setCarregando(true)
       try {
+        const captcha = await comCaptcha(servicos, 'codigo_de_entrada')
         const { error } = await cliente.auth.signInWithOtp({
           email: email.trim(),
-          options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + destino },
+          options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + destino, ...captcha },
         })
+        recusarCaptcha(error)
         // Sem conta para o e-mail, o Auth recusa criar uma; a tela responde igual, para não revelar quem tem conta.
         if (error && error.code !== 'otp_disabled' && error.code !== 'user_not_found') throw error
       } finally {
@@ -148,11 +174,13 @@ export function ContextoDeAutenticacao({
     },
     async cadastrar({ nome, email, senha }, destino) {
       await recusarSenhaVazada(servicos, senha)
+      const captcha = await comCaptcha(servicos, 'cadastro')
       const { error } = await cliente.auth.signUp({
         email: email.trim(),
         password: senha,
-        options: { data: { full_name: nome.trim() }, emailRedirectTo: window.location.origin + destino },
+        options: { data: { full_name: nome.trim() }, emailRedirectTo: window.location.origin + destino, ...captcha },
       })
+      recusarCaptcha(error)
       if (error?.code === 'weak_password') throw new Error(ERRO_DE_SENHA_VAZADA)
       if (error) throw new Error('Não foi possível criar a conta agora. Tente novamente em instantes.')
     },
@@ -161,18 +189,22 @@ export function ContextoDeAutenticacao({
       if (error) throw error
     },
     async reenviarCodigoDoCadastro(email, destino) {
+      const captcha = await comCaptcha(servicos, 'reenvio_do_cadastro')
       const { error } = await cliente.auth.resend({
         type: 'signup',
         email: email.trim(),
-        options: { emailRedirectTo: window.location.origin + destino },
+        options: { emailRedirectTo: window.location.origin + destino, ...captcha },
       })
+      recusarCaptcha(error)
       if (error) throw error
     },
     redefinindoSenha,
     async pedirRedefinicaoDeSenha(email, destino) {
       setCarregando(true)
       try {
-        const { error } = await cliente.auth.resetPasswordForEmail(email.trim(), { redirectTo: enderecoDeRedefinicao(destino) })
+        const captcha = await comCaptcha(servicos, 'redefinicao_de_senha')
+        const { error } = await cliente.auth.resetPasswordForEmail(email.trim(), { redirectTo: enderecoDeRedefinicao(destino), ...captcha })
+        recusarCaptcha(error)
         if (error) throw new Error('Não foi possível enviar o código agora. Tente novamente em instantes.')
       } finally {
         setCarregando(false)
