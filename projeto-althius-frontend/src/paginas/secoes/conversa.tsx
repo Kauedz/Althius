@@ -7,7 +7,7 @@ import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
 import { TextoDigitado } from '@/conversa/texto'
 import { useDados } from '@/fonte/contexto'
-import type { Agente, AgenteId, Aprovacao } from '@/fonte/tipos'
+import type { Agente, AgenteId, AprovacaoDeAcao } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 
@@ -151,7 +151,7 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
   }
 }
 
-function CabecalhoDaAprovacao({ aprovacao, rotulo }: { aprovacao: Aprovacao; rotulo: string }) {
+function CabecalhoDaAprovacao({ aprovacao, rotulo }: { aprovacao: AprovacaoDeAcao; rotulo: string }) {
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
   const nome = nomeDaIntegracao(
     aprovacao.integracaoId,

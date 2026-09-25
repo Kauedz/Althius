@@ -89,7 +89,7 @@ describe('Ticket 07: Configurar sinais originados', () => {
     await usuario.click(within(grupoFrequencia).getByRole('radio', { name: 'Toda semana' }))
 
     // Público com recomendação simulada
-    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP Enterprise dados e IA')
+    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP do Workspace')
 
     // Salva rascunho
     await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))

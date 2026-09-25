@@ -3,12 +3,13 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { BOTAO_SECUNDARIO } from '@/components/botoes'
 import { useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import type { SinalEncontrado } from '@/fonte/sinais-tipos'
 import { cn } from '@/lib/utils'
 import { tipoPorId } from './catalogo'
-import { BOTAO_SECUNDARIO, Foguinho, SeloDeAderencia } from './componentes'
+import { Foguinho, SeloDeAderencia } from './componentes'
 import {
   CONTAS_MOCK,
   ROTULO_DA_ADERENCIA,

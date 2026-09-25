@@ -5,13 +5,15 @@ import { Carregando, IconeAgente } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { useDados } from '@/fonte/contexto'
-import type { Agente, Aprovacao, Integracao } from '@/fonte/tipos'
+import type { Agente, AprovacaoDeAcao, Integracao } from '@/fonte/tipos'
+import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
 export function PaginaAprovacoes() {
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
+  const workspace = useDados((fonte) => fonte.workspace(), [])
 
   const pendentes = aprovacoes?.filter((a) => a.estado === 'pendente').length ?? 0
   // Uma lista só, com as pendentes primeiro: o cartão não sai do lugar ao ser decidido.
@@ -27,7 +29,7 @@ export function PaginaAprovacoes() {
         </p>
       </div>
 
-      {!aprovacoes || !agentes || !integracoes ? (
+      {!aprovacoes || !agentes || !integracoes || !workspace ? (
         <Carregando />
       ) : (
         <section aria-label="Propostas" className="flex flex-col gap-6">
@@ -36,11 +38,15 @@ export function PaginaAprovacoes() {
           <ul className="flex flex-col gap-6">
             {ordenadas.map((aprovacao) => (
               <li key={aprovacao.id}>
-                <CartaoDeAprovacao
-                  aprovacao={aprovacao}
-                  agente={agentes.find((a) => a.id === aprovacao.agenteId)}
-                  integracao={integracoes.find((i) => i.id === aprovacao.integracaoId)}
-                />
+                {aprovacao.revisao ? (
+                  <CartaoDeRevisao aprovacao={aprovacao} papel={workspace.papel} />
+                ) : (
+                  <CartaoDeAprovacao
+                    aprovacao={aprovacao}
+                    agente={agentes.find((a) => a.id === aprovacao.agenteId)}
+                    integracao={integracoes.find((i) => i.id === aprovacao.integracaoId)}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -50,16 +56,18 @@ export function PaginaAprovacoes() {
   )
 }
 
+/** Uma ação proposta numa Integração. */
 function CartaoDeAprovacao({
   aprovacao,
   agente,
   integracao,
 }: {
-  aprovacao: Aprovacao
+  aprovacao: AprovacaoDeAcao
   agente?: Agente
   integracao?: Integracao
 }) {
-  const rotuloDaIntegracao = nomeDaIntegracao(aprovacao.integracaoId, integracao?.nome)
+  const { integracaoId } = aprovacao
+  const rotuloDaIntegracao = nomeDaIntegracao(integracaoId, integracao?.nome)
   return (
     <article aria-label={aprovacao.acao} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center gap-4">
@@ -67,7 +75,7 @@ function CartaoDeAprovacao({
         <Link to={`/agentes/${aprovacao.agenteId}`} className="font-normal underline-offset-4 hover:underline">
           {agente?.nome}
         </Link>
-        <LogoDaIntegracao id={aprovacao.integracaoId} nome={rotuloDaIntegracao} />
+        <LogoDaIntegracao id={integracaoId} nome={rotuloDaIntegracao} />
         <span className="rotulo">{rotuloDaIntegracao}</span>
         <span className="rotulo ml-auto">
           {aprovacao.origem === 'althius' ? 'Pedido na Althius' : `Pedido no ${ROTULO_DO_CANAL[aprovacao.origem]}`}

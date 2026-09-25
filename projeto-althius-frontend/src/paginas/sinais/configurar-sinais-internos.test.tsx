@@ -75,7 +75,7 @@ describe('Ticket 06: Configurar sinais internos', () => {
     await usuario.type(campoPessoas, '4')
 
     // Público recomendado pelas configurações e opção de descoberta
-    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP Enterprise dados e IA')
+    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP do Workspace')
     await usuario.click(screen.getByRole('radio', { name: 'Listas e descoberta' }))
 
     // Salva rascunho

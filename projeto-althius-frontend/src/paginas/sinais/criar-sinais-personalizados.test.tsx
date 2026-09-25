@@ -127,8 +127,8 @@ describe('Ticket 08: Criar sinais personalizados', () => {
 
     // Recomendação de público simulada presente em todos os modos
     const blocoRecomendado = screen.getByRole('complementary', { name: 'Público recomendado' })
-    expect(blocoRecomendado).toHaveTextContent('ICP Enterprise dados e IA')
-    expect(blocoRecomendado).toHaveTextContent(/Vem de Configurações do Workspace \(simulado\)/i)
+    expect(blocoRecomendado).toHaveTextContent('ICP do Workspace')
+    expect(blocoRecomendado).toHaveTextContent(/Vem do ICP vigente na Memória do Workspace/)
 
     // Não há nenhum campo de código, API, tokens ou executor
     expect(screen.queryByLabelText(/código/i)).not.toBeInTheDocument()

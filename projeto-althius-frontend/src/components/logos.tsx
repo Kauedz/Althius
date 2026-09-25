@@ -1,6 +1,8 @@
 // Logos oficiais das Integrações e das Contas-alvo (ADR 0003 permite marcas reais na demo). Nas Integrações,
 // HubSpot, Notion, Meta e Google Ads vêm do Simple Icons (CC0), na cor da marca; Clay, Apollo e Lusha, do
-// ícone do site de cada uma. Os das Contas-alvo são arquivos em public/logos, com o endereço vindo da fonte.
+// ícone do site de cada uma. Os das Contas-alvo são arquivos em public/logos, com o endereço vindo da fonte. O do
+// Workspace vem do site do Cliente, informado no onboarding.
+import { useState } from 'react'
 import apollo from '@/assets/logos/apollo.png'
 import clay from '@/assets/logos/clay.png'
 import lusha from '@/assets/logos/lusha.png'
@@ -84,6 +86,47 @@ export function LogoDaConta({
       )}
     >
       {iniciais(nome)}
+    </span>
+  )
+}
+
+/**
+ * O logo do Workspace, que a Fonte de onboarding resolve a partir do site do Cliente (o SVG ou o favicon). Sem logo,
+ * ou quando a imagem não carrega, mostra a inicial do nome. `nome` é o nome do Workspace, lido por leitores de tela.
+ */
+export function LogoDoWorkspace({
+  nome,
+  endereco,
+  className,
+}: {
+  nome: string
+  endereco: string | null
+  className?: string
+}) {
+  // Uma imagem que falhou não impede o próximo logo: recomeça quando o endereço muda.
+  return <LogoOuInicial key={endereco ?? ''} nome={nome} endereco={endereco} className={className} />
+}
+
+function LogoOuInicial({ nome, endereco, className }: { nome: string; endereco: string | null; className?: string }) {
+  const [falhou, setFalhou] = useState(false)
+  const rotulo = `Logo de ${nome}`
+  if (endereco && !falhou) {
+    return (
+      <img
+        src={endereco}
+        alt={rotulo}
+        onError={() => setFalhou(true)}
+        className={cn('size-7 shrink-0 object-contain', className)}
+      />
+    )
+  }
+  return (
+    <span
+      role="img"
+      aria-label={rotulo}
+      className={cn('grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg', className)}
+    >
+      {nome.trim().charAt(0).toUpperCase()}
     </span>
   )
 }

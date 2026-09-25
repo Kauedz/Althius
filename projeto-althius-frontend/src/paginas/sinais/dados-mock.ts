@@ -35,13 +35,6 @@ export function publicoInicial(aceitaDescoberta: boolean): Publico {
     : { modo: 'listas', listas: ['oportunidades-hubspot'], usaRecomendado: true }
 }
 
-/** O público definido nas configurações do Cliente, simulado: a área de configuração não faz parte do mockup. */
-export const PUBLICO_RECOMENDADO = {
-  nome: 'ICP Enterprise dados e IA',
-  resumo: 'Empresas com 2.000 funcionários ou mais, time de dados próprio, no Brasil e no México',
-  origem: 'Configurações do Workspace',
-}
-
 function monitoramento(parcial: Pick<Monitoramento, 'id' | 'tipoId' | 'nome' | 'estado'> & Partial<Monitoramento>): Monitoramento {
   const tipo = tipoPorId(parcial.tipoId)
   return {

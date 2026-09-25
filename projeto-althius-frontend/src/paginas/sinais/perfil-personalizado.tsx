@@ -1,8 +1,9 @@
 import { X } from 'lucide-react'
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import { Carregando } from '@/components/marca'
+import { BOTAO_SECUNDARIO } from '@/components/botoes'
+import { Opcao } from '@/components/opcao'
 import { cn } from '@/lib/utils'
-import { BOTAO_SECUNDARIO, Opcao } from './componentes'
 import { useDadosDoBrasil, type Cnae, type Localidades } from './dados-do-brasil'
 import {
   ESTADOS_FORA_DO_BRASIL,

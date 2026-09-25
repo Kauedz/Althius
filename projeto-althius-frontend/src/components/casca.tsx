@@ -1,7 +1,19 @@
-import { Bot, Building2, ChevronsUpDown, Plug, RadioTower, Route, Settings, ShieldCheck, type LucideIcon } from 'lucide-react'
+import {
+  Bot,
+  Building2,
+  ChevronsUpDown,
+  ListChecks,
+  Plug,
+  RadioTower,
+  Route,
+  Settings,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, Logo, ROTULO_DO_ESTADO } from '@/components/marca'
+import { LogoDoWorkspace } from '@/components/logos'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { identidadeDoWorkspace, progressoDoOnboarding } from '@/fonte/regras-onboarding'
+import { ROTULO_DO_PAPEL } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
 import { useTema } from '@/tema'
 
@@ -30,11 +44,12 @@ function Sidebar() {
   const workspace = useDados((fonte) => fonte.workspace(), [])
   const fonteDeOnboarding = useFonteDeOnboarding()
   const onboarding = useDados(fonteDeOnboarding, (fonte) => fonte.ler(), [])
+  const progresso = onboarding && progressoDoOnboarding(onboarding)
+  // O Workspace criado no onboarding se apresenta pelo que a pessoa informou; sem ele, vale o da demonstração.
+  const doOnboarding = onboarding ? identidadeDoWorkspace(onboarding) : null
   const agentes = useDados((fonte) => fonte.agentes(), [])
-  const clienteDoOnboarding = onboarding?.workspace?.nomeSugerido
-  const cliente = clienteDoOnboarding || workspace?.cliente
-  const descricao = onboarding?.contextoDaIa || workspace?.descricao
-  const logoUrl = clienteDoOnboarding ? onboarding?.logoUrl : undefined
+  const cliente = doOnboarding?.nome || workspace?.cliente
+  const descricao = doOnboarding?.descricao || workspace?.descricao
   const { pathname } = useLocation()
   // A aba de Agentes inclui a página de cada Agente e a Conversa coordenada.
   const naAbaDeAgentes = pathname === '/' || pathname.startsWith('/agentes/') || pathname.startsWith('/conversa')
@@ -51,10 +66,12 @@ function Sidebar() {
       <div className="flex flex-col gap-4">
         <Logo />
         <div className="flex flex-col gap-2">
-          <SeletorDeWorkspace cliente={cliente} descricao={descricao} logoUrl={logoUrl} />
+          <SeletorDeWorkspace cliente={cliente} descricao={descricao} logo={doOnboarding?.logo ?? null} />
           <span className="selo self-start">Demonstração</span>
         </div>
       </div>
+
+      {progresso?.pendente && <AtalhoDoOnboarding percentual={progresso.percentual} />}
 
       <Secao titulo="Especialistas">
         {agentes
@@ -121,14 +138,31 @@ function Sidebar() {
   )
 }
 
+/** Enquanto o onboarding não está 100% completo, a Casca leva de volta ao checklist, mesmo depois de concluído. */
+function AtalhoDoOnboarding({ percentual }: { percentual: number }) {
+  return (
+    <Secao titulo="Primeiros passos">
+      <ItemDeNavegacao
+        para="/onboarding"
+        ativo={false}
+        icone={<IconeDeNavegacao icone={ListChecks} />}
+        rotulo={`Onboarding, ${percentual}% completo`}
+        fim={<span className="text-xs tabular-nums">{percentual}%</span>}
+      >
+        Onboarding
+      </ItemDeNavegacao>
+    </Secao>
+  )
+}
+
 function SeletorDeWorkspace({
   cliente,
   descricao,
-  logoUrl,
+  logo,
 }: {
   cliente?: string
   descricao?: string
-  logoUrl?: string
+  logo: string | null
 }) {
   return (
     <DropdownMenu>
@@ -141,13 +175,7 @@ function SeletorDeWorkspace({
           />
         }
       >
-        {logoUrl ? (
-          <img src={logoUrl} alt={`Logo de ${cliente ?? 'Cliente'}`} className="size-7 object-contain" />
-        ) : (
-          <span className="grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg" aria-hidden>
-            {cliente?.[0]}
-          </span>
-        )}
+        <LogoDoWorkspace nome={cliente ?? ''} endereco={logo} />
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="rotulo text-[0.5625rem]">Workspace</span>
           <span className="truncate font-normal">{cliente}</span>
@@ -187,6 +215,9 @@ function MenuDoUsuario() {
             <DropdownMenuLabel>
               <span className="block font-normal text-al-ink">{nome}</span>
               <span className="block text-al-muted">{workspace?.usuario.cargo}</span>
+              {workspace?.papel && (
+                <span className="block text-al-muted">{ROTULO_DO_PAPEL[workspace.papel]} neste Workspace</span>
+              )}
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuItem render={<Link to="/configuracoes/perfil" />}>Meu perfil</DropdownMenuItem>

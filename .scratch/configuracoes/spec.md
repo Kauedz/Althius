@@ -83,6 +83,7 @@ O fluxo central é: qualquer participante solicita uma revisão ao Scopus ou Eth
 - Administradores administram participantes e informações do Workspace. Membros consultam os dados compartilhados, alteram preferências pessoais e solicitam revisões pelos Agentes.
 - Administradores convidam, removem e alteram papéis. A simulação de convite exibe seu estado sem alegar envio real de e-mail; não confundir convite pendente com participante ativo.
 - A ação de remoção deve se chamar “Remover do Workspace” e esclarecer que a Conta de usuário permanece. Encerrar somente o vínculo e o acesso ao Workspace selecionado, preservando outros vínculos.
+- Decisão de 2026-09-25: como no mockup aprovado, a própria sessão não se remove em Pessoas e acesso, mesmo havendo outro Administrador. Sair do Workspace por conta própria fica fora desta entrega.
 - Não excluir a Conta de usuário, migrar plano ou criar Workspace automaticamente após remoção. A hipótese de plano gratuito não constituiu uma decisão comercial.
 - Impedir remover ou rebaixar o último Administrador, também no contrato de operação da fonte simulada, não apenas ocultando o botão.
 - A restrição de aprovação a Administradores nesta spec aplica-se às revisões de ICP e Personas. Não redefinir silenciosamente a autorização de todas as outras categorias de Aprovação existentes.
@@ -109,6 +110,7 @@ O fluxo central é: qualquer participante solicita uma revisão ao Scopus ou Eth
 - Memória do Workspace contém o ICP e as definições de Personas, distintos da Memória individual dos Agentes e da lista de participantes.
 - Usar Scopus para revisão do ICP e Ethos para revisão das Personas. Qualquer participante ativo pode solicitar revisão; não oferecer edição direta que dispense esses Agentes e a Aprovação.
 - Na demonstração, o Agente produz uma proposta por roteiro simulado, integrada à Conversa e à fila de Aprovações. Não exigir inferência real de IA.
+- Decisão de 2026-09-25: a Conversa do pedido é o diálogo de revisão em Configurações, como no mockup aprovado. O pedido e a resposta do Agente acontecem ali, e a proposta entra na fila de Aprovações. A página de Conversa do Agente não gera proposta: ao analisar o ICP, o Scopus aponta para esse diálogo.
 - A proposta permite examinar o conteúdo proposto, sua origem e o alcance da alteração, informando que aprovar atualizará as configurações dependentes no Workspace.
 - Somente Administradores ativos no Workspace podem aprovar ou recusar. Basta um Administrador; ele pode ter solicitado a revisão. A operação de decisão deve validar esse papel, não apenas a apresentação da interface.
 - Enquanto pendente ou recusada, a proposta não muda a Memória do Workspace nem suas configurações dependentes.

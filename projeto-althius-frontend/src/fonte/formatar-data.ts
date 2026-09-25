@@ -90,3 +90,28 @@ export function formatarDataCompleta(data: string | Date): string {
   const d = typeof data === 'string' ? new Date(data) : data
   return `${d.getDate()} de ${MESES_EXTENSO[d.getMonth()]} de ${d.getFullYear()}`
 }
+
+/** Uma data em ISO (aaaa-mm-dd) por extenso, no dia do calendário, sem deslocar pelo fuso. */
+export function formatarDiaIsoPorExtenso(iso: string): string {
+  const [ano, mes, dia] = iso.split('-').map(Number)
+  return formatarDataCompleta(new Date(ano, mes - 1, dia))
+}
+
+/**
+ * Um período entre dois dias em ISO, por extenso e sem repetir o mês ou o ano em comum
+ * (ex.: '1 a 23 de setembro de 2026', '28 de agosto a 3 de setembro de 2026').
+ */
+export function formatarPeriodoIsoPorExtenso(inicio: string, fim: string): string {
+  if (inicio === fim) return formatarDiaIsoPorExtenso(inicio)
+  const [anoInicial, mesInicial, diaInicial] = inicio.split('-').map(Number)
+  const [anoFinal, mesFinal] = fim.split('-').map(Number)
+  if (anoInicial !== anoFinal) return `${formatarDiaIsoPorExtenso(inicio)} a ${formatarDiaIsoPorExtenso(fim)}`
+  const comeco = mesInicial === mesFinal ? `${diaInicial}` : `${diaInicial} de ${MESES_EXTENSO[mesInicial - 1]}`
+  return `${comeco} a ${formatarDiaIsoPorExtenso(fim)}`
+}
+
+/** Um dia do calendário local em ISO (aaaa-mm-dd). */
+export function diaIso(data: Date): string {
+  const doisDigitos = (n: number) => String(n).padStart(2, '0')
+  return `${data.getFullYear()}-${doisDigitos(data.getMonth() + 1)}-${doisDigitos(data.getDate())}`
+}

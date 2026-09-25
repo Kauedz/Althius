@@ -82,7 +82,7 @@ describe('Ticket 05: Completar os sinais externos', () => {
     await usuario.click(within(cargos).getByRole('checkbox', { name: 'VP de Engenharia' }))
 
     // Verifica que oferece público recomendado simulado
-    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP Enterprise dados e IA')
+    expect(screen.getByRole('complementary', { name: 'Público recomendado' })).toHaveTextContent('ICP do Workspace')
 
     // Salva rascunho
     await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))

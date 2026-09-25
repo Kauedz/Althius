@@ -218,7 +218,8 @@ function DecisaoNoCanal({
   integracoes?: Integracao[]
   canalId: CanalId
 }) {
-  if (!aprovacao) return null
+  // Nos Canais chegam só as Aprovações de ação numa Integração.
+  if (!aprovacao || aprovacao.revisao) return null
   const nome = nomeDaIntegracao(
     aprovacao.integracaoId,
     integracoes?.find((i) => i.id === aprovacao.integracaoId)?.nome,

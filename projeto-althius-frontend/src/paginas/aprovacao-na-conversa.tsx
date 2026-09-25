@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { useDados } from '@/fonte/contexto'
 import { ROTULO_DA_DECISAO } from '@/fonte/regras'
-import type { Aprovacao } from '@/fonte/tipos'
+import type { AprovacaoDeAcao } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
@@ -17,12 +17,13 @@ export function AprovacaoNaConversa({
   className,
 }: {
   aprovacaoId: string
-  cabecalho: (aprovacao: Aprovacao, rotuloDoEstado: string) => ReactNode
+  cabecalho: (aprovacao: AprovacaoDeAcao, rotuloDoEstado: string) => ReactNode
   className?: string
 }) {
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
+  // Nas Conversas, os Agentes propõem ações em Integrações; uma revisão da Memória do Workspace fica na fila.
   const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
-  if (!aprovacao) return null
+  if (!aprovacao || aprovacao.revisao) return null
 
   const rotuloDoEstado = aprovacao.estado === 'pendente' ? 'Aprovação pendente' : ROTULO_DA_DECISAO[aprovacao.estado]
   return (

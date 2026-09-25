@@ -3,28 +3,114 @@
 import type {
   Agente,
   AgenteId,
-  Aprovacao,
+  AprovacaoDeAcao,
   Canal,
+  ContaDeUsuario,
+  Convite,
   EspecialidadeId,
   Fato,
+  DocumentoVigente,
   Habilidade,
+  InformacoesDoWorkspace,
   Integracao,
   IntegracaoFutura,
   IntegracaoId,
   ItemDeAtividade,
+  Papel,
   Permissao,
   Personalizacao,
   PreviaDeCanal,
   Rotina,
-  Workspace,
 } from './tipos'
 import { especialidade } from './especialidades'
 import { permissaoPadrao } from './regras'
 
-export const workspace: Omit<Workspace, 'aprovacoesPendentes'> = {
-  cliente: 'Databricks',
-  descricao: 'Workspace de demonstração',
-  usuario: { nome: 'Marina Alves', email: 'marina.alves@databricks.com', cargo: 'Head de Growth, LATAM' },
+/** O Workspace aberto na demonstração. */
+export const WORKSPACE_ATUAL = 'databricks'
+
+export const workspaces: Record<string, InformacoesDoWorkspace> = {
+  databricks: { nome: 'Databricks', descricao: 'Workspace de demonstração', criadoEm: '2026-06-02' },
+  'evolut-trading': { nome: 'Evolut Trading', descricao: 'Outro Workspace da Althius', criadoEm: '2026-04-15' },
+}
+
+/** O plano atual de cada Workspace: é do Workspace, não da Conta de usuário. Sem preço, franquia nem limite. */
+export const planos: Record<string, string> = {
+  databricks: 'Demonstração',
+}
+
+/** A sessão padrão da demonstração: Marina, Administradora do Workspace da Databricks. */
+export const CONTA_DA_SESSAO = 'marina'
+
+/** As Contas de usuário existem por si: a Participação no Workspace é que as liga a cada Workspace. */
+export const contasDeUsuario: ContaDeUsuario[] = [
+  { id: 'marina', nome: 'Marina Alves', email: 'marina.alves@databricks.com', cargo: 'Head de Growth, LATAM' },
+  { id: 'rafael', nome: 'Rafael Couto', email: 'rafael.couto@databricks.com', foto: '/avatars/avatar-8.jpg', cargo: 'Diretor de Vendas, Brasil' },
+  { id: 'lucas', nome: 'Lucas Moreira', email: 'lucas.moreira@databricks.com', cargo: 'SDR Enterprise' },
+  { id: 'beatriz', nome: 'Beatriz Santos', email: 'beatriz.santos@databricks.com', foto: '/avatars/avatar-5.jpg', cargo: 'Marketing de Produto' },
+  { id: 'thiago', nome: 'Thiago Ramos', email: 'thiago.ramos@databricks.com', cargo: 'Consultor de parcerias' },
+]
+
+export interface RegistroDeParticipacao {
+  contaId: string
+  workspaceId: string
+  papel: Papel
+}
+
+export const participacoes: RegistroDeParticipacao[] = [
+  { contaId: 'marina', workspaceId: 'databricks', papel: 'administrador' },
+  { contaId: 'rafael', workspaceId: 'databricks', papel: 'administrador' },
+  { contaId: 'lucas', workspaceId: 'databricks', papel: 'membro' },
+  { contaId: 'beatriz', workspaceId: 'databricks', papel: 'membro' },
+  { contaId: 'thiago', workspaceId: 'databricks', papel: 'membro' },
+  { contaId: 'thiago', workspaceId: 'evolut-trading', papel: 'membro' },
+]
+
+export const convites: Convite[] = [
+  { id: 'convite-carla', email: 'carla.nunes@databricks.com', papel: 'membro', registradoEm: '2026-09-22' },
+]
+
+/** O ICP vigente na Memória do Workspace da demonstração, aprovado antes da sessão começar. */
+export const icpInicial: DocumentoVigente = {
+  aprovadoEm: '2026-09-12',
+  aprovadoPor: { contaId: 'marina', nome: 'Marina Alves' },
+  secoes: [
+    { titulo: 'Segmentos', texto: 'Serviços financeiros, varejo e telecomunicações.' },
+    { titulo: 'Porte', texto: 'Empresas com 2.000 funcionários ou mais.' },
+    { titulo: 'Regiões', texto: 'Brasil e México.' },
+    { titulo: 'Tecnologia', texto: 'Nuvem pública (AWS, Azure ou Google Cloud) e data warehouse legado em migração.' },
+    { titulo: 'Maturidade de dados', texto: 'Time de dados próprio, com engenharia e ciência de dados.' },
+    { titulo: 'Fora do ICP', texto: 'Empresas sem time de dados próprio ou com operação só em servidores locais.' },
+  ],
+}
+
+/**
+ * As definições de Personas vigentes na Memória do Workspace da demonstração, uma por papel do Comitê de compra.
+ * Os Contatos de Contas e Contatos são classificados pelo nome delas.
+ */
+export const personasIniciais: DocumentoVigente = {
+  aprovadoEm: '2026-09-05',
+  aprovadoPor: { contaId: 'rafael', nome: 'Rafael Couto' },
+  secoes: [
+    {
+      titulo: 'Decisor técnico',
+      texto: 'CTO, VP de Engenharia ou Head de Dados. Avalia arquitetura, custo de nuvem e governança antes de recomendar a compra.',
+    },
+    { titulo: 'Patrocinador executivo', texto: 'CFO, COO ou CDO. Aprova o orçamento e cobra retorno do investimento em dados e IA.' },
+    { titulo: 'Líder técnico', texto: 'Gerente de engenharia de dados ou tech lead. Conduz a prova de conceito e a migração.' },
+    { titulo: 'Comitê executivo', texto: 'CEO e diretoria. Decide investimentos estratégicos acima do orçamento da área.' },
+    {
+      titulo: 'Decisor comercial',
+      texto: 'Head de Vendas ou diretor comercial. Decide quando a plataforma muda a operação ou a meta do time comercial.',
+    },
+    {
+      titulo: 'Campeão interno',
+      texto: 'Gestor de uma área parceira, como canais ou operações. Defende a compra por dentro e abre acesso a quem decide.',
+    },
+    {
+      titulo: 'Usuário-chave',
+      texto: 'Líder de uma área que vai usar a plataforma no dia a dia. Valida a prova de conceito e traz os requisitos de uso.',
+    },
+  ],
 }
 
 /**
@@ -47,6 +133,12 @@ export const agentes: RegistroDeAgente[] = [
   { id: 'oraculum-concorrencia-snowflake', nome: 'Oraculum · Concorrência Snowflake', tipo: 'criado', especialidadeId: 'oraculum', estado: 'detectou', execucoes: 12 },
 ]
 
+/**
+ * Quantas Execuções os Agentes de cada Especialidade fazem por dia antes de a sessão começar, perto da média das
+ * `execucoes` deles desde a criação do Workspace. O mês até hoje soma esse tanto por dia já começado.
+ */
+export const execucoesPorDia: Record<EspecialidadeId, number> = { scopus: 4, ethos: 2, rhetor: 3, oraculum: 1 }
+
 export const fatos: Fato[] = [
   { id: 'f1', agenteId: 'scopus', texto: 'O ciclo de venda enterprise da Databricks leva em média 6 meses.', origem: 'Aprendido na Conversa de 12/09/2026' },
   { id: 'f2', agenteId: 'scopus', texto: 'Contas-alvo com mais de 2.000 funcionários e time de dados próprio convertem 3 vezes mais.', origem: 'Aprendido no HubSpot em 03/09/2026' },
@@ -66,23 +158,23 @@ export const fatos: Fato[] = [
 ]
 
 export const habilidades: Habilidade[] = [
-  { id: 'h1', agenteId: 'scopus', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 148, ultimaMelhoria: '18/09/2026', ativa: true },
+  { id: 'h1', agenteId: 'scopus', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 148, ultimaMelhoria: '18/09/2026', ativa: true, usaDocumento: 'icp' },
   { id: 'h2', agenteId: 'scopus', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 37, ultimaMelhoria: '09/09/2026', ativa: true },
   { id: 'h3', agenteId: 'ethos', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 64, ultimaMelhoria: '14/09/2026', ativa: true },
   { id: 'h4', agenteId: 'ethos', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 29, ultimaMelhoria: '02/09/2026', ativa: false },
   { id: 'h5', agenteId: 'rhetor', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 121, ultimaMelhoria: '19/09/2026', ativa: true },
-  { id: 'h6', agenteId: 'rhetor', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 43, ultimaMelhoria: '11/09/2026', ativa: true },
+  { id: 'h6', agenteId: 'rhetor', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 43, ultimaMelhoria: '11/09/2026', ativa: true, usaDocumento: 'personas' },
   { id: 'h7', agenteId: 'oraculum', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 52, ultimaMelhoria: '15/09/2026', ativa: true },
   { id: 'h8', agenteId: 'oraculum', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 18, ultimaMelhoria: '08/09/2026', ativa: true },
   // Os Agentes criados começaram com uma cópia das Habilidades do Agente padrão e seguiram refinando com o uso.
-  { id: 'h9', agenteId: 'scopus-enterprise-latam', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 41, ultimaMelhoria: '15/09/2026', ativa: true },
+  { id: 'h9', agenteId: 'scopus-enterprise-latam', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 41, ultimaMelhoria: '15/09/2026', ativa: true, usaDocumento: 'icp' },
   { id: 'h10', agenteId: 'scopus-enterprise-latam', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 9, ultimaMelhoria: '01/09/2026', ativa: true },
   { id: 'h11', agenteId: 'ethos-comite-financeiro', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 14, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h12', agenteId: 'ethos-comite-financeiro', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 8, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h13', agenteId: 'rhetor-sequencias-outbound', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 26, ultimaMelhoria: '12/09/2026', ativa: true },
-  { id: 'h14', agenteId: 'rhetor-sequencias-outbound', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 38, ultimaMelhoria: '17/09/2026', ativa: true },
+  { id: 'h14', agenteId: 'rhetor-sequencias-outbound', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 38, ultimaMelhoria: '17/09/2026', ativa: true, usaDocumento: 'personas' },
   { id: 'h15', agenteId: 'rhetor-anuncios-meta', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 0, ultimaMelhoria: '05/09/2026', ativa: false },
-  { id: 'h16', agenteId: 'rhetor-anuncios-meta', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 11, ultimaMelhoria: '16/09/2026', ativa: true },
+  { id: 'h16', agenteId: 'rhetor-anuncios-meta', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 11, ultimaMelhoria: '16/09/2026', ativa: true, usaDocumento: 'personas' },
   { id: 'h17', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 8, ultimaMelhoria: '19/09/2026', ativa: true },
   { id: 'h18', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 3, ultimaMelhoria: '12/09/2026', ativa: true },
 ]
@@ -231,7 +323,7 @@ export const personalizacoes: Record<AgenteId, Personalizacao> = {
   },
 }
 
-export const aprovacoes: Aprovacao[] = [
+export const aprovacoes: AprovacaoDeAcao[] = [
   {
     id: 'ap1',
     agenteId: 'rhetor',

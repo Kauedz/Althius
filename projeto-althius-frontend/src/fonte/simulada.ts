@@ -3,8 +3,9 @@
 import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
+import { diaIso } from './formatar-data'
 import { normalizarNome, reconhecerMencoes } from './mencoes'
-import { ehEmailValido, nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
+import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
 import {
   consolidadaGenerica,
   etapaGenerica,
@@ -17,14 +18,30 @@ import {
   type PassoDeRoteiroCoordenado,
   type RoteiroCoordenado,
 } from './roteiros'
+import {
+  avisoDeAprovacaoDecidida,
+  avisoDeAprovacaoSolicitada,
+  avisoDeFalha,
+  avisoDeRevisaoDecidida,
+  type NovoAviso,
+} from './regras-avisos'
+import { DOCUMENTOS_DA_MEMORIA, efeitoDaDecisao, frasesDo, maiuscula } from './regras-memoria'
+import { criarMemoriaSimulada, FalhaAoGravar } from './simulada-memoria'
+import { criarParticipacoesSimuladas, type ArmazenamentoDemonstrativo, type Sessao } from './simulada-participacoes'
 import type {
   AcaoProposta,
   Agente,
   AgenteId,
   Aprovacao,
+  AprovacaoDeAcao,
+  AprovacaoDeRevisaoDecidida,
+  AprovacaoDeRevisaoPendente,
+  AvisoDoWorkspace,
   CanalId,
+  Decisao,
   EspecialidadeId,
   EstadoAgente,
+  ExecucoesNoPeriodo,
   FonteDeAgentes,
   Gatilho,
   IntegracaoId,
@@ -35,44 +52,34 @@ import type {
   Origem,
   PassoDaConversa,
   PassoDaCoordenacao,
-  Perfil,
 } from './tipos'
 
-const CHAVE_DO_PERFIL = 'althius:perfil'
-
-export interface ArmazenamentoDoPerfil {
-  getItem(chave: string): string | null
-  setItem(chave: string, valor: string): void
-}
+export type { ArmazenamentoDemonstrativo, Sessao } from './simulada-participacoes'
 
 export interface OpcoesFonteSimulada {
   /** Atraso simulado de cada resposta e de cada passo da Conversa. */
   atrasoMs?: number
   /**
-   * Quando presente, o perfil pessoal (nome, e-mail, foto) sobrevive a um refresh, associado à
-   * Conta de usuário. Sem isso, vale só na instância — útil para isolar os testes.
+   * Quando presente, o perfil pessoal (nome, e-mail, foto) e as preferências, associados à Conta de usuário, e o
+   * Workspace (informações, Participações, convites e a Memória do Workspace com as revisões propostas), associado ao
+   * Workspace, sobrevivem a um refresh. Sem isso,
+   * valem só na instância — útil para isolar os testes.
    */
-  armazenamento?: ArmazenamentoDoPerfil | null
+  armazenamento?: ArmazenamentoDemonstrativo | null
+  /** A Conta de usuário da sessão e, se preciso, o seu papel: só para preparar cenários de teste. */
+  sessao?: Sessao
+  /** O dia de referência do período do Plano, que vai do começo do mês até ele. Os testes o fixam. */
+  hoje?: Date
 }
 
-/** Lê o perfil salvo, ignorando o que não reconhece; sem armazenamento ou sem valor salvo, nada muda. */
-function perfilSalvo(armazenamento: ArmazenamentoDoPerfil | null): Partial<Perfil> {
-  if (!armazenamento) return {}
-  try {
-    const bruto = armazenamento.getItem(CHAVE_DO_PERFIL)
-    if (!bruto) return {}
-    const lido = JSON.parse(bruto) as Record<string, unknown>
-    const perfil: Partial<Perfil> = {}
-    if (typeof lido.nome === 'string') perfil.nome = lido.nome
-    if (typeof lido.email === 'string') perfil.email = lido.email
-    if (typeof lido.foto === 'string') perfil.foto = lido.foto
-    return perfil
-  } catch {
-    return {}
-  }
-}
-
-export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: OpcoesFonteSimulada = {}): FonteDeAgentes {
+export function criarFonteSimulada({
+  atrasoMs = 450,
+  armazenamento = null,
+  sessao,
+  hoje = new Date(),
+}: OpcoesFonteSimulada = {}): FonteDeAgentes {
+  const participacoes = criarParticipacoesSimuladas({ armazenamento, sessao, hoje })
+  const memoriaDoWorkspace = criarMemoriaSimulada({ armazenamento, participacoes, hoje })
   const estado = structuredClone({
     agentes: demo.agentes,
     fatos: demo.fatos,
@@ -84,14 +91,39 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
     personalizacoes: demo.personalizacoes,
     aprovacoes: demo.aprovacoes,
     previas: demo.previas,
-    usuario: { ...demo.workspace.usuario, ...perfilSalvo(armazenamento) },
   })
+  /**
+   * As Execuções desta sessão por Especialidade, que somam às do mês nos dados de exemplo. As que propuseram uma
+   * revisão da Memória do Workspace não entram aqui: contam pela revisão, que persiste com o Workspace.
+   */
+  const execucoesNaSessao = new Map<EspecialidadeId, number>()
   const ouvintes = new Set<() => void>()
+  const ouvintesDeAvisos = new Set<(aviso: AvisoDoWorkspace) => void>()
+  /** Quem pediu ao Agente, na Althius, o trabalho que propôs cada Aprovação: é quem recebe o resultado. */
+  const solicitantes = new Map<string, string>()
   let proximoId = 1
 
   const novoId = (prefixo: string) => `${prefixo}-${proximoId++}`
   const esperar = (ms = atrasoMs) => new Promise<void>((resolver) => setTimeout(resolver, ms))
   const avisar = () => ouvintes.forEach((ouvinte) => ouvinte())
+
+  /** Entrega o aviso a quem observa. O erro de um ouvinte fica com ele: a operação que gerou o aviso já terminou. */
+  function emitirAviso(novo: NovoAviso) {
+    const aviso: AvisoDoWorkspace = { ...novo, id: novoId('aviso') }
+    ouvintesDeAvisos.forEach((ouvinte) => {
+      try {
+        ouvinte(structuredClone(aviso))
+      } catch (erro) {
+        console.error(erro)
+      }
+    })
+  }
+
+  /** Uma Aprovação pedida pela sessão entrou na fila: guarda quem pediu e emite o aviso a quem pode decidir. */
+  function emitirAvisoDeSolicitacao(aprovacao: Aprovacao) {
+    solicitantes.set(aprovacao.id, participacoes.usuario().id)
+    emitirAviso(avisoDeAprovacaoSolicitada(aprovacao, nomeDe(aprovacao.agenteId), participacoes.participacoesAtivas()))
+  }
 
   async function responder<T>(valor: () => T): Promise<T> {
     await esperar(Math.min(atrasoMs, 120))
@@ -112,15 +144,59 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
 
   type NovoItem = Omit<ItemDeAtividade, 'id' | 'quando' | 'tipo'>
 
-  /** Registra uma Execução na Atividade do Agente: é só aqui que as execuções dele sobem. */
+  /**
+   * Põe o item na Atividade; uma falha também é avisada a quem pediu o trabalho. Hoje toda falha nasce de um pedido
+   * da sessão (uma revisão ou uma decisão); uma falha de Rotina ou de Canal precisaria de outro destinatário.
+   */
+  function registrarNaAtividade(item: ItemDeAtividade) {
+    estado.atividade.unshift(item)
+    if (!item.falhou) return
+    const quemPediu = participacoes.usuario().id
+    emitirAviso(avisoDeFalha(item, nomeDe(item.agenteId), quemPediu, participacoes.participacoesAtivas()))
+  }
+
+  function novaExecucao(item: NovoItem): ItemDeAtividade {
+    return { ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' }
+  }
+
+  /**
+   * Registra uma Execução na Atividade do Agente e a conta nas dele e nas do mês no Plano. A que propõe uma revisão da
+   * Memória do Workspace só entra na Atividade: conta pela revisão (`revisoesDoAgente`).
+   */
   function registrarExecucao(item: NovoItem) {
-    estado.atividade.unshift({ ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' })
-    buscar(estado.agentes, item.agenteId).execucoes++
+    registrarNaAtividade(novaExecucao(item))
+    const agente = buscar(estado.agentes, item.agenteId)
+    agente.execucoes++
+    execucoesNaSessao.set(agente.especialidadeId, (execucoesNaSessao.get(agente.especialidadeId) ?? 0) + 1)
+  }
+
+  /** As revisões da Memória do Workspace propostas pelo Agente: cada uma é o resultado de uma Execução dele. */
+  const revisoesDoAgente = (agenteId: AgenteId) => memoriaDoWorkspace.revisoes().filter((r) => r.agenteId === agenteId)
+
+  /**
+   * As Execuções do começo do mês até hoje: as dos dados de exemplo, um tanto por dia, as desta sessão e as que
+   * propuseram as revisões pedidas no período, que continuam na fila depois de recarregar.
+   */
+  function execucoesNoMes(): ExecucoesNoPeriodo {
+    const inicio = diaIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1))
+    const fim = diaIso(hoje)
+    const revisoesNoPeriodo = memoriaDoWorkspace
+      .revisoes()
+      .filter(({ revisao }) => revisao.pedidaEm >= inicio && revisao.pedidaEm <= fim)
+    const porEspecialidade = especialidades.map(({ id, nome }) => ({
+      especialidadeId: id,
+      nome,
+      total:
+        demo.execucoesPorDia[id] * hoje.getDate() +
+        (execucoesNaSessao.get(id) ?? 0) +
+        revisoesNoPeriodo.filter(({ revisao }) => DOCUMENTOS_DA_MEMORIA[revisao.documento].especialidade === id).length,
+    }))
+    return { inicio, fim, total: porEspecialidade.reduce((soma, { total }) => soma + total, 0), porEspecialidade }
   }
 
   /** Registra uma ação dentro de uma Execução (agir pela Permissão Executar, decidir uma Aprovação). */
   function registrarAcao(item: NovoItem) {
-    estado.atividade.unshift({ ...item, tipo: 'acao', id: novoId('atividade'), quando: 'Agora' })
+    registrarNaAtividade({ ...item, tipo: 'acao', id: novoId('atividade'), quando: 'Agora' })
   }
 
   /** O lugar da decisão, para a descrição na Atividade (ex.: "na fila", "no Slack"). */
@@ -180,6 +256,7 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
     const personalizacao = estado.personalizacoes[agente.id]
     return {
       ...agente,
+      execucoes: agente.execucoes + revisoesDoAgente(agente.id).length,
       especialidade: daEspecialidade,
       descricao: (agente.tipo === 'criado' && personalizacao.instrucoes) || daEspecialidade.descricao,
       rotinaAtiva: estado.rotinas.find((r) => r.agenteId === agente.id && !r.pausada) ?? null,
@@ -227,7 +304,8 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
    */
   function criarAprovacao(agenteId: AgenteId, acao: AcaoProposta, origem: Origem, gatilho: Gatilho): string {
     const aprovacaoId = novoId('aprovacao')
-    estado.aprovacoes.unshift({ ...acao, id: aprovacaoId, agenteId, origem, gatilho, estado: 'pendente' })
+    const aprovacao: AprovacaoDeAcao = { ...acao, id: aprovacaoId, agenteId, origem, gatilho, estado: 'pendente' }
+    estado.aprovacoes.unshift(aprovacao)
     if (origem !== 'althius') {
       estado.previas
         .find((p) => p.canalId === origem)
@@ -239,6 +317,7 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
         })
     }
     avisar()
+    emitirAvisoDeSolicitacao(aprovacao)
     return aprovacaoId
   }
 
@@ -302,6 +381,52 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
     return [...passos.slice(0, indiceDaResposta), ...extras, ...passos.slice(indiceDaResposta)]
   }
 
+  /** Toda a fila: as revisões da Memória do Workspace, que persistem com ele, e as demais Aprovações. */
+  function todasAsAprovacoes(): Aprovacao[] {
+    return [...memoriaDoWorkspace.revisoes(), ...estado.aprovacoes]
+  }
+
+  /**
+   * Decide uma revisão da Memória do Workspace. Como toda decisão, é uma ação da Execução que a propôs; se a
+   * gravação falhar, a falha entra na Atividade e nada muda.
+   */
+  function decidirRevisao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {
+    const { agenteId, gatilho, acao, revisao } = buscar(memoriaDoWorkspace.revisoes(), aprovacaoId)
+    const { documento } = revisao
+    const { oVigente, dele } = frasesDo(documento)
+    const dependem = `as configurações que dependem ${dele}`
+    const link = { rotulo: 'Ver Memória do Workspace', para: `/configuracoes/memoria/${documento}` }
+    let decidida: AprovacaoDeRevisaoDecidida
+    try {
+      decidida = memoriaDoWorkspace.decidir(aprovacaoId, decisao)
+    } catch (erro) {
+      if (!(erro instanceof FalhaAoGravar)) throw erro
+      registrarAcao({
+        agenteId,
+        gatilho,
+        descricao: `Falhou ao decidir ${ondeFoiDecidida(onde)}: ${acao}`,
+        resultado: `Nada foi alterado: ${oVigente} e ${dependem} continuam como estavam.`,
+        link,
+        falhou: true,
+      })
+      avisar()
+      throw new Error(
+        `Não foi possível concluir a decisão. ${maiuscula(oVigente)} e ${dependem} continuam como estavam; a proposta segue pendente.`,
+      )
+    }
+    registrarAcao({
+      agenteId,
+      gatilho,
+      descricao: `${ROTULO_DA_DECISAO[decisao]} ${ondeFoiDecidida(onde)}: ${acao}`,
+      resultado:
+        decisao === 'aprovada'
+          ? `${efeitoDaDecisao(documento, decisao)} Nenhuma ação externa foi refeita.`
+          : efeitoDaDecisao(documento, decisao),
+      link,
+    })
+    emitirAviso(avisoDeRevisaoDecidida(decisao, decidida.revisao, participacoes.participacoesAtivas()))
+  }
+
   /** A Permissão do Agente na Integração decide: Propor vira Aprovação, Executar age sozinho, Ler não age. */
   function agir(agenteId: AgenteId, acao: AcaoProposta): PassoDaCoordenacao {
     const permissao = estado.personalizacoes[agenteId].permissoes[acao.integracaoId]
@@ -326,22 +451,37 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
       ouvintes.add(ouvinte)
       return () => ouvintes.delete(ouvinte)
     },
+    observarAvisos(ouvinte) {
+      ouvintesDeAvisos.add(ouvinte)
+      return () => ouvintesDeAvisos.delete(ouvinte)
+    },
 
     workspace: () =>
       responder(() => ({
-        ...demo.workspace,
-        usuario: estado.usuario,
-        aprovacoesPendentes: estado.aprovacoes.filter((a) => a.estado === 'pendente').length,
+        cliente: participacoes.informacoes().nome,
+        descricao: participacoes.informacoes().descricao,
+        usuario: participacoes.usuario(),
+        papel: participacoes.papelDaSessao(),
+        aprovacoesPendentes: todasAsAprovacoes().filter((a) => a.estado === 'pendente').length,
       })),
-    salvarPerfil: (perfil) =>
-      mudar(() => {
-        const nome = perfil.nome.trim()
-        if (!nome) throw new Error('Informe seu nome.')
-        const email = perfil.email.trim()
-        if (!ehEmailValido(email)) throw new Error('Informe um e-mail em formato válido.')
-        estado.usuario = { ...estado.usuario, nome, email: email.toLowerCase(), foto: perfil.foto }
-        armazenamento?.setItem(CHAVE_DO_PERFIL, JSON.stringify(estado.usuario))
-      }),
+    salvarPerfil: (perfil) => mudar(() => participacoes.salvarPerfil(perfil)),
+    preferencias: () => responder(() => participacoes.preferencias()),
+    salvarPreferencias: (preferencias) => mudar(() => participacoes.salvarPreferencias(preferencias)),
+
+    participantesDoWorkspace: () => responder(() => participacoes.participantesDoWorkspace()),
+    contaDeUsuario: (contaId) => responder(() => participacoes.contaComParticipacoes(contaId)),
+    salvarInformacoesDoWorkspace: (informacoes) => mudar(() => participacoes.salvarInformacoes(informacoes)),
+    async convidarParaWorkspace(novo) {
+      await esperar(Math.min(atrasoMs, 120))
+      const convite = participacoes.convidar(novo)
+      avisar()
+      return structuredClone(convite)
+    },
+    cancelarConvite: (conviteId) => mudar(() => participacoes.cancelarConvite(conviteId)),
+    mudarPapel: (contaId, papel) => mudar(() => participacoes.mudarPapel(contaId, papel)),
+    removerDoWorkspace: (contaId) => mudar(() => participacoes.remover(contaId)),
+
+    plano: () => responder(() => participacoes.plano(execucoesNoMes())),
 
     especialidades: () => responder(() => especialidades),
 
@@ -439,9 +579,47 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
         return previa
       }),
 
-    aprovacoes: () => responder(() => estado.aprovacoes),
+    memoriaDoWorkspace: () => responder(() => memoriaDoWorkspace.memoria()),
+    async solicitarRevisao(documento, pedido) {
+      await esperar()
+      const { agenteId } = DOCUMENTOS_DA_MEMORIA[documento]
+      const { oVigente, naoMudou } = frasesDo(documento)
+      const oVigenteNaoMudou = `${oVigente} ${naoMudou}`
+      let aprovacao: AprovacaoDeRevisaoPendente
+      try {
+        aprovacao = memoriaDoWorkspace.solicitar(documento, pedido)
+      } catch (erro) {
+        if (!(erro instanceof FalhaAoGravar)) throw erro
+        registrarExecucao({
+          agenteId,
+          gatilho: 'conversa',
+          descricao: `Respondeu a um pedido de revisão: "${pedido.trim()}"`,
+          resultado: `Não registrou a proposta: ${oVigenteNaoMudou}.`,
+          falhou: true,
+        })
+        avisar()
+        throw new Error(`Não foi possível registrar a proposta. ${maiuscula(oVigenteNaoMudou)}; tente de novo.`)
+      }
+      const { revisao } = aprovacao
+      // O pedido é uma Conversa com o Agente: a proposta é o resultado dessa Execução, que conta pela revisão.
+      registrarNaAtividade(
+        novaExecucao({
+          agenteId,
+          gatilho: 'conversa',
+          descricao: `Respondeu ao pedido de revisão de ${revisao.solicitante.nome}: "${revisao.pedido}"`,
+          resultado: `Propôs: ${aprovacao.acao}. Aguardando a decisão de um Administrador.`,
+          link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
+        }),
+      )
+      avisar()
+      emitirAvisoDeSolicitacao(aprovacao)
+      return structuredClone(aprovacao)
+    },
+
+    aprovacoes: () => responder(todasAsAprovacoes),
     decidirAprovacao: (aprovacaoId, decisao, onde) =>
       mudar(() => {
+        if (memoriaDoWorkspace.ehRevisao(aprovacaoId)) return decidirRevisao(aprovacaoId, decisao, onde)
         const aprovacao = buscar(estado.aprovacoes, aprovacaoId)
         aprovacao.estado = decisao
         registrarAcao({
@@ -453,6 +631,16 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
             ? { rotulo: 'Ver sequência', para: `/sequencias/${aprovacao.sequenciaId}` }
             : { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
         })
+        const { id: contaId, nome } = participacoes.usuario()
+        const decisaoDaSessao = { solicitanteId: solicitantes.get(aprovacaoId), decididaPor: { contaId, nome } }
+        emitirAviso(
+          avisoDeAprovacaoDecidida(
+            aprovacao,
+            decisao,
+            { ...decisaoDaSessao, onde: ondeFoiDecidida(onde) },
+            participacoes.participacoesAtivas(),
+          ),
+        )
       }),
     proporAprovacao: async (proposta) => {
       await esperar(Math.min(atrasoMs, 120))
@@ -461,7 +649,7 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
         if (existente) return structuredClone(existente)
       }
       const aprovacaoId = novoId('aprovacao')
-      const nova: Aprovacao = {
+      const nova: AprovacaoDeAcao = {
         id: aprovacaoId,
         agenteId: proposta.agenteId,
         acao: proposta.acao,
@@ -487,6 +675,7 @@ export function criarFonteSimulada({ atrasoMs = 450, armazenamento = null }: Opc
           })
       }
       avisar()
+      emitirAvisoDeSolicitacao(nova)
       return structuredClone(nova)
     },
 

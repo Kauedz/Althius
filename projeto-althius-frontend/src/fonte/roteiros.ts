@@ -1,7 +1,7 @@
 // Roteiros pré-gravados da Conversa e da Coordenação. Valem só para o protótipo (ADR 0003):
 // no produto real, os Agentes respondem de forma robusta a qualquer entrada.
 import { normalizarNome } from './mencoes'
-import type { AcaoProposta, AgenteId, Aprovacao, EspecialidadeId, Sugestao } from './tipos'
+import type { AcaoProposta, AgenteId, AprovacaoDeAcao, DocumentoDaMemoria, EspecialidadeId, SecaoDoDocumento, Sugestao } from './tipos'
 
 /**
  * Um passo de roteiro. Os roteiros são escritos por Especialidade (`ator` guarda um EspecialidadeId),
@@ -12,7 +12,7 @@ export type PassoDeRoteiro<Ator = EspecialidadeId> =
   | { tipo: 'ferramenta'; ator: Ator; descricao: string }
   | { tipo: 'texto'; ator: Ator; texto: string }
   | { tipo: 'repasse'; de: Ator; para: Ator; resumo: string }
-  | { tipo: 'aprovacao'; ator: Ator; aprovacao: Omit<Aprovacao, 'id' | 'estado' | 'agenteId' | 'gatilho'> }
+  | { tipo: 'aprovacao'; ator: Ator; aprovacao: AcaoProposta & Pick<AprovacaoDeAcao, 'origem' | 'contaId' | 'contaNome' | 'sequenciaId'> }
 
 export const roteiros: Record<string, PassoDeRoteiro[]> = {
   'scopus-aderencia': [
@@ -32,7 +32,7 @@ export const roteiros: Record<string, PassoDeRoteiro[]> = {
       tipo: 'texto',
       ator: 'scopus',
       texto:
-        'Revisei o ICP com os 38 clientes que fecharam em 2026.\n\nMudanças propostas:\n- Tamanho mínimo sobe de 1.000 para 2.000 funcionários\n- Entra um critério novo: time de dados próprio com 20 pessoas ou mais\n- Setores com maior conversão: tecnologia, serviços financeiros e saúde\n\nCom o ICP novo, 212 Contas-alvo da base deixam de ser prioritárias e 64 entram.',
+        'Cruzei o ICP com os 38 clientes que fecharam em 2026.\n\nO que os dados sugerem:\n- Empresas a partir de 1.000 funcionários também estão fechando\n- Colômbia e Chile estão entre as oportunidades que mais avançam\n- Saúde converte melhor que varejo\n\nIsto é só uma análise: o ICP vigente não mudou. Para propor a mudança, peça a revisão na Memória do Workspace, em Configurações. A proposta vai para Aprovações e só vale quando um Administrador aprovar.',
     },
   ],
   'colaboracao-openai': [
@@ -374,4 +374,48 @@ export function respostaDireta(texto: string): PassoDeRoteiroCoordenado<AgenteId
     tipo: 'resposta',
     texto: `Dá para responder "${texto.trim()}" sem chamar um agente.\n\n- ICP é o perfil de quem mais tende a comprar\n- Aderência é a nota de uma Conta-alvo nesse perfil\n- Comitê de compra é quem decide, influencia e aprova\n\nSe o pedido precisar de uma Especialidade, mencione um agente com @ ou use uma sugestão.`,
   }
+}
+
+/**
+ * As revisões que o Agente de cada documento propõe na demonstração (o Scopus no ICP, o Ethos nas Personas), em
+ * ciclo: cada pedido aplica a próxima ao documento vigente. Uma seção com texto novo substitui a de mesmo título; um
+ * título novo entra no fim.
+ */
+export const revisoesDaMemoria: Record<DocumentoDaMemoria, { resposta: string; mudancas: SecaoDoDocumento[] }[]> = {
+  icp: [
+    {
+      resposta: 'Cruzei os fechamentos de 2026 com as oportunidades abertas: empresas menores e a região andina estão convertendo.',
+      mudancas: [
+        { titulo: 'Porte', texto: 'Empresas com 1.000 funcionários ou mais.' },
+        { titulo: 'Regiões', texto: 'Brasil, México, Colômbia e Chile.' },
+      ],
+    },
+    {
+      resposta: 'As últimas Contas-alvo com Fit vieram de saúde, e o varejo parou de avançar depois da prova de conceito.',
+      mudancas: [
+        { titulo: 'Segmentos', texto: 'Serviços financeiros, saúde e telecomunicações.' },
+        { titulo: 'Fora do ICP', texto: 'Varejo sem time de dados próprio e empresas com operação só em servidores locais.' },
+      ],
+    },
+  ],
+  personas: [
+    {
+      resposta: 'Nas calls gravadas do mês, governança apareceu em quase todas as objeções. Proponho uma Persona própria.',
+      mudancas: [
+        {
+          titulo: 'Líder de governança de dados',
+          texto: 'Head de Governança ou DPO. Valida privacidade, linhagem e acesso aos dados antes da aprovação técnica.',
+        },
+      ],
+    },
+    {
+      resposta: 'O Decisor técnico está chegando mais tarde nas negociações; ajustei a descrição para refletir isso.',
+      mudancas: [
+        {
+          titulo: 'Decisor técnico',
+          texto: 'CTO, VP de Engenharia ou Head de Dados. Entra depois da prova de conceito e decide pela arquitetura e pelo custo de nuvem.',
+        },
+      ],
+    },
+  ],
 }

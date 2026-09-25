@@ -54,7 +54,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
     // Impacto e botões de decisão
     expect(within(cardAprovacao).getByText(/steps multicanal para 2 contatos/i)).toBeInTheDocument()
     expect(within(cardAprovacao).getByRole('button', { name: 'Aprovar' })).toBeInTheDocument()
-    expect(within(cardAprovacao).getByRole('button', { name: 'Rejeitar' })).toBeInTheDocument()
+    expect(within(cardAprovacao).getByRole('button', { name: 'Recusar' })).toBeInTheDocument()
   })
 
   it('aprovar na Conversa marca como aprovada e registra na Atividade sem disparar envio externo', async () => {
@@ -84,7 +84,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
     // O status muda para Aprovada sem botões
     expect(await within(secaoAprovacao).findByText('Aprovada')).toBeInTheDocument()
     expect(within(secaoAprovacao).queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
-    expect(within(secaoAprovacao).queryByRole('button', { name: 'Rejeitar' })).not.toBeInTheDocument()
+    expect(within(secaoAprovacao).queryByRole('button', { name: 'Recusar' })).not.toBeInTheDocument()
 
     // Navega para a página do Rhetor para conferir registro na Atividade
     const navEspecialistas = screen.getByRole('navigation', { name: 'Especialistas' })
@@ -152,11 +152,11 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
       '/sequencias/sequencia-openai',
     )
 
-    // Rejeita a proposta na fila
-    await usuario.click(within(cartaoFila).getByRole('button', { name: 'Rejeitar' }))
+    // Recusa a proposta na fila
+    await usuario.click(within(cartaoFila).getByRole('button', { name: 'Recusar' }))
 
-    // Fica marcada como Rejeitada
-    expect(await within(cartaoFila).findByText('Rejeitada')).toBeInTheDocument()
+    // Fica marcada como Recusada
+    expect(await within(cartaoFila).findByText('Recusada')).toBeInTheDocument()
 
     // Contador de pendentes na sidebar volta para 2
     expect(
@@ -170,7 +170,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
     await usuario.click(within(subabas).getByRole('link', { name: 'Atividade' }))
 
     const itemAtividade = await screen.findByText(
-      /Rejeitada na fila: Ativar sequência da Conta-alvo OpenAI/i,
+      /Recusada na fila: Ativar sequência da Conta-alvo OpenAI/i,
     )
     expect(itemAtividade).toBeInTheDocument()
     const containerItem = itemAtividade.closest('article') || itemAtividade.closest('li')!
