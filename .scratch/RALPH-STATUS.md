@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T19:10-03:00
+Updated: 2026-09-25T19:25-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -13,9 +13,9 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-03 | done (código) | ralph/auth-03-cadastro-com-senha · PR #20 (draft, base Auth-02) | AC 7/8; suíte 540/540; 1 AC depende de e-mail para conta existente (Send Email Hook → Auth-10) |
 | Auth-04 | done | ralph/auth-04-entrar-com-senha-ou-codigo · PR #21 (draft, base Auth-02) | AC 5/5; suíte 537/537 |
 | Auth-05 | done | ralph/auth-05-esqueci-a-senha · PR #22 (draft, base Auth-03; inclui junção com Auth-04) | AC 5/5; suíte 552/552 |
-| Auth-06 | running | ralph/auth-06-senhas-vazadas | HIBP k-anon + dependência injetada dos serviços do navegador |
-| Auth-07 | queued | | Google GIS + One Tap; ∥ Auth-08 |
-| Auth-08 | queued | | Turnstile; ∥ Auth-07 |
+| Auth-06 | done | ralph/auth-06-senhas-vazadas · PR #24 (draft, base Auth-05) | AC 6/6; suíte 560/560; criou `ServicosDoNavegador` |
+| Auth-07 | running | ralph/auth-07-continuar-com-google | ∥ Auth-08, a partir de Auth-06 |
+| Auth-08 | running | ralph/auth-08-captcha-invisivel | ∥ Auth-07, a partir de Auth-06 |
 | CRM-04 | queued | | Contas-alvo reais |
 | CRM-05 | queued | | Contatos e vínculos |
 | CRM-17 | conditional | | só se a FK textual Seq↔Conta bloquear |
@@ -37,6 +37,7 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-03 | ~108k |
 | Auth-04 | ~115k |
 | Auth-05 | ~165k |
+| Auth-06 | ~135k |
 
 ## Alerts
 - Pendências humanas acumuladas para o Auth-10: modelos de e-mail "Confirm signup", "Magic Link" e "Reset Password" com `{{ .Token }}` além do link; e-mail para quem tenta se cadastrar com e-mail existente (Supabase não envia; exige Send Email Hook); páginas `/termos` e `/privacidade` (hoje provisórias).
