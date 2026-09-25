@@ -11,6 +11,25 @@ import { TelasDeAcesso } from './telas-de-acesso'
 /** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
 const CHAVE_DO_WORKSPACE = 'althius:workspace'
 
+/** O último Workspace que a Conta de usuário usou neste navegador, para o próximo login voltar a ele. */
+const chaveDoUltimoWorkspace = (usuarioId: string) => `althius:ultimo-workspace:${usuarioId}`
+
+function lerUltimoWorkspace(usuarioId: string): string | null {
+  try {
+    return localStorage.getItem(chaveDoUltimoWorkspace(usuarioId))
+  } catch {
+    return null
+  }
+}
+
+function lembrarUltimoWorkspace(usuarioId: string, workspaceId: string) {
+  try {
+    localStorage.setItem(chaveDoUltimoWorkspace(usuarioId), workspaceId)
+  } catch {
+    // Sem armazenamento, o próximo login só não volta a este Workspace.
+  }
+}
+
 interface Participacao {
   workspace_id: string
   role: 'member' | 'admin'
@@ -87,14 +106,19 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       }
       const lista = (data ?? []) as Participacao[]
       setParticipacoes(lista)
-      // Ordem de entrada: o Workspace usado por último nesta aba; sem outro destino, o Workspace pessoal.
+      // Ordem de entrada: o Workspace desta aba, o último usado pela Conta de usuário e, sem outro destino, o pessoal.
+      // Só vale um Workspace com Participação ativa.
       const salvo = sessionStorage.getItem(CHAVE_DO_WORKSPACE)
-      const destino = [salvo, pessoal.id].find((id) => lista.some((p) => p.workspace_id === id))
+      const destino = [salvo, lerUltimoWorkspace(usuarioId), pessoal.id].find((id) => lista.some((p) => p.workspace_id === id))
       setWorkspaceId(destino ?? (lista.length === 1 ? lista[0].workspace_id : ''))
     })()
 
     return () => { ativo = false }
   }, [cliente, usuarioId, tentativa])
+
+  useEffect(() => {
+    if (usuarioId && workspaceId) lembrarUltimoWorkspace(usuarioId, workspaceId)
+  }, [usuarioId, workspaceId])
 
   if (carregandoSessao) return <TelaDeEstado>Verificando sessão…</TelaDeEstado>
   if (!sessao) return <TelasDeAcesso aoAcessarDemonstracao={aoAcessarDemonstracao} />
