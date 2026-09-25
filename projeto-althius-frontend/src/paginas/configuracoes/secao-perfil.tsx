@@ -22,8 +22,185 @@ export function SecaoPerfil() {
           Como você aparece para as outras pessoas do Workspace. Vale só para a sua Conta de usuário.
         </p>
       </div>
-      {!workspace ? <Carregando /> : <FormularioDePerfil usuario={workspace.usuario} />}
+      {!workspace ? (
+        <Carregando />
+      ) : (
+        <>
+          <FormularioDePerfil usuario={workspace.usuario} />
+          <SenhaDemonstrativa />
+        </>
+      )}
     </section>
+  )
+}
+
+function SenhaDemonstrativa() {
+  const [aberta, setAberta] = useState(false)
+  const [atual, setAtual] = useState('')
+  const [nova, setNova] = useState('')
+  const [confirmacao, setConfirmacao] = useState('')
+  const [erros, setErros] = useState<{ atual?: string; nova?: string; confirmacao?: string }>({})
+  const [concluida, setConcluida] = useState(false)
+  const abrirRef = useRef<HTMLButtonElement>(null)
+  const atualRef = useRef<HTMLInputElement>(null)
+  const novaRef = useRef<HTMLInputElement>(null)
+  const confirmacaoRef = useRef<HTMLInputElement>(null)
+
+  function limparCampos() {
+    setAtual('')
+    setNova('')
+    setConfirmacao('')
+    setErros({})
+  }
+
+  function cancelar() {
+    limparCampos()
+    setAberta(false)
+    requestAnimationFrame(() => abrirRef.current?.focus())
+  }
+
+  function alterar(evento: FormEvent) {
+    evento.preventDefault()
+    const novosErros = {
+      atual: atual ? undefined : 'Informe a senha atual.',
+      nova: nova ? undefined : 'Informe a nova senha.',
+      confirmacao: !confirmacao
+        ? 'Repita a nova senha.'
+        : confirmacao !== nova
+          ? 'A confirmação não é igual à nova senha.'
+          : undefined,
+    }
+    setErros(novosErros)
+
+    if (novosErros.atual || novosErros.nova || novosErros.confirmacao) {
+      if (novosErros.atual) atualRef.current?.focus()
+      else if (novosErros.nova) novaRef.current?.focus()
+      else confirmacaoRef.current?.focus()
+      return
+    }
+
+    // Este formulário é apenas demonstrativo: não valida nem transmite a senha atual.
+    limparCampos()
+    setAberta(false)
+    setConcluida(true)
+    requestAnimationFrame(() => abrirRef.current?.focus())
+  }
+
+  return (
+    <section aria-labelledby="titulo-senha" className="flex flex-col gap-5 border-t border-al-line pt-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h3 id="titulo-senha" className="text-lg font-medium">
+            Senha
+          </h3>
+          <p className="text-sm text-al-muted">A demonstração não mostra nem verifica uma senha existente.</p>
+        </div>
+        {!aberta && (
+          <Button
+            ref={abrirRef}
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setConcluida(false)
+              setAberta(true)
+            }}
+          >
+            Alterar senha
+          </Button>
+        )}
+      </div>
+
+      {aberta && (
+        <form aria-label="Alterar senha" noValidate onSubmit={alterar} className="flex max-w-sm flex-col gap-5">
+          <CampoDeSenha
+            id="senha-atual"
+            rotulo="Senha atual"
+            valor={atual}
+            erro={erros.atual}
+            referencia={atualRef}
+            aoAlterar={(valor) => {
+              setAtual(valor)
+              setErros((atuais) => ({ ...atuais, atual: undefined }))
+            }}
+          />
+          <CampoDeSenha
+            id="senha-nova"
+            rotulo="Nova senha"
+            valor={nova}
+            erro={erros.nova}
+            referencia={novaRef}
+            aoAlterar={(valor) => {
+              setNova(valor)
+              setErros((atuais) => ({ ...atuais, nova: undefined, confirmacao: undefined }))
+            }}
+          />
+          <CampoDeSenha
+            id="senha-confirmacao"
+            rotulo="Confirmar nova senha"
+            valor={confirmacao}
+            erro={erros.confirmacao}
+            referencia={confirmacaoRef}
+            aoAlterar={(valor) => {
+              setConfirmacao(valor)
+              setErros((atuais) => ({ ...atuais, confirmacao: undefined }))
+            }}
+          />
+          <div className="flex gap-2">
+            <Button type="submit">Alterar senha</Button>
+            <Button type="button" variant="ghost" onClick={cancelar}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {concluida && (
+        <p role="status" className="max-w-2xl border border-al-line bg-al-surface px-4 py-3 text-sm text-al-muted">
+          Demonstração: nenhuma senha foi alterada. A senha atual não foi validada e os campos foram limpos sem guardar o que você digitou.
+        </p>
+      )}
+    </section>
+  )
+}
+
+function CampoDeSenha({
+  id,
+  rotulo,
+  valor,
+  erro,
+  referencia,
+  aoAlterar,
+}: {
+  id: string
+  rotulo: string
+  valor: string
+  erro?: string
+  referencia: React.RefObject<HTMLInputElement | null>
+  aoAlterar: (valor: string) => void
+}) {
+  const idErro = `${id}-erro`
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="rotulo">
+        {rotulo}
+      </label>
+      <input
+        ref={referencia}
+        id={id}
+        type="password"
+        autoComplete="off"
+        value={valor}
+        onChange={(evento) => aoAlterar(evento.target.value)}
+        aria-invalid={Boolean(erro)}
+        aria-describedby={erro ? idErro : undefined}
+        className="campo"
+      />
+      {erro && (
+        <p id={idErro} role="alert" className="text-sm text-al-erro">
+          {erro}
+        </p>
+      )}
+    </div>
   )
 }
 
