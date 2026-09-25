@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ehCanalSuportado, type AtualizacaoDocumento, type FonteDeSequencias, type MetricasDemoSequencia, type NovaSequencia, type ResumoPublicoSequencia, type Sequencia, type StepSequencia, type StatusSequencia } from './sequencias-tipos'
-import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 
 interface RegistroSequencia {
@@ -52,14 +51,6 @@ function mapear(row: RegistroSequencia, ehResponsavel: boolean): Sequencia {
     totalParticipantes: numeroSeguro(resumo.totalParticipantes) || participantesIds.length,
     criadaEm: row.created_at,
     atualizadaEm: row.updated_at,
-  }
-}
-
-/** O que o backend aceita num passo: um canal suportado e nenhum anexo, que o Workspace ainda não sabe guardar. */
-function validarPassos(steps: StepSequencia[]) {
-  for (const step of steps) {
-    if (!ehCanalSuportado(step.canal)) throw new Error(`Canal "${step.canal}" fora do escopo.`)
-    if (step.anexos?.length) throw new ErroDeModuloIndisponivel('anexos')
   }
 }
 
@@ -134,6 +125,7 @@ export function criarFonteDeSequenciasSupabase(
   }
 
   return {
+    modo: 'real',
     hoje: () => new Date(),
     observar,
     async sequencias() {
@@ -156,7 +148,7 @@ export function criarFonteDeSequenciasSupabase(
     async criarSequencia(nova: NovaSequencia) {
       const participantesIds = nova.participantesIds ?? []
       const steps = nova.steps ?? []
-      validarPassos(steps)
+      for (const step of steps) if (!ehCanalSuportado(step.canal)) throw new Error(`Canal "${step.canal}" fora do escopo.`)
       const documento: DocumentoPrivado = {
         participantesIds,
         janelaPadrao: nova.janelaPadrao ?? JANELA_PADRAO,
@@ -189,7 +181,7 @@ export function criarFonteDeSequenciasSupabase(
           ? { motivoPause: atualizacao.motivoPause }
           : atual.motivoPause ? { motivoPause: atual.motivoPause } : {}),
       }
-      validarPassos(atualizacao.steps ?? [])
+      for (const step of atualizacao.steps ?? []) if (!ehCanalSuportado(step.canal)) throw new Error(`Canal "${step.canal}" fora do escopo.`)
       const estado: StatusSequencia = atualizacao.status ?? atual.status
       const { error } = await cliente.rpc('update_owned_sequence', {
         p_sequence_id: id,

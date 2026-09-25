@@ -1,7 +1,6 @@
 import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
-import type { Ambiente } from '@/fonte/ambiente'
 import type { FonteDeContas, FonteDeOnboarding } from '@/fonte/tipos'
 import { criarFonteDeContasSimulada, type OpcoesFonteDeContasSimulada } from '@/fonte/simulada-contas'
 import {
@@ -98,17 +97,16 @@ function montarApp({
   fonteDeSinais.vincularFonteDeContas(fonteDeContas)
   const usuario = userEvent.setup()
   if (noNavegador) window.history.replaceState(null, '', rota)
-  const ambiente: Ambiente = {
-    modo: 'demonstracao',
-    fonte,
-    fonteDeContas: ajustarContas(fonteDeContas),
-    fonteDeSequencias,
-    fonteDeOnboarding: ajustarOnboarding(fonteDeOnboarding),
-    fonteDeSinais,
-    indisponiveis: new Set(),
-  }
   const resultado = render(
-    <App ambiente={ambiente} rotaInicial={noNavegador ? undefined : rota} animarDigitacao={false} />,
+    <App
+      fonte={fonte}
+      fonteDeContas={ajustarContas(fonteDeContas)}
+      fonteDeSequencias={fonteDeSequencias}
+      fonteDeOnboarding={ajustarOnboarding(fonteDeOnboarding)}
+      fonteDeSinais={fonteDeSinais}
+      rotaInicial={noNavegador ? undefined : rota}
+      animarDigitacao={false}
+    />,
   )
   return {
     ...resultado,

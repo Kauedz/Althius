@@ -93,21 +93,6 @@ describe('Voltar do detalhe para a aba Contas', () => {
   })
 })
 
-describe('Rolagem da lista ao trocar de ambiente', () => {
-  it('o app montado para outro ambiente não restaura a rolagem guardada no anterior', async () => {
-    const anterior = renderizarAppNoNavegador(RECORTE_DAS_CONTAS)
-    await abrirPrimeiraConta(anterior.usuario)
-    // Trocar de ambiente desmonta o app inteiro e monta outro, no mesmo histórico do navegador.
-    anterior.unmount()
-    renderizarAppNoNavegador(window.location.pathname)
-
-    await voltarPeloNavegador()
-
-    expect(await screen.findByRole('table', { name: 'Tabela de Contas' })).toBeInTheDocument()
-    expect(quadroDaTabela('Tabela de Contas').scrollTop).toBe(0)
-  })
-})
-
 const RECORTE_DOS_CONTATOS = '/contatos?busca=a&aderencia=quente'
 
 async function abrirEmpresaDoPrimeiroContato(usuario: ReturnType<typeof renderizarApp>['usuario']) {

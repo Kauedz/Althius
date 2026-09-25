@@ -12,13 +12,6 @@ _Avoid_: CRM, ferramenta de vendas
 O espaço de uma empresa-cliente dentro da Althius, com seus agentes, conexões e dados.
 _Avoid_: conta, tenant, organização
 
-**Workspace operacional**:
-Um Workspace real, aberto por uma Conta de usuário autenticada com Participação ativa. Só mostra o que foi guardado e confirmado; um módulo ainda sem backend aparece como indisponível, sem dados, resultados ou ações da Demonstração.
-
-**Demonstração**:
-O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário.
-_Avoid_: modo demo
-
 **Cliente**:
 A empresa que contrata a Althius e é dona de um Workspace.
 _Avoid_: usuário, conta

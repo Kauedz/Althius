@@ -31,10 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { MODULO_INDISPONIVEL } from '@/fonte/ambiente'
 import {
-  useAmbiente,
-  useDados,
   useDadosDeContas,
   useDadosDeSequencias,
   useFonteDeContas,
@@ -111,17 +108,7 @@ function calcularDatasDosSteps(criadaEm: string, steps: StepSequencia[]): Date[]
 
 export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const fonteDeSequencias = useFonteDeSequencias()
-  const ambiente = useAmbiente()
-  const permiteAcoesDeDemonstracao = ambiente.modo === 'demonstracao'
-  // Sem armazenamento de arquivos no Workspace, um anexo seria só um endereço local salvo no documento.
-  const anexosDisponiveis = ambiente.disponivel('anexos')
-  const workspace = useDados((fonte) => fonte.workspace(), [])
-  // Na Demonstração, a remetente dos roteiros; num Workspace operacional, a Conta de usuário da sessão, que só abre o
-  // documento quando é a Vendedora responsável.
-  const remetente: Remetente | undefined =
-    ambiente.modo === 'demonstracao'
-      ? REMETENTE_DA_DEMONSTRACAO
-      : workspace && { nome: workspace.usuario.nome, email: workspace.usuario.email }
+  const permiteAcoesDeDemonstracao = fonteDeSequencias.modo !== 'real'
   const fonteDeContas = useFonteDeContas()
   const hoje = fonteDeSequencias.hoje()
 
@@ -485,12 +472,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                   <span>{conta.dominio}</span>
                 </>
               )}
-              {ambiente.modo === 'demonstracao' && (
-                <>
-                  <span>·</span>
-                  <span>Escrita por Rhetor · editada por Marina Costa</span>
-                </>
-              )}
+              <span>·</span>
+              <span>Escrita por Rhetor · editada por Marina Costa</span>
               <span>·</span>
               <Link
                 to={`/contas/${sequencia.contaId}`}
@@ -849,8 +832,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             onMover={handleMoverStep}
             onExcluir={handleExcluirStep}
             onInserirVariavel={handleInserirVariavel}
-            remetente={remetente}
-            onAnexar={anexosDisponiveis ? handleAnexar : undefined}
+            onAnexar={handleAnexar}
             onRemoverAnexo={handleRemoverAnexo}
             ultimoCampoRef={ultimoCampoRef}
             onEditarDestinos={(c) => {
@@ -889,26 +871,10 @@ const VARIAVEIS: Array<{ nome: string; grupo: string; token: string }> = [
 
 // ---------- Substituição de variáveis para preview ----------
 
-/** Quem assina as mensagens da Sequência na prévia. */
-interface Remetente {
-  nome: string
-  email: string
-  /** O cargo que o LinkedIn mostra; sem ele, a prévia não mostra nenhum. */
-  cargo?: string
-}
-
-/** A remetente dos roteiros de exemplo da Demonstração. */
-const REMETENTE_DA_DEMONSTRACAO: Remetente = {
-  nome: 'Marina Costa',
-  email: 'marina.costa@databricks.com',
-  cargo: 'Head de Receita na Databricks',
-}
-
 function resolverVariavel(
   nome: string,
   conta: ContaAlvo | undefined,
   contato: Contato | undefined,
-  remetente: Remetente | undefined,
 ): string | null {
   const primeiroNome = (contato?.nome ?? '').split(/\s+/)[0] ?? ''
   const mapa: Record<string, string | undefined | null> = {
@@ -918,7 +884,7 @@ function resolverVariavel(
     'contato.primeiro_nome': primeiroNome || undefined,
     'contato.cargo': contato?.cargo,
     persona: contato?.persona,
-    'remetente.nome': remetente?.nome,
+    'remetente.nome': 'Marina Costa',
   }
   return mapa[nome] ?? null
 }
@@ -927,10 +893,9 @@ function renderizarPreview(
   texto: string,
   conta: ContaAlvo | undefined,
   contato: Contato | undefined,
-  remetente: Remetente | undefined,
 ): string {
   return texto.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, nome: string) => {
-    const valor = resolverVariavel(nome, conta, contato, remetente)
+    const valor = resolverVariavel(nome, conta, contato)
     if (valor) return `<mark class="al-preview-var">${valor}</mark>`
     return `<mark class="al-preview-var-missing">{{${nome}}}</mark>`
   })
@@ -949,14 +914,12 @@ interface ComposerStepProps {
   onModoPrevia: (v: boolean) => void
   conta: ContaAlvo | undefined
   contatos: Contato[]
-  remetente: Remetente | undefined
   dataPrevista?: string
   onSalvar: (patch: Partial<StepSequencia>) => void
   onMover: (direcao: -1 | 1) => void
   onExcluir: () => void
   onInserirVariavel: (token: string) => void
-  /** Sem ele, o ambiente não guarda arquivos: os anexos ficam indisponíveis. */
-  onAnexar?: (arquivo: File, tipo: 'imagem' | 'video') => void
+  onAnexar: (arquivo: File, tipo: 'imagem' | 'video') => void
   onRemoverAnexo: (indice: number) => void
   ultimoCampoRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
   onEditarDestinos?: (contato: Contato) => void
@@ -972,7 +935,6 @@ function ComposerStep({
   modoPrevia,
   onModoPrevia,
   conta,
-  remetente,
   dataPrevista,
   onSalvar,
   onMover,
@@ -983,7 +945,6 @@ function ComposerStep({
   ultimoCampoRef,
   onEditarDestinos,
 }: ComposerStepProps) {
-  const naDemonstracao = useAmbiente().modo === 'demonstracao'
   const contato = contatosMap.get(step.contatoId)
   const ehNota = step.canal === 'ligacao' || step.canal === 'tarefa'
   const temAssunto =
@@ -1177,7 +1138,7 @@ function ComposerStep({
           {modoPrevia ? 'Como chega:' : rotuloMensagem}
         </span>
         {modoPrevia ? (
-          <PreviaCanal step={step} conta={conta} contato={contato} remetente={remetente} />
+          <PreviaCanal step={step} conta={conta} contato={contato} />
         ) : (
           <div className="relative">
             <textarea
@@ -1287,45 +1248,39 @@ function ComposerStep({
         />
       </div>
 
-      {/* Rodapé de demonstração e métricas do step; num Workspace operacional, nenhum envio acontece ainda. */}
+      {/* Rodapé de demonstração e métricas do step */}
       <div className="flex flex-wrap items-center gap-3 text-xs text-al-muted px-4 py-3 border-t border-al-line bg-al-surface/40">
-        {!naDemonstracao ? (
-          <span>Ainda não enviado</span>
-        ) : (
+        <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted font-medium">
+          Demonstração
+        </span>
+        {step.metricas ? (
           <>
-            <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted font-medium">
-              Demonstração
-            </span>
-            {step.metricas ? (
-              <>
-                {step.metricas.desfecho ? (
-                  <span>
-                    Resultado: <strong className="font-normal text-al-ink">{step.metricas.desfecho}</strong>
-                  </span>
-                ) : (
-                  <>
-                    {dataPrevista && (
-                      <span>
-                        Enviado em <strong className="font-normal text-al-ink">{dataPrevista}</strong>
-                      </span>
-                    )}
-                    {step.metricas.aberturas !== null && step.metricas.aberturas !== undefined && (
-                      <span>
-                        Aberto <strong className="font-normal text-al-ink">{step.metricas.aberturas}×</strong>
-                      </span>
-                    )}
-                    <span>
-                      <strong className="font-normal text-al-ink">
-                        {step.metricas.respondeu ? '1 resposta' : '0 respostas'}
-                      </strong>
-                    </span>
-                  </>
-                )}
-              </>
+            {step.metricas.desfecho ? (
+              <span>
+                Resultado: <strong className="font-normal text-al-ink">{step.metricas.desfecho}</strong>
+              </span>
             ) : (
-              <span>Ainda não enviado · nada sai deste protótipo</span>
+              <>
+                {dataPrevista && (
+                  <span>
+                    Enviado em <strong className="font-normal text-al-ink">{dataPrevista}</strong>
+                  </span>
+                )}
+                {step.metricas.aberturas !== null && step.metricas.aberturas !== undefined && (
+                  <span>
+                    Aberto <strong className="font-normal text-al-ink">{step.metricas.aberturas}×</strong>
+                  </span>
+                )}
+                <span>
+                  <strong className="font-normal text-al-ink">
+                    {step.metricas.respondeu ? '1 resposta' : '0 respostas'}
+                  </strong>
+                </span>
+              </>
             )}
           </>
+        ) : (
+          <span>Ainda não enviado · nada sai deste protótipo</span>
         )}
       </div>
     </div>
@@ -1465,30 +1420,24 @@ function PreviaCanal({
   step,
   conta,
   contato,
-  remetente,
 }: {
   step: StepSequencia
   conta: ContaAlvo | undefined
   contato: Contato | undefined
-  remetente: Remetente | undefined
 }) {
-  const naDemonstracao = useAmbiente().modo === 'demonstracao'
   const corpo = step.corpo ?? ''
   const assunto = step.assunto ?? ''
   const janela = step.janela
   const hora = janela ? `${janela.de}–${janela.ate}` : '09:02'
   const nomeContato = contato?.nome ?? 'Contato'
   const inicContato = iniciais(nomeContato)
-  const nomeRemetente = remetente?.nome ?? ''
-  const emailRemetente = remetente?.email ?? ''
-  const inicRemetente = iniciais(nomeRemetente)
-  // A Demonstração compõe um endereço de exemplo; um Workspace operacional só mostra o e-mail real do Contato.
-  const emailContato = naDemonstracao
-    ? `${nomeContato.toLowerCase().replace(/\s+/g, '.')}@${conta?.nome?.toLowerCase().replace(/\s+/g, '') ?? 'empresa'}.com`
-    : (contato?.email ?? '')
+  const nomeRemetente = 'Marina Costa'
+  const emailRemetente = 'marina.costa@databricks.com'
+  const emailContato = `${nomeContato.toLowerCase().replace(/\s+/g, '.')
+    }@${conta?.nome?.toLowerCase().replace(/\s+/g, '') ?? 'empresa'}.com`
 
-  const corpoHtml = renderizarPreview(corpo, conta, contato, remetente)
-  const assuntoHtml = renderizarPreview(assunto, conta, contato, remetente)
+  const corpoHtml = renderizarPreview(corpo, conta, contato)
+  const assuntoHtml = renderizarPreview(assunto, conta, contato)
 
   if (step.canal === 'whatsapp') {
     return (
@@ -1549,10 +1498,10 @@ function PreviaCanal({
           </div>
           <div className="al-pv-li-card">
             <div className="al-pv-li-person">
-              <span className="al-pv-avatar">{inicRemetente}</span>
+              <span className="al-pv-avatar">MC</span>
               <span className="al-pv-who">
                 <strong>{nomeRemetente}</strong>
-                {remetente?.cargo && <small>{remetente.cargo}</small>}
+                <small>Head de Receita na Databricks</small>
               </span>
             </div>
             <small className="al-pv-li-when">Convite para se conectar · agora</small>
@@ -1580,7 +1529,7 @@ function PreviaCanal({
         <div className="al-pv-li-thread">
           <span className="al-pv-li-day">Hoje</span>
           <div className="al-pv-li-msg">
-            <span className="al-pv-avatar">{inicRemetente}</span>
+            <span className="al-pv-avatar">MC</span>
             <div>
               <div className="al-pv-li-msg-meta">
                 <strong>{nomeRemetente}</strong>
@@ -1613,13 +1562,13 @@ function PreviaCanal({
           dangerouslySetInnerHTML={{ __html: assuntoHtml || '<span class="al-pv-empty">(sem assunto)</span>' }}
         />
         <div className="al-pv-mail-from">
-          <span className="al-pv-avatar">{inicRemetente}</span>
+          <span className="al-pv-avatar">MC</span>
           <span className="al-pv-who">
             <span>
               <strong>{nomeRemetente}</strong>{' '}
               <small>&lt;{emailRemetente}&gt;</small>
             </span>
-            <small>para {nomeContato}{emailContato && <> &lt;{emailContato}&gt;</>}</small>
+            <small>para {nomeContato} &lt;{emailContato}&gt;</small>
           </span>
           <time>{hora}</time>
         </div>
@@ -1697,8 +1646,7 @@ function LinhaAnexos({
   onRemover,
 }: {
   anexos: AnexoStep[]
-  /** Sem ele, o ambiente não guarda arquivos: não há como anexar. */
-  onAnexar?: (arquivo: File, tipo: 'imagem' | 'video') => void
+  onAnexar: (arquivo: File, tipo: 'imagem' | 'video') => void
   onRemover: (i: number) => void
 }) {
   return (
@@ -1733,46 +1681,42 @@ function LinhaAnexos({
             </div>
           ))}
 
-          {onAnexar && (
-            <>
-              {/* Botão para imagem */}
-              <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
-                <Image className="size-4" />
-                Imagem ou print
-                <input
-                  type="file"
-                  accept="image/*"
-                  aria-label="Anexar imagem"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    if (f) onAnexar(f, 'imagem')
-                    e.target.value = ''
-                  }}
-                />
-              </label>
+          {/* Botão para imagem */}
+          <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
+            <Image className="size-4" />
+            Imagem ou print
+            <input
+              type="file"
+              accept="image/*"
+              aria-label="Anexar imagem"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onAnexar(f, 'imagem')
+                e.target.value = ''
+              }}
+            />
+          </label>
 
-              {/* Botão para vídeo */}
-              <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
-                <Video className="size-4" />
-                Vídeo
-                <input
-                  type="file"
-                  accept="video/*"
-                  aria-label="Anexar vídeo"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    if (f) onAnexar(f, 'video')
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-            </>
-          )}
+          {/* Botão para vídeo */}
+          <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
+            <Video className="size-4" />
+            Vídeo
+            <input
+              type="file"
+              accept="video/*"
+              aria-label="Anexar vídeo"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onAnexar(f, 'video')
+                e.target.value = ''
+              }}
+            />
+          </label>
         </div>
         <p className="text-[0.6875rem] text-al-muted">
-          {onAnexar ? 'O arquivo fica só neste protótipo — nada é enviado.' : MODULO_INDISPONIVEL.anexos}
+          O arquivo fica só neste protótipo — nada é enviado.
         </p>
       </div>
     </div>

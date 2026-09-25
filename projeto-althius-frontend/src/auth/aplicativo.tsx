@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { App } from '@/App'
-import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
+import { criarFonteDeContasSimulada } from '@/fonte/simulada-contas'
+import { criarFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
+import { criarFonteSimulada } from '@/fonte/simulada'
+import { criarFonteDeSequenciasSupabase } from '@/fonte/supabase-sequencias'
+import { criarFonteDeSinaisSimulada } from '@/fonte/simulada-sinais'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
-
-/** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
-const CHAVE_DO_WORKSPACE = 'althius:workspace'
 
 interface Participacao {
   workspace_id: string
@@ -32,20 +33,18 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   const [participacoes, setParticipacoes] = useState<Participacao[] | null>(null)
   const [erroParticipacoes, setErroParticipacoes] = useState<string | null>(null)
   const [workspaceId, setWorkspaceId] = useState('')
-  // A renovação do token troca o objeto da sessão; só outra Conta de usuário recarrega as Participações.
-  const usuarioId = sessao?.user.id
 
   useEffect(() => {
     let ativo = true
     setParticipacoes(null)
     setErroParticipacoes(null)
     setWorkspaceId('')
-    if (!usuarioId) return () => { ativo = false }
+    if (!sessao) return () => { ativo = false }
 
     void cliente
       .from('workspace_memberships')
       .select('workspace_id, role')
-      .eq('user_id', usuarioId)
+      .eq('user_id', sessao.user.id)
       .eq('active', true)
       .then(({ data, error }) => {
         if (!ativo) return
@@ -55,12 +54,12 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
         }
         const lista = (data ?? []) as Participacao[]
         setParticipacoes(lista)
-        const salvo = sessionStorage.getItem(CHAVE_DO_WORKSPACE)
+        const salvo = sessionStorage.getItem('althius:workspace')
         setWorkspaceId(lista.find((p) => p.workspace_id === salvo)?.workspace_id ?? (lista.length === 1 ? lista[0].workspace_id : ''))
       })
 
     return () => { ativo = false }
-  }, [cliente, usuarioId])
+  }, [cliente, sessao])
 
   if (carregandoSessao) return <TelaDeEstado>Verificando sessão…</TelaDeEstado>
   if (!sessao) return <TelaDeLogin aoAcessarDemonstracao={aoAcessarDemonstracao} />
@@ -98,7 +97,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       <TelaDeEstado>
         <label htmlFor="workspace-ativo" className="rotulo">Selecione o Workspace</label>
         <select id="workspace-ativo" className="campo h-10 min-w-72 bg-al-bg text-al-ink" value="" onChange={(e) => {
-          sessionStorage.setItem(CHAVE_DO_WORKSPACE, e.target.value)
+          sessionStorage.setItem('althius:workspace', e.target.value)
           setWorkspaceId(e.target.value)
         }}>
           <option value="" disabled>Escolher participação…</option>
@@ -109,59 +108,27 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     )
   }
 
-  const participacao = participacoes.find((p) => p.workspace_id === workspaceId)!
-  const trocarDeWorkspace = () => {
-    sessionStorage.removeItem(CHAVE_DO_WORKSPACE)
-    setWorkspaceId('')
-  }
-  return (
-    <AplicativoDoWorkspace
-      key={`${sessao.user.id}:${workspaceId}`}
-      sessao={sessao}
-      participacao={participacao}
-      cliente={cliente}
-      aoTrocarDeWorkspace={participacoes.length > 1 ? trocarDeWorkspace : undefined}
-      aoAcessarDemonstracao={aoAcessarDemonstracao}
-    />
-  )
+  return <AplicativoDoWorkspace key={workspaceId} sessao={sessao} workspaceId={workspaceId} cliente={cliente} />
 }
 
-/** O Workspace operacional escolhido: as fontes nascem com ele e morrem ao trocar de Workspace ou de sessão. */
-function AplicativoDoWorkspace({
-  sessao,
-  participacao,
-  cliente,
-  aoTrocarDeWorkspace,
-  aoAcessarDemonstracao,
-}: {
-  sessao: Session
-  participacao: Participacao
-  cliente: SupabaseClient
-  aoTrocarDeWorkspace?: () => void
-  aoAcessarDemonstracao?: () => void
-}) {
-  const { id: usuarioId, email = '' } = sessao.user
-  const { workspace_id: workspaceId, role } = participacao
-  const ambiente = useMemo(
-    () =>
-      criarAmbienteDoWorkspace({
-        cliente,
-        usuario: { id: usuarioId, email },
-        participacao: { workspaceId, papel: role === 'admin' ? 'administrador' : 'membro' },
-      }),
-    [cliente, usuarioId, email, workspaceId, role],
+function AplicativoDoWorkspace({ sessao, workspaceId, cliente }: { sessao: Session; workspaceId: string; cliente: SupabaseClient }) {
+  const fonteDeSequencias = useMemo(
+    () => criarFonteDeSequenciasSupabase(cliente, () => workspaceId, () => sessao.user.id),
+    [cliente, sessao.user.id, workspaceId],
   )
+  const fonte = useMemo(() => criarFonteSimulada({ armazenamento: window.localStorage }), [])
+  const fonteDeContas = useMemo(() => criarFonteDeContasSimulada({ armazenamento: window.localStorage }), [])
+  const fonteDeOnboarding = useMemo(() => criarFonteDeOnboardingSimulada({ armazenamento: window.localStorage }), [])
+  const fonteDeSinais = useMemo(() => criarFonteDeSinaisSimulada({ fonteDeContas }), [fonteDeContas])
 
   return (
     <>
       <div className="flex items-center justify-end gap-3 border-b border-al-line px-4 py-2 text-xs text-al-muted">
-        <span>Workspace operacional</span>
+        <span>Workspace autenticado</span>
         <span>{sessao.user.email}</span>
-        {aoTrocarDeWorkspace && <Button variant="outline" onClick={aoTrocarDeWorkspace}>Trocar de Workspace</Button>}
-        {aoAcessarDemonstracao && <Button variant="outline" onClick={aoAcessarDemonstracao}>Abrir Demonstração</Button>}
         <Sair />
       </div>
-      <App ambiente={ambiente} />
+      <App fonte={fonte} fonteDeContas={fonteDeContas} fonteDeSequencias={fonteDeSequencias} fonteDeOnboarding={fonteDeOnboarding} fonteDeSinais={fonteDeSinais} />
     </>
   )
 }
