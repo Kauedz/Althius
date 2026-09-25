@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
+import { destinoDepoisDoAcesso } from './destino'
+import { TelasDeAcesso } from './telas-de-acesso'
 
 /** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
 const CHAVE_DO_WORKSPACE = 'althius:workspace'
@@ -41,6 +43,9 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     setErroParticipacoes(null)
     setWorkspaceId('')
     if (!usuarioId) return () => { ativo = false }
+    // Quem acabou de entrar sai da tela de acesso para o endereço que tentou abrir, antes de o Workspace montar as rotas.
+    const destino = destinoDepoisDoAcesso()
+    if (destino) window.history.replaceState(null, '', destino)
 
     void cliente
       .from('workspace_memberships')
@@ -63,7 +68,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   }, [cliente, usuarioId])
 
   if (carregandoSessao) return <TelaDeEstado>Verificando sessão…</TelaDeEstado>
-  if (!sessao) return <TelaDeLogin aoAcessarDemonstracao={aoAcessarDemonstracao} />
+  if (!sessao) return <TelasDeAcesso aoAcessarDemonstracao={aoAcessarDemonstracao} />
   if (erroParticipacoes) {
     return (
       <TelaDeEstado>
@@ -163,63 +168,6 @@ function AplicativoDoWorkspace({
       </div>
       <App ambiente={ambiente} />
     </>
-  )
-}
-
-function TelaDeLogin({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
-  const { entrarComLink, carregando } = useAutenticacao()
-  const [email, setEmail] = useState('')
-  const [mensagem, setMensagem] = useState('')
-  const [erro, setErro] = useState('')
-
-  async function enviar(e: FormEvent) {
-    e.preventDefault()
-    setMensagem('')
-    setErro('')
-    try {
-      await entrarComLink(email)
-      setMensagem('Se este e-mail já tem acesso, enviaremos um link seguro para entrar.')
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Não foi possível iniciar a sessão.')
-    }
-  }
-
-  return (
-    <TelaDeEstado>
-      <form onSubmit={enviar} className="cartao flex w-full max-w-md flex-col gap-5 p-6">
-        <div>
-          <p className="rotulo text-al-accent">Althius · Acesso ao Workspace</p>
-          <h1 className="titulo-secao mt-2 text-2xl">Entrar</h1>
-          <p className="mt-2 text-sm text-al-muted">Use o e-mail convidado pelo administrador. O link de acesso expira após o uso.</p>
-        </div>
-        <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-acesso">E-mail
-          <input id="email-acesso" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
-        </label>
-        {mensagem && <p role="status" className="text-sm text-al-sucesso">{mensagem}</p>}
-        {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
-        <Button type="submit" disabled={carregando}>{carregando ? 'Enviando…' : 'Enviar link de acesso'}</Button>
-        {aoAcessarDemonstracao && (
-          <>
-            <div className="relative my-1 flex items-center justify-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-al-line" />
-              </div>
-              <span className="relative bg-al-surface px-2 text-xs uppercase tracking-wider text-al-muted">
-                ou
-              </span>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={aoAcessarDemonstracao}
-              className="border-al-accent/40 text-al-accent hover:bg-al-accent/10"
-            >
-              Acessar Protótipo Completo (Sem login)
-            </Button>
-          </>
-        )}
-      </form>
-    </TelaDeEstado>
   )
 }
 

@@ -37,6 +37,7 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {} }: O
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
+  const linksEnviados: { email: string; link: string }[] = []
 
   function consulta(tabela: string) {
     const filtros: [string, unknown][] = []
@@ -72,7 +73,10 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {} }: O
         return { data: { subscription: { unsubscribe: () => ouvintesDaSessao.delete(ouvinte) } } }
       },
       getSession: () => Promise.resolve({ data: { session: sessaoAtual }, error: null }),
-      signInWithOtp: () => Promise.resolve({ data: {}, error: null }),
+      async signInWithOtp({ email, options }: { email: string; options?: { emailRedirectTo?: string } }) {
+        linksEnviados.push({ email, link: options?.emailRedirectTo ?? window.location.origin })
+        return { data: {}, error: null }
+      },
       async signOut() {
         sessaoAtual = null
         for (const ouvinte of ouvintesDaSessao) ouvinte('SIGNED_OUT', null)
@@ -104,6 +108,13 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {} }: O
 
   return {
     cliente: cliente as unknown as SupabaseClient,
+    /** O último link de acesso enviado a este e-mail, como a pessoa o abriria. */
+    linkEnviadoPara: (email: string) => linksEnviados.findLast((enviado) => enviado.email === email)?.link,
+    /** A sessão que começa nesta aba, como quando o Supabase Auth confirma o acesso. */
+    iniciarSessao(novaSessao: Session) {
+      sessaoAtual = novaSessao
+      for (const ouvinte of ouvintesDaSessao) ouvinte('SIGNED_IN', novaSessao)
+    },
     /** Os canais do Realtime inscritos agora, pelo nome. */
     canaisAbertos: () => [...canaisAbertos],
   }
