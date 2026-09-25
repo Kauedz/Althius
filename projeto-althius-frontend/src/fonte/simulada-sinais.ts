@@ -280,7 +280,9 @@ export function criarFonteDeSinaisSimulada(
 
       const id = parametros.id ?? `sinal-${Date.now()}-${Math.floor(Math.random() * 1000)}`
       const frase = parametros.frase ?? `Disparo simulado de ${m.nome}`
-      const fonte = parametros.fonte ?? 'Página de carreiras (simulada)'
+      const fonte =
+        parametros.fonte ??
+        (m.fonte ? (m.fonte.includes('simulad') ? m.fonte : `${m.fonte} (simulada)`) : 'Página de carreiras (simulada)')
       const evidencia =
         parametros.evidencia ??
         `Evidência observada em ${dataIso} (simulada). Não constitui garantia de compra.`

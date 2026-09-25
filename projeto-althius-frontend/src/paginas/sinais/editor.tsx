@@ -38,12 +38,46 @@ const DESCRICAO_DO_MODO: Record<ModoDePublico, string> = {
   ambos: 'As suas listas e novas empresas no mesmo Monitoramento.',
 }
 
-/** A preparação simulada de um personalizado: transforma a descrição em critérios editáveis. */
+/** A preparação simulada de um personalizado: transforma a descrição em critérios editáveis por cenários simulados. */
 function prepararCriterios(descricao: string, fonte?: string): string[] {
   const pedido = descricao.trim().replace(/\.$/, '')
+  const d = pedido.toLowerCase()
+  const fonteCriterio = fonte?.trim() ? `Observar em: ${fonte.trim()}` : undefined
+
+  // Cenário simulado: Custo de nuvem ou infraestrutura
+  if (d.includes('custo') || d.includes('nuvem') || d.includes('data warehouse') || d.includes('infraestrutura')) {
+    return [
+      'Liderança técnica ou financeira mencionando custo alto ou imprevisível de nuvem ou data warehouse',
+      fonteCriterio ?? 'Observar em: publicações em redes profissionais, fóruns técnicos ou entrevistas',
+      'Dispara na primeira observação; reencontrar o mesmo acontecimento não conta de novo',
+      'Guardar como evidência o trecho da publicação com cargo e menção a custo',
+    ]
+  }
+
+  // Cenário simulado: Entrega, frete, agendamento ou varejo
+  if (d.includes('agendamento') || d.includes('entrega') || d.includes('frete') || d.includes('varejist')) {
+    return [
+      'Varejista ou rede que não disponibiliza agendamento ou estimativa de entrega no fluxo público',
+      fonteCriterio ?? 'Observar em: site institucional, página de frete e etapas de checkout da empresa',
+      'Dispara na primeira observação; reencontrar o mesmo acontecimento não conta de novo',
+      'Guardar como evidência a captura da página ou etapa de entrega sem a funcionalidade',
+    ]
+  }
+
+  // Cenário simulado: Verificações e testes deliberados (originados)
+  if (d.includes('test') || d.includes('verific') || d.includes('lead oculto') || d.includes('indisponibilidade')) {
+    return [
+      `Verificação deliberada investigando: ${pedido.charAt(0).toLowerCase()}${pedido.slice(1)}`,
+      fonteCriterio ?? 'Observar em: canais públicos de atendimento e páginas da empresa',
+      'Dispara na primeira constatação do critério estipulado no prazo de tolerância',
+      'Registrar como evidência a data, canal testado e retorno observado ou ausência de resposta',
+    ]
+  }
+
+  // Cenário livre (fallback geral para qualquer descrição fora dos exemplos)
   return [
     `Empresa do público escolhido em que se observa: ${pedido.charAt(0).toLowerCase()}${pedido.slice(1)}`,
-    fonte?.trim() ? `Observar em: ${fonte.trim()}` : 'Fontes públicas sugeridas pela Althius, a confirmar',
+    fonteCriterio ?? 'Fontes públicas sugeridas pela Althius, a confirmar',
     'Dispara na primeira observação; reencontrar o mesmo acontecimento não conta de novo',
     'Guardar como evidência o trecho, a página ou a captura que mostra o acontecimento',
   ]
@@ -130,6 +164,11 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
           <Descrever
             monitoramento={monitoramento}
             mudar={mudar}
+            aoVoltarAosCriterios={
+              monitoramento.criteriosLivres && monitoramento.criteriosLivres.length > 0
+                ? () => setEtapa('editar')
+                : undefined
+            }
             aoPreparar={() => {
               mudar({ estado: 'em-preparacao' })
               setEtapa('preparando')
@@ -140,6 +179,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
         {etapa === 'preparando' && (
           <Preparando
             descricao={monitoramento.descricao ?? ''}
+            aoEditarDescricao={() => setEtapa('descrever')}
             aoSairEVoltarDepois={async () => {
               try {
                 setErroSalvar(null)
@@ -492,10 +532,12 @@ function Descrever({
   monitoramento,
   mudar,
   aoPreparar,
+  aoVoltarAosCriterios,
 }: {
   monitoramento: Monitoramento
   mudar: (parcial: Partial<Monitoramento>) => void
   aoPreparar: () => void
+  aoVoltarAosCriterios?: () => void
 }) {
   const origens: (Origem | undefined)[] = ['externo', 'interno', 'originado', undefined]
   const podePreparar = (monitoramento.descricao ?? '').trim().length > 0
@@ -523,7 +565,11 @@ function Descrever({
             className="campo h-10"
           />
         </Rotulado>
-        <Grupo rotulo="Origem" ajuda="Opcional. Um personalizado pode ser de qualquer origem." papel="radiogroup">
+        <Grupo
+          rotulo="Origem"
+          ajuda="Opcional. Externo: mercado (vagas, notícias, ferramentas). Interno: seu site ou CRM. Originado: verificação deliberada investigando necessidades."
+          papel="radiogroup"
+        >
           {origens.map((origem) => (
             <Opcao key={origem ?? 'nao-sei'} papel="radio" marcada={monitoramento.origem === origem} aoClicar={() => mudar({ origem })}>
               {origem ? ROTULO_DA_ORIGEM[origem] : 'Não sei'}
@@ -532,6 +578,11 @@ function Descrever({
         </Grupo>
       </SecaoDoFormulario>
       <BarraDeAcoes>
+        {aoVoltarAosCriterios && (
+          <button type="button" onClick={aoVoltarAosCriterios} className={BOTAO_SECUNDARIO}>
+            Voltar aos critérios
+          </button>
+        )}
         <button type="button" disabled={!podePreparar} onClick={aoPreparar} className={BOTAO_PRIMARIO}>
           <Sparkles strokeWidth={1.8} className="size-4" aria-hidden />
           Preparar critérios
@@ -543,10 +594,12 @@ function Descrever({
 
 function Preparando({
   descricao,
+  aoEditarDescricao,
   aoSairEVoltarDepois,
   aoConcluir,
 }: {
   descricao: string
+  aoEditarDescricao?: () => void
   aoSairEVoltarDepois: () => void
   aoConcluir: () => void
 }) {
@@ -561,7 +614,18 @@ function Preparando({
           <p className="text-sm text-al-muted">A Althius está transformando a sua descrição em critérios. Você pode sair e voltar depois.</p>
         </div>
       </div>
-      <blockquote className="border-l-2 border-al-accent pl-4 text-base">{descricao}</blockquote>
+      <div className="flex flex-col gap-2">
+        <blockquote className="border-l-2 border-al-accent pl-4 text-base">{descricao}</blockquote>
+        {aoEditarDescricao && (
+          <button
+            type="button"
+            onClick={aoEditarDescricao}
+            className="self-start text-xs text-al-muted underline underline-offset-4 hover:text-al-ink"
+          >
+            Corrigir descrição
+          </button>
+        )}
+      </div>
       <ol className="flex flex-col gap-2 text-sm text-al-muted">
         <li>✓ Descrição recebida</li>
         <li>… Identificando o acontecimento, as fontes possíveis e a evidência</li>
@@ -603,6 +667,15 @@ function CriteriosLivres({
         <span className="rotulo">Sua descrição</span>
         <p className="text-sm">{monitoramento.descricao}</p>
         {monitoramento.fonte && <p className="text-xs text-al-muted">Fonte indicada: {monitoramento.fonte}</p>}
+        {monitoramento.origem ? (
+          <p className="text-xs text-al-muted">
+            Origem: <span className="text-al-ink font-medium">{ROTULO_DA_ORIGEM[monitoramento.origem]}</span>
+          </p>
+        ) : (
+          <p className="text-xs text-al-muted">
+            Origem: <span className="text-al-ink font-medium">A definir pela Althius</span>
+          </p>
+        )}
         <button type="button" onClick={aoEditarDescricao} className="self-start text-xs text-al-muted underline underline-offset-4 hover:text-al-ink">
           Editar descrição
         </button>
