@@ -132,10 +132,11 @@ begin
   values (v_workspace.id, v_user_id, 'admin', true)
   on conflict (workspace_id, user_id) do nothing;
 
-  -- Só o primeiro acesso registra o aceite; um aceite existente nunca é sobrescrito por uma versão nova.
   insert into public.terms_acceptances (user_id, terms_version)
   values (v_user_id, p_terms_version)
-  on conflict (user_id) do nothing;
+  on conflict (user_id) do update
+    set terms_version = excluded.terms_version, accepted_at = now()
+    where public.terms_acceptances.terms_version is distinct from excluded.terms_version;
 
   return v_workspace;
 end;
