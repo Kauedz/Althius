@@ -1,0 +1,8 @@
+[functions.sender-accounts]
+verify_jwt = true
+
+[functions.unipile-hosted-auth-notify]
+verify_jwt = false
+
+[functions.unipile-account-status]
+verify_jwt = false

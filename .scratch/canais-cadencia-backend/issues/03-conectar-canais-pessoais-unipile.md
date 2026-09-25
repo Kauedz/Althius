@@ -4,15 +4,22 @@
 
 **Blocked by:** 01: Acesso real e responsabilidade exclusiva.
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-- [ ] O usuário autenticado inicia uma tentativa temporária de conexão vinculada ao seu usuário e Workspace, e o backend gera um link hospedado novo para cada tentativa.
-- [ ] Callback, redirecionamento e ciclo de vida são validados no backend antes de associar a Conta remetente ao titular.
+- [x] O usuário autenticado inicia uma tentativa temporária de conexão vinculada ao seu usuário e Workspace, e o backend gera um link hospedado novo para cada tentativa.
+- [x] Callback e ciclo de vida são validados no backend antes de associar a Conta remetente ao titular; o redirecionamento serve apenas para retornar à tela e não prova a conexão.
 - [ ] A interface existente diferencia conectando, sincronizando, pronta, requer reconexão e desconectada.
-- [ ] Apenas o titular pode consultar detalhes privados ou usar a Conta remetente; outro participante não consegue associá-la à própria Sequência.
-- [ ] Credenciais e segredos da Unipile ficam somente no backend e não aparecem no bundle, logs compartilhados ou respostas públicas.
+- [x] Apenas o titular pode consultar detalhes privados ou usar a Conta remetente; outro participante não consegue associá-la à própria Sequência.
+- [x] Credenciais e segredos da Unipile ficam somente no backend e não aparecem no bundle, logs compartilhados ou respostas públicas.
 - [ ] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade.
-- [ ] A entrega usa contratos da Unipile v1 e não mistura autenticação ou payloads da v2 beta.
+- [x] A entrega usa contratos da Unipile v1 e não mistura autenticação ou payloads da v2 beta.
+
+## Implementação local
+
+- Migration: `supabase/migrations/20260925120000_contas_remetentes_unipile.sql`.
+- Edge Functions: `sender-accounts`, `unipile-hosted-auth-notify` e `unipile-account-status`.
+- Segredos e configuração Unipile: `supabase/functions/README.md`.
+- A integração visual e os fluxos de reconciliação ficam pendentes da integração real de Supabase Auth do ticket 01, atualmente descrita como ainda não integrada à interface. A migration não foi aplicada no projeto remoto; Unipile e contas de teste não foram configurados.
 
 ## Dependências externas
 
