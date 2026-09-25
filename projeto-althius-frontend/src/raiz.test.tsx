@@ -232,6 +232,13 @@ describe('Telas de acesso', () => {
     expect(window.location.pathname).toBe('/entrar')
   })
 
+  it('quem abre /entrar pela primeira vez neste navegador vê a tela de acesso, e não a Demonstração', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+  })
+
   it('depois de entrar nesta aba, a pessoa volta ao endereço que tentou abrir', async () => {
     window.history.replaceState(null, '', '/contas')
     const { usuario, iniciarSessao } = abrirAlthius({
@@ -260,7 +267,7 @@ describe('Telas de acesso', () => {
 
       act(() => iniciarSessao(sessaoDe(MARINA)))
       expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
-      expect(window.location.origin + window.location.pathname).toBe(`${window.location.origin}/`)
+      expect(window.location.pathname).toBe('/')
     },
   )
 
@@ -280,7 +287,7 @@ describe('Telas de acesso', () => {
     window.history.replaceState(null, '', '/entrar')
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
 
-    await usuario.click(await screen.findByRole('button', { name: 'Acessar Protótipo Completo (Sem login)' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
     expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
   })
 })

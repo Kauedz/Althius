@@ -37,15 +37,19 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   // A renovação do token troca o objeto da sessão; só outra Conta de usuário recarrega as Participações.
   const usuarioId = sessao?.user.id
 
+  // Quem acabou de entrar sai da tela de acesso para o endereço que tentou abrir, antes de o Workspace montar as rotas.
+  useEffect(() => {
+    if (!usuarioId) return
+    const destino = destinoDepoisDoAcesso()
+    if (destino) window.history.replaceState(null, '', destino)
+  }, [usuarioId])
+
   useEffect(() => {
     let ativo = true
     setParticipacoes(null)
     setErroParticipacoes(null)
     setWorkspaceId('')
     if (!usuarioId) return () => { ativo = false }
-    // Quem acabou de entrar sai da tela de acesso para o endereço que tentou abrir, antes de o Workspace montar as rotas.
-    const destino = destinoDepoisDoAcesso()
-    if (destino) window.history.replaceState(null, '', destino)
 
     void cliente
       .from('workspace_memberships')

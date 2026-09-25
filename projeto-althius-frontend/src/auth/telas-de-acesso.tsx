@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/marca'
 import { useAutenticacao } from './contexto'
-import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso } from './destino'
+import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso, enderecoDeEntrada } from './destino'
 
 /** As telas para quem ainda não tem sessão. Qualquer outro endereço leva a /entrar, lembrando o destino. */
 export function TelasDeAcesso({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
@@ -19,9 +19,7 @@ export function TelasDeAcesso({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
 
 function IrParaEntrada() {
   const { pathname, search } = useLocation()
-  const destino = pathname + search
-  const busca = destino === '/' ? '' : `?${new URLSearchParams({ destino })}`
-  return <Navigate to={`${ROTA_DE_ENTRADA}${busca}`} replace />
+  return <Navigate to={enderecoDeEntrada(pathname + search)} replace />
 }
 
 function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
@@ -69,7 +67,7 @@ function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () =
               onClick={aoAcessarDemonstracao}
               className="border-al-accent/40 text-al-accent hover:bg-al-accent/10"
             >
-              Acessar Protótipo Completo (Sem login)
+              Abrir Demonstração (sem login)
             </Button>
           </>
         )}
