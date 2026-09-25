@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { ROTA_DE_REDEFINICAO_DA_SENHA, enderecoDeRedefinicao } from './destino'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
@@ -17,6 +17,12 @@ interface Autenticacao {
   pedirCodigoDeEntrada: (email: string, destino: string) => Promise<void>
   /** Entra com o código de 6 dígitos enviado por `pedirCodigoDeEntrada`. */
   confirmarCodigoDeEntrada: (email: string, codigo: string) => Promise<void>
+  /**
+   * Mostra o "Continuar com Google" (botão oficial e One Tap) em `elemento`; ausente sem o Client ID do Google. A conta
+   * escolhida entra por ID token com nonce, criando ou encontrando a Conta de usuário do e-mail verificado; cancelar a
+   * escolha não faz nada, e uma recusa chega a `aoFalhar`. Devolve a limpeza, que fecha o One Tap.
+   */
+  iniciarGoogle?: (elemento: HTMLElement, opcoes: { contexto: 'signin' | 'signup'; aoFalhar: (mensagem: string) => void }) => () => void
   sair: () => Promise<void>
   /**
    * Cria a Conta de usuário com senha e envia o código de confirmação, sem abrir sessão. Um e-mail que já tem conta
@@ -65,6 +71,17 @@ async function recusarSenhaVazada(servicos: ServicosDoNavegador, senha: string) 
   if (vazada) throw new Error(ERRO_DE_SENHA_VAZADA)
 }
 
+/**
+ * Um nonce novo para o login com Google: o Google recebe o SHA-256 dele, em hexadecimal, e o Supabase recebe o nonce
+ * cru, para conferir que o ID token foi emitido para esta página.
+ */
+async function novoNonce() {
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  const resumo = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonce))
+  const nonceComHash = Array.from(new Uint8Array(resumo), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return { nonce, nonceComHash }
+}
+
 const Contexto = createContext<Autenticacao | null>(null)
 
 export function ContextoDeAutenticacao({
@@ -100,6 +117,30 @@ export function ContextoDeAutenticacao({
       subscription.unsubscribe()
     }
   }, [cliente])
+
+  // Estável entre renderizações, para a tela não reiniciar o botão e o One Tap a cada mudança de estado.
+  const iniciarGoogle = useCallback<NonNullable<Autenticacao['iniciarGoogle']>>((elemento, { contexto, aoFalhar }) => {
+    const google = servicos.google!
+    let ativo = true
+    let limpar: (() => void) | undefined
+    void novoNonce().then(({ nonce, nonceComHash }) => {
+      if (!ativo) return
+      limpar = google.iniciar({
+        elemento,
+        nonceComHash,
+        contexto,
+        aoReceberCredencial(idToken) {
+          void cliente.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce }).then(({ error }) => {
+            if (error) aoFalhar('Não foi possível entrar com Google. Tente novamente ou use outro método.')
+          })
+        },
+      })
+    })
+    return () => {
+      ativo = false
+      limpar?.()
+    }
+  }, [cliente, servicos])
 
   const valor = useMemo<Autenticacao>(() => ({
     cliente,
@@ -137,6 +178,7 @@ export function ContextoDeAutenticacao({
         setCarregando(false)
       }
     },
+    iniciarGoogle: servicos.google ? iniciarGoogle : undefined,
     async sair() {
       setCarregando(true)
       try {
@@ -208,7 +250,7 @@ export function ContextoDeAutenticacao({
         setCarregando(false)
       }
     },
-  }), [cliente, servicos, sessao, carregandoSessao, carregando, redefinindoSenha])
+  }), [cliente, servicos, sessao, carregandoSessao, carregando, redefinindoSenha, iniciarGoogle])
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
 }

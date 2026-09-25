@@ -31,7 +31,7 @@ function abrirAlthius({
 }: Parameters<typeof criarSupabaseFalso>[0] & {
   ultimoAmbiente?: 'real' | 'demonstracao'
   ultimoWorkspace?: string
-  /** Como os serviços do navegador (Pwned Passwords) respondem; nenhum chama a rede. */
+  /** Como os serviços do navegador (Pwned Passwords, Google) respondem; nenhum chama a rede. */
   navegador?: OpcoesDosServicosFalsos
 } = {}) {
   if (ultimoAmbiente) localStorage.setItem('althius:modo_demo', String(ultimoAmbiente === 'demonstracao'))
@@ -41,10 +41,10 @@ function abrirAlthius({
     tabelas,
     rpcs: { bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas), ...rpcs },
   })
-  const { servicos, senhasConsultadas } = criarServicosDoNavegadorFalsos(navegador)
+  const { servicos, senhasConsultadas, google } = criarServicosDoNavegadorFalsos(navegador)
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={servicos} />)
-  return { ...supabase, servicos, senhasConsultadas, usuario }
+  return { ...supabase, servicos, senhasConsultadas, google, usuario }
 }
 
 function participacao(workspaceId: string, role: 'admin' | 'member' = 'admin') {
@@ -928,5 +928,131 @@ describe('Bloqueio de senhas vazadas', () => {
     await chegarANovaSenha(redefinicao)
     await salvarNovaSenha(redefinicao.usuario, VAZADA)
     expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+  })
+})
+
+describe('Continuar com Google', () => {
+  const MARINA_NO_GOOGLE = { email: MARINA.email, nome: 'Marina Souza' }
+  const NOVA_SENHA = 'outra frase bem longa 42'
+
+  /** O botão oficial do Google, que o Google Identity Services desenha na tela. */
+  const botaoDoGoogle = () => screen.findByRole('button', { name: 'Continuar com Google' })
+
+  it.each(['/entrar', '/cadastro'])('sem o Client ID do Google, %s não mostra o Google', async (rota) => {
+    window.history.replaceState(null, '', rota)
+    abrirAlthius({ ultimoAmbiente: 'real' })
+
+    await screen.findByLabelText('E-mail')
+    expect(screen.queryByRole('button', { name: 'Continuar com Google' })).not.toBeInTheDocument()
+  })
+
+  it('cadastro pelo botão no topo de /cadastro: o nome vem do Google e o aceite dos Termos é gravado', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const versoesAceitas: unknown[] = []
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const noBanco = workspacePessoalDaMarinaNoBanco(tabelas)
+    const { usuario, google, nomeCadastrado, contasDoAuthCom } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      tabelas,
+      rpcs: { bootstrap_personal_workspace: (p) => { versoesAceitas.push(p.p_terms_version); return noBanco() } },
+      navegador: { google: {} },
+    })
+
+    const botao = await botaoDoGoogle()
+    expect(botao.compareDocumentPosition(screen.getByLabelText('Nome')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('ou')).toBeInTheDocument()
+    // O Google recebe só o hash do nonce; o Supabase falso confere o nonce cru contra ele.
+    expect(google.noncesRecebidos().at(-1)).toMatch(/^[0-9a-f]{64}$/)
+
+    await usuario.click(botao)
+    act(() => google.escolherConta(MARINA_NO_GOOGLE))
+
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
+    expect(nomeCadastrado(MARINA.email)).toBe('Marina Souza')
+    expect(contasDoAuthCom(MARINA.email)).toHaveLength(1)
+    expect(versoesAceitas).toEqual([VERSAO_DOS_TERMOS])
+    // Dentro do app, nem botão nem One Tap.
+    expect(screen.queryByRole('button', { name: 'Continuar com Google' })).not.toBeInTheDocument()
+    expect(google.oneTapVisivel()).toBe(false)
+  })
+
+  it('o One Tap em /entrar leva quem se cadastrou com senha à mesma Conta de usuário, sem Workspace duplicado', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const { usuario, google, contasDoAuthCom } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      tabelas,
+      contas: [{ ...CONTA_DA_MARINA }],
+      navegador: { google: { contaNoNavegador: MARINA_NO_GOOGLE } },
+    })
+
+    const botao = await botaoDoGoogle()
+    expect(botao.compareDocumentPosition(screen.getByLabelText('E-mail')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText(/Ao continuar com Google, você concorda com os/)).toBeInTheDocument()
+    await waitFor(() => expect(google.oneTapVisivel()).toBe(true))
+    act(() => google.aceitarOneTap())
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(contasDoAuthCom(MARINA.email)).toEqual([MARINA.id])
+    expect(google.oneTapVisivel()).toBe(false)
+
+    // A senha continua valendo para a mesma conta, e o Workspace pessoal não se repete.
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(contasDoAuthCom(MARINA.email)).toEqual([MARINA.id])
+    expect(tabelas.workspace_memberships).toEqual([participacao(WORKSPACE_PESSOAL_DA_MARINA.id)])
+  })
+
+  it('cancelar a escolha de conta volta à tela sem mensagem de erro', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, google } = abrirAlthius({ ultimoAmbiente: 'real', contas: [{ ...CONTA_DA_MARINA }], navegador: { google: {} } })
+
+    await usuario.click(await botaoDoGoogle())
+    act(() => google.cancelarEscolha())
+
+    expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('quem se cadastrou com Google define uma senha pelo "Esqueci a senha" e entra com ela na mesma Conta de usuário', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const { usuario, google, codigoEnviadoPara, contasDoAuthCom } = abrirAlthius({ ultimoAmbiente: 'real', tabelas, navegador: { google: {} } })
+
+    await usuario.click(await botaoDoGoogle())
+    act(() => google.escolherConta(MARINA_NO_GOOGLE))
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    const [contaDoGoogle] = contasDoAuthCom(MARINA.email)
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+
+    await usuario.click(await screen.findByRole('link', { name: 'Esqueci a senha' }))
+    await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await usuario.click(screen.getByRole('button', { name: 'Enviar código' }))
+    await usuario.type(await screen.findByLabelText('Código de 6 dígitos'), codigoEnviadoPara(MARINA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    await usuario.type(await screen.findByLabelText('Nova senha'), NOVA_SENHA)
+    await usuario.click(screen.getByRole('button', { name: 'Salvar nova senha' }))
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await entrarComSenha(usuario, MARINA.email, NOVA_SENHA)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(contasDoAuthCom(MARINA.email)).toEqual([contaDoGoogle])
+    expect(tabelas.workspace_memberships).toEqual([participacao(WORKSPACE_PESSOAL_DA_MARINA.id)])
+  })
+
+  it('o One Tap nunca aparece dentro do app', async () => {
+    const { google } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      navegador: { google: { contaNoNavegador: MARINA_NO_GOOGLE } },
+    })
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(google.vezesIniciado()).toBe(0)
+    expect(google.oneTapVisivel()).toBe(false)
   })
 })

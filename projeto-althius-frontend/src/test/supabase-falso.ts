@@ -40,6 +40,12 @@ const senhaVazadaNoServidor = () => ({
   reasons: ['pwned'],
 })
 
+/** O SHA-256 em hexadecimal, como o Supabase Auth compara o nonce cru com o nonce do ID token do Google. */
+async function sha256Hex(texto: string) {
+  const resumo = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto))
+  return Array.from(new Uint8Array(resumo), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 /** Uma sessão do Supabase Auth para o usuário do teste. */
 export function sessaoDe(usuario: { id: string; email: string }): Session {
   return {
@@ -191,6 +197,28 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         comecarSessao(novaSessao)
         return { data: { user: novaSessao.user, session: novaSessao }, error: null }
       },
+      // O ID token do Google: o Auth confere que o hash do nonce cru é o nonce do token e vincula pelo e-mail verificado
+      // à Conta de usuário existente, ou cria uma com o nome do Google. Um cadastro com senha ainda não confirmado perde
+      // a senha, para quem o fez sem ser dono do e-mail não entrar na conta.
+      async signInWithIdToken({ provider, token, nonce, ...resto }: { provider: string; token: string; nonce?: string }) {
+        if (provider !== 'google' || Object.keys(resto).length) throw new Error('signInWithIdToken só simula o Google com nonce')
+        const claims = JSON.parse(atob(token.split('.')[1])) as { email: string; email_verified: boolean; name: string; nonce?: string }
+        if (!nonce || !claims.nonce || (await sha256Hex(nonce)) !== claims.nonce) {
+          return { data: { user: null, session: null }, error: { message: 'Nonces mismatch', status: 400, code: 'bad_jwt' } }
+        }
+        let conta = contaCom(claims.email)
+        if (!conta) {
+          conta = { id: `usuario-${claims.email.split('@')[0]}`, email: claims.email, nome: claims.name }
+          usuarios.push(conta)
+        } else if (!verificada(conta)) {
+          Object.assign(conta, { senha: undefined, verificada: true, nome: claims.name })
+        } else {
+          conta.nome ??= claims.name
+        }
+        const novaSessao = sessaoDaConta(conta)
+        comecarSessao(novaSessao)
+        return { data: { user: novaSessao.user, session: novaSessao }, error: null }
+      },
       async verifyOtp({ email, token, type }: { email: string; token: string; type: string }) {
         if (type !== 'signup' && type !== 'email' && type !== 'recovery') throw new Error(`verifyOtp do tipo ${type} não é simulado`)
         const conta = consumirCodigo(email, token, type)
@@ -297,6 +325,8 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
     },
     /** As sessões abertas da Conta de usuário, em qualquer navegador, pelo id. */
     sessoesAbertasDe: (email: string) => sessoesAbertas.filter((aberta) => aberta.usuarioId === contaCom(email)?.id).map((aberta) => aberta.id),
+    /** As Contas de usuário do Supabase Auth com este e-mail, pelo id: mais de uma seria uma conta duplicada. */
+    contasDoAuthCom: (email: string) => usuarios.filter((conta) => conta.email === email.trim().toLowerCase()).map((conta) => conta.id),
     /** Os canais do Realtime inscritos agora, pelo nome. */
     canaisAbertos: () => [...canaisAbertos],
   }

@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ContinuarComGoogle } from './botao-do-google'
 import { CampoDoCodigo } from './campo-do-codigo'
 import { useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso } from './destino'
@@ -78,6 +79,7 @@ export function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
           Ainda não tem conta? <Link to="/cadastro" className="text-al-accent hover:underline">Criar conta</Link>
         </p>
       </div>
+      <ContinuarComGoogle contexto="signin" />
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-acesso">E-mail
         <input ref={campoDeEmail} id="email-acesso" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
       </label>

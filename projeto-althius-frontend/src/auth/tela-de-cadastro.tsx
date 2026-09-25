@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { ContinuarComGoogle } from './botao-do-google'
 import { useAutenticacao } from './contexto'
 import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso } from './destino'
 import { ENDERECO_DA_POLITICA_DE_PRIVACIDADE, ENDERECO_DOS_TERMOS_DE_USO } from './termos'
@@ -121,6 +122,7 @@ function FormularioDeCadastro({
         <h1 className="titulo-secao text-2xl">Criar conta</h1>
         <p className="mt-2 text-sm text-al-muted">Só o essencial agora. Os dados da empresa ficam para depois.</p>
       </div>
+      <ContinuarComGoogle contexto="signup" />
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="nome-cadastro">Nome
         <input id="nome-cadastro" type="text" autoComplete="name" required value={nome} onChange={(e) => aoMudarNome(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
       </label>
