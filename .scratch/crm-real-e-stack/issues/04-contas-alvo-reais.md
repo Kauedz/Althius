@@ -4,7 +4,7 @@
 
 **Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md) (substitui o CRM-02).
 
-**Status:** done (pending-apply da migration no Supabase remoto)
+**Status:** closed
 
 - [x] Contas-alvo têm identidade UUID persistente e pertencem a um Workspace. — `public.target_accounts` (id uuid, workspace_id FK public.workspaces); pgTAP `supabase/tests/contas_alvo_reais.sql` 1–2.
 - [x] Participante autorizado cria e consulta Contas; Administrador pode consultar todas as Contas do Workspace. — RLS por Participação ativa + RPC `save_target_account`; pgTAP 6, 15, 21–24.
@@ -19,4 +19,4 @@
 - **Modelo:** migration `supabase/migrations/20260925150000_contas_alvo_reais.sql` — `target_accounts` (UUID, workspace_id FK workspaces, `canonical_url` única por Workspace, `domain` derivado, `legal_identifier` sem unicidade, `last_interaction_at`) e `account_interactions` (manual, ainda sem Contato). Leitura por RLS de Participação ativa (Administrador e Membro consultam todas); escrita só pelas RPCs `save_target_account` e `register_account_interaction` (security definer).
 - **Responsabilidade (decisão):** gravada em `public.sales_responsibilities` com o UUID da Conta **como texto** — fonte única, imutável pelo trigger existente e compatível com `create_sequence`. Nada foi migrado para FK UUID (isso é o CRM-17). Só o responsável atualiza a Conta (um Administrador também não edita a de outro) e registra Interação.
 - **Tela:** `contas` saiu de `indisponiveis`; entrou o módulo `contatos`, que mantém /contatos e a criação de Sequência indisponíveis até o CRM-05. Cadastro manual mínimo na lista ("Nova Conta-alvo", só quando a fonte tem `salvarConta`; a Demonstração não mudou). Formulário "Registrar interação" no detalhe só quando `sobMinhaResponsabilidade`. `Interacao.contatoId` passou a opcional.
-- **Pendências:** pending-apply da migration no Supabase remoto (sem acesso aqui). CRM-05 deve acrescentar `contact_id` em `account_interactions` e ler Contatos no adapter; Aderência, Sinais e origem da Conta continuam vazios.
+- **Pendências:** a migration foi aplicada no `ycbdilsmydvzezhlymty` em 2026-09-25 (pgTAP 24/24 antes, em transação revertida). CRM-05 deve acrescentar `contact_id` em `account_interactions` e ler Contatos no adapter; Aderência, Sinais e origem da Conta continuam vazios.
