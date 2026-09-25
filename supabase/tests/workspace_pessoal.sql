@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(19);
+select plan(21);
 
 -- Marina tem e-mail verificado e nome no cadastro; Rui é uma conta antiga criada por link, sem nome;
 -- Nina ainda não verificou o e-mail.
@@ -44,6 +44,13 @@ select is((select count(*)::int from public.workspaces where owner_user_id = '30
   'repetir o bootstrap não cria outro Workspace pessoal');
 select is((select count(*)::int from public.workspace_memberships where user_id = '30000000-0000-0000-0000-000000000001'), 1,
   'repetir o bootstrap não cria outra Participação');
+
+-- A versão dos Termos muda: o login seguinte não registra um aceite que a pessoa não viu.
+select lives_ok($$select public.bootstrap_personal_workspace('2026-10-01')$$,
+  'o login depois de mudar a versão dos Termos continua funcionando');
+select is(
+  (select terms_version from public.terms_acceptances where user_id = '30000000-0000-0000-0000-000000000001'),
+  '2026-09-25', 'o bootstrap não sobrescreve o aceite existente com a versão nova');
 
 -- Conta antiga sem nome: rótulo neutro, nunca derivado do e-mail.
 select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000002', true);
