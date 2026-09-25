@@ -7,7 +7,7 @@ interface OpcoesDoSupabaseFalso {
   sessao?: Session | null
   /** As linhas de cada tabela, como o RLS as devolveria ao usuário da sessão. */
   tabelas?: Record<string, Linha[]>
-  /** As RPCs que o teste responde, pelo nome. */
+  /** As RPCs que o teste responde, pelo nome. Uma resposta que lança chega ao app como erro da RPC. */
   rpcs?: Record<string, (parametros: Record<string, unknown>) => unknown>
 }
 
@@ -87,7 +87,12 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {} }: O
     async rpc(nome: string, parametros: Record<string, unknown>) {
       const responder = rpcs[nome]
       if (!responder) return { data: null, error: { message: `RPC ${nome} indisponível no teste`, code: 'PGRST202' } }
-      return { data: responder(parametros), error: null }
+      // Uma resposta que lança vira o erro do PostgREST, como uma exceção levantada pela função no banco.
+      try {
+        return { data: await responder(parametros), error: null }
+      } catch (erro) {
+        return { data: null, error: { message: erro instanceof Error ? erro.message : String(erro), code: 'P0001' } }
+      }
     },
     channel(nome: string) {
       const canal = {

@@ -11,10 +11,26 @@ afterEach(() => {
   sessionStorage.clear()
 })
 
-/** A raiz como o navegador a abre, com a escolha de ambiente que a pessoa fez da última vez. */
-function abrirAlthius({ ultimoAmbiente, ...opcoes }: Parameters<typeof criarSupabaseFalso>[0] & { ultimoAmbiente?: 'real' | 'demonstracao' } = {}) {
+const WORKSPACE_PESSOAL_DA_MARINA = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
+
+/**
+ * A raiz como o navegador a abre, com a escolha de ambiente que a pessoa fez da última vez e o último Workspace
+ * usado nesta aba. Salvo quando o teste responde o bootstrap, o banco garante o Workspace pessoal da Marina.
+ */
+function abrirAlthius({
+  ultimoAmbiente,
+  ultimoWorkspace,
+  tabelas = {},
+  rpcs = {},
+  ...opcoes
+}: Parameters<typeof criarSupabaseFalso>[0] & { ultimoAmbiente?: 'real' | 'demonstracao'; ultimoWorkspace?: string } = {}) {
   if (ultimoAmbiente) localStorage.setItem('althius:modo_demo', String(ultimoAmbiente === 'demonstracao'))
-  const supabase = criarSupabaseFalso(opcoes)
+  if (ultimoWorkspace) sessionStorage.setItem('althius:workspace', ultimoWorkspace)
+  const supabase = criarSupabaseFalso({
+    ...opcoes,
+    tabelas,
+    rpcs: { bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas), ...rpcs },
+  })
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} />)
   return { ...supabase, usuario }
@@ -22,6 +38,17 @@ function abrirAlthius({ ultimoAmbiente, ...opcoes }: Parameters<typeof criarSupa
 
 function participacao(workspaceId: string, role: 'admin' | 'member' = 'admin') {
   return { workspace_id: workspaceId, role, user_id: MARINA.id, active: true }
+}
+
+/** O bootstrap como o banco o executa: cria o Workspace pessoal e a Participação de Administrador uma única vez. */
+function workspacePessoalDaMarinaNoBanco(tabelas: Record<string, Record<string, unknown>[]>) {
+  return () => {
+    const participacoes = (tabelas.workspace_memberships ??= [])
+    if (!participacoes.some((p) => p.workspace_id === WORKSPACE_PESSOAL_DA_MARINA.id)) {
+      participacoes.push(participacao(WORKSPACE_PESSOAL_DA_MARINA.id))
+    }
+    return WORKSPACE_PESSOAL_DA_MARINA
+  }
 }
 
 const navegacao = () => screen.getByRole('complementary', { name: 'Navegação' })
@@ -151,6 +178,8 @@ describe('Workspace operacional e Demonstração', () => {
       },
     })
 
+    // Sem outro destino, a entrada abre o Workspace pessoal; daí a pessoa troca para o Workspace da empresa.
+    await usuario.click(await screen.findByRole('button', { name: 'Trocar de Workspace' }))
     await usuario.selectOptions(await screen.findByRole('combobox', { name: 'Selecione o Workspace' }), 'ws-norte')
     expect(await screen.findByRole('link', { name: 'conta-do-norte' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'conta-do-sul' })).not.toBeInTheDocument()
@@ -203,6 +232,7 @@ function abrirASequenciaDaMarina() {
   }
   return abrirAlthius({
     ultimoAmbiente: 'real',
+    ultimoWorkspace: 'ws-norte',
     sessao: sessaoDe(MARINA),
     tabelas: { workspace_memberships: [participacao('ws-norte')], sequences: [sequencia] },
     rpcs: { get_owned_sequence: () => [{ ...sequencia, public_summary: { ...sequencia.public_summary, _document: documento } }] },
@@ -289,5 +319,58 @@ describe('Telas de acesso', () => {
 
     await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
     expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+  })
+})
+
+describe('Workspace pessoal no primeiro acesso', () => {
+  it('uma Conta de usuário sem Participação entra e cai no seu Workspace pessoal', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { iniciarSessao } = abrirAlthius({ ultimoAmbiente: 'real' })
+    await screen.findByRole('heading', { name: 'Entrar' })
+
+    act(() => iniciarSessao(sessaoDe(MARINA)))
+
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
+    expect(screen.getByText('Marina Souza')).toBeInTheDocument()
+    expect(screen.queryByText('Nenhum Workspace ativo')).not.toBeInTheDocument()
+  })
+
+  it('quem já tem Participação num Workspace da empresa, sem outro destino, abre o Workspace pessoal', async () => {
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+    })
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+  })
+
+  it('enquanto o Workspace pessoal é preparado, a pessoa vê o carregamento; se falhar, pode tentar de novo', async () => {
+    let tentativas = 0
+    let concluirPrimeira: (erro: Error) => void = () => {}
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const noBanco = workspacePessoalDaMarinaNoBanco(tabelas)
+    const { usuario } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas,
+      rpcs: {
+        bootstrap_personal_workspace: () => {
+          tentativas += 1
+          if (tentativas > 1) return noBanco()
+          return new Promise((_, rejeitar) => { concluirPrimeira = rejeitar })
+        },
+      },
+    })
+
+    expect(await screen.findByText('Preparando seu Workspace pessoal…')).toBeInTheDocument()
+    await act(async () => concluirPrimeira(new Error('connection reset')))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível preparar seu Workspace pessoal.')
+    await usuario.click(screen.getByRole('button', { name: 'Tentar novamente' }))
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

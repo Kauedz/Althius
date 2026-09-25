@@ -12,6 +12,10 @@ values
   ('10000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'admin@example.test', '', now(), now(), now(), '{}', '{}', false, false),
   ('20000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'other-workspace@example.test', '', now(), now(), now(), '{}', '{}', false, false);
 
+insert into public.workspaces(id, kind, name) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'empresa', 'Workspace da empresa'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'empresa', 'Workspace da empresa');
+
 insert into public.workspace_memberships(workspace_id, user_id, role, active) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '10000000-0000-0000-0000-000000000001', 'member', true),
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '10000000-0000-0000-0000-000000000002', 'member', true),
