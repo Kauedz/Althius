@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T20:40-03:00
+Updated: 2026-09-25T21:05-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -18,11 +18,11 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Integração 07+08 | done | ralph/auth-integracao · PR #27 (draft, base Auth-07) | junção feita pela matriz; suíte 579/579 |
 | Auth-08 | done | ralph/auth-08-captcha-invisivel · PR #25 (draft, base Auth-06) | AC 4/4; suíte 569/569; pending-human: Turnstile (Auth-10) |
 | CRM-04 | done | ralph/crm-04-contas-alvo-reais · PR #28 (draft, base integração Auth) | AC 7/7; pgTAP 24/24; suíte 591/591; **pending-apply** migration 20260925150000; sem CRM-17 (responsabilidade com UUID em texto) |
-| CRM-05 | running | ralph/crm-05-contatos-e-vinculos | a partir do CRM-04 |
+| CRM-05 | done | ralph/crm-05-contatos-e-vinculos · PR #29 (draft, base CRM-04) | AC 7/7; pgTAP 36/36; suíte 602/602; **pending-apply** migration 20260925160000; pending-human: linhas antigas em `private.target_contacts_canais02` |
 | CRM-17 | not-needed (até agora) | | só se a FK textual Seq↔Conta bloquear; Blocked by CRM-04 e **CRM-06 (fora do corte)** |
 | canais-01 | gate-pending | — | in-progress; AC de código todos [x], falta validação com conta real |
 | canais-02 | gate-fail | — | ready-for-human (AC de código todos [x]) |
-| canais-03 | queued | | in-progress; 2 AC abertos (estados na interface, reconexão) |
+| canais-03 | gate-fail | — | Blocked by canais-01 (in-progress, não done); 2 AC abertos |
 | canais-04 | blocked | | Blocked by canais-02 (ready-for-human) e canais-03 |
 | Auth-09 | out | — | fora do corte; exige CRM-03 |
 | Auth-10 | human | — | ready-for-human; não spawnar |
@@ -42,8 +42,15 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-08 | ~119k |
 | Auth-07 | ~153k |
 | CRM-04 | ~201k |
+| CRM-05 | ~204k |
+| **Total halves** | **~1,48M** (mais a matriz) |
+
+## STOP
+Corrida parada no gate de canais (2026-09-25 21:05). canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana: dar canais-01 e canais-02 como done (teste real no fim) ou validar antes. Review final (só leitura) disparado sobre o topo da pilha.
 
 ## Alerts
+- ALERTA RALPH | canais-03 | GATE | Blocked-by faltando: canais-01 não está done.
+- ALERTA RALPH | CRM-05 | pending-apply + humano | migration 20260925160000 move a tabela antiga de destinatários (canais-02) para `private.target_contacts_canais02` e troca `public.target_contacts` por view; decidir o destino das linhas antigas, se houver.
 - ALERTA RALPH | CRM-17 | GATE (antecipado) | Blocked by CRM-06 (roleta), fora do corte. Se a FK textual travar CRM-04/05/canais, a cadeia para aqui até decisão humana.
 - Pendências humanas acumuladas para o Auth-10: modelos de e-mail "Confirm signup", "Magic Link" e "Reset Password" com `{{ .Token }}` além do link; e-mail para quem tenta se cadastrar com e-mail existente (Supabase não envia; exige Send Email Hook); páginas `/termos` e `/privacidade` (hoje provisórias).
 - ALERTA RALPH | CRM-04 | pending-apply | aplicar `supabase/migrations/20260925150000_contas_alvo_reais.sql` depois da do Auth-02.
