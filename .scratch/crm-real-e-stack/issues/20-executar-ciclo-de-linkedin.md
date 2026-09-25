@@ -1,10 +1,20 @@
 # 20: Executar convites e mensagens de Sequência pelo LinkedIn
 
+> **Ponteiro — não implementar neste ticket.**
+>
+> **Implementado por canais-07 (Ciclo real LinkedIn).**
+> Fonte de verdade: [`../../canais-cadencia-backend/issues/07-ciclo-real-linkedin.md`](../../canais-cadencia-backend/issues/07-ciclo-real-linkedin.md).
+> Unipile e ciclos de canal ficam em `.scratch/canais-cadencia-backend/`; o CRM não reimplementa.
+>
+> Conteúdo histórico abaixo mantido só como referência.
+
+---
+
 **What to build:** vendedor responsável envia ações compatíveis pelo seu LinkedIn conectado, e mensagens recebidas pausam a Sequência da Conta mantendo conteúdo privado.
 
 **Blocked by:** 17: Vincular Sequências e responsabilidades às Contas reais; 16: Conectar e reconciliar Contas remetentes pela Unipile.
 
-**Status:** ready-for-agent
+**Status:** superseded
 
 - [ ] Identidade LinkedIn do Contato resolve para alvo compatível antes de qualquer envio.
 - [ ] Convite, mensagem e InMail só são oferecidos quando relacionamento, tipo de conta, elegibilidade e capacidade permitem.

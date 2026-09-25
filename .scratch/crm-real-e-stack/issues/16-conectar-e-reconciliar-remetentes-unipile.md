@@ -1,10 +1,20 @@
 # 16: Conectar e reconciliar Contas remetentes pela Unipile
 
+> **Ponteiro — não implementar neste ticket.**
+>
+> **Implementado por canais-03 (Conectar canais pessoais pela Unipile).**
+> Fonte de verdade: [`../../canais-cadencia-backend/issues/03-conectar-canais-pessoais-unipile.md`](../../canais-cadencia-backend/issues/03-conectar-canais-pessoais-unipile.md).
+> Unipile e ciclos de canal ficam em `.scratch/canais-cadencia-backend/`; o CRM não reimplementa.
+>
+> Conteúdo histórico abaixo mantido só como referência.
+
+---
+
 **What to build:** titular conecta sua Conta remetente pessoal por Hosted Auth da Unipile, acompanha estado confirmado e consegue reconciliar, reconectar ou revogar a conexão.
 
 **Blocked by:** 03: Convidar e gerenciar participantes.
 
-**Status:** ready-for-agent
+**Status:** superseded
 
 - [ ] OAuth/Hosted Auth começa por operação autenticada no backend que valida Workspace, membership e titular.
 - [ ] Segredo Unipile não sai do backend; callbacks validam a conta retornada antes de persistir conexão.
