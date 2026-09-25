@@ -2,6 +2,8 @@
 
 **Status:** ready-for-agent
 
+**Ownership Unipile / ciclos de canal:** conexão Unipile e os ciclos reais de E-mail, WhatsApp e LinkedIn são implementados por `.scratch/canais-cadencia-backend/` (tickets canais-03, canais-04, canais-06 e canais-07). Esta spec de CRM **não** reimplementa esses fluxos. Os tickets CRM-16, CRM-19, CRM-20 e CRM-21 passam a ser ponteiros para aqueles tickets; o CRM permanece dono de Contas/Contatos, Seq↔Conta UUID, ADRs e demais domínio comercial.
+
 ## Problem Statement
 
 O protótipo mostra Contas e Contatos, Agentes e Conversas, Sinais, Configurações, Onboarding, Aprovações e Sequências, mas a maioria das telas ainda recebe dados de fontes simuladas. A única integração de persistência de produto existente é parcial em Sequências. Isso permite que uma tela autenticada mostre resultados demonstrativos como se fossem trabalho real, e os módulos não compartilham uma identidade estável de Workspace, Conta-alvo e Contato.
@@ -189,7 +191,7 @@ Portas `Fonte*` já existentes devem ser preservadas como costura de UI/adapters
 - Credenciais e conteúdo privado de remetente/caixa ficam privados ao titular; Workspace compartilha eventos e status previstos, não conteúdo pessoal da mensagem (ADR-0008).
 - Resposta recebida pausa a Sequência da Conta inteira. Proposta de resposta requer aprovação do titular e aprovação não retoma automaticamente a Sequência.
 - Nunca mudar titular/remetente por roleta ou transferência comercial. Revogação, reconexão e reconciliação são estados explícitos.
-- Unipile v1 é o primeiro conector de canais pessoais. Autenticação hosted e consulta de status já têm código local parcial; recebimento, envio, filas, cadenciador, reconciliação e deploy remoto ainda precisam ser implementados.
+- Unipile v1 é o primeiro conector de canais pessoais. Autenticação hosted e consulta de status já têm código local parcial; recebimento, envio, filas, cadenciador, reconciliação e deploy remoto ainda precisam ser implementados — **na spec de canais** (`.scratch/canais-cadencia-backend/`), não reimplementados aqui.
 
 ### Arquitetura alvo
 
@@ -252,7 +254,9 @@ Preferências, ICP/Personas com versão aprovada segundo spec, Agents e permiss�
 
 #### Fase 4 — Sequências e canais pessoais ponta a ponta
 
-Migrar FKs de Sequências para Accounts UUID; finalizar Unipile v1, callbacks, status, reconexão/revogação, envio/recebimento conforme tickets, filas/cadenciador, conteúdo privado, eventos compartilhados, respostas e aprovação do titular. Nenhum envio ocorre sem destinatário/canal disponível e permissão.
+Migrar FKs de Sequências para Accounts UUID (ticket CRM-17) e manter Seq↔Conta, responsabilidade exclusiva e ADRs no domínio CRM. O trabalho Unipile v1 (conexão, callbacks, status, reconexão/revogação, envio/recebimento, filas/cadenciador, conteúdo privado, eventos compartilhados, respostas e aprovação do titular) é **consumido** da spec `.scratch/canais-cadencia-backend/` — CRM não reimplementa. Nenhum envio ocorre sem destinatário/canal disponível e permissão.
+
+**Ordem recomendada:** Fases 0–1 (CRM-01 → 02 → 04 → 05, + CRM-17 se a FK textual bloquear) → canais-01…04 para o primeiro send tracer. Fases 2–3 (Sinais/Agentes) podem vir depois do tracer se o objetivo imediato for envio real cedo.
 
 #### Fase 5 — Enriquecimento e conectores adicionais
 
@@ -309,7 +313,7 @@ Foto/logotipo/enriquecimento, Actors/fontes adicionais de Sinais via Apify, CRM/
 
 **Provedores:** Apify foi escolhido para Sinais externos e consulta de foto por URL pública de LinkedIn; o Actor concreto e seus limites, custo, retenção e qualidade serão validados no ticket de integração. Unipile v1 é o primeiro provedor de canais pessoais. Apify não substitui o provedor de canais e Unipile não substitui coleta de Sinais.
 
-**Fases:** base de acesso/tenant → Workspace/CRM/CSV/roleta → Sinais/Apify → Configurações/Agentes/Conversas/Aprovações → migração de Sequências e ciclo Unipile → enriquecimento e conectores adicionais. Cada fase deixa uma jornada real utilizável e não cruza fixtures para o modo real.
+**Fases:** base de acesso/tenant → Workspace/CRM/CSV/roleta → (opcional antecipar) canais Unipile/ciclos via `.scratch/canais-cadencia-backend/` → Sinais/Apify → Configurações/Agentes/Conversas/Aprovações → migração Seq↔Conta UUID no CRM + consumo dos ciclos canais → enriquecimento e conectores adicionais. Cada fase deixa uma jornada real utilizável e não cruza fixtures para o modo real. Detalhe operacional em `.scratch/ORDEM-BUILD-FUNCIONAL.md`.
 
 **Glossário e ADRs:** usar os termos de `CONTEXT.md`; manter ADRs 0002–0009. A regra nova de roleta já foi registrada no glossário; esta spec não substitui as ADRs de Sinais, Coordenação, privacidade de remetentes e responsabilidade exclusiva.
 

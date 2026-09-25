@@ -8,6 +8,14 @@ Transformar o módulo existente de Sequências em operação real: conectar os c
 
 Esta entrega substitui as simulações apenas no caminho de cadência e mensageria. Não implementa dashboard, caixa de entrada compartilhada, CRM completo, enriquecimento, motor de comissões ou funcionamento geral de todos os Agentes.
 
+## Ownership e fonte de verdade
+
+Esta spec (e seus tickets em `issues/`) é a **fonte de verdade** para Unipile v1 e para os ciclos reais de E-mail, WhatsApp e LinkedIn. Os tickets CRM-16, CRM-19, CRM-20 e CRM-21 em `.scratch/crm-real-e-stack/issues/` são apenas ponteiros para canais-03/04/06/07 — não reimplementar ali.
+
+**Pré-requisitos mínimos do corte vertical (send tracer):** CRM-01, CRM-02, CRM-04 e CRM-05 (base tenant + Contas/Contatos reais) + canais-01…04. Ticket canais-13, quando presente na branch, permanece `needs-info` / fora do primeiro corte até decisão LGPD; em `main` sem o arquivo, o item continua fora do corte.
+
+Ver também `.scratch/ORDEM-BUILD-FUNCIONAL.md`.
+
 ## Regras de produto confirmadas
 
 1. A Conta-alvo é a unidade comercial. Há no máximo uma Sequência por Conta-alvo no Workspace, mesmo quando existem vários vendedores.
