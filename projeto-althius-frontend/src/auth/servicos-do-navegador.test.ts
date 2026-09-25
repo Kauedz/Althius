@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { criarServicosDoNavegador } from './servicos-do-navegador'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { criarServicosDoNavegador, type GoogleAccountsId } from './servicos-do-navegador'
 
 /** SHA-1 de "password": 5BAA6 1E4C9B93F3F0682250B6CF8331B7EE68FD8. */
 const SUFIXO_DE_PASSWORD = '1E4C9B93F3F0682250B6CF8331B7EE68FD8'
@@ -34,5 +34,66 @@ describe('Pwned Passwords por k-anonimato', () => {
   it('uma resposta de erro do serviço falha, para quem chama decidir não bloquear', async () => {
     const { buscar } = pwnedPasswordsFalso('', 503)
     await expect(criarServicosDoNavegador({ fetch: buscar }).senhaVazada('password')).rejects.toThrow('503')
+  })
+})
+
+/** Um `google.accounts.id` falso, que registra o que a Althius pediu ao Google Identity Services. */
+function googleAccountsIdFalso() {
+  const chamadas: { metodo: string; argumentos: unknown[] }[] = []
+  let callback: ((resposta: { credential: string }) => void) | undefined
+  const id: GoogleAccountsId = {
+    initialize(configuracao) {
+      callback = configuracao.callback
+      chamadas.push({ metodo: 'initialize', argumentos: [configuracao] })
+    },
+    renderButton: (...argumentos) => { chamadas.push({ metodo: 'renderButton', argumentos }) },
+    prompt: () => { chamadas.push({ metodo: 'prompt', argumentos: [] }) },
+    cancel: () => { chamadas.push({ metodo: 'cancel', argumentos: [] }) },
+  }
+  return { id, chamadas, escolherConta: (credential: string) => callback!({ credential }) }
+}
+
+describe('Google Identity Services', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('sem o Client ID do Google, não há Google', () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
+    expect(criarServicosDoNavegador().google).toBeUndefined()
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'client-id-do-teste.apps.googleusercontent.com')
+    expect(criarServicosDoNavegador().google).toBeDefined()
+  })
+
+  it('desenha o botão oficial e o One Tap por FedCM com o hash do nonce, sem escopos além do ID token', async () => {
+    const google = googleAccountsIdFalso()
+    const servicos = criarServicosDoNavegador({ googleClientId: 'client-id-do-teste', carregarGoogle: () => Promise.resolve(google.id) })
+    const elemento = document.createElement('div')
+    const credenciais: string[] = []
+
+    const limpar = servicos.google!.iniciar({ elemento, nonceComHash: 'hash-do-nonce', contexto: 'signup', aoReceberCredencial: (token) => credenciais.push(token) })
+    await vi.waitFor(() => expect(google.chamadas.map((c) => c.metodo)).toEqual(['initialize', 'renderButton', 'prompt']))
+
+    const configuracao = google.chamadas[0].argumentos[0] as Record<string, unknown>
+    expect(configuracao).toMatchObject({ client_id: 'client-id-do-teste', nonce: 'hash-do-nonce', context: 'signup', use_fedcm_for_prompt: true })
+    expect(configuracao).not.toHaveProperty('scope')
+    expect(google.chamadas[1].argumentos).toEqual([elemento, expect.objectContaining({ type: 'standard', text: 'continue_with' })])
+
+    google.escolherConta('id-token')
+    expect(credenciais).toEqual(['id-token'])
+
+    // Depois da limpeza, o One Tap fecha e nenhuma credencial chega mais à tela.
+    limpar()
+    expect(google.chamadas.at(-1)?.metodo).toBe('cancel')
+    google.escolherConta('outro-id-token')
+    expect(credenciais).toEqual(['id-token'])
+  })
+
+  it('se o script do Google não carregar, o Google só não aparece', async () => {
+    const servicos = criarServicosDoNavegador({ googleClientId: 'client-id-do-teste', carregarGoogle: () => Promise.reject(new Error('bloqueado')) })
+    const elemento = document.createElement('div')
+
+    const limpar = servicos.google!.iniciar({ elemento, nonceComHash: 'hash', contexto: 'signin', aoReceberCredencial: () => {} })
+    await Promise.resolve()
+    limpar()
+    expect(elemento.childElementCount).toBe(0)
   })
 })
