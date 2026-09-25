@@ -10,5 +10,6 @@
 - [ ] Tema e preferências de notificação sobrevivem a sessão e dispositivo.
 - [ ] Formulários indicam salvamento, validação, falha e retry sem mostrar sucesso antes da confirmação do backend.
 - [ ] Preferências privadas de um usuário não sobrescrevem preferências de outro participante.
+- [ ] Trocar senha exige a senha atual (ou reautenticação por código) e segue a política da [spec de autenticação](../../autenticacao-google-email/spec.md); quem entrou só com Google pode definir uma senha sem perder a identidade Google.
 - [ ] Plano e consumo permanecem identificados como demonstração, fora do escopo de billing.
 
