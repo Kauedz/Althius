@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T19:25-03:00
+Updated: 2026-09-25T19:45-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -15,10 +15,10 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-05 | done | ralph/auth-05-esqueci-a-senha · PR #22 (draft, base Auth-03; inclui junção com Auth-04) | AC 5/5; suíte 552/552 |
 | Auth-06 | done | ralph/auth-06-senhas-vazadas · PR #24 (draft, base Auth-05) | AC 6/6; suíte 560/560; criou `ServicosDoNavegador` |
 | Auth-07 | running | ralph/auth-07-continuar-com-google | ∥ Auth-08, a partir de Auth-06 |
-| Auth-08 | running | ralph/auth-08-captcha-invisivel | ∥ Auth-07, a partir de Auth-06 |
+| Auth-08 | done | ralph/auth-08-captcha-invisivel · PR #25 (draft, base Auth-06) | AC 4/4; suíte 569/569; pending-human: Turnstile (Auth-10) |
 | CRM-04 | queued | | Contas-alvo reais |
 | CRM-05 | queued | | Contatos e vínculos |
-| CRM-17 | conditional | | só se a FK textual Seq↔Conta bloquear |
+| CRM-17 | conditional | | só se a FK textual Seq↔Conta bloquear; Blocked by CRM-04 e **CRM-06 (fora do corte)** |
 | canais-01 | gate-pending | — | in-progress; AC de código todos [x], falta validação com conta real |
 | canais-02 | gate-fail | — | ready-for-human (AC de código todos [x]) |
 | canais-03 | queued | | in-progress; 2 AC abertos (estados na interface, reconexão) |
@@ -38,8 +38,10 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-04 | ~115k |
 | Auth-05 | ~165k |
 | Auth-06 | ~135k |
+| Auth-08 | ~119k |
 
 ## Alerts
+- ALERTA RALPH | CRM-17 | GATE (antecipado) | Blocked by CRM-06 (roleta), fora do corte. Se a FK textual travar CRM-04/05/canais, a cadeia para aqui até decisão humana.
 - Pendências humanas acumuladas para o Auth-10: modelos de e-mail "Confirm signup", "Magic Link" e "Reset Password" com `{{ .Token }}` além do link; e-mail para quem tenta se cadastrar com e-mail existente (Supabase não envia; exige Send Email Hook); páginas `/termos` e `/privacidade` (hoje provisórias).
 - ALERTA RALPH | Auth-02 | pending-apply | aplicar `supabase/migrations/20260925140000_workspace_pessoal.sql` no Supabase ANTES de mergear o PR #19; sem ela o app real cai em "Tentar novamente" após o login.
 - Pré-existente: `responsabilidade_exclusiva.sql` falha 7/12 localmente também na `main` (validação de canal em `validate_sequence_document`). Relevante para canais-01/02.
