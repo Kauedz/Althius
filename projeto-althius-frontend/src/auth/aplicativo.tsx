@@ -5,6 +5,7 @@ import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso } from './destino'
+import { VERSAO_DOS_TERMOS } from './termos'
 import { TelasDeAcesso } from './telas-de-acesso'
 
 /** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
@@ -13,6 +14,12 @@ const CHAVE_DO_WORKSPACE = 'althius:workspace'
 interface Participacao {
   workspace_id: string
   role: 'member' | 'admin'
+}
+
+/** O Workspace pessoal que o bootstrap garante à Conta de usuário da sessão. */
+interface WorkspacePessoal {
+  id: string
+  name: string
 }
 
 export function AplicativoAutenticado({
@@ -31,6 +38,9 @@ export function AplicativoAutenticado({
 
 function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
   const { cliente, sessao, carregandoSessao } = useAutenticacao()
+  const [workspacePessoal, setWorkspacePessoal] = useState<WorkspacePessoal | null>(null)
+  const [erroWorkspacePessoal, setErroWorkspacePessoal] = useState<string | null>(null)
+  const [tentativa, setTentativa] = useState(0)
   const [participacoes, setParticipacoes] = useState<Participacao[] | null>(null)
   const [erroParticipacoes, setErroParticipacoes] = useState<string | null>(null)
   const [workspaceId, setWorkspaceId] = useState('')
@@ -44,35 +54,62 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     if (destino) window.history.replaceState(null, '', destino)
   }, [usuarioId])
 
+  // Toda Conta de usuário verificada tem seu Workspace pessoal: o bootstrap o garante antes de ler as Participações,
+  // e repeti-lo (novo login, refresh, nova tentativa) não cria outro.
   useEffect(() => {
     let ativo = true
+    setWorkspacePessoal(null)
+    setErroWorkspacePessoal(null)
     setParticipacoes(null)
     setErroParticipacoes(null)
     setWorkspaceId('')
     if (!usuarioId) return () => { ativo = false }
 
-    void cliente
-      .from('workspace_memberships')
-      .select('workspace_id, role')
-      .eq('user_id', usuarioId)
-      .eq('active', true)
-      .then(({ data, error }) => {
-        if (!ativo) return
-        if (error) {
-          setErroParticipacoes(error.message)
-          return
-        }
-        const lista = (data ?? []) as Participacao[]
-        setParticipacoes(lista)
-        const salvo = sessionStorage.getItem(CHAVE_DO_WORKSPACE)
-        setWorkspaceId(lista.find((p) => p.workspace_id === salvo)?.workspace_id ?? (lista.length === 1 ? lista[0].workspace_id : ''))
-      })
+    void (async () => {
+      const bootstrap = await cliente.rpc('bootstrap_personal_workspace', { p_terms_version: VERSAO_DOS_TERMOS })
+      if (!ativo) return
+      if (bootstrap.error) {
+        setErroWorkspacePessoal(bootstrap.error.message)
+        return
+      }
+      const pessoal = bootstrap.data as WorkspacePessoal
+      setWorkspacePessoal(pessoal)
+
+      const { data, error } = await cliente
+        .from('workspace_memberships')
+        .select('workspace_id, role')
+        .eq('user_id', usuarioId)
+        .eq('active', true)
+      if (!ativo) return
+      if (error) {
+        setErroParticipacoes(error.message)
+        return
+      }
+      const lista = (data ?? []) as Participacao[]
+      setParticipacoes(lista)
+      // Ordem de entrada: o Workspace usado por último nesta aba; sem outro destino, o Workspace pessoal.
+      const salvo = sessionStorage.getItem(CHAVE_DO_WORKSPACE)
+      const destino = [salvo, pessoal.id].find((id) => lista.some((p) => p.workspace_id === id))
+      setWorkspaceId(destino ?? (lista.length === 1 ? lista[0].workspace_id : ''))
+    })()
 
     return () => { ativo = false }
-  }, [cliente, usuarioId])
+  }, [cliente, usuarioId, tentativa])
 
   if (carregandoSessao) return <TelaDeEstado>Verificando sessão…</TelaDeEstado>
   if (!sessao) return <TelasDeAcesso aoAcessarDemonstracao={aoAcessarDemonstracao} />
+  if (erroWorkspacePessoal) {
+    return (
+      <TelaDeEstado>
+        <p role="alert">Não foi possível preparar seu Workspace pessoal. Verifique sua conexão e tente novamente.</p>
+        <p className="text-xs text-al-muted">{erroWorkspacePessoal}</p>
+        <div className="flex gap-2">
+          <Button onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button>
+          <Sair />
+        </div>
+      </TelaDeEstado>
+    )
+  }
   if (erroParticipacoes) {
     return (
       <TelaDeEstado>
@@ -87,6 +124,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       </TelaDeEstado>
     )
   }
+  if (workspacePessoal === null) return <TelaDeEstado>Preparando seu Workspace pessoal…</TelaDeEstado>
   if (participacoes === null) return <TelaDeEstado>Carregando seus Workspaces…</TelaDeEstado>
   if (participacoes.length === 0) {
     return (
@@ -128,6 +166,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       key={`${sessao.user.id}:${workspaceId}`}
       sessao={sessao}
       participacao={participacao}
+      nomeDoWorkspace={workspaceId === workspacePessoal.id ? workspacePessoal.name : undefined}
       cliente={cliente}
       aoTrocarDeWorkspace={participacoes.length > 1 ? trocarDeWorkspace : undefined}
       aoAcessarDemonstracao={aoAcessarDemonstracao}
@@ -139,12 +178,14 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
 function AplicativoDoWorkspace({
   sessao,
   participacao,
+  nomeDoWorkspace,
   cliente,
   aoTrocarDeWorkspace,
   aoAcessarDemonstracao,
 }: {
   sessao: Session
   participacao: Participacao
+  nomeDoWorkspace?: string
   cliente: SupabaseClient
   aoTrocarDeWorkspace?: () => void
   aoAcessarDemonstracao?: () => void
@@ -165,6 +206,7 @@ function AplicativoDoWorkspace({
     <>
       <div className="flex items-center justify-end gap-3 border-b border-al-line px-4 py-2 text-xs text-al-muted">
         <span>Workspace operacional</span>
+        {nomeDoWorkspace && <span className="text-al-ink">{nomeDoWorkspace}</span>}
         <span>{sessao.user.email}</span>
         {aoTrocarDeWorkspace && <Button variant="outline" onClick={aoTrocarDeWorkspace}>Trocar de Workspace</Button>}
         {aoAcessarDemonstracao && <Button variant="outline" onClick={aoAcessarDemonstracao}>Abrir Demonstração</Button>}

@@ -12,6 +12,10 @@ values
   ('10000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'admin@example.test', '', now(), now(), now(), '{}', '{}', false, false),
   ('20000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'other-workspace@example.test', '', now(), now(), now(), '{}', '{}', false, false);
 
+insert into public.workspaces(id, kind, name) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'empresa', 'Workspace da empresa'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'empresa', 'Workspace da empresa');
+
 insert into public.workspace_memberships(workspace_id, user_id, role, active) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '10000000-0000-0000-0000-000000000001', 'member', true),
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '10000000-0000-0000-0000-000000000002', 'member', true),
@@ -22,7 +26,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
 select lives_ok(
-  $$select public.create_sequence('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'target-1', '{"steps":[{"body":"private"}]}'::jsonb, '{"status":"ativa"}'::jsonb)$$,
+  $$select public.create_sequence('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'target-1', '{"steps":[{"canal":"email","body":"private"}]}'::jsonb, '{"status":"ativa"}'::jsonb)$$,
   'active owner creates the sequence'
 );
 
@@ -35,7 +39,7 @@ select is((select count(*)::int from public.sequences where target_account_id = 
 select is((select count(*)::int from information_schema.columns where table_schema = 'public' and table_name = 'sequences' and column_name = 'private_document'), 0,
   'private document is not in public relation');
 select lives_ok(
-  $$select public.update_owned_sequence((select id from public.sequences where target_account_id = 'target-1'), '{"steps":[{"body":"updated"}]}'::jsonb, null, null)$$,
+  $$select public.update_owned_sequence((select id from public.sequences where target_account_id = 'target-1'), '{"steps":[{"canal":"email","body":"updated"}]}'::jsonb, null, null)$$,
   'active owner can update the sequence'
 );
 
