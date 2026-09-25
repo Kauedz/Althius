@@ -573,6 +573,8 @@ export {
   dataDoDisparo,
   expiraEm,
   estaValido,
+  foiDisparado,
+  parseDataDisparo,
 } from '@/fonte/regras-sinais'
 
 export function sinaisDaConta(contaId: string): SinalMock[] {
