@@ -9,6 +9,15 @@ interface Autenticacao {
   /** Envia o link de acesso; ao abri-lo, a pessoa volta para `destino`, um caminho deste app. */
   entrarComLink: (email: string, destino: string) => Promise<void>
   sair: () => Promise<void>
+  /**
+   * Cria a Conta de usuário com senha e envia o código de confirmação, sem abrir sessão. Um e-mail que já tem conta
+   * recebe a mesma resposta, para a tela não revelar quem está cadastrado.
+   */
+  cadastrar: (dados: { nome: string; email: string; senha: string }, destino: string) => Promise<void>
+  /** Confirma o e-mail do cadastro com o código de 6 dígitos; a sessão começa em seguida. */
+  confirmarCodigoDoCadastro: (email: string, codigo: string) => Promise<void>
+  /** Envia um novo código (e link) de confirmação do cadastro. */
+  reenviarCodigoDoCadastro: (email: string, destino: string) => Promise<void>
 }
 
 const Contexto = createContext<Autenticacao | null>(null)
@@ -60,6 +69,26 @@ export function ContextoDeAutenticacao({ cliente, children }: { cliente: Supabas
       } finally {
         setCarregando(false)
       }
+    },
+    async cadastrar({ nome, email, senha }, destino) {
+      const { error } = await cliente.auth.signUp({
+        email: email.trim(),
+        password: senha,
+        options: { data: { full_name: nome.trim() }, emailRedirectTo: window.location.origin + destino },
+      })
+      if (error) throw error
+    },
+    async confirmarCodigoDoCadastro(email, codigo) {
+      const { error } = await cliente.auth.verifyOtp({ email: email.trim(), token: codigo.trim(), type: 'signup' })
+      if (error) throw error
+    },
+    async reenviarCodigoDoCadastro(email, destino) {
+      const { error } = await cliente.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: { emailRedirectTo: window.location.origin + destino },
+      })
+      if (error) throw error
     },
   }), [cliente, sessao, carregandoSessao, carregando])
 

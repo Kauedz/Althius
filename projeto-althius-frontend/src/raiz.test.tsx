@@ -1,8 +1,9 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { VERSAO_DOS_TERMOS } from '@/auth/termos'
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 
@@ -372,5 +373,186 @@ describe('Workspace pessoal no primeiro acesso', () => {
 
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('Cadastro com senha', () => {
+  const SENHA = 'correta cavalo bateria'
+
+  async function preencherCadastro(usuario: ReturnType<typeof userEvent.setup>, { email = MARINA.email, senha = SENHA } = {}) {
+    await usuario.type(await screen.findByLabelText('Nome'), 'Marina Souza')
+    await usuario.type(screen.getByLabelText('E-mail'), email)
+    await usuario.type(screen.getByLabelText('Senha'), senha)
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+  }
+
+  it('/cadastro pede nome, e-mail e senha, com link para entrar e o aceite passivo dos Termos', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    abrirAlthius({ ultimoAmbiente: 'real' })
+
+    expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Nome')).toHaveAttribute('autocomplete', 'name')
+    expect(screen.getByLabelText('E-mail')).toHaveAttribute('autocomplete', 'email')
+    expect(screen.getByLabelText('Senha')).toHaveAttribute('autocomplete', 'new-password')
+    expect(screen.getAllByRole('textbox')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/entrar')
+    expect(screen.getByRole('link', { name: 'Termos de Uso' })).toHaveAttribute('href', '/termos')
+    expect(screen.getByRole('link', { name: 'Política de Privacidade' })).toHaveAttribute('href', '/privacidade')
+  })
+
+  it('/entrar tem link para criar conta', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/cadastro')
+  })
+
+  it('a senha tem medidor de força e pode ser mostrada e ocultada', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    const senha = await screen.findByLabelText('Senha')
+    await usuario.type(senha, 'abc')
+    expect(screen.getByText('Força da senha: muito curta')).toBeInTheDocument()
+    await usuario.type(senha, 'defghi')
+    expect(screen.getByText('Força da senha: fraca')).toBeInTheDocument()
+    await usuario.type(senha, ' Jklmn 42!')
+    expect(screen.getByText('Força da senha: forte')).toBeInTheDocument()
+
+    expect(senha).toHaveAttribute('type', 'password')
+    await usuario.click(screen.getByRole('button', { name: 'Mostrar senha' }))
+    expect(senha).toHaveAttribute('type', 'text')
+    await usuario.click(screen.getByRole('button', { name: 'Ocultar senha' }))
+    expect(senha).toHaveAttribute('type', 'password')
+  })
+
+  it('uma senha com menos de 8 caracteres é recusada antes de criar a conta', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    await preencherCadastro(usuario, { senha: '1234567' })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('A senha precisa ter pelo menos 8 caracteres.')
+    expect(codigoEnviadoPara(MARINA.email)).toBeUndefined()
+    expect(screen.getByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
+  })
+
+  it('caminho completo: cria a conta, confirma o código e cai no Workspace pessoal, com o aceite gravado pelo bootstrap', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const versoesAceitas: unknown[] = []
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const noBanco = workspacePessoalDaMarinaNoBanco(tabelas)
+    const { usuario, codigoEnviadoPara, nomeCadastrado } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      tabelas,
+      rpcs: { bootstrap_personal_workspace: (p) => { versoesAceitas.push(p.p_terms_version); return noBanco() } },
+    })
+
+    await preencherCadastro(usuario)
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(screen.getByText(MARINA.email)).toBeInTheDocument()
+    expect(nomeCadastrado(MARINA.email)).toBe('Marina Souza')
+    // Sem verificação não há sessão nem Workspace.
+    expect(versoesAceitas).toEqual([])
+    expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
+
+    const codigo = screen.getByLabelText('Código de 6 dígitos')
+    expect(codigo).toHaveAttribute('autocomplete', 'one-time-code')
+    await usuario.type(codigo, '000000')
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Código inválido ou expirado.')
+
+    await usuario.clear(codigo)
+    await usuario.type(codigo, codigoEnviadoPara(MARINA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar' }))
+
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
+    expect(screen.getByText('Marina Souza')).toBeInTheDocument()
+    expect(versoesAceitas).toEqual([VERSAO_DOS_TERMOS])
+    expect(window.location.pathname).toBe('/')
+  })
+
+  it('o link do e-mail também confirma neste navegador e leva ao destino lembrado', async () => {
+    window.history.replaceState(null, '', `/cadastro?${new URLSearchParams({ destino: '/sinais' })}`)
+    const { usuario, linkEnviadoPara, abrirLinkDeConfirmacao } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+    })
+
+    await preencherCadastro(usuario)
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
+    expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe('/sinais')
+
+    act(() => abrirLinkDeConfirmacao(MARINA.email))
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/sinais')
+  })
+
+  it('cadastro com e-mail que já tem conta mostra a mesma resposta do cadastro novo', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [MARINA.email] })
+
+    await preencherCadastro(usuario)
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('"Corrigir e-mail" volta ao formulário sem perder o nome digitado', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    await preencherCadastro(usuario, { email: 'marina@errado.com.br' })
+    await usuario.click(await screen.findByRole('button', { name: 'Corrigir e-mail' }))
+
+    expect(screen.getByLabelText('Nome')).toHaveValue('Marina Souza')
+    await usuario.clear(screen.getByLabelText('E-mail'))
+    await usuario.type(screen.getByLabelText('E-mail'), MARINA.email)
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+    expect(await screen.findByText(MARINA.email)).toBeInTheDocument()
+    expect(codigoEnviadoPara(MARINA.email)).toBeDefined()
+  })
+
+  it('atualizar a página na etapa do código mantém a etapa, sem guardar a senha', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const supabase = abrirAlthius({ ultimoAmbiente: 'real' })
+    await preencherCadastro(supabase.usuario)
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
+
+    cleanup()
+    render(<RaizDoAplicativo cliente={supabase.cliente} />)
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(screen.getByText(MARINA.email)).toBeInTheDocument()
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain(SENHA)
+
+    await supabase.usuario.type(screen.getByLabelText('Código de 6 dígitos'), supabase.codigoEnviadoPara(MARINA.email)!)
+    await supabase.usuario.click(screen.getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('"Reenviar código" só fica disponível depois do intervalo mínimo, que a tela mostra', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      window.history.replaceState(null, '', '/cadastro')
+      const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
+      await preencherCadastro(usuario)
+      await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
+      const primeiro = codigoEnviadoPara(MARINA.email)
+
+      expect(screen.getByRole('button', { name: /Reenviar código em \d+ s/ })).toBeDisabled()
+      act(() => vi.advanceTimersByTime(60_000))
+      await usuario.click(await screen.findByRole('button', { name: 'Reenviar código' }))
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Enviamos um novo código')
+      expect(codigoEnviadoPara(MARINA.email)).not.toBe(primeiro)
+      expect(screen.getByRole('button', { name: /Reenviar código em \d+ s/ })).toBeDisabled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
