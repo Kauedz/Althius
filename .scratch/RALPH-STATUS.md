@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T21:50-03:00
+Updated: 2026-09-25T20:35-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -49,11 +49,16 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Correções | ~127k |
 | **Total halves** | **~1,75M** (mais a matriz) |
 
+## Merge (2026-09-25)
+Pilha mergeada na `main` pelo responsável do produto: #19, #20, #22 (traz #21), #24, #26, #27 (traz #25), #28, #29, #30. PRs #21 e #25 fechados sem merge por estarem contidos em #22 e #27. Na `main`: suíte 604/604, `tsc` ok, pgTAP de workspace_pessoal, contas_alvo_reais e contatos_e_vinculos sem falhas.
+
+A correção do aceite dos Termos entrou como migration nova `20260925170000_bootstrap_preserva_aceite_dos_termos.sql`, porque a `20260925140000` já tinha sido aplicada no remoto.
+
 ## STOP
-Corrida parada no gate de canais (2026-09-25 21:05). canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana: dar canais-01 e canais-02 como done (teste real no fim) ou validar antes. Review final (só leitura) disparado sobre o topo da pilha.
+Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana.
 
 ## Alerts
-- ALERTA RALPH | migrations | aplicar as versões do TOPO da pilha (PR #30): 140000 e 160000 foram corrigidas lá. Ordem: 140000 → 150000 → 160000.
+- ALERTA RALPH | migrations | aplicar no remoto, na ordem, as que faltarem: 140000 (se ainda não) → 150000 → 160000 → 170000.
 - ALERTA RALPH | PR #23 (outra sessão) | o wizard de teste real do canais-01 pode ter criado dados em `public.workspaces` no remoto; conferir se a tabela já existe antes de aplicar a 140000 (que faz `create table`).
 - ALERTA RALPH | canais-03 | GATE | Blocked-by faltando: canais-01 não está done.
 - ALERTA RALPH | CRM-05 | pending-apply + humano | migration 20260925160000 move a tabela antiga de destinatários (canais-02) para `private.target_contacts_canais02` e troca `public.target_contacts` por view; decidir o destino das linhas antigas, se houver.
