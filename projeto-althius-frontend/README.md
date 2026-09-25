@@ -14,13 +14,16 @@ npm run build    # typecheck + build de produção
 ## Como está organizado
 
 - `src/fonte/`: a **fonte de dados dos agentes**, a única fronteira entre as telas e os agentes. `tipos.ts` define a interface; `simulada.ts` é a implementação da demo, com os dados em `dados-demo.ts` e os roteiros da Conversa e da Coordenação em `roteiros.ts`. Um back-end real entra implementando a mesma interface (ADR 0003).
+- `src/raiz.tsx` e `src/fonte/composicao.ts`: o **ponto de composição**. A raiz escolhe entre a Demonstração e o Workspace operacional; a composição monta o `Ambiente` (`ambiente.ts`) com as fontes de cada um.
 - `src/paginas/`: grade de Agentes, criação de Agente, página do agente (7 seções), Conversa coordenada, Conexões e Aprovações.
 - `src/conversa/`: estado das Conversas (diretas e coordenadas), o composer e o autocompletar de @menção.
 - `src/index.css`: tokens do Manual da Marca v2.0 (tema escuro padrão e tema claro).
 
 ## Acesso real a Sequências
 
-Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` em `.env.local` (veja `.env.example`). Com as duas variáveis presentes, o aplicativo exige uma sessão Supabase Auth e uma participação ativa em `workspace_memberships`; sem configuração continua disponível a demonstração existente. O cliente usa somente a chave publicável. Nunca configure uma chave `service_role` no frontend.
+Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` em `.env.local` (veja `.env.example`). Com as duas variáveis presentes, o protótipo continua abrindo na Demonstração e oferece o acesso ao Workspace operacional, que exige uma sessão Supabase Auth e uma participação ativa em `workspace_memberships`; sem configuração, só existe a Demonstração. O cliente usa somente a chave publicável. Nunca configure uma chave `service_role` no frontend.
+
+A escolha das fontes fica num só lugar, `src/fonte/composicao.ts`: a Demonstração recebe as fontes simuladas; o Workspace operacional, os adapters reais do Workspace escolhido. Hoje só Sequências é real; os outros módulos entram com as fontes de `src/fonte/indisponivel.ts`, que não trazem dado de demonstração e recusam as ações, e as telas deles mostram que ainda estão indisponíveis. Ao conectar um módulo, troque a fonte dele em `criarAmbienteDoWorkspace` e tire-o de `indisponiveis`.
 
 O acesso é por link de e-mail para contas já existentes; o formulário não cria usuários nem associa Workspaces. Convide os usuários pelo Supabase Auth e provisione suas participações por operação administrativa confiável. As RPCs do banco verificam a identidade do token, a participação ativa e o Vendedor responsável.
 

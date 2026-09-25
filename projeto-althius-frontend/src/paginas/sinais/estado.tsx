@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useFonteDeSinais } from '@/fonte/contexto'
 import type { FonteDeSinais, ParametrosSimulacaoDisparo, SinalEncontrado } from '@/fonte/sinais-tipos'
-import { MONITORAMENTOS_INICIAIS, type EstadoDoMonitoramento, type Monitoramento } from './dados-mock'
+import type { EstadoDoMonitoramento, Monitoramento } from './dados-mock'
 
 interface SinaisDoMockup {
   monitoramentos: Monitoramento[]
@@ -22,9 +22,8 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
     // Permite uso sem FonteDeSinaisProvider se algum teste isolado renderizar diretamente
   }
 
-  const [monitoramentos, setMonitoramentos] = useState<Monitoramento[]>(() => {
-    return MONITORAMENTOS_INICIAIS
-  })
+  // Os Monitoramentos vêm só da fonte do ambiente: a da Demonstração traz os de exemplo; um Workspace real, os seus.
+  const [monitoramentos, setMonitoramentos] = useState<Monitoramento[]>([])
 
   useEffect(() => {
     if (!fonte) return

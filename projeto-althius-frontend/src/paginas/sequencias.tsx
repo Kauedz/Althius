@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
-import { useDadosDeContas, useDadosDeSequencias, useFonteDeSequencias } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeContas, useDadosDeSequencias } from '@/fonte/contexto'
 import type { StatusSequencia } from '@/fonte/sequencias-tipos'
 import { normalizarParaBusca } from '@/lib/utils'
 import { DetalheSequencia, IconeCanal, SeloStatus } from './detalhe-sequencia'
@@ -25,7 +25,8 @@ export function PaginaSequencias() {
 }
 
 function ListaGlobalSequencias() {
-  const permiteCriarSequencia = useFonteDeSequencias().modo !== 'real'
+  // Criar uma Sequência escolhe Conta-alvo e Contatos: sem eles no Workspace, a criação ficaria com IDs inventados.
+  const permiteCriarSequencia = useAmbiente().disponivel('contas')
   const navegar = useNavigate()
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<StatusSequencia | 'todos'>('todos')
@@ -114,7 +115,9 @@ function ListaGlobalSequencias() {
       {!carregando && !erro && sequencias && sequencias.length === 0 && (
         <div className="flex flex-col items-start gap-4 py-12">
           <p className="text-sm text-al-muted">
-            Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo ou solicite ao Rhetor na Conversa.
+            {permiteCriarSequencia
+              ? 'Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo ou solicite ao Rhetor na Conversa.'
+              : 'Nenhuma sequência ainda. Criar uma depende das Contas-alvo, que ainda não estão disponíveis neste Workspace.'}
           </p>
           {permiteCriarSequencia && <Button
             type="button"
