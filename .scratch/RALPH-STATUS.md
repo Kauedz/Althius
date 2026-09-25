@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T18:00-03:00
+Updated: 2026-09-25T18:45-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -10,9 +10,9 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | CRM-02 | skipped | — | substituído por Auth-02…08 |
 | Auth-01 | skipped | — | closed (PR #18, merged) |
 | Auth-02 | done | ralph/auth-02-workspace-pessoal · PR #19 (draft) | AC 7/7; pgTAP 19/19; suíte 530/530; **pending-apply** migration 20260925140000 |
-| Auth-03 | running | ralph/auth-03-cadastro-com-senha | ∥ Auth-04, ambos a partir de Auth-02 |
-| Auth-04 | running | ralph/auth-04-entrar-com-senha-ou-codigo | ∥ Auth-03 |
-| Auth-05 | queued | | junta Auth-03 e Auth-04 |
+| Auth-03 | done (código) | ralph/auth-03-cadastro-com-senha · PR #20 (draft, base Auth-02) | AC 7/8; suíte 540/540; 1 AC depende de e-mail para conta existente (Send Email Hook → Auth-10) |
+| Auth-04 | done | ralph/auth-04-entrar-com-senha-ou-codigo · PR #21 (draft, base Auth-02) | AC 5/5; suíte 537/537 |
+| Auth-05 | running | ralph/auth-05-esqueci-a-senha | começa juntando Auth-03 + Auth-04 |
 | Auth-06 | queued | | HIBP k-anon |
 | Auth-07 | queued | | Google GIS + One Tap; ∥ Auth-08 |
 | Auth-08 | queued | | Turnstile; ∥ Auth-07 |
@@ -34,8 +34,11 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Half | Tokens reportados |
 |------|-------------------|
 | Auth-02 | ~133k |
+| Auth-03 | ~108k |
+| Auth-04 | ~115k |
 
 ## Alerts
+- Pendências humanas acumuladas para o Auth-10: modelos de e-mail "Confirm signup" e "Magic Link" com `{{ .Token }}` além do link; e-mail para quem tenta se cadastrar com e-mail existente (Supabase não envia; exige Send Email Hook); páginas `/termos` e `/privacidade` (hoje provisórias).
 - ALERTA RALPH | Auth-02 | pending-apply | aplicar `supabase/migrations/20260925140000_workspace_pessoal.sql` no Supabase ANTES de mergear o PR #19; sem ela o app real cai em "Tentar novamente" após o login.
 - Pré-existente: `responsabilidade_exclusiva.sql` falha 7/12 localmente também na `main` (validação de canal em `validate_sequence_document`). Relevante para canais-01/02.
 - ALERTA RALPH | canais-02 | GATE | ready-for-human: não spawnar. canais-04 depende dele; a cadeia para no gate do canais-04 se o canais-02 não for dado como done por um humano.
