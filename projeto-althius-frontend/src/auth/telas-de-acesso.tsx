@@ -1,9 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/marca'
 import { useAutenticacao } from './contexto'
-import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso, enderecoDeEntrada } from './destino'
+import { ROTA_DE_CADASTRO, ROTA_DE_ENTRADA, destinoDepoisDoAcesso, enderecoDeEntrada } from './destino'
+import { TelaDeCadastro } from './tela-de-cadastro'
 
 /** As telas para quem ainda não tem sessão. Qualquer outro endereço leva a /entrar, lembrando o destino. */
 export function TelasDeAcesso({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
@@ -11,6 +12,7 @@ export function TelasDeAcesso({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
     <BrowserRouter>
       <Routes>
         <Route path={ROTA_DE_ENTRADA} element={<TelaDeEntrada aoAcessarDemonstracao={aoAcessarDemonstracao} />} />
+        <Route path={ROTA_DE_CADASTRO} element={<TelaDeCadastro />} />
         <Route path="*" element={<IrParaEntrada />} />
       </Routes>
     </BrowserRouter>
@@ -53,6 +55,7 @@ function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () =
         {mensagem && <p role="status" className="text-sm text-al-sucesso">{mensagem}</p>}
         {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
         <Button type="submit" disabled={carregando}>{carregando ? 'Enviando…' : 'Enviar link de acesso'}</Button>
+        <p className="text-sm text-al-muted">Ainda não tem conta? <Link to={{ pathname: ROTA_DE_CADASTRO, search: window.location.search }} className="text-al-accent underline">Criar conta</Link></p>
         {aoAcessarDemonstracao && (
           <>
             <div className="relative my-1 flex items-center justify-center">
@@ -80,7 +83,7 @@ function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () =
  * A moldura das telas de acesso: no desktop, o formulário de um lado e a proposta da Althius do outro; no celular,
  * uma coluna só, com o logo acima do formulário.
  */
-function CascaDeAcesso({ children }: { children: ReactNode }) {
+export function CascaDeAcesso({ children }: { children: ReactNode }) {
   return (
     <main className="grid min-h-screen bg-al-bg text-al-ink lg:grid-cols-2">
       <div className="flex min-w-0 flex-col px-4 py-8 sm:px-10 lg:px-16">
