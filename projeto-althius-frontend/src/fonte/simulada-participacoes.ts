@@ -8,12 +8,14 @@ import type {
   ContaComParticipacoes,
   ContaDeUsuario,
   Convite,
+  ExecucoesNoPeriodo,
   InformacoesDoWorkspace,
   NovoConvite,
   Papel,
   ParticipacaoDaConta,
   ParticipantesDoWorkspace,
   Perfil,
+  PlanoDoWorkspace,
   Preferencias,
 } from './tipos'
 
@@ -208,6 +210,18 @@ export function criarParticipacoesSimuladas({
                 outrasParticipacoes: participacoesDe(contaId).filter((p) => !p.atual),
               })),
         convites: papel === null ? [] : workspace.convites,
+      }
+    },
+
+    /** O plano do Workspace com o uso dele; quem não participa vê só o plano, como em Pessoas e acesso. */
+    plano(execucoes: ExecucoesNoPeriodo): PlanoDoWorkspace {
+      return {
+        nome: demo.planos[demo.WORKSPACE_ATUAL],
+        nomeDoWorkspace: workspace.informacoes.nome,
+        uso:
+          papelDaSessao() === null
+            ? null
+            : { participantes: workspace.participacoes.length, convitesPendentes: workspace.convites.length, execucoes },
       }
     },
 

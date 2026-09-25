@@ -3,6 +3,7 @@
 import * as demo from './dados-demo'
 import type { RegistroDeAgente } from './dados-demo'
 import { especialidade, especialidades } from './especialidades'
+import { diaIso } from './formatar-data'
 import { normalizarNome, reconhecerMencoes } from './mencoes'
 import { nomeDeAgenteCriado, ROTULO_DA_DECISAO } from './regras'
 import {
@@ -43,6 +44,7 @@ import type {
   Decisao,
   EspecialidadeId,
   EstadoAgente,
+  ExecucoesNoPeriodo,
   FonteDeAgentes,
   Gatilho,
   IntegracaoId,
@@ -69,12 +71,15 @@ export interface OpcoesFonteSimulada {
   armazenamento?: ArmazenamentoDemonstrativo | null
   /** A Conta de usuário da sessão e, se preciso, o seu papel: só para preparar cenários de teste. */
   sessao?: Sessao
+  /** O dia de referência do período do Plano, que vai do começo do mês até ele. Os testes o fixam. */
+  hoje?: Date
 }
 
 export function criarFonteSimulada({
   atrasoMs = 450,
   armazenamento = null,
   sessao,
+  hoje = new Date(),
 }: OpcoesFonteSimulada = {}): FonteDeAgentes {
   const participacoes = criarParticipacoesSimuladas({ armazenamento, sessao })
   const memoriaDoWorkspace = criarMemoriaSimulada({ armazenamento, participacoes })
@@ -90,6 +95,8 @@ export function criarFonteSimulada({
     aprovacoes: demo.aprovacoes,
     previas: demo.previas,
   })
+  /** As Execuções desta sessão por Especialidade, que somam às do mês nos dados de exemplo. */
+  const execucoesNaSessao = new Map<EspecialidadeId, number>()
   const ouvintes = new Set<() => void>()
   const ouvintesDeAvisos = new Set<(aviso: AvisoDoWorkspace) => void>()
   /** Quem pediu ao Agente, na Althius, o trabalho que propôs cada Aprovação: é quem recebe o resultado. */
@@ -148,10 +155,27 @@ export function criarFonteSimulada({
     emitirAviso(avisoDeFalha(item, nomeDe(item.agenteId), quemPediu, participacoes.participacoesAtivas()))
   }
 
-  /** Registra uma Execução na Atividade do Agente: é só aqui que as execuções dele sobem. */
+  /** Registra uma Execução na Atividade do Agente: é só aqui que as execuções dele e as do mês no Plano sobem. */
   function registrarExecucao(item: NovoItem) {
     registrarNaAtividade({ ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' })
-    buscar(estado.agentes, item.agenteId).execucoes++
+    const agente = buscar(estado.agentes, item.agenteId)
+    agente.execucoes++
+    execucoesNaSessao.set(agente.especialidadeId, (execucoesNaSessao.get(agente.especialidadeId) ?? 0) + 1)
+  }
+
+  /** As Execuções do começo do mês até hoje: as dos dados de exemplo, um tanto por dia, e as desta sessão. */
+  function execucoesNoMes(): ExecucoesNoPeriodo {
+    const porEspecialidade = especialidades.map(({ id, nome }) => ({
+      especialidadeId: id,
+      nome,
+      total: demo.execucoesPorDia[id] * hoje.getDate() + (execucoesNaSessao.get(id) ?? 0),
+    }))
+    return {
+      inicio: diaIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
+      fim: diaIso(hoje),
+      total: porEspecialidade.reduce((soma, { total }) => soma + total, 0),
+      porEspecialidade,
+    }
   }
 
   /** Registra uma ação dentro de uma Execução (agir pela Permissão Executar, decidir uma Aprovação). */
@@ -439,6 +463,8 @@ export function criarFonteSimulada({
     cancelarConvite: (conviteId) => mudar(() => participacoes.cancelarConvite(conviteId)),
     mudarPapel: (contaId, papel) => mudar(() => participacoes.mudarPapel(contaId, papel)),
     removerDoWorkspace: (contaId) => mudar(() => participacoes.remover(contaId)),
+
+    plano: () => responder(() => participacoes.plano(execucoesNoMes())),
 
     especialidades: () => responder(() => especialidades),
 

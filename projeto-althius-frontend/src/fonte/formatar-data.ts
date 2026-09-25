@@ -97,9 +97,26 @@ export function formatarDiaIsoPorExtenso(iso: string): string {
   return formatarDataCompleta(new Date(ano, mes - 1, dia))
 }
 
+/**
+ * Um período entre dois dias em ISO, por extenso e sem repetir o mês ou o ano em comum
+ * (ex.: '1 a 23 de setembro de 2026', '28 de agosto a 3 de setembro de 2026').
+ */
+export function formatarPeriodoIsoPorExtenso(inicio: string, fim: string): string {
+  if (inicio === fim) return formatarDiaIsoPorExtenso(inicio)
+  const [anoInicial, mesInicial, diaInicial] = inicio.split('-').map(Number)
+  const [anoFinal, mesFinal] = fim.split('-').map(Number)
+  if (anoInicial !== anoFinal) return `${formatarDiaIsoPorExtenso(inicio)} a ${formatarDiaIsoPorExtenso(fim)}`
+  const comeco = mesInicial === mesFinal ? `${diaInicial}` : `${diaInicial} de ${MESES_EXTENSO[mesInicial - 1]}`
+  return `${comeco} a ${formatarDiaIsoPorExtenso(fim)}`
+}
+
+/** Um dia do calendário local em ISO (aaaa-mm-dd). */
+export function diaIso(data: Date): string {
+  const doisDigitos = (n: number) => String(n).padStart(2, '0')
+  return `${data.getFullYear()}-${doisDigitos(data.getMonth() + 1)}-${doisDigitos(data.getDate())}`
+}
+
 /** A data de hoje em ISO (aaaa-mm-dd), no dia do calendário local. */
 export function dataDeHoje(): string {
-  const hoje = new Date()
-  const doisDigitos = (n: number) => String(n).padStart(2, '0')
-  return `${hoje.getFullYear()}-${doisDigitos(hoje.getMonth() + 1)}-${doisDigitos(hoje.getDate())}`
+  return diaIso(new Date())
 }

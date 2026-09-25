@@ -139,6 +139,41 @@ export interface ContaComParticipacoes {
   participacoes: ParticipacaoDaConta[]
 }
 
+/** As Execuções de Agentes de uma Especialidade no período: as do Agente padrão e as dos Agentes criados dela. */
+export interface ExecucoesDaEspecialidade {
+  especialidadeId: EspecialidadeId
+  nome: string
+  total: number
+}
+
+/** As Execuções de Agentes do Workspace num período explícito. Decidir uma Aprovação não é Execução nova. */
+export interface ExecucoesNoPeriodo {
+  /** O primeiro e o último dia do período, em ISO (aaaa-mm-dd). */
+  inicio: string
+  fim: string
+  total: number
+  porEspecialidade: ExecucoesDaEspecialidade[]
+}
+
+/** O uso do Workspace inteiro, que só os Participantes consultam. */
+export interface UsoDoWorkspace {
+  /** Os Participantes ativos, os mesmos de Pessoas e acesso; convites pendentes não contam. */
+  participantes: number
+  convitesPendentes: number
+  execucoes: ExecucoesNoPeriodo
+}
+
+/**
+ * O plano do Workspace, e não da Conta de usuário: todos os Participantes consultam o mesmo plano e o mesmo uso.
+ * Não há preço, franquia nem limite: esses dados comerciais ainda não foram definidos, e o upgrade não existe.
+ */
+export interface PlanoDoWorkspace {
+  nome: string
+  nomeDoWorkspace: string
+  /** `null` quando a sessão não participa do Workspace: como em Pessoas e acesso, ela vê só as informações gerais. */
+  uso: UsoDoWorkspace | null
+}
+
 /** Os dados editáveis em Meu perfil: nome, e-mail e foto da Conta de usuário. Sem foto, iniciais. */
 export interface Perfil {
   nome: string
@@ -458,6 +493,12 @@ export interface FonteDeAgentes extends FonteObservavel {
    * Recusa remover o último Administrador e a própria sessão.
    */
   removerDoWorkspace(contaId: string): Promise<void>
+
+  /**
+   * O plano atual do Workspace e o uso: os Participantes ativos, os mesmos de Pessoas e acesso, e as Execuções de
+   * Agentes do mês até hoje, as mesmas que sobem nos Agentes.
+   */
+  plano(): Promise<PlanoDoWorkspace>
 
   /** O catálogo fixo: não há operação para criar uma Especialidade. */
   especialidades(): Promise<Especialidade[]>

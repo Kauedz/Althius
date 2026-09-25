@@ -28,6 +28,10 @@ O vínculo de uma Conta de usuário com um Workspace, com papel de Administrador
 **Membro**:
 O papel de acesso de um usuário que consulta as informações compartilhadas e altera suas próprias preferências, sem administrar o Workspace. Pode solicitar revisões do ICP e das Personas pelos Agentes, mas não aprovar ou recusar essas alterações.
 
+**Plano do Workspace**:
+A situação comercial de um Workspace na Althius, e não de uma Conta de usuário. Todos os participantes consultam o mesmo plano e o uso do Workspace: participantes ativos, sem contar convites pendentes, e Execuções de Agentes num período indicado.
+_Avoid_: assinatura, plano do usuário
+
 **ICP**:
 O perfil de cliente ideal do Cliente, documentado na memória compartilhada do Workspace e utilizado como referência pelos Agentes e módulos da Althius.
 _Avoid_: CP

@@ -26,7 +26,7 @@ export function renderizarApp(
   /** Roteia no histórico do navegador (o do jsdom), para o teste usar o voltar do navegador. */
   noNavegador = false,
 ) {
-  const fonte = criarFonteSimulada({ atrasoMs: 0, ...opcoesFonte })
+  const fonte = criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES, ...opcoesFonte })
   const fonteDeContas = criarFonteDeContasSimulada({
     atrasoMs: 0,
     hoje: DATA_HOJE_TESTES,

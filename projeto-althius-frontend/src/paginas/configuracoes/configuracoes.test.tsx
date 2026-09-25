@@ -29,7 +29,7 @@ describe('Navegação até Configurações', () => {
     for (const rotulo of ['Meu perfil', 'Preferências', 'Workspace', 'Memória do Workspace', 'Plano', 'Ajuda e informações']) {
       expect(within(abas).getByRole('link', { name: rotulo })).toBeInTheDocument()
     }
-    await usuario.click(within(abas).getByRole('link', { name: 'Plano' }))
+    await usuario.click(within(abas).getByRole('link', { name: 'Ajuda e informações' }))
     expect(await screen.findByText(/ainda não foi implementada nesta demonstração/)).toBeInTheDocument()
   })
 })

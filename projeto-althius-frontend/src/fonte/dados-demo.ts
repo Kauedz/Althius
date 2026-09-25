@@ -33,6 +33,11 @@ export const workspaces: Record<string, InformacoesDoWorkspace> = {
   'evolut-trading': { nome: 'Evolut Trading', descricao: 'Outro Workspace da Althius', criadoEm: '2026-04-15' },
 }
 
+/** O plano atual de cada Workspace: é do Workspace, não da Conta de usuário. Sem preço, franquia nem limite. */
+export const planos: Record<string, string> = {
+  databricks: 'Demonstração',
+}
+
 /** A sessão padrão da demonstração: Marina, Administradora do Workspace da Databricks. */
 export const CONTA_DA_SESSAO = 'marina'
 
@@ -127,6 +132,12 @@ export const agentes: RegistroDeAgente[] = [
   { id: 'rhetor-anuncios-meta', nome: 'Rhetor · Anúncios Meta', tipo: 'criado', especialidadeId: 'rhetor', estado: 'ocioso', execucoes: 17 },
   { id: 'oraculum-concorrencia-snowflake', nome: 'Oraculum · Concorrência Snowflake', tipo: 'criado', especialidadeId: 'oraculum', estado: 'detectou', execucoes: 12 },
 ]
+
+/**
+ * Quantas Execuções os Agentes de cada Especialidade fazem por dia antes de a sessão começar, perto da média das
+ * `execucoes` deles desde a criação do Workspace. O mês até hoje soma esse tanto por dia já começado.
+ */
+export const execucoesPorDia: Record<EspecialidadeId, number> = { scopus: 4, ethos: 2, rhetor: 3, oraculum: 1 }
 
 export const fatos: Fato[] = [
   { id: 'f1', agenteId: 'scopus', texto: 'O ciclo de venda enterprise da Databricks leva em média 6 meses.', origem: 'Aprendido na Conversa de 12/09/2026' },
