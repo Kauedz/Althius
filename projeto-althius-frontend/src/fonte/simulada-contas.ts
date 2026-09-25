@@ -1,6 +1,7 @@
 import type {
   ContaAlvo,
   Contato,
+  DestinosReaisContato,
   FonteDeContas,
   Interacao,
   NovaInteracao,
@@ -11,12 +12,43 @@ import { criarDadosIniciais } from './dados-contas-demo'
 import { estaValido, foiDisparado, parseDataDisparo } from './regras-sinais'
 import type { FonteDeSequencias } from './sequencias-tipos'
 
+export function normalizarWhatsApp(numero: string): string {
+  const limpo = numero.trim()
+  if (!limpo) return ''
+  if (limpo.startsWith('+')) {
+    const digitos = limpo.slice(1).replace(/\D/g, '')
+    if (digitos.length < 8 || digitos.length > 15) {
+      throw new Error('Número de WhatsApp inválido: deve conter entre 8 e 15 dígitos')
+    }
+    return `+${digitos}`
+  }
+  const digitos = limpo.replace(/\D/g, '')
+  if (digitos.length === 10 || digitos.length === 11) {
+    return `+55${digitos}`
+  }
+  if (digitos.length >= 8 && digitos.length <= 15) {
+    return `+${digitos}`
+  }
+  throw new Error('Número de WhatsApp inválido: deve conter entre 8 e 15 dígitos')
+}
+
+export function validarEmail(email: string): string {
+  const limpo = email.trim().toLowerCase()
+  if (!limpo) return ''
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!regex.test(limpo)) {
+    throw new Error('Formato de e-mail inválido')
+  }
+  return limpo
+}
+
 export interface OpcoesFonteDeContasSimulada {
   atrasoMs?: number
   hoje?: Date
   falha?: boolean
   vazia?: boolean
   fonteDeSequencias?: FonteDeSequencias
+  armazenamento?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 }
 
 export interface FonteDeContasSimulada extends FonteDeContas {
@@ -47,13 +79,60 @@ function projetarConta(conta: ContaAlvo, todosSinais: Sinal[], refHoje: Date): C
 export function criarFonteDeContasSimulada(
   opcoes: OpcoesFonteDeContasSimulada = {},
 ): FonteDeContasSimulada {
-  let { atrasoMs = 0, hoje = new Date(), falha = false, vazia = false, fonteDeSequencias } = opcoes
+  const CHAVE_STORAGE = 'althius:contatos-destinos:v1'
+  let { atrasoMs = 0, hoje = new Date(), falha = false, vazia = false, fonteDeSequencias, armazenamento } = opcoes
   let fonteDeSequenciasVinculada: FonteDeSequencias | undefined = fonteDeSequencias
   const ouvintes = new Set<() => void>()
 
   let dados = vazia
     ? { contas: [], contatos: [], sinais: [], interacoes: [] }
     : criarDadosIniciais(hoje)
+
+  if (armazenamento && !vazia) {
+    try {
+      const bruto = armazenamento.getItem(CHAVE_STORAGE)
+      if (bruto) {
+        const salvos: Record<string, DestinosReaisContato> = JSON.parse(bruto)
+        dados.contatos = dados.contatos.map((c) => {
+          const destinos = salvos[c.id]
+          if (!destinos) return c
+          return {
+            ...c,
+            email: destinos.email ?? c.email,
+            whatsapp: destinos.whatsapp ?? c.whatsapp,
+            linkedin: destinos.linkedin ?? c.linkedin,
+            ehReal: true,
+            canais: {
+              email: Boolean(destinos.email ?? c.email),
+              telefone: Boolean(destinos.whatsapp ?? c.whatsapp),
+              linkedin: Boolean(destinos.linkedin ?? c.linkedin),
+            },
+          }
+        })
+      }
+    } catch {
+      // Ignora erro de leitura
+    }
+  }
+
+  function salvarDestinos(): void {
+    if (!armazenamento) return
+    try {
+      const mapa: Record<string, DestinosReaisContato> = {}
+      for (const c of dados.contatos) {
+        if (c.email || c.whatsapp || c.linkedin) {
+          mapa[c.id] = {
+            email: c.email,
+            whatsapp: c.whatsapp,
+            linkedin: c.linkedin,
+          }
+        }
+      }
+      armazenamento.setItem(CHAVE_STORAGE, JSON.stringify(mapa))
+    } catch {
+      // Ignora erro de gravacao
+    }
+  }
 
   function notificar(): void {
     for (const ouvinte of ouvintes) {
@@ -252,6 +331,40 @@ export function criarFonteDeContasSimulada(
       }
 
       return interacao
+    },
+
+    async atualizarDestinosContato(
+      contatoId: string,
+      destinos: DestinosReaisContato,
+    ): Promise<Contato> {
+      await aguardar()
+      const indice = dados.contatos.findIndex((c) => c.id === contatoId)
+      if (indice === -1) {
+        throw new Error(`Contato "${contatoId}" não encontrado`)
+      }
+
+      const atual = dados.contatos[indice]
+      const email = destinos.email ? validarEmail(destinos.email) : atual.email
+      const whatsapp = destinos.whatsapp ? normalizarWhatsApp(destinos.whatsapp) : atual.whatsapp
+      const linkedin = destinos.linkedin !== undefined ? destinos.linkedin.trim() : atual.linkedin
+
+      const atualizado: Contato = {
+        ...atual,
+        email,
+        whatsapp,
+        linkedin,
+        ehReal: true,
+        canais: {
+          email: Boolean(email),
+          telefone: Boolean(whatsapp),
+          linkedin: Boolean(linkedin),
+        },
+      }
+
+      dados.contatos = dados.contatos.map((c, i) => (i === indice ? atualizado : c))
+      salvarDestinos()
+      notificar()
+      return atualizado
     },
   }
 }

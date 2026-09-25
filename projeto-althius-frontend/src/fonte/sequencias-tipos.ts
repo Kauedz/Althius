@@ -10,6 +10,13 @@ export type CanalStep =
   | 'ligacao'
   | 'tarefa'
 
+export const CANAIS_SUPORTADOS = ['email', 'linkedin', 'whatsapp'] as const
+export type CanalSuportado = (typeof CANAIS_SUPORTADOS)[number]
+
+export function ehCanalSuportado(canal: string): canal is CanalSuportado {
+  return (CANAIS_SUPORTADOS as readonly string[]).includes(canal)
+}
+
 export type ModoEmail = 'auto' | 'manual'
 
 export type SubtipoLinkedIn = 'convite' | 'mensagem' | 'inmail'
@@ -54,6 +61,10 @@ export interface Sequencia {
   id: string
   contaId: string
   status: StatusSequencia
+  /** False when the active user may see only the shared status projection. */
+  responsavel?: boolean
+  /** Safe shared count of steps; private step content is only present for the owner. */
+  totalSteps?: number
   motivoPause?: string
   participantesIds: string[]
   janelaPadrao: JanelaHorario
@@ -85,6 +96,17 @@ export interface AtualizacaoDocumento {
   motivoPause?: string
 }
 
+export interface ResumoPublicoSequencia {
+  id: string
+  contaId: string
+  status: StatusSequencia
+  totalParticipantes: number
+  totalSteps: number
+  passoAtual: number
+  motivoPause?: string
+  atualizadaEm?: string
+}
+
 export interface MetricasDemoSequencia {
   sequenciaId: string
   status: StatusSequencia
@@ -100,6 +122,8 @@ export interface MetricasDemoSequencia {
  * Operações assíncronas com observador de mudanças (ADR 0003).
  */
 export interface FonteDeSequencias extends FonteObservavel {
+  /** Identifica uma fonte ligada ao backend, sem ações de demonstração. */
+  readonly modo?: 'demo' | 'real'
   /** A data de referência de "hoje" adotada pela fonte. */
   hoje(): Date
 
@@ -123,4 +147,7 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Lê as métricas de demonstração de uma sequência. */
   metricasDeDemo(id: string): Promise<MetricasDemoSequencia | null>
+
+  /** Lê apenas a projeção pública da sequência (sem corpos, assuntos ou anexos privados). */
+  resumoPublico(id: string): Promise<ResumoPublicoSequencia | null>
 }

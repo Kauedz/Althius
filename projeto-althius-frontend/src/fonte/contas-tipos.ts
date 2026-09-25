@@ -92,6 +92,12 @@ export interface ContaAlvo {
   ultimoContatoEm?: string
 }
 
+export interface DestinosReaisContato {
+  email?: string
+  whatsapp?: string
+  linkedin?: string
+}
+
 export interface Contato {
   id: string
   contaId: string
@@ -110,6 +116,10 @@ export interface Contato {
     linkedin: boolean
   }
   ultimoContatoEm?: string
+  email?: string
+  whatsapp?: string
+  linkedin?: string
+  ehReal?: boolean
 }
 
 export type TipoDeInteracao =
@@ -172,4 +182,10 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Registra uma nova Interação na Conta-alvo. */
   registrarInteracao(nova: NovaInteracao): Promise<Interacao>
+
+  /** Cadastra ou atualiza os destinos reais (e-mail, WhatsApp normalizado e LinkedIn) de um Contato. */
+  atualizarDestinosContato(
+    contatoId: string,
+    destinos: DestinosReaisContato,
+  ): Promise<Contato>
 }

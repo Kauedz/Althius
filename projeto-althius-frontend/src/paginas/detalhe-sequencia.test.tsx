@@ -127,7 +127,7 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     expect(await screen.findByText(/5 steps ordenados/i)).toBeInTheDocument()
   })
 
-  it('permite adicionar um novo step escolhendo o canal', async () => {
+  it('permite adicionar um novo step escolhendo canal suportado e não exibe canais fora do escopo', async () => {
     const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 
     expect(await screen.findByText(/6 steps · 9 dias úteis/i)).toBeInTheDocument()
@@ -136,13 +136,18 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     const botaoAdicionar = screen.getByRole('button', { name: /Adicionar step/i })
     await usuario.click(botaoAdicionar)
 
-    // Menu de canais aparece
-    const botaoCanal = screen.getByRole('button', { name: /Adicionar step SMS/i })
+    // Canais fora de escopo (SMS, Ligação, Tarefa) não estão disponíveis para criação
+    expect(screen.queryByRole('button', { name: /Adicionar step SMS/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Adicionar step Ligação/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Adicionar step Tarefa/i })).not.toBeInTheDocument()
+
+    // Adiciona WhatsApp (suportado)
+    const botaoCanal = screen.getByRole('button', { name: /Adicionar step WhatsApp/i })
     await usuario.click(botaoCanal)
 
-    // Agora temos 7 steps e o novo step de SMS está selecionado
+    // Agora temos 7 steps e o novo step de WhatsApp está selecionado
     expect(await screen.findByText(/7 steps ordenados/i)).toBeInTheDocument()
-    expect(screen.getByDisplayValue('SMS')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Mensagem no WhatsApp')).toBeInTheDocument()
   })
 
   it('permite adicionar e remover participantes da sequência', async () => {
@@ -285,21 +290,41 @@ describe('Composer de Step por Canal (Ticket 06)', () => {
     expect(screen.getByRole('button', { name: 'InMail' })).toBeInTheDocument()
   })
 
-  it('exibe contador de caracteres ao criar um step de SMS', async () => {
+  it('permite cadastrar e normalizar destinos reais de um contato participante', async () => {
     const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 
     await screen.findByTestId('composer-step')
 
-    // Clica em "+ Adicionar step"
-    const botaoAdicionar = screen.getByRole('button', { name: 'Adicionar step' })
-    await usuario.click(botaoAdicionar)
+    // Clica no botão de cadastrar destinos da Sarah Chen
+    const botaoDestinos = screen.getByRole('button', { name: /Cadastrar destinos de Sarah Chen/i })
+    await usuario.click(botaoDestinos)
 
-    // Seleciona SMS no menu com o aria-label correto
-    const botaoSMS = screen.getByRole('button', { name: /Adicionar step SMS/i })
-    await usuario.click(botaoSMS)
+    // O diálogo de destinos abre
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/Destinos de Sarah Chen/i)).toBeInTheDocument()
 
-    // Agora deve aparecer o contador de caracteres
-    expect(await screen.findByLabelText('Contador de caracteres')).toBeInTheDocument()
+    const inputEmail = within(dialog).getByLabelText(/E-mail corporativo real/i)
+    const inputWhatsApp = within(dialog).getByLabelText(/WhatsApp \(formato E\.164\)/i)
+    const inputLinkedIn = within(dialog).getByLabelText(/Perfil do LinkedIn/i)
+
+    await usuario.clear(inputEmail)
+    await usuario.type(inputEmail, 'sarah.chen@openai.com')
+
+    await usuario.clear(inputWhatsApp)
+    await usuario.type(inputWhatsApp, '11987654321')
+
+    await usuario.clear(inputLinkedIn)
+    await usuario.type(inputLinkedIn, 'https://linkedin.com/in/sarah-chen')
+
+    const botaoSalvar = within(dialog).getByRole('button', { name: /Salvar destinos/i })
+    await usuario.click(botaoSalvar)
+
+    // Diálogo fecha e o destino atual (E-mail para step 1) é exibido
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    expect(screen.getByTestId('destino-atual')).toHaveTextContent('sarah.chen@openai.com')
   })
 
   it('exibe a linha de Anexos para canais de mensagem', async () => {

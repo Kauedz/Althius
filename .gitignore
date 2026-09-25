@@ -1,0 +1,7 @@
+node_modules/
+.pnpm-store/
+**/.npm-cache/
+**/.env
+**/.env.*
+!**/.env.example
+.agents/mcp_config.json

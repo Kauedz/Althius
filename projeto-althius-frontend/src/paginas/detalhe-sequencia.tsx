@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Calendar,
@@ -24,14 +24,23 @@ import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   useDadosDeContas,
   useDadosDeSequencias,
   useFonteDeContas,
   useFonteDeSequencias,
 } from '@/fonte/contexto'
 import { formatarDataDoModulo } from '@/fonte/formatar-data'
-import type { AnexoStep, CanalStep, StatusSequencia, StepSequencia } from '@/fonte/sequencias-tipos'
+import { CANAIS_SUPORTADOS, type AnexoStep, type CanalStep, type StatusSequencia, type StepSequencia } from '@/fonte/sequencias-tipos'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
+import { normalizarWhatsApp, validarEmail } from '@/fonte/simulada-contas'
 
 interface Props {
   sequenciaId: string
@@ -99,6 +108,7 @@ function calcularDatasDosSteps(criadaEm: string, steps: StepSequencia[]): Date[]
 
 export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const fonteDeSequencias = useFonteDeSequencias()
+  const permiteAcoesDeDemonstracao = fonteDeSequencias.modo !== 'real'
   const fonteDeContas = useFonteDeContas()
   const hoje = fonteDeSequencias.hoje()
 
@@ -121,8 +131,15 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false)
   const [edicoesLocais, setEdicoesLocais] = useState<Record<string, Partial<StepSequencia>>>({})
   const [modoPrevia, setModoPrevia] = useState(false)
+  const [dialogoDestinosAberto, setDialogoDestinosAberto] = useState(false)
+  const [contatoParaEditarDestinos, setContatoParaEditarDestinos] = useState<Contato | null>(null)
   // Ref para inserir variáveis no campo que estava com foco (assunto ou corpo)
   const ultimoCampoRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
+
+  async function handleSalvarDestinos(destinos: { email?: string; whatsapp?: string; linkedin?: string }) {
+    if (!contatoParaEditarDestinos) return
+    await fonteDeContas.atualizarDestinosContato(contatoParaEditarDestinos.id, destinos)
+  }
 
   if (carregando) {
     return <Carregando />
@@ -151,6 +168,24 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           </Button>
         )}
       </div>
+    )
+  }
+
+  if (sequencia.responsavel === false) {
+    return (
+      <section aria-label="Resumo público da sequência" className="flex flex-col items-start gap-4 py-8">
+        <Link to="/sequencias" className="inline-flex items-center gap-1.5 text-xs text-al-muted hover:text-al-ink tracking-rotulo uppercase">
+          <ArrowLeft className="size-4" /> Voltar para Sequências
+        </Link>
+        <h2 className="titulo-secao text-2xl">Resumo da Conta-alvo</h2>
+        <p className="text-sm text-al-muted">Esta Sequência tem outro Vendedor responsável. Você pode consultar o status, mas não o documento nem os detalhes privados.</p>
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 border border-al-line bg-al-surface p-4 text-sm">
+          <dt className="text-al-muted">Conta-alvo</dt><dd>{sequencia.contaId}</dd>
+          <dt className="text-al-muted">Status</dt><dd>{sequencia.status}</dd>
+          <dt className="text-al-muted">Participantes</dt><dd>{sequencia.totalParticipantes}</dd>
+          <dt className="text-al-muted">Etapas</dt><dd>{sequencia.totalSteps ?? 0}</dd>
+        </dl>
+      </section>
     )
   }
 
@@ -452,7 +487,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 
         {/* Ações do cabeçalho */}
         <div className="flex items-center gap-2">
-          {sequencia.status === 'ativa' && (
+          {permiteAcoesDeDemonstracao && sequencia.status === 'ativa' && (
             <Button
               type="button"
               variant="outline"
@@ -519,7 +554,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             >
               Retomar
             </Button>
-            <Button
+            {permiteAcoesDeDemonstracao && <Button
               type="button"
               variant="outline"
               size="sm"
@@ -527,7 +562,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
             >
               Marcar reunião
-            </Button>
+            </Button>}
           </div>
         )}
       </div>
@@ -543,6 +578,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             {sequencia.participantesIds.map((id) => {
               const contato = contatosMap.get(id)
               const nome = contato?.nome ?? id
+              const temDestinos = Boolean(contato?.email || contato?.whatsapp || contato?.linkedin)
               return (
                 <span
                   key={id}
@@ -555,6 +591,24 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                   {contato?.persona && (
                     <small className="text-[0.6875rem] text-al-muted">· {contato.persona}</small>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (contato) {
+                        setContatoParaEditarDestinos(contato)
+                        setDialogoDestinosAberto(true)
+                      }
+                    }}
+                    aria-label={temDestinos ? `Editar destinos de ${nome}` : `Cadastrar destinos de ${nome}`}
+                    className={`ml-1 text-[0.625rem] px-1 py-0.5 border ${
+                      temDestinos
+                        ? 'border-al-line text-al-ink hover:border-al-accent'
+                        : 'border-dashed border-al-atencao text-al-atencao hover:border-al-ink'
+                    }`}
+                    title={temDestinos ? 'Destinos cadastrados' : 'Cadastrar destinos reais'}
+                  >
+                    {temDestinos ? 'Destinos' : '+ Destinos'}
+                  </button>
                   {sequencia.participantesIds.length > 1 && (
                     <button
                       type="button"
@@ -742,8 +796,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             </button>
 
             {menuAdicionarAberto && (
-              <div className="grid grid-cols-2 gap-1.5 mt-2 p-2 border border-al-line bg-al-bg">
-                {(Object.keys(CANAIS_CONFIG) as CanalStep[]).map((canal) => (
+              <div className="grid grid-cols-3 gap-1.5 mt-2 p-2 border border-al-line bg-al-bg">
+                {CANAIS_SUPORTADOS.map((canal) => (
                   <button
                     key={canal}
                     type="button"
@@ -781,6 +835,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             onAnexar={handleAnexar}
             onRemoverAnexo={handleRemoverAnexo}
             ultimoCampoRef={ultimoCampoRef}
+            onEditarDestinos={(c) => {
+              setContatoParaEditarDestinos(c)
+              setDialogoDestinosAberto(true)
+            }}
           />
         ) : (
           <div className="p-8 flex items-center justify-center text-sm text-al-muted">
@@ -788,6 +846,13 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           </div>
         )}
       </div>
+
+      <DialogoDestinosContato
+        aberto={dialogoDestinosAberto}
+        aoMudar={setDialogoDestinosAberto}
+        contato={contatoParaEditarDestinos}
+        aoSalvar={handleSalvarDestinos}
+      />
     </div>
   )
 }
@@ -857,6 +922,7 @@ interface ComposerStepProps {
   onAnexar: (arquivo: File, tipo: 'imagem' | 'video') => void
   onRemoverAnexo: (indice: number) => void
   ultimoCampoRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
+  onEditarDestinos?: (contato: Contato) => void
 }
 
 function ComposerStep({
@@ -877,6 +943,7 @@ function ComposerStep({
   onAnexar,
   onRemoverAnexo,
   ultimoCampoRef,
+  onEditarDestinos,
 }: ComposerStepProps) {
   const contato = contatosMap.get(step.contatoId)
   const ehNota = step.canal === 'ligacao' || step.canal === 'tarefa'
@@ -944,7 +1011,7 @@ function ComposerStep({
 
       {/* Abas de canal */}
       <div className="flex flex-wrap gap-1 border-b border-al-line px-4 pt-2 pb-0">
-        {(Object.keys(CANAIS_CONFIG) as CanalStep[]).map((canal) => (
+        {CANAIS_SUPORTADOS.map((canal) => (
           <button
             key={canal}
             type="button"
@@ -978,7 +1045,7 @@ function ComposerStep({
       {/* Linha Para: Destinatário */}
       <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
         <span className="text-xs text-al-muted">Para:</span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             aria-label="Destinatário"
             value={step.contatoId}
@@ -997,6 +1064,42 @@ function ComposerStep({
           {contato?.persona && (
             <span className="text-xs text-al-muted">· {contato.persona}</span>
           )}
+
+          {/* Destino real do canal atual */}
+          <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-al-line text-xs">
+            <span className="text-al-muted">Destino:</span>
+            {step.canal === 'email' && (
+              contato?.email ? (
+                <span className="font-mono text-al-ink" data-testid="destino-atual">{contato.email}</span>
+              ) : (
+                <span className="text-al-atencao" data-testid="destino-atual">Nenhum e-mail real</span>
+              )
+            )}
+            {step.canal === 'whatsapp' && (
+              contato?.whatsapp ? (
+                <span className="font-mono text-al-ink" data-testid="destino-atual">{contato.whatsapp}</span>
+              ) : (
+                <span className="text-al-atencao" data-testid="destino-atual">Nenhum WhatsApp real</span>
+              )
+            )}
+            {step.canal === 'linkedin' && (
+              contato?.linkedin ? (
+                <span className="font-mono text-al-ink" data-testid="destino-atual">{contato.linkedin}</span>
+              ) : (
+                <span className="text-al-atencao" data-testid="destino-atual">Nenhum LinkedIn real</span>
+              )
+            )}
+            {contato && onEditarDestinos && (
+              <button
+                type="button"
+                onClick={() => onEditarDestinos(contato)}
+                aria-label={`Editar destinos de ${contato.nome}`}
+                className="text-[0.6875rem] text-al-muted hover:text-al-ink underline underline-offset-2 ml-1"
+              >
+                Editar
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1682,4 +1785,159 @@ export function IconeCanal({ canal }: { canal: CanalStep }) {
     case 'tarefa':
       return <ListTodo className="size-4 text-al-muted" aria-label="Tarefa" />
   }
+}
+
+export function DialogoDestinosContato({
+  aberto,
+  aoMudar,
+  contato,
+  aoSalvar,
+}: {
+  aberto: boolean
+  aoMudar: (aberto: boolean) => void
+  contato: Contato | null
+  aoSalvar: (destinos: { email?: string; whatsapp?: string; linkedin?: string }) => Promise<void>
+}) {
+  const [email, setEmail] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [linkedin, setLinkedin] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    if (contato) {
+      setEmail(contato.email ?? '')
+      setWhatsapp(contato.whatsapp ?? '')
+      setLinkedin(contato.linkedin ?? '')
+      setErro(null)
+    }
+  }, [contato, aberto])
+
+  async function handleSalvar(e: React.FormEvent) {
+    e.preventDefault()
+    setErro(null)
+
+    let whatsappNormalizado: string | undefined = undefined
+    if (whatsapp.trim()) {
+      try {
+        whatsappNormalizado = normalizarWhatsApp(whatsapp)
+      } catch (err) {
+        setErro(err instanceof Error ? err.message : 'WhatsApp inválido')
+        return
+      }
+    }
+
+    let emailNormalizado: string | undefined = undefined
+    if (email.trim()) {
+      try {
+        emailNormalizado = validarEmail(email)
+      } catch (err) {
+        setErro(err instanceof Error ? err.message : 'E-mail inválido')
+        return
+      }
+    }
+
+    const linkedinValido = linkedin.trim() || undefined
+
+    setSalvando(true)
+    try {
+      await aoSalvar({
+        email: emailNormalizado,
+        whatsapp: whatsappNormalizado,
+        linkedin: linkedinValido,
+      })
+      aoMudar(false)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao salvar destinos')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <Dialog open={aberto} onOpenChange={aoMudar}>
+      <DialogContent className="gap-6 p-6 sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="titulo-secao text-xl text-al-ink">
+            Destinos de {contato?.nome ?? 'Contato'}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-al-muted">
+            Cadastre os canais reais (E-mail, WhatsApp e LinkedIn) para envio da sequência.
+            Dados fictícios de demonstração não autorizam disparos reais.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSalvar} className="flex flex-col gap-4">
+          {erro && (
+            <div role="alert" className="p-2.5 text-xs border border-al-atencao/40 bg-al-atencao/10 text-al-atencao">
+              {erro}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="destino-email" className="rotulo text-[0.625rem] text-al-muted uppercase tracking-rotulo">
+              E-mail corporativo real
+            </label>
+            <input
+              id="destino-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="ex: marina.costa@empresa.com"
+              className="h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="destino-whatsapp" className="rotulo text-[0.625rem] text-al-muted uppercase tracking-rotulo">
+              WhatsApp (formato E.164)
+            </label>
+            <input
+              id="destino-whatsapp"
+              type="text"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              placeholder="ex: 11999998888 ou +5511999998888"
+              className="h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
+            />
+            <span className="text-[0.6875rem] text-al-muted">
+              Números do Brasil sem código de país serão normalizados automaticamente com +55.
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="destino-linkedin" className="rotulo text-[0.625rem] text-al-muted uppercase tracking-rotulo">
+              Perfil do LinkedIn (URL ou usuário)
+            </label>
+            <input
+              id="destino-linkedin"
+              type="text"
+              value={linkedin}
+              onChange={(e) => setLinkedin(e.target.value)}
+              placeholder="ex: https://linkedin.com/in/usuario ou usuario"
+              className="h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
+            />
+          </div>
+
+          <DialogFooter className="mt-2 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => aoMudar(false)}
+              className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={salvando}
+              className="h-8 bg-al-ink text-al-bg text-xs tracking-rotulo uppercase hover:bg-al-ink/90"
+            >
+              {salvando ? 'Salvando...' : 'Salvar destinos'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }

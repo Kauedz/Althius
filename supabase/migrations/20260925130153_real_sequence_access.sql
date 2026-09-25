@@ -241,3 +241,45 @@ comment on column public.sequences.public_summary is
   'Safe shared status projection; must not contain message body, subject, attachment, or free-text message summary.';
 comment on table private.sequence_documents is
   'Private sequence document, including participants and message content; only owner RPCs may access it.';
+
+-- RPCs are an untrusted input boundary: never let a member publish arbitrary
+-- JSON in the shared projection, even when they bypass the frontend.
+create or replace function private.sanitize_sequence_public_summary()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_summary jsonb := case when jsonb_typeof(new.public_summary) = 'object'
+    then new.public_summary else '{}'::jsonb end;
+begin
+  new.public_summary := jsonb_strip_nulls(jsonb_build_object(
+    'status', case when v_summary ->> 'status' in ('ativa', 'pausada', 'reuniao', 'esgotada')
+      then v_summary ->> 'status' else new.status end,
+    'totalParticipantes', case when v_summary ->> 'totalParticipantes' ~ '^[0-9]{1,7}$'
+      then least((v_summary ->> 'totalParticipantes')::integer, 1000000) end,
+    'totalSteps', case when v_summary ->> 'totalSteps' ~ '^[0-9]{1,7}$'
+      then least((v_summary ->> 'totalSteps')::integer, 1000000) end,
+    'passoAtual', case when v_summary ->> 'passoAtual' ~ '^[0-9]{1,7}$'
+      then least((v_summary ->> 'passoAtual')::integer, 1000000) end
+  ));
+  return new;
+end;
+$$;
+revoke all on function private.sanitize_sequence_public_summary() from public, anon, authenticated;
+create trigger sequences_sanitize_public_summary
+  before insert or update of public_summary on public.sequences
+  for each row execute function private.sanitize_sequence_public_summary();
+
+-- Enable workspace-scoped live status updates for the existing UI source.
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+    and not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'sequences'
+    ) then
+    alter publication supabase_realtime add table public.sequences;
+  end if;
+end;
+$$;

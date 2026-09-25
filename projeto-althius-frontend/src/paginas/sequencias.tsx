@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
-import { useDadosDeContas, useDadosDeSequencias } from '@/fonte/contexto'
+import { useDadosDeContas, useDadosDeSequencias, useFonteDeSequencias } from '@/fonte/contexto'
 import type { StatusSequencia } from '@/fonte/sequencias-tipos'
 import { normalizarParaBusca } from '@/lib/utils'
 import { DetalheSequencia, IconeCanal, SeloStatus } from './detalhe-sequencia'
@@ -25,6 +25,7 @@ export function PaginaSequencias() {
 }
 
 function ListaGlobalSequencias() {
+  const permiteCriarSequencia = useFonteDeSequencias().modo !== 'real'
   const navegar = useNavigate()
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<StatusSequencia | 'todos'>('todos')
@@ -115,13 +116,13 @@ function ListaGlobalSequencias() {
           <p className="text-sm text-al-muted">
             Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo ou solicite ao Rhetor na Conversa.
           </p>
-          <Button
+          {permiteCriarSequencia && <Button
             type="button"
             onClick={() => setDialogoNovaAberto(true)}
             className="h-9 border border-al-line bg-al-surface px-4 text-xs font-medium tracking-rotulo text-al-ink uppercase hover:bg-al-bg"
           >
             <Plus className="size-4 mr-1.5" /> Nova sequência
-          </Button>
+          </Button>}
         </div>
       )}
 
@@ -156,13 +157,13 @@ function ListaGlobalSequencias() {
               </select>
             </div>
 
-            <Button
+            {permiteCriarSequencia && <Button
               type="button"
               onClick={() => setDialogoNovaAberto(true)}
               className="h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
             >
               <Plus className="size-4 mr-1.5" /> Nova sequência
-            </Button>
+            </Button>}
           </div>
 
           {/* Estado sem resultados no filtro */}
@@ -201,11 +202,12 @@ function ListaGlobalSequencias() {
                     const conta = contasMap.get(seq.contaId)
                     const nomeConta = conta?.nome ?? seq.contaId
                     const totalConta = conta?.totalContatos
+                    const totalSteps = seq.totalSteps ?? seq.steps.length
                     const stepAtual = seq.steps[seq.passoAtual]
                     const contatoDoStep = stepAtual ? contatosMap.get(stepAtual.contatoId) : null
                     const percentualProgresso =
-                      seq.steps.length > 0
-                        ? Math.round((seq.passoAtual / seq.steps.length) * 100)
+                      totalSteps > 0
+                        ? Math.round((seq.passoAtual / totalSteps) * 100)
                         : 0
 
                     return (
@@ -263,6 +265,8 @@ function ListaGlobalSequencias() {
                             </span>
                           ) : seq.status === 'esgotada' ? (
                             <span>Todos os steps concluídos</span>
+                          ) : seq.responsavel === false ? (
+                            <span>Sequência em andamento</span>
                           ) : stepAtual ? (
                             <span className="inline-flex items-center gap-2 text-al-ink">
                               <IconeCanal canal={stepAtual.canal} />
@@ -285,7 +289,7 @@ function ListaGlobalSequencias() {
                               />
                             </div>
                             <span>
-                              {seq.passoAtual}/{seq.steps.length} steps
+                              {seq.passoAtual}/{totalSteps} steps
                             </span>
                           </div>
                         </td>
@@ -300,10 +304,10 @@ function ListaGlobalSequencias() {
       )}
 
       {/* Diálogo Nova Sequência */}
-      <DialogoNovaSequencia
+      {permiteCriarSequencia && <DialogoNovaSequencia
         aberto={dialogoNovaAberto}
         aoMudar={setDialogoNovaAberto}
-      />
+      />}
     </Pagina>
   )
 }
