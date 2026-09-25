@@ -146,6 +146,15 @@ export interface Perfil {
   foto?: string
 }
 
+/** As preferências pessoais da Conta de usuário, que valem em qualquer Workspace. O tema tem mecanismo próprio. */
+export interface Preferencias {
+  /**
+   * A vontade de receber notificações do navegador. É só da pessoa: mostrar os avisos também depende da permissão
+   * que o navegador dá, e desligar aqui não revoga essa permissão.
+   */
+  notificacoesDoNavegador: boolean
+}
+
 /** Uma seção de um documento da Memória do Workspace (ex.: "Porte" do ICP). */
 export interface SecaoDoDocumento {
   titulo: string
@@ -390,6 +399,25 @@ export type PassoDaCoordenacao =
       sequenciaId?: string
     }
 
+/** O que aconteceu: uma Aprovação pedida, uma Aprovação decidida ou uma falha registrada na Atividade. */
+export type TipoDeAviso = 'aprovacao-solicitada' | 'aprovacao-decidida' | 'falha'
+
+/**
+ * Um Aviso do Workspace sobre o que acabou de acontecer, para as notificações do navegador. Chega a quem observa
+ * enquanto o aplicativo está aberto: não há envio em segundo plano nem para fora da Althius. Destina-se só às Contas
+ * de usuário em `destinatarios`, escolhidas pela Participação e pelo papel no momento. Não concede capacidade
+ * nenhuma: decidir continua exigindo o papel, validado na operação.
+ */
+export interface AvisoDoWorkspace {
+  id: string
+  tipo: TipoDeAviso
+  destinatarios: string[]
+  titulo: string
+  texto: string
+  /** Onde ver o assunto dentro da Althius. */
+  para: string
+}
+
 /** Qualquer fonte de dados observável da aplicação: avisa as telas quando os dados mudam. */
 export interface FonteObservavel {
   /** Avisa as telas quando algum dado muda. Devolve a função para cancelar. */
@@ -402,8 +430,16 @@ export interface FonteObservavel {
  */
 export interface FonteDeAgentes extends FonteObservavel {
   workspace(): Promise<Workspace>
+  /**
+   * Os Avisos do Workspace a partir de agora: Aprovações pedidas e decididas e falhas na Atividade. Emitir um aviso
+   * não muda o resultado da operação que o gerou. Devolve a função para cancelar.
+   */
+  observarAvisos(ouvinte: (aviso: AvisoDoWorkspace) => void): () => void
   /** Atualiza nome, e-mail e foto da Conta de usuário; valida nome não vazio e formato do e-mail. */
   salvarPerfil(perfil: Perfil): Promise<void>
+  /** As preferências da Conta de usuário da sessão; sem nada salvo, as notificações do navegador ficam desligadas. */
+  preferencias(): Promise<Preferencias>
+  salvarPreferencias(preferencias: Preferencias): Promise<void>
 
   /** Informações, Participantes e convites do Workspace atual, com o papel da sessão. Todos os Participantes consultam. */
   participantesDoWorkspace(): Promise<ParticipantesDoWorkspace>

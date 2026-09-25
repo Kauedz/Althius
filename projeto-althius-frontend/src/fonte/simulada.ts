@@ -17,7 +17,20 @@ import {
   type PassoDeRoteiroCoordenado,
   type RoteiroCoordenado,
 } from './roteiros'
-import { DOCUMENTOS_DA_MEMORIA, frasesDo, maiuscula } from './regras-memoria'
+import {
+  avisoDeAprovacaoDecidida,
+  avisoDeAprovacaoSolicitada,
+  avisoDeFalha,
+  avisoDeRevisaoDecidida,
+  type NovoAviso,
+} from './regras-avisos'
+import {
+  DOCUMENTOS_DA_MEMORIA,
+  efeitoDaDecisao,
+  frasesDo,
+  maiuscula,
+  ROTULO_DA_DECISAO_DA_REVISAO,
+} from './regras-memoria'
 import { criarMemoriaSimulada, FalhaAoGravar } from './simulada-memoria'
 import { criarParticipacoesSimuladas, type ArmazenamentoDemonstrativo, type Sessao } from './simulada-participacoes'
 import type {
@@ -25,6 +38,7 @@ import type {
   Agente,
   AgenteId,
   Aprovacao,
+  AvisoDoWorkspace,
   CanalId,
   Decisao,
   EspecialidadeId,
@@ -47,8 +61,8 @@ export interface OpcoesFonteSimulada {
   /** Atraso simulado de cada resposta e de cada passo da Conversa. */
   atrasoMs?: number
   /**
-   * Quando presente, o perfil pessoal (nome, e-mail, foto), associado à Conta de usuário, e o Workspace
-   * (informações, Participações, convites e a Memória do Workspace com as revisões propostas), associado ao
+   * Quando presente, o perfil pessoal (nome, e-mail, foto) e as preferências, associados à Conta de usuário, e o
+   * Workspace (informações, Participações, convites e a Memória do Workspace com as revisões propostas), associado ao
    * Workspace, sobrevivem a um refresh. Sem isso,
    * valem só na instância — útil para isolar os testes.
    */
@@ -77,11 +91,32 @@ export function criarFonteSimulada({
     previas: demo.previas,
   })
   const ouvintes = new Set<() => void>()
+  const ouvintesDeAvisos = new Set<(aviso: AvisoDoWorkspace) => void>()
+  /** Quem pediu ao Agente, na Althius, o trabalho que propôs cada Aprovação: é quem recebe o resultado. */
+  const solicitantes = new Map<string, string>()
   let proximoId = 1
 
   const novoId = (prefixo: string) => `${prefixo}-${proximoId++}`
   const esperar = (ms = atrasoMs) => new Promise<void>((resolver) => setTimeout(resolver, ms))
   const avisar = () => ouvintes.forEach((ouvinte) => ouvinte())
+
+  /** Entrega o aviso a quem observa. O erro de um ouvinte fica com ele: a operação que gerou o aviso já terminou. */
+  function emitirAviso(novo: NovoAviso) {
+    const aviso: AvisoDoWorkspace = { ...novo, id: novoId('aviso') }
+    ouvintesDeAvisos.forEach((ouvinte) => {
+      try {
+        ouvinte(structuredClone(aviso))
+      } catch (erro) {
+        console.error(erro)
+      }
+    })
+  }
+
+  /** Uma Aprovação pedida pela sessão entrou na fila: guarda quem pediu e emite o aviso a quem pode decidir. */
+  function emitirAvisoDeSolicitacao(aprovacao: Aprovacao) {
+    solicitantes.set(aprovacao.id, participacoes.usuario().id)
+    emitirAviso(avisoDeAprovacaoSolicitada(aprovacao, nomeDe(aprovacao.agenteId), participacoes.participacoesAtivas()))
+  }
 
   async function responder<T>(valor: () => T): Promise<T> {
     await esperar(Math.min(atrasoMs, 120))
@@ -102,15 +137,26 @@ export function criarFonteSimulada({
 
   type NovoItem = Omit<ItemDeAtividade, 'id' | 'quando' | 'tipo'>
 
+  /**
+   * Põe o item na Atividade; uma falha também é avisada a quem pediu o trabalho. Hoje toda falha nasce de um pedido
+   * da sessão (uma revisão ou uma decisão); uma falha de Rotina ou de Canal precisaria de outro destinatário.
+   */
+  function registrarNaAtividade(item: ItemDeAtividade) {
+    estado.atividade.unshift(item)
+    if (!item.falhou) return
+    const quemPediu = participacoes.usuario().id
+    emitirAviso(avisoDeFalha(item, nomeDe(item.agenteId), quemPediu, participacoes.participacoesAtivas()))
+  }
+
   /** Registra uma Execução na Atividade do Agente: é só aqui que as execuções dele sobem. */
   function registrarExecucao(item: NovoItem) {
-    estado.atividade.unshift({ ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' })
+    registrarNaAtividade({ ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' })
     buscar(estado.agentes, item.agenteId).execucoes++
   }
 
   /** Registra uma ação dentro de uma Execução (agir pela Permissão Executar, decidir uma Aprovação). */
   function registrarAcao(item: NovoItem) {
-    estado.atividade.unshift({ ...item, tipo: 'acao', id: novoId('atividade'), quando: 'Agora' })
+    registrarNaAtividade({ ...item, tipo: 'acao', id: novoId('atividade'), quando: 'Agora' })
   }
 
   /** O lugar da decisão, para a descrição na Atividade (ex.: "na fila", "no Slack"). */
@@ -217,7 +263,8 @@ export function criarFonteSimulada({
    */
   function criarAprovacao(agenteId: AgenteId, acao: AcaoProposta, origem: Origem, gatilho: Gatilho): string {
     const aprovacaoId = novoId('aprovacao')
-    estado.aprovacoes.unshift({ ...acao, id: aprovacaoId, agenteId, origem, gatilho, estado: 'pendente' })
+    const aprovacao: Aprovacao = { ...acao, id: aprovacaoId, agenteId, origem, gatilho, estado: 'pendente' }
+    estado.aprovacoes.unshift(aprovacao)
     if (origem !== 'althius') {
       estado.previas
         .find((p) => p.canalId === origem)
@@ -229,6 +276,7 @@ export function criarFonteSimulada({
         })
     }
     avisar()
+    emitirAvisoDeSolicitacao(aprovacao)
     return aprovacaoId
   }
 
@@ -303,11 +351,13 @@ export function criarFonteSimulada({
    */
   function decidirRevisao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {
     const { agenteId, gatilho, acao, revisao } = buscar(memoriaDoWorkspace.revisoes(), aprovacaoId)
-    const { concordar, oVigente, foiSubstituido, naoMudou, dele } = frasesDo(revisao!.documento)
+    const { documento } = revisao!
+    const { oVigente, dele } = frasesDo(documento)
     const dependem = `as configurações que dependem ${dele}`
-    const link = { rotulo: 'Ver Memória do Workspace', para: `/configuracoes/memoria/${revisao!.documento}` }
+    const link = { rotulo: 'Ver Memória do Workspace', para: `/configuracoes/memoria/${documento}` }
+    let decidida: Aprovacao
     try {
-      memoriaDoWorkspace.decidir(aprovacaoId, decisao)
+      decidida = memoriaDoWorkspace.decidir(aprovacaoId, decisao)
     } catch (erro) {
       if (!(erro instanceof FalhaAoGravar)) throw erro
       registrarAcao({
@@ -326,13 +376,14 @@ export function criarFonteSimulada({
     registrarAcao({
       agenteId,
       gatilho,
-      descricao: `${decisao === 'aprovada' ? 'Aprovada' : 'Recusada'} ${ondeFoiDecidida(onde)}: ${acao}`,
+      descricao: `${ROTULO_DA_DECISAO_DA_REVISAO[decisao]} ${ondeFoiDecidida(onde)}: ${acao}`,
       resultado:
         decisao === 'aprovada'
-          ? `${maiuscula(oVigente)} ${foiSubstituido} e ${dependem} já usam ${concordar('o novo', 'as novas')}. Nenhuma ação externa foi refeita.`
-          : `${maiuscula(oVigente)} ${naoMudou}.`,
+          ? `${efeitoDaDecisao(documento, decisao)} Nenhuma ação externa foi refeita.`
+          : efeitoDaDecisao(documento, decisao),
       link,
     })
+    emitirAviso(avisoDeRevisaoDecidida(decidida, participacoes.participacoesAtivas()))
   }
 
   /** A Permissão do Agente na Integração decide: Propor vira Aprovação, Executar age sozinho, Ler não age. */
@@ -359,6 +410,10 @@ export function criarFonteSimulada({
       ouvintes.add(ouvinte)
       return () => ouvintes.delete(ouvinte)
     },
+    observarAvisos(ouvinte) {
+      ouvintesDeAvisos.add(ouvinte)
+      return () => ouvintesDeAvisos.delete(ouvinte)
+    },
 
     workspace: () =>
       responder(() => ({
@@ -369,6 +424,8 @@ export function criarFonteSimulada({
         aprovacoesPendentes: todasAsAprovacoes().filter((a) => a.estado === 'pendente').length,
       })),
     salvarPerfil: (perfil) => mudar(() => participacoes.salvarPerfil(perfil)),
+    preferencias: () => responder(() => participacoes.preferencias()),
+    salvarPreferencias: (preferencias) => mudar(() => participacoes.salvarPreferencias(preferencias)),
 
     participantesDoWorkspace: () => responder(() => participacoes.participantesDoWorkspace()),
     contaDeUsuario: (contaId) => responder(() => participacoes.contaComParticipacoes(contaId)),
@@ -510,6 +567,7 @@ export function criarFonteSimulada({
         link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
       })
       avisar()
+      emitirAvisoDeSolicitacao(aprovacao)
       return structuredClone(aprovacao)
     },
 
@@ -528,6 +586,16 @@ export function criarFonteSimulada({
             ? { rotulo: 'Ver sequência', para: `/sequencias/${aprovacao.sequenciaId}` }
             : { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
         })
+        const { id: contaId, nome } = participacoes.usuario()
+        const decisaoDaSessao = { solicitanteId: solicitantes.get(aprovacaoId), decididaPor: { contaId, nome } }
+        emitirAviso(
+          avisoDeAprovacaoDecidida(
+            aprovacao,
+            decisao,
+            { ...decisaoDaSessao, onde: ondeFoiDecidida(onde) },
+            participacoes.participacoesAtivas(),
+          ),
+        )
       }),
     proporAprovacao: async (proposta) => {
       await esperar(Math.min(atrasoMs, 120))
@@ -562,6 +630,7 @@ export function criarFonteSimulada({
           })
       }
       avisar()
+      emitirAvisoDeSolicitacao(nova)
       return structuredClone(nova)
     },
 

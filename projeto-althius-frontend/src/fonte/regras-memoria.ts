@@ -1,6 +1,6 @@
 // Regras da Memória do Workspace: o que cada módulo lê do documento vigente. Todos derivam do mesmo
 // documento, então aprovar uma revisão atualiza de uma vez tudo que depende dele, sem cópias por tela.
-import type { AgenteId, DocumentoDaMemoria, EspecialidadeId, SecaoDoDocumento } from './tipos'
+import type { AgenteId, Decisao, DocumentoDaMemoria, EspecialidadeId, SecaoDoDocumento } from './tipos'
 
 /** Cada documento da Memória do Workspace, com o Agente que o revisa e as formas do nome nas frases. */
 export const DOCUMENTOS_DA_MEMORIA: Record<
@@ -66,6 +66,17 @@ export function frasesDo(documento: DocumentoDaMemoria) {
 
 /** A frase com a primeira letra maiúscula, para começar uma sentença (ex.: "O ICP vigente…"). */
 export const maiuscula = (frase: string) => frase.charAt(0).toUpperCase() + frase.slice(1)
+
+/** Como se diz a decisão de uma revisão: a Revisão da Memória do Workspace é aprovada ou recusada. */
+export const ROTULO_DA_DECISAO_DA_REVISAO: Record<Decisao, string> = { aprovada: 'Aprovada', rejeitada: 'Recusada' }
+
+/** O que a decisão fez com o documento vigente e com as configurações que dependem dele. */
+export function efeitoDaDecisao(documento: DocumentoDaMemoria, decisao: Decisao): string {
+  const { concordar, oVigente, foiSubstituido, naoMudou, dele } = frasesDo(documento)
+  if (decisao !== 'aprovada') return `${maiuscula(oVigente)} ${naoMudou}.`
+  const oNovo = concordar('o novo', 'as novas')
+  return `${maiuscula(oVigente)} ${foiSubstituido} e as configurações que dependem ${dele} já usam ${oNovo}.`
+}
 
 export const ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO = 'Somente Administradores aprovam ou recusam revisões do ICP e das Personas.'
 export const ERRO_REVISAO_JA_DECIDIDA = 'Essa proposta já foi decidida.'

@@ -14,11 +14,14 @@ import type {
   ParticipacaoDaConta,
   ParticipantesDoWorkspace,
   Perfil,
+  Preferencias,
 } from './tipos'
 
 const CHAVE_DO_WORKSPACE = `althius:workspace:${demo.WORKSPACE_ATUAL}`
 /** O perfil é de cada Conta de usuário: outra sessão no mesmo navegador não herda o que esta salvou. */
 const chaveDoPerfil = (contaId: string) => `althius:perfil:${contaId}`
+/** As preferências também são de cada Conta de usuário, e não do Workspace. */
+const chaveDasPreferencias = (contaId: string) => `althius:preferencias:${contaId}`
 
 export const ERRO_SO_ADMINISTRADOR = 'Só Administradores do Workspace podem fazer isso.'
 export const ERRO_ULTIMO_ADMINISTRADOR =
@@ -133,6 +136,8 @@ export function criarParticipacoesSimuladas({
     demo.participacoes.filter((p) => p.workspaceId !== demo.WORKSPACE_ATUAL),
   )
   const workspace = workspaceSalvo(armazenamento, contasDeUsuario) ?? dadosDeExemplo(sessao)
+  const preferenciasSalvas = ler(armazenamento, chaveDasPreferencias(contaDaSessao.id))
+  let preferencias: Preferencias = { notificacoesDoNavegador: preferenciasSalvas?.notificacoesDoNavegador === true }
 
   function gravarWorkspace() {
     armazenamento?.setItem(CHAVE_DO_WORKSPACE, JSON.stringify(workspace))
@@ -183,6 +188,8 @@ export function criarParticipacoesSimuladas({
   return {
     usuario: (): ContaDeUsuario => contaDaSessao,
     papelDaSessao,
+    /** As Participações ativas neste Workspace, com o papel de cada uma. */
+    participacoesAtivas: () => workspace.participacoes,
     informacoes: () => workspace.informacoes,
 
     /** Quem não participa do Workspace vê só as informações gerais, sem a lista de Participantes e convites. */
@@ -219,6 +226,19 @@ export function criarParticipacoesSimuladas({
       }
       Object.assign(contaDaSessao, { nome, email, foto: perfil.foto })
       armazenamento?.setItem(chaveDoPerfil(contaDaSessao.id), JSON.stringify({ nome, email, foto: perfil.foto }))
+    },
+
+    preferencias: (): Preferencias => preferencias,
+
+    /** Grava e só então adota: se o navegador não gravar, a preferência continua como estava. */
+    salvarPreferencias({ notificacoesDoNavegador }: Preferencias) {
+      const novas: Preferencias = { notificacoesDoNavegador: notificacoesDoNavegador === true }
+      try {
+        armazenamento?.setItem(chaveDasPreferencias(contaDaSessao.id), JSON.stringify(novas))
+      } catch {
+        throw new Error('Não foi possível salvar a preferência neste navegador. Nada mudou.')
+      }
+      preferencias = novas
     },
 
     /** O nome do Workspace é o do Cliente, definido no onboarding; aqui se altera só a descrição. */

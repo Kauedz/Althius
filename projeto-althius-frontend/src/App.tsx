@@ -1,4 +1,5 @@
 import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AvisosDoNavegador } from '@/components/avisos-do-navegador'
 import { Casca } from '@/components/casca'
 import { ConversasProvider } from '@/conversa/contexto'
 import {
@@ -118,9 +119,15 @@ export function App({
               <SinaisDoMockupProvider>
                 <ConversasProvider animarDigitacao={animarDigitacao}>
                   {rotaInicial ? (
-                    <MemoryRouter initialEntries={[rotaInicial]}>{rotas}</MemoryRouter>
+                    <MemoryRouter initialEntries={[rotaInicial]}>
+                      <AvisosDoNavegador />
+                      {rotas}
+                    </MemoryRouter>
                   ) : (
-                    <BrowserRouter>{rotas}</BrowserRouter>
+                    <BrowserRouter>
+                      <AvisosDoNavegador />
+                      {rotas}
+                    </BrowserRouter>
                   )}
                 </ConversasProvider>
               </SinaisDoMockupProvider>

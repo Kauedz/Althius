@@ -190,3 +190,11 @@ O nível de ação de um Agente sobre uma Integração: **Ler**, **Propor** (exi
 **Aprovação**:
 Uma ação proposta por um Agente que só acontece depois que um humano a aceita, na fila de Aprovações ou no Canal de origem. Guarda o gatilho da Execução que a propôs. Quando um Agente criado é excluído, as Aprovações dele, pendentes ou decididas, são excluídas junto. A Revisão da Memória do Workspace é a única categoria que só Administradores decidem; as demais seguem como antes.
 _Avoid_: revisão, confirmação
+
+**Aviso do Workspace**:
+O que a Althius comunica quando uma Aprovação é pedida ou decidida ou uma Execução falha. Vai só a quem diz respeito pela Participação e pelo papel e não dá capacidade de decidir.
+_Avoid_: alerta, evento
+
+**Notificação do navegador**:
+Um Aviso do Workspace mostrado pelo navegador, com o aplicativo aberto. Recebê-la é preferência da Conta de usuário e depende da permissão do navegador.
+_Avoid_: push
