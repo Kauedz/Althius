@@ -1,39 +1,25 @@
 // Dados simulados do mockup de Sinais (ticket 01). Fontes e evidências são ilustrativas e identificadas como
 // simuladas: nenhum acontecimento aqui foi coletado ou verificado.
-import type { PerfilFirmografico } from './perfil'
-import { criteriosIniciais, tipoPorId, TIPO_PERSONALIZADO, type Criterios, type Origem } from './catalogo'
+import { criteriosIniciais, tipoPorId, TIPO_PERSONALIZADO } from './catalogo'
 
-export type EstadoDoMonitoramento = 'rascunho' | 'em-preparacao' | 'ativo' | 'pausado'
+export type {
+  EstadoDoMonitoramento,
+  ModoDePublico,
+  Publico,
+  Monitoramento,
+} from '@/fonte/sinais-tipos'
+
+import type {
+  EstadoDoMonitoramento,
+  Publico,
+  Monitoramento,
+} from '@/fonte/sinais-tipos'
 
 export const ROTULO_DO_ESTADO: Record<EstadoDoMonitoramento, string> = {
   rascunho: 'Rascunho',
   'em-preparacao': 'Em preparação',
   ativo: 'Ativo',
   pausado: 'Pausado',
-}
-
-export type ModoDePublico = 'listas' | 'descoberta' | 'ambos'
-
-export interface Publico {
-  modo: ModoDePublico
-  listas: string[]
-  /** Na descoberta, usa o público recomendado das configurações do Cliente; senão, o perfil personalizado. */
-  usaRecomendado: boolean
-  perfil?: PerfilFirmografico
-}
-
-export interface Monitoramento {
-  id: string
-  tipoId: string
-  nome: string
-  estado: EstadoDoMonitoramento
-  publico: Publico
-  criterios: Criterios
-  /** Só nos personalizados: o pedido em linguagem livre, a fonte indicada e os critérios preparados. */
-  descricao?: string
-  fonte?: string
-  origem?: Origem
-  criteriosLivres?: string[]
 }
 
 export const LISTAS = [
@@ -150,11 +136,72 @@ export const MONITORAMENTOS_INICIAIS: Monitoramento[] = [
     criterios: { ferramentas: ['Hadoop', 'Teradata'], mudanca: ['Troca', 'Retirada'], fontes: ['Vagas', 'Notícias'], periodo: 'Últimos 90 dias' },
   }),
   monitoramento({
+    id: 'lideranca-dados',
+    tipoId: 'nova-lideranca',
+    nome: 'Nova liderança de dados e tecnologia',
+    estado: 'ativo',
+    criterios: {
+      cargos: ['CDO', 'CTO'],
+      movimento: ['Chegada'],
+      pessoas: 'Qualquer pessoa no cargo',
+      localizacao: ['Brasil', 'México'],
+      periodo: 'Últimos 30 dias',
+    },
+  }),
+  monitoramento({
+    id: 'parcerias-estrategicas',
+    tipoId: 'parcerias',
+    nome: 'Parcerias estratégicas de dados e nuvem',
+    estado: 'ativo',
+    criterios: {
+      temas: ['Modernização de dados', 'IA generativa'],
+      fontes: ['Comunicados oficiais', 'Imprensa'],
+      periodo: 'Últimos 30 dias',
+    },
+  }),
+  monitoramento({
+    id: 'avaliacoes-insatisfacao',
+    tipoId: 'avaliacoes',
+    nome: 'Avaliações de concorrentes no G2',
+    estado: 'ativo',
+    criterios: {
+      marcas: ['Snowflake', 'Google BigQuery'],
+      plataformas: ['G2', 'Gartner Peer Insights'],
+      nota: 'Até 3 estrelas',
+      periodo: 'Últimos 30 dias',
+    },
+  }),
+  monitoramento({
+    id: 'intencao-pesquisa-lakehouse',
+    tipoId: 'pesquisa-de-temas',
+    nome: 'Pesquisa de temas em dados e IA',
+    estado: 'ativo',
+    criterios: {
+      canais: ['Fornecedor de dados de intenção'],
+      temas: ['Modernização de dados', 'IA generativa'],
+      periodo: 'Últimos 30 dias',
+    },
+  }),
+  monitoramento({
     id: 'palestrantes-dados',
     tipoId: 'conferencias',
     nome: 'Palestrantes de dados e IA',
     estado: 'ativo',
     criterios: { eventos: 'Data + AI Summit, Web Summit Rio', papeis: ['Palestrante'], temas: ['IA generativa'], periodo: 'Últimos 30 dias' },
+  }),
+  monitoramento({
+    id: 'visitas-gerais-site',
+    tipoId: 'visitas-ao-site',
+    nome: 'Visitas frequentes ao site',
+    estado: 'ativo',
+    criterios: { paginas: ['Qualquer página'], caminhos: '', pessoas: '2', periodo: 'Últimos 14 dias' },
+  }),
+  monitoramento({
+    id: 'cases-e-integracoes',
+    tipoId: 'paginas-especificas',
+    nome: 'Visitas a cases e integrações',
+    estado: 'ativo',
+    criterios: { paginas: ['Cases', 'Integrações'], caminhos: '/cases, /integracoes', pessoas: '2', periodo: 'Últimos 30 dias' },
   }),
   monitoramento({
     id: 'precos-e-produto',
@@ -191,8 +238,37 @@ export const MONITORAMENTOS_INICIAIS: Monitoramento[] = [
     id: 'atendimento-demonstracao',
     tipoId: 'lead-oculto',
     nome: 'Tempo de resposta a pedidos de demonstração',
-    estado: 'rascunho',
-    criterios: { canais: ['Formulário do site'], criterio: 'não houver resposta em 24 horas úteis', frequencia: 'Uma vez' },
+    estado: 'ativo',
+    criterios: {
+      canais: ['WhatsApp', 'Formulário do site'],
+      criterio: 'não houver resposta em 24 horas úteis',
+      prazo: '24 horas úteis',
+      frequencia: 'Uma vez',
+    },
+  }),
+  monitoramento({
+    id: 'erros-site-verificacao',
+    tipoId: 'erros-no-site',
+    nome: 'Erros e indisponibilidade no site',
+    estado: 'ativo',
+    criterios: {
+      canais: ['Páginas do site'],
+      criterio: 'uma página ficar fora do ar ou exibir erro',
+      prazo: 'Imediato',
+      frequencia: 'Toda semana',
+    },
+  }),
+  monitoramento({
+    id: 'fluxos-publicos-agendamento',
+    tipoId: 'formularios',
+    nome: 'Formulários e fluxos públicos',
+    estado: 'ativo',
+    criterios: {
+      canais: ['Formulário do site'],
+      criterio: 'o envio falhar ou não houver confirmação',
+      prazo: 'Imediato',
+      frequencia: 'Toda semana',
+    },
   }),
   {
     id: 'custo-de-nuvem',
@@ -264,9 +340,26 @@ export const CONTAS_MOCK: ContaMock[] = [
   { id: 'bbva-mexico', nome: 'BBVA México', dominio: 'bbva.mx', segmento: 'Serviços financeiros', origem: 'importada' },
   { id: 'openai', nome: 'OpenAI', dominio: 'openai.com', logo: '/logos/openai.svg', segmento: 'Inteligência artificial', aderencia: 'fit', origem: 'recomendada' },
   { id: 'zendesk', nome: 'Zendesk', dominio: 'zendesk.com', logo: '/logos/zendesk.svg', logoDeUmaCor: true, segmento: 'Atendimento ao cliente', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'anthropic', nome: 'Anthropic', dominio: 'anthropic.com', logo: '/logos/anthropic.svg', segmento: 'Inteligência artificial', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'figma', nome: 'Figma', dominio: 'figma.com', logo: '/logos/figma.svg', segmento: 'Design de software', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'notion', nome: 'Notion', dominio: 'notion.so', logo: '/logos/notion.svg', segmento: 'Produtividade', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'cloudflare', nome: 'Cloudflare', dominio: 'cloudflare.com', logo: '/logos/cloudflare.svg', segmento: 'Infraestrutura e segurança', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'totvs', nome: 'TOTVS', dominio: 'totvs.com', segmento: 'Software de gestão', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'locaweb', nome: 'Locaweb', dominio: 'locaweb.com.br', segmento: 'Hospedagem e nuvem', aderencia: 'nao-fit', origem: 'importada' },
+  { id: 'creditas', nome: 'Creditas', dominio: 'creditas.com', segmento: 'Serviços financeiros', aderencia: 'fit', origem: 'recomendada' },
 ]
 
 export const SINAIS_MOCK: SinalMock[] = [
+  {
+    id: 's-anthropic-lideranca',
+    contaId: 'anthropic',
+    tipoId: 'nova-lideranca',
+    monitoramentoId: 'lideranca-dados',
+    frase: 'Nova liderança de Engenharia e IA assumiu a operação regional',
+    data: '2026-09-23',
+    fonte: 'LinkedIn e anúncio institucional (simulados)',
+    evidencia: '“Anunciamos a contratação de novo Diretor de Engenharia de Dados para expandir nossa infraestrutura de IA.”',
+  },
   {
     id: 's-openai-palestra',
     contaId: 'openai',
@@ -298,6 +391,16 @@ export const SINAIS_MOCK: SinalMock[] = [
     evidencia: 'Negócio “Plataforma de dados 2026” marcado como perdido em 21/06/2026: “orçamento adiado para o 2º semestre”.',
   },
   {
+    id: 's-figma-parceria',
+    contaId: 'figma',
+    tipoId: 'parcerias',
+    monitoramentoId: 'parcerias-estrategicas',
+    frase: 'Anunciou parceria estratégica para expansão de recursos corporativos de IA',
+    data: '2026-09-17',
+    fonte: 'Comunicado oficial à imprensa (simulado)',
+    evidencia: '“Nova aliança estratégica com provedores de nuvem para acelerar fluxos corporativos colaborativos.”',
+  },
+  {
     id: 's-stripe-vagas',
     contaId: 'stripe',
     tipoId: 'abertura-de-vagas',
@@ -327,6 +430,26 @@ export const SINAIS_MOCK: SinalMock[] = [
     data: '2026-09-16',
     fonte: 'Comunicado à imprensa (simulado)',
     evidencia: '“O plano prioriza a modernização da plataforma de dados e casos de uso de IA.”',
+  },
+  {
+    id: 's-notion-avaliacao',
+    contaId: 'notion',
+    tipoId: 'avaliacoes',
+    monitoramentoId: 'avaliacoes-insatisfacao',
+    frase: 'Avaliação no G2 apontando custos e latência em solução concorrente',
+    data: '2026-09-14',
+    fonte: 'G2 Crowd (simulado)',
+    evidencia: '“Arquiteto avaliou negativamente a complexidade e custo imprevisível de consultas na ferramenta atual.”',
+  },
+  {
+    id: 's-cloudflare-intencao',
+    contaId: 'cloudflare',
+    tipoId: 'pesquisa-de-temas',
+    monitoramentoId: 'intencao-pesquisa-lakehouse',
+    frase: 'Pico de intenção de pesquisa corporativa no tema Modernização de dados',
+    data: '2026-09-13',
+    fonte: 'Fornecedor de dados de intenção (simulado)',
+    evidencia: 'Detecção de surto de busca por termos como “lakehouse vs warehouse” e “modernização de dados” originada da rede corporativa.',
   },
   {
     id: 's-rappi-unidade',
@@ -369,6 +492,26 @@ export const SINAIS_MOCK: SinalMock[] = [
     evidencia: 'Último e-mail enviado em 05/06/2026, sem resposta. A Interação continua no histórico comercial.',
   },
   {
+    id: 's-twilio-visitas',
+    contaId: 'twilio',
+    tipoId: 'visitas-ao-site',
+    monitoramentoId: 'visitas-gerais-site',
+    frase: '3 visitantes da empresa acessaram o site',
+    data: '2026-09-22',
+    fonte: 'Acessos ao site institucional (simulados)',
+    evidencia: '3 pessoas identificadas por domínio corporativo visitaram 8 páginas nos últimos 7 dias.',
+  },
+  {
+    id: 's-figma-cases',
+    contaId: 'figma',
+    tipoId: 'paginas-especificas',
+    monitoramentoId: 'cases-e-integracoes',
+    frase: '2 visitantes acessaram a página de cases e integrações',
+    data: '2026-09-20',
+    fonte: 'Acessos ao site institucional (simulados)',
+    evidencia: 'Navegação pelas páginas de cases e documentação de integrações.',
+  },
+  {
     id: 's-zendesk-parada',
     contaId: 'zendesk',
     tipoId: 'negociacao-parada',
@@ -378,6 +521,36 @@ export const SINAIS_MOCK: SinalMock[] = [
     fonte: 'HubSpot (simulado)',
     evidencia: 'Negócio na etapa Negociação sem atividade desde 02/07/2026.',
   },
+  {
+    id: 's-totvs-lead-oculto',
+    contaId: 'totvs',
+    tipoId: 'lead-oculto',
+    monitoramentoId: 'atendimento-demonstracao',
+    frase: 'Sem resposta no formulário de contato após 24 horas úteis',
+    data: '2026-09-22',
+    fonte: 'Verificação deliberada de lead oculto (simulada)',
+    evidencia: 'Disparo de mensagem de teste via formulário comercial em 21/09/2026 às 09:30; nenhuma resposta ou retorno recebido após 24 horas úteis (simulada).',
+  },
+  {
+    id: 's-locaweb-erros-site',
+    contaId: 'locaweb',
+    tipoId: 'erros-no-site',
+    monitoramentoId: 'erros-site-verificacao',
+    frase: 'Página de checkout e preços exibiu erro 500 intermitente',
+    data: '2026-09-21',
+    fonte: 'Verificação deliberada de integridade do site (simulada)',
+    evidencia: 'Verificação automatizada detectou falha HTTP 500 na rota de checkout durante 15 minutos em 21/09/2026 (simulada).',
+  },
+  {
+    id: 's-creditas-formularios',
+    contaId: 'creditas',
+    tipoId: 'formularios',
+    monitoramentoId: 'fluxos-publicos-agendamento',
+    frase: 'Formulário de solicitação corporativa falhou no envio',
+    data: '2026-09-20',
+    fonte: 'Teste de formulários públicos (simulado)',
+    evidencia: 'Tentativa de submissão no formulário público corporativo gerou erro de script sem confirmação de recebimento (simulada).',
+  },
 ]
 
 export {
@@ -386,6 +559,9 @@ export {
   dataDoDisparo,
   expiraEm,
   estaValido,
+  foiDisparado,
+  ordenarSinaisPorData,
+  parseDataDisparo,
 } from '@/fonte/regras-sinais'
 
 export function sinaisDaConta(contaId: string): SinalMock[] {

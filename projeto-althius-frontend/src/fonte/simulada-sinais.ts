@@ -1,5 +1,6 @@
 import { TIPOS, TIPO_PERSONALIZADO } from '@/paginas/sinais/catalogo'
 import { MONITORAMENTOS_INICIAIS, SINAIS_MOCK, publicoInicial } from '@/paginas/sinais/dados-mock'
+import { foiDisparado, parseDataDisparo } from '@/fonte/regras-sinais'
 import type { FonteDeContas } from './contas-tipos'
 import type {
   EstadoDoMonitoramento,
@@ -62,7 +63,7 @@ export function criarFonteDeSinaisSimulada(
     ? []
     : MONITORAMENTOS_INICIAIS.map(clonarMonitoramento)
 
-  let sinais: SinalEncontrado[] = [...SINAIS_MOCK]
+  let sinais: SinalEncontrado[] = vazia ? [] : [...SINAIS_MOCK]
 
   function notificar(): void {
     for (const ouvinte of ouvintes) {
@@ -103,6 +104,7 @@ export function criarFonteDeSinaisSimulada(
     definirVazia(novaVazia: boolean) {
       vazia = novaVazia
       monitoramentos = vazia ? [] : MONITORAMENTOS_INICIAIS.map(clonarMonitoramento)
+      sinais = vazia ? [] : [...SINAIS_MOCK]
       notificar()
     },
 
@@ -212,7 +214,46 @@ export function criarFonteDeSinaisSimulada(
 
     async sinaisEncontrados(): Promise<SinalEncontrado[]> {
       await aguardar()
-      return [...sinais]
+      if (vazia) return []
+      const refHoje = fonteDeContasVinculada ? fonteDeContasVinculada.hoje() : hoje
+
+      let lista = [...sinais]
+      if (fonteDeContasVinculada) {
+        try {
+          const sinaisDaFonte = await fonteDeContasVinculada.sinais()
+          for (const s of sinaisDaFonte) {
+            if (s.monitoramentoId) {
+              const jaExiste = lista.some(
+                (item) => item.id === s.id || (s.acontecimentoId && item.acontecimentoId === s.acontecimentoId),
+              )
+              if (!jaExiste) {
+                lista.push({
+                  id: s.id,
+                  contaId: s.contaId,
+                  acontecimentoId: s.acontecimentoId,
+                  tipoId: s.tipoId ?? 'abertura-de-vagas',
+                  monitoramentoId: s.monitoramentoId,
+                  frase: s.frase ?? s.titulo ?? s.descricao ?? '',
+                  data: s.dataDisparo ?? s.data,
+                  fonte: s.fonte ?? 'Simulação',
+                  evidencia: s.evidencia ?? '',
+                  reencontrado: s.reencontrado
+                    ? {
+                        data: s.reencontrado.data,
+                        monitoramentoId: s.reencontrado.monitoramentoId ?? s.monitoramentoId,
+                      }
+                    : undefined,
+                })
+              }
+            }
+          }
+        } catch {
+          // Em caso de falha na fonte de contas, preserva lista local
+        }
+      }
+
+      const disparados = lista.filter((s) => foiDisparado(s.data, refHoje))
+      return disparados.sort((a, b) => parseDataDisparo(b.data).getTime() - parseDataDisparo(a.data).getTime())
     },
 
     async simularDisparo(parametros: ParametrosSimulacaoDisparo): Promise<SinalEncontrado> {
@@ -245,7 +286,7 @@ export function criarFonteDeSinaisSimulada(
       const rawData = parametros.data ?? refHoje
       const dataIso = rawData instanceof Date ? rawData.toISOString().slice(0, 10) : String(rawData)
       const acontecimentoId =
-        parametros.acontecimentoId ?? parametros.id ?? `acont-${m.tipoId}-${contaId}-${dataIso}`
+        parametros.acontecimentoId ?? parametros.id ?? `acont-${m.tipoId}-${contaId}`
 
       // Verifica reencontro / duplicata existente
       const existente = sinais.find(
@@ -280,7 +321,9 @@ export function criarFonteDeSinaisSimulada(
 
       const id = parametros.id ?? `sinal-${Date.now()}-${Math.floor(Math.random() * 1000)}`
       const frase = parametros.frase ?? `Disparo simulado de ${m.nome}`
-      const fonte = parametros.fonte ?? 'Página de carreiras (simulada)'
+      const fonte =
+        parametros.fonte ??
+        (m.fonte ? (m.fonte.includes('simulad') ? m.fonte : `${m.fonte} (simulada)`) : 'Página de carreiras (simulada)')
       const evidencia =
         parametros.evidencia ??
         `Evidência observada em ${dataIso} (simulada). Não constitui garantia de compra.`
