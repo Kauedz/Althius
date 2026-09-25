@@ -6,10 +6,30 @@ import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso } from './destino'
 import { VERSAO_DOS_TERMOS } from './termos'
-import { TelasDeAcesso } from './telas-de-acesso'
+import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
+import { CascaDeAcesso, TelasDeAcesso } from './telas-de-acesso'
 
 /** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
 const CHAVE_DO_WORKSPACE = 'althius:workspace'
+
+/** O último Workspace que a Conta de usuário usou neste navegador, para o próximo login voltar a ele. */
+const chaveDoUltimoWorkspace = (usuarioId: string) => `althius:ultimo-workspace:${usuarioId}`
+
+function lerUltimoWorkspace(usuarioId: string): string | null {
+  try {
+    return localStorage.getItem(chaveDoUltimoWorkspace(usuarioId))
+  } catch {
+    return null
+  }
+}
+
+function lembrarUltimoWorkspace(usuarioId: string, workspaceId: string) {
+  try {
+    localStorage.setItem(chaveDoUltimoWorkspace(usuarioId), workspaceId)
+  } catch {
+    // Sem armazenamento, o próximo login só não volta a este Workspace.
+  }
+}
 
 interface Participacao {
   workspace_id: string
@@ -37,7 +57,7 @@ export function AplicativoAutenticado({
 }
 
 function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
-  const { cliente, sessao, carregandoSessao } = useAutenticacao()
+  const { cliente, sessao, carregandoSessao, redefinindoSenha } = useAutenticacao()
   const [workspacePessoal, setWorkspacePessoal] = useState<WorkspacePessoal | null>(null)
   const [erroWorkspacePessoal, setErroWorkspacePessoal] = useState<string | null>(null)
   const [tentativa, setTentativa] = useState(0)
@@ -87,17 +107,24 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       }
       const lista = (data ?? []) as Participacao[]
       setParticipacoes(lista)
-      // Ordem de entrada: o Workspace usado por último nesta aba; sem outro destino, o Workspace pessoal.
+      // Ordem de entrada: o Workspace desta aba, o último usado pela Conta de usuário e, sem outro destino, o pessoal.
+      // Só vale um Workspace com Participação ativa.
       const salvo = sessionStorage.getItem(CHAVE_DO_WORKSPACE)
-      const destino = [salvo, pessoal.id].find((id) => lista.some((p) => p.workspace_id === id))
+      const destino = [salvo, lerUltimoWorkspace(usuarioId), pessoal.id].find((id) => lista.some((p) => p.workspace_id === id))
       setWorkspaceId(destino ?? (lista.length === 1 ? lista[0].workspace_id : ''))
     })()
 
     return () => { ativo = false }
   }, [cliente, usuarioId, tentativa])
 
+  useEffect(() => {
+    if (usuarioId && workspaceId) lembrarUltimoWorkspace(usuarioId, workspaceId)
+  }, [usuarioId, workspaceId])
+
   if (carregandoSessao) return <TelaDeEstado>Verificando sessão…</TelaDeEstado>
   if (!sessao) return <TelasDeAcesso aoAcessarDemonstracao={aoAcessarDemonstracao} />
+  // Quem entrou pelo código ou link de redefinição define a nova senha antes de abrir o Workspace de entrada.
+  if (redefinindoSenha) return <CascaDeAcesso><TelaDeNovaSenha /></CascaDeAcesso>
   if (erroWorkspacePessoal) {
     return (
       <TelaDeEstado>

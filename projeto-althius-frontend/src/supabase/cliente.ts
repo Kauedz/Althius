@@ -10,6 +10,8 @@ export const clienteSupabase = supabaseConfigurado
       auth: {
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        // O link de entrada por e-mail só vale no navegador que o pediu.
+        flowType: 'pkce',
         persistSession: true,
       },
     })

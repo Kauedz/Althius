@@ -6,6 +6,8 @@ import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
+/** A Conta de usuário da Marina já verificada no Supabase Auth, com senha. */
+const CONTA_DA_MARINA = { ...MARINA, senha: 'correta-e-longa-123' }
 
 afterEach(() => {
   window.history.replaceState(null, '', '/')
@@ -278,9 +280,10 @@ describe('Telas de acesso', () => {
     })
 
     await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
-    await usuario.click(screen.getByRole('button', { name: 'Enviar link de acesso' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('enviaremos um link seguro')
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('enviamos um código de 6 dígitos')
 
+    // A pessoa abre o link do e-mail neste navegador.
     act(() => iniciarSessao(sessaoDe(MARINA)))
     expect(await screen.findByText('Contas e Contatos ainda não estão disponíveis neste Workspace.')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/contas')
@@ -307,7 +310,7 @@ describe('Telas de acesso', () => {
     const { usuario, linkEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
 
     await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
-    await usuario.click(screen.getByRole('button', { name: 'Enviar link de acesso' }))
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
     await screen.findByRole('status')
 
     expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe('/sinais')
@@ -493,7 +496,7 @@ describe('Cadastro com senha', () => {
 
   it('cadastro com e-mail que já tem conta mostra a mesma resposta do cadastro novo', async () => {
     window.history.replaceState(null, '', '/cadastro')
-    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [MARINA.email] })
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
 
     await preencherCadastro(usuario)
 
@@ -554,5 +557,257 @@ describe('Cadastro com senha', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+/** A pessoa preenche /entrar com e-mail e senha e confirma. */
+async function entrarComSenha(usuario: ReturnType<typeof userEvent.setup>, email: string, senha: string) {
+  await usuario.type(await screen.findByLabelText('E-mail'), email)
+  await usuario.type(screen.getByLabelText('Senha'), senha)
+  await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+}
+
+describe('Entrar com senha ou com código', () => {
+  it('/entrar oferece senha, código, "Esqueci a senha" e o link para criar conta, sem o formulário de link antigo', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    expect(await screen.findByLabelText('E-mail')).toHaveAttribute('autocomplete', 'email')
+    const senha = screen.getByLabelText('Senha')
+    expect(senha).toHaveAttribute('autocomplete', 'current-password')
+    expect(senha).toHaveAttribute('type', 'password')
+    await usuario.click(screen.getByRole('button', { name: 'Mostrar senha' }))
+    expect(senha).toHaveAttribute('type', 'text')
+    await usuario.click(screen.getByRole('button', { name: 'Ocultar senha' }))
+    expect(senha).toHaveAttribute('type', 'password')
+
+    expect(screen.getByRole('button', { name: 'Entrar com código' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Esqueci a senha' })).toHaveAttribute('href', '/esqueci-a-senha')
+    expect(screen.getByRole('link', { name: 'Criar conta' })).toHaveAttribute('href', '/cadastro')
+    expect(screen.queryByRole('button', { name: 'Enviar link de acesso' })).not.toBeInTheDocument()
+  })
+
+  it('com a senha certa, a Conta de usuário entra no seu Workspace pessoal', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
+
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['senha errada', MARINA.email, 'senha-errada-123'],
+    ['e-mail inexistente', 'ninguem@cliente.com.br', CONTA_DA_MARINA.senha],
+  ])('com %s, a tela diz só "E-mail ou senha incorretos"', async (_caso, email, senha) => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
+
+    await entrarComSenha(usuario, email, senha)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^E-mail ou senha incorretos$/)
+    expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+  })
+
+  it('"Entrar com código" pede o código na mesma tela e entra com ele', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
+
+    await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('enviamos um código de 6 dígitos e um link')
+    const campo = screen.getByLabelText('Código')
+    expect(campo).toHaveAttribute('autocomplete', 'one-time-code')
+
+    await usuario.type(campo, '000000')
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Código inválido ou expirado')
+
+    await usuario.clear(campo)
+    await usuario.type(campo, codigoEnviadoPara(MARINA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('"Entrar com código" não cria Conta de usuário e responde igual para um e-mail desconhecido', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const contas = [CONTA_DA_MARINA]
+    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas })
+
+    await usuario.type(await screen.findByLabelText('E-mail'), 'ninguem@cliente.com.br')
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('enviamos um código de 6 dígitos e um link')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(codigoEnviadoPara('ninguem@cliente.com.br')).toBeUndefined()
+    expect(contas).toEqual([CONTA_DA_MARINA])
+  })
+})
+
+describe('Workspace de entrada depois do login', () => {
+  /** Uma aba nova, com a mesma Conta de usuário entrando pela senha. */
+  async function entrarNumaAbaNova(tabelas: Record<string, Record<string, unknown>[]>) {
+    cleanup()
+    sessionStorage.clear()
+    window.history.replaceState(null, '', '/sequencias')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], tabelas })
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+    return usuario
+  }
+
+  it('entra no último Workspace usado com Participação ativa; sem ela, no Workspace pessoal', async () => {
+    const tabelas = {
+      workspace_memberships: [participacao('ws-norte', 'member')],
+      sequences: [sequenciaDeOutroVendedor('ws-norte', 'conta-do-norte')],
+    }
+
+    // No primeiro login, sem Workspace usado antes, abre o pessoal; a pessoa troca para o da empresa.
+    const usuario = await entrarNumaAbaNova(tabelas)
+    await usuario.click(await screen.findByRole('button', { name: 'Trocar de Workspace' }))
+    await usuario.selectOptions(await screen.findByRole('combobox', { name: 'Selecione o Workspace' }), 'ws-norte')
+    expect(await screen.findByRole('link', { name: 'conta-do-norte' })).toBeInTheDocument()
+
+    // No login seguinte, noutra aba, volta ao Workspace da empresa.
+    await entrarNumaAbaNova(tabelas)
+    expect(await screen.findByRole('link', { name: 'conta-do-norte' })).toBeInTheDocument()
+    expect(screen.queryByText('Marina Souza')).not.toBeInTheDocument()
+
+    // Removida do Workspace da empresa, cai no pessoal e não vê nada do Workspace anterior.
+    tabelas.workspace_memberships[0].active = false
+    await entrarNumaAbaNova(tabelas)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'conta-do-norte' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Esqueci a senha', () => {
+  const NOVA_SENHA = 'outra frase bem longa 42'
+
+  /** A pessoa pede a redefinição em /esqueci-a-senha para `email`. */
+  async function pedirRedefinicao(usuario: ReturnType<typeof userEvent.setup>, email: string) {
+    await usuario.type(await screen.findByLabelText('E-mail'), email)
+    await usuario.click(screen.getByRole('button', { name: 'Enviar código' }))
+  }
+
+  /** Na definição da nova senha: a mesma política do cadastro, e depois a nova senha é salva. */
+  async function definirNovaSenha(usuario: ReturnType<typeof userEvent.setup>) {
+    expect(await screen.findByRole('heading', { name: 'Defina uma nova senha' })).toBeInTheDocument()
+    const senha = screen.getByLabelText('Nova senha')
+    expect(senha).toHaveAttribute('autocomplete', 'new-password')
+    expect(senha).toHaveAttribute('type', 'password')
+    await usuario.click(screen.getByRole('button', { name: 'Mostrar senha' }))
+    expect(senha).toHaveAttribute('type', 'text')
+    await usuario.click(screen.getByRole('button', { name: 'Ocultar senha' }))
+
+    await usuario.type(senha, '1234567')
+    expect(screen.getByText('Força da senha: muito curta')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Salvar nova senha' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('A senha precisa ter pelo menos 8 caracteres.')
+
+    await usuario.clear(senha)
+    await usuario.type(senha, NOVA_SENHA)
+    expect(screen.getByText('Força da senha: forte')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Salvar nova senha' }))
+  }
+
+  it('"Esqueci a senha" em /entrar abre o pedido, que responde igual exista ou não a Conta de usuário', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, codigoEnviadoPara, linkEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Esqueci a senha' }))
+    expect(await screen.findByRole('heading', { name: 'Esqueci a senha' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/esqueci-a-senha')
+
+    await pedirRedefinicao(usuario, 'ninguem@cliente.com.br')
+    const semConta = (await screen.findByRole('status')).textContent!.replace('ninguem@cliente.com.br', '<e-mail>')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(codigoEnviadoPara('ninguem@cliente.com.br')).toBeUndefined()
+
+    await usuario.click(screen.getByRole('button', { name: 'Corrigir e-mail' }))
+    await usuario.clear(screen.getByLabelText('E-mail'))
+    await pedirRedefinicao(usuario, MARINA.email)
+    expect((await screen.findByRole('status')).textContent!.replace(MARINA.email, '<e-mail>')).toBe(semConta)
+    expect(codigoEnviadoPara(MARINA.email)).toBeDefined()
+    expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe('/redefinir-a-senha')
+  })
+
+  it('redefinição por código: a nova senha encerra as outras sessões e a pessoa entra no Workspace de entrada', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const contas = [{ ...CONTA_DA_MARINA }]
+    const { usuario, codigoEnviadoPara, abrirSessaoEmOutroAparelho, sessoesAbertasDe } = abrirAlthius({ ultimoAmbiente: 'real', contas })
+    const noCelular = abrirSessaoEmOutroAparelho(MARINA.email)
+
+    await pedirRedefinicao(usuario, MARINA.email)
+    const codigo = await screen.findByLabelText('Código de 6 dígitos')
+    expect(codigo).toHaveAttribute('autocomplete', 'one-time-code')
+    await usuario.type(codigo, '000000')
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Código inválido ou expirado')
+    await usuario.clear(codigo)
+    await usuario.type(codigo, codigoEnviadoPara(MARINA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+
+    // Com o código aceito, a pessoa ainda não entra: primeiro define a nova senha.
+    expect(await screen.findByRole('heading', { name: 'Defina uma nova senha' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
+    await definirNovaSenha(usuario)
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
+    expect(sessoesAbertasDe(MARINA.email)).toHaveLength(1)
+    expect(sessoesAbertasDe(MARINA.email)).not.toContain(noCelular)
+
+    // A senha antiga deixa de valer; a nova entra.
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^E-mail ou senha incorretos$/)
+    await usuario.clear(screen.getByLabelText('E-mail'))
+    await usuario.clear(screen.getByLabelText('Senha'))
+    await entrarComSenha(usuario, MARINA.email, NOVA_SENHA)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('o link do e-mail, aberto neste navegador, também leva à nova senha e depois ao destino lembrado', async () => {
+    window.history.replaceState(null, '', `/esqueci-a-senha?${new URLSearchParams({ destino: '/sinais' })}`)
+    const supabase = abrirAlthius({
+      ultimoAmbiente: 'real',
+      contas: [{ ...CONTA_DA_MARINA }],
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+    })
+    await pedirRedefinicao(supabase.usuario, MARINA.email)
+    await screen.findByRole('status')
+    const link = new URL(supabase.linkEnviadoPara(MARINA.email)!)
+
+    cleanup()
+    window.history.replaceState(null, '', link.pathname + link.search)
+    supabase.abrirLinkDeRedefinicao(MARINA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} />)
+
+    await definirNovaSenha(supabase.usuario)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/sinais')
+  })
+
+  it('quem só entra com Google, sem senha, define a primeira senha pelo mesmo caminho', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas: [{ ...MARINA }] })
+
+    await pedirRedefinicao(usuario, MARINA.email)
+    await usuario.type(await screen.findByLabelText('Código de 6 dígitos'), codigoEnviadoPara(MARINA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    await definirNovaSenha(usuario)
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('/redefinir-a-senha sem link válido explica e oferece pedir outro', async () => {
+    window.history.replaceState(null, '', '/redefinir-a-senha')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    expect(await screen.findByText(/O link de redefinição expirou ou já foi usado/)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('link', { name: 'Pedir um novo link' }))
+    expect(await screen.findByRole('heading', { name: 'Esqueci a senha' })).toBeInTheDocument()
   })
 })
