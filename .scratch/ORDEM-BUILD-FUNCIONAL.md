@@ -6,10 +6,18 @@ Guia curto para executar o primeiro envio real sem duplicar Unipile no CRM.
 
 **Unipile + ciclos E-mail/WA/LI** → `.scratch/canais-cadencia-backend/` (canais-03/04/06/07). **CRM** → Contas/Contatos/tenant/Seq↔UUID; CRM-16/19/20/21 são **ponteiros**, não implementação.
 
+## Pré-requisitos de ambiente (responsável pelo produto)
+
+Antes do CRM-02 funcionar fora do ambiente local (detalhes em `.scratch/autenticacao-google-email/spec.md`):
+
+- Google Cloud: cliente OAuth, tela de consentimento, domínio verificado, página inicial e política de privacidade; pedir verificação de marca cedo (pode levar 2–3 dias úteis).
+- SMTP de produção (ex.: Resend) configurado no Supabase Auth; necessário também para os convites do CRM-03.
+- Redirect URLs do app registradas no Supabase Auth por ambiente.
+
 ## Ordem — early send (tracer de envio)
 
 1. **CRM-01** — separar modo real e Demonstração  
-2. **CRM-02** — cadastro e criação do Workspace  
+2. **CRM-02** — cadastro (Google + link/código) e Workspace pessoal  
 3. **CRM-04** — Contas-alvo reais  
 4. **CRM-05** — Contatos e vínculos reais  
 5. **CRM-17** (se FK textual Seq↔Conta bloquear) — vincular Sequências às Contas reais  
@@ -32,6 +40,10 @@ Fases 0–1 CRM (01→02→04→05, +17 se necessário) → canais-01…04 para 
 | CRM-19 | canais-04 |
 | CRM-21 | canais-06 |
 | CRM-20 | canais-07 |
+
+## Workspace da empresa e onboarding
+
+Fora do tracer, que roda no Workspace pessoal. Depois do CRM-03: **CRM-22** (criar Workspace da empresa) → **CRM-24** (onboarding operacional, após triagem) → **CRM-23** (sugestão por domínio, após decidir a validação do domínio).
 
 ## Fora do primeiro corte
 

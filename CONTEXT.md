@@ -9,7 +9,7 @@ A plataforma Althius como um todo, composta de módulos; a aba de Agentes é o p
 _Avoid_: CRM, ferramenta de vendas
 
 **Workspace**:
-O espaço de uma empresa-cliente dentro da Althius, com seus agentes, conexões e dados.
+O espaço de trabalho dentro da Althius, com seus agentes, conexões e dados próprios. Pode ser um Workspace pessoal ou um Workspace da empresa.
 _Avoid_: conta, tenant, organização
 
 **Workspace operacional**:
@@ -19,15 +19,28 @@ Um Workspace real, aberto por uma Conta de usuário autenticada com Participaç�
 O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário.
 _Avoid_: modo demo
 
+**Workspace pessoal**:
+O Workspace próprio de uma Conta de usuário, criado automaticamente no cadastro e inicialmente nomeado com o nome da pessoa. É onde quem se cadastra sem convite começa e configura sua empresa ou projeto. Pode receber participantes por convite e ter seu próprio plano, e permanece disponível quando a pessoa perde acesso a um Workspace da empresa.
+
+**Titular do Workspace pessoal**:
+A Conta de usuário para a qual o Workspace pessoal foi criado. É Administrador nele e não pode ser removido nem rebaixado, mesmo por outro Administrador convidado; compartilhar o Workspace pessoal não transfere a titularidade.
+_Avoid_: dono, owner
+
+**Workspace da empresa**:
+O Workspace de um Cliente, criado por escolha explícita, cujo acesso depende da Participação de cada pessoa. Remover essa Participação encerra o acesso aos dados da empresa, sem transferi-los ao Workspace pessoal.
+
+**Sugestão de Workspace por domínio**:
+A indicação de um Workspace da empresa associado ao domínio do e-mail verificado da pessoa. Ajuda a encontrar a empresa, mas não concede Participação nem substitui o convite necessário para acessar seus dados.
+
 **Cliente**:
-A empresa que contrata a Althius e é dona de um Workspace.
+O negócio cujo go-to-market um Workspace opera, e a referência de seu ICP, Memória do Workspace e Sinais: a empresa dona de um Workspace da empresa, ou a empresa ou projeto que o Titular configurou num Workspace pessoal.
 _Avoid_: usuário, conta
 
 **Administrador**:
 O papel de acesso de um usuário que gerencia o Workspace e seus participantes. Somente usuários com esse papel podem aprovar ou recusar revisões do ICP e das Personas propostas pelos Agentes.
 
 **Conta de usuário**:
-A identidade pessoal de acesso à Althius, cuja existência independe da participação em um Workspace. Remover uma pessoa de um Workspace não exclui sua Conta de usuário.
+A identidade pessoal de acesso à Althius, com um Workspace pessoal e eventuais Participações em Workspaces da empresa. Remover uma pessoa de um Workspace da empresa não exclui sua Conta de usuário nem seu Workspace pessoal.
 
 **Participação no Workspace**:
 O vínculo de uma Conta de usuário com um Workspace, com papel de Administrador ou Membro. Sua remoção encerra o acesso àquele Workspace, preservando a Conta de usuário e outros vínculos.
