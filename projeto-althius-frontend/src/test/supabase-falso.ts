@@ -293,7 +293,9 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
       try {
         return { data: await responder(parametros), error: null }
       } catch (erro) {
-        return { data: null, error: { message: erro instanceof Error ? erro.message : String(erro), code: 'P0001' } }
+        // Um erro com `code` leva o SQLSTATE levantado pela função (ex.: 42501); sem ele, o padrão do RAISE.
+        const code = (erro as { code?: unknown }).code
+        return { data: null, error: { message: erro instanceof Error ? erro.message : String(erro), code: typeof code === 'string' ? code : 'P0001' } }
       }
     },
     channel(nome: string) {

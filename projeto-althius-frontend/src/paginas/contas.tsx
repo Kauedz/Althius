@@ -1,13 +1,14 @@
 import { PreviewCard } from '@base-ui/react/preview-card'
-import { Building2, ExternalLink, RadioTower } from 'lucide-react'
-import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
+import { Building2, ExternalLink, Plus, RadioTower } from 'lucide-react'
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
-import type { ContaAlvo } from '@/fonte/contas-tipos'
+import type { ContaAlvo, FonteDeContas } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn, normalizarParaBusca } from '@/lib/utils'
@@ -237,6 +238,7 @@ function ListaContas() {
   const listaVisivel = !carregando && !erro && contasExibidas.length > 0
   const quadro = useRolagemDaLista(listaVisivel)
   const estadoDoLink = useEstadoParaODetalhe('Contas')
+  const [cadastrando, setCadastrando] = useState(false)
 
   return (
     <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
@@ -256,7 +258,21 @@ function ListaContas() {
             plural="contas"
           />
         )}
+        {fonte.salvarConta && !cadastrando && (
+          <Button
+            type="button"
+            onClick={() => setCadastrando(true)}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
+          >
+            <Plus className="size-3.5" aria-hidden />
+            Nova Conta-alvo
+          </Button>
+        )}
       </div>
+
+      {cadastrando && fonte.salvarConta && (
+        <FormularioNovaConta salvar={fonte.salvarConta.bind(fonte)} fechar={() => setCadastrando(false)} />
+      )}
 
       {contas && contas.length > 0 && (
         <div className="flex items-center gap-2.5 border-y border-al-line py-2">
@@ -643,5 +659,85 @@ function CelulaSegmento({ segmento }: { segmento?: string }) {
     <span title={segmento} className="block truncate">
       {segmento}
     </span>
+  )
+}
+
+const CAMPO_DO_FORMULARIO = 'h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
+
+/**
+ * O cadastro manual de uma Conta-alvo: nome e URL da empresa, e o segmento, se houver. A Conta fica sob a
+ * responsabilidade de quem a cria; uma URL que já existe no Workspace atualiza a Conta dessa URL.
+ */
+function FormularioNovaConta({
+  salvar,
+  fechar,
+}: {
+  salvar: NonNullable<FonteDeContas['salvarConta']>
+  fechar: () => void
+}) {
+  const [nome, setNome] = useState('')
+  const [url, setUrl] = useState('')
+  const [segmento, setSegmento] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    setSalvando(true)
+    setErro(null)
+    try {
+      await salvar({ nome, url, segmento })
+      fechar()
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível salvar a Conta-alvo.')
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <form
+      aria-label="Nova Conta-alvo"
+      onSubmit={enviar}
+      className="flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4"
+    >
+      <label className="flex flex-col gap-1 text-xs text-al-muted">
+        Nome da empresa
+        <input required value={nome} onChange={(e) => setNome(e.target.value)} className={CAMPO_DO_FORMULARIO} />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-al-muted">
+        URL da empresa
+        <input
+          required
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="empresa.com.br"
+          className={CAMPO_DO_FORMULARIO}
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-al-muted">
+        Segmento (opcional)
+        <input value={segmento} onChange={(e) => setSegmento(e.target.value)} className={CAMPO_DO_FORMULARIO} />
+      </label>
+      <Button
+        type="submit"
+        disabled={salvando}
+        className="h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
+      >
+        Salvar
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={fechar}
+        className="h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+      >
+        Cancelar
+      </Button>
+      {erro && (
+        <p role="alert" className="w-full text-sm text-al-atencao">
+          {erro}
+        </p>
+      )}
+    </form>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowRight, Building2, ExternalLink, Pause, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -7,12 +7,13 @@ import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
-import { useDadosDeContas, useDadosDeSequencias, useFonteDeContas } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeContas, useDadosDeSequencias, useFonteDeContas } from '@/fonte/contexto'
 import type { ContaAlvo, Interacao, Sinal, TipoDeInteracao } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo, formatarDataExplicita } from '@/fonte/formatar-data'
 import { estaValido } from '@/fonte/regras-sinais'
 import { porId } from '@/lib/utils'
 import { SeloStatus } from './detalhe-sequencia'
+import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 import { DialogoNovaSequencia } from './nova-sequencia'
 import { Foguinho } from './sinais/componentes'
 import { TabelaDeContatos } from './tabela-de-contatos'
@@ -36,6 +37,8 @@ const VOLTAR_PARA_CONTAS = { para: '/contas', rotulo: 'Contas' }
 export function DetalheConta({ contaId }: Props) {
   const fonte = useFonteDeContas()
   const hoje = fonte.hoje()
+  // Uma Sequência nasce com Contatos participantes: sem Contatos no Workspace, não há como criá-la.
+  const permiteCriarSequencia = useAmbiente().disponivel('contatos')
   const [dialogoNovaAberto, setDialogoNovaAberto] = useState(false)
   // A migalha volta para a lista de onde o detalhe foi aberto (Contas ou Contatos), com o recorte que ela tinha.
   const voltar = useMigalhaParaALista(VOLTAR_PARA_CONTAS)
@@ -57,7 +60,12 @@ export function DetalheConta({ contaId }: Props) {
     [contaId],
   )
 
-  const { dados: interacoes, carregando: carregandoInteracoes } = useDadosDeContas(
+  const {
+    dados: interacoes,
+    carregando: carregandoInteracoes,
+    erro: erroInteracoes,
+    recarregar: recarregarInteracoes,
+  } = useDadosDeContas(
     (f) => f.interacoesDaConta(contaId),
     [contaId],
   )
@@ -160,15 +168,18 @@ export function DetalheConta({ contaId }: Props) {
           titulo="Interações"
           contagem={interacoes && contar(interacoes.length, 'interação', 'interações')}
         >
+          {conta.sobMinhaResponsabilidade && <FormularioDeInteracao contaId={conta.id} />}
           {carregandoInteracoes ? (
             <Carregando />
+          ) : erroInteracoes ? (
+            <FalhaAoCarregar mensagem="Não foi possível carregar as interações." tentarDeNovo={recarregarInteracoes} />
           ) : interacoes && interacoes.length > 0 ? (
             <ol aria-label="Interações" className={LINHA_DO_TEMPO}>
               {interacoes.map((interacao) => (
                 <ItemDeInteracao
                   key={interacao.id}
                   interacao={interacao}
-                  nomeDoContato={contatosPorId[interacao.contatoId]?.nome}
+                  nomeDoContato={interacao.contatoId && contatosPorId[interacao.contatoId]?.nome}
                   hoje={hoje}
                 />
               ))}
@@ -242,7 +253,11 @@ export function DetalheConta({ contaId }: Props) {
             </div>
           )}
 
-          {!carregandoSequencia && !sequencia && (
+          {!carregandoSequencia && !sequencia && !permiteCriarSequencia && (
+            <SecaoVazia>Nenhuma sequência nesta Conta-alvo</SecaoVazia>
+          )}
+
+          {!carregandoSequencia && !sequencia && permiteCriarSequencia && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-dashed border-al-line bg-al-surface/40 p-5">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium text-al-ink">
@@ -483,5 +498,58 @@ function ItemDeInteracao({
         {interacao.origem && ` · ${interacao.origem}`}
       </p>
     </li>
+  )
+}
+
+/** O Vendedor responsável registra uma Interação comercial manual na Conta; ela entra no histórico abaixo. */
+function FormularioDeInteracao({ contaId }: { contaId: string }) {
+  const fonte = useFonteDeContas()
+  const [tipo, setTipo] = useState<TipoDeInteracao>('ligacao')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function registrar(e: FormEvent) {
+    e.preventDefault()
+    setSalvando(true)
+    setErro(null)
+    try {
+      await fonte.registrarInteracao({ contaId, tipo })
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível registrar a interação.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <form aria-label="Registrar interação" onSubmit={registrar} className="flex flex-wrap items-end gap-3">
+      <label className="flex flex-col gap-1 text-xs text-al-muted">
+        Tipo de interação
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value as TipoDeInteracao)}
+          className="h-9 cursor-pointer border border-al-line bg-al-surface pr-8 pl-3 text-sm text-al-ink"
+        >
+          {Object.entries(ROTULOS_INTERACOES).map(([valor, rotulo]) => (
+            <option key={valor} value={valor}>
+              {rotulo}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button
+        type="submit"
+        variant="outline"
+        disabled={salvando}
+        className="h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+      >
+        Registrar
+      </Button>
+      {erro && (
+        <p role="alert" className="w-full text-sm text-al-atencao">
+          {erro}
+        </p>
+      )}
+    </form>
   )
 }

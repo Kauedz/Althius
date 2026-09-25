@@ -90,6 +90,15 @@ export interface ContaAlvo {
   quente?: boolean
   /** Data da interação mais recente com qualquer contato (calculada pela fonte, ou undefined para 'Nunca'). */
   ultimoContatoEm?: string
+  /** A Conta está sob a responsabilidade de quem está na sessão. Sem valor, a fonte não informa. */
+  sobMinhaResponsabilidade?: boolean
+}
+
+/** O cadastro manual de uma Conta-alvo. A URL da empresa identifica a Conta existente, que é atualizada. */
+export interface NovaContaAlvo {
+  nome: string
+  url: string
+  segmento?: string
 }
 
 export interface DestinosReaisContato {
@@ -132,7 +141,8 @@ export type TipoDeInteracao =
 export interface Interacao {
   id: string
   contaId: string
-  contatoId: string
+  /** O Contato envolvido; uma Interação registrada só na Conta não tem. */
+  contatoId?: string
   tipo: TipoDeInteracao
   data: string
   participanteCliente?: string
@@ -141,7 +151,7 @@ export interface Interacao {
 
 export interface NovaInteracao {
   contaId: string
-  contatoId: string
+  contatoId?: string
   tipo: TipoDeInteracao
   data?: string
   participanteCliente?: string
@@ -158,6 +168,12 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Lista todas as Contas-alvo com suas projeções de sinais e Aderência. */
   contas(): Promise<ContaAlvo[]>
+
+  /**
+   * Cadastra uma Conta-alvo, sob a responsabilidade de quem a cria, ou atualiza a que tem a mesma URL da empresa.
+   * Sem este método, a fonte não aceita cadastro manual.
+   */
+  salvarConta?(nova: NovaContaAlvo): Promise<ContaAlvo>
 
   /** Busca uma Conta-alvo pelo identificador. Rejeita se não existir. */
   conta(id: string): Promise<ContaAlvo>
