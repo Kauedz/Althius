@@ -19,7 +19,7 @@ import {
   type Origem,
   type TipoDeSinal,
 } from './catalogo'
-import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido } from './dados-mock'
+import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { useMonitoramentos } from './estado'
 
 type Filtro = 'todos' | Origem
@@ -56,30 +56,32 @@ export function PaginaSinais() {
         </Link>
       }
     >
-      {carregando && !tiposCarregados && <Carregando />}
+      {vendoEncontrados ? (
+        <SinaisEncontrados aoVoltar={() => setParametros({})} />
+      ) : (
+        <>
+          {carregando && !tiposCarregados && <Carregando />}
 
-      {erro && (
-        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
-          <p className="text-sm text-al-muted">Não foi possível carregar os sinais.</p>
-          <button
-            type="button"
-            onClick={recarregar}
-            className={BOTAO_SECUNDARIO}
-          >
-            Tentar de novo
-          </button>
-        </div>
-      )}
+          {erro && (
+            <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+              <p className="text-sm text-al-muted">Não foi possível carregar os sinais.</p>
+              <button
+                type="button"
+                onClick={recarregar}
+                className={BOTAO_SECUNDARIO}
+              >
+                Tentar de novo
+              </button>
+            </div>
+          )}
 
-      {!erro && (!carregando || tiposCarregados) && (
-        vendoEncontrados ? (
-          <SinaisEncontrados aoVoltar={() => setParametros({})} />
-        ) : (
-          <Catalogo
-            tiposDisponiveis={tiposCarregados}
-            aoVerEncontrados={() => setParametros({ vista: 'encontrados' })}
-          />
-        )
+          {!erro && (!carregando || tiposCarregados) && (
+            <Catalogo
+              tiposDisponiveis={tiposCarregados}
+              aoVerEncontrados={() => setParametros({ vista: 'encontrados' })}
+            />
+          )}
+        </>
       )}
     </Pagina>
   )
@@ -296,9 +298,16 @@ function CartaoPersonalizado({ quantidade }: { quantidade: number }) {
 function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
   const navegar = useNavigate()
   const hoje = useFonteDeContas().hoje()
-  const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
+  const {
+    dados: sinaisCarregados,
+    carregando: carregandoSinais,
+    erro: erroSinais,
+    recarregar: recarregarSinais,
+  } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
   const { dados: contasCarregadas = [] } = useDadosDeContas((f) => f.contas(), [])
-  const sinais = (sinaisCarregados ?? SINAIS_MOCK).slice().sort((a, b) => b.data.localeCompare(a.data))
+
+  const todosSinais = sinaisCarregados ?? SINAIS_MOCK
+  const sinais = ordenarSinaisPorData(todosSinais.filter((s) => foiDisparado(s.data, hoje)))
 
   return (
     <>
@@ -313,7 +322,24 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
         </button>
       </div>
 
-      {sinais.length === 0 ? (
+      {carregandoSinais && !sinaisCarregados && <Carregando />}
+
+      {erroSinais && (
+        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+          <p className="text-sm text-al-muted">Não foi possível carregar os sinais encontrados.</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={recarregarSinais} className={BOTAO_SECUNDARIO}>
+              Tentar de novo
+            </button>
+            <button type="button" onClick={aoVoltar} className={BOTAO_DISCRETO}>
+              Voltar ao catálogo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!erroSinais && (!carregandoSinais || sinaisCarregados) && (
+        sinais.length === 0 ? (
           <div className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
             <p className="text-sm">Nenhum Sinal encontrado ainda.</p>
             <p className="text-sm text-al-muted">
@@ -337,7 +363,8 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
             </thead>
             <tbody>
               {sinais.map((sinal) => {
-                const conta = contasCarregadas.find((c) => c.id === sinal.contaId) ??
+                const conta =
+                  contasCarregadas.find((c) => c.id === sinal.contaId) ??
                   CONTAS_MOCK.find((c) => c.id === sinal.contaId) ?? {
                     id: sinal.contaId,
                     nome: sinal.contaId,
@@ -346,7 +373,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
                     logo: undefined,
                     logoDeUmaCor: undefined,
                   }
-                const expirado = !estaValido(sinal, hoje)
+                const expirado = !estaValido(sinal.data, hoje)
                 return (
                   <tr
                     key={sinal.id}
@@ -368,7 +395,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
                       <span className="flex flex-col py-2 leading-snug">
                         <span>{sinal.frase}</span>
                         <span className="text-xs text-al-muted">
-                          {tipoPorId(sinal.tipoId)?.nome}
+                          {tipoPorId(sinal.tipoId)?.nome ?? 'Sinal'}
                           {expirado && ' · expirado'}
                         </span>
                       </span>
@@ -381,7 +408,8 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
               })}
             </tbody>
           </table>
-        )}
+        )
+      )}
     </>
   )
 }

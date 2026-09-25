@@ -65,3 +65,7 @@ Pré-requisito: o ticket 02 está implementado (`79b346f`) e só aguarda a próp
   - checagem de `fetch`.
 - Diferenças do mockup, mantidas de propósito: o Cancelar usa o estilo `ghost` do formulário de perfil do aplicativo (o mockup usa o contorno), e a mensagem é montada no próprio bloco, com o visual do `Mensagem tipo="info"`.
 - **Não realizado:** conferência visual em navegador (claro/escuro). Este ambiente não tem navegador headless. Para fechar: `npm run dev`, abrir `/configuracoes/perfil`, abrir "Alterar senha" em ambos os temas e conferir os erros em vermelho, o foco visível nos campos e botões e o aviso demonstrativo depois de concluir. Se estiver certo, marcar o critério `[~]` como `[x]` e trocar o `Status:` para `closed`.
+
+### 2026-09-25: merge com a `main` remota
+
+A `main` remota trouxe outra implementação deste ticket (`54124db`, formulário `SenhaDemonstrativa` dentro de `secao-perfil.tsx`, com três testes). As duas cobrem os mesmos critérios, com os mesmos rótulos e mensagens do mockup. No merge ficou a de `bloco-senha.tsx`, sobre a qual o resto de Configurações já foi construído (cabeçalho compartilhado, `Mensagem` em `components/`, bloco "Seus Workspaces"). Os três testes da remota foram retirados: os seis de "Alteração de senha (demonstrativa)" cobrem validação, foco, cancelamento, conclusão, reabertura vazia e ausência das senhas na persistência, no console e na rede.

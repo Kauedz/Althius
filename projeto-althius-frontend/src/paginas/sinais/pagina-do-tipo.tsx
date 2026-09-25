@@ -146,6 +146,7 @@ export function PaginaDoTipo() {
                       {m.nome}
                     </Link>
                     <SeloDoEstado estado={m.estado} />
+                    {m.origem && <span className="selo">{ROTULO_DA_ORIGEM[m.origem]}</span>}
                   </div>
                   <p className="truncate text-sm text-al-muted" title={resumoDosCriterios(m)}>
                     {resumoDosCriterios(m)}

@@ -1,9 +1,12 @@
-import { RadioTower } from 'lucide-react'
-import { Navigate, useParams } from 'react-router-dom'
+import { Building2, RadioTower } from 'lucide-react'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { LogoDaConta } from '@/components/logos'
+import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
-import { useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
+import { BOTAO_SECUNDARIO } from '@/components/botoes'
+import { useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import type { SinalEncontrado } from '@/fonte/sinais-tipos'
 import { cn } from '@/lib/utils'
 import { tipoPorId } from './catalogo'
 import { Foguinho, SeloDeAderencia } from './componentes'
@@ -15,6 +18,8 @@ import {
   dataDoDisparo,
   estaValido,
   expiraEm,
+  foiDisparado,
+  ordenarSinaisPorData,
   type SinalMock,
 } from './dados-mock'
 import { useSinaisDoMockup } from './estado'
@@ -32,18 +37,60 @@ function useNomeDoMonitoramento() {
 export function ContaComSinais() {
   const { contaId = '' } = useParams<{ contaId: string }>()
   const hoje = useFonteDeContas().hoje()
+  const {
+    dados: contaCarregada,
+    carregando: carregandoConta,
+    erro: erroConta,
+    recarregar: recarregarConta,
+  } = useDadosDeContas((f) => f.conta(contaId), [contaId])
   const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
-  const conta = CONTAS_MOCK.find((c) => c.id === contaId)
+
+  const contaMock = CONTAS_MOCK.find((c) => c.id === contaId)
+  const conta = contaCarregada ?? contaMock
+
+  if (carregandoConta && !conta) {
+    return (
+      <Pagina titulo="Carregando..." voltar={{ para: '/sinais?vista=encontrados', rotulo: 'Sinais encontrados' }}>
+        <Carregando />
+      </Pagina>
+    )
+  }
+
+  if (erroConta && !conta && !erroConta.message.includes('não encontrada')) {
+    return (
+      <Pagina titulo="Erro" voltar={{ para: '/sinais?vista=encontrados', rotulo: 'Sinais encontrados' }}>
+        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+          <p className="text-sm text-al-muted">Não foi possível carregar os dados da Conta-alvo.</p>
+          <button type="button" onClick={recarregarConta} className={BOTAO_SECUNDARIO}>
+            Tentar de novo
+          </button>
+        </div>
+      </Pagina>
+    )
+  }
+
   if (!conta) return <Navigate to="/sinais?vista=encontrados" replace />
 
-  const sinais = (sinaisCarregados ?? SINAIS_MOCK)
-    .filter((s) => s.contaId === conta.id)
-    .sort((a, b) => b.data.localeCompare(a.data))
-  const validos = sinais.filter((s) => estaValido(s, hoje))
+  const todosSinais = sinaisCarregados ?? SINAIS_MOCK
+  const sinais = ordenarSinaisPorData(
+    todosSinais.filter((s) => s.contaId === conta.id && foiDisparado(s.data, hoje)),
+  )
+  const validos = sinais.filter((s) => estaValido(s.data, hoje))
   const ultimo = sinais[0]
+  const origemEhRecomendada =
+    typeof conta.origem === 'object' ? conta.origem.tipo === 'recomendada' : conta.origem === 'recomendada'
 
   return (
-    <Pagina titulo={conta.nome} voltar={{ para: '/sinais?vista=encontrados', rotulo: 'Sinais encontrados' }}>
+    <Pagina
+      titulo={conta.nome}
+      voltar={{ para: '/sinais?vista=encontrados', rotulo: 'Sinais encontrados' }}
+      acoes={
+        <Link to={`/contas/${conta.id}`} className={BOTAO_SECUNDARIO}>
+          <Building2 strokeWidth={1.8} className="size-4" aria-hidden />
+          Ver em Contas
+        </Link>
+      }
+    >
       <div className="flex max-w-4xl flex-col gap-8">
         <header className="flex flex-col gap-3 border-b border-al-line pb-6">
           <div className="flex flex-wrap items-center gap-4">
@@ -55,7 +102,7 @@ export function ContaComSinais() {
                 <SeloDeAderencia aderencia={conta.aderencia} />
               </div>
               <p className="text-xs text-al-muted">
-                {conta.dominio} · {conta.segmento} · {conta.origem === 'recomendada' ? 'Recomendada pela Althius' : 'Importada'}
+                {conta.dominio ?? `${conta.id}.com`} · {conta.segmento ?? 'Geral'} · {origemEhRecomendada ? 'Recomendada pela Althius' : 'Importada'}
               </p>
             </div>
           </div>
@@ -95,7 +142,7 @@ export function ContaComSinais() {
                   {conta.aderencia ? ROTULO_DA_ADERENCIA[conta.aderencia] : '—'}
                 </td>
                 <td className="border-b border-al-line pr-4">
-                  {ultimo && (
+                  {ultimo ? (
                     <span className="flex min-w-0 items-center gap-1.5">
                       <RadioTower strokeWidth={1.8} className="size-3.5 shrink-0 text-al-accent" aria-hidden />
                       <span className="truncate">{ultimo.frase}</span>
@@ -103,6 +150,8 @@ export function ContaComSinais() {
                         · {formatarDataDoModulo(dataDoDisparo(ultimo.data), hoje)}
                       </span>
                     </span>
+                  ) : (
+                    <span className="text-al-muted">—</span>
                   )}
                 </td>
               </tr>
@@ -114,21 +163,35 @@ export function ContaComSinais() {
           <h3 id="historico-de-sinais" className="rotulo">
             Histórico de sinais
           </h3>
-          <ol className="flex flex-col border-t border-al-line">
-            {sinais.map((sinal, indice) => (
-              <ItemDoHistorico key={sinal.id} sinal={sinal} hoje={hoje} ultimo={indice === 0} />
-            ))}
-          </ol>
+          {sinais.length === 0 ? (
+            <div className="border border-dashed border-al-line p-6">
+              <p className="text-sm text-al-muted">Nenhum sinal registrado para esta Conta-alvo.</p>
+            </div>
+          ) : (
+            <ol aria-label="Histórico de sinais" className="flex flex-col border-t border-al-line">
+              {sinais.map((sinal, indice) => (
+                <ItemDoHistorico key={sinal.id} sinal={sinal} hoje={hoje} ultimo={indice === 0} />
+              ))}
+            </ol>
+          )}
         </section>
       </div>
     </Pagina>
   )
 }
 
-function ItemDoHistorico({ sinal, hoje, ultimo }: { sinal: SinalMock; hoje: Date; ultimo: boolean }) {
+function ItemDoHistorico({
+  sinal,
+  hoje,
+  ultimo,
+}: {
+  sinal: SinalMock | SinalEncontrado
+  hoje: Date
+  ultimo: boolean
+}) {
   const nomeDoMonitoramento = useNomeDoMonitoramento()
-  const ehValido = estaValido(sinal, hoje)
-  const expira = expiraEm(sinal)
+  const ehValido = estaValido(sinal.data, hoje)
+  const expira = expiraEm(sinal.data)
   return (
     <li aria-label={sinal.frase} className={cn('flex flex-col gap-2 border-b border-al-line py-5', !ehValido && 'opacity-70')}>
       <div className="flex flex-wrap items-center gap-3">
@@ -138,10 +201,23 @@ function ItemDoHistorico({ sinal, hoje, ultimo }: { sinal: SinalMock; hoje: Date
         <span className="selo">{ehValido ? `Válido até ${formatarDataCompleta(new Date(expira.getTime() - 1))}` : 'Expirado'}</span>
       </div>
       <p className="text-xs text-al-muted">
-        Disparado em {formatarDataCompleta(dataDoDisparo(sinal.data))} · {tipoPorId(sinal.tipoId)?.nome} · {nomeDoMonitoramento(sinal.monitoramentoId)}
+        Disparado em {formatarDataCompleta(dataDoDisparo(sinal.data))} · {tipoPorId(sinal.tipoId)?.nome ?? 'Sinal'} · {nomeDoMonitoramento(sinal.monitoramentoId)}
       </p>
-      <blockquote className="border-l-2 border-al-line pl-4 text-sm">{sinal.evidencia}</blockquote>
-      <p className="text-xs text-al-muted">Fonte: {sinal.fonte}</p>
+      {sinal.evidencia && (
+        sinal.evidencia.startsWith('http://') || sinal.evidencia.startsWith('https://') ? (
+          <a
+            href={sinal.evidencia}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-al-accent underline hover:text-al-accent-2"
+          >
+            Evidência (simulada)
+          </a>
+        ) : (
+          <blockquote className="border-l-2 border-al-line pl-4 text-sm">{sinal.evidencia}</blockquote>
+        )
+      )}
+      {sinal.fonte && <p className="text-xs text-al-muted">Fonte: {sinal.fonte}</p>}
       {sinal.reencontrado && (
         <p className="text-xs text-al-muted">
           Reencontrado em {formatarDataCompleta(dataDoDisparo(sinal.reencontrado.data))} por “{nomeDoMonitoramento(sinal.reencontrado.monitoramentoId)}”:
