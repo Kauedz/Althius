@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T19:45-03:00
+Updated: 2026-09-25T20:15-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -14,9 +14,10 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-04 | done | ralph/auth-04-entrar-com-senha-ou-codigo · PR #21 (draft, base Auth-02) | AC 5/5; suíte 537/537 |
 | Auth-05 | done | ralph/auth-05-esqueci-a-senha · PR #22 (draft, base Auth-03; inclui junção com Auth-04) | AC 5/5; suíte 552/552 |
 | Auth-06 | done | ralph/auth-06-senhas-vazadas · PR #24 (draft, base Auth-05) | AC 6/6; suíte 560/560; criou `ServicosDoNavegador` |
-| Auth-07 | running | ralph/auth-07-continuar-com-google | ∥ Auth-08, a partir de Auth-06 |
+| Auth-07 | done | ralph/auth-07-continuar-com-google · PR #26 (draft, base Auth-06) | AC 6/6; suíte 570/570; pending-human: Client ID Google (Auth-10) |
+| Integração 07+08 | done | ralph/auth-integracao · PR #27 (draft, base Auth-07) | junção feita pela matriz; suíte 579/579 |
 | Auth-08 | done | ralph/auth-08-captcha-invisivel · PR #25 (draft, base Auth-06) | AC 4/4; suíte 569/569; pending-human: Turnstile (Auth-10) |
-| CRM-04 | queued | | Contas-alvo reais |
+| CRM-04 | running | ralph/crm-04-contas-alvo-reais | a partir da integração de Auth |
 | CRM-05 | queued | | Contatos e vínculos |
 | CRM-17 | conditional | | só se a FK textual Seq↔Conta bloquear; Blocked by CRM-04 e **CRM-06 (fora do corte)** |
 | canais-01 | gate-pending | — | in-progress; AC de código todos [x], falta validação com conta real |
@@ -39,6 +40,7 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Auth-05 | ~165k |
 | Auth-06 | ~135k |
 | Auth-08 | ~119k |
+| Auth-07 | ~153k |
 
 ## Alerts
 - ALERTA RALPH | CRM-17 | GATE (antecipado) | Blocked by CRM-06 (roleta), fora do corte. Se a FK textual travar CRM-04/05/canais, a cadeia para aqui até decisão humana.
