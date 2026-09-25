@@ -9,8 +9,8 @@ import type {
   Convite,
   EspecialidadeId,
   Fato,
+  DocumentoVigente,
   Habilidade,
-  IcpVigente,
   InformacoesDoWorkspace,
   Integracao,
   IntegracaoFutura,
@@ -65,7 +65,7 @@ export const convites: Convite[] = [
 ]
 
 /** O ICP vigente na Memória do Workspace da demonstração, aprovado antes da sessão começar. */
-export const icpInicial: IcpVigente = {
+export const icpInicial: DocumentoVigente = {
   aprovadoEm: '2026-09-12',
   aprovadoPor: { contaId: 'marina', nome: 'Marina Alves' },
   secoes: [
@@ -75,6 +75,36 @@ export const icpInicial: IcpVigente = {
     { titulo: 'Tecnologia', texto: 'Nuvem pública (AWS, Azure ou Google Cloud) e data warehouse legado em migração.' },
     { titulo: 'Maturidade de dados', texto: 'Time de dados próprio, com engenharia e ciência de dados.' },
     { titulo: 'Fora do ICP', texto: 'Empresas sem time de dados próprio ou com operação só em servidores locais.' },
+  ],
+}
+
+/**
+ * As definições de Personas vigentes na Memória do Workspace da demonstração, uma por papel do Comitê de compra.
+ * Os Contatos de Contas e Contatos são classificados pelo nome delas.
+ */
+export const personasIniciais: DocumentoVigente = {
+  aprovadoEm: '2026-09-05',
+  aprovadoPor: { contaId: 'rafael', nome: 'Rafael Couto' },
+  secoes: [
+    {
+      titulo: 'Decisor técnico',
+      texto: 'CTO, VP de Engenharia ou Head de Dados. Avalia arquitetura, custo de nuvem e governança antes de recomendar a compra.',
+    },
+    { titulo: 'Patrocinador executivo', texto: 'CFO, COO ou CDO. Aprova o orçamento e cobra retorno do investimento em dados e IA.' },
+    { titulo: 'Líder técnico', texto: 'Gerente de engenharia de dados ou tech lead. Conduz a prova de conceito e a migração.' },
+    { titulo: 'Comitê executivo', texto: 'CEO e diretoria. Decide investimentos estratégicos acima do orçamento da área.' },
+    {
+      titulo: 'Decisor comercial',
+      texto: 'Head de Vendas ou diretor comercial. Decide quando a plataforma muda a operação ou a meta do time comercial.',
+    },
+    {
+      titulo: 'Campeão interno',
+      texto: 'Gestor de uma área parceira, como canais ou operações. Defende a compra por dentro e abre acesso a quem decide.',
+    },
+    {
+      titulo: 'Usuário-chave',
+      texto: 'Líder de uma área que vai usar a plataforma no dia a dia. Valida a prova de conceito e traz os requisitos de uso.',
+    },
   ],
 }
 
@@ -122,7 +152,7 @@ export const habilidades: Habilidade[] = [
   { id: 'h3', agenteId: 'ethos', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 64, ultimaMelhoria: '14/09/2026', ativa: true },
   { id: 'h4', agenteId: 'ethos', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 29, ultimaMelhoria: '02/09/2026', ativa: false },
   { id: 'h5', agenteId: 'rhetor', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 121, ultimaMelhoria: '19/09/2026', ativa: true },
-  { id: 'h6', agenteId: 'rhetor', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 43, ultimaMelhoria: '11/09/2026', ativa: true },
+  { id: 'h6', agenteId: 'rhetor', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 43, ultimaMelhoria: '11/09/2026', ativa: true, usaPersonas: true },
   { id: 'h7', agenteId: 'oraculum', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 52, ultimaMelhoria: '15/09/2026', ativa: true },
   { id: 'h8', agenteId: 'oraculum', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 18, ultimaMelhoria: '08/09/2026', ativa: true },
   // Os Agentes criados começaram com uma cópia das Habilidades do Agente padrão e seguiram refinando com o uso.
@@ -131,9 +161,9 @@ export const habilidades: Habilidade[] = [
   { id: 'h11', agenteId: 'ethos-comite-financeiro', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 14, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h12', agenteId: 'ethos-comite-financeiro', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 8, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h13', agenteId: 'rhetor-sequencias-outbound', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 26, ultimaMelhoria: '12/09/2026', ativa: true },
-  { id: 'h14', agenteId: 'rhetor-sequencias-outbound', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 38, ultimaMelhoria: '17/09/2026', ativa: true },
+  { id: 'h14', agenteId: 'rhetor-sequencias-outbound', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 38, ultimaMelhoria: '17/09/2026', ativa: true, usaPersonas: true },
   { id: 'h15', agenteId: 'rhetor-anuncios-meta', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 0, ultimaMelhoria: '05/09/2026', ativa: false },
-  { id: 'h16', agenteId: 'rhetor-anuncios-meta', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 11, ultimaMelhoria: '16/09/2026', ativa: true },
+  { id: 'h16', agenteId: 'rhetor-anuncios-meta', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 11, ultimaMelhoria: '16/09/2026', ativa: true, usaPersonas: true },
   { id: 'h17', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 8, ultimaMelhoria: '19/09/2026', ativa: true },
   { id: 'h18', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 3, ultimaMelhoria: '12/09/2026', ativa: true },
 ]

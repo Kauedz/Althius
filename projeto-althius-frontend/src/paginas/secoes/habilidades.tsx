@@ -1,7 +1,7 @@
 import { Carregando } from '@/components/marca'
 import { Switch } from '@/components/ui/switch'
 import { useDados, useFonte } from '@/fonte/contexto'
-import { criteriosDaAderencia } from '@/fonte/regras-memoria'
+import { criteriosDaAderencia, variacoesPorPersona } from '@/fonte/regras-memoria'
 import type { Agente } from '@/fonte/tipos'
 
 export function SecaoHabilidades({ agente }: { agente: Agente }) {
@@ -30,6 +30,12 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
                   <p className="text-sm">
                     <span className="rotulo mr-2">ICP vigente</span>
                     {criteriosDaAderencia(memoria.icp.secoes)}
+                  </p>
+                )}
+                {habilidade.usaPersonas && memoria && (
+                  <p className="text-sm">
+                    <span className="rotulo mr-2">Personas vigentes</span>
+                    {variacoesPorPersona(memoria.personas.secoes)}
                   </p>
                 )}
                 <span className="text-sm text-al-muted">

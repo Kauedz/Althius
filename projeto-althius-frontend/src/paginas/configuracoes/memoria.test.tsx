@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
-import { armazenamentoEmMemoria } from '@/test/armazenamento'
+import { armazenamentoEmMemoria, armazenamentoQueFalha } from '@/test/armazenamento'
 import { renderizarApp } from '@/test/renderizar'
 
 /** Abre a app numa rota com a identidade (e, se preciso, o papel) escolhida para o cenário. */
@@ -241,24 +241,6 @@ describe('Recusa, pendência e revisões sucessivas', () => {
     expect((await fonteDeContas.contas()).map(({ id, aderencia, quente }) => ({ id, aderencia, quente }))).toEqual(contasAntes)
   })
 })
-
-/** Um armazenamento demonstrativo cuja gravação o teste faz falhar, como um navegador sem espaço. */
-function armazenamentoQueFalha() {
-  const base = armazenamentoEmMemoria()
-  let falhar = false
-  return {
-    armazenamento: {
-      getItem: base.getItem,
-      setItem: (chave: string, valor: string) => {
-        if (falhar) throw new Error('QuotaExceededError')
-        base.setItem(chave, valor)
-      },
-    },
-    falharAGravacao: (sim: boolean) => {
-      falhar = sim
-    },
-  }
-}
 
 describe('Falha ao aplicar a revisão do ICP', () => {
   it('se a aprovação falha, nenhuma área publica o ICP proposto, a proposta segue pendente e a falha entra na Atividade', async () => {

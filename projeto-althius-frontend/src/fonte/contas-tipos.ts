@@ -98,6 +98,10 @@ export interface Contato {
   nome: string
   cargo?: string
   area?: string
+  /**
+   * O nome da Persona que classifica o Contato: a referência à definição vigente na Memória do Workspace, sem cópia
+   * dela. Uma revisão aprovada muda a definição, não o Contato.
+   */
   persona?: string
   foto?: string
   canais: {

@@ -5,9 +5,11 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import {
-  dependentesDoIcp,
+  dependentesDe,
   DOCUMENTOS_DA_MEMORIA,
   ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO,
+  frasesDo,
+  maiuscula,
   secoesAlteradas,
 } from '@/fonte/regras-memoria'
 import type { Aprovacao, Decisao, Papel, RevisaoDaMemoria } from '@/fonte/tipos'
@@ -27,14 +29,15 @@ export function CartaoDeRevisao({
   revisao: RevisaoDaMemoria
   papel: Papel | null
 }) {
-  const { nome, titulo, agente, agenteId, especialidade } = DOCUMENTOS_DA_MEMORIA[revisao.documento]
+  const { titulo, agente, agenteId, especialidade } = DOCUMENTOS_DA_MEMORIA[revisao.documento]
+  const { oVigente, foiSubstituido } = frasesDo(revisao.documento)
   const mudancas = secoesAlteradas(revisao.vigenteNoPedido, revisao.proposto)
   const semMudanca = revisao.proposto.filter((s) => !mudancas.includes(s)).map((s) => s.titulo)
-  const dependentes = dependentesDoIcp(revisao.proposto)
+  const dependentes = dependentesDe(revisao.documento, revisao.proposto)
   const textoDoAlcance = {
-    pendente: `Aprovar substitui o ${nome} vigente e atualiza de uma vez estas ${dependentes.length} configurações do Workspace, sem novas aprovações por módulo:`,
-    aprovada: `O ${nome} vigente foi substituído e estas ${dependentes.length} configurações foram atualizadas de uma vez, sem novas aprovações por módulo:`,
-    rejeitada: `Nada mudou: estas configurações continuam usando o ${nome} vigente. Com a aprovação, ficariam assim:`,
+    pendente: `Aprovar substitui ${oVigente} e atualiza de uma vez estas ${dependentes.length} configurações do Workspace, sem novas aprovações por módulo:`,
+    aprovada: `${maiuscula(oVigente)} ${foiSubstituido} e estas ${dependentes.length} configurações foram atualizadas de uma vez, sem novas aprovações por módulo:`,
+    rejeitada: `Nada mudou: estas configurações continuam usando ${oVigente}. Com a aprovação, ficariam assim:`,
   }[aprovacao.estado]
 
   return (
@@ -44,7 +47,7 @@ export function CartaoDeRevisao({
         <Link to={`/agentes/${agenteId}`} className="font-normal underline-offset-4 hover:underline">
           {agente}
         </Link>
-        <Link to="/configuracoes/memoria" className="rotulo underline-offset-4 hover:underline">
+        <Link to={`/configuracoes/memoria/${revisao.documento}`} className="rotulo underline-offset-4 hover:underline">
           Memória do Workspace
         </Link>
         <span className="rotulo ml-auto">
@@ -113,19 +116,20 @@ function DecisaoDaRevisao({ aprovacao, revisao, papel }: { aprovacao: Aprovacao;
   const fonte = useFonte()
   const [erro, setErro] = useState<string | null>(null)
   const [decidindo, setDecidindo] = useState(false)
-  const { nome } = DOCUMENTOS_DA_MEMORIA[revisao.documento]
+  const { concordar, oVigente, foiSubstituido } = frasesDo(revisao.documento)
 
   if (aprovacao.estado === 'aprovada') {
     return (
       <span className="rotulo text-al-sucesso">
-        Aprovada por {revisao.decididaPor?.nome} · o {nome} vigente foi substituído e as configurações dependentes foram atualizadas
+        Aprovada por {revisao.decididaPor?.nome} · {oVigente} {foiSubstituido} e as
+        configurações dependentes foram atualizadas
       </span>
     )
   }
   if (aprovacao.estado === 'rejeitada') {
     return (
       <span className="rotulo text-al-erro">
-        Recusada por {revisao.decididaPor?.nome} · o {nome} vigente continua o mesmo
+        Recusada por {revisao.decididaPor?.nome} · {oVigente} {concordar('continua o mesmo', 'continuam as mesmas')}
       </span>
     )
   }

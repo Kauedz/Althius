@@ -1,14 +1,17 @@
-// Memória do Workspace da fonte simulada: o ICP vigente e as revisões propostas pelo Scopus, que entram na fila
-// de Aprovações. Persistem juntos, associados ao Workspace, numa gravação só: ou tudo muda, ou nada muda.
+// Memória do Workspace da fonte simulada: o ICP e as Personas vigentes e as revisões propostas pelo Scopus e pelo
+// Ethos, que entram na fila de Aprovações. Persistem juntos, associados ao Workspace, numa gravação só: ou tudo muda,
+// ou nada muda.
 import * as demo from './dados-demo'
 import {
   aplicarMudancas,
-  dependentesDoIcp,
+  dependentesDe,
   DOCUMENTOS_DA_MEMORIA,
+  ehDocumentoDaMemoria,
   ERRO_REVISAO_JA_DECIDIDA,
   ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO,
+  frasesDo,
 } from './regras-memoria'
-import { revisoesDoIcp } from './roteiros'
+import { revisoesDaMemoria } from './roteiros'
 import { dataDeHoje } from './formatar-data'
 import type { ArmazenamentoDemonstrativo, criarParticipacoesSimuladas } from './simulada-participacoes'
 import type {
@@ -16,7 +19,7 @@ import type {
   Autor,
   Decisao,
   DocumentoDaMemoria,
-  IcpVigente,
+  DocumentoVigente,
   MemoriaDoWorkspace,
   SecaoDoDocumento,
 } from './tipos'
@@ -26,9 +29,8 @@ const CHAVE_DA_MEMORIA = `althius:memoria:${demo.WORKSPACE_ATUAL}`
 /** A gravação no armazenamento falhou: nada foi alterado. */
 export class FalhaAoGravar extends Error {}
 
-interface EstadoDaMemoria {
-  icp: IcpVigente
-  /** As Aprovações de revisão, pendentes ou decididas: são registros da fila, não versões do documento. */
+interface EstadoDaMemoria extends MemoriaDoWorkspace {
+  /** As Aprovações de revisão, pendentes ou decididas: são registros da fila, não versões dos documentos. */
   revisoes: Aprovacao[]
 }
 
@@ -37,13 +39,15 @@ const ehObjeto = (valor: unknown): valor is Record<string, unknown> => typeof va
 const ehAutor = (valor: unknown): valor is Autor => ehObjeto(valor) && ehTexto(valor.contaId) && ehTexto(valor.nome)
 const ehSecoes = (valor: unknown): valor is SecaoDoDocumento[] =>
   Array.isArray(valor) && valor.every((s) => ehObjeto(s) && ehTexto(s.titulo) && ehTexto(s.texto))
+const ehDocumento = (valor: unknown): valor is DocumentoVigente =>
+  ehObjeto(valor) && ehSecoes(valor.secoes) && ehTexto(valor.aprovadoEm) && ehAutor(valor.aprovadoPor)
 
 function ehRevisao(valor: unknown): valor is Aprovacao {
   if (!ehObjeto(valor) || !ehTexto(valor.id) || !['pendente', 'aprovada', 'rejeitada'].includes(valor.estado as string)) return false
   const revisao = valor.revisao
   return (
     ehObjeto(revisao) &&
-    revisao.documento === 'icp' &&
+    ehDocumentoDaMemoria(revisao.documento) &&
     ehTexto(revisao.pedido) &&
     ehTexto(revisao.pedidaEm) &&
     ehAutor(revisao.solicitante) &&
@@ -53,16 +57,20 @@ function ehRevisao(valor: unknown): valor is Aprovacao {
   )
 }
 
-/** Lê a Memória salva; se algo não for reconhecido, volta aos dados de exemplo. */
+/**
+ * Lê a Memória salva; se algo não for reconhecido, volta aos dados de exemplo. Uma Memória gravada antes das Personas
+ * (só o ICP e as revisões dele) mantém o ICP aprovado e começa pelas Personas de exemplo.
+ */
 function memoriaSalva(armazenamento: ArmazenamentoDemonstrativo | null): EstadoDaMemoria | null {
   try {
     const bruto = armazenamento?.getItem(CHAVE_DA_MEMORIA)
     if (!bruto) return null
     const lido: unknown = JSON.parse(bruto)
-    if (!ehObjeto(lido) || !ehObjeto(lido.icp) || !Array.isArray(lido.revisoes)) return null
-    const { icp, revisoes } = lido
-    if (!ehSecoes(icp.secoes) || !ehTexto(icp.aprovadoEm) || !ehAutor(icp.aprovadoPor) || !revisoes.every(ehRevisao)) return null
-    return { icp: icp as unknown as IcpVigente, revisoes }
+    if (!ehObjeto(lido) || !ehDocumento(lido.icp)) return null
+    const personas = lido.personas === undefined ? structuredClone(demo.personasIniciais) : lido.personas
+    if (!ehDocumento(personas)) return null
+    if (!Array.isArray(lido.revisoes) || !lido.revisoes.every(ehRevisao)) return null
+    return { icp: lido.icp, personas, revisoes: lido.revisoes }
   } catch {
     return null
   }
@@ -80,7 +88,11 @@ export function criarMemoriaSimulada({
   armazenamento: ArmazenamentoDemonstrativo | null
   participacoes: ReturnType<typeof criarParticipacoesSimuladas>
 }) {
-  let estado: EstadoDaMemoria = memoriaSalva(armazenamento) ?? { icp: structuredClone(demo.icpInicial), revisoes: [] }
+  let estado: EstadoDaMemoria = memoriaSalva(armazenamento) ?? {
+    icp: structuredClone(demo.icpInicial),
+    personas: structuredClone(demo.personasIniciais),
+    revisoes: [],
+  }
 
   /** Grava o estado novo inteiro e só então o adota: uma falha deixa o anterior valendo em todas as áreas. */
   function adotar(novo: EstadoDaMemoria) {
@@ -104,13 +116,14 @@ export function criarMemoriaSimulada({
   }
 
   return {
-    memoria: (): MemoriaDoWorkspace => ({ icp: estado.icp }),
+    memoria: (): MemoriaDoWorkspace => ({ icp: estado.icp, personas: estado.personas }),
     revisoes: () => estado.revisoes,
     ehRevisao: (aprovacaoId: string) => estado.revisoes.some((r) => r.id === aprovacaoId),
 
     /** A proposta do Agente fica pendente: o documento vigente e o que depende dele não mudam. */
     solicitar(documento: DocumentoDaMemoria, pedido: string): Aprovacao {
-      const { nome, comArtigo, titulo, agenteId, agente } = DOCUMENTOS_DA_MEMORIA[documento]
+      const { comArtigo, titulo, agenteId, agente } = DOCUMENTOS_DA_MEMORIA[documento]
+      const { oVigente, dele } = frasesDo(documento)
       if (participacoes.papelDaSessao() === null) throw new Error('Você não participa deste Workspace.')
       const texto = pedido.trim()
       if (!texto) throw new Error(`Conte ao ${agente} o que deveria mudar.`)
@@ -118,14 +131,15 @@ export function criarMemoriaSimulada({
       if (doDocumento.some((r) => r.estado === 'pendente')) {
         throw new Error(`Já existe uma proposta ${comArtigo} pendente. Aguarde a decisão de um Administrador.`)
       }
-      const roteiro = revisoesDoIcp[doDocumento.length % revisoesDoIcp.length]
-      const proposto = aplicarMudancas(estado.icp.secoes, roteiro.mudancas)
-      const quantidade = dependentesDoIcp(proposto).length
+      const roteiros = revisoesDaMemoria[documento]
+      const roteiro = roteiros[doDocumento.length % roteiros.length]
+      const proposto = aplicarMudancas(estado[documento].secoes, roteiro.mudancas)
+      const quantidade = dependentesDe(documento, proposto).length
       const aprovacao: Aprovacao = {
         id: `revisao-${documento}-${doDocumento.length + 1}`,
         agenteId,
         acao: titulo,
-        impacto: `Substitui o ${nome} vigente e atualiza as ${quantidade} configurações que dependem dele, sem novas Aprovações por módulo.`,
+        impacto: `Substitui ${oVigente} e atualiza as ${quantidade} configurações que dependem ${dele}, sem novas Aprovações por módulo.`,
         justificativa: roteiro.resposta,
         origem: 'althius',
         gatilho: 'conversa',
@@ -136,7 +150,7 @@ export function criarMemoriaSimulada({
           solicitante: autorDaSessao(),
           pedidaEm: dataDeHoje(),
           proposto,
-          vigenteNoPedido: estado.icp.secoes,
+          vigenteNoPedido: estado[documento].secoes,
         },
       }
       adotar({ ...estado, revisoes: [aprovacao, ...estado.revisoes] })
@@ -144,8 +158,8 @@ export function criarMemoriaSimulada({
     },
 
     /**
-     * Só um Administrador ativo decide; basta um, e pode ser quem pediu. Aprovar substitui o documento vigente
-     * e a decisão na mesma gravação; recusar mantém o documento.
+     * Só um Administrador ativo decide; basta um, e pode ser quem pediu. Aprovar substitui o documento da proposta
+     * e a decisão na mesma gravação, sem tocar no outro documento; recusar mantém os dois.
      */
     decidir(aprovacaoId: string, decisao: Decisao): Aprovacao {
       const papel = participacoes.papelDaSessao()
@@ -154,14 +168,14 @@ export function criarMemoriaSimulada({
       const pendente = revisao(aprovacaoId)
       if (pendente.estado !== 'pendente' || !pendente.revisao) throw new Error(ERRO_REVISAO_JA_DECIDIDA)
       const decididaPor = autorDaSessao()
+      const { documento, proposto } = pendente.revisao
       const decidida: Aprovacao = { ...pendente, estado: decisao, revisao: { ...pendente.revisao, decididaPor } }
-      adotar({
-        icp:
-          decisao === 'aprovada'
-            ? { secoes: pendente.revisao.proposto, aprovadoEm: dataDeHoje(), aprovadoPor: decididaPor }
-            : estado.icp,
-        revisoes: estado.revisoes.map((r) => (r.id === aprovacaoId ? decidida : r)),
-      })
+      const revisoes = estado.revisoes.map((r) => (r.id === aprovacaoId ? decidida : r))
+      adotar(
+        decisao === 'aprovada'
+          ? { ...estado, [documento]: { secoes: proposto, aprovadoEm: dataDeHoje(), aprovadoPor: decididaPor }, revisoes }
+          : { ...estado, revisoes },
+      )
       return decidida
     },
   }

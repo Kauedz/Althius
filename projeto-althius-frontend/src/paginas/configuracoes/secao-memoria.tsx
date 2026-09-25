@@ -1,25 +1,27 @@
 import { ArrowRight, CircleCheck, Clock } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
+import { AbasSublinhadas } from '@/components/abas'
 import { Carregando, IconeAgente, Pulso } from '@/components/marca'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
-import { dependentesDoIcp, DOCUMENTOS_DA_MEMORIA } from '@/fonte/regras-memoria'
-import type { Aprovacao, IcpVigente } from '@/fonte/tipos'
+import { dependentesDe, DOCUMENTOS_DA_MEMORIA, ehDocumentoDaMemoria, frasesDo, maiuscula } from '@/fonte/regras-memoria'
+import type { Aprovacao, DocumentoDaMemoria, DocumentoVigente } from '@/fonte/tipos'
 import { mensagemDeErro } from '@/lib/utils'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/paginas/sinais/componentes'
 import { Bloco, Mensagem } from './componentes'
 
-const { nome, comArtigo, agente, especialidade } = DOCUMENTOS_DA_MEMORIA.icp
-
 /**
- * Memória do Workspace: o ICP vigente, a referência que os módulos leem. Não há edição direta: qualquer
- * participante pede revisão ao Scopus, e o ICP só muda quando um Administrador aprova a proposta.
+ * Memória do Workspace: o ICP e as Personas vigentes, a referência que os módulos leem, um documento por aba. Não há
+ * edição direta: qualquer participante pede revisão ao Agente do documento, e ele só muda quando um Administrador
+ * aprova a proposta.
  */
 export function SecaoMemoria() {
+  const { documento } = useParams()
   const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
+  if (!ehDocumentoDaMemoria(documento)) return <Navigate to="/configuracoes/memoria/icp" replace />
 
   return (
     <section aria-labelledby="titulo-memoria-do-workspace" className="flex max-w-4xl flex-col gap-8">
@@ -35,29 +37,48 @@ export function SecaoMemoria() {
           Agente, e só muda depois da aprovação de um Administrador.
         </p>
       </div>
+      <AbasSublinhadas
+        rotuloAcessivel="Documentos da Memória do Workspace"
+        abas={(Object.keys(DOCUMENTOS_DA_MEMORIA) as DocumentoDaMemoria[]).map((id) => ({
+          rotulo: DOCUMENTOS_DA_MEMORIA[id].nome,
+          para: `/configuracoes/memoria/${id}`,
+        }))}
+      />
       {!memoria || !aprovacoes ? (
         <Carregando />
       ) : (
-        <DocumentoIcp icp={memoria.icp} revisoes={aprovacoes.filter((a) => a.revisao?.documento === 'icp')} />
+        <DocumentoNaMemoria
+          key={documento}
+          documento={documento}
+          vigente={memoria[documento]}
+          revisoes={aprovacoes.filter((a) => a.revisao?.documento === documento)}
+        />
       )}
-      <p className="border border-al-line bg-al-surface px-4 py-3 text-sm text-al-muted">
-        As Personas do Ethos entram na Memória do Workspace num próximo ticket.
-      </p>
     </section>
   )
 }
 
-function DocumentoIcp({ icp, revisoes }: { icp: IcpVigente; revisoes: Aprovacao[] }) {
+function DocumentoNaMemoria({
+  documento,
+  vigente,
+  revisoes,
+}: {
+  documento: DocumentoDaMemoria
+  vigente: DocumentoVigente
+  revisoes: Aprovacao[]
+}) {
   const [pedindo, setPedindo] = useState(false)
+  const { nome, oNome, agente, especialidade } = DOCUMENTOS_DA_MEMORIA[documento]
+  const { concordar, oVigente, naoMudou } = frasesDo(documento)
   const pendente = revisoes.find((r) => r.estado === 'pendente')
   // As revisões vêm da mais nova para a mais antiga: a primeira decidida é a última decisão.
   const ultimaDecidida = revisoes.find((r) => r.estado !== 'pendente')
-  const aprovadoEm = formatarDiaIsoPorExtenso(icp.aprovadoEm)
+  const aprovadoEm = formatarDiaIsoPorExtenso(vigente.aprovadoEm)
   const veioDeRevisao = ultimaDecidida?.estado === 'aprovada'
 
   return (
     <>
-      <section aria-label={`${nome} vigente`} className="flex flex-col gap-6">
+      <section aria-label={`${nome} ${concordar('vigente', 'vigentes')}`} className="flex flex-col gap-6">
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4">
             <IconeAgente especialidade={especialidade} tamanho="lg" />
@@ -70,7 +91,8 @@ function DocumentoIcp({ icp, revisoes }: { icp: IcpVigente; revisoes: Aprovacao[
                 </span>
               </div>
               <span className="text-sm text-al-muted">
-                Aprovado em {aprovadoEm} por {icp.aprovadoPor.nome} · mantido pelo {agente}
+                {concordar('Aprovado', 'Aprovadas')} em {aprovadoEm} por {vigente.aprovadoPor.nome} ·{' '}
+                {concordar('mantido', 'mantidas')} pelo {agente}
               </span>
             </div>
           </div>
@@ -92,44 +114,51 @@ function DocumentoIcp({ icp, revisoes }: { icp: IcpVigente; revisoes: Aprovacao[
             <p className="text-sm">
               <span className="font-normal">Proposta pendente do {agente}.</span>{' '}
               <span className="text-al-muted">
-                Enquanto um Administrador não decidir, o {nome} abaixo continua valendo em todo o Workspace.
+                Enquanto um Administrador não decidir, {oNome} abaixo {concordar('continua', 'continuam')} valendo em
+                todo o Workspace.
               </span>
             </p>
           </div>
         )}
         {!pendente && ultimaDecidida?.estado === 'rejeitada' && (
           <Mensagem tipo="info">
-            A última proposta do {agente} foi recusada por {ultimaDecidida.revisao?.decididaPor?.nome}. O {nome} vigente
-            não mudou.
+            A última proposta do {agente} foi recusada por {ultimaDecidida.revisao?.decididaPor?.nome}.{' '}
+            {maiuscula(oVigente)} {naoMudou}.
           </Mensagem>
         )}
         {veioDeRevisao && (
           <Mensagem tipo="sucesso">
-            Este {nome} substituiu o anterior com a aprovação de {aprovadoEm}, e as configurações abaixo já usam o novo
-            contexto.
+            {concordar(`Este ${nome} substituiu o anterior`, `Estas ${nome} substituíram as anteriores`)} com a
+            aprovação de {aprovadoEm}, e as configurações abaixo já usam o novo contexto.
           </Mensagem>
         )}
 
         <dl className="cartao grid grid-cols-[12rem_1fr] gap-x-8 gap-y-4 p-6">
-          {icp.secoes.map((secao) => (
+          {vigente.secoes.map((secao) => (
             <div key={secao.titulo} className="contents">
               <dt className="rotulo pt-0.5">{secao.titulo}</dt>
               <dd className="leading-relaxed">{secao.texto}</dd>
             </div>
           ))}
         </dl>
+        {documento === 'personas' && (
+          <p className="text-sm text-al-muted">
+            Cada Persona descreve um papel do Comitê de compra. As Personas classificam os Contatos em Contas e Contatos e não
+            são participantes do Workspace.
+          </p>
+        )}
         <p className="text-sm text-al-muted">
-          A Memória do Workspace guarda só a versão vigente: não há histórico nem restauração. Para mudar o {nome},
-          peça ao {agente}; não há edição direta.
+          A Memória do Workspace guarda só a versão vigente: não há histórico nem restauração. Para mudar {oNome}, peça
+          ao {agente}; não há edição direta.
         </p>
       </section>
 
       <Bloco
         titulo="Onde este contexto é usado"
-        descricao={`Estas configurações leem o ${nome} vigente. Uma aprovação atualiza todas de uma vez, sem novas aprovações por módulo.`}
+        descricao={`Estas configurações leem ${oVigente}. Uma aprovação atualiza todas de uma vez, sem novas aprovações por módulo.`}
       >
-        <ul aria-label={`Configurações que usam o ${nome}`} className="flex flex-col">
-          {dependentesDoIcp(icp.secoes).map((dependente) => (
+        <ul aria-label={`Configurações que usam ${oNome}`} className="flex flex-col">
+          {dependentesDe(documento, vigente.secoes).map((dependente) => (
             <li
               key={dependente.nome}
               aria-label={dependente.nome}
@@ -153,14 +182,24 @@ function DocumentoIcp({ icp, revisoes }: { icp: IcpVigente; revisoes: Aprovacao[
         </ul>
       </Bloco>
 
-      <DialogoDeRevisao aberto={pedindo} aoFechar={() => setPedindo(false)} />
+      <DialogoDeRevisao documento={documento} aberto={pedindo} aoFechar={() => setPedindo(false)} />
     </>
   )
 }
 
-/** A Conversa demonstrativa com o Scopus: o pedido vira uma proposta pendente em Aprovações. */
-function DialogoDeRevisao({ aberto, aoFechar }: { aberto: boolean; aoFechar: () => void }) {
+/** A Conversa demonstrativa com o Agente do documento: o pedido vira uma proposta pendente em Aprovações. */
+function DialogoDeRevisao({
+  documento,
+  aberto,
+  aoFechar,
+}: {
+  documento: DocumentoDaMemoria
+  aberto: boolean
+  aoFechar: () => void
+}) {
   const fonte = useFonte()
+  const { oNome, comArtigo, agente, especialidade, exemploDePedido } = DOCUMENTOS_DA_MEMORIA[documento]
+  const { concordar } = frasesDo(documento)
   const workspace = useDados((f) => f.workspace(), [])
   const [pedido, setPedido] = useState('')
   const [erro, setErro] = useState<string | undefined>()
@@ -184,7 +223,7 @@ function DialogoDeRevisao({ aberto, aoFechar }: { aberto: boolean; aoFechar: () 
     setEnviado(pedido.trim())
     setEtapa('preparando')
     try {
-      const proposta = await fonte.solicitarRevisao('icp', pedido)
+      const proposta = await fonte.solicitarRevisao(documento, pedido)
       setResposta(proposta.justificativa)
       setEtapa('pronta')
     } catch (e) {
@@ -201,8 +240,8 @@ function DialogoDeRevisao({ aberto, aoFechar }: { aberto: boolean; aoFechar: () 
           <DialogTitle className="titulo-secao text-2xl">Revisão {comArtigo}</DialogTitle>
         </div>
         <DialogDescription className="text-al-muted">
-          Uma Conversa com o {agente}, que prepara a proposta e a envia para Aprovações. O {nome} só muda quando um
-          Administrador aprovar.
+          Uma Conversa com o {agente}, que prepara a proposta e a envia para Aprovações. {maiuscula(oNome)} só{' '}
+          {concordar('muda', 'mudam')} quando um Administrador aprovar.
         </DialogDescription>
 
         {etapa === 'escrevendo' ? (
@@ -217,7 +256,7 @@ function DialogoDeRevisao({ aberto, aoFechar }: { aberto: boolean; aoFechar: () 
                 value={pedido}
                 onChange={(e) => setPedido(e.target.value)}
                 aria-invalid={Boolean(erro)}
-                placeholder="Ex.: estamos fechando com empresas menores na Colômbia e no Chile."
+                placeholder={exemploDePedido}
               />
               <div className="flex justify-end px-3 pb-3">
                 <button type="submit" className={BOTAO_PRIMARIO}>

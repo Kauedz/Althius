@@ -17,7 +17,7 @@ import {
   type PassoDeRoteiroCoordenado,
   type RoteiroCoordenado,
 } from './roteiros'
-import { DOCUMENTOS_DA_MEMORIA } from './regras-memoria'
+import { DOCUMENTOS_DA_MEMORIA, frasesDo, maiuscula } from './regras-memoria'
 import { criarMemoriaSimulada, FalhaAoGravar } from './simulada-memoria'
 import { criarParticipacoesSimuladas, type ArmazenamentoDemonstrativo, type Sessao } from './simulada-participacoes'
 import type {
@@ -303,8 +303,9 @@ export function criarFonteSimulada({
    */
   function decidirRevisao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {
     const { agenteId, gatilho, acao, revisao } = buscar(memoriaDoWorkspace.revisoes(), aprovacaoId)
-    const { nome } = DOCUMENTOS_DA_MEMORIA[revisao!.documento]
-    const link = { rotulo: 'Ver Memória do Workspace', para: '/configuracoes/memoria' }
+    const { concordar, oVigente, foiSubstituido, naoMudou, dele } = frasesDo(revisao!.documento)
+    const dependem = `as configurações que dependem ${dele}`
+    const link = { rotulo: 'Ver Memória do Workspace', para: `/configuracoes/memoria/${revisao!.documento}` }
     try {
       memoriaDoWorkspace.decidir(aprovacaoId, decisao)
     } catch (erro) {
@@ -313,13 +314,13 @@ export function criarFonteSimulada({
         agenteId,
         gatilho,
         descricao: `Falhou ao decidir ${ondeFoiDecidida(onde)}: ${acao}`,
-        resultado: `Nada foi alterado: o ${nome} vigente e as configurações que dependem dele continuam como estavam.`,
+        resultado: `Nada foi alterado: ${oVigente} e ${dependem} continuam como estavam.`,
         link,
         falhou: true,
       })
       avisar()
       throw new Error(
-        `Não foi possível concluir a decisão. O ${nome} vigente e as configurações que dependem dele continuam como estavam; a proposta segue pendente.`,
+        `Não foi possível concluir a decisão. ${maiuscula(oVigente)} e ${dependem} continuam como estavam; a proposta segue pendente.`,
       )
     }
     registrarAcao({
@@ -328,8 +329,8 @@ export function criarFonteSimulada({
       descricao: `${decisao === 'aprovada' ? 'Aprovada' : 'Recusada'} ${ondeFoiDecidida(onde)}: ${acao}`,
       resultado:
         decisao === 'aprovada'
-          ? `O ${nome} vigente foi substituído e as configurações que dependem dele já usam o novo. Nenhuma ação externa foi refeita.`
-          : `O ${nome} vigente não mudou.`,
+          ? `${maiuscula(oVigente)} ${foiSubstituido} e ${dependem} já usam ${concordar('o novo', 'as novas')}. Nenhuma ação externa foi refeita.`
+          : `${maiuscula(oVigente)} ${naoMudou}.`,
       link,
     })
   }
@@ -481,7 +482,9 @@ export function criarFonteSimulada({
     memoriaDoWorkspace: () => responder(() => memoriaDoWorkspace.memoria()),
     async solicitarRevisao(documento, pedido) {
       await esperar()
-      const { agenteId, nome } = DOCUMENTOS_DA_MEMORIA[documento]
+      const { agenteId } = DOCUMENTOS_DA_MEMORIA[documento]
+      const { oVigente, naoMudou } = frasesDo(documento)
+      const oVigenteNaoMudou = `${oVigente} ${naoMudou}`
       let aprovacao: Aprovacao
       try {
         aprovacao = memoriaDoWorkspace.solicitar(documento, pedido)
@@ -491,11 +494,11 @@ export function criarFonteSimulada({
           agenteId,
           gatilho: 'conversa',
           descricao: `Respondeu a um pedido de revisão: "${pedido.trim()}"`,
-          resultado: `Não registrou a proposta: o ${nome} vigente não mudou.`,
+          resultado: `Não registrou a proposta: ${oVigenteNaoMudou}.`,
           falhou: true,
         })
         avisar()
-        throw new Error(`Não foi possível registrar a proposta. O ${nome} vigente não mudou; tente de novo.`)
+        throw new Error(`Não foi possível registrar a proposta. ${maiuscula(oVigenteNaoMudou)}; tente de novo.`)
       }
       const { revisao } = aprovacao
       // O pedido é uma Conversa com o Agente: a proposta é o resultado dessa Execução.

@@ -158,8 +158,12 @@ export interface Autor {
   nome: string
 }
 
-/** O ICP vigente. A Memória do Workspace guarda só a última versão aprovada, sem histórico nem restauração. */
-export interface IcpVigente {
+/**
+ * Um documento vigente da Memória do Workspace (o ICP ou as definições de Personas). A Memória guarda só a última
+ * versão aprovada de cada um, sem histórico nem restauração.
+ */
+export interface DocumentoVigente {
+  /** No ICP, os critérios (ex.: "Porte"); nas Personas, uma seção por Persona, com o nome no título. */
   secoes: SecaoDoDocumento[]
   /** Data da aprovação, em ISO (aaaa-mm-dd). */
   aprovadoEm: string
@@ -171,11 +175,13 @@ export interface IcpVigente {
  * referência dos módulos que dependem dela: nenhum guarda uma cópia.
  */
 export interface MemoriaDoWorkspace {
-  icp: IcpVigente
+  icp: DocumentoVigente
+  /** As definições de Personas, pelas quais os Contatos são classificados. Não são participantes do Workspace. */
+  personas: DocumentoVigente
 }
 
 /** Os documentos da Memória do Workspace que mudam só por revisão de um Agente e Aprovação de Administrador. */
-export type DocumentoDaMemoria = 'icp'
+export type DocumentoDaMemoria = keyof MemoriaDoWorkspace
 
 /**
  * A proposta de um Agente para um documento da Memória do Workspace. Pendente, não é versão aprovada:
@@ -212,6 +218,8 @@ export interface Habilidade {
   ativa: boolean
   /** Pontua pelo ICP vigente da Memória do Workspace, lido a cada uso: não guarda uma cópia dele. */
   usaIcp?: boolean
+  /** Adapta o trabalho às Personas vigentes da Memória do Workspace, lidas a cada uso: não guarda uma cópia delas. */
+  usaPersonas?: boolean
 }
 
 export type Frequencia = 'diaria' | 'semanal' | 'mensal'
@@ -452,10 +460,10 @@ export interface FonteDeAgentes extends FonteObservavel {
   conectar(conexao: CanalId | IntegracaoId): Promise<void>
   previaDeCanal(canalId: CanalId): Promise<PreviaDeCanal>
 
-  /** O ICP vigente, a referência compartilhada que Configurações, Sinais e Agentes leem. */
+  /** O ICP e as Personas vigentes, a referência compartilhada que Configurações, Sinais, Agentes e Contatos leem. */
   memoriaDoWorkspace(): Promise<MemoriaDoWorkspace>
   /**
-   * Um participante ativo pede a revisão ao Agente do documento (o Scopus, no ICP). Numa Conversa
+   * Um participante ativo pede a revisão ao Agente do documento (o Scopus no ICP, o Ethos nas Personas). Numa Conversa
    * demonstrativa, o Agente prepara a proposta e a envia para Aprovações; o documento vigente não muda.
    * Recusa quem não participa do Workspace e um segundo pedido enquanto houver proposta pendente.
    */

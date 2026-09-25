@@ -9,8 +9,8 @@ import { SecaoPreferencias } from './secao-preferencias'
 import { SecaoWorkspace } from './secao-workspace'
 
 /**
- * As seis seções aprovadas no mockup (ticket 01). Meu perfil, Preferências, Workspace e Memória do Workspace (ICP) já têm
- * implementação funcional; as demais chegam nos tickets seguintes (ver comentário do ticket 01).
+ * As seis seções aprovadas no mockup (ticket 01). Meu perfil, Preferências, Workspace e Memória do Workspace (ICP e
+ * Personas) já têm implementação funcional; as demais chegam nos tickets seguintes (ver comentário do ticket 01).
  */
 const SECOES: Record<string, { rotulo: string; Componente: () => ReactNode }> = {
   perfil: { rotulo: 'Meu perfil', Componente: SecaoPerfil },
@@ -40,8 +40,10 @@ const SECOES: Record<string, { rotulo: string; Componente: () => ReactNode }> = 
 }
 
 export function PaginaConfiguracoes() {
-  const { secao } = useParams()
+  const { secao, documento } = useParams()
   if (!(secao && secao in SECOES)) return <Navigate to="/configuracoes/perfil" replace />
+  // Só a Memória do Workspace tem um documento por aba (/configuracoes/memoria/icp).
+  if (documento && secao !== 'memoria') return <Navigate to={`/configuracoes/${secao}`} replace />
 
   const { Componente } = SECOES[secao]
 
