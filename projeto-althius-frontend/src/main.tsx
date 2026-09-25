@@ -7,6 +7,6 @@ import './index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RaizDoAplicativo cliente={clienteSupabase} servicos={criarServicosDoNavegador()} />
+    <RaizDoAplicativo cliente={clienteSupabase} servicos={criarServicosDoNavegador({ siteKeyDoTurnstile: import.meta.env.VITE_TURNSTILE_SITE_KEY })} />
   </StrictMode>,
 )
