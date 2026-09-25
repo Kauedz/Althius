@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Mensagem } from './componentes'
 
 const CAMPOS = [
   { campo: 'atual', rotulo: 'Senha atual' },
@@ -138,17 +138,10 @@ export function BlocoSenha() {
         </form>
       )}
 
-      <p role="status" className={concluido ? 'flex items-start gap-2 border-l-2 border-al-line py-1 pl-3 text-sm text-al-muted' : 'sr-only'}>
-        {concluido && (
-          <>
-            <Info strokeWidth={1.8} className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>
-              Demonstração: nenhuma senha foi alterada e a senha atual não foi conferida. Os campos foram limpos e nada do
-              que você digitou foi guardado.
-            </span>
-          </>
-        )}
-      </p>
+      <Mensagem tipo="info">
+        {concluido &&
+          'Demonstração: nenhuma senha foi alterada e a senha atual não foi conferida. Os campos foram limpos e nada do que você digitou foi guardado.'}
+      </Mensagem>
     </section>
   )
 }

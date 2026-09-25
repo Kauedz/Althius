@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { armazenamentoEmMemoria } from '@/test/armazenamento'
+import { observarRastros } from '@/test/rastros'
 import { renderizarApp } from '@/test/renderizar'
 
 function arquivoDeImagem(nome = 'foto.png') {
@@ -23,14 +24,20 @@ describe('Navegação até Configurações', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Meu perfil' })).toBeInTheDocument()
   })
 
-  it('lista as seções aprovadas no mockup, com as não implementadas mostrando que ainda não funcionam', async () => {
+  it('abre cada uma das seis seções aprovadas no mockup pelas abas', async () => {
     const { usuario } = renderizarApp('/configuracoes/perfil')
     const abas = await screen.findByRole('navigation', { name: 'Seções de Configurações' })
-    for (const rotulo of ['Meu perfil', 'Preferências', 'Workspace', 'Memória do Workspace', 'Plano', 'Ajuda e informações']) {
-      expect(within(abas).getByRole('link', { name: rotulo })).toBeInTheDocument()
+    for (const [rotulo, titulo] of [
+      ['Preferências', 'Preferências'],
+      ['Workspace', 'Pessoas e acesso'],
+      ['Memória do Workspace', 'Memória do Workspace'],
+      ['Plano', 'Plano'],
+      ['Ajuda e informações', 'Ajuda e informações'],
+      ['Meu perfil', 'Meu perfil'],
+    ]) {
+      await usuario.click(within(abas).getByRole('link', { name: rotulo }))
+      expect(await screen.findByRole('heading', { level: 2, name: titulo })).toBeInTheDocument()
     }
-    await usuario.click(within(abas).getByRole('link', { name: 'Ajuda e informações' }))
-    expect(await screen.findByText(/ainda não foi implementada nesta demonstração/)).toBeInTheDocument()
   })
 })
 
@@ -219,19 +226,9 @@ describe('Alteração de senha (demonstrativa)', () => {
   })
 
   it('não guarda nem registra as senhas digitadas na persistência usada pela experiência', async () => {
-    const armazenamento = armazenamentoEmMemoria()
-    const gravacoes: string[] = []
-    const gravar = armazenamento.setItem
-    armazenamento.setItem = (chave, valor) => {
-      gravacoes.push(`${chave}=${valor}`)
-      gravar(chave, valor)
-    }
-    const registros = (['log', 'info', 'warn', 'error', 'debug'] as const).map((metodo) =>
-      vi.spyOn(console, metodo).mockImplementation(() => {}),
-    )
-    const envio = vi.spyOn(globalThis, 'fetch')
+    const observados = observarRastros()
     try {
-      const { usuario } = renderizarApp('/configuracoes/perfil', {}, {}, {}, {}, { armazenamento })
+      const { usuario } = renderizarApp('/configuracoes/perfil', {}, {}, {}, {}, { armazenamento: observados.armazenamento })
 
       const formulario = await abrirFormularioDeSenha(usuario)
       await usuario.type(formulario.getByLabelText('Senha atual'), 'Atual-Secreta-1')
@@ -246,17 +243,12 @@ describe('Alteração de senha (demonstrativa)', () => {
       await usuario.type(nome, 'Marina Depois da Senha')
       await usuario.click(screen.getByRole('button', { name: 'Salvar' }))
       await screen.findByText(/Perfil salvo/)
-      expect(gravacoes.some((g) => g.includes('Marina Depois da Senha'))).toBe(true)
+      expect(observados.gravacoes.some((g) => g.includes('Marina Depois da Senha'))).toBe(true)
 
-      const doNavegador = Object.keys(window.localStorage).map((chave) => `${chave}=${window.localStorage.getItem(chave)}`)
-      const registrado = registros.flatMap((espiao) => espiao.mock.calls.map((chamada) => chamada.map(String).join(' ')))
-      for (const rastro of [...gravacoes, ...doNavegador, ...registrado]) {
-        expect(rastro).not.toContain('Secreta')
-      }
-      expect(envio).not.toHaveBeenCalled()
+      for (const rastro of observados.rastros()) expect(rastro).not.toContain('Secreta')
+      expect(observados.envio).not.toHaveBeenCalled()
     } finally {
-      registros.forEach((espiao) => espiao.mockRestore())
-      envio.mockRestore()
+      observados.restaurar()
     }
   })
 })

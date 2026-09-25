@@ -18,7 +18,7 @@ import { Bloco, Mensagem } from './componentes'
  * aprova a proposta.
  */
 export function SecaoMemoria() {
-  const { documento } = useParams()
+  const { pagina: documento } = useParams()
   const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   if (!ehDocumentoDaMemoria(documento)) return <Navigate to="/configuracoes/memoria/icp" replace />

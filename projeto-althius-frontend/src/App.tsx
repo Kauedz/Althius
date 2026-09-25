@@ -101,7 +101,7 @@ export function App({
           <Route path="conexoes" element={<PaginaConexoes />} />
           <Route path="configuracoes" element={<Navigate to="/configuracoes/perfil" replace />} />
           <Route path="configuracoes/:secao" element={<PaginaConfiguracoes />} />
-          <Route path="configuracoes/:secao/:documento" element={<PaginaConfiguracoes />} />
+          <Route path="configuracoes/:secao/:pagina" element={<PaginaConfiguracoes />} />
           <Route path="agentes/:agenteId" element={<Navigate to="conversa" replace />} />
           <Route path="agentes/:agenteId/:secao" element={<PaginaAgente />} />
           <Route path="*" element={<Navigate to="/" replace />} />
