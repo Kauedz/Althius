@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(36);
+select plan(40);
 
 -- Workspace da empresa com Ana (Administradora), Beto (Membro), Eva (Membro sem Contas) e Dora (Participação removida).
 -- Caio é Administrador de outro Workspace.
@@ -151,7 +151,7 @@ select throws_ok(
 
 -- Beto não edita o Contato que só atua na Gama, da Ana; a Ana, Administradora, gerencia Contatos de qualquer Conta.
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
-insert into ids select 'lia', id from public.create_contact((select id from ids where nome = 'gama'), 'Lia');
+insert into ids select 'lia', id from public.create_contact((select id from ids where nome = 'gama'), 'Lia', null, 'lia@gama.com.br');
 select lives_ok(
   $$select public.create_contact((select id from ids where nome = 'alfa'), 'Rui')$$,
   'a Administradora cria Contato em Conta de outro responsável');
@@ -163,6 +163,24 @@ select throws_ok(
   $$select public.update_contact((select id from ids where nome = 'lia'), p_name => 'Lia Alves')$$,
   '42501', 'only the responsible seller or an admin can edit this contact',
   'o Membro não edita Contato que só atua em Conta de outro responsável');
+
+-- Vincular o Contato de outro responsável a uma Conta sua não dá ao Membro o direito de editá-lo.
+select lives_ok(
+  $$select public.link_contact((select id from ids where nome = 'lia'), (select id from ids where nome = 'alfa'))$$,
+  'o Membro vincula a uma Conta sua um Contato que atua em Conta de outro responsável');
+select throws_ok(
+  $$select public.update_contact((select id from ids where nome = 'lia'), p_name => 'Lia Alves', p_email => '')$$,
+  '42501', 'only the responsible seller or an admin can edit this contact',
+  'o Vínculo novo não autoriza o Membro a editar o Contato');
+select throws_ok(
+  $$select public.upsert_target_contact('51000000-0000-0000-0000-000000000001',
+    (select id from ids where nome = 'alfa')::text, (select id from ids where nome = 'lia')::text, 'Lia Alves')$$,
+  '42501', 'only the responsible seller or an admin can edit this contact',
+  'a gravação pela Sequência também não edita o Contato de outro responsável');
+select results_eq(
+  $$select name, email from public.contacts where id = (select id from ids where nome = 'lia')$$,
+  $$values ('Lia', 'lia@gama.com.br')$$,
+  'o nome e os destinos do Contato não mudam');
 
 -- Isolamento por Workspace.
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000003', true);

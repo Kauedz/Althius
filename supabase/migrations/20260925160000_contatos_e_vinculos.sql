@@ -286,10 +286,16 @@ begin
   if not exists (
     select 1 from public.workspace_memberships m
     where m.workspace_id = v_contact.workspace_id and m.user_id = v_user_id and m.active and m.role = 'admin'
-  ) and not exists (
-    select 1 from public.contact_account_links l
-    where l.contact_id = v_contact.id and l.ended_at is null
-      and private.can_manage_account_contacts(l.workspace_id, l.target_account_id, v_user_id)
+  ) and (
+    -- Membro: todos os Vínculos ativos do Contato em Contas sob sua responsabilidade. Vincular não concede edição.
+    not exists (
+      select 1 from public.contact_account_links l
+      where l.contact_id = v_contact.id and l.ended_at is null
+    ) or exists (
+      select 1 from public.contact_account_links l
+      where l.contact_id = v_contact.id and l.ended_at is null
+        and not private.can_manage_account_contacts(l.workspace_id, l.target_account_id, v_user_id)
+    )
   ) then
     raise exception 'only the responsible seller or an admin can edit this contact' using errcode = '42501';
   end if;
