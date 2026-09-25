@@ -1,25 +1,23 @@
-// Fonte simulada do onboarding (ADR 0003): estado no cliente, sem rede, auth ou IA.
+// Fonte simulada do onboarding (ADR 0003): estado no cliente, sem auth nem IA.
 // A empresa só sugere o nome do Workspace/Cliente. Nenhuma Conta-alvo nasce aqui.
 // A leitura do site é a única IA do onboarding; aqui ela é fixa, pela mesma interface que a leitura real vai usar.
 import {
-  ETAPAS_DO_RAMO,
+  CAMPOS_DO_MINI_ICP_E_PRODUTO,
   ITENS_DO_CHECKLIST,
   ORIGENS_HDYHAU,
-  etapasDoRamo,
   PAPEIS_DO_DAY0,
   RAMOS_DE_ONBOARDING,
+  SITUACOES_DA_LEITURA,
+  SITUACOES_DO_ITEM,
   type EstadoDeOnboarding,
   type EtapaDeOnboarding,
   type FonteDeOnboarding,
-  type ItemDoChecklist,
   type LeituraDoSite,
-  type OrigemHdyhau,
-  type PapelNoDay0,
+  type MiniIcpEProduto,
   type RamoDeOnboarding,
-  type SituacaoDaLeitura,
-  type SituacaoDoItem,
 } from './onboarding-tipos'
-import { dominioUtil, logoDoSite } from './dominio-do-site'
+import { aplicarLeitura, criaOWorkspace, etapasDoRamo } from './regras-onboarding'
+import { normalizarDominio, resolverLogoDoSite } from './dominio-do-site'
 
 const CHAVE = 'althius.onboarding.v3'
 const ID_DO_WORKSPACE = 'ws-criador'
@@ -49,6 +47,8 @@ export interface OpcoesFonteDeOnboardingSimulada {
   leitorDeSite?: (dominio: string) => Promise<LeituraDoSite>
   /** Duração do carregamento da leitura fixa. */
   atrasoDaLeituraMs?: number
+  /** Quem acha o logo do site. Por padrão, o navegador carrega os candidatos do domínio em ordem. */
+  resolverLogo?: (dominio: string) => Promise<string | null>
   /**
    * A sessão já passou pelo onboarding no Workspace da demonstração, que ela não criou: a Casca abre direto. É o
    * ponto de partida dos testes da Casca. Vale só quando o armazenamento não guarda um onboarding legível.
@@ -56,15 +56,10 @@ export interface OpcoesFonteDeOnboardingSimulada {
   jaConcluido?: boolean
 }
 
-const CAMPOS_DO_PRODUTO = ['miniIcp', 'oQueVende', 'porQueCompram'] as const
-
-/** No checklist, as Personas sugeridas viram texto editável, uma por linha. */
-function textoDasPersonas(leitura: LeituraDoSite) {
-  return leitura.personas.join('\n')
+/** As Personas guardadas: sem espaços nas pontas e sem linhas vazias. */
+function limparPersonas(personas: readonly string[]): string[] {
+  return personas.map((persona) => persona.trim()).filter(Boolean)
 }
-
-const SITUACOES: readonly SituacaoDoItem[] = ['pendente', 'concluido', 'pulado']
-const SITUACOES_DA_LEITURA: readonly SituacaoDaLeitura[] = ['inativa', 'lendo', 'pronta', 'falhou']
 
 export function criarFonteDeOnboardingSimulada(
   opcoes: OpcoesFonteDeOnboardingSimulada = {},
@@ -74,6 +69,7 @@ export function criarFonteDeOnboardingSimulada(
   const leitorDeSite =
     opcoes.leitorDeSite ??
     (() => new Promise<LeituraDoSite>((resolver) => setTimeout(() => resolver(structuredClone(LEITURA_FIXA)), atraso)))
+  const resolverLogo = opcoes.resolverLogo ?? ((dominio: string) => resolverLogoDoSite(dominio))
   let estado = carregar(armazenamento) ?? (opcoes.jaConcluido ? estadoConcluido() : estadoInicial())
   // Só a leitura mais recente vale: uma leitura de um domínio anterior que chegue depois é descartada.
   let leituraAtual = 0
@@ -101,43 +97,39 @@ export function criarFonteDeOnboardingSimulada(
     if (seguinte === 'checklist') estado.day0Concluido = true
   }
 
-  /**
-   * Um campo ainda é só sugestão quando está igual ao que a leitura anterior trouxe, ou vazio se nenhuma leitura
-   * chegou antes. Depois de uma leitura, um campo vazio foi descartado pela pessoa e continua vazio.
-   */
-  const aplicarLeitura = (leitura: LeituraDoSite) => {
-    const anterior = estado.leitura.resultado
-    const checklist = estado.checklist
-    const aindaESugestao = (atual: string, daAnterior: string | undefined) => (anterior ? atual === daAnterior : !atual)
-    for (const campo of CAMPOS_DO_PRODUTO) {
-      if (aindaESugestao(checklist[campo], anterior?.[campo])) checklist[campo] = leitura[campo]
-    }
-    if (aindaESugestao(checklist.personas, anterior ? textoDasPersonas(anterior) : undefined)) {
-      checklist.personas = textoDasPersonas(leitura)
-    }
+  /** Resolve o logo do domínio confirmado sem prender o wizard. Um logo de um domínio que já mudou é descartado. */
+  async function resolverOLogo() {
+    const dominio = estado.dominio
+    const logo = await resolverLogo(dominio).catch(() => null)
+    if (estado.dominio !== dominio || estado.logoDoSite === logo) return
+    estado.logoDoSite = logo
+    publicar()
   }
 
-  async function lerSite() {
-    if (estado.ramo !== 'criador' || !estado.dominio) return devolver()
-    const dominio = estado.dominio
+  async function lerSite(bruto: string): Promise<LeituraDoSite | null> {
+    const dominio = normalizarDominio(bruto)
+    if (!criaOWorkspace(estado.ramo) || !dominio || dominio !== estado.dominio) return null
     const esta = ++leituraAtual
     estado.leitura = { ...estado.leitura, situacao: 'lendo' }
     publicar()
     try {
       const resultado = await leitorDeSite(dominio)
-      if (esta !== leituraAtual) return devolver()
-      aplicarLeitura(resultado)
+      if (esta !== leituraAtual) return null
+      estado.checklist = aplicarLeitura(estado.checklist, estado.leitura.resultado, resultado)
       estado.leitura = { situacao: 'pronta', resultado: structuredClone(resultado) }
+      publicar()
+      return structuredClone(resultado)
     } catch {
-      if (esta !== leituraAtual) return devolver()
+      if (esta !== leituraAtual) return null
       estado.leitura = { ...estado.leitura, situacao: 'falhou' }
+      publicar()
+      return null
     }
-    publicar()
-    return devolver()
   }
 
-  // Um refresh no meio da leitura retoma a leitura.
-  if (estado.leitura.situacao === 'lendo') void lerSite()
+  // Um refresh no meio da leitura retoma a leitura, e um logo que não chegou a ser resolvido é procurado de novo.
+  if (estado.leitura.situacao === 'lendo') void lerSite(estado.dominio)
+  if (estado.dominio && !estado.logoDoSite) void resolverOLogo()
 
   return {
     observar(ouvinte) {
@@ -182,9 +174,9 @@ export function criarFonteDeOnboardingSimulada(
       return devolver()
     },
 
-    async definirEmpresa(nome) {
+    async definirCliente(nome) {
       const empresa = nome.trim()
-      if (estado.ramo !== 'criador' || !estado.workspace || !empresa) return devolver()
+      if (!criaOWorkspace(estado.ramo) || !estado.workspace || !empresa) return devolver()
       estado.empresa = empresa
       estado.workspace = { id: estado.workspace.id, nomeSugerido: empresa }
       avancarDe('empresa')
@@ -193,17 +185,24 @@ export function criarFonteDeOnboardingSimulada(
     },
 
     async definirDominio(bruto) {
-      const dominio = dominioUtil(bruto)
-      if (estado.ramo !== 'criador' || !dominio) return devolver()
+      const dominio = normalizarDominio(bruto)
+      if (!criaOWorkspace(estado.ramo) || !dominio) return devolver()
       const mudou = dominio !== estado.dominio
       estado.dominio = dominio
-      estado.logoDoSite = logoDoSite(dominio)
+      if (mudou) estado.logoDoSite = null
       avancarDe('dominio')
       publicar()
-      // Sem esperar: a leitura acontece enquanto a pessoa segue o wizard.
+      // Sem esperar: o logo e a leitura acontecem enquanto a pessoa segue o wizard.
+      if (!estado.logoDoSite) void resolverOLogo()
       const precisaLer = mudou || estado.leitura.situacao === 'inativa' || estado.leitura.situacao === 'falhou'
-      if (precisaLer) void lerSite()
+      if (precisaLer) void lerSite(dominio)
       return devolver()
+    },
+
+    async buscarLogo(bruto) {
+      const dominio = normalizarDominio(bruto)
+      if (!dominio) return null
+      return resolverLogo(dominio).catch(() => null)
     },
 
     lerSite,
@@ -232,33 +231,30 @@ export function criarFonteDeOnboardingSimulada(
       return devolver()
     },
 
-    async salvarProduto(campos) {
+    async salvarProduto(campos: MiniIcpEProduto) {
       if (!estado.day0Concluido) return devolver()
-      estado.checklist.miniIcp = campos.miniIcp.trim()
-      estado.checklist.oQueVende = campos.oQueVende.trim()
-      estado.checklist.porQueCompram = campos.porQueCompram.trim()
+      for (const campo of CAMPOS_DO_MINI_ICP_E_PRODUTO) estado.checklist[campo] = campos[campo].trim()
       publicar()
       return devolver()
     },
 
     async salvarPersonas(personas) {
       if (!estado.day0Concluido) return devolver()
-      estado.checklist.personas = personas.trim()
+      estado.checklist.personas = limparPersonas(personas)
       publicar()
       return devolver()
     },
 
     async concluirProduto() {
       if (!estado.day0Concluido) return devolver()
-      const { miniIcp, oQueVende, porQueCompram } = estado.checklist
-      if (!miniIcp || !oQueVende || !porQueCompram) return devolver()
+      if (CAMPOS_DO_MINI_ICP_E_PRODUTO.some((campo) => !estado.checklist[campo])) return devolver()
       estado.checklist.produto = 'concluido'
       publicar()
       return devolver()
     },
 
     async concluirPersona() {
-      if (!estado.day0Concluido || !estado.checklist.personas) return devolver()
+      if (!estado.day0Concluido || estado.checklist.personas.length === 0) return devolver()
       estado.checklist.persona = 'concluido'
       publicar()
       return devolver()
@@ -316,7 +312,7 @@ function inicioDoRamo(ramo: RamoDeOnboarding): EstadoDeOnboarding {
   return {
     ...estadoInicial(),
     ramo,
-    workspace: ramo === 'criador' ? { id: ID_DO_WORKSPACE, nomeSugerido: '' } : null,
+    workspace: criaOWorkspace(ramo) ? { id: ID_DO_WORKSPACE, nomeSugerido: '' } : null,
   }
 }
 
@@ -327,7 +323,7 @@ function estadoInicial(): EstadoDeOnboarding {
     papel: null,
     empresa: '',
     dominio: '',
-    logoDoSite: [],
+    logoDoSite: null,
     leitura: { situacao: 'inativa', resultado: null },
     comoConheceu: null,
     convitePulado: false,
@@ -339,7 +335,7 @@ function estadoInicial(): EstadoDeOnboarding {
       miniIcp: '',
       oQueVende: '',
       porQueCompram: '',
-      personas: '',
+      personas: [],
       produto: 'pendente',
       persona: 'pendente',
       sinal: 'pendente',
@@ -347,9 +343,20 @@ function estadoInicial(): EstadoDeOnboarding {
   }
 }
 
-/** O onboarding já concluído de quem entrou num Workspace que existia: sem Workspace novo nem leitura do site. */
+/**
+ * O onboarding já concluído de quem entrou num Workspace que existia: sem Workspace novo nem leitura do site, e com
+ * o onboarding 100% completo.
+ */
 function estadoConcluido(): EstadoDeOnboarding {
-  return { ...estadoInicial(), ramo: 'convidado', etapa: 'checklist', day0Concluido: true, concluido: true }
+  const base = estadoInicial()
+  return {
+    ...base,
+    ramo: 'convidado',
+    etapa: 'checklist',
+    day0Concluido: true,
+    concluido: true,
+    checklist: { ...base.checklist, produto: 'concluido', persona: 'concluido', sinal: 'concluido' },
+  }
 }
 
 /** O onboarding guardado, ou nenhum quando o armazenamento não guarda um legível. */
@@ -366,12 +373,12 @@ function carregar(armazenamento: ArmazenamentoDeOnboarding | null): EstadoDeOnbo
 
 function normalizar(bruto: unknown): EstadoDeOnboarding {
   const base = estadoInicial()
-  if (!bruto || typeof bruto !== 'object') return base
-  const lido = bruto as Record<string, unknown>
+  if (!ehObjeto(bruto)) return base
+  const lido = bruto
 
   if (!ehRamo(lido.ramo)) return base
   base.ramo = lido.ramo
-  if (typeof lido.etapa === 'string' && (ETAPAS_DO_RAMO[base.ramo] as readonly string[]).includes(lido.etapa)) {
+  if (typeof lido.etapa === 'string' && etapasDoRamo(base.ramo).includes(lido.etapa as EtapaDeOnboarding)) {
     base.etapa = lido.etapa as EtapaDeOnboarding
   }
   if (ehPapel(lido.papel)) base.papel = lido.papel
@@ -382,25 +389,32 @@ function normalizar(bruto: unknown): EstadoDeOnboarding {
   if (lido.day0Concluido === true || base.etapa === 'checklist') base.day0Concluido = true
   if (lido.concluido === true) base.concluido = true
 
-  if (lido.checklist && typeof lido.checklist === 'object') {
-    const checklist = lido.checklist as Record<string, unknown>
-    for (const campo of [...CAMPOS_DO_PRODUTO, 'personas'] as const) {
-      if (typeof checklist[campo] === 'string') base.checklist[campo] = checklist[campo]
+  if (ehObjeto(lido.checklist)) {
+    const checklist = lido.checklist
+    for (const campo of CAMPOS_DO_MINI_ICP_E_PRODUTO) {
+      const valor = checklist[campo]
+      if (typeof valor === 'string') base.checklist[campo] = valor
     }
+    // Versões anteriores guardavam as Personas num texto, uma por linha.
+    const personas = checklist.personas
+    if (typeof personas === 'string') base.checklist.personas = limparPersonas(personas.split('\n'))
+    else if (ehListaDeTextos(personas)) base.checklist.personas = limparPersonas(personas)
     for (const item of ITENS_DO_CHECKLIST) {
-      if (ehSituacao(checklist[item])) base.checklist[item] = checklist[item]
+      const situacao = checklist[item]
+      if (ehSituacao(situacao)) base.checklist[item] = situacao
     }
   }
 
-  if (base.ramo === 'criador') {
+  if (criaOWorkspace(base.ramo)) {
     if (typeof lido.empresa === 'string') base.empresa = lido.empresa
-    if (typeof lido.dominio === 'string') base.dominio = dominioUtil(lido.dominio) ?? ''
-    if (base.dominio) base.logoDoSite = logoDoSite(base.dominio)
-    const leitura = lido.leitura && typeof lido.leitura === 'object' ? (lido.leitura as Record<string, unknown>) : null
+    if (typeof lido.dominio === 'string') base.dominio = normalizarDominio(lido.dominio) ?? ''
+    // Versões anteriores guardavam a lista de candidatos: sem um logo resolvido, a Fonte o procura de novo.
+    if (base.dominio && typeof lido.logoDoSite === 'string') base.logoDoSite = lido.logoDoSite
+    const leitura = ehObjeto(lido.leitura) ? lido.leitura : null
     if (leitura && ehSituacaoDaLeitura(leitura.situacao) && base.dominio) {
       base.leitura = { situacao: leitura.situacao, resultado: ehLeitura(leitura.resultado) ? leitura.resultado : null }
     }
-    const workspace = lido.workspace && typeof lido.workspace === 'object' ? (lido.workspace as Record<string, unknown>) : null
+    const workspace = ehObjeto(lido.workspace) ? lido.workspace : null
     const id = typeof workspace?.id === 'string' && workspace.id ? workspace.id : ID_DO_WORKSPACE
     base.workspace = { id, nomeSugerido: base.empresa }
   }
@@ -408,38 +422,30 @@ function normalizar(bruto: unknown): EstadoDeOnboarding {
   return base
 }
 
-function ehRamo(valor: unknown): valor is RamoDeOnboarding {
-  return typeof valor === 'string' && (RAMOS_DE_ONBOARDING as readonly string[]).includes(valor)
+/** Uma guarda para os valores de uma lista fixa, como os papéis do Day0 ou as situações de um item. */
+function umDe<T extends string>(lista: readonly T[]) {
+  return (valor: unknown): valor is T => typeof valor === 'string' && (lista as readonly string[]).includes(valor)
 }
 
-function ehPapel(valor: unknown): valor is PapelNoDay0 {
-  return typeof valor === 'string' && (PAPEIS_DO_DAY0 as readonly string[]).includes(valor)
+const ehRamo = umDe(RAMOS_DE_ONBOARDING)
+const ehPapel = umDe(PAPEIS_DO_DAY0)
+const ehOrigem = umDe(ORIGENS_HDYHAU)
+const ehSituacao = umDe(SITUACOES_DO_ITEM)
+const ehSituacaoDaLeitura = umDe(SITUACOES_DA_LEITURA)
+const ehItem = umDe(ITENS_DO_CHECKLIST)
+
+function ehObjeto(valor: unknown): valor is Record<string, unknown> {
+  return typeof valor === 'object' && valor !== null
 }
 
-function ehOrigem(valor: unknown): valor is OrigemHdyhau {
-  return typeof valor === 'string' && (ORIGENS_HDYHAU as readonly string[]).includes(valor)
-}
-
-function ehSituacao(valor: unknown): valor is SituacaoDoItem {
-  return typeof valor === 'string' && (SITUACOES as readonly string[]).includes(valor)
-}
-
-function ehSituacaoDaLeitura(valor: unknown): valor is SituacaoDaLeitura {
-  return typeof valor === 'string' && (SITUACOES_DA_LEITURA as readonly string[]).includes(valor)
+function ehListaDeTextos(valor: unknown): valor is string[] {
+  return Array.isArray(valor) && valor.every((item) => typeof item === 'string')
 }
 
 function ehLeitura(valor: unknown): valor is LeituraDoSite {
-  if (!valor || typeof valor !== 'object') return false
-  const leitura = valor as Record<string, unknown>
   return (
-    typeof leitura.oQueVende === 'string' &&
-    typeof leitura.miniIcp === 'string' &&
-    typeof leitura.porQueCompram === 'string' &&
-    Array.isArray(leitura.personas) &&
-    leitura.personas.every((persona) => typeof persona === 'string')
+    ehObjeto(valor) &&
+    CAMPOS_DO_MINI_ICP_E_PRODUTO.every((campo) => typeof valor[campo] === 'string') &&
+    ehListaDeTextos(valor.personas)
   )
-}
-
-function ehItem(valor: string): valor is ItemDoChecklist {
-  return (ITENS_DO_CHECKLIST as readonly string[]).includes(valor)
 }

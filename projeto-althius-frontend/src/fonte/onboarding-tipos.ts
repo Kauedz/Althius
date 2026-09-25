@@ -1,5 +1,5 @@
-// Estado do onboarding pós-login. Vocabulário do CONTEXT.md.
-// Esta fonte é independente das fontes de Agentes, Contas e Sinais.
+// Estado do onboarding pós-login e a Fonte que o guarda. Vocabulário do CONTEXT.md.
+// Esta fonte é independente das fontes de Agentes, Contas e Sinais. As regras ficam em `regras-onboarding.ts`.
 
 import type { FonteObservavel } from './tipos'
 
@@ -38,20 +38,13 @@ export const RAMOS_DE_ONBOARDING = ['criador', 'convidado'] as const
 
 export type RamoDeOnboarding = (typeof RAMOS_DE_ONBOARDING)[number]
 
-export type EtapaDeOnboarding = 'papel' | 'empresa' | 'dominio' | 'hdyhau' | 'convite' | 'checklist'
+export const ETAPAS_DE_ONBOARDING = ['papel', 'empresa', 'dominio', 'hdyhau', 'convite', 'checklist'] as const
 
-/** Os passos do wizard em ordem. O convidado não informa empresa nem domínio do site. */
-export const ETAPAS_DO_RAMO: Record<RamoDeOnboarding, readonly EtapaDeOnboarding[]> = {
-  criador: ['papel', 'empresa', 'dominio', 'hdyhau', 'convite', 'checklist'],
-  convidado: ['papel', 'hdyhau', 'convite', 'checklist'],
-}
+export type EtapaDeOnboarding = (typeof ETAPAS_DE_ONBOARDING)[number]
 
-/** Os passos do ramo, ou nenhum antes de o onboarding começar. */
-export function etapasDoRamo(ramo: RamoDeOnboarding | null): readonly EtapaDeOnboarding[] {
-  return ramo ? ETAPAS_DO_RAMO[ramo] : []
-}
+export const SITUACOES_DO_ITEM = ['pendente', 'concluido', 'pulado'] as const
 
-export type SituacaoDoItem = 'pendente' | 'concluido' | 'pulado'
+export type SituacaoDoItem = (typeof SITUACOES_DO_ITEM)[number]
 
 /** Os itens do checklist na ordem do Norte. */
 export const ITENS_DO_CHECKLIST = ['produto', 'persona', 'sinal'] as const
@@ -64,18 +57,26 @@ export interface WorkspaceSugerido {
   nomeSugerido: string
 }
 
+/** O item 1 do checklist: o mini-ICP e a lógica curta de produto, que a leitura do site sugere. */
+export interface MiniIcpEProduto {
+  miniIcp: string
+  oQueVende: string
+  porQueCompram: string
+}
+
+export const CAMPOS_DO_MINI_ICP_E_PRODUTO = ['miniIcp', 'oQueVende', 'porQueCompram'] as const satisfies readonly (keyof MiniIcpEProduto)[]
+
 /**
  * A leitura mínima do site do Cliente, a única IA do onboarding: o que ele vende, o ICP provável e as
  * Personas possíveis, considerando para quem ele vende. É só uma base editável para os itens 1 e 2.
  */
-export interface LeituraDoSite {
-  oQueVende: string
-  miniIcp: string
-  porQueCompram: string
+export interface LeituraDoSite extends MiniIcpEProduto {
   personas: string[]
 }
 
-export type SituacaoDaLeitura = 'inativa' | 'lendo' | 'pronta' | 'falhou'
+export const SITUACOES_DA_LEITURA = ['inativa', 'lendo', 'pronta', 'falhou'] as const
+
+export type SituacaoDaLeitura = (typeof SITUACOES_DA_LEITURA)[number]
 
 export interface EstadoDaLeitura {
   situacao: SituacaoDaLeitura
@@ -83,12 +84,12 @@ export interface EstadoDaLeitura {
   resultado: LeituraDoSite | null
 }
 
-export interface ChecklistNorte {
-  miniIcp: string
-  oQueVende: string
-  porQueCompram: string
-  /** Personas possíveis do Workspace, uma por linha. Não é a Persona de um Contato. */
-  personas: string
+export interface ChecklistNorte extends MiniIcpEProduto {
+  /**
+   * As Personas possíveis do Workspace, uma por item. São uma base do onboarding: não mudam as definições de
+   * Personas da Memória do Workspace e não são a Persona de um Contato.
+   */
+  personas: string[]
   produto: SituacaoDoItem
   persona: SituacaoDoItem
   sinal: SituacaoDoItem
@@ -99,11 +100,14 @@ export interface EstadoDeOnboarding {
   ramo: RamoDeOnboarding | null
   etapa: EtapaDeOnboarding
   papel: PapelNoDay0 | null
-  /** Nome do Cliente. Sugere o nome do Workspace. */
+  /** O nome do Cliente, que o Day0 pede como a empresa. Sugere o nome do Workspace. */
   empresa: string
   dominio: string
-  /** Endereços do logo do site em ordem de preferência (SVG, depois favicon). Sem nenhum, vale a inicial do nome. */
-  logoDoSite: string[]
+  /**
+   * O logo resolvido do site: o SVG ou o favicon. Nenhum enquanto ele é resolvido ou quando o site não tem logo;
+   * aí vale a inicial do nome.
+   */
+  logoDoSite: string | null
   leitura: EstadoDaLeitura
   comoConheceu: OrigemHdyhau | null
   convitePulado: boolean
@@ -116,29 +120,25 @@ export interface EstadoDeOnboarding {
   concluido: boolean
 }
 
-/**
- * A Casca exige o Day0: enquanto o wizard não chega ao checklist, a entrada leva a `/onboarding`. O checklist
- * não prende a sessão, que pode explorar a Casca e voltar a ele depois.
- */
-export function precisaDoOnboarding(estado: EstadoDeOnboarding): boolean {
-  return !estado.concluido && !estado.day0Concluido
+/** Os marcos do progresso do onboarding: o Workspace, o site do Cliente e os três itens do checklist. */
+export type MarcoDoOnboarding = 'workspace' | 'site' | ItemDoChecklist
+
+export interface ProgressoDoOnboarding {
+  marcos: { marco: MarcoDoOnboarding; feito: boolean }[]
+  /** De 0 a 100. Um item pulado não conta: o onboarding só fica completo com tudo preenchido. */
+  percentual: number
+  /** O primeiro marco que falta, na ordem do Norte. Nenhum quando o onboarding está completo. */
+  proximo: MarcoDoOnboarding | null
+  /** Com o Day0 feito e abaixo de 100%, a Casca leva de volta ao checklist, mesmo com o onboarding concluído. */
+  pendente: boolean
 }
 
-/** Quantos dos três itens do checklist estão concluídos. Um item pulado não conta. */
-export function progressoDoChecklist(checklist: ChecklistNorte) {
-  const concluidos = ITENS_DO_CHECKLIST.filter((item) => checklist[item] === 'concluido').length
-  return { concluidos, total: ITENS_DO_CHECKLIST.length }
-}
-
-/** Com o Day0 feito e o onboarding ainda aberto, o checklist fica pendente e a Casca leva de volta a ele. */
-export function checklistPendente(estado: EstadoDeOnboarding): boolean {
-  return estado.day0Concluido && !estado.concluido
-}
-
-export interface ProdutoDoChecklist {
-  miniIcp: string
-  oQueVende: string
-  porQueCompram: string
+/** Como o Workspace criado no onboarding se apresenta na Casca. */
+export interface IdentidadeDoWorkspace {
+  nome: string
+  /** O que o Cliente vende, do item 1 do checklist. Vazio enquanto ninguém o preencheu. */
+  descricao: string
+  logo: string | null
 }
 
 /**
@@ -154,21 +154,28 @@ export interface FonteDeOnboarding extends FonteObservavel {
   /** Volta ao passo anterior do wizard, sem apagar nada do que foi preenchido. */
   voltar(): Promise<EstadoDeOnboarding>
   definirPapel(papel: PapelNoDay0): Promise<EstadoDeOnboarding>
-  /** A empresa só sugere o nome do Workspace e do Cliente. Não cria Conta-alvo. */
-  definirEmpresa(nome: string): Promise<EstadoDeOnboarding>
-  /** Confirma o domínio do site, resolve o logo e começa a leitura do site sem esperar por ela. */
+  /** O nome do Cliente, que o Day0 pede como a empresa, só sugere o nome do Workspace. Não cria Conta-alvo. */
+  definirCliente(nome: string): Promise<EstadoDeOnboarding>
+  /** Confirma o domínio do site e, sem esperar, resolve o logo do Workspace e começa a leitura do site. */
   definirDominio(dominio: string): Promise<EstadoDeOnboarding>
   /**
-   * Lê o site do domínio confirmado e pré-preenche os itens 1 e 2. Nunca sobrescreve o que a pessoa editou.
-   * Uma falha só deixa os campos como estão.
+   * Procura o logo do site do domínio (o SVG ou o favicon) sem guardar nada: é a prévia do passo do domínio.
+   * Nenhum quando o site não tem logo.
    */
-  lerSite(): Promise<EstadoDeOnboarding>
+  buscarLogo(dominio: string): Promise<string | null>
+  /**
+   * A leitura do site: recebe o domínio e devolve o que a empresa vende, o ICP provável e as Personas possíveis.
+   * Só lê o domínio confirmado no Day0 do criador. A leitura pré-preenche os itens 1 e 2 por `aplicarLeitura`,
+   * sem sobrescrever o que a pessoa editou. Devolve nenhuma quando falha, quando uma leitura mais nova a
+   * substitui ou quando o domínio não é o confirmado; uma falha só deixa os campos como estão.
+   */
+  lerSite(dominio: string): Promise<LeituraDoSite | null>
   definirComoConheceu(origem: OrigemHdyhau): Promise<EstadoDeOnboarding>
   pularConvite(): Promise<EstadoDeOnboarding>
   /** Segue do passo de convite sem pular. Nenhum e-mail é enviado nem guardado. */
   confirmarConvite(): Promise<EstadoDeOnboarding>
-  salvarProduto(campos: ProdutoDoChecklist): Promise<EstadoDeOnboarding>
-  salvarPersonas(personas: string): Promise<EstadoDeOnboarding>
+  salvarProduto(campos: MiniIcpEProduto): Promise<EstadoDeOnboarding>
+  salvarPersonas(personas: readonly string[]): Promise<EstadoDeOnboarding>
   concluirProduto(): Promise<EstadoDeOnboarding>
   concluirPersona(): Promise<EstadoDeOnboarding>
   pularItem(item: ItemDoChecklist): Promise<EstadoDeOnboarding>

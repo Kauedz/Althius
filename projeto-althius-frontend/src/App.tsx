@@ -28,12 +28,9 @@ import { PaginaConfiguracoes } from '@/paginas/configuracoes/pagina-configuracoe
 import { PaginaContas } from '@/paginas/contas'
 import { PaginaContatos } from '@/paginas/contatos'
 import { PaginaConversaCoordenada } from '@/paginas/conversa-coordenada'
-import {
-  EntradaNaCasca,
-  PaginaOnboarding,
-  RegistrarAberturaDeSinais,
-  RetornoDoChecklist,
-} from '@/paginas/onboarding'
+import { EntradaNaCasca } from '@/paginas/onboarding/entrada-na-casca'
+import { PaginaOnboarding } from '@/paginas/onboarding/pagina-onboarding'
+import { RegistrarAberturaDeSinais, RetornoDoChecklist } from '@/paginas/onboarding/retorno-de-sinais'
 import { PaginaSequencias } from '@/paginas/sequencias'
 import { SinaisDoMockupProvider } from '@/paginas/sinais/estado'
 import { ContaComSinais, LayoutSinais, PaginaDoTipo, PaginaSinais, RotaDoEditor } from '@/paginas/sinais/rotas'

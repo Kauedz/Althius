@@ -21,3 +21,7 @@
 - **Confirmação (história 64):** quando há algo a descartar (um papel já escolhido ou o onboarding concluído), a troca abre um diálogo avisando que recomeça do zero e descarta o que foi preenchido, com Cancelar e "Trocar e recomeçar". Sem nada preenchido, troca na hora. Trocar depois de concluir faz a Casca voltar a exigir o Day0 do novo ramo.
 - **Endereço:** a troca acompanha a URL, com `?convite=demo` no convidado e sem o parâmetro no criador (via `replace`). Depois da troca, o ramo guardado na Fonte prevalece sobre a URL, pela mesma regra de `iniciar`: abrir `/onboarding` sem o parâmetro continua no convidado.
 - **Testes:** seis cenários em `onboarding.test.tsx`: criador → convidado, convidado → criador, a leitura em andamento que não vaza, a confirmação e o cancelar, a troca guardada ao reabrir e a Fonte sem a troca. O último renderiza o `App` direto, porque o `renderizarApp` não aceita uma Fonte pronta.
+
+### 2026-09-25: revisão de código
+
+- O teste da Fonte sem a troca usa `renderizarAppCom`, que aceita uma Fonte ajustada, e não monta mais o `App` à mão. O switch agora fica em `paginas/onboarding/troca-de-ramo.tsx`. As demais correções estão no comentário de 2026-09-25 do ticket 01.

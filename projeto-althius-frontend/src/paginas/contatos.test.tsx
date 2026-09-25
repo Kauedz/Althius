@@ -1,12 +1,6 @@
-import { render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { App } from '@/App'
-import type { FonteDeContas } from '@/fonte/contas-tipos'
-import { criarFonteDeContasSimulada } from '@/fonte/simulada-contas'
-import { criarFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
-import { criarFonteSimulada } from '@/fonte/simulada'
-import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
+import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 /** As linhas da tabela de Contatos, sem o cabeçalho. */
 async function linhasDosContatos() {
@@ -107,23 +101,15 @@ describe('Aba Contatos', () => {
 
   it('sem cargo, área ou Persona, a célula mostra "—"', async () => {
     // Todos os Contatos da demo têm cargo e área: só neste teste, a fonte entrega a Clara Dupont sem eles
-    const fonteDeContas = criarFonteDeContasSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES })
-    const semDadosNaClara: FonteDeContas = {
-      ...fonteDeContas,
-      contatos: async () =>
-        (await fonteDeContas.contatos()).map((contato) =>
-          contato.nome === 'Clara Dupont' ? { ...contato, cargo: undefined, area: undefined, persona: undefined } : contato,
-        ),
-    }
-    render(
-      <App
-        fonte={criarFonteSimulada({ atrasoMs: 0 })}
-        fonteDeOnboarding={criarFonteDeOnboardingSimulada({ jaConcluido: true })}
-        fonteDeContas={semDadosNaClara}
-        rotaInicial="/contatos"
-        animarDigitacao={false}
-      />,
-    )
+    renderizarAppCom('/contatos', {
+      contas: (fonteDeContas) => ({
+        ...fonteDeContas,
+        contatos: async () =>
+          (await fonteDeContas.contatos()).map((contato) =>
+            contato.nome === 'Clara Dupont' ? { ...contato, cargo: undefined, area: undefined, persona: undefined } : contato,
+          ),
+      }),
+    })
 
     const clara = await celulasDoContato('Clara Dupont')
     expect(clara[1]).toHaveTextContent(/^—$/)
@@ -292,26 +278,17 @@ function chips() {
 
 /** O app sobre a demo, com essas pessoas (por padrão, a Clara Dupont e o Carlos Mendoza) sem nenhum canal. */
 function renderizarComContatosSemCanais(rota: string, semCanal = ['Clara Dupont', 'Carlos Mendoza']) {
-  const fonteDeContas = criarFonteDeContasSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES })
-  const semCanais: FonteDeContas = {
-    ...fonteDeContas,
-    contatos: async () =>
-      (await fonteDeContas.contatos()).map((contato) =>
-        semCanal.includes(contato.nome)
-          ? { ...contato, canais: { email: false, telefone: false, linkedin: false } }
-          : contato,
-      ),
-  }
-  const usuario = userEvent.setup()
-  render(
-    <App
-      fonte={criarFonteSimulada({ atrasoMs: 0 })}
-      fonteDeOnboarding={criarFonteDeOnboardingSimulada({ jaConcluido: true })}
-      fonteDeContas={semCanais}
-      rotaInicial={rota}
-      animarDigitacao={false}
-    />,
-  )
+  const { usuario } = renderizarAppCom(rota, {
+    contas: (fonteDeContas) => ({
+      ...fonteDeContas,
+      contatos: async () =>
+        (await fonteDeContas.contatos()).map((contato) =>
+          semCanal.includes(contato.nome)
+            ? { ...contato, canais: { email: false, telefone: false, linkedin: false } }
+            : contato,
+        ),
+    }),
+  })
   return { usuario }
 }
 

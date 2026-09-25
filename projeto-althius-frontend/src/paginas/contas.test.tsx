@@ -1,11 +1,6 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { App } from '@/App'
-import type { FonteDeContas } from '@/fonte/contas-tipos'
-import { criarFonteDeContasSimulada } from '@/fonte/simulada-contas'
-import { criarFonteDeOnboardingSimulada } from '@/fonte/simulada-onboarding'
-import { criarFonteSimulada } from '@/fonte/simulada'
-import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
+import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 describe('Aba Contas (ponta a ponta)', () => {
   it('o item "Contas e Contatos" aparece na seção Workspace da sidebar acima de Agentes e abre a aba Contas', async () => {
@@ -268,21 +263,13 @@ describe('Células da tabela de Contas', () => {
 
   it('sem domínio, a célula Empresa mostra "Domínio não informado"', async () => {
     // Nenhuma Conta-alvo da demo está sem domínio: só neste teste, a fonte entrega a Miro sem ele
-    const fonteDeContas = criarFonteDeContasSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES })
-    const semDominioNaMiro: FonteDeContas = {
-      ...fonteDeContas,
-      contas: async () =>
-        (await fonteDeContas.contas()).map((conta) => (conta.id === 'miro' ? { ...conta, dominio: undefined } : conta)),
-    }
-    render(
-      <App
-        fonte={criarFonteSimulada({ atrasoMs: 0 })}
-        fonteDeOnboarding={criarFonteDeOnboardingSimulada({ jaConcluido: true })}
-        fonteDeContas={semDominioNaMiro}
-        rotaInicial="/contas"
-        animarDigitacao={false}
-      />,
-    )
+    renderizarAppCom('/contas', {
+      contas: (fonteDeContas) => ({
+        ...fonteDeContas,
+        contas: async () =>
+          (await fonteDeContas.contas()).map((conta) => (conta.id === 'miro' ? { ...conta, dominio: undefined } : conta)),
+      }),
+    })
 
     const [miro] = await celulasDaConta('Miro')
     expect(within(miro).getByText('Domínio não informado')).toBeInTheDocument()

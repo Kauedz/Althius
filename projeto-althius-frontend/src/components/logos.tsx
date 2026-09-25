@@ -91,32 +91,31 @@ export function LogoDaConta({
 }
 
 /**
- * O logo do Workspace, lido do site do Cliente: tenta cada endereço em ordem (SVG, depois favicon) e, quando
- * nenhum carrega, mostra a inicial do nome. `nome` é o nome do Workspace, lido por leitores de tela.
+ * O logo do Workspace, que a Fonte de onboarding resolve a partir do site do Cliente (o SVG ou o favicon). Sem logo,
+ * ou quando a imagem não carrega, mostra a inicial do nome. `nome` é o nome do Workspace, lido por leitores de tela.
  */
 export function LogoDoWorkspace({
   nome,
-  enderecos,
+  endereco,
   className,
 }: {
   nome: string
-  enderecos: readonly string[]
+  endereco: string | null
   className?: string
 }) {
-  // Recomeça do primeiro endereço quando o domínio muda.
-  return <LogoComQueda key={enderecos.join(' ')} nome={nome} enderecos={enderecos} className={className} />
+  // Uma imagem que falhou não impede o próximo logo: recomeça quando o endereço muda.
+  return <LogoOuInicial key={endereco ?? ''} nome={nome} endereco={endereco} className={className} />
 }
 
-function LogoComQueda({ nome, enderecos, className }: { nome: string; enderecos: readonly string[]; className?: string }) {
-  const [tentativa, setTentativa] = useState(0)
+function LogoOuInicial({ nome, endereco, className }: { nome: string; endereco: string | null; className?: string }) {
+  const [falhou, setFalhou] = useState(false)
   const rotulo = `Logo de ${nome}`
-  const endereco = enderecos[tentativa]
-  if (endereco) {
+  if (endereco && !falhou) {
     return (
       <img
         src={endereco}
         alt={rotulo}
-        onError={() => setTentativa((atual) => atual + 1)}
+        onError={() => setFalhou(true)}
         className={cn('size-7 shrink-0 object-contain', className)}
       />
     )

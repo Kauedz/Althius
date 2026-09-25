@@ -1,14 +1,12 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { App } from '@/App'
-import type { FonteDeOnboarding, LeituraDoSite } from '@/fonte/onboarding-tipos'
+import type { LeituraDoSite } from '@/fonte/onboarding-tipos'
 import {
   criarFonteDeOnboardingSimulada,
   type ArmazenamentoDeOnboarding,
   type OpcoesFonteDeOnboardingSimulada,
 } from '@/fonte/simulada-onboarding'
-import { criarFonteSimulada } from '@/fonte/simulada'
-import { renderizarApp } from '@/test/renderizar'
+import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 type Usuario = ReturnType<typeof renderizarApp>['usuario']
 
@@ -133,9 +131,25 @@ describe('Onboarding pós-login: entrada', () => {
   })
 })
 
+/** O site tem um SVG na raiz: é o logo que a Fonte resolve. */
+const LOGO_EM_SVG = (dominio: string) => Promise.resolve(`https://${dominio}/favicon.svg`)
+
+/** Leva o criador da Norte Dados até o passo do domínio e digita o site. */
+async function digitarDominio(usuario: Usuario, dominio: string) {
+  await usuario.click(await screen.findByRole('radio', { name: 'Founder' }))
+  await continuar(usuario)
+  await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
+  await continuar(usuario)
+  await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), dominio)
+}
+
+function logoDaNorteDados() {
+  return screen.getByRole('img', { name: 'Logo de Norte Dados' })
+}
+
 describe('Onboarding pós-login: Day0 do criador', () => {
   it('a empresa sugere o nome do Workspace, o domínio dá o logo e nenhuma Conta-alvo é semeada', async () => {
-    const { usuario, fonteDeOnboarding, fonteDeContas } = renderizarSemOnboarding('/onboarding')
+    const { usuario, fonteDeOnboarding, fonteDeContas } = renderizarSemOnboarding('/onboarding', { resolverLogo: LOGO_EM_SVG })
     const contasAntes = (await fonteDeContas.contas()).map((conta) => conta.id).sort()
     await screen.findByText('Passo 1 de 6')
     const id = (await fonteDeOnboarding.ler()).workspace?.id
@@ -152,10 +166,7 @@ describe('Onboarding pós-login: Day0 do criador', () => {
 
     expect(await screen.findByText('Passo 3 de 6')).toBeInTheDocument()
     await usuario.type(screen.getByRole('textbox', { name: 'Domínio do site' }), 'https://www.nortedados.com.br/')
-    expect(screen.getByRole('img', { name: 'Logo de Norte Dados' })).toHaveAttribute(
-      'src',
-      'https://nortedados.com.br/favicon.svg',
-    )
+    await vi.waitFor(() => expect(logoDaNorteDados()).toHaveAttribute('src', 'https://nortedados.com.br/favicon.svg'))
     await continuar(usuario)
 
     expect(await screen.findByText('Passo 4 de 6')).toBeInTheDocument()
@@ -178,7 +189,7 @@ describe('Onboarding pós-login: Day0 do criador', () => {
     expect(estado.papel).toBe('RevOps')
     expect(estado.empresa).toBe('Norte Dados')
     expect(estado.dominio).toBe('nortedados.com.br')
-    expect(estado.logoDoSite[0]).toBe('https://nortedados.com.br/favicon.svg')
+    expect(estado.logoDoSite).toBe('https://nortedados.com.br/favicon.svg')
     expect(estado.comoConheceu).toBe('LinkedIn')
     expect(estado.convitePulado).toBe(true)
     expect(JSON.stringify(estado)).not.toContain('ana@norte.dev')
@@ -186,23 +197,43 @@ describe('Onboarding pós-login: Day0 do criador', () => {
     expect((await fonteDeContas.contas()).some((conta) => conta.nome === 'Norte Dados')).toBe(false)
   })
 
-  it('o logo tenta o SVG, depois o favicon, e cai para a inicial do nome', async () => {
-    const { usuario } = renderizarSemOnboarding('/onboarding')
-    await usuario.click(await screen.findByRole('radio', { name: 'Founder' }))
-    await continuar(usuario)
-    await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
-    await continuar(usuario)
-    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'nortedados.com.br')
+  it('sem logo no site, o Workspace fica com a inicial do nome', async () => {
+    const resolverLogo = vi.fn(async () => null)
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { resolverLogo })
+    await digitarDominio(usuario, 'nortedados.com.br')
 
-    fireEvent.error(screen.getByRole('img', { name: 'Logo de Norte Dados' }))
-    expect(screen.getByRole('img', { name: 'Logo de Norte Dados' })).toHaveAttribute(
+    await vi.waitFor(() => expect(resolverLogo).toHaveBeenCalledWith('nortedados.com.br'))
+    expect(logoDaNorteDados().tagName).not.toBe('IMG')
+    expect(logoDaNorteDados()).toHaveTextContent('N')
+    await continuar(usuario)
+    await vi.waitFor(async () => expect((await fonteDeOnboarding.ler()).dominio).toBe('nortedados.com.br'))
+    expect((await fonteDeOnboarding.ler()).logoDoSite).toBeNull()
+  })
+
+  it('um logo resolvido que depois não carrega cai para a inicial do nome', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding', { resolverLogo: LOGO_EM_SVG })
+    await digitarDominio(usuario, 'nortedados.com.br')
+    await vi.waitFor(() => expect(logoDaNorteDados().tagName).toBe('IMG'))
+
+    fireEvent.error(logoDaNorteDados())
+    expect(logoDaNorteDados().tagName).not.toBe('IMG')
+    expect(logoDaNorteDados()).toHaveTextContent('N')
+  })
+
+  it('o logo do domínio confirmado fica guardado na Fonte e volta ao reabrir, sem ser resolvido de novo', async () => {
+    const armazenamento = memoria()
+    const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, resolverLogo: LOGO_EM_SVG })
+    await day0Criador(primeira.usuario)
+    primeira.unmount()
+
+    const resolverLogo = vi.fn(LOGO_EM_SVG)
+    const segunda = renderizarSemOnboarding('/onboarding', { armazenamento, resolverLogo })
+    expect(await screen.findByRole('img', { name: 'Logo de Norte Dados' })).toHaveAttribute(
       'src',
-      'https://nortedados.com.br/favicon.ico',
+      'https://nortedados.com.br/favicon.svg',
     )
-    fireEvent.error(screen.getByRole('img', { name: 'Logo de Norte Dados' }))
-    const inicial = screen.getByRole('img', { name: 'Logo de Norte Dados' })
-    expect(inicial.tagName).not.toBe('IMG')
-    expect(inicial).toHaveTextContent('N')
+    expect((await segunda.fonteDeOnboarding.ler()).logoDoSite).toBe('https://nortedados.com.br/favicon.svg')
+    expect(resolverLogo).not.toHaveBeenCalled()
   })
 
   it('Voltar e Continuar existem em todos os passos, e Voltar preserva o que foi preenchido', async () => {
@@ -232,6 +263,36 @@ describe('Onboarding pós-login: Day0 do criador', () => {
     await voltar(usuario)
     expect(await screen.findByRole('radio', { name: 'AE' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByText('Passo 1 de 6')).toBeInTheDocument()
+  })
+
+  it('Voltar também preserva o que foi escolhido ou digitado sem Continuar, sem confirmar nada na Fonte', async () => {
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
+    await usuario.click(await screen.findByRole('radio', { name: 'AE' }))
+    await continuar(usuario)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Empresa' }), 'Norte Dados')
+    await continuar(usuario)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Domínio do site' }), 'nortedados.com.br')
+    await continuar(usuario)
+    await usuario.click(await screen.findByRole('radio', { name: 'Podcast' }))
+
+    await voltar(usuario)
+    const dominio = await screen.findByRole('textbox', { name: 'Domínio do site' })
+    await usuario.clear(dominio)
+    await usuario.type(dominio, 'norte.dev')
+    await voltar(usuario)
+    const empresa = await screen.findByRole('textbox', { name: 'Empresa' })
+    await usuario.type(empresa, ' Brasil')
+    await voltar(usuario)
+    await usuario.click(await screen.findByRole('radio', { name: 'RevOps' }))
+    expect(await fonteDeOnboarding.ler()).toMatchObject({ papel: 'AE', empresa: 'Norte Dados', dominio: 'nortedados.com.br', comoConheceu: null })
+
+    await continuar(usuario)
+    expect(await screen.findByRole('textbox', { name: 'Empresa' })).toHaveValue('Norte Dados Brasil')
+    await continuar(usuario)
+    expect(await screen.findByRole('textbox', { name: 'Domínio do site' })).toHaveValue('norte.dev')
+    await continuar(usuario)
+    expect(await screen.findByRole('radio', { name: 'Podcast' })).toHaveAttribute('aria-checked', 'true')
+    expect(await fonteDeOnboarding.ler()).toMatchObject({ papel: 'RevOps', empresa: 'Norte Dados Brasil', dominio: 'norte.dev' })
   })
 
   it('o papel Outro segue para a empresa sem campo extra', async () => {
@@ -306,7 +367,7 @@ describe('Onboarding pós-login: leitura do site', () => {
     expect(await within(produto).findByText('Concluído')).toBeInTheDocument()
 
     const persona = screen.getByRole('listitem', { name: '2. Persona' })
-    expect(within(persona).getByText(/Memória do Workspace/)).toBeInTheDocument()
+    expect(within(persona).getByText(/não muda as definições de Personas da Memória do Workspace/)).toBeInTheDocument()
     expect(within(persona).getByText(/Não é a classificação de um Contato/)).toBeInTheDocument()
     expect(within(persona).getByText(/não é a Memória do Agente/)).toBeInTheDocument()
     await usuario.click(within(persona).getByRole('button', { name: 'Descartar sugestão' }))
@@ -320,7 +381,7 @@ describe('Onboarding pós-login: leitura do site', () => {
       miniIcp: 'Indústrias com operação própria no Sul.',
       oQueVende: LEITURA_DE_TESTE.oQueVende,
       porQueCompram: LEITURA_DE_TESTE.porQueCompram,
-      personas: 'Coordenadora de Confiabilidade',
+      personas: ['Coordenadora de Confiabilidade'],
       produto: 'concluido',
       persona: 'concluido',
     })
@@ -360,7 +421,7 @@ describe('Onboarding pós-login: leitura do site', () => {
       miniIcp: OUTRA_LEITURA.miniIcp,
       porQueCompram: OUTRA_LEITURA.porQueCompram,
       oQueVende: 'Consultoria de dados.',
-      personas: '',
+      personas: [],
     })
   })
 
@@ -423,7 +484,7 @@ describe('Onboarding pós-login: leitura do site', () => {
 })
 
 describe('Onboarding pós-login: checklist e próximos passos', () => {
-  it('mostra três itens na ordem do Norte e, depois deles, Contas-alvo indicadas e a Sequência como próximos passos', async () => {
+  it('mostra três itens na ordem do Norte e, depois deles, Contas-alvo com Sinal e a Sequência como próximos passos', async () => {
     const { usuario } = renderizarSemOnboarding('/onboarding')
     await day0Criador(usuario)
 
@@ -431,7 +492,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     expect(within(lista).getAllByRole('heading', { level: 2 }).map((titulo) => titulo.textContent)).toEqual([
       '1. Mini-ICP e produto',
       '2. Persona',
-      '3. Sinal de compra',
+      '3. Sinal',
     ])
     expect(within(lista).queryByText(/Cadência/)).not.toBeInTheDocument()
     for (const item of within(lista).getAllByRole('listitem')) {
@@ -440,14 +501,14 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
 
     const proximos = screen.getByRole('list', { name: 'Próximos passos' })
     const passos = within(proximos).getAllByRole('link')
-    expect(passos.map((passo) => passo.textContent)).toEqual(['Ver Contas-alvo indicadas', 'Criar a Sequência'])
+    expect(passos.map((passo) => passo.textContent)).toEqual(['Ver Contas-alvo com Sinal', 'Criar a Sequência'])
     expect(passos[0]).toHaveAttribute('href', '/sinais?vista=encontrados')
     expect(passos[1]).toHaveAttribute('href', '/sequencias')
     expect(screen.getByText(/Reunião no App segue só como status de demonstração/)).toBeInTheDocument()
   })
 
   it('abrir Sinais conclui o item sem Monitoramento e permite voltar ao checklist ou à home', async () => {
-    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding')
+    const { usuario, fonteDeOnboarding } = renderizarSemOnboarding('/onboarding', { resolverLogo: LOGO_EM_SVG })
     await day0Criador(usuario)
 
     await usuario.click(screen.getByRole('button', { name: 'Abrir Sinais' }))
@@ -459,7 +520,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     expect((await fonteDeOnboarding.ler()).checklist.sinal).toBe('concluido')
 
     await usuario.click(screen.getByRole('link', { name: 'Voltar ao checklist' }))
-    const sinal = await screen.findByRole('listitem', { name: '3. Sinal de compra' })
+    const sinal = await screen.findByRole('listitem', { name: '3. Sinal' })
     expect(within(sinal).getByText('Concluído')).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
@@ -709,18 +770,10 @@ describe('Onboarding pós-login: switch de demonstração entre criador e convid
   })
 
   it('fica restrito à demonstração: uma Fonte que não oferece a troca não mostra o switch', async () => {
-    const fonteSemTroca: FonteDeOnboarding = {
-      ...criarFonteDeOnboardingSimulada({ jaConcluido: false }),
-      trocarRamoDaDemonstracao: undefined,
-    }
-    render(
-      <App
-        fonte={criarFonteSimulada({ atrasoMs: 0 })}
-        fonteDeOnboarding={fonteSemTroca}
-        rotaInicial="/onboarding"
-        animarDigitacao={false}
-      />,
-    )
+    renderizarAppCom('/onboarding', {
+      opcoesOnboarding: { jaConcluido: false },
+      onboarding: (fonte) => ({ ...fonte, trocarRamoDaDemonstracao: undefined }),
+    })
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Qual é o seu papel?' })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Ramo da demonstração' })).not.toBeInTheDocument()
@@ -760,51 +813,214 @@ describe('Onboarding pós-login: reentrada e progresso do checklist', () => {
     expect((await segunda.fonteDeSinais.monitoramentos()).length).toBe(monitoramentosAntes)
   })
 
-  it('com o checklist pendente, a Casca mostra o progresso e reabre o checklist onde a sessão parou', async () => {
+  it('com o onboarding incompleto, a Casca mostra o progresso e reabre o checklist onde a sessão parou', async () => {
     const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
     await day0Criador(usuario)
     await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
     await usuario.click(screen.getByRole('link', { name: 'Criar a Sequência' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Sequências' })).toBeInTheDocument()
 
-    await usuario.click(screen.getByRole('link', { name: 'Checklist do Norte, 1 de 3 concluídos' }))
+    await usuario.click(screen.getByRole('link', { name: 'Onboarding, 60% completo' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Checklist do Norte' })).toBeInTheDocument()
     expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Concluído')).toBeInTheDocument()
-
-    await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Checklist do Norte/ })).not.toBeInTheDocument()
   })
 
   it('cada item concluído aparece como concluído, e o progresso do checklist fica guardado na Fonte', async () => {
     const armazenamento = memoria()
     const primeira = renderizarSemOnboarding('/onboarding', { armazenamento, leitorDeSite: async () => LEITURA_DE_TESTE })
     await day0Criador(primeira.usuario)
-    expect(screen.getByText('0 de 3 concluídos')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(40)
 
     await primeira.usuario.click(screen.getByRole('button', { name: 'Concluir Persona' }))
     expect(await within(screen.getByRole('listitem', { name: '2. Persona' })).findByText('Concluído')).toBeInTheDocument()
-    expect(screen.getByText('1 de 3 concluídos')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(60)
 
     await primeira.usuario.click(screen.getByRole('button', { name: 'Pular Sinal' }))
-    expect(await within(screen.getByRole('listitem', { name: '3. Sinal de compra' })).findByText('Pulado')).toBeInTheDocument()
-    expect(screen.getByText('1 de 3 concluídos')).toBeInTheDocument()
+    expect(await within(screen.getByRole('listitem', { name: '3. Sinal' })).findByText('Pulado')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(60)
 
     await primeira.usuario.click(screen.getByRole('button', { name: 'Abrir Sinais' }))
     await primeira.usuario.click(await screen.findByRole('link', { name: 'Voltar ao checklist' }))
-    expect(await within(await screen.findByRole('listitem', { name: '3. Sinal de compra' })).findByText('Concluído')).toBeInTheDocument()
-    expect(screen.getByText('2 de 3 concluídos')).toBeInTheDocument()
+    expect(await within(await screen.findByRole('listitem', { name: '3. Sinal' })).findByText('Concluído')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(80)
     primeira.unmount()
 
     const segunda = renderizarSemOnboarding('/onboarding', { armazenamento })
-    expect(await screen.findByText('2 de 3 concluídos')).toBeInTheDocument()
+    await screen.findByRole('progressbar', { name: 'Onboarding completo' })
+    expect(progressoNaTela()).toBe(80)
     expect(within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).getByText('Pendente')).toBeInTheDocument()
     expect(within(screen.getByRole('listitem', { name: '2. Persona' })).getByText('Concluído')).toBeInTheDocument()
-    expect(within(screen.getByRole('listitem', { name: '3. Sinal de compra' })).getByText('Concluído')).toBeInTheDocument()
+    expect(within(screen.getByRole('listitem', { name: '3. Sinal' })).getByText('Concluído')).toBeInTheDocument()
     expect((await segunda.fonteDeOnboarding.ler()).checklist).toMatchObject({
       produto: 'pendente',
       persona: 'concluido',
       sinal: 'concluido',
     })
+  })
+})
+
+/** Quanto do onboarding o checklist mostra como completo, em porcentagem. */
+function progressoNaTela() {
+  return Number(screen.getByRole('progressbar', { name: 'Onboarding completo' }).getAttribute('aria-valuenow'))
+}
+
+describe('Onboarding pós-login: progresso gamificado até 100%', () => {
+  it('o criador chega ao checklist com Workspace e Site feitos, e a chamada aponta o próximo marco do Norte', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(usuario)
+
+    expect(progressoNaTela()).toBe(40)
+    expect(screen.getByText('40%')).toBeInTheDocument()
+    const marcos = screen.getByRole('list', { name: 'Marcos do onboarding' })
+    expect(within(marcos).getAllByRole('listitem').map((marco) => marco.getAttribute('aria-label'))).toEqual([
+      'Workspace: feito',
+      'Site e logo: feito',
+      'Mini-ICP e produto: falta',
+      'Persona: falta',
+      'Sinal: falta',
+    ])
+    expect(screen.getByText(/Próximo: Mini-ICP e produto/)).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
+    expect(await screen.findByText(/Próximo: Persona/)).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(60)
+  })
+
+  it('o convidado não informa o site: o progresso tem quatro marcos e começa em 25%', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding?convite=demo')
+    await day0Convidado(usuario)
+
+    expect(progressoNaTela()).toBe(25)
+    const marcos = screen.getByRole('list', { name: 'Marcos do onboarding' })
+    expect(within(marcos).getAllByRole('listitem').map((marco) => marco.getAttribute('aria-label'))).toEqual([
+      'Workspace: feito',
+      'Mini-ICP e produto: falta',
+      'Persona: falta',
+      'Sinal: falta',
+    ])
+  })
+
+  it('um item pulado não conta, e a chamada continua apontando para ele', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(usuario)
+
+    await usuario.click(screen.getByRole('button', { name: 'Pular mini-ICP' }))
+    expect(await within(screen.getByRole('listitem', { name: '1. Mini-ICP e produto' })).findByText('Pulado')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(40)
+
+    await usuario.click(screen.getByRole('button', { name: 'Concluir Persona' }))
+    expect(await within(screen.getByRole('listitem', { name: '2. Persona' })).findByText('Concluído')).toBeInTheDocument()
+    expect(progressoNaTela()).toBe(60)
+    expect(screen.getByText(/Próximo: Mini-ICP e produto/)).toBeInTheDocument()
+  })
+
+  it('a 100%, o checklist comemora o onboarding completo e a Casca deixa de mostrar o atalho', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(usuario)
+    expect(screen.queryByText(/Onboarding 100% completo/)).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
+    await usuario.click(screen.getByRole('button', { name: 'Concluir Persona' }))
+    await usuario.click(screen.getByRole('button', { name: 'Abrir Sinais' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Voltar ao checklist' }))
+
+    await screen.findByRole('progressbar', { name: 'Onboarding completo' })
+    expect(progressoNaTela()).toBe(100)
+    expect(screen.getByText(/Onboarding 100% completo/)).toBeInTheDocument()
+    expect(screen.queryByText(/Próximo:/)).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Onboarding, / })).not.toBeInTheDocument()
+  })
+
+  it('concluir o onboarding incompleto não esconde o atalho: ele fica na Casca até 100%', async () => {
+    const { usuario } = renderizarSemOnboarding('/onboarding', { leitorDeSite: async () => LEITURA_DE_TESTE })
+    await day0Criador(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
+    await usuario.click(screen.getByRole('button', { name: 'Pular Persona' }))
+    await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+
+    await usuario.click(await screen.findByRole('link', { name: 'Onboarding, 60% completo' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Concluir Persona' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Abrir Sinais' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Ir para a home' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    await vi.waitFor(() => expect(screen.queryByRole('link', { name: /^Onboarding, / })).not.toBeInTheDocument())
+  })
+
+  it('a sessão que já começa com o onboarding concluído está 100% completa e não vê o atalho', async () => {
+    const { fonteDeOnboarding } = renderizarApp('/contas', {}, {}, { jaConcluido: true })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Contas' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Onboarding, / })).not.toBeInTheDocument()
+    expect((await fonteDeOnboarding.ler()).checklist).toMatchObject({
+      produto: 'concluido',
+      persona: 'concluido',
+      sinal: 'concluido',
+    })
+  })
+})
+
+describe('Fonte de onboarding simulada', () => {
+  /** Um criador que passou pelo Day0 da Norte Dados direto na Fonte, sem a tela. */
+  async function criadorNoChecklist(opcoes: OpcoesFonteDeOnboardingSimulada = {}) {
+    const fonte = criarFonteDeOnboardingSimulada({ atrasoDaLeituraMs: 0, resolverLogo: async () => null, ...opcoes })
+    await fonte.iniciar('criador')
+    await fonte.definirPapel('Founder')
+    await fonte.definirCliente('Norte Dados')
+    await fonte.definirDominio('nortedados.com.br')
+    await fonte.definirComoConheceu('LinkedIn')
+    await fonte.pularConvite()
+    return fonte
+  }
+
+  it('a leitura do site recebe o domínio confirmado e devolve a leitura; outro domínio não é lido', async () => {
+    const leitorDeSite = vi.fn(async () => LEITURA_DE_TESTE)
+    const fonte = await criadorNoChecklist({ leitorDeSite })
+    await vi.waitFor(async () => expect((await fonte.ler()).leitura.situacao).toBe('pronta'))
+    leitorDeSite.mockClear()
+
+    expect(await fonte.lerSite('outro-site.com.br')).toBeNull()
+    expect(leitorDeSite).not.toHaveBeenCalled()
+    expect(await fonte.lerSite('https://www.nortedados.com.br/')).toEqual(LEITURA_DE_TESTE)
+    expect(leitorDeSite).toHaveBeenCalledWith('nortedados.com.br')
+    expect((await fonte.ler()).checklist.personas).toEqual(LEITURA_DE_TESTE.personas)
+  })
+
+  it('uma leitura com falha devolve nenhuma e deixa os campos como estavam', async () => {
+    const fonte = await criadorNoChecklist({ leitorDeSite: async () => Promise.reject(new Error('site fora do ar')) })
+    await vi.waitFor(async () => expect((await fonte.ler()).leitura.situacao).toBe('falhou'))
+
+    expect(await fonte.lerSite('nortedados.com.br')).toBeNull()
+    expect((await fonte.ler()).checklist).toMatchObject({ miniIcp: '', oQueVende: '', porQueCompram: '', personas: [] })
+  })
+
+  it('guarda as Personas sem linhas vazias nem espaços nas pontas', async () => {
+    const fonte = await criadorNoChecklist()
+    await fonte.salvarPersonas(['  Diretora de Dados ', '', 'CFO'])
+    expect((await fonte.ler()).checklist.personas).toEqual(['Diretora de Dados', 'CFO'])
+  })
+
+  it('um onboarding guardado por uma versão anterior mantém as Personas e procura o logo de novo', async () => {
+    const dados = new Map<string, string>()
+    const armazenamento: ArmazenamentoDeOnboarding = {
+      getItem: (chave) => dados.get(chave) ?? null,
+      setItem: (chave, valor) => {
+        dados.set(chave, valor)
+      },
+    }
+    await criadorNoChecklist({ armazenamento })
+    const [[chave, guardado]] = [...dados]
+    const antigo = JSON.parse(guardado)
+    antigo.checklist.personas = 'Diretora de Dados\n\n  CFO  '
+    antigo.logoDoSite = ['https://nortedados.com.br/favicon.svg', 'https://nortedados.com.br/favicon.ico']
+    dados.set(chave, JSON.stringify(antigo))
+
+    const fonte = criarFonteDeOnboardingSimulada({ armazenamento, resolverLogo: LOGO_EM_SVG })
+    expect((await fonte.ler()).checklist.personas).toEqual(['Diretora de Dados', 'CFO'])
+    await vi.waitFor(async () => expect((await fonte.ler()).logoDoSite).toBe('https://nortedados.com.br/favicon.svg'))
   })
 })
