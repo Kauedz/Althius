@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** in-progress
+**Status:** closed
 
 - [x] A camada de dados exige identidade via `auth.uid()` e participação ativa para as RPCs de criação, edição e leitura privada; a interface usa Supabase Auth e bloqueia usuários sem participação ativa.
 - [x] A RPC cria a responsabilidade e a Sequência na mesma transação, com unicidade por Workspace e Conta-alvo.
@@ -12,7 +12,7 @@
 - [x] Apenas o responsável ativo pode atualizar status/documento via RPC; edição direta é revogada.
 - [x] Participantes ativos consultam a projeção pública; o documento fica em tabela privada e outro Workspace não vê a projeção.
 - [x] A responsabilidade é imutável e registros de Sequência não podem ser apagados pelo fluxo público.
-- [x] Testes pgTAP cobrem responsável, outro Membro, Administrador e usuário de outro Workspace (`supabase/tests/responsabilidade_exclusiva.sql`); 12/12 passaram anteriormente em transação revertida. A migração de acesso foi aplicada no projeto `ycbdilsmydvzezhlymty` e conferida no histórico remoto.
+- [x] Testes pgTAP cobrem responsável, outro Membro, Administrador e usuário de outro Workspace (`supabase/tests/responsabilidade_exclusiva.sql`); 12/12 no banco remoto em transação revertida, depois do Auth-02 e com o fixture corrigido (`439c728`). A migração de acesso foi aplicada no projeto `ycbdilsmydvzezhlymty` e conferida no histórico remoto.
 
 ## Implementação local
 
@@ -38,8 +38,13 @@ Ambiente preparado com `scripts/wizard-teste-real.sh` no projeto `ycbdilsmydvzez
   - Membro de outro Workspace e Sem Participação não veem nem criam Sequência no Workspace A.
 - Tela, com as sessões reais no Chromium: o Vendedor responsável abre o detalhe completo. Outro Membro e Administrador veem as duas Sequências na lista, e no detalhe só o resumo da Conta-alvo, com o aviso de que há outro Vendedor responsável. O Membro de outro Workspace vê a lista vazia, e a persona Sem Participação cai em "Nenhum Workspace ativo".
 
-Pendências:
+Pendências que ficam fora deste ticket:
 
-- O pgTAP `supabase/tests/responsabilidade_exclusiva.sql` precisa voltar a passar. Na `main`, ele já falhava 7/12 pela validação de canal de `validate_sequence_document`. No banco remoto, também esbarra na chave estrangeira de `workspace_memberships` para `workspaces`, que chega com o Auth-02.
 - Realtime: o endpoint responde 101 por HTTP/1.1, mas o WebSocket do Chromium no ambiente de nuvem falhou no handshake (500). A atualização ao vivo ainda não foi vista num navegador comum.
 - As Sequências de teste ficam no Workspace A, nas Contas-alvo com prefixo `teste-real-`. O fluxo público não as apaga, então o CRM-17 terá de removê-las por operação administrativa antes de ligar Sequência e Conta-alvo por chave estrangeira.
+
+## Fechamento (2026-09-25)
+
+- pgTAP `responsabilidade_exclusiva.sql`: 12/12 no banco remoto, em transação revertida. O fixture passou a usar passos com canal válido (`439c728`, via Kauedz/Althius#19), e a chave estrangeira de `workspace_memberships` para `workspaces` chegou com o Auth-02, já aplicado.
+- Com toda a pilha do Ralph na `main` e as migrations até `20260925170000` aplicadas, o `npm run teste:real` confirmou de novo 20/20.
+- Desde o Auth-02, o primeiro login de qualquer conta verificada cria um Workspace pessoal. A persona Sem Participação agora tem o próprio Workspace pessoal, mas continua sem Participação nos Workspaces A e B, que é o que o teste verifica.
