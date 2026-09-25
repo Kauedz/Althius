@@ -14,6 +14,11 @@ interface OpcoesDoSupabaseFalso {
    * de entrada vai para qualquer e-mail; com ela, o Auth só conhece estas contas e as que o cadastro criar.
    */
   contas?: ContaDoAuth[]
+  /**
+   * As senhas que o Supabase Auth recusa como vazadas (`GOTRUE_PASSWORD_HIBP_ENABLED`), com `weak_password` e o
+   * motivo `pwned`, no cadastro e na troca de senha.
+   */
+  senhasVazadasNoServidor?: string[]
 }
 
 /** Uma Conta de usuário no Supabase Auth do teste. Salvo `verificada: false`, o e-mail já foi confirmado. */
@@ -26,6 +31,14 @@ export interface ContaDoAuth {
 }
 
 type TipoDoCodigo = 'signup' | 'email' | 'recovery'
+
+/** A recusa do Supabase Auth a uma senha que o HaveIBeenPwned conhece. */
+const senhaVazadaNoServidor = () => ({
+  message: 'Password is known to be weak and easy to guess, please choose a different one.',
+  status: 422,
+  code: 'weak_password',
+  reasons: ['pwned'],
+})
 
 /** Uma sessão do Supabase Auth para o usuário do teste. */
 export function sessaoDe(usuario: { id: string; email: string }): Session {
@@ -49,7 +62,7 @@ export function sessaoDe(usuario: { id: string; email: string }): Session {
  * O cliente do Supabase na fronteira com o fornecedor: Auth, as tabelas filtradas por `eq`, as RPCs e os canais do
  * Realtime, em memória. Só cobre o que o app usa; o resto não existe, para um uso novo falhar alto.
  */
-export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, contas }: OpcoesDoSupabaseFalso = {}) {
+export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, contas, senhasVazadasNoServidor = [] }: OpcoesDoSupabaseFalso = {}) {
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
@@ -153,6 +166,7 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         options?: { emailRedirectTo?: string; data?: { full_name?: string } }
       }) {
         if (password.length < 6) return { data: { user: null, session: null }, error: { message: 'Password should be at least 6 characters.', code: 'weak_password' } }
+        if (senhasVazadasNoServidor.includes(password)) return { data: { user: null, session: null }, error: senhaVazadaNoServidor() }
         const existente = contaCom(email)
         if (existente && verificada(existente)) return { data: { user: { id: `ofuscado-${email}`, email, identities: [] }, session: null }, error: null }
         const nome = options?.data?.full_name ?? ''
@@ -198,6 +212,7 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         const conta = sessaoAtual && contaCom(sessaoAtual.user.email ?? '')
         if (!conta) return { data: { user: null }, error: { message: 'Auth session missing!', status: 400, code: 'session_not_found' } }
         if (password.length < 6) return { data: { user: null }, error: { message: 'Password should be at least 6 characters.', status: 422, code: 'weak_password' } }
+        if (senhasVazadasNoServidor.includes(password)) return { data: { user: null }, error: senhaVazadaNoServidor() }
         if (password === conta.senha) {
           return { data: { user: null }, error: { message: 'New password should be different from the old password.', status: 422, code: 'same_password' } }
         }

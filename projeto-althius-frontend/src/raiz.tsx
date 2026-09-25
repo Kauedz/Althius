@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { App } from '@/App'
 import { AplicativoAutenticado } from '@/auth/aplicativo'
 import { ROTA_DE_ENTRADA } from '@/auth/destino'
+import type { ServicosDoNavegador } from '@/auth/servicos-do-navegador'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
 import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
 
@@ -13,7 +14,7 @@ const CHAVE_DO_AMBIENTE = 'althius:modo_demo'
  * A escolha do ambiente: a Demonstração ou o acesso ao Workspace operacional. Sem Supabase configurado, só existe a
  * Demonstração. Cada ambiente monta as próprias fontes; trocar de um para outro desmonta o anterior inteiro.
  */
-export function RaizDoAplicativo({ cliente }: { cliente: SupabaseClient | null }) {
+export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClient | null; servicos: ServicosDoNavegador }) {
   const [ambiente, setAmbiente] = useState<ModoDoAmbiente>(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('auth') === 'true' || params.get('demo') === 'false') return 'real'
@@ -34,7 +35,7 @@ export function RaizDoAplicativo({ cliente }: { cliente: SupabaseClient | null }
     return <AplicativoDeDemonstracao aoAlternarParaAutenticado={cliente ? () => escolherAmbiente('real') : undefined} />
   }
 
-  return <AplicativoAutenticado cliente={cliente} aoAcessarDemonstracao={() => escolherAmbiente('demonstracao')} />
+  return <AplicativoAutenticado cliente={cliente} servicos={servicos} aoAcessarDemonstracao={() => escolherAmbiente('demonstracao')} />
 }
 
 function AplicativoDeDemonstracao({ aoAlternarParaAutenticado }: { aoAlternarParaAutenticado?: () => void }) {

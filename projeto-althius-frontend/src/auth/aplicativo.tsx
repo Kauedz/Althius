@@ -5,6 +5,7 @@ import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso } from './destino'
+import type { ServicosDoNavegador } from './servicos-do-navegador'
 import { VERSAO_DOS_TERMOS } from './termos'
 import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
 import { CascaDeAcesso, TelasDeAcesso } from './telas-de-acesso'
@@ -44,13 +45,15 @@ interface WorkspacePessoal {
 
 export function AplicativoAutenticado({
   cliente,
+  servicos,
   aoAcessarDemonstracao,
 }: {
   cliente: SupabaseClient
+  servicos: ServicosDoNavegador
   aoAcessarDemonstracao?: () => void
 }) {
   return (
-    <ContextoDeAutenticacao cliente={cliente}>
+    <ContextoDeAutenticacao cliente={cliente} servicos={servicos}>
       <EntradaDoAplicativo aoAcessarDemonstracao={aoAcessarDemonstracao} />
     </ContextoDeAutenticacao>
   )

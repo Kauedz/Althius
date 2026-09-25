@@ -108,8 +108,8 @@ function FormularioDeCadastro({
     try {
       await cadastrar({ nome, email, senha }, destinoDepoisDoAcesso() ?? '/')
       aoEnviar()
-    } catch {
-      setErro('Não foi possível criar a conta agora. Tente novamente em instantes.')
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível criar a conta agora. Tente novamente em instantes.')
     } finally {
       setEnviando(false)
     }
