@@ -29,4 +29,8 @@ O acesso é por link de e-mail para contas já existentes; o formulário não cr
 
 Na configuração de Auth do projeto, inclua a URL local do Vite e as origens de produção na lista de redirecionamentos permitidos, com `/**` no fim (ex.: `http://localhost:5173/**`): o link de acesso volta ao endereço que a pessoa tentou abrir, e sem o curinga o Supabase descarta esse caminho e abre a Site URL. Para cada pessoa, crie/convida-se a identidade no Supabase Auth e insira a participação correspondente em `workspace_memberships` usando uma operação administrativa; o formulário público nunca grava nessa tabela.
 
+Para fazer tudo isso num projeto, rode `scripts/wizard-teste-real.sh` na raiz do repositório (no Windows, pelo Git Bash). Ele guia a chave publicável, as Redirect URLs, o SMTP próprio (opcional), as cinco identidades do teste real e o SQL das participações, e grava os valores em `.env.local`. As chaves `TESTE_*` ficam só na sua máquina: sem o prefixo `VITE_`, não chegam ao navegador.
+
+Depois do wizard, `npm run teste:real` confere as regras do ticket 01 contra o projeto: entra por senha com as cinco personas e passa pela mesma API do app. Ele grava Sequências reais em Contas-alvo `teste-real-*`, que o fluxo público não apaga.
+
 Os ícones são Lucide provisórios e o logo é uma reconstrução provisória: os dois serão trocados pelos arquivos oficiais.
