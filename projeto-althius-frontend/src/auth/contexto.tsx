@@ -6,8 +6,15 @@ interface Autenticacao {
   sessao: Session | null
   carregandoSessao: boolean
   carregando: boolean
-  /** Envia o link de acesso; ao abri-lo, a pessoa volta para `destino`, um caminho deste app. */
-  entrarComLink: (email: string, destino: string) => Promise<void>
+  /** Entra com e-mail e senha. Qualquer recusa vira "E-mail ou senha incorretos", sem revelar se o e-mail existe. */
+  entrarComSenha: (email: string, senha: string) => Promise<void>
+  /**
+   * Envia o código de 6 dígitos e o link de entrada, sem criar Conta de usuário; o link volta para `destino`, um
+   * caminho deste app. Um e-mail sem conta recebe a mesma resposta na tela.
+   */
+  pedirCodigoDeEntrada: (email: string, destino: string) => Promise<void>
+  /** Entra com o código de 6 dígitos enviado por `pedirCodigoDeEntrada`. */
+  confirmarCodigoDeEntrada: (email: string, codigo: string) => Promise<void>
   sair: () => Promise<void>
   /**
    * Cria a Conta de usuário com senha e envia o código de confirmação, sem abrir sessão. Um e-mail que já tem conta
@@ -19,6 +26,9 @@ interface Autenticacao {
   /** Envia um novo código (e link) de confirmação do cadastro. */
   reenviarCodigoDoCadastro: (email: string, destino: string) => Promise<void>
 }
+
+/** A única resposta a um login recusado, para a tela não revelar se o e-mail tem conta. */
+const ERRO_DE_LOGIN = 'E-mail ou senha incorretos'
 
 const Contexto = createContext<Autenticacao | null>(null)
 
@@ -49,14 +59,33 @@ export function ContextoDeAutenticacao({ cliente, children }: { cliente: Supabas
     sessao,
     carregandoSessao,
     carregando,
-    async entrarComLink(email, destino) {
+    async entrarComSenha(email, senha) {
+      setCarregando(true)
+      try {
+        const { error } = await cliente.auth.signInWithPassword({ email: email.trim(), password: senha })
+        if (error) throw new Error(ERRO_DE_LOGIN)
+      } finally {
+        setCarregando(false)
+      }
+    },
+    async pedirCodigoDeEntrada(email, destino) {
       setCarregando(true)
       try {
         const { error } = await cliente.auth.signInWithOtp({
           email: email.trim(),
           options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + destino },
         })
-        if (error) throw error
+        // Sem conta para o e-mail, o Auth recusa criar uma; a tela responde igual, para não revelar quem tem conta.
+        if (error && error.code !== 'otp_disabled' && error.code !== 'user_not_found') throw error
+      } finally {
+        setCarregando(false)
+      }
+    },
+    async confirmarCodigoDeEntrada(email, codigo) {
+      setCarregando(true)
+      try {
+        const { error } = await cliente.auth.verifyOtp({ email: email.trim(), token: codigo.trim(), type: 'email' })
+        if (error) throw new Error('Código inválido ou expirado. Confira o código ou peça outro.')
       } finally {
         setCarregando(false)
       }
