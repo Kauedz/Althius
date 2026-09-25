@@ -869,6 +869,23 @@ describe('Entrar com senha ou com código', () => {
     expect(codigoEnviadoPara('ninguem@cliente.com.br')).toBeUndefined()
     expect(contas).toEqual([CONTA_DA_MARINA])
   })
+
+  it('"Entrar com código" responde igual para um e-mail sem conta e para uma conta no limite de envio do Auth', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], limiteDeEnvioAtingido: [MARINA.email] })
+
+    await usuario.type(await screen.findByLabelText('E-mail'), 'ninguem@cliente.com.br')
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+    const semConta = (await screen.findByRole('status')).textContent!.replace('ninguem@cliente.com.br', '<e-mail>')
+
+    await usuario.click(screen.getByRole('button', { name: 'Usar senha' }))
+    await usuario.clear(screen.getByLabelText('E-mail'))
+    await usuario.type(screen.getByLabelText('E-mail'), MARINA.email)
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+
+    expect((await screen.findByRole('status')).textContent!.replace(MARINA.email, '<e-mail>')).toBe(semConta)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })
 
 describe('Workspace de entrada depois do login', () => {
@@ -956,6 +973,21 @@ describe('Esqueci a senha', () => {
     expect((await screen.findByRole('status')).textContent!.replace(MARINA.email, '<e-mail>')).toBe(semConta)
     expect(codigoEnviadoPara(MARINA.email)).toBeDefined()
     expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe('/redefinir-a-senha')
+  })
+
+  it('o pedido responde igual para um e-mail sem conta e para uma conta no limite de envio do Auth', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], limiteDeEnvioAtingido: [MARINA.email] })
+
+    await pedirRedefinicao(usuario, 'ninguem@cliente.com.br')
+    const semConta = (await screen.findByRole('status')).textContent!.replace('ninguem@cliente.com.br', '<e-mail>')
+
+    await usuario.click(screen.getByRole('button', { name: 'Corrigir e-mail' }))
+    await usuario.clear(screen.getByLabelText('E-mail'))
+    await pedirRedefinicao(usuario, MARINA.email)
+
+    expect((await screen.findByRole('status')).textContent!.replace(MARINA.email, '<e-mail>')).toBe(semConta)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('redefinição por código: a nova senha encerra as outras sessões e a pessoa entra no Workspace de entrada', async () => {
