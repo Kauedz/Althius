@@ -19,6 +19,11 @@ interface OpcoesDoSupabaseFalso {
    * motivo `pwned`, no cadastro e na troca de senha.
    */
   senhasVazadasNoServidor?: string[]
+  /**
+   * O CAPTCHA ligado no Supabase Auth: cadastro, login com senha, envio de código, reenvio e redefinição sem
+   * `captchaToken` são recusados com `captcha_failed`, sem enviar e-mail nem abrir sessão.
+   */
+  exigeCaptcha?: boolean
 }
 
 /** Uma Conta de usuário no Supabase Auth do teste. Salvo `verificada: false`, o e-mail já foi confirmado. */
@@ -68,7 +73,7 @@ export function sessaoDe(usuario: { id: string; email: string }): Session {
  * O cliente do Supabase na fronteira com o fornecedor: Auth, as tabelas filtradas por `eq`, as RPCs e os canais do
  * Realtime, em memória. Só cobre o que o app usa; o resto não existe, para um uso novo falhar alto.
  */
-export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, contas, senhasVazadasNoServidor = [] }: OpcoesDoSupabaseFalso = {}) {
+export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false }: OpcoesDoSupabaseFalso = {}) {
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
@@ -82,6 +87,14 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
   let idDaSessaoAtual: string | null = null
   const contaCom = (email: string) => usuarios.find((conta) => conta.email === email.trim().toLowerCase())
   const verificada = (conta: ContaDoAuth) => conta.verificada !== false
+  const captchasRecebidos: { chamada: string; token: string | undefined }[] = []
+
+  /** Registra o `captchaToken` da chamada; com o CAPTCHA ligado, sem token devolve a recusa do Auth. */
+  function conferirCaptcha(chamada: string, token: string | undefined) {
+    captchasRecebidos.push({ chamada, token })
+    if (!exigeCaptcha || token) return null
+    return { message: 'captcha protection: request disallowed (no captcha response)', status: 400, code: 'captcha_failed' }
+  }
 
   function abrirSessao(usuarioId: string) {
     const id = `sessao-${++sessoesCriadas}`
@@ -155,7 +168,9 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         return { data: { subscription: { unsubscribe: () => ouvintesDaSessao.delete(ouvinte) } } }
       },
       getSession: () => Promise.resolve({ data: { session: sessaoAtual }, error: null }),
-      async signInWithOtp({ email, options }: { email: string; options?: { emailRedirectTo?: string; shouldCreateUser?: boolean } }) {
+      async signInWithOtp({ email, options }: { email: string; options?: { emailRedirectTo?: string; shouldCreateUser?: boolean; captchaToken?: string } }) {
+        const recusaDoCaptcha = conferirCaptcha('signInWithOtp', options?.captchaToken)
+        if (recusaDoCaptcha) return { data: {}, error: recusaDoCaptcha }
         // Com Contas de usuário simuladas, o Auth só cria uma conta se o app permitir; senão recusa o e-mail desconhecido.
         if (simulaContas && !contaCom(email)) {
           if (options?.shouldCreateUser !== false) throw new Error('signInWithOtp criaria uma Conta de usuário: simule antes de usar')
@@ -169,8 +184,10 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
       async signUp({ email, password, options }: {
         email: string
         password: string
-        options?: { emailRedirectTo?: string; data?: { full_name?: string } }
+        options?: { emailRedirectTo?: string; data?: { full_name?: string }; captchaToken?: string }
       }) {
+        const recusaDoCaptcha = conferirCaptcha('signUp', options?.captchaToken)
+        if (recusaDoCaptcha) return { data: { user: null, session: null }, error: recusaDoCaptcha }
         if (password.length < 6) return { data: { user: null, session: null }, error: { message: 'Password should be at least 6 characters.', code: 'weak_password' } }
         if (senhasVazadasNoServidor.includes(password)) return { data: { user: null, session: null }, error: senhaVazadaNoServidor() }
         const existente = contaCom(email)
@@ -182,13 +199,17 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         enviarEmail(email, 'signup', options?.emailRedirectTo)
         return { data: { user: { id: conta.id, email, identities: [{}] }, session: null }, error: null }
       },
-      async resend({ email, type, options }: { email: string; type: string; options?: { emailRedirectTo?: string } }) {
+      async resend({ email, type, options }: { email: string; type: string; options?: { emailRedirectTo?: string; captchaToken?: string } }) {
+        const recusaDoCaptcha = conferirCaptcha('resend', options?.captchaToken)
+        if (recusaDoCaptcha) return { data: {}, error: recusaDoCaptcha }
         if (type !== 'signup') throw new Error(`resend do tipo ${type} não simulado`)
         const conta = contaCom(email)
         if (conta && !verificada(conta)) enviarEmail(email, 'signup', options?.emailRedirectTo)
         return { data: {}, error: null }
       },
-      async signInWithPassword({ email, password }: { email: string; password: string }) {
+      async signInWithPassword({ email, password, options }: { email: string; password: string; options?: { captchaToken?: string } }) {
+        const recusaDoCaptcha = conferirCaptcha('signInWithPassword', options?.captchaToken)
+        if (recusaDoCaptcha) return { data: { user: null, session: null }, error: recusaDoCaptcha }
         const conta = contaCom(email)
         if (!conta?.senha || !verificada(conta) || conta.senha !== password) {
           return { data: { user: null, session: null }, error: { message: 'Invalid login credentials', status: 400, code: 'invalid_credentials' } }
@@ -231,7 +252,9 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         return { data: { user: novaSessao.user, session: novaSessao }, error: null }
       },
       // Um e-mail sem conta recebe a mesma resposta, sem e-mail enviado.
-      async resetPasswordForEmail(email: string, options?: { redirectTo?: string }) {
+      async resetPasswordForEmail(email: string, options?: { redirectTo?: string; captchaToken?: string }) {
+        const recusaDoCaptcha = conferirCaptcha('resetPasswordForEmail', options?.captchaToken)
+        if (recusaDoCaptcha) return { data: {}, error: recusaDoCaptcha }
         if (contaCom(email)) enviarEmail(email, 'recovery', options?.redirectTo)
         return { data: {}, error: null }
       },
@@ -329,5 +352,7 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
     contasDoAuthCom: (email: string) => usuarios.filter((conta) => conta.email === email.trim().toLowerCase()).map((conta) => conta.id),
     /** Os canais do Realtime inscritos agora, pelo nome. */
     canaisAbertos: () => [...canaisAbertos],
+    /** O `captchaToken` que cada chamada protegida do Auth recebeu, na ordem; `undefined` quando veio sem token. */
+    captchasRecebidos: () => [...captchasRecebidos],
   }
 }
