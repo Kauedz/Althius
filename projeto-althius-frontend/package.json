@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "teste:real": "node --env-file=.env.local scripts/teste-real-sequencias.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

@@ -31,4 +31,6 @@ Na configuração de Auth do projeto, inclua a URL local do Vite e as origens de
 
 Para fazer tudo isso num projeto, rode `scripts/wizard-teste-real.sh` na raiz do repositório (no Windows, pelo Git Bash). Ele guia a chave publicável, as Redirect URLs, o SMTP próprio (opcional), as cinco identidades do teste real e o SQL das participações, e grava os valores em `.env.local`. As chaves `TESTE_*` ficam só na sua máquina: sem o prefixo `VITE_`, não chegam ao navegador.
 
+Depois do wizard, `npm run teste:real` confere as regras do ticket 01 contra o projeto: entra por senha com as cinco personas e passa pela mesma API do app. Ele grava Sequências reais em Contas-alvo `teste-real-*`, que o fluxo público não apaga.
+
 Os ícones são Lucide provisórios e o logo é uma reconstrução provisória: os dois serão trocados pelos arquivos oficiais.
