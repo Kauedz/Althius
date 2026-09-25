@@ -341,7 +341,7 @@ function CriteriosProntos({
       )}
       {formulario === 'verificacao' && (
         <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
-          Na demonstração, nenhuma verificação é executada e nenhuma mensagem é enviada.
+          Na demonstração, nenhuma verificação real é executada, nenhum site é varrido e nenhuma mensagem é enviada. Não é necessário configurar agentes executores, APIs ou credenciais.
         </p>
       )}
     </SecaoDoFormulario>

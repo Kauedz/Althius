@@ -252,8 +252,37 @@ export const MONITORAMENTOS_INICIAIS: Monitoramento[] = [
     id: 'atendimento-demonstracao',
     tipoId: 'lead-oculto',
     nome: 'Tempo de resposta a pedidos de demonstração',
-    estado: 'rascunho',
-    criterios: { canais: ['Formulário do site'], criterio: 'não houver resposta em 24 horas úteis', frequencia: 'Uma vez' },
+    estado: 'ativo',
+    criterios: {
+      canais: ['WhatsApp', 'Formulário do site'],
+      criterio: 'não houver resposta em 24 horas úteis',
+      prazo: '24 horas úteis',
+      frequencia: 'Uma vez',
+    },
+  }),
+  monitoramento({
+    id: 'erros-site-verificacao',
+    tipoId: 'erros-no-site',
+    nome: 'Erros e indisponibilidade no site',
+    estado: 'ativo',
+    criterios: {
+      canais: ['Páginas do site'],
+      criterio: 'uma página ficar fora do ar ou exibir erro',
+      prazo: 'Imediato',
+      frequencia: 'Toda semana',
+    },
+  }),
+  monitoramento({
+    id: 'fluxos-publicos-agendamento',
+    tipoId: 'formularios',
+    nome: 'Formulários e fluxos públicos',
+    estado: 'ativo',
+    criterios: {
+      canais: ['Formulário do site'],
+      criterio: 'o envio falhar ou não houver confirmação',
+      prazo: 'Imediato',
+      frequencia: 'Toda semana',
+    },
   }),
   {
     id: 'custo-de-nuvem',
@@ -329,6 +358,9 @@ export const CONTAS_MOCK: ContaMock[] = [
   { id: 'figma', nome: 'Figma', dominio: 'figma.com', logo: '/logos/figma.svg', segmento: 'Design de software', aderencia: 'fit', origem: 'recomendada' },
   { id: 'notion', nome: 'Notion', dominio: 'notion.so', logo: '/logos/notion.svg', segmento: 'Produtividade', aderencia: 'fit', origem: 'recomendada' },
   { id: 'cloudflare', nome: 'Cloudflare', dominio: 'cloudflare.com', logo: '/logos/cloudflare.svg', segmento: 'Infraestrutura e segurança', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'totvs', nome: 'TOTVS', dominio: 'totvs.com', segmento: 'Software de gestão', aderencia: 'fit', origem: 'recomendada' },
+  { id: 'locaweb', nome: 'Locaweb', dominio: 'locaweb.com.br', segmento: 'Hospedagem e nuvem', aderencia: 'nao-fit', origem: 'importada' },
+  { id: 'creditas', nome: 'Creditas', dominio: 'creditas.com', segmento: 'Serviços financeiros', aderencia: 'fit', origem: 'recomendada' },
 ]
 
 export const SINAIS_MOCK: SinalMock[] = [
@@ -502,6 +534,36 @@ export const SINAIS_MOCK: SinalMock[] = [
     data: '2026-08-01',
     fonte: 'HubSpot (simulado)',
     evidencia: 'Negócio na etapa Negociação sem atividade desde 02/07/2026.',
+  },
+  {
+    id: 's-totvs-lead-oculto',
+    contaId: 'totvs',
+    tipoId: 'lead-oculto',
+    monitoramentoId: 'atendimento-demonstracao',
+    frase: 'Sem resposta no formulário de contato após 24 horas úteis',
+    data: '2026-09-22',
+    fonte: 'Verificação deliberada de lead oculto (simulada)',
+    evidencia: 'Disparo de mensagem de teste via formulário comercial em 21/09/2026 às 09:30; nenhuma resposta ou retorno recebido após 24 horas úteis (simulada).',
+  },
+  {
+    id: 's-locaweb-erros-site',
+    contaId: 'locaweb',
+    tipoId: 'erros-no-site',
+    monitoramentoId: 'erros-site-verificacao',
+    frase: 'Página de checkout e preços exibiu erro 500 intermitente',
+    data: '2026-09-21',
+    fonte: 'Verificação deliberada de integridade do site (simulada)',
+    evidencia: 'Verificação automatizada detectou falha HTTP 500 na rota de checkout durante 15 minutos em 21/09/2026 (simulada).',
+  },
+  {
+    id: 's-creditas-formularios',
+    contaId: 'creditas',
+    tipoId: 'formularios',
+    monitoramentoId: 'fluxos-publicos-agendamento',
+    frase: 'Formulário de solicitação corporativa falhou no envio',
+    data: '2026-09-20',
+    fonte: 'Teste de formulários públicos (simulado)',
+    evidencia: 'Tentativa de submissão no formulário público corporativo gerou erro de script sem confirmação de recebimento (simulada).',
   },
 ]
 

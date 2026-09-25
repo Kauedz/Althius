@@ -125,10 +125,10 @@ export const TIPOS: TipoDeSinal[] = [
   { id: 'sem-resposta', familiaId: 'historico-comercial', nome: 'Ausência de resposta', descricao: 'Retoma Contas-alvo sem resposta há o período que você definir, preservando as Interações.', padroes: { condicao: 'Sem resposta', prazo: '45', etapas: ['Descoberta', 'Proposta'] } },
   { id: 'proposta-recusada', familiaId: 'historico-comercial', nome: 'Proposta recusada', descricao: 'Traz de volta Contas-alvo cuja proposta foi recusada há o tempo que você escolher.', padroes: { condicao: 'Proposta recusada', prazo: '90', etapas: ['Proposta'] } },
   // Testes e verificações
-  { id: 'lead-oculto', familiaId: 'testes-e-verificacoes', nome: 'Teste de atendimento (lead oculto)', descricao: 'Simula o contato de um cliente e mede tempo e qualidade da resposta pelos seus critérios.', padroes: { canais: ['WhatsApp', 'Formulário do site'], criterio: 'não houver resposta em 24 horas úteis' } },
-  { id: 'erros-no-site', familiaId: 'testes-e-verificacoes', nome: 'Erros ou indisponibilidade no site', descricao: 'Verifica páginas fora do ar, lentas ou com erros aparentes.', padroes: { canais: ['Páginas do site'], criterio: 'uma página ficar fora do ar ou exibir erro' } },
-  { id: 'formularios', familiaId: 'testes-e-verificacoes', nome: 'Formulários e fluxos públicos', descricao: 'Testa formulários, agendamento e checkout públicos e registra o que falha.', padroes: { canais: ['Formulário do site'], criterio: 'o envio falhar ou não houver confirmação' } },
-  { id: 'outras-verificacoes', familiaId: 'testes-e-verificacoes', nome: 'Outras verificações', descricao: 'Descreva uma verificação para investigar uma necessidade específica do seu mercado.', padroes: { canais: [] } },
+  { id: 'lead-oculto', familiaId: 'testes-e-verificacoes', nome: 'Teste de atendimento (lead oculto)', descricao: 'Simula o contato de um cliente e mede tempo e qualidade da resposta pelos seus critérios.', padroes: { canais: ['WhatsApp', 'Formulário do site'], criterio: 'não houver resposta em 24 horas úteis', prazo: '24 horas úteis', frequencia: 'Uma vez' } },
+  { id: 'erros-no-site', familiaId: 'testes-e-verificacoes', nome: 'Erros ou indisponibilidade no site', descricao: 'Verifica páginas fora do ar, lentas ou com erros aparentes.', padroes: { canais: ['Páginas do site'], criterio: 'uma página ficar fora do ar ou exibir erro', prazo: 'Imediato', frequencia: 'Toda semana' } },
+  { id: 'formularios', familiaId: 'testes-e-verificacoes', nome: 'Formulários e fluxos públicos', descricao: 'Testa formulários, agendamento e checkout públicos e registra o que falha.', padroes: { canais: ['Formulário do site'], criterio: 'o envio falhar ou não houver confirmação', prazo: 'Imediato', frequencia: 'Toda semana' } },
+  { id: 'outras-verificacoes', familiaId: 'testes-e-verificacoes', nome: 'Outras verificações', descricao: 'Descreva uma verificação para investigar uma necessidade específica do seu mercado.', padroes: { canais: ['Formulário do site', 'WhatsApp'], criterio: 'condição personalizada a verificar', prazo: '24 horas úteis', frequencia: 'Uma vez' } },
 ]
 
 /** O tipo sintético dos sinais personalizados: não aparece como card do catálogo. */
@@ -249,7 +249,8 @@ export const CAMPOS: Record<Formulario, Campo[]> = {
   ],
   verificacao: [
     { id: 'canais', rotulo: 'Canais verificados', tipo: 'opcoes', opcoes: ['Formulário do site', 'Páginas do site', 'WhatsApp', 'E-mail', 'Telefone', 'Chat'] },
-    { id: 'criterio', rotulo: 'Dispara quando', tipo: 'texto', exemplo: 'não houver resposta em 24 horas úteis' },
+    { id: 'criterio', rotulo: 'Dispara quando', tipo: 'texto', exemplo: 'não houver resposta em 24 horas úteis', ajuda: 'Condição observada para considerar o sinal disparado.' },
+    { id: 'prazo', rotulo: 'Prazo limite ou tolerância', tipo: 'escolha', opcoes: ['Imediato', '24 horas úteis', '48 horas úteis', '7 dias'], ajuda: 'Tempo limite aguardado para resposta ou detecção do problema.' },
     { id: 'frequencia', rotulo: 'Frequência', tipo: 'escolha', opcoes: ['Uma vez', 'Toda semana', 'Todo mês'] },
   ],
   seguranca: [
