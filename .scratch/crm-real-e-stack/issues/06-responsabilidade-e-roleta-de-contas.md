@@ -12,5 +12,5 @@
 - [ ] Criação manual atribui ao criador; importação atribui inicialmente ao importador.
 - [ ] Administrador pode distribuir linhas importadas entre participantes ativos; fluxo normal não permite reatribuições posteriores.
 - [ ] Após saída do responsável, Administrador pode transferir para participante ativo por ação excepcional auditada.
-- [ ] Auditoria registra origem, participantes elegíveis e responsável atribuído, sem permitir atribuição a membership inativa.
+- [ ] Auditoria registra origem, participantes elegíveis e responsável atribuído, sem permitir atribuição a Participação inativa.
 

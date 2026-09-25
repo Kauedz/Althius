@@ -14,7 +14,7 @@ Precisamos de uma base única e durável para que cada ação apresentada como o
 
 Um usuário pode se cadastrar publicamente, verificar e-mail, criar seu Workspace e operar nele como Administrador. Ele pode criar/atualizar Contas-alvo e Contatos, importar CSV, atribuir responsabilidade pela roleta, acompanhar Sinais com fonte verificável, configurar Agentes/permissões e Aprovações, conectar canais pessoais e operar Sequências. Membros convidados entram somente após convite. Os módulos compartilham IDs e projeções; eventos de um módulo aparecem nos outros onde o produto já prevê essa relação.
 
-Não há resultado, execução, aprovação, mensagem, Sinal ou integração de demonstração no Workspace real. O modo Demonstração permanece disponível separado, com marcação explícita e dados isolados.
+Não há resultado, execução, aprovação, mensagem, Sinal ou integração de demonstração no Workspace operacional. A Demonstração permanece disponível separado, com marcação explícita e dados isolados.
 
 ## User Stories
 
@@ -24,10 +24,10 @@ Não há resultado, execução, aprovação, mensagem, Sinal ou integração de 
 2. Como novo usuário verificado, quero que meu primeiro acesso crie um Workspace onde sou Administrador, para começar a operar sem provisionamento manual.
 3. Como usuário, quero recuperar o acesso à minha identidade, para voltar sem criar uma conta duplicada.
 4. Como pessoa convidada para um Workspace, quero aceitar um convite dirigido à minha identidade, para entrar somente no Workspace que me convidou.
-5. Como usuário, quero consultar minhas memberships ativas e alternar apenas entre esses Workspaces, para manter os dados de cada Workspace isolados.
+5. Como usuário, quero consultar minhas Participações ativas e alternar apenas entre esses Workspaces, para manter os dados de cada Workspace isolados.
 6. Como Administrador, quero convidar participantes, alterar seus papéis e removê-los, para controlar o acesso ao Workspace.
 7. Como Administrador, quero que o sistema impeça a remoção ou rebaixamento do último Administrador, para que o Workspace continue gerenciável.
-8. Como participante removido, quero que minha identidade global permaneça separada da membership removida, para que a remoção não apague minha conta nem reescreva o histórico do Workspace.
+8. Como participante removido, quero que minha Conta de usuário e meu Workspace pessoal permaneçam separados da Participação removida, para que a remoção não os apague nem reescreva o histórico do Workspace.
 
 ### Contas-alvo, Contatos e responsabilidade
 
@@ -93,16 +93,16 @@ Não há resultado, execução, aprovação, mensagem, Sinal ou integração de 
 ### Integridade, segurança e operação
 
 55. Como participante de um Workspace, quero que todo registro operacional, evento, job e arquivo pertença ao meu Workspace, para que outros Workspaces não possam lê-los ou alterá-los.
-56. Como operador, quero que comandos privilegiados e callbacks de provedores validem identidade, membership, responsabilidade, assinatura e idempotência, para que o estado no cliente não conceda acesso.
+56. Como operador, quero que comandos privilegiados e callbacks de provedores validem identidade, Participação, responsabilidade, assinatura e idempotência, para que o estado no cliente não conceda acesso.
 57. Como operador, quero implantar migrations, funções, tipos gerados, segredos, filas, agendamentos e políticas de Storage de forma consistente por ambiente, para que o sucesso local não esconda uma capacidade ausente em produção.
-58. Como participante, quero que modo real e modo Demonstração usem fontes isoladas e identidade clara, para impedir que fixtures entrem em registros de produção.
+58. Como participante, quero que Workspace operacional e Demonstração usem fontes isoladas e identidade clara, para impedir que fixtures entrem em registros de produção.
 59. Como participante, quero estados acionáveis de carregamento, vazio, falha, nova tentativa, permissão e conexão em cada tela existente, para entender falhas de rede ou provedor.
 
 ## Implementation Decisions
 
 **Escopo funcional:** tornar reais cadastro/Auth, Workspaces/People, Contas, Contatos, importação, roleta, Configurações, Agentes, Conversas, Aprovações, Sinais, Conexões e Sequências na mesma aplicação. Billing, checkout e conteúdo informativo/legal ficam fora.
 
-**Seams para integração e validação:** manter telas e contratos `Fonte*` como seam mais alto; a composição do app autenticado injeta adapters reais pelo Workspace e o modo Demonstração injeta fontes isoladas. Validar pelo app renderizado e dirigido como usuário, atravessando os fluxos que ligam os módulos. Não criar seams de teste por implementação interna sem necessidade demonstrada.
+**Seams para integração e validação:** manter telas e contratos `Fonte*` como seam mais alto; a composição do app autenticado injeta adapters reais pelo Workspace e a Demonstração injeta fontes isoladas. Validar pelo app renderizado e dirigido como usuário, atravessando os fluxos que ligam os módulos. Não criar seams de teste por implementação interna sem necessidade demonstrada.
 
 ### Decisões de arquitetura, produto e dados
 
@@ -110,7 +110,7 @@ Não há resultado, execução, aprovação, mensagem, Sinal ou integração de 
 
 1. **Preservar o produto existente:** manter layout, conteúdo, navegação e comportamentos já aprovados. Mudanças visuais só quando necessárias para estados reais de carregamento, permissão, erro, conexão e confirmação.
 2. **Real significa verificável:** só declarar uma ação concluída depois de persistir/confirmar sua operação. Mostrar origem, estado e erro de integração; nunca substituir falha por fixture.
-3. **Uma identidade canônica:** Auth identifica a pessoa; Membership liga a pessoa ao Workspace; Conta-alvo e Contato têm UUIDs canônicos; integrações e remetentes são relações separadas.
+3. **Uma identidade canônica:** Auth identifica a Conta de usuário; Participação no Workspace a liga ao Workspace; Conta-alvo e Contato têm UUIDs canônicos; integrações e remetentes são relações separadas.
 4. **Workspace é a fronteira de dados:** todo registro operacional de cliente pertence a um Workspace e é protegido no banco por RLS e comandos de servidor para transições multi-registro.
 5. **Permissões explícitas:** Administrador e Membro são os únicos papéis. Permissões de Agentes por integração continuam Ler/Propor/Executar; Propor cria aprovação quando assim definido; Agente não contorna essas permissões.
 6. **Dados por campo e procedência:** guardar origem e momento de atualização para valores importados/enriquecidos. CSV atualiza campos mapeados não vazios; preenchimento automático completa vazios; uma fonte externa não sobrepõe correção manual sem confirmação.
@@ -136,9 +136,11 @@ Portas `Fonte*` já existentes devem ser preservadas como costura de UI/adapters
 
 #### Identidade e Workspace
 
-- Cadastro público sem convite cria uma identidade Auth verificada e, no primeiro acesso do novo usuário, um Workspace próprio com Membership Administrador.
-- A entrada em Workspace já existente é somente por convite dirigido à identidade/e-mail, com aceite autenticado. Domínio de e-mail não concede acesso automaticamente.
-- Remover uma Membership não apaga a identidade global nem o histórico comercial do Workspace.
+- Revisão de 2026-09-25 ([ADR-0011](../../docs/adr/0011-workspace-pessoal-independente-da-empresa.md)): toda nova Conta de usuário verificada recebe um Workspace pessoal, inicialmente com o nome da pessoa e Participação de Administrador, inclusive no cadastro por convite. Ele permite convidados e plano próprio; o Workspace da empresa é criado por escolha explícita. A [spec de autenticação](../autenticacao-google-email/spec.md) detalha o fluxo e prevalece sobre descrições anteriores de um único Workspace inicial.
+- A entrada em Workspace já existente é somente por convite dirigido à identidade/e-mail, com aceite autenticado. O domínio corporativo verificado pode sugerir um Workspace da empresa correspondente, mas não concede acesso automaticamente.
+- Remover uma Participação não apaga a Conta de usuário, seu Workspace pessoal nem o histórico comercial do Workspace.
+- O Titular do Workspace pessoal não pode ser removido nem rebaixado nele (CRM-03).
+- O criador sem convite faz o onboarding no Workspace pessoal. O Workspace da empresa nasce por ação explícita (CRM-22). A sugestão por domínio fica no CRM-23, e o onboarding operacional no CRM-24.
 - Impedir remoção/rebaixamento do último Administrador.
 - Estado de convite (pendente, aceito, expirado, revogado) e alterações de papel ficam auditáveis.
 
@@ -197,9 +199,9 @@ Portas `Fonte*` já existentes devem ser preservadas como costura de UI/adapters
 
 #### Stack e limites
 
-- **Supabase Auth:** identidade, verificação, sessão e recuperação de acesso.
+- **Supabase Auth:** identidade, verificação, sessão e recuperação de acesso, com Google e link/código por e-mail ([ADR-0012](../../docs/adr/0012-supabase-auth-como-identidade.md); fluxo na [spec de autenticação](../autenticacao-google-email/spec.md)).
 - **Postgres:** fonte de verdade operacional multi-tenant, com UUIDs permanentes, chaves estrangeiras, `workspace_id`, constraints e RLS. RPCs transacionais para bootstrap do Workspace, convite/aceite, roleta/transferência, import commit, arquivamento e apagamento/anonymização.
-- **Edge Functions:** operações privilegiadas, modelo/fornecedor, assinatura/validação de webhook, início de OAuth/Hosted Auth e comandos que exigem segredo. Validar JWT/membership para tráfego de usuário; callbacks/webhooks validam assinatura própria. `service_role` nunca chega ao browser.
+- **Edge Functions:** operações privilegiadas, modelo/fornecedor, assinatura/validação de webhook, início de OAuth/Hosted Auth e comandos que exigem segredo. Validar JWT/Participação para tráfego de usuário; callbacks/webhooks validam assinatura própria. `service_role` nunca chega ao browser.
 - **Supabase Storage privado:** CSV temporário, documentos e anexos protegidos por Workspace/titular, URLs assinadas curtas e políticas de retenção/apagamento.
 - **Supabase Queues/PGMQ + Cron + workers:** tarefas duráveis de importação, coleta de Sinais, processamento de mensagens, execução de Sequências, callbacks e reconciliação. Claim/lease, idempotência, retry/backoff, dead-letter, concorrência limitada e logs correlacionados.
 - **Realtime/stream:** atualização de estado e feed da UI a partir de registros persistidos, sem ser a fonte primária da verdade.
@@ -214,7 +216,7 @@ O modelo físico pode separar/especializar relações para minimizar duplicaçã
 
 #### Segurança e observabilidade
 
-- RLS deny-by-default; testar isolamento entre dois Workspaces e ausência de privilégio de usuário sem membership ativa.
+- RLS deny-by-default; testar isolamento entre dois Workspaces e ausência de privilégio de usuário sem Participação ativa.
 - Toda transição privilegiada também verifica autorização no servidor/RPC; frontend não decide papel ou atribuição.
 - Chaves secretas somente em secrets de ambiente/backend. Dados de mensagem, documentos e tokens têm política de acesso menor que dados de Conta compartilhados.
 - `audit_events` guarda ator, Workspace, ação, alvo, resultado, timestamp, correlação e origem sem copiar segredos/PII desnecessária.
@@ -234,7 +236,7 @@ Para cada campo externo/importado guardar origem, identificador da fonte, horár
 
 ### Fases de entrega
 
-As fases são incrementais na mesma aplicação, banco e contratos. Um módulo só muda para modo real quando suas migrações, RLS, backend, adapter, configuração, observabilidade e fluxos de erro estão implantados juntos.
+As fases são incrementais na mesma aplicação, banco e contratos. Um módulo só passa a operar no Workspace operacional quando suas migrações, RLS, backend, adapter, configuração, observabilidade e fluxos de erro estão implantados juntos.
 
 #### Fase 0 — Base de tenant e corte demo/real
 
@@ -272,7 +274,7 @@ Foto/logotipo/enriquecimento, Actors/fontes adicionais de Sinais via Apify, CRM/
 - A roleta não duplica nem perde atribuição em requisições concorrentes; só participantes ativos entram; URL já existente não avança cursor.
 - Arquivamento, restauração e apagamento seguem regras aprovadas; passos pendentes cancelados e PII removida conforme pedido.
 - Todos os estados de tela atuais continuam corretos com dados reais: carregando, vazio, falha, retry, filtros, navegação de retorno e erro de entidade ausente.
-- Workspaces reais não recebem fixtures nem resultados roteirizados. Demo mantém o selo e banco/fonte separados.
+- Workspaces operacionais não recebem fixtures nem resultados roteirizados. Demo mantém o selo e banco/fonte separados.
 - Foto pública consultada via Apify é exibida quando disponível; foto ausente/expirada usa o fallback visual atual e não quebra contato nem lista.
 - Sinal exibido como real possui fonte/evidência/data; duplicata não renova Quente; estado aparece coerente na listagem e detalhe da Conta.
 - Conversa, execução, proposta e aprovação podem ser retomadas após refresh e não são duplicadas por retry.
@@ -292,9 +294,9 @@ Foto/logotipo/enriquecimento, Actors/fontes adicionais de Sinais via Apify, CRM/
 
 - Um bom teste verifica o comportamento observável na interface e os efeitos persistidos/retornados por uma operação real; não depende de nomes de componentes, hooks, tabelas internas ou detalhes do SDK.
 - O seam principal será o app renderizado e operado como usuário, com adapters de domínio reais e isolados por Workspace. Os fluxos prioritários atravessam cadastro → Workspace → Conta/Contato → import/roleta → Sinal → Agente/Aprovação → Sequência/canal.
-- Testes de integração de banco e funções validam RLS, membership, último Administrador, ownership, constraints, idempotência, roleta concorrente, anonimização, callbacks assinados e separação de conteúdo privado. Cobrem contratos de segurança no servidor, além da experiência visível.
+- Testes de integração de banco e funções validam RLS, Participação, último Administrador, ownership, constraints, idempotência, roleta concorrente, anonimização, callbacks assinados e separação de conteúdo privado. Cobrem contratos de segurança no servidor, além da experiência visível.
 - Testes de provider usam fixtures contratuais para respostas/erros de Apify e Unipile e verificam normalização, ausência de foto, URL expirada, rate limit, retries e deduplicação sem depender de serviço externo em cada execução.
-- Testes end-to-end exercitam signup, verificação/retorno, convite, CSV com preview e commit, Conta/Contato, Sinal e a jornada de Sequência com estados de conexão e aprovação. Ter um workspace/demo seed isolado não autoriza compartilhar fixtures no modo real.
+- Testes end-to-end exercitam signup, verificação/retorno, convite, CSV com preview e commit, Conta/Contato, Sinal e a jornada de Sequência com estados de conexão e aprovação. Ter um workspace/demo seed isolado não autoriza compartilhar fixtures no Workspace operacional.
 - Priorizar os testes comportamentais já usados pelo frontend renderizado, migrações/pgTAP de Supabase e os testes de integração das Edge Functions; expandir cobertura somente junto a cada ticket funcional.
 - Execução real depende de credenciais/ambiente de teste para Auth, Supabase, Apify e Unipile. Teste com stub prova contrato; só teste contra provider prova credenciais, permissão e configuração remota.
 
@@ -309,11 +311,11 @@ Foto/logotipo/enriquecimento, Actors/fontes adicionais de Sinais via Apify, CRM/
 
 ## Further Notes
 
-**Estado observado do backend:** no projeto Supabase consultado, existem migrations parciais de membership/responsabilidade/Sequências, schema geral de CRM ainda ausente e nenhuma Edge Function implantada. Código local e documentação de migrations não significam deploy remoto. A primeira fase precisa reconciliar os ambientes.
+**Estado observado do backend:** no projeto Supabase consultado, existem migrations parciais de Participação/responsabilidade/Sequências, schema geral de CRM ainda ausente e nenhuma Edge Function implantada. Código local e documentação de migrations não significam deploy remoto. A primeira fase precisa reconciliar os ambientes.
 
 **Provedores:** Apify foi escolhido para Sinais externos e consulta de foto por URL pública de LinkedIn; o Actor concreto e seus limites, custo, retenção e qualidade serão validados no ticket de integração. Unipile v1 é o primeiro provedor de canais pessoais. Apify não substitui o provedor de canais e Unipile não substitui coleta de Sinais.
 
-**Fases:** base de acesso/tenant → Workspace/CRM/CSV/roleta → (opcional antecipar) canais Unipile/ciclos via `.scratch/canais-cadencia-backend/` → Sinais/Apify → Configurações/Agentes/Conversas/Aprovações → migração Seq↔Conta UUID no CRM + consumo dos ciclos canais → enriquecimento e conectores adicionais. Cada fase deixa uma jornada real utilizável e não cruza fixtures para o modo real. Detalhe operacional em `.scratch/ORDEM-BUILD-FUNCIONAL.md`.
+**Fases:** base de acesso/tenant → Workspace/CRM/CSV/roleta → (opcional antecipar) canais Unipile/ciclos via `.scratch/canais-cadencia-backend/` → Sinais/Apify → Configurações/Agentes/Conversas/Aprovações → migração Seq↔Conta UUID no CRM + consumo dos ciclos canais → enriquecimento e conectores adicionais. Cada fase deixa uma jornada real utilizável e não cruza fixtures para o Workspace operacional. Detalhe operacional em `.scratch/ORDEM-BUILD-FUNCIONAL.md`.
 
 **Glossário e ADRs:** usar os termos de `CONTEXT.md`; manter ADRs 0002–0009. A regra nova de roleta já foi registrada no glossário; esta spec não substitui as ADRs de Sinais, Coordenação, privacidade de remetentes e responsabilidade exclusiva.
 

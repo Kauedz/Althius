@@ -2,11 +2,13 @@
 
 Status: ready-for-agent
 
+> Revisão de domínio em 2026-09-25: a [ADR-0011](../../docs/adr/0011-workspace-pessoal-independente-da-empresa.md) estabelece um Workspace pessoal automático para toda nova Conta de usuário, inclusive convidados. As referências abaixo a convidado sem criação de Workspace continuam descrevendo o protótipo original; na integração real significam não criar outro Workspace **da empresa**. Na integração real, o "Workspace criado automaticamente" do criador é o Workspace pessoal: o criador sem convite faz o Day0 nele, e o nome da empresa informado não o renomeia nem cria um Workspace da empresa, que nasce depois por ação explícita. Detalhes em [Autenticação](../autenticacao-google-email/spec.md).
+
 ## Problem Statement
 
-Após o login, o Cliente da Althius precisa entrar num Workspace pronto para demonstrar o valor do Revenue OS sem configurar autenticação e sem seed de Contas-alvo, começando com uma base mínima sobre o próprio negócio em vez de campos em branco. Hoje não existe rota `/onboarding`: o protótipo assume um Workspace já povoado e não guia o criador nem o convidado pelas decisões mínimas de Day0 nem pelo caminho até o aha (mini-ICP e lógica de produto → Persona → Sinal → Conta-alvo com Sinal → Cadência → reunião).
+Após o login, o Cliente da Althius precisa entrar num Workspace pronto para demonstrar o valor do Revenue OS sem configurar autenticação e sem seed de Contas-alvo, começando com uma base mínima sobre o próprio negócio em vez de campos em branco. Hoje não existe rota `/onboarding`: o protótipo assume um Workspace já povoado e não guia o criador nem o convidado pelas decisões mínimas de Day0 nem pelo caminho até o aha (mini-ICP e lógica de produto → Persona → Sinal → Conta-alvo com Sinal → Sequência → reunião).
 
-O onboarding v1 precisa cobrir dois caminhos distintos (criador por padrão e convidado apenas via link de convite, sem perguntar ao usuário qual é o seu caso), um Day0 leve com pills de papel, empresa, domínio do site e HDYHAU, um passo de convite sempre pulável, navegação clara de wizard e um checklist de três itens alinhado ao Norte — sem cadência no checklist e sem trabalho de Clerk/auth/Google. A IA entra apenas numa leitura mínima do site do Cliente, que serve de base editável para o checklist; nenhuma outra etapa usa IA. O Workspace deve nascer automaticamente no estilo Notion para o criador; o nome da empresa no Day0 apenas sugere o nome do Workspace/Cliente e não semeia Contas-alvo, e o domínio do site fornece o logo do Workspace.
+O onboarding v1 precisa cobrir dois caminhos distintos (criador por padrão e convidado apenas via link de convite, sem perguntar ao usuário qual é o seu caso), um Day0 leve com pills de papel, empresa, domínio do site e HDYHAU, um passo de convite sempre pulável, navegação clara de wizard e um checklist de três itens alinhado ao Norte — sem Sequência no checklist e sem trabalho de Clerk/auth/Google. A IA entra apenas numa leitura mínima do site do Cliente, que serve de base editável para o checklist; nenhuma outra etapa usa IA. O Workspace deve nascer automaticamente no estilo Notion para o criador; o nome da empresa no Day0 apenas sugere o nome do Workspace/Cliente e não semeia Contas-alvo, e o domínio do site fornece o logo do Workspace.
 
 A entrega é um protótipo navegável com Fonte simulada (ADR 0003): UI + Fonte + stubs do checklist. Mini-ICP e Personas do Workspace ainda não existem no App (apenas mockups); Contato.persona não é Persona do Workspace; Memória do Agente não é Memória do Workspace; Sinais, Conta-com-sinal e Sequências já existem e devem ser reaproveitados onde couber.
 
@@ -22,14 +24,14 @@ Dois caminhos, sem pergunta "vai criar Workspace ou foi convidado?":
 
 Leitura mínima do site (única IA do onboarding): a partir do domínio informado pelo criador, a Fonte executa uma operação assíncrona de leitura do site ("ler site") que devolve o que a empresa vende, o ICP provável e as personas possíveis, considerando para quem ela vende. O resultado é só uma base editável: pré-preenche o item 1 do checklist (mini-ICP + lógica de produto) e o item 2 (Persona); o usuário pode editar ou descartar. Leitura lenta ou com falha não bloqueia o onboarding: os campos ficam vazios e editáveis. No protótipo, a Fonte simulada devolve uma leitura fixa após um carregamento curto; a implementação real com IA se conecta depois, com backend, à mesma interface. A UI do onboarding nunca chama um modelo diretamente.
 
-Checklist v1 (somente estes três itens; Cadência fora dos itens):
+Checklist v1 (somente estes três itens; Sequência fora dos itens):
 1. Mini-ICP + lógica curta de produto (`miniIcp`, `oQueVende`, `porQueCompram`) — campos curtos na Fonte, pré-preenchidos pela leitura do site (não placeholders vazios quando a leitura existe); editáveis.
 2. Persona — base editável com as personas possíveis vindas da leitura do site, alinhada ao Norte; sem módulo Mike Pono / ICP completo.
 3. Configurar/entender Sinal de compra — abrir a experiência existente em `/sinais` é suficiente; não forçar criação de Monitoramento.
 
-Depois do checklist, o onboarding guia os próximos passos na ordem sinal de compra → Contas-alvo indicadas → criar Cadência. Contas-alvo indicadas e Cadência aparecem como próximos passos guiados (dica e links para as experiências existentes de Conta-com-sinal e Sequências), não como novos itens do checklist nem motores reais.
+Depois do checklist, o onboarding guia os próximos passos na ordem sinal de compra → Contas-alvo indicadas → criar Sequência. Contas-alvo indicadas e Sequência aparecem como próximos passos guiados (dica e links para as experiências existentes de Conta-com-sinal e Sequências), não como novos itens do checklist nem motores reais.
 
-Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de estado do wizard, da leitura e do checklist apenas na Fonte simulada (único seam de teste). Estado e progresso permanecem coerentes ao reabrir. O aha completo do Norte (ICP+produto → Persona → Sinal → Conta-alvo com Sinal → Cadência → reunião) orienta a narrativa; nesta entrega a Cadência e a reunião ficam fora dos itens do checklist (reunião no App é só status de demo).
+Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de estado do wizard, da leitura e do checklist apenas na Fonte simulada (único seam de teste). Estado e progresso permanecem coerentes ao reabrir. O aha completo do Norte (ICP+produto → Persona → Sinal → Conta-alvo com Sinal → Sequência → reunião) orienta a narrativa; nesta entrega a Sequência e a reunião ficam fora dos itens do checklist (reunião no App é só status de demo).
 
 ## User Stories
 
@@ -69,8 +71,8 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 34. Como usuário, quero entender que Contato.persona não é Persona do Workspace, para não confundir classificação de Contato com definição compartilhada.
 35. Como usuário, quero que o item 3 do checklist abra a experiência existente de `/sinais`, para configurar ou entender um Sinal de compra sem forçar Monitoramento.
 36. Como usuário, quero que abrir `/sinais` conte como progresso suficiente do item 3, para não exigir criação de Monitoramento nesta v1.
-37. Como usuário, quero que a Cadência fique fora dos itens do checklist v1, para manter o escopo alinhado às decisões travadas.
-38. Como usuário, quero que, depois do checklist, o onboarding me guie para Contas-alvo indicadas e depois para criar a Cadência, como próximos passos com links para as experiências existentes, para seguir o caminho do aha sem novos motores nesta entrega.
+37. Como usuário, quero que a Sequência fique fora dos itens do checklist v1, para manter o escopo alinhado às decisões travadas.
+38. Como usuário, quero que, depois do checklist, o onboarding me guie para Contas-alvo indicadas e depois para criar a Sequência, como próximos passos com links para as experiências existentes, para seguir o caminho do aha sem novos motores nesta entrega.
 39. Como usuário, quero que reunião continue sendo apenas status de demo no App, para não tratar o onboarding como agendamento real.
 40. Como usuário, quero pular itens do checklist quando a UX permitir skip, para não ficar bloqueado se quiser explorar a home antes.
 41. Como usuário, quero reabrir o onboarding ou o checklist com o progresso persistido na Fonte, para continuar de onde parei.
@@ -92,10 +94,10 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 57. Como responsável pelo produto, quero um único seam de teste na Fonte de onboarding (Workspace/usuário), incluindo a operação de leitura do site, para ler e escrever wizard e checklist e obter a leitura sem outras fronteiras.
 58. Como responsável pelo produto, quero que a implementação real de IA da leitura do site se conecte depois, com backend, à mesma interface da Fonte usada pelo protótipo, para trocar a leitura simulada pela real sem mudar a UI do onboarding.
 59. Como responsável pelo produto, quero que testes não assumam uma única Fonte global para mocks de Sinais, para respeitar a realidade do código atual.
-60. Como usuário, quero linguagem alinhada ao glossário (Workspace, Cliente, Conta-alvo, Persona, Sinal, Cadência, Administrador/Membro), para não ver “org”, “tenant” ou “lead”.
+60. Como usuário, quero linguagem alinhada ao glossário (Workspace, Cliente, Conta-alvo, Persona, Sinal, Sequência, Administrador/Membro), para não ver “org”, “tenant” ou “lead”.
 61. Como usuário, quero que Memória do Agente e Memória do Workspace não sejam tratadas como a mesma coisa no onboarding, para evitar confusão de domínio.
 62. Como criador com papel Outro, quero concluir o Day0 sem campos extras obrigatórios, para o pill Outro não virar formulário aberto nesta v1.
-63. Como usuário, quero que o checklist comunique a ordem Norte (produto/ICP → Persona → Sinal), seguida de Contas-alvo indicadas e Cadência como próximos passos, para aprender o caminho do aha.
+63. Como usuário, quero que o checklist comunique a ordem Norte (produto/ICP → Persona → Sinal), seguida de Contas-alvo indicadas e Sequência como próximos passos, para aprender o caminho do aha.
 64. Como usuário que reabre o onboarding já concluído, quero um comportamento claro (não reexecutar Day0 destrutivo), para não perder estado simulado.
 65. Como usuário, quero que convites no passo pulável sejam só UI, sem e-mail real nem membership, para manter o protótipo front-end.
 66. Como usuário, quero que após aterrar em `/` eu possa usar a Casca normalmente, para explorar Contas, Sinais e Sequências com o contexto do Workspace criado ou simulado.
@@ -107,8 +109,8 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 72. Como usuário, quero que pular um item permitido do checklist ainda me permita aterrar em `/`, para explorar o produto e voltar depois.
 73. Como usuário, quero que a persistência na Fonte sobreviva a refresh na rota `/onboarding`, para o protótipo refletir estado de onboarding do usuário/Workspace.
 74. Como criador, quero que a criação automática do Workspace ocorra uma vez no fluxo de criador, para não duplicar Workspace a cada reabertura.
-75. Como usuário, quero que a UI do onboarding nunca chame um modelo diretamente e que nenhuma outra etapa gere texto com IA (copy, HDYHAU, Cadência), para que a IA fique restrita à operação de leitura do site na Fonte.
-76. Como usuário, quero que a narrativa do aha mencione Conta-alvo com Sinal e Cadência como passos seguintes ao checklist, para alinhar expectativa sem expandir escopo.
+75. Como usuário, quero que a UI do onboarding nunca chame um modelo diretamente e que nenhuma outra etapa gere texto com IA (copy, HDYHAU, Sequência), para que a IA fique restrita à operação de leitura do site na Fonte.
+76. Como usuário, quero que a narrativa do aha mencione Conta-alvo com Sinal e Sequência como passos seguintes ao checklist, para alinhar expectativa sem expandir escopo.
 
 ## Implementation Decisions
 
@@ -153,13 +155,13 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 - Campos do item 1 na Fonte: `miniIcp`, `oQueVende`, `porQueCompram`, pré-preenchidos pela leitura do site; vazios e editáveis se a leitura falhar.
 - Item 2: personas possíveis vindas da leitura, editáveis; sem módulo de Personas do Workspace.
 - Item 3: abrir `/sinais` é suficiente; não forçar criação de Monitoramento.
-- Cadência fora dos itens do checklist v1. Reunião permanece status de demo. Mike Pono / ICP completo = módulo futuro.
+- Sequência fora dos itens do checklist v1. Reunião permanece status de demo. Mike Pono / ICP completo = módulo futuro.
 - Distinguir Persona do Workspace (stub) de Contato.persona; Distinguir Memória do Workspace de Memória do Agente.
 
 ### Próximos passos guiados
 
-- Depois da leitura e do checklist, o onboarding guia na ordem sinal de compra → Contas-alvo indicadas → criar Cadência.
-- Contas-alvo indicadas e Cadência aparecem como próximos passos guiados (dica e links para as experiências existentes de Conta-com-sinal e Sequências), não como novos itens do checklist nem motores reais de indicação ou geração de Cadência.
+- Depois da leitura e do checklist, o onboarding guia na ordem sinal de compra → Contas-alvo indicadas → criar Sequência.
+- Contas-alvo indicadas e Sequência aparecem como próximos passos guiados (dica e links para as experiências existentes de Conta-com-sinal e Sequências), não como novos itens do checklist nem motores reais de indicação ou geração de Sequência.
 
 ### Fonte simulada (único seam)
 
@@ -171,7 +173,7 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 
 ### Vocabulário
 
-- Usar Workspace (não org/tenant), Cliente, Conta-alvo, Persona, Sinal, Cadência, Administrador/Membro conforme CONTEXT.md.
+- Usar Workspace (não org/tenant), Cliente, Conta-alvo, Persona, Sinal, Sequência, Administrador/Membro conforme CONTEXT.md.
 - Interface e conteúdo em pt-BR, desktop, coerentes com o selo de Demonstração onde aplicável.
 
 ## Testing Decisions
@@ -193,10 +195,10 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 7. A UI não chama modelo diretamente; a leitura do site só ocorre pela operação da Fonte.
 8. Wizard mostra indicador de progresso; Voltar e Continuar funcionam em todos os passos, Voltar preserva dados e nenhum passo fica sem saída.
 9. Criador vê passo de convite e o pula; Day0 permanece íntegro; avança ao checklist.
-10. Checklist mostra três itens na ordem Norte; Cadência não aparece como item.
+10. Checklist mostra três itens na ordem Norte; Sequência não aparece como item.
 11. Item 2 apresenta Persona como base editável sem confundir com Contato.persona.
 12. Item 3 navega para `/sinais`; abrir a experiência conta como progresso suficiente sem forçar Monitoramento.
-13. Após o checklist, aparecem os próximos passos guiados (Contas-alvo indicadas → criar Cadência) como links para experiências existentes, não como itens do checklist.
+13. Após o checklist, aparecem os próximos passos guiados (Contas-alvo indicadas → criar Sequência) como links para experiências existentes, não como itens do checklist.
 14. Skip permitido de item ou de convite ainda permite aterrar em `/`.
 15. Conclusão do fluxo aterra em `/` dentro da Casca.
 16. Reabrir `/onboarding` restaura progresso da Fonte; criador não duplica Workspace.
@@ -214,9 +216,9 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 - Clerk, autenticação, login Google, sessões reais e recovery de conta.
 - Tokens de convite reais, módulo Pessoas, membership real, e-mail ou notificações de convite.
 - Seed de Contas-alvo a partir da empresa do Day0.
-- IA real além da leitura mínima do site: sem IA para copy, sem IA no HDYHAU, sem geração de Cadência por IA.
+- IA real além da leitura mínima do site: sem IA para copy, sem IA no HDYHAU, sem geração de Sequência por IA.
 - Implementação real de IA da leitura do site e backend que a sustente (no protótipo a leitura é simulada pela Fonte).
-- Cadência como item do checklist v1; execução real de sequências no onboarding; motores reais de indicação de Contas-alvo.
+- Sequência como item do checklist v1; execução real de sequências no onboarding; motores reais de indicação de Contas-alvo.
 - Agendamento real de reunião; reunião além do status de demo existente.
 - ICP profundo / módulo Mike Pono (fica para depois); Memória do Workspace completa; Personas do Workspace como módulo de produto.
 - Monitoramento obrigatório no item 3; redesenho do módulo Sinais.
@@ -228,7 +230,7 @@ Fora da leitura mínima do site, nada no onboarding usa IA. Persistência de est
 
 ## Further Notes
 
-- Norte do aha (narrativa): lógica de ICP+produto → Persona → Sinal → Conta-alvo com Sinal → Cadência → reunião. Nesta v1 o checklist cobre só os três primeiros elos práticos (mini-ICP/produto, Persona, abrir Sinais); Contas-alvo indicadas e Cadência aparecem como próximos passos guiados.
+- Norte do aha (narrativa): lógica de ICP+produto → Persona → Sinal → Conta-alvo com Sinal → Sequência → reunião. Nesta v1 o checklist cobre só os três primeiros elos práticos (mini-ICP/produto, Persona, abrir Sinais); Contas-alvo indicadas e Sequência aparecem como próximos passos guiados.
 - ADR 0003 orienta o protótipo simulado: front-end, dados simulados, demonstração com cara de real e selo de Demonstração.
 - Código atual: Sinais, Conta-com-sinal e Sequências existem; mini-ICP e Personas do Workspace não; reunião é demo; `/onboarding` ainda não existe.
 - A leitura fixa da Fonte simulada deve ser conteúdo demonstrativo coerente com um Cliente B2B de exemplo, não texto vazio.

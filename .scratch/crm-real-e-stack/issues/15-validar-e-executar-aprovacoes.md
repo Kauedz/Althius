@@ -8,7 +8,7 @@
 
 - [ ] Proposta e Aprovação persistem com autor, Workspace, integração, ação, payload, estado e timestamp.
 - [ ] Ações com permissão Propor aguardam aprovação; Executar segue as permissões específicas definidas sem contornar controles.
-- [ ] Backend valida papel, membership, permissão e estado da Aprovação imediatamente antes de executar.
+- [ ] Backend valida papel, Participação, permissão e estado da Aprovação imediatamente antes de executar.
 - [ ] Payload alterado materialmente invalida a decisão anterior e requer nova aprovação.
 - [ ] Aprovar, recusar, cancelar, expirar e falhar são estados visíveis e auditáveis.
 - [ ] Fila e detalhe reaproveitam a experiência atual e não exibem roteiros de demonstração no Workspace real.

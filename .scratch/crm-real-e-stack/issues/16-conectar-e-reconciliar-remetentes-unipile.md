@@ -16,7 +16,7 @@
 
 **Status:** superseded
 
-- [ ] OAuth/Hosted Auth começa por operação autenticada no backend que valida Workspace, membership e titular.
+- [ ] OAuth/Hosted Auth começa por operação autenticada no backend que valida Workspace, Participação e titular.
 - [ ] Segredo Unipile não sai do backend; callbacks validam a conta retornada antes de persistir conexão.
 - [ ] UI diferencia aguardando, conectando, pronta, reconciliação pendente, revogada e falha usando estado do provedor.
 - [ ] Somente o titular acessa dados/credenciais privados; outros membros não tomam posse por papel administrativo.
