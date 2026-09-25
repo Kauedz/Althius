@@ -372,10 +372,17 @@ WS_A=$(workspace_salvo TESTE_WORKSPACE_A)
 WS_B=$(workspace_salvo TESTE_WORKSPACE_B)
 write_env TESTE_WORKSPACE_A "$WS_A"
 write_env TESTE_WORKSPACE_B "$WS_B"
-# Só ASCII no SQL: o clip.exe do Windows estraga acentos ao copiar.
+# Só ASCII no SQL: o clip.exe do Windows estraga acentos ao copiar. A tabela de Workspaces tem a forma do
+# Auth-02 (kind 'empresa'); a variante type 'company' ainda existe em projetos que não foram reconciliados.
 SQL="do \$\$
 begin
-  if to_regclass('public.workspaces') is not null then
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'workspaces' and column_name = 'kind') then
+    insert into public.workspaces (id, kind, name) values
+      ('$WS_A'::uuid, 'empresa', 'Teste real - Workspace A'),
+      ('$WS_B'::uuid, 'empresa', 'Teste real - Workspace B')
+    on conflict (id) do nothing;
+  elsif to_regclass('public.workspaces') is not null then
     insert into public.workspaces (id, name, type) values
       ('$WS_A'::uuid, 'Teste real - Workspace A', 'company'),
       ('$WS_B'::uuid, 'Teste real - Workspace B', 'company')
