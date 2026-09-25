@@ -228,8 +228,6 @@ export const CAMPOS: Record<Formulario, Campo[]> = {
   ],
 }
 
-export type Criterios = Record<string, string | string[]>
-
 /** Valores iniciais de um Monitoramento novo: os do tipo e, no resto, a primeira opção de cada campo. */
 export function criteriosIniciais(tipo: TipoDeSinal): Criterios {
   const formulario = formularioDoTipo(tipo)

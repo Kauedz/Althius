@@ -4,13 +4,13 @@
 
 **Blocked by:** 01: Acesso real e responsabilidade exclusiva.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] O Vendedor responsável cadastra e consulta e-mail, número de WhatsApp normalizado e identidade LinkedIn reais nos Contatos participantes.
-- [ ] A Sequência persiste participantes confirmados, passos ordenados, conteúdo, objetivo, delay em dias úteis, janela e canal.
-- [ ] Somente E-mail, LinkedIn e WhatsApp podem ser gravados em passos novos ou alterados; o backend rejeita canais fora do escopo.
-- [ ] Lista, detalhe da Conta-alvo e Conversa refletem a mesma versão persistida da Sequência sem divergência entre sessões.
-- [ ] Outro participante vê apenas o resumo público e não recebe o documento privado para ser ocultado somente no navegador.
-- [ ] Dados fictícios, métricas de demonstração e destinos de exemplo não podem autorizar nem alimentar execução real.
-- [ ] A aparência existente permanece, exceto pela retirada funcional de SMS, Ligação e Tarefa.
+- [x] O Vendedor responsável cadastra e consulta e-mail, número de WhatsApp normalizado e identidade LinkedIn reais nos Contatos participantes.
+- [x] A Sequência persiste participantes confirmados, passos ordenados, conteúdo, objetivo, delay em dias úteis, janela e canal.
+- [x] Somente E-mail, LinkedIn e WhatsApp podem ser gravados em passos novos ou alterados; o backend rejeita canais fora do escopo.
+- [x] Lista, detalhe da Conta-alvo e Conversa refletem a mesma versão persistida da Sequência sem divergência entre sessões.
+- [x] Outro participante vê apenas o resumo público e não recebe o documento privado para ser ocultado somente no navegador.
+- [x] Dados fictícios, métricas de demonstração e destinos de exemplo não podem autorizar nem alimentar execução real.
+- [x] A aparência existente permanece, exceto pela retirada funcional de SMS, Ligação e Tarefa.
 

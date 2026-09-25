@@ -1,17 +1,37 @@
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO, criarSequenciasIniciais } from './dados-sequencias-demo'
-import type {
-  AtualizacaoDocumento,
-  FonteDeSequencias,
-  MetricasDemoSequencia,
-  NovaSequencia,
-  Sequencia,
+import {
+  ehCanalSuportado,
+  type AtualizacaoDocumento,
+  type FonteDeSequencias,
+  type MetricasDemoSequencia,
+  type NovaSequencia,
+  type ResumoPublicoSequencia,
+  type Sequencia,
+  type StepSequencia,
 } from './sequencias-tipos'
+
+function validarStepsAlteradosOuNovos(novosSteps?: StepSequencia[], stepsAntigos?: StepSequencia[]): void {
+  if (!novosSteps) return
+  for (const step of novosSteps) {
+    const antigo = stepsAntigos?.find((s) => s.id === step.id)
+    const foiAlterado =
+      !antigo ||
+      antigo.canal !== step.canal ||
+      antigo.corpo !== step.corpo ||
+      antigo.titulo !== step.titulo ||
+      antigo.assunto !== step.assunto
+    if (foiAlterado && !ehCanalSuportado(step.canal)) {
+      throw new Error(`Canal "${step.canal}" fora do escopo. Apenas E-mail, LinkedIn e WhatsApp são permitidos.`)
+    }
+  }
+}
 
 export interface OpcoesFonteDeSequenciasSimulada {
   atrasoMs?: number
   hoje?: Date
   falha?: boolean
   vazia?: boolean
+  armazenamento?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 }
 
 export interface FonteDeSequenciasSimulada extends FonteDeSequencias {
@@ -21,15 +41,36 @@ export interface FonteDeSequenciasSimulada extends FonteDeSequencias {
 
 /**
  * Cria a implementação simulada da FonteDeSequencias (ADR 0003).
- * Suporta opções para testes (atraso, data de hoje fixa, falha e lista vazia).
+ * Suporta opções para testes (atraso, data de hoje fixa, falha, persistência e lista vazia).
  */
 export function criarFonteDeSequenciasSimulada(
   opcoes: OpcoesFonteDeSequenciasSimulada = {},
 ): FonteDeSequenciasSimulada {
-  let { atrasoMs = 0, hoje = new Date(), falha = false, vazia = false } = opcoes
+  const CHAVE_STORAGE = 'althius:sequencias:v1'
+  let { atrasoMs = 0, hoje = new Date(), falha = false, vazia = false, armazenamento } = opcoes
   const ouvintes = new Set<() => void>()
 
   let dados: Sequencia[] = vazia ? [] : criarSequenciasIniciais(hoje)
+
+  if (armazenamento && !vazia) {
+    try {
+      const bruto = armazenamento.getItem(CHAVE_STORAGE)
+      if (bruto) {
+        dados = JSON.parse(bruto)
+      }
+    } catch {
+      // Ignora erro de leitura do armazenamento
+    }
+  }
+
+  function salvar(): void {
+    if (!armazenamento) return
+    try {
+      armazenamento.setItem(CHAVE_STORAGE, JSON.stringify(dados))
+    } catch {
+      // Ignora erro de gravacao
+    }
+  }
 
   function notificar(): void {
     for (const ouvinte of ouvintes) {
@@ -59,6 +100,7 @@ export function criarFonteDeSequenciasSimulada(
     definirVazia(novaVazia: boolean) {
       vazia = novaVazia
       dados = vazia ? [] : criarSequenciasIniciais(hoje)
+      salvar()
       notificar()
     },
 
@@ -94,6 +136,7 @@ export function criarFonteDeSequenciasSimulada(
 
     async criarSequencia(nova: NovaSequencia): Promise<Sequencia> {
       await aguardar()
+      validarStepsAlteradosOuNovos(nova.steps, [])
       const jaExiste = dados.some((s) => s.contaId === nova.contaId)
       if (jaExiste) {
         throw new Error(`Conta-alvo "${nova.contaId}" já possui uma sequência`)
@@ -114,6 +157,7 @@ export function criarFonteDeSequenciasSimulada(
       }
 
       dados = [criada, ...dados]
+      salvar()
       notificar()
       return { ...criada, steps: [...criada.steps], participantesIds: [...criada.participantesIds] }
     },
@@ -126,6 +170,7 @@ export function criarFonteDeSequenciasSimulada(
       }
 
       const atual = dados[indice]
+      validarStepsAlteradosOuNovos(atualizacao.steps, atual.steps)
       const novosParticipantes = atualizacao.participantesIds
         ? [...atualizacao.participantesIds]
         : atual.participantesIds
@@ -143,6 +188,7 @@ export function criarFonteDeSequenciasSimulada(
       }
 
       dados = dados.map((item, idx) => (idx === indice ? atualizada : item))
+      salvar()
       notificar()
       return { ...atualizada, steps: [...atualizada.steps], participantesIds: [...atualizada.participantesIds] }
     },
@@ -167,6 +213,24 @@ export function criarFonteDeSequenciasSimulada(
         totalSteps: encontrada.steps.length,
         respostas,
         reunioes: encontrada.status === 'reuniao' ? 1 : 0,
+      }
+    },
+
+    async resumoPublico(id: string): Promise<ResumoPublicoSequencia | null> {
+      await aguardar()
+      const encontrada = dados.find((s) => s.id === id)
+      if (!encontrada) {
+        return null
+      }
+      return {
+        id: encontrada.id,
+        contaId: encontrada.contaId,
+        status: encontrada.status,
+        totalParticipantes: encontrada.totalParticipantes,
+        totalSteps: encontrada.steps.length,
+        passoAtual: encontrada.passoAtual,
+        motivoPause: encontrada.motivoPause,
+        atualizadaEm: encontrada.atualizadaEm,
       }
     },
   }

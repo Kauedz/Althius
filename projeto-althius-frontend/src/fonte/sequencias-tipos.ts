@@ -10,6 +10,13 @@ export type CanalStep =
   | 'ligacao'
   | 'tarefa'
 
+export const CANAIS_SUPORTADOS = ['email', 'linkedin', 'whatsapp'] as const
+export type CanalSuportado = (typeof CANAIS_SUPORTADOS)[number]
+
+export function ehCanalSuportado(canal: string): canal is CanalSuportado {
+  return (CANAIS_SUPORTADOS as readonly string[]).includes(canal)
+}
+
 export type ModoEmail = 'auto' | 'manual'
 
 export type SubtipoLinkedIn = 'convite' | 'mensagem' | 'inmail'
@@ -85,6 +92,17 @@ export interface AtualizacaoDocumento {
   motivoPause?: string
 }
 
+export interface ResumoPublicoSequencia {
+  id: string
+  contaId: string
+  status: StatusSequencia
+  totalParticipantes: number
+  totalSteps: number
+  passoAtual: number
+  motivoPause?: string
+  atualizadaEm?: string
+}
+
 export interface MetricasDemoSequencia {
   sequenciaId: string
   status: StatusSequencia
@@ -123,4 +141,7 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Lê as métricas de demonstração de uma sequência. */
   metricasDeDemo(id: string): Promise<MetricasDemoSequencia | null>
+
+  /** Lê apenas a projeção pública da sequência (sem corpos, assuntos ou anexos privados). */
+  resumoPublico(id: string): Promise<ResumoPublicoSequencia | null>
 }
