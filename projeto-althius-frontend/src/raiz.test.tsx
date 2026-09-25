@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
@@ -23,10 +24,16 @@ const WORKSPACE_PESSOAL_DA_MARINA = { id: 'ws-pessoal-marina', kind: 'pessoal', 
 function abrirAlthius({
   ultimoAmbiente,
   ultimoWorkspace,
+  navegador,
   tabelas = {},
   rpcs = {},
   ...opcoes
-}: Parameters<typeof criarSupabaseFalso>[0] & { ultimoAmbiente?: 'real' | 'demonstracao'; ultimoWorkspace?: string } = {}) {
+}: Parameters<typeof criarSupabaseFalso>[0] & {
+  ultimoAmbiente?: 'real' | 'demonstracao'
+  ultimoWorkspace?: string
+  /** Como os serviços do navegador (Pwned Passwords) respondem; nenhum chama a rede. */
+  navegador?: OpcoesDosServicosFalsos
+} = {}) {
   if (ultimoAmbiente) localStorage.setItem('althius:modo_demo', String(ultimoAmbiente === 'demonstracao'))
   if (ultimoWorkspace) sessionStorage.setItem('althius:workspace', ultimoWorkspace)
   const supabase = criarSupabaseFalso({
@@ -34,9 +41,10 @@ function abrirAlthius({
     tabelas,
     rpcs: { bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas), ...rpcs },
   })
+  const { servicos, senhasConsultadas } = criarServicosDoNavegadorFalsos(navegador)
   const usuario = userEvent.setup()
-  render(<RaizDoAplicativo cliente={supabase.cliente} />)
-  return { ...supabase, usuario }
+  render(<RaizDoAplicativo cliente={supabase.cliente} servicos={servicos} />)
+  return { ...supabase, servicos, senhasConsultadas, usuario }
 }
 
 function participacao(workspaceId: string, role: 'admin' | 'member' = 'admin') {
@@ -527,7 +535,7 @@ describe('Cadastro com senha', () => {
     await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
 
     cleanup()
-    render(<RaizDoAplicativo cliente={supabase.cliente} />)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
 
     expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
     expect(screen.getByText(MARINA.email)).toBeInTheDocument()
@@ -783,7 +791,7 @@ describe('Esqueci a senha', () => {
     cleanup()
     window.history.replaceState(null, '', link.pathname + link.search)
     supabase.abrirLinkDeRedefinicao(MARINA.email)
-    render(<RaizDoAplicativo cliente={supabase.cliente} />)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
 
     await definirNovaSenha(supabase.usuario)
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
@@ -809,5 +817,116 @@ describe('Esqueci a senha', () => {
     expect(await screen.findByText(/O link de redefinição expirou ou já foi usado/)).toBeInTheDocument()
     await usuario.click(screen.getByRole('link', { name: 'Pedir um novo link' }))
     expect(await screen.findByRole('heading', { name: 'Esqueci a senha' })).toBeInTheDocument()
+  })
+})
+
+describe('Bloqueio de senhas vazadas', () => {
+  const VAZADA = 'senha123senha123'
+  const BOA = 'correta cavalo bateria'
+  const MENSAGEM = 'Esta senha já apareceu em vazamentos de dados. Escolha outra senha.'
+
+  /** Preenche /cadastro (nome e e-mail só na primeira vez) com `senha` e confirma. */
+  async function tentarCadastro(usuario: ReturnType<typeof userEvent.setup>, senha: string) {
+    const campo = await screen.findByLabelText('Senha')
+    if (!screen.getByLabelText<HTMLInputElement>('Nome').value) {
+      await usuario.type(screen.getByLabelText('Nome'), 'Marina Souza')
+      await usuario.type(screen.getByLabelText('E-mail'), MARINA.email)
+    }
+    await usuario.clear(campo)
+    await usuario.type(campo, senha)
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+  }
+
+  /** A Marina pede a redefinição por código e chega à tela da nova senha. */
+  async function chegarANovaSenha(supabase: ReturnType<typeof abrirAlthius>) {
+    await supabase.usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await supabase.usuario.click(screen.getByRole('button', { name: 'Enviar código' }))
+    await supabase.usuario.type(await screen.findByLabelText('Código de 6 dígitos'), supabase.codigoEnviadoPara(MARINA.email)!)
+    await supabase.usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    await screen.findByRole('heading', { name: 'Defina uma nova senha' })
+  }
+
+  async function salvarNovaSenha(usuario: ReturnType<typeof userEvent.setup>, senha: string) {
+    const campo = screen.getByLabelText('Nova senha')
+    await usuario.clear(campo)
+    await usuario.type(campo, senha)
+    await usuario.click(screen.getByRole('button', { name: 'Salvar nova senha' }))
+  }
+
+  it('no cadastro, a senha vazada é recusada com mensagem clara e sem criar a conta; outra senha segue', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const { usuario, codigoEnviadoPara, nomeCadastrado } = abrirAlthius({ ultimoAmbiente: 'real', navegador: { senhasVazadas: [VAZADA] } })
+
+    await tentarCadastro(usuario, VAZADA)
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+    expect(nomeCadastrado(MARINA.email)).toBeUndefined()
+    expect(codigoEnviadoPara(MARINA.email)).toBeUndefined()
+
+    await tentarCadastro(usuario, BOA)
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+  })
+
+  it('na redefinição, a senha vazada é recusada com a mesma mensagem, sem trocar a senha', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const contas = [{ ...CONTA_DA_MARINA }]
+    const supabase = abrirAlthius({ ultimoAmbiente: 'real', contas, navegador: { senhasVazadas: [VAZADA] } })
+    await chegarANovaSenha(supabase)
+
+    await salvarNovaSenha(supabase.usuario, VAZADA)
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+    expect(contas[0].senha).toBe(CONTA_DA_MARINA.senha)
+    expect(screen.getByRole('heading', { name: 'Defina uma nova senha' })).toBeInTheDocument()
+
+    await salvarNovaSenha(supabase.usuario, BOA)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(contas[0].senha).toBe(BOA)
+  })
+
+  it('se a consulta de vazadas falhar, o cadastro e a redefinição seguem', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const cadastro = abrirAlthius({ ultimoAmbiente: 'real', navegador: { consultaDeVazadas: 'falha' } })
+    await tentarCadastro(cadastro.usuario, BOA)
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(cadastro.senhasConsultadas()).toEqual([BOA])
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    cleanup()
+    sessionStorage.clear()
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const contas = [{ ...CONTA_DA_MARINA }]
+    const redefinicao = abrirAlthius({ ultimoAmbiente: 'real', contas, navegador: { consultaDeVazadas: 'falha' } })
+    await chegarANovaSenha(redefinicao)
+    await salvarNovaSenha(redefinicao.usuario, BOA)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(contas[0].senha).toBe(BOA)
+  })
+
+  it('se a consulta de vazadas demorar, o cadastro segue depois de um tempo curto', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      window.history.replaceState(null, '', '/cadastro')
+      const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', navegador: { consultaDeVazadas: 'demora' } })
+      await tentarCadastro(usuario, BOA)
+      expect(screen.getByRole('button', { name: 'Criando…' })).toBeDisabled()
+
+      await act(() => vi.advanceTimersByTimeAsync(3_000))
+      expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a recusa weak_password do Supabase Auth mostra a mesma mensagem, no cadastro e na redefinição', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const cadastro = abrirAlthius({ ultimoAmbiente: 'real', senhasVazadasNoServidor: [VAZADA] })
+    await tentarCadastro(cadastro.usuario, VAZADA)
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+
+    cleanup()
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const redefinicao = abrirAlthius({ ultimoAmbiente: 'real', contas: [{ ...CONTA_DA_MARINA }], senhasVazadasNoServidor: [VAZADA] })
+    await chegarANovaSenha(redefinicao)
+    await salvarNovaSenha(redefinicao.usuario, VAZADA)
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
   })
 })
