@@ -1,7 +1,7 @@
 // Roteiros pré-gravados da Conversa e da Coordenação. Valem só para o protótipo (ADR 0003):
 // no produto real, os Agentes respondem de forma robusta a qualquer entrada.
 import { normalizarNome } from './mencoes'
-import type { AcaoProposta, AgenteId, Aprovacao, DocumentoDaMemoria, EspecialidadeId, SecaoDoDocumento, Sugestao } from './tipos'
+import type { AcaoProposta, AgenteId, AprovacaoDeAcao, DocumentoDaMemoria, EspecialidadeId, SecaoDoDocumento, Sugestao } from './tipos'
 
 /**
  * Um passo de roteiro. Os roteiros são escritos por Especialidade (`ator` guarda um EspecialidadeId),
@@ -12,7 +12,7 @@ export type PassoDeRoteiro<Ator = EspecialidadeId> =
   | { tipo: 'ferramenta'; ator: Ator; descricao: string }
   | { tipo: 'texto'; ator: Ator; texto: string }
   | { tipo: 'repasse'; de: Ator; para: Ator; resumo: string }
-  | { tipo: 'aprovacao'; ator: Ator; aprovacao: AcaoProposta & Pick<Aprovacao, 'origem' | 'contaId' | 'contaNome' | 'sequenciaId'> }
+  | { tipo: 'aprovacao'; ator: Ator; aprovacao: AcaoProposta & Pick<AprovacaoDeAcao, 'origem' | 'contaId' | 'contaNome' | 'sequenciaId'> }
 
 export const roteiros: Record<string, PassoDeRoteiro[]> = {
   'scopus-aderencia': [

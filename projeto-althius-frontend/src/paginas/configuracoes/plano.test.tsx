@@ -92,7 +92,8 @@ describe('Plano do Workspace', () => {
   })
 
   it('uma Execução nova entra no período; decidir Aprovações não conta como Execução', async () => {
-    const { usuario } = abrir('/configuracoes/memoria')
+    const armazenamento = armazenamentoEmMemoria()
+    const { usuario, unmount } = abrir('/configuracoes/memoria', { armazenamento })
 
     // Pedir a revisão do ICP é uma Conversa com o Scopus: uma Execução dele.
     await usuario.click(await screen.findByRole('button', { name: 'Solicitar revisão ao Scopus' }))
@@ -118,6 +119,14 @@ describe('Plano do Workspace', () => {
     expect(await (await indicador('Execuções de Agentes')).findByText('231')).toBeInTheDocument()
     expect(screen.getByRole('row', { name: 'Scopus 93' })).toBeInTheDocument()
     expect(screen.getByRole('row', { name: 'Rhetor 69' })).toBeInTheDocument()
+    unmount()
+
+    // Depois de recarregar, a revisão continua na fila e a Execução que a propôs continua no período e no Scopus.
+    const { fonte } = abrir('/configuracoes/plano', { armazenamento })
+    expect(await (await indicador('Execuções de Agentes')).findByText('231')).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: 'Scopus 93' })).toBeInTheDocument()
+    const semARevisao = await criarFonteSimulada({ atrasoMs: 0 }).agente('scopus')
+    expect((await fonte.agente('scopus')).execucoes).toBe(semARevisao.execucoes + 1)
   })
 
   it('quem não participa do Workspace vê só o plano, sem o uso, como em Pessoas e acesso', async () => {

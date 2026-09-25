@@ -3,6 +3,8 @@ import { cloneElement, useId, useState, type ReactElement, type ReactNode } from
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Carregando, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
+import { Opcao } from '@/components/opcao'
 import { useDados } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { publicoRecomendado } from '@/fonte/regras-memoria'
@@ -21,7 +23,7 @@ import {
   type Origem,
   type TipoDeSinal,
 } from './catalogo'
-import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Opcao, SecaoDoFormulario, SeloDoEstado } from './componentes'
+import { SecaoDoFormulario, SeloDoEstado } from './componentes'
 import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'

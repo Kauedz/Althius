@@ -1,22 +1,27 @@
 // Regras dos Avisos do Workspace: a quem cada aviso se destina, pela Participação e pelo papel, e o que ele diz.
 // Um aviso só informa; a capacidade de decidir continua nas operações.
-import { ROTULO_DA_DECISAO } from './regras'
-import { DOCUMENTOS_DA_MEMORIA, efeitoDaDecisao, frasesDo, ROTULO_DA_DECISAO_DA_REVISAO } from './regras-memoria'
-import type { Aprovacao, Autor, AvisoDoWorkspace, Decisao, ItemDeAtividade, Papel } from './tipos'
+import { categoriaDa, podeDecidir, ROTULO_DA_DECISAO } from './regras'
+import { DOCUMENTOS_DA_MEMORIA, efeitoDaDecisao, frasesDo } from './regras-memoria'
+import type {
+  Aprovacao,
+  AprovacaoDeAcao,
+  Autor,
+  AvisoDoWorkspace,
+  ContaDeUsuarioId,
+  Decisao,
+  ItemDeAtividade,
+  Papel,
+  ParticipacaoAtiva,
+  RevisaoDecidida,
+} from './tipos'
 
 /** Um aviso ainda sem identificador, que a fonte dá ao emitir. */
 export type NovoAviso = Omit<AvisoDoWorkspace, 'id'>
 
-/** Uma Participação ativa no Workspace, no momento do aviso. */
-export interface ParticipacaoAtiva {
-  contaId: string
-  papel: Papel
-}
-
 /** O que cada papel recebe, na ordem em que Preferências mostra; segue as regras de destinatário abaixo. */
 export function avisosQueRecebe(papel: Papel | null): string[] {
   return [
-    ...(papel === 'administrador' ? ['Revisões do ICP e das Personas aguardando sua decisão'] : []),
+    ...(papel && podeDecidir('revisao-da-memoria', papel) ? ['Revisões do ICP e das Personas aguardando sua decisão'] : []),
     'Outras Aprovações aguardando decisão no Workspace',
     'O resultado das Aprovações que você pediu',
     'Falhas de Execução nos seus pedidos aos Agentes',
@@ -24,16 +29,14 @@ export function avisosQueRecebe(papel: Papel | null): string[] {
 }
 
 /** Só quem ainda participa do Workspace recebe os avisos dele. */
-function ativas(contaIds: string[], participacoes: ParticipacaoAtiva[]): string[] {
+function ativas(contaIds: ContaDeUsuarioId[], participacoes: ParticipacaoAtiva[]): ContaDeUsuarioId[] {
   return contaIds.filter((contaId) => participacoes.some((p) => p.contaId === contaId))
 }
 
-/**
- * Quem pode decidir: numa Revisão da Memória do Workspace, só os Administradores ativos; nas demais categorias, que
- * seguem como antes, qualquer participante ativo.
- */
-function quemDecide(aprovacao: Aprovacao, participacoes: ParticipacaoAtiva[]): string[] {
-  return participacoes.filter((p) => !aprovacao.revisao || p.papel === 'administrador').map((p) => p.contaId)
+/** Quem pode decidir a Aprovação, pela categoria dela e pelo papel de cada participante ativo. */
+function quemDecide(aprovacao: Aprovacao, participacoes: ParticipacaoAtiva[]): ContaDeUsuarioId[] {
+  const categoria = categoriaDa(aprovacao)
+  return participacoes.filter((p) => podeDecidir(categoria, p.papel)).map((p) => p.contaId)
 }
 
 /** Uma Aprovação acabou de entrar na fila: avisa quem pode decidi-la. */
@@ -69,9 +72,9 @@ export function avisoDeAprovacaoSolicitada(
  * Workspace. Sem quem a tenha pedido (ex.: vinda de um Canal), não há a quem avisar.
  */
 export function avisoDeAprovacaoDecidida(
-  aprovacao: Aprovacao,
+  aprovacao: AprovacaoDeAcao,
   decisao: Decisao,
-  { solicitanteId, decididaPor, onde }: { solicitanteId?: string; decididaPor: Autor; onde: string },
+  { solicitanteId, decididaPor, onde }: { solicitanteId?: ContaDeUsuarioId; decididaPor: Autor; onde: string },
   participacoes: ParticipacaoAtiva[],
 ): NovoAviso {
   const efeito = decisao === 'aprovada' ? 'Ação executada.' : 'Nada foi alterado.'
@@ -85,15 +88,17 @@ export function avisoDeAprovacaoDecidida(
 }
 
 /** Uma Revisão da Memória do Workspace foi decidida: avisa quem a pediu, se ainda participa do Workspace. */
-export function avisoDeRevisaoDecidida(decidida: Aprovacao, participacoes: ParticipacaoAtiva[]): NovoAviso {
-  const { documento, solicitante, decididaPor } = decidida.revisao!
-  const decisao = decidida.estado as Decisao
-  const rotulo = ROTULO_DA_DECISAO_DA_REVISAO[decisao]
+export function avisoDeRevisaoDecidida(
+  decisao: Decisao,
+  { documento, solicitante, decididaPor }: RevisaoDecidida,
+  participacoes: ParticipacaoAtiva[],
+): NovoAviso {
+  const rotulo = ROTULO_DA_DECISAO[decisao]
   return {
     tipo: 'aprovacao-decidida',
     destinatarios: ativas([solicitante.contaId], participacoes),
     titulo: `Sua revisão ${DOCUMENTOS_DA_MEMORIA[documento].comArtigo} foi ${rotulo.toLowerCase()}`,
-    texto: `${rotulo} por ${decididaPor!.nome}. ${efeitoDaDecisao(documento, decisao)}`,
+    texto: `${rotulo} por ${decididaPor.nome}. ${efeitoDaDecisao(documento, decisao)}`,
     para: `/configuracoes/memoria/${documento}`,
   }
 }
@@ -105,7 +110,7 @@ export function avisoDeRevisaoDecidida(decidida: Aprovacao, participacoes: Parti
 export function avisoDeFalha(
   item: ItemDeAtividade,
   nomeDoAgente: string,
-  quemPediu: string,
+  quemPediu: ContaDeUsuarioId,
   participacoes: ParticipacaoAtiva[],
 ): NovoAviso {
   return {

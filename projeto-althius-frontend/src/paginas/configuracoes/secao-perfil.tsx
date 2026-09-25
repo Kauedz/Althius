@@ -5,7 +5,7 @@ import { useDados, useFonte } from '@/fonte/contexto'
 import { ehEmailValido, ERRO_DE_EMAIL, ROTULO_DO_PAPEL } from '@/fonte/regras'
 import type { Workspace } from '@/fonte/tipos'
 import { BlocoSenha } from './bloco-senha'
-import { Bloco } from './componentes'
+import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
 /**
  * Meu perfil: nome, e-mail e foto da Conta de usuário (a mesma fonte alimenta o menu pessoal da Casca),
@@ -15,22 +15,17 @@ export function SecaoPerfil() {
   const workspace = useDados((fonte) => fonte.workspace(), [])
 
   return (
-    <section aria-labelledby="titulo-perfil" className="flex max-w-2xl flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <h2 id="titulo-perfil" className="titulo-secao text-3xl">
-            Meu perfil
-          </h2>
-          <span className="selo">Só você</span>
-        </div>
-        <p className="text-al-muted">
-          Como você aparece para as outras pessoas do Workspace. Vale só para a sua Conta de usuário.
-        </p>
-      </div>
+    <SecaoDeConfiguracoes
+      id="perfil"
+      titulo="Meu perfil"
+      alcance="pessoal"
+      descricao="Como você aparece para as outras pessoas do Workspace. Vale só para a sua Conta de usuário."
+      estreita
+    >
       {!workspace ? <Carregando /> : <FormularioDePerfil usuario={workspace.usuario} />}
       {workspace && <SeusWorkspaces contaId={workspace.usuario.id} />}
       <BlocoSenha />
-    </section>
+    </SecaoDeConfiguracoes>
   )
 }
 

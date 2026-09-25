@@ -1,11 +1,13 @@
 import { useId, type ReactNode } from 'react'
+import { BOTAO_PRIMARIO } from '@/components/botoes'
 import { Carregando, IconeDaEspecialidade } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { useDados } from '@/fonte/contexto'
 import { formatarPeriodoIsoPorExtenso } from '@/fonte/formatar-data'
 import type { PlanoDoWorkspace, UsoDoWorkspace } from '@/fonte/tipos'
+import { ERRO_SEM_PARTICIPACAO } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
-import { BOTAO_PRIMARIO } from '@/paginas/sinais/componentes'
-import { Bloco, Mensagem } from './componentes'
+import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
 const numero = new Intl.NumberFormat('pt-BR')
 
@@ -17,16 +19,12 @@ export function SecaoPlano() {
   const plano = useDados((fonte) => fonte.plano(), [])
 
   return (
-    <section aria-labelledby="titulo-plano" className="flex max-w-4xl flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <h2 id="titulo-plano" className="titulo-secao text-3xl">
-            Plano
-          </h2>
-          <span className="selo border-al-accent/50 text-al-ink">Compartilhado com o Workspace</span>
-        </div>
-        <p className="text-al-muted">A situação do Workspace na Althius. Os números abaixo são demonstrativos.</p>
-      </div>
+    <SecaoDeConfiguracoes
+      id="plano"
+      titulo="Plano"
+      alcance="workspace"
+      descricao="A situação do Workspace na Althius. Os números abaixo são demonstrativos."
+    >
       {!plano ? (
         <Carregando />
       ) : (
@@ -35,11 +33,11 @@ export function SecaoPlano() {
           {plano.uso ? (
             <Uso uso={plano.uso} />
           ) : (
-            <Mensagem tipo="info">Você não participa deste Workspace: o uso aparece só para quem participa.</Mensagem>
+            <Mensagem tipo="info">{ERRO_SEM_PARTICIPACAO} O uso aparece só para quem participa.</Mensagem>
           )}
         </>
       )}
-    </section>
+    </SecaoDeConfiguracoes>
   )
 }
 

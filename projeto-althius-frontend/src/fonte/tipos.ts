@@ -75,22 +75,35 @@ export interface Workspace {
 /** Os dois únicos papéis de acesso de uma Participação no Workspace, sem matriz individualizada. */
 export type Papel = 'administrador' | 'membro'
 
+/** Identificador de uma Conta de usuário; não confundir com o de uma Conta-alvo. */
+export type ContaDeUsuarioId = string
+
 /** A identidade pessoal de acesso à Althius: existe independente de qualquer Participação no Workspace. */
 export interface ContaDeUsuario {
-  id: string
+  id: ContaDeUsuarioId
   nome: string
   email: string
   foto?: string
   cargo: string
 }
 
-/** As informações gerais do Workspace: todos consultam; Administradores alteram a descrição (o nome é o do Cliente). */
+/** Uma Participação ativa no Workspace: a Conta de usuário e o papel, que é do vínculo. */
+export interface ParticipacaoAtiva {
+  contaId: ContaDeUsuarioId
+  papel: Papel
+}
+
+/** As informações gerais do Workspace: todos consultam; só Administradores alteram o nome e a descrição. */
 export interface InformacoesDoWorkspace {
+  /** O nome do Workspace, que é também como os Agentes chamam o Cliente. */
   nome: string
   descricao: string
   /** Data da criação, em ISO (aaaa-mm-dd). */
   criadoEm: string
 }
+
+/** O que um Administrador altera nas informações do Workspace. */
+export type NovasInformacoesDoWorkspace = Pick<InformacoesDoWorkspace, 'nome' | 'descricao'>
 
 /** Uma Participação no Workspace de uma Conta de usuário, vista a partir da Conta: o papel é do vínculo. */
 export interface ParticipacaoDaConta {
@@ -105,6 +118,8 @@ export interface ParticipacaoDaConta {
 export interface Participante {
   conta: ContaDeUsuario
   papel: Papel
+  /** Se é o único Administrador: não pode ser rebaixado nem removido, para o Workspace não ficar sem responsável. */
+  ultimoAdministrador: boolean
   /** As Participações da mesma Conta de usuário em outros Workspaces, que a remoção deste preserva. */
   outrasParticipacoes: ParticipacaoDaConta[]
 }
@@ -127,7 +142,7 @@ export interface NovoConvite {
 export interface ParticipantesDoWorkspace {
   informacoes: InformacoesDoWorkspace
   /** A Conta de usuário da sessão. */
-  contaId: string
+  contaId: ContaDeUsuarioId
   papel: Papel | null
   participantes: Participante[]
   convites: Convite[]
@@ -198,13 +213,13 @@ export interface SecaoDoDocumento {
 
 /** Quem pediu ou decidiu uma revisão, como era no momento: a Conta de usuário e o nome. */
 export interface Autor {
-  contaId: string
+  contaId: ContaDeUsuarioId
   nome: string
 }
 
 /**
- * Um documento vigente da Memória do Workspace (o ICP ou as definições de Personas). A Memória guarda só a última
- * versão aprovada de cada um, sem histórico nem restauração.
+ * Um documento vigente da Memória do Workspace (o ICP ou as definições de Personas): o último aprovado. A Memória
+ * guarda só ele, sem histórico nem restauração.
  */
 export interface DocumentoVigente {
   /** No ICP, os critérios (ex.: "Porte"); nas Personas, uma seção por Persona, com o nome no título. */
@@ -228,22 +243,35 @@ export interface MemoriaDoWorkspace {
 export type DocumentoDaMemoria = keyof MemoriaDoWorkspace
 
 /**
- * A proposta de um Agente para um documento da Memória do Workspace. Pendente, não é versão aprovada:
- * o documento vigente só muda quando um Administrador ativo aprova.
+ * A proposta de um Agente para um documento da Memória do Workspace: o pedido e quem o fez. O documento vigente só
+ * muda quando um Administrador ativo aprova.
  */
-export interface RevisaoDaMemoria {
+interface RevisaoDaMemoriaBase {
   documento: DocumentoDaMemoria
   /** O que o participante pediu ao Agente na Conversa. */
   pedido: string
   solicitante: Autor
   /** Data do pedido, em ISO (aaaa-mm-dd). */
   pedidaEm: string
+}
+
+/** Enquanto pendente, a revisão traz o conteúdo proposto e o vigente no pedido, para o Administrador ver o que muda. */
+export interface RevisaoPendente extends RevisaoDaMemoriaBase {
   /** O documento inteiro como ficaria: a aprovação troca o vigente por este de uma vez. */
   proposto: SecaoDoDocumento[]
   /** O documento vigente no momento do pedido, para mostrar o que muda. */
   vigenteNoPedido: SecaoDoDocumento[]
-  decididaPor?: Autor
 }
+
+/**
+ * Decidida, fica só o registro da Aprovação: o pedido, quem pediu e quem decidiu. O conteúdo não é guardado, para a
+ * fila não virar um histórico dos documentos; o aprovado passa a ser o vigente.
+ */
+export interface RevisaoDecidida extends RevisaoDaMemoriaBase {
+  decididaPor: Autor
+}
+
+export type RevisaoDaMemoria = RevisaoPendente | RevisaoDecidida
 
 export interface Fato {
   id: string
@@ -260,10 +288,8 @@ export interface Habilidade {
   usos: number
   ultimaMelhoria: string
   ativa: boolean
-  /** Pontua pelo ICP vigente da Memória do Workspace, lido a cada uso: não guarda uma cópia dele. */
-  usaIcp?: boolean
-  /** Adapta o trabalho às Personas vigentes da Memória do Workspace, lidas a cada uso: não guarda uma cópia delas. */
-  usaPersonas?: boolean
+  /** O documento da Memória do Workspace que a Habilidade lê a cada uso, o vigente: ela não guarda uma cópia dele. */
+  usaDocumento?: DocumentoDaMemoria
 }
 
 export type Frequencia = 'diaria' | 'semanal' | 'mensal'
@@ -297,7 +323,7 @@ export interface ItemDeAtividade {
   resultado: string
   /** Onde ver o resultado dentro da Althius. */
   link?: { rotulo: string; para: string }
-  /** A ação não se concluiu e nada foi alterado: um evento de falha para quem acompanha a Atividade. */
+  /** A ação não se concluiu e nada foi alterado: a Atividade registra a falha para quem a acompanha. */
   falhou?: boolean
 }
 
@@ -361,23 +387,38 @@ export interface AcaoProposta {
   justificativa: string
 }
 
-/**
- * Uma Aprovação é uma ação numa Integração ou, com `revisao`, uma revisão da Memória do Workspace, que não
- * passa por Integração e só um Administrador ativo decide.
- */
-export interface Aprovacao extends Omit<AcaoProposta, 'integracaoId'> {
-  integracaoId?: IntegracaoId
-  revisao?: RevisaoDaMemoria
+/** O que toda Aprovação tem: o que o Agente propôs, onde foi pedida e o gatilho da Execução que a propôs. */
+interface AprovacaoBase extends Omit<AcaoProposta, 'integracaoId'> {
   id: string
   agenteId: AgenteId
   origem: Origem
   /** O gatilho da Execução que propôs a Aprovação; a decisão entra na Atividade com ele. */
   gatilho: Gatilho
+}
+
+/** Uma ação que um Agente quer fazer numa Integração, pela Permissão Propor (ADR 0002). */
+export interface AprovacaoDeAcao extends AprovacaoBase {
+  integracaoId: IntegracaoId
   estado: EstadoAprovacao
+  /** A Conta-alvo da ação, quando houver (não uma Conta de usuário). */
   contaId?: string
   contaNome?: string
   sequenciaId?: string
+  revisao?: undefined
 }
+
+/**
+ * Uma Revisão da Memória do Workspace (ADR 0010): não passa por Integração e só um Administrador ativo decide.
+ * Pendente, traz o conteúdo proposto; decidida, só o registro da decisão.
+ */
+export type AprovacaoDeRevisao = AprovacaoDeRevisaoPendente | AprovacaoDeRevisaoDecidida
+export type AprovacaoDeRevisaoPendente = AprovacaoBase & { estado: 'pendente'; revisao: RevisaoPendente }
+export type AprovacaoDeRevisaoDecidida = AprovacaoBase & { estado: Decisao; revisao: RevisaoDecidida }
+
+export type Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao
+
+/** A categoria de uma Aprovação define quem a decide: a Revisão da Memória do Workspace, só Administradores. */
+export type CategoriaDeAprovacao = 'acao' | 'revisao-da-memoria'
 
 export interface NovaAprovacao {
   agenteId: AgenteId
@@ -446,7 +487,7 @@ export type TipoDeAviso = 'aprovacao-solicitada' | 'aprovacao-decidida' | 'falha
 export interface AvisoDoWorkspace {
   id: string
   tipo: TipoDeAviso
-  destinatarios: string[]
+  destinatarios: ContaDeUsuarioId[]
   titulo: string
   texto: string
   /** Onde ver o assunto dentro da Althius. */
@@ -479,20 +520,20 @@ export interface FonteDeAgentes extends FonteObservavel {
   /** Informações, Participantes e convites do Workspace atual, com o papel da sessão. Todos os Participantes consultam. */
   participantesDoWorkspace(): Promise<ParticipantesDoWorkspace>
   /** A Conta de usuário e suas Participações: ela continua existindo depois de removida de um Workspace. */
-  contaDeUsuario(contaId: string): Promise<ContaComParticipacoes>
+  contaDeUsuario(contaId: ContaDeUsuarioId): Promise<ContaComParticipacoes>
   // As operações administrativas abaixo validam a Participação e o papel da sessão: só Administradores as executam.
-  /** Altera a descrição do Workspace; o nome é o do Cliente, definido no onboarding. */
-  salvarDescricaoDoWorkspace(descricao: string): Promise<void>
+  /** Altera o nome e a descrição do Workspace; o nome não fica vazio. */
+  salvarInformacoesDoWorkspace(informacoes: NovasInformacoesDoWorkspace): Promise<void>
   /** Registra um convite pendente, sem enviar e-mail; recusa quem já participa ou já foi convidado. */
   convidarParaWorkspace(convite: NovoConvite): Promise<Convite>
   cancelarConvite(conviteId: string): Promise<void>
   /** Alterna o papel entre Administrador e Membro; recusa rebaixar o último Administrador. */
-  mudarPapel(contaId: string, papel: Papel): Promise<void>
+  mudarPapel(contaId: ContaDeUsuarioId, papel: Papel): Promise<void>
   /**
    * Encerra só a Participação neste Workspace: a Conta de usuário e as outras Participações continuam.
    * Recusa remover o último Administrador e a própria sessão.
    */
-  removerDoWorkspace(contaId: string): Promise<void>
+  removerDoWorkspace(contaId: ContaDeUsuarioId): Promise<void>
 
   /**
    * O plano atual do Workspace e o uso: os Participantes ativos, os mesmos de Pessoas e acesso, e as Execuções de
@@ -544,7 +585,7 @@ export interface FonteDeAgentes extends FonteObservavel {
    * demonstrativa, o Agente prepara a proposta e a envia para Aprovações; o documento vigente não muda.
    * Recusa quem não participa do Workspace e um segundo pedido enquanto houver proposta pendente.
    */
-  solicitarRevisao(documento: DocumentoDaMemoria, pedido: string): Promise<Aprovacao>
+  solicitarRevisao(documento: DocumentoDaMemoria, pedido: string): Promise<AprovacaoDeRevisao>
 
   aprovacoes(): Promise<Aprovacao[]>
   /**

@@ -1,9 +1,9 @@
 import { useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
-import { AbasSublinhadas } from '@/components/abas'
+import { Mensagem } from '@/components/mensagem'
+import { Opcao } from '@/components/opcao'
 import { Button } from '@/components/ui/button'
-import { Opcao } from '@/paginas/sinais/componentes'
-import { FaixaProvisoria, Mensagem } from './componentes'
+import { AbasDasPaginas, FaixaProvisoria, SecaoDeConfiguracoes } from './componentes'
 import { CENTRAL_DE_AJUDA, POLITICA_DE_PRIVACIDADE, TERMOS_DE_SERVICO, type DocumentoInstitucional } from './conteudo-ajuda'
 
 const PAGINAS = {
@@ -28,25 +28,18 @@ export function SecaoAjuda() {
   if (!ehPagina(pagina)) return <Navigate to="/configuracoes/ajuda/central" replace />
 
   return (
-    <section aria-labelledby="titulo-ajuda" className="flex max-w-4xl flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <h2 id="titulo-ajuda" className="titulo-secao text-3xl">
-            Ajuda e informações
-          </h2>
-          <span className="selo">Althius</span>
-        </div>
-        <p className="text-al-muted">Informações da Althius, iguais para todos os Workspaces.</p>
-      </div>
-      <AbasSublinhadas
-        rotuloAcessivel="Páginas de Ajuda e informações"
-        abas={(Object.keys(PAGINAS) as Pagina[]).map((id) => ({ rotulo: PAGINAS[id], para: `/configuracoes/ajuda/${id}` }))}
-      />
+    <SecaoDeConfiguracoes
+      id="ajuda"
+      titulo="Ajuda e informações"
+      alcance="althius"
+      descricao="Informações da Althius, iguais para todos os Workspaces."
+    >
+      <AbasDasPaginas secao="ajuda" paginas={PAGINAS} rotuloAcessivel="Páginas de Ajuda e informações" />
       {pagina === 'central' && <CentralDeAjuda />}
       {pagina === 'feedback' && <Feedback />}
       {pagina === 'termos' && <Documento documento={TERMOS_DE_SERVICO} />}
       {pagina === 'privacidade' && <Documento documento={POLITICA_DE_PRIVACIDADE} />}
-    </section>
+    </SecaoDeConfiguracoes>
   )
 }
 

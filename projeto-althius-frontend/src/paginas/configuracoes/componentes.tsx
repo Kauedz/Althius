@@ -1,6 +1,67 @@
-import { CircleAlert, CircleCheck, Info } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { AbasSublinhadas } from '@/components/abas'
 import { cn } from '@/lib/utils'
+
+/** O alcance do que se muda numa seção: só a Conta de usuário, todo o Workspace ou nada (informação da Althius). */
+export type Alcance = 'pessoal' | 'workspace' | 'althius'
+
+const SELO_DO_ALCANCE: Record<Alcance, { rotulo: string; className?: string }> = {
+  pessoal: { rotulo: 'Só você' },
+  workspace: { rotulo: 'Compartilhado com o Workspace', className: 'border-al-accent/50 text-al-ink' },
+  althius: { rotulo: 'Althius' },
+}
+
+/** Uma seção de Configurações: o título, o selo do alcance do que se muda nela, a descrição e o conteúdo. */
+export function SecaoDeConfiguracoes({
+  id,
+  titulo,
+  alcance,
+  descricao,
+  estreita = false,
+  children,
+}: {
+  id: string
+  titulo: string
+  alcance: Alcance
+  descricao: ReactNode
+  /** As seções pessoais, só com formulários, são mais estreitas. */
+  estreita?: boolean
+  children: ReactNode
+}) {
+  const selo = SELO_DO_ALCANCE[alcance]
+  return (
+    <section aria-labelledby={`titulo-${id}`} className={cn('flex flex-col gap-8', estreita ? 'max-w-2xl' : 'max-w-4xl')}>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <h2 id={`titulo-${id}`} className="titulo-secao text-3xl">
+            {titulo}
+          </h2>
+          <span className={cn('selo', selo.className)}>{selo.rotulo}</span>
+        </div>
+        <p className="text-al-muted">{descricao}</p>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/** As abas de uma seção com uma página por aba, cada uma em /configuracoes/<seção>/<página>. */
+export function AbasDasPaginas({
+  secao,
+  paginas,
+  rotuloAcessivel,
+}: {
+  secao: string
+  paginas: Record<string, string>
+  rotuloAcessivel: string
+}) {
+  return (
+    <AbasSublinhadas
+      rotuloAcessivel={rotuloAcessivel}
+      abas={Object.entries(paginas).map(([pagina, rotulo]) => ({ rotulo, para: `/configuracoes/${secao}/${pagina}` }))}
+    />
+  )
+}
 
 /** Um bloco dentro de uma seção de Configurações: título pequeno, descrição, ações e conteúdo. */
 export function Bloco({
@@ -35,39 +96,5 @@ export function FaixaProvisoria({ children }: { children: ReactNode }) {
       <span className="selo shrink-0 border-al-atencao/60 text-al-atencao">Conteúdo provisório</span>
       <span className="text-al-muted">{children}</span>
     </div>
-  )
-}
-
-/**
- * Resultado de uma operação: sucesso e aviso são anunciados com calma; erro, na hora. Sem conteúdo, a região continua
- * montada e invisível, para o leitor de tela anunciar o resultado quando ele chegar.
- */
-export function Mensagem({ tipo, children }: { tipo: 'sucesso' | 'erro' | 'info'; children?: ReactNode }) {
-  const Icone = tipo === 'sucesso' ? CircleCheck : tipo === 'erro' ? CircleAlert : Info
-  return (
-    <p
-      role={tipo === 'erro' ? 'alert' : 'status'}
-      className={
-        children
-          ? cn(
-              'flex items-start gap-2 border-l-2 py-1 pl-3 text-sm',
-              tipo === 'sucesso' && 'border-al-sucesso',
-              tipo === 'erro' && 'border-al-erro text-al-ink',
-              tipo === 'info' && 'border-al-line text-al-muted',
-            )
-          : 'sr-only'
-      }
-    >
-      {children && (
-        <>
-          <Icone
-            strokeWidth={1.8}
-            className={cn('mt-0.5 size-4 shrink-0', tipo === 'sucesso' && 'text-al-sucesso', tipo === 'erro' && 'text-al-erro')}
-            aria-hidden
-          />
-          <span>{children}</span>
-        </>
-      )}
-    </p>
   )
 }

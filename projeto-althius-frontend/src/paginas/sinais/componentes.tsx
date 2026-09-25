@@ -4,14 +4,6 @@ import { Pulso } from '@/components/marca'
 import { cn } from '@/lib/utils'
 import { ROTULO_DA_ADERENCIA, ROTULO_DO_ESTADO, VALIDADE_EM_DIAS, type AderenciaMock, type EstadoDoMonitoramento } from './dados-mock'
 
-// Os botões seguem os das Sequências: raio 0, rótulo em maiúsculas e entreletra do manual.
-export const BOTAO_PRIMARIO =
-  'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 border border-al-accent bg-al-accent px-4 text-xs font-normal tracking-rotulo text-al-on-accent uppercase transition-colors hover:border-al-accent-2 hover:bg-al-accent-2 disabled:pointer-events-none disabled:opacity-50'
-export const BOTAO_SECUNDARIO =
-  'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 border border-al-line bg-al-bg px-4 text-xs font-normal tracking-rotulo text-al-ink uppercase transition-colors hover:border-al-muted hover:bg-al-surface disabled:pointer-events-none disabled:opacity-50'
-export const BOTAO_DISCRETO =
-  'inline-flex h-7 shrink-0 items-center gap-1.5 px-2 text-xs font-normal tracking-rotulo text-al-muted uppercase transition-colors hover:text-al-ink'
-
 const COR_DO_ESTADO: Record<EstadoDoMonitoramento, string> = {
   ativo: 'border-al-sucesso/60 text-al-ink',
   pausado: 'border-al-atencao/60 text-al-atencao',
@@ -81,33 +73,5 @@ export function SecaoDoFormulario({
       </header>
       <div className="flex flex-col gap-5 pl-10">{children}</div>
     </section>
-  )
-}
-
-/** Uma escolha em pílula quadrada, marcável: usada em opções múltiplas e em escolhas únicas. */
-export function Opcao({
-  marcada,
-  aoClicar,
-  children,
-  papel = 'checkbox',
-}: {
-  marcada: boolean
-  aoClicar: () => void
-  children: ReactNode
-  papel?: 'checkbox' | 'radio'
-}) {
-  return (
-    <button
-      type="button"
-      role={papel}
-      aria-checked={marcada}
-      onClick={aoClicar}
-      className={cn(
-        'h-8 border px-3 text-sm font-normal transition-colors',
-        marcada ? 'border-al-accent bg-al-accent/10 text-al-ink' : 'border-al-line text-al-muted hover:border-al-muted hover:text-al-ink',
-      )}
-    >
-      {children}
-    </button>
   )
 }

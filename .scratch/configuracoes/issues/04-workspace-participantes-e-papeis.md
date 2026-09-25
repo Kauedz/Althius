@@ -108,3 +108,22 @@ Pré-requisito: o ticket 01 está aprovado; o 02 está implementado (`79b346f`) 
   3. confira também o bloco "Seus Workspaces" em `/configuracoes/perfil`;
   4. se estiver certo, troque o `Status:` para `closed`.
 
+### 2026-09-25: conformidade com a spec, depois da revisão da feature inteira
+
+Aplicado:
+- O Administrador altera o **nome** e a descrição do Workspace (`salvarInformacoesDoWorkspace`, nome obrigatório, validado na fonte). A decisão anterior, de deixar o nome fora da edição, foi revista: a spec pede que Administradores administrem as informações do Workspace. O nome é também como os Agentes chamam o Cliente, e as telas o leem da mesma fonte (`workspace().cliente`), então muda de uma vez em todas.
+- `Participante.ultimoAdministrador` vem da fonte; a tela não recalcula a regra.
+- `exigirParticipacao` e `ERRO_SEM_PARTICIPACAO` compartilhados com a Memória do Workspace e o Plano.
+- `ContaDeUsuarioId` e `ParticipacaoAtiva` em `tipos.ts`.
+- `BOTAO_*`, `Opcao` e `Mensagem` foram para `src/components/`, o que resolve o "ficou como está" da revisão anterior.
+- O cabeçalho das seis seções é um componente só (`SecaoDeConfiguracoes`), com o selo do alcance.
+
+Decidido pelo usuário e registrado na spec: a própria sessão continua sem se remover por Pessoas e acesso, como no mockup.
+
+**Pendente, para a sessão de onboarding:** a Casca ainda prefere o nome e a descrição do onboarding (`identidadeDoWorkspace` em `components/casca.tsx`) aos da `FonteDeAgentes`. Quando o onboarding tem identidade própria, um nome alterado aqui não aparece na Casca. Para fechar a fonte única: a Casca lê só `workspace()`, e o onboarding grava nome e descrição no Workspace por `salvarInformacoesDoWorkspace`. `casca.tsx` não foi mexido aqui, porque a outra sessão está trabalhando nele.
+
+Validação (2026-09-25, no checkout compartilhado, depois do commit `161639e` do onboarding):
+- `tsc -b`: sem erros; `vite build`: concluído;
+- `vitest run`: 457 testes em 31 arquivos, todos passando;
+- `oxlint`: sem erros; os avisos são de arquivos que esta revisão não toca;
+- inspeção no Chromium headless, 1440 px, claro e escuro: a edição das informações em Pessoas e acesso, o diálogo de revisão, o cartão pendente (comparativo e alcance) e o decidido (só o registro) em Aprovações e o Contexto do Workspace na Memória do Ethos.

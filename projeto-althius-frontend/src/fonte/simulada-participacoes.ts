@@ -1,17 +1,20 @@
 // Participações da fonte simulada: Contas de usuário, o Workspace atual e as Participações que ligam uma
 // ao outro. O papel é da Participação, não da Conta de usuário; remover alguém encerra só a Participação.
 import * as demo from './dados-demo'
-import { dataDeHoje } from './formatar-data'
+import { diaIso } from './formatar-data'
 import type { RegistroDeParticipacao } from './dados-demo'
-import { ehEmailValido, ERRO_DE_EMAIL, PAPEIS } from './regras'
+import { ehEmailValido, ERRO_DE_EMAIL, ERRO_SEM_PARTICIPACAO, PAPEIS } from './regras'
 import type {
   ContaComParticipacoes,
   ContaDeUsuario,
+  ContaDeUsuarioId,
   Convite,
   ExecucoesNoPeriodo,
   InformacoesDoWorkspace,
+  NovasInformacoesDoWorkspace,
   NovoConvite,
   Papel,
+  ParticipacaoAtiva,
   ParticipacaoDaConta,
   ParticipantesDoWorkspace,
   Perfil,
@@ -21,9 +24,9 @@ import type {
 
 const CHAVE_DO_WORKSPACE = `althius:workspace:${demo.WORKSPACE_ATUAL}`
 /** O perfil é de cada Conta de usuário: outra sessão no mesmo navegador não herda o que esta salvou. */
-const chaveDoPerfil = (contaId: string) => `althius:perfil:${contaId}`
+const chaveDoPerfil = (contaId: ContaDeUsuarioId) => `althius:perfil:${contaId}`
 /** As preferências também são de cada Conta de usuário, e não do Workspace. */
-const chaveDasPreferencias = (contaId: string) => `althius:preferencias:${contaId}`
+const chaveDasPreferencias = (contaId: ContaDeUsuarioId) => `althius:preferencias:${contaId}`
 
 export const ERRO_SO_ADMINISTRADOR = 'Só Administradores do Workspace podem fazer isso.'
 export const ERRO_ULTIMO_ADMINISTRADOR =
@@ -38,7 +41,7 @@ export interface ArmazenamentoDemonstrativo {
 
 /** Quem está usando o aplicativo: escolhido só na preparação (testes), nunca por um seletor na interface. */
 export interface Sessao {
-  contaId: string
+  contaId: ContaDeUsuarioId
   /**
    * Troca o papel da Participação da sessão nos dados de exemplo, para o cenário. Um Workspace já salvo
    * no armazenamento prevalece, para a escolha do cenário não virar estado persistido.
@@ -49,13 +52,13 @@ export interface Sessao {
 /** O que é do Workspace atual e persiste associado a ele. */
 interface EstadoDoWorkspace {
   informacoes: InformacoesDoWorkspace
-  participacoes: { contaId: string; papel: Papel }[]
+  participacoes: ParticipacaoAtiva[]
   convites: Convite[]
 }
 
 const ehTexto = (valor: unknown): valor is string => typeof valor === 'string'
 const ehPapel = (valor: unknown): valor is Papel => PAPEIS.includes(valor as Papel)
-const temAdministrador = (participacoes: EstadoDoWorkspace['participacoes']) =>
+const temAdministrador = (participacoes: ParticipacaoAtiva[]) =>
   participacoes.some((p) => p.papel === 'administrador')
 
 function ler(armazenamento: ArmazenamentoDemonstrativo | null, chave: string): Record<string, unknown> | null {
@@ -68,7 +71,7 @@ function ler(armazenamento: ArmazenamentoDemonstrativo | null, chave: string): R
 }
 
 /** Lê o perfil salvo, ignorando o que não reconhece; sem armazenamento ou sem valor salvo, nada muda. */
-function perfilSalvo(armazenamento: ArmazenamentoDemonstrativo | null, contaId: string): Partial<Perfil> {
+function perfilSalvo(armazenamento: ArmazenamentoDemonstrativo | null, contaId: ContaDeUsuarioId): Partial<Perfil> {
   const lido = ler(armazenamento, chaveDoPerfil(contaId))
   if (!lido) return {}
   const perfil: Partial<Perfil> = {}
@@ -124,9 +127,12 @@ function dadosDeExemplo(sessao: Sessao): EstadoDoWorkspace {
 export function criarParticipacoesSimuladas({
   armazenamento,
   sessao = { contaId: demo.CONTA_DA_SESSAO },
+  hoje,
 }: {
   armazenamento: ArmazenamentoDemonstrativo | null
   sessao?: Sessao
+  /** O dia de referência da demonstração, o mesmo do Plano: dá a data dos convites. */
+  hoje: Date
 }) {
   const contasDeUsuario = structuredClone(demo.contasDeUsuario)
   const contaDaSessao = contasDeUsuario.find((c) => c.id === sessao.contaId)
@@ -145,7 +151,7 @@ export function criarParticipacoesSimuladas({
     armazenamento?.setItem(CHAVE_DO_WORKSPACE, JSON.stringify(workspace))
   }
 
-  function contaDeUsuario(contaId: string): ContaDeUsuario {
+  function contaDeUsuario(contaId: ContaDeUsuarioId): ContaDeUsuario {
     const encontrada = contasDeUsuario.find((c) => c.id === contaId)
     if (!encontrada) throw new Error('Conta de usuário não encontrada.')
     return encontrada
@@ -155,25 +161,30 @@ export function criarParticipacoesSimuladas({
     return workspace.participacoes.find((p) => p.contaId === sessao.contaId)?.papel ?? null
   }
 
-  /** Toda operação administrativa começa aqui: a sessão precisa participar do Workspace como Administrador. */
-  function exigirAdministrador() {
+  /** A sessão precisa participar do Workspace; devolve o papel dela. */
+  function exigirParticipacao(): Papel {
     const papel = papelDaSessao()
-    if (papel === null) throw new Error('Você não participa deste Workspace.')
-    if (papel !== 'administrador') throw new Error(ERRO_SO_ADMINISTRADOR)
+    if (papel === null) throw new Error(ERRO_SEM_PARTICIPACAO)
+    return papel
   }
 
-  function participacao(contaId: string) {
+  /** Toda operação administrativa começa aqui: a sessão precisa participar do Workspace como Administrador. */
+  function exigirAdministrador() {
+    if (exigirParticipacao() !== 'administrador') throw new Error(ERRO_SO_ADMINISTRADOR)
+  }
+
+  function participacao(contaId: ContaDeUsuarioId) {
     const encontrada = workspace.participacoes.find((p) => p.contaId === contaId)
     if (!encontrada) throw new Error('Esta pessoa não participa deste Workspace.')
     return encontrada
   }
 
-  function ehUltimoAdministrador(contaId: string) {
+  function ehUltimoAdministrador(contaId: ContaDeUsuarioId) {
     const administradores = workspace.participacoes.filter((p) => p.papel === 'administrador')
     return administradores.length === 1 && administradores[0].contaId === contaId
   }
 
-  function participacoesDe(contaId: string): ParticipacaoDaConta[] {
+  function participacoesDe(contaId: ContaDeUsuarioId): ParticipacaoDaConta[] {
     const registros: RegistroDeParticipacao[] = [
       ...workspace.participacoes.map((p) => ({ ...p, workspaceId: demo.WORKSPACE_ATUAL })),
       ...deOutrosWorkspaces,
@@ -190,8 +201,9 @@ export function criarParticipacoesSimuladas({
   return {
     usuario: (): ContaDeUsuario => contaDaSessao,
     papelDaSessao,
+    exigirParticipacao,
     /** As Participações ativas neste Workspace, com o papel de cada uma. */
-    participacoesAtivas: () => workspace.participacoes,
+    participacoesAtivas: (): ParticipacaoAtiva[] => workspace.participacoes,
     informacoes: () => workspace.informacoes,
 
     /** Quem não participa do Workspace vê só as informações gerais, sem a lista de Participantes e convites. */
@@ -207,6 +219,7 @@ export function criarParticipacoesSimuladas({
             : workspace.participacoes.map(({ contaId, papel: papelDoParticipante }) => ({
                 conta: contaDeUsuario(contaId),
                 papel: papelDoParticipante,
+                ultimoAdministrador: ehUltimoAdministrador(contaId),
                 outrasParticipacoes: participacoesDe(contaId).filter((p) => !p.atual),
               })),
         convites: papel === null ? [] : workspace.convites,
@@ -225,7 +238,7 @@ export function criarParticipacoesSimuladas({
       }
     },
 
-    contaComParticipacoes: (contaId: string): ContaComParticipacoes => ({
+    contaComParticipacoes: (contaId: ContaDeUsuarioId): ContaComParticipacoes => ({
       conta: contaDeUsuario(contaId),
       participacoes: participacoesDe(contaId),
     }),
@@ -255,10 +268,11 @@ export function criarParticipacoesSimuladas({
       preferencias = novas
     },
 
-    /** O nome do Workspace é o do Cliente, definido no onboarding; aqui se altera só a descrição. */
-    salvarDescricao(descricao: string) {
+    /** O nome é também como os Agentes chamam o Cliente: muda em todo o aplicativo, que o lê daqui. */
+    salvarInformacoes({ nome, descricao }: NovasInformacoesDoWorkspace) {
       exigirAdministrador()
-      workspace.informacoes = { ...workspace.informacoes, descricao: descricao.trim() }
+      if (!nome.trim()) throw new Error('Informe o nome do Workspace.')
+      workspace.informacoes = { ...workspace.informacoes, nome: nome.trim(), descricao: descricao.trim() }
       gravarWorkspace()
     },
 
@@ -275,7 +289,7 @@ export function criarParticipacoesSimuladas({
       }
       let numero = workspace.convites.length + 1
       while (workspace.convites.some((c) => c.id === `convite-${numero}`)) numero++
-      const convite: Convite = { id: `convite-${numero}`, email: normalizado, papel, registradoEm: dataDeHoje() }
+      const convite: Convite = { id: `convite-${numero}`, email: normalizado, papel, registradoEm: diaIso(hoje) }
       workspace.convites.push(convite)
       gravarWorkspace()
       return convite
@@ -288,7 +302,7 @@ export function criarParticipacoesSimuladas({
       gravarWorkspace()
     },
 
-    mudarPapel(contaId: string, papel: Papel) {
+    mudarPapel(contaId: ContaDeUsuarioId, papel: Papel) {
       exigirAdministrador()
       if (!ehPapel(papel)) throw new Error(ERRO_DE_PAPEL)
       const alvo = participacao(contaId)
@@ -297,7 +311,7 @@ export function criarParticipacoesSimuladas({
       gravarWorkspace()
     },
 
-    remover(contaId: string) {
+    remover(contaId: ContaDeUsuarioId) {
       exigirAdministrador()
       participacao(contaId)
       if (ehUltimoAdministrador(contaId)) throw new Error(ERRO_ULTIMO_ADMINISTRADOR)

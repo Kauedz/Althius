@@ -1,44 +1,30 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ListaDeDependentes } from '@/components/documento-da-memoria'
 import { IconeAgente } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
+import { podeDecidir } from '@/fonte/regras'
 import {
   dependentesDe,
   DOCUMENTOS_DA_MEMORIA,
   ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO,
   frasesDo,
-  maiuscula,
   secoesAlteradas,
 } from '@/fonte/regras-memoria'
-import type { Aprovacao, Decisao, Papel, RevisaoDaMemoria } from '@/fonte/tipos'
+import type { AprovacaoDeRevisao, AprovacaoDeRevisaoDecidida, Decisao, Papel, RevisaoPendente } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
-import { Mensagem } from '@/paginas/configuracoes/componentes'
 
 /**
- * Uma revisão da Memória do Workspace na fila de Aprovações: o pedido, a origem, o que muda e o alcance.
+ * Uma revisão da Memória do Workspace na fila de Aprovações: o pedido e a origem e, enquanto pendente, o que muda e o
+ * alcance. Decidida, fica só o registro da decisão: o conteúdo não é guardado, e o aprovado é o vigente na Memória.
  * Só Administradores veem a decisão; a fonte também recusa a de um Membro.
  */
-export function CartaoDeRevisao({
-  aprovacao,
-  revisao,
-  papel,
-}: {
-  aprovacao: Aprovacao
-  revisao: RevisaoDaMemoria
-  papel: Papel | null
-}) {
+export function CartaoDeRevisao({ aprovacao, papel }: { aprovacao: AprovacaoDeRevisao; papel: Papel | null }) {
+  const { revisao } = aprovacao
   const { titulo, agente, agenteId, especialidade } = DOCUMENTOS_DA_MEMORIA[revisao.documento]
-  const { oVigente, foiSubstituido } = frasesDo(revisao.documento)
-  const mudancas = secoesAlteradas(revisao.vigenteNoPedido, revisao.proposto)
-  const semMudanca = revisao.proposto.filter((s) => !mudancas.includes(s)).map((s) => s.titulo)
-  const dependentes = dependentesDe(revisao.documento, revisao.proposto)
-  const textoDoAlcance = {
-    pendente: `Aprovar substitui ${oVigente} e atualiza de uma vez estas ${dependentes.length} configurações do Workspace, sem novas aprovações por módulo:`,
-    aprovada: `${maiuscula(oVigente)} ${foiSubstituido} e estas ${dependentes.length} configurações foram atualizadas de uma vez, sem novas aprovações por módulo:`,
-    rejeitada: `Nada mudou: estas configurações continuam usando ${oVigente}. Com a aprovação, ficariam assim:`,
-  }[aprovacao.estado]
 
   return (
     <article aria-label={titulo} className="cartao flex flex-col gap-5 p-6">
@@ -62,6 +48,27 @@ export function CartaoDeRevisao({
         <dd className="text-al-muted">{aprovacao.justificativa}</dd>
       </dl>
 
+      {aprovacao.estado === 'pendente' ? (
+        <>
+          <PropostaPendente revisao={aprovacao.revisao} />
+          <DecisaoDaRevisao aprovacao={aprovacao} papel={papel} />
+        </>
+      ) : (
+        <ResultadoDaDecisao aprovacao={aprovacao} />
+      )}
+    </article>
+  )
+}
+
+/** O que a proposta muda no documento vigente e as configurações que a aprovação atualiza de uma vez. */
+function PropostaPendente({ revisao }: { revisao: RevisaoPendente }) {
+  const { oVigente } = frasesDo(revisao.documento)
+  const mudancas = secoesAlteradas(revisao.vigenteNoPedido, revisao.proposto)
+  const semMudanca = revisao.proposto.filter((s) => !mudancas.includes(s)).map((s) => s.titulo)
+  const dependentes = dependentesDe(revisao.documento, revisao.proposto)
+
+  return (
+    <>
       <section aria-label="Alterações propostas" className="flex flex-col gap-3">
         <h3 className="rotulo">Alterações propostas</h3>
         <ul className="flex flex-col gap-3">
@@ -94,46 +101,39 @@ export function CartaoDeRevisao({
 
       <section aria-label="Alcance" className="flex flex-col gap-3 border-t border-al-line pt-4">
         <h3 className="rotulo">Alcance</h3>
-        <p className="text-sm">{textoDoAlcance}</p>
-        <ul className="flex flex-col gap-1.5 text-sm">
-          {dependentes.map((dependente) => (
-            <li key={dependente.nome} className="grid grid-cols-[12rem_1fr] gap-x-6">
-              <span className="rotulo pt-0.5 text-[0.625rem]">{dependente.modulo}</span>
-              <span>
-                {dependente.nome} <span className="text-al-muted">→ {dependente.resumo}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <p className="text-sm">
+          Aprovar substitui {oVigente} e atualiza de uma vez estas {dependentes.length} configurações do Workspace, sem
+          novas aprovações por módulo:
+        </p>
+        <ListaDeDependentes dependentes={dependentes} />
       </section>
-
-      <DecisaoDaRevisao aprovacao={aprovacao} revisao={revisao} papel={papel} />
-    </article>
+    </>
   )
 }
 
-function DecisaoDaRevisao({ aprovacao, revisao, papel }: { aprovacao: Aprovacao; revisao: RevisaoDaMemoria; papel: Papel | null }) {
-  const fonte = useFonte()
-  const [erro, setErro] = useState<string | null>(null)
-  const [decidindo, setDecidindo] = useState(false)
-  const { concordar, oVigente, foiSubstituido } = frasesDo(revisao.documento)
-
+function ResultadoDaDecisao({ aprovacao }: { aprovacao: AprovacaoDeRevisaoDecidida }) {
+  const { documento, decididaPor } = aprovacao.revisao
+  const { concordar, oVigente, foiSubstituido } = frasesDo(documento)
   if (aprovacao.estado === 'aprovada') {
     return (
       <span className="rotulo text-al-sucesso">
-        Aprovada por {revisao.decididaPor?.nome} · {oVigente} {foiSubstituido} e as
-        configurações dependentes foram atualizadas
+        Aprovada por {decididaPor.nome} · {oVigente} {foiSubstituido} e as configurações dependentes foram atualizadas
       </span>
     )
   }
-  if (aprovacao.estado === 'rejeitada') {
-    return (
-      <span className="rotulo text-al-erro">
-        Recusada por {revisao.decididaPor?.nome} · {oVigente} {concordar('continua o mesmo', 'continuam as mesmas')}
-      </span>
-    )
-  }
-  if (papel !== 'administrador') return <AguardandoAdministrador />
+  return (
+    <span className="rotulo text-al-erro">
+      Recusada por {decididaPor.nome} · {oVigente} {concordar('continua o mesmo', 'continuam as mesmas')}
+    </span>
+  )
+}
+
+function DecisaoDaRevisao({ aprovacao, papel }: { aprovacao: AprovacaoDeRevisao; papel: Papel | null }) {
+  const fonte = useFonte()
+  const [erro, setErro] = useState<string | null>(null)
+  const [decidindo, setDecidindo] = useState(false)
+
+  if (!papel || !podeDecidir('revisao-da-memoria', papel)) return <AguardandoAdministrador />
 
   async function decidir(decisao: Decisao) {
     setErro(null)
@@ -170,7 +170,8 @@ function DecisaoDaRevisao({ aprovacao, revisao, papel }: { aprovacao: Aprovacao;
 /** O que um Membro vê: a decisão existe, mas cabe a um Administrador. Os botões são só ilustração. */
 function AguardandoAdministrador() {
   const dados = useDados((fonte) => fonte.participantesDoWorkspace(), [])
-  const administradores = dados?.participantes.filter((p) => p.papel === 'administrador').map((p) => p.conta.nome) ?? []
+  const administradores =
+    dados?.participantes.filter((p) => podeDecidir('revisao-da-memoria', p.papel)).map((p) => p.conta.nome) ?? []
   return (
     <div className="flex flex-col gap-3">
       <div className="flex gap-2" aria-hidden>

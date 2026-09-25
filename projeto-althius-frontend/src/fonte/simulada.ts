@@ -25,13 +25,7 @@ import {
   avisoDeRevisaoDecidida,
   type NovoAviso,
 } from './regras-avisos'
-import {
-  DOCUMENTOS_DA_MEMORIA,
-  efeitoDaDecisao,
-  frasesDo,
-  maiuscula,
-  ROTULO_DA_DECISAO_DA_REVISAO,
-} from './regras-memoria'
+import { DOCUMENTOS_DA_MEMORIA, efeitoDaDecisao, frasesDo, maiuscula } from './regras-memoria'
 import { criarMemoriaSimulada, FalhaAoGravar } from './simulada-memoria'
 import { criarParticipacoesSimuladas, type ArmazenamentoDemonstrativo, type Sessao } from './simulada-participacoes'
 import type {
@@ -39,6 +33,9 @@ import type {
   Agente,
   AgenteId,
   Aprovacao,
+  AprovacaoDeAcao,
+  AprovacaoDeRevisaoDecidida,
+  AprovacaoDeRevisaoPendente,
   AvisoDoWorkspace,
   CanalId,
   Decisao,
@@ -81,8 +78,8 @@ export function criarFonteSimulada({
   sessao,
   hoje = new Date(),
 }: OpcoesFonteSimulada = {}): FonteDeAgentes {
-  const participacoes = criarParticipacoesSimuladas({ armazenamento, sessao })
-  const memoriaDoWorkspace = criarMemoriaSimulada({ armazenamento, participacoes })
+  const participacoes = criarParticipacoesSimuladas({ armazenamento, sessao, hoje })
+  const memoriaDoWorkspace = criarMemoriaSimulada({ armazenamento, participacoes, hoje })
   const estado = structuredClone({
     agentes: demo.agentes,
     fatos: demo.fatos,
@@ -95,7 +92,10 @@ export function criarFonteSimulada({
     aprovacoes: demo.aprovacoes,
     previas: demo.previas,
   })
-  /** As Execuções desta sessão por Especialidade, que somam às do mês nos dados de exemplo. */
+  /**
+   * As Execuções desta sessão por Especialidade, que somam às do mês nos dados de exemplo. As que propuseram uma
+   * revisão da Memória do Workspace não entram aqui: contam pela revisão, que persiste com o Workspace.
+   */
   const execucoesNaSessao = new Map<EspecialidadeId, number>()
   const ouvintes = new Set<() => void>()
   const ouvintesDeAvisos = new Set<(aviso: AvisoDoWorkspace) => void>()
@@ -155,27 +155,43 @@ export function criarFonteSimulada({
     emitirAviso(avisoDeFalha(item, nomeDe(item.agenteId), quemPediu, participacoes.participacoesAtivas()))
   }
 
-  /** Registra uma Execução na Atividade do Agente: é só aqui que as execuções dele e as do mês no Plano sobem. */
+  function novaExecucao(item: NovoItem): ItemDeAtividade {
+    return { ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' }
+  }
+
+  /**
+   * Registra uma Execução na Atividade do Agente e a conta nas dele e nas do mês no Plano. A que propõe uma revisão da
+   * Memória do Workspace só entra na Atividade: conta pela revisão (`revisoesDoAgente`).
+   */
   function registrarExecucao(item: NovoItem) {
-    registrarNaAtividade({ ...item, tipo: 'execucao', id: novoId('atividade'), quando: 'Agora' })
+    registrarNaAtividade(novaExecucao(item))
     const agente = buscar(estado.agentes, item.agenteId)
     agente.execucoes++
     execucoesNaSessao.set(agente.especialidadeId, (execucoesNaSessao.get(agente.especialidadeId) ?? 0) + 1)
   }
 
-  /** As Execuções do começo do mês até hoje: as dos dados de exemplo, um tanto por dia, e as desta sessão. */
+  /** As revisões da Memória do Workspace propostas pelo Agente: cada uma é o resultado de uma Execução dele. */
+  const revisoesDoAgente = (agenteId: AgenteId) => memoriaDoWorkspace.revisoes().filter((r) => r.agenteId === agenteId)
+
+  /**
+   * As Execuções do começo do mês até hoje: as dos dados de exemplo, um tanto por dia, as desta sessão e as que
+   * propuseram as revisões pedidas no período, que continuam na fila depois de recarregar.
+   */
   function execucoesNoMes(): ExecucoesNoPeriodo {
+    const inicio = diaIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1))
+    const fim = diaIso(hoje)
+    const revisoesNoPeriodo = memoriaDoWorkspace
+      .revisoes()
+      .filter(({ revisao }) => revisao.pedidaEm >= inicio && revisao.pedidaEm <= fim)
     const porEspecialidade = especialidades.map(({ id, nome }) => ({
       especialidadeId: id,
       nome,
-      total: demo.execucoesPorDia[id] * hoje.getDate() + (execucoesNaSessao.get(id) ?? 0),
+      total:
+        demo.execucoesPorDia[id] * hoje.getDate() +
+        (execucoesNaSessao.get(id) ?? 0) +
+        revisoesNoPeriodo.filter(({ revisao }) => DOCUMENTOS_DA_MEMORIA[revisao.documento].especialidade === id).length,
     }))
-    return {
-      inicio: diaIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
-      fim: diaIso(hoje),
-      total: porEspecialidade.reduce((soma, { total }) => soma + total, 0),
-      porEspecialidade,
-    }
+    return { inicio, fim, total: porEspecialidade.reduce((soma, { total }) => soma + total, 0), porEspecialidade }
   }
 
   /** Registra uma ação dentro de uma Execução (agir pela Permissão Executar, decidir uma Aprovação). */
@@ -240,6 +256,7 @@ export function criarFonteSimulada({
     const personalizacao = estado.personalizacoes[agente.id]
     return {
       ...agente,
+      execucoes: agente.execucoes + revisoesDoAgente(agente.id).length,
       especialidade: daEspecialidade,
       descricao: (agente.tipo === 'criado' && personalizacao.instrucoes) || daEspecialidade.descricao,
       rotinaAtiva: estado.rotinas.find((r) => r.agenteId === agente.id && !r.pausada) ?? null,
@@ -287,7 +304,7 @@ export function criarFonteSimulada({
    */
   function criarAprovacao(agenteId: AgenteId, acao: AcaoProposta, origem: Origem, gatilho: Gatilho): string {
     const aprovacaoId = novoId('aprovacao')
-    const aprovacao: Aprovacao = { ...acao, id: aprovacaoId, agenteId, origem, gatilho, estado: 'pendente' }
+    const aprovacao: AprovacaoDeAcao = { ...acao, id: aprovacaoId, agenteId, origem, gatilho, estado: 'pendente' }
     estado.aprovacoes.unshift(aprovacao)
     if (origem !== 'althius') {
       estado.previas
@@ -375,11 +392,11 @@ export function criarFonteSimulada({
    */
   function decidirRevisao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {
     const { agenteId, gatilho, acao, revisao } = buscar(memoriaDoWorkspace.revisoes(), aprovacaoId)
-    const { documento } = revisao!
+    const { documento } = revisao
     const { oVigente, dele } = frasesDo(documento)
     const dependem = `as configurações que dependem ${dele}`
     const link = { rotulo: 'Ver Memória do Workspace', para: `/configuracoes/memoria/${documento}` }
-    let decidida: Aprovacao
+    let decidida: AprovacaoDeRevisaoDecidida
     try {
       decidida = memoriaDoWorkspace.decidir(aprovacaoId, decisao)
     } catch (erro) {
@@ -400,14 +417,14 @@ export function criarFonteSimulada({
     registrarAcao({
       agenteId,
       gatilho,
-      descricao: `${ROTULO_DA_DECISAO_DA_REVISAO[decisao]} ${ondeFoiDecidida(onde)}: ${acao}`,
+      descricao: `${ROTULO_DA_DECISAO[decisao]} ${ondeFoiDecidida(onde)}: ${acao}`,
       resultado:
         decisao === 'aprovada'
           ? `${efeitoDaDecisao(documento, decisao)} Nenhuma ação externa foi refeita.`
           : efeitoDaDecisao(documento, decisao),
       link,
     })
-    emitirAviso(avisoDeRevisaoDecidida(decidida, participacoes.participacoesAtivas()))
+    emitirAviso(avisoDeRevisaoDecidida(decisao, decidida.revisao, participacoes.participacoesAtivas()))
   }
 
   /** A Permissão do Agente na Integração decide: Propor vira Aprovação, Executar age sozinho, Ler não age. */
@@ -453,7 +470,7 @@ export function criarFonteSimulada({
 
     participantesDoWorkspace: () => responder(() => participacoes.participantesDoWorkspace()),
     contaDeUsuario: (contaId) => responder(() => participacoes.contaComParticipacoes(contaId)),
-    salvarDescricaoDoWorkspace: (descricao) => mudar(() => participacoes.salvarDescricao(descricao)),
+    salvarInformacoesDoWorkspace: (informacoes) => mudar(() => participacoes.salvarInformacoes(informacoes)),
     async convidarParaWorkspace(novo) {
       await esperar(Math.min(atrasoMs, 120))
       const convite = participacoes.convidar(novo)
@@ -568,7 +585,7 @@ export function criarFonteSimulada({
       const { agenteId } = DOCUMENTOS_DA_MEMORIA[documento]
       const { oVigente, naoMudou } = frasesDo(documento)
       const oVigenteNaoMudou = `${oVigente} ${naoMudou}`
-      let aprovacao: Aprovacao
+      let aprovacao: AprovacaoDeRevisaoPendente
       try {
         aprovacao = memoriaDoWorkspace.solicitar(documento, pedido)
       } catch (erro) {
@@ -584,14 +601,16 @@ export function criarFonteSimulada({
         throw new Error(`Não foi possível registrar a proposta. ${maiuscula(oVigenteNaoMudou)}; tente de novo.`)
       }
       const { revisao } = aprovacao
-      // O pedido é uma Conversa com o Agente: a proposta é o resultado dessa Execução.
-      registrarExecucao({
-        agenteId,
-        gatilho: 'conversa',
-        descricao: `Respondeu ao pedido de revisão de ${revisao!.solicitante.nome}: "${revisao!.pedido}"`,
-        resultado: `Propôs: ${aprovacao.acao}. Aguardando a decisão de um Administrador.`,
-        link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
-      })
+      // O pedido é uma Conversa com o Agente: a proposta é o resultado dessa Execução, que conta pela revisão.
+      registrarNaAtividade(
+        novaExecucao({
+          agenteId,
+          gatilho: 'conversa',
+          descricao: `Respondeu ao pedido de revisão de ${revisao.solicitante.nome}: "${revisao.pedido}"`,
+          resultado: `Propôs: ${aprovacao.acao}. Aguardando a decisão de um Administrador.`,
+          link: { rotulo: 'Ver Aprovações', para: '/aprovacoes' },
+        }),
+      )
       avisar()
       emitirAvisoDeSolicitacao(aprovacao)
       return structuredClone(aprovacao)
@@ -630,7 +649,7 @@ export function criarFonteSimulada({
         if (existente) return structuredClone(existente)
       }
       const aprovacaoId = novoId('aprovacao')
-      const nova: Aprovacao = {
+      const nova: AprovacaoDeAcao = {
         id: aprovacaoId,
         agenteId: proposta.agenteId,
         acao: proposta.acao,

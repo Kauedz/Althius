@@ -152,7 +152,7 @@ export function NascimentoSequenciaNaConversa({
   useEffect(() => {
     const idDoc = sequenciaAtivaId ?? sequenciaExistente?.id
     if (estagio === 'documento' && idDoc && !aprovacaoId && aprovacoes) {
-      const encontrada = aprovacoes.find((a) => a.sequenciaId === idDoc)
+      const encontrada = aprovacoes.find((a) => !a.revisao && a.sequenciaId === idDoc)
       if (encontrada) {
         setAprovacaoId(encontrada.id)
       }
@@ -403,7 +403,7 @@ export function NascimentoSequenciaNaConversa({
   const idDoc = sequenciaAtivaId ?? sequenciaExistente?.id
   if (!idDoc) return null
 
-  const idAprovacao = aprovacaoId ?? aprovacoes?.find((a) => a.sequenciaId === idDoc)?.id
+  const idAprovacao = aprovacaoId ?? aprovacoes?.find((a) => !a.revisao && a.sequenciaId === idDoc)?.id
 
   return (
     <div className="flex flex-col gap-6">
@@ -435,15 +435,13 @@ export function NascimentoSequenciaNaConversa({
                 <IconeAgente especialidade="rhetor" tamanho="sm" />
                 <span className="font-normal text-al-ink">{agente?.nome ?? 'Rhetor'}</span>
                 <span className="text-al-line">·</span>
-                {aprovacao.integracaoId && (
-                  <LogoDaIntegracao
-                    id={aprovacao.integracaoId}
-                    nome={nomeDaIntegracao(
-                      aprovacao.integracaoId,
-                      referencias?.integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome,
-                    )}
-                  />
-                )}
+                <LogoDaIntegracao
+                  id={aprovacao.integracaoId}
+                  nome={nomeDaIntegracao(
+                    aprovacao.integracaoId,
+                    referencias?.integracoes.find((i) => i.id === aprovacao.integracaoId)?.nome,
+                  )}
+                />
                 <span className="rotulo">{rotuloDoEstado}</span>
                 <span className="text-al-line">·</span>
                 <span className="text-xs uppercase tracking-rotulo text-al-muted">

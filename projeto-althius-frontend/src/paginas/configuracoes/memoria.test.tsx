@@ -162,6 +162,10 @@ describe('Decisão da revisão do ICP pelo contrato da fonte', () => {
 
     await fonte.decidirAprovacao(proposta.id, 'aprovada', 'fila')
     expect((await fonte.agente('scopus')).execucoes).toBe(antes + 1)
+    const decidida = (await fonte.aprovacoes()).find((a) => a.id === proposta.id)
+    expect(decidida?.revisao).toMatchObject({ pedido: 'Incluir a Colômbia.', decididaPor: { nome: 'Marina Alves' } })
+    expect(decidida?.revisao).not.toHaveProperty('proposto')
+    expect(decidida?.revisao).not.toHaveProperty('vigenteNoPedido')
     const [decisao, execucao] = await fonte.atividade('scopus')
     expect(decisao).toMatchObject({ tipo: 'acao', gatilho: 'conversa', descricao: 'Aprovada na fila: Revisar o ICP do Workspace' })
     expect(decisao.resultado).toMatch(/Nenhuma ação externa foi refeita/)
@@ -225,6 +229,12 @@ describe('Recusa, pendência e revisões sucessivas', () => {
     await usuario.keyboard('{Escape}')
     await decidirNaFila(usuario, 'Aprovar')
     await waitFor(() => expect(screen.getAllByText(/Aprovada por Marina Alves/)).toHaveLength(2))
+    // Decididas, as revisões ficam só como registro na fila: nem o ICP substituído nem o aprovado ficam guardados nelas.
+    for (const cartao of screen.getAllByRole('article', { name: 'Revisar o ICP do Workspace' })) {
+      expect(within(cartao).queryByRole('region', { name: 'Alterações propostas' })).not.toBeInTheDocument()
+      expect(cartao).not.toHaveTextContent('2.000 funcionários')
+      expect(cartao).not.toHaveTextContent('Serviços financeiros, varejo e telecomunicações.')
+    }
 
     const icp = await voltarParaAMemoria(usuario)
     expect(icp.getByText('Serviços financeiros, saúde e telecomunicações.')).toBeInTheDocument()

@@ -106,3 +106,15 @@ Pré-requisitos: o ticket 01 está aprovado, e o ticket 04 está implementado.
   - `id` fixo no "Em breve", como nas outras seções;
   - as Execuções da sessão continuam na memória, como os demais contadores dos Agentes.
 
+### 2026-09-25: conformidade com a spec, depois da revisão da feature inteira
+
+Aplicado ("valores demonstrativos consistentes"):
+- A Execução que propõe uma revisão da Memória do Workspace conta pela revisão, que persiste com o Workspace. Depois de recarregar, o Plano e o contador do Agente continuam com ela no período, e a revisão continua na fila. As demais Execuções da sessão seguem na memória, como a Atividade.
+- As datas do pedido, da aprovação e do convite usam o mesmo dia de referência do Plano (`hoje`), e não o relógio do navegador. Assim, uma revisão pedida sempre cai no período mostrado.
+- Um pedido de revisão que falha continua contando como Execução: o Agente foi acionado e respondeu com a falha, que entra na Atividade e gera o aviso "Falha na Execução".
+
+Validação (2026-09-25, no checkout compartilhado, depois do commit `161639e` do onboarding):
+- `tsc -b`: sem erros; `vite build`: concluído;
+- `vitest run`: 457 testes em 31 arquivos, todos passando;
+- `oxlint`: sem erros; os avisos são de arquivos que esta revisão não toca;
+- inspeção no Chromium headless, 1440 px, claro e escuro: a edição das informações em Pessoas e acesso, o diálogo de revisão, o cartão pendente (comparativo e alcance) e o decidido (só o registro) em Aprovações e o Contexto do Workspace na Memória do Ethos.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Mensagem } from '@/components/mensagem'
 import { Button } from '@/components/ui/button'
-import { Mensagem } from './componentes'
 
 const CAMPOS = [
   { campo: 'atual', rotulo: 'Senha atual' },

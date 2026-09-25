@@ -115,8 +115,3 @@ export function diaIso(data: Date): string {
   const doisDigitos = (n: number) => String(n).padStart(2, '0')
   return `${data.getFullYear()}-${doisDigitos(data.getMonth() + 1)}-${doisDigitos(data.getDate())}`
 }
-
-/** A data de hoje em ISO (aaaa-mm-dd), no dia do calendário local. */
-export function dataDeHoje(): string {
-  return diaIso(new Date())
-}

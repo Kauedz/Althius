@@ -1,14 +1,16 @@
 import { ShieldCheck, UserPlus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { AvatarDePessoa, Carregando } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
+import { Opcao } from '@/components/opcao'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
-import { PAPEIS, ROTULO_DO_PAPEL } from '@/fonte/regras'
-import type { Papel, Participante, ParticipantesDoWorkspace } from '@/fonte/tipos'
+import { ERRO_SEM_PARTICIPACAO, PAPEIS, ROTULO_DO_PAPEL } from '@/fonte/regras'
+import type { InformacoesDoWorkspace, Papel, Participante, ParticipantesDoWorkspace } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
-import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Opcao } from '@/paginas/sinais/componentes'
-import { Bloco, Mensagem } from './componentes'
+import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
 type Resultado = { tipo: 'sucesso' | 'erro'; texto: string }
 type AoConcluir = (resultado: Resultado) => void
@@ -22,16 +24,12 @@ export function SecaoWorkspace() {
   const [resultado, setResultado] = useState<Resultado | null>(null)
 
   return (
-    <section aria-labelledby="titulo-pessoas" className="flex max-w-4xl flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <h2 id="titulo-pessoas" className="titulo-secao text-3xl">
-            Pessoas e acesso
-          </h2>
-          <span className="selo border-al-accent/50 text-al-ink">Compartilhado com o Workspace</span>
-        </div>
-        <p className="text-al-muted">O que muda aqui vale para todas as pessoas do Workspace.</p>
-      </div>
+    <SecaoDeConfiguracoes
+      id="pessoas"
+      titulo="Pessoas e acesso"
+      alcance="workspace"
+      descricao="O que muda aqui vale para todas as pessoas do Workspace."
+    >
       {!dados ? (
         <Carregando />
       ) : (
@@ -39,8 +37,8 @@ export function SecaoWorkspace() {
           {dados.papel !== 'administrador' && (
             <Mensagem tipo="info">
               {dados.papel === 'membro'
-                ? 'Você é Membro: consulta quem participa, mas só Administradores alteram a descrição, convidam, mudam papéis e removem pessoas.'
-                : 'Você não participa deste Workspace.'}
+                ? 'Você é Membro: consulta quem participa, mas só Administradores alteram as informações do Workspace, convidam, mudam papéis e removem pessoas.'
+                : ERRO_SEM_PARTICIPACAO}
             </Mensagem>
           )}
           {resultado && <Mensagem tipo={resultado.tipo}>{resultado.texto}</Mensagem>}
@@ -49,7 +47,7 @@ export function SecaoWorkspace() {
           <Convites dados={dados} aoConcluir={setResultado} />
         </>
       )}
-    </section>
+    </SecaoDeConfiguracoes>
   )
 }
 
@@ -64,29 +62,30 @@ function Informacoes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; a
         papel === 'administrador' &&
         !editando && (
           <button type="button" onClick={() => setEditando(true)} className={BOTAO_SECUNDARIO}>
-            Editar descrição
+            Editar informações
           </button>
         )
       }
     >
+      {editando && (
+        <FormularioDeInformacoes
+          atuais={informacoes}
+          aoFechar={() => setEditando(false)}
+          aoConcluir={(resultado) => {
+            aoConcluir(resultado)
+            setEditando(false)
+          }}
+        />
+      )}
       <dl className="grid max-w-2xl grid-cols-[10rem_1fr] gap-x-6 gap-y-3">
-        <dt className="rotulo">Nome</dt>
-        <dd className="font-normal">{informacoes.nome}</dd>
-        <dt className="rotulo">Descrição</dt>
-        <dd>
-          {editando ? (
-            <FormularioDeDescricao
-              descricaoAtual={informacoes.descricao}
-              aoFechar={() => setEditando(false)}
-              aoConcluir={(resultado) => {
-                aoConcluir(resultado)
-                setEditando(false)
-              }}
-            />
-          ) : (
-            informacoes.descricao || <span className="text-al-muted">Sem descrição</span>
-          )}
-        </dd>
+        {!editando && (
+          <>
+            <dt className="rotulo">Nome</dt>
+            <dd className="font-normal">{informacoes.nome}</dd>
+            <dt className="rotulo">Descrição</dt>
+            <dd>{informacoes.descricao || <span className="text-al-muted">Sem descrição</span>}</dd>
+          </>
+        )}
         <dt className="rotulo">Criado em</dt>
         <dd>{formatarDiaIsoPorExtenso(informacoes.criadoEm)}</dd>
         <dt className="rotulo">Participantes</dt>
@@ -98,18 +97,19 @@ function Informacoes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; a
   )
 }
 
-/** O nome do Workspace é o do Cliente, definido no onboarding; aqui o Administrador altera só a descrição. */
-function FormularioDeDescricao({
-  descricaoAtual,
+/** O nome é também como os Agentes chamam o Cliente: muda em todo o aplicativo, que o lê da mesma fonte. */
+function FormularioDeInformacoes({
+  atuais,
   aoFechar,
   aoConcluir,
 }: {
-  descricaoAtual: string
+  atuais: InformacoesDoWorkspace
   aoFechar: () => void
   aoConcluir: AoConcluir
 }) {
   const fonte = useFonte()
-  const [descricao, setDescricao] = useState(descricaoAtual)
+  const [nome, setNome] = useState(atuais.nome)
+  const [descricao, setDescricao] = useState(atuais.descricao)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
 
@@ -117,8 +117,8 @@ function FormularioDeDescricao({
     evento.preventDefault()
     setSalvando(true)
     try {
-      await fonte.salvarDescricaoDoWorkspace(descricao)
-      aoConcluir({ tipo: 'sucesso', texto: 'Descrição do Workspace salva. Todas as pessoas do Workspace já veem a mudança.' })
+      await fonte.salvarInformacoesDoWorkspace({ nome, descricao })
+      aoConcluir({ tipo: 'sucesso', texto: 'Informações do Workspace salvas. Todas as pessoas do Workspace já veem a mudança.' })
     } catch (e) {
       setErro(mensagemDeErro(e))
     } finally {
@@ -127,20 +127,39 @@ function FormularioDeDescricao({
   }
 
   return (
-    <form aria-label="Descrição do Workspace" noValidate onSubmit={salvar} className="flex flex-col gap-3">
-      <input
-        aria-label="Descrição"
-        value={descricao}
-        onChange={(e) => {
-          setDescricao(e.target.value)
-          setErro('')
-        }}
-        aria-invalid={Boolean(erro)}
-        aria-describedby={erro ? 'workspace-descricao-erro' : undefined}
-        className="campo"
-      />
+    <form aria-label="Informações do Workspace" noValidate onSubmit={salvar} className="flex max-w-2xl flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="workspace-nome" className="rotulo">
+          Nome
+        </label>
+        <input
+          id="workspace-nome"
+          value={nome}
+          onChange={(e) => {
+            setNome(e.target.value)
+            setErro('')
+          }}
+          aria-invalid={Boolean(erro)}
+          aria-describedby={erro ? 'workspace-informacoes-erro' : undefined}
+          className="campo"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="workspace-descricao" className="rotulo">
+          Descrição
+        </label>
+        <input
+          id="workspace-descricao"
+          value={descricao}
+          onChange={(e) => {
+            setDescricao(e.target.value)
+            setErro('')
+          }}
+          className="campo"
+        />
+      </div>
       {erro && (
-        <p id="workspace-descricao-erro" role="alert" className="text-sm text-al-erro">
+        <p id="workspace-informacoes-erro" role="alert" className="text-sm text-al-erro">
           {erro}
         </p>
       )}
@@ -160,7 +179,6 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
   const fonte = useFonte()
   const { participantes, papel, contaId } = dados
   const ehAdministrador = papel === 'administrador'
-  const administradores = participantes.filter((p) => p.papel === 'administrador')
   const [removendo, setRemovendo] = useState<Participante | null>(null)
 
   async function mudarPapel(participante: Participante, novo: Papel) {
@@ -195,8 +213,7 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
         </thead>
         <tbody>
           {participantes.map((participante) => {
-            const { conta } = participante
-            const ultimo = administradores.length === 1 && participante.papel === 'administrador'
+            const { conta, ultimoAdministrador: ultimo } = participante
             const voce = conta.id === contaId
             return (
               <tr key={conta.id} aria-label={conta.nome} className="border-b border-al-line">

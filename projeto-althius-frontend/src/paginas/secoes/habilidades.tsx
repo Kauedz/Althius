@@ -1,7 +1,7 @@
 import { Carregando } from '@/components/marca'
 import { Switch } from '@/components/ui/switch'
 import { useDados, useFonte } from '@/fonte/contexto'
-import { criteriosDaAderencia, variacoesPorPersona } from '@/fonte/regras-memoria'
+import { DOCUMENTOS_DA_MEMORIA, frasesDo, USO_NA_HABILIDADE } from '@/fonte/regras-memoria'
 import type { Agente } from '@/fonte/tipos'
 
 export function SecaoHabilidades({ agente }: { agente: Agente }) {
@@ -26,16 +26,13 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
               <div className="flex flex-1 flex-col gap-1">
                 <span className="font-normal">{habilidade.nome}</span>
                 <p className="text-al-muted">{habilidade.descricao}</p>
-                {habilidade.usaIcp && memoria && (
+                {habilidade.usaDocumento && memoria && (
                   <p className="text-sm">
-                    <span className="rotulo mr-2">ICP vigente</span>
-                    {criteriosDaAderencia(memoria.icp.secoes)}
-                  </p>
-                )}
-                {habilidade.usaPersonas && memoria && (
-                  <p className="text-sm">
-                    <span className="rotulo mr-2">Personas vigentes</span>
-                    {variacoesPorPersona(memoria.personas.secoes)}
+                    <span className="rotulo mr-2">
+                      {DOCUMENTOS_DA_MEMORIA[habilidade.usaDocumento].nome}{' '}
+                      {frasesDo(habilidade.usaDocumento).concordar('vigente', 'vigentes')}
+                    </span>
+                    {USO_NA_HABILIDADE[habilidade.usaDocumento](memoria[habilidade.usaDocumento].secoes)}
                   </p>
                 )}
                 <span className="text-sm text-al-muted">

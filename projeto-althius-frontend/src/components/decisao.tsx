@@ -1,11 +1,11 @@
 import { Button } from '@/components/ui/button'
 import { useFonte } from '@/fonte/contexto'
 import { ROTULO_DA_DECISAO } from '@/fonte/regras'
-import type { Aprovacao, LugarDaDecisao } from '@/fonte/tipos'
+import type { AprovacaoDeAcao, LugarDaDecisao } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 
-/** Aprovar ou Rejeitar uma proposta; depois de decidida, mostra o resultado. */
-export function DecisaoDeAprovacao({ aprovacao, onde }: { aprovacao: Aprovacao; onde: LugarDaDecisao }) {
+/** Aprovar ou Recusar uma proposta; depois de decidida, mostra o resultado. */
+export function DecisaoDeAprovacao({ aprovacao, onde }: { aprovacao: AprovacaoDeAcao; onde: LugarDaDecisao }) {
   const fonte = useFonte()
 
   if (aprovacao.estado !== 'pendente') {
@@ -25,7 +25,7 @@ export function DecisaoDeAprovacao({ aprovacao, onde }: { aprovacao: Aprovacao; 
         onClick={() => fonte.decidirAprovacao(aprovacao.id, 'rejeitada', onde)}
         className="px-6 tracking-rotulo uppercase"
       >
-        Rejeitar
+        Recusar
       </Button>
     </div>
   )

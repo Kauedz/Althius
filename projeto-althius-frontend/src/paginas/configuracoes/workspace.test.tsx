@@ -30,7 +30,7 @@ describe('Workspace / Pessoas e acesso', () => {
     expect(screen.queryByRole('button', { name: 'Convidar pessoa' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: /Papel de/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remover do Workspace' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Editar descrição' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Editar informações' })).not.toBeInTheDocument()
   })
 })
 
@@ -168,7 +168,9 @@ describe('Contrato da fonte: operações administrativas validam a Participaçã
     await expect(fonte.mudarPapel('lucas', 'administrador')).rejects.toThrow(/Só Administradores/)
     await expect(fonte.removerDoWorkspace('beatriz')).rejects.toThrow(/Só Administradores/)
     await expect(fonte.cancelarConvite(antes.convites[0].id)).rejects.toThrow(/Só Administradores/)
-    await expect(fonte.salvarDescricaoDoWorkspace('Outra descrição')).rejects.toThrow(/Só Administradores/)
+    await expect(fonte.salvarInformacoesDoWorkspace({ nome: 'Outro nome', descricao: 'Outra descrição' })).rejects.toThrow(
+      /Só Administradores/,
+    )
 
     expect(await fonte.participantesDoWorkspace()).toEqual(antes)
   })
@@ -237,14 +239,16 @@ describe('Estado demonstrativo do Workspace', () => {
     await screen.findByText('Lucas Moreira agora é Administrador neste Workspace.')
     await primeira.fonte.removerDoWorkspace('beatriz')
     await primeira.fonte.convidarParaWorkspace({ email: 'julia.prado@databricks.com', papel: 'membro' })
-    await primeira.fonte.salvarDescricaoDoWorkspace('Time comercial da América Latina')
+    await primeira.fonte.salvarInformacoesDoWorkspace({ nome: 'Databricks LATAM', descricao: 'Time comercial da América Latina' })
     primeira.unmount()
 
     abrirParticipantes({ armazenamento })
     expect(await screen.findByRole('combobox', { name: 'Papel de Lucas Moreira' })).toHaveValue('administrador')
     expect(screen.queryByRole('row', { name: 'Beatriz Santos' })).not.toBeInTheDocument()
     expect(screen.getByRole('listitem', { name: 'julia.prado@databricks.com' })).toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'Workspace' })).getByText('Time comercial da América Latina')).toBeInTheDocument()
+    const informacoes = within(screen.getByRole('region', { name: 'Workspace' }))
+    expect(informacoes.getByText('Databricks LATAM')).toBeInTheDocument()
+    expect(informacoes.getByText('Time comercial da América Latina')).toBeInTheDocument()
   })
 
   it('sem armazenamento, cada cenário começa dos dados de exemplo', async () => {
@@ -279,19 +283,41 @@ describe('Consumidores das pessoas do Workspace', () => {
     expect(within(seus.getByRole('listitem', { name: 'Evolut Trading' })).getByText('Membro')).toBeInTheDocument()
   })
 
-  it('um Administrador altera a descrição do Workspace e a Casca acompanha; o nome, que é o do Cliente, não se edita aqui', async () => {
+  it('um Administrador altera o nome e a descrição do Workspace; a Casca e os Agentes leem da mesma fonte', async () => {
     const { usuario } = abrirParticipantes()
-    await usuario.click(await screen.findByRole('button', { name: 'Editar descrição' }))
-    expect(screen.queryByRole('textbox', { name: 'Nome' })).not.toBeInTheDocument()
-    const descricao = screen.getByRole('textbox', { name: 'Descrição' })
+    await usuario.click(await screen.findByRole('button', { name: 'Editar informações' }))
+    const formulario = within(screen.getByRole('form', { name: 'Informações do Workspace' }))
+    const nome = formulario.getByRole('textbox', { name: 'Nome' })
+    await usuario.clear(nome)
+    await usuario.type(nome, 'Databricks LATAM')
+    const descricao = formulario.getByRole('textbox', { name: 'Descrição' })
     await usuario.clear(descricao)
     await usuario.type(descricao, 'Time comercial da América Latina')
-    await usuario.click(screen.getByRole('button', { name: 'Salvar' }))
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar' }))
 
-    expect(await screen.findByText(/Descrição do Workspace salva/)).toBeInTheDocument()
-    expect(await within(screen.getByRole('region', { name: 'Workspace' })).findByText('Time comercial da América Latina')).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: 'Workspace: Databricks' }))
+    expect(await screen.findByText(/Informações do Workspace salvas/)).toBeInTheDocument()
+    const informacoes = within(screen.getByRole('region', { name: 'Workspace' }))
+    expect(await informacoes.findByText('Databricks LATAM')).toBeInTheDocument()
+    expect(informacoes.getByText('Time comercial da América Latina')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Workspace: Databricks LATAM' }))
     expect(await screen.findByRole('menu')).toHaveTextContent('Time comercial da América Latina')
+    await usuario.keyboard('{Escape}')
+
+    await usuario.click(within(screen.getByRole('complementary', { name: 'Navegação' })).getByRole('link', { name: /Agentes/ }))
+    await usuario.click((await screen.findAllByRole('link', { name: /Scopus/ }))[0])
+    await usuario.click(await screen.findByRole('link', { name: 'Memória' }))
+    expect(await screen.findByText(/O que Scopus aprendeu sobre a Databricks LATAM/)).toBeInTheDocument()
+  })
+
+  it('o nome do Workspace não fica vazio: nada muda e o erro é anunciado', async () => {
+    const { usuario, fonte } = abrirParticipantes()
+    await usuario.click(await screen.findByRole('button', { name: 'Editar informações' }))
+    const formulario = within(screen.getByRole('form', { name: 'Informações do Workspace' }))
+    await usuario.clear(formulario.getByRole('textbox', { name: 'Nome' }))
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar' }))
+
+    expect(await formulario.findByRole('alert')).toHaveTextContent('Informe o nome do Workspace.')
+    expect((await fonte.participantesDoWorkspace()).informacoes.nome).toBe('Databricks')
   })
 })
 

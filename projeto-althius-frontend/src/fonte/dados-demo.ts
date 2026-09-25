@@ -3,7 +3,7 @@
 import type {
   Agente,
   AgenteId,
-  Aprovacao,
+  AprovacaoDeAcao,
   Canal,
   ContaDeUsuario,
   Convite,
@@ -158,23 +158,23 @@ export const fatos: Fato[] = [
 ]
 
 export const habilidades: Habilidade[] = [
-  { id: 'h1', agenteId: 'scopus', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 148, ultimaMelhoria: '18/09/2026', ativa: true, usaIcp: true },
+  { id: 'h1', agenteId: 'scopus', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 148, ultimaMelhoria: '18/09/2026', ativa: true, usaDocumento: 'icp' },
   { id: 'h2', agenteId: 'scopus', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 37, ultimaMelhoria: '09/09/2026', ativa: true },
   { id: 'h3', agenteId: 'ethos', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 64, ultimaMelhoria: '14/09/2026', ativa: true },
   { id: 'h4', agenteId: 'ethos', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 29, ultimaMelhoria: '02/09/2026', ativa: false },
   { id: 'h5', agenteId: 'rhetor', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 121, ultimaMelhoria: '19/09/2026', ativa: true },
-  { id: 'h6', agenteId: 'rhetor', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 43, ultimaMelhoria: '11/09/2026', ativa: true, usaPersonas: true },
+  { id: 'h6', agenteId: 'rhetor', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 43, ultimaMelhoria: '11/09/2026', ativa: true, usaDocumento: 'personas' },
   { id: 'h7', agenteId: 'oraculum', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 52, ultimaMelhoria: '15/09/2026', ativa: true },
   { id: 'h8', agenteId: 'oraculum', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 18, ultimaMelhoria: '08/09/2026', ativa: true },
   // Os Agentes criados começaram com uma cópia das Habilidades do Agente padrão e seguiram refinando com o uso.
-  { id: 'h9', agenteId: 'scopus-enterprise-latam', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 41, ultimaMelhoria: '15/09/2026', ativa: true, usaIcp: true },
+  { id: 'h9', agenteId: 'scopus-enterprise-latam', nome: 'Pontuar aderência ao ICP', descricao: 'Cruza firmografia, tecnologia usada e sinais públicos para dar uma nota de 0 a 100.', usos: 41, ultimaMelhoria: '15/09/2026', ativa: true, usaDocumento: 'icp' },
   { id: 'h10', agenteId: 'scopus-enterprise-latam', nome: 'Encontrar Contas-alvo parecidas', descricao: 'Parte dos melhores clientes e procura Contas-alvo com o mesmo perfil.', usos: 9, ultimaMelhoria: '01/09/2026', ativa: true },
   { id: 'h11', agenteId: 'ethos-comite-financeiro', nome: 'Mapear Comitê de compra', descricao: 'Identifica os papéis que influenciam e decidem a compra numa Conta-alvo.', usos: 14, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h12', agenteId: 'ethos-comite-financeiro', nome: 'Antecipar objeções por cargo', descricao: 'Lista as objeções prováveis de cada papel, com a resposta sugerida.', usos: 8, ultimaMelhoria: '11/09/2026', ativa: true },
   { id: 'h13', agenteId: 'rhetor-sequencias-outbound', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 26, ultimaMelhoria: '12/09/2026', ativa: true },
-  { id: 'h14', agenteId: 'rhetor-sequencias-outbound', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 38, ultimaMelhoria: '17/09/2026', ativa: true, usaPersonas: true },
+  { id: 'h14', agenteId: 'rhetor-sequencias-outbound', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 38, ultimaMelhoria: '17/09/2026', ativa: true, usaDocumento: 'personas' },
   { id: 'h15', agenteId: 'rhetor-anuncios-meta', nome: 'E-mail frio curto', descricao: 'Escreve e-mails de até 90 palavras com um único pedido claro.', usos: 0, ultimaMelhoria: '05/09/2026', ativa: false },
-  { id: 'h16', agenteId: 'rhetor-anuncios-meta', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 11, ultimaMelhoria: '16/09/2026', ativa: true, usaPersonas: true },
+  { id: 'h16', agenteId: 'rhetor-anuncios-meta', nome: 'Sequência por persona', descricao: 'Monta sequências de toques adaptadas às dores de cada persona.', usos: 11, ultimaMelhoria: '16/09/2026', ativa: true, usaDocumento: 'personas' },
   { id: 'h17', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Auditar prompts-alvo', descricao: 'Pergunta os prompts-alvo a cada LLM e registra se a marca é citada.', usos: 8, ultimaMelhoria: '19/09/2026', ativa: true },
   { id: 'h18', agenteId: 'oraculum-concorrencia-snowflake', nome: 'Recomendar conteúdo citável', descricao: 'Sugere páginas e dados que aumentam a chance de a marca ser citada.', usos: 3, ultimaMelhoria: '12/09/2026', ativa: true },
 ]
@@ -323,7 +323,7 @@ export const personalizacoes: Record<AgenteId, Personalizacao> = {
   },
 }
 
-export const aprovacoes: Aprovacao[] = [
+export const aprovacoes: AprovacaoDeAcao[] = [
   {
     id: 'ap1',
     agenteId: 'rhetor',

@@ -5,7 +5,7 @@ import { Carregando, IconeAgente } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { useDados } from '@/fonte/contexto'
-import type { Agente, Aprovacao, Integracao, IntegracaoId } from '@/fonte/tipos'
+import type { Agente, AprovacaoDeAcao, Integracao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
@@ -39,16 +39,13 @@ export function PaginaAprovacoes() {
             {ordenadas.map((aprovacao) => (
               <li key={aprovacao.id}>
                 {aprovacao.revisao ? (
-                  <CartaoDeRevisao aprovacao={aprovacao} revisao={aprovacao.revisao} papel={workspace.papel} />
+                  <CartaoDeRevisao aprovacao={aprovacao} papel={workspace.papel} />
                 ) : (
-                  aprovacao.integracaoId && (
-                    <CartaoDeAprovacao
-                      aprovacao={aprovacao}
-                      integracaoId={aprovacao.integracaoId}
-                      agente={agentes.find((a) => a.id === aprovacao.agenteId)}
-                      integracao={integracoes.find((i) => i.id === aprovacao.integracaoId)}
-                    />
-                  )
+                  <CartaoDeAprovacao
+                    aprovacao={aprovacao}
+                    agente={agentes.find((a) => a.id === aprovacao.agenteId)}
+                    integracao={integracoes.find((i) => i.id === aprovacao.integracaoId)}
+                  />
                 )}
               </li>
             ))}
@@ -62,15 +59,14 @@ export function PaginaAprovacoes() {
 /** Uma ação proposta numa Integração. */
 function CartaoDeAprovacao({
   aprovacao,
-  integracaoId,
   agente,
   integracao,
 }: {
-  aprovacao: Aprovacao
-  integracaoId: IntegracaoId
+  aprovacao: AprovacaoDeAcao
   agente?: Agente
   integracao?: Integracao
 }) {
+  const { integracaoId } = aprovacao
   const rotuloDaIntegracao = nomeDaIntegracao(integracaoId, integracao?.nome)
   return (
     <article aria-label={aprovacao.acao} className="cartao flex flex-col gap-4 p-6">

@@ -1,7 +1,8 @@
 import { Bell, BellOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Switch } from '@/components/ui/switch'
 import { Carregando } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
+import { Switch } from '@/components/ui/switch'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { avisosQueRecebe } from '@/fonte/regras-avisos'
 import type { Papel } from '@/fonte/tipos'
@@ -13,24 +14,20 @@ import {
   type EstadoDasNotificacoes,
 } from '@/notificacoes-do-navegador'
 import { useTema, type Tema } from '@/tema'
-import { Bloco, Mensagem } from './componentes'
+import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
 /** Preferências pessoais: o tema e as notificações do navegador. Valem só para a Conta de usuário da sessão. */
 export function SecaoPreferencias() {
   const { tema, escolher } = useTema()
 
   return (
-    <section aria-labelledby="titulo-preferencias" className="flex max-w-2xl flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <h2 id="titulo-preferencias" className="titulo-secao text-3xl">
-            Preferências
-          </h2>
-          <span className="selo">Só você</span>
-        </div>
-        <p className="text-al-muted">Preferências pessoais, valem só para a sua Conta de usuário.</p>
-      </div>
-
+    <SecaoDeConfiguracoes
+      id="preferencias"
+      titulo="Preferências"
+      alcance="pessoal"
+      descricao="Preferências pessoais, valem só para a sua Conta de usuário."
+      estreita
+    >
       <div className="flex items-center justify-between gap-6 border-t border-al-line pt-6">
         <div className="flex flex-col gap-1">
           <span className="font-normal">Tema</span>
@@ -40,7 +37,7 @@ export function SecaoPreferencias() {
       </div>
 
       <NotificacoesDoNavegador />
-    </section>
+    </SecaoDeConfiguracoes>
   )
 }
 

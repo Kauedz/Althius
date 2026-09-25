@@ -130,3 +130,22 @@ Pré-requisito: o ticket 01 está aprovado, e o 04 está implementado (`5293168`
   2. peça uma revisão ao Scopus e confira o diálogo, a fila `/aprovacoes` (cartão, alcance, decisão) e a Memória depois de aprovar e de recusar;
   3. confira o público recomendado em Sinais, a Habilidade do Scopus e o Contexto do Workspace na Memória de um Agente;
   4. se estiver certo, troque o `Status:` para `closed`.
+
+### 2026-09-25: conformidade com a spec, depois da revisão da feature inteira
+
+Aplicado:
+- **Sem histórico na fila.** A revisão decidida guarda só o registro da Aprovação: pedido, solicitante e quem decidiu. O conteúdo proposto e o vigente no pedido saem na decisão, e o cartão decidido não mostra mais o comparativo nem o alcance. Uma Memória salva no formato anterior é lida sem esse conteúdo. Isso resolve a nota "Se o usuário achar que isso parece histórico" acima.
+- **União discriminada.** `Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao`, e a revisão é pendente ou decidida. Saíram o `integracaoId` opcional, os `revisao!` e `as Decisao` e as checagens de Integração nas telas de Conversa, Canal e nascimento de Sequência. A decisão está na ADR 0010.
+- A regra de quem decide cada categoria fica num lugar só (`podeDecidir`), usada pela fonte, pelos avisos, pelo cartão e por Preferências.
+- Rótulo único: toda Aprovação é "Aprovada" ou "Recusada", com o botão "Recusar". Antes, as ações diziam "Rejeitada" e as revisões, "Recusada".
+- Vocabulário do glossário: a Memória guarda "o documento vigente", sem "versão"; a Atividade registra "a falha", sem "evento".
+- `SecoesDoDocumento` e `ListaDeDependentes` (`components/documento-da-memoria.tsx`) servem a Memória do Workspace, a Memória do Agente e o cartão de revisão. `AbasDasPaginas` serve a Memória e a Ajuda.
+- `Habilidade.usaDocumento` substitui `usaIcp`/`usaPersonas`.
+
+Decidido pelo usuário e registrado na spec: o pedido continua no diálogo de revisão em Configurações, como no mockup; a página de Conversa do Agente não gera proposta.
+
+Validação (2026-09-25, no checkout compartilhado, depois do commit `161639e` do onboarding):
+- `tsc -b`: sem erros; `vite build`: concluído;
+- `vitest run`: 457 testes em 31 arquivos, todos passando;
+- `oxlint`: sem erros; os avisos são de arquivos que esta revisão não toca;
+- inspeção no Chromium headless, 1440 px, claro e escuro: a edição das informações em Pessoas e acesso, o diálogo de revisão, o cartão pendente (comparativo e alcance) e o decidido (só o registro) em Aprovações e o Contexto do Workspace na Memória do Ethos.

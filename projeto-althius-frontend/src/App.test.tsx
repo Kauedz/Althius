@@ -568,8 +568,8 @@ describe('Conexões e Aprovações', () => {
     const slack = await screen.findByRole('article', { name: 'Slack' })
     await usuario.click(within(slack).getByRole('button', { name: 'Ver prévia' }))
     const previa = await screen.findByRole('dialog', { name: /Prévia do Slack/ })
-    await usuario.click(within(previa).getByRole('button', { name: 'Rejeitar' }))
-    expect(await within(previa).findByText('Rejeitada')).toBeInTheDocument()
+    await usuario.click(within(previa).getByRole('button', { name: 'Recusar' }))
+    expect(await within(previa).findByText('Recusada')).toBeInTheDocument()
   })
 })
 
@@ -962,10 +962,10 @@ describe('Gatilho das ações', () => {
     await coordenacaoTerminada()
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: /Aprovações/ }))
     const proposta = await screen.findByRole('article', { name: /Criar sequência de 3 e-mails no HubSpot/ })
-    await usuario.click(within(proposta).getByRole('button', { name: 'Rejeitar' }))
-    await within(proposta).findByText('Rejeitada')
+    await usuario.click(within(proposta).getByRole('button', { name: 'Recusar' }))
+    await within(proposta).findByText('Recusada')
 
-    const item = await itemDaAtividade(usuario, 'Rhetor', /Rejeitada na fila: Criar sequência de 3 e-mails/)
+    const item = await itemDaAtividade(usuario, 'Rhetor', /Recusada na fila: Criar sequência de 3 e-mails/)
     expect(within(item).getByText('Coordenação')).toBeInTheDocument()
   })
 

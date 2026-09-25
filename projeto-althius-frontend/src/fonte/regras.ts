@@ -1,4 +1,4 @@
-import type { Decisao, Especialidade, Papel, Permissao } from './tipos'
+import type { Aprovacao, CategoriaDeAprovacao, Decisao, Especialidade, Papel, Permissao } from './tipos'
 
 /** ADR 0002: Ler por padrão; Propor em qualquer Integração que escreve ou gasta. */
 export function permissaoPadrao(integracao: { escreve: boolean }): Permissao {
@@ -10,10 +10,24 @@ export function nomeDeAgenteCriado(especialidade: Pick<Especialidade, 'nome'>, c
   return `${especialidade.nome} · ${complemento.trim()}`
 }
 
+/** Como se diz a decisão de qualquer Aprovação: aprovada ou recusada. */
 export const ROTULO_DA_DECISAO: Record<Decisao, string> = {
   aprovada: 'Aprovada',
-  rejeitada: 'Rejeitada',
+  rejeitada: 'Recusada',
 }
+
+export const categoriaDa = (aprovacao: Aprovacao): CategoriaDeAprovacao =>
+  aprovacao.revisao ? 'revisao-da-memoria' : 'acao'
+
+/**
+ * Quem decide cada categoria de Aprovação (ADR 0010): a Revisão da Memória do Workspace, só um Administrador; as
+ * demais seguem como antes, com qualquer participante ativo.
+ */
+export function podeDecidir(categoria: CategoriaDeAprovacao, papel: Papel): boolean {
+  return categoria !== 'revisao-da-memoria' || papel === 'administrador'
+}
+
+export const ERRO_SEM_PARTICIPACAO = 'Você não participa deste Workspace.'
 
 /** Validação simples de formato, sem verificação real de e-mail (fluxo demonstrativo). */
 export const FORMATO_DE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

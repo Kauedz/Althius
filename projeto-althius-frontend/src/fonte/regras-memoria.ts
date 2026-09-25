@@ -1,6 +1,14 @@
 // Regras da Memória do Workspace: o que cada módulo lê do documento vigente. Todos derivam do mesmo
 // documento, então aprovar uma revisão atualiza de uma vez tudo que depende dele, sem cópias por tela.
-import type { AgenteId, Decisao, DocumentoDaMemoria, EspecialidadeId, SecaoDoDocumento } from './tipos'
+import type {
+  AgenteId,
+  Aprovacao,
+  AprovacaoDeRevisao,
+  Decisao,
+  DocumentoDaMemoria,
+  EspecialidadeId,
+  SecaoDoDocumento,
+} from './tipos'
 
 /** Cada documento da Memória do Workspace, com o Agente que o revisa e as formas do nome nas frases. */
 export const DOCUMENTOS_DA_MEMORIA: Record<
@@ -67,8 +75,9 @@ export function frasesDo(documento: DocumentoDaMemoria) {
 /** A frase com a primeira letra maiúscula, para começar uma sentença (ex.: "O ICP vigente…"). */
 export const maiuscula = (frase: string) => frase.charAt(0).toUpperCase() + frase.slice(1)
 
-/** Como se diz a decisão de uma revisão: a Revisão da Memória do Workspace é aprovada ou recusada. */
-export const ROTULO_DA_DECISAO_DA_REVISAO: Record<Decisao, string> = { aprovada: 'Aprovada', rejeitada: 'Recusada' }
+/** As revisões de um documento na fila de Aprovações, na ordem dela (a mais nova primeiro). */
+export const revisoesDo = (documento: DocumentoDaMemoria, aprovacoes: Aprovacao[]): AprovacaoDeRevisao[] =>
+  aprovacoes.filter((a): a is AprovacaoDeRevisao => a.revisao?.documento === documento)
 
 /** O que a decisão fez com o documento vigente e com as configurações que dependem dele. */
 export function efeitoDaDecisao(documento: DocumentoDaMemoria, decisao: Decisao): string {
@@ -125,6 +134,12 @@ export const nomesDasPersonas = (personas: SecaoDoDocumento[]) => personas.map((
 /** O que a Habilidade "Sequência por persona" dos Agentes do Rhetor usa das Personas vigentes. */
 export function variacoesPorPersona(personas: SecaoDoDocumento[]): string {
   return `Uma variação para cada uma das ${personas.length} Personas: ${nomesDasPersonas(personas)}`
+}
+
+/** O que uma Habilidade que lê o documento usa dele: os critérios do ICP ou uma variação por Persona. */
+export const USO_NA_HABILIDADE: Record<DocumentoDaMemoria, (secoes: SecaoDoDocumento[]) => string> = {
+  icp: criteriosDaAderencia,
+  personas: variacoesPorPersona,
 }
 
 const CONTEXTO_DOS_AGENTES = 'Contexto do Workspace na Memória dos Agentes'

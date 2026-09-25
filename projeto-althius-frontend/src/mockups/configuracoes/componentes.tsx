@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils'
 import { iniciais, type Participante } from './dados'
 
 // Os botões seguem os de Sequências e Sinais: raio 0, rótulo em maiúsculas e entreletra do manual.
-export { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Opcao } from '@/paginas/sinais/componentes'
+export { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
+export { Opcao } from '@/components/opcao'
 
 export type Alcance = 'pessoal' | 'workspace' | 'althius'
 
