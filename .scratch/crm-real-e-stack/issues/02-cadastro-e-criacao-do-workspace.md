@@ -11,7 +11,7 @@
 - [ ] Rotas `/cadastro`, `/entrar` e `/esqueci-a-senha` da Althius, com tela dividida no desktop e coluna única no celular (360px), usando Supabase Auth.
 - [ ] "Continuar com Google" pelo botão oficial do Google (ID token) e One Tap em `/entrar` e `/cadastro`; a escolha de conta mostra a Althius, não `*.supabase.co`.
 - [ ] Cadastro por e-mail pede nome, e-mail e senha, e exige o código de 6 dígitos antes do primeiro acesso. Sem verificação não há sessão, Workspace nem Participação.
-- [ ] Senha com mínimo de 8 caracteres, sem regras de composição, bloqueio de senhas vazadas na tela (Pwned Passwords por k-anonimato, sem bloquear se a consulta falhar), medidor de força e mostrar/ocultar.
+- [ ] Senha com mínimo de 8 caracteres, sem regras de composição, bloqueio de senhas vazadas (na tela pelo Pwned Passwords enquanto no Supabase Free; no servidor quando auto-hospedado, conforme o [ADR-0013](../../../docs/adr/0013-supabase-auto-hospedado-em-vps.md)), medidor de força e mostrar/ocultar.
 - [ ] `/entrar` aceita senha ou "Entrar com código"; erros de login e respostas de cadastro com e-mail existente não revelam se o e-mail está cadastrado.
 - [ ] Esqueci a senha por código + link, com a mesma política, encerrando as outras sessões após a troca.
 - [ ] CAPTCHA invisível (Turnstile) em cadastro, login com senha, envio de código e redefinição.
