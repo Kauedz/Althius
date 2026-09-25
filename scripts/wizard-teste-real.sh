@@ -190,6 +190,7 @@ finish() {
 # Rode num terminal interativo (de qualquer pasta do repositório):
 #   scripts/wizard-teste-real.sh
 # Para outro projeto: SUPABASE_REF=<ref> scripts/wizard-teste-real.sh
+# No Windows, rode pelo Git Bash: o Windows PowerShell não executa .sh.
 #
 # Grava tudo em projeto-althius-frontend/.env.local, que o git ignora. Só as chaves
 # VITE_* chegam ao navegador; as TESTE_* ficam locais para os testes. Rodar de novo
@@ -364,13 +365,25 @@ identidade SEM_PARTICIPACAO "Sem Participação" sem-participacao \
   "Autenticado sem Participação ativa: o app mostra 'Nenhum Workspace ativo'."
 
 stage "Participações nos Workspaces"
+say "Cria os Workspaces da empresa A e B e as Participações:"
 say "Workspace A: Vendedor responsável, Outro Membro e Administrador."
 say "Workspace B: Membro de outro Workspace. Sem Participação fica sem linha, de propósito."
 WS_A=$(workspace_salvo TESTE_WORKSPACE_A)
 WS_B=$(workspace_salvo TESTE_WORKSPACE_B)
 write_env TESTE_WORKSPACE_A "$WS_A"
 write_env TESTE_WORKSPACE_B "$WS_B"
-SQL="insert into public.workspace_memberships (workspace_id, user_id, role, active)
+# Só ASCII no SQL: o clip.exe do Windows estraga acentos ao copiar.
+SQL="do \$\$
+begin
+  if to_regclass('public.workspaces') is not null then
+    insert into public.workspaces (id, name, type) values
+      ('$WS_A'::uuid, 'Teste real - Workspace A', 'company'),
+      ('$WS_B'::uuid, 'Teste real - Workspace B', 'company')
+    on conflict (id) do nothing;
+  end if;
+end \$\$;
+
+insert into public.workspace_memberships (workspace_id, user_id, role, active)
 select v.workspace_id, u.id, v.role, true
 from (values
   ('$WS_A'::uuid, '$TESTE_RESPONSAVEL_EMAIL', 'member'),
@@ -392,8 +405,11 @@ step "O resultado deve ter 4 linhas. Com menos, algum e-mail não bate com o usu
 pause "Tecle Enter com as 4 linhas"
 
 stage "Primeiro acesso no app"
-say "Em outro terminal, suba o app (reinicie se ele já estava rodando):"
-say "    cd \"$RAIZ/projeto-althius-frontend\" && npm install && npm run dev"
+PASTA_APP="$RAIZ/projeto-althius-frontend"
+command -v cygpath >/dev/null 2>&1 && PASTA_APP=$(cygpath -w "$PASTA_APP" 2>/dev/null || printf '%s' "$PASTA_APP")
+say "Em outro terminal, entre na pasta do app e rode npm install e depois npm run dev"
+say "(reinicie o app se ele já estava rodando):"
+say "    $PASTA_APP"
 note "Ele precisa ficar em http://localhost:5173, a URL cadastrada nas Redirect URLs."
 pause "Tecle Enter com o app no ar"
 open_url "http://localhost:5173"
