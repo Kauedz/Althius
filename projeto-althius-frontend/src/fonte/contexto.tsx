@@ -1,7 +1,28 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { Ambiente, ModoDoAmbiente, ModuloDoWorkspace } from './ambiente'
 import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
+
+/** O que as telas sabem do ambiente atual: o modo, para se identificar, e se um módulo já tem backend. */
+export interface AmbienteAtual {
+  modo: ModoDoAmbiente
+  disponivel(modulo: ModuloDoWorkspace): boolean
+}
+
+const ContextoDoAmbiente = createContext<AmbienteAtual | null>(null)
+
+export function AmbienteProvider({ ambiente, children }: { ambiente: Ambiente; children: ReactNode }) {
+  const { modo, indisponiveis } = ambiente
+  const valor = useMemo<AmbienteAtual>(() => ({ modo, disponivel: (modulo) => !indisponiveis.has(modulo) }), [modo, indisponiveis])
+  return <ContextoDoAmbiente.Provider value={valor}>{children}</ContextoDoAmbiente.Provider>
+}
+
+export function useAmbiente(): AmbienteAtual {
+  const ambiente = useContext(ContextoDoAmbiente)
+  if (!ambiente) throw new Error('useAmbiente precisa de um AmbienteProvider')
+  return ambiente
+}
 
 const ContextoDaFonte = createContext<FonteDeAgentes | null>(null)
 

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { createContext, useContext, useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router-dom'
 
 /** A lista de onde o detalhe foi aberto: o endereço com o recorte e o rótulo da migalha. */
@@ -29,14 +29,23 @@ export function useMigalhaParaALista(padrao: ListaDeOrigem): ListaDeOrigem & { e
   return { para: lista.para, rotulo: lista.rotulo, estado }
 }
 
-/** A posição do quadro de cada lista, pelo endereço com o recorte, enquanto o app está aberto. */
-const posicoes = new Map<string, { topo: number; esquerda: number }>()
+type PosicoesDasListas = Map<string, { topo: number; esquerda: number }>
+
+/**
+ * A posição do quadro de cada lista, pelo endereço com o recorte, enquanto o app está aberto. Cada app montado, um
+ * por ambiente, tem as suas: outro ambiente não herda a rolagem do anterior.
+ */
+export const ContextoDasPosicoesDasListas = createContext<PosicoesDasListas | null>(null)
+
+export const criarPosicoesDasListas = (): PosicoesDasListas => new Map()
 
 /**
  * A rolagem do quadro da lista: guardada ao sair e restaurada ao voltar, pelo voltar do navegador ou pela migalha
  * do detalhe, quando a lista termina de carregar. Entrando por outro caminho (a sidebar, as abas), começa no topo.
  */
 export function useRolagemDaLista(pronta: boolean) {
+  const posicoes = useContext(ContextoDasPosicoesDasListas)
+  if (!posicoes) throw new Error('useRolagemDaLista precisa de um ContextoDasPosicoesDasListas')
   const { pathname, search, key, state } = useLocation()
   const tipoDeNavegacao = useNavigationType()
   const quadro = useRef<HTMLDivElement>(null)
@@ -60,7 +69,7 @@ export function useRolagemDaLista(pronta: boolean) {
     return () => {
       if (elemento.isConnected) posicoes.set(endereco, { topo: elemento.scrollTop, esquerda: elemento.scrollLeft })
     }
-  }, [pronta, key, endereco, voltando])
+  }, [posicoes, pronta, key, endereco, voltando])
 
   return quadro
 }

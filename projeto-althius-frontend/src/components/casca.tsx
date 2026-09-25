@@ -23,7 +23,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonteDeOnboarding } from '@/fonte/contexto'
 import { identidadeDoWorkspace, progressoDoOnboarding } from '@/fonte/regras-onboarding'
 import { ROTULO_DO_PAPEL } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
@@ -41,6 +41,7 @@ export function Casca() {
 }
 
 function Sidebar() {
+  const { modo } = useAmbiente()
   const workspace = useDados((fonte) => fonte.workspace(), [])
   const fonteDeOnboarding = useFonteDeOnboarding()
   const onboarding = useDados(fonteDeOnboarding, (fonte) => fonte.ler(), [])
@@ -48,6 +49,7 @@ function Sidebar() {
   // O Workspace criado no onboarding se apresenta pelo que a pessoa informou; sem ele, vale o da demonstração.
   const doOnboarding = onboarding ? identidadeDoWorkspace(onboarding) : null
   const agentes = useDados((fonte) => fonte.agentes(), [])
+  const agentesPadrao = agentes?.filter((agente) => agente.tipo === 'padrao')
   const cliente = doOnboarding?.nome || workspace?.cliente
   const descricao = doOnboarding?.descricao || workspace?.descricao
   const { pathname } = useLocation()
@@ -67,16 +69,17 @@ function Sidebar() {
         <Logo />
         <div className="flex flex-col gap-2">
           <SeletorDeWorkspace cliente={cliente} descricao={descricao} logo={doOnboarding?.logo ?? null} />
-          <span className="selo self-start">Demonstração</span>
+          {/* A Demonstração se identifica pelo selo (ADR 0003); o Workspace operacional, pelo seu. */}
+          <span className="selo self-start">{modo === 'demonstracao' ? 'Demonstração' : 'Operacional'}</span>
         </div>
       </div>
 
       {progresso?.pendente && <AtalhoDoOnboarding percentual={progresso.percentual} />}
 
-      <Secao titulo="Especialistas">
-        {agentes
-          ?.filter((agente) => agente.tipo === 'padrao')
-          .map((agente) => (
+      {/* Um Workspace sem Agentes guardados não mostra o grupo vazio. */}
+      {agentesPadrao?.length !== 0 && (
+        <Secao titulo="Especialistas">
+          {agentesPadrao?.map((agente) => (
             <ItemDeNavegacao
               key={agente.id}
               para={`/agentes/${agente.id}`}
@@ -91,7 +94,8 @@ function Sidebar() {
               {agente.nome}
             </ItemDeNavegacao>
           ))}
-      </Secao>
+        </Secao>
+      )}
 
       <Secao titulo="Workspace">
         <ItemDeNavegacao para="/contas" ativo={naAbaDeContas} icone={<IconeDeNavegacao icone={Building2} />}>
