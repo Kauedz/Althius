@@ -122,8 +122,6 @@ export interface MetricasDemoSequencia {
  * Operações assíncronas com observador de mudanças (ADR 0003).
  */
 export interface FonteDeSequencias extends FonteObservavel {
-  /** Identifica uma fonte ligada ao backend, sem ações de demonstração. */
-  readonly modo?: 'demo' | 'real'
   /** A data de referência de "hoje" adotada pela fonte. */
   hoje(): Date
 
