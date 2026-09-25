@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T21:25-03:00
+Updated: 2026-09-25T21:50-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -25,7 +25,7 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | canais-03 | gate-fail | — | Blocked by canais-01 (in-progress, não done); 2 AC abertos |
 | canais-04 | blocked | | Blocked by canais-02 (ready-for-human) e canais-03 |
 | Review final | done | — | 0 bloqueantes; 2 importantes + 2 menores em correção |
-| Correções da revisão | running | ralph/revisao-correcoes | vincular+editar Contato (CRM-05); enumeração pelo rate limit (Auth); aceite dos Termos só no 1º acesso; erro cru de RPC |
+| Correções da revisão | done | ralph/revisao-correcoes · PR #30 (draft, topo da pilha) | 4/4; pgTAP 40/40, 21/21, 24/24; suíte 604/604; vincular+editar Contato (CRM-05); enumeração pelo rate limit (Auth); aceite dos Termos só no 1º acesso; erro cru de RPC |
 | Auth-09 | out | — | fora do corte; exige CRM-03 |
 | Auth-10 | human | — | ready-for-human; não spawnar |
 | CRM-03, 16, 19, 20, 21, 22–24 | out | — | fora do corte / ponteiros |
@@ -46,12 +46,15 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | CRM-04 | ~201k |
 | CRM-05 | ~204k |
 | Review | ~141k |
-| **Total halves** | **~1,62M** (mais a matriz) |
+| Correções | ~127k |
+| **Total halves** | **~1,75M** (mais a matriz) |
 
 ## STOP
 Corrida parada no gate de canais (2026-09-25 21:05). canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana: dar canais-01 e canais-02 como done (teste real no fim) ou validar antes. Review final (só leitura) disparado sobre o topo da pilha.
 
 ## Alerts
+- ALERTA RALPH | migrations | aplicar as versões do TOPO da pilha (PR #30): 140000 e 160000 foram corrigidas lá. Ordem: 140000 → 150000 → 160000.
+- ALERTA RALPH | PR #23 (outra sessão) | o wizard de teste real do canais-01 pode ter criado dados em `public.workspaces` no remoto; conferir se a tabela já existe antes de aplicar a 140000 (que faz `create table`).
 - ALERTA RALPH | canais-03 | GATE | Blocked-by faltando: canais-01 não está done.
 - ALERTA RALPH | CRM-05 | pending-apply + humano | migration 20260925160000 move a tabela antiga de destinatários (canais-02) para `private.target_contacts_canais02` e troca `public.target_contacts` por view; decidir o destino das linhas antigas, se houver.
 - ALERTA RALPH | CRM-17 | GATE (antecipado) | Blocked by CRM-06 (roleta), fora do corte. Se a FK textual travar CRM-04/05/canais, a cadeia para aqui até decisão humana.
