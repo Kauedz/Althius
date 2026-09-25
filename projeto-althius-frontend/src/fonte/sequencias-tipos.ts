@@ -61,6 +61,10 @@ export interface Sequencia {
   id: string
   contaId: string
   status: StatusSequencia
+  /** False when the active user may see only the shared status projection. */
+  responsavel?: boolean
+  /** Safe shared count of steps; private step content is only present for the owner. */
+  totalSteps?: number
   motivoPause?: string
   participantesIds: string[]
   janelaPadrao: JanelaHorario
@@ -118,6 +122,8 @@ export interface MetricasDemoSequencia {
  * Operações assíncronas com observador de mudanças (ADR 0003).
  */
 export interface FonteDeSequencias extends FonteObservavel {
+  /** Identifica uma fonte ligada ao backend, sem ações de demonstração. */
+  readonly modo?: 'demo' | 'real'
   /** A data de referência de "hoje" adotada pela fonte. */
   hoje(): Date
 

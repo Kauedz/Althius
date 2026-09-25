@@ -108,6 +108,7 @@ function calcularDatasDosSteps(criadaEm: string, steps: StepSequencia[]): Date[]
 
 export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const fonteDeSequencias = useFonteDeSequencias()
+  const permiteAcoesDeDemonstracao = fonteDeSequencias.modo !== 'real'
   const fonteDeContas = useFonteDeContas()
   const hoje = fonteDeSequencias.hoje()
 
@@ -167,6 +168,24 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           </Button>
         )}
       </div>
+    )
+  }
+
+  if (sequencia.responsavel === false) {
+    return (
+      <section aria-label="Resumo público da sequência" className="flex flex-col items-start gap-4 py-8">
+        <Link to="/sequencias" className="inline-flex items-center gap-1.5 text-xs text-al-muted hover:text-al-ink tracking-rotulo uppercase">
+          <ArrowLeft className="size-4" /> Voltar para Sequências
+        </Link>
+        <h2 className="titulo-secao text-2xl">Resumo da Conta-alvo</h2>
+        <p className="text-sm text-al-muted">Esta Sequência tem outro Vendedor responsável. Você pode consultar o status, mas não o documento nem os detalhes privados.</p>
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 border border-al-line bg-al-surface p-4 text-sm">
+          <dt className="text-al-muted">Conta-alvo</dt><dd>{sequencia.contaId}</dd>
+          <dt className="text-al-muted">Status</dt><dd>{sequencia.status}</dd>
+          <dt className="text-al-muted">Participantes</dt><dd>{sequencia.totalParticipantes}</dd>
+          <dt className="text-al-muted">Etapas</dt><dd>{sequencia.totalSteps ?? 0}</dd>
+        </dl>
+      </section>
     )
   }
 
@@ -468,7 +487,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 
         {/* Ações do cabeçalho */}
         <div className="flex items-center gap-2">
-          {sequencia.status === 'ativa' && (
+          {permiteAcoesDeDemonstracao && sequencia.status === 'ativa' && (
             <Button
               type="button"
               variant="outline"
@@ -535,7 +554,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             >
               Retomar
             </Button>
-            <Button
+            {permiteAcoesDeDemonstracao && <Button
               type="button"
               variant="outline"
               size="sm"
@@ -543,7 +562,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
             >
               Marcar reunião
-            </Button>
+            </Button>}
           </div>
         )}
       </div>
@@ -1922,4 +1941,3 @@ export function DialogoDestinosContato({
     </Dialog>
   )
 }
-

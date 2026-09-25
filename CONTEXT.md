@@ -36,8 +36,11 @@ _Avoid_: CP
 A documentação compartilhada do Cliente, incluindo o ICP e as definições de Personas, que serve de referência para todo o Workspace. É distinta da Memória individual de cada Agente.
 
 **Conta-alvo**:
-Uma empresa que o Cliente quer vender para: recomendada pela Althius, sempre com Fit, ou importada pelo Cliente, com qualquer Aderência. É o objeto que os agentes analisam. "Contas" é aceito só como rótulo curto no menu e na aba.
+Uma empresa que o Cliente quer vender para: recomendada pela Althius ou importada pelo Cliente. A URL da empresa identifica uma Conta já conhecida para atualizar seus dados; compartilhar domínio ou identificador legal, por si só, não mescla Contas. É o objeto que os agentes analisam. "Contas" é aceito só como rótulo curto no menu e na aba.
 _Avoid_: lead, prospect, conta
+
+**Roleta de Contas**:
+Distribuição automática e rotativa das novas Contas-alvo recomendadas pela Althius entre todos os participantes ativos do Workspace, Administradores e Membros, atribuindo cada Conta a um único Vendedor responsável. Uma recomendação que atualiza uma Conta já registrada não cria outra atribuição.
 
 **Aderência**:
 A classificação de encaixe de uma Conta-alvo no ICP pelo Scopus: **Fit** ou **Não fit**. Uma Conta-alvo importada fica sem Aderência até ser avaliada; um Sinal disparado a torna Quente sem determinar esse encaixe.
@@ -47,8 +50,11 @@ _Avoid_: momento, temperatura, fit score, nota, score, morna, frio
 A condição de uma Conta-alvo com ao menos um Sinal disparado nos últimos 30 dias, indicando uma razão para prospectar, sem garantir compra nem determinar Fit. O foguinho mostra a quantidade de Sinais válidos; mais sinais não criam novos níveis, e reencontrar o mesmo acontecimento não aumenta a contagem.
 
 **Contato**:
-Uma pessoa de uma Conta-alvo registrada no Workspace, venha do CRM, de enriquecimento ou de um Agente. Pode ou não fazer parte do Comitê de compra.
-_Avoid_: lead, pessoa, prospect
+Uma pessoa registrada com identidade única dentro do Workspace, venha de cadastro, importação, enriquecimento ou de um Agente. Sua associação profissional a uma ou mais Contas-alvo é representada por Vínculos do Contato. Uma mesma pessoa pode ter Vínculos ativos com mais de uma Conta-alvo quando atua em ambas. Pode ou não fazer parte do Comitê de compra.
+_Avoid_: lead, prospect
+
+**Vínculo do Contato**:
+A associação profissional de um Contato com uma Conta-alvo. Um Vínculo pode ser encerrado quando a pessoa deixa a empresa; iniciar outro Vínculo não move Interações anteriores, que permanecem associadas à Conta-alvo onde ocorreram.
 
 **Persona**:
 A classificação de um Contato por um papel do Comitê de compra descrito pelo Ethos, cuja definição é documentada na Memória do Workspace. Um Contato tem no máximo uma Persona, e pode não ter nenhuma.
@@ -71,7 +77,7 @@ Um Sinal obtido a partir de uma ação realizada para investigar uma possível n
 Uma configuração que define o que acompanhar e em qual público encontrar Sinais, com critérios e prazos ajustáveis ao negócio do Cliente. O Cliente pode manter vários Monitoramentos do mesmo tipo, cada um com nome e critérios próprios, e pausá-los separadamente.
 
 **Interação**:
-Um contato comercial registrado entre alguém do Cliente e um Contato: e-mail enviado ou recebido, mensagem enviada, ligação ou reunião. Uma sequência só criada, sem envio, não é Interação. O "Último contato" de uma Conta-alvo é a Interação mais recente com qualquer Contato dela.
+Um contato comercial registrado entre alguém do Cliente e um Contato: e-mail enviado ou recebido, mensagem enviada, ligação ou reunião. Uma sequência só criada, sem envio, não é Interação. A Interação permanece associada à Conta-alvo onde ocorreu mesmo após encerrar ou mudar o Vínculo do Contato. O "Último contato" de uma Conta-alvo é a Interação mais recente ocorrida com um Contato dela.
 _Avoid_: toque, atividade, engajamento
 
 **Comitê de compra**:
