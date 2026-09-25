@@ -8,16 +8,17 @@ Guia curto para executar o primeiro envio real sem duplicar Unipile no CRM.
 
 ## Pré-requisitos de ambiente (responsável pelo produto)
 
-Antes do CRM-02 funcionar fora do ambiente local (detalhes em `.scratch/autenticacao-google-email/spec.md`):
+Antes do cadastro e login (tickets em `.scratch/autenticacao-google-email/issues/`) funcionarem fora do ambiente local (detalhes em `.scratch/autenticacao-google-email/spec.md`):
 
 - Google Cloud: cliente OAuth, tela de consentimento, domínio verificado, página inicial e política de privacidade; pedir verificação de marca cedo (pode levar 2–3 dias úteis).
 - SMTP de produção (ex.: Resend) configurado no Supabase Auth; necessário também para os convites do CRM-03.
 - Redirect URLs do app registradas no Supabase Auth por ambiente.
+- Cloudflare Turnstile (CAPTCHA) com chave secreta no Supabase Auth.
 
 ## Ordem — early send (tracer de envio)
 
 1. **CRM-01** — separar modo real e Demonstração  
-2. **CRM-02** — cadastro (Google + link/código) e Workspace pessoal  
+2. **Auth-01 a Auth-08** (`.scratch/autenticacao-google-email/issues/`) — cadastro e login (Google, senha e código) e Workspace pessoal; substituem o CRM-02  
 3. **CRM-04** — Contas-alvo reais  
 4. **CRM-05** — Contatos e vínculos reais  
 5. **CRM-17** (se FK textual Seq↔Conta bloquear) — vincular Sequências às Contas reais  

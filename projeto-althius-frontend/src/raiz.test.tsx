@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
@@ -222,3 +222,72 @@ function sequenciaDeOutroVendedor(workspaceId: string, contaId: string) {
     updated_at: '2026-09-21T12:00:00Z',
   }
 }
+
+describe('Telas de acesso', () => {
+  it('um visitante sem sessão é levado a /entrar', async () => {
+    window.history.replaceState(null, '', '/contas')
+    abrirAlthius({ ultimoAmbiente: 'real' })
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/entrar')
+  })
+
+  it('quem abre /entrar pela primeira vez neste navegador vê a tela de acesso, e não a Demonstração', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+  })
+
+  it('depois de entrar nesta aba, a pessoa volta ao endereço que tentou abrir', async () => {
+    window.history.replaceState(null, '', '/contas')
+    const { usuario, iniciarSessao } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+    })
+
+    await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await usuario.click(screen.getByRole('button', { name: 'Enviar link de acesso' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('enviaremos um link seguro')
+
+    act(() => iniciarSessao(sessaoDe(MARINA)))
+    expect(await screen.findByText('Contas e Contatos ainda não estão disponíveis neste Workspace.')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/contas')
+  })
+
+  it.each(['//outro.site/contas', '/\\outro.site/contas', 'https://outro.site/contas'])(
+    'um destino fora da Althius (%s) leva ao início depois de entrar',
+    async (destino) => {
+      window.history.replaceState(null, '', `/entrar?${new URLSearchParams({ destino })}`)
+      const { iniciarSessao } = abrirAlthius({
+        ultimoAmbiente: 'real',
+        tabelas: { workspace_memberships: [participacao('ws-norte')] },
+      })
+      await screen.findByRole('heading', { name: 'Entrar' })
+
+      act(() => iniciarSessao(sessaoDe(MARINA)))
+      expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
+      expect(window.location.pathname).toBe('/')
+    },
+  )
+
+  it('o link enviado por e-mail leva ao endereço que a pessoa tentou abrir', async () => {
+    window.history.replaceState(null, '', '/sinais')
+    const { usuario, linkEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await usuario.click(screen.getByRole('button', { name: 'Enviar link de acesso' }))
+    await screen.findByRole('status')
+
+    expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe('/sinais')
+  })
+
+  it('a Demonstração continua acessível a partir de /entrar, sem login', async () => {
+    demonstracaoJaIniciada()
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
+    expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+  })
+})

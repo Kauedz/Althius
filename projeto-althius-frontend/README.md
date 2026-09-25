@@ -27,6 +27,6 @@ A escolha das fontes fica num só lugar, `src/fonte/composicao.ts`: a Demonstra�
 
 O acesso é por link de e-mail para contas já existentes; o formulário não cria usuários nem associa Workspaces. Convide os usuários pelo Supabase Auth e provisione suas participações por operação administrativa confiável. As RPCs do banco verificam a identidade do token, a participação ativa e o Vendedor responsável.
 
-Na configuração de Auth do projeto, inclua a URL local do Vite (`http://localhost:5173`) e as origens de produção na lista de redirecionamentos permitidos. Para cada pessoa, crie/convida-se a identidade no Supabase Auth e insira a participação correspondente em `workspace_memberships` usando uma operação administrativa; o formulário público nunca grava nessa tabela.
+Na configuração de Auth do projeto, inclua a URL local do Vite e as origens de produção na lista de redirecionamentos permitidos, com `/**` no fim (ex.: `http://localhost:5173/**`): o link de acesso volta ao endereço que a pessoa tentou abrir, e sem o curinga o Supabase descarta esse caminho e abre a Site URL. Para cada pessoa, crie/convida-se a identidade no Supabase Auth e insira a participação correspondente em `workspace_memberships` usando uma operação administrativa; o formulário público nunca grava nessa tabela.
 
 Os ícones são Lucide provisórios e o logo é uma reconstrução provisória: os dois serão trocados pelos arquivos oficiais.

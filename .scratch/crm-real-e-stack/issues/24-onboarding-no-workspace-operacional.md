@@ -2,7 +2,7 @@
 
 **What to build:** religar `/onboarding`, desligado pelo ticket 01 no Workspace operacional, com persistência no backend. O criador sem convite faz o Day0 e o checklist no seu Workspace pessoal. O convidado faz o ramo de convidado no Workspace do convite. Os fluxos e telas seguem a [spec de onboarding](../../onboarding-pos-login/spec.md), com as regras da [spec de autenticação](../../autenticacao-google-email/spec.md).
 
-**Blocked by:** 02: Cadastrar e criar o Workspace pessoal; 03: Convidar e gerenciar participantes.
+**Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md) (substitui o CRM-02); 03: Convidar e gerenciar participantes.
 
 **Status:** needs-triage
 

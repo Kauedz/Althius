@@ -2,7 +2,7 @@
 
 **What to build:** participantes operam Contas-alvo reais na experiência de Contas já existente, com cadastro manual, lista, busca, filtros, detalhe e contexto preservado ao voltar.
 
-**Blocked by:** 02: Cadastrar e criar o Workspace do usuário.
+**Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md) (substitui o CRM-02).
 
 **Status:** ready-for-agent
 

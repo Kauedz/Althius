@@ -6,7 +6,8 @@ interface Autenticacao {
   sessao: Session | null
   carregandoSessao: boolean
   carregando: boolean
-  entrarComLink: (email: string) => Promise<void>
+  /** Envia o link de acesso; ao abri-lo, a pessoa volta para `destino`, um caminho deste app. */
+  entrarComLink: (email: string, destino: string) => Promise<void>
   sair: () => Promise<void>
 }
 
@@ -39,12 +40,12 @@ export function ContextoDeAutenticacao({ cliente, children }: { cliente: Supabas
     sessao,
     carregandoSessao,
     carregando,
-    async entrarComLink(email) {
+    async entrarComLink(email, destino) {
       setCarregando(true)
       try {
         const { error } = await cliente.auth.signInWithOtp({
           email: email.trim(),
-          options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
+          options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + destino },
         })
         if (error) throw error
       } finally {
