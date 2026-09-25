@@ -178,18 +178,41 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         return { data: { user: novaSessao.user, session: novaSessao }, error: null }
       },
       async verifyOtp({ email, token, type }: { email: string; token: string; type: string }) {
-        if (type !== 'signup' && type !== 'email') throw new Error(`verifyOtp do tipo ${type} não é simulado`)
+        if (type !== 'signup' && type !== 'email' && type !== 'recovery') throw new Error(`verifyOtp do tipo ${type} não é simulado`)
         const conta = consumirCodigo(email, token, type)
         if (!conta) {
           return { data: { user: null, session: null }, error: { message: 'Token has expired or is invalid', status: 403, code: 'otp_expired' } }
         }
         conta.verificada = true
         const novaSessao = sessaoDaConta(conta)
-        comecarSessao(novaSessao)
+        comecarSessao(novaSessao, type === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN')
         return { data: { user: novaSessao.user, session: novaSessao }, error: null }
       },
-      async signOut() {
-        encerrarSessoes((aberta) => aberta.id !== idDaSessaoAtual)
+      // Um e-mail sem conta recebe a mesma resposta, sem e-mail enviado.
+      async resetPasswordForEmail(email: string, options?: { redirectTo?: string }) {
+        if (contaCom(email)) enviarEmail(email, 'recovery', options?.redirectTo)
+        return { data: {}, error: null }
+      },
+      async updateUser({ password, ...resto }: { password?: string }) {
+        if (password === undefined || Object.keys(resto).length) throw new Error('updateUser só simula a troca de senha')
+        const conta = sessaoAtual && contaCom(sessaoAtual.user.email ?? '')
+        if (!conta) return { data: { user: null }, error: { message: 'Auth session missing!', status: 400, code: 'session_not_found' } }
+        if (password.length < 6) return { data: { user: null }, error: { message: 'Password should be at least 6 characters.', status: 422, code: 'weak_password' } }
+        if (password === conta.senha) {
+          return { data: { user: null }, error: { message: 'New password should be different from the old password.', status: 422, code: 'same_password' } }
+        }
+        conta.senha = password
+        for (const ouvinte of ouvintesDaSessao) ouvinte('USER_UPDATED', sessaoAtual)
+        return { data: { user: sessaoAtual!.user }, error: null }
+      },
+      // Como no supabase-js, sem escopo a saída é global: encerra todas as sessões da Conta de usuário.
+      async signOut({ scope = 'global' }: { scope?: 'global' | 'local' | 'others' } = {}) {
+        const usuarioId = sessaoAtual?.user.id
+        if (scope === 'others') {
+          encerrarSessoes((aberta) => aberta.usuarioId !== usuarioId || aberta.id === idDaSessaoAtual)
+          return { error: null }
+        }
+        encerrarSessoes((aberta) => (scope === 'global' ? aberta.usuarioId !== usuarioId : aberta.id !== idDaSessaoAtual))
         sessaoAtual = null
         idDaSessaoAtual = null
         for (const ouvinte of ouvintesDaSessao) ouvinte('SIGNED_OUT', null)
@@ -241,6 +264,24 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
       conta.verificada = true
       comecarSessao(sessaoDaConta(conta))
     },
+    /**
+     * A pessoa abre, neste navegador, o link do último e-mail de redefinição de senha: o Supabase troca o link por uma
+     * sessão de recuperação. Abra o endereço do link antes de renderizar o app.
+     */
+    abrirLinkDeRedefinicao(email: string) {
+      const ultimo = codigosEnviados.findLast((enviado) => enviado.email === email)
+      if (ultimo?.tipo !== 'recovery' || ultimo.usado) throw new Error(`nenhum link de redefinição válido para ${email}`)
+      const conta = consumirCodigo(email, ultimo.codigo, 'recovery')!
+      comecarSessao(sessaoDaConta(conta), 'PASSWORD_RECOVERY')
+    },
+    /** A Conta de usuário entra por outro navegador ou aparelho; devolve o id dessa sessão. */
+    abrirSessaoEmOutroAparelho(email: string) {
+      const conta = contaCom(email)
+      if (!conta) throw new Error(`nenhuma Conta de usuário para ${email}`)
+      return abrirSessao(conta.id)
+    },
+    /** As sessões abertas da Conta de usuário, em qualquer navegador, pelo id. */
+    sessoesAbertasDe: (email: string) => sessoesAbertas.filter((aberta) => aberta.usuarioId === contaCom(email)?.id).map((aberta) => aberta.id),
     /** Os canais do Realtime inscritos agora, pelo nome. */
     canaisAbertos: () => [...canaisAbertos],
   }

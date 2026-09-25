@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Logo } from '@/components/marca'
-import { ROTA_DE_CADASTRO, ROTA_DE_ENTRADA, enderecoDeEntrada } from './destino'
+import { ROTA_DE_CADASTRO, ROTA_DE_ENTRADA, ROTA_DE_REDEFINICAO_DA_SENHA, ROTA_ESQUECI_A_SENHA, enderecoDeEntrada } from './destino'
 import { TelaDeCadastro } from './tela-de-cadastro'
 import { TelaDeEntrada } from './tela-de-entrada'
+import { LinkDeRedefinicaoInvalido, TelaEsqueciASenha } from './tela-esqueci-a-senha'
 
 /** As telas para quem ainda não tem sessão. Qualquer outro endereço leva a /entrar, lembrando o destino. */
 export function TelasDeAcesso({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
@@ -12,6 +13,8 @@ export function TelasDeAcesso({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
       <Routes>
         <Route path={ROTA_DE_ENTRADA} element={<CascaDeAcesso><TelaDeEntrada aoAcessarDemonstracao={aoAcessarDemonstracao} /></CascaDeAcesso>} />
         <Route path={ROTA_DE_CADASTRO} element={<TelaDeCadastro />} />
+        <Route path={ROTA_ESQUECI_A_SENHA} element={<CascaDeAcesso><TelaEsqueciASenha /></CascaDeAcesso>} />
+        <Route path={ROTA_DE_REDEFINICAO_DA_SENHA} element={<CascaDeAcesso><LinkDeRedefinicaoInvalido /></CascaDeAcesso>} />
         <Route path="*" element={<IrParaEntrada />} />
       </Routes>
     </BrowserRouter>

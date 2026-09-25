@@ -6,7 +6,8 @@ import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso } from './destino'
 import { VERSAO_DOS_TERMOS } from './termos'
-import { TelasDeAcesso } from './telas-de-acesso'
+import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
+import { CascaDeAcesso, TelasDeAcesso } from './telas-de-acesso'
 
 /** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
 const CHAVE_DO_WORKSPACE = 'althius:workspace'
@@ -56,7 +57,7 @@ export function AplicativoAutenticado({
 }
 
 function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
-  const { cliente, sessao, carregandoSessao } = useAutenticacao()
+  const { cliente, sessao, carregandoSessao, redefinindoSenha } = useAutenticacao()
   const [workspacePessoal, setWorkspacePessoal] = useState<WorkspacePessoal | null>(null)
   const [erroWorkspacePessoal, setErroWorkspacePessoal] = useState<string | null>(null)
   const [tentativa, setTentativa] = useState(0)
@@ -122,6 +123,8 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
 
   if (carregandoSessao) return <TelaDeEstado>Verificando sessão…</TelaDeEstado>
   if (!sessao) return <TelasDeAcesso aoAcessarDemonstracao={aoAcessarDemonstracao} />
+  // Quem entrou pelo código ou link de redefinição define a nova senha antes de abrir o Workspace de entrada.
+  if (redefinindoSenha) return <CascaDeAcesso><TelaDeNovaSenha /></CascaDeAcesso>
   if (erroWorkspacePessoal) {
     return (
       <TelaDeEstado>

@@ -1,9 +1,11 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAutenticacao } from './contexto'
 import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso } from './destino'
 import { ENDERECO_DA_POLITICA_DE_PRIVACIDADE, ENDERECO_DOS_TERMOS_DE_USO } from './termos'
+import { CampoDoCodigo } from './campo-do-codigo'
+import { CampoDeNovaSenha, TAMANHO_MINIMO_DA_SENHA } from './nova-senha'
 import { CascaDeAcesso } from './telas-de-acesso'
 
 /** A etapa do código nesta aba, para atualizar a página não recomeçar o cadastro. Nunca guarda a senha. */
@@ -11,8 +13,6 @@ const CHAVE_DA_ETAPA_DO_CODIGO = 'althius:cadastro'
 
 /** O intervalo mínimo entre dois envios do código, mostrado na tela. */
 const INTERVALO_PARA_REENVIAR_MS = 60_000
-
-const TAMANHO_MINIMO_DA_SENHA = 8
 
 interface EtapaDoCodigo {
   nome: string
@@ -37,17 +37,6 @@ function guardarEtapa(etapa: EtapaDoCodigo | null) {
   } catch {
     // Sem armazenamento, a etapa só não sobrevive a atualizar a página.
   }
-}
-
-/**
- * A força da senha, sem regras de composição: o tamanho pesa mais, e misturar tipos de caractere ajuda.
- * Abaixo do mínimo, a senha é recusada.
- */
-function forcaDaSenha(senha: string): 'muito curta' | 'fraca' | 'razoável' | 'boa' | 'forte' {
-  if (senha.length < TAMANHO_MINIMO_DA_SENHA) return 'muito curta'
-  const tipos = [/[a-z]/, /[A-Z]/, /\d/, /[^a-zA-Z\d]/].filter((tipo) => tipo.test(senha)).length
-  const pontos = Number(senha.length >= 12) + Number(senha.length >= 16) + Number(tipos >= 3)
-  return (['fraca', 'razoável', 'boa', 'forte'] as const)[pontos]
 }
 
 /** /cadastro: nome, e-mail e senha; depois, na mesma tela, o código de 6 dígitos enviado por e-mail. */
@@ -105,11 +94,8 @@ function FormularioDeCadastro({
 }) {
   const { cadastrar } = useAutenticacao()
   const { search } = useLocation()
-  const [senhaVisivel, setSenhaVisivel] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
-  const idDaForca = useId()
-  const forca = forcaDaSenha(senha)
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
@@ -141,27 +127,7 @@ function FormularioDeCadastro({
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-cadastro">E-mail
         <input id="email-cadastro" type="email" autoComplete="email" required value={email} onChange={(e) => aoMudarEmail(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
       </label>
-      <div className="flex flex-col gap-1.5 text-sm">
-        <label htmlFor="senha-cadastro">Senha</label>
-        <div className="flex gap-2">
-          <input
-            id="senha-cadastro"
-            type={senhaVisivel ? 'text' : 'password'}
-            autoComplete="new-password"
-            required
-            aria-describedby={idDaForca}
-            value={senha}
-            onChange={(e) => aoMudarSenha(e.target.value)}
-            className="campo h-10 min-w-0 flex-1 bg-al-bg px-3 text-al-ink"
-          />
-          <Button type="button" variant="outline" onClick={() => setSenhaVisivel((v) => !v)}>
-            {senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
-          </Button>
-        </div>
-        <p id={idDaForca} aria-live="polite" className="text-xs text-al-muted">
-          {senha ? `Força da senha: ${forca}` : `Mínimo de ${TAMANHO_MINIMO_DA_SENHA} caracteres. Uma frase longa é mais forte.`}
-        </p>
-      </div>
+      <CampoDeNovaSenha id="senha-cadastro" rotulo="Senha" senha={senha} aoMudar={aoMudarSenha} />
       {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
       <Button type="submit" disabled={enviando}>{enviando ? 'Criando…' : 'Criar conta'}</Button>
       <p className="text-xs text-al-muted">
@@ -234,20 +200,7 @@ function EtapaDoCodigoDoCadastro({
           código aqui ou abra o link neste navegador.
         </p>
       </div>
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="codigo-cadastro">Código de 6 dígitos
-        <input
-          id="codigo-cadastro"
-          type="text"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="\d{6}"
-          maxLength={6}
-          required
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ''))}
-          className="campo h-10 bg-al-bg px-3 tracking-[0.3em] text-al-ink"
-        />
-      </label>
+      <CampoDoCodigo id="codigo-cadastro" rotulo="Código de 6 dígitos" codigo={codigo} aoMudar={setCodigo} />
       {mensagem && <p role="status" className="text-sm text-al-sucesso">{mensagem}</p>}
       {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
       <Button type="submit" disabled={confirmando}>{confirmando ? 'Confirmando…' : 'Confirmar'}</Button>

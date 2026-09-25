@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
+import { ROTA_DE_REDEFINICAO_DA_SENHA, enderecoDeRedefinicao } from './destino'
 
 interface Autenticacao {
   cliente: SupabaseClient
@@ -25,6 +26,19 @@ interface Autenticacao {
   confirmarCodigoDoCadastro: (email: string, codigo: string) => Promise<void>
   /** Envia um novo código (e link) de confirmação do cadastro. */
   reenviarCodigoDoCadastro: (email: string, destino: string) => Promise<void>
+  /**
+   * A sessão atual veio de um código ou link de redefinição: antes de abrir o Workspace, a pessoa define a nova senha.
+   */
+  redefinindoSenha: boolean
+  /**
+   * Envia o código de 6 dígitos e o link de redefinição; o link abre /redefinir-a-senha e depois volta para `destino`.
+   * Um e-mail sem conta recebe a mesma resposta na tela.
+   */
+  pedirRedefinicaoDeSenha: (email: string, destino: string) => Promise<void>
+  /** Confirma o código de redefinição; a sessão começa já no passo de definir a nova senha. */
+  confirmarCodigoDeRedefinicao: (email: string, codigo: string) => Promise<void>
+  /** Grava a nova senha, encerra as outras sessões da Conta de usuário e segue para o Workspace de entrada. */
+  definirNovaSenha: (senha: string) => Promise<void>
 }
 
 /** A única resposta a um login recusado, para a tela não revelar se o e-mail tem conta. */
@@ -36,10 +50,14 @@ export function ContextoDeAutenticacao({ cliente, children }: { cliente: Supabas
   const [sessao, setSessao] = useState<Session | null>(null)
   const [carregandoSessao, setCarregandoSessao] = useState(true)
   const [carregando, setCarregando] = useState(false)
+  // O link de redefinição abre /redefinir-a-senha; o Supabase troca o link pela sessão ao carregar a página.
+  const [redefinindoSenha, setRedefinindoSenha] = useState(() => window.location.pathname === ROTA_DE_REDEFINICAO_DA_SENHA)
 
   useEffect(() => {
     let ativo = true
-    const { data: { subscription } } = cliente.auth.onAuthStateChange((_evento, novaSessao) => {
+    const { data: { subscription } } = cliente.auth.onAuthStateChange((evento, novaSessao) => {
+      if (evento === 'PASSWORD_RECOVERY') setRedefinindoSenha(true)
+      if (evento === 'SIGNED_OUT') setRedefinindoSenha(false)
       setSessao(novaSessao)
       setCarregandoSessao(false)
     })
@@ -119,7 +137,45 @@ export function ContextoDeAutenticacao({ cliente, children }: { cliente: Supabas
       })
       if (error) throw error
     },
-  }), [cliente, sessao, carregandoSessao, carregando])
+    redefinindoSenha,
+    async pedirRedefinicaoDeSenha(email, destino) {
+      setCarregando(true)
+      try {
+        const { error } = await cliente.auth.resetPasswordForEmail(email.trim(), { redirectTo: enderecoDeRedefinicao(destino) })
+        if (error) throw new Error('Não foi possível enviar o código agora. Tente novamente em instantes.')
+      } finally {
+        setCarregando(false)
+      }
+    },
+    async confirmarCodigoDeRedefinicao(email, codigo) {
+      setCarregando(true)
+      // Marcado antes da sessão começar, para o Workspace não abrir antes da nova senha.
+      setRedefinindoSenha(true)
+      try {
+        const { error } = await cliente.auth.verifyOtp({ email: email.trim(), token: codigo.trim(), type: 'recovery' })
+        if (error) {
+          setRedefinindoSenha(false)
+          throw new Error('Código inválido ou expirado. Confira o código ou peça outro.')
+        }
+      } finally {
+        setCarregando(false)
+      }
+    },
+    async definirNovaSenha(senha) {
+      setCarregando(true)
+      try {
+        const { error } = await cliente.auth.updateUser({ password: senha })
+        if (error?.code === 'same_password') throw new Error('A nova senha precisa ser diferente da atual.')
+        if (error) throw new Error('Não foi possível salvar a nova senha. Tente novamente em instantes.')
+        // Quem troca a senha por suspeita de invasão expulsa as outras sessões; esta continua aberta.
+        const saida = await cliente.auth.signOut({ scope: 'others' })
+        if (saida.error) throw new Error('A senha foi trocada, mas não foi possível encerrar as outras sessões. Tente sair e entrar de novo.')
+        setRedefinindoSenha(false)
+      } finally {
+        setCarregando(false)
+      }
+    },
+  }), [cliente, sessao, carregandoSessao, carregando, redefinindoSenha])
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
 }

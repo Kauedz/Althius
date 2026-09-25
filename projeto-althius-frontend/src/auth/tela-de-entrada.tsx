@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CampoDoCodigo } from './campo-do-codigo'
 import { useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso } from './destino'
 
@@ -58,19 +59,7 @@ export function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
             funciona neste navegador.
           </p>
         </div>
-        <label className="flex flex-col gap-1.5 text-sm" htmlFor="codigo-de-entrada">Código
-          <input
-            id="codigo-de-entrada"
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            required
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
-            className="campo h-10 bg-al-bg px-3 tracking-[0.3em] text-al-ink"
-          />
-        </label>
+        <CampoDoCodigo id="codigo-de-entrada" rotulo="Código" codigo={codigo} aoMudar={setCodigo} />
         {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
         <Button type="submit" disabled={carregando}>{carregando ? 'Confirmando…' : 'Confirmar código'}</Button>
         <div className="flex justify-between text-sm">
