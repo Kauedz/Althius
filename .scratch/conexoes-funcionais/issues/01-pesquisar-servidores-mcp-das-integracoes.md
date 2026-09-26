@@ -13,4 +13,5 @@
 - [ ] Notion: como o servidor MCP oficial registra o cliente OAuth e quais ferramentas oferece.
 - [ ] Clay, Apollo, Lusha, Meta Ads e Google Ads: quais têm servidor MCP remoto oficial que aceita um cliente de terceiros por OAuth, com a fonte oficial de cada um. As que não têm continuam "Em breve".
 - [ ] Toda afirmação cita a fonte oficial. O que não se confirmou fica escrito como "não confirmado".
+- [ ] Para cada Integração confirmada além do HubSpot e do Notion, um ticket novo em `.scratch/conexoes-funcionais/issues/`, no formato do ticket 08 e bloqueado por ele, para que o catálogo inteiro vá ficando funcional uma Integração por vez.
 - [ ] A conclusão diz qual caminho a Sincronização do HubSpot usa e o que muda nos tickets 03 a 06 e 08, se algo mudar.

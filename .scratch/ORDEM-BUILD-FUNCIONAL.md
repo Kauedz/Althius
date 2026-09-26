@@ -44,6 +44,8 @@ Combinados:
 7. Cada frente registra o próprio andamento numa linha ou seção própria desta página, sem reescrever as da outra.
 8. Cada frente trabalha na própria branch e traz a `main` antes de abrir cada PR.
 
+A frente de Conexões busca o catálogo inteiro funcionando: começa pelo HubSpot, depois o Notion, e segue uma Integração por vez conforme a pesquisa confirmar o servidor MCP oficial de cada uma. Os Canais vêm quando os Agentes tiverem backend.
+
 Depois das Conexões funcionais: uma spec própria para a Althius como servidor MCP, para o Claude ou o ChatGPT se conectarem a ela (decidido em 2026-09-26).
 
 ## Pré-requisitos de ambiente (responsável pelo produto)

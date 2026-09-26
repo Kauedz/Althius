@@ -157,6 +157,8 @@ A Edge Function e o cliente MCP ficam finos: a regra de negócio mora na funçã
 
 ## Further Notes
 
+- **Rumo ao catálogo inteiro.** A meta da frente é que todo item do catálogo da tela Conexões funcione no Workspace operacional. Esta spec começa pelo HubSpot, que entra completo, com Acesso e Sincronização, e pelo Notion, que prova o mecanismo. Depois, uma Integração por vez: cada uma que a pesquisa confirmar ganha um ticket curto, no formato do ticket do Notion. Clay, Apollo, Lusha, Meta Ads e Google Ads seguem nessa ordem de confirmação. Os Canais (Slack, WhatsApp, Microsoft Teams e E-mail) vêm quando os Agentes tiverem backend, porque um Canal é onde se conversa com um Agente.
+
 - **Pendência humana:** não há conta HubSpot. Um wizard guia a criação da conta de desenvolvedor, do portal de teste e do MCP Auth App, e o cadastro dos segredos. Mudar segredos no Supabase exige combinar antes.
 - A tela preserva tipografia, cores, layout e componentes da Conexões atual. Mudam os estados dos cartões e entra o que a Sincronização precisa: o botão, o andamento e o resultado.
 - O Supabase deste projeto (`ycbdilsmydvzezhlymty`) é pré-produção (ADR-0013). Aplicar migrations e publicar funções segue `docs/agents/migrations.md`, conferindo antes a última versão aplicada, porque a frente de envio também aplica migrations.
