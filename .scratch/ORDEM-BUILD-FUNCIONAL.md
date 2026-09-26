@@ -71,6 +71,24 @@ Fora do tracer, que roda no Workspace pessoal. Depois do CRM-03: **CRM-22** (cri
 - Billing, conectores demo (HubSpot etc.), enriquecimento amplo (Fase 5)  
 - Reimplementar Unipile/ciclos dentro de `.scratch/crm-real-e-stack/`
 
+## Frentes em paralelo
+
+Desde 2026-09-26 duas frentes andam ao mesmo tempo, em sessões separadas. O HubSpot deixou de ficar fora do corte e ganhou uma spec própria, que corre em paralelo sem mexer no marco do envio.
+
+| Frente | Quem | É dona de |
+| --- | --- | --- |
+| Envio (canais-03 e canais-04) | Kauê | Contas remetentes, Sequências, Interações e as Edge Functions `sender-accounts` e `unipile-account-status` |
+| Conexões funcionais (spec própria) | Renan | a tela `/conexoes` (Canais e Integrações) e a sincronização do HubSpot com Contas-alvo e Contatos |
+
+Combinados:
+
+- `/conexoes` é da frente de Conexões. A tela das Contas remetentes, quando vier, fica fora dela.
+- A Unipile é uma só: mesma conta e mesma `UNIPILE_API_KEY`. Nenhuma frente altera as Edge Functions, os segredos `UNIPILE_*` ou o Webhook Endpoint da outra, nem roda o `scripts/wizard-unipile.sh` sem combinar. Se um Canal usar a Unipile, ele ganha funções e um Webhook Endpoint próprios, e cada handler ignora eventos de contas que não são dele.
+- As funções que escrevem em Contas-alvo e Contatos (`save_target_account`, `create_contact`, `update_contact`, `link_contact`, `end_contact_link`) são da frente de Conexões. A frente de envio só lê. Sequências (`create_sequence`, `update_owned_sequence`, `upsert_target_contact`), Interações (`register_account_interaction`) e Contas remetentes são da frente de envio.
+- Uma mudança de e-mail vinda do HubSpot atualiza o Contato, mas não o Destino de um passo confirmado. Esse passo espera a reconfirmação do Vendedor responsável ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
+- No glossário, o Canal pode se chamar Gmail. A Conta remetente de E-mail continua E-mail, porque aceita Google, Outlook e IMAP.
+- Migrations seguem `docs/agents/migrations.md`, com o timestamp UTC do momento. Antes de aplicar uma no remoto, confira a última versão já aplicada.
+
 ## Specs
 
 - CRM: `.scratch/crm-real-e-stack/spec.md`  
