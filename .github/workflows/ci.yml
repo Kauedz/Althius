@@ -44,3 +44,16 @@ jobs:
         run: supabase start -x realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - name: Testes pgTAP
         run: supabase test db
+
+  funcoes:
+    name: Edge Functions (Deno check e testes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # As Edge Functions recebem a Unipile e o banco por injeção de dependência; os testes vão da requisição
+      # à resposta sem rede.
+      - run: deno check supabase/functions/*/index.ts
+      - run: deno test supabase/functions
