@@ -19,7 +19,7 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 
 A pending "conferência visual em navegador" is agent work, not a reason for `ready-for-human`:
 
-1. Drive the app with Playwright at 1400×900 and at 360px wide. Install `playwright-core` outside the app, in your scratchpad, and point it at the preinstalled Chromium.
+1. Drive the app with Playwright at 1400×900, and also at 360px wide when the ticket covers mobile. Install `playwright-core` outside the app, in your scratchpad, and point it at the preinstalled Chromium. For a long page, capture a tall viewport scrolled to the top: a full-page capture taken after scrolling shifts the sticky sidebar.
 2. Save the screenshots as JPEG in `.scratch/<feature-slug>/issues/prints/<NN>-<view>.jpg`.
 3. Link them in the ticket's `## Comments`, then close the ticket.
 

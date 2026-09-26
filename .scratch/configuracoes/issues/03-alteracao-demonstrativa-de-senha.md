@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Configurações, perfil e tema persistentes
 
-**Status:** ready-for-agent (implementado; falta só a conferência visual em navegador, ver Comments)
+**Status:** closed
 
 **Spec:** [Configurações pessoais e do Workspace](../spec.md)
 
@@ -17,7 +17,7 @@
 - [x] Não persistir, registrar em logs ou enviar os valores de senha.
 - [x] Cancelar limpa os campos e não altera nenhum dado do perfil.
 - [x] Concluir limpa os campos e informa que se trata de demonstração, sem alegar troca real da credencial ou validação real da senha atual.
-- [~] Manter estados de erro e foco acessíveis, coerentes com o mock aprovado. (comportamento testado; a conferência visual em navegador não foi feita, ver Comments.)
+- [x] Manter estados de erro e foco acessíveis, coerentes com o mock aprovado. (comportamento testado; conferência visual em navegador feita em 2026-09-26, ver Comments.)
 - [x] Testar pelo aplicativo validação, cancelamento, limpeza e mensagem demonstrativa; comprovar ausência de senha na persistência usada pela experiência.
 
 ## Delivery constraints
@@ -69,3 +69,15 @@ Pré-requisito: o ticket 02 está implementado (`79b346f`) e só aguarda a próp
 ### 2026-09-25: merge com a `main` remota
 
 A `main` remota trouxe outra implementação deste ticket (`54124db`, formulário `SenhaDemonstrativa` dentro de `secao-perfil.tsx`, com três testes). As duas cobrem os mesmos critérios, com os mesmos rótulos e mensagens do mockup. No merge ficou a de `bloco-senha.tsx`, sobre a qual o resto de Configurações já foi construído (cabeçalho compartilhado, `Mensagem` em `components/`, bloco "Seus Workspaces"). Os três testes da remota foram retirados: os seis de "Alteração de senha (demonstrativa)" cobrem validação, foco, cancelamento, conclusão, reabertura vazia e ausência das senhas na persistência, no console e na rede.
+
+### 2026-09-26: conferência visual
+
+Na Demonstração, pelo Chromium headless a 1400×900, nos temas escuro e claro. Em "Alterar senha" passaram:
+- os três campos mascarados;
+- os erros em vermelho ("Informe a nova senha.", "Repita a nova senha." e a confirmação diferente);
+- o anel de foco no campo com erro;
+- o aviso demonstrativo no bloco Senha depois de concluir.
+
+Prints:
+- [erros, escuro](prints/03-senha-erros-escuro.jpg)
+- [aviso, claro](prints/03-senha-aviso-claro.jpg)
