@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
-import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
 
@@ -159,7 +159,7 @@ describe('Workspace operacional e Demonstração', () => {
   it('o passo da Sequência não se apresenta como Demonstração no Workspace operacional', async () => {
     abrirASequenciaDaMarina()
 
-    expect(await screen.findByText('Ainda não enviado')).toBeInTheDocument()
+    expect(await screen.findByText(/^Ainda não enviado\./)).toBeInTheDocument()
     expect(screen.queryByText('Demonstração')).not.toBeInTheDocument()
     expect(screen.queryByText(/protótipo/)).not.toBeInTheDocument()
   })
@@ -447,25 +447,168 @@ describe('Alternar entre a Demonstração e o Workspace operacional', () => {
 })
 
 /** A Sequência de que a sessão é a Vendedora responsável, aberta no detalhe, com o documento privado dela. */
-function abrirASequenciaDaMarina() {
+function abrirASequenciaDaMarina({
+  status = 'ativa',
+  motivoPause,
+  rpcs = {},
+  funcoes = {},
+}: {
+  status?: 'ativa' | 'pausada' | 'reuniao' | 'esgotada'
+  motivoPause?: string
+  rpcs?: OpcoesDoSupabaseFalso['rpcs']
+  funcoes?: OpcoesDoSupabaseFalso['funcoes']
+} = {}) {
   window.history.replaceState(null, '', '/sequencias/sequencia-da-marina')
   const sequencia = {
     ...sequenciaDeOutroVendedor('ws-norte', 'conta-do-norte'),
     id: 'sequencia-da-marina',
     owner_user_id: MARINA.id,
+    status,
   }
   const documento = {
     participantesIds: ['contato-1'],
     steps: [{ id: 'passo-1', ordem: 1, canal: 'email', contatoId: 'contato-1', delayDiasUteis: 0, titulo: 'Primeiro contato', assunto: 'Olá', corpo: 'Oi! {{remetente.nome}}' }],
+    ...(motivoPause ? { motivoPause } : {}),
   }
   return abrirAlthius({
     ultimoAmbiente: 'real',
     ultimoWorkspace: 'ws-norte',
     sessao: sessaoDe(MARINA),
     tabelas: { workspace_memberships: [participacao('ws-norte')], sequences: [sequencia] },
-    rpcs: { get_owned_sequence: () => [{ ...sequencia, public_summary: { ...sequencia.public_summary, _document: documento } }] },
+    rpcs: {
+      get_owned_sequence: () => [{ ...sequencia, public_summary: { ...sequencia.public_summary, _document: documento } }],
+      list_sequence_step_sends: () => [],
+      list_received_emails: () => [],
+      ...rpcs,
+    },
+    funcoes,
   })
 }
+
+/** O backend em memória dos Envios da Marina: confirmar cria a linha; o resultado do envio vem da Edge Function. */
+function enviosDaMarina(respostaDaFuncao: { status?: number; corpo: unknown }) {
+  const envios: Record<string, unknown>[] = []
+  const pedidosDeEnvio: Record<string, unknown>[] = []
+  const linha = (status: string) => ({
+    id: 'envio-1', step_id: 'passo-1', contact_id: 'contato-1', destination: 'maria@empresa-alvo.test', status,
+    attempts: 0, confirmed_at: '2026-09-26T15:00:00Z', sent_at: status === 'sent' ? '2026-09-26T15:00:05Z' : null,
+    last_error: null, last_error_at: null, updated_at: '2026-09-26T15:00:00Z',
+  })
+  return {
+    rpcs: {
+      list_sequence_step_sends: () => envios,
+      confirm_sequence_step: () => {
+        envios.splice(0, envios.length, linha('confirmed'))
+        return [linha('confirmed')]
+      },
+    },
+    funcoes: {
+      'sequence-step-sends': (corpo: Record<string, unknown>) => {
+        pedidosDeEnvio.push(corpo)
+        const desfecho = (respostaDaFuncao.corpo as { outcome?: string }).outcome
+        if (desfecho === 'sent') envios.splice(0, envios.length, linha('sent'))
+        return respostaDaFuncao
+      },
+    },
+    pedidosDeEnvio,
+  }
+}
+
+describe('Envio e resposta da Sequência no Workspace operacional', () => {
+  it('a Vendedora responsável confirma o passo e o envia pela sua Conta remetente', async () => {
+    const backend = enviosDaMarina({ corpo: { outcome: 'sent', sendId: 'envio-1' } })
+    const { usuario } = abrirASequenciaDaMarina(backend)
+
+    expect(await screen.findByText(/^Ainda não enviado\./)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar e enviar' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('E-mail enviado para maria@empresa-alvo.test.')
+    expect(backend.pedidosDeEnvio).toEqual([{ action: 'send', workspaceId: 'ws-norte', sendId: 'envio-1' }])
+    expect(await screen.findByText(/^Enviado em .* para maria@empresa-alvo\.test\. Aceito pelo provedor/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Confirmar e enviar|Reconfirmar e enviar/ })).not.toBeInTheDocument()
+  })
+
+  it('um envio bloqueado pelo backend explica o motivo e deixa o passo confirmado, não enviado', async () => {
+    const backend = enviosDaMarina({
+      status: 409,
+      corpo: { outcome: 'sender_not_ready', message: 'Sua Conta remetente de E-mail não está pronta para enviar.' },
+    })
+    const { usuario } = abrirASequenciaDaMarina(backend)
+
+    await usuario.click(await screen.findByRole('button', { name: 'Confirmar e enviar' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Sua Conta remetente de E-mail não está pronta para enviar.')
+    expect(await screen.findByText(/^Confirmado para maria@empresa-alvo\.test\. Ainda não enviado\./)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirmar e enviar' })).toBeInTheDocument()
+  })
+
+  it('a resposta recebida aparece com o conteúdo só para a Vendedora responsável, e o anexo abre por URL assinada', async () => {
+    const abrir = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const pedidosDeAnexo: Record<string, unknown>[] = []
+    const { usuario } = abrirASequenciaDaMarina({
+      status: 'pausada',
+      motivoPause: 'Contato respondeu',
+      rpcs: {
+        list_sequence_step_sends: () => [{
+          id: 'envio-1', step_id: 'passo-1', contact_id: 'contato-1', destination: 'maria@empresa-alvo.test', status: 'sent',
+          attempts: 1, confirmed_at: '2026-09-26T15:00:00Z', sent_at: '2026-09-26T15:00:05Z', last_error: null, last_error_at: null,
+          updated_at: '2026-09-26T15:00:05Z',
+        }],
+        list_received_emails: () => [{
+          interaction_id: 'inter-1', sequence_id: 'sequencia-da-marina', send_id: 'envio-1', contact_id: 'contato-1',
+          from_email: 'maria@empresa-alvo.test', from_name: 'Maria Souza', subject: 'Re: Olá', body: 'Podemos falar amanhã às 10h?',
+          snippet: 'Podemos falar', received_at: '2026-09-26T16:00:00Z',
+          attachments: [{ id: 'att-1', name: 'proposta.pdf', mime: 'application/pdf', size: 1234, status: 'stored' }],
+        }],
+      },
+      funcoes: {
+        'received-email-attachments': (corpo) => {
+          pedidosDeAnexo.push(corpo)
+          return { corpo: { url: 'https://storage.test/recebidos/inter-1/att-1/proposta.pdf?token=abc', expiresIn: 300 } }
+        },
+      },
+    })
+
+    expect(await screen.findByText(/Sequência pausada: Contato respondeu/)).toBeInTheDocument()
+    const respostas = await screen.findByRole('region', { name: 'Respostas recebidas' })
+    expect(within(respostas).getByText('Maria Souza')).toBeInTheDocument()
+    expect(within(respostas).getByText('Re: Olá')).toBeInTheDocument()
+    expect(within(respostas).getByText('Podemos falar amanhã às 10h?')).toBeInTheDocument()
+    expect(screen.getByText('Respondeu')).toBeInTheDocument()
+
+    // A aba abre no clique (o bloqueador de pop-ups exige o gesto); sem ela, a URL abre numa aba nova depois.
+    await usuario.click(within(respostas).getByRole('button', { name: 'Abrir proposta.pdf' }))
+    await waitFor(() => expect(abrir).toHaveBeenLastCalledWith('https://storage.test/recebidos/inter-1/att-1/proposta.pdf?token=abc', '_blank', 'noopener'))
+    expect(pedidosDeAnexo).toEqual([{ interactionId: 'inter-1', attachmentId: 'att-1' }])
+    abrir.mockRestore()
+  })
+
+  it('sem conseguir carregar os Envios, a tela não oferece o envio de um passo que pode já ter saído', async () => {
+    abrirASequenciaDaMarina({
+      rpcs: { list_sequence_step_sends: () => { throw new Error('banco indisponível') } },
+    })
+
+    expect(await screen.findByText(/Não foi possível carregar a situação do envio deste passo/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Confirmar e enviar/ })).not.toBeInTheDocument()
+  })
+
+  it('outro participante vê que o Contato respondeu e a sequência pausou, sem o conteúdo', async () => {
+    window.history.replaceState(null, '', '/sequencias/sequencia-conta-do-norte')
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      ultimoWorkspace: 'ws-norte',
+      sessao: sessaoDe(MARINA),
+      tabelas: {
+        workspace_memberships: [participacao('ws-norte')],
+        sequences: [{ ...sequenciaDeOutroVendedor('ws-norte', 'conta-do-norte'), status: 'pausada' }],
+      },
+    })
+
+    expect(await screen.findByText('Contato respondeu; sequência pausada')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Respostas recebidas' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Podemos falar/)).not.toBeInTheDocument()
+  })
+})
 
 /** A projeção compartilhada da Sequência de outro Vendedor responsável, que a sessão só consulta. */
 function sequenciaDeOutroVendedor(workspaceId: string, contaId: string) {

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AtualizacaoDocumento, type FonteDeSequencias, type MetricasDemoSequencia, type NovaSequencia, type ResumoPublicoSequencia, type Sequencia, type StepSequencia, type StatusSequencia } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 
@@ -21,6 +21,85 @@ interface DocumentoPrivado {
   steps?: StepSequencia[]
   passoAtual?: number
   motivoPause?: string
+}
+
+interface LinhaDoEnvio {
+  id: string
+  step_id: string
+  contact_id: string
+  destination: string
+  status: StatusDoEnvio
+  confirmed_at: string
+  sent_at: string | null
+  last_error: string | null
+}
+
+interface LinhaDaResposta {
+  interaction_id: string
+  sequence_id: string
+  send_id: string | null
+  contact_id: string | null
+  from_email: string | null
+  from_name: string | null
+  subject: string | null
+  body: string | null
+  received_at: string
+  attachments: unknown
+}
+
+function mapearEnvio(linha: LinhaDoEnvio): EnvioDoPasso {
+  return {
+    id: linha.id,
+    stepId: linha.step_id,
+    contatoId: linha.contact_id,
+    destino: linha.destination,
+    status: linha.status,
+    confirmadoEm: linha.confirmed_at,
+    ...(linha.sent_at ? { enviadoEm: linha.sent_at } : {}),
+    ...(linha.last_error ? { ultimoErro: linha.last_error } : {}),
+  }
+}
+
+function mapearAnexos(valor: unknown): AnexoRecebido[] {
+  if (!Array.isArray(valor)) return []
+  return valor.flatMap((item) => {
+    const anexo = item as Record<string, unknown>
+    if (typeof anexo?.id !== 'string') return []
+    const status = anexo.status
+    return [{
+      id: anexo.id,
+      nome: typeof anexo.name === 'string' ? anexo.name : 'anexo',
+      ...(typeof anexo.mime === 'string' ? { mime: anexo.mime } : {}),
+      ...(typeof anexo.size === 'number' ? { tamanho: anexo.size } : {}),
+      status: status === 'stored' || status === 'failed' ? status : 'pending',
+    }]
+  })
+}
+
+function mapearResposta(linha: LinhaDaResposta): RespostaRecebida {
+  return {
+    interacaoId: linha.interaction_id,
+    sequenciaId: linha.sequence_id,
+    ...(linha.send_id ? { envioId: linha.send_id } : {}),
+    ...(linha.contact_id ? { contatoId: linha.contact_id } : {}),
+    de: { ...(linha.from_email ? { email: linha.from_email } : {}), ...(linha.from_name ? { nome: linha.from_name } : {}) },
+    ...(linha.subject ? { assunto: linha.subject } : {}),
+    ...(linha.body ? { corpo: linha.body } : {}),
+    recebidaEm: linha.received_at,
+    anexos: mapearAnexos(linha.attachments),
+  }
+}
+
+/** O corpo JSON de uma resposta fora de 2xx de uma Edge Function, quando houver. */
+async function corpoDoErroDaFuncao(error: unknown): Promise<Record<string, unknown> | null> {
+  const contexto = (error as { context?: unknown })?.context
+  if (!(contexto instanceof Response)) return null
+  try {
+    const corpo = await contexto.json()
+    return corpo && typeof corpo === 'object' ? corpo as Record<string, unknown> : null
+  } catch {
+    return null
+  }
 }
 
 function numeroSeguro(valor: unknown): number {
@@ -64,6 +143,10 @@ function validarPassos(steps: StepSequencia[]) {
 }
 
 function converterErro(error: { message: string; code?: string }): Error {
+  if (error.code === '0A000') return new Error('Só passos de E-mail podem ser confirmados por enquanto.')
+  if (error.code === '22023' && error.message === 'contact has no email destination') return new Error('O Contato deste passo não tem e-mail cadastrado.')
+  if (error.code === '22023' && error.message === 'contact has no active link with this target account') return new Error('O Contato deste passo não está vinculado à Conta-alvo.')
+  if (error.code === '55000') return new Error('Este passo já foi enviado ou está sendo enviado.')
   if (error.code === '42501') return new Error('Apenas o responsável ativo pode abrir ou alterar o documento desta Sequência.')
   if (error.code === '23505') return new Error('Esta Conta-alvo já tem uma Sequência e um responsável definidos.')
   return new Error(error.message)
@@ -209,6 +292,57 @@ export function criarFonteDeSequenciasSupabase(
       return this.atualizarDocumento(id, { participantesIds })
     },
     async metricasDeDemo(_id: string): Promise<MetricasDemoSequencia | null> { return null },
+    async envios(sequenciaId) {
+      const row = await registroPorId(sequenciaId)
+      if (row.owner_user_id !== obterUsuarioId()) return []
+      const { data, error } = await cliente.rpc('list_sequence_step_sends', { p_sequence_id: sequenciaId })
+      if (error) throw converterErro(error)
+      return ((data ?? []) as LinhaDoEnvio[]).map(mapearEnvio)
+    },
+    async confirmarPasso(sequenciaId, stepId) {
+      const { data, error } = await cliente.rpc('confirm_sequence_step', { p_sequence_id: sequenciaId, p_step_id: stepId })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as LinhaDoEnvio | null
+      if (!linha) throw new Error('O banco não retornou o Envio confirmado.')
+      notificar()
+      return mapearEnvio(linha)
+    },
+    async enviarPasso(sequenciaId, envioId) {
+      const { data, error } = await cliente.functions.invoke('sequence-step-sends', {
+        body: { action: 'send', workspaceId: workspace(), sendId: envioId },
+      })
+      notificar()
+      if (!error) {
+        // Sem um desfecho explícito, nada prova o envio: fica incerto até a reconciliação.
+        const resultado = data as Record<string, unknown> | null
+        if (typeof resultado?.outcome === 'string') return { outcome: resultado.outcome }
+        return { outcome: 'uncertain', mensagem: 'O backend não confirmou o desfecho do envio. Confira antes de reenviar.' }
+      }
+      const corpo = await corpoDoErroDaFuncao(error)
+      if (typeof corpo?.outcome === 'string') {
+        return { outcome: corpo.outcome, ...(typeof corpo.message === 'string' ? { mensagem: corpo.message } : {}) }
+      }
+      throw new Error(typeof corpo?.error === 'string' ? corpo.error : `Não foi possível enviar o passo da Sequência ${sequenciaId}.`)
+    },
+    async respostasRecebidas(sequenciaId) {
+      const row = await registroPorId(sequenciaId)
+      if (row.owner_user_id !== obterUsuarioId()) return []
+      const { data, error } = await cliente.rpc('list_received_emails', { p_sequence_id: sequenciaId })
+      if (error) throw converterErro(error)
+      return ((data ?? []) as LinhaDaResposta[]).map(mapearResposta)
+    },
+    async urlDoAnexo(interacaoId, anexoId) {
+      const { data, error } = await cliente.functions.invoke('received-email-attachments', {
+        body: { interactionId: interacaoId, attachmentId: anexoId },
+      })
+      if (error) {
+        const corpo = await corpoDoErroDaFuncao(error)
+        throw new Error(typeof corpo?.error === 'string' ? corpo.error : 'Não foi possível abrir o anexo.')
+      }
+      const url = (data as Record<string, unknown> | null)?.url
+      if (typeof url !== 'string') throw new Error('Não foi possível abrir o anexo.')
+      return url
+    },
     async resumoPublico(id: string): Promise<ResumoPublicoSequencia | null> {
       const row = await registroPorId(id)
       const resumo = mapear(row, false)
