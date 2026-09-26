@@ -1,8 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
+  type Conversation,
   createHandler,
   type Db,
   type EmailSent,
+  type IngestedEmail,
   type OutgoingEmail,
   type ReleaseResult,
   type UnipileMail,
@@ -46,6 +48,25 @@ const db: Db = {
       .maybeSingle()
     return !error && !!data
   },
+  async conversationForSend(sendId, userId) {
+    const { data, error } = await admin.rpc('conversation_for_send', { p_send_id: sendId, p_user_id: userId })
+    if (error) throw error
+    const row = (Array.isArray(data) ? data[0] : data) as Conversation | undefined
+    return row ?? null
+  },
+  async ingestEmailEvent({ eventId, eventType, unipileAccountId, email, ownerAddresses }) {
+    const { data, error } = await admin.rpc('ingest_unipile_email_event', {
+      p_event_id: eventId,
+      p_event_type: eventType,
+      p_unipile_account_id: unipileAccountId,
+      p_email: email,
+      p_owner_addresses: ownerAddresses,
+    })
+    if (error) throw error
+    const row = (Array.isArray(data) ? data[0] : data) as IngestedEmail | undefined
+    if (!row) throw new Error('ingest_unipile_email_event returned no row')
+    return row
+  },
   async releaseStepSend(sendId, userId) {
     const { data, error } = await admin.rpc('release_sequence_step_send', {
       p_send_id: sendId,
@@ -68,15 +89,36 @@ const db: Db = {
   },
 }
 
+function unipileHeaders() {
+  return { 'X-API-KEY': UNIPILE_API_KEY, accept: 'application/json' }
+}
+
+async function unipileGet(path: string) {
+  const upstream = await fetch(`${UNIPILE_API_BASE}${path}`, { headers: unipileHeaders() })
+  if (!upstream.ok) throw new UnipileRequestError(upstream.status)
+  return upstream.json()
+}
+
 const unipile: UnipileMail = {
+  // Conferir no primeiro envio real: a forma exata da resposta de GET /threads/{id} e de /email-senders.
+  async listThreadEmails(accountId, threadId) {
+    const data = await unipileGet(`/v2/${encodeURIComponent(accountId)}/threads/${encodeURIComponent(threadId)}`)
+    const list = Array.isArray(data) ? data : data?.emails ?? data?.items ?? data?.messages ?? []
+    return Array.isArray(list) ? list.filter((item) => item && typeof item === 'object') : []
+  },
+  async listEmailSenders(accountId) {
+    const data = await unipileGet(`/v2/${encodeURIComponent(accountId)}/email-senders`)
+    const list = Array.isArray(data) ? data : data?.items ?? data?.senders ?? []
+    if (!Array.isArray(list)) return []
+    return list
+      .map((item) => typeof item === 'string' ? item : item?.email ?? item?.address ?? item?.identifier)
+      .filter((value): value is string => typeof value === 'string' && value.includes('@'))
+      .map((value) => value.trim().toLowerCase())
+  },
   async sendEmail(accountId: string, email: OutgoingEmail, { signal }): Promise<EmailSent> {
     const upstream = await fetch(`${UNIPILE_API_BASE}/v2/${encodeURIComponent(accountId)}/emails/send`, {
       method: 'POST',
-      headers: {
-        'X-API-KEY': UNIPILE_API_KEY,
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
+      headers: { ...unipileHeaders(), 'content-type': 'application/json' },
       body: JSON.stringify(email),
       signal,
     })

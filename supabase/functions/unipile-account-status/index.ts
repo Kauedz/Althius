@@ -1,151 +1,97 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  type AttachmentStore,
+  createHandler,
+  type IngestedEmail,
+  type WebhookDb,
+  type WebhookUnipile,
+} from './handler.ts'
 
-const jsonHeaders = { 'Content-Type': 'application/json' }
+const UNIPILE_API_BASE = 'https://api.unipile.com'
+const ATTACHMENTS_BUCKET = 'email-attachments'
 
-function serviceClient() {
-  const url = Deno.env.get('SUPABASE_URL')
-  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!url || !key) throw new Error('Backend is not configured')
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+function required(name: string) {
+  const value = Deno.env.get(name)
+  if (!value) throw new Error('Backend is not configured')
+  return value
 }
 
-// Unipile v2 assina cada entrega com HMAC-SHA256: header "unipile-signature: t=<epoch
-// em segundos>,v0=<hex>", assinatura sobre "${t}.${rawBody}" usando o secret que a própria
-// Unipile gerou ao criar o Webhook Endpoint (POST /v2/webhooks/endpoints).
-async function verifySignature(rawBody: string, header: string, secret: string) {
-  const parts = Object.fromEntries(header.split(',').map((part) => part.split('=') as [string, string]))
-  const timestamp = parts.t
-  const providedSignature = parts.v0
-  if (!timestamp || !providedSignature) return false
-
-  const timestampMs = Number(timestamp) * 1000
-  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
-    return false
-  }
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signatureBytes = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${rawBody}`))
-  const computedSignature = Array.from(new Uint8Array(signatureBytes))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-
-  if (computedSignature.length !== providedSignature.length) return false
-  let mismatch = 0
-  for (let i = 0; i < computedSignature.length; i++) {
-    mismatch |= computedSignature.charCodeAt(i) ^ providedSignature.charCodeAt(i)
-  }
-  return mismatch === 0
-}
-
-// Traduz os event types de conta da v2 para o vocabulário que apply_unipile_sender_status já entende
-// (a RPC não muda: SYNC_SUCCESS/CREDENTIALS/ERROR/OK/DELETED já existiam para os mesmos significados na v1).
-const STATUS_EVENTS: Record<string, string> = {
-  'account.initial_sync.completed': 'SYNC_SUCCESS',
-  'account.status.running': 'OK',
-  'account.status.disconnected': 'CREDENTIALS',
-  'account.status.errored': 'ERROR',
-  'account.remove': 'DELETED',
-}
-
-// Na v2 só WhatsApp e IMAP fazem sincronização inicial (docs/initial-sync); os outros provedores já
-// chegam com o histórico disponível, então nunca mandam account.initial_sync.completed.
-const PROVIDERS_WITH_INITIAL_SYNC = new Set(['whatsapp', 'imap'])
-
-// Uma linha por entrega nos logs da função: tipo, conta e desfecho, nunca o conteúdo do evento.
-function logDelivery(fields: Record<string, unknown>) {
-  console.log(JSON.stringify(fields))
-}
-
-Deno.serve(async (req) => {
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
-
-  const secret = Deno.env.get('UNIPILE_WEBHOOK_SECRET')
-  const signatureHeader = req.headers.get('unipile-signature')
-  if (!secret || !signatureHeader) {
-    logDelivery({ outcome: 'unauthorized', reason: secret ? 'missing_signature' : 'missing_secret' })
-    return new Response('Unauthorized', { status: 401 })
-  }
-
-  const rawBody = await req.text()
-  if (!(await verifySignature(rawBody, signatureHeader, secret))) {
-    logDelivery({ outcome: 'unauthorized', reason: 'invalid_signature' })
-    return new Response('Unauthorized', { status: 401 })
-  }
-
-  try {
-    const event = JSON.parse(rawBody)
-    const type = typeof event?.type === 'string' ? event.type : ''
-    const accountId = typeof event?.account_id === 'string' ? event.account_id : ''
-    if (!type || !accountId) {
-      logDelivery({ type, outcome: 'invalid_event' })
-      return new Response('Invalid event', { status: 400 })
-    }
-
-    const admin = serviceClient()
-
-    if (type === 'account.add' || type === 'account.reconnect') {
-      const attemptId = typeof event?.payload?.state === 'string' ? event.payload.state : ''
-      const provider = typeof event?.payload?.account?.provider === 'string'
-        ? event.payload.account.provider
-        : typeof event?.account_provider === 'string'
-          ? event.account_provider
-          : ''
-      if (!/^[0-9a-f-]{36}$/i.test(attemptId) || !provider) {
-        logDelivery({ type, accountId, provider, hasState: attemptId !== '', outcome: 'invalid_event' })
-        return new Response('Invalid event', { status: 400 })
-      }
-      const { data, error } = await admin.rpc('complete_sender_connection_attempt', {
-        p_attempt_id: attemptId,
-        p_unipile_account_id: accountId,
-        p_provider: provider.toUpperCase(),
-        p_initial_status: type === 'account.add' ? 'CREATION_SUCCESS' : 'RECONNECTED',
-      })
-      logDelivery({ type, accountId, provider, outcome: error ? 'rpc_error' : data })
-      if (error) return new Response('Event could not be processed', { status: 500 })
-      if (data !== 'completed' && data !== 'ignored') {
-        return new Response('Event rejected', { status: 409 })
-      }
-      // Só na primeira entrega: uma repetição tardia não pode tirar a conta de reconnect_required.
-      const syncFinished = !PROVIDERS_WITH_INITIAL_SYNC.has(provider.toLowerCase())
-        || event?.payload?.account?.initial_sync?.status === 'completed'
-      if (data === 'completed' && syncFinished) {
-        const { data: applied, error: syncError } = await admin.rpc('apply_unipile_sender_status', {
-          p_unipile_account_id: accountId,
-          p_status: 'SYNC_SUCCESS',
-        })
-        logDelivery({
-          type, accountId, status: 'SYNC_SUCCESS',
-          outcome: syncError ? 'rpc_error' : applied ? 'applied' : 'no_matching_account',
-        })
-        if (syncError) return new Response('Event could not be processed', { status: 500 })
-      }
-      return new Response(JSON.stringify({ received: true }), { status: 200, headers: jsonHeaders })
-    }
-
-    const mappedStatus = STATUS_EVENTS[type]
-    if (mappedStatus) {
-      const { data, error } = await admin.rpc('apply_unipile_sender_status', {
-        p_unipile_account_id: accountId,
-        p_status: mappedStatus,
-      })
-      logDelivery({
-        type, accountId, status: mappedStatus,
-        outcome: error ? 'rpc_error' : data ? 'applied' : 'no_matching_account',
-      })
-      if (error) return new Response('Event could not be processed', { status: 500 })
-    } else {
-      logDelivery({ type, accountId, outcome: 'ignored' })
-    }
-
-    return new Response(JSON.stringify({ received: true }), { status: 200, headers: jsonHeaders })
-  } catch (error) {
-    logDelivery({ outcome: 'error', message: error instanceof Error ? error.message : String(error) })
-    return new Response('Invalid event', { status: 400 })
-  }
+const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
+  auth: { persistSession: false, autoRefreshToken: false },
 })
+
+const db: WebhookDb = {
+  async completeSenderConnectionAttempt({ attemptId, unipileAccountId, provider, initialStatus }) {
+    const { data, error } = await admin.rpc('complete_sender_connection_attempt', {
+      p_attempt_id: attemptId,
+      p_unipile_account_id: unipileAccountId,
+      p_provider: provider,
+      p_initial_status: initialStatus,
+    })
+    if (error) throw error
+    return String(data)
+  },
+  async applyUnipileSenderStatus(unipileAccountId, status) {
+    const { data, error } = await admin.rpc('apply_unipile_sender_status', {
+      p_unipile_account_id: unipileAccountId,
+      p_status: status,
+    })
+    if (error) throw error
+    return data === true
+  },
+  async ingestEmailEvent({ eventId, eventType, unipileAccountId, email, ownerAddresses }) {
+    const { data, error } = await admin.rpc('ingest_unipile_email_event', {
+      p_event_id: eventId,
+      p_event_type: eventType,
+      p_unipile_account_id: unipileAccountId,
+      p_email: email,
+      p_owner_addresses: ownerAddresses,
+    })
+    if (error) throw error
+    const row = (Array.isArray(data) ? data[0] : data) as IngestedEmail | undefined
+    if (!row) throw new Error('ingest_unipile_email_event returned no row')
+    return { ...row, attachments: Array.isArray(row.attachments) ? row.attachments : [] }
+  },
+  async recordReceivedEmailAttachment({ interactionId, attachmentId, storagePath, status }) {
+    const { error } = await admin.rpc('record_received_email_attachment', {
+      p_interaction_id: interactionId,
+      p_attachment_id: attachmentId,
+      p_storage_path: storagePath,
+      p_status: status,
+    })
+    if (error) throw error
+  },
+}
+
+const unipile: WebhookUnipile = {
+  async downloadEmailAttachment(accountId, emailId, attachmentId) {
+    const upstream = await fetch(
+      `${UNIPILE_API_BASE}/v2/${encodeURIComponent(accountId)}/emails/${encodeURIComponent(emailId)}` +
+        `/attachments/${encodeURIComponent(attachmentId)}`,
+      { headers: { 'X-API-KEY': required('UNIPILE_API_KEY'), accept: '*/*' } },
+    )
+    if (!upstream.ok) throw new Error(`Unipile respondeu HTTP ${upstream.status} ao baixar o anexo`)
+    return { bytes: new Uint8Array(await upstream.arrayBuffer()), contentType: upstream.headers.get('content-type') }
+  },
+}
+
+const storage: AttachmentStore = {
+  async upload(path, bytes, contentType) {
+    const { error } = await admin.storage.from(ATTACHMENTS_BUCKET).upload(path, bytes, {
+      contentType: contentType ?? 'application/octet-stream',
+      upsert: true,
+    })
+    if (error) throw error
+  },
+}
+
+// EdgeRuntime.waitUntil mantém a função viva depois da resposta, para os anexos serem baixados.
+const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
+
+Deno.serve(createHandler({
+  secret: Deno.env.get('UNIPILE_WEBHOOK_SECRET') ?? '',
+  db,
+  unipile,
+  storage,
+  waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
+}))

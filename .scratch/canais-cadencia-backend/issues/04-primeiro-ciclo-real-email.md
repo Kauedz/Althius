@@ -11,15 +11,15 @@
 - [x] Confirmar o passo fixa o Destino usado no envio ([ADR-0014](../../../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
 - [x] Se na hora de enviar o Destino atual do Contato for diferente do confirmado, o passo não sai e aguarda a reconfirmação do Vendedor responsável. Isso vale para mudança por Administrador, importação ou enriquecimento, e o envio não vai nem para o Destino antigo nem para o novo.
 - [x] O resultado do provedor (`id` e `message_id` do envio) fica persistido sem apresentar aceitação como entrega ou leitura comprovada.
-- [ ] Os eventos de e-mail chegam pelo mesmo Webhook Endpoint da v2, autenticados pela assinatura HMAC. O evento é gravado e confirmado com `2xx` em menos de 5 segundos, e o processamento é idempotente pelo `id` do evento.
-- [ ] Antes de enviar o próximo passo de uma conversa, o executor confere essa conversa pela API. A Unipile tenta a entrega só mais duas vezes (2 s e 12 s), então uma resposta perdida no webhook não pode deixar a Sequência seguir.
-- [ ] `email.new` na caixa de entrada, `email.new` nos itens enviados e `email.new.bounce` são distinguidos. Uma mensagem do próprio titular (`from` igual ao endereço da Conta remetente) não pausa a Sequência.
-- [ ] A resposta é ligada ao passo enviado pela conversa: o `thread_id` do e-mail enviado, ou o `In-Reply-To` dos `headers` igual ao `message_id` enviado. E-mail de outra conversa não pausa nada.
-- [ ] Uma resposta real pausa todos os passos da Conta-alvo em uma transação e não afeta Sequências de outras Contas-alvo.
+- [x] Os eventos de e-mail chegam pelo mesmo Webhook Endpoint da v2, autenticados pela assinatura HMAC. O evento é gravado e confirmado com `2xx` em menos de 5 segundos, e o processamento é idempotente pelo `id` do evento.
+- [x] Antes de enviar o próximo passo de uma conversa, o executor confere essa conversa pela API. A Unipile tenta a entrega só mais duas vezes (2 s e 12 s), então uma resposta perdida no webhook não pode deixar a Sequência seguir.
+- [x] `email.new` na caixa de entrada, `email.new` nos itens enviados e `email.new.bounce` são distinguidos. Uma mensagem do próprio titular (`from` igual ao endereço da Conta remetente) não pausa a Sequência.
+- [x] A resposta é ligada ao passo enviado pela conversa: o `thread_id` do e-mail enviado, ou o `In-Reply-To` dos `headers` igual ao `message_id` enviado. E-mail de outra conversa não pausa nada.
+- [x] Uma resposta real pausa todos os passos da Conta-alvo em uma transação e não afeta Sequências de outras Contas-alvo.
 - [ ] Somente o responsável lê assunto, corpo e anexos; os demais veem “Contato respondeu; sequência pausada”, sem conteúdo livre.
-- [ ] Assunto, corpo e anexos da mensagem recebida ficam gravados na própria Interação (schema privado da Althius), não como uma referência a buscar na Unipile depois. Os anexos chegam como `url` e precisam ser baixados e guardados. Isso preserva o contexto que a IA usa mesmo depois de uma troca de conta Unipile ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)).
-- [ ] Evento repetido ou fora de ordem não duplica Interação, evento público nem contagem.
-- [ ] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
+- [x] Assunto, corpo e anexos da mensagem recebida ficam gravados na própria Interação (schema privado da Althius), não como uma referência a buscar na Unipile depois. Os anexos chegam como `url` e precisam ser baixados e guardados. Isso preserva o contexto que a IA usa mesmo depois de uma troca de conta Unipile ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)).
+- [x] Evento repetido ou fora de ordem não duplica Interação, evento público nem contagem.
+- [x] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
 
 ## Implementação local
 
@@ -31,7 +31,13 @@ Três PRs em sequência: (1) envio, (2) resposta (webhook, Interação privada e
   - Testes: pgTAP `supabase/tests/envios_de_passo_por_email.sql` (45 asserções) e Deno `supabase/functions/sequence-step-sends/handler.test.ts` (da requisição à resposta, Unipile e banco injetados). O CI ganhou o job "Edge Functions".
   - Assunto e corpo saem do documento privado na hora do envio; só o Destino fica fixo. Versionar o conteúdo é o canais-05.
   - Um passo cujo assunto começa com `Re:` sai na mesma conversa, com `reply_to_message_id` igual ao `message_id` do último e-mail enviado ao mesmo Contato nesta Sequência.
-- **Fica para o PR 2 (resposta):** `email.new` e `email.new.bounce` na função `unipile-account-status` e no `scripts/wizard-unipile.sh`; a RPC de ingestão (dedupe, eco, resposta, bounce, Interação privada e pausa); a conferência da conversa pela API antes do próximo passo; os anexos em bucket privado.
+- **PR 1 mergeado em 2026-09-26 (#46).** A migration `20260926163645` ainda não foi aplicada no `ycbdilsmydvzezhlymty` e a função `sequence-step-sends` ainda não foi publicada: a sessão não tinha o MCP do Supabase. Aplicar com `docs/agents/migrations.md` antes do primeiro teste real.
+- **PR 2 (resposta):**
+  - Migration `supabase/migrations/20260926173314_ingestao_de_email_da_unipile.sql`: `private.unipile_email_events` (um por entrega, dedupe pelo `id` do evento e pelo par Conta remetente + `email.id`), `private.received_emails` (assunto, corpo, anexos: só o titular lê, por `get_received_email`), a RPC `ingest_unipile_email_event` (eco, resposta, bounce ou sem relação numa transação; a resposta grava a Interação `email-recebido` e pausa a Sequência com `motivoPause` "Contato respondeu"), `conversation_for_send`, `record_received_email_attachment` e `get_received_email_attachment_path`. `private.mark_step_send_sent` passa a ser usada pelo resultado do envio e pelo eco que reconcilia um envio incerto. O bucket privado `email-attachments` só é criado onde o Storage existe (o CI roda sem storage-api).
+  - `unipile-account-status` ganhou `handler.ts` com dependências injetadas e trata `email.new`/`email.new.bounce`; os anexos baixam depois do 2xx. `received-email-attachments` devolve a URL assinada só ao titular. `sequence-step-sends` confere a conversa na Unipile antes de um passo `Re:`.
+  - `scripts/wizard-unipile.sh` lista os 9 eventos. **O Webhook Endpoint já cadastrado precisa ganhar `email.new` e `email.new.bounce` pelo painel da Unipile (ou rodando o wizard de novo): isso é passo do usuário.**
+  - Testes: pgTAP `supabase/tests/ingestao_de_email_da_unipile.sql` (42 asserções) e Deno nas três funções.
+  - A conferir no primeiro ciclo real: a forma da resposta de `GET /v2/{account_id}/threads/{thread_id}` e de `GET /v2/{account_id}/email-senders`, se o `account_name` do envelope traz o endereço do titular, e se o cabeçalho `X-Althius-Envio` volta no `email.new` dos itens enviados.
 - **Fica para o PR 3 (tela):** confirmar e enviar pela página de detalhe da Sequência e mostrar a situação dos Envios, depois de apresentar a adaptação mínima.
 
 ## Contratos da Unipile v2
