@@ -45,7 +45,6 @@ async function verifySignature(rawBody: string, header: string, secret: string) 
 
 // Traduz os event types de conta da v2 para o vocabulário que apply_unipile_sender_status já entende
 // (a RPC não muda: SYNC_SUCCESS/CREDENTIALS/ERROR/OK/DELETED já existiam para os mesmos significados na v1).
-// Uma conta nova já nasce running, então é o fim da sincronização inicial que a libera como pronta.
 const STATUS_EVENTS: Record<string, string> = {
   'account.initial_sync.completed': 'SYNC_SUCCESS',
   'account.status.running': 'OK',
@@ -53,6 +52,10 @@ const STATUS_EVENTS: Record<string, string> = {
   'account.status.errored': 'ERROR',
   'account.remove': 'DELETED',
 }
+
+// Na v2 só WhatsApp e IMAP fazem sincronização inicial (docs/initial-sync); os outros provedores já
+// chegam com o histórico disponível, então nunca mandam account.initial_sync.completed.
+const PROVIDERS_WITH_INITIAL_SYNC = new Set(['whatsapp', 'imap'])
 
 // Uma linha por entrega nos logs da função: tipo, conta e desfecho, nunca o conteúdo do evento.
 function logDelivery(fields: Record<string, unknown>) {
@@ -107,6 +110,20 @@ Deno.serve(async (req) => {
       if (error) return new Response('Event could not be processed', { status: 500 })
       if (data !== 'completed' && data !== 'ignored') {
         return new Response('Event rejected', { status: 409 })
+      }
+      // Só na primeira entrega: uma repetição tardia não pode tirar a conta de reconnect_required.
+      const syncFinished = !PROVIDERS_WITH_INITIAL_SYNC.has(provider.toLowerCase())
+        || event?.payload?.account?.initial_sync?.status === 'completed'
+      if (data === 'completed' && syncFinished) {
+        const { data: applied, error: syncError } = await admin.rpc('apply_unipile_sender_status', {
+          p_unipile_account_id: accountId,
+          p_status: 'SYNC_SUCCESS',
+        })
+        logDelivery({
+          type, accountId, status: 'SYNC_SUCCESS',
+          outcome: syncError ? 'rpc_error' : applied ? 'applied' : 'no_matching_account',
+        })
+        if (syncError) return new Response('Event could not be processed', { status: 500 })
       }
       return new Response(JSON.stringify({ received: true }), { status: 200, headers: jsonHeaders })
     }
