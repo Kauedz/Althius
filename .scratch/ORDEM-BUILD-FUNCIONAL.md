@@ -15,15 +15,14 @@ Decidido em 2026-09-25. O próximo marco é o tracer de envio: um e-mail real sa
 | CRM-01, Auth-01 a Auth-08, CRM-04, CRM-05 e canais-01 | na `main` |
 | CRM-17 | Não bloqueia o tracer: a Sequência grava o UUID da Conta-alvo como texto, e os Contatos já exigem uma Conta-alvo real. |
 | canais-02 | Fechado em 2026-09-26, com a conferência na tela e a correção da perda de passos. |
-| canais-03 | Edge Functions publicadas e `scripts/wizard-unipile.sh` prontos. Faltam configurar uma conta Unipile real (o wizard), os estados na interface (o módulo Conexões está indisponível no modo operacional) e o bloqueio de envio na reconexão. |
+| canais-03 | Unipile v2 configurada (teste grátis) e uma caixa Gmail real conectada de ponta a ponta, em `ready`. Faltam os estados na interface (o módulo Conexões está indisponível no modo operacional) e o bloqueio de envio na reconexão. |
 | canais-04 | Depois do 02 e do 03. Inclui o Destino confirmado ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)). |
 
 Pendências humanas do tracer:
 
-- uma conta Unipile v1, com DSN e chave de API;
-- os segredos da Unipile no Supabase;
-- uma caixa de e-mail real de um vendedor para conectar;
 - um destinatário real que responda ao teste.
+
+A conta Unipile, os segredos no Supabase e a caixa de e-mail conectada ficaram prontos em 2026-09-26.
 
 ## Pré-requisitos de ambiente (responsável pelo produto)
 
