@@ -15,8 +15,8 @@ Decidido em 2026-09-25. O próximo marco é o tracer de envio: um e-mail real sa
 | CRM-01, Auth-01 a Auth-08, CRM-04, CRM-05 e canais-01 | na `main` |
 | CRM-17 | Não bloqueia o tracer: a Sequência grava o UUID da Conta-alvo como texto, e os Contatos já exigem uma Conta-alvo real. |
 | canais-02 | Fechado em 2026-09-26, com a conferência na tela e a correção da perda de passos. |
-| canais-03 | Unipile v2 configurada (teste grátis) e uma caixa Gmail real conectada de ponta a ponta, em `ready`. Faltam os estados na interface (o módulo Conexões está indisponível no modo operacional) e o bloqueio de envio na reconexão. |
-| canais-04 | Depois do 02 e do 03. Inclui o Destino confirmado ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)). |
+| canais-03 | Unipile v2 configurada (teste grátis) e uma caixa Gmail real conectada de ponta a ponta, em `ready`. Faltam os estados na interface (o módulo Conexões está indisponível no modo operacional), que não bloqueiam o envio. |
+| canais-04 | Próximo passo, desbloqueado e revisado para os contratos da Unipile v2. Inclui o Destino confirmado ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)) e o bloqueio de envio fora de `ready`. O teste grátis da Unipile acaba por volta de 2026-10-03. |
 
 Pendências humanas do tracer:
 
@@ -70,6 +70,24 @@ Fora do tracer, que roda no Workspace pessoal. Depois do CRM-03: **CRM-22** (cri
 - Fases 2–3 completas (Sinais/Agentes) se early send for prioridade  
 - Billing, conectores demo (HubSpot etc.), enriquecimento amplo (Fase 5)  
 - Reimplementar Unipile/ciclos dentro de `.scratch/crm-real-e-stack/`
+
+## Frentes em paralelo
+
+Desde 2026-09-26 duas frentes andam ao mesmo tempo, em sessões separadas. O HubSpot deixou de ficar fora do corte e ganhou uma spec própria, que corre em paralelo sem mexer no marco do envio.
+
+| Frente | Quem | É dona de |
+| --- | --- | --- |
+| Envio (canais-03 e canais-04) | Kauê | Contas remetentes, Sequências, Interações e as Edge Functions `sender-accounts` e `unipile-account-status` |
+| Conexões funcionais (spec própria) | Renan | a tela `/conexoes` (Canais e Integrações) e a sincronização do HubSpot com Contas-alvo e Contatos |
+
+Combinados:
+
+- `/conexoes` é da frente de Conexões. A tela das Contas remetentes, quando vier, fica fora dela.
+- A Unipile é uma só: mesma conta e mesma `UNIPILE_API_KEY`. Nenhuma frente altera as Edge Functions, os segredos `UNIPILE_*` ou o Webhook Endpoint da outra, nem roda o `scripts/wizard-unipile.sh` sem combinar. Se um Canal usar a Unipile, ele ganha funções e um Webhook Endpoint próprios, e cada handler ignora eventos de contas que não são dele.
+- As funções que escrevem em Contas-alvo e Contatos (`save_target_account`, `create_contact`, `update_contact`, `link_contact`, `end_contact_link`) são da frente de Conexões. A frente de envio só lê. Sequências (`create_sequence`, `update_owned_sequence`, `upsert_target_contact`), Interações (`register_account_interaction`) e Contas remetentes são da frente de envio.
+- Uma mudança de e-mail vinda do HubSpot atualiza o Contato, mas não o Destino de um passo confirmado. Esse passo espera a reconfirmação do Vendedor responsável ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
+- No glossário, o Canal pode se chamar Gmail. A Conta remetente de E-mail continua E-mail, porque aceita Google, Outlook e IMAP.
+- Migrations seguem `docs/agents/migrations.md`, com o timestamp UTC do momento. Antes de aplicar uma no remoto, confira a última versão já aplicada.
 
 ## Specs
 
