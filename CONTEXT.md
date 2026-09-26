@@ -215,7 +215,7 @@ Uma Conexão onde se conversa com um Agente (ex.: Slack, WhatsApp, Teams, E-mail
 _Avoid_: integração
 
 **Integração**:
-Uma Conexão de onde o Agente lê ou para onde escreve dados (ex.: HubSpot, Clay, Apollo, Lusha, Notion, Meta Ads, Google Ads).
+Uma Conexão com um app externo, autorizada uma vez no próprio app, de onde os Agentes leem e para onde escrevem dados sob a Permissão, e que pode alimentar uma Sincronização (ex.: HubSpot, Clay, Apollo, Lusha, Notion, Meta Ads, Google Ads).
 _Avoid_: canal, conector
 
 **Identidade externa**:
