@@ -16,10 +16,15 @@
 
 ## Implementação local
 
-- Migration: `supabase/migrations/20260925120000_contas_remetentes_unipile.sql`.
+- Migration: `supabase/migrations/20260925131500_contas_remetentes_unipile.sql`.
 - Edge Functions: `sender-accounts`, `unipile-hosted-auth-notify` e `unipile-account-status`.
 - Segredos e configuração Unipile: `supabase/functions/README.md`.
-- A integração visual e os fluxos de reconciliação ficam pendentes da integração real de Supabase Auth do ticket 01, atualmente descrita como ainda não integrada à interface. A migration não foi aplicada no projeto remoto; Unipile e contas de teste não foram configurados.
+- A integração visual e os fluxos de reconciliação ficam pendentes. O Supabase Auth real do ticket 01 já está na interface.
+- Estado em 2026-09-26:
+  - a migration está aplicada no `ycbdilsmydvzezhlymty`;
+  - o pgTAP `contas_remetentes_unipile.sql` passa 16/16 no banco remoto, numa transação desfeita no fim;
+  - as Edge Functions ainda não foram publicadas;
+  - Unipile e contas de teste não foram configurados.
 
 ## Dependências externas
 

@@ -526,8 +526,9 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
     expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Workspace: Norte Dados' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'Logo de Norte Dados' })).toHaveAttribute(
+    // A barra lateral lê o onboarding depois de montar; o nome e o logo do Workspace chegam depois da página.
+    expect(await screen.findByRole('button', { name: 'Workspace: Norte Dados' })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'Logo de Norte Dados' })).toHaveAttribute(
       'src',
       'https://nortedados.com.br/favicon.svg',
     )

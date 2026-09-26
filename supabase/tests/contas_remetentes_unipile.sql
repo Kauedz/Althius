@@ -47,8 +47,11 @@ set local role service_role;
 select is(public.complete_sender_connection_attempt(
   (select id from created_sender_attempt), 'unipile-google-account-1', 'GOOGLE', 'CREATION_SUCCESS'
 ), 'completed', 'verified callback links the expected email provider to its initiator');
+-- Nenhum papel da API lê o schema private; o id da Conta remetente é buscado como dono do banco.
+reset role;
 insert into created_sender_account
 select id from private.sender_accounts where unipile_account_id = 'unipile-google-account-1';
+set local role service_role;
 select is(public.apply_unipile_sender_status('unipile-google-account-1', 'SYNC_SUCCESS'), true,
   'v1 sync success marks the account ready');
 
