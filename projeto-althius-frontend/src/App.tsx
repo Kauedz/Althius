@@ -13,6 +13,7 @@ import {
   FonteDeOnboardingProvider,
   FonteDeSequenciasProvider,
   FonteDeSinaisProvider,
+  FonteDeConexoesProvider,
   FonteProvider,
 } from '@/fonte/contexto'
 import { PaginaAgente } from '@/paginas/agente'
@@ -80,6 +81,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
           <FonteDeSequenciasProvider fonte={ambiente.fonteDeSequencias}>
             <FonteDeOnboardingProvider fonte={ambiente.fonteDeOnboarding}>
               <FonteDeSinaisProvider fonte={ambiente.fonteDeSinais}>
+                <FonteDeConexoesProvider fonte={ambiente.fonteDeConexoes}>
                 <SinaisDoMockupProvider>
                   <ConversasProvider animarDigitacao={animarDigitacao}>
                     <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
@@ -97,6 +99,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
                     </ContextoDasPosicoesDasListas.Provider>
                   </ConversasProvider>
                 </SinaisDoMockupProvider>
+                </FonteDeConexoesProvider>
               </FonteDeSinaisProvider>
             </FonteDeOnboardingProvider>
           </FonteDeSequenciasProvider>

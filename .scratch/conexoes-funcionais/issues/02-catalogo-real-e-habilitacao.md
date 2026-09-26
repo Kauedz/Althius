@@ -4,13 +4,19 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] A tela Conexões tem uma Fonte de Conexões própria, com a implementação simulada para a Demonstração e a real para o Workspace operacional. Os testes de Conexões da Demonstração continuam passando.
-- [ ] O módulo Conexões sai da lista de indisponíveis do Workspace operacional.
-- [ ] O catálogo vem do backend: nome, categoria, descrição e estado de cada Integração. Nenhum dado da Demonstração aparece no Workspace operacional.
-- [ ] Um Administrador habilita uma Integração; a habilitação fica guardada por Workspace, com quem habilitou e quando.
-- [ ] Um Membro não consegue habilitar, nem por chamada direta ao backend, e a tela diz que só um Administrador habilita.
-- [ ] Toda Participação ativa lê as Integrações habilitadas do próprio Workspace e nenhuma de outro Workspace (pgTAP).
-- [ ] A tabela nova tem RLS explícito, e a migration aplica do zero no CI.
-- [ ] Conferência visual no navegador, como Administrador e como Membro, com prints no `## Comments` deste ticket.
+- [x] A tela Conexões tem uma Fonte de Conexões própria, com a implementação simulada para a Demonstração e a real para o Workspace operacional. Os testes de Conexões da Demonstração continuam passando.
+- [x] O módulo Conexões sai da lista de indisponíveis do Workspace operacional.
+- [x] O catálogo vem do backend: nome, categoria, descrição e estado de cada Integração. Nenhum dado da Demonstração aparece no Workspace operacional.
+- [x] Um Administrador habilita uma Integração; a habilitação fica guardada por Workspace, com quem habilitou e quando.
+- [x] Um Membro não consegue habilitar, nem por chamada direta ao backend, e a tela diz que só um Administrador habilita.
+- [x] Toda Participação ativa lê as Integrações habilitadas do próprio Workspace e nenhuma de outro Workspace (pgTAP).
+- [x] A tabela nova tem RLS explícito, e a migration aplica do zero no CI.
+- [x] Conferência visual no navegador, como Administrador e como Membro, com prints no `## Comments` deste ticket.
+
+## Comments
+
+- 2026-09-26: implementado. Migration `integracoes_habilitadas` com o catálogo (Canais e Integrações, só HubSpot e Notion disponíveis) e a habilitação por Administrador; pgTAP `integracoes_habilitadas.sql` 17/17 e a suíte inteira 148/148 num Postgres local com as migrations do zero; frontend 609/609, lint e build limpos.
+- Conferência visual a 1400×900 (captura alta, do topo), com o app no Workspace operacional sobre o Supabase falso dos testes, porque esta sessão não tem acesso ao projeto de pré-produção: [Administradora](prints/02-administrador.jpg), [depois de habilitar o HubSpot](prints/02-administrador-habilitou.jpg), [Membro](prints/02-membro.jpg) e [Demonstração, sem mudança além do texto de introdução](prints/02-demonstracao.jpg).
+- Pendente fora do código: aplicar a migration no projeto de pré-produção antes do merge, conforme `docs/agents/migrations.md`. Esta sessão não tem o MCP do Supabase.

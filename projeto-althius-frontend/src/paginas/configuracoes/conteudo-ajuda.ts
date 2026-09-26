@@ -47,7 +47,7 @@ export const CENTRAL_DE_AJUDA: CentralDeAjuda = {
     },
     {
       titulo: 'Conexões',
-      texto: 'Conecte cada ferramenta uma vez para o Workspace e escolha em cada Agente o que ele pode usar.',
+      texto: 'Um Administrador habilita cada ferramenta no Workspace, cada pessoa conecta a própria conta, e você escolhe em cada Agente o que ele pode usar.',
     },
     {
       titulo: 'Memória do Workspace',
