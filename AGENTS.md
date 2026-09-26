@@ -6,7 +6,11 @@ Issues and specs are tracked as local markdown files under `.scratch/<feature-sl
 
 ### Triage labels
 
-Uses the default label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+Uses the default label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Visual checks in the browser are agent work. See `docs/agents/triage-labels.md`.
+
+### Merging and migrations
+
+Merge your own PRs with a merge commit once CI is green. The Supabase project `ycbdilsmydvzezhlymty` is pre-production (ADR-0013). Ask the user first before anything destructive in its database (drops, deleting data, writing to `auth.users`), and before changing Supabase Auth settings or secrets. Writing, validating or applying a migration: follow `docs/agents/migrations.md`.
 
 ### Domain docs
 
