@@ -225,6 +225,23 @@ copiar() {
   else return 1; fi
 }
 
+# limpar TEXTO tira espaços, quebras de linha e marcadores de colagem que o terminal possa incluir.
+limpar() {
+  local v="$1"
+  v=${v//$'\e[200~'/}
+  v=${v//$'\e[201~'/}
+  printf '%s' "$v" | tr -d '[:space:][:cntrl:]'
+}
+
+# status_da_chave CHAVE imprime o HTTP de GET /v2/webhooks/endpoints: 2xx prova que a chave vale e
+# alcança os webhooks do passo seguinte.
+status_da_chave() {
+  local codigo
+  codigo=$(curl -sS -o /dev/null -w '%{http_code}' "$UNIPILE_API_BASE/v2/webhooks/endpoints" \
+    -H "X-API-KEY: $1" -H 'accept: application/json' 2>/dev/null) || true
+  printf '%s' "${codigo:-000}"
+}
+
 banner "Unipile: configurar ou trocar a conta"
 
 stage "O que não muda entre contas Unipile"
@@ -245,7 +262,21 @@ step "Entre (ou crie a conta/aplicação, se for o teste grátis de 7 dias)."
 step "No menu API Keys, clique em Create Service API Key e copie a chave na hora."
 note "Service, não Account: a Account API Key não consegue cadastrar o webhook do passo seguinte."
 warn "Nunca cole a chave de API no .env.local do app nem em nenhum arquivo do repositório."
-UNIPILE_API_KEY=$(ler_secreto "Chave de API da Unipile:")
+note "O campo é oculto: ao colar (Ctrl+V ou botão direito), nada aparece. Depois tecle Enter."
+while :; do
+  UNIPILE_API_KEY=$(limpar "$(ler_secreto "Chave de API da Unipile:")")
+  if [[ -z "$UNIPILE_API_KEY" ]]; then
+    warn "Nada foi colado. Cole de novo e tecle Enter."
+    continue
+  fi
+  STATUS_CHAVE=$(status_da_chave "$UNIPILE_API_KEY")
+  case "$STATUS_CHAVE" in
+    2*)  note "Chave aceita pela Unipile (${#UNIPILE_API_KEY} caracteres)."; break ;;
+    401) warn "A Unipile não reconheceu a chave (${#UNIPILE_API_KEY} caracteres). Copie de novo a Service API Key inteira; se o painel não a mostra mais, crie outra." ;;
+    403) warn "A chave vale, mas não gerencia webhooks: é uma Account API Key. Crie uma Service API Key." ;;
+    *)   warn "Resposta inesperada da Unipile (HTTP $STATUS_CHAVE). Confira a internet e cole de novo." ;;
+  esac
+done
 
 stage "Registrar o webhook de conta na Unipile"
 say "Feito por API, direto nesta conta Unipile: nenhum menu do painel precisa ser adivinhado. A"
