@@ -44,3 +44,13 @@ jobs:
         run: supabase start -x realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - name: Testes pgTAP
         run: supabase test db
+      # Os testes das Edge Functions rodam contra este mesmo banco, com a Unipile simulada.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge Functions (tipos e testes com a Unipile simulada)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          deno check supabase/functions/*/index.ts
+          deno test --allow-env --allow-net --allow-read supabase/functions/

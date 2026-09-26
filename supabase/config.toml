@@ -12,3 +12,9 @@ verify_jwt = false
 
 [functions.unipile-account-status]
 verify_jwt = false
+
+[functions.sequence-email-steps]
+verify_jwt = true
+
+[functions.unipile-mail-webhook]
+verify_jwt = false
