@@ -24,30 +24,6 @@ Pendências humanas do tracer:
 
 A conta Unipile, os segredos no Supabase e a caixa de e-mail conectada ficaram prontos em 2026-09-26.
 
-## Frentes em paralelo
-
-Desde 2026-09-26 duas frentes trabalham neste repositório, em sessões separadas. Mudar qualquer combinado abaixo exige falar com a outra frente.
-
-| Frente | Quem | Escopo | Spec |
-| --- | --- | --- | --- |
-| Envio | Kauê | canais-03 e canais-04: Contas remetentes pela Unipile, Sequências, Interações e as Edge Functions `sender-accounts` e `unipile-account-status`. É o marco atual. | `.scratch/canais-cadencia-backend/` |
-| Conexões funcionais | Renan | A tela /conexoes (Canais e Integrações) e a Sincronização do HubSpot com Contas-alvo e Contatos. Integrações pelo servidor MCP oficial de cada app ([ADR-0017](../docs/adr/0017-integracoes-conectadas-pelo-servidor-mcp-oficial.md)). | `.scratch/conexoes-funcionais/` |
-
-Combinados:
-
-1. /conexoes é da frente de Conexões. A tela das Contas remetentes não entra nela.
-2. A Unipile é compartilhada: mesma conta e mesma `UNIPILE_API_KEY`. A frente de Conexões não altera `sender-accounts`, `unipile-account-status`, os segredos `UNIPILE_*` nem o Webhook Endpoint existente, e não roda `scripts/wizard-unipile.sh`. Um Canal que use a Unipile ganha funções e Webhook Endpoint próprios e ignora eventos de contas que não são dele.
-3. As funções que gravam em Contas-alvo e Contatos (`save_target_account`, `create_contact`, `update_contact`, `link_contact`, `end_contact_link`) são da frente de Conexões. Ela não redefine as de Sequências (`create_sequence`, `update_owned_sequence`, `upsert_target_contact`), a de Interações (`register_account_interaction`) nem as de Contas remetentes (as que têm "sender" no nome).
-4. Uma mudança de e-mail vinda do HubSpot atualiza o Contato, mas nunca o Destino de um passo de Sequência já confirmado, que espera a reconfirmação do Vendedor responsável ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
-5. No `CONTEXT.md`, o Canal continua "E-mail" (decidido em 2026-09-26, no grill das Conexões): o provedor pode ser qualquer um. A Conta remetente de E-mail também continua "E-mail".
-6. Migrations seguem `docs/agents/migrations.md`, com o timestamp UTC do momento. Antes de aplicar uma no banco remoto, confira a última versão aplicada. Pergunte antes de qualquer coisa destrutiva no banco, antes de gravar em `auth.users` e antes de mudar configurações do Auth ou segredos.
-7. Cada frente registra o próprio andamento numa linha ou seção própria desta página, sem reescrever as da outra.
-8. Cada frente trabalha na própria branch e traz a `main` antes de abrir cada PR.
-
-A frente de Conexões busca o catálogo inteiro funcionando: começa pelo HubSpot, depois o Notion, e segue uma Integração por vez conforme a pesquisa confirmar o servidor MCP oficial de cada uma. Os Canais vêm quando os Agentes tiverem backend.
-
-Depois das Conexões funcionais: uma spec própria para a Althius como servidor MCP, para o Claude ou o ChatGPT se conectarem a ela (decidido em 2026-09-26).
-
 ## Pré-requisitos de ambiente (responsável pelo produto)
 
 Antes do cadastro e login (tickets em `.scratch/autenticacao-google-email/issues/`) funcionarem fora do ambiente local (detalhes em `.scratch/autenticacao-google-email/spec.md`):
@@ -112,6 +88,14 @@ Combinados:
 - Uma mudança de e-mail vinda do HubSpot atualiza o Contato, mas não o Destino de um passo confirmado. Esse passo espera a reconfirmação do Vendedor responsável ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
 - No glossário, o Canal pode se chamar Gmail. A Conta remetente de E-mail continua E-mail, porque aceita Google, Outlook e IMAP.
 - Migrations seguem `docs/agents/migrations.md`, com o timestamp UTC do momento. Antes de aplicar uma no remoto, confira a última versão já aplicada.
+
+### Conexões funcionais: andamento
+
+- Decisões: [ADR-0016](../docs/adr/0016-sincronizacao-do-hubspot-so-le-e-respeita-o-responsavel.md) (a Sincronização do HubSpot só lê e respeita o Vendedor responsável) e [ADR-0017](../docs/adr/0017-integracoes-conectadas-pelo-servidor-mcp-oficial.md) (Integrações pelo servidor MCP oficial, com um Acesso por participante).
+- O Canal continua "E-mail" no glossário: decidido no grill das Conexões em 2026-09-26, porque o provedor pode ser qualquer um. Nada muda para a Conta remetente.
+- Meta: o catálogo inteiro da tela Conexões funcionando. Começa pelo HubSpot, depois o Notion, e segue uma Integração por vez (Apollo, Clay, Lusha e Meta Ads já têm ticket). Os Canais vêm quando os Agentes tiverem backend.
+- Tickets em `.scratch/conexoes-funcionais/issues/`. Em 2026-09-26: 01 (pesquisa dos servidores MCP) fechado; 02 é o próximo.
+- Depois desta spec: uma spec própria para a Althius como servidor MCP, para o Claude ou o ChatGPT se conectarem a ela.
 
 ## Specs
 
