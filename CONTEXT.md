@@ -208,14 +208,18 @@ Uma resposta a um Contato preparada pela IA e sujeita à Aprovação do titular 
 ## Conexões e permissões
 
 **Conexão**:
-Uma ferramenta externa ligada ao Workspace, conectada uma vez e usada pelos Agentes autorizados. É um Canal ou uma Integração.
+Uma ferramenta externa habilitada no Workspace por um Administrador e usada pelos Agentes autorizados. É um Canal ou uma Integração.
 
 **Canal**:
 Uma Conexão onde se conversa com um Agente (ex.: Slack, WhatsApp, Teams, E-mail).
 _Avoid_: integração
 
 **Integração**:
-Uma Conexão com um app externo, autorizada uma vez no próprio app, de onde os Agentes leem e para onde escrevem dados sob a Permissão, e que pode alimentar uma Sincronização (ex.: HubSpot, Clay, Apollo, Lusha, Notion, Meta Ads, Google Ads).
+Uma Conexão com um app externo, de onde os Agentes leem e para onde escrevem dados sob a Permissão, e que pode alimentar uma Sincronização (ex.: HubSpot, Clay, Apollo, Lusha, Notion, Meta Ads, Google Ads). Habilitá-la no Workspace não dá acesso a ninguém: cada participante entra com o próprio Acesso à Integração.
+
+**Acesso à Integração**:
+A autorização que um participante dá, com a própria conta no app externo, para a Althius usar uma Integração habilitada no Workspace. Enxerga só o que essa conta enxerga no app; desconectá-lo não afeta o Acesso dos outros participantes nem os dados já sincronizados.
+_Avoid_: conta conectada, credencial, token
 _Avoid_: canal, conector
 
 **Identidade externa**:
@@ -223,7 +227,7 @@ A referência de uma Conta-alvo ou de um Contato ao objeto correspondente numa I
 _Avoid_: id do HubSpot, external id
 
 **Sincronização**:
-A leitura de uma Integração que cria ou atualiza Contas-alvo, Contatos e Vínculos do Contato no Workspace. Só lê: escrever na Integração é ação de um Agente sujeita à Permissão. Um valor vazio na Integração nunca apaga o que o Workspace já tem, e uma Conta-alvo que já existe mantém seu Vendedor responsável.
+A leitura de uma Integração, pelo Acesso à Integração de quem a pede, que cria ou atualiza Contas-alvo, Contatos e Vínculos do Contato no Workspace. Traz só as empresas atribuídas no app a participantes ativos. Só lê e nunca apaga: escrever na Integração é ação de um Agente sujeita à Permissão, um valor vazio no app não apaga o que o Workspace tem, e o que some do app continua no Workspace. Uma Conta-alvo que já existe mantém seu Vendedor responsável.
 _Avoid_: importação, sync, integração bidirecional
 
 **Permissão**:
