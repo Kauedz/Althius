@@ -54,15 +54,24 @@ const STATUS_EVENTS: Record<string, string> = {
   'account.remove': 'DELETED',
 }
 
+// Uma linha por entrega nos logs da função: tipo, conta e desfecho, nunca o conteúdo do evento.
+function logDelivery(fields: Record<string, unknown>) {
+  console.log(JSON.stringify(fields))
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
   const secret = Deno.env.get('UNIPILE_WEBHOOK_SECRET')
   const signatureHeader = req.headers.get('unipile-signature')
-  if (!secret || !signatureHeader) return new Response('Unauthorized', { status: 401 })
+  if (!secret || !signatureHeader) {
+    logDelivery({ outcome: 'unauthorized', reason: secret ? 'missing_signature' : 'missing_secret' })
+    return new Response('Unauthorized', { status: 401 })
+  }
 
   const rawBody = await req.text()
   if (!(await verifySignature(rawBody, signatureHeader, secret))) {
+    logDelivery({ outcome: 'unauthorized', reason: 'invalid_signature' })
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -70,7 +79,10 @@ Deno.serve(async (req) => {
     const event = JSON.parse(rawBody)
     const type = typeof event?.type === 'string' ? event.type : ''
     const accountId = typeof event?.account_id === 'string' ? event.account_id : ''
-    if (!type || !accountId) return new Response('Invalid event', { status: 400 })
+    if (!type || !accountId) {
+      logDelivery({ type, outcome: 'invalid_event' })
+      return new Response('Invalid event', { status: 400 })
+    }
 
     const admin = serviceClient()
 
@@ -82,6 +94,7 @@ Deno.serve(async (req) => {
           ? event.account_provider
           : ''
       if (!/^[0-9a-f-]{36}$/i.test(attemptId) || !provider) {
+        logDelivery({ type, accountId, provider, hasState: attemptId !== '', outcome: 'invalid_event' })
         return new Response('Invalid event', { status: 400 })
       }
       const { data, error } = await admin.rpc('complete_sender_connection_attempt', {
@@ -90,6 +103,7 @@ Deno.serve(async (req) => {
         p_provider: provider.toUpperCase(),
         p_initial_status: type === 'account.add' ? 'CREATION_SUCCESS' : 'RECONNECTED',
       })
+      logDelivery({ type, accountId, provider, outcome: error ? 'rpc_error' : data })
       if (error) return new Response('Event could not be processed', { status: 500 })
       if (data !== 'completed' && data !== 'ignored') {
         return new Response('Event rejected', { status: 409 })
@@ -99,15 +113,22 @@ Deno.serve(async (req) => {
 
     const mappedStatus = STATUS_EVENTS[type]
     if (mappedStatus) {
-      const { error } = await admin.rpc('apply_unipile_sender_status', {
+      const { data, error } = await admin.rpc('apply_unipile_sender_status', {
         p_unipile_account_id: accountId,
         p_status: mappedStatus,
       })
+      logDelivery({
+        type, accountId, status: mappedStatus,
+        outcome: error ? 'rpc_error' : data ? 'applied' : 'no_matching_account',
+      })
       if (error) return new Response('Event could not be processed', { status: 500 })
+    } else {
+      logDelivery({ type, accountId, outcome: 'ignored' })
     }
 
     return new Response(JSON.stringify({ received: true }), { status: 200, headers: jsonHeaders })
-  } catch {
+  } catch (error) {
+    logDelivery({ outcome: 'error', message: error instanceof Error ? error.message : String(error) })
     return new Response('Invalid event', { status: 400 })
   }
 })
