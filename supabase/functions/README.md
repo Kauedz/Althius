@@ -6,7 +6,7 @@ As funções deste diretório tratam somente de Contas remetentes pessoais usada
 
 Configure em Supabase Edge Function Secrets:
 
-- `UNIPILE_API_KEY`: token privado da API Unipile (host único `api.unipile.com`, sem DSN por instância).
+- `UNIPILE_API_KEY`: a Service API Key da aplicação Unipile (host único `api.unipile.com`, sem DSN por instância). Uma Account API Key não serve: ela não gerencia webhooks.
 - `UNIPILE_WEBHOOK_SECRET`: o `secret` que a própria Unipile gera ao criar o Webhook Endpoint (`POST /v2/webhooks/endpoints`); usado para validar o header `unipile-signature` (HMAC-SHA256).
 - `APP_ORIGIN`: origem HTTPS do frontend, sem caminho.
 
