@@ -242,7 +242,8 @@ say "Sem chave secreta em lugar nenhum do frontend: a chave de API só existe no
 say "Functions, no Supabase."
 open_url "https://dashboardv2.unipile.com/login"
 step "Entre (ou crie a conta/aplicação, se for o teste grátis de 7 dias)."
-step "No menu API Keys, copie a chave de API. Crie uma se não houver nenhuma."
+step "No menu API Keys, clique em Create Service API Key e copie a chave na hora."
+note "Service, não Account: a Account API Key não consegue cadastrar o webhook do passo seguinte."
 warn "Nunca cole a chave de API no .env.local do app nem em nenhum arquivo do repositório."
 UNIPILE_API_KEY=$(ler_secreto "Chave de API da Unipile:")
 
