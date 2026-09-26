@@ -4,13 +4,13 @@
 
 **Blocked by:** nada. O 02 está fechado, e a parte de conexão do 03 já funciona com uma conta real. O que falta no 03 (os estados em `/conexoes`) não bloqueia o envio.
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-- [ ] Um passo confirmado é enviado ao endereço real do Contato usando exclusivamente a Conta remetente de E-mail do responsável.
-- [ ] O passo só sai com a Conta remetente em `ready`. Em `syncing`, `reconnect_required` ou com `reconciliation_required`, ele espera. Esse é o bloqueio de envio na reconexão do canais-03.
-- [ ] Confirmar o passo fixa o Destino usado no envio ([ADR-0014](../../../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
-- [ ] Se na hora de enviar o Destino atual do Contato for diferente do confirmado, o passo não sai e aguarda a reconfirmação do Vendedor responsável. Isso vale para mudança por Administrador, importação ou enriquecimento, e o envio não vai nem para o Destino antigo nem para o novo.
-- [ ] O resultado do provedor (`id` e `message_id` do envio) fica persistido sem apresentar aceitação como entrega ou leitura comprovada.
+- [x] Um passo confirmado é enviado ao endereço real do Contato usando exclusivamente a Conta remetente de E-mail do responsável. (Backend pronto no PR 1; a validação com o destinatário real fica para depois da tela.)
+- [x] O passo só sai com a Conta remetente em `ready`. Em `syncing`, `reconnect_required` ou com `reconciliation_required`, ele espera. Esse é o bloqueio de envio na reconexão do canais-03.
+- [x] Confirmar o passo fixa o Destino usado no envio ([ADR-0014](../../../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
+- [x] Se na hora de enviar o Destino atual do Contato for diferente do confirmado, o passo não sai e aguarda a reconfirmação do Vendedor responsável. Isso vale para mudança por Administrador, importação ou enriquecimento, e o envio não vai nem para o Destino antigo nem para o novo.
+- [x] O resultado do provedor (`id` e `message_id` do envio) fica persistido sem apresentar aceitação como entrega ou leitura comprovada.
 - [ ] Os eventos de e-mail chegam pelo mesmo Webhook Endpoint da v2, autenticados pela assinatura HMAC. O evento é gravado e confirmado com `2xx` em menos de 5 segundos, e o processamento é idempotente pelo `id` do evento.
 - [ ] Antes de enviar o próximo passo de uma conversa, o executor confere essa conversa pela API. A Unipile tenta a entrega só mais duas vezes (2 s e 12 s), então uma resposta perdida no webhook não pode deixar a Sequência seguir.
 - [ ] `email.new` na caixa de entrada, `email.new` nos itens enviados e `email.new.bounce` são distinguidos. Uma mensagem do próprio titular (`from` igual ao endereço da Conta remetente) não pausa a Sequência.
@@ -20,6 +20,19 @@
 - [ ] Assunto, corpo e anexos da mensagem recebida ficam gravados na própria Interação (schema privado da Althius), não como uma referência a buscar na Unipile depois. Os anexos chegam como `url` e precisam ser baixados e guardados. Isso preserva o contexto que a IA usa mesmo depois de uma troca de conta Unipile ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)).
 - [ ] Evento repetido ou fora de ordem não duplica Interação, evento público nem contagem.
 - [ ] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
+
+## Implementação local
+
+Três PRs em sequência: (1) envio, (2) resposta (webhook, Interação privada e pausa) e (3) tela.
+
+- **PR 1 (envio):**
+  - Migration `supabase/migrations/20260926163645_envios_de_passo_por_email.sql`: tabela `private.sequence_step_sends` (um Envio do passo por Sequência e passo, com Destino fixado, Conta remetente, status `confirmed` → `sending` → `sent`/`failed`/`uncertain`, `awaiting_reconfirmation` e `bounced`, ids do provedor e último erro) e as RPCs `confirm_sequence_step` e `list_sequence_step_sends` (titular, `auth.uid()`), `release_sequence_step_send` e `record_sequence_step_send_result` (só `service_role`). `account_interactions.source` passa a aceitar `sequencia`: um envio aceito vira a Interação `email-enviado` da Conta-alvo, sem conteúdo.
+  - Edge Function `sequence-step-sends` (`supabase/functions/README.md`): libera, envia por `POST /v2/{account_id}/emails/send` com o cabeçalho `X-Althius-Envio` e grava o resultado. Timeout e falha de rede ficam `uncertain`.
+  - Testes: pgTAP `supabase/tests/envios_de_passo_por_email.sql` (45 asserções) e Deno `supabase/functions/sequence-step-sends/handler.test.ts` (da requisição à resposta, Unipile e banco injetados). O CI ganhou o job "Edge Functions".
+  - Assunto e corpo saem do documento privado na hora do envio; só o Destino fica fixo. Versionar o conteúdo é o canais-05.
+  - Um passo cujo assunto começa com `Re:` sai na mesma conversa, com `reply_to_message_id` igual ao `message_id` do último e-mail enviado ao mesmo Contato nesta Sequência.
+- **Fica para o PR 2 (resposta):** `email.new` e `email.new.bounce` na função `unipile-account-status` e no `scripts/wizard-unipile.sh`; a RPC de ingestão (dedupe, eco, resposta, bounce, Interação privada e pausa); a conferência da conversa pela API antes do próximo passo; os anexos em bucket privado.
+- **Fica para o PR 3 (tela):** confirmar e enviar pela página de detalhe da Sequência e mostrar a situação dos Envios, depois de apresentar a adaptação mínima.
 
 ## Contratos da Unipile v2
 
