@@ -203,7 +203,7 @@ PAINEL="https://supabase.com/dashboard/project/$SUPABASE_REF"
 FUNCOES_URL="https://$SUPABASE_REF.supabase.co/functions/v1"
 WEBHOOK_URL="$FUNCOES_URL/unipile-account-status"
 UNIPILE_API_BASE="https://api.unipile.com"
-UNIPILE_ACCOUNT_EVENTS="account.add,account.reconnect,account.status.running,account.status.disconnected,account.status.errored,account.remove"
+UNIPILE_ACCOUNT_EVENTS="account.add,account.reconnect,account.initial_sync.completed,account.status.running,account.status.disconnected,account.status.errored,account.remove"
 
 [[ -t 0 ]] || { printf 'Rode este wizard num terminal interativo.\n' >&2; exit 1; }
 
@@ -285,7 +285,7 @@ UNIPILE_WEBHOOK_SECRET=""
 RESPOSTA_WEBHOOK=$(curl -sS -o /tmp/wizard-unipile-webhook.json -w '%{http_code}' \
   -X POST "$UNIPILE_API_BASE/v2/webhooks/endpoints" \
   -H "X-API-KEY: $UNIPILE_API_KEY" -H 'accept: application/json' -H 'content-type: application/json' \
-  -d "$(printf '{"url":"%s","description":"Althius account_status","trigger_events":["account.add","account.reconnect","account.status.running","account.status.disconnected","account.status.errored","account.remove"]}' "$WEBHOOK_URL")" \
+  -d "$(printf '{"url":"%s","description":"Althius account_status","trigger_events":["%s"]}' "$WEBHOOK_URL" "${UNIPILE_ACCOUNT_EVENTS//,/\",\"}")" \
   2>/tmp/wizard-unipile-webhook.err) || true
 if [[ "$RESPOSTA_WEBHOOK" == 2* ]]; then
   UNIPILE_WEBHOOK_SECRET=$(grep -o '"secret"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/wizard-unipile-webhook.json \
