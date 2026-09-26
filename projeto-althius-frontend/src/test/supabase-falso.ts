@@ -10,6 +10,11 @@ interface OpcoesDoSupabaseFalso {
   /** As RPCs que o teste responde, pelo nome. Uma resposta que lança chega ao app como erro da RPC. */
   rpcs?: Record<string, (parametros: Record<string, unknown>) => unknown>
   /**
+   * As Edge Functions que o teste responde, pelo nome, com o status HTTP e o corpo JSON. Fora de 2xx, o app recebe
+   * o FunctionsHttpError do supabase-js, com a resposta em `context`.
+   */
+  funcoes?: Record<string, (corpo: Record<string, unknown>) => RespostaDaFuncao | Promise<RespostaDaFuncao>>
+  /**
    * As Contas de usuário que existem no Supabase Auth. Sem esta opção, o teste não simula quem tem conta e o código
    * de entrada vai para qualquer e-mail; com ela, o Auth só conhece estas contas e as que o cadastro criar.
    */
@@ -30,6 +35,12 @@ interface OpcoesDoSupabaseFalso {
    * conta o Auth não envia nada, então não há limite a atingir.
    */
   limiteDeEnvioAtingido?: string[]
+}
+
+/** O que uma Edge Function do teste devolve: o status HTTP (200 por padrão) e o corpo JSON. */
+export interface RespostaDaFuncao {
+  status?: number
+  corpo: unknown
 }
 
 /** Uma Conta de usuário no Supabase Auth do teste. Salvo `verificada: false`, o e-mail já foi confirmado. */
@@ -79,7 +90,7 @@ export function sessaoDe(usuario: { id: string; email: string }): Session {
  * O cliente do Supabase na fronteira com o fornecedor: Auth, as tabelas filtradas por `eq`, as RPCs e os canais do
  * Realtime, em memória. Só cobre o que o app usa; o resto não existe, para um uso novo falhar alto.
  */
-export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [] }: OpcoesDoSupabaseFalso = {}) {
+export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, funcoes = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [] }: OpcoesDoSupabaseFalso = {}) {
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
@@ -313,6 +324,20 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, con
         const code = (erro as { code?: unknown }).code
         return { data: null, error: { message: erro instanceof Error ? erro.message : String(erro), code: typeof code === 'string' ? code : 'P0001' } }
       }
+    },
+    functions: {
+      async invoke(nome: string, opcoes: { body?: Record<string, unknown> } = {}) {
+        const responder = funcoes[nome]
+        if (!responder) {
+          return { data: null, error: { name: 'FunctionsFetchError', message: `Edge Function ${nome} indisponível no teste` } }
+        }
+        const { status = 200, corpo } = await responder(opcoes.body ?? {})
+        const resposta = new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } })
+        if (status >= 400) {
+          return { data: null, error: { name: 'FunctionsHttpError', message: 'Edge Function returned a non-2xx status code', context: resposta } }
+        }
+        return { data: corpo, error: null }
+      },
     },
     channel(nome: string) {
       const canal = {

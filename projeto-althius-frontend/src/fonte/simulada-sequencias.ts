@@ -216,6 +216,25 @@ export function criarFonteDeSequenciasSimulada(
       }
     },
 
+    // A Demonstração não tem Envios nem respostas reais: nada sai deste protótipo.
+    async envios() {
+      await aguardar()
+      return []
+    },
+    async confirmarPasso() {
+      throw new Error('Na Demonstração nenhum passo é enviado de verdade.')
+    },
+    async enviarPasso() {
+      throw new Error('Na Demonstração nenhum passo é enviado de verdade.')
+    },
+    async respostasRecebidas() {
+      await aguardar()
+      return []
+    },
+    async urlDoAnexo() {
+      throw new Error('Na Demonstração não há anexos recebidos.')
+    },
+
     async resumoPublico(id: string): Promise<ResumoPublicoSequencia | null> {
       await aguardar()
       const encontrada = dados.find((s) => s.id === id)

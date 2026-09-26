@@ -40,12 +40,14 @@ import {
   useFonteDeContas,
   useFonteDeSequencias,
 } from '@/fonte/contexto'
-import { formatarDataDoModulo } from '@/fonte/formatar-data'
+import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import {
   CANAIS_SUPORTADOS,
   type AnexoStep,
   type AtualizacaoDocumento,
   type CanalStep,
+  type EnvioDoPasso,
+  type RespostaRecebida,
   type Sequencia,
   type StatusSequencia,
   type StepSequencia,
@@ -148,6 +150,18 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: contatos } = useDadosDeContas((f) => f.contatos(), [])
 
+  // Os Envios e as respostas reais só existem num Workspace operacional, e só o Responsável pela Sequência os vê.
+  const { dados: envios, recarregar: recarregarEnvios } = useDadosDeSequencias(
+    (f) => f.envios(sequenciaId),
+    [sequenciaId],
+  )
+  const { dados: respostas, recarregar: recarregarRespostas } = useDadosDeSequencias(
+    (f) => f.respostasRecebidas(sequenciaId),
+    [sequenciaId],
+  )
+  const [enviandoStepId, setEnviandoStepId] = useState<string | null>(null)
+  const [avisoDoEnvio, setAvisoDoEnvio] = useState<{ stepId: string; texto: string; tipo: 'ok' | 'atencao' } | null>(null)
+
   const [stepSelecionadoId, setStepSelecionadoId] = useState<string | null>(null)
   const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false)
   const [edicoesLocais, setEdicoesLocais] = useState<Record<string, Partial<StepSequencia>>>({})
@@ -212,7 +226,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         <p className="text-sm text-al-muted">Esta Sequência tem outro Vendedor responsável. Você pode consultar o status, mas não o documento nem os detalhes privados.</p>
         <dl className="grid grid-cols-2 gap-x-8 gap-y-3 border border-al-line bg-al-surface p-4 text-sm">
           <dt className="text-al-muted">Conta-alvo</dt><dd>{sequencia.contaId}</dd>
-          <dt className="text-al-muted">Status</dt><dd>{sequencia.status}</dd>
+          <dt className="text-al-muted">Status</dt>
+          <dd>{sequencia.status === 'pausada' ? 'Contato respondeu; sequência pausada' : sequencia.status}</dd>
           <dt className="text-al-muted">Participantes</dt><dd>{sequencia.totalParticipantes}</dd>
           <dt className="text-al-muted">Etapas</dt><dd>{sequencia.totalSteps ?? 0}</dd>
         </dl>
@@ -291,6 +306,34 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       status: 'pausada',
       motivoPause: motivo,
     })
+  }
+
+  // Confirmar fixa o Destino (ADR-0014) e o backend envia pela Conta remetente do Responsável. Um bloqueio volta
+  // como desfecho com o motivo, e o passo fica como o backend o deixou.
+  async function handleConfirmarEEnviar(step: StepSequencia) {
+    setEnviandoStepId(step.id)
+    setAvisoDoEnvio(null)
+    try {
+      const envio = await fonteDeSequencias.confirmarPasso(sequencia!.id, step.id)
+      const resultado = await fonteDeSequencias.enviarPasso(sequencia!.id, envio.id)
+      if (resultado.outcome === 'sent') {
+        setAvisoDoEnvio({ stepId: step.id, texto: `E-mail enviado para ${envio.destino}.`, tipo: 'ok' })
+      } else {
+        setAvisoDoEnvio({ stepId: step.id, texto: resultado.mensagem ?? 'O envio não saiu.', tipo: 'atencao' })
+      }
+    } catch (erro) {
+      setAvisoDoEnvio({ stepId: step.id, texto: erro instanceof Error ? erro.message : 'O envio não saiu.', tipo: 'atencao' })
+    } finally {
+      setEnviandoStepId(null)
+      recarregarEnvios()
+      recarregarRespostas()
+      recarregar()
+    }
+  }
+
+  async function handleAbrirAnexo(resposta: RespostaRecebida, anexoId: string) {
+    const url = await fonteDeSequencias.urlDoAnexo(resposta.interacaoId, anexoId)
+    window.open(url, '_blank', 'noopener')
   }
 
   async function handleRetomar() {
@@ -727,6 +770,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         </div>
       </div>
 
+      {respostas && respostas.length > 0 && (
+        <RespostasRecebidas respostas={respostas} contatosMap={contatosMap} onAbrirAnexo={handleAbrirAnexo} />
+      )}
+
       {/* Corpo da Sequência (seq-body): Timeline (340px) + Editor de Step */}
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] border border-al-line bg-al-surface min-h-[600px]">
         {/* Coluna 1: Timeline lateral (seq-timeline) */}
@@ -740,8 +787,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           <ol aria-label="Linha do tempo de passos" className="flex flex-col gap-1 list-none p-0 m-0">
             {stepsMesclados.map((step, idx) => {
               const selecionado = step.id === stepAtivo?.id
-              const concluido = idx < sequencia.passoAtual
+              const envioDoStep = envios?.find((e) => e.stepId === step.id)
+              const concluido = permiteAcoesDeDemonstracao ? idx < sequencia.passoAtual : envioDoStep?.status === 'sent'
               const ehAtual = idx === sequencia.passoAtual && sequencia.status === 'ativa'
+              const respondido = !!envioDoStep && !!respostas?.some((r) => r.envioId === envioDoStep.id)
               const contato = contatosMap.get(step.contatoId)
               const nomeContato = contato?.nome ?? step.contatoId
 
@@ -800,7 +849,15 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                       </span>
                     </div>
 
-                    {/* Indicador de resposta ou desfecho de demo */}
+                    {/* Indicador de resposta real, ou de resposta/desfecho de demo */}
+                    {respondido && (
+                      <span
+                        className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0"
+                        title="O Contato respondeu a este passo"
+                      >
+                        Respondeu
+                      </span>
+                    )}
                     {step.metricas?.respondeu && (
                       <span
                         className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0"
@@ -883,6 +940,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             onAnexar={anexosDisponiveis ? handleAnexar : undefined}
             onRemoverAnexo={handleRemoverAnexo}
             ultimoCampoRef={ultimoCampoRef}
+            envio={envios?.find((e) => e.stepId === stepAtivo.id)}
+            enviando={enviandoStepId === stepAtivo.id}
+            avisoDoEnvio={avisoDoEnvio?.stepId === stepAtivo.id ? avisoDoEnvio : null}
+            onConfirmarEEnviar={permiteAcoesDeDemonstracao ? undefined : () => handleConfirmarEEnviar(stepAtivo)}
             onEditarDestinos={(c) => {
               setContatoParaEditarDestinos(c)
               setDialogoDestinosAberto(true)
@@ -990,6 +1051,12 @@ interface ComposerStepProps {
   onRemoverAnexo: (indice: number) => void
   ultimoCampoRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
   onEditarDestinos?: (contato: Contato) => void
+  /** O Envio deste passo num Workspace operacional, quando já foi confirmado alguma vez. */
+  envio?: EnvioDoPasso
+  enviando?: boolean
+  avisoDoEnvio?: { texto: string; tipo: 'ok' | 'atencao' } | null
+  /** Sem ele (Demonstração), nenhum envio real é oferecido. */
+  onConfirmarEEnviar?: () => void
 }
 
 function ComposerStep({
@@ -1012,6 +1079,10 @@ function ComposerStep({
   onRemoverAnexo,
   ultimoCampoRef,
   onEditarDestinos,
+  envio,
+  enviando = false,
+  avisoDoEnvio = null,
+  onConfirmarEEnviar,
 }: ComposerStepProps) {
   const naDemonstracao = useAmbiente().modo === 'demonstracao'
   const contato = contatosMap.get(step.contatoId)
@@ -1317,10 +1388,16 @@ function ComposerStep({
         />
       </div>
 
-      {/* Rodapé de demonstração e métricas do step; num Workspace operacional, nenhum envio acontece ainda. */}
+      {/* Rodapé: num Workspace operacional, o Envio real do passo; na Demonstração, as métricas de exemplo. */}
       <div className="flex flex-wrap items-center gap-3 text-xs text-al-muted px-4 py-3 border-t border-al-line bg-al-surface/40">
         {!naDemonstracao ? (
-          <span>Ainda não enviado</span>
+          <RodapeDoEnvio
+            step={step}
+            envio={envio}
+            enviando={enviando}
+            aviso={avisoDoEnvio}
+            onConfirmarEEnviar={onConfirmarEEnviar}
+          />
         ) : (
           <>
             <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted font-medium">
@@ -1359,6 +1436,158 @@ function ComposerStep({
         )}
       </div>
     </div>
+  )
+}
+
+// ---------- Envio real do passo (Workspace operacional) ----------
+
+const ROTULO_DO_ENVIO: Record<EnvioDoPasso['status'], string> = {
+  confirmed: 'Confirmado',
+  awaiting_reconfirmation: 'Aguardando reconfirmação',
+  sending: 'Enviando…',
+  sent: 'Enviado',
+  uncertain: 'Envio incerto',
+  failed: 'Falhou',
+  bounced: 'Devolvido',
+}
+
+function descreverEnvio(envio: EnvioDoPasso): string {
+  switch (envio.status) {
+    case 'sent':
+      return `Enviado em ${formatarDataCompleta(envio.enviadoEm ?? envio.confirmadoEm)} para ${envio.destino}. Aceito pelo provedor; não é entrega nem leitura.`
+    case 'awaiting_reconfirmation':
+      return envio.ultimoErro === 'contact_unlinked'
+        ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
+        : `O e-mail do Contato mudou depois da confirmação (era ${envio.destino}). Reconfirme para enviar ao novo Destino.`
+    case 'uncertain':
+      return 'A Unipile não respondeu a tempo. O envio será conferido antes de qualquer reenvio.'
+    case 'failed':
+      return `A Unipile não aceitou o envio${envio.ultimoErro ? ` (${envio.ultimoErro})` : ''}. Reconfirme para tentar de novo.`
+    case 'bounced':
+      return `O e-mail para ${envio.destino} foi devolvido.`
+    case 'sending':
+      return `Enviando para ${envio.destino}…`
+    default:
+      return `Confirmado para ${envio.destino}. Ainda não enviado.`
+  }
+}
+
+function RodapeDoEnvio({
+  step,
+  envio,
+  enviando,
+  aviso,
+  onConfirmarEEnviar,
+}: {
+  step: StepSequencia
+  envio?: EnvioDoPasso
+  enviando: boolean
+  aviso: { texto: string; tipo: 'ok' | 'atencao' } | null
+  onConfirmarEEnviar?: () => void
+}) {
+  if (step.canal !== 'email') {
+    return <span>Envio por {CANAIS_CONFIG[step.canal].rotulo} ainda não disponível neste Workspace.</span>
+  }
+  const podeEnviar = !!onConfirmarEEnviar && !enviando
+    && (!envio || ['confirmed', 'awaiting_reconfirmation', 'failed', 'bounced'].includes(envio.status))
+  const rotuloDoBotao = enviando
+    ? 'Enviando…'
+    : envio && envio.status !== 'confirmed' ? 'Reconfirmar e enviar' : 'Confirmar e enviar'
+  return (
+    <>
+      <span className="flex items-center gap-2">
+        {envio && (
+          <span
+            className={`px-1.5 py-0.5 border text-[0.625rem] uppercase tracking-rotulo font-medium ${
+              envio.status === 'sent'
+                ? 'border-al-sucesso/40 text-al-sucesso'
+                : ['failed', 'bounced', 'awaiting_reconfirmation', 'uncertain'].includes(envio.status)
+                  ? 'border-al-atencao/40 text-al-atencao'
+                  : 'border-al-line text-al-muted'
+            }`}
+          >
+            {ROTULO_DO_ENVIO[envio.status]}
+          </span>
+        )}
+        <span>{envio ? descreverEnvio(envio) : 'Ainda não enviado. Confirmar fixa o e-mail atual do Contato como Destino.'}</span>
+      </span>
+      {podeEnviar && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onConfirmarEEnviar}
+          className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface ml-auto"
+        >
+          <Mail className="size-3.5 mr-1 text-al-muted" />
+          {rotuloDoBotao}
+        </Button>
+      )}
+      {aviso && (
+        <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
+          {aviso.texto}
+        </span>
+      )}
+    </>
+  )
+}
+
+/** As respostas recebidas, com conteúdo: só o Responsável pela Sequência chega aqui. */
+function RespostasRecebidas({
+  respostas,
+  contatosMap,
+  onAbrirAnexo,
+}: {
+  respostas: RespostaRecebida[]
+  contatosMap: Map<string, Contato>
+  onAbrirAnexo: (resposta: RespostaRecebida, anexoId: string) => void
+}) {
+  return (
+    <section aria-label="Respostas recebidas" className="flex flex-col gap-3 border border-al-line bg-al-surface p-4">
+      <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">
+        {respostas.length === 1 ? 'Resposta recebida' : `${respostas.length} respostas recebidas`} · só você vê o conteúdo
+      </span>
+      {respostas.map((resposta) => {
+        const quem = resposta.de.nome
+          ?? (resposta.contatoId ? contatosMap.get(resposta.contatoId)?.nome : undefined)
+          ?? resposta.de.email
+          ?? 'Contato'
+        return (
+          <article key={resposta.interacaoId} className="flex flex-col gap-1.5 border-t border-al-line pt-3 first:border-t-0 first:pt-0">
+            <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-al-muted">
+              <span className="text-al-ink font-medium">{quem}</span>
+              {resposta.de.email && resposta.de.nome && <span>&lt;{resposta.de.email}&gt;</span>}
+              <span>· {formatarDataCompleta(resposta.recebidaEm)}</span>
+            </div>
+            {resposta.assunto && <p className="text-sm font-medium text-al-ink">{resposta.assunto}</p>}
+            {resposta.corpo && <p className="text-sm text-al-ink whitespace-pre-wrap leading-relaxed">{resposta.corpo}</p>}
+            {resposta.anexos.length > 0 && (
+              <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
+                {resposta.anexos.map((anexo) => (
+                  <li key={anexo.id}>
+                    {anexo.status === 'stored' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onAbrirAnexo(resposta, anexo.id)}
+                        className="h-7 border-al-line text-[0.6875rem] hover:bg-al-bg"
+                      >
+                        Abrir {anexo.nome}
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-al-muted">
+                        {anexo.nome} · {anexo.status === 'failed' ? 'indisponível' : 'baixando…'}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        )
+      })}
+    </section>
   )
 }
 

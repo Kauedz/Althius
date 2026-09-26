@@ -16,7 +16,7 @@
 - [x] `email.new` na caixa de entrada, `email.new` nos itens enviados e `email.new.bounce` são distinguidos. Uma mensagem do próprio titular (`from` igual ao endereço da Conta remetente) não pausa a Sequência.
 - [x] A resposta é ligada ao passo enviado pela conversa: o `thread_id` do e-mail enviado, ou o `In-Reply-To` dos `headers` igual ao `message_id` enviado. E-mail de outra conversa não pausa nada.
 - [x] Uma resposta real pausa todos os passos da Conta-alvo em uma transação e não afeta Sequências de outras Contas-alvo.
-- [ ] Somente o responsável lê assunto, corpo e anexos; os demais veem “Contato respondeu; sequência pausada”, sem conteúdo livre.
+- [x] Somente o responsável lê assunto, corpo e anexos; os demais veem “Contato respondeu; sequência pausada”, sem conteúdo livre.
 - [x] Assunto, corpo e anexos da mensagem recebida ficam gravados na própria Interação (schema privado da Althius), não como uma referência a buscar na Unipile depois. Os anexos chegam como `url` e precisam ser baixados e guardados. Isso preserva o contexto que a IA usa mesmo depois de uma troca de conta Unipile ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)).
 - [x] Evento repetido ou fora de ordem não duplica Interação, evento público nem contagem.
 - [ ] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
@@ -39,7 +39,12 @@ Três PRs em sequência: (1) envio, (2) resposta (webhook, Interação privada e
   - Testes: pgTAP `supabase/tests/ingestao_de_email_da_unipile.sql` (42 asserções) e Deno nas três funções.
   - O endereço do titular é aprendido pelo `from` do eco do próprio envio (`sender_accounts.email_address`), sem depender do formato do envelope. Respostas automáticas (`mailer-daemon`, `no-reply`, `Auto-Submitted`) não pausam. Uma resposta de outra pessoa da Conta-alvo na mesma conversa pausa, mas a Interação pública não a atribui ao Contato do passo.
   - A conferir no primeiro ciclo real: a forma da resposta de `GET /v2/{account_id}/threads/{thread_id}` e de `GET /v2/{account_id}/email-senders`, se o `account_name` do envelope traz o endereço do titular, e se o cabeçalho `X-Althius-Envio` volta no `email.new` dos itens enviados.
-- **Fica para o PR 3 (tela):** confirmar e enviar pela página de detalhe da Sequência e mostrar a situação dos Envios, depois de apresentar a adaptação mínima.
+- **PR 3 (tela), adaptação mínima sem mudar o desenho:**
+  - O rodapé do step, que dizia "Ainda não enviado" no Workspace operacional, mostra o Envio real: Confirmado, Aguardando reconfirmação, Enviando, Enviado (data e Destino, "aceito pelo provedor; não é entrega nem leitura"), Falhou, Envio incerto ou Devolvido, e um único botão "Confirmar e enviar" (ou "Reconfirmar e enviar"), só para passos de E-mail. Um bloqueio do backend aparece como aviso no rodapé, com o motivo.
+  - A timeline marca o passo concluído pelo Envio `sent` (na Demonstração continua o `passoAtual`) e mostra "Respondeu" quando há resposta ligada ao Envio.
+  - Abaixo da regra de pause, o painel "Respostas recebidas" (remetente, data, assunto, corpo e anexos, com "Abrir <anexo>" por URL assinada) só existe para o Responsável. O resumo de outro participante mostra "Contato respondeu; sequência pausada" no lugar do status.
+  - `FonteDeSequencias` ganhou `envios`, `confirmarPasso`, `enviarPasso`, `respostasRecebidas` e `urlDoAnexo`; a Demonstração devolve listas vazias e não envia nada. Migration `supabase/migrations/20260926180204_respostas_recebidas_da_sequencia.sql` (`list_received_emails`). O Supabase falso dos testes ganhou as Edge Functions (`funcoes`).
+  - Testes: vitest em `src/fonte/supabase-sequencias.test.ts` e `src/raiz.test.tsx` ("Envio e resposta da Sequência no Workspace operacional").
 
 ## Contratos da Unipile v2
 

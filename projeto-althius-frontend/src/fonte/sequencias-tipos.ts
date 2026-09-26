@@ -117,6 +117,55 @@ export interface MetricasDemoSequencia {
   reunioes: number
 }
 
+/** A situação de um Envio do passo, como o backend a guarda. */
+export type StatusDoEnvio =
+  | 'confirmed'
+  | 'awaiting_reconfirmation'
+  | 'sending'
+  | 'sent'
+  | 'uncertain'
+  | 'failed'
+  | 'bounced'
+
+/** O Envio de um passo de E-mail: o Destino fixado na confirmação e o que o provedor respondeu. */
+export interface EnvioDoPasso {
+  id: string
+  stepId: string
+  contatoId: string
+  destino: string
+  status: StatusDoEnvio
+  confirmadoEm: string
+  enviadoEm?: string
+  ultimoErro?: string
+}
+
+/** O que o backend respondeu a um pedido de envio: saiu, falhou, ficou incerto, ou foi bloqueado com um motivo. */
+export interface ResultadoDoEnvio {
+  outcome: 'sent' | 'failed' | 'uncertain' | string
+  mensagem?: string
+}
+
+export interface AnexoRecebido {
+  id: string
+  nome: string
+  mime?: string
+  tamanho?: number
+  status: 'pending' | 'stored' | 'failed'
+}
+
+/** Uma resposta do Contato guardada pela Althius; só o Responsável pela Sequência a lê. */
+export interface RespostaRecebida {
+  interacaoId: string
+  sequenciaId: string
+  envioId?: string
+  contatoId?: string
+  de: { email?: string; nome?: string }
+  assunto?: string
+  corpo?: string
+  recebidaEm: string
+  anexos: AnexoRecebido[]
+}
+
 /**
  * A fronteira de dados do módulo Sequências.
  * Operações assíncronas com observador de mudanças (ADR 0003).
@@ -148,4 +197,19 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Lê apenas a projeção pública da sequência (sem corpos, assuntos ou anexos privados). */
   resumoPublico(id: string): Promise<ResumoPublicoSequencia | null>
+
+  /** Os Envios dos passos da sequência. Só o Responsável pela Sequência os vê; os demais recebem uma lista vazia. */
+  envios(sequenciaId: string): Promise<EnvioDoPasso[]>
+
+  /** Confirma um passo de E-mail: fixa o e-mail atual do Contato como Destino. Rejeita passos de outro canal. */
+  confirmarPasso(sequenciaId: string, stepId: string): Promise<EnvioDoPasso>
+
+  /** Pede ao backend o envio de um passo confirmado. Um bloqueio volta como resultado, não como erro. */
+  enviarPasso(sequenciaId: string, envioId: string): Promise<ResultadoDoEnvio>
+
+  /** As respostas recebidas da sequência, com conteúdo. Só para o Responsável pela Sequência. */
+  respostasRecebidas(sequenciaId: string): Promise<RespostaRecebida[]>
+
+  /** Um endereço temporário para abrir um anexo recebido. Só para o Responsável pela Sequência. */
+  urlDoAnexo(interacaoId: string, anexoId: string): Promise<string>
 }

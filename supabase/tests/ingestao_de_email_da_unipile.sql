@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(49);
+select plan(51);
 
 -- Workspace da empresa com o Vendedor responsável (titular) e uma colega Membro.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -145,6 +145,14 @@ select is(
   'the owner reads subject, body and sender of the received e-mail');
 select is((select attachments -> 0 ->> 'name' from public.get_received_email((select interaction_id from resposta))),
   'proposta.pdf', 'the owner sees the attachment list');
+select is((select count(*)::int || ' ' || max(subject) from public.list_received_emails((select valor::uuid from ids where chave = 'sequencia'))),
+  '1 Re: Apresentação', 'the owner lists the replies of the sequence');
+select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000002', true);
+select throws_ok(
+  $$select * from public.list_received_emails((select valor::uuid from ids where chave = 'sequencia'))$$,
+  '42501', 'sequence not found or not owned by active user',
+  'another member cannot list the replies');
+select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000001', true);
 select is((select motivoPause from (
     select (public_summary -> '_document' ->> 'motivoPause') as motivoPause
     from public.get_owned_sequence((select valor::uuid from ids where chave = 'sequencia'))) d),
