@@ -6,6 +6,25 @@ Guia curto para executar o primeiro envio real sem duplicar Unipile no CRM.
 
 **Unipile + ciclos E-mail/WA/LI** → `.scratch/canais-cadencia-backend/` (canais-03/04/06/07). **CRM** → Contas/Contatos/tenant/Seq↔UUID; CRM-16/19/20/21 são **ponteiros**, não implementação.
 
+## Marco atual: primeiro envio real
+
+Decidido em 2026-09-25. O próximo marco é o tracer de envio: um e-mail real sai pela Conta remetente de um vendedor da equipe, e a resposta real pausa a Sequência. Ele roda na pré-produção ([ADR-0013](../docs/adr/0013-supabase-auto-hospedado-em-vps.md), revisão), no Workspace pessoal e com o app local, sem depender de publicar o frontend.
+
+| Passo | Estado em 2026-09-26 |
+| --- | --- |
+| CRM-01, Auth-01 a Auth-08, CRM-04, CRM-05 e canais-01 | na `main` |
+| CRM-17 | Não bloqueia o tracer: a Sequência grava o UUID da Conta-alvo como texto, e os Contatos já exigem uma Conta-alvo real. |
+| canais-02 | Código e pgTAP prontos. Falta a conferência na tela com dados reais. |
+| canais-03 | Faltam os estados na interface (o módulo Conexões está indisponível no modo operacional), o bloqueio de envio na reconexão, publicar as Edge Functions e as credenciais da Unipile. |
+| canais-04 | Depois do 02 e do 03. Inclui o Destino confirmado ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)). |
+
+Pendências humanas do tracer:
+
+- uma conta Unipile v1, com DSN e chave de API;
+- os segredos da Unipile no Supabase;
+- uma caixa de e-mail real de um vendedor para conectar;
+- um destinatário real que responda ao teste.
+
 ## Pré-requisitos de ambiente (responsável pelo produto)
 
 Antes do cadastro e login (tickets em `.scratch/autenticacao-google-email/issues/`) funcionarem fora do ambiente local (detalhes em `.scratch/autenticacao-google-email/spec.md`):
