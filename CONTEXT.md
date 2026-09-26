@@ -202,6 +202,10 @@ O Vendedor responsável pela Conta-alvo, que opera sua Sequência e fornece suas
 A identidade de E-mail, LinkedIn ou WhatsApp pertencente a um usuário e conectada para enviar mensagens aos Contatos. As Interações da Sequência pertencem ao Workspace, sem transformar as conversas pessoais do usuário em uma caixa de entrada compartilhada.
 _Avoid_: WhatsApp do Workspace, conta compartilhada
 
+**Envio do passo**:
+O registro de um passo de E-mail que o Vendedor responsável confirmou: o Destino fixado na confirmação, a Conta remetente usada, o que o provedor respondeu (`id` e `message_id`) e a situação — confirmado, aguardando reconfirmação, enviando, enviado, incerto, falhou ou devolvido. A aceitação pelo provedor não é entrega nem leitura. Só o titular lê o Envio; os demais veem a Interação "e-mail enviado" da Conta-alvo.
+_Avoid_: disparo, mensagem enviada como sinônimo de entrega
+
 **Proposta de resposta**:
 Uma resposta a um Contato preparada pela IA e sujeita à Aprovação do titular da Conta remetente antes de qualquer envio. Seu conteúdo é restrito ao titular e sua criação não retoma a Sequência pausada da Conta-alvo.
 
