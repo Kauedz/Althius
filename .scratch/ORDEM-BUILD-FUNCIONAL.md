@@ -15,8 +15,8 @@ Decidido em 2026-09-25. O próximo marco é o tracer de envio: um e-mail real sa
 | CRM-01, Auth-01 a Auth-08, CRM-04, CRM-05 e canais-01 | na `main` |
 | CRM-17 | Não bloqueia o tracer: a Sequência grava o UUID da Conta-alvo como texto, e os Contatos já exigem uma Conta-alvo real. |
 | canais-02 | Fechado em 2026-09-26, com a conferência na tela e a correção da perda de passos. |
-| canais-03 | Unipile v2 configurada (teste grátis) e uma caixa Gmail real conectada de ponta a ponta, em `ready`. Faltam os estados na interface (o módulo Conexões está indisponível no modo operacional) e o bloqueio de envio na reconexão. |
-| canais-04 | Depois do 02 e do 03. Inclui o Destino confirmado ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)). |
+| canais-03 | Unipile v2 configurada (teste grátis) e uma caixa Gmail real conectada de ponta a ponta, em `ready`. Faltam os estados na interface (o módulo Conexões está indisponível no modo operacional), que não bloqueiam o envio. |
+| canais-04 | Próximo passo, desbloqueado e revisado para os contratos da Unipile v2. Inclui o Destino confirmado ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)) e o bloqueio de envio fora de `ready`. O teste grátis da Unipile acaba por volta de 2026-10-03. |
 
 Pendências humanas do tracer:
 
