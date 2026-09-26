@@ -89,7 +89,16 @@ Combinados:
 - No glossário, o Canal pode se chamar Gmail. A Conta remetente de E-mail continua E-mail, porque aceita Google, Outlook e IMAP.
 - Migrations seguem `docs/agents/migrations.md`, com o timestamp UTC do momento. Antes de aplicar uma no remoto, confira a última versão já aplicada.
 
+### Conexões funcionais: andamento
+
+- Decisões: [ADR-0016](../docs/adr/0016-sincronizacao-do-hubspot-so-le-e-respeita-o-responsavel.md) (a Sincronização do HubSpot só lê e respeita o Vendedor responsável) e [ADR-0017](../docs/adr/0017-integracoes-conectadas-pelo-servidor-mcp-oficial.md) (Integrações pelo servidor MCP oficial, com um Acesso por participante).
+- O Canal continua "E-mail" no glossário: decidido no grill das Conexões em 2026-09-26, porque o provedor pode ser qualquer um. Nada muda para a Conta remetente.
+- Meta: o catálogo inteiro da tela Conexões funcionando. Começa pelo HubSpot, depois o Notion, e segue uma Integração por vez (Apollo, Clay, Lusha e Meta Ads já têm ticket). Os Canais vêm quando os Agentes tiverem backend.
+- Tickets em `.scratch/conexoes-funcionais/issues/`. Em 2026-09-26: 01 (pesquisa dos servidores MCP) fechado; 02 é o próximo.
+- Depois desta spec: uma spec própria para a Althius como servidor MCP, para o Claude ou o ChatGPT se conectarem a ela.
+
 ## Specs
 
 - CRM: `.scratch/crm-real-e-stack/spec.md`  
 - Canais (SoT Unipile): `.scratch/canais-cadencia-backend/spec.md`
+- Conexões funcionais: `.scratch/conexoes-funcionais/spec.md`
