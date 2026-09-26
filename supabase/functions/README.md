@@ -88,6 +88,10 @@ de início atrasados não regridem uma Conta pronta.
 O webhook precisa ficar sem verificação JWT do gateway porque a Unipile não envia JWT Supabase; a própria função
 autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra replay.
 
+## Ativar o canais-04 (migrations, funções e eventos de e-mail)
+
+`scripts/wizard-canais-04.sh` conduz a ativação num terminal: liga a Supabase CLI ao projeto, aplica as migrations pendentes com `supabase db push`, confere os três segredos, publica `sequence-step-sends`, `received-email-attachments` e `unipile-account-status` (esta com `--no-verify-jwt`), acrescenta `email.new` e `email.new.bounce` ao Webhook Endpoint já cadastrado (por API, ou pelo painel se a API recusar; nunca cria outro endpoint) e descreve o ciclo real de teste.
+
 ## Configurar ou trocar a conta Unipile
 
 As funções `sender-accounts` e `unipile-account-status` estão publicadas em `ycbdilsmydvzezhlymty` (a versão com e-mail,
