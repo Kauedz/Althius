@@ -10,7 +10,7 @@ Esta entrega substitui as simulações apenas no caminho de cadência e mensager
 
 ## Ownership e fonte de verdade
 
-Esta spec (e seus tickets em `issues/`) é a **fonte de verdade** para Unipile v1 e para os ciclos reais de E-mail, WhatsApp e LinkedIn. Os tickets CRM-16, CRM-19, CRM-20 e CRM-21 em `.scratch/crm-real-e-stack/issues/` são apenas ponteiros para canais-03/04/06/07 — não reimplementar ali.
+Esta spec (e seus tickets em `issues/`) é a **fonte de verdade** para a Unipile v2 e para os ciclos reais de E-mail, WhatsApp e LinkedIn. Os tickets CRM-16, CRM-19, CRM-20 e CRM-21 em `.scratch/crm-real-e-stack/issues/` são apenas ponteiros para canais-03/04/06/07 — não reimplementar ali.
 
 **Pré-requisitos mínimos do corte vertical (send tracer):** CRM-01, CRM-02, CRM-04 e CRM-05 (base tenant + Contas/Contatos reais) + canais-01…04. Ticket canais-13, quando presente na branch, permanece `needs-info` / fora do primeiro corte até decisão LGPD; em `main` sem o arquivo, o item continua fora do corte.
 
@@ -37,7 +37,7 @@ A proposta é concentrar o backend no Supabase e usar Unipile para comunicação
 
 Uma alternativa seria hospedar um servidor e worker separados, usando Supabase só como banco: oferece maior controle de processos longos, mas adiciona infraestrutura operacional. Outra seria executar os passos no navegador: foi descartada porque fechar a página interromperia a cadência e exporia a integração ao cliente. O plano de implementação deve usar operações curtas em backend e estado durável, sem esperar dias dentro de uma função.
 
-O adapter Unipile isola a versão da API e normaliza diferenças entre e-mail e mensageria. A documentação v2 está em beta; a base proposta é v1, sujeita à compatibilidade da instância escolhida. Não misturar contratos das duas versões.
+O adapter Unipile isola a versão da API e normaliza diferenças entre e-mail e mensageria. A base é a v2, porque a conta criada pelo dashboard atual é v2 e não aceita a v1 (adendo da ADR-0015, 2026-09-26). Não misturar contratos das duas versões.
 
 ### Identidade e propriedade
 
@@ -72,7 +72,7 @@ Separar mensagens privadas dos eventos compartilhados fisicamente ou por projeç
 4. A interface existente reflete conexão, desconexão e necessidade de reconectar. Uma conexão de conversa com Agente não deve ser confundida com Conta remetente de prospecção.
 5. Credenciais da Unipile ficam somente no backend. Revalidar a associação em reconexões; ninguém pode anexar uma identidade externa de outro titular.
 
-No contrato v1, criar a conta externa ainda inicia sincronização: a prontidão precisa considerar os eventos de ciclo de vida, não apenas o retorno de criação. Reconexão deve reconciliar respostas acumuladas antes de liberar novos passos. O callback de autenticação hospedada e os webhooks de mensagens têm contratos próprios e devem ser autenticados separadamente.
+Na v2, a conexão termina no evento `account.add`, que chega pelo webhook assinado e traz de volta o `state` enviado no link hospedado; é ele que liga a conta à tentativa. WhatsApp e IMAP só ficam prontos com o `account.initial_sync.completed`; os outros provedores ficam prontos já no `account.add`. Reconexão deve reconciliar respostas acumuladas antes de liberar novos passos. O redirecionamento do navegador só devolve a pessoa ao app e não prova a conexão.
 
 ### Preparar e executar uma Sequência
 
