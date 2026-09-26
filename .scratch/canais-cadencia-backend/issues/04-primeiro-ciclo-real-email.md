@@ -11,7 +11,8 @@
 - [ ] Confirmar o passo fixa o Destino usado no envio ([ADR-0014](../../../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
 - [ ] Se na hora de enviar o Destino atual do Contato for diferente do confirmado, o passo não sai e aguarda a reconfirmação do Vendedor responsável. Isso vale para mudança por Administrador, importação ou enriquecimento, e o envio não vai nem para o Destino antigo nem para o novo.
 - [ ] O resultado do provedor (`id` e `message_id` do envio) fica persistido sem apresentar aceitação como entrega ou leitura comprovada.
-- [ ] Os eventos de e-mail chegam pelo mesmo Webhook Endpoint da v2, autenticados pela assinatura HMAC. A entrega é confirmada dentro do prazo do provedor e processada de forma idempotente.
+- [ ] Os eventos de e-mail chegam pelo mesmo Webhook Endpoint da v2, autenticados pela assinatura HMAC. O evento é gravado e confirmado com `2xx` em menos de 5 segundos, e o processamento é idempotente pelo `id` do evento.
+- [ ] Antes de enviar o próximo passo de uma conversa, o executor confere essa conversa pela API. A Unipile tenta a entrega só mais duas vezes (2 s e 12 s), então uma resposta perdida no webhook não pode deixar a Sequência seguir.
 - [ ] `email.new` na caixa de entrada, `email.new` nos itens enviados e `email.new.bounce` são distinguidos. Uma mensagem do próprio titular (`from` igual ao endereço da Conta remetente) não pausa a Sequência.
 - [ ] A resposta é ligada ao passo enviado pela conversa: o `thread_id` do e-mail enviado, ou o `In-Reply-To` dos `headers` igual ao `message_id` enviado. E-mail de outra conversa não pausa nada.
 - [ ] Uma resposta real pausa todos os passos da Conta-alvo em uma transação e não afeta Sequências de outras Contas-alvo.
@@ -39,6 +40,7 @@ Conferidos na documentação oficial em 2026-09-26.
   - `headers` (`[{name, value}]`), onde ficam `In-Reply-To` e `References`;
   - `attachments`, com o conteúdo acessível por `url`;
   - `folders` (no Gmail, ids de marcadores) e `is_unread`.
+- **Entrega:** a Unipile espera `2xx` em menos de 5 segundos e tenta de novo só duas vezes, depois de 2 e de 12 segundos (docs/configure-a-webhook). Cada evento traz um `id` (`evt_…`).
 - **Webhook:** o Webhook Endpoint criado pelo `scripts/wizard-unipile.sh` só assina eventos de conta. Este ticket acrescenta `email.new` e `email.new.bounce` à lista do wizard e ao endpoint já cadastrado, editado pelo painel da Unipile.
 
 ## Dependências externas
