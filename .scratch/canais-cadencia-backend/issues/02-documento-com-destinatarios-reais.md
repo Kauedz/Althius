@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Acesso real e responsabilidade exclusiva.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O Vendedor responsável cadastra e consulta e-mail, número de WhatsApp normalizado e identidade LinkedIn reais nos Contatos participantes.
 - [x] A Sequência persiste participantes confirmados, passos ordenados, conteúdo, objetivo, delay em dias úteis, janela e canal.
@@ -39,3 +39,9 @@ Prints:
 - **Fechamento.** Corrigir com um teste de regressão, conferir de novo e fechar.
 
 Dados de conferência na pré-produção: três Contas-alvo `Conferência canais-02 <n>`, cada uma com um Contato, e uma Sequência.
+
+### 2026-09-26: correção da perda de passos
+
+- **Correção.** `detalhe-sequencia.tsx` serializa as alterações do documento numa fila. Cada uma parte da Sequência mais recente que a tela conhece: a última gravada ou, sem gravação pendente, a última lida. Os handlers passam a montar o patch sobre esse documento, e não sobre o estado da renderização. A correção vale também para editar, mover e excluir passos e para mudar participantes e janela. A gravação a cada tecla deixa de poder chegar fora de ordem.
+- **Regressão.** Novo teste em `detalhe-sequencia.test.tsx`: dois passos seguidos com a fonte simulada lenta (`atrasoMs: 150`). Ele falhava com 7 passos, sem o LinkedIn, e agora passa 5 vezes em 5.
+- **Reconferência no backend real.** Na Sequência de conferência, dois passos seguidos levaram de 2 para 4 passos, com LinkedIn e WhatsApp gravados, e o resumo público com 4 ([print](prints/02-dois-passos-seguidos-gravados.jpg)).
