@@ -45,7 +45,7 @@ O `teste:real` lê as variáveis do ambiente ou do `.env.local`, e o ambiente va
 
 ## Canais pessoais pela Unipile
 
-`scripts/wizard-unipile.sh`, na raiz do repositório, configura a conta Unipile que conecta E-mail, WhatsApp e LinkedIn (canais-03): guia o DSN e a chave de API, coloca os 4 segredos nas Edge Functions do Supabase e registra o webhook `account_status` direto por API. Nenhum segredo é gravado em disco. Depois, `npm run unipile:testar -- email` conecta um canal de verdade de ponta a ponta.
+`scripts/wizard-unipile.sh`, na raiz do repositório, configura a conta Unipile que conecta E-mail, WhatsApp e LinkedIn (canais-03): guia a chave de API, registra o Webhook Endpoint da Unipile v2 direto por API (capturando o segredo de assinatura que a própria Unipile gera) e coloca os 3 segredos nas Edge Functions do Supabase. Nenhum segredo é gravado em disco. Depois, `npm run unipile:testar -- email` conecta um canal de verdade de ponta a ponta.
 
 O plano prevê trocar de conta Unipile mais de uma vez (teste grátis, depois uma conta paga, depois a conta oficial da empresa); rode o wizard de novo a cada troca — só os segredos mudam. Contatos, Contas-alvo, Sequências e Interações nunca dependem de qual conta Unipile está ativa no momento.
 

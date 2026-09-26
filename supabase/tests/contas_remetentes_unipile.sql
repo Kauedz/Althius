@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(16);
+select plan(18);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -125,6 +125,37 @@ select throws_ok(
   '42501', 'active workspace membership required',
   'another Workspace cannot query sender account state'
 );
+
+-- Provedores da Unipile v2: Outlook é aceito no lugar do antigo Microsoft, que não existe mais.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000003', true);
+create temporary table created_outlook_attempt(id uuid);
+grant insert, select on created_outlook_attempt to authenticated, service_role;
+insert into created_outlook_attempt
+select attempt_id from public.create_sender_connection_attempt(
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'email', null
+);
+reset role;
+set local role service_role;
+select is(public.complete_sender_connection_attempt(
+  (select id from created_outlook_attempt), 'unipile-outlook-account-1', 'OUTLOOK', 'CREATION_SUCCESS'
+), 'completed', 'Outlook is accepted as an email provider (Unipile v2 renamed Microsoft to Outlook)');
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000003', true);
+create temporary table created_legacy_attempt(id uuid);
+grant insert, select on created_legacy_attempt to authenticated, service_role;
+insert into created_legacy_attempt
+select attempt_id from public.create_sender_connection_attempt(
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'email', null
+);
+reset role;
+set local role service_role;
+select is(public.complete_sender_connection_attempt(
+  (select id from created_legacy_attempt), 'unipile-legacy-account-1', 'MICROSOFT', 'CREATION_SUCCESS'
+), 'provider_mismatch', 'the old Microsoft provider name no longer exists in Unipile v2 and is rejected');
+reset role;
 
 select * from finish();
 rollback;

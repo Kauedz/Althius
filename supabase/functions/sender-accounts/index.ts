@@ -1,5 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+const UNIPILE_API_BASE = 'https://api.unipile.com'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') ?? 'null',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
@@ -23,26 +25,20 @@ function serviceClient() {
 }
 
 function unipileConfig() {
-  const rawDsn = Deno.env.get('UNIPILE_DSN')
   const apiKey = Deno.env.get('UNIPILE_API_KEY')
   const appOrigin = Deno.env.get('APP_ORIGIN')
-  if (!rawDsn || !apiKey || !appOrigin) throw new Error('Backend is not configured')
-
-  const dsn = new URL(rawDsn.includes('://') ? rawDsn : `https://${rawDsn}`)
-  if (dsn.protocol !== 'https:' || !dsn.hostname.endsWith('.unipile.com')) {
-    throw new Error('Backend is not configured')
-  }
+  if (!apiKey || !appOrigin) throw new Error('Backend is not configured')
   const origin = new URL(appOrigin)
   if (origin.protocol !== 'https:' && origin.hostname !== 'localhost') {
     throw new Error('Backend is not configured')
   }
-  return { apiOrigin: dsn.origin, apiKey, appOrigin: origin.origin }
+  return { apiKey, appOrigin: origin.origin }
 }
 
 function providerNames(channel: Channel) {
-  if (channel === 'email') return ['GOOGLE', 'MICROSOFT', 'IMAP']
-  if (channel === 'whatsapp') return ['WHATSAPP']
-  return ['LINKEDIN']
+  if (channel === 'email') return ['google', 'outlook', 'imap']
+  if (channel === 'whatsapp') return ['whatsapp']
+  return ['linkedin']
 }
 
 async function caller(req: Request) {
@@ -118,18 +114,17 @@ Deno.serve(async (req) => {
       const config = unipileConfig()
       const reconnecting = action === 'reconnect'
       const payload: Record<string, unknown> = {
-        type: reconnecting ? 'reconnect' : 'create',
-        api_url: config.apiOrigin,
-        expiresOn: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        providers: reconnecting ? [attempt.provider] : providerNames(channel),
-        name: attempt.attempt_id,
-        notify_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/unipile-hosted-auth-notify`,
-        success_redirect_url: `${config.appOrigin}/conexoes?senderAuth=processing`,
-        failure_redirect_url: `${config.appOrigin}/conexoes?senderAuth=failure`,
+        expires_on: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        redirect_uri: `${config.appOrigin}/conexoes`,
+        state: attempt.attempt_id,
       }
-      if (reconnecting) payload.reconnect_account = attempt.provider_account_id
+      if (reconnecting) {
+        payload.account_id = attempt.provider_account_id
+      } else {
+        payload.providers = providerNames(channel)
+      }
 
-      const upstream = await fetch(`${config.apiOrigin}/api/v1/hosted/accounts/link`, {
+      const upstream = await fetch(`${UNIPILE_API_BASE}/v2/auth/link`, {
         method: 'POST',
         headers: {
           'X-API-KEY': config.apiKey,
@@ -140,10 +135,11 @@ Deno.serve(async (req) => {
       })
       if (!upstream.ok) return response({ error: 'A Unipile não conseguiu iniciar a conexão. Tente novamente.' }, 502)
       const result = await upstream.json()
-      if (typeof result?.url !== 'string' || !result.url.startsWith('https://')) {
+      const link = typeof result?.link === 'string' ? result.link : result?.data?.link
+      if (typeof link !== 'string' || !link.startsWith('https://')) {
         return response({ error: 'A Unipile retornou um link de autenticação inválido.' }, 502)
       }
-      return response({ url: result.url })
+      return response({ url: link })
     }
 
     if (action === 'disconnect') {
@@ -160,7 +156,7 @@ Deno.serve(async (req) => {
       }
       const config = unipileConfig()
       const upstream = await fetch(
-        `${config.apiOrigin}/api/v1/accounts/${encodeURIComponent(account[0].unipile_account_id)}`,
+        `${UNIPILE_API_BASE}/v2/accounts/${encodeURIComponent(account[0].unipile_account_id)}`,
         { method: 'DELETE', headers: { 'X-API-KEY': config.apiKey, accept: 'application/json' } },
       )
       if (!upstream.ok && upstream.status !== 404) {
