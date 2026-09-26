@@ -10,7 +10,7 @@ Esta entrega substitui as simulações apenas no caminho de cadência e mensager
 
 ## Ownership e fonte de verdade
 
-Esta spec (e seus tickets em `issues/`) é a **fonte de verdade** para Unipile v1 e para os ciclos reais de E-mail, WhatsApp e LinkedIn. Os tickets CRM-16, CRM-19, CRM-20 e CRM-21 em `.scratch/crm-real-e-stack/issues/` são apenas ponteiros para canais-03/04/06/07 — não reimplementar ali.
+Esta spec (e seus tickets em `issues/`) é a **fonte de verdade** para a Unipile v2 e para os ciclos reais de E-mail, WhatsApp e LinkedIn. Os tickets CRM-16, CRM-19, CRM-20 e CRM-21 em `.scratch/crm-real-e-stack/issues/` são apenas ponteiros para canais-03/04/06/07 — não reimplementar ali.
 
 **Pré-requisitos mínimos do corte vertical (send tracer):** CRM-01, CRM-02, CRM-04 e CRM-05 (base tenant + Contas/Contatos reais) + canais-01…04. Ticket canais-13, quando presente na branch, permanece `needs-info` / fora do primeiro corte até decisão LGPD; em `main` sem o arquivo, o item continua fora do corte.
 
@@ -37,7 +37,7 @@ A proposta é concentrar o backend no Supabase e usar Unipile para comunicação
 
 Uma alternativa seria hospedar um servidor e worker separados, usando Supabase só como banco: oferece maior controle de processos longos, mas adiciona infraestrutura operacional. Outra seria executar os passos no navegador: foi descartada porque fechar a página interromperia a cadência e exporia a integração ao cliente. O plano de implementação deve usar operações curtas em backend e estado durável, sem esperar dias dentro de uma função.
 
-O adapter Unipile isola a versão da API e normaliza diferenças entre e-mail e mensageria. A documentação v2 está em beta; a base proposta é v1, sujeita à compatibilidade da instância escolhida. Não misturar contratos das duas versões.
+O adapter Unipile isola a versão da API e normaliza diferenças entre e-mail e mensageria. A base é a v2, porque a conta criada pelo dashboard atual é v2 e não aceita a v1 (adendo da ADR-0015, 2026-09-26). Não misturar contratos das duas versões.
 
 ### Identidade e propriedade
 
@@ -72,7 +72,7 @@ Separar mensagens privadas dos eventos compartilhados fisicamente ou por projeç
 4. A interface existente reflete conexão, desconexão e necessidade de reconectar. Uma conexão de conversa com Agente não deve ser confundida com Conta remetente de prospecção.
 5. Credenciais da Unipile ficam somente no backend. Revalidar a associação em reconexões; ninguém pode anexar uma identidade externa de outro titular.
 
-No contrato v1, criar a conta externa ainda inicia sincronização: a prontidão precisa considerar os eventos de ciclo de vida, não apenas o retorno de criação. Reconexão deve reconciliar respostas acumuladas antes de liberar novos passos. O callback de autenticação hospedada e os webhooks de mensagens têm contratos próprios e devem ser autenticados separadamente.
+Na v2, a conexão termina no evento `account.add`, que chega pelo webhook assinado e traz de volta o `state` enviado no link hospedado; é ele que liga a conta à tentativa. WhatsApp e IMAP só ficam prontos com o `account.initial_sync.completed`; os outros provedores ficam prontos já no `account.add`. Reconexão deve reconciliar respostas acumuladas antes de liberar novos passos. O redirecionamento do navegador só devolve a pessoa ao app e não prova a conexão.
 
 ### Preparar e executar uma Sequência
 
@@ -117,16 +117,28 @@ Uma resposta não pode cancelar uma chamada já aceita pelo provedor antes de o 
 - Conteúdo e credenciais não aparecem em logs compartilhados, eventos, mensagens de erro para terceiros ou notificações públicas.
 - Nenhuma métrica demo, participante fictício ou destino de exemplo pode alimentar o executor real. Métricas reais usam apenas os resultados comprovados.
 
-### Cuidados específicos da Unipile v1
+### Cuidados específicos da Unipile v2
 
-- Webhooks de mensagens usam segredo configurável em header. A documentação pede resposta HTTP 200 em menos de 30 segundos e prevê cinco retentativas. Não copiar autenticação HMAC da v2 para esse contrato.
-- `message_received` inclui envios próprios; em e-mail, diferenciar `mail_received`, `mail_sent` e `mail_moved`. Reações, leitura e eventos técnicos não contam como resposta comercial.
-- A primeira conexão não entrega todo o histórico via webhooks. Reconexões podem reenviar mensagens recebidas na indisponibilidade; deduplicação e tratamento de eventos fora de ordem são obrigatórios.
-- Aceite de convite LinkedIn não equivale a resposta. Uma conversa criada a partir da nota de convite pode conter somente a própria mensagem enviada pelo vendedor.
-- A rota v1 de envio de e-mail documenta `Idempotency-Key`, com retenção limitada e não durável em reinícios. Não presumir o mesmo suporte nas rotas de chat; persistir o controle interno de envios em todos os canais.
-- Anexos v1 usam multipart; validar capacidade e limite por canal, sem tratar um limite genérico como garantia para todos os provedores.
+A conta Unipile usada é v2, que não aceita os contratos da v1 ([ADR-0015](../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md), adendo de 2026-09-26).
 
-Referências para esses contratos: [webhooks v1](https://developer.unipile.com/docs/webhooks-2), [e-mails recebidos](https://developer.unipile.com/docs/new-emails-webhook), [ciclo de vida](https://developer.unipile.com/docs/account-lifecycle), [aceite de convites](https://developer.unipile.com/docs/detecting-accepted-invitations), [envio de e-mail](https://developer.unipile.com/reference/mailscontroller_sendmail), [mensagens e anexos](https://developer.unipile.com/docs/send-messages).
+- **Webhook:**
+  - Um único Webhook Endpoint recebe todos os eventos, assinados com HMAC-SHA256 no header `unipile-signature`.
+  - A Unipile espera `2xx` em menos de 5 segundos e tenta de novo só duas vezes, depois de 2 e de 12 segundos.
+  - Por isso o evento é gravado e confirmado primeiro, e o trabalho pesado (baixar anexos, gerar proposta) roda depois.
+  - Um evento perdido nas três tentativas precisa ser recuperável: antes do próximo passo de uma conversa, conferir essa conversa pela API.
+- **Eventos:** cada um traz um `id` (`evt_…`), usado para deduplicar. A documentação não fala de ordem de entrega nem de entregas repetidas, então as duas coisas são tratadas como possíveis.
+- **E-mail:**
+  - `email.new` sai quando um e-mail entra numa pasta. O recebido entra na caixa de entrada; o enviado, nos itens enviados.
+  - `email.new.bounce` sai no lugar do `email.new` quando o e-mail volta.
+  - `email.delete` também sai quando o e-mail é movido.
+  - O e-mail enviado pelo próprio titular é eco, não resposta do Contato. Reações, leitura e eventos técnicos não contam como resposta comercial.
+- **WhatsApp e LinkedIn:** usam os eventos `message.*`. Os detalhes ficam para o canais-06 e o canais-07.
+- **Sincronização inicial:** só WhatsApp (obrigatória) e IMAP (para busca avançada) fazem. Os outros provedores já chegam com o histórico. Reconexões podem reentregar mensagens do período fora do ar, então a deduplicação é obrigatória.
+- **LinkedIn:** aceite de convite não equivale a resposta. Uma conversa criada a partir da nota de convite pode conter só a mensagem enviada pelo vendedor.
+- **Idempotência:** o envio de e-mail (`POST /v2/{account_id}/emails/send`) não documenta chave de idempotência. O controle de envios fica na Althius, em todos os canais. No e-mail, cada envio leva um cabeçalho próprio da Althius, que permite conferir um resultado incerto.
+- **Anexos:** no envio, vão no JSON com o conteúdo em base64. Os recebidos chegam por `url` e precisam ser baixados. Capacidade e limite são validados por canal.
+
+Referências: [webhooks](https://developer.unipile.com/v2.0/docs/configure-a-webhook.md), [tipos de evento](https://developer.unipile.com/v2.0/reference/event-types-1), [envio de e-mail](https://developer.unipile.com/v2.0/reference/sendemail.md), [objeto Email](https://developer.unipile.com/v2.0/reference/getemail.md), [sincronização inicial](https://developer.unipile.com/v2.0/docs/initial-sync.md).
 
 ## Integração com o protótipo
 

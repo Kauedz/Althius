@@ -11,7 +11,7 @@
 - [ ] A interface existente diferencia conectando, sincronizando, pronta, requer reconexão e desconectada.
 - [x] Apenas o titular pode consultar detalhes privados ou usar a Conta remetente; outro participante não consegue associá-la à própria Sequência.
 - [x] Credenciais e segredos da Unipile ficam somente no backend e não aparecem no bundle, logs compartilhados ou respostas públicas.
-- [ ] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade.
+- [ ] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade. O bloqueio de envio é critério do canais-04, que é onde o envio acontece.
 - [x] A entrega usa contratos da Unipile v2 (host único, hosted auth por `POST /v2/auth/link`, webhook único assinado por HMAC) e não mistura payloads da v1.
 
 ## Implementação local
