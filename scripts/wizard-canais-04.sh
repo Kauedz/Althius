@@ -67,7 +67,8 @@ open_url() {
   local url="$1"
   printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
   { if   command -v wslview     >/dev/null 2>&1; then wslview "$url"
-    elif command -v explorer.exe >/dev/null 2>&1; then explorer.exe "$url"
+    elif command -v explorer.exe >/dev/null 2>&1; then explorer.exe "$url" || true  # explorer.exe exits 1 even on success
+    elif command -v cmd.exe     >/dev/null 2>&1; then cmd.exe /c start "" "$url"
     elif command -v xdg-open    >/dev/null 2>&1; then xdg-open "$url"
     elif command -v open        >/dev/null 2>&1; then open "$url"
     else warn "couldn't open a browser; visit it manually: $url"; fi
@@ -187,7 +188,7 @@ finish() {
 # e-mail ao Webhook Endpoint já cadastrado na Unipile, sem criar outro nem trocar o segredo. Nenhuma chave
 # é gravada em disco por este wizard.
 #
-# Precisa da Supabase CLI (https://supabase.com/docs/guides/cli) e de curl; jq ou python3 ajudam a ler o
+# Precisa da Supabase CLI (ou do Node.js, para usá-la por npx) e de curl; jq ou python3 ajudam a ler o
 # JSON da Unipile (sem eles, o passo do webhook mostra o caminho pelo painel).
 #
 # Rode num terminal interativo (de qualquer pasta do repositório):
@@ -262,18 +263,33 @@ stage "Pré-requisitos: Supabase CLI ligada ao projeto"
 say "As migrations e as Edge Functions vão pela Supabase CLI, com a sua conta do Supabase. Este wizard"
 say "não pede nem guarda nenhuma chave do Supabase."
 if ! command -v supabase >/dev/null 2>&1; then
-  warn "A Supabase CLI não está instalada."
-  open_url "https://supabase.com/docs/guides/cli/getting-started"
-  step "Instale a CLI (Homebrew, Scoop ou npx) e rode este wizard de novo."
-  exit 1
+  if command -v npx >/dev/null 2>&1; then
+    # Sem a CLI instalada, o npx baixa o binário na primeira chamada (o pacote npm não aceita instalação global).
+    supabase() { npx --yes supabase@2 "$@"; }
+    note "Supabase CLI não instalada: usando 'npx supabase' (a primeira chamada baixa o binário, pode demorar)."
+  else
+    warn "A Supabase CLI não está instalada, e não há npx para usá-la sem instalar."
+    open_url "https://supabase.com/docs/guides/local-development/cli/getting-started"
+    step "Instale a CLI (Scoop no Windows, Homebrew no Mac) ou o Node.js, e rode este wizard de novo."
+    exit 1
+  fi
 fi
-note "Supabase CLI: $(supabase --version 2>/dev/null | head -n1)"
+note "Supabase CLI: $(supabase --version 2>/dev/null | tail -n1)"
 if ! supabase projects list >/dev/null 2>&1; then
   step "Entre na sua conta do Supabase pelo navegador que a CLI vai abrir."
   rodar supabase login || { warn "Não foi possível entrar. Rode 'supabase login' à mão e volte."; exit 1; }
 fi
 step "Ligando este repositório ao projeto $SUPABASE_REF (a CLI pode pedir a senha do banco; Enter pula)."
-rodar supabase link --project-ref "$SUPABASE_REF" || warn "O link falhou ou já existia. Se as próximas etapas falharem, rode 'supabase link --project-ref $SUPABASE_REF' à mão."
+if ! rodar supabase link --project-ref "$SUPABASE_REF"; then
+  warn "O link com o projeto não deu certo, e as próximas etapas dependem dele."
+  step "Leia o erro acima, corrija (login, permissão no projeto) e rode este wizard de novo."
+  exit 1
+fi
+if [[ ! -f supabase/.temp/project-ref ]]; then
+  warn "A CLI não gravou o projeto ligado (supabase/.temp/project-ref). Rode 'supabase link --project-ref $SUPABASE_REF' à mão e volte."
+  exit 1
+fi
+note "Projeto ligado: $(cat supabase/.temp/project-ref)"
 pause "Tecle Enter para seguir"
 
 stage "Migrations do canais-04 no banco remoto"
@@ -300,11 +316,19 @@ pause "Tecle Enter para seguir"
 stage "Segredos das Edge Functions"
 say "As funções lêem UNIPILE_API_KEY, UNIPILE_WEBHOOK_SECRET e APP_ORIGIN em tempo de execução. Só os"
 say "nomes são conferidos aqui; os valores ficam no painel do Supabase."
-LISTA_SEGREDOS=$(supabase secrets list --project-ref "$SUPABASE_REF" 2>/dev/null || true)
 FALTANDO=()
-for nome in "${SEGREDOS[@]}"; do
-  if grep -q "$nome" <<<"$LISTA_SEGREDOS"; then note "  ✓ $nome"; else warn "  falta $nome"; FALTANDO+=("$nome"); fi
-done
+if LISTA_SEGREDOS=$(supabase secrets list --project-ref "$SUPABASE_REF" 2>&1) && grep -q "SUPABASE_URL" <<<"$LISTA_SEGREDOS"; then
+  for nome in "${SEGREDOS[@]}"; do
+    if grep -qw "$nome" <<<"$LISTA_SEGREDOS"; then note "  ✓ $nome"; else warn "  falta $nome"; FALTANDO+=("$nome"); fi
+  done
+else
+  warn "Não deu para listar os segredos pela CLI; confira os três nomes no painel, sem alterar o que já existe."
+  note "${LISTA_SEGREDOS:-(sem saída)}"
+  open_url "$PAINEL/functions/secrets"
+  step "Role a página até a lista dos segredos existentes e confira: ${SEGREDOS[*]}."
+  step "Se algum faltar mesmo, os da Unipile vêm do scripts/wizard-unipile.sh; não os invente aqui."
+  pause "Tecle Enter depois de conferir"
+fi
 if (( ${#FALTANDO[@]} )); then
   open_url "$PAINEL/functions/secrets"
   step "Defina em Edge Functions → Secrets: ${FALTANDO[*]}."
