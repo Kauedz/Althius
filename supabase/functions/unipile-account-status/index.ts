@@ -44,8 +44,10 @@ async function verifySignature(rawBody: string, header: string, secret: string) 
 }
 
 // Traduz os event types de conta da v2 para o vocabulário que apply_unipile_sender_status já entende
-// (a RPC não muda: CREDENTIALS/ERROR/OK/DELETED já existiam para os mesmos significados na v1).
+// (a RPC não muda: SYNC_SUCCESS/CREDENTIALS/ERROR/OK/DELETED já existiam para os mesmos significados na v1).
+// Uma conta nova já nasce running, então é o fim da sincronização inicial que a libera como pronta.
 const STATUS_EVENTS: Record<string, string> = {
+  'account.initial_sync.completed': 'SYNC_SUCCESS',
   'account.status.running': 'OK',
   'account.status.disconnected': 'CREDENTIALS',
   'account.status.errored': 'ERROR',
