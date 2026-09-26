@@ -280,7 +280,16 @@ if ! supabase projects list >/dev/null 2>&1; then
   rodar supabase login || { warn "Não foi possível entrar. Rode 'supabase login' à mão e volte."; exit 1; }
 fi
 step "Ligando este repositório ao projeto $SUPABASE_REF (a CLI pode pedir a senha do banco; Enter pula)."
-rodar supabase link --project-ref "$SUPABASE_REF" || warn "O link falhou ou já existia. Se as próximas etapas falharem, rode 'supabase link --project-ref $SUPABASE_REF' à mão."
+if ! rodar supabase link --project-ref "$SUPABASE_REF"; then
+  warn "O link com o projeto não deu certo, e as próximas etapas dependem dele."
+  step "Leia o erro acima, corrija (login, permissão no projeto) e rode este wizard de novo."
+  exit 1
+fi
+if [[ ! -f supabase/.temp/project-ref ]]; then
+  warn "A CLI não gravou o projeto ligado (supabase/.temp/project-ref). Rode 'supabase link --project-ref $SUPABASE_REF' à mão e volte."
+  exit 1
+fi
+note "Projeto ligado: $(cat supabase/.temp/project-ref)"
 pause "Tecle Enter para seguir"
 
 stage "Migrations do canais-04 no banco remoto"
@@ -307,11 +316,19 @@ pause "Tecle Enter para seguir"
 stage "Segredos das Edge Functions"
 say "As funções lêem UNIPILE_API_KEY, UNIPILE_WEBHOOK_SECRET e APP_ORIGIN em tempo de execução. Só os"
 say "nomes são conferidos aqui; os valores ficam no painel do Supabase."
-LISTA_SEGREDOS=$(supabase secrets list --project-ref "$SUPABASE_REF" 2>/dev/null || true)
 FALTANDO=()
-for nome in "${SEGREDOS[@]}"; do
-  if grep -q "$nome" <<<"$LISTA_SEGREDOS"; then note "  ✓ $nome"; else warn "  falta $nome"; FALTANDO+=("$nome"); fi
-done
+if LISTA_SEGREDOS=$(supabase secrets list --project-ref "$SUPABASE_REF" 2>&1) && grep -q "SUPABASE_URL" <<<"$LISTA_SEGREDOS"; then
+  for nome in "${SEGREDOS[@]}"; do
+    if grep -qw "$nome" <<<"$LISTA_SEGREDOS"; then note "  ✓ $nome"; else warn "  falta $nome"; FALTANDO+=("$nome"); fi
+  done
+else
+  warn "Não deu para listar os segredos pela CLI; confira os três nomes no painel, sem alterar o que já existe."
+  note "${LISTA_SEGREDOS:-(sem saída)}"
+  open_url "$PAINEL/functions/secrets"
+  step "Role a página até a lista dos segredos existentes e confira: ${SEGREDOS[*]}."
+  step "Se algum faltar mesmo, os da Unipile vêm do scripts/wizard-unipile.sh; não os invente aqui."
+  pause "Tecle Enter depois de conferir"
+fi
 if (( ${#FALTANDO[@]} )); then
   open_url "$PAINEL/functions/secrets"
   step "Defina em Edge Functions → Secrets: ${FALTANDO[*]}."
