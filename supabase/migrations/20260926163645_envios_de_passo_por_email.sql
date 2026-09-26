@@ -55,6 +55,24 @@ alter table public.account_interactions drop constraint account_interactions_sou
 alter table public.account_interactions
   add constraint account_interactions_source_check check (source in ('manual', 'sequencia'));
 
+-- O passo pelo id dentro do documento privado da Sequência, ou null.
+create function private.sequence_step(p_sequence_id uuid, p_step_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select step
+  from private.sequence_documents d,
+    jsonb_array_elements(case when jsonb_typeof(d.document -> 'steps') = 'array'
+      then d.document -> 'steps' else '[]'::jsonb end) as step
+  where d.sequence_id = p_sequence_id and step ->> 'id' = p_step_id
+  limit 1;
+$$;
+
+revoke all on function private.sequence_step(uuid, text) from public, anon, authenticated;
+
 -- A projeção que o titular lê: sem os ids do provedor nem a Conta remetente.
 create function public.list_sequence_step_sends(p_sequence_id uuid)
 returns table (
@@ -127,12 +145,7 @@ begin
     raise exception 'sequence not found or not owned by active user' using errcode = '42501';
   end if;
 
-  select step into v_step
-  from private.sequence_documents d,
-    jsonb_array_elements(case when jsonb_typeof(d.document -> 'steps') = 'array'
-      then d.document -> 'steps' else '[]'::jsonb end) as step
-  where d.sequence_id = v_sequence.id and d.owner_user_id = v_user_id
-    and step ->> 'id' = p_step_id;
+  v_step := private.sequence_step(v_sequence.id, p_step_id);
   if v_step is null then
     raise exception 'step not found in the sequence document' using errcode = 'P0002';
   end if;
@@ -213,6 +226,7 @@ declare
   v_step jsonb;
   v_subject text;
   v_reply_to text;
+  v_blocked text;
 begin
   select e.* into v_send from private.sequence_step_sends e where e.id = p_send_id;
   if not found then
@@ -231,64 +245,81 @@ begin
       select 1 from public.sales_responsibilities r
       where r.workspace_id = v_sequence.workspace_id
         and r.target_account_id = v_sequence.target_account_id and r.owner_user_id = p_user_id) then
-    return query select 'owner_not_responsible', v_send.id, null::text, null::text, null::text,
+    v_blocked := 'owner_not_responsible';
+  end if;
+
+  -- Um envio em voo há mais de 10 minutos perdeu o resultado (a função caiu depois de chamar a Unipile):
+  -- passa a incerto, para ser reconciliado antes de qualquer reenvio, em vez de ficar preso para sempre.
+  if v_blocked is null and v_send.status = 'sending' and v_send.sending_at < now() - interval '10 minutes' then
+    update private.sequence_step_sends set
+      status = 'uncertain', last_error = 'stale_sending', last_error_at = now(), updated_at = now()
+    where id = v_send.id;
+    v_send.status := 'uncertain';
+  end if;
+
+  if v_blocked is null then
+    v_blocked := case v_send.status
+      when 'sending' then 'in_flight'
+      when 'sent' then 'already_sent'
+      when 'uncertain' then 'reconcile_required'
+      when 'confirmed' then null
+      else 'not_confirmed'
+    end;
+  end if;
+
+  if v_blocked is null and v_sequence.status <> 'ativa' then
+    v_blocked := 'sequence_not_active';
+  end if;
+
+  if v_blocked is null then
+    select a.* into v_sender from private.sender_accounts a
+    where a.workspace_id = v_sequence.workspace_id and a.owner_user_id = p_user_id
+      and a.channel = 'email' and a.status = 'ready' and not a.reconciliation_required
+    order by a.last_status_at desc
+    limit 1;
+    if not found then
+      v_blocked := 'sender_not_ready';
+    end if;
+  end if;
+
+  if v_blocked is null then
+    -- O Contato precisa continuar vinculado à Conta-alvo: quem saiu da empresa não recebe o passo.
+    select c.* into v_contact from public.contacts c
+    where c.id = v_send.contact_id and c.workspace_id = v_sequence.workspace_id;
+    if not found or not exists (
+      select 1 from public.contact_account_links l
+      where l.contact_id = v_send.contact_id and l.target_account_id = v_sequence.target_account_id::uuid
+        and l.ended_at is null) then
+      v_blocked := 'contact_unlinked';
+    -- ADR-0014: um Destino diferente do confirmado não sai nem para o antigo nem para o novo.
+    elsif v_contact.email is distinct from v_send.destination then
+      v_blocked := 'destination_changed';
+    end if;
+    if v_blocked is not null then
+      update private.sequence_step_sends set
+        status = 'awaiting_reconfirmation', last_error = v_blocked, last_error_at = now(), updated_at = now()
+      where id = v_send.id;
+    end if;
+  end if;
+
+  if v_blocked is null then
+    v_step := private.sequence_step(v_sequence.id, v_send.step_id);
+    if v_step is null then
+      v_blocked := 'step_missing';
+    end if;
+  end if;
+
+  if v_blocked is not null then
+    return query select v_blocked, v_send.id, null::text, null::text, null::text,
       null::text, null::text, null::text, null::text, null::text;
     return;
   end if;
 
-  if v_send.status = 'sending' then
-    return query select 'in_flight', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  elsif v_send.status = 'sent' then
-    return query select 'already_sent', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  elsif v_send.status = 'uncertain' then
-    return query select 'reconcile_required', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  elsif v_send.status <> 'confirmed' then
-    return query select 'not_confirmed', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  end if;
-
-  if v_sequence.status <> 'ativa' then
-    return query select 'sequence_not_active', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  end if;
-
-  select a.* into v_sender from private.sender_accounts a
-  where a.workspace_id = v_sequence.workspace_id and a.owner_user_id = p_user_id
-    and a.channel = 'email' and a.status = 'ready' and not a.reconciliation_required
-  order by a.last_status_at desc
-  limit 1;
-  if not found then
-    return query select 'sender_not_ready', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  end if;
-
-  -- ADR-0014: um Destino diferente do confirmado não sai nem para o antigo nem para o novo.
-  select c.* into v_contact from public.contacts c
-  where c.id = v_send.contact_id and c.workspace_id = v_sequence.workspace_id;
-  if not found or v_contact.email is distinct from v_send.destination then
-    update private.sequence_step_sends set
-      status = 'awaiting_reconfirmation',
-      last_error = 'destination_changed', last_error_at = now(), updated_at = now()
-    where id = v_send.id;
-    return query select 'destination_changed', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  end if;
-
-  select step into v_step
-  from private.sequence_documents d,
-    jsonb_array_elements(case when jsonb_typeof(d.document -> 'steps') = 'array'
-      then d.document -> 'steps' else '[]'::jsonb end) as step
-  where d.sequence_id = v_sequence.id and step ->> 'id' = v_send.step_id;
-  if v_step is null then
-    return query select 'step_missing', v_send.id, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text;
-    return;
-  end if;
   v_subject := coalesce(nullif(btrim(v_step ->> 'assunto'), ''), nullif(btrim(v_step ->> 'titulo'), ''), '(sem assunto)');
 
   -- Um passo "Re: …" continua a conversa do último e-mail enviado ao mesmo Contato nesta Sequência.
+  -- A Unipile pode não devolver message_id: então vale o enviado anterior que tem um (a conversa é a mesma).
+  -- Sem nenhum anterior, o passo abre uma conversa nova.
   if v_subject ~* '^\s*re\s*:' then
     select e.provider_message_id into v_reply_to from private.sequence_step_sends e
     where e.sequence_id = v_sequence.id and e.contact_id = v_send.contact_id

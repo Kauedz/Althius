@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(45);
+select plan(52);
 
 -- Workspace da empresa com o Vendedor responsável (titular), uma colega Membro e um Administrador.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -47,7 +47,9 @@ insert into ids select 'sequencia', id::text from public.create_sequence(
       jsonb_build_object('id', 'passo-3', 'ordem', 3, 'canal', 'whatsapp', 'contatoId', (select valor from ids where chave = 'maria'),
         'delayDiasUteis', 1, 'titulo', 'WhatsApp', 'corpo', 'Oi'),
       jsonb_build_object('id', 'passo-4', 'ordem', 4, 'canal', 'email', 'contatoId', (select valor from ids where chave = 'joao'),
-        'delayDiasUteis', 1, 'titulo', 'Sem destino', 'assunto', 'Sem destino', 'corpo', 'Olá, João.')
+        'delayDiasUteis', 1, 'titulo', 'Sem destino', 'assunto', 'Sem destino', 'corpo', 'Olá, João.'),
+      jsonb_build_object('id', 'passo-1-bis', 'ordem', 5, 'canal', 'email', 'contatoId', (select valor from ids where chave = 'maria'),
+        'delayDiasUteis', 3, 'titulo', 'Último', 'assunto', 'Fechamento', 'corpo', 'Última tentativa.')
     )),
   '{"totalSteps": 4}'::jsonb);
 
@@ -238,18 +240,63 @@ select is(
   (select outcome from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-2'), '50000000-0000-0000-0000-000000000001')),
   'sender_not_ready', 'reconciliation_required still blocks the send after reconnection');
 
--- 8. Resultado incerto fica para reconciliar; Participação encerrada bloqueia.
+-- 8. Vínculo encerrado bloqueia; envio preso em sending envelhece para incerto; Participação encerrada bloqueia.
 reset role;
 update private.sender_accounts set status = 'ready', reconciliation_required = false where unipile_account_id = 'unipile-google-1';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  $$select public.end_contact_link((select valor::uuid from ids where chave = 'maria'), (select valor::uuid from ids where chave = 'conta'))$$,
+  'the owner ends the contact link with the target account');
+reset role;
 set local role service_role;
 select is(
   (select outcome from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-2'), '50000000-0000-0000-0000-000000000001')),
-  'released', 'the send is released once the sender account is ready again');
-select is(public.record_sequence_step_send_result(
-  (select valor::uuid from ids where chave = 'envio-2'), 'uncertain', null, null, 'timeout'
-), 'uncertain', 'a timeout is recorded as uncertain');
+  'contact_unlinked', 'a contact who left the target account receives nothing');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  $$select public.link_contact((select valor::uuid from ids where chave = 'maria'), (select valor::uuid from ids where chave = 'conta'))$$,
+  'the owner links the contact again');
+select is(
+  (select status from public.confirm_sequence_step((select valor::uuid from ids where chave = 'sequencia'), 'passo-2')),
+  'confirmed', 'the step is confirmed again once the contact is linked');
+reset role;
+set local role service_role;
 select is(
   (select outcome from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-2'), '50000000-0000-0000-0000-000000000001')),
+  'released', 'the send is released to simulate a function that died after calling the provider');
+reset role;
+update private.sequence_step_sends set sending_at = now() - interval '11 minutes' where id = (select valor::uuid from ids where chave = 'envio-2');
+set local role service_role;
+select is(
+  (select outcome from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-2'), '50000000-0000-0000-0000-000000000001')),
+  'reconcile_required', 'a send stuck in flight for too long becomes uncertain instead of blocking forever');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $$select public.confirm_sequence_step((select valor::uuid from ids where chave = 'sequencia'), 'passo-2')$$,
+  '55000', 'step already sent or in flight',
+  'an uncertain send is not confirmed again before reconciliation');
+
+-- 9. Resultado incerto fica para reconciliar; Participação encerrada bloqueia.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
+insert into ids select 'envio-4', id::text from public.confirm_sequence_step(
+  (select valor::uuid from ids where chave = 'sequencia'), 'passo-1-bis');
+reset role;
+set local role service_role;
+select is(
+  (select outcome from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-4'), '50000000-0000-0000-0000-000000000001')),
+  'released', 'another confirmed step is released');
+select is(public.record_sequence_step_send_result(
+  (select valor::uuid from ids where chave = 'envio-4'), 'uncertain', null, null, 'timeout'
+), 'uncertain', 'a timeout is recorded as uncertain');
+select is(
+  (select outcome from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-4'), '50000000-0000-0000-0000-000000000001')),
   'reconcile_required', 'an uncertain send is reconciled before any resend');
 reset role;
 update public.workspace_memberships set active = false

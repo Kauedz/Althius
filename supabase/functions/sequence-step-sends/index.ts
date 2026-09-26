@@ -1,7 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
-  createHandler, UnipileRequestError,
-  type Db, type EmailSent, type OutgoingEmail, type ReleaseResult, type UnipileMail,
+  createHandler,
+  type Db,
+  type EmailSent,
+  type OutgoingEmail,
+  type ReleaseResult,
+  type UnipileMail,
+  UnipileRequestError,
+  UnipileUnreadableResponse,
 } from './handler.ts'
 
 const UNIPILE_API_BASE = 'https://api.unipile.com'
@@ -12,11 +18,13 @@ function required(name: string) {
   return value
 }
 
-function serviceClient() {
-  return createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
+// Lidos na inicialização: uma função sem configuração não libera envio nenhum.
+const UNIPILE_API_KEY = required('UNIPILE_API_KEY')
+const APP_ORIGIN = required('APP_ORIGIN')
+
+const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
 
 const db: Db = {
   async userFromJwt(authorization, apikey) {
@@ -29,7 +37,7 @@ const db: Db = {
     return { userId: data.user.id }
   },
   async hasActiveMembership(workspaceId, userId) {
-    const { data, error } = await serviceClient()
+    const { data, error } = await admin
       .from('workspace_memberships')
       .select('workspace_id')
       .eq('workspace_id', workspaceId)
@@ -39,7 +47,7 @@ const db: Db = {
     return !error && !!data
   },
   async releaseStepSend(sendId, userId) {
-    const { data, error } = await serviceClient().rpc('release_sequence_step_send', {
+    const { data, error } = await admin.rpc('release_sequence_step_send', {
       p_send_id: sendId,
       p_user_id: userId,
     })
@@ -49,7 +57,7 @@ const db: Db = {
     return row
   },
   async recordStepSendResult({ sendId, outcome, providerEmailId, providerMessageId, error }) {
-    const { error: rpcError } = await serviceClient().rpc('record_sequence_step_send_result', {
+    const { error: rpcError } = await admin.rpc('record_sequence_step_send_result', {
       p_send_id: sendId,
       p_outcome: outcome,
       p_provider_email_id: providerEmailId ?? null,
@@ -65,7 +73,7 @@ const unipile: UnipileMail = {
     const upstream = await fetch(`${UNIPILE_API_BASE}/v2/${encodeURIComponent(accountId)}/emails/send`, {
       method: 'POST',
       headers: {
-        'X-API-KEY': required('UNIPILE_API_KEY'),
+        'X-API-KEY': UNIPILE_API_KEY,
         accept: 'application/json',
         'content-type': 'application/json',
       },
@@ -74,9 +82,9 @@ const unipile: UnipileMail = {
     })
     if (!upstream.ok) throw new UnipileRequestError(upstream.status)
     const result = await upstream.json()
-    if (typeof result?.id !== 'string') throw new UnipileRequestError(upstream.status)
+    if (typeof result?.id !== 'string') throw new UnipileUnreadableResponse()
     return { id: result.id, message_id: typeof result.message_id === 'string' ? result.message_id : null }
   },
 }
 
-Deno.serve(createHandler({ db, unipile, appOrigin: required('APP_ORIGIN') }))
+Deno.serve(createHandler({ db, unipile, appOrigin: APP_ORIGIN }))

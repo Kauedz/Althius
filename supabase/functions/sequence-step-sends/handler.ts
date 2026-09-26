@@ -14,6 +14,7 @@ export type BlockedOutcome =
   | 'sequence_not_active'
   | 'sender_not_ready'
   | 'destination_changed'
+  | 'contact_unlinked'
   | 'step_missing'
 
 export interface ReleasedSend {
@@ -74,6 +75,14 @@ export class UnipileRequestError extends Error {
   }
 }
 
+/** A Unipile respondeu 2xx, mas sem o `id` do EmailSent: o envio provavelmente saiu, então fica incerto. */
+export class UnipileUnreadableResponse extends Error {
+  constructor() {
+    super('Unipile respondeu 2xx sem o id do e-mail enviado')
+    this.name = 'UnipileUnreadableResponse'
+  }
+}
+
 export interface UnipileMail {
   sendEmail(accountId: string, email: OutgoingEmail, options: { signal: AbortSignal }): Promise<EmailSent>
 }
@@ -96,7 +105,9 @@ const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   not_confirmed: 'Confirme o passo antes de enviar.',
   sequence_not_active: 'A Sequência não está ativa.',
   sender_not_ready: 'Sua Conta remetente de E-mail não está pronta para enviar.',
-  destination_changed: 'O e-mail do Contato mudou depois da confirmação. Reconfirme o passo para enviar ao novo Destino.',
+  destination_changed:
+    'O e-mail do Contato mudou depois da confirmação. Reconfirme o passo para enviar ao novo Destino.',
+  contact_unlinked: 'O Contato não está mais vinculado à Conta-alvo. Ajuste o passo e confirme de novo.',
   step_missing: 'O passo não existe mais no documento da Sequência.',
 }
 
@@ -121,9 +132,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const authorization = req.headers.get('Authorization') ?? ''
     const apikey = req.headers.get('apikey') ?? ''
-    const user = authorization.startsWith('Bearer ') && apikey
-      ? await deps.db.userFromJwt(authorization, apikey)
-      : null
+    const user = authorization.startsWith('Bearer ') && apikey ? await deps.db.userFromJwt(authorization, apikey) : null
     if (!user) return respond({ error: 'Entre na sua Conta de usuário para continuar.' }, 401)
 
     let body: Record<string, unknown>
@@ -155,7 +164,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
 
     const email: OutgoingEmail = {
-      to: [{ email: released.destination, ...(released.contact_name ? { display_name: released.contact_name } : {}) }],
+      to: [{
+        email: released.destination,
+        ...(released.contact_name ? { display_name: released.contact_name } : {}),
+      }],
       subject: released.subject,
       plain_text: released.body,
       custom_headers: [{ name: released.tracking_header_name, value: released.tracking_header_value }],
@@ -169,10 +181,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       const sent = await deps.unipile.sendEmail(released.unipile_account_id, email, { signal: controller.signal })
       result = { outcome: 'sent', sent }
     } catch (error) {
-      // Fora de 2xx o provedor recusou. Timeout ou falha de rede deixam dúvida: pode ter saído.
-      result = error instanceof UnipileRequestError
-        ? { outcome: 'failed', error: `HTTP ${error.status}` }
-        : { outcome: 'uncertain', error: controller.signal.aborted ? 'timeout' : 'network' }
+      // Fora de 2xx o provedor recusou. Timeout, falha de rede ou 2xx ilegível deixam dúvida: pode ter saído.
+      if (error instanceof UnipileRequestError) {
+        result = { outcome: 'failed', error: `HTTP ${error.status}` }
+      } else if (error instanceof UnipileUnreadableResponse) {
+        result = { outcome: 'uncertain', error: 'unreadable_response' }
+      } else {
+        result = { outcome: 'uncertain', error: controller.signal.aborted ? 'timeout' : 'network' }
+      }
     } finally {
       clearTimeout(timer)
     }
@@ -187,17 +203,23 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       })
     } catch {
       return respond({
-        outcome: 'uncertain', sendId,
+        outcome: 'uncertain',
+        sendId,
         message: 'O envio foi tentado, mas o resultado ainda não foi gravado. Confira antes de reenviar.',
       }, 500)
     }
 
     if (result.outcome === 'sent') return respond({ outcome: 'sent', sendId })
     if (result.outcome === 'failed') {
-      return respond({ outcome: 'failed', sendId, message: 'A Unipile não aceitou o envio. Reconfirme o passo para tentar de novo.' }, 502)
+      return respond({
+        outcome: 'failed',
+        sendId,
+        message: 'A Unipile não aceitou o envio. Reconfirme o passo para tentar de novo.',
+      }, 502)
     }
     return respond({
-      outcome: 'uncertain', sendId,
+      outcome: 'uncertain',
+      sendId,
       message: 'A Unipile não respondeu a tempo. O envio será conferido antes de qualquer reenvio.',
     }, 504)
   }
