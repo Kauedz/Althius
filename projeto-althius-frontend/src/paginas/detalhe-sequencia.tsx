@@ -41,7 +41,15 @@ import {
   useFonteDeSequencias,
 } from '@/fonte/contexto'
 import { formatarDataDoModulo } from '@/fonte/formatar-data'
-import { CANAIS_SUPORTADOS, type AnexoStep, type CanalStep, type StatusSequencia, type StepSequencia } from '@/fonte/sequencias-tipos'
+import {
+  CANAIS_SUPORTADOS,
+  type AnexoStep,
+  type AtualizacaoDocumento,
+  type CanalStep,
+  type Sequencia,
+  type StatusSequencia,
+  type StepSequencia,
+} from '@/fonte/sequencias-tipos'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 import { normalizarWhatsApp, validarEmail } from '@/fonte/simulada-contas'
 
@@ -149,6 +157,16 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   // Ref para inserir variáveis no campo que estava com foco (assunto ou corpo)
   const ultimoCampoRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
 
+  // A Sequência mais recente que a tela conhece: a última gravada ou, sem gravação pendente, a última lida. As
+  // alterações entram numa fila e cada uma parte dela, para duas alterações seguidas não apagarem uma à outra antes
+  // de a Sequência ser relida.
+  const ultimaConhecidaRef = useRef<Sequencia | undefined>(undefined)
+  const filaDeAlteracoesRef = useRef<Promise<void>>(Promise.resolve())
+  const alteracoesPendentesRef = useRef(0)
+  useEffect(() => {
+    if (sequencia && alteracoesPendentesRef.current === 0) ultimaConhecidaRef.current = sequencia
+  }, [sequencia])
+
   async function handleSalvarDestinos(destinos: { email?: string; whatsapp?: string; linkedin?: string }) {
     if (!contatoParaEditarDestinos) return
     await fonteDeContas.atualizarDestinosContato(contatoParaEditarDestinos.id, destinos)
@@ -236,8 +254,19 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     : undefined
 
   // --- Handlers de Atualização via Fonte ---
-  async function atualizarDoc(patch: Parameters<typeof fonteDeSequencias.atualizarDocumento>[1]) {
-    await fonteDeSequencias.atualizarDocumento(sequencia!.id, patch)
+  function atualizarDoc(alteracao: AtualizacaoDocumento | ((atual: Sequencia) => AtualizacaoDocumento)) {
+    alteracoesPendentesRef.current += 1
+    const vez = filaDeAlteracoesRef.current.then(async () => {
+      const conhecida = ultimaConhecidaRef.current
+      const atual = conhecida?.id === sequencia!.id ? conhecida : sequencia!
+      const patch = typeof alteracao === 'function' ? alteracao(atual) : alteracao
+      ultimaConhecidaRef.current = await fonteDeSequencias.atualizarDocumento(atual.id, patch)
+    })
+    const terminar = () => {
+      alteracoesPendentesRef.current -= 1
+    }
+    filaDeAlteracoesRef.current = vez.then(terminar, terminar)
+    return vez
   }
 
   async function handleSimularResposta() {
@@ -289,31 +318,30 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 
   async function handleRemoverParticipante(contatoId: string) {
     if (sequencia!.participantesIds.length <= 1) return
-    const novosParticipantes = sequencia!.participantesIds.filter((id) => id !== contatoId)
-    const substituto = novosParticipantes[0]
-    const novosSteps = sequencia!.steps.map((s) =>
-      s.contatoId === contatoId ? { ...s, contatoId: substituto } : s,
-    )
-    await atualizarDoc({
-      participantesIds: novosParticipantes,
-      steps: novosSteps,
+    await atualizarDoc((atual) => {
+      const novosParticipantes = atual.participantesIds.filter((id) => id !== contatoId)
+      const substituto = novosParticipantes[0]
+      return {
+        participantesIds: novosParticipantes,
+        steps: atual.steps.map((s) => (s.contatoId === contatoId ? { ...s, contatoId: substituto } : s)),
+      }
     })
   }
 
   async function handleAdicionarParticipante(novoId: string) {
     if (!novoId || sequencia!.participantesIds.includes(novoId)) return
-    await atualizarDoc({
-      participantesIds: [...sequencia!.participantesIds, novoId],
-    })
+    await atualizarDoc((atual) => ({
+      participantesIds: atual.participantesIds.includes(novoId) ? atual.participantesIds : [...atual.participantesIds, novoId],
+    }))
   }
 
   async function handleAlterarJanelaPadrao(campo: 'de' | 'ate', valor: string) {
-    await atualizarDoc({
+    await atualizarDoc((atual) => ({
       janelaPadrao: {
-        ...sequencia!.janelaPadrao,
+        ...atual.janelaPadrao,
         [campo]: valor,
       },
-    })
+    }))
   }
 
   async function handleSalvarStep(modificacoes: Partial<StepSequencia>) {
@@ -324,10 +352,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       [stepAtivo.id]: { ...prev[stepAtivo.id], ...modificacoes },
     }))
 
-    const novosSteps = sequencia!.steps.map((s) =>
-      s.id === stepAtivo.id ? { ...s, ...modificacoes } : s,
-    )
-    await atualizarDoc({ steps: novosSteps })
+    const id = stepAtivo.id
+    await atualizarDoc((atual) => ({
+      steps: atual.steps.map((s) => (s.id === id ? { ...s, ...modificacoes } : s)),
+    }))
   }
 
   async function handleMoverStep(direcao: -1 | 1) {
@@ -335,45 +363,47 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     const novoIndice = indiceStepAtivo + direcao
     if (novoIndice < 0 || novoIndice >= sequencia!.steps.length) return
 
-    const novosSteps = [...sequencia!.steps]
-    const [removido] = novosSteps.splice(indiceStepAtivo, 1)
-    novosSteps.splice(novoIndice, 0, removido)
-
-    const reordenados = novosSteps.map((s, idx) => ({ ...s, ordem: idx + 1 }))
-    await atualizarDoc({ steps: reordenados })
+    const id = stepAtivo.id
+    await atualizarDoc((atual) => {
+      const indice = atual.steps.findIndex((s) => s.id === id)
+      const destino = indice + direcao
+      if (indice < 0 || destino < 0 || destino >= atual.steps.length) return {}
+      const novosSteps = [...atual.steps]
+      const [removido] = novosSteps.splice(indice, 1)
+      novosSteps.splice(destino, 0, removido)
+      return { steps: novosSteps.map((s, idx) => ({ ...s, ordem: idx + 1 })) }
+    })
   }
 
   async function handleExcluirStep() {
     if (!stepAtivo || sequencia!.steps.length <= 1) return
-    const novosSteps = sequencia!.steps
-      .filter((s) => s.id !== stepAtivo.id)
-      .map((s, idx) => ({ ...s, ordem: idx + 1 }))
-
-    const proximoId = novosSteps[Math.max(0, indiceStepAtivo - 1)]?.id ?? novosSteps[0]?.id
-    setStepSelecionadoId(proximoId)
-    await atualizarDoc({ steps: novosSteps })
+    const id = stepAtivo.id
+    const restantes = sequencia!.steps.filter((s) => s.id !== id)
+    setStepSelecionadoId(restantes[Math.max(0, indiceStepAtivo - 1)]?.id ?? restantes[0]?.id)
+    await atualizarDoc((atual) => ({
+      steps: atual.steps.filter((s) => s.id !== id).map((s, idx) => ({ ...s, ordem: idx + 1 })),
+    }))
   }
 
   async function handleAdicionarStep(canal: CanalStep) {
-    const lead = sequencia!.participantesIds[0] ?? ''
     const novoId = `step-${Date.now()}`
-    const novoStep: StepSequencia = {
+    const novoStep = (atual: Sequencia): StepSequencia => ({
       id: novoId,
-      ordem: sequencia!.steps.length + 1,
+      ordem: atual.steps.length + 1,
       canal,
-      contatoId: lead,
-      delayDiasUteis: sequencia!.steps.length === 0 ? 0 : 2,
+      contatoId: atual.participantesIds[0] ?? '',
+      delayDiasUteis: atual.steps.length === 0 ? 0 : 2,
       titulo: CANAIS_CONFIG[canal].titulo,
       corpo: '',
       objetivo: '',
       modoEmail: canal === 'email' ? 'auto' : undefined,
       subtipoLinkedIn: canal === 'linkedin' ? 'convite' : undefined,
       anexos: [],
-    }
+    })
     setStepSelecionadoId(novoId)
     setMenuAdicionarAberto(false)
     setModoPrevia(false)
-    await atualizarDoc({ steps: [...sequencia!.steps, novoStep] })
+    await atualizarDoc((atual) => ({ steps: [...atual.steps, novoStep(atual)] }))
   }
 
   // Insere o token {{variavel}} na posição do cursor do campo atualmente focado

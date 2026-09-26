@@ -150,6 +150,21 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     expect(screen.getByDisplayValue('Mensagem no WhatsApp')).toBeInTheDocument()
   })
 
+  it('dois steps adicionados em seguida ficam gravados, mesmo antes de a Sequência ser relida', async () => {
+    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai', {}, { atrasoMs: 150 })
+
+    expect(await screen.findByText(/6 steps · 9 dias úteis/i)).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: /Adicionar step/i }))
+    await usuario.click(screen.getByRole('button', { name: /Adicionar step LinkedIn/i }))
+    await usuario.click(screen.getByRole('button', { name: /Adicionar step/i }))
+    await usuario.click(screen.getByRole('button', { name: /Adicionar step WhatsApp/i }))
+
+    expect(await screen.findByText(/8 steps ordenados/i)).toBeInTheDocument()
+    const gravada = await fonteDeSequencias.sequencia('sequencia-openai')
+    expect(gravada.steps.map((step) => step.canal).slice(-2)).toEqual(['linkedin', 'whatsapp'])
+  })
+
   it('permite adicionar e remover participantes da sequência', async () => {
     const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 
