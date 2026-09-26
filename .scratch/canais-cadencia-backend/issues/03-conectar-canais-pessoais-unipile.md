@@ -26,7 +26,9 @@
   - o pgTAP `contas_remetentes_unipile.sql` passa 18/18 no banco remoto, numa transação desfeita no fim (inclui a rejeição do antigo nome `MICROSOFT`);
   - as 2 Edge Functions v2 estão publicadas (a antiga `unipile-hosted-auth-notify` foi removida: a v2 não tem callback de hosted-auth separado, só o webhook único);
   - `scripts/wizard-unipile.sh` obtém a chave de API, registra o Webhook Endpoint por API (capturando o segredo que a própria Unipile gera) e cola os 3 segredos; `npm run unipile:testar` conecta um canal de verdade de ponta a ponta;
-  - a conta Unipile em si ainda não foi configurada (falta rodar o wizard até o fim com uma conta real) e o item "A interface existente diferencia..." continua em aberto, porque `/conexoes` ainda mostra a tela de indisponível no Workspace operacional.
+  - a conta Unipile do teste grátis está configurada pelo wizard, com o Webhook Endpoint inscrito nos 7 eventos de conta;
+  - primeira conexão real ponta a ponta pelo `npm run unipile:testar -- email`: link hospedado de `POST /v2/auth/link` → `account.add` assinado (HTTP 200) → Conta remetente de e-mail `GOOGLE` do Vendedor responsável. Ela ficou em `syncing` porque Google, Outlook e LinkedIn não fazem sincronização inicial na v2 e nunca mandam `account.initial_sync.completed`. Corrigido: a função aplica o `SYNC_SUCCESS` logo depois do `account.add` para esses provedores. A conta do teste está `ready`;
+  - continuam em aberto o item "A interface existente diferencia...", porque `/conexoes` ainda mostra a tela de indisponível no Workspace operacional, e o bloqueio de envio na reconexão.
 - **Conta Unipile é infraestrutura descartável na pré-produção** ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)): o plano troca de conta Unipile pelo menos três vezes (teste grátis de 7 dias → conta paga de um sócio → conta oficial da empresa). Só os 3 segredos das Edge Functions mudam; nenhum Contato, Conta-alvo, Sequência ou Interação depende de qual conta está ativa. Rodar o wizard de novo a cada troca.
 
 ## Dependências externas
