@@ -299,7 +299,8 @@ describe('Consumidores das pessoas do Workspace', () => {
     const informacoes = within(screen.getByRole('region', { name: 'Workspace' }))
     expect(await informacoes.findByText('Databricks LATAM')).toBeInTheDocument()
     expect(informacoes.getByText('Time comercial da América Latina')).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: 'Workspace: Databricks LATAM' }))
+    // A barra lateral relê o Workspace depois do aviso da Fonte; o nome novo chega depois da página.
+    await usuario.click(await screen.findByRole('button', { name: 'Workspace: Databricks LATAM' }))
     expect(await screen.findByRole('menu')).toHaveTextContent('Time comercial da América Latina')
     await usuario.keyboard('{Escape}')
 
