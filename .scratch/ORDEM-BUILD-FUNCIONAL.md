@@ -14,7 +14,7 @@ Decidido em 2026-09-25. O próximo marco é o tracer de envio: um e-mail real sa
 | --- | --- |
 | CRM-01, Auth-01 a Auth-08, CRM-04, CRM-05 e canais-01 | na `main` |
 | CRM-17 | Não bloqueia o tracer: a Sequência grava o UUID da Conta-alvo como texto, e os Contatos já exigem uma Conta-alvo real. |
-| canais-02 | Código e pgTAP prontos. Falta a conferência na tela com dados reais. |
+| canais-02 | Código e pgTAP prontos, e conferência na tela feita. Falta corrigir a perda de um passo quando dois são adicionados em seguida. |
 | canais-03 | Faltam os estados na interface (o módulo Conexões está indisponível no modo operacional), o bloqueio de envio na reconexão, publicar as Edge Functions e as credenciais da Unipile. |
 | canais-04 | Depois do 02 e do 03. Inclui o Destino confirmado ([ADR-0014](../docs/adr/0014-passo-confirmado-guarda-o-destino.md)). |
 
