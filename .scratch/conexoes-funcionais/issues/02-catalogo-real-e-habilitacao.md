@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** closed
+**Status:** ready-for-human
 
 - [x] A tela Conexões tem uma Fonte de Conexões própria, com a implementação simulada para a Demonstração e a real para o Workspace operacional. Os testes de Conexões da Demonstração continuam passando.
 - [x] O módulo Conexões sai da lista de indisponíveis do Workspace operacional.
@@ -17,6 +17,7 @@
 
 ## Comments
 
-- 2026-09-26: implementado. Migration `integracoes_habilitadas` com o catálogo (Canais e Integrações, só HubSpot e Notion disponíveis) e a habilitação por Administrador; pgTAP `integracoes_habilitadas.sql` 17/17 e a suíte inteira 148/148 num Postgres local com as migrations do zero; frontend 609/609, lint e build limpos.
+- 2026-09-26: implementado. Migration `integracoes_habilitadas` com o catálogo (Canais e Integrações, só HubSpot e Notion disponíveis) e a habilitação por Administrador; pgTAP `integracoes_habilitadas.sql` 18/18 e a suíte inteira 149/149 num Postgres local com as migrations do zero; frontend 609/609, lint e build limpos.
 - Conferência visual a 1400×900 (captura alta, do topo), com o app no Workspace operacional sobre o Supabase falso dos testes, porque esta sessão não tem acesso ao projeto de pré-produção: [Administradora](prints/02-administrador.jpg), [depois de habilitar o HubSpot](prints/02-administrador-habilitou.jpg), [Membro](prints/02-membro.jpg) e [Demonstração, sem mudança além do texto de introdução](prints/02-demonstracao.jpg).
 - Pendente fora do código: aplicar a migration no projeto de pré-produção antes do merge, conforme `docs/agents/migrations.md`. Esta sessão não tem o MCP do Supabase.
+- 2026-09-26: `ready-for-human` até a migration `20260926170208_integracoes_habilitadas` ser aplicada no projeto de pré-produção e o PR ser mesclado; depois, `closed`. Os prints usam a mesma Conta de usuário com o papel trocado no Supabase falso, não duas sessões reais.

@@ -17,7 +17,10 @@ export interface ConexaoDoCatalogo {
   disponivel: boolean
   /** Habilitada no Workspace por um Administrador. */
   habilitada: boolean
-  /** O Acesso à Integração de quem está na sessão. Sem valor, a Conexão ainda não oferece Acesso. */
+  /**
+   * A conexão de quem está na sessão: o Acesso à Integração, ou o Canal conectado na Demonstração. Sem valor, a
+   * Conexão ainda não oferece conectar.
+   */
   acesso?: { conectado: boolean }
   /** Um Canal com prévia de conversa, na Demonstração. */
   temPrevia?: boolean

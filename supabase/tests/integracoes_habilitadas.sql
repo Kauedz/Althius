@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(17);
+select plan(18);
 
 -- Workspace da empresa com Ana (Administradora), Beto (Membro) e Dora (Participação removida).
 -- Caio administra só outro Workspace.
@@ -95,6 +95,13 @@ select set_eq(
   $$select workspace_id::text || ':' || integration_id from public.workspace_integrations$$,
   array['71000000-0000-0000-0000-000000000002:notion'],
   'cada Workspace vê só as próprias habilitações');
+
+-- Com habilitações nos dois Workspaces, Beto (Membro) vê só as do dele.
+select set_config('request.jwt.claim.sub', '70000000-0000-0000-0000-000000000002', true);
+select set_eq(
+  $$select workspace_id::text || ':' || integration_id from public.workspace_integrations$$,
+  array['71000000-0000-0000-0000-000000000001:hubspot'],
+  'um Membro não vê as habilitações de outro Workspace');
 
 select * from finish();
 rollback;

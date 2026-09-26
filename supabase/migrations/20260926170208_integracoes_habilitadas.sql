@@ -3,6 +3,8 @@
 -- ser habilitada. Um item indisponível aparece "Em breve". Só HubSpot e Notion entram disponíveis.
 -- Um Administrador habilita uma Integração disponível no Workspace; toda Participação ativa vê o que está habilitado.
 -- Habilitar não dá acesso a ninguém: cada participante conecta o próprio Acesso à Integração (ticket 03).
+-- O catálogo é legível por qualquer Conta de usuário autenticada: só guarda o que a tela mostra. A configuração do
+-- servidor MCP de cada Integração (endereço, registro do cliente OAuth, escopos) nunca entra nesta tabela.
 
 create table public.connection_catalog (
   id text primary key,

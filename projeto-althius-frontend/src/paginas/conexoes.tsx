@@ -78,6 +78,16 @@ export function PaginaConexoes() {
   )
 }
 
+/** Onde uma Conexão disponível está, para o Workspace e para quem está na sessão. */
+type Situacao = 'nao-habilitada' | 'habilitada' | 'nao-conectada' | 'conectada'
+
+const ROTULO_DA_SITUACAO: Record<Situacao, string> = {
+  'nao-habilitada': 'Não habilitada',
+  habilitada: 'Habilitada',
+  'nao-conectada': 'Não conectado',
+  conectada: 'Conectado',
+}
+
 function CartaoDeConexao({
   conexao,
   podeHabilitar,
@@ -116,30 +126,28 @@ function CartaoDeConexao({
     }
   }
 
-  const estado = !habilitada ? 'Não habilitada' : acesso ? (acesso.conectado ? 'Conectado' : 'Não conectado') : 'Habilitada'
+  const situacao: Situacao = !habilitada ? 'nao-habilitada' : !acesso ? 'habilitada' : acesso.conectado ? 'conectada' : 'nao-conectada'
   return (
     <article aria-label={nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
         <span className="text-lg font-normal">{nome}</span>
-        <span className={acesso?.conectado ? 'rotulo text-al-sucesso' : 'rotulo'}>{estado}</span>
+        <span className={situacao === 'conectada' ? 'rotulo text-al-sucesso' : 'rotulo'}>{ROTULO_DA_SITUACAO[situacao]}</span>
       </div>
       <p className="text-sm text-al-muted">{descricao}</p>
-      {habilitada && !acesso && (
-        <p className="text-sm text-al-muted">A conexão da sua conta chega em breve.</p>
-      )}
-      {!habilitada && !podeHabilitar && <p className="text-sm text-al-muted">Só um Administrador habilita.</p>}
+      {situacao === 'habilitada' && <p className="text-sm text-al-muted">A conexão da sua conta chega em breve.</p>}
+      {situacao === 'nao-habilitada' && !podeHabilitar && <p className="text-sm text-al-muted">Só um Administrador habilita.</p>}
       {erro && (
         <p role="alert" className="text-sm text-al-erro">
           {erro}
         </p>
       )}
       <div className="mt-auto flex gap-2">
-        {!habilitada && podeHabilitar && (
+        {situacao === 'nao-habilitada' && podeHabilitar && (
           <Button variant="outline" onClick={habilitar} disabled={habilitando} className="px-4">
             Habilitar
           </Button>
         )}
-        {habilitada && acesso && !acesso.conectado && (
+        {situacao === 'nao-conectada' && (
           <Button variant="outline" onClick={aoConectar} className="px-4">
             Conectar
           </Button>
