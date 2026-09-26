@@ -6,6 +6,9 @@
 
 **Status:** ready-for-agent
 
+- [ ] O HubSpot usa o cliente pré-registrado do MCP Auth App: client ID e client secret são segredos das Edge Functions desta frente, e a URL de retorno é a da Edge Function ([pesquisa](../pesquisa-servidores-mcp.md)).
+- [ ] Cada renovação grava o novo refresh token junto com o novo access token, porque o HubSpot troca o refresh token a cada renovação.
+- [ ] O portal do Workspace vem do `hub_id` da conta conectada; se o token do MCP não servir para a consulta de metadados, vem de `get_user_details`. O caminho escolhido fica anotado no `## Comments`.
 - [ ] Conectar só é possível numa Integração habilitada no Workspace, por participante com Participação ativa.
 - [ ] O retorno do OAuth cai numa Edge Function própria desta frente, que só o aceita se casar com uma tentativa pendente, dentro do prazo, com `state` e PKCE válidos, de um participante ainda ativo. Um retorno forjado, repetido ou vencido não associa nada.
 - [ ] O token fica só no backend, no schema privado. Ele não aparece no navegador, em respostas da API, em logs nem para outro participante.

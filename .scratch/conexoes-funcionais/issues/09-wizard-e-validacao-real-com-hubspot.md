@@ -11,4 +11,5 @@
 - [ ] Um participante conecta o próprio Acesso a um portal de teste real e o cartão mostra a conta.
 - [ ] Uma Sincronização real traz Companies com owner participante como Contas-alvo, com seus Contacts e Vínculos, e as contagens batem com o portal.
 - [ ] Uma segunda Sincronização sem mudanças não altera nada.
+- [ ] Os pontos do HubSpot marcados como não confirmados na [pesquisa](../pesquisa-servidores-mcp.md) (parâmetros da busca, associações, e-mail do owner, `hub_id` do token do MCP e contagem das 25 instalações) ficam confirmados ou corrigidos.
 - [ ] As evidências (prints e contagens) ficam no `## Comments` deste ticket.
