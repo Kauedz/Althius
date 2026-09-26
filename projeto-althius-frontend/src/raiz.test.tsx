@@ -594,6 +594,8 @@ describe('Workspace pessoal no primeiro acesso', () => {
     })
 
     expect(await screen.findByText('Preparando seu Workspace pessoal…')).toBeInTheDocument()
+    // O carregamento aparece antes de o efeito chamar o bootstrap; rejeitar antes disso cairia no vazio.
+    await waitFor(() => expect(tentativas).toBe(1))
     await act(async () => concluirPrimeira(new Error('connection reset')))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível preparar seu Workspace pessoal.')
