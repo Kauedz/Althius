@@ -1,13 +1,18 @@
 // Teste real do ticket 01 (.scratch/canais-cadencia-backend): acesso real e responsabilidade
 // exclusiva, contra o projeto Supabase de verdade e pela mesma API que o app usa.
 //
-// Entra por senha com as cinco personas que scripts/wizard-teste-real.sh criou (TESTE_* no
-// .env.local) e confere cada regra. Grava dados reais que o fluxo público não apaga: cada rodada
+// Entra por senha com as cinco personas que scripts/wizard-teste-real.sh criou e confere cada regra.
+// As variáveis TESTE_* e VITE_* vêm do ambiente (como no ambiente de nuvem do Claude Code) ou do
+// .env.local; o ambiente vale mais. Grava dados reais que o fluxo público não apaga: cada rodada
 // usa Contas-alvo novas, com o prefixo teste-real-.
 //
 //   npm run teste:real
 
+import { existsSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
+
+const ARQUIVO_ENV = new URL('../.env.local', import.meta.url)
+if (existsSync(ARQUIVO_ENV)) process.loadEnvFile(ARQUIVO_ENV)
 
 const PERSONAS = [
   ['responsavel', 'Vendedor responsável', 'RESPONSAVEL'],
@@ -20,7 +25,7 @@ const PERSONAS = [
 function exigir(nome) {
   const valor = process.env[nome]
   if (!valor) {
-    console.error(`Falta ${nome} no .env.local: rode scripts/wizard-teste-real.sh antes.`)
+    console.error(`Falta ${nome} no ambiente e no .env.local: rode scripts/wizard-teste-real.sh antes.`)
     process.exit(1)
   }
   return valor
