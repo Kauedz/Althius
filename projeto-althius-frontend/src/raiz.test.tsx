@@ -582,6 +582,15 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
     abrir.mockRestore()
   })
 
+  it('sem conseguir carregar os Envios, a tela não oferece o envio de um passo que pode já ter saído', async () => {
+    abrirASequenciaDaMarina({
+      rpcs: { list_sequence_step_sends: () => { throw new Error('banco indisponível') } },
+    })
+
+    expect(await screen.findByText(/Não foi possível carregar a situação do envio deste passo/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Confirmar e enviar/ })).not.toBeInTheDocument()
+  })
+
   it('outro participante vê que o Contato respondeu e a sequência pausou, sem o conteúdo', async () => {
     window.history.replaceState(null, '', '/sequencias/sequencia-conta-do-norte')
     abrirAlthius({

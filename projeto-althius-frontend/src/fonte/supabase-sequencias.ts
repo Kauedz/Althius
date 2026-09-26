@@ -313,8 +313,10 @@ export function criarFonteDeSequenciasSupabase(
       })
       notificar()
       if (!error) {
+        // Sem um desfecho explícito, nada prova o envio: fica incerto até a reconciliação.
         const resultado = data as Record<string, unknown> | null
-        return { outcome: typeof resultado?.outcome === 'string' ? resultado.outcome : 'sent' }
+        if (typeof resultado?.outcome === 'string') return { outcome: resultado.outcome }
+        return { outcome: 'uncertain', mensagem: 'O backend não confirmou o desfecho do envio. Confira antes de reenviar.' }
       }
       const corpo = await corpoDoErroDaFuncao(error)
       if (typeof corpo?.outcome === 'string') {

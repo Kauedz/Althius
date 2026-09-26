@@ -134,6 +134,12 @@ describe('Envios e respostas da Sequência no Workspace operacional', () => {
     expect(pedidos).toEqual([{ action: 'send', workspaceId: 'ws-norte', sendId: 'envio-1' }])
   })
 
+  it('uma resposta do backend sem desfecho não é tratada como enviado', async () => {
+    const { fonte } = sequenciaComEnvios({ 'sequence-step-sends': () => ({ corpo: { ok: true } }) })
+
+    expect((await fonte.enviarPasso('sequencia-da-marina', 'envio-1')).outcome).toBe('uncertain')
+  })
+
   it('um envio bloqueado pelo backend volta como desfecho com a mensagem, não como erro', async () => {
     const { fonte } = sequenciaComEnvios({
       'sequence-step-sends': () => ({

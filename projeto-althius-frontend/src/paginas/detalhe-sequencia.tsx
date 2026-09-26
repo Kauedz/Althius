@@ -151,7 +151,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const { dados: contatos } = useDadosDeContas((f) => f.contatos(), [])
 
   // Os Envios e as respostas reais só existem num Workspace operacional, e só o Responsável pela Sequência os vê.
-  const { dados: envios, recarregar: recarregarEnvios } = useDadosDeSequencias(
+  const { dados: envios, erro: erroDosEnvios, recarregar: recarregarEnvios } = useDadosDeSequencias(
     (f) => f.envios(sequenciaId),
     [sequenciaId],
   )
@@ -941,6 +941,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             onRemoverAnexo={handleRemoverAnexo}
             ultimoCampoRef={ultimoCampoRef}
             envio={envios?.find((e) => e.stepId === stepAtivo.id)}
+            enviosIndisponiveis={!!erroDosEnvios}
             enviando={enviandoStepId === stepAtivo.id}
             avisoDoEnvio={avisoDoEnvio?.stepId === stepAtivo.id ? avisoDoEnvio : null}
             onConfirmarEEnviar={permiteAcoesDeDemonstracao ? undefined : () => handleConfirmarEEnviar(stepAtivo)}
@@ -1053,6 +1054,8 @@ interface ComposerStepProps {
   onEditarDestinos?: (contato: Contato) => void
   /** O Envio deste passo num Workspace operacional, quando já foi confirmado alguma vez. */
   envio?: EnvioDoPasso
+  /** Os Envios não carregaram: sem saber se o passo já saiu, a tela não oferece envio. */
+  enviosIndisponiveis?: boolean
   enviando?: boolean
   avisoDoEnvio?: { texto: string; tipo: 'ok' | 'atencao' } | null
   /** Sem ele (Demonstração), nenhum envio real é oferecido. */
@@ -1080,6 +1083,7 @@ function ComposerStep({
   ultimoCampoRef,
   onEditarDestinos,
   envio,
+  enviosIndisponiveis = false,
   enviando = false,
   avisoDoEnvio = null,
   onConfirmarEEnviar,
@@ -1394,6 +1398,7 @@ function ComposerStep({
           <RodapeDoEnvio
             step={step}
             envio={envio}
+            enviosIndisponiveis={enviosIndisponiveis}
             enviando={enviando}
             aviso={avisoDoEnvio}
             onConfirmarEEnviar={onConfirmarEEnviar}
@@ -1475,18 +1480,23 @@ function descreverEnvio(envio: EnvioDoPasso): string {
 function RodapeDoEnvio({
   step,
   envio,
+  enviosIndisponiveis,
   enviando,
   aviso,
   onConfirmarEEnviar,
 }: {
   step: StepSequencia
   envio?: EnvioDoPasso
+  enviosIndisponiveis: boolean
   enviando: boolean
   aviso: { texto: string; tipo: 'ok' | 'atencao' } | null
   onConfirmarEEnviar?: () => void
 }) {
   if (step.canal !== 'email') {
     return <span>Envio por {CANAIS_CONFIG[step.canal].rotulo} ainda não disponível neste Workspace.</span>
+  }
+  if (enviosIndisponiveis && !envio) {
+    return <span className="text-al-atencao">Não foi possível carregar a situação do envio deste passo. Recarregue a página antes de enviar.</span>
   }
   const podeEnviar = !!onConfirmarEEnviar && !enviando
     && (!envio || ['confirmed', 'awaiting_reconfirmation', 'failed', 'bounced'].includes(envio.status))
