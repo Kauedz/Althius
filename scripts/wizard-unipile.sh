@@ -181,11 +181,11 @@ finish() {
 
 # ──────────────────────────────────────────────────────────────────────────
 
-# Configura ou troca a conta Unipile que conecta os canais pessoais (canais-03): DSN, chave de API e o
-# segredo do webhook viram segredos das Edge Functions no Supabase, e o webhook account_status é
-# registrado direto na Unipile por API. Nada disso é gravado em disco por este wizard.
+# Configura ou troca a conta Unipile que conecta os canais pessoais (canais-03): a chave de API e o
+# segredo do webhook viram segredos das Edge Functions no Supabase, e o Webhook Endpoint unificado da
+# Unipile v2 é registrado direto por API. Nada disso é gravado em disco por este wizard.
 #
-# Reode este wizard de novo a cada troca de conta Unipile (o teste grátis de 7 dias, depois a conta paga
+# Rode este wizard de novo a cada troca de conta Unipile (o teste grátis de 7 dias, depois a conta paga
 # do sócio, depois a conta oficial da empresa): o endpoint fica o mesmo, só os segredos mudam. Ver
 # docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md.
 #
@@ -202,16 +202,10 @@ SUPABASE_REF="${SUPABASE_REF:-ycbdilsmydvzezhlymty}"
 PAINEL="https://supabase.com/dashboard/project/$SUPABASE_REF"
 FUNCOES_URL="https://$SUPABASE_REF.supabase.co/functions/v1"
 WEBHOOK_URL="$FUNCOES_URL/unipile-account-status"
+UNIPILE_API_BASE="https://api.unipile.com"
+UNIPILE_ACCOUNT_EVENTS="account.add,account.reconnect,account.status.running,account.status.disconnected,account.status.errored,account.remove"
 
 [[ -t 0 ]] || { printf 'Rode este wizard num terminal interativo.\n' >&2; exit 1; }
-
-# nova_senha imprime um segredo aleatório de 32 caracteres.
-nova_senha() {
-  local s
-  s=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 32 || true)
-  [[ ${#s} -eq 32 ]] || s=$(openssl rand -hex 16)
-  printf '%s' "$s"
-}
 
 # ler_secreto PROMPT lê um valor sem ecoar na tela e sem gravar em disco.
 ler_secreto() {
@@ -239,56 +233,58 @@ say "7 dias, depois a conta paga do sócio, depois a conta oficial da empresa): 
 say "abaixo não muda, e o código das Edge Functions não é publicado de novo numa troca."
 note "$WEBHOOK_URL"
 say ""
-say "Só muda o segredo do webhook, que a própria Althius escolhe (não vem da Unipile). Ele é gerado"
-say "agora e usado nos dois lados: no segredo UNIPILE_WEBHOOK_SECRET do Supabase e no cabeçalho do"
-say "webhook cadastrado na Unipile."
-SEGREDO_WEBHOOK=$(nova_senha)
-note "Segredo gerado para esta configuração (não fica salvo em nenhum arquivo)."
+say "A Unipile v2 usa um único endereço para toda a API (sem DSN por instância) e é ela quem gera o"
+say "segredo de assinatura do webhook quando ele é cadastrado — os próximos passos cuidam disso."
 pause "Tecle Enter para seguir"
 
-stage "DSN e chave de API na conta Unipile atual"
-say "Sem SMTP, sem chave secreta em lugar nenhum do frontend: DSN e chave de API só existem nos"
-say "segredos das Edge Functions, no Supabase."
+stage "Chave de API na conta Unipile atual"
+say "Sem chave secreta em lugar nenhum do frontend: a chave de API só existe nos segredos das Edge"
+say "Functions, no Supabase."
 open_url "https://dashboardv2.unipile.com/login"
-step "Entre (ou crie a conta, se for o teste grátis de 7 dias)."
-step "Em Accounts, copie o DSN (formato apiN.unipile.com:porta)."
-step "No menu de API Keys / Access Tokens, copie a chave de API. Crie uma se não houver nenhuma."
+step "Entre (ou crie a conta/aplicação, se for o teste grátis de 7 dias)."
+step "No menu API Keys, copie a chave de API. Crie uma se não houver nenhuma."
 warn "Nunca cole a chave de API no .env.local do app nem em nenhum arquivo do repositório."
-UNIPILE_DSN=$(ler_secreto "DSN da Unipile:")
 UNIPILE_API_KEY=$(ler_secreto "Chave de API da Unipile:")
 
+stage "Registrar o webhook de conta na Unipile"
+say "Feito por API, direto nesta conta Unipile: nenhum menu do painel precisa ser adivinhado. A"
+say "própria Unipile gera o segredo de assinatura (HMAC) e devolve na resposta."
+UNIPILE_WEBHOOK_SECRET=""
+RESPOSTA_WEBHOOK=$(curl -sS -o /tmp/wizard-unipile-webhook.json -w '%{http_code}' \
+  -X POST "$UNIPILE_API_BASE/v2/webhooks/endpoints" \
+  -H "X-API-KEY: $UNIPILE_API_KEY" -H 'accept: application/json' -H 'content-type: application/json' \
+  -d "$(printf '{"url":"%s","description":"Althius account_status","trigger_events":["account.add","account.reconnect","account.status.running","account.status.disconnected","account.status.errored","account.remove"]}' "$WEBHOOK_URL")" \
+  2>/tmp/wizard-unipile-webhook.err) || true
+if [[ "$RESPOSTA_WEBHOOK" == 2* ]]; then
+  UNIPILE_WEBHOOK_SECRET=$(grep -o '"secret"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/wizard-unipile-webhook.json \
+    | head -n1 | sed -E 's/.*"([^"]*)"$/\1/')
+fi
+if [[ -n "$UNIPILE_WEBHOOK_SECRET" ]]; then
+  note "Webhook registrado (HTTP $RESPOSTA_WEBHOOK); segredo de assinatura recebido da Unipile."
+  rm -f /tmp/wizard-unipile-webhook.json /tmp/wizard-unipile-webhook.err
+else
+  warn "Não foi possível obter o segredo automaticamente (HTTP $RESPOSTA_WEBHOOK)."
+  note "O corpo da resposta está em /tmp/wizard-unipile-webhook.json. Se preferir, cadastre o webhook à"
+  note "mão em Webhooks no painel, com a URL $WEBHOOK_URL e os event types: $UNIPILE_ACCOUNT_EVENTS."
+  UNIPILE_WEBHOOK_SECRET=$(ler_secreto "Cole o segredo (campo secret) do webhook:")
+  [[ -n "$UNIPILE_WEBHOOK_SECRET" ]] || SKIPPED+=("Segredo do webhook: registre o Webhook Endpoint na Unipile e defina UNIPILE_WEBHOOK_SECRET depois")
+fi
+pause "Tecle Enter para seguir"
+
 stage "Segredos no painel do Supabase"
-say "Os quatro segredos das Edge Functions ficam só aqui; o wizard não grava nenhum deles em disco."
-BLOCO_SEGREDOS="UNIPILE_DSN=$UNIPILE_DSN
-UNIPILE_API_KEY=$UNIPILE_API_KEY
-UNIPILE_WEBHOOK_SECRET=$SEGREDO_WEBHOOK
+say "Os três segredos das Edge Functions ficam só aqui; o wizard não grava nenhum deles em disco."
+BLOCO_SEGREDOS="UNIPILE_API_KEY=$UNIPILE_API_KEY
+UNIPILE_WEBHOOK_SECRET=$UNIPILE_WEBHOOK_SECRET
 APP_ORIGIN=http://localhost:5173"
 open_url "$PAINEL/functions/secrets"
 if copiar "$BLOCO_SEGREDOS"; then
-  step "O bloco com os 4 segredos já está na área de transferência: cole em Edge Functions → Secrets e salve."
+  step "O bloco com os 3 segredos já está na área de transferência: cole em Edge Functions → Secrets e salve."
 else
-  step "Cole os 4 segredos abaixo em Edge Functions → Secrets e salve."
+  step "Cole os 3 segredos abaixo em Edge Functions → Secrets e salve."
   printf '\n%s\n\n' "$BLOCO_SEGREDOS"
 fi
 note "Se o app já tem endereço publicado, troque ou acrescente o APP_ORIGIN por ele depois."
 pause "Tecle Enter depois de salvar"
-
-stage "Registrar o webhook account_status na Unipile"
-say "Feito por API, direto nesta conta Unipile: nenhum menu do painel precisa ser adivinhado."
-RESPOSTA_WEBHOOK=$(curl -sS -o /tmp/wizard-unipile-webhook.json -w '%{http_code}' \
-  -X POST "https://$UNIPILE_DSN/api/v1/webhooks" \
-  -H "X-API-KEY: $UNIPILE_API_KEY" -H 'accept: application/json' -H 'content-type: application/json' \
-  -d "$(printf '{"source":"account_status","request_url":"%s","name":"althius-account-status","headers":[{"key":"Unipile-Auth","value":"%s"}]}' "$WEBHOOK_URL" "$SEGREDO_WEBHOOK")" \
-  2>/tmp/wizard-unipile-webhook.err) || true
-if [[ "$RESPOSTA_WEBHOOK" == 2* ]]; then
-  note "Webhook registrado (HTTP $RESPOSTA_WEBHOOK)."
-else
-  warn "A Unipile respondeu HTTP $RESPOSTA_WEBHOOK ao registrar o webhook."
-  note "Confira o DSN e a chave de API; o corpo da resposta está em /tmp/wizard-unipile-webhook.json."
-  SKIPPED+=("Webhook account_status: registre à mão em Webhooks no painel da Unipile, com a URL $WEBHOOK_URL e o cabeçalho Unipile-Auth acima")
-fi
-rm -f /tmp/wizard-unipile-webhook.json /tmp/wizard-unipile-webhook.err
-pause "Tecle Enter para seguir"
 
 stage "Contas remetentes de uma conta Unipile anterior"
 say "Numa troca de conta, quem já tinha conectado E-mail, WhatsApp ou LinkedIn perde essa conexão: o"

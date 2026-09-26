@@ -50,7 +50,7 @@ const { data: conexao, error: erroConexao } = await cliente.functions.invoke('se
 })
 if (erroConexao || !conexao?.url) {
   console.error(`A Edge Function sender-accounts não devolveu um link: ${erroConexao?.message ?? JSON.stringify(conexao)}`)
-  console.error('Confira se UNIPILE_DSN, UNIPILE_API_KEY e APP_ORIGIN estão nos segredos das Edge Functions.')
+  console.error('Confira se UNIPILE_API_KEY, UNIPILE_WEBHOOK_SECRET e APP_ORIGIN estão nos segredos das Edge Functions.')
   await cliente.auth.signOut({ scope: 'local' })
   process.exit(1)
 }
