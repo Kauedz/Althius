@@ -211,7 +211,7 @@ Uma resposta a um Contato preparada pela IA e sujeita à Aprovação do titular 
 Uma ferramenta externa ligada ao Workspace, conectada uma vez e usada pelos Agentes autorizados. É um Canal ou uma Integração.
 
 **Canal**:
-Uma Conexão onde se conversa com um Agente (ex.: Slack, WhatsApp, Teams, E-mail).
+Uma Conexão onde se conversa com um Agente (ex.: Slack, WhatsApp, Microsoft Teams, Gmail).
 _Avoid_: integração
 
 **Integração**:
