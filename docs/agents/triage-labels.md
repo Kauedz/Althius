@@ -14,3 +14,13 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
+
+## Visual checks
+
+A pending "conferência visual em navegador" is agent work, not a reason for `ready-for-human`:
+
+1. Drive the app with Playwright at 1400×900 and at 360px wide. Install `playwright-core` outside the app, in your scratchpad, and point it at the preinstalled Chromium.
+2. Save the screenshots as JPEG in `.scratch/<feature-slug>/issues/prints/<NN>-<view>.jpg`.
+3. Link them in the ticket's `## Comments`, then close the ticket.
+
+Keep `ready-for-human` for what only a person can do: a real screen reader, a real Google sign-in or Turnstile, third-party accounts, and product decisions.
