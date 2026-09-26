@@ -14,3 +14,9 @@
 - [ ] Arquivar Conta pausa a Sequência, cancela passos pendentes e preserva histórico; restaurar exige confirmação explícita do responsável.
 - [ ] Apagamento permanente cancela passos pendentes e impede execução posterior, preparando os eventos preservados para anonimização.
 
+
+## Comments
+
+- 2026-09-25: este ticket não bloqueia o primeiro envio real, porque a Sequência já grava o UUID da Conta-alvo como texto. Quando a chave estrangeira entrar, há dois pontos a tratar:
+  - as Sequências `teste-real-*` do Workspace A, criadas pelo `npm run teste:real` com ids de Conta-alvo em texto e sem Conta-alvo real, precisam ser removidas por operação administrativa na pré-produção ([ADR-0013](../../../docs/adr/0013-supabase-auto-hospedado-em-vps.md), revisão);
+  - o `teste:real` precisa passar a criar uma Conta-alvo real antes de cada Sequência.
