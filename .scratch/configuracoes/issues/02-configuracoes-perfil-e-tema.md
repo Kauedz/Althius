@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Mockup de Configurações e aprovação visual
 
-**Status:** ready-for-agent (implementado e commitado em `79b346f`; falta só a pendência abaixo para fechar)
+**Status:** closed
 
 **Spec:** [Configurações pessoais e do Workspace](../spec.md)
 
@@ -23,7 +23,7 @@
 - [x] Reutilizar o tema claro/escuro existente, aplicá-lo ao aplicativo e preservar a escolha após recarga.
 - [x] Preparar as seções para integração incremental sem alegar que funcionalidades de tickets posteriores estão prontas.
 - [x] Manter isolamento entre dados pessoais e dados de Workspace e permitir inicializar estado demonstrativo limpo nos testes.
-- [~] Verificar pelo aplicativo completo navegação, salvar/cancelar, avatar, validação e persistência após remontagem; inspecionar ambos os temas e executar os checks aplicáveis. (a inspeção visual em navegador não foi feita nesta entrega — ver Comments.)
+- [x] Verificar pelo aplicativo completo navegação, salvar/cancelar, avatar, validação e persistência após remontagem; inspecionar ambos os temas e executar os checks aplicáveis. (inspeção visual em navegador feita em 2026-09-26, ver Comments.)
 
 ## Delivery constraints
 
@@ -64,11 +64,36 @@ Integrado ao aplicativo, fora do mockup descartável (`src/mockups/configuracoes
 - `oxlint`: sem erros novos (só os avisos `only-export-components`/`purity` já existentes em outros arquivos do projeto).
 - **Não realizado:** inspeção visual em navegador (claro/escuro) — este ambiente não tinha um navegador headless disponível para capturas, ao contrário do que foi feito no ticket 01. As telas novas reutilizam só componentes e classes utilitárias (`campo`, `rotulo`, `selo`, `text-al-erro`, `text-al-sucesso`, `AvatarDePessoa`, `Pagina`, `AbasSublinhadas`, `Button`) já usados e comprovados em ambos os temas no restante do aplicativo, sem CSS novo. Recomendo uma conferência visual manual (`npm run dev`, alternar tema) antes de considerar este item 100% fechado.
 
+### 2026-09-26: conferência visual
+
+Na Demonstração, com o onboarding concluído, pelo Chromium headless a 1400×900, nos temas escuro e claro. Tudo passou:
+
+- `/configuracoes/perfil`:
+  - avatar com iniciais;
+  - erros de nome vazio, e-mail inválido e arquivo que não é imagem;
+  - "Perfil salvo" com a foto, que também aparece no avatar da barra lateral;
+  - foco visível (contorno de 2 px) ao navegar com Tab.
+- Menu pessoal com "Meu perfil" e o tema, e "Configurações" ativo na barra lateral (`aria-current="page"`).
+- `/configuracoes/preferencias`: a opção marcada fica legível nos dois temas.
+- Seções: hoje nenhuma mostra "ainda não foi implementada", porque todas já têm implementação.
+- Depois de recarregar, o tema e o perfil salvo continuam.
+
+Prints:
+- [erros, escuro](prints/02-perfil-erros-escuro.jpg)
+- [salvo com foto, claro](prints/02-perfil-salvo-com-foto-claro.jpg)
+- [menu pessoal, claro](prints/02-menu-pessoal-claro.jpg)
+- [preferências, escuro](prints/02-preferencias-escuro.jpg)
+- [preferências, claro](prints/02-preferencias-claro.jpg)
+
+Observações que não bloqueiam:
+- No claro, o SALVAR desabilitado depois de salvar tem contraste baixo; um botão desabilitado fica fora do critério de contraste.
+- Em 360 px, a Casca inteira rola na horizontal, porque a barra lateral tem largura fixa. Este ticket pede conferência no desktop.
+
 ## Pendências para fechar o ticket
 
 Registradas em 2026-09-24 para a próxima IA. O código está pronto e commitado (`79b346f`, mais os tipos/rotas em `b6c7cb1`). **Não reimplemente**; só faça o que está abaixo.
 
-### 1. Inspeção visual em claro e escuro (único critério de aceite em aberto, marcado `[~]`)
+### 1. Inspeção visual em claro e escuro (feita em 2026-09-26, ver Comments)
 
 1. Em `projeto-althius-frontend`, rode `npm run dev` e abra o endereço que o Vite mostrar.
 2. Confira em **ambos os temas** (alterne pelo menu pessoal ou por Configurações → Preferências), no desktop:

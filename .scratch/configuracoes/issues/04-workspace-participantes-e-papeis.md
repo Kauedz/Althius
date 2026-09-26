@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Configurações, perfil e tema persistentes
 
-**Status:** ready-for-human (implementado; falta só a conferência visual em navegador, ver Comments)
+**Status:** closed
 
 **Spec:** [Configurações pessoais e do Workspace](../spec.md)
 
@@ -127,3 +127,18 @@ Validação (2026-09-25, no checkout compartilhado, depois do commit `161639e` d
 - `vitest run`: 457 testes em 31 arquivos, todos passando;
 - `oxlint`: sem erros; os avisos são de arquivos que esta revisão não toca;
 - inspeção no Chromium headless, 1440 px, claro e escuro: a edição das informações em Pessoas e acesso, o diálogo de revisão, o cartão pendente (comparativo e alcance) e o decidido (só o registro) em Aprovações e o Contexto do Workspace na Memória do Ethos.
+
+### 2026-09-26: conferência visual
+
+Na Demonstração, pelo Chromium headless a 1400×900, nos temas escuro e claro. Em `/configuracoes/workspace` passaram:
+- a tabela de Participantes e o seletor de papel;
+- com a sessão como única Administradora: o selo "Último Administrador", o seletor e o "Remover do Workspace" travados;
+- o diálogo "Convidar pessoa", com o foco no campo de e-mail, e "Convite registrado" na lista de convites pendentes;
+- o diálogo "Remover do Workspace", com o foco dentro e o que encerra e o que continua, e a mensagem de resultado;
+- em Meu perfil, o bloco "Seus Workspaces".
+
+Prints:
+- [última Administradora, escuro](prints/04-ultimo-administrador-escuro.jpg)
+- [convite, claro](prints/04-convite-dialogo-claro.jpg)
+- [remoção, claro](prints/04-remover-dialogo-claro.jpg)
+- [depois da remoção, claro](prints/04-removido-claro.jpg)

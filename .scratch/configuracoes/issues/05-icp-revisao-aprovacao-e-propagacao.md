@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Workspace, participantes e papéis de acesso
 
-**Status:** ready-for-human (implementado; falta só a conferência visual em navegador, ver Comments)
+**Status:** closed
 
 **Spec:** [Configurações pessoais e do Workspace](../spec.md)
 
@@ -149,3 +149,21 @@ Validação (2026-09-25, no checkout compartilhado, depois do commit `161639e` d
 - `vitest run`: 457 testes em 31 arquivos, todos passando;
 - `oxlint`: sem erros; os avisos são de arquivos que esta revisão não toca;
 - inspeção no Chromium headless, 1440 px, claro e escuro: a edição das informações em Pessoas e acesso, o diálogo de revisão, o cartão pendente (comparativo e alcance) e o decidido (só o registro) em Aprovações e o Contexto do Workspace na Memória do Ethos.
+
+### 2026-09-26: conferência visual
+
+Na Demonstração, pelo Chromium headless a 1400×900. Aprovação no tema escuro e recusa no claro. Passaram:
+- o diálogo "Revisão do ICP", com "Preparando a proposta", a resposta do Scopus e "aguardando a decisão de um Administrador";
+- o aviso de proposta pendente no ICP vigente;
+- o cartão em `/aprovacoes`, com pedido, motivo, alterações propostas (vigente riscado) e o alcance nas 3 configurações;
+- o cartão decidido só com o registro;
+- aprovar troca o porte de 2.000 para 1.000 funcionários, e a Memória marca as 3 configurações como atualizadas;
+- recusar mantém o ICP e avisa a recusa;
+- no editor de Monitoramento de Sinais, o "Público recomendado" passou a 1.000 funcionários depois da aprovação.
+
+Prints:
+- [revisão, claro](prints/05-revisao-dialogo-claro.jpg)
+- [cartão pendente, escuro](prints/05-cartao-pendente-escuro.jpg)
+- [cartão recusado, claro](prints/05-cartao-decidido-claro.jpg)
+- [Memória depois de aprovar, escuro](prints/05-memoria-depois-de-aprovar-escuro.jpg)
+- [público em Sinais, escuro](prints/05-sinais-publico-escuro.jpg)

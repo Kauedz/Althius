@@ -37,4 +37,10 @@ Para fazer tudo isso num projeto, rode `scripts/wizard-teste-real.sh` na raiz do
 
 Depois do wizard, `npm run teste:real` confere as regras do ticket 01 contra o projeto: entra por senha com as cinco personas e passa pela mesma API do app. Ele grava Sequências reais em Contas-alvo `teste-real-*`, que o fluxo público não apaga.
 
+O `teste:real` lê as variáveis do ambiente ou do `.env.local`, e o ambiente vale mais. As sessões do Claude Code na nuvem não têm o seu `.env.local`, então precisam das mesmas variáveis no ambiente de nuvem. Para levá-las até lá, ou só para trocar as senhas das personas, rode `scripts/wizard-senhas-das-personas.sh`. Ele faz três coisas:
+
+1. gera senhas novas e copia o SQL que as troca no Supabase Auth;
+2. copia o bloco de variáveis para colar no ambiente de nuvem;
+3. confere tudo com o `teste:real`.
+
 Os ícones são Lucide provisórios e o logo é uma reconstrução provisória: os dois serão trocados pelos arquivos oficiais.
