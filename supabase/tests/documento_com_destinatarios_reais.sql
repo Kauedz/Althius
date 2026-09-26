@@ -174,15 +174,18 @@ select lives_ok(
 );
 
 -- Test 13: Sequence document persists ordered steps, content, objective, delay, and channels
+-- Nenhum papel da API lê o schema private; a conferência do documento gravado roda como dono do banco.
+reset role;
 select is(
   (select jsonb_array_length(document -> 'steps') from private.sequence_documents where sequence_id = (select id from public.sequences where target_account_id = 'target-real')),
   3,
   'persisted sequence document contains all 3 steps'
 );
+set local role authenticated;
 
 -- Test 14: Seller reads private document via get_owned_sequence
 select is(
-  (select (public.get_owned_sequence((select id from public.sequences where target_account_id = 'target-real')) -> 'public_summary' -> '_document' -> 'steps' -> 1 ->> 'canal')),
+  (select (public.get_owned_sequence((select id from public.sequences where target_account_id = 'target-real'))).public_summary -> '_document' -> 'steps' -> 1 ->> 'canal'),
   'linkedin',
   'seller receives private document with step details'
 );

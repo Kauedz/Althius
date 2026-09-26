@@ -7,6 +7,8 @@
 **Status:** ready-for-agent
 
 - [ ] Um passo confirmado é enviado ao endereço real do Contato usando exclusivamente a Conta remetente de E-mail do responsável.
+- [ ] Confirmar o passo fixa o Destino usado no envio ([ADR-0014](../../../docs/adr/0014-passo-confirmado-guarda-o-destino.md)).
+- [ ] Se na hora de enviar o Destino atual do Contato for diferente do confirmado, o passo não sai e aguarda a reconfirmação do Vendedor responsável. Isso vale para mudança por Administrador, importação ou enriquecimento, e o envio não vai nem para o Destino antigo nem para o novo.
 - [ ] O resultado do provedor fica persistido sem apresentar aceitação como entrega ou leitura comprovada.
 - [ ] O webhook v1 é autenticado, persistido e confirmado dentro do prazo esperado pelo provedor, com processamento posterior idempotente.
 - [ ] `mail_received`, `mail_sent` e `mail_moved` são distinguidos; uma mensagem do próprio titular não pausa a Sequência.

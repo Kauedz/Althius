@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Criar e consultar Contas-alvo reais.
 
-**Status:** done (pending-apply da migration `20260925160000_contatos_e_vinculos.sql`)
+**Status:** closed
 
 - [x] Contato possui identidade persistente única por Workspace, com e-mail, telefone e LinkedIn opcionais. — `public.contacts` (UUID, índices únicos parciais por Workspace); pgTAP `contatos_e_vinculos.sql` 1–10, 33.
 - [x] Cadastro, leitura, edição, busca, filtros e detalhe usam dados reais na experiência existente. — adapter `supabase-contas.ts` (visão `target_contacts`, RPCs `create_contact`/`update_contact`); 'contatos' saiu de `indisponiveis`; `raiz.test.tsx` "Contatos reais no Workspace operacional" e `supabase-contas.test.ts`.
@@ -21,3 +21,9 @@
 - Loop: pgTAP `contatos_e_vinculos.sql` 36/36 (vermelho antes: `create_contact` inexistente); vitest 602 verdes (6 vermelhos antes no adapter, 5 na raiz); tsc limpo; oxlint 34 avisos (base).
 - Pending-apply: `supabase/migrations/20260925160000_contatos_e_vinculos.sql`. Pending-human: decidir o destino de linhas legadas em `private.target_contacts_canais02`, se houver no remoto.
 - Revisão (ralph/revisao-correcoes): `update_contact` (e o caminho de edição de `upsert_target_contact`) agora exige, para não-Administrador, que TODOS os Vínculos ativos do Contato sejam de Contas sob sua responsabilidade — vincular um Contato existente não concede edição. Corrigido na própria migration 160000 (ainda não aplicada). pgTAP `contatos_e_vinculos.sql` 40/40 (3 vermelhos antes da correção).
+
+## Aplicação (2026-09-25)
+
+- As migrations `20260925160000_contatos_e_vinculos.sql` (versão revisada no Kauedz/Althius#30) e `20260925170000_bootstrap_preserva_aceite_dos_termos.sql` foram aplicadas no `ycbdilsmydvzezhlymty` num único bloco atômico. O texto gravado no histórico confere por md5 com os arquivos.
+- Antes, em transação revertida: pgTAP `contatos_e_vinculos.sql` 40/40.
+- A tabela antiga de destinatários (`private.target_contacts_canais02`) estava vazia, então não há dado a migrar para Contatos.
