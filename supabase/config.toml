@@ -1,3 +1,9 @@
+project_id = "althius"
+
+[db]
+# Mesma versão do Postgres do projeto remoto.
+major_version = 17
+
 [functions.sender-accounts]
 verify_jwt = true
 
