@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "teste:real": "node scripts/teste-real-sequencias.mjs"
+    "teste:real": "node scripts/teste-real-sequencias.mjs",
+    "unipile:testar": "node scripts/testar-conexao-unipile.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
