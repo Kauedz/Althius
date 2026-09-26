@@ -11,7 +11,7 @@ Configure em Supabase Edge Function Secrets:
   Account API Key não serve: ela não gerencia webhooks.
 - `UNIPILE_WEBHOOK_SECRET`: o `secret` que a própria Unipile gera ao criar o Webhook Endpoint
   (`POST /v2/webhooks/endpoints`); usado para validar o header `unipile-signature` (HMAC-SHA256).
-- `APP_ORIGIN`: origem HTTPS do frontend, sem caminho.
+- `APP_ORIGIN`: origem do frontend, sem caminho. Pode listar várias, separadas por vírgula (a publicada primeiro, porque é para ela que a conexão de canal volta); `http://localhost` e `http://127.0.0.1` em qualquer porta são sempre aceitos pelo CORS, já que toda função exige o JWT do usuário. O CORS fica em `_shared/cors.ts` e libera o cabeçalho `x-client-info` que o supabase-js manda.
 
 O runtime fornece `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`. Nenhum segredo Unipile deve ser
 definido com prefixo `VITE_` ou enviado ao cliente.

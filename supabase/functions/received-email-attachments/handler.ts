@@ -1,6 +1,7 @@
 // URL assinada de um anexo recebido (canais-04). Só o titular da Sequência lê o anexo: a RPC
 // get_received_email_attachment_path decide pelo auth.uid(), e o Storage só é tocado depois dela.
 // O banco e o Storage entram por injeção de dependência, para o teste ir da requisição à resposta.
+import { comCors } from '../_shared/cors.ts'
 
 export interface AttachmentDb {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
@@ -28,22 +29,16 @@ export interface Deps {
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': deps.appOrigin,
-    'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  }
   const expiresIn = deps.expiresInSeconds ?? 300
 
   function respond(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), {
       status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  return async (req) => {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  return comCors(deps.appOrigin, async (req) => {
     if (req.method !== 'POST') return respond({ error: 'Método não permitido.' }, 405)
 
     const authorization = req.headers.get('Authorization') ?? ''
@@ -78,5 +73,5 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     } catch {
       return respond({ error: 'Não foi possível gerar o acesso ao anexo.' }, 502)
     }
-  }
+  })
 }
