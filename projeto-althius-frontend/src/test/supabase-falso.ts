@@ -2,7 +2,7 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 
 type Linha = Record<string, unknown>
 
-interface OpcoesDoSupabaseFalso {
+export interface OpcoesDoSupabaseFalso {
   /** A sessão já guardada no navegador; sem ela, o app abre no login. */
   sessao?: Session | null
   /** As linhas de cada tabela, como o RLS as devolveria ao usuário da sessão. */

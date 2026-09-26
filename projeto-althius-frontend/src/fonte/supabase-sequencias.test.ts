@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import type { StepSequencia } from './sequencias-tipos'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
@@ -67,7 +67,7 @@ describe('FonteDeSequencias do Workspace operacional', () => {
 })
 
 /** A Sequência da Marina com um passo confirmado no backend em memória, mais as Edge Functions de envio e anexo. */
-function sequenciaComEnvios(funcoes: NonNullable<Parameters<typeof criarSupabaseFalso>[0]>['funcoes'] = {}) {
+function sequenciaComEnvios(funcoes: OpcoesDoSupabaseFalso['funcoes'] = {}) {
   const linha = {
     id: 'sequencia-da-marina',
     workspace_id: 'ws-norte',

@@ -160,7 +160,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     [sequenciaId],
   )
   const [enviandoStepId, setEnviandoStepId] = useState<string | null>(null)
-  const [avisoDoEnvio, setAvisoDoEnvio] = useState<{ stepId: string; texto: string; tipo: 'ok' | 'atencao' } | null>(null)
+  const [avisoDoEnvio, setAvisoDoEnvio] = useState<(AvisoDoEnvio & { stepId: string }) | null>(null)
+  const [erroDoAnexo, setErroDoAnexo] = useState<string | null>(null)
 
   const [stepSelecionadoId, setStepSelecionadoId] = useState<string | null>(null)
   const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false)
@@ -331,9 +332,19 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     }
   }
 
+  // A aba abre no clique, antes de esperar a URL assinada; senão o bloqueador de pop-ups a barra.
   async function handleAbrirAnexo(resposta: RespostaRecebida, anexoId: string) {
-    const url = await fonteDeSequencias.urlDoAnexo(resposta.interacaoId, anexoId)
-    window.open(url, '_blank', 'noopener')
+    setErroDoAnexo(null)
+    const aba = window.open('', '_blank')
+    if (aba) aba.opener = null
+    try {
+      const url = await fonteDeSequencias.urlDoAnexo(resposta.interacaoId, anexoId)
+      if (aba) aba.location.href = url
+      else window.open(url, '_blank', 'noopener')
+    } catch (erro) {
+      aba?.close()
+      setErroDoAnexo(erro instanceof Error ? erro.message : 'Não foi possível abrir o anexo.')
+    }
   }
 
   async function handleRetomar() {
@@ -771,7 +782,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       </div>
 
       {respostas && respostas.length > 0 && (
-        <RespostasRecebidas respostas={respostas} contatosMap={contatosMap} onAbrirAnexo={handleAbrirAnexo} />
+        <RespostasRecebidas respostas={respostas} contatosMap={contatosMap} onAbrirAnexo={handleAbrirAnexo} erro={erroDoAnexo} />
       )}
 
       {/* Corpo da Sequência (seq-body): Timeline (340px) + Editor de Step */}
@@ -849,21 +860,13 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                       </span>
                     </div>
 
-                    {/* Indicador de resposta real, ou de resposta/desfecho de demo */}
-                    {respondido && (
+                    {/* Indicador de resposta (real, ou de demonstração) e de desfecho de demo */}
+                    {(respondido || step.metricas?.respondeu) && (
                       <span
                         className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0"
-                        title="O Contato respondeu a este passo"
+                        title={respondido ? 'O Contato respondeu a este passo' : 'Demonstração: obteve resposta'}
                       >
-                        Respondeu
-                      </span>
-                    )}
-                    {step.metricas?.respondeu && (
-                      <span
-                        className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0"
-                        title="Demonstração: obteve resposta"
-                      >
-                        1 resposta
+                        {respondido ? 'Respondeu' : '1 resposta'}
                       </span>
                     )}
                     {step.metricas?.desfecho && (
@@ -1057,7 +1060,7 @@ interface ComposerStepProps {
   /** Os Envios não carregaram: sem saber se o passo já saiu, a tela não oferece envio. */
   enviosIndisponiveis?: boolean
   enviando?: boolean
-  avisoDoEnvio?: { texto: string; tipo: 'ok' | 'atencao' } | null
+  avisoDoEnvio?: AvisoDoEnvio | null
   /** Sem ele (Demonstração), nenhum envio real é oferecido. */
   onConfirmarEEnviar?: () => void
 }
@@ -1446,6 +1449,12 @@ function ComposerStep({
 
 // ---------- Envio real do passo (Workspace operacional) ----------
 
+/** O que a tela diz depois de um pedido de envio: sucesso, ou o motivo de não ter saído. */
+interface AvisoDoEnvio {
+  texto: string
+  tipo: 'ok' | 'atencao'
+}
+
 const ROTULO_DO_ENVIO: Record<EnvioDoPasso['status'], string> = {
   confirmed: 'Confirmado',
   awaiting_reconfirmation: 'Aguardando reconfirmação',
@@ -1456,6 +1465,11 @@ const ROTULO_DO_ENVIO: Record<EnvioDoPasso['status'], string> = {
   bounced: 'Devolvido',
 }
 
+/** Situações em que confirmar de novo (e enviar) faz sentido; as outras esperam o provedor ou a reconciliação. */
+const ENVIO_REENVIAVEL = new Set<EnvioDoPasso['status']>(['confirmed', 'awaiting_reconfirmation', 'failed', 'bounced'])
+/** Situações que pedem atenção do Responsável. */
+const ENVIO_COM_ATENCAO = new Set<EnvioDoPasso['status']>(['failed', 'bounced', 'awaiting_reconfirmation', 'uncertain'])
+
 function descreverEnvio(envio: EnvioDoPasso): string {
   switch (envio.status) {
     case 'sent':
@@ -1465,15 +1479,17 @@ function descreverEnvio(envio: EnvioDoPasso): string {
         ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
         : `O e-mail do Contato mudou depois da confirmação (era ${envio.destino}). Reconfirme para enviar ao novo Destino.`
     case 'uncertain':
-      return 'A Unipile não respondeu a tempo. O envio será conferido antes de qualquer reenvio.'
+      return 'O provedor não respondeu a tempo. O envio será conferido antes de qualquer reenvio.'
     case 'failed':
-      return `A Unipile não aceitou o envio${envio.ultimoErro ? ` (${envio.ultimoErro})` : ''}. Reconfirme para tentar de novo.`
+      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${envio.ultimoErro})` : ''}. Reconfirme para tentar de novo.`
     case 'bounced':
       return `O e-mail para ${envio.destino} foi devolvido.`
     case 'sending':
       return `Enviando para ${envio.destino}…`
-    default:
+    case 'confirmed':
       return `Confirmado para ${envio.destino}. Ainda não enviado.`
+    default:
+      return envio.destino
   }
 }
 
@@ -1489,7 +1505,7 @@ function RodapeDoEnvio({
   envio?: EnvioDoPasso
   enviosIndisponiveis: boolean
   enviando: boolean
-  aviso: { texto: string; tipo: 'ok' | 'atencao' } | null
+  aviso: AvisoDoEnvio | null
   onConfirmarEEnviar?: () => void
 }) {
   if (step.canal !== 'email') {
@@ -1498,8 +1514,9 @@ function RodapeDoEnvio({
   if (enviosIndisponiveis && !envio) {
     return <span className="text-al-atencao">Não foi possível carregar a situação do envio deste passo. Recarregue a página antes de enviar.</span>
   }
-  const podeEnviar = !!onConfirmarEEnviar && !enviando
-    && (!envio || ['confirmed', 'awaiting_reconfirmation', 'failed', 'bounced'].includes(envio.status))
+  // Depois de um envio aceito, o botão só volta quando a lista de Envios já mostra o passo como enviado.
+  const podeEnviar = !!onConfirmarEEnviar && !enviando && aviso?.tipo !== 'ok'
+    && (!envio || ENVIO_REENVIAVEL.has(envio.status))
   const rotuloDoBotao = enviando
     ? 'Enviando…'
     : envio && envio.status !== 'confirmed' ? 'Reconfirmar e enviar' : 'Confirmar e enviar'
@@ -1511,7 +1528,7 @@ function RodapeDoEnvio({
             className={`px-1.5 py-0.5 border text-[0.625rem] uppercase tracking-rotulo font-medium ${
               envio.status === 'sent'
                 ? 'border-al-sucesso/40 text-al-sucesso'
-                : ['failed', 'bounced', 'awaiting_reconfirmation', 'uncertain'].includes(envio.status)
+                : ENVIO_COM_ATENCAO.has(envio.status)
                   ? 'border-al-atencao/40 text-al-atencao'
                   : 'border-al-line text-al-muted'
             }`}
@@ -1547,16 +1564,19 @@ function RespostasRecebidas({
   respostas,
   contatosMap,
   onAbrirAnexo,
+  erro,
 }: {
   respostas: RespostaRecebida[]
   contatosMap: Map<string, Contato>
   onAbrirAnexo: (resposta: RespostaRecebida, anexoId: string) => void
+  erro: string | null
 }) {
   return (
     <section aria-label="Respostas recebidas" className="flex flex-col gap-3 border border-al-line bg-al-surface p-4">
       <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">
         {respostas.length === 1 ? 'Resposta recebida' : `${respostas.length} respostas recebidas`} · só você vê o conteúdo
       </span>
+      {erro && <p role="alert" className="text-xs text-al-atencao">{erro}</p>}
       {respostas.map((resposta) => {
         const quem = resposta.de.nome
           ?? (resposta.contatoId ? contatosMap.get(resposta.contatoId)?.nome : undefined)

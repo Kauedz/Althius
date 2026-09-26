@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
-import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
 
@@ -453,10 +453,10 @@ function abrirASequenciaDaMarina({
   rpcs = {},
   funcoes = {},
 }: {
-  status?: string
+  status?: 'ativa' | 'pausada' | 'reuniao' | 'esgotada'
   motivoPause?: string
-  rpcs?: NonNullable<Parameters<typeof criarSupabaseFalso>[0]>['rpcs']
-  funcoes?: NonNullable<Parameters<typeof criarSupabaseFalso>[0]>['funcoes']
+  rpcs?: OpcoesDoSupabaseFalso['rpcs']
+  funcoes?: OpcoesDoSupabaseFalso['funcoes']
 } = {}) {
   window.history.replaceState(null, '', '/sequencias/sequencia-da-marina')
   const sequencia = {
@@ -576,8 +576,9 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
     expect(within(respostas).getByText('Podemos falar amanhã às 10h?')).toBeInTheDocument()
     expect(screen.getByText('Respondeu')).toBeInTheDocument()
 
+    // A aba abre no clique (o bloqueador de pop-ups exige o gesto); sem ela, a URL abre numa aba nova depois.
     await usuario.click(within(respostas).getByRole('button', { name: 'Abrir proposta.pdf' }))
-    await waitFor(() => expect(abrir).toHaveBeenCalledWith('https://storage.test/recebidos/inter-1/att-1/proposta.pdf?token=abc', '_blank', 'noopener'))
+    await waitFor(() => expect(abrir).toHaveBeenLastCalledWith('https://storage.test/recebidos/inter-1/att-1/proposta.pdf?token=abc', '_blank', 'noopener'))
     expect(pedidosDeAnexo).toEqual([{ interactionId: 'inter-1', attachmentId: 'att-1' }])
     abrir.mockRestore()
   })

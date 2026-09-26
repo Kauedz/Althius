@@ -139,9 +139,13 @@ export interface EnvioDoPasso {
   ultimoErro?: string
 }
 
-/** O que o backend respondeu a um pedido de envio: saiu, falhou, ficou incerto, ou foi bloqueado com um motivo. */
+/**
+ * O que o backend respondeu a um pedido de envio. `sent`, `failed` e `uncertain` são o resultado do provedor; os
+ * outros valores são bloqueios com motivo (ex.: `sender_not_ready`, `destination_changed`, `reply_found`), e a tela
+ * mostra a `mensagem` que veio com eles.
+ */
 export interface ResultadoDoEnvio {
-  outcome: 'sent' | 'failed' | 'uncertain' | string
+  outcome: string
   mensagem?: string
 }
 
