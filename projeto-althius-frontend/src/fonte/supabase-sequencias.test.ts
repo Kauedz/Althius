@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import type { StepSequencia } from './sequencias-tipos'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
@@ -63,5 +63,124 @@ describe('FonteDeSequencias do Workspace operacional', () => {
     const [passo] = (await fonte.sequencia('sequencia-da-marina')).steps
     expect(passo.titulo).toBe('Primeiro contato')
     expect(passo.anexos).toBeUndefined()
+  })
+})
+
+/** A Sequência da Marina com um passo confirmado no backend em memória, mais as Edge Functions de envio e anexo. */
+function sequenciaComEnvios(funcoes: OpcoesDoSupabaseFalso['funcoes'] = {}) {
+  const linha = {
+    id: 'sequencia-da-marina',
+    workspace_id: 'ws-norte',
+    target_account_id: 'conta-do-norte',
+    owner_user_id: MARINA.id,
+    status: 'ativa',
+    public_summary: { totalParticipantes: 1, totalSteps: 1, passoAtual: 0 },
+    created_at: '2026-09-20T12:00:00Z',
+    updated_at: '2026-09-21T12:00:00Z',
+  }
+  const envios: Record<string, unknown>[] = []
+  const confirmacoes: Record<string, unknown>[] = []
+  const { cliente } = criarSupabaseFalso({
+    sessao: sessaoDe(MARINA),
+    tabelas: { sequences: [linha] },
+    rpcs: {
+      list_sequence_step_sends: () => envios,
+      confirm_sequence_step: (parametros) => {
+        confirmacoes.push(parametros)
+        const envio = {
+          id: 'envio-1', step_id: parametros.p_step_id, contact_id: 'contato-1', destination: 'maria@empresa-alvo.test',
+          status: 'confirmed', attempts: 0, confirmed_at: '2026-09-26T15:00:00Z', sent_at: null,
+          last_error: null, last_error_at: null, updated_at: '2026-09-26T15:00:00Z',
+        }
+        envios.splice(0, envios.length, envio)
+        return [envio]
+      },
+      list_received_emails: () => [{
+        interaction_id: 'inter-1', sequence_id: 'sequencia-da-marina', send_id: 'envio-1', contact_id: 'contato-1',
+        from_email: 'maria@empresa-alvo.test', from_name: 'Maria Souza', subject: 'Re: Olá', body: 'Podemos falar amanhã?',
+        snippet: 'Podemos falar', received_at: '2026-09-26T16:00:00Z',
+        attachments: [{ id: 'att-1', name: 'proposta.pdf', mime: 'application/pdf', size: 1234, status: 'stored' }],
+      }],
+    },
+    funcoes,
+  })
+  return { fonte: criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id), confirmacoes }
+}
+
+describe('Envios e respostas da Sequência no Workspace operacional', () => {
+  it('confirmar um passo fixa o Destino e o Envio passa a ser listado', async () => {
+    const { fonte, confirmacoes } = sequenciaComEnvios()
+
+    const envio = await fonte.confirmarPasso('sequencia-da-marina', 'passo-1')
+
+    expect(envio).toEqual({
+      id: 'envio-1', stepId: 'passo-1', contatoId: 'contato-1', destino: 'maria@empresa-alvo.test',
+      status: 'confirmed', confirmadoEm: '2026-09-26T15:00:00Z',
+    })
+    expect(confirmacoes).toEqual([{ p_sequence_id: 'sequencia-da-marina', p_step_id: 'passo-1' }])
+    expect(await fonte.envios('sequencia-da-marina')).toEqual([envio])
+  })
+
+  it('enviar um passo chama a Edge Function com o Workspace e o Envio, e devolve o desfecho', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    const { fonte } = sequenciaComEnvios({
+      'sequence-step-sends': (corpo) => {
+        pedidos.push(corpo)
+        return { corpo: { outcome: 'sent', sendId: 'envio-1' } }
+      },
+    })
+
+    expect(await fonte.enviarPasso('sequencia-da-marina', 'envio-1')).toEqual({ outcome: 'sent' })
+    expect(pedidos).toEqual([{ action: 'send', workspaceId: 'ws-norte', sendId: 'envio-1' }])
+  })
+
+  it('uma resposta do backend sem desfecho não é tratada como enviado', async () => {
+    const { fonte } = sequenciaComEnvios({ 'sequence-step-sends': () => ({ corpo: { ok: true } }) })
+
+    expect((await fonte.enviarPasso('sequencia-da-marina', 'envio-1')).outcome).toBe('uncertain')
+  })
+
+  it('um envio bloqueado pelo backend volta como desfecho com a mensagem, não como erro', async () => {
+    const { fonte } = sequenciaComEnvios({
+      'sequence-step-sends': () => ({
+        status: 409,
+        corpo: { outcome: 'sender_not_ready', message: 'Sua Conta remetente de E-mail não está pronta para enviar.' },
+      }),
+    })
+
+    expect(await fonte.enviarPasso('sequencia-da-marina', 'envio-1')).toEqual({
+      outcome: 'sender_not_ready',
+      mensagem: 'Sua Conta remetente de E-mail não está pronta para enviar.',
+    })
+  })
+
+  it('a Responsável lê as respostas recebidas com o conteúdo e os anexos', async () => {
+    const { fonte } = sequenciaComEnvios()
+
+    expect(await fonte.respostasRecebidas('sequencia-da-marina')).toEqual([{
+      interacaoId: 'inter-1', sequenciaId: 'sequencia-da-marina', envioId: 'envio-1', contatoId: 'contato-1',
+      de: { email: 'maria@empresa-alvo.test', nome: 'Maria Souza' },
+      assunto: 'Re: Olá', corpo: 'Podemos falar amanhã?', recebidaEm: '2026-09-26T16:00:00Z',
+      anexos: [{ id: 'att-1', nome: 'proposta.pdf', mime: 'application/pdf', tamanho: 1234, status: 'stored' }],
+    }])
+  })
+
+  it('o anexo abre por um endereço temporário pedido à Edge Function', async () => {
+    const { fonte } = sequenciaComEnvios({
+      'received-email-attachments': (corpo) => ({ corpo: { url: `https://storage.test/${corpo.attachmentId}?token=abc`, expiresIn: 300 } }),
+    })
+
+    expect(await fonte.urlDoAnexo('inter-1', 'att-1')).toBe('https://storage.test/att-1?token=abc')
+  })
+
+  it('quem não é o Responsável não recebe Envios nem respostas', async () => {
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      tabelas: { sequences: [{ id: 'sequencia-alheia', workspace_id: 'ws-norte', target_account_id: 'conta', owner_user_id: 'outro', status: 'ativa', public_summary: {}, created_at: '', updated_at: '' }] },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+
+    expect(await fonte.envios('sequencia-alheia')).toEqual([])
+    expect(await fonte.respostasRecebidas('sequencia-alheia')).toEqual([])
   })
 })
