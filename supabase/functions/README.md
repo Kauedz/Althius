@@ -23,6 +23,8 @@ Estados de erro (`CREDENTIALS`, `ERROR`, `STOPPED`) colocam a Conta remetente em
 
 O endpoint público de notificação de autenticação precisa ficar sem verificação JWT do gateway porque a Unipile não envia JWT Supabase. A própria função aceita somente tentativas temporárias existentes, valida o ID e tipo da conta com a chave privada da Unipile e revalida a participação no Workspace antes de gravar.
 
-## Configuração externa pendente
+## Configurar ou trocar a conta Unipile
 
-Registrar no painel Unipile v1 um webhook `account_status` apontando para `/functions/v1/unipile-account-status` e configurar o header `Unipile-Auth`. Depois de implantar a função, validar os status com uma conta pessoal de teste de cada canal. Para E-mail, Hosted Auth oferece Google, Microsoft e IMAP.
+As três funções estão publicadas em `ycbdilsmydvzezhlymty`; a URL delas não muda entre contas Unipile. Rode `scripts/wizard-unipile.sh` para configurar os quatro segredos e registrar o webhook `account_status` direto por API (`POST /api/v1/webhooks`, `source: "account_status"`) — nenhum menu do painel da Unipile precisa ser adivinhado. Depois, `npm run unipile:testar -- email` (em `projeto-althius-frontend`) conecta uma conta de verdade de ponta a ponta e confere o estado pela mesma Edge Function que o app usa.
+
+Rode o wizard de novo a cada troca de conta Unipile ([ADR-0015](../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)): o teste grátis de 7 dias, depois a conta paga de outro sócio, depois a conta oficial da empresa. Só os quatro segredos mudam; o código não é publicado de novo. O wizard também marca as Contas remetentes conectadas na conta anterior como `reconnect_required`, porque o `unipile_account_id` delas não existe na conta nova — sem apagar nada: Contatos, Contas-alvo, Sequências e Interações continuam intactos, e cada pessoa só precisa reconectar o canal.

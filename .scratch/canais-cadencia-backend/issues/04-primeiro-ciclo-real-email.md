@@ -14,6 +14,7 @@
 - [ ] `mail_received`, `mail_sent` e `mail_moved` são distinguidos; uma mensagem do próprio titular não pausa a Sequência.
 - [ ] Uma resposta real pausa todos os passos da Conta-alvo em uma transação e não afeta Sequências de outras Contas-alvo.
 - [ ] Somente o responsável lê assunto, corpo e anexos; os demais veem “Contato respondeu; sequência pausada”, sem conteúdo livre.
+- [ ] Assunto, corpo e anexos da mensagem recebida ficam gravados na própria Interação (schema privado da Althius), não como uma referência a buscar na Unipile depois. Isso preserva o contexto que a IA usa mesmo depois de uma troca de conta Unipile ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)).
 - [ ] Evento repetido ou fora de ordem não duplica Interação, evento público nem contagem.
 - [ ] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio; a idempotência limitada da Unipile não substitui o controle durável da Althius.
 

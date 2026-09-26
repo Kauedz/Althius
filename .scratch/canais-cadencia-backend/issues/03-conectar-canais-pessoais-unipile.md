@@ -23,8 +23,10 @@
 - Estado em 2026-09-26:
   - a migration está aplicada no `ycbdilsmydvzezhlymty`;
   - o pgTAP `contas_remetentes_unipile.sql` passa 16/16 no banco remoto, numa transação desfeita no fim;
-  - as Edge Functions ainda não foram publicadas;
-  - Unipile e contas de teste não foram configurados.
+  - as 3 Edge Functions estão publicadas;
+  - `scripts/wizard-unipile.sh` configura os segredos e registra o webhook por API; `npm run unipile:testar` conecta um canal de verdade de ponta a ponta;
+  - a conta Unipile em si ainda não foi configurada (falta rodar o wizard com uma conta real) e o item "A interface existente diferencia..." continua em aberto, porque `/conexoes` ainda mostra a tela de indisponível no Workspace operacional.
+- **Conta Unipile é infraestrutura descartável na pré-produção** ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)): o plano troca de conta Unipile pelo menos três vezes (teste grátis de 7 dias → conta paga de um sócio → conta oficial da empresa). Só os 4 segredos das Edge Functions mudam; nenhum Contato, Conta-alvo, Sequência ou Interação depende de qual conta está ativa. Rodar o wizard de novo a cada troca.
 
 ## Dependências externas
 
