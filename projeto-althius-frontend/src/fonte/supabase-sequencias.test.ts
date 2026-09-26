@@ -154,6 +154,26 @@ describe('Envios e respostas da Sequência no Workspace operacional', () => {
     })
   })
 
+  it('uma Edge Function não publicada vira uma mensagem que diz isso', async () => {
+    const { fonte } = sequenciaComEnvios({
+      'sequence-step-sends': () => ({ status: 404, corpo: { code: 'NOT_FOUND', message: 'Requested function was not found' } }),
+    })
+
+    await expect(fonte.enviarPasso('sequencia-da-marina', 'envio-1')).rejects.toThrow(
+      'A Edge Function sequence-step-sends não está publicada neste projeto.',
+    )
+  })
+
+  it('uma Edge Function que não subiu aponta os segredos a conferir', async () => {
+    const { fonte } = sequenciaComEnvios({
+      'sequence-step-sends': () => ({ status: 503, corpo: { code: 'BOOT_ERROR', message: 'Function failed to start' } }),
+    })
+
+    await expect(fonte.enviarPasso('sequencia-da-marina', 'envio-1')).rejects.toThrow(
+      'Confira os segredos UNIPILE_API_KEY e APP_ORIGIN.',
+    )
+  })
+
   it('a Responsável lê as respostas recebidas com o conteúdo e os anexos', async () => {
     const { fonte } = sequenciaComEnvios()
 
