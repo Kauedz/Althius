@@ -67,7 +67,8 @@ open_url() {
   local url="$1"
   printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
   { if   command -v wslview     >/dev/null 2>&1; then wslview "$url"
-    elif command -v explorer.exe >/dev/null 2>&1; then explorer.exe "$url"
+    elif command -v explorer.exe >/dev/null 2>&1; then explorer.exe "$url" || true  # explorer.exe exits 1 even on success
+    elif command -v cmd.exe     >/dev/null 2>&1; then cmd.exe /c start "" "$url"
     elif command -v xdg-open    >/dev/null 2>&1; then xdg-open "$url"
     elif command -v open        >/dev/null 2>&1; then open "$url"
     else warn "couldn't open a browser; visit it manually: $url"; fi
