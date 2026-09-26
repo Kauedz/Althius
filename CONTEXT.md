@@ -218,6 +218,14 @@ _Avoid_: integração
 Uma Conexão de onde o Agente lê ou para onde escreve dados (ex.: HubSpot, Clay, Apollo, Lusha, Notion, Meta Ads, Google Ads).
 _Avoid_: canal, conector
 
+**Identidade externa**:
+A referência de uma Conta-alvo ou de um Contato ao objeto correspondente numa Integração, guardada à parte do registro. É por ela que uma Sincronização reencontra o mesmo objeto, mesmo que a URL da empresa ou o e-mail tenham mudado.
+_Avoid_: id do HubSpot, external id
+
+**Sincronização**:
+A leitura de uma Integração que cria ou atualiza Contas-alvo, Contatos e Vínculos do Contato no Workspace. Só lê: escrever na Integração é ação de um Agente sujeita à Permissão. Um valor vazio na Integração nunca apaga o que o Workspace já tem, e uma Conta-alvo que já existe mantém seu Vendedor responsável.
+_Avoid_: importação, sync, integração bidirecional
+
 **Permissão**:
 O nível de ação de um Agente sobre uma Integração: **Ler**, **Propor** (exige Aprovação) ou **Executar** (age sozinho).
 
