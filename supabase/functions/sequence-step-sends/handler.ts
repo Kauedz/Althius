@@ -2,6 +2,7 @@
 // envio (release_sequence_step_send) depois de revalidar Sequência, titular, Conta remetente e Destino,
 // a Unipile envia, e o banco grava o resultado (record_sequence_step_send_result). A Unipile e o banco
 // entram por injeção de dependência, para o teste ir da requisição à resposta sem rede.
+import { comCors } from '../_shared/cors.ts'
 
 import type { IngestedEmail, IngestEmailEventInput } from '../_shared/ingest-email-event.ts'
 
@@ -135,22 +136,16 @@ const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
 }
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': deps.appOrigin,
-    'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  }
   const timeoutMs = deps.sendTimeoutMs ?? 25_000
 
   function respond(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), {
       status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  return async (req) => {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  return comCors(deps.appOrigin, async (req) => {
     if (req.method !== 'POST') return respond({ error: 'Método não permitido.' }, 405)
 
     const authorization = req.headers.get('Authorization') ?? ''
@@ -285,5 +280,5 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       sendId,
       message: 'A Unipile não respondeu a tempo. O envio será conferido antes de qualquer reenvio.',
     }, 504)
-  }
+  })
 }

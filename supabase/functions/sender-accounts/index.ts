@@ -1,19 +1,14 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { comCors, origensPermitidas } from '../_shared/cors.ts'
 
 const UNIPILE_API_BASE = 'https://api.unipile.com'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') ?? 'null',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
 
 type Channel = 'email' | 'whatsapp' | 'linkedin'
 
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
@@ -26,7 +21,8 @@ function serviceClient() {
 
 function unipileConfig() {
   const apiKey = Deno.env.get('UNIPILE_API_KEY')
-  const appOrigin = Deno.env.get('APP_ORIGIN')
+  // Com várias origens no APP_ORIGIN, o retorno do link hospedado vai para a primeira (a publicada).
+  const appOrigin = origensPermitidas(Deno.env.get('APP_ORIGIN') ?? '')[0]
   if (!apiKey || !appOrigin) throw new Error('Backend is not configured')
   const origin = new URL(appOrigin)
   if (origin.protocol !== 'https:' && origin.hostname !== 'localhost') {
@@ -55,8 +51,7 @@ async function caller(req: Request) {
   return { userId: data.user.id, supabase }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+Deno.serve(comCors(Deno.env.get('APP_ORIGIN') ?? '', async (req) => {
   if (req.method !== 'POST') return response({ error: 'Método não permitido.' }, 405)
 
   const auth = await caller(req)
@@ -177,4 +172,4 @@ Deno.serve(async (req) => {
   } catch {
     return response({ error: 'Não foi possível concluir a solicitação.' }, 500)
   }
-})
+}))
