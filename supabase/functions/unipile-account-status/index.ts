@@ -1,11 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import {
-  type AttachmentStore,
-  createHandler,
-  type IngestedEmail,
-  type WebhookDb,
-  type WebhookUnipile,
-} from './handler.ts'
+import { ingestEmailEventVia } from '../_shared/ingest-email-event.ts'
+import { type AttachmentStore, createHandler, type WebhookDb, type WebhookUnipile } from './handler.ts'
 
 const UNIPILE_API_BASE = 'https://api.unipile.com'
 const ATTACHMENTS_BUCKET = 'email-attachments'
@@ -39,19 +34,7 @@ const db: WebhookDb = {
     if (error) throw error
     return data === true
   },
-  async ingestEmailEvent({ eventId, eventType, unipileAccountId, email, ownerAddresses }) {
-    const { data, error } = await admin.rpc('ingest_unipile_email_event', {
-      p_event_id: eventId,
-      p_event_type: eventType,
-      p_unipile_account_id: unipileAccountId,
-      p_email: email,
-      p_owner_addresses: ownerAddresses,
-    })
-    if (error) throw error
-    const row = (Array.isArray(data) ? data[0] : data) as IngestedEmail | undefined
-    if (!row) throw new Error('ingest_unipile_email_event returned no row')
-    return { ...row, attachments: Array.isArray(row.attachments) ? row.attachments : [] }
-  },
+  ingestEmailEvent: ingestEmailEventVia(admin),
   async recordReceivedEmailAttachment({ interactionId, attachmentId, storagePath, status }) {
     const { error } = await admin.rpc('record_received_email_attachment', {
       p_interaction_id: interactionId,
@@ -64,12 +47,12 @@ const db: WebhookDb = {
 }
 
 const unipile: WebhookUnipile = {
-  async downloadEmailAttachment(accountId, emailId, attachmentId) {
-    const upstream = await fetch(
-      `${UNIPILE_API_BASE}/v2/${encodeURIComponent(accountId)}/emails/${encodeURIComponent(emailId)}` +
-        `/attachments/${encodeURIComponent(attachmentId)}`,
-      { headers: { 'X-API-KEY': required('UNIPILE_API_KEY'), accept: '*/*' } },
-    )
+  async downloadEmailAttachment(accountId, emailId, attachment) {
+    const url = attachment.url && /^https:\/\//.test(attachment.url)
+      ? attachment.url
+      : `${UNIPILE_API_BASE}/v2/${encodeURIComponent(accountId)}/emails/${encodeURIComponent(emailId)}` +
+        `/attachments/${encodeURIComponent(attachment.id)}`
+    const upstream = await fetch(url, { headers: { 'X-API-KEY': required('UNIPILE_API_KEY'), accept: '*/*' } })
     if (!upstream.ok) throw new Error(`Unipile respondeu HTTP ${upstream.status} ao baixar o anexo`)
     return { bytes: new Uint8Array(await upstream.arrayBuffer()), contentType: upstream.headers.get('content-type') }
   },

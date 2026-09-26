@@ -19,7 +19,7 @@
 - [ ] Somente o responsável lê assunto, corpo e anexos; os demais veem “Contato respondeu; sequência pausada”, sem conteúdo livre.
 - [x] Assunto, corpo e anexos da mensagem recebida ficam gravados na própria Interação (schema privado da Althius), não como uma referência a buscar na Unipile depois. Os anexos chegam como `url` e precisam ser baixados e guardados. Isso preserva o contexto que a IA usa mesmo depois de uma troca de conta Unipile ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)).
 - [x] Evento repetido ou fora de ordem não duplica Interação, evento público nem contagem.
-- [x] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
+- [ ] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
 
 ## Implementação local
 
@@ -37,6 +37,7 @@ Três PRs em sequência: (1) envio, (2) resposta (webhook, Interação privada e
   - `unipile-account-status` ganhou `handler.ts` com dependências injetadas e trata `email.new`/`email.new.bounce`; os anexos baixam depois do 2xx. `received-email-attachments` devolve a URL assinada só ao titular. `sequence-step-sends` confere a conversa na Unipile antes de um passo `Re:`.
   - `scripts/wizard-unipile.sh` lista os 9 eventos. **O Webhook Endpoint já cadastrado precisa ganhar `email.new` e `email.new.bounce` pelo painel da Unipile (ou rodando o wizard de novo): isso é passo do usuário.**
   - Testes: pgTAP `supabase/tests/ingestao_de_email_da_unipile.sql` (42 asserções) e Deno nas três funções.
+  - O endereço do titular é aprendido pelo `from` do eco do próprio envio (`sender_accounts.email_address`), sem depender do formato do envelope. Respostas automáticas (`mailer-daemon`, `no-reply`, `Auto-Submitted`) não pausam. Uma resposta de outra pessoa da Conta-alvo na mesma conversa pausa, mas a Interação pública não a atribui ao Contato do passo.
   - A conferir no primeiro ciclo real: a forma da resposta de `GET /v2/{account_id}/threads/{thread_id}` e de `GET /v2/{account_id}/email-senders`, se o `account_name` do envelope traz o endereço do titular, e se o cabeçalho `X-Althius-Envio` volta no `email.new` dos itens enviados.
 - **Fica para o PR 3 (tela):** confirmar e enviar pela página de detalhe da Sequência e mostrar a situação dos Envios, depois de apresentar a adaptação mínima.
 

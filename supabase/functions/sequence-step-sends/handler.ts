@@ -3,6 +3,8 @@
 // a Unipile envia, e o banco grava o resultado (record_sequence_step_send_result). A Unipile e o banco
 // entram por injeção de dependência, para o teste ir da requisição à resposta sem rede.
 
+import type { IngestedEmail, IngestEmailEventInput } from '../_shared/ingest-email-event.ts'
+
 export type SendOutcome = 'sent' | 'failed' | 'uncertain'
 
 export type BlockedOutcome =
@@ -42,10 +44,8 @@ export type ReleaseResult = ReleasedSend | BlockedSend
 export interface Conversation {
   unipile_account_id: string
   provider_thread_id: string | null
-}
-
-export interface IngestedEmail {
-  outcome: string
+  /** O id do último e-mail enviado ao Contato: sem eco do webhook, é por ele que a conversa é descoberta. */
+  provider_email_id: string | null
 }
 
 export interface Db {
@@ -54,14 +54,8 @@ export interface Db {
   hasActiveMembership(workspaceId: string, userId: string): Promise<boolean>
   /** RPC conversation_for_send: a Conta remetente e a conversa que um passo "Re:" continua, ou null. */
   conversationForSend(sendId: string, userId: string): Promise<Conversation | null>
-  /** RPC ingest_unipile_email_event, para gravar uma resposta encontrada na conversa antes de enviar. */
-  ingestEmailEvent(input: {
-    eventId: string
-    eventType: 'email.new'
-    unipileAccountId: string
-    email: Record<string, unknown>
-    ownerAddresses: string[]
-  }): Promise<IngestedEmail>
+  /** RPC ingest_unipile_email_event, para gravar o que a conferência da conversa encontrar. */
+  ingestEmailEvent(input: IngestEmailEventInput): Promise<IngestedEmail>
   /** RPC release_sequence_step_send. Lança um erro com code quando o banco recusa (ex.: P0002). */
   releaseStepSend(sendId: string, userId: string): Promise<ReleaseResult>
   /** RPC record_sequence_step_send_result. */
@@ -106,6 +100,8 @@ export class UnipileUnreadableResponse extends Error {
 
 export interface UnipileMail {
   sendEmail(accountId: string, email: OutgoingEmail, options: { signal: AbortSignal }): Promise<EmailSent>
+  /** Um e-mail enviado (GET /v2/{account_id}/emails/{email_id}), para descobrir a conversa sem o eco. */
+  getEmail(accountId: string, emailId: string): Promise<Record<string, unknown>>
   /** Os e-mails de uma conversa (GET /v2/{account_id}/threads/{thread_id}). */
   listThreadEmails(accountId: string, threadId: string): Promise<Record<string, unknown>[]>
   /** Os endereços do titular na conta (GET /v2/{account_id}/email-senders). */
@@ -178,26 +174,39 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return respond({ error: 'Participação ativa no Workspace não encontrada.' }, 403)
     }
 
-    // Antes do próximo passo de uma conversa, conferir a conversa pela API: a Unipile reentrega o webhook só
-    // duas vezes, e uma resposta perdida não pode deixar a Sequência seguir.
-    const conversation = await deps.db.conversationForSend(sendId, user.userId)
-    if (conversation?.provider_thread_id) {
+    // Antes do próximo passo de uma conversa já aberta com o Contato, conferir a conversa pela API: a Unipile
+    // reentrega o webhook só duas vezes, e uma resposta perdida não pode deixar a Sequência seguir.
+    let conversation: Conversation | null
+    try {
+      conversation = await deps.db.conversationForSend(sendId, user.userId)
+    } catch {
+      return respond({ outcome: 'thread_check_failed', sendId, message: BLOCKED_MESSAGES.thread_check_failed }, 409)
+    }
+    if (conversation && (conversation.provider_thread_id || conversation.provider_email_id)) {
+      const account = conversation.unipile_account_id
       let replyFound = false
       try {
-        const [emails, senders] = await Promise.all([
-          deps.unipile.listThreadEmails(conversation.unipile_account_id, conversation.provider_thread_id),
-          deps.unipile.listEmailSenders(conversation.unipile_account_id),
-        ])
-        for (const email of emails) {
-          if (typeof email.id !== 'string' || !email.id) continue
+        const senders = await deps.unipile.listEmailSenders(account)
+        const ingest = async (email: Record<string, unknown>) => {
+          if (typeof email.id !== 'string' || !email.id) return
           const ingested = await deps.db.ingestEmailEvent({
-            eventId: `thread-check:${conversation.unipile_account_id}:${email.id}`,
+            eventId: `thread-check:${account}:${email.id}`,
             eventType: 'email.new',
-            unipileAccountId: conversation.unipile_account_id,
+            unipileAccountId: account,
             email,
             ownerAddresses: senders,
           })
           if (ingested.outcome === 'reply') replyFound = true
+        }
+        let threadId = conversation.provider_thread_id
+        if (!threadId && conversation.provider_email_id) {
+          // Sem o eco do webhook, o e-mail enviado é lido de volta: a ingestão o reconhece como eco e guarda a conversa.
+          const sent = await deps.unipile.getEmail(account, conversation.provider_email_id)
+          await ingest(sent)
+          threadId = typeof sent.thread_id === 'string' && sent.thread_id ? sent.thread_id : null
+        }
+        if (threadId) {
+          for (const email of await deps.unipile.listThreadEmails(account, threadId)) await ingest(email)
         }
       } catch {
         return respond({ outcome: 'thread_check_failed', sendId, message: BLOCKED_MESSAGES.thread_check_failed }, 409)

@@ -1,10 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { ingestEmailEventVia } from '../_shared/ingest-email-event.ts'
 import {
   type Conversation,
   createHandler,
   type Db,
   type EmailSent,
-  type IngestedEmail,
   type OutgoingEmail,
   type ReleaseResult,
   type UnipileMail,
@@ -54,19 +54,7 @@ const db: Db = {
     const row = (Array.isArray(data) ? data[0] : data) as Conversation | undefined
     return row ?? null
   },
-  async ingestEmailEvent({ eventId, eventType, unipileAccountId, email, ownerAddresses }) {
-    const { data, error } = await admin.rpc('ingest_unipile_email_event', {
-      p_event_id: eventId,
-      p_event_type: eventType,
-      p_unipile_account_id: unipileAccountId,
-      p_email: email,
-      p_owner_addresses: ownerAddresses,
-    })
-    if (error) throw error
-    const row = (Array.isArray(data) ? data[0] : data) as IngestedEmail | undefined
-    if (!row) throw new Error('ingest_unipile_email_event returned no row')
-    return row
-  },
+  ingestEmailEvent: ingestEmailEventVia(admin),
   async releaseStepSend(sendId, userId) {
     const { data, error } = await admin.rpc('release_sequence_step_send', {
       p_send_id: sendId,
@@ -101,6 +89,11 @@ async function unipileGet(path: string) {
 
 const unipile: UnipileMail = {
   // Conferir no primeiro envio real: a forma exata da resposta de GET /threads/{id} e de /email-senders.
+  async getEmail(accountId, emailId) {
+    const data = await unipileGet(`/v2/${encodeURIComponent(accountId)}/emails/${encodeURIComponent(emailId)}`)
+    if (!data || typeof data !== 'object') throw new UnipileUnreadableResponse()
+    return data as Record<string, unknown>
+  },
   async listThreadEmails(accountId, threadId) {
     const data = await unipileGet(`/v2/${encodeURIComponent(accountId)}/threads/${encodeURIComponent(threadId)}`)
     const list = Array.isArray(data) ? data : data?.emails ?? data?.items ?? data?.messages ?? []

@@ -47,7 +47,12 @@ function fakeDb(release: ReleaseResult | Error, options: DbOptions = {}) {
     conversationForSend: async () => options.conversation ?? null,
     ingestEmailEvent: async (input) => {
       ingested.push(input)
-      return { outcome: options.ingest?.[String(input.email.id)] ?? 'unrelated' }
+      return {
+        outcome: options.ingest?.[String(input.email.id)] ?? 'unrelated',
+        interaction_id: null,
+        send_id: null,
+        attachments: [],
+      }
     },
     releaseStepSend: async () => {
       releases++
@@ -67,6 +72,7 @@ function handlerWith(db: Db, unipile: UnipileMail, options: Partial<Deps> = {}) 
 
 interface UnipileOptions {
   thread?: Record<string, unknown>[] | Error
+  sentEmail?: Record<string, unknown> | Error
   senders?: string[]
 }
 
@@ -75,8 +81,14 @@ function fakeUnipile(
   options: UnipileOptions = {},
 ) {
   const sent: { accountId: string; email: OutgoingEmail }[] = []
+  const threads: string[] = []
   const unipile: UnipileMail = {
-    listThreadEmails: async () => {
+    getEmail: async (_accountId, emailId) => {
+      if (options.sentEmail instanceof Error) throw options.sentEmail
+      return options.sentEmail ?? { id: emailId }
+    },
+    listThreadEmails: async (_accountId, threadId) => {
+      threads.push(threadId)
       if (options.thread instanceof Error) throw options.thread
       return options.thread ?? []
     },
@@ -92,7 +104,7 @@ function fakeUnipile(
       return Promise.resolve(behaviour)
     },
   }
-  return { unipile, sent }
+  return { unipile, sent, threads }
 }
 
 function request(body: unknown, headers: Record<string, string> = { Authorization: 'Bearer jwt', apikey: 'anon' }) {
@@ -241,7 +253,11 @@ Deno.test('envio inexistente devolve 404', async () => {
   assertEquals(res.status, 404)
 })
 
-const CONVERSATION: Conversation = { unipile_account_id: 'unipile-google-1', provider_thread_id: 'thread-1' }
+const CONVERSATION: Conversation = {
+  unipile_account_id: 'unipile-google-1',
+  provider_thread_id: 'thread-1',
+  provider_email_id: 'email-abc',
+}
 const OWN_ECHO = { id: 'email-abc', from: [{ email: 'althius.relacionamento@gmail.com' }] }
 const CONTACT_REPLY = { id: 'email-r1', from: [{ email: 'maria@empresa-alvo.test' }] }
 
@@ -285,7 +301,7 @@ Deno.test('falha ao conferir a conversa bloqueia o envio em vez de arriscar', as
 
 Deno.test('o primeiro passo de uma conversa não tem nada a conferir', async () => {
   const { db, ingested } = fakeDb(RELEASED, {
-    conversation: { unipile_account_id: 'unipile-google-1', provider_thread_id: null },
+    conversation: { unipile_account_id: 'unipile-google-1', provider_thread_id: null, provider_email_id: null },
   })
   const { unipile, sent } = fakeUnipile({ id: 'e1', message_id: null })
   const handle = handlerWith(db, unipile)
@@ -293,4 +309,26 @@ Deno.test('o primeiro passo de uma conversa não tem nada a conferir', async () 
   assertEquals(res.status, 200)
   assertEquals(ingested.length, 0)
   assertEquals(sent.length, 1)
+})
+
+Deno.test('sem o eco do webhook, a conversa é descoberta pelo e-mail enviado e conferida mesmo assim', async () => {
+  const { db, ingested } = fakeDb(RELEASED, {
+    conversation: { unipile_account_id: 'unipile-google-1', provider_thread_id: null, provider_email_id: 'email-abc' },
+    ingest: { 'email-abc': 'echo', 'email-r1': 'reply' },
+  })
+  const { unipile, sent, threads } = fakeUnipile({ id: 'e2', message_id: null }, {
+    sentEmail: { ...OWN_ECHO, thread_id: 'thread-1' },
+    thread: [OWN_ECHO, CONTACT_REPLY],
+  })
+  const handle = handlerWith(db, unipile)
+  const res = await handle(request(sendBody))
+  assertEquals(res.status, 409)
+  assertEquals((await res.json()).outcome, 'reply_found')
+  assertEquals(threads, ['thread-1'])
+  assertEquals(ingested.map((i) => i.eventId), [
+    'thread-check:unipile-google-1:email-abc',
+    'thread-check:unipile-google-1:email-abc',
+    'thread-check:unipile-google-1:email-r1',
+  ])
+  assertEquals(sent.length, 0)
 })

@@ -4,12 +4,8 @@
 // O trabalho pesado (baixar anexos) roda depois da resposta. O banco, a Unipile e o Storage entram por
 // injeção de dependência, para o teste ir da requisição à resposta sem rede.
 
-export interface IngestedEmail {
-  outcome: string
-  interaction_id: string | null
-  send_id: string | null
-  attachments: { id: string; name?: string; mime?: string; size?: number; status?: string }[]
-}
+import type { EmailAttachmentRef, IngestedEmail, IngestEmailEventInput } from '../_shared/ingest-email-event.ts'
+export type { EmailAttachmentRef, IngestedEmail }
 
 export interface WebhookDb {
   /** RPC complete_sender_connection_attempt: devolve o desfecho ('completed', 'ignored', …). */
@@ -22,13 +18,7 @@ export interface WebhookDb {
   /** RPC apply_unipile_sender_status: true quando alguma Conta remetente mudou. */
   applyUnipileSenderStatus(unipileAccountId: string, status: string): Promise<boolean>
   /** RPC ingest_unipile_email_event. */
-  ingestEmailEvent(input: {
-    eventId: string
-    eventType: 'email.new' | 'email.new.bounce'
-    unipileAccountId: string
-    email: Record<string, unknown>
-    ownerAddresses: string[]
-  }): Promise<IngestedEmail>
+  ingestEmailEvent(input: IngestEmailEventInput): Promise<IngestedEmail>
   /** RPC record_received_email_attachment. */
   recordReceivedEmailAttachment(input: {
     interactionId: string
@@ -39,11 +29,11 @@ export interface WebhookDb {
 }
 
 export interface WebhookUnipile {
-  /** GET /v2/{account_id}/emails/{email_id}/attachments/{attachment_id}. */
+  /** Baixa um anexo: pela url que veio no Email ou por GET /v2/{account_id}/emails/{email_id}/attachments/{id}. */
   downloadEmailAttachment(
     accountId: string,
     emailId: string,
-    attachmentId: string,
+    attachment: EmailAttachmentRef,
   ): Promise<{ bytes: Uint8Array; contentType: string | null }>
 }
 
@@ -123,13 +113,17 @@ const EMAIL_EVENTS = new Set(['email.new', 'email.new.bounce'])
 
 const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-function safeFileName(name: string) {
-  return name.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(0, 120) || 'anexo'
+/** Um único segmento de caminho: sem barras, sem nomes só de pontos, no máximo 120 caracteres. */
+function pathSegment(value: string, fallback: string) {
+  const cleaned = value.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(0, 120)
+  return !cleaned || /^\.+$/.test(cleaned) ? fallback : cleaned
 }
 
 /** O caminho de um anexo no bucket privado email-attachments. */
 export function attachmentPath(interactionId: string, attachmentId: string, name: string) {
-  return `recebidos/${interactionId}/${attachmentId}/${safeFileName(name)}`
+  return `recebidos/${pathSegment(interactionId, 'interacao')}/${pathSegment(attachmentId, 'anexo')}/${
+    pathSegment(name, 'anexo')
+  }`
 }
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
@@ -147,7 +141,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     for (const attachment of ingested.attachments) {
       if (!ingested.interaction_id) return
       try {
-        const file = await deps.unipile.downloadEmailAttachment(accountId, emailId, attachment.id)
+        const file = await deps.unipile.downloadEmailAttachment(accountId, emailId, attachment)
         const path = attachmentPath(ingested.interaction_id, attachment.id, attachment.name ?? 'anexo')
         await deps.storage.upload(path, file.bytes, file.contentType ?? attachment.mime ?? null)
         await deps.db.recordReceivedEmailAttachment({

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(42);
+select plan(49);
 
 -- Workspace da empresa com o Vendedor responsável (titular) e uma colega Membro.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -160,7 +160,27 @@ select is((select count(*)::int from public.account_interactions
     where target_account_id = (select valor::uuid from ids where chave = 'conta') and kind = 'email-recebido'),
   1, 'a repeated reply creates no second Interação');
 
--- 4. Resposta ligada pelo In-Reply-To, mesmo em outra conversa do provedor; e-mail sem relação não vira nada.
+-- 4. Resposta ligada pelo In-Reply-To, mesmo em outra conversa do provedor; automático e sem relação não viram nada.
+select is((select outcome from public.ingest_unipile_email_event('evt-auto', 'email.new', 'unipile-google-9',
+  pg_temp.email('email-auto', 'thread-1', 'maria@empresa-alvo.test', 'Fora do escritório',
+    p_headers => jsonb_build_array(jsonb_build_object('name', 'Auto-Submitted', 'value', 'auto-replied'))), '{}')),
+  'automatic', 'an automatic reply is not a commercial reply');
+select is((select outcome from public.ingest_unipile_email_event('evt-daemon', 'email.new', 'unipile-google-9',
+  pg_temp.email('email-daemon', 'thread-1', 'mailer-daemon@googlemail.com', 'Delivery Status Notification'), '{}')),
+  'automatic', 'a mailer-daemon message is not a commercial reply');
+-- O endereço do titular foi aprendido no eco; um e-mail dele na conversa é eco mesmo sem endereços no envelope.
+select is((select outcome from public.ingest_unipile_email_event('evt-own2', 'email.new', 'unipile-google-9',
+  pg_temp.email('email-own2', 'thread-1', 'althius.relacionamento@gmail.com', 'Re: Apresentação'), '{}')),
+  'echo', 'the owner address learned from the echo classifies later own messages');
+select is((select outcome from public.ingest_unipile_email_event('evt-colega', 'email.new', 'unipile-google-9',
+  pg_temp.email('email-colega', 'thread-1', 'joao@empresa-alvo.test', 'Re: Apresentação'), '{}')),
+  'reply', 'a colleague answering in the conversation also counts as a reply');
+-- Nenhum papel da API lê o schema private; a Interação da resposta do colega é buscada como dono do banco.
+reset role;
+select is((select i.contact_id from public.account_interactions i
+    join private.received_emails r on r.interaction_id = i.id where r.provider_email_id = 'email-colega'),
+  null, 'a reply from someone who is not a registered contact is not attributed to the wrong contact');
+set local role service_role;
 select is((select outcome from public.ingest_unipile_email_event('evt-7', 'email.new', 'unipile-google-9',
   pg_temp.email('email-r2', 'thread-2', 'maria@empresa-alvo.test', 'Re: Apresentação',
     p_headers => jsonb_build_array(jsonb_build_object('name', 'In-Reply-To', 'value', '<msg-1@mail.gmail.com>'))), '{}')),
@@ -170,11 +190,11 @@ select is((select outcome from public.ingest_unipile_email_event('evt-8', 'email
   'unrelated', 'an unrelated e-mail is only recorded by its event id');
 select is((select count(*)::int from public.account_interactions
     where target_account_id = (select valor::uuid from ids where chave = 'conta') and kind = 'email-recebido'),
-  2, 'the unrelated e-mail creates no Interação');
+  3, 'the automatic and unrelated e-mails create no Interação');
 
 -- 5. Anexo guardado e lido só pelo titular.
 select is(public.record_received_email_attachment((select interaction_id from resposta), 'att-1',
-  '61000000-0000-0000-0000-000000000001/anexos/att-1-proposta.pdf', 'stored'),
+  'recebidos/' || (select interaction_id from resposta) || '/att-1/proposta.pdf', 'stored'),
   true, 'the stored attachment is recorded');
 reset role;
 set local role authenticated;
@@ -182,7 +202,7 @@ select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000001
 select is((select attachments -> 0 ->> 'status' from public.get_received_email((select interaction_id from resposta))),
   'stored', 'the owner sees the attachment as stored');
 select is(public.get_received_email_attachment_path((select interaction_id from resposta), 'att-1'),
-  '61000000-0000-0000-0000-000000000001/anexos/att-1-proposta.pdf', 'the owner resolves the private storage path');
+  'recebidos/' || (select interaction_id from resposta) || '/att-1/proposta.pdf', 'the owner resolves the private storage path');
 select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000002', true);
 select throws_ok(
   $$select public.get_received_email_attachment_path((select interaction_id from resposta), 'att-1')$$,
@@ -238,6 +258,13 @@ select is((select status from public.list_sequence_step_sends((select valor::uui
 select is((select count(*)::int from public.account_interactions
     where target_account_id = (select valor::uuid from ids where chave = 'conta') and kind = 'email-enviado'),
   2, 'the reconciled send also becomes an Interação');
+reset role;
+set local role service_role;
+select is(public.record_sequence_step_send_result((select valor::uuid from ids where chave = 'envio-2'), 'sent', 'email-def', '<msg-2@mail.gmail.com>', null),
+  'sent', 'a provider result arriving after the echo is accepted, not rejected');
+select is((select count(*)::int from public.account_interactions
+    where target_account_id = (select valor::uuid from ids where chave = 'conta') and kind = 'email-enviado'),
+  2, 'the late result does not duplicate the Interação');
 reset role;
 
 select * from finish();

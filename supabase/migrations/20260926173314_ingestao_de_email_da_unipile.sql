@@ -5,6 +5,10 @@
 -- assunto, corpo e anexos no schema privado (ADR-0015: a mensagem não fica como referência na Unipile) e
 -- pausar a Sequência. Só o titular lê o conteúdo; os demais veem "Contato respondeu; sequência pausada".
 
+-- O endereço do titular na Conta remetente, aprendido pelo from do eco do próprio envio nos itens enviados.
+-- A Unipile não devolve o endereço no account.add, então ele é descoberto no primeiro envio real.
+alter table private.sender_accounts add column email_address text;
+
 create table private.unipile_email_events (
   id uuid primary key default gen_random_uuid(),
   event_id text not null unique,
@@ -13,7 +17,7 @@ create table private.unipile_email_events (
   sender_account_id uuid references private.sender_accounts(id),
   provider_email_id text,
   outcome text not null check (outcome in (
-    'echo', 'reply', 'bounce', 'unrelated', 'unknown_account', 'duplicate_email'
+    'echo', 'reply', 'bounce', 'automatic', 'unrelated', 'unknown_account', 'duplicate_email'
   )),
   send_id uuid references private.sequence_step_sends(id),
   interaction_id uuid references public.account_interactions(id) on delete set null,
@@ -87,6 +91,22 @@ $$;
 
 revoke all on function private.email_header(jsonb, text) from public, anon, authenticated;
 
+-- Uma data do provedor, ou null quando não dá para ler: a ingestão nunca falha por causa dela.
+create function private.safe_timestamptz(p_value text)
+returns timestamptz
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+  return p_value::timestamptz;
+exception when others then
+  return null;
+end;
+$$;
+
+revoke all on function private.safe_timestamptz(text) from public, anon, authenticated;
+
 -- Marca um Envio como aceito pelo provedor e registra a Interação "email-enviado" da Conta-alvo (sem conteúdo).
 -- Usada quando a Unipile responde 2xx e quando o eco nos itens enviados prova a aceitação de um envio incerto.
 create function private.mark_step_send_sent(
@@ -105,9 +125,9 @@ declare
 begin
   update private.sequence_step_sends set
     status = 'sent',
-    provider_email_id = coalesce(provider_email_id, p_provider_email_id),
-    provider_message_id = coalesce(provider_message_id, p_provider_message_id),
-    provider_thread_id = coalesce(provider_thread_id, p_provider_thread_id),
+    provider_email_id = coalesce(provider_email_id, nullif(btrim(p_provider_email_id), '')),
+    provider_message_id = coalesce(provider_message_id, nullif(btrim(p_provider_message_id), '')),
+    provider_thread_id = coalesce(provider_thread_id, nullif(btrim(p_provider_thread_id), '')),
     sent_at = coalesce(sent_at, now()),
     last_error = null,
     last_error_at = null,
@@ -148,6 +168,15 @@ begin
   if not found then
     raise exception 'send not found' using errcode = 'P0002';
   end if;
+  -- O eco nos itens enviados pode chegar antes do resultado da chamada: o envio já está provado.
+  if v_send.status = 'sent' then
+    update private.sequence_step_sends set
+      provider_email_id = coalesce(provider_email_id, nullif(btrim(p_provider_email_id), '')),
+      provider_message_id = coalesce(provider_message_id, nullif(btrim(p_provider_message_id), '')),
+      updated_at = now()
+    where id = v_send.id;
+    return 'sent';
+  end if;
   if v_send.status <> 'sending' then
     raise exception 'send is not in flight' using errcode = '55000';
   end if;
@@ -168,17 +197,17 @@ begin
 end;
 $$;
 
--- A conversa que um passo "Re: …" vai continuar: a Conta remetente e o thread_id do último e-mail enviado ao
--- mesmo Contato nesta Sequência. A Edge Function confere essa conversa na Unipile antes de liberar o envio,
+-- A conversa já aberta com o Contato: a Conta remetente e o thread_id (ou, sem eco, o id) do último e-mail
+-- enviado ao mesmo Contato nesta Sequência. A Edge Function confere essa conversa na Unipile antes de liberar o envio,
 -- porque a Unipile reentrega o webhook só duas vezes e uma resposta perdida não pode deixar a Sequência seguir.
 create function public.conversation_for_send(p_send_id uuid, p_user_id uuid)
-returns table (unipile_account_id text, provider_thread_id text)
+returns table (unipile_account_id text, provider_thread_id text, provider_email_id text)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select a.unipile_account_id, prev.provider_thread_id
+  select a.unipile_account_id, prev.provider_thread_id, prev.provider_email_id
   from private.sequence_step_sends e
   join public.sequences s on s.id = e.sequence_id and s.owner_user_id = p_user_id
   join private.sender_accounts a on a.id = coalesce(e.sender_account_id, (
@@ -187,9 +216,10 @@ as $$
       and a2.status = 'ready' and not a2.reconciliation_required
     order by a2.last_status_at desc limit 1))
   left join lateral (
-    select p.provider_thread_id from private.sequence_step_sends p
+    select p.provider_thread_id, p.provider_email_id from private.sequence_step_sends p
     where p.sequence_id = e.sequence_id and p.contact_id = e.contact_id and p.id <> e.id
-      and p.status in ('sent', 'bounced') and p.provider_thread_id is not null
+      and p.status in ('sent', 'bounced')
+      and (p.provider_thread_id is not null or p.provider_email_id is not null)
     order by p.sent_at desc limit 1
   ) prev on true
   where e.id = p_send_id and e.owner_user_id = p_user_id;
@@ -226,11 +256,13 @@ declare
   v_from jsonb;
   v_from_email text;
   v_in_reply_to text := private.email_header(p_email, 'In-Reply-To');
-  v_references text[] := regexp_split_to_array(coalesce(private.email_header(p_email, 'References'), ''), '\s+');
+  v_references text[] := array_remove(
+    regexp_split_to_array(coalesce(private.email_header(p_email, 'References'), ''), '\s+'), '');
   v_header_send text := private.email_header(p_email, 'X-Althius-Envio');
   v_header_send_id uuid;
   v_attachments jsonb := '[]'::jsonb;
   v_received_at timestamptz;
+  v_outcome text;
 begin
   if p_event_type not in ('email.new', 'email.new.bounce') then
     raise exception 'unsupported email event type' using errcode = '22023';
@@ -273,30 +305,24 @@ begin
     v_header_send_id := v_header_send::uuid;
   end if;
 
-  -- 3. Bounce: o payload é o e-mail ORIGINAL enviado.
-  if p_event_type = 'email.new.bounce' then
-    select e.* into v_send from private.sequence_step_sends e
-    where e.sender_account_id = v_sender.id
-      and (e.id = v_header_send_id or e.provider_email_id = v_email_id or e.provider_message_id = v_message_id)
-    limit 1;
-    if not found then
-      return query select 'unrelated', null::uuid, null::uuid, '[]'::jsonb;
-      return;
-    end if;
-    update private.sequence_step_sends set
-      status = 'bounced', last_error = 'bounced', last_error_at = now(), updated_at = now()
-    where id = v_send.id;
-    update private.unipile_email_events set outcome = 'bounce', send_id = v_send.id where id = v_event_row_id;
-    return query select 'bounce', null::uuid, v_send.id, '[]'::jsonb;
-    return;
-  end if;
-
-  -- 4. Eco do próprio envio: o id, o message_id ou o cabeçalho da Althius batem com um Envio.
+  -- 3. Bounce: o payload é o e-mail ORIGINAL enviado. Eco: o próprio envio nos itens enviados.
   select e.* into v_send from private.sequence_step_sends e
   where e.sender_account_id = v_sender.id
     and (e.id = v_header_send_id or e.provider_email_id = v_email_id or e.provider_message_id = v_message_id)
   limit 1;
-  if found then
+  if p_event_type = 'email.new.bounce' then
+    if found then
+      update private.sequence_step_sends set
+        status = 'bounced', last_error = 'bounced', last_error_at = now(), updated_at = now()
+      where id = v_send.id;
+      v_outcome := 'bounce';
+    else
+      v_outcome := 'unrelated';
+    end if;
+  elsif found then
+    if v_from_email is not null and v_sender.email_address is distinct from v_from_email then
+      update private.sender_accounts set email_address = v_from_email, updated_at = now() where id = v_sender.id;
+    end if;
     if v_send.status in ('sending', 'uncertain') then
       v_send := private.mark_step_send_sent(v_send.id, v_email_id, v_message_id, v_thread_id);
     else
@@ -307,95 +333,101 @@ begin
         updated_at = now()
       where id = v_send.id;
     end if;
-    update private.unipile_email_events set outcome = 'echo', send_id = v_send.id where id = v_event_row_id;
-    return query select 'echo', null::uuid, v_send.id, '[]'::jsonb;
-    return;
-  end if;
-
+    v_outcome := 'echo';
   -- O que o titular escreveu por conta própria também é eco, nunca resposta do Contato.
-  if v_from_email is not null and v_from_email = any (select lower(a) from unnest(p_owner_addresses) a) then
-    update private.unipile_email_events set outcome = 'echo' where id = v_event_row_id;
-    return query select 'echo', null::uuid, null::uuid, '[]'::jsonb;
-    return;
+  elsif v_from_email is not null and (v_from_email = v_sender.email_address
+    or v_from_email = any (select lower(a) from unnest(p_owner_addresses) a)) then
+    v_send := null;
+    v_outcome := 'echo';
+  -- Resposta automática (mailer-daemon, fora do escritório, Auto-Submitted) não é resposta comercial.
+  elsif v_from_email ~* '^(mailer-daemon|postmaster|no-?reply|do-?not-?reply)@'
+    or lower(coalesce(private.email_header(p_email, 'Auto-Submitted'), 'no')) <> 'no'
+    or private.email_header(p_email, 'X-Autoreply') is not null
+    or private.email_header(p_email, 'X-Autorespond') is not null then
+    v_send := null;
+    v_outcome := 'automatic';
   end if;
 
-  -- 5. Resposta: a conversa de um passo enviado, ou o In-Reply-To/References com um message_id enviado.
-  select e.* into v_send from private.sequence_step_sends e
-  where e.sender_account_id = v_sender.id
-    and e.status in ('sent', 'uncertain', 'bounced')
-    and (
-      (v_thread_id is not null and e.provider_thread_id = v_thread_id)
-      or (e.provider_message_id is not null
-        and (e.provider_message_id = v_in_reply_to or e.provider_message_id = any (v_references)))
-    )
-  order by e.sent_at desc nulls last
-  limit 1;
-  if not found then
-    return query select 'unrelated', null::uuid, null::uuid, '[]'::jsonb;
-    return;
+  -- 4. Resposta: a conversa de um passo enviado, ou o In-Reply-To/References com um message_id enviado.
+  if v_outcome is null then
+    select e.* into v_send from private.sequence_step_sends e
+    where e.sender_account_id = v_sender.id
+      and e.status in ('sent', 'uncertain', 'bounced')
+      and (
+        (v_thread_id is not null and e.provider_thread_id = v_thread_id)
+        or (e.provider_message_id is not null
+          and (e.provider_message_id = v_in_reply_to or e.provider_message_id = any (v_references)))
+      )
+    order by e.sent_at desc nulls last
+    limit 1;
+    v_outcome := case when found then 'reply' else 'unrelated' end;
   end if;
 
-  -- A trava da Sequência serializa a pausa com uma liberação concorrente de envio.
-  select s.* into v_sequence from public.sequences s where s.id = v_send.sequence_id for update;
+  if v_outcome = 'reply' then
+    -- A trava da Sequência serializa a pausa com uma liberação concorrente de envio.
+    select s.* into v_sequence from public.sequences s where s.id = v_send.sequence_id for update;
 
-  -- Quem respondeu: o Contato com esse e-mail e Vínculo ativo na Conta-alvo, ou o destinatário do passo.
-  select c.id into v_contact_id from public.contacts c
-  join public.contact_account_links l
-    on l.workspace_id = c.workspace_id and l.contact_id = c.id
-      and l.target_account_id = v_sequence.target_account_id::uuid and l.ended_at is null
-  where c.workspace_id = v_sequence.workspace_id and c.email = v_from_email
-  limit 1;
-  v_contact_id := coalesce(v_contact_id, v_send.contact_id);
+    -- Quem respondeu: o Contato com esse e-mail e Vínculo ativo na Conta-alvo. Outra pessoa da Conta-alvo
+    -- (um colega na mesma conversa) também pausa, mas a Interação pública não a atribui ao Contato errado.
+    select c.id into v_contact_id from public.contacts c
+    join public.contact_account_links l
+      on l.workspace_id = c.workspace_id and l.contact_id = c.id
+        and l.target_account_id = v_sequence.target_account_id::uuid and l.ended_at is null
+    where c.workspace_id = v_sequence.workspace_id and c.email = v_from_email
+    limit 1;
 
-  v_received_at := coalesce(
-    case when (p_email ->> 'date') ~ '^\d{4}-\d{2}-\d{2}' then (p_email ->> 'date')::timestamptz end, now());
+    v_received_at := coalesce(private.safe_timestamptz(p_email ->> 'date'), now());
 
-  insert into public.account_interactions (workspace_id, target_account_id, contact_id, kind, occurred_at, source, recorded_by)
-  values (v_sequence.workspace_id, v_sequence.target_account_id::uuid, v_contact_id, 'email-recebido',
-    v_received_at, 'sequencia', v_sequence.owner_user_id)
-  returning * into v_interaction;
-  update public.target_accounts
-  set last_interaction_at = greatest(last_interaction_at, v_received_at)
-  where id = v_sequence.target_account_id::uuid;
+    insert into public.account_interactions (workspace_id, target_account_id, contact_id, kind, occurred_at, source, recorded_by)
+    values (v_sequence.workspace_id, v_sequence.target_account_id::uuid, v_contact_id, 'email-recebido',
+      v_received_at, 'sequencia', v_sequence.owner_user_id)
+    returning * into v_interaction;
+    update public.target_accounts
+    set last_interaction_at = greatest(last_interaction_at, v_received_at)
+    where id = v_sequence.target_account_id::uuid;
 
-  if jsonb_typeof(p_email -> 'attachments') = 'array' then
-    select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-      'id', a ->> 'id', 'name', coalesce(a ->> 'name', a ->> 'filename', 'anexo'),
-      'mime', coalesce(a ->> 'mime', a ->> 'mime_type', a ->> 'content_type'),
-      'size', case when (a ->> 'size') ~ '^\d+$' then (a ->> 'size')::bigint end,
-      'status', 'pending'))), '[]'::jsonb)
-    into v_attachments
-    from jsonb_array_elements(p_email -> 'attachments') a
-    where nullif(btrim(a ->> 'id'), '') is not null;
-  end if;
+    -- Os anexos chegam com id e/ou url; os dois ficam guardados para o download depois do 2xx.
+    if jsonb_typeof(p_email -> 'attachments') = 'array' then
+      select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+        'id', coalesce(nullif(btrim(a ->> 'id'), ''), 'anexo-' || n),
+        'url', nullif(btrim(a ->> 'url'), ''),
+        'name', coalesce(a ->> 'name', a ->> 'filename', 'anexo'),
+        'mime', coalesce(a ->> 'mime', a ->> 'mime_type', a ->> 'content_type'),
+        'size', case when (a ->> 'size') ~ '^\d+$' then (a ->> 'size')::bigint end,
+        'status', 'pending')) order by n), '[]'::jsonb)
+      into v_attachments
+      from jsonb_array_elements(p_email -> 'attachments') with ordinality as t(a, n)
+      where jsonb_typeof(a) = 'object';
+    end if;
 
-  insert into private.received_emails (
-    interaction_id, workspace_id, owner_user_id, sequence_id, send_id, contact_id, sender_account_id,
-    provider_email_id, provider_message_id, provider_thread_id, from_email, from_name,
-    subject, body, snippet, received_at, attachments
-  ) values (
-    v_interaction.id, v_sequence.workspace_id, v_sequence.owner_user_id, v_sequence.id, v_send.id, v_contact_id, v_sender.id,
-    coalesce(v_email_id, p_event_id), v_message_id, v_thread_id, v_from_email, nullif(btrim(v_from ->> 'display_name'), ''),
-    p_email ->> 'subject', p_email ->> 'body', p_email ->> 'snippet', v_received_at, v_attachments
-  );
+    insert into private.received_emails (
+      interaction_id, workspace_id, owner_user_id, sequence_id, send_id, contact_id, sender_account_id,
+      provider_email_id, provider_message_id, provider_thread_id, from_email, from_name,
+      subject, body, snippet, received_at, attachments
+    ) values (
+      v_interaction.id, v_sequence.workspace_id, v_sequence.owner_user_id, v_sequence.id, v_send.id, v_contact_id, v_sender.id,
+      coalesce(v_email_id, p_event_id), v_message_id, v_thread_id, v_from_email, nullif(btrim(v_from ->> 'display_name'), ''),
+      p_email ->> 'subject', p_email ->> 'body', p_email ->> 'snippet', v_received_at, v_attachments
+    );
 
-  -- A pausa vale para a Sequência inteira da Conta-alvo; retomar é ação explícita do responsável.
-  if v_sequence.status = 'ativa' then
-    update public.sequences set
-      status = 'pausada',
-      public_summary = public_summary || jsonb_build_object('status', 'pausada'),
-      updated_at = now()
-    where id = v_sequence.id;
-    update private.sequence_documents set
-      document = document || jsonb_build_object('motivoPause', 'Contato respondeu'),
-      updated_at = now()
-    where sequence_id = v_sequence.id;
+    -- A pausa vale para a Sequência inteira da Conta-alvo; retomar é ação explícita do responsável.
+    if v_sequence.status = 'ativa' then
+      update public.sequences set
+        status = 'pausada',
+        public_summary = public_summary || jsonb_build_object('status', 'pausada'),
+        updated_at = now()
+      where id = v_sequence.id;
+      update private.sequence_documents set
+        document = document || jsonb_build_object('motivoPause', 'Contato respondeu'),
+        updated_at = now()
+      where sequence_id = v_sequence.id;
+    end if;
   end if;
 
   update private.unipile_email_events
-  set outcome = 'reply', send_id = v_send.id, interaction_id = v_interaction.id
+  set outcome = v_outcome, send_id = v_send.id, interaction_id = v_interaction.id
   where id = v_event_row_id;
-  return query select 'reply', v_interaction.id, v_send.id, v_attachments;
+  return query select v_outcome, v_interaction.id, v_send.id, v_attachments;
 end;
 $$;
 

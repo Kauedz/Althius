@@ -41,8 +41,8 @@ function fakeDb(
 function fakeUnipile(behaviour: 'ok' | 'fail' = 'ok') {
   const downloads: unknown[] = []
   const unipile: WebhookUnipile = {
-    downloadEmailAttachment: async (accountId, emailId, attachmentId) => {
-      downloads.push({ accountId, emailId, attachmentId })
+    downloadEmailAttachment: async (accountId, emailId, attachment) => {
+      downloads.push({ accountId, emailId, attachmentId: attachment.id, url: attachment.url })
       if (behaviour === 'fail') throw new Error('HTTP 500')
       return { bytes: new Uint8Array([1, 2, 3]), contentType: 'application/pdf' }
     },
@@ -161,7 +161,13 @@ Deno.test('email.new vai para a ingestão com o id do evento, o Email e o endere
     outcome: 'reply',
     interaction_id: 'inter-1',
     send_id: 'envio-1',
-    attachments: [{ id: 'att-1', name: 'proposta assinada.pdf', mime: 'application/pdf', status: 'pending' }],
+    attachments: [{
+      id: 'att-1',
+      url: 'https://api.unipile.com/v2/acc-1/emails/email-r1/attachments/att-1',
+      name: 'proposta assinada.pdf',
+      mime: 'application/pdf',
+      status: 'pending',
+    }],
   }
   const { db, calls } = fakeDb(ingested)
   const { unipile, downloads } = fakeUnipile()
@@ -186,7 +192,12 @@ Deno.test('email.new vai para a ingestão com o id do evento, o Email e o endere
   }])
   assertEquals(background.length, 1)
   await Promise.all(background)
-  assertEquals(downloads, [{ accountId: 'acc-1', emailId: 'email-r1', attachmentId: 'att-1' }])
+  assertEquals(downloads, [{
+    accountId: 'acc-1',
+    emailId: 'email-r1',
+    attachmentId: 'att-1',
+    url: 'https://api.unipile.com/v2/acc-1/emails/email-r1/attachments/att-1',
+  }])
   assertEquals(uploads, [{
     path: 'recebidos/inter-1/att-1/proposta_assinada.pdf',
     size: 3,
@@ -269,6 +280,7 @@ Deno.test('evento v2 sem equivalente é reconhecido e ignorado', async () => {
   assertEquals(calls.apply.length, 0)
 })
 
-Deno.test('o caminho do anexo não deixa passar nomes perigosos', () => {
+Deno.test('o caminho do anexo não deixa passar nomes nem ids perigosos', () => {
   assertEquals(attachmentPath('i', 'a', '../../etc/passwd'), 'recebidos/i/a/.._.._etc_passwd')
+  assertEquals(attachmentPath('i', '../x', '..'), 'recebidos/i/.._x/anexo')
 })
