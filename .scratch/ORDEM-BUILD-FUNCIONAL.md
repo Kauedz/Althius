@@ -37,7 +37,7 @@ Antes do cadastro e login (tickets em `.scratch/autenticacao-google-email/issues
 ## Ordem — early send (tracer de envio)
 
 1. **CRM-01** — separar modo real e Demonstração  
-2. **Auth-01 a Auth-08** (`.scratch/autenticacao-google-email/issues/`) — cadastro e login (Google, senha e código) e Workspace pessoal; substituem o CRM-02  
+2. **Auth-02 a Auth-08** (`.scratch/autenticacao-google-email/issues/`) — cadastro e login (Google, senha e código) e Workspace pessoal; substituem o CRM-02 (não fazer o CRM-02). Auth-01 já está fechado; Auth-09 (convite, exige CRM-03) e Auth-10 (ambiente, humano) ficam fora deste corte  
 3. **CRM-04** — Contas-alvo reais  
 4. **CRM-05** — Contatos e vínculos reais  
 5. **CRM-17** (se FK textual Seq↔Conta bloquear) — vincular Sequências às Contas reais  
