@@ -191,6 +191,10 @@ O usuário que detém a responsabilidade comercial exclusiva por uma Conta-alvo 
 **Canal de abordagem**:
 O meio pelo qual um passo da Sequência alcança um Contato: E-mail, LinkedIn ou WhatsApp. É distinto do Canal usado para conversar com um Agente.
 
+**Destino**:
+O e-mail, o número de WhatsApp ou o perfil de LinkedIn de um Contato por onde um Canal de abordagem o alcança. Um passo só é enviado ao Destino que o Vendedor responsável confirmou.
+_Avoid_: endereço de envio
+
 **Responsável pela Sequência**:
 O Vendedor responsável pela Conta-alvo, que opera sua Sequência e fornece suas próprias Contas remetentes para todos os passos. Outros participantes do Workspace acompanham eventos e status, sem alterar a Sequência, acessar o conteúdo das mensagens ou aprovar envios em nome dele.
 
