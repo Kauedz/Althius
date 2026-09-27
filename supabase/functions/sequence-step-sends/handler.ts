@@ -21,6 +21,11 @@ export type BlockedOutcome =
   | 'step_missing'
   | 'reply_found'
   | 'thread_check_failed'
+  | 'not_due'
+  | 'outside_window'
+  | 'authorization_revoked'
+  | 'not_scheduled'
+  | 'destination_bounced'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -133,6 +138,11 @@ const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   step_missing: 'O passo não existe mais no documento da Sequência.',
   reply_found: 'O Contato já respondeu nesta conversa. A resposta foi registrada e a Sequência ficou pausada.',
   thread_check_failed: 'Não foi possível conferir a conversa na Unipile antes de enviar. Tente de novo em instantes.',
+  not_due: 'Este passo está programado para mais tarde e sai no horário dele.',
+  outside_window: 'Agora está fora da janela de horário deste passo. Ele sai no próximo horário válido.',
+  authorization_revoked: 'A Sequência mudou depois da ativação. Ative os envios de novo para enviar este passo.',
+  not_scheduled: 'Este passo espera o envio manual do Vendedor responsável.',
+  destination_bounced: 'O e-mail deste Contato já voltou nesta Sequência. Corrija o e-mail e reconfirme o passo.',
 }
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {

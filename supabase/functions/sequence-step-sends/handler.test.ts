@@ -182,6 +182,17 @@ Deno.test('um passo "Re:" continua a conversa pelo reply_to_message_id', async (
   assertEquals(sent[0].email.reply_to_message_id, '<msg-1@mail.gmail.com>')
 })
 
+Deno.test('um passo de uma versão autorizada pedido antes da hora não sai e diz quando sai', async () => {
+  const { db, recorded } = fakeDb({ outcome: 'not_due', send_id: SEND })
+  const { unipile, sent } = fakeUnipile({ id: 'e1', message_id: null })
+  const handle = handlerWith(db, unipile)
+  const res = await handle(request(sendBody))
+  assertEquals(res.status, 409)
+  assertEquals((await res.json()).message, 'Este passo está programado para mais tarde e sai no horário dele.')
+  assertEquals(sent.length, 0)
+  assertEquals(recorded.length, 0)
+})
+
 Deno.test('envio bloqueado pelo banco não chama a Unipile e explica o motivo', async () => {
   const { db, recorded } = fakeDb({ outcome: 'destination_changed', send_id: SEND })
   const { unipile, sent } = fakeUnipile({ id: 'e1', message_id: null })

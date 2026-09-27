@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(71);
+select plan(109);
 
 -- O relógio da agenda fica parado onde o teste quiser, só dentro desta transação.
 create function pg_temp.relogio(p_at timestamptz) returns void language plpgsql as $f$
@@ -315,6 +315,134 @@ select is((select outcome from public.release_due_step_send((pg_temp.envio('q-1'
   'a late step is not sent outside the window');
 select is((pg_temp.envio('q-1')).status || ' ' || ((pg_temp.envio('q-1')).scheduled_for = '2026-10-08 09:00-03'),
   'scheduled true', 'the late step moves to the next valid time');
+
+-- 9. Uma Sequência de três passos para as correções da revisão: bloqueio gravado, eco durante a nova tentativa,
+-- reconfirmar sem adiantar, passo em voo numa reativação, incerto resolvido pelo titular e bounce.
+select pg_temp.relogio('2026-10-08 09:00-03');
+set local role authenticated;
+select public.update_owned_sequence((select valor::uuid from ids where chave = 'sequencia-2'),
+  pg_temp.documento(
+    pg_temp.passo('q-1', 'email', 'ana', 0, 'Oi', 'Olá, Ana.'),
+    pg_temp.passo('q-2', 'email', 'ana', 1, 'Re: Oi', 'Tudo bem?'),
+    pg_temp.passo('q-3', 'email', 'ana', 1, 'Última', 'Até mais.')), null, null);
+select is((select outcome || ' ' || step_id || ' v' || version from public.activate_sequence((select valor::uuid from ids where chave = 'sequencia-2'))),
+  'activated q-1 v2', 'adding steps revoked the first version; the new one starts again from the first pending step');
+
+reset role;
+update private.sender_accounts set status = 'syncing' where unipile_account_id = 'unipile-google-7';
+select is((select count(*)::int from public.claim_due_step_sends(10)), 1, 'the first step is due');
+select is((select outcome from public.release_due_step_send((pg_temp.envio('q-1')).id)), 'sender_not_ready',
+  'without a ready sender account the step does not go out');
+select is((pg_temp.envio('q-1')).status || ' ' || (pg_temp.envio('q-1')).last_error, 'scheduled sender_not_ready',
+  'the block is kept on the step, which stays scheduled');
+select is((select count(*)::int from public.claim_due_step_sends(10)), 0,
+  'the executor waits before trying a blocked step again');
+update private.sender_accounts set status = 'ready' where unipile_account_id = 'unipile-google-7';
+update private.sequence_step_sends set claimed_until = null where step_id = 'q-1';
+
+select is((select count(*)::int from public.claim_due_step_sends(10)), 1, 'the step is due again');
+select is((select outcome from public.release_due_step_send((pg_temp.envio('q-1')).id)), 'released', 'the step is released');
+select is(public.record_sequence_step_send_result((pg_temp.envio('q-1')).id, 'failed', null, null, 'HTTP 429', 3600),
+  'scheduled', 'a rate-limited step is retried');
+select is((pg_temp.envio('q-1')).scheduled_for, '2026-10-08 10:00-03'::timestamptz,
+  'the retry waits the time the provider asked for');
+select is(
+  (select outcome from public.ingest_unipile_email_event('evt-q1', 'email.new', 'unipile-google-7',
+    jsonb_build_object('id', 'e-q1', 'message_id', '<q1@x>', 'thread_id', 't-q1', 'subject', 'Oi',
+      'from', jsonb_build_array(jsonb_build_object('email', 'titular@cliente.com.br')),
+      'to', jsonb_build_array(jsonb_build_object('email', 'ana@outra.test')),
+      'headers', jsonb_build_array(jsonb_build_object('name', 'X-Althius-Envio', 'value', (pg_temp.envio('q-1')).id::text))),
+    '{}')),
+  'echo', 'the echo of the failed attempt arrives');
+select is((pg_temp.envio('q-1')).status || ' ' || (pg_temp.envio('q-2')).status, 'sent scheduled',
+  'the echo proves the send: no duplicate retry, and the next step is scheduled');
+select is((pg_temp.envio('q-2')).scheduled_for, '2026-10-09 09:00-03'::timestamptz,
+  'the next step counts its business day from the proven send');
+
+set local role authenticated;
+select is(
+  (select status || ' ' || (scheduled_for = '2026-10-09 09:00-03') from public.confirm_sequence_step((select valor::uuid from ids where chave = 'sequencia-2'), 'q-2')),
+  'scheduled true', 'reconfirming a scheduled step keeps its time instead of bringing it forward');
+reset role;
+select is((select outcome from public.release_sequence_step_send((pg_temp.envio('q-2')).id, '70000000-0000-0000-0000-000000000001')),
+  'not_due', 'the owner cannot send an authorized step before its time either');
+
+-- Um passo em voo durante uma edição e reativação continua sendo o passo da vez.
+select pg_temp.relogio('2026-10-09 09:00-03');
+select is((select count(*)::int from public.claim_due_step_sends(10)), 1, 'the second step is due');
+select is((select outcome from public.release_due_step_send((pg_temp.envio('q-2')).id)), 'released', 'the second step is in flight');
+set local role authenticated;
+select public.update_owned_sequence((select valor::uuid from ids where chave = 'sequencia-2'),
+  pg_temp.documento(
+    pg_temp.passo('q-1', 'email', 'ana', 0, 'Oi', 'Olá, Ana.'),
+    pg_temp.passo('q-2', 'email', 'ana', 1, 'Re: Oi', 'Tudo bem?'),
+    pg_temp.passo('q-3', 'email', 'ana', 1, 'Última', 'Até mais, Ana.')), null, null);
+select is((select outcome || ' v' || version || ' ' || coalesce(step_id, 'nenhum') from public.activate_sequence((select valor::uuid from ids where chave = 'sequencia-2'))),
+  'activated v3 nenhum', 'activating while a step is in flight schedules nothing new');
+reset role;
+select is(public.record_sequence_step_send_result((pg_temp.envio('q-2')).id, 'failed', null, null, 'HTTP 500'),
+  'failed', 'the step of the previous version fails without a retry');
+set local role authenticated;
+select is(
+  (select status from public.confirm_sequence_step((select valor::uuid from ids where chave = 'sequencia-2'), 'q-2')),
+  'scheduled', 'reconfirming brings the step into the active version');
+reset role;
+select is((select count(*)::int from public.claim_due_step_sends(10)), 1, 'the reconfirmed step is due');
+select is((select outcome from public.release_due_step_send((pg_temp.envio('q-2')).id)), 'released', 'the reconfirmed step is released');
+select is(public.record_sequence_step_send_result((pg_temp.envio('q-2')).id, 'sent', 'e-q2', '<q2@x>', null),
+  'sent', 'the reconfirmed step went out');
+select is((pg_temp.envio('q-3')).status || ' ' || ((pg_temp.envio('q-3')).scheduled_for = '2026-10-12 09:00-03'),
+  'scheduled true', 'the step after it is scheduled under the active version');
+
+-- Incerto sem eco: o titular confere a caixa de saída e resolve.
+select pg_temp.relogio('2026-10-12 09:00-03');
+select is((select count(*)::int from public.claim_due_step_sends(10)), 1, 'the last step is due');
+select is((select outcome from public.release_due_step_send((pg_temp.envio('q-3')).id)), 'released', 'the last step is released');
+select is(public.record_sequence_step_send_result((pg_temp.envio('q-3')).id, 'uncertain', null, null, 'timeout'),
+  'uncertain', 'the provider did not answer in time');
+select is((select count(*)::int from public.claim_due_step_sends(10)), 0, 'an uncertain step is never retried by itself');
+set local role authenticated;
+select is(public.resolve_uncertain_step((select valor::uuid from ids where chave = 'sequencia-2'), 'q-3', false),
+  'scheduled', 'the owner says it did not go out: the step is scheduled again');
+reset role;
+select is((select count(*)::int from public.claim_due_step_sends(10)), 1, 'the step is due again');
+select is((select outcome from public.release_due_step_send((pg_temp.envio('q-3')).id)), 'released', 'the step is released again');
+select is(public.record_sequence_step_send_result((pg_temp.envio('q-3')).id, 'uncertain', null, null, 'timeout'),
+  'uncertain', 'the provider did not answer in time again');
+set local role authenticated;
+select is(public.resolve_uncertain_step((select valor::uuid from ids where chave = 'sequencia-2'), 'q-3', true),
+  'sent', 'the owner found it in the outbox: the step is sent');
+select throws_ok(
+  $$select public.resolve_uncertain_step((select valor::uuid from ids where chave = 'sequencia-2'), 'q-3', true)$$,
+  '55000', 'send is not uncertain', 'only an uncertain step can be resolved');
+
+-- Bounce: ativar de novo não reenvia para o endereço que voltou.
+reset role;
+update private.sequence_step_sends set provider_email_id = 'e-q3' where step_id = 'q-3';
+select is(
+  (select outcome from public.ingest_unipile_email_event('evt-q3-bounce', 'email.new.bounce', 'unipile-google-7',
+    jsonb_build_object('id', 'e-q3', 'subject', 'Última',
+      'from', jsonb_build_array(jsonb_build_object('email', 'titular@cliente.com.br'))), '{}')),
+  'bounce', 'the last step bounced');
+set local role authenticated;
+select public.update_owned_sequence((select valor::uuid from ids where chave = 'sequencia-2'),
+  pg_temp.documento(
+    pg_temp.passo('q-1', 'email', 'ana', 0, 'Oi', 'Olá, Ana.'),
+    pg_temp.passo('q-2', 'email', 'ana', 1, 'Re: Oi', 'Tudo bem?'),
+    pg_temp.passo('q-3', 'email', 'ana', 1, 'Última', 'Até mais, Ana.'),
+    pg_temp.passo('q-4', 'email', 'ana', 1, 'Mais uma', 'Ainda por aqui.')), null, null);
+reset role;
+select is((pg_temp.envio('q-3')).status, 'bounced', 'revoking a version keeps the bounce as history');
+set local role authenticated;
+select is((select outcome || ' ' || step_id from public.activate_sequence((select valor::uuid from ids where chave = 'sequencia-2'))),
+  'destination_bounced q-3', 'the activation does not send again to an address that bounced');
+reset role;
+update public.contacts set email = 'ana.reis@outra.test' where id = (select valor::uuid from ids where chave = 'ana');
+set local role authenticated;
+select is((select outcome || ' ' || step_id from public.activate_sequence((select valor::uuid from ids where chave = 'sequencia-2'))),
+  'activated q-3', 'with the address fixed, the bounced step goes out again to the new address');
+reset role;
+select is((pg_temp.envio('q-3')).destination, 'ana.reis@outra.test', 'the new address is the fixed destination');
 
 select * from finish();
 rollback;

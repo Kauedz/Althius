@@ -21,6 +21,8 @@ create table private.sequence_authorizations (
 
 create unique index sequence_authorizations_active_idx
   on private.sequence_authorizations (sequence_id) where revoked_at is null;
+create index sequence_authorizations_authorized_by_idx
+  on private.sequence_authorizations (authorized_by);
 
 alter table private.sequence_authorizations enable row level security;
 revoke all on private.sequence_authorizations from public, anon, authenticated;
@@ -53,8 +55,53 @@ create index sequence_step_sends_due_idx
 create index sequence_step_sends_authorization_idx
   on private.sequence_step_sends (authorization_id) where authorization_id is not null;
 
--- 3. O relógio: dias úteis em America/Sao_Paulo e a janela de horário do passo. Toda decisão de agenda lê a hora
--- em private.clock_now(), que é o now() da transação; os testes o substituem dentro da própria transação.
+-- Um Envio que já saiu (ou pode ter saído) não volta a ser pendente: em voo, enviado ou incerto.
+create function private.send_went_out(p_status text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_status in ('sending', 'sent', 'uncertain');
+$$;
+
+revoke all on function private.send_went_out(text) from public, anon, authenticated;
+
+-- O que uma autorização revogada cancela: o que ainda não saiu. Um bounce fica como histórico do endereço.
+create function private.send_is_cancellable(p_status text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_status in ('waiting', 'scheduled', 'confirmed', 'awaiting_reconfirmation', 'failed');
+$$;
+
+revoke all on function private.send_is_cancellable(text) from public, anon, authenticated;
+
+-- Um envio em voo há mais de 10 minutos perdeu o resultado (a função caiu depois de chamar a Unipile): passa a
+-- incerto, para ser reconciliado antes de qualquer reenvio, em vez de ficar preso para sempre. Com p_send_id, só
+-- aquele Envio; sem ele, todos os que não estão travados por outra transação.
+create function private.expire_stale_sends(p_send_id uuid)
+returns void
+language sql
+set search_path = ''
+as $$
+  update private.sequence_step_sends e set
+    status = 'uncertain', last_error = 'stale_sending', last_error_at = now(), updated_at = now()
+  where e.id in (
+    select x.id from private.sequence_step_sends x
+    where x.status = 'sending' and x.sending_at < now() - interval '10 minutes'
+      and (p_send_id is null or x.id = p_send_id)
+    for update skip locked);
+$$;
+
+revoke all on function private.expire_stale_sends(uuid) from public, anon, authenticated;
+
+-- 3. O relógio: dias úteis em America/Sao_Paulo e a janela de horário do passo. Toda decisão de quando um passo
+-- sai (programar, vencer, janela, nova tentativa e a data do envio) lê private.clock_now(), que é o now() da
+-- transação; os testes o substituem dentro da própria transação. A reserva do executor e o envio em voo esquecido
+-- medem tempo real de processamento e usam now().
 create function private.clock_now()
 returns timestamptz
 language sql
@@ -179,7 +226,6 @@ create function private.pending_steps_signature(p_sequence_id uuid, p_document j
 returns jsonb
 language sql
 stable
-security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(private.step_signature(p_document, s.step) order by s.n), '[]'::jsonb)
@@ -188,7 +234,7 @@ as $$
   where not exists (
     select 1 from private.sequence_step_sends e
     where e.sequence_id = p_sequence_id and e.step_id = s.step ->> 'id'
-      and e.status in ('sending', 'sent', 'uncertain'));
+      and private.send_went_out(e.status));
 $$;
 
 revoke all on function private.pending_steps_signature(uuid, jsonb) from public, anon, authenticated;
@@ -197,7 +243,6 @@ create function private.authorized_step(p_authorization_id uuid, p_step_id text)
 returns jsonb
 language sql
 stable
-security definer
 set search_path = ''
 as $$
   select step
@@ -212,7 +257,8 @@ revoke all on function private.authorized_step(uuid, text) from public, anon, au
 
 -- 5. Programar o próximo passo. Um passo por vez: com outro programado, em voo, travado ou num canal que a Althius
 -- ainda não envia, nada novo é programado. O horário nunca fica no passado: um passo vencido sai no próximo horário
--- válido a partir de agora, e o seguinte conta os dias úteis desde o envio dele.
+-- válido a partir de agora, e o seguinte conta os dias úteis desde o envio dele. Quem chama já tem a trava da
+-- Sequência, sempre tomada antes das linhas de Envio, na mesma ordem da liberação.
 create function private.schedule_next_step(p_sequence_id uuid, p_base timestamptz)
 returns uuid
 language plpgsql
@@ -246,8 +292,7 @@ begin
       return null;
     end if;
     select e.* into v_send from private.sequence_step_sends e
-    where e.sequence_id = p_sequence_id and e.step_id = v_step ->> 'id'
-    for update;
+    where e.sequence_id = p_sequence_id and e.step_id = v_step ->> 'id';
     if not found then
       return null;
     end if;
@@ -426,27 +471,34 @@ begin
   select e.* into v_send from private.sequence_step_sends e
   where e.sequence_id = v_sequence.id and e.step_id = p_step_id
   for update;
-  if found and v_send.status in ('sending', 'sent', 'uncertain') then
+  if found and private.send_went_out(v_send.status) then
     raise exception 'step already sent or in flight' using errcode = '55000';
   end if;
 
-  if found and v_send.authorization_id is not null then
+  -- A versão ativa que contém o passo. Um passo que estava em voo numa reativação ficou com a versão anterior:
+  -- reconfirmado, ele entra na versão ativa, para o seguinte continuar sendo programado depois dele.
+  if found then
     select a.* into v_auth from private.sequence_authorizations a
-    where a.id = v_send.authorization_id and a.revoked_at is null;
+    where a.sequence_id = v_sequence.id and a.revoked_at is null
+      and private.authorized_step(a.id, p_step_id) is not null;
   end if;
 
   if v_auth.id is not null then
+    -- Reconfirmar não adianta o passo: ele mantém o horário dele, ou o próximo horário válido se já venceu.
     update private.sequence_step_sends e set
       contact_id = v_contact.id,
       destination = v_contact.email,
+      authorization_id = v_auth.id,
+      mode = case when private.authorized_step(v_auth.id, e.step_id) ->> 'modoEmail' = 'manual'
+        then 'manual' else 'auto' end,
       status = case
-        when e.status = 'waiting' then 'waiting'
-        when e.mode = 'auto' then 'scheduled'
-        else 'confirmed' end,
+        when e.status in ('waiting', 'cancelled') then 'waiting'
+        when private.authorized_step(v_auth.id, e.step_id) ->> 'modoEmail' = 'manual' then 'confirmed'
+        else 'scheduled' end,
       scheduled_for = case
-        when e.status = 'waiting' then null
-        else private.next_send_slot(private.clock_now(), 0,
-          private.step_window(v_auth.document, private.authorized_step(v_auth.id, e.step_id))) end,
+        when e.status in ('waiting', 'cancelled') then null
+        else greatest(e.scheduled_for, private.next_send_slot(private.clock_now(), 0,
+          private.step_window(v_auth.document, private.authorized_step(v_auth.id, e.step_id)))) end,
       claimed_until = null,
       attempts = 0,
       confirmed_at = now(),
@@ -455,6 +507,10 @@ begin
       updated_at = now()
     where e.id = v_send.id
     returning * into v_send;
+    perform private.schedule_next_step(v_sequence.id, coalesce(
+      (select max(x.sent_at) from private.sequence_step_sends x where x.sequence_id = v_sequence.id),
+      private.clock_now()));
+    select e.* into v_send from private.sequence_step_sends e where e.id = v_send.id;
   else
     insert into private.sequence_step_sends (
       sequence_id, workspace_id, step_id, owner_user_id, contact_id, channel, destination
@@ -504,7 +560,8 @@ declare
   v_auth private.sequence_authorizations;
   v_version integer;
   v_scheduled uuid;
-  v_has_email boolean := false;
+  v_pending jsonb := '[]'::jsonb;
+  v_item jsonb;
 begin
   if v_user_id is null then
     raise exception 'authentication required' using errcode = '28000';
@@ -534,15 +591,18 @@ begin
     return;
   end if;
 
-  for v_step in
-    select t.step from jsonb_array_elements(v_steps) with ordinality as t(step, n) order by t.n
+  if v_sequence.target_account_id !~* '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$' then
+    raise exception 'target account not found' using errcode = 'P0002';
+  end if;
+
+  -- Os passos de E-mail pendentes, validados na ordem do documento, com o Contato e o Destino atual.
+  for v_step, v_n in
+    select t.step, t.n from jsonb_array_elements(v_steps) with ordinality as t(step, n) order by t.n
   loop
     continue when v_step ->> 'canal' is distinct from 'email';
     continue when exists (
       select 1 from private.sequence_step_sends e
-      where e.sequence_id = v_sequence.id and e.step_id = v_step ->> 'id'
-        and e.status in ('sending', 'sent', 'uncertain'));
-    v_has_email := true;
+      where e.sequence_id = v_sequence.id and e.step_id = v_step ->> 'id' and private.send_went_out(e.status));
     v_contact := null;
     if coalesce(v_step ->> 'contatoId', '') ~* '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$' then
       select c.* into v_contact from public.contacts c
@@ -563,9 +623,18 @@ begin
       return query select 'empty_content', v_step ->> 'id', null::integer, null::timestamptz;
       return;
     end if;
+    -- Um passo que voltou só sai de novo para outro endereço: ativar não reenvia para o endereço que voltou.
+    if exists (
+      select 1 from private.sequence_step_sends e
+      where e.sequence_id = v_sequence.id and e.status = 'bounced' and e.destination = v_contact.email) then
+      return query select 'destination_bounced', v_step ->> 'id', null::integer, null::timestamptz;
+      return;
+    end if;
+    v_pending := v_pending || jsonb_build_object('step', v_step, 'n', v_n,
+      'contact_id', v_contact.id, 'email', v_contact.email);
   end loop;
 
-  if v_has_email and not exists (
+  if jsonb_array_length(v_pending) > 0 and not exists (
     select 1 from private.sender_accounts a
     where a.workspace_id = v_sequence.workspace_id and a.owner_user_id = v_user_id
       and a.channel = 'email' and a.status = 'ready' and not a.reconciliation_required) then
@@ -582,22 +651,15 @@ begin
     jsonb_build_object('steps', v_steps, 'janelaPadrao', v_document -> 'janelaPadrao'), v_user_id)
   returning * into v_auth;
 
-  -- Cada passo de E-mail pendente fixa o Destino atual (ADR-0014) e espera a vez dele.
-  for v_step, v_n in
-    select t.step, t.n from jsonb_array_elements(v_steps) with ordinality as t(step, n) order by t.n
-  loop
-    continue when v_step ->> 'canal' is distinct from 'email';
-    continue when exists (
-      select 1 from private.sequence_step_sends e
-      where e.sequence_id = v_sequence.id and e.step_id = v_step ->> 'id'
-        and e.status in ('sending', 'sent', 'uncertain'));
-    select c.* into v_contact from public.contacts c where c.id = (v_step ->> 'contatoId')::uuid;
+  -- Ativar é confirmar o documento inteiro: cada passo pendente fixa o Destino atual (ADR-0014) e espera a vez.
+  for v_item in select value from jsonb_array_elements(v_pending) loop
     insert into private.sequence_step_sends (
       sequence_id, workspace_id, step_id, owner_user_id, contact_id, channel, destination,
       status, authorization_id, mode, step_order
     ) values (
-      v_sequence.id, v_sequence.workspace_id, v_step ->> 'id', v_user_id, v_contact.id, 'email', v_contact.email,
-      'waiting', v_auth.id, case when v_step ->> 'modoEmail' = 'manual' then 'manual' else 'auto' end, v_n
+      v_sequence.id, v_sequence.workspace_id, v_item -> 'step' ->> 'id', v_user_id, (v_item ->> 'contact_id')::uuid,
+      'email', v_item ->> 'email', 'waiting', v_auth.id,
+      case when v_item -> 'step' ->> 'modoEmail' = 'manual' then 'manual' else 'auto' end, (v_item ->> 'n')::integer
     )
     on conflict (sequence_id, step_id) do update set
       contact_id = excluded.contact_id,
@@ -613,14 +675,14 @@ begin
       last_error = null,
       last_error_at = null,
       updated_at = now()
-    where private.sequence_step_sends.status not in ('sending', 'sent', 'uncertain');
+    where not private.send_went_out(private.sequence_step_sends.status);
   end loop;
 
   -- Um passo que saiu do documento não sai mais.
   update private.sequence_step_sends e set
     status = 'cancelled', scheduled_for = null, claimed_until = null, updated_at = now()
   where e.sequence_id = v_sequence.id and e.authorization_id is distinct from v_auth.id
-    and e.status in ('waiting', 'scheduled', 'confirmed', 'awaiting_reconfirmation', 'failed', 'bounced');
+    and private.send_is_cancellable(e.status);
 
   v_scheduled := private.schedule_next_step(v_sequence.id, private.clock_now());
   return query
@@ -730,8 +792,7 @@ begin
       where id = v_auth.id;
       update private.sequence_step_sends set
         status = 'cancelled', scheduled_for = null, claimed_until = null, updated_at = now()
-      where authorization_id = v_auth.id
-        and status in ('waiting', 'scheduled', 'confirmed', 'awaiting_reconfirmation', 'failed');
+      where authorization_id = v_auth.id and private.send_is_cancellable(status);
     end if;
   end if;
 
@@ -792,13 +853,9 @@ begin
     v_blocked := 'owner_not_responsible';
   end if;
 
-  -- Um envio em voo há mais de 10 minutos perdeu o resultado (a função caiu depois de chamar a Unipile):
-  -- passa a incerto, para ser reconciliado antes de qualquer reenvio, em vez de ficar preso para sempre.
-  if v_blocked is null and v_send.status = 'sending' and v_send.sending_at < now() - interval '10 minutes' then
-    update private.sequence_step_sends set
-      status = 'uncertain', last_error = 'stale_sending', last_error_at = now(), updated_at = now()
-    where id = v_send.id;
-    v_send.status := 'uncertain';
+  if v_blocked is null and v_send.status = 'sending' then
+    perform private.expire_stale_sends(v_send.id);
+    select e.status into v_send.status from private.sequence_step_sends e where e.id = v_send.id;
   end if;
 
   if v_blocked is null then
@@ -812,7 +869,8 @@ begin
     end;
   end if;
 
-  if v_blocked is null and p_due_only
+  -- O passo de uma versão autorizada só sai na hora dele, pelo executor ou pela ação explícita do titular.
+  if v_blocked is null and (p_due_only or v_send.authorization_id is not null)
     and (v_send.scheduled_for is null or v_send.scheduled_for > private.clock_now()) then
     v_blocked := 'not_due';
   end if;
@@ -839,14 +897,16 @@ begin
     end if;
   end if;
 
-  -- O executor só envia dentro da janela; atrasado (ex.: fora do ar), o passo vai para o próximo horário válido.
-  if v_blocked is null and p_due_only then
+  -- Só dentro da janela. Atrasado (ex.: executor fora do ar), o passo automático vai para o próximo horário válido.
+  if v_blocked is null and v_auth.id is not null then
     v_window := private.step_window(v_auth.document, v_step);
     v_slot := private.next_send_slot(private.clock_now(), 0, v_window);
     if v_slot > private.clock_now() then
-      update private.sequence_step_sends set
-        scheduled_for = v_slot, claimed_until = null, updated_at = now()
-      where id = v_send.id;
+      if p_due_only then
+        update private.sequence_step_sends set
+          scheduled_for = v_slot, claimed_until = null, updated_at = now()
+        where id = v_send.id;
+      end if;
       v_blocked := 'outside_window';
     end if;
   end if;
@@ -884,10 +944,18 @@ begin
     end if;
     if v_blocked is not null then
       update private.sequence_step_sends set
-        status = 'awaiting_reconfirmation', scheduled_for = null, claimed_until = null,
+        status = 'awaiting_reconfirmation', claimed_until = null,
         last_error = v_blocked, last_error_at = now(), updated_at = now()
       where id = v_send.id;
     end if;
+  end if;
+
+  -- Um bloqueio que deixa o passo programado (sem Conta remetente pronta, titular sem Participação) fica gravado
+  -- com o motivo, e o executor só tenta de novo em 15 minutos.
+  if v_blocked in ('sender_not_ready', 'owner_not_responsible', 'step_missing') and p_due_only then
+    update private.sequence_step_sends set
+      last_error = v_blocked, last_error_at = now(), claimed_until = now() + interval '15 minutes', updated_at = now()
+    where id = v_send.id and status = 'scheduled';
   end if;
 
   if v_blocked is not null then
@@ -972,11 +1040,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  -- Um envio em voo há mais de 10 minutos perdeu o resultado: passa a incerto, para ser reconciliado antes de
-  -- qualquer reenvio.
-  update private.sequence_step_sends set
-    status = 'uncertain', last_error = 'stale_sending', last_error_at = now(), updated_at = now()
-  where status = 'sending' and sending_at < now() - interval '10 minutes';
+  perform private.expire_stale_sends(null);
 
   return query
   with due as (
@@ -1016,6 +1080,11 @@ declare
   v_send private.sequence_step_sends;
   v_account_id uuid;
 begin
+  -- A trava da Sequência vem antes da linha do Envio, na mesma ordem da liberação: programar o passo seguinte mexe
+  -- em outras linhas da mesma Sequência.
+  perform 1 from public.sequences s
+  where s.id = (select e.sequence_id from private.sequence_step_sends e where e.id = p_send_id)
+  for update;
   update private.sequence_step_sends set
     status = 'sent',
     provider_email_id = coalesce(provider_email_id, nullif(btrim(p_provider_email_id), '')),
@@ -1037,19 +1106,23 @@ begin
   set last_interaction_at = greatest(last_interaction_at, v_send.sent_at)
   where id = v_account_id;
 
-  if v_send.authorization_id is not null then
-    perform private.schedule_next_step(v_send.sequence_id, v_send.sent_at);
-  end if;
+  -- Sem versão ativa (Sequência só com confirmações avulsas), não há nada a programar.
+  perform private.schedule_next_step(v_send.sequence_id, v_send.sent_at);
   return v_send;
 end;
 $$;
 
-create or replace function public.record_sequence_step_send_result(
+drop function public.record_sequence_step_send_result(uuid, text, text, text, text);
+
+-- p_retry_after_seconds: o prazo que o provedor pediu (ex.: Retry-After de um 429); a nova tentativa respeita o
+-- maior entre ele e o intervalo padrão.
+create function public.record_sequence_step_send_result(
   p_send_id uuid,
   p_outcome text,
   p_provider_email_id text,
   p_provider_message_id text,
-  p_error text
+  p_error text,
+  p_retry_after_seconds integer default null
 ) returns text
 language plpgsql
 security definer
@@ -1063,6 +1136,10 @@ begin
   if p_outcome not in ('sent', 'failed', 'uncertain') then
     raise exception 'unknown send outcome' using errcode = '22023';
   end if;
+  -- A trava da Sequência vem antes da linha do Envio, na mesma ordem da liberação.
+  perform 1 from public.sequences s
+  where s.id = (select e.sequence_id from private.sequence_step_sends e where e.id = p_send_id)
+  for update;
   select e.* into v_send from private.sequence_step_sends e where e.id = p_send_id for update;
   if not found then
     raise exception 'send not found' using errcode = 'P0002';
@@ -1090,7 +1167,9 @@ begin
     where a.id = v_send.authorization_id and a.revoked_at is null;
     if found then
       v_retry_at := private.next_send_slot(
-        private.clock_now() + case when v_send.attempts <= 1 then interval '5 minutes' else interval '30 minutes' end, 0,
+        private.clock_now() + greatest(
+          case when v_send.attempts <= 1 then interval '5 minutes' else interval '30 minutes' end,
+          make_interval(secs => greatest(coalesce(p_retry_after_seconds, 0), 0))), 0,
         private.step_window(v_auth.document, private.authorized_step(v_auth.id, v_send.step_id)));
       update private.sequence_step_sends set
         status = 'scheduled',
@@ -1112,5 +1191,262 @@ begin
   where id = v_send.id
   returning * into v_send;
   return v_send.status;
+end;
+$$;
+
+revoke all on function public.record_sequence_step_send_result(uuid, text, text, text, text, integer)
+  from public, anon, authenticated;
+grant execute on function public.record_sequence_step_send_result(uuid, text, text, text, text, integer)
+  to service_role;
+
+-- 12. O titular resolve um passo incerto que o eco não reconciliou: conferiu a caixa de saída e diz se o e-mail
+-- saiu. Saiu: vira enviado, e o passo seguinte é programado. Não saiu: volta a ser confirmado, com o Destino atual.
+create function public.resolve_uncertain_step(p_sequence_id uuid, p_step_id text, p_went_out boolean)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_send private.sequence_step_sends;
+begin
+  if v_user_id is null then
+    raise exception 'authentication required' using errcode = '28000';
+  end if;
+  perform 1 from public.sequences s
+  join public.workspace_memberships m
+    on m.workspace_id = s.workspace_id and m.user_id = v_user_id and m.active
+  where s.id = p_sequence_id and s.owner_user_id = v_user_id
+  for update of s;
+  if not found then
+    raise exception 'sequence not found or not owned by active user' using errcode = '42501';
+  end if;
+
+  select e.* into v_send from private.sequence_step_sends e
+  where e.sequence_id = p_sequence_id and e.step_id = p_step_id;
+  if not found then
+    raise exception 'send not found' using errcode = 'P0002';
+  end if;
+  perform private.expire_stale_sends(v_send.id);
+  select e.* into v_send from private.sequence_step_sends e where e.id = v_send.id for update;
+  if v_send.status <> 'uncertain' then
+    raise exception 'send is not uncertain' using errcode = '55000';
+  end if;
+
+  if coalesce(p_went_out, false) then
+    v_send := private.mark_step_send_sent(v_send.id, null, null, null);
+    return v_send.status;
+  end if;
+  update private.sequence_step_sends set
+    status = 'failed', last_error = 'owner_confirmed_not_sent', last_error_at = now(), updated_at = now()
+  where id = v_send.id;
+  return (select c.status from public.confirm_sequence_step(p_sequence_id, p_step_id) c);
+end;
+$$;
+
+revoke all on function public.resolve_uncertain_step(uuid, text, boolean) from public, anon;
+grant execute on function public.resolve_uncertain_step(uuid, text, boolean) to authenticated;
+
+-- 13. O eco de um passo que falhou (e espera nova tentativa) também prova o envio: a ingestão passa a reconciliar
+-- qualquer Envio ainda não marcado como enviado, para a nova tentativa não duplicar o e-mail.
+create or replace function public.ingest_unipile_email_event(
+  p_event_id text,
+  p_event_type text,
+  p_unipile_account_id text,
+  p_email jsonb,
+  p_owner_addresses text[] default '{}'
+) returns table (outcome text, interaction_id uuid, send_id uuid, attachments jsonb)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_event_row_id uuid;
+  v_sender private.sender_accounts;
+  v_send private.sequence_step_sends;
+  v_sequence public.sequences;
+  v_contact_id uuid;
+  v_interaction public.account_interactions;
+  v_email_id text := nullif(btrim(p_email ->> 'id'), '');
+  v_message_id text := nullif(btrim(p_email ->> 'message_id'), '');
+  v_thread_id text := nullif(btrim(p_email ->> 'thread_id'), '');
+  v_from jsonb;
+  v_from_email text;
+  v_in_reply_to text := private.email_header(p_email, 'In-Reply-To');
+  v_references text[] := array_remove(
+    regexp_split_to_array(coalesce(private.email_header(p_email, 'References'), ''), '\s+'), '');
+  v_header_send text := private.email_header(p_email, 'X-Althius-Envio');
+  v_header_send_id uuid;
+  v_attachments jsonb := '[]'::jsonb;
+  v_received_at timestamptz;
+  v_outcome text;
+begin
+  if p_event_type not in ('email.new', 'email.new.bounce') then
+    raise exception 'unsupported email event type' using errcode = '22023';
+  end if;
+
+  -- 1. Dedupe pelo id do evento. A Unipile reentrega até duas vezes.
+  insert into private.unipile_email_events (event_id, event_type, unipile_account_id, provider_email_id, outcome)
+  values (p_event_id, p_event_type, p_unipile_account_id, v_email_id, 'unrelated')
+  on conflict (event_id) do nothing
+  returning id into v_event_row_id;
+  if v_event_row_id is null then
+    return query select 'duplicate_event', null::uuid, null::uuid, '[]'::jsonb;
+    return;
+  end if;
+
+  select a.* into v_sender from private.sender_accounts a where a.unipile_account_id = p_unipile_account_id;
+  if not found then
+    update private.unipile_email_events set outcome = 'unknown_account' where id = v_event_row_id;
+    return query select 'unknown_account', null::uuid, null::uuid, '[]'::jsonb;
+    return;
+  end if;
+  update private.unipile_email_events set sender_account_id = v_sender.id where id = v_event_row_id;
+
+  -- 2. Dedupe pelo e-mail: o email.new sai de novo quando o e-mail é movido ou vai para a lixeira.
+  perform pg_advisory_xact_lock(hashtext(p_unipile_account_id || '|' || coalesce(v_email_id, p_event_id)));
+  if v_email_id is not null and exists (
+    select 1 from private.unipile_email_events e
+    where e.unipile_account_id = p_unipile_account_id and e.provider_email_id = v_email_id
+      and e.event_type = p_event_type and e.id <> v_event_row_id
+      and e.outcome in ('echo', 'reply', 'bounce', 'unrelated')
+  ) then
+    update private.unipile_email_events set outcome = 'duplicate_email' where id = v_event_row_id;
+    return query select 'duplicate_email', null::uuid, null::uuid, '[]'::jsonb;
+    return;
+  end if;
+
+  v_from := case when jsonb_typeof(p_email -> 'from') = 'array' then p_email -> 'from' -> 0 else p_email -> 'from' end;
+  v_from_email := lower(nullif(btrim(v_from ->> 'email'), ''));
+  if v_header_send ~* '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$' then
+    v_header_send_id := v_header_send::uuid;
+  end if;
+
+  -- 3. Bounce: o payload é o e-mail ORIGINAL enviado. Eco: o próprio envio nos itens enviados.
+  select e.* into v_send from private.sequence_step_sends e
+  where e.sender_account_id = v_sender.id
+    and (e.id = v_header_send_id or e.provider_email_id = v_email_id or e.provider_message_id = v_message_id)
+  limit 1;
+  if p_event_type = 'email.new.bounce' then
+    if found then
+      update private.sequence_step_sends set
+        status = 'bounced', last_error = 'bounced', last_error_at = now(), updated_at = now()
+      where id = v_send.id;
+      v_outcome := 'bounce';
+    else
+      v_outcome := 'unrelated';
+    end if;
+  elsif found then
+    if v_from_email is not null and v_sender.email_address is distinct from v_from_email then
+      update private.sender_accounts set email_address = v_from_email, updated_at = now() where id = v_sender.id;
+    end if;
+    -- O eco prova que o e-mail saiu, mesmo quando o resultado da chamada foi falha e o passo espera nova tentativa.
+    if v_send.status not in ('sent', 'bounced') then
+      v_send := private.mark_step_send_sent(v_send.id, v_email_id, v_message_id, v_thread_id);
+    else
+      update private.sequence_step_sends set
+        provider_email_id = coalesce(provider_email_id, v_email_id),
+        provider_message_id = coalesce(provider_message_id, v_message_id),
+        provider_thread_id = coalesce(provider_thread_id, v_thread_id),
+        updated_at = now()
+      where id = v_send.id;
+    end if;
+    v_outcome := 'echo';
+  -- O que o titular escreveu por conta própria também é eco, nunca resposta do Contato.
+  elsif v_from_email is not null and (v_from_email = v_sender.email_address
+    or v_from_email = any (select lower(a) from unnest(p_owner_addresses) a)) then
+    v_send := null;
+    v_outcome := 'echo';
+  -- Resposta automática (mailer-daemon, fora do escritório, Auto-Submitted) não é resposta comercial.
+  elsif v_from_email ~* '^(mailer-daemon|postmaster|no-?reply|do-?not-?reply)@'
+    or lower(coalesce(private.email_header(p_email, 'Auto-Submitted'), 'no')) <> 'no'
+    or private.email_header(p_email, 'X-Autoreply') is not null
+    or private.email_header(p_email, 'X-Autorespond') is not null then
+    v_send := null;
+    v_outcome := 'automatic';
+  end if;
+
+  -- 4. Resposta: a conversa de um passo enviado, ou o In-Reply-To/References com um message_id enviado.
+  if v_outcome is null then
+    select e.* into v_send from private.sequence_step_sends e
+    where e.sender_account_id = v_sender.id
+      and e.status in ('sent', 'uncertain', 'bounced')
+      and (
+        (v_thread_id is not null and e.provider_thread_id = v_thread_id)
+        or (e.provider_message_id is not null
+          and (e.provider_message_id = v_in_reply_to or e.provider_message_id = any (v_references)))
+      )
+    order by e.sent_at desc nulls last
+    limit 1;
+    v_outcome := case when found then 'reply' else 'unrelated' end;
+  end if;
+
+  if v_outcome = 'reply' then
+    -- A trava da Sequência serializa a pausa com uma liberação concorrente de envio.
+    select s.* into v_sequence from public.sequences s where s.id = v_send.sequence_id for update;
+
+    -- Quem respondeu: o Contato com esse e-mail e Vínculo ativo na Conta-alvo. Outra pessoa da Conta-alvo
+    -- (um colega na mesma conversa) também pausa, mas a Interação pública não a atribui ao Contato errado.
+    select c.id into v_contact_id from public.contacts c
+    join public.contact_account_links l
+      on l.workspace_id = c.workspace_id and l.contact_id = c.id
+        and l.target_account_id = v_sequence.target_account_id::uuid and l.ended_at is null
+    where c.workspace_id = v_sequence.workspace_id and c.email = v_from_email
+    limit 1;
+
+    v_received_at := coalesce(private.safe_timestamptz(p_email ->> 'date'), now());
+
+    insert into public.account_interactions (workspace_id, target_account_id, contact_id, kind, occurred_at, source, recorded_by)
+    values (v_sequence.workspace_id, v_sequence.target_account_id::uuid, v_contact_id, 'email-recebido',
+      v_received_at, 'sequencia', v_sequence.owner_user_id)
+    returning * into v_interaction;
+    update public.target_accounts
+    set last_interaction_at = greatest(last_interaction_at, v_received_at)
+    where id = v_sequence.target_account_id::uuid;
+
+    -- Os anexos chegam com id e/ou url; os dois ficam guardados para o download depois do 2xx.
+    if jsonb_typeof(p_email -> 'attachments') = 'array' then
+      select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+        'id', coalesce(nullif(btrim(a ->> 'id'), ''), 'anexo-' || n),
+        'url', nullif(btrim(a ->> 'url'), ''),
+        'name', coalesce(a ->> 'name', a ->> 'filename', 'anexo'),
+        'mime', coalesce(a ->> 'mime', a ->> 'mime_type', a ->> 'content_type'),
+        'size', case when (a ->> 'size') ~ '^\d+$' then (a ->> 'size')::bigint end,
+        'status', 'pending')) order by n), '[]'::jsonb)
+      into v_attachments
+      from jsonb_array_elements(p_email -> 'attachments') with ordinality as t(a, n)
+      where jsonb_typeof(a) = 'object';
+    end if;
+
+    insert into private.received_emails (
+      interaction_id, workspace_id, owner_user_id, sequence_id, send_id, contact_id, sender_account_id,
+      provider_email_id, provider_message_id, provider_thread_id, from_email, from_name,
+      subject, body, snippet, received_at, attachments
+    ) values (
+      v_interaction.id, v_sequence.workspace_id, v_sequence.owner_user_id, v_sequence.id, v_send.id, v_contact_id, v_sender.id,
+      coalesce(v_email_id, p_event_id), v_message_id, v_thread_id, v_from_email, nullif(btrim(v_from ->> 'display_name'), ''),
+      p_email ->> 'subject', p_email ->> 'body', p_email ->> 'snippet', v_received_at, v_attachments
+    );
+
+    -- A pausa vale para a Sequência inteira da Conta-alvo; retomar é ação explícita do responsável.
+    if v_sequence.status = 'ativa' then
+      update public.sequences set
+        status = 'pausada',
+        public_summary = public_summary || jsonb_build_object('status', 'pausada'),
+        updated_at = now()
+      where id = v_sequence.id;
+      update private.sequence_documents set
+        document = document || jsonb_build_object('motivoPause', 'Contato respondeu'),
+        updated_at = now()
+      where sequence_id = v_sequence.id;
+    end if;
+  end if;
+
+  update private.unipile_email_events
+  set outcome = v_outcome, send_id = v_send.id, interaction_id = v_interaction.id
+  where id = v_event_row_id;
+  return query select v_outcome, v_interaction.id, v_send.id, v_attachments;
 end;
 $$;

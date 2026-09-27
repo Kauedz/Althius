@@ -4,7 +4,7 @@
 
 **Blocked by:** nada. O 02 está fechado, e a parte de conexão do 03 já funciona com uma conta real. O que falta no 03 (os estados em `/conexoes`) não bloqueia o envio.
 
-**Status:** done (ciclo real validado em 2026-09-26)
+**Status:** closed
 
 - [x] Um passo confirmado é enviado ao endereço real do Contato usando exclusivamente a Conta remetente de E-mail do responsável. (Backend pronto no PR 1; a validação com o destinatário real fica para depois da tela.)
 - [x] O passo só sai com a Conta remetente em `ready`. Em `syncing`, `reconnect_required` ou com `reconciliation_required`, ele espera. Esse é o bloqueio de envio na reconexão do canais-03.
