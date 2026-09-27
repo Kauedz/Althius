@@ -41,6 +41,7 @@ import {
   useFonteDeSequencias,
 } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import { textoDaResposta } from '@/fonte/texto-do-email'
 import {
   CANAIS_SUPORTADOS,
   type AnexoStep,
@@ -1590,7 +1591,9 @@ function RespostasRecebidas({
               <span>· {formatarDataCompleta(resposta.recebidaEm)}</span>
             </div>
             {resposta.assunto && <p className="text-sm font-medium text-al-ink">{resposta.assunto}</p>}
-            {resposta.corpo && <p className="text-sm text-al-ink whitespace-pre-wrap leading-relaxed">{resposta.corpo}</p>}
+            {resposta.corpo && (
+              <p className="text-sm text-al-ink whitespace-pre-wrap leading-relaxed">{textoDaResposta(resposta.corpo)}</p>
+            )}
             {resposta.anexos.length > 0 && (
               <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
                 {resposta.anexos.map((anexo) => (
