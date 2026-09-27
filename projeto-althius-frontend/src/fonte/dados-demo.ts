@@ -66,7 +66,7 @@ export const participacoes: RegistroDeParticipacao[] = [
 ]
 
 export const convites: Convite[] = [
-  { id: 'convite-carla', email: 'carla.nunes@databricks.com', papel: 'membro', registradoEm: '2026-09-22' },
+  { id: 'convite-carla', email: 'carla.nunes@databricks.com', papel: 'membro', registradoEm: '2026-09-22', estado: 'pendente' },
 ]
 
 /** O ICP vigente na Memória do Workspace da demonstração, aprovado antes da sessão começar. */

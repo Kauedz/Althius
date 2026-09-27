@@ -10,6 +10,23 @@ export const ROTA_ESQUECI_A_SENHA = '/esqueci-a-senha'
 /** Onde o link do e-mail de redefinição abre, para definir a nova senha. */
 export const ROTA_DE_REDEFINICAO_DA_SENHA = '/redefinir-a-senha'
 
+/**
+ * Onde o link de um convite abre: `/convite/<token>`. Sem sessão, a pessoa passa pela tela de acesso, que lembra o
+ * link como `destino`; com a sessão, o convite é aceito antes de abrir o Workspace.
+ */
+export const ROTA_DO_CONVITE = '/convite'
+
+/** O link de um convite, nesta origem, que o Administrador copia e envia à pessoa convidada. */
+export function enderecoDoConvite(token: string): string {
+  return `${window.location.origin}${ROTA_DO_CONVITE}/${encodeURIComponent(token)}`
+}
+
+/** O token do convite no endereço atual, se ele for o link de um convite. */
+export function tokenDoConviteNoEndereco(): string | null {
+  const [, rota, token, ...resto] = window.location.pathname.split('/')
+  return `/${rota}` === ROTA_DO_CONVITE && token && resto.length === 0 ? decodeURIComponent(token) : null
+}
+
 /** As telas de acesso que lembram o `destino` para depois do login. */
 const TELAS_COM_DESTINO = [ROTA_DE_ENTRADA, ROTA_DE_CADASTRO, ROTA_ESQUECI_A_SENHA, ROTA_DE_REDEFINICAO_DA_SENHA]
 

@@ -10,11 +10,14 @@ import {
 import { criarFonteSimulada } from './simulada'
 import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
 import { criarFonteDeContasSimulada } from './simulada-contas'
+import { criarFonteDeContasRemetentesDaDemonstracao } from './simulada-contas-remetentes'
 import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
 import { criarFonteDeContasSupabase } from './supabase-contas'
+import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
+import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
@@ -33,6 +36,7 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDeOnboarding: criarFonteDeOnboardingSimulada({ armazenamento }),
     fonteDeSinais,
     fonteDeConexoes: criarFonteDeConexoesSimulada(fonte),
+    fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     indisponiveis: new Set(),
   }
 }
@@ -52,12 +56,17 @@ export function criarAmbienteDoWorkspace({
 }): Ambiente {
   return {
     modo: 'real',
-    fonte: criarFonteDeAgentesIndisponivel({ usuario, participacao }),
+    // Participantes e convites já têm backend; o resto de Agentes e Configurações, ainda não.
+    fonte: {
+      ...criarFonteDeAgentesIndisponivel({ usuario, participacao }),
+      ...criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id),
+    },
     fonteDeContas: criarFonteDeContasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
     fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId, () => participacao.papel),
+    fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
     indisponiveis: new Set(['agentes', 'sinais', 'aprovacoes', 'configuracoes', 'onboarding', 'anexos']),
   }
 }

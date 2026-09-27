@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Ambiente, ModoDoAmbiente, ModuloDoWorkspace } from './ambiente'
 import type { FonteDeConexoes } from './conexoes-tipos'
+import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
@@ -112,6 +113,24 @@ export function FonteDeConexoesProvider({ fonte, children }: { fonte: FonteDeCon
 export function useFonteDeConexoes(): FonteDeConexoes {
   const fonte = useContext(ContextoDaFonteDeConexoes)
   if (!fonte) throw new Error('useFonteDeConexoes precisa de um FonteDeConexoesProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeContasRemetentes = createContext<FonteDeContasRemetentes | null>(null)
+
+export function FonteDeContasRemetentesProvider({
+  fonte,
+  children,
+}: {
+  fonte: FonteDeContasRemetentes
+  children: ReactNode
+}) {
+  return <ContextoDaFonteDeContasRemetentes.Provider value={fonte}>{children}</ContextoDaFonteDeContasRemetentes.Provider>
+}
+
+export function useFonteDeContasRemetentes(): FonteDeContasRemetentes {
+  const fonte = useContext(ContextoDaFonteDeContasRemetentes)
+  if (!fonte) throw new Error('useFonteDeContasRemetentes precisa de um FonteDeContasRemetentesProvider')
   return fonte
 }
 

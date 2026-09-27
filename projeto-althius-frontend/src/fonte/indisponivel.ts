@@ -29,7 +29,7 @@ function semConversa(): AsyncIterable<never> {
 
 /**
  * Agentes, Conversas, Aprovações, Conexões e Configurações do Workspace operacional. Só a identidade é real: a Conta
- * de usuário da sessão e o papel da Participação escolhida.
+ * de usuário da sessão, o nome do Workspace e o papel da Participação escolhida.
  */
 export function criarFonteDeAgentesIndisponivel({
   usuario,
@@ -42,8 +42,7 @@ export function criarFonteDeAgentesIndisponivel({
     observar: semMudancas,
     async workspace() {
       return {
-        // O nome do Workspace chega com o cadastro do Workspace; até lá, ele não é inventado.
-        cliente: 'Workspace',
+        cliente: participacao.nomeDoWorkspace,
         descricao: '',
         usuario: { id: usuario.id, nome: usuario.email, email: usuario.email, cargo: '' },
         papel: participacao.papel,

@@ -2,13 +2,24 @@
 // CONTEXT.md. A composição da aplicação escolhe um e injeta as fontes dele; as telas só consomem os contratos.
 
 import type { FonteDeConexoes } from './conexoes-tipos'
+import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding, FonteDeSequencias, Papel } from './tipos'
 
 export type ModoDoAmbiente = 'demonstracao' | 'real'
 
 /** Os módulos que um Workspace operacional liga ao backend um de cada vez. Sequências já é real. */
-export type ModuloDoWorkspace = 'agentes' | 'contas' | 'contatos' | 'sinais' | 'aprovacoes' | 'conexoes' | 'configuracoes' | 'onboarding' | 'anexos'
+export type ModuloDoWorkspace =
+  | 'agentes'
+  | 'contas'
+  | 'contatos'
+  | 'sinais'
+  | 'aprovacoes'
+  | 'conexoes'
+  | 'configuracoes'
+  | 'participantes'
+  | 'onboarding'
+  | 'anexos'
 
 /** Como a tela anuncia um módulo que o Workspace operacional ainda não conectou. */
 export const MODULO_INDISPONIVEL: Record<ModuloDoWorkspace, string> = {
@@ -19,6 +30,7 @@ export const MODULO_INDISPONIVEL: Record<ModuloDoWorkspace, string> = {
   aprovacoes: 'Aprovações ainda não estão disponíveis neste Workspace.',
   conexoes: 'Conexões ainda não estão disponíveis neste Workspace.',
   configuracoes: 'Esta seção de Configurações ainda não está disponível neste Workspace.',
+  participantes: 'Participantes e convites ainda não estão disponíveis neste Workspace.',
   onboarding: 'O onboarding ainda não está disponível neste Workspace.',
   anexos: 'Anexos ainda não estão disponíveis neste Workspace.',
 }
@@ -46,6 +58,8 @@ export interface Ambiente {
   fonteDeOnboarding: FonteDeOnboarding
   fonteDeSinais: FonteDeSinais
   fonteDeConexoes: FonteDeConexoes
+  /** As Contas remetentes do titular. Na Demonstração, nenhuma é conectada. */
+  fonteDeContasRemetentes: FonteDeContasRemetentes
   /** Os módulos sem backend neste ambiente, que as telas mostram como indisponíveis. Na Demonstração, nenhum. */
   indisponiveis: ReadonlySet<ModuloDoWorkspace>
 }
@@ -59,5 +73,6 @@ export interface ContaDeUsuarioDaSessao {
 /** A Participação ativa com que a sessão abriu o Workspace operacional. */
 export interface ParticipacaoNoWorkspace {
   workspaceId: string
+  nomeDoWorkspace: string
   papel: Papel
 }

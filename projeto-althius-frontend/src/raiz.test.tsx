@@ -54,6 +54,8 @@ function participacao(workspaceId: string, role: 'admin' | 'member' = 'admin') {
 /** O bootstrap como o banco o executa: cria o Workspace pessoal e a Participação de Administrador uma única vez. */
 function workspacePessoalDaMarinaNoBanco(tabelas: Record<string, Record<string, unknown>[]>) {
   return () => {
+    const workspaces = (tabelas.workspaces ??= [])
+    if (!workspaces.some((w) => w.id === WORKSPACE_PESSOAL_DA_MARINA.id)) workspaces.push(WORKSPACE_PESSOAL_DA_MARINA)
     const participacoes = (tabelas.workspace_memberships ??= [])
     if (!participacoes.some((p) => p.workspace_id === WORKSPACE_PESSOAL_DA_MARINA.id)) {
       participacoes.push(participacao(WORKSPACE_PESSOAL_DA_MARINA.id))
@@ -109,7 +111,8 @@ describe('Workspace operacional e Demonstração', () => {
     expect(screen.queryByText(new RegExp(daDemonstracao))).not.toBeInTheDocument()
   })
 
-  it.each(['/configuracoes/perfil', '/configuracoes/preferencias', '/configuracoes/workspace', '/configuracoes/memoria/icp', '/configuracoes/plano'])(
+  // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`.
+  it.each(['/configuracoes/preferencias', '/configuracoes/memoria/icp', '/configuracoes/plano'])(
     '%s mostra que a seção está indisponível, sem dados da Demonstração',
     async (rota) => {
       window.history.replaceState(null, '', rota)
@@ -231,7 +234,12 @@ function contatoNoBanco(id: string, contaId: string, nome: string, extra: Record
 }
 
 /** O Workspace da empresa com a Alfa, da Marina, e a Beta, de outro Vendedor responsável; as RPCs gravam nas tabelas. */
-function abrirContasDoNorte(rota: string) {
+function abrirContasDoNorte(
+  rota: string,
+  { sequencias = [], rpcs = {}, esperarLeitura }: Pick<OpcoesDoSupabaseFalso, 'rpcs' | 'esperarLeitura'> & {
+    sequencias?: Record<string, unknown>[]
+  } = {},
+) {
   window.history.replaceState(null, '', rota)
   const tabelas: Record<string, Record<string, unknown>[]> = {
     workspace_memberships: [participacao('ws-norte', 'member')],
@@ -247,12 +255,14 @@ function abrirContasDoNorte(rota: string) {
       }),
       contatoNoBanco('7a1c2d3e-4a5b-4c6d-8e7f-000000000002', ID_DA_BETA, 'Rui Lima'),
     ],
+    sequences: sequencias,
   }
   const aberto = abrirAlthius({
     ultimoAmbiente: 'real',
     ultimoWorkspace: 'ws-norte',
     sessao: sessaoDe(MARINA),
     tabelas,
+    esperarLeitura,
     rpcs: {
       save_target_account: ({ p_name, p_url }) => {
         const dominio = String(p_url).replace(/^https?:\/\//, '').replace(/\/$/, '')
@@ -288,6 +298,7 @@ function abrirContasDoNorte(rota: string) {
         tabelas.account_interactions.push(interacao)
         return interacao
       },
+      ...rpcs,
     },
   })
   return { ...aberto, tabelas }
@@ -460,6 +471,111 @@ describe('Contas-alvo reais no Workspace operacional', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Beta Logística' })).toBeInTheDocument()
     expect(await screen.findByText('Nenhuma interação registrada')).toBeInTheDocument()
     expect(screen.queryByRole('form', { name: 'Registrar interação' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Nomes no lugar de identificadores no Workspace operacional', () => {
+  it('o seletor lista os Workspaces pelo nome, e a navegação mostra o nome do Workspace escolhido', async () => {
+    const { usuario } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: {
+        workspace_memberships: [participacao('ws-norte'), participacao('ws-sul', 'member')],
+        workspaces: [
+          { id: 'ws-norte', kind: 'empresa', name: 'Norte Distribuidora', owner_user_id: null },
+          { id: 'ws-sul', kind: 'empresa', name: 'Sul Varejo', owner_user_id: null },
+        ],
+      },
+    })
+
+    // Sem outro destino, a entrada abre o Workspace pessoal, que a navegação apresenta pelo nome.
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
+
+    const seletor = await screen.findByRole('combobox', { name: 'Selecione o Workspace' })
+    const opcoes = within(seletor).getAllByRole('option').map((opcao) => opcao.textContent)
+    expect(opcoes).toEqual(['Escolher participação…', 'Marina Souza', 'Norte Distribuidora', 'Sul Varejo'])
+    await usuario.selectOptions(seletor, 'Sul Varejo')
+
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByRole('button', { name: 'Workspace: Sul Varejo' })).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Sul Varejo')).toBeInTheDocument()
+    expect(screen.queryByText('ws-sul')).not.toBeInTheDocument()
+  })
+
+  it('dois Workspaces com o mesmo nome aparecem no seletor com o início do identificador', async () => {
+    const { usuario } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: {
+        workspace_memberships: [participacao('ca40c1d2-0000-4000-8000-000000000001'), participacao('05bb7bb8-0000-4000-8000-000000000002', 'member')],
+        workspaces: [
+          { id: 'ca40c1d2-0000-4000-8000-000000000001', kind: 'empresa', name: 'Workspace da empresa', owner_user_id: null },
+          { id: '05bb7bb8-0000-4000-8000-000000000002', kind: 'empresa', name: 'Workspace da empresa', owner_user_id: null },
+        ],
+      },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Trocar de Workspace' }))
+    const seletor = await screen.findByRole('combobox', { name: 'Selecione o Workspace' })
+    expect(within(seletor).getAllByRole('option').map((opcao) => opcao.textContent)).toEqual([
+      'Escolher participação…', 'Marina Souza', 'Workspace da empresa (05bb7bb8)', 'Workspace da empresa (ca40c1d2)',
+    ])
+  })
+
+  it('o Resumo da Conta-alvo que outro participante vê mostra o nome da Conta-alvo', async () => {
+    const sequenciaDaBeta = sequenciaDeOutroVendedor('ws-norte', ID_DA_BETA)
+    abrirContasDoNorte(`/sequencias/${sequenciaDaBeta.id}`, { sequencias: [sequenciaDaBeta] })
+
+    const resumo = await screen.findByRole('region', { name: 'Resumo público da sequência' })
+    expect(within(resumo).getByText('Beta Logística')).toBeInTheDocument()
+    expect(within(resumo).queryByText(ID_DA_BETA)).not.toBeInTheDocument()
+  })
+
+  it('o detalhe da Sequência recém-criada mostra o nome da Conta-alvo desde a primeira renderização', async () => {
+    // O banco grava a Sequência da Marina e devolve o documento privado só a ela.
+    const sequencias: Record<string, unknown>[] = []
+    const documentos = new Map<unknown, unknown>()
+    let contasChegando: Promise<void> | undefined
+    const { usuario } = abrirContasDoNorte('/sequencias', {
+      sequencias,
+      esperarLeitura: (tabela) => (tabela === 'target_accounts' ? contasChegando : undefined),
+      rpcs: {
+        create_sequence: ({ p_workspace_id, p_target_account_id, p_private_document, p_public_summary }) => {
+          const nova = {
+            id: 'sequencia-da-alfa', workspace_id: p_workspace_id, target_account_id: p_target_account_id,
+            owner_user_id: MARINA.id, status: 'ativa', public_summary: p_public_summary,
+            created_at: '2026-09-27T12:00:00Z', updated_at: '2026-09-27T12:00:00Z',
+          }
+          sequencias.push(nova)
+          documentos.set(nova.id, p_private_document)
+          return [nova]
+        },
+        get_owned_sequence: ({ p_sequence_id }) => sequencias
+          .filter((s) => s.id === p_sequence_id)
+          .map((s) => ({ ...s, public_summary: { ...(s.public_summary as object), _document: documentos.get(s.id) } })),
+        list_sequence_step_sends: () => [],
+        list_received_emails: () => [],
+        get_sequence_authorization: () => [],
+      },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: /Nova sequência/ }))
+    const dialogo = await screen.findByRole('dialog')
+    await usuario.selectOptions(within(dialogo).getByRole('combobox', { name: 'Conta-alvo' }), ID_DA_ALFA)
+    await within(dialogo).findByRole('checkbox', { name: /Maria Souza/ })
+    let liberarContas!: () => void
+    contasChegando = new Promise((resolver) => { liberarContas = resolver })
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Criar sequência' }))
+
+    // A Sequência criada já chegou ao detalhe; as Contas-alvo ainda não. O identificador não aparece no lugar do nome.
+    await waitFor(() => expect(window.location.pathname).toBe('/sequencias/sequencia-da-alfa'))
+    expect(await screen.findByRole('status')).toHaveTextContent('Carregando')
+    expect(screen.queryByText(new RegExp(ID_DA_ALFA))).not.toBeInTheDocument()
+
+    liberarContas()
+    const titulo = await screen.findByRole('heading', { level: 2, name: /sequência$/ })
+    expect(titulo).toHaveTextContent('Alfa Varejo sequência')
+    expect(screen.getByRole('link', { name: 'Sequências / Alfa Varejo' })).toBeInTheDocument()
   })
 })
 
