@@ -4,16 +4,16 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
-  CanalDaContaRemetente,
   ContaRemetente,
   EstadoDaContaRemetente,
   FonteDeContasRemetentes,
 } from './contas-remetentes-tipos'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
+import { ehCanalSuportado } from './sequencias-tipos'
 
 interface LinhaDaContaRemetente {
   id: string
-  channel: CanalDaContaRemetente
+  channel: string
   provider: string
   status: string
   reconciliation_required: boolean
@@ -31,6 +31,7 @@ const ESTADO: Record<string, EstadoDaContaRemetente> = {
 function mapear(linha: LinhaDaContaRemetente): ContaRemetente {
   const estado = ESTADO[linha.status]
   if (!estado) throw new Error(`Estado de Conta remetente desconhecido: ${linha.status}`)
+  if (!ehCanalSuportado(linha.channel)) throw new Error(`Canal de Conta remetente desconhecido: ${linha.channel}`)
   return {
     id: linha.id,
     canal: linha.channel,

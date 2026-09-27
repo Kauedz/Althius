@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Carregando } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
@@ -17,6 +17,11 @@ const DESCRICAO =
 const INTERVALO_DE_ATUALIZACAO_MS = 5000
 /** Quanto vale o link da autenticação hospedada que a Edge Function `sender-accounts` gera: depois disso, não há mais o que esperar. */
 const VALIDADE_DO_LINK_MS = 15 * 60 * 1000
+/**
+ * Por quanto tempo a lista é relida sozinha. Uma conta que o backend deixou parada não é relida para sempre: depois
+ * disso, ela se atualiza ao voltar para a aba ou pelo botão Atualizar.
+ */
+const LIMITE_DO_ACOMPANHAMENTO_MS = 15 * 60 * 1000
 
 const CANAIS: CanalDaContaRemetente[] = ['email', 'whatsapp', 'linkedin']
 
@@ -105,8 +110,18 @@ function ContasRemetentesDoTitular() {
     const intervalo = setInterval(() => {
       if (document.visibilityState !== 'hidden') recarregar()
     }, INTERVALO_DE_ATUALIZACAO_MS)
-    return () => clearInterval(intervalo)
+    const limite = setTimeout(() => clearInterval(intervalo), LIMITE_DO_ACOMPANHAMENTO_MS)
+    return () => {
+      clearInterval(intervalo)
+      clearTimeout(limite)
+    }
   }, [acompanhar, recarregar])
+
+  // O retrato da espera sai da lista de quando o link chega, não da de quando o botão foi clicado.
+  const contasAtuais = useRef(contas)
+  useEffect(() => {
+    contasAtuais.current = contas
+  }, [contas])
 
   // Quem volta para esta aba (da autenticação, de Conexões ou de outro lugar) vê o que o backend tem agora.
   useEffect(() => {
@@ -125,7 +140,7 @@ function ContasRemetentesDoTitular() {
     try {
       const url = await pedirLink()
       window.open(url, '_blank', 'noopener,noreferrer')
-      setEspera({ canal, url, retrato: retratoDoCanal(contas, canal) })
+      setEspera({ canal, url, retrato: retratoDoCanal(contasAtuais.current ?? contas, canal) })
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível iniciar a conexão.')
     } finally {

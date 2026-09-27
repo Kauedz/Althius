@@ -1,10 +1,11 @@
 // As Contas remetentes do titular: as identidades de E-mail, WhatsApp e LinkedIn que ele conecta pela autenticação
 // hospedada da Unipile para as Sequências saírem em seu nome. Vocabulário do CONTEXT.md. Só o titular as vê.
 
+import type { CanalSuportado } from './sequencias-tipos'
 import type { FonteObservavel } from './tipos'
 
-/** O Canal de abordagem de uma Conta remetente. */
-export type CanalDaContaRemetente = 'email' | 'whatsapp' | 'linkedin'
+/** O Canal de abordagem de uma Conta remetente: os mesmos em que um passo de Sequência sai. */
+export type CanalDaContaRemetente = CanalSuportado
 
 /**
  * Em que ponto a Conta remetente está, como o backend a registrou a partir do webhook da Unipile. O retorno da

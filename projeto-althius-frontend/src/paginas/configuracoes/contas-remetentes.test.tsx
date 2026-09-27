@@ -250,6 +250,21 @@ describe('Minhas Contas remetentes no Workspace operacional', () => {
     expect(listagens.length).toBe(antes)
   })
 
+  it('uma conta que o backend deixou parada não é consultada para sempre', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { listagens } = abrirMeuPerfil({ contas: [contaRemetente({ status: 'syncing', reconciliation_required: true })] })
+    expect(await within(await canal('E-mail')).findByText('Conferindo respostas')).toBeInTheDocument()
+
+    const antes = listagens.length
+    await act(() => vi.advanceTimersByTimeAsync(10000))
+    expect(listagens.length).toBeGreaterThan(antes)
+
+    await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000))
+    const depoisDoLimite = listagens.length
+    await act(() => vi.advanceTimersByTimeAsync(30000))
+    expect(listagens.length).toBe(depoisDoLimite)
+  })
+
   it('a pessoa atualiza a lista quando quiser', async () => {
     const { backend, usuario } = abrirMeuPerfil({ contas: [contaRemetente({ status: 'reconnect_required' })] })
     expect(await within(await canal('E-mail')).findByText('Requer reconexão')).toBeInTheDocument()
