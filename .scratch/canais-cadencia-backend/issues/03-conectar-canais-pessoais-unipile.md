@@ -11,7 +11,7 @@
 - [ ] A interface existente diferencia conectando, sincronizando, pronta, requer reconexão e desconectada.
 - [x] Apenas o titular pode consultar detalhes privados ou usar a Conta remetente; outro participante não consegue associá-la à própria Sequência.
 - [x] Credenciais e segredos da Unipile ficam somente no backend e não aparecem no bundle, logs compartilhados ou respostas públicas.
-- [ ] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade. O bloqueio de envio é critério do canais-04, que é onde o envio acontece.
+- [x] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade. O bloqueio de envio é critério do canais-04, que é onde o envio acontece.
 - [x] A entrega usa contratos da Unipile v2 (host único, hosted auth por `POST /v2/auth/link`, webhook único assinado por HMAC) e não mistura payloads da v1.
 
 ## Implementação local
@@ -30,6 +30,24 @@
   - primeira conexão real ponta a ponta pelo `npm run unipile:testar -- email`: link hospedado de `POST /v2/auth/link` → `account.add` assinado (HTTP 200) → Conta remetente de e-mail `GOOGLE` do Vendedor responsável. Ela ficou em `syncing` porque Google, Outlook e LinkedIn não fazem sincronização inicial na v2 e nunca mandam `account.initial_sync.completed`. Corrigido: a função aplica o `SYNC_SUCCESS` logo depois do `account.add` para esses provedores. A conta do teste está `ready`;
   - continuam em aberto o item "A interface existente diferencia...", porque `/conexoes` ainda mostra a tela de indisponível no Workspace operacional, e o bloqueio de envio na reconexão.
 - **Conta Unipile é infraestrutura descartável na pré-produção** ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)): o plano troca de conta Unipile pelo menos três vezes (teste grátis de 7 dias → conta paga de um sócio → conta oficial da empresa). Só os 3 segredos das Edge Functions mudam; nenhum Contato, Conta-alvo, Sequência ou Interação depende de qual conta está ativa. Rodar o wizard de novo a cada troca.
+
+## Reconciliação depois da reconexão (2026-09-27)
+
+- **O problema:** `reconciliation_required` virava `true` numa queda ou reconexão, e nada o limpava. A conta ficava em `syncing` e os envios, bloqueados para sempre.
+- **A correção:** migration `supabase/migrations/20260927114500_reconciliacao_da_conta_remetente.sql`.
+  - Uma queda (`CREDENTIALS`, `ERROR`, `STOPPED`) ou uma reconexão pela autenticação hospedada exige reconciliação.
+  - Quando a Unipile avisa que a conta voltou e sincronizou (`SYNC_SUCCESS` ou `OK`), ela fica pronta para reconciliar (`reconciliation_ready_at`), ainda sem enviar.
+  - O relógio do canais-05 chama o Executor também quando há conta nesse estado.
+  - O Executor reserva a conta por 5 minutos (`claim_sender_reconciliations`). Depois confere na Unipile, pela mesma rotina usada antes de um envio (`checkConversation` em `_shared/send-step.ts`), a última conversa de cada Contato das Sequências ativas que saíram pela conta (`conversations_to_reconcile`). Uma resposta perdida no período é gravada e pausa a Sequência.
+  - Só então a conta volta a `ready` (`finish_sender_reconciliation`). Se uma conversa não pôde ser conferida, a conta continua bloqueada e a próxima rodada tenta de novo. Se a conta caiu de novo durante a reconciliação, a rodada não a libera.
+- **Testes:**
+  - pgTAP `supabase/tests/reconciliacao_da_conta_remetente.sql` (21 asserções).
+  - Deno `supabase/functions/sequence-runner/handler.test.ts`:
+    - reconcilia e libera;
+    - uma falha mantém a conta bloqueada;
+    - uma conta sem conversas é liberada sem chamar a Unipile;
+    - a reconciliação vem antes dos envios.
+- **Falta no ticket:** a interface com os estados da conta, em Configurações → perfil, decidido em 2026-09-27. Fica fora de `/conexoes`, como combinado com a frente de Conexões.
 
 ## Dependências externas
 
