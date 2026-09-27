@@ -6,14 +6,14 @@
 
 **Status:** ready-for-agent
 
-- [ ] Ativar a Sequência registra a versão autorizada e programa somente passos válidos, com destinos e Contas remetentes prontos.
-- [ ] O executor calcula horários em `America/Sao_Paulo`, de segunda a sexta, sem calendário de feriados nesta entrega.
-- [ ] Antes de cada envio, o backend revalida responsável, participação ativa, versão, pausa, janela, destino e conexão.
-- [ ] Editar um passo pendente invalida a autorização da versão anterior e exige nova confirmação; passos enviados preservam seu histórico.
-- [ ] Falha não avança o passo como enviado; tentativas têm reserva exclusiva, limite, motivo e próxima execução persistidos.
-- [ ] E-mail manual exige ação explícita do titular e não vira envio automático.
-- [ ] Retomar uma Sequência pausada reprograma os passos pendentes a partir da retomada, sem rajada de atrasados.
-- [ ] Teste de integração comprova execução com o navegador fechado e bloqueio de novos envios depois de uma pausa persistida.
+- [x] Ativar a Sequência registra a versão autorizada e programa somente passos válidos, com destinos e Contas remetentes prontos.
+- [x] O executor calcula horários em `America/Sao_Paulo`, de segunda a sexta, sem calendário de feriados nesta entrega.
+- [x] Antes de cada envio, o backend revalida responsável, participação ativa, versão, pausa, janela, destino e conexão.
+- [x] Editar um passo pendente invalida a autorização da versão anterior e exige nova confirmação; passos enviados preservam seu histórico.
+- [x] Falha não avança o passo como enviado; tentativas têm reserva exclusiva, limite, motivo e próxima execução persistidos.
+- [x] E-mail manual exige ação explícita do titular e não vira envio automático.
+- [x] Retomar uma Sequência pausada reprograma os passos pendentes a partir da retomada, sem rajada de atrasados.
+- [x] Teste de integração comprova execução com o navegador fechado e bloqueio de novos envios depois de uma pausa persistida.
 
 ## Implementação local
 
@@ -65,3 +65,17 @@ Três PRs em sequência: (1) banco, (2) executor e (3) tela.
   - **Testes:**
     - Deno `supabase/functions/sequence-runner/handler.test.ts`: token, envio em nome do titular, bloqueio sem chamar a Unipile, Retry-After, falha isolada e limite por rodada.
     - pgTAP `supabase/tests/executor_da_sequencia.sql` (16 asserções): o token, o endereço, a chamada só com passo vencido, a pausa e o job do pg_cron.
+- **PR 3 (tela e ativação):**
+  - **Painel "Envios automáticos"** no detalhe da Sequência, só para o Responsável no Workspace operacional:
+    - sem autorização, oferece "Ativar envios";
+    - com os envios ativos, mostra o próximo passo e quando sai;
+    - depois de uma edição num passo pendente, avisa que os envios pararam e oferece "Ativar de novo";
+    - pausada, diz que nada sai até retomar.
+  - **Confirmação da ativação:** lista cada passo de E-mail pendente com o Destino (ADR-0014), o modo e o atraso.
+  - **Rodapé do passo:**
+    - estados novos: Na fila, Programado (dia e hora de Brasília) e Cancelado;
+    - o passo manual mostra "Enviar";
+    - o envio incerto pergunta "Saiu" ou "Não saiu" (`resolve_uncertain_step`).
+  - **Fonte:** `FonteDeSequencias` ganhou `autorizacao`, `ativarEnvios` e `resolverIncerto`. A Demonstração não ativa nada.
+  - **Wizard** `scripts/wizard-canais-05.sh`: migrations, publicar `sequence-runner` e `sequence-step-sends`, a linha do SQL Editor que diz ao banco onde está o Executor e o teste real com o navegador fechado.
+  - **Testes:** Vitest em `src/raiz.test.tsx` ("Envios automáticos da Sequência no Workspace operacional").

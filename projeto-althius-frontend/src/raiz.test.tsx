@@ -581,6 +581,7 @@ function abrirASequenciaDaMarina({
       get_owned_sequence: () => [{ ...sequencia, public_summary: { ...sequencia.public_summary, _document: documento } }],
       list_sequence_step_sends: () => [],
       list_received_emails: () => [],
+      get_sequence_authorization: () => [],
       ...rpcs,
     },
     funcoes,
@@ -615,6 +616,107 @@ function enviosDaMarina(respostaDaFuncao: { status?: number; corpo: unknown }) {
     pedidosDeEnvio,
   }
 }
+
+describe('Envios automáticos da Sequência no Workspace operacional', () => {
+  const linhaDoEnvio = (status: string, extra: Record<string, unknown> = {}) => ({
+    id: 'envio-1', step_id: 'passo-1', contact_id: 'contato-1', destination: 'maria@empresa-alvo.test', status,
+    attempts: 0, confirmed_at: '2026-09-26T15:00:00Z', sent_at: null, last_error: null, last_error_at: null,
+    updated_at: '2026-09-26T15:00:00Z', mode: 'auto', scheduled_for: '2026-09-30T13:00:00Z', ...extra,
+  })
+
+  it('a Vendedora ativa os envios, confere o passo antes e vê quando ele sai sozinho', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    let ativada = false
+    const { usuario } = abrirASequenciaDaMarina({
+      rpcs: {
+        get_sequence_authorization: () => ativada
+          ? [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }]
+          : [],
+        list_sequence_step_sends: () => ativada ? [linhaDoEnvio('scheduled')] : [],
+        activate_sequence: (parametros) => {
+          pedidos.push(parametros)
+          ativada = true
+          return [{ outcome: 'activated', step_id: 'passo-1', version: 1, scheduled_for: '2026-09-30T13:00:00Z' }]
+        },
+      },
+    })
+
+    const painel = await screen.findByRole('region', { name: 'Envios automáticos' })
+    expect(within(painel).getByText(/só saem sozinhos, mesmo com o navegador fechado, depois que você ativar/)).toBeInTheDocument()
+    await usuario.click(within(painel).getByRole('button', { name: 'Ativar envios' }))
+
+    const dialogo = await screen.findByRole('dialog')
+    const passos = within(dialogo).getByRole('list', { name: 'Passos a ativar' })
+    expect(within(passos).getByText('Primeiro contato')).toBeInTheDocument()
+    expect(within(passos).getByText(/automático/)).toBeInTheDocument()
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Ativar' }))
+
+    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina' }])
+    expect(await within(painel).findByRole('status')).toHaveTextContent('Envios ativados. "Primeiro contato" sai qua., 30/09, 10:00.')
+    expect(await within(painel).findByText('Envios ativos. Próximo: "Primeiro contato", qua., 30/09, 10:00.')).toBeInTheDocument()
+    expect(within(painel).queryByRole('button', { name: /Ativar/ })).not.toBeInTheDocument()
+    expect(await screen.findByText('Programado')).toBeInTheDocument()
+    expect(screen.getByText(/^Sai sozinho qua\., 30\/09, 10:00 para maria@empresa-alvo\.test, mesmo com o navegador fechado\./)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Confirmar e enviar/ })).not.toBeInTheDocument()
+  })
+
+  it('uma ativação barrada diz o motivo e o passo', async () => {
+    const { usuario } = abrirASequenciaDaMarina({
+      rpcs: { activate_sequence: () => [{ outcome: 'contact_without_email', step_id: 'passo-1', version: null, scheduled_for: null }] },
+    })
+    await usuario.click(await screen.findByRole('button', { name: 'Ativar envios' }))
+    await usuario.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ativar' }))
+    const painel = screen.getByRole('region', { name: 'Envios automáticos' })
+    expect(await within(painel).findByRole('status')).toHaveTextContent(
+      'O Contato de um passo não tem e-mail. Cadastre o e-mail antes de ativar. Passo: "Primeiro contato".')
+  })
+
+  it('depois de uma edição num passo pendente, o painel avisa que os envios pararam', async () => {
+    abrirASequenciaDaMarina({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: false, revoked_reason: 'edited' }],
+        list_sequence_step_sends: () => [linhaDoEnvio('cancelled', { scheduled_for: null })],
+      },
+    })
+    const painel = await screen.findByRole('region', { name: 'Envios automáticos' })
+    expect(await within(painel).findByText(/Você alterou passos depois da ativação\. Os envios automáticos pararam/)).toBeInTheDocument()
+    expect(within(painel).getByRole('button', { name: 'Ativar de novo' })).toBeInTheDocument()
+    expect(await screen.findByText('Cancelado: a Sequência mudou depois da ativação.')).toBeInTheDocument()
+  })
+
+  it('um passo manual espera a Vendedora, que o envia com um clique', async () => {
+    abrirASequenciaDaMarina({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }],
+        list_sequence_step_sends: () => [linhaDoEnvio('confirmed', { mode: 'manual' })],
+      },
+    })
+    expect(await screen.findByText(/^Passo manual: não sai sozinho\. Pronto para você enviar a partir de qua\., 30\/09, 10:00/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
+    expect(screen.getByText('Envios ativos. Próximo: "Primeiro contato", passo manual que espera você enviar.')).toBeInTheDocument()
+  })
+
+  it('um envio incerto pede à Vendedora que diga se o e-mail saiu', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    let resolvido = false
+    const { usuario } = abrirASequenciaDaMarina({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }],
+        list_sequence_step_sends: () => [resolvido ? linhaDoEnvio('sent', { sent_at: '2026-09-30T13:00:05Z' }) : linhaDoEnvio('uncertain')],
+        resolve_uncertain_step: (parametros) => {
+          pedidos.push(parametros)
+          resolvido = true
+          return 'sent'
+        },
+      },
+    })
+    expect(await screen.findByText(/Confira sua caixa de saída: o e-mail saiu\?/)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Saiu' }))
+    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina', p_step_id: 'passo-1', p_went_out: true }])
+    expect(await screen.findByText('Registrado como enviado.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Não saiu' })).not.toBeInTheDocument()
+  })
+})
 
 describe('Envio e resposta da Sequência no Workspace operacional', () => {
   it('a Vendedora responsável confirma o passo e o envia pela sua Conta remetente', async () => {

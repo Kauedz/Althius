@@ -119,6 +119,8 @@ export interface MetricasDemoSequencia {
 
 /** A situação de um Envio do passo, como o backend a guarda. */
 export type StatusDoEnvio =
+  | 'waiting'
+  | 'scheduled'
   | 'confirmed'
   | 'awaiting_reconfirmation'
   | 'sending'
@@ -126,6 +128,7 @@ export type StatusDoEnvio =
   | 'uncertain'
   | 'failed'
   | 'bounced'
+  | 'cancelled'
 
 /** O Envio de um passo de E-mail: o Destino fixado na confirmação e o que o provedor respondeu. */
 export interface EnvioDoPasso {
@@ -137,6 +140,31 @@ export interface EnvioDoPasso {
   confirmadoEm: string
   enviadoEm?: string
   ultimoErro?: string
+  /** Automático (sai pelo Executor) ou manual (espera o envio explícito do titular). Só num passo de versão ativada. */
+  modo?: 'auto' | 'manual'
+  /** Quando o passo sai (automático) ou fica pronto para o titular enviar (manual). */
+  programadoPara?: string
+}
+
+/** A versão autorizada mais recente dos envios da sequência (canais-05). */
+export interface AutorizacaoDosEnvios {
+  versao: number
+  autorizadaEm: string
+  ativa: boolean
+  /** Por que deixou de valer: um passo pendente foi editado, ou uma nova ativação a substituiu. */
+  motivoDaRevogacao?: 'edited' | 'reactivated'
+}
+
+/**
+ * O que o backend respondeu a "Ativar envios". `activated` traz o passo programado (se houver); os outros valores são
+ * bloqueios com o passo que os causou, e a tela mostra a `mensagem`.
+ */
+export interface ResultadoDaAtivacao {
+  outcome: string
+  stepId?: string
+  versao?: number
+  programadoPara?: string
+  mensagem?: string
 }
 
 /**
@@ -216,4 +244,13 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Um endereço temporário para abrir um anexo recebido. Só para o Responsável pela Sequência. */
   urlDoAnexo(interacaoId: string, anexoId: string): Promise<string>
+
+  /** A autorização mais recente dos envios automáticos, ou null quando nunca foram ativados. Só para o Responsável. */
+  autorizacao(sequenciaId: string): Promise<AutorizacaoDosEnvios | null>
+
+  /** Ativa os envios: autoriza o documento atual e programa o próximo passo. Um bloqueio volta como resultado. */
+  ativarEnvios(sequenciaId: string): Promise<ResultadoDaAtivacao>
+
+  /** Resolve um envio incerto que o provedor não confirmou: o titular diz se ele saiu. */
+  resolverIncerto(sequenciaId: string, stepId: string, saiu: boolean): Promise<void>
 }
