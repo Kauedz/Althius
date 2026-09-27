@@ -151,7 +151,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     [sequenciaId],
   )
 
-  const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
+  const { dados: contas, carregando: carregandoContas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: contatos } = useDadosDeContas((f) => f.contatos(), [])
 
   // Os Envios e as respostas reais só existem num Workspace operacional, e só o Responsável pela Sequência os vê.
@@ -199,7 +199,9 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     await fonteDeContas.atualizarDestinosContato(contatoParaEditarDestinos.id, destinos)
   }
 
-  if (carregando) {
+  // O título, a trilha e o resumo público mostram o nome da Conta-alvo: esperam as Contas para não mostrar, antes
+  // delas, o identificador no lugar do nome. Se as Contas falharem, fica o identificador.
+  if (carregando || carregandoContas) {
     return <Carregando />
   }
 
@@ -229,6 +231,9 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     )
   }
 
+  const conta = contas?.find((c) => c.id === sequencia.contaId)
+  const nomeConta = conta?.nome ?? sequencia.contaId
+
   if (sequencia.responsavel === false) {
     return (
       <section aria-label="Resumo público da sequência" className="flex flex-col items-start gap-4 py-8">
@@ -238,7 +243,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         <h2 className="titulo-secao text-2xl">Resumo da Conta-alvo</h2>
         <p className="text-sm text-al-muted">Esta Sequência tem outro Vendedor responsável. Você pode consultar o status, mas não o documento nem os detalhes privados.</p>
         <dl className="grid grid-cols-2 gap-x-8 gap-y-3 border border-al-line bg-al-surface p-4 text-sm">
-          <dt className="text-al-muted">Conta-alvo</dt><dd>{sequencia.contaId}</dd>
+          <dt className="text-al-muted">Conta-alvo</dt><dd>{nomeConta}</dd>
           <dt className="text-al-muted">Status</dt>
           <dd>{sequencia.status === 'pausada' ? 'Contato respondeu; sequência pausada' : sequencia.status}</dd>
           <dt className="text-al-muted">Participantes</dt><dd>{sequencia.totalParticipantes}</dd>
@@ -248,8 +253,6 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     )
   }
 
-  const conta = contas?.find((c) => c.id === sequencia.contaId)
-  const nomeConta = conta?.nome ?? sequencia.contaId
   const contatosMap = new Map(contatos?.map((c) => [c.id, c]) ?? [])
   const todosContatosDaConta = contatos?.filter((c) => c.contaId === sequencia.contaId) ?? []
   const contatosRestantes = todosContatosDaConta.filter(
