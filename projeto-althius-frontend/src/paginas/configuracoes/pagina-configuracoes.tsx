@@ -6,7 +6,7 @@ import { Pagina } from '@/components/pagina'
 import { useAmbiente } from '@/fonte/contexto'
 import { SecaoAjuda } from './secao-ajuda'
 import { SecaoMemoria } from './secao-memoria'
-import { SecaoPerfil } from './secao-perfil'
+import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
 import { SecaoPlano } from './secao-plano'
 import { SecaoPreferencias } from './secao-preferencias'
 import { SecaoWorkspace } from './secao-workspace'
@@ -14,10 +14,20 @@ import { SecaoWorkspace } from './secao-workspace'
 /**
  * As seis seções aprovadas no mockup (ticket 01). Memória do Workspace e Ajuda e informações têm uma página por aba
  * (/configuracoes/memoria/icp, /configuracoes/ajuda/termos); as demais são uma página só. Uma seção informativa é só
- * conteúdo da Althius e não depende do backend do Workspace.
+ * conteúdo da Althius e não depende do backend do Workspace. Uma seção com parte já ligada ao backend usa, no Workspace
+ * operacional, a versão `NoWorkspaceOperacional`, que mostra essa parte e diz que o resto está indisponível.
  */
-const SECOES: Record<string, { rotulo: string; Componente: () => ReactNode; comPaginas?: boolean; informativa?: boolean }> = {
-  perfil: { rotulo: 'Meu perfil', Componente: SecaoPerfil },
+const SECOES: Record<
+  string,
+  {
+    rotulo: string
+    Componente: () => ReactNode
+    NoWorkspaceOperacional?: () => ReactNode
+    comPaginas?: boolean
+    informativa?: boolean
+  }
+> = {
+  perfil: { rotulo: 'Meu perfil', Componente: SecaoPerfil, NoWorkspaceOperacional: SecaoPerfilDoWorkspaceOperacional },
   preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias },
   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace },
   memoria: { rotulo: 'Memória do Workspace', Componente: SecaoMemoria, comPaginas: true },
@@ -29,7 +39,7 @@ export function PaginaConfiguracoes() {
   const { secao, pagina } = useParams()
   const { disponivel } = useAmbiente()
   if (!(secao && secao in SECOES)) return <Navigate to="/configuracoes/perfil" replace />
-  const { Componente, comPaginas, informativa } = SECOES[secao]
+  const { Componente, NoWorkspaceOperacional, comPaginas, informativa } = SECOES[secao]
   if (pagina && !comPaginas) return <Navigate to={`/configuracoes/${secao}`} replace />
 
   return (
@@ -38,7 +48,13 @@ export function PaginaConfiguracoes() {
         rotuloAcessivel="Seções de Configurações"
         abas={Object.entries(SECOES).map(([id, { rotulo }]) => ({ rotulo, para: `/configuracoes/${id}` }))}
       />
-      {informativa || disponivel('configuracoes') ? <Componente /> : <AvisoDeModuloIndisponivel modulo="configuracoes" />}
+      {informativa || disponivel('configuracoes') ? (
+        <Componente />
+      ) : NoWorkspaceOperacional ? (
+        <NoWorkspaceOperacional />
+      ) : (
+        <AvisoDeModuloIndisponivel modulo="configuracoes" />
+      )}
     </Pagina>
   )
 }

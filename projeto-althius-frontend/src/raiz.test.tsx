@@ -112,7 +112,7 @@ describe('Workspace operacional e Demonstração', () => {
     expect(screen.queryByText(new RegExp(daDemonstracao))).not.toBeInTheDocument()
   })
 
-  it.each(['/configuracoes/perfil', '/configuracoes/preferencias', '/configuracoes/workspace', '/configuracoes/memoria/icp', '/configuracoes/plano'])(
+  it.each(['/configuracoes/preferencias', '/configuracoes/workspace', '/configuracoes/memoria/icp', '/configuracoes/plano'])(
     '%s mostra que a seção está indisponível, sem dados da Demonstração',
     async (rota) => {
       window.history.replaceState(null, '', rota)

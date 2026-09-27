@@ -9,10 +9,12 @@ import {
 } from './indisponivel'
 import { criarFonteSimulada } from './simulada'
 import { criarFonteDeContasSimulada } from './simulada-contas'
+import { criarFonteDeContasRemetentesDaDemonstracao } from './simulada-contas-remetentes'
 import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeContasSupabase } from './supabase-contas'
+import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
@@ -29,6 +31,7 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDeSequencias,
     fonteDeOnboarding: criarFonteDeOnboardingSimulada({ armazenamento }),
     fonteDeSinais,
+    fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     indisponiveis: new Set(),
   }
 }
@@ -53,6 +56,7 @@ export function criarAmbienteDoWorkspace({
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
+    fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
     indisponiveis: new Set(['agentes', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
   }
 }

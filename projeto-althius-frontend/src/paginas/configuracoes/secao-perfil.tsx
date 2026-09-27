@@ -4,27 +4,42 @@ import { Button } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { ehEmailValido, ERRO_DE_EMAIL, ROTULO_DO_PAPEL } from '@/fonte/regras'
 import type { Workspace } from '@/fonte/tipos'
+import { BlocoDeContasRemetentes } from './bloco-contas-remetentes'
 import { BlocoSenha } from './bloco-senha'
 import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
+const DESCRICAO_DO_PERFIL = 'Como você aparece para as outras pessoas do Workspace. Vale só para a sua Conta de usuário.'
+
 /**
  * Meu perfil: nome, e-mail e foto da Conta de usuário (a mesma fonte alimenta o menu pessoal da Casca),
- * as Participações dela em cada Workspace e a alteração demonstrativa de senha.
+ * as Participações dela em cada Workspace, as Contas remetentes do titular e a alteração demonstrativa de senha.
  */
 export function SecaoPerfil() {
   const workspace = useDados((fonte) => fonte.workspace(), [])
 
   return (
-    <SecaoDeConfiguracoes
-      id="perfil"
-      titulo="Meu perfil"
-      alcance="pessoal"
-      descricao="Como você aparece para as outras pessoas do Workspace. Vale só para a sua Conta de usuário."
-      estreita
-    >
+    <SecaoDeConfiguracoes id="perfil" titulo="Meu perfil" alcance="pessoal" descricao={DESCRICAO_DO_PERFIL} estreita>
       {!workspace ? <Carregando /> : <FormularioDePerfil usuario={workspace.usuario} />}
       {workspace && <SeusWorkspaces contaId={workspace.usuario.id} />}
+      <BlocoDeContasRemetentes />
       <BlocoSenha />
+    </SecaoDeConfiguracoes>
+  )
+}
+
+/**
+ * Meu perfil no Workspace operacional: só as Contas remetentes já têm backend. Nome, foto e senha aparecem como
+ * indisponíveis, e nada da Demonstração (nem a lista de Workspaces dela) aparece no lugar.
+ */
+export function SecaoPerfilDoWorkspaceOperacional() {
+  return (
+    <SecaoDeConfiguracoes id="perfil" titulo="Meu perfil" alcance="pessoal" descricao={DESCRICAO_DO_PERFIL} estreita>
+      <div role="status" className="flex flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+        <span className="selo">Indisponível</span>
+        <p className="text-al-ink">Nome, foto e senha ainda não estão disponíveis neste Workspace.</p>
+        <p className="text-sm text-al-muted">Eles ainda não foram conectados ao Workspace operacional, e nada aqui é simulado.</p>
+      </div>
+      <BlocoDeContasRemetentes />
     </SecaoDeConfiguracoes>
   )
 }

@@ -12,6 +12,7 @@ import {
   FonteDeContasProvider,
   FonteDeOnboardingProvider,
   FonteDeSequenciasProvider,
+  FonteDeContasRemetentesProvider,
   FonteDeSinaisProvider,
   FonteProvider,
 } from '@/fonte/contexto'
@@ -80,23 +81,25 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
           <FonteDeSequenciasProvider fonte={ambiente.fonteDeSequencias}>
             <FonteDeOnboardingProvider fonte={ambiente.fonteDeOnboarding}>
               <FonteDeSinaisProvider fonte={ambiente.fonteDeSinais}>
-                <SinaisDoMockupProvider>
-                  <ConversasProvider animarDigitacao={animarDigitacao}>
-                    <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
-                      {rotaInicial ? (
-                        <MemoryRouter initialEntries={[rotaInicial]}>
-                          <AvisosDoNavegador />
-                          {rotas}
-                        </MemoryRouter>
-                      ) : (
-                        <BrowserRouter>
-                          <AvisosDoNavegador />
-                          {rotas}
-                        </BrowserRouter>
-                      )}
-                    </ContextoDasPosicoesDasListas.Provider>
-                  </ConversasProvider>
-                </SinaisDoMockupProvider>
+                <FonteDeContasRemetentesProvider fonte={ambiente.fonteDeContasRemetentes}>
+                  <SinaisDoMockupProvider>
+                    <ConversasProvider animarDigitacao={animarDigitacao}>
+                      <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
+                        {rotaInicial ? (
+                          <MemoryRouter initialEntries={[rotaInicial]}>
+                            <AvisosDoNavegador />
+                            {rotas}
+                          </MemoryRouter>
+                        ) : (
+                          <BrowserRouter>
+                            <AvisosDoNavegador />
+                            {rotas}
+                          </BrowserRouter>
+                        )}
+                      </ContextoDasPosicoesDasListas.Provider>
+                    </ConversasProvider>
+                  </SinaisDoMockupProvider>
+                </FonteDeContasRemetentesProvider>
               </FonteDeSinaisProvider>
             </FonteDeOnboardingProvider>
           </FonteDeSequenciasProvider>

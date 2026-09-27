@@ -11,6 +11,7 @@ import {
 import { criarFonteDeSequenciasSimulada, type OpcoesFonteDeSequenciasSimulada } from '@/fonte/simulada-sequencias'
 import { criarFonteDeSinaisSimulada, type OpcoesFonteDeSinaisSimulada } from '@/fonte/simulada-sinais'
 import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
+import { criarFonteDeContasRemetentesDaDemonstracao } from '@/fonte/simulada-contas-remetentes'
 
 export const DATA_HOJE_TESTES = new Date(2026, 8, 23, 12, 0, 0) // 23 de setembro de 2026
 
@@ -105,6 +106,7 @@ function montarApp({
     fonteDeSequencias,
     fonteDeOnboarding: ajustarOnboarding(fonteDeOnboarding),
     fonteDeSinais,
+    fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     indisponiveis: new Set(),
   }
   const resultado = render(
