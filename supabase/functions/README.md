@@ -102,6 +102,8 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
 2. Publicar a função: `npx supabase functions deploy sequence-runner --no-verify-jwt --project-ref <ref>`. Ela usa o mesmo segredo `UNIPILE_API_KEY`.
 3. No SQL Editor, uma vez por projeto: `select private.configure_sequence_runner('https://<ref>.supabase.co');`. Sem esse endereço, o banco não chama nada.
 
+`scripts/wizard-canais-05.sh` conduz esses três passos e o teste real com o navegador fechado.
+
 ## Ativar o canais-04 (migrations, funções e eventos de e-mail)
 
 `scripts/wizard-canais-04.sh` conduz a ativação num terminal: liga a Supabase CLI ao projeto, aplica as migrations pendentes com `supabase db push`, confere os três segredos, publica `sequence-step-sends`, `received-email-attachments` e `unipile-account-status` (esta com `--no-verify-jwt`), acrescenta `email.new` e `email.new.bounce` ao Webhook Endpoint já cadastrado (por API, ou pelo painel se a API recusar; nunca cria outro endpoint) e descreve o ciclo real de teste.
