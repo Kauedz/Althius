@@ -4,7 +4,7 @@
 
 **Blocked by:** nada. O 02 está fechado, e a parte de conexão do 03 já funciona com uma conta real. O que falta no 03 (os estados em `/conexoes`) não bloqueia o envio.
 
-**Status:** in-progress
+**Status:** done (ciclo real validado em 2026-09-26)
 
 - [x] Um passo confirmado é enviado ao endereço real do Contato usando exclusivamente a Conta remetente de E-mail do responsável. (Backend pronto no PR 1; a validação com o destinatário real fica para depois da tela.)
 - [x] O passo só sai com a Conta remetente em `ready`. Em `syncing`, `reconnect_required` ou com `reconciliation_required`, ele espera. Esse é o bloqueio de envio na reconexão do canais-03.
@@ -19,7 +19,7 @@
 - [x] Somente o responsável lê assunto, corpo e anexos; os demais veem “Contato respondeu; sequência pausada”, sem conteúdo livre.
 - [x] Assunto, corpo e anexos da mensagem recebida ficam gravados na própria Interação (schema privado da Althius), não como uma referência a buscar na Unipile depois. Os anexos chegam como `url` e precisam ser baixados e guardados. Isso preserva o contexto que a IA usa mesmo depois de uma troca de conta Unipile ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)).
 - [x] Evento repetido ou fora de ordem não duplica Interação, evento público nem contagem.
-- [ ] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
+- [x] Timeout ou resultado incerto é reconciliado antes de qualquer reenvio. A Unipile v2 não documenta chave de idempotência no envio. Cada envio leva um cabeçalho próprio da Althius em `custom_headers`, com o id do passo. O `email.new` dos itens enviados que traz esse cabeçalho prova que o provedor aceitou; conferir no primeiro envio real se o cabeçalho volta no evento.
 
 ## Implementação local
 
@@ -46,6 +46,12 @@ Três PRs em sequência: (1) envio, (2) resposta (webhook, Interação privada e
   - Abaixo da regra de pause, o painel "Respostas recebidas" (remetente, data, assunto, corpo em texto e anexos: imagens em miniatura que ampliam na própria página, PDF no leitor do navegador e o resto baixando com o nome original; o arquivo vem por URL assinada e vira um `blob:` com o tipo decidido pela tela, nunca HTML ou SVG) só existe para o Responsável. O resumo de outro participante mostra "Contato respondeu; sequência pausada" no lugar do status.
   - `FonteDeSequencias` ganhou `envios`, `confirmarPasso`, `enviarPasso`, `respostasRecebidas` e `urlDoAnexo`; a Demonstração devolve listas vazias e não envia nada. Migration `supabase/migrations/20260926180204_respostas_recebidas_da_sequencia.sql` (`list_received_emails`). O Supabase falso dos testes ganhou as Edge Functions (`funcoes`).
   - Testes: vitest em `src/fonte/supabase-sequencias.test.ts` e `src/raiz.test.tsx` ("Envio e resposta da Sequência no Workspace operacional").
+
+## Validação real (2026-09-26)
+
+- Um passo saiu de `althius.relacionamento@gmail.com` para uma caixa Outlook real. O eco nos itens enviados chegou 21:26:37 e reconheceu o envio. O método de reconhecimento (cabeçalho `X-Althius-Envio`, `id` ou `message_id`) não fica registrado, então não se sabe se o cabeçalho volta no evento. O reconhecimento pelo `id` e pelo `message_id` bastou.
+- A resposta real chegou 21:27:02, com um anexo, e pausou a Sequência. As reentregas da Unipile viraram `duplicate_email`, e um e-mail sem relação foi ignorado.
+- Achados corrigidos no caminho: CORS das Edge Functions (#54), variáveis cruas no e-mail e corpo HTML da resposta (#55), id longo de anexo do Outlook (#56) e anexo aberto no próprio app (#57).
 
 ## Contratos da Unipile v2
 
