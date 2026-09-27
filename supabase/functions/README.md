@@ -72,7 +72,8 @@ de início atrasados não regridem uma Conta pronta.
   `bounced`) ou **sem relação** (só o id do evento e o desfecho). Responde `2xx` logo depois; os anexos baixam em
   `EdgeRuntime.waitUntil`, pela `url` que vier no objeto Email ou por
   `GET /v2/{account_id}/emails/{email_id}/attachments/{attachment_id}`, para o bucket privado `email-attachments`
-  (caminho `recebidos/<interação>/<anexo>/<nome>`), e `record_received_email_attachment` marca cada um como `stored` ou
+  (caminho `recebidos/<interação>/<anexo>/<nome>`; um id de anexo com mais de 120 caracteres, comum no Outlook, vira o
+  SHA-256 dele; o tipo guardado vem do download, do Email ou da extensão), e `record_received_email_attachment` marca cada um como `stored` ou
   `failed`. Só o titular lê assunto, corpo e anexos, por `get_received_email` (`auth.uid()`); os demais veem a Interação
   sem conteúdo.
 - `received-email-attachments` exige JWT do titular. Aceita `interactionId` e `attachmentId`, resolve o caminho por

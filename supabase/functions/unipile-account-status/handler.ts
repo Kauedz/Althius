@@ -119,6 +119,26 @@ function pathSegment(value: string, fallback: string) {
   return !cleaned || /^\.+$/.test(cleaned) ? fallback : cleaned
 }
 
+const GENERIC_TYPES = new Set(['', 'application/octet-stream', 'binary/octet-stream', 'application/x-download'])
+const TYPES_BY_EXTENSION: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  pdf: 'application/pdf',
+}
+
+/** O tipo guardado no Storage: o do download ou o do Email quando dizem algo; senão, pela extensão do nome. */
+export function attachmentContentType(downloaded: string | null, attachment: { name?: string; mime?: string }) {
+  for (const candidate of [downloaded, attachment.mime]) {
+    const type = candidate?.split(';')[0].trim().toLowerCase() ?? ''
+    if (!GENERIC_TYPES.has(type)) return candidate!.trim()
+  }
+  const extension = attachment.name?.split('.').pop()?.toLowerCase() ?? ''
+  return TYPES_BY_EXTENSION[extension] ?? null
+}
+
 /** O caminho de um anexo no bucket privado email-attachments. Ids longos (Outlook) viram um hash, porque
  * cortados colidiriam entre anexos do mesmo Email e o upload com upsert sobrescreveria um com o outro. */
 export async function attachmentPath(interactionId: string, attachmentId: string, name: string) {
@@ -148,7 +168,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       try {
         const file = await deps.unipile.downloadEmailAttachment(accountId, emailId, attachment)
         const path = await attachmentPath(ingested.interaction_id, attachment.id, attachment.name ?? 'anexo')
-        await deps.storage.upload(path, file.bytes, file.contentType ?? attachment.mime ?? null)
+        await deps.storage.upload(path, file.bytes, attachmentContentType(file.contentType, attachment))
         await deps.db.recordReceivedEmailAttachment({
           interactionId: ingested.interaction_id,
           attachmentId: attachment.id,
