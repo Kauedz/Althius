@@ -7,6 +7,11 @@ export interface OpcoesDoSupabaseFalso {
   sessao?: Session | null
   /** As linhas de cada tabela, como o RLS as devolveria ao usuário da sessão. */
   tabelas?: Record<string, Linha[]>
+  /**
+   * Antes de responder a uma leitura da tabela, o banco espera a promessa que esta função devolver. Assim o teste vê a
+   * tela com uma tabela ainda chegando; sem promessa, a leitura responde na hora.
+   */
+  esperarLeitura?: (tabela: string) => Promise<void> | undefined
   /** As RPCs que o teste responde, pelo nome. Uma resposta que lança chega ao app como erro da RPC. */
   rpcs?: Record<string, (parametros: Record<string, unknown>) => unknown>
   /**
@@ -90,7 +95,7 @@ export function sessaoDe(usuario: { id: string; email: string }): Session {
  * O cliente do Supabase na fronteira com o fornecedor: Auth, as tabelas filtradas por `eq`, as RPCs e os canais do
  * Realtime, em memória. Só cobre o que o app usa; o resto não existe, para um uso novo falhar alto.
  */
-export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, funcoes = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [] }: OpcoesDoSupabaseFalso = {}) {
+export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura, rpcs = {}, funcoes = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [] }: OpcoesDoSupabaseFalso = {}) {
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
@@ -166,6 +171,11 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, fun
       const { coluna, ascendente } = ordem
       return [...linhas].sort((a, b) => String(a[coluna]).localeCompare(String(b[coluna])) * (ascendente ? 1 : -1))
     }
+    /** A resposta da leitura: na hora ou, se o teste segura a tabela, com as linhas de quando ela for liberada. */
+    function responder<T>(resposta: () => T): Promise<T> {
+      const espera = esperarLeitura?.(tabela)
+      return espera ? espera.then(resposta) : Promise.resolve(resposta())
+    }
     const construtor = {
       select: () => construtor,
       eq(coluna: string, valor: unknown) {
@@ -176,9 +186,9 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, rpcs = {}, fun
         ordem = { coluna, ascendente: opcoes?.ascending ?? true }
         return construtor
       },
-      maybeSingle: () => Promise.resolve({ data: resultado()[0] ?? null, error: null }),
+      maybeSingle: () => responder(() => ({ data: resultado()[0] ?? null, error: null })),
       then<T>(aoResolver: (valor: { data: Linha[]; error: null }) => T, aoRejeitar?: (motivo: unknown) => T) {
-        return Promise.resolve({ data: resultado(), error: null }).then(aoResolver, aoRejeitar)
+        return responder(() => ({ data: resultado(), error: null })).then(aoResolver, aoRejeitar)
       },
     }
     return construtor

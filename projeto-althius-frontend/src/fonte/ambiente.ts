@@ -57,5 +57,6 @@ export interface ContaDeUsuarioDaSessao {
 /** A Participação ativa com que a sessão abriu o Workspace operacional. */
 export interface ParticipacaoNoWorkspace {
   workspaceId: string
+  nomeDoWorkspace: string
   papel: Papel
 }

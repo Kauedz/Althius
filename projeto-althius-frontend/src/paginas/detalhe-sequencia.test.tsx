@@ -231,6 +231,15 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
 
     expect(await screen.findByText(/Sequência pausada/i)).toBeInTheDocument()
   })
+
+  it('com as Contas-alvo ainda carregando, o título e a trilha já aparecem com o nome da Conta-alvo', async () => {
+    // A Sequência chega antes das Contas-alvo, como logo depois de criada.
+    renderizarApp('/sequencias/sequencia-openai', { atrasoMs: 400 })
+
+    const titulo = await screen.findByRole('heading', { level: 2, name: /sequência$/ })
+    expect(titulo).toHaveTextContent('OpenAI sequência')
+    expect(screen.getByRole('link', { name: 'Sequências / OpenAI' })).toBeInTheDocument()
+  })
 })
 
 describe('Composer de Step por Canal (Ticket 06)', () => {

@@ -35,7 +35,12 @@ function lembrarUltimoWorkspace(usuarioId: string, workspaceId: string) {
 interface Participacao {
   workspace_id: string
   role: 'member' | 'admin'
+  /** O nome do Workspace; falta só se a leitura dos Workspaces falhar, e aí a tela não o inventa. */
+  nome?: string
 }
+
+/** O Workspace pelo nome, para a pessoa escolher; sem o nome, pelo identificador. */
+const rotuloDoWorkspace = (p: Participacao) => p.nome ?? p.workspace_id
 
 /** O Workspace pessoal que o bootstrap garante à Conta de usuário da sessão. */
 interface WorkspacePessoal {
@@ -98,17 +103,22 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       const pessoal = bootstrap.data as WorkspacePessoal
       setWorkspacePessoal(pessoal)
 
-      const { data, error } = await cliente
-        .from('workspace_memberships')
-        .select('workspace_id, role')
-        .eq('user_id', usuarioId)
-        .eq('active', true)
+      // O RLS só devolve os Workspaces em que a Conta de usuário tem Participação ativa.
+      const [{ data, error }, workspaces] = await Promise.all([
+        cliente.from('workspace_memberships').select('workspace_id, role').eq('user_id', usuarioId).eq('active', true),
+        cliente.from('workspaces').select('id, name'),
+      ])
       if (!ativo) return
       if (error) {
         setErroParticipacoes(error.message)
         return
       }
-      const lista = (data ?? []) as Participacao[]
+      // Sem os nomes, a entrada continua: o seletor mostra o identificador e a navegação, o rótulo genérico.
+      const nomes = new Map([[pessoal.id, pessoal.name]])
+      for (const w of (workspaces.data ?? []) as { id: string; name: string }[]) nomes.set(w.id, w.name)
+      const lista = ((data ?? []) as Participacao[])
+        .map((p) => ({ ...p, nome: nomes.get(p.workspace_id) }))
+        .sort((a, b) => rotuloDoWorkspace(a).localeCompare(rotuloDoWorkspace(b), 'pt-BR'))
       setParticipacoes(lista)
       // Ordem de entrada: o Workspace desta aba, o último usado pela Conta de usuário e, sem outro destino, o pessoal.
       // Só vale um Workspace com Participação ativa.
@@ -178,7 +188,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
           setWorkspaceId(e.target.value)
         }}>
           <option value="" disabled>Escolher participação…</option>
-          {participacoes.map((p) => <option key={p.workspace_id} value={p.workspace_id}>{p.workspace_id}</option>)}
+          {participacoes.map((p) => <option key={p.workspace_id} value={p.workspace_id}>{rotuloDoWorkspace(p)}</option>)}
         </select>
         <Sair />
       </TelaDeEstado>
@@ -195,7 +205,6 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       key={`${sessao.user.id}:${workspaceId}`}
       sessao={sessao}
       participacao={participacao}
-      nomeDoWorkspace={workspaceId === workspacePessoal.id ? workspacePessoal.name : undefined}
       cliente={cliente}
       aoTrocarDeWorkspace={participacoes.length > 1 ? trocarDeWorkspace : undefined}
       aoAcessarDemonstracao={aoAcessarDemonstracao}
@@ -207,35 +216,32 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
 function AplicativoDoWorkspace({
   sessao,
   participacao,
-  nomeDoWorkspace,
   cliente,
   aoTrocarDeWorkspace,
   aoAcessarDemonstracao,
 }: {
   sessao: Session
   participacao: Participacao
-  nomeDoWorkspace?: string
   cliente: SupabaseClient
   aoTrocarDeWorkspace?: () => void
   aoAcessarDemonstracao?: () => void
 }) {
   const { id: usuarioId, email = '' } = sessao.user
-  const { workspace_id: workspaceId, role } = participacao
+  const { workspace_id: workspaceId, role, nome: nomeDoWorkspace = 'Workspace' } = participacao
   const ambiente = useMemo(
     () =>
       criarAmbienteDoWorkspace({
         cliente,
         usuario: { id: usuarioId, email },
-        participacao: { workspaceId, papel: role === 'admin' ? 'administrador' : 'membro' },
+        participacao: { workspaceId, nomeDoWorkspace, papel: role === 'admin' ? 'administrador' : 'membro' },
       }),
-    [cliente, usuarioId, email, workspaceId, role],
+    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role],
   )
 
   return (
     <>
       <div className="flex items-center justify-end gap-3 border-b border-al-line px-4 py-2 text-xs text-al-muted">
         <span>Workspace operacional</span>
-        {nomeDoWorkspace && <span className="text-al-ink">{nomeDoWorkspace}</span>}
         <span>{sessao.user.email}</span>
         {aoTrocarDeWorkspace && <Button variant="outline" onClick={aoTrocarDeWorkspace}>Trocar de Workspace</Button>}
         {aoAcessarDemonstracao && <Button variant="outline" onClick={aoAcessarDemonstracao}>Abrir Demonstração</Button>}
