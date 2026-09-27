@@ -3,7 +3,15 @@
 import * as demo from './dados-demo'
 import { diaIso } from './formatar-data'
 import type { RegistroDeParticipacao } from './dados-demo'
-import { ehEmailValido, ERRO_DE_EMAIL, ERRO_SEM_PARTICIPACAO, PAPEIS } from './regras'
+import {
+  ehEmailValido,
+  ERRO_DE_EMAIL,
+  ERRO_DE_PAPEL,
+  ERRO_SEM_PARTICIPACAO,
+  ERRO_SO_ADMINISTRADOR,
+  ERRO_ULTIMO_ADMINISTRADOR,
+  PAPEIS,
+} from './regras'
 import type {
   ContaComParticipacoes,
   ContaDeUsuario,
@@ -27,11 +35,6 @@ const CHAVE_DO_WORKSPACE = `althius:workspace:${demo.WORKSPACE_ATUAL}`
 const chaveDoPerfil = (contaId: ContaDeUsuarioId) => `althius:perfil:${contaId}`
 /** As preferências também são de cada Conta de usuário, e não do Workspace. */
 const chaveDasPreferencias = (contaId: ContaDeUsuarioId) => `althius:preferencias:${contaId}`
-
-export const ERRO_SO_ADMINISTRADOR = 'Só Administradores do Workspace podem fazer isso.'
-export const ERRO_ULTIMO_ADMINISTRADOR =
-  'O Workspace precisa de pelo menos um Administrador. Torne outra pessoa Administrador antes.'
-const ERRO_DE_PAPEL = 'Escolha Administrador ou Membro.'
 
 /** Onde os dados demonstrativos não secretos sobrevivem a um refresh (o `localStorage`, no navegador). */
 export interface ArmazenamentoDemonstrativo {
@@ -104,7 +107,8 @@ function workspaceSalvo(
   return {
     informacoes: { nome: informacoes.nome, descricao: informacoes.descricao, criadoEm: informacoes.criadoEm },
     participacoes: participacoes.map(({ contaId, papel }) => ({ contaId, papel })),
-    convites: convites.map(({ id, email, papel, registradoEm }) => ({ id, email, papel, registradoEm })),
+    // A Demonstração só guarda pendentes; o que foi salvo antes do estado existir também é pendente.
+    convites: convites.map(({ id, email, papel, registradoEm }) => ({ id, email, papel, registradoEm, estado: 'pendente' as const })),
   }
 }
 
@@ -289,7 +293,7 @@ export function criarParticipacoesSimuladas({
       }
       let numero = workspace.convites.length + 1
       while (workspace.convites.some((c) => c.id === `convite-${numero}`)) numero++
-      const convite: Convite = { id: `convite-${numero}`, email: normalizado, papel, registradoEm: diaIso(hoje) }
+      const convite: Convite = { id: `convite-${numero}`, email: normalizado, papel, registradoEm: diaIso(hoje), estado: 'pendente' }
       workspace.convites.push(convite)
       gravarWorkspace()
       return convite

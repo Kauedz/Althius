@@ -15,6 +15,7 @@ import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
+import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
@@ -51,7 +52,11 @@ export function criarAmbienteDoWorkspace({
 }): Ambiente {
   return {
     modo: 'real',
-    fonte: criarFonteDeAgentesIndisponivel({ usuario, participacao }),
+    // Participantes e convites já têm backend; o resto de Agentes e Configurações, ainda não.
+    fonte: {
+      ...criarFonteDeAgentesIndisponivel({ usuario, participacao }),
+      ...criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id),
+    },
     fonteDeContas: criarFonteDeContasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),

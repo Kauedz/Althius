@@ -29,6 +29,18 @@ export function podeDecidir(categoria: CategoriaDeAprovacao, papel: Papel): bool
 
 export const ERRO_SEM_PARTICIPACAO = 'Você não participa deste Workspace.'
 
+export const ERRO_SO_ADMINISTRADOR = 'Só Administradores do Workspace podem fazer isso.'
+
+export const ERRO_ULTIMO_ADMINISTRADOR =
+  'O Workspace precisa de pelo menos um Administrador. Torne outra pessoa Administrador antes.'
+
+export const ERRO_TITULAR = 'O Titular do Workspace pessoal não pode ser removido nem rebaixado.'
+
+export const ERRO_DE_PAPEL = 'Escolha Administrador ou Membro.'
+
+export const ERRO_CONVITE_DE_OUTRO_EMAIL =
+  'Este convite é para outro e-mail. Saia e entre com o e-mail que recebeu o convite, ou continue sem ele.'
+
 /** Validação simples de formato, sem verificação real de e-mail (fluxo demonstrativo). */
 export const FORMATO_DE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

@@ -1,15 +1,16 @@
-import { ShieldCheck, UserPlus } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { Link2, ShieldCheck, UserPlus } from 'lucide-react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { AvatarDePessoa, Carregando } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
 import { Opcao } from '@/components/opcao'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { useDados, useFonte } from '@/fonte/contexto'
+import { useAmbiente, useCarregamento, useFonte } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
-import { ERRO_SEM_PARTICIPACAO, PAPEIS, ROTULO_DO_PAPEL } from '@/fonte/regras'
-import type { InformacoesDoWorkspace, Papel, Participante, ParticipantesDoWorkspace } from '@/fonte/tipos'
+import { ERRO_SEM_PARTICIPACAO, ERRO_TITULAR, PAPEIS, ROTULO_DO_PAPEL } from '@/fonte/regras'
+import type { Convite, EstadoDoConvite, InformacoesDoWorkspace, Papel, Participante, ParticipantesDoWorkspace } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
+import { FalhaAoCarregar } from '@/paginas/modulo-contas-e-contatos'
 import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
 type Resultado = { tipo: 'sucesso' | 'erro'; texto: string }
@@ -17,10 +18,11 @@ type AoConcluir = (resultado: Resultado) => void
 
 /**
  * Workspace / Pessoas e acesso: todos os Participantes consultam as informações, quem participa e os
- * convites; só Administradores alteram. A fonte valida o papel em cada operação, não só esta tela.
+ * convites; só Administradores alteram. A fonte valida o papel em cada operação, não só esta tela: no Workspace
+ * operacional, quem valida é o banco.
  */
 export function SecaoWorkspace() {
-  const dados = useDados((fonte) => fonte.participantesDoWorkspace(), [])
+  const { dados, erro, recarregar } = useCarregamento(useFonte(), (fonte) => fonte.participantesDoWorkspace(), [])
   const [resultado, setResultado] = useState<Resultado | null>(null)
 
   return (
@@ -30,7 +32,9 @@ export function SecaoWorkspace() {
       alcance="workspace"
       descricao="O que muda aqui vale para todas as pessoas do Workspace."
     >
-      {!dados ? (
+      {erro ? (
+        <FalhaAoCarregar mensagem="Não foi possível carregar as pessoas do Workspace." tentarDeNovo={recarregar} />
+      ) : !dados ? (
         <Carregando />
       ) : (
         <>
@@ -54,12 +58,15 @@ export function SecaoWorkspace() {
 function Informacoes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoConcluir: AoConcluir }) {
   const { informacoes, papel, participantes } = dados
   const [editando, setEditando] = useState(false)
+  const { disponivel } = useAmbiente()
+  // No Workspace operacional, o nome e a descrição ainda não se editam: só participantes e convites têm backend.
+  const podeEditar = papel === 'administrador' && disponivel('configuracoes')
 
   return (
     <Bloco
       titulo="Workspace"
       acoes={
-        papel === 'administrador' &&
+        podeEditar &&
         !editando && (
           <button type="button" onClick={() => setEditando(true)} className={BOTAO_SECUNDARIO}>
             Editar informações
@@ -213,8 +220,10 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
         </thead>
         <tbody>
           {participantes.map((participante) => {
-            const { conta, ultimoAdministrador: ultimo } = participante
+            const { conta, ultimoAdministrador: ultimo, titular = false } = participante
             const voce = conta.id === contaId
+            // O papel do último Administrador e o do Titular do Workspace pessoal aparecem travados, para mostrar a proteção.
+            const protegido = ultimo || titular
             return (
               <tr key={conta.id} aria-label={conta.nome} className="border-b border-al-line">
                 <td className="py-3">
@@ -235,7 +244,7 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
                       <select
                         aria-label={`Papel de ${conta.nome}`}
                         value={participante.papel}
-                        disabled={ultimo}
+                        disabled={protegido}
                         onChange={(e) => mudarPapel(participante, e.target.value as Papel)}
                         className="campo py-1.5 text-sm disabled:opacity-60"
                       >
@@ -245,24 +254,22 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
                           </option>
                         ))}
                       </select>
-                      {ultimo && (
-                        <span className="inline-flex items-center gap-1 text-xs text-al-muted">
-                          <ShieldCheck strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
-                          Último Administrador
-                        </span>
-                      )}
+                      <Protecao participante={participante} />
                     </div>
                   ) : (
-                    <span className="text-sm">{ROTULO_DO_PAPEL[participante.papel]}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm">{ROTULO_DO_PAPEL[participante.papel]}</span>
+                      {titular && <Protecao participante={participante} />}
+                    </div>
                   )}
                 </td>
                 <td className="py-3 text-right">
-                  {/* Ninguém remove a si mesmo por aqui; o último Administrador aparece travado, para mostrar a proteção. */}
-                  {ehAdministrador && (!voce || ultimo) && (
+                  {/* Ninguém remove a si mesmo por aqui; o último Administrador e o Titular aparecem travados. */}
+                  {ehAdministrador && (!voce || protegido) && (
                     <button
                       type="button"
-                      disabled={ultimo}
-                      title={ultimo ? 'O Workspace precisa de pelo menos um Administrador.' : undefined}
+                      disabled={protegido}
+                      title={titular ? ERRO_TITULAR : ultimo ? 'O Workspace precisa de pelo menos um Administrador.' : undefined}
                       onClick={() => setRemovendo(participante)}
                       className={cn(BOTAO_DISCRETO, 'hover:text-al-erro disabled:pointer-events-none disabled:opacity-40')}
                     >
@@ -279,6 +286,8 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
         <p className="text-sm text-al-muted">
           Para rebaixar ou remover o último Administrador, torne outra pessoa Administrador antes. O Workspace nunca fica sem
           responsável.
+          {participantes.some((p) => p.titular) &&
+            ' No Workspace pessoal, o Titular continua Administrador: ninguém o rebaixa nem o remove, nem outro Administrador.'}
         </p>
       )}
 
@@ -292,6 +301,18 @@ function Participantes({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace;
         }}
       />
     </Bloco>
+  )
+}
+
+/** Por que o papel de um participante não muda: é o Titular do Workspace pessoal ou o último Administrador. */
+function Protecao({ participante }: { participante: Participante }) {
+  const { titular, ultimoAdministrador } = participante
+  if (!titular && !ultimoAdministrador) return null
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-al-muted">
+      <ShieldCheck strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
+      {titular ? 'Titular do Workspace pessoal' : 'Último Administrador'}
+    </span>
   )
 }
 
@@ -339,7 +360,8 @@ function DialogoDeRemocao({
           <dd>Acesso e Participação no Workspace {nomeDoWorkspace}</dd>
           <dt className="rotulo text-al-sucesso">Continua</dt>
           <dd className="flex flex-col">
-            <span>Conta de usuário ({participante?.conta.email})</span>
+            <span>Conta de usuário ({participante?.conta.email}) e o Workspace pessoal dela</span>
+            <span>Os registros comerciais do Workspace {nomeDoWorkspace}</span>
             {outras.length > 0 ? (
               outras.map((p) => (
                 <span key={p.workspaceId}>
@@ -369,25 +391,53 @@ function DialogoDeRemocao({
   )
 }
 
+/** Como cada estado de um convite aparece. Só o pendente ainda pode ser aceito. */
+const ROTULO_DO_ESTADO: Record<EstadoDoConvite, string> = {
+  pendente: 'Convite pendente',
+  aceito: 'Aceito',
+  expirado: 'Expirado',
+  revogado: 'Revogado',
+}
+
+/**
+ * Os convites do Workspace: os pendentes, que o Administrador cancela ou cujo link copia, e os já encerrados. A Althius
+ * ainda não envia o e-mail de convite: no Workspace operacional, o Administrador copia o link e o envia à pessoa.
+ */
 function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoConcluir: AoConcluir }) {
   const fonte = useFonte()
+  const { modo } = useAmbiente()
   const { convites, papel } = dados
   const ehAdministrador = papel === 'administrador'
   const [convidando, setConvidando] = useState(false)
+  const pendentes = convites.filter((convite) => convite.estado === 'pendente')
+  const encerrados = convites.filter((convite) => convite.estado !== 'pendente')
 
-  async function cancelar(conviteId: string, email: string) {
+  async function cancelar({ id, email }: Convite) {
     try {
-      await fonte.cancelarConvite(conviteId)
-      aoConcluir({ tipo: 'sucesso', texto: `Convite para ${email} cancelado.` })
+      await fonte.cancelarConvite(id)
+      aoConcluir({
+        tipo: 'sucesso',
+        texto: modo === 'demonstracao' ? `Convite para ${email} cancelado.` : `Convite para ${email} revogado. O link deixou de valer.`,
+      })
     } catch (e) {
       aoConcluir({ tipo: 'erro', texto: mensagemDeErro(e) })
     }
   }
 
+  async function copiarLink({ email, link }: Convite) {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      aoConcluir({ tipo: 'sucesso', texto: `Link do convite para ${email} copiado.` })
+    } catch {
+      aoConcluir({ tipo: 'erro', texto: `Não foi possível copiar. Copie o link do convite para ${email}: ${link}` })
+    }
+  }
+
   return (
     <Bloco
-      titulo="Convites pendentes"
-      descricao="Quem recebe um convite ainda não participa: entra no Workspace só depois de aceitar."
+      titulo="Convites"
+      descricao="Quem recebe um convite ainda não participa: entra no Workspace só depois de aceitar, com o e-mail convidado."
       acoes={
         ehAdministrador && (
           <button type="button" onClick={() => setConvidando(true)} className={BOTAO_PRIMARIO}>
@@ -397,37 +447,36 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
         )
       }
     >
-      {convites.length === 0 ? (
+      {pendentes.length === 0 ? (
         <p className="anotacao text-lg">nenhum convite esperando resposta</p>
       ) : (
         <ul aria-label="Convites pendentes" className="flex flex-col">
-          {convites.map((convite) => (
-            <li
-              key={convite.id}
-              aria-label={convite.email}
-              className="flex items-center gap-3 border-b border-dashed border-al-line py-3"
-            >
-              <span
-                className="grid size-9 place-items-center rounded-full border border-dashed border-al-line text-al-muted"
-                aria-hidden
-              >
-                <UserPlus strokeWidth={1.8} className="size-4" />
-              </span>
-              <div className="flex flex-1 flex-col leading-tight">
-                <span className="font-normal">{convite.email}</span>
-                <span className="text-sm text-al-muted">
-                  {ROTULO_DO_PAPEL[convite.papel]} · registrado em {formatarDiaIsoPorExtenso(convite.registradoEm)}
-                </span>
-              </div>
-              <span className="selo">Convite pendente</span>
+          {pendentes.map((convite) => (
+            <ItemDoConvite key={convite.id} convite={convite}>
+              {ehAdministrador && convite.link && (
+                <button type="button" onClick={() => copiarLink(convite)} className={BOTAO_DISCRETO}>
+                  <Link2 strokeWidth={1.8} className="size-4" aria-hidden />
+                  Copiar link do convite
+                </button>
+              )}
               {ehAdministrador && (
-                <button type="button" onClick={() => cancelar(convite.id, convite.email)} className={BOTAO_DISCRETO}>
+                <button type="button" onClick={() => cancelar(convite)} className={BOTAO_DISCRETO}>
                   Cancelar convite
                 </button>
               )}
-            </li>
+            </ItemDoConvite>
           ))}
         </ul>
+      )}
+      {encerrados.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h4 className="rotulo">Encerrados</h4>
+          <ul aria-label="Convites encerrados" className="flex flex-col">
+            {encerrados.map((convite) => (
+              <ItemDoConvite key={convite.id} convite={convite} />
+            ))}
+          </ul>
+        </div>
       )}
       <DialogoDeConvite
         aberto={convidando}
@@ -436,6 +485,29 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
         aoConcluir={aoConcluir}
       />
     </Bloco>
+  )
+}
+
+function ItemDoConvite({ convite, children }: { convite: Convite; children?: ReactNode }) {
+  const { estado } = convite
+  return (
+    <li aria-label={convite.email} className="flex flex-wrap items-center gap-3 border-b border-dashed border-al-line py-3">
+      <span
+        className="grid size-9 place-items-center rounded-full border border-dashed border-al-line text-al-muted"
+        aria-hidden
+      >
+        <UserPlus strokeWidth={1.8} className="size-4" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+        <span className="truncate font-normal">{convite.email}</span>
+        <span className="text-sm text-al-muted">
+          {ROTULO_DO_PAPEL[convite.papel]} · registrado em {formatarDiaIsoPorExtenso(convite.registradoEm)}
+          {estado === 'pendente' && convite.expiraEm && ` · link vale até ${formatarDiaIsoPorExtenso(convite.expiraEm)}`}
+        </span>
+      </div>
+      <span className={cn('selo', estado !== 'pendente' && 'text-al-muted')}>{ROTULO_DO_ESTADO[estado]}</span>
+      {children}
+    </li>
   )
 }
 
@@ -451,6 +523,7 @@ function DialogoDeConvite({
   aoConcluir: AoConcluir
 }) {
   const fonte = useFonte()
+  const demonstracao = useAmbiente().modo === 'demonstracao'
   const [email, setEmail] = useState('')
   const [papel, setPapel] = useState<Papel>('membro')
   const [erro, setErro] = useState('')
@@ -470,7 +543,10 @@ function DialogoDeConvite({
       const convite = await fonte.convidarParaWorkspace({ email, papel })
       aoConcluir({
         tipo: 'sucesso',
-        texto: `Convite registrado para ${convite.email} como ${ROTULO_DO_PAPEL[convite.papel]}. Demonstração: nenhum e-mail foi enviado.`,
+        // Sem SMTP de produção, nenhum e-mail sai: o convite nunca alega envio.
+        texto: `Convite registrado para ${convite.email} como ${ROTULO_DO_PAPEL[convite.papel]}. ${
+          demonstracao ? 'Demonstração: nenhum e-mail foi enviado.' : 'Nenhum e-mail foi enviado: copie o link do convite e envie à pessoa.'
+        }`,
       })
       fechar()
     } catch (e) {
@@ -485,8 +561,9 @@ function DialogoDeConvite({
       <DialogContent className="gap-5 p-6 sm:max-w-md">
         <DialogTitle className="titulo-secao text-2xl">Convidar pessoa</DialogTitle>
         <DialogDescription className="text-al-muted">
-          A pessoa entra no Workspace {nomeDoWorkspace} com o papel escolhido depois de aceitar. Demonstração: nenhum e-mail é
-          enviado.
+          {demonstracao
+            ? `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar. Demonstração: nenhum e-mail é enviado.`
+            : `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar o convite com este mesmo e-mail. Nenhum e-mail é enviado: depois de registrar, copie o link do convite e envie à pessoa.`}
         </DialogDescription>
         <form aria-label="Convidar pessoa" noValidate onSubmit={registrar} className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">

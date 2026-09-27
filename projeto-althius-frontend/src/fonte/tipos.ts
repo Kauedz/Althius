@@ -122,15 +122,29 @@ export interface Participante {
   ultimoAdministrador: boolean
   /** As Participações da mesma Conta de usuário em outros Workspaces, que a remoção deste preserva. */
   outrasParticipacoes: ParticipacaoDaConta[]
+  /** Se é o Titular do Workspace pessoal: ninguém o rebaixa nem o remove, nem outro Administrador. */
+  titular?: boolean
 }
 
-/** Convite demonstrativo, pendente até ser aceito: não é Participante nem conta como um. Nenhum e-mail é enviado. */
+/** Os estados de um convite: só o pendente ainda pode ser aceito. */
+export type EstadoDoConvite = 'pendente' | 'aceito' | 'expirado' | 'revogado'
+
+/**
+ * Convite para uma pessoa entrar no Workspace: não é Participante nem conta como um até ser aceito, com o e-mail
+ * convidado. A Althius ainda não envia e-mail de convite: o Administrador copia o link e o envia.
+ */
 export interface Convite {
   id: string
   email: string
   papel: Papel
   /** Data do registro, em ISO (aaaa-mm-dd). */
   registradoEm: string
+  /** A Demonstração só guarda convites pendentes. */
+  estado: EstadoDoConvite
+  /** O link do convite, que só Administradores recebem, enquanto ele está pendente. */
+  link?: string
+  /** Até quando o link vale, em ISO (aaaa-mm-dd); a Demonstração não tem prazo. */
+  expiraEm?: string
 }
 
 export interface NovoConvite {
@@ -524,8 +538,9 @@ export interface FonteDeAgentes extends FonteObservavel {
   // As operações administrativas abaixo validam a Participação e o papel da sessão: só Administradores as executam.
   /** Altera o nome e a descrição do Workspace; o nome não fica vazio. */
   salvarInformacoesDoWorkspace(informacoes: NovasInformacoesDoWorkspace): Promise<void>
-  /** Registra um convite pendente, sem enviar e-mail; recusa quem já participa ou já foi convidado. */
+  /** Registra um convite pendente, sem enviar e-mail; recusa quem já participa ou já tem convite pendente. */
   convidarParaWorkspace(convite: NovoConvite): Promise<Convite>
+  /** Cancela (revoga) um convite pendente: o link deixa de valer. */
   cancelarConvite(conviteId: string): Promise<void>
   /** Alterna o papel entre Administrador e Membro; recusa rebaixar o último Administrador. */
   mudarPapel(contaId: ContaDeUsuarioId, papel: Papel): Promise<void>

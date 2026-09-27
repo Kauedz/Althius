@@ -3,8 +3,9 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
+import { aceitarConvite } from '@/fonte/supabase-participantes'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
-import { destinoDepoisDoAcesso } from './destino'
+import { destinoDepoisDoAcesso, tokenDoConviteNoEndereco } from './destino'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
 import { VERSAO_DOS_TERMOS } from './termos'
 import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
@@ -91,6 +92,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   const [participacoes, setParticipacoes] = useState<Participacao[] | null>(null)
   const [erroParticipacoes, setErroParticipacoes] = useState<string | null>(null)
   const [workspaceId, setWorkspaceId] = useState('')
+  const [recusaDoConvite, setRecusaDoConvite] = useState<string | null>(null)
   // A renovação do token troca o objeto da sessão; só outra Conta de usuário recarrega as Participações.
   const usuarioId = sessao?.user.id
 
@@ -110,7 +112,10 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     setParticipacoes(null)
     setErroParticipacoes(null)
     setWorkspaceId('')
+    setRecusaDoConvite(null)
     if (!usuarioId) return () => { ativo = false }
+    // O link do convite, já no endereço depois do login: o convite é aceito depois do Workspace pessoal.
+    const tokenDoConvite = tokenDoConviteNoEndereco()
 
     void (async () => {
       const bootstrap = await cliente.rpc('bootstrap_personal_workspace', { p_terms_version: VERSAO_DOS_TERMOS })
@@ -121,6 +126,19 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       }
       const pessoal = bootstrap.data as WorkspacePessoal
       setWorkspacePessoal(pessoal)
+
+      let workspaceDoConvite: string | null = null
+      if (tokenDoConvite) {
+        // O endereço do convite fica: recusado o aceite, "Sair" o mantém como destino para entrar com o e-mail
+        // convidado; aceito ou dispensado, as rotas do Workspace levam ao início.
+        const aceite = await aceitarConvite(cliente, tokenDoConvite)
+        if (!ativo) return
+        if ('recusa' in aceite) setRecusaDoConvite(aceite.recusa)
+        else {
+          workspaceDoConvite = aceite.workspaceId
+          sessionStorage.setItem(CHAVE_DO_WORKSPACE, workspaceDoConvite)
+        }
+      }
 
       // O RLS só devolve os Workspaces em que a Conta de usuário tem Participação ativa.
       const [{ data, error }, workspaces] = await Promise.all([
@@ -139,10 +157,12 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
         ((data ?? []) as Participacao[]).map((p) => ({ ...p, nome: nomes.get(p.workspace_id) })),
       )
       setParticipacoes(lista)
-      // Ordem de entrada: o Workspace desta aba, o último usado pela Conta de usuário e, sem outro destino, o pessoal.
-      // Só vale um Workspace com Participação ativa.
+      // Ordem de entrada: o Workspace do convite aceito agora, o desta aba, o último usado pela Conta de usuário e, sem
+      // outro destino, o pessoal. Só vale um Workspace com Participação ativa.
       const salvo = sessionStorage.getItem(CHAVE_DO_WORKSPACE)
-      const destino = [salvo, lerUltimoWorkspace(usuarioId), pessoal.id].find((id) => lista.some((p) => p.workspace_id === id))
+      const destino = [workspaceDoConvite, salvo, lerUltimoWorkspace(usuarioId), pessoal.id].find((id) =>
+        lista.some((p) => p.workspace_id === id),
+      )
       setWorkspaceId(destino ?? (lista.length === 1 ? lista[0].workspace_id : ''))
     })()
 
@@ -183,6 +203,19 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     )
   }
   if (workspacePessoal === null) return <TelaDeEstado>Preparando seu Workspace pessoal…</TelaDeEstado>
+  if (recusaDoConvite) {
+    return (
+      <TelaDeEstado>
+        <h1 className="titulo-secao text-2xl">Convite não aceito</h1>
+        <p role="alert">{recusaDoConvite}</p>
+        <p className="text-sm text-al-muted">Você entrou como {sessao.user.email}. Nenhuma Participação foi criada.</p>
+        <div className="flex gap-2">
+          <Button onClick={() => setRecusaDoConvite(null)}>Continuar sem o convite</Button>
+          <Sair />
+        </div>
+      </TelaDeEstado>
+    )
+  }
   if (participacoes === null) return <TelaDeEstado>Carregando seus Workspaces…</TelaDeEstado>
   if (participacoes.length === 0) {
     return (

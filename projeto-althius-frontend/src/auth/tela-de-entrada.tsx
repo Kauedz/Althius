@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ContinuarComGoogle } from './botao-do-google'
@@ -13,6 +13,8 @@ import { destinoDepoisDoAcesso } from './destino'
  */
 export function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
   const { entrarComSenha, pedirCodigoDeEntrada, confirmarCodigoDeEntrada, carregando } = useAutenticacao()
+  // O cadastro lembra o mesmo destino (como o link de um convite) para depois da verificação.
+  const { search } = useLocation()
   const campoDeEmail = useRef<HTMLInputElement>(null)
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
@@ -76,7 +78,7 @@ export function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
       <div>
         <h1 className="titulo-secao text-2xl">Entrar</h1>
         <p className="mt-2 text-sm text-al-muted">
-          Ainda não tem conta? <Link to="/cadastro" className="text-al-accent hover:underline">Criar conta</Link>
+          Ainda não tem conta? <Link to={{ pathname: '/cadastro', search }} className="text-al-accent hover:underline">Criar conta</Link>
         </p>
       </div>
       <ContinuarComGoogle contexto="signin" />
