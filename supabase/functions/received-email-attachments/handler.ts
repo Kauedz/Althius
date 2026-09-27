@@ -27,6 +27,8 @@ export interface Deps {
 }
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
+// Ids de anexo do Outlook (Microsoft Graph) passam fácil de 200 caracteres; o teto só barra abuso.
+const MAX_ATTACHMENT_ID = 4096
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const expiresIn = deps.expiresInSeconds ?? 300
@@ -55,7 +57,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const interactionId = typeof body?.interactionId === 'string' ? body.interactionId : ''
     const attachmentId = typeof body?.attachmentId === 'string' ? body.attachmentId.trim() : ''
     if (!UUID.test(interactionId)) return respond({ error: 'Interação obrigatória.' }, 400)
-    if (!attachmentId || attachmentId.length > 200) return respond({ error: 'Anexo obrigatório.' }, 400)
+    if (!attachmentId || attachmentId.length > MAX_ATTACHMENT_ID) return respond({ error: 'Anexo obrigatório.' }, 400)
 
     let path: string
     try {

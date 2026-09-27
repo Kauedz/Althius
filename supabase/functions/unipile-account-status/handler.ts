@@ -119,11 +119,16 @@ function pathSegment(value: string, fallback: string) {
   return !cleaned || /^\.+$/.test(cleaned) ? fallback : cleaned
 }
 
-/** O caminho de um anexo no bucket privado email-attachments. */
-export function attachmentPath(interactionId: string, attachmentId: string, name: string) {
-  return `recebidos/${pathSegment(interactionId, 'interacao')}/${pathSegment(attachmentId, 'anexo')}/${
-    pathSegment(name, 'anexo')
-  }`
+/** O caminho de um anexo no bucket privado email-attachments. Ids longos (Outlook) viram um hash, porque
+ * cortados colidiriam entre anexos do mesmo Email e o upload com upsert sobrescreveria um com o outro. */
+export async function attachmentPath(interactionId: string, attachmentId: string, name: string) {
+  const idSegment = attachmentId.length > 120 ? await sha256Hex(attachmentId) : pathSegment(attachmentId, 'anexo')
+  return `recebidos/${pathSegment(interactionId, 'interacao')}/${idSegment}/${pathSegment(name, 'anexo')}`
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
@@ -142,7 +147,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (!ingested.interaction_id) return
       try {
         const file = await deps.unipile.downloadEmailAttachment(accountId, emailId, attachment)
-        const path = attachmentPath(ingested.interaction_id, attachment.id, attachment.name ?? 'anexo')
+        const path = await attachmentPath(ingested.interaction_id, attachment.id, attachment.name ?? 'anexo')
         await deps.storage.upload(path, file.bytes, file.contentType ?? attachment.mime ?? null)
         await deps.db.recordReceivedEmailAttachment({
           interactionId: ingested.interaction_id,
