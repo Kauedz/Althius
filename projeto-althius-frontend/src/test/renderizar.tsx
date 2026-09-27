@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
 import type { Ambiente } from '@/fonte/ambiente'
 import type { FonteDeContas, FonteDeOnboarding } from '@/fonte/tipos'
+import { criarFonteDeConexoesSimulada } from '@/fonte/simulada-conexoes'
 import { criarFonteDeContasSimulada, type OpcoesFonteDeContasSimulada } from '@/fonte/simulada-contas'
 import {
   criarFonteDeOnboardingSimulada,
@@ -106,6 +107,7 @@ function montarApp({
     fonteDeSequencias,
     fonteDeOnboarding: ajustarOnboarding(fonteDeOnboarding),
     fonteDeSinais,
+    fonteDeConexoes: criarFonteDeConexoesSimulada(fonte),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     indisponiveis: new Set(),
   }

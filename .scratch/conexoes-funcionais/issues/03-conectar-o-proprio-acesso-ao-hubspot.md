@@ -11,6 +11,7 @@
 - [ ] O portal do Workspace vem do `hub_id` da conta conectada; se o token do MCP não servir para a consulta de metadados, vem de `get_user_details`. O caminho escolhido fica anotado no `## Comments`.
 - [ ] Conectar só é possível numa Integração habilitada no Workspace, por participante com Participação ativa.
 - [ ] O retorno do OAuth cai numa Edge Function própria desta frente, que só o aceita se casar com uma tentativa pendente, dentro do prazo, com `state` e PKCE válidos, de um participante ainda ativo. Um retorno forjado, repetido ou vencido não associa nada.
+- [ ] A configuração do servidor MCP de cada Integração (endereço, registro do cliente OAuth, escopos) fica no backend desta frente, fora do catálogo público `connection_catalog`, que qualquer Conta de usuário autenticada lê.
 - [ ] O token fica só no backend, no schema privado. Ele não aparece no navegador, em respostas da API, em logs nem para outro participante.
 - [ ] O primeiro Acesso fixa o portal HubSpot do Workspace. Um Acesso a outro portal é recusado com uma mensagem clara.
 - [ ] Recusar o consentimento, deixar a tentativa vencer ou uma falha do HubSpot mostram uma mensagem, e o cartão não finge que conectou.

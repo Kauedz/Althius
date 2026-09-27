@@ -98,7 +98,6 @@ describe('Workspace operacional e Demonstração', () => {
     ['/sinais', 'Sinais ainda não estão disponíveis neste Workspace.', 'Vagas'],
     ['/sinais/contas/openai', 'Sinais ainda não estão disponíveis neste Workspace.', 'OpenAI'],
     ['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads'],
-    ['/conexoes', 'Conexões ainda não estão disponíveis neste Workspace.', 'HubSpot'],
     ['/onboarding', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Qual é o seu papel'],
   ])('%s mostra que o módulo está indisponível, sem dados da Demonstração', async (rota, aviso, daDemonstracao) => {
     window.history.replaceState(null, '', rota)
@@ -304,6 +303,109 @@ function abrirContasDoNorte(
   })
   return { ...aberto, tabelas }
 }
+
+/** O catálogo de Conexões como a migration o grava: Canais Em breve e só HubSpot e Notion disponíveis. */
+function catalogoDeConexoes() {
+  const item = (id: string, kind: string, name: string, category: string | null, available: boolean, position: number) => ({
+    id, kind, name, category, description: `Descrição de ${name}.`, available, position,
+  })
+  return [
+    item('slack', 'canal', 'Slack', null, false, 10),
+    item('email', 'canal', 'E-mail', null, false, 40),
+    item('hubspot', 'integracao', 'HubSpot', 'CRM', true, 110),
+    item('clay', 'integracao', 'Clay', 'Enriquecimento', false, 210),
+    item('notion', 'integracao', 'Notion', 'Conhecimento', true, 310),
+    item('meta-ads', 'integracao', 'Meta Ads', 'Mídia paga', false, 410),
+  ]
+}
+
+describe('Conexões no Workspace operacional', () => {
+  function abrirConexoes(papel: 'admin' | 'member', extra: { tabelas?: Record<string, Record<string, unknown>[]>; rpcs?: Record<string, (p: Record<string, unknown>) => unknown> } = {}) {
+    window.history.replaceState(null, '', '/conexoes')
+    return abrirAlthius({
+      ultimoAmbiente: 'real',
+      ultimoWorkspace: 'ws-norte',
+      sessao: sessaoDe(MARINA),
+      tabelas: {
+        workspace_memberships: [participacao('ws-norte', papel)],
+        connection_catalog: catalogoDeConexoes(),
+        workspace_integrations: [],
+        ...extra.tabelas,
+      },
+      rpcs: extra.rpcs,
+    })
+  }
+
+  it('mostra o catálogo real: Canais e Integrações sem backend Em breve, e nada como conectado', async () => {
+    abrirConexoes('admin')
+
+    const canais = await screen.findByRole('region', { name: 'Canais' })
+    expect(within(await within(canais).findByRole('article', { name: 'Slack' })).getByText('Em breve')).toBeInTheDocument()
+    expect(within(within(canais).getByRole('article', { name: 'E-mail' })).getByText('Em breve')).toBeInTheDocument()
+
+    const integracoes = screen.getByRole('region', { name: 'Integrações' })
+    expect(within(await within(integracoes).findByRole('article', { name: 'HubSpot' })).getByText('Não habilitada')).toBeInTheDocument()
+    expect(within(within(integracoes).getByRole('article', { name: 'Clay' })).getByText('Em breve')).toBeInTheDocument()
+    expect(screen.queryByText(/^Conectado$/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Conectar' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Conexões ainda não estão disponíveis neste Workspace.')).not.toBeInTheDocument()
+  })
+
+  it('a Administradora habilita o HubSpot no Workspace', async () => {
+    const habilitacoes: Record<string, unknown>[] = []
+    const tabelas = { workspace_integrations: habilitacoes }
+    const { usuario } = abrirConexoes('admin', {
+      tabelas,
+      rpcs: {
+        enable_integration: (parametros) => {
+          const linha = { workspace_id: parametros.p_workspace_id, integration_id: parametros.p_integration_id, enabled_by: MARINA.id, enabled_at: '2026-09-26T17:00:00Z' }
+          habilitacoes.push(linha)
+          return linha
+        },
+      },
+    })
+
+    const hubspot = await screen.findByRole('article', { name: 'HubSpot' })
+    await usuario.click(within(hubspot).getByRole('button', { name: 'Habilitar' }))
+
+    expect(await within(hubspot).findByText('Habilitada')).toBeInTheDocument()
+    expect(habilitacoes).toEqual([expect.objectContaining({ workspace_id: 'ws-norte', integration_id: 'hubspot' })])
+    expect(within(hubspot).queryByRole('button', { name: 'Habilitar' })).not.toBeInTheDocument()
+  })
+
+  it('uma Integração já habilitada aparece como habilitada', async () => {
+    abrirConexoes('member', {
+      tabelas: { workspace_integrations: [{ workspace_id: 'ws-norte', integration_id: 'notion', enabled_by: 'outra', enabled_at: '2026-09-26T17:00:00Z' }] },
+    })
+
+    expect(await within(await screen.findByRole('article', { name: 'Notion' })).findByText('Habilitada')).toBeInTheDocument()
+  })
+
+  it('um Membro vê que a Integração não está habilitada e que só um Administrador habilita', async () => {
+    abrirConexoes('member')
+
+    const hubspot = await screen.findByRole('article', { name: 'HubSpot' })
+    expect(within(hubspot).getByText('Não habilitada')).toBeInTheDocument()
+    expect(within(hubspot).getByText('Só um Administrador habilita.')).toBeInTheDocument()
+    expect(within(hubspot).queryByRole('button', { name: 'Habilitar' })).not.toBeInTheDocument()
+  })
+
+  it('uma recusa do banco ao habilitar aparece no cartão, sem mudar o estado', async () => {
+    const { usuario } = abrirConexoes('admin', {
+      rpcs: {
+        enable_integration: () => {
+          throw Object.assign(new Error('only an admin can enable an integration'), { code: '42501' })
+        },
+      },
+    })
+
+    const hubspot = await screen.findByRole('article', { name: 'HubSpot' })
+    await usuario.click(within(hubspot).getByRole('button', { name: 'Habilitar' }))
+
+    expect(await within(hubspot).findByRole('alert')).toHaveTextContent('Só um Administrador pode habilitar uma Integração.')
+    expect(within(hubspot).getByText('Não habilitada')).toBeInTheDocument()
+  })
+})
 
 describe('Contas-alvo reais no Workspace operacional', () => {
   it('lista as Contas do Workspace, busca, abre o detalhe e volta com a busca', async () => {

@@ -8,11 +8,13 @@ import {
   criarFonteDeSinaisIndisponivel,
 } from './indisponivel'
 import { criarFonteSimulada } from './simulada'
+import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
 import { criarFonteDeContasSimulada } from './simulada-contas'
 import { criarFonteDeContasRemetentesDaDemonstracao } from './simulada-contas-remetentes'
 import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
+import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
 import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
 import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
@@ -25,13 +27,15 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
   const fonteDeSinais = criarFonteDeSinaisSimulada({ fonteDeContas })
   fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
   fonteDeSinais.vincularFonteDeContas(fonteDeContas)
+  const fonte = criarFonteSimulada({ armazenamento })
   return {
     modo: 'demonstracao',
-    fonte: criarFonteSimulada({ armazenamento }),
+    fonte,
     fonteDeContas,
     fonteDeSequencias,
     fonteDeOnboarding: criarFonteDeOnboardingSimulada({ armazenamento }),
     fonteDeSinais,
+    fonteDeConexoes: criarFonteDeConexoesSimulada(fonte),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     indisponiveis: new Set(),
   }
@@ -61,7 +65,8 @@ export function criarAmbienteDoWorkspace({
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
+    fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId, () => participacao.papel),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
-    indisponiveis: new Set(['agentes', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
+    indisponiveis: new Set(['agentes', 'sinais', 'aprovacoes', 'configuracoes', 'onboarding', 'anexos']),
   }
 }

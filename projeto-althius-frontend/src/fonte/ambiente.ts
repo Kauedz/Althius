@@ -1,6 +1,7 @@
 // O ambiente em que o app roda: a Demonstração, com dados de exemplo, ou um Workspace operacional. Vocabulário do
 // CONTEXT.md. A composição da aplicação escolhe um e injeta as fontes dele; as telas só consomem os contratos.
 
+import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding, FonteDeSequencias, Papel } from './tipos'
@@ -56,6 +57,7 @@ export interface Ambiente {
   fonteDeSequencias: FonteDeSequencias
   fonteDeOnboarding: FonteDeOnboarding
   fonteDeSinais: FonteDeSinais
+  fonteDeConexoes: FonteDeConexoes
   /** As Contas remetentes do titular. Na Demonstração, nenhuma é conectada. */
   fonteDeContasRemetentes: FonteDeContasRemetentes
   /** Os módulos sem backend neste ambiente, que as telas mostram como indisponíveis. Na Demonstração, nenhum. */

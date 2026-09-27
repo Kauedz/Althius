@@ -6,23 +6,44 @@ import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
-import { useDados, useFonte } from '@/fonte/contexto'
-import type { Aprovacao, CanalId, CategoriaDeIntegracao, Integracao, IntegracaoId } from '@/fonte/tipos'
+import { useDados, useFonteDeConexoes } from '@/fonte/contexto'
+import type { ConexaoDoCatalogo } from '@/fonte/conexoes-tipos'
+import type { Aprovacao, CanalId, CategoriaDeIntegracao, Integracao } from '@/fonte/tipos'
 
 const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga']
 
 export function PaginaConexoes() {
-  const canais = useDados((fonte) => fonte.canais(), [])
-  const integracoes = useDados((fonte) => fonte.integracoes(), [])
-  const futuras = useDados((fonte) => fonte.integracoesFuturas(), [])
-  const [conectando, setConectando] = useState<{ id: CanalId | IntegracaoId; nome: string } | null>(null)
+  const fonteDeConexoes = useFonteDeConexoes()
+  const catalogo = useDados(fonteDeConexoes, (f) => f.catalogo(), [])
+  const podeHabilitar = useDados(fonteDeConexoes, (f) => f.podeHabilitar(), [])
+  const [conectando, setConectando] = useState<{ id: string; nome: string } | null>(null)
   const [previa, setPrevia] = useState<CanalId | null>(null)
+  const canais = catalogo?.filter((c) => c.tipo === 'canal')
+  const integracoes = catalogo?.filter((c) => c.tipo === 'integracao')
+
+  const cartao = (conexao: ConexaoDoCatalogo) => (
+    <CartaoDeConexao
+      key={conexao.id}
+      conexao={conexao}
+      podeHabilitar={podeHabilitar === true}
+      aoConectar={() => setConectando(conexao)}
+      extra={
+        conexao.temPrevia &&
+        conexao.acesso?.conectado && (
+          <Button variant="outline" onClick={() => setPrevia(conexao.id as CanalId)} className="px-4">
+            Ver prévia
+          </Button>
+        )
+      }
+    />
+  )
 
   return (
     <Pagina titulo="Conexões" icone={Plug} className="gap-16">
       <div className="flex flex-col gap-2">
         <p className="max-w-2xl text-lg text-al-muted">
-          Conecte cada ferramenta uma vez para o Workspace. Depois, escolha em cada agente o que ele pode usar.
+          Um Administrador habilita cada ferramenta no Workspace, e cada pessoa conecta a própria conta. Depois, escolha
+          em cada agente o que ele pode usar.
         </p>
       </div>
 
@@ -31,28 +52,7 @@ export function PaginaConexoes() {
           <h2 className="titulo-secao text-3xl">Canais</h2>
           <p className="text-al-muted">Onde sua equipe conversa com os agentes fora da Althius.</p>
         </div>
-        {!canais ? (
-          <Carregando />
-        ) : (
-          <div className="grid grid-cols-4 gap-6">
-            {canais.map((canal) => (
-              <CartaoDeConexao
-                key={canal.id}
-                nome={canal.nome}
-                descricao={canal.descricao}
-                conectado={canal.conectado}
-                aoConectar={() => setConectando(canal)}
-                extra={
-                  canal.conectado && (
-                    <Button variant="outline" onClick={() => setPrevia(canal.id)} className="px-4">
-                      Ver prévia
-                    </Button>
-                  )
-                }
-              />
-            ))}
-          </div>
-        )}
+        {!canais ? <Carregando /> : <div className="grid grid-cols-4 gap-6">{canais.map(cartao)}</div>}
       </section>
 
       <section aria-label="Integrações" className="flex flex-col gap-6">
@@ -60,37 +60,13 @@ export function PaginaConexoes() {
           <h2 className="titulo-secao text-3xl">Integrações</h2>
           <p className="text-al-muted">De onde os agentes leem dados e para onde escrevem.</p>
         </div>
-        {!integracoes || !futuras ? (
+        {!integracoes ? (
           <Carregando />
         ) : (
           CATEGORIAS.map((categoria) => (
             <div key={categoria} className="flex flex-col gap-4">
               <h3 className="rotulo">{categoria}</h3>
-              <div className="grid grid-cols-4 gap-6">
-                {integracoes
-                  .filter((i) => i.categoria === categoria)
-                  .map((integracao) => (
-                    <CartaoDeConexao
-                      key={integracao.id}
-                      nome={integracao.nome}
-                      descricao={integracao.descricao}
-                      conectado={integracao.conectada}
-                      aoConectar={() => setConectando(integracao)}
-                    />
-                  ))}
-                {futuras
-                  .filter((i) => i.categoria === categoria)
-                  .map((futura) => (
-                    <article
-                      key={futura.nome}
-                      aria-label={futura.nome}
-                      className="flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
-                    >
-                      <span className="font-normal">{futura.nome}</span>
-                      <span className="rotulo">Em breve</span>
-                    </article>
-                  ))}
-              </div>
+              <div className="grid grid-cols-4 gap-6">{integracoes.filter((i) => i.categoria === categoria).map(cartao)}</div>
             </div>
           ))
         )}
@@ -102,28 +78,76 @@ export function PaginaConexoes() {
   )
 }
 
+/** Onde uma Conexão disponível está, para o Workspace e para quem está na sessão. */
+type Situacao = 'nao-habilitada' | 'habilitada' | 'nao-conectada' | 'conectada'
+
+const ROTULO_DA_SITUACAO: Record<Situacao, string> = {
+  'nao-habilitada': 'Não habilitada',
+  habilitada: 'Habilitada',
+  'nao-conectada': 'Não conectado',
+  conectada: 'Conectado',
+}
+
 function CartaoDeConexao({
-  nome,
-  descricao,
-  conectado,
+  conexao,
+  podeHabilitar,
   aoConectar,
   extra,
 }: {
-  nome: string
-  descricao: string
-  conectado: boolean
+  conexao: ConexaoDoCatalogo
+  podeHabilitar: boolean
   aoConectar: () => void
   extra?: React.ReactNode
 }) {
+  const fonte = useFonteDeConexoes()
+  const [erro, setErro] = useState<string | null>(null)
+  const [habilitando, setHabilitando] = useState(false)
+  const { nome, descricao, disponivel, habilitada, acesso } = conexao
+
+  if (!disponivel) {
+    return (
+      <article aria-label={nome} className="flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted">
+        <span className="font-normal">{nome}</span>
+        {descricao && <p className="text-sm">{descricao}</p>}
+        <span className="rotulo">Em breve</span>
+      </article>
+    )
+  }
+
+  async function habilitar() {
+    setErro(null)
+    setHabilitando(true)
+    try {
+      await fonte.habilitar(conexao.id)
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e))
+    } finally {
+      setHabilitando(false)
+    }
+  }
+
+  const situacao: Situacao = !habilitada ? 'nao-habilitada' : !acesso ? 'habilitada' : acesso.conectado ? 'conectada' : 'nao-conectada'
   return (
     <article aria-label={nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
         <span className="text-lg font-normal">{nome}</span>
-        <span className={conectado ? 'rotulo text-al-sucesso' : 'rotulo'}>{conectado ? 'Conectado' : 'Não conectado'}</span>
+        <span className={situacao === 'conectada' ? 'rotulo text-al-sucesso' : 'rotulo'}>{ROTULO_DA_SITUACAO[situacao]}</span>
       </div>
       <p className="text-sm text-al-muted">{descricao}</p>
+      {situacao === 'habilitada' && <p className="text-sm text-al-muted">A conexão da sua conta chega em breve.</p>}
+      {situacao === 'nao-habilitada' && !podeHabilitar && <p className="text-sm text-al-muted">Só um Administrador habilita.</p>}
+      {erro && (
+        <p role="alert" className="text-sm text-al-erro">
+          {erro}
+        </p>
+      )}
       <div className="mt-auto flex gap-2">
-        {!conectado && (
+        {situacao === 'nao-habilitada' && podeHabilitar && (
+          <Button variant="outline" onClick={habilitar} disabled={habilitando} className="px-4">
+            Habilitar
+          </Button>
+        )}
+        {situacao === 'nao-conectada' && (
           <Button variant="outline" onClick={aoConectar} className="px-4">
             Conectar
           </Button>
@@ -138,10 +162,10 @@ function DialogoDeConexao({
   conexao,
   aoFechar,
 }: {
-  conexao: { id: CanalId | IntegracaoId; nome: string } | null
+  conexao: { id: string; nome: string } | null
   aoFechar: () => void
 }) {
-  const fonte = useFonte()
+  const fonte = useFonteDeConexoes()
   return (
     <Dialog open={conexao !== null} onOpenChange={(aberto) => !aberto && aoFechar()}>
       <DialogContent className="gap-6 p-6">

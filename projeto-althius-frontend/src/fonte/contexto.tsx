@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Ambiente, ModoDoAmbiente, ModuloDoWorkspace } from './ambiente'
+import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
@@ -100,6 +101,18 @@ export function FonteDeSinaisProvider({
 export function useFonteDeSinais(): FonteDeSinais {
   const fonte = useContext(ContextoDaFonteDeSinais)
   if (!fonte) throw new Error('useFonteDeSinais precisa de um FonteDeSinaisProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeConexoes = createContext<FonteDeConexoes | null>(null)
+
+export function FonteDeConexoesProvider({ fonte, children }: { fonte: FonteDeConexoes; children: ReactNode }) {
+  return <ContextoDaFonteDeConexoes.Provider value={fonte}>{children}</ContextoDaFonteDeConexoes.Provider>
+}
+
+export function useFonteDeConexoes(): FonteDeConexoes {
+  const fonte = useContext(ContextoDaFonteDeConexoes)
+  if (!fonte) throw new Error('useFonteDeConexoes precisa de um FonteDeConexoesProvider')
   return fonte
 }
 
