@@ -55,3 +55,13 @@ Três PRs em sequência: (1) banco, (2) executor e (3) tela.
       - o E-mail manual, a revogação por edição e o passo em voo numa reativação;
       - o incerto resolvido pelo titular, o bounce e o atraso fora da janela.
     - Vitest: a tela não regrava o status lido.
+- **PR 2 (executor):**
+  - **Edge Function `sequence-runner`:** chamada pelo banco a cada minuto, quando há passo automático vencido. Confere o token, responde `202` e envia até 5 passos por rodada, um por vez, em nome do titular (`release_due_step_send`).
+  - **Núcleo compartilhado:** `sequence-step-sends` e `sequence-runner` usam o mesmo `_shared/send-step.ts` (conferir a conversa, liberar, enviar e gravar) e os mesmos adaptadores (`_shared/send-step-adapters.ts`). O `Retry-After` da Unipile vai para o banco.
+  - **Migration** `supabase/migrations/20260927020000_executor_da_sequencia.sql`:
+    - liga o pg_cron e o pg_net onde existem e agenda `althius-sequence-runner` a cada minuto;
+    - o token nasce e fica no banco;
+    - o endereço da função é o único passo manual (`private.configure_sequence_runner`).
+  - **Testes:**
+    - Deno `supabase/functions/sequence-runner/handler.test.ts`: token, envio em nome do titular, bloqueio sem chamar a Unipile, Retry-After, falha isolada e limite por rodada.
+    - pgTAP `supabase/tests/executor_da_sequencia.sql` (16 asserções): o token, o endereço, a chamada só com passo vencido, a pausa e o job do pg_cron.
