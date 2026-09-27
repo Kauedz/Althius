@@ -11,7 +11,7 @@
 - [ ] A interface existente diferencia conectando, sincronizando, pronta, requer reconexão e desconectada.
 - [x] Apenas o titular pode consultar detalhes privados ou usar a Conta remetente; outro participante não consegue associá-la à própria Sequência.
 - [x] Credenciais e segredos da Unipile ficam somente no backend e não aparecem no bundle, logs compartilhados ou respostas públicas.
-- [ ] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade. O bloqueio de envio é critério do canais-04, que é onde o envio acontece.
+- [x] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade. O bloqueio de envio é critério do canais-04, que é onde o envio acontece.
 - [x] A entrega usa contratos da Unipile v2 (host único, hosted auth por `POST /v2/auth/link`, webhook único assinado por HMAC) e não mistura payloads da v1.
 
 ## Implementação local
@@ -28,8 +28,39 @@
   - `scripts/wizard-unipile.sh` obtém a chave de API, registra o Webhook Endpoint por API (capturando o segredo que a própria Unipile gera) e cola os 3 segredos; `npm run unipile:testar` conecta um canal de verdade de ponta a ponta;
   - a conta Unipile do teste grátis está configurada pelo wizard, com o Webhook Endpoint inscrito nos 7 eventos de conta;
   - primeira conexão real ponta a ponta pelo `npm run unipile:testar -- email`: link hospedado de `POST /v2/auth/link` → `account.add` assinado (HTTP 200) → Conta remetente de e-mail `GOOGLE` do Vendedor responsável. Ela ficou em `syncing` porque Google, Outlook e LinkedIn não fazem sincronização inicial na v2 e nunca mandam `account.initial_sync.completed`. Corrigido: a função aplica o `SYNC_SUCCESS` logo depois do `account.add` para esses provedores. A conta do teste está `ready`;
-  - continuam em aberto o item "A interface existente diferencia...", porque `/conexoes` ainda mostra a tela de indisponível no Workspace operacional, e o bloqueio de envio na reconexão.
+  - continuava em aberto o item "A interface existente diferencia...", porque `/conexoes` ainda mostra a tela de indisponível no Workspace operacional. O bloqueio de envio na reconexão foi resolvido em 2026-09-27 (abaixo).
 - **Conta Unipile é infraestrutura descartável na pré-produção** ([ADR-0015](../../../docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)): o plano troca de conta Unipile pelo menos três vezes (teste grátis de 7 dias → conta paga de um sócio → conta oficial da empresa). Só os 3 segredos das Edge Functions mudam; nenhum Contato, Conta-alvo, Sequência ou Interação depende de qual conta está ativa. Rodar o wizard de novo a cada troca.
+
+## Reconciliação depois da reconexão (2026-09-27)
+
+- **O problema:** `reconciliation_required` virava `true` numa queda ou reconexão, e nada o limpava. A conta ficava em `syncing` e os envios, bloqueados para sempre.
+- **A correção:** migration `supabase/migrations/20260927114500_reconciliacao_da_conta_remetente.sql`.
+  - **Queda:** uma queda (`CREDENTIALS`, `ERROR`, `STOPPED`) ou uma reconexão pela autenticação hospedada exige reconciliação. Um gatilho recomeça a conferência do zero em toda queda.
+  - **Volta:** a conta fica pronta para reconciliar (`reconciliation_ready_at`) quando a Unipile avisa que ela voltou e sincronizou (`SYNC_SUCCESS` ou `OK`). Num provedor sem sincronização inicial, já fica pronta na própria reconexão, na mesma operação do banco. Uma reconexão entregue depois do aviso de volta não o apaga.
+  - **Contas presas antes da migration:** as que ficaram em `syncing` entram na fila.
+  - **Quem roda:** o relógio do canais-05 chama o Executor também quando há conta esperando reconciliação.
+  - **Conferência:**
+    - O Executor reserva a conta por 5 minutos (`claim_sender_reconciliations`).
+    - Pela mesma rotina usada antes de um envio (`checkConversation` em `_shared/send-step.ts`), confere a última conversa de cada Contato das Sequências que saíram pela conta, pausadas inclusive.
+    - Vai em páginas de 25 (`conversations_to_reconcile`), guardando até onde foi (`record_reconciliation_progress`). Uma resposta perdida é gravada e pausa a Sequência.
+    - A conferência tem até 60 s por rodada. O que faltar, ou o que falhar na Unipile, continua na rodada seguinte, a partir de onde parou.
+    - Uma conversa que não existe mais (HTTP 404) conta como conferida.
+  - **Liberação:** só com tudo conferido a conta volta a `ready` (`finish_sender_reconciliation`). Se ela caiu de novo durante a reconciliação, a rodada não grava nem libera nada.
+- **Limites conhecidos:**
+  - **Janela da queda:** a reconciliação relê as conversas da Althius, mas não varre a caixa de entrada no período fora do ar. Essa varredura é o próximo passo e depende de conferir na documentação da v2 como listar e-mails por data. O ambiente de desenvolvimento não alcança `developer.unipile.com`.
+  - **LinkedIn e WhatsApp:** as contas desses canais são liberadas sem conferência, porque esses canais ainda não enviam passos. O canais-06/07 traz a conferência deles.
+  - **Ordem dos avisos:** um `OK` que chega antes do fim da sincronização inicial (IMAP, WhatsApp) libera a conferência antes da hora. Não sei se a Unipile manda os avisos nessa ordem.
+- **Testes:**
+  - pgTAP `supabase/tests/reconciliacao_da_conta_remetente.sql` (25 asserções).
+  - Deno `supabase/functions/sequence-runner/handler.test.ts`:
+    - reconciliar e liberar;
+    - a falha e a nova queda, que mantêm a conta bloqueada;
+    - as páginas;
+    - o limite de tempo;
+    - o 404;
+    - a conta sem conversas;
+    - a reconciliação antes dos envios.
+- **Falta no ticket:** a interface com os estados da conta, em Configurações → perfil, decidido em 2026-09-27. Fica fora de `/conexoes`, como combinado com a frente de Conexões.
 
 ## Dependências externas
 

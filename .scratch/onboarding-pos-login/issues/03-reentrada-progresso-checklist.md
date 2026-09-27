@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Protótipo completo do fluxo de onboarding)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Ao reabrir o fluxo com Day0 concluído, o usuário começa no checklist.
 - [x] O progresso dos itens do checklist permanece salvo na Fonte.
@@ -21,3 +21,5 @@
 - **Uma regra só para o checklist aberto:** o gate da Casca (`precisaDoOnboarding`), a visita a Sinais e todas as escritas do checklist na Fonte usam `day0Concluido`, não o passo atual. Visitar qualquer rota de `/sinais` conclui o item 3, inclusive depois de um item pulado, sem criar Monitoramento.
 - **Progresso visível:** o checklist mostra "n de 3 concluídos" com um segmento por item, e o item concluído ganha selo preenchido com check. Um item pulado não conta como concluído.
 - **Decisão além dos critérios:** enquanto o checklist está pendente (Day0 feito, onboarding não concluído), a barra lateral da Casca mostra "Primeiros passos → Checklist do Norte n/3", que leva a `/onboarding`. Fecha a lacuna anotada no ticket 02: fechado o aviso de retorno de Sinais, nada levava de volta ao checklist (histórias 41 e 72). Some depois de "Concluir onboarding".
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

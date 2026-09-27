@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (Células da tabela de Contas no visual final)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O pop-up abre ao passar o mouse sobre a empresa, depois de um pequeno atraso
 - [x] O pop-up abre quando o nome da empresa recebe o foco do teclado
@@ -18,3 +18,5 @@
 - O pop-up usa o PreviewCard do Base UI, num portal (o quadro da tabela corta o que transborda). Abre 400 ms depois do mouse ou do foco no nome e fecha 200 ms depois que o ponteiro sai, com uma ponte até o pop-up.
 - Teclado: o portal fica fora da ordem do Tab, e ela é refeita à mão. Do nome, o Tab entra nos links. Do primeiro link, o Shift+Tab volta ao nome. Do último, o Tab segue a tabela a partir do nome.
 - O pop-up usa só o `siteUrl` e o `linkedinUrl` da fonte. O detalhe da conta monta o link do site a partir do domínio quando falta o `siteUrl`, e o pop-up não faz isso, para não mostrar um link inventado. Alinhar o detalhe a essa regra fica para o ticket 09.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

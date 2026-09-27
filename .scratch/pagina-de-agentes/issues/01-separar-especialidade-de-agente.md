@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] A fonte de dados dos agentes expõe o catálogo de Especialidades, e esse catálogo é fixo (não há operação para criar uma Especialidade)
 - [x] Cada Agente sabe a sua Especialidade e se é padrão ou criado; os 4 Agentes atuais são os Agentes padrão
@@ -12,3 +12,7 @@
 - [x] O ícone e o rótulo da Especialidade de um Agente vêm do catálogo
 - [x] Nada muda na tela: os testes de comportamento atuais passam sem alteração no que verificam
 - [x] Os tipos usam o vocabulário do `CONTEXT.md` (Especialidade, Agente padrão, Agente criado)
+
+## Comments
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

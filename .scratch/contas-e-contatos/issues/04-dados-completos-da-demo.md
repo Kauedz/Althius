@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Aba Contas: primeira fatia de ponta a ponta)
 
-**Status:** ready-for-human
+**Status:** closed
 
 - [x] 18 Quentes (todas com Sinal recente), 8 Fit, 3 Não fit e 1 não avaliada
 - [x] As 3 Não fit e a não avaliada têm origem "importada", pela usuária da demo; as demais, "recomendada pela Althius"
@@ -18,3 +18,7 @@
 - [x] Os logos são os SVGs oficiais do Simple Icons (CC0) das empresas que os têm, como nas Integrações
 - [x] Nenhum dado exposto ao módulo tem nota numérica de Aderência
 - [x] Os testes existentes continuam verdes; as expectativas que dependiam do conjunto inicial são ajustadas ao conjunto completo
+
+## Comments
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

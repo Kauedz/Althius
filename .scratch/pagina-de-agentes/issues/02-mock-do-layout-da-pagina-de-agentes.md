@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O mock mostra a grade com os 9 Agentes da demo (4 padrão e 5 criados) e o composer abaixo dela
 - [x] O mock mostra uma resposta coordenada (passos por Agente e resposta consolidada) nas duas versões: no fio abaixo do composer e na página da Conversa
@@ -18,3 +18,5 @@
 
 - Mock: branch `prototipo/pagina-de-agentes`, arquivo `.scratch/pagina-de-agentes/mock/pagina-de-agentes.html` (fora do app e dos testes)
 - Página publicada do mock: https://claude.ai/artifact/EbQCFZP8aSRM2epqm4wDqm
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

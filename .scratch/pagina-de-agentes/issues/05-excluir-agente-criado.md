@@ -4,9 +4,13 @@
 
 **Blocked by:** 03 (Grade de Agentes e nova casca)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Um Agente criado oferece a exclusão, com confirmação, e some da grade depois de excluído
 - [x] Depois de excluir, o usuário volta para a página de Agentes se estava na página do Agente excluído
 - [x] O Agente padrão não oferece exclusão
 - [x] Não existe opção de renomear nenhum Agente, nem de criar Especialidade
+
+## Comments
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

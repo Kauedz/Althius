@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Filtros da aba Contas), 11 (Busca e filtros da aba Contatos), 12 (Contatos e Contas-alvo conectados)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Voltar do detalhe pela migalha mantém a busca, os filtros e a ordenação da aba Contas
 - [x] Voltar pelo voltar do navegador mantém o mesmo recorte
@@ -16,3 +16,5 @@
 - Os links da lista para o detalhe levam, no estado da navegação, o endereço da lista com o recorte e o rótulo da migalha. Aberto pela aba Contatos, a migalha é "Contatos" e volta para a aba Contatos; aberto direto pelo endereço, continua "Contas" para `/contas`.
 - A posição do quadro da tabela fica guardada por endereço (com o recorte) enquanto o app está aberto, e volta só pelo voltar do navegador ou pela migalha. Entrar pela sidebar ou pelas abas abre a lista no topo.
 - A rolagem até a âncora `#contatos` do detalhe (ticket 12) não mexe na rolagem da lista: são quadros diferentes.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

@@ -2,7 +2,14 @@ import { assertEquals } from 'jsr:@std/assert@1'
 import type { EmailSent, OutgoingEmail, ReleaseResult, UnipileMail } from '../_shared/send-step.ts'
 import { UnipileRequestError } from '../_shared/send-step.ts'
 import { retryAfterSeconds } from '../_shared/send-step-adapters.ts'
-import { createHandler, type Deps, type DueSend, type RunnerDb } from './handler.ts'
+import {
+  type ConversationToReconcile,
+  createHandler,
+  type Deps,
+  type DueSend,
+  type RunnerDb,
+  type SenderToReconcile,
+} from './handler.ts'
 
 const TOKEN = 'a'.repeat(64)
 const TITULAR = '50000000-0000-0000-0000-000000000001'
@@ -24,10 +31,29 @@ function released(sendId: string): ReleaseResult {
   }
 }
 
-function fakeDb(due: DueSend[], releases: Record<string, ReleaseResult | Error> = {}) {
+interface ReconciliationOptions {
+  accounts?: SenderToReconcile[]
+  conversations?: Record<string, ConversationToReconcile[] | Error>
+  /** Quantas conversas cada página traz (o banco usa 25). */
+  pageSize?: number
+  /** O desfecho de guardar o progresso: false quando a conta caiu de novo. */
+  progressHolds?: boolean
+  /** O desfecho da ingestão por id do e-mail da conversa. */
+  ingest?: Record<string, string>
+}
+
+function fakeDb(
+  due: DueSend[],
+  releases: Record<string, ReleaseResult | Error> = {},
+  reconciliation: ReconciliationOptions = {},
+) {
   const recorded: Parameters<RunnerDb['recordStepSendResult']>[0][] = []
   const released: string[] = []
   const conversations: string[] = []
+  const finished: { senderAccountId: string; claimedAt: string }[] = []
+  const progress = new Map<string, string>()
+  const pages: string[] = []
+  const ingested: string[] = []
   let claims = 0
   const db: RunnerDb = {
     tokenMatches: async (token) => token === TOKEN,
@@ -45,20 +71,51 @@ function fakeDb(due: DueSend[], releases: Record<string, ReleaseResult | Error> 
       conversations.push(`${sendId}:${userId}`)
       return null
     },
-    ingestEmailEvent: async () => ({ outcome: 'unrelated', interaction_id: null, send_id: null, attachments: [] }),
+    ingestEmailEvent: async (input) => {
+      ingested.push(String(input.email.id))
+      return {
+        outcome: reconciliation.ingest?.[String(input.email.id)] ?? 'unrelated',
+        interaction_id: null,
+        send_id: null,
+        attachments: [],
+      }
+    },
     recordStepSendResult: async (input) => {
       recorded.push(input)
     },
+    claimSenderReconciliations: async () => reconciliation.accounts ?? [],
+    // Como o banco: a próxima página começa depois da última conversa guardada no progresso.
+    conversationsToReconcile: async (senderAccountId) => {
+      const found = reconciliation.conversations?.[senderAccountId] ?? []
+      if (found instanceof Error) throw found
+      const after = progress.get(senderAccountId)
+      const start = after ? found.findIndex((c) => c.send_id === after) + 1 : 0
+      return found.slice(start, start + (reconciliation.pageSize ?? 25))
+    },
+    recordReconciliationProgress: async (senderAccountId, _claimedAt, checked) => {
+      pages.push(checked.send_id)
+      if (reconciliation.progressHolds === false) return false
+      progress.set(senderAccountId, checked.send_id)
+      return true
+    },
+    finishSenderReconciliation: async (senderAccountId, claimedAt) => {
+      finished.push({ senderAccountId, claimedAt })
+      return true
+    },
   }
-  return { db, recorded, released, conversations, claims: () => claims }
+  return { db, recorded, released, conversations, finished, ingested, pages, claims: () => claims }
 }
 
-function fakeUnipile(behaviour: EmailSent | Error) {
+function fakeUnipile(behaviour: EmailSent | Error, threads: Record<string, Record<string, unknown>[] | Error> = {}) {
   const sent: { accountId: string; email: OutgoingEmail }[] = []
   const unipile: UnipileMail = {
     getEmail: async (_accountId, emailId) => ({ id: emailId }),
-    listThreadEmails: async () => [],
-    listEmailSenders: async () => [],
+    listThreadEmails: async (_accountId, threadId) => {
+      const found = threads[threadId] ?? []
+      if (found instanceof Error) throw found
+      return found
+    },
+    listEmailSenders: async () => ['titular@cliente.com.br'],
     sendEmail: (accountId, email) => {
       sent.push({ accountId, email })
       return behaviour instanceof Error ? Promise.reject(behaviour) : Promise.resolve(behaviour)
@@ -185,4 +242,152 @@ Deno.test('Retry-After em segundos ou em data HTTP', () => {
   assertEquals(retryAfterSeconds('Sun, 27 Sep 2026 12:01:00 GMT', Date.parse('2026-09-27T12:00:00Z')), 60)
   assertEquals(retryAfterSeconds('amanhã'), null)
   assertEquals(retryAfterSeconds(null), null)
+})
+
+const CONTA = '70000000-0000-0000-0000-000000000009'
+const RESERVA = '2026-09-28T12:00:00Z'
+const contaParaReconciliar: SenderToReconcile = {
+  sender_account_id: CONTA,
+  unipile_account_id: 'unipile-google-1',
+  claimed_at: RESERVA,
+}
+const conversa = (thread: string): ConversationToReconcile => ({
+  send_id: `envio-${thread}`,
+  provider_thread_id: thread,
+  provider_email_id: null,
+  sent_at: '2026-09-25T12:00:00Z',
+})
+
+Deno.test('depois da reconexão, as conversas são conferidas e a conta volta a enviar', async () => {
+  const { db, finished, ingested } = fakeDb([], {}, {
+    accounts: [contaParaReconciliar],
+    conversations: { [CONTA]: [conversa('t-1'), conversa('t-2')] },
+    ingest: { 'resposta-perdida': 'reply' },
+  })
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null }, {
+    't-1': [{ id: 'enviado-1' }],
+    't-2': [{ id: 'enviado-2' }, { id: 'resposta-perdida' }],
+  })
+  const { handle, finished: done, logs } = runner(db, unipile)
+  await handle(call())
+  await done()
+  // A resposta que chegou com a conta fora do ar é gravada pela mesma ingestão (que pausa a Sequência).
+  assertEquals(ingested, ['enviado-1', 'enviado-2', 'resposta-perdida'])
+  assertEquals(finished, [{ senderAccountId: CONTA, claimedAt: RESERVA }])
+  assertEquals(logs, [{ type: 'reconcile', senderAccountId: CONTA, checked: 2, replies: 1, outcome: 'ready' }])
+})
+
+Deno.test('sem conseguir conferir uma conversa, a conta continua bloqueada para tentar de novo', async () => {
+  const { db, finished } = fakeDb([], {}, {
+    accounts: [contaParaReconciliar],
+    conversations: { [CONTA]: [conversa('t-1'), conversa('t-2')] },
+  })
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null }, { 't-1': [], 't-2': new Error('Unipile fora') })
+  const { handle, finished: done, logs } = runner(db, unipile)
+  await handle(call())
+  await done()
+  assertEquals(finished, [])
+  assertEquals(logs, [{
+    type: 'reconcile',
+    senderAccountId: CONTA,
+    checked: 1,
+    replies: 0,
+    outcome: 'check_failed',
+  }])
+})
+
+Deno.test('uma conta sem conversas a conferir volta a enviar sem chamar a Unipile', async () => {
+  const { db, finished } = fakeDb([], {}, { accounts: [contaParaReconciliar], conversations: {} })
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null })
+  unipile.listEmailSenders = () => Promise.reject(new Error('não deveria chamar'))
+  const { handle, finished: done } = runner(db, unipile)
+  await handle(call())
+  await done()
+  assertEquals(finished, [{ senderAccountId: CONTA, claimedAt: RESERVA }])
+})
+
+Deno.test('a reconciliação vem antes dos envios da mesma rodada', async () => {
+  const order: string[] = []
+  const { db } = fakeDb([{ send_id: SEND_1, owner_user_id: TITULAR }], { [SEND_1]: released(SEND_1) }, {
+    accounts: [contaParaReconciliar],
+  })
+  const finish = db.finishSenderReconciliation
+  db.finishSenderReconciliation = (id, at) => {
+    order.push('reconcile')
+    return finish(id, at)
+  }
+  const release = db.releaseDueSend
+  db.releaseDueSend = (id) => {
+    order.push('send')
+    return release(id)
+  }
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null })
+  const { handle, finished: done } = runner(db, unipile)
+  await handle(call())
+  await done()
+  assertEquals(order, ['reconcile', 'send'])
+})
+
+Deno.test('muitas conversas vão em páginas, guardando até onde foi, até todas serem conferidas', async () => {
+  const conversas = Array.from({ length: 5 }, (_, i) => conversa(`t-${i}`))
+  const { db, finished, pages } = fakeDb([], {}, {
+    accounts: [contaParaReconciliar],
+    conversations: { [CONTA]: conversas },
+    pageSize: 2,
+  })
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null })
+  const { handle, finished: done } = runner(db, unipile)
+  await handle(call())
+  await done()
+  assertEquals(pages, ['envio-t-1', 'envio-t-3', 'envio-t-4'])
+  assertEquals(finished, [{ senderAccountId: CONTA, claimedAt: RESERVA }])
+})
+
+Deno.test('sem tempo na rodada, a reconciliação para onde está e continua na próxima', async () => {
+  const conversas = Array.from({ length: 4 }, (_, i) => conversa(`t-${i}`))
+  const { db, finished, pages } = fakeDb([], {}, {
+    accounts: [contaParaReconciliar],
+    conversations: { [CONTA]: conversas },
+    pageSize: 2,
+  })
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null })
+  let relogio = 0
+  const { handle, finished: done, logs } = runner(db, unipile, {
+    reconcileBudgetMs: 1_000,
+    now: () => {
+      relogio += 600
+      return relogio
+    },
+  })
+  await handle(call())
+  await done()
+  assertEquals(pages, ['envio-t-1'])
+  assertEquals(finished, [])
+  assertEquals(logs[0].outcome, 'continues_next_round')
+})
+
+Deno.test('uma conversa que não existe mais na Unipile conta como conferida', async () => {
+  const { db, finished } = fakeDb([], {}, {
+    accounts: [contaParaReconciliar],
+    conversations: { [CONTA]: [conversa('apagada'), conversa('t-2')] },
+  })
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null }, { apagada: new UnipileRequestError(404) })
+  const { handle, finished: done } = runner(db, unipile)
+  await handle(call())
+  await done()
+  assertEquals(finished, [{ senderAccountId: CONTA, claimedAt: RESERVA }])
+})
+
+Deno.test('se a conta caiu de novo durante a reconciliação, ela não é liberada', async () => {
+  const { db, finished } = fakeDb([], {}, {
+    accounts: [contaParaReconciliar],
+    conversations: { [CONTA]: [conversa('t-1')] },
+    progressHolds: false,
+  })
+  const { unipile } = fakeUnipile({ id: 'e1', message_id: null })
+  const { handle, finished: done, logs } = runner(db, unipile)
+  await handle(call())
+  await done()
+  assertEquals(finished, [])
+  assertEquals(logs[0].outcome, 'dropped_again')
 })

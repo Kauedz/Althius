@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Grade de Agentes e nova casca)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] "Novo agente" abre o formulário com as 4 Especialidades, o complemento do nome e as instruções opcionais
 - [x] Não é possível criar sem escolher uma Especialidade e sem um complemento
@@ -13,3 +13,7 @@
 - [x] As Habilidades são copiadas do padrão; a Memória está vazia; não há Rotinas
 - [x] Mudar a Personalização do Agente criado não muda a do Agente padrão, e vice-versa
 - [x] O formulário não oferece criar uma Especialidade nova
+
+## Comments
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

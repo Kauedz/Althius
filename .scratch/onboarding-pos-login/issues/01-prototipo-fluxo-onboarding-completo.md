@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Os dois caminhos, criador e convidado, são navegáveis de ponta a ponta.
 - [x] A Fonte persiste o Day0 e o checklist de 3 itens.
@@ -47,3 +47,5 @@ A revisão dos tickets 01 a 04 contra a spec pediu os ajustes abaixo. Eles foram
 - **Decisão: o botão "Tentar de novo" fica.** Ele aparece só na leitura com falha e repete a operação de leitura da Fonte. Os campos continuam vazios e editáveis, como a spec pede, e nada fica bloqueado.
 - **Vocabulário:** a interface diz "Sinal" em vez de "Sinal de compra" e "Contas-alvo com Sinal" em vez de "Contas-alvo indicadas", como pedem a história 60 e o cenário 19. O método da Fonte voltou a se chamar `definirCliente`. O texto da spec ainda usa os termos antigos.
 - **Organização:** as regras saíram de `onboarding-tipos.ts` para `regras-onboarding.ts`, com um mapa único por ramo. A página virou a pasta `paginas/onboarding/`, com um arquivo por motivo de mudança. Os testes que trocam uma Fonte usam `renderizarAppCom` em vez de montar o `App` à mão.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

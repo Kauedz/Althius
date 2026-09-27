@@ -6,7 +6,7 @@ Saem o painel de métricas (horas economizadas, rotinas de hoje, atividade recen
 
 **Blocked by:** 01 (Separar Especialidade de Agente), 02 (Mock do layout da página de Agentes)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] A grade mostra os 9 Agentes, com estado, descrição, quando roda, execuções e logos das Integrações
 - [x] Os números são exatos e plausíveis, nunca arredondados para cima
@@ -16,3 +16,7 @@ Saem o painel de métricas (horas economizadas, rotinas de hoje, atividade recen
 - [x] A contagem de Aprovações pendentes vem do Workspace na fonte de dados, não de um painel
 - [x] Os testes antigos do painel e da barra de comando são trocados pelos da grade e da nova sidebar; a troca de tema continua testada
 - [x] O layout segue o que foi escolhido no mock e o Manual da Marca
+
+## Comments
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

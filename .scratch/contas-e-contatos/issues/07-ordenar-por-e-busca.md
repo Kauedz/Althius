@@ -11,7 +11,7 @@ As opções de ordenação:
 
 **Blocked by:** 01 (Mock do layout), 03 (Aba Contas: primeira fatia de ponta a ponta)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O controle "Ordenar por" mostra as quatro opções, e cada uma reordena a lista como decidido
 - [x] A busca encontra pelo nome e pelo domínio, ignorando maiúsculas e acentos
@@ -26,3 +26,5 @@ As opções de ordenação:
 - "Ordenar por" é um `<select>` nativo, como no mock. Em todas as opções, o empate é desfeito pelo nome.
 - O botão "Filtros" fica para o ticket 08. Hoje "Limpar busca e filtros" limpa só a busca, e o 08 deve estender o botão e o estado sem resultado aos filtros.
 - A função que normaliza o texto da busca, sem acentos e sem diferença de maiúsculas, foi para `lib/utils.ts`, e a página de Sequências passou a usá-la.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

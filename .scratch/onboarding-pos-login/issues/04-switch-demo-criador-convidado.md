@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Protótipo completo do fluxo de onboarding)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] É possível alternar de criador para convidado na experiência simulada.
 - [x] É possível alternar de convidado para criador na experiência simulada.
@@ -25,3 +25,5 @@
 ### 2026-09-25: revisão de código
 
 - O teste da Fonte sem a troca usa `renderizarAppCom`, que aceita uma Fonte ajustada, e não monta mais o `App` à mão. O switch agora fica em `paginas/onboarding/troca-de-ramo.tsx`. As demais correções estão no comentário de 2026-09-25 do ticket 01.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

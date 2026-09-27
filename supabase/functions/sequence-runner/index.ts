@@ -1,6 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
-import { createHandler, type DueSend, type RunnerDb } from './handler.ts'
+import {
+  type ConversationToReconcile,
+  createHandler,
+  type DueSend,
+  type RunnerDb,
+  type SenderToReconcile,
+} from './handler.ts'
 import type { ReleaseResult } from '../_shared/send-step.ts'
 
 function required(name: string) {
@@ -26,6 +32,37 @@ const db: RunnerDb = {
     const { data, error } = await admin.rpc('claim_due_step_sends', { p_limit: limit })
     if (error) throw error
     return (data ?? []) as DueSend[]
+  },
+  async claimSenderReconciliations(limit) {
+    const { data, error } = await admin.rpc('claim_sender_reconciliations', { p_limit: limit })
+    if (error) throw error
+    return (data ?? []) as SenderToReconcile[]
+  },
+  async conversationsToReconcile(senderAccountId, limit) {
+    const { data, error } = await admin.rpc('conversations_to_reconcile', {
+      p_sender_account_id: senderAccountId,
+      p_limit: limit,
+    })
+    if (error) throw error
+    return (data ?? []) as ConversationToReconcile[]
+  },
+  async recordReconciliationProgress(senderAccountId, claimedAt, checked) {
+    const { data, error } = await admin.rpc('record_reconciliation_progress', {
+      p_sender_account_id: senderAccountId,
+      p_claimed_at: claimedAt,
+      p_checked_at: checked.sent_at,
+      p_checked_send: checked.send_id,
+    })
+    if (error) throw error
+    return data === true
+  },
+  async finishSenderReconciliation(senderAccountId, claimedAt) {
+    const { data, error } = await admin.rpc('finish_sender_reconciliation', {
+      p_sender_account_id: senderAccountId,
+      p_claimed_at: claimedAt,
+    })
+    if (error) throw error
+    return data === true
   },
   async releaseDueSend(sendId) {
     const { data, error } = await admin.rpc('release_due_step_send', { p_send_id: sendId })
