@@ -89,6 +89,19 @@ de início atrasados não regridem uma Conta pronta.
 O webhook precisa ficar sem verificação JWT do gateway porque a Unipile não envia JWT Supabase; a própria função
 autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra replay.
 
+- `sequence-runner` é o Executor da Sequência (canais-05). O banco o chama, sem pessoa nem navegador:
+  - a cada minuto, o pg_cron roda `private.kick_sequence_runner()`. Ele passa a incertos os envios esquecidos em voo e, só quando há passo automático vencido de uma versão ativa, chama a função pelo pg_net;
+  - a chamada leva `x-runner-token`, um token gerado e guardado só no banco (`private.sequence_runner_settings`). A função o confere por `sequence_runner_token_matches` e roda sem verificação JWT do gateway;
+  - a função responde `202` na hora e segue em segundo plano. Reserva até 5 passos (`claim_due_step_sends`) e envia um por vez pelo mesmo núcleo do envio manual (`_shared/send-step.ts`), liberando por `release_due_step_send`;
+  - o resultado vai para `record_sequence_step_send_result`, com o `Retry-After` da Unipile quando houver.
+- `sequence-step-sends` e `sequence-runner` compartilham o núcleo do envio: conferir a conversa, liberar pelo banco, enviar pela Unipile e gravar o resultado. Os adaptadores reais ficam em `_shared/send-step-adapters.ts`.
+
+## Ligar o Executor (canais-05)
+
+1. Aplicar as migrations (`npx supabase db push --linked`). A migration `20260927020000_executor_da_sequencia.sql` liga o pg_cron e o pg_net e agenda o job `althius-sequence-runner`.
+2. Publicar a função: `npx supabase functions deploy sequence-runner --no-verify-jwt --project-ref <ref>`. Ela usa o mesmo segredo `UNIPILE_API_KEY`.
+3. No SQL Editor, uma vez por projeto: `select private.configure_sequence_runner('https://<ref>.supabase.co');`. Sem esse endereço, o banco não chama nada.
+
 ## Ativar o canais-04 (migrations, funções e eventos de e-mail)
 
 `scripts/wizard-canais-04.sh` conduz a ativação num terminal: liga a Supabase CLI ao projeto, aplica as migrations pendentes com `supabase db push`, confere os três segredos, publica `sequence-step-sends`, `received-email-attachments` e `unipile-account-status` (esta com `--no-verify-jwt`), acrescenta `email.new` e `email.new.bounce` ao Webhook Endpoint já cadastrado (por API, ou pelo painel se a API recusar; nunca cria outro endpoint) e descreve o ciclo real de teste.

@@ -166,6 +166,7 @@ Deno.test('passo liberado sai pela Conta remetente do titular, com o cabeçalho 
     providerEmailId: 'email-abc',
     providerMessageId: '<msg-1@mail.gmail.com>',
     error: null,
+    retryAfterSeconds: null,
   }])
 })
 
@@ -222,6 +223,7 @@ Deno.test('recusa da Unipile fica gravada como failed, nunca como enviado', asyn
     providerEmailId: null,
     providerMessageId: null,
     error: 'HTTP 500',
+    retryAfterSeconds: null,
   }])
 })
 
@@ -238,6 +240,7 @@ Deno.test('sem resposta da Unipile no prazo, o resultado fica incerto para recon
     providerEmailId: null,
     providerMessageId: null,
     error: 'timeout',
+    retryAfterSeconds: null,
   }])
 })
 
@@ -253,6 +256,7 @@ Deno.test('2xx sem o id do e-mail fica incerto: o provedor pode ter aceitado', a
     providerEmailId: null,
     providerMessageId: null,
     error: 'unreadable_response',
+    retryAfterSeconds: null,
   }])
 })
 

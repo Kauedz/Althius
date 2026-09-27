@@ -9,3 +9,7 @@ verify_jwt = true
 
 [functions.unipile-account-status]
 verify_jwt = false
+
+# Chamada pelo próprio banco (pg_cron + pg_net), sem JWT: a função confere o token que o banco guarda.
+[functions.sequence-runner]
+verify_jwt = false
