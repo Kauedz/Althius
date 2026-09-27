@@ -20,9 +20,16 @@ export interface DueSend {
 export interface SenderToReconcile {
   sender_account_id: string
   unipile_account_id: string
-  owner_user_id: string
-  /** Quando a reserva foi feita: volta no fechamento, para uma nova queda no meio pedir outra rodada. */
+  /** Quando a reserva foi feita: volta no progresso e no fechamento, para uma nova queda no meio pedir outra rodada. */
   claimed_at: string
+}
+
+/** Uma conversa a conferir: a do último e-mail que saiu pela conta para um Contato de uma Sequência. */
+export interface ConversationToReconcile {
+  send_id: string
+  provider_thread_id: string | null
+  provider_email_id: string | null
+  sent_at: string
 }
 
 export interface RunnerDb extends SendStepDb {
@@ -34,8 +41,14 @@ export interface RunnerDb extends SendStepDb {
   releaseDueSend(sendId: string): Promise<ReleaseResult>
   /** RPC claim_sender_reconciliations: as contas que voltaram e esperam a reconciliação, reservadas por 5 minutos. */
   claimSenderReconciliations(limit: number): Promise<SenderToReconcile[]>
-  /** RPC conversations_to_reconcile: as conversas das Sequências ativas que saíram pela conta. */
-  conversationsToReconcile(senderAccountId: string): Promise<Conversation[]>
+  /** RPC conversations_to_reconcile: a próxima página de conversas, a partir de onde a reconciliação parou. */
+  conversationsToReconcile(senderAccountId: string, limit: number): Promise<ConversationToReconcile[]>
+  /** RPC record_reconciliation_progress: guarda até onde foi e renova a reserva; false se a conta caiu de novo. */
+  recordReconciliationProgress(
+    senderAccountId: string,
+    claimedAt: string,
+    checked: Pick<ConversationToReconcile, 'send_id' | 'sent_at'>,
+  ): Promise<boolean>
   /** RPC finish_sender_reconciliation: libera a conta, se ela não caiu de novo depois da reserva. */
   finishSenderReconciliation(senderAccountId: string, claimedAt: string): Promise<boolean>
 }
@@ -45,14 +58,25 @@ export interface Deps {
   unipile: UnipileMail
   /** Passos por chamada: cada um pode levar até o prazo do envio, e a função tem tempo limitado. Padrão 5. */
   maxPerRun?: number
+  /** Contas reconciliadas por chamada. Padrão 3. */
+  maxReconciliationsPerRun?: number
+  /** Tempo da rodada para reconciliar, antes dos envios; o que faltar continua na próxima. Padrão 60 s. */
+  reconcileBudgetMs?: number
+  /** Relógio do orçamento de tempo. Padrão Date.now. */
+  now?: () => number
   sendTimeoutMs?: number
   /** Continua o trabalho depois da resposta (EdgeRuntime.waitUntil). Padrão: fire-and-forget. */
   waitUntil?: (work: Promise<unknown>) => void
   log?: (fields: Record<string, unknown>) => void
 }
 
+function messageOf(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const log = deps.log ?? ((fields) => console.log(JSON.stringify(fields)))
+  const now = deps.now ?? Date.now
   const waitUntil = deps.waitUntil ?? ((work) => {
     work.catch(() => {})
   })
@@ -63,77 +87,65 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
   // Uma conta que voltou de uma queda só envia de novo depois de conferir, na Unipile, as conversas que tinham saído
   // por ela: uma resposta que chegou com a conta fora do ar é gravada e pausa a Sequência antes do próximo passo.
-  async function reconcile(account: SenderToReconcile) {
+  // A conferência vai em páginas e guarda até onde foi; sem tempo ou com uma falha, a próxima rodada continua dali.
+  async function reconcile(account: SenderToReconcile, deadline: number) {
     const senderAccountId = account.sender_account_id
-    let conversations: Conversation[]
-    try {
-      conversations = await deps.db.conversationsToReconcile(senderAccountId)
-    } catch {
-      log({ type: 'reconcile', senderAccountId, outcome: 'list_failed' })
-      return
-    }
+    let checked = 0
     let replies = 0
-    if (conversations.length > 0) {
-      let senders: string[]
+    let senders: string[] | undefined
+    const report = (outcome: string) => log({ type: 'reconcile', senderAccountId, checked, replies, outcome })
+    while (true) {
+      if (now() >= deadline) return report('continues_next_round')
+      let page: ConversationToReconcile[]
       try {
-        senders = await deps.unipile.listEmailSenders(account.unipile_account_id)
+        page = await deps.db.conversationsToReconcile(senderAccountId, 25)
       } catch {
-        log({
-          type: 'reconcile',
-          senderAccountId,
-          conversations: conversations.length,
-          replies,
-          outcome: 'check_failed',
-        })
-        return
+        return report('list_failed')
       }
-      for (const conversation of conversations) {
-        const checked = await checkConversation(deps, conversation, senders)
-        if (checked === 'failed') {
-          // A conta continua bloqueada; a reserva expira e a próxima rodada tenta de novo.
-          log({
-            type: 'reconcile',
-            senderAccountId,
-            conversations: conversations.length,
-            replies,
-            outcome: 'check_failed',
-          })
-          return
+      if (page.length === 0) break
+      try {
+        senders ??= await deps.unipile.listEmailSenders(account.unipile_account_id)
+      } catch {
+        return report('check_failed')
+      }
+      for (const row of page) {
+        const conversation: Conversation = {
+          unipile_account_id: account.unipile_account_id,
+          provider_thread_id: row.provider_thread_id,
+          provider_email_id: row.provider_email_id,
         }
-        if (checked === 'reply_found') replies++
+        const result = await checkConversation(deps, conversation, senders)
+        if (result === 'failed') return report('check_failed')
+        if (result === 'reply_found') replies++
+        checked++
+      }
+      const last = page[page.length - 1]
+      if (!(await deps.db.recordReconciliationProgress(senderAccountId, account.claimed_at, last))) {
+        return report('dropped_again')
       }
     }
     const released = await deps.db.finishSenderReconciliation(senderAccountId, account.claimed_at)
-    log({
-      type: 'reconcile',
-      senderAccountId,
-      conversations: conversations.length,
-      replies,
-      outcome: released ? 'ready' : 'dropped_again',
-    })
+    report(released ? 'ready' : 'dropped_again')
   }
 
   async function run() {
     // A reconciliação vem antes dos envios: uma conta liberada nesta rodada já pode enviar os passos vencidos.
+    const deadline = now() + (deps.reconcileBudgetMs ?? 60_000)
     let accounts: SenderToReconcile[] = []
     try {
-      accounts = await deps.db.claimSenderReconciliations(3)
+      accounts = await deps.db.claimSenderReconciliations(deps.maxReconciliationsPerRun ?? 3)
     } catch (error) {
-      log({
-        type: 'reconcile',
-        outcome: 'claim_failed',
-        message: error instanceof Error ? error.message : String(error),
-      })
+      log({ type: 'reconcile', outcome: 'claim_failed', message: messageOf(error) })
     }
     for (const account of accounts) {
       try {
-        await reconcile(account)
+        await reconcile(account, deadline)
       } catch (error) {
         log({
           type: 'reconcile',
           senderAccountId: account.sender_account_id,
           outcome: 'error',
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       }
     }
@@ -142,7 +154,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     try {
       due = await deps.db.claimDueSends(deps.maxPerRun ?? 5)
     } catch (error) {
-      log({ type: 'runner', outcome: 'claim_failed', message: error instanceof Error ? error.message : String(error) })
+      log({ type: 'runner', outcome: 'claim_failed', message: messageOf(error) })
       return
     }
     // Um passo por vez: a mesma Conta remetente não recebe envios em rajada.
@@ -160,7 +172,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           type: 'runner',
           sendId,
           outcome: 'error',
-          message: error instanceof Error ? error.message : String(error),
+          message: messageOf(error),
         })
       }
     }

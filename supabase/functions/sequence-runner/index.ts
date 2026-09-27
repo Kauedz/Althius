@@ -1,7 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
-import { createHandler, type DueSend, type RunnerDb, type SenderToReconcile } from './handler.ts'
-import type { Conversation, ReleaseResult } from '../_shared/send-step.ts'
+import {
+  type ConversationToReconcile,
+  createHandler,
+  type DueSend,
+  type RunnerDb,
+  type SenderToReconcile,
+} from './handler.ts'
+import type { ReleaseResult } from '../_shared/send-step.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -32,10 +38,23 @@ const db: RunnerDb = {
     if (error) throw error
     return (data ?? []) as SenderToReconcile[]
   },
-  async conversationsToReconcile(senderAccountId) {
-    const { data, error } = await admin.rpc('conversations_to_reconcile', { p_sender_account_id: senderAccountId })
+  async conversationsToReconcile(senderAccountId, limit) {
+    const { data, error } = await admin.rpc('conversations_to_reconcile', {
+      p_sender_account_id: senderAccountId,
+      p_limit: limit,
+    })
     if (error) throw error
-    return (data ?? []) as Conversation[]
+    return (data ?? []) as ConversationToReconcile[]
+  },
+  async recordReconciliationProgress(senderAccountId, claimedAt, checked) {
+    const { data, error } = await admin.rpc('record_reconciliation_progress', {
+      p_sender_account_id: senderAccountId,
+      p_claimed_at: claimedAt,
+      p_checked_at: checked.sent_at,
+      p_checked_send: checked.send_id,
+    })
+    if (error) throw error
+    return data === true
   },
   async finishSenderReconciliation(senderAccountId, claimedAt) {
     const { data, error } = await admin.rpc('finish_sender_reconciliation', {

@@ -184,7 +184,9 @@ export async function checkConversation(
     if (threadId) {
       for (const email of await deps.unipile.listThreadEmails(account, threadId)) await ingest(email)
     }
-  } catch {
+  } catch (error) {
+    // Uma conversa ou um e-mail que não existe mais na Unipile não tem resposta a conferir.
+    if (error instanceof UnipileRequestError && error.status === 404) return replyFound ? 'reply_found' : 'clear'
     return 'failed'
   }
   return replyFound ? 'reply_found' : 'clear'

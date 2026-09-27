@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(21);
+select plan(25);
 
 create temporary table chamadas (url text, token text);
 create or replace function private.post_to_sequence_runner(p_url text, p_token text) returns void
@@ -79,15 +79,19 @@ select throws_ok($$select * from public.conversations_to_reconcile(gen_random_uu
   'permission denied for function conversations_to_reconcile', 'signed-in users cannot list conversations to reconcile');
 reset role;
 create temporary table reserva as select * from public.claim_sender_reconciliations(3);
-select is((select unipile_account_id || ' ' || owner_user_id from reserva),
-  'unipile-google-9 90000000-0000-0000-0000-000000000001', 'the executor claims the account to reconcile');
+select is((select unipile_account_id from reserva), 'unipile-google-9', 'the executor claims the account to reconcile');
 select is((select count(*)::int from public.claim_sender_reconciliations(3)), 0, 'a claimed account is not claimed twice');
 select is((select string_agg(send_id::text || ' ' || provider_thread_id, ',') from public.conversations_to_reconcile((pg_temp.conta()).id)),
   (select valor from ids where chave = 'envio') || ' t-1', 'the conversation of the last send of an active sequence is listed');
 update public.sequences set status = 'pausada' where id = (select valor::uuid from ids where chave = 'sequencia');
-select is((select count(*)::int from public.conversations_to_reconcile((pg_temp.conta()).id)), 0,
-  'a paused sequence sends nothing, so its conversation is not listed');
+select is((select count(*)::int from public.conversations_to_reconcile((pg_temp.conta()).id)), 1,
+  'a paused sequence is checked too, so a reply from the outage is recorded');
 update public.sequences set status = 'ativa' where id = (select valor::uuid from ids where chave = 'sequencia');
+select is(public.record_reconciliation_progress((pg_temp.conta()).id, (select claimed_at from reserva),
+    (select sent_at from private.sequence_step_sends where id = (select valor::uuid from ids where chave = 'envio')),
+    (select valor::uuid from ids where chave = 'envio')), true, 'a checked page is recorded');
+select is((select count(*)::int from public.conversations_to_reconcile((pg_temp.conta()).id)), 0,
+  'the next page starts after the last checked conversation');
 
 -- 4. Uma nova queda no meio da reconciliação pede outra rodada; conferido tudo, a conta volta a enviar.
 select is(public.finish_sender_reconciliation((pg_temp.conta()).id, now() - interval '1 second'), false,
@@ -98,7 +102,8 @@ select is((pg_temp.conta()).status || ' ' || (pg_temp.conta()).reconciliation_re
   'ready false true', 'the reconciled account is ready again');
 select is(private.kick_sequence_runner(), false, 'with nothing due and nothing to reconcile, the executor is not called');
 
--- 5. Reconectar pela autenticação hospedada também exige reconciliação, só depois da sincronização.
+-- 5. Reconectar pela autenticação hospedada também exige reconciliação. Um provedor sem sincronização inicial
+-- (Google) volta pronto para ela na mesma operação, e a conferência recomeça do zero.
 insert into ids select 'conta-remetente', (pg_temp.conta()).id::text;
 set local role authenticated;
 insert into ids select 'reconexao', attempt_id::text from public.create_sender_connection_attempt(
@@ -107,12 +112,24 @@ reset role;
 select is(public.complete_sender_connection_attempt(
   (select valor::uuid from ids where chave = 'reconexao'), 'unipile-google-9', 'GOOGLE', 'RECONNECTED'), 'completed',
   'the owner reconnects the same identity');
-select is((pg_temp.conta()).status || ' ' || (pg_temp.conta()).reconciliation_required || ' ' || ((pg_temp.conta()).reconciliation_ready_at is null),
-  'syncing true true', 'a reconnected account requires reconciliation and waits for the sync');
-select public.apply_unipile_sender_status('unipile-google-9', 'SYNC_SUCCESS');
-select is((select count(*)::int from public.claim_sender_reconciliations(3)), 1,
-  'once synced, the reconnected account is reconciled');
+select is((pg_temp.conta()).status || ' ' || (pg_temp.conta()).reconciliation_required || ' ' || ((pg_temp.conta()).reconciliation_ready_at is not null),
+  'syncing true true', 'a reconnected Google account requires reconciliation and is ready for it at once');
+select is((select count(*)::int from public.conversations_to_reconcile((pg_temp.conta()).id)), 1,
+  'a new reconciliation checks every conversation again');
+select is((select count(*)::int from public.claim_sender_reconciliations(3)), 1, 'the reconnected account is reconciled');
 select is(public.finish_sender_reconciliation((pg_temp.conta()).id, now()), true, 'and released');
+
+-- 6. Webhooks fora de ordem: o aviso de volta que chega antes da reconexão não se perde.
+select public.apply_unipile_sender_status('unipile-google-9', 'ERROR');
+select public.apply_unipile_sender_status('unipile-google-9', 'OK');
+set local role authenticated;
+insert into ids select 'reconexao-2', attempt_id::text from public.create_sender_connection_attempt(
+  '91000000-0000-0000-0000-000000000001', 'email', (select valor::uuid from ids where chave = 'conta-remetente'));
+reset role;
+select public.complete_sender_connection_attempt(
+  (select valor::uuid from ids where chave = 'reconexao-2'), 'unipile-google-9', 'GOOGLE', 'RECONNECTED');
+select is((pg_temp.conta()).status || ' ' || ((pg_temp.conta()).reconciliation_ready_at is not null), 'syncing true',
+  'a reconnection delivered after the back-online notice keeps the account ready to reconcile');
 
 select * from finish();
 rollback;
