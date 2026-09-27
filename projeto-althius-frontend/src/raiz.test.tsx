@@ -399,6 +399,26 @@ describe('Nomes no lugar de identificadores no Workspace operacional', () => {
     expect(screen.queryByText('ws-sul')).not.toBeInTheDocument()
   })
 
+  it('dois Workspaces com o mesmo nome aparecem no seletor com o início do identificador', async () => {
+    const { usuario } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: {
+        workspace_memberships: [participacao('ca40c1d2-0000-4000-8000-000000000001'), participacao('05bb7bb8-0000-4000-8000-000000000002', 'member')],
+        workspaces: [
+          { id: 'ca40c1d2-0000-4000-8000-000000000001', kind: 'empresa', name: 'Workspace da empresa', owner_user_id: null },
+          { id: '05bb7bb8-0000-4000-8000-000000000002', kind: 'empresa', name: 'Workspace da empresa', owner_user_id: null },
+        ],
+      },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Trocar de Workspace' }))
+    const seletor = await screen.findByRole('combobox', { name: 'Selecione o Workspace' })
+    expect(within(seletor).getAllByRole('option').map((opcao) => opcao.textContent)).toEqual([
+      'Escolher participação…', 'Marina Souza', 'Workspace da empresa (05bb7bb8)', 'Workspace da empresa (ca40c1d2)',
+    ])
+  })
+
   it('o Resumo da Conta-alvo que outro participante vê mostra o nome da Conta-alvo', async () => {
     const sequenciaDaBeta = sequenciaDeOutroVendedor('ws-norte', ID_DA_BETA)
     abrirContasDoNorte(`/sequencias/${sequenciaDaBeta.id}`, { sequencias: [sequenciaDaBeta] })
@@ -446,7 +466,7 @@ describe('Nomes no lugar de identificadores no Workspace operacional', () => {
 
     // A Sequência criada já chegou ao detalhe; as Contas-alvo ainda não. O identificador não aparece no lugar do nome.
     await waitFor(() => expect(window.location.pathname).toBe('/sequencias/sequencia-da-alfa'))
-    await act(() => new Promise((resolver) => setTimeout(resolver, 20)))
+    expect(await screen.findByRole('status')).toHaveTextContent('Carregando')
     expect(screen.queryByText(new RegExp(ID_DA_ALFA))).not.toBeInTheDocument()
 
     liberarContas()

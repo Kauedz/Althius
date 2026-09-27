@@ -35,18 +35,37 @@ function lembrarUltimoWorkspace(usuarioId: string, workspaceId: string) {
 interface Participacao {
   workspace_id: string
   role: 'member' | 'admin'
-  /** O nome do Workspace; falta só se a leitura dos Workspaces falhar, e aí a tela não o inventa. */
+  /**
+   * O nome do Workspace; falta só se a leitura dos Workspaces falhar. Aí o seletor mostra o identificador e a
+   * navegação, o rótulo genérico "Workspace".
+   */
   nome?: string
+  /** Como o seletor apresenta o Workspace: o nome e, se outro Workspace tiver o mesmo nome, o início do identificador. */
+  rotulo?: string
 }
 
-/** O Workspace pelo nome, para a pessoa escolher; sem o nome, pelo identificador. */
-const rotuloDoWorkspace = (p: Participacao) => p.nome ?? p.workspace_id
+const rotuloDoWorkspace = (p: Participacao) => p.rotulo ?? p.nome ?? p.workspace_id
 
-/** O Workspace pessoal que o bootstrap garante à Conta de usuário da sessão. */
-interface WorkspacePessoal {
+/** Rotula as Participações pelo nome do Workspace; dois Workspaces com o mesmo nome ganham o início do identificador. */
+function rotularParticipacoes(participacoes: Participacao[]) {
+  const repeticoes = new Map<string, number>()
+  for (const { nome } of participacoes) if (nome) repeticoes.set(nome, (repeticoes.get(nome) ?? 0) + 1)
+  return participacoes
+    .map((p) => ({
+      ...p,
+      rotulo: p.nome && (repeticoes.get(p.nome) ?? 0) > 1 ? `${p.nome} (${p.workspace_id.slice(0, 8)})` : p.nome,
+    }))
+    .sort((a, b) => rotuloDoWorkspace(a).localeCompare(rotuloDoWorkspace(b), 'pt-BR'))
+}
+
+/** Um Workspace como a entrada o lê: o identificador e o nome. */
+interface WorkspaceLido {
   id: string
   name: string
 }
+
+/** O Workspace pessoal que o bootstrap garante à Conta de usuário da sessão. */
+type WorkspacePessoal = WorkspaceLido
 
 export function AplicativoAutenticado({
   cliente,
@@ -115,10 +134,10 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       }
       // Sem os nomes, a entrada continua: o seletor mostra o identificador e a navegação, o rótulo genérico.
       const nomes = new Map([[pessoal.id, pessoal.name]])
-      for (const w of (workspaces.data ?? []) as { id: string; name: string }[]) nomes.set(w.id, w.name)
-      const lista = ((data ?? []) as Participacao[])
-        .map((p) => ({ ...p, nome: nomes.get(p.workspace_id) }))
-        .sort((a, b) => rotuloDoWorkspace(a).localeCompare(rotuloDoWorkspace(b), 'pt-BR'))
+      for (const w of (workspaces.data ?? []) as WorkspaceLido[]) nomes.set(w.id, w.name)
+      const lista = rotularParticipacoes(
+        ((data ?? []) as Participacao[]).map((p) => ({ ...p, nome: nomes.get(p.workspace_id) })),
+      )
       setParticipacoes(lista)
       // Ordem de entrada: o Workspace desta aba, o último usado pela Conta de usuário e, sem outro destino, o pessoal.
       // Só vale um Workspace com Participação ativa.
