@@ -203,8 +203,16 @@ A identidade de E-mail, LinkedIn ou WhatsApp pertencente a um usuário e conecta
 _Avoid_: WhatsApp do Workspace, conta compartilhada
 
 **Envio do passo**:
-O registro de um passo de E-mail que o Vendedor responsável confirmou: o Destino fixado na confirmação, a Conta remetente usada, o que o provedor respondeu (`id` e `message_id`) e a situação — confirmado, aguardando reconfirmação, enviando, enviado, incerto, falhou ou devolvido. A aceitação pelo provedor não é entrega nem leitura. Só o titular lê o Envio; os demais veem a Interação "e-mail enviado" da Conta-alvo.
+O registro de um passo de E-mail que o Vendedor responsável confirmou, avulso ou pela ativação da Sequência: o Destino fixado na confirmação, a Conta remetente usada, o que o provedor respondeu (`id` e `message_id`), o assunto e o corpo que saíram e a situação — esperando a vez, programado, confirmado, aguardando reconfirmação, enviando, enviado, incerto, falhou, devolvido ou cancelado. A aceitação pelo provedor não é entrega nem leitura. Só o titular lê o Envio; os demais veem a Interação "e-mail enviado" da Conta-alvo.
 _Avoid_: disparo, mensagem enviada como sinônimo de entrega
+
+**Versão autorizada**:
+A cópia do documento da Sequência que o Vendedor responsável ativou para rodar sem ele ("Ativar envios"). Só o conteúdo dela sai pelo Executor. Editar um passo ainda não enviado revoga a versão, e os envios automáticos param até uma nova ativação. O status "Ativa" herdado da demonstração não é autorização.
+_Avoid_: aprovação (reservada à Proposta de resposta), publicar
+
+**Executor**:
+O trabalho do backend que, a cada minuto e com o navegador fechado, envia os passos automáticos cuja hora chegou, revalidando tudo antes de cada envio. Um passo de E-mail manual nunca sai pelo Executor: na hora dele, espera o envio explícito do titular.
+_Avoid_: robô, disparador
 
 **Proposta de resposta**:
 Uma resposta a um Contato preparada pela IA e sujeita à Aprovação do titular da Conta remetente antes de qualquer envio. Seu conteúdo é restrito ao titular e sua criação não retoma a Sequência pausada da Conta-alvo.
