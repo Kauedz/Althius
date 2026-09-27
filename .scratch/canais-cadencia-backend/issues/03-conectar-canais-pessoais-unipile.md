@@ -8,7 +8,7 @@
 
 - [x] O usuário autenticado inicia uma tentativa temporária de conexão vinculada ao seu usuário e Workspace, e o backend gera um link hospedado novo para cada tentativa.
 - [x] Callback e ciclo de vida são validados no backend antes de associar a Conta remetente ao titular; o redirecionamento serve apenas para retornar à tela e não prova a conexão.
-- [ ] A interface existente diferencia conectando, sincronizando, pronta, requer reconexão e desconectada.
+- [x] A interface existente diferencia conectando, sincronizando, pronta, requer reconexão e desconectada.
 - [x] Apenas o titular pode consultar detalhes privados ou usar a Conta remetente; outro participante não consegue associá-la à própria Sequência.
 - [x] Credenciais e segredos da Unipile ficam somente no backend e não aparecem no bundle, logs compartilhados ou respostas públicas.
 - [x] Reconexão preserva a identidade do titular e não libera envios antes de reconciliar o período de indisponibilidade. O bloqueio de envio é critério do canais-04, que é onde o envio acontece.
@@ -67,3 +67,11 @@
 - Conta/aplicação Unipile v2, endpoint fixo (`api.unipile.com`) e chave de API de backend.
 - Contas pessoais de teste conectadas pelos respectivos titulares.
 
+## Interface (2026-09-27)
+
+- **Onde:** Configurações → Meu perfil, bloco "Minhas Contas remetentes", no Workspace operacional. Fica fora de `/conexoes`, como combinado com a frente de Conexões. O resto do perfil continua indisponível ali. Na Demonstração, o bloco só explica que nenhuma Conta remetente é conectada nela, sem botões.
+- **Estados:** cada Canal (E-mail, WhatsApp, LinkedIn) mostra Não conectada, Conectando, Sincronizando, Conferindo respostas, Pronta, Requer reconexão ou Desconectada, como o backend registrou. Conferindo respostas é `syncing` com `reconciliation_required`: a Reconciliação da Conta remetente depois de uma queda. Ações: Conectar, Reconectar (a mesma conta) e Desconectar (com confirmação).
+- **O retorno não prova a conexão:** o link hospedado abre em outra aba, e a tela avisa que o estado aparece ali quando o provedor confirmar, com o mesmo link à mão se o navegador bloquear a aba. A tela nunca mostra a conta como conectada antes do backend. O retorno da autenticação continua caindo em `/conexoes`, por acordo: a Edge Function `sender-accounts` é da outra frente e não mudou.
+- **Atualização:** a lista é relida ao voltar para a aba, a cada 5 s com a aba à vista enquanto há conta conectando ou sincronizando ou uma autenticação aberta (até o link vencer, em 15 min), e pelo botão Atualizar.
+- **Código:** `projeto-althius-frontend/src/fonte/supabase-contas-remetentes.ts` (RPC `list_owned_sender_accounts` e Edge Function `sender-accounts`) e `projeto-althius-frontend/src/paginas/configuracoes/bloco-contas-remetentes.tsx`.
+- **Testes:** `src/fonte/supabase-contas-remetentes.test.ts` (7) e `src/paginas/configuracoes/contas-remetentes.test.tsx` (13), pelo Supabase falso.
