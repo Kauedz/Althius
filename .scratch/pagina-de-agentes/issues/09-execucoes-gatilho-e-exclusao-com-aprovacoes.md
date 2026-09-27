@@ -10,7 +10,7 @@ A página de Atividade não muda: o tipo serve só para a contagem.
 
 **Blocked by:** nenhum
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Uma resposta numa Conversa direta aumenta em 1 as execuções do Agente
 - [x] Uma Menção aumenta em 1 as execuções do Agente mencionado
@@ -29,3 +29,5 @@ A página de Atividade não muda: o tipo serve só para a contagem.
 **Implementação (23/09/2026):** `ItemDeAtividade` ganhou `tipo` (`execucao` ou `acao`); na fonte simulada, `registrarExecucao` é o único lugar onde `Agente.execucoes` sobe, e `registrarAcao` registra o "Executou: …" da Permissão Executar e a decisão de uma Aprovação. A `Aprovacao` guarda o `gatilho` da Execução que a propôs (Conversa direta: `conversa`; Coordenação: `coordenacao`; na demo, a do Slack é `canal`). Para o lugar da decisão ir na descrição, `decidirAprovacao` passou a receber um `LugarDaDecisao` (`fila`, `conversa` ou o Canal) no lugar da `Origem`, que não separava a fila da página da Conversa: a Atividade mostra "Aprovada na fila: …", "Aprovada na Conversa: …" ou "Aprovada no Slack: …". O diálogo de exclusão lista Memória, Habilidades, Rotinas, Atividade e Aprovações e diz quantas Aprovações pendentes serão canceladas.
 
 Fica de fora: no roteiro de Colaboração da Conversa direta (Scopus → Ethos → Rhetor), só o Agente da Conversa ganha uma Execução; os Agentes que recebem o repasse não. Isso já era assim antes deste ticket.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

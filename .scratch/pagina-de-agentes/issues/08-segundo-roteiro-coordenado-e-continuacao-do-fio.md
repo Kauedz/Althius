@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 (Composer com Coordenação)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O pedido do Perplexity mostra os passos do Oraculum e do Rhetor e a resposta consolidada
 - [x] Esse pedido também está entre as sugestões clicáveis abaixo do composer
@@ -18,3 +18,5 @@
 - Na continuação, um Agente criado mencionado antes no fio continua sendo chamado no lugar do padrão da Especialidade dele.
 - O composer de continuar o fio fica fixo no rodapé da página da Conversa, só com o chip do Workspace. Um pedido na página de Agentes continua começando um fio novo.
 - Um pedido seguinte sem roteiro nem continuação recebe a resposta direta (ou a genérica de quem for mencionado), como no primeiro pedido.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

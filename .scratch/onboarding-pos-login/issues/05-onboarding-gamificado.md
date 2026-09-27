@@ -9,7 +9,7 @@ O checklist mostra quanto do onboarding está completo, com um segmento por marc
 
 **Blocked by:** 03 (Reentrada e progresso do checklist)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O checklist mostra quanto do onboarding está completo, em porcentagem, com um segmento por marco do ramo e cada marco feito ou pendente.
 - [x] Cada item concluído aumenta a porcentagem, e um item pulado não conta.
@@ -41,3 +41,5 @@ Nota de desenho: Workspace e Site e logo já estão feitos quando o checklist ab
 ### 2026-09-25: revisão de código
 
 - O marco e o item 3 passam a se chamar "Sinal", sem "de compra", pelo glossário. `progressoDoOnboarding` mudou para `regras-onboarding.ts`. As demais correções estão no comentário de 2026-09-25 do ticket 01.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

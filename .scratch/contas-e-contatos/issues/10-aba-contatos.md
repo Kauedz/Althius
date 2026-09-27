@@ -12,7 +12,7 @@ A ordem é fixa: Aderência da empresa (na ordem de grupos da Prioridade), depoi
 
 **Blocked by:** 01 (Mock do layout), 03 (Aba Contas: primeira fatia de ponta a ponta)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] As abas Contas e Contatos aparecem no padrão sublinhado, cada uma com o seu endereço, e Contas é a aberta por padrão
 - [x] O item da sidebar fica ativo nas duas abas
@@ -31,3 +31,5 @@ A ordem é fixa: Aderência da empresa (na ordem de grupos da Prioridade), depoi
 - O Lucide não tem mais ícones de marca: o LinkedIn usa o desenho do antigo ícone "linkedin" do Lucide, no mesmo traço do e-mail e do telefone. O canal ausente usa a cor apagada com opacidade, como no mock; o app não tem o token `ink-faint` do mock.
 - O título, a descrição e a contagem "N contatos" seguem o mock. A mensagem de lista vazia ("Nenhum Contato ainda. As pessoas aparecem aqui quando vierem do CRM, de enriquecimento ou de um Agente.") não tem texto no spec: vale confirmar.
 - "O visual segue o mock aprovado" foi conferido e aprovado pelo usuário, com o app e o mock abertos lado a lado.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

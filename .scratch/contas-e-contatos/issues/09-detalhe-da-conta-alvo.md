@@ -10,7 +10,7 @@ A seção Contatos entra entre Sinais e Interações no ticket 12. Não há text
 
 **Blocked by:** 01 (Mock do layout), 05 (Células da tabela de Contas no visual final)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Clicar no nome ou em qualquer ponto da linha abre o detalhe da Conta-alvo
 - [x] O nome na tabela é um link
@@ -32,3 +32,5 @@ A seção Contatos entra entre Sinais e Interações no ticket 12. Não há text
 - A seção Sequência (das Sequências) e a seção Contatos, que já existiam, foram mantidas e passaram ao mesmo estilo de seção. A Sequência foi para o fim, depois de Interações, para as seções começarem por Sinais, Contatos e Interações. A seção Contatos tem o id `contatos` para a âncora do ticket 12, mas a tabela fica para esse ticket.
 - O histórico de Sinais mostra as mesmas informações do destaque (data, fonte, evidência e "detectado por"), e a data da origem tem a data completa no tooltip e no nome acessível.
 - "O visual segue o mock aprovado" foi conferido e aprovado pelo usuário, com o app e o mock abertos lado a lado.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.
