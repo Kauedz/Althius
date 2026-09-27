@@ -41,8 +41,11 @@ import {
   useFonteDeSequencias,
 } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
+import { textoDaResposta } from '@/fonte/texto-do-email'
+import { carregarAnexo, formaDoAnexo } from '@/fonte/anexo-recebido'
 import {
   CANAIS_SUPORTADOS,
+  type AnexoRecebido,
   type AnexoStep,
   type AtualizacaoDocumento,
   type CanalStep,
@@ -162,6 +165,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const [enviandoStepId, setEnviandoStepId] = useState<string | null>(null)
   const [avisoDoEnvio, setAvisoDoEnvio] = useState<(AvisoDoEnvio & { stepId: string }) | null>(null)
   const [erroDoAnexo, setErroDoAnexo] = useState<string | null>(null)
+  const [imagemAmpliada, setImagemAmpliada] = useState<{ nome: string; url: string } | null>(null)
 
   const [stepSelecionadoId, setStepSelecionadoId] = useState<string | null>(null)
   const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false)
@@ -332,15 +336,29 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     }
   }
 
-  // A aba abre no clique, antes de esperar a URL assinada; senão o bloqueador de pop-ups a barra.
-  async function handleAbrirAnexo(resposta: RespostaRecebida, anexoId: string) {
+  async function arquivoDoAnexo(resposta: RespostaRecebida, anexo: AnexoRecebido) {
+    const url = await fonteDeSequencias.urlDoAnexo(resposta.interacaoId, anexo.id)
+    return carregarAnexo(url, anexo)
+  }
+
+  // PDF abre no leitor do navegador; a aba abre no clique, antes de esperar o arquivo, senão o bloqueador de
+  // pop-ups a barra. O resto baixa com o nome original. Imagens abrem na própria página (MiniaturaDoAnexo).
+  async function handleAbrirAnexo(resposta: RespostaRecebida, anexo: AnexoRecebido) {
     setErroDoAnexo(null)
-    const aba = window.open('', '_blank')
+    const pdf = formaDoAnexo(anexo) === 'pdf'
+    const aba = pdf ? window.open('', '_blank') : null
     if (aba) aba.opener = null
     try {
-      const url = await fonteDeSequencias.urlDoAnexo(resposta.interacaoId, anexoId)
-      if (aba) aba.location.href = url
-      else window.open(url, '_blank', 'noopener')
+      const local = URL.createObjectURL(await arquivoDoAnexo(resposta, anexo))
+      if (pdf && aba) aba.location.href = local
+      else if (pdf) window.open(local, '_blank', 'noopener')
+      else {
+        const link = document.createElement('a')
+        link.href = local
+        link.download = anexo.nome
+        link.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(local), 60_000)
     } catch (erro) {
       aba?.close()
       setErroDoAnexo(erro instanceof Error ? erro.message : 'Não foi possível abrir o anexo.')
@@ -782,8 +800,29 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       </div>
 
       {respostas && respostas.length > 0 && (
-        <RespostasRecebidas respostas={respostas} contatosMap={contatosMap} onAbrirAnexo={handleAbrirAnexo} erro={erroDoAnexo} />
+        <RespostasRecebidas
+          respostas={respostas}
+          contatosMap={contatosMap}
+          onAbrirAnexo={handleAbrirAnexo}
+          carregarImagem={arquivoDoAnexo}
+          onAmpliarImagem={setImagemAmpliada}
+          erro={erroDoAnexo}
+        />
       )}
+
+      <Dialog open={!!imagemAmpliada} onOpenChange={(aberto) => { if (!aberto) setImagemAmpliada(null) }}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogTitle className="text-sm font-medium text-al-ink pr-8 break-all">{imagemAmpliada?.nome}</DialogTitle>
+          {imagemAmpliada && (
+            <>
+              <img src={imagemAmpliada.url} alt={imagemAmpliada.nome} className="max-h-[75vh] w-full object-contain" />
+              <a href={imagemAmpliada.url} download={imagemAmpliada.nome} className="text-xs text-al-muted underline justify-self-start">
+                Baixar {imagemAmpliada.nome}
+              </a>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Corpo da Sequência (seq-body): Timeline (340px) + Editor de Step */}
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] border border-al-line bg-al-surface min-h-[600px]">
@@ -1559,16 +1598,83 @@ function RodapeDoEnvio({
   )
 }
 
+/** Uma imagem recebida aparece em miniatura; o clique a amplia na própria página. */
+function MiniaturaDoAnexo({
+  anexo,
+  carregar,
+  onAmpliar,
+  onBaixar,
+}: {
+  anexo: AnexoRecebido
+  carregar: () => Promise<Blob>
+  onAmpliar: (imagem: { nome: string; url: string }) => void
+  onBaixar: () => void
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [falhou, setFalhou] = useState(false)
+  // A função muda a cada render do pai; a miniatura só recarrega quando o anexo muda.
+  const carregarRef = useRef(carregar)
+  useEffect(() => {
+    carregarRef.current = carregar
+  })
+
+  useEffect(() => {
+    let ativo = true
+    let local: string | null = null
+    carregarRef.current().then(
+      (arquivo) => {
+        if (!ativo) return
+        local = URL.createObjectURL(arquivo)
+        setUrl(local)
+      },
+      () => { if (ativo) setFalhou(true) },
+    )
+    return () => {
+      ativo = false
+      if (local) URL.revokeObjectURL(local)
+    }
+  }, [anexo.id])
+
+  if (falhou) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onBaixar}
+        className="h-7 border-al-line text-[0.6875rem] hover:bg-al-bg"
+      >
+        Baixar {anexo.nome}
+      </Button>
+    )
+  }
+  if (!url) return <span className="text-xs text-al-muted">{anexo.nome} · carregando…</span>
+  return (
+    <button
+      type="button"
+      onClick={() => onAmpliar({ nome: anexo.nome, url })}
+      aria-label={`Ampliar ${anexo.nome}`}
+      className="block border border-al-line bg-al-bg p-1 hover:border-al-ink cursor-zoom-in"
+    >
+      <img src={url} alt={anexo.nome} className="h-32 max-w-[240px] object-contain" />
+    </button>
+  )
+}
+
 /** As respostas recebidas, com conteúdo: só o Responsável pela Sequência chega aqui. */
 function RespostasRecebidas({
   respostas,
   contatosMap,
   onAbrirAnexo,
+  carregarImagem,
+  onAmpliarImagem,
   erro,
 }: {
   respostas: RespostaRecebida[]
   contatosMap: Map<string, Contato>
-  onAbrirAnexo: (resposta: RespostaRecebida, anexoId: string) => void
+  onAbrirAnexo: (resposta: RespostaRecebida, anexo: AnexoRecebido) => void
+  carregarImagem: (resposta: RespostaRecebida, anexo: AnexoRecebido) => Promise<Blob>
+  onAmpliarImagem: (imagem: { nome: string; url: string }) => void
   erro: string | null
 }) {
   return (
@@ -1590,20 +1696,29 @@ function RespostasRecebidas({
               <span>· {formatarDataCompleta(resposta.recebidaEm)}</span>
             </div>
             {resposta.assunto && <p className="text-sm font-medium text-al-ink">{resposta.assunto}</p>}
-            {resposta.corpo && <p className="text-sm text-al-ink whitespace-pre-wrap leading-relaxed">{resposta.corpo}</p>}
+            {resposta.corpo && (
+              <p className="text-sm text-al-ink whitespace-pre-wrap leading-relaxed">{textoDaResposta(resposta.corpo)}</p>
+            )}
             {resposta.anexos.length > 0 && (
               <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
                 {resposta.anexos.map((anexo) => (
                   <li key={anexo.id}>
-                    {anexo.status === 'stored' ? (
+                    {anexo.status === 'stored' && formaDoAnexo(anexo) === 'imagem' ? (
+                      <MiniaturaDoAnexo
+                        anexo={anexo}
+                        carregar={() => carregarImagem(resposta, anexo)}
+                        onAmpliar={onAmpliarImagem}
+                        onBaixar={() => onAbrirAnexo(resposta, anexo)}
+                      />
+                    ) : anexo.status === 'stored' ? (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => onAbrirAnexo(resposta, anexo.id)}
+                        onClick={() => onAbrirAnexo(resposta, anexo)}
                         className="h-7 border-al-line text-[0.6875rem] hover:bg-al-bg"
                       >
-                        Abrir {anexo.nome}
+                        {formaDoAnexo(anexo) === 'pdf' ? 'Abrir' : 'Baixar'} {anexo.nome}
                       </Button>
                     ) : (
                       <span className="text-xs text-al-muted">

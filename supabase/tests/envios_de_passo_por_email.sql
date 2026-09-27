@@ -49,7 +49,8 @@ insert into ids select 'sequencia', id::text from public.create_sequence(
       jsonb_build_object('id', 'passo-4', 'ordem', 4, 'canal', 'email', 'contatoId', (select valor from ids where chave = 'joao'),
         'delayDiasUteis', 1, 'titulo', 'Sem destino', 'assunto', 'Sem destino', 'corpo', 'Olá, João.'),
       jsonb_build_object('id', 'passo-1-bis', 'ordem', 5, 'canal', 'email', 'contatoId', (select valor from ids where chave = 'maria'),
-        'delayDiasUteis', 3, 'titulo', 'Último', 'assunto', 'Fechamento', 'corpo', 'Última tentativa.')
+        'delayDiasUteis', 3, 'titulo', 'Último', 'assunto', 'Fechamento com a {{conta.nome}}',
+        'corpo', 'Oi {{contato.primeiro_nome}}, da {{conta.nome}} ({{contato.cargo}}). {{persona}}{{conta.sinal}}Até, {{remetente.nome}}')
     )),
   '{"totalSteps": 4}'::jsonb);
 
@@ -290,8 +291,10 @@ insert into ids select 'envio-4', id::text from public.confirm_sequence_step(
 reset role;
 set local role service_role;
 select is(
-  (select outcome from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-4'), '50000000-0000-0000-0000-000000000001')),
-  'released', 'another confirmed step is released');
+  (select outcome || ' | ' || subject || ' | ' || body
+    from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-4'), '50000000-0000-0000-0000-000000000001')),
+  'released | Fechamento com a Empresa Alvo | Oi Maria, da Empresa Alvo (Diretora). Até, titular@cliente.com.br',
+  'the step variables are filled at send time; the ones without data leave nothing raw');
 select is(public.record_sequence_step_send_result(
   (select valor::uuid from ids where chave = 'envio-4'), 'uncertain', null, null, 'timeout'
 ), 'uncertain', 'a timeout is recorded as uncertain');

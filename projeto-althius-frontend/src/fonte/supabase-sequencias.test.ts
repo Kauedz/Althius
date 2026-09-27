@@ -16,9 +16,8 @@ const PASSO: StepSequencia = {
   corpo: 'Oi!',
 }
 
-/** A Sequência da sessão num backend em memória: a RPC de atualização grava o documento que a de leitura devolve. */
-function sequenciaDaMarina() {
-  const linha = {
+function linhaDaMarina() {
+  return {
     id: 'sequencia-da-marina',
     workspace_id: 'ws-norte',
     target_account_id: 'conta-do-norte',
@@ -28,6 +27,11 @@ function sequenciaDaMarina() {
     created_at: '2026-09-20T12:00:00Z',
     updated_at: '2026-09-21T12:00:00Z',
   }
+}
+
+/** A Sequência da sessão num backend em memória: a RPC de atualização grava o documento que a de leitura devolve. */
+function sequenciaDaMarina() {
+  const linha = linhaDaMarina()
   let documento: Record<string, unknown> = { participantesIds: ['contato-1'], steps: [PASSO], passoAtual: 0 }
   const { cliente } = criarSupabaseFalso({
     sessao: sessaoDe(MARINA),
@@ -50,6 +54,28 @@ describe('FonteDeSequencias do Workspace operacional', () => {
     await fonte.atualizarDocumento('sequencia-da-marina', { steps: [{ ...PASSO, titulo: 'Abertura' }] })
 
     expect((await fonte.sequencia('sequencia-da-marina')).steps[0].titulo).toBe('Abertura')
+  })
+
+  it('editar o documento não regrava o status lido antes, para não desfazer uma pausa feita pelo backend', async () => {
+    const statusEnviados: unknown[] = []
+    const linha = linhaDaMarina()
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      tabelas: { sequences: [linha] },
+      rpcs: {
+        get_owned_sequence: () => [{ ...linha, public_summary: { ...linha.public_summary, _document: { steps: [PASSO] } } }],
+        update_owned_sequence: ({ p_status }) => {
+          statusEnviados.push(p_status)
+          return null
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+
+    await fonte.atualizarDocumento('sequencia-da-marina', { steps: [{ ...PASSO, titulo: 'Abertura' }] })
+    await fonte.atualizarDocumento('sequencia-da-marina', { status: 'pausada' })
+
+    expect(statusEnviados).toEqual([null, 'pausada'])
   })
 
   it('recusa anexos no documento enquanto o Workspace não guarda arquivos, sem alterar nada', async () => {

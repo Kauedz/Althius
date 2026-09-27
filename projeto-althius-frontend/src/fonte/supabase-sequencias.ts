@@ -297,7 +297,9 @@ export function criarFonteDeSequenciasSupabase(
           : atual.motivoPause ? { motivoPause: atual.motivoPause } : {}),
       }
       validarPassos(atualizacao.steps ?? [])
-      const estado: StatusSequencia = atualizacao.status ?? atual.status
+      // O status só vai quando a pessoa o muda (pausar, retomar): regravar o lido antes apagaria uma pausa que o
+      // backend fez nesse meio-tempo, como a de uma resposta do Contato, e retomaria os envios sem ninguém pedir.
+      const estado: StatusSequencia | null = atualizacao.status ?? null
       const { error } = await cliente.rpc('update_owned_sequence', {
         p_sequence_id: id,
         p_private_document: novoDocumento,

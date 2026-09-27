@@ -1,5 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1'
 import {
+  attachmentContentType,
   attachmentPath,
   type AttachmentStore,
   createHandler,
@@ -280,7 +281,23 @@ Deno.test('evento v2 sem equivalente é reconhecido e ignorado', async () => {
   assertEquals(calls.apply.length, 0)
 })
 
-Deno.test('o caminho do anexo não deixa passar nomes nem ids perigosos', () => {
-  assertEquals(attachmentPath('i', 'a', '../../etc/passwd'), 'recebidos/i/a/.._.._etc_passwd')
-  assertEquals(attachmentPath('i', '../x', '..'), 'recebidos/i/.._x/anexo')
+Deno.test('o caminho do anexo não deixa passar nomes nem ids perigosos', async () => {
+  assertEquals(await attachmentPath('i', 'a', '../../etc/passwd'), 'recebidos/i/a/.._.._etc_passwd')
+  assertEquals(await attachmentPath('i', '../x', '..'), 'recebidos/i/.._x/anexo')
+})
+
+Deno.test('ids longos do Outlook com o mesmo começo não dividem o caminho', async () => {
+  const prefix = 'AAMkAGI2' + 'x'.repeat(200)
+  const a = await attachmentPath('i', prefix + 'A=', 'image.png')
+  const b = await attachmentPath('i', prefix + 'B=', 'image.png')
+  assertEquals(a === b, false)
+  assertEquals(/^recebidos\/i\/[0-9a-f]{64}\/image\.png$/.test(a), true)
+})
+
+Deno.test('o anexo guarda um tipo útil mesmo quando o download chega genérico', () => {
+  assertEquals(attachmentContentType('image/png', { name: 'x.bin' }), 'image/png')
+  assertEquals(attachmentContentType('application/octet-stream', { name: 'image.png', mime: 'image/png' }), 'image/png')
+  assertEquals(attachmentContentType('application/octet-stream', { name: 'image.PNG' }), 'image/png')
+  assertEquals(attachmentContentType(null, { name: 'proposta.pdf' }), 'application/pdf')
+  assertEquals(attachmentContentType(null, { name: 'planilha.xlsx' }), null)
 })

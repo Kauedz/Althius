@@ -71,3 +71,12 @@ Deno.test('sem JWT, 401', async () => {
   const res = await handle(request({ interactionId: INTERACTION, attachmentId: 'att-1' }, {}))
   assertEquals(res.status, 401)
 })
+
+Deno.test('id longo de anexo do Outlook é aceito', async () => {
+  const { signer, signed } = fakeSigner()
+  const longId = 'AAMkAGI2' + 'x'.repeat(300) + '='
+  const handle = createHandler({ db: fakeDb('recebidos/i/h/image.png'), signer, appOrigin: 'https://app.test' })
+  const res = await handle(request({ interactionId: INTERACTION, attachmentId: longId }))
+  assertEquals(res.status, 200)
+  assertEquals(signed.length, 1)
+})
