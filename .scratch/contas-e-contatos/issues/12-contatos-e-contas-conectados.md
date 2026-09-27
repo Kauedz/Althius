@@ -8,7 +8,7 @@
 
 **Blocked by:** 09 (Detalhe da Conta-alvo), 10 (Aba Contatos)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O detalhe mostra as seções Sinais, Contatos e Interações nessa ordem
 - [x] A seção Contatos mostra só os Contatos daquela Conta-alvo, sem a coluna Empresa, e mostra "Nenhum contato" quando não há nenhum
@@ -20,3 +20,5 @@
 - A seção Contatos do detalhe troca a tabela própria do ticket 09 (em caixa com fundo `bg-al-surface`) pela tabela da aba Contatos, sem a Empresa, como o ticket pede. Vale conferir o visual no detalhe. As pessoas aparecem pelo nome, a mesma ordem que têm dentro de uma empresa na aba Contatos.
 - "Nenhum contato" na tabela de Contas também é link para a seção, que mostra "Nenhum contato".
 - O detalhe rola até a âncora do endereço uma vez por navegação, depois que Sinais e Contatos carregam. O ticket 13 (voltar sem perder o lugar) precisa conviver com essa rolagem.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

@@ -11,7 +11,7 @@
 
 **Blocked by:** 01 (Mock do layout), 03 (Aba Contas: primeira fatia de ponta a ponta)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] A célula Empresa mostra o logo ou as iniciais, o nome e o domínio
 - [x] A Aderência aparece como "🔥 Quente", "Fit", "Não fit" ou "—" com "Aderência ainda não avaliada"
@@ -31,3 +31,5 @@
 - "🔥 Quente" fica no peso do texto comum, e não no 400 do mock, porque a spec pede o nome como "o elemento de maior peso na linha".
 - O segmento da HubSpot passou de "CRM e marketing" para "Marketing e vendas", para que "CRM" não apareça no módulo.
 - Logos de uma cor só (Notion, Vercel e Zendesk) vêm marcados pela fonte (`logoDeUmaCor`) e são pintados com a cor do texto, nos dois temas. Sem domínio, a célula Empresa mostra "Domínio não informado", como no mock.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

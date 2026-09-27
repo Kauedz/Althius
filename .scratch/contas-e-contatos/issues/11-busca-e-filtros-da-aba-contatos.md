@@ -9,7 +9,7 @@ Os filtros usam o mesmo menu e os mesmos chips da aba Contas. Não há filtro de
 
 **Blocked by:** 08 (Filtros da aba Contas), 10 (Aba Contatos)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] A busca encontra pelo nome, pelo cargo e pela empresa, ignorando maiúsculas e acentos
 - [x] O filtro de Aderência da empresa e o filtro "Com dados de contato" reduzem a lista e aparecem como chips removíveis, com "Limpar filtros"
@@ -25,3 +25,5 @@ Os filtros usam o mesmo menu e os mesmos chips da aba Contas. Não há filtro de
 - A busca, o menu, os chips, a contagem e o "sem resultado" saíram de `contas.tsx` para `modulo-contas-e-contatos.tsx`; a busca e os filtros no endereço, para `recorte-no-endereco.ts`; o rótulo da Aderência, para `ordem-da-aderencia.ts`. A aba Contas não mudou de comportamento.
 - Ainda não dá para ir de um Contato à Conta-alvo e voltar: o link da empresa é o ticket 12, e o voltar ao lugar certo é o ticket 13. Por isso o recorte só foi testado abrindo o endereço.
 
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

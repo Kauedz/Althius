@@ -11,7 +11,7 @@ Grupos diferentes se combinam com "e", e opções do mesmo grupo com "ou". Os fi
 
 **Blocked by:** 07 ("Ordenar por" e busca na aba Contas, no endereço)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Cada filtro reduz a lista e atualiza a contagem "N de M contas"
 - [x] Grupos diferentes se combinam com "e" e opções do mesmo grupo com "ou"
@@ -29,3 +29,5 @@ Grupos diferentes se combinam com "e", e opções do mesmo grupo com "ou". Os fi
 - Os chips seguem a ordem do menu (Aderência na ordem Quente, Fit, Não fit; Segmentos em ordem alfabética), não a ordem em que foram marcados.
 - "Limpar filtros" mantém a busca; "Limpar busca e filtros", no estado sem resultado, desfaz as duas. Só com filtros, a mensagem é "Nenhuma conta encontrada.", sem o “x”.
 - O botão "Filtros" mostra quantos filtros estão ativos, e a borda fica na cor de destaque.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

@@ -11,7 +11,7 @@ Quando precisa de uma Especialidade, a Coordenação chama o Agente padrão. Ela
 
 **Blocked by:** 02 (Mock do layout da página de Agentes), 03 (Grade de Agentes e nova casca), 06 (Conversar com Agentes criados e mencioná-los)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] A fonte de dados dos agentes oferece a Conversa coordenada, que devolve em fluxo os passos por Agente chamado e a resposta consolidada
 - [x] O pedido da OpenAI mostra os passos do Scopus, do Ethos e do Rhetor e a resposta consolidada, e termina numa Aprovação no HubSpot que aparece na fila de Aprovações
@@ -29,3 +29,5 @@ Quando precisa de uma Especialidade, a Coordenação chama o Agente padrão. Ela
 - A Permissão do Agente chamado decide o desfecho da ação (ADR 0002, história 17 da spec): Propor vira Aprovação; Executar age sem Aprovação e registra na Atividade; Ler não age e nada é alterado.
 - Num pedido roteirizado, um Agente criado mencionado substitui o padrão da Especialidade dele, e qualquer outro Agente mencionado entra como etapa extra antes da resposta consolidada.
 - O composer fixo no rodapé da Conversa coordenada (continuar o fio) ficou para o ticket 08. Um novo pedido na página de Agentes começa um fio novo.
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.

@@ -19,7 +19,7 @@ As datas seguem a regra única do módulo:
 
 **Blocked by:** 02 (Preparação: carregamento genérico e abas compartilhadas)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O item "Contas e Contatos" aparece na seção Workspace da sidebar, acima de Agentes, com um ícone Lucide coerente, e abre a aba Contas
 - [x] A página inicial continua sendo a grade de Agentes
@@ -31,3 +31,7 @@ As datas seguem a regra única do módulo:
 - [x] Com a fonte vazia, aparece "Nenhuma Conta-alvo ainda. As empresas aparecem aqui quando o Scopus encontrá-las ou quando forem importadas.", sem botão e sem pedido de configuração
 - [x] Com a fonte em falha, aparece uma mensagem de erro curta com "Tentar de novo", e o botão dispara uma nova leitura
 - [x] O selo "Demonstração" continua visível
+
+## Comments
+
+**Triagem (27/09/2026):** todos os critérios já estavam marcados e o código está na `main`; o status tinha ficado para trás. Fechado.
