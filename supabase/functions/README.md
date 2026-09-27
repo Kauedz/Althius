@@ -94,6 +94,10 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
   - a chamada leva `x-runner-token`, um token gerado e guardado só no banco (`private.sequence_runner_settings`). A função o confere por `sequence_runner_token_matches` e roda sem verificação JWT do gateway;
   - a função responde `202` na hora e segue em segundo plano. Reserva até 5 passos (`claim_due_step_sends`) e envia um por vez pelo mesmo núcleo do envio manual (`_shared/send-step.ts`), liberando por `release_due_step_send`;
   - o resultado vai para `record_sequence_step_send_result`, com o `Retry-After` da Unipile quando houver.
+- `sequence-runner` também reconcilia uma Conta remetente que voltou de uma queda (canais-03). Antes dos envios de cada rodada, com até 60 s, ele:
+  - reserva as contas prontas para reconciliar (`claim_sender_reconciliations`);
+  - confere na Unipile, em páginas e guardando até onde foi (`conversations_to_reconcile`, `record_reconciliation_progress`), a última conversa de cada Contato das Sequências que saíram pela conta;
+  - só então libera a conta (`finish_sender_reconciliation`). Até lá, nenhum passo sai por ela.
 - `sequence-step-sends` e `sequence-runner` compartilham o núcleo do envio: conferir a conversa, liberar pelo banco, enviar pela Unipile e gravar o resultado. Os adaptadores reais ficam em `_shared/send-step-adapters.ts`.
 
 ## Ligar o Executor (canais-05)

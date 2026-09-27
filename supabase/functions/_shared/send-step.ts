@@ -148,6 +148,50 @@ export interface SendStepDeps {
   sendTimeoutMs?: number
 }
 
+/**
+ * Confere uma conversa com o Contato na Unipile: cada e-mail dela passa pela ingestão, que grava e pausa a Sequência
+ * quando acha uma resposta ainda não gravada. `ownerAddresses` evita pedir os endereços do titular de novo quando
+ * várias conversas da mesma conta são conferidas em seguida.
+ */
+export async function checkConversation(
+  deps: Pick<SendStepDeps, 'db' | 'unipile'>,
+  conversation: Conversation,
+  ownerAddresses?: string[],
+): Promise<'clear' | 'reply_found' | 'failed'> {
+  if (!conversation.provider_thread_id && !conversation.provider_email_id) return 'clear'
+  const account = conversation.unipile_account_id
+  let replyFound = false
+  try {
+    const senders = ownerAddresses ?? await deps.unipile.listEmailSenders(account)
+    const ingest = async (email: Record<string, unknown>) => {
+      if (typeof email.id !== 'string' || !email.id) return
+      const ingested = await deps.db.ingestEmailEvent({
+        eventId: `thread-check:${account}:${email.id}`,
+        eventType: 'email.new',
+        unipileAccountId: account,
+        email,
+        ownerAddresses: senders,
+      })
+      if (ingested.outcome === 'reply') replyFound = true
+    }
+    let threadId = conversation.provider_thread_id
+    if (!threadId && conversation.provider_email_id) {
+      // Sem o eco do webhook, o e-mail enviado é lido de volta: a ingestão o reconhece como eco e guarda a conversa.
+      const sent = await deps.unipile.getEmail(account, conversation.provider_email_id)
+      await ingest(sent)
+      threadId = typeof sent.thread_id === 'string' && sent.thread_id ? sent.thread_id : null
+    }
+    if (threadId) {
+      for (const email of await deps.unipile.listThreadEmails(account, threadId)) await ingest(email)
+    }
+  } catch (error) {
+    // Uma conversa ou um e-mail que não existe mais na Unipile não tem resposta a conferir.
+    if (error instanceof UnipileRequestError && error.status === 404) return replyFound ? 'reply_found' : 'clear'
+    return 'failed'
+  }
+  return replyFound ? 'reply_found' : 'clear'
+}
+
 export async function sendStep(
   deps: SendStepDeps,
   args: { sendId: string; userId: string; release: () => Promise<ReleaseResult> },
@@ -162,36 +206,10 @@ export async function sendStep(
   } catch {
     return { kind: 'blocked', outcome: 'thread_check_failed' }
   }
-  if (conversation && (conversation.provider_thread_id || conversation.provider_email_id)) {
-    const account = conversation.unipile_account_id
-    let replyFound = false
-    try {
-      const senders = await deps.unipile.listEmailSenders(account)
-      const ingest = async (email: Record<string, unknown>) => {
-        if (typeof email.id !== 'string' || !email.id) return
-        const ingested = await deps.db.ingestEmailEvent({
-          eventId: `thread-check:${account}:${email.id}`,
-          eventType: 'email.new',
-          unipileAccountId: account,
-          email,
-          ownerAddresses: senders,
-        })
-        if (ingested.outcome === 'reply') replyFound = true
-      }
-      let threadId = conversation.provider_thread_id
-      if (!threadId && conversation.provider_email_id) {
-        // Sem o eco do webhook, o e-mail enviado é lido de volta: a ingestão o reconhece como eco e guarda a conversa.
-        const sent = await deps.unipile.getEmail(account, conversation.provider_email_id)
-        await ingest(sent)
-        threadId = typeof sent.thread_id === 'string' && sent.thread_id ? sent.thread_id : null
-      }
-      if (threadId) {
-        for (const email of await deps.unipile.listThreadEmails(account, threadId)) await ingest(email)
-      }
-    } catch {
-      return { kind: 'blocked', outcome: 'thread_check_failed' }
-    }
-    if (replyFound) return { kind: 'blocked', outcome: 'reply_found' }
+  if (conversation) {
+    const checked = await checkConversation(deps, conversation)
+    if (checked === 'failed') return { kind: 'blocked', outcome: 'thread_check_failed' }
+    if (checked === 'reply_found') return { kind: 'blocked', outcome: 'reply_found' }
   }
 
   let released: ReleaseResult

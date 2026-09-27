@@ -210,6 +210,10 @@ _Avoid_: disparo, mensagem enviada como sinônimo de entrega
 A cópia do documento da Sequência que o Vendedor responsável ativou para rodar sem ele ("Ativar envios"). Só o conteúdo dela sai pelo Executor. Editar um passo ainda não enviado revoga a versão, e os envios automáticos param até uma nova ativação. O status "Ativa" herdado da demonstração não é autorização.
 _Avoid_: aprovação (reservada à Proposta de resposta), publicar
 
+**Reconciliação da Conta remetente**:
+Depois de uma queda ou reconexão de uma Conta remetente, a conferência das conversas que tinham saído por ela, para gravar as respostas que chegaram com a conta fora do ar. Até terminar, nenhum passo sai pela conta.
+_Avoid_: ressincronização (é da Unipile), reconexão (é o ato do titular)
+
 **Executor**:
 O trabalho do backend que, a cada minuto e com o navegador fechado, envia os passos automáticos cuja hora chegou, revalidando tudo antes de cada envio. Um passo de E-mail manual nunca sai pelo Executor: na hora dele, espera o envio explícito do titular.
 _Avoid_: robô, disparador
