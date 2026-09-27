@@ -47,6 +47,7 @@ import {
   CANAIS_SUPORTADOS,
   type AnexoRecebido,
   type AnexoStep,
+  type AutorizacaoDosEnvios,
   type AtualizacaoDocumento,
   type CanalStep,
   type EnvioDoPasso,
@@ -162,6 +163,13 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     (f) => f.respostasRecebidas(sequenciaId),
     [sequenciaId],
   )
+  const { dados: autorizacao, recarregar: recarregarAutorizacao } = useDadosDeSequencias(
+    (f) => f.autorizacao(sequenciaId),
+    [sequenciaId],
+  )
+  const [dialogoAtivacaoAberto, setDialogoAtivacaoAberto] = useState(false)
+  const [ativando, setAtivando] = useState(false)
+  const [avisoDaAtivacao, setAvisoDaAtivacao] = useState<AvisoDoEnvio | null>(null)
   const [enviandoStepId, setEnviandoStepId] = useState<string | null>(null)
   const [avisoDoEnvio, setAvisoDoEnvio] = useState<(AvisoDoEnvio & { stepId: string }) | null>(null)
   const [erroDoAnexo, setErroDoAnexo] = useState<string | null>(null)
@@ -333,6 +341,55 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       recarregarEnvios()
       recarregarRespostas()
       recarregar()
+    }
+  }
+
+  // Ativar autoriza o documento atual (a versão que o Executor envia) e fixa o Destino de cada passo de E-mail
+  // pendente (ADR-0014). Um bloqueio volta como desfecho, com o passo que o causou.
+  async function handleAtivarEnvios() {
+    setAtivando(true)
+    setAvisoDaAtivacao(null)
+    try {
+      const resultado = await fonteDeSequencias.ativarEnvios(sequencia!.id)
+      if (resultado.outcome === 'activated') {
+        const passo = resultado.stepId ? sequencia!.steps.find((s) => s.id === resultado.stepId) : undefined
+        setAvisoDaAtivacao({
+          tipo: 'ok',
+          texto: passo && resultado.programadoPara
+            ? `Envios ativados. "${passo.titulo}" sai ${formatarDataEHora(resultado.programadoPara)}.`
+            : 'Envios ativados.',
+        })
+      } else {
+        const passo = resultado.stepId ? sequencia!.steps.find((s) => s.id === resultado.stepId) : undefined
+        setAvisoDaAtivacao({
+          tipo: 'atencao',
+          texto: `${resultado.mensagem ?? 'Os envios não foram ativados.'}${passo ? ` Passo: "${passo.titulo}".` : ''}`,
+        })
+      }
+    } catch (erro) {
+      setAvisoDaAtivacao({ tipo: 'atencao', texto: erro instanceof Error ? erro.message : 'Os envios não foram ativados.' })
+    } finally {
+      setAtivando(false)
+      setDialogoAtivacaoAberto(false)
+      recarregarAutorizacao()
+      recarregarEnvios()
+    }
+  }
+
+  // Um envio incerto que o eco não reconciliou: o titular conferiu a caixa de saída e diz se o e-mail saiu.
+  async function handleResolverIncerto(step: StepSequencia, saiu: boolean) {
+    setAvisoDoEnvio(null)
+    try {
+      await fonteDeSequencias.resolverIncerto(sequencia!.id, step.id, saiu)
+      setAvisoDoEnvio({
+        stepId: step.id,
+        tipo: 'ok',
+        texto: saiu ? 'Registrado como enviado.' : 'Registrado como não enviado. O passo volta para a fila.',
+      })
+    } catch (erro) {
+      setAvisoDoEnvio({ stepId: step.id, texto: erro instanceof Error ? erro.message : 'Não foi possível registrar.', tipo: 'atencao' })
+    } finally {
+      recarregarEnvios()
     }
   }
 
@@ -799,6 +856,55 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         </div>
       </div>
 
+      {!permiteAcoesDeDemonstracao && sequencia.steps.some((s) => s.canal === 'email') && (
+        <PainelDosEnvios
+          sequencia={sequencia}
+          autorizacao={autorizacao ?? null}
+          envios={envios ?? []}
+          aviso={avisoDaAtivacao}
+          onAtivar={() => {
+            setAvisoDaAtivacao(null)
+            setDialogoAtivacaoAberto(true)
+          }}
+        />
+      )}
+
+      <Dialog open={dialogoAtivacaoAberto} onOpenChange={(aberto) => { if (!aberto && !ativando) setDialogoAtivacaoAberto(false) }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ativar envios</DialogTitle>
+            <DialogDescription>
+              Os passos de E-mail abaixo saem sozinhos, na ordem, em dias úteis e dentro da janela de horário, mesmo com o
+              navegador fechado. Cada um fica com o Destino mostrado aqui. Uma resposta do Contato pausa a Sequência.
+            </DialogDescription>
+          </DialogHeader>
+          <ol aria-label="Passos a ativar" className="flex flex-col gap-2 list-none p-0 m-0 text-xs">
+            {sequencia.steps
+              .filter((s) => s.canal === 'email' && !envios?.some((e) => e.stepId === s.id && ENVIO_JA_SAIU.has(e.status)))
+              .map((s) => {
+                const contato = contatosMap.get(s.contatoId)
+                return (
+                  <li key={s.id} className="flex flex-col gap-0.5 border-t border-al-line pt-2 first:border-t-0 first:pt-0">
+                    <span className="text-al-ink font-medium">{s.titulo}</span>
+                    <span className="text-al-muted">
+                      Para {contato?.email ?? 'Contato sem e-mail'} · {s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
+                      {s.delayDiasUteis > 0 ? ` · ${s.delayDiasUteis} ${s.delayDiasUteis === 1 ? 'dia útil' : 'dias úteis'} depois do anterior` : ''}
+                    </span>
+                  </li>
+                )
+              })}
+          </ol>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDialogoAtivacaoAberto(false)} disabled={ativando}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleAtivarEnvios} disabled={ativando}>
+              {ativando ? 'Ativando…' : 'Ativar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {respostas && respostas.length > 0 && (
         <RespostasRecebidas
           respostas={respostas}
@@ -987,6 +1093,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             enviando={enviandoStepId === stepAtivo.id}
             avisoDoEnvio={avisoDoEnvio?.stepId === stepAtivo.id ? avisoDoEnvio : null}
             onConfirmarEEnviar={permiteAcoesDeDemonstracao ? undefined : () => handleConfirmarEEnviar(stepAtivo)}
+            onResolverIncerto={permiteAcoesDeDemonstracao ? undefined : (saiu) => handleResolverIncerto(stepAtivo, saiu)}
             onEditarDestinos={(c) => {
               setContatoParaEditarDestinos(c)
               setDialogoDestinosAberto(true)
@@ -1102,6 +1209,7 @@ interface ComposerStepProps {
   avisoDoEnvio?: AvisoDoEnvio | null
   /** Sem ele (Demonstração), nenhum envio real é oferecido. */
   onConfirmarEEnviar?: () => void
+  onResolverIncerto?: (saiu: boolean) => void
 }
 
 function ComposerStep({
@@ -1129,6 +1237,7 @@ function ComposerStep({
   enviando = false,
   avisoDoEnvio = null,
   onConfirmarEEnviar,
+  onResolverIncerto,
 }: ComposerStepProps) {
   const naDemonstracao = useAmbiente().modo === 'demonstracao'
   const contato = contatosMap.get(step.contatoId)
@@ -1444,6 +1553,7 @@ function ComposerStep({
             enviando={enviando}
             aviso={avisoDoEnvio}
             onConfirmarEEnviar={onConfirmarEEnviar}
+            onResolverIncerto={onResolverIncerto}
           />
         ) : (
           <>
@@ -1495,6 +1605,9 @@ interface AvisoDoEnvio {
 }
 
 const ROTULO_DO_ENVIO: Record<EnvioDoPasso['status'], string> = {
+  waiting: 'Na fila',
+  scheduled: 'Programado',
+  cancelled: 'Cancelado',
   confirmed: 'Confirmado',
   awaiting_reconfirmation: 'Aguardando reconfirmação',
   sending: 'Enviando…',
@@ -1506,11 +1619,33 @@ const ROTULO_DO_ENVIO: Record<EnvioDoPasso['status'], string> = {
 
 /** Situações em que confirmar de novo (e enviar) faz sentido; as outras esperam o provedor ou a reconciliação. */
 const ENVIO_REENVIAVEL = new Set<EnvioDoPasso['status']>(['confirmed', 'awaiting_reconfirmation', 'failed', 'bounced'])
+/** Situações em que o passo já saiu (ou pode ter saído): não entra numa nova ativação. */
+const ENVIO_JA_SAIU = new Set<EnvioDoPasso['status']>(['sending', 'sent', 'uncertain'])
 /** Situações que pedem atenção do Responsável. */
 const ENVIO_COM_ATENCAO = new Set<EnvioDoPasso['status']>(['failed', 'bounced', 'awaiting_reconfirmation', 'uncertain'])
 
+/** Dia da semana, data e hora no horário de Brasília, como a agenda do Executor conta. */
+function formatarDataEHora(iso: string): string {
+  return new Date(iso).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function descreverEnvio(envio: EnvioDoPasso): string {
   switch (envio.status) {
+    case 'waiting':
+      return `Na fila: sai depois do passo anterior, para ${envio.destino}.`
+    case 'scheduled':
+      return `Sai sozinho ${envio.programadoPara ? formatarDataEHora(envio.programadoPara) : 'no próximo horário válido'} para ${envio.destino}, mesmo com o navegador fechado.${
+        envio.ultimoErro ? ` Última tentativa: ${envio.ultimoErro}.` : ''
+      }`
+    case 'cancelled':
+      return 'Cancelado: a Sequência mudou depois da ativação.'
     case 'sent':
       return `Enviado em ${formatarDataCompleta(envio.enviadoEm ?? envio.confirmadoEm)} para ${envio.destino}. Aceito pelo provedor; não é entrega nem leitura.`
     case 'awaiting_reconfirmation':
@@ -1518,7 +1653,7 @@ function descreverEnvio(envio: EnvioDoPasso): string {
         ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
         : `O e-mail do Contato mudou depois da confirmação (era ${envio.destino}). Reconfirme para enviar ao novo Destino.`
     case 'uncertain':
-      return 'O provedor não respondeu a tempo. O envio será conferido antes de qualquer reenvio.'
+      return 'O provedor não respondeu a tempo e a confirmação não chegou. Confira sua caixa de saída: o e-mail saiu?'
     case 'failed':
       return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${envio.ultimoErro})` : ''}. Reconfirme para tentar de novo.`
     case 'bounced':
@@ -1526,7 +1661,9 @@ function descreverEnvio(envio: EnvioDoPasso): string {
     case 'sending':
       return `Enviando para ${envio.destino}…`
     case 'confirmed':
-      return `Confirmado para ${envio.destino}. Ainda não enviado.`
+      return envio.modo === 'manual'
+        ? `Passo manual: não sai sozinho. Pronto para você enviar${envio.programadoPara ? ` a partir de ${formatarDataEHora(envio.programadoPara)}` : ''} para ${envio.destino}.`
+        : `Confirmado para ${envio.destino}. Ainda não enviado.`
     default:
       return envio.destino
   }
@@ -1539,6 +1676,7 @@ function RodapeDoEnvio({
   enviando,
   aviso,
   onConfirmarEEnviar,
+  onResolverIncerto,
 }: {
   step: StepSequencia
   envio?: EnvioDoPasso
@@ -1546,6 +1684,7 @@ function RodapeDoEnvio({
   enviando: boolean
   aviso: AvisoDoEnvio | null
   onConfirmarEEnviar?: () => void
+  onResolverIncerto?: (saiu: boolean) => void
 }) {
   if (step.canal !== 'email') {
     return <span>Envio por {CANAIS_CONFIG[step.canal].rotulo} ainda não disponível neste Workspace.</span>
@@ -1558,7 +1697,10 @@ function RodapeDoEnvio({
     && (!envio || ENVIO_REENVIAVEL.has(envio.status))
   const rotuloDoBotao = enviando
     ? 'Enviando…'
-    : envio && envio.status !== 'confirmed' ? 'Reconfirmar e enviar' : 'Confirmar e enviar'
+    : envio?.status === 'confirmed' && envio.modo === 'manual'
+      ? 'Enviar'
+      : envio && envio.status !== 'confirmed' ? 'Reconfirmar e enviar' : 'Confirmar e enviar'
+  const podeResolver = !!onResolverIncerto && envio?.status === 'uncertain' && aviso?.tipo !== 'ok'
   return (
     <>
       <span className="flex items-center gap-2">
@@ -1589,12 +1731,95 @@ function RodapeDoEnvio({
           {rotuloDoBotao}
         </Button>
       )}
+      {podeResolver && (
+        <span className="flex items-center gap-2 ml-auto">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onResolverIncerto!(true)}
+            className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface"
+          >
+            Saiu
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onResolverIncerto!(false)}
+            className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface"
+          >
+            Não saiu
+          </Button>
+        </span>
+      )}
       {aviso && (
         <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
           {aviso.texto}
         </span>
       )}
     </>
+  )
+}
+
+/** Os envios automáticos da Sequência: ativar, o que está programado e o aviso quando uma edição os parou. */
+function PainelDosEnvios({
+  sequencia,
+  autorizacao,
+  envios,
+  aviso,
+  onAtivar,
+}: {
+  sequencia: Sequencia
+  autorizacao: AutorizacaoDosEnvios | null
+  envios: EnvioDoPasso[]
+  aviso: AvisoDoEnvio | null
+  onAtivar: () => void
+}) {
+  const proximo = envios.find((e) => e.status === 'scheduled')
+    ?? envios.find((e) => e.status === 'confirmed' && e.modo === 'manual')
+  const passoDoProximo = proximo ? sequencia.steps.find((s) => s.id === proximo.stepId) : undefined
+  let texto: string
+  let rotulo: string | null = null
+  if (!autorizacao) {
+    texto = 'Os passos de E-mail só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.'
+    rotulo = 'Ativar envios'
+  } else if (!autorizacao.ativa) {
+    texto = autorizacao.motivoDaRevogacao === 'edited'
+      ? 'Você alterou passos depois da ativação. Os envios automáticos pararam até você ativar de novo.'
+      : 'Os envios automáticos estão parados.'
+    rotulo = 'Ativar de novo'
+  } else if (sequencia.status !== 'ativa') {
+    texto = 'Envios ativos, mas a Sequência está pausada: nada sai até você retomar.'
+  } else if (proximo && passoDoProximo) {
+    texto = proximo.status === 'scheduled'
+      ? `Envios ativos. Próximo: "${passoDoProximo.titulo}", ${proximo.programadoPara ? formatarDataEHora(proximo.programadoPara) : 'no próximo horário válido'}.`
+      : `Envios ativos. Próximo: "${passoDoProximo.titulo}", passo manual que espera você enviar.`
+  } else {
+    texto = 'Envios ativos. Nenhum passo programado agora.'
+  }
+  return (
+    <section aria-label="Envios automáticos" className="flex flex-wrap items-center gap-3 border border-al-line bg-al-surface px-4 py-3 text-xs text-al-muted">
+      <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">Envios automáticos</span>
+      <span>{texto}</span>
+      {rotulo && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onAtivar}
+          className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-bg ml-auto"
+        >
+          <Mail className="size-3.5 mr-1 text-al-muted" />
+          {rotulo}
+        </Button>
+      )}
+      {aviso && (
+        <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
+          {aviso.texto}
+        </span>
+      )}
+    </section>
   )
 }
 

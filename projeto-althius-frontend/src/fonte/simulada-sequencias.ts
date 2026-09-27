@@ -235,6 +235,18 @@ export function criarFonteDeSequenciasSimulada(
       throw new Error('Na Demonstração não há anexos recebidos.')
     },
 
+    async autorizacao() {
+      return null
+    },
+
+    async ativarEnvios() {
+      throw new Error('Na Demonstração nenhum passo é enviado.')
+    },
+
+    async resolverIncerto() {
+      throw new Error('Na Demonstração nenhum passo é enviado.')
+    },
+
     async resumoPublico(id: string): Promise<ResumoPublicoSequencia | null> {
       await aguardar()
       const encontrada = dados.find((s) => s.id === id)

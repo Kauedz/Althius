@@ -32,6 +32,26 @@ interface LinhaDoEnvio {
   confirmed_at: string
   sent_at: string | null
   last_error: string | null
+  mode?: 'auto' | 'manual' | null
+  scheduled_for?: string | null
+}
+
+interface LinhaDaAutorizacao {
+  version: number
+  authorized_at: string
+  active: boolean
+  revoked_reason: 'edited' | 'reactivated' | null
+}
+
+/** O que cada bloqueio da ativação diz ao Vendedor responsável. */
+const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
+  contact_unlinked: 'O Contato de um passo não está vinculado à Conta-alvo. Ajuste o passo antes de ativar.',
+  contact_without_email: 'O Contato de um passo não tem e-mail. Cadastre o e-mail antes de ativar.',
+  empty_content: 'Um passo de E-mail está sem texto. Escreva o corpo antes de ativar.',
+  destination_bounced: 'O e-mail de um Contato já voltou nesta Sequência. Corrija o e-mail antes de ativar.',
+  sender_not_ready: 'Sua Conta remetente de E-mail não está pronta para enviar.',
+  sequence_not_active: 'Retome a Sequência antes de ativar os envios.',
+  no_steps: 'A Sequência ainda não tem passos.',
 }
 
 interface LinhaDaResposta {
@@ -57,6 +77,8 @@ function mapearEnvio(linha: LinhaDoEnvio): EnvioDoPasso {
     confirmadoEm: linha.confirmed_at,
     ...(linha.sent_at ? { enviadoEm: linha.sent_at } : {}),
     ...(linha.last_error ? { ultimoErro: linha.last_error } : {}),
+    ...(linha.mode ? { modo: linha.mode } : {}),
+    ...(linha.scheduled_for ? { programadoPara: linha.scheduled_for } : {}),
   }
 }
 
@@ -350,6 +372,45 @@ export function criarFonteDeSequenciasSupabase(
       }
       if (typeof corpo?.error === 'string') throw new Error(corpo.error)
       throw new Error(`Não foi possível enviar o passo da Sequência ${sequenciaId}. ${await motivoDaFalhaDaFuncao('sequence-step-sends', error)}`)
+    },
+    async autorizacao(sequenciaId) {
+      const row = await registroPorId(sequenciaId)
+      if (row.owner_user_id !== obterUsuarioId()) return null
+      const { data, error } = await cliente.rpc('get_sequence_authorization', { p_sequence_id: sequenciaId })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as LinhaDaAutorizacao | null | undefined
+      if (!linha) return null
+      return {
+        versao: linha.version,
+        autorizadaEm: linha.authorized_at,
+        ativa: linha.active,
+        ...(linha.revoked_reason ? { motivoDaRevogacao: linha.revoked_reason } : {}),
+      }
+    },
+    async ativarEnvios(sequenciaId) {
+      const { data, error } = await cliente.rpc('activate_sequence', { p_sequence_id: sequenciaId })
+      if (error) throw converterErro(error)
+      notificar()
+      const linha = (Array.isArray(data) ? data[0] : data) as
+        | { outcome: string; step_id: string | null; version: number | null; scheduled_for: string | null }
+        | null
+      if (!linha) throw new Error('O banco não respondeu à ativação.')
+      return {
+        outcome: linha.outcome,
+        ...(linha.step_id ? { stepId: linha.step_id } : {}),
+        ...(linha.version ? { versao: linha.version } : {}),
+        ...(linha.scheduled_for ? { programadoPara: linha.scheduled_for } : {}),
+        ...(MENSAGEM_DA_ATIVACAO[linha.outcome] ? { mensagem: MENSAGEM_DA_ATIVACAO[linha.outcome] } : {}),
+      }
+    },
+    async resolverIncerto(sequenciaId, stepId, saiu) {
+      const { error } = await cliente.rpc('resolve_uncertain_step', {
+        p_sequence_id: sequenciaId,
+        p_step_id: stepId,
+        p_went_out: saiu,
+      })
+      if (error) throw converterErro(error)
+      notificar()
     },
     async respostasRecebidas(sequenciaId) {
       const row = await registroPorId(sequenciaId)
