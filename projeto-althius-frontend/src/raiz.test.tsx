@@ -542,29 +542,53 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
     expect(screen.getByRole('button', { name: 'Confirmar e enviar' })).toBeInTheDocument()
   })
 
-  it('a resposta recebida aparece com o conteúdo só para a Vendedora responsável, e o anexo abre por URL assinada', async () => {
+  function respostaComAnexos(attachments: Record<string, unknown>[]) {
+    return {
+      list_sequence_step_sends: () => [{
+        id: 'envio-1', step_id: 'passo-1', contact_id: 'contato-1', destination: 'maria@empresa-alvo.test', status: 'sent',
+        attempts: 1, confirmed_at: '2026-09-26T15:00:00Z', sent_at: '2026-09-26T15:00:05Z', last_error: null, last_error_at: null,
+        updated_at: '2026-09-26T15:00:05Z',
+      }],
+      list_received_emails: () => [{
+        interaction_id: 'inter-1', sequence_id: 'sequencia-da-marina', send_id: 'envio-1', contact_id: 'contato-1',
+        from_email: 'maria@empresa-alvo.test', from_name: 'Maria Souza', subject: 'Re: Olá', body: 'Podemos falar amanhã às 10h?',
+        snippet: 'Podemos falar', received_at: '2026-09-26T16:00:00Z', attachments,
+      }],
+    }
+  }
+
+  /** O armazenamento devolve os bytes pela URL assinada; a tela vira isso num blob: local. */
+  function simularArmazenamento() {
+    const buscados: string[] = []
+    const criados: Blob[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      buscados.push(url)
+      return new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'application/octet-stream' } })
+    }))
+    URL.createObjectURL = vi.fn((arquivo: Blob) => {
+      criados.push(arquivo)
+      return `blob:althius/${criados.length}`
+    })
+    URL.revokeObjectURL = vi.fn()
+    return { buscados, criados }
+  }
+
+  const urlAssinada = (corpo: Record<string, unknown>) => ({
+    corpo: { url: `https://storage.test/recebidos/inter-1/${String(corpo.attachmentId)}?token=abc`, expiresIn: 300 },
+  })
+
+  it('a resposta recebida aparece com o conteúdo só para a Vendedora responsável, e o PDF abre no leitor do navegador', async () => {
+    const { criados } = simularArmazenamento()
     const abrir = vi.spyOn(window, 'open').mockImplementation(() => null)
     const pedidosDeAnexo: Record<string, unknown>[] = []
     const { usuario } = abrirASequenciaDaMarina({
       status: 'pausada',
       motivoPause: 'Contato respondeu',
-      rpcs: {
-        list_sequence_step_sends: () => [{
-          id: 'envio-1', step_id: 'passo-1', contact_id: 'contato-1', destination: 'maria@empresa-alvo.test', status: 'sent',
-          attempts: 1, confirmed_at: '2026-09-26T15:00:00Z', sent_at: '2026-09-26T15:00:05Z', last_error: null, last_error_at: null,
-          updated_at: '2026-09-26T15:00:05Z',
-        }],
-        list_received_emails: () => [{
-          interaction_id: 'inter-1', sequence_id: 'sequencia-da-marina', send_id: 'envio-1', contact_id: 'contato-1',
-          from_email: 'maria@empresa-alvo.test', from_name: 'Maria Souza', subject: 'Re: Olá', body: 'Podemos falar amanhã às 10h?',
-          snippet: 'Podemos falar', received_at: '2026-09-26T16:00:00Z',
-          attachments: [{ id: 'att-1', name: 'proposta.pdf', mime: 'application/pdf', size: 1234, status: 'stored' }],
-        }],
-      },
+      rpcs: respostaComAnexos([{ id: 'att-1', name: 'proposta.pdf', mime: 'application/pdf', size: 1234, status: 'stored' }]),
       funcoes: {
         'received-email-attachments': (corpo) => {
           pedidosDeAnexo.push(corpo)
-          return { corpo: { url: 'https://storage.test/recebidos/inter-1/att-1/proposta.pdf?token=abc', expiresIn: 300 } }
+          return urlAssinada(corpo)
         },
       },
     })
@@ -576,11 +600,57 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
     expect(within(respostas).getByText('Podemos falar amanhã às 10h?')).toBeInTheDocument()
     expect(screen.getByText('Respondeu')).toBeInTheDocument()
 
-    // A aba abre no clique (o bloqueador de pop-ups exige o gesto); sem ela, a URL abre numa aba nova depois.
+    // A aba abre no clique (o bloqueador de pop-ups exige o gesto); sem ela, o PDF abre numa aba nova depois.
     await usuario.click(within(respostas).getByRole('button', { name: 'Abrir proposta.pdf' }))
-    await waitFor(() => expect(abrir).toHaveBeenLastCalledWith('https://storage.test/recebidos/inter-1/att-1/proposta.pdf?token=abc', '_blank', 'noopener'))
+    await waitFor(() => expect(abrir).toHaveBeenLastCalledWith('blob:althius/1', '_blank', 'noopener'))
+    expect(criados[0].type).toBe('application/pdf')
     expect(pedidosDeAnexo).toEqual([{ interactionId: 'inter-1', attachmentId: 'att-1' }])
     abrir.mockRestore()
+    vi.unstubAllGlobals()
+  })
+
+  it('a imagem recebida aparece em miniatura e amplia na própria página', async () => {
+    const { buscados, criados } = simularArmazenamento()
+    const { usuario } = abrirASequenciaDaMarina({
+      status: 'pausada',
+      motivoPause: 'Contato respondeu',
+      rpcs: respostaComAnexos([{ id: 'att-img', name: 'image.png', mime: 'application/octet-stream', status: 'stored' }]),
+      funcoes: { 'received-email-attachments': urlAssinada },
+    })
+
+    const respostas = await screen.findByRole('region', { name: 'Respostas recebidas' })
+    const miniatura = await within(respostas).findByRole('button', { name: 'Ampliar image.png' })
+    expect(within(miniatura).getByRole('img', { name: 'image.png' })).toHaveAttribute('src', 'blob:althius/1')
+    expect(buscados).toEqual(['https://storage.test/recebidos/inter-1/att-img?token=abc'])
+    // O tipo vem da tela, não do que o armazenamento declarou.
+    expect(criados[0].type).toBe('image/png')
+
+    await usuario.click(miniatura)
+    const janela = await screen.findByRole('dialog')
+    expect(within(janela).getByRole('img', { name: 'image.png' })).toHaveAttribute('src', 'blob:althius/1')
+    expect(within(janela).getByRole('link', { name: 'Baixar image.png' })).toHaveAttribute('download', 'image.png')
+    vi.unstubAllGlobals()
+  })
+
+  it('um anexo que o navegador não mostra baixa com o nome original', async () => {
+    const { criados } = simularArmazenamento()
+    const cliques: { href: string; download: string }[] = []
+    const clicar = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      cliques.push({ href: this.href, download: this.download })
+    })
+    const { usuario } = abrirASequenciaDaMarina({
+      status: 'pausada',
+      motivoPause: 'Contato respondeu',
+      rpcs: respostaComAnexos([{ id: 'att-x', name: 'planilha.xlsx', status: 'stored' }]),
+      funcoes: { 'received-email-attachments': urlAssinada },
+    })
+
+    const respostas = await screen.findByRole('region', { name: 'Respostas recebidas' })
+    await usuario.click(await within(respostas).findByRole('button', { name: 'Baixar planilha.xlsx' }))
+    await waitFor(() => expect(cliques).toEqual([{ href: 'blob:althius/1', download: 'planilha.xlsx' }]))
+    expect(criados[0].type).toBe('application/octet-stream')
+    clicar.mockRestore()
+    vi.unstubAllGlobals()
   })
 
   it('sem conseguir carregar os Envios, a tela não oferece o envio de um passo que pode já ter saído', async () => {
