@@ -48,6 +48,10 @@ O vínculo de uma Conta de usuário com um Workspace, com papel de Administrador
 **Membro**:
 O papel de acesso de um usuário que consulta as informações compartilhadas e altera suas próprias preferências, sem administrar o Workspace. Pode solicitar revisões do ICP e das Personas pelos Agentes, mas não aprovar ou recusar essas alterações.
 
+**Convite**:
+O pedido de um Administrador para que uma pessoa, identificada pelo e-mail, entre num Workspace com o papel de Administrador ou Membro. Fica pendente até ser aceito, expirar ou ser revogado; só a Conta de usuário com exatamente o e-mail convidado, verificado, o aceita, e só então nasce a Participação. Enquanto pendente, não conta como participante, e o domínio do e-mail nunca o substitui.
+_Avoid_: convite por domínio, solicitação de acesso
+
 **Plano do Workspace**:
 A situação comercial de um Workspace na Althius, e não de uma Conta de usuário. Todos os participantes consultam o mesmo plano e o uso do Workspace: participantes ativos, sem contar convites pendentes, e Execuções de Agentes num período indicado.
 _Avoid_: assinatura, plano do usuário
