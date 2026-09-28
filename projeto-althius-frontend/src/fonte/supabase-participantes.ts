@@ -120,7 +120,7 @@ export async function lerPreviaDoConvite(cliente: SupabaseClient, token: string)
   return { estado: linha.status === 'pendente' ? 'desconhecido' : linha.status }
 }
 
-const DIA_EM_BRASILIA =new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
+const DIA_EM_BRASILIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
 
 /** O dia (aaaa-mm-dd) de um instante no horário de Brasília, o mesmo que o e-mail do convite mostra. */
 function diaEmBrasilia(instante: string): string {

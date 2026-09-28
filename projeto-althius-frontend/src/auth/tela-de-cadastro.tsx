@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ContinuarComGoogle } from './botao-do-google'
 import { useAutenticacao } from './contexto'
-import { AvisoDoEmailTravado, ComOConviteDoAcesso } from './convite-do-acesso'
+import { CampoDeEmailDoAcesso, useEmailDoAcesso, type EmailDoAcesso } from './campo-de-email-do-acesso'
+import { ComOConviteDoAcesso } from './convite-do-acesso'
 import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso } from './destino'
 import { ENDERECO_DA_POLITICA_DE_PRIVACIDADE, ENDERECO_DOS_TERMOS_DE_USO } from './termos'
 import { CampoDoCodigo } from './campo-do-codigo'
@@ -60,7 +61,7 @@ function Cadastro({ emailTravado }: { emailTravado: string | null }) {
     return !emailTravado || guardada?.email === emailTravado ? guardada : null
   })
   const [nome, setNome] = useState(etapa?.nome ?? '')
-  const [email, setEmail] = useState(etapa?.email ?? '')
+  const { email, campo: campoDeEmail } = useEmailDoAcesso(emailTravado, etapa?.email)
   const [senha, setSenha] = useState('')
 
   function irParaOCodigo(nova: EtapaDoCodigo) {
@@ -68,48 +69,44 @@ function Cadastro({ emailTravado }: { emailTravado: string | null }) {
     setEtapa(nova)
   }
 
-  function corrigirEmail() {
+  /** Sai da etapa do código: o cadastro guardado nesta aba é esquecido. */
+  function esquecerEtapa() {
     guardarEtapa(null)
     setEtapa(null)
   }
 
-  // O e-mail travado não muda, mesmo que o campo seja alterado por fora da tela.
-  const emailDoCadastro = emailTravado ?? email
-
   return etapa ? (
-    // Com o e-mail travado, não há o que corrigir.
-    <EtapaDoCodigoDoCadastro etapa={etapa} aoReenviar={irParaOCodigo} aoCorrigirEmail={emailTravado ? undefined : corrigirEmail} />
+    <EtapaDoCodigoDoCadastro
+      etapa={etapa}
+      aoReenviar={irParaOCodigo}
+      // Com o e-mail travado, não há o que corrigir; quem já tem conta não recebe código (a tela não revela isso) e
+      // precisa de um caminho para entrar com o convite.
+      {...(emailTravado ? { aoIrParaEntrada: esquecerEtapa } : { aoCorrigirEmail: esquecerEtapa })}
+    />
   ) : (
     <FormularioDeCadastro
       nome={nome}
-      email={emailDoCadastro}
-      emailTravado={emailTravado !== null}
+      campoDeEmail={campoDeEmail}
       senha={senha}
       aoMudarNome={setNome}
-      aoMudarEmail={setEmail}
       aoMudarSenha={setSenha}
-      aoEnviar={() => irParaOCodigo({ nome, email: emailDoCadastro.trim(), enviadoEm: Date.now() })}
+      aoEnviar={() => irParaOCodigo({ nome, email: email.trim(), enviadoEm: Date.now() })}
     />
   )
 }
 
 function FormularioDeCadastro({
   nome,
-  email,
-  emailTravado,
+  campoDeEmail,
   senha,
   aoMudarNome,
-  aoMudarEmail,
   aoMudarSenha,
   aoEnviar,
 }: {
   nome: string
-  email: string
-  /** O e-mail é o de um convite: aparece preenchido e não se troca. */
-  emailTravado: boolean
+  campoDeEmail: EmailDoAcesso['campo']
   senha: string
   aoMudarNome: (nome: string) => void
-  aoMudarEmail: (email: string) => void
   aoMudarSenha: (senha: string) => void
   aoEnviar: () => void
 }) {
@@ -127,7 +124,7 @@ function FormularioDeCadastro({
     }
     setEnviando(true)
     try {
-      await cadastrar({ nome, email, senha }, destinoDepoisDoAcesso() ?? '/')
+      await cadastrar({ nome, email: campoDeEmail.email, senha }, destinoDepoisDoAcesso() ?? '/')
       aoEnviar()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível criar a conta agora. Tente novamente em instantes.')
@@ -146,22 +143,7 @@ function FormularioDeCadastro({
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="nome-cadastro">Nome
         <input id="nome-cadastro" type="text" autoComplete="name" required value={nome} onChange={(e) => aoMudarNome(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
       </label>
-      <div className="flex flex-col gap-1.5">
-        <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-cadastro">E-mail
-          <input
-            id="email-cadastro"
-            type="email"
-            autoComplete="email"
-            required
-            readOnly={emailTravado}
-            aria-describedby={emailTravado ? 'aviso-do-convite-cadastro' : undefined}
-            value={email}
-            onChange={(e) => aoMudarEmail(e.target.value)}
-            className="campo h-10 bg-al-bg px-3 text-al-ink read-only:bg-al-surface read-only:text-al-muted"
-          />
-        </label>
-        {emailTravado && <AvisoDoEmailTravado id="aviso-do-convite-cadastro" email={email} />}
-      </div>
+      <CampoDeEmailDoAcesso id="email-cadastro" {...campoDeEmail} />
       <CampoDeNovaSenha id="senha-cadastro" rotulo="Senha" senha={senha} aoMudar={aoMudarSenha} />
       {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
       <Button type="submit" disabled={enviando}>{enviando ? 'Criando…' : 'Criar conta'}</Button>
@@ -179,13 +161,17 @@ function EtapaDoCodigoDoCadastro({
   etapa,
   aoReenviar,
   aoCorrigirEmail,
+  aoIrParaEntrada,
 }: {
   etapa: EtapaDoCodigo
   aoReenviar: (etapa: EtapaDoCodigo) => void
-  /** Ausente quando o e-mail é o de um convite, travado. */
+  /** Volta ao formulário para trocar o e-mail; ausente quando o e-mail é o de um convite, travado. */
   aoCorrigirEmail?: () => void
+  /** Com o e-mail de um convite: antes de ir à entrada, com o mesmo destino. */
+  aoIrParaEntrada?: () => void
 }) {
   const { confirmarCodigoDoCadastro, reenviarCodigoDoCadastro } = useAutenticacao()
+  const { search } = useLocation()
   const [codigo, setCodigo] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [erro, setErro] = useState('')
@@ -246,6 +232,11 @@ function EtapaDoCodigoDoCadastro({
         </Button>
         {aoCorrigirEmail && <Button type="button" variant="outline" onClick={aoCorrigirEmail}>Corrigir e-mail</Button>}
       </div>
+      {aoIrParaEntrada && (
+        <p className="text-sm text-al-muted">
+          Já tem conta? <Link to={{ pathname: ROTA_DE_ENTRADA, search }} onClick={aoIrParaEntrada} className="text-al-accent underline">Entrar</Link>
+        </p>
+      )}
     </form>
   )
 }

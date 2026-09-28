@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { App } from '@/App'
 import { AplicativoAutenticado } from '@/auth/aplicativo'
-import { ROTA_DE_ENTRADA, tokenDoConviteNoDestino, tokenDoConviteNoEndereco } from '@/auth/destino'
+import { ROTA_DE_ENTRADA, ROTA_DO_CONVITE, tokenDoConviteDoAcesso } from '@/auth/destino'
 import type { ServicosDoNavegador } from '@/auth/servicos-do-navegador'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
 import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
@@ -19,8 +19,10 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
     const params = new URLSearchParams(window.location.search)
     if (params.get('auth') === 'true' || params.get('demo') === 'false') return 'real'
     if (params.get('demo') === 'true') return 'demonstracao'
-    // O link de um convite, e as telas de acesso que o lembram como destino, são sempre do Workspace operacional.
-    if (window.location.pathname === ROTA_DE_ENTRADA || tokenDoConviteNoEndereco() || tokenDoConviteNoDestino()) return 'real'
+    // O link de um convite (mesmo malformado), e as telas de acesso que o lembram como destino, são sempre do
+    // Workspace operacional.
+    const { pathname } = window.location
+    if (pathname === ROTA_DE_ENTRADA || pathname.startsWith(`${ROTA_DO_CONVITE}/`) || tokenDoConviteDoAcesso(window.location)) return 'real'
     const salvo = localStorage.getItem(CHAVE_DO_AMBIENTE)
     if (salvo !== null) return salvo === 'true' ? 'demonstracao' : 'real'
     // No protótipo, a Demonstração é o padrão.

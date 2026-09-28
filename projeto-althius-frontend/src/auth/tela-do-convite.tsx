@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { buttonVariants } from '@/components/ui/button'
 import { ROTULO_DO_PAPEL } from '@/fonte/regras'
 import { CarregandoOConvite, FalhaAoCarregarOConvite, useConviteDoAcesso } from './convite-do-acesso'
@@ -12,8 +12,8 @@ const CONVITE_ENCERRADO = {
     texto: 'Este convite expirou. Peça um novo convite a um Administrador do Workspace.',
   },
   revogado: {
-    titulo: 'Convite cancelado',
-    texto: 'Este convite foi cancelado por um Administrador do Workspace. Peça um novo convite, se ainda precisar do acesso.',
+    titulo: 'Convite revogado',
+    texto: 'Este convite foi revogado por um Administrador do Workspace. Peça um novo convite, se ainda precisar do acesso.',
   },
   desconhecido: {
     titulo: 'Convite não encontrado',
@@ -28,9 +28,9 @@ const CONVITE_ENCERRADO = {
 export function TelaDoConvite() {
   const convite = useConviteDoAcesso()
 
-  if (convite.estado === 'sem-convite' || convite.estado === 'carregando') {
-    return <CarregandoOConvite />
-  }
+  // Um endereço que não traz um token legível (`/convite/%`) não é convite: vai à entrada normal.
+  if (convite.estado === 'sem-convite') return <Navigate to={ROTA_DE_ENTRADA} replace />
+  if (convite.estado === 'carregando') return <CarregandoOConvite />
   if (convite.estado === 'falha') {
     return (
       <Secao titulo="Convite">

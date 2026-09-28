@@ -3,7 +3,7 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
-import { aceitarConvite } from '@/fonte/supabase-participantes'
+import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso, tokenDoConviteNoEndereco } from './destino'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
@@ -94,6 +94,8 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   const [erroParticipacoes, setErroParticipacoes] = useState<string | null>(null)
   const [workspaceId, setWorkspaceId] = useState('')
   const [recusaDoConvite, setRecusaDoConvite] = useState<string | null>(null)
+  /** Na recusa, o convite ainda pendente: de qual Workspace é e para qual e-mail, para a pessoa saber com qual entrar. */
+  const [conviteRecusado, setConviteRecusado] = useState<{ workspace: string; email: string } | null>(null)
   /** A pessoa escolheu "Criar Workspace da empresa" no Workspace pessoal. */
   const [criandoWorkspaceDaEmpresa, setCriandoWorkspaceDaEmpresa] = useState(false)
   // A renovação do token troca o objeto da sessão; só outra Conta de usuário recarrega as Participações.
@@ -116,6 +118,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     setErroParticipacoes(null)
     setWorkspaceId('')
     setRecusaDoConvite(null)
+    setConviteRecusado(null)
     setCriandoWorkspaceDaEmpresa(false)
     if (!usuarioId) return () => { ativo = false }
     // O link do convite, já no endereço depois do login: o convite é aceito depois do Workspace pessoal.
@@ -137,8 +140,16 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
         // convidado; aceito ou dispensado, as rotas do Workspace levam ao início.
         const aceite = await aceitarConvite(cliente, tokenDoConvite)
         if (!ativo) return
-        if ('recusa' in aceite) setRecusaDoConvite(aceite.recusa)
-        else {
+        if ('recusa' in aceite) {
+          setRecusaDoConvite(aceite.recusa)
+          // Sem a prévia, a recusa continua explicada, só sem o Workspace e o e-mail do convite.
+          lerPreviaDoConvite(cliente, tokenDoConvite).then(
+            (previa) => {
+              if (ativo && previa.estado === 'pendente') setConviteRecusado({ workspace: previa.workspace, email: previa.email })
+            },
+            () => {},
+          )
+        } else {
           workspaceDoConvite = aceite.workspaceId
           sessionStorage.setItem(CHAVE_DO_WORKSPACE, workspaceDoConvite)
         }
@@ -213,6 +224,12 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
         <h1 className="titulo-secao text-2xl">Convite não aceito</h1>
         <p role="alert">{recusaDoConvite}</p>
         <p className="text-sm text-al-muted">Você entrou como {sessao.user.email}. Nenhuma Participação foi criada.</p>
+        {conviteRecusado && conviteRecusado.email.toLowerCase() !== sessao.user.email?.toLowerCase() && (
+          <p className="text-sm">
+            Este convite do Workspace <strong>{conviteRecusado.workspace}</strong> é para{' '}
+            <strong>{conviteRecusado.email}</strong>. Saia e entre com esse e-mail para aceitá-lo.
+          </p>
+        )}
         <div className="flex gap-2">
           <Button onClick={() => setRecusaDoConvite(null)}>Continuar sem o convite</Button>
           <Sair />

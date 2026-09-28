@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { CampoDoCodigo } from './campo-do-codigo'
 import { useAutenticacao } from './contexto'
-import { AvisoDoEmailTravado, ComOConviteDoAcesso } from './convite-do-acesso'
+import { CampoDeEmailDoAcesso, useEmailDoAcesso } from './campo-de-email-do-acesso'
+import { ComOConviteDoAcesso } from './convite-do-acesso'
 import { ROTA_DE_ENTRADA, ROTA_ESQUECI_A_SENHA, destinoDepoisDoAcesso } from './destino'
 import { CampoDeNovaSenha, TAMANHO_MINIMO_DA_SENHA } from './nova-senha'
 
@@ -19,9 +20,7 @@ export function TelaEsqueciASenha() {
 function EsqueciASenha({ emailTravado }: { emailTravado: string | null }) {
   const { pedirRedefinicaoDeSenha, confirmarCodigoDeRedefinicao, carregando } = useAutenticacao()
   const { search } = useLocation()
-  const [emailDigitado, setEmail] = useState('')
-  // O e-mail travado não muda, mesmo que o campo seja alterado por fora da tela.
-  const email = emailTravado ?? emailDigitado
+  const { email, campo: campoDeEmail } = useEmailDoAcesso(emailTravado)
   /** O e-mail para o qual a redefinição foi pedida; enquanto houver, a tela pede o código. */
   const [emailDoCodigo, setEmailDoCodigo] = useState<string | null>(null)
   const [codigo, setCodigo] = useState('')
@@ -92,22 +91,7 @@ function EsqueciASenha({ emailTravado }: { emailTravado: string | null }) {
           Enviaremos um código e um link para definir uma nova senha. Também serve para quem só entra com Google criar uma senha.
         </p>
       </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-redefinicao">E-mail
-          <input
-            id="email-redefinicao"
-            type="email"
-            autoComplete="email"
-            required
-            readOnly={emailTravado !== null}
-            aria-describedby={emailTravado ? 'aviso-do-convite-redefinicao' : undefined}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="campo h-10 bg-al-bg px-3 text-al-ink read-only:bg-al-surface read-only:text-al-muted"
-          />
-        </label>
-        {emailTravado && <AvisoDoEmailTravado id="aviso-do-convite-redefinicao" email={emailTravado} />}
-      </div>
+      <CampoDeEmailDoAcesso id="email-redefinicao" {...campoDeEmail} />
       {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
       <Button type="submit" disabled={carregando}>{carregando ? 'Enviando…' : 'Enviar código'}</Button>
       <p className="text-sm text-al-muted">Lembrou a senha? <Link to={{ pathname: ROTA_DE_ENTRADA, search }} className="text-al-accent underline">Entrar</Link></p>

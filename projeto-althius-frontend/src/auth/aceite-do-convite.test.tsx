@@ -212,6 +212,12 @@ describe('Aceite do convite', () => {
     const { usuario } = abrirOLinkDoConvite(banco, { quem: DIEGO })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Este convite é para outro e-mail.')
+    // A recusa diz qual é o Workspace e com qual e-mail entrar.
+    expect(await screen.findByText(/Este convite do Workspace/)).toHaveTextContent(
+      `Este convite do Workspace Norte é para ${CARLA.email}. Saia e entre com esse e-mail para aceitá-lo.`,
+    )
+    expect(screen.getByText(`Você entrou como ${DIEGO.email}.`, { exact: false })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continuar sem o convite' })).toBeInTheDocument()
     expect(banco.participacoes.filter((p) => p.workspace_id === NORTE.id)).toEqual([])
     await usuario.click(screen.getByRole('button', { name: 'Sair' }))
 
@@ -255,7 +261,7 @@ describe('Entrar por convite', () => {
 
   it.each([
     ['expirado', TOKEN, 'Convite expirado', 'Este convite expirou. Peça um novo convite a um Administrador do Workspace.'],
-    ['revogado', TOKEN, 'Convite cancelado', 'Este convite foi cancelado por um Administrador do Workspace.'],
+    ['revogado', TOKEN, 'Convite revogado', 'Este convite foi revogado por um Administrador do Workspace.'],
     ['pendente', 'c'.repeat(64), 'Convite não encontrado', 'Este link de convite não é válido.'],
   ] as const)('um convite %s (token %s) é explicado, sem oferecer cadastro nem entrada pelo convite', async (estadoDoConvite, token, titulo, explicacao) => {
     abrirOLinkDoConvite(bancoComConvite({ estadoDoConvite }), { comSessao: false, token })
@@ -367,6 +373,65 @@ describe('Entrar por convite', () => {
 
     expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
     expect(banco.aceites).toEqual([TOKEN])
+  })
+
+  it('quem já tem conta e escolheu criar conta pelo convite volta da etapa do código para entrar, com o convite', async () => {
+    const banco = bancoComConvite()
+    const { usuario, codigoEnviadoPara } = abrirOLinkDoConvite(banco, { comSessao: false })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta com este e-mail' }))
+    await usuario.type(await screen.findByLabelText('Nome'), 'Carla Dias')
+    await usuario.type(screen.getByLabelText('Senha'), 'correta cavalo bateria')
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    // A conta já existe: o Auth responde igual e não envia código; a tela oferece entrar, sem revelar nada.
+    expect(codigoEnviadoPara(CARLA.email)).toBeUndefined()
+    const entrar = screen.getByRole('link', { name: 'Entrar' })
+    expect(entrar.closest('p')).toHaveTextContent('Já tem conta? Entrar')
+    expect(entrar).toHaveAttribute('href', `/entrar?${DESTINO_DO_CONVITE}`)
+    await usuario.click(entrar)
+
+    // A etapa do código não prende mais o cadastro: voltar a ele mostra o formulário.
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
+    await usuario.click(screen.getByRole('link', { name: 'Entrar' }))
+
+    await emailTravadoDaCarla(usuario)
+    await usuario.type(screen.getByLabelText('Senha'), 'senha-longa-da-carla')
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+  })
+
+  it('o link do convite com uma barra no fim é o mesmo convite', async () => {
+    abrirOLinkDoConvite(bancoComConvite(), { comSessao: false, token: `${TOKEN}/` })
+
+    expect(await screen.findByRole('heading', { name: 'Convite para o Workspace Norte' })).toBeInTheDocument()
+  })
+
+  it('um link de convite malformado leva à entrada, sem derrubar a tela', async () => {
+    abrirOLinkDoConvite(bancoComConvite(), { comSessao: false, token: '%' })
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/entrar')
+  })
+
+  it('um destino de convite malformado na entrada não trava o e-mail nem derruba a tela', async () => {
+    window.history.replaceState(null, '', '/entrar?destino=%2Fconvite%2F%25')
+    const supabase = criarSupabaseFalso({ tabelas: bancoComConvite().tabelas, rpcs: bancoComConvite().rpcs, contas: [] })
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
+
+    const email = await screen.findByLabelText('E-mail')
+    expect(email).toHaveValue('')
+    expect(email).not.toHaveAttribute('readonly')
+  })
+
+  it('com sessão, um link de convite malformado não derruba a entrada no Workspace', async () => {
+    const banco = bancoComConvite()
+    abrirOLinkDoConvite(banco, { token: '%' })
+
+    expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([])
   })
 
   it('sem conseguir carregar o convite, a tela diz e deixa tentar de novo', async () => {

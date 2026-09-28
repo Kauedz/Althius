@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { ContinuarComGoogle } from './botao-do-google'
 import { CampoDoCodigo } from './campo-do-codigo'
 import { useAutenticacao } from './contexto'
-import { AvisoDoEmailTravado, ComOConviteDoAcesso } from './convite-do-acesso'
+import { CampoDeEmailDoAcesso, useEmailDoAcesso } from './campo-de-email-do-acesso'
+import { ComOConviteDoAcesso } from './convite-do-acesso'
 import { ROTA_DE_CADASTRO, ROTA_ESQUECI_A_SENHA, destinoDepoisDoAcesso } from './destino'
 
 /**
@@ -26,9 +27,7 @@ function Entrada({ emailTravado, aoAcessarDemonstracao }: { emailTravado: string
   // O cadastro e o "Esqueci a senha" lembram o mesmo destino (como o link de um convite) para depois do acesso.
   const { search } = useLocation()
   const campoDeEmail = useRef<HTMLInputElement>(null)
-  const [emailDigitado, setEmail] = useState('')
-  // O e-mail travado não muda, mesmo que o campo seja alterado por fora da tela.
-  const email = emailTravado ?? emailDigitado
+  const { email, campo: campoDeEmailProps } = useEmailDoAcesso(emailTravado)
   const [senha, setSenha] = useState('')
   const [senhaVisivel, setSenhaVisivel] = useState(false)
   /** O e-mail para o qual o código foi enviado; enquanto houver, a tela pede o código. */
@@ -94,23 +93,7 @@ function Entrada({ emailTravado, aoAcessarDemonstracao }: { emailTravado: string
         </p>
       </div>
       <ContinuarComGoogle contexto="signin" />
-      <div className="flex flex-col gap-1.5">
-        <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-acesso">E-mail
-          <input
-            ref={campoDeEmail}
-            id="email-acesso"
-            type="email"
-            autoComplete="email"
-            required
-            readOnly={emailTravado !== null}
-            aria-describedby={emailTravado ? 'aviso-do-convite-entrada' : undefined}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="campo h-10 bg-al-bg px-3 text-al-ink read-only:bg-al-surface read-only:text-al-muted"
-          />
-        </label>
-        {emailTravado && <AvisoDoEmailTravado id="aviso-do-convite-entrada" email={emailTravado} />}
-      </div>
+      <CampoDeEmailDoAcesso id="email-acesso" ref={campoDeEmail} {...campoDeEmailProps} />
       <div className="flex flex-col gap-1.5 text-sm">
         <div className="flex items-center justify-between">
           <label htmlFor="senha-acesso">Senha</label>
