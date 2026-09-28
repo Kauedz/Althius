@@ -5,18 +5,29 @@ import { Button } from '@/components/ui/button'
 import { ContinuarComGoogle } from './botao-do-google'
 import { CampoDoCodigo } from './campo-do-codigo'
 import { useAutenticacao } from './contexto'
-import { destinoDepoisDoAcesso } from './destino'
+import { CampoDeEmailDoAcesso, useEmailDoAcesso } from './campo-de-email-do-acesso'
+import { ComOConviteDoAcesso } from './convite-do-acesso'
+import { ROTA_DE_CADASTRO, ROTA_ESQUECI_A_SENHA, destinoDepoisDoAcesso } from './destino'
 
 /**
  * `/entrar`: e-mail e senha, ou "Entrar com código" — o código de 6 dígitos é pedido nesta mesma tela, e o link do
- * mesmo e-mail também entra, se aberto neste navegador.
+ * mesmo e-mail também entra, se aberto neste navegador. Aberta a partir de um convite pendente, o e-mail é o do
+ * convite, travado.
  */
 export function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?: () => void }) {
+  return (
+    <ComOConviteDoAcesso>
+      {(emailTravado) => <Entrada key={emailTravado} emailTravado={emailTravado} aoAcessarDemonstracao={aoAcessarDemonstracao} />}
+    </ComOConviteDoAcesso>
+  )
+}
+
+function Entrada({ emailTravado, aoAcessarDemonstracao }: { emailTravado: string | null; aoAcessarDemonstracao?: () => void }) {
   const { entrarComSenha, pedirCodigoDeEntrada, confirmarCodigoDeEntrada, carregando } = useAutenticacao()
-  // O cadastro lembra o mesmo destino (como o link de um convite) para depois da verificação.
+  // O cadastro e o "Esqueci a senha" lembram o mesmo destino (como o link de um convite) para depois do acesso.
   const { search } = useLocation()
   const campoDeEmail = useRef<HTMLInputElement>(null)
-  const [email, setEmail] = useState('')
+  const { email, campo: campoDeEmailProps } = useEmailDoAcesso(emailTravado)
   const [senha, setSenha] = useState('')
   const [senhaVisivel, setSenhaVisivel] = useState(false)
   /** O e-mail para o qual o código foi enviado; enquanto houver, a tela pede o código. */
@@ -78,17 +89,15 @@ export function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
       <div>
         <h1 className="titulo-secao text-2xl">Entrar</h1>
         <p className="mt-2 text-sm text-al-muted">
-          Ainda não tem conta? <Link to={{ pathname: '/cadastro', search }} className="text-al-accent hover:underline">Criar conta</Link>
+          Ainda não tem conta? <Link to={{ pathname: ROTA_DE_CADASTRO, search }} className="text-al-accent hover:underline">Criar conta</Link>
         </p>
       </div>
       <ContinuarComGoogle contexto="signin" />
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-acesso">E-mail
-        <input ref={campoDeEmail} id="email-acesso" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
-      </label>
+      <CampoDeEmailDoAcesso id="email-acesso" ref={campoDeEmail} {...campoDeEmailProps} />
       <div className="flex flex-col gap-1.5 text-sm">
         <div className="flex items-center justify-between">
           <label htmlFor="senha-acesso">Senha</label>
-          <Link to="/esqueci-a-senha" className="text-xs text-al-accent hover:underline">Esqueci a senha</Link>
+          <Link to={{ pathname: ROTA_ESQUECI_A_SENHA, search }} className="text-xs text-al-accent hover:underline">Esqueci a senha</Link>
         </div>
         <div className="relative">
           <input

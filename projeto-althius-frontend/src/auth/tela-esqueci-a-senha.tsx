@@ -3,17 +3,24 @@ import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { CampoDoCodigo } from './campo-do-codigo'
 import { useAutenticacao } from './contexto'
+import { CampoDeEmailDoAcesso, useEmailDoAcesso } from './campo-de-email-do-acesso'
+import { ComOConviteDoAcesso } from './convite-do-acesso'
 import { ROTA_DE_ENTRADA, ROTA_ESQUECI_A_SENHA, destinoDepoisDoAcesso } from './destino'
 import { CampoDeNovaSenha, TAMANHO_MINIMO_DA_SENHA } from './nova-senha'
 
 /**
  * `/esqueci-a-senha`: o e-mail e, na mesma tela, o código de 6 dígitos da redefinição. O link do mesmo e-mail também
- * serve, se aberto neste navegador. A resposta é igual exista ou não a Conta de usuário.
+ * serve, se aberto neste navegador. A resposta é igual exista ou não a Conta de usuário. Aberta a partir de um convite
+ * pendente, o e-mail é o do convite, travado.
  */
 export function TelaEsqueciASenha() {
+  return <ComOConviteDoAcesso>{(emailTravado) => <EsqueciASenha key={emailTravado} emailTravado={emailTravado} />}</ComOConviteDoAcesso>
+}
+
+function EsqueciASenha({ emailTravado }: { emailTravado: string | null }) {
   const { pedirRedefinicaoDeSenha, confirmarCodigoDeRedefinicao, carregando } = useAutenticacao()
   const { search } = useLocation()
-  const [email, setEmail] = useState('')
+  const { email, campo: campoDeEmail } = useEmailDoAcesso(emailTravado)
   /** O e-mail para o qual a redefinição foi pedida; enquanto houver, a tela pede o código. */
   const [emailDoCodigo, setEmailDoCodigo] = useState<string | null>(null)
   const [codigo, setCodigo] = useState('')
@@ -68,7 +75,9 @@ export function TelaEsqueciASenha() {
         <Button type="submit" disabled={carregando}>{carregando ? 'Confirmando…' : 'Confirmar código'}</Button>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" disabled={carregando} onClick={reenviar}>Reenviar código</Button>
-          <Button type="button" variant="outline" onClick={() => { setErro(''); setEmailDoCodigo(null) }}>Corrigir e-mail</Button>
+          {!emailTravado && (
+            <Button type="button" variant="outline" onClick={() => { setErro(''); setEmailDoCodigo(null) }}>Corrigir e-mail</Button>
+          )}
         </div>
       </form>
     )
@@ -82,9 +91,7 @@ export function TelaEsqueciASenha() {
           Enviaremos um código e um link para definir uma nova senha. Também serve para quem só entra com Google criar uma senha.
         </p>
       </div>
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-redefinicao">E-mail
-        <input id="email-redefinicao" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
-      </label>
+      <CampoDeEmailDoAcesso id="email-redefinicao" {...campoDeEmail} />
       {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
       <Button type="submit" disabled={carregando}>{carregando ? 'Enviando…' : 'Enviar código'}</Button>
       <p className="text-sm text-al-muted">Lembrou a senha? <Link to={{ pathname: ROTA_DE_ENTRADA, search }} className="text-al-accent underline">Entrar</Link></p>

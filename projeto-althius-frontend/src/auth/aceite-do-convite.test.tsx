@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
@@ -27,14 +27,35 @@ function recusa(code: string, message: string) {
  * aceite cria a Participação no Norte. As regras do aceite (e-mail, estado, prazo) são do banco e têm pgTAP; aqui ele
  * só responde como a função responderia a cada caso.
  */
-function bancoComConvite({ recusarAceite }: { recusarAceite?: { code: string; message: string } } = {}) {
+function bancoComConvite({
+  recusarAceite,
+  estadoDoConvite = 'pendente',
+}: {
+  recusarAceite?: { code: string; message: string }
+  /** O estado que a prévia do convite devolve; `falha` é uma leitura que não chega (rede, servidor). */
+  estadoDoConvite?: 'pendente' | 'aceito' | 'expirado' | 'revogado' | 'falha'
+} = {}) {
   const participacoes: Record<string, unknown>[] = []
   const aceites: unknown[] = []
+  const previas = { falhas: estadoDoConvite === 'falha' ? 1 : 0 }
   const pessoalDeDiego = { ...PESSOAL_DA_CARLA, id: 'ws-pessoal-diego', name: 'Diego', owner_user_id: DIEGO.id }
   const tabelas = { workspace_memberships: participacoes, workspaces: [PESSOAL_DA_CARLA, pessoalDeDiego, NORTE] }
   /** A Conta de usuário da sessão, como o banco a lê em auth.uid(); ligada ao Supabase falso quando ele nasce. */
   const sessao = { usuarioId: async (): Promise<string | undefined> => CARLA.id }
   const rpcs: Record<string, (p: Record<string, unknown>) => unknown> = {
+    // Como a função do banco: sem login, o e-mail, o Workspace e o papel só de um convite pendente; dos demais, só o
+    // estado; um token desconhecido não devolve linha.
+    workspace_invitation_preview: ({ p_token }) => {
+      if (previas.falhas > 0) {
+        previas.falhas--
+        throw recusa('08006', 'connection reset')
+      }
+      if (p_token !== TOKEN) return []
+      const estado = estadoDoConvite === 'falha' ? 'pendente' : estadoDoConvite
+      return estado === 'pendente'
+        ? [{ email: CARLA.email, workspace_name: NORTE.name, role: 'member', status: estado }]
+        : [{ email: null, workspace_name: null, role: null, status: estado }]
+    },
     bootstrap_personal_workspace: async () => {
       const usuarioId = await sessao.usuarioId()
       const pessoal = usuarioId === DIEGO.id ? pessoalDeDiego : PESSOAL_DA_CARLA
@@ -68,7 +89,12 @@ function bancoComConvite({ recusarAceite }: { recusarAceite?: { code: string; me
 
 function abrirOLinkDoConvite(
   banco: ReturnType<typeof bancoComConvite>,
-  { comSessao = true, token = TOKEN, quem = CARLA }: { comSessao?: boolean; token?: string; quem?: typeof CARLA } = {},
+  {
+    comSessao = true,
+    token = TOKEN,
+    quem = CARLA,
+    carlaTemConta = true,
+  }: { comSessao?: boolean; token?: string; quem?: typeof CARLA; /** Sem ela, a Carla ainda não tem Conta de usuário. */ carlaTemConta?: boolean } = {},
 ) {
   window.history.replaceState(null, '', `/convite/${token}`)
   const supabase = criarSupabaseFalso({
@@ -76,7 +102,7 @@ function abrirOLinkDoConvite(
     tabelas: banco.tabelas,
     rpcs: banco.rpcs,
     contas: [
-      { ...CARLA, senha: 'senha-longa-da-carla', nome: 'Carla Dias' },
+      ...(carlaTemConta ? [{ ...CARLA, senha: 'senha-longa-da-carla', nome: 'Carla Dias' }] : []),
       { ...DIEGO, senha: 'senha-longa-do-diego', nome: 'Diego' },
     ],
   })
@@ -84,6 +110,16 @@ function abrirOLinkDoConvite(
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
   return { ...supabase, usuario }
+}
+
+/** O campo de e-mail da tela de acesso traz o e-mail convidado, travado e com o aviso; digitar nele não o troca. */
+async function emailTravadoDaCarla(usuario: ReturnType<typeof userEvent.setup>) {
+  const email = await screen.findByLabelText('E-mail')
+  expect(email).toHaveValue(CARLA.email)
+  expect(email).toHaveAttribute('readonly')
+  expect(email).toHaveAccessibleDescription(`Este convite é para ${CARLA.email}`)
+  await usuario.type(email, 'outra@gmail.com')
+  expect(email).toHaveValue(CARLA.email)
 }
 
 /** Abre Configurações / Workspace pela navegação, para ver em qual Workspace a pessoa está. */
@@ -110,11 +146,12 @@ describe('Aceite do convite', () => {
     expect(banco.participacoes.filter((p) => p.active).map((p) => p.workspace_id)).toEqual([PESSOAL_DA_CARLA.id, NORTE.id])
   })
 
-  it('sem sessão, o link leva à entrada e, depois de entrar com o e-mail convidado, aceita o convite', async () => {
+  it('sem sessão, o link leva à entrada com o e-mail convidado travado e, depois de entrar, aceita o convite', async () => {
     const banco = bancoComConvite()
     const { usuario } = abrirOLinkDoConvite(banco, { comSessao: false })
 
-    await usuario.type(await screen.findByLabelText('E-mail'), CARLA.email)
+    await usuario.click(await screen.findByRole('link', { name: 'Já tenho conta: entrar' }))
+    await emailTravadoDaCarla(usuario)
     await usuario.type(screen.getByLabelText('Senha'), 'senha-longa-da-carla')
     expect(banco.aceites).toEqual([])
     await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
@@ -132,10 +169,10 @@ describe('Aceite do convite', () => {
     const usuario = userEvent.setup()
     render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
 
-    // Sem conta, a pessoa vai da entrada ao cadastro, e o convite continua como destino.
-    await usuario.click(await screen.findByRole('link', { name: 'Criar conta' }))
+    // Sem conta, a pessoa vai do convite ao cadastro, com o e-mail convidado travado e o convite como destino.
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta com este e-mail' }))
     await usuario.type(await screen.findByLabelText('Nome'), 'Carla Dias')
-    await usuario.type(screen.getByLabelText('E-mail'), CARLA.email)
+    await emailTravadoDaCarla(usuario)
     await usuario.type(screen.getByLabelText('Senha'), 'correta cavalo bateria')
     await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
     await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
@@ -175,11 +212,18 @@ describe('Aceite do convite', () => {
     const { usuario } = abrirOLinkDoConvite(banco, { quem: DIEGO })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Este convite é para outro e-mail.')
+    // A recusa diz qual é o Workspace e com qual e-mail entrar.
+    expect(await screen.findByText(/Este convite do Workspace/)).toHaveTextContent(
+      `Este convite do Workspace Norte é para ${CARLA.email}. Saia e entre com esse e-mail para aceitá-lo.`,
+    )
+    expect(screen.getByText(`Você entrou como ${DIEGO.email}.`, { exact: false })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continuar sem o convite' })).toBeInTheDocument()
     expect(banco.participacoes.filter((p) => p.workspace_id === NORTE.id)).toEqual([])
     await usuario.click(screen.getByRole('button', { name: 'Sair' }))
 
-    // O convite continua como destino depois de sair.
-    await usuario.type(await screen.findByLabelText('E-mail'), CARLA.email)
+    // O convite continua no endereço depois de sair, agora com o e-mail convidado travado na entrada.
+    await usuario.click(await screen.findByRole('link', { name: 'Já tenho conta: entrar' }))
+    await emailTravadoDaCarla(usuario)
     await usuario.type(screen.getByLabelText('Senha'), 'senha-longa-da-carla')
     await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
 
@@ -196,5 +240,209 @@ describe('Aceite do convite', () => {
     const alerta = await screen.findByRole('alert')
     expect(alerta).toHaveTextContent('Não foi possível aceitar o convite agora.')
     expect(alerta).not.toHaveTextContent('connection reset')
+  })
+})
+
+const DESTINO_DO_CONVITE = new URLSearchParams({ destino: `/convite/${TOKEN}` }).toString()
+
+describe('Entrar por convite', () => {
+  it('sem sessão, o link do convite mostra o Workspace, o papel e o e-mail convidado, com criar conta e entrar', async () => {
+    abrirOLinkDoConvite(bancoComConvite(), { comSessao: false })
+
+    expect(await screen.findByRole('heading', { name: 'Convite para o Workspace Norte' })).toBeInTheDocument()
+    expect(screen.getByText(/Você foi convidado/)).toHaveTextContent(
+      'Você foi convidado para o Workspace Norte como Membro. Este convite é para carla@norte.com.br.',
+    )
+    expect(screen.getByRole('link', { name: 'Criar conta com este e-mail' })).toHaveAttribute('href', `/cadastro?${DESTINO_DO_CONVITE}`)
+    expect(screen.getByRole('link', { name: 'Já tenho conta: entrar' })).toHaveAttribute('href', `/entrar?${DESTINO_DO_CONVITE}`)
+    // O convite continua no endereço, sem ir à entrada genérica.
+    expect(window.location.pathname).toBe(`/convite/${TOKEN}`)
+  })
+
+  it.each([
+    ['expirado', TOKEN, 'Convite expirado', 'Este convite expirou. Peça um novo convite a um Administrador do Workspace.'],
+    ['revogado', TOKEN, 'Convite revogado', 'Este convite foi revogado por um Administrador do Workspace.'],
+    ['pendente', 'c'.repeat(64), 'Convite não encontrado', 'Este link de convite não é válido.'],
+  ] as const)('um convite %s (token %s) é explicado, sem oferecer cadastro nem entrada pelo convite', async (estadoDoConvite, token, titulo, explicacao) => {
+    abrirOLinkDoConvite(bancoComConvite({ estadoDoConvite }), { comSessao: false, token })
+
+    expect(await screen.findByRole('heading', { name: titulo })).toBeInTheDocument()
+    expect(screen.getByText(explicacao, { exact: false })).toBeInTheDocument()
+    expect(screen.queryByText(CARLA.email, { exact: false })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Criar conta com este e-mail' })).not.toBeInTheDocument()
+    // Quem já tem conta pode ir à entrada, sem o convite como destino.
+    expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/entrar')
+  })
+
+  it('um convite já aceito oferece entrar, e a entrada abre o Workspace do convite', async () => {
+    const banco = bancoComConvite({ estadoDoConvite: 'aceito' })
+    const { usuario } = abrirOLinkDoConvite(banco, { comSessao: false })
+
+    expect(await screen.findByRole('heading', { name: 'Convite já aceito' })).toBeInTheDocument()
+    await usuario.click(screen.getByRole('link', { name: 'Entrar' }))
+    await usuario.type(await screen.findByLabelText('E-mail'), CARLA.email)
+    await usuario.type(screen.getByLabelText('Senha'), 'senha-longa-da-carla')
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+  })
+
+  it('"Entrar com código" usa o e-mail convidado e o link do código volta ao convite', async () => {
+    const banco = bancoComConvite()
+    const { usuario, codigoEnviadoPara, linkEnviadoPara } = abrirOLinkDoConvite(banco, { comSessao: false })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Já tenho conta: entrar' }))
+    await emailTravadoDaCarla(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com código' }))
+    expect(await screen.findByRole('status')).toHaveTextContent(`Se houver uma conta com ${CARLA.email}`)
+    expect(new URL(linkEnviadoPara(CARLA.email)!).pathname).toBe(`/convite/${TOKEN}`)
+
+    await usuario.type(screen.getByLabelText('Código'), codigoEnviadoPara(CARLA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+  })
+
+  it('"Esqueci a senha" pelo convite trava o e-mail convidado e, com a nova senha, aceita o convite', async () => {
+    const banco = bancoComConvite()
+    const { usuario, codigoEnviadoPara, linkEnviadoPara } = abrirOLinkDoConvite(banco, { comSessao: false })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Já tenho conta: entrar' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Esqueci a senha' }))
+    expect(await screen.findByRole('heading', { name: 'Esqueci a senha' })).toBeInTheDocument()
+    await emailTravadoDaCarla(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Enviar código' }))
+
+    // O link do e-mail também volta ao convite depois da nova senha.
+    const link = new URL(linkEnviadoPara(CARLA.email)!)
+    expect(link.pathname).toBe('/redefinir-a-senha')
+    expect(link.searchParams.get('destino')).toBe(`/convite/${TOKEN}`)
+    await usuario.type(await screen.findByLabelText('Código de 6 dígitos'), codigoEnviadoPara(CARLA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    await usuario.type(await screen.findByLabelText('Nova senha'), 'outra frase bem longa 42')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar nova senha' }))
+
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+  })
+
+  it('o link de confirmação do cadastro, aberto neste navegador, volta ao convite e o aceita', async () => {
+    const banco = bancoComConvite()
+    const supabase = abrirOLinkDoConvite(banco, { comSessao: false, carlaTemConta: false })
+    const { usuario } = supabase
+
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta com este e-mail' }))
+    await usuario.type(await screen.findByLabelText('Nome'), 'Carla Dias')
+    await usuario.type(screen.getByLabelText('Senha'), 'correta cavalo bateria')
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(screen.getByText(CARLA.email)).toBeInTheDocument()
+    // Com o e-mail travado, não há e-mail a corrigir.
+    expect(screen.queryByRole('button', { name: 'Corrigir e-mail' })).not.toBeInTheDocument()
+
+    // A pessoa abre o link do e-mail: a página carrega de novo no endereço do convite, já com a sessão.
+    const link = new URL(supabase.linkEnviadoPara(CARLA.email)!)
+    cleanup()
+    window.history.replaceState(null, '', link.pathname)
+    supabase.abrirLinkDeConfirmacao(CARLA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
+
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+    expect(banco.participacoes.map((p) => p.workspace_id)).toEqual([PESSOAL_DA_CARLA.id, NORTE.id])
+  })
+
+  it('atualizar a página na etapa do código do cadastro pelo convite mantém a etapa e o convite', async () => {
+    const banco = bancoComConvite()
+    const supabase = abrirOLinkDoConvite(banco, { comSessao: false, carlaTemConta: false })
+    const { usuario } = supabase
+
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta com este e-mail' }))
+    await usuario.type(await screen.findByLabelText('Nome'), 'Carla Dias')
+    await usuario.type(screen.getByLabelText('Senha'), 'correta cavalo bateria')
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
+
+    cleanup()
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    await usuario.type(screen.getByLabelText('Código de 6 dígitos'), supabase.codigoEnviadoPara(CARLA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar' }))
+
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+  })
+
+  it('quem já tem conta e escolheu criar conta pelo convite volta da etapa do código para entrar, com o convite', async () => {
+    const banco = bancoComConvite()
+    const { usuario, codigoEnviadoPara } = abrirOLinkDoConvite(banco, { comSessao: false })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta com este e-mail' }))
+    await usuario.type(await screen.findByLabelText('Nome'), 'Carla Dias')
+    await usuario.type(screen.getByLabelText('Senha'), 'correta cavalo bateria')
+    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    // A conta já existe: o Auth responde igual e não envia código; a tela oferece entrar, sem revelar nada.
+    expect(codigoEnviadoPara(CARLA.email)).toBeUndefined()
+    const entrar = screen.getByRole('link', { name: 'Entrar' })
+    expect(entrar.closest('p')).toHaveTextContent('Já tem conta? Entrar')
+    expect(entrar).toHaveAttribute('href', `/entrar?${DESTINO_DO_CONVITE}`)
+    await usuario.click(entrar)
+
+    // A etapa do código não prende mais o cadastro: voltar a ele mostra o formulário.
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
+    await usuario.click(screen.getByRole('link', { name: 'Entrar' }))
+
+    await emailTravadoDaCarla(usuario)
+    await usuario.type(screen.getByLabelText('Senha'), 'senha-longa-da-carla')
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+  })
+
+  it('o link do convite com uma barra no fim é o mesmo convite', async () => {
+    abrirOLinkDoConvite(bancoComConvite(), { comSessao: false, token: `${TOKEN}/` })
+
+    expect(await screen.findByRole('heading', { name: 'Convite para o Workspace Norte' })).toBeInTheDocument()
+  })
+
+  it('um link de convite malformado leva à entrada, sem derrubar a tela', async () => {
+    abrirOLinkDoConvite(bancoComConvite(), { comSessao: false, token: '%' })
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/entrar')
+  })
+
+  it('um destino de convite malformado na entrada não trava o e-mail nem derruba a tela', async () => {
+    window.history.replaceState(null, '', '/entrar?destino=%2Fconvite%2F%25')
+    const supabase = criarSupabaseFalso({ tabelas: bancoComConvite().tabelas, rpcs: bancoComConvite().rpcs, contas: [] })
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
+
+    const email = await screen.findByLabelText('E-mail')
+    expect(email).toHaveValue('')
+    expect(email).not.toHaveAttribute('readonly')
+  })
+
+  it('com sessão, um link de convite malformado não derruba a entrada no Workspace', async () => {
+    const banco = bancoComConvite()
+    abrirOLinkDoConvite(banco, { token: '%' })
+
+    expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([])
+  })
+
+  it('sem conseguir carregar o convite, a tela diz e deixa tentar de novo', async () => {
+    const { usuario } = abrirOLinkDoConvite(bancoComConvite({ estadoDoConvite: 'falha' }), { comSessao: false })
+
+    const alerta = await screen.findByRole('alert')
+    expect(alerta).toHaveTextContent('Não foi possível carregar o convite.')
+    expect(alerta).not.toHaveTextContent('connection reset')
+    await usuario.click(screen.getByRole('button', { name: 'Tentar de novo' }))
+
+    expect(await screen.findByRole('heading', { name: 'Convite para o Workspace Norte' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

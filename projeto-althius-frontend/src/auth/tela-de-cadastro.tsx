@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ContinuarComGoogle } from './botao-do-google'
 import { useAutenticacao } from './contexto'
+import { CampoDeEmailDoAcesso, useEmailDoAcesso, type EmailDoAcesso } from './campo-de-email-do-acesso'
+import { ComOConviteDoAcesso } from './convite-do-acesso'
 import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso } from './destino'
 import { ENDERECO_DA_POLITICA_DE_PRIVACIDADE, ENDERECO_DOS_TERMOS_DE_USO } from './termos'
 import { CampoDoCodigo } from './campo-do-codigo'
@@ -40,11 +42,26 @@ function guardarEtapa(etapa: EtapaDoCodigo | null) {
   }
 }
 
-/** /cadastro: nome, e-mail e senha; depois, na mesma tela, o código de 6 dígitos enviado por e-mail. */
+/**
+ * /cadastro: nome, e-mail e senha; depois, na mesma tela, o código de 6 dígitos enviado por e-mail. Aberto a partir de
+ * um convite pendente, o e-mail é o do convite, travado.
+ */
 export function TelaDeCadastro() {
-  const [etapa, setEtapa] = useState<EtapaDoCodigo | null>(etapaGuardada)
+  return (
+    <CascaDeAcesso>
+      <ComOConviteDoAcesso>{(emailTravado) => <Cadastro key={emailTravado} emailTravado={emailTravado} />}</ComOConviteDoAcesso>
+    </CascaDeAcesso>
+  )
+}
+
+function Cadastro({ emailTravado }: { emailTravado: string | null }) {
+  // A etapa do código guardada vale só para o e-mail travado; a de outro e-mail recomeça o cadastro.
+  const [etapa, setEtapa] = useState<EtapaDoCodigo | null>(() => {
+    const guardada = etapaGuardada()
+    return !emailTravado || guardada?.email === emailTravado ? guardada : null
+  })
   const [nome, setNome] = useState(etapa?.nome ?? '')
-  const [email, setEmail] = useState(etapa?.email ?? '')
+  const { email, campo: campoDeEmail } = useEmailDoAcesso(emailTravado, etapa?.email)
   const [senha, setSenha] = useState('')
 
   function irParaOCodigo(nova: EtapaDoCodigo) {
@@ -52,44 +69,44 @@ export function TelaDeCadastro() {
     setEtapa(nova)
   }
 
-  function corrigirEmail() {
+  /** Sai da etapa do código: o cadastro guardado nesta aba é esquecido. */
+  function esquecerEtapa() {
     guardarEtapa(null)
     setEtapa(null)
   }
 
-  return (
-    <CascaDeAcesso>
-      {etapa ? (
-        <EtapaDoCodigoDoCadastro etapa={etapa} aoReenviar={irParaOCodigo} aoCorrigirEmail={corrigirEmail} />
-      ) : (
-        <FormularioDeCadastro
-          nome={nome}
-          email={email}
-          senha={senha}
-          aoMudarNome={setNome}
-          aoMudarEmail={setEmail}
-          aoMudarSenha={setSenha}
-          aoEnviar={() => irParaOCodigo({ nome, email: email.trim(), enviadoEm: Date.now() })}
-        />
-      )}
-    </CascaDeAcesso>
+  return etapa ? (
+    <EtapaDoCodigoDoCadastro
+      etapa={etapa}
+      aoReenviar={irParaOCodigo}
+      // Com o e-mail travado, não há o que corrigir; quem já tem conta não recebe código (a tela não revela isso) e
+      // precisa de um caminho para entrar com o convite.
+      {...(emailTravado ? { aoIrParaEntrada: esquecerEtapa } : { aoCorrigirEmail: esquecerEtapa })}
+    />
+  ) : (
+    <FormularioDeCadastro
+      nome={nome}
+      campoDeEmail={campoDeEmail}
+      senha={senha}
+      aoMudarNome={setNome}
+      aoMudarSenha={setSenha}
+      aoEnviar={() => irParaOCodigo({ nome, email: email.trim(), enviadoEm: Date.now() })}
+    />
   )
 }
 
 function FormularioDeCadastro({
   nome,
-  email,
+  campoDeEmail,
   senha,
   aoMudarNome,
-  aoMudarEmail,
   aoMudarSenha,
   aoEnviar,
 }: {
   nome: string
-  email: string
+  campoDeEmail: EmailDoAcesso['campo']
   senha: string
   aoMudarNome: (nome: string) => void
-  aoMudarEmail: (email: string) => void
   aoMudarSenha: (senha: string) => void
   aoEnviar: () => void
 }) {
@@ -107,7 +124,7 @@ function FormularioDeCadastro({
     }
     setEnviando(true)
     try {
-      await cadastrar({ nome, email, senha }, destinoDepoisDoAcesso() ?? '/')
+      await cadastrar({ nome, email: campoDeEmail.email, senha }, destinoDepoisDoAcesso() ?? '/')
       aoEnviar()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível criar a conta agora. Tente novamente em instantes.')
@@ -126,9 +143,7 @@ function FormularioDeCadastro({
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="nome-cadastro">Nome
         <input id="nome-cadastro" type="text" autoComplete="name" required value={nome} onChange={(e) => aoMudarNome(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
       </label>
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-cadastro">E-mail
-        <input id="email-cadastro" type="email" autoComplete="email" required value={email} onChange={(e) => aoMudarEmail(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
-      </label>
+      <CampoDeEmailDoAcesso id="email-cadastro" {...campoDeEmail} />
       <CampoDeNovaSenha id="senha-cadastro" rotulo="Senha" senha={senha} aoMudar={aoMudarSenha} />
       {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
       <Button type="submit" disabled={enviando}>{enviando ? 'Criando…' : 'Criar conta'}</Button>
@@ -146,12 +161,17 @@ function EtapaDoCodigoDoCadastro({
   etapa,
   aoReenviar,
   aoCorrigirEmail,
+  aoIrParaEntrada,
 }: {
   etapa: EtapaDoCodigo
   aoReenviar: (etapa: EtapaDoCodigo) => void
-  aoCorrigirEmail: () => void
+  /** Volta ao formulário para trocar o e-mail; ausente quando o e-mail é o de um convite, travado. */
+  aoCorrigirEmail?: () => void
+  /** Com o e-mail de um convite: antes de ir à entrada, com o mesmo destino. */
+  aoIrParaEntrada?: () => void
 }) {
   const { confirmarCodigoDoCadastro, reenviarCodigoDoCadastro } = useAutenticacao()
+  const { search } = useLocation()
   const [codigo, setCodigo] = useState('')
   const [confirmando, setConfirmando] = useState(false)
   const [erro, setErro] = useState('')
@@ -210,8 +230,13 @@ function EtapaDoCodigoDoCadastro({
         <Button type="button" variant="outline" disabled={segundosParaReenviar > 0} onClick={reenviar}>
           {segundosParaReenviar > 0 ? `Reenviar código em ${segundosParaReenviar} s` : 'Reenviar código'}
         </Button>
-        <Button type="button" variant="outline" onClick={aoCorrigirEmail}>Corrigir e-mail</Button>
+        {aoCorrigirEmail && <Button type="button" variant="outline" onClick={aoCorrigirEmail}>Corrigir e-mail</Button>}
       </div>
+      {aoIrParaEntrada && (
+        <p className="text-sm text-al-muted">
+          Já tem conta? <Link to={{ pathname: ROTA_DE_ENTRADA, search }} onClick={aoIrParaEntrada} className="text-al-accent underline">Entrar</Link>
+        </p>
+      )}
     </form>
   )
 }

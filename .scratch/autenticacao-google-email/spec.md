@@ -137,14 +137,14 @@ A tela nunca revela quais e-mails têm conta, recusa senhas fracas ou vazadas e 
 
 ### Convite
 
-- O link de convite abre `/cadastro` (ou `/entrar`) com o e-mail do convite preenchido e travado. O destino do convite é preservado entre as rotas, durante a verificação e no retorno do Google.
+- O link de convite, sem sessão, abre a tela do convite (`/convite/<token>`): de qual Workspace é, com qual papel e para qual e-mail, com "Criar conta com este e-mail" (`/cadastro`) e "Já tenho conta: entrar" (`/entrar`), sem revelar se a conta existe. Nas duas, o e-mail do convite vem preenchido e travado. Um convite aceito, expirado, revogado ou desconhecido é explicado na própria tela. O destino do convite é preservado entre as rotas, durante a verificação e no retorno do Google.
 - No Google, o convite só é aceito se o e-mail da conta escolhida for o do convite; caso contrário, a tela explica a divergência e não cria Participação.
 
 ### Módulo de autenticação
 
 - O contexto de autenticação existente cresce para oferecer: cadastrar com senha, confirmar código, reenviar código, entrar com senha, entrar com código, entrar com Google (ID token), pedir redefinição, definir nova senha e sair. Nenhum componente chama o SDK de autenticação diretamente fora desse módulo.
 - **Serviços do navegador como uma peça substituível:** o Google Identity Services, o Turnstile e a consulta ao Pwned Passwords entram no módulo por uma única dependência injetada (junto do cliente Supabase), para que os testes troquem os três por versões falsas.
-- A entrada do aplicativo passa a rotear visitantes sem sessão para `/entrar` ou `/cadastro` (conforme a URL e o convite) em vez da tela de link atual, e remove a mensagem "Nenhum Workspace ativo" do caminho normal: toda Conta de usuário verificada tem ao menos o Workspace pessoal.
+- A entrada do aplicativo passa a rotear visitantes sem sessão para `/entrar` ou `/cadastro` (conforme a URL) e o link de um convite para a tela do convite, que leva a um dos dois, em vez da tela de link atual, e remove a mensagem "Nenhum Workspace ativo" do caminho normal: toda Conta de usuário verificada tem ao menos o Workspace pessoal.
 
 ### Banco (Supabase)
 

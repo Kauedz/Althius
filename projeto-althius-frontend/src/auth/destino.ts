@@ -21,10 +21,33 @@ export function enderecoDoConvite(token: string): string {
   return `${window.location.origin}${ROTA_DO_CONVITE}/${encodeURIComponent(token)}`
 }
 
+/**
+ * O token do convite neste caminho, se ele for o link de um convite. Uma barra no fim (`/convite/<token>/`) é o mesmo
+ * link; um token com escape malformado (`/convite/%`) não é convite.
+ */
+function tokenDoConviteNoCaminho(caminho: string): string | null {
+  const [, rota, token, ...resto] = caminho.split('/')
+  const semMaisNada = resto.length === 0 || (resto.length === 1 && resto[0] === '')
+  if (`/${rota}` !== ROTA_DO_CONVITE || !token || !semMaisNada) return null
+  try {
+    return decodeURIComponent(token)
+  } catch {
+    return null
+  }
+}
+
 /** O token do convite no endereço atual, se ele for o link de um convite. */
 export function tokenDoConviteNoEndereco(): string | null {
-  const [, rota, token, ...resto] = window.location.pathname.split('/')
-  return `/${rota}` === ROTA_DO_CONVITE && token && resto.length === 0 ? decodeURIComponent(token) : null
+  return tokenDoConviteNoCaminho(window.location.pathname)
+}
+
+/**
+ * O token do convite que uma tela de acesso atende: o do link aberto (`/convite/<token>`) ou o lembrado como `destino`
+ * (o cadastro, a entrada ou o "Esqueci a senha" abertos a partir do link do convite), para travar o e-mail convidado.
+ */
+export function tokenDoConviteDoAcesso({ pathname, search }: { pathname: string; search: string }): string | null {
+  const destino = destinoLembrado(pathname, search)
+  return tokenDoConviteNoCaminho(pathname) ?? (destino ? tokenDoConviteNoCaminho(new URL(destino, window.location.origin).pathname) : null)
 }
 
 /** As telas de acesso que lembram o `destino` para depois do login. */
@@ -40,8 +63,12 @@ export function enderecoDeEntrada(destino: string): string {
  * /redefinir-a-senha), se continuar nesta origem, ou o início. Fora das telas de acesso, o endereço atual já é o destino.
  */
 export function destinoDepoisDoAcesso(): string | null {
-  if (!TELAS_COM_DESTINO.includes(window.location.pathname)) return null
-  const destino = new URLSearchParams(window.location.search).get('destino')
+  return destinoLembrado(window.location.pathname, window.location.search)
+}
+
+function destinoLembrado(pathname: string, search: string): string | null {
+  if (!TELAS_COM_DESTINO.includes(pathname)) return null
+  const destino = new URLSearchParams(search).get('destino')
   if (!destino?.startsWith('/')) return '/'
   // `//outro.site` e `/\outro.site` também começam com barra; só vale o que continua na mesma origem.
   const url = new URL(destino, window.location.origin)
