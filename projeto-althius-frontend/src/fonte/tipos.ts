@@ -131,7 +131,8 @@ export type EstadoDoConvite = 'pendente' | 'aceito' | 'expirado' | 'revogado'
 
 /**
  * Convite para uma pessoa entrar no Workspace: não é Participante nem conta como um até ser aceito, com o e-mail
- * convidado. A Althius ainda não envia e-mail de convite: o Administrador copia o link e o envia.
+ * convidado. No Workspace operacional a Althius manda o e-mail do Convite; o link também fica para o Administrador
+ * copiar, se o e-mail não sair.
  */
 export interface Convite {
   id: string
@@ -555,6 +556,11 @@ export interface FonteDeAgentes extends FonteObservavel {
   salvarInformacoesDoWorkspace(informacoes: NovasInformacoesDoWorkspace): Promise<void>
   /** Registra um convite pendente, sem enviar e-mail; recusa quem já participa ou já tem convite pendente. */
   convidarParaWorkspace(convite: NovoConvite): Promise<Convite>
+  /**
+   * Manda o e-mail de um convite pendente com o link de aceite; resolve só quando o provedor confirma o envio e lança a
+   * razão quando ele não sai. Só existe onde a Althius envia e-mail (o Workspace operacional).
+   */
+  enviarEmailDoConvite?(conviteId: string): Promise<void>
   /** Cancela (revoga) um convite pendente: o link deixa de valer. */
   cancelarConvite(conviteId: string): Promise<void>
   /** Alterna o papel entre Administrador e Membro; recusa rebaixar o último Administrador. */

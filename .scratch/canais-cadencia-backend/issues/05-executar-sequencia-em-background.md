@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Primeiro ciclo real por E-mail.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Ativar a Sequência registra a versão autorizada e programa somente passos válidos, com destinos e Contas remetentes prontos.
 - [x] O executor calcula horários em `America/Sao_Paulo`, de segunda a sexta, sem calendário de feriados nesta entrega.
@@ -79,3 +79,5 @@ Três PRs em sequência: (1) banco, (2) executor e (3) tela.
   - **Fonte:** `FonteDeSequencias` ganhou `autorizacao`, `ativarEnvios` e `resolverIncerto`. A Demonstração não ativa nada.
   - **Wizard** `scripts/wizard-canais-05.sh`: migrations, publicar `sequence-runner` e `sequence-step-sends`, a linha do SQL Editor que diz ao banco onde está o Executor e o teste real com o navegador fechado.
   - **Testes:** Vitest em `src/raiz.test.tsx` ("Envios automáticos da Sequência no Workspace operacional").
+
+- 2026-09-28 (teste real, pré-produção, commit 92efe05): conta renanzanato@althius.com.br no Workspace "Workspace pessoal", E-mail (Google) pronta. Sequência de teste com 2 passos de E-mail, atraso 0, "Ativar envios": o 1º passo saiu com o navegador fechado (chegou no Gmail às 14:20); a resposta ao e-mail pausou a Sequência e o 2º passo não saiu. Ticket fechado.

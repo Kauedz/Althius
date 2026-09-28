@@ -336,7 +336,7 @@ export function criarFonteDeSequenciasSupabase(
         return { outcome: corpo.outcome, ...(typeof corpo.message === 'string' ? { mensagem: corpo.message } : {}) }
       }
       if (typeof corpo?.error === 'string') throw new Error(corpo.error)
-      throw new Error(`Não foi possível enviar o passo da Sequência ${sequenciaId}. ${await motivoDaFalhaDaFuncao('sequence-step-sends', error)}`)
+      throw new Error(`Não foi possível enviar o passo da Sequência ${sequenciaId}. ${await motivoDaFalhaDaFuncao('sequence-step-sends', error, 'UNIPILE_API_KEY e APP_ORIGIN')}`)
     },
     async autorizacao(sequenciaId) {
       const row = await registroPorId(sequenciaId)
@@ -391,7 +391,7 @@ export function criarFonteDeSequenciasSupabase(
       if (error) {
         const corpo = await corpoDoErroDaFuncao(error)
         if (typeof corpo?.error === 'string') throw new Error(corpo.error)
-        throw new Error(`Não foi possível abrir o anexo. ${await motivoDaFalhaDaFuncao('received-email-attachments', error)}`)
+        throw new Error(`Não foi possível abrir o anexo. ${await motivoDaFalhaDaFuncao('received-email-attachments', error, 'APP_ORIGIN')}`)
       }
       const url = (data as Record<string, unknown> | null)?.url
       if (typeof url !== 'string') throw new Error('Não foi possível abrir o anexo.')

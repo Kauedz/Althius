@@ -424,6 +424,28 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
     }
   }
 
+  // Os convites com e-mail saindo agora: cada botão só volta quando o envio dele termina.
+  const [reenviando, setReenviando] = useState<ReadonlySet<string>>(new Set())
+  async function reenviarEmail({ id, email }: Convite) {
+    if (!fonte.enviarEmailDoConvite || reenviando.has(id)) return
+    setReenviando((atuais) => new Set(atuais).add(id))
+    try {
+      await fonte.enviarEmailDoConvite(id)
+      aoConcluir({ tipo: 'sucesso', texto: `E-mail do convite enviado para ${email}.` })
+    } catch (e) {
+      aoConcluir({
+        tipo: 'erro',
+        texto: `O envio do e-mail do convite para ${email} não foi confirmado: ${mensagemDeErro(e)} ${CONVITE_CONTINUA_VALENDO}`,
+      })
+    } finally {
+      setReenviando((atuais) => {
+        const restantes = new Set(atuais)
+        restantes.delete(id)
+        return restantes
+      })
+    }
+  }
+
   async function copiarLink({ email, link }: Convite) {
     if (!link) return
     try {
@@ -453,6 +475,16 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
         <ul aria-label="Convites pendentes" className="flex flex-col">
           {pendentes.map((convite) => (
             <ItemDoConvite key={convite.id} convite={convite}>
+              {ehAdministrador && convite.link && fonte.enviarEmailDoConvite && (
+                <button
+                  type="button"
+                  disabled={reenviando.has(convite.id)}
+                  onClick={() => reenviarEmail(convite)}
+                  className={BOTAO_DISCRETO}
+                >
+                  {reenviando.has(convite.id) ? 'Enviando…' : 'Reenviar e-mail'}
+                </button>
+              )}
               {ehAdministrador && convite.link && (
                 <button type="button" onClick={() => copiarLink(convite)} className={BOTAO_DISCRETO}>
                   <Link2 strokeWidth={1.8} className="size-4" aria-hidden />
@@ -511,6 +543,8 @@ function ItemDoConvite({ convite, children }: { convite: Convite; children?: Rea
   )
 }
 
+const CONVITE_CONTINUA_VALENDO = 'O convite continua valendo: copie o link do convite e envie à pessoa.'
+
 function DialogoDeConvite({
   aberto,
   nomeDoWorkspace,
@@ -527,9 +561,12 @@ function DialogoDeConvite({
   const [email, setEmail] = useState('')
   const [papel, setPapel] = useState<Papel>('membro')
   const [erro, setErro] = useState('')
-  const [enviando, setEnviando] = useState(false)
+  // Registrando o convite e, no Workspace operacional, enviando o e-mail: enquanto isso o diálogo não fecha.
+  const [etapa, setEtapa] = useState<'registrando' | 'enviando-email' | null>(null)
+  const enviando = etapa !== null
 
   function fechar() {
+    if (enviando) return
     setEmail('')
     setPapel('membro')
     setErro('')
@@ -538,21 +575,36 @@ function DialogoDeConvite({
 
   async function registrar(evento: FormEvent) {
     evento.preventDefault()
-    setEnviando(true)
+    setEtapa('registrando')
     try {
       const convite = await fonte.convidarParaWorkspace({ email, papel })
-      aoConcluir({
-        tipo: 'sucesso',
-        // Sem SMTP de produção, nenhum e-mail sai: o convite nunca alega envio.
-        texto: `Convite registrado para ${convite.email} como ${ROTULO_DO_PAPEL[convite.papel]}. ${
-          demonstracao ? 'Demonstração: nenhum e-mail foi enviado.' : 'Nenhum e-mail foi enviado: copie o link do convite e envie à pessoa.'
-        }`,
-      })
-      fechar()
+      const registrado = `Convite registrado para ${convite.email} como ${ROTULO_DO_PAPEL[convite.papel]}`
+      if (!fonte.enviarEmailDoConvite) {
+        aoConcluir({
+          tipo: 'sucesso',
+          texto: `${registrado}. ${demonstracao ? 'Demonstração: nenhum e-mail foi enviado.' : 'Nenhum e-mail foi enviado: copie o link do convite e envie à pessoa.'}`,
+        })
+      } else {
+        // O convite já vale; o e-mail só é dado como enviado quando o provedor confirma.
+        setEtapa('enviando-email')
+        try {
+          await fonte.enviarEmailDoConvite(convite.id)
+          aoConcluir({ tipo: 'sucesso', texto: `${registrado}. E-mail do convite enviado para ${convite.email}.` })
+        } catch (e) {
+          aoConcluir({
+            tipo: 'erro',
+            texto: `${registrado}, mas o envio do e-mail não foi confirmado: ${mensagemDeErro(e)} ${CONVITE_CONTINUA_VALENDO}`,
+          })
+        }
+      }
+      setEtapa(null)
+      setEmail('')
+      setPapel('membro')
+      setErro('')
+      aoFechar()
     } catch (e) {
       setErro(mensagemDeErro(e))
-    } finally {
-      setEnviando(false)
+      setEtapa(null)
     }
   }
 
@@ -563,7 +615,9 @@ function DialogoDeConvite({
         <DialogDescription className="text-al-muted">
           {demonstracao
             ? `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar. Demonstração: nenhum e-mail é enviado.`
-            : `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar o convite com este mesmo e-mail. Nenhum e-mail é enviado: depois de registrar, copie o link do convite e envie à pessoa.`}
+            : fonte.enviarEmailDoConvite
+              ? `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar o convite com este mesmo e-mail. Ao registrar, a Althius envia o convite por e-mail; o link também fica aqui para copiar.`
+              : `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar o convite com este mesmo e-mail. Nenhum e-mail é enviado: depois de registrar, copie o link do convite e envie à pessoa.`}
         </DialogDescription>
         <form aria-label="Convidar pessoa" noValidate onSubmit={registrar} className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">
@@ -601,11 +655,11 @@ function DialogoDeConvite({
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={fechar} className={BOTAO_SECUNDARIO}>
+            <button type="button" onClick={fechar} disabled={enviando} className={BOTAO_SECUNDARIO}>
               Cancelar
             </button>
             <button type="submit" disabled={enviando} className={BOTAO_PRIMARIO}>
-              Registrar convite
+              {etapa === 'registrando' ? 'Registrando…' : etapa === 'enviando-email' ? 'Enviando e-mail…' : 'Registrar convite'}
             </button>
           </div>
         </form>

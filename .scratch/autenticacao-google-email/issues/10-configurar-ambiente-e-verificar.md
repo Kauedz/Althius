@@ -21,3 +21,5 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
   - A pré-produção (`ycbdilsmydvzezhlymty`) pode receber as mesmas configurações para teste.
   - Nela já estão configurados o SMTP pelo Resend, com o domínio `althius.com.br`, e a Redirect URL `http://localhost:5173/**`.
   - O bloqueio de senhas vazadas no servidor não entra aqui: no plano Free ele é feito na tela (Auth-06) e, na VPS, por configuração (`GOTRUE_PASSWORD_HIBP_ENABLED`).
+
+- 2026-09-28 (QA manual): SMTP próprio ligado no Supabase (Resend, `contato@althius.com.br`). Modelo "Magic link or OTP" com `{{ .Token }}` e link, e tamanho do código em 6 dígitos: o código por e-mail do login e da troca de senha chega e é aceito. Falta conferir os modelos "Confirm signup" e "Reset Password" com o código.

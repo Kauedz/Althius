@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
-import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarSupabaseFalso, type RespostaDaFuncao, sessaoDe } from '@/test/supabase-falso'
 
 const MARINA = { id: 'usuario-marina', email: 'marina@norte.com.br' }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte', owner_user_id: null, created_at: '2026-09-01T12:00:00Z' }
@@ -85,7 +85,16 @@ function bancoDoNorte({
       return null
     },
   }
-  return { tabelas, rpcs, participantes, convites }
+  // O e-mail do Convite (Edge Function workspace-invitation-email): por padrão o provedor confirma o envio.
+  const emails: Record<string, unknown>[] = []
+  const funcoes: Record<string, (corpo: Record<string, unknown>) => RespostaDaFuncao> = {
+    'workspace-invitation-email': (corpo) => {
+      emails.push(corpo)
+      const convite = convites.find((c) => c.id === corpo.invitationId)
+      return { corpo: { sent: true, email: convite?.email } }
+    },
+  }
+  return { tabelas, rpcs, funcoes, emails, participantes, convites }
 }
 
 /** Abre Configurações / Workspace no Workspace operacional escolhido, com a sessão da Marina. */
@@ -93,7 +102,7 @@ function abrirPessoasEAcesso(banco: ReturnType<typeof bancoDoNorte>, workspaceId
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', workspaceId)
   window.history.replaceState(null, '', '/configuracoes/workspace')
-  const supabase = criarSupabaseFalso({ sessao: sessaoDe(MARINA), tabelas: banco.tabelas, rpcs: banco.rpcs })
+  const supabase = criarSupabaseFalso({ sessao: sessaoDe(MARINA), tabelas: banco.tabelas, rpcs: banco.rpcs, funcoes: banco.funcoes })
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
   return { usuario }
@@ -116,20 +125,21 @@ describe('Pessoas e acesso no Workspace operacional', () => {
     expect(screen.queryByRole('button', { name: 'Editar informações' })).not.toBeInTheDocument()
   })
 
-  it('o Administrador convida com papel; o convite fica pendente, com link para copiar, sem alegar envio de e-mail', async () => {
+  it('o Administrador convida com papel; o convite fica pendente, o e-mail sai pelo provedor e o link segue para copiar', async () => {
     const banco = bancoDoNorte()
     const { usuario } = abrirPessoasEAcesso(banco)
 
     await usuario.click(await screen.findByRole('button', { name: 'Convidar pessoa' }))
     const dialogo = within(await screen.findByRole('dialog', { name: 'Convidar pessoa' }))
-    expect(dialogo.getByText(/nenhum e-mail é enviado/i)).toBeInTheDocument()
+    expect(dialogo.getByText(/a Althius envia o convite por e-mail/i)).toBeInTheDocument()
     await usuario.type(dialogo.getByRole('textbox', { name: 'E-mail' }), 'Carla@Norte.com.br')
     await usuario.click(dialogo.getByRole('radio', { name: 'Administrador' }))
     await usuario.click(dialogo.getByRole('button', { name: 'Registrar convite' }))
 
     const resultado = await screen.findByText(/Convite registrado para carla@norte.com.br como Administrador/)
-    expect(resultado).toHaveTextContent('Nenhum e-mail foi enviado: copie o link do convite e envie à pessoa.')
+    expect(resultado).toHaveTextContent('E-mail do convite enviado para carla@norte.com.br.')
     expect(resultado).not.toHaveTextContent('Demonstração')
+    expect(banco.emails).toEqual([{ workspaceId: NORTE.id, invitationId: 'convite-1' }])
     const convite = within(within(screen.getByRole('list', { name: 'Convites pendentes' })).getByRole('listitem', { name: 'carla@norte.com.br' }))
     expect(convite.getByText('Convite pendente')).toBeInTheDocument()
     expect(convite.getByText(/link vale até 4 de outubro de 2026/)).toBeInTheDocument()
@@ -138,6 +148,41 @@ describe('Pessoas e acesso no Workspace operacional', () => {
     await usuario.click(convite.getByRole('button', { name: 'Copiar link do convite' }))
     expect(await screen.findByText('Link do convite para carla@norte.com.br copiado.')).toBeInTheDocument()
     expect(await navigator.clipboard.readText()).toBe(`${window.location.origin}/convite/${TOKEN}`)
+  })
+
+  it('se o provedor não aceitar o e-mail, o convite fica registrado e a tela diz que o e-mail não saiu', async () => {
+    const banco = bancoDoNorte()
+    banco.funcoes['workspace-invitation-email'] = () => ({ status: 502, corpo: { error: 'O provedor de e-mail não aceitou o envio.' } })
+    const { usuario } = abrirPessoasEAcesso(banco)
+
+    await usuario.click(await screen.findByRole('button', { name: 'Convidar pessoa' }))
+    const dialogo = within(await screen.findByRole('dialog', { name: 'Convidar pessoa' }))
+    await usuario.type(dialogo.getByRole('textbox', { name: 'E-mail' }), 'carla@norte.com.br')
+    await usuario.click(dialogo.getByRole('button', { name: 'Registrar convite' }))
+
+    const resultado = await screen.findByText(/Convite registrado para carla@norte.com.br como Membro/)
+    expect(resultado).toHaveTextContent(
+      'mas o envio do e-mail não foi confirmado: O provedor de e-mail não aceitou o envio. O convite continua valendo: copie o link do convite e envie à pessoa.',
+    )
+    expect(resultado).not.toHaveTextContent('E-mail do convite enviado')
+    const convite = within(within(screen.getByRole('list', { name: 'Convites pendentes' })).getByRole('listitem', { name: 'carla@norte.com.br' }))
+    expect(convite.getByRole('button', { name: 'Copiar link do convite' })).toBeInTheDocument()
+  })
+
+  it('o Administrador reenvia o e-mail de um convite pendente', async () => {
+    const banco = bancoDoNorte({
+      convites: [{
+        id: 'convite-carla', email: 'carla@norte.com.br', role: 'member', status: 'pendente',
+        created_at: '2026-09-27T12:00:00Z', expires_at: '2026-10-04T12:00:00Z', token: TOKEN,
+      }],
+    })
+    const { usuario } = abrirPessoasEAcesso(banco)
+
+    const convite = within(await screen.findByRole('listitem', { name: 'carla@norte.com.br' }))
+    await usuario.click(convite.getByRole('button', { name: 'Reenviar e-mail' }))
+
+    expect(await screen.findByText('E-mail do convite enviado para carla@norte.com.br.')).toBeInTheDocument()
+    expect(banco.emails).toEqual([{ workspaceId: NORTE.id, invitationId: 'convite-carla' }])
   })
 
   it('mostra os convites aceitos, expirados e revogados, e o Administrador revoga um pendente', async () => {

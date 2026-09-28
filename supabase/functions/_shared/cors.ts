@@ -11,6 +11,17 @@ export function origensPermitidas(appOrigin: string): string[] {
   return appOrigin.split(',').map((origem) => origem.trim().replace(/\/+$/, '')).filter(Boolean)
 }
 
+/**
+ * A origem do app para montar um link que vai para outra pessoa (ex.: o e-mail do Convite): a de quem pediu, se ela
+ * está no APP_ORIGIN; senão a primeira origem publicada. Diferente do CORS, uma origem local não listada não vale,
+ * porque o link sai desta máquina.
+ */
+export function origemDoAppParaLink(req: Request, appOrigin: string): string {
+  const origem = req.headers.get('Origin') ?? ''
+  const permitidas = origensPermitidas(appOrigin)
+  return permitidas.includes(origem) ? origem : permitidas[0]
+}
+
 function cabecalhosCors(req: Request, appOrigin: string): Record<string, string> {
   const origem = req.headers.get('Origin') ?? ''
   const permitidas = origensPermitidas(appOrigin)
