@@ -10,6 +10,7 @@ import type { ServicosDoNavegador } from './servicos-do-navegador'
 import { VERSAO_DOS_TERMOS } from './termos'
 import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
 import { CascaDeAcesso, TelasDeAcesso } from './telas-de-acesso'
+import { CriarWorkspaceDaEmpresa, type WorkspaceDaEmpresaCriado } from './workspace-da-empresa'
 
 /** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
 const CHAVE_DO_WORKSPACE = 'althius:workspace'
@@ -93,6 +94,8 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   const [erroParticipacoes, setErroParticipacoes] = useState<string | null>(null)
   const [workspaceId, setWorkspaceId] = useState('')
   const [recusaDoConvite, setRecusaDoConvite] = useState<string | null>(null)
+  /** A pessoa escolheu "Criar Workspace da empresa" no Workspace pessoal. */
+  const [criandoWorkspaceDaEmpresa, setCriandoWorkspaceDaEmpresa] = useState(false)
   // A renovação do token troca o objeto da sessão; só outra Conta de usuário recarrega as Participações.
   const usuarioId = sessao?.user.id
 
@@ -113,6 +116,7 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     setErroParticipacoes(null)
     setWorkspaceId('')
     setRecusaDoConvite(null)
+    setCriandoWorkspaceDaEmpresa(false)
     if (!usuarioId) return () => { ativo = false }
     // O link do convite, já no endereço depois do login: o convite é aceito depois do Workspace pessoal.
     const tokenDoConvite = tokenDoConviteNoEndereco()
@@ -231,6 +235,30 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       </TelaDeEstado>
     )
   }
+  if (criandoWorkspaceDaEmpresa) {
+    // O novo Workspace entra na lista com a Participação de Administrador que o banco criou junto e abre em seguida;
+    // o pessoal continua na lista, como estava.
+    const abrirWorkspaceDaEmpresa = ({ id, name }: WorkspaceDaEmpresaCriado) => {
+      setParticipacoes((atuais) =>
+        rotularParticipacoes([
+          ...(atuais ?? []).filter((p) => p.workspace_id !== id),
+          { workspace_id: id, role: 'admin', nome: name },
+        ]),
+      )
+      sessionStorage.setItem(CHAVE_DO_WORKSPACE, id)
+      setWorkspaceId(id)
+      setCriandoWorkspaceDaEmpresa(false)
+    }
+    return (
+      <TelaDeEstado>
+        <CriarWorkspaceDaEmpresa
+          cliente={cliente}
+          aoCriar={abrirWorkspaceDaEmpresa}
+          aoVoltar={() => setCriandoWorkspaceDaEmpresa(false)}
+        />
+      </TelaDeEstado>
+    )
+  }
   if (!workspaceId) {
     return (
       <TelaDeEstado>
@@ -259,6 +287,10 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       participacao={participacao}
       cliente={cliente}
       aoTrocarDeWorkspace={participacoes.length > 1 ? trocarDeWorkspace : undefined}
+      // O Workspace da empresa nasce só desta escolha explícita, feita a partir do Workspace pessoal.
+      aoCriarWorkspaceDaEmpresa={
+        workspaceId === workspacePessoal.id ? () => setCriandoWorkspaceDaEmpresa(true) : undefined
+      }
       aoAcessarDemonstracao={aoAcessarDemonstracao}
     />
   )
@@ -270,12 +302,14 @@ function AplicativoDoWorkspace({
   participacao,
   cliente,
   aoTrocarDeWorkspace,
+  aoCriarWorkspaceDaEmpresa,
   aoAcessarDemonstracao,
 }: {
   sessao: Session
   participacao: Participacao
   cliente: SupabaseClient
   aoTrocarDeWorkspace?: () => void
+  aoCriarWorkspaceDaEmpresa?: () => void
   aoAcessarDemonstracao?: () => void
 }) {
   const { id: usuarioId, email = '' } = sessao.user
@@ -292,10 +326,13 @@ function AplicativoDoWorkspace({
 
   return (
     <>
-      <div className="flex items-center justify-end gap-3 border-b border-al-line px-4 py-2 text-xs text-al-muted">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-b border-al-line px-4 py-2 text-xs text-al-muted">
         <span>Workspace operacional</span>
         <span>{sessao.user.email}</span>
         {aoTrocarDeWorkspace && <Button variant="outline" onClick={aoTrocarDeWorkspace}>Trocar de Workspace</Button>}
+        {aoCriarWorkspaceDaEmpresa && (
+          <Button variant="outline" onClick={aoCriarWorkspaceDaEmpresa}>Criar Workspace da empresa</Button>
+        )}
         {aoAcessarDemonstracao && <Button variant="outline" onClick={aoAcessarDemonstracao}>Abrir Demonstração</Button>}
         <Sair />
       </div>
