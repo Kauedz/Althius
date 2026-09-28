@@ -21,10 +21,24 @@ export function enderecoDoConvite(token: string): string {
   return `${window.location.origin}${ROTA_DO_CONVITE}/${encodeURIComponent(token)}`
 }
 
+/** O token do convite neste caminho, se ele for o link de um convite. */
+function tokenDoConviteNoCaminho(caminho: string): string | null {
+  const [, rota, token, ...resto] = caminho.split('/')
+  return `/${rota}` === ROTA_DO_CONVITE && token && resto.length === 0 ? decodeURIComponent(token) : null
+}
+
 /** O token do convite no endereço atual, se ele for o link de um convite. */
 export function tokenDoConviteNoEndereco(): string | null {
-  const [, rota, token, ...resto] = window.location.pathname.split('/')
-  return `/${rota}` === ROTA_DO_CONVITE && token && resto.length === 0 ? decodeURIComponent(token) : null
+  return tokenDoConviteNoCaminho(window.location.pathname)
+}
+
+/**
+ * O token do convite que a tela de acesso atual lembra como `destino` (o cadastro, a entrada ou o "Esqueci a senha"
+ * abertos a partir do link do convite), para travar o e-mail convidado.
+ */
+export function tokenDoConviteNoDestino(): string | null {
+  const destino = destinoDepoisDoAcesso()
+  return destino ? tokenDoConviteNoCaminho(new URL(destino, window.location.origin).pathname) : null
 }
 
 /** As telas de acesso que lembram o `destino` para depois do login. */

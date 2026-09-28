@@ -97,7 +97,30 @@ export async function aceitarConvite(cliente: SupabaseClient, token: string): Pr
   return { workspaceId: (data as { id: string }).id }
 }
 
-const DIA_EM_BRASILIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
+/**
+ * O que o link do convite mostra a quem ainda não tem sessão: o e-mail convidado, o Workspace e o papel de um convite
+ * pendente; dos demais, só o estado. `desconhecido` é um token que não existe.
+ */
+export type PreviaDoConvite =
+  | { estado: 'pendente'; email: string; workspace: string; papel: Papel }
+  | { estado: Exclude<EstadoDoConvite, 'pendente'> | 'desconhecido' }
+
+/**
+ * Lê a prévia do convite pelo token, sem precisar de sessão (`workspace_invitation_preview`, também para `anon`). O
+ * token sozinho não concede nada: o aceite continua exigindo a sessão do e-mail convidado. Lança numa falha de leitura.
+ */
+export async function lerPreviaDoConvite(cliente: SupabaseClient, token: string): Promise<PreviaDoConvite> {
+  const { data, error } = await cliente.rpc('workspace_invitation_preview', { p_token: token })
+  if (error) throw new Error('Não foi possível carregar o convite. Verifique sua conexão e tente de novo.')
+  const [linha] = (data ?? []) as { email: string | null; workspace_name: string | null; role: Role | null; status: EstadoDoConvite }[]
+  if (!linha) return { estado: 'desconhecido' }
+  if (linha.status === 'pendente' && linha.email && linha.workspace_name && linha.role) {
+    return { estado: 'pendente', email: linha.email, workspace: linha.workspace_name, papel: PAPEL[linha.role] }
+  }
+  return { estado: linha.status === 'pendente' ? 'desconhecido' : linha.status }
+}
+
+const DIA_EM_BRASILIA =new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
 
 /** O dia (aaaa-mm-dd) de um instante no horário de Brasília, o mesmo que o e-mail do convite mostra. */
 function diaEmBrasilia(instante: string): string {

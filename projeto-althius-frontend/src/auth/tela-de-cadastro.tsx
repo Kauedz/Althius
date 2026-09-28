@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ContinuarComGoogle } from './botao-do-google'
 import { useAutenticacao } from './contexto'
+import { AvisoDoEmailTravado, ComOConviteDoAcesso } from './convite-do-acesso'
 import { ROTA_DE_ENTRADA, destinoDepoisDoAcesso } from './destino'
 import { ENDERECO_DA_POLITICA_DE_PRIVACIDADE, ENDERECO_DOS_TERMOS_DE_USO } from './termos'
 import { CampoDoCodigo } from './campo-do-codigo'
@@ -40,9 +41,24 @@ function guardarEtapa(etapa: EtapaDoCodigo | null) {
   }
 }
 
-/** /cadastro: nome, e-mail e senha; depois, na mesma tela, o código de 6 dígitos enviado por e-mail. */
+/**
+ * /cadastro: nome, e-mail e senha; depois, na mesma tela, o código de 6 dígitos enviado por e-mail. Aberto a partir de
+ * um convite pendente, o e-mail é o do convite, travado.
+ */
 export function TelaDeCadastro() {
-  const [etapa, setEtapa] = useState<EtapaDoCodigo | null>(etapaGuardada)
+  return (
+    <CascaDeAcesso>
+      <ComOConviteDoAcesso>{(emailTravado) => <Cadastro key={emailTravado} emailTravado={emailTravado} />}</ComOConviteDoAcesso>
+    </CascaDeAcesso>
+  )
+}
+
+function Cadastro({ emailTravado }: { emailTravado: string | null }) {
+  // A etapa do código guardada vale só para o e-mail travado; a de outro e-mail recomeça o cadastro.
+  const [etapa, setEtapa] = useState<EtapaDoCodigo | null>(() => {
+    const guardada = etapaGuardada()
+    return !emailTravado || guardada?.email === emailTravado ? guardada : null
+  })
   const [nome, setNome] = useState(etapa?.nome ?? '')
   const [email, setEmail] = useState(etapa?.email ?? '')
   const [senha, setSenha] = useState('')
@@ -57,28 +73,30 @@ export function TelaDeCadastro() {
     setEtapa(null)
   }
 
-  return (
-    <CascaDeAcesso>
-      {etapa ? (
-        <EtapaDoCodigoDoCadastro etapa={etapa} aoReenviar={irParaOCodigo} aoCorrigirEmail={corrigirEmail} />
-      ) : (
-        <FormularioDeCadastro
-          nome={nome}
-          email={email}
-          senha={senha}
-          aoMudarNome={setNome}
-          aoMudarEmail={setEmail}
-          aoMudarSenha={setSenha}
-          aoEnviar={() => irParaOCodigo({ nome, email: email.trim(), enviadoEm: Date.now() })}
-        />
-      )}
-    </CascaDeAcesso>
+  // O e-mail travado não muda, mesmo que o campo seja alterado por fora da tela.
+  const emailDoCadastro = emailTravado ?? email
+
+  return etapa ? (
+    // Com o e-mail travado, não há o que corrigir.
+    <EtapaDoCodigoDoCadastro etapa={etapa} aoReenviar={irParaOCodigo} aoCorrigirEmail={emailTravado ? undefined : corrigirEmail} />
+  ) : (
+    <FormularioDeCadastro
+      nome={nome}
+      email={emailDoCadastro}
+      emailTravado={emailTravado !== null}
+      senha={senha}
+      aoMudarNome={setNome}
+      aoMudarEmail={setEmail}
+      aoMudarSenha={setSenha}
+      aoEnviar={() => irParaOCodigo({ nome, email: emailDoCadastro.trim(), enviadoEm: Date.now() })}
+    />
   )
 }
 
 function FormularioDeCadastro({
   nome,
   email,
+  emailTravado,
   senha,
   aoMudarNome,
   aoMudarEmail,
@@ -87,6 +105,8 @@ function FormularioDeCadastro({
 }: {
   nome: string
   email: string
+  /** O e-mail é o de um convite: aparece preenchido e não se troca. */
+  emailTravado: boolean
   senha: string
   aoMudarNome: (nome: string) => void
   aoMudarEmail: (email: string) => void
@@ -126,9 +146,22 @@ function FormularioDeCadastro({
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="nome-cadastro">Nome
         <input id="nome-cadastro" type="text" autoComplete="name" required value={nome} onChange={(e) => aoMudarNome(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
       </label>
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-cadastro">E-mail
-        <input id="email-cadastro" type="email" autoComplete="email" required value={email} onChange={(e) => aoMudarEmail(e.target.value)} className="campo h-10 bg-al-bg px-3 text-al-ink" />
-      </label>
+      <div className="flex flex-col gap-1.5">
+        <label className="flex flex-col gap-1.5 text-sm" htmlFor="email-cadastro">E-mail
+          <input
+            id="email-cadastro"
+            type="email"
+            autoComplete="email"
+            required
+            readOnly={emailTravado}
+            aria-describedby={emailTravado ? 'aviso-do-convite-cadastro' : undefined}
+            value={email}
+            onChange={(e) => aoMudarEmail(e.target.value)}
+            className="campo h-10 bg-al-bg px-3 text-al-ink read-only:bg-al-surface read-only:text-al-muted"
+          />
+        </label>
+        {emailTravado && <AvisoDoEmailTravado id="aviso-do-convite-cadastro" email={email} />}
+      </div>
       <CampoDeNovaSenha id="senha-cadastro" rotulo="Senha" senha={senha} aoMudar={aoMudarSenha} />
       {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
       <Button type="submit" disabled={enviando}>{enviando ? 'Criando…' : 'Criar conta'}</Button>
@@ -149,7 +182,8 @@ function EtapaDoCodigoDoCadastro({
 }: {
   etapa: EtapaDoCodigo
   aoReenviar: (etapa: EtapaDoCodigo) => void
-  aoCorrigirEmail: () => void
+  /** Ausente quando o e-mail é o de um convite, travado. */
+  aoCorrigirEmail?: () => void
 }) {
   const { confirmarCodigoDoCadastro, reenviarCodigoDoCadastro } = useAutenticacao()
   const [codigo, setCodigo] = useState('')
@@ -210,7 +244,7 @@ function EtapaDoCodigoDoCadastro({
         <Button type="button" variant="outline" disabled={segundosParaReenviar > 0} onClick={reenviar}>
           {segundosParaReenviar > 0 ? `Reenviar código em ${segundosParaReenviar} s` : 'Reenviar código'}
         </Button>
-        <Button type="button" variant="outline" onClick={aoCorrigirEmail}>Corrigir e-mail</Button>
+        {aoCorrigirEmail && <Button type="button" variant="outline" onClick={aoCorrigirEmail}>Corrigir e-mail</Button>}
       </div>
     </form>
   )
