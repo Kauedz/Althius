@@ -46,17 +46,21 @@ function abrirMeuPerfil({
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', 'ws-norte')
   window.history.replaceState(null, '', '/configuracoes/perfil')
-  const backend = { contas: [...contas] }
+  const backend = { contas: [...contas], falhar: false }
   const pedidos: Record<string, unknown>[] = []
   const listagens: Record<string, unknown>[] = []
   const supabase = criarSupabaseFalso({
     sessao: sessaoDe(MARINA),
-    tabelas: { workspace_memberships: [{ workspace_id: 'ws-norte', role: 'member', user_id: MARINA.id, active: true }] },
+    tabelas: {
+      workspace_memberships: [{ workspace_id: 'ws-norte', role: 'member', user_id: MARINA.id, active: true }],
+      workspaces: [{ id: 'ws-norte', kind: 'empresa', name: 'Norte Distribuidora', owner_user_id: null }],
+    },
     rpcs: {
       bootstrap_personal_workspace: () => ({ id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }),
       get_my_profile: () => [{ name: 'Marina Souza', avatar_data_url: null, email: MARINA.email }],
       list_owned_sender_accounts: (parametros) => {
         listagens.push(parametros)
+        if (backend.falhar) throw new Error('falha de rede')
         return backend.contas
       },
     },
@@ -275,6 +279,35 @@ describe('Minhas Contas remetentes no Workspace operacional', () => {
     await usuario.click(within(await minhasContas()).getByRole('button', { name: 'Atualizar' }))
 
     expect(await within(await canal('E-mail')).findByText('Pronta')).toBeInTheDocument()
+  })
+
+  it('Atualizar relê o backend e diz quando a lista foi atualizada, mesmo sem mudança', async () => {
+    const { listagens, usuario } = abrirMeuPerfil({ contas: [contaRemetente({ status: 'ready' })] })
+    expect(await within(await canal('E-mail')).findByText('Pronta')).toBeInTheDocument()
+    const antes = listagens.length
+
+    await usuario.click(within(await minhasContas()).getByRole('button', { name: 'Atualizar' }))
+
+    expect(await within(await minhasContas()).findByText(/Lista atualizada às \d{2}:\d{2}/)).toBeInTheDocument()
+    expect(listagens.length).toBeGreaterThan(antes)
+    expect(within(await minhasContas()).getByRole('button', { name: 'Atualizar' })).toBeEnabled()
+  })
+
+  it('se a releitura falhar, Atualizar mostra o erro e deixa tentar de novo', async () => {
+    const { backend, usuario } = abrirMeuPerfil({ contas: [contaRemetente({ status: 'ready' })] })
+    expect(await within(await canal('E-mail')).findByText('Pronta')).toBeInTheDocument()
+
+    backend.falhar = true
+    await usuario.click(within(await minhasContas()).getByRole('button', { name: 'Atualizar' }))
+
+    expect(await within(await minhasContas()).findByText('Não foi possível carregar suas Contas remetentes.')).toBeInTheDocument()
+    expect(within(await minhasContas()).getByRole('button', { name: 'Atualizar' })).toBeEnabled()
+  })
+
+  it('diz de qual Workspace são as Contas remetentes mostradas', async () => {
+    abrirMeuPerfil()
+
+    expect(await within(await minhasContas()).findByText(/conectou no Workspace Norte Distribuidora/)).toBeInTheDocument()
   })
 })
 

@@ -125,3 +125,22 @@ function Indicador({ rotulo, valor, children }: { rotulo: string; valor: number;
     </div>
   )
 }
+
+/**
+ * Plano no Workspace operacional: cobrança, franquia e medição de uso ainda não existem (fora do escopo de billing), então
+ * não há número real a mostrar, e os números de exemplo ficam só na Demonstração. A seção diz isso em vez de ficar muda.
+ */
+export function SecaoPlanoDoWorkspaceOperacional() {
+  return (
+    <SecaoDeConfiguracoes id="plano" titulo="Plano" alcance="workspace" descricao="A situação do Workspace na Althius.">
+      <div role="status" className="flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+        <span className="selo">Demonstrativo</span>
+        <p className="text-al-ink">Plano e consumo ainda são só demonstrativos na Althius.</p>
+        <p className="text-sm text-al-muted">
+          Cobrança, franquia e medição de uso estão fora do escopo de cobrança desta fase: não há plano nem consumo reais a
+          mostrar neste Workspace. Os números de exemplo aparecem só na Demonstração.
+        </p>
+      </div>
+    </SecaoDeConfiguracoes>
+  )
+}

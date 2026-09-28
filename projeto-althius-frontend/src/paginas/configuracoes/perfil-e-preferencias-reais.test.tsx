@@ -524,9 +524,10 @@ describe('Plano fora do escopo de billing', () => {
     expect(await screen.findByText(/Os números abaixo são demonstrativos/)).toBeInTheDocument()
   })
 
-  it('no Workspace operacional, o plano continua indisponível, sem números de consumo', async () => {
+  it('no Workspace operacional, o Plano diz que plano e consumo são só demonstrativos, sem números de exemplo', async () => {
     abrir(bancoDaMarina(), '/configuracoes/plano')
-    expect(await screen.findByText(/ainda não está disponível neste Workspace/)).toBeInTheDocument()
+    expect(await screen.findByText(/Plano e consumo ainda são só demonstrativos/)).toBeInTheDocument()
+    expect(screen.getByText(/fora do escopo de cobrança/)).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Plano atual' })).not.toBeInTheDocument()
   })
 })

@@ -4,7 +4,7 @@ import { Mensagem } from '@/components/mensagem'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { CanalDaContaRemetente, ContaRemetente } from '@/fonte/contas-remetentes-tipos'
-import { useAmbiente, useCarregamento, useFonteDeContasRemetentes } from '@/fonte/contexto'
+import { useAmbiente, useCarregamento, useDados, useFonteDeContasRemetentes } from '@/fonte/contexto'
 import { CONTAS_REMETENTES_NA_DEMONSTRACAO } from '@/fonte/simulada-contas-remetentes'
 import { cn } from '@/lib/utils'
 import { Bloco } from './componentes'
@@ -22,6 +22,8 @@ const VALIDADE_DO_LINK_MS = 15 * 60 * 1000
  * disso, ela se atualiza ao voltar para a aba ou pelo botão Atualizar.
  */
 const LIMITE_DO_ACOMPANHAMENTO_MS = 15 * 60 * 1000
+
+const HORA = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
 
 const CANAIS: CanalDaContaRemetente[] = ['email', 'whatsapp', 'linkedin']
 
@@ -93,6 +95,25 @@ function ContasRemetentesDoTitular() {
   const [pedindo, setPedindo] = useState(false)
   const [erro, setErro] = useState('')
   const [desconectando, setDesconectando] = useState<ContaRemetente | null>(null)
+  // As Contas remetentes são do titular em cada Workspace: a tela diz de qual Workspace é a lista.
+  const workspace = useDados((f) => f.workspace(), [])
+
+  // "Atualizar" relê o backend e diz quando a releitura chegou, mesmo sem mudança; uma falha aparece no erro da lista.
+  const [atualizando, setAtualizando] = useState(false)
+  const [atualizadaAs, setAtualizadaAs] = useState('')
+  const atualizacaoPedida = useRef(false)
+  useEffect(() => {
+    if (!atualizacaoPedida.current || (!contas && !erroDaLista)) return
+    atualizacaoPedida.current = false
+    setAtualizando(false)
+    setAtualizadaAs(erroDaLista ? '' : HORA.format(new Date()))
+  }, [contas, erroDaLista])
+  function atualizar() {
+    atualizacaoPedida.current = true
+    setAtualizando(true)
+    setAtualizadaAs('')
+    recarregar()
+  }
 
   // A espera acaba quando o backend responde pelo Canal (a linha passa a mostrar o estado) ou quando o link vence.
   if (espera && contas && retratoDoCanal(contas, espera.canal) !== espera.retrato) setEspera(null)
@@ -153,11 +174,22 @@ function ContasRemetentesDoTitular() {
       titulo={TITULO}
       descricao={DESCRICAO}
       acoes={
-        <button type="button" onClick={recarregar} className={BOTAO_DISCRETO}>
-          Atualizar
+        <button type="button" onClick={atualizar} disabled={atualizando} className={BOTAO_DISCRETO}>
+          {atualizando ? 'Atualizando…' : 'Atualizar'}
         </button>
       }
     >
+      {workspace && (
+        <p className="text-sm text-al-muted">
+          Estas são as Contas remetentes que você conectou no Workspace {workspace.cliente}. Cada Workspace tem as suas:
+          uma conta conectada em outro Workspace não aparece aqui.
+        </p>
+      )}
+      {atualizadaAs && (
+        <p role="status" className="text-sm text-al-muted">
+          Lista atualizada às {atualizadaAs}.
+        </p>
+      )}
       <Mensagem tipo="info">
         {espera && (
           <>
