@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 
@@ -20,6 +20,32 @@ const RECUSAS: [code: string, trecho: string, texto: string][] = [
 ]
 
 const FALHA = 'Não foi possível criar o Workspace da empresa agora. Verifique sua conexão e tente de novo.'
+
+/**
+ * A chave do pedido ainda sem resposta, guardada na aba. Se a resposta se perde e a pessoa volta, reabre o formulário ou
+ * recarrega a página, o pedido repete a mesma chave e o banco devolve o Workspace já criado em vez de criar outro.
+ */
+const CHAVE_DO_PEDIDO = 'althius:pedido-do-workspace-da-empresa'
+
+function chaveDoPedido() {
+  try {
+    const guardada = sessionStorage.getItem(CHAVE_DO_PEDIDO)
+    if (guardada) return guardada
+    const nova = crypto.randomUUID()
+    sessionStorage.setItem(CHAVE_DO_PEDIDO, nova)
+    return nova
+  } catch {
+    return crypto.randomUUID()
+  }
+}
+
+function esquecerPedido() {
+  try {
+    sessionStorage.removeItem(CHAVE_DO_PEDIDO)
+  } catch {
+    // Sem armazenamento na aba, não há chave guardada.
+  }
+}
 
 /**
  * Cria o Workspace da empresa, com a pessoa da sessão como Administradora, na mesma transação do banco. A `chave` torna
@@ -48,12 +74,21 @@ export function CriarWorkspaceDaEmpresa({
   aoCriar: (workspace: WorkspaceDaEmpresaCriado) => void
   aoVoltar: () => void
 }) {
-  // Uma chave por abertura do formulário: nova tentativa e clique duplo repetem o mesmo pedido.
-  const [chave] = useState(() => crypto.randomUUID())
+  // Uma chave por pedido ainda sem resposta: clique duplo, nova tentativa, reabrir o formulário e recarregar repetem o
+  // mesmo pedido.
+  const [chave] = useState(chaveDoPedido)
   const [nome, setNome] = useState('')
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const enviandoAgora = useRef(false)
+  // Se a sessão muda enquanto o pedido está no ar, o formulário sai da tela e a resposta não abre nada.
+  const montado = useRef(false)
+  useEffect(() => {
+    montado.current = true
+    return () => {
+      montado.current = false
+    }
+  }, [])
 
   async function criar(e: FormEvent) {
     e.preventDefault()
@@ -67,8 +102,11 @@ export function CriarWorkspaceDaEmpresa({
     setEnviando(true)
     setErro('')
     try {
-      aoCriar(await criarWorkspaceDaEmpresa(cliente, empresa, chave))
+      const criado = await criarWorkspaceDaEmpresa(cliente, empresa, chave)
+      esquecerPedido()
+      if (montado.current) aoCriar(criado)
     } catch (err) {
+      if (!montado.current) return
       setErro(err instanceof Error ? err.message : FALHA)
       enviandoAgora.current = false
       setEnviando(false)

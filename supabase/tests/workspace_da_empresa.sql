@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(29);
+select plan(30);
 
 -- Marina já tem o Workspace pessoal, com uma Conta-alvo e uma Conta remetente; ela cria o Workspace da empresa.
 -- Rui é outra Conta de usuário verificada; Nina ainda não verificou o e-mail.
@@ -56,7 +56,7 @@ select set_config('request.jwt.claim.role', 'anon', true);
 select set_config('request.jwt.claim.sub', '', true);
 select throws_ok(
   $$select public.create_company_workspace('Norte', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
-  '42501', null,
+  '42501', 'permission denied for function create_company_workspace',
   'o visitante anônimo não cria Workspace da empresa');
 
 set local role authenticated;
@@ -78,6 +78,10 @@ select throws_ok(
   $$select public.create_company_workspace('   ', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '22023', 'company name is required',
   'o nome da empresa não pode ficar em branco');
+select throws_ok(
+  $$select public.create_company_workspace(E'\n\t ', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
+  '22023', 'company name is required',
+  'quebras de linha e tabulações também contam como nome em branco');
 select throws_ok(
   $$select public.create_company_workspace(null, 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '22023', 'company name is required',

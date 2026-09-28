@@ -64,7 +64,8 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_user auth.users%rowtype;
-  v_name text := btrim(coalesce(p_name, ''));
+  -- Espaços, tabulações e quebras de linha nas pontas não contam como nome.
+  v_name text := regexp_replace(coalesce(p_name, ''), '^\s+|\s+$', '', 'g');
   v_workspace public.workspaces;
   v_constraint text;
 begin

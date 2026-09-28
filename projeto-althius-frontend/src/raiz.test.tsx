@@ -1441,6 +1441,26 @@ describe('Workspace da empresa por ação explícita', () => {
     expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza', 'Norte Distribuidora'])
   })
 
+  it('perdida a resposta, voltar e reabrir o formulário repete o mesmo pedido e abre o Workspace já criado', async () => {
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const banco = workspaceDaEmpresaNoBanco(tabelas, { perderResposta: 1 })
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas, rpcs: banco.rpcs })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível criar o Workspace da empresa agora.')
+
+    await usuario.click(screen.getByRole('button', { name: 'Voltar ao Workspace pessoal' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+
+    expect(await workspaceNaNavegacao('Norte Distribuidora')).toBeInTheDocument()
+    expect(new Set(banco.pedidos.map((p) => p.p_request_id)).size).toBe(1)
+    expect((tabelas.workspaces ?? []).filter((w) => w.kind === 'empresa')).toHaveLength(1)
+  })
+
   it('sem o nome da empresa nada é pedido ao banco, e a recusa do banco aparece para a pessoa', async () => {
     const pedidos: Record<string, unknown>[] = []
     const { usuario } = abrirAlthius({
