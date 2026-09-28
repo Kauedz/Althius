@@ -40,6 +40,8 @@ export interface OpcoesDoSupabaseFalso {
    * conta o Auth não envia nada, então não há limite a atingir.
    */
   limiteDeEnvioAtingido?: string[]
+  /** Encerrar as outras sessões (`signOut({ scope: 'others' })`) falha, como numa queda de rede. */
+  falhaAoEncerrarOutrasSessoes?: boolean
 }
 
 /** O que uma Edge Function do teste devolve: o status HTTP (200 por padrão) e o corpo JSON. */
@@ -95,7 +97,7 @@ export function sessaoDe(usuario: { id: string; email: string }): Session {
  * O cliente do Supabase na fronteira com o fornecedor: Auth, as tabelas filtradas por `eq`, as RPCs e os canais do
  * Realtime, em memória. Só cobre o que o app usa; o resto não existe, para um uso novo falhar alto.
  */
-export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura, rpcs = {}, funcoes = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [] }: OpcoesDoSupabaseFalso = {}) {
+export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura, rpcs = {}, funcoes = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [], falhaAoEncerrarOutrasSessoes = false }: OpcoesDoSupabaseFalso = {}) {
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
@@ -312,6 +314,7 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
       async signOut({ scope = 'global' }: { scope?: 'global' | 'local' | 'others' } = {}) {
         const usuarioId = sessaoAtual?.user.id
         if (scope === 'others') {
+          if (falhaAoEncerrarOutrasSessoes) return { error: { name: 'AuthRetryableFetchError', message: 'Failed to fetch', status: 0 } }
           encerrarSessoes((aberta) => aberta.usuarioId !== usuarioId || aberta.id === idDaSessaoAtual)
           return { error: null }
         }

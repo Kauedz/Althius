@@ -27,7 +27,7 @@ import { useAmbiente, useDados, useFonteDeOnboarding } from '@/fonte/contexto'
 import { identidadeDoWorkspace, progressoDoOnboarding } from '@/fonte/regras-onboarding'
 import { ROTULO_DO_PAPEL } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
-import { useTema } from '@/tema'
+import { useTemaDaConta } from '@/tema-da-conta'
 
 export function Casca() {
   return (
@@ -200,15 +200,23 @@ function SeletorDeWorkspace({
 
 function MenuDoUsuario() {
   const workspace = useDados((fonte) => fonte.workspace(), [])
-  const { tema, alternar } = useTema()
+  const { tema, alternar, salvamento } = useTemaDaConta()
   const nome = workspace?.usuario.nome ?? ''
+  const rotuloDoTema =
+    salvamento.estado === 'salvando'
+      ? 'Salvando o tema…'
+      : salvamento.estado === 'falhou'
+        ? 'Tema não salvo'
+        : tema === 'escuro'
+          ? 'Tema escuro'
+          : 'Tema claro'
 
   return (
     <div className="mt-auto flex items-center gap-2.5 border-t border-al-line pt-4">
       <AvatarDePessoa nome={nome} foto={workspace?.usuario.foto} />
       <span className="flex min-w-0 flex-1 flex-col leading-tight">
         <span className="truncate text-sm font-normal">{nome}</span>
-        <span className="rotulo text-[0.5625rem]">{tema === 'escuro' ? 'Tema escuro' : 'Tema claro'}</span>
+        <span className="rotulo text-[0.5625rem]">{rotuloDoTema}</span>
       </span>
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Menu do usuário: ${nome}`} />}>
@@ -225,7 +233,9 @@ function MenuDoUsuario() {
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuItem render={<Link to="/configuracoes/perfil" />}>Meu perfil</DropdownMenuItem>
-          <DropdownMenuItem onClick={alternar}>{tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void alternar()} disabled={salvamento.estado === 'salvando'}>
+            {tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

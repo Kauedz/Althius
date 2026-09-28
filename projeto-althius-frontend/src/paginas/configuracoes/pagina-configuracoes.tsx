@@ -16,9 +16,9 @@ import { SecaoWorkspace } from './secao-workspace'
  * As seis seções aprovadas no mockup (ticket 01). Memória do Workspace e Ajuda e informações têm uma página por aba
  * (/configuracoes/memoria/icp, /configuracoes/ajuda/termos); as demais são uma página só. Uma seção informativa é só
  * conteúdo da Althius e não depende do backend do Workspace. Uma seção com `modulo` próprio fica disponível no
- * Workspace operacional assim que esse módulo tem backend, antes do resto de Configurações. Uma seção com parte já ligada
- * ao backend usa, no Workspace operacional, a versão `NoWorkspaceOperacional`, que mostra essa parte e diz que o resto
- * está indisponível.
+ * Workspace operacional assim que esse módulo tem backend, antes do resto de Configurações. Uma seção já ligada ao
+ * backend, no todo ou em parte, usa no Workspace operacional a versão `NoWorkspaceOperacional`, que mostra só o que é
+ * real e diz o que ainda está indisponível.
  */
 const SECOES: Record<
   string,
@@ -32,7 +32,8 @@ const SECOES: Record<
   }
 > = {
   perfil: { rotulo: 'Meu perfil', Componente: SecaoPerfil, NoWorkspaceOperacional: SecaoPerfilDoWorkspaceOperacional },
-  preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias },
+  // As Preferências são da Conta de usuário e já têm backend: a mesma seção serve aos dois ambientes.
+  preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias, NoWorkspaceOperacional: SecaoPreferencias },
   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace, modulo: 'participantes' },
   memoria: { rotulo: 'Memória do Workspace', Componente: SecaoMemoria, comPaginas: true },
   plano: { rotulo: 'Plano', Componente: SecaoPlano },

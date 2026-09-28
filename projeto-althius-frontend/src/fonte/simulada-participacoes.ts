@@ -262,7 +262,7 @@ export function criarParticipacoesSimuladas({
     preferencias: (): Preferencias => preferencias,
 
     /** Grava e só então adota: se o navegador não gravar, a preferência continua como estava. */
-    salvarPreferencias({ notificacoesDoNavegador }: Preferencias) {
+    salvarPreferencias({ notificacoesDoNavegador = preferencias.notificacoesDoNavegador }: Partial<Preferencias>) {
       const novas: Preferencias = { notificacoesDoNavegador: notificacoesDoNavegador === true }
       try {
         armazenamento?.setItem(chaveDasPreferencias(contaDaSessao.id), JSON.stringify(novas))

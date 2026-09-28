@@ -50,6 +50,7 @@ export function criarFonteDeAgentesIndisponivel({
       }
     },
     observarAvisos: semMudancas,
+    perfil: recusar('configuracoes'),
     salvarPerfil: recusar('configuracoes'),
     preferencias: recusar('configuracoes'),
     salvarPreferencias: recusar('configuracoes'),

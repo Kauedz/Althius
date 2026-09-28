@@ -46,6 +46,23 @@ interface Autenticacao {
   confirmarCodigoDeRedefinicao: (email: string, codigo: string) => Promise<void>
   /** Grava a nova senha, encerra as outras sessões da Conta de usuário e segue para o Workspace de entrada. */
   definirNovaSenha: (senha: string) => Promise<void>
+  /**
+   * Troca (ou define) a senha da Conta de usuário da sessão em Meu perfil. Toda tentativa confirma de novo que é a
+   * pessoa, e o Supabase Auth confere a confirmação antes da troca: a senha atual (`signInWithPassword`) ou o código de
+   * entrada enviado ao e-mail da sessão por `pedirCodigoDeEntrada` (`verifyOtp`), o caminho de quem entrou só com
+   * Google. A nova senha segue a política do cadastro, e as outras sessões são encerradas. As
+   * identidades (Google, e-mail) continuam todas na mesma Conta de usuário. Resolve depois que a senha foi trocada,
+   * dizendo se as outras sessões caíram.
+   */
+  trocarSenha: (confirmacao: ConfirmacaoDeIdentidade, novaSenha: string) => Promise<SenhaTrocada>
+}
+
+/** Como a pessoa confirma que é ela antes de trocar a senha: a senha atual ou o código de entrada enviado ao e-mail. */
+export type ConfirmacaoDeIdentidade = { senhaAtual: string } | { codigo: string }
+
+/** A senha já foi trocada; `outrasSessoesEncerradas` diz se as outras sessões da Conta de usuário caíram. */
+export interface SenhaTrocada {
+  outrasSessoesEncerradas: boolean
 }
 
 /** A única resposta a um login recusado, para a tela não revelar se o e-mail tem conta. */
@@ -115,6 +132,24 @@ function atingiuLimiteDeEnvio(error: { code?: string; status?: number } | null) 
 }
 
 const Contexto = createContext<Autenticacao | null>(null)
+
+/**
+ * Grava a nova senha da sessão atual e encerra as outras sessões da Conta de usuário. Quem chama já recusou a senha
+ * vazada; o `weak_password` do Supabase Auth (senhas vazadas no servidor) vira a mesma mensagem. Lança só se a senha
+ * não foi trocada; depois dela, devolve se as outras sessões caíram.
+ */
+async function gravarNovaSenha(cliente: SupabaseClient, senha: string): Promise<SenhaTrocada> {
+  const { error } = await cliente.auth.updateUser({ password: senha })
+  if (error?.code === 'weak_password') throw new Error(ERRO_DE_SENHA_VAZADA)
+  if (error?.code === 'same_password') throw new Error('A nova senha precisa ser diferente da atual.')
+  if (error) throw new Error('Não foi possível salvar a nova senha. Tente novamente em instantes.')
+  // Quem troca a senha por suspeita de invasão expulsa as outras sessões; esta continua aberta.
+  const saida = await cliente.auth.signOut({ scope: 'others' })
+  return { outrasSessoesEncerradas: !saida.error }
+}
+
+const ERRO_AO_ENCERRAR_AS_OUTRAS_SESSOES =
+  'A senha foi trocada, mas não foi possível encerrar as outras sessões. Tente sair e entrar de novo.'
 
 export function ContextoDeAutenticacao({
   cliente,
@@ -282,14 +317,32 @@ export function ContextoDeAutenticacao({
       setCarregando(true)
       try {
         await recusarSenhaVazada(servicos, senha)
-        const { error } = await cliente.auth.updateUser({ password: senha })
-        if (error?.code === 'weak_password') throw new Error(ERRO_DE_SENHA_VAZADA)
-        if (error?.code === 'same_password') throw new Error('A nova senha precisa ser diferente da atual.')
-        if (error) throw new Error('Não foi possível salvar a nova senha. Tente novamente em instantes.')
-        // Quem troca a senha por suspeita de invasão expulsa as outras sessões; esta continua aberta.
-        const saida = await cliente.auth.signOut({ scope: 'others' })
-        if (saida.error) throw new Error('A senha foi trocada, mas não foi possível encerrar as outras sessões. Tente sair e entrar de novo.')
+        const { outrasSessoesEncerradas } = await gravarNovaSenha(cliente, senha)
+        if (!outrasSessoesEncerradas) throw new Error(ERRO_AO_ENCERRAR_AS_OUTRAS_SESSOES)
         setRedefinindoSenha(false)
+      } finally {
+        setCarregando(false)
+      }
+    },
+    async trocarSenha(confirmacao, novaSenha) {
+      const usuario = sessao?.user
+      if (!usuario?.email) throw new Error('Entre de novo para trocar a senha.')
+      setCarregando(true)
+      try {
+        // A senha vazada é recusada antes de confirmar a identidade, para não gastar o código nem abrir outra sessão.
+        await recusarSenhaVazada(servicos, novaSenha)
+        // O Supabase Auth confere a senha atual ou o código a cada tentativa; isso abre uma sessão nova da mesma Conta
+        // de usuário, e as antigas caem ao gravar a senha.
+        if ('codigo' in confirmacao) {
+          const { data, error } = await cliente.auth.verifyOtp({ email: usuario.email, token: confirmacao.codigo.trim(), type: 'email' })
+          if (error || data.user?.id !== usuario.id) throw new Error('Código inválido ou expirado. Confira o código ou peça outro.')
+        } else {
+          const captcha = await comCaptcha(servicos, 'login_com_senha')
+          const { data, error } = await cliente.auth.signInWithPassword({ email: usuario.email, password: confirmacao.senhaAtual, options: captcha })
+          recusarCaptcha(error)
+          if (error || data.user?.id !== usuario.id) throw new Error('A senha atual não confere. Tente de novo ou confirme por código.')
+        }
+        return await gravarNovaSenha(cliente, novaSenha)
       } finally {
         setCarregando(false)
       }

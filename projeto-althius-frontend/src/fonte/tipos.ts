@@ -210,13 +210,21 @@ export interface Perfil {
   foto?: string
 }
 
-/** As preferências pessoais da Conta de usuário, que valem em qualquer Workspace. O tema tem mecanismo próprio. */
+/** Os temas da Althius. */
+export type TemaEscolhido = 'escuro' | 'claro'
+
+/**
+ * As preferências pessoais da Conta de usuário, que valem em qualquer Workspace. Na Demonstração, o tema tem mecanismo
+ * próprio, no navegador; no Workspace operacional, fica salvo na Conta de usuário e volta em qualquer dispositivo.
+ */
 export interface Preferencias {
   /**
    * A vontade de receber notificações do navegador. É só da pessoa: mostrar os avisos também depende da permissão
    * que o navegador dá, e desligar aqui não revoga essa permissão.
    */
   notificacoesDoNavegador: boolean
+  /** O tema salvo na Conta de usuário; ausente quando ela nunca escolheu um, ou na Demonstração. */
+  tema?: TemaEscolhido
 }
 
 /** Uma seção de um documento da Memória do Workspace (ex.: "Porte" do ICP). */
@@ -525,11 +533,18 @@ export interface FonteDeAgentes extends FonteObservavel {
    * não muda o resultado da operação que o gerou. Devolve a função para cancelar.
    */
   observarAvisos(ouvinte: (aviso: AvisoDoWorkspace) => void): () => void
-  /** Atualiza nome, e-mail e foto da Conta de usuário; valida nome não vazio e formato do e-mail. */
+  /** Nome, e-mail e foto da Conta de usuário da sessão, como Meu perfil os edita. */
+  perfil(): Promise<Perfil>
+  /**
+   * Atualiza o perfil da Conta de usuário; valida nome não vazio. Na Demonstração, também troca o e-mail (com formato
+   * válido e sem verificação). No Workspace operacional, grava só nome e foto: o e-mail é o do acesso no Supabase Auth,
+   * só aparece, e um e-mail diferente do da sessão é recusado sem gravar nada.
+   */
   salvarPerfil(perfil: Perfil): Promise<void>
   /** As preferências da Conta de usuário da sessão; sem nada salvo, as notificações do navegador ficam desligadas. */
   preferencias(): Promise<Preferencias>
-  salvarPreferencias(preferencias: Preferencias): Promise<void>
+  /** Grava só as preferências informadas; as demais continuam como estavam. */
+  salvarPreferencias(preferencias: Partial<Preferencias>): Promise<void>
 
   /** Informações, Participantes e convites do Workspace atual, com o papel da sessão. Todos os Participantes consultam. */
   participantesDoWorkspace(): Promise<ParticipantesDoWorkspace>

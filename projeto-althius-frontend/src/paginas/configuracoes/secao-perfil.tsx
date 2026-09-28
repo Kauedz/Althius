@@ -1,11 +1,13 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { AvatarDePessoa, Carregando } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { Button } from '@/components/ui/button'
-import { useDados, useFonte } from '@/fonte/contexto'
+import { useCarregamento, useDados, useFonte } from '@/fonte/contexto'
 import { ehEmailValido, ERRO_DE_EMAIL, ROTULO_DO_PAPEL } from '@/fonte/regras'
-import type { Workspace } from '@/fonte/tipos'
+import type { Perfil } from '@/fonte/tipos'
 import { BlocoDeContasRemetentes } from './bloco-contas-remetentes'
 import { BlocoSenha } from './bloco-senha'
+import { BlocoDeSenhaDaConta } from './bloco-senha-da-conta'
 import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
 const DESCRICAO_DO_PERFIL = 'Como você aparece para as outras pessoas do Workspace. Vale só para a sua Conta de usuário.'
@@ -19,7 +21,14 @@ export function SecaoPerfil() {
 
   return (
     <SecaoDeConfiguracoes id="perfil" titulo="Meu perfil" alcance="pessoal" descricao={DESCRICAO_DO_PERFIL} estreita>
-      {!workspace ? <Carregando /> : <FormularioDePerfil usuario={workspace.usuario} />}
+      {!workspace ? (
+        <Carregando />
+      ) : (
+        <FormularioDePerfil
+          inicial={workspace.usuario}
+          sucesso="Perfil salvo. Seu nome e sua foto já aparecem no menu pessoal. Demonstração: o novo e-mail não passa por verificação."
+        />
+      )}
       {workspace && <SeusWorkspaces contaId={workspace.usuario.id} />}
       <BlocoDeContasRemetentes />
       <BlocoSenha />
@@ -27,28 +36,62 @@ export function SecaoPerfil() {
   )
 }
 
+/** O maior arquivo de foto que o perfil guarda no Workspace operacional, e os tipos de imagem aceitos. */
+const LIMITE_DA_FOTO = { bytes: 256 * 1024, tipos: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] }
+
 /**
- * Meu perfil no Workspace operacional: só as Contas remetentes já têm backend. Nome, foto e senha aparecem como
- * indisponíveis, e nada da Demonstração (nem a lista de Workspaces dela) aparece no lugar.
+ * Meu perfil no Workspace operacional: nome e foto salvos na Conta de usuário, o e-mail do acesso, as Contas remetentes
+ * do titular e a senha, trocada pelo Supabase Auth. Nada da Demonstração (nem a lista de Workspaces dela) aparece.
  */
 export function SecaoPerfilDoWorkspaceOperacional() {
+  const fonte = useFonte()
+  const { dados: perfil, erro, recarregar } = useCarregamento(fonte, (f) => f.perfil(), [])
+
   return (
     <SecaoDeConfiguracoes id="perfil" titulo="Meu perfil" alcance="pessoal" descricao={DESCRICAO_DO_PERFIL} estreita>
-      <div role="status" className="flex flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
-        <span className="selo">Indisponível</span>
-        <p className="text-al-ink">Nome, foto e senha ainda não estão disponíveis neste Workspace.</p>
-        <p className="text-sm text-al-muted">Eles ainda não foram conectados ao Workspace operacional, e nada aqui é simulado.</p>
-      </div>
+      {erro ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Mensagem tipo="erro">{erro.message}</Mensagem>
+          <Button type="button" variant="outline" onClick={recarregar}>
+            Tentar de novo
+          </Button>
+        </div>
+      ) : !perfil ? (
+        <Carregando />
+      ) : (
+        <FormularioDePerfil
+          inicial={perfil}
+          emailDoAcesso
+          limiteDaFoto={LIMITE_DA_FOTO}
+          sucesso="Perfil salvo. Seu nome e sua foto já aparecem no seu menu pessoal, e o nome também para as outras pessoas do Workspace."
+        />
+      )}
       <BlocoDeContasRemetentes />
+      <BlocoDeSenhaDaConta />
     </SecaoDeConfiguracoes>
   )
 }
 
-function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
+/**
+ * O formulário de nome, e-mail e foto. Só confirma o perfil salvo depois de a fonte gravar; numa falha, mantém o que
+ * foi digitado e deixa tentar de novo. Com `emailDoAcesso`, o e-mail é o do acesso à Althius e só aparece. Com
+ * `limiteDaFoto`, a foto é recusada na tela acima do tamanho ou fora dos tipos que o perfil guarda.
+ */
+function FormularioDePerfil({
+  inicial,
+  emailDoAcesso = false,
+  limiteDaFoto,
+  sucesso,
+}: {
+  inicial: Perfil
+  emailDoAcesso?: boolean
+  limiteDaFoto?: { bytes: number; tipos: string[] }
+  sucesso: string
+}) {
   const fonte = useFonte()
-  const [nome, setNome] = useState(usuario.nome)
-  const [email, setEmail] = useState(usuario.email)
-  const [foto, setFoto] = useState(usuario.foto)
+  const [nome, setNome] = useState(inicial.nome)
+  const [email, setEmail] = useState(inicial.email)
+  const [foto, setFoto] = useState(inicial.foto)
   const [erroNome, setErroNome] = useState('')
   const [erroEmail, setErroEmail] = useState('')
   const [erroFoto, setErroFoto] = useState('')
@@ -57,7 +100,7 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
   const [salvando, setSalvando] = useState(false)
   const arquivo = useRef<HTMLInputElement>(null)
 
-  const alterado = nome !== usuario.nome || email !== usuario.email || foto !== usuario.foto
+  const alterado = nome !== inicial.nome || email !== inicial.email || foto !== inicial.foto
 
   function limparResultado() {
     setErro('')
@@ -68,8 +111,12 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
     const escolhido = lista?.[0]
     if (!escolhido) return
     limparResultado()
-    if (!escolhido.type.startsWith('image/')) {
-      setErroFoto('Escolha um arquivo de imagem (JPG, PNG ou WebP).')
+    if (!escolhido.type.startsWith('image/') || (limiteDaFoto && !limiteDaFoto.tipos.includes(escolhido.type))) {
+      setErroFoto(limiteDaFoto ? 'Escolha um arquivo de imagem (JPG, PNG, WebP ou GIF).' : 'Escolha um arquivo de imagem (JPG, PNG ou WebP).')
+      return
+    }
+    if (limiteDaFoto && escolhido.size > limiteDaFoto.bytes) {
+      setErroFoto(`Escolha uma imagem de até ${limiteDaFoto.bytes / 1024} KB.`)
       return
     }
     setErroFoto('')
@@ -84,10 +131,10 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
     limparResultado()
   }
 
-  async function salvar(evento: FormEvent) {
-    evento.preventDefault()
+  async function salvar(evento?: FormEvent) {
+    evento?.preventDefault()
     const nomeValido = nome.trim() !== ''
-    const emailValido = ehEmailValido(email)
+    const emailValido = emailDoAcesso || ehEmailValido(email)
     setErroNome(nomeValido ? '' : 'Informe seu nome.')
     setErroEmail(emailValido ? '' : ERRO_DE_EMAIL)
     if (!nomeValido || !emailValido) {
@@ -95,16 +142,14 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
       return
     }
     setSalvando(true)
-    setErro('')
+    limparResultado()
     try {
       const nomeSalvo = nome.trim()
       const emailSalvo = email.trim().toLowerCase()
       await fonte.salvarPerfil({ nome: nomeSalvo, email: emailSalvo, foto })
       setNome(nomeSalvo)
       setEmail(emailSalvo)
-      setMensagem(
-        'Perfil salvo. Seu nome e sua foto já aparecem no menu pessoal. Demonstração: o novo e-mail não passa por verificação.',
-      )
+      setMensagem(sucesso)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível salvar o perfil.')
     } finally {
@@ -113,9 +158,9 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
   }
 
   function cancelar() {
-    setNome(usuario.nome)
-    setEmail(usuario.email)
-    setFoto(usuario.foto)
+    setNome(inicial.nome)
+    setEmail(inicial.email)
+    setFoto(inicial.foto)
     setErroNome('')
     setErroEmail('')
     setErroFoto('')
@@ -125,7 +170,7 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
   return (
     <form aria-label="Dados do perfil" noValidate onSubmit={salvar} className="flex flex-col gap-8">
       <div className="flex items-center gap-6">
-        <AvatarDePessoa nome={nome || usuario.nome} foto={foto} tamanho="lg" />
+        <AvatarDePessoa nome={nome || inicial.nome} foto={foto} tamanho="lg" />
         <div className="flex flex-col gap-2">
           <span className="rotulo">Foto</span>
           <div className="flex gap-2">
@@ -168,6 +213,7 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
           <input
             id="perfil-nome"
             value={nome}
+            maxLength={120}
             onChange={(e) => {
               setNome(e.target.value)
               setErroNome('')
@@ -191,15 +237,21 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
             id="perfil-email"
             type="email"
             value={email}
+            readOnly={emailDoAcesso}
             onChange={(e) => {
               setEmail(e.target.value)
               setErroEmail('')
               limparResultado()
             }}
             aria-invalid={Boolean(erroEmail)}
-            aria-describedby={erroEmail ? 'perfil-email-erro' : undefined}
-            className="campo"
+            aria-describedby={erroEmail ? 'perfil-email-erro' : emailDoAcesso ? 'perfil-email-acesso' : undefined}
+            className={emailDoAcesso ? 'campo text-al-muted' : 'campo'}
           />
+          {emailDoAcesso && (
+            <p id="perfil-email-acesso" className="text-sm text-al-muted">
+              É o e-mail com que você entra na Althius; ele não muda por aqui.
+            </p>
+          )}
           {erroEmail && (
             <p id="perfil-email-erro" role="alert" className="text-sm text-al-erro">
               {erroEmail}
@@ -216,12 +268,17 @@ function FormularioDePerfil({ usuario }: { usuario: Workspace['usuario'] }) {
           Cancelar
         </Button>
         {erro ? (
-          <p role="alert" className="text-al-erro">
-            {erro}
-          </p>
+          <>
+            <p role="alert" className="text-al-erro">
+              {erro}
+            </p>
+            <Button type="button" variant="outline" disabled={salvando} onClick={() => void salvar()}>
+              Tentar de novo
+            </Button>
+          </>
         ) : (
-          <p role="status" className="text-al-sucesso">
-            {mensagem}
+          <p role="status" className={salvando ? 'text-al-muted' : 'text-al-sucesso'}>
+            {salvando ? 'Salvando o perfil…' : mensagem}
           </p>
         )}
       </div>
