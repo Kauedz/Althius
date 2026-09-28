@@ -75,3 +75,5 @@
 - **Atualização:** a lista é relida ao voltar para a aba, a cada 5 s com a aba à vista enquanto há conta conectando ou sincronizando ou uma autenticação aberta (até o link vencer, em 15 min), e pelo botão Atualizar.
 - **Código:** `projeto-althius-frontend/src/fonte/supabase-contas-remetentes.ts` (RPC `list_owned_sender_accounts` e Edge Function `sender-accounts`) e `projeto-althius-frontend/src/paginas/configuracoes/bloco-contas-remetentes.tsx`.
 - **Testes:** `src/fonte/supabase-contas-remetentes.test.ts` (7) e `src/paginas/configuracoes/contas-remetentes.test.tsx` (13), pelo Supabase falso.
+
+- **QA manual (2026-09-28):** "Atualizar" em Minhas Contas remetentes mostra "Atualizando…" e "Lista atualizada às HH:MM" (ou o erro), e o bloco diz de qual Workspace são as contas: cada Workspace tem as suas.

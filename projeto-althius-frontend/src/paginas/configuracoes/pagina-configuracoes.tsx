@@ -8,7 +8,7 @@ import { useAmbiente } from '@/fonte/contexto'
 import { SecaoAjuda } from './secao-ajuda'
 import { SecaoMemoria } from './secao-memoria'
 import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
-import { SecaoPlano } from './secao-plano'
+import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
 import { SecaoPreferencias } from './secao-preferencias'
 import { SecaoWorkspace } from './secao-workspace'
 
@@ -36,7 +36,7 @@ const SECOES: Record<
   preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias, NoWorkspaceOperacional: SecaoPreferencias },
   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace, modulo: 'participantes' },
   memoria: { rotulo: 'Memória do Workspace', Componente: SecaoMemoria, comPaginas: true },
-  plano: { rotulo: 'Plano', Componente: SecaoPlano },
+  plano: { rotulo: 'Plano', Componente: SecaoPlano, NoWorkspaceOperacional: SecaoPlanoDoWorkspaceOperacional },
   ajuda: { rotulo: 'Ajuda e informações', Componente: SecaoAjuda, comPaginas: true, informativa: true },
 }
 
