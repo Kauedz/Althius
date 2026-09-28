@@ -1358,6 +1358,159 @@ describe('Workspace de entrada depois do login', () => {
   })
 })
 
+/**
+ * A função do banco que cria o Workspace da empresa, como ela se comporta: com a mesma chave devolve o Workspace já
+ * criado; com outra chave, cria outro. `perderResposta` simula as respostas que se perdem depois de o banco confirmar.
+ */
+function workspaceDaEmpresaNoBanco(
+  tabelas: Record<string, Record<string, unknown>[]>,
+  { perderResposta = 0, segurar }: { perderResposta?: number; segurar?: () => Promise<void> } = {},
+) {
+  const pedidos: Record<string, unknown>[] = []
+  const criados = new Map<string, Record<string, unknown>>()
+  async function create_company_workspace(parametros: Record<string, unknown>) {
+    pedidos.push(parametros)
+    await segurar?.()
+    const chave = String(parametros.p_request_id)
+    let workspace = criados.get(chave)
+    if (!workspace) {
+      workspace = { id: `ws-empresa-${criados.size + 1}`, kind: 'empresa', name: String(parametros.p_name).trim(), owner_user_id: null }
+      criados.set(chave, workspace)
+      ;(tabelas.workspaces ??= []).push(workspace)
+      ;(tabelas.workspace_memberships ??= []).push(participacao(String(workspace.id)))
+    }
+    if (pedidos.length <= perderResposta) throw new Error('Failed to fetch')
+    return workspace
+  }
+  return { rpcs: { create_company_workspace }, pedidos }
+}
+
+const opcoesDoSeletor = async () =>
+  within(await screen.findByRole('combobox', { name: 'Selecione o Workspace' })).getAllByRole('option').map((opcao) => opcao.textContent)
+
+const workspaceNaNavegacao = async (nome: string) =>
+  within(await screen.findByRole('complementary', { name: 'Navegação' })).findByRole('button', { name: `Workspace: ${nome}` })
+
+describe('Workspace da empresa por ação explícita', () => {
+  it('no Workspace pessoal, a pessoa cria o Workspace da empresa pelo nome, entra nele como Administradora e mantém o pessoal', async () => {
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const banco = workspaceDaEmpresaNoBanco(tabelas)
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas, rpcs: banco.rpcs })
+
+    expect(await workspaceNaNavegacao('Marina Souza')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+    expect(screen.getByText(/nada do seu Workspace pessoal é copiado nem movido/i)).toBeInTheDocument()
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+
+    expect(await workspaceNaNavegacao('Norte Distribuidora')).toBeInTheDocument()
+    expect(banco.pedidos).toEqual([{ p_name: 'Norte Distribuidora', p_request_id: expect.any(String) }])
+    await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
+    expect(await screen.findByText('Administrador neste Workspace')).toBeInTheDocument()
+    await usuario.keyboard('{Escape}')
+    // Criar outro Workspace da empresa é uma ação do Workspace pessoal.
+    expect(screen.queryByRole('button', { name: 'Criar Workspace da empresa' })).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
+    expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza', 'Norte Distribuidora'])
+    await usuario.selectOptions(screen.getByRole('combobox', { name: 'Selecione o Workspace' }), 'Marina Souza')
+    expect(await workspaceNaNavegacao('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('clicar duas vezes ou tentar de novo depois de uma falha repete o mesmo pedido e não cria dois Workspaces', async () => {
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    let liberar: () => void = () => {}
+    const segurando = new Promise<void>((resolver) => { liberar = resolver })
+    // O banco cria o Workspace no primeiro pedido, mas a resposta se perde no caminho.
+    const banco = workspaceDaEmpresaNoBanco(tabelas, { perderResposta: 1, segurar: () => segurando })
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas, rpcs: banco.rpcs })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
+    await usuario.dblClick(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+    expect(screen.getByRole('button', { name: 'Criando…' })).toBeDisabled()
+    await act(async () => liberar())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível criar o Workspace da empresa agora.')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+
+    expect(await workspaceNaNavegacao('Norte Distribuidora')).toBeInTheDocument()
+    expect(banco.pedidos).toHaveLength(2)
+    expect(new Set(banco.pedidos.map((p) => p.p_request_id)).size).toBe(1)
+    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
+    expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza', 'Norte Distribuidora'])
+  })
+
+  it('perdida a resposta, voltar e reabrir o formulário repete o mesmo pedido e abre o Workspace já criado', async () => {
+    const tabelas: Record<string, Record<string, unknown>[]> = {}
+    const banco = workspaceDaEmpresaNoBanco(tabelas, { perderResposta: 1 })
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas, rpcs: banco.rpcs })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível criar o Workspace da empresa agora.')
+
+    await usuario.click(screen.getByRole('button', { name: 'Voltar ao Workspace pessoal' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+
+    expect(await workspaceNaNavegacao('Norte Distribuidora')).toBeInTheDocument()
+    expect(new Set(banco.pedidos.map((p) => p.p_request_id)).size).toBe(1)
+    expect((tabelas.workspaces ?? []).filter((w) => w.kind === 'empresa')).toHaveLength(1)
+  })
+
+  it('sem o nome da empresa nada é pedido ao banco, e a recusa do banco aparece para a pessoa', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    const { usuario } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      rpcs: {
+        create_company_workspace: (parametros) => {
+          pedidos.push(parametros)
+          throw Object.assign(new Error('company name is too long'), { code: '22023' })
+        },
+      },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
+    await usuario.type(screen.getByLabelText('Nome da empresa'), '   ')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Informe o nome da empresa.')
+    expect(pedidos).toEqual([])
+
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte')
+    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Use até 100 caracteres no nome da empresa.')
+    expect(pedidos).toHaveLength(1)
+  })
+
+  it('entrar, voltar sem criar e trocar de Workspace nunca criam um Workspace da empresa', async () => {
+    const tabelas: Record<string, Record<string, unknown>[]> = {
+      workspace_memberships: [participacao('ws-norte', 'member')],
+      workspaces: [{ id: 'ws-norte', kind: 'empresa', name: 'Norte', owner_user_id: null }],
+    }
+    const banco = workspaceDaEmpresaNoBanco(tabelas)
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], tabelas, rpcs: banco.rpcs })
+    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+
+    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
+    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
+    await usuario.click(screen.getByRole('button', { name: 'Voltar ao Workspace pessoal' }))
+    expect(await workspaceNaNavegacao('Marina Souza')).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
+    expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza', 'Norte'])
+    await usuario.selectOptions(screen.getByRole('combobox', { name: 'Selecione o Workspace' }), 'Norte')
+    expect(await workspaceNaNavegacao('Norte')).toBeInTheDocument()
+
+    expect(banco.pedidos).toEqual([])
+    expect(tabelas.workspaces.map((w) => w.name)).toEqual(['Norte', 'Marina Souza'])
+  })
+})
+
 describe('Esqueci a senha', () => {
   const NOVA_SENHA = 'outra frase bem longa 42'
 

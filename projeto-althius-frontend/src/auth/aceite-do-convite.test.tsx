@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
@@ -99,7 +99,8 @@ describe('Aceite do convite', () => {
 
     expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
     expect(banco.aceites).toEqual([TOKEN])
-    expect(window.location.pathname).toBe('/')
+    // Aceito o convite, o roteador leva ao início logo depois de o Workspace abrir.
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
 
     await abrirPessoasEAcesso(usuario)
     const informacoes = within(await screen.findByRole('region', { name: 'Workspace' }))
@@ -120,7 +121,8 @@ describe('Aceite do convite', () => {
 
     expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
     expect(banco.aceites).toEqual([TOKEN])
-    expect(window.location.pathname).toBe('/')
+    // Aceito o convite, o roteador leva ao início logo depois de o Workspace abrir.
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
   })
 
   it('quem se cadastra pelo convite ganha o Workspace pessoal e entra primeiro no Workspace do convite', async () => {
