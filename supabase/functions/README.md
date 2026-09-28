@@ -13,6 +13,9 @@ Configure em Supabase Edge Function Secrets:
   (`POST /v2/webhooks/endpoints`); usado para validar o header `unipile-signature` (HMAC-SHA256).
 - `APP_ORIGIN`: origem do frontend, sem caminho. Pode listar várias, separadas por vírgula (a publicada primeiro, porque é para ela que a conexão de canal volta); `http://localhost` e `http://127.0.0.1` em qualquer porta são sempre aceitos pelo CORS, já que toda função exige o JWT do usuário. O CORS fica em `_shared/cors.ts` e libera o cabeçalho `x-client-info` que o supabase-js manda.
 
+- `RESEND_API_KEY`: chave da API do Resend, só com permissão de envio, usada pela `workspace-invitation-email` para mandar o e-mail do Convite. O domínio do remetente precisa estar verificado no Resend.
+- `INVITE_EMAIL_FROM` (opcional): remetente do e-mail do Convite. Padrão: `Althius <contato@althius.com.br>`.
+
 O runtime fornece `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`. Nenhum segredo Unipile deve ser
 definido com prefixo `VITE_` ou enviado ao cliente.
 
@@ -99,6 +102,14 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
   - confere na Unipile, em páginas e guardando até onde foi (`conversations_to_reconcile`, `record_reconciliation_progress`), a última conversa de cada Contato das Sequências que saíram pela conta;
   - só então libera a conta (`finish_sender_reconciliation`). Até lá, nenhum passo sai por ela.
 - `sequence-step-sends` e `sequence-runner` compartilham o núcleo do envio: conferir a conversa, liberar pelo banco, enviar pela Unipile e gravar o resultado. Os adaptadores reais ficam em `_shared/send-step-adapters.ts`.
+
+- `workspace-invitation-email` manda o e-mail do Convite (CRM-03). O navegador pede `{ workspaceId, invitationId }` depois de registrar o Convite. A função lê o Convite com a sessão de quem pede (`list_workspace_invitations`), então só um Administrador do Workspace, e só com o Convite pendente, recebe o token. Ela manda pelo Resend o link `<origem do app>/convite/<token>` e responde `{ sent: true }` só quando o Resend confirma. Uma recusa volta 502 e um envio sem confirmação volta 504; nos dois casos o link continua na tela para ser copiado.
+
+## Ligar o e-mail do Convite (CRM-03)
+
+1. No PowerShell, cadastrar a chave do Resend digitando-a no próprio terminal: `npx supabase secrets set RESEND_API_KEY=<chave> --project-ref <ref>`.
+2. Publicar: `npx supabase functions deploy workspace-invitation-email --project-ref <ref>`.
+3. Convidar um e-mail seu em Configurações → Workspace e conferir a caixa de entrada.
 
 ## Ligar o Executor (canais-05)
 

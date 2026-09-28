@@ -1,10 +1,11 @@
 // Participantes e convites do Workspace operacional, no Supabase (CRM-03). Tudo passa pelas funções do banco, que
 // conferem a Participação ativa e o papel de quem chama: só Administrador convida, revoga convite, muda papel e
-// remove Participação; o último Administrador e o Titular do Workspace pessoal ficam protegidos lá. Nenhum e-mail é
-// enviado: o convite traz o link, que o Administrador copia.
+// remove Participação; o último Administrador e o Titular do Workspace pessoal ficam protegidos lá. O e-mail do convite
+// sai pela Edge Function workspace-invitation-email, depois de registrado; o link também fica para copiar.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { enderecoDoConvite } from '@/auth/destino'
+import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import {
   ERRO_CONVITE_DE_OUTRO_EMAIL,
   ERRO_DE_EMAIL,
@@ -110,7 +111,13 @@ function converterConvite(linha: RegistroDoConvite): Convite {
 
 export type FonteDeParticipantes = Pick<
   FonteDeAgentes,
-  'observar' | 'participantesDoWorkspace' | 'convidarParaWorkspace' | 'cancelarConvite' | 'mudarPapel' | 'removerDoWorkspace'
+  | 'observar'
+  | 'participantesDoWorkspace'
+  | 'convidarParaWorkspace'
+  | 'enviarEmailDoConvite'
+  | 'cancelarConvite'
+  | 'mudarPapel'
+  | 'removerDoWorkspace'
 >
 
 export function criarFonteDeParticipantesSupabase(
@@ -170,6 +177,16 @@ export function criarFonteDeParticipantesSupabase(
       )
       avisar()
       return converterConvite(linha)
+    },
+
+    async enviarEmailDoConvite(conviteId) {
+      const { error } = await cliente.functions.invoke('workspace-invitation-email', {
+        body: { workspaceId, invitationId: conviteId },
+      })
+      if (!error) return
+      const recusa = await corpoDoErroDaFuncao(error)
+      if (typeof recusa?.error === 'string') throw new Error(recusa.error)
+      throw new Error(await motivoDaFalhaDaFuncao('workspace-invitation-email', error, 'RESEND_API_KEY e APP_ORIGIN'))
     },
 
     async cancelarConvite(conviteId) {

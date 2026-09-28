@@ -424,6 +424,20 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
     }
   }
 
+  const [reenviando, setReenviando] = useState<string | null>(null)
+  async function reenviarEmail({ id, email }: Convite) {
+    if (!fonte.enviarEmailDoConvite) return
+    setReenviando(id)
+    try {
+      await fonte.enviarEmailDoConvite(id)
+      aoConcluir({ tipo: 'sucesso', texto: `E-mail do convite enviado para ${email}.` })
+    } catch (e) {
+      aoConcluir({ tipo: 'erro', texto: `O e-mail do convite para ${email} não foi enviado: ${mensagemDeErro(e)}` })
+    } finally {
+      setReenviando(null)
+    }
+  }
+
   async function copiarLink({ email, link }: Convite) {
     if (!link) return
     try {
@@ -453,6 +467,16 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
         <ul aria-label="Convites pendentes" className="flex flex-col">
           {pendentes.map((convite) => (
             <ItemDoConvite key={convite.id} convite={convite}>
+              {ehAdministrador && convite.link && fonte.enviarEmailDoConvite && (
+                <button
+                  type="button"
+                  disabled={reenviando === convite.id}
+                  onClick={() => reenviarEmail(convite)}
+                  className={BOTAO_DISCRETO}
+                >
+                  {reenviando === convite.id ? 'Enviando…' : 'Reenviar e-mail'}
+                </button>
+              )}
               {ehAdministrador && convite.link && (
                 <button type="button" onClick={() => copiarLink(convite)} className={BOTAO_DISCRETO}>
                   <Link2 strokeWidth={1.8} className="size-4" aria-hidden />
@@ -541,13 +565,27 @@ function DialogoDeConvite({
     setEnviando(true)
     try {
       const convite = await fonte.convidarParaWorkspace({ email, papel })
-      aoConcluir({
-        tipo: 'sucesso',
-        // Sem SMTP de produção, nenhum e-mail sai: o convite nunca alega envio.
-        texto: `Convite registrado para ${convite.email} como ${ROTULO_DO_PAPEL[convite.papel]}. ${
-          demonstracao ? 'Demonstração: nenhum e-mail foi enviado.' : 'Nenhum e-mail foi enviado: copie o link do convite e envie à pessoa.'
-        }`,
-      })
+      const registrado = `Convite registrado para ${convite.email} como ${ROTULO_DO_PAPEL[convite.papel]}`
+      if (!fonte.enviarEmailDoConvite) {
+        aoConcluir({
+          tipo: 'sucesso',
+          texto: `${registrado}. ${demonstracao ? 'Demonstração: nenhum e-mail foi enviado.' : 'Nenhum e-mail foi enviado: copie o link do convite e envie à pessoa.'}`,
+        })
+      } else {
+        // O convite já vale; o e-mail só é dado como enviado quando o provedor confirma.
+        try {
+          await fonte.enviarEmailDoConvite(convite.id)
+          aoConcluir({ tipo: 'sucesso', texto: `${registrado}. E-mail do convite enviado para ${convite.email}.` })
+        } catch (e) {
+          const motivo = mensagemDeErro(e)
+          aoConcluir({
+            tipo: 'erro',
+            texto: `${registrado}, mas o e-mail não foi enviado: ${motivo}${
+              /link/i.test(motivo) ? '' : ' Copie o link do convite e envie à pessoa.'
+            }`,
+          })
+        }
+      }
       fechar()
     } catch (e) {
       setErro(mensagemDeErro(e))
@@ -563,7 +601,9 @@ function DialogoDeConvite({
         <DialogDescription className="text-al-muted">
           {demonstracao
             ? `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar. Demonstração: nenhum e-mail é enviado.`
-            : `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar o convite com este mesmo e-mail. Nenhum e-mail é enviado: depois de registrar, copie o link do convite e envie à pessoa.`}
+            : fonte.enviarEmailDoConvite
+              ? `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar o convite com este mesmo e-mail. Ao registrar, a Althius envia o convite por e-mail; o link também fica aqui para copiar.`
+              : `A pessoa entra no Workspace ${nomeDoWorkspace} com o papel escolhido depois de aceitar o convite com este mesmo e-mail. Nenhum e-mail é enviado: depois de registrar, copie o link do convite e envie à pessoa.`}
         </DialogDescription>
         <form aria-label="Convidar pessoa" noValidate onSubmit={registrar} className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">

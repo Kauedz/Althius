@@ -5,7 +5,11 @@
  * função que não subiu (segredo ausente), a origem do app fora do APP_ORIGIN (o navegador bloqueia a resposta) ou o
  * status e o código devolvidos. Usado quando a função não respondeu com a mensagem própria dela.
  */
-export async function motivoDaFalhaDaFuncao(nome: string, error: unknown): Promise<string> {
+export async function motivoDaFalhaDaFuncao(
+  nome: string,
+  error: unknown,
+  segredos = 'UNIPILE_API_KEY e APP_ORIGIN',
+): Promise<string> {
   const falha = error as { name?: string; context?: unknown }
   if (falha?.name === 'FunctionsFetchError') {
     return `A Edge Function ${nome} não respondeu ao navegador. Confira se ela está publicada e se o segredo APP_ORIGIN é a origem deste app (${window.location.origin}).`
@@ -16,7 +20,7 @@ export async function motivoDaFalhaDaFuncao(nome: string, error: unknown): Promi
     const codigo = typeof corpo?.code === 'string' ? corpo.code : ''
     if (status === 404 || codigo === 'NOT_FOUND') return `A Edge Function ${nome} não está publicada neste projeto.`
     if (codigo === 'BOOT_ERROR' || status === 503) {
-      return `A Edge Function ${nome} não conseguiu iniciar. Confira os segredos UNIPILE_API_KEY e APP_ORIGIN.`
+      return `A Edge Function ${nome} não conseguiu iniciar. Confira os segredos ${segredos}.`
     }
     const detalhe = typeof corpo?.message === 'string' ? `: ${corpo.message}` : ''
     return `A Edge Function ${nome} respondeu HTTP ${status}${codigo ? ` (${codigo})` : ''}${detalhe}.`
