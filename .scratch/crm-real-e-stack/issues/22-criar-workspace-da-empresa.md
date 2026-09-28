@@ -4,7 +4,7 @@
 
 **Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md) (substitui o CRM-02).
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Existe uma ação explícita "Criar Workspace da empresa", com o nome da empresa informado. O nome pode vir sugerido da empresa do Day0, sem ser aplicado sozinho. — Botão "Criar Workspace da empresa" na barra do Workspace operacional, só no Workspace pessoal. Ele abre o formulário com "Nome da empresa" (obrigatório, até 100 caracteres) em `src/auth/workspace-da-empresa.tsx`. Ainda não há sugestão: o Day0 não existe no Workspace operacional (CRM-24), e a empresa do Day0 da Demonstração não pode vazar para ele. O campo começa vazio, então nada é aplicado sozinho.
 - [x] Cadastro, login, Day0 e troca de Workspace nunca criam um Workspace da empresa sem essa ação. — Só o envio do formulário chama `create_company_workspace`; o bootstrap e o aceite de convite não criam Workspace da empresa. `raiz.test.tsx` "entrar, voltar sem criar e trocar de Workspace nunca criam um Workspace da empresa".

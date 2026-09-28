@@ -4,7 +4,7 @@
 
 **Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md); Auth-04: [Entrar com senha ou com código](../../autenticacao-google-email/issues/04-entrar-com-senha-ou-codigo.md) (substituem o CRM-02).
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Convites persistem e apresentam estados pendente, aceito, expirado e revogado. — `private.workspace_invitations` e `public.list_workspace_invitations` (o pendente vencido já aparece como expirado); pgTAP `supabase/tests/convites_e_participantes.sql`; `participantes-reais.test.tsx` "mostra os convites aceitos, expirados e revogados…".
 - [x] O e-mail de convite é enviado pelo provedor de produção (Resend, mesmo domínio do SMTP do Supabase Auth); a tela só diz "enviado" quando o provedor confirma. — Edge Function `workspace-invitation-email` (PR #70), conferida no teste real de 2026-09-28.

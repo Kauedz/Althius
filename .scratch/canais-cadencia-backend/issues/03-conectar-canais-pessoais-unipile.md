@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Acesso real e responsabilidade exclusiva.
 
-**Status:** in-progress
+**Status:** closed
 
 - [x] O usuário autenticado inicia uma tentativa temporária de conexão vinculada ao seu usuário e Workspace, e o backend gera um link hospedado novo para cada tentativa.
 - [x] Callback e ciclo de vida são validados no backend antes de associar a Conta remetente ao titular; o redirecionamento serve apenas para retornar à tela e não prova a conexão.

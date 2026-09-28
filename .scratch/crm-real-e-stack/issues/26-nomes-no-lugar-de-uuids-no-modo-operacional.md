@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] O seletor "Selecione o Workspace" lista os Workspaces pelo nome, e não pelo UUID (hoje mostra `ca40c1d2-…` e `05bb7bb8-…`).
 - [x] A barra lateral mostra o nome do Workspace escolhido, e não o rótulo genérico "Workspace".
