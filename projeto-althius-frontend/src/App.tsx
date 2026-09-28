@@ -4,6 +4,7 @@ import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from 'react-rout
 import { AvisosDoNavegador } from '@/components/avisos-do-navegador'
 import { Casca } from '@/components/casca'
 import { PaginaDeModuloIndisponivel } from '@/components/modulo-indisponivel'
+import { TemaSalvoNaConta } from '@/components/tema-salvo-na-conta'
 import { ConversasProvider } from '@/conversa/contexto'
 import type { Ambiente, ModuloDoWorkspace } from '@/fonte/ambiente'
 import {
@@ -85,6 +86,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
                   <SinaisDoMockupProvider>
                     <ConversasProvider animarDigitacao={animarDigitacao}>
                       <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
+                        <TemaSalvoNaConta />
                         {rotaInicial ? (
                           <MemoryRouter initialEntries={[rotaInicial]}>
                             <AvisosDoNavegador />

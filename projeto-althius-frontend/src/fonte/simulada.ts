@@ -464,6 +464,11 @@ export function criarFonteSimulada({
         papel: participacoes.papelDaSessao(),
         aprovacoesPendentes: todasAsAprovacoes().filter((a) => a.estado === 'pendente').length,
       })),
+    perfil: () =>
+      responder(() => {
+        const { nome, email, foto } = participacoes.usuario()
+        return { nome, email, foto }
+      }),
     salvarPerfil: (perfil) => mudar(() => participacoes.salvarPerfil(perfil)),
     preferencias: () => responder(() => participacoes.preferencias()),
     salvarPreferencias: (preferencias) => mudar(() => participacoes.salvarPreferencias(preferencias)),

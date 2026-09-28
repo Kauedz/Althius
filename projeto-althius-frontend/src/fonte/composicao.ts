@@ -16,6 +16,7 @@ import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
 import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
+import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
@@ -50,12 +51,23 @@ export function criarAmbienteDoWorkspace({
   usuario: ContaDeUsuarioDaSessao
   participacao: ParticipacaoNoWorkspace
 }): Ambiente {
+  const participantes = criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id)
+  const perfil = criarFonteDoPerfilSupabase(cliente, { usuario, participacao })
   return {
     modo: 'real',
-    // Participantes e convites já têm backend; o resto de Agentes e Configurações, ainda não.
+    // Participantes e convites, Meu perfil e Preferências já têm backend; o resto de Agentes e Configurações, ainda não.
     fonte: {
       ...criarFonteDeAgentesIndisponivel({ usuario, participacao }),
-      ...criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id),
+      ...participantes,
+      ...perfil,
+      observar(ouvinte) {
+        const pararDeOuvirParticipantes = participantes.observar(ouvinte)
+        const pararDeOuvirPerfil = perfil.observar(ouvinte)
+        return () => {
+          pararDeOuvirParticipantes()
+          pararDeOuvirPerfil()
+        }
+      },
     },
     fonteDeContas: criarFonteDeContasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),

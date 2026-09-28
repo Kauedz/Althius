@@ -2,8 +2,9 @@ import { Bell, BellOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Carregando } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
+import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { useDados, useFonte } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import { avisosQueRecebe } from '@/fonte/regras-avisos'
 import type { Papel } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
@@ -13,13 +14,16 @@ import {
   permissaoDoNavegador,
   type EstadoDasNotificacoes,
 } from '@/notificacoes-do-navegador'
-import { useTema, type Tema } from '@/tema'
+import type { Tema } from '@/tema'
+import { useTemaDaConta } from '@/tema-da-conta'
 import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
-/** Preferências pessoais: o tema e as notificações do navegador. Valem só para a Conta de usuário da sessão. */
+/**
+ * Preferências pessoais: o tema e as notificações do navegador. Valem só para a Conta de usuário da sessão, em qualquer
+ * Workspace. Na Demonstração ficam no navegador; no Workspace operacional, na Conta de usuário, e voltam em qualquer
+ * dispositivo.
+ */
 export function SecaoPreferencias() {
-  const { tema, escolher } = useTema()
-
   return (
     <SecaoDeConfiguracoes
       id="preferencias"
@@ -28,16 +32,50 @@ export function SecaoPreferencias() {
       descricao="Preferências pessoais, valem só para a sua Conta de usuário."
       estreita
     >
-      <div className="flex items-center justify-between gap-6 border-t border-al-line pt-6">
-        <div className="flex flex-col gap-1">
-          <span className="font-normal">Tema</span>
-          <span className="text-sm text-al-muted">A escolha é gravada no navegador e volta na abertura seguinte.</span>
-        </div>
-        <SeletorDeTema tema={tema} onMudar={escolher} />
-      </div>
-
+      <EscolhaDoTema />
       <NotificacoesDoNavegador />
     </SecaoDeConfiguracoes>
+  )
+}
+
+const TEMA_SALVO = 'Tema salvo na sua Conta de usuário. Ele volta em qualquer dispositivo em que você entrar.'
+
+/** No Workspace operacional, a tela só troca de tema depois de o backend salvar a escolha. */
+function EscolhaDoTema() {
+  const { modo } = useAmbiente()
+  const { tema, escolher, salvamento } = useTemaDaConta()
+  const salvando = salvamento.estado === 'salvando'
+
+  return (
+    <section aria-labelledby="titulo-tema" className="flex flex-col gap-4 border-t border-al-line pt-6">
+      <div className="flex items-center justify-between gap-6">
+        <div className="flex flex-col gap-1">
+          <span id="titulo-tema" className="font-normal">
+            Tema
+          </span>
+          <span className="text-sm text-al-muted">
+            {modo === 'real'
+              ? 'A escolha fica salva na sua Conta de usuário e volta em qualquer dispositivo.'
+              : 'A escolha é gravada no navegador e volta na abertura seguinte.'}
+          </span>
+        </div>
+        <SeletorDeTema tema={tema} desativado={salvando} onMudar={(novo) => void escolher(novo)} />
+      </div>
+      {salvamento.estado === 'falhou' ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Mensagem tipo="erro">
+            Não foi possível salvar o tema {salvamento.tema}; o tema continua {tema}. Verifique sua conexão e tente de novo.
+          </Mensagem>
+          <Button type="button" variant="outline" onClick={() => void escolher(salvamento.tema)}>
+            Tentar de novo
+          </Button>
+        </div>
+      ) : (
+        <Mensagem tipo="info">
+          {salvando ? 'Salvando o tema…' : salvamento.estado === 'salvo' ? TEMA_SALVO : null}
+        </Mensagem>
+      )}
+    </section>
   )
 }
 
@@ -70,7 +108,8 @@ function NotificacoesDoNavegador() {
   const workspace = useDados((f) => f.workspace(), [])
   const [permissao, setPermissao] = useState(permissaoDoNavegador)
   const [perguntando, setPerguntando] = useState(false)
-  const [resultado, setResultado] = useState<{ tipo: 'info' | 'erro'; texto: string } | null>(null)
+  const [resultado, setResultado] = useState<{ tipo: 'info' | 'erro'; texto: string; repetir?: () => void } | null>(null)
+  const [salvando, setSalvando] = useState(false)
   const estado = estadoDasNotificacoes(preferencias?.notificacoesDoNavegador ?? false, permissao)
   const { rotulo, texto } = DESCRICAO_DO_ESTADO[estado]
   const ativado = estado === 'ativado'
@@ -82,12 +121,17 @@ function NotificacoesDoNavegador() {
     return () => window.removeEventListener('focus', reler)
   }, [])
 
+  // A preferência só aparece mudada depois de gravada; recusada, continua como estava e pode ser gravada de novo.
   async function salvar(notificacoesDoNavegador: boolean, sucesso?: string) {
+    setResultado(null)
+    setSalvando(true)
     try {
       await fonte.salvarPreferencias({ notificacoesDoNavegador })
       if (sucesso) setResultado({ tipo: 'info', texto: sucesso })
     } catch (erro) {
-      setResultado({ tipo: 'erro', texto: mensagemDeErro(erro) })
+      setResultado({ tipo: 'erro', texto: mensagemDeErro(erro), repetir: () => void salvar(notificacoesDoNavegador, sucesso) })
+    } finally {
+      setSalvando(false)
     }
   }
 
@@ -149,12 +193,22 @@ function NotificacoesDoNavegador() {
             <Switch
               id="ativar-notificacoes"
               checked={ativado}
-              disabled={estado === 'nao-suportado' || perguntando}
+              disabled={estado === 'nao-suportado' || perguntando || salvando}
               onCheckedChange={(ligar) => (ligar ? ativar() : desativar())}
             />
           </div>
           <Mensagem tipo={estado === 'bloqueado' ? 'erro' : 'info'}>{texto}</Mensagem>
-          {resultado && <Mensagem tipo={resultado.tipo}>{resultado.texto}</Mensagem>}
+          {salvando && <Mensagem tipo="info">Salvando a preferência…</Mensagem>}
+          {resultado && (
+            <div className="flex flex-wrap items-center gap-3">
+              <Mensagem tipo={resultado.tipo}>{resultado.texto}</Mensagem>
+              {resultado.repetir && (
+                <Button type="button" variant="outline" onClick={resultado.repetir}>
+                  Tentar de novo
+                </Button>
+              )}
+            </div>
+          )}
           {ativado && <AvisosQueVoceRecebe papel={workspace?.papel ?? null} />}
         </div>
       )}
@@ -181,7 +235,15 @@ function AvisosQueVoceRecebe({ papel }: { papel: Papel | null }) {
   )
 }
 
-function SeletorDeTema({ tema, onMudar }: { tema: Tema; onMudar: (tema: Tema) => void }) {
+function SeletorDeTema({
+  tema,
+  desativado = false,
+  onMudar,
+}: {
+  tema: Tema
+  desativado?: boolean
+  onMudar: (tema: Tema) => void
+}) {
   const opcoes: { valor: Tema; rotulo: string }[] = [
     { valor: 'escuro', rotulo: 'Escuro' },
     { valor: 'claro', rotulo: 'Claro' },
@@ -199,6 +261,7 @@ function SeletorDeTema({ tema, onMudar }: { tema: Tema; onMudar: (tema: Tema) =>
             className="sr-only"
             value={opcao.valor}
             checked={tema === opcao.valor}
+            disabled={desativado}
             onChange={() => onMudar(opcao.valor)}
           />
           {opcao.rotulo}

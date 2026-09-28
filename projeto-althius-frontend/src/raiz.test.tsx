@@ -112,8 +112,9 @@ describe('Workspace operacional e Demonstração', () => {
     expect(screen.queryByText(new RegExp(daDemonstracao))).not.toBeInTheDocument()
   })
 
-  // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`.
-  it.each(['/configuracoes/preferencias', '/configuracoes/memoria/icp', '/configuracoes/plano'])(
+  // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
+  // Preferências também (CRM-08): `paginas/configuracoes/perfil-e-preferencias-reais.test.tsx`.
+  it.each(['/configuracoes/memoria/icp', '/configuracoes/plano'])(
     '%s mostra que a seção está indisponível, sem dados da Demonstração',
     async (rota) => {
       window.history.replaceState(null, '', rota)

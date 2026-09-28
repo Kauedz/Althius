@@ -54,6 +54,7 @@ function abrirMeuPerfil({
     tabelas: { workspace_memberships: [{ workspace_id: 'ws-norte', role: 'member', user_id: MARINA.id, active: true }] },
     rpcs: {
       bootstrap_personal_workspace: () => ({ id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }),
+      get_my_profile: () => [{ name: 'Marina Souza', avatar_data_url: null, email: MARINA.email }],
       list_owned_sender_accounts: (parametros) => {
         listagens.push(parametros)
         return backend.contas
@@ -99,8 +100,9 @@ describe('Minhas Contas remetentes no Workspace operacional', () => {
     expect(within(linkedin).getByText('Sincronizando')).toBeInTheDocument()
     expect(within(linkedin).queryByRole('button', { name: /Conectar|Reconectar/ })).not.toBeInTheDocument()
 
-    // O resto do perfil continua sem backend, e nada da Demonstração aparece no lugar.
-    expect(screen.getByText(/Nome, foto e senha ainda não estão disponíveis neste Workspace/)).toBeInTheDocument()
+    // O resto do perfil vem do backend (CRM-08), e nada da Demonstração aparece no lugar.
+    expect(await screen.findByRole('textbox', { name: 'Nome' })).toHaveValue('Marina Souza')
+    expect(screen.queryByText(/ainda não estão disponíveis neste Workspace/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Databricks|Marina Alves/)).not.toBeInTheDocument()
   })
 
