@@ -424,17 +424,25 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
     }
   }
 
-  const [reenviando, setReenviando] = useState<string | null>(null)
+  // Os convites com e-mail saindo agora: cada botão só volta quando o envio dele termina.
+  const [reenviando, setReenviando] = useState<ReadonlySet<string>>(new Set())
   async function reenviarEmail({ id, email }: Convite) {
-    if (!fonte.enviarEmailDoConvite) return
-    setReenviando(id)
+    if (!fonte.enviarEmailDoConvite || reenviando.has(id)) return
+    setReenviando((atuais) => new Set(atuais).add(id))
     try {
       await fonte.enviarEmailDoConvite(id)
       aoConcluir({ tipo: 'sucesso', texto: `E-mail do convite enviado para ${email}.` })
     } catch (e) {
-      aoConcluir({ tipo: 'erro', texto: `O e-mail do convite para ${email} não foi enviado: ${mensagemDeErro(e)}` })
+      aoConcluir({
+        tipo: 'erro',
+        texto: `O envio do e-mail do convite para ${email} não foi confirmado: ${mensagemDeErro(e)} ${CONVITE_CONTINUA_VALENDO}`,
+      })
     } finally {
-      setReenviando(null)
+      setReenviando((atuais) => {
+        const restantes = new Set(atuais)
+        restantes.delete(id)
+        return restantes
+      })
     }
   }
 
@@ -470,11 +478,11 @@ function Convites({ dados, aoConcluir }: { dados: ParticipantesDoWorkspace; aoCo
               {ehAdministrador && convite.link && fonte.enviarEmailDoConvite && (
                 <button
                   type="button"
-                  disabled={reenviando === convite.id}
+                  disabled={reenviando.has(convite.id)}
                   onClick={() => reenviarEmail(convite)}
                   className={BOTAO_DISCRETO}
                 >
-                  {reenviando === convite.id ? 'Enviando…' : 'Reenviar e-mail'}
+                  {reenviando.has(convite.id) ? 'Enviando…' : 'Reenviar e-mail'}
                 </button>
               )}
               {ehAdministrador && convite.link && (
@@ -535,6 +543,8 @@ function ItemDoConvite({ convite, children }: { convite: Convite; children?: Rea
   )
 }
 
+const CONVITE_CONTINUA_VALENDO = 'O convite continua valendo: copie o link do convite e envie à pessoa.'
+
 function DialogoDeConvite({
   aberto,
   nomeDoWorkspace,
@@ -551,9 +561,12 @@ function DialogoDeConvite({
   const [email, setEmail] = useState('')
   const [papel, setPapel] = useState<Papel>('membro')
   const [erro, setErro] = useState('')
-  const [enviando, setEnviando] = useState(false)
+  // Registrando o convite e, no Workspace operacional, enviando o e-mail: enquanto isso o diálogo não fecha.
+  const [etapa, setEtapa] = useState<'registrando' | 'enviando-email' | null>(null)
+  const enviando = etapa !== null
 
   function fechar() {
+    if (enviando) return
     setEmail('')
     setPapel('membro')
     setErro('')
@@ -562,7 +575,7 @@ function DialogoDeConvite({
 
   async function registrar(evento: FormEvent) {
     evento.preventDefault()
-    setEnviando(true)
+    setEtapa('registrando')
     try {
       const convite = await fonte.convidarParaWorkspace({ email, papel })
       const registrado = `Convite registrado para ${convite.email} como ${ROTULO_DO_PAPEL[convite.papel]}`
@@ -573,24 +586,25 @@ function DialogoDeConvite({
         })
       } else {
         // O convite já vale; o e-mail só é dado como enviado quando o provedor confirma.
+        setEtapa('enviando-email')
         try {
           await fonte.enviarEmailDoConvite(convite.id)
           aoConcluir({ tipo: 'sucesso', texto: `${registrado}. E-mail do convite enviado para ${convite.email}.` })
         } catch (e) {
-          const motivo = mensagemDeErro(e)
           aoConcluir({
             tipo: 'erro',
-            texto: `${registrado}, mas o e-mail não foi enviado: ${motivo}${
-              /link/i.test(motivo) ? '' : ' Copie o link do convite e envie à pessoa.'
-            }`,
+            texto: `${registrado}, mas o envio do e-mail não foi confirmado: ${mensagemDeErro(e)} ${CONVITE_CONTINUA_VALENDO}`,
           })
         }
       }
-      fechar()
+      setEtapa(null)
+      setEmail('')
+      setPapel('membro')
+      setErro('')
+      aoFechar()
     } catch (e) {
       setErro(mensagemDeErro(e))
-    } finally {
-      setEnviando(false)
+      setEtapa(null)
     }
   }
 
@@ -641,11 +655,11 @@ function DialogoDeConvite({
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={fechar} className={BOTAO_SECUNDARIO}>
+            <button type="button" onClick={fechar} disabled={enviando} className={BOTAO_SECUNDARIO}>
               Cancelar
             </button>
             <button type="submit" disabled={enviando} className={BOTAO_PRIMARIO}>
-              Registrar convite
+              {etapa === 'registrando' ? 'Registrando…' : etapa === 'enviando-email' ? 'Enviando e-mail…' : 'Registrar convite'}
             </button>
           </div>
         </form>

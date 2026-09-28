@@ -152,10 +152,7 @@ describe('Pessoas e acesso no Workspace operacional', () => {
 
   it('se o provedor não aceitar o e-mail, o convite fica registrado e a tela diz que o e-mail não saiu', async () => {
     const banco = bancoDoNorte()
-    banco.funcoes['workspace-invitation-email'] = () => ({
-      status: 502,
-      corpo: { error: 'O provedor de e-mail não aceitou o envio. O convite continua valendo: copie o link e envie à pessoa.' },
-    })
+    banco.funcoes['workspace-invitation-email'] = () => ({ status: 502, corpo: { error: 'O provedor de e-mail não aceitou o envio.' } })
     const { usuario } = abrirPessoasEAcesso(banco)
 
     await usuario.click(await screen.findByRole('button', { name: 'Convidar pessoa' }))
@@ -164,7 +161,9 @@ describe('Pessoas e acesso no Workspace operacional', () => {
     await usuario.click(dialogo.getByRole('button', { name: 'Registrar convite' }))
 
     const resultado = await screen.findByText(/Convite registrado para carla@norte.com.br como Membro/)
-    expect(resultado).toHaveTextContent('mas o e-mail não foi enviado: O provedor de e-mail não aceitou o envio.')
+    expect(resultado).toHaveTextContent(
+      'mas o envio do e-mail não foi confirmado: O provedor de e-mail não aceitou o envio. O convite continua valendo: copie o link do convite e envie à pessoa.',
+    )
     expect(resultado).not.toHaveTextContent('E-mail do convite enviado')
     const convite = within(within(screen.getByRole('list', { name: 'Convites pendentes' })).getByRole('listitem', { name: 'carla@norte.com.br' }))
     expect(convite.getByRole('button', { name: 'Copiar link do convite' })).toBeInTheDocument()

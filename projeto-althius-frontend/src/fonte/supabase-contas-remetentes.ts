@@ -57,7 +57,7 @@ export function criarFonteDeContasRemetentesSupabase(
     if (!error) return (data ?? {}) as Record<string, unknown>
     const recusa = await corpoDoErroDaFuncao(error)
     if (typeof recusa?.error === 'string') throw new Error(recusa.error)
-    throw new Error(`Não foi possível falar com o backend das Contas remetentes. ${await motivoDaFalhaDaFuncao('sender-accounts', error)}`)
+    throw new Error(`Não foi possível falar com o backend das Contas remetentes. ${await motivoDaFalhaDaFuncao('sender-accounts', error, 'UNIPILE_API_KEY e APP_ORIGIN')}`)
   }
 
   /** O link da autenticação hospedada: só um endereço HTTPS é aberto. */

@@ -3,12 +3,13 @@
 /**
  * Por que a chamada a uma Edge Function falhou, em palavras de quem opera o Workspace: a função não publicada, a
  * função que não subiu (segredo ausente), a origem do app fora do APP_ORIGIN (o navegador bloqueia a resposta) ou o
- * status e o código devolvidos. Usado quando a função não respondeu com a mensagem própria dela.
+ * status e o código devolvidos. Usado quando a função não respondeu com a mensagem própria dela. `segredos` nomeia os
+ * segredos que a função exige para subir.
  */
 export async function motivoDaFalhaDaFuncao(
   nome: string,
   error: unknown,
-  segredos = 'UNIPILE_API_KEY e APP_ORIGIN',
+  segredos: string,
 ): Promise<string> {
   const falha = error as { name?: string; context?: unknown }
   if (falha?.name === 'FunctionsFetchError') {

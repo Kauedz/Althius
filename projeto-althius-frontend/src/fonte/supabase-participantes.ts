@@ -97,13 +97,20 @@ export async function aceitarConvite(cliente: SupabaseClient, token: string): Pr
   return { workspaceId: (data as { id: string }).id }
 }
 
+const DIA_EM_BRASILIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
+
+/** O dia (aaaa-mm-dd) de um instante no horário de Brasília, o mesmo que o e-mail do convite mostra. */
+function diaEmBrasilia(instante: string): string {
+  return DIA_EM_BRASILIA.format(new Date(instante))
+}
+
 function converterConvite(linha: RegistroDoConvite): Convite {
   return {
     id: linha.id,
     email: linha.email,
     papel: PAPEL[linha.role],
-    registradoEm: linha.created_at.slice(0, 10),
-    expiraEm: linha.expires_at.slice(0, 10),
+    registradoEm: diaEmBrasilia(linha.created_at),
+    expiraEm: diaEmBrasilia(linha.expires_at),
     estado: linha.status,
     ...(linha.token && linha.status === 'pendente' ? { link: enderecoDoConvite(linha.token) } : {}),
   }
