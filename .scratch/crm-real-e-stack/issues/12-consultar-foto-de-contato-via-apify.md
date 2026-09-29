@@ -28,3 +28,5 @@
   - `authenticated` lê `contact_photos` (inclui `actor_id` e `run_id`, e a URL sem o filtro de validade da visão), porque a visão é `security_invoker`;
   - uma foto ainda válida não pode ser atualizada, e uma imagem que quebra antes dos 30 dias, numa URL sem `e=`, cai nas iniciais mas o botão de buscar de novo continua escondido até a visão vencer;
   - `required()`, `clienteDaSessao` e `userFromJwt` repetem o que há nas outras funções; vale levar para `_shared/` numa arrumação à parte.
+
+- 2026-09-29, entrada do Actor conferida: o Nan colou a página do `harvestapi/linkedin-profile-scraper` e o exemplo de entrada dela. O modelo padrão estava errado (`publicIdentifiers`); passou a ser `{"profileScraperMode":"Profile details no email ($4 per 1k)","queries":["{{url}}"]}`, sempre no modo sem busca de e-mail (US$ 4 por mil perfis). Conferido também: a saída traz o campo `photo`, com a validade no `e=` da URL, o que bate com o que o código lê. Continuam sem verificação os termos de uso e a retenção da foto, e falta uma execução real (o teste com o token de teste do Nan). Depois de aplicar este ajuste é preciso publicar de novo `contact-photo-lookup`.

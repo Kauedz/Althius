@@ -7,7 +7,9 @@ import { type Actor, ActorRequestError, ActorTimeoutError, type FotoDoPerfil } f
 
 /** O Actor padrão e o modelo de entrada padrão; ambos sobrescritos por APIFY_PHOTO_ACTOR_ID e APIFY_PHOTO_INPUT. */
 export const ACTOR_PADRAO = 'harvestapi~linkedin-profile-scraper'
-export const ENTRADA_PADRAO = '{"publicIdentifiers":["{{identifier}}"]}'
+// A entrada que a página do Actor documenta: o modo sem busca de e-mail (US$ 4 por mil perfis; o modo com e-mail custa
+// US$ 10 por mil e nunca é o padrão) e a lista de URLs de perfil.
+export const ENTRADA_PADRAO = '{"profileScraperMode":"Profile details no email ($4 per 1k)","queries":["{{url}}"]}'
 
 /** Os campos onde os Actors costumam pôr a imagem do perfil, do mais provável ao menos. */
 const CAMPOS_DA_FOTO = ['photo', 'profilePicture', 'profilePictureUrl', 'pictureUrl', 'avatar', 'imageUrl']

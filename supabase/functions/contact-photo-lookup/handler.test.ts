@@ -303,7 +303,10 @@ Deno.test('Apify: chama o Actor síncrono com o token no cabeçalho, a entrada d
   assertStringIncludes(url, 'maxTotalChargeUsd=0.05')
   assertEquals(url.includes('segredo'), false, 'o token não vai na URL')
   assertEquals((init.headers as Record<string, string>).Authorization, 'Bearer segredo')
-  assertEquals(JSON.parse(init.body as string), { publicIdentifiers: ['maria-souza'] })
+  assertEquals(JSON.parse(init.body as string), {
+    profileScraperMode: 'Profile details no email ($4 per 1k)',
+    queries: [PERFIL],
+  })
 })
 
 Deno.test('Apify: o Actor e a entrada são configuráveis, e a URL inteira pode ir no lugar do identificador', async () => {

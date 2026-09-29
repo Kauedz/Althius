@@ -21,14 +21,15 @@ Escolhido: **`harvestapi/linkedin-profile-scraper`** (id `harvestapi~linkedin-pr
 perfil público sem cookies nem login do LinkedIn, cobra por perfil (uns US$ 4 por mil perfis, segundo a página do
 Actor no Apify) e devolve a foto do perfil no campo `photo`.
 
-**Não consegui verificar o Actor contra a página dele no Apify**: o ambiente em que isto foi escrito não alcança
-`apify.com` (nem o repositório do autor no GitHub), então o Actor, o preço, o nome do campo de entrada e o formato da
-saída vêm só de resultados de busca, sem a documentação do Actor aberta. Por isso:
+O ambiente em que isto foi escrito não alcança `apify.com`; a entrada, o preço e a saída (o campo `photo`, com a
+validade da imagem no `e=` da URL) foram conferidos depois, com o texto da página do Actor que o Nan colou. Não
+foram conferidos os termos de uso nem a retenção da foto. Por isso o Actor, a entrada e o teto ficam configuráveis:
 
 - o id do Actor é configurável (`APIFY_PHOTO_ACTOR_ID`);
 - a entrada é um modelo JSON configurável (`APIFY_PHOTO_INPUT`), com `{{identifier}}` (o `<perfil>` de
-  `linkedin.com/in/<perfil>`) e `{{url}}` (a URL inteira). Padrão: `{"publicIdentifiers":["{{identifier}}"]}`. Se o
-  Actor pedir a URL, use por exemplo `{"urls":["{{url}}"]}`;
+  `linkedin.com/in/<perfil>`) e `{{url}}` (a URL inteira). Padrão, conforme a página do Actor:
+  `{"profileScraperMode":"Profile details no email ($4 per 1k)","queries":["{{url}}"]}`, o modo sem busca de e-mail
+  (US$ 4 por mil perfis; o modo com e-mail custa US$ 10 por mil e não é o padrão);
 - a saída é lida com tolerância: o primeiro item, o primeiro campo entre `photo`, `profilePicture`,
   `profilePictureUrl`, `pictureUrl`, `avatar` e `imageUrl`, como texto ou como objeto com `url`. Item ausente, sem
   imagem ou com erro vira "sem foto", nunca erro da tela;
