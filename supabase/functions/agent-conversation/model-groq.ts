@@ -11,6 +11,31 @@ const URL_DO_GROQ = 'https://api.groq.com/openai/v1/chat/completions'
 /** Modelos abertos têm saída menor que a do Claude: o teto fica abaixo do limite comum deles. */
 const TETO_DE_SAIDA = 4096
 const PRAZO_MS = 120_000
+/** No limite de uso (429), uma nova tentativa, se o Groq pedir para esperar até isto. */
+const ESPERA_MAXIMA_MS = 15_000
+const TAMANHO_DO_DETALHE = 300
+
+/** O motivo que o Groq mandou no corpo do erro, curto, para o log. */
+async function detalheDoErro(resposta: Response): Promise<string> {
+  try {
+    const texto = await resposta.text()
+    try {
+      const corpo = JSON.parse(texto) as { error?: { message?: unknown } }
+      if (typeof corpo?.error?.message === 'string') return corpo.error.message.slice(0, TAMANHO_DO_DETALHE)
+    } catch {
+      // Não é JSON: vai o texto como veio.
+    }
+    return texto.slice(0, TAMANHO_DO_DETALHE)
+  } catch {
+    return ''
+  }
+}
+
+/** Quanto o Groq pediu para esperar (cabeçalho retry-after, em segundos), em ms; null se não disse. */
+function esperaPedida(resposta: Response): number | null {
+  const segundos = Number(resposta.headers.get('retry-after'))
+  return Number.isFinite(segundos) && segundos >= 0 ? segundos * 1000 : null
+}
 
 interface MensagemDoChat {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -123,27 +148,46 @@ export function mensagemDoGroq(resposta: RespostaDoChat): Mensagem {
 }
 
 export function modeloDoGroq(
-  { apiKey, modelo, fetch: buscar = fetch }: { apiKey: string; modelo: string; fetch?: typeof fetch },
+  {
+    apiKey,
+    modelo,
+    fetch: buscar = fetch,
+    esperar = (ms: number) => new Promise<void>((resolver) => setTimeout(resolver, ms)),
+  }: { apiKey: string; modelo: string; fetch?: typeof fetch; esperar?: (ms: number) => Promise<void> },
 ): Modelo {
+  async function chamar(params: Params): Promise<Response> {
+    try {
+      return await buscar(URL_DO_GROQ, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(corpoDoGroq(modelo, params)),
+        signal: AbortSignal.timeout(PRAZO_MS),
+      })
+    } catch (error) {
+      throw new ErroDoModelo(
+        error instanceof DOMException && error.name === 'TimeoutError' ? 'model_timeout' : 'model_unreachable',
+      )
+    }
+  }
+
   return {
     nome: `groq/${modelo}`,
     async criar(params) {
-      let resposta: Response
-      try {
-        resposta = await buscar(URL_DO_GROQ, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(corpoDoGroq(modelo, params)),
-          signal: AbortSignal.timeout(PRAZO_MS),
-        })
-      } catch (error) {
-        throw new ErroDoModelo(
-          error instanceof DOMException && error.name === 'TimeoutError' ? 'model_timeout' : 'model_unreachable',
-        )
+      let resposta = await chamar(params)
+      if (resposta.status === 429) {
+        const espera = esperaPedida(resposta) ?? 2000
+        if (espera <= ESPERA_MAXIMA_MS) {
+          await resposta.body?.cancel()
+          await esperar(espera)
+          resposta = await chamar(params)
+        }
       }
-      if (resposta.status === 401 || resposta.status === 403) throw new ErroDoModelo('model_auth')
-      if (resposta.status === 429) throw new ErroDoModelo('model_rate_limited')
-      if (!resposta.ok) throw new ErroDoModelo(`model_http_${resposta.status}`)
+      if (!resposta.ok) {
+        const detalhe = await detalheDoErro(resposta)
+        if (resposta.status === 401 || resposta.status === 403) throw new ErroDoModelo('model_auth', detalhe)
+        if (resposta.status === 429) throw new ErroDoModelo('model_rate_limited', detalhe)
+        throw new ErroDoModelo(`model_http_${resposta.status}`, detalhe)
+      }
       let corpo: RespostaDoChat
       try {
         corpo = await resposta.json()

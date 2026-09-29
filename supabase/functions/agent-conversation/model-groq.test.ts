@@ -142,3 +142,46 @@ Deno.test('chama o Groq com a chave e traduz os erros', async () => {
   )
   assertEquals(erro.codigo, 'model_unreachable')
 })
+
+Deno.test('no limite de uso, espera o que o Groq pediu e tenta uma vez; o motivo vai para o log', async () => {
+  const esperas: number[] = []
+  let chamadas = 0
+  const limite = () =>
+    new Response(JSON.stringify({ error: { message: 'Rate limit reached for tokens per minute' } }), {
+      status: 429,
+      headers: { 'retry-after': '3' },
+    })
+  const depois = modeloDoGroq({
+    apiKey: 'x',
+    modelo: 'm',
+    esperar: (ms) => (esperas.push(ms), Promise.resolve()),
+    fetch: () => {
+      chamadas++
+      return Promise.resolve(
+        chamadas === 1
+          ? limite()
+          : new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'Oi.' } }] })),
+      )
+    },
+  })
+  assertEquals(
+    (await depois.criar({ max_tokens: 10, messages: [{ role: 'user', content: 'Oi' }] })).stop_reason,
+    'end_turn',
+  )
+  assertEquals([chamadas, esperas], [2, [3000]])
+
+  const sempre = modeloDoGroq({
+    apiKey: 'x',
+    modelo: 'm',
+    esperar: () => Promise.resolve(),
+    fetch: () => Promise.resolve(limite()),
+  })
+  const erro = await assertRejects(
+    () => sempre.criar({ max_tokens: 10, messages: [{ role: 'user', content: 'Oi' }] }),
+    ErroDoModelo,
+  )
+  assertEquals([erro.codigo, erro.message], [
+    'model_rate_limited',
+    'model_rate_limited: Rate limit reached for tokens per minute',
+  ])
+})
