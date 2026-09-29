@@ -78,6 +78,13 @@ Distribuição automática e rotativa das novas Contas-alvo recomendadas pela Al
 A ação de um Administrador que, logo depois de uma importação, passa Contas-alvo do lote importado do importador para outros participantes ativos. Cada Conta importada é distribuída uma única vez, até 24 horas depois de importada e enquanto não tem Sequência. Depois disso, a responsabilidade só muda por Transferência de responsabilidade.
 _Avoid_: redistribuição, reatribuição
 
+**Importação por CSV**:
+O envio de um arquivo CSV com Contas-alvo e, opcionalmente, Contatos. Vira um lote durável: o participante mapeia as colunas, revisa na prévia as Contas novas, as atualizadas, os Contatos que já existem e as linhas inválidas, e só então confirma. O lote é processado em blocos, uma linha de cada vez, e termina num relatório por linha (criadas, atualizadas, vinculadas, ignoradas e com falha), com os erros para baixar. Quem importa é o Vendedor responsável inicial das Contas novas. A URL da empresa encontra a Conta; e-mail, telefone ou LinkedIn encontram o Contato, nunca o nome. Célula vazia nunca apaga dado.
+_Avoid_: upload, carga
+
+**Origem do campo**:
+Quem escreveu o valor de um campo da Conta-alvo ou do Contato: uma pessoa no app (manual), uma importação ou o enriquecimento automático. Um valor manual só é trocado pelo CSV se quem importa confirmar "substituir dados corrigidos manualmente"; os outros são atualizados. É diferente da origem da Conta (manual, recomendada ou importada).
+
 **Transferência de responsabilidade**:
 A ação excepcional de um Administrador que passa uma Conta-alvo a um participante ativo depois que o Vendedor responsável deixou o Workspace. Exige motivo e fica auditada. A Sequência e as Contas remetentes do antigo responsável não vão junto: a Sequência dele é encerrada e o novo responsável cria a dele, com o documento e as Contas remetentes dele.
 
