@@ -255,6 +255,13 @@ _Avoid_: ressincronização (é da Unipile), reconexão (é o ato do titular)
 O trabalho do backend que, a cada minuto e com o navegador fechado, envia os passos automáticos cuja hora chegou, revalidando tudo antes de cada envio. Um passo de E-mail manual nunca sai pelo Executor: na hora dele, espera o envio explícito do titular.
 _Avoid_: robô, disparador
 
+**Espaçamento por Conta remetente**:
+O intervalo mínimo entre duas mensagens de WhatsApp enviadas pela mesma Conta remetente (30 segundos), para não parecer disparo em massa à Unipile e ao WhatsApp. Vale para qualquer origem, Executor ou envio manual do titular, e nunca se soma entre Contas: uma segunda mensagem dentro do intervalo espera e sai depois, sem ser descartada.
+_Avoid_: rate limit, delay entre passos (o atraso em dias úteis do passo é outra coisa)
+
+**Envio automático de WhatsApp desligado**:
+A situação em que o Executor não envia passos de WhatsApp: o titular envia cada passo à mão, com "Confirmar e enviar". Vale enquanto a resposta do Contato no WhatsApp ainda não pausa a Sequência, para que um passo seguinte nunca saia sozinho depois de uma resposta. É um interruptor do banco, ligado por quem o administra; o E-mail não é afetado.
+
 **Proposta de resposta**:
 Uma resposta a um Contato preparada pela IA e sujeita à Aprovação do titular da Conta remetente antes de qualquer envio. Seu conteúdo é restrito ao titular e sua criação não retoma a Sequência pausada da Conta-alvo.
 
