@@ -13,7 +13,9 @@ import { formatarDataCompleta, formatarDataDoModulo, formatarDataExplicita } fro
 import { estaValido } from '@/fonte/regras-sinais'
 import { cn, porId } from '@/lib/utils'
 import { AcoesDaConta } from './arquivar-e-apagar'
+import { useCamposDoContato } from './campos-do-contato'
 import { SeloStatus } from './detalhe-sequencia'
+import { CAMPO, CamposDoContato } from './formulario-de-contato'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 import { DialogoNovaSequencia } from './nova-sequencia'
 import { Foguinho } from './sinais/componentes'
@@ -572,7 +574,6 @@ function FormularioDeInteracao({ contaId }: { contaId: string }) {
   )
 }
 
-const CAMPO = 'h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
 const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
 
 /**
@@ -679,11 +680,9 @@ function AcaoDeVinculo({
 /** O cadastro de um Contato na Conta: só o nome é obrigatório; o nome sozinho não mescla com outro Contato. */
 function FormularioNovoContato({ contaId, fechar }: { contaId: string; fechar: () => void }) {
   const fonte = useFonteDeContas()
-  const [campos, setCampos] = useState({ nome: '', cargo: '', email: '', whatsapp: '', linkedin: '' })
+  const { campos, editar } = useCamposDoContato({ nome: '', cargo: '', email: '', whatsapp: '', linkedin: '' })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const editar = (nome: keyof typeof campos) => (e: { target: { value: string } }) =>
-    setCampos((atuais) => ({ ...atuais, [nome]: e.target.value }))
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
@@ -698,25 +697,9 @@ function FormularioNovoContato({ contaId, fechar }: { contaId: string; fechar: (
     }
   }
 
-  const rotulos: [keyof typeof campos, string][] = [
-    ['cargo', 'Cargo (opcional)'],
-    ['email', 'E-mail (opcional)'],
-    ['whatsapp', 'Telefone (opcional)'],
-    ['linkedin', 'LinkedIn (opcional)'],
-  ]
-
   return (
     <form aria-label="Novo Contato" onSubmit={enviar} className="flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4">
-      <label className="flex flex-col gap-1 text-xs text-al-muted">
-        Nome
-        <input required value={campos.nome} onChange={editar('nome')} className={CAMPO} />
-      </label>
-      {rotulos.map(([nome, rotulo]) => (
-        <label key={nome} className="flex flex-col gap-1 text-xs text-al-muted">
-          {rotulo}
-          <input value={campos[nome]} onChange={editar(nome)} className={CAMPO} />
-        </label>
-      ))}
+      <CamposDoContato campos={campos} editar={editar} />
       <Button
         type="submit"
         disabled={salvando}

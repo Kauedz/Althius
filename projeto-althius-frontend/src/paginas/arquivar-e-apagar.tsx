@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
@@ -15,6 +15,7 @@ import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataExplicita } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
+import { DialogoDeEdicaoDoContato } from './formulario-de-contato'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 
 const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
@@ -235,19 +236,38 @@ export function AcoesDaConta({ conta, temSequenciaEmAndamento }: { conta: ContaA
   )
 }
 
+const SEM_PERMISSAO_PARA_EDITAR =
+  'Só um Administrador ou o Vendedor responsável por todas as Contas deste Contato pode editá-lo.'
+
 /**
- * As ações de uma linha de Contato: arquivar (o Vendedor responsável ou um Administrador) e apagar definitivamente (só o
- * Administrador). Só aparecem quando a fonte oferece a ação e a sessão pode fazê-la.
+ * As ações de uma linha de Contato: editar (um Administrador ou o Vendedor responsável por todas as Contas dele), arquivar
+ * (o Vendedor responsável ou um Administrador) e apagar definitivamente (só o Administrador). Só aparecem quando a fonte
+ * oferece a ação e a sessão pode fazê-la. Quem pode arquivar mas não editar, por o Contato atuar também em Conta de outro
+ * Vendedor, vê o Editar desligado com o motivo.
  */
 export function AcoesDoContato({ contato }: { contato: Contato }) {
   const fonte = useFonteDeContas()
-  const [dialogo, setDialogo] = useState<'arquivar' | 'apagar' | null>(null)
+  const [dialogo, setDialogo] = useState<'editar' | 'arquivar' | 'apagar' | null>(null)
   const podeArquivar = !!fonte.arquivarContato && contato.podeArquivar === true
   const podeApagar = !!fonte.apagarContato && contato.podeApagar === true
-  if (!podeArquivar && !podeApagar) return null
+  const podeEditar = !!fonte.editarContato && contato.podeEditar === true
+  const editarDesligado = !!fonte.editarContato && !podeEditar && podeArquivar
+  if (!podeEditar && !editarDesligado && !podeArquivar && !podeApagar) return null
 
   return (
     <span className="flex items-center gap-1">
+      {(podeEditar || editarDesligado) && (
+        <button
+          type="button"
+          onClick={() => setDialogo('editar')}
+          disabled={editarDesligado}
+          aria-label={`Editar ${contato.nome}`}
+          title={editarDesligado ? SEM_PERMISSAO_PARA_EDITAR : 'Editar Contato'}
+          className="grid size-6 cursor-pointer place-items-center text-al-muted hover:text-al-ink disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-al-muted"
+        >
+          <Pencil className="size-3.5" aria-hidden />
+        </button>
+      )}
       {podeArquivar && (
         <button
           type="button"
@@ -269,6 +289,9 @@ export function AcoesDoContato({ contato }: { contato: Contato }) {
         >
           <Trash2 className="size-3.5" aria-hidden />
         </button>
+      )}
+      {podeEditar && (
+        <DialogoDeEdicaoDoContato contato={contato} aberto={dialogo === 'editar'} aoMudar={(aberto) => !aberto && setDialogo(null)} />
       )}
       <DialogoDeConfirmacao
         aberto={dialogo === 'arquivar'}

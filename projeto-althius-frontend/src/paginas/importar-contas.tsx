@@ -1,4 +1,4 @@
-import { Upload } from 'lucide-react'
+import { FileText, Upload } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
@@ -62,6 +62,13 @@ export function PaginaImportarContas() {
   )
 }
 
+/** O tamanho do arquivo escolhido, na unidade que se lê: bytes, KB ou MB (o limite do envio é 5 MB). */
+function formatarTamanho(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const numero = (valor: number) => valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+  return bytes < 1024 * 1024 ? `${numero(bytes / 1024)} KB` : `${numero(bytes / (1024 * 1024))} MB`
+}
+
 function EnviarArquivo({ importacao }: { importacao: FonteDeImportacaoDeContas }) {
   const navegar = useNavigate()
   const [arquivo, setArquivo] = useState<File | null>(null)
@@ -107,20 +114,51 @@ function EnviarArquivo({ importacao }: { importacao: FonteDeImportacaoDeContas }
           e.preventDefault()
           void enviar()
         }}
-        className="flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4"
+        className="flex flex-col items-start gap-3 border border-al-line bg-al-surface/40 p-4"
       >
-        <label className="flex flex-col gap-1 text-xs text-al-muted">
-          Arquivo CSV
-          <input
-            type="file"
-            accept=".csv,.txt,text/csv"
-            onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-            className="text-sm text-al-ink"
-          />
-        </label>
-        <button type="submit" disabled={!arquivo || enviando} className={BOTAO_PRIMARIO}>
-          {enviando ? 'Enviando…' : 'Enviar arquivo'}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* O controle nativo fica escondido só para os olhos: o rótulo é o botão, e o foco do teclado aparece nele. */}
+          <label
+            className={cn(
+              BOTAO_SECUNDARIO,
+              'relative cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-3 has-[:focus-visible]:outline-al-accent',
+            )}
+          >
+            <Upload className="size-3.5" aria-hidden />
+            Escolher arquivo
+            <input
+              type="file"
+              accept=".csv,.txt,text/csv"
+              aria-label="Arquivo CSV"
+              onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+              className="sr-only"
+            />
+          </label>
+          {arquivo && (
+            <p className="flex min-w-0 items-center gap-1.5 text-sm text-al-ink">
+              <FileText className="size-4 shrink-0 text-al-muted" aria-hidden />
+              <span className="truncate" title={arquivo.name}>
+                {arquivo.name}
+              </span>
+              <span className="shrink-0 text-al-muted">· {formatarTamanho(arquivo.size)}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            disabled={!arquivo || enviando}
+            aria-describedby={arquivo ? undefined : 'dica-do-envio'}
+            className={BOTAO_PRIMARIO}
+          >
+            {enviando ? 'Enviando…' : 'Enviar arquivo'}
+          </button>
+          {!arquivo && (
+            <p id="dica-do-envio" className="text-xs text-al-muted">
+              Escolha um arquivo CSV para liberar o envio.
+            </p>
+          )}
+        </div>
         <Mensagem tipo="erro">{erro}</Mensagem>
       </form>
 

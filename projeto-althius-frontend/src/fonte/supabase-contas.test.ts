@@ -144,6 +144,7 @@ describe('FonteDeContas do Workspace operacional', () => {
 
 const ID_DA_MARIA = '7a1c2d3e-4a5b-4c6d-8e7f-000000000001'
 const ID_DO_RUI = '7a1c2d3e-4a5b-4c6d-8e7f-000000000002'
+const ID_DO_LUIZ = '7a1c2d3e-4a5b-4c6d-8e7f-000000000003'
 
 /** Um Contato com Vínculo ativo, como a visão `target_contacts` o devolve. */
 function contatoNoBanco(id: string, contaId: string, nome: string, extra: Record<string, unknown> = {}) {
@@ -187,7 +188,7 @@ describe('Contatos e Vínculos do Contato no Workspace operacional', () => {
         ultimoContatoEm: '2026-09-24T15:00:00Z', ehReal: true, podeArquivar: true,
       },
       // Sem e-mail, telefone, LinkedIn nem foto: a tela usa os fallbacks.
-      { id: ID_DO_RUI, contaId: ID_DA_ALFA, nome: 'Rui', canais: { email: false, telefone: false, linkedin: false }, ehReal: true, podeArquivar: true },
+      { id: ID_DO_RUI, contaId: ID_DA_ALFA, nome: 'Rui', canais: { email: false, telefone: false, linkedin: false }, ehReal: true, podeEditar: true, podeArquivar: true },
     ])
     expect((await fonte.contatos()).map((c) => [c.nome, c.contaId])).toEqual([
       ['Maria Souza', ID_DA_ALFA], ['Maria Souza', ID_DA_BETA], ['Rui', ID_DA_ALFA],
@@ -255,6 +256,103 @@ describe('Contatos e Vínculos do Contato no Workspace operacional', () => {
       p_contact_id: ID_DA_MARIA, p_email: 'maria@alfa.com.br', p_phone: '(11) 98888-7777', p_linkedin: '',
     }])
     expect(contato).toMatchObject({ id: ID_DA_MARIA, whatsapp: '+5511988887777' })
+  })
+
+  it('só oferece editar o Contato a quem responde por todas as Contas dele, e vincular a Conta sua não concede edição', async () => {
+    const { fonte, tabelas } = fonteDaMarina()
+    tabelas.target_contacts.push(
+      contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza'),
+      // A Maria também atua na Beta, que é de outro Vendedor.
+      contatoNoBanco(ID_DA_MARIA, ID_DA_BETA, 'Maria Souza'),
+      contatoNoBanco(ID_DO_RUI, ID_DA_ALFA, 'Rui'),
+      contatoNoBanco(ID_DO_LUIZ, ID_DA_BETA, 'Luiz Beta'),
+    )
+
+    const editaveis = (contatos: { nome: string; podeEditar?: boolean }[]) => contatos.map((c) => [c.nome, c.podeEditar])
+    expect(editaveis(await fonte.contatosDaConta(ID_DA_ALFA))).toEqual([['Maria Souza', undefined], ['Rui', true]])
+    expect(editaveis(await fonte.contatosDaConta(ID_DA_BETA))).toEqual([['Luiz Beta', undefined], ['Maria Souza', undefined]])
+    // Arquivar segue o Vínculo da linha: a Maria na Alfa a Marina pode arquivar, mesmo sem poder editá-la.
+    expect((await fonte.contatosDaConta(ID_DA_ALFA))[0]).toMatchObject({ podeArquivar: true })
+  })
+
+  it('o Administrador edita qualquer Contato', async () => {
+    const tabelas: Record<string, Record<string, unknown>[]> = {
+      sales_responsibilities: [{ workspace_id: 'ws-norte', target_account_id: ID_DA_BETA, owner_user_id: 'usuario-outro' }],
+      target_contacts: [contatoNoBanco(ID_DO_LUIZ, ID_DA_BETA, 'Luiz Beta')],
+    }
+    const { cliente } = criarSupabaseFalso({ sessao: sessaoDe(MARINA), tabelas })
+    const fonte = criarFonteDeContasSupabase(cliente, () => 'ws-norte', () => MARINA.id, () => true)
+
+    expect((await fonte.contatos())[0]).toMatchObject({ podeEditar: true })
+  })
+
+  it('edita o Contato pelo backend, enviando os cinco campos, e avisa quem observa', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte, tabelas } = fonteDaMarina({
+      rpcs: {
+        update_contact: (parametros) => {
+          chamadas.push(parametros)
+          Object.assign(tabelas.target_contacts[0], { name: 'Maria S. Souza', role: 'Diretora', email: 'maria.s@alfa.com.br' })
+          return { id: ID_DA_MARIA }
+        },
+      },
+    })
+    tabelas.target_contacts.push(contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { role: 'CFO', email: 'maria@alfa.com.br' }))
+    let avisos = 0
+    fonte.observar(() => avisos++)
+
+    const contato = await fonte.editarContato!(ID_DA_MARIA, {
+      nome: ' Maria S. Souza ', cargo: 'Diretora ', email: ' maria.s@alfa.com.br', whatsapp: '(11) 98888-7777', linkedin: 'linkedin.com/in/maria-souza',
+    })
+
+    expect(chamadas).toEqual([{
+      p_contact_id: ID_DA_MARIA, p_name: 'Maria S. Souza', p_role: 'Diretora', p_email: 'maria.s@alfa.com.br',
+      p_phone: '(11) 98888-7777', p_linkedin: 'linkedin.com/in/maria-souza',
+    }])
+    expect(contato).toMatchObject({ id: ID_DA_MARIA, nome: 'Maria S. Souza', cargo: 'Diretora', podeEditar: true })
+    expect(avisos).toBe(1)
+  })
+
+  it('editar com e-mail, telefone ou LinkedIn esvaziados manda texto vazio, que apaga o canal; campo ausente manda nulo, que o mantém', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte, tabelas } = fonteDaMarina({ rpcs: { update_contact: (parametros) => void chamadas.push(parametros) } })
+    tabelas.target_contacts.push(contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { email: 'maria@alfa.com.br' }))
+
+    await fonte.editarContato!(ID_DA_MARIA, { nome: 'Maria Souza', cargo: '', email: '  ', whatsapp: '', linkedin: '' })
+    await fonte.editarContato!(ID_DA_MARIA, { nome: 'Maria Souza' })
+
+    expect(chamadas).toEqual([
+      { p_contact_id: ID_DA_MARIA, p_name: 'Maria Souza', p_role: '', p_email: '', p_phone: '', p_linkedin: '' },
+      { p_contact_id: ID_DA_MARIA, p_name: 'Maria Souza', p_role: null, p_email: null, p_phone: null, p_linkedin: null },
+    ])
+  })
+
+  it('recusa o nome vazio sem chamar o banco', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte } = fonteDaMarina({ rpcs: { update_contact: (parametros) => void chamadas.push(parametros) } })
+
+    await expect(fonte.editarContato!(ID_DA_MARIA, { nome: '   ', email: 'maria@alfa.com.br' })).rejects.toThrow('Informe o nome do Contato.')
+
+    expect(chamadas).toEqual([])
+  })
+
+  it('traduz as recusas do banco ao editar: canal de outro Contato, sem permissão e Contato que sumiu', async () => {
+    const recusas = [
+      [Object.assign(new Error('duplicate key value violates unique constraint "contacts_email_per_workspace"'), { code: '23505' }),
+        'Já existe um Contato com este e-mail neste Workspace.'],
+      [Object.assign(new Error('duplicate key value violates unique constraint "contacts_phone_per_workspace"'), { code: '23505' }),
+        'Já existe um Contato com este telefone neste Workspace.'],
+      [Object.assign(new Error('duplicate key value violates unique constraint "contacts_linkedin_per_workspace"'), { code: '23505' }),
+        'Já existe um Contato com este LinkedIn neste Workspace.'],
+      [Object.assign(new Error('only the responsible seller or an admin can edit this contact'), { code: '42501' }),
+        'Só um Administrador ou o Vendedor responsável por todas as Contas deste Contato pode editá-lo.'],
+      [Object.assign(new Error('invalid email address format'), { code: '22023' }), 'Informe um e-mail válido.'],
+      [Object.assign(new Error('contact not found'), { code: 'P0002' }), 'Contato não encontrado nesta Conta-alvo.'],
+    ] as const
+    for (const [recusa, mensagem] of recusas) {
+      const { fonte } = fonteDaMarina({ rpcs: { update_contact: () => { throw recusa } } })
+      await expect(fonte.editarContato!(ID_DA_MARIA, { nome: 'Maria Souza', email: 'x@alfa.com.br' })).rejects.toThrow(mensagem)
+    }
   })
 
   it('vincula o Contato a outra Conta e encerra o Vínculo pelo backend', async () => {

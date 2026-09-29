@@ -141,6 +141,11 @@ export interface Contato {
   whatsapp?: string
   linkedin?: string
   ehReal?: boolean
+  /**
+   * Quem está na sessão pode editar os dados do Contato: um Administrador ou o Vendedor responsável por todas as Contas
+   * onde ele tem Vínculo ativo. Vincular um Contato a uma Conta sua não concede edição.
+   */
+  podeEditar?: boolean
   /** Quem está na sessão pode arquivar o Contato (o Vendedor responsável pela Conta dele ou um Administrador). */
   podeArquivar?: boolean
   /** Quem está na sessão pode apagar o Contato definitivamente (só o Administrador). */
@@ -179,6 +184,18 @@ export interface ResultadoDoApagamentoDaConta {
 /** O cadastro de um Contato numa Conta-alvo, que abre o Vínculo do Contato com ela. Só o nome é obrigatório. */
 export interface NovoContato {
   contaId: string
+  nome: string
+  cargo?: string
+  email?: string
+  whatsapp?: string
+  linkedin?: string
+}
+
+/**
+ * A edição dos dados de um Contato que já existe. O nome é obrigatório. Nos outros campos, texto vazio apaga o valor
+ * e campo ausente o mantém.
+ */
+export interface EdicaoDoContato {
   nome: string
   cargo?: string
   email?: string
@@ -250,6 +267,13 @@ export interface FonteDeContas extends FonteObservavel {
    * e-mail, telefone ou LinkedIn de outro Contato do Workspace são recusados. Sem este método, não há cadastro.
    */
   salvarContato?(novo: NovoContato): Promise<Contato>
+
+  /**
+   * Edita o nome, o cargo e os canais do Contato, em todas as Contas onde ele atua. E-mail, telefone ou LinkedIn de outro
+   * Contato do Workspace são recusados; só um Administrador ou o Vendedor responsável por todas as Contas dele edita.
+   * Sem este método, não há edição.
+   */
+  editarContato?(contatoId: string, campos: EdicaoDoContato): Promise<Contato>
 
   /** Abre um Vínculo do Contato com outra Conta-alvo, mantendo os que ele já tem. */
   vincularContato?(contatoId: string, contaId: string): Promise<void>

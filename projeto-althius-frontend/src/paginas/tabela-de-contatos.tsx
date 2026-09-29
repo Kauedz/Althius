@@ -52,16 +52,16 @@ export function TabelaDeContatos({
 }) {
   // A Persona do Contato aponta para a definição vigente na Memória do Workspace, lida uma vez para a tabela toda.
   const personas = useDados((fonte) => fonte.memoriaDoWorkspace(), [])?.personas.secoes
-  // Arquivar e apagar (CRM-18) só existem onde a fonte os oferece: a Demonstração não ganha coluna.
+  // Editar, arquivar e apagar (CRM-18) só existem onde a fonte os oferece: a Demonstração não ganha coluna.
   const fonteDeContas = useFonteDeContas()
-  const comAcoes = !!(fonteDeContas.arquivarContato || fonteDeContas.apagarContato)
+  const comAcoes = !!(fonteDeContas.editarContato || fonteDeContas.arquivarContato || fonteDeContas.apagarContato)
 
   return (
     <table
       aria-label={rotulo}
       className={cn(
         'w-full table-fixed border-separate border-spacing-0 text-left text-sm',
-        comEmpresa ? 'min-w-[74rem]' : 'min-w-[63rem]',
+        comEmpresa ? 'min-w-[75rem]' : 'min-w-[64rem]',
       )}
     >
       <thead>
@@ -90,7 +90,7 @@ export function TabelaDeContatos({
             Último contato
           </th>
           {comAcoes && (
-            <th scope="col" className={cn(CABECALHO, 'w-20')}>
+            <th scope="col" className={cn(CABECALHO, 'w-24')}>
               Ações
             </th>
           )}
