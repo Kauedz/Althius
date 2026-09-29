@@ -150,7 +150,7 @@ Deno.test('com a captura ligada, só o formato censurado é entregue para guarda
   ) {
     assertFalse(guardado.includes(pessoal), `"${pessoal}" chegou ao banco: ${guardado}`)
   }
-  assert(guardado.includes('"direction":"inbound"'), 'o token de enumeração fica')
+  assertFalse(guardado.includes('inbound'), 'só o evento e o provedor da lista passam; o resto vira tamanho')
   assert(guardado.includes('"type":"message.new"'))
   assertEquals(logs[0].shape, 'stored')
   assertFalse(JSON.stringify(logs).includes('João'), 'o log também não carrega conteúdo')

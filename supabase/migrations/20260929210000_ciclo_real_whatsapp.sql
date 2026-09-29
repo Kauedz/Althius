@@ -1553,8 +1553,8 @@ grant execute on function public.resolve_uncertain_step(uuid, text, boolean) to 
 
 -- 12. Formatos de webhook para a parte 2. Os campos exatos do `message.new` (e se ele também sai para mensagens do
 -- próprio titular ou da API) não estão documentados: o receptor guarda, só quando o segredo UNIPILE_CAPTURE_SHAPES vale
--- 1, um FORMATO censurado do corpo (chaves, aninhamento, números, booleanos, nulos, tamanho das strings e os tokens de
--- enumeração), nunca nomes, telefones, ids nem texto. Ninguém do app lê nem escreve aqui: só a função abaixo escreve, e
+-- 1, um FORMATO censurado do corpo (chaves em snake_case, aninhamento, booleanos, nulos, inteiros pequenos, tamanho das
+-- strings e só o nome do evento ou do provedor de uma lista explícita), nunca nomes, telefones, ids nem texto. Ninguém do app lê nem escreve aqui: só a função abaixo escreve, e
 -- a leitura é pelo SQL Editor. No máximo 20 linhas por tipo de evento (ficam as mais antigas) e 200 no total.
 create table private.webhook_shape_captures (
   id bigint generated always as identity primary key,
@@ -1569,7 +1569,7 @@ alter table private.webhook_shape_captures enable row level security;
 revoke all on private.webhook_shape_captures from public, anon, authenticated, service_role;
 
 comment on table private.webhook_shape_captures is
-  'Redacted SHAPES of webhook bodies (keys, nesting, string lengths, enum-like tokens), captured only while the '
+  'Redacted SHAPES of webhook bodies (snake_case keys, nesting, small integers, string lengths, allowlisted event/provider names), captured only while the '
   'UNIPILE_CAPTURE_SHAPES secret is 1. Never content, names, phones or ids. At most 20 rows per event type.';
 
 create function public.capture_webhook_shape(p_event_type text, p_shape jsonb)

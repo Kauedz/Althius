@@ -69,7 +69,7 @@ const storage: AttachmentStore = {
 }
 
 // Formatos censurados de eventos message.*, só com o segredo UNIPILE_CAPTURE_SHAPES igual a 1 (lido a cada evento).
-// O que chega aqui já passou por redactShape: chaves, aninhamento, números e tokens de enumeração, nunca conteúdo.
+// O que chega aqui já passou por redactShape: chaves em snake_case, aninhamento, inteiros pequenos e o nome do evento ou do provedor, nunca conteúdo.
 async function captureShape(eventType: string, shape: Record<string, unknown>) {
   if (Deno.env.get('UNIPILE_CAPTURE_SHAPES') !== '1') return false
   const { data, error } = await admin.rpc('capture_webhook_shape', { p_event_type: eventType, p_shape: shape })
