@@ -17,8 +17,8 @@ outros clientes do mesmo segmento, sem quebrar a LGPD e sem que um cliente veja 
 
 - O Hermes não aparece para o usuário nem diz que é o Hermes. Para o usuário, é a inteligência da Althius. O ADR-0004
   continua valendo: a Coordenação não tem nome e chama o Scopus, o Ethos, o Rhetor e o Oraculum.
-- Ambientes: até a primeira venda, o app roda na Vercel (gratuita) com o banco no Supabase, e os fundadores prospectam
-  com a ponte (`agent-conversation`, hoje com o Groq). Com a primeira venda, contrata-se uma VPS, e o Hermes roda nela.
+- Ambientes (revisto): o app e o Hermes vão para uma VPS da Hostinger (plano de R$ 90). Antes, o Hermes roda no
+  computador do Nan, com o worker `supabase/functions/_hermes-worker`, para ver o fluxo de ponta a ponta.
 - O contrato com o banco do CRM-14 é o encaixe do Hermes: pedido guardado antes de rodar (`start_agent_run`), reserva
   única (`claim_agent_run`), passos gravados um a um (`append_agent_run_event`), fechamento com resposta ou falha
   (`finish_agent_run`) e a tela lendo os passos do banco. Trocar a ponte pelo Hermes não muda a tela nem as tabelas.
@@ -28,7 +28,7 @@ outros clientes do mesmo segmento, sem quebrar a LGPD e sem que um cliente veja 
 O app continua dono da identidade, das permissões e dos dados; o Hermes raciocina e executa só o que o app permite.
 
 ```
-Usuário → App (Vercel) → Supabase: login, Workspace, regras, dados → worker na VPS → Hermes
+Usuário → App (VPS) → Supabase: login, Workspace, regras, dados → worker na VPS → Hermes
                                    │                                    │
                                    │                                    └─ sugere, analisa, executa o permitido
                                    ├─ Dados privados do Workspace (ICP, Contas-alvo, Contatos, mensagens, respostas)

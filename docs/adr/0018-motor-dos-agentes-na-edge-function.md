@@ -26,3 +26,6 @@ orquestrador com nome, o que muda o [ADR-0004](./0004-coordenacao-sem-quinto-age
 ser Agente), e onde ele roda ([ADR-0013](./0013-supabase-auto-hospedado-em-vps.md)).
 
 **2026-09-29, ambientes (Nan).** Até a primeira venda, o app roda na Vercel com o banco no Supabase, e a ponte `agent-conversation` é o motor que os fundadores usam para prospectar. Com a primeira venda, contrata-se uma VPS e o Hermes roda nela, um perfil por Workspace, pelo mesmo contrato com o banco. Spec em `.scratch/motor-hermes/`.
+
+**2026-09-29, revisão dos ambientes (Nan).** Não haverá fase na Vercel: o app e o Hermes vão para uma VPS da Hostinger. Antes disso, o Hermes roda no computador do Nan para ver o fluxo de ponta a ponta. Com `AGENT_PROVIDER=hermes`, a `agent-conversation` só guarda o pedido, e o worker `supabase/functions/_hermes-worker`, rodando ao lado do Hermes, busca a fila (`list_queued_agent_runs`), reserva, chama a API de runs do Hermes (`POST /v1/runs` com `Idempotency-Key`, `GET /v1/runs/{id}`) e grava a resposta. Os endpoints, a chave `API_SERVER_KEY` e os toolsets desligáveis foram conferidos na documentação oficial do Hermes (repositório NousResearch/hermes-agent).
+

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(57);
+select plan(61);
 
 -- Workspace Norte: Ana é Administradora, Bruno é Membro e Eva já foi removida. Workspace Sul: Carla é Administradora.
 -- O Norte tem a Conta-alvo Alfa e a Beta, arquivada; o Sul tem a Sulina. Os Agentes padrão nascem com cada Workspace.
@@ -317,6 +317,36 @@ reset role;
 select is(
   (select count(*)::int from private.agent_conversations where agent_id = current_setting('t.criado')::uuid),
   0, 'a Conversa com ele sai junto');
+
+-- A fila para o motor externo (Hermes): só a função lista, e só o que está na fila.
+reset role;
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'list_queued_agent_runs'
+      and p.prosecdef and p.proconfig @> array['search_path=""']
+      and not has_function_privilege('anon', p.oid, 'execute')
+      and not has_function_privilege('authenticated', p.oid, 'execute')
+      and has_function_privilege('service_role', p.oid, 'execute')),
+  1, 'só a função lista a fila, com security definer e search_path vazio');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '61400000-0000-0000-0000-000000000001', true);
+select is(
+  (select status from public.start_agent_run('aaaaaaaa-1400-0000-0000-000000000001', null, null, 'Para o Hermes', '{}',
+    'c1400000-0000-0000-0000-000000000011')),
+  'queued', 'um pedido novo entra na fila');
+reset role;
+select set_config('t.fila', coalesce((select array_agg(r.id order by r.created_at, r.id)::text
+  from private.agent_runs r where r.status = 'queued'), '{}'), true);
+set local role service_role;
+select is(
+  coalesce((select array_agg(q.run_id order by q.created_at, q.run_id) from public.list_queued_agent_runs(10) q)::text, '{}'),
+  current_setting('t.fila'),
+  'a fila traz só os pedidos que ainda não rodaram, do mais antigo ao mais novo');
+select is(
+  (select count(*)::int from public.list_queued_agent_runs(1)),
+  1,
+  'a fila respeita o limite');
+reset role;
 
 select * from finish();
 rollback;
