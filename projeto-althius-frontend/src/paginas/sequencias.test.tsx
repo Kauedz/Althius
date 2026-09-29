@@ -251,4 +251,32 @@ describe('Módulo Sequências e Casca (Ticket 02 & Ticket 03)', () => {
 
     expect(await screen.findByRole('table', { name: 'Tabela de Sequências' })).toBeInTheDocument()
   })
+
+  it('uma Sequência encerrada aparece como histórico e não segura a Conta na criação de outra', async () => {
+    const { fonteDeSequencias, usuario } = renderizarApp('/sequencias')
+    expect(await screen.findByText('7 sequências')).toBeInTheDocument()
+
+    await fonteDeSequencias.criarSequencia({ contaId: 'figma', participantesIds: ['contato-figma-1'], status: 'encerrada' })
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Sequências' })
+    const linhaFigma = (await within(tabela).findByRole('link', { name: 'Figma' })).closest('tr')!
+    expect(within(linhaFigma).getByText('Encerrada')).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: /Nova sequência/i }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('option', { name: /Figma/i })).not.toBeDisabled()
+  })
+
+  it('o detalhe de uma Sequência encerrada mostra só o resumo seguro, com o motivo', async () => {
+    const { fonteDeSequencias, usuario } = renderizarApp('/sequencias')
+    expect(await screen.findByText('7 sequências')).toBeInTheDocument()
+    await fonteDeSequencias.criarSequencia({ contaId: 'figma', participantesIds: ['contato-figma-1'], status: 'encerrada' })
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Sequências' })
+    await usuario.click(await within(tabela).findByRole('link', { name: 'Figma' }))
+
+    expect(await screen.findByRole('heading', { name: 'Resumo da Conta-alvo' })).toBeInTheDocument()
+    expect(screen.getByText(/foi encerrada porque a responsabilidade pela Conta-alvo mudou/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Regra de pause na Conta-alvo/i)).not.toBeInTheDocument()
+  })
 })

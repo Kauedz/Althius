@@ -79,7 +79,7 @@ A ação de um Administrador que, logo depois de uma importação, passa Contas-
 _Avoid_: redistribuição, reatribuição
 
 **Transferência de responsabilidade**:
-A ação excepcional de um Administrador que passa uma Conta-alvo a um participante ativo depois que o Vendedor responsável deixou o Workspace. Exige motivo e fica auditada. A Sequência e as Contas remetentes do antigo responsável não vão junto.
+A ação excepcional de um Administrador que passa uma Conta-alvo a um participante ativo depois que o Vendedor responsável deixou o Workspace. Exige motivo e fica auditada. A Sequência e as Contas remetentes do antigo responsável não vão junto: a Sequência dele é encerrada e o novo responsável cria a dele, com o documento e as Contas remetentes dele.
 
 **Aderência**:
 A classificação de encaixe de uma Conta-alvo no ICP pelo Scopus: **Fit** ou **Não fit**. Uma Conta-alvo importada fica sem Aderência até ser avaliada; um Sinal disparado a torna Quente sem determinar esse encaixe.
@@ -193,8 +193,15 @@ _Avoid_: orquestração, orquestrador, 5º agente
 ## Sequências
 
 **Sequência**:
-O plano de abordagem de uma Conta-alvo, com Contatos participantes e passos ordenados que definem canal, mensagem e momento de contato. Cada Conta-alvo tem no máximo uma Sequência no Workspace, sob seu vendedor responsável; lista de Sequências, detalhe da Conta-alvo e Conversa refletem o mesmo plano, respeitando a visibilidade de cada participante.
+O plano de abordagem de uma Conta-alvo, com Contatos participantes e passos ordenados que definem canal, mensagem e momento de contato. Cada Conta-alvo tem no máximo uma Sequência em andamento no Workspace, sob seu vendedor responsável (as encerradas ficam como histórico); lista de Sequências, detalhe da Conta-alvo e Conversa refletem o mesmo plano, respeitando a visibilidade de cada participante.
 _Avoid_: cadência como rótulo de interface
+
+**Sequência encerrada**:
+A Sequência que o sistema encerrou para sempre porque a responsabilidade da Conta-alvo foi transferida ou a Conta-alvo foi apagada. Não volta a andar nem muda de titular; os passos pendentes são cancelados e fica só como histórico. Quem assume a Conta-alvo cria uma Sequência nova.
+_Avoid_: Sequência arquivada, Sequência cancelada
+
+**Sequência pausada pela Conta**:
+A Sequência em andamento que foi pausada porque a Conta-alvo foi arquivada. O titular não a retoma enquanto a Conta estiver arquivada; restaurar a Conta só destrava, e reativar os envios continua sendo uma ação explícita do responsável.
 
 **Vendedor responsável**:
 O usuário que detém a responsabilidade comercial exclusiva por uma Conta-alvo dentro do Workspace. Outro participante não pode assumir sua prospecção nem criar uma Sequência concorrente para essa Conta-alvo. A responsabilidade só muda pela Distribuição da importação, logo depois de importar, ou por Transferência de responsabilidade, depois que ele deixa o Workspace.

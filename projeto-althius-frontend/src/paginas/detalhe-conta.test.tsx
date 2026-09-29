@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { renderizarApp } from '@/test/renderizar'
+import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 describe('Bloco Sequência no detalhe da Conta-alvo (Ticket 04)', () => {
   it('mostra a seção Sequência com status, cobertura, steps e atalho para o documento quando houver sequência', async () => {
@@ -112,6 +112,32 @@ describe('Bloco Sequência no detalhe da Conta-alvo (Ticket 04)', () => {
     expect(optionOpenAI).toBeDisabled()
   })
 
+})
+
+describe('Sequência de uma Conta de outro responsável e Sequência encerrada (CRM-17)', () => {
+  it('quem não é o Vendedor responsável pela Conta não vê a ação de criar a Sequência dela', async () => {
+    renderizarAppCom('/contas/figma', {
+      contas: (fonteDeContas) => ({
+        ...fonteDeContas,
+        conta: async (id) => ({ ...(await fonteDeContas.conta(id)), sobMinhaResponsabilidade: false }),
+      }),
+    })
+
+    const secaoSequencia = await screen.findByRole('region', { name: 'Sequência' })
+    expect(await within(secaoSequencia).findByText('Nenhuma sequência nesta Conta-alvo')).toBeInTheDocument()
+    expect(within(secaoSequencia).queryByRole('button', { name: /Criar sequência/i })).not.toBeInTheDocument()
+  })
+
+  it('uma Sequência encerrada fica como histórico e o Vendedor responsável pode criar a nova', async () => {
+    const { fonteDeSequencias } = renderizarApp('/contas/figma')
+    await fonteDeSequencias.criarSequencia({ contaId: 'figma', participantesIds: ['contato-figma-1'], status: 'encerrada' })
+
+    const secaoSequencia = await screen.findByRole('region', { name: 'Sequência' })
+    expect(await within(secaoSequencia).findByText('Encerrada')).toBeInTheDocument()
+    expect(within(secaoSequencia).getByText(/responsabilidade pela Conta-alvo mudou/i)).toBeInTheDocument()
+    expect(within(secaoSequencia).getByText('Nenhuma sequência em andamento nesta Conta-alvo.')).toBeInTheDocument()
+    expect(within(secaoSequencia).getByRole('button', { name: /Criar sequência/i })).toBeInTheDocument()
+  })
 })
 
 /** O cabeçalho do detalhe, achado pelo nome da Conta-alvo em destaque. */

@@ -230,3 +230,98 @@ describe('Envios e respostas da Sequência no Workspace operacional', () => {
     expect(await fonte.respostasRecebidas('sequencia-alheia')).toEqual([])
   })
 })
+
+const DIEGO = { id: 'usuario-diego', email: 'diego@cliente.com.br' }
+const CONTA_TRANSFERIDA = '5f3c1a7e-0000-4000-8000-000000000001'
+
+function linhaDaConta(campos: Record<string, unknown>) {
+  return {
+    workspace_id: 'ws-norte',
+    target_account_id: CONTA_TRANSFERIDA,
+    public_summary: { totalParticipantes: 1, totalSteps: 2, passoAtual: 1 },
+    ended_reason: null,
+    suspended_reason: null,
+    created_at: '2026-09-20T12:00:00Z',
+    updated_at: '2026-09-21T12:00:00Z',
+    ...campos,
+  }
+}
+
+describe('Sequência de uma Conta-alvo real (CRM-17)', () => {
+  // Depois da Transferência de responsabilidade, a Conta guarda a Sequência encerrada da Marina e a nova do Diego.
+  const encerrada = linhaDaConta({
+    id: 'sequencia-encerrada', owner_user_id: MARINA.id, status: 'encerrada', ended_reason: 'responsibility_transferred',
+    updated_at: '2026-09-25T12:00:00Z',
+  })
+  const emAndamento = linhaDaConta({
+    id: 'sequencia-do-diego', owner_user_id: DIEGO.id, status: 'ativa', updated_at: '2026-09-24T12:00:00Z',
+  })
+
+  function comoDiego(linhas: Record<string, unknown>[], rpcs: Record<string, (p: Record<string, unknown>) => unknown> = {}) {
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(DIEGO),
+      tabelas: { sequences: linhas },
+      rpcs: {
+        get_owned_sequence: ({ p_sequence_id }) => {
+          const linha = linhas.find((item) => item.id === p_sequence_id) as { public_summary: object }
+          return [{ ...linha, public_summary: { ...linha.public_summary, _document: { steps: [PASSO] } } }]
+        },
+        ...rpcs,
+      },
+    })
+    return criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => DIEGO.id)
+  }
+
+  it('a Conta devolve a Sequência em andamento, mesmo quando a encerrada é mais recente', async () => {
+    const sequencia = await comoDiego([encerrada, emAndamento]).sequenciaPorConta(CONTA_TRANSFERIDA)
+
+    expect(sequencia).toMatchObject({ id: 'sequencia-do-diego', status: 'ativa', responsavel: true })
+  })
+
+  it('sem Sequência em andamento, a Conta devolve a encerrada, só com a projeção segura e o motivo', async () => {
+    const sequencia = await comoDiego([encerrada]).sequenciaPorConta(CONTA_TRANSFERIDA)
+
+    expect(sequencia).toMatchObject({ id: 'sequencia-encerrada', status: 'encerrada', encerradaPor: 'transferencia', responsavel: false })
+    expect(sequencia?.steps).toEqual([])
+  })
+
+  it('uma Conta apagada encerra a Sequência com o motivo de exclusão', async () => {
+    const apagada = { ...encerrada, ended_reason: 'account_deleted' }
+
+    expect((await comoDiego([apagada]).resumoPublico('sequencia-encerrada'))?.encerradaPor).toBe('exclusao')
+  })
+
+  it('a Conta arquivada pausa a Sequência e o motivo dela é a Conta', async () => {
+    const pausada = { ...emAndamento, status: 'pausada', suspended_reason: 'account_archived' }
+
+    const sequencia = await comoDiego([pausada]).sequencia('sequencia-do-diego')
+
+    expect(sequencia).toMatchObject({ status: 'pausada', pausadaPelaConta: true, motivoPause: 'Conta arquivada' })
+  })
+
+  it('o banco recusa a Sequência de quem não é o Vendedor responsável, e a mensagem diz isso', async () => {
+    const fonte = comoDiego([], {
+      create_sequence: () => { throw Object.assign(new Error('target account already has another responsible seller'), { code: '42501' }) },
+    })
+
+    await expect(fonte.criarSequencia({ contaId: CONTA_TRANSFERIDA })).rejects.toThrow(
+      'Só o Vendedor responsável por esta Conta-alvo pode criar a Sequência dela.',
+    )
+  })
+
+  it('uma segunda Sequência em andamento na Conta é recusada com a mensagem própria', async () => {
+    const fonte = comoDiego([], {
+      create_sequence: () => { throw Object.assign(new Error('target account already has a sequence in progress'), { code: '23505' }) },
+    })
+
+    await expect(fonte.criarSequencia({ contaId: CONTA_TRANSFERIDA })).rejects.toThrow('Esta Conta-alvo já tem uma Sequência em andamento.')
+  })
+
+  it('retomar uma Sequência de Conta arquivada é recusado com o motivo', async () => {
+    const fonte = comoDiego([{ ...emAndamento, status: 'pausada', suspended_reason: 'account_archived' }], {
+      update_owned_sequence: () => { throw Object.assign(new Error('the sequence is paused because its target account is archived'), { code: '55006' }) },
+    })
+
+    await expect(fonte.atualizarDocumento('sequencia-do-diego', { status: 'ativa' })).rejects.toThrow(/Conta-alvo está arquivada/)
+  })
+})

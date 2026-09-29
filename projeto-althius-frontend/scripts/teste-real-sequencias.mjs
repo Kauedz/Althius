@@ -4,7 +4,8 @@
 // Entra por senha com as cinco personas que scripts/wizard-teste-real.sh criou e confere cada regra.
 // As variáveis TESTE_* e VITE_* vêm do ambiente (como no ambiente de nuvem do Claude Code) ou do
 // .env.local; o ambiente vale mais. Grava dados reais que o fluxo público não apaga: cada rodada
-// usa Contas-alvo novas, com o prefixo teste-real-.
+// cria Contas-alvo reais novas (nome e URL com o prefixo teste-real-) antes de cada Sequência, porque a
+// Sequência só existe para uma Conta-alvo do Workspace (CRM-17).
 //
 //   npm run teste:real
 
@@ -73,8 +74,8 @@ function linha({ data }) {
 }
 
 const sufixo = new Date().toISOString().replace(/\D/g, '').slice(0, 14)
-const conta = `teste-real-${sufixo}`
-const contaDisputada = `teste-real-${sufixo}-disputa`
+const nomeConta = `teste-real-${sufixo}`
+const nomeContaDisputada = `teste-real-${sufixo}-disputa`
 
 const documento = {
   participantesIds: ['contato-teste-real'],
@@ -118,8 +119,26 @@ function projecao(cliente, id) {
 const p = {}
 for (const [papel, nome, chave] of PERSONAS) p[papel] = await entrar(nome, chave)
 
+/** Cadastra uma Conta-alvo real do Workspace A; quem cadastra fica como Vendedor responsável. */
+async function cadastrarConta(cliente, nome) {
+  const resposta = await cliente.rpc('save_target_account', {
+    p_workspace_id: workspaceA,
+    p_name: nome,
+    p_url: `https://${nome}.example.test`,
+  })
+  const registro = linha(resposta)
+  if (!registro?.id) {
+    console.error(`Não foi possível cadastrar a Conta-alvo ${nome}: ${descrever(resposta)}`)
+    process.exit(1)
+  }
+  return registro.id
+}
+
+const conta = await cadastrarConta(p.responsavel.cliente, nomeConta)
+const contaDisputada = await cadastrarConta(p.responsavel.cliente, nomeContaDisputada)
+
 console.log(`Projeto ${url}`)
-console.log(`Contas-alvo desta rodada: ${conta} e ${contaDisputada}\n`)
+console.log(`Contas-alvo desta rodada: ${nomeConta} (${conta}) e ${nomeContaDisputada} (${contaDisputada})\n`)
 
 // Vendedor responsável
 const criada = await criar(p.responsavel.cliente, conta)
@@ -144,8 +163,8 @@ recusada('Nem o Vendedor responsável cria uma segunda Sequência na mesma Conta
 recusada('Outro Membro não cria Sequência concorrente na mesma Conta-alvo', await criar(p.membro.cliente, conta))
 recusada('Administrador não cria Sequência concorrente na mesma Conta-alvo', await criar(p.administrador.cliente, conta))
 const disputa = await Promise.all([criar(p.responsavel.cliente, contaDisputada), criar(p.membro.cliente, contaDisputada)])
-conferir('Criações simultâneas numa Conta-alvo nova têm um único vencedor',
-  disputa.filter((r) => !r.error).length === 1 && disputa.find((r) => r.error)?.error.code === '42501',
+conferir('Criações simultâneas numa Conta-alvo têm um único vencedor: o Vendedor responsável',
+  disputa.filter((r) => !r.error).length === 1 && !disputa[0].error && disputa[1].error?.code === '42501',
   disputa.map(descrever).join(' | '))
 recusada('Outro Membro não toma a responsabilidade por edição direta',
   await p.membro.cliente.from('sales_responsibilities').update({ owner_user_id: p.membro.id }).eq('target_account_id', conta))
@@ -174,11 +193,11 @@ conferir('O documento privado não é exposto pela API', Boolean(documentoDireto
 const vistaDeFora = await projecao(p.outroWorkspace.cliente, id)
 conferir('Membro de outro Workspace não vê a projeção do Workspace A',
   !vistaDeFora.error && vistaDeFora.data.length === 0, descrever(vistaDeFora))
-recusada('Membro de outro Workspace não cria Sequência no Workspace A', await criar(p.outroWorkspace.cliente, `${conta}-fora`))
+recusada('Membro de outro Workspace não cria Sequência no Workspace A', await criar(p.outroWorkspace.cliente, conta))
 const vistaSemParticipacao = await p.semParticipacao.cliente.from('sequences').select('id')
 conferir('Sem Participação não vê nenhuma Sequência',
   !vistaSemParticipacao.error && vistaSemParticipacao.data.length === 0, descrever(vistaSemParticipacao))
-recusada('Sem Participação não cria Sequência', await criar(p.semParticipacao.cliente, `${conta}-sem`))
+recusada('Sem Participação não cria Sequência', await criar(p.semParticipacao.cliente, conta))
 
 // Encerra só as sessões deste script; as do navegador continuam valendo.
 await Promise.all(Object.values(p).map(({ cliente }) => cliente.auth.signOut({ scope: 'local' })))

@@ -27,20 +27,20 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
 
--- Seller creates initial sequence and responsibility for target-real
+-- A Conta-alvo é real (CRM-04 e CRM-17), sob a responsabilidade do Vendedor; os Contatos são canônicos (CRM-05).
+create temporary table conta_real on commit drop as
+  select id from public.save_target_account('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'OpenAI', 'openai.test');
+
+-- Seller creates the initial sequence for the real target account
 select lives_ok(
   $$select public.create_sequence(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'target-real',
+    (select id::text from conta_real),
     '{"participantesIds":["c-1"],"janelaPadrao":{"de":"09:00","ate":"17:00"},"steps":[{"ordem":1,"canal":"email","contatoId":"c-1","delayDiasUteis":0,"titulo":"Email 1","corpo":"Ola","objetivo":"Abertura"}]}'::jsonb,
     '{"status":"ativa"}'::jsonb
   )$$,
   'responsible seller creates sequence with valid email step'
 );
-
--- Os Contatos são canônicos (CRM-05): o destinatário fica numa Conta-alvo real sob a responsabilidade do Vendedor.
-create temporary table conta_real on commit drop as
-  select id from public.save_target_account('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'OpenAI', 'openai.test');
 
 -- Test 2: Seller registers real contact with email, normalized WhatsApp, and LinkedIn
 select lives_ok(
@@ -133,7 +133,7 @@ select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001
 -- Test 9: Backend rejects steps with SMS
 select throws_ok(
   $$select public.update_owned_sequence(
-    (select id from public.sequences where target_account_id = 'target-real'),
+    (select id from public.sequences where target_account_id = (select id::text from conta_real)),
     '{"steps":[{"ordem":1,"canal":"sms","contatoId":"c-1","delayDiasUteis":0}]}'::jsonb,
     null, null
   )$$,
@@ -144,7 +144,7 @@ select throws_ok(
 -- Test 10: Backend rejects steps with ligacao
 select throws_ok(
   $$select public.update_owned_sequence(
-    (select id from public.sequences where target_account_id = 'target-real'),
+    (select id from public.sequences where target_account_id = (select id::text from conta_real)),
     '{"steps":[{"ordem":1,"canal":"ligacao","contatoId":"c-1","delayDiasUteis":0}]}'::jsonb,
     null, null
   )$$,
@@ -155,7 +155,7 @@ select throws_ok(
 -- Test 11: Backend rejects steps with tarefa
 select throws_ok(
   $$select public.update_owned_sequence(
-    (select id from public.sequences where target_account_id = 'target-real'),
+    (select id from public.sequences where target_account_id = (select id::text from conta_real)),
     '{"steps":[{"ordem":1,"canal":"tarefa","contatoId":"c-1","delayDiasUteis":0}]}'::jsonb,
     null, null
   )$$,
@@ -166,7 +166,7 @@ select throws_ok(
 -- Test 12: Backend accepts steps with LinkedIn and WhatsApp
 select lives_ok(
   $$select public.update_owned_sequence(
-    (select id from public.sequences where target_account_id = 'target-real'),
+    (select id from public.sequences where target_account_id = (select id::text from conta_real)),
     '{"steps":[{"ordem":1,"canal":"email","contatoId":"c-1","delayDiasUteis":0,"titulo":"Email","corpo":"C1","objetivo":"O1"},{"ordem":2,"canal":"linkedin","contatoId":"c-1","delayDiasUteis":1,"subtipoLinkedIn":"convite","titulo":"Convite","corpo":"C2","objetivo":"O2"},{"ordem":3,"canal":"whatsapp","contatoId":"c-1","delayDiasUteis":2,"titulo":"Zap","corpo":"C3","objetivo":"O3"}]}'::jsonb,
     null, null
   )$$,
@@ -177,7 +177,7 @@ select lives_ok(
 -- Nenhum papel da API lê o schema private; a conferência do documento gravado roda como dono do banco.
 reset role;
 select is(
-  (select jsonb_array_length(document -> 'steps') from private.sequence_documents where sequence_id = (select id from public.sequences where target_account_id = 'target-real')),
+  (select jsonb_array_length(document -> 'steps') from private.sequence_documents where sequence_id = (select id from public.sequences where target_account_id = (select id::text from conta_real))),
   3,
   'persisted sequence document contains all 3 steps'
 );
@@ -185,7 +185,7 @@ set local role authenticated;
 
 -- Test 14: Seller reads private document via get_owned_sequence
 select is(
-  (select (public.get_owned_sequence((select id from public.sequences where target_account_id = 'target-real'))).public_summary -> '_document' -> 'steps' -> 1 ->> 'canal'),
+  (select (public.get_owned_sequence((select id from public.sequences where target_account_id = (select id::text from conta_real)))).public_summary -> '_document' -> 'steps' -> 1 ->> 'canal'),
   'linkedin',
   'seller receives private document with step details'
 );
@@ -193,7 +193,7 @@ select is(
 -- Test 15: Another member cannot read private document
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000002', true);
 select throws_ok(
-  $$select public.get_owned_sequence((select id from public.sequences where target_account_id = 'target-real'))$$,
+  $$select public.get_owned_sequence((select id from public.sequences where target_account_id = (select id::text from conta_real)))$$,
   '42501', 'sequence not found or not owned by active user',
   'another member cannot get private sequence document'
 );
@@ -202,7 +202,7 @@ select throws_ok(
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
 select throws_ok(
   $$select public.update_owned_sequence(
-    (select id from public.sequences where target_account_id = 'target-real'),
+    (select id from public.sequences where target_account_id = (select id::text from conta_real)),
     '{"is_demo":true,"autorizar_execucao_real":true,"steps":[{"ordem":1,"canal":"email","contatoId":"c-1"}]}'::jsonb,
     null, null
   )$$,

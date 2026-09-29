@@ -8,3 +8,5 @@ A responsabilidade só muda em duas situações, ambas auditadas (CRM-06):
 - **Transferência de responsabilidade:** quando o responsável deixa o Workspace, um Administrador transfere a Conta-alvo a um participante ativo, com motivo registrado. A Sequência e as Contas remetentes do antigo responsável não vão junto.
 
 A regra "Admin atribui/redistribui linhas importadas" da spec do CRM vale só como essa Distribuição da importação. Fora dela, a transferência exige a saída do responsável: o Administrador não reatribui uma Conta de quem continua no Workspace.
+
+Depois de uma Transferência, a Sequência do antigo responsável é encerrada no mesmo instante (CRM-17): os passos pendentes são cancelados, a autorização é revogada e o histórico e o documento privado dela ficam como estão. O novo responsável cria a Sequência dele, com o documento e as Contas remetentes dele; o documento do antigo não é copiado nem lido por ele (ADR-0008). "No máximo uma Sequência" vale, portanto, para a Sequência em andamento.

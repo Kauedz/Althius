@@ -126,6 +126,9 @@ export function DetalheConta({ contaId }: Props) {
   }
 
   const contatosPorId = porId(contatos ?? [])
+  // Só o Vendedor responsável cria a Sequência da Conta (ADR-0009); uma fonte que não informa a responsabilidade não restringe.
+  const podeCriarSequencia = permiteCriarSequencia && conta.sobMinhaResponsabilidade !== false
+  const sequenciaEncerrada = sequencia?.status === 'encerrada'
 
   return (
     <Pagina titulo={conta.nome} voltar={voltar} className="gap-0">
@@ -193,7 +196,7 @@ export function DetalheConta({ contaId }: Props) {
         <Secao
           id="sequencia"
           titulo="Sequência"
-          contagem={sequencia && `${contar(sequencia.steps.length, 'step', 'steps')} ordenados`}
+          contagem={sequencia && (sequenciaEncerrada ? null : `${contar(sequencia.steps.length, 'step', 'steps')} ordenados`)}
         >
 
           {carregandoSequencia && (
@@ -220,22 +223,30 @@ export function DetalheConta({ contaId }: Props) {
                 </Link>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-al-muted pt-1">
-                <div>
-                  <span className="rotulo block text-al-muted">Cobertura</span>
-                  <span className="text-sm font-medium text-al-ink">
-                    {sequencia.totalParticipantes}{' '}
-                    {sequencia.totalParticipantes === 1 ? 'contato participante' : 'contatos participantes'}
-                  </span>
-                </div>
+              {sequenciaEncerrada ? (
+                <p className="text-xs text-al-muted">
+                  {sequencia.encerradaPor === 'exclusao'
+                    ? 'Encerrada porque a Conta-alvo foi apagada. Os passos pendentes foram cancelados.'
+                    : 'Encerrada porque a responsabilidade pela Conta-alvo mudou. Os passos pendentes foram cancelados; o Vendedor responsável atual cria a Sequência dele.'}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-al-muted pt-1">
+                  <div>
+                    <span className="rotulo block text-al-muted">Cobertura</span>
+                    <span className="text-sm font-medium text-al-ink">
+                      {sequencia.totalParticipantes}{' '}
+                      {sequencia.totalParticipantes === 1 ? 'contato participante' : 'contatos participantes'}
+                    </span>
+                  </div>
 
-                <div>
-                  <span className="rotulo block text-al-muted">Progresso</span>
-                  <span className="text-sm font-medium text-al-ink">
-                    Passo atual: {Math.min(sequencia.passoAtual + 1, sequencia.steps.length)} de {sequencia.steps.length}
-                  </span>
+                  <div>
+                    <span className="rotulo block text-al-muted">Progresso</span>
+                    <span className="text-sm font-medium text-al-ink">
+                      Passo atual: {Math.min(sequencia.passoAtual + 1, sequencia.steps.length)} de {sequencia.steps.length}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {sequencia.status === 'pausada' && (
                 <div className="mt-2 flex items-start gap-2.5 border border-al-atencao/40 bg-al-atencao/10 p-3 text-xs text-al-ink">
@@ -254,15 +265,15 @@ export function DetalheConta({ contaId }: Props) {
             </div>
           )}
 
-          {!carregandoSequencia && !sequencia && !permiteCriarSequencia && (
+          {!carregandoSequencia && !sequencia && !podeCriarSequencia && (
             <SecaoVazia>Nenhuma sequência nesta Conta-alvo</SecaoVazia>
           )}
 
-          {!carregandoSequencia && !sequencia && permiteCriarSequencia && (
+          {!carregandoSequencia && (!sequencia || sequenciaEncerrada) && podeCriarSequencia && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-dashed border-al-line bg-al-surface/40 p-5">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium text-al-ink">
-                  Nenhuma sequência nesta Conta-alvo.
+                  {sequenciaEncerrada ? 'Nenhuma sequência em andamento nesta Conta-alvo.' : 'Nenhuma sequência nesta Conta-alvo.'}
                 </p>
                 <p className="text-xs text-al-muted">
                   Crie um plano estruturado de abordagem por e-mail, LinkedIn e outros canais para esta empresa.
