@@ -102,6 +102,10 @@ _Avoid_: lead, prospect
 **Vínculo do Contato**:
 A associação profissional de um Contato com uma Conta-alvo. Um Vínculo pode ser encerrado quando a pessoa deixa a empresa; iniciar outro Vínculo não move Interações anteriores, que permanecem associadas à Conta-alvo onde ocorreram.
 
+**Canais do Contato**:
+Os e-mails e os telefones de um Contato: até três de cada. O e-mail tem um rótulo de uma lista fixa (Trabalho, Pessoal ou Outro); o telefone é Celular ou Fixo e traz a marca "usa WhatsApp", independente do tipo. O primeiro de cada lista é o principal (o "número 1"); um e-mail ou telefone pertence a um só Contato do Workspace, entre principal e adicionais. Cada passo da Sequência escolhe qual usar, do número 1 ao 3, e a confirmação fixa esse Destino.
+_Avoid_: destinos múltiplos, e-mail secundário
+
 **Arquivamento**:
 A saída reversível de uma Conta-alvo ou de um Contato da operação. A Conta arquivada some das listas e buscas padrão, pausa a Sequência (a Sequência pausada pela Conta) e deixa de receber Interação manual, Contato, Vínculo e Sequência novos; o Contato arquivado tem os Vínculos ativos encerrados, e eles voltam quando ele é restaurado. O histórico fica, e o Vendedor responsável ou um Administrador restaura. Restaurar não retoma a Sequência.
 _Avoid_: exclusão, soft delete
@@ -225,7 +229,7 @@ O usuário que detém a responsabilidade comercial exclusiva por uma Conta-alvo 
 O meio pelo qual um passo da Sequência alcança um Contato: E-mail, LinkedIn ou WhatsApp. É distinto do Canal usado para conversar com um Agente.
 
 **Destino**:
-O e-mail, o número de WhatsApp ou o perfil de LinkedIn de um Contato por onde um Canal de abordagem o alcança. Um passo só é enviado ao Destino que o Vendedor responsável confirmou.
+O e-mail, o número de WhatsApp ou o perfil de LinkedIn de um Contato por onde um Canal de abordagem o alcança; nos e-mails e telefones, o passo escolhe um dos Canais do Contato. Um passo só é enviado ao Destino que o Vendedor responsável confirmou, e só enquanto o Contato ainda o tiver.
 _Avoid_: endereço de envio
 
 **Responsável pela Sequência**:
