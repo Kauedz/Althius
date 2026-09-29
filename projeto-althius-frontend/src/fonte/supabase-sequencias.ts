@@ -38,8 +38,9 @@ interface DocumentoPrivado {
 interface LinhaDoEnvio {
   id: string
   step_id: string
-  contact_id: string
-  destination: string
+  /** Nulos no Envio desidentificado, depois que o Contato ou a Conta-alvo foi apagado (CRM-18). */
+  contact_id: string | null
+  destination: string | null
   status: StatusDoEnvio
   confirmed_at: string
   sent_at: string | null
@@ -83,8 +84,8 @@ function mapearEnvio(linha: LinhaDoEnvio): EnvioDoPasso {
   return {
     id: linha.id,
     stepId: linha.step_id,
-    contatoId: linha.contact_id,
-    destino: linha.destination,
+    contatoId: linha.contact_id ?? '',
+    destino: linha.destination ?? '',
     status: linha.status,
     confirmadoEm: linha.confirmed_at,
     ...(linha.sent_at ? { enviadoEm: linha.sent_at } : {}),
@@ -181,6 +182,10 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('the sequence is paused because its target account is archived')) {
     return new Error('A Conta-alvo está arquivada: a Sequência só pode ser retomada depois que a Conta for restaurada.')
   }
+  if (error.message.includes('the target account is archived')) {
+    return new Error('A Conta-alvo está arquivada: restaure a Conta para criar uma Sequência nela.')
+  }
+  if (error.message.includes('the target account was deleted')) return new Error('A Conta-alvo foi apagada.')
   if (error.message.includes('an ended sequence cannot be changed')) return new Error('Esta Sequência foi encerrada e não pode mais ser alterada.')
   if (error.code === '23503') return new Error('Esta Sequência aponta para uma Conta-alvo que não existe mais neste Workspace.')
   if (error.code === '0A000') return new Error('Só passos de E-mail podem ser confirmados por enquanto.')

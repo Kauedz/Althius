@@ -1,8 +1,11 @@
-import { Building2 } from 'lucide-react'
+import { Archive, Building2 } from 'lucide-react'
+import { useState } from 'react'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { Button } from '@/components/ui/button'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import { normalizarParaBusca } from '@/lib/utils'
+import { BOTAO_DO_CABECALHO, ContatosArquivados } from './arquivar-e-apagar'
 import {
   AbasDoModulo,
   CAIXA,
@@ -99,6 +102,26 @@ export function PaginaContatos() {
   const listaVisivel = !carregando && !erro && linhas.length > 0
   const quadro = useRolagemDaLista(listaVisivel)
   const estadoDoLink = useEstadoParaODetalhe('Contatos')
+  const [verArquivados, setVerArquivados] = useState(false)
+
+  // Os Contatos arquivados ficam fora da lista padrão (CRM-18): esta visão os mostra, para restaurar ou apagar.
+  if (verArquivados && fonte.contatosArquivados) {
+    return (
+      <Pagina titulo="Contatos" icone={Building2} ocupaAJanela>
+        <AbasDoModulo />
+        <div className="flex items-end justify-between gap-8">
+          <h2 className="sr-only">Contatos arquivados</h2>
+          <p className="text-sm text-al-muted">
+            Contatos arquivados ficam fora das listas. Restaure um Contato para ele voltar aos Vínculos que tinha.
+          </p>
+          <Button type="button" variant="outline" onClick={() => setVerArquivados(false)} className={BOTAO_DO_CABECALHO}>
+            Voltar aos Contatos
+          </Button>
+        </div>
+        <ContatosArquivados />
+      </Pagina>
+    )
+  }
 
   return (
     <Pagina titulo="Contatos" icone={Building2} ocupaAJanela>
@@ -115,6 +138,12 @@ export function PaginaContatos() {
             singular="contato"
             plural="contatos"
           />
+        )}
+        {fonte.contatosArquivados && (
+          <Button type="button" variant="outline" onClick={() => setVerArquivados(true)} className={BOTAO_DO_CABECALHO}>
+            <Archive className="mr-1.5 size-3.5" aria-hidden />
+            Arquivados
+          </Button>
         )}
       </div>
 

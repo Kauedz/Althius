@@ -184,10 +184,10 @@ describe('Contatos e Vínculos do Contato no Workspace operacional', () => {
         id: ID_DA_MARIA, contaId: ID_DA_ALFA, nome: 'Maria Souza', cargo: 'CFO',
         canais: { email: true, telefone: true, linkedin: true },
         email: 'maria@alfa.com.br', whatsapp: '+5511988887777', linkedin: 'https://www.linkedin.com/in/maria-souza',
-        ultimoContatoEm: '2026-09-24T15:00:00Z', ehReal: true,
+        ultimoContatoEm: '2026-09-24T15:00:00Z', ehReal: true, podeArquivar: true,
       },
       // Sem e-mail, telefone, LinkedIn nem foto: a tela usa os fallbacks.
-      { id: ID_DO_RUI, contaId: ID_DA_ALFA, nome: 'Rui', canais: { email: false, telefone: false, linkedin: false }, ehReal: true },
+      { id: ID_DO_RUI, contaId: ID_DA_ALFA, nome: 'Rui', canais: { email: false, telefone: false, linkedin: false }, ehReal: true, podeArquivar: true },
     ])
     expect((await fonte.contatos()).map((c) => [c.nome, c.contaId])).toEqual([
       ['Maria Souza', ID_DA_ALFA], ['Maria Souza', ID_DA_BETA], ['Rui', ID_DA_ALFA],

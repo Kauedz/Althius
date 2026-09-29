@@ -12,6 +12,7 @@ import type { ContaAlvo, Contato, Interacao, Sinal, TipoDeInteracao } from '@/fo
 import { formatarDataCompleta, formatarDataDoModulo, formatarDataExplicita } from '@/fonte/formatar-data'
 import { estaValido } from '@/fonte/regras-sinais'
 import { cn, porId } from '@/lib/utils'
+import { AcoesDaConta } from './arquivar-e-apagar'
 import { SeloStatus } from './detalhe-sequencia'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 import { DialogoNovaSequencia } from './nova-sequencia'
@@ -127,12 +128,15 @@ export function DetalheConta({ contaId }: Props) {
 
   const contatosPorId = porId(contatos ?? [])
   // Só o Vendedor responsável cria a Sequência da Conta (ADR-0009); uma fonte que não informa a responsabilidade não restringe.
-  const podeCriarSequencia = permiteCriarSequencia && conta.sobMinhaResponsabilidade !== false
+  // Uma Conta arquivada saiu da operação: nada de Sequência, Contato nem Interação nova até ser restaurada (CRM-18).
+  const arquivada = !!conta.arquivadaEm
+  const podeCriarSequencia = permiteCriarSequencia && conta.sobMinhaResponsabilidade !== false && !arquivada
   const sequenciaEncerrada = sequencia?.status === 'encerrada'
 
   return (
     <Pagina titulo={conta.nome} voltar={voltar} className="gap-0">
       <CabecalhoDaConta conta={conta} hoje={hoje} />
+      <AcoesDaConta conta={conta} temSequenciaEmAndamento={!!sequencia && !sequenciaEncerrada} />
 
       <div className="flex flex-col">
         <Secao id="sinais" titulo="Sinais" contagem={sinais && contar(sinais.length, 'sinal', 'sinais')}>
@@ -146,7 +150,9 @@ export function DetalheConta({ contaId }: Props) {
         </Secao>
 
         <Secao id="contatos" titulo="Contatos" contagem={contatos && contar(contatos.length, 'contato', 'contatos')}>
-          {conta.sobMinhaResponsabilidade && <VinculosDaConta contaId={conta.id} contatosDaConta={contatos ?? []} />}
+          {conta.sobMinhaResponsabilidade && !arquivada && (
+            <VinculosDaConta contaId={conta.id} contatosDaConta={contatos ?? []} />
+          )}
           {carregandoContatos && <Carregando />}
 
           {!carregandoContatos && (!contatos || contatos.length === 0) && (
@@ -172,7 +178,7 @@ export function DetalheConta({ contaId }: Props) {
           titulo="Interações"
           contagem={interacoes && contar(interacoes.length, 'interação', 'interações')}
         >
-          {conta.sobMinhaResponsabilidade && <FormularioDeInteracao contaId={conta.id} />}
+          {conta.sobMinhaResponsabilidade && !arquivada && <FormularioDeInteracao contaId={conta.id} />}
           {carregandoInteracoes ? (
             <Carregando />
           ) : erroInteracoes ? (

@@ -69,7 +69,12 @@ export function criarAmbienteDoWorkspace({
         }
       },
     },
-    fonteDeContas: criarFonteDeContasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
+    fonteDeContas: criarFonteDeContasSupabase(
+      cliente,
+      () => participacao.workspaceId,
+      () => usuario.id,
+      () => participacao.papel === 'administrador',
+    ),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),

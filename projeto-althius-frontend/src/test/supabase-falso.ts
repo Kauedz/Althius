@@ -165,10 +165,10 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
   }
 
   function consulta(tabela: string) {
-    const filtros: [string, unknown][] = []
+    const filtros: ((linha: Linha) => boolean)[] = []
     let ordem: { coluna: string; ascendente: boolean } | null = null
     const resultado = () => {
-      const linhas = (tabelas[tabela] ?? []).filter((linha) => filtros.every(([coluna, valor]) => linha[coluna] === valor))
+      const linhas = (tabelas[tabela] ?? []).filter((linha) => filtros.every((confere) => confere(linha)))
       if (!ordem) return linhas
       const { coluna, ascendente } = ordem
       return [...linhas].sort((a, b) => String(a[coluna]).localeCompare(String(b[coluna])) * (ascendente ? 1 : -1))
@@ -181,7 +181,17 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
     const construtor = {
       select: () => construtor,
       eq(coluna: string, valor: unknown) {
-        filtros.push([coluna, valor])
+        filtros.push((linha) => linha[coluna] === valor)
+        return construtor
+      },
+      // Uma coluna que a linha não traz vale nulo, como o banco devolveria uma coluna nula.
+      is(coluna: string, valor: null) {
+        filtros.push((linha) => (linha[coluna] ?? null) === valor)
+        return construtor
+      },
+      not(coluna: string, operador: 'is', valor: null) {
+        if (operador !== 'is') throw new Error(`not(${operador}) não simulado`)
+        filtros.push((linha) => (linha[coluna] ?? null) !== valor)
         return construtor
       },
       order(coluna: string, opcoes?: { ascending?: boolean }) {
