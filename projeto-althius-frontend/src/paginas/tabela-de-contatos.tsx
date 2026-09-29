@@ -2,9 +2,10 @@ import { Popover } from '@base-ui/react/popover'
 import { createLucideIcon, Mail, Phone, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
-import { useDados } from '@/fonte/contexto'
+import { useDados, useFonteDeContas } from '@/fonte/contexto'
 import type { SecaoDoDocumento } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
+import { AcoesDoContato } from './arquivar-e-apagar'
 import { BotaoDeFotoDoContato } from './botao-de-foto-do-contato'
 import { AvatarDoContato, CABECALHO, CELULA, CelulaUltimoContato } from './modulo-contas-e-contatos'
 import type { EstadoDaNavegacao } from './voltar-para-a-lista'
@@ -51,6 +52,9 @@ export function TabelaDeContatos({
 }) {
   // A Persona do Contato aponta para a definição vigente na Memória do Workspace, lida uma vez para a tabela toda.
   const personas = useDados((fonte) => fonte.memoriaDoWorkspace(), [])?.personas.secoes
+  // Arquivar e apagar (CRM-18) só existem onde a fonte os oferece: a Demonstração não ganha coluna.
+  const fonteDeContas = useFonteDeContas()
+  const comAcoes = !!(fonteDeContas.arquivarContato || fonteDeContas.apagarContato)
 
   return (
     <table
@@ -85,6 +89,11 @@ export function TabelaDeContatos({
           <th scope="col" className={cn(CABECALHO, 'w-30')}>
             Último contato
           </th>
+          {comAcoes && (
+            <th scope="col" className={cn(CABECALHO, 'w-20')}>
+              Ações
+            </th>
+          )}
         </tr>
       </thead>
       <tbody>
@@ -128,6 +137,11 @@ export function TabelaDeContatos({
             <td className={CELULA}>
               <CelulaUltimoContato data={contato.ultimoContatoEm} hoje={hoje} />
             </td>
+            {comAcoes && (
+              <td className={CELULA}>
+                <AcoesDoContato contato={contato} />
+              </td>
+            )}
           </tr>
         ))}
       </tbody>

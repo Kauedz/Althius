@@ -93,6 +93,12 @@ export interface ContaAlvo {
   ultimoContatoEm?: string
   /** A Conta está sob a responsabilidade de quem está na sessão. Sem valor, a fonte não informa. */
   sobMinhaResponsabilidade?: boolean
+  /** Quando a Conta foi arquivada: fora das listas e buscas padrão, com o histórico, até ser restaurada. */
+  arquivadaEm?: string
+  /** Quem está na sessão pode arquivar e restaurar a Conta (o Vendedor responsável ou um Administrador). */
+  podeArquivar?: boolean
+  /** Quem está na sessão pode apagar a Conta definitivamente (só o Administrador). */
+  podeApagar?: boolean
 }
 
 /** O cadastro manual de uma Conta-alvo. A URL da empresa identifica a Conta existente, que é atualizada. */
@@ -135,6 +141,39 @@ export interface Contato {
   whatsapp?: string
   linkedin?: string
   ehReal?: boolean
+  /** Quem está na sessão pode arquivar o Contato (o Vendedor responsável pela Conta dele ou um Administrador). */
+  podeArquivar?: boolean
+  /** Quem está na sessão pode apagar o Contato definitivamente (só o Administrador). */
+  podeApagar?: boolean
+}
+
+/** Um Contato arquivado: sem Vínculo ativo, fora das listas padrão, guardado até ser restaurado ou apagado. */
+export interface ContatoArquivado {
+  id: string
+  nome: string
+  cargo?: string
+  arquivadoEm: string
+  /** A Conta-alvo do último Vínculo, que o arquivamento encerrou. */
+  contaId?: string
+  contaNome?: string
+  podeApagar?: boolean
+}
+
+/** O que o arquivamento de uma Conta fez: quantas Sequências em andamento foram pausadas. */
+export interface ResultadoDoArquivamentoDaConta {
+  sequenciasPausadas: number
+}
+
+/** O que a restauração de uma Conta fez: a Sequência só é destravada, nunca retomada. */
+export interface ResultadoDaRestauracaoDaConta {
+  sequenciasDestravadas: number
+}
+
+/** O que o apagamento definitivo de uma Conta fez, em números. Nada do que foi apagado volta na resposta. */
+export interface ResultadoDoApagamentoDaConta {
+  contatosApagados: number
+  contatosMantidos: number
+  sequenciasEncerradas: number
 }
 
 /** O cadastro de um Contato numa Conta-alvo, que abre o Vínculo do Contato com ela. Só o nome é obrigatório. */
@@ -245,4 +284,31 @@ export interface FonteDeContas extends FonteObservavel {
     contatoId: string,
     destinos: DestinosReaisContato,
   ): Promise<Contato>
+
+  /** As Contas-alvo arquivadas, para restaurar ou apagar. As listas padrão não as trazem. Sem este método, não há arquivo. */
+  contasArquivadas?(): Promise<ContaAlvo[]>
+
+  /** Arquiva a Conta-alvo: sai das listas padrão, a Sequência em andamento é pausada e o histórico fica. */
+  arquivarConta?(contaId: string): Promise<ResultadoDoArquivamentoDaConta>
+
+  /** Restaura a Conta-alvo arquivada. A Sequência pausada só é destravada: retomar continua sendo do responsável. */
+  restaurarConta?(contaId: string): Promise<ResultadoDaRestauracaoDaConta>
+
+  /**
+   * Apaga a Conta-alvo definitivamente, com o nome dela digitado como confirmação: some o que era da empresa e das
+   * Sequências dela, ficam os eventos comerciais sem nome. Rejeita, sem apagar nada, se a confirmação não conferir.
+   */
+  apagarConta?(contaId: string, confirmacao: string): Promise<ResultadoDoApagamentoDaConta>
+
+  /** Os Contatos arquivados, para restaurar ou apagar. */
+  contatosArquivados?(): Promise<ContatoArquivado[]>
+
+  /** Arquiva o Contato: os Vínculos ativos são encerrados e voltam se ele for restaurado. */
+  arquivarContato?(contatoId: string): Promise<void>
+
+  /** Restaura o Contato arquivado, reabrindo os Vínculos que o arquivamento encerrou. */
+  restaurarContato?(contatoId: string): Promise<void>
+
+  /** Apaga o Contato definitivamente, com o nome dele digitado como confirmação. */
+  apagarContato?(contatoId: string, confirmacao: string): Promise<void>
 }

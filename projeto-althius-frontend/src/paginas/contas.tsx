@@ -1,5 +1,5 @@
 import { PreviewCard } from '@base-ui/react/preview-card'
-import { Building2, ExternalLink, Plus, RadioTower, Upload } from 'lucide-react'
+import { Archive, Building2, ExternalLink, Plus, RadioTower, Upload } from 'lucide-react'
 import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
@@ -12,6 +12,7 @@ import type { ContaAlvo, FonteDeContas } from '@/fonte/contas-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn, normalizarParaBusca } from '@/lib/utils'
+import { BOTAO_DO_CABECALHO, ContasArquivadas } from './arquivar-e-apagar'
 import { DetalheConta } from './detalhe-conta'
 import {
   AbasDoModulo,
@@ -239,6 +240,26 @@ function ListaContas() {
   const quadro = useRolagemDaLista(listaVisivel)
   const estadoDoLink = useEstadoParaODetalhe('Contas')
   const [cadastrando, setCadastrando] = useState(false)
+  const [verArquivadas, setVerArquivadas] = useState(false)
+
+  // As Contas arquivadas ficam fora da lista e da busca padrão (CRM-18): esta visão as mostra, para restaurar ou apagar.
+  if (verArquivadas && fonte.contasArquivadas) {
+    return (
+      <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
+        <AbasDoModulo />
+        <div className="flex items-end justify-between gap-8">
+          <h2 className="sr-only">Contas arquivadas</h2>
+          <p className="text-sm text-al-muted">
+            Contas arquivadas ficam fora das listas e buscas. Restaure uma Conta para voltar a trabalhar nela.
+          </p>
+          <Button type="button" variant="outline" onClick={() => setVerArquivadas(false)} className={BOTAO_DO_CABECALHO}>
+            Voltar às Contas
+          </Button>
+        </div>
+        <ContasArquivadas />
+      </Pagina>
+    )
+  }
 
   return (
     <Pagina titulo="Contas" icone={Building2} ocupaAJanela>
@@ -257,6 +278,12 @@ function ListaContas() {
             singular="conta"
             plural="contas"
           />
+        )}
+        {fonte.contasArquivadas && (
+          <Button type="button" variant="outline" onClick={() => setVerArquivadas(true)} className={BOTAO_DO_CABECALHO}>
+            <Archive className="mr-1.5 size-3.5" aria-hidden />
+            Arquivadas
+          </Button>
         )}
         {fonte.importacao && (
           <Link
@@ -695,7 +722,13 @@ function FormularioNovaConta({
     setSalvando(true)
     setErro(null)
     try {
-      await salvar({ nome, url, segmento })
+      const conta = await salvar({ nome, url, segmento })
+      if (conta.arquivadaEm) {
+        // A URL da empresa identifica a Conta que já existe: arquivada, ela continua arquivada até alguém restaurá-la.
+        setErro('Esta empresa já está cadastrada e arquivada. Restaure-a em Arquivadas para voltar a trabalhar nela.')
+        setSalvando(false)
+        return
+      }
       fechar()
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : 'Não foi possível salvar a Conta-alvo.')
