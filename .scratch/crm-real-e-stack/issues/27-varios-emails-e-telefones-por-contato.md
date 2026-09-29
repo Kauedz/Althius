@@ -4,7 +4,7 @@
 
 **Blocked by:** a edição de Contato na tela (nota nos Comments do ticket 05). Depois dela, o formulário de edição ganha as listas.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Decisões do Nan (2026-09-29)
 
@@ -50,3 +50,4 @@
 - Pendências fora deste ticket: colunas "Email 2" e "Telefone 2" na importação por CSV, e o CSV casar o Contato também por um e-mail ou telefone adicional (hoje uma linha com um valor adicional de outro Contato vira Contato novo na prévia e falha na confirmação com `duplicate_identity`, sem gravar nada); o caminho de envio do WhatsApp e do LinkedIn (canais-06/07/08) usar a posição do telefone.
 - Testes: pgTAP `varios_emails_e_telefones_por_contato.sql` 97/97 (unicidade, limite, troca do principal, permissões, isolamento, anon, seleção do destino na confirmação e na ativação, liberação e bloqueio, resposta do e-mail adicional, apagar); os 21 arquivos de pgTAP existentes seguem passando sem alteração. Frontend: `varios-canais-do-contato.test.tsx`, `destino-do-passo.test.tsx`, casos novos em `supabase-contas.test.ts` e `raiz.test.tsx`.
 - Pending-apply: `supabase/migrations/20260929170000_varios_emails_e_telefones_por_contato.sql` no `ycbdilsmydvzezhlymty`, pelo bloco atômico de `docs/agents/migrations.md`, depois de CI verde e da validação em transação revertida (`scripts/pgtap-no-remoto.sh` do novo arquivo e dos que tocam as funções redefinidas). Nenhuma Edge Function mudou; nada a implantar.
+- Fechamento (2026-09-29). Mergeado no PR #81; o Nan aplicou a migration 20260929170000 no remoto (`db push`) e testou na tela: listas na edição, "+N" na tabela, recusa de valor repetido e o passo guardando o e-mail da posição escolhida. O Nan delegou as quatro decisões abertas, que ficam como estão: (1) a posição do telefone é a da lista inteira, porque é o que o passo guarda e renumerar mudaria o destino de um passo já confirmado; (2) limpar o principal com adicionais segue só pelo `set_contact_channels`, porque o `update_contact` é da frente de Conexões e a lista nunca fica sem a posição 1; (3) a visão `target_contacts` não muda aqui: o envio de WhatsApp (canais-06) deve ler a marca por `private.contact_channels`, e corrigir a visão fica com esse ticket; (4) as duas chamadas do diálogo ficam, porque a falha da segunda deixa as listas certas gravadas e o diálogo mostra o motivo.
