@@ -176,29 +176,84 @@ describe('Passo de WhatsApp no Workspace operacional', () => {
       },
     })
     expect(await screen.findByText(
-      /^Sai sozinho qua\., 30\/09, 10:00 para \+5511987654321, mesmo com o navegador fechado\. Última tentativa: não foi possível conferir se o número tem WhatsApp\./,
+      /^Programado para qua\., 30\/09, 10:00 para \+5511987654321, mas o envio automático de WhatsApp está desligado: só sai quando você confirma e envia\. Última tentativa: não foi possível conferir se o número tem WhatsApp\./,
     )).toBeInTheDocument()
+    expect(screen.queryByText(/Sai sozinho/)).not.toBeInTheDocument()
+  })
+
+  it('com o envio automático desligado, o passo de WhatsApp programado sai pelo botão Enviar do titular', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    const { usuario } = abrirASequencia({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }],
+        list_sequence_step_sends: () => [linhaDoEnvio('scheduled')],
+        confirm_whatsapp_step: () => [linhaDoEnvio('scheduled')],
+      },
+      funcoes: {
+        'sequence-step-sends': (corpo) => {
+          pedidos.push(corpo)
+          return { corpo: { outcome: 'sent', sendId: 'envio-1' } }
+        },
+      },
+    })
+    await usuario.click(await screen.findByRole('button', { name: 'Enviar' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Mensagem enviada para +5511987654321.')
+    expect(pedidos).toEqual([{ action: 'send', workspaceId: 'ws-norte', sendId: 'envio-1' }])
+  })
+
+  it('o envio automático desligado que o banco recusa aparece com a mensagem dele, sem virar erro', async () => {
+    const { usuario } = abrirASequencia({
+      rpcs: { confirm_whatsapp_step: () => [linhaDoEnvio('confirmed', { mode: 'manual', scheduled_for: null })] },
+      funcoes: {
+        'sequence-step-sends': () => ({
+          status: 409,
+          corpo: {
+            outcome: 'automatic_disabled',
+            message: 'O envio automático de WhatsApp está desligado. Este passo só sai quando você confirma e envia.',
+          },
+        }),
+      },
+    })
+    await usuario.click(await screen.findByRole('button', { name: 'Confirmar e enviar' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('O envio automático de WhatsApp está desligado.')
+  })
+
+  it('depois de ativar, o painel não promete envio sozinho para o WhatsApp programado', async () => {
+    abrirASequencia({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }],
+        list_sequence_step_sends: () => [linhaDoEnvio('scheduled')],
+      },
+    })
+    const painel = await screen.findByRole('region', { name: 'Envios automáticos' })
+    expect(within(painel).getByText(/^Envios ativos\. Nenhum passo programado agora\. O envio automático de WhatsApp está desligado/)).toBeInTheDocument()
+    expect(within(painel).queryByText(/Próximo:/)).not.toBeInTheDocument()
   })
 
   it('uma recusa do provedor mostra o código traduzido', async () => {
     abrirASequencia({
       rpcs: { list_sequence_step_sends: () => [linhaDoEnvio('failed', { last_error: 'http_403' })] },
     })
-    expect(await screen.findByText('O provedor não aceitou o envio (a Unipile recusou (HTTP 403)). Reconfirme para tentar de novo.')).toBeInTheDocument()
+    expect(await screen.findByText(
+      'O provedor não aceitou o envio (a Unipile recusou (HTTP 403)). Nada é reenviado sozinho: reconfirme para tentar de novo.',
+    )).toBeInTheDocument()
   })
 
   it('o painel de envios automáticos e a ativação cobrem os passos de WhatsApp', async () => {
     const { usuario } = abrirASequencia()
 
     const painel = await screen.findByRole('region', { name: 'Envios automáticos' })
-    expect(within(painel).getByText('Os passos de WhatsApp só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.')).toBeInTheDocument()
+    expect(within(painel).getByText('O envio automático de WhatsApp está desligado: cada passo só sai quando você confirma e envia.')).toBeInTheDocument()
     await usuario.click(within(painel).getByRole('button', { name: 'Ativar envios' }))
 
     const dialogo = await screen.findByRole('dialog')
-    expect(within(dialogo).getByText(/Os passos de WhatsApp abaixo saem sozinhos/)).toBeInTheDocument()
+    expect(within(dialogo).getByText(/O envio automático de WhatsApp está desligado/)).toBeInTheDocument()
+    expect(within(dialogo).getByText(/Uma resposta do Contato no WhatsApp ainda não pausa a Sequência/)).toBeInTheDocument()
+    expect(within(dialogo).queryByText(/^Os passos de .* abaixo saem sozinhos/)).not.toBeInTheDocument()
+    expect(within(dialogo).queryByText(/Uma resposta do Contato pausa a Sequência/)).not.toBeInTheDocument()
     const passos = within(dialogo).getByRole('list', { name: 'Passos a ativar' })
     expect(within(passos).getByText('Primeiro contato')).toBeInTheDocument()
-    expect(within(passos).getByText(/Para Contato sem WhatsApp · automático/)).toBeInTheDocument()
+    expect(within(passos).getByText(/Para Contato sem WhatsApp · programado: só sai quando você envia/)).toBeInTheDocument()
   })
 
   it('os bloqueios da ativação de um passo de WhatsApp dizem o motivo e o passo', async () => {
@@ -229,10 +284,22 @@ describe('Passo de WhatsApp no Workspace operacional', () => {
       ],
     })
     const painel = await screen.findByRole('region', { name: 'Envios automáticos' })
-    expect(within(painel).getByText(/^Os passos de E-mail e de WhatsApp só saem sozinhos/)).toBeInTheDocument()
+    expect(within(painel).getByText(/^Os passos de E-mail só saem sozinhos.*O envio automático de WhatsApp está desligado/)).toBeInTheDocument()
     await usuario.click(within(painel).getByRole('button', { name: 'Ativar envios' }))
-    const passos = within(await screen.findByRole('dialog')).getByRole('list', { name: 'Passos a ativar' })
+    const dialogo = await screen.findByRole('dialog')
+    expect(within(dialogo).getByText(/Os passos de E-mail abaixo saem sozinhos.*Uma resposta do Contato por e-mail pausa a Sequência\. O envio automático de WhatsApp está desligado.*ainda não pausa a Sequência/)).toBeInTheDocument()
+    const passos = within(dialogo).getByRole('list', { name: 'Passos a ativar' })
     expect(within(passos).getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('numa Sequência só de E-mail, a ativação continua dizendo que uma resposta pausa a Sequência', async () => {
+    const { usuario } = abrirASequencia({
+      steps: [{ id: 'passo-2', ordem: 1, canal: 'email', contatoId: 'contato-1', delayDiasUteis: 0, titulo: 'Abertura', assunto: 'Olá', corpo: 'Oi' }],
+    })
+    await usuario.click(await screen.findByRole('button', { name: 'Ativar envios' }))
+    const dialogo = await screen.findByRole('dialog')
+    expect(within(dialogo).getByText(/^Os passos de E-mail abaixo saem sozinhos.* Uma resposta do Contato pausa a Sequência\.$/)).toBeInTheDocument()
+    expect(within(dialogo).queryByText(/WhatsApp/)).not.toBeInTheDocument()
   })
 
   it('um passo de LinkedIn segue sem envio neste Workspace', async () => {

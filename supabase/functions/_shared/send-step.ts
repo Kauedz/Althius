@@ -156,6 +156,7 @@ const WHATSAPP_MESSAGES: Partial<Record<BlockedOutcome, string>> = {
   destination_changed:
     'O número do Contato mudou depois da confirmação. Reconfirme o passo para enviar ao novo número.',
   reconcile_required: 'O último envio deste passo ficou incerto. Confira no seu WhatsApp e diga se a mensagem saiu.',
+  not_due: 'Este passo está programado para mais tarde. Quando a hora dele chegar, você pode enviá-lo por aqui.',
 }
 
 export function blockedMessage(outcome: BlockedOutcome, channel: 'email' | 'whatsapp' = 'email') {

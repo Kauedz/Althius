@@ -895,11 +895,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Ativar envios</DialogTitle>
-            <DialogDescription>
-              Os passos de {rotuloDosCanaisEnviaveis(sequencia.steps)} abaixo saem sozinhos, na ordem, em dias úteis e dentro da
-              janela de horário, mesmo com o navegador fechado. Cada um fica com o Destino mostrado aqui. Uma resposta do
-              Contato pausa a Sequência.
-            </DialogDescription>
+            <DialogDescription>{textoDaAtivacao(sequencia.steps)}</DialogDescription>
           </DialogHeader>
           <ol aria-label="Passos a ativar" className="flex flex-col gap-2 list-none p-0 m-0 text-xs">
             {sequencia.steps
@@ -913,7 +909,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                   <li key={s.id} className="flex flex-col gap-0.5 border-t border-al-line pt-2 first:border-t-0 first:pt-0">
                     <span className="text-al-ink font-medium">{s.titulo}</span>
                     <span className="text-al-muted">
-                      Para {paraQuem} · {s.canal === 'email' && s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
+                      Para {paraQuem} · {s.canal === 'whatsapp' ? 'programado: só sai quando você envia' : s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
                       {s.delayDiasUteis > 0 ? ` · ${s.delayDiasUteis} ${s.delayDiasUteis === 1 ? 'dia útil' : 'dias úteis'} depois do anterior` : ''}
                     </span>
                   </li>
@@ -1726,6 +1722,23 @@ function rotuloDosCanaisEnviaveis(steps: StepSequencia[]): string {
   return email && whatsapp ? 'E-mail e de WhatsApp' : whatsapp ? 'WhatsApp' : 'E-mail'
 }
 
+/**
+ * O que a ativação promete. O E-mail sai sozinho e uma resposta do Contato pausa a Sequência. No WhatsApp, por enquanto,
+ * nenhuma das duas coisas vale: o envio automático está desligado no banco e uma resposta ainda NÃO pausa a Sequência
+ * (a recepção é a parte 2 do canais-06), então cada passo só sai quando o titular confirma e envia.
+ */
+const AVISO_DO_WHATSAPP_AUTOMATICO =
+  'O envio automático de WhatsApp está desligado: os passos de WhatsApp ficam programados, mas só saem quando você confirma e envia cada um. Uma resposta do Contato no WhatsApp ainda não pausa a Sequência.'
+
+function textoDaAtivacao(steps: StepSequencia[]): string {
+  const email = steps.some((s) => s.canal === 'email')
+  const whatsapp = steps.some((s) => s.canal === 'whatsapp')
+  const doEmail = 'saem sozinhos, na ordem, em dias úteis e dentro da janela de horário, mesmo com o navegador fechado. Cada um fica com o Destino mostrado aqui.'
+  if (!whatsapp) return `Os passos de E-mail abaixo ${doEmail} Uma resposta do Contato pausa a Sequência.`
+  if (!email) return `${AVISO_DO_WHATSAPP_AUTOMATICO} Cada passo fica com o Destino mostrado aqui.`
+  return `Os passos de E-mail abaixo ${doEmail} Uma resposta do Contato por e-mail pausa a Sequência. ${AVISO_DO_WHATSAPP_AUTOMATICO}`
+}
+
 /** O que a tela diz de um bloqueio da ativação num passo de WhatsApp; nos outros casos vale o texto da fonte. */
 const MENSAGEM_DA_ATIVACAO_DO_WHATSAPP: Record<string, string> = {
   destination_not_found: 'Um passo escolhe um número de telefone que o Contato não tem. Ajuste o passo antes de ativar.',
@@ -1758,8 +1771,15 @@ function descreverErroDoEnvio(codigo: string, canal: StepSequencia['canal']): st
 function descreverEnvio(envio: EnvioDoPasso, canal: StepSequencia['canal'] = 'email'): string {
   switch (envio.status) {
     case 'waiting':
-      return `Na fila: sai depois do passo anterior, para ${envio.destino}.`
+      return canal === 'whatsapp'
+        ? `Na fila: vem depois do passo anterior, para ${envio.destino}. O envio automático de WhatsApp está desligado: só sai quando você envia.`
+        : `Na fila: sai depois do passo anterior, para ${envio.destino}.`
     case 'scheduled':
+      if (canal === 'whatsapp') {
+        return `Programado ${envio.programadoPara ? `para ${formatarDataEHora(envio.programadoPara)} ` : ''}para ${envio.destino}, mas o envio automático de WhatsApp está desligado: só sai quando você confirma e envia.${
+          envio.ultimoErro ? ` Última tentativa: ${descreverErroDoEnvio(envio.ultimoErro, canal)}.` : ''
+        }`
+      }
       return `Sai sozinho ${envio.programadoPara ? formatarDataEHora(envio.programadoPara) : 'no próximo horário válido'} para ${envio.destino}, mesmo com o navegador fechado.${
         envio.ultimoErro ? ` Última tentativa: ${descreverErroDoEnvio(envio.ultimoErro, canal)}.` : ''
       }`
@@ -1780,7 +1800,9 @@ function descreverEnvio(envio: EnvioDoPasso, canal: StepSequencia['canal'] = 'em
         ? 'A Unipile não confirmou o envio e nada é reenviado sozinho. Confira seu WhatsApp: a mensagem saiu?'
         : 'O provedor não respondeu a tempo e a confirmação não chegou. Confira sua caixa de saída: o e-mail saiu?'
     case 'failed':
-      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${descreverErroDoEnvio(envio.ultimoErro, canal)})` : ''}. Reconfirme para tentar de novo.`
+      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${descreverErroDoEnvio(envio.ultimoErro, canal)})` : ''}. ${
+        canal === 'whatsapp' ? 'Nada é reenviado sozinho: reconfirme para tentar de novo.' : 'Reconfirme para tentar de novo.'
+      }`
     case 'bounced':
       return `O e-mail para ${envio.destino} foi devolvido.`
     case 'sending':
@@ -1819,11 +1841,13 @@ function RodapeDoEnvio({
     return <span className="text-al-atencao">Não foi possível carregar a situação do envio deste passo. Recarregue a página antes de enviar.</span>
   }
   // Depois de um envio aceito, o botão só volta quando a lista de Envios já mostra o passo como enviado.
+  // Com o envio automático de WhatsApp desligado, um passo de WhatsApp programado só sai por aqui.
+  const whatsappProgramado = step.canal === 'whatsapp' && envio?.status === 'scheduled'
   const podeEnviar = !!onConfirmarEEnviar && !enviando && aviso?.tipo !== 'ok'
-    && (!envio || ENVIO_REENVIAVEL.has(envio.status))
+    && (!envio || ENVIO_REENVIAVEL.has(envio.status) || whatsappProgramado)
   const rotuloDoBotao = enviando
     ? 'Enviando…'
-    : envio?.status === 'confirmed' && envio.modo === 'manual'
+    : (envio?.status === 'confirmed' && envio.modo === 'manual') || whatsappProgramado
       ? 'Enviar'
       : envio && envio.status !== 'confirmed' ? 'Reconfirmar e enviar' : 'Confirmar e enviar'
   const podeResolver = !!onResolverIncerto && envio?.status === 'uncertain' && aviso?.tipo !== 'ok'
@@ -1908,13 +1932,24 @@ function PainelDosEnvios({
   aviso: AvisoDoEnvio | null
   onAtivar: () => void
 }) {
-  const proximo = envios.find((e) => e.status === 'scheduled')
+  const canalDoEnvio = (e: EnvioDoPasso) => sequencia.steps.find((s) => s.id === e.stepId)?.canal
+  // O WhatsApp programado não sai sozinho (o envio automático está desligado): não é o "próximo" do Executor.
+  const proximo = envios.find((e) => e.status === 'scheduled' && canalDoEnvio(e) !== 'whatsapp')
     ?? envios.find((e) => e.status === 'confirmed' && e.modo === 'manual')
+  const temWhatsappProgramado = envios.some((e) => e.status === 'scheduled' && canalDoEnvio(e) === 'whatsapp')
+  const avisoDoWhatsapp = temWhatsappProgramado
+    ? ' O envio automático de WhatsApp está desligado: os passos de WhatsApp só saem quando você confirma e envia.'
+    : ''
   const passoDoProximo = proximo ? sequencia.steps.find((s) => s.id === proximo.stepId) : undefined
   let texto: string
   let rotulo: string | null = null
   if (!autorizacao) {
-    texto = `Os passos de ${rotuloDosCanaisEnviaveis(sequencia.steps)} só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.`
+    const canais = rotuloDosCanaisEnviaveis(sequencia.steps)
+    texto = canais === 'WhatsApp'
+      ? 'O envio automático de WhatsApp está desligado: cada passo só sai quando você confirma e envia.'
+      : canais === 'E-mail'
+        ? 'Os passos de E-mail só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.'
+        : 'Os passos de E-mail só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios. O envio automático de WhatsApp está desligado: cada passo de WhatsApp só sai quando você confirma e envia.'
     rotulo = 'Ativar envios'
   } else if (!autorizacao.ativa) {
     texto = autorizacao.motivoDaRevogacao === 'edited'
@@ -1927,10 +1962,10 @@ function PainelDosEnvios({
     texto = 'Envios ativos, mas a Sequência está pausada: nada sai até você retomar.'
   } else if (proximo && passoDoProximo) {
     texto = proximo.status === 'scheduled'
-      ? `Envios ativos. Próximo: "${passoDoProximo.titulo}", ${proximo.programadoPara ? formatarDataEHora(proximo.programadoPara) : 'no próximo horário válido'}.`
-      : `Envios ativos. Próximo: "${passoDoProximo.titulo}", passo manual que espera você enviar.`
+      ? `Envios ativos. Próximo: "${passoDoProximo.titulo}", ${proximo.programadoPara ? formatarDataEHora(proximo.programadoPara) : 'no próximo horário válido'}.${avisoDoWhatsapp}`
+      : `Envios ativos. Próximo: "${passoDoProximo.titulo}", passo manual que espera você enviar.${avisoDoWhatsapp}`
   } else {
-    texto = 'Envios ativos. Nenhum passo programado agora.'
+    texto = `Envios ativos. Nenhum passo programado agora.${avisoDoWhatsapp}`
   }
   return (
     <section aria-label="Envios automáticos" className="flex flex-wrap items-center gap-3 border border-al-line bg-al-surface px-4 py-3 text-xs text-al-muted">
@@ -2160,7 +2195,7 @@ function OpcoesPorCanal({
       <span className="text-xs text-al-muted">
         {naDemonstracao
           ? 'Enviado do número do vendedor · sem envio neste protótipo'
-          : 'Enviado da sua Conta de WhatsApp, com intervalo entre as mensagens · sai sozinho depois de ativar os envios'}
+          : 'Enviado da sua Conta de WhatsApp, com intervalo entre as mensagens · você confirma e envia cada passo (o envio automático está desligado)'}
       </span>
     )
   }

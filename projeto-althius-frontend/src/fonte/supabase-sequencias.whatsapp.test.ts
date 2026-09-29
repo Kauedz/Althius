@@ -108,6 +108,7 @@ describe('Passo de WhatsApp no Workspace operacional', () => {
       ['destination_check_failed', 'Não foi possível conferir se o número tem WhatsApp. Tente de novo em instantes.'],
       ['sender_spacing', 'Sua Conta de WhatsApp enviou uma mensagem há poucos segundos. Espere um pouco antes de enviar outra.'],
       ['sender_not_ready', 'Sua Conta remetente de WhatsApp não está pronta para enviar.'],
+      ['automatic_disabled', 'O envio automático de WhatsApp está desligado. Este passo só sai quando você confirma e envia.'],
     ]) {
       const fonte = sequenciaDaMarina({}, { 'sequence-step-sends': () => ({ status: 409, corpo: { outcome, message: mensagem } }) })
       expect(await fonte.enviarPasso('sequencia-da-marina', 'envio-1')).toEqual({ outcome, mensagem })

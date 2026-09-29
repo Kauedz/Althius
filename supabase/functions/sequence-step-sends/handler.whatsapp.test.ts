@@ -150,6 +150,7 @@ Deno.test('os bloqueios do banco chegam com texto de WhatsApp e não chamam a Un
     ['owner_not_responsible', 'Vendedor responsável'],
     ['reconcile_required', 'Confira no seu WhatsApp'],
     ['automatic_disabled', 'envio automático de WhatsApp está desligado'],
+    ['not_due', 'você pode enviá-lo por aqui'],
   ]
   for (const [outcome, trecho] of casos) {
     const { handle, chamadas, recorded } = montar({ liberacao: { outcome, send_id: SEND } as WhatsappReleaseResult })
