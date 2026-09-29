@@ -1,6 +1,9 @@
 import type { FonteObservavel } from './tipos'
 
-export type StatusSequencia = 'ativa' | 'pausada' | 'reuniao' | 'esgotada'
+export type StatusSequencia = 'ativa' | 'pausada' | 'reuniao' | 'esgotada' | 'encerrada'
+
+/** Por que o sistema encerrou a Sequência: o responsável da Conta mudou (Transferência) ou a Conta foi apagada. */
+export type MotivoDeEncerramento = 'transferencia' | 'exclusao'
 
 export type CanalStep =
   | 'email'
@@ -66,6 +69,10 @@ export interface Sequencia {
   /** Safe shared count of steps; private step content is only present for the owner. */
   totalSteps?: number
   motivoPause?: string
+  /** Só numa Sequência encerrada: o histórico fica, e a Conta pode ter outra Sequência em andamento. */
+  encerradaPor?: MotivoDeEncerramento
+  /** A Conta-alvo está arquivada: a Sequência fica pausada e só volta a ser retomada depois de restaurar a Conta. */
+  pausadaPelaConta?: boolean
   participantesIds: string[]
   janelaPadrao: JanelaHorario
   regraDePause: string
@@ -104,6 +111,7 @@ export interface ResumoPublicoSequencia {
   totalSteps: number
   passoAtual: number
   motivoPause?: string
+  encerradaPor?: MotivoDeEncerramento
   atualizadaEm?: string
 }
 
@@ -151,8 +159,11 @@ export interface AutorizacaoDosEnvios {
   versao: number
   autorizadaEm: string
   ativa: boolean
-  /** Por que deixou de valer: um passo pendente foi editado, ou uma nova ativação a substituiu. */
-  motivoDaRevogacao?: 'edited' | 'reactivated'
+  /**
+   * Por que deixou de valer: um passo pendente foi editado, uma nova ativação a substituiu ou o sistema a revogou (a
+   * responsabilidade da Conta foi transferida, ou a Conta foi arquivada ou apagada).
+   */
+  motivoDaRevogacao?: 'edited' | 'reactivated' | 'responsibility_transferred' | 'account_archived' | 'account_deleted'
 }
 
 /**
@@ -212,10 +223,16 @@ export interface FonteDeSequencias extends FonteObservavel {
   /** Busca uma sequência pelo seu id. Rejeita se não existir. */
   sequencia(id: string): Promise<Sequencia>
 
-  /** Busca a sequência de uma Conta-alvo (zero ou uma). Devolve null se não houver. */
+  /**
+   * Busca a sequência de uma Conta-alvo: a em andamento (no máximo uma) ou, se só houver encerradas, a mais recente.
+   * Devolve null se não houver.
+   */
   sequenciaPorConta(contaId: string): Promise<Sequencia | null>
 
-  /** Cria uma nova sequência para uma Conta-alvo. Rejeita se já existir sequência para ela. */
+  /**
+   * Cria uma nova sequência para uma Conta-alvo. Rejeita se já existir uma em andamento para ela ou se quem chama não
+   * for o Vendedor responsável pela Conta. Depois de uma Transferência de responsabilidade, o novo responsável cria a dele.
+   */
   criarSequencia(nova: NovaSequencia): Promise<Sequencia>
 
   /** Atualiza o documento de uma sequência (participantes, steps, delays, janela, pause). */

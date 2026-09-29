@@ -234,18 +234,23 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const conta = contas?.find((c) => c.id === sequencia.contaId)
   const nomeConta = conta?.nome ?? sequencia.contaId
 
-  if (sequencia.responsavel === false) {
+  // Uma Sequência encerrada é histórico: o Workspace só vê a projeção segura, até quem foi o titular dela.
+  if (sequencia.responsavel === false || sequencia.status === 'encerrada') {
     return (
       <section aria-label="Resumo público da sequência" className="flex flex-col items-start gap-4 py-8">
         <Link to="/sequencias" className="inline-flex items-center gap-1.5 text-xs text-al-muted hover:text-al-ink tracking-rotulo uppercase">
           <ArrowLeft className="size-4" /> Voltar para Sequências
         </Link>
         <h2 className="titulo-secao text-2xl">Resumo da Conta-alvo</h2>
-        <p className="text-sm text-al-muted">Esta Sequência tem outro Vendedor responsável. Você pode consultar o status, mas não o documento nem os detalhes privados.</p>
+        <p className="text-sm text-al-muted">
+          {sequencia.status === 'encerrada'
+            ? textoDoEncerramento(sequencia)
+            : 'Esta Sequência tem outro Vendedor responsável. Você pode consultar o status, mas não o documento nem os detalhes privados.'}
+        </p>
         <dl className="grid grid-cols-2 gap-x-8 gap-y-3 border border-al-line bg-al-surface p-4 text-sm">
           <dt className="text-al-muted">Conta-alvo</dt><dd>{nomeConta}</dd>
           <dt className="text-al-muted">Status</dt>
-          <dd>{sequencia.status === 'pausada' ? 'Contato respondeu; sequência pausada' : sequencia.status}</dd>
+          <dd>{rotuloDoStatusPublico(sequencia)}</dd>
           <dt className="text-al-muted">Participantes</dt><dd>{sequencia.totalParticipantes}</dd>
           <dt className="text-al-muted">Etapas</dt><dd>{sequencia.totalSteps ?? 0}</dd>
         </dl>
@@ -721,8 +726,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           </div>
         </div>
 
-        {/* Ações da regra de pause quando pausada */}
-        {sequencia.status === 'pausada' && (
+        {/* Ações da regra de pause quando pausada; com a Conta arquivada, só restaurar a Conta libera a retomada */}
+        {sequencia.status === 'pausada' && !sequencia.pausadaPelaConta && (
           <div className="flex items-center gap-2 shrink-0">
             <Button
               type="button"
@@ -1790,7 +1795,9 @@ function PainelDosEnvios({
   } else if (!autorizacao.ativa) {
     texto = autorizacao.motivoDaRevogacao === 'edited'
       ? 'Você alterou passos depois da ativação. Os envios automáticos pararam até você ativar de novo.'
-      : 'Os envios automáticos estão parados.'
+      : autorizacao.motivoDaRevogacao === 'account_archived'
+        ? 'A Conta-alvo foi arquivada. Os envios automáticos pararam: ao restaurá-la, retome a Sequência e ative os envios de novo.'
+        : 'Os envios automáticos estão parados.'
     rotulo = 'Ativar de novo'
   } else if (sequencia.status !== 'ativa') {
     texto = 'Envios ativos, mas a Sequência está pausada: nada sai até você retomar.'
@@ -2411,6 +2418,19 @@ function LinhaAnexos({
   )
 }
 
+/** O que o Workspace lê do status de uma Sequência que não é dele. */
+function rotuloDoStatusPublico(sequencia: Sequencia): string {
+  if (sequencia.status === 'encerrada') return 'Encerrada'
+  if (sequencia.pausadaPelaConta) return 'Pausada: Conta-alvo arquivada'
+  return sequencia.status === 'pausada' ? 'Contato respondeu; sequência pausada' : sequencia.status
+}
+
+function textoDoEncerramento(sequencia: Sequencia): string {
+  return sequencia.encerradaPor === 'exclusao'
+    ? 'Esta Sequência foi encerrada porque a Conta-alvo foi apagada. Os passos pendentes foram cancelados e nada mais sai por ela.'
+    : 'Esta Sequência foi encerrada porque a responsabilidade pela Conta-alvo mudou. Os passos pendentes foram cancelados; o Vendedor responsável atual cria a Sequência dele, com o documento e as Contas remetentes dele.'
+}
+
 export function SeloStatus({ status }: { status: StatusSequencia }) {
   switch (status) {
     case 'ativa':
@@ -2439,6 +2459,13 @@ export function SeloStatus({ status }: { status: StatusSequencia }) {
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-muted">
           <span className="size-1.5 rounded-full bg-al-muted" />
           Esgotada
+        </span>
+      )
+    case 'encerrada':
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-muted">
+          <span className="size-1.5 rounded-full bg-al-muted" />
+          Encerrada
         </span>
       )
   }

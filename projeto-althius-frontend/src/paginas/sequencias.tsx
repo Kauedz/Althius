@@ -73,6 +73,7 @@ function ListaGlobalSequencias() {
     pausada: (sequencias ?? []).filter((s) => s.status === 'pausada').length,
     reuniao: (sequencias ?? []).filter((s) => s.status === 'reuniao').length,
     esgotada: (sequencias ?? []).filter((s) => s.status === 'esgotada').length,
+    encerrada: (sequencias ?? []).filter((s) => s.status === 'encerrada').length,
   }
 
   const totalSequencias = sequencias?.length ?? 0
@@ -88,7 +89,7 @@ function ListaGlobalSequencias() {
       <div className="flex flex-col gap-1">
         <h2 className="sr-only">Planos de Sequência</h2>
         <p className="text-sm text-al-muted">
-          Planos de abordagem por Conta-alvo. Uma sequência por Conta; qualquer resposta pausa a Conta inteira.
+          Planos de abordagem por Conta-alvo. Uma sequência em andamento por Conta; qualquer resposta pausa a Conta inteira.
         </p>
         {sequencias && (
           <span className="rotulo text-xs text-al-muted">
@@ -158,6 +159,7 @@ function ListaGlobalSequencias() {
                 <option value="pausada">Pausada ({contagens.pausada})</option>
                 <option value="reuniao">Reunião ({contagens.reuniao})</option>
                 <option value="esgotada">Esgotada ({contagens.esgotada})</option>
+                <option value="encerrada">Encerrada ({contagens.encerrada})</option>
               </select>
             </div>
 
@@ -248,7 +250,11 @@ function ListaGlobalSequencias() {
                         </td>
 
                         <td className="py-3 px-4 text-xs text-al-muted">
-                          {seq.status === 'pausada' ? (
+                          {seq.status === 'encerrada' ? (
+                            <span>
+                              {seq.encerradaPor === 'exclusao' ? 'Encerrada · Conta apagada' : 'Encerrada · responsabilidade transferida'}
+                            </span>
+                          ) : seq.status === 'pausada' ? (
                             <span className="inline-flex items-center gap-1.5 text-al-atencao" title="Pausa da Conta inteira">
                               <Pause className="size-3.5 shrink-0" />
                               <span className="truncate">

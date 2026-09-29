@@ -91,8 +91,12 @@ function FormularioNovaSequencia({
     }
   }, [contaId, fonteContas])
 
-  const contasComSequencia = new Set(sequencias?.map((s) => s.contaId) ?? [])
+  // A Sequência encerrada (depois de uma Transferência de responsabilidade, por exemplo) é histórico: não segura a Conta.
+  const contasComSequencia = new Set(sequencias?.filter((s) => s.status !== 'encerrada').map((s) => s.contaId) ?? [])
   const jaTemSequencia = contaId ? contasComSequencia.has(contaId) : false
+  // Só o Vendedor responsável cria a Sequência da Conta (ADR-0009). Uma fonte que não informa a responsabilidade
+  // (a Demonstração) não restringe a lista.
+  const contaDoOutroResponsavel = (conta: { sobMinhaResponsabilidade?: boolean }) => conta.sobMinhaResponsabilidade === false
 
   const podeCriar =
     Boolean(contaId) &&
@@ -136,7 +140,7 @@ function FormularioNovaSequencia({
       <DialogHeader>
         <DialogTitle className="titulo-secao text-xl text-al-ink">Nova sequência</DialogTitle>
         <DialogDescription className="text-sm text-al-muted">
-          Escolha a Conta-alvo. Cada Conta-alvo pode ter no máximo uma sequência ativa.
+          Escolha uma Conta-alvo sob a sua responsabilidade. Cada Conta-alvo pode ter no máximo uma sequência em andamento.
         </DialogDescription>
       </DialogHeader>
 
@@ -162,9 +166,14 @@ function FormularioNovaSequencia({
           <option value="">Selecione uma empresa...</option>
           {contasOrdenadas.map((conta) => {
             const possui = contasComSequencia.has(conta.id)
+            const deOutro = contaDoOutroResponsavel(conta)
             return (
-              <option key={conta.id} value={conta.id} disabled={possui}>
-                {conta.nome} {possui ? '(já possui sequência)' : `(${conta.totalContatos} ${conta.totalContatos === 1 ? 'contato' : 'contatos'})`}
+              <option key={conta.id} value={conta.id} disabled={possui || deOutro}>
+                {conta.nome} {possui
+                  ? '(já possui sequência)'
+                  : deOutro
+                    ? '(outro responsável)'
+                    : `(${conta.totalContatos} ${conta.totalContatos === 1 ? 'contato' : 'contatos'})`}
               </option>
             )
           })}

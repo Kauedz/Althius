@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
@@ -11,8 +11,19 @@ interface RegistroSequencia {
   owner_user_id: string
   status: StatusSequencia
   public_summary: Record<string, unknown>
+  /** Só a Sequência encerrada tem motivo; a pausada pela Conta arquivada tem `suspended_reason`. */
+  ended_reason?: 'responsibility_transferred' | 'account_deleted' | null
+  suspended_reason?: 'account_archived' | null
   created_at: string
   updated_at: string
+}
+
+const COLUNAS_DA_SEQUENCIA =
+  'id, workspace_id, target_account_id, owner_user_id, status, public_summary, ended_reason, suspended_reason, created_at, updated_at'
+
+const MOTIVO_DE_ENCERRAMENTO: Record<string, MotivoDeEncerramento> = {
+  responsibility_transferred: 'transferencia',
+  account_deleted: 'exclusao',
 }
 
 interface DocumentoPrivado {
@@ -41,7 +52,7 @@ interface LinhaDaAutorizacao {
   version: number
   authorized_at: string
   active: boolean
-  revoked_reason: 'edited' | 'reactivated' | null
+  revoked_reason: AutorizacaoDosEnvios['motivoDaRevogacao'] | null
 }
 
 /** O que cada bloqueio da ativação diz ao Vendedor responsável. */
@@ -127,11 +138,16 @@ function mapear(row: RegistroSequencia, ehResponsavel: boolean): Sequencia {
   const resumo = row.public_summary
   const steps = documento?.steps ?? []
   const participantesIds = documento?.participantesIds ?? []
+  const pausadaPelaConta = row.suspended_reason === 'account_archived'
+  const encerradaPor = row.ended_reason ? MOTIVO_DE_ENCERRAMENTO[row.ended_reason] : undefined
   return {
     id: row.id,
     contaId: row.target_account_id,
     status: row.status,
-    ...(ehResponsavel && documento?.motivoPause ? { motivoPause: documento.motivoPause } : {}),
+    // A pausa pela Conta arquivada vale mais que o motivo guardado no documento: a Conta é o que trava a retomada.
+    ...(pausadaPelaConta ? { motivoPause: 'Conta arquivada', pausadaPelaConta } : {}),
+    ...(!pausadaPelaConta && ehResponsavel && documento?.motivoPause ? { motivoPause: documento.motivoPause } : {}),
+    ...(encerradaPor ? { encerradaPor } : {}),
     responsavel: ehResponsavel,
     totalSteps: ehResponsavel ? steps.length : numeroSeguro(resumo.totalSteps),
     participantesIds,
@@ -154,12 +170,25 @@ function validarPassos(steps: StepSequencia[]) {
 }
 
 function converterErro(error: { message: string; code?: string }): Error {
+  // Os motivos que o banco dá para recusar a Sequência de uma Conta-alvo (CRM-17) vêm antes dos genéricos do código.
+  if (error.message.includes('target account already has another responsible seller')) {
+    return new Error('Só o Vendedor responsável por esta Conta-alvo pode criar a Sequência dela.')
+  }
+  if (error.message.includes('target account already has a sequence in progress')) {
+    return new Error('Esta Conta-alvo já tem uma Sequência em andamento.')
+  }
+  if (error.message.includes('target account not found')) return new Error('Conta-alvo não encontrada neste Workspace.')
+  if (error.message.includes('the sequence is paused because its target account is archived')) {
+    return new Error('A Conta-alvo está arquivada: a Sequência só pode ser retomada depois que a Conta for restaurada.')
+  }
+  if (error.message.includes('an ended sequence cannot be changed')) return new Error('Esta Sequência foi encerrada e não pode mais ser alterada.')
+  if (error.code === '23503') return new Error('Esta Sequência aponta para uma Conta-alvo que não existe mais neste Workspace.')
   if (error.code === '0A000') return new Error('Só passos de E-mail podem ser confirmados por enquanto.')
   if (error.code === '22023' && error.message === 'contact has no email destination') return new Error('O Contato deste passo não tem e-mail cadastrado.')
   if (error.code === '22023' && error.message === 'contact has no active link with this target account') return new Error('O Contato deste passo não está vinculado à Conta-alvo.')
   if (error.code === '55000') return new Error('Este passo já foi enviado ou está sendo enviado.')
   if (error.code === '42501') return new Error('Apenas o responsável ativo pode abrir ou alterar o documento desta Sequência.')
-  if (error.code === '23505') return new Error('Esta Conta-alvo já tem uma Sequência e um responsável definidos.')
+  if (error.code === '23505') return new Error('Esta Conta-alvo já tem uma Sequência em andamento.')
   return new Error(error.message)
 }
 
@@ -200,7 +229,7 @@ export function criarFonteDeSequenciasSupabase(
 
   async function listarRegistros(): Promise<RegistroSequencia[]> {
     const { data, error } = await cliente.from('sequences')
-      .select('id, workspace_id, target_account_id, owner_user_id, status, public_summary, created_at, updated_at')
+      .select(COLUNAS_DA_SEQUENCIA)
       .eq('workspace_id', workspace())
       .order('updated_at', { ascending: false })
     if (error) throw converterErro(error)
@@ -209,7 +238,7 @@ export function criarFonteDeSequenciasSupabase(
 
   async function registroPorId(id: string): Promise<RegistroSequencia> {
     const { data, error } = await cliente.from('sequences')
-      .select('id, workspace_id, target_account_id, owner_user_id, status, public_summary, created_at, updated_at')
+      .select(COLUNAS_DA_SEQUENCIA)
       .eq('workspace_id', workspace()).eq('id', id).maybeSingle()
     if (error) throw converterErro(error)
     if (!data) throw new Error('Sequência não encontrada neste Workspace.')
@@ -244,7 +273,10 @@ export function criarFonteDeSequenciasSupabase(
     },
     sequencia: privada,
     async sequenciaPorConta(contaId) {
-      const row = (await listarRegistros()).find((item) => item.target_account_id === contaId)
+      // A Conta tem no máximo uma Sequência em andamento; as encerradas (por uma Transferência de responsabilidade, por
+      // exemplo) ficam como histórico. A lista vem da mais recente para a mais antiga.
+      const daConta = (await listarRegistros()).filter((item) => item.target_account_id === contaId)
+      const row = daConta.find((item) => item.status !== 'encerrada') ?? daConta[0]
       return row ? privada(row.id) : null
     },
     async criarSequencia(nova: NovaSequencia) {
@@ -407,6 +439,7 @@ export function criarFonteDeSequenciasSupabase(
         totalParticipantes: resumo.totalParticipantes,
         totalSteps: numeroSeguro(row.public_summary.totalSteps),
         passoAtual: numeroSeguro(row.public_summary.passoAtual),
+        ...(resumo.encerradaPor ? { encerradaPor: resumo.encerradaPor } : {}),
         atualizadaEm: resumo.atualizadaEm,
       }
     },
