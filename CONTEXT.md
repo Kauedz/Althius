@@ -229,7 +229,7 @@ O usuário que detém a responsabilidade comercial exclusiva por uma Conta-alvo 
 O meio pelo qual um passo da Sequência alcança um Contato: E-mail, LinkedIn ou WhatsApp. É distinto do Canal usado para conversar com um Agente.
 
 **Destino**:
-O e-mail, o número de WhatsApp ou o perfil de LinkedIn de um Contato por onde um Canal de abordagem o alcança; nos e-mails e telefones, o passo escolhe um dos Canais do Contato. Um passo só é enviado ao Destino que o Vendedor responsável confirmou, e só enquanto o Contato ainda o tiver.
+O e-mail, o número de WhatsApp ou o perfil de LinkedIn de um Contato por onde um Canal de abordagem o alcança; nos e-mails e telefones, o passo escolhe um dos Canais do Contato. Um passo só é enviado ao Destino que o Vendedor responsável confirmou, e só enquanto o Contato ainda o tiver. No WhatsApp, o Destino é só um telefone com a marca "usa WhatsApp"; sem a marca, o passo não sai, e se a Unipile disser que o número não tem WhatsApp o passo espera o Vendedor corrigir o número.
 _Avoid_: endereço de envio
 
 **Responsável pela Sequência**:

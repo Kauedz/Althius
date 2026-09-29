@@ -58,7 +58,9 @@ definido com prefixo `VITE_` ou enviado ao cliente.
   `syncing` a `ready`. Os outros provedores (Google, Outlook, LinkedIn) já chegam com o histórico disponível e nunca
   mandam esse evento, então a própria função aplica o `SYNC_SUCCESS` logo depois do `account.add`. O Webhook Endpoint
   precisa estar inscrito nesses 7 eventos de conta mais `email.new` e `email.new.bounce` (9 no total; o
-  `scripts/wizard-unipile.sh` já os lista). Cada entrega deixa uma linha JSON nos logs da função, com o tipo, o id da
+  `scripts/wizard-unipile.sh` já os lista) e, para o WhatsApp (canais-06), `message.new` (só precisa do OK do Nan, porque
+  muda o endpoint compartilhado). Os eventos `message.*` são apenas reconhecidos: ver "Formato dos webhooks `message.*`"
+  abaixo. Cada entrega deixa uma linha JSON nos logs da função, com o tipo, o id da
   conta na Unipile e o desfecho, sem o conteúdo do evento. Eventos v2 sem equivalente na v1
   (`account.status.degraded`/`partial`, `account.locked`/`unlocked`, `account.initial_sync.running`/`failed`) são
   reconhecidos (HTTP 200) e ignorados: não há estado interno para eles ainda.
@@ -109,6 +111,22 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
   - só então libera a conta (`finish_sender_reconciliation`). Até lá, nenhum passo sai por ela.
 - `sequence-step-sends` e `sequence-runner` compartilham o núcleo do envio: conferir a conversa, liberar pelo banco, enviar pela Unipile e gravar o resultado. Os adaptadores reais ficam em `_shared/send-step-adapters.ts`.
 
+- **Passo de WhatsApp** (canais-06, parte 1). `sequence-step-sends` e `sequence-runner` despacham pelo canal do Envio (`step_send_channel` no envio do titular; `claim_due_step_sends` devolve o `channel` no Executor). O núcleo do WhatsApp é `_shared/send-whatsapp.ts`, irmão do de E-mail, com a porta `UnipileChat` (`userExists`, `startChat`, `sendInChat`) e o adaptador real `unipileChatVia` (a chave só no cabeçalho `X-API-KEY`, nunca na URL). O banco libera por `release_whatsapp_step_send` (titular) ou `release_due_whatsapp_step_send` (Executor) e só usa a Conta remetente de WhatsApp do próprio responsável, com o número fixado na confirmação (`confirm_whatsapp_step`; só um telefone marcado como WhatsApp). Fluxo:
+  - **primeira mensagem** ao Contato: confere o número (`GET /v2/{account_id}/users/{user_id}`, com o id `<número sem "+">@s.whatsapp.net`). `404` bloqueia com `destination_no_whatsapp` (`block_whatsapp_step_send`: o passo espera o titular corrigir o número), sem enviar. Uma falha da própria conferência (5xx, `429`, tempo esgotado de 10 s, rede) vira `destination_check_failed`: nada é enviado e o banco agenda nova tentativa (5 e 30 minutos, ou o `Retry-After`); na terceira, o passo fica `failed`. Com o número confirmado, abre a conversa por `POST /v2/{account_id}/chats/send` com `{user_ids, text}`;
+  - **conversa já gravada** (um envio anterior da mesma Sequência, ao mesmo Contato, pela mesma Conta e para o mesmo número): envia por `POST /v2/{account_id}/chats/{chat_id}/messages/send` com `{text}`, sem conferir o número de novo. Anexos ficam para o canais-10;
+  - **resultado**: qualquer `2xx` é "aceito pelo provedor" (não é entrega nem leitura). O corpo dessas respostas não é documentado, então o id da mensagem só é lido de `message_id` quando vier como texto e fica vazio senão; o `chat_id` gravado é o `chat_id` da resposta ou, sem ele, o id do destinatário (numa conversa individual a Unipile diz que são iguais). `4xx` é recusa (`failed`, com `http_<status>`; `429` grava `rate_limited` e o `Retry-After`). Tempo esgotado (25 s), falha de rede e `5xx`/`408` ficam `uncertain` e **nunca** são reenviados sozinhos: o titular confere no WhatsApp e responde "Saiu" ou "Não saiu" (`resolve_uncertain_step`);
+  - **antispam**: o banco entrega no máximo um passo de WhatsApp por Conta remetente por rodada e nenhum enquanto a Conta estiver a menos de `private.whatsapp_send_spacing()` (30 s) da última mensagem ou reserva; a liberação confere de novo (`sender_spacing`). O passo continua vencido e sai na rodada seguinte. Respostas do envio do titular: as mesmas do E-mail, mais `409` com `destination_no_whatsapp`, `destination_check_failed`, `sender_spacing` e `wrong_channel`.
+  - Um passo vencido de WhatsApp com a função sem o caminho do WhatsApp configurado só é registrado (`whatsapp_not_configured`), nunca sai por outro canal.
+- **Formato dos webhooks `message.*`** (canais-06, parte 1). `unipile-account-status` reconhece todo evento `message.*` (`message.new`, `message.update`, `message.delete`, `message.delivery`, `message.receipt.read`, `message.reaction.new`) com `200`, **sem** criar Interação, pausar Sequência nem gravar nada compartilhado: a recepção é a parte 2 e espera o JSON real, cujos campos a Unipile não documenta. Só com o segredo `UNIPILE_CAPTURE_SHAPES` igual a `1`, a função guarda em `private.webhook_shape_captures` (via `capture_webhook_shape`) um **formato censurado** do corpo (`unipile-account-status/redact-shape.ts`): ficam as chaves, o aninhamento, os 3 primeiros itens de cada lista, booleanos, nulos, números que não parecem telefone ou id e o tamanho de cada string (`"<string:TAMANHO>"`); o valor de `type`, `event`, `provider`, `source`, `kind`, `direction`, `status`, `content_type` e `role` só fica quando tem a forma de um token (`^[a-z][a-z0-9_.-]{0,39}$`). Nome, telefone, id, texto de mensagem e endereço nunca são guardados. Teto: 20 linhas por tipo de evento (ficam as mais antigas) e 200 no total. Para ler, no SQL Editor (somente leitura):
+
+  ```sql
+  select event_type, captured_at, jsonb_pretty(shape) as formato
+  from private.webhook_shape_captures
+  order by event_type, id;
+  ```
+
+  Para limpar depois de usar: `delete from private.webhook_shape_captures;`, e volte o segredo a qualquer valor diferente de `1`.
+
 - `workspace-invitation-email` manda o e-mail do Convite (CRM-03). O navegador pede `{ workspaceId, invitationId }` depois de registrar o Convite. A função reserva o envio no banco com a sessão de quem pede (`claim_invitation_email`): só um Administrador ativo do Workspace, só um Convite pendente, e no máximo um e-mail por minuto e três por dia por Convite, e cinquenta por dia por Workspace (429 acima disso). Ela manda pelo Resend o link `<origem do app>/convite/<token>`, com a origem de quem pediu só se ela estiver no `APP_ORIGIN` (senão a primeira publicada), e responde `{ sent: true }` só quando o Resend confirma. Uma recusa volta 502 e um envio sem confirmação volta 504; nos dois casos o link continua na tela para ser copiado. O assunto é fixo: nomes escritos por quem usa o app só entram no corpo, escapados e cortados.
 
 - `contact-photo-lookup` busca a foto pública do Contato pelo perfil LinkedIn dele (CRM-12), por um Actor do Apify. O navegador pede `{ contactId }` numa ação do Contato, nunca ao desenhar a lista. A função reserva a consulta no banco com a sessão de quem pede (`begin_contact_photo_lookup`): qualquer Participação ativa do Workspace do Contato, um perfil `/in/`, uma consulta em andamento por Contato, no máximo uma por minuto e três por dia por Contato e cinquenta por dia por Workspace (429 acima disso). Só então roda o Actor, e grava a resposta com a chave de serviço (`finish_contact_photo_lookup`, só `service_role`): guarda a URL da imagem, o Actor, a execução e a data de observação, e nada além disso do perfil. Respostas: `200 {status: "found" | "not_found"}`, `404` (Contato de outro Workspace), `409` (em andamento, ou foto manual), `422` (sem perfil LinkedIn), `429`, `502` (o Apify recusou) e `504` (prazo). Detalhes, Actor escolhido e retenção em `contact-photo-lookup/README.md`.
@@ -142,6 +160,19 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
 3. No SQL Editor, uma vez por projeto: `select private.configure_sequence_runner('https://<ref>.supabase.co');`. Sem esse endereço, o banco não chama nada.
 
 `scripts/wizard-canais-05.sh` conduz esses três passos e o teste real com o navegador fechado.
+
+## Ligar o ciclo do WhatsApp, parte do envio (canais-06)
+
+Nada disto foi feito no projeto remoto: são passos para o Nan, nesta ordem.
+
+1. Aplicar a migration `20260929190000_ciclo_real_whatsapp.sql` (`npx supabase db push --linked`, conforme `docs/agents/migrations.md`). É só aditiva; não mexe nas linhas que existem.
+2. Publicar as três funções que mudaram, na ordem em que estão aqui (o banco antes do código: a `sequence-step-sends` pergunta o canal do Envio ao banco):
+   - `npx supabase functions deploy sequence-step-sends --project-ref <ref>`
+   - `npx supabase functions deploy sequence-runner --no-verify-jwt --project-ref <ref>`
+   - `npx supabase functions deploy unipile-account-status --no-verify-jwt --project-ref <ref>`
+3. Só para capturar o formato do `message.new`: `npx supabase secrets set UNIPILE_CAPTURE_SHAPES=1 --project-ref <ref>` (digitando no próprio terminal). Depois de capturar, tire o segredo ou troque o valor.
+4. O Webhook Endpoint da Unipile precisa receber também `message.new` (e, para conferir os recibos, `message.receipt.read`). Isso muda o endpoint compartilhado e **precisa do OK do Nan**; o `scripts/wizard-canais-04.sh` só documenta a lista, não altera nada.
+5. Conectar o WhatsApp do titular em Configurações, mandar uma mensagem de teste **do celular do número de teste para o WhatsApp conectado**, e ler o formato capturado com o SQL acima. É esse JSON que a parte 2 espera.
 
 ## Ligar a importação por CSV (CRM-07)
 

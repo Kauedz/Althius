@@ -207,6 +207,9 @@ WEBHOOK_URL="$FUNCOES_URL/unipile-account-status"
 UNIPILE_API_BASE="https://api.unipile.com"
 UNIPILE_PAINEL="https://dashboardv2.unipile.com"
 MIGRATIONS=(20260926163645 20260926173314 20260926180204)
+# Só e-mail. O canais-06 (WhatsApp) também precisa que o Webhook Endpoint compartilhado receba `message.new`
+# (mais `message.receipt.read`, para os recibos de leitura), mas isso muda o endpoint de todos e PRECISA DO OK DO NAN:
+# este wizard não acrescenta esses eventos. Só está documentado aqui; ver supabase/functions/README.md.
 EVENTOS_NOVOS=(email.new email.new.bounce)
 SEGREDOS=(UNIPILE_API_KEY UNIPILE_WEBHOOK_SECRET APP_ORIGIN)
 
@@ -365,6 +368,7 @@ pause "Tecle Enter para seguir"
 stage "Webhook Endpoint da Unipile: acrescentar os eventos de e-mail"
 say "O endpoint já cadastrado recebe só os 7 eventos de conta. Ele precisa ganhar email.new e"
 say "email.new.bounce. É o mesmo endpoint da frente de Conexões: não crie outro nem troque o segredo."
+note "O WhatsApp (canais-06) vai precisar também de message.new: precisa do OK do Nan, este wizard não o acrescenta."
 say "Este wizard tenta editar por API; a chave só fica na memória deste processo."
 note "Cole a Service API Key da Unipile (o campo é oculto). Enter em branco pula para o caminho pelo painel."
 UNIPILE_API_KEY=$(limpar "$(ler_secreto "Chave de API da Unipile:")")
