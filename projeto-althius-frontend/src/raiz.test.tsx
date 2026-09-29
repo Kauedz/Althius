@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { renderizarApp } from '@/test/renderizar'
 import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
+import { criarBancoDeConexoes, rpcsDeConexoes } from '@/test/conexoes-no-banco'
 import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
@@ -44,6 +45,7 @@ function abrirAlthius({
     rpcs: {
       bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas),
       ...rpcsDeAgentes(criarBancoDeAgentes()),
+      ...rpcsDeConexoes(criarBancoDeConexoes()),
       ...rpcs,
     },
   })
@@ -105,7 +107,6 @@ describe('Workspace operacional e Demonstração', () => {
     ['/sinais', 'Sinais ainda não estão disponíveis neste Workspace.', 'Vagas'],
     ['/sinais/contas/openai', 'Sinais ainda não estão disponíveis neste Workspace.', 'OpenAI'],
     ['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads'],
-    ['/conexoes', 'Conexões ainda não estão disponíveis neste Workspace.', 'HubSpot'],
     ['/onboarding', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Qual é o seu papel'],
   ])('%s mostra que o módulo está indisponível, sem dados da Demonstração', async (rota, aviso, daDemonstracao) => {
     window.history.replaceState(null, '', rota)

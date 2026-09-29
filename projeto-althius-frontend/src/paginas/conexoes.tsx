@@ -6,17 +6,38 @@ import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
-import { useDados, useFonte } from '@/fonte/contexto'
-import type { Aprovacao, CanalId, CategoriaDeIntegracao, Integracao, IntegracaoId } from '@/fonte/tipos'
+import { useAmbiente, useDados, useFonte, useFonteDeConexoes } from '@/fonte/contexto'
+import type { Aprovacao, CanalId, CategoriaDeIntegracao, IntegracaoId } from '@/fonte/tipos'
+import type { IntegracaoDeConexao } from '@/fonte/conexoes-tipos'
 
 const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga']
 
 export function PaginaConexoes() {
-  const canais = useDados((fonte) => fonte.canais(), [])
-  const integracoes = useDados((fonte) => fonte.integracoes(), [])
-  const futuras = useDados((fonte) => fonte.integracoesFuturas(), [])
+  const { modo } = useAmbiente()
+  const fonteDeConexoes = useFonteDeConexoes()
+  const workspace = useDados((fonte) => fonte.workspace(), [])
+  const ehAdministrador = modo === 'demonstracao' || workspace?.papel === 'administrador'
+
+  const canais = useDados(fonteDeConexoes, (fonte) => fonte.canais(), [])
+  const integracoes = useDados(fonteDeConexoes, (fonte) => fonte.integracoes(), [])
+  const futuras = useDados(fonteDeConexoes, (fonte) => fonte.integracoesFuturas(), [])
+
   const [conectando, setConectando] = useState<{ id: CanalId | IntegracaoId; nome: string } | null>(null)
   const [previa, setPrevia] = useState<CanalId | null>(null)
+  const [habilitando, setHabilitando] = useState<IntegracaoId | null>(null)
+  const [erro, setErro] = useState('')
+
+  async function habilitar(id: IntegracaoId) {
+    setErro('')
+    setHabilitando(id)
+    try {
+      await fonteDeConexoes.habilitarIntegracao(id)
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível habilitar a Integração agora.')
+    } finally {
+      setHabilitando(null)
+    }
+  }
 
   return (
     <Pagina titulo="Conexões" icone={Plug} className="gap-16">
@@ -24,6 +45,7 @@ export function PaginaConexoes() {
         <p className="max-w-2xl text-lg text-al-muted">
           Conecte cada ferramenta uma vez para o Workspace. Depois, escolha em cada agente o que ele pode usar.
         </p>
+        {erro && <p className="text-sm text-al-erro">{erro}</p>}
       </div>
 
       <section aria-label="Canais" className="flex flex-col gap-6">
@@ -35,22 +57,36 @@ export function PaginaConexoes() {
           <Carregando />
         ) : (
           <div className="grid grid-cols-4 gap-6">
-            {canais.map((canal) => (
-              <CartaoDeConexao
-                key={canal.id}
-                nome={canal.nome}
-                descricao={canal.descricao}
-                conectado={canal.conectado}
-                aoConectar={() => setConectando(canal)}
-                extra={
-                  canal.conectado && (
-                    <Button variant="outline" onClick={() => setPrevia(canal.id)} className="px-4">
-                      Ver prévia
-                    </Button>
-                  )
-                }
-              />
-            ))}
+            {canais.map((canal) =>
+              modo === 'real' || canal.estado === 'em_breve' ? (
+                <article
+                  key={canal.id}
+                  aria-label={canal.nome}
+                  className="flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-normal text-al-ink">{canal.nome}</span>
+                    <span className="rotulo">Em breve</span>
+                  </div>
+                  <p className="text-sm text-al-muted">{canal.descricao}</p>
+                </article>
+              ) : (
+                <CartaoDeConexaoDemo
+                  key={canal.id}
+                  nome={canal.nome}
+                  descricao={canal.descricao}
+                  conectado={canal.conectado}
+                  aoConectar={() => setConectando(canal)}
+                  extra={
+                    canal.conectado && (
+                      <Button variant="outline" onClick={() => setPrevia(canal.id)} className="px-4">
+                        Ver prévia
+                      </Button>
+                    )
+                  }
+                />
+              ),
+            )}
           </div>
         )}
       </section>
@@ -69,15 +105,25 @@ export function PaginaConexoes() {
               <div className="grid grid-cols-4 gap-6">
                 {integracoes
                   .filter((i) => i.categoria === categoria)
-                  .map((integracao) => (
-                    <CartaoDeConexao
-                      key={integracao.id}
-                      nome={integracao.nome}
-                      descricao={integracao.descricao}
-                      conectado={integracao.conectada}
-                      aoConectar={() => setConectando(integracao)}
-                    />
-                  ))}
+                  .map((integracao) =>
+                    modo === 'real' ? (
+                      <CartaoDeIntegracaoReal
+                        key={integracao.id}
+                        integracao={integracao}
+                        ehAdministrador={ehAdministrador}
+                        habilitando={habilitando === integracao.id}
+                        aoHabilitar={() => habilitar(integracao.id)}
+                      />
+                    ) : (
+                      <CartaoDeConexaoDemo
+                        key={integracao.id}
+                        nome={integracao.nome}
+                        descricao={integracao.descricao}
+                        conectado={integracao.habilitada}
+                        aoConectar={() => setConectando(integracao)}
+                      />
+                    ),
+                  )}
                 {futuras
                   .filter((i) => i.categoria === categoria)
                   .map((futura) => (
@@ -102,7 +148,64 @@ export function PaginaConexoes() {
   )
 }
 
-function CartaoDeConexao({
+function CartaoDeIntegracaoReal({
+  integracao,
+  ehAdministrador,
+  habilitando,
+  aoHabilitar,
+}: {
+  integracao: IntegracaoDeConexao
+  ehAdministrador: boolean
+  habilitando: boolean
+  aoHabilitar: () => void
+}) {
+  if (integracao.estado === 'em_breve') {
+    return (
+      <article
+        aria-label={integracao.nome}
+        className="flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-normal text-al-ink">{integracao.nome}</span>
+          <span className="rotulo">Em breve</span>
+        </div>
+        <p className="text-sm text-al-muted">{integracao.descricao}</p>
+      </article>
+    )
+  }
+
+  const habilitada = integracao.estado === 'habilitada'
+
+  return (
+    <article aria-label={integracao.nome} className="cartao flex flex-col gap-4 p-6">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-lg font-normal">{integracao.nome}</span>
+        <span className={habilitada ? 'rotulo text-al-sucesso' : 'rotulo'}>
+          {habilitada ? 'Habilitada' : 'Não habilitada'}
+        </span>
+      </div>
+      <p className="text-sm text-al-muted">{integracao.descricao}</p>
+      <div className="mt-auto flex flex-col gap-2">
+        {habilitada ? (
+          <span className="text-xs text-al-muted">Habilitada no Workspace</span>
+        ) : ehAdministrador ? (
+          <Button
+            variant="outline"
+            onClick={aoHabilitar}
+            disabled={habilitando}
+            className="self-start px-4"
+          >
+            {habilitando ? 'Habilitando...' : 'Habilitar'}
+          </Button>
+        ) : (
+          <span className="text-xs text-al-muted">Só um Administrador habilita.</span>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function CartaoDeConexaoDemo({
   nome,
   descricao,
   conectado,
@@ -119,7 +222,9 @@ function CartaoDeConexao({
     <article aria-label={nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
         <span className="text-lg font-normal">{nome}</span>
-        <span className={conectado ? 'rotulo text-al-sucesso' : 'rotulo'}>{conectado ? 'Conectado' : 'Não conectado'}</span>
+        <span className={conectado ? 'rotulo text-al-sucesso' : 'rotulo'}>
+          {conectado ? 'Conectado' : 'Não conectado'}
+        </span>
       </div>
       <p className="text-sm text-al-muted">{descricao}</p>
       <div className="mt-auto flex gap-2">
@@ -141,7 +246,7 @@ function DialogoDeConexao({
   conexao: { id: CanalId | IntegracaoId; nome: string } | null
   aoFechar: () => void
 }) {
-  const fonte = useFonte()
+  const fonte = useFonteDeConexoes()
   return (
     <Dialog open={conexao !== null} onOpenChange={(aberto) => !aberto && aoFechar()}>
       <DialogContent className="gap-6 p-6">
@@ -158,7 +263,7 @@ function DialogoDeConexao({
               if (conexao) await fonte.conectar(conexao.id)
               aoFechar()
             }}
-            className="px-6 tracking-rotulo uppercase"
+            className="px-6 uppercase tracking-rotulo"
           >
             Autorizar
           </Button>
@@ -169,10 +274,12 @@ function DialogoDeConexao({
 }
 
 function DialogoDePrevia({ canalId, aoFechar }: { canalId: CanalId | null; aoFechar: () => void }) {
-  const previa = useDados((fonte) => (canalId ? fonte.previaDeCanal(canalId) : Promise.resolve(null)), [canalId])
-  const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
-  const integracoes = useDados((fonte) => fonte.integracoes(), [])
-  const canais = useDados((fonte) => fonte.canais(), [])
+  const fonteDeConexoes = useFonteDeConexoes()
+  const fonteDeAgentes = useFonte()
+  const previa = useDados(fonteDeAgentes, (fonte) => (canalId ? fonte.previaDeCanal(canalId) : Promise.resolve(null)), [canalId])
+  const aprovacoes = useDados(fonteDeAgentes, (fonte) => fonte.aprovacoes(), [])
+  const integracoes = useDados(fonteDeConexoes, (fonte) => fonte.integracoes(), [])
+  const canais = useDados(fonteDeConexoes, (fonte) => fonte.canais(), [])
   const nome = canais?.find((c) => c.id === canalId)?.nome
 
   return (
@@ -215,10 +322,9 @@ function DecisaoNoCanal({
   canalId,
 }: {
   aprovacao?: Aprovacao
-  integracoes?: Integracao[]
+  integracoes?: IntegracaoDeConexao[]
   canalId: CanalId
 }) {
-  // Nos Canais chegam só as Aprovações de ação numa Integração.
   if (!aprovacao || aprovacao.revisao) return null
   const nome = nomeDaIntegracao(
     aprovacao.integracaoId,
