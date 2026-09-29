@@ -25,3 +25,4 @@ função são de teste e não são o desenho do Hermes. Em aberto, no CRM-25: se
 orquestrador com nome, o que muda o [ADR-0004](./0004-coordenacao-sem-quinto-agente.md) (Coordenação sem nome e sem
 ser Agente), e onde ele roda ([ADR-0013](./0013-supabase-auto-hospedado-em-vps.md)).
 
+**2026-09-29, ambientes (Nan).** Até a primeira venda, o app roda na Vercel com o banco no Supabase, e a ponte `agent-conversation` é o motor que os fundadores usam para prospectar. Com a primeira venda, contrata-se uma VPS e o Hermes roda nela, um perfil por Workspace, pelo mesmo contrato com o banco. Spec em `.scratch/motor-hermes/`.
