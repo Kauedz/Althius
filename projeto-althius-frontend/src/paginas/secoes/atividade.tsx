@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
-import { useDados } from '@/fonte/contexto'
+import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { Agente, Gatilho } from '@/fonte/tipos'
 import { ROTULO_DO_GATILHO } from '@/paginas/rotulos'
 
 export function SecaoAtividade({ agente }: { agente: Agente }) {
   const [gatilho, setGatilho] = useState<Gatilho | ''>('')
   const itens = useDados((fonte) => fonte.atividade(agente.id, gatilho || undefined), [agente.id, gatilho])
+  const { disponivel } = useAmbiente()
 
   return (
     <section aria-labelledby="titulo-atividade" className="flex max-w-3xl flex-col gap-6">
@@ -38,7 +39,11 @@ export function SecaoAtividade({ agente }: { agente: Agente }) {
       {!itens ? (
         <Carregando />
       ) : itens.length === 0 ? (
-        <p className="text-al-muted">Nada por aqui com esse filtro.</p>
+        <p className="text-al-muted">
+          {disponivel('conversas')
+            ? 'Nada por aqui com esse filtro.'
+            : `Ainda não há atividade: ${agente.nome} não executou nada neste Workspace, e executar um Agente ainda não está disponível.`}
+        </p>
       ) : (
         <ul aria-label="Linha do tempo" className="flex flex-col border-t border-al-line">
           {itens.map((item) => (

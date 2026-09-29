@@ -1,20 +1,24 @@
 import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { Switch } from '@/components/ui/switch'
 import { useDados, useFonte } from '@/fonte/contexto'
 import type { Agente, CanalId } from '@/fonte/tipos'
+import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 
 export function SecaoCanais({ agente }: { agente: Agente }) {
   const fonte = useFonte()
   const canais = useDados((f) => f.canais(), [])
   const personalizacao = useDados((f) => f.personalizacao(agente.id), [agente.id])
+  const podeAdministrar = usePodeAdministrarAgentes()
+  const { erro, escrever } = useEscritaDeAgente()
 
   async function alternar(canalId: CanalId, atende: boolean) {
     if (!personalizacao) return
     const canaisDoAgente = atende
       ? [...personalizacao.canais, canalId]
       : personalizacao.canais.filter((c) => c !== canalId)
-    await fonte.salvarPersonalizacao(agente.id, { ...personalizacao, canais: canaisDoAgente })
+    await escrever(() => fonte.salvarPersonalizacao(agente.id, { ...personalizacao, canais: canaisDoAgente }))
   }
 
   return (
@@ -31,6 +35,7 @@ export function SecaoCanais({ agente }: { agente: Agente }) {
           .
         </p>
       </div>
+      <Mensagem tipo="erro">{erro}</Mensagem>
       {!canais || !personalizacao ? (
         <Carregando />
       ) : (
@@ -46,7 +51,7 @@ export function SecaoCanais({ agente }: { agente: Agente }) {
               <Switch
                 aria-label={canal.nome}
                 checked={canal.conectado && personalizacao.canais.includes(canal.id)}
-                disabled={!canal.conectado}
+                disabled={!canal.conectado || !podeAdministrar}
                 onCheckedChange={(atende) => alternar(canal.id, atende)}
               />
             </li>

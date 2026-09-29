@@ -23,3 +23,7 @@ verify_jwt = true
 # Chamada pelo próprio banco (pg_cron + pg_net), sem JWT: a função confere o token que o banco guarda.
 [functions.storage-purge]
 verify_jwt = false
+
+# Recebe o CSV da importação com o JWT do navegador; o banco confere a Participação ativa.
+[functions.csv-import]
+verify_jwt = true

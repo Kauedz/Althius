@@ -118,7 +118,7 @@ function ListaGlobalSequencias() {
         <div className="flex flex-col items-start gap-4 py-12">
           <p className="text-sm text-al-muted">
             {permiteCriarSequencia
-              ? `Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo${disponivel('agentes') ? ' ou solicite ao Rhetor na Conversa' : ''}.`
+              ? `Nenhuma sequência ainda. Crie uma nova sequência para uma Conta-alvo${disponivel('conversas') ? ' ou solicite ao Rhetor na Conversa' : ''}.`
               : 'Nenhuma sequência ainda. Criar uma depende dos Contatos, que ainda não estão disponíveis neste Workspace.'}
           </p>
           {permiteCriarSequencia && <Button

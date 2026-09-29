@@ -1,5 +1,5 @@
 import { PreviewCard } from '@base-ui/react/preview-card'
-import { Archive, Building2, ExternalLink, Plus, RadioTower } from 'lucide-react'
+import { Archive, Building2, ExternalLink, Plus, RadioTower, Upload } from 'lucide-react'
 import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
@@ -284,6 +284,15 @@ function ListaContas() {
             <Archive className="mr-1.5 size-3.5" aria-hidden />
             Arquivadas
           </Button>
+        )}
+        {fonte.importacao && (
+          <Link
+            to="/contas/importar"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 border border-al-line bg-al-bg px-4 text-xs font-medium tracking-rotulo text-al-ink uppercase hover:bg-al-surface"
+          >
+            <Upload className="size-3.5" aria-hidden />
+            Importar CSV
+          </Link>
         )}
         {fonte.salvarConta && !cadastrando && (
           <Button

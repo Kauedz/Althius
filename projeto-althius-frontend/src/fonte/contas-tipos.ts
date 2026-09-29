@@ -1,3 +1,4 @@
+import type { FonteDeImportacaoDeContas } from './importacao-tipos'
 import type { FonteObservavel } from './tipos'
 
 /**
@@ -228,6 +229,12 @@ export interface FonteDeContas extends FonteObservavel {
    * Sem este método, a fonte não aceita cadastro manual.
    */
   salvarConta?(nova: NovaContaAlvo): Promise<ContaAlvo>
+
+  /**
+   * A importação de Contas e Contatos por CSV. Só o Workspace operacional tem backend para ela: sem este membro, a
+   * fonte não oferece "Importar CSV" e nenhum resultado é simulado.
+   */
+  importacao?: FonteDeImportacaoDeContas
 
   /** Busca uma Conta-alvo pelo identificador. Rejeita se não existir. */
   conta(id: string): Promise<ContaAlvo>

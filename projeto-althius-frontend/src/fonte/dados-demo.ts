@@ -22,6 +22,7 @@ import type {
   PreviaDeCanal,
   Rotina,
 } from './tipos'
+import { canaisConectados, integracoesConectadas } from './catalogo-de-conexoes'
 import { especialidade } from './especialidades'
 import { permissaoPadrao } from './regras'
 
@@ -209,22 +210,10 @@ export const atividade: ItemDeAtividade[] = [
   { id: 'a12', agenteId: 'oraculum-concorrencia-snowflake', tipo: 'execucao', gatilho: 'rotina', quando: 'Sexta, 09:00', descricao: 'Comparou 12 prompts-alvo com a Snowflake', resultado: 'A Snowflake aparece antes em 7; a maior diferença está no Perplexity.', link: verConversa('oraculum-concorrencia-snowflake') },
 ]
 
-export const canais: Canal[] = [
-  { id: 'slack', nome: 'Slack', descricao: 'Mencione um Agente em qualquer canal ou thread.', conectado: true },
-  { id: 'whatsapp', nome: 'WhatsApp', descricao: 'Converse com os Agentes pelo número do Workspace.', conectado: false },
-  { id: 'teams', nome: 'Microsoft Teams', descricao: 'Mencione um Agente em chats e canais do Teams.', conectado: true },
-  { id: 'email', nome: 'E-mail', descricao: 'Encaminhe e-mails e receba resumos das Rotinas.', conectado: true },
-]
+// O catálogo de Canais e Integrações é o mesmo do Workspace operacional; só o estado de conexão é de exemplo.
+export const canais: Canal[] = canaisConectados(['slack', 'teams', 'email'])
 
-export const integracoes: Integracao[] = [
-  { id: 'hubspot', nome: 'HubSpot', categoria: 'CRM', descricao: 'Contas, contatos, negócios e sequências.', conectada: true, escreve: true },
-  { id: 'clay', nome: 'Clay', categoria: 'Enriquecimento', descricao: 'Dados firmográficos e de tecnologia.', conectada: true, escreve: false },
-  { id: 'apollo', nome: 'Apollo', categoria: 'Enriquecimento', descricao: 'Contatos e sinais de compra.', conectada: true, escreve: false },
-  { id: 'lusha', nome: 'Lusha', categoria: 'Enriquecimento', descricao: 'Cargos e contatos do Comitê de compra.', conectada: false, escreve: false },
-  { id: 'notion', nome: 'Notion', categoria: 'Conhecimento', descricao: 'Páginas usadas como base de conhecimento e pautas.', conectada: true, escreve: true },
-  { id: 'meta-ads', nome: 'Meta Ads', categoria: 'Mídia paga', descricao: 'Campanhas no Facebook e no Instagram.', conectada: true, escreve: true },
-  { id: 'google-ads', nome: 'Google Ads', categoria: 'Mídia paga', descricao: 'Campanhas de busca e display.', conectada: false, escreve: true },
-]
+export const integracoes: Integracao[] = integracoesConectadas(['hubspot', 'clay', 'apollo', 'notion', 'meta-ads'])
 
 export const integracoesFuturas: IntegracaoFutura[] = [
   { nome: 'Salesforce', categoria: 'CRM' },

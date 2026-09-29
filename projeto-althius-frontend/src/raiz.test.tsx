@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { renderizarApp } from '@/test/renderizar'
+import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
@@ -40,7 +41,11 @@ function abrirAlthius({
   const supabase = criarSupabaseFalso({
     ...opcoes,
     tabelas,
-    rpcs: { bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas), ...rpcs },
+    rpcs: {
+      bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas),
+      ...rpcsDeAgentes(criarBancoDeAgentes()),
+      ...rpcs,
+    },
   })
   const { servicos, senhasConsultadas, google, captchasPedidos } = criarServicosDoNavegadorFalsos(navegador)
   const usuario = userEvent.setup()
@@ -85,14 +90,15 @@ describe('Workspace operacional e Demonstração', () => {
 
     expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
     expect(within(navegacao()).queryByText('Demonstração')).not.toBeInTheDocument()
-    // Sem Agentes guardados no Workspace, a navegação não lista os Especialistas da Demonstração nem um grupo vazio.
-    await waitFor(() => expect(within(navegacao()).queryByRole('navigation', { name: 'Especialistas' })).not.toBeInTheDocument())
+    // A navegação lista os Agentes padrão do Workspace, e nenhum Agente criado da Demonstração.
+    const especialistas = await within(navegacao()).findByRole('navigation', { name: 'Especialistas' })
+    expect(within(especialistas).getAllByRole('link').map((link) => link.textContent)).toEqual(['Scopus', 'Ethos', 'Rhetor', 'Oraculum'])
   })
 
   it.each([
-    ['/', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Scopus'],
-    ['/agentes/scopus/conversa', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Scopus'],
-    ['/conversa', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Scopus'],
+    ['/', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Enterprise LATAM'],
+    ['/agentes/agente-scopus/conversa', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Peça algo a Scopus'],
+    ['/conversa', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Peça algo aos agentes'],
     ['/contas', 'Nenhuma Conta-alvo ainda.', 'OpenAI'],
     ['/contas/openai', 'Conta não encontrada', 'OpenAI'],
     ['/contatos', 'Nenhum Contato ainda.', 'Sarah Chen'],
@@ -100,7 +106,7 @@ describe('Workspace operacional e Demonstração', () => {
     ['/sinais/contas/openai', 'Sinais ainda não estão disponíveis neste Workspace.', 'OpenAI'],
     ['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads'],
     ['/conexoes', 'Conexões ainda não estão disponíveis neste Workspace.', 'HubSpot'],
-    ['/onboarding', 'Agentes e Conversas ainda não estão disponíveis neste Workspace.', 'Qual é o seu papel'],
+    ['/onboarding', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Qual é o seu papel'],
   ])('%s mostra que o módulo está indisponível, sem dados da Demonstração', async (rota, aviso, daDemonstracao) => {
     window.history.replaceState(null, '', rota)
     abrirAlthius({
@@ -116,7 +122,7 @@ describe('Workspace operacional e Demonstração', () => {
   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
   // Preferências também (CRM-08), e o Plano diz que é só demonstrativo: `paginas/configuracoes/perfil-e-preferencias-reais.test.tsx`.
   it.each(['/configuracoes/memoria/icp', '/configuracoes/memoria/personas'])(
-    '%s diz que o ICP e as Personas chegam com os Agentes, sem documento da Demonstração nem edição direta',
+    '%s diz que o ICP e as Personas chegam com a execução dos Agentes, sem documento da Demonstração nem edição direta',
     async (rota) => {
       window.history.replaceState(null, '', rota)
       abrirAlthius({
@@ -125,7 +131,7 @@ describe('Workspace operacional e Demonstração', () => {
         tabelas: { workspace_memberships: [participacao('ws-norte')] },
       })
 
-      expect(await screen.findByText('O ICP e as Personas deste Workspace chegam junto com os Agentes.')).toBeInTheDocument()
+      expect(await screen.findByText('O ICP e as Personas deste Workspace chegam junto com a execução dos Agentes.')).toBeInTheDocument()
       expect(screen.getByText(/Quem propõe o ICP é o Scopus, e quem propõe as Personas é o Ethos/)).toBeInTheDocument()
       expect(screen.queryByText(/Databricks|Marina Alves|2.000 funcionários/)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Solicitar revisão|Editar/ })).not.toBeInTheDocument()

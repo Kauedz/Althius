@@ -8,7 +8,7 @@ import { nomeDeAgenteCriado } from '@/fonte/regras'
 import type { EspecialidadeId } from '@/fonte/tipos'
 
 /**
- * Formulário simulado de "Novo agente" (ADR 0005): o Cliente escolhe uma das 4 Especialidades do
+ * Formulário de "Novo agente" (ADR 0005): o Cliente escolhe uma das 4 Especialidades do
  * catálogo fixo, escreve o complemento do nome e, se quiser, instruções. Não há como criar Especialidade.
  */
 export function DialogoNovoAgente({ aberto, aoMudar }: { aberto: boolean; aoMudar: (aberto: boolean) => void }) {

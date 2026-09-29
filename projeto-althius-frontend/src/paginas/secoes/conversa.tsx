@@ -2,16 +2,33 @@ import { ArrowRight, Check, Copy, Wrench } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente, Pulso } from '@/components/marca'
+import { AvisoDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { Button } from '@/components/ui/button'
 import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
 import { TextoDigitado } from '@/conversa/texto'
-import { useDados } from '@/fonte/contexto'
+import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { Agente, AgenteId, AprovacaoDeAcao } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 
 export function SecaoConversa({ agente }: { agente: Agente }) {
+  const { disponivel } = useAmbiente()
+  // Perguntar algo a um Agente é executá-lo: sem provedor de modelo, a tela diz que não dá, sem sugestão nem composer.
+  if (!disponivel('conversas')) {
+    return (
+      <section aria-labelledby="titulo-conversa" className="flex max-w-3xl flex-col gap-6">
+        <h2 id="titulo-conversa" className="sr-only">
+          Conversa
+        </h2>
+        <AvisoDeModuloIndisponivel modulo="conversas" />
+      </section>
+    )
+  }
+  return <ConversaComOAgente agente={agente} />
+}
+
+function ConversaComOAgente({ agente }: { agente: Agente }) {
   const conversas = useConversas()
   const agentes = useDados((fonte) => fonte.agentes(), []) ?? []
   const itens = conversas.itens(agente.id)
