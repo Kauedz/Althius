@@ -6,14 +6,14 @@
 
 **Status:** ready-for-agent
 
-- [ ] Migrar ownership de Sequência e responsabilidade de Conta para relação tipada com Conta-alvo, sem IDs de demonstração ou strings órfãs.
-- [ ] Migração preserva/valida dados existentes e impede divergência entre Workspace, Conta, vendedor responsável e Sequência.
-- [ ] No máximo uma Sequência ativa por Conta e um vendedor responsável exclusivo conforme ADR-0009.
-- [ ] Documento e dados privados de destinatário continuam acessíveis somente ao titular; o Workspace vê a projeção segura prevista na ADR-0008.
-- [ ] Interface existente mostra Contas e Sequências reais com permissões, estados vazios e erros coerentes.
-- [ ] Arquivar Conta pausa a Sequência, cancela passos pendentes e preserva histórico; restaurar exige confirmação explícita do responsável.
-- [ ] Apagamento permanente cancela passos pendentes e impede execução posterior, preparando os eventos preservados para anonimização.
-- [ ] Depois de uma Transferência de responsabilidade (CRM-06), o novo responsável assume a Conta-alvo com Sequência própria: pode retomar ou recomeçar a Sequência dela, com as Contas remetentes dele. Hoje a Sequência antiga continua do antigo responsável: o executor bloqueia os envios dela (`owner_not_responsible`), mas ela impede criar outra, porque `sequences` é única por Conta.
+- [ ] Migrar ownership de Sequência e responsabilidade de Conta para relação tipada com Conta-alvo, sem IDs de demonstração ou strings órfãs. — Feito para toda linha nova: `account_id` (uuid) em `sequences` e `sales_responsibilities` e chave estrangeira `NOT VALID MATCH FULL` para `target_accounts`. Aberto: as órfãs `teste-real-*` (limpeza humana, ver Comments) e o `VALIDATE CONSTRAINT`.
+- [x] Migração preserva/valida dados existentes e impede divergência entre Workspace, Conta, vendedor responsável e Sequência. — pgTAP 79/79 em `sequencias_nas_contas_reais.sql`; migration aplicada também sobre um banco com Sequência órfã em texto, sem apagar nem reescrever nada.
+- [x] No máximo uma Sequência ativa por Conta e um vendedor responsável exclusivo conforme ADR-0009. — índice único parcial `sequences_one_open_per_account` (uma em andamento por Conta) e gatilho que exige titular = responsável.
+- [x] Documento e dados privados de destinatário continuam acessíveis somente ao titular; o Workspace vê a projeção segura prevista na ADR-0008. — inalterado e coberto por testes: o Workspace lê status e contagens; o documento fica só com o titular, inclusive o da Sequência encerrada.
+- [ ] Interface existente mostra Contas e Sequências reais com permissões, estados vazios e erros coerentes. — Feito: lista, diálogo de nova Sequência (só Contas sob a minha responsabilidade; a encerrada não segura a Conta), detalhe da Sequência encerrada e detalhe da Conta, com testes. Aberto: a verificação visual no navegador.
+- [ ] Arquivar Conta pausa a Sequência, cancela passos pendentes e preserva histórico; restaurar exige confirmação explícita do responsável. — Só o lado da Sequência (`private.pause_sequences_of_archived_account` e `private.unblock_sequences_of_restored_account`), com pgTAP. Restaurar a Conta só tira a trava: retomar e reativar os envios continua sendo ação explícita do responsável. Sem interface de arquivar (CRM-18).
+- [ ] Apagamento permanente cancela passos pendentes e impede execução posterior, preparando os eventos preservados para anonimização. — Só o lado da Sequência (`private.end_sequences_of_deleted_account`): cancela pendentes, revoga a autorização, encerra e bloqueia execução posterior, com pgTAP. Aberto: preparar os eventos preservados para a anonimização (CRM-18).
+- [x] Depois de uma Transferência de responsabilidade (CRM-06), o novo responsável assume a Conta-alvo com Sequência própria: pode retomar ou recomeçar a Sequência dela, com as Contas remetentes dele. Hoje a Sequência antiga continua do antigo responsável: o executor bloqueia os envios dela (`owner_not_responsible`), mas ela impede criar outra, porque `sequences` é única por Conta. — A Sequência do antigo responsável é encerrada pelo gatilho da própria Transferência; o novo responsável recomeça a dele, com as Contas remetentes dele (`sender_not_ready` sem conta própria). "Retomar" o documento antigo ficou de fora, ver decisões nos Comments.
 
 
 ## Comments
@@ -21,3 +21,17 @@
 - 2026-09-25: este ticket não bloqueia o primeiro envio real, porque a Sequência já grava o UUID da Conta-alvo como texto. Quando a chave estrangeira entrar, há dois pontos a tratar:
   - as Sequências `teste-real-*` do Workspace A, criadas pelo `npm run teste:real` com ids de Conta-alvo em texto e sem Conta-alvo real, precisam ser removidas por operação administrativa na pré-produção ([ADR-0013](../../../docs/adr/0013-supabase-auto-hospedado-em-vps.md), revisão);
   - o `teste:real` precisa passar a criar uma Conta-alvo real antes de cada Sequência.
+
+- 2026-09-29: implementação (CRM-17), decisões e pendências.
+  - **Migration** `20260929120000_sequencias_nas_contas_reais.sql`. Não apaga nem reescreve dado:
+    - o texto de `target_account_id` continua (todo o código que o lê segue igual). Ao lado dele há `account_id`, coluna uuid gerada: o próprio texto se for UUID, senão nulo;
+    - a chave estrangeira para `target_accounts` é `NOT VALID` e `MATCH FULL`: recusa linha nova sem Conta real, de outro Workspace ou sem UUID, e não olha as antigas. Consequência: uma órfã antiga continua legível, mas não pode mais ser editada (erro 23503) até a limpeza;
+    - a unicidade por Conta virou índice parcial "uma Sequência em andamento" (`status <> 'encerrada'`).
+  - **Transferência:** gatilho em `sales_responsibilities` encerra a Sequência do antigo responsável (`status = 'encerrada'`, `ended_reason = 'responsibility_transferred'`), cancela os passos pendentes e revoga a autorização. `create_sequence` mantém a assinatura (texto), passa a exigir o UUID de uma Conta do Workspace e não cria mais a responsabilidade: ela nasce com a Conta.
+  - **Decisão de produto (a confirmar):** o novo responsável **recomeça**, não **retoma**. Retomar exigiria copiar ou ler o documento privado do antigo, que a ADR-0008 e a ADR-0009 não deixam ir junto. O Workspace vê a projeção da encerrada (passo atual e total), e o novo responsável decide o que escrever. Registrado na ADR-0009 e no CONTEXT.
+  - **Decisão:** arquivar pausa qualquer Sequência em andamento (inclusive `reuniao` e `esgotada`) com a trava `suspended_reason = 'account_archived'`; a trava impede o titular de retomar (gatilho, erro 55006). Restaurar só destrava.
+  - **Edge Functions:** nenhuma mudança. O executor já só reserva Sequência `ativa` com autorização vigente e responde `sequence_not_active` ou `owner_not_responsible` nos outros casos.
+  - **Pendência humana (não foi executada em lugar nenhum):** `scripts/admin/limpar-sequencias-orfas.sql`. Parte 1 só lê; Parte 2 apaga as Sequências `teste-real-*` sem Conta real (documento, autorizações, Envios, respostas, responsabilidades e Contatos legados delas) numa transação que termina em `ROLLBACK`, e recusa se algum Envio saiu; Parte 3 valida as chaves. Rodar na pré-produção depois de revisar a Parte 1, e só então o `VALIDATE CONSTRAINT`. Depois disso uma migration futura pode trocar as colunas de texto por uuid.
+  - **`teste:real`:** `scripts/teste-real-sequencias.mjs` cria uma Conta-alvo real (`save_target_account`) antes de cada Sequência. Não foi rodado contra o remoto.
+  - **CRM-18:** as primitivas de pausar, destravar e encerrar estão em `private.*` (sem interface). Ao apagar uma Conta, a chave estrangeira das duas tabelas a impede (sem cascata): o CRM-18 decide a ordem. Dados a anonimizar do lado da Sequência: `private.sequence_documents`, `sequence_step_sends` (destino, assunto, corpo), `received_emails` e o documento copiado em `sequence_authorizations`; e `sequence_step_sends.contact_id` tem chave para `contacts`.
+  - **Remoto:** migration não aplicada no `ycbdilsmydvzezhlymty`. Local: pgTAP 687 asserções em 17 arquivos, todos verdes.

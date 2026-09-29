@@ -79,7 +79,7 @@ A ação de um Administrador que, logo depois de uma importação, passa Contas-
 _Avoid_: redistribuição, reatribuição
 
 **Transferência de responsabilidade**:
-A ação excepcional de um Administrador que passa uma Conta-alvo a um participante ativo depois que o Vendedor responsável deixou o Workspace. Exige motivo e fica auditada. A Sequência e as Contas remetentes do antigo responsável não vão junto.
+A ação excepcional de um Administrador que passa uma Conta-alvo a um participante ativo depois que o Vendedor responsável deixou o Workspace. Exige motivo e fica auditada. A Sequência e as Contas remetentes do antigo responsável não vão junto: a Sequência dele é encerrada e o novo responsável cria a dele, com o documento e as Contas remetentes dele.
 
 **Aderência**:
 A classificação de encaixe de uma Conta-alvo no ICP pelo Scopus: **Fit** ou **Não fit**. Uma Conta-alvo importada fica sem Aderência até ser avaliada; um Sinal disparado a torna Quente sem determinar esse encaixe.
@@ -193,7 +193,7 @@ _Avoid_: orquestração, orquestrador, 5º agente
 ## Sequências
 
 **Sequência**:
-O plano de abordagem de uma Conta-alvo, com Contatos participantes e passos ordenados que definem canal, mensagem e momento de contato. Cada Conta-alvo tem no máximo uma Sequência no Workspace, sob seu vendedor responsável; lista de Sequências, detalhe da Conta-alvo e Conversa refletem o mesmo plano, respeitando a visibilidade de cada participante.
+O plano de abordagem de uma Conta-alvo, com Contatos participantes e passos ordenados que definem canal, mensagem e momento de contato. Cada Conta-alvo tem no máximo uma Sequência em andamento no Workspace, sob seu vendedor responsável (as encerradas ficam como histórico); lista de Sequências, detalhe da Conta-alvo e Conversa refletem o mesmo plano, respeitando a visibilidade de cada participante.
 _Avoid_: cadência como rótulo de interface
 
 **Vendedor responsável**:
