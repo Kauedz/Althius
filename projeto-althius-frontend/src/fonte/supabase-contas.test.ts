@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { criarFonteDeContasSupabase } from './supabase-contas'
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
@@ -300,5 +300,92 @@ describe('Contatos e Vínculos do Contato no Workspace operacional', () => {
     expect(await fonte.interacoesDaConta(ID_DA_ALFA)).toEqual([
       { id: 'interacao-1', contaId: ID_DA_ALFA, contatoId: ID_DA_MARIA, tipo: 'reuniao', data: '2026-09-25T10:00:00Z', origem: 'Registro manual' },
     ])
+  })
+})
+
+describe('Foto pública do Contato no Workspace operacional', () => {
+  const FOTO = 'https://media.licdn.com/dms/image/maria.jpg'
+
+  /** A Alfa com a Maria (com LinkedIn) e o Rui, e o estado das fotos que o banco guardou. */
+  function fonteComFotos(fotos: Record<string, unknown>[], funcoes: OpcoesDoSupabaseFalso['funcoes'] = {}) {
+    const tabelas: Record<string, Record<string, unknown>[]> = {
+      target_accounts: [contaNoBanco(ID_DA_ALFA, 'Alfa')],
+      sales_responsibilities: [{ workspace_id: 'ws-norte', target_account_id: ID_DA_ALFA, owner_user_id: MARINA.id }],
+      target_contacts: [
+        contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { linkedin: 'https://www.linkedin.com/in/maria-souza' }),
+        contatoNoBanco(ID_DO_RUI, ID_DA_ALFA, 'Rui'),
+      ],
+      contact_photo_status: fotos,
+    }
+    const { cliente } = criarSupabaseFalso({ sessao: sessaoDe(MARINA), tabelas, funcoes })
+    return criarFonteDeContasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+  }
+
+  it('entrega a foto que ainda vale e a leva à prévia de Contatos da Conta', async () => {
+    const fonte = fonteComFotos([
+      { workspace_id: 'ws-norte', contact_id: ID_DA_MARIA, status: 'found', photo_url: FOTO },
+    ])
+
+    const [maria, rui] = await fonte.contatosDaConta(ID_DA_ALFA)
+
+    expect(maria).toMatchObject({ nome: 'Maria Souza', foto: FOTO })
+    expect(maria.fotoConsulta).toBeUndefined()
+    expect(rui.foto).toBeUndefined()
+    expect((await fonte.contas())[0].previaContatos).toEqual([{ nome: 'Maria Souza', foto: FOTO }, { nome: 'Rui' }])
+  })
+
+  it('sem foto que valha, o Contato fica sem foto e o estado da última busca explica o motivo', async () => {
+    const fonte = fonteComFotos([
+      // A visão devolve a URL nula quando ela venceu; a busca anterior tinha dado certo.
+      { workspace_id: 'ws-norte', contact_id: ID_DA_MARIA, status: 'found', photo_url: null },
+      { workspace_id: 'ws-norte', contact_id: ID_DO_RUI, status: 'failed', photo_url: null },
+    ])
+
+    const [maria, rui] = await fonte.contatosDaConta(ID_DA_ALFA)
+
+    expect(maria.foto).toBeUndefined()
+    expect(maria.fotoConsulta).toBeUndefined()
+    expect(rui).toMatchObject({ nome: 'Rui', fotoConsulta: 'falhou' })
+    const [semFoto] = await fonteComFotos([
+      { workspace_id: 'ws-norte', contact_id: ID_DA_MARIA, status: 'not_found', photo_url: null },
+    ]).contatosDaConta(ID_DA_ALFA)
+    expect(semFoto.fotoConsulta).toBe('nao-encontrada')
+  })
+
+  it('não mostra a foto de um Contato de outro Workspace', async () => {
+    const fonte = fonteComFotos([
+      { workspace_id: 'ws-sul', contact_id: ID_DA_MARIA, status: 'found', photo_url: FOTO },
+    ])
+
+    expect((await fonte.contatosDaConta(ID_DA_ALFA))[0].foto).toBeUndefined()
+  })
+
+  it('pede a busca pela Edge Function só com o Contato, sem token nem URL do LinkedIn, e avisa quem observa', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    const fonte = fonteComFotos([], {
+      'contact-photo-lookup': (corpo) => {
+        pedidos.push(corpo)
+        return { corpo: { status: 'found' } }
+      },
+    })
+    let avisos = 0
+    fonte.observar(() => avisos++)
+
+    await fonte.consultarFotoDoContato!(ID_DA_MARIA)
+
+    expect(pedidos).toEqual([{ contactId: ID_DA_MARIA }])
+    expect(avisos).toBe(1)
+  })
+
+  it('a recusa da função chega em palavras do produto, e uma função fora do ar é explicada', async () => {
+    const recusada = fonteComFotos([], {
+      'contact-photo-lookup': () => ({ status: 429, corpo: { error: 'Este Contato já teve buscas de foto há pouco.' } }),
+    })
+    await expect(recusada.consultarFotoDoContato!(ID_DA_MARIA)).rejects.toThrow('Este Contato já teve buscas de foto há pouco.')
+
+    const naoPublicada = fonteComFotos([], { 'contact-photo-lookup': () => ({ status: 404, corpo: { code: 'NOT_FOUND' } }) })
+    await expect(naoPublicada.consultarFotoDoContato!(ID_DA_MARIA)).rejects.toThrow(
+      'A Edge Function contact-photo-lookup não está publicada neste projeto.',
+    )
   })
 })

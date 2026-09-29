@@ -15,6 +15,8 @@ Configure em Supabase Edge Function Secrets:
 
 - `RESEND_API_KEY`: chave da API do Resend, só com permissão de envio, usada pela `workspace-invitation-email` para mandar o e-mail do Convite. O domínio do remetente precisa estar verificado no Resend.
 - `INVITE_EMAIL_FROM` (opcional): remetente do e-mail do Convite. Padrão: `Althius <contato@althius.com.br>`.
+- `APIFY_TOKEN`: token da API do Apify, usado pela `contact-photo-lookup` para buscar a foto pública do Contato. Só existe aqui, nunca no navegador.
+- `APIFY_PHOTO_ACTOR_ID`, `APIFY_PHOTO_INPUT` e `APIFY_PHOTO_MAX_CHARGE_USD` (opcionais): o Actor, o modelo de entrada dele e o teto de cobrança por execução. Padrões e motivos em `contact-photo-lookup/README.md`.
 
 O runtime fornece `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`. Nenhum segredo Unipile deve ser
 definido com prefixo `VITE_` ou enviado ao cliente.
@@ -105,11 +107,20 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
 
 - `workspace-invitation-email` manda o e-mail do Convite (CRM-03). O navegador pede `{ workspaceId, invitationId }` depois de registrar o Convite. A função reserva o envio no banco com a sessão de quem pede (`claim_invitation_email`): só um Administrador ativo do Workspace, só um Convite pendente, e no máximo um e-mail por minuto e três por dia por Convite, e cinquenta por dia por Workspace (429 acima disso). Ela manda pelo Resend o link `<origem do app>/convite/<token>`, com a origem de quem pediu só se ela estiver no `APP_ORIGIN` (senão a primeira publicada), e responde `{ sent: true }` só quando o Resend confirma. Uma recusa volta 502 e um envio sem confirmação volta 504; nos dois casos o link continua na tela para ser copiado. O assunto é fixo: nomes escritos por quem usa o app só entram no corpo, escapados e cortados.
 
+- `contact-photo-lookup` busca a foto pública do Contato pelo perfil LinkedIn dele (CRM-12), por um Actor do Apify. O navegador pede `{ contactId }` numa ação do Contato, nunca ao desenhar a lista. A função reserva a consulta no banco com a sessão de quem pede (`begin_contact_photo_lookup`): qualquer Participação ativa do Workspace do Contato, um perfil `/in/`, uma consulta em andamento por Contato, no máximo uma por minuto e três por dia por Contato e cinquenta por dia por Workspace (429 acima disso). Só então roda o Actor, e grava a resposta com a chave de serviço (`finish_contact_photo_lookup`, só `service_role`): guarda a URL da imagem, o Actor, a execução e a data de observação, e nada além disso do perfil. Respostas: `200 {status: "found" | "not_found"}`, `404` (Contato de outro Workspace), `409` (em andamento, ou foto manual), `422` (sem perfil LinkedIn), `429`, `502` (o Apify recusou) e `504` (prazo). Detalhes, Actor escolhido e retenção em `contact-photo-lookup/README.md`.
+
 ## Ligar o e-mail do Convite (CRM-03)
 
 1. No PowerShell, cadastrar a chave do Resend digitando-a no próprio terminal: `npx supabase secrets set RESEND_API_KEY=<chave> --project-ref <ref>`.
 2. Publicar: `npx supabase functions deploy workspace-invitation-email --project-ref <ref>`.
 3. Convidar um e-mail seu em Configurações → Workspace e conferir a caixa de entrada.
+
+## Ligar a foto do Contato (CRM-12)
+
+1. Aplicar a migration `20260929120000_foto_do_contato.sql` (conforme `docs/agents/migrations.md`).
+2. Cadastrar o token do Apify digitando-o no próprio terminal: `npx supabase secrets set APIFY_TOKEN=<token> --project-ref <ref>` (o `APP_ORIGIN` já existe). Se for trocar o Actor, cadastre também `APIFY_PHOTO_ACTOR_ID` e `APIFY_PHOTO_INPUT`.
+3. Publicar: `npx supabase functions deploy contact-photo-lookup --project-ref <ref>`.
+4. Num Contato com LinkedIn `/in/`, usar a ação de buscar foto e conferir o estado em `contact_photo_status`.
 
 ## Ligar o Executor (canais-05)
 
