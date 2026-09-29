@@ -197,6 +197,26 @@ describe('Importar CSV no Workspace operacional', () => {
     expect(await screen.findByText('Falta a URL da empresa.')).toBeInTheDocument()
   })
 
+  it('sem arquivo, o envio está desligado e a dica explica o porquê; ao escolher, mostra o nome e o tamanho e libera o envio', async () => {
+    const { usuario } = abrir('/contas/importar')
+
+    const envio = await screen.findByRole('form', { name: 'Enviar arquivo CSV' })
+    const enviar = within(envio).getByRole('button', { name: 'Enviar arquivo' })
+    expect(enviar).toBeDisabled()
+    expect(within(envio).getByText('Escolha um arquivo CSV para liberar o envio.')).toBeInTheDocument()
+    expect(enviar).toHaveAccessibleDescription('Escolha um arquivo CSV para liberar o envio.')
+    // O botão de escolher é o rótulo do campo nativo, que continua aceitando só CSV e texto.
+    expect(within(envio).getByText('Escolher arquivo')).toBeInTheDocument()
+    expect(within(envio).getByLabelText('Arquivo CSV')).toHaveAttribute('accept', '.csv,.txt,text/csv')
+
+    await usuario.upload(within(envio).getByLabelText('Arquivo CSV'), new File(['a'.repeat(2048)], 'contas-de-setembro.csv', { type: 'text/csv' }))
+
+    expect(within(envio).getByText('contas-de-setembro.csv')).toBeInTheDocument()
+    expect(within(envio).getByText('· 2 KB')).toBeInTheDocument()
+    expect(within(envio).queryByText('Escolha um arquivo CSV para liberar o envio.')).not.toBeInTheDocument()
+    expect(enviar).toBeEnabled()
+  })
+
   it('baixa o relatório de erros como CSV com as células originais', async () => {
     const { usuario } = abrir(`/contas/importar/${LOTE}`, { estado: 'completed' })
     let conteudo = ''
