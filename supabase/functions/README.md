@@ -165,7 +165,7 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
 
 Nada disto foi feito no projeto remoto: são passos para o Nan, nesta ordem.
 
-1. Aplicar a migration `20260929190000_ciclo_real_whatsapp.sql` (`npx supabase db push --linked`, conforme `docs/agents/migrations.md`). É só aditiva; não mexe nas linhas que existem.
+1. Aplicar a migration `20260929210000_ciclo_real_whatsapp.sql` (`npx supabase db push --linked`, conforme `docs/agents/migrations.md`). É só aditiva; não mexe nas linhas que existem.
 2. Publicar as três funções que mudaram, na ordem em que estão aqui (o banco antes do código: a `sequence-step-sends` pergunta o canal do Envio ao banco):
    - `npx supabase functions deploy sequence-step-sends --project-ref <ref>`
    - `npx supabase functions deploy sequence-runner --no-verify-jwt --project-ref <ref>`

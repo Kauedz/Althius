@@ -20,7 +20,7 @@
 
 ## Implementação local
 
-Só a metade do envio. Migration `supabase/migrations/20260929190000_ciclo_real_whatsapp.sql` (aditiva) e pgTAP `supabase/tests/ciclo_real_whatsapp.sql` (158 asserções); Edge Functions (`_shared/send-whatsapp.ts`, `sequence-runner`, `sequence-step-sends`, `unipile-account-status`) com 77 testes Deno novos; tela em `detalhe-sequencia.tsx` e nas fontes.
+Só a metade do envio. Migration `supabase/migrations/20260929210000_ciclo_real_whatsapp.sql` (aditiva) e pgTAP `supabase/tests/ciclo_real_whatsapp.sql` (158 asserções); Edge Functions (`_shared/send-whatsapp.ts`, `sequence-runner`, `sequence-step-sends`, `unipile-account-status`) com 77 testes Deno novos; tela em `detalhe-sequencia.tsx` e nas fontes.
 
 - **Visão `target_contacts`:** `whatsapp` só mostra o telefone principal quando o Contato o marcou como WhatsApp (`phone_whatsapp`). Antes o principal aparecia como `whatsapp` mesmo com a marca desligada. O telefone segue em `phone`. Na tela, o Contato ganhou `telefoneSemWhatsApp` para a edição sem as listas (quando a leitura das listas falha) não apagar um telefone que ela deixou de mostrar como WhatsApp.
 - **Passo de WhatsApp, como o de E-mail (ADR-0008, ADR-0014):**
