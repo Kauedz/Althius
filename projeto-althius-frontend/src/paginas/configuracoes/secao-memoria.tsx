@@ -56,6 +56,33 @@ export function SecaoMemoria() {
   )
 }
 
+/**
+ * A Memória do Workspace no Workspace operacional (CRM-09, bloqueado pelos Agentes): quem propõe o ICP e as Personas é
+ * o Agente do documento, e os Agentes ainda não rodam aqui. Até lá a seção diz por que está vazia, sem documento de
+ * exemplo e sem edição direta no lugar.
+ */
+export function SecaoMemoriaDoWorkspaceOperacional() {
+  const { icp, personas } = DOCUMENTOS_DA_MEMORIA
+  return (
+    <SecaoDeConfiguracoes
+      id="memoria-do-workspace"
+      titulo="Memória do Workspace"
+      alcance="workspace"
+      descricao="O contexto que os Agentes e os módulos usam como referência. É do Workspace e só muda depois da aprovação de um Administrador."
+    >
+      <div role="status" className="flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+        <span className="selo">Aguardando os Agentes</span>
+        <p className="text-al-ink">O ICP e as Personas deste Workspace chegam junto com os Agentes.</p>
+        <p className="text-sm text-al-muted">
+          Quem propõe o ICP é o {icp.agente}, e quem propõe as Personas é o {personas.agente}; um Administrador aprova em
+          Aprovações. Esses Agentes ainda não rodam neste Workspace, então ainda não há ICP nem Personas a mostrar, e não
+          existe edição direta no lugar deles. Os documentos de exemplo aparecem só na Demonstração.
+        </p>
+      </div>
+    </SecaoDeConfiguracoes>
+  )
+}
+
 function DocumentoNaMemoria({
   documento,
   vigente,

@@ -114,8 +114,8 @@ describe('Workspace operacional e Demonstração', () => {
 
   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
   // Preferências também (CRM-08), e o Plano diz que é só demonstrativo: `paginas/configuracoes/perfil-e-preferencias-reais.test.tsx`.
-  it.each(['/configuracoes/memoria/icp'])(
-    '%s mostra que a seção está indisponível, sem dados da Demonstração',
+  it.each(['/configuracoes/memoria/icp', '/configuracoes/memoria/personas'])(
+    '%s diz que o ICP e as Personas chegam com os Agentes, sem documento da Demonstração nem edição direta',
     async (rota) => {
       window.history.replaceState(null, '', rota)
       abrirAlthius({
@@ -124,8 +124,11 @@ describe('Workspace operacional e Demonstração', () => {
         tabelas: { workspace_memberships: [participacao('ws-norte')] },
       })
 
-      expect(await screen.findByText('Esta seção de Configurações ainda não está disponível neste Workspace.')).toBeInTheDocument()
-      expect(screen.queryByText(/Databricks|Marina Alves/)).not.toBeInTheDocument()
+      expect(await screen.findByText('O ICP e as Personas deste Workspace chegam junto com os Agentes.')).toBeInTheDocument()
+      expect(screen.getByText(/Quem propõe o ICP é o Scopus, e quem propõe as Personas é o Ethos/)).toBeInTheDocument()
+      expect(screen.queryByText(/Databricks|Marina Alves|2.000 funcionários/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Solicitar revisão|Editar/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     },
   )
 

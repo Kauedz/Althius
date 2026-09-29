@@ -1,0 +1,2183 @@
+From bc42233c6d88504b133796ed0be25b23a9d3b37a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 29 Sep 2026 00:09:37 +0000
+Subject: [PATCH] =?UTF-8?q?CRM-09:=20ICP=20e=20Personas=20do=20Workspace?=
+ =?UTF-8?q?=20com=20proposta=20e=20aprova=C3=A7=C3=A3o=20reais?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A Memória do Workspace passa a ter backend: um documento vigente de ICP e
+um de Personas por Workspace, revisões propostas por qualquer participante
+ativo e decididas só por Administrador ativo (validado no banco), e a
+auditoria das propostas e decisões. Aprovar substitui o vigente na mesma
+transação da decisão; a revisão decidida guarda só o registro.
+
+No Workspace operacional, Configurações → Memória do Workspace mostra o
+vigente, o estado vazio, a proposta pendente com a decisão e a última
+recusa, sem roteiro de Agente: enquanto o Scopus e o Ethos não rodam aqui,
+o participante escreve a proposta. A Demonstração continua como estava.
+
+Migration 20260928234630_memoria_do_workspace (pgTAP 49/49).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Btao5m3jSvqM3geNAscgaw
+---
+ .../issues/09-icp-e-personas-aprovados.md     |  22 +-
+ .../src/fonte/composicao.ts                   |  14 +-
+ .../src/fonte/simulada-memoria.ts             |   5 +-
+ .../src/fonte/supabase-memoria.test.ts        | 131 ++++
+ .../src/fonte/supabase-memoria.ts             | 168 ++++++
+ projeto-althius-frontend/src/fonte/tipos.ts   |  37 +-
+ .../configuracoes/memoria-real.test.tsx       | 305 ++++++++++
+ .../paginas/configuracoes/memoria.test.tsx    |   2 +-
+ .../configuracoes/pagina-configuracoes.tsx    |   9 +-
+ .../paginas/configuracoes/personas.test.tsx   |   8 +-
+ .../secao-memoria-operacional.tsx             | 568 ++++++++++++++++++
+ .../paginas/configuracoes/secao-memoria.tsx   |   6 +-
+ .../src/paginas/secoes/habilidades.tsx        |   4 +-
+ .../src/paginas/secoes/memoria.tsx            |  12 +-
+ .../src/paginas/sinais/editor.tsx             |   9 +-
+ .../src/paginas/tabela-de-contatos.tsx        |   2 +-
+ projeto-althius-frontend/src/raiz.test.tsx    |  15 +-
+ .../20260928234630_memoria_do_workspace.sql   | 281 +++++++++
+ supabase/tests/memoria_do_workspace.sql       | 271 +++++++++
+ 19 files changed, 1825 insertions(+), 44 deletions(-)
+ create mode 100644 projeto-althius-frontend/src/fonte/supabase-memoria.test.ts
+ create mode 100644 projeto-althius-frontend/src/fonte/supabase-memoria.ts
+ create mode 100644 projeto-althius-frontend/src/paginas/configuracoes/memoria-real.test.tsx
+ create mode 100644 projeto-althius-frontend/src/paginas/configuracoes/secao-memoria-operacional.tsx
+ create mode 100644 supabase/migrations/20260928234630_memoria_do_workspace.sql
+ create mode 100644 supabase/tests/memoria_do_workspace.sql
+
+diff --git a/.scratch/crm-real-e-stack/issues/09-icp-e-personas-aprovados.md b/.scratch/crm-real-e-stack/issues/09-icp-e-personas-aprovados.md
+index e6be5f9..107c7a6 100644
+--- a/.scratch/crm-real-e-stack/issues/09-icp-e-personas-aprovados.md
++++ b/.scratch/crm-real-e-stack/issues/09-icp-e-personas-aprovados.md
+@@ -6,9 +6,21 @@
+ 
+ **Status:** ready-for-agent
+ 
+-- [ ] ICP e Personas são persistidos como configuração compartilhada do Workspace, não como cópias por participante.
+-- [ ] Propostas, decisão administrativa e auditoria têm estado e autor persistidos.
+-- [ ] Somente Administrador aprova ou recusa.
+-- [ ] A aprovação substitui a versão atual e propaga às dependências existentes conforme a spec de Configurações.
+-- [ ] A interface atual mostra versão aprovada, proposta pendente, recusa e estado vazio sem roteiros apresentados como trabalho real.
++- [x] ICP e Personas são persistidos como configuração compartilhada do Workspace, não como cópias por participante. — `private.workspace_memory_documents`, com um documento vigente por Workspace e documento (`icp`, `personas`), lido por todo participante ativo por `get_workspace_memory`; pgTAP: o Membro lê o mesmo ICP que a Administradora aprovou, e o Workspace continua com um só ICP depois de duas aprovações.
++- [x] Propostas, decisão administrativa e auditoria têm estado e autor persistidos. — `private.workspace_memory_revisions` (pendente, aprovada ou recusada; quem pediu, quem decidiu, quando, e o nome de cada um como era no momento) e `private.workspace_memory_events` (`revisao_proposta`, `revisao_aprovada`, `revisao_recusada`, com o autor), só de acréscimo; pgTAP confere a trilha inteira do Norte e a separação do Sul.
++- [x] Somente Administrador aprova ou recusa. — `decide_workspace_memory_revision` exige Administrador ativo do Workspace da revisão (pode ser quem propôs); Membro, Administrador de outro Workspace e `anon` são recusados (pgTAP, com mutação conferida: tirar a checagem derruba 9 asserções). Na tela, o Membro vê "Aguardando: …" sem botões, e a Fonte traduz a recusa do banco (`supabase-memoria.test.ts`).
++- [x] A aprovação substitui a versão atual e propaga às dependências existentes conforme a spec de Configurações. — Aprovar grava o documento vigente e a decisão na mesma transação; recusar e pendência não tocam nele; a revisão decidida perde o conteúdo proposto (ADR 0010: sem histórico). A propagação é pela referência única: o Workspace operacional passa a responder `memoriaDoWorkspace()` pelo backend, a mesma operação que Sinais, Agentes, Habilidades e a tabela de Contatos leem. Hoje nenhuma configuração dependente existe no Workspace operacional (ver Comments), então não há o que atualizar além do próprio documento.
++- [x] A interface atual mostra versão aprovada, proposta pendente, recusa e estado vazio sem roteiros apresentados como trabalho real. — Configurações → Memória do Workspace (ICP e Personas) no Workspace operacional: `secao-memoria-operacional.tsx`; testes em `memoria-real.test.tsx` (8). Nenhum roteiro do Scopus ou do Ethos responde ali; a tela diz que os Agentes ainda não rodam neste Workspace.
+ 
++## Comments
++
++Implementação de 2026-09-28.
++
++- **Modelo:** migration `supabase/migrations/20260928234630_memoria_do_workspace.sql`. Três tabelas em `private`, com RLS e sem acesso direto pela API: `workspace_memory_documents` (o vigente), `workspace_memory_revisions` (no máximo uma pendente por documento em cada Workspace; ICP e Personas independentes) e `workspace_memory_events` (auditoria). RPCs `security definer` com `search_path = ''`, só para `authenticated`: `get_workspace_memory`, `list_workspace_memory_revisions`, `propose_workspace_memory_revision` (qualquer participante ativo; motivo obrigatório; de 1 a 30 seções com título e texto, sem títulos repetidos; recusa proposta igual ao vigente) e `decide_workspace_memory_revision` (só Administrador ativo). pgTAP `supabase/tests/memoria_do_workspace.sql` 49/49; suíte local completa verde (`scripts/pgtap-local.sh althius_crm09`).
++- **Fonte:** `src/fonte/supabase-memoria.ts`, composta no Workspace operacional (`composicao.ts`). `MemoriaDoWorkspace` passou a aceitar documento nulo (Workspace sem nada aprovado); os consumidores da Demonstração tratam o nulo (Sinais, Habilidades, Contexto do Workspace na Memória do Agente, tabela de Contatos). O contrato ganhou `revisoesDaMemoria`, `proporRevisao` e `decidirRevisao`, opcionais como `enviarEmailDoConvite`: só existem no Workspace operacional. A Demonstração continua igual (roteiro do Scopus e do Ethos, fila de Aprovações, armazenamento no navegador).
++- **Tela:** a seção deixou de estar "indisponível" no Workspace operacional. Mostra o vigente com quem aprovou e quando, o estado vazio, a proposta pendente (motivo, autor, alterações com o vigente riscado, o que sai e o que não muda), a decisão para Administrador, "Aguardando: …" para Membro e a última recusa. O diálogo de proposta começa pelo vigente (ou, no primeiro ICP, pelas seções que os módulos leem) e confere motivo, texto e títulos repetidos antes de enviar; uma falha não registra nada e mantém o que foi escrito.
++- **Decisão a confirmar (para um humano):** a spec de Configurações diz que a proposta vem do Scopus ou do Ethos e que não há edição direta que dispense o Agente. No Workspace operacional os Agentes ainda não rodam (CRM-13/14), então aqui **o participante escreve a proposta**, que continua exigindo a decisão de um Administrador. A tela diz isso. Quando os Agentes tiverem backend, as propostas deles entram pela mesma tabela e pela mesma decisão; decidir se a proposta escrita por participante continua existindo depois disso. O CONTEXT.md ("Revisão da Memória do Workspace: a proposta de um Agente") e a ADR 0010 não foram alterados.
++- **Dependências que ainda não existem no Workspace operacional:** o público recomendado de Sinais e as Habilidades e o Contexto dos Agentes (módulos indisponíveis), e a classificação de Contatos por Persona (os Contatos operacionais não têm Persona; a tabela já lê as Personas do backend e mostra só o nome). A seção lista essas configurações como "Ainda não disponível neste Workspace". Cada módulo, ao ganhar backend, deve ler `memoriaDoWorkspace()` (sem cópia) para a aprovação valer ali de uma vez.
++- **Fora deste ticket:** a fila de Aprovações continua indisponível no Workspace operacional (CRM-15), então a decisão fica na própria Memória do Workspace; os avisos e as notificações de proposta pendente e de decisão (spec de Configurações, ticket 07) não existem no operacional (`observarAvisos` segue vazio, e o contador de Aprovações pendentes continua 0); cancelar uma proposta pendente não existe (um Administrador a recusa).
++- **Pendências:** a migration não foi aplicada no `ycbdilsmydvzezhlymty` (aplicar ao fazer o merge, por `docs/agents/migrations.md`). A conferência visual no navegador do Workspace operacional não foi feita: precisa da migration aplicada e de uma sessão real.
++- **Validação:** `tsc -b` sem erros; `oxlint` sem erros (os avisos são de arquivos que este ticket não toca); `vitest run` 734 testes em 50 arquivos, todos passando.
+diff --git a/projeto-althius-frontend/src/fonte/composicao.ts b/projeto-althius-frontend/src/fonte/composicao.ts
+index 307db64..3c8f643 100644
+--- a/projeto-althius-frontend/src/fonte/composicao.ts
++++ b/projeto-althius-frontend/src/fonte/composicao.ts
+@@ -15,6 +15,7 @@ import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
+ import { criarFonteDeSinaisSimulada } from './simulada-sinais'
+ import { criarFonteDeContasSupabase } from './supabase-contas'
+ import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
++import { criarFonteDaMemoriaSupabase } from './supabase-memoria'
+ import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
+ import { criarFonteDoPerfilSupabase } from './supabase-perfil'
+ import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
+@@ -53,20 +54,19 @@ export function criarAmbienteDoWorkspace({
+ }): Ambiente {
+   const participantes = criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id)
+   const perfil = criarFonteDoPerfilSupabase(cliente, { usuario, participacao })
++  const memoria = criarFonteDaMemoriaSupabase(cliente, participacao.workspaceId)
+   return {
+     modo: 'real',
+-    // Participantes e convites, Meu perfil e Preferências já têm backend; o resto de Agentes e Configurações, ainda não.
++    // Participantes e convites, Meu perfil, Preferências e a Memória do Workspace (ICP e Personas) já têm backend; o
++    // resto de Agentes e Configurações, ainda não.
+     fonte: {
+       ...criarFonteDeAgentesIndisponivel({ usuario, participacao }),
+       ...participantes,
+       ...perfil,
++      ...memoria,
+       observar(ouvinte) {
+-        const pararDeOuvirParticipantes = participantes.observar(ouvinte)
+-        const pararDeOuvirPerfil = perfil.observar(ouvinte)
+-        return () => {
+-          pararDeOuvirParticipantes()
+-          pararDeOuvirPerfil()
+-        }
++        const pararDeOuvir = [participantes, perfil, memoria].map((fonte) => fonte.observar(ouvinte))
++        return () => pararDeOuvir.forEach((parar) => parar())
+       },
+     },
+     fonteDeContas: criarFonteDeContasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
+diff --git a/projeto-althius-frontend/src/fonte/simulada-memoria.ts b/projeto-althius-frontend/src/fonte/simulada-memoria.ts
+index 47d6798..bdbd903 100644
+--- a/projeto-althius-frontend/src/fonte/simulada-memoria.ts
++++ b/projeto-althius-frontend/src/fonte/simulada-memoria.ts
+@@ -32,7 +32,10 @@ const CHAVE_DA_MEMORIA = `althius:memoria:${demo.WORKSPACE_ATUAL}`
+ /** A gravação no armazenamento falhou: nada foi alterado. */
+ export class FalhaAoGravar extends Error {}
+ 
+-interface EstadoDaMemoria extends MemoriaDoWorkspace {
++/** Na Demonstração, o ICP e as Personas existem desde o início, com os dados de exemplo. */
++interface EstadoDaMemoria {
++  icp: DocumentoVigente
++  personas: DocumentoVigente
+   /** As Aprovações de revisão, pendentes ou decididas: são registros da fila; só a pendente guarda conteúdo. */
+   revisoes: AprovacaoDeRevisao[]
+ }
+diff --git a/projeto-althius-frontend/src/fonte/supabase-memoria.test.ts b/projeto-althius-frontend/src/fonte/supabase-memoria.test.ts
+new file mode 100644
+index 0000000..2ba903d
+--- /dev/null
++++ b/projeto-althius-frontend/src/fonte/supabase-memoria.test.ts
+@@ -0,0 +1,131 @@
++import { describe, expect, it } from 'vitest'
++import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
++import { criarFonteDaMemoriaSupabase } from './supabase-memoria'
++
++const BRUNO = { id: 'usuario-bruno', email: 'bruno@norte.com.br' }
++
++/** Uma recusa do banco, com o SQLSTATE e a mensagem que a função levanta. */
++function recusa(code: string, message: string) {
++  return Object.assign(new Error(message), { code })
++}
++
++/** A Memória do Norte pelo Bruno, Membro, com as chamadas que chegaram ao banco em `chamadas`. */
++function fonteDoBruno(rpcs: Record<string, (p: Record<string, unknown>) => unknown>) {
++  const chamadas: [string, Record<string, unknown>][] = []
++  const registradas = Object.fromEntries(
++    Object.entries(rpcs).map(([nome, responder]) => [
++      nome,
++      (p: Record<string, unknown>) => {
++        chamadas.push([nome, p])
++        return responder(p)
++      },
++    ]),
++  )
++  const { cliente } = criarSupabaseFalso({ sessao: sessaoDe(BRUNO), rpcs: registradas })
++  return { fonte: criarFonteDaMemoriaSupabase(cliente, 'ws-norte'), chamadas }
++}
++
++const ICP_NO_BANCO = {
++  document: 'icp',
++  sections: [{ titulo: 'Segmentos', texto: 'Varejo.' }],
++  approved_at: '2026-09-20T15:00:00Z',
++  approved_by: 'usuario-marina',
++  approved_by_name: 'Marina Souza',
++}
++
++describe('Memória do Workspace operacional', () => {
++  it('lê os documentos vigentes do Workspace; o que não foi aprovado vem vazio', async () => {
++    const { fonte, chamadas } = fonteDoBruno({ get_workspace_memory: () => [ICP_NO_BANCO] })
++
++    expect(await fonte.memoriaDoWorkspace()).toEqual({
++      icp: {
++        secoes: [{ titulo: 'Segmentos', texto: 'Varejo.' }],
++        aprovadoEm: '2026-09-20',
++        aprovadoPor: { contaId: 'usuario-marina', nome: 'Marina Souza' },
++      },
++      personas: null,
++    })
++    expect(chamadas).toEqual([['get_workspace_memory', { p_workspace_id: 'ws-norte' }]])
++  })
++
++  it('a revisão pendente traz o proposto e o vigente; a decidida, só quem pediu e quem decidiu', async () => {
++    const { fonte } = fonteDoBruno({
++      get_workspace_memory: () => [ICP_NO_BANCO],
++      list_workspace_memory_revisions: () => [
++        {
++          id: 'r2', document: 'icp', status: 'pendente', request: 'Atacado.',
++          proposed_sections: [{ titulo: 'Segmentos', texto: 'Atacado.' }], requested_by: BRUNO.id,
++          requested_by_name: 'Bruno Reis', requested_at: '2026-09-27T12:00:00Z',
++          decided_by: null, decided_by_name: null, decided_at: null,
++        },
++        {
++          id: 'r1', document: 'personas', status: 'recusada', request: 'Comitê.', proposed_sections: null,
++          requested_by: BRUNO.id, requested_by_name: 'Bruno Reis', requested_at: '2026-09-26T12:00:00Z',
++          decided_by: 'usuario-marina', decided_by_name: 'Marina Souza', decided_at: '2026-09-26T13:00:00Z',
++        },
++      ],
++    })
++
++    expect(await fonte.revisoesDaMemoria!()).toEqual([
++      {
++        id: 'r2', documento: 'icp', estado: 'pendente', pedido: 'Atacado.', pedidaEm: '2026-09-27',
++        solicitante: { contaId: BRUNO.id, nome: 'Bruno Reis' },
++        proposto: [{ titulo: 'Segmentos', texto: 'Atacado.' }],
++        vigenteNoPedido: [{ titulo: 'Segmentos', texto: 'Varejo.' }],
++      },
++      {
++        id: 'r1', documento: 'personas', estado: 'rejeitada', pedido: 'Comitê.', pedidaEm: '2026-09-26',
++        solicitante: { contaId: BRUNO.id, nome: 'Bruno Reis' },
++        decididaPor: { contaId: 'usuario-marina', nome: 'Marina Souza' },
++      },
++    ])
++  })
++
++  it('propõe o documento inteiro, sem espaços nas pontas, e avisa quem observa', async () => {
++    const { fonte, chamadas } = fonteDoBruno({ propose_workspace_memory_revision: () => 'r1' })
++    let avisos = 0
++    fonte.observar(() => avisos++)
++
++    await fonte.proporRevisao!('personas', { pedido: ' Comitê. ', secoes: [{ titulo: ' Comprador ', texto: ' Negocia. ' }] })
++
++    expect(chamadas).toEqual([
++      [
++        'propose_workspace_memory_revision',
++        { p_workspace_id: 'ws-norte', p_document: 'personas', p_request: 'Comitê.', p_sections: [{ titulo: 'Comprador', texto: 'Negocia.' }] },
++      ],
++    ])
++    expect(avisos).toBe(1)
++  })
++
++  it('um Membro não decide: a recusa do banco chega como a regra, e nada é avisado', async () => {
++    const { fonte, chamadas } = fonteDoBruno({
++      decide_workspace_memory_revision: () => {
++        throw recusa('42501', 'only administrators decide memory revisions')
++      },
++    })
++    let avisos = 0
++    fonte.observar(() => avisos++)
++
++    await expect(fonte.decidirRevisao!('r1', 'rejeitada')).rejects.toThrow(
++      'Somente Administradores aprovam ou recusam revisões do ICP e das Personas.',
++    )
++    expect(chamadas).toEqual([['decide_workspace_memory_revision', { p_revision_id: 'r1', p_decision: 'recusada' }]])
++    expect(avisos).toBe(0)
++  })
++
++  it('traduz as recusas do banco e esconde as falhas técnicas', async () => {
++    const { fonte } = fonteDoBruno({
++      propose_workspace_memory_revision: ({ p_document }) => {
++        if (p_document === 'icp') throw recusa('23505', 'a pending revision already exists for this document')
++        throw new Error('Failed to fetch')
++      },
++    })
++
++    await expect(fonte.proporRevisao!('icp', { pedido: 'x', secoes: [] })).rejects.toThrow(
++      'Já existe uma proposta do ICP pendente. Aguarde a decisão de um Administrador.',
++    )
++    await expect(fonte.proporRevisao!('personas', { pedido: 'x', secoes: [] })).rejects.toThrow(
++      'Não foi possível enviar a proposta agora. Nada foi alterado; verifique sua conexão e tente de novo.',
++    )
++  })
++})
+diff --git a/projeto-althius-frontend/src/fonte/supabase-memoria.ts b/projeto-althius-frontend/src/fonte/supabase-memoria.ts
+new file mode 100644
+index 0000000..20a2545
+--- /dev/null
++++ b/projeto-althius-frontend/src/fonte/supabase-memoria.ts
+@@ -0,0 +1,168 @@
++// A Memória do Workspace operacional, no Supabase (CRM-09): o ICP e as Personas vigentes, um de cada por Workspace, e
++// as revisões propostas pelos participantes. Tudo passa pelas funções do banco, que conferem a Participação ativa: todo
++// participante lê e propõe, e só um Administrador ativo aprova ou recusa. Aprovar substitui o documento vigente na
++// mesma transação da decisão. Enquanto o Scopus e o Ethos não rodam neste Workspace, quem escreve a proposta é o
++// participante; nenhum roteiro de Agente responde por aqui.
++
++import type { SupabaseClient } from '@supabase/supabase-js'
++import { diaIso } from './formatar-data'
++import { ERRO_SEM_PARTICIPACAO } from './regras'
++import { DOCUMENTOS_DA_MEMORIA, ERRO_REVISAO_JA_DECIDIDA, ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO } from './regras-memoria'
++import type {
++  Decisao,
++  DocumentoDaMemoria,
++  DocumentoVigente,
++  FonteDeAgentes,
++  MemoriaDoWorkspace,
++  RevisaoDoParticipante,
++  SecaoDoDocumento,
++} from './tipos'
++
++interface RegistroDoDocumento {
++  document: DocumentoDaMemoria
++  sections: SecaoDoDocumento[]
++  approved_at: string
++  approved_by: string | null
++  approved_by_name: string
++}
++
++interface RegistroDaRevisao {
++  id: string
++  document: DocumentoDaMemoria
++  status: 'pendente' | 'aprovada' | 'recusada'
++  request: string
++  proposed_sections: SecaoDoDocumento[] | null
++  requested_by: string | null
++  requested_by_name: string
++  requested_at: string
++  decided_by: string | null
++  decided_by_name: string | null
++}
++
++const DECISAO_NO_BANCO: Record<Decisao, 'aprovada' | 'recusada'> = { aprovada: 'aprovada', rejeitada: 'recusada' }
++
++/** Uma recusa das funções do banco: o SQLSTATE, o trecho da mensagem que a identifica e o texto para a pessoa. */
++type Recusa = [code: string, trecho: string, texto: (documento?: DocumentoDaMemoria) => string]
++
++/** As recusas das funções da Memória do Workspace (migration memoria_do_workspace), num só lugar. */
++const RECUSAS: Recusa[] = [
++  ['42501', 'only administrators decide', () => ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO],
++  ['42501', 'active workspace membership required', () => ERRO_SEM_PARTICIPACAO],
++  [
++    '23505',
++    'pending revision already exists',
++    (documento) =>
++      `Já existe uma proposta ${documento ? DOCUMENTOS_DA_MEMORIA[documento].comArtigo : 'deste documento'} pendente. Aguarde a decisão de um Administrador.`,
++  ],
++  ['22023', 'invalid request', () => 'Conte por que propõe esta mudança.'],
++  [
++    '22023',
++    'invalid sections',
++    () => 'Revise as seções: cada uma precisa de título (até 120 caracteres) e texto (até 4.000), sem títulos repetidos.',
++  ],
++  ['22023', 'does not change the document', () => 'A proposta é igual ao documento vigente. Mude alguma seção antes de enviar.'],
++  ['22023', 'revision already decided', () => ERRO_REVISAO_JA_DECIDIDA],
++  ['P0002', 'revision not found', () => 'Esta proposta não existe mais. Recarregue a página.'],
++]
++
++/** A mensagem para a pessoa; uma falha que não é recusa (rede, servidor) vira `falha`, sem o erro técnico. */
++function converterErro(error: { message: string; code?: string }, falha: string, documento?: DocumentoDaMemoria): Error {
++  const recusa = RECUSAS.find(([code, trecho]) => error.code === code && error.message.includes(trecho))
++  return new Error(recusa ? recusa[2](documento) : falha)
++}
++
++const FALHA_AO_CARREGAR = 'Não foi possível carregar a Memória do Workspace. Verifique sua conexão e tente de novo.'
++const FALHA_AO_PROPOR = 'Não foi possível enviar a proposta agora. Nada foi alterado; verifique sua conexão e tente de novo.'
++const FALHA_AO_DECIDIR = 'Não foi possível registrar a decisão agora. Nada mudou; verifique sua conexão e tente de novo.'
++
++const dia = (instante: string) => diaIso(new Date(instante))
++
++function documentoVigente(registro: RegistroDoDocumento | undefined): DocumentoVigente | null {
++  if (!registro) return null
++  return {
++    secoes: registro.sections,
++    aprovadoEm: dia(registro.approved_at),
++    aprovadoPor: { contaId: registro.approved_by ?? '', nome: registro.approved_by_name },
++  }
++}
++
++export type FonteDaMemoria = Pick<
++  FonteDeAgentes,
++  'observar' | 'memoriaDoWorkspace' | 'revisoesDaMemoria' | 'proporRevisao' | 'decidirRevisao'
++>
++
++export function criarFonteDaMemoriaSupabase(cliente: SupabaseClient, workspaceId: string): FonteDaMemoria {
++  const ouvintes = new Set<() => void>()
++  const avisar = () => ouvintes.forEach((ouvinte) => ouvinte())
++
++  async function memoriaDoWorkspace(): Promise<MemoriaDoWorkspace> {
++    const { data, error } = await cliente.rpc('get_workspace_memory', { p_workspace_id: workspaceId })
++    if (error) throw converterErro(error, FALHA_AO_CARREGAR)
++    const registros = (data ?? []) as RegistroDoDocumento[]
++    return {
++      icp: documentoVigente(registros.find((r) => r.document === 'icp')),
++      personas: documentoVigente(registros.find((r) => r.document === 'personas')),
++    }
++  }
++
++  return {
++    observar(ouvinte) {
++      ouvintes.add(ouvinte)
++      return () => ouvintes.delete(ouvinte)
++    },
++
++    memoriaDoWorkspace,
++
++    async revisoesDaMemoria(): Promise<RevisaoDoParticipante[]> {
++      const [memoria, { data, error }] = await Promise.all([
++        memoriaDoWorkspace(),
++        cliente.rpc('list_workspace_memory_revisions', { p_workspace_id: workspaceId }),
++      ])
++      if (error) throw converterErro(error, FALHA_AO_CARREGAR)
++      return ((data ?? []) as RegistroDaRevisao[]).map((registro): RevisaoDoParticipante => {
++        const base = {
++          id: registro.id,
++          documento: registro.document,
++          pedido: registro.request,
++          pedidaEm: dia(registro.requested_at),
++          solicitante: { contaId: registro.requested_by ?? '', nome: registro.requested_by_name },
++        }
++        if (registro.status === 'pendente') {
++          // Só uma proposta fica pendente por documento, e o vigente só muda pela decisão dela: o vigente de agora é o
++          // do pedido.
++          return {
++            ...base,
++            estado: 'pendente',
++            proposto: registro.proposed_sections ?? [],
++            vigenteNoPedido: memoria[registro.document]?.secoes ?? [],
++          }
++        }
++        return {
++          ...base,
++          estado: registro.status === 'aprovada' ? 'aprovada' : 'rejeitada',
++          decididaPor: { contaId: registro.decided_by ?? '', nome: registro.decided_by_name ?? '' },
++        }
++      })
++    },
++
++    async proporRevisao(documento, { pedido, secoes }) {
++      const { error } = await cliente.rpc('propose_workspace_memory_revision', {
++        p_workspace_id: workspaceId,
++        p_document: documento,
++        p_request: pedido.trim(),
++        p_sections: secoes.map(({ titulo, texto }) => ({ titulo: titulo.trim(), texto: texto.trim() })),
++      })
++      if (error) throw converterErro(error, FALHA_AO_PROPOR, documento)
++      avisar()
++    },
++
++    async decidirRevisao(revisaoId, decisao) {
++      const { error } = await cliente.rpc('decide_workspace_memory_revision', {
++        p_revision_id: revisaoId,
++        p_decision: DECISAO_NO_BANCO[decisao],
++      })
++      if (error) throw converterErro(error, FALHA_AO_DECIDIR)
++      avisar()
++    },
++  }
++}
+diff --git a/projeto-althius-frontend/src/fonte/tipos.ts b/projeto-althius-frontend/src/fonte/tipos.ts
+index 9185f06..af4f504 100644
+--- a/projeto-althius-frontend/src/fonte/tipos.ts
++++ b/projeto-althius-frontend/src/fonte/tipos.ts
+@@ -257,9 +257,13 @@ export interface DocumentoVigente {
+  * referência dos módulos que dependem dela: nenhum guarda uma cópia.
+  */
+ export interface MemoriaDoWorkspace {
+-  icp: DocumentoVigente
+-  /** As definições de Personas, pelas quais os Contatos são classificados. Não são participantes do Workspace. */
+-  personas: DocumentoVigente
++  /** Nulo enquanto o Workspace não aprovou nenhum ICP; a Demonstração começa com o de exemplo. */
++  icp: DocumentoVigente | null
++  /**
++   * As definições de Personas, pelas quais os Contatos são classificados. Não são participantes do Workspace. Nulas
++   * enquanto o Workspace não aprovou nenhuma.
++   */
++  personas: DocumentoVigente | null
+ }
+ 
+ /** Os documentos da Memória do Workspace que mudam só por revisão de um Agente e Aprovação de Administrador. */
+@@ -296,6 +300,21 @@ export interface RevisaoDecidida extends RevisaoDaMemoriaBase {
+ 
+ export type RevisaoDaMemoria = RevisaoPendente | RevisaoDecidida
+ 
++/**
++ * Uma revisão da Memória do Workspace escrita por um participante, no Workspace operacional, enquanto o Scopus e o
++ * Ethos ainda não rodam nele. A regra é a mesma da proposta de um Agente: pendente ou recusada, nada muda; só um
++ * Administrador ativo decide, e aprovada, substitui o documento vigente. Aqui o `pedido` é o motivo da proposta.
++ */
++export type RevisaoDoParticipante =
++  | (RevisaoPendente & { id: string; estado: 'pendente' })
++  | (RevisaoDecidida & { id: string; estado: Decisao })
++
++/** O que o participante propõe: o motivo e o documento inteiro como ficaria. */
++export interface PropostaDeRevisao {
++  pedido: string
++  secoes: SecaoDoDocumento[]
++}
++
+ export interface Fato {
+   id: string
+   agenteId: AgenteId
+@@ -622,6 +641,18 @@ export interface FonteDeAgentes extends FonteObservavel {
+    * Recusa quem não participa do Workspace e um segundo pedido enquanto houver proposta pendente.
+    */
+   solicitarRevisao(documento: DocumentoDaMemoria, pedido: string): Promise<AprovacaoDeRevisao>
++  // As três operações abaixo só existem no Workspace operacional, onde nenhum Agente prepara a proposta ainda: o
++  // participante a escreve, e ela espera a decisão de um Administrador na própria Memória do Workspace, porque a fila de
++  // Aprovações ainda não tem backend. Na Demonstração, a proposta continua vindo do Agente (`solicitarRevisao`).
++  /** As revisões do Workspace, da mais nova para a mais antiga; só a pendente traz o conteúdo proposto. */
++  revisoesDaMemoria?(): Promise<RevisaoDoParticipante[]>
++  /** Qualquer participante ativo propõe; recusa um segundo pedido enquanto houver proposta pendente do documento. */
++  proporRevisao?(documento: DocumentoDaMemoria, proposta: PropostaDeRevisao): Promise<void>
++  /**
++   * Só um Administrador ativo decide, validado no backend; pode ser quem propôs. Aprovada, a proposta substitui o
++   * documento vigente na mesma gravação da decisão; recusada, nada muda.
++   */
++  decidirRevisao?(revisaoId: string, decisao: Decisao): Promise<void>
+ 
+   aprovacoes(): Promise<Aprovacao[]>
+   /**
+diff --git a/projeto-althius-frontend/src/paginas/configuracoes/memoria-real.test.tsx b/projeto-althius-frontend/src/paginas/configuracoes/memoria-real.test.tsx
+new file mode 100644
+index 0000000..c9ec968
+--- /dev/null
++++ b/projeto-althius-frontend/src/paginas/configuracoes/memoria-real.test.tsx
+@@ -0,0 +1,305 @@
++import { render, screen, within } from '@testing-library/react'
++import userEvent from '@testing-library/user-event'
++import { afterEach, describe, expect, it } from 'vitest'
++import { RaizDoAplicativo } from '@/raiz'
++import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
++import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
++
++const MARINA = { id: 'usuario-marina', email: 'marina@norte.com.br', nome: 'Marina Souza', role: 'admin' as const }
++const BRUNO = { id: 'usuario-bruno', email: 'bruno@norte.com.br', nome: 'Bruno Reis', role: 'member' as const }
++type Pessoa = typeof MARINA | typeof BRUNO
++const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte', owner_user_id: null, created_at: '2026-09-01T12:00:00Z' }
++
++afterEach(() => {
++  window.history.replaceState(null, '', '/')
++  sessionStorage.clear()
++})
++
++/** Uma recusa do banco, com o SQLSTATE e a mensagem que a função levanta. */
++function recusa(code: string, message: string) {
++  return Object.assign(new Error(message), { code })
++}
++
++type Secoes = { titulo: string; texto: string }[]
++interface DocumentoNoBanco { document: string; sections: Secoes; approved_at: string; approved_by: string; approved_by_name: string }
++interface RevisaoNoBanco {
++  id: string
++  document: string
++  status: 'pendente' | 'aprovada' | 'recusada'
++  request: string
++  proposed_sections: Secoes | null
++  requested_by: string
++  requested_by_name: string
++  requested_at: string
++  decided_by: string | null
++  decided_by_name: string | null
++  decided_at: string | null
++}
++
++/**
++ * A Memória do Workspace Norte como as funções do banco a guardam, entre sessões: Marina é Administradora e Bruno é
++ * Membro. As regras são do banco (pgTAP `memoria_do_workspace.sql`); aqui ele guarda o que as funções gravariam e recusa
++ * como elas recusam o que a tela ainda consegue pedir. `falhas` faz as próximas gravações caírem como uma queda de rede.
++ */
++function bancoDoNorte({ documentos = [] as DocumentoNoBanco[], revisoes = [] as RevisaoNoBanco[] } = {}) {
++  const banco = { documentos: [...documentos], revisoes: [...revisoes], falhas: 0, sessao: MARINA as Pessoa }
++  let instante = Date.parse('2026-09-28T12:00:00Z')
++  const agora = () => new Date((instante += 60_000)).toISOString()
++
++  function gravar<T>(aplicar: () => T): T {
++    if (banco.falhas > 0) {
++      banco.falhas--
++      throw new Error('Failed to fetch')
++    }
++    return aplicar()
++  }
++
++  const rpcs: Record<string, (p: Record<string, unknown>) => unknown> = {
++    bootstrap_personal_workspace: () => ({ id: `ws-pessoal-${banco.sessao.id}`, kind: 'pessoal', name: banco.sessao.nome, owner_user_id: banco.sessao.id }),
++    list_workspace_participants: () =>
++      [MARINA, BRUNO].map((p) => ({ user_id: p.id, email: p.email, name: p.nome, role: p.role, is_owner: false })),
++    list_workspace_invitations: () => [],
++    get_workspace_memory: () => banco.documentos,
++    list_workspace_memory_revisions: () => [...banco.revisoes].sort((a, b) => b.requested_at.localeCompare(a.requested_at)),
++    propose_workspace_memory_revision: ({ p_document, p_request, p_sections }) =>
++      gravar(() => {
++        if (banco.revisoes.some((r) => r.document === p_document && r.status === 'pendente')) {
++          throw recusa('23505', 'a pending revision already exists for this document')
++        }
++        const id = `revisao-${banco.revisoes.length + 1}`
++        banco.revisoes.push({
++          id, document: String(p_document), status: 'pendente', request: String(p_request),
++          proposed_sections: p_sections as Secoes, requested_by: banco.sessao.id, requested_by_name: banco.sessao.nome,
++          requested_at: agora(), decided_by: null, decided_by_name: null, decided_at: null,
++        })
++        return id
++      }),
++    decide_workspace_memory_revision: ({ p_revision_id, p_decision }) =>
++      gravar(() => {
++        if (banco.sessao.role !== 'admin') throw recusa('42501', 'only administrators decide memory revisions')
++        const revisao = banco.revisoes.find((r) => r.id === p_revision_id)!
++        if (revisao.status !== 'pendente') throw recusa('22023', 'revision already decided')
++        const decididaEm = agora()
++        if (p_decision === 'aprovada') {
++          banco.documentos = [
++            ...banco.documentos.filter((d) => d.document !== revisao.document),
++            { document: revisao.document, sections: revisao.proposed_sections!, approved_at: decididaEm, approved_by: banco.sessao.id, approved_by_name: banco.sessao.nome },
++          ]
++        }
++        Object.assign(revisao, {
++          status: p_decision, proposed_sections: null, decided_by: banco.sessao.id, decided_by_name: banco.sessao.nome, decided_at: decididaEm,
++        })
++        return null
++      }),
++  }
++  return Object.assign(banco, { rpcs })
++}
++
++type Banco = ReturnType<typeof bancoDoNorte>
++
++/** A pessoa abre a Memória do Workspace do Norte, no Workspace operacional, com a sessão já guardada. */
++function abrir(banco: Banco, pessoa: Pessoa, rota = '/configuracoes/memoria/icp') {
++  banco.sessao = pessoa
++  localStorage.setItem('althius:modo_demo', 'false')
++  sessionStorage.setItem('althius:workspace', NORTE.id)
++  window.history.replaceState(null, '', rota)
++  const supabase = criarSupabaseFalso({
++    sessao: sessaoDe(pessoa),
++    tabelas: {
++      workspace_memberships: [{ workspace_id: NORTE.id, user_id: pessoa.id, role: pessoa.role, active: true }],
++      workspaces: [NORTE],
++    },
++    rpcs: banco.rpcs,
++  })
++  const usuario = userEvent.setup()
++  const tela = render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
++  return { usuario, ...tela }
++}
++
++const ICP_APROVADO: DocumentoNoBanco = {
++  document: 'icp',
++  sections: [
++    { titulo: 'Segmentos', texto: 'Varejo e atacado.' },
++    { titulo: 'Porte', texto: '200 a 2.000 funcionários.' },
++  ],
++  approved_at: '2026-09-20T15:00:00Z',
++  approved_by: MARINA.id,
++  approved_by_name: MARINA.nome,
++}
++
++const documentoVigente = (nome = 'ICP vigente') => within(screen.getByRole('region', { name: nome }))
++
++/** Preenche o diálogo de proposta com o motivo e as seções (título e texto), trocando as que ele já traz. */
++async function proporNoDialogo(usuario: ReturnType<typeof userEvent.setup>, motivo: string, secoes: Secoes) {
++  const dialogo = within(await screen.findByRole('dialog'))
++  await usuario.type(dialogo.getByRole('textbox', { name: 'Por que propor esta mudança?' }), motivo)
++  const remover = () => dialogo.queryAllByRole('button', { name: /^Remover / })
++  while (remover().length > 0) await usuario.click(remover()[0])
++  for (const [indice, secao] of secoes.entries()) {
++    await usuario.click(dialogo.getByRole('button', { name: /^Adicionar / }))
++    const numero = indice + 1
++    await usuario.type(dialogo.getByRole('textbox', { name: new RegExp(`^(Título da seção|Nome da Persona) ${numero}$`) }), secao.titulo)
++    await usuario.type(dialogo.getByRole('textbox', { name: new RegExp(`^(Texto da seção|Definição da Persona) ${numero}$`) }), secao.texto)
++  }
++  await usuario.click(dialogo.getByRole('button', { name: 'Enviar para aprovação' }))
++}
++
++describe('Memória do Workspace no Workspace operacional', () => {
++  it('sem nada aprovado, mostra o estado vazio, sem o ICP nem o roteiro da Demonstração', async () => {
++    abrir(bancoDoNorte(), BRUNO)
++
++    expect(await screen.findByText('Este Workspace ainda não tem ICP aprovado.')).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Propor o ICP' })).toBeInTheDocument()
++    expect(screen.getByText(/Os Agentes Scopus e Ethos ainda não rodam neste Workspace/)).toBeInTheDocument()
++    // Nenhuma configuração deste Workspace lê o ICP ainda: nada aparece "Em uso".
++    const usos = within(screen.getByRole('region', { name: 'Onde este contexto é usado' }))
++    expect(usos.getAllByText('Ainda não disponível neste Workspace')).toHaveLength(3)
++    expect(usos.queryByText('Em uso')).not.toBeInTheDocument()
++    expect(screen.queryByText(/Databricks|Preparando a proposta|Solicitar revisão ao Scopus/)).not.toBeInTheDocument()
++    expect(screen.queryByText(/ainda não está disponível neste Workspace\.$/)).not.toBeInTheDocument()
++  })
++
++  it('o Membro propõe o ICP; a proposta fica pendente, sem mudar o vigente, e ele não a decide', async () => {
++    const banco = bancoDoNorte()
++    const { usuario } = abrir(banco, BRUNO)
++
++    await usuario.click(await screen.findByRole('button', { name: 'Propor o ICP' }))
++    await proporNoDialogo(usuario, 'Estamos fechando com varejo no Sul.', [{ titulo: 'Segmentos', texto: 'Varejo.' }])
++
++    const proposta = within(await screen.findByRole('article', { name: 'Proposta pendente do ICP' }))
++    expect(proposta.getByText(/Proposta de Bruno Reis/)).toBeInTheDocument()
++    expect(proposta.getByText('Estamos fechando com varejo no Sul.')).toBeInTheDocument()
++    expect(proposta.getByText('Varejo.')).toBeInTheDocument()
++    expect(proposta.queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
++    expect(await proposta.findByText(/Aguardando: Marina Souza\./)).toHaveTextContent(/^Somente Administradores aprovam ou recusam/)
++    // O vigente não mudou, e não há um segundo pedido enquanto este estiver pendente.
++    expect(screen.getByText('Este Workspace ainda não tem ICP aprovado.')).toBeInTheDocument()
++    expect(screen.queryByRole('button', { name: 'Propor o ICP' })).not.toBeInTheDocument()
++    expect(banco.revisoes).toMatchObject([
++      { document: 'icp', status: 'pendente', request: 'Estamos fechando com varejo no Sul.', proposed_sections: [{ titulo: 'Segmentos', texto: 'Varejo.' }] },
++    ])
++  })
++
++  it('a Administradora aprova: a proposta vira o ICP vigente para todo o Workspace', async () => {
++    const banco = bancoDoNorte()
++    const primeiro = abrir(banco, BRUNO)
++    await primeiro.usuario.click(await screen.findByRole('button', { name: 'Propor o ICP' }))
++    await proporNoDialogo(primeiro.usuario, 'Primeiro ICP.', [{ titulo: 'Segmentos', texto: 'Varejo.' }, { titulo: 'Porte', texto: 'Até 2.000 funcionários.' }])
++    await screen.findByRole('article', { name: 'Proposta pendente do ICP' })
++    primeiro.unmount()
++
++    const { usuario, unmount } = abrir(banco, MARINA)
++    const proposta = within(await screen.findByRole('article', { name: 'Proposta pendente do ICP' }))
++    await usuario.click(proposta.getByRole('button', { name: 'Aprovar' }))
++
++    expect(await screen.findByText('Proposta aprovada. O ICP passou a valer para todo o Workspace.')).toBeInTheDocument()
++    expect(documentoVigente().getByText('Até 2.000 funcionários.')).toBeInTheDocument()
++    expect(documentoVigente().getByText(/Aprovado em 28 de setembro de 2026 por Marina Souza/)).toBeInTheDocument()
++    expect(screen.queryByRole('article', { name: 'Proposta pendente do ICP' })).not.toBeInTheDocument()
++    unmount()
++
++    // O Membro, em outra sessão, lê o mesmo documento vigente: é do Workspace, não uma cópia de cada um.
++    abrir(banco, BRUNO)
++    expect(await screen.findByText('Até 2.000 funcionários.')).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: 'Propor revisão do ICP' })).toBeInTheDocument()
++  })
++
++  it('a Administradora recusa: o ICP vigente não muda, e a recusa fica registrada com os autores', async () => {
++    const banco = bancoDoNorte({
++      documentos: [ICP_APROVADO],
++      revisoes: [{
++        id: 'revisao-1', document: 'icp', status: 'pendente', request: 'Trocar para saúde.',
++        proposed_sections: [{ titulo: 'Segmentos', texto: 'Saúde.' }], requested_by: BRUNO.id, requested_by_name: BRUNO.nome,
++        requested_at: '2026-09-27T12:00:00Z', decided_by: null, decided_by_name: null, decided_at: null,
++      }],
++    })
++    const { usuario } = abrir(banco, MARINA)
++
++    const proposta = within(await screen.findByRole('article', { name: 'Proposta pendente do ICP' }))
++    // O que muda, com o vigente riscado; o que sai do documento também aparece.
++    expect(proposta.getByText('Varejo e atacado.')).toHaveClass('line-through')
++    expect(proposta.getByText('Saúde.')).toBeInTheDocument()
++    expect(proposta.getByText(/Sai do documento: Porte/)).toBeInTheDocument()
++    await usuario.click(proposta.getByRole('button', { name: 'Recusar' }))
++
++    expect(await screen.findByText('A última proposta, de Bruno Reis, foi recusada por Marina Souza. O ICP vigente não mudou.')).toBeInTheDocument()
++    expect(documentoVigente().getByText('Varejo e atacado.')).toBeInTheDocument()
++    expect(documentoVigente().queryByText('Saúde.')).not.toBeInTheDocument()
++    expect(banco.revisoes[0]).toMatchObject({ status: 'recusada', proposed_sections: null, decided_by: MARINA.id })
++  })
++
++  it('a Administradora aprova a própria proposta, e a segunda aprovação substitui a primeira, sem histórico', async () => {
++    const banco = bancoDoNorte({ documentos: [ICP_APROVADO] })
++    const { usuario } = abrir(banco, MARINA)
++
++    await usuario.click(await screen.findByRole('button', { name: 'Propor revisão do ICP' }))
++    // O diálogo começa com o ICP vigente, para mudar só o que for preciso.
++    const dialogo = within(await screen.findByRole('dialog', { name: 'Propor revisão do ICP' }))
++    expect(dialogo.getByRole('textbox', { name: 'Texto da seção 2' })).toHaveValue('200 a 2.000 funcionários.')
++    await usuario.type(dialogo.getByRole('textbox', { name: 'Por que propor esta mudança?' }), 'Empresas menores.')
++    await usuario.clear(dialogo.getByRole('textbox', { name: 'Texto da seção 2' }))
++    await usuario.type(dialogo.getByRole('textbox', { name: 'Texto da seção 2' }), '50 a 500 funcionários.')
++    await usuario.click(dialogo.getByRole('button', { name: 'Enviar para aprovação' }))
++
++    const proposta = within(await screen.findByRole('article', { name: 'Proposta pendente do ICP' }))
++    expect(proposta.getByText(/Sem mudança: Segmentos/)).toBeInTheDocument()
++    await usuario.click(proposta.getByRole('button', { name: 'Aprovar' }))
++
++    expect(await documentoVigente().findByText('50 a 500 funcionários.')).toBeInTheDocument()
++    expect(screen.queryByText('200 a 2.000 funcionários.')).not.toBeInTheDocument()
++    expect(banco.documentos).toHaveLength(1)
++    expect(screen.queryByText(/versões|restaurar/i)).not.toBeInTheDocument()
++  })
++
++  it('as Personas têm proposta própria, e aprová-las não muda o ICP', async () => {
++    const banco = bancoDoNorte({ documentos: [ICP_APROVADO] })
++    const { usuario } = abrir(banco, MARINA, '/configuracoes/memoria/personas')
++
++    expect(await screen.findByText('Este Workspace ainda não tem Personas aprovadas.')).toBeInTheDocument()
++    await usuario.click(screen.getByRole('button', { name: 'Propor as Personas' }))
++    await proporNoDialogo(usuario, 'Definir o comitê.', [{ titulo: 'Comprador de TI', texto: 'Negocia contrato e prazo.' }])
++    const proposta = within(await screen.findByRole('article', { name: 'Proposta pendente das Personas' }))
++    await usuario.click(proposta.getByRole('button', { name: 'Aprovar' }))
++
++    expect(await documentoVigente('Personas vigentes').findByText('Negocia contrato e prazo.')).toBeInTheDocument()
++    expect(banco.documentos.find((d) => d.document === 'icp')).toEqual(ICP_APROVADO)
++  })
++
++  it('uma falha ao enviar não registra nada e deixa tentar de novo com o que foi escrito', async () => {
++    const banco = bancoDoNorte()
++    banco.falhas = 1
++    const { usuario } = abrir(banco, BRUNO)
++
++    await usuario.click(await screen.findByRole('button', { name: 'Propor o ICP' }))
++    await proporNoDialogo(usuario, 'Primeiro ICP.', [{ titulo: 'Segmentos', texto: 'Varejo.' }])
++
++    const dialogo = within(screen.getByRole('dialog'))
++    expect(await dialogo.findByText(/Não foi possível enviar a proposta agora. Nada foi alterado/)).toBeInTheDocument()
++    expect(banco.revisoes).toEqual([])
++    await usuario.click(dialogo.getByRole('button', { name: 'Enviar para aprovação' }))
++    expect(await screen.findByRole('article', { name: 'Proposta pendente do ICP' })).toBeInTheDocument()
++    expect(banco.revisoes).toHaveLength(1)
++  })
++
++  it('confere a proposta antes de enviar: motivo, texto das seções e títulos repetidos', async () => {
++    const banco = bancoDoNorte()
++    const { usuario } = abrir(banco, BRUNO)
++
++    await usuario.click(await screen.findByRole('button', { name: 'Propor o ICP' }))
++    const dialogo = within(await screen.findByRole('dialog'))
++    await usuario.click(dialogo.getByRole('button', { name: 'Enviar para aprovação' }))
++    expect(await dialogo.findByText('Conte por que propõe esta mudança.')).toBeInTheDocument()
++
++    await usuario.type(dialogo.getByRole('textbox', { name: 'Por que propor esta mudança?' }), 'Motivo.')
++    await usuario.click(dialogo.getByRole('button', { name: 'Enviar para aprovação' }))
++    expect(await dialogo.findByText('Escreva o texto de ao menos uma seção.')).toBeInTheDocument()
++
++    await usuario.type(dialogo.getByRole('textbox', { name: 'Texto da seção 1' }), 'Varejo.')
++    await usuario.clear(dialogo.getByRole('textbox', { name: 'Título da seção 2' }))
++    await usuario.type(dialogo.getByRole('textbox', { name: 'Título da seção 2' }), 'segmentos')
++    await usuario.type(dialogo.getByRole('textbox', { name: 'Texto da seção 2' }), 'Atacado.')
++    await usuario.click(dialogo.getByRole('button', { name: 'Enviar para aprovação' }))
++    expect(await dialogo.findByText('Duas seções não podem ter o mesmo título: segmentos.')).toBeInTheDocument()
++    expect(banco.revisoes).toEqual([])
++  })
++})
+diff --git a/projeto-althius-frontend/src/paginas/configuracoes/memoria.test.tsx b/projeto-althius-frontend/src/paginas/configuracoes/memoria.test.tsx
+index 1378763..ac0600d 100644
+--- a/projeto-althius-frontend/src/paginas/configuracoes/memoria.test.tsx
++++ b/projeto-althius-frontend/src/paginas/configuracoes/memoria.test.tsx
+@@ -130,7 +130,7 @@ describe('Decisão da revisão do ICP pelo contrato da fonte', () => {
+       )
+     }
+     expect((await fonte.aprovacoes()).find((a) => a.id === proposta.id)?.estado).toBe('pendente')
+-    expect((await fonte.memoriaDoWorkspace()).icp.secoes).toContainEqual({
++    expect((await fonte.memoriaDoWorkspace()).icp!.secoes).toContainEqual({
+       titulo: 'Porte',
+       texto: 'Empresas com 2.000 funcionários ou mais.',
+     })
+diff --git a/projeto-althius-frontend/src/paginas/configuracoes/pagina-configuracoes.tsx b/projeto-althius-frontend/src/paginas/configuracoes/pagina-configuracoes.tsx
+index 3a04810..67bf424 100644
+--- a/projeto-althius-frontend/src/paginas/configuracoes/pagina-configuracoes.tsx
++++ b/projeto-althius-frontend/src/paginas/configuracoes/pagina-configuracoes.tsx
+@@ -7,6 +7,7 @@ import type { ModuloDoWorkspace } from '@/fonte/ambiente'
+ import { useAmbiente } from '@/fonte/contexto'
+ import { SecaoAjuda } from './secao-ajuda'
+ import { SecaoMemoria } from './secao-memoria'
++import { SecaoMemoriaDoWorkspaceOperacional } from './secao-memoria-operacional'
+ import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
+ import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
+ import { SecaoPreferencias } from './secao-preferencias'
+@@ -35,7 +36,13 @@ const SECOES: Record<
+   // As Preferências são da Conta de usuário e já têm backend: a mesma seção serve aos dois ambientes.
+   preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias, NoWorkspaceOperacional: SecaoPreferencias },
+   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace, modulo: 'participantes' },
+-  memoria: { rotulo: 'Memória do Workspace', Componente: SecaoMemoria, comPaginas: true },
++  memoria: {
++    rotulo: 'Memória do Workspace',
++    Componente: SecaoMemoria,
++    // O ICP e as Personas já têm backend (CRM-09); os Agentes que propõem na Demonstração, ainda não.
++    NoWorkspaceOperacional: SecaoMemoriaDoWorkspaceOperacional,
++    comPaginas: true,
++  },
+   plano: { rotulo: 'Plano', Componente: SecaoPlano, NoWorkspaceOperacional: SecaoPlanoDoWorkspaceOperacional },
+   ajuda: { rotulo: 'Ajuda e informações', Componente: SecaoAjuda, comPaginas: true, informativa: true },
+ }
+diff --git a/projeto-althius-frontend/src/paginas/configuracoes/personas.test.tsx b/projeto-althius-frontend/src/paginas/configuracoes/personas.test.tsx
+index bd0bcb8..d39080b 100644
+--- a/projeto-althius-frontend/src/paginas/configuracoes/personas.test.tsx
++++ b/projeto-althius-frontend/src/paginas/configuracoes/personas.test.tsx
+@@ -264,13 +264,13 @@ describe('Revisão das Personas pelo contrato da fonte', () => {
+     await fonte.decidirAprovacao(dasPersonas.id, 'aprovada', 'fila')
+     const depoisDasPersonas = await fonte.memoriaDoWorkspace()
+     expect(depoisDasPersonas.icp).toEqual(inicial.icp)
+-    expect(depoisDasPersonas.personas.secoes.map((p) => p.titulo)).toContain('Líder de governança de dados')
++    expect(depoisDasPersonas.personas!.secoes.map((p) => p.titulo)).toContain('Líder de governança de dados')
+     expect((await fonte.aprovacoes()).find((a) => a.id === doIcp.id)?.estado).toBe('pendente')
+ 
+     await fonte.decidirAprovacao(doIcp.id, 'aprovada', 'fila')
+     const depoisDoIcp = await fonte.memoriaDoWorkspace()
+     expect(depoisDoIcp.personas).toEqual(depoisDasPersonas.personas)
+-    expect(depoisDoIcp.icp.secoes).toContainEqual({ titulo: 'Porte', texto: 'Empresas com 1.000 funcionários ou mais.' })
++    expect(depoisDoIcp.icp!.secoes).toContainEqual({ titulo: 'Porte', texto: 'Empresas com 1.000 funcionários ou mais.' })
+   })
+ 
+   it('solicitação, decisão e falha ficam disponíveis para o consumidor de notificações, pelas Aprovações e pela Atividade do Ethos', async () => {
+@@ -335,13 +335,13 @@ describe('Revisão das Personas pelo contrato da fonte', () => {
+ 
+     const depois = criarFonteSimulada({ atrasoMs: 0, armazenamento })
+     expect(await depois.memoriaDoWorkspace()).toEqual({ icp: icpAprovado, personas: personasDeExemplo })
+-    expect(icpAprovado.secoes).toContainEqual({ titulo: 'Porte', texto: 'Empresas com 1.000 funcionários ou mais.' })
++    expect(icpAprovado!.secoes).toContainEqual({ titulo: 'Porte', texto: 'Empresas com 1.000 funcionários ou mais.' })
+     expect((await depois.aprovacoes()).find((a) => a.id === proposta.id)?.estado).toBe('aprovada')
+   })
+ 
+   it('todo Contato com Persona aponta para uma Persona definida na Memória do Workspace', async () => {
+     const { fonte, fonteDeContas } = abrir('/contatos')
+-    const definidas = (await fonte.memoriaDoWorkspace()).personas.secoes.map((p) => p.titulo)
++    const definidas = (await fonte.memoriaDoWorkspace()).personas!.secoes.map((p) => p.titulo)
+     const usadas = new Set((await fonteDeContas.contatos()).flatMap((c) => (c.persona ? [c.persona] : [])))
+     expect(usadas.size).toBeGreaterThan(0)
+     expect([...usadas].filter((persona) => !definidas.includes(persona))).toEqual([])
+diff --git a/projeto-althius-frontend/src/paginas/configuracoes/secao-memoria-operacional.tsx b/projeto-althius-frontend/src/paginas/configuracoes/secao-memoria-operacional.tsx
+new file mode 100644
+index 0000000..b08a513
+--- /dev/null
++++ b/projeto-althius-frontend/src/paginas/configuracoes/secao-memoria-operacional.tsx
+@@ -0,0 +1,568 @@
++import { Clock, Plus, Trash2 } from 'lucide-react'
++import { useState, type FormEvent } from 'react'
++import { Navigate, useParams } from 'react-router-dom'
++import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
++import { ListaDeDependentes, SecoesDoDocumento } from '@/components/documento-da-memoria'
++import { Carregando } from '@/components/marca'
++import { Mensagem } from '@/components/mensagem'
++import { Button } from '@/components/ui/button'
++import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
++import { useCarregamento, useDados, useFonte } from '@/fonte/contexto'
++import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
++import { podeDecidir } from '@/fonte/regras'
++import {
++  dependentesDe,
++  DOCUMENTOS_DA_MEMORIA,
++  ehDocumentoDaMemoria,
++  ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO,
++  frasesDo,
++  maiuscula,
++  secoesAlteradas,
++} from '@/fonte/regras-memoria'
++import type {
++  Decisao,
++  DocumentoDaMemoria,
++  DocumentoVigente,
++  Papel,
++  RevisaoDoParticipante,
++  SecaoDoDocumento,
++} from '@/fonte/tipos'
++import { mensagemDeErro } from '@/lib/utils'
++import { AbasDasPaginas, Bloco, SecaoDeConfiguracoes } from './componentes'
++
++const PAGINAS = Object.fromEntries(Object.entries(DOCUMENTOS_DA_MEMORIA).map(([id, { nome }]) => [id, nome]))
++
++/** As seções que os módulos leem do ICP: a proposta do primeiro ICP já começa com elas, sem texto. */
++const SECOES_SUGERIDAS_DO_ICP = ['Segmentos', 'Porte', 'Maturidade de dados', 'Regiões']
++
++/** Os rótulos do editor de seções: no ICP, seções com título e texto; nas Personas, uma Persona por seção. */
++const EDITOR: Record<
++  DocumentoDaMemoria,
++  { titulo: string; texto: string; item: string; adicionar: string; semTexto: string; semTitulo: string; repetido: string; dica: string }
++> = {
++  icp: {
++    titulo: 'Título da seção',
++    texto: 'Texto da seção',
++    item: 'seção',
++    adicionar: 'Adicionar seção',
++    semTexto: 'Escreva o texto de ao menos uma seção.',
++    semTitulo: 'Dê um título a cada seção com texto.',
++    repetido: 'Duas seções não podem ter o mesmo título',
++    dica: 'Seções sem texto ficam de fora.',
++  },
++  personas: {
++    titulo: 'Nome da Persona',
++    texto: 'Definição da Persona',
++    item: 'Persona',
++    adicionar: 'Adicionar Persona',
++    semTexto: 'Escreva a definição de ao menos uma Persona.',
++    semTitulo: 'Dê um nome a cada Persona com definição.',
++    repetido: 'Duas Personas não podem ter o mesmo nome',
++    dica: 'Personas sem definição ficam de fora.',
++  },
++}
++
++/** "O Workspace continua sem ICP aprovado." ou "O ICP vigente não mudou.": o que uma recusa ou pendência preserva. */
++function nadaMudou(documento: DocumentoDaMemoria, vigente: DocumentoVigente | null) {
++  const { nome } = DOCUMENTOS_DA_MEMORIA[documento]
++  const { concordar, oVigente, naoMudou } = frasesDo(documento)
++  return vigente
++    ? `${maiuscula(oVigente)} ${naoMudou}.`
++    : `O Workspace continua sem ${nome} ${concordar('aprovado', 'aprovadas')}.`
++}
++
++/**
++ * Memória do Workspace no Workspace operacional: o ICP e as Personas vigentes, guardados no backend como configuração
++ * do Workspace, e as propostas. Os Agentes ainda não rodam aqui, então o participante escreve a proposta; ela só vale
++ * depois que um Administrador a aprova nesta mesma página, porque a fila de Aprovações ainda não tem backend. Nada
++ * aqui vem de roteiro da Demonstração.
++ */
++export function SecaoMemoriaDoWorkspaceOperacional() {
++  const { pagina: documento } = useParams()
++  const fonte = useFonte()
++  const memoria = useCarregamento(fonte, (f) => f.memoriaDoWorkspace(), [])
++  const revisoes = useCarregamento(fonte, (f) => f.revisoesDaMemoria?.() ?? Promise.resolve([]), [])
++  // O papel da sessão decide se a proposta pendente mostra a decisão ou a quem ela cabe.
++  const workspace = useDados((f) => f.workspace(), [])
++  if (!ehDocumentoDaMemoria(documento)) return <Navigate to="/configuracoes/memoria/icp" replace />
++  const erro = memoria.erro ?? revisoes.erro
++
++  return (
++    <SecaoDeConfiguracoes
++      id="memoria-do-workspace"
++      titulo="Memória do Workspace"
++      alcance="workspace"
++      descricao="O ICP e as Personas deste Workspace, a referência compartilhada por todos os participantes. Qualquer participante propõe uma mudança, e ela só vale depois da aprovação de um Administrador."
++    >
++      <AbasDasPaginas secao="memoria" paginas={PAGINAS} rotuloAcessivel="Documentos da Memória do Workspace" />
++      <p role="note" className="border border-dashed border-al-line px-4 py-3 text-sm text-al-muted">
++        Os Agentes Scopus e Ethos ainda não rodam neste Workspace. Enquanto isso, um participante escreve a proposta, e a
++        decisão de um Administrador fica nesta página, porque a fila de Aprovações também ainda não está disponível aqui.
++      </p>
++      {erro ? (
++        <div className="flex flex-wrap items-center gap-3">
++          <Mensagem tipo="erro">{erro.message}</Mensagem>
++          <Button
++            type="button"
++            variant="outline"
++            onClick={() => {
++              memoria.recarregar()
++              revisoes.recarregar()
++            }}
++          >
++            Tentar de novo
++          </Button>
++        </div>
++      ) : !memoria.dados || !revisoes.dados || !workspace ? (
++        <Carregando />
++      ) : (
++        <DocumentoOperacional
++          key={documento}
++          documento={documento}
++          vigente={memoria.dados[documento]}
++          revisoes={revisoes.dados.filter((r) => r.documento === documento)}
++          papel={workspace.papel}
++        />
++      )}
++    </SecaoDeConfiguracoes>
++  )
++}
++
++function DocumentoOperacional({
++  documento,
++  vigente,
++  revisoes,
++  papel,
++}: {
++  documento: DocumentoDaMemoria
++  vigente: DocumentoVigente | null
++  /** As revisões deste documento, da mais nova para a mais antiga. */
++  revisoes: RevisaoDoParticipante[]
++  papel: Papel | null
++}) {
++  const [propondo, setPropondo] = useState(false)
++  const [resultado, setResultado] = useState('')
++  const { nome, oNome, comArtigo } = DOCUMENTOS_DA_MEMORIA[documento]
++  const { concordar, oVigente, foiSubstituido } = frasesDo(documento)
++  const pendente = revisoes.find((r) => r.estado === 'pendente')
++  const ultimaDecidida = revisoes.find((r) => r.estado !== 'pendente')
++  const recusada = !pendente && ultimaDecidida?.estado === 'rejeitada' ? ultimaDecidida : undefined
++  const rotuloDaProposta = vigente ? `Propor revisão ${comArtigo}` : `Propor ${oNome}`
++
++  function aoDecidir(decisao: Decisao) {
++    setResultado(
++      decisao === 'aprovada'
++        ? vigente
++          ? `Proposta aprovada. ${maiuscula(oVigente)} ${foiSubstituido} para todo o Workspace.`
++          : `Proposta aprovada. ${maiuscula(oNome)} ${concordar('passou', 'passaram')} a valer para todo o Workspace.`
++        : '',
++    )
++  }
++
++  return (
++    <>
++      <section aria-label={`${nome} ${concordar('vigente', 'vigentes')}`} className="flex flex-col gap-6">
++        <div className="flex items-start justify-between gap-6">
++          <div className="flex flex-col gap-1">
++            <div className="flex items-center gap-3">
++              <h3 className="titulo-secao text-2xl">{nome}</h3>
++              {vigente && (
++                <span className="selo border-al-sucesso/60 text-al-ink">
++                  <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />
++                  Vigente
++                </span>
++              )}
++            </div>
++            {vigente && (
++              <span className="text-sm text-al-muted">
++                {concordar('Aprovado', 'Aprovadas')} em {formatarDiaIsoPorExtenso(vigente.aprovadoEm)} por{' '}
++                {vigente.aprovadoPor.nome}
++              </span>
++            )}
++          </div>
++          {!pendente && (
++            <button
++              type="button"
++              onClick={() => {
++                setResultado('')
++                setPropondo(true)
++              }}
++              className={BOTAO_PRIMARIO}
++            >
++              {rotuloDaProposta}
++            </button>
++          )}
++        </div>
++
++        <Mensagem tipo="sucesso">{resultado}</Mensagem>
++        {recusada && (
++          <Mensagem tipo="info">
++            A última proposta, de {recusada.solicitante.nome}, foi recusada por {recusada.decididaPor.nome}.{' '}
++            {nadaMudou(documento, vigente)}
++          </Mensagem>
++        )}
++
++        {vigente ? (
++          <SecoesDoDocumento secoes={vigente.secoes} className="cartao gap-y-4 p-6" />
++        ) : (
++          <div className="cartao flex flex-col gap-2 p-6">
++            <p>
++              Este Workspace ainda não tem {nome} {concordar('aprovado', 'aprovadas')}.
++            </p>
++            <p className="text-sm text-al-muted">
++              {documento === 'icp'
++                ? 'O ICP descreve o perfil de cliente ideal: segmentos, porte, maturidade e regiões em que a empresa vende melhor.'
++                : 'Cada Persona descreve um papel do Comitê de compra. As Personas classificam os Contatos e não são participantes do Workspace.'}
++            </p>
++          </div>
++        )}
++        {vigente && documento === 'personas' && (
++          <p className="text-sm text-al-muted">
++            Cada Persona descreve um papel do Comitê de compra. As Personas classificam os Contatos e não são participantes
++            do Workspace.
++          </p>
++        )}
++        <p className="text-sm text-al-muted">
++          A Memória do Workspace guarda só o documento vigente: não há histórico nem restauração, e {oNome} só{' '}
++          {concordar('muda', 'mudam')} por uma proposta aprovada.
++        </p>
++      </section>
++
++      {pendente && (
++        <PropostaPendente revisao={pendente} vigente={vigente} papel={papel} aoDecidir={aoDecidir} />
++      )}
++
++      <Bloco
++        titulo="Onde este contexto é usado"
++        descricao={`Nenhum módulo deste Workspace lê ${oNome} ainda. Quando chegarem aqui, estas configurações vão ler ${oVigente} desta página, sem cópia e sem novas aprovações por módulo.`}
++      >
++        <ListaDeDependentes
++          dependentes={dependentesDe(documento, vigente?.secoes ?? []).map((d) => (vigente ? d : { ...d, resumo: '' }))}
++          rotuloAcessivel={`Configurações que vão usar ${oNome}`}
++          situacao={<span className="text-xs text-al-muted">Ainda não disponível neste Workspace</span>}
++        />
++      </Bloco>
++
++      {propondo && (
++        <DialogoDeProposta
++          documento={documento}
++          vigente={vigente}
++          titulo={rotuloDaProposta}
++          aoFechar={() => setPropondo(false)}
++          aoEnviar={() => {
++            setPropondo(false)
++            setResultado(
++              `Proposta enviada para a decisão de um Administrador. Até lá, ${
++                vigente
++                  ? `${oVigente} ${concordar('continua', 'continuam')} valendo.`
++                  : `o Workspace continua sem ${nome} ${concordar('aprovado', 'aprovadas')}.`
++              }`,
++            )
++          }}
++        />
++      )}
++    </>
++  )
++}
++
++/** A proposta pendente: o motivo, quem pediu, o que muda e, para um Administrador, a decisão. */
++function PropostaPendente({
++  revisao,
++  vigente,
++  papel,
++  aoDecidir,
++}: {
++  revisao: Extract<RevisaoDoParticipante, { estado: 'pendente' }>
++  vigente: DocumentoVigente | null
++  papel: Papel | null
++  aoDecidir: (decisao: Decisao) => void
++}) {
++  const { comArtigo, oNome } = DOCUMENTOS_DA_MEMORIA[revisao.documento]
++  const { oVigente } = frasesDo(revisao.documento)
++  const { proposto, vigenteNoPedido } = revisao
++  const mudancas = secoesAlteradas(vigenteNoPedido, proposto)
++  const semMudanca = proposto.filter((s) => !mudancas.includes(s)).map((s) => s.titulo)
++  const saem = vigenteNoPedido.filter((s) => !proposto.some((p) => p.titulo === s.titulo)).map((s) => s.titulo)
++
++  return (
++    <article aria-label={`Proposta pendente ${comArtigo}`} className="cartao flex flex-col gap-5 border-al-atencao/50 p-6">
++      <div className="flex flex-wrap items-center gap-3">
++        <span className="selo border-al-atencao/60 text-al-atencao">
++          <Clock strokeWidth={1.8} className="size-3.5" aria-hidden />
++          Proposta pendente
++        </span>
++        <span className="rotulo">
++          Proposta de {revisao.solicitante.nome} · {formatarDiaIsoPorExtenso(revisao.pedidaEm)}
++        </span>
++      </div>
++      <dl className="grid grid-cols-[8rem_1fr] gap-x-6 gap-y-2">
++        <dt className="rotulo">Motivo</dt>
++        <dd>{revisao.pedido}</dd>
++      </dl>
++
++      <section aria-label="Alterações propostas" className="flex flex-col gap-3">
++        <h4 className="rotulo">Alterações propostas</h4>
++        <ul className="flex flex-col gap-3">
++          {mudancas.map((secao) => {
++            const antes = vigenteNoPedido.find((s) => s.titulo === secao.titulo)
++            return (
++              <li key={secao.titulo} className="grid grid-cols-[12rem_1fr] gap-x-6 border-l-2 border-al-accent pl-4">
++                <span className="flex items-start gap-2 font-normal">
++                  {secao.titulo}
++                  {!antes && vigente && <span className="selo h-5 border-al-accent/60 text-al-ink">Nova</span>}
++                </span>
++                <div className="flex flex-col gap-1">
++                  {antes && (
++                    <p className="text-sm text-al-muted line-through decoration-al-muted/60">
++                      <span className="sr-only">Vigente: </span>
++                      {antes.texto}
++                    </p>
++                  )}
++                  <p>
++                    <span className="sr-only">Proposto: </span>
++                    {secao.texto}
++                  </p>
++                </div>
++              </li>
++            )
++          })}
++        </ul>
++        {saem.length > 0 && <p className="text-sm text-al-muted">Sai do documento: {saem.join(', ')}.</p>}
++        {semMudanca.length > 0 && <p className="text-sm text-al-muted">Sem mudança: {semMudanca.join(', ')}.</p>}
++      </section>
++
++      <p className="border-t border-al-line pt-4 text-sm">
++        {vigente
++          ? `Aprovar substitui ${oVigente} para todo o Workspace, numa mudança só. Recusar mantém ${oNome} como está.`
++          : `Aprovar publica ${oNome} para todo o Workspace. Até a decisão, nada muda.`}
++      </p>
++      <DecisaoDaProposta revisaoId={revisao.id} papel={papel} aoDecidir={aoDecidir} />
++    </article>
++  )
++}
++
++function DecisaoDaProposta({
++  revisaoId,
++  papel,
++  aoDecidir,
++}: {
++  revisaoId: string
++  papel: Papel | null
++  aoDecidir: (decisao: Decisao) => void
++}) {
++  const fonte = useFonte()
++  const [erro, setErro] = useState('')
++  const [decidindo, setDecidindo] = useState(false)
++
++  if (!papel || !podeDecidir('revisao-da-memoria', papel)) return <AguardandoAdministrador />
++
++  async function decidir(decisao: Decisao) {
++    setErro('')
++    setDecidindo(true)
++    try {
++      if (!fonte.decidirRevisao) throw new Error(ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO)
++      await fonte.decidirRevisao(revisaoId, decisao)
++      aoDecidir(decisao)
++    } catch (e) {
++      setErro(mensagemDeErro(e))
++    } finally {
++      setDecidindo(false)
++    }
++  }
++
++  return (
++    <div className="flex flex-col gap-3">
++      <div className="flex gap-2">
++        <Button disabled={decidindo} onClick={() => decidir('aprovada')} className="px-6 tracking-rotulo uppercase">
++          Aprovar
++        </Button>
++        <Button
++          variant="outline"
++          disabled={decidindo}
++          onClick={() => decidir('rejeitada')}
++          className="px-6 tracking-rotulo uppercase"
++        >
++          Recusar
++        </Button>
++      </div>
++      {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
++    </div>
++  )
++}
++
++/** O que um Membro vê: a decisão cabe a um Administrador, e a tela diz a quem. */
++function AguardandoAdministrador() {
++  const dados = useDados((fonte) => fonte.participantesDoWorkspace(), [])
++  const administradores =
++    dados?.participantes.filter((p) => podeDecidir('revisao-da-memoria', p.papel)).map((p) => p.conta.nome) ?? []
++  return (
++    <Mensagem tipo="info">
++      {ERRO_SO_ADMINISTRADOR_DECIDE_REVISAO}
++      {administradores.length > 0 && ` Aguardando: ${administradores.join(' ou ')}.`}
++    </Mensagem>
++  )
++}
++
++interface SecaoEmEdicao extends SecaoDoDocumento {
++  chave: number
++}
++
++/** O diálogo em que o participante escreve o documento inteiro como deveria ficar, com o motivo. */
++function DialogoDeProposta({
++  documento,
++  vigente,
++  titulo,
++  aoFechar,
++  aoEnviar,
++}: {
++  documento: DocumentoDaMemoria
++  vigente: DocumentoVigente | null
++  titulo: string
++  aoFechar: () => void
++  aoEnviar: () => void
++}) {
++  const fonte = useFonte()
++  const { oNome } = DOCUMENTOS_DA_MEMORIA[documento]
++  const { concordar } = frasesDo(documento)
++  const rotulos = EDITOR[documento]
++  const iniciais: SecaoDoDocumento[] =
++    vigente?.secoes ??
++    (documento === 'icp' ? SECOES_SUGERIDAS_DO_ICP.map((t) => ({ titulo: t, texto: '' })) : [{ titulo: '', texto: '' }])
++  const [secoes, setSecoes] = useState<SecaoEmEdicao[]>(() => iniciais.map((s, chave) => ({ ...s, chave })))
++  const [proximaChave, setProximaChave] = useState(iniciais.length)
++  const [motivo, setMotivo] = useState('')
++  const [erro, setErro] = useState('')
++  const [enviando, setEnviando] = useState(false)
++
++  function mudar(chave: number, campo: 'titulo' | 'texto', valor: string) {
++    setSecoes((atuais) => atuais.map((s) => (s.chave === chave ? { ...s, [campo]: valor } : s)))
++  }
++
++  /** O documento proposto, ou o motivo de ainda não poder enviar. */
++  function conferir(): SecaoDoDocumento[] | string {
++    if (!motivo.trim()) return 'Conte por que propõe esta mudança.'
++    const comTexto = secoes
++      .map(({ titulo, texto }) => ({ titulo: titulo.trim(), texto: texto.trim() }))
++      .filter((s) => s.texto)
++    if (comTexto.some((s) => !s.titulo)) return rotulos.semTitulo
++    if (comTexto.length === 0) return rotulos.semTexto
++    const vistos = new Set<string>()
++    for (const { titulo } of comTexto) {
++      if (vistos.has(titulo.toLowerCase())) return `${rotulos.repetido}: ${titulo}.`
++      vistos.add(titulo.toLowerCase())
++    }
++    if (vigente && JSON.stringify(comTexto) === JSON.stringify(vigente.secoes)) {
++      return 'A proposta é igual ao documento vigente. Mude alguma seção antes de enviar.'
++    }
++    return comTexto
++  }
++
++  async function enviar(evento: FormEvent) {
++    evento.preventDefault()
++    const conferido = conferir()
++    if (typeof conferido === 'string') {
++      setErro(conferido)
++      return
++    }
++    setErro('')
++    setEnviando(true)
++    try {
++      if (!fonte.proporRevisao) throw new Error('Não é possível propor por aqui.')
++      await fonte.proporRevisao(documento, { pedido: motivo, secoes: conferido })
++      aoEnviar()
++    } catch (e) {
++      setErro(mensagemDeErro(e))
++      setEnviando(false)
++    }
++  }
++
++  return (
++    <Dialog open onOpenChange={(aberto) => !aberto && !enviando && aoFechar()}>
++      <DialogContent className="max-h-[90vh] gap-5 overflow-y-auto p-6 sm:max-w-2xl">
++        <DialogTitle className="titulo-secao text-2xl">{titulo}</DialogTitle>
++        <DialogDescription className="text-al-muted">
++          Escreva {oNome} como {concordar('deveria ficar', 'deveriam ficar')}. A proposta vai para a decisão de um
++          Administrador; até lá, nada muda para o Workspace.
++        </DialogDescription>
++        <form noValidate onSubmit={enviar} className="flex flex-col gap-5">
++          <div className="flex flex-col gap-2">
++            <label htmlFor="motivo-da-proposta" className="rotulo">
++              Por que propor esta mudança?
++            </label>
++            <textarea
++              id="motivo-da-proposta"
++              rows={2}
++              maxLength={2000}
++              value={motivo}
++              onChange={(e) => setMotivo(e.target.value)}
++              className="campo"
++            />
++          </div>
++
++          <fieldset className="flex flex-col gap-4">
++            <legend className="rotulo mb-2">
++              {maiuscula(oNome)} {concordar('proposto', 'propostas')}
++            </legend>
++            {secoes.map((secao, indice) => {
++              const numero = indice + 1
++              return (
++                <div key={secao.chave} className="flex flex-col gap-2 border-l-2 border-al-line pl-4">
++                  <div className="flex items-center gap-2">
++                    <input
++                      aria-label={`${rotulos.titulo} ${numero}`}
++                      value={secao.titulo}
++                      maxLength={120}
++                      onChange={(e) => mudar(secao.chave, 'titulo', e.target.value)}
++                      placeholder={rotulos.titulo}
++                      className="campo flex-1"
++                    />
++                    <button
++                      type="button"
++                      aria-label={`Remover ${rotulos.item} ${numero}`}
++                      onClick={() => setSecoes((atuais) => atuais.filter((s) => s.chave !== secao.chave))}
++                      className="p-2 text-al-muted hover:text-al-ink"
++                    >
++                      <Trash2 strokeWidth={1.8} className="size-4" aria-hidden />
++                    </button>
++                  </div>
++                  <textarea
++                    aria-label={`${rotulos.texto} ${numero}`}
++                    rows={2}
++                    maxLength={4000}
++                    value={secao.texto}
++                    onChange={(e) => mudar(secao.chave, 'texto', e.target.value)}
++                    className="campo"
++                  />
++                </div>
++              )
++            })}
++            <div className="flex items-center justify-between gap-3">
++              <button
++                type="button"
++                onClick={() => {
++                  setSecoes((atuais) => [...atuais, { titulo: '', texto: '', chave: proximaChave }])
++                  setProximaChave((chave) => chave + 1)
++                }}
++                className={BOTAO_SECUNDARIO}
++              >
++                <Plus strokeWidth={1.8} className="size-4" aria-hidden />
++                {rotulos.adicionar}
++              </button>
++              <span className="text-sm text-al-muted">{rotulos.dica}</span>
++            </div>
++          </fieldset>
++
++          {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
++          <div className="flex justify-end gap-2">
++            <button type="button" disabled={enviando} onClick={aoFechar} className={BOTAO_SECUNDARIO}>
++              Cancelar
++            </button>
++            <button type="submit" disabled={enviando} className={BOTAO_PRIMARIO}>
++              {enviando ? 'Enviando…' : 'Enviar para aprovação'}
++            </button>
++          </div>
++        </form>
++      </DialogContent>
++    </Dialog>
++  )
++}
+diff --git a/projeto-althius-frontend/src/paginas/configuracoes/secao-memoria.tsx b/projeto-althius-frontend/src/paginas/configuracoes/secao-memoria.tsx
+index 26b3664..797dc95 100644
+--- a/projeto-althius-frontend/src/paginas/configuracoes/secao-memoria.tsx
++++ b/projeto-althius-frontend/src/paginas/configuracoes/secao-memoria.tsx
+@@ -33,6 +33,8 @@ export function SecaoMemoria() {
+   const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
+   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
+   if (!ehDocumentoDaMemoria(documento)) return <Navigate to="/configuracoes/memoria/icp" replace />
++  // Na Demonstração, o ICP e as Personas de exemplo existem desde o início.
++  const vigente = memoria?.[documento]
+ 
+   return (
+     <SecaoDeConfiguracoes
+@@ -42,13 +44,13 @@ export function SecaoMemoria() {
+       descricao="O contexto que os Agentes e os módulos usam como referência. É do Workspace, separado da Memória de cada Agente, e só muda depois da aprovação de um Administrador."
+     >
+       <AbasDasPaginas secao="memoria" paginas={PAGINAS} rotuloAcessivel="Documentos da Memória do Workspace" />
+-      {!memoria || !aprovacoes ? (
++      {!vigente || !aprovacoes ? (
+         <Carregando />
+       ) : (
+         <DocumentoNaMemoria
+           key={documento}
+           documento={documento}
+-          vigente={memoria[documento]}
++          vigente={vigente}
+           revisoes={revisoesDo(documento, aprovacoes)}
+         />
+       )}
+diff --git a/projeto-althius-frontend/src/paginas/secoes/habilidades.tsx b/projeto-althius-frontend/src/paginas/secoes/habilidades.tsx
+index 64d24ae..e2d3a6a 100644
+--- a/projeto-althius-frontend/src/paginas/secoes/habilidades.tsx
++++ b/projeto-althius-frontend/src/paginas/secoes/habilidades.tsx
+@@ -32,7 +32,9 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
+                       {DOCUMENTOS_DA_MEMORIA[habilidade.usaDocumento].nome}{' '}
+                       {frasesDo(habilidade.usaDocumento).concordar('vigente', 'vigentes')}
+                     </span>
+-                    {USO_NA_HABILIDADE[habilidade.usaDocumento](memoria[habilidade.usaDocumento].secoes)}
++                    {memoria[habilidade.usaDocumento]
++                      ? USO_NA_HABILIDADE[habilidade.usaDocumento](memoria[habilidade.usaDocumento]!.secoes)
++                      : 'Ainda não aprovado na Memória do Workspace.'}
+                   </p>
+                 )}
+                 <span className="text-sm text-al-muted">
+diff --git a/projeto-althius-frontend/src/paginas/secoes/memoria.tsx b/projeto-althius-frontend/src/paginas/secoes/memoria.tsx
+index c726b56..dc2afc3 100644
+--- a/projeto-althius-frontend/src/paginas/secoes/memoria.tsx
++++ b/projeto-althius-frontend/src/paginas/secoes/memoria.tsx
+@@ -61,9 +61,19 @@ function ContextoDoWorkspace({ memoria }: { memoria: MemoriaDoWorkspace }) {
+ }
+ 
+ /** Um documento da Memória do Workspace, com o link para a aba dele em Configurações. */
+-function DocumentoDoContexto({ documento, vigente }: { documento: DocumentoDaMemoria; vigente: DocumentoVigente }) {
++function DocumentoDoContexto({ documento, vigente }: { documento: DocumentoDaMemoria; vigente: DocumentoVigente | null }) {
+   const { nome } = DOCUMENTOS_DA_MEMORIA[documento]
+   const { concordar } = frasesDo(documento)
++  if (!vigente) {
++    return (
++      <section aria-label={nome} className="flex flex-col gap-2">
++        <Link to={`/configuracoes/memoria/${documento}`} className="rotulo text-al-ink underline-offset-4 hover:underline">
++          {nome}
++        </Link>
++        <p className="text-sm text-al-muted">{concordar('Nenhum ICP aprovado ainda.', 'Nenhuma Persona aprovada ainda.')}</p>
++      </section>
++    )
++  }
+   return (
+     <section aria-label={nome} className="flex flex-col gap-2">
+       <h4 className="flex items-baseline gap-3">
+diff --git a/projeto-althius-frontend/src/paginas/sinais/editor.tsx b/projeto-althius-frontend/src/paginas/sinais/editor.tsx
+index 173198d..5ac4166 100644
+--- a/projeto-althius-frontend/src/paginas/sinais/editor.tsx
++++ b/projeto-althius-frontend/src/paginas/sinais/editor.tsx
+@@ -468,7 +468,8 @@ function SecaoPublico({
+   const comDescoberta = publico.modo !== 'listas'
+   // O público recomendado é lido do ICP vigente a cada abertura: aprovar uma revisão do ICP o atualiza aqui.
+   const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
+-  const recomendado = memoria && publicoRecomendado(memoria.icp.secoes)
++  const icp = memoria?.icp
++  const recomendado = icp && publicoRecomendado(icp.secoes)
+ 
+   return (
+     <SecaoDoFormulario numero="03" titulo="Público" descricao="Onde procurar os Sinais.">
+@@ -477,7 +478,7 @@ function SecaoPublico({
+           <Sparkles strokeWidth={1.8} className="size-3.5" aria-hidden />
+           Recomendado pelas suas configurações
+         </span>
+-        {memoria && recomendado ? (
++        {icp && recomendado ? (
+           <>
+             <p className="text-base">{recomendado.nome}</p>
+             <p className="text-sm text-al-muted">
+@@ -485,9 +486,11 @@ function SecaoPublico({
+               <Link to="/configuracoes/memoria" className="text-al-ink underline-offset-4 hover:underline">
+                 Memória do Workspace
+               </Link>
+-              , aprovado em {formatarDiaIsoPorExtenso(memoria.icp.aprovadoEm)}.
++              , aprovado em {formatarDiaIsoPorExtenso(icp.aprovadoEm)}.
+             </p>
+           </>
++        ) : memoria ? (
++          <p className="text-sm text-al-muted">Sem ICP aprovado na Memória do Workspace, não há público recomendado.</p>
+         ) : (
+           <Carregando />
+         )}
+diff --git a/projeto-althius-frontend/src/paginas/tabela-de-contatos.tsx b/projeto-althius-frontend/src/paginas/tabela-de-contatos.tsx
+index 0208a9b..d7bb86b 100644
+--- a/projeto-althius-frontend/src/paginas/tabela-de-contatos.tsx
++++ b/projeto-althius-frontend/src/paginas/tabela-de-contatos.tsx
+@@ -49,7 +49,7 @@ export function TabelaDeContatos({
+   estadoDoLink?: EstadoDaNavegacao
+ }) {
+   // A Persona do Contato aponta para a definição vigente na Memória do Workspace, lida uma vez para a tabela toda.
+-  const personas = useDados((fonte) => fonte.memoriaDoWorkspace(), [])?.personas.secoes
++  const personas = useDados((fonte) => fonte.memoriaDoWorkspace(), [])?.personas?.secoes
+ 
+   return (
+     <table
+diff --git a/projeto-althius-frontend/src/raiz.test.tsx b/projeto-althius-frontend/src/raiz.test.tsx
+index f54609a..28c89b2 100644
+--- a/projeto-althius-frontend/src/raiz.test.tsx
++++ b/projeto-althius-frontend/src/raiz.test.tsx
+@@ -114,20 +114,7 @@ describe('Workspace operacional e Demonstração', () => {
+ 
+   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
+   // Preferências também (CRM-08), e o Plano diz que é só demonstrativo: `paginas/configuracoes/perfil-e-preferencias-reais.test.tsx`.
+-  it.each(['/configuracoes/memoria/icp'])(
+-    '%s mostra que a seção está indisponível, sem dados da Demonstração',
+-    async (rota) => {
+-      window.history.replaceState(null, '', rota)
+-      abrirAlthius({
+-        ultimoAmbiente: 'real',
+-        sessao: sessaoDe(MARINA),
+-        tabelas: { workspace_memberships: [participacao('ws-norte')] },
+-      })
+-
+-      expect(await screen.findByText('Esta seção de Configurações ainda não está disponível neste Workspace.')).toBeInTheDocument()
+-      expect(screen.queryByText(/Databricks|Marina Alves/)).not.toBeInTheDocument()
+-    },
+-  )
++  // A Memória do Workspace (ICP e Personas) também (CRM-09): `paginas/configuracoes/memoria-real.test.tsx`.
+ 
+   it('a Ajuda continua disponível no Workspace operacional, por ser só conteúdo', async () => {
+     window.history.replaceState(null, '', '/configuracoes/ajuda')
+diff --git a/supabase/migrations/20260928234630_memoria_do_workspace.sql b/supabase/migrations/20260928234630_memoria_do_workspace.sql
+new file mode 100644
+index 0000000..421d805
+--- /dev/null
++++ b/supabase/migrations/20260928234630_memoria_do_workspace.sql
+@@ -0,0 +1,281 @@
++-- ICP e Personas do Workspace (CRM-09, ADR 0010).
++-- A Memória do Workspace guarda um documento vigente por Workspace para o ICP e outro para as definições de Personas:
++-- configuração compartilhada, lida por todos os participantes ativos, e nunca uma cópia por participante. Um documento
++-- só muda por uma revisão proposta e aprovada: qualquer participante ativo propõe, e só um Administrador ativo aprova
++-- ou recusa, validado aqui, também quando foi ele quem propôs. Aprovar substitui o documento vigente na mesma
++-- transação que registra a decisão; recusar não toca nele. Não há histórico de documentos: a revisão decidida guarda só
++-- o registro (pedido, quem pediu, quem decidiu e quando), e o conteúdo proposto sai dela na decisão. Toda proposta e
++-- toda decisão também entram em workspace_memory_events, para auditoria. A identidade vem sempre de auth.uid().
++--
++-- Enquanto os Agentes não rodam no Workspace operacional, quem escreve a proposta é o participante; quando o Scopus e o
++-- Ethos tiverem backend, as propostas deles entram pela mesma tabela e pela mesma decisão.
++
++create table private.workspace_memory_revisions (
++  id uuid primary key default gen_random_uuid(),
++  workspace_id uuid not null references public.workspaces(id) on delete cascade,
++  document text not null check (document in ('icp', 'personas')),
++  status text not null default 'pendente' check (status in ('pendente', 'aprovada', 'recusada')),
++  -- O motivo da proposta, como quem a fez o escreveu.
++  request text not null check (request = btrim(request) and length(request) between 1 and 2000),
++  -- O documento inteiro como ficaria. Só enquanto pendente: decidida, a revisão não guarda conteúdo.
++  proposed_sections jsonb check (jsonb_typeof(proposed_sections) = 'array'),
++  requested_by uuid references auth.users(id) on delete set null,
++  -- O nome de quem pediu e de quem decidiu, como era no momento.
++  requested_by_name text not null,
++  requested_at timestamptz not null default clock_timestamp(),
++  decided_by uuid references auth.users(id) on delete set null,
++  decided_by_name text,
++  decided_at timestamptz,
++  check ((status = 'pendente') = (proposed_sections is not null)),
++  check ((status = 'pendente') = (decided_at is null)),
++  check ((status = 'pendente') = (decided_by_name is null))
++);
++
++-- No máximo uma proposta pendente por documento em cada Workspace; ICP e Personas são independentes.
++create unique index workspace_memory_revisions_one_pending
++  on private.workspace_memory_revisions (workspace_id, document) where status = 'pendente';
++create index workspace_memory_revisions_workspace_idx on private.workspace_memory_revisions (workspace_id, requested_at);
++create index workspace_memory_revisions_requested_by_idx on private.workspace_memory_revisions (requested_by);
++create index workspace_memory_revisions_decided_by_idx on private.workspace_memory_revisions (decided_by);
++
++-- O documento vigente: um por Workspace e documento, substituído a cada aprovação.
++create table private.workspace_memory_documents (
++  workspace_id uuid not null references public.workspaces(id) on delete cascade,
++  document text not null check (document in ('icp', 'personas')),
++  sections jsonb not null check (jsonb_typeof(sections) = 'array' and jsonb_array_length(sections) > 0),
++  approved_at timestamptz not null,
++  approved_by uuid references auth.users(id) on delete set null,
++  approved_by_name text not null,
++  -- A revisão cuja aprovação publicou este documento.
++  revision_id uuid references private.workspace_memory_revisions(id) on delete set null,
++  primary key (workspace_id, document)
++);
++
++create index workspace_memory_documents_approved_by_idx on private.workspace_memory_documents (approved_by);
++create index workspace_memory_documents_revision_idx on private.workspace_memory_documents (revision_id);
++
++-- A auditoria das propostas e decisões, só de acréscimo.
++create table private.workspace_memory_events (
++  id bigint generated always as identity primary key,
++  workspace_id uuid not null references public.workspaces(id) on delete cascade,
++  revision_id uuid not null references private.workspace_memory_revisions(id) on delete cascade,
++  document text not null check (document in ('icp', 'personas')),
++  event text not null check (event in ('revisao_proposta', 'revisao_aprovada', 'revisao_recusada')),
++  actor_user_id uuid references auth.users(id) on delete set null,
++  created_at timestamptz not null default clock_timestamp()
++);
++
++create index workspace_memory_events_workspace_idx on private.workspace_memory_events (workspace_id, created_at);
++create index workspace_memory_events_revision_idx on private.workspace_memory_events (revision_id);
++create index workspace_memory_events_actor_idx on private.workspace_memory_events (actor_user_id);
++
++alter table private.workspace_memory_revisions enable row level security;
++alter table private.workspace_memory_documents enable row level security;
++alter table private.workspace_memory_events enable row level security;
++revoke all on private.workspace_memory_revisions from public, anon, authenticated;
++revoke all on private.workspace_memory_documents from public, anon, authenticated;
++revoke all on private.workspace_memory_events from public, anon, authenticated;
++
++-- O nome com que a Conta de usuário aparece: o de Meu perfil, o do cadastro ou, sem nenhum, o e-mail.
++create function private.memory_author_name(p_user_id uuid)
++returns text
++language sql
++stable
++security definer
++set search_path = ''
++as $$
++  select coalesce(p.display_name, private.registered_name(u.raw_user_meta_data), u.email::text)
++  from auth.users u
++  left join private.user_profiles p on p.user_id = u.id
++  where u.id = p_user_id;
++$$;
++
++-- As seções de um documento, conferidas e sem espaços nas pontas: de 1 a 30, cada uma com título (até 120
++-- caracteres) e texto (até 4.000), sem dois títulos iguais.
++create function private.normalize_memory_sections(p_sections jsonb)
++returns jsonb
++language plpgsql
++immutable
++set search_path = ''
++as $$
++declare
++  v_item jsonb;
++  v_title text;
++  v_text text;
++  v_titles text[] := '{}';
++  v_result jsonb := '[]'::jsonb;
++begin
++  if p_sections is null or jsonb_typeof(p_sections) <> 'array' or jsonb_array_length(p_sections) not between 1 and 30 then
++    raise exception 'invalid sections' using errcode = '22023';
++  end if;
++  for v_item in select e.value from jsonb_array_elements(p_sections) with ordinality e order by e.ordinality loop
++    if jsonb_typeof(v_item) <> 'object'
++       or jsonb_typeof(v_item -> 'titulo') is distinct from 'string'
++       or jsonb_typeof(v_item -> 'texto') is distinct from 'string' then
++      raise exception 'invalid sections' using errcode = '22023';
++    end if;
++    v_title := btrim(v_item ->> 'titulo');
++    v_text := btrim(v_item ->> 'texto');
++    if length(v_title) not between 1 and 120 or length(v_text) not between 1 and 4000 or lower(v_title) = any (v_titles) then
++      raise exception 'invalid sections' using errcode = '22023';
++    end if;
++    v_titles := v_titles || lower(v_title);
++    v_result := v_result || jsonb_build_array(jsonb_build_object('titulo', v_title, 'texto', v_text));
++  end loop;
++  return v_result;
++end;
++$$;
++
++revoke all on function private.memory_author_name(uuid) from public, anon, authenticated;
++revoke all on function private.normalize_memory_sections(jsonb) from public, anon, authenticated;
++
++-- Os documentos vigentes do Workspace, que todo participante ativo lê. Um documento ainda não aprovado não vem.
++create function public.get_workspace_memory(p_workspace_id uuid)
++returns table (document text, sections jsonb, approved_at timestamptz, approved_by uuid, approved_by_name text)
++language plpgsql
++stable
++security definer
++set search_path = ''
++as $$
++begin
++  perform private.require_active_membership(p_workspace_id);
++  return query
++    select d.document, d.sections, d.approved_at, d.approved_by, d.approved_by_name
++    from private.workspace_memory_documents d
++    where d.workspace_id = p_workspace_id
++    order by d.document;
++end;
++$$;
++
++-- As revisões do Workspace, da mais nova para a mais antiga, que todo participante ativo consulta. Só a pendente traz
++-- o conteúdo proposto.
++create function public.list_workspace_memory_revisions(p_workspace_id uuid)
++returns table (
++  id uuid, document text, status text, request text, proposed_sections jsonb,
++  requested_by uuid, requested_by_name text, requested_at timestamptz,
++  decided_by uuid, decided_by_name text, decided_at timestamptz
++)
++language plpgsql
++stable
++security definer
++set search_path = ''
++as $$
++begin
++  perform private.require_active_membership(p_workspace_id);
++  return query
++    select r.id, r.document, r.status, r.request, r.proposed_sections,
++      r.requested_by, r.requested_by_name, r.requested_at,
++      r.decided_by, r.decided_by_name, r.decided_at
++    from private.workspace_memory_revisions r
++    where r.workspace_id = p_workspace_id
++    order by r.requested_at desc, r.id;
++end;
++$$;
++
++-- Qualquer participante ativo propõe um documento inteiro, com o motivo. O vigente não muda até a decisão. Devolve o
++-- id da revisão pendente.
++create function public.propose_workspace_memory_revision(
++  p_workspace_id uuid, p_document text, p_request text, p_sections jsonb
++)
++returns uuid
++language plpgsql
++security definer
++set search_path = ''
++as $$
++declare
++  v_user_id uuid := auth.uid();
++  v_request text := btrim(coalesce(p_request, ''));
++  v_sections jsonb;
++  v_id uuid;
++begin
++  perform private.require_active_membership(p_workspace_id);
++  if p_document is null or p_document not in ('icp', 'personas') then
++    raise exception 'invalid document' using errcode = '22023';
++  end if;
++  if length(v_request) not between 1 and 2000 then
++    raise exception 'invalid request' using errcode = '22023';
++  end if;
++  v_sections := private.normalize_memory_sections(p_sections);
++  if exists (
++    select 1 from private.workspace_memory_documents d
++    where d.workspace_id = p_workspace_id and d.document = p_document and d.sections = v_sections
++  ) then
++    raise exception 'the proposal does not change the document' using errcode = '22023';
++  end if;
++
++  begin
++    insert into private.workspace_memory_revisions (workspace_id, document, request, proposed_sections, requested_by, requested_by_name)
++    values (p_workspace_id, p_document, v_request, v_sections, v_user_id, private.memory_author_name(v_user_id))
++    returning id into v_id;
++  exception when unique_violation then
++    raise exception 'a pending revision already exists for this document' using errcode = '23505';
++  end;
++
++  insert into private.workspace_memory_events (workspace_id, revision_id, document, event, actor_user_id)
++  values (p_workspace_id, v_id, p_document, 'revisao_proposta', v_user_id);
++  return v_id;
++end;
++$$;
++
++-- Só um Administrador ativo do Workspace da revisão decide; basta um, e pode ser quem propôs. Aprovar substitui o
++-- documento vigente na mesma transação da decisão; recusar não toca nele. Nos dois casos, o conteúdo proposto sai da
++-- revisão, que fica só como registro.
++create function public.decide_workspace_memory_revision(p_revision_id uuid, p_decision text)
++returns void
++language plpgsql
++security definer
++set search_path = ''
++as $$
++declare
++  v_user_id uuid := auth.uid();
++  v_revision private.workspace_memory_revisions;
++  v_name text;
++begin
++  if v_user_id is null then
++    raise exception 'authentication required' using errcode = '42501';
++  end if;
++  if p_decision is null or p_decision not in ('aprovada', 'recusada') then
++    raise exception 'invalid decision' using errcode = '22023';
++  end if;
++  select * into v_revision from private.workspace_memory_revisions r where r.id = p_revision_id for update;
++  if not found then
++    raise exception 'revision not found' using errcode = 'P0002';
++  end if;
++  if private.require_active_membership(v_revision.workspace_id) <> 'admin' then
++    raise exception 'only administrators decide memory revisions' using errcode = '42501';
++  end if;
++  if v_revision.status <> 'pendente' then
++    raise exception 'revision already decided' using errcode = '22023';
++  end if;
++
++  v_name := private.memory_author_name(v_user_id);
++  if p_decision = 'aprovada' then
++    insert into private.workspace_memory_documents as d
++      (workspace_id, document, sections, approved_at, approved_by, approved_by_name, revision_id)
++    values (v_revision.workspace_id, v_revision.document, v_revision.proposed_sections, clock_timestamp(), v_user_id, v_name,
++            v_revision.id)
++    on conflict (workspace_id, document) do update
++      set sections = excluded.sections, approved_at = excluded.approved_at, approved_by = excluded.approved_by,
++          approved_by_name = excluded.approved_by_name, revision_id = excluded.revision_id;
++  end if;
++
++  update private.workspace_memory_revisions r
++  set status = p_decision, proposed_sections = null, decided_by = v_user_id, decided_by_name = v_name,
++      decided_at = clock_timestamp()
++  where r.id = v_revision.id;
++
++  insert into private.workspace_memory_events (workspace_id, revision_id, document, event, actor_user_id)
++  values (v_revision.workspace_id, v_revision.id, v_revision.document,
++          case p_decision when 'aprovada' then 'revisao_aprovada' else 'revisao_recusada' end, v_user_id);
++end;
++$$;
++
++revoke all on function public.get_workspace_memory(uuid) from public, anon;
++revoke all on function public.list_workspace_memory_revisions(uuid) from public, anon;
++revoke all on function public.propose_workspace_memory_revision(uuid, text, text, jsonb) from public, anon;
++revoke all on function public.decide_workspace_memory_revision(uuid, text) from public, anon;
++
++grant execute on function public.get_workspace_memory(uuid) to authenticated;
++grant execute on function public.list_workspace_memory_revisions(uuid) to authenticated;
++grant execute on function public.propose_workspace_memory_revision(uuid, text, text, jsonb) to authenticated;
++grant execute on function public.decide_workspace_memory_revision(uuid, text) to authenticated;
+diff --git a/supabase/tests/memoria_do_workspace.sql b/supabase/tests/memoria_do_workspace.sql
+new file mode 100644
+index 0000000..fd9ea0c
+--- /dev/null
++++ b/supabase/tests/memoria_do_workspace.sql
+@@ -0,0 +1,271 @@
++begin;
++create extension if not exists pgtap with schema extensions;
++set local search_path = extensions, public;
++select plan(49);
++
++-- Workspace da empresa Norte: Ana é Administradora e Bruno é Membro. Carla é Administradora do Sul, outro Workspace.
++-- Diego não participa de nada. O ICP e as Personas são do Workspace: um documento vigente de cada, compartilhado.
++insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
++                        created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
++                        is_sso_user, is_anonymous)
++values
++  ('60000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana@norte.com.br', '', now(), now(), now(), '{}', '{"full_name":"Ana Lima"}', false, false),
++  ('60000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'bruno@norte.com.br', '', now(), now(), now(), '{}', '{"name":"Bruno Reis"}', false, false),
++  ('60000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'carla@sul.com.br', '', now(), now(), now(), '{}', '{"full_name":"Carla Dias"}', false, false),
++  ('60000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'diego@gmail.com', '', now(), now(), now(), '{}', '{}', false, false);
++
++insert into public.workspaces (id, kind, name) values
++  ('ffffffff-0000-0000-0000-000000000001', 'empresa', 'Norte'),
++  ('ffffffff-0000-0000-0000-000000000002', 'empresa', 'Sul');
++
++insert into public.workspace_memberships (workspace_id, user_id, role, active) values
++  ('ffffffff-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'admin', true),
++  ('ffffffff-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'member', true),
++  ('ffffffff-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000003', 'admin', true);
++
++-- O nome salvo em Meu perfil vale para o autor das propostas.
++insert into private.user_profiles (user_id, display_name) values ('60000000-0000-0000-0000-000000000002', 'Bruno R.');
++
++select is(
++  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
++    where n.nspname = 'public'
++      and p.proname in ('get_workspace_memory', 'list_workspace_memory_revisions',
++                        'propose_workspace_memory_revision', 'decide_workspace_memory_revision')
++      and p.prosecdef and p.proconfig @> array['search_path=""']),
++  4, 'as funções da Memória do Workspace são security definer com search_path vazio');
++select is(
++  (select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace
++    where n.nspname = 'private' and c.relrowsecurity
++      and c.relname in ('workspace_memory_documents', 'workspace_memory_revisions', 'workspace_memory_events')),
++  3, 'documentos, revisões e auditoria ficam em tabelas com RLS ligado');
++select is(
++  (select count(*)::int from information_schema.role_routine_grants
++    where grantee in ('anon', 'PUBLIC') and routine_schema = 'public'
++      and routine_name in ('get_workspace_memory', 'list_workspace_memory_revisions',
++                           'propose_workspace_memory_revision', 'decide_workspace_memory_revision')),
++  0, 'nenhuma função da Memória do Workspace é executável sem login');
++
++set local role authenticated;
++select set_config('request.jwt.claim.role', 'authenticated', true);
++
++-- Bruno, Membro: o Workspace ainda não tem ICP nem Personas aprovados.
++select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000002', true);
++select is(
++  (select count(*)::int from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001')),
++  0, 'sem nada aprovado, a Memória do Workspace está vazia');
++
++select ok(
++  set_config('teste.icp_1', public.propose_workspace_memory_revision(
++    'ffffffff-0000-0000-0000-000000000001', 'icp', '  Estamos fechando com varejo no Sul.  ',
++    '[{"titulo":" Segmentos ","texto":" Varejo "},{"titulo":"Porte","texto":"200 a 2.000 funcionários"}]'
++  )::text, true) is not null,
++  'um Membro propõe o ICP');
++select is(
++  (select status || ' · ' || request || ' · ' || requested_by_name || ' · ' || (decided_by is null)::text
++     from public.list_workspace_memory_revisions('ffffffff-0000-0000-0000-000000000001')
++     where id = current_setting('teste.icp_1')::uuid),
++  'pendente · Estamos fechando com varejo no Sul. · Bruno R. · true',
++  'a proposta fica pendente, com o motivo e o autor pelo nome de Meu perfil');
++select is(
++  (select proposed_sections from public.list_workspace_memory_revisions('ffffffff-0000-0000-0000-000000000001')
++     where id = current_setting('teste.icp_1')::uuid),
++  '[{"titulo":"Segmentos","texto":"Varejo"},{"titulo":"Porte","texto":"200 a 2.000 funcionários"}]'::jsonb,
++  'a proposta pendente traz o documento inteiro proposto, sem espaços nas pontas e na ordem enviada');
++select is(
++  (select count(*)::int from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001')),
++  0, 'uma proposta pendente não muda a Memória do Workspace');
++
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'icp', 'De novo',
++      '[{"titulo":"Segmentos","texto":"Saúde"}]')$$,
++  '23505', 'a pending revision already exists for this document', 'um documento tem no máximo uma proposta pendente');
++select ok(
++  set_config('teste.personas_1', public.propose_workspace_memory_revision(
++    'ffffffff-0000-0000-0000-000000000001', 'personas', 'Falta o comprador de TI.',
++    '[{"titulo":"Comprador de TI","texto":"Negocia contrato e prazo."}]'
++  )::text, true) is not null,
++  'as Personas têm proposta própria, independente da do ICP');
++
++select throws_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.icp_1')::uuid, 'aprovada')$$,
++  '42501', 'only administrators decide memory revisions', 'um Membro não aprova');
++select throws_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.personas_1')::uuid, 'recusada')$$,
++  '42501', 'only administrators decide memory revisions', 'um Membro não recusa');
++select is(
++  (select status from public.list_workspace_memory_revisions('ffffffff-0000-0000-0000-000000000001')
++     where id = current_setting('teste.icp_1')::uuid),
++  'pendente', 'a tentativa do Membro não decide nada');
++
++-- Propostas inválidas.
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'produto', 'Motivo',
++      '[{"titulo":"A","texto":"B"}]')$$,
++  '22023', 'invalid document', 'só existem os documentos ICP e Personas');
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000002', 'icp', 'Motivo',
++      '[{"titulo":"A","texto":"B"}]')$$,
++  '42501', 'active workspace membership required', 'ninguém propõe num Workspace de que não participa');
++
++-- Ana, Administradora: aprova a proposta do Bruno.
++select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000001', true);
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'personas', '   ',
++      '[{"titulo":"A","texto":"B"}]')$$,
++  '22023', 'invalid request', 'a proposta precisa de um motivo');
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'icp', 'Motivo', '[]')$$,
++  '22023', 'invalid sections', 'o documento proposto tem ao menos uma seção');
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'icp', 'Motivo',
++      '[{"titulo":"Porte","texto":"A"},{"titulo":"porte","texto":"B"}]')$$,
++  '22023', 'invalid sections', 'duas seções não têm o mesmo título');
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'icp', 'Motivo',
++      '[{"titulo":"Porte","texto":"  "}]')$$,
++  '22023', 'invalid sections', 'toda seção tem texto');
++select throws_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.icp_1')::uuid, 'talvez')$$,
++  '22023', 'invalid decision', 'a decisão é aprovar ou recusar');
++
++select lives_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.icp_1')::uuid, 'aprovada')$$,
++  'a Administradora aprova a proposta do Membro');
++select is(
++  (select sections from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001') where document = 'icp'),
++  '[{"titulo":"Segmentos","texto":"Varejo"},{"titulo":"Porte","texto":"200 a 2.000 funcionários"}]'::jsonb,
++  'aprovada, a proposta vira o ICP vigente');
++select is(
++  (select approved_by_name || ' · ' || (approved_by = '60000000-0000-0000-0000-000000000001')::text
++     from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001') where document = 'icp'),
++  'Ana Lima · true', 'o ICP vigente registra quem o aprovou');
++select is(
++  (select status || ' · ' || decided_by_name || ' · ' || (proposed_sections is null)::text || ' · ' || (decided_at is not null)::text
++     from public.list_workspace_memory_revisions('ffffffff-0000-0000-0000-000000000001')
++     where id = current_setting('teste.icp_1')::uuid),
++  'aprovada · Ana Lima · true · true', 'decidida, a revisão guarda só o registro: quem decidiu e quando, sem o conteúdo');
++select is(
++  (select count(*)::int from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001') where document = 'personas'),
++  0, 'aprovar o ICP não toca nas Personas');
++select throws_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.icp_1')::uuid, 'recusada')$$,
++  '22023', 'revision already decided', 'uma revisão decidida não se decide de novo');
++
++select lives_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.personas_1')::uuid, 'recusada')$$,
++  'a Administradora recusa a proposta das Personas');
++select is(
++  (select count(*)::int from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001') where document = 'personas'),
++  0, 'recusada, a proposta não muda a Memória do Workspace');
++select is(
++  (select status || ' · ' || decided_by_name || ' · ' || (proposed_sections is null)::text
++     from public.list_workspace_memory_revisions('ffffffff-0000-0000-0000-000000000001')
++     where id = current_setting('teste.personas_1')::uuid),
++  'recusada · Ana Lima · true', 'a recusa fica registrada, sem o conteúdo recusado');
++
++-- A Administradora propõe e aprova a própria revisão: a segunda aprovação substitui a primeira.
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'icp', 'Nada muda',
++      '[{"titulo":"Segmentos","texto":"Varejo"},{"titulo":"Porte","texto":"200 a 2.000 funcionários"}]')$$,
++  '22023', 'the proposal does not change the document', 'uma proposta igual ao vigente é recusada');
++select ok(
++  set_config('teste.icp_2', public.propose_workspace_memory_revision(
++    'ffffffff-0000-0000-0000-000000000001', 'icp', 'Incluir o atacado.',
++    '[{"titulo":"Segmentos","texto":"Varejo e atacado"}]'
++  )::text, true) is not null,
++  'a Administradora propõe outro ICP');
++select lives_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.icp_2')::uuid, 'aprovada')$$,
++  'a Administradora aprova a própria proposta; basta uma decisão');
++reset role;
++select is(
++  (select count(*)::int from private.workspace_memory_documents
++     where workspace_id = 'ffffffff-0000-0000-0000-000000000001' and document = 'icp'),
++  1, 'o Workspace continua com um só ICP: a aprovação substitui o vigente');
++select is(
++  (select sections from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001') where document = 'icp'),
++  '[{"titulo":"Segmentos","texto":"Varejo e atacado"}]'::jsonb,
++  'o vigente é o último aprovado, e o anterior não fica guardado em lugar nenhum');
++select is(
++  (select count(*)::int from private.workspace_memory_revisions
++     where workspace_id = 'ffffffff-0000-0000-0000-000000000001' and proposed_sections is not null),
++  0, 'nenhuma revisão decidida guarda conteúdo: não há histórico de documentos');
++set local role authenticated;
++
++-- Bruno, Membro, lê o mesmo documento vigente: é uma configuração do Workspace, não uma cópia por participante.
++select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000002', true);
++select is(
++  (select sections from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001') where document = 'icp'),
++  '[{"titulo":"Segmentos","texto":"Varejo e atacado"}]'::jsonb,
++  'o Membro lê o mesmo ICP vigente que a Administradora aprovou');
++select is(
++  (select string_agg(status, ',' order by requested_at desc)
++     from public.list_workspace_memory_revisions('ffffffff-0000-0000-0000-000000000001')),
++  'aprovada,recusada,aprovada', 'o Membro consulta as revisões e as decisões, da mais nova para a mais antiga');
++
++-- Carla, Administradora de outro Workspace: não lê nem decide nada do Norte.
++select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000003', true);
++select throws_ok(
++  $$select * from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001')$$,
++  '42501', 'active workspace membership required', 'a Administradora de outro Workspace não lê o ICP do Norte');
++select throws_ok(
++  $$select * from public.list_workspace_memory_revisions('ffffffff-0000-0000-0000-000000000001')$$,
++  '42501', 'active workspace membership required', 'nem as revisões do Norte');
++select ok(
++  set_config('teste.sul_1', public.propose_workspace_memory_revision(
++    'ffffffff-0000-0000-0000-000000000002', 'icp', 'Primeiro ICP do Sul.', '[{"titulo":"Segmentos","texto":"Agro"}]'
++  )::text, true) is not null,
++  'a Carla propõe o ICP do próprio Workspace');
++select is(
++  (select count(*)::int from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000002')),
++  0, 'o ICP aprovado no Norte não aparece no Sul');
++
++select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000001', true);
++select throws_ok(
++  $$select public.decide_workspace_memory_revision(current_setting('teste.sul_1')::uuid, 'aprovada')$$,
++  '42501', 'active workspace membership required', 'a Administradora do Norte não decide uma revisão do Sul');
++
++-- Diego não participa de nada.
++select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000004', true);
++select throws_ok(
++  $$select * from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001')$$,
++  '42501', 'active workspace membership required', 'quem não participa não lê a Memória do Workspace');
++
++-- Nada se lê direto nas tabelas pela API.
++select throws_ok(
++  $$select count(*) from private.workspace_memory_documents$$,
++  '42501', 'permission denied for schema private', 'os documentos não são lidos direto pela API');
++
++-- Sem login, nenhuma função responde.
++reset role;
++set local role anon;
++select set_config('request.jwt.claim.role', 'anon', true);
++select set_config('request.jwt.claim.sub', '', true);
++select throws_ok(
++  $$select * from public.get_workspace_memory('ffffffff-0000-0000-0000-000000000001')$$,
++  '42501', 'permission denied for function get_workspace_memory', 'sem login, a Memória do Workspace não é lida');
++select throws_ok(
++  $$select public.propose_workspace_memory_revision('ffffffff-0000-0000-0000-000000000001', 'icp', 'Motivo',
++      '[{"titulo":"A","texto":"B"}]')$$,
++  '42501', 'permission denied for function propose_workspace_memory_revision', 'sem login, ninguém propõe');
++reset role;
++
++-- A auditoria registra cada proposta e cada decisão, com o autor, na ordem em que aconteceram.
++select is(
++  (select string_agg(e.event || ':' || e.document || ':' || u.email, ', ' order by e.id)
++     from private.workspace_memory_events e join auth.users u on u.id = e.actor_user_id
++     where e.workspace_id = 'ffffffff-0000-0000-0000-000000000001'),
++  'revisao_proposta:icp:bruno@norte.com.br, revisao_proposta:personas:bruno@norte.com.br, '
++  'revisao_aprovada:icp:ana@norte.com.br, revisao_recusada:personas:ana@norte.com.br, '
++  'revisao_proposta:icp:ana@norte.com.br, revisao_aprovada:icp:ana@norte.com.br',
++  'a auditoria tem as propostas e as decisões do Norte, com quem fez cada uma');
++select is(
++  (select count(*)::int from private.workspace_memory_events where workspace_id = 'ffffffff-0000-0000-0000-000000000002'),
++  1, 'a auditoria do Sul é separada da do Norte');
++select is(
++  (select revision_id::text from private.workspace_memory_documents
++     where workspace_id = 'ffffffff-0000-0000-0000-000000000001' and document = 'icp'),
++  current_setting('teste.icp_2'), 'o documento vigente aponta para a revisão que o publicou');
++
++select * from finish();
++rollback;
+-- 
+2.43.0
+

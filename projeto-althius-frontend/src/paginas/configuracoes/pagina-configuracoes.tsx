@@ -6,7 +6,7 @@ import { Pagina } from '@/components/pagina'
 import type { ModuloDoWorkspace } from '@/fonte/ambiente'
 import { useAmbiente } from '@/fonte/contexto'
 import { SecaoAjuda } from './secao-ajuda'
-import { SecaoMemoria } from './secao-memoria'
+import { SecaoMemoria, SecaoMemoriaDoWorkspaceOperacional } from './secao-memoria'
 import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
 import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
 import { SecaoPreferencias } from './secao-preferencias'
@@ -35,7 +35,12 @@ const SECOES: Record<
   // As Preferências são da Conta de usuário e já têm backend: a mesma seção serve aos dois ambientes.
   preferencias: { rotulo: 'Preferências', Componente: SecaoPreferencias, NoWorkspaceOperacional: SecaoPreferencias },
   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace, modulo: 'participantes' },
-  memoria: { rotulo: 'Memória do Workspace', Componente: SecaoMemoria, comPaginas: true },
+  memoria: {
+    rotulo: 'Memória do Workspace',
+    Componente: SecaoMemoria,
+    NoWorkspaceOperacional: SecaoMemoriaDoWorkspaceOperacional,
+    comPaginas: true,
+  },
   plano: { rotulo: 'Plano', Componente: SecaoPlano, NoWorkspaceOperacional: SecaoPlanoDoWorkspaceOperacional },
   ajuda: { rotulo: 'Ajuda e informações', Componente: SecaoAjuda, comPaginas: true, informativa: true },
 }
