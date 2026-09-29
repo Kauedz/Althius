@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(172);
+select plan(178);
 
 -- O relógio da agenda fica parado onde o teste quiser, só dentro desta transação.
 create function pg_temp.relogio(p_at timestamptz) returns void language plpgsql as $f$
@@ -598,6 +598,33 @@ select is(pg_temp.col('li-c', 'status'), null, 'and the LinkedIn step still has 
 set local role service_role;
 select pg_temp.passa_o_tempo();
 select is((select count(*)::int from public.claim_due_step_sends(10)), 0, 'nothing else is due');
+reset role;
+
+-- Falha de WhatsApp: só o 429 e a conferência do número são reagendados; um 4xx (ou qualquer outro código) é definitivo.
+update private.sequence_step_sends set status = 'sending', attempts = 1, sending_at = now(), claimed_until = null
+  where step_id = 'wa-d';
+set local role service_role;
+select is(public.record_sequence_step_send_result(pg_temp.envio('wa-d'), 'failed', null, null, 'http_400', 300), 'failed',
+  'a 4xx of WhatsApp is a definitive failure: the step is not rescheduled, whatever Retry-After came');
+reset role;
+select is(pg_temp.col('wa-d', 'status') || ' ' || pg_temp.col('wa-d', 'last_error'), 'failed http_400',
+  'and the reason stays on record');
+update private.sequence_step_sends set status = 'sending', attempts = 1, sending_at = now() where step_id = 'wa-d';
+set local role service_role;
+select is(public.record_sequence_step_send_result(pg_temp.envio('wa-d'), 'failed', null, null, 'invalid_destination'), 'failed',
+  'a number outside the format is definitive too');
+reset role;
+update private.sequence_step_sends set status = 'sending', attempts = 1, sending_at = now() where step_id = 'wa-d';
+set local role service_role;
+select is(public.record_sequence_step_send_result(pg_temp.envio('wa-d'), 'failed', null, null, 'rate_limited', 1200), 'scheduled',
+  'a 429 is rescheduled');
+reset role;
+select is((select scheduled_for >= private.clock_now() + interval '1200 seconds' from private.sequence_step_sends where step_id = 'wa-d'),
+  true, 'no sooner than the Retry-After the provider asked');
+update private.sequence_step_sends set status = 'sending', attempts = 1, sending_at = now() where step_id = 'wa-d';
+set local role service_role;
+select is(public.record_sequence_step_send_result(pg_temp.envio('wa-d'), 'failed', null, null, 'destination_check_failed'), 'scheduled',
+  'and so is a failed check of the number');
 reset role;
 
 -- 8. Quem pode chamar o quê.

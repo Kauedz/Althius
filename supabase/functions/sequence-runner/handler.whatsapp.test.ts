@@ -232,6 +232,16 @@ Deno.test('espaçamento: o passo que o banco segura por causa da mesma Conta nã
   assertEquals(logs, [{ type: 'runner', sendId: WA_1, channel: 'whatsapp', outcome: 'sender_spacing' }])
 })
 
+Deno.test('envio automático de WhatsApp desligado: a liberação recusa, nada é enviado nem gravado', async () => {
+  const { rodar, chamadas, recorded, logs } = executor([duoWhatsapp(WA_1)], {
+    [WA_1]: { outcome: 'automatic_disabled', send_id: WA_1 },
+  })
+  await rodar()
+  assertEquals(chamadas, [])
+  assertEquals(recorded, [])
+  assertEquals(logs, [{ type: 'runner', sendId: WA_1, channel: 'whatsapp', outcome: 'automatic_disabled' }])
+})
+
 Deno.test('o Contato cujo telefone principal perdeu a marca de WhatsApp é recusado pelo banco e nada sai', async () => {
   const { rodar, chamadas, recorded } = executor([duoWhatsapp(WA_1)], {
     [WA_1]: { outcome: 'destination_no_whatsapp', send_id: WA_1 },
@@ -291,6 +301,15 @@ Deno.test('429 com Retry-After: falha (nada saiu) com o prazo para o banco, uma 
   await rodar()
   assertEquals(chamadas.filter((c) => c.method === 'POST').length, 1)
   assertEquals(recorded.map((r) => `${r.outcome}:${r.error}:${r.retryAfterSeconds}`), ['failed:rate_limited:45'])
+})
+
+Deno.test('4xx no envio (menos o 429) é falha definitiva: sem prazo de nova tentativa, uma só chamada de envio', async () => {
+  const { rodar, chamadas, recorded } = executor([duoWhatsapp(WA_1)], { [WA_1]: whatsappLiberado(WA_1) }, {
+    send: { status: 400, retryAfter: '45' },
+  })
+  await rodar()
+  assertEquals(chamadas.filter((c) => c.method === 'POST').length, 1)
+  assertEquals(recorded.map((r) => `${r.outcome}:${r.error}:${r.retryAfterSeconds}`), ['failed:http_400:null'])
 })
 
 Deno.test('502 no envio é incerto: nunca reenvia sozinho', async () => {

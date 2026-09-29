@@ -149,6 +149,7 @@ Deno.test('os bloqueios do banco chegam com texto de WhatsApp e não chamam a Un
     ['destination_no_whatsapp', 'Este número não tem WhatsApp'],
     ['owner_not_responsible', 'Vendedor responsável'],
     ['reconcile_required', 'Confira no seu WhatsApp'],
+    ['automatic_disabled', 'envio automático de WhatsApp está desligado'],
   ]
   for (const [outcome, trecho] of casos) {
     const { handle, chamadas, recorded } = montar({ liberacao: { outcome, send_id: SEND } as WhatsappReleaseResult })
@@ -179,12 +180,13 @@ Deno.test('conferência do número fora do ar: 409 destination_check_failed, sem
   assertEquals(recorded.map((r) => r.error), ['destination_check_failed'])
 })
 
-Deno.test('a Unipile recusa (403): 502 e nova tentativa só quando o titular reconfirmar', async () => {
-  const { handle, chamadas } = montar({ send: { status: 403 } })
+Deno.test('a Unipile recusa (403): 502, falha definitiva e nova tentativa só quando o titular reconfirmar', async () => {
+  const { handle, chamadas, recorded } = montar({ send: { status: 403, retryAfter: '30' } })
   const res = await handle(pedido())
   assertEquals(res.status, 502)
   assertEquals((await res.json()).outcome, 'failed')
   assertEquals(chamadas.filter((c) => c.method === 'POST').length, 1)
+  assertEquals(recorded.map((r) => `${r.outcome}:${r.error}:${r.retryAfterSeconds}`), ['failed:http_403:null'])
 })
 
 Deno.test('tempo esgotado no envio: 504 incerto, uma só chamada de envio e a orientação de conferir no WhatsApp', async () => {

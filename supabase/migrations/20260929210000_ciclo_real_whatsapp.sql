@@ -22,7 +22,9 @@
 --                                       de novo situação, reserva e fila depois de travar as linhas.
 --   private.kick_sequence_runner        só chama o Executor por um passo de WhatsApp com o envio automático ligado.
 --   private.mark_step_send_sent         a Interação de um envio de WhatsApp é `mensagem-enviada`.
---   public.record_sequence_step_send_result  guarda também o id da conversa do provedor (`p_provider_chat_id`).
+--   public.record_sequence_step_send_result  guarda também o id da conversa do provedor (`p_provider_chat_id`); uma
+--                                       falha de WhatsApp só é reagendada se for `rate_limited` ou
+--                                       `destination_check_failed` (um 4xx é definitivo).
 --   public.resolve_uncertain_step       "não saiu" reconfirma pelo canal do passo.
 --   private.anonymize_sends e private.keep_send_anonymized  o id da conversa (que traz o número) também é apagado.
 --
@@ -1574,7 +1576,11 @@ begin
     return v_send.status;
   end if;
 
-  if p_outcome = 'failed' and v_send.mode = 'auto' and v_send.attempts < 3 then
+  -- E-mail reagenda toda falha automática (até 3 tentativas). WhatsApp só reagenda o 429 (`rate_limited`, respeitando o
+  -- Retry-After) e a falha da conferência do número (`destination_check_failed`): o único fato documentado da Unipile é
+  -- que 2xx significa aceito, então um 4xx (ou qualquer outro código) é falha definitiva e o passo espera o titular.
+  if p_outcome = 'failed' and v_send.mode = 'auto' and v_send.attempts < 3
+    and (v_send.channel <> 'whatsapp' or coalesce(p_error, '') in ('rate_limited', 'destination_check_failed')) then
     select a.* into v_auth from private.sequence_authorizations a
     where a.id = v_send.authorization_id and a.revoked_at is null;
     if found then

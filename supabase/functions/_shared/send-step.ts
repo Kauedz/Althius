@@ -32,6 +32,8 @@ export type BlockedOutcome =
   | 'empty_content'
   | 'destination_no_whatsapp'
   | 'destination_check_failed'
+  // O envio automático de WhatsApp está desligado no banco (`whatsapp_auto_send`): só o titular envia, à mão.
+  | 'automatic_disabled'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -145,6 +147,7 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   empty_content: 'O passo está sem texto. Escreva a mensagem e ative os envios de novo.',
   destination_no_whatsapp: 'Este número não tem WhatsApp. Corrija o número do Contato e reconfirme o passo.',
   destination_check_failed: 'Não foi possível conferir se o número tem WhatsApp. Tente de novo em instantes.',
+  automatic_disabled: 'O envio automático de WhatsApp está desligado. Este passo só sai quando você confirma e envia.',
 }
 
 /** O que muda no texto de um bloqueio quando o passo é de WhatsApp: os demais valem para os dois canais. */

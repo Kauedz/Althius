@@ -226,6 +226,30 @@ Deno.test('recusa 4xx é falha com código claro, sem tentar de novo dentro da m
   assertEquals(recorded[0].retryAfterSeconds, null)
 })
 
+Deno.test('4xx (menos o 429) é falha definitiva: código http_NNN, sem prazo de nova tentativa mesmo com Retry-After', async () => {
+  for (const status of [400, 401, 403, 404, 409, 422]) {
+    const { port, calls, recorded } = fake({ start: new UnipileRequestError(status, 30) })
+    const result = await sendWhatsappStep(port, { sendId: 'send-1', release: release(RELEASED) })
+    assertEquals(result, { kind: 'attempted', outcome: 'failed', recorded: true }, `HTTP ${status}`)
+    assertEquals(calls.filter((c) => c === 'startChat').length, 1, `HTTP ${status}`)
+    assertEquals(recorded.length, 1)
+    assertEquals(recorded[0].error, `http_${status}`)
+    assertEquals(recorded[0].retryAfterSeconds, null, `HTTP ${status}: só o 429 leva o Retry-After`)
+  }
+})
+
+Deno.test('4xx numa conversa existente também é definitivo', async () => {
+  const { port, calls, recorded } = fake({ inChat: new UnipileRequestError(404) })
+  const result = await sendWhatsappStep(port, {
+    sendId: 'send-1',
+    release: release({ ...RELEASED, provider_chat_id: '5511987654321@s.whatsapp.net' }),
+  })
+  assertEquals(result, { kind: 'attempted', outcome: 'failed', recorded: true })
+  assertEquals(calls, ['sendInChat'])
+  assertEquals(recorded[0].error, 'http_404')
+  assertEquals(recorded[0].retryAfterSeconds, null)
+})
+
 Deno.test('429 no envio é falha (nada saiu) e o Retry-After vai para o banco', async () => {
   const { port, calls, recorded } = fake({ start: new UnipileRequestError(429, 42) })
   const result = await sendWhatsappStep(port, { sendId: 'send-1', release: release(RELEASED) })
@@ -243,6 +267,7 @@ Deno.test('o que o banco bloqueou (espaçamento, Conta fora, número trocado) n�
       'destination_changed',
       'destination_no_whatsapp',
       'owner_not_responsible',
+      'automatic_disabled',
     ] as const
   ) {
     const { port, calls, recorded } = fake()

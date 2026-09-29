@@ -12,6 +12,8 @@
 // A Unipile não documenta o corpo da resposta desses envios: qualquer 2xx vale como "aceito pelo provedor", o id da
 // mensagem só é lido com tolerância (fica vazio quando não vem) e nada aqui depende de nomes de campos desconhecidos.
 // Um pedido que pode ter sido aceito (tempo esgotado, falha de rede, 5xx) fica incerto e nunca é reenviado sozinho.
+// Um 4xx (menos o 429) é falha definitiva: sem reagendamento automático. Só tentam de novo, mais tarde, o 429 (com o
+// Retry-After) e a falha da conferência do número (`destination_check_failed`).
 import {
   type BlockedSend,
   type SendOutcome,
@@ -86,7 +88,9 @@ function mayHaveBeenAccepted(status: number) {
   return status === 408 || status >= 500
 }
 
-/** O código gravado quando a Unipile recusou (4xx): curto e específico o bastante para o titular entender. */
+/** O código gravado quando a Unipile recusou (4xx): curto e específico o bastante para o titular entender. Só o
+ *  `rate_limited` e o `destination_check_failed` são reagendados pelo banco; qualquer outro código de falha de
+ *  WhatsApp é definitivo. */
 function refusalCode(status: number) {
   return status === 429 ? 'rate_limited' : `http_${status}`
 }
@@ -177,11 +181,16 @@ export async function sendWhatsappStep(
         ? port.chat.sendInChat(account, existingChat, released.body, { signal })
         : port.chat.startChat(account, recipientId, released.body, { signal }))).value
   } catch (error) {
-    // 4xx é recusa: nada saiu. Tempo esgotado, falha de rede e 5xx deixam dúvida: pode ter saído, e o envio nunca é
-    // repetido sozinho (o titular confere no WhatsApp e resolve).
+    // Tempo esgotado, falha de rede e 5xx deixam dúvida: pode ter saído, e o envio nunca é repetido sozinho (o titular
+    // confere no WhatsApp e resolve). O único fato documentado é que 2xx significa aceito; por isso um 4xx é uma
+    // falha DEFINITIVA (o passo não é reagendado sozinho, o banco também não reagenda um `http_4xx` de WhatsApp) e só o
+    // 429 tenta de novo, respeitando o Retry-After.
     if (error instanceof UnipileRequestError) {
       if (mayHaveBeenAccepted(error.status)) return await record('uncertain', { error: `http_${error.status}` })
-      return await record('failed', { error: refusalCode(error.status), retryAfterSeconds: error.retryAfterSeconds })
+      if (error.status === 429) {
+        return await record('failed', { error: refusalCode(429), retryAfterSeconds: error.retryAfterSeconds })
+      }
+      return await record('failed', { error: refusalCode(error.status) })
     }
     return await record('uncertain', { error: (error as { aborted?: boolean })?.aborted ? 'timeout' : 'network' })
   }
