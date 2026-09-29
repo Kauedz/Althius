@@ -487,3 +487,99 @@ describe('Foto pública do Contato no Workspace operacional', () => {
     )
   })
 })
+
+describe('Vários e-mails e telefones por Contato no Workspace operacional', () => {
+  const canal = (contato: string, channel: string, ordinal: number, value: string, label: string, whatsapp: boolean | null) => ({
+    contact_id: contato, channel, ordinal, value, label, whatsapp,
+  })
+
+  it('lê as listas de cada Contato de uma vez, o principal primeiro, com rótulo, tipo e marca de WhatsApp', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte, tabelas } = fonteDaMarina({
+      rpcs: {
+        list_contact_channels: (parametros) => {
+          chamadas.push(parametros)
+          return [
+            canal(ID_DA_MARIA, 'email', 1, 'maria@alfa.com.br', 'trabalho', null),
+            canal(ID_DA_MARIA, 'email', 2, 'maria.s@gmail.com', 'pessoal', null),
+            canal(ID_DA_MARIA, 'phone', 1, '+5511988887777', 'celular', true),
+            canal(ID_DA_MARIA, 'phone', 2, '+551133334444', 'fixo', false),
+          ]
+        },
+      },
+    })
+    tabelas.target_contacts.push(
+      contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { email: 'maria@alfa.com.br', whatsapp: '+5511988887777' }),
+      contatoNoBanco(ID_DA_MARIA, ID_DA_BETA, 'Maria Souza', { email: 'maria@alfa.com.br' }),
+      contatoNoBanco(ID_DO_RUI, ID_DA_ALFA, 'Rui'),
+    )
+
+    const [maria, rui] = await fonte.contatosDaConta(ID_DA_ALFA)
+
+    expect(chamadas).toEqual([{ p_contact_ids: [ID_DA_MARIA, ID_DO_RUI] }])
+    expect(maria).toMatchObject({
+      email: 'maria@alfa.com.br',
+      whatsapp: '+5511988887777',
+      emails: [{ valor: 'maria@alfa.com.br', rotulo: 'trabalho' }, { valor: 'maria.s@gmail.com', rotulo: 'pessoal' }],
+      telefones: [
+        { valor: '+5511988887777', tipo: 'celular', whatsapp: true },
+        { valor: '+551133334444', tipo: 'fixo', whatsapp: false },
+      ],
+    })
+    // Um Contato sem canais não ganha listas: a tela o trata como só com o principal.
+    expect(rui.emails).toBeUndefined()
+  })
+
+  it('troca as listas inteiras pelo backend, na ordem da tela, e avisa quem observa', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte, tabelas } = fonteDaMarina({ rpcs: { set_contact_channels: (parametros) => void chamadas.push(parametros) } })
+    tabelas.target_contacts.push(contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { email: 'maria@alfa.com.br' }))
+    let avisos = 0
+    fonte.observar(() => avisos++)
+
+    const contato = await fonte.salvarCanaisDoContato!(ID_DA_MARIA, {
+      emails: [{ valor: ' maria.s@gmail.com ', rotulo: 'pessoal' }, { valor: 'maria@alfa.com.br', rotulo: 'trabalho' }],
+      telefones: [{ valor: '(11) 3333-4444', tipo: 'fixo', whatsapp: false }],
+    })
+
+    expect(chamadas).toEqual([{
+      p_contact_id: ID_DA_MARIA,
+      p_emails: [{ value: 'maria.s@gmail.com', label: 'pessoal' }, { value: 'maria@alfa.com.br', label: 'trabalho' }],
+      p_phones: [{ value: '(11) 3333-4444', kind: 'fixo', whatsapp: false }],
+    }])
+    expect(contato).toMatchObject({ id: ID_DA_MARIA })
+    expect(avisos).toBe(1)
+  })
+
+  it('a leitura das listas que falha não derruba a lista de Contatos: eles vêm só com o principal', async () => {
+    const { fonte, tabelas } = fonteDaMarina()
+    tabelas.target_contacts.push(contatoNoBanco(ID_DA_MARIA, ID_DA_ALFA, 'Maria Souza', { email: 'maria@alfa.com.br' }))
+
+    const [maria] = await fonte.contatosDaConta(ID_DA_ALFA)
+
+    expect(maria).toMatchObject({ email: 'maria@alfa.com.br' })
+    expect(maria.emails).toBeUndefined()
+    expect(maria.telefones).toBeUndefined()
+  })
+
+  it('traduz as recusas do backend às listas', async () => {
+    const recusas = [
+      [Object.assign(new Error('email already belongs to another contact of this workspace'), { code: '23505' }),
+        'Já existe um Contato com este e-mail neste Workspace.'],
+      [Object.assign(new Error('phone already belongs to another contact of this workspace'), { code: '23505' }),
+        'Já existe um Contato com este telefone neste Workspace.'],
+      [Object.assign(new Error('the same email appears twice in the list'), { code: '23505' }),
+        'O mesmo e-mail ou telefone aparece duas vezes na lista.'],
+      [Object.assign(new Error('a contact can have at most 3 emails'), { code: '22023' }), 'Um Contato pode ter até 3 e-mails.'],
+      [Object.assign(new Error('a contact can have at most 3 phones'), { code: '22023' }), 'Um Contato pode ter até 3 telefones.'],
+      [Object.assign(new Error('only the responsible seller or an admin can edit this contact'), { code: '42501' }),
+        'Só um Administrador ou o Vendedor responsável por todas as Contas deste Contato pode editá-lo.'],
+      [Object.assign(new Error('the primary email cannot be removed while additional emails exist'), { code: '23514' }),
+        'Este Contato tem e-mails ou telefones adicionais: remova-os, ou troque o principal, na edição do Contato.'],
+    ] as const
+    for (const [recusa, mensagem] of recusas) {
+      const { fonte } = fonteDaMarina({ rpcs: { set_contact_channels: () => { throw recusa } } })
+      await expect(fonte.salvarCanaisDoContato!(ID_DA_MARIA, { emails: [], telefones: [] })).rejects.toThrow(mensagem)
+    }
+  })
+})

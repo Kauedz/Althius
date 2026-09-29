@@ -1,10 +1,17 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import type { CanaisDoContato } from '@/fonte/canais-do-contato'
 import type { Contato } from '@/fonte/contas-tipos'
 import { useFonteDeContas } from '@/fonte/contexto'
 import { cn } from '@/lib/utils'
-import { type CamposDoFormularioDeContato, useCamposDoContato } from './campos-do-contato'
+import {
+  type CamposDoFormularioDeContato,
+  canaisSemLinhasEmBranco,
+  mesmosCanais,
+  useCamposDoContato,
+} from './campos-do-contato'
+import { ListasDeCanais } from './canais-do-contato'
 
 export const CAMPO = 'h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
 const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
@@ -23,20 +30,24 @@ export function CamposDoContato({
   campos,
   editar,
   cheios = false,
+  semEmailETelefone = false,
 }: {
   campos: CamposDoFormularioDeContato
   editar: (nome: keyof CamposDoFormularioDeContato) => (e: { target: { value: string } }) => void
   /** Cada campo ocupa a largura toda, como no diálogo. */
   cheios?: boolean
+  /** O e-mail e o telefone saem: quem os edita são as listas de canais. */
+  semEmailETelefone?: boolean
 }) {
   const classe = cn(CAMPO, cheios && 'w-full')
+  const opcionais = ROTULOS_OPCIONAIS.filter(([nome]) => !(semEmailETelefone && (nome === 'email' || nome === 'whatsapp')))
   return (
     <>
       <label className="flex flex-col gap-1 text-xs text-al-muted">
         Nome
         <input required value={campos.nome} onChange={editar('nome')} className={classe} />
       </label>
-      {ROTULOS_OPCIONAIS.map(([nome, rotulo]) => (
+      {opcionais.map(([nome, rotulo]) => (
         <label key={nome} className="flex flex-col gap-1 text-xs text-al-muted">
           {rotulo}
           <input value={campos[nome]} onChange={editar(nome)} className={classe} />
@@ -60,9 +71,11 @@ export function DialogoDeEdicaoDoContato({
   aberto: boolean
   aoMudar: (aberto: boolean) => void
 }) {
+  // Com as listas de e-mails e telefones, o diálogo é mais largo e rola se passar da tela.
+  const largo = !!useFonteDeContas().salvarCanaisDoContato && !!contato.emails && !!contato.telefones
   return (
     <Dialog open={aberto} onOpenChange={aoMudar}>
-      <DialogContent className="gap-5 p-6 sm:max-w-lg">
+      <DialogContent className={cn('max-h-[90vh] gap-5 overflow-y-auto p-6', largo ? 'sm:max-w-2xl' : 'sm:max-w-lg')}>
         {aberto && <CorpoDaEdicao contato={contato} aoMudar={aoMudar} />}
       </DialogContent>
     </Dialog>
@@ -78,6 +91,10 @@ function CorpoDaEdicao({ contato, aoMudar }: { contato: Contato; aoMudar: (abert
     whatsapp: contato.whatsapp ?? '',
     linkedin: contato.linkedin ?? '',
   })
+  // Com as listas (só o Workspace operacional as informa, e só se chegaram inteiras), o e-mail e o telefone se editam nelas.
+  const comListas = !!fonte.salvarCanaisDoContato && !!contato.emails && !!contato.telefones
+  const canaisAtuais: CanaisDoContato = { emails: contato.emails ?? [], telefones: contato.telefones ?? [] }
+  const [canais, setCanais] = useState(canaisAtuais)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -90,7 +107,15 @@ function CorpoDaEdicao({ contato, aoMudar }: { contato: Contato; aoMudar: (abert
     setSalvando(true)
     setErro(null)
     try {
-      await fonte.editarContato!(contato.id, campos)
+      if (comListas) {
+        // As listas primeiro: é onde o banco recusa mais (valor de outro Contato). Nome, cargo e LinkedIn vão depois,
+        // sem e-mail nem telefone, que a edição mantém.
+        const novos = canaisSemLinhasEmBranco(canais)
+        if (!mesmosCanais(novos, canaisAtuais)) await fonte.salvarCanaisDoContato!(contato.id, novos)
+        await fonte.editarContato!(contato.id, { nome: campos.nome, cargo: campos.cargo, linkedin: campos.linkedin })
+      } else {
+        await fonte.editarContato!(contato.id, campos)
+      }
       aoMudar(false)
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : 'Não foi possível salvar o Contato.')
@@ -107,7 +132,8 @@ function CorpoDaEdicao({ contato, aoMudar }: { contato: Contato; aoMudar: (abert
         </DialogDescription>
       </DialogHeader>
       <div className="flex flex-col gap-3">
-        <CamposDoContato campos={campos} editar={editar} cheios />
+        <CamposDoContato campos={campos} editar={editar} cheios semEmailETelefone={comListas} />
+        {comListas && <ListasDeCanais canais={canais} aoMudar={setCanais} />}
       </div>
       {erro && (
         <p role="alert" className="text-sm text-al-atencao">

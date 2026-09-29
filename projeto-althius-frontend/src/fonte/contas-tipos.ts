@@ -1,3 +1,4 @@
+import type { CanaisDoContato, EmailDoContato, TelefoneDoContato } from './canais-do-contato'
 import type { FonteDeImportacaoDeContas } from './importacao-tipos'
 import type { FonteObservavel } from './tipos'
 
@@ -137,9 +138,18 @@ export interface Contato {
     linkedin: boolean
   }
   ultimoContatoEm?: string
+  /** O e-mail principal (o primeiro de `emails`). */
   email?: string
+  /** O telefone principal, que sempre foi o WhatsApp do Contato (o primeiro de `telefones`). */
   whatsapp?: string
   linkedin?: string
+  /**
+   * Os e-mails do Contato, o principal primeiro, até três, com o rótulo de cada um. Só o Workspace operacional informa:
+   * sem isto, o Contato tem só o principal e a tela não oferece as listas.
+   */
+  emails?: EmailDoContato[]
+  /** Os telefones do Contato, o principal primeiro, até três, com o tipo e a marca de WhatsApp de cada um. */
+  telefones?: TelefoneDoContato[]
   ehReal?: boolean
   /**
    * Quem está na sessão pode editar os dados do Contato: um Administrador ou o Vendedor responsável por todas as Contas
@@ -274,6 +284,13 @@ export interface FonteDeContas extends FonteObservavel {
    * Sem este método, não há edição.
    */
   editarContato?(contatoId: string, campos: EdicaoDoContato): Promise<Contato>
+
+  /**
+   * Troca de uma vez as listas de e-mails e de telefones do Contato (o primeiro item de cada uma é o principal, até
+   * três). O valor que pertence a outro Contato do Workspace é recusado e nada muda; a permissão é a da edição. Sem
+   * este método, a fonte não oferece as listas e o Contato tem só o principal.
+   */
+  salvarCanaisDoContato?(contatoId: string, canais: CanaisDoContato): Promise<Contato>
 
   /** Abre um Vínculo do Contato com outra Conta-alvo, mantendo os que ele já tem. */
   vincularContato?(contatoId: string, contaId: string): Promise<void>
