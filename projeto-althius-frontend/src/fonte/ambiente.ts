@@ -7,9 +7,14 @@ import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding, FonteDeSequencia
 
 export type ModoDoAmbiente = 'demonstracao' | 'real'
 
-/** Os módulos que um Workspace operacional liga ao backend um de cada vez. Sequências já é real. */
+/**
+ * Os módulos que um Workspace operacional liga ao backend um de cada vez. Sequências já é real. `agentes` é a
+ * configuração dos Agentes (Personalização, Permissões, Memória, Habilidades e Rotinas); `conversas` é executá-los,
+ * numa Conversa direta ou na Coordenação, e depende de um provedor de modelo.
+ */
 export type ModuloDoWorkspace =
   | 'agentes'
+  | 'conversas'
   | 'contas'
   | 'contatos'
   | 'sinais'
@@ -22,7 +27,8 @@ export type ModuloDoWorkspace =
 
 /** Como a tela anuncia um módulo que o Workspace operacional ainda não conectou. */
 export const MODULO_INDISPONIVEL: Record<ModuloDoWorkspace, string> = {
-  agentes: 'Agentes e Conversas ainda não estão disponíveis neste Workspace.',
+  agentes: 'Agentes ainda não estão disponíveis neste Workspace.',
+  conversas: 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.',
   contas: 'Contas e Contatos ainda não estão disponíveis neste Workspace.',
   contatos: 'Contatos ainda não estão disponíveis neste Workspace.',
   sinais: 'Sinais ainda não estão disponíveis neste Workspace.',

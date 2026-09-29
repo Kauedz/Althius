@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { Button } from '@/components/ui/button'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { DOCUMENTOS_DA_MEMORIA, frasesDo } from '@/fonte/regras-memoria'
 import type { Agente, DocumentoDaMemoria, DocumentoVigente, Fato, MemoriaDoWorkspace } from '@/fonte/tipos'
+import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 
 export function SecaoMemoria({ agente }: { agente: Agente }) {
   const fatos = useDados((fonte) => fonte.memoria(agente.id), [agente.id])
@@ -88,13 +90,14 @@ function DocumentoDoContexto({ documento, vigente }: { documento: DocumentoDaMem
 
 function ItemDeFato({ fato }: { fato: Fato }) {
   const fonte = useFonte()
+  const podeAdministrar = usePodeAdministrarAgentes()
+  const { erro, escrever } = useEscritaDeAgente()
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState(fato.texto)
 
   async function salvar() {
     if (!texto.trim()) return
-    await fonte.editarFato(fato.id, texto.trim())
-    setEditando(false)
+    if (await escrever(() => fonte.editarFato(fato.id, texto.trim()))) setEditando(false)
   }
 
   return (
@@ -112,9 +115,10 @@ function ItemDeFato({ fato }: { fato: Fato }) {
           <p>{fato.texto}</p>
         )}
         <span className="text-sm text-al-muted">{fato.origem}</span>
+        <Mensagem tipo="erro">{erro}</Mensagem>
       </div>
       <div className="flex gap-2">
-        {editando ? (
+        {!podeAdministrar ? null : editando ? (
           <>
             <Button onClick={salvar}>Salvar</Button>
             <Button
@@ -132,7 +136,7 @@ function ItemDeFato({ fato }: { fato: Fato }) {
             <Button variant="ghost" onClick={() => setEditando(true)}>
               Editar
             </Button>
-            <Button variant="ghost" onClick={() => fonte.apagarFato(fato.id)}>
+            <Button variant="ghost" onClick={() => escrever(() => fonte.apagarFato(fato.id))}>
               Apagar
             </Button>
           </>

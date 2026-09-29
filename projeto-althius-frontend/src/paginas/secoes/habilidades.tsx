@@ -1,13 +1,17 @@
 import { Carregando } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { Switch } from '@/components/ui/switch'
 import { useDados, useFonte } from '@/fonte/contexto'
 import { DOCUMENTOS_DA_MEMORIA, frasesDo, USO_NA_HABILIDADE } from '@/fonte/regras-memoria'
 import type { Agente } from '@/fonte/tipos'
+import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 
 export function SecaoHabilidades({ agente }: { agente: Agente }) {
   const fonte = useFonte()
   const habilidades = useDados((f) => f.habilidades(agente.id), [agente.id])
   const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
+  const podeAdministrar = usePodeAdministrarAgentes()
+  const { erro, escrever } = useEscritaDeAgente()
 
   return (
     <section aria-labelledby="titulo-habilidades" className="flex max-w-3xl flex-col gap-6">
@@ -17,8 +21,11 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
         </h2>
         <p className="text-al-muted">Procedimentos que {agente.nome} criou ou refinou com o uso e passa a reaplicar.</p>
       </div>
+      <Mensagem tipo="erro">{erro}</Mensagem>
       {!habilidades ? (
         <Carregando />
+      ) : habilidades.length === 0 ? (
+        <p className="text-al-muted">{agente.nome} ainda não criou nenhuma Habilidade.</p>
       ) : (
         <ul className="flex flex-col border-t border-al-line">
           {habilidades.map((habilidade) => (
@@ -44,7 +51,8 @@ export function SecaoHabilidades({ agente }: { agente: Agente }) {
                 <Switch
                   aria-label={habilidade.nome}
                   checked={habilidade.ativa}
-                  onCheckedChange={(ativa) => fonte.definirHabilidadeAtiva(habilidade.id, ativa)}
+                  disabled={!podeAdministrar}
+                  onCheckedChange={(ativa) => escrever(() => fonte.definirHabilidadeAtiva(habilidade.id, ativa))}
                 />
               </div>
             </li>

@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Carregando } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { Button } from '@/components/ui/button'
-import { useDados, useFonte } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import type { Agente, CanalId, Frequencia, NovaRotina, Rotina } from '@/fonte/tipos'
+import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 import { descreverFrequencia, DIAS_DA_SEMANA, ROTULO_DA_FREQUENCIA, ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
 export function SecaoRotinas({ agente }: { agente: Agente }) {
@@ -10,6 +12,8 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
   const rotinas = useDados((f) => f.rotinas(agente.id), [agente.id])
   const [criando, setCriando] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
+  const { disponivel } = useAmbiente()
+  const podeAdministrar = usePodeAdministrarAgentes()
 
   return (
     <section aria-labelledby="titulo-rotinas" className="flex max-w-3xl flex-col gap-6">
@@ -20,12 +24,19 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
           </h2>
           <p className="text-al-muted">Tarefas que {agente.nome} executa sozinho, no horário combinado.</p>
         </div>
-        {!criando && (
+        {!criando && podeAdministrar && (
           <Button onClick={() => setCriando(true)} className="px-6 tracking-rotulo uppercase">
             Nova rotina
           </Button>
         )}
       </div>
+
+      {/* Uma Rotina só roda quando o Agente executa; sem provedor de modelo, ela fica salva e a tela diz isso. */}
+      {!disponivel('conversas') && (
+        <Mensagem tipo="info">
+          As Rotinas ficam salvas, mas ainda não rodam: executar um Agente ainda não está disponível neste Workspace.
+        </Mensagem>
+      )}
 
       {criando && (
         <FormularioDeRotina
@@ -60,7 +71,12 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
                 />
               </li>
             ) : (
-              <ItemDeRotina key={rotina.id} rotina={rotina} aoEditar={() => setEditandoId(rotina.id)} />
+              <ItemDeRotina
+                key={rotina.id}
+                rotina={rotina}
+                podeAdministrar={podeAdministrar}
+                aoEditar={() => setEditandoId(rotina.id)}
+              />
             ),
           )}
         </ul>
@@ -69,8 +85,17 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
   )
 }
 
-function ItemDeRotina({ rotina, aoEditar }: { rotina: Rotina; aoEditar: () => void }) {
+function ItemDeRotina({
+  rotina,
+  podeAdministrar,
+  aoEditar,
+}: {
+  rotina: Rotina
+  podeAdministrar: boolean
+  aoEditar: () => void
+}) {
   const fonte = useFonte()
+  const { erro, escrever } = useEscritaDeAgente()
   return (
     <li aria-label={rotina.tarefa} className="flex items-start gap-6 border-b border-al-line py-4">
       <div className="flex flex-1 flex-col gap-1">
@@ -79,19 +104,22 @@ function ItemDeRotina({ rotina, aoEditar }: { rotina: Rotina; aoEditar: () => vo
           {descreverFrequencia(rotina)}
           {rotina.canalDestino && ` · envia no ${ROTULO_DO_CANAL[rotina.canalDestino]}`}
         </span>
+        <Mensagem tipo="erro">{erro}</Mensagem>
       </div>
       {rotina.pausada && <span className="rotulo self-center border border-al-line px-2 py-1">Pausada</span>}
-      <div className="flex gap-2">
-        <Button variant="ghost" onClick={() => fonte.definirRotinaPausada(rotina.id, !rotina.pausada)}>
-          {rotina.pausada ? 'Retomar' : 'Pausar'}
-        </Button>
-        <Button variant="ghost" onClick={aoEditar}>
-          Editar
-        </Button>
-        <Button variant="ghost" onClick={() => fonte.excluirRotina(rotina.id)}>
-          Excluir
-        </Button>
-      </div>
+      {podeAdministrar && (
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => escrever(() => fonte.definirRotinaPausada(rotina.id, !rotina.pausada))}>
+            {rotina.pausada ? 'Retomar' : 'Pausar'}
+          </Button>
+          <Button variant="ghost" onClick={aoEditar}>
+            Editar
+          </Button>
+          <Button variant="ghost" onClick={() => escrever(() => fonte.excluirRotina(rotina.id))}>
+            Excluir
+          </Button>
+        </div>
+      )}
     </li>
   )
 }
@@ -115,17 +143,20 @@ function FormularioDeRotina({
   const [diaDaSemana, setDiaDaSemana] = useState(inicial?.diaDaSemana ?? 'segunda')
   const [horario, setHorario] = useState(inicial?.horario ?? '09:00')
   const [canalDestino, setCanalDestino] = useState<CanalId | ''>(inicial?.canalDestino ?? '')
+  const { erro, escrever } = useEscritaDeAgente()
 
   async function enviar(evento: FormEvent) {
     evento.preventDefault()
     if (!tarefa.trim()) return
-    await aoSalvar({
-      tarefa: tarefa.trim(),
-      frequencia,
-      diaDaSemana: frequencia === 'semanal' ? diaDaSemana : undefined,
-      horario,
-      canalDestino: canalDestino || null,
-    })
+    await escrever(() =>
+      aoSalvar({
+        tarefa: tarefa.trim(),
+        frequencia,
+        diaDaSemana: frequencia === 'semanal' ? diaDaSemana : undefined,
+        horario,
+        canalDestino: canalDestino || null,
+      }),
+    )
   }
 
   return (
@@ -172,6 +203,9 @@ function FormularioDeRotina({
           ))}
         </select>
       </label>
+      <div className="col-span-2">
+        <Mensagem tipo="erro">{erro}</Mensagem>
+      </div>
       <div className="col-span-2 flex gap-2">
         <Button type="submit" className="px-6 tracking-rotulo uppercase">
           {rotuloDoBotao}
