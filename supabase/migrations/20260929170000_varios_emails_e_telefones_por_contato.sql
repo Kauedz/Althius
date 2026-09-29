@@ -321,6 +321,9 @@ begin
   if not private.can_update_contact(v_contact.workspace_id, v_contact.id, v_user_id) then
     raise exception 'only the responsible seller or an admin can edit this contact' using errcode = '42501';
   end if;
+  -- A regra do apagamento (CRM-18): quem grava dado do Contato segura a trava compartilhada, e apagar o Contato espera
+  -- por ela. Sem isto, um valor adicional gravado durante o apagamento escaparia da varredura.
+  perform private.take_subject_lock('contact', v_contact.id, 'shared');
 
   -- Valida e normaliza as duas listas antes de gravar qualquer coisa.
   if p_emails is not null then

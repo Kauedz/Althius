@@ -8,3 +8,7 @@ Por isso, ao confirmar um passo, o Vendedor responsável fixa o Destino usado no
 
 - **Ler o Destino do Contato na hora do envio.** É o comportamento que o canais-02 deixou. É o mais simples, mas permite o redirecionamento silencioso descrito acima.
 - **Só o Vendedor responsável muda o Destino de um Contato usado por Sequência ativa.** Bloquearia o Administrador, a importação e o enriquecimento. Também não resolve o Contato vinculado a Contas-alvo de vendedores diferentes.
+
+## Atualização: vários e-mails por Contato (ticket 27)
+
+Um Contato pode ter até três e-mails, e o passo escolhe qual usar pela posição (1 é o principal, e a falta da posição vale 1). Ao confirmar, o Vendedor responsável fixa o **endereço** que estava naquela posição, e é esse endereço, não a posição, que fica guardado. Na hora de enviar, o passo só sai se o endereço confirmado ainda for **um dos e-mails do Contato**; se ele foi removido ou trocado por outro, o passo não sai e aguarda a reconfirmação, como antes. O envio nunca vai para um endereço que o Contato não tem mais, e reordenar os e-mails não redireciona um passo já confirmado. O que mudou em relação ao texto acima: o Destino atual deixa de ser "o e-mail do Contato" e passa a ser "qualquer um dos e-mails do Contato".
