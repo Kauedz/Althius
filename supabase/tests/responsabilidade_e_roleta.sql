@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(46);
+select plan(57);
 
 -- Workspace Norte: Ana (Administradora), Beto (Membro), Dora (Participação removida) e Caio (Membro), nessa ordem de
 -- entrada. Eva participa só do Workspace Sul.
@@ -71,15 +71,24 @@ select results_eq(
   'a recomendação só preenche o que a Conta ainda não tem');
 select is((select count(*)::int from public.target_accounts where workspace_id = '61000000-0000-0000-0000-000000000001'), 4,
   'a URL existente não cria outra Conta');
+-- Uma recomendação que não traz nada novo não altera a Conta.
+select is(
+  (select created from public.recommend_target_account('61000000-0000-0000-0000-000000000001', 'Alfa', 'alfa.com.br',
+     p_segment => 'Outro')),
+  false, 'a recomendação sem dado novo também devolve a Conta existente');
 -- A auditoria e o cursor ficam no schema privado; o teste os lê como dono do banco.
 reset role;
 select is(
   (select count(*)::int from private.account_assignment_events where target_account_id = (select target_account_id::text from rec1)), 1,
   'a URL existente não cria outra atribuição');
 select results_eq(
-  $$select last_user_id, assignments from private.account_roulette_cursors where workspace_id = '61000000-0000-0000-0000-000000000001'$$,
-  $$values ('60000000-0000-0000-0000-000000000001'::uuid, 4::bigint)$$,
-  'o cursor persistido não avança com a URL existente');
+  $$select origin, filled_fields, responsible_user_id from private.target_account_enrichments
+    where target_account_id = (select target_account_id from rec1)$$,
+  $$values ('recomendacao'::text, array['linkedin_url']::text[], '60000000-0000-0000-0000-000000000001'::uuid)$$,
+  'o preenchimento pela recomendação fica auditado com os campos preenchidos e o responsável, só quando muda algo');
+select is(
+  (select last_user_id from private.account_roulette_cursors where workspace_id = '61000000-0000-0000-0000-000000000001'),
+  '60000000-0000-0000-0000-000000000001'::uuid, 'o cursor persistido não avança com a URL existente');
 set local role service_role;
 select is(
   (select responsible_user_id from public.recommend_target_account('61000000-0000-0000-0000-000000000001', 'Épsilon', 'epsilon.com.br')),
@@ -144,10 +153,10 @@ select throws_ok(
 
 -- Importação (primitiva que o CRM-07 chama): o importador é o responsável inicial.
 create temporary table importadas on commit drop as
-  select n, r.* from (values (1, 'imp1.com.br'), (2, 'imp2.com.br'), (3, 'imp3.com.br')) v(n, url)
+  select n, r.* from (values (1, 'imp1.com.br'), (2, 'imp2.com.br'), (3, 'imp3.com.br'), (4, 'imp4.com.br'), (5, 'imp5.com.br')) v(n, url)
   cross join lateral private.create_imported_target_account(
-    '61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'Importada ' || n, url,
-    p_import_batch_id => '6a000000-0000-0000-0000-000000000001') r;
+    '61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', '6a000000-0000-0000-0000-000000000001',
+    'Importada ' || n, url) r;
 insert into ids select 'imp' || n, target_account_id from importadas;
 select results_eq(
   $$select a.origin, a.created_by, r.owner_user_id, e.origin, e.eligible_user_ids, e.actor_user_id, e.import_batch_id
@@ -161,7 +170,8 @@ select results_eq(
   'a importação atribui ao importador e registra origem, lote e responsável');
 select results_eq(
   $$select target_account_id, created from private.create_imported_target_account(
-      '61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'Alfa Importada', 'https://alfa.com.br')$$,
+      '61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', '6a000000-0000-0000-0000-000000000001',
+      'Alfa Importada', 'https://alfa.com.br')$$,
   $$select id, false from ids where nome = 'alfa'$$,
   'importar uma URL existente devolve a Conta existente sem criar outra');
 select results_eq(
@@ -172,43 +182,68 @@ select results_eq(
   'a importação de uma URL existente não muda a Conta, o responsável nem a auditoria');
 select throws_ok(
   $$select * from private.create_imported_target_account(
-      '61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000003', 'Da Dora', 'dora.com.br')$$,
+      '61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000003', '6a000000-0000-0000-0000-000000000001',
+      'Da Dora', 'dora.com.br')$$,
   '42501', 'the importer must be an active participant', 'quem não participa mais não importa');
-select results_eq(
-  $$select assignments from private.account_roulette_cursors where workspace_id = '61000000-0000-0000-0000-000000000001'$$,
-  $$values (5::bigint)$$, 'a criação manual e a importação não consomem a roleta');
+select throws_ok(
+  $$select * from private.create_imported_target_account(
+      '61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', null, 'Sem lote', 'semlote.com.br')$$,
+  '22023', 'an import batch is required', 'toda Conta importada pertence a um lote de importação');
+select is(
+  (select last_user_id from private.account_roulette_cursors where workspace_id = '61000000-0000-0000-0000-000000000001'),
+  '60000000-0000-0000-0000-000000000002'::uuid, 'a criação manual e a importação não consomem a roleta');
 
--- Distribuição das linhas importadas: só Administrador, só para participante ativo, uma vez por Conta importada.
+-- A imp4 foi importada há mais de 24 horas; a imp5 já tem Sequência do Beto.
+update private.account_assignment_events set created_at = now() - interval '25 hours'
+where target_account_id = (select id::text from ids where nome = 'imp4');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000002', true);
+select lives_ok(
+  $$select public.create_sequence('61000000-0000-0000-0000-000000000001', (select id::text from ids where nome = 'imp5'), '{}', '{}')$$,
+  'o importador cria a Sequência de uma Conta importada');
+
+-- Distribuição das linhas importadas: só Administrador, só no lote e na janela da importação, só para participante
+-- ativo, uma vez por Conta importada.
 select throws_ok(
-  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001',
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
       array[(select id from ids where nome = 'imp1')], array['60000000-0000-0000-0000-000000000004'::uuid])$$,
   '42501', 'only administrators can distribute imported target accounts', 'um Membro não distribui linhas importadas');
 select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000005', true);
 select throws_ok(
-  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001',
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
       array[(select id from ids where nome = 'imp1')], array['60000000-0000-0000-0000-000000000005'::uuid])$$,
   '42501', 'active workspace membership required', 'o Administrador de outro Workspace não distribui');
 
 select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000001', true);
 select throws_ok(
-  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001',
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
       array[(select id from ids where nome = 'imp3')], array['60000000-0000-0000-0000-000000000003'::uuid])$$,
   '42501', 'the new responsible seller must be an active participant', 'a distribuição não vai para Participação inativa');
 select throws_ok(
-  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001',
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
       array[(select id from ids where nome = 'manual')], array['60000000-0000-0000-0000-000000000001'::uuid])$$,
   '42501', 'only imported target accounts can be distributed', 'uma Conta manual não é redistribuída');
 select throws_ok(
-  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001',
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000002',
+      array[(select id from ids where nome = 'imp1')], array['60000000-0000-0000-0000-000000000001'::uuid])$$,
+  '42501', 'target account is not in this import batch', 'a distribuição vale só para as Contas do lote indicado');
+select throws_ok(
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
+      array[(select id from ids where nome = 'imp4')], array['60000000-0000-0000-0000-000000000001'::uuid])$$,
+  '42501', 'the distribution window of this import has closed', 'passadas 24 horas da importação, não há distribuição');
+select throws_ok(
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
+      array[(select id from ids where nome = 'imp5')], array['60000000-0000-0000-0000-000000000001'::uuid])$$,
+  '42501', 'target account already has a sequence', 'uma Conta importada com Sequência não é distribuída');
+select throws_ok(
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
       array[(select id from ids where nome = 'imp1')], array[]::uuid[])$$,
   '22023', 'each target account needs one responsible seller', 'cada Conta precisa de exatamente um responsável');
 select is(
-  public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001',
-    array[(select id from ids where nome = 'imp1'), (select id from ids where nome = 'imp2')],
-    array['60000000-0000-0000-0000-000000000004', '60000000-0000-0000-0000-000000000001']::uuid[]),
-  2, 'o Administrador distribui linhas importadas entre participantes ativos');
+  public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
+    array[(select id from ids where nome = 'imp1'), (select id from ids where nome = 'imp2'), (select id from ids where nome = 'imp3')],
+    array['60000000-0000-0000-0000-000000000004', '60000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002']::uuid[]),
+  2, 'o Administrador distribui linhas importadas entre participantes ativos; manter o importador não conta como distribuição');
 select results_eq(
   $$select target_account_id::uuid, owner_user_id from public.sales_responsibilities
     where target_account_id in (select id::text from ids where nome in ('imp1', 'imp2', 'imp3')) order by 1$$,
@@ -217,15 +252,23 @@ select results_eq(
       on v.nome = i.nome order by 1$$,
   'as Contas distribuídas mudam de responsável, e a não distribuída continua com o importador');
 select throws_ok(
-  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001',
+  $$select public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
       array[(select id from ids where nome = 'imp3'), (select id from ids where nome = 'imp1')],
       array['60000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002']::uuid[])$$,
   '42501', 'imported target account was already distributed', 'uma Conta já distribuída não é redistribuída');
 select is(
   (select owner_user_id from public.sales_responsibilities where target_account_id = (select id::text from ids where nome = 'imp3')),
   '60000000-0000-0000-0000-000000000002'::uuid, 'a distribuição recusada não muda nenhuma das Contas do pedido');
+select is(
+  public.distribute_imported_target_accounts('61000000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
+    array[(select id from ids where nome = 'imp3')], array['60000000-0000-0000-0000-000000000001'::uuid]),
+  1, 'manter o importador não gastou a única distribuição da Conta');
 
 reset role;
+select is(
+  (select count(*)::int from private.account_assignment_events
+   where target_account_id = (select id::text from ids where nome = 'imp3') and origin = 'distribuicao_importacao'),
+  1, 'manter o importador não deixa evento de distribuição');
 select results_eq(
   $$select origin, previous_user_id, assigned_user_id, actor_user_id, eligible_user_ids
     from private.account_assignment_events where target_account_id = (select id::text from ids where nome = 'imp1') order by id$$,
@@ -237,9 +280,23 @@ select results_eq(
             '60000000-0000-0000-0000-000000000004']::uuid[])$$,
   'a auditoria registra a distribuição: responsável anterior, novo, quem distribuiu e os elegíveis');
 select throws_ok(
-  $$update public.sales_responsibilities set owner_user_id = '60000000-0000-0000-0000-000000000001'
+  $$update public.sales_responsibilities set owner_user_id = '60000000-0000-0000-0000-000000000002'
     where target_account_id = (select id::text from ids where nome = 'imp3')$$,
   'P0001', 'sales responsibility is permanent', 'fora da distribuição e da transferência, a responsabilidade não muda');
+
+-- Uma troca feita por fora das RPCs, por quem abre a trava de propósito (operação administrativa), fica auditada.
+select set_config('althius.troca_de_responsavel',
+  private.responsibility_key('61000000-0000-0000-0000-000000000001', (select id::text from ids where nome = 'imp3')), true);
+update public.sales_responsibilities set owner_user_id = '60000000-0000-0000-0000-000000000002'
+where target_account_id = (select id::text from ids where nome = 'imp3');
+select set_config('althius.troca_de_responsavel', '', true);
+select results_eq(
+  $$select origin, previous_user_id, assigned_user_id, eligible_user_ids
+    from private.account_assignment_events where target_account_id = (select id::text from ids where nome = 'imp3')
+    order by id desc limit 1$$,
+  $$values ('alteracao_direta'::text, '60000000-0000-0000-0000-000000000001'::uuid, '60000000-0000-0000-0000-000000000002'::uuid,
+      array['60000000-0000-0000-0000-000000000002']::uuid[])$$,
+  'uma troca de responsável por fora das RPCs também fica auditada');
 
 -- Transferência excepcional: só depois da saída do responsável, por Administrador, para participante ativo, com motivo.
 set local role authenticated;
@@ -278,8 +335,12 @@ select is(
   (select owner_user_id from public.sales_responsibilities where target_account_id = (select id::text from ids where nome = 'manual')),
   '60000000-0000-0000-0000-000000000002'::uuid, 'o novo responsável fica gravado');
 
--- Todo participante ativo consulta o histórico de atribuições da Conta.
+-- Só Administradores consultam o histórico de atribuições da Conta.
 select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000002', true);
+select throws_ok(
+  $$select * from public.list_account_assignment_events((select id from ids where nome = 'manual'))$$,
+  '42501', 'only administrators can read the assignment history', 'um Membro não lê o histórico de atribuições');
+select set_config('request.jwt.claim.sub', '60000000-0000-0000-0000-000000000001', true);
 select results_eq(
   $$select origin, previous_user_id, assigned_user_id, actor_user_id, eligible_user_ids, reason
     from public.list_account_assignment_events((select id from ids where nome = 'manual'))$$,
@@ -306,12 +367,12 @@ select ok(not has_function_privilege('anon', 'public.recommend_target_account(uu
   'anon não recomenda Contas');
 select ok(not has_function_privilege('authenticated', 'public.recommend_target_account(uuid, text, text, text, text, text)', 'execute'),
   'um participante autenticado não recomenda Contas pela roleta');
-select ok(not has_function_privilege('anon', 'public.distribute_imported_target_accounts(uuid, uuid[], uuid[])', 'execute')
+select ok(not has_function_privilege('anon', 'public.distribute_imported_target_accounts(uuid, uuid, uuid[], uuid[])', 'execute')
   and not has_function_privilege('anon', 'public.transfer_target_account_responsibility(uuid, uuid, text)', 'execute')
   and not has_function_privilege('anon', 'public.list_account_assignment_events(uuid)', 'execute'),
   'anon não distribui, não transfere e não lê a auditoria');
-select ok(not has_function_privilege('authenticated', 'private.create_imported_target_account(uuid, uuid, text, text, text, text, text, uuid)', 'execute')
-  and not has_function_privilege('service_role', 'private.create_imported_target_account(uuid, uuid, text, text, text, text, text, uuid)', 'execute'),
+select ok(not has_function_privilege('authenticated', 'private.create_imported_target_account(uuid, uuid, uuid, text, text, text, text, text)', 'execute')
+  and not has_function_privilege('service_role', 'private.create_imported_target_account(uuid, uuid, uuid, text, text, text, text, text)', 'execute'),
   'a primitiva da importação só é chamada por outra função do banco');
 
 select * from finish();

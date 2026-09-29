@@ -74,6 +74,13 @@ _Avoid_: lead, prospect, conta
 **Roleta de Contas**:
 Distribuição automática e rotativa das novas Contas-alvo recomendadas pela Althius entre todos os participantes ativos do Workspace, Administradores e Membros, atribuindo cada Conta a um único Vendedor responsável. Uma recomendação que atualiza uma Conta já registrada não cria outra atribuição.
 
+**Distribuição da importação**:
+A ação de um Administrador que, logo depois de uma importação, passa Contas-alvo do lote importado do importador para outros participantes ativos. Cada Conta importada é distribuída uma única vez, até 24 horas depois de importada e enquanto não tem Sequência. Depois disso, a responsabilidade só muda por Transferência de responsabilidade.
+_Avoid_: redistribuição, reatribuição
+
+**Transferência de responsabilidade**:
+A ação excepcional de um Administrador que passa uma Conta-alvo a um participante ativo depois que o Vendedor responsável deixou o Workspace. Exige motivo e fica auditada. A Sequência e as Contas remetentes do antigo responsável não vão junto.
+
 **Aderência**:
 A classificação de encaixe de uma Conta-alvo no ICP pelo Scopus: **Fit** ou **Não fit**. Uma Conta-alvo importada fica sem Aderência até ser avaliada; um Sinal disparado a torna Quente sem determinar esse encaixe.
 _Avoid_: momento, temperatura, fit score, nota, score, morna, frio
@@ -190,7 +197,7 @@ O plano de abordagem de uma Conta-alvo, com Contatos participantes e passos orde
 _Avoid_: cadência como rótulo de interface
 
 **Vendedor responsável**:
-O usuário que detém a responsabilidade comercial exclusiva por uma Conta-alvo dentro do Workspace. Outro participante não pode assumir sua prospecção nem criar uma Sequência concorrente para essa Conta-alvo.
+O usuário que detém a responsabilidade comercial exclusiva por uma Conta-alvo dentro do Workspace. Outro participante não pode assumir sua prospecção nem criar uma Sequência concorrente para essa Conta-alvo. A responsabilidade só muda pela Distribuição da importação, logo depois de importar, ou por Transferência de responsabilidade, depois que ele deixa o Workspace.
 
 **Canal de abordagem**:
 O meio pelo qual um passo da Sequência alcança um Contato: E-mail, LinkedIn ou WhatsApp. É distinto do Canal usado para conversar com um Agente.
