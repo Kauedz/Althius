@@ -16,3 +16,6 @@ verify_jwt = false
 
 [functions.workspace-invitation-email]
 verify_jwt = true
+
+[functions.contact-photo-lookup]
+verify_jwt = true
