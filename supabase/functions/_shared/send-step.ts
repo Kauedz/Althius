@@ -1,7 +1,8 @@
 // O núcleo do envio de um passo de E-mail, compartilhado pelo envio pedido pelo titular (sequence-step-sends) e pelo
 // Executor (sequence-runner). A função não decide nada sozinha: confere a conversa na Unipile, o banco libera o envio
 // depois de revalidar tudo, a Unipile envia e o banco grava o resultado. Quem chama só escolhe como liberar: pelo
-// titular (release_sequence_step_send) ou pelo Executor (release_due_step_send).
+// titular (release_sequence_step_send) ou pelo Executor (release_due_step_send). O passo de WhatsApp tem o núcleo
+// irmão em send-whatsapp.ts, com o mesmo desenho e os mesmos resultados.
 import type { IngestedEmail, IngestEmailEventInput } from './ingest-email-event.ts'
 
 export type SendOutcome = 'sent' | 'failed' | 'uncertain'
@@ -24,6 +25,13 @@ export type BlockedOutcome =
   | 'authorization_revoked'
   | 'not_scheduled'
   | 'destination_bounced'
+  // WhatsApp (canais-06): o banco recusou por canal, espaçamento ou texto; a Unipile disse que o número não tem
+  // WhatsApp (destination_no_whatsapp) ou a conferência do número falhou (destination_check_failed).
+  | 'wrong_channel'
+  | 'sender_spacing'
+  | 'empty_content'
+  | 'destination_no_whatsapp'
+  | 'destination_check_failed'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -67,6 +75,8 @@ export interface SendStepDb {
     error?: string | null
     /** O prazo que a Unipile pediu antes de tentar de novo (Retry-After), em segundos. */
     retryAfterSeconds?: number | null
+    /** WhatsApp: a conversa do provedor, guardada quando o envio é aceito. */
+    providerChatId?: string | null
   }): Promise<void>
 }
 
@@ -129,6 +139,24 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   authorization_revoked: 'A Sequência mudou depois da ativação. Ative os envios de novo para enviar este passo.',
   not_scheduled: 'Este passo espera o envio manual do Vendedor responsável.',
   destination_bounced: 'O e-mail deste Contato já voltou nesta Sequência. Corrija o e-mail e reconfirme o passo.',
+  wrong_channel: 'Este envio é de outro canal e não sai por aqui.',
+  sender_spacing:
+    'Sua Conta de WhatsApp enviou uma mensagem há poucos segundos. Espere um pouco antes de enviar outra.',
+  empty_content: 'O passo está sem texto. Escreva a mensagem e ative os envios de novo.',
+  destination_no_whatsapp: 'Este número não tem WhatsApp. Corrija o número do Contato e reconfirme o passo.',
+  destination_check_failed: 'Não foi possível conferir se o número tem WhatsApp. Tente de novo em instantes.',
+}
+
+/** O que muda no texto de um bloqueio quando o passo é de WhatsApp: os demais valem para os dois canais. */
+const WHATSAPP_MESSAGES: Partial<Record<BlockedOutcome, string>> = {
+  sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar.',
+  destination_changed:
+    'O número do Contato mudou depois da confirmação. Reconfirme o passo para enviar ao novo número.',
+  reconcile_required: 'O último envio deste passo ficou incerto. Confira no seu WhatsApp e diga se a mensagem saiu.',
+}
+
+export function blockedMessage(outcome: BlockedOutcome, channel: 'email' | 'whatsapp' = 'email') {
+  return (channel === 'whatsapp' ? WHATSAPP_MESSAGES[outcome] : undefined) ?? BLOCKED_MESSAGES[outcome]
 }
 
 export type StepSendResult =

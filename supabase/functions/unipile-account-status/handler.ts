@@ -3,8 +3,13 @@
 // fica nas RPCs (apply_unipile_sender_status, complete_sender_connection_attempt, ingest_unipile_email_event).
 // O trabalho pesado (baixar anexos) roda depois da resposta. O banco, a Unipile e o Storage entram por
 // injeção de dependência, para o teste ir da requisição à resposta sem rede.
+//
+// Os eventos message.* (WhatsApp e LinkedIn) só são reconhecidos com 200: nada vira Interação, pausa ou dado
+// compartilhado até o canais-06 (parte 2), que espera o JSON real. Enquanto isso, com o segredo UNIPILE_CAPTURE_SHAPES
+// igual a 1, guarda-se um FORMATO censurado do corpo (redact-shape.ts), nunca o conteúdo.
 
 import type { EmailAttachmentRef, IngestedEmail, IngestEmailEventInput } from '../_shared/ingest-email-event.ts'
+import { redactShape } from './redact-shape.ts'
 export type { EmailAttachmentRef, IngestedEmail }
 
 export interface WebhookDb {
@@ -47,6 +52,12 @@ export interface Deps {
   db: WebhookDb
   unipile: WebhookUnipile
   storage: AttachmentStore
+  /**
+   * Guarda o formato censurado de um evento message.* (RPC capture_webhook_shape) e diz se guardou. Sem ele, ou
+   * devolvendo false (captura desligada ou teto atingido), nada é guardado. Quem o injeta liga a captura pelo segredo
+   * UNIPILE_CAPTURE_SHAPES.
+   */
+  captureShape?: (eventType: string, shape: Record<string, unknown>) => Promise<boolean>
   /** Relógio, para a janela de 5 minutos da assinatura. Padrão Date.now. */
   now?: () => number
   /** Continua um trabalho depois da resposta (EdgeRuntime.waitUntil). Padrão: fire-and-forget. */
@@ -112,6 +123,12 @@ const PROVIDERS_WITH_INITIAL_SYNC = new Set(['whatsapp', 'imap'])
 const EMAIL_EVENTS = new Set(['email.new', 'email.new.bounce'])
 
 const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** message.new, message.update, message.delivery, message.receipt.read...: mensagens de WhatsApp e LinkedIn. */
+const MESSAGE_EVENT = /^message\.[a-z0-9_.-]{1,50}$/
+
+/** Um formato maior que isso não é guardado (o banco também recusa acima de 64 KB). */
+const MAX_SHAPE_CHARS = 60_000
 
 /** Um único segmento de caminho: sem barras, sem nomes só de pontos, no máximo 120 caracteres. */
 function pathSegment(value: string, fallback: string) {
@@ -212,6 +229,24 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       const event = JSON.parse(rawBody)
       const type = typeof event?.type === 'string' ? event.type : ''
       const accountId = typeof event?.account_id === 'string' ? event.account_id : ''
+
+      // Mensagens: só reconhecidas. Nada é criado, pausado ou compartilhado; o formato só é guardado com a captura ligada.
+      if (type.startsWith('message.')) {
+        let shape: 'stored' | 'not_stored' | 'error' = 'not_stored'
+        if (deps.captureShape && MESSAGE_EVENT.test(type)) {
+          try {
+            const redacted = redactShape(event)
+            if (JSON.stringify(redacted).length <= MAX_SHAPE_CHARS && await deps.captureShape(type, redacted)) {
+              shape = 'stored'
+            }
+          } catch {
+            shape = 'error'
+          }
+        }
+        log({ type, outcome: 'message_event_acknowledged', shape })
+        return received()
+      }
+
       if (!type || !accountId) {
         log({ type, outcome: 'invalid_event' })
         return new Response('Invalid event', { status: 400 })

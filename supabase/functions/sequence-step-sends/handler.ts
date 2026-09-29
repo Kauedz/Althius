@@ -4,12 +4,14 @@
 // requisição à resposta sem rede.
 import { comCors } from '../_shared/cors.ts'
 import {
-  BLOCKED_MESSAGES,
+  blockedMessage,
   type ReleaseResult,
   sendStep,
   type SendStepDb,
+  type StepSendResult,
   type UnipileMail,
 } from '../_shared/send-step.ts'
+import { sendWhatsappStep, type WhatsappPort } from '../_shared/send-whatsapp.ts'
 
 export {
   type BlockedOutcome,
@@ -36,6 +38,8 @@ export interface Db extends SendStepDb {
 export interface Deps {
   db: Db
   unipile: UnipileMail
+  /** O caminho do WhatsApp (canais-06). Sem ele, todo envio segue pelo caminho do E-mail. */
+  whatsapp?: WhatsappPort
   appOrigin: string
   /** Depois disso, o resultado é incerto: pode ter saído ou não. Padrão 25 s. */
   sendTimeoutMs?: number
@@ -75,15 +79,29 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return respond({ error: 'Participação ativa no Workspace não encontrada.' }, 403)
     }
 
-    const result = await sendStep(deps, {
-      sendId,
-      userId: user.userId,
-      release: () => deps.db.releaseStepSend(sendId, user.userId),
-    })
+    // O canal do Envio decide o caminho. Sem o caminho do WhatsApp configurado, ou sem conseguir saber o canal, o envio
+    // segue pelo E-mail, e a liberação do banco recusa um Envio de outro canal (wrong_channel).
+    let channel: 'email' | 'whatsapp' = 'email'
+    if (deps.whatsapp) {
+      try {
+        if (await deps.whatsapp.db.stepSendChannel(sendId, user.userId) === 'whatsapp') channel = 'whatsapp'
+      } catch {
+        channel = 'email'
+      }
+    }
+
+    const whatsapp = deps.whatsapp
+    const result: StepSendResult = channel === 'whatsapp' && whatsapp
+      ? await sendWhatsappStep(whatsapp, { sendId, release: () => whatsapp.db.releaseSend(sendId, user.userId) })
+      : await sendStep(deps, {
+        sendId,
+        userId: user.userId,
+        release: () => deps.db.releaseStepSend(sendId, user.userId),
+      })
 
     switch (result.kind) {
       case 'blocked':
-        return respond({ outcome: result.outcome, sendId, message: BLOCKED_MESSAGES[result.outcome] }, 409)
+        return respond({ outcome: result.outcome, sendId, message: blockedMessage(result.outcome, channel) }, 409)
       case 'not_found':
         return respond({ error: 'Envio não encontrado.' }, 404)
       case 'release_error':
@@ -107,7 +125,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     return respond({
       outcome: 'uncertain',
       sendId,
-      message: 'A Unipile não respondeu a tempo. O envio será conferido antes de qualquer reenvio.',
+      message: channel === 'whatsapp'
+        ? 'A Unipile não confirmou o envio. Confira no seu WhatsApp se a mensagem saiu e diga isso aqui: a Althius nunca reenvia sozinha.'
+        : 'A Unipile não respondeu a tempo. O envio será conferido antes de qualquer reenvio.',
     }, 504)
   })
 }

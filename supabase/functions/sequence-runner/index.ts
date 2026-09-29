@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
+import { sendStepDbVia, unipileChatVia, unipileMailVia, whatsappDbVia } from '../_shared/send-step-adapters.ts'
 import {
   type ConversationToReconcile,
   createHandler,
@@ -79,5 +79,6 @@ const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unkn
 Deno.serve(createHandler({
   db,
   unipile: unipileMailVia(UNIPILE_API_KEY),
+  whatsapp: { db: whatsappDbVia(admin), chat: unipileChatVia(UNIPILE_API_KEY) },
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
 }))

@@ -68,6 +68,15 @@ const storage: AttachmentStore = {
   },
 }
 
+// Formatos censurados de eventos message.*, só com o segredo UNIPILE_CAPTURE_SHAPES igual a 1 (lido a cada evento).
+// O que chega aqui já passou por redactShape: chaves, aninhamento, números e tokens de enumeração, nunca conteúdo.
+async function captureShape(eventType: string, shape: Record<string, unknown>) {
+  if (Deno.env.get('UNIPILE_CAPTURE_SHAPES') !== '1') return false
+  const { data, error } = await admin.rpc('capture_webhook_shape', { p_event_type: eventType, p_shape: shape })
+  if (error) throw error
+  return data === true
+}
+
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para os anexos serem baixados.
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
 
@@ -76,5 +85,6 @@ Deno.serve(createHandler({
   db,
   unipile,
   storage,
+  captureShape,
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
 }))

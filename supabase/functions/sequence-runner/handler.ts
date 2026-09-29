@@ -8,12 +8,16 @@ import {
   type ReleaseResult,
   sendStep,
   type SendStepDb,
+  type StepSendResult,
   type UnipileMail,
 } from '../_shared/send-step.ts'
+import { sendWhatsappStep, type WhatsappPort } from '../_shared/send-whatsapp.ts'
 
 export interface DueSend {
   send_id: string
   owner_user_id: string
+  /** O canal do passo ('email' ou 'whatsapp'). Ausente (banco anterior ao canais-06) vale 'email'. */
+  channel?: string
 }
 
 /** Uma Conta remetente que voltou depois de uma queda e espera a reconciliação, reservada pelo Executor. */
@@ -56,6 +60,8 @@ export interface RunnerDb extends SendStepDb {
 export interface Deps {
   db: RunnerDb
   unipile: UnipileMail
+  /** O caminho do WhatsApp (canais-06). Sem ele, um passo vencido de WhatsApp fica sem envio e é só registrado. */
+  whatsapp?: WhatsappPort
   /** Passos por chamada: cada um pode levar até o prazo do envio, e a função tem tempo limitado. Padrão 5. */
   maxPerRun?: number
   /** Contas reconciliadas por chamada. Padrão 3. */
@@ -157,13 +163,25 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       log({ type: 'runner', outcome: 'claim_failed', message: messageOf(error) })
       return
     }
-    // Um passo por vez: a mesma Conta remetente não recebe envios em rajada.
-    for (const { send_id: sendId, owner_user_id: userId } of due) {
+    // Um passo por vez. O banco já entrega no máximo um passo de WhatsApp por Conta remetente e nenhum dentro do
+    // espaçamento mínimo, então a mesma Conta não recebe envios em rajada.
+    for (const { send_id: sendId, owner_user_id: userId, channel } of due) {
       try {
-        const result = await sendStep(deps, { sendId, userId, release: () => deps.db.releaseDueSend(sendId) })
+        let result: StepSendResult
+        if (channel === 'whatsapp') {
+          const whatsapp = deps.whatsapp
+          if (!whatsapp) {
+            log({ type: 'runner', sendId, channel, outcome: 'whatsapp_not_configured' })
+            continue
+          }
+          result = await sendWhatsappStep(whatsapp, { sendId, release: () => whatsapp.db.releaseDueSend(sendId) })
+        } else {
+          result = await sendStep(deps, { sendId, userId, release: () => deps.db.releaseDueSend(sendId) })
+        }
         log({
           type: 'runner',
           sendId,
+          ...(channel === 'whatsapp' ? { channel } : {}),
           outcome: result.kind === 'blocked' || result.kind === 'attempted' ? result.outcome : result.kind,
           ...(result.kind === 'attempted' && !result.recorded ? { recorded: false } : {}),
         })

@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
+import { sendStepDbVia, unipileChatVia, unipileMailVia, whatsappDbVia } from '../_shared/send-step-adapters.ts'
 import { createHandler, type Db, type ReleaseResult } from './handler.ts'
 
 function required(name: string) {
@@ -49,4 +49,9 @@ const db: Db = {
   },
 }
 
-Deno.serve(createHandler({ db, unipile: unipileMailVia(UNIPILE_API_KEY), appOrigin: APP_ORIGIN }))
+Deno.serve(createHandler({
+  db,
+  unipile: unipileMailVia(UNIPILE_API_KEY),
+  whatsapp: { db: whatsappDbVia(admin), chat: unipileChatVia(UNIPILE_API_KEY) },
+  appOrigin: APP_ORIGIN,
+}))
