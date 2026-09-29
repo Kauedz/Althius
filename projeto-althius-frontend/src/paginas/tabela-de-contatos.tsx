@@ -5,6 +5,7 @@ import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 import { useDados } from '@/fonte/contexto'
 import type { SecaoDoDocumento } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
+import { BotaoDeFotoDoContato } from './botao-de-foto-do-contato'
 import { AvatarDoContato, CABECALHO, CELULA, CelulaUltimoContato } from './modulo-contas-e-contatos'
 import type { EstadoDaNavegacao } from './voltar-para-a-lista'
 
@@ -93,6 +94,7 @@ export function TabelaDeContatos({
               <div className="flex min-w-0 items-center gap-2.5">
                 <AvatarDoContato contato={contato} />
                 <span className="truncate text-al-ink">{contato.nome}</span>
+                <BotaoDeFotoDoContato contato={contato} />
               </div>
             </td>
             <td className={CELULA}>

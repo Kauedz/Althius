@@ -1,6 +1,6 @@
 import { Popover } from '@base-ui/react/popover'
 import { ListFilter, Search, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { AbasSublinhadas } from '@/components/abas'
 import { Button } from '@/components/ui/button'
 import type { PreviaContato } from '@/fonte/contas-tipos'
@@ -234,11 +234,24 @@ export function FalhaAoCarregar({ mensagem, tentarDeNovo }: { mensagem: string; 
   )
 }
 
-/** A foto do Contato num círculo, ou as iniciais do nome quando não há foto. */
+/**
+ * A foto do Contato num círculo, ou as iniciais do nome quando não há foto. Uma foto que não carrega (a URL do
+ * provedor expirou) também cai nas iniciais, sem imagem quebrada.
+ */
 export function AvatarDoContato({ contato, className }: { contato: PreviaContato; className?: string }) {
+  const [quebrada, setQuebrada] = useState<string>()
   const circulo = cn('size-6.5 shrink-0 rounded-full border border-al-line ring-[1.5px] ring-al-bg', className)
-  if (contato.foto) {
-    return <img src={contato.foto} alt={contato.nome} title={contato.nome} className={cn(circulo, 'object-cover')} />
+  if (contato.foto && contato.foto !== quebrada) {
+    return (
+      <img
+        src={contato.foto}
+        alt={contato.nome}
+        title={contato.nome}
+        referrerPolicy="no-referrer"
+        onError={() => setQuebrada(contato.foto)}
+        className={cn(circulo, 'object-cover')}
+      />
+    )
   }
   return (
     <span

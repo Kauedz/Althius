@@ -1,7 +1,8 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
+import { renderizarApp } from '@/test/renderizar'
 import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
@@ -241,8 +242,10 @@ function contatoNoBanco(id: string, contaId: string, nome: string, extra: Record
 /** O Workspace da empresa com a Alfa, da Marina, e a Beta, de outro Vendedor responsável; as RPCs gravam nas tabelas. */
 function abrirContasDoNorte(
   rota: string,
-  { sequencias = [], rpcs = {}, esperarLeitura }: Pick<OpcoesDoSupabaseFalso, 'rpcs' | 'esperarLeitura'> & {
+  { sequencias = [], rpcs = {}, esperarLeitura, funcoes, ajustarTabelas }: Pick<OpcoesDoSupabaseFalso, 'rpcs' | 'esperarLeitura' | 'funcoes'> & {
     sequencias?: Record<string, unknown>[]
+    /** Mexe nas tabelas antes de o app abrir, para o teste partir de um Workspace com um dado a mais. */
+    ajustarTabelas?: (tabelas: Record<string, Record<string, unknown>[]>) => void
   } = {},
 ) {
   window.history.replaceState(null, '', rota)
@@ -262,12 +265,14 @@ function abrirContasDoNorte(
     ],
     sequences: sequencias,
   }
+  ajustarTabelas?.(tabelas)
   const aberto = abrirAlthius({
     ultimoAmbiente: 'real',
     ultimoWorkspace: 'ws-norte',
     sessao: sessaoDe(MARINA),
     tabelas,
     esperarLeitura,
+    funcoes,
     rpcs: {
       save_target_account: ({ p_name, p_url }) => {
         const dominio = String(p_url).replace(/^https?:\/\//, '').replace(/\/$/, '')
@@ -539,6 +544,133 @@ describe('Contatos reais no Workspace operacional', () => {
     await usuario.selectOptions(within(encerrar).getByLabelText('Contato desta Conta'), 'Maria Souza')
     await usuario.click(within(encerrar).getByRole('button', { name: 'Encerrar vínculo' }))
     await waitFor(() => expect(within(screen.getByRole('table', { name: 'Contatos da Conta-alvo' })).queryByText('Maria Souza')).not.toBeInTheDocument())
+  })
+})
+
+describe('Foto pública do Contato no Workspace operacional', () => {
+  const ID_DA_MARIA = '7a1c2d3e-4a5b-4c6d-8e7f-000000000001'
+  const FOTO = 'https://media.licdn.com/dms/image/maria.jpg'
+
+  /** A Maria passa a ter LinkedIn, o que habilita a busca da foto; o Rui segue sem. */
+  const comLinkedinNaMaria = (tabelas: Record<string, Record<string, unknown>[]>) => {
+    tabelas.target_contacts[0].linkedin = 'https://www.linkedin.com/in/maria-souza'
+    tabelas.contact_photo_status = []
+  }
+
+  it('mostra a foto que o Actor trouxe e não oferece a busca de novo', async () => {
+    const buscar = vi.fn()
+    abrirContasDoNorte('/contatos', {
+      funcoes: { 'contact-photo-lookup': buscar },
+      ajustarTabelas: (tabelas) => {
+        comLinkedinNaMaria(tabelas)
+        tabelas.contact_photo_status.push({ workspace_id: 'ws-norte', contact_id: ID_DA_MARIA, status: 'found', photo_url: FOTO })
+      },
+    })
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contatos' })
+    const foto = within(tabela).getByRole('img', { name: 'Maria Souza' })
+    expect(foto).toHaveAttribute('src', FOTO)
+    expect(within(tabela).queryByRole('button', { name: /Buscar foto/ })).not.toBeInTheDocument()
+    // Listar a tabela nunca dispara a consulta.
+    expect(buscar).not.toHaveBeenCalled()
+  })
+
+  it('sem foto, o avatar mostra as iniciais e a busca só existe para quem tem LinkedIn; ao clicar, a foto aparece', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    const { usuario, tabelas } = abrirContasDoNorte('/contatos', {
+      ajustarTabelas: comLinkedinNaMaria,
+      funcoes: {
+        'contact-photo-lookup': (corpo) => {
+          pedidos.push(corpo)
+          tabelas.contact_photo_status.push({ workspace_id: 'ws-norte', contact_id: ID_DA_MARIA, status: 'found', photo_url: FOTO })
+          return { corpo: { status: 'found' } }
+        },
+      },
+    })
+
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contatos' })
+    expect(within(tabela).getByRole('img', { name: 'Maria Souza' })).toHaveTextContent('MS')
+    // O Rui não tem LinkedIn: não há de onde buscar.
+    expect(within(tabela).getAllByRole('button', { name: /Buscar foto/ })).toHaveLength(1)
+    expect(pedidos).toEqual([])
+
+    await usuario.click(within(tabela).getByRole('button', { name: 'Buscar foto de Maria Souza' }))
+
+    await waitFor(() => expect(within(screen.getByRole('table')).getByRole('img', { name: 'Maria Souza' })).toHaveAttribute('src', FOTO))
+    expect(pedidos).toEqual([{ contactId: ID_DA_MARIA }])
+    expect(screen.queryByRole('button', { name: /Buscar foto/ })).not.toBeInTheDocument()
+  })
+
+  it('uma foto cuja URL expirou (a imagem não carrega) volta às iniciais', async () => {
+    abrirContasDoNorte('/contatos', {
+      ajustarTabelas: (tabelas) => {
+        comLinkedinNaMaria(tabelas)
+        tabelas.contact_photo_status.push({ workspace_id: 'ws-norte', contact_id: ID_DA_MARIA, status: 'found', photo_url: FOTO })
+      },
+    })
+
+    const foto = await within(await screen.findByRole('table', { name: 'Tabela de Contatos' })).findByRole('img', { name: 'Maria Souza' })
+    fireEvent.error(foto)
+
+    const avatar = within(screen.getByRole('table')).getByRole('img', { name: 'Maria Souza' })
+    expect(avatar.tagName).toBe('SPAN')
+    expect(avatar).toHaveTextContent('MS')
+  })
+
+  it('quando a busca falha, mostra o motivo e o Contato segue com as iniciais', async () => {
+    const { usuario } = abrirContasDoNorte('/contatos', {
+      ajustarTabelas: comLinkedinNaMaria,
+      funcoes: {
+        'contact-photo-lookup': () => ({ status: 429, corpo: { error: 'O Workspace atingiu o limite diário de buscas de foto. Tente de novo amanhã.' } }),
+      },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Buscar foto de Maria Souza' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('O Workspace atingiu o limite diário de buscas de foto')
+    const tabela = screen.getByRole('table', { name: 'Tabela de Contatos' })
+    expect(within(tabela).getByRole('img', { name: 'Maria Souza' })).toHaveTextContent('MS')
+    expect(within(tabela).getByRole('button', { name: 'Buscar foto de Maria Souza' })).toBeEnabled()
+  })
+
+  it('a busca sem resposta do Apify explica a falha em vez de quebrar o Contato', async () => {
+    const { usuario } = abrirContasDoNorte('/contatos', {
+      ajustarTabelas: comLinkedinNaMaria,
+      funcoes: { 'contact-photo-lookup': () => ({ status: 500, corpo: {} }) },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Buscar foto de Maria Souza' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('contact-photo-lookup respondeu HTTP 500')
+    expect(within(screen.getByRole('table')).getByText('Maria Souza')).toBeInTheDocument()
+  })
+
+  it('uma busca que não achou foto deixa a dica de buscar de novo, sem foto inventada', async () => {
+    abrirContasDoNorte('/contatos', {
+      ajustarTabelas: (tabelas) => {
+        comLinkedinNaMaria(tabelas)
+        tabelas.contact_photo_status.push({ workspace_id: 'ws-norte', contact_id: ID_DA_MARIA, status: 'not_found', photo_url: null })
+      },
+    })
+
+    const botao = await screen.findByRole('button', { name: 'Buscar foto de Maria Souza' })
+    expect(botao).toHaveAttribute('title', 'O perfil não tem foto pública. Buscar de novo')
+    expect(within(screen.getByRole('table')).getByRole('img', { name: 'Maria Souza' })).toHaveTextContent('MS')
+  })
+
+  it('sem estado de foto no banco, os Contatos continuam na lista, com as iniciais', async () => {
+    abrirContasDoNorte('/contatos', {})
+
+    // A foto é enfeite: a lista não depende da leitura do estado dela.
+    const tabela = await screen.findByRole('table', { name: 'Tabela de Contatos' })
+    expect(within(tabela).getByText('Maria Souza')).toBeInTheDocument()
+  })
+
+  it('na Demonstração não há busca de foto nem foto simulada como consultada', async () => {
+    renderizarApp('/contatos')
+
+    await screen.findByRole('table', { name: 'Tabela de Contatos' })
+    expect(screen.queryByRole('button', { name: /Buscar foto/ })).not.toBeInTheDocument()
   })
 })
 

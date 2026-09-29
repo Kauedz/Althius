@@ -119,6 +119,11 @@ export interface Contato {
    */
   persona?: string
   foto?: string
+  /**
+   * Como terminou a última busca da foto pública, quando não deu foto: o perfil não tem imagem pública, ou a busca
+   * falhou. Sem valor, a foto nunca foi buscada, ou existe.
+   */
+  fotoConsulta?: 'nao-encontrada' | 'falhou'
   canais: {
     email: boolean
     telefone: boolean
@@ -205,6 +210,13 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Encerra o Vínculo do Contato com a Conta-alvo; as Interações ficam na Conta onde aconteceram. */
   encerrarVinculo?(contatoId: string, contaId: string): Promise<void>
+
+  /**
+   * Busca a foto pública do Contato pelo LinkedIn dele, por uma ação da pessoa (nunca ao listar). Resolve quando a
+   * busca terminou, ache ela a foto ou não, e a foto aparece na próxima leitura do Contato; rejeita com a razão em
+   * palavras do produto (limite, permissão, provedor fora). Sem este método, a fonte não oferece a busca.
+   */
+  consultarFotoDoContato?(contatoId: string): Promise<void>
 
   /** Lista todos os Sinais disparados até a data de hoje. */
   sinais(): Promise<Sinal[]>

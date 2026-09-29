@@ -4,12 +4,21 @@
 
 **Blocked by:** 05: Manter Contatos e Vínculos do Contato.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] A consulta parte da URL LinkedIn armazenada no Contato e ocorre pelo backend, sem token Apify no browser.
-- [ ] Actor é escolhido com entrada/saída compatível; dados de perfil e foto são tratados como opcionais.
-- [ ] Consulta é acionada sob demanda ou por job limitado, não a cada render da tabela.
-- [ ] Origem, Actor, estado e data de observação são registrados; custo, concorrência e retry têm limites.
-- [ ] Ausência, erro ou URL expirada exibe as iniciais/avatar padrão atuais sem quebrar o Contato.
-- [ ] Nenhum conteúdo de perfil substitui correção manual sem confirmação; retenção/cache respeita condições do Actor habilitado.
+- [x] A consulta parte da URL LinkedIn armazenada no Contato e ocorre pelo backend, sem token Apify no browser. — Edge Function `contact-photo-lookup` (`verify_jwt = true`), que lê o LinkedIn do Contato no banco (`begin_contact_photo_lookup`) e guarda o token no segredo `APIFY_TOKEN`; só aceita perfil `/in/`; Deno `handler.test.ts`, pgTAP `foto_do_contato.sql` 11–12 (só perfil `/in/`) e 14–16 (o navegador não grava o resultado).
+- [ ] Actor é escolhido com entrada/saída compatível; dados de perfil e foto são tratados como opcionais. — Escolhido `harvestapi/linkedin-profile-scraper`, mas **não verificado**: o ambiente não alcança `apify.com`. Id, modelo de entrada e campo da foto são configuráveis (`APIFY_PHOTO_ACTOR_ID`, `APIFY_PHOTO_INPUT`) e a saída é lida com tolerância (todo campo é opcional; sem item ou sem imagem vira "sem foto"). Fecha quando alguém conferir a página do Actor e rodar uma consulta real.
+- [x] Consulta é acionada sob demanda ou por job limitado, não a cada render da tabela. — Botão de câmera na linha do Contato (só com LinkedIn, sem foto e no Workspace operacional); `raiz.test.tsx` "mostra a foto que o Actor trouxe…" (listar não chama a função).
+- [x] Origem, Actor, estado e data de observação são registrados; custo, concorrência e retry têm limites. — `public.contact_photos` (origem `apify`, Actor, execução, estado, `observed_at`) e trilha `private.contact_photo_lookups`; uma consulta em andamento por Contato (55006), 1 por minuto e 3 por dia por Contato, 50 por dia por Workspace (54000), teto de cobrança por execução; sem repetição automática; pgTAP 1–3, 13, 17–32.
+- [x] Ausência, erro ou URL expirada exibe as iniciais/avatar padrão atuais sem quebrar o Contato. — a visão `contact_photo_status` devolve foto nula quando a URL venceu, passou de 30 dias ou o LinkedIn mudou (pgTAP 33–38); `AvatarDoContato` cai nas iniciais se a imagem não carrega; `raiz.test.tsx` "uma foto cuja URL expirou…", "quando a busca falha…", "sem estado de foto no banco…"; `supabase-contas.test.ts`.
+- [ ] Nenhum conteúdo de perfil substitui correção manual sem confirmação; retenção/cache respeita condições do Actor habilitado. — Feito: a foto é campo próprio (a consulta só grava a URL da imagem; nome, cargo e canais nem são lidos), e uma foto `origin = 'manual'` não é substituída nem apagada (55000 no banco, 409 na função; pgTAP 39–42). Aberto: os 30 dias de retenção são uma escolha nossa, e as condições de uso e retenção do Actor não foram lidas.
 
+## Comments
+
+- **Decisão da imagem:** guardamos só a URL devolvida pelo Actor, não a imagem. A URL do LinkedIn expira (o parâmetro `e=` é lido como validade) e, sem cópia, não há arquivo a reter, apagar ou proteger num bucket; "URL expirada exibe as iniciais" fica pelo próprio `onError` do avatar e pela visão. Nenhum bucket foi criado. Se um dia for preciso copiar a imagem, o caminho é um bucket privado por Workspace com URL assinada curta, como `email-attachments`, e uma política de apagamento junto do job de retenção.
+- **Retenção:** a visão esconde a foto vencida na hora; o job diário `althius-contact-photo-retention` (pg_cron, `private.purge_contact_photos`) apaga a URL de vez, conservando estado, Actor e data de observação. Sem pg_cron, só a visão vale.
+- **Modelo:** migration `supabase/migrations/20260929120000_foto_do_contato.sql`, sem tocar em `save_target_account`, `create_contact`, `update_contact`, `link_contact` nem `end_contact_link`. `begin_contact_photo_lookup` (qualquer Participação ativa do Workspace do Contato; a sessão de quem pede) reserva; `finish_contact_photo_lookup` (só `service_role`) grava, então o navegador não escolhe a URL da foto. O estado é lido pela visão `contact_photo_status` (`security_invoker`); a visão `target_contacts` não mudou, e o adapter junta as duas.
+- **Frontend:** ação e avatar ficam em `botao-de-foto-do-contato.tsx` e no `AvatarDoContato`; `FonteDeContas.consultarFotoDoContato` é opcional, então a Demonstração não tem a ação nem foto simulada como consultada.
+- **Concorrência:** conferida à mão com duas sessões psql: a segunda reserva do mesmo Contato espera a primeira (trava consultiva por Workspace) e recebe `photo lookup in flight`; só uma linha entra na trilha.
+- **Testes:** pgTAP `foto_do_contato.sql` 43/43 (suíte local 17 arquivos verdes); Deno 29 testes em `contact-photo-lookup`; vitest 736 verdes (13 novos); `tsc -b` limpo; lint sem erros.
+- **Pendências humanas:** (1) aplicar a migration no `ycbdilsmydvzezhlymty`; (2) `APIFY_TOKEN` nos segredos e `npx supabase functions deploy contact-photo-lookup`; (3) abrir a página do Actor no Apify e conferir o campo de entrada, o campo da foto, o preço e as condições de uso e retenção, ajustando `APIFY_PHOTO_INPUT` se preciso; (4) um teste real num Contato com LinkedIn `/in/`; (5) decidir se os 30 dias de retenção e os limites (1/min e 3/dia por Contato, 50/dia por Workspace) servem.

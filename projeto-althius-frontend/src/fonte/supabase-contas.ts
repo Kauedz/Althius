@@ -16,6 +16,7 @@ import type {
   NovoContato,
   TipoDeInteracao,
 } from './contas-tipos'
+import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 
 interface RegistroConta {
   id: string
@@ -45,6 +46,13 @@ interface RegistroContato {
   whatsapp: string | null
   linkedin: string | null
   last_interaction_at: string | null
+}
+
+/** O estado da foto de um Contato, como a visão `contact_photo_status` o devolve: `photo_url` só vem se ainda vale. */
+interface RegistroFoto {
+  contact_id: string
+  status: 'pending' | 'found' | 'not_found' | 'failed'
+  photo_url: string | null
 }
 
 const COLUNAS_DO_CONTATO = 'id, target_account_id, name, role, email, whatsapp, linkedin, last_interaction_at'
@@ -86,7 +94,7 @@ function converterErro(error: { message: string; code?: string }): Error {
   return new Error(error.message)
 }
 
-function mapearContato(linha: RegistroContato): Contato {
+function mapearContato(linha: RegistroContato, foto?: RegistroFoto): Contato {
   return {
     id: linha.id,
     contaId: linha.target_account_id,
@@ -97,6 +105,10 @@ function mapearContato(linha: RegistroContato): Contato {
     ...(linha.whatsapp ? { whatsapp: linha.whatsapp } : {}),
     ...(linha.linkedin ? { linkedin: linha.linkedin } : {}),
     ...(linha.last_interaction_at ? { ultimoContatoEm: linha.last_interaction_at } : {}),
+    ...(foto?.photo_url ? { foto: foto.photo_url } : {}),
+    // Uma foto que ainda vale não leva o estado da última busca; sem ela, o estado explica por que faltou.
+    ...(!foto?.photo_url && foto?.status === 'not_found' ? { fotoConsulta: 'nao-encontrada' as const } : {}),
+    ...(!foto?.photo_url && foto?.status === 'failed' ? { fotoConsulta: 'falhou' as const } : {}),
     ehReal: true,
   }
 }
@@ -115,7 +127,9 @@ function mapearConta(
     ...(linha.linkedin_url ? { linkedinUrl: linha.linkedin_url } : {}),
     ...(linha.segment ? { segmento: linha.segment } : {}),
     totalContatos: contatos.length,
-    ...(contatos.length > 0 ? { previaContatos: contatos.slice(0, 3).map((c) => ({ nome: c.nome })) } : {}),
+    ...(contatos.length > 0
+      ? { previaContatos: contatos.slice(0, 3).map((c) => ({ nome: c.nome, ...(c.foto ? { foto: c.foto } : {}) })) }
+      : {}),
     ...(linha.last_interaction_at ? { ultimoContatoEm: linha.last_interaction_at } : {}),
     sobMinhaResponsabilidade: responsavel === usuarioId,
   }
@@ -169,9 +183,20 @@ export function criarFonteDeContasSupabase(
   async function contatos(contaId?: string): Promise<Contato[]> {
     let consulta = cliente.from('target_contacts').select(COLUNAS_DO_CONTATO).eq('workspace_id', workspace())
     if (contaId) consulta = consulta.eq('target_account_id', contaId)
-    const { data, error } = await consulta.order('name', { ascending: true })
+    const [{ data, error }, fotos] = await Promise.all([consulta.order('name', { ascending: true }), fotosDoWorkspace()])
     if (error) throw converterErro(error)
-    return ((data ?? []) as RegistroContato[]).map(mapearContato)
+    return ((data ?? []) as RegistroContato[]).map((linha) => mapearContato(linha, fotos.get(linha.id)))
+  }
+
+  /**
+   * O estado da foto de cada Contato do Workspace, pelo identificador do Contato. A foto é um enfeite: se a leitura
+   * falhar, os Contatos aparecem com as iniciais em vez de a lista falhar.
+   */
+  async function fotosDoWorkspace(): Promise<Map<string, RegistroFoto>> {
+    const { data, error } = await cliente.from('contact_photo_status').select('contact_id, status, photo_url')
+      .eq('workspace_id', workspace())
+    if (error) return new Map()
+    return new Map(((data ?? []) as RegistroFoto[]).map((linha) => [linha.contact_id, linha]))
   }
 
   /** O Contato com Vínculo ativo, na Conta pedida ou na primeira em que atua. */
@@ -278,6 +303,17 @@ export function criarFonteDeContasSupabase(
         p_linkedin: destinos.linkedin?.trim() ?? '',
       })
       return contato(contatoId)
+    },
+
+    async consultarFotoDoContato(contatoId: string) {
+      const { error } = await cliente.functions.invoke('contact-photo-lookup', { body: { contactId: contatoId } })
+      if (!error) {
+        notificar()
+        return
+      }
+      const recusa = await corpoDoErroDaFuncao(error)
+      if (typeof recusa?.error === 'string') throw new Error(recusa.error)
+      throw new Error(await motivoDaFalhaDaFuncao('contact-photo-lookup', error, 'APIFY_TOKEN e APP_ORIGIN'))
     },
 
     sinais: nenhum,
