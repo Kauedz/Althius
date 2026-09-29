@@ -88,7 +88,7 @@ function CorpoDaEdicao({ contato, aoMudar }: { contato: Contato; aoMudar: (abert
     nome: contato.nome,
     cargo: contato.cargo ?? '',
     email: contato.email ?? '',
-    whatsapp: contato.whatsapp ?? '',
+    whatsapp: contato.whatsapp ?? contato.telefoneSemWhatsApp ?? '',
     linkedin: contato.linkedin ?? '',
   })
   // Com as listas (só o Workspace operacional as informa, e só se chegaram inteiras), o e-mail e o telefone se editam nelas.

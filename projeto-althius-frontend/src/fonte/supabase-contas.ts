@@ -61,6 +61,9 @@ interface RegistroContato {
   name: string
   role: string | null
   email: string | null
+  /** O telefone principal, marcado ou não como WhatsApp. */
+  phone?: string | null
+  /** O telefone principal só quando marcado como WhatsApp (a visão `target_contacts` o esconde sem a marca). */
   whatsapp: string | null
   linkedin: string | null
   last_interaction_at: string | null
@@ -83,7 +86,7 @@ interface RegistroCanal {
   whatsapp: boolean | null
 }
 
-const COLUNAS_DO_CONTATO = 'id, target_account_id, name, role, email, whatsapp, linkedin, last_interaction_at'
+const COLUNAS_DO_CONTATO = 'id, target_account_id, name, role, email, phone, whatsapp, linkedin, last_interaction_at'
 
 const COLUNAS_DA_CONTA = 'id, name, canonical_url, domain, linkedin_url, segment, last_interaction_at, archived_at'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -183,9 +186,10 @@ function mapearContato(
     ...(permissoes.podeApagar ? { podeApagar: true } : {}),
     nome: linha.name,
     ...(linha.role ? { cargo: linha.role } : {}),
-    canais: { email: !!linha.email, telefone: !!linha.whatsapp, linkedin: !!linha.linkedin },
+    canais: { email: !!linha.email, telefone: !!(linha.whatsapp ?? linha.phone), linkedin: !!linha.linkedin },
     ...(linha.email ? { email: linha.email } : {}),
     ...(linha.whatsapp ? { whatsapp: linha.whatsapp } : {}),
+    ...(linha.phone && !linha.whatsapp ? { telefoneSemWhatsApp: linha.phone } : {}),
     ...(linha.linkedin ? { linkedin: linha.linkedin } : {}),
     ...(canais ? { emails: canais.emails, telefones: canais.telefones } : {}),
     ...(linha.last_interaction_at ? { ultimoContatoEm: linha.last_interaction_at } : {}),

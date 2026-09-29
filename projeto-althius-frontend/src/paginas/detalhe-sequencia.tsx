@@ -342,10 +342,17 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     setEnviandoStepId(step.id)
     setAvisoDoEnvio(null)
     try {
-      const envio = await fonteDeSequencias.confirmarPasso(sequencia!.id, step.id)
+      const canal = step.canal === 'whatsapp' ? 'whatsapp' : 'email'
+      const envio = canal === 'email'
+        ? await fonteDeSequencias.confirmarPasso(sequencia!.id, step.id)
+        : await fonteDeSequencias.confirmarPasso(sequencia!.id, step.id, canal)
       const resultado = await fonteDeSequencias.enviarPasso(sequencia!.id, envio.id)
       if (resultado.outcome === 'sent') {
-        setAvisoDoEnvio({ stepId: step.id, texto: `E-mail enviado para ${envio.destino}.`, tipo: 'ok' })
+        setAvisoDoEnvio({
+          stepId: step.id,
+          texto: canal === 'whatsapp' ? `Mensagem enviada para ${envio.destino}.` : `E-mail enviado para ${envio.destino}.`,
+          tipo: 'ok',
+        })
       } else {
         setAvisoDoEnvio({ stepId: step.id, texto: resultado.mensagem ?? 'O envio não saiu.', tipo: 'atencao' })
       }
@@ -359,8 +366,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     }
   }
 
-  // Ativar autoriza o documento atual (a versão que o Executor envia) e fixa o Destino de cada passo de E-mail
-  // pendente (ADR-0014). Um bloqueio volta como desfecho, com o passo que o causou.
+  // Ativar autoriza o documento atual (a versão que o Executor envia) e fixa o Destino de cada passo de E-mail ou de
+  // WhatsApp pendente (ADR-0014). Um bloqueio volta como desfecho, com o passo que o causou.
   async function handleAtivarEnvios() {
     setAtivando(true)
     setAvisoDaAtivacao(null)
@@ -378,7 +385,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         const passo = resultado.stepId ? sequencia!.steps.find((s) => s.id === resultado.stepId) : undefined
         setAvisoDaAtivacao({
           tipo: 'atencao',
-          texto: `${resultado.mensagem ?? 'Os envios não foram ativados.'}${passo ? ` Passo: "${passo.titulo}".` : ''}`,
+          texto: `${mensagemDaAtivacao(resultado.outcome, passo, resultado.mensagem)}${passo ? ` Passo: "${passo.titulo}".` : ''}`,
         })
       }
     } catch (erro) {
@@ -391,7 +398,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     }
   }
 
-  // Um envio incerto que o eco não reconciliou: o titular conferiu a caixa de saída e diz se o e-mail saiu.
+  // Um envio incerto que o eco não reconciliou: o titular conferiu a caixa de saída (ou o WhatsApp) e diz se saiu.
   async function handleResolverIncerto(step: StepSequencia, saiu: boolean) {
     setAvisoDoEnvio(null)
     try {
@@ -871,7 +878,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         </div>
       </div>
 
-      {!permiteAcoesDeDemonstracao && sequencia.steps.some((s) => s.canal === 'email') && (
+      {!permiteAcoesDeDemonstracao && sequencia.steps.some((s) => s.canal === 'email' || s.canal === 'whatsapp') && (
         <PainelDosEnvios
           sequencia={sequencia}
           autorizacao={autorizacao ?? null}
@@ -889,20 +896,24 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           <DialogHeader>
             <DialogTitle>Ativar envios</DialogTitle>
             <DialogDescription>
-              Os passos de E-mail abaixo saem sozinhos, na ordem, em dias úteis e dentro da janela de horário, mesmo com o
-              navegador fechado. Cada um fica com o Destino mostrado aqui. Uma resposta do Contato pausa a Sequência.
+              Os passos de {rotuloDosCanaisEnviaveis(sequencia.steps)} abaixo saem sozinhos, na ordem, em dias úteis e dentro da
+              janela de horário, mesmo com o navegador fechado. Cada um fica com o Destino mostrado aqui. Uma resposta do
+              Contato pausa a Sequência.
             </DialogDescription>
           </DialogHeader>
           <ol aria-label="Passos a ativar" className="flex flex-col gap-2 list-none p-0 m-0 text-xs">
             {sequencia.steps
-              .filter((s) => s.canal === 'email' && !envios?.some((e) => e.stepId === s.id && ENVIO_JA_SAIU.has(e.status)))
+              .filter((s) => (s.canal === 'email' || s.canal === 'whatsapp') && !envios?.some((e) => e.stepId === s.id && ENVIO_JA_SAIU.has(e.status)))
               .map((s) => {
                 const contato = contatosMap.get(s.contatoId)
+                const paraQuem = s.canal === 'whatsapp'
+                  ? telefoneDoPasso(contato, s.destino)?.valor ?? 'Contato sem WhatsApp'
+                  : emailDoPasso(contato, s.destino) ?? 'Contato sem e-mail'
                 return (
                   <li key={s.id} className="flex flex-col gap-0.5 border-t border-al-line pt-2 first:border-t-0 first:pt-0">
                     <span className="text-al-ink font-medium">{s.titulo}</span>
                     <span className="text-al-muted">
-                      Para {emailDoPasso(contato, s.destino) ?? 'Contato sem e-mail'} · {s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
+                      Para {paraQuem} · {s.canal === 'email' && s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
                       {s.delayDiasUteis > 0 ? ` · ${s.delayDiasUteis} ${s.delayDiasUteis === 1 ? 'dia útil' : 'dias úteis'} depois do anterior` : ''}
                     </span>
                   </li>
@@ -1473,7 +1484,7 @@ function ComposerStep({
       {/* Opções específicas por canal (Envio/Modo/Subtipo) */}
       <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
         <span className="text-xs text-al-muted">Envio:</span>
-        <OpcoesPorCanal step={step} onSalvar={onSalvar} />
+        <OpcoesPorCanal step={step} onSalvar={onSalvar} naDemonstracao={naDemonstracao} />
       </div>
 
       {/* Assunto (e-mail ou LinkedIn InMail) */}
@@ -1708,26 +1719,68 @@ function formatarDataEHora(iso: string): string {
   })
 }
 
-function descreverEnvio(envio: EnvioDoPasso): string {
+/** Os canais que saem sozinhos, escritos para a frase "Os passos de …": E-mail, WhatsApp ou os dois. */
+function rotuloDosCanaisEnviaveis(steps: StepSequencia[]): string {
+  const email = steps.some((s) => s.canal === 'email')
+  const whatsapp = steps.some((s) => s.canal === 'whatsapp')
+  return email && whatsapp ? 'E-mail e de WhatsApp' : whatsapp ? 'WhatsApp' : 'E-mail'
+}
+
+/** O que a tela diz de um bloqueio da ativação num passo de WhatsApp; nos outros casos vale o texto da fonte. */
+const MENSAGEM_DA_ATIVACAO_DO_WHATSAPP: Record<string, string> = {
+  destination_not_found: 'Um passo escolhe um número de telefone que o Contato não tem. Ajuste o passo antes de ativar.',
+  empty_content: 'Um passo de WhatsApp está sem texto. Escreva a mensagem antes de ativar.',
+}
+
+function mensagemDaAtivacao(outcome: string, passo: StepSequencia | undefined, mensagemDaFonte?: string): string {
+  return (passo?.canal === 'whatsapp' ? MENSAGEM_DA_ATIVACAO_DO_WHATSAPP[outcome] : undefined)
+    ?? mensagemDaFonte
+    ?? 'Os envios não foram ativados.'
+}
+
+/** O motivo gravado no Envio de WhatsApp, em português. No E-mail o código segue como o backend o grava. */
+const ERROS_DO_ENVIO_DO_WHATSAPP: Record<string, string> = {
+  destination_check_failed: 'não foi possível conferir se o número tem WhatsApp',
+  destination_no_whatsapp: 'este número não tem WhatsApp',
+  rate_limited: 'a Unipile pediu para esperar um pouco',
+  invalid_destination: 'o número está fora do formato',
+  sender_not_ready: 'a sua Conta de WhatsApp não está pronta',
+  timeout: 'a Unipile não respondeu a tempo',
+  network: 'falha de rede',
+}
+
+function descreverErroDoEnvio(codigo: string, canal: StepSequencia['canal']): string {
+  if (canal !== 'whatsapp') return codigo
+  return ERROS_DO_ENVIO_DO_WHATSAPP[codigo]
+    ?? (/^http_\d+$/.test(codigo) ? `a Unipile recusou (HTTP ${codigo.slice(5)})` : codigo)
+}
+
+function descreverEnvio(envio: EnvioDoPasso, canal: StepSequencia['canal'] = 'email'): string {
   switch (envio.status) {
     case 'waiting':
       return `Na fila: sai depois do passo anterior, para ${envio.destino}.`
     case 'scheduled':
       return `Sai sozinho ${envio.programadoPara ? formatarDataEHora(envio.programadoPara) : 'no próximo horário válido'} para ${envio.destino}, mesmo com o navegador fechado.${
-        envio.ultimoErro ? ` Última tentativa: ${envio.ultimoErro}.` : ''
+        envio.ultimoErro ? ` Última tentativa: ${descreverErroDoEnvio(envio.ultimoErro, canal)}.` : ''
       }`
     case 'cancelled':
       return 'Cancelado: a Sequência mudou depois da ativação.'
     case 'sent':
       return `Enviado em ${formatarDataCompleta(envio.enviadoEm ?? envio.confirmadoEm)} para ${envio.destino}. Aceito pelo provedor; não é entrega nem leitura.`
     case 'awaiting_reconfirmation':
-      return envio.ultimoErro === 'contact_unlinked'
-        ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
-        : `O Contato não tem mais o e-mail confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
+      if (envio.ultimoErro === 'contact_unlinked') return 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
+      if (canal === 'whatsapp') {
+        return envio.ultimoErro === 'destination_no_whatsapp'
+          ? `Este número não tem WhatsApp (${envio.destino}). Corrija o número do Contato e reconfirme.`
+          : `O Contato não tem mais o número confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
+      }
+      return `O Contato não tem mais o e-mail confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
     case 'uncertain':
-      return 'O provedor não respondeu a tempo e a confirmação não chegou. Confira sua caixa de saída: o e-mail saiu?'
+      return canal === 'whatsapp'
+        ? 'A Unipile não confirmou o envio e nada é reenviado sozinho. Confira seu WhatsApp: a mensagem saiu?'
+        : 'O provedor não respondeu a tempo e a confirmação não chegou. Confira sua caixa de saída: o e-mail saiu?'
     case 'failed':
-      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${envio.ultimoErro})` : ''}. Reconfirme para tentar de novo.`
+      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${descreverErroDoEnvio(envio.ultimoErro, canal)})` : ''}. Reconfirme para tentar de novo.`
     case 'bounced':
       return `O e-mail para ${envio.destino} foi devolvido.`
     case 'sending':
@@ -1758,9 +1811,10 @@ function RodapeDoEnvio({
   onConfirmarEEnviar?: () => void
   onResolverIncerto?: (saiu: boolean) => void
 }) {
-  if (step.canal !== 'email') {
+  if (step.canal !== 'email' && step.canal !== 'whatsapp') {
     return <span>Envio por {CANAIS_CONFIG[step.canal].rotulo} ainda não disponível neste Workspace.</span>
   }
+  const IconeDoCanal = step.canal === 'whatsapp' ? MessageCircle : Mail
   if (enviosIndisponiveis && !envio) {
     return <span className="text-al-atencao">Não foi possível carregar a situação do envio deste passo. Recarregue a página antes de enviar.</span>
   }
@@ -1789,7 +1843,13 @@ function RodapeDoEnvio({
             {ROTULO_DO_ENVIO[envio.status]}
           </span>
         )}
-        <span>{envio ? descreverEnvio(envio) : 'Ainda não enviado. Confirmar fixa o e-mail atual do Contato como Destino.'}</span>
+        <span>
+          {envio
+            ? descreverEnvio(envio, step.canal)
+            : step.canal === 'whatsapp'
+              ? 'Ainda não enviado. Confirmar fixa o número de WhatsApp escolhido do Contato como Destino.'
+              : 'Ainda não enviado. Confirmar fixa o e-mail atual do Contato como Destino.'}
+        </span>
       </span>
       {podeEnviar && (
         <Button
@@ -1799,7 +1859,7 @@ function RodapeDoEnvio({
           onClick={onConfirmarEEnviar}
           className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface ml-auto"
         >
-          <Mail className="size-3.5 mr-1 text-al-muted" />
+          <IconeDoCanal className="size-3.5 mr-1 text-al-muted" />
           {rotuloDoBotao}
         </Button>
       )}
@@ -1854,7 +1914,7 @@ function PainelDosEnvios({
   let texto: string
   let rotulo: string | null = null
   if (!autorizacao) {
-    texto = 'Os passos de E-mail só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.'
+    texto = `Os passos de ${rotuloDosCanaisEnviaveis(sequencia.steps)} só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.`
     rotulo = 'Ativar envios'
   } else if (!autorizacao.ativa) {
     texto = autorizacao.motivoDaRevogacao === 'edited'
@@ -2040,9 +2100,11 @@ function RespostasRecebidas({
 function OpcoesPorCanal({
   step,
   onSalvar,
+  naDemonstracao = true,
 }: {
   step: StepSequencia
   onSalvar: (patch: Partial<StepSequencia>) => void
+  naDemonstracao?: boolean
 }) {
   if (step.canal === 'email') {
     return (
@@ -2094,7 +2156,13 @@ function OpcoesPorCanal({
   }
 
   if (step.canal === 'whatsapp') {
-    return <span className="text-xs text-al-muted">Enviado do número do vendedor · sem envio neste protótipo</span>
+    return (
+      <span className="text-xs text-al-muted">
+        {naDemonstracao
+          ? 'Enviado do número do vendedor · sem envio neste protótipo'
+          : 'Enviado da sua Conta de WhatsApp, com intervalo entre as mensagens · sai sozinho depois de ativar os envios'}
+      </span>
+    )
   }
   if (step.canal === 'sms') {
     return <span className="text-xs text-al-muted">Até 160 caracteres</span>
@@ -2586,7 +2654,7 @@ export function DialogoDestinosContato({
   useEffect(() => {
     if (contato) {
       setEmail(contato.email ?? '')
-      setWhatsapp(contato.whatsapp ?? '')
+      setWhatsapp(contato.whatsapp ?? contato.telefoneSemWhatsApp ?? '')
       setLinkedin(contato.linkedin ?? '')
       setErro(null)
     }

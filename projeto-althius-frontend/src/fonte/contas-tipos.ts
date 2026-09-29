@@ -140,8 +140,13 @@ export interface Contato {
   ultimoContatoEm?: string
   /** O e-mail principal (o primeiro de `emails`). */
   email?: string
-  /** O telefone principal, que sempre foi o WhatsApp do Contato (o primeiro de `telefones`). */
+  /** O telefone principal quando o Contato o marcou como WhatsApp (o primeiro de `telefones`); sem a marca, fica vazio. */
   whatsapp?: string
+  /**
+   * O telefone principal quando o Contato NÃO o marcou como WhatsApp (`whatsapp` fica vazio). Só o Workspace operacional
+   * informa. Existe para a edição sem as listas não apagar um telefone que ela não mostra como WhatsApp.
+   */
+  telefoneSemWhatsApp?: string
   linkedin?: string
   /**
    * Os e-mails do Contato, o principal primeiro, até três, com o rótulo de cada um. Só o Workspace operacional informa:

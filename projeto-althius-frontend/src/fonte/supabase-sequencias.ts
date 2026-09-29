@@ -64,6 +64,9 @@ const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   empty_content: 'Um passo de E-mail está sem texto. Escreva o corpo antes de ativar.',
   destination_bounced: 'O e-mail de um Contato já voltou nesta Sequência. Corrija o e-mail antes de ativar.',
   sender_not_ready: 'Sua Conta remetente de E-mail não está pronta para enviar.',
+  contact_without_phone: 'O Contato de um passo de WhatsApp não tem telefone. Cadastre o telefone antes de ativar.',
+  phone_not_whatsapp: 'Um passo de WhatsApp usa um número que o Contato não marcou como WhatsApp. Marque-o ou escolha outro número.',
+  whatsapp_sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar.',
   sequence_not_active: 'Retome a Sequência antes de ativar os envios.',
   no_steps: 'A Sequência ainda não tem passos.',
 }
@@ -189,7 +192,13 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('the target account was deleted')) return new Error('A Conta-alvo foi apagada.')
   if (error.message.includes('an ended sequence cannot be changed')) return new Error('Esta Sequência foi encerrada e não pode mais ser alterada.')
   if (error.code === '23503') return new Error('Esta Sequência aponta para uma Conta-alvo que não existe mais neste Workspace.')
-  if (error.code === '0A000') return new Error('Só passos de E-mail podem ser confirmados por enquanto.')
+  if (error.code === '0A000') return new Error('Só passos de E-mail e de WhatsApp podem ser confirmados por enquanto.')
+  if (error.code === '22023' && error.message === 'contact has no phone destination') {
+    return new Error('O Contato deste passo não tem o telefone escolhido. Cadastre-o ou escolha outro número.')
+  }
+  if (error.code === '22023' && error.message === 'contact phone at this position is not flagged as whatsapp') {
+    return new Error('Este número não está marcado como WhatsApp no Contato. Marque-o ou escolha outro número.')
+  }
   if (error.code === '22023' && error.message === 'contact has no email destination') {
     return new Error('O Contato deste passo não tem o e-mail escolhido. Cadastre-o ou escolha outro número.')
   }
@@ -355,8 +364,12 @@ export function criarFonteDeSequenciasSupabase(
       if (error) throw converterErro(error)
       return ((data ?? []) as LinhaDoEnvio[]).map(mapearEnvio)
     },
-    async confirmarPasso(sequenciaId, stepId) {
-      const { data, error } = await cliente.rpc('confirm_sequence_step', { p_sequence_id: sequenciaId, p_step_id: stepId })
+    async confirmarPasso(sequenciaId, stepId, canal = 'email') {
+      // O passo de WhatsApp tem a própria confirmação: o Destino é o telefone marcado como WhatsApp, não o e-mail.
+      const { data, error } = await cliente.rpc(canal === 'whatsapp' ? 'confirm_whatsapp_step' : 'confirm_sequence_step', {
+        p_sequence_id: sequenciaId,
+        p_step_id: stepId,
+      })
       if (error) throw converterErro(error)
       const linha = (Array.isArray(data) ? data[0] : data) as LinhaDoEnvio | null
       if (!linha) throw new Error('O banco não retornou o Envio confirmado.')

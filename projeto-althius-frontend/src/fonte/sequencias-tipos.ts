@@ -143,7 +143,7 @@ export type StatusDoEnvio =
   | 'bounced'
   | 'cancelled'
 
-/** O Envio de um passo de E-mail: o Destino fixado na confirmação e o que o provedor respondeu. */
+/** O Envio de um passo de E-mail ou de WhatsApp: o Destino fixado na confirmação e o que o provedor respondeu. */
 export interface EnvioDoPasso {
   id: string
   stepId: string
@@ -255,8 +255,11 @@ export interface FonteDeSequencias extends FonteObservavel {
   /** Os Envios dos passos da sequência. Só o Responsável pela Sequência os vê; os demais recebem uma lista vazia. */
   envios(sequenciaId: string): Promise<EnvioDoPasso[]>
 
-  /** Confirma um passo de E-mail: fixa o e-mail atual do Contato como Destino. Rejeita passos de outro canal. */
-  confirmarPasso(sequenciaId: string, stepId: string): Promise<EnvioDoPasso>
+  /**
+   * Confirma um passo de E-mail (o padrão) ou de WhatsApp: fixa o e-mail, ou o telefone marcado como WhatsApp, que o
+   * passo escolhe como Destino. Rejeita passos de outro canal.
+   */
+  confirmarPasso(sequenciaId: string, stepId: string, canal?: 'email' | 'whatsapp'): Promise<EnvioDoPasso>
 
   /** Pede ao backend o envio de um passo confirmado. Um bloqueio volta como resultado, não como erro. */
   enviarPasso(sequenciaId: string, envioId: string): Promise<ResultadoDoEnvio>
