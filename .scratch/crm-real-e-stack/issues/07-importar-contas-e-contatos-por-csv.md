@@ -37,3 +37,17 @@
   - Retenção do arquivo: o CSV fica no bucket sem prazo. Falta um job que o apague (e as linhas cruas) depois de concluído.
   - Remoto: nada foi aplicado. Falta aplicar a migration (`docs/agents/migrations.md`), conferir o bucket `csv-imports` privado e publicar `csv-import`, sem segredo novo.
   - A tela de Contas ainda não mostra o responsável da Conta, então a Distribuição só aparece dentro do relatório da importação.
+
+- 2026-09-29, revisão (`/code-review`): corrigidos o relatório em CSV, que agora põe um apóstrofo na frente de célula que começa com `=`, `+`, `-`, `@`, tabulação ou retorno de carro (antes o Excel a leria como fórmula), e o deadlock ou a falha de serialização numa linha, que agora sobem e deixam a linha pendente em vez de a marcar como falha definitiva. Sem violação de RLS, de permissões ou de isolamento entre Workspaces. Decisões a confirmar com o Nan:
+  1. o processamento é em blocos, dirigido pela aba aberta, sem worker de fundo; só o importador retoma um lote (se ele sumir, nem o Administrador termina);
+  2. só o responsável pela Conta a atualiza; as linhas de Contas alheias, inclusive as do Administrador, ficam ignoradas, embora o Contato da linha ainda seja criado ou vinculado;
+  3. uma linha só com o nome do Contato sempre cria um Contato novo, e reimportar o mesmo arquivo duplica esses Contatos;
+  4. limites de 5 MB e 5.000 linhas (o cabeçalho conta no limite de registros);
+  5. a opção "ignorar este Contato" e o interruptor "substituir dados corrigidos manualmente" no lote, que a spec não pede.
+- Abertos, de baixa gravidade:
+  - o arquivo e as linhas cruas ficam sem job de retenção (cancelar ou falhar um lote apaga as linhas, mas não o objeto do Storage);
+  - a distribuição é em rodízio entre os participantes escolhidos, sem escolher o destino por Conta, e a janela de 24 horas é por Conta: a tela mostra só o prazo da primeira e, se uma vencer, a distribuição inteira falha;
+  - `company_linkedin` é gravado sem normalização (o do Contato é normalizado), o que pode gerar "atualizações" falsas;
+  - o 5 MB é conferido depois de o corpo ser lido; `invalid_encoding` é código morto;
+  - falta um ADR para os gatilhos que registram a origem do campo em `target_accounts` e `contacts`, e o pgTAP prova a idempotência só em sequência, sem concorrência real;
+  - `importar-contas.tsx` tem mais de 800 linhas e `validate_import_rows` mais de 230, candidatos a divisão numa arrumação à parte.

@@ -1250,6 +1250,11 @@ begin
   exception when others then
     -- A subtransação desfez o que a linha tinha escrito; a configuração volta com ela, mas não custa garantir.
     perform set_config('althius.importacao_lote', '', true);
+    -- Deadlock e falha de serialização passam: a linha segue pendente e o lote pode ser retomado, em vez de a linha
+    -- virar uma falha definitiva por um erro que some na segunda tentativa.
+    if sqlstate in ('40P01', '40001') then
+      raise;
+    end if;
     v_code := case
       when sqlerrm like '%more than one contact%' then 'contact_identity_conflict'
       when sqlstate = '23505' then 'duplicate_identity'
