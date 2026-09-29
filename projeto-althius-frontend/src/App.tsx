@@ -24,6 +24,7 @@ import { PaginaConexoes } from '@/paginas/conexoes'
 import { PaginaConfiguracoes } from '@/paginas/configuracoes/pagina-configuracoes'
 import { PaginaContas } from '@/paginas/contas'
 import { PaginaContatos } from '@/paginas/contatos'
+import { PaginaImportarContas } from '@/paginas/importar-contas'
 import { PaginaConversaCoordenada } from '@/paginas/conversa-coordenada'
 import { EntradaNaCasca } from '@/paginas/onboarding/entrada-na-casca'
 import { PaginaOnboarding } from '@/paginas/onboarding/pagina-onboarding'
@@ -50,6 +51,8 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
         <Route element={<Casca />}>
           <Route index element={<TelaDoModulo modulo="agentes" titulo="Agentes" icone={Bot}><PaginaAgentes /></TelaDoModulo>} />
           <Route path="contas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
+          <Route path="contas/importar" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaImportarContas /></TelaDoModulo>} />
+          <Route path="contas/importar/:loteId" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaImportarContas /></TelaDoModulo>} />
           <Route path="contas/:contaId" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
           <Route path="contatos" element={<TelaDoModulo modulo="contatos" titulo="Contatos" icone={Building2}><PaginaContatos /></TelaDoModulo>} />
           <Route path="sequencias" element={<PaginaSequencias />} />

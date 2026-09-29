@@ -17,6 +17,7 @@ import type {
   TipoDeInteracao,
 } from './contas-tipos'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
+import { criarFonteDeImportacaoSupabase } from './supabase-importacao'
 
 interface RegistroConta {
   id: string
@@ -222,6 +223,8 @@ export function criarFonteDeContasSupabase(
       return () => ouvintes.delete(ouvinte)
     },
     hoje: () => new Date(),
+
+    importacao: criarFonteDeImportacaoSupabase(cliente, obterWorkspaceId, notificar),
 
     async contas() {
       const { data, error } = await cliente.from('target_accounts').select(COLUNAS_DA_CONTA)
