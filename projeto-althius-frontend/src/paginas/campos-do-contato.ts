@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { CanaisDoContato } from '@/fonte/canais-do-contato'
 
 export interface CamposDoFormularioDeContato {
   nome: string
@@ -15,3 +16,11 @@ export function useCamposDoContato(inicial: CamposDoFormularioDeContato) {
     setCampos((atuais) => ({ ...atuais, [nome]: e.target.value }))
   return { campos, editar }
 }
+
+/** As listas como a pessoa as edita: uma linha em branco vale "nenhum valor" e não é gravada. */
+export const canaisSemLinhasEmBranco = (canais: CanaisDoContato): CanaisDoContato => ({
+  emails: canais.emails.filter((e) => e.valor.trim()),
+  telefones: canais.telefones.filter((t) => t.valor.trim()),
+})
+
+export const mesmosCanais = (a: CanaisDoContato, b: CanaisDoContato) => JSON.stringify(a) === JSON.stringify(b)

@@ -1,6 +1,7 @@
 import { Popover } from '@base-ui/react/popover'
 import { createLucideIcon, Mail, Phone, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { canaisAdicionais } from '@/fonte/canais-do-contato'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
 import { useDados, useFonteDeContas } from '@/fonte/contexto'
 import type { SecaoDoDocumento } from '@/fonte/tipos'
@@ -132,7 +133,7 @@ export function TabelaDeContatos({
               <CelulaPersona persona={contato.persona} personas={personas} />
             </td>
             <td className={CELULA}>
-              <DadosDeContato canais={contato.canais} />
+              <DadosDeContato canais={contato.canais} adicionais={canaisAdicionais(contato)} />
             </td>
             <td className={CELULA}>
               <CelulaUltimoContato data={contato.ultimoContatoEm} hoje={hoje} />
@@ -188,19 +189,40 @@ function CelulaPersona({ persona, personas }: { persona?: string; personas?: Sec
   )
 }
 
-/** Um ícone por canal: o disponível normal e o ausente apagado. Só a disponibilidade, sem valores nem links. */
-function DadosDeContato({ canais }: { canais: Contato['canais'] }) {
+/**
+ * Um ícone por canal: o disponível normal e o ausente apagado. Só a disponibilidade, sem valores nem links. Um Contato
+ * com e-mails ou telefones além do principal mostra "+N" ao lado do ícone.
+ */
+function DadosDeContato({
+  canais,
+  adicionais,
+}: {
+  canais: Contato['canais']
+  adicionais: { emails: number; telefones: number }
+}) {
+  const maisPorCanal: Partial<Record<keyof Contato['canais'], number>> = {
+    email: adicionais.emails,
+    telefone: adicionais.telefones,
+  }
   return (
     <span className="flex items-center gap-2.5">
       {CANAIS.map(({ canal, rotulo, icone: Icone }) => {
-        const nome = `${rotulo} ${canais[canal] ? 'disponível' : 'não disponível'}`
+        const mais = canais[canal] ? (maisPorCanal[canal] ?? 0) : 0
+        const nome = `${rotulo} ${canais[canal] ? 'disponível' : 'não disponível'}${mais ? `, mais ${mais}` : ''}`
         return (
-          <span key={canal} role="img" aria-label={nome} title={nome}>
-            <Icone
-              strokeWidth={1.8}
-              className={cn('size-4', canais[canal] ? 'text-al-ink' : 'text-al-muted opacity-45')}
-              aria-hidden
-            />
+          <span key={canal} className="flex items-center gap-0.5">
+            <span role="img" aria-label={nome} title={nome}>
+              <Icone
+                strokeWidth={1.8}
+                className={cn('size-4', canais[canal] ? 'text-al-ink' : 'text-al-muted opacity-45')}
+                aria-hidden
+              />
+            </span>
+            {mais > 0 && (
+              <span aria-hidden className="text-[0.625rem] text-al-muted">
+                +{mais}
+              </span>
+            )}
           </span>
         )
       })}

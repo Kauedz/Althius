@@ -60,6 +60,7 @@ interface LinhaDaAutorizacao {
 const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   contact_unlinked: 'O Contato de um passo não está vinculado à Conta-alvo. Ajuste o passo antes de ativar.',
   contact_without_email: 'O Contato de um passo não tem e-mail. Cadastre o e-mail antes de ativar.',
+  destination_not_found: 'Um passo escolhe um número de e-mail que o Contato não tem. Ajuste o passo antes de ativar.',
   empty_content: 'Um passo de E-mail está sem texto. Escreva o corpo antes de ativar.',
   destination_bounced: 'O e-mail de um Contato já voltou nesta Sequência. Corrija o e-mail antes de ativar.',
   sender_not_ready: 'Sua Conta remetente de E-mail não está pronta para enviar.',
@@ -189,7 +190,12 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('an ended sequence cannot be changed')) return new Error('Esta Sequência foi encerrada e não pode mais ser alterada.')
   if (error.code === '23503') return new Error('Esta Sequência aponta para uma Conta-alvo que não existe mais neste Workspace.')
   if (error.code === '0A000') return new Error('Só passos de E-mail podem ser confirmados por enquanto.')
-  if (error.code === '22023' && error.message === 'contact has no email destination') return new Error('O Contato deste passo não tem e-mail cadastrado.')
+  if (error.code === '22023' && error.message === 'contact has no email destination') {
+    return new Error('O Contato deste passo não tem o e-mail escolhido. Cadastre-o ou escolha outro número.')
+  }
+  if (error.code === '22023' && error.message.includes('invalid destination position')) {
+    return new Error('O passo escolhe um número de e-mail inválido: use de 1 a 3.')
+  }
   if (error.code === '22023' && error.message === 'contact has no active link with this target account') return new Error('O Contato deste passo não está vinculado à Conta-alvo.')
   if (error.code === '55000') return new Error('Este passo já foi enviado ou está sendo enviado.')
   if (error.code === '42501') return new Error('Apenas o responsável ativo pode abrir ou alterar o documento desta Sequência.')

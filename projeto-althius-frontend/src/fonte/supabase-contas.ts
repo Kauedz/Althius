@@ -2,10 +2,12 @@
 // Vínculo ativo (a visão `target_contacts`) e Interações pelo RLS da Participação ativa e escreve só pelas RPCs, que
 // conferem a responsabilidade no servidor. Sinais ainda não têm backend: vêm vazios e recusam as ações, sem dados da
 // Demonstração. Arquivar e apagar (CRM-18) também passam só pelas RPCs: as listas padrão escondem o que está arquivado,
-// e a Conta apagada nem chega ao navegador (o RLS a esconde).
+// e a Conta apagada nem chega ao navegador (o RLS a esconde). Os e-mails e telefones além do principal (CRM-27) vêm só
+// pelas funções `list_contact_channels` e `set_contact_channels`: as tabelas deles não têm acesso direto.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ErroDeModuloIndisponivel } from './ambiente'
+import type { CanaisDoContato, RotuloDeEmail, TipoDeTelefone } from './canais-do-contato'
 import type {
   ContaAlvo,
   Contato,
@@ -71,6 +73,16 @@ interface RegistroFoto {
   photo_url: string | null
 }
 
+/** Um canal do Contato, como a função `list_contact_channels` o devolve: `label` é o rótulo do e-mail ou o tipo do telefone. */
+interface RegistroCanal {
+  contact_id: string
+  channel: 'email' | 'phone'
+  ordinal: number
+  value: string
+  label: string
+  whatsapp: boolean | null
+}
+
 const COLUNAS_DO_CONTATO = 'id, target_account_id, name, role, email, whatsapp, linkedin, last_interaction_at'
 
 const COLUNAS_DA_CONTA = 'id, name, canonical_url, domain, linkedin_url, segment, last_interaction_at, archived_at'
@@ -108,6 +120,21 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.code === '42501' && error.message.includes('contact')) {
     return new Error('Só o Vendedor responsável pela Conta-alvo ou um Administrador pode cadastrar e editar os Contatos dela.')
   }
+  // As listas de e-mails e de telefones (CRM-27): as recusas dos gatilhos, que também valem para o principal.
+  if (error.code === '23505' && error.message.includes('email already belongs')) {
+    return new Error('Já existe um Contato com este e-mail neste Workspace.')
+  }
+  if (error.code === '23505' && error.message.includes('phone already belongs')) {
+    return new Error('Já existe um Contato com este telefone neste Workspace.')
+  }
+  if (error.message.includes('appears twice in the list')) {
+    return new Error('O mesmo e-mail ou telefone aparece duas vezes na lista.')
+  }
+  if (error.message.includes('at most 3 emails')) return new Error('Um Contato pode ter até 3 e-mails.')
+  if (error.message.includes('at most 3 phones')) return new Error('Um Contato pode ter até 3 telefones.')
+  if (error.message.includes('primary email cannot be removed') || error.message.includes('primary phone cannot be removed')) {
+    return new Error('Este Contato tem e-mails ou telefones adicionais: remova-os, ou troque o principal, na edição do Contato.')
+  }
   if (error.code === '23505' && error.message.includes('contacts_email')) {
     return new Error('Já existe um Contato com este e-mail neste Workspace.')
   }
@@ -130,7 +157,24 @@ function converterErro(error: { message: string; code?: string }): Error {
   return new Error(error.message)
 }
 
-function mapearContato(linha: RegistroContato, foto?: RegistroFoto, permissoes: Permissoes = SEM_PERMISSOES): Contato {
+/** As listas de cada Contato, na ordem que a função devolve: o principal (posição 1) primeiro. */
+function agruparCanais(registros: RegistroCanal[]): Map<string, CanaisDoContato> {
+  const porContato = new Map<string, CanaisDoContato>()
+  for (const r of registros) {
+    const canais = porContato.get(r.contact_id) ?? { emails: [], telefones: [] }
+    if (r.channel === 'email') canais.emails.push({ valor: r.value, rotulo: r.label as RotuloDeEmail })
+    else canais.telefones.push({ valor: r.value, tipo: r.label as TipoDeTelefone, whatsapp: r.whatsapp ?? true })
+    porContato.set(r.contact_id, canais)
+  }
+  return porContato
+}
+
+function mapearContato(
+  linha: RegistroContato,
+  foto?: RegistroFoto,
+  permissoes: Permissoes = SEM_PERMISSOES,
+  canais?: CanaisDoContato,
+): Contato {
   return {
     id: linha.id,
     contaId: linha.target_account_id,
@@ -143,6 +187,7 @@ function mapearContato(linha: RegistroContato, foto?: RegistroFoto, permissoes: 
     ...(linha.email ? { email: linha.email } : {}),
     ...(linha.whatsapp ? { whatsapp: linha.whatsapp } : {}),
     ...(linha.linkedin ? { linkedin: linha.linkedin } : {}),
+    ...(canais ? { emails: canais.emails, telefones: canais.telefones } : {}),
     ...(linha.last_interaction_at ? { ultimoContatoEm: linha.last_interaction_at } : {}),
     ...(foto?.photo_url ? { foto: foto.photo_url } : {}),
     // Uma foto que ainda vale não leva o estado da última busca; sem ela, o estado explica por que faltou.
@@ -270,18 +315,35 @@ export function criarFonteDeContasSupabase(
     ])
     if (error) throw converterErro(error)
     const linhas = (data ?? []) as RegistroContato[]
+    const canais = await canaisDoWorkspace([...new Set(linhas.map((linha) => linha.id))])
     const contasDoContato = new Map<string, string[]>()
     for (const linha of linhas) {
       contasDoContato.set(linha.id, [...(contasDoContato.get(linha.id) ?? []), linha.target_account_id])
     }
     const usuarioId = obterUsuarioId()
     return linhas.map((linha) =>
-      mapearContato(linha, fotos.get(linha.id), {
-        podeEditar: administrador || contasDoContato.get(linha.id)!.every((conta) => donos.get(conta) === usuarioId),
-        podeArquivar: administrador || donos.get(linha.target_account_id) === usuarioId,
-        podeApagar: administrador,
-      }),
+      mapearContato(
+        linha,
+        fotos.get(linha.id),
+        {
+          podeEditar: administrador || contasDoContato.get(linha.id)!.every((conta) => donos.get(conta) === usuarioId),
+          podeArquivar: administrador || donos.get(linha.target_account_id) === usuarioId,
+          podeApagar: administrador,
+        },
+        canais.get(linha.id),
+      ),
     )
+  }
+
+  /**
+   * Os e-mails e telefones dos Contatos, com o rótulo e a marca de WhatsApp de cada um. Se a leitura falhar, os Contatos
+   * aparecem só com o principal e sem as listas: a tela não oferece editá-las, para nunca gravar uma lista incompleta.
+   */
+  async function canaisDoWorkspace(ids: string[]): Promise<Map<string, CanaisDoContato>> {
+    if (ids.length === 0) return new Map()
+    const { data, error } = await cliente.rpc('list_contact_channels', { p_contact_ids: ids })
+    if (error) return new Map()
+    return agruparCanais((data ?? []) as RegistroCanal[])
   }
 
   /**
@@ -411,6 +473,20 @@ export function criarFonteDeContasSupabase(
         p_email: campos.email?.trim() ?? null,
         p_phone: campos.whatsapp?.trim() ?? null,
         p_linkedin: campos.linkedin?.trim() ?? null,
+      })
+      return contato(contatoId)
+    },
+
+    // A troca das listas é atômica no banco: um valor recusado (de outro Contato, repetido, acima do limite) não muda nada.
+    async salvarCanaisDoContato(contatoId: string, canais: CanaisDoContato) {
+      await rpc('set_contact_channels', {
+        p_contact_id: contatoId,
+        p_emails: canais.emails.map((email) => ({ value: email.valor.trim(), label: email.rotulo })),
+        p_phones: canais.telefones.map((telefone) => ({
+          value: telefone.valor.trim(),
+          kind: telefone.tipo,
+          whatsapp: telefone.whatsapp,
+        })),
       })
       return contato(contatoId)
     },

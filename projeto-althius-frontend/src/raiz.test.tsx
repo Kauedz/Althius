@@ -827,6 +827,17 @@ describe('Envios automáticos da Sequência no Workspace operacional', () => {
       'O Contato de um passo não tem e-mail. Cadastre o e-mail antes de ativar. Passo: "Primeiro contato".')
   })
 
+  it('uma ativação barrada por um número de e-mail que o Contato não tem diz o motivo e o passo', async () => {
+    const { usuario } = abrirASequenciaDaMarina({
+      rpcs: { activate_sequence: () => [{ outcome: 'destination_not_found', step_id: 'passo-1', version: null, scheduled_for: null }] },
+    })
+    await usuario.click(await screen.findByRole('button', { name: 'Ativar envios' }))
+    await usuario.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ativar' }))
+    const painel = screen.getByRole('region', { name: 'Envios automáticos' })
+    expect(await within(painel).findByRole('status')).toHaveTextContent(
+      'Um passo escolhe um número de e-mail que o Contato não tem. Ajuste o passo antes de ativar. Passo: "Primeiro contato".')
+  })
+
   it('depois de uma edição num passo pendente, o painel avisa que os envios pararam', async () => {
     abrirASequenciaDaMarina({
       rpcs: {

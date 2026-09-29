@@ -33,6 +33,13 @@ import {
 } from '@/components/ui/dialog'
 import { MODULO_INDISPONIVEL } from '@/fonte/ambiente'
 import {
+  emailDoPasso,
+  posicaoDoDestino,
+  ROTULOS_DE_EMAIL,
+  telefoneDoPasso,
+  TIPOS_DE_TELEFONE,
+} from '@/fonte/canais-do-contato'
+import {
   useAmbiente,
   useDados,
   useDadosDeContas,
@@ -460,7 +467,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       const substituto = novosParticipantes[0]
       return {
         participantesIds: novosParticipantes,
-        steps: atual.steps.map((s) => (s.contatoId === contatoId ? { ...s, contatoId: substituto } : s)),
+        steps: atual.steps.map((s) => (s.contatoId === contatoId ? { ...s, contatoId: substituto, destino: undefined } : s)),
       }
     })
   }
@@ -895,7 +902,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                   <li key={s.id} className="flex flex-col gap-0.5 border-t border-al-line pt-2 first:border-t-0 first:pt-0">
                     <span className="text-al-ink font-medium">{s.titulo}</span>
                     <span className="text-al-muted">
-                      Para {contato?.email ?? 'Contato sem e-mail'} · {s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
+                      Para {emailDoPasso(contato, s.destino) ?? 'Contato sem e-mail'} · {s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
                       {s.delayDiasUteis > 0 ? ` · ${s.delayDiasUteis} ${s.delayDiasUteis === 1 ? 'dia útil' : 'dias úteis'} depois do anterior` : ''}
                     </span>
                   </li>
@@ -1220,6 +1227,52 @@ interface ComposerStepProps {
   onResolverIncerto?: (saiu: boolean) => void
 }
 
+/**
+ * Qual e-mail (ou telefone com WhatsApp) do Contato o passo usa: "número 1" é o principal, e o 2 e o 3, os adicionais.
+ * Só aparece quando o Contato tem mais de um e a fonte informa as listas; a confirmação fixa o endereço escolhido.
+ */
+function SeletorDeDestino({
+  canal,
+  contato,
+  destino,
+  onEscolher,
+}: {
+  canal: 'email' | 'whatsapp'
+  contato: Contato | undefined
+  destino?: number
+  onEscolher: (destino: number | undefined) => void
+}) {
+  const lista = canal === 'email' ? contato?.emails : contato?.telefones
+  if (!lista || lista.length < 2) return null
+  const atual = posicaoDoDestino(destino)
+  // O passo de WhatsApp escolhe só entre os telefones marcados; o número é a posição na lista inteira do Contato.
+  const opcoes = lista.flatMap((canalDoContato, i) => {
+    if ('whatsapp' in canalDoContato && !canalDoContato.whatsapp) return []
+    const detalhe = 'rotulo' in canalDoContato ? ROTULOS_DE_EMAIL[canalDoContato.rotulo] : TIPOS_DE_TELEFONE[canalDoContato.tipo]
+    return [{ posicao: i + 1, texto: `Número ${i + 1} · ${canalDoContato.valor} (${detalhe})` }]
+  })
+  const existe = opcoes.some((o) => o.posicao === atual)
+  return (
+    <select
+      aria-label={canal === 'email' ? 'E-mail do Contato neste passo' : 'Telefone do Contato neste passo'}
+      value={existe ? atual : ''}
+      onChange={(e) => onEscolher(e.target.value === '1' ? undefined : Number(e.target.value))}
+      className="border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
+    >
+      {!existe && (
+        <option value="" disabled>
+          Escolha o número
+        </option>
+      )}
+      {opcoes.map((o) => (
+        <option key={o.posicao} value={o.posicao}>
+          {o.texto}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function ComposerStep({
   step,
   indice,
@@ -1330,6 +1383,8 @@ function ComposerStep({
                 titulo: novoTitulo,
                 modoEmail: canal === 'email' ? (step.modoEmail ?? 'auto') : undefined,
                 subtipoLinkedIn: canal === 'linkedin' ? (step.subtipoLinkedIn ?? 'convite') : undefined,
+                // O número escolhido vale para o e-mail ou para o telefone do canal de antes, não para o novo.
+                destino: undefined,
               })
               onModoPrevia(false)
             }}
@@ -1352,7 +1407,7 @@ function ComposerStep({
           <select
             aria-label="Destinatário"
             value={step.contatoId}
-            onChange={(e) => onSalvar({ contatoId: e.target.value })}
+            onChange={(e) => onSalvar({ contatoId: e.target.value, destino: undefined })}
             className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
           >
             {participantesIds.map((id) => {
@@ -1372,18 +1427,25 @@ function ComposerStep({
           <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-al-line text-xs">
             <span className="text-al-muted">Destino:</span>
             {step.canal === 'email' && (
-              contato?.email ? (
-                <span className="font-mono text-al-ink" data-testid="destino-atual">{contato.email}</span>
+              emailDoPasso(contato, step.destino) ? (
+                <span className="font-mono text-al-ink" data-testid="destino-atual">{emailDoPasso(contato, step.destino)}</span>
               ) : (
-                <span className="text-al-atencao" data-testid="destino-atual">Nenhum e-mail real</span>
+                <span className="text-al-atencao" data-testid="destino-atual">
+                  {posicaoDoDestino(step.destino) > 1 ? `Nenhum e-mail no número ${posicaoDoDestino(step.destino)}` : 'Nenhum e-mail real'}
+                </span>
               )
             )}
             {step.canal === 'whatsapp' && (
-              contato?.whatsapp ? (
-                <span className="font-mono text-al-ink" data-testid="destino-atual">{contato.whatsapp}</span>
+              telefoneDoPasso(contato, step.destino)?.whatsapp ? (
+                <span className="font-mono text-al-ink" data-testid="destino-atual">{telefoneDoPasso(contato, step.destino)!.valor}</span>
               ) : (
-                <span className="text-al-atencao" data-testid="destino-atual">Nenhum WhatsApp real</span>
+                <span className="text-al-atencao" data-testid="destino-atual">
+                  {posicaoDoDestino(step.destino) > 1 ? `Nenhum WhatsApp no número ${posicaoDoDestino(step.destino)}` : 'Nenhum WhatsApp real'}
+                </span>
               )
+            )}
+            {(step.canal === 'email' || step.canal === 'whatsapp') && (
+              <SeletorDeDestino canal={step.canal} contato={contato} destino={step.destino} onEscolher={(destino) => onSalvar({ destino })} />
             )}
             {step.canal === 'linkedin' && (
               contato?.linkedin ? (
@@ -1659,7 +1721,7 @@ function descreverEnvio(envio: EnvioDoPasso): string {
     case 'awaiting_reconfirmation':
       return envio.ultimoErro === 'contact_unlinked'
         ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
-        : `O e-mail do Contato mudou depois da confirmação (era ${envio.destino}). Reconfirme para enviar ao novo Destino.`
+        : `O Contato não tem mais o e-mail confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
     case 'uncertain':
       return 'O provedor não respondeu a tempo e a confirmação não chegou. Confira sua caixa de saída: o e-mail saiu?'
     case 'failed':

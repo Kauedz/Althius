@@ -54,6 +54,11 @@ export interface StepSequencia {
   corpo?: string
   objetivo?: string
   modoEmail?: ModoEmail
+  /**
+   * Qual e-mail (passo de E-mail) ou telefone (WhatsApp) do Contato o passo usa, de 1 a 3: 1 é o principal e ausente
+   * vale 1. A confirmação fixa o endereço dessa posição (ADR-0014).
+   */
+  destino?: number
   subtipoLinkedIn?: SubtipoLinkedIn
   janela?: JanelaHorario | null
   anexos?: AnexoStep[]
