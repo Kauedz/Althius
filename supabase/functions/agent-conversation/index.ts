@@ -14,7 +14,7 @@ const SUPABASE_URL = required('SUPABASE_URL')
 const APP_ORIGIN = required('APP_ORIGIN')
 
 /**
- * O provedor do modelo, pelo segredo AGENT_PROVIDER: `anthropic` (padrão) ou `groq`, só para teste (ADR-0018). Sem a
+ * O provedor do modelo, pelo segredo AGENT_PROVIDER: `anthropic` (padrão), `groq` (só para teste) ou `hermes` (ADR-0018). Sem a
  * chave do provedor escolhido (e, no Groq, sem o modelo), a função sobe e diz que as Conversas estão indisponíveis, em
  * vez de fingir uma resposta.
  */
@@ -31,6 +31,9 @@ function modeloConfigurado(): Modelo | null {
 }
 
 const modelo = modeloConfigurado()
+// Com AGENT_PROVIDER=hermes, a função só guarda o pedido: quem roda é o worker do Hermes (`_hermes-worker`), que busca
+// a fila. As Conversas aparecem disponíveis; sem o worker ligado, o pedido vira falha por prazo em 10 minutos.
+const comHermes = (Deno.env.get('AGENT_PROVIDER') || '').trim().toLowerCase() === 'hermes'
 
 const admin = createClient(SUPABASE_URL, required('SUPABASE_SERVICE_ROLE_KEY'), {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -93,7 +96,7 @@ const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unkn
 
 Deno.serve(createHandler({
   db,
-  executar: modelo ? createRunner({ db: runDb, modelo }) : null,
+  executar: comHermes ? () => Promise.resolve() : modelo ? createRunner({ db: runDb, modelo }) : null,
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : (work) => void work,
   appOrigin: APP_ORIGIN,
 }))

@@ -55,8 +55,9 @@ export interface Modelo {
 
 /** Uma falha que vira o motivo gravado na Execução (`error_code`). */
 export class ErroDoModelo extends Error {
-  constructor(readonly codigo: string) {
-    super(codigo)
+  /** `detalhe` vai só para o log da função (ex.: o motivo que o provedor mandou), nunca para a tela. */
+  constructor(readonly codigo: string, readonly detalhe = '') {
+    super(detalhe ? `${codigo}: ${detalhe}` : codigo)
     this.name = 'ErroDoModelo'
   }
 }
@@ -240,12 +241,15 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     const resposta = await modelo.criar({
       max_tokens: MAX_TOKENS,
       system: [
-        'Você é a Coordenação da Althius. Você não é um Agente: não tem nome, não consulta dados e não age.',
-        'Escolha quais Agentes do Workspace devem trabalhar no pedido (no máximo 3), pelo id. Chame um Agente padrão, a ' +
-        'menos que o pedido cite um Agente criado. Se o pedido for só uma saudação ou uma dúvida sobre a própria ' +
-        'Althius, não chame ninguém e escreva a resposta direta; nos outros casos, deixe resposta_direta vazia.',
+        'Você é a Coordenação da Althius. Você não é um Agente: você só escolhe quais Agentes trabalham no pedido.',
+        'Os Agentes consultam os dados do Workspace (as Contas-alvo) e fazem o trabalho da Especialidade deles. Todo ' +
+        'pedido sobre dados do Workspace (Contas-alvo, empresas, clientes, prospecção) ou sobre ICP, Personas, textos ' +
+        'e presença da marca precisa de pelo menos um Agente: na dúvida, chame o Scopus.',
+        'Escolha até 3 Agentes pelo id. Chame um Agente padrão, a menos que o pedido cite um Agente criado. Só se o ' +
+        'pedido for uma saudação ou uma dúvida sobre como usar a Althius, não chame ninguém e escreva resposta_direta; ' +
+        'nos outros casos, deixe resposta_direta vazia.',
         `Agentes do Workspace "${reserva.workspace_name}":\n${lista}`,
-        REGRAS,
+        'Responda em português do Brasil. Nunca invente dados.',
       ].join('\n\n'),
       messages: [...historico(reserva), { role: 'user', content: reserva.request_text }],
       output_config: {

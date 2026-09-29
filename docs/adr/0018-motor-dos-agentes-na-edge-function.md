@@ -1,4 +1,4 @@
-# O motor dos Agentes roda numa Edge Function, com o modelo da Anthropic, e o Hermes fica para depois
+# O motor provisório dos Agentes roda numa Edge Function; o definitivo será o Hermes Agent
 
 As Conversas e a Coordenação (CRM-14) precisam de um motor que chame um modelo, use ferramentas e guarde cada passo. Decidimos que o motor é código nosso, numa Edge Function do Supabase (`agent-conversation`), chamando a Messages API da Anthropic com a chave que só a função tem, e não o Hermes Agent com uma instância por Workspace ([proposta do CRM-25](../../.scratch/crm-real-e-stack/propostas/hermes-multi-tenant-architecture.md)).
 
@@ -14,3 +14,18 @@ Neste corte, a única ferramenta dos Agentes é a consulta às Contas-alvo ativa
 
 - Hermes Agent com uma instância por Workspace, um gateway e um proxy de modelo: fica para quando houver clientes pagando e uma necessidade que o motor próprio não atenda. Rever então este ADR.
 - Chamar o modelo pelo navegador: descartado, porque expõe a chave e deixa o estado da Conversa no cliente.
+
+**2026-09-29, decisão do Nan: o motor definitivo é o Hermes Agent.** O Hermes será o orquestrador e o motor de tudo:
+recebe o pedido e chama o Scopus, o Ethos, o Rhetor e o Oraculum conforme o trabalho. A Edge Function
+`agent-conversation` passa a ser uma ponte provisória, para testar a tela e o banco até o Hermes entrar. O que fica
+valendo para o Hermes é o contrato com o banco, não o código da função: o pedido guardado antes de rodar
+(`start_agent_run`), a reserva única (`claim_agent_run`), os passos gravados um a um (`append_agent_run_event`), o
+fechamento com resposta ou falha (`finish_agent_run`) e a tela lendo os passos do banco. As instruções (prompts) da
+função são de teste e não são o desenho do Hermes. Em aberto, no CRM-25: se o Hermes aparece para o usuário como
+orquestrador com nome, o que muda o [ADR-0004](./0004-coordenacao-sem-quinto-agente.md) (Coordenação sem nome e sem
+ser Agente), e onde ele roda ([ADR-0013](./0013-supabase-auto-hospedado-em-vps.md)).
+
+**2026-09-29, ambientes (Nan).** Até a primeira venda, o app roda na Vercel com o banco no Supabase, e a ponte `agent-conversation` é o motor que os fundadores usam para prospectar. Com a primeira venda, contrata-se uma VPS e o Hermes roda nela, um perfil por Workspace, pelo mesmo contrato com o banco. Spec em `.scratch/motor-hermes/`.
+
+**2026-09-29, revisão dos ambientes (Nan).** Não haverá fase na Vercel: o app e o Hermes vão para uma VPS da Hostinger. Antes disso, o Hermes roda no computador do Nan para ver o fluxo de ponta a ponta. Com `AGENT_PROVIDER=hermes`, a `agent-conversation` só guarda o pedido, e o worker `supabase/functions/_hermes-worker`, rodando ao lado do Hermes, busca a fila (`list_queued_agent_runs`), reserva, chama a API de runs do Hermes (`POST /v1/runs` com `Idempotency-Key`, `GET /v1/runs/{id}`) e grava a resposta. Os endpoints, a chave `API_SERVER_KEY` e os toolsets desligáveis foram conferidos na documentação oficial do Hermes (repositório NousResearch/hermes-agent).
+
