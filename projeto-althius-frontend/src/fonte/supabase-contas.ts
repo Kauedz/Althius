@@ -11,6 +11,7 @@ import type {
   Contato,
   ContatoArquivado,
   DestinosReaisContato,
+  EdicaoDoContato,
   FonteDeContas,
   Interacao,
   NovaContaAlvo,
@@ -101,6 +102,9 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.code === '42501' && error.message.includes('interactions')) {
     return new Error('Só o Vendedor responsável pode registrar Interações nesta Conta-alvo.')
   }
+  if (error.code === '42501' && error.message.includes('edit this contact')) {
+    return new Error('Só um Administrador ou o Vendedor responsável por todas as Contas deste Contato pode editá-lo.')
+  }
   if (error.code === '42501' && error.message.includes('contact')) {
     return new Error('Só o Vendedor responsável pela Conta-alvo ou um Administrador pode cadastrar e editar os Contatos dela.')
   }
@@ -130,6 +134,7 @@ function mapearContato(linha: RegistroContato, foto?: RegistroFoto, permissoes: 
   return {
     id: linha.id,
     contaId: linha.target_account_id,
+    ...(permissoes.podeEditar ? { podeEditar: true } : {}),
     ...(permissoes.podeArquivar ? { podeArquivar: true } : {}),
     ...(permissoes.podeApagar ? { podeApagar: true } : {}),
     nome: linha.name,
@@ -149,11 +154,12 @@ function mapearContato(linha: RegistroContato, foto?: RegistroFoto, permissoes: 
 
 /** O que quem está na sessão pode fazer com um registro. O banco decide de novo a cada ação: isto só mostra os botões. */
 interface Permissoes {
+  podeEditar: boolean
   podeArquivar: boolean
   podeApagar: boolean
 }
 
-const SEM_PERMISSOES: Permissoes = { podeArquivar: false, podeApagar: false }
+const SEM_PERMISSOES: Permissoes = { podeEditar: false, podeArquivar: false, podeApagar: false }
 
 function mapearConta(
   linha: RegistroConta,
@@ -247,24 +253,35 @@ export function criarFonteDeContasSupabase(
    * fora os das Contas arquivadas; a de uma Conta arquivada mostra os dela, que são o histórico.
    */
   async function contatos(contaId?: string): Promise<Contato[]> {
-    let consulta = cliente.from('target_contacts').select(COLUNAS_DO_CONTATO).eq('workspace_id', workspace())
-    if (contaId) consulta = consulta.eq('target_account_id', contaId)
-    const administrador = obterEhAdministrador()
-    const [{ data, error }, fotos, donos, arquivadas] = await Promise.all([
-      consulta.order('name', { ascending: true }),
-      fotosDoWorkspace(),
-      administrador ? Promise.resolve(new Map<string, string>()) : responsaveis(),
+    const [todos, arquivadas] = await Promise.all([
+      contatosDoWorkspace(),
       contaId ? Promise.resolve(new Set<string>()) : idsDasContasArquivadas(),
     ])
+    return todos.filter((c) => (contaId ? c.contaId === contaId : !arquivadas.has(c.contaId)))
+  }
+
+  /** Uma linha por Vínculo ativo do Workspace, inclusive o das Contas arquivadas, com o que a sessão pode fazer em cada uma. */
+  async function contatosDoWorkspace(): Promise<Contato[]> {
+    const administrador = obterEhAdministrador()
+    const [{ data, error }, fotos, donos] = await Promise.all([
+      cliente.from('target_contacts').select(COLUNAS_DO_CONTATO).eq('workspace_id', workspace()).order('name', { ascending: true }),
+      fotosDoWorkspace(),
+      administrador ? Promise.resolve(new Map<string, string>()) : responsaveis(),
+    ])
     if (error) throw converterErro(error)
-    return ((data ?? []) as RegistroContato[])
-      .filter((linha) => !arquivadas.has(linha.target_account_id))
-      .map((linha) =>
-        mapearContato(linha, fotos.get(linha.id), {
-          podeArquivar: administrador || donos.get(linha.target_account_id) === obterUsuarioId(),
-          podeApagar: administrador,
-        }),
-      )
+    const linhas = (data ?? []) as RegistroContato[]
+    const contasDoContato = new Map<string, string[]>()
+    for (const linha of linhas) {
+      contasDoContato.set(linha.id, [...(contasDoContato.get(linha.id) ?? []), linha.target_account_id])
+    }
+    const usuarioId = obterUsuarioId()
+    return linhas.map((linha) =>
+      mapearContato(linha, fotos.get(linha.id), {
+        podeEditar: administrador || contasDoContato.get(linha.id)!.every((conta) => donos.get(conta) === usuarioId),
+        podeArquivar: administrador || donos.get(linha.target_account_id) === usuarioId,
+        podeApagar: administrador,
+      }),
+    )
   }
 
   /**
@@ -278,9 +295,9 @@ export function criarFonteDeContasSupabase(
     return new Map(((data ?? []) as RegistroFoto[]).map((linha) => [linha.contact_id, linha]))
   }
 
-  /** O Contato com Vínculo ativo, na Conta pedida ou na primeira em que atua. */
+  /** O Contato com Vínculo ativo, na Conta pedida ou na primeira em que atua (mesmo arquivada). */
   async function contato(id: string, contaId?: string): Promise<Contato> {
-    const todos = await contatos(contaId)
+    const todos = contaId ? await contatos(contaId) : await contatosDoWorkspace()
     const encontrado = todos.find((c) => c.id === id)
     if (!encontrado) throw new Error('Contato não encontrado nesta Conta-alvo.')
     return encontrado
@@ -381,6 +398,21 @@ export function criarFonteDeContasSupabase(
         p_linkedin: opcional(novo.linkedin),
       })) as { id: string }
       return contato(linha.id, novo.contaId)
+    },
+
+    // Só o que a pessoa informou vai ao banco: texto vazio apaga o canal ou o cargo, campo ausente mantém o valor.
+    async editarContato(contatoId: string, campos: EdicaoDoContato) {
+      const nome = campos.nome.trim()
+      if (!nome) throw new Error('Informe o nome do Contato.')
+      await rpc('update_contact', {
+        p_contact_id: contatoId,
+        p_name: nome,
+        p_role: campos.cargo?.trim() ?? null,
+        p_email: campos.email?.trim() ?? null,
+        p_phone: campos.whatsapp?.trim() ?? null,
+        p_linkedin: campos.linkedin?.trim() ?? null,
+      })
+      return contato(contatoId)
     },
 
     async vincularContato(contatoId: string, contaId: string) {
