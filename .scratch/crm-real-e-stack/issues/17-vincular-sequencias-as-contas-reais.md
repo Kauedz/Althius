@@ -23,7 +23,7 @@
   - o `teste:real` precisa passar a criar uma Conta-alvo real antes de cada Sequência.
 
 - 2026-09-29: implementação (CRM-17), decisões e pendências.
-  - **Migration** `20260929120000_sequencias_nas_contas_reais.sql`. Não apaga nem reescreve dado:
+  - **Migration** `20260929130000_sequencias_nas_contas_reais.sql`. Não apaga nem reescreve dado:
     - o texto de `target_account_id` continua (todo o código que o lê segue igual). Ao lado dele há `account_id`, coluna uuid gerada: o próprio texto se for UUID, senão nulo;
     - a chave estrangeira para `target_accounts` é `NOT VALID` e `MATCH FULL`: recusa linha nova sem Conta real, de outro Workspace ou sem UUID, e não olha as antigas. Consequência: uma órfã antiga continua legível, mas não pode mais ser editada (erro 23503) até a limpeza;
     - a unicidade por Conta virou índice parcial "uma Sequência em andamento" (`status <> 'encerrada'`).

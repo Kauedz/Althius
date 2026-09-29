@@ -3,7 +3,7 @@
 --
 -- O que é uma órfã: uma Sequência (ou responsabilidade) cujo identificador de Conta-alvo é um texto solto, como os
 -- `teste-real-*` que o `npm run teste:real` criava antes do CRM-17, ou um UUID sem Conta-alvo no mesmo Workspace. A
--- migration 20260929120000_sequencias_nas_contas_reais.sql deixou essas linhas como estavam e só passou a recusar
+-- migration 20260929130000_sequencias_nas_contas_reais.sql deixou essas linhas como estavam e só passou a recusar
 -- linhas novas assim; a chave estrangeira para target_accounts ficou NOT VALID por causa delas.
 --
 -- Como usar, no SQL Editor do Supabase (ou pelo execute_sql), uma parte de cada vez:
