@@ -1031,11 +1031,18 @@ begin
   where not exists (
     select 1 from public.contact_account_links o
     where o.contact_id = x.contact_id and o.target_account_id <> p_target_account_id);
-  select count(distinct l.contact_id) into v_kept from public.contact_account_links l
-  where l.target_account_id = p_target_account_id and l.contact_id <> all (v_contact_ids);
   foreach v_contact_id in array v_contact_ids loop
     perform private.take_subject_lock('contact', v_contact_id, 'exclusive');
   end loop;
+  -- Com as travas na mão, a exclusividade se confere de novo: um Vínculo com outra Conta, confirmado entre a primeira
+  -- leitura e a trava, tira o Contato da lista, e ele perde só o Vínculo com esta Conta em vez de ser apagado.
+  select coalesce(array_agg(c order by c), '{}') into v_contact_ids
+  from unnest(v_contact_ids) c
+  where not exists (
+    select 1 from public.contact_account_links o
+    where o.contact_id = c and o.target_account_id <> p_target_account_id);
+  select count(distinct l.contact_id) into v_kept from public.contact_account_links l
+  where l.target_account_id = p_target_account_id and l.contact_id <> all (v_contact_ids);
 
   -- As Sequências da Conta, de qualquer estado: a Sequência antes dos Envios, na ordem de sempre.
   select coalesce(array_agg(q.id order by q.id), '{}') into v_sequence_ids

@@ -44,6 +44,9 @@ export interface Deps {
 
 const PAGE = 100
 
+/** Os únicos buckets em que a fila pode apagar: os que guardam dado ligado a um registro (anexos e CSV da importação). */
+export const BUCKETS_PERMITIDOS: ReadonlySet<string> = new Set(['email-attachments', 'csv-imports'])
+
 /**
  * O prefixo tem de apontar para uma pasta de dentro de uma pasta (`recebidos/<id>/`), nunca para a raiz de um bucket nem
  * para uma pasta de primeiro nível: um erro na fila não pode apagar mais do que uma pasta de um registro.
@@ -101,7 +104,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     for (const job of jobs) {
       try {
-        if (!validPrefix(job.prefix)) {
+        if (!BUCKETS_PERMITIDOS.has(job.bucket) || !validPrefix(job.prefix)) {
           await deps.db.finish(job.id, 'invalid_prefix')
           log({ type: 'storage-purge', jobId: job.id, outcome: 'invalid_prefix' })
           continue

@@ -140,3 +140,12 @@ Deno.test('uma falha do Storage volta a pasta para a fila, sem o prefixo no log 
   assertEquals(remaining.size, 1)
   assertEquals(JSON.stringify(logs).includes(INTERACAO), false)
 })
+
+Deno.test('um bucket fora da lista não é apagado, mesmo com um prefixo válido', async () => {
+  const { db, finished } = fakeDb([{ id: 11, bucket: 'avatars', prefix: PASTA }])
+  const { storage, remaining } = fakeStorage([`${PASTA}att-1/proposta.pdf`])
+  const { logs } = await call({ db, storage }, request())
+  assertEquals(remaining.size, 1)
+  assertEquals(finished, [{ id: 11, error: 'invalid_prefix' }])
+  assertEquals(logs, [{ type: 'storage-purge', jobId: 11, outcome: 'invalid_prefix' }])
+})
