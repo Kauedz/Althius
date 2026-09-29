@@ -96,7 +96,9 @@ declare
     then new.public_summary else '{}'::jsonb end;
 begin
   new.public_summary := jsonb_strip_nulls(jsonb_build_object(
-    'status', case when v_summary ->> 'status' in ('ativa', 'pausada', 'reuniao', 'esgotada', 'encerrada')
+    -- 'encerrada' só entra quando a Sequência está mesmo encerrada: o resumo vem do cliente e o Workspace o vê.
+    'status', case when v_summary ->> 'status' in ('ativa', 'pausada', 'reuniao', 'esgotada')
+        or (v_summary ->> 'status' = 'encerrada' and new.status = 'encerrada')
       then v_summary ->> 'status' else new.status end,
     'totalParticipantes', case when v_summary ->> 'totalParticipantes' ~ '^[0-9]{1,7}$'
       then least((v_summary ->> 'totalParticipantes')::integer, 1000000) end,
@@ -398,6 +400,11 @@ begin
   return v_sequence;
 end;
 $$;
+
+-- As funções redefinidas acima mantêm as permissões que já tinham; repetidas aqui para quem lê o arquivo sozinho.
+revoke all on function public.create_sequence(uuid, text, jsonb, jsonb) from public, anon;
+grant execute on function public.create_sequence(uuid, text, jsonb, jsonb) to authenticated;
+revoke all on function private.sanitize_sequence_public_summary() from public, anon, authenticated, service_role;
 
 comment on column public.sequences.public_summary is
   'Safe shared status projection; must not contain message body, subject, attachment, or free-text message summary.';

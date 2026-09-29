@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(79);
+select plan(80);
 
 -- O relógio da agenda fica parado onde o teste quiser, só dentro desta transação.
 create function pg_temp.relogio(p_at timestamptz) returns void language plpgsql as $f$
@@ -88,6 +88,14 @@ insert into ids select 'sequencia-ana', id::text from public.create_sequence(
   '{"totalSteps": 1}'::jsonb);
 select is((select account_id::text from public.sequences where id = (select valor::uuid from ids where chave = 'sequencia-ana')),
   (select valor from ids where chave = 'conta'), 'the sequence points to the real target account');
+reset role;
+update public.sequences set public_summary = '{"status": "encerrada"}'::jsonb
+  where id = (select valor::uuid from ids where chave = 'sequencia-ana');
+select is((select public_summary ->> 'status' from public.sequences where id = (select valor::uuid from ids where chave = 'sequencia-ana')),
+  'ativa', 'o resumo público não afirma "encerrada" numa Sequência que não está encerrada');
+update public.sequences set public_summary = '{"totalSteps": 1}'::jsonb
+  where id = (select valor::uuid from ids where chave = 'sequencia-ana');
+set local role authenticated;
 select is((select account_id::text from public.sales_responsibilities
     where target_account_id = (select valor from ids where chave = 'conta')),
   (select valor from ids where chave = 'conta'), 'so does the responsibility');
