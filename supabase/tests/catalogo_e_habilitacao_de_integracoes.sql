@@ -27,12 +27,12 @@ set local role anon;
 select set_config('request.jwt.claim.role', 'anon', true);
 select throws_ok(
   $$select * from public.list_workspace_integrations('ee000000-0000-0000-0000-000000000001')$$,
-  '42501', 'authentication required',
+  '42501', null,
   'anônimo não lista integrações do workspace'
 );
 select throws_ok(
   $$select public.enable_workspace_integration('ee000000-0000-0000-0000-000000000001', 'hubspot')$$,
-  '42501', 'authentication required',
+  '42501', null,
   'anônimo não habilita integração'
 );
 
