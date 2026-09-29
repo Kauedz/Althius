@@ -17,7 +17,7 @@
 
 ## Comments
 
-- **Modelo (2026-09-29):** migration `supabase/migrations/20260929120000_importacao_csv.sql`; tabelas só no schema `private` (RLS ligada, sem grant), acesso por RPCs `security definer`.
+- **Modelo (2026-09-29):** migration `supabase/migrations/20260929150000_importacao_csv.sql`; tabelas só no schema `private` (RLS ligada, sem grant), acesso por RPCs `security definer`.
   - `import_batches` (estado: uploading, mapping, preview, processing, completed, failed, cancelled) e `import_rows` (uma linha por registro, com valores normalizados, prévia, decisão, motivos e resultado).
   - `account_field_sources` e `contact_field_sources`: quem escreveu cada campo. Gatilhos em `target_accounts` e `contacts` marcam como manual (pessoa no app) ou automático (sem usuário) o que muda fora da importação. Campo sem origem registrada conta como manual.
   - Bucket `csv-imports` criado pela migration só onde o Storage existe (o runner local e o CI não têm).
