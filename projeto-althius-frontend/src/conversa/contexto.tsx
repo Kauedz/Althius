@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFonte } from '@/fonte/contexto'
 import type { AgenteId, Mensagem, PassoDaConversa, PassoDaCoordenacao } from '@/fonte/tipos'
 
@@ -62,8 +62,12 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
     setEstado((atual) => ({ ...atual, respondendo: { ...atual.respondendo, [agenteId]: valor } }))
   }, [])
 
+  // Onde a sessão já pediu algo desde que a página abriu: a Conversa salva não sobrepõe esse lugar.
+  const pedidosDaSessao = useRef(new Set<AgenteId | 'coordenada'>())
+
   const enviar = useCallback(
     async (agenteId: AgenteId, mensagem: { texto: string; sugestaoId?: string }) => {
+      pedidosDaSessao.current.add(agenteId)
       adicionar(agenteId, { id: proximoId++, tipo: 'usuario', texto: mensagem.texto })
       definirRespondendo(agenteId, true)
       try {
@@ -85,9 +89,74 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
   // Os pedidos da Conversa coordenada, que a Coordenação recebe para continuar a partir do que já foi feito.
   const pedidosDaConversa = useRef<Mensagem[]>([])
 
+  // No Workspace operacional, as Conversas estão no banco: voltam depois de recarregar a página, e o pedido que ainda
+  // roda continua de onde a leitura parou, sem ser enviado de novo. Um pedido feito antes disso chegar tem prioridade.
+  useEffect(() => {
+    if (!fonte.retomarConversas) return
+    let ativo = true
+    const seguir = async <P,>(passos: AsyncIterable<P>, adicionarPasso: (passo: P) => void, parar: () => void) => {
+      try {
+        for await (const passo of passos) {
+          if (!ativo) return
+          adicionarPasso(passo)
+        }
+      } finally {
+        if (ativo) parar()
+      }
+    }
+    fonte.retomarConversas().then(
+      (retomadas) => {
+        if (!ativo) return
+        const { coordenada } = retomadas
+        if (coordenada && coordenada.turnos.length > 0 && !pedidosDaSessao.current.has('coordenada')) {
+          pedidosDaConversa.current = coordenada.turnos.map((turno) => ({ texto: turno.pedido }))
+          mudarCoordenada(() => ({
+            itens: coordenada.turnos.flatMap((turno): ItemDaCoordenacao[] => [
+              { id: proximoId++, tipo: 'pedido', texto: turno.pedido },
+              ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
+            ]),
+            respondendo: Boolean(coordenada.emAndamento),
+          }))
+          if (coordenada.emAndamento) {
+            void seguir(
+              coordenada.emAndamento,
+              (passo) => mudarCoordenada((atual) => ({ ...atual, itens: [...atual.itens, { id: proximoId++, ...passo }] })),
+              () => mudarCoordenada((atual) => ({ ...atual, respondendo: false })),
+            )
+          }
+        }
+        for (const [agenteId, conversa] of Object.entries(retomadas.porAgente)) {
+          if (!conversa || conversa.turnos.length === 0 || pedidosDaSessao.current.has(agenteId)) continue
+          const itens = conversa.turnos.flatMap((turno): ItemDaConversa[] => [
+            { id: proximoId++, tipo: 'usuario', texto: turno.pedido },
+            ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
+          ])
+          setEstado((atual) => ({
+            ...atual,
+            itens: { ...atual.itens, [agenteId]: itens },
+            respondendo: { ...atual.respondendo, [agenteId]: Boolean(conversa.emAndamento) },
+          }))
+          if (conversa.emAndamento) {
+            void seguir(
+              conversa.emAndamento,
+              (passo) => adicionar(agenteId, { id: proximoId++, ...passo }),
+              () => definirRespondendo(agenteId, false),
+            )
+          }
+        }
+      },
+      // Sem as Conversas salvas, a tela começa vazia, como numa Conversa nova.
+      () => {},
+    )
+    return () => {
+      ativo = false
+    }
+  }, [fonte, mudarCoordenada, adicionar, definirRespondendo])
+
   /** Envia um pedido à Coordenação: numa Conversa nova, ou continuando a atual. */
   const pedirACoordenacao = useCallback(
     async (pedido: Mensagem, continuando: boolean) => {
+      pedidosDaSessao.current.add('coordenada')
       const anteriores = continuando ? pedidosDaConversa.current : []
       pedidosDaConversa.current = [...anteriores, pedido]
       const item: ItemDaCoordenacao = { id: proximoId++, tipo: 'pedido', texto: pedido.texto }

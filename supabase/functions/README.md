@@ -17,12 +17,15 @@ Configure em Supabase Edge Function Secrets:
 - `INVITE_EMAIL_FROM` (opcional): remetente do e-mail do Convite. Padrão: `Althius <contato@althius.com.br>`.
 - `APIFY_TOKEN`: token da API do Apify, usado pela `contact-photo-lookup` para buscar a foto pública do Contato. Só existe aqui, nunca no navegador.
 - `APIFY_PHOTO_ACTOR_ID`, `APIFY_PHOTO_INPUT` e `APIFY_PHOTO_MAX_CHARGE_USD` (opcionais): o Actor, o modelo de entrada dele e o teto de cobrança por execução. Padrões e motivos em `contact-photo-lookup/README.md`.
+- `ANTHROPIC_API_KEY`: chave da API da Anthropic, usada pela `agent-conversation` para os Agentes e a Coordenação. Só existe aqui, nunca no navegador. Sem ela, a função responde que as Conversas estão indisponíveis e a tela diz isso, sem resposta simulada.
+- `ANTHROPIC_MODEL` (opcional): o modelo dos Agentes. Padrão: `claude-opus-5-5`.
 
 O runtime fornece `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`. Nenhum segredo Unipile deve ser
 definido com prefixo `VITE_` ou enviado ao cliente.
 
 ## Endpoints
 
+- `agent-conversation` exige JWT de usuário. Aceita `capability` (`{available}`: se o modelo está configurado) e `send` com `workspaceId`, `conversationId` (opcional), `agentId` (a página do Agente; sem ele, a Coordenação), `text`, `mentions` e `clientRequestId`. Guarda o pedido com `start_agent_run` (sessão de quem pede; o mesmo `clientRequestId` devolve a mesma Execução) e responde `202 {conversationId, runId, status}`. A Execução continua depois da resposta (`EdgeRuntime.waitUntil`): `claim_agent_run` a reserva uma vez só, cada passo é gravado com `append_agent_run_event` e `finish_agent_run` fecha com sucesso (só com a resposta gravada) ou falha, com o motivo. A tela acompanha pelo banco (`get_agent_run_events`), então recarregar não roda de novo. A única consulta dos Agentes é `agent_search_target_accounts` (Contas-alvo ativas do Workspace). Recusa e corte do modelo viram falha; nos modelos que aceitam, uma recusa é refeita no servidor por outro modelo (`fallbacks: "default"`). Banco e modelo entram por injeção de dependência; `handler.test.ts` e `runner.test.ts` rodam sem rede.
 - `sender-accounts` exige JWT de usuário e participação ativa no Workspace. Aceita `list`, `connect`, `reconnect` e
   `disconnect`; conecta e reconecta via `POST /v2/auth/link` (link novo usa `providers`, reconexão usa `account_id`) e
   desconecta via `DELETE /v2/accounts/{id}`.

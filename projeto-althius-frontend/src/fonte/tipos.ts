@@ -475,6 +475,8 @@ export type PassoDaConversa =
   | { tipo: 'texto'; agenteId: AgenteId; texto: string }
   | { tipo: 'repasse'; de: AgenteId; para: AgenteId; resumo: string }
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
+  /** O pedido não terminou: o motivo, sem resposta no lugar. */
+  | { tipo: 'falha'; motivo: string }
 
 /**
  * Um passo de uma Conversa coordenada (ADR 0004). Cada Agente chamado é uma etapa: começa na chamada,
@@ -497,6 +499,26 @@ export type PassoDaCoordenacao =
       sinal?: string
       sequenciaId?: string
     }
+  /** O pedido não terminou: o motivo, sem resposta consolidada no lugar. */
+  | { tipo: 'falha'; motivo: string }
+
+/** Um pedido de uma Conversa salva e os passos que ele teve. */
+export interface TurnoRetomado<P> {
+  pedido: string
+  passos: P[]
+}
+
+/** Uma Conversa salva: os pedidos em ordem e, se o último ainda está rodando, a leitura do resto dele. */
+export interface ConversaRetomada<P> {
+  turnos: TurnoRetomado<P>[]
+  emAndamento?: AsyncIterable<P>
+}
+
+/** As Conversas que a sessão tinha antes de recarregar a página: a do composer e a mais recente de cada Agente. */
+export interface ConversasRetomadas {
+  coordenada: ConversaRetomada<PassoDaCoordenacao> | null
+  porAgente: Partial<Record<AgenteId, ConversaRetomada<PassoDaConversa>>>
+}
 
 /** O que aconteceu: uma Aprovação pedida, uma Aprovação decidida ou uma falha registrada na Atividade. */
 export type TipoDeAviso = 'aprovacao-solicitada' | 'aprovacao-decidida' | 'falha'
@@ -644,6 +666,11 @@ export interface FonteDeAgentes extends FonteObservavel {
    * Conversa (nenhum, numa Conversa nova), a Coordenação continua a partir do que já foi feito, em vez de recomeçar.
    */
   conversarCoordenado(pedido: Mensagem, anteriores: Mensagem[]): AsyncIterable<PassoDaCoordenacao>
+  /**
+   * As Conversas salvas de quem está na sessão, para voltarem depois de recarregar a página. Só no Workspace
+   * operacional, onde as Conversas ficam no banco; na Demonstração, elas valem até recarregar.
+   */
+  retomarConversas?(): Promise<ConversasRetomadas>
 }
 
 export * from './contas-tipos'

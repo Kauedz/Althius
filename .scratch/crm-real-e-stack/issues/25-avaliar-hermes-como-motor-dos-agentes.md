@@ -4,7 +4,7 @@
 
 **Blocked by:** None. Entra quando o CRM-13 (Persistir Agentes e permissões por integração) e o CRM-14 (Executar Conversas e Coordenação com estado recuperável) forem priorizados; fica fora do primeiro envio real.
 
-**Status:** needs-triage
+**Status:** closed
 
 ## Proposta
 
@@ -24,3 +24,4 @@
 ## Comments
 
 - 2026-09-25: aberto a partir da Q8 da sabatina de prioridades. A proposta saiu de `docs/` para não ser lida como decisão; o PR #11 foi fechado apontando para cá.
+- 2026-09-29: decidido no CRM-14, com o Nan delegando a escolha: motor próprio numa Edge Function com a Messages API da Anthropic; o Hermes fica para quando houver clientes pagando e uma necessidade que o motor próprio não atenda ([ADR-0018](../../../docs/adr/0018-motor-dos-agentes-na-edge-function.md)).

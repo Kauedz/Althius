@@ -27,3 +27,8 @@ verify_jwt = false
 # Recebe o CSV da importação com o JWT do navegador; o banco confere a Participação ativa.
 [functions.csv-import]
 verify_jwt = true
+
+# Recebe o pedido a um Agente com o JWT do navegador; o banco confere a Participação ativa, e a Execução segue depois
+# da resposta.
+[functions.agent-conversation]
+verify_jwt = true

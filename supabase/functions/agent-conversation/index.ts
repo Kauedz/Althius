@@ -1,0 +1,84 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createHandler, type Db, type Inicio } from './handler.ts'
+import { modeloDaAnthropic } from './model.ts'
+import { type ContaEncontrada, createRunner, type Reserva, type RunDb } from './runner.ts'
+
+function required(name: string) {
+  const value = Deno.env.get(name)
+  if (!value) throw new Error('Backend is not configured')
+  return value
+}
+
+const SUPABASE_URL = required('SUPABASE_URL')
+const APP_ORIGIN = required('APP_ORIGIN')
+// Sem a chave, a função sobe e diz que as Conversas estão indisponíveis, em vez de fingir uma resposta.
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') || ''
+const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-opus-5-5'
+
+const admin = createClient(SUPABASE_URL, required('SUPABASE_SERVICE_ROLE_KEY'), {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
+
+/** Um cliente com a sessão de quem pede: o banco aplica as regras dela, sem a chave de serviço. */
+function clienteDaSessao(authorization: string, apikey: string) {
+  return createClient(SUPABASE_URL, apikey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+const db: Db = {
+  async userFromJwt(authorization, apikey) {
+    const { data, error } = await clienteDaSessao(authorization, apikey).auth.getUser(authorization.slice(7))
+    if (error || !data.user) return null
+    return { userId: data.user.id }
+  },
+  async startRun(pedido): Promise<Inicio> {
+    const { data, error } = await clienteDaSessao(pedido.authorization, pedido.apikey).rpc('start_agent_run', {
+      p_workspace_id: pedido.workspaceId,
+      p_conversation_id: pedido.conversationId,
+      p_agent_id: pedido.agentId,
+      p_text: pedido.text,
+      p_mentions: pedido.mentions,
+      p_client_request_id: pedido.clientRequestId,
+    })
+    if (error?.code === '55006') return { kind: 'busy' }
+    if (error?.code === 'P0002') return { kind: 'not_found' }
+    if (error?.code === '42501') return { kind: 'forbidden' }
+    if (error?.code === '22023') return { kind: 'invalid' }
+    if (error) throw new Error(`${error.code ?? ''} ${error.message}`)
+    const [linha] = (data ?? []) as { conversation_id?: string; run_id?: string; status?: string }[]
+    if (!linha?.conversation_id || !linha.run_id || !linha.status) {
+      throw new Error('start_agent_run não devolveu a Execução')
+    }
+    return { kind: 'started', conversationId: linha.conversation_id, runId: linha.run_id, status: linha.status }
+  },
+}
+
+async function rpc<T>(nome: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await admin.rpc(nome, args)
+  if (error) throw new Error(`${nome}: ${error.code ?? ''} ${error.message}`)
+  return data as T
+}
+
+const runDb: RunDb = {
+  claim: (runId) => rpc<Reserva | null>('claim_agent_run', { p_run_id: runId }),
+  append: (runId, kind, agentId, payload) =>
+    rpc<number>('append_agent_run_event', { p_run_id: runId, p_kind: kind, p_agent_id: agentId, p_payload: payload }),
+  finish: (runId, status, errorCode, model) =>
+    rpc<void>('finish_agent_run', { p_run_id: runId, p_status: status, p_error_code: errorCode, p_model: model }),
+  searchAccounts: async (runId, termo) =>
+    (await rpc<ContaEncontrada[] | null>('agent_search_target_accounts', { p_run_id: runId, p_query: termo })) ?? [],
+}
+
+// EdgeRuntime.waitUntil mantém a função viva depois da resposta, para a Execução terminar.
+const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
+
+Deno.serve(createHandler({
+  db,
+  executar: ANTHROPIC_API_KEY
+    ? createRunner({ db: runDb, modelo: modeloDaAnthropic({ apiKey: ANTHROPIC_API_KEY, modelo: ANTHROPIC_MODEL }) })
+    : null,
+  waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : (work) => void work,
+  appOrigin: APP_ORIGIN,
+}))

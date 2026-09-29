@@ -3,6 +3,7 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
+import { conversasDisponiveis } from '@/fonte/supabase-conversas'
 import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso, tokenDoConviteNoEndereco } from './destino'
@@ -331,14 +332,26 @@ function AplicativoDoWorkspace({
 }) {
   const { id: usuarioId, email = '' } = sessao.user
   const { workspace_id: workspaceId, role, nome: nomeDoWorkspace = 'Workspace' } = participacao
+  // As Conversas dependem do modelo configurado no backend: até a função confirmar, ficam indisponíveis.
+  const [comConversas, setComConversas] = useState(false)
+  useEffect(() => {
+    let ativo = true
+    void conversasDisponiveis(cliente).then((disponivel) => {
+      if (ativo) setComConversas(disponivel)
+    })
+    return () => {
+      ativo = false
+    }
+  }, [cliente])
   const ambiente = useMemo(
     () =>
       criarAmbienteDoWorkspace({
         cliente,
         usuario: { id: usuarioId, email },
         participacao: { workspaceId, nomeDoWorkspace, papel: role === 'admin' ? 'administrador' : 'membro' },
+        conversasDisponiveis: comConversas,
       }),
-    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role],
+    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas],
   )
 
   return (

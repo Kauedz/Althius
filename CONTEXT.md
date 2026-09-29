@@ -184,7 +184,7 @@ Um procedimento que o Agente criou ou refinou com o uso e passa a reaplicar.
 _Avoid_: skill, prompt, template
 
 **Conversa**:
-Uma troca entre um usuário e a Althius: direta com um Agente, ou coordenada, quando o pedido é feito sem escolher um Agente e a Coordenação distribui o trabalho.
+Uma troca entre um usuário e a Althius: direta com um Agente, ou coordenada, quando o pedido é feito sem escolher um Agente e a Coordenação distribui o trabalho. A Conversa é de quem a começou. Cada pedido fica guardado com os seus passos (Agentes chamados, consultas, resposta ou falha) e roda uma vez só: recarregar a página só retoma a leitura.
 _Avoid_: chat
 
 **Rotina**:

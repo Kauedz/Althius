@@ -4,13 +4,23 @@
 
 **Blocked by:** 13: Persistir Agentes e permissões por integração.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (código e testes prontos; falta o Nan aplicar a migration, publicar a função, cadastrar a chave do modelo e conferir na tela)
 
-- [ ] Mensagem, execução, etapas, eventos e resposta são persistidos antes de declarar conclusão.
-- [ ] Modelo é chamado exclusivamente pelo backend; sem provider/credencial configurados, a capacidade aparece indisponível em vez de roteirizada.
-- [ ] Coordenação escolhe Agentes e agrega etapas sem agir como quinto Agente, conforme ADR-0004.
-- [ ] @menções explicitamente solicitadas são incluídas; chamadas de ferramenta e fontes usadas são apresentadas com estado real.
-- [ ] Streaming pode ser retomado/consultado após refresh ou desconexão sem duplicar execução.
-- [ ] Contexto e consultas respeitam Workspace, permissão do Agent e minimização de dados.
-- [ ] Falhas de modelo/ferramenta são persistidas e exibidas como falhas, sem resposta plausível inventada.
+- [x] Mensagem, execução, etapas, eventos e resposta são persistidos antes de declarar conclusão. — `finish_agent_run` recusa sucesso sem a resposta gravada (pgTAP).
+- [x] Modelo é chamado exclusivamente pelo backend; sem provider/credencial configurados, a capacidade aparece indisponível em vez de roteirizada. — `agent-conversation` com `ANTHROPIC_API_KEY`; sem ela, `capability` responde `available: false` e o módulo `conversas` fica indisponível.
+- [x] Coordenação escolhe Agentes e agrega etapas sem agir como quinto Agente, conforme ADR-0004. — o evento da Coordenação não tem Agente, e ela não tem ferramenta.
+- [x] @menções explicitamente solicitadas são incluídas; chamadas de ferramenta e fontes usadas são apresentadas com estado real. — a consulta aparece como concluída ou "(falhou)".
+- [x] Streaming pode ser retomado/consultado após refresh ou desconexão sem duplicar execução. — passos lidos do banco a partir do último lido; `clientRequestId` idempotente; reserva única.
+- [x] Contexto e consultas respeitam Workspace, permissão do Agent e minimização de dados. — a Conversa é só de quem a começou; a consulta traz só nome, domínio, segmento, origem e última Interação das Contas-alvo ativas.
+- [x] Falhas de modelo/ferramenta são persistidas e exibidas como falhas, sem resposta plausível inventada.
+
+## Comments
+
+- Implementação (2026-09-29). Decisão do motor em [ADR-0018](../../../docs/adr/0018-motor-dos-agentes-na-edge-function.md) (fecha o CRM-25 por ora): Edge Function própria com a Messages API da Anthropic, sem Hermes.
+- **Banco.** Migration `supabase/migrations/20260929180000_conversas_dos_agentes.sql`, só aditiva. Tabelas privadas com RLS e sem acesso direto: `agent_conversations` (de quem começou; `agente` ou `coordenada`), `agent_runs` (o pedido, idempotente por `client_request_id`, um aberto por Conversa) e `agent_run_events` (passos numerados, com o nome do Agente). Para a Conta de usuário: `start_agent_run`, `get_agent_run_events`, `list_agent_conversations`, `get_agent_conversation`. Só para a função (service_role): `claim_agent_run` (reserva uma vez; recusa quem saiu do Workspace), `append_agent_run_event`, `finish_agent_run` (sucesso só com resposta) e `agent_search_target_accounts`. Um pedido parado há mais de 10 minutos vira falha `timeout` na leitura seguinte. pgTAP `conversas_dos_agentes.sql`, 57 asserções.
+- **Função `agent-conversation`.** `capability` e `send`; guarda o pedido com a sessão de quem pede e roda depois de responder (`EdgeRuntime.waitUntil`). Modelo `claude-opus-5-5` (trocável por `ANTHROPIC_MODEL`), com `fallbacks: "default"` para recusa. A Coordenação escolhe até 3 Agentes por saída estruturada (sempre com os @mencionados, até 4), cada Agente trabalha com a consulta de Contas-alvo (até 4 rodadas) e a Coordenação junta a resposta. Na página de um Agente, ele responde e cada @mencionado entra em seguida. Recusa, corte, erro da API e JSON inválido viram falha com motivo. Testes: `handler.test.ts` e `runner.test.ts` (18), sem rede.
+- **Tela.** `fonte/supabase-conversas.ts`: envia pela função e lê os passos do banco a cada 1,5 s; depois de recarregar, `retomarConversas` traz a última Conversa coordenada e a última de cada Agente e continua a que ainda roda. O módulo `conversas` só sai de indisponível quando a função confirma o modelo. Passo novo `falha` nas duas Conversas. Testes: `supabase-conversas.test.ts` (8) e `paginas/conversas-reais.test.tsx` (4).
+- **Decisões (a confirmar com o Nan).** (1) A Conversa é privada de quem a começou, nem o Administrador lê as dos outros. (2) Um pedido por vez em cada Conversa. (3) O "streaming" é por passo (chamada, consulta, etapa feita, resposta), não por palavra. (4) Opus 5.5 por padrão: é o mais caro dos modelos padrão (US$ 4 / 20 por milhão de tokens); trocar por `claude-sonnet-5-5` é só o segredo `ANTHROPIC_MODEL`.
+- **Fora deste ticket.** Memória, Habilidades e Atividade ainda não são alimentadas pela Execução; Aprovações (CRM-15); Integrações como ferramentas (Conexões); Rotinas rodando sozinhas; limite de custo por Workspace; as sugestões clicáveis no Workspace operacional; apagar um Contato (CRM-18) não varre o texto das Conversas.
+- **Pendente (por isso `ready-for-human`).** No remoto: `db push` da 20260929180000, `functions deploy agent-conversation`, segredo `ANTHROPIC_API_KEY` (e opcional `ANTHROPIC_MODEL`), depois conferir na tela: um pedido à Coordenação, um na página do Scopus, recarregar no meio e ver a resposta chegar.
 

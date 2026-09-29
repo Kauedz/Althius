@@ -18,6 +18,8 @@ interface Etapa {
   agenteId: AgenteId
   consultas: string[]
   resumo?: string
+  /** O pedido falhou antes de a etapa terminar. */
+  interrompida?: boolean
 }
 
 type Desfecho = Extract<ItemDaCoordenacao, { tipo: 'aprovacao' | 'acao' | 'nascimento-sequencia' }>
@@ -27,6 +29,8 @@ interface Turno {
   pedido: Extract<ItemDaCoordenacao, { tipo: 'pedido' }>
   etapas: Etapa[]
   resposta?: string
+  /** O motivo, quando o pedido não terminou. */
+  falha?: string
   desfechos: Desfecho[]
 }
 
@@ -52,6 +56,10 @@ function emTurnos(itens: ItemDaCoordenacao[]): Turno[] {
         break
       case 'resposta':
         turno.resposta = item.texto
+        break
+      case 'falha':
+        turno.falha = item.motivo
+        for (const aberta of turno.etapas) if (aberta.resumo === undefined) aberta.interrompida = true
         break
       default:
         turno.desfechos.push(item)
@@ -165,8 +173,8 @@ function TurnoDaConversa({
   animar: boolean
   referencias: Referencias
 }) {
-  const { etapas, resposta, desfechos } = turno
-  const etapaAtiva = etapas.some((etapa) => etapa.resumo === undefined)
+  const { etapas, resposta, falha, desfechos } = turno
+  const etapaAtiva = etapas.some((etapa) => etapa.resumo === undefined && !etapa.interrompida)
   const chamados = `${etapas.length} ${etapas.length === 1 ? 'agente chamado' : 'agentes chamados'}`
 
   return (
@@ -189,7 +197,7 @@ function TurnoDaConversa({
         </section>
       )}
 
-      {emAndamento && !etapaAtiva && resposta === undefined && (
+      {emAndamento && !etapaAtiva && resposta === undefined && falha === undefined && (
         <div role="status" className="flex items-center gap-4 text-al-muted">
           <span className="relative size-5">
             <Pulso className="absolute inset-0" />
@@ -205,6 +213,12 @@ function TurnoDaConversa({
           </span>
           <TextoDigitado texto={resposta} animar={animar} />
         </section>
+      )}
+
+      {falha !== undefined && (
+        <p role="alert" className="text-sm text-al-atencao">
+          {falha}
+        </p>
       )}
 
       {desfechos.map((desfecho) => {
@@ -244,7 +258,7 @@ function TurnoDaConversa({
 }
 
 function EtapaDoAgente({ etapa, agente, ultima }: { etapa: Etapa; agente?: Agente; ultima: boolean }) {
-  const ativa = etapa.resumo === undefined
+  const ativa = etapa.resumo === undefined && !etapa.interrompida
   const nome = agente?.nome ?? etapa.agenteId
   const consultas = (
     <ul className="flex flex-col gap-0.5 text-sm text-al-muted">
@@ -276,7 +290,7 @@ function EtapaDoAgente({ etapa, agente, ultima }: { etapa: Etapa; agente?: Agent
           consultas
         ) : (
           <>
-            <p>{etapa.resumo}</p>
+            <p className={etapa.interrompida ? 'text-al-muted' : undefined}>{etapa.resumo ?? 'Interrompido.'}</p>
             {etapa.consultas.length > 0 && (
               <details className="group">
                 <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-sm text-al-muted hover:text-al-ink [&::-webkit-details-marker]:hidden">
