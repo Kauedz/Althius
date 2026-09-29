@@ -1,7 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { createHandler, type Db, type Inicio } from './handler.ts'
 import { modeloDaAnthropic } from './model.ts'
-import { type ContaEncontrada, createRunner, type Reserva, type RunDb } from './runner.ts'
+import { modeloDoGroq } from './model-groq.ts'
+import { type ContaEncontrada, createRunner, type Modelo, type Reserva, type RunDb } from './runner.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -11,9 +12,25 @@ function required(name: string) {
 
 const SUPABASE_URL = required('SUPABASE_URL')
 const APP_ORIGIN = required('APP_ORIGIN')
-// Sem a chave, a função sobe e diz que as Conversas estão indisponíveis, em vez de fingir uma resposta.
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') || ''
-const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-opus-5-5'
+
+/**
+ * O provedor do modelo, pelo segredo AGENT_PROVIDER: `anthropic` (padrão) ou `groq`, só para teste (ADR-0018). Sem a
+ * chave do provedor escolhido (e, no Groq, sem o modelo), a função sobe e diz que as Conversas estão indisponíveis, em
+ * vez de fingir uma resposta.
+ */
+function modeloConfigurado(): Modelo | null {
+  const provedor = (Deno.env.get('AGENT_PROVIDER') || 'anthropic').trim().toLowerCase()
+  if (provedor === 'groq') {
+    const apiKey = Deno.env.get('GROQ_API_KEY') || ''
+    const modelo = Deno.env.get('GROQ_MODEL') || ''
+    return apiKey && modelo ? modeloDoGroq({ apiKey, modelo }) : null
+  }
+  if (provedor !== 'anthropic') return null
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY') || ''
+  return apiKey ? modeloDaAnthropic({ apiKey, modelo: Deno.env.get('ANTHROPIC_MODEL') || 'claude-opus-5-5' }) : null
+}
+
+const modelo = modeloConfigurado()
 
 const admin = createClient(SUPABASE_URL, required('SUPABASE_SERVICE_ROLE_KEY'), {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -76,9 +93,7 @@ const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unkn
 
 Deno.serve(createHandler({
   db,
-  executar: ANTHROPIC_API_KEY
-    ? createRunner({ db: runDb, modelo: modeloDaAnthropic({ apiKey: ANTHROPIC_API_KEY, modelo: ANTHROPIC_MODEL }) })
-    : null,
+  executar: modelo ? createRunner({ db: runDb, modelo }) : null,
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : (work) => void work,
   appOrigin: APP_ORIGIN,
 }))

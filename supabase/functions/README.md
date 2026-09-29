@@ -19,6 +19,7 @@ Configure em Supabase Edge Function Secrets:
 - `APIFY_PHOTO_ACTOR_ID`, `APIFY_PHOTO_INPUT` e `APIFY_PHOTO_MAX_CHARGE_USD` (opcionais): o Actor, o modelo de entrada dele e o teto de cobrança por execução. Padrões e motivos em `contact-photo-lookup/README.md`.
 - `ANTHROPIC_API_KEY`: chave da API da Anthropic, usada pela `agent-conversation` para os Agentes e a Coordenação. Só existe aqui, nunca no navegador. Sem ela, a função responde que as Conversas estão indisponíveis e a tela diz isso, sem resposta simulada.
 - `ANTHROPIC_MODEL` (opcional): o modelo dos Agentes. Padrão: `claude-opus-5-5`.
+- `AGENT_PROVIDER` (opcional): quem responde pelos Agentes, `anthropic` (padrão) ou `groq`. O Groq é só para teste: com ele, `GROQ_API_KEY` (a chave do Groq, só aqui) e `GROQ_MODEL` (o nome de um modelo do Groq que aceite ferramentas, como aparece no painel dele). Sem a chave e o modelo do provedor escolhido, as Conversas ficam indisponíveis.
 
 O runtime fornece `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`. Nenhum segredo Unipile deve ser
 definido com prefixo `VITE_` ou enviado ao cliente.
