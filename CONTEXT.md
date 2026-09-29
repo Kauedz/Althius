@@ -102,6 +102,14 @@ _Avoid_: lead, prospect
 **Vínculo do Contato**:
 A associação profissional de um Contato com uma Conta-alvo. Um Vínculo pode ser encerrado quando a pessoa deixa a empresa; iniciar outro Vínculo não move Interações anteriores, que permanecem associadas à Conta-alvo onde ocorreram.
 
+**Arquivamento**:
+A saída reversível de uma Conta-alvo ou de um Contato da operação. A Conta arquivada some das listas e buscas padrão, pausa a Sequência (a Sequência pausada pela Conta) e deixa de receber Interação manual, Contato, Vínculo e Sequência novos; o Contato arquivado tem os Vínculos ativos encerrados, e eles voltam quando ele é restaurado. O histórico fica, e o Vendedor responsável ou um Administrador restaura. Restaurar não retoma a Sequência.
+_Avoid_: exclusão, soft delete
+
+**Apagamento definitivo**:
+A ação, só de um Administrador e com o nome do registro digitado como confirmação, que remove os dados pessoais de uma Conta-alvo ou de um Contato: o Contato some, e a Conta fica só como marcador sem dado da empresa. Some também o que dependia deles (respostas recebidas e anexos, o documento e os Envios das Sequências, as linhas do CSV importado, a Memória dos Agentes que os cita). Ficam apenas os eventos comerciais desidentificados, como o tipo e a data de cada Interação, sem nome, e-mail, telefone nem URL. Não se desfaz.
+_Avoid_: arquivar, remover
+
 **Persona**:
 A classificação de um Contato por um papel do Comitê de compra descrito pelo Ethos, cuja definição é documentada na Memória do Workspace. Um Contato tem no máximo uma Persona, e pode não ter nenhuma.
 _Avoid_: perfil, papel, arquétipo
