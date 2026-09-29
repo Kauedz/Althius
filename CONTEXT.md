@@ -142,6 +142,42 @@ _Avoid_: toque, atividade, engajamento
 O conjunto de pessoas de uma Conta-alvo que influenciam ou decidem a compra.
 _Avoid_: buying committee, stakeholders, decisores
 
+**TAM**:
+Todas as Contas-alvo de um Workspace, em qualquer Estágio de prospecção. É a base do funil: dela saem as Contas Quentes, as com Fit e as abordadas.
+_Avoid_: base total, universo
+
+**Playbook do Workspace**:
+A Memória do Workspace estruturada nas seções fixas do playbook do setup (Empresa, ICP, Mercado, Personas, Processo de compra, Dor e percepção, Pipeline, SLA e metas, Rotina, Cadência, Scripts, Templates, Objeções, Frameworks, Apresentação, Negociação e follow-up). Cada seção é versionada; o Administrador edita, e a mudança proposta por um Agente é uma Revisão da Memória do Workspace. Cada Agente lê as seções da sua Especialidade e sempre a seção Empresa.
+_Avoid_: manual, documento de vendas
+
+**Estágio de prospecção**:
+Onde uma Conta-alvo está no funil de prospecção: Descoberta, Quente, Fit, Em abordagem, Respondeu, Reunião, No CRM ou Descartada. Os eventos (Sinal, Aderência, Envio, resposta, reunião, envio ao CRM) movem o estágio, e a pessoa também move à mão. Depois de Em abordagem, nunca volta para trás, exceto para Descartada.
+_Avoid_: status do lead, fase, etapa do pipeline
+
+**Enviar ao CRM**:
+Levar uma Conta-alvo, seus Contatos e uma nota com os Sinais e a abordagem para o CRM conectado do Cliente, sob a Permissão de quem envia. Depois do envio, o CRM manda: a Althius só lê de lá o estágio do negócio.
+_Avoid_: exportar, converter lead
+
+**Reativação de Sinais**:
+A varredura que revisita as Contas-alvo com Fit sem Sinal válido: mensal e automática dentro do Teto aprovado, ou sob pedido pelo botão "Buscar Sinais de novo", com o custo mostrado antes.
+_Avoid_: reprocessamento, nova varredura
+
+**Crédito**:
+A unidade de consumo de um Workspace. Gastam créditos a varredura de Sinais, a coleta de pessoas, a revelação de e-mail e telefone (só quando acha) e cada Execução de Agente. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
+_Avoid_: token, saldo de uso
+
+**Teto**:
+O limite mensal de Créditos que uma ação automática pode gastar. Nada automático roda sem Teto; ao atingi-lo, a ação volta a pedir confirmação até o próximo ciclo.
+_Avoid_: orçamento, budget
+
+**Observador**:
+Um participante que só consulta o Workspace: não conecta canais, não gasta Créditos e não ocupa assento pago.
+_Avoid_: visitante, leitor
+
+**Setup**:
+O serviço de entrada da Althius para um Cliente: monta o Playbook do Workspace, importa a base de pesquisa como Contas-alvo, liga as Integrações e libera o Workspace da empresa.
+_Avoid_: onboarding pago, implantação
+
 ## Agentes
 
 **Especialidade**:

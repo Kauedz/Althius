@@ -1,0 +1,37 @@
+# 01: Registro de actors do Apify
+
+**What to build:** uma tabela de serviço lista os actors que a Althius usa (id no Apify, versão, preço conhecido, Sinal que atende, estado: disponível, em teste ou fora), e uma Edge Function chama o actor pela conta da Althius com teto de custo por execução, no padrão da `contact-photo-lookup`.
+
+**Blocked by:** None.
+
+**Status:** ready-for-agent
+
+## Pode mexer
+
+- Migration aditiva com a tabela e as funções de leitura.
+- Edge Function nova `signal-scan` (só backend), com `handler.ts` testável sem rede.
+- O `APIFY_TOKEN` que já existe nos segredos.
+
+## Não mexa
+
+- Nos tickets CRM-10 e CRM-11 da outra sessão sem combinar: esta spec é o detalhamento do CRM-11; quem pegar um ticket daqui avisa o Nan.
+- Na Edge Function `contact-photo-lookup`.
+- Nas funções `save_target_account`, `create_contact`, `update_contact`, `link_contact` e `end_contact_link` (frente de Conexões) sem combinar.
+- Nas Edge Functions `sender-accounts` e `unipile-account-status`, nos segredos `UNIPILE_*` e no Webhook Endpoint.
+- Em testes existentes: um ticket só acrescenta testes.
+
+## Critérios
+
+- [ ] Custo de cada execução gravado (`creditos-e-planos` 01).
+- [ ] Actor fora do registro nunca roda.
+- [ ] Os 9 actors do lançamento cadastrados (ver `.scratch/modulo-de-sinais/pesquisa-actors-apify.md`).
+
+## Passos do Nan
+
+**A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan. Com muitos passos, gera um wizard (`/wizard`).**
+
+1. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
+2. Publicar `signal-scan`: `npx supabase functions deploy signal-scan --project-ref ycbdilsmydvzezhlymty`.
+3. Decidir o plano pago do Apify (Starter US$ 29, Scale US$ 199) e assinar na conta da Althius.
+
+Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.

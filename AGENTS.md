@@ -15,3 +15,7 @@ Merge your own PRs with a merge commit once CI is green. The Supabase project `y
 ### Domain docs
 
 Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Platform guide
+
+Before any spec or ticket, read `docs/visao-geral-da-plataforma.md`: the funnel, which spec covers each layer, the rules that hold everywhere, how to work a ticket without breaking another, the "Passos do Nan" rule and the order between specs.
