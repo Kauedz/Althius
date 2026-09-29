@@ -4,7 +4,7 @@
 
 **Blocked by:** None. Entra quando o CRM-13 (Persistir Agentes e permissões por integração) e o CRM-14 (Executar Conversas e Coordenação com estado recuperável) forem priorizados; fica fora do primeiro envio real.
 
-**Status:** closed
+**Status:** needs-info
 
 ## Proposta
 
@@ -25,3 +25,5 @@
 
 - 2026-09-25: aberto a partir da Q8 da sabatina de prioridades. A proposta saiu de `docs/` para não ser lida como decisão; o PR #11 foi fechado apontando para cá.
 - 2026-09-29: decidido no CRM-14, com o Nan delegando a escolha: motor próprio numa Edge Function com a Messages API da Anthropic; o Hermes fica para quando houver clientes pagando e uma necessidade que o motor próprio não atenda ([ADR-0018](../../../docs/adr/0018-motor-dos-agentes-na-edge-function.md)).
+- 2026-09-29, decisão do Nan (revê a anotação acima): o Hermes Agent é o motor definitivo e o orquestrador, e chama o Scopus, o Ethos, o Rhetor e o Oraculum. A `agent-conversation` do CRM-14 fica como ponte provisória; o Hermes entra pelo mesmo contrato com o banco (start, claim, append, finish e a leitura dos passos). Emenda no ADR-0018. Falta decidir com o Nan: (1) o Hermes aparece para o usuário com nome, como orquestrador, ou continua a "Coordenação" sem nome do ADR-0004? (2) onde ele roda (VPS do ADR-0013, uma instância por Workspace ou uma só) e (3) qual provedor de modelo ele usa.
+
