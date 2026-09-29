@@ -23,13 +23,14 @@ function recusar(modulo: ModuloDoWorkspace) {
 /** Uma Conversa sem modelo configurado: recusa antes do primeiro passo, sem roteiro. */
 function semConversa(): AsyncIterable<never> {
   return {
-    [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new ErroDeModuloIndisponivel('agentes')) }),
+    [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new ErroDeModuloIndisponivel('conversas')) }),
   }
 }
 
 /**
- * Agentes, Conversas, Aprovações, Conexões e Configurações do Workspace operacional. Só a identidade é real: a Conta
- * de usuário da sessão, o nome do Workspace e o papel da Participação escolhida.
+ * A base de Agentes, Conversas, Aprovações, Conexões e Configurações do Workspace operacional. Só a identidade é real:
+ * a Conta de usuário da sessão, o nome do Workspace e o papel da Participação escolhida. O que já tem backend (os
+ * Agentes e a configuração deles, Participantes, Meu perfil) é sobreposto pela composição; o que sobra aqui recusa.
  */
 export function criarFonteDeAgentesIndisponivel({
   usuario,

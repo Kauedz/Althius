@@ -3,11 +3,13 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AbasSublinhadas } from '@/components/abas'
 import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useDados, useFonte } from '@/fonte/contexto'
 import type { Agente } from '@/fonte/tipos'
+import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 import { SecaoAtividade } from '@/paginas/secoes/atividade'
 import { SecaoCanais } from '@/paginas/secoes/canais'
 import { SecaoConfiguracao } from '@/paginas/secoes/configuracao'
@@ -31,6 +33,7 @@ type SecaoId = keyof typeof SECOES
 export function PaginaAgente() {
   const { agenteId, secao } = useParams()
   const agentes = useDados((fonte) => fonte.agentes(), [])
+  const podeAdministrar = usePodeAdministrarAgentes()
   if (!agentes) return <Carregando />
 
   const agente = agentes.find((a) => a.id === agenteId)
@@ -51,7 +54,7 @@ export function PaginaAgente() {
     <Pagina
       titulo={agente.nome}
       voltar={{ para: '/', rotulo: 'Agentes' }}
-      acoes={agente.tipo === 'criado' && <ExcluirAgente agente={agente} />}
+      acoes={agente.tipo === 'criado' && podeAdministrar && <ExcluirAgente agente={agente} />}
       className="gap-8"
     >
       <div className="flex items-start gap-4">
@@ -90,10 +93,10 @@ function ExcluirAgente({ agente }: { agente: Agente }) {
   const [confirmando, setConfirmando] = useState(false)
   const aprovacoes = useDados((f) => f.aprovacoes(), [])
   const pendentes = aprovacoes?.filter((a) => a.agenteId === agente.id && a.estado === 'pendente').length ?? 0
+  const { erro, escrever } = useEscritaDeAgente()
 
   async function excluir() {
-    await fonte.excluirAgente(agente.id)
-    navegar('/')
+    if (await escrever(() => fonte.excluirAgente(agente.id))) navegar('/')
   }
 
   return (
@@ -116,6 +119,7 @@ function ExcluirAgente({ agente }: { agente: Agente }) {
                 : `${pendentes} Aprovações pendentes serão canceladas.`}
             </p>
           )}
+          <Mensagem tipo="erro">{erro}</Mensagem>
           <DialogFooter className="flex gap-2">
             <Button variant="ghost" onClick={() => setConfirmando(false)}>
               Cancelar

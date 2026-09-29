@@ -5,10 +5,12 @@ import { LogoDaIntegracao } from '@/components/logos'
 import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
+import { AvisoDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { Composer } from '@/conversa/composer'
 import { useConversas } from '@/conversa/contexto'
-import { useDados } from '@/fonte/contexto'
+import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { Agente, Integracao, Mensagem } from '@/fonte/tipos'
+import { usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 import { DialogoNovoAgente } from '@/paginas/novo-agente'
 import { descreverFrequencia } from '@/paginas/rotulos'
 
@@ -16,19 +18,23 @@ export function PaginaAgentes() {
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
   const [criando, setCriando] = useState(false)
+  const { disponivel } = useAmbiente()
+  const podeAdministrar = usePodeAdministrarAgentes()
 
   return (
     <Pagina
       titulo="Agentes"
       icone={Bot}
       acoes={
-        <Button
-          onClick={() => setCriando(true)}
-          className="h-8 gap-2 bg-al-ink px-4 tracking-rotulo text-al-bg uppercase hover:bg-al-ink/90"
-        >
-          <Plus strokeWidth={1.8} aria-hidden />
-          Novo agente
-        </Button>
+        podeAdministrar && (
+          <Button
+            onClick={() => setCriando(true)}
+            className="h-8 gap-2 bg-al-ink px-4 tracking-rotulo text-al-bg uppercase hover:bg-al-ink/90"
+          >
+            <Plus strokeWidth={1.8} aria-hidden />
+            Novo agente
+          </Button>
+        )
       }
     >
       {!agentes || !integracoes ? (
@@ -42,7 +48,8 @@ export function PaginaAgentes() {
           ))}
         </ul>
       )}
-      <PedidoCoordenado />
+      {/* Pedir algo aos Agentes é executá-los: sem provedor de modelo no Workspace, a tela diz isso, sem responder. */}
+      {disponivel('conversas') ? <PedidoCoordenado /> : <AvisoDeModuloIndisponivel modulo="conversas" />}
       <DialogoNovoAgente aberto={criando} aoMudar={setCriando} />
     </Pagina>
   )

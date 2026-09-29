@@ -13,6 +13,7 @@ import { criarFonteDeContasRemetentesDaDemonstracao } from './simulada-contas-re
 import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
+import { criarFonteDeAgentesSupabase } from './supabase-agentes'
 import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
 import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
@@ -53,20 +54,19 @@ export function criarAmbienteDoWorkspace({
 }): Ambiente {
   const participantes = criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id)
   const perfil = criarFonteDoPerfilSupabase(cliente, { usuario, participacao })
+  const agentes = criarFonteDeAgentesSupabase(cliente, participacao.workspaceId)
   return {
     modo: 'real',
-    // Participantes e convites, Meu perfil e Preferências já têm backend; o resto de Agentes e Configurações, ainda não.
+    // Participantes e convites, Meu perfil e Preferências e a configuração dos Agentes já têm backend; as Conversas, as
+    // Aprovações, as Conexões e o resto de Configurações, ainda não.
     fonte: {
       ...criarFonteDeAgentesIndisponivel({ usuario, participacao }),
       ...participantes,
       ...perfil,
+      ...agentes,
       observar(ouvinte) {
-        const pararDeOuvirParticipantes = participantes.observar(ouvinte)
-        const pararDeOuvirPerfil = perfil.observar(ouvinte)
-        return () => {
-          pararDeOuvirParticipantes()
-          pararDeOuvirPerfil()
-        }
+        const paradas = [participantes, perfil, agentes].map((fonte) => fonte.observar(ouvinte))
+        return () => paradas.forEach((parar) => parar())
       },
     },
     fonteDeContas: criarFonteDeContasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
@@ -74,6 +74,6 @@ export function criarAmbienteDoWorkspace({
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
-    indisponiveis: new Set(['agentes', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
+    indisponiveis: new Set(['conversas', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos']),
   }
 }

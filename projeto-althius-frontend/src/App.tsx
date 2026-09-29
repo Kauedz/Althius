@@ -61,7 +61,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
             <Route path="tipos/:tipoId/:monitoramentoId" element={<RotaDoEditor />} />
             <Route path="contas/:contaId" element={<ContaComSinais />} />
           </Route>
-          <Route path="conversa" element={<TelaDoModulo modulo="agentes" titulo="Conversa" icone={MessageSquare}><PaginaConversaCoordenada /></TelaDoModulo>} />
+          <Route path="conversa" element={<TelaDoModulo modulo="conversas" titulo="Conversa" icone={MessageSquare}><PaginaConversaCoordenada /></TelaDoModulo>} />
           <Route path="aprovacoes" element={<TelaDoModulo modulo="aprovacoes" titulo="Aprovações" icone={ShieldCheck}><PaginaAprovacoes /></TelaDoModulo>} />
           <Route path="conexoes" element={<TelaDoModulo modulo="conexoes" titulo="Conexões" icone={Plug}><PaginaConexoes /></TelaDoModulo>} />
           <Route path="configuracoes" element={<Navigate to="/configuracoes/perfil" replace />} />
