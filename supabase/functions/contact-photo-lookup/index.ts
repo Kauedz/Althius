@@ -48,7 +48,7 @@ const db: Db = {
     if (error?.code === '55000') return { kind: 'manual_photo' }
     if (error?.code === '55006') return { kind: 'in_flight' }
     if (error?.code === '54000') {
-      return { kind: 'limit_reached', scope: error.message.includes('workspace') ? 'workspace' : 'contact' }
+      return { kind: 'limit_reached', scope: error.hint === 'workspace' ? 'workspace' : 'contact' }
     }
     if (error) throw new Error(`${error.code ?? ''} ${error.message}`)
     const [linha] = (data ?? []) as { lookup_id?: string; linkedin_url?: string }[]

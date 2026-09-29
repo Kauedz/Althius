@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(43);
+select plan(46);
 
 -- Workspace Norte: Ana (Administradora), Beto (Membro responsável pela Alfa) e Dora (Participação removida).
 -- Caio é Administrador do Workspace Sul.
@@ -295,6 +295,21 @@ select results_eq(
 delete from public.contacts where id = pg_temp.contato('manual');
 select is((select count(*)::int from public.contact_photos where contact_id = pg_temp.contato('manual')), 0,
   'apagar o Contato apaga o estado da foto');
+
+-- 14. Os revoke valem: quem não é o navegador do participante não chama estas funções.
+set local role anon;
+select throws_ok(
+  $$select * from public.begin_contact_photo_lookup(pg_temp.contato('maria'))$$,
+  '42501', null, 'o visitante anônimo não reserva consulta de foto');
+select throws_ok(
+  $$select public.finish_contact_photo_lookup(gen_random_uuid(), 'not_found', null, null, null)$$,
+  '42501', null, 'o visitante anônimo não encerra consulta de foto');
+reset role;
+set local role service_role;
+select throws_ok(
+  $$select private.purge_contact_photos()$$,
+  '42501', null, 'nem a chave de serviço chama a limpeza direto: ela roda só pelo agendamento');
+reset role;
 
 select * from finish();
 rollback;

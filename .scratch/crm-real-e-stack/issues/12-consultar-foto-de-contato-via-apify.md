@@ -22,3 +22,9 @@
 - **Concorrência:** conferida à mão com duas sessões psql: a segunda reserva do mesmo Contato espera a primeira (trava consultiva por Workspace) e recebe `photo lookup in flight`; só uma linha entra na trilha.
 - **Testes:** pgTAP `foto_do_contato.sql` 43/43 (suíte local 17 arquivos verdes); Deno 29 testes em `contact-photo-lookup`; vitest 736 verdes (13 novos); `tsc -b` limpo; lint sem erros.
 - **Pendências humanas:** (1) aplicar a migration no `ycbdilsmydvzezhlymty`; (2) `APIFY_TOKEN` nos segredos e `npx supabase functions deploy contact-photo-lookup`; (3) abrir a página do Actor no Apify e conferir o campo de entrada, o campo da foto, o preço e as condições de uso e retenção, ajustando `APIFY_PHOTO_INPUT` se preciso; (4) um teste real num Contato com LinkedIn `/in/`; (5) decidir se os 30 dias de retenção e os limites (1/min e 3/dia por Contato, 50/dia por Workspace) servem.
+
+- 2026-09-29, revisão (`/code-review`): corrigido o escopo do limite, que agora vem do `hint` do erro (`contact` ou `workspace`) e não do texto da mensagem, e o pgTAP passou a provar que o anônimo não reserva nem encerra consulta e que a chave de serviço não chama a limpeza direto. Ficam abertos, de baixa gravidade:
+  - qualquer participante ativo pode chamar a reserva direto no banco e gastar os limites do Contato ou do Workspace sem rodar o Actor (o mesmo padrão do e-mail do convite);
+  - `authenticated` lê `contact_photos` (inclui `actor_id` e `run_id`, e a URL sem o filtro de validade da visão), porque a visão é `security_invoker`;
+  - uma foto ainda válida não pode ser atualizada, e uma imagem que quebra antes dos 30 dias, numa URL sem `e=`, cai nas iniciais mas o botão de buscar de novo continua escondido até a visão vencer;
+  - `required()`, `clienteDaSessao` e `userFromJwt` repetem o que há nas outras funções; vale levar para `_shared/` numa arrumação à parte.

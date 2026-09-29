@@ -155,13 +155,13 @@ begin
     select count(*) from private.contact_photo_lookups l
     where l.contact_id = v_contact.id and l.requested_at > now() - interval '1 day'
   ) >= 3 then
-    raise exception 'contact photo lookup limit reached' using errcode = '54000';
+    raise exception 'contact photo lookup limit reached' using errcode = '54000', hint = 'contact';
   end if;
   if (
     select count(*) from private.contact_photo_lookups l
     where l.workspace_id = v_contact.workspace_id and l.requested_at > now() - interval '1 day'
   ) >= 50 then
-    raise exception 'workspace photo lookup limit reached' using errcode = '54000';
+    raise exception 'workspace photo lookup limit reached' using errcode = '54000', hint = 'workspace';
   end if;
 
   insert into private.contact_photo_lookups (workspace_id, contact_id, requested_by)
