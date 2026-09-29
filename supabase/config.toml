@@ -19,3 +19,7 @@ verify_jwt = true
 
 [functions.contact-photo-lookup]
 verify_jwt = true
+
+# Recebe o CSV da importação com o JWT do navegador; o banco confere a Participação ativa.
+[functions.csv-import]
+verify_jwt = true
