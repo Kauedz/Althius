@@ -32,11 +32,20 @@
 -- depois Envios, depois Conta). Duas solicitações iguais se serializam pela trava: a segunda relê o estado e sai sem
 -- efeito.
 --
--- Pontos de extensão para o que ainda não existe nesta base. A importação por CSV (CRM-07: import_batches,
--- import_rows, account_field_sources, contact_field_sources e o bucket csv-imports), os Sinais (CRM-10 e CRM-11) e os
--- Agentes (CRM-13) redefinem, com `create or replace` numa migration própria, private.erase_account_extensions e
--- private.erase_contact_extensions, chamadas no fim de cada apagamento, e usam private.storage_purge_queue para os
--- arquivos. Nada aqui os referencia.
+-- Importação por CSV (CRM-07) e Memória dos Agentes (CRM-13), que já estão na base, entram por
+-- private.erase_account_extensions e private.erase_contact_extensions, chamadas em cada apagamento:
+--   * private.import_rows: o registro cru do CSV (`cells`), os valores lidos (`parsed`) e a prévia saem das linhas que
+--     tratam do registro apagado (pela Conta ou Contato ligado, ou pela URL, e-mail, telefone ou LinkedIn lidos); o
+--     número da linha, o estado e a contagem do resultado ficam, para o relatório do lote continuar fechando;
+--   * o arquivo do lote no bucket csv-imports guarda o CSV inteiro, com outras pessoas: o lote que teve uma linha
+--     apagada perde o arquivo (a fila do Storage), porque nada lê o arquivo depois da leitura das linhas, e o nome do
+--     arquivo, que a pessoa escolheu, é trocado;
+--   * account_field_sources e contact_field_sources (só nomes de campo e origem) são apagados;
+--   * private.agent_memory_facts: um fato da Memória de um Agente é texto livre, sem ligação com o registro; sai o fato
+--     que cita o e-mail, telefone, LinkedIn ou nome completo do Contato, ou o nome, a URL, o domínio ou o LinkedIn da
+--     Conta (cinco letras ou mais, para "Ana" não apagar o que não é dela).
+-- Os Sinais (CRM-10 e CRM-11) e as Conversas dos Agentes (CRM-14) ainda não existem: redefinem essas duas funções com
+-- `create or replace`, numa migration própria, e usam private.storage_purge_queue para os arquivos.
 
 -- 1. Estados.
 alter table public.target_accounts
@@ -349,31 +358,118 @@ create trigger sequence_step_sends_keep_anonymized
   before update on private.sequence_step_sends
   for each row execute function private.keep_send_anonymized();
 
--- 6. Pontos de extensão do apagamento (ver o cabeçalho). Vazios nesta base.
-create function private.erase_account_extensions(p_workspace_id uuid, p_account_id uuid)
-returns void
+-- 6. Importação por CSV e Memória dos Agentes (ver o cabeçalho). Devolvem o que fizeram, em números.
+-- As linhas do CSV que tratam do registro, escolhidas pelo que a Conta ou o Contato tinha: o que já está ligado a elas e
+-- os valores lidos, na forma de comparação, que a importação grava em `parsed`.
+create function private.erase_import_data(
+  p_workspace_id uuid, p_account_id uuid, p_canonical_url text,
+  p_contact_id uuid, p_email text, p_phone text, p_linkedin text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_batches uuid[];
+  v_rows integer;
+begin
+  with alvo as (
+    select r.batch_id, r.line_number from private.import_rows r
+    where r.workspace_id = p_workspace_id
+      and ((p_account_id is not null
+          and (r.target_account_id = p_account_id or r.parsed ->> 'company_url' = p_canonical_url))
+        or (p_contact_id is not null
+          and (r.contact_id = p_contact_id
+            or (p_email is not null and r.parsed ->> 'contact_email' = p_email)
+            or (p_phone is not null and r.parsed ->> 'contact_phone' = p_phone)
+            or (p_linkedin is not null and r.parsed ->> 'contact_linkedin' = p_linkedin))))
+  ), limpas as (
+    update private.import_rows r set
+      cells = '[]'::jsonb, parsed = '{}'::jsonb, preview = '{}'::jsonb, error_detail = null,
+      target_account_id = case when r.target_account_id = p_account_id then null else r.target_account_id end,
+      contact_id = case when r.contact_id = p_contact_id then null else r.contact_id end
+    from alvo a where r.batch_id = a.batch_id and r.line_number = a.line_number
+    returning r.batch_id
+  )
+  select coalesce(array_agg(distinct l.batch_id), '{}'), count(*) into v_batches, v_rows from limpas l;
+
+  update private.import_batches b set file_name = 'arquivo-apagado.csv', updated_at = now()
+  where b.id = any (v_batches) and b.file_name <> 'arquivo-apagado.csv';
+  -- Duas passadas, como nos anexos: o arquivo de um lote ainda em envio pode chegar depois da primeira.
+  insert into private.storage_purge_queue (bucket, prefix, run_after)
+  select 'csv-imports', b.workspace_id::text || '/' || b.id::text || '/', t.quando
+  from private.import_batches b
+  cross join (values (now()), (now() + interval '1 hour')) as t(quando)
+  where b.id = any (v_batches)
+    and not exists (
+      select 1 from private.storage_purge_queue q
+      where q.bucket = 'csv-imports' and q.prefix = b.workspace_id::text || '/' || b.id::text || '/');
+
+  if p_account_id is not null then
+    delete from private.account_field_sources where target_account_id = p_account_id;
+  end if;
+  if p_contact_id is not null then
+    delete from private.contact_field_sources where contact_id = p_contact_id;
+  end if;
+  return jsonb_build_object('import_rows_erased', v_rows, 'import_files_queued', cardinality(v_batches));
+end;
+$$;
+
+-- Os fatos da Memória dos Agentes que citam algum dos textos (sem diferenciar maiúsculas), com cinco letras ou mais.
+create function private.erase_agent_memory(p_workspace_id uuid, p_needles text[])
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  delete from private.agent_memory_facts f
+  where f.workspace_id = p_workspace_id
+    and exists (
+      select 1 from unnest(p_needles) n
+      where length(btrim(coalesce(n, ''))) >= 5 and position(lower(btrim(n)) in lower(f.content)) > 0);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Chamadas com a Conta ou o Contato como estavam antes de serem apagados.
+create function private.erase_account_extensions(p_workspace_id uuid, p_account_id uuid, p_account public.target_accounts)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  null;
+  return private.erase_import_data(p_workspace_id, p_account_id, p_account.canonical_url, null, null, null, null)
+    || jsonb_build_object('agent_facts_erased', private.erase_agent_memory(
+      p_workspace_id, array[p_account.name, p_account.canonical_url, p_account.domain, p_account.linkedin_url]));
 end;
 $$;
 
-create function private.erase_contact_extensions(p_workspace_id uuid, p_contact_id uuid)
-returns void
+create function private.erase_contact_extensions(p_workspace_id uuid, p_contact_id uuid, p_contact public.contacts)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  null;
+  return private.erase_import_data(
+      p_workspace_id, null, null, p_contact_id, p_contact.email, p_contact.phone, p_contact.linkedin)
+    || jsonb_build_object('agent_facts_erased', private.erase_agent_memory(
+      p_workspace_id, array[p_contact.name, p_contact.email, p_contact.phone, p_contact.linkedin]));
 end;
 $$;
 
-revoke all on function private.erase_account_extensions(uuid, uuid) from public, anon, authenticated, service_role;
-revoke all on function private.erase_contact_extensions(uuid, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.erase_import_data(uuid, uuid, text, uuid, text, text, text)
+  from public, anon, authenticated, service_role;
+revoke all on function private.erase_agent_memory(uuid, text[]) from public, anon, authenticated, service_role;
+revoke all on function private.erase_account_extensions(uuid, uuid, public.target_accounts)
+  from public, anon, authenticated, service_role;
+revoke all on function private.erase_contact_extensions(uuid, uuid, public.contacts)
+  from public, anon, authenticated, service_role;
 
 -- 7. Peças do apagamento.
 -- O documento sem o Contato: os passos dele e o id dele na lista de participantes. O resto não muda.
@@ -491,6 +587,7 @@ declare
   v_documents integer := 0;
   v_legacy integer := 0;
   v_links integer := 0;
+  v_ext jsonb;
 begin
   select c.* into v_contact from public.contacts c
   where c.id = p_contact_id and c.workspace_id = p_workspace_id;
@@ -560,14 +657,14 @@ begin
   get diagnostics v_legacy = row_count;
 
   select count(*) into v_links from public.contact_account_links l where l.contact_id = p_contact_id;
-  perform private.erase_contact_extensions(p_workspace_id, p_contact_id);
+  v_ext := private.erase_contact_extensions(p_workspace_id, p_contact_id, v_contact);
 
   -- Vínculos, foto e consultas de foto saem pela cascata; as Interações perdem só o Contato.
   delete from public.contacts c where c.id = p_contact_id and c.workspace_id = p_workspace_id;
 
   return jsonb_build_object(
     'contacts_erased', 1, 'links_removed', v_links, 'received_emails_erased', v_emails, 'sends_anonymized', v_sends,
-    'documents_cleaned', v_documents, 'legacy_rows_erased', v_legacy);
+    'documents_cleaned', v_documents, 'legacy_rows_erased', v_legacy) || v_ext;
 end;
 $$;
 
@@ -903,6 +1000,7 @@ declare
   v_erased jsonb;
   v_contacts_erased integer := 0;
   v_counts jsonb;
+  v_ext jsonb;
 begin
   if v_user_id is null then
     raise exception 'authentication required' using errcode = '28000';
@@ -967,8 +1065,6 @@ begin
   where i.target_account_id = p_target_account_id and i.contact_id is not null;
   get diagnostics v_interactions = row_count;
 
-  perform private.erase_account_extensions(v_workspace_id, p_target_account_id);
-
   -- O marcador, por último: sem nome, URL, domínio, identificador legal, LinkedIn nem segmento. A URL de mentira é
   -- única por Conta e não aponta para empresa nenhuma; a URL real fica livre para um cadastro novo.
   update public.target_accounts set
@@ -976,10 +1072,14 @@ begin
     legal_identifier = null, linkedin_url = null, segment = null, deleted_at = now(), updated_at = now()
   where id = p_target_account_id;
 
+  -- Depois do marcador: o gatilho de origem por campo escreve uma origem "manual" para o nome novo, e a importação e a
+  -- Memória dos Agentes são limpas com a Conta como era (v_account).
+  v_ext := private.erase_account_extensions(v_workspace_id, p_target_account_id, v_account);
+
   v_counts := jsonb_build_object(
     'sequences_ended', v_ended, 'received_emails_erased', v_emails, 'sends_anonymized', v_sends,
     'legacy_rows_erased', v_legacy, 'contacts_erased', v_contacts_erased, 'contacts_kept', v_kept,
-    'interactions_detached', v_interactions);
+    'interactions_detached', v_interactions) || v_ext;
   insert into private.data_lifecycle_events (workspace_id, actor_user_id, action, subject_kind, subject_id, result, counts)
   values (v_workspace_id, v_user_id, 'erase', 'account', p_target_account_id, 'done', v_counts);
   return jsonb_build_object('result', 'erased') || v_counts;

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(164);
+select plan(180);
 
 -- Procura, em toda tabela de public e de private, uma linha que contenha algum dos trechos (sem diferenciar maiúsculas):
 -- devolve as tabelas e as quantidades, ou '' quando nada vazou. Roda como dono do banco.
@@ -363,6 +363,57 @@ insert into public.contact_photos (contact_id, workspace_id, status, photo_url, 
   ((select valor::uuid from ids where chave = 'paula'), 'b2000000-0000-0000-0000-000000000001', 'found',
     'https://media.licdn.com/paula-foto.jpg', 'https://www.linkedin.com/in/paula-nogueira', now());
 
+-- A importação por CSV (CRM-07): o lote da Alfa (com uma linha só de URL, sem Conta ligada, e uma linha de outra
+-- empresa), o da Paula (com uma linha de outra pessoa) e um lote sem relação. A Memória dos Agentes (CRM-13): fatos que
+-- citam a Maria, a Paula e a Alfa, e dois que não citam ninguém.
+insert into private.import_batches (id, workspace_id, created_by, file_name, file_size, storage_path, status, row_count) values
+  ('d1000000-0000-0000-0000-00000000000a', 'b2000000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000001',
+    'clientes-alfa.csv', 100, 'b2000000-0000-0000-0000-000000000001/d1000000-0000-0000-0000-00000000000a/arquivo.csv', 'completed', 3),
+  ('d1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000001',
+    'lista-paula.csv', 100, 'b2000000-0000-0000-0000-000000000001/d1000000-0000-0000-0000-00000000000b/arquivo.csv', 'completed', 2),
+  ('d1000000-0000-0000-0000-00000000000c', 'b2000000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000001',
+    'outra-lista.csv', 100, 'b2000000-0000-0000-0000-000000000001/d1000000-0000-0000-0000-00000000000c/arquivo.csv', 'completed', 1);
+insert into private.import_rows (batch_id, workspace_id, line_number, cells, status, parsed, outcome, target_account_id, contact_id) values
+  ('d1000000-0000-0000-0000-00000000000a', 'b2000000-0000-0000-0000-000000000001', 1,
+    '["Alfa Distribuidora", "alfa-distribuidora.test", "Maria Souza Peixoto", "maria.peixoto@alfa-distribuidora.test"]', 'created',
+    '{"company_name": "Alfa Distribuidora", "company_url": "https://alfa-distribuidora.test", "contact_name": "Maria Souza Peixoto", "contact_email": "maria.peixoto@alfa-distribuidora.test"}',
+    '{"account": "created", "contact": "created", "changed": ["name"], "preserved": []}',
+    (select valor::uuid from ids where chave = 'alfa'), (select valor::uuid from ids where chave = 'maria')),
+  ('d1000000-0000-0000-0000-00000000000a', 'b2000000-0000-0000-0000-000000000001', 2,
+    '["Alfa Distribuidora", "https://www.alfa-distribuidora.test/", "", ""]', 'skipped',
+    '{"company_name": "Alfa Distribuidora", "company_url": "https://alfa-distribuidora.test"}',
+    '{"account": "skipped", "contact": "none", "changed": [], "preserved": []}', null, null),
+  ('d1000000-0000-0000-0000-00000000000a', 'b2000000-0000-0000-0000-000000000001', 3,
+    '["Zeta Comercial", "zeta-comercial.test", "", ""]', 'created',
+    '{"company_name": "Zeta Comercial", "company_url": "https://zeta-comercial.test"}',
+    '{"account": "created", "contact": "none", "changed": [], "preserved": []}', null, null),
+  ('d1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', 1,
+    '["Beta Industrial", "beta-industrial.test", "Paula Rezende Nogueira", "paula.nogueira@beta-industrial.test"]', 'updated',
+    '{"company_name": "Beta Industrial", "company_url": "https://beta-industrial.test", "contact_name": "Paula Rezende Nogueira", "contact_email": "paula.nogueira@beta-industrial.test"}',
+    '{"account": "updated", "contact": "created", "changed": ["name"], "preserved": []}',
+    (select valor::uuid from ids where chave = 'beta'), (select valor::uuid from ids where chave = 'paula')),
+  ('d1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', 2,
+    '["Eta Serviços", "eta-servicos.test", "Rui Eta", "rui@eta-servicos.test"]', 'invalid',
+    '{"company_name": "Eta Serviços", "company_url": "https://eta-servicos.test", "contact_name": "Rui Eta", "contact_email": "rui@eta-servicos.test"}',
+    '{}', null, null),
+  ('d1000000-0000-0000-0000-00000000000c', 'b2000000-0000-0000-0000-000000000001', 1,
+    '["Theta Ltda", "theta.test", "", ""]', 'created',
+    '{"company_name": "Theta Ltda", "company_url": "https://theta.test"}',
+    '{"account": "created", "contact": "none", "changed": [], "preserved": []}', null, null);
+
+insert into private.agents (workspace_id, specialty, kind)
+select 'b2000000-0000-0000-0000-000000000001', 'scopus', 'padrao'
+where not exists (select 1 from private.agents where workspace_id = 'b2000000-0000-0000-0000-000000000001');
+insert into private.agent_memory_facts (workspace_id, agent_id, content, origin)
+select 'b2000000-0000-0000-0000-000000000001', (select id from private.agents where workspace_id = 'b2000000-0000-0000-0000-000000000001' limit 1), f.content, 'teste'
+from (values
+  ('Maria Souza Peixoto prefere ligações à tarde'),
+  ('Paula Rezende Nogueira decide as compras'),
+  ('Alfa Distribuidora fechou contrato em 2025'),
+  ('Ana gosta de café'),
+  ('O ICP prefere varejo')
+) as f(content);
+
 insert into ids select 'alfa-interacoes', string_agg(kind, ',' order by kind) from public.account_interactions
   where target_account_id = (select valor::uuid from ids where chave = 'alfa');
 insert into ids select 'beta-interacoes', string_agg(kind, ',' order by kind) from public.account_interactions
@@ -440,6 +491,28 @@ select is((select string_agg(kind, ',' order by kind) from public.account_intera
   'the commercial events stay');
 select is((select count(*)::int from public.account_interactions where contact_id = (select valor::uuid from ids where chave = 'paula')), 0,
   'without the Contato');
+select is((select valor::jsonb ->> 'import_rows_erased' from ids where chave = 'res-paula') || ',' || (select valor::jsonb ->> 'import_files_queued' from ids where chave = 'res-paula')
+    || ',' || (select valor::jsonb ->> 'agent_facts_erased' from ids where chave = 'res-paula'), '1,1,1',
+  'the result also counts the CSV row, the CSV file and the Agent memory fact that were erased');
+select is((select cells::text || parsed::text || preview::text || status || coalesce(contact_id::text, '-') from private.import_rows
+    where batch_id = 'd1000000-0000-0000-0000-00000000000b' and line_number = 1), '[]{}{}updated-',
+  'the CSV row about her lost the raw record and the parsed values, and keeps its state for the batch report');
+select is((select (cells <> '[]'::jsonb)::text || (parsed <> '{}'::jsonb)::text from private.import_rows
+    where batch_id = 'd1000000-0000-0000-0000-00000000000b' and line_number = 2), 'truetrue',
+  'the other rows of the same batch are untouched');
+select is((select file_name from private.import_batches where id = 'd1000000-0000-0000-0000-00000000000b') || ' ' ||
+    (select file_name from private.import_batches where id = 'd1000000-0000-0000-0000-00000000000c'),
+  'arquivo-apagado.csv outra-lista.csv', 'the batch that had a row erased loses the file name, the others keep theirs');
+select is((select count(*)::int from private.storage_purge_queue
+    where bucket = 'csv-imports' and prefix = 'b2000000-0000-0000-0000-000000000001/d1000000-0000-0000-0000-00000000000b/'), 2,
+  'the CSV file of that batch is queued for deletion in the Storage');
+select is((select count(*)::int from private.storage_purge_queue
+    where bucket = 'csv-imports' and prefix like '%d1000000-0000-0000-0000-00000000000c/'), 0, 'and an unrelated batch file is not');
+select is((select count(*)::int from private.contact_field_sources where contact_id = (select valor::uuid from ids where chave = 'paula')), 0,
+  'her field sources are gone');
+select is((select string_agg(content, '|' order by content) from private.agent_memory_facts where content like '%Paula%' or content like '%decide%'),
+  null, 'the Agent memory fact that cites her by name is gone');
+select is((select count(*)::int from private.agent_memory_facts), 4, 'and the other facts stay');
 select is(pg_temp.vazamentos(array['%nogueira%', '%rezende%', '%955550001%', '%paula%']), '',
   'no table of the database keeps anything of the deleted Contato');
 select is((select count(*)::int from private.data_lifecycle_events where action = 'erase' and subject_kind = 'contact'
@@ -567,6 +640,22 @@ select is((select count(*)::int from public.contact_photos where contact_id = (s
   'and the photo');
 select is((select count(*)::int from public.sales_responsibilities where target_account_id = (select valor from ids where chave = 'alfa')), 1,
   'the responsibility record stays: it holds only ids');
+select is((select (valor::jsonb ->> 'import_rows_erased') || ',' || (valor::jsonb ->> 'agent_facts_erased') from ids where chave = 'res-alfa'), '2,1',
+  'the result also counts the CSV rows and the Agent memory fact that were erased');
+select is((select string_agg(cells::text || parsed::text || status || coalesce(target_account_id::text, '-') || coalesce(contact_id::text, '-'), '|' order by line_number)
+    from private.import_rows where batch_id = 'd1000000-0000-0000-0000-00000000000a' and line_number <= 2),
+  '[]{}created--|[]{}skipped--', 'the CSV rows about the target account, with or without a link to it, lost the raw record and the values');
+select is((select (cells <> '[]'::jsonb)::text from private.import_rows where batch_id = 'd1000000-0000-0000-0000-00000000000a' and line_number = 3),
+  'true', 'the row of another company in the same batch is untouched');
+select is((select file_name from private.import_batches where id = 'd1000000-0000-0000-0000-00000000000a'), 'arquivo-apagado.csv',
+  'the batch file name, which the person chose, was replaced');
+select is((select count(*)::int from private.storage_purge_queue
+    where bucket = 'csv-imports' and prefix = 'b2000000-0000-0000-0000-000000000001/d1000000-0000-0000-0000-00000000000a/'), 2,
+  'the CSV file of the batch is queued for deletion in the Storage, once');
+select is((select count(*)::int from private.account_field_sources where target_account_id = (select valor::uuid from ids where chave = 'alfa'))
+    + (select count(*)::int from private.contact_field_sources where contact_id = (select valor::uuid from ids where chave = 'maria')), 0,
+  'the field sources are gone, and the marker rename did not write a new one');
+select is((select count(*)::int from private.agent_memory_facts), 2, 'the Agent memory facts that cite Maria or the company are gone; the ones that cite nobody stay');
 select is(pg_temp.vazamentos(array['%peixoto%', '%alfa%', '%distribuidora%', '%987654321%', '%12.345.678%', '%maria souza%', '%olá, maria%']), '',
   'no table of the database keeps anything of the deleted target account or of its Contato');
 select is((select count(*)::int from private.data_lifecycle_events where action = 'erase' and subject_kind = 'account'
@@ -690,7 +779,7 @@ select is((select url || ' ' || (token = (select token from private.storage_purg
   'https://abc.supabase.co/functions/v1/storage-purge true', 'and the call carries the database token');
 set local role service_role;
 create temporary table reservadas as select * from public.claim_storage_purge(10);
-select is((select count(*)::int from reservadas), 2, 'the Edge Function claims the due folders (the later passes wait)');
+select is((select count(*)::int from reservadas), 4, 'the Edge Function claims the due folders (attachments and CSV files; the later passes wait)');
 select is((select count(*)::int from public.claim_storage_purge(10)), 0, 'a folder already claimed is not handed out again');
 select is(public.finish_storage_purge((select min(id) from reservadas)), true, 'the function marks a folder as deleted');
 select is(public.finish_storage_purge((select min(id) from reservadas)), false, 'marking it again changes nothing');
