@@ -19,3 +19,7 @@ verify_jwt = true
 
 [functions.contact-photo-lookup]
 verify_jwt = true
+
+# Chamada pelo próprio banco (pg_cron + pg_net), sem JWT: a função confere o token que o banco guarda.
+[functions.storage-purge]
+verify_jwt = false

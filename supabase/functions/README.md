@@ -109,6 +109,8 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
 
 - `contact-photo-lookup` busca a foto pública do Contato pelo perfil LinkedIn dele (CRM-12), por um Actor do Apify. O navegador pede `{ contactId }` numa ação do Contato, nunca ao desenhar a lista. A função reserva a consulta no banco com a sessão de quem pede (`begin_contact_photo_lookup`): qualquer Participação ativa do Workspace do Contato, um perfil `/in/`, uma consulta em andamento por Contato, no máximo uma por minuto e três por dia por Contato e cinquenta por dia por Workspace (429 acima disso). Só então roda o Actor, e grava a resposta com a chave de serviço (`finish_contact_photo_lookup`, só `service_role`): guarda a URL da imagem, o Actor, a execução e a data de observação, e nada além disso do perfil. Respostas: `200 {status: "found" | "not_found"}`, `404` (Contato de outro Workspace), `409` (em andamento, ou foto manual), `422` (sem perfil LinkedIn), `429`, `502` (o Apify recusou) e `504` (prazo). Detalhes, Actor escolhido e retenção em `contact-photo-lookup/README.md`.
 
+- `storage-purge` apaga do Storage as pastas que o banco enfileirou quando dados pessoais são apagados (CRM-18). O Storage não deixa remover o arquivo por SQL, então `erase_target_account` e `erase_contact` só gravam o prefixo (`recebidos/<interação>/`, nunca o nome do arquivo) em `private.storage_purge_queue`, duas vezes: agora e uma hora depois, para pegar um anexo que um download em andamento gravou depois. A cada 5 minutos o pg_cron roda `private.kick_storage_purge()`, que só chama a função (pg_net, com o token do banco em `x-purge-token`, guardado em `private.storage_purge_settings`) quando há pasta vencida. A função confere o token por `storage_purge_token_matches`, roda sem verificação JWT do gateway, responde `202` e segue em segundo plano: reserva as pastas (`claim_storage_purge`), lista e remove tudo sob o prefixo pela API do Storage (com a chave de serviço) e dá baixa (`finish_storage_purge`); uma falha volta a pasta à fila, até 20 tentativas. Recusa prefixo de um só nível, para nunca apagar mais do que a pasta de um registro. Nada do prefixo vai para o log. A importação por CSV (CRM-07) pode usar a mesma fila para o bucket `csv-imports`.
+
 ## Ligar o e-mail do Convite (CRM-03)
 
 1. No PowerShell, cadastrar a chave do Resend digitando-a no próprio terminal: `npx supabase secrets set RESEND_API_KEY=<chave> --project-ref <ref>`.
@@ -121,6 +123,12 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
 2. Cadastrar o token do Apify digitando-o no próprio terminal: `npx supabase secrets set APIFY_TOKEN=<token> --project-ref <ref>` (o `APP_ORIGIN` já existe). Se for trocar o Actor, cadastre também `APIFY_PHOTO_ACTOR_ID` e `APIFY_PHOTO_INPUT`.
 3. Publicar: `npx supabase functions deploy contact-photo-lookup --project-ref <ref>`.
 4. Num Contato com LinkedIn `/in/`, usar a ação de buscar foto e conferir o estado em `contact_photo_status`.
+
+## Ligar a limpeza do Storage (CRM-18)
+
+1. Aplicar a migration `20260929160000_arquivar_e_apagar_dados_comerciais.sql` (conforme `docs/agents/migrations.md`); ela agenda o job `althius-storage-purge` onde há pg_cron e pg_net.
+2. Publicar a função: `npx supabase functions deploy storage-purge --no-verify-jwt --project-ref <ref>`. Ela só usa o que o runtime fornece (`SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`).
+3. No SQL Editor, uma vez por projeto: `select private.configure_storage_purge('https://<ref>.supabase.co');`. Sem esse endereço, o banco não chama nada e a fila só cresce (o apagamento dos dados no banco não depende dela).
 
 ## Ligar o Executor (canais-05)
 
