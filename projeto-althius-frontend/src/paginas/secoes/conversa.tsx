@@ -155,6 +155,12 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
           <p>{item.resumo}</p>
         </article>
       )
+    case 'falha':
+      return (
+        <p role="alert" className="text-sm text-al-atencao">
+          {item.motivo}
+        </p>
+      )
     case 'aprovacao':
       return (
         <AprovacaoNaConversa
