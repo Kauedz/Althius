@@ -8,12 +8,14 @@ import {
   criarFonteDeSinaisIndisponivel,
 } from './indisponivel'
 import { criarFonteSimulada } from './simulada'
+import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
 import { criarFonteDeContasSimulada } from './simulada-contas'
 import { criarFonteDeContasRemetentesDaDemonstracao } from './simulada-contas-remetentes'
 import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
+import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
 import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
 import { criarFonteDeConversasSupabase } from './supabase-conversas'
@@ -35,6 +37,7 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDeSequencias,
     fonteDeOnboarding: criarFonteDeOnboardingSimulada({ armazenamento }),
     fonteDeSinais,
+    fonteDeConexoes: criarFonteDeConexoesSimulada({ armazenamento }),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     indisponiveis: new Set(),
   }
@@ -63,13 +66,13 @@ export function criarAmbienteDoWorkspace({
     ? criarFonteDeConversasSupabase(cliente, participacao.workspaceId, { agentes: () => agentes.agentes() })
     : {}
   const indisponiveis = new Set<ModuloDoWorkspace>([
-    'conversas', 'sinais', 'aprovacoes', 'conexoes', 'configuracoes', 'onboarding', 'anexos',
+    'conversas', 'sinais', 'aprovacoes', 'configuracoes', 'onboarding', 'anexos',
   ])
   if (conversasDisponiveis) indisponiveis.delete('conversas')
   return {
     modo: 'real',
-    // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes e as Conversas (com o modelo
-    // configurado) já têm backend; as Aprovações, as Conexões e o resto de Configurações, ainda não.
+    // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões e as Conversas
+    // (com o modelo configurado) já têm backend; as Aprovações e o resto de Configurações, ainda não.
     fonte: {
       ...criarFonteDeAgentesIndisponivel({ usuario, participacao }),
       ...participantes,
@@ -90,6 +93,7 @@ export function criarAmbienteDoWorkspace({
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
+    fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
     indisponiveis,
   }

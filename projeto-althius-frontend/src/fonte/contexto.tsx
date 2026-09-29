@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Ambiente, ModoDoAmbiente, ModuloDoWorkspace } from './ambiente'
+import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
@@ -118,6 +119,24 @@ export function FonteDeContasRemetentesProvider({
 export function useFonteDeContasRemetentes(): FonteDeContasRemetentes {
   const fonte = useContext(ContextoDaFonteDeContasRemetentes)
   if (!fonte) throw new Error('useFonteDeContasRemetentes precisa de um FonteDeContasRemetentesProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeConexoes = createContext<FonteDeConexoes | null>(null)
+
+export function FonteDeConexoesProvider({
+  fonte,
+  children,
+}: {
+  fonte: FonteDeConexoes
+  children: ReactNode
+}) {
+  return <ContextoDaFonteDeConexoes.Provider value={fonte}>{children}</ContextoDaFonteDeConexoes.Provider>
+}
+
+export function useFonteDeConexoes(): FonteDeConexoes {
+  const fonte = useContext(ContextoDaFonteDeConexoes)
+  if (!fonte) throw new Error('useFonteDeConexoes precisa de um FonteDeConexoesProvider')
   return fonte
 }
 
@@ -250,5 +269,16 @@ export function useDadosDeSinais<T>(
   dependencias: unknown[] = [],
 ): EstadoDoCarregamento<T> {
   const fonte = useFonteDeSinais()
+  return useCarregamento(fonte, carregar, dependencias)
+}
+
+/**
+ * Carrega dados da FonteDeConexoes do contexto com estado completo de carregamento (dados, carregando, erro e recarregar).
+ */
+export function useDadosDeConexoes<T>(
+  carregar: (fonte: FonteDeConexoes) => Promise<T>,
+  dependencias: unknown[] = [],
+): EstadoDoCarregamento<T> {
+  const fonte = useFonteDeConexoes()
   return useCarregamento(fonte, carregar, dependencias)
 }
