@@ -28,4 +28,10 @@ describe('montarCsvDoRelatorio', () => {
     ])
     expect(csv).toContain('"disse ""oi""\nde novo"')
   })
+  it('não deixa uma célula do arquivo virar fórmula ao abrir o relatório na planilha', () => {
+    const csv = montarCsvDoRelatorio({ colunas: ['Empresa', 'Site', 'Nota', 'Obs'], delimitador: ',' }, [
+      linha(3, { celulas: ['=HYPERLINK("http://x")', '+1', '@soma', 'normal'] }),
+    ])
+    expect(csv).toContain("\"'=HYPERLINK(\"\"http://x\"\")\",'+1,'@soma,normal")
+  })
 })

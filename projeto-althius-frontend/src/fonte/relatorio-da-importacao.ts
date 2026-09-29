@@ -13,6 +13,15 @@ export const ROTULO_DA_SITUACAO: Record<SituacaoDaLinha, string> = {
   falhou: 'Falhou',
 }
 
+/**
+ * Uma célula que começa com =, +, -, @, tabulação ou retorno de carro pode ser lida como fórmula ao abrir o arquivo no
+ * Excel ou no Planilhas. O texto vem do CSV enviado por quem importa, então ganha um apóstrofo na frente para ficar
+ * como texto.
+ */
+function comoTexto(valor: string): string {
+  return /^[=+\-@\t\r]/.test(valor) ? `'${valor}` : valor
+}
+
 function celula(valor: string, delimitador: string): string {
   const precisaDeAspas = valor.includes(delimitador) || /["\r\n]/.test(valor)
   return precisaDeAspas ? `"${valor.replaceAll('"', '""')}"` : valor
@@ -25,8 +34,8 @@ export function montarCsvDoRelatorio(lote: Pick<LoteDeImportacao, 'colunas' | 'd
   const registros = linhas.map((linha) => [
     String(linha.numero),
     ROTULO_DA_SITUACAO[linha.situacao],
-    [...linha.motivos, ...linha.observacoes].join(' '),
-    ...lote.colunas.map((_, i) => linha.celulas[i] ?? ''),
+    comoTexto([...linha.motivos, ...linha.observacoes].join(' ')),
+    ...lote.colunas.map((_, i) => comoTexto(linha.celulas[i] ?? '')),
   ])
   const texto = [cabecalho, ...registros].map((registro) => registro.map((valor) => celula(valor, delimitador)).join(delimitador))
   return `﻿${texto.join('\r\n')}\r\n`
