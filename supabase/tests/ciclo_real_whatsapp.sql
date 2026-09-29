@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(158);
+select plan(172);
 
 -- O relógio da agenda fica parado onde o teste quiser, só dentro desta transação.
 create function pg_temp.relogio(p_at timestamptz) returns void language plpgsql as $f$
@@ -478,6 +478,39 @@ select is(pg_temp.col('wa-b', 'status') || ' ' || pg_temp.col('wa-d', 'status'),
   'the others wait their turn');
 select is((select count(*)::int from private.sequence_step_sends where step_id = 'li-c'), 0, 'the LinkedIn step has no send yet');
 
+-- O envio automático de WhatsApp nasce DESLIGADO: a parte 2 ainda não pausa a Sequência quando o Contato responde.
+-- (O "Confirmar e enviar" manual da seção 4 já passou com ele desligado.)
+select is((select whatsapp_auto_send from private.sequence_runner_settings), false,
+  'automatic WhatsApp sending starts off');
+select is(private.whatsapp_auto_send_enabled(), false, 'and the helper says so');
+select is((select column_default from information_schema.columns where table_schema = 'private'
+    and table_name = 'sequence_runner_settings' and column_name = 'whatsapp_auto_send'), 'false',
+  'the column defaults to false, so a new row cannot start on');
+
+create temporary table chamadas (url text, token text);
+create or replace function private.post_to_sequence_runner(p_url text, p_token text) returns void
+language sql security definer set search_path = '' as $f$
+  insert into pg_temp.chamadas values (p_url, p_token);
+$f$;
+select private.configure_sequence_runner('https://abc.supabase.co');
+select pg_temp.passa_o_tempo();
+select is(private.kick_sequence_runner(), false,
+  'with it off, due WhatsApp steps do not make the database call the Executor');
+select is((select count(*)::int from chamadas), 0, 'and no call was made');
+set local role service_role;
+select is((select count(*)::int from public.claim_due_step_sends(10)), 0, 'the Executor reserves no WhatsApp step');
+select is((select outcome from public.release_due_whatsapp_step_send(pg_temp.envio('wa-a'))), 'automatic_disabled',
+  'even asked to release one, the due release refuses (defense in depth)');
+reset role;
+select is(pg_temp.col('wa-a', 'status') || ' ' || pg_temp.col('wa-a', 'attempts') || ' ' || coalesce(pg_temp.col('wa-a', 'claimed_until'), '-')
+    || ' ' || coalesce(pg_temp.col('wa-a', 'sending_at'), '-'),
+  'scheduled 0 - -', 'and the step is untouched: not reserved, not attempted, not sending');
+
+update private.sequence_runner_settings set whatsapp_auto_send = true, updated_at = now();
+select is(private.whatsapp_auto_send_enabled(), true, 'the owner of the database turns it on with one update');
+select is(private.kick_sequence_runner(), true, 'now the same due steps make the database call the Executor');
+select is((select count(*)::int from chamadas), 1, 'exactly one call was made');
+
 -- O Executor reserva no máximo um passo por Conta remetente, e nenhum dentro do espaçamento.
 select pg_temp.passa_o_tempo();
 set local role service_role;
@@ -581,6 +614,10 @@ select throws_ok($$select * from public.claim_due_step_sends(1)$$,
   '42501', 'permission denied for function claim_due_step_sends', 'nor claim due steps');
 select throws_ok($$select public.capture_webhook_shape('message.new', '{}')$$,
   '42501', 'permission denied for function capture_webhook_shape', 'nor capture a webhook shape');
+select throws_ok($$select private.whatsapp_auto_send_enabled()$$,
+  '42501', 'permission denied for schema private', 'nor read the automatic sending switch');
+select throws_ok($$update private.sequence_runner_settings set whatsapp_auto_send = true$$,
+  '42501', 'permission denied for schema private', 'nor turn automatic WhatsApp sending on');
 select throws_ok($$select public.record_sequence_step_send_result('00000000-0000-0000-0000-000000000000', 'sent', null, null, null)$$,
   '42501', 'permission denied for function record_sequence_step_send_result', 'nor record a result');
 reset role;
@@ -594,6 +631,8 @@ select throws_ok($$select public.capture_webhook_shape('message.new', '{}')$$,
   '42501', 'permission denied for function capture_webhook_shape', 'nor capture shapes');
 select throws_ok($$select * from private.sequence_step_sends$$, '42501', 'permission denied for schema private',
   'the sends are not readable through the API');
+select throws_ok($$update private.sequence_runner_settings set whatsapp_auto_send = true$$,
+  '42501', 'permission denied for schema private', 'a signed-in user cannot turn automatic WhatsApp sending on');
 reset role;
 set local role service_role;
 select is((select public.step_send_channel(pg_temp.envio('wa-a'), 'c1000000-0000-0000-0000-000000000001')), 'whatsapp',

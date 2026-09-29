@@ -17,16 +17,26 @@
 --   private.step_signature              `destino` conta como edição: trocar o número revoga a versão autorizada.
 --   private.release_step_send           recusa um Envio que não é de E-mail (wrong_channel) e a resposta "Re:" só
 --                                       continua a conversa de outro e-mail.
---   public.claim_due_step_sends         devolve o canal e nunca entrega dois envios da mesma Conta de WhatsApp dentro
---                                       do espaçamento mínimo.
+--   public.claim_due_step_sends         devolve o canal, nunca entrega dois envios da mesma Conta de WhatsApp dentro do
+--                                       espaçamento mínimo, só entrega WhatsApp com o envio automático ligado e confere
+--                                       de novo situação, reserva e fila depois de travar as linhas.
+--   private.kick_sequence_runner        só chama o Executor por um passo de WhatsApp com o envio automático ligado.
 --   private.mark_step_send_sent         a Interação de um envio de WhatsApp é `mensagem-enviada`.
 --   public.record_sequence_step_send_result  guarda também o id da conversa do provedor (`p_provider_chat_id`).
 --   public.resolve_uncertain_step       "não saiu" reconfirma pelo canal do passo.
 --   private.anonymize_sends e private.keep_send_anonymized  o id da conversa (que traz o número) também é apagado.
 --
--- Novos: espaçamento (`private.whatsapp_send_spacing`), `public.confirm_whatsapp_step`, a liberação
--- (`release_whatsapp_step_send`, `release_due_whatsapp_step_send`), `public.step_send_channel`,
--- `public.block_whatsapp_step_send` e a tabela de formatos de webhook (`private.webhook_shape_captures`).
+-- Novos: espaçamento (`private.whatsapp_send_spacing`), o interruptor do envio automático de WhatsApp
+-- (`private.sequence_runner_settings.whatsapp_auto_send`, desligado, e `private.whatsapp_auto_send_enabled`),
+-- `public.confirm_whatsapp_step`, a liberação (`release_whatsapp_step_send`, `release_due_whatsapp_step_send`),
+-- `public.step_send_channel`, `public.block_whatsapp_step_send` e a tabela de formatos de webhook
+-- (`private.webhook_shape_captures`).
+--
+-- Envio automático de WhatsApp DESLIGADO por padrão: a parte 2 (recebimento) ainda não existe, então a resposta de um
+-- Contato NÃO pausa a Sequência, e um passo de WhatsApp seguinte sairia sozinho depois de uma resposta. Enquanto o
+-- interruptor estiver desligado, o Executor não reserva, não chama a função por causa e não libera passo de WhatsApp
+-- (`automatic_disabled`); o "Confirmar e enviar" manual do titular continua funcionando. Para ligar, no SQL Editor:
+--   update private.sequence_runner_settings set whatsapp_auto_send = true, updated_at = now();
 
 -- 1. A visão dos Contatos com Vínculo ativo: `whatsapp` só mostra o telefone principal quando ele é marcado como
 -- WhatsApp. Antes o principal aparecia como `whatsapp` mesmo com a marca desligada. As colunas e a segurança de quem
@@ -135,6 +145,26 @@ revoke all on function private.anonymize_sends(uuid, uuid[], uuid) from public, 
 
 -- 3. Peças do WhatsApp.
 
+-- O interruptor do envio automático de WhatsApp (uma linha só, junto do endereço do Executor). Desligado até a parte 2
+-- pausar a Sequência quando o Contato responde. Ligar é um passo manual e consciente, no SQL Editor.
+alter table private.sequence_runner_settings add column whatsapp_auto_send boolean not null default false;
+
+comment on column private.sequence_runner_settings.whatsapp_auto_send is
+  'Automatic WhatsApp sending by the Executor. Off until a reply pauses the Sequência (canais-06, part 2). Manual '
+  'sends by the owner are not affected.';
+
+create function private.whatsapp_auto_send_enabled()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select s.whatsapp_auto_send from private.sequence_runner_settings s limit 1), false);
+$$;
+
+revoke all on function private.whatsapp_auto_send_enabled() from public, anon, authenticated;
+
 -- O espaçamento mínimo entre duas mensagens da mesma Conta remetente de WhatsApp. É a única constante: a Unipile pede
 -- intervalos realistas e avisa que abrir muitas conversas sem resposta pode restringir a conta (evitar menos de 10 a
 -- 20 segundos). Trocar o valor aqui muda a reserva do Executor e a liberação.
@@ -169,18 +199,19 @@ $$;
 revoke all on function private.whatsapp_sender_id(uuid, uuid) from public, anon, authenticated;
 
 -- Esta Conta remetente enviou uma mensagem há menos que o espaçamento mínimo? Mede a hora em que o Envio passou a
--- "sending" (tempo real, como a reserva do Executor).
+-- "sending" com o relógio da parede (clock_timestamp, não o início da transação: duas liberações concorrentes são
+-- serializadas pela trava da Conta em release_whatsapp_step_send, e a segunda precisa ver a hora real da primeira).
 create function private.whatsapp_sender_in_spacing(p_sender_account_id uuid, p_except_send_id uuid)
 returns boolean
 language sql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
   select exists (
     select 1 from private.sequence_step_sends e
     where e.sender_account_id = p_sender_account_id and e.id is distinct from p_except_send_id
-      and e.sending_at is not null and e.sending_at > now() - private.whatsapp_send_spacing());
+      and e.sending_at is not null and e.sending_at > clock_timestamp() - private.whatsapp_send_spacing());
 $$;
 
 revoke all on function private.whatsapp_sender_in_spacing(uuid, uuid) from public, anon, authenticated;
@@ -1076,6 +1107,12 @@ begin
     v_blocked := 'wrong_channel';
   end if;
 
+  -- Defesa em profundidade: o Executor não reserva nem chama por WhatsApp com o envio automático desligado, e aqui a
+  -- liberação dele também recusa. O envio manual do titular (p_due_only falso) não passa por esta regra.
+  if v_blocked is null and p_due_only and not private.whatsapp_auto_send_enabled() then
+    v_blocked := 'automatic_disabled';
+  end if;
+
   if v_blocked is null and v_send.status = 'sending' then
     perform private.expire_stale_sends(v_send.id);
     select e.status into v_send.status from private.sequence_step_sends e where e.id = v_send.id;
@@ -1163,8 +1200,13 @@ begin
     end if;
   end if;
 
-  -- Antispam: a mesma Conta não envia duas mensagens dentro do espaçamento mínimo. Um passo que cai aqui continua
-  -- vencido e sai numa rodada seguinte do Executor.
+  -- Antispam: a mesma Conta não envia duas mensagens dentro do espaçamento mínimo. A trava por Conta serializa as
+  -- liberações concorrentes (de Sequências diferentes, do Executor e do titular) ANTES de olhar a hora do último envio:
+  -- a segunda espera a primeira gravar `sending_at` e então vê o espaçamento. Vale até o fim da transação. Um passo
+  -- que cai aqui continua vencido e sai numa rodada seguinte do Executor.
+  if v_blocked is null then
+    perform pg_advisory_xact_lock(hashtextextended('whatsapp_sender:' || v_sender.id::text, 0));
+  end if;
   if v_blocked is null and private.whatsapp_sender_in_spacing(v_sender.id, v_send.id) then
     v_blocked := 'sender_spacing';
     if p_due_only then
@@ -1206,7 +1248,7 @@ begin
 
   update private.sequence_step_sends set
     status = 'sending', sender_account_id = v_sender.id, attempts = attempts + 1,
-    sending_at = now(), claimed_until = null, subject = null, body = v_body, updated_at = now()
+    sending_at = clock_timestamp(), claimed_until = null, subject = null, body = v_body, updated_at = now()
   where id = v_send.id;
 
   return query select 'released', v_send.id, v_sender.unipile_account_id, v_send.destination, v_contact.name,
@@ -1306,8 +1348,15 @@ grant execute on function public.block_whatsapp_step_send(uuid, text) to service
 
 -- 10. O Executor reserva os passos automáticos vencidos (E-mail e WhatsApp) e agora devolve o canal, para enviar pelo
 -- caminho certo. Por Conta remetente de WhatsApp, entrega no máximo um passo por chamada e nenhum enquanto a Conta
--- estiver dentro do espaçamento mínimo: o passo fica vencido e sai numa rodada seguinte. A reserva dura 2 minutos e só
--- evita trabalho repetido: quem impede o envio duplicado é a passagem para "sending" na liberação, com a linha travada.
+-- estiver dentro do espaçamento mínimo: o passo fica vencido e sai numa rodada seguinte. Passo de WhatsApp só é
+-- entregue com o envio automático ligado (`whatsapp_auto_send`). A reserva dura 2 minutos e só evita trabalho repetido:
+-- quem garante o espaçamento e impede o envio duplicado é a liberação (trava por Conta e passagem para "sending" com a
+-- linha travada).
+--
+-- Duas etapas, em comandos separados: um snapshot antigo pode devolver uma linha que outra chamada acabou de reservar
+-- ou liberar (o `for update skip locked` re-lê a linha travada, mas não refaz a fila nem o espaçamento). A primeira
+-- escolhe e trava; a segunda, já com um snapshot novo e com as linhas travadas, confere de novo situação, reserva,
+-- espaçamento e a vez de cada Conta antes de reservar.
 drop function public.claim_due_step_sends(integer);
 
 create function public.claim_due_step_sends(p_limit integer default 10)
@@ -1317,10 +1366,12 @@ security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
+declare
+  v_ids uuid[];
+  v_auto boolean := private.whatsapp_auto_send_enabled();
 begin
   perform private.expire_stale_sends(null);
 
-  return query
   with cand as (
     select e.id, e.scheduled_for, e.channel, e.workspace_id, e.owner_user_id,
       case when e.channel = 'whatsapp' then private.whatsapp_sender_id(e.workspace_id, e.owner_user_id) end as sender_id
@@ -1329,6 +1380,7 @@ begin
     join private.sequence_authorizations a on a.id = e.authorization_id and a.revoked_at is null
     where e.status = 'scheduled' and e.scheduled_for <= private.clock_now()
       and (e.claimed_until is null or e.claimed_until < now())
+      and (e.channel <> 'whatsapp' or v_auto)
   ), ranked as (
     select c.id, c.scheduled_for, c.channel, c.sender_id,
       row_number() over (partition by c.sender_id order by c.scheduled_for, c.id) as rn
@@ -1342,20 +1394,79 @@ begin
   ), due as (
     select e.id from ranked r
     join private.sequence_step_sends e on e.id = r.id
-    where r.sender_id is null or r.rn = 1
+    where (r.sender_id is null or r.rn = 1)
+      -- Reconferido na linha travada (o Postgres reavalia estas condições na versão mais nova dela).
+      and e.status = 'scheduled' and e.scheduled_for <= private.clock_now()
+      and (e.claimed_until is null or e.claimed_until < now())
     order by r.scheduled_for
     limit greatest(1, least(coalesce(p_limit, 10), 50))
     for update of e skip locked
   )
+  select coalesce(array_agg(d.id), '{}') into v_ids from due d;
+
+  -- Segunda etapa: snapshot novo, linhas já travadas por esta transação.
+  return query
+  with locked as (
+    select e.id, e.scheduled_for, e.channel, e.workspace_id, e.owner_user_id,
+      case when e.channel = 'whatsapp' then private.whatsapp_sender_id(e.workspace_id, e.owner_user_id) end as sender_id
+    from private.sequence_step_sends e
+    where e.id = any (v_ids) and e.status = 'scheduled' and e.scheduled_for <= private.clock_now()
+      and (e.claimed_until is null or e.claimed_until < now())
+      and (e.channel <> 'whatsapp' or v_auto)
+  ), ranked as (
+    select l.id, l.sender_id,
+      row_number() over (partition by l.sender_id order by l.scheduled_for, l.id) as rn
+    from locked l
+    where l.sender_id is null or not (
+      private.whatsapp_sender_in_spacing(l.sender_id, l.id)
+      or exists (
+        select 1 from private.sequence_step_sends x
+        where x.channel = 'whatsapp' and x.workspace_id = l.workspace_id and x.owner_user_id = l.owner_user_id
+          and x.id <> l.id and x.claimed_at > now() - private.whatsapp_send_spacing()))
+  )
   update private.sequence_step_sends e set claimed_until = now() + interval '2 minutes', claimed_at = now()
-  from due
-  where e.id = due.id
+  from ranked r
+  where e.id = r.id and (r.sender_id is null or r.rn = 1)
   returning e.id, e.owner_user_id, e.channel;
 end;
 $$;
 
 revoke all on function public.claim_due_step_sends(integer) from public, anon, authenticated;
 grant execute on function public.claim_due_step_sends(integer) to service_role;
+
+-- O relógio também respeita o interruptor: sem o envio automático de WhatsApp ligado, um passo de WhatsApp vencido não
+-- faz o banco chamar o Executor. O resto (E-mail e reconciliação de Conta remetente) continua como na migration da
+-- reconciliação, de onde vem esta definição.
+create or replace function private.kick_sequence_runner()
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_settings private.sequence_runner_settings;
+begin
+  perform private.expire_stale_sends(null);
+  select s.* into v_settings from private.sequence_runner_settings s;
+  if v_settings.function_url is null then
+    return false;
+  end if;
+  if not exists (
+    select 1 from private.sequence_step_sends e
+    join public.sequences q on q.id = e.sequence_id and q.status = 'ativa'
+    join private.sequence_authorizations a on a.id = e.authorization_id and a.revoked_at is null
+    where e.status = 'scheduled' and e.scheduled_for <= private.clock_now()
+      and (e.claimed_until is null or e.claimed_until < now())
+      and (e.channel <> 'whatsapp' or v_settings.whatsapp_auto_send))
+    and not exists (select 1 from private.sender_accounts a where private.sender_awaits_reconciliation(a)) then
+    return false;
+  end if;
+  perform private.post_to_sequence_runner(v_settings.function_url, v_settings.token);
+  return true;
+end;
+$$;
+
+revoke all on function private.kick_sequence_runner() from public, anon, authenticated, service_role;
 
 -- 11. O resultado do provedor. Um envio aceito de WhatsApp registra a Interação `mensagem-enviada` (sem conteúdo).
 create or replace function private.mark_step_send_sent(
