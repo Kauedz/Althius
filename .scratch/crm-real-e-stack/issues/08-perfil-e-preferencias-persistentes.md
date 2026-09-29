@@ -4,7 +4,7 @@
 
 **Blocked by:** Auth-02: [Workspace pessoal criado no primeiro acesso](../../autenticacao-google-email/issues/02-workspace-pessoal-no-primeiro-acesso.md); Auth-05: [Esqueci a senha](../../autenticacao-google-email/issues/05-esqueci-a-senha.md) (substituem o CRM-02).
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] Perfil e preferências pertencem à identidade ou Workspace conforme seu escopo e são persistidos no backend. — Tudo o que Meu perfil e Preferências editam é da Conta de usuário (nome, foto, tema, notificações do navegador): `private.user_profiles` e `private.user_preferences`, por `user_id`, lidas e gravadas só por `get_my_profile`/`save_my_profile`/`get_my_preferences`/`save_my_preferences`; pgTAP `supabase/tests/perfil_e_preferencias.sql` (sobrevivem à remoção da Participação, somem com a Conta de usuário). Nada nessas seções é do Workspace; nome e descrição do Workspace ficam em Configurações → Workspace (CRM-03/CRM-22), e o Plano segue demonstrativo.
 - [x] Tema e preferências de notificação sobrevivem a sessão e dispositivo. — O tema salvo é aplicado ao entrar no Workspace operacional (`src/components/tema-salvo-na-conta.tsx`), inclusive sem nada no navegador; `perfil-e-preferencias-reais.test.tsx` "o tema é salvo na Conta de usuário… e volta em outro dispositivo" e "as notificações ativadas ficam salvas…".

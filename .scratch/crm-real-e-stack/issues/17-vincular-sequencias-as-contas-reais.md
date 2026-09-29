@@ -13,6 +13,7 @@
 - [ ] Interface existente mostra Contas e Sequências reais com permissões, estados vazios e erros coerentes.
 - [ ] Arquivar Conta pausa a Sequência, cancela passos pendentes e preserva histórico; restaurar exige confirmação explícita do responsável.
 - [ ] Apagamento permanente cancela passos pendentes e impede execução posterior, preparando os eventos preservados para anonimização.
+- [ ] Depois de uma Transferência de responsabilidade (CRM-06), o novo responsável assume a Conta-alvo com Sequência própria: pode retomar ou recomeçar a Sequência dela, com as Contas remetentes dele. Hoje a Sequência antiga continua do antigo responsável: o executor bloqueia os envios dela (`owner_not_responsible`), mas ela impede criar outra, porque `sequences` é única por Conta.
 
 
 ## Comments
