@@ -1,7 +1,8 @@
-import { screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { Contato, FonteDeContas } from '@/fonte/contas-tipos'
 import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
+import { SeletorDeDestino } from './detalhe-sequencia'
 
 /** Os Contatos da demo, com as listas de e-mails e telefones da Sarah Chen que a fonte do Workspace operacional traz. */
 function comListasDaSarah(base: FonteDeContas): FonteDeContas {
@@ -76,5 +77,26 @@ describe('O passo escolhe qual e-mail ou telefone do Contato usar', () => {
     await screen.findByTestId('composer-step')
 
     expect(screen.queryByRole('combobox', { name: /neste passo/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('Um passo que aponta para um número que o Contato não tem mais', () => {
+  const soUmEmail = { id: 'c1', emails: [{ valor: 'a@x.com', rotulo: 'trabalho' as const }] } as unknown as Contato
+
+  it('mostra o seletor, sem o número escolhido, para a pessoa poder escolher outro', () => {
+    const escolhas: (number | undefined)[] = []
+    render(<SeletorDeDestino canal="email" contato={soUmEmail} destino={2} onEscolher={(d) => escolhas.push(d)} />)
+
+    const seletor = screen.getByRole('combobox', { name: 'E-mail do Contato neste passo' })
+    expect(seletor).toHaveValue('')
+    expect(within(seletor).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Escolha o número',
+      'Número 1 · a@x.com (Trabalho)',
+    ])
+  })
+
+  it('não mostra o seletor quando o passo usa o número 1 e o Contato tem um só e-mail', () => {
+    render(<SeletorDeDestino canal="email" contato={soUmEmail} onEscolher={() => {}} />)
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 })

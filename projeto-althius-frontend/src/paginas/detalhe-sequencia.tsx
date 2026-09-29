@@ -1231,7 +1231,7 @@ interface ComposerStepProps {
  * Qual e-mail (ou telefone com WhatsApp) do Contato o passo usa: "número 1" é o principal, e o 2 e o 3, os adicionais.
  * Só aparece quando o Contato tem mais de um e a fonte informa as listas; a confirmação fixa o endereço escolhido.
  */
-function SeletorDeDestino({
+export function SeletorDeDestino({
   canal,
   contato,
   destino,
@@ -1243,8 +1243,10 @@ function SeletorDeDestino({
   onEscolher: (destino: number | undefined) => void
 }) {
   const lista = canal === 'email' ? contato?.emails : contato?.telefones
-  if (!lista || lista.length < 2) return null
   const atual = posicaoDoDestino(destino)
+  // Um passo que aponta para o número 2 ou 3 continua mostrando o seletor quando o Contato perdeu esse canal, para a
+  // pessoa poder escolher outro número em vez de ficar com o passo preso.
+  if (!lista || (lista.length < 2 && atual === 1)) return null
   // O passo de WhatsApp escolhe só entre os telefones marcados; o número é a posição na lista inteira do Contato.
   const opcoes = lista.flatMap((canalDoContato, i) => {
     if ('whatsapp' in canalDoContato && !canalDoContato.whatsapp) return []
