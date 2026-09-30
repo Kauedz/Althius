@@ -20,8 +20,8 @@
 
 ## Critérios
 
-- [ ] Envio e resposta movem o cartão já neste ticket.
-- [ ] Os outros eventos têm teste com o gancho simulado.
+- [x] Envio e resposta movem o cartão já neste ticket.
+- [x] Os outros eventos têm teste com o gancho simulado.
 
 ## Passos do Nan
 
@@ -30,3 +30,9 @@
 1. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Gancho único `private.record_prospecting_event(workspace, conta, evento)` com os nomes: `sinal_novo`, `fit`, `nao_fit`, `primeiro_envio`, `resposta`, `reuniao_marcada`, `enviada_ao_crm`, `sinais_vencidos` (tabela na migration 20260930150000). Cada spec dona chama ao entregar o evento.
+- Envio e resposta entram por gatilho em `private.sequence_step_sends` (status vira `sent`) e `private.received_emails` (insert), sem redefinir `release_step_send` nem a ingestão.
+- Eventos de avanço nunca voltam o cartão; só `sinais_vencidos` volta, e só antes da abordagem.
