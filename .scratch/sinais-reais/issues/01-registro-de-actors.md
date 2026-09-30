@@ -22,9 +22,9 @@
 
 ## Critérios
 
-- [ ] Custo de cada execução gravado (`creditos-e-planos` 01).
-- [ ] Actor fora do registro nunca roda.
-- [ ] Os 9 actors do lançamento cadastrados (ver `.scratch/modulo-de-sinais/pesquisa-actors-apify.md`).
+- [x] Custo de cada execução gravado (`creditos-e-planos` 01).
+- [x] Actor fora do registro nunca roda.
+- [x] Os 9 actors do lançamento cadastrados (ver `.scratch/modulo-de-sinais/pesquisa-actors-apify.md`).
 
 ## Passos do Nan
 
@@ -35,3 +35,6 @@
 3. Decidir o plano pago do Apify (Starter US$ 29, Scale US$ 199) e assinar na conta da Althius.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
