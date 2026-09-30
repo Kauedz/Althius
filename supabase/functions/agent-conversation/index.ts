@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import type { SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
+import { creditosDoBanco, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
 import { createHandler, type Db, type Inicio } from './handler.ts'
 import { modeloDaAnthropic } from './model.ts'
 import { modeloDoGroq } from './model-groq.ts'
@@ -95,6 +95,7 @@ const runDb: RunDb = {
   },
   playbook: async (runId, specialty) =>
     (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
+  creditos: creditosDoBanco(rpc),
 }
 
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para a Execução terminar.

@@ -52,6 +52,11 @@ export interface RunDb {
    * um motor sem ela roda como antes, sem registrar custo.
    */
   custo?(runId: string): Promise<void>
+  /**
+   * Os créditos: cada Agente por rodada abre uma rodada paga antes de rodar e a fecha ao terminar (ticket 04 de
+   * créditos-e-planos). Opcional: um motor sem ela roda como antes, sem cobrar.
+   */
+  creditos?: Creditos
 }
 
 /** Uma seção do Playbook do Workspace como o motor a recebe. */
@@ -292,9 +297,10 @@ export async function rodarRodadas(
 
 /** A Conversa na página de um Agente: ele responde, cada @mencionado entra em seguida, e quem pediu volta a falar. */
 export async function conversarNaPagina(
-  { reserva, db, executor }: { reserva: Reserva; db: RunDb; executor: Executor },
+  { reserva, db, executor: motor }: { reserva: Reserva; db: RunDb; executor: Executor },
 ): Promise<void> {
   const registro = registrador(db, reserva.run_id)
+  const executor = cobrandoOsCreditos(motor, db, reserva.run_id)
   await rodarRodadas({
     agentes: participantesDaConversa(reserva),
     executor,
@@ -304,9 +310,10 @@ export async function conversarNaPagina(
 
 /** A Coordenação: escolhe os Agentes, cada um trabalha na sua vez e ela junta o que disseram numa resposta. */
 export async function coordenarPedido(
-  { reserva, db, executor }: { reserva: Reserva; db: RunDb; executor: Executor },
+  { reserva, db, executor: motor }: { reserva: Reserva; db: RunDb; executor: Executor },
 ): Promise<void> {
   const registro = registrador(db, reserva.run_id)
+  const executor = cobrandoOsCreditos(motor, db, reserva.run_id)
   const escolha = await executor.escolher()
   const chamados = chamadosDaCoordenacao(reserva, escolha.agentes)
   if (chamados.length === 0) {
@@ -435,5 +442,80 @@ export async function registrarCustoDaExecucao(
     await db.custo(runId)
   } catch (error) {
     log({ type: tipoDoLog, runId, outcome: 'cost_failed', message: String(error) })
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Os créditos das Execuções (creditos-e-planos, ticket 04, ADR-0019).
+
+/** Sem saldo de créditos, ou no limite mensal de quem pediu: a rodada do Agente não abre, e a Execução falha com este motivo. */
+export class SemSaldo extends ErroDoModelo {
+  constructor() {
+    super('insufficient_credits')
+    this.name = 'SemSaldo'
+  }
+}
+
+/** Uma rodada aberta; `id` nulo quando não há o que fechar (a cobrança do Workspace está desligada, ou a rodada já foi paga). */
+export interface RodadaAberta {
+  id: string | null
+}
+
+/** O contrato com o banco dos créditos: um Agente por rodada é um débito, que só se confirma quando a rodada conclui. */
+export interface Creditos {
+  /** Reserva o crédito da rodada. Lança SemSaldo quando não há saldo ou quem pediu está no limite mensal. */
+  abrir(runId: string, agenteId: string, rodada: number): Promise<RodadaAberta>
+  /** Concluída, debita; falha, solta a reserva. */
+  fechar(id: string, concluida: boolean): Promise<void>
+}
+
+/**
+ * O motor com os créditos: cada `trabalhar` abre a rodada do Agente antes de rodar e a fecha depois. Quem falha não é
+ * cobrado. A escolha da Coordenação e a síntese não cobram: o débito é por Agente e por rodada.
+ */
+export function comCreditos(executor: Executor, { runId, creditos }: { runId: string; creditos: Creditos }): Executor {
+  return {
+    escolher: () => executor.escolher(),
+    sintetizar: (falas) => executor.sintetizar(falas),
+    async trabalhar(agente, falas, rodada) {
+      const aberta = await creditos.abrir(runId, agente.id, rodada)
+      try {
+        const resultado = await executor.trabalhar(agente, falas, rodada)
+        if (aberta.id) await creditos.fechar(aberta.id, true)
+        return resultado
+      } catch (erro) {
+        // A reserva que ficar presa por causa de um erro aqui é solta pela faxina do banco.
+        if (aberta.id) await creditos.fechar(aberta.id, false).catch(() => {})
+        throw erro
+      }
+    },
+  }
+}
+
+function cobrandoOsCreditos(executor: Executor, db: RunDb, runId: string): Executor {
+  return db.creditos ? comCreditos(executor, { runId, creditos: db.creditos }) : executor
+}
+
+/** Os créditos pelo banco: `begin_agent_round` e `end_agent_round`, com o `rpc` de quem chama (a ponte ou o worker). */
+export function creditosDoBanco(
+  rpc: <T>(nome: string, args: Record<string, unknown>) => Promise<T>,
+): Creditos {
+  return {
+    async abrir(runId, agenteId, rodada) {
+      const linhas = await rpc<{ outcome: string; reservation_id: string | null }[] | null>('begin_agent_round', {
+        p_run_id: runId,
+        p_agent_id: agenteId,
+        p_round: rodada,
+        p_own_ai_key: false,
+      })
+      const linha = linhas?.[0]
+      if (!linha) throw new Error('begin_agent_round não respondeu')
+      if (linha.outcome === 'no_credits') throw new SemSaldo()
+      // "free" (cobrança desligada) e "paid" (rodada já paga) rodam sem nada a fechar.
+      return { id: linha.outcome === 'go' ? linha.reservation_id : null }
+    },
+    async fechar(id, concluida) {
+      await rpc<void>('end_agent_round', { p_reservation_id: id, p_success: concluida })
+    },
   }
 }

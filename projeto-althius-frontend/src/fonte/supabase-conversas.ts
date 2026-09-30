@@ -70,6 +70,8 @@ const MOTIVOS: Record<string, string> = {
   model_timeout: 'O modelo não respondeu a tempo. Tente de novo.',
   model_unreachable: 'Não foi possível falar com o modelo. Tente de novo.',
   membership_inactive: 'Você não participa mais deste Workspace.',
+  insufficient_credits:
+    'O Workspace está sem créditos para este pedido, ou você chegou ao seu limite do mês. Avise o Administrador.',
   hermes_unreachable: 'O motor dos Agentes não respondeu. Confira se ele está ligado e tente de novo.',
   hermes_failed: 'O motor dos Agentes não conseguiu terminar este pedido. Tente de novo.',
 }
