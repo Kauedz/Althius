@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(15);
+select plan(19);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -12,7 +12,8 @@ insert into public.workspace_memberships (workspace_id, user_id, role, active) v
   ('f7000000-0000-0000-0000-000000000001', '57000000-0000-0000-0000-000000000001', 'admin', true);
 insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, linkedin_url, created_by) values
   ('d7000000-0000-0000-0000-000000000001', 'f7000000-0000-0000-0000-000000000001', 'Alfa', 'https://alfa.test', 'alfa.test', 'https://linkedin.com/company/alfa', '57000000-0000-0000-0000-000000000001'),
-  ('d7000000-0000-0000-0000-000000000002', 'f7000000-0000-0000-0000-000000000001', 'Beta', 'https://beta.test', 'beta.test', null, '57000000-0000-0000-0000-000000000001');
+  ('d7000000-0000-0000-0000-000000000002', 'f7000000-0000-0000-0000-000000000001', 'Beta', 'https://beta.test', 'beta.test', null, '57000000-0000-0000-0000-000000000001'),
+  ('d7000000-0000-0000-0000-000000000003', 'f7000000-0000-0000-0000-000000000001', 'Gama', 'https://gama.test', 'gama.test', null, '57000000-0000-0000-0000-000000000001');
 select public.set_signal_actor_state('curious_coder~linkedin-jobs-scraper', 'available', 'v1');
 
 create temporary table r (k text primary key, id uuid) on commit drop;
@@ -83,6 +84,32 @@ create or replace function private.post_to_signal_runner(p_url text, p_token tex
 select is(private.kick_signal_runner(), false, 'sem o endereço configurado, nada é chamado');
 select private.configure_signal_runner('https://exemplo.supabase.co');
 select is(private.kick_signal_runner(), true, 'com endereço e Monitoramento vencido, chama');
+
+-- 6. Uma rodada que não deu conta de todas as Contas continua de onde parou na seguinte (ninguém fica sem varredura).
+update private.signal_monitors set audience = '{"accountIds":["d7000000-0000-0000-0000-000000000001","d7000000-0000-0000-0000-000000000002","d7000000-0000-0000-0000-000000000003"]}',
+  next_run_at = now() - interval '1 minute', claimed_until = null;
+update public.target_accounts set archived_at = null;
+select is(
+  (select string_agg(a ->> 'name', ',' order by o) from public.claim_due_signal_monitors(10), jsonb_array_elements(accounts) with ordinality as x(a, o)),
+  'Alfa,Beta,Gama', 'a primeira rodada começa pela primeira Conta'
+);
+select public.finish_signal_monitor_run((select id from private.signal_monitors limit 1), 2, null);
+update private.signal_monitors set next_run_at = now() - interval '1 minute';
+select is(
+  (select string_agg(a ->> 'name', ',' order by o) from public.claim_due_signal_monitors(10), jsonb_array_elements(accounts) with ordinality as x(a, o)),
+  'Gama,Alfa,Beta', 'varridas duas, a seguinte começa pela terceira e dá a volta'
+);
+
+-- 7. O Executor descobre o actor de um tipo de Sinal; só o servidor pergunta.
+select is(
+  (select row(actor_id, state, version)::text from public.signal_actor_for_type('vaga_linkedin')),
+  '(curious_coder~linkedin-jobs-scraper,available,v1)', 'o actor do Sinal e o estado dele'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.signal_actor_for_type(text)', 'execute')
+    and has_function_privilege('service_role', 'public.signal_actor_for_type(text)', 'execute'),
+  'perguntar pelo actor é só do servidor'
+);
 
 select * from finish();
 rollback;

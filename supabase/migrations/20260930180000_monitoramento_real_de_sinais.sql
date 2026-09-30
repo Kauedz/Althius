@@ -404,6 +404,9 @@ $cron$;
 -- banco, a função o confere por uma RPC, e o endereço é o único passo manual (private.configure_signal_runner). Sem
 -- endereço, nada é chamado.
 alter table private.signal_monitors add column last_error text check (last_error is null or length(last_error) <= 500);
+-- Por onde a próxima rodada começa no público: a rodada que não varre todas as Contas (o tempo da função acaba)
+-- continua de onde parou na seguinte, então nenhuma Conta fica sem varredura.
+alter table private.signal_monitors add column scan_offset integer not null default 0 check (scan_offset >= 0);
 
 create table private.signal_runner_settings (
   singleton boolean primary key default true check (singleton),
@@ -531,11 +534,15 @@ begin
   )
   select c.id, c.workspace_id, c.signal_type, c.criteria, c.created_by,
     coalesce((
-      select jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'domain', t.domain, 'linkedinUrl', t.linkedin_url)
-        order by t.name, t.id)
-      from public.target_accounts t
-      where t.workspace_id = c.workspace_id and t.archived_at is null
-        and t.id::text in (select jsonb_array_elements_text(c.audience -> 'accountIds'))
+      select jsonb_agg(jsonb_build_object('id', x.id, 'name', x.name, 'domain', x.domain, 'linkedinUrl', x.linkedin_url)
+        order by (x.pos - 1 - c.scan_offset + x.total) % x.total)
+      from (
+        select t.id, t.name, t.domain, t.linkedin_url,
+          row_number() over (order by t.name, t.id) as pos, count(*) over () as total
+        from public.target_accounts t
+        where t.workspace_id = c.workspace_id and t.archived_at is null
+          and t.id::text in (select jsonb_array_elements_text(c.audience -> 'accountIds'))
+      ) x
     ), '[]'::jsonb)
   from claimed c;
 end;
@@ -553,6 +560,8 @@ begin
     last_run_at = now(),
     next_run_at = now() + make_interval(hours => every_hours),
     claimed_until = null,
+    scan_offset = (scan_offset + greatest(coalesce(p_scanned, 0), 0))
+      % greatest(jsonb_array_length(coalesce(audience -> 'accountIds', '[]'::jsonb)), 1),
     last_error = nullif(left(coalesce(p_error, ''), 500), '')
   where id = p_monitor_id;
   if not found then
@@ -575,3 +584,18 @@ begin
   end if;
 end
 $cron$;
+
+-- Para o Executor: o actor de um tipo de Sinal e o estado dele.
+create function public.signal_actor_for_type(p_signal_type text)
+returns table (actor_id text, signal_type text, state text, version text, max_cost_usd numeric)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select a.actor_id, a.signal_type, a.state, a.version, a.max_cost_usd
+  from private.signal_actors a where a.signal_type = p_signal_type;
+$$;
+
+revoke all on function public.signal_actor_for_type(text) from public, anon, authenticated;
+grant execute on function public.signal_actor_for_type(text) to service_role;

@@ -10,7 +10,6 @@ import {
 } from './ambiente'
 import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
-import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeOnboarding } from './tipos'
 
 /** Nada muda numa fonte sem backend: não há o que observar. */
@@ -96,24 +95,6 @@ export function criarFonteDeAgentesIndisponivel({
     conversar: semConversa,
     sugestoesCoordenadas: nenhum,
     conversarCoordenado: semConversa,
-  }
-}
-
-/** Sinais e Monitoramentos do Workspace operacional: nenhum provedor de coleta está configurado. */
-export function criarFonteDeSinaisIndisponivel(): FonteDeSinais {
-  return {
-    observar: semMudancas,
-    hoje: () => new Date(),
-    tipos: nenhum,
-    tipo: recusar('sinais'),
-    monitoramentos: nenhum,
-    monitoramentosDoTipo: nenhum,
-    monitoramento: recusar('sinais'),
-    salvarMonitoramento: recusar('sinais'),
-    mudarEstado: recusar('sinais'),
-    excluirMonitoramento: recusar('sinais'),
-    sinaisEncontrados: nenhum,
-    simularDisparo: recusar('sinais'),
   }
 }
 

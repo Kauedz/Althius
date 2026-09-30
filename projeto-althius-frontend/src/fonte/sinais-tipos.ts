@@ -68,6 +68,9 @@ export interface Familia {
   descoberta: boolean
 }
 
+/** Se o tipo já roda de verdade: disponível (o actor passou no teste), em teste ou em breve. Só o Workspace operacional informa. */
+export type Disponibilidade = 'disponivel' | 'em-teste' | 'em-breve'
+
 export interface TipoDeSinal {
   id: string
   nome: string
@@ -75,6 +78,7 @@ export interface TipoDeSinal {
   familiaId: string
   formulario?: Formulario
   padroes?: Criterios
+  disponibilidade?: Disponibilidade
 }
 
 export interface SinalEncontrado {
