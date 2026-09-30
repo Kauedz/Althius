@@ -27,6 +27,7 @@ import type {
 import { eEstagioDeProspeccao, type EstagioDeProspeccao } from './estagios-de-prospeccao'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { criarFonteDeImportacaoSupabase } from './supabase-importacao'
+import { lerSinaisDasContas } from './supabase-sinais'
 
 interface RegistroConta {
   id: string
@@ -206,6 +207,9 @@ function mapearContato(
   }
 }
 
+/** A Conta sem nenhum Sinal: não é Quente e não tem o que contar. */
+const SEM_SINAIS = { quente: false, totalSinaisValidos: 0 } as const
+
 /** O que quem está na sessão pode fazer com um registro. O banco decide de novo a cada ação: isto só mostra os botões. */
 interface Permissoes {
   podeEditar: boolean
@@ -285,13 +289,21 @@ export function criarFonteDeContasSupabase(
       .eq('workspace_id', workspace()).eq('id', id).maybeSingle()
     if (error) throw converterErro(error)
     if (!data) throw naoEncontrada()
-    return mapearConta(
-      data as RegistroConta,
-      (await responsaveis(id)).get(id),
-      obterUsuarioId(),
-      await contatos(id),
-      obterEhAdministrador(),
-    )
+    return {
+      ...mapearConta(
+        data as RegistroConta,
+        (await responsaveis(id)).get(id),
+        obterUsuarioId(),
+        await contatos(id),
+        obterEhAdministrador(),
+      ),
+      ...(await foguinhoDaConta(id)),
+    }
+  }
+
+  async function foguinhoDaConta(id: string) {
+    const sinais = await lerSinaisDasContas(cliente, workspace())
+    return sinais ? (sinais.get(id) ?? SEM_SINAIS) : {}
   }
 
   /** As Contas arquivadas do Workspace, pelo identificador. */
@@ -409,13 +421,15 @@ export function criarFonteDeContasSupabase(
       const { data, error } = await cliente.from('target_accounts').select(COLUNAS_DA_CONTA)
         .eq('workspace_id', workspace()).is('archived_at', null).order('name', { ascending: true })
       if (error) throw converterErro(error)
-      const [donos, estagios] = await Promise.all([responsaveis(), estagiosDoWorkspace()])
+      const [donos, estagios, sinais] = await Promise.all([responsaveis(), estagiosDoWorkspace(), lerSinaisDasContas(cliente, workspace())])
       const porConta = new Map<string, Contato[]>()
       for (const c of await contatos()) porConta.set(c.contaId, [...(porConta.get(c.contaId) ?? []), c])
       return ((data ?? []) as RegistroConta[]).map((linha) => {
         const conta = mapearConta(linha, donos.get(linha.id), obterUsuarioId(), porConta.get(linha.id), obterEhAdministrador())
         const estagio = estagios.get(linha.id)
-        return estagio ? { ...conta, estagio } : conta
+        // Sem Sinal nenhum a Conta não é Quente; se a leitura dos Sinais falhou, a Fonte não informa (nem Quente, nem não).
+        const foguinho = sinais ? (sinais.get(linha.id) ?? SEM_SINAIS) : {}
+        return { ...conta, ...(estagio ? { estagio } : {}), ...foguinho }
       })
     },
 

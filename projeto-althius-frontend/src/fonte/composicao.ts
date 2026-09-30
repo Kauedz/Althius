@@ -5,7 +5,6 @@ import type { Ambiente, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuar
 import {
   criarFonteDeAgentesIndisponivel,
   criarFonteDeOnboardingIndisponivel,
-  criarFonteDeSinaisIndisponivel,
 } from './indisponivel'
 import { criarFonteDeAutomacaoSimulada } from './simulada-automacao'
 import { criarFonteDoPlaybookSimulada } from './simulada-playbook'
@@ -26,6 +25,7 @@ import { criarFonteDeAutomacaoSupabase } from './supabase-automacao'
 import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
+import { criarFonteDeSinaisSupabase } from './supabase-sinais'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
 export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: Storage }): Ambiente {
@@ -99,7 +99,8 @@ export function criarAmbienteDoWorkspace({
     ),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
     fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
-    fonteDeSinais: criarFonteDeSinaisIndisponivel(),
+    // A fonte real existe, mas o módulo Sinais segue indisponível até o primeiro actor passar no teste (sinais-reais 03).
+    fonteDeSinais: criarFonteDeSinaisSupabase(cliente, () => participacao.workspaceId),
     fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
     fonteDoPlaybook: criarFonteDoPlaybookSupabase(cliente, () => participacao.workspaceId, async () => {
