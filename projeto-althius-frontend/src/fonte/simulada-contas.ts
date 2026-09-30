@@ -9,6 +9,7 @@ import type {
   Sinal,
 } from './contas-tipos'
 import { criarDadosIniciais } from './dados-contas-demo'
+import { ESTAGIO_SO_DO_ENVIO_AO_CRM, type EstagioDeProspeccao } from './estagios-de-prospeccao'
 import { estaValido, foiDisparado, parseDataDisparo } from './regras-sinais'
 import type { FonteDeSequencias } from './sequencias-tipos'
 
@@ -56,6 +57,17 @@ export interface FonteDeContasSimulada extends FonteDeContas {
   definirFalha(falha: boolean): void
   definirVazia(vazia: boolean): void
   vincularFonteDeSequencias(fonteDeSequencias: FonteDeSequencias): void
+}
+
+/**
+ * O estágio de exemplo de uma Conta da Demonstração, para o kanban não nascer vazio: Não fit fica Descartada, Fit
+ * fica em Fit, uma Conta Quente em Quente e o resto em Descoberta.
+ */
+function estagioDeExemplo(conta: ContaAlvo): EstagioDeProspeccao {
+  if (conta.aderencia === 'nao-fit') return 'descartada'
+  if (conta.aderencia === 'fit') return 'fit'
+  if (conta.quente) return 'quente'
+  return 'descoberta'
 }
 
 function projetarConta(conta: ContaAlvo, todosSinais: Sinal[], refHoje: Date): ContaAlvo {
@@ -134,6 +146,9 @@ export function criarFonteDeContasSimulada(
     }
   }
 
+  // O kanban de exemplo da Demonstração: o estágio movido à mão fica aqui; sem ele, vem de estagioDeExemplo.
+  const estagios = new Map<string, EstagioDeProspeccao>()
+
   function notificar(): void {
     for (const ouvinte of ouvintes) {
       ouvinte()
@@ -185,7 +200,22 @@ export function criarFonteDeContasSimulada(
 
     async contas(): Promise<ContaAlvo[]> {
       await aguardar()
-      return dados.contas.map((c) => projetarConta(c, dados.sinais, hoje))
+      return dados.contas.map((c) => {
+        const conta = projetarConta(c, dados.sinais, hoje)
+        return { ...conta, estagio: estagios.get(c.id) ?? estagioDeExemplo(conta) }
+      })
+    },
+
+    async moverEstagio(contaId: string, estagio: EstagioDeProspeccao): Promise<void> {
+      await aguardar()
+      const conta = dados.contas.find((c) => c.id === contaId)
+      if (!conta) throw new Error('Conta-alvo não encontrada.')
+      if (conta.sobMinhaResponsabilidade === false) {
+        throw new Error('Só o Vendedor responsável pode mover esta Conta no kanban.')
+      }
+      if (estagio === ESTAGIO_SO_DO_ENVIO_AO_CRM) throw new Error('Só o envio ao CRM leva a Conta para No CRM.')
+      estagios.set(contaId, estagio)
+      notificar()
     },
 
     async conta(id: string): Promise<ContaAlvo> {

@@ -18,9 +18,9 @@
 
 ## Critérios
 
-- [ ] Arrastar respeita a permissão; recusa aparece em português.
-- [ ] A tabela de Contas continua como está.
-- [ ] A Demonstração ganha um kanban de exemplo.
+- [x] Arrastar respeita a permissão; recusa aparece em português.
+- [x] A tabela de Contas continua como está.
+- [x] A Demonstração ganha um kanban de exemplo.
 
 ## Passos do Nan
 
@@ -29,3 +29,11 @@
 1. Conferência visual no navegador (a IA faz e anexa os prints).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Vista Kanban em Contas, no parâmetro `vista=kanban` do endereço; a tabela continua a padrão e igual.
+- Mover: arrastar o cartão ou o menu "Mover" do cartão (acessível por teclado). No CRM fica desabilitado à mão.
+- A Fonte de Contas ganhou `estagio` na Conta e `moverEstagio`; a leitura do estágio falhar não derruba a lista.
+- "Pessoas por Persona" ainda não tem dado (Contato não tem Persona): o cartão mostra o total de contatos. Fica para quando a Persona do Contato existir.
+- Conferência visual: prints no PR.
