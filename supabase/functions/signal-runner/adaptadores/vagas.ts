@@ -1,9 +1,10 @@
 // O que os dois Sinais de vaga (LinkedIn e Indeed, sinais-reais 03) dividem: o formulário "vagas" (funções,
 // senioridade, localização, período e palavras), o filtro da vaga e a chave do acontecimento. A chave é a mesma nas duas
-// fontes (empresa + cargo + mês do anúncio), então a vaga repetida no LinkedIn e no Indeed conta uma vez (o banco trata
-// a família `vaga|` como um acontecimento só).
+// fontes (empresa + cargo + ano do anúncio), então a vaga repetida no LinkedIn e no Indeed conta uma vez (o banco trata
+// a família `vaga|` como um acontecimento só). É o ano, não o mês: na execução real de 30/09/2026, o LinkedIn datou em
+// setembro vagas que o Indeed datou em julho e agosto; o mesmo cargo reaberto no ano seguinte volta a contar.
 import type { ContaParaVarrer, SinalDoAdaptador } from '../handler.ts'
-import { contemAlgum, diasDoPeriodo, dentroDoPeriodo, lista, mesDaData, nomeDaEmpresa, normalizar, recortar, sinal, texto } from './comum.ts'
+import { contemAlgum, diasDoPeriodo, dentroDoPeriodo, lista, nomeDaEmpresa, normalizar, recortar, sinal, texto } from './comum.ts'
 
 /** Os termos de busca de cada opção de "Cargos ou funções", em português e em inglês. */
 export const TERMOS_DAS_FUNCOES: Readonly<Record<string, string[]>> = {
@@ -83,7 +84,7 @@ export function sinalDaVaga(vaga: Vaga, conta: ContaParaVarrer, fonte: string, a
   const onde = vaga.local ? ` em ${vaga.local}` : ''
   const trecho = vaga.descricao ? ` ${recortar(vaga.descricao, 400)}` : ''
   return sinal({
-    eventKey: `vaga|${nomeDaEmpresa(conta.name)}|${cargoDaVaga(vaga.titulo)}|${mesDaData(firedAt)}`,
+    eventKey: `vaga|${nomeDaEmpresa(conta.name)}|${cargoDaVaga(vaga.titulo)}|${firedAt.slice(0, 4)}`,
     phrase: `Abriu vaga de ${vaga.titulo}${onde}`,
     firedAt,
     source: fonte,

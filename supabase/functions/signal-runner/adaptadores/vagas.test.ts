@@ -72,7 +72,7 @@ Deno.test('LinkedIn: sem função escolhida, busca só o nome da Conta', () => {
 Deno.test('LinkedIn: a vaga da Conta vira Sinal com data, fonte e evidência, sem o nome de quem publicou', () => {
   const [s, ...resto] = vagaLinkedin.sinais([itemDoLinkedin()], CONTA, CRITERIOS, AGORA)
   assertEquals(resto, [])
-  assertEquals(s.eventKey, 'vaga|acme logistica|engenheiro de dados senior|2026-09')
+  assertEquals(s.eventKey, 'vaga|acme logistica|engenheiro de dados senior|2026')
   assertEquals(s.phrase, 'Abriu vaga de Engenheiro(a) de Dados Sr. em São Paulo, SP')
   assertEquals(s.firedAt, '2026-09-25T00:00:00.000Z')
   assertEquals(s.source, 'LinkedIn Vagas')
@@ -150,3 +150,18 @@ Deno.test('Indeed: senioridade lida no cargo ou nos atributos da vaga', () => {
   assertEquals(vagaIndeed.sinais([itemDoIndeed()], CONTA, pleno, AGORA).length, 1)
   assertEquals(vagaIndeed.sinais([itemDoIndeed({ title: 'Engenheira de Dados', attributes: {} })], CONTA, pleno, AGORA), [])
 })
+
+Deno.test('LinkedIn e Indeed: a mesma vaga datada em meses diferentes pelas duas fontes tem a mesma chave; no ano seguinte, outra', () => {
+  // Visto na execução real de 30/09/2026: o LinkedIn datou em setembro vagas que o Indeed datou em julho.
+  const titulo = 'Engenheira de Dados Sênior'
+  const [doLinkedin] = vagaLinkedin.sinais([itemDoLinkedin({ title: titulo, postedAt: '2026-09-24' })], CONTA, CRITERIOS, AGORA)
+  const [doIndeed] = vagaIndeed.sinais([itemDoIndeed({ title: titulo, datePublished: '2026-07-28T05:00:00.000Z' })], CONTA, {
+    ...CRITERIOS,
+    periodo: 'Últimos 90 dias',
+  }, AGORA)
+  assertEquals(doLinkedin.eventKey, doIndeed.eventKey)
+  const noAnoSeguinte = Date.parse('2027-02-10T12:00:00Z')
+  const [reaberta] = vagaLinkedin.sinais([itemDoLinkedin({ title: titulo, postedAt: '2027-02-01' })], CONTA, CRITERIOS, noAnoSeguinte)
+  assertEquals(reaberta.eventKey === doLinkedin.eventKey, false)
+})
+
