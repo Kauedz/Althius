@@ -9,11 +9,12 @@ import { SecaoAjuda } from './secao-ajuda'
 import { SecaoMemoria, SecaoMemoriaDoWorkspaceOperacional } from './secao-memoria'
 import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
 import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
+import { SecaoPlaybook } from './secao-playbook'
 import { SecaoPreferencias } from './secao-preferencias'
 import { SecaoWorkspace } from './secao-workspace'
 
 /**
- * As seis seções aprovadas no mockup (ticket 01). Memória do Workspace e Ajuda e informações têm uma página por aba
+ * As seções aprovadas no mockup (ticket 01). Memória do Workspace e Ajuda e informações têm uma página por aba
  * (/configuracoes/memoria/icp, /configuracoes/ajuda/termos); as demais são uma página só. Uma seção informativa é só
  * conteúdo da Althius e não depende do backend do Workspace. Uma seção com `modulo` próprio fica disponível no
  * Workspace operacional assim que esse módulo tem backend, antes do resto de Configurações. Uma seção já ligada ao
@@ -41,6 +42,8 @@ const SECOES: Record<
     NoWorkspaceOperacional: SecaoMemoriaDoWorkspaceOperacional,
     comPaginas: true,
   },
+  // O Playbook tem backend (playbook-do-workspace): a mesma seção serve à Demonstração e ao Workspace operacional.
+  playbook: { rotulo: 'Playbook', Componente: SecaoPlaybook, NoWorkspaceOperacional: SecaoPlaybook, comPaginas: true },
   plano: { rotulo: 'Plano', Componente: SecaoPlano, NoWorkspaceOperacional: SecaoPlanoDoWorkspaceOperacional },
   ajuda: { rotulo: 'Ajuda e informações', Componente: SecaoAjuda, comPaginas: true, informativa: true },
 }

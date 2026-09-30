@@ -7,6 +7,7 @@ import {
   criarFonteDeOnboardingIndisponivel,
   criarFonteDeSinaisIndisponivel,
 } from './indisponivel'
+import { criarFonteDoPlaybookSimulada } from './simulada-playbook'
 import { criarFonteSimulada } from './simulada'
 import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
 import { criarFonteDeContasSimulada } from './simulada-contas'
@@ -20,6 +21,7 @@ import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
 import { criarFonteDeConversasSupabase } from './supabase-conversas'
 import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
+import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 
@@ -39,6 +41,7 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDeSinais,
     fonteDeConexoes: criarFonteDeConexoesSimulada({ armazenamento }),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
+    fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     indisponiveis: new Set(),
   }
 }
@@ -95,6 +98,10 @@ export function criarAmbienteDoWorkspace({
     fonteDeSinais: criarFonteDeSinaisIndisponivel(),
     fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesSupabase(cliente, () => participacao.workspaceId),
+    fonteDoPlaybook: criarFonteDoPlaybookSupabase(cliente, () => participacao.workspaceId, async () => {
+      const { participantes: quem } = await participantes.participantesDoWorkspace()
+      return new Map(quem.map(({ conta }) => [conta.id, conta.nome]))
+    }),
     indisponiveis,
   }
 }

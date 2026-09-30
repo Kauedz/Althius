@@ -8,6 +8,7 @@ import {
   type ParticipacaoNoWorkspace,
   type ContaDeUsuarioDaSessao,
 } from './ambiente'
+import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeOnboarding } from './tipos'
 
@@ -141,5 +142,15 @@ export function criarFonteDeOnboardingIndisponivel(): FonteDeOnboarding {
     pedirRetornoAoChecklist: indisponivel,
     dispensarRetorno: indisponivel,
     concluirOnboarding: indisponivel,
+  }
+}
+
+/** O Playbook onde não há backend: nada a consultar e toda ação é recusada, sem simular sucesso. */
+export function criarFonteDoPlaybookIndisponivel(): FonteDoPlaybook {
+  return {
+    observar: semMudancas,
+    secao: recusar('configuracoes'),
+    salvar: recusar('configuracoes'),
+    restaurar: recusar('configuracoes'),
   }
 }

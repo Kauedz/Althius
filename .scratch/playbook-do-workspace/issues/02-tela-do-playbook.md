@@ -21,10 +21,10 @@
 
 ## Critérios
 
-- [ ] Membro não vê botão de editar; Administrador edita e grava.
-- [ ] Tabelas das seções estruturadas (matriz de dores, 3 perfis, toques da cadência) editáveis linha a linha.
-- [ ] Histórico com versão, autor e data; restaurar pede confirmação.
-- [ ] A Demonstração mostra um Playbook de exemplo, sem backend.
+- [x] Membro não vê botão de editar; Administrador edita e grava.
+- [x] Tabelas das seções estruturadas (matriz de dores, 3 perfis, toques da cadência) editáveis linha a linha.
+- [x] Histórico com versão, autor e data; restaurar pede confirmação.
+- [x] A Demonstração mostra um Playbook de exemplo, sem backend.
 
 ## Passos do Nan
 
@@ -33,3 +33,7 @@
 1. Conferir a tela no navegador como Administrador e como Membro (a IA faz a conferência visual e anexa os prints; o Nan só entra se precisar de login real).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/90
