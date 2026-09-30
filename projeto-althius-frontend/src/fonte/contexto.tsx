@@ -3,6 +3,7 @@ import type { Ambiente, ModoDoAmbiente, ModuloDoWorkspace } from './ambiente'
 import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeOnboarding } from './onboarding-tipos'
+import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
 
@@ -119,6 +120,18 @@ export function FonteDeContasRemetentesProvider({
 export function useFonteDeContasRemetentes(): FonteDeContasRemetentes {
   const fonte = useContext(ContextoDaFonteDeContasRemetentes)
   if (!fonte) throw new Error('useFonteDeContasRemetentes precisa de um FonteDeContasRemetentesProvider')
+  return fonte
+}
+
+const ContextoDaFonteDoPlaybook = createContext<FonteDoPlaybook | null>(null)
+
+export function FonteDoPlaybookProvider({ fonte, children }: { fonte: FonteDoPlaybook; children: ReactNode }) {
+  return <ContextoDaFonteDoPlaybook.Provider value={fonte}>{children}</ContextoDaFonteDoPlaybook.Provider>
+}
+
+export function useFonteDoPlaybook(): FonteDoPlaybook {
+  const fonte = useContext(ContextoDaFonteDoPlaybook)
+  if (!fonte) throw new Error('useFonteDoPlaybook precisa de um FonteDoPlaybookProvider')
   return fonte
 }
 

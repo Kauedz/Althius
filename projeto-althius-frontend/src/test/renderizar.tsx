@@ -13,6 +13,7 @@ import { criarFonteDeSinaisSimulada, type OpcoesFonteDeSinaisSimulada } from '@/
 import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
 import { criarFonteDeContasRemetentesDaDemonstracao } from '@/fonte/simulada-contas-remetentes'
 import { criarFonteDeConexoesSimulada } from '@/fonte/simulada-conexoes'
+import { criarFonteDoPlaybookSimulada } from '@/fonte/simulada-playbook'
 
 export const DATA_HOJE_TESTES = new Date(2026, 8, 23, 12, 0, 0) // 23 de setembro de 2026
 
@@ -109,6 +110,7 @@ function montarApp({
     fonteDeSinais,
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     fonteDeConexoes: criarFonteDeConexoesSimulada(),
+    fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     indisponiveis: new Set(),
   }
   const resultado = render(

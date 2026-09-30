@@ -3,6 +3,7 @@
 
 import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
+import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding, FonteDeSequencias, Papel } from './tipos'
 
@@ -67,6 +68,8 @@ export interface Ambiente {
   fonteDeConexoes: FonteDeConexoes
   /** As Contas remetentes do titular. Na Demonstração, nenhuma é conectada. */
   fonteDeContasRemetentes: FonteDeContasRemetentes
+  /** O Playbook do Workspace. Sem ela, a tela do Playbook diz que ainda não está disponível. */
+  fonteDoPlaybook?: FonteDoPlaybook
   /** Os módulos sem backend neste ambiente, que as telas mostram como indisponíveis. Na Demonstração, nenhum. */
   indisponiveis: ReadonlySet<ModuloDoWorkspace>
 }

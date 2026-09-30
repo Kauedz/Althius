@@ -7,6 +7,7 @@ import { PaginaDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { TemaSalvoNaConta } from '@/components/tema-salvo-na-conta'
 import { ConversasProvider } from '@/conversa/contexto'
 import type { Ambiente, ModuloDoWorkspace } from '@/fonte/ambiente'
+import { criarFonteDoPlaybookIndisponivel } from '@/fonte/indisponivel'
 import {
   AmbienteProvider,
   useAmbiente,
@@ -16,6 +17,7 @@ import {
   FonteDeSequenciasProvider,
   FonteDeContasRemetentesProvider,
   FonteDeSinaisProvider,
+  FonteDoPlaybookProvider,
   FonteProvider,
 } from '@/fonte/contexto'
 import { PaginaAgente } from '@/paginas/agente'
@@ -42,6 +44,8 @@ interface Props {
   rotaInicial?: string
   animarDigitacao?: boolean
 }
+
+const PLAYBOOK_INDISPONIVEL = criarFonteDoPlaybookIndisponivel()
 
 export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
   const [posicoesDasListas] = useState(criarPosicoesDasListas)
@@ -88,24 +92,26 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
               <FonteDeSinaisProvider fonte={ambiente.fonteDeSinais}>
                 <FonteDeConexoesProvider fonte={ambiente.fonteDeConexoes}>
                   <FonteDeContasRemetentesProvider fonte={ambiente.fonteDeContasRemetentes}>
-                    <SinaisDoMockupProvider>
-                      <ConversasProvider animarDigitacao={animarDigitacao}>
-                        <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
-                          <TemaSalvoNaConta />
-                          {rotaInicial ? (
-                            <MemoryRouter initialEntries={[rotaInicial]}>
-                              <AvisosDoNavegador />
-                              {rotas}
-                            </MemoryRouter>
-                          ) : (
-                            <BrowserRouter>
-                              <AvisosDoNavegador />
-                              {rotas}
-                            </BrowserRouter>
-                          )}
-                        </ContextoDasPosicoesDasListas.Provider>
-                      </ConversasProvider>
-                    </SinaisDoMockupProvider>
+                    <FonteDoPlaybookProvider fonte={ambiente.fonteDoPlaybook ?? PLAYBOOK_INDISPONIVEL}>
+                      <SinaisDoMockupProvider>
+                        <ConversasProvider animarDigitacao={animarDigitacao}>
+                          <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
+                            <TemaSalvoNaConta />
+                            {rotaInicial ? (
+                              <MemoryRouter initialEntries={[rotaInicial]}>
+                                <AvisosDoNavegador />
+                                {rotas}
+                              </MemoryRouter>
+                            ) : (
+                              <BrowserRouter>
+                                <AvisosDoNavegador />
+                                {rotas}
+                              </BrowserRouter>
+                            )}
+                          </ContextoDasPosicoesDasListas.Provider>
+                        </ConversasProvider>
+                      </SinaisDoMockupProvider>
+                    </FonteDoPlaybookProvider>
                   </FonteDeContasRemetentesProvider>
                 </FonteDeConexoesProvider>
               </FonteDeSinaisProvider>
