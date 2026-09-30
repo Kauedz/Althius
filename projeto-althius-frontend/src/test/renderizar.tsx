@@ -2,6 +2,7 @@ import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
 import type { Ambiente } from '@/fonte/ambiente'
+import type { FonteDeSinais } from '@/fonte/sinais-tipos'
 import type { FonteDeContas, FonteDeOnboarding } from '@/fonte/tipos'
 import { criarFonteDeContasSimulada, type OpcoesFonteDeContasSimulada } from '@/fonte/simulada-contas'
 import {
@@ -47,11 +48,13 @@ interface Ajustes {
   contas?: (fonte: FonteDeContas) => FonteDeContas
   /** Troca a Fonte de onboarding simulada por outra feita a partir dela, só neste teste. */
   onboarding?: (fonte: FonteDeOnboarding) => FonteDeOnboarding
+  /** Troca a Fonte de Sinais simulada por outra feita a partir dela, só neste teste. */
+  sinais?: (fonte: FonteDeSinais) => FonteDeSinais
 }
 
 /** O app como em `renderizarApp`, com uma Fonte ajustada pelo teste no lugar da simulada. */
-export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding }: Ajustes) {
-  return montarApp({ rota, opcoesOnboarding, ajustarContas: contas, ajustarOnboarding: onboarding })
+export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais }: Ajustes) {
+  return montarApp({ rota, opcoesOnboarding, ajustarContas: contas, ajustarOnboarding: onboarding, ajustarSinais: sinais })
 }
 
 function montarApp({
@@ -64,6 +67,7 @@ function montarApp({
   noNavegador = false,
   ajustarContas = (fonte) => fonte,
   ajustarOnboarding = (fonte) => fonte,
+  ajustarSinais = (fonte) => fonte,
 }: {
   rota: string
   opcoesContas?: OpcoesFonteDeContasSimulada
@@ -74,6 +78,7 @@ function montarApp({
   noNavegador?: boolean
   ajustarContas?: (fonte: FonteDeContas) => FonteDeContas
   ajustarOnboarding?: (fonte: FonteDeOnboarding) => FonteDeOnboarding
+  ajustarSinais?: (fonte: FonteDeSinais) => FonteDeSinais
 }) {
   const fonte = criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES, ...opcoesFonte })
   const fonteDeContas = criarFonteDeContasSimulada({
@@ -108,7 +113,7 @@ function montarApp({
     fonteDeContas: ajustarContas(fonteDeContas),
     fonteDeSequencias,
     fonteDeOnboarding: ajustarOnboarding(fonteDeOnboarding),
-    fonteDeSinais,
+    fonteDeSinais: ajustarSinais(fonteDeSinais),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     fonteDeConexoes: criarFonteDeConexoesSimulada(),
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),

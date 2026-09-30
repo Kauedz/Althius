@@ -8,6 +8,7 @@ import { useDadosDeSinais } from '@/fonte/contexto'
 import type { EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, familiaDoTipo, tipoPorId } from './catalogo'
 import { SeloDoEstado } from './componentes'
+import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
 import { VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
 import { ACAO_DO_ESTADO, resumoDoPublico, resumoDosCriterios } from './resumos'
@@ -25,8 +26,12 @@ export function PaginaDoTipo() {
     recarregar,
   } = useDadosDeSinais((f) => f.monitoramentosDoTipo(tipoId), [tipoId])
   const { dados: sinaisEncontrados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
+  // O estado do tipo (disponível, em teste ou em breve) só o Workspace operacional informa.
+  const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
 
   if (!tipo) return <Navigate to="/sinais" replace />
+  const permiteCriar = !tipoDaFonte || podeMonitorar(tipoDaFonte)
+  const motivoDeNaoCriar = tipoDaFonte ? motivoDaIndisponibilidade(tipoDaFonte) : null
   const familia = familiaDoTipo(tipo)
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
   const ativos = monitoramentos.filter((m) => m.estado === 'ativo').length
@@ -47,10 +52,12 @@ export function PaginaDoTipo() {
       titulo={tipo.nome}
       voltar={{ para: '/sinais', rotulo: 'Sinais' }}
       acoes={
-        <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
-          <Plus strokeWidth={1.8} className="size-4" aria-hidden />
-          {personalizado ? 'Novo personalizado' : 'Novo monitoramento'}
-        </Link>
+        permiteCriar ? (
+          <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
+            <Plus strokeWidth={1.8} className="size-4" aria-hidden />
+            {personalizado ? 'Novo personalizado' : 'Novo monitoramento'}
+          </Link>
+        ) : undefined
       }
     >
       <div className="flex max-w-3xl flex-col gap-3">
@@ -70,6 +77,12 @@ export function PaginaDoTipo() {
           preserva os sinais anteriores.
         </p>
       </div>
+
+      {motivoDeNaoCriar && (
+        <p role="status" className="border-l-2 border-al-atencao bg-al-surface px-4 py-3 text-sm">
+          {motivoDeNaoCriar}
+        </p>
+      )}
 
       {state?.aviso && (
         <p role="status" className="border-l-2 border-al-sucesso bg-al-surface px-4 py-3 text-sm">

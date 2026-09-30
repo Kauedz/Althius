@@ -20,6 +20,7 @@ import {
   type TipoDeSinal,
 } from './catalogo'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
+import { AvisoDeNovosSinais, motivoDaIndisponibilidade, podeMonitorar, SeloDaDisponibilidade } from './disponibilidade'
 import { useMonitoramentos } from './estado'
 
 type Filtro = 'todos' | Origem
@@ -142,6 +143,8 @@ function Catalogo({
         </button>
       </div>
 
+      {catalogoTipos.some((tipo) => !podeMonitorar(tipo)) && <AvisoDeNovosSinais />}
+
       {totalAtivos === 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 border border-dashed border-al-line px-5 py-4">
           <p className="text-sm text-al-muted">
@@ -237,12 +240,29 @@ function Catalogo({
 }
 
 function CartaoDeTipo({ tipo, ativos }: { tipo: TipoDeSinal; ativos: number }) {
+  const motivo = motivoDaIndisponibilidade(tipo)
+  // Em teste ou em breve: o card mostra o estado e o motivo e não leva a lugar nenhum, então não deixa criar Monitoramento.
+  if (motivo && tipo.disponibilidade) {
+    return (
+      <div aria-disabled="true" className="cartao flex h-full min-h-48 flex-col gap-3 border border-transparent p-6 opacity-80">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg leading-snug font-normal">{tipo.nome}</h3>
+          <SeloDaDisponibilidade disponibilidade={tipo.disponibilidade} />
+        </div>
+        <p className="text-sm text-al-muted">{tipo.descricao}</p>
+        <p className="mt-auto pt-3 text-sm text-al-muted">{motivo}</p>
+      </div>
+    )
+  }
   return (
     <Link
       to={`/sinais/tipos/${tipo.id}`}
       className="cartao group flex h-full min-h-48 flex-col gap-3 border border-transparent p-6 transition-colors hover:border-al-accent"
     >
-      <h3 className="text-lg leading-snug font-normal">{tipo.nome}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-lg leading-snug font-normal">{tipo.nome}</h3>
+        {tipo.disponibilidade && <SeloDaDisponibilidade disponibilidade={tipo.disponibilidade} />}
+      </div>
       <p className="text-sm text-al-muted">{tipo.descricao}</p>
       <div className="mt-auto flex items-end justify-between gap-3 pt-3">
         {ativos > 0 ? (
