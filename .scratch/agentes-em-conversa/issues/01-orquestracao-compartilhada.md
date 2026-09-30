@@ -20,8 +20,8 @@
 
 ## Critérios
 
-- [ ] Os testes atuais da ponte e do worker continuam passando sem alteração.
-- [ ] O módulo recebe o modelo por injeção e não sabe qual motor está rodando.
+- [x] Os testes atuais da ponte e do worker continuam passando sem alteração.
+- [x] O módulo recebe o modelo por injeção e não sabe qual motor está rodando.
 
 ## Passos do Nan
 

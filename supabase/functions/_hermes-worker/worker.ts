@@ -3,7 +3,18 @@
 // (claim_agent_run), entrega ao Hermes pela API de runs dele (POST /v1/runs, com Idempotency-Key) e grava a resposta
 // pelo mesmo contrato da ponte (append_agent_run_event e finish_agent_run). O Hermes não aparece para o usuário: para
 // ele, é a inteligência da Althius, que chama o Scopus, o Ethos, o Rhetor e o Oraculum (ADR-0004, ADR-0018).
-import type { AgenteDoWorkspace, ContaEncontrada, Reserva, RunDb } from '../agent-conversation/runner.ts'
+import {
+  type AgenteDoWorkspace,
+  agentesMencionados,
+  agentesPorId,
+  type ContaEncontrada,
+  ESPECIALIDADES,
+  fecharComFalha,
+  historicoDaConversa,
+  registrador,
+  type Reserva,
+  type RunDb,
+} from '../_shared/orquestracao.ts'
 
 export interface FilaDb extends RunDb {
   /** list_queued_agent_runs: os pedidos na fila, do mais antigo ao mais novo. */
@@ -29,13 +40,6 @@ export interface CorpoDoRun {
   conversation_history: { role: 'user' | 'assistant'; content: string }[]
 }
 
-const ESPECIALIDADES: Record<string, string> = {
-  scopus: 'ICP: define o perfil de cliente ideal e dá nota de aderência a cada Conta-alvo.',
-  ethos: 'Persona: descreve dores, objeções e gatilhos de cada papel do Comitê de compra.',
-  rhetor: 'Escrita persuasiva: e-mails, sequências, posts e copy no tom da marca.',
-  oraculum: 'GEO: como a marca aparece nos assistentes de IA e o que publicar para ser citada.',
-}
-
 function linhaDoAgente(agente: AgenteDoWorkspace): string {
   const instrucoes = agente.instructions ? ` Instruções do Workspace: ${agente.instructions}` : ''
   const tom = agente.voice_tone ? ` Tom de voz: ${agente.voice_tone}.` : ''
@@ -44,9 +48,8 @@ function linhaDoAgente(agente: AgenteDoWorkspace): string {
 
 /** As instruções da Execução: quem responde, os Agentes, as Contas-alvo do Workspace e o formato. Exportado para teste. */
 export function corpoDoRun(reserva: Reserva, contas: ContaEncontrada[]): CorpoDoRun {
-  const porId = new Map(reserva.agents.map((agente) => [agente.id, agente]))
-  const anfitriao = reserva.agent_id ? porId.get(reserva.agent_id) : undefined
-  const mencionados = reserva.mentions.flatMap((id) => porId.get(id)?.name ?? [])
+  const anfitriao = reserva.agent_id ? agentesPorId(reserva).get(reserva.agent_id) : undefined
+  const mencionados = agentesMencionados(reserva).map((agente) => agente.name)
   const partes = [
     'Você é a inteligência da Althius, uma plataforma de prospecção B2B. Nunca diga o nome do motor que você usa nem ' +
     'que é um modelo de IA de terceiros: para o usuário, você é a Althius.',
@@ -77,11 +80,7 @@ export function corpoDoRun(reserva: Reserva, contas: ContaEncontrada[]): CorpoDo
   return {
     input: reserva.request_text,
     instructions: partes.join('\n\n'),
-    conversation_history: reserva.history.flatMap((troca) =>
-      troca.answer
-        ? [{ role: 'user' as const, content: troca.request }, { role: 'assistant' as const, content: troca.answer }]
-        : [{ role: 'user' as const, content: troca.request }]
-    ),
+    conversation_history: historicoDaConversa(reserva),
   }
 }
 
@@ -121,11 +120,7 @@ export function createWorker(deps: WorkerDeps) {
 
   async function falhar(runId: string, codigo: string, detalhe = '') {
     log({ type: 'hermes_worker', runId, outcome: 'failed', errorCode: codigo, detail: detalhe })
-    try {
-      await db.finish(runId, 'failed', codigo, 'hermes')
-    } catch (error) {
-      log({ type: 'hermes_worker', runId, outcome: 'finish_failed', message: String(error) })
-    }
+    await fecharComFalha({ db, runId, codigo, modelo: 'hermes', log, tipoDoLog: 'hermes_worker' })
   }
 
   /** Roda uma Execução reservada, do pedido ao Hermes e de volta ao banco. */
@@ -151,21 +146,22 @@ export function createWorker(deps: WorkerDeps) {
     const saida = limparSaida(fim.output)
     if (!saida) return falhar(runId, 'model_empty')
     try {
+      const registro = registrador(db, runId)
       if (reserva.kind === 'agente') {
-        await db.append(runId, 'texto', reserva.agent_id, { texto: saida })
+        await registro.texto(reserva.agent_id, saida)
       } else {
         const coordenado = lerCoordenado(saida)
         const porNome = new Map(reserva.agents.map((agente) => [agente.name.toLowerCase(), agente.id]))
         for (const etapa of coordenado?.etapas ?? []) {
           const agenteId = porNome.get(etapa.agente.trim().toLowerCase())
           if (!agenteId) continue
-          await db.append(runId, 'chamada', agenteId, {})
-          await db.append(runId, 'feito', agenteId, { texto: etapa.texto })
+          await registro.chamada(agenteId)
+          await registro.feito(agenteId, etapa.texto)
         }
         // Sem o JSON pedido, a saída inteira vira a resposta: é o que o motor respondeu, não um texto nosso.
         const resposta = coordenado?.resposta.trim() || (coordenado ? '' : saida)
         if (!resposta) return falhar(runId, 'model_empty')
-        await db.append(runId, 'resposta', null, { texto: resposta })
+        await registro.resposta(resposta)
       }
       await db.finish(runId, 'succeeded', null, 'hermes')
       log({ type: 'hermes_worker', runId, kind: reserva.kind, outcome: 'succeeded' })
