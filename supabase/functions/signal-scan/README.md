@@ -12,4 +12,4 @@ Roda um actor do registro (`private.signal_actors`) pela conta do Apify da Althi
 
 ## Não conferido
 
-Os parâmetros da chamada (`timeout`, `limit`, `maxItems`, `maxTotalChargeUsd`) e o campo `usageTotalUsd` de `GET /v2/actor-runs/{id}` seguem o que `contact-photo-lookup` já usa. Não foram conferidos contra a documentação do Apify (bloqueada no ambiente de desenvolvimento). Se o campo vier diferente, o custo fica em branco no relatório.
+Os parâmetros da chamada (`timeout`, `limit`, `maxItems`, `maxTotalChargeUsd`) seguem o que `contact-photo-lookup` já usa; a documentação do Apify segue bloqueada no ambiente de desenvolvimento. Na execução real de 30/09/2026 (vagas do LinkedIn), a chamada funcionou, mas o endpoint síncrono não devolveu o cabeçalho `x-apify-run-id`: o id agora vem da última execução do actor na mesma conta (`GET /v2/acts/{actor}/runs/last`, aceita só se começou até 10 s antes da chamada) e o custo é lido em `usageTotalUsd` dessa execução. Se duas execuções do mesmo actor começarem na mesma conta ao mesmo tempo, o custo de uma pode ir para a outra: é só medida.

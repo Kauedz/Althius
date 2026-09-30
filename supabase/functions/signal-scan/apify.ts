@@ -1,7 +1,9 @@
 // O cliente do Apify da varredura de Sinais: roda um actor pelo endpoint síncrono
 // `POST /v2/acts/{actor}/run-sync-get-dataset-items`, com o token no cabeçalho Authorization (fora da URL e dos logs), e
 // lê o custo da execução em `GET /v2/actor-runs/{id}`. Os parâmetros da chamada e o campo `usageTotalUsd` seguem a API
-// do Apify como a função contact-photo-lookup já os usa; nenhum foi conferido contra a documentação (ver README).
+// do Apify como a função contact-photo-lookup já os usa. Na execução real de 30/09/2026 o endpoint síncrono não devolveu o
+// cabeçalho `x-apify-run-id`; sem ele, o id vem da última execução do actor na mesma conta
+// (`GET /v2/acts/{actor}/runs/last`, o `lastRun` do cliente oficial apify-client), aceita só se começou depois da chamada.
 import {
   type Apify,
   ApifyRequestError,
@@ -78,6 +80,7 @@ export function clienteDoApify(
     });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const inicio = Date.now();
     try {
       const resposta = await fetchFn(
         `https://api.apify.com/v2/acts/${
@@ -103,7 +106,8 @@ export function clienteDoApify(
       }
       const itens = await resposta.json().catch(() => []);
       return {
-        runId: resposta.headers.get("x-apify-run-id"),
+        runId: resposta.headers.get("x-apify-run-id") ??
+          await ultimaExecucao(token, actorId, inicio),
         items: Array.isArray(itens) ? itens : [],
       };
     } catch (error) {
@@ -111,6 +115,45 @@ export function clienteDoApify(
         throw new ApifyTimeoutError();
       }
       throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * O id da última execução do actor nesta conta, se ela começou depois da chamada (com folga para o relógio): é a que
+   * acabou de rodar. Só medida: qualquer falha devolve nulo e os itens seguem.
+   */
+  async function ultimaExecucao(
+    token: string,
+    actorId: string,
+    inicio: number,
+  ): Promise<string | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const resposta = await fetchFn(
+        `https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/runs/last`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        },
+      );
+      if (!resposta.ok) {
+        await resposta.body?.cancel();
+        return null;
+      }
+      const dados = ((await resposta.json().catch(() => null)) as {
+        data?: { id?: unknown; startedAt?: unknown };
+      } | null)?.data;
+      const comecou = typeof dados?.startedAt === "string"
+        ? Date.parse(dados.startedAt)
+        : NaN;
+      return typeof dados?.id === "string" && comecou >= inicio - 10_000
+        ? dados.id
+        : null;
+    } catch {
+      return null;
     } finally {
       clearTimeout(timer);
     }
