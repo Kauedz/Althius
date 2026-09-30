@@ -25,9 +25,10 @@ describe('Ticket 05: Completar os sinais externos', () => {
       expect(within(catalogo).getByRole('heading', { level: 2, name: new RegExp(`^${familia}`) })).toBeInTheDocument()
     }
 
-    // Filtro "Externos" isola as 9 famílias externas (41 tipos) e oculta as internas e originadas
+    // Filtro "Externos" isola as famílias externas (46 tipos, com os 5 cards do lançamento de Sinais reais) e oculta as
+    // internas e originadas
     const botaoExternos = screen.getByRole('button', { name: /Externos/ })
-    expect(botaoExternos).toHaveTextContent('41')
+    expect(botaoExternos).toHaveTextContent('46')
     await usuario.click(botaoExternos)
 
     // Internos e originados não aparecem
@@ -35,9 +36,9 @@ describe('Ticket 05: Completar os sinais externos', () => {
     expect(screen.queryByRole('heading', { level: 2, name: /^Histórico comercial/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 2, name: /^Testes e verificações/ })).not.toBeInTheDocument()
 
-    // Todos os 41 tipos externos têm cards específicos e não apenas um genérico por família
+    // Todos os 46 tipos externos têm cards específicos e não apenas um genérico por família
     const tiposExternos = TIPOS.filter((t) => familiaDoTipo(t)?.origem === 'externo')
-    expect(tiposExternos).toHaveLength(41)
+    expect(tiposExternos).toHaveLength(46)
 
     for (const tipo of tiposExternos) {
       expect(within(catalogo).getByRole('link', { name: new RegExp(tipo.nome) })).toBeInTheDocument()

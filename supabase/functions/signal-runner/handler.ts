@@ -15,6 +15,8 @@ export interface ContaParaVarrer {
   name: string
   domain: string | null
   linkedinUrl: string | null
+  /** O LinkedIn dos Contatos vinculados à Conta (sinais-reais 04); só vem quem tem LinkedIn. */
+  contatos?: { id: string; linkedinUrl: string }[]
 }
 
 export interface MonitorReivindicado {
@@ -39,11 +41,41 @@ export interface SinalDoAdaptador {
   evidence?: string
 }
 
-/** O que sabe falar com o actor de um tipo de Sinal: monta a entrada e lê o resultado. */
+/**
+ * O que sabe falar com o actor de um tipo de Sinal: monta a entrada e lê o resultado. `entrada` lança
+ * `SemDadoParaVarrer` quando falta à Conta o que o actor precisa (a página do LinkedIn, por ex.): a Conta é pulada sem
+ * reservar crédito. As duas recebem a hora da varredura (os filtros de data da busca e do resultado); `sinais` também
+ * recebe os critérios do Monitoramento, para filtrar o que o actor não filtra.
+ */
 export interface AdaptadorDeSinal {
   signalType: string
-  entrada(conta: ContaParaVarrer, criterios: Record<string, unknown>): { input: Record<string, unknown>; maxItems: number }
-  sinais(itens: unknown[], conta: ContaParaVarrer): SinalDoAdaptador[]
+  entrada(conta: ContaParaVarrer, criterios: Record<string, unknown>, agora: number): { input: Record<string, unknown>; maxItems: number }
+  sinais(itens: unknown[], conta: ContaParaVarrer, criterios: Record<string, unknown>, agora: number): SinalDoAdaptador[]
+}
+
+/** Falta à Conta o dado que o actor precisa; a mensagem diz qual, em palavras do produto. */
+export class SemDadoParaVarrer extends Error {
+  constructor(motivo: string) {
+    super(motivo)
+    this.name = 'SemDadoParaVarrer'
+  }
+}
+
+type Entrada = ReturnType<AdaptadorDeSinal['entrada']>
+
+/** A entrada do actor, ou o motivo de a Conta não poder ser varrida. Um adaptador quebrado ainda lança. */
+function montarEntrada(
+  adaptador: AdaptadorDeSinal,
+  conta: ContaParaVarrer,
+  criterios: Record<string, unknown>,
+  agora: number,
+): Entrada | SemDadoParaVarrer {
+  try {
+    return adaptador.entrada(conta, criterios, agora)
+  } catch (e) {
+    if (e instanceof SemDadoParaVarrer) return e
+    throw e
+  }
 }
 
 /**
@@ -165,10 +197,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     conta: ContaParaVarrer,
     adaptador: AdaptadorDeSinal,
     actor: ActorDoRegistro,
+    { input, maxItems }: Entrada,
   ): Promise<number> {
-    const { input, maxItems } = adaptador.entrada(conta, m.criteria)
     const execucao = await deps.apify.run({ actorId: actor.actorId, input, maxItems, maxTotalChargeUsd: actor.maxCostUsd })
-    const encontrados = sinaisComDataValida(adaptador.sinais(execucao.items, conta), agora())
+    const encontrados = sinaisComDataValida(adaptador.sinais(execucao.items, conta, m.criteria, agora()), agora())
     for (const s of encontrados) {
       await deps.db.recordSignal({
         workspaceId: m.workspaceId,
@@ -216,11 +248,28 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     let erro: string | null = null
     let continuar = false
     const falhas: string[] = []
+    const semDado = new Map<string, string[]>()
     for (const conta of m.accounts) {
       if (agora() > prazo) {
         erro = `Varridas ${varridas} de ${m.accounts.length} Contas; o resto na próxima rodada.`
         continuar = true
         break
+      }
+      // A Conta sem o dado que o actor precisa não abre varredura: nada é reservado nem cobrado. Um adaptador que quebra
+      // na entrada é falha só desta Conta.
+      let entrada: Entrada | SemDadoParaVarrer
+      try {
+        entrada = montarEntrada(adaptador, conta, m.criteria, agora())
+      } catch (e) {
+        tentadas++
+        falhas.push(conta.name)
+        log({ type: 'signal_runner', monitorId: m.monitorId, accountId: conta.id, outcome: 'input_failed', message: String(e) })
+        continue
+      }
+      if (entrada instanceof SemDadoParaVarrer) {
+        tentadas++
+        semDado.set(entrada.message, [...(semDado.get(entrada.message) ?? []), conta.name])
+        continue
       }
       const { outcome, reservationId } = await deps.db.beginScan({
         workspaceId: m.workspaceId,
@@ -239,7 +288,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
       tentadas++
       try {
-        sinais += await varrerConta(m, conta, adaptador, actor)
+        sinais += await varrerConta(m, conta, adaptador, actor, entrada)
         await deps.db.endScan(reservationId!, true)
         varridas++
       } catch (e) {
@@ -250,7 +299,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         log({ type: 'signal_runner', monitorId: m.monitorId, accountId: conta.id, outcome: 'account_failed', message: String(e) })
       }
     }
-    if (falhas.length) erro = [erro, `Não foi possível varrer: ${falhas.join(', ')}.`].filter(Boolean).join(' ')
+    const avisos = [...semDado].map(([motivo, contas]) => `${motivo}: ${contas.join(', ')}.`)
+    if (falhas.length) avisos.push(`Não foi possível varrer: ${falhas.join(', ')}.`)
+    if (avisos.length) erro = [erro, ...avisos].filter(Boolean).join(' ')
     await deps.db.finish(m.monitorId, tentadas, erro, continuar)
     return { scanned: varridas, signals: sinais }
   }
@@ -267,6 +318,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     let tentadas = 0
     let semAdaptador = 0
     let semActor = 0
+    const semDado = new Set<string>()
     let acabouOTempo = false
     let parou: MotivoDeParada | null = null
     for (const m of b.monitors) {
@@ -284,6 +336,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         semActor++
         continue
       }
+      let entrada: Entrada | SemDadoParaVarrer
+      try {
+        entrada = montarEntrada(adaptador, b.account, m.criteria, agora())
+      } catch (e) {
+        tentadas++
+        falhas++
+        log({ type: 'signal_runner', rescanId: b.rescanId, monitorId: m.monitorId, outcome: 'input_failed', message: String(e) })
+        continue
+      }
+      if (entrada instanceof SemDadoParaVarrer) {
+        semDado.add(entrada.message)
+        continue
+      }
       const { outcome, reservationId } = await buscas.beginScan({ rescanId: b.rescanId, monitorId: m.monitorId })
       if (outcome === 'done' || outcome === 'skip') {
         tentadas++
@@ -295,7 +360,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
       tentadas++
       try {
-        sinais += await varrerConta({ ...m, workspaceId: b.workspaceId }, b.account, adaptador, actor)
+        sinais += await varrerConta({ ...m, workspaceId: b.workspaceId }, b.account, adaptador, actor, entrada)
         await buscas.endScan(b.rescanId, reservationId!, true)
         varridas++
       } catch (e) {
@@ -318,7 +383,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return { scanned: varridas, signals: sinais, voltou: false }
     }
     if (tentadas === 0) {
-      const motivo = semAdaptador > 0
+      const motivo = semDado.size > 0
+        ? `${[...semDado].join('; ')}.`
+        : semAdaptador > 0
         ? 'Ainda não há adaptador para os Sinais dos Monitoramentos ativos.'
         : semActor > 0
         ? 'O actor do Sinal dos Monitoramentos ativos não está disponível.'

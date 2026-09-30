@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { conversasDisponiveis } from '@/fonte/supabase-conversas'
+import { sinaisDisponiveis } from '@/fonte/supabase-sinais'
 import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso, tokenDoConviteNoEndereco } from './destino'
@@ -334,10 +335,15 @@ function AplicativoDoWorkspace({
   const { workspace_id: workspaceId, role, nome: nomeDoWorkspace = 'Workspace' } = participacao
   // As Conversas dependem do modelo configurado no backend: até a função confirmar, ficam indisponíveis.
   const [comConversas, setComConversas] = useState(false)
+  // Os Sinais dependem de um actor que passou no teste: até o registro confirmar, ficam indisponíveis.
+  const [comSinais, setComSinais] = useState(false)
   useEffect(() => {
     let ativo = true
     void conversasDisponiveis(cliente).then((disponivel) => {
       if (ativo) setComConversas(disponivel)
+    })
+    void sinaisDisponiveis(cliente).then((disponivel) => {
+      if (ativo) setComSinais(disponivel)
     })
     return () => {
       ativo = false
@@ -350,8 +356,9 @@ function AplicativoDoWorkspace({
         usuario: { id: usuarioId, email },
         participacao: { workspaceId, nomeDoWorkspace, papel: role === 'admin' ? 'administrador' : 'membro' },
         conversasDisponiveis: comConversas,
+        sinaisDisponiveis: comSinais,
       }),
-    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas],
+    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, comSinais],
   )
 
   return (

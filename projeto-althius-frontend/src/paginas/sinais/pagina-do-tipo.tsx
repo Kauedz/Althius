@@ -168,6 +168,9 @@ export function PaginaDoTipo() {
                     {resumoDoPublico(m.publico)}
                     {disparados > 0 && ` · ${disparados} ${disparados === 1 ? 'Sinal disparado' : 'Sinais disparados'}`}
                   </p>
+                  {m.ultimaFalha && (
+                    <p className="text-xs text-al-atencao">Última rodada: {m.ultimaFalha}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   {m.estado === 'ativo' && (

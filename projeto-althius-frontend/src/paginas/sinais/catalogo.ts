@@ -25,6 +25,7 @@ export const FAMILIAS: Familia[] = [
   { id: 'tecnologia', nome: 'Tecnologia', origem: 'externo', formulario: 'tecnologia', descoberta: true },
   { id: 'noticias-e-iniciativas', nome: 'Notícias e iniciativas', origem: 'externo', formulario: 'noticias', descoberta: true },
   { id: 'eventos-e-conteudo', nome: 'Eventos e conteúdo', origem: 'externo', formulario: 'eventos', descoberta: true },
+  { id: 'anuncios', nome: 'Anúncios', origem: 'externo', formulario: 'anuncios', descoberta: false },
   { id: 'reputacao-e-concorrencia', nome: 'Reputação e concorrência', origem: 'externo', formulario: 'reputacao', descoberta: true },
   { id: 'comunidades-e-intencao', nome: 'Comunidades e intenção', origem: 'externo', formulario: 'comunidade', descoberta: true },
   { id: 'comportamento-no-site', nome: 'Comportamento no site', origem: 'interno', formulario: 'site', descoberta: true },
@@ -35,6 +36,7 @@ export const FAMILIAS: Familia[] = [
 export const TIPOS: TipoDeSinal[] = [
   // Vagas e equipes
   { id: 'abertura-de-vagas', familiaId: 'vagas-e-equipes', nome: 'Abertura de vagas', descricao: 'Acompanha vagas publicadas para as funções que você escolher, com localização e período.' },
+  { id: 'vagas-no-indeed', familiaId: 'vagas-e-equipes', nome: 'Vagas no Indeed', descricao: 'Acompanha as vagas que a empresa publica no Indeed; a vaga que também está no LinkedIn conta uma vez.' },
   { id: 'primeira-contratacao', familiaId: 'vagas-e-equipes', nome: 'Primeira contratação de uma função', descricao: 'Avisa quando a empresa abre a primeira vaga de uma função que ainda não tinha, como a primeira pessoa de dados.', padroes: { funcoes: ['Engenharia de dados'], senioridade: 'Liderança' } },
   { id: 'contratacao-gtm-revops', familiaId: 'vagas-e-equipes', nome: 'Contratações de GTM e RevOps', descricao: 'Encontra a primeira liderança de RevOps ou operações de vendas, o momento em que o time começa a sistematizar.', padroes: { funcoes: ['RevOps e GTM'], senioridade: 'Liderança' } },
   { id: 'crescimento-de-equipes', familiaId: 'vagas-e-equipes', nome: 'Crescimento ou redução de equipes', descricao: 'Acompanha o quadro por função a cada trimestre e aponta os times que crescem ou encolhem mais que a empresa.', padroes: { funcoes: ['Engenharia de dados', 'IA e machine learning'], senioridade: 'Qualquer' } },
@@ -43,6 +45,7 @@ export const TIPOS: TipoDeSinal[] = [
   { id: 'nova-lideranca', familiaId: 'movimentacao-profissional', nome: 'Nova liderança', descricao: 'Detecta a chegada de uma nova liderança nas áreas que decidem a sua compra.', padroes: { cargos: ['CDO', 'CTO'], movimento: ['Chegada'] } },
   { id: 'novas-contratacoes', familiaId: 'movimentacao-profissional', nome: 'Novas contratações', descricao: 'Registra quem entrou nos cargos do seu comitê de compra nos primeiros meses de casa.', padroes: { cargos: ['Head de Dados', 'VP de Engenharia'], movimento: ['Chegada'] } },
   { id: 'promocoes', familiaId: 'movimentacao-profissional', nome: 'Promoções', descricao: 'Avisa quando um Contato é promovido e passa a ter orçamento ou poder de decisão.', padroes: { movimento: ['Promoção'], pessoas: 'Contatos das Contas-alvo' } },
+  { id: 'anuncio-de-movimentacao', familiaId: 'movimentacao-profissional', nome: 'Anúncio público de movimentação', descricao: 'Lê os posts do LinkedIn em que alguém da empresa anuncia um novo cargo, uma promoção ou uma chegada.', padroes: { movimento: ['Chegada', 'Promoção'] } },
   { id: 'antigos-compradores', familiaId: 'movimentacao-profissional', nome: 'Antigos compradores em nova empresa', descricao: 'Segue compradores e campeões antigos até o próximo emprego e avisa quando chegam a uma empresa do seu ICP.', padroes: { movimento: ['Mudança de empresa'], pessoas: 'Compradores de negócios ganhos' } },
   // Capital e finanças
   { id: 'rodadas', familiaId: 'capital-e-financas', nome: 'Rodadas de investimento', descricao: 'Capta rodadas anunciadas e discretas e confere o plano de contratação que vem depois.', padroes: { eventos: ['Rodada'], valor: 'US$ 50 mi ou mais' } },
@@ -73,8 +76,12 @@ export const TIPOS: TipoDeSinal[] = [
   { id: 'conferencias', familiaId: 'eventos-e-conteudo', nome: 'Fóruns e conferências', descricao: 'Cruza listas de palestrantes e participantes com contas e cargos do ICP antes do evento.', padroes: { papeis: ['Palestrante', 'Participante'], temas: ['IA generativa'] } },
   { id: 'podcasts-entrevistas', familiaId: 'eventos-e-conteudo', nome: 'Podcasts e entrevistas', descricao: 'Encontra compradores falando em podcasts e entrevistas e traz o trecho que abre a conversa.', padroes: { papeis: ['Entrevistado'], temas: ['Modernização de dados'] } },
   { id: 'publicacoes', familiaId: 'eventos-e-conteudo', nome: 'Publicações sobre dores', descricao: 'Encontra artigos e posts em que a empresa descreve uma dor ou procura uma solução.', padroes: { papeis: ['Autor'], temas: ['IA generativa'] } },
+  // Anúncios
+  { id: 'anuncios-linkedin', familiaId: 'anuncios', nome: 'Anunciando no LinkedIn', descricao: 'Avisa quando a empresa começa uma campanha, pela biblioteca de anúncios do LinkedIn.' },
+  { id: 'anuncios-meta', familiaId: 'anuncios', nome: 'Anunciando na Meta', descricao: 'Avisa quando a empresa começa a anunciar no Facebook e no Instagram, pela biblioteca de anúncios da Meta.' },
   // Reputação e concorrência
   { id: 'avaliacoes', familiaId: 'reputacao-e-concorrencia', nome: 'Avaliações no G2 e outras plataformas', descricao: 'Acompanha avaliações suas e dos concorrentes em busca de dores citadas e papéis de compra.', padroes: { marcas: ['Snowflake', 'Google BigQuery'], plataformas: ['G2', 'Gartner Peer Insights'], nota: 'Até 3 estrelas' } },
+  { id: 'avaliacoes-google-maps', familiaId: 'reputacao-e-concorrencia', nome: 'Avaliações no Google Maps', descricao: 'Aponta queda de nota e reclamações repetidas nas avaliações da empresa no Google Maps, sem guardar quem avaliou.', formulario: 'avaliacoes', padroes: { nota: 'Até 2 estrelas' } },
   { id: 'mencoes-a-concorrentes', familiaId: 'reputacao-e-concorrencia', nome: 'Menções a marcas e concorrentes', descricao: 'Reúne menções públicas à sua marca e aos concorrentes feitas por pessoas das Contas-alvo.', padroes: { marcas: ['Snowflake', 'Google BigQuery'], plataformas: ['Redes sociais'] } },
   { id: 'relatos-de-problemas', familiaId: 'reputacao-e-concorrencia', nome: 'Relatos de problemas', descricao: 'Reúne reclamações públicas que indicam um problema que você resolve.', padroes: { marcas: ['Databricks'], plataformas: ['Sites de reclamação', 'Redes sociais'], nota: 'Até 2 estrelas' } },
   { id: 'saida-de-fornecedor', familiaId: 'reputacao-e-concorrencia', nome: 'Saída de fornecedor', descricao: 'Percebe o logo de um concorrente saindo da página de clientes ou uma renovação que não aconteceu.', padroes: { marcas: ['Snowflake', 'Google BigQuery'], plataformas: ['Página de clientes e parceiros', 'Redes sociais'] } },
@@ -191,6 +198,16 @@ export const CAMPOS: Record<Formulario, Campo[]> = {
     { id: 'papeis', rotulo: 'Participação', tipo: 'opcoes', opcoes: ['Palestrante', 'Participante', 'Entrevistado', 'Autor'] },
     TEMAS,
     PERIODO,
+  ],
+  anuncios: [
+    LOCALIZACAO,
+    PERIODO,
+    { id: 'palavras', rotulo: 'Palavras no anúncio', tipo: 'texto', exemplo: 'lançamento, black friday', ajuda: 'Opcional. Separe por vírgulas.' },
+  ],
+  avaliacoes: [
+    { id: 'nota', rotulo: 'Nota da avaliação', tipo: 'escolha', opcoes: ['Qualquer nota', 'Até 3 estrelas', 'Até 2 estrelas'], ajuda: 'Até que nota uma avaliação conta como reclamação.' },
+    PERIODO,
+    { id: 'palavras', rotulo: 'Assuntos das reclamações', tipo: 'texto', exemplo: 'fila, estacionamento', ajuda: 'Opcional. Além dos assuntos comuns, como atendimento, demora e preço. Separe por vírgulas.' },
   ],
   reputacao: [
     { id: 'marcas', rotulo: 'Marcas acompanhadas', tipo: 'opcoes', opcoes: ['Databricks', 'Snowflake', 'Google BigQuery', 'Amazon Redshift'] },

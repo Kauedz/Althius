@@ -11,7 +11,21 @@ Se o automático está em "confirmar", sem teto ou no teto, ou não há crédito
 
 Quem chama: só o relógio, com o cabeçalho `x-runner-token` (gerado e guardado no banco, conferido por `signal_runner_token_matches`). `verify_jwt = false` está no `supabase/config.toml`. Passo manual, uma vez por projeto: `select private.configure_signal_runner('https://<ref>.supabase.co');`.
 
-**Adaptadores** (`adaptadores.ts`): um por tipo de Sinal, entregue com os tickets 03 a 06 e só depois de uma execução real do actor, com a entrada e o formato do resultado vistos de verdade. Sem adaptador, o Monitoramento espera e o motivo aparece nele.
+**Adaptadores** (`adaptadores.ts`, um módulo por tipo em `adaptadores/`, tickets 03 a 06): cada um monta a entrada do actor a partir da Conta e dos critérios do formulário, e tira do resultado os Sinais com data, fonte, evidência e a chave do acontecimento. Os campos seguem o esquema de entrada e o README publicados de cada actor (lidos na API pública do Apify em 30/09/2026); o actor só passa a "disponível" depois da execução real que os confirma (`scripts/validar-sinais-reais.ts` e `.scratch/sinais-reais/registro-apos-o-teste.sql`, passos do Nan).
+
+| Sinal | Actor | Entrada | Vira Sinal |
+| --- | --- | --- | --- |
+| `vaga_linkedin` | curious_coder/linkedin-jobs-scraper | Busca pública com o nome da Conta e cada função, no país e no período | Vaga da empresa da Conta, na função, senioridade e palavras |
+| `vaga_indeed` | valig/indeed-jobs-scraper | Nome da Conta no país | Idem; a mesma vaga do LinkedIn conta uma vez |
+| `mudanca_de_emprego` | harvestapi/linkedin-profile-scraper | Perfil dos Contatos da Conta (até 25) | Cargo atual iniciado no período: promoção, chegada ou mudança de empresa |
+| `nova_lideranca` | harvestapi/linkedin-profile-search | Pessoas com cargo atual na página da Conta que mudaram de emprego | Cargo de liderança (ou dos escolhidos) iniciado no período |
+| `entradas_e_saidas` | harvestapi/linkedin-company-employees | Quem tem menos de 1 ano na página da Conta | Entrada no período (saídas pedem comparar leituras: depois) |
+| `anuncio_de_movimentacao` | harvestapi/linkedin-post-search | Posts recentes de autores da Conta com termos de movimentação | Post que anuncia promoção, chegada ou saída num cargo de liderança |
+| `anuncio_linkedin` | silva95gustavo/linkedin-ad-library-scraper | Biblioteca de anúncios pelo anunciante com o nome da Conta | Um Sinal por campanha nova (anunciante e mês de início) |
+| `anuncio_meta` | curious_coder/facebook-ads-library-scraper | Biblioteca de anúncios por palavra-chave, só ativos, no país | Idem, quando o anúncio leva ao site da Conta ou é da página dela |
+| `avaliacoes_google_maps` | compass/google-maps-reviews-scraper | Busca do Maps pelo nome da Conta, sem dado de quem avaliou | Queda de nota, reclamações repetidas no mesmo assunto, muitas negativas |
+
+Regras comuns (`adaptadores/comum.ts`): a empresa do resultado só é a Conta pela página do LinkedIn, pelo domínio ou pelo nome sem a forma jurídica (na dúvida, não é); tudo é filtrado pelo período; os textos cabem nos limites da tabela de Sinais; nada de e-mail, telefone, foto nem dado de quem avaliou. A Conta sem o dado que o actor precisa (a página do LinkedIn, um Contato com LinkedIn) é pulada antes de abrir a varredura, sem reservar crédito, e o motivo aparece no Monitoramento ("Contas sem a página da empresa no LinkedIn ficaram de fora: Beta.").
 
 ## Reativação de Sinais (ticket 08)
 
@@ -21,4 +35,4 @@ A mesma função cuida da fila de buscas (`private.signal_rescans`), **antes** d
 - **A busca mensal**: todo dia às 05:17 UTC o relógio (`althius-signal-reactivation`) enfileira as Contas com Fit que esfriaram (estágio Fit e nenhum Sinal válido) e ainda não foram revisitadas nos últimos 30 dias, e só num Workspace com o automático da varredura ligado, com teto aprovado, sem pausa e com Monitoramento ativo. Cada varredura gasta crédito **e** teto (`begin_rescan_scan`; `end_rescan_scan` devolve o teto se a varredura falha). Sem teto ou sem saldo, a busca para com o motivo e as outras buscas mensais do Workspace param junto.
 - Cada varredura reserva pela busca e pelo Monitoramento, então repetir a volta nunca cobra duas vezes; a que falha não é cobrada. Se o tempo da função acaba no meio, a busca volta à fila e a função chama o relógio de novo (`kick_rescan_runner`).
 - Só acontecimento novo reaquece: o banco (`record_signal`) trata o mesmo acontecimento como reencontro, sem Sinal novo nem prazo renovado.
-- Enquanto nenhum adaptador existir (tickets 03 a 06), toda busca para com "Ainda não há adaptador para os Sinais dos Monitoramentos ativos." e nada é cobrado.
+- O Monitoramento que não pode varrer a Conta (falta a página do LinkedIn, por ex.) é pulado na busca sem cobrar; se nenhum pôde, a busca para com o motivo.

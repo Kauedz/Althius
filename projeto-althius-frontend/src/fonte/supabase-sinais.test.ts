@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
-import { criarFonteDeSinaisSupabase } from './supabase-sinais'
+import { criarFonteDeSinaisSupabase, sinaisDisponiveis } from './supabase-sinais'
 
 const USUARIO = { id: 'usuario-ana', email: 'ana@cliente.com.br' }
 const CONTA = '6f1c2d3e-4a5b-4c6d-8e7f-000000000001'
@@ -116,5 +116,22 @@ describe('Sinais reais no Workspace operacional', () => {
 
   it('o disparo simulado só existe na Demonstração', async () => {
     await expect(fonte({}).simularDisparo({ monitoramentoId: MONITOR })).rejects.toThrow('só na Demonstração')
+  })
+})
+
+describe('Módulo Sinais no Workspace operacional (sinais-reais 03)', () => {
+  const cliente = (rpcs: Record<string, (p: Record<string, unknown>) => unknown>) =>
+    criarSupabaseFalso({ sessao: sessaoDe(USUARIO), rpcs }).cliente
+
+  it('fica disponível quando o registro tem o primeiro actor que passou no teste', async () => {
+    expect(await sinaisDisponiveis(cliente({ list_signal_actors: () => [
+      { signal_type: 'vaga_linkedin', state: 'available' },
+      { signal_type: 'vaga_indeed', state: 'testing' },
+    ] }))).toBe(true)
+  })
+
+  it('fica indisponível com todos os actors em teste ou quando o registro não pode ser lido', async () => {
+    expect(await sinaisDisponiveis(cliente({ list_signal_actors: () => [{ signal_type: 'vaga_linkedin', state: 'testing' }] }))).toBe(false)
+    expect(await sinaisDisponiveis(cliente({}))).toBe(false)
   })
 })
