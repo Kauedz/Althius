@@ -101,6 +101,12 @@ function converterErro(error: { message: string; code?: string }): Error {
     return new Error('Só o envio ao CRM leva a Conta para No CRM.')
   }
   if (error.message.includes('unknown prospecting stage')) return new Error('Estágio de prospecção desconhecido.')
+  // "Buscar Sinais de novo" (sinais-reais 08): as recusas de request_account_rescan.
+  if (error.message.includes('no active monitor to search with')) {
+    return new Error('Nenhum Monitoramento ativo para buscar. Ative um em Sinais.')
+  }
+  if (error.message.includes('insufficient credits')) return new Error('Sem créditos suficientes para esta busca.')
+  if (error.message.includes('monthly credit limit reached')) return new Error('Você chegou ao seu limite mensal de créditos.')
   // Arquivar e apagar (CRM-18): as recusas do banco, antes das regras gerais do Contato.
   if (error.code === '42501' && error.message.includes('only administrators can permanently delete')) {
     return new Error('Só um Administrador pode apagar definitivamente.')
@@ -439,6 +445,35 @@ export function criarFonteDeContasSupabase(
         p_target_account_id: contaId,
         p_stage: estagio,
       })
+    },
+
+    async custoDeBuscarSinais(contaId) {
+      const { data, error } = await cliente.rpc('quote_account_rescan', {
+        p_workspace_id: workspace(),
+        p_target_account_id: contaId,
+      })
+      if (error) throw converterErro(error)
+      const [linha] = (data ?? []) as {
+        monitors: number
+        credits: number | string
+        available: number | string
+        in_progress: boolean
+        last_finished_at: string | null
+        last_error: string | null
+      }[]
+      if (!linha) throw new Error('Não foi possível calcular o custo da busca.')
+      return {
+        monitoramentos: linha.monitors,
+        creditos: Number(linha.credits),
+        saldo: Number(linha.available),
+        emAndamento: linha.in_progress,
+        terminouEm: linha.last_finished_at,
+        motivo: linha.last_error,
+      }
+    },
+
+    async buscarSinaisDeNovo(contaId) {
+      await rpc('request_account_rescan', { p_workspace_id: workspace(), p_target_account_id: contaId })
     },
 
     async contasArquivadas() {

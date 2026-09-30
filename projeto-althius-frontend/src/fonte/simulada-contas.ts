@@ -1,6 +1,7 @@
 import type {
   ContaAlvo,
   Contato,
+  CustoDaBusca,
   DestinosReaisContato,
   FonteDeContas,
   Interacao,
@@ -153,6 +154,8 @@ export function criarFonteDeContasSimulada(
 
   // O kanban de exemplo da Demonstração: o estágio movido à mão fica aqui; sem ele, vem de estagioDeExemplo.
   const estagios = new Map<string, EstagioDeProspeccao>()
+  // Quando foi a última busca de Sinais pedida em cada Conta (só na memória, como o resto da Demonstração).
+  const buscasEm = new Map<string, string>()
 
   function notificar(): void {
     for (const ouvinte of ouvintes) {
@@ -220,6 +223,21 @@ export function criarFonteDeContasSimulada(
       }
       if (estagio === ESTAGIO_SO_DO_ENVIO_AO_CRM) throw new Error('Só o envio ao CRM leva a Conta para No CRM.')
       estagios.set(contaId, estagio)
+      notificar()
+    },
+
+    // "Buscar Sinais de novo" na Demonstração: o custo é de exemplo (2 Monitoramentos, 1 crédito cada) e pedir só marca
+    // a hora da última busca: nenhum Sinal novo é gravado, porque nada roda de verdade.
+    async custoDeBuscarSinais(contaId: string): Promise<CustoDaBusca> {
+      await aguardar()
+      if (!dados.contas.some((c) => c.id === contaId)) throw new Error('Conta-alvo não encontrada.')
+      return { monitoramentos: 2, creditos: 2, saldo: 120, emAndamento: false, terminouEm: buscasEm.get(contaId) ?? null, motivo: null }
+    },
+
+    async buscarSinaisDeNovo(contaId: string): Promise<void> {
+      await aguardar()
+      if (!dados.contas.some((c) => c.id === contaId)) throw new Error('Conta-alvo não encontrada.')
+      buscasEm.set(contaId, hoje.toISOString())
       notificar()
     },
 

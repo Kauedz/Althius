@@ -159,7 +159,7 @@ Levar uma Conta-alvo, seus Contatos e uma nota com os Sinais e a abordagem para 
 _Avoid_: exportar, converter lead
 
 **Reativação de Sinais**:
-A varredura que revisita as Contas-alvo com Fit sem Sinal válido: mensal e automática dentro do Teto aprovado, ou sob pedido pelo botão "Buscar Sinais de novo", com o custo mostrado antes.
+A varredura que revisita as Contas-alvo com Fit sem Sinal válido: mensal e automática dentro do Teto aprovado, ou sob pedido pelo botão "Buscar Sinais de novo", com o custo mostrado antes. Cada pedido, do clique ou do mês, é uma **Busca de Sinais** numa Conta: varre a Conta com todos os Monitoramentos ativos do Workspace, mesmo que ela não esteja no público deles, e cada Conta é revisitada no máximo uma vez a cada 30 dias.
 _Avoid_: reprocessamento, nova varredura
 
 **Crédito**:

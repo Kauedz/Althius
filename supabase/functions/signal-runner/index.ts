@@ -2,7 +2,14 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { ADAPTADORES } from './adaptadores.ts'
-import { createHandler, type Db, type MonitorReivindicado, type ResultadoDaAbertura } from './handler.ts'
+import {
+  type BuscaReivindicada,
+  type Buscas,
+  createHandler,
+  type Db,
+  type MonitorReivindicado,
+  type ResultadoDaAbertura,
+} from './handler.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -104,6 +111,64 @@ const db: Db = {
   },
 }
 
+// A fila de buscas da reativação de Sinais (ticket 08).
+const buscas: Buscas = {
+  async claim(limit) {
+    const { data, error } = await admin.rpc('claim_signal_rescans', { p_limit: limit })
+    if (error) throw falha(error)
+    return ((data ?? []) as {
+      rescan_id: string
+      workspace_id: string
+      origin: BuscaReivindicada['origin']
+      requested_by: string | null
+      requested_at: string
+      account: BuscaReivindicada['account']
+      monitors: BuscaReivindicada['monitors'] | null
+    }[]).map((linha) => ({
+      rescanId: linha.rescan_id,
+      workspaceId: linha.workspace_id,
+      origin: linha.origin,
+      requestedBy: linha.requested_by,
+      requestedAt: linha.requested_at,
+      account: linha.account,
+      monitors: linha.monitors ?? [],
+    }))
+  },
+  async beginScan({ rescanId, monitorId }) {
+    const { data, error } = await admin.rpc('begin_rescan_scan', { p_rescan_id: rescanId, p_monitor_id: monitorId })
+    if (error) throw falha(error)
+    const [linha] = (data ?? []) as { outcome: ResultadoDaAbertura; reservation_id: string | null }[]
+    if (!linha) throw new Error('begin_rescan_scan não respondeu')
+    return { outcome: linha.outcome, reservationId: linha.reservation_id }
+  },
+  async endScan(rescanId, reservationId, success) {
+    const { error } = await admin.rpc('end_rescan_scan', {
+      p_rescan_id: rescanId,
+      p_reservation_id: reservationId,
+      p_success: success,
+    })
+    if (error) throw falha(error)
+  },
+  async finish(rescanId, state, scanned, error) {
+    const { error: e } = await admin.rpc('finish_signal_rescan', {
+      p_rescan_id: rescanId,
+      p_state: state,
+      p_scanned: scanned,
+      p_error: error,
+    })
+    if (e) throw falha(e)
+  },
+  async stopWorkspace(workspaceId, error) {
+    const { data, error: e } = await admin.rpc('stop_workspace_rescans', { p_workspace_id: workspaceId, p_error: error })
+    if (e) throw falha(e)
+    return Number(data ?? 0)
+  },
+  async kick() {
+    const { error } = await admin.rpc('kick_rescan_runner')
+    if (error) throw falha(error)
+  },
+}
+
 // Esta função tem 150 s; cada Conta espera o Apify no máximo 70 s (60 s de execução), e uma Conta nova só começa até 75 s.
 const apify = clienteDoApify({
   tokens: tokensDoApify((nome) => Deno.env.get(nome)),
@@ -111,4 +176,4 @@ const apify = clienteDoApify({
   timeoutMs: 70_000,
 })
 
-Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES }))
+Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas }))

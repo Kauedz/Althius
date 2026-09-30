@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowRight, Building2, ExternalLink, Pause, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -14,6 +14,7 @@ import { estaValido } from '@/fonte/regras-sinais'
 import { cn, porId } from '@/lib/utils'
 import { AcoesDaConta } from './arquivar-e-apagar'
 import { useCamposDoContato } from './campos-do-contato'
+import { BuscarSinaisDeNovo } from './buscar-sinais-de-novo'
 import { SeloStatus } from './detalhe-sequencia'
 import { CAMPO, CamposDoContato } from './formulario-de-contato'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
@@ -41,7 +42,8 @@ export function DetalheConta({ contaId }: Props) {
   const fonte = useFonteDeContas()
   const hoje = fonte.hoje()
   // Uma Sequência nasce com Contatos participantes: sem Contatos no Workspace, não há como criá-la.
-  const permiteCriarSequencia = useAmbiente().disponivel('contatos')
+  const ambiente = useAmbiente()
+  const permiteCriarSequencia = ambiente.disponivel('contatos')
   const [dialogoNovaAberto, setDialogoNovaAberto] = useState(false)
   // A migalha volta para a lista de onde o detalhe foi aberto (Contas ou Contatos), com o recorte que ela tinha.
   const voltar = useMigalhaParaALista(VOLTAR_PARA_CONTAS)
@@ -53,10 +55,17 @@ export function DetalheConta({ contaId }: Props) {
     recarregar: recarregarConta,
   } = useDadosDeContas((f) => f.conta(contaId), [contaId])
 
-  const { dados: sinais, carregando: carregandoSinais } = useDadosDeContas(
-    (f) => f.sinaisDaConta(contaId),
-    [contaId],
-  )
+  const {
+    dados: sinais,
+    carregando: carregandoSinais,
+    recarregar: recarregarSinais,
+  } = useDadosDeContas((f) => f.sinaisDaConta(contaId), [contaId])
+
+  // A busca de Sinais que termina pode ter mudado os Sinais e o foguinho da Conta.
+  const atualizarSinais = useCallback(() => {
+    recarregarSinais()
+    recarregarConta()
+  }, [recarregarSinais, recarregarConta])
 
   const { dados: contatos, carregando: carregandoContatos } = useDadosDeContas(
     (f) => f.contatosDaConta(contaId),
@@ -134,6 +143,8 @@ export function DetalheConta({ contaId }: Props) {
   const arquivada = !!conta.arquivadaEm
   const podeCriarSequencia = permiteCriarSequencia && conta.sobMinhaResponsabilidade !== false && !arquivada
   const sequenciaEncerrada = sequencia?.status === 'encerrada'
+  // "Buscar Sinais de novo" só existe onde a Fonte a oferece e o módulo Sinais está no ar; a Conta arquivada não é varrida.
+  const podeBuscarSinais = ambiente.disponivel('sinais') && !arquivada && !!fonte.custoDeBuscarSinais && !!fonte.buscarSinaisDeNovo
 
   return (
     <Pagina titulo={conta.nome} voltar={voltar} className="gap-0">
@@ -142,6 +153,7 @@ export function DetalheConta({ contaId }: Props) {
 
       <div className="flex flex-col">
         <Secao id="sinais" titulo="Sinais" contagem={sinais && contar(sinais.length, 'sinal', 'sinais')}>
+          {podeBuscarSinais && <BuscarSinaisDeNovo contaId={conta.id} aoTerminar={atualizarSinais} />}
           {carregandoSinais ? (
             <Carregando />
           ) : sinais && sinais.length > 0 ? (
