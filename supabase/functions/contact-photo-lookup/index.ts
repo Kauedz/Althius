@@ -67,6 +67,10 @@ const db: Db = {
     })
     if (error) throw new Error(`${error.code ?? ''} ${error.message}`)
   },
+  async recordCost({ lookupId, costUsd }) {
+    const { error } = await admin.rpc('record_apify_lookup_cost', { p_lookup_id: lookupId, p_cost_usd: costUsd })
+    if (error) throw new Error(`${error.code ?? ''} ${error.message}`)
+  },
 }
 
 const actor = apifyPhotoActor({

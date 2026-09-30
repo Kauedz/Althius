@@ -89,6 +89,31 @@ export function apifyPhotoActor(
 ): Actor {
   return {
     actorId,
+    /**
+     * O custo que o Apify informa para a execução: `data.usageTotalUsd` de GET /v2/actor-runs/{id}. O nome do campo não
+     * foi conferido contra a documentação (ver README): se não vier um número, o custo fica em branco, sem chute.
+     */
+    async custoDaExecucao(runId): Promise<number | null> {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 10_000)
+      try {
+        const resposta = await fetchFn(`https://api.apify.com/v2/actor-runs/${encodeURIComponent(runId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        })
+        if (!resposta.ok) {
+          await resposta.body?.cancel()
+          return null
+        }
+        const custo = ((await resposta.json().catch(() => null)) as { data?: { usageTotalUsd?: unknown } } | null)?.data
+          ?.usageTotalUsd
+        return typeof custo === 'number' && Number.isFinite(custo) && custo >= 0 ? custo : null
+      } catch {
+        return null
+      } finally {
+        clearTimeout(timer)
+      }
+    },
     async fetchPhoto(linkedinUrl): Promise<FotoDoPerfil> {
       const consulta = new URLSearchParams({
         timeout: String(runTimeoutSeconds),

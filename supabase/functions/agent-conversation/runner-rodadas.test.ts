@@ -144,3 +144,30 @@ Deno.test('a ponte: o Agente recebe o Playbook da Especialidade dele, e sem Empr
   assertStringIncludes(sistema, '(Playbook, seção ICP)')
   assertEquals(eventos.at(-1), 'resposta')
 })
+
+Deno.test('a ponte: registra o custo da Execução depois de fechá-la, com sucesso ou falha, sem que o registro a mude', async () => {
+  for (const [respostas, esperado] of [
+    [[resposta('Oi! Sou a Coordenação.')], 'succeeded'],
+    [[escolha(SCOPUS.id), resposta('Fui acionado.')], 'failed'],
+  ] as const) {
+    const passos: string[] = []
+    const logs: Record<string, unknown>[] = []
+    const fila = [...respostas]
+    const db: RunDb = {
+      claim: () => Promise.resolve(reserva()),
+      append: () => Promise.resolve(1),
+      finish: (_r, status) => (passos.push(`finish:${status}`), Promise.resolve()),
+      searchAccounts: () => Promise.resolve([]),
+      custo: (runId) => (passos.push(`custo:${runId}`), Promise.reject(new Error('banco fora'))),
+    }
+    const modelo: Modelo = {
+      nome: 'm',
+      criar: () => Promise.resolve(fila.length === 1 && respostas.length === 1
+        ? resposta(JSON.stringify({ agentes: [], resposta_direta: 'Oi! Sou a Coordenação.' }))
+        : fila.shift()!),
+    }
+    await createRunner({ db, modelo, log: (c) => logs.push(c) })('r1')
+    assertEquals(passos, [`finish:${esperado}`, 'custo:r1'])
+    assertEquals(logs.at(-1)?.outcome, 'cost_failed')
+  }
+})

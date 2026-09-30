@@ -32,6 +32,9 @@ const db: FilaDb = {
     rpc<void>('finish_agent_run', { p_run_id: runId, p_status: status, p_error_code: errorCode, p_model: model }),
   searchAccounts: async (runId, termo) =>
     (await rpc<ContaEncontrada[] | null>('agent_search_target_accounts', { p_run_id: runId, p_query: termo })) ?? [],
+  custo: async (runId) => {
+    await rpc<void>('record_agent_run_cost', { p_run_id: runId })
+  },
   playbook: async (runId, specialty) =>
     (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
 }

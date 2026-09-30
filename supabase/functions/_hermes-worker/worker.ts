@@ -20,6 +20,7 @@ import {
   INSTRUCAO_DE_DESFECHO,
   leitorDoPlaybook,
   registrador,
+  registrarCustoDaExecucao,
   type Reserva,
   type RunDb,
 } from '../_shared/orquestracao.ts'
@@ -207,6 +208,7 @@ export function createWorker(deps: WorkerDeps) {
   async function falhar(runId: string, codigo: string, detalhe = '') {
     log({ type: 'hermes_worker', runId, outcome: 'failed', errorCode: codigo, detail: detalhe })
     await fecharComFalha({ db, runId, codigo, modelo: 'hermes', log, tipoDoLog: 'hermes_worker' })
+    await registrarCustoDaExecucao(db, runId, log, 'hermes_worker')
   }
 
   /** Roda uma Execução reservada, do pedido ao Hermes e de volta ao banco. */
@@ -250,6 +252,7 @@ export function createWorker(deps: WorkerDeps) {
         await registro.resposta(resposta)
       }
       await db.finish(runId, 'succeeded', null, 'hermes')
+      await registrarCustoDaExecucao(db, runId, log, 'hermes_worker')
       log({ type: 'hermes_worker', runId, kind: reserva.kind, outcome: 'succeeded' })
     } catch (error) {
       await falhar(runId, 'internal_error', String(error))
@@ -326,6 +329,7 @@ export function createWorker(deps: WorkerDeps) {
       if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })
       else await coordenarPedido({ reserva, db, executor })
       await db.finish(runId, 'succeeded', null, 'hermes')
+      await registrarCustoDaExecucao(db, runId, log, 'hermes_worker')
       log({ type: 'hermes_worker', runId, kind: reserva.kind, outcome: 'succeeded', porAgente: true })
     } catch (error) {
       await falhar(runId, codigoDoErro(error), String(error))

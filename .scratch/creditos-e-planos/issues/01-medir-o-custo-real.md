@@ -19,9 +19,9 @@
 
 ## Critérios
 
-- [ ] Custo gravado por ação, com fornecedor, modelo ou actor, unidades e valor em dólar.
-- [ ] Relatório mensal por tipo de ação e por Workspace.
-- [ ] Sem dado pessoal na tabela de custos.
+- [x] Custo gravado por ação, com fornecedor, modelo ou actor, unidades e valor em dólar.
+- [x] Relatório mensal por tipo de ação e por Workspace.
+- [x] Sem dado pessoal na tabela de custos.
 
 ## Passos do Nan
 

@@ -78,3 +78,11 @@ no ticket.
 A foto é um campo próprio. A consulta nunca lê nem altera nome, cargo, e-mail, telefone ou LinkedIn do Contato. Hoje não
 há como uma pessoa informar a foto; quando houver, ela entra com `origin = 'manual'`, e a consulta (e a limpeza) não a
 substitui sem confirmação (`409` na função, erro `55000` no banco).
+
+## Custo real de cada busca
+
+Depois de gravar a foto, a função lê o custo da execução no Apify (`GET /v2/actor-runs/{id}`, campo
+`data.usageTotalUsd`) e o grava em `private.action_costs` (`record_apify_lookup_cost`), para o relatório de custos do
+Workspace (`get_cost_report`, só do Administrador). É só medida: se o Apify não responder ou o campo não vier como
+número, o custo fica em branco e a busca segue como antes. O nome do campo `usageTotalUsd` **não foi conferido contra
+a documentação** (o acesso a ela estava bloqueado ao escrever isto): confira com uma busca real, olhando o relatório.
