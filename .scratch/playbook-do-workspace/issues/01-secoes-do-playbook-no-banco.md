@@ -21,11 +21,11 @@
 
 ## Critérios
 
-- [ ] Seções fixas na ordem da spec; seção desconhecida é recusada (22023).
-- [ ] Só Administrador ativo grava; todo participante ativo lê; outro Workspace nunca lê (pgTAP).
-- [ ] Cada gravação cria uma versão; restaurar cria uma versão nova igual à antiga.
-- [ ] `playbook_for_specialty` devolve Empresa + as seções mapeadas (Scopus: ICP, Mercado; Ethos: Personas, Processo de compra, Dor e percepção, Objeções; Rhetor: Cadência, Scripts, Templates, Frameworks, Objeções; Oraculum: Empresa, ICP).
-- [ ] Tabela com RLS explícito e sem acesso direto dos papéis do app.
+- [x] Seções fixas na ordem da spec; seção desconhecida é recusada (22023).
+- [x] Só Administrador ativo grava; todo participante ativo lê; outro Workspace nunca lê (pgTAP).
+- [x] Cada gravação cria uma versão; restaurar cria uma versão nova igual à antiga.
+- [x] `playbook_for_specialty` devolve Empresa + as seções mapeadas (Scopus: ICP, Mercado; Ethos: Personas, Processo de compra, Dor e percepção, Objeções; Rhetor: Cadência, Scripts, Templates, Frameworks, Objeções; Oraculum: Empresa, ICP).
+- [x] Tabela com RLS explícito e sem acesso direto dos papéis do app.
 
 ## Passos do Nan
 
