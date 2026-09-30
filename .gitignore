@@ -5,3 +5,6 @@ node_modules/
 **/.env.*
 !**/.env.example
 .agents/mcp_config.json
+
+# Itens brutos da execução real dos actors de Sinais (scripts/validar-sinais-reais.ts): têm dado pessoal.
+validacao-sinais/
