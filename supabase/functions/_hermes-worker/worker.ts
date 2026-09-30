@@ -28,6 +28,12 @@ import {
 export interface FilaDb extends RunDb {
   /** list_queued_agent_runs: os pedidos na fila, do mais antigo ao mais novo. */
   listQueued(limit: number): Promise<string[]>
+  /**
+   * agent_run_uses_own_ai_key: o Workspace da Execução ligou a chave de IA do próprio cliente. O Hermes tem o modelo
+   * dele e não sabe usá-la, então a Execução falha com o motivo (a chave em si nunca passa pelo worker). Opcional: um
+   * banco sem ela roda sempre no Hermes.
+   */
+  usaChaveDoCliente?(runId: string): Promise<boolean>
 }
 
 export type FimDoHermes =
@@ -346,6 +352,20 @@ export function createWorker(deps: WorkerDeps) {
     for (const runId of await db.listQueued(limite)) {
       const reserva = await db.claim(runId)
       if (!reserva) continue
+      // Sem saber se há chave do cliente, a Execução não roda: seria cobrada como se usasse o modelo dele.
+      let comChaveDoCliente = false
+      try {
+        comChaveDoCliente = (await db.usaChaveDoCliente?.(runId)) === true
+      } catch (error) {
+        await falhar(runId, 'internal_error', String(error))
+        feitos++
+        continue
+      }
+      if (comChaveDoCliente) {
+        await falhar(runId, 'workspace_ai_key_unsupported')
+        feitos++
+        continue
+      }
       await (deps.porAgente ? processarPorAgente(reserva) : processar(reserva))
       feitos++
     }

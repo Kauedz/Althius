@@ -57,6 +57,22 @@ export interface RunDb {
    * créditos-e-planos). Opcional: um motor sem ela roda como antes, sem cobrar.
    */
   creditos?: Creditos
+  /**
+   * agent_run_ai_key: a chave de IA do cliente do Workspace da Execução, ou null quando ele usa o modelo da Althius.
+   * Lança ErroDoModelo('workspace_ai_key_unavailable') quando a chave está ligada mas sem valor no Vault. Opcional: um
+   * motor sem ela roda sempre no modelo da Althius.
+   */
+  chaveDoCliente?(runId: string): Promise<ChaveDoCliente | null>
+}
+
+/**
+ * A chave de IA do cliente do Workspace (creditos-e-planos, ticket 08): o provedor, o modelo e a chave, lida do Vault só
+ * pelo servidor. Nunca vai para o navegador, para o log nem para um evento.
+ */
+export interface ChaveDoCliente {
+  provider: string
+  model: string
+  apiKey: string
 }
 
 /** Uma seção do Playbook do Workspace como o motor a recebe. */
@@ -146,6 +162,12 @@ export function registrador(db: RunDb, runId: string) {
     /** A resposta final, com o que a Coordenação gastou para escolher e juntar. */
     resposta: (texto: string, uso?: UsoDeTokens) => db.append(runId, 'resposta', null, comUso({ texto }, uso)),
   }
+}
+
+/** O texto sem a chave: o que vai para o log ou para o motivo de uma Execução nunca leva a chave do cliente. */
+export function semAChave(texto: string, chave: string): string {
+  const semExata = chave ? texto.split(chave).join('[chave]') : texto
+  return semExata.replace(/sk-[A-Za-z0-9_-]{8,}/g, '[chave]')
 }
 
 /** O motivo que fica gravado na Execução: o da falha do modelo, ou `internal_error` para qualquer outra. */

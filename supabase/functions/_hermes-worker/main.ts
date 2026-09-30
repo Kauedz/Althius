@@ -38,6 +38,7 @@ const db: FilaDb = {
   playbook: async (runId, specialty) =>
     (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
   creditos: creditosDoBanco(rpc),
+  usaChaveDoCliente: async (runId) => (await rpc<boolean | null>('agent_run_uses_own_ai_key', { p_run_id: runId })) === true,
 }
 
 const worker = createWorker({
