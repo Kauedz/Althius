@@ -37,6 +37,8 @@ const db: FilaDb = {
 const worker = createWorker({
   db,
   hermes: hermesHttp({ url: Deno.env.get('HERMES_URL') || 'http://127.0.0.1:8642', chave: required('HERMES_API_KEY') }),
+  // Cada Agente numa chamada própria, na sua vez e em rodadas. HERMES_UMA_CHAMADA=true volta ao modo de uma chamada só.
+  porAgente: Deno.env.get('HERMES_UMA_CHAMADA') !== 'true',
 })
 
 console.log('Worker do Hermes ligado. Ctrl+C para parar.')

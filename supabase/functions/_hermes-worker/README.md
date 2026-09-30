@@ -52,6 +52,13 @@ Para o usuário, quem responde é a Althius: o Hermes não diz o nome dele.
 8. **Testar.** Com o app aberto (`npm run dev` em `projeto-althius-frontend`), faça um pedido na página de Agentes. O
    worker escreve "1 pedido(s) respondido(s)." e a resposta aparece na tela.
 
+## Cada Agente na sua vez
+
+Por padrão, cada Agente vira uma chamada própria ao Hermes: a Coordenação escolhe quem trabalha, cada Agente fala na sua
+vez lendo o que os outros já disseram (até 3 rodadas) e a Coordenação junta as respostas. Um pedido gasta, então, várias
+chamadas ao modelo. Para voltar ao modo de uma chamada só, ponha `HERMES_UMA_CHAMADA=true` no `.env` deste worker e
+reinicie.
+
 ## O que saber
 
 - Com `AGENT_PROVIDER=hermes` e o worker desligado, o pedido fica "Trabalhando" e vira falha por prazo em 10 minutos.

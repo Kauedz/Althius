@@ -19,10 +19,10 @@
 
 ## Critérios
 
-- [ ] No máximo 3 rodadas; cada Agente vê as falas anteriores da rodada e das rodadas anteriores.
-- [ ] Um Agente que precisa de informação encerra a rodada com a pergunta ao usuário.
-- [ ] Teste que recusa etapa sem conteúdo ("fui acionado", "conversaram sobre") como falha `model_empty`.
-- [ ] O consumo de cada chamada (tokens) fica no evento, para os créditos.
+- [x] No máximo 3 rodadas; cada Agente vê as falas anteriores da rodada e das rodadas anteriores.
+- [x] Um Agente que precisa de informação encerra a rodada com a pergunta ao usuário.
+- [x] Teste que recusa etapa sem conteúdo ("fui acionado", "conversaram sobre") como falha `model_empty`.
+- [x] O consumo de cada chamada (tokens) fica no evento, para os créditos.
 
 ## Passos do Nan
 
