@@ -20,10 +20,10 @@
 
 ## Critérios
 
-- [ ] Estágios fixos (ADR-0020); valor fora da lista recusado.
-- [ ] Mover à mão segue a responsabilidade da Conta (ADR-0009).
-- [ ] Evento nunca volta um cartão depois de Em abordagem.
-- [ ] Histórico com autor ou evento.
+- [x] Estágios fixos (ADR-0020); valor fora da lista recusado.
+- [x] Mover à mão segue a responsabilidade da Conta (ADR-0009).
+- [x] Evento nunca volta um cartão depois de Em abordagem.
+- [x] Histórico com autor ou evento.
 
 ## Passos do Nan
 
@@ -32,3 +32,8 @@
 1. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Decisões: a Conta sem linha está em Descoberta (sem backfill, sem mexer em `save_target_account`); mover à mão é só do vendedor responsável, nem o Admin move Conta de outro; No CRM não se move à mão, só o envio ao CRM (ticket 05) define; Descartada só sai à mão; o evento antes da abordagem vai para qualquer estágio (Sinal vencido volta a Descoberta).
+- Leitura para a tela: `list_prospecting_stages` e `get_prospecting_history`.
