@@ -2,7 +2,7 @@
 
 Roda um actor do registro (`private.signal_actors`) pela conta do Apify da Althius, com teto de custo, e devolve os itens brutos. Transformar os itens em Sinais é do Monitoramento (`sinais-reais` 02).
 
-- **Quem chama:** só o servidor, com `Authorization: Bearer <chave de serviço>`. O navegador não chama.
+- **Quem chama:** só o servidor, com `Authorization: Bearer <chave de serviço>` (a do ambiente da função, ou a `service_role` legada do painel e do CLI: a função sai com `verify_jwt = true`, o gateway confere a assinatura, e `autorizacao.ts` aceita o JWT com o papel `service_role`). O navegador não chama.
 - **Segredos:** `APIFY_TOKEN` (já existe) e, opcionalmente, `APIFY_TOKEN_2` a `APIFY_TOKEN_5`: uma conta do Apify cada. Quando os créditos de uma acabam (o Apify recusa com 402 ou 403, não conferido), a próxima assume. A conta esgotada é pulada até a função reiniciar.
 - **Corpo:** `{ workspaceId, actorId, input, maxItems?, maxTotalChargeUsd?, allowTesting? }`.
 - **Resposta:** `{ runId, actorVersion, items }`.
