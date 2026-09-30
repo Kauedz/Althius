@@ -3,7 +3,7 @@
 //     supabase/functions/_hermes-worker/main.ts
 // As chaves ficam só no .env local (nunca no repositório): ver README.md desta pasta.
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import type { ContaEncontrada, Reserva } from '../agent-conversation/runner.ts'
+import type { ContaEncontrada, Reserva, SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
 import { createWorker, type FilaDb, hermesHttp } from './worker.ts'
 
 function required(name: string) {
@@ -32,6 +32,8 @@ const db: FilaDb = {
     rpc<void>('finish_agent_run', { p_run_id: runId, p_status: status, p_error_code: errorCode, p_model: model }),
   searchAccounts: async (runId, termo) =>
     (await rpc<ContaEncontrada[] | null>('agent_search_target_accounts', { p_run_id: runId, p_query: termo })) ?? [],
+  playbook: async (runId, specialty) =>
+    (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
 }
 
 const worker = createWorker({

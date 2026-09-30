@@ -176,3 +176,41 @@ Deno.test('por Agente: escolha que não é JSON, etapa sem trabalho e Hermes for
     assertEquals(fechamentos, [{ status: 'failed', errorCode: codigo }], codigo)
   }
 })
+
+Deno.test('por Agente: o Hermes recebe o Playbook da Especialidade de cada Agente nas instruções dele', async () => {
+  const lidos: string[] = []
+  const eventos: string[] = []
+  const db: FilaDb = {
+    listQueued: () => Promise.resolve(['r1']),
+    claim: () => Promise.resolve(reserva()),
+    append: (_r, kind) => (eventos.push(kind), Promise.resolve(eventos.length)),
+    finish: () => Promise.resolve(),
+    searchAccounts: () => Promise.resolve([ALFA]),
+    playbook: (_r, specialty) => (
+      lidos.push(specialty),
+      Promise.resolve(
+        specialty === 'scopus'
+          ? [
+            { section: 'empresa', name: 'Empresa', content: { texto: 'A Norte vende software.' } },
+            { section: 'icp', name: 'ICP', content: { texto: 'Incorporadoras de médio porte.' } },
+          ]
+          : [],
+      )
+    ),
+  }
+  const corpos: CorpoDoRun[] = []
+  const hermes: Hermes = {
+    vivo: () => Promise.resolve(true),
+    iniciar: (corpo) => (corpos.push(corpo), Promise.resolve('h')),
+    aguardar: () =>
+      Promise.resolve(ok(corpos.length === 1 ? '{"agentes":["a-scopus","a-ethos"],"resposta_direta":""}' : 'Feito.')),
+  }
+  await createWorker({ db, hermes, log: () => {}, porAgente: true }).rodada()
+
+  assertEquals(lidos, ['scopus', 'ethos'])
+  const doScopus = corpos.find((c) => c.instructions.includes('Você é Scopus'))!
+  assertStringIncludes(doScopus.instructions, '### ICP\nIncorporadoras de médio porte.')
+  assertStringIncludes(doScopus.instructions, '(Playbook, seção ICP)')
+  const doEthos = corpos.find((c) => c.instructions.includes('Você é Ethos'))!
+  assertStringIncludes(doEthos.instructions, 'ainda não tem a seção Empresa')
+})

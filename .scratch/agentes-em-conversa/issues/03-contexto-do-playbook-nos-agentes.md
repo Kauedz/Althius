@@ -18,9 +18,9 @@
 
 ## Critérios
 
-- [ ] O Scopus responde sobre o ICP com o que está no Playbook, citando a seção.
-- [ ] Sem seção Empresa, o Agente pergunta o que a empresa vende antes de propor ICP.
-- [ ] O contexto não inclui dado pessoal de Contatos.
+- [x] O Scopus responde sobre o ICP com o que está no Playbook, citando a seção.
+- [x] Sem seção Empresa, o Agente pergunta o que a empresa vende antes de propor ICP.
+- [x] O contexto não inclui dado pessoal de Contatos.
 
 ## Passos do Nan
 
@@ -29,3 +29,7 @@
 1. Publicar a ponte e reiniciar o worker, como no ticket 01.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/94
