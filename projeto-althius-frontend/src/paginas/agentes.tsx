@@ -12,6 +12,7 @@ import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { Agente, Integracao, Mensagem } from '@/fonte/tipos'
 import { usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 import { DialogoNovoAgente } from '@/paginas/novo-agente'
+import { ConversasSalvas } from '@/paginas/conversas-salvas'
 import { descreverFrequencia } from '@/paginas/rotulos'
 
 export function PaginaAgentes() {
@@ -112,6 +113,7 @@ function PedidoCoordenado() {
           </Link>
         </section>
       )}
+      <ConversasSalvas />
     </div>
   )
 }

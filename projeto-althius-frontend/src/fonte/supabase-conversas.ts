@@ -8,11 +8,13 @@ import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-func
 import { reconhecerMencoes } from './mencoes'
 import type {
   AgenteId,
+  ConversaRetomada,
   ConversasRetomadas,
   FonteDeAgentes,
   Mensagem,
   PassoDaConversa,
   PassoDaCoordenacao,
+  ResumoDeConversa,
   TurnoRetomado,
 } from './tipos'
 
@@ -38,7 +40,26 @@ interface ExecucaoSalva {
   events: Evento[]
 }
 
-type Fonte = Pick<FonteDeAgentes, 'conversar' | 'conversarCoordenado' | 'sugestoesCoordenadas' | 'retomarConversas'>
+type Fonte = Pick<
+  FonteDeAgentes,
+  | 'conversar'
+  | 'conversarCoordenado'
+  | 'sugestoesCoordenadas'
+  | 'retomarConversas'
+  | 'conversasSalvas'
+  | 'renomearConversa'
+  | 'abrirConversa'
+  | 'conversaCoordenadaAtual'
+>
+
+interface ConversaListada {
+  id: string
+  kind: Tipo
+  title: string | null
+  first_request: string | null
+  updated_at: string
+  open_run_id: string | null
+}
 
 const MOTIVOS: Record<string, string> = {
   timeout: 'O pedido passou do tempo e foi interrompido. Tente de novo.',
@@ -225,11 +246,45 @@ export function criarFonteDeConversasSupabase(
     return retomadas
   }
 
+  /** As Conversas coordenadas salvas, da mais recente à mais antiga. */
+  async function conversasSalvas(): Promise<ResumoDeConversa[]> {
+    const { data, error } = await cliente.rpc('list_named_agent_conversations', { p_workspace_id: workspaceId })
+    if (error) throw new Error('Não foi possível carregar as Conversas.')
+    return (data as ConversaListada[])
+      .filter((linha) => linha.kind === 'coordenada')
+      .map((linha) => ({
+        id: linha.id,
+        titulo: linha.title,
+        primeiroPedido: linha.first_request ?? '',
+        atualizadaEm: linha.updated_at,
+        emAndamento: linha.open_run_id !== null,
+      }))
+  }
+
+  async function renomearConversa(id: string, titulo: string): Promise<void> {
+    const { error } = await cliente.rpc('rename_agent_conversation', { p_conversation_id: id, p_title: titulo })
+    if (!error) return
+    if (error.code === '22023') throw new Error('O nome pode ter até 80 caracteres.')
+    if (error.code === 'P0002') throw new Error('Esta Conversa não existe mais.')
+    throw new Error('Não foi possível renomear a Conversa. Tente de novo.')
+  }
+
+  /** Abre uma Conversa salva: o próximo pedido da Coordenação passa a continuar esta. */
+  async function abrirConversa(id: string): Promise<ConversaRetomada<PassoDaCoordenacao>> {
+    const conversa = await lerConversa(id, passoDaCoordenacao)
+    coordenada = id
+    return conversa
+  }
+
   return {
     conversar,
     conversarCoordenado,
     // Sem roteiros no Workspace operacional: as sugestões clicáveis são da Demonstração.
     sugestoesCoordenadas: async () => [],
     retomarConversas,
+    conversasSalvas,
+    renomearConversa,
+    abrirConversa,
+    conversaCoordenadaAtual: () => coordenada,
   }
 }
