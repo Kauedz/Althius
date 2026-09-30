@@ -33,3 +33,7 @@
 1. Conferir a tela no navegador como Administrador e como Membro (a IA faz a conferência visual e anexa os prints; o Nan só entra se precisar de login real).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/90
