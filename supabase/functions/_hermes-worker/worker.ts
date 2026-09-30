@@ -18,6 +18,7 @@ import {
   fecharComFalha,
   historicoDaConversa,
   INSTRUCAO_DE_DESFECHO,
+  leitorDoPlaybook,
   registrador,
   type Reserva,
   type RunDb,
@@ -131,13 +132,19 @@ function contasDoWorkspace(contas: ContaEncontrada[]): string {
 }
 
 /** As instruções de um Agente na sua vez: quem ele é, o que sabe do Workspace e como termina a resposta. */
-export function instrucoesDoAgente(reserva: Reserva, agente: AgenteDoWorkspace, contas: ContaEncontrada[]): string {
+export function instrucoesDoAgente(
+  reserva: Reserva,
+  agente: AgenteDoWorkspace,
+  contas: ContaEncontrada[],
+  playbook = '',
+): string {
   return [
     IDENTIDADE,
     `Você é ${agente.name}, um Agente da Althius no Workspace "${reserva.workspace_name}".`,
     ESPECIALIDADES[agente.specialty] ?? '',
     agente.instructions ? `Instruções do Workspace para você: ${agente.instructions}` : '',
     agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
+    playbook,
     contasDoWorkspace(contas),
     REGRAS_DO_HERMES,
     INSTRUCAO_DE_DESFECHO,
@@ -269,6 +276,7 @@ export function createWorker(deps: WorkerDeps) {
   function executorDoHermes(reserva: Reserva, contas: ContaEncontrada[]): Executor {
     const runId = reserva.run_id
     const historico = historicoDaConversa(reserva)
+    const playbookDe = leitorDoPlaybook(db, runId, log, 'hermes_worker')
     return {
       async escolher() {
         return lerEscolha(
@@ -287,7 +295,7 @@ export function createWorker(deps: WorkerDeps) {
         return {
           texto: await passo(`althius-${runId}-${agente.id}-r${rodada}`, {
             input,
-            instructions: instrucoesDoAgente(reserva, agente, contas),
+            instructions: instrucoesDoAgente(reserva, agente, contas, await playbookDe(agente.specialty)),
             conversation_history: historico,
           }),
         }

@@ -42,6 +42,18 @@ export interface RunDb {
   append(runId: string, kind: TipoDeEvento, agentId: string | null, payload: Record<string, unknown>): Promise<number>
   finish(runId: string, status: 'succeeded' | 'failed', errorCode: string | null, model: string | null): Promise<void>
   searchAccounts(runId: string, termo: string): Promise<ContaEncontrada[]>
+  /**
+   * agent_run_playbook: a Empresa e as seções do Playbook da Especialidade, só as já escritas. Opcional: um motor sem
+   * ela roda como antes, sem o contexto da empresa.
+   */
+  playbook?(runId: string, specialty: string): Promise<SecaoDoPlaybookNaExecucao[]>
+}
+
+/** Uma seção do Playbook do Workspace como o motor a recebe. */
+export interface SecaoDoPlaybookNaExecucao {
+  section: string
+  name: string
+  content: { texto?: unknown; linhas?: unknown } | null
 }
 
 /** Uma falha que vira o motivo gravado na Execução (`error_code`). */
@@ -315,4 +327,87 @@ export async function coordenarPedido(
   const texto = final.texto.trim()
   if (!texto) throw new ErroDoModelo('model_empty')
   await registro.resposta(texto, somarUso(escolha.uso, final.uso))
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// O contexto do Playbook nos Agentes (agentes-em-conversa, ticket 03).
+
+/** O Playbook entra no prompt até este tamanho; o que passar é cortado, com o aviso. */
+export const MAX_CARACTERES_DO_PLAYBOOK = 24_000
+
+function linhasComoTexto(linhas: unknown): string[] {
+  if (!Array.isArray(linhas)) return []
+  return linhas.flatMap((linha) => {
+    if (!linha || typeof linha !== 'object') return []
+    const campos = Object.entries(linha as Record<string, unknown>)
+      .filter(([, valor]) => typeof valor === 'string' && valor.trim() !== '')
+      .map(([campo, valor]) => `${campo}: ${String(valor).trim()}`)
+    return campos.length ? [`- ${campos.join('; ')}`] : []
+  })
+}
+
+function corpoDaSecao(secao: SecaoDoPlaybookNaExecucao): string {
+  const texto = typeof secao.content?.texto === 'string' ? secao.content.texto.trim() : ''
+  return [texto, ...linhasComoTexto(secao.content?.linhas)].filter(Boolean).join('\n')
+}
+
+/**
+ * O que o Agente sabe da empresa, pelo Playbook do Workspace. Sem a seção Empresa (ou sem Playbook nenhum), ele é
+ * mandado a perguntar o que a empresa vende antes de propor qualquer coisa. Só texto do Playbook: nunca dado de
+ * Contatos. `undefined` quando o motor não leu o Playbook: nada é dito, e o Agente trabalha como antes.
+ */
+export function contextoDoPlaybook(secoes: SecaoDoPlaybookNaExecucao[] | undefined): string {
+  if (secoes === undefined) return ''
+  const escritas = secoes.filter((secao) => corpoDaSecao(secao) !== '')
+  const partes: string[] = []
+  if (escritas.length > 0) {
+    let corpo = escritas.map((secao) => `### ${secao.name}\n${corpoDaSecao(secao)}`).join('\n\n')
+    if (corpo.length > MAX_CARACTERES_DO_PLAYBOOK) {
+      corpo = `${corpo.slice(0, MAX_CARACTERES_DO_PLAYBOOK)}\n[…o Playbook foi cortado por ser longo]`
+    }
+    partes.push(
+      'Playbook do Workspace: o que a empresa definiu sobre si mesma. Use isto como a fonte sobre a empresa, e ao ' +
+      'usar algo daqui cite a seção entre parênteses, por exemplo "(Playbook, seção ICP)".\n\n' + corpo,
+    )
+  }
+  if (!escritas.some((secao) => secao.section === 'empresa')) {
+    partes.push(
+      'O Playbook deste Workspace ainda não tem a seção Empresa. Antes de propor ICP, Personas, textos ou qualquer ' +
+      'conteúdo sobre a empresa, pergunte ao usuário o que a empresa vende, para quem e quais são os melhores ' +
+      'clientes (termine com "STATUS: pergunta"). Não invente nada sobre a empresa.',
+    )
+  }
+  partes.push(
+    'Se faltar no Playbook algo de que você precisa, diga o que falta e pergunte ao usuário; não preencha com suposição.',
+  )
+  return partes.join('\n\n')
+}
+
+/**
+ * O contexto do Playbook de cada Especialidade numa Execução, lido uma vez só por Especialidade (os Agentes voltam a
+ * falar nas rodadas). Uma falha na leitura vira `undefined`: o Agente trabalha sem o contexto, e a falha vai ao log.
+ */
+export function leitorDoPlaybook(
+  db: RunDb,
+  runId: string,
+  log: (fields: Record<string, unknown>) => void,
+  tipoDoLog: string,
+): (specialty: string) => Promise<string> {
+  const lidos = new Map<string, Promise<string>>()
+  return (specialty) => {
+    let lido = lidos.get(specialty)
+    if (!lido) {
+      lido = (async () => {
+        if (!db.playbook) return ''
+        try {
+          return contextoDoPlaybook(await db.playbook(runId, specialty))
+        } catch (error) {
+          log({ type: tipoDoLog, runId, outcome: 'playbook_failed', message: String(error) })
+          return ''
+        }
+      })()
+      lidos.set(specialty, lido)
+    }
+    return lido
+  }
 }

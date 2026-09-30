@@ -17,6 +17,7 @@ import {
   fecharComFalha,
   historicoDaConversa,
   INSTRUCAO_DE_DESFECHO,
+  leitorDoPlaybook,
   type Reserva,
   type ResultadoDoAgente,
   type RunDb,
@@ -70,12 +71,13 @@ const REGRAS = [
   'depende de conectar a Integração.',
 ].join('\n')
 
-function systemDoAgente(agente: AgenteDoWorkspace, workspace: string): string {
+function systemDoAgente(agente: AgenteDoWorkspace, workspace: string, playbook = ''): string {
   return [
     `Você é ${agente.name}, um Agente da Althius no Workspace "${workspace}".`,
     ESPECIALIDADES[agente.specialty] ?? '',
     agente.instructions ? `Instruções do Workspace para você:\n${agente.instructions}` : '',
     agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
+    playbook,
     REGRAS,
     INSTRUCAO_DE_DESFECHO,
   ].filter(Boolean).join('\n\n')
@@ -113,6 +115,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     reserva: Reserva,
     agente: AgenteDoWorkspace,
     contribuicoes: string[],
+    playbook = '',
   ): Promise<ResultadoDoAgente> {
     const pedido = contribuicoes.length
       ? `${reserva.request_text}\n\nO que outros Agentes já responderam neste pedido:\n${contribuicoes.join('\n\n')}`
@@ -125,7 +128,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
       const resposta = await modelo.criar({
         max_tokens: MAX_TOKENS,
-        system: systemDoAgente(agente, reserva.workspace_name),
+        system: systemDoAgente(agente, reserva.workspace_name, playbook),
         tools: [BUSCAR_CONTAS],
         messages: mensagens,
         output_config: { effort: 'medium' },
@@ -257,9 +260,11 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
 
   /** O que muda no motor da ponte: as chamadas à Messages API. A ordem e os eventos são de _shared/orquestracao.ts. */
   function executorDe(reserva: Reserva): Executor {
+    const playbookDe = leitorDoPlaybook(db, reserva.run_id, log, 'agent_run')
     return {
       escolher: () => escolher(reserva),
-      trabalhar: (agente, falas) => trabalhar(reserva, agente, contribuicoesDe(falas)),
+      trabalhar: async (agente, falas) =>
+        trabalhar(reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty)),
       sintetizar: (falas) => sintetizar(reserva, contribuicoesDe(falas)),
     }
   }

@@ -18,9 +18,9 @@
 
 ## Critérios
 
-- [ ] O Scopus responde sobre o ICP com o que está no Playbook, citando a seção.
-- [ ] Sem seção Empresa, o Agente pergunta o que a empresa vende antes de propor ICP.
-- [ ] O contexto não inclui dado pessoal de Contatos.
+- [x] O Scopus responde sobre o ICP com o que está no Playbook, citando a seção.
+- [x] Sem seção Empresa, o Agente pergunta o que a empresa vende antes de propor ICP.
+- [x] O contexto não inclui dado pessoal de Contatos.
 
 ## Passos do Nan
 

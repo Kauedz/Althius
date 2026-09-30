@@ -117,3 +117,30 @@ Deno.test('a ponte: "fui acionado" no lugar do trabalho fecha como falha model_e
   assertEquals(fechamentos, [{ status: 'failed', errorCode: 'model_empty' }])
   assertEquals(eventos.map((e) => e.kind), ['chamada'])
 })
+
+Deno.test('a ponte: o Agente recebe o Playbook da Especialidade dele, e sem Empresa é mandado perguntar', async () => {
+  const eventos: string[] = []
+  const pedidos: string[] = []
+  const secoes = [{ section: 'icp', name: 'ICP', content: { texto: 'Incorporadoras de médio porte.' } }]
+  const db: RunDb = {
+    claim: () => Promise.resolve(reserva()),
+    append: (_r, kind) => (eventos.push(kind), Promise.resolve(eventos.length)),
+    finish: () => Promise.resolve(),
+    searchAccounts: () => Promise.resolve([]),
+    playbook: (_r, specialty) => (pedidos.push(specialty), Promise.resolve(secoes)),
+  }
+  const chamadas: Params[] = []
+  const fila = [escolha(SCOPUS.id), resposta('Sem a Empresa, o que vocês vendem?\nSTATUS: pergunta')]
+  const modelo: Modelo = {
+    nome: 'm',
+    criar: (params) => (chamadas.push(structuredClone(params)), Promise.resolve(fila.shift()!)),
+  }
+  await createRunner({ db, modelo, log: () => {} })('r1')
+
+  assertEquals(pedidos, ['scopus'])
+  const sistema = String(chamadas[1].system)
+  assertStringIncludes(sistema, '### ICP\nIncorporadoras de médio porte.')
+  assertStringIncludes(sistema, 'ainda não tem a seção Empresa')
+  assertStringIncludes(sistema, '(Playbook, seção ICP)')
+  assertEquals(eventos.at(-1), 'resposta')
+})
