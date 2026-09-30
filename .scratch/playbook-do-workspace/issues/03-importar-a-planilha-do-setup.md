@@ -21,10 +21,10 @@
 
 ## Critérios
 
-- [ ] Prévia antes de gravar; nada é gravado sem confirmação.
-- [ ] Aba desconhecida listada, nunca descartada em silêncio.
-- [ ] Base de Pesquisa vira Contas-alvo pelo fluxo de importação existente e cai em Descoberta (quando o kanban existir).
-- [ ] Teste com uma planilha de exemplo sem dado pessoal, criada no próprio teste.
+- [x] Prévia antes de gravar; nada é gravado sem confirmação.
+- [x] Aba desconhecida listada, nunca descartada em silêncio.
+- [x] Base de Pesquisa vira Contas-alvo pelo fluxo de importação existente e cai em Descoberta (quando o kanban existir).
+- [x] Teste com uma planilha de exemplo sem dado pessoal, criada no próprio teste.
 
 ## Passos do Nan
 
