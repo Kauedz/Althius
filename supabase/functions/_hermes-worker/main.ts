@@ -1,5 +1,5 @@
 // Liga o worker do Hermes ao Supabase e ao Hermes. Roda no computador (ou na VPS) onde o Hermes está:
-//   npx -y deno@2 run --allow-net --allow-env --allow-read --env-file=supabase/functions/_hermes-worker/.env \
+//   npx -y deno@2 run --node-modules-dir=none --allow-net --allow-env --allow-read --env-file=supabase/functions/_hermes-worker/.env \
 //     supabase/functions/_hermes-worker/main.ts
 // As chaves ficam só no .env local (nunca no repositório): ver README.md desta pasta.
 import { createClient } from 'npm:@supabase/supabase-js@2'
