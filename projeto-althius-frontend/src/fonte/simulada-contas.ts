@@ -59,12 +59,17 @@ export interface FonteDeContasSimulada extends FonteDeContas {
   vincularFonteDeSequencias(fonteDeSequencias: FonteDeSequencias): void
 }
 
+// As Contas Fit e Quentes da Demonstração se espalham pelo funil, para o kanban de exemplo mostrar todas as colunas.
+const FUNIL_DE_EXEMPLO: EstagioDeProspeccao[] = ['quente', 'fit', 'em_abordagem', 'respondeu', 'reuniao', 'no_crm']
+
 /**
- * O estágio de exemplo de uma Conta da Demonstração, para o kanban não nascer vazio: Não fit fica Descartada, Fit
- * fica em Fit, uma Conta Quente em Quente e o resto em Descoberta.
+ * O estágio de exemplo de uma Conta da Demonstração, para o kanban não nascer vazio: Não fit fica Descartada; as Fit
+ * e Quentes se espalham pelo funil pela posição na lista; as outras Fit ficam em Fit, as Quentes em Quente e o resto
+ * em Descoberta.
  */
-function estagioDeExemplo(conta: ContaAlvo): EstagioDeProspeccao {
+function estagioDeExemplo(conta: ContaAlvo, posicao: number): EstagioDeProspeccao {
   if (conta.aderencia === 'nao-fit') return 'descartada'
+  if (conta.aderencia === 'fit' && conta.quente) return FUNIL_DE_EXEMPLO[posicao % FUNIL_DE_EXEMPLO.length]
   if (conta.aderencia === 'fit') return 'fit'
   if (conta.quente) return 'quente'
   return 'descoberta'
@@ -200,9 +205,9 @@ export function criarFonteDeContasSimulada(
 
     async contas(): Promise<ContaAlvo[]> {
       await aguardar()
-      return dados.contas.map((c) => {
+      return dados.contas.map((c, posicao) => {
         const conta = projetarConta(c, dados.sinais, hoje)
-        return { ...conta, estagio: estagios.get(c.id) ?? estagioDeExemplo(conta) }
+        return { ...conta, estagio: estagios.get(c.id) ?? estagioDeExemplo(conta, posicao) }
       })
     },
 

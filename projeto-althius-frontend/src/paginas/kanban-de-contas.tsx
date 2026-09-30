@@ -59,13 +59,14 @@ export function KanbanDeContas({
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    // O kanban ocupa o resto da janela: as colunas rolam na horizontal e cada uma rola os cartões na vertical.
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {erro && (
         <p role="alert" className="border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
           {erro}
         </p>
       )}
-      <div className="flex min-h-0 gap-3 overflow-x-auto pb-2" aria-label="Kanban de Contas" role="list">
+      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2" aria-label="Kanban de Contas" role="list">
         {ESTAGIOS_DE_PROSPECCAO.map(({ id, rotulo }) => {
           const daColuna = porEstagio.get(id)!
           const aceita = id !== ESTAGIO_SO_DO_ENVIO_AO_CRM
@@ -82,11 +83,11 @@ export function KanbanDeContas({
               onDragLeave={() => setSobre((atual) => (atual === id ? undefined : atual))}
               onDrop={(e) => aceita && soltar(e, id)}
               className={cn(
-                'flex w-64 shrink-0 flex-col gap-2 border border-al-line bg-al-bg p-2',
+                'flex w-64 shrink-0 flex-col gap-2 overflow-y-auto border border-al-line bg-al-bg p-2',
                 sobre === id && 'border-al-accent bg-al-surface/40',
               )}
             >
-              <h3 className="flex items-center justify-between px-1 text-xs font-medium tracking-rotulo text-al-muted uppercase">
+              <h3 className="sticky top-0 z-1 -mx-2 -mt-2 flex items-center justify-between bg-al-bg px-3 py-2 text-xs font-medium tracking-rotulo text-al-muted uppercase">
                 <span>{rotulo}</span>
                 <span className="tabular-nums">{daColuna.length}</span>
               </h3>
