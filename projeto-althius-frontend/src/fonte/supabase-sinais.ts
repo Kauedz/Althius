@@ -56,6 +56,19 @@ function converterErro(error: { message: string; code?: string }): Error {
   return new Error('Não foi possível concluir. Tente de novo.')
 }
 
+/**
+ * Se o módulo Sinais já roda de verdade: algum actor do registro passou no teste (sinais-reais 03). Até lá, ou se o
+ * registro não puder ser lido, o módulo fica indisponível no Workspace operacional.
+ */
+export async function sinaisDisponiveis(cliente: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await cliente.rpc('list_signal_actors')
+    return !error && ((data ?? []) as { state: string }[]).some((l) => l.state === 'available')
+  } catch {
+    return false
+  }
+}
+
 /** O foguinho de uma Conta como a Fonte de Contas o mostra: quantos Sinais válidos, se está Quente e o último Sinal. */
 export type FoguinhoDaConta = Pick<ContaAlvo, 'quente' | 'totalSinaisValidos' | 'ultimoSinal'>
 
