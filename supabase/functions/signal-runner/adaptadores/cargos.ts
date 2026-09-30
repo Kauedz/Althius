@@ -235,7 +235,7 @@ function cargoAtual(fim: unknown): boolean {
 
 /**
  * Os cargos do perfil. Da experiência completa (`experience[]`, modo Full) quando ela vem; senão das posições atuais
- * (`currentPosition[]`, que a busca também traz), com o início em `dateRange.start`. Numa posição atual sem título, e só
+ * (`currentPosition[]` com o início em `dateRange.start`, ou `currentPositions[]` com o início em `startedOn`). Numa posição atual sem título, e só
  * quando ela é a única, vale o `position` do perfil curto (suposição: é o título que a busca mostra).
  */
 export function cargosDoPerfil(item: Record<string, unknown>): CargoDoPerfil[] {
@@ -248,13 +248,15 @@ export function cargosDoPerfil(item: Record<string, unknown>): CargoDoPerfil[] {
       atual: cargoAtual(e.endDate !== undefined ? e.endDate : objeto(e.dateRange).end),
     })).filter((c) => c.titulo)
   }
-  const atuais = Array.isArray(item.currentPosition) ? item.currentPosition.map(objeto) : []
+  // O perfil curto do linkedin-company-employees traz `currentPositions[]` com o início em `startedOn` (execução real de
+  // 30/09/2026); a busca de perfis, `currentPosition[]` com `dateRange.start`.
+  const atuais = [item.currentPosition, item.currentPositions].flatMap((lista) => Array.isArray(lista) ? lista.map(objeto) : [])
   return atuais.map((p) => ({
     titulo: primeiroTexto(p, 'position', 'title', 'jobTitle') || (atuais.length === 1 ? primeiroTexto(item, 'position') : ''),
     empresa: empresaDe(p),
-    inicio: inicioDoCargo(objeto(p.dateRange).start) ?? inicioDoCargo(p.startDate),
-    atual: true,
-  })).filter((c) => c.titulo)
+    inicio: inicioDoCargo(objeto(p.dateRange).start) ?? inicioDoCargo(p.startDate) ?? inicioDoCargo(p.startedOn),
+    atual: p.current !== false,
+  })).filter((c) => c.titulo && c.atual)
 }
 
 const numerica = (pagina: string) => /^\d+$/.test(pagina)
