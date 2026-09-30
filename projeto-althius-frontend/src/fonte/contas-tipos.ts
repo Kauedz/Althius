@@ -244,6 +244,22 @@ export interface NovaInteracao {
 }
 
 /**
+ * O que "Buscar Sinais de novo" mostra na Conta antes de rodar (reativação de Sinais): quantos Monitoramentos ativos
+ * varreriam a Conta, quantos créditos custa, o saldo do Workspace, se já há uma busca em andamento e como terminou a
+ * última.
+ */
+export interface CustoDaBusca {
+  monitoramentos: number
+  creditos: number
+  saldo: number
+  emAndamento: boolean
+  /** ISO 8601 de quando a última busca terminou; nulo se nunca houve. */
+  terminouEm: string | null
+  /** Por que a última busca não varreu tudo, em palavras do produto. */
+  motivo: string | null
+}
+
+/**
  * A fronteira de dados do módulo Contas e Contatos.
  * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
  */
@@ -259,6 +275,19 @@ export interface FonteDeContas extends FonteObservavel {
    * produto. Sem este método, a fonte não oferece o kanban.
    */
   moverEstagio?(contaId: string, estagio: EstagioDeProspeccao): Promise<void>
+
+  /**
+   * O custo de "Buscar Sinais de novo" numa Conta, antes de a pessoa pedir. Sem este método (e o seguinte), a fonte não
+   * oferece o botão.
+   */
+  custoDeBuscarSinais?(contaId: string): Promise<CustoDaBusca>
+
+  /**
+   * Pede a busca: a Conta é varrida de novo com os Monitoramentos ativos do Workspace, e cada varredura gasta 1 crédito.
+   * Resolve quando o pedido entrou na fila; rejeita com o motivo em palavras do produto (sem Monitoramento ativo, sem
+   * saldo, no limite mensal).
+   */
+  buscarSinaisDeNovo?(contaId: string): Promise<void>
 
   /**
    * Cadastra uma Conta-alvo, sob a responsabilidade de quem a cria, ou atualiza a que tem a mesma URL da empresa.

@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
-import type { Ambiente } from '@/fonte/ambiente'
+import type { Ambiente, ModuloDoWorkspace } from '@/fonte/ambiente'
 import type { FonteDeSinais } from '@/fonte/sinais-tipos'
 import type { FonteDeContas, FonteDeOnboarding } from '@/fonte/tipos'
 import { criarFonteDeContasSimulada, type OpcoesFonteDeContasSimulada } from '@/fonte/simulada-contas'
@@ -50,11 +50,20 @@ interface Ajustes {
   onboarding?: (fonte: FonteDeOnboarding) => FonteDeOnboarding
   /** Troca a Fonte de Sinais simulada por outra feita a partir dela, só neste teste. */
   sinais?: (fonte: FonteDeSinais) => FonteDeSinais
+  /** Os módulos que este teste dá por indisponíveis, como o Workspace operacional ainda sem backend deles. */
+  indisponiveis?: ModuloDoWorkspace[]
 }
 
 /** O app como em `renderizarApp`, com uma Fonte ajustada pelo teste no lugar da simulada. */
-export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais }: Ajustes) {
-  return montarApp({ rota, opcoesOnboarding, ajustarContas: contas, ajustarOnboarding: onboarding, ajustarSinais: sinais })
+export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, indisponiveis }: Ajustes) {
+  return montarApp({
+    rota,
+    opcoesOnboarding,
+    ajustarContas: contas,
+    ajustarOnboarding: onboarding,
+    ajustarSinais: sinais,
+    indisponiveis,
+  })
 }
 
 function montarApp({
@@ -68,6 +77,7 @@ function montarApp({
   ajustarContas = (fonte) => fonte,
   ajustarOnboarding = (fonte) => fonte,
   ajustarSinais = (fonte) => fonte,
+  indisponiveis = [],
 }: {
   rota: string
   opcoesContas?: OpcoesFonteDeContasSimulada
@@ -79,6 +89,7 @@ function montarApp({
   ajustarContas?: (fonte: FonteDeContas) => FonteDeContas
   ajustarOnboarding?: (fonte: FonteDeOnboarding) => FonteDeOnboarding
   ajustarSinais?: (fonte: FonteDeSinais) => FonteDeSinais
+  indisponiveis?: ModuloDoWorkspace[]
 }) {
   const fonte = criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES, ...opcoesFonte })
   const fonteDeContas = criarFonteDeContasSimulada({
@@ -118,7 +129,7 @@ function montarApp({
     fonteDeConexoes: criarFonteDeConexoesSimulada(),
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
-    indisponiveis: new Set(),
+    indisponiveis: new Set(indisponiveis),
   }
   const resultado = render(
     <App ambiente={ambiente} rotaInicial={noNavegador ? undefined : rota} animarDigitacao={false} />,

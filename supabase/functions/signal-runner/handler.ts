@@ -3,8 +3,10 @@
 // varredura automática), roda o actor do Sinal, grava os Sinais que o adaptador do tipo tira do resultado e fecha a
 // varredura (concluída, debita; falha, solta a reserva e devolve o teto). Sem teto, sem crédito ou com o automático em
 // confirmar, ela para e diz por quê no Monitoramento. Um adaptador por tipo de Sinal traduz a entrada do actor e o
-// resultado dele (tickets 03 a 06 entregam um por família); sem adaptador, o Monitoramento espera. Banco, Apify e
-// relógio entram por injeção, para o teste ir do token à resposta sem rede.
+// resultado dele (tickets 03 a 06 entregam um por família); sem adaptador, o Monitoramento espera. A mesma volta cuida da
+// fila de buscas da reativação (ticket 08): a busca do clique numa Conta e a mensal automática varrem uma Conta com todos
+// os Monitoramentos ativos do Workspace, e vêm antes dos Monitoramentos do relógio. Banco, Apify e relógio entram por
+// injeção, para o teste ir do token à resposta sem rede.
 import { gravarCustoDaExecucao } from '../_shared/apify-ambiente.ts'
 import type { Apify, ActorDoRegistro } from '../signal-scan/handler.ts'
 
@@ -49,8 +51,8 @@ export interface AdaptadorDeSinal {
  * nesta rodada) não; `no_credits` para o Monitoramento por falta de saldo ou de limite; `confirmar`, `sem_teto` e
  * `teto_atingido` param o Monitoramento porque o automático não roda.
  */
-export type ResultadoDaAbertura =
-  | 'go' | 'resume' | 'done' | 'skip' | 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido'
+export type MotivoDeParada = 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido'
+export type ResultadoDaAbertura = 'go' | 'resume' | 'done' | 'skip' | MotivoDeParada
 
 export interface Db {
   tokenMatches(token: string): Promise<boolean>
@@ -79,27 +81,65 @@ export interface Db {
   finish(monitorId: string, attempted: number, error: string | null, continuar: boolean): Promise<void>
 }
 
+/** Uma busca da fila (reativação de Sinais): varre uma Conta com os Monitoramentos ativos do Workspace. */
+export interface BuscaReivindicada {
+  rescanId: string
+  workspaceId: string
+  /** `manual` é o clique na Conta; `mensal` é a reativação automática, que gasta do teto da varredura. */
+  origin: 'manual' | 'mensal'
+  /** Quem pediu e ainda participa do Workspace; nulo na mensal e quando saiu. */
+  requestedBy: string | null
+  /** A hora do pedido: com a busca e o Monitoramento, identifica a cobrança, então repetir a volta não cobra de novo. */
+  requestedAt: string
+  account: ContaParaVarrer
+  monitors: { monitorId: string; signalType: string; criteria: Record<string, unknown> }[]
+}
+
+/** A fila de buscas no banco: reivindicar, abrir a varredura de cada Monitoramento e fechar a volta. */
+export interface Buscas {
+  claim(limit: number): Promise<BuscaReivindicada[]>
+  /** begin_rescan_scan: reserva o crédito (e o teto, na mensal) de uma varredura da busca. */
+  beginScan(args: { rescanId: string; monitorId: string }): Promise<{ outcome: ResultadoDaAbertura; reservationId: string | null }>
+  /** end_rescan_scan: concluída, debita o crédito; falha, solta a reserva e devolve o teto da busca mensal. */
+  endScan(rescanId: string, reservationId: string, success: boolean): Promise<void>
+  /** finish_signal_rescan: `pending` solta a reserva e continua depois; `done` e `stopped` encerram. */
+  finish(rescanId: string, state: 'pending' | 'done' | 'stopped', scanned: number, error: string | null): Promise<void>
+  /** stop_workspace_rescans: para as buscas mensais pendentes do Workspace (o teto ou o saldo acabou). */
+  stopWorkspace(workspaceId: string, error: string): Promise<number>
+  /** Chama o relógio de novo: ainda há busca esperando. */
+  kick(): Promise<void>
+}
+
 export interface Deps {
   db: Db
   apify: Apify
   adaptadores: Record<string, AdaptadorDeSinal>
+  /** A fila de buscas; sem ela, a função cuida só dos Monitoramentos. */
+  buscas?: Buscas
   agora?: () => number
   log?: (campos: Record<string, unknown>) => void
 }
 
 const MONITORES_POR_CHAMADA = 5
+const BUSCAS_POR_CHAMADA = 5
 // O tempo da Edge Function é de 150 s. Uma Conta nova só começa até este prazo; o cliente do Apify desta função espera no
 // máximo 70 s por Conta (index.ts), então a última termina antes do limite. O que faltar fica para a rodada seguinte.
 const PRAZO_PARA_COMECAR_EM_MS = 75_000
 // Um Sinal com disparo até um dia no futuro vira "agora" (relógios e fusos); mais que isso, ou uma data ilegível, é descartado.
 const TOLERANCIA_DE_DATA_EM_MS = 24 * 60 * 60 * 1000
 
-const MOTIVO_DA_PARADA: Record<'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido', string> = {
+const MOTIVO_DA_PARADA: Record<MotivoDeParada, string> = {
   no_credits: 'Sem créditos ou no limite mensal do participante: a varredura espera.',
   confirmar:
     'A varredura automática está em "confirmar". Ligue o automático com um teto em Configurações › Automação e tetos.',
   sem_teto: 'A varredura automática não roda sem um teto mensal aprovado (Configurações › Automação e tetos).',
   teto_atingido: 'O teto mensal da varredura automática foi atingido; ela volta no próximo mês ou quando o teto subir.',
+}
+
+// A busca do clique fala com quem pediu; a mensal, com o teto. O saldo e o limite mensal são de quem pediu.
+const MOTIVO_DA_BUSCA_PARADA: Record<MotivoDeParada, string> = {
+  ...MOTIVO_DA_PARADA,
+  no_credits: 'Sem créditos ou no limite mensal de quem pediu: a busca parou.',
 }
 
 function responder(corpo: unknown, status = 200) {
@@ -121,7 +161,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
   /** Varre uma Conta já aberta no banco. Devolve quantos Sinais achou; lança quando a varredura não pôde concluir. */
   async function varrerConta(
-    m: MonitorReivindicado,
+    m: Pick<MonitorReivindicado, 'monitorId' | 'workspaceId' | 'signalType' | 'criteria'>,
     conta: ContaParaVarrer,
     adaptador: AdaptadorDeSinal,
     actor: ActorDoRegistro,
@@ -215,12 +255,112 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     return { scanned: varridas, signals: sinais }
   }
 
+  /**
+   * Uma busca: varre a Conta com cada Monitoramento ativo do Workspace, mesmo que ela não esteja no público dele. A
+   * varredura que falha não é cobrada e não derruba as outras. Devolve o que varreu e se a busca voltou à fila
+   * (o tempo da função acabou no meio).
+   */
+  async function varrerBusca(b: BuscaReivindicada, buscas: Buscas, prazo: number): Promise<{ scanned: number; signals: number; voltou: boolean }> {
+    let varridas = 0
+    let sinais = 0
+    let falhas = 0
+    let tentadas = 0
+    let semAdaptador = 0
+    let semActor = 0
+    let acabouOTempo = false
+    let parou: MotivoDeParada | null = null
+    for (const m of b.monitors) {
+      if (agora() > prazo) {
+        acabouOTempo = true
+        break
+      }
+      const adaptador = deps.adaptadores[m.signalType]
+      if (!adaptador) {
+        semAdaptador++
+        continue
+      }
+      const actor = await deps.db.actorForType(m.signalType)
+      if (!actor || actor.state !== 'available') {
+        semActor++
+        continue
+      }
+      const { outcome, reservationId } = await buscas.beginScan({ rescanId: b.rescanId, monitorId: m.monitorId })
+      if (outcome === 'done' || outcome === 'skip') {
+        tentadas++
+        continue
+      }
+      if (outcome !== 'go' && outcome !== 'resume') {
+        parou = outcome
+        break
+      }
+      tentadas++
+      try {
+        sinais += await varrerConta({ ...m, workspaceId: b.workspaceId }, b.account, adaptador, actor)
+        await buscas.endScan(b.rescanId, reservationId!, true)
+        varridas++
+      } catch (e) {
+        await buscas.endScan(b.rescanId, reservationId!, false).catch((f) =>
+          log({ type: 'signal_runner', rescanId: b.rescanId, outcome: 'end_failed', message: String(f) }))
+        falhas++
+        log({ type: 'signal_runner', rescanId: b.rescanId, monitorId: m.monitorId, outcome: 'rescan_scan_failed', message: String(e) })
+      }
+    }
+
+    if (acabouOTempo) {
+      await buscas.finish(b.rescanId, 'pending', varridas, `Varridos ${varridas} de ${b.monitors.length} Monitoramentos; o resto na próxima rodada.`)
+      return { scanned: varridas, signals: sinais, voltou: true }
+    }
+    if (parou) {
+      const motivo = MOTIVO_DA_BUSCA_PARADA[parou]
+      await buscas.finish(b.rescanId, 'stopped', varridas, motivo)
+      // Sem teto ou sem saldo, as outras buscas mensais do Workspace também não rodam: param de uma vez.
+      if (b.origin === 'mensal') await buscas.stopWorkspace(b.workspaceId, motivo)
+      return { scanned: varridas, signals: sinais, voltou: false }
+    }
+    if (tentadas === 0) {
+      const motivo = semAdaptador > 0
+        ? 'Ainda não há adaptador para os Sinais dos Monitoramentos ativos.'
+        : semActor > 0
+        ? 'O actor do Sinal dos Monitoramentos ativos não está disponível.'
+        : 'Nenhum Monitoramento ativo para buscar.'
+      await buscas.finish(b.rescanId, 'stopped', 0, motivo)
+      return { scanned: 0, signals: 0, voltou: false }
+    }
+    // Nada foi varrido e tudo falhou: não conta como Conta revisitada, então a mensal tenta de novo.
+    const estado = varridas === 0 && falhas > 0 ? 'stopped' : 'done'
+    const erro = falhas === 0 ? null : `${falhas === 1 ? '1 varredura falhou' : `${falhas} varreduras falharam`}; tente de novo mais tarde.`
+    await buscas.finish(b.rescanId, estado, varridas, erro)
+    return { scanned: varridas, signals: sinais, voltou: false }
+  }
+
   return async (req) => {
     if (req.method !== 'POST') return responder({ error: 'Método não permitido.' }, 405)
     if (!(await deps.db.tokenMatches(req.headers.get('x-runner-token') ?? ''))) {
       return responder({ error: 'Não autorizado.' }, 401)
     }
     const prazo = agora() + PRAZO_PARA_COMECAR_EM_MS
+    // As buscas primeiro: quem clicou está esperando; os Monitoramentos do relógio podem esperar a próxima volta.
+    const totalDasBuscas = { count: 0, scanned: 0, signals: 0 }
+    let algumaVoltou = false
+    if (deps.buscas) {
+      try {
+        const fila = await deps.buscas.claim(BUSCAS_POR_CHAMADA)
+        for (const b of fila) {
+          totalDasBuscas.count++
+          try {
+            const r = await varrerBusca(b, deps.buscas, prazo)
+            totalDasBuscas.scanned += r.scanned
+            totalDasBuscas.signals += r.signals
+            algumaVoltou ||= r.voltou
+          } catch (e) {
+            log({ type: 'signal_runner', rescanId: b.rescanId, outcome: 'rescan_failed', message: String(e) })
+            await deps.buscas.finish(b.rescanId, 'pending', 0, 'A busca falhou; tentamos de novo na próxima.').catch(() => {})
+          }
+        }
+      } catch (e) {
+        log({ type: 'signal_runner', outcome: 'rescan_claim_failed', message: String(e) })
+      }
+    }
     const monitores = await deps.db.claim(MONITORES_POR_CHAMADA)
     let scanned = 0
     let signals = 0
@@ -234,7 +374,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         await deps.db.finish(m.monitorId, 0, 'A rodada falhou; tentamos de novo na próxima.', false).catch(() => {})
       }
     }
-    log({ type: 'signal_runner', outcome: 'done', monitors: monitores.length, scanned, signals })
-    return responder({ monitors: monitores.length, scanned, signals })
+    log({ type: 'signal_runner', outcome: 'done', monitors: monitores.length, scanned, signals, rescans: totalDasBuscas.count })
+    // Uma busca que voltou à fila espera o relógio; chamá-lo já poupa 10 minutos a quem clicou.
+    if (algumaVoltou) await deps.buscas?.kick().catch((e) => log({ type: 'signal_runner', outcome: 'kick_failed', message: String(e) }))
+    return responder(
+      deps.buscas ? { monitors: monitores.length, scanned, signals, rescans: totalDasBuscas } : { monitors: monitores.length, scanned, signals },
+    )
   }
 }
