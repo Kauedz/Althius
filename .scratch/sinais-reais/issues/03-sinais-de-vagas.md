@@ -10,6 +10,8 @@
 
 - A transformação do resultado do actor em Sinal, num módulo por tipo, com teste sem rede.
 - O cadastro do tipo no registro de actors.
+- `supabase/functions/signal-runner/adaptadores.ts` (onde o adaptador do tipo entra) e o mapa `projeto-althius-frontend/src/fonte/sinais-reais-mapa.ts`.
+- `projeto-althius-frontend/src/fonte/composicao.ts`, só para liberar o módulo Sinais no Workspace operacional.
 
 ## Não mexa
 
@@ -22,6 +24,7 @@
 
 - [ ] Cada tipo testado com um resultado de exemplo do actor, sem dado pessoal real.
 - [ ] Validar numa execução real (a IA prepara; roda com o `APIFY_TOKEN` do Supabase) e registrar o custo observado.
+- [ ] Com o primeiro actor marcado `available` no registro, o módulo Sinais sai de `indisponiveis` no Workspace operacional (`composicao.ts`), e o card do tipo mostra "Disponível"; o motivo da última falha (`ultimaFalha`) aparece no Monitoramento.
 
 ## Passos do Nan
 

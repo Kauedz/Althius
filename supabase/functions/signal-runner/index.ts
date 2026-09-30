@@ -1,8 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
-import type { ActorDoRegistro } from '../signal-scan/handler.ts'
 import { ADAPTADORES } from './adaptadores.ts'
-import { createHandler, type Db, type MonitorReivindicado, type ResultadoDoTeto, SemCreditos } from './handler.ts'
+import { createHandler, type Db, type MonitorReivindicado, type ResultadoDaAbertura } from './handler.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -13,12 +13,6 @@ function required(name: string) {
 const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
   auth: { persistSession: false, autoRefreshToken: false },
 })
-
-// As contas do Apify: APIFY_TOKEN e, se houver, APIFY_TOKEN_2 a APIFY_TOKEN_5 (a próxima assume quando o crédito acaba).
-const tokens = ['APIFY_TOKEN', 'APIFY_TOKEN_2', 'APIFY_TOKEN_3', 'APIFY_TOKEN_4', 'APIFY_TOKEN_5']
-  .map((nome) => Deno.env.get(nome))
-  .filter((t): t is string => !!t)
-if (tokens.length === 0) throw new Error('Backend is not configured')
 
 function falha(error: { code?: string; message: string }): Error {
   return new Error(`${error.code ?? ''} ${error.message}`)
@@ -39,6 +33,7 @@ const db: Db = {
       signal_type: string
       criteria: Record<string, unknown>
       created_by: string | null
+      slot: string
       accounts: MonitorReivindicado['accounts']
     }[]).map((linha) => ({
       monitorId: linha.monitor_id,
@@ -46,61 +41,32 @@ const db: Db = {
       signalType: linha.signal_type,
       criteria: linha.criteria ?? {},
       createdBy: linha.created_by,
+      slot: linha.slot,
       accounts: linha.accounts ?? [],
     }))
   },
   async actorForType(signalType) {
     const { data, error } = await admin.rpc('signal_actor_for_type', { p_signal_type: signalType })
     if (error) throw falha(error)
-    const [linha] = (data ?? []) as {
-      actor_id: string
-      signal_type: string
-      state: ActorDoRegistro['state']
-      version: string | null
-      max_cost_usd: number | string
-    }[]
-    if (!linha) return null
-    return {
-      actorId: linha.actor_id,
-      signalType: linha.signal_type,
-      state: linha.state,
-      version: linha.version,
-      maxCostUsd: Number(linha.max_cost_usd),
-    }
+    const [linha] = (data ?? []) as LinhaDoActor[]
+    return linha ? actorDoRegistro(linha) : null
   },
-  async reserve({ workspaceId, userId, action, actionKey, quantity }) {
-    const { data, error } = await admin.rpc('reserve_credits', {
+  async beginScan({ workspaceId, userId, monitorId, accountId, slot }) {
+    const { data, error } = await admin.rpc('begin_account_scan', {
       p_workspace_id: workspaceId,
       p_user_id: userId,
-      p_action: action,
-      p_action_key: actionKey,
-      p_quantity: quantity,
-      p_own_ai_key: false,
-    })
-    if (error) {
-      if (error.message.includes('insufficient credits') || error.message.includes('monthly credit limit')) {
-        throw new SemCreditos()
-      }
-      throw falha(error)
-    }
-    return data as string
-  },
-  async settle(reservationId) {
-    const { error } = await admin.rpc('settle_credits', { p_reservation_id: reservationId, p_used_quantity: null })
-    if (error) throw falha(error)
-  },
-  async release(reservationId) {
-    const { error } = await admin.rpc('release_credits', { p_reservation_id: reservationId })
-    if (error) throw falha(error)
-  },
-  async consumeCap(workspaceId, scope, amount) {
-    const { data, error } = await admin.rpc('consume_automation_cap', {
-      p_workspace_id: workspaceId,
-      p_scope: scope,
-      p_amount: amount,
+      p_monitor_id: monitorId,
+      p_account_id: accountId,
+      p_slot: slot,
     })
     if (error) throw falha(error)
-    return data as ResultadoDoTeto
+    const [linha] = (data ?? []) as { outcome: ResultadoDaAbertura; reservation_id: string | null }[]
+    if (!linha) throw new Error('begin_account_scan não respondeu')
+    return { outcome: linha.outcome, reservationId: linha.reservation_id }
+  },
+  async endScan(reservationId, success) {
+    const { error } = await admin.rpc('end_account_scan', { p_reservation_id: reservationId, p_success: success })
+    if (error) throw falha(error)
   },
   async recordSignal(a) {
     const { data, error } = await admin.rpc('record_signal', {
@@ -127,14 +93,22 @@ const db: Db = {
     })
     if (error) throw falha(error)
   },
-  async finish(monitorId, scanned, error) {
+  async finish(monitorId, attempted, error, continuar) {
     const { error: e } = await admin.rpc('finish_signal_monitor_run', {
       p_monitor_id: monitorId,
-      p_scanned: scanned,
+      p_attempted: attempted,
       p_error: error,
+      p_continue: continuar,
     })
     if (e) throw falha(e)
   },
 }
 
-Deno.serve(createHandler({ db, apify: clienteDoApify({ tokens }), adaptadores: ADAPTADORES }))
+// Esta função tem 150 s; cada Conta espera o Apify no máximo 70 s (60 s de execução), e uma Conta nova só começa até 75 s.
+const apify = clienteDoApify({
+  tokens: tokensDoApify((nome) => Deno.env.get(nome)),
+  runTimeoutSeconds: 60,
+  timeoutMs: 70_000,
+})
+
+Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES }))

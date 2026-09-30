@@ -27,6 +27,7 @@ import type {
 import { eEstagioDeProspeccao, type EstagioDeProspeccao } from './estagios-de-prospeccao'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { criarFonteDeImportacaoSupabase } from './supabase-importacao'
+import { lerSinaisDasContas } from './supabase-sinais'
 
 interface RegistroConta {
   id: string
@@ -301,34 +302,8 @@ export function criarFonteDeContasSupabase(
   }
 
   async function foguinhoDaConta(id: string) {
-    const sinais = await sinaisDasContas()
+    const sinais = await lerSinaisDasContas(cliente, workspace())
     return sinais ? (sinais.get(id) ?? SEM_SINAIS) : {}
-  }
-
-  /**
-   * O foguinho de cada Conta com Sinal: quantos Sinais válidos, se está Quente e o último Sinal (mesmo vencido). Se a
-   * leitura falhar, devolve nulo e as Contas aparecem sem isso em vez de a lista falhar.
-   */
-  async function sinaisDasContas(): Promise<Map<string, Pick<ContaAlvo, 'quente' | 'totalSinaisValidos' | 'ultimoSinal'>> | null> {
-    const { data, error } = await cliente.rpc('list_account_signals', { p_workspace_id: workspace() })
-    if (error) return null
-    const linhas = (data ?? []) as {
-      target_account_id: string
-      valid_signals: number
-      hot: boolean
-      last_phrase: string | null
-      last_fired_at: string | null
-    }[]
-    return new Map(linhas.map((l) => [
-      l.target_account_id,
-      {
-        quente: l.hot === true,
-        totalSinaisValidos: l.valid_signals,
-        ...(l.last_phrase && l.last_fired_at
-          ? { ultimoSinal: { id: `ultimo:${l.target_account_id}`, contaId: l.target_account_id, frase: l.last_phrase, data: l.last_fired_at } }
-          : {}),
-      },
-    ]))
   }
 
   /** As Contas arquivadas do Workspace, pelo identificador. */
@@ -446,7 +421,7 @@ export function criarFonteDeContasSupabase(
       const { data, error } = await cliente.from('target_accounts').select(COLUNAS_DA_CONTA)
         .eq('workspace_id', workspace()).is('archived_at', null).order('name', { ascending: true })
       if (error) throw converterErro(error)
-      const [donos, estagios, sinais] = await Promise.all([responsaveis(), estagiosDoWorkspace(), sinaisDasContas()])
+      const [donos, estagios, sinais] = await Promise.all([responsaveis(), estagiosDoWorkspace(), lerSinaisDasContas(cliente, workspace())])
       const porConta = new Map<string, Contato[]>()
       for (const c of await contatos()) porConta.set(c.contaId, [...(porConta.get(c.contaId) ?? []), c])
       return ((data ?? []) as RegistroConta[]).map((linha) => {

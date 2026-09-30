@@ -4,6 +4,7 @@
 // aval de quem chama) nunca roda. O custo real de cada execução vai para o relatório de custos. Transformar os itens em
 // Sinais é do Monitoramento (ticket 02), não desta função. Banco e Apify entram por injeção, para o teste ir da
 // requisição à resposta sem rede.
+import { gravarCustoDaExecucao } from '../_shared/apify-ambiente.ts'
 
 export interface ActorDoRegistro {
   actorId: string
@@ -128,13 +129,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
 
     // O custo real, só para medir: se não der para ler ou gravar, os itens já existem e seguem para quem chamou.
-    const runId = execucao.runId ?? `signal-scan:${crypto.randomUUID()}`
-    try {
-      const costUsd = execucao.runId ? ((await deps.apify.custoDaExecucao?.(execucao.runId)) ?? null) : null
-      await deps.db.recordCost({ workspaceId, actorId, runId, items: execucao.items.length, costUsd })
-    } catch (error) {
-      log({ type: 'signal_scan', workspaceId, actorId, outcome: 'cost_failed', message: String(error) })
-    }
+    const runId = await gravarCustoDaExecucao(
+      {
+        custoDaExecucao: deps.apify.custoDaExecucao?.bind(deps.apify),
+        gravar: (args) => deps.db.recordCost(args),
+        aoFalhar: (error) => log({ type: 'signal_scan', workspaceId, actorId, outcome: 'cost_failed', message: String(error) }),
+      },
+      { workspaceId, actorId, runId: execucao.runId, items: execucao.items.length, prefixo: 'signal-scan' },
+    )
     log({ type: 'signal_scan', workspaceId, actorId, outcome: 'succeeded', items: execucao.items.length })
     return responder({ runId, actorVersion: actor.version, items: execucao.items })
   }

@@ -5,6 +5,7 @@ import { criarFonteDeSinaisSupabase } from './supabase-sinais'
 const USUARIO = { id: 'usuario-ana', email: 'ana@cliente.com.br' }
 const CONTA = '6f1c2d3e-4a5b-4c6d-8e7f-000000000001'
 const MONITOR = '8a1c2d3e-4a5b-4c6d-8e7f-000000000001'
+const OUTRO_MONITOR = '8a1c2d3e-4a5b-4c6d-8e7f-000000000002'
 
 function fonte(rpcs: Record<string, (p: Record<string, unknown>) => unknown>) {
   const { cliente } = criarSupabaseFalso({ sessao: sessaoDe(USUARIO), rpcs })
@@ -14,7 +15,7 @@ function fonte(rpcs: Record<string, (p: Record<string, unknown>) => unknown>) {
 const monitorNoBanco = {
   id: MONITOR, signal_type: 'vaga_linkedin', name: 'Vagas de dados', state: 'ativo',
   audience: { accountIds: [CONTA] }, criteria: { palavras: ['dados'] }, every_hours: 24,
-  created_by: USUARIO.id, last_run_at: null, created_at: '2026-09-30T10:00:00Z',
+  created_by: USUARIO.id, last_run_at: null, last_error: null, created_at: '2026-09-30T10:00:00Z',
 }
 
 describe('Sinais reais no Workspace operacional', () => {
@@ -42,6 +43,11 @@ describe('Sinais reais no Workspace operacional', () => {
         publico: { modo: 'listas', listas: [CONTA], usaRecomendado: false }, criterios: { palavras: ['dados'] },
       },
     ])
+  })
+
+  it('o motivo da última falha do Monitoramento vem junto', async () => {
+    const f = fonte({ list_signal_monitors: () => [{ ...monitorNoBanco, last_error: 'Sem créditos: a varredura espera.' }] })
+    expect((await f.monitoramentos())[0].ultimaFalha).toBe('Sem créditos: a varredura espera.')
   })
 
   it('salvar um Monitoramento chama save_signal_monitor com o Sinal do tipo', async () => {
@@ -95,7 +101,7 @@ describe('Sinais reais no Workspace operacional', () => {
         {
           id: 's1', target_account_id: CONTA, monitor_id: MONITOR, signal_type: 'vaga_linkedin', event_key: 'alfa|v1',
           phrase: 'Abriu vaga de dados', fired_at: '2026-09-28T10:00:00Z', source: 'LinkedIn', evidence: 'linkedin.com/jobs/1',
-          seen_again_at: '2026-09-29T10:00:00Z', valid: true,
+          seen_again_at: '2026-09-29T10:00:00Z', seen_again_monitor_id: OUTRO_MONITOR, valid: true,
         },
       ],
     })
@@ -103,7 +109,7 @@ describe('Sinais reais no Workspace operacional', () => {
       {
         id: 's1', contaId: CONTA, acontecimentoId: 'alfa|v1', tipoId: 'abertura-de-vagas', monitoramentoId: MONITOR,
         frase: 'Abriu vaga de dados', data: '2026-09-28T10:00:00Z', fonte: 'LinkedIn', evidencia: 'linkedin.com/jobs/1',
-        reencontrado: { data: '2026-09-29T10:00:00Z', monitoramentoId: MONITOR },
+        reencontrado: { data: '2026-09-29T10:00:00Z', monitoramentoId: OUTRO_MONITOR },
       },
     ])
   })

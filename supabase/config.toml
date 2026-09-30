@@ -32,3 +32,11 @@ verify_jwt = true
 # da resposta.
 [functions.agent-conversation]
 verify_jwt = true
+
+# Só o servidor chama, com a chave de serviço no cabeçalho (o gateway confere que é um JWT; a função confere que é a chave).
+[functions.signal-scan]
+verify_jwt = true
+
+# Chamada pelo próprio banco (pg_cron + pg_net), sem JWT: a função confere o token que o banco guarda.
+[functions.signal-runner]
+verify_jwt = false

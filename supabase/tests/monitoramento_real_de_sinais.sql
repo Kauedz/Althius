@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(31);
+select plan(44);
 
 -- Ana (Admin), Bruno (Membro) e Diego (Membro) do Norte; Carla é de fora.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -24,6 +24,8 @@ insert into public.target_accounts (id, workspace_id, name, canonical_url, domai
   ('d6000000-0000-0000-0000-000000000001', 'f6000000-0000-0000-0000-000000000001', 'Alfa', 'https://alfa.test', 'alfa.test', '56000000-0000-0000-0000-000000000001'),
   ('d6000000-0000-0000-0000-000000000003', 'f6000000-0000-0000-0000-000000000001', 'Beta', 'https://beta.test', 'beta.test', '56000000-0000-0000-0000-000000000001'),
   ('d6000000-0000-0000-0000-000000000004', 'f6000000-0000-0000-0000-000000000001', 'Gama', 'https://gama.test', 'gama.test', '56000000-0000-0000-0000-000000000001'),
+  ('d6000000-0000-0000-0000-000000000005', 'f6000000-0000-0000-0000-000000000001', 'Delta', 'https://delta.test', 'delta.test', '56000000-0000-0000-0000-000000000001'),
+  ('d6000000-0000-0000-0000-000000000006', 'f6000000-0000-0000-0000-000000000001', 'Epsilon', 'https://epsilon.test', 'epsilon.test', '56000000-0000-0000-0000-000000000001'),
   ('d6000000-0000-0000-0000-000000000002', 'f6000000-0000-0000-0000-000000000002', 'Sul S/A', 'https://sul.test', 'sul.test', '56000000-0000-0000-0000-000000000003');
 
 create temporary table r (k text primary key, id uuid) on commit drop;
@@ -138,6 +140,11 @@ select is(
    where event_key = 'alfa|engenheiro|2026-09-25'),
   'linkedin.com/jobs/2', 'a lista de Sinais traz a evidência'
 );
+select is(
+  (select seen_again_monitor_id from public.list_signals('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000001')
+   where event_key = 'alfa|analista-de-dados|2026-09-20'),
+  (select id from r where k = 'mon'), 'o reencontro diz qual Monitoramento o viu de novo'
+);
 
 -- 7. Um Sinal que já chega com mais de 30 dias fica no histórico, mas não deixa a Conta Quente nem move o cartão.
 reset role;
@@ -187,6 +194,84 @@ select ok(
   not has_function_privilege('authenticated', 'private.record_signal(uuid, uuid, uuid, text, text, text, timestamptz, text, text)', 'execute')
     and not has_table_privilege('authenticated', 'private.signals', 'select'),
   'gravar Sinal é só do servidor'
+);
+
+-- 10. A data do disparo não pode estar no futuro, o Monitoramento tem de ser do mesmo tipo do Sinal e a Conta
+-- arquivada ou apagada não recebe Sinal novo.
+reset role;
+select throws_ok(
+  $$select private.record_signal('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000001',
+      (select id from r where k = 'mon'), 'vaga_linkedin', 'futuro', 'Vaga do futuro', now() + interval '40 days', 'LinkedIn', 'x')$$,
+  '22023', 'invalid signal date', 'uma data de disparo no futuro é recusada'
+);
+select throws_ok(
+  $$select private.record_signal('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000001',
+      (select id from r where k = 'mon'), 'nova_lideranca', 'tipo', 'Nova liderança', now(), 'LinkedIn', 'x')$$,
+  '22023', 'the monitor does not match the signal type', 'o Monitoramento tem de ser do tipo do Sinal'
+);
+update public.target_accounts set archived_at = now() where id = 'd6000000-0000-0000-0000-000000000004';
+select throws_ok(
+  $$select private.record_signal('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000004',
+      (select id from r where k = 'mon'), 'vaga_linkedin', 'arquivada', 'Vaga', now(), 'LinkedIn', 'x')$$,
+  '55006', 'the target account is archived', 'a Conta arquivada não recebe Sinal novo'
+);
+update public.target_accounts set archived_at = null where id = 'd6000000-0000-0000-0000-000000000004';
+
+-- 11. Só o servidor grava Sinal pelo RPC, e um Workspace nunca lê os Sinais de outro.
+select ok(
+  not has_function_privilege('authenticated', 'public.record_signal(uuid, uuid, uuid, text, text, text, timestamptz, text, text)', 'execute')
+    and has_function_privilege('service_role', 'public.record_signal(uuid, uuid, uuid, text, text, text, timestamptz, text, text)', 'execute'),
+  'gravar Sinal pelo RPC é só do servidor'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '56000000-0000-0000-0000-000000000003', true);
+select throws_ok(
+  $$select * from public.list_signals('f6000000-0000-0000-0000-000000000001')$$,
+  '42501', 'active workspace membership required', 'quem é de fora não lê os Sinais do Workspace'
+);
+select throws_ok(
+  $$select * from public.list_account_signals('f6000000-0000-0000-0000-000000000001')$$,
+  '42501', 'active workspace membership required', 'nem o foguinho das Contas'
+);
+select is(
+  (select count(*)::integer from public.list_signals('f6000000-0000-0000-0000-000000000002')), 0,
+  'o Workspace Sul lê só os Sinais dele, nenhum do Norte'
+);
+reset role;
+
+-- 12. O vencimento só rebaixa a Conta que ficou Quente por Sinal: Fit (a Aderência) e o cartão posto à mão ficam.
+select private.record_signal('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000005',
+  (select id from r where k = 'mon'), 'vaga_linkedin', 'delta|1', 'Vaga da Delta', now() - interval '5 days', 'LinkedIn', 'x');
+select private.advance_prospecting_stage('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000005', 'fit', 'aderencia');
+update private.signals set fired_at = now() - interval '40 days' where event_key = 'delta|1';
+select private.record_signal('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000006',
+  (select id from r where k = 'mon'), 'vaga_linkedin', 'eps|1', 'Vaga antiga da Epsilon', now() - interval '40 days', 'LinkedIn', 'x');
+select private.apply_prospecting_stage('f6000000-0000-0000-0000-000000000001', 'd6000000-0000-0000-0000-000000000006', 'quente',
+  '56000000-0000-0000-0000-000000000001', null);
+select is(private.expire_signals(), 0, 'Conta em Fit ou posta em Quente à mão não volta a Descoberta');
+select is(
+  (select string_agg(target_account_id::text || '=' || stage, ',' order by target_account_id::text) from private.prospecting_stages
+   where target_account_id in ('d6000000-0000-0000-0000-000000000005', 'd6000000-0000-0000-0000-000000000006')),
+  'd6000000-0000-0000-0000-000000000005=fit,d6000000-0000-0000-0000-000000000006=quente', 'cada cartão fica onde está'
+);
+
+-- 13. Apagar a Conta definitivamente apaga os Sinais dela e tira a Conta do público dos Monitoramentos.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '56000000-0000-0000-0000-000000000001', true);
+insert into r select 'dmon', public.save_signal_monitor('f6000000-0000-0000-0000-000000000001', null, 'vaga_linkedin', 'Com a Delta', 'rascunho',
+  '{"accountIds":["d6000000-0000-0000-0000-000000000001","d6000000-0000-0000-0000-000000000005"]}', '{}', 24);
+select is(
+  (public.erase_target_account('d6000000-0000-0000-0000-000000000005', 'Delta') ->> 'signals_erased')::integer, 1,
+  'o apagamento conta os Sinais que apagou'
+);
+reset role;
+select is((select count(*)::integer from private.signals where target_account_id = 'd6000000-0000-0000-0000-000000000005'), 0,
+  'nenhum Sinal fica no marcador da Conta apagada');
+select is(
+  (select audience -> 'accountIds' from private.signal_monitors where id = (select id from r where k = 'dmon')),
+  '["d6000000-0000-0000-0000-000000000001"]'::jsonb, 'e a Conta sai do público do Monitoramento'
 );
 
 select * from finish();

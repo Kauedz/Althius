@@ -29,6 +29,8 @@ export interface Monitoramento {
   fonte?: string
   origem?: Origem
   criteriosLivres?: string[]
+  /** Por que a última rodada não varreu tudo, em palavras do produto (só o Workspace operacional informa). */
+  ultimaFalha?: string
 }
 
 export interface NovoMonitoramento {

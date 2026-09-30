@@ -5,21 +5,26 @@ import {
   createHandler,
   type Db,
   type MonitorReivindicado,
-  SemCreditos,
+  type ResultadoDaAbertura,
 } from './handler.ts'
 
 const WS = '11111111-1111-4111-8111-111111111111'
+const SLOT = '2026-09-30T12:00:00+00:00'
+const AGORA = Date.parse('2026-09-30T12:00:00Z')
 const ALFA = { id: 'conta-alfa', name: 'Alfa', domain: 'alfa.test', linkedinUrl: null }
 const BETA = { id: 'conta-beta', name: 'Beta', domain: 'beta.test', linkedinUrl: null }
 
-const monitor = (contas = [ALFA, BETA]): MonitorReivindicado => ({
-  monitorId: 'mon-1',
+const monitor = (id = 'mon-1', contas = [ALFA, BETA]): MonitorReivindicado => ({
+  monitorId: id,
   workspaceId: WS,
   signalType: 'vaga_linkedin',
   criteria: { palavras: ['dados'] },
   createdBy: 'user-1',
+  slot: SLOT,
   accounts: contas,
 })
+
+const vaga = (id: string, data = '2026-09-28T10:00:00Z') => ({ id, titulo: `Vaga ${id}`, data })
 
 // Um adaptador de mentira: cada item do actor é uma vaga com id e data.
 const adaptador: AdaptadorDeSinal = {
@@ -35,163 +40,200 @@ const adaptador: AdaptadorDeSinal = {
     })),
 }
 
-function montar(opcoes: {
+const ACTOR: ActorDoRegistro = {
+  actorId: 'curious_coder~linkedin-jobs-scraper',
+  signalType: 'vaga_linkedin',
+  state: 'available',
+  version: 'v1',
+  maxCostUsd: 0.5,
+}
+
+interface Opcoes {
   monitores?: MonitorReivindicado[]
-  cap?: (scope: string) => 'ok' | 'confirmar' | 'sem_teto' | 'teto_atingido'
-  reservar?: () => Promise<string>
+  abertura?: (accountId: string) => { outcome: ResultadoDaAbertura; reservationId: string | null }
   apify?: Apify['run']
   actor?: ActorDoRegistro | null
   agora?: () => number
   semAdaptador?: boolean
   adaptador?: AdaptadorDeSinal
-} = {}) {
-  const chamadas: { reservas: unknown[]; liquidadas: string[]; liberadas: string[]; sinais: unknown[]; fins: unknown[]; caps: unknown[]; runs: unknown[] } =
-    { reservas: [], liquidadas: [], liberadas: [], sinais: [], fins: [], caps: [], runs: [] }
-  let n = 0
+  recordSignal?: () => Promise<boolean>
+}
+
+function montar(opcoes: Opcoes = {}) {
+  const c = {
+    aberturas: [] as { accountId: string; slot: string; userId: string | null }[],
+    fechamentos: [] as { id: string; success: boolean }[],
+    sinais: [] as { eventKey: string; firedAt: string; monitorId: string }[],
+    fins: [] as { monitorId: string; attempted: number; error: string | null; continuar: boolean }[],
+    runs: [] as { input: unknown; maxTotalChargeUsd: number }[],
+  }
   const db: Db = {
     tokenMatches: (t) => Promise.resolve(t === 'token-certo-com-mais-de-trinta-e-dois-caracteres'),
     claim: () => Promise.resolve(opcoes.monitores ?? [monitor()]),
-    actorForType: () =>
-      Promise.resolve(opcoes.actor === undefined
-        ? { actorId: 'curious_coder~linkedin-jobs-scraper', signalType: 'vaga_linkedin', state: 'available' as const, version: 'v1', maxCostUsd: 0.5 }
-        : opcoes.actor),
-    reserve: (args) => {
-      chamadas.reservas.push(args)
-      return opcoes.reservar ? opcoes.reservar() : Promise.resolve(`reserva-${++n}`)
+    actorForType: () => Promise.resolve(opcoes.actor === undefined ? ACTOR : opcoes.actor),
+    beginScan: (a) => {
+      c.aberturas.push({ accountId: a.accountId, slot: a.slot, userId: a.userId })
+      return Promise.resolve(opcoes.abertura ? opcoes.abertura(a.accountId) : { outcome: 'go', reservationId: `res-${a.accountId}` })
     },
-    settle: (id) => (chamadas.liquidadas.push(id), Promise.resolve()),
-    release: (id) => (chamadas.liberadas.push(id), Promise.resolve()),
-    consumeCap: (workspaceId, scope, amount) => {
-      chamadas.caps.push({ workspaceId, scope, amount })
-      return Promise.resolve(opcoes.cap ? opcoes.cap(scope) : 'ok')
+    endScan: (id, success) => (c.fechamentos.push({ id, success }), Promise.resolve()),
+    recordSignal: (a) => {
+      c.sinais.push({ eventKey: a.eventKey, firedAt: a.firedAt, monitorId: a.monitorId })
+      return opcoes.recordSignal ? opcoes.recordSignal() : Promise.resolve(true)
     },
-    recordSignal: (args) => (chamadas.sinais.push(args), Promise.resolve(true)),
     recordCost: () => Promise.resolve(),
-    finish: (monitorId, scanned, error) => (chamadas.fins.push({ monitorId, scanned, error }), Promise.resolve()),
+    finish: (monitorId, attempted, error, continuar) => (c.fins.push({ monitorId, attempted, error, continuar }), Promise.resolve()),
   }
   const apify: Apify = {
     run: opcoes.apify ?? ((args) => {
-      chamadas.runs.push(args)
-      return Promise.resolve({ runId: 'run-1', items: [{ id: 'v1', titulo: 'Analista de dados', data: '2026-09-28T10:00:00Z' }] })
+      c.runs.push({ input: args.input, maxTotalChargeUsd: args.maxTotalChargeUsd })
+      return Promise.resolve({ runId: 'run-1', items: [vaga('v1')] })
     }),
   }
   const handler = createHandler({
     db,
     apify,
     adaptadores: opcoes.semAdaptador ? {} : { vaga_linkedin: opcoes.adaptador ?? adaptador },
-    agora: opcoes.agora ?? (() => Date.parse('2026-09-30T12:00:00Z')),
+    agora: opcoes.agora ?? (() => AGORA),
     log: () => {},
   })
-  return { handler, chamadas }
+  return { handler, c }
 }
 
 const chamar = (handler: (r: Request) => Promise<Response>, token = 'token-certo-com-mais-de-trinta-e-dois-caracteres', method = 'POST') =>
   handler(new Request('http://x/signal-runner', { method, headers: { 'x-runner-token': token }, body: method === 'POST' ? '{}' : undefined }))
 
 Deno.test('só POST com o token do relógio', async () => {
-  const { handler, chamadas } = montar()
+  const { handler, c } = montar()
   assertEquals((await chamar(handler, 'x', 'GET')).status, 405)
   assertEquals((await chamar(handler, 'token-errado-token-errado-token-errado')).status, 401)
-  assertEquals(chamadas.reservas.length, 0)
+  assertEquals(c.aberturas.length, 0)
 })
 
-Deno.test('varre cada Conta: reserva 1 crédito, chama o actor, grava os Sinais e liquida', async () => {
-  const { handler, chamadas } = montar()
+Deno.test('varre cada Conta: abre, roda o actor com o teto do registro, grava os Sinais e fecha com sucesso', async () => {
+  const { handler, c } = montar()
   const r = await chamar(handler)
   assertEquals(r.status, 200)
   assertEquals(await r.json(), { monitors: 1, scanned: 2, signals: 2 })
-  assertEquals(chamadas.reservas.length, 2)
-  assertEquals((chamadas.reservas[0] as { action: string; quantity: number }).action, 'account_scan')
-  assertEquals((chamadas.reservas[0] as { quantity: number }).quantity, 1)
-  assertEquals((chamadas.runs[0] as { input: unknown }).input, { empresa: 'Alfa', palavras: ['dados'] })
-  assertEquals((chamadas.runs[0] as { maxTotalChargeUsd: number }).maxTotalChargeUsd, 0.5)
-  assertEquals(chamadas.liquidadas, ['reserva-1', 'reserva-2'])
-  assertEquals(chamadas.liberadas, [])
-  assertEquals(chamadas.caps.map((c) => (c as { scope: string }).scope), ['acao:varredura', 'acao:varredura'])
-  assertEquals(chamadas.fins, [{ monitorId: 'mon-1', scanned: 2, error: null }])
-  assertEquals((chamadas.sinais[0] as { eventKey: string; monitorId: string }).eventKey, 'conta-alfa|v1')
+  assertEquals(c.aberturas, [
+    { accountId: 'conta-alfa', slot: SLOT, userId: 'user-1' },
+    { accountId: 'conta-beta', slot: SLOT, userId: 'user-1' },
+  ])
+  assertEquals(c.runs[0], { input: { empresa: 'Alfa', palavras: ['dados'] }, maxTotalChargeUsd: 0.5 })
+  assertEquals(c.fechamentos, [{ id: 'res-conta-alfa', success: true }, { id: 'res-conta-beta', success: true }])
+  assertEquals(c.sinais[0], { eventKey: 'conta-alfa|v1', firedAt: '2026-09-28T10:00:00Z', monitorId: 'mon-1' })
+  assertEquals(c.fins, [{ monitorId: 'mon-1', attempted: 2, error: null, continuar: false }])
 })
 
-Deno.test('a chave da reserva é estável na mesma hora: repetir a rodada não cobra duas vezes', async () => {
-  const a = montar()
-  await chamar(a.handler)
-  const b = montar()
-  await chamar(b.handler)
-  assertEquals((a.chamadas.reservas[0] as { actionKey: string }).actionKey, (b.chamadas.reservas[0] as { actionKey: string }).actionKey)
+Deno.test('a rodada já concluída ou já falhada não roda o actor nem cobra outra vez; a retomada roda', async () => {
+  const { handler, c } = montar({
+    abertura: (conta) =>
+      conta === 'conta-alfa' ? { outcome: 'done', reservationId: 'r1' } : { outcome: 'resume', reservationId: 'r2' },
+  })
+  assertEquals(await (await chamar(handler)).json(), { monitors: 1, scanned: 1, signals: 1 })
+  assertEquals(c.runs.length, 1)
+  assertEquals(c.fechamentos, [{ id: 'r2', success: true }])
+  assertEquals(c.fins[0].attempted, 2)
+
+  const b = montar({ abertura: () => ({ outcome: 'skip', reservationId: 'r3' }) })
+  assertEquals((await (await chamar(b.handler)).json()).scanned, 0)
+  assertEquals(b.c.runs.length, 0)
+  assertEquals(b.c.fins[0].attempted, 2)
 })
 
-Deno.test('automático em confirmar ou sem teto: não varre, não cobra e diz por quê', async () => {
-  for (const [cap, texto] of [['confirmar', 'confirmar'], ['sem_teto', 'teto'], ['teto_atingido', 'teto']] as const) {
-    const { handler, chamadas } = montar({ cap: () => cap })
-    const r = await chamar(handler)
-    assertEquals((await r.json()).scanned, 0)
-    assertEquals(chamadas.runs.length, 0)
-    assertEquals(chamadas.liberadas, ['reserva-1'], 'a reserva volta ao saldo')
-    assertEquals(chamadas.liquidadas, [])
-    const fim = chamadas.fins[0] as { scanned: number; error: string }
-    assertEquals(fim.scanned, 0)
-    assertEquals(fim.error.toLowerCase().includes(texto), true, fim.error)
+Deno.test('automático em confirmar, sem teto ou no teto: não varre, não cobra e diz por quê', async () => {
+  for (const [outcome, texto] of [['confirmar', 'confirmar'], ['sem_teto', 'teto'], ['teto_atingido', 'teto']] as const) {
+    const { handler, c } = montar({ abertura: () => ({ outcome, reservationId: null }) })
+    assertEquals((await (await chamar(handler)).json()).scanned, 0)
+    assertEquals(c.runs.length, 0)
+    assertEquals(c.fechamentos, [])
+    assertEquals(c.aberturas.length, 1, 'para no primeiro pedido, sem tentar as outras Contas')
+    assertEquals(c.fins[0].attempted, 0)
+    assertEquals(c.fins[0].error?.toLowerCase().includes(texto), true, String(c.fins[0].error))
+    assertEquals(c.fins[0].continuar, false)
   }
 })
 
 Deno.test('sem créditos ou no limite do participante: para o Monitoramento e avisa', async () => {
-  const { handler, chamadas } = montar({ reservar: () => Promise.reject(new SemCreditos()) })
-  const r = await chamar(handler)
-  assertEquals((await r.json()).scanned, 0)
-  assertEquals(chamadas.runs.length, 0)
-  assertEquals((chamadas.fins[0] as { error: string }).error.includes('crédito'), true)
+  const { handler, c } = montar({ abertura: () => ({ outcome: 'no_credits', reservationId: null }) })
+  assertEquals((await (await chamar(handler)).json()).scanned, 0)
+  assertEquals(c.runs.length, 0)
+  assertEquals(c.fins[0].error?.includes('crédito'), true)
 })
 
-Deno.test('falha do Apify numa Conta: libera a reserva, segue para a próxima e não cobra', async () => {
+Deno.test('falha do Apify numa Conta: fecha sem cobrar, segue para a próxima e diz qual falhou', async () => {
   let i = 0
-  const { handler, chamadas } = montar({
+  const { handler, c } = montar({
     apify: () => {
       i++
       return i === 1
         ? Promise.reject(new ApifyRequestError(500))
-        : Promise.resolve({ runId: 'run-2', items: [{ id: 'v2', titulo: 'Engenheiro', data: '2026-09-29T10:00:00Z' }] })
+        : Promise.resolve({ runId: 'run-2', items: [vaga('v2', '2026-09-29T10:00:00Z')] })
     },
   })
-  const r = await chamar(handler)
-  assertEquals(await r.json(), { monitors: 1, scanned: 1, signals: 1 })
-  assertEquals(chamadas.liberadas, ['reserva-1'])
-  assertEquals(chamadas.liquidadas, ['reserva-2'])
-  assertEquals((chamadas.fins[0] as { error: string }).error.includes('Alfa'), true)
+  assertEquals(await (await chamar(handler)).json(), { monitors: 1, scanned: 1, signals: 1 })
+  assertEquals(c.fechamentos, [{ id: 'res-conta-alfa', success: false }, { id: 'res-conta-beta', success: true }])
+  assertEquals(c.fins[0].attempted, 2)
+  assertEquals(c.fins[0].error?.includes('Alfa'), true)
 })
 
-Deno.test('sem adaptador ou com actor indisponível: o Monitoramento espera, sem gastar nada', async () => {
+Deno.test('o adaptador ou a gravação do Sinal que quebram não cobram o cliente', async () => {
+  const quebrado: AdaptadorDeSinal = { ...adaptador, sinais: () => { throw new Error('campo mudou') } }
+  const a = montar({ adaptador: quebrado })
+  assertEquals((await (await chamar(a.handler)).json()).scanned, 0)
+  assertEquals(a.c.fechamentos.every((f) => f.success === false), true)
+  assertEquals(a.c.fechamentos.length, 2)
+
+  const b = montar({ recordSignal: () => Promise.reject(new Error('Conta arquivada')) })
+  assertEquals((await (await chamar(b.handler)).json()).scanned, 0)
+  assertEquals(b.c.fechamentos.every((f) => f.success === false), true)
+})
+
+Deno.test('sem adaptador ou com actor indisponível: o Monitoramento espera, sem abrir varredura nenhuma', async () => {
   const a = montar({ semAdaptador: true })
   assertEquals((await (await chamar(a.handler)).json()).scanned, 0)
-  assertEquals(a.chamadas.reservas.length, 0)
-  assertEquals((a.chamadas.fins[0] as { error: string }).error.includes('adaptador'), true)
-  const b = montar({ actor: { actorId: 'x~y', signalType: 'vaga_linkedin', state: 'testing', version: null, maxCostUsd: 0.5 } })
+  assertEquals(a.c.aberturas.length, 0)
+  assertEquals(a.c.fins[0].error?.includes('adaptador'), true)
+  const b = montar({ actor: { ...ACTOR, state: 'testing' } })
   assertEquals((await (await chamar(b.handler)).json()).scanned, 0)
-  assertEquals(b.chamadas.reservas.length, 0)
-  assertEquals((b.chamadas.fins[0] as { error: string }).error.includes('disponível'), true)
+  assertEquals(b.c.aberturas.length, 0)
+  assertEquals(b.c.fins[0].error?.includes('disponível'), true)
 })
 
-Deno.test('o adaptador que quebra não cobra o cliente', async () => {
-  const quebrado: AdaptadorDeSinal = { ...adaptador, sinais: () => { throw new Error('campo mudou') } }
-  const { handler, chamadas } = montar({ adaptador: quebrado })
-  const r = await chamar(handler)
-  assertEquals((await r.json()).scanned, 0)
-  assertEquals(chamadas.liquidadas, [])
-  assertEquals(chamadas.liberadas, ['reserva-1', 'reserva-2'])
-  assertEquals((chamadas.fins[0] as { error: string }).error.includes('Alfa'), true)
-})
-
-Deno.test('acaba o tempo no meio: varre o que deu, avisa e a próxima rodada continua', async () => {
-  let t = Date.parse('2026-09-30T12:00:00Z')
-  const { handler, chamadas } = montar({
+Deno.test('acaba o tempo no meio: varre o que deu, pede para continuar já e o Monitoramento seguinte não é engolido', async () => {
+  let t = AGORA
+  const { handler, c } = montar({
+    monitores: [monitor('mon-1'), monitor('mon-2')],
     agora: () => t,
     apify: () => {
-      t += 200_000
+      t += 80_000
       return Promise.resolve({ runId: 'r', items: [] })
     },
   })
-  const r = await chamar(handler)
-  assertEquals((await r.json()).scanned, 1)
-  const fim = chamadas.fins[0] as { scanned: number; error: string }
-  assertEquals(fim.scanned, 1)
-  assertEquals(fim.error.includes('1 de 2'), true)
+  const r = await (await chamar(handler)).json()
+  assertEquals(r.scanned, 1)
+  assertEquals(c.fins[0].monitorId, 'mon-1')
+  assertEquals(c.fins[0].attempted, 1)
+  assertEquals(c.fins[0].error?.includes('1 de 2'), true)
+  assertEquals(c.fins[0].continuar, true)
+  // O segundo Monitoramento nem começou: solta a reserva e volta já, sem falha e sem avançar a rotação.
+  assertEquals(c.fins[1], { monitorId: 'mon-2', attempted: 0, error: null, continuar: true })
+  assertEquals(c.aberturas.filter((a) => a.accountId === 'conta-alfa').length, 1)
+})
+
+Deno.test('a data do Sinal: o inválido ou muito no futuro é descartado e o de poucas horas à frente vira agora', async () => {
+  const datas: AdaptadorDeSinal = {
+    ...adaptador,
+    sinais: () => [
+      { eventKey: 'a', phrase: 'A', firedAt: 'não é data' },
+      { eventKey: 'b', phrase: 'B', firedAt: '2026-11-15T00:00:00Z' },
+      { eventKey: 'c', phrase: 'C', firedAt: '2026-09-30T18:00:00Z' },
+      { eventKey: 'd', phrase: 'D', firedAt: '2026-09-29T09:00:00Z' },
+    ],
+  }
+  const { handler, c } = montar({ adaptador: datas, monitores: [monitor('mon-1', [ALFA])] })
+  assertEquals((await (await chamar(handler)).json()).signals, 2)
+  assertEquals(c.sinais.map((s) => [s.eventKey, s.firedAt]), [
+    ['c', '2026-09-30T12:00:00.000Z'],
+    ['d', '2026-09-29T09:00:00Z'],
+  ])
 })

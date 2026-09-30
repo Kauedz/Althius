@@ -5,6 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
 import { SINAL_REAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
+import type { ContaAlvo } from './contas-tipos'
 import type {
   Disponibilidade,
   EstadoDoMonitoramento,
@@ -22,6 +23,7 @@ interface RegistroDoMonitor {
   state: EstadoDoMonitoramento
   audience: { accountIds?: string[] } | null
   criteria: Record<string, unknown> | null
+  last_error: string | null
 }
 
 interface RegistroDoSinal {
@@ -35,6 +37,7 @@ interface RegistroDoSinal {
   source: string | null
   evidence: string | null
   seen_again_at: string | null
+  seen_again_monitor_id: string | null
 }
 
 function converterErro(error: { message: string; code?: string }): Error {
@@ -53,6 +56,35 @@ function converterErro(error: { message: string; code?: string }): Error {
   return new Error('Não foi possível concluir. Tente de novo.')
 }
 
+/** O foguinho de uma Conta como a Fonte de Contas o mostra: quantos Sinais válidos, se está Quente e o último Sinal. */
+export type FoguinhoDaConta = Pick<ContaAlvo, 'quente' | 'totalSinaisValidos' | 'ultimoSinal'>
+
+/**
+ * O foguinho de cada Conta com Sinal, ou nulo quando a leitura falha: as Contas aparecem sem ele em vez de a lista falhar.
+ * A Conta sem nenhum Sinal não está no mapa.
+ */
+export async function lerSinaisDasContas(cliente: SupabaseClient, workspaceId: string): Promise<Map<string, FoguinhoDaConta> | null> {
+  const { data, error } = await cliente.rpc('list_account_signals', { p_workspace_id: workspaceId })
+  if (error) return null
+  const linhas = (data ?? []) as {
+    target_account_id: string
+    valid_signals: number
+    hot: boolean
+    last_phrase: string | null
+    last_fired_at: string | null
+  }[]
+  return new Map(linhas.map((l) => [
+    l.target_account_id,
+    {
+      quente: l.hot === true,
+      totalSinaisValidos: l.valid_signals,
+      ...(l.last_phrase && l.last_fired_at
+        ? { ultimoSinal: { id: `ultimo:${l.target_account_id}`, contaId: l.target_account_id, frase: l.last_phrase, data: l.last_fired_at } }
+        : {}),
+    },
+  ]))
+}
+
 function mapearMonitor(linha: RegistroDoMonitor): Monitoramento | null {
   const tipoId = TIPO_DO_SINAL_REAL[linha.signal_type]
   if (!tipoId) return null
@@ -63,6 +95,7 @@ function mapearMonitor(linha: RegistroDoMonitor): Monitoramento | null {
     estado: linha.state,
     publico: { modo: 'listas', listas: linha.audience?.accountIds ?? [], usaRecomendado: false },
     criterios: linha.criteria ?? {},
+    ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
   }
 }
 
@@ -157,7 +190,9 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
           data: s.fired_at,
           fonte: s.source ?? '',
           evidencia: s.evidence ?? '',
-          ...(s.seen_again_at ? { reencontrado: { data: s.seen_again_at, monitoramentoId: s.monitor_id ?? '' } } : {}),
+          ...(s.seen_again_at
+            ? { reencontrado: { data: s.seen_again_at, monitoramentoId: s.seen_again_monitor_id ?? s.monitor_id ?? '' } }
+            : {}),
         }]
       })
     },
