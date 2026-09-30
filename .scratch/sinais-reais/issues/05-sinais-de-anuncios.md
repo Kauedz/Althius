@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Monitoramento real.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Pode mexer
 
@@ -20,13 +20,48 @@
 
 ## Critérios
 
-- [ ] Cada tipo testado com um resultado de exemplo do actor, sem dado pessoal real.
-- [ ] Validar numa execução real (a IA prepara; roda com o `APIFY_TOKEN` do Supabase) e registrar o custo observado.
+- [x] Cada tipo testado com um resultado de exemplo do actor, sem dado pessoal real (`adaptadores/anuncios.test.ts`).
+- [ ] Validar numa execução real (a IA prepara; roda com o `APIFY_TOKEN` do Supabase) e registrar o custo observado. **Preparado:** `scripts/validar-sinais-reais.ts`; falta o Nan rodar.
 
 ## Passos do Nan
 
 **A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan. Com muitos passos, gera um wizard (`/wizard`).**
 
-1. Publicar `signal-scan` e conferir no app um Monitoramento de teste com uma Conta real.
+Os passos 1 e 2 são os mesmos nos tickets 03 a 06: faça uma vez só.
+
+1. Com a PR mergeada, publicar as funções (na raiz do repositório). As migrations a IA aplica no remoto antes do merge
+   (`docs/agents/migrations.md`):
+   ```powershell
+   cd "$HOME\Althius"
+   git checkout main
+   git pull
+   npx supabase functions deploy signal-runner --project-ref ycbdilsmydvzezhlymty
+   npx supabase functions deploy signal-scan --project-ref ycbdilsmydvzezhlymty
+   ```
+2. No mesmo PowerShell, a chave `service_role` (painel do Supabase › Project Settings › API Keys, a chave legada; nunca no chat) e o id de um Workspace de teste:
+   ```powershell
+   $env:SUPABASE_SERVICE_ROLE_KEY = "<cole aqui, só no PowerShell>"
+   $env:ALTHIUS_WORKSPACE_ID = "<id do Workspace>"
+   ```
+3. Rodar a execução real de cada tipo com uma Conta de verdade (troque nome, domínio e página do LinkedIn):
+   ```powershell
+   npx deno run --allow-net --allow-env --allow-read --allow-write scripts/validar-sinais-reais.ts anuncio_meta
+   npx deno run --allow-net --allow-env --allow-read --allow-write scripts/validar-sinais-reais.ts anuncio_linkedin
+   ```
+   Cada linha leva `--nome "Empresa" --dominio empresa.com.br --linkedin https://www.linkedin.com/company/empresa`. O script mostra os campos que vieram (sem valores), os Sinais que o adaptador tirou e o comando SQL do custo. Os itens brutos ficam em `validacao-sinais\` (fora do Git). Cole na conversa só os campos e a quantidade de Sinais.
+4. Para cada tipo que passou (os campos vieram e os Sinais fazem sentido), rodar no SQL Editor o bloco dele em `.scratch/sinais-reais/registro-apos-o-teste.sql`: grava preço, versão e teto e marca o actor "disponível". O primeiro "disponível" libera o módulo Sinais no Workspace operacional.
+5. No app, criar um Monitoramento de teste com a Conta real e conferir o Sinal (e, se houver, o motivo da última rodada embaixo dele).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Os esquemas de entrada, os READMEs (com o exemplo de saída) e os preços vigentes de cada actor foram lidos na API pública do Apify em 30/09/2026 (`GET /v2/acts/{actor}` e `GET /v2/actor-builds/{build}`); os adaptadores usam esses nomes de campo, leem de forma defensiva o que o README não mostra, e os actors seguem `testing` até a execução real (passo do Nan). Não houve execução real nesta sessão: o token do Apify fica só no Supabase.
+- `handler.ts` do `signal-runner`: `entrada` e `sinais` recebem a hora da varredura, e `sinais` também os critérios; a Conta sem o dado que o actor precisa (`SemDadoParaVarrer`) é pulada antes de abrir a varredura, sem reservar crédito, e o motivo aparece no Monitoramento ("Contas sem a página da empresa no LinkedIn ficaram de fora: Beta.") e na busca de Sinais.
+- Preço, versão e teto não entram por migration (o pgTAP do ticket 01 fixa o registro "em branco até alguém conferir"): ficam em `.scratch/sinais-reais/registro-apos-o-teste.sql`, que o Nan roda por actor depois da execução real.
+- "Ligar a Conta ao anunciante antes de buscar" sem tabela nova: as bibliotecas buscam por nome, e o anúncio só conta quando o anunciante é a Conta (a mesma página do LinkedIn, o link de destino no domínio da Conta ou o nome sem a forma jurídica; na dúvida, não é). Um Sinal por campanha nova (anunciante e mês de início), não por anúncio, para o foguinho não inflar (`adaptadores/anuncios.ts`).
+- `anuncio-meta.ts`: busca da biblioteca por palavra-chave com o nome da Conta, só ativos, no país, desde o início do período; até 30 anúncios (cerca de US$ 0,02 por Conta). `anuncio-linkedin.ts`: busca pelo anunciante (`accountOwner`) com o nome, país e período, com detalhes (a data de início vem da página do anúncio); até 20 (cerca de US$ 0,08). A URL da empresa acharia só a Conta, mas não filtra data nem país.
+- Nenhuma migration neste ticket: o registro muda só depois da execução real (`registro-apos-o-teste.sql`).
+- Frontend: família nova "Anúncios" com os cards "Anunciando no LinkedIn" e "Anunciando na Meta" e o formulário "anuncios" (Localização, Período e Palavras no anúncio).
+- A confirmar na execução real: os nomes de campo da saída da Meta (o README só mostra uma tabela); os parâmetros `custom-date-range`/`startdate` do LinkedIn; se `availability.start` vem também sem detalhes (daria para ligar `skipDetails` e cortar o custo pela metade).
+- Conferência visual: [cards de Anúncios](prints/03-catalogo-anuncios.jpg) e [formulário de anúncios](prints/05-formulario-anuncios.jpg).
