@@ -19,10 +19,10 @@
 
 ## Critérios
 
-- [ ] Débito idempotente por chave de ação; reserva que não se confirma volta ao saldo.
-- [ ] Enriquecimento só debita quando acha (a reserva é liberada quando não acha).
-- [ ] Limite por participante respeitado; saldo nunca fica negativo.
-- [ ] Tabela provisória da sabatina: 1 por Agente por rodada, 1 por Conta varrida, 1 por pessoa coletada, 2 por e-mail, 5 por telefone; chave de IA do cliente = 20% da Execução.
+- [x] Débito idempotente por chave de ação; reserva que não se confirma volta ao saldo.
+- [x] Enriquecimento só debita quando acha (a reserva é liberada quando não acha).
+- [x] Limite por participante respeitado; saldo nunca fica negativo.
+- [x] Tabela provisória da sabatina: 1 por Agente por rodada, 1 por Conta varrida, 1 por pessoa coletada, 2 por e-mail, 5 por telefone; chave de IA do cliente = 20% da Execução.
 
 ## Passos do Nan
 
@@ -31,3 +31,10 @@
 1. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Serviço (só `service_role`): `grant_credits`, `reserve_credits(workspace, usuário, ação, chave, quantidade, chave_de_ia_do_cliente)`, `settle_credits(reserva, usado)` (0 usado libera), `release_credits`.
+- Usuário: `get_credit_balance`, `list_credit_entries` (Admin vê tudo; Membro, entradas e as próprias ações), `set_member_credit_limit` (só Admin), `list_credit_action_prices`.
+- Ações: `agent_round`, `account_scan`, `person_collected`, `email_revealed`, `phone_revealed`. Chave de IA do cliente só em `agent_round` (20%).
+- Nenhum Workspace recebe crédito sozinho: a entrada por plano é do ticket 05.
