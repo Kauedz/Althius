@@ -32,7 +32,7 @@
 
 1. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
 2. Publicar `signal-scan`: `npx supabase functions deploy signal-scan --project-ref ycbdilsmydvzezhlymty`.
-3. Decidir o plano pago do Apify (Starter US$ 29, Scale US$ 199) e assinar na conta da Althius.
+3. Guardar os tokens das contas gratuitas do Apify como segredos (`APIFY_TOKEN`, `APIFY_TOKEN_2` a `APIFY_TOKEN_5`), pelo comando `npx supabase secrets set` no PowerShell, sem colar o token no chat. Plano pago só quando fechar o primeiro cliente.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
 
