@@ -181,7 +181,7 @@ Deno.test('cliente do Apify: chamada, cabeçalho, runId e custo', async () => {
     if (url.includes('actor-runs')) return Promise.resolve(Response.json({ data: { usageTotalUsd: 0.03 } }))
     return Promise.resolve(Response.json([{ x: 1 }], { headers: { 'x-apify-run-id': 'r9' } }))
   }) as unknown as typeof fetch
-  const apify = clienteDoApify({ token: 'segredo', fetchFn })
+  const apify = clienteDoApify({ tokens: ['segredo'], fetchFn })
   const exec = await apify.run({ actorId: ACTOR, input: { q: 1 }, maxItems: 10, maxTotalChargeUsd: 0.4 })
   assertEquals(exec, { runId: 'r9', items: [{ x: 1 }] })
   assertEquals(vistos[0].url.includes('segredo'), false)
@@ -191,7 +191,7 @@ Deno.test('cliente do Apify: chamada, cabeçalho, runId e custo', async () => {
 })
 
 Deno.test('cliente do Apify: 408, erro HTTP e custo inválido', async () => {
-  const com = (r: () => Response) => clienteDoApify({ token: 't', fetchFn: (() => Promise.resolve(r())) as unknown as typeof fetch })
+  const com = (r: () => Response) => clienteDoApify({ tokens: ['t'], fetchFn: (() => Promise.resolve(r())) as unknown as typeof fetch })
   let erro: unknown
   try {
     await com(() => new Response(null, { status: 408 })).run({ actorId: ACTOR, input: {}, maxItems: 1, maxTotalChargeUsd: 1 })
@@ -207,4 +207,50 @@ Deno.test('cliente do Apify: 408, erro HTTP e custo inválido', async () => {
   assertEquals((erro as ApifyRequestError).status, 500)
   assertEquals(await com(() => Response.json({ data: { usageTotalUsd: 'x' } })).custoDaExecucao!('r'), null)
   assertEquals(await com(() => new Response(null, { status: 404 })).custoDaExecucao!('r'), null)
+})
+
+Deno.test('cliente do Apify: sem crédito numa conta, a próxima assume e o custo lê na conta que rodou', async () => {
+  const usados: string[] = []
+  const fetchFn = ((url: string, init?: RequestInit) => {
+    const auth = (init!.headers as Record<string, string>).Authorization
+    usados.push(`${url.includes('actor-runs') ? 'custo' : 'run'}:${auth}`)
+    if (auth === 'Bearer a' && !url.includes('actor-runs')) return Promise.resolve(new Response('x', { status: 402 }))
+    if (url.includes('actor-runs')) return Promise.resolve(Response.json({ data: { usageTotalUsd: 0.5 } }))
+    return Promise.resolve(Response.json([], { headers: { 'x-apify-run-id': 'r1' } }))
+  }) as unknown as typeof fetch
+  const apify = clienteDoApify({ tokens: ['a', 'b'], fetchFn })
+  const exec = await apify.run({ actorId: ACTOR, input: {}, maxItems: 1, maxTotalChargeUsd: 1 })
+  assertEquals(await apify.custoDaExecucao!(exec.runId!), 0.5)
+  await apify.run({ actorId: ACTOR, input: {}, maxItems: 1, maxTotalChargeUsd: 1 })
+  // a conta "a" esgotada é pulada na segunda execução
+  assertEquals(usados, ['run:Bearer a', 'run:Bearer b', 'custo:Bearer b', 'run:Bearer b'])
+})
+
+Deno.test('cliente do Apify: todas sem crédito devolve 402; 429 não troca de conta', async () => {
+  const semCredito = clienteDoApify({
+    tokens: ['a', 'b'],
+    fetchFn: (() => Promise.resolve(new Response('x', { status: 402 }))) as unknown as typeof fetch,
+  })
+  let erro: unknown
+  try {
+    await semCredito.run({ actorId: ACTOR, input: {}, maxItems: 1, maxTotalChargeUsd: 1 })
+  } catch (e) {
+    erro = e
+  }
+  assertEquals((erro as ApifyRequestError).status, 402)
+  let chamadas = 0
+  const limitada = clienteDoApify({
+    tokens: ['a', 'b'],
+    fetchFn: (() => {
+      chamadas++
+      return Promise.resolve(new Response('x', { status: 429 }))
+    }) as unknown as typeof fetch,
+  })
+  try {
+    await limitada.run({ actorId: ACTOR, input: {}, maxItems: 1, maxTotalChargeUsd: 1 })
+  } catch (e) {
+    erro = e
+  }
+  assertEquals((erro as ApifyRequestError).status, 429)
+  assertEquals(chamadas, 1)
 })

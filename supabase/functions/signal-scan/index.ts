@@ -8,6 +8,14 @@ function required(name: string) {
   return value
 }
 
+// As contas do Apify: APIFY_TOKEN e, se houver, APIFY_TOKEN_2 a APIFY_TOKEN_5. Quando os créditos de uma acabam, a próxima assume.
+function tokensDoApify(): string[] {
+  const nomes = ['APIFY_TOKEN', 'APIFY_TOKEN_2', 'APIFY_TOKEN_3', 'APIFY_TOKEN_4', 'APIFY_TOKEN_5']
+  const tokens = nomes.map((nome) => Deno.env.get(nome)).filter((t): t is string => !!t)
+  if (tokens.length === 0) throw new Error('Backend is not configured')
+  return tokens
+}
+
 // Lidos na inicialização: sem o token do Apify, a função não sobe e nenhuma varredura é prometida.
 const SERVICE_ROLE_KEY = required('SUPABASE_SERVICE_ROLE_KEY')
 const admin = createClient(required('SUPABASE_URL'), SERVICE_ROLE_KEY, {
@@ -63,7 +71,7 @@ const db: Db = {
 
 const handler = createHandler({
   db,
-  apify: clienteDoApify({ token: required('APIFY_TOKEN') }),
+  apify: clienteDoApify({ tokens: tokensDoApify() }),
   // A função é chamada só pelo servidor: o cabeçalho Authorization tem que ser a chave de serviço.
   autorizado: (authorization) => iguais(authorization, `Bearer ${SERVICE_ROLE_KEY}`),
 })
