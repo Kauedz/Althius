@@ -29,3 +29,7 @@
 1. Publicar a ponte e reiniciar o worker, como no ticket 01.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/94
