@@ -32,3 +32,7 @@
 2. Testar no app: "Scopus e Ethos, montem o ICP e as Personas da minha empresa" e conferir as falas.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/93
