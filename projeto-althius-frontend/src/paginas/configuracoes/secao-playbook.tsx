@@ -17,6 +17,7 @@ import {
 import { COLUNAS_DO_PLAYBOOK, linhaVazia, type ColunaDoPlaybook } from '@/fonte/regras-playbook'
 import { mensagemDeErro } from '@/lib/utils'
 import { SecaoDeConfiguracoes } from './componentes'
+import { ImportarPlaybook } from './importar-playbook'
 
 const CONTEUDO_VAZIO: ConteudoDoPlaybook = { texto: '', linhas: [] }
 
@@ -26,7 +27,10 @@ const CONTEUDO_VAZIO: ConteudoDoPlaybook = { texto: '', linhas: [] }
  */
 export function SecaoPlaybook() {
   const { pagina } = useParams()
-  if (!ehSecaoDoPlaybook(pagina)) return <Navigate to="/configuracoes/playbook/empresa" replace />
+  const workspace = useDados((f) => f.workspace(), [])
+  const administrador = workspace?.papel === 'administrador'
+  const importando = pagina === IMPORTAR
+  if (!importando && !ehSecaoDoPlaybook(pagina)) return <Navigate to="/configuracoes/playbook/empresa" replace />
 
   return (
     <SecaoDeConfiguracoes
@@ -40,24 +44,54 @@ export function SecaoPlaybook() {
           <ul className="flex flex-col">
             {SECOES_DO_PLAYBOOK.map(({ id, nome }) => (
               <li key={id}>
-                <Link
-                  to={`/configuracoes/playbook/${id}`}
-                  aria-current={id === pagina ? 'page' : undefined}
-                  className={
-                    id === pagina
-                      ? 'block border-l-2 border-al-accent py-1.5 pl-3 text-sm text-al-ink'
-                      : 'block border-l-2 border-transparent py-1.5 pl-3 text-sm text-al-muted hover:text-al-ink'
-                  }
-                >
+                <ItemDoMenu para={id} atual={id === pagina}>
                   {nome}
-                </Link>
+                </ItemDoMenu>
               </li>
             ))}
+            {administrador && (
+              <li className="mt-3 border-t border-al-line pt-3">
+                <ItemDoMenu para={IMPORTAR} atual={importando}>
+                  Importar planilha
+                </ItemDoMenu>
+              </li>
+            )}
           </ul>
         </nav>
-        <SecaoAberta key={pagina} id={pagina} />
+        {importando ? (
+          workspace ? (
+            administrador ? (
+              <ImportarPlaybook />
+            ) : (
+              <p className="text-sm text-al-muted">Só um Administrador importa a planilha do Playbook.</p>
+            )
+          ) : (
+            <Carregando />
+          )
+        ) : (
+          <SecaoAberta key={pagina} id={pagina as IdDaSecaoDoPlaybook} />
+        )}
       </div>
     </SecaoDeConfiguracoes>
+  )
+}
+
+/** A página do menu que importa a planilha do setup, ao lado das seções. */
+const IMPORTAR = 'importar'
+
+function ItemDoMenu({ para, atual, children }: { para: string; atual: boolean; children: string }) {
+  return (
+    <Link
+      to={`/configuracoes/playbook/${para}`}
+      aria-current={atual ? 'page' : undefined}
+      className={
+        atual
+          ? 'block border-l-2 border-al-accent py-1.5 pl-3 text-sm text-al-ink'
+          : 'block border-l-2 border-transparent py-1.5 pl-3 text-sm text-al-muted hover:text-al-ink'
+      }
+    >
+      {children}
+    </Link>
   )
 }
 

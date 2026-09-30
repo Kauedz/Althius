@@ -21,10 +21,10 @@
 
 ## Critérios
 
-- [ ] Prévia antes de gravar; nada é gravado sem confirmação.
-- [ ] Aba desconhecida listada, nunca descartada em silêncio.
-- [ ] Base de Pesquisa vira Contas-alvo pelo fluxo de importação existente e cai em Descoberta (quando o kanban existir).
-- [ ] Teste com uma planilha de exemplo sem dado pessoal, criada no próprio teste.
+- [x] Prévia antes de gravar; nada é gravado sem confirmação.
+- [x] Aba desconhecida listada, nunca descartada em silêncio.
+- [x] Base de Pesquisa vira Contas-alvo pelo fluxo de importação existente e cai em Descoberta (quando o kanban existir).
+- [x] Teste com uma planilha de exemplo sem dado pessoal, criada no próprio teste.
 
 ## Passos do Nan
 
@@ -34,3 +34,7 @@
 2. Importar a planilha real de um cliente e conferir a prévia (dado de cliente: só o Nan faz com a planilha real).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/91
