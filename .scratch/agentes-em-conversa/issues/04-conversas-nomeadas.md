@@ -29,3 +29,7 @@
 1. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/95
