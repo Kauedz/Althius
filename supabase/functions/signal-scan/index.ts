@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from './apify.ts'
+import { autorizadoComoServidor } from './autorizacao.ts'
 import { createHandler, type Db } from './handler.ts'
 
 function required(name: string) {
@@ -14,21 +15,6 @@ const SERVICE_ROLE_KEY = required('SUPABASE_SERVICE_ROLE_KEY')
 const admin = createClient(required('SUPABASE_URL'), SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
-
-const codificar = new TextEncoder()
-
-/** Compara a chave de serviço sem vazar, pelo tempo, quantos caracteres batem: compara os resumos, de mesmo tamanho. */
-async function iguais(a: string, b: string): Promise<boolean> {
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest('SHA-256', codificar.encode(a)),
-    crypto.subtle.digest('SHA-256', codificar.encode(b)),
-  ])
-  const va = new Uint8Array(ha)
-  const vb = new Uint8Array(hb)
-  let diferenca = 0
-  for (let i = 0; i < va.length; i++) diferenca |= va[i] ^ vb[i]
-  return diferenca === 0
-}
 
 const db: Db = {
   async actorForScan(actorId) {
@@ -52,8 +38,8 @@ const db: Db = {
 const handler = createHandler({
   db,
   apify: clienteDoApify({ tokens: tokensDoApify((nome) => Deno.env.get(nome)) }),
-  // A função é chamada só pelo servidor: o cabeçalho Authorization tem que ser a chave de serviço.
-  autorizado: (authorization) => iguais(authorization, `Bearer ${SERVICE_ROLE_KEY}`),
+  // A função é chamada só pelo servidor: a chave de serviço ou um JWT de serviço (o gateway confere a assinatura).
+  autorizado: (authorization) => autorizadoComoServidor(authorization, SERVICE_ROLE_KEY),
 })
 
 Deno.serve(handler)
