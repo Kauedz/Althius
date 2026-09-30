@@ -398,3 +398,180 @@ begin
   end if;
 end
 $cron$;
+
+-- O Executor de Sinais: de tempos em tempos o pg_cron olha se há Monitoramento vencido e, só então, chama a Edge Function
+-- signal-runner pelo pg_net, no mesmo desenho do Executor da Sequência: o token é gerado aqui dentro e guardado só no
+-- banco, a função o confere por uma RPC, e o endereço é o único passo manual (private.configure_signal_runner). Sem
+-- endereço, nada é chamado.
+alter table private.signal_monitors add column last_error text check (last_error is null or length(last_error) <= 500);
+
+create table private.signal_runner_settings (
+  singleton boolean primary key default true check (singleton),
+  function_url text,
+  token text not null default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+  updated_at timestamptz not null default now()
+);
+
+insert into private.signal_runner_settings default values;
+
+alter table private.signal_runner_settings enable row level security;
+revoke all on private.signal_runner_settings from public, anon, authenticated, service_role;
+
+create function public.signal_runner_token_matches(p_token text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from private.signal_runner_settings s
+    where length(coalesce(p_token, '')) >= 32 and s.token = p_token);
+$$;
+
+revoke all on function public.signal_runner_token_matches(text) from public, anon, authenticated;
+grant execute on function public.signal_runner_token_matches(text) to service_role;
+
+create function private.configure_signal_runner(p_project_url text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_url text;
+begin
+  if coalesce(p_project_url, '') !~ '^https://[A-Za-z0-9.-]+(:[0-9]{2,5})?/?$' then
+    raise exception 'project url must look like https://<ref>.supabase.co' using errcode = '22023';
+  end if;
+  v_url := regexp_replace(p_project_url, '/$', '') || '/functions/v1/signal-runner';
+  update private.signal_runner_settings set function_url = v_url, updated_at = now();
+  return v_url;
+end;
+$$;
+
+revoke all on function private.configure_signal_runner(text) from public, anon, authenticated, service_role;
+
+create function private.post_to_signal_runner(p_url text, p_token text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform net.http_post(
+    url := p_url,
+    body := '{}'::jsonb,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-runner-token', p_token),
+    timeout_milliseconds := 5000);
+end;
+$$;
+
+revoke all on function private.post_to_signal_runner(text, text) from public, anon, authenticated, service_role;
+
+-- Há Monitoramento ativo, vencido, sem reserva viva e de um Sinal com actor disponível?
+create function private.signal_monitors_due()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from private.signal_monitors m
+    join private.signal_actors a on a.signal_type = m.signal_type and a.state = 'available'
+    where m.state = 'ativo' and m.next_run_at <= now() and (m.claimed_until is null or m.claimed_until < now()));
+$$;
+
+revoke all on function private.signal_monitors_due() from public, anon, authenticated, service_role;
+
+create function private.kick_signal_runner()
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_settings private.signal_runner_settings;
+begin
+  select s.* into v_settings from private.signal_runner_settings s;
+  if v_settings.function_url is null or not private.signal_monitors_due() then
+    return false;
+  end if;
+  perform private.post_to_signal_runner(v_settings.function_url, v_settings.token);
+  return true;
+end;
+$$;
+
+revoke all on function private.kick_signal_runner() from public, anon, authenticated, service_role;
+
+-- Reivindica até p_limit Monitoramentos vencidos, com uma reserva de 15 minutos, e devolve as Contas do público de
+-- cada um (sem as arquivadas). Só o servidor.
+create function public.claim_due_signal_monitors(p_limit integer default 5)
+returns table (
+  monitor_id uuid, workspace_id uuid, signal_type text, criteria jsonb, created_by uuid, accounts jsonb
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with due as (
+    select m.id from private.signal_monitors m
+    join private.signal_actors a on a.signal_type = m.signal_type and a.state = 'available'
+    where m.state = 'ativo' and m.next_run_at <= now() and (m.claimed_until is null or m.claimed_until < now())
+    order by m.next_run_at, m.id
+    limit least(greatest(coalesce(p_limit, 5), 1), 20)
+    for update of m skip locked
+  ), claimed as (
+    update private.signal_monitors m set claimed_until = now() + interval '15 minutes'
+    from due where m.id = due.id
+    returning m.*
+  )
+  select c.id, c.workspace_id, c.signal_type, c.criteria, c.created_by,
+    coalesce((
+      select jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'domain', t.domain, 'linkedinUrl', t.linkedin_url)
+        order by t.name, t.id)
+      from public.target_accounts t
+      where t.workspace_id = c.workspace_id and t.archived_at is null
+        and t.id::text in (select jsonb_array_elements_text(c.audience -> 'accountIds'))
+    ), '[]'::jsonb)
+  from claimed c;
+end;
+$$;
+
+-- Termina a rodada: agenda a próxima daqui a `every_hours`, libera a reserva e guarda o motivo, se houve falha.
+create function public.finish_signal_monitor_run(p_monitor_id uuid, p_scanned integer, p_error text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update private.signal_monitors set
+    last_run_at = now(),
+    next_run_at = now() + make_interval(hours => every_hours),
+    claimed_until = null,
+    last_error = nullif(left(coalesce(p_error, ''), 500), '')
+  where id = p_monitor_id;
+  if not found then
+    raise exception 'monitor not found' using errcode = 'P0002';
+  end if;
+end;
+$$;
+
+revoke all on function public.claim_due_signal_monitors(integer) from public, anon, authenticated;
+revoke all on function public.finish_signal_monitor_run(uuid, integer, text) from public, anon, authenticated;
+grant execute on function public.claim_due_signal_monitors(integer) to service_role;
+grant execute on function public.finish_signal_monitor_run(uuid, integer, text) to service_role;
+
+do $cron$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron')
+    and (select rolsuper from pg_roles where rolname = current_user) then
+    create extension if not exists pg_cron with schema pg_catalog;
+    perform cron.schedule('althius-signal-runner', '*/10 * * * *', 'select private.kick_signal_runner()');
+  end if;
+end
+$cron$;
