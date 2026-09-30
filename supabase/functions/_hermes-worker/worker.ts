@@ -7,10 +7,17 @@ import {
   type AgenteDoWorkspace,
   agentesMencionados,
   agentesPorId,
+  codigoDoErro,
   type ContaEncontrada,
+  contribuicoesDe,
+  conversarNaPagina,
+  coordenarPedido,
+  ErroDoModelo,
   ESPECIALIDADES,
+  type Executor,
   fecharComFalha,
   historicoDaConversa,
+  INSTRUCAO_DE_DESFECHO,
   registrador,
   type Reserva,
   type RunDb,
@@ -108,10 +115,82 @@ function lerCoordenado(texto: string): Coordenado | null {
   }
 }
 
+const IDENTIDADE =
+  'Você é a inteligência da Althius, uma plataforma de prospecção B2B. Nunca diga o nome do motor que você usa nem ' +
+  'que é um modelo de IA de terceiros: para o usuário, você é a Althius.'
+
+const REGRAS_DO_HERMES =
+  'Regras: responda em português do Brasil, direto. Nunca invente dados, números, nomes ou fatos: use só o que está ' +
+  'aqui ou na conversa, e diga "não sei" quando faltar. Nenhuma Integração está conectada: não envie mensagem, não ' +
+  'grave nada fora da Althius, não use terminal nem arquivos do computador. Se o pedido exigir isso, diga o que faria.'
+
+function contasDoWorkspace(contas: ContaEncontrada[]): string {
+  return contas.length
+    ? `Contas-alvo ativas do Workspace (até 10, as mais recentes):\n${JSON.stringify(contas)}`
+    : 'O Workspace ainda não tem Contas-alvo ativas.'
+}
+
+/** As instruções de um Agente na sua vez: quem ele é, o que sabe do Workspace e como termina a resposta. */
+export function instrucoesDoAgente(reserva: Reserva, agente: AgenteDoWorkspace, contas: ContaEncontrada[]): string {
+  return [
+    IDENTIDADE,
+    `Você é ${agente.name}, um Agente da Althius no Workspace "${reserva.workspace_name}".`,
+    ESPECIALIDADES[agente.specialty] ?? '',
+    agente.instructions ? `Instruções do Workspace para você: ${agente.instructions}` : '',
+    agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
+    contasDoWorkspace(contas),
+    REGRAS_DO_HERMES,
+    INSTRUCAO_DE_DESFECHO,
+  ].filter(Boolean).join('\n\n')
+}
+
+/** As instruções da Coordenação para escolher quem trabalha: uma lista de ids em JSON, sem agir ela mesma. */
+export function instrucoesDaEscolha(reserva: Reserva): string {
+  const lista = reserva.agents
+    .map((agente) => `- ${agente.id}: ${agente.name} (${ESPECIALIDADES[agente.specialty] ?? agente.specialty})`)
+    .join('\n')
+  return [
+    IDENTIDADE,
+    'Você coordena: não faz o trabalho, só escolhe quais Agentes trabalham no pedido. Todo pedido sobre dados do ' +
+    'Workspace (Contas-alvo, empresas, prospecção) ou sobre ICP, Personas, textos e presença da marca precisa de pelo ' +
+    'menos um Agente: na dúvida, chame o Scopus. Escolha até 3 Agentes pelo id. Só se o pedido for uma saudação ou uma ' +
+    'dúvida sobre como usar a Althius, não chame ninguém e escreva resposta_direta.',
+    `Agentes do Workspace "${reserva.workspace_name}":\n${lista}`,
+    'Responda SÓ com um objeto JSON, sem texto fora dele: {"agentes": ["<id>", ...], "resposta_direta": "<vazio, ou a ' +
+    'resposta quando ninguém for chamado>"}.',
+    REGRAS_DO_HERMES,
+  ].join('\n\n')
+}
+
+const INSTRUCOES_DA_SINTESE = [
+  IDENTIDADE,
+  'Você coordena: junte o que os Agentes responderam numa resposta única ao pedido, sem acrescentar fato que eles ' +
+  'não trouxeram e dizendo de qual Agente veio cada parte quando isso ajudar.',
+  REGRAS_DO_HERMES,
+].join('\n\n')
+
+function lerEscolha(saida: string): { agentes: string[]; resposta_direta: string } {
+  const candidatos = [saida, /\{[\s\S]*\}/.exec(saida)?.[0] ?? '']
+  for (const candidato of candidatos) {
+    try {
+      const dado = JSON.parse(candidato)
+      if (Array.isArray(dado?.agentes) && typeof dado?.resposta_direta === 'string') {
+        return { agentes: dado.agentes.filter((id: unknown): id is string => typeof id === 'string'), resposta_direta: dado.resposta_direta }
+      }
+    } catch { /* tenta o próximo candidato */ }
+  }
+  throw new ErroDoModelo('model_invalid_output')
+}
+
 export interface WorkerDeps {
   db: FilaDb
   hermes: Hermes
   log?: (fields: Record<string, unknown>) => void
+  /**
+   * Cada Agente vira uma chamada separada ao Hermes, na sua vez e em rodadas (agentes-em-conversa, ticket 02). Sem isso,
+   * o worker faz uma chamada só, que devolve as etapas de todos os Agentes juntas (o primeiro modo do motor Hermes).
+   */
+  porAgente?: boolean
 }
 
 export function createWorker(deps: WorkerDeps) {
@@ -170,6 +249,81 @@ export function createWorker(deps: WorkerDeps) {
     }
   }
 
+  /** Uma chamada ao Hermes, do pedido ao texto limpo; toda falha vira o motivo gravado na Execução. */
+  async function passo(chave: string, corpo: CorpoDoRun): Promise<string> {
+    let fim: FimDoHermes
+    try {
+      fim = await hermes.aguardar(await hermes.iniciar(corpo, chave))
+    } catch (error) {
+      throw new ErroDoModelo('hermes_unreachable', String(error))
+    }
+    if (fim.status !== 'completed') {
+      throw new ErroDoModelo(fim.status === 'timeout' ? 'timeout' : 'hermes_failed', fim.error)
+    }
+    const saida = limparSaida(fim.output)
+    if (!saida) throw new ErroDoModelo('model_empty')
+    return saida
+  }
+
+  /** O Hermes como motor de cada passo: escolher, trabalhar na vez de cada Agente e juntar. */
+  function executorDoHermes(reserva: Reserva, contas: ContaEncontrada[]): Executor {
+    const runId = reserva.run_id
+    const historico = historicoDaConversa(reserva)
+    return {
+      async escolher() {
+        return lerEscolha(
+          await passo(`althius-${runId}-escolha`, {
+            input: reserva.request_text,
+            instructions: instrucoesDaEscolha(reserva),
+            conversation_history: historico,
+          }),
+        )
+      },
+      async trabalhar(agente, falas, rodada) {
+        const anteriores = contribuicoesDe(falas)
+        const input = anteriores.length
+          ? `${reserva.request_text}\n\nO que outros Agentes já responderam neste pedido:\n${anteriores.join('\n\n')}`
+          : reserva.request_text
+        return {
+          texto: await passo(`althius-${runId}-${agente.id}-r${rodada}`, {
+            input,
+            instructions: instrucoesDoAgente(reserva, agente, contas),
+            conversation_history: historico,
+          }),
+        }
+      },
+      async sintetizar(falas) {
+        return {
+          texto: await passo(`althius-${runId}-sintese`, {
+            input: `Pedido: ${reserva.request_text}\n\nRespostas dos Agentes:\n${contribuicoesDe(falas).join('\n\n')}`,
+            instructions: INSTRUCOES_DA_SINTESE,
+            conversation_history: [],
+          }),
+        }
+      },
+    }
+  }
+
+  /** Cada Agente com a própria vez: uma chamada ao Hermes por passo, com a ordem e os eventos do módulo compartilhado. */
+  async function processarPorAgente(reserva: Reserva) {
+    const runId = reserva.run_id
+    let contas: ContaEncontrada[] = []
+    try {
+      contas = await db.searchAccounts(runId, '')
+    } catch (error) {
+      log({ type: 'hermes_worker', runId, outcome: 'accounts_failed', message: String(error) })
+    }
+    try {
+      const executor = executorDoHermes(reserva, contas)
+      if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })
+      else await coordenarPedido({ reserva, db, executor })
+      await db.finish(runId, 'succeeded', null, 'hermes')
+      log({ type: 'hermes_worker', runId, kind: reserva.kind, outcome: 'succeeded', porAgente: true })
+    } catch (error) {
+      await falhar(runId, codigoDoErro(error), String(error))
+    }
+  }
+
   /**
    * Uma volta: se o Hermes está de pé, reserva e roda os pedidos da fila, um por vez. Devolve quantos rodou, ou null
    * quando o Hermes não respondeu (os pedidos ficam na fila, sem reserva).
@@ -180,7 +334,7 @@ export function createWorker(deps: WorkerDeps) {
     for (const runId of await db.listQueued(limite)) {
       const reserva = await db.claim(runId)
       if (!reserva) continue
-      await processar(reserva)
+      await (deps.porAgente ? processarPorAgente(reserva) : processar(reserva))
       feitos++
     }
     return feitos

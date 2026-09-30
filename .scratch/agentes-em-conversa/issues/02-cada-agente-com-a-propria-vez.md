@@ -19,10 +19,10 @@
 
 ## Critérios
 
-- [ ] No máximo 3 rodadas; cada Agente vê as falas anteriores da rodada e das rodadas anteriores.
-- [ ] Um Agente que precisa de informação encerra a rodada com a pergunta ao usuário.
-- [ ] Teste que recusa etapa sem conteúdo ("fui acionado", "conversaram sobre") como falha `model_empty`.
-- [ ] O consumo de cada chamada (tokens) fica no evento, para os créditos.
+- [x] No máximo 3 rodadas; cada Agente vê as falas anteriores da rodada e das rodadas anteriores.
+- [x] Um Agente que precisa de informação encerra a rodada com a pergunta ao usuário.
+- [x] Teste que recusa etapa sem conteúdo ("fui acionado", "conversaram sobre") como falha `model_empty`.
+- [x] O consumo de cada chamada (tokens) fica no evento, para os créditos.
 
 ## Passos do Nan
 
@@ -32,3 +32,7 @@
 2. Testar no app: "Scopus e Ethos, montem o ICP e as Personas da minha empresa" e conferir as falas.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/93

@@ -6,18 +6,23 @@
 import type Anthropic from 'npm:@anthropic-ai/sdk@0.128.0'
 import {
   type AgenteDoWorkspace,
-  chamadosDaCoordenacao,
   codigoDoErro,
   type ContaEncontrada,
+  contribuicoesDe,
+  conversarNaPagina,
+  coordenarPedido,
   ErroDoModelo,
   ESPECIALIDADES,
+  type Executor,
   fecharComFalha,
   historicoDaConversa,
-  participantesDaConversa,
-  registrador,
+  INSTRUCAO_DE_DESFECHO,
   type Reserva,
+  type ResultadoDoAgente,
   type RunDb,
   type TipoDeEvento,
+  somarUso,
+  type UsoDeTokens,
 } from '../_shared/orquestracao.ts'
 
 // O contrato com o banco e as falhas do modelo moram no módulo compartilhado; quem já importava daqui continua igual.
@@ -72,11 +77,19 @@ function systemDoAgente(agente: AgenteDoWorkspace, workspace: string): string {
     agente.instructions ? `Instruções do Workspace para você:\n${agente.instructions}` : '',
     agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
     REGRAS,
+    INSTRUCAO_DE_DESFECHO,
   ].filter(Boolean).join('\n\n')
 }
 
 function textoDe(resposta: Anthropic.Beta.Messages.BetaMessage): string {
   return resposta.content.flatMap((bloco) => (bloco.type === 'text' ? [bloco.text] : [])).join('\n').trim()
+}
+
+/** O que a chamada gastou, quando o motor informa (a Messages API informa; os testes e alguns motores não). */
+function usoDe(resposta: Anthropic.Beta.Messages.BetaMessage): UsoDeTokens | undefined {
+  const uso = resposta.usage as { input_tokens?: number; output_tokens?: number } | undefined
+  if (typeof uso?.input_tokens !== 'number' || typeof uso?.output_tokens !== 'number') return undefined
+  return { entrada: uso.input_tokens, saida: uso.output_tokens }
 }
 
 /** A resposta só serve se o modelo terminou: recusa e corte por tamanho são falhas, não respostas. */
@@ -96,7 +109,11 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   const { db, modelo } = deps
 
   /** Um Agente trabalha no pedido, com a consulta de Contas-alvo, e devolve o texto final dele. */
-  async function trabalhar(reserva: Reserva, agente: AgenteDoWorkspace, contribuicoes: string[]): Promise<string> {
+  async function trabalhar(
+    reserva: Reserva,
+    agente: AgenteDoWorkspace,
+    contribuicoes: string[],
+  ): Promise<ResultadoDoAgente> {
     const pedido = contribuicoes.length
       ? `${reserva.request_text}\n\nO que outros Agentes já responderam neste pedido:\n${contribuicoes.join('\n\n')}`
       : reserva.request_text
@@ -104,6 +121,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       role: 'user',
       content: pedido,
     }]
+    let uso: UsoDeTokens | undefined
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
       const resposta = await modelo.criar({
         max_tokens: MAX_TOKENS,
@@ -113,11 +131,12 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
         output_config: { effort: 'medium' },
       })
       conferirParada(resposta)
+      uso = somarUso(uso, usoDe(resposta))
       const chamadas = resposta.content.filter((bloco) => bloco.type === 'tool_use')
       if (resposta.stop_reason !== 'tool_use' || chamadas.length === 0) {
         const texto = textoDe(resposta)
         if (!texto) throw new ErroDoModelo('model_empty')
-        return texto
+        return { texto, uso }
       }
       mensagens.push({ role: 'assistant', content: resposta.content })
       const resultados: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = []
@@ -170,19 +189,10 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     throw new ErroDoModelo('tool_loop_limit')
   }
 
-  /** A Conversa na página de um Agente: ele responde, e cada @mencionado entra em seguida. */
-  async function conversar(reserva: Reserva) {
-    const registro = registrador(db, reserva.run_id)
-    const contribuicoes: string[] = []
-    for (const agente of participantesDaConversa(reserva)) {
-      const texto = await trabalhar(reserva, agente, contribuicoes)
-      await registro.texto(agente.id, texto)
-      contribuicoes.push(`${agente.name}: ${texto}`)
-    }
-  }
-
   /** A Coordenação escolhe os Agentes do pedido, sempre com os @mencionados, sem agir ela mesma. */
-  async function escolher(reserva: Reserva): Promise<{ agentes: string[]; resposta_direta: string }> {
+  async function escolher(
+    reserva: Reserva,
+  ): Promise<{ agentes: string[]; resposta_direta: string; uso?: UsoDeTokens }> {
     const lista = reserva.agents
       .map((agente) => `- ${agente.id}: ${agente.name} (${ESPECIALIDADES[agente.specialty] ?? agente.specialty})`)
       .join('\n')
@@ -220,29 +230,14 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     try {
       const escolha = JSON.parse(textoDe(resposta))
       if (!Array.isArray(escolha?.agentes) || typeof escolha?.resposta_direta !== 'string') throw new Error()
-      return escolha
+      return { ...escolha, uso: usoDe(resposta) }
     } catch {
       throw new ErroDoModelo('model_invalid_output')
     }
   }
 
-  async function coordenar(reserva: Reserva) {
-    const registro = registrador(db, reserva.run_id)
-    const escolha = await escolher(reserva)
-    const chamados = chamadosDaCoordenacao(reserva, escolha.agentes)
-    if (chamados.length === 0) {
-      const direta = escolha.resposta_direta.trim()
-      if (!direta) throw new ErroDoModelo('model_empty')
-      await registro.resposta(direta)
-      return
-    }
-    const contribuicoes: string[] = []
-    for (const agente of chamados) {
-      await registro.chamada(agente.id)
-      const texto = await trabalhar(reserva, agente, contribuicoes)
-      await registro.feito(agente.id, texto)
-      contribuicoes.push(`${agente.name}: ${texto}`)
-    }
+  /** Juntar o que os Agentes disseram numa resposta só, sem acrescentar fato que eles não trouxeram. */
+  async function sintetizar(reserva: Reserva, contribuicoes: string[]): Promise<{ texto: string; uso?: UsoDeTokens }> {
     const final = await modelo.criar({
       max_tokens: MAX_TOKENS,
       system: [
@@ -257,9 +252,16 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       output_config: { effort: 'low' },
     })
     conferirParada(final)
-    const texto = textoDe(final)
-    if (!texto) throw new ErroDoModelo('model_empty')
-    await registro.resposta(texto)
+    return { texto: textoDe(final), uso: usoDe(final) }
+  }
+
+  /** O que muda no motor da ponte: as chamadas à Messages API. A ordem e os eventos são de _shared/orquestracao.ts. */
+  function executorDe(reserva: Reserva): Executor {
+    return {
+      escolher: () => escolher(reserva),
+      trabalhar: (agente, falas) => trabalhar(reserva, agente, contribuicoesDe(falas)),
+      sintetizar: (falas) => sintetizar(reserva, contribuicoesDe(falas)),
+    }
   }
 
   return async (runId) => {
@@ -269,8 +271,9 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       return
     }
     try {
-      if (reserva.kind === 'agente') await conversar(reserva)
-      else await coordenar(reserva)
+      const executor = executorDe(reserva)
+      if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })
+      else await coordenarPedido({ reserva, db, executor })
       await db.finish(runId, 'succeeded', null, modelo.nome)
       log({ type: 'agent_run', runId, kind: reserva.kind, outcome: 'succeeded' })
     } catch (error) {
