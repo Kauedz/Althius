@@ -34,3 +34,7 @@
 2. Importar a planilha real de um cliente e conferir a prévia (dado de cliente: só o Nan faz com a planilha real).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/91
