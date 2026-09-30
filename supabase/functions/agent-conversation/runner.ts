@@ -4,45 +4,25 @@
 // falha, com o motivo, sem resposta inventada. Banco e modelo entram por injeção de dependência, para o teste rodar sem
 // rede.
 import type Anthropic from 'npm:@anthropic-ai/sdk@0.128.0'
+import {
+  type AgenteDoWorkspace,
+  chamadosDaCoordenacao,
+  codigoDoErro,
+  type ContaEncontrada,
+  ErroDoModelo,
+  ESPECIALIDADES,
+  fecharComFalha,
+  historicoDaConversa,
+  participantesDaConversa,
+  registrador,
+  type Reserva,
+  type RunDb,
+  type TipoDeEvento,
+} from '../_shared/orquestracao.ts'
 
-export interface AgenteDoWorkspace {
-  id: string
-  name: string
-  specialty: string
-  kind: string
-  instructions: string
-  voice_tone: string
-}
-
-/** O que claim_agent_run devolve: só o que o modelo precisa saber. */
-export interface Reserva {
-  run_id: string
-  kind: 'agente' | 'coordenada'
-  workspace_name: string
-  request_text: string
-  agent_id: string | null
-  mentions: string[]
-  agents: AgenteDoWorkspace[]
-  history: { request: string; answer: string | null }[]
-}
-
-export type TipoDeEvento = 'chamada' | 'ferramenta' | 'feito' | 'texto' | 'resposta' | 'falha'
-
-export interface ContaEncontrada {
-  name: string
-  domain: string
-  segment: string | null
-  origin: string
-  last_interaction_at: string | null
-}
-
-export interface RunDb {
-  /** claim_agent_run: a reserva, ou null quando a Execução não está na fila (já rodou, ou quem pediu saiu). */
-  claim(runId: string): Promise<Reserva | null>
-  append(runId: string, kind: TipoDeEvento, agentId: string | null, payload: Record<string, unknown>): Promise<number>
-  finish(runId: string, status: 'succeeded' | 'failed', errorCode: string | null, model: string | null): Promise<void>
-  searchAccounts(runId: string, termo: string): Promise<ContaEncontrada[]>
-}
+// O contrato com o banco e as falhas do modelo moram no módulo compartilhado; quem já importava daqui continua igual.
+export { ErroDoModelo }
+export type { AgenteDoWorkspace, ContaEncontrada, Reserva, RunDb, TipoDeEvento }
 
 export interface Modelo {
   /** O id do modelo, gravado na Execução. */
@@ -53,33 +33,15 @@ export interface Modelo {
   ): Promise<Anthropic.Beta.Messages.BetaMessage>
 }
 
-/** Uma falha que vira o motivo gravado na Execução (`error_code`). */
-export class ErroDoModelo extends Error {
-  /** `detalhe` vai só para o log da função (ex.: o motivo que o provedor mandou), nunca para a tela. */
-  constructor(readonly codigo: string, readonly detalhe = '') {
-    super(detalhe ? `${codigo}: ${detalhe}` : codigo)
-    this.name = 'ErroDoModelo'
-  }
-}
-
 export interface RunnerDeps {
   db: RunDb
   modelo: Modelo
   log?: (fields: Record<string, unknown>) => void
 }
 
-const ESPECIALIDADES: Record<string, string> = {
-  scopus: 'Especialista em ICP: define o ICP a partir dos melhores clientes e dá nota de aderência a cada Conta-alvo.',
-  ethos: 'Especialista em Persona: descreve dores, objeções e gatilhos de cada papel do Comitê de compra.',
-  rhetor: 'Especialista em escrita persuasiva: escreve e-mails, sequências, posts e copy no tom da marca.',
-  oraculum: 'Especialista em GEO: mede como a marca aparece nos assistentes de IA e recomenda o que publicar.',
-}
-
 const MAX_TOKENS = 16000
 /** Rodadas de ferramenta por Agente num pedido. */
 const MAX_RODADAS = 4
-/** Agentes chamados pela Coordenação num pedido, contando os @mencionados. */
-const MAX_CHAMADOS = 4
 
 const BUSCAR_CONTAS: Anthropic.Beta.Messages.BetaTool = {
   name: 'buscar_contas_alvo',
@@ -113,14 +75,6 @@ function systemDoAgente(agente: AgenteDoWorkspace, workspace: string): string {
   ].filter(Boolean).join('\n\n')
 }
 
-function historico(reserva: Reserva): Anthropic.Beta.Messages.BetaMessageParam[] {
-  return reserva.history.flatMap((troca): Anthropic.Beta.Messages.BetaMessageParam[] =>
-    troca.answer
-      ? [{ role: 'user', content: troca.request }, { role: 'assistant', content: troca.answer }]
-      : [{ role: 'user', content: troca.request }]
-  )
-}
-
 function textoDe(resposta: Anthropic.Beta.Messages.BetaMessage): string {
   return resposta.content.flatMap((bloco) => (bloco.type === 'text' ? [bloco.text] : [])).join('\n').trim()
 }
@@ -146,7 +100,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     const pedido = contribuicoes.length
       ? `${reserva.request_text}\n\nO que outros Agentes já responderam neste pedido:\n${contribuicoes.join('\n\n')}`
       : reserva.request_text
-    const mensagens: Anthropic.Beta.Messages.BetaMessageParam[] = [...historico(reserva), {
+    const mensagens: Anthropic.Beta.Messages.BetaMessageParam[] = [...historicoDaConversa(reserva), {
       role: 'user',
       content: pedido,
     }]
@@ -218,17 +172,11 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
 
   /** A Conversa na página de um Agente: ele responde, e cada @mencionado entra em seguida. */
   async function conversar(reserva: Reserva) {
-    const porId = new Map(reserva.agents.map((agente) => [agente.id, agente]))
-    const anfitriao = reserva.agent_id ? porId.get(reserva.agent_id) : undefined
-    if (!anfitriao) throw new ErroDoModelo('agent_not_found')
-    const participantes = [
-      anfitriao,
-      ...reserva.mentions.filter((id) => id !== anfitriao.id).flatMap((id) => porId.get(id) ?? []),
-    ]
+    const registro = registrador(db, reserva.run_id)
     const contribuicoes: string[] = []
-    for (const agente of participantes) {
+    for (const agente of participantesDaConversa(reserva)) {
       const texto = await trabalhar(reserva, agente, contribuicoes)
-      await db.append(reserva.run_id, 'texto', agente.id, { texto })
+      await registro.texto(agente.id, texto)
       contribuicoes.push(`${agente.name}: ${texto}`)
     }
   }
@@ -251,7 +199,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
         `Agentes do Workspace "${reserva.workspace_name}":\n${lista}`,
         'Responda em português do Brasil. Nunca invente dados.',
       ].join('\n\n'),
-      messages: [...historico(reserva), { role: 'user', content: reserva.request_text }],
+      messages: [...historicoDaConversa(reserva), { role: 'user', content: reserva.request_text }],
       output_config: {
         effort: 'low',
         format: {
@@ -279,21 +227,20 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   }
 
   async function coordenar(reserva: Reserva) {
-    const porId = new Map(reserva.agents.map((agente) => [agente.id, agente]))
+    const registro = registrador(db, reserva.run_id)
     const escolha = await escolher(reserva)
-    const ids = [...new Set([...reserva.mentions, ...escolha.agentes.slice(0, 3)])].filter((id) => porId.has(id))
-    const chamados = ids.slice(0, MAX_CHAMADOS).map((id) => porId.get(id)!)
+    const chamados = chamadosDaCoordenacao(reserva, escolha.agentes)
     if (chamados.length === 0) {
       const direta = escolha.resposta_direta.trim()
       if (!direta) throw new ErroDoModelo('model_empty')
-      await db.append(reserva.run_id, 'resposta', null, { texto: direta })
+      await registro.resposta(direta)
       return
     }
     const contribuicoes: string[] = []
     for (const agente of chamados) {
-      await db.append(reserva.run_id, 'chamada', agente.id, {})
+      await registro.chamada(agente.id)
       const texto = await trabalhar(reserva, agente, contribuicoes)
-      await db.append(reserva.run_id, 'feito', agente.id, { texto })
+      await registro.feito(agente.id, texto)
       contribuicoes.push(`${agente.name}: ${texto}`)
     }
     const final = await modelo.criar({
@@ -312,7 +259,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     conferirParada(final)
     const texto = textoDe(final)
     if (!texto) throw new ErroDoModelo('model_empty')
-    await db.append(reserva.run_id, 'resposta', null, { texto })
+    await registro.resposta(texto)
   }
 
   return async (runId) => {
@@ -327,7 +274,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       await db.finish(runId, 'succeeded', null, modelo.nome)
       log({ type: 'agent_run', runId, kind: reserva.kind, outcome: 'succeeded' })
     } catch (error) {
-      const codigo = error instanceof ErroDoModelo ? error.codigo : 'internal_error'
+      const codigo = codigoDoErro(error)
       log({
         type: 'agent_run',
         runId,
@@ -336,12 +283,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
         errorCode: codigo,
         message: String(error),
       })
-      try {
-        await db.finish(runId, 'failed', codigo, modelo.nome)
-      } catch (erroAoFechar) {
-        // A Execução já fechou (o prazo venceu) ou o banco caiu: a leitura seguinte a fecha como timeout.
-        log({ type: 'agent_run', runId, outcome: 'finish_failed', message: String(erroAoFechar) })
-      }
+      await fecharComFalha({ db, runId, codigo, modelo: modelo.nome, log, tipoDoLog: 'agent_run' })
     }
   }
 }

@@ -20,8 +20,8 @@
 
 ## Critérios
 
-- [ ] Os testes atuais da ponte e do worker continuam passando sem alteração.
-- [ ] O módulo recebe o modelo por injeção e não sabe qual motor está rodando.
+- [x] Os testes atuais da ponte e do worker continuam passando sem alteração.
+- [x] O módulo recebe o modelo por injeção e não sabe qual motor está rodando.
 
 ## Passos do Nan
 
@@ -31,3 +31,7 @@
 2. Reiniciar o worker do Hermes no computador (ou na VPS) com o comando do README do worker.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/92
