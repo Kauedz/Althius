@@ -6,6 +6,7 @@ import { Pagina } from '@/components/pagina'
 import type { ModuloDoWorkspace } from '@/fonte/ambiente'
 import { useAmbiente } from '@/fonte/contexto'
 import { SecaoAjuda } from './secao-ajuda'
+import { SecaoAutomacao } from './secao-automacao'
 import { SecaoMemoria, SecaoMemoriaDoWorkspaceOperacional } from './secao-memoria'
 import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
 import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
@@ -44,6 +45,8 @@ const SECOES: Record<
   },
   // O Playbook tem backend (playbook-do-workspace): a mesma seção serve à Demonstração e ao Workspace operacional.
   playbook: { rotulo: 'Playbook', Componente: SecaoPlaybook, NoWorkspaceOperacional: SecaoPlaybook, comPaginas: true },
+  // O automático e os tetos têm backend (creditos-e-planos 03): a mesma seção serve aos dois ambientes.
+  automacao: { rotulo: 'Automação e tetos', Componente: SecaoAutomacao, NoWorkspaceOperacional: SecaoAutomacao },
   plano: { rotulo: 'Plano', Componente: SecaoPlano, NoWorkspaceOperacional: SecaoPlanoDoWorkspaceOperacional },
   ajuda: { rotulo: 'Ajuda e informações', Componente: SecaoAjuda, comPaginas: true, informativa: true },
 }

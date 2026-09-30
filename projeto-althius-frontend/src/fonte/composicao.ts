@@ -7,6 +7,7 @@ import {
   criarFonteDeOnboardingIndisponivel,
   criarFonteDeSinaisIndisponivel,
 } from './indisponivel'
+import { criarFonteDeAutomacaoSimulada } from './simulada-automacao'
 import { criarFonteDoPlaybookSimulada } from './simulada-playbook'
 import { criarFonteSimulada } from './simulada'
 import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
@@ -21,6 +22,7 @@ import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
 import { criarFonteDeConversasSupabase } from './supabase-conversas'
 import { criarFonteDeParticipantesSupabase } from './supabase-participantes'
+import { criarFonteDeAutomacaoSupabase } from './supabase-automacao'
 import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
@@ -32,9 +34,10 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
   const fonteDeSinais = criarFonteDeSinaisSimulada({ fonteDeContas })
   fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
   fonteDeSinais.vincularFonteDeContas(fonteDeContas)
+  const fonte = criarFonteSimulada({ armazenamento })
   return {
     modo: 'demonstracao',
-    fonte: criarFonteSimulada({ armazenamento }),
+    fonte,
     fonteDeContas,
     fonteDeSequencias,
     fonteDeOnboarding: criarFonteDeOnboardingSimulada({ armazenamento }),
@@ -42,6 +45,7 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDeConexoes: criarFonteDeConexoesSimulada({ armazenamento }),
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
+    fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
     indisponiveis: new Set(),
   }
 }
@@ -102,6 +106,7 @@ export function criarAmbienteDoWorkspace({
       const { participantes: quem } = await participantes.participantesDoWorkspace()
       return new Map(quem.map(({ conta }) => [conta.id, conta.nome]))
     }),
+    fonteDeAutomacao: criarFonteDeAutomacaoSupabase(cliente, () => participacao.workspaceId),
     indisponiveis,
   }
 }

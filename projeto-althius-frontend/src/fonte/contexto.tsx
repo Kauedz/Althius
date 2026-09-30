@@ -3,6 +3,7 @@ import type { Ambiente, ModoDoAmbiente, ModuloDoWorkspace } from './ambiente'
 import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeOnboarding } from './onboarding-tipos'
+import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
@@ -120,6 +121,18 @@ export function FonteDeContasRemetentesProvider({
 export function useFonteDeContasRemetentes(): FonteDeContasRemetentes {
   const fonte = useContext(ContextoDaFonteDeContasRemetentes)
   if (!fonte) throw new Error('useFonteDeContasRemetentes precisa de um FonteDeContasRemetentesProvider')
+  return fonte
+}
+
+const ContextoDaFonteDeAutomacao = createContext<FonteDeAutomacao | null>(null)
+
+export function FonteDeAutomacaoProvider({ fonte, children }: { fonte: FonteDeAutomacao; children: ReactNode }) {
+  return <ContextoDaFonteDeAutomacao.Provider value={fonte}>{children}</ContextoDaFonteDeAutomacao.Provider>
+}
+
+export function useFonteDeAutomacao(): FonteDeAutomacao {
+  const fonte = useContext(ContextoDaFonteDeAutomacao)
+  if (!fonte) throw new Error('useFonteDeAutomacao precisa de um FonteDeAutomacaoProvider')
   return fonte
 }
 
