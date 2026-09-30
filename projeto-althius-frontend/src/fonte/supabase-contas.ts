@@ -24,6 +24,7 @@ import type {
   ResultadoDoArquivamentoDaConta,
   TipoDeInteracao,
 } from './contas-tipos'
+import { eEstagioDeProspeccao, type EstagioDeProspeccao } from './estagios-de-prospeccao'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { criarFonteDeImportacaoSupabase } from './supabase-importacao'
 
@@ -91,6 +92,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const naoEncontrada = () => new Error('Conta-alvo não encontrada.')
 
 function converterErro(error: { message: string; code?: string }): Error {
+  // O kanban de prospecção (kanban 03): as recusas de move_prospecting_stage.
+  if (error.message.includes('only the responsible seller can move')) {
+    return new Error('Só o Vendedor responsável pode mover esta Conta no kanban.')
+  }
+  if (error.message.includes('only sending to the CRM sets this stage')) {
+    return new Error('Só o envio ao CRM leva a Conta para No CRM.')
+  }
+  if (error.message.includes('unknown prospecting stage')) return new Error('Estágio de prospecção desconhecido.')
   // Arquivar e apagar (CRM-18): as recusas do banco, antes das regras gerais do Contato.
   if (error.code === '42501' && error.message.includes('only administrators can permanently delete')) {
     return new Error('Só um Administrador pode apagar definitivamente.')
@@ -365,6 +374,19 @@ export function criarFonteDeContasSupabase(
     return encontrado
   }
 
+  /**
+   * O Estágio de prospecção de cada Conta do Workspace. É um enfeite da lista: se a leitura falhar, as Contas
+   * aparecem sem estágio (Descoberta no kanban) em vez de a lista falhar.
+   */
+  async function estagiosDoWorkspace(): Promise<Map<string, EstagioDeProspeccao>> {
+    const { data, error } = await cliente.rpc('list_prospecting_stages', { p_workspace_id: workspace() })
+    if (error) return new Map()
+    const linhas = (data ?? []) as { target_account_id: string; stage: string }[]
+    return new Map(
+      linhas.filter((l) => eEstagioDeProspeccao(l.stage)).map((l) => [l.target_account_id, l.stage as EstagioDeProspeccao]),
+    )
+  }
+
   async function rpc(nome: string, parametros: Record<string, unknown>) {
     const { data, error } = await cliente.rpc(nome, parametros)
     if (error) throw converterErro(error)
@@ -387,12 +409,22 @@ export function criarFonteDeContasSupabase(
       const { data, error } = await cliente.from('target_accounts').select(COLUNAS_DA_CONTA)
         .eq('workspace_id', workspace()).is('archived_at', null).order('name', { ascending: true })
       if (error) throw converterErro(error)
-      const donos = await responsaveis()
+      const [donos, estagios] = await Promise.all([responsaveis(), estagiosDoWorkspace()])
       const porConta = new Map<string, Contato[]>()
       for (const c of await contatos()) porConta.set(c.contaId, [...(porConta.get(c.contaId) ?? []), c])
-      return ((data ?? []) as RegistroConta[]).map((linha) =>
-        mapearConta(linha, donos.get(linha.id), obterUsuarioId(), porConta.get(linha.id), obterEhAdministrador()),
-      )
+      return ((data ?? []) as RegistroConta[]).map((linha) => {
+        const conta = mapearConta(linha, donos.get(linha.id), obterUsuarioId(), porConta.get(linha.id), obterEhAdministrador())
+        const estagio = estagios.get(linha.id)
+        return estagio ? { ...conta, estagio } : conta
+      })
+    },
+
+    async moverEstagio(contaId, estagio) {
+      await rpc('move_prospecting_stage', {
+        p_workspace_id: workspace(),
+        p_target_account_id: contaId,
+        p_stage: estagio,
+      })
     },
 
     async contasArquivadas() {

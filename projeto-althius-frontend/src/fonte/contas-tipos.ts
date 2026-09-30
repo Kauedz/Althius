@@ -1,4 +1,5 @@
 import type { CanaisDoContato, EmailDoContato, TelefoneDoContato } from './canais-do-contato'
+import type { EstagioDeProspeccao } from './estagios-de-prospeccao'
 import type { FonteDeImportacaoDeContas } from './importacao-tipos'
 import type { FonteObservavel } from './tipos'
 
@@ -100,6 +101,8 @@ export interface ContaAlvo {
   podeArquivar?: boolean
   /** Quem está na sessão pode apagar a Conta definitivamente (só o Administrador). */
   podeApagar?: boolean
+  /** O Estágio de prospecção, a coluna do kanban. Sem valor, a fonte não informa (e a Conta fica em Descoberta). */
+  estagio?: EstagioDeProspeccao
 }
 
 /** O cadastro manual de uma Conta-alvo. A URL da empresa identifica a Conta existente, que é atualizada. */
@@ -250,6 +253,12 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Lista todas as Contas-alvo com suas projeções de sinais e Aderência. */
   contas(): Promise<ContaAlvo[]>
+
+  /**
+   * Move a Conta para outro Estágio de prospecção, à mão. Só o Vendedor responsável move; a recusa vem em palavras do
+   * produto. Sem este método, a fonte não oferece o kanban.
+   */
+  moverEstagio?(contaId: string, estagio: EstagioDeProspeccao): Promise<void>
 
   /**
    * Cadastra uma Conta-alvo, sob a responsabilidade de quem a cria, ou atualiza a que tem a mesma URL da empresa.

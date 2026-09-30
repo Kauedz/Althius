@@ -14,6 +14,7 @@ import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn, normalizarParaBusca } from '@/lib/utils'
 import { BOTAO_DO_CABECALHO, ContasArquivadas } from './arquivar-e-apagar'
 import { DetalheConta } from './detalhe-conta'
+import { KanbanDeContas } from './kanban-de-contas'
 import {
   AbasDoModulo,
   AvatarDoContato,
@@ -241,6 +242,8 @@ function ListaContas() {
   const estadoDoLink = useEstadoParaODetalhe('Contas')
   const [cadastrando, setCadastrando] = useState(false)
   const [verArquivadas, setVerArquivadas] = useState(false)
+  // A vista Kanban (kanban 03) vive no parâmetro `vista` do endereço, como o recorte; sem `moverEstagio`, só a tabela.
+  const kanban = !!fonte.moverEstagio && recorte.parametros.get('vista') === 'kanban'
 
   // As Contas arquivadas ficam fora da lista e da busca padrão (CRM-18): esta visão as mostra, para restaurar ou apagar.
   if (verArquivadas && fonte.contasArquivadas) {
@@ -319,6 +322,24 @@ function ListaContas() {
             buscar={buscar}
           />
           <span className="flex-1" />
+          {fonte.moverEstagio && (
+            <div role="group" aria-label="Vista" className="flex h-9 border border-al-line">
+              {(['tabela', 'kanban'] as const).map((vista) => (
+                <button
+                  key={vista}
+                  type="button"
+                  aria-pressed={kanban === (vista === 'kanban')}
+                  onClick={() => recorte.definir('vista', vista, 'tabela')}
+                  className={cn(
+                    'px-3 text-xs font-medium tracking-rotulo uppercase',
+                    kanban === (vista === 'kanban') ? 'bg-al-surface text-al-ink' : 'text-al-muted hover:text-al-ink',
+                  )}
+                >
+                  {vista === 'kanban' ? 'Kanban' : 'Tabela'}
+                </button>
+              ))}
+            </div>
+          )}
           <MenuDeFiltrosDasContas contas={contas} recorte={recorte} />
           <select
             aria-label="Ordenar por"
@@ -354,7 +375,11 @@ function ListaContas() {
         />
       )}
 
-      {listaVisivel && (
+      {listaVisivel && kanban && fonte.moverEstagio && (
+        <KanbanDeContas contas={contasExibidas} mover={fonte.moverEstagio.bind(fonte)} estadoDoLink={estadoDoLink} />
+      )}
+
+      {listaVisivel && !kanban && (
         // A tabela rola num quadro próprio, nos dois sentidos, que vai até o pé da janela. Assim o cabeçalho
         // fica fixo na rolagem vertical e a coluna Empresa, na horizontal, sem tirar do lugar a sidebar e a
         // barra de topo.
