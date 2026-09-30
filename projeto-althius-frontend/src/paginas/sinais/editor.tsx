@@ -5,7 +5,7 @@ import { Carregando, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
-import { useDados } from '@/fonte/contexto'
+import { useDados, useDadosDeSinais } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { publicoRecomendado } from '@/fonte/regras-memoria'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,7 @@ import {
 } from './catalogo'
 import { SecaoDoFormulario, SeloDoEstado } from './componentes'
 import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
+import { podeMonitorar } from './disponibilidade'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
 import { criteriosFormatados, resumoDoPublico } from './resumos'
@@ -111,6 +112,9 @@ function alternar(lista: string[], item: string): string[] {
 export function RotaDoEditor() {
   const { tipoId = '', monitoramentoId } = useParams<{ tipoId: string; monitoramentoId?: string }>()
   const { monitoramentos } = useSinaisDoMockup()
+  // Um tipo em teste ou em breve não deixa criar Monitoramento: volta para a página do tipo, que diz o motivo.
+  const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
+  if (tipoDaFonte && !monitoramentoId && !podeMonitorar(tipoDaFonte)) return <Navigate to={`/sinais/tipos/${tipoId}`} replace />
   const tipo = tipoPorId(tipoId)
   const existente = monitoramentos.find((m) => m.id === monitoramentoId && m.tipoId === tipoId)
   if (!tipo) return <Navigate to="/sinais" replace />
