@@ -20,9 +20,9 @@
 
 ## Critérios
 
-- [ ] Sem teto aprovado, o automático não roda e a tela diz por quê.
-- [ ] Chegou no teto: o automático pausa e gera um Aviso do Workspace.
-- [ ] As Permissões Ler/Propor/Executar dos Agentes aparecem na mesma página, sem duplicar o dado (lidas das funções do CRM-13).
+- [x] Sem teto aprovado, o automático não roda e a tela diz por quê.
+- [x] Chegou no teto: o automático pausa e gera um Aviso do Workspace.
+- [x] As Permissões Ler/Propor/Executar dos Agentes aparecem na mesma página, sem duplicar o dado (lidas das funções do CRM-13).
 
 ## Passos do Nan
 
@@ -31,3 +31,11 @@
 1. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Escopos: `acao:varredura`, `acao:enriquecimento`, `acao:agentes`, `agente:<id>`, `integracao:<id>`. Modo `confirmar` (padrão) ou `automatico`, este só com teto mensal aprovado.
+- Para o servidor: `consume_automation_cap(workspace, escopo, créditos)` devolve `ok` (e soma ao gasto), ou `confirmar`, `sem_teto`, `teto_atingido`. Quem roda uma ação automática chama antes; o `sinais-reais` 02 e o Motor dos Agentes chamam ao usar o automático.
+- Chegou no teto: o escopo pausa até o mês virar ou o teto subir acima do gasto, e um Aviso do Workspace (`private.workspace_notices`, lido pelo Administrador em `list_workspace_notices`) sai uma vez. A entrega desse Aviso como notificação do navegador fica para quando a fonte real de Avisos existir.
+- As Permissões Ler/Propor/Executar dos Agentes aparecem só para leitura na página, lidas da configuração do Agente.
+- Tela: Configurações › Automação e tetos.

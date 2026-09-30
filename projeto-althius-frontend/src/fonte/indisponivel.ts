@@ -8,6 +8,7 @@ import {
   type ParticipacaoNoWorkspace,
   type ContaDeUsuarioDaSessao,
 } from './ambiente'
+import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeOnboarding } from './tipos'
@@ -146,6 +147,10 @@ export function criarFonteDeOnboardingIndisponivel(): FonteDeOnboarding {
 }
 
 /** O Playbook onde não há backend: nada a consultar e toda ação é recusada, sem simular sucesso. */
+export function criarFonteDeAutomacaoIndisponivel(): FonteDeAutomacao {
+  return { observar: semMudancas, escopos: recusar('configuracoes'), salvar: recusar('configuracoes') }
+}
+
 export function criarFonteDoPlaybookIndisponivel(): FonteDoPlaybook {
   return {
     observar: semMudancas,

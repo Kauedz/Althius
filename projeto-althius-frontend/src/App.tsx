@@ -7,7 +7,7 @@ import { PaginaDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { TemaSalvoNaConta } from '@/components/tema-salvo-na-conta'
 import { ConversasProvider } from '@/conversa/contexto'
 import type { Ambiente, ModuloDoWorkspace } from '@/fonte/ambiente'
-import { criarFonteDoPlaybookIndisponivel } from '@/fonte/indisponivel'
+import { criarFonteDeAutomacaoIndisponivel, criarFonteDoPlaybookIndisponivel } from '@/fonte/indisponivel'
 import {
   AmbienteProvider,
   useAmbiente,
@@ -17,6 +17,7 @@ import {
   FonteDeSequenciasProvider,
   FonteDeContasRemetentesProvider,
   FonteDeSinaisProvider,
+  FonteDeAutomacaoProvider,
   FonteDoPlaybookProvider,
   FonteProvider,
 } from '@/fonte/contexto'
@@ -46,6 +47,7 @@ interface Props {
 }
 
 const PLAYBOOK_INDISPONIVEL = criarFonteDoPlaybookIndisponivel()
+const AUTOMACAO_INDISPONIVEL = criarFonteDeAutomacaoIndisponivel()
 
 export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
   const [posicoesDasListas] = useState(criarPosicoesDasListas)
@@ -93,6 +95,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
                 <FonteDeConexoesProvider fonte={ambiente.fonteDeConexoes}>
                   <FonteDeContasRemetentesProvider fonte={ambiente.fonteDeContasRemetentes}>
                     <FonteDoPlaybookProvider fonte={ambiente.fonteDoPlaybook ?? PLAYBOOK_INDISPONIVEL}>
+                    <FonteDeAutomacaoProvider fonte={ambiente.fonteDeAutomacao ?? AUTOMACAO_INDISPONIVEL}>
                       <SinaisDoMockupProvider>
                         <ConversasProvider animarDigitacao={animarDigitacao}>
                           <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
@@ -111,6 +114,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
                           </ContextoDasPosicoesDasListas.Provider>
                         </ConversasProvider>
                       </SinaisDoMockupProvider>
+                    </FonteDeAutomacaoProvider>
                     </FonteDoPlaybookProvider>
                   </FonteDeContasRemetentesProvider>
                 </FonteDeConexoesProvider>

@@ -3,6 +3,7 @@
 
 import type { FonteDeConexoes } from './conexoes-tipos'
 import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
+import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding, FonteDeSequencias, Papel } from './tipos'
@@ -70,6 +71,8 @@ export interface Ambiente {
   fonteDeContasRemetentes: FonteDeContasRemetentes
   /** O Playbook do Workspace. Sem ela, a tela do Playbook diz que ainda não está disponível. */
   fonteDoPlaybook?: FonteDoPlaybook
+  /** O automático e os tetos (creditos-e-planos 03). Sem ela, a seção aparece indisponível. */
+  fonteDeAutomacao?: FonteDeAutomacao
   /** Os módulos sem backend neste ambiente, que as telas mostram como indisponíveis. Na Demonstração, nenhum. */
   indisponiveis: ReadonlySet<ModuloDoWorkspace>
 }
