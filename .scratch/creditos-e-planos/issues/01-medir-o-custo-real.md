@@ -31,3 +31,7 @@
 2. Publicar as funções alteradas (`agent-conversation` e as do Apify) e reiniciar o worker do Hermes.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/96
