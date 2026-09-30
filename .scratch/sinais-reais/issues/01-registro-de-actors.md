@@ -38,3 +38,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 
 ## Comments
 
+- Feito na PR https://github.com/Kauedz/Althius/pull/97 (registro e função). Várias contas do Apify (rodízio quando o crédito acaba) em PR seguinte.
