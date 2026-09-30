@@ -3,7 +3,7 @@ import { creditosDoBanco, type SecaoDoPlaybookNaExecucao } from '../_shared/orqu
 import { createHandler, type Db, type Inicio } from './handler.ts'
 import { modeloDaAnthropic } from './model.ts'
 import { modeloDoGroq } from './model-groq.ts'
-import { type ContaEncontrada, createRunner, type Modelo, type Reserva, type RunDb } from './runner.ts'
+import { type ContaEncontrada, createRunner, ErroDoModelo, type Modelo, type Reserva, type RunDb } from './runner.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -32,6 +32,9 @@ function modeloConfigurado(): Modelo | null {
 }
 
 const modelo = modeloConfigurado()
+// O modelo com a chave de IA do cliente: só a Anthropic, por enquanto (a mesma API da ponte).
+const modeloDoCliente = (chave: { provider: string; model: string; apiKey: string }): Modelo | null =>
+  chave.provider === 'anthropic' ? modeloDaAnthropic({ apiKey: chave.apiKey, modelo: chave.model }) : null
 // Com AGENT_PROVIDER=hermes, a função só guarda o pedido: quem roda é o worker do Hermes (`_hermes-worker`), que busca
 // a fila. As Conversas aparecem disponíveis; sem o worker ligado, o pedido vira falha por prazo em 10 minutos.
 const comHermes = (Deno.env.get('AGENT_PROVIDER') || '').trim().toLowerCase() === 'hermes'
@@ -96,6 +99,17 @@ const runDb: RunDb = {
   playbook: async (runId, specialty) =>
     (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
   creditos: creditosDoBanco(rpc),
+  // A chave de IA do cliente do Workspace (créditos 08): lida do Vault só aqui, nunca gravada nem registrada.
+  chaveDoCliente: async (runId) => {
+    const { data, error } = await admin.rpc('agent_run_ai_key', { p_run_id: runId })
+    if (error) {
+      // 55000: a chave está ligada ao Workspace, mas o Vault não tem o valor dela.
+      if (error.code === '55000') throw new ErroDoModelo('workspace_ai_key_unavailable')
+      throw new Error(`agent_run_ai_key: ${error.code ?? ''} ${error.message}`)
+    }
+    const [linha] = (data ?? []) as { provider: string; model: string; api_key: string }[]
+    return linha ? { provider: linha.provider, model: linha.model, apiKey: linha.api_key } : null
+  },
 }
 
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para a Execução terminar.
@@ -103,7 +117,7 @@ const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unkn
 
 Deno.serve(createHandler({
   db,
-  executar: comHermes ? () => Promise.resolve() : modelo ? createRunner({ db: runDb, modelo }) : null,
+  executar: comHermes ? () => Promise.resolve() : modelo ? createRunner({ db: runDb, modelo, modeloDoCliente }) : null,
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : (work) => void work,
   appOrigin: APP_ORIGIN,
 }))

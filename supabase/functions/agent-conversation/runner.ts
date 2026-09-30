@@ -6,6 +6,7 @@
 import type Anthropic from 'npm:@anthropic-ai/sdk@0.128.0'
 import {
   type AgenteDoWorkspace,
+  type ChaveDoCliente,
   codigoDoErro,
   type ContaEncontrada,
   contribuicoesDe,
@@ -22,6 +23,7 @@ import {
   type Reserva,
   type ResultadoDoAgente,
   type RunDb,
+  semAChave,
   type TipoDeEvento,
   somarUso,
   type UsoDeTokens,
@@ -29,7 +31,7 @@ import {
 
 // O contrato com o banco e as falhas do modelo moram no módulo compartilhado; quem já importava daqui continua igual.
 export { ErroDoModelo }
-export type { AgenteDoWorkspace, ContaEncontrada, Reserva, RunDb, TipoDeEvento }
+export type { AgenteDoWorkspace, ChaveDoCliente, ContaEncontrada, Reserva, RunDb, TipoDeEvento }
 
 export interface Modelo {
   /** O id do modelo, gravado na Execução. */
@@ -42,7 +44,10 @@ export interface Modelo {
 
 export interface RunnerDeps {
   db: RunDb
+  /** O modelo da Althius, de quem não ligou a chave de IA do próprio cliente. */
   modelo: Modelo
+  /** O modelo com a chave do cliente; null quando o provedor dela não é aceito aqui. */
+  modeloDoCliente?: (chave: ChaveDoCliente) => Modelo | null
   log?: (fields: Record<string, unknown>) => void
 }
 
@@ -107,12 +112,46 @@ function lerTermo(input: unknown): string | null {
   return typeof termo === 'string' && termo.length <= 200 ? termo.trim() : null
 }
 
+/**
+ * O modelo do cliente por dentro: um provedor que recusa a chave dá à Execução o motivo da chave, não o do modelo da
+ * Althius, e nada do que ele devolver leva a chave para o log ou para o motivo da Execução.
+ */
+function comAChaveDoCliente(modelo: Modelo, apiKey: string): Modelo {
+  return {
+    nome: modelo.nome,
+    async criar(params) {
+      try {
+        return await modelo.criar(params)
+      } catch (erro) {
+        if (erro instanceof ErroDoModelo) {
+          if (erro.codigo === 'model_auth') throw new ErroDoModelo('workspace_ai_key_invalid')
+          throw new ErroDoModelo(erro.codigo, semAChave(erro.detalhe, apiKey))
+        }
+        throw new Error(semAChave(String(erro), apiKey))
+      }
+    },
+  }
+}
+
 export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void> {
   const log = deps.log ?? ((fields) => console.log(JSON.stringify(fields)))
-  const { db, modelo } = deps
+  const { db } = deps
+
+  /**
+   * O modelo desta Execução: o do cliente, quando o Workspace ligou a chave de IA dele; senão o da Althius. Chave
+   * ligada que não dá para usar falha com o motivo, em vez de a Execução cair no modelo da Althius às custas dela.
+   */
+  async function modeloDaExecucao(runId: string): Promise<Modelo> {
+    const chave = await db.chaveDoCliente?.(runId)
+    if (!chave) return deps.modelo
+    const doCliente = deps.modeloDoCliente?.(chave)
+    if (!doCliente) throw new ErroDoModelo('workspace_ai_key_unsupported')
+    return comAChaveDoCliente(doCliente, chave.apiKey)
+  }
 
   /** Um Agente trabalha no pedido, com a consulta de Contas-alvo, e devolve o texto final dele. */
   async function trabalhar(
+    modelo: Modelo,
     reserva: Reserva,
     agente: AgenteDoWorkspace,
     contribuicoes: string[],
@@ -195,6 +234,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
 
   /** A Coordenação escolhe os Agentes do pedido, sempre com os @mencionados, sem agir ela mesma. */
   async function escolher(
+    modelo: Modelo,
     reserva: Reserva,
   ): Promise<{ agentes: string[]; resposta_direta: string; uso?: UsoDeTokens }> {
     const lista = reserva.agents
@@ -241,7 +281,11 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   }
 
   /** Juntar o que os Agentes disseram numa resposta só, sem acrescentar fato que eles não trouxeram. */
-  async function sintetizar(reserva: Reserva, contribuicoes: string[]): Promise<{ texto: string; uso?: UsoDeTokens }> {
+  async function sintetizar(
+    modelo: Modelo,
+    reserva: Reserva,
+    contribuicoes: string[],
+  ): Promise<{ texto: string; uso?: UsoDeTokens }> {
     const final = await modelo.criar({
       max_tokens: MAX_TOKENS,
       system: [
@@ -260,13 +304,13 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   }
 
   /** O que muda no motor da ponte: as chamadas à Messages API. A ordem e os eventos são de _shared/orquestracao.ts. */
-  function executorDe(reserva: Reserva): Executor {
+  function executorDe(modelo: Modelo, reserva: Reserva): Executor {
     const playbookDe = leitorDoPlaybook(db, reserva.run_id, log, 'agent_run')
     return {
-      escolher: () => escolher(reserva),
+      escolher: () => escolher(modelo, reserva),
       trabalhar: async (agente, falas) =>
-        trabalhar(reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty)),
-      sintetizar: (falas) => sintetizar(reserva, contribuicoesDe(falas)),
+        trabalhar(modelo, reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty)),
+      sintetizar: (falas) => sintetizar(modelo, reserva, contribuicoesDe(falas)),
     }
   }
 
@@ -276,8 +320,10 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       log({ type: 'agent_run', runId, outcome: 'not_claimed' })
       return
     }
+    let modelo = deps.modelo
     try {
-      const executor = executorDe(reserva)
+      modelo = await modeloDaExecucao(runId)
+      const executor = executorDe(modelo, reserva)
       if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })
       else await coordenarPedido({ reserva, db, executor })
       await db.finish(runId, 'succeeded', null, modelo.nome)

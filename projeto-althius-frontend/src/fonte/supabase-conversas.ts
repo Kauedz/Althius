@@ -72,6 +72,10 @@ const MOTIVOS: Record<string, string> = {
   membership_inactive: 'Você não participa mais deste Workspace.',
   insufficient_credits:
     'O Workspace está sem créditos para este pedido, ou você chegou ao seu limite do mês. Avise o Administrador.',
+  workspace_ai_key_invalid: 'O provedor de IA recusou a chave do Workspace. Avise o Administrador.',
+  workspace_ai_key_unavailable: 'A chave de IA do Workspace não está disponível. Avise o Administrador.',
+  workspace_ai_key_unsupported:
+    'Este Workspace usa a própria chave de IA, e o motor dos Agentes ainda não a aceita. Avise o Administrador.',
   hermes_unreachable: 'O motor dos Agentes não respondeu. Confira se ele está ligado e tente de novo.',
   hermes_failed: 'O motor dos Agentes não conseguiu terminar este pedido. Tente de novo.',
 }
