@@ -11,6 +11,7 @@ import { useDados } from '@/fonte/contexto'
 import type { AcaoProposta, Agente, AgenteId, Integracao } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
+import { NomeDaConversa } from '@/paginas/nome-da-conversa'
 import { NascimentoSequenciaNaConversa } from '@/paginas/nascimento-sequencia-na-conversa'
 
 /** Cada Agente chamado é uma etapa: ativa enquanto não diz o que fez. */
@@ -104,6 +105,7 @@ export function PaginaConversaCoordenada() {
       className="flex-1 pb-0"
     >
       <div className="mx-auto flex w-full max-w-180 flex-1 flex-col">
+        <NomeDaConversa respondendo={respondendo} />
         <div ref={conteudo} aria-live="polite" className="flex flex-1 flex-col gap-10 pb-10">
           {turnos.map((turno, i) => {
             const emAndamento = respondendo && i === turnos.length - 1

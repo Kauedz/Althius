@@ -1,3 +1,5 @@
+import type { ResumoDeConversa } from './conversas-tipos'
+
 // Tipos do domínio, com o vocabulário do CONTEXT.md na raiz do repositório.
 
 /** As 4 Especialidades do catálogo fixo da Althius (ADR 0005). */
@@ -671,9 +673,18 @@ export interface FonteDeAgentes extends FonteObservavel {
    * operacional, onde as Conversas ficam no banco; na Demonstração, elas valem até recarregar.
    */
   retomarConversas?(): Promise<ConversasRetomadas>
+  /** As Conversas coordenadas salvas de quem está na sessão, da mais recente à mais antiga. Só no Workspace operacional. */
+  conversasSalvas?(): Promise<ResumoDeConversa[]>
+  /** Dá nome à Conversa; um nome em branco volta ao padrão (o primeiro pedido). */
+  renomearConversa?(id: string, titulo: string): Promise<void>
+  /** Abre uma Conversa salva: os pedidos dela e, se ainda roda, a leitura do resto. O próximo pedido a continua. */
+  abrirConversa?(id: string): Promise<ConversaRetomada<PassoDaCoordenacao>>
+  /** A Conversa coordenada em curso (a que o próximo pedido continua), ou nulo numa Conversa nova. */
+  conversaCoordenadaAtual?(): string | null
 }
 
 export * from './contas-tipos'
+export * from './conversas-tipos'
 export * from './onboarding-tipos'
 export * from './sequencias-tipos'
 export type {

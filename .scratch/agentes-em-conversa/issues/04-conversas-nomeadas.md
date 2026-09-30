@@ -19,8 +19,8 @@
 
 ## Critérios
 
-- [ ] Criar, renomear, listar e reabrir Conversas; a Conversa continua privada de quem a começou.
-- [ ] A retomada depois de recarregar continua funcionando (testes existentes verdes).
+- [x] Criar, renomear, listar e reabrir Conversas; a Conversa continua privada de quem a começou.
+- [x] A retomada depois de recarregar continua funcionando (testes existentes verdes).
 
 ## Passos do Nan
 

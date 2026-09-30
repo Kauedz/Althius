@@ -26,6 +26,8 @@ interface Conversas {
   coordenar(pedido: Mensagem): void
   /** Um pedido seguinte no composer da Conversa: continua a Conversa coordenada a partir do que já foi feito. */
   continuar(pedido: Mensagem): void
+  /** Abre uma Conversa coordenada salva no lugar da atual: o pedido seguinte a continua. Sem efeito onde não há Conversas salvas. */
+  abrir(id: string): Promise<void>
   animarDigitacao: boolean
 }
 
@@ -153,10 +155,45 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
     }
   }, [fonte, mudarCoordenada, adicionar, definirRespondendo])
 
+  // Qual abertura de Conversa vale: abrir outra, ou pedir algo novo, faz a leitura da anterior parar de escrever na tela.
+  const aberturaAtual = useRef(0)
+
+  const abrir = useCallback(
+    async (id: string) => {
+      if (!fonte.abrirConversa) return
+      const abertura = ++aberturaAtual.current
+      const conversa = await fonte.abrirConversa(id)
+      if (abertura !== aberturaAtual.current) return
+      pedidosDaSessao.current.add('coordenada')
+      pedidosDaConversa.current = conversa.turnos.map((turno) => ({ texto: turno.pedido }))
+      mudarCoordenada(() => ({
+        itens: conversa.turnos.flatMap((turno): ItemDaCoordenacao[] => [
+          { id: proximoId++, tipo: 'pedido', texto: turno.pedido },
+          ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
+        ]),
+        respondendo: Boolean(conversa.emAndamento),
+      }))
+      const emAndamento = conversa.emAndamento
+      if (!emAndamento) return
+      void (async () => {
+        try {
+          for await (const passo of emAndamento) {
+            if (abertura !== aberturaAtual.current) return
+            mudarCoordenada((atual) => ({ ...atual, itens: [...atual.itens, { id: proximoId++, ...passo }] }))
+          }
+        } finally {
+          if (abertura === aberturaAtual.current) mudarCoordenada((atual) => ({ ...atual, respondendo: false }))
+        }
+      })()
+    },
+    [fonte, mudarCoordenada],
+  )
+
   /** Envia um pedido à Coordenação: numa Conversa nova, ou continuando a atual. */
   const pedirACoordenacao = useCallback(
     async (pedido: Mensagem, continuando: boolean) => {
       pedidosDaSessao.current.add('coordenada')
+      aberturaAtual.current++
       const anteriores = continuando ? pedidosDaConversa.current : []
       pedidosDaConversa.current = [...anteriores, pedido]
       const item: ItemDaCoordenacao = { id: proximoId++, tipo: 'pedido', texto: pedido.texto }
@@ -181,9 +218,10 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       coordenada: estado.coordenada,
       coordenar: (pedido) => void pedirACoordenacao(pedido, false),
       continuar: (pedido) => void pedirACoordenacao(pedido, true),
+      abrir,
       animarDigitacao,
     }),
-    [estado, enviar, pedirACoordenacao, animarDigitacao],
+    [estado, enviar, pedirACoordenacao, abrir, animarDigitacao],
   )
 
   return <ContextoDasConversas.Provider value={valor}>{children}</ContextoDasConversas.Provider>
