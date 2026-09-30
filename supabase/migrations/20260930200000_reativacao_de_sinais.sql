@@ -135,13 +135,18 @@ declare
   v_available numeric;
   v_limit numeric;
   v_id uuid;
+  v_pending private.signal_rescans%rowtype;
 begin
   perform private.require_active_membership(p_workspace_id);
   perform private.assert_rescannable(p_workspace_id, p_target_account_id);
-  select r.id into v_id from private.signal_rescans r
+  select * into v_pending from private.signal_rescans r
   where r.workspace_id = p_workspace_id and r.target_account_id = p_target_account_id and r.state = 'pending';
-  if found then
-    return v_id;
+  -- Já há busca pendente: a do clique, ou uma mensal que já começou a varrer, segue como está. Uma mensal que ainda não
+  -- começou vira a busca deste clique, com os mesmos conferes de saldo e limite, em vez de travar no teto do automático.
+  if found and (v_pending.origin = 'manual' or exists (
+    select 1 from private.credit_reservations c
+    where c.workspace_id = p_workspace_id and c.action_key like 'rescan-auto:' || v_pending.id::text || ':%')) then
+    return v_pending.id;
   end if;
 
   select * into v_cost from private.rescan_cost(p_workspace_id);
@@ -158,6 +163,11 @@ begin
     raise exception 'monthly credit limit reached' using errcode = 'P0001', hint = 'credits';
   end if;
 
+  if v_pending.id is not null then
+    update private.signal_rescans set origin = 'manual', requested_by = v_user, claimed_until = null where id = v_pending.id;
+    perform private.kick_rescan_runner();
+    return v_pending.id;
+  end if;
   insert into private.signal_rescans (workspace_id, target_account_id, origin, requested_by)
   values (p_workspace_id, p_target_account_id, 'manual', v_user)
   on conflict (workspace_id, target_account_id) where state = 'pending' do nothing

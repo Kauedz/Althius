@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(73);
+select plan(74);
 
 -- Ana (Admin), Bruno (Membro) e Diego (Membro) do Norte; Carla é de fora.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -419,6 +419,21 @@ begin
 end $$;
 select ok(pg_temp.relogio_agendado(), 'onde o pg_cron existe, o relógio diário da reativação está agendado');
 
+
+-- O clique numa Conta que já tem busca mensal pendente (ainda sem varredura) assume a busca: vira do clique, de quem pediu.
+delete from private.signal_rescans;
+insert into private.signal_rescans (workspace_id, target_account_id, origin)
+values ('f8000000-0000-0000-0000-000000000001', 'd8000000-0000-0000-0000-000000000001', 'mensal');
+update private.signal_monitors set state = 'ativo' where id in (select id from r where k in ('vagas', 'lideranca'));
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '58000000-0000-0000-0000-000000000002', true);
+select public.request_account_rescan('f8000000-0000-0000-0000-000000000001', 'd8000000-0000-0000-0000-000000000001');
+reset role;
+select is(
+  (select row(count(*), min(origin), bool_and(requested_by = '58000000-0000-0000-0000-000000000002'))::text from private.signal_rescans),
+  '(1,manual,t)', 'o clique assume a busca mensal pendente, em vez de ficar preso ao teto do automático'
+);
 
 -- 11. Só o participante ativo do Workspace chama as buscas; as funções do relógio são só do servidor.
 select ok(

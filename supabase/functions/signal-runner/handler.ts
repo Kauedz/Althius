@@ -326,8 +326,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       await buscas.finish(b.rescanId, 'stopped', 0, motivo)
       return { scanned: 0, signals: 0, voltou: false }
     }
+    // Nada foi varrido e tudo falhou: não conta como Conta revisitada, então a mensal tenta de novo.
+    const estado = varridas === 0 && falhas > 0 ? 'stopped' : 'done'
     const erro = falhas === 0 ? null : `${falhas === 1 ? '1 varredura falhou' : `${falhas} varreduras falharam`}; tente de novo mais tarde.`
-    await buscas.finish(b.rescanId, 'done', varridas, erro)
+    await buscas.finish(b.rescanId, estado, varridas, erro)
     return { scanned: varridas, signals: sinais, voltou: false }
   }
 
