@@ -19,9 +19,9 @@
 
 ## Critérios
 
-- [ ] Custo gravado por ação, com fornecedor, modelo ou actor, unidades e valor em dólar.
-- [ ] Relatório mensal por tipo de ação e por Workspace.
-- [ ] Sem dado pessoal na tabela de custos.
+- [x] Custo gravado por ação, com fornecedor, modelo ou actor, unidades e valor em dólar.
+- [x] Relatório mensal por tipo de ação e por Workspace.
+- [x] Sem dado pessoal na tabela de custos.
 
 ## Passos do Nan
 
@@ -31,3 +31,7 @@
 2. Publicar as funções alteradas (`agent-conversation` e as do Apify) e reiniciar o worker do Hermes.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- Feito na PR https://github.com/Kauedz/Althius/pull/96

@@ -18,6 +18,7 @@ import {
   historicoDaConversa,
   INSTRUCAO_DE_DESFECHO,
   leitorDoPlaybook,
+  registrarCustoDaExecucao,
   type Reserva,
   type ResultadoDoAgente,
   type RunDb,
@@ -281,6 +282,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       else await coordenarPedido({ reserva, db, executor })
       await db.finish(runId, 'succeeded', null, modelo.nome)
       log({ type: 'agent_run', runId, kind: reserva.kind, outcome: 'succeeded' })
+      await registrarCustoDaExecucao(db, runId, log, 'agent_run')
     } catch (error) {
       const codigo = codigoDoErro(error)
       log({
@@ -292,6 +294,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
         message: String(error),
       })
       await fecharComFalha({ db, runId, codigo, modelo: modelo.nome, log, tipoDoLog: 'agent_run' })
+      await registrarCustoDaExecucao(db, runId, log, 'agent_run')
     }
   }
 }

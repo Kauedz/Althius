@@ -47,6 +47,11 @@ export interface RunDb {
    * ela roda como antes, sem o contexto da empresa.
    */
   playbook?(runId: string, specialty: string): Promise<SecaoDoPlaybookNaExecucao[]>
+  /**
+   * record_agent_run_cost: grava o custo real da Execução já fechada (tokens somados dos eventos e o modelo). Opcional:
+   * um motor sem ela roda como antes, sem registrar custo.
+   */
+  custo?(runId: string): Promise<void>
 }
 
 /** Uma seção do Playbook do Workspace como o motor a recebe. */
@@ -409,5 +414,26 @@ export function leitorDoPlaybook(
       lidos.set(specialty, lido)
     }
     return lido
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// O custo real de cada Execução (creditos-e-planos, ticket 01).
+
+/**
+ * Registra o custo de uma Execução já fechada, sucesso ou falha (a falha também gastou). O registro é só medida: se
+ * falhar, a Execução não muda, e a falha vai ao log.
+ */
+export async function registrarCustoDaExecucao(
+  db: RunDb,
+  runId: string,
+  log: (fields: Record<string, unknown>) => void,
+  tipoDoLog: string,
+): Promise<void> {
+  if (!db.custo) return
+  try {
+    await db.custo(runId)
+  } catch (error) {
+    log({ type: tipoDoLog, runId, outcome: 'cost_failed', message: String(error) })
   }
 }

@@ -214,3 +214,28 @@ Deno.test('por Agente: o Hermes recebe o Playbook da Especialidade de cada Agent
   const doEthos = corpos.find((c) => c.instructions.includes('Você é Ethos'))!
   assertStringIncludes(doEthos.instructions, 'ainda não tem a seção Empresa')
 })
+
+Deno.test('por Agente: o custo da Execução é registrado depois de fechá-la, no sucesso e na falha', async () => {
+  for (const [responder, esperado] of [
+    [(c: Chamada) => (passoDe(c) === 'escolha' ? ok('{"agentes":[],"resposta_direta":"Oi!"}') : ok('x')), 'succeeded'],
+    [() => ({ status: 'failed', error: 'provider' }) as FimDoHermes, 'failed'],
+  ] as const) {
+    const passos: string[] = []
+    const db: FilaDb = {
+      listQueued: () => Promise.resolve(['r1']),
+      claim: () => Promise.resolve(reserva()),
+      append: () => Promise.resolve(1),
+      finish: (_r, status) => (passos.push(`finish:${status}`), Promise.resolve()),
+      searchAccounts: () => Promise.resolve([]),
+      custo: (runId) => (passos.push(`custo:${runId}`), Promise.resolve()),
+    }
+    const chamadas: Chamada[] = []
+    const hermes: Hermes = {
+      vivo: () => Promise.resolve(true),
+      iniciar: (corpo, chave) => (chamadas.push({ corpo, chave }), Promise.resolve('h')),
+      aguardar: () => Promise.resolve(responder(chamadas.at(-1)!)),
+    }
+    await createWorker({ db, hermes, log: () => {}, porAgente: true }).rodada()
+    assertEquals(passos, [`finish:${esperado}`, 'custo:r1'])
+  }
+})

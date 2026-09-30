@@ -37,6 +37,11 @@ export interface Db {
   beginLookup(args: { contactId: string; authorization: string; apikey: string }): Promise<Reserva>
   /** RPC finish_contact_photo_lookup, com a chave de serviço. Lança quando o banco falha. */
   finishLookup(resultado: Resultado): Promise<void>
+  /**
+   * RPC record_apify_lookup_cost, com a chave de serviço: grava o custo real da busca (creditos-e-planos, ticket 01).
+   * Opcional; o valor é nulo quando o Apify não o informou.
+   */
+  recordCost?(args: { lookupId: string; costUsd: number | null }): Promise<void>
 }
 
 export interface FotoDoPerfil {
@@ -50,6 +55,8 @@ export interface Actor {
   actorId: string
   /** Roda o Actor para o perfil. Lança ActorRequestError quando o Apify recusa e ActorTimeoutError no prazo. */
   fetchPhoto(linkedinUrl: string): Promise<FotoDoPerfil>
+  /** O custo em dólar que o Apify informa para a execução, ou null quando não informa ou não responde. Só medida. */
+  custoDaExecucao?(runId: string): Promise<number | null>
 }
 
 /** O Apify respondeu, mas recusou ou falhou: a execução não deu resultado. */
@@ -192,6 +199,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       outcome: resultado.outcome,
       errorCode: resultado.errorCode,
     })
+    // O custo real da execução, só para medir: se não der para ler ou gravar, a foto já foi entregue e nada muda.
+    if (resultado.runId && deps.db.recordCost) {
+      try {
+        const costUsd = (await deps.actor.custoDaExecucao?.(resultado.runId)) ?? null
+        await deps.db.recordCost({ lookupId: reserva.lookupId, costUsd })
+      } catch (error) {
+        log({ type: 'contact_photo', lookupId: reserva.lookupId, outcome: 'cost_failed', message: String(error) })
+      }
+    }
 
     if (resultado.outcome === 'found') return respond({ status: 'found' })
     if (resultado.outcome === 'not_found') return respond({ status: 'not_found' })
