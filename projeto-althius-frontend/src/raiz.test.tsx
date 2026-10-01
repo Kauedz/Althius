@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { idaAoStripe } from '@/auth/assinatura'
 import { RaizDoAplicativo } from '@/raiz'
 import { renderizarApp } from '@/test/renderizar'
 import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
@@ -2232,5 +2233,73 @@ describe('Resultado do Envio no detalhe da Sequência (motor-hermes 03)', () => 
     })
     expect(await screen.findByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Resultado do envio' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Plano do Workspace operacional pelo Stripe (creditos-e-planos 06)', () => {
+  const semAssinatura = () => [{ released: false, reason: 'sem_assinatura', paid_seats: null, used_seats: 2 }]
+
+  it('sem assinatura, o Workspace fecha e a Administradora assina pelo Stripe, com um assento por Participante', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    const indo = vi.spyOn(idaAoStripe, 'ir').mockImplementation(() => {})
+    const { usuario } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      ultimoWorkspace: 'ws-norte',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+      rpcs: { workspace_access: semAssinatura },
+      funcoes: { 'stripe-billing': (corpo) => (pedidos.push(corpo), { corpo: { url: 'https://checkout.stripe.test/s' } }) },
+    })
+    const tela = await screen.findByRole('region', { name: 'Plano do Workspace' })
+    expect(within(tela).getByText(/tem hoje 2 assentos/)).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
+
+    await usuario.click(within(tela).getByRole('button', { name: 'Contratar o plano' }))
+    expect(pedidos).toEqual([{ action: 'checkout', workspaceId: 'ws-norte' }])
+    await waitFor(() => expect(indo).toHaveBeenCalledWith('https://checkout.stripe.test/s'))
+    indo.mockRestore()
+  })
+
+  it('o Membro de um Workspace sem assinatura pede ao Administrador e ainda abre a Demonstração', async () => {
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      ultimoWorkspace: 'ws-norte',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte', 'member')] },
+      rpcs: { workspace_access: semAssinatura },
+    })
+    const tela = await screen.findByRole('region', { name: 'Plano do Workspace' })
+    expect(within(tela).getByText('Peça a um Administrador do Workspace para contratar o plano.')).toBeInTheDocument()
+    expect(within(tela).queryByRole('button', { name: 'Contratar o plano' })).not.toBeInTheDocument()
+  })
+
+  it('com a assinatura ativa, o Workspace abre e a Administradora ajusta os assentos quando entra gente nova', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    const { usuario } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      ultimoWorkspace: 'ws-norte',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+      rpcs: { workspace_access: () => [{ released: true, reason: 'ativa', paid_seats: 2, used_seats: 3 }] },
+      funcoes: { 'stripe-billing': (corpo) => (pedidos.push(corpo), { corpo: { seats: 3 } }) },
+    })
+    expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
+    await usuario.click(await screen.findByRole('button', { name: 'Ajustar assentos (2 → 3)' }))
+    expect(pedidos).toEqual([{ action: 'seats', workspaceId: 'ws-norte' }])
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Ajustar assentos/ })).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Plano' })).toBeInTheDocument()
+  })
+
+  it('a liberação manual (pré-produção) abre sem botões de cobrança', async () => {
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      ultimoWorkspace: 'ws-norte',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+      rpcs: { workspace_access: () => [{ released: true, reason: 'liberado_manual', paid_seats: null, used_seats: 1 }] },
+    })
+    expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Plano' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Plano do Workspace' })).not.toBeInTheDocument()
   })
 })

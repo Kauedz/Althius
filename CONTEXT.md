@@ -53,7 +53,7 @@ O pedido de um Administrador para que uma pessoa, identificada pelo e-mail, entr
 _Avoid_: convite por domínio, solicitação de acesso
 
 **Plano do Workspace**:
-A situação comercial de um Workspace na Althius, e não de uma Conta de usuário. Todos os participantes consultam o mesmo plano e o uso do Workspace: participantes ativos, sem contar convites pendentes, e Execuções de Agentes num período indicado.
+A situação comercial de um Workspace na Althius, e não de uma Conta de usuário. Todos os participantes consultam o mesmo plano e o uso do Workspace: participantes ativos, sem contar convites pendentes, e Execuções de Agentes num período indicado. O plano é por assento: cada Participante ativo é um assento pago pelo Stripe, e cada fatura paga traz a cota de Créditos dos assentos. Sem plano ativo (nem liberação manual da Althius), o Workspace operacional fecha e só a Demonstração abre; com o pagamento atrasado, segue aberto durante a carência.
 _Avoid_: assinatura, plano do usuário
 
 **ICP**:

@@ -6,6 +6,7 @@ import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { conversasDisponiveis } from '@/fonte/supabase-conversas'
 import { sinaisDisponiveis } from '@/fonte/supabase-sinais'
 import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
+import { BotoesDaAssinatura, TelaDeAssinatura, useAcessoAoWorkspace } from './assinatura'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
 import { destinoDepoisDoAcesso, tokenDoConviteNoEndereco } from './destino'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
@@ -361,11 +362,30 @@ function AplicativoDoWorkspace({
     [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, comSinais],
   )
 
+  // A assinatura (creditos-e-planos 06): o Workspace abre enquanto o banco responde, e fecha só quando ele diz que não
+  // há assinatura ativa nem liberação manual.
+  const acesso = useAcessoAoWorkspace(cliente, workspaceId)
+  if (acesso && !acesso.liberado) {
+    return (
+      <TelaDeAssinatura
+        cliente={cliente}
+        workspaceId={workspaceId}
+        nomeDoWorkspace={nomeDoWorkspace}
+        administrador={role === 'admin'}
+        acesso={acesso}
+        aoAcessarDemonstracao={aoAcessarDemonstracao}
+        aoTrocarDeWorkspace={aoTrocarDeWorkspace}
+        sair={<Sair />}
+      />
+    )
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-end gap-3 border-b border-al-line px-4 py-2 text-xs text-al-muted">
         <span>Workspace operacional</span>
         <span>{sessao.user.email}</span>
+        {acesso && role === 'admin' && <BotoesDaAssinatura cliente={cliente} workspaceId={workspaceId} acesso={acesso} />}
         {aoTrocarDeWorkspace && <Button variant="outline" onClick={aoTrocarDeWorkspace}>Trocar de Workspace</Button>}
         {aoCriarWorkspaceDaEmpresa && (
           <Button variant="outline" onClick={aoCriarWorkspaceDaEmpresa}>Criar Workspace da empresa</Button>
