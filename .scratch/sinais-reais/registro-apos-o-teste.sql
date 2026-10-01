@@ -43,7 +43,7 @@ select public.set_signal_actor_state('harvestapi~linkedin-post-search', 'availab
 
 -- 05 · Anunciando na Meta (até 30 anúncios: cerca de US$ 0,02 por Conta)
 update private.signal_actors set max_cost_usd = 0.05,
-  known_price = 'US$ 0,75 por 1.000 anúncios mais US$ 0,00005 por execução. API pública do Apify, 30/09/2026.'
+  known_price = 'US$ 0,75 por 1.000 anúncios mais US$ 0,00005 por execução (tabela pública do Apify, 30/09/2026). Observado em 01/10/2026, 2 execuções de 30 anúncios: o Apify cobrou só o início (US$ 0,00005) e contou 0 anúncios cobrados. O teto continua pelo preço de tabela.'
 where actor_id = 'curious_coder~facebook-ads-library-scraper';
 select public.set_signal_actor_state('curious_coder~facebook-ads-library-scraper', 'available', '2.7.26');
 
