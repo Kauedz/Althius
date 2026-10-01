@@ -24,6 +24,7 @@ export type BlockedOutcome =
   | 'authorization_revoked'
   | 'not_scheduled'
   | 'destination_bounced'
+  | 'wrong_channel'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -129,6 +130,7 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   authorization_revoked: 'A Sequência mudou depois da ativação. Ative os envios de novo para enviar este passo.',
   not_scheduled: 'Este passo espera o envio manual do Vendedor responsável.',
   destination_bounced: 'O e-mail deste Contato já voltou nesta Sequência. Corrija o e-mail e reconfirme o passo.',
+  wrong_channel: 'Este passo não é de E-mail: o WhatsApp e o LinkedIn saem pelo Executor, não por este envio.',
 }
 
 export type StepSendResult =
@@ -154,7 +156,7 @@ export interface SendStepDeps {
  * várias conversas da mesma conta são conferidas em seguida.
  */
 export async function checkConversation(
-  deps: Pick<SendStepDeps, 'db' | 'unipile'>,
+  deps: { db: Pick<SendStepDb, 'ingestEmailEvent'>; unipile: UnipileMail },
   conversation: Conversation,
   ownerAddresses?: string[],
 ): Promise<'clear' | 'reply_found' | 'failed'> {
@@ -190,6 +192,42 @@ export async function checkConversation(
     return 'failed'
   }
   return replyFound ? 'reply_found' : 'clear'
+}
+
+/** O que uma chamada à Unipile para enviar um e-mail deixou: o desfecho e, conforme ele, o que o provedor respondeu. */
+export interface TentativaDeEnvio {
+  outcome: SendOutcome
+  sent?: EmailSent
+  error?: string
+  retryAfterSeconds?: number | null
+}
+
+/**
+ * Chama a Unipile uma vez para enviar o e-mail, com prazo, e classifica o resultado: 2xx com o `id` é `sent`; fora de 2xx o
+ * provedor recusou (`failed`, com o Retry-After); timeout, falha de rede ou 2xx ilegível deixam dúvida (`uncertain`: pode
+ * ter saído, então nunca se reenvia às cegas). Compartilhado pelo envio de um passo e pelo da resposta aprovada.
+ */
+export async function enviarEmailComPrazo(
+  unipile: UnipileMail,
+  accountId: string,
+  email: OutgoingEmail,
+  timeoutMs = 25_000,
+): Promise<TentativaDeEnvio> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const sent = await unipile.sendEmail(accountId, email, { signal: controller.signal })
+    return { outcome: 'sent', sent }
+  } catch (error) {
+    // Fora de 2xx o provedor recusou. Timeout, falha de rede ou 2xx ilegível deixam dúvida: pode ter saído.
+    if (error instanceof UnipileRequestError) {
+      return { outcome: 'failed', error: `HTTP ${error.status}`, retryAfterSeconds: error.retryAfterSeconds }
+    }
+    if (error instanceof UnipileUnreadableResponse) return { outcome: 'uncertain', error: 'unreadable_response' }
+    return { outcome: 'uncertain', error: controller.signal.aborted ? 'timeout' : 'network' }
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export async function sendStep(
@@ -231,24 +269,7 @@ export async function sendStep(
     ...(released.reply_to_message_id ? { reply_to_message_id: released.reply_to_message_id } : {}),
   }
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), deps.sendTimeoutMs ?? 25_000)
-  let result: { outcome: SendOutcome; sent?: EmailSent; error?: string; retryAfterSeconds?: number | null }
-  try {
-    const sent = await deps.unipile.sendEmail(released.unipile_account_id, email, { signal: controller.signal })
-    result = { outcome: 'sent', sent }
-  } catch (error) {
-    // Fora de 2xx o provedor recusou. Timeout, falha de rede ou 2xx ilegível deixam dúvida: pode ter saído.
-    if (error instanceof UnipileRequestError) {
-      result = { outcome: 'failed', error: `HTTP ${error.status}`, retryAfterSeconds: error.retryAfterSeconds }
-    } else if (error instanceof UnipileUnreadableResponse) {
-      result = { outcome: 'uncertain', error: 'unreadable_response' }
-    } else {
-      result = { outcome: 'uncertain', error: controller.signal.aborted ? 'timeout' : 'network' }
-    }
-  } finally {
-    clearTimeout(timer)
-  }
+  const result = await enviarEmailComPrazo(deps.unipile, released.unipile_account_id, email, deps.sendTimeoutMs)
 
   try {
     await deps.db.recordStepSendResult({
