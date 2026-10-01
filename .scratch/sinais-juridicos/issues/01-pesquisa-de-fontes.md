@@ -29,3 +29,5 @@
 - [ ] Nenhum dado pessoal real foi copiado para o repositório (exemplos fictícios).
 
 ## Comments
+
+- 01/10/2026: primeiro rascunho em [`pesquisa-fontes.md`](../pesquisa-fontes.md), feito só com busca na web. A rede do ambiente da IA bloqueia `*.jus.br`, então nenhuma fonte oficial foi lida na íntegra. Veredito provisório: o J é viável pelos dados abertos do STJ (e talvez do STF). O R, o U e o I não saem do DataJud, que pelos resumos não traz as partes; dependem de um agregador pago ou do DJEN (não se sabe se filtra por parte). Para fechar o ticket, falta liberar os domínios listados no topo da nota e confirmar cada item marcado "a confirmar" ou "não sei". O ticket segue aberto.
