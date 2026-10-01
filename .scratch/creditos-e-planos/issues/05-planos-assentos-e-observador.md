@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Saldo e lançamentos.
 
-**Status:** needs-info (o papel novo mexe nas Participações; confirmar com o Nan antes)
+**Status:** ready-for-human (plano por assento e cota prontos com o ticket 06; o Observador fica para depois de combinar com a frente de Conexões)
 
 ## Pode mexer
 
@@ -19,8 +19,8 @@
 ## Critérios
 
 - [ ] Observador só lê; nenhuma função de escrita aceita o papel.
-- [ ] A cota de créditos entra no saldo por assento ativo.
-- [ ] Remover um participante libera o assento no ciclo seguinte.
+- [x] A cota de créditos entra no saldo por assento ativo. — `grant_seat_credits` a cada fatura paga de criação ou renovação, assentos × cota (`billing_settings`); pgTAP `assinatura_stripe.sql`.
+- [x] Remover um participante libera o assento no ciclo seguinte. — o Administrador ajusta os assentos ("Ajustar assentos", cobrança proporcional do Stripe); a cota do ciclo seguinte já vem com os assentos novos.
 
 ## Passos do Nan
 
@@ -30,3 +30,7 @@
 2. Aplicar a migration: `git checkout main`, `git pull`, `npx supabase db push` (na raiz do repositório).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- 2026-10-01: o plano por assento entrou junto com o ticket 06 (Stripe). O papel **Observador** não entrou: hoje várias funções do banco aceitam qualquer Participação ativa para escrever, inclusive as da frente de Conexões (`save_target_account`, `create_contact`...), e um papel novo exigiria rever cada uma. Fica para combinar com aquela frente.

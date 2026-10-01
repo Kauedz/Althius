@@ -21,6 +21,10 @@ Configure em Supabase Edge Function Secrets:
 - `ANTHROPIC_MODEL` (opcional): o modelo dos Agentes. Padrão: `claude-opus-5-5`.
 - `AGENT_PROVIDER` (opcional): quem responde pelos Agentes, `anthropic` (padrão) ou `groq`. O Groq é só para teste: com ele, `GROQ_API_KEY` (a chave do Groq, só aqui) e `GROQ_MODEL` (o nome de um modelo do Groq que aceite ferramentas, como aparece no painel dele). Sem a chave e o modelo do provedor escolhido, as Conversas ficam indisponíveis.
 
+- `STRIPE_SECRET_KEY`: a chave secreta do Stripe (`sk_live_…` ou `sk_test_…`), usada pela `stripe-billing` para abrir o checkout, o portal e ajustar os assentos. Só existe aqui, nunca no navegador.
+- `STRIPE_PRICE_ID`: o preço recorrente por assento no Stripe (`price_…`), mensal, R$ 500 por usuário.
+- `STRIPE_WEBHOOK_SECRET`: o segredo de assinatura do endpoint de webhook (`whsec_…`), usado pela `stripe-webhook` para conferir o cabeçalho `Stripe-Signature`.
+
 O runtime fornece `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`. Nenhum segredo Unipile deve ser
 definido com prefixo `VITE_` ou enviado ao cliente.
 
