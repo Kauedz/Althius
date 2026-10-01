@@ -24,6 +24,7 @@ export type BlockedOutcome =
   | 'authorization_revoked'
   | 'not_scheduled'
   | 'destination_bounced'
+  | 'wrong_channel'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -129,6 +130,7 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   authorization_revoked: 'A Sequência mudou depois da ativação. Ative os envios de novo para enviar este passo.',
   not_scheduled: 'Este passo espera o envio manual do Vendedor responsável.',
   destination_bounced: 'O e-mail deste Contato já voltou nesta Sequência. Corrija o e-mail e reconfirme o passo.',
+  wrong_channel: 'Este passo não é de E-mail: o WhatsApp e o LinkedIn saem pelo Executor, não por este envio.',
 }
 
 export type StepSendResult =
