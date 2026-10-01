@@ -2178,3 +2178,59 @@ describe('CAPTCHA invisível', () => {
     expect(captchasRecebidos()).toEqual([{ chamada: 'signInWithPassword', token: undefined }])
   })
 })
+
+describe('Resultado do Envio no detalhe da Sequência (motor-hermes 03)', () => {
+  const envioEnviado = {
+    id: 'envio-1', step_id: 'passo-1', contact_id: 'contato-1', destination: 'maria@empresa-alvo.test', status: 'sent',
+    attempts: 1, confirmed_at: '2026-09-26T15:00:00Z', sent_at: '2026-09-30T13:00:05Z', last_error: null,
+    last_error_at: null, updated_at: '2026-09-30T13:00:05Z', mode: 'auto', scheduled_for: null,
+  }
+
+  it('o Envio que saiu mostra o resultado já registrado e a Vendedora o muda para positiva', async () => {
+    const pedidos: Record<string, unknown>[] = []
+    let desfecho = 'resposta'
+    const { usuario } = abrirASequenciaDaMarina({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }],
+        list_sequence_step_sends: () => [envioEnviado],
+        list_send_outcomes: () => [{ send_id: 'envio-1', outcome: desfecho, classified_by_kind: 'sistema', classified_at: '2026-09-30T14:00:00Z' }],
+        set_send_outcome: (parametros) => {
+          pedidos.push(parametros)
+          desfecho = String(parametros.p_outcome)
+          return null
+        },
+      },
+    })
+    const seletor = await screen.findByRole('combobox', { name: 'Resultado do envio' })
+    await waitFor(() => expect(seletor).toHaveValue('resposta'))
+
+    await usuario.selectOptions(seletor, 'resposta_positiva')
+    expect(pedidos).toEqual([{ p_send_id: 'envio-1', p_outcome: 'resposta_positiva' }])
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Resultado do envio' })).toHaveValue('resposta_positiva'))
+  })
+
+  it('sem desfecho registrado, o Envio aparece como sem resposta; um passo que não saiu não tem resultado', async () => {
+    abrirASequenciaDaMarina({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }],
+        list_sequence_step_sends: () => [envioEnviado],
+        list_send_outcomes: () => [],
+      },
+    })
+    const seletor = await screen.findByRole('combobox', { name: 'Resultado do envio' })
+    expect(within(seletor).getByRole('option', { name: 'Sem resposta' })).toBeDisabled()
+    expect(seletor).toHaveValue('')
+  })
+
+  it('um passo ainda confirmado não oferece resultado', async () => {
+    abrirASequenciaDaMarina({
+      rpcs: {
+        get_sequence_authorization: () => [{ version: 1, authorized_at: '2026-09-30T12:59:00Z', active: true, revoked_reason: null }],
+        list_sequence_step_sends: () => [{ ...envioEnviado, status: 'confirmed', sent_at: null, mode: 'manual' }],
+        list_send_outcomes: () => [],
+      },
+    })
+    expect(await screen.findByRole('button', { name: 'Enviar' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Resultado do envio' })).not.toBeInTheDocument()
+  })
+})

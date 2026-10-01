@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
@@ -172,6 +172,12 @@ function validarPassos(steps: StepSequencia[]) {
 }
 
 function converterErro(error: { message: string; code?: string }): Error {
+  // O Resultado do Envio (motor-hermes 03): as recusas de set_send_outcome.
+  if (error.message.includes('only the sequence owner can classify its sends')) {
+    return new Error('Só o responsável pela Sequência registra o resultado dos Envios dela.')
+  }
+  if (error.message.includes('only a sent step has an outcome')) return new Error('Só um Envio que saiu tem resultado.')
+  if (error.message.includes('unknown send outcome')) return new Error('Resultado desconhecido.')
   // Os motivos que o banco dá para recusar a Sequência de uma Conta-alvo (CRM-17) vêm antes dos genéricos do código.
   if (error.message.includes('target account already has another responsible seller')) {
     return new Error('Só o Vendedor responsável por esta Conta-alvo pode criar a Sequência dela.')
@@ -224,6 +230,13 @@ export function criarFonteDeSequenciasSupabase(
   let workspaceInscrito = ''
 
   function notificar() { for (const ouvinte of ouvintes) ouvinte() }
+  /** Os desfechos dos Envios da Sequência (motor-hermes 03). Se a leitura falhar, os Envios aparecem sem desfecho. */
+  async function desfechosDaSequencia(sequenciaId: string): Promise<Map<string, DesfechoDoEnvio>> {
+    const { data, error } = await cliente.rpc('list_send_outcomes', { p_sequence_id: sequenciaId })
+    if (error) return new Map()
+    return new Map(((data ?? []) as { send_id: string; outcome: DesfechoDoEnvio }[]).map((d) => [d.send_id, d.outcome]))
+  }
+
   function workspace(): string {
     const id = obterWorkspaceId()
     if (!id) throw new Error('Nenhum Workspace ativo foi selecionado.')
@@ -377,7 +390,17 @@ export function criarFonteDeSequenciasSupabase(
       if (row.owner_user_id !== obterUsuarioId()) return []
       const { data, error } = await cliente.rpc('list_sequence_step_sends', { p_sequence_id: sequenciaId })
       if (error) throw converterErro(error)
-      return ((data ?? []) as LinhaDoEnvio[]).map(mapearEnvio)
+      const desfechos = await desfechosDaSequencia(sequenciaId)
+      return ((data ?? []) as LinhaDoEnvio[]).map((linha) => {
+        const envio = mapearEnvio(linha)
+        const desfecho = desfechos.get(envio.id)
+        return desfecho ? { ...envio, desfecho } : envio
+      })
+    },
+    async classificarEnvio(envioId: string, desfecho: DesfechoDoEnvio) {
+      const { error } = await cliente.rpc('set_send_outcome', { p_send_id: envioId, p_outcome: desfecho })
+      if (error) throw converterErro(error)
+      notificar()
     },
     async confirmarPasso(sequenciaId, stepId) {
       const { data, error } = await cliente.rpc('confirm_sequence_step', { p_sequence_id: sequenciaId, p_step_id: stepId })
