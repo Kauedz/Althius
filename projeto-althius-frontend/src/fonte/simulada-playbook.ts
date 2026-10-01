@@ -34,6 +34,26 @@ const EXEMPLOS: Partial<Record<IdDaSecaoDoPlaybook, ConteudoDoPlaybook>> = {
       },
     ],
   },
+  cadencia: {
+    texto: '',
+    linhas: [
+      { toque: 'Abertura pelo Sinal', canal: 'E-mail', dia: 'Dia 1', objetivo: 'Conectar o Sinal a uma dor concreta' },
+      { toque: 'Conexão', canal: 'LinkedIn', dia: 'Dia 2', objetivo: 'Abrir um canal de relacionamento' },
+      { toque: 'Ligação de qualificação', canal: 'Ligação', dia: 'Dia 4', objetivo: 'Qualificar o dono da iniciativa' },
+      { toque: 'Follow-up', canal: 'E-mail', dia: 'Dia 5', objetivo: 'Validar o dono da iniciativa sem pressão' },
+    ],
+  },
+  templates: {
+    texto: '',
+    linhas: [
+      {
+        nome: 'Abertura pelo Sinal',
+        canal: 'E-mail',
+        assunto: 'Uma ideia a partir do que vimos na sua empresa',
+        corpo: 'Oi, acompanhamos as novidades recentes da sua empresa e achamos que faz sentido conversar 20 minutos.',
+      },
+    ],
+  },
   dor_e_percepcao: {
     texto: '',
     linhas: [

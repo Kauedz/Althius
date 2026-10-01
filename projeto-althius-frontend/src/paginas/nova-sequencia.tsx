@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,8 +9,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useDadosDeContas, useDadosDeSequencias, useFonteDeContas, useFonteDeSequencias } from '@/fonte/contexto'
+import {
+  useDados,
+  useDadosDeContas,
+  useDadosDeSequencias,
+  useFonteDeContas,
+  useFonteDeSequencias,
+  useFonteDoPlaybook,
+} from '@/fonte/contexto'
 import type { Contato } from '@/fonte/contas-tipos'
+import { modeloDeCadencia, passosDoModelo } from '@/fonte/modelo-de-cadencia'
 
 interface Props {
   aberto: boolean
@@ -53,6 +61,21 @@ function FormularioNovaSequencia({
   const [carregandoContatos, setCarregandoContatos] = useState(false)
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState('')
+  const [usarModelo, setUsarModelo] = useState(true)
+
+  // O modelo vem da Cadência do Playbook (playbook 05); sem Playbook ou sem Cadência preenchida, a Sequência nasce vazia.
+  const fonteDoPlaybook = useFonteDoPlaybook()
+  const cadenciaDoPlaybook = useDados(fonteDoPlaybook, (f) => f.secao('cadencia').catch(() => undefined), [])
+  const templatesDoPlaybook = useDados(fonteDoPlaybook, (f) => f.secao('templates').catch(() => undefined), [])
+  const modelo = useMemo(
+    () =>
+      modeloDeCadencia(
+        cadenciaDoPlaybook?.vigente?.conteudo.linhas ?? [],
+        templatesDoPlaybook?.vigente?.conteudo.linhas ?? [],
+      ),
+    [cadenciaDoPlaybook, templatesDoPlaybook],
+  )
+  const comModelo = modelo.toques.length > 0
 
   function aoMudarConta(novoId: string) {
     setContaId(novoId)
@@ -124,6 +147,7 @@ function FormularioNovaSequencia({
       const nova = await fonteSequencias.criarSequencia({
         contaId,
         participantesIds,
+        ...(comModelo && usarModelo ? { steps: passosDoModelo(modelo.toques, participantesIds[0]) } : {}),
       })
       aoFechar()
       navegar(`/sequencias/${nova.id}`)
@@ -230,6 +254,38 @@ function FormularioNovaSequencia({
                 )
               })}
             </div>
+          )}
+        </div>
+      )}
+
+      {contaId && !jaTemSequencia && comModelo && (
+        <div className="flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
+          <label className="flex cursor-pointer items-center gap-2.5 font-medium">
+            <input
+              type="checkbox"
+              checked={usarModelo}
+              onChange={(e) => setUsarModelo(e.target.checked)}
+              className="size-4 rounded-none accent-al-accent"
+            />
+            Usar a Cadência do Playbook como modelo ({modelo.toques.length} {modelo.toques.length === 1 ? 'toque' : 'toques'})
+          </label>
+          {usarModelo && (
+            <>
+              <ol className="flex flex-col gap-1 text-al-muted">
+                {modelo.toques.map((toque) => (
+                  <li key={`${toque.dia}-${toque.titulo}`}>
+                    Dia {toque.dia} · {toque.titulo} ({toque.canal === 'email' ? 'E-mail' : toque.canal === 'linkedin' ? 'LinkedIn' : 'WhatsApp'})
+                    {toque.dependeDoCanal && <span className="ml-1.5 text-al-atencao">depende do canal</span>}
+                  </li>
+                ))}
+              </ol>
+              {modelo.foraDoEscopo.length > 0 && (
+                <p className="text-al-muted">
+                  Ficam de fora, por ainda não terem canal: {modelo.foraDoEscopo.join(', ')}.
+                </p>
+              )}
+              <p className="text-al-muted">Nenhum toque sai sem a sua confirmação de passo.</p>
+            </>
           )}
         </div>
       )}
