@@ -27,11 +27,19 @@ export interface Deps {
   stripe: Stripe
   /** O preço por assento no Stripe (R$ 500 por usuário por mês, recorrente). */
   priceId: string
+  /**
+   * Liga o Stripe Tax no Checkout. Só com um registro ativo no Stripe Tax: sem ele, o Stripe não calcula nem cobra
+   * imposto e não dá erro. Desligado por padrão.
+   */
+  automaticTax?: boolean
   appOrigin: string
   log?: (fields: Record<string, unknown>) => void
 }
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
+
+/** O rótulo deste fluxo de Checkout no painel do Stripe (com o sufixo de 8 letras que o Stripe pede). */
+export const IDENTIFICADOR_DO_CHECKOUT = 'althius-plano-por-assento-qkzrmbte'
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const log = deps.log ?? ((fields) => console.log(JSON.stringify(fields)))
@@ -80,6 +88,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           line_items: [{ price: deps.priceId, quantity: Math.max(1, contexto.usedSeats) }],
           subscription_data: { metadata: { workspace_id: workspaceId } },
           allow_promotion_codes: true,
+          integration_identifier: IDENTIFICADOR_DO_CHECKOUT,
+          // O CNPJ entra na fatura; o nome e o endereço do Checkout atualizam o cliente.
+          tax_id_collection: { enabled: true },
+          customer_update: { name: 'auto', address: 'auto' },
+          ...(deps.automaticTax ? { automatic_tax: { enabled: true }, billing_address_collection: 'required' } : {}),
           success_url: `${origem}/?assinatura=ok`,
           cancel_url: `${origem}/?assinatura=cancelada`,
         })

@@ -75,3 +75,11 @@ Deno.test('eventos que a cobrança não usa, ou de um cliente sem Workspace, sã
   assertEquals(await (await enviar(assinatura('customer.subscription.updated', { customer: 'cus_outro' }))).json(), { received: true, ignored: true })
   assertEquals(c.aplicadas, [])
 })
+
+Deno.test('a fatura que falhou fica registrada e não lança crédito nem muda o estado', async () => {
+  const { c, enviar } = montar()
+  const resposta = await enviar({ id: 'evt_falhou', type: 'invoice.payment_failed', created: AGORA, data: { object: { id: 'in_1', customer: 'cus_norte', attempt_count: 1 } } })
+  assertEquals(await resposta.json(), { received: true })
+  assertEquals(c.eventos, ['evt_falhou'])
+  assertEquals([c.aplicadas, c.cotas], [[], []])
+})

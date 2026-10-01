@@ -77,3 +77,14 @@ Deno.test('a recusa do Stripe vira um aviso, sem detalhe do Stripe para o navega
   assertEquals(resposta.status, 502)
   assertEquals(await resposta.json(), { error: 'O Stripe recusou o pedido. Tente de novo em instantes.' })
 })
+
+Deno.test('o Checkout pede o CNPJ, marca o fluxo e só liga o Stripe Tax quando configurado', async () => {
+  const semImposto = montar(NOVO)
+  await semImposto.pedir({ action: 'checkout', workspaceId: WS })
+  const [, , corpo] = semImposto.c.chamadas[1]
+  assertEquals(corpo?.tax_id_collection, { enabled: true })
+  assertEquals(corpo?.customer_update, { name: 'auto', address: 'auto' })
+  assertEquals(String(corpo?.integration_identifier).slice(-9), '-qkzrmbte')
+  assertEquals('automatic_tax' in (corpo ?? {}), false)
+  assertEquals('payment_method_types' in (corpo ?? {}), false)
+})

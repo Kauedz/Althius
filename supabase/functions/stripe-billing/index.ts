@@ -55,4 +55,13 @@ const db: Db = {
   },
 }
 
-Deno.serve(createHandler({ db, stripe: stripeHttp(STRIPE_SECRET_KEY), priceId: STRIPE_PRICE_ID, appOrigin: APP_ORIGIN }))
+// O Stripe Tax só liga com STRIPE_AUTOMATIC_TAX=true, depois de o registro estar ativo no painel do Stripe.
+const AUTOMATIC_TAX = Deno.env.get('STRIPE_AUTOMATIC_TAX') === 'true'
+
+Deno.serve(createHandler({
+  db,
+  stripe: stripeHttp(STRIPE_SECRET_KEY),
+  priceId: STRIPE_PRICE_ID,
+  appOrigin: APP_ORIGIN,
+  automaticTax: AUTOMATIC_TAX,
+}))
