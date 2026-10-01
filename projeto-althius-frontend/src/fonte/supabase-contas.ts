@@ -107,6 +107,19 @@ function converterErro(error: { message: string; code?: string }): Error {
   }
   if (error.message.includes('insufficient credits')) return new Error('Sem créditos suficientes para esta busca.')
   if (error.message.includes('monthly credit limit reached')) return new Error('Você chegou ao seu limite mensal de créditos.')
+  // Transferir a responsabilidade (CRM-06): as recusas de transfer_target_account_responsibility.
+  if (error.message.includes('the responsible seller is still an active participant')) {
+    return new Error('O responsável ainda é Participante ativo: só se transfere depois que ele sair do Workspace.')
+  }
+  if (error.message.includes('the new responsible seller must be an active participant')) {
+    return new Error('Escolha um Participante ativo do Workspace para receber a Conta.')
+  }
+  if (error.message.includes('a reason is required to transfer responsibility')) {
+    return new Error('Diga o motivo da transferência.')
+  }
+  if (error.message.includes('only administrators can transfer responsibility')) {
+    return new Error('Só um Administrador pode transferir a responsabilidade.')
+  }
   // Arquivar e apagar (CRM-18): as recusas do banco, antes das regras gerais do Contato.
   if (error.code === '42501' && error.message.includes('only administrators can permanently delete')) {
     return new Error('Só um Administrador pode apagar definitivamente.')
@@ -295,15 +308,31 @@ export function criarFonteDeContasSupabase(
       .eq('workspace_id', workspace()).eq('id', id).maybeSingle()
     if (error) throw converterErro(error)
     if (!data) throw naoEncontrada()
+    const responsavel = (await responsaveis(id)).get(id)
     return {
-      ...mapearConta(
-        data as RegistroConta,
-        (await responsaveis(id)).get(id),
-        obterUsuarioId(),
-        await contatos(id),
-        obterEhAdministrador(),
-      ),
+      ...mapearConta(data as RegistroConta, responsavel, obterUsuarioId(), await contatos(id), obterEhAdministrador()),
       ...(await foguinhoDaConta(id)),
+      ...(await responsavelAusente(responsavel)),
+    }
+  }
+
+  /** Os Participantes ativos do Workspace, pelo identificador da Conta de usuário. Só quem é Participante ativo lê. */
+  async function participantesAtivos(): Promise<{ id: string; nome: string }[]> {
+    const { data, error } = await cliente.rpc('list_workspace_participants', { p_workspace_id: workspace() })
+    if (error) throw converterErro(error)
+    return ((data ?? []) as { user_id: string; email: string; name: string | null }[]).map((p) => ({
+      id: p.user_id,
+      nome: p.name ?? p.email,
+    }))
+  }
+
+  /** O Administrador vê quando o responsável saiu do Workspace; para os outros, a fonte não informa. */
+  async function responsavelAusente(responsavel: string | undefined): Promise<{ responsavelAusente?: boolean }> {
+    if (!obterEhAdministrador() || !responsavel) return {}
+    try {
+      return { responsavelAusente: !(await participantesAtivos()).some((p) => p.id === responsavel) }
+    } catch {
+      return {}
     }
   }
 
@@ -607,6 +636,16 @@ export function criarFonteDeContasSupabase(
     async arquivarConta(contaId: string): Promise<ResultadoDoArquivamentoDaConta> {
       const resposta = (await rpc('archive_target_account', { p_target_account_id: contaId })) as { sequences_paused?: number }
       return { sequenciasPausadas: resposta.sequences_paused ?? 0 }
+    },
+
+    participantesParaTransferir: participantesAtivos,
+
+    async transferirResponsabilidade(contaId: string, novoResponsavelId: string, motivo: string) {
+      await rpc('transfer_target_account_responsibility', {
+        p_target_account_id: contaId,
+        p_new_user_id: novoResponsavelId,
+        p_reason: motivo,
+      })
     },
 
     async restaurarConta(contaId: string): Promise<ResultadoDaRestauracaoDaConta> {

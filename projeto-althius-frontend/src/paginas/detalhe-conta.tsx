@@ -21,7 +21,9 @@ import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 import { DialogoNovaSequencia } from './nova-sequencia'
 import { Foguinho } from './sinais/componentes'
 import { TabelaDeContatos } from './tabela-de-contatos'
+import { TransferirResponsabilidade } from './transferir-responsabilidade'
 import { useMigalhaParaALista } from './voltar-para-a-lista'
+
 
 interface Props {
   contaId: string
@@ -150,6 +152,7 @@ export function DetalheConta({ contaId }: Props) {
     <Pagina titulo={conta.nome} voltar={voltar} className="gap-0">
       <CabecalhoDaConta conta={conta} hoje={hoje} />
       <AcoesDaConta conta={conta} temSequenciaEmAndamento={!!sequencia && !sequenciaEncerrada} />
+      <TransferirResponsabilidade conta={conta} />
 
       <div className="flex flex-col">
         <Secao id="sinais" titulo="Sinais" contagem={sinais && contar(sinais.length, 'sinal', 'sinais')}>

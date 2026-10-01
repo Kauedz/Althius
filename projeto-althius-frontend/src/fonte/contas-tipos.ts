@@ -68,6 +68,11 @@ export interface NovoSinal {
   reencontrado?: ReencontroSinal
 }
 
+export interface ParticipanteParaTransferir {
+  id: string
+  nome: string
+}
+
 export interface ContaAlvo {
   id: string
   nome: string
@@ -101,6 +106,11 @@ export interface ContaAlvo {
   podeArquivar?: boolean
   /** Quem está na sessão pode apagar a Conta definitivamente (só o Administrador). */
   podeApagar?: boolean
+  /**
+   * O responsável pela Conta já não é Participante ativo do Workspace, e quem está na sessão (Administrador) pode
+   * transferi-la (CRM-06). Sem valor, a fonte não informa.
+   */
+  responsavelAusente?: boolean
   /** O Estágio de prospecção, a coluna do kanban. Sem valor, a fonte não informa (e a Conta fica em Descoberta). */
   estagio?: EstagioDeProspeccao
 }
@@ -369,6 +379,15 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Arquiva a Conta-alvo: sai das listas padrão, a Sequência em andamento é pausada e o histórico fica. */
   arquivarConta?(contaId: string): Promise<ResultadoDoArquivamentoDaConta>
+
+  /** Os Participantes ativos que podem receber a responsabilidade de uma Conta (CRM-06). */
+  participantesParaTransferir?(): Promise<ParticipanteParaTransferir[]>
+
+  /**
+   * Transfere a responsabilidade da Conta, depois da saída do responsável, para um Participante ativo, com o motivo.
+   * Só o Administrador; ação excepcional, auditada no banco.
+   */
+  transferirResponsabilidade?(contaId: string, novoResponsavelId: string, motivo: string): Promise<void>
 
   /** Restaura a Conta-alvo arquivada. A Sequência pausada só é destravada: retomar continua sendo do responsável. */
   restaurarConta?(contaId: string): Promise<ResultadoDaRestauracaoDaConta>
