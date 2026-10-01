@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** needs-info (mexe nas configurações do Supabase Auth: só com o Nan)
+**Status:** wontfix (decisão do Nan, 2026-10-01: a sessão única não será implementada)
 
 ## Pode mexer
 
@@ -29,3 +29,7 @@
 1. Aplicar a configuração de sessão no painel do Supabase Auth (a IA prepara o passo a passo).
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- 2026-10-01: o Nan decidiu não implementar a sessão única. O ticket fica fechado como `wontfix`.

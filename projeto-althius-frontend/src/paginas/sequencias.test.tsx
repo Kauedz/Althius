@@ -333,3 +333,21 @@ describe('Resultado dos envios em Sequências', () => {
     expect(screen.queryByRole('table', { name: 'Resultado dos envios' })).not.toBeInTheDocument()
   })
 })
+
+describe('Resultado dos envios por abordagem', () => {
+  it('a vista Abordagem agrupa pelo título do passo', async () => {
+    const { usuario } = renderizarApp('/sequencias')
+    await screen.findByRole('table', { name: 'Resultado dos envios' })
+    await usuario.click(await screen.findByRole('button', { name: 'Abordagem' }))
+    const tabela = screen.getByRole('table', { name: 'Resultado dos envios' })
+    expect(within(tabela).getByRole('columnheader', { name: 'Abordagem' })).toBeInTheDocument()
+    const linhas = within(tabela).getAllByRole('row').slice(1)
+    expect(linhas.map((linha) => within(linha).getAllByRole('cell').map((c) => c.textContent))).toEqual([
+      ['E-mail', 'Abertura pelo Sinal', '40', '28%', '15%', '4', '2'],
+      ['LinkedIn', 'Conexão no LinkedIn', '15', '33%', '13%', '1', '0'],
+      ['E-mail', 'Follow-up executivo', '28', '14%', '7%', '1', '0'],
+    ])
+    await usuario.click(screen.getByRole('button', { name: 'Segmento' }))
+    expect(within(screen.getByRole('table', { name: 'Resultado dos envios' })).getByRole('columnheader', { name: 'Segmento' })).toBeInTheDocument()
+  })
+})

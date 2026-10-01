@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
@@ -372,6 +372,19 @@ export function criarFonteDeSequenciasSupabase(
       return this.atualizarDocumento(id, { participantesIds })
     },
     async metricasDeDemo(_id: string): Promise<MetricasDemoSequencia | null> { return null },
+    async taxasPorAbordagem(): Promise<TaxaPorAbordagem[]> {
+      const { data, error } = await cliente.rpc('send_outcome_rates_by_approach', { p_workspace_id: workspace() })
+      if (error) throw converterErro(error)
+      return ((data ?? []) as (Omit<RegistroDaTaxa, 'segment'> & { approach: string })[]).map((linha) => ({
+        abordagem: linha.approach,
+        canal: linha.channel,
+        enviados: Number(linha.sent),
+        respostas: Number(linha.replied),
+        positivas: Number(linha.positive),
+        reunioes: Number(linha.meetings),
+        oportunidades: Number(linha.opportunities),
+      }))
+    },
     async taxasDosEnvios(): Promise<TaxaDosEnvios[]> {
       const { data, error } = await cliente.rpc('send_outcome_rates', { p_workspace_id: workspace() })
       if (error) throw converterErro(error)
