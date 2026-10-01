@@ -16,6 +16,7 @@ import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
+import { criarFonteDeAprovacoesSupabase } from './supabase-aprovacoes'
 import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
 import { criarFonteDeContasSupabase } from './supabase-contas'
 import { criarFonteDeContasRemetentesSupabase } from './supabase-contas-remetentes'
@@ -62,12 +63,15 @@ export function criarAmbienteDoWorkspace({
   participacao,
   conversasDisponiveis = false,
   sinaisDisponiveis = false,
+  aprovacoesDisponiveis = false,
 }: {
   cliente: SupabaseClient
   usuario: ContaDeUsuarioDaSessao
   participacao: ParticipacaoNoWorkspace
   conversasDisponiveis?: boolean
   sinaisDisponiveis?: boolean
+  /** A fila real de Aprovações (CRM-15) entra com o primeiro executor de ação externa (ex.: Enviar ao CRM). */
+  aprovacoesDisponiveis?: boolean
 }): Ambiente {
   const participantes = criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id)
   const perfil = criarFonteDoPerfilSupabase(cliente, { usuario, participacao })
@@ -80,6 +84,8 @@ export function criarAmbienteDoWorkspace({
   ])
   if (conversasDisponiveis) indisponiveis.delete('conversas')
   if (sinaisDisponiveis) indisponiveis.delete('sinais')
+  if (aprovacoesDisponiveis) indisponiveis.delete('aprovacoes')
+  const aprovacoes = aprovacoesDisponiveis ? criarFonteDeAprovacoesSupabase(cliente, participacao.workspaceId) : undefined
   return {
     modo: 'real',
     // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões e as Conversas
@@ -90,8 +96,9 @@ export function criarAmbienteDoWorkspace({
       ...perfil,
       ...agentes,
       ...conversas,
+      ...(aprovacoes ? { aprovacoes: aprovacoes.aprovacoes, decidirAprovacao: aprovacoes.decidirAprovacao } : {}),
       observar(ouvinte) {
-        const paradas = [participantes, perfil, agentes].map((fonte) => fonte.observar(ouvinte))
+        const paradas = [participantes, perfil, agentes, ...(aprovacoes ? [aprovacoes] : [])].map((fonte) => fonte.observar(ouvinte))
         return () => paradas.forEach((parar) => parar())
       },
     },

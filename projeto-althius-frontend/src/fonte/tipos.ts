@@ -397,8 +397,9 @@ export interface FonteDeConhecimento {
   nome: string
 }
 
-export type EstadoAprovacao = 'pendente' | 'aprovada' | 'rejeitada'
-export type Decisao = Exclude<EstadoAprovacao, 'pendente'>
+/** Cancelada (por quem pediu) e expirada (sem decisão em 7 dias) só existem no Workspace operacional (CRM-15). */
+export type EstadoAprovacao = 'pendente' | 'aprovada' | 'rejeitada' | 'cancelada' | 'expirada'
+export type Decisao = 'aprovada' | 'rejeitada'
 /** Onde uma Aprovação foi pedida e pode ser decidida. */
 export type Origem = 'althius' | CanalId
 /** Onde uma Aprovação foi decidida: na fila de Aprovações, na página da Conversa ou no Canal de origem. */
@@ -430,6 +431,9 @@ export interface AprovacaoDeAcao extends AprovacaoBase {
   contaNome?: string
   sequenciaId?: string
   revisao?: undefined
+  /** Depois de aprovada, o que o servidor fez com ela (CRM-15): executando, executada ou falhou, com o motivo. */
+  execucao?: 'executando' | 'executada' | 'falhou'
+  falha?: string
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { Aprovacao, CategoriaDeAprovacao, Decisao, Especialidade, Papel, Permissao } from './tipos'
+import type { Aprovacao, CategoriaDeAprovacao, Decisao, EstadoAprovacao, Especialidade, Papel, Permissao } from './tipos'
 
 /** ADR 0002: Ler por padrão; Propor em qualquer Integração que escreve ou gasta. */
 export function permissaoPadrao(integracao: { escreve: boolean }): Permissao {
@@ -14,6 +14,21 @@ export function nomeDeAgenteCriado(especialidade: Pick<Especialidade, 'nome'>, c
 export const ROTULO_DA_DECISAO: Record<Decisao, string> = {
   aprovada: 'Aprovada',
   rejeitada: 'Recusada',
+}
+
+/** O rótulo de uma Aprovação que já saiu da fila: a decisão, ou o fim sem decisão (cancelada, expirada) e, depois de
+ * aprovada, o que o servidor fez com ela (CRM-15). */
+export function rotuloDoEstadoDaAprovacao(aprovacao: {
+  estado: EstadoAprovacao
+  execucao?: 'executando' | 'executada' | 'falhou'
+}): string {
+  if (aprovacao.execucao === 'executando') return 'Aprovada · executando'
+  if (aprovacao.execucao === 'executada') return 'Aprovada · executada'
+  if (aprovacao.execucao === 'falhou') return 'Aprovada · falhou'
+  if (aprovacao.estado === 'cancelada') return 'Cancelada'
+  if (aprovacao.estado === 'expirada') return 'Expirada'
+  if (aprovacao.estado === 'pendente') return 'Pendente'
+  return ROTULO_DA_DECISAO[aprovacao.estado]
 }
 
 export const categoriaDa = (aprovacao: Aprovacao): CategoriaDeAprovacao =>
