@@ -143,10 +143,16 @@ const HUBSPOT_REST: PerfilRest = {
       escreve: true,
       metodo: 'POST',
       caminho: '/crm/v3/objects/contacts',
-      corpo: ['properties'],
+      corpo: ['properties', 'associations'],
       esquema: {
         type: 'object',
-        properties: { properties: { type: 'object', description: 'Propriedades do HubSpot (email, firstname, lastname, jobtitle…).' } },
+        properties: {
+          properties: { type: 'object', description: 'Propriedades do HubSpot (email, firstname, lastname, jobtitle…).' },
+          associations: {
+            type: 'array',
+            description: 'Associações já na criação: [{ to: { id }, types: [{ associationCategory, associationTypeId }] }].',
+          },
+        },
         required: ['properties'],
       },
     },
@@ -160,6 +166,23 @@ const HUBSPOT_REST: PerfilRest = {
       esquema: {
         type: 'object',
         properties: { properties: { type: 'object', description: 'Propriedades do HubSpot (name, domain, industry…).' } },
+        required: ['properties'],
+      },
+    },
+    {
+      nome: 'create_note',
+      descricao: 'Cria uma nota no HubSpot, associada a Companies e Contacts.',
+      escreve: true,
+      metodo: 'POST',
+      caminho: '/crm/v3/objects/notes',
+      corpo: ['properties', 'associations'],
+      esquema: {
+        type: 'object',
+        properties: {
+          properties: { type: 'object', description: 'hs_note_body (o texto) e hs_timestamp (ISO 8601).' },
+          // Tipos de associação da documentação de Notes: 190 nota → Company, 202 nota → Contact.
+          associations: { type: 'array', description: '[{ to: { id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId }] }].' },
+        },
         required: ['properties'],
       },
     },
@@ -235,6 +258,15 @@ const PIPEDRIVE_REST: PerfilRest = {
       },
     },
     {
+      nome: 'add_organization',
+      descricao: 'Cria uma organização no Pipedrive.',
+      escreve: true,
+      metodo: 'POST',
+      caminho: '/organizations',
+      corpo: ['name'],
+      esquema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+    },
+    {
       nome: 'add_note',
       descricao: 'Adiciona uma nota a um negócio, pessoa ou organização do Pipedrive.',
       escreve: true,
@@ -282,6 +314,38 @@ const RD_STATION_REST: PerfilRest = {
       caminho: '/deals',
       consulta: ['page', 'limit'],
       esquema: { type: 'object', properties: { page: { type: 'integer' }, limit: { type: 'integer' } } },
+    },
+    // não confirmado: os envelopes `organization` e `contact` dos corpos de criação e o campo do id na resposta
+    // (`_id` ou `id`); a documentação acessível confirmou os campos (name, title, emails, phones, organization_id).
+    {
+      nome: 'create_organization',
+      descricao: 'Cria uma empresa no RD Station CRM.',
+      escreve: true,
+      metodo: 'POST',
+      caminho: '/organizations',
+      corpo: ['name'],
+      envelope: 'organization',
+      esquema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+    },
+    {
+      nome: 'create_contact',
+      descricao: 'Cria um contato no RD Station CRM, ligado a uma empresa.',
+      escreve: true,
+      metodo: 'POST',
+      caminho: '/contacts',
+      corpo: ['name', 'title', 'emails', 'phones', 'organization_id'],
+      envelope: 'contact',
+      esquema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          title: { type: 'string' },
+          emails: { type: 'array', items: { type: 'object', properties: { email: { type: 'string' } } } },
+          phones: { type: 'array', items: { type: 'object', properties: { phone: { type: 'string' } } } },
+          organization_id: { type: 'string' },
+        },
+        required: ['name'],
+      },
     },
   ],
 }
@@ -399,6 +463,8 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       'Se o token do MCP vale para a consulta de metadados (hub_id) ou se o portal vem de get_user_details.',
       'Se o servidor aceita o parâmetro resource (RFC 8707).',
       'Escopos do MCP Auth App para Companies, Contacts e owners.',
+      'Tipo de associação 279 (Contact → Company) na criação do Contact; 190 e 202 (nota → Company e Contact) vêm da documentação de Notes.',
+      'Escopos de escrita do Private App: crm.objects.companies.write, crm.objects.contacts.write (as notas usam o escopo de contacts ou companies).',
     ],
   },
   notion: {
@@ -507,7 +573,12 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       },
     },
     rest: RD_STATION_REST,
-    naoConfirmado: ['Verificação do token e nomes dos filtros de busca e paginação das listas.', 'Servidor MCP oficial do RD Station.'],
+    naoConfirmado: [
+      'Verificação do token e nomes dos filtros de busca e paginação das listas.',
+      'Servidor MCP oficial do RD Station.',
+      'Os envelopes organization e contact na criação de empresa e contato, e o campo do id na resposta (_id ou id).',
+      'Endpoint de nota/anotação numa empresa (a v1 só confirma anotações em negociações): o Envio ao CRM não leva nota ao RD Station.',
+    ],
   },
 }
 
