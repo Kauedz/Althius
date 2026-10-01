@@ -120,6 +120,21 @@ export interface ResumoPublicoSequencia {
   atualizadaEm?: string
 }
 
+/**
+ * O Resultado dos Envios do Workspace por canal e segmento da Conta (motor-hermes 03): quantos Envios saíram e quantos
+ * tiveram resposta, resposta positiva, reunião e oportunidade. Positiva conta reunião e oportunidade; negativa só conta
+ * como resposta. Só números: nenhum texto de mensagem.
+ */
+export interface TaxaDosEnvios {
+  canal: string
+  segmento: string
+  enviados: number
+  respostas: number
+  positivas: number
+  reunioes: number
+  oportunidades: number
+}
+
 export interface MetricasDemoSequencia {
   sequenciaId: string
   status: StatusSequencia
@@ -251,6 +266,9 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Lê apenas a projeção pública da sequência (sem corpos, assuntos ou anexos privados). */
   resumoPublico(id: string): Promise<ResumoPublicoSequencia | null>
+
+  /** O Resultado dos Envios do Workspace, por canal e segmento. Sem o método, a fonte não mede (e a tela não mostra). */
+  taxasDosEnvios?(): Promise<TaxaDosEnvios[]>
 
   /** Os Envios dos passos da sequência. Só o Responsável pela Sequência os vê; os demais recebem uma lista vazia. */
   envios(sequenciaId: string): Promise<EnvioDoPasso[]>

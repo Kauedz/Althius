@@ -8,6 +8,7 @@ import {
   type ResumoPublicoSequencia,
   type Sequencia,
   type StepSequencia,
+  type TaxaDosEnvios,
 } from './sequencias-tipos'
 
 function validarStepsAlteradosOuNovos(novosSteps?: StepSequencia[], stepsAntigos?: StepSequencia[]): void {
@@ -25,6 +26,13 @@ function validarStepsAlteradosOuNovos(novosSteps?: StepSequencia[], stepsAntigos
     }
   }
 }
+
+/** O Resultado dos Envios de exemplo da Demonstração, por canal e segmento. */
+const TAXAS_DA_DEMONSTRACAO: TaxaDosEnvios[] = [
+  { canal: 'email', segmento: 'Infraestrutura de dados', enviados: 48, respostas: 12, positivas: 7, reunioes: 4, oportunidades: 2 },
+  { canal: 'email', segmento: 'Software de design', enviados: 20, respostas: 3, positivas: 1, reunioes: 1, oportunidades: 0 },
+  { canal: 'linkedin', segmento: 'Infraestrutura de dados', enviados: 15, respostas: 5, positivas: 2, reunioes: 1, oportunidades: 0 },
+]
 
 export interface OpcoesFonteDeSequenciasSimulada {
   atrasoMs?: number
@@ -195,6 +203,11 @@ export function criarFonteDeSequenciasSimulada(
 
     async confirmarParticipantes(id: string, participantesIds: string[]): Promise<Sequencia> {
       return this.atualizarDocumento(id, { participantesIds })
+    },
+
+    async taxasDosEnvios(): Promise<TaxaDosEnvios[]> {
+      await aguardar()
+      return dados.length === 0 ? [] : TAXAS_DA_DEMONSTRACAO.map((taxa) => ({ ...taxa }))
     },
 
     async metricasDeDemo(id: string): Promise<MetricasDemoSequencia | null> {

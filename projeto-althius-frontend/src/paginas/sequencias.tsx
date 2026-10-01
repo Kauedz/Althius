@@ -9,6 +9,7 @@ import type { StatusSequencia } from '@/fonte/sequencias-tipos'
 import { normalizarParaBusca } from '@/lib/utils'
 import { DetalheSequencia, IconeCanal, SeloStatus } from './detalhe-sequencia'
 import { DialogoNovaSequencia } from './nova-sequencia'
+import { ResultadoDosEnvios } from './resultado-dos-envios'
 
 export function PaginaSequencias() {
   const { sequenciaId } = useParams<{ sequenciaId?: string }>()
@@ -312,6 +313,8 @@ function ListaGlobalSequencias() {
           )}
         </div>
       )}
+
+      {!carregando && !erro && <ResultadoDosEnvios />}
 
       {/* Diálogo Nova Sequência */}
       {permiteCriarSequencia && <DialogoNovaSequencia

@@ -5,11 +5,11 @@ resposta positiva, reunião marcada e, quando houver, oportunidade. É o dado qu
 
 **Blocked by:** None. Depende dos Envios que já existem (canais-04) e cresce com WhatsApp e LinkedIn (canais-06/07).
 
-**Status:** ready-for-agent (backend pronto; faltam a tela das taxas e o dado de abordagem)
+**Status:** ready-for-agent (backend e tela prontos; falta só o dado de abordagem)
 
 - [x] O desfecho é registrado por Envio, com quem classificou (pessoa ou Agente) e quando.
 - [x] Resposta negativa não conta como sucesso.
-- [ ] O Workspace vê as taxas por abordagem, canal e segmento das próprias Sequências.
+- [ ] O Workspace vê as taxas por abordagem, canal e segmento das próprias Sequências. — Canal e segmento prontos: a tabela "Resultado dos envios" em Sequências (`resultado-dos-envios.tsx`). Abordagem fica aberta (ver Comments).
 - [x] Nada disso sai do Workspace (a camada coletiva é o ticket 05).
 
 ## Comments
@@ -18,7 +18,8 @@ resposta positiva, reunião marcada e, quando houver, oportunidade. É o dado qu
 - A resposta recebida (`private.received_emails`) registra "resposta" sozinha, pelo sistema, sem rebaixar um desfecho já classificado. `public.set_send_outcome` é da pessoa dona da Sequência; `public.classify_send_outcome` é só do servidor, com o id de um Agente do mesmo Workspace.
 - `public.send_outcome_rates(workspace)` devolve, por canal e segmento da Conta, quantos Envios saíram, quantos tiveram resposta, positiva (positiva, reunião ou oportunidade), reunião e oportunidade. Só números; todo Participante ativo lê. Negativa só conta como resposta.
 - pgTAP `supabase/tests/resultado_de_cada_envio.sql` (19).
-- **Aberto:** (1) a tela das taxas, no Workspace; (2) "abordagem": um passo não carrega variante, então não há como agrupar por abordagem; precisa de uma decisão (título do passo? um campo de variante?); (3) reunião marcada e oportunidade ainda são ditas à mão, sem ligar ao Kanban ou ao CRM; (4) WhatsApp e LinkedIn entram junto com o ciclo real deles (canais 06 e 07), porque a tabela de Envios hoje só tem e-mail.
+- **Tela (2026-10-01):** em Sequências, abaixo da lista, a tabela "Resultado dos envios" mostra por canal e segmento os enviados, % de resposta, % de positiva, reuniões e oportunidades, lendo `send_outcome_rates`. A Demonstração traz um exemplo; sem Envios, nada aparece.
+- **Aberto:** (1) a tela para a pessoa classificar um Envio (positiva, negativa, reunião) no detalhe da Sequência; (2) "abordagem": um passo não carrega variante, então não há como agrupar por abordagem; precisa de uma decisão (título do passo? um campo de variante?); (3) reunião marcada e oportunidade ainda são ditas à mão, sem ligar ao Kanban ou ao CRM; (4) WhatsApp e LinkedIn entram junto com o ciclo real deles (canais 06 e 07), porque a tabela de Envios hoje só tem e-mail.
 
 ## Passos do Nan
 
