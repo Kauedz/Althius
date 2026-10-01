@@ -66,6 +66,15 @@ const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   sender_not_ready: 'Sua Conta remetente de E-mail não está pronta para enviar.',
   sequence_not_active: 'Retome a Sequência antes de ativar os envios.',
   no_steps: 'A Sequência ainda não tem passos.',
+  contact_without_phone: 'O Contato de um passo de WhatsApp não tem telefone. Cadastre o telefone antes de ativar.',
+  phone_not_found: 'Um passo de WhatsApp escolhe um telefone que o Contato não tem. Ajuste o passo antes de ativar.',
+  phone_without_whatsapp: 'O telefone escolhido num passo não está marcado como WhatsApp. Ajuste o Contato ou o passo.',
+  contact_without_linkedin: 'O Contato de um passo de LinkedIn não tem perfil cadastrado. Cadastre o LinkedIn antes de ativar.',
+  linkedin_profile_invalid: 'O LinkedIn do Contato não é o endereço de um perfil (linkedin.com/in/...). Corrija antes de ativar.',
+  invalid_linkedin_subtype: 'Um passo de LinkedIn está sem tipo válido (convite, mensagem ou InMail). Ajuste o passo.',
+  invite_note_too_long: 'A nota de um convite do LinkedIn passou do limite de caracteres. Encurte a nota antes de ativar.',
+  whatsapp_sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar. Conecte o WhatsApp antes de ativar.',
+  linkedin_sender_not_ready: 'Sua Conta remetente de LinkedIn não está pronta para enviar. Conecte o LinkedIn antes de ativar.',
 }
 
 interface LinhaDaResposta {
