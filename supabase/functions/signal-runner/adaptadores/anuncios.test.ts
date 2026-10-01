@@ -164,14 +164,18 @@ Deno.test('LinkedIn: busca o anunciante pelo nome da Conta em cada país, nos ú
   assertEquals(maxItems, 20)
 })
 
-Deno.test('LinkedIn: acima de 30 dias, a busca vai por intervalo de datas', () => {
+Deno.test('LinkedIn: acima de 30 dias, a busca fica nos últimos 30 (o intervalo de datas voltou vazio na execução real)', () => {
   const { input } = anuncioLinkedin.entrada(CONTA, { periodo: 'Últimos 90 dias' }, AGORA)
   const [url] = (input.startUrls as { url: string }[]).map((u) => new URL(u.url))
   assertEquals(url.searchParams.get('countries'), 'BR')
-  assertEquals(url.searchParams.get('dateOption'), 'custom-date-range')
-  assertEquals(url.searchParams.get('startdate'), new Date(AGORA - 90 * 86400_000).toISOString().slice(0, 10))
-  assertEquals(url.searchParams.get('enddate'), new Date(AGORA).toISOString().slice(0, 10))
+  assertEquals(url.searchParams.get('dateOption'), 'last-30-days')
+  assertEquals(url.searchParams.get('startdate'), null)
+  assertEquals(url.searchParams.get('enddate'), null)
   assertEquals(input.resultsLimit, 20)
+  // Sem a data de início, a frase diz o período que a busca cobriu, não o do formulário.
+  const semData = itemDoLinkedin({ availability: undefined })
+  const [s] = anuncioLinkedin.sinais([semData], CONTA, { ...CRITERIOS, periodo: 'Últimos 90 dias' }, AGORA)
+  assertEquals(s.phrase, 'Anunciando no LinkedIn: 1 anúncio nos últimos 30 dias')
 })
 
 Deno.test('LinkedIn: vários anúncios da Conta no mesmo mês viram um Sinal, sem "ativos" e sem quem pagou', () => {

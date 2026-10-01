@@ -106,6 +106,8 @@ export interface Biblioteca {
    * diz "anunciando", sem "começou". Só o LinkedIn: a saída real dele não traz a data (execução de 01/10/2026).
    */
   semDataValeAVarredura?: boolean
+  /** O maior período que a busca da biblioteca consegue cobrir; o período do Monitoramento acima dele fica nesse limite. */
+  periodoMaximoEmDias?: number
 }
 
 export function dataCurta(iso: string): string {
@@ -148,7 +150,7 @@ export function sinaisDosAnuncios(
     // Sem nenhuma data no grupo, é só "anunciando no período": a data do Sinal é a da varredura.
     if (grupo.every((a) => !a.inicio)) {
       const n = grupo.length
-      const dias = diasDoPeriodo(criterios)
+      const dias = Math.min(diasDoPeriodo(criterios), biblioteca.periodoMaximoEmDias ?? Infinity)
       const quantos = `${n} ${n === 1 ? 'anúncio' : 'anúncios'}`
       const trechos = [...new Set(grupo.map((a) => a.texto).filter(Boolean))]
         .slice(0, MAX_TRECHOS)

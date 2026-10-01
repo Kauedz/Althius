@@ -7,13 +7,16 @@
 // Campos lidos: os do exemplo de saída do README e do esquema de entrada do actor (build 1.2.2); a execução real que os
 // confirma é passo do Nan.
 import type { AdaptadorDeSinal } from '../handler.ts'
-import { dataIso, diasDoPeriodo, nomeDaEmpresa, objetos, paginaDoLinkedin, paisesDaLocalizacao, primeiroTexto } from './comum.ts'
-import { type Anuncio, anuncianteEhAConta, dataDeDiasAtras, nomeParaBusca, sinaisDosAnuncios, textoDoAnuncio } from './anuncios.ts'
+import { dataIso, nomeDaEmpresa, objetos, paginaDoLinkedin, paisesDaLocalizacao, primeiroTexto } from './comum.ts'
+import { type Anuncio, anuncianteEhAConta, nomeParaBusca, sinaisDosAnuncios, textoDoAnuncio } from './anuncios.ts'
 
 const MAX_ITENS = 20
 const MAX_BUSCAS = 3
-// O maior período fixo da biblioteca do LinkedIn; acima dele, o intervalo de datas.
-const PERIODO_FIXO_EM_DIAS = 30
+// O único período da biblioteca do LinkedIn que funciona na execução real: "last-30-days". O intervalo de datas
+// (`custom-date-range`, `startdate`, `enddate`) voltou vazio nas duas buscas de 90 dias de 01/10/2026 (Nubank e
+// Microsoft no Brasil), e a mesma busca da Microsoft no Brasil com 30 dias trouxe 20 anúncios. Período maior que 30 dias
+// busca os últimos 30.
+const PERIODO_DA_BIBLIOTECA_EM_DIAS = 30
 
 const BIBLIOTECA = {
   signalType: 'anuncio_linkedin',
@@ -21,11 +24,7 @@ const BIBLIOTECA = {
   fonte: 'Biblioteca de anúncios do LinkedIn',
   soAtivos: false,
   semDataValeAVarredura: true,
-}
-
-function periodoDaBusca(dias: number, agora: number): Record<string, string> {
-  if (dias <= PERIODO_FIXO_EM_DIAS) return { dateOption: 'last-30-days' }
-  return { dateOption: 'custom-date-range', startdate: dataDeDiasAtras(dias, agora), enddate: dataDeDiasAtras(0, agora) }
+  periodoMaximoEmDias: PERIODO_DA_BIBLIOTECA_EM_DIAS,
 }
 
 function linkDoAnuncio(item: Record<string, unknown>, id: string): string {
@@ -37,11 +36,10 @@ function linkDoAnuncio(item: Record<string, unknown>, id: string): string {
 export const anuncioLinkedin: AdaptadorDeSinal = {
   signalType: BIBLIOTECA.signalType,
 
-  entrada(conta, criterios, agora) {
+  entrada(conta, criterios) {
     const nome = nomeParaBusca(conta)
-    const periodo = periodoDaBusca(diasDoPeriodo(criterios), agora)
     const startUrls = paisesDaLocalizacao(criterios).slice(0, MAX_BUSCAS).map((pais) => {
-      const busca = new URLSearchParams({ accountOwner: nome, countries: pais.codigo, ...periodo })
+      const busca = new URLSearchParams({ accountOwner: nome, countries: pais.codigo, dateOption: 'last-30-days' })
       return { url: `https://www.linkedin.com/ad-library/search?${busca}` }
     })
     return {
