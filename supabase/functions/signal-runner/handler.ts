@@ -155,8 +155,9 @@ export interface Deps {
 const MONITORES_POR_CHAMADA = 5
 const BUSCAS_POR_CHAMADA = 5
 // O tempo da Edge Function é de 150 s. Uma Conta nova só começa até este prazo; o cliente do Apify desta função espera no
-// máximo 70 s por Conta (index.ts), então a última termina antes do limite. O que faltar fica para a rodada seguinte.
-const PRAZO_PARA_COMECAR_EM_MS = 75_000
+// máximo 70 s por Conta, mais 3 s para reler o custo (index.ts), então a última termina antes do limite. O que faltar fica
+// para a rodada seguinte.
+const PRAZO_PARA_COMECAR_EM_MS = 72_000
 // Um Sinal com disparo até um dia no futuro vira "agora" (relógios e fusos); mais que isso, ou uma data ilegível, é descartado.
 const TOLERANCIA_DE_DATA_EM_MS = 24 * 60 * 60 * 1000
 

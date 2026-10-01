@@ -7,7 +7,7 @@ A varredura automática de Sinais. O relógio do banco (`pg_cron` a cada 10 minu
 3. grava os Sinais que o **adaptador** do tipo tira do resultado (o mesmo acontecimento conta uma vez; vale 30 dias);
 4. **fecha** a varredura (`end_account_scan`): concluída, debita o crédito; falha, adaptador quebrado ou Sinal que o banco recusa soltam a reserva e devolvem o teto — nada é cobrado.
 
-Se o automático está em "confirmar", sem teto ou no teto, ou não há crédito, a rodada para sem varrer nada e o motivo fica em `last_error` do Monitoramento (a tela o mostra a partir do ticket 03). O tempo da função é de 150 s: uma Conta nova só começa até 75 s, e o Apify espera no máximo 70 s por Conta; o que faltar continua de onde parou na rodada seguinte, que o próprio Monitoramento pede para já.
+Se o automático está em "confirmar", sem teto ou no teto, ou não há crédito, a rodada para sem varrer nada e o motivo fica em `last_error` do Monitoramento (a tela o mostra a partir do ticket 03). O tempo da função é de 150 s: uma Conta nova só começa até 72 s, e o Apify espera no máximo 70 s por Conta (mais 3 s para reler o custo quando o Apify ainda não fechou a conta da execução); o que faltar continua de onde parou na rodada seguinte, que o próprio Monitoramento pede para já.
 
 Quem chama: só o relógio, com o cabeçalho `x-runner-token` (gerado e guardado no banco, conferido por `signal_runner_token_matches`). `verify_jwt = false` está no `supabase/config.toml`. Passo manual, uma vez por projeto: `select private.configure_signal_runner('https://<ref>.supabase.co');`.
 

@@ -169,11 +169,13 @@ const buscas: Buscas = {
   },
 }
 
-// Esta função tem 150 s; cada Conta espera o Apify no máximo 70 s (60 s de execução), e uma Conta nova só começa até 75 s.
+// Esta função tem 150 s; cada Conta espera o Apify no máximo 70 s (60 s de execução) e mais 3 s para reler o custo quando
+// o Apify ainda não fechou a conta da execução, e uma Conta nova só começa até 72 s.
 const apify = clienteDoApify({
   tokens: tokensDoApify((nome) => Deno.env.get(nome)),
   runTimeoutSeconds: 60,
   timeoutMs: 70_000,
+  esperaDoCustoMs: 3_000,
 })
 
 Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas }))

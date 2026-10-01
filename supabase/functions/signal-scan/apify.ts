@@ -21,7 +21,7 @@ export interface OpcoesDoApify {
   timeoutMs?: number;
   /**
    * Espera antes de ler o custo de novo quando o actor cobra por evento e a execução ainda não mostra os eventos. Zero
-   * (o padrão) lê uma vez só: o signal-runner não tem tempo de sobra.
+   * (o padrão) lê uma vez só.
    */
   esperaDoCustoMs?: number;
   /** Onde vai o resumo do custo de cada execução (só nomes de campo e números, nenhum dado pessoal). */
@@ -173,9 +173,9 @@ export function clienteDoApify(
   }
 
   /**
-   * O custo da execução. Na execução real de 01/10/2026, já com os eventos somados, o custo de um actor que cobra por
-   * evento seguiu 0, lido logo depois de a execução terminar (o motivo ainda não foi confirmado). Por isso o resumo vai
-   * para o log e, com `esperaDoCustoMs`, a execução sem eventos é lida de novo uma vez.
+   * O custo da execução. Na execução real de 01/10/2026 (log `apify_cost`), a execução lida logo depois de terminar
+   * vinha com `usageTotalUsd` 0 e sem eventos; 3 s depois, com `usageTotalUsd` 0,004 e `profile: 1`. Por isso, com
+   * `esperaDoCustoMs`, a execução sem eventos é lida de novo uma vez, e o resumo vai para o log.
    */
   async function custo(token: string, runId: string): Promise<number | null> {
     let execucao = await lerExecucao(token, runId);
@@ -259,12 +259,12 @@ function resumoDoCusto(run: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * O custo de uma execução lida em `GET /v2/actor-runs/{id}`: o uso da plataforma (`usageTotalUsd`) mais os eventos que
- * o actor cobrou (`chargedEventCounts` × o preço do evento em `pricingInfo`), nos actors que cobram por evento. Na
- * execução real de 30/09/2026, o `usageTotalUsd` de um desses actors veio 0 com eventos cobrados (campos do tipo
- * `ActorRun` do cliente oficial apify-client). Preço por faixa: vale a do plano Free, o da conta da Althius. Um evento
- * cobrado sem preço conhecido, ou um actor que cobra por evento sem nenhum evento na execução, deixa o custo em branco
- * (nulo), em vez de um valor menor que o real.
+ * O custo de uma execução lida em `GET /v2/actor-runs/{id}`. O `usageTotalUsd` é o total que a conta paga e já inclui os
+ * eventos que o actor cobrou: na execução real de 01/10/2026, 1 perfil (`profile: 1`, US$ 0,004 o evento) deu
+ * `usageTotalUsd` 0,004. Enquanto o Apify ainda não fechou a conta, a soma dos eventos cobrados (`chargedEventCounts` ×
+ * o preço do evento em `pricingInfo`; preço por faixa: o do plano Free, o da conta da Althius) vale no lugar dele: fica o
+ * maior dos dois. Um actor que cobra por evento sem nenhum evento na execução, ou um evento sem preço conhecido sem o
+ * total do Apify, deixa o custo em branco (nulo), em vez de um valor menor que o real.
  */
 export function custoDaExecucaoLida(execucao: unknown): number | null {
   const run = registro(execucao);
@@ -282,8 +282,8 @@ export function custoDaExecucaoLida(execucao: unknown): number | null {
         registro(registro(evento.eventTieredPricingUsd).FREE)
           .tieredEventPriceUsd,
       );
-    if (preco === null) return null;
+    if (preco === null) return plataforma ? plataforma : null;
     totalDosEventos += quantidade * preco;
   }
-  return Math.round(((plataforma ?? 0) + totalDosEventos) * 1e6) / 1e6;
+  return Math.round(Math.max(plataforma ?? 0, totalDosEventos) * 1e6) / 1e6;
 }

@@ -37,7 +37,7 @@ const db: Db = {
 
 const handler = createHandler({
   db,
-  // A validação de um actor novo pode esperar 3 s para reler o custo, se os eventos cobrados ainda não aparecerem.
+  // O Apify fecha a conta da execução uns segundos depois de ela terminar: sem os eventos cobrados, relê o custo em 3 s.
   apify: clienteDoApify({ tokens: tokensDoApify((nome) => Deno.env.get(nome)), esperaDoCustoMs: 3_000 }),
   // A função é chamada só pelo servidor: a chave de serviço ou um JWT de serviço (o gateway confere a assinatura).
   autorizado: (authorization) => autorizadoComoServidor(authorization, SERVICE_ROLE_KEY),
