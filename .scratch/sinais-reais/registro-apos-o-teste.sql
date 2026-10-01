@@ -25,7 +25,7 @@ select public.set_signal_actor_state('harvestapi~linkedin-profile-scraper', 'ava
 
 -- 04 · Nova liderança (1 página de busca e até 25 perfis Full: cerca de US$ 0,20 por Conta)
 update private.signal_actors set max_cost_usd = 0.25,
-  known_price = 'US$ 0,10 por página de busca (até 25 perfis) mais US$ 4,00 por 1.000 perfis no modo Full, na faixa Free. API pública do Apify, 30/09/2026.'
+  known_price = 'US$ 0,10 por página de busca (até 25 perfis) mais US$ 0,004 por perfil no modo Full (tabela pública do Apify, 30/09/2026). Observado em 01/10/2026: 13 perfis custaram US$ 0,152 (página de busca 0,10 + 13 × 0,004). Pelo teto de 25 perfis, até US$ 0,20.'
 where actor_id = 'harvestapi~linkedin-profile-search';
 select public.set_signal_actor_state('harvestapi~linkedin-profile-search', 'available', '0.0.272');
 
@@ -53,8 +53,8 @@ update private.signal_actors set max_cost_usd = 0.10,
 where actor_id = 'silva95gustavo~linkedin-ad-library-scraper';
 select public.set_signal_actor_state('silva95gustavo~linkedin-ad-library-scraper', 'available', '1.2.2');
 
--- 06 · Avaliações no Google Maps (até 100 avaliações: até US$ 0,06 por Conta)
-update private.signal_actors set max_cost_usd = 0.10,
-  known_price = 'US$ 0,60 por 1.000 avaliações na faixa Free (US$ 0,45 na Bronze), mais US$ 0,00005 por execução. API pública do Apify, 30/09/2026.'
+-- 06 · Avaliações no Google Maps (a busca por nome pode trazer vários lugares: visto US$ 0,116 para 100 itens)
+update private.signal_actors set max_cost_usd = 0.15,
+  known_price = 'US$ 0,0006 por avaliação lida mais US$ 0,00005 por execução (tabela pública do Apify, 30/09/2026). Observado em 01/10/2026: a busca por "Magazine Luiza" trouxe vários lugares e o Apify cobrou 194 avaliações (US$ 0,116) para 100 itens devolvidos. Conta de um lugar só custa bem menos.'
 where actor_id = 'compass~google-maps-reviews-scraper';
 select public.set_signal_actor_state('compass~google-maps-reviews-scraper', 'available', '0.0.527');
