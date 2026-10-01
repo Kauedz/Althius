@@ -191,7 +191,8 @@ create table private.discovered_accounts (
   size_label text check (size_label is null or length(size_label) <= 60),
   employee_count integer check (employee_count is null or employee_count >= 0),
   description text check (description is null or length(description) <= 1000),
-  technologies text[] not null default '{}' check (cardinality(technologies) <= 20),
+  -- As especialidades e tecnologias que a fonte listou da empresa (até 20).
+  tags text[] not null default '{}' check (cardinality(tags) <= 20),
   source_actor text not null check (length(source_actor) between 1 and 200),
   source_run_id text check (source_run_id is null or length(source_run_id) <= 200),
   -- O identificador da empresa na fonte (a página do LinkedIn, o CNPJ), para conferir depois.
@@ -402,7 +403,7 @@ declare
   v_linkedin text;
   v_uf text;
   v_level text;
-  v_techs text[];
+  v_tags text[];
   v_inserted integer;
   v_added integer := 0;
   v_dups integer := 0;
@@ -441,9 +442,9 @@ begin
     if v_level not in ('alto', 'medio', 'baixo', 'sem_dado') then
       v_level := 'sem_dado';
     end if;
-    v_techs := coalesce((
+    v_tags := coalesce((
       select array_agg(left(t, 60)) from (
-        select jsonb_array_elements_text(case when jsonb_typeof(c -> 'technologies') = 'array' then c -> 'technologies' else '[]'::jsonb end) t
+        select jsonb_array_elements_text(case when jsonb_typeof(c -> 'tags') = 'array' then c -> 'tags' else '[]'::jsonb end) t
         limit 20) x), '{}');
 
     if private.discovery_duplicate(v_run.workspace_id, v_domain, v_cnpj, private.linkedin_company_key(v_linkedin),
@@ -454,7 +455,7 @@ begin
 
     insert into private.discovered_accounts (
       workspace_id, run_id, name, website, domain, cnpj, linkedin_url, location, uf, city, country, sector, size_label,
-      employee_count, description, technologies, source_actor, source_run_id, source_ref, fit_score, fit_level,
+      employee_count, description, tags, source_actor, source_run_id, source_ref, fit_score, fit_level,
       reasons, signals, domain_key, cnpj_key, linkedin_key, name_key
     ) values (
       v_run.workspace_id, v_run.id, v_name, v_website, v_domain, v_cnpj, v_linkedin,
@@ -465,9 +466,9 @@ begin
       nullif(left(btrim(coalesce(c ->> 'sizeLabel', '')), 60), ''),
       case when (c ->> 'employeeCount') ~ '^[0-9]{1,9}$' then (c ->> 'employeeCount')::integer end,
       nullif(left(btrim(coalesce(c ->> 'description', '')), 1000), ''),
-      v_techs,
-      coalesce(nullif(left(v_run.actor_id, 200), ''), 'desconhecido'),
-      v_run.apify_run_id,
+      v_tags,
+      coalesce(nullif(left(btrim(coalesce(c ->> 'sourceActor', '')), 200), ''), nullif(left(v_run.actor_id, 200), ''), 'desconhecido'),
+      coalesce(nullif(left(btrim(coalesce(c ->> 'sourceRunId', '')), 200), ''), v_run.apify_run_id),
       nullif(left(btrim(coalesce(c ->> 'sourceRef', '')), 300), ''),
       case when (c ->> 'score') ~ '^[0-9]{1,3}$' then least((c ->> 'score')::integer, 100) else 0 end,
       v_level,
@@ -513,7 +514,7 @@ returns table (
   size_label text,
   employee_count integer,
   description text,
-  technologies text[],
+  tags text[],
   source_actor text,
   fit_level text,
   reasons jsonb,
@@ -536,7 +537,7 @@ begin
   end if;
   return query
     select d.id, d.run_id, d.state, d.name, d.website, d.domain, d.cnpj, d.linkedin_url, d.location, d.uf, d.sector,
-      d.size_label, d.employee_count, d.description, d.technologies, d.source_actor, d.fit_level, d.reasons, d.signals,
+      d.size_label, d.employee_count, d.description, d.tags, d.source_actor, d.fit_level, d.reasons, d.signals,
       d.target_account_id, d.decided_by, d.decided_at, d.discard_reason, d.created_at
     from private.discovered_accounts d
     where d.workspace_id = p_workspace_id and (p_state is null or d.state = p_state)

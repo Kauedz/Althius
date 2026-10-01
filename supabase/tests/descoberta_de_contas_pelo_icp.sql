@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(71);
+select plan(115);
 
 -- Ana (Admin) e Bruno (Membro) do Norte; Carla é do Sul, de fora do Norte.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -66,7 +66,7 @@ select is(
   (select row(r.added, r.duplicates, r.ignored)::text from public.record_discovered_accounts(
     'a9000000-0000-0000-0000-000000000001',
     $json$[
-      {"name":"Nova Software Ltda","website":"https://www.nova.test/","cnpj":"47960950000121","linkedinUrl":"https://www.linkedin.com/company/nova-software/","uf":"sp","sector":"Software","sizeLabel":"51-200","employeeCount":120,"technologies":["AWS","Node"],"score":80,"level":"alto","reasons":[{"criterio":"Setor","atende":true,"texto":"Setor bate: Software"}],"signals":[{"texto":"Aberta em 2026","fonte":"Receita Federal"}],"sourceRef":"nova-software"},
+      {"name":"Nova Software Ltda","website":"https://www.nova.test/","cnpj":"47960950000121","linkedinUrl":"https://www.linkedin.com/company/nova-software/","uf":"sp","sector":"Software","sizeLabel":"51-200","employeeCount":120,"tags":["AWS","Node"],"score":80,"level":"alto","reasons":[{"criterio":"Setor","atende":true,"texto":"Setor bate: Software"}],"signals":[{"texto":"Aberta em 2026","fonte":"Receita Federal"}],"sourceRef":"nova-software"},
       {"name":"Alfa Tec","website":"https://alfa.test/produtos"},
       {"name":"Outra Beta","cnpj":"11.222.333/0001-81"},
       {"name":"Gama Dados Brasil","linkedinUrl":"https://br.linkedin.com/company/Gama-Dados"},
@@ -122,8 +122,8 @@ select is(
   array['Nova Software Ltda', 'Delta Sistemas S.A.', 'Epsilon']::text[], 'o Membro lê as novas, da mais encaixada à menos'
 );
 select is(
-  (select row(l.signals -> 0 ->> 'fonte', l.technologies)::text from public.list_discovered_accounts('f9000000-0000-0000-0000-000000000001') l where l.name = 'Nova Software Ltda'),
-  '("Receita Federal","{AWS,Node}")', 'a lista traz os indícios de Sinal e as tecnologias'
+  (select row(l.signals -> 0 ->> 'fonte', l.tags)::text from public.list_discovered_accounts('f9000000-0000-0000-0000-000000000001') l where l.name = 'Nova Software Ltda'),
+  '("Receita Federal","{AWS,Node}")', 'a lista traz os indícios de Sinal e as especialidades'
 );
 select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000003', true);
 select throws_ok(
@@ -360,6 +360,274 @@ select is(
 select is(
   (select count(*)::integer from private.discovered_accounts where name in ('Epsilon', 'Zeta Logística')), 2,
   'as outras candidatas ficam'
+);
+
+-- 8. A busca: o custo antes do clique, a reserva do saldo, uma busca por vez, o modo de teste e a cobrança só se trouxe empresa.
+reset role;
+select public.grant_credits('f9000000-0000-0000-0000-000000000001', 20, 'plano');
+update private.discovery_runs set state = 'concluida', finished_at = now() where state = 'em_andamento';
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000002', true);
+select is(
+  (select row(q.credits, q.available, q.in_progress, q.actor_state, q.can_test)::text
+   from public.quote_account_discovery('f9000000-0000-0000-0000-000000000001', 50) q),
+  '(5.00,20.00,f,available,f)', 'o Membro vê 5 créditos, o saldo, nenhuma busca em andamento, o Actor disponível e sem modo de teste'
+);
+select is(
+  (select q.credits from public.quote_account_discovery('f9000000-0000-0000-0000-000000000001', 100) q),
+  10.00::numeric, 'pedir 100 empresas custa dois blocos'
+);
+select is(
+  (select q.credits from public.quote_account_discovery('f9000000-0000-0000-0000-000000000001', 20) q),
+  5.00::numeric, 'e menos de 50 custa um bloco'
+);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000001', true);
+select is(
+  (select q.can_test from public.quote_account_discovery('f9000000-0000-0000-0000-000000000001') q),
+  true, 'o Administrador pode rodar em modo de teste'
+);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000003', true);
+select throws_ok(
+  $$select * from public.quote_account_discovery('f9000000-0000-0000-0000-000000000001')$$,
+  '42501', 'active workspace membership required', 'quem é de fora não vê o custo do Workspace'
+);
+
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000002', true);
+insert into ids select 'busca1', (select b.run_id::text || ':' || b.outcome from public.begin_account_discovery(
+  'f9000000-0000-0000-0000-000000000001', 'clique-1', '{"fonte":"linkedin","setores":["software"]}'::jsonb, 50,
+  'harvestapi~linkedin-company-search', 3) b);
+select is(
+  (select split_part(valor, ':', 2) from ids where chave = 'busca1'), 'go', 'a busca começa'
+);
+reset role;
+select is(
+  (select row(r.state, r.kind, r.requested_by = '59000000-0000-0000-0000-000000000002', r.estimated_credits, r.estimated_cost_usd,
+     r.max_results, r.actor_id, r.actor_version, r.icp_version, r.request_key, r.started_at is not null)::text
+   from private.discovery_runs r where r.id = (select split_part(valor, ':', 1)::uuid from ids where chave = 'busca1')),
+  '(em_andamento,contas,t,5.00,0.4500,50,harvestapi~linkedin-company-search,0.0.21,3,clique-1,t)',
+  'a busca guarda quem pediu, o custo estimado, o teto do Apify, o Actor, a versão do ICP e a chave do clique'
+);
+select is(
+  (select row(c.status, c.amount, c.action, c.user_id = '59000000-0000-0000-0000-000000000002')::text
+   from private.credit_reservations c where c.action_key = 'discovery:' || (select split_part(valor, ':', 1) from ids where chave = 'busca1')),
+  '(reserved,5.00,account_discovery,t)', 'o saldo fica reservado no nome de quem pediu, pela chave da busca'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000002', true);
+select is(
+  (select b.run_id::text || ':' || b.outcome from public.begin_account_discovery(
+    'f9000000-0000-0000-0000-000000000001', 'clique-1', '{"fonte":"linkedin"}'::jsonb, 50, 'harvestapi~linkedin-company-search') b),
+  (select split_part(valor, ':', 1) || ':existing' from ids where chave = 'busca1'),
+  'repetir o clique (mesma chave) devolve a mesma busca, sem rodar nem cobrar de novo'
+);
+select is(
+  (select q.available from public.quote_account_discovery('f9000000-0000-0000-0000-000000000001') q),
+  15.00::numeric, 'e o saldo disponível já desconta a reserva'
+);
+select is(
+  (select q.in_progress from public.quote_account_discovery('f9000000-0000-0000-0000-000000000001') q),
+  true, 'a tela vê que há uma busca em andamento'
+);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'clique-2', '{}'::jsonb, 50, 'harvestapi~linkedin-company-search')$$,
+  '55006', 'a discovery is already running', 'só uma busca de cada vez por Workspace'
+);
+
+-- O servidor grava as candidatas e fecha: veio empresa, o crédito é debitado; os números e o custo real ficam na busca.
+reset role;
+select * from public.record_discovered_accounts((select split_part(valor, ':', 1)::uuid from ids where chave = 'busca1'),
+  '[{"name":"Eta Energia","website":"https://eta.test","sourceRunId":"apify-run-1","sourceActor":"harvestapi~linkedin-company-search"}]'::jsonb);
+select is(
+  (select source_run_id from private.discovered_accounts where name = 'Eta Energia'), 'apify-run-1',
+  'cada candidata guarda a execução do Apify de onde veio'
+);
+select public.finish_account_discovery((select split_part(valor, ':', 1)::uuid from ids where chave = 'busca1'), true, 'apify-run-1', 0.2021, null);
+select is(
+  (select row(r.state, r.found, r.added, r.apify_run_id, r.actual_cost_usd, r.finished_at is not null, r.last_error)::text
+   from private.discovery_runs r where r.id = (select split_part(valor, ':', 1)::uuid from ids where chave = 'busca1')),
+  '(concluida,1,1,apify-run-1,0.202100,t,)', 'a busca fecha concluída, com os números e o custo real'
+);
+select is(
+  (select row(c.status, c.settled_quantity)::text from private.credit_reservations c
+   where c.action_key = 'discovery:' || (select split_part(valor, ':', 1) from ids where chave = 'busca1')),
+  '(settled,1)', 'o crédito foi debitado'
+);
+select is(
+  (select e.amount from private.credit_entries e join private.credit_reservations c on c.id = e.reservation_id
+   where c.action_key = 'discovery:' || (select split_part(valor, ':', 1) from ids where chave = 'busca1')),
+  -5.00::numeric, 'no extrato, 5 créditos a menos'
+);
+select lives_ok(
+  $$select public.finish_account_discovery((select split_part(valor, ':', 1)::uuid from ids where chave = 'busca1'), false, null, null, 'tarde demais')$$,
+  'fechar de novo não muda nada'
+);
+select is(
+  (select r.state from private.discovery_runs r where r.id = (select split_part(valor, ':', 1)::uuid from ids where chave = 'busca1')),
+  'concluida', 'a busca concluída continua concluída'
+);
+
+-- O Apify não achou nada: o saldo volta, nada é cobrado. O Actor falhou: idem, com o motivo.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000002', true);
+insert into ids select 'busca2', (select b.run_id::text from public.begin_account_discovery(
+  'f9000000-0000-0000-0000-000000000001', 'clique-2', '{}'::jsonb, 100, 'harvestapi~linkedin-company-search') b);
+reset role;
+select is(
+  (select c.amount from private.credit_reservations c where c.action_key = 'discovery:' || (select valor from ids where chave = 'busca2')),
+  10.00::numeric, 'pedir 100 empresas reserva dois blocos'
+);
+select public.finish_account_discovery((select valor::uuid from ids where chave = 'busca2'), true, 'apify-run-2', 0.0005, null);
+select is(
+  (select c.status || ':' || coalesce(c.settled_quantity::text, '-') from private.credit_reservations c
+   where c.action_key = 'discovery:' || (select valor from ids where chave = 'busca2')),
+  'released:-', 'sem empresa nenhuma, a reserva é solta e nada é cobrado'
+);
+select is(
+  (select r.state from private.discovery_runs r where r.id = (select valor::uuid from ids where chave = 'busca2')),
+  'concluida', 'a busca vazia termina concluída'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000002', true);
+insert into ids select 'busca3', (select b.run_id::text from public.begin_account_discovery(
+  'f9000000-0000-0000-0000-000000000001', 'clique-3', '{}'::jsonb, 50, 'harvestapi~linkedin-company-search') b);
+reset role;
+select public.finish_account_discovery((select valor::uuid from ids where chave = 'busca3'), false, null, null, 'O Apify respondeu HTTP 402');
+select is(
+  (select row(r.state, r.last_error)::text from private.discovery_runs r where r.id = (select valor::uuid from ids where chave = 'busca3')),
+  '(falhou,"O Apify respondeu HTTP 402")', 'a falha fica na busca, com o motivo'
+);
+select is(
+  (select t.booked - t.reserved from private.credit_totals('f9000000-0000-0000-0000-000000000001') t),
+  15.00::numeric, 'e só as 5 da busca que achou empresa foram cobradas'
+);
+
+-- O modo de teste: um Actor "em teste" só roda para um Administrador que o pede.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000002', true);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'teste-1', '{}'::jsonb, 50, 'johnatan029~cnpj-empresas-brasil-scraper')$$,
+  '55000', 'discovery actor is still in testing', 'o Actor em teste não roda para o Membro'
+);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'teste-2', '{}'::jsonb, 50, 'johnatan029~cnpj-empresas-brasil-scraper', null, true)$$,
+  '55000', 'discovery actor is still in testing', 'nem o Membro que pede o modo de teste'
+);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'teste-3', '{}'::jsonb, 50, 'johnatan029~cnpj-empresas-brasil-scraper')$$,
+  '55000', 'discovery actor is still in testing', 'nem o Administrador sem pedir o modo de teste'
+);
+insert into ids select 'busca4', (select b.run_id::text || ':' || b.outcome from public.begin_account_discovery(
+  'f9000000-0000-0000-0000-000000000001', 'teste-4', '{}'::jsonb, 20, 'johnatan029~cnpj-empresas-brasil-scraper', null, true) b);
+select is(
+  (select split_part(valor, ':', 2) from ids where chave = 'busca4'), 'go', 'o Administrador roda o Actor em teste quando pede o modo de teste'
+);
+reset role;
+select public.finish_account_discovery((select split_part(valor, ':', 1)::uuid from ids where chave = 'busca4'), false, null, null, 'teste');
+select public.set_discovery_actor_state('buscar_contas', 'johnatan029~cnpj-empresas-brasil-scraper', 'out');
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'fora-1', '{}'::jsonb, 50, 'johnatan029~cnpj-empresas-brasil-scraper', null, true)$$,
+  '55000', 'discovery actor is out', 'o Actor fora do ar nunca roda'
+);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'fora-2', '{}'::jsonb, 50, 'ninguem~nada')$$,
+  'P0002', 'discovery actor not found', 'o Actor fora do registro nunca roda'
+);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'fora-3', '{}'::jsonb, 50, 'harvestapi~linkedin-profile-search')$$,
+  'P0002', 'discovery actor not found', 'nem um Actor do registro de Sinais'
+);
+
+-- Filtros inválidos, quem é de fora, saldo e limite mensal.
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'inv-1', '[]'::jsonb, 50, 'harvestapi~linkedin-company-search')$$,
+  '22023', 'invalid discovery criteria', 'filtros que não são um objeto são recusados'
+);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'inv-2', '{}'::jsonb, 101, 'harvestapi~linkedin-company-search')$$,
+  '22023', 'invalid discovery criteria', 'mais de 100 empresas é recusado'
+);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'inv-3', '{}'::jsonb, 0, 'harvestapi~linkedin-company-search')$$,
+  '22023', 'invalid discovery criteria', 'e zero também'
+);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000003', true);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'fora-4', '{}'::jsonb, 50, 'harvestapi~linkedin-company-search')$$,
+  '42501', 'active workspace membership required', 'quem é de fora não abre busca no Workspace'
+);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000001', true);
+select public.set_member_credit_limit('f9000000-0000-0000-0000-000000000001', '59000000-0000-0000-0000-000000000002', 3);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000002', true);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'lim-1', '{}'::jsonb, 50, 'harvestapi~linkedin-company-search')$$,
+  'P0001', 'monthly credit limit reached', 'o limite mensal da pessoa vale para a busca'
+);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000001', true);
+select public.set_member_credit_limit('f9000000-0000-0000-0000-000000000001', '59000000-0000-0000-0000-000000000002', null);
+reset role;
+select public.reserve_credits('f9000000-0000-0000-0000-000000000001', null, 'person_collected', 'segura-o-saldo', 13);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $$select * from public.begin_account_discovery('f9000000-0000-0000-0000-000000000001', 'sem-saldo', '{}'::jsonb, 50, 'harvestapi~linkedin-company-search')$$,
+  'P0001', 'insufficient credits', 'sem saldo, a busca não começa'
+);
+reset role;
+select is(
+  (select count(*)::integer from private.discovery_runs where request_key = 'sem-saldo'), 0,
+  'e não deixa busca para trás'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '59000000-0000-0000-0000-000000000001', true);
+
+-- O servidor e o navegador: cada um com o que lhe cabe.
+select throws_ok(
+  $$select public.finish_account_discovery(gen_random_uuid(), true, null, null, null)$$,
+  '42501', 'permission denied for function finish_account_discovery', 'o navegador não fecha a busca'
+);
+select throws_ok(
+  $$select public.record_discovery_cost('f9000000-0000-0000-0000-000000000001', 'harvestapi~linkedin-company-search', 'x', 1, 0.1)$$,
+  '42501', 'permission denied for function record_discovery_cost', 'nem grava custo'
+);
+reset role;
+select public.record_discovery_cost('f9000000-0000-0000-0000-000000000001', 'harvestapi~linkedin-company-search', 'apify-run-1', 50, 0.2021);
+select public.record_discovery_cost('f9000000-0000-0000-0000-000000000001', 'harvestapi~linkedin-company-search', 'apify-run-1', 50, 0.2021);
+select is(
+  (select row(count(*), max(c.cost_usd), max(c.input_units))::text from private.action_costs c where c.source_ref = 'apify-run-1'),
+  '(1,0.202100,50)', 'o custo real de uma execução entra no relatório uma vez só'
+);
+select throws_ok(
+  $$select public.record_discovery_cost('f9000000-0000-0000-0000-000000000001', 'ninguem~nada', 'y', 1, 0.1)$$,
+  'P0002', 'actor not found', 'custo de um Actor fora do registro é recusado'
+);
+
+-- Uma busca que ninguém fechou vence: falha sem cobrar e solta o saldo.
+select public.release_credits((select id from private.credit_reservations where action_key = 'segura-o-saldo'));
+insert into private.discovery_runs (id, workspace_id, requested_by, state, criteria, max_results, actor_id, started_at)
+values ('a9000000-0000-0000-0000-0000000000a1', 'f9000000-0000-0000-0000-000000000001', '59000000-0000-0000-0000-000000000002',
+  'em_andamento', '{}', 50, 'harvestapi~linkedin-company-search', now() - interval '20 minutes');
+select public.reserve_credits('f9000000-0000-0000-0000-000000000001', '59000000-0000-0000-0000-000000000002', 'account_discovery', 'discovery:presa', 1);
+update private.discovery_runs set reservation_id = (select id from private.credit_reservations where action_key = 'discovery:presa')
+where id = 'a9000000-0000-0000-0000-0000000000a1';
+select is(private.expire_stale_discovery_runs(), 1, 'a busca esquecida vence');
+select is(
+  (select row(r.state, r.last_error)::text from private.discovery_runs r where r.id = 'a9000000-0000-0000-0000-0000000000a1'),
+  '(falhou,"A busca não terminou a tempo. Nada foi cobrado.")', 'falha com o motivo'
+);
+select is(
+  (select c.status from private.credit_reservations c where c.action_key = 'discovery:presa'), 'released',
+  'e o saldo reservado volta'
 );
 
 select * from finish();
