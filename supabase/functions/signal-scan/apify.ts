@@ -19,6 +19,13 @@ export interface OpcoesDoApify {
   runTimeoutSeconds?: number;
   /** Prazo da chamada HTTP; um pouco maior que o da execução. */
   timeoutMs?: number;
+  /**
+   * Espera antes de ler o custo de novo quando o actor cobra por evento e a execução ainda não mostra os eventos. Zero
+   * (o padrão) lê uma vez só: o signal-runner não tem tempo de sobra.
+   */
+  esperaDoCustoMs?: number;
+  /** Onde vai o resumo do custo de cada execução (só nomes de campo e números, nenhum dado pessoal). */
+  log?: (campos: Record<string, unknown>) => void;
 }
 
 // Créditos esgotados: o Apify recusa com 402 ou 403 (ainda não conferido contra a documentação). Só esses códigos
@@ -26,8 +33,14 @@ export interface OpcoesDoApify {
 const SEM_CREDITO = new Set([402, 403]);
 
 export function clienteDoApify(
-  { tokens, fetchFn = fetch, runTimeoutSeconds = 120, timeoutMs = 135_000 }:
-    OpcoesDoApify,
+  {
+    tokens,
+    fetchFn = fetch,
+    runTimeoutSeconds = 120,
+    timeoutMs = 135_000,
+    esperaDoCustoMs = 0,
+    log = (campos) => console.log(JSON.stringify(campos)),
+  }: OpcoesDoApify,
 ): Apify {
   if (tokens.length === 0) throw new Error("Sem conta do Apify configurada");
   // Contas que já recusaram por falta de crédito nesta instância: são puladas até a instância reiniciar.
@@ -159,7 +172,30 @@ export function clienteDoApify(
     }
   }
 
+  /**
+   * O custo da execução. Na execução real de 01/10/2026, já com os eventos somados, o custo de um actor que cobra por
+   * evento seguiu 0, lido logo depois de a execução terminar (o motivo ainda não foi confirmado). Por isso o resumo vai
+   * para o log e, com `esperaDoCustoMs`, a execução sem eventos é lida de novo uma vez.
+   */
   async function custo(token: string, runId: string): Promise<number | null> {
+    let execucao = await lerExecucao(token, runId);
+    if (!execucao) return null;
+    let tentativa = 1;
+    if (esperaDoCustoMs > 0 && semOsEventosAinda(execucao)) {
+      log({ type: "apify_cost", runId, tentativa, ...resumoDoCusto(execucao) });
+      await new Promise((r) => setTimeout(r, esperaDoCustoMs));
+      execucao = (await lerExecucao(token, runId)) ?? execucao;
+      tentativa = 2;
+    }
+    const costUsd = custoDaExecucaoLida(execucao);
+    log({ type: "apify_cost", runId, tentativa, ...resumoDoCusto(execucao), costUsd });
+    return costUsd;
+  }
+
+  async function lerExecucao(
+    token: string,
+    runId: string,
+  ): Promise<Record<string, unknown> | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     try {
@@ -175,9 +211,11 @@ export function clienteDoApify(
         return null;
       }
       const execucao = ((await resposta.json().catch(() => null)) as {
-        data?: Record<string, unknown>;
+        data?: unknown;
       } | null)?.data;
-      return custoDaExecucaoLida(execucao);
+      return execucao && typeof execucao === "object" && !Array.isArray(execucao)
+        ? execucao as Record<string, unknown>
+        : null;
     } catch {
       return null;
     } finally {
@@ -194,19 +232,45 @@ const registro = (v: unknown): Record<string, unknown> =>
     ? v as Record<string, unknown>
     : {};
 
+const cobraPorEvento = (run: Record<string, unknown>) =>
+  registro(run.pricingInfo).pricingModel === "PAY_PER_EVENT";
+
+const eventosCobrados = (run: Record<string, unknown>) =>
+  Object.entries(registro(run.chargedEventCounts))
+    .filter(([, n]) => numeroValido(n)) as [string, number][];
+
+/** Cobra por evento e a execução ainda não mostra nenhum evento cobrado. */
+function semOsEventosAinda(run: Record<string, unknown>): boolean {
+  return cobraPorEvento(run) && !eventosCobrados(run).length;
+}
+
+/**
+ * O que o log guarda da execução para conferir o custo: os nomes dos campos e os números da cobrança. Nada da entrada,
+ * das opções nem da origem da chamada.
+ */
+function resumoDoCusto(run: Record<string, unknown>): Record<string, unknown> {
+  return {
+    status: typeof run.status === "string" ? run.status : null,
+    pricingModel: registro(run.pricingInfo).pricingModel ?? null,
+    usageTotalUsd: numeroValido(run.usageTotalUsd),
+    chargedEventCounts: Object.fromEntries(eventosCobrados(run)),
+    campos: Object.keys(run).sort(),
+  };
+}
+
 /**
  * O custo de uma execução lida em `GET /v2/actor-runs/{id}`: o uso da plataforma (`usageTotalUsd`) mais os eventos que
  * o actor cobrou (`chargedEventCounts` × o preço do evento em `pricingInfo`), nos actors que cobram por evento. Na
  * execução real de 30/09/2026, o `usageTotalUsd` de um desses actors veio 0 com eventos cobrados (campos do tipo
  * `ActorRun` do cliente oficial apify-client). Preço por faixa: vale a do plano Free, o da conta da Althius. Um evento
- * cobrado sem preço conhecido deixa o custo em branco (nulo), em vez de um valor menor que o real.
+ * cobrado sem preço conhecido, ou um actor que cobra por evento sem nenhum evento na execução, deixa o custo em branco
+ * (nulo), em vez de um valor menor que o real.
  */
 export function custoDaExecucaoLida(execucao: unknown): number | null {
   const run = registro(execucao);
   const plataforma = numeroValido(run.usageTotalUsd);
-  const contagens = Object.entries(registro(run.chargedEventCounts))
-    .filter(([, n]) => numeroValido(n));
-  if (!contagens.length) return plataforma;
+  const contagens = eventosCobrados(run);
+  if (!contagens.length) return cobraPorEvento(run) ? null : plataforma;
   const eventos = registro(
     registro(registro(run.pricingInfo).pricingPerEvent).actorChargeEvents,
   );
@@ -219,7 +283,7 @@ export function custoDaExecucaoLida(execucao: unknown): number | null {
           .tieredEventPriceUsd,
       );
     if (preco === null) return null;
-    totalDosEventos += (quantidade as number) * preco;
+    totalDosEventos += quantidade * preco;
   }
   return Math.round(((plataforma ?? 0) + totalDosEventos) * 1e6) / 1e6;
 }
