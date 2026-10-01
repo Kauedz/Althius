@@ -84,6 +84,12 @@ export interface PedidoDeChamada extends PedidoDeAcesso {
   agenteId?: string
   /** Recusa qualquer ferramenta que não seja de leitura, mesmo com a Permissão Executar (o que o navegador pede). */
   somenteLeitura?: boolean
+  /**
+   * A própria pessoa decidiu esta escrita, sem Agente: ela já é quem decide (ADR-0002), então não há Aprovação. Só o
+   * servidor marca, depois de o banco conferir que ela pode (ex.: `begin_crm_handoff` confere o Vendedor responsável);
+   * nunca a partir do corpo de um pedido. Com `agenteId`, vale a Permissão do Agente e esta marca é ignorada.
+   */
+  decisaoDaPessoa?: boolean
 }
 
 interface SegredoOAuth {
@@ -401,7 +407,7 @@ export async function chamarFerramenta(
             : 'Este Agente não tem a Permissão necessária para esta ferramenta.',
         })
       }
-    } else if (ferramenta.escreve) {
+    } else if (ferramenta.escreve && !pedido.decisaoDaPessoa) {
       throw new Parada({
         tipo: 'permissao_negada',
         exigida: 'executar',
