@@ -5,10 +5,11 @@ import { LogoDaIntegracao } from '@/components/logos'
 import { IconeAgente, IndicadorDeEstado, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Composer } from '@/conversa/composer'
+import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { useConversas, type ItemDaCoordenacao } from '@/conversa/contexto'
 import { TextoDigitado } from '@/conversa/texto'
 import { useDados } from '@/fonte/contexto'
-import type { AcaoProposta, Agente, AgenteId, Integracao } from '@/fonte/tipos'
+import type { AcaoProposta, Agente, AgenteId, Integracao, LinkDoPasso as DestinoDoPasso } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { NomeDaConversa } from '@/paginas/nome-da-conversa'
@@ -17,7 +18,7 @@ import { NascimentoSequenciaNaConversa } from '@/paginas/nascimento-sequencia-na
 /** Cada Agente chamado é uma etapa: ativa enquanto não diz o que fez. */
 interface Etapa {
   agenteId: AgenteId
-  consultas: string[]
+  consultas: { descricao: string; link?: DestinoDoPasso }[]
   resumo?: string
   /** O pedido falhou antes de a etapa terminar. */
   interrompida?: boolean
@@ -50,7 +51,7 @@ function emTurnos(itens: ItemDaCoordenacao[]): Turno[] {
         turno.etapas.push({ agenteId: item.agenteId, consultas: [] })
         break
       case 'ferramenta':
-        etapa?.consultas.push(item.descricao)
+        etapa?.consultas.push({ descricao: item.descricao, ...(item.link ? { link: item.link } : {}) })
         break
       case 'feito':
         if (etapa) etapa.resumo = item.resumo
@@ -265,9 +266,10 @@ function EtapaDoAgente({ etapa, agente, ultima }: { etapa: Etapa; agente?: Agent
   const consultas = (
     <ul className="flex flex-col gap-0.5 text-sm text-al-muted">
       {etapa.consultas.map((consulta, i) => (
-        <li key={i} className="flex items-center gap-1.5">
+        <li key={i} className="flex flex-wrap items-center gap-1.5">
           <Wrench strokeWidth={1.8} className="size-3.5 shrink-0" aria-hidden />
-          {consulta}
+          {consulta.descricao}
+          <LinkDoPasso link={consulta.link} />
         </li>
       ))}
     </ul>
