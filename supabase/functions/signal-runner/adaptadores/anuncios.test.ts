@@ -204,10 +204,9 @@ Deno.test('LinkedIn: anunciante de nome parecido não vira Sinal; a página, o d
   assertEquals(anuncioLinkedin.sinais([itemDoLinkedin({ advertiserName: 'Acme Logística Express' })], SEM_DADOS, CRITERIOS, AGORA), [])
 })
 
-Deno.test('LinkedIn: anúncio antigo, sem data de início ou sem as palavras não vira Sinal', () => {
+Deno.test('LinkedIn: anúncio antigo ou sem as palavras não vira Sinal', () => {
   const antigo = itemDoLinkedin({ availability: { start: '2026-06-01', end: '2026-09-29' } })
-  const semData = itemDoLinkedin({ availability: undefined })
-  assertEquals(anuncioLinkedin.sinais([antigo, semData], CONTA, CRITERIOS, AGORA), [])
+  assertEquals(anuncioLinkedin.sinais([antigo], CONTA, CRITERIOS, AGORA), [])
   assertEquals(anuncioLinkedin.sinais([itemDoLinkedin()], CONTA, { ...CRITERIOS, palavras: 'varejo' }, AGORA), [])
   assertEquals(anuncioLinkedin.sinais([itemDoLinkedin()], CONTA, { ...CRITERIOS, palavras: 'varejo, B2B' }, AGORA).length, 1)
 })
@@ -220,4 +219,23 @@ Deno.test('LinkedIn: dois meses de início viram dois Sinais; itens de erro fica
   const [s] = anuncioLinkedin.sinais([longo], CONTA, CRITERIOS, AGORA)
   assert(s.phrase.length <= 300 && s.eventKey.length <= 300 && s.evidence!.length <= 2000)
   assert(!s.evidence!.includes('b'.repeat(201)))
+})
+
+// Execução real de 01/10/2026 (Microsoft, Estados Unidos, 30 dias): 20 anúncios sem `availability` nem data nenhuma na saída.
+Deno.test('LinkedIn: sem a data de início na saída, os anúncios do período viram um Sinal "anunciando" do mês da varredura', () => {
+  const semData = (adId: string, extra: Record<string, unknown> = {}) => itemDoLinkedin({ adId, availability: undefined, adLibraryUrl: `https://www.linkedin.com/ad-library/detail/${adId}`, ...extra })
+  const [s, ...resto] = anuncioLinkedin.sinais([semData('1'), semData('2'), semData('3', { advertiserName: 'Outra Empresa', advertiserUrl: 'https://www.linkedin.com/company/999', clickUrl: 'https://outra.com' })], CONTA, CRITERIOS, AGORA)
+  assertEquals(resto, [])
+  assertEquals(s.eventKey, 'anuncio_linkedin|1234567|2026-09')
+  assertEquals(s.phrase, 'Anunciando no LinkedIn: 2 anúncios nos últimos 30 dias')
+  assertEquals(s.firedAt, new Date(AGORA).toISOString())
+  assertEquals(s.source, 'Biblioteca de anúncios do LinkedIn')
+  assert(s.evidence!.includes('a biblioteca não informa a data de início'))
+  assert(s.evidence!.includes('https://www.linkedin.com/ad-library/detail/1'))
+  // Com palavras no formulário, o filtro de texto continua valendo para o anúncio sem data.
+  assertEquals(anuncioLinkedin.sinais([semData('1')], CONTA, { ...CRITERIOS, palavras: 'varejo' }, AGORA), [])
+})
+
+Deno.test('Meta: a regra de data segue igual, anúncio sem data de início continua de fora', () => {
+  assertEquals(anuncioMeta.sinais([itemDaMeta({ start_date: undefined, start_date_formatted: undefined })], CONTA, CRITERIOS, AGORA), [])
 })

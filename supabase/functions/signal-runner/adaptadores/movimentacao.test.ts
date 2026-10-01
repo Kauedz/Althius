@@ -412,7 +412,8 @@ Deno.test('Anúncio: a contagem por etapa diz onde cada post parou, só em núme
   const vaga = post('Novo desafio! Estamos contratando: vaga como Gerente de Dados na Acme Logística.')
   const reacao = { ...post(CHEGADA), type: 'reaction' }
   const semData = post(CHEGADA, { postedAt: null })
-  const itens = [post(CHEGADA), antigo, outra, semTermo, analista, vaga, reacao, semData, 'erro']
+  const foraDoPadrao = post('Novo desafio na Acme Logística! Sigo trabalhando ao lado do Diretor João.', { id: '7380000000000000002' })
+  const itens = [post(CHEGADA), antigo, outra, semTermo, analista, vaga, reacao, semData, foraDoPadrao, 'erro']
   const contagem = descartesDeMovimentacao(itens, CONTA, CRITERIOS, AGORA)
   assertEquals(contagem, {
     'não é post': 1,
@@ -422,9 +423,14 @@ Deno.test('Anúncio: a contagem por etapa diz onde cada post parou, só em núme
     'pessoa não atende': 0,
     'sem termo de movimentação (ou é vaga)': 2,
     'movimento não aceito': 0,
-    'sem cargo de liderança depois do conector': 1,
+    'liderança citada no texto, mas fora do padrão do conector': 1,
+    'nenhum cargo de liderança no texto': 1,
+    'cargo fora dos cargos escolhidos': 0,
     'virou Sinal': 1,
   })
+  // Com cargos escolhidos que não são o do post, o cargo reconhecido para na etapa própria.
+  const soCto = descartesDeMovimentacao([post(CHEGADA)], CONTA, { ...CRITERIOS, cargos: ['CTO'] }, AGORA)
+  assertEquals(soCto['cargo fora dos cargos escolhidos'], 1)
   assertEquals(contagem['virou Sinal'], anuncioDeMovimentacao.sinais(itens, CONTA, CRITERIOS, AGORA).length)
   assertEquals(Object.values(contagem).reduce((a, b) => a + b, 0), itens.length - 1)
   assertEquals(JSON.stringify(contagem).includes('Maria'), false)
