@@ -16,6 +16,8 @@ import type {
   DadosDaReceita,
   DestinosReaisContato,
   EdicaoDoContato,
+  EnvioAoCrm,
+  EstadoDoEnvioAoCrm,
   FonteDeContas,
   Interacao,
   NovaContaAlvo,
@@ -24,6 +26,7 @@ import type {
   ResultadoDaRestauracaoDaConta,
   ResultadoDoApagamentoDaConta,
   ResultadoDoArquivamentoDaConta,
+  ResultadoDoEnvioAoCrm,
   TipoDeInteracao,
 } from './contas-tipos'
 import { eEstagioDeProspeccao, type EstagioDeProspeccao } from './estagios-de-prospeccao'
@@ -812,6 +815,44 @@ export function criarFonteDeContasSupabase(
       if (error) throw converterErro(error)
       notificar()
       return data as DadosDaReceita
+    },
+
+    // Enviar ao CRM (kanban 05): a Edge Function confere tudo de novo no banco e escreve no CRM com o Acesso da pessoa.
+    async enviarAoCrm(contaId, integracaoId): Promise<ResultadoDoEnvioAoCrm> {
+      const { data, error } = await cliente.functions.invoke('crm-handoff', {
+        body: { action: 'enviar', workspaceId: workspace(), targetAccountId: contaId, integrationId: integracaoId },
+      })
+      // Uma tentativa que falhou também muda o estado do envio.
+      notificar()
+      if (error) {
+        const recusa = await corpoDoErroDaFuncao(error)
+        if (typeof recusa?.error === 'string') throw new Error(recusa.error)
+        throw new Error(await motivoDaFalhaDaFuncao('crm-handoff', error, 'SUPABASE_SERVICE_ROLE_KEY e APP_ORIGIN'))
+      }
+      const resposta = (data ?? {}) as { mensagem?: unknown; pendencias?: unknown }
+      return {
+        mensagem: typeof resposta.mensagem === 'string' ? resposta.mensagem : 'Enviada ao CRM.',
+        pendencias: Array.isArray(resposta.pendencias) ? resposta.pendencias.filter((p): p is string => typeof p === 'string') : [],
+      }
+    },
+
+    async envioAoCrm(contaId): Promise<EnvioAoCrm | null> {
+      const { data, error } = await cliente.rpc('list_crm_handoffs', { p_workspace_id: workspace() })
+      if (error) throw converterErro(error)
+      const linha = ((data ?? []) as {
+        target_account_id: string
+        integration_id: string
+        status: EstadoDoEnvioAoCrm
+        error: string | null
+        finished_at: string | null
+      }[]).find((l) => l.target_account_id === contaId)
+      if (!linha) return null
+      return {
+        integracaoId: linha.integration_id as EnvioAoCrm['integracaoId'],
+        estado: linha.status,
+        ...(linha.error ? { erro: linha.error } : {}),
+        ...(linha.finished_at ? { concluidoEm: linha.finished_at } : {}),
+      }
     },
 
     sinais: nenhum,

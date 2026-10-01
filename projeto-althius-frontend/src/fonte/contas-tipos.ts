@@ -1,7 +1,7 @@
 import type { CanaisDoContato, EmailDoContato, TelefoneDoContato } from './canais-do-contato'
 import type { EstagioDeProspeccao } from './estagios-de-prospeccao'
 import type { FonteDeImportacaoDeContas } from './importacao-tipos'
-import type { FonteObservavel } from './tipos'
+import type { FonteObservavel, IntegracaoId } from './tipos'
 
 /**
  * Aderência ao perfil de cliente ideal (ICP), avaliada pelo Scopus (ADR 0007).
@@ -318,6 +318,24 @@ export interface ContatoProposto {
   createdAt: string
 }
 
+/** Em que pé está o Envio ao CRM de uma Conta-alvo (a tentativa mais recente). */
+export type EstadoDoEnvioAoCrm = 'enviando' | 'enviado' | 'falhou'
+
+export interface EnvioAoCrm {
+  integracaoId: IntegracaoId
+  estado: EstadoDoEnvioAoCrm
+  /** Por que a última tentativa falhou, em palavras do produto. */
+  erro?: string
+  concluidoEm?: string
+}
+
+export interface ResultadoDoEnvioAoCrm {
+  /** Ex.: "Enviada ao HubSpot: a empresa, 2 Contatos e a nota." */
+  mensagem: string
+  /** O que este CRM não recebeu (ex.: a nota no RD Station CRM). */
+  pendencias: string[]
+}
+
 /**
  * A fronteira de dados do módulo Contas e Contatos.
  * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
@@ -479,4 +497,14 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Enriquece a Conta com dados da Receita Federal a partir do CNPJ. */
   enriquecerReceita?(contaId: string, cnpj: string): Promise<DadosDaReceita>
+
+  /**
+   * Envia a Conta-alvo, os Contatos ativos e uma nota com os Sinais e a abordagem ao CRM em que a pessoa tem Acesso
+   * conectado (ADR-0020). Só o Vendedor responsável envia, uma vez só: depois, o CRM manda. Rejeita com a mensagem do
+   * servidor. Sem este método (e o seguinte), a fonte não oferece o envio.
+   */
+  enviarAoCrm?(contaId: string, integracaoId: IntegracaoId): Promise<ResultadoDoEnvioAoCrm>
+
+  /** O estado do Envio ao CRM da Conta; nulo quando ela nunca foi enviada. */
+  envioAoCrm?(contaId: string): Promise<EnvioAoCrm | null>
 }
