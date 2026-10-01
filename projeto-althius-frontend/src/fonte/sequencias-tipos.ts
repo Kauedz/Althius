@@ -232,6 +232,34 @@ export interface AnexoRecebido {
   status: 'pending' | 'stored' | 'failed'
 }
 
+/** O estado de uma Proposta de resposta (canais 08 e 09). */
+export type EstadoDaProposta =
+  | 'gerando'
+  | 'pronta'
+  | 'falhou'
+  | 'desatualizada'
+  | 'aprovada'
+  | 'enviando'
+  | 'enviada'
+  | 'incerta'
+  | 'rejeitada'
+
+/** A resposta que o Rhetor sugere a uma mensagem do Contato. Só o titular a lê; nada sai sem a Aprovação dele. */
+export interface PropostaDeResposta {
+  id: string
+  canal: string
+  destinatario: string
+  nomeDoDestinatario?: string
+  assunto?: string
+  texto: string
+  revisao: number
+  status: EstadoDaProposta
+  mensagemDeOrigem?: string
+  recebidaEm?: string
+  enviadaEm?: string
+  erroDoEnvio?: string
+}
+
 /** Uma resposta do Contato guardada pela Althius; só o Responsável pela Sequência a lê. */
 export interface RespostaRecebida {
   interacaoId: string
@@ -300,6 +328,18 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Pede ao backend o envio de um passo confirmado. Um bloqueio volta como resultado, não como erro. */
   enviarPasso(sequenciaId: string, envioId: string): Promise<ResultadoDoEnvio>
+
+  /** As Propostas de resposta da sequência. Só para o titular; ausente onde ainda não há propostas reais. */
+  propostasDeResposta?(sequenciaId: string): Promise<PropostaDeResposta[]>
+
+  /** Aprova a revisão lida (gravando antes o texto editado, se houver) e pede o envio. Um bloqueio volta no resultado. */
+  aprovarEEnviarProposta?(pedido: { id: string; revisao: number; textoEditado?: string }): Promise<{ enviada: boolean; mensagem?: string }>
+
+  /** Rejeita a proposta: nada é enviado. */
+  rejeitarProposta?(id: string): Promise<void>
+
+  /** Pede ao Rhetor uma nova proposta para a mesma mensagem. */
+  gerarPropostaDeNovo?(id: string): Promise<void>
 
   /** As respostas recebidas da sequência, com conteúdo. Só para o Responsável pela Sequência. */
   respostasRecebidas(sequenciaId: string): Promise<RespostaRecebida[]>

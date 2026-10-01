@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { MODULO_INDISPONIVEL } from '@/fonte/ambiente'
 import { motivoDoEnvio } from '@/fonte/motivos-do-envio'
+import { RespostaSugerida } from '@/paginas/resposta-sugerida'
 import {
   emailDoPasso,
   posicaoDoDestino,
@@ -170,6 +171,11 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   )
   const { dados: respostas, recarregar: recarregarRespostas } = useDadosDeSequencias(
     (f) => f.respostasRecebidas(sequenciaId),
+    [sequenciaId],
+  )
+  // As Respostas sugeridas: só o titular as recebe, e só onde a Fonte já tem propostas reais.
+  const { dados: propostas, recarregar: recarregarPropostas } = useDadosDeSequencias(
+    (f) => (f.propostasDeResposta ? f.propostasDeResposta(sequenciaId).catch(() => []) : Promise.resolve([])),
     [sequenciaId],
   )
   const { dados: autorizacao, recarregar: recarregarAutorizacao } = useDadosDeSequencias(
@@ -930,6 +936,25 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           carregarImagem={arquivoDoAnexo}
           onAmpliarImagem={setImagemAmpliada}
           erro={erroDoAnexo}
+        />
+      )}
+
+      {propostas && propostas.length > 0 && fonteDeSequencias.aprovarEEnviarProposta && (
+        <RespostaSugerida
+          propostas={propostas}
+          aoAprovarEEnviar={async (pedido) => {
+            const resultado = await fonteDeSequencias.aprovarEEnviarProposta!(pedido)
+            recarregarPropostas()
+            return resultado
+          }}
+          aoRejeitar={async (id) => {
+            await fonteDeSequencias.rejeitarProposta?.(id)
+            recarregarPropostas()
+          }}
+          aoGerarDeNovo={async (id) => {
+            await fonteDeSequencias.gerarPropostaDeNovo?.(id)
+            recarregarPropostas()
+          }}
         />
       )}
 

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
@@ -75,6 +75,51 @@ const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   invite_note_too_long: 'A nota de um convite do LinkedIn passou do limite de caracteres. Encurte a nota antes de ativar.',
   whatsapp_sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar. Conecte o WhatsApp antes de ativar.',
   linkedin_sender_not_ready: 'Sua Conta remetente de LinkedIn não está pronta para enviar. Conecte o LinkedIn antes de ativar.',
+}
+
+interface LinhaDaProposta {
+  id: string
+  channel: string
+  recipient: string
+  recipient_name: string | null
+  subject: string | null
+  body: string | null
+  revision: number
+  status: PropostaDeResposta['status']
+  sent_at: string | null
+  send_error: string | null
+  origin_received_at: string | null
+  origin_excerpt: string | null
+}
+
+function mapearProposta(linha: LinhaDaProposta): PropostaDeResposta {
+  return {
+    id: linha.id,
+    canal: linha.channel,
+    destinatario: linha.recipient,
+    ...(linha.recipient_name ? { nomeDoDestinatario: linha.recipient_name } : {}),
+    ...(linha.subject ? { assunto: linha.subject } : {}),
+    texto: linha.body ?? '',
+    revisao: linha.revision,
+    status: linha.status,
+    ...(linha.origin_excerpt ? { mensagemDeOrigem: linha.origin_excerpt } : {}),
+    ...(linha.origin_received_at ? { recebidaEm: linha.origin_received_at } : {}),
+    ...(linha.sent_at ? { enviadaEm: linha.sent_at } : {}),
+    ...(linha.send_error ? { erroDoEnvio: linha.send_error } : {}),
+  }
+}
+
+/** As recusas das RPCs das Propostas de resposta, em português. */
+function erroDaProposta(error: { message?: string }): Error {
+  const mensagem = error.message ?? ''
+  if (mensagem.includes('changed since it was read')) {
+    return new Error('A resposta mudou desde que você abriu. Confira o texto atual e aprove de novo.')
+  }
+  if (mensagem.includes('outdated')) {
+    return new Error('Chegou outra mensagem nesta conversa. Gere a resposta de novo antes de aprovar.')
+  }
+  if (mensagem.includes('not ready')) return new Error('A resposta ainda não está pronta para aprovar.')
+  return new Error('Não foi possível concluir agora. Tente de novo em instantes.')
 }
 
 interface LinhaDaResposta {
@@ -487,6 +532,53 @@ export function criarFonteDeSequenciasSupabase(
         p_went_out: saiu,
       })
       if (error) throw converterErro(error)
+      notificar()
+    },
+    async propostasDeResposta(sequenciaId) {
+      const { data, error } = await cliente.rpc('list_reply_proposals', {
+        p_workspace_id: obterWorkspaceId(),
+        p_sequence_id: sequenciaId,
+      })
+      // Quem não é o titular da Sequência não vê proposta nenhuma: o banco recusa, e a tela mostra a lista vazia.
+      if (error) {
+        if ((error as { code?: string }).code === '42501') return []
+        throw converterErro(error)
+      }
+      return ((data ?? []) as LinhaDaProposta[]).map(mapearProposta)
+    },
+    async aprovarEEnviarProposta({ id, revisao, textoEditado }) {
+      let revisaoAprovada = revisao
+      if (textoEditado !== undefined) {
+        const { data, error } = await cliente.rpc('edit_reply_proposal', {
+          p_proposal_id: id,
+          p_revision: revisao,
+          p_body: textoEditado,
+        })
+        if (error) throw erroDaProposta(error)
+        revisaoAprovada = Number(data)
+      }
+      const aprovada = await cliente.rpc('approve_reply_proposal', { p_proposal_id: id, p_revision: revisaoAprovada })
+      if (aprovada.error) throw erroDaProposta(aprovada.error)
+      const { error } = await cliente.functions.invoke('reply-proposal-send', {
+        body: { action: 'send', workspaceId: obterWorkspaceId(), proposalId: id },
+      })
+      notificar()
+      if (!error) return { enviada: true }
+      const corpo = await corpoDoErroDaFuncao(error)
+      const mensagem = typeof corpo?.message === 'string' ? corpo.message : typeof corpo?.error === 'string' ? corpo.error : null
+      return {
+        enviada: false,
+        mensagem: mensagem ?? (await motivoDaFalhaDaFuncao('reply-proposal-send', error, 'UNIPILE_API_KEY e APP_ORIGIN')),
+      }
+    },
+    async rejeitarProposta(id) {
+      const { error } = await cliente.rpc('reject_reply_proposal', { p_proposal_id: id })
+      if (error) throw erroDaProposta(error)
+      notificar()
+    },
+    async gerarPropostaDeNovo(id) {
+      const { error } = await cliente.rpc('request_reply_proposal_again', { p_proposal_id: id })
+      if (error) throw erroDaProposta(error)
       notificar()
     },
     async respostasRecebidas(sequenciaId) {
