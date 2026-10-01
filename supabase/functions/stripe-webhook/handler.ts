@@ -3,7 +3,8 @@
 // novo não muda nada (o Stripe reenvia): a assinatura ignora evento mais velho que o último aplicado e a cota entra uma
 // vez por fatura; o evento fica registrado depois de tratado (claim_stripe_event). O que muda:
 //   customer.subscription.created/updated/deleted  o estado, os assentos e o fim do período (apply_stripe_subscription);
-//   invoice.paid (criação ou renovação)            a cota de créditos dos assentos entra no saldo (grant_seat_credits).
+//   invoice.paid (criação ou renovação)            a cota de créditos dos assentos entra no saldo (grant_seat_credits);
+//   invoice.payment_failed                          fica registrado (o estado atrasado chega pela assinatura).
 // A fatura de um ajuste de assentos (proporcional) não traz cota: só a criação e a renovação. Banco entra por injeção de
 // dependência, para o teste ir da requisição à resposta sem rede.
 import { assinaturaDoStripeValida } from '../_shared/stripe.ts'
@@ -78,7 +79,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const objeto = ((evento.data as Objeto | undefined)?.object ?? {}) as Objeto
     if (!id || !tipo) return respond({ error: 'invalid event' }, 400)
 
-    const tratado = tipo.startsWith('customer.subscription.') || tipo === 'invoice.paid'
+    const tratado = tipo.startsWith('customer.subscription.') || tipo === 'invoice.paid' || tipo === 'invoice.payment_failed'
     if (!tratado) return respond({ received: true, ignored: true })
     const criadoEm = Number(evento.created)
 
@@ -102,6 +103,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       })
       await deps.db.claimEvent(id, tipo)
       log({ type: 'stripe_webhook', event: tipo, workspaceId, status: objeto.status })
+      return respond({ received: true })
+    }
+
+    if (tipo === 'invoice.payment_failed') {
+      await deps.db.claimEvent(id, tipo)
+      log({ type: 'stripe_webhook', event: tipo, workspaceId, invoice: objeto.id, attempt: objeto.attempt_count })
       return respond({ received: true })
     }
 

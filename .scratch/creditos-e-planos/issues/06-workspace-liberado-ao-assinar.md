@@ -27,10 +27,10 @@
 
 1. No Stripe: criar o produto "Althius · assento" com um preço recorrente mensal de R$ 500 por unidade, e copiar o id do preço (`price_…`).
 2. No Stripe: ligar o portal do cliente (Settings → Billing → Customer portal), permitindo trocar cartão, ver faturas e cancelar.
-3. No Stripe: criar o endpoint de webhook `https://ycbdilsmydvzezhlymty.supabase.co/functions/v1/stripe-webhook` com os eventos `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` e `invoice.paid`, e copiar o segredo (`whsec_…`).
+3. No Stripe: criar o endpoint de webhook `https://ycbdilsmydvzezhlymty.supabase.co/functions/v1/stripe-webhook` com os eventos `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid` e `invoice.payment_failed`, e copiar o segredo (`whsec_…`).
 4. No PowerShell, digitando as chaves no próprio terminal (nunca no chat):
    ```powershell
-   npx supabase secrets set STRIPE_SECRET_KEY=<sk_...> --project-ref ycbdilsmydvzezhlymty
+   npx supabase secrets set STRIPE_SECRET_KEY=<rk_... chave restrita> --project-ref ycbdilsmydvzezhlymty
    npx supabase secrets set STRIPE_PRICE_ID=<price_...> --project-ref ycbdilsmydvzezhlymty
    npx supabase secrets set STRIPE_WEBHOOK_SECRET=<whsec_...> --project-ref ycbdilsmydvzezhlymty
    ```
@@ -58,3 +58,5 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 
 - A cota de créditos por assento (hoje 0) e a carência (7 dias).
 - Se o Workspace pessoal também precisa de assinatura própria ou entra no plano da empresa: hoje vale a regra do ticket (qualquer Workspace operacional sem assinatura fecha, salvo a liberação manual).
+
+- **Revisão pelas boas práticas do Stripe (2026-10-01, plugin oficial):** versão da API fixada (`2026-08-26.dahlia`); `integration_identifier` no Checkout; CNPJ pedido no Checkout (`tax_id_collection`, com `customer_update` de nome e endereço); `invoice.payment_failed` registrado; Stripe Tax atrás de `STRIPE_AUTOMATIC_TAX` (desligado); chave restrita (`rk_…`) recomendada no lugar da secreta. Fica como sugestão, sem mudar teste existente: o webhook acha o Workspace pelo `workspace_id` do metadata antes do cliente do Stripe; o Stripe recomenda o contrário (cliente primeiro, metadata como reserva).

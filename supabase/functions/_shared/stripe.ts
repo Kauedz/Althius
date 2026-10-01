@@ -1,5 +1,9 @@
 // O Stripe por REST, sem SDK: as chamadas que a cobrança usa (cliente, checkout, portal, assinatura) e a conferência
-// da assinatura do webhook. A chave secreta e o segredo do webhook ficam só nos segredos do Supabase.
+// da assinatura do webhook. A chave (de preferência restrita, `rk_…`) e o segredo do webhook ficam só nos segredos do
+// Supabase.
+
+/** A versão da API fixada em toda chamada, para o formato das respostas não mudar com o padrão da conta. */
+export const VERSAO_DA_API_DO_STRIPE = '2026-08-26.dahlia'
 
 export class StripeError extends Error {
   constructor(readonly status: number, readonly code: string) {
@@ -40,6 +44,7 @@ export function stripeHttp(chaveSecreta: string, fetcher: typeof fetch = fetch):
       method: metodo,
       headers: {
         Authorization: `Bearer ${chaveSecreta}`,
+        'Stripe-Version': VERSAO_DA_API_DO_STRIPE,
         ...(corpo ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
       },
       ...(corpo ? { body: formDoStripe(corpo).join('&') } : {}),
