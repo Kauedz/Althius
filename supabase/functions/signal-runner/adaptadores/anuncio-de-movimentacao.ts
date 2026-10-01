@@ -54,6 +54,9 @@ const INICIO_DO_CARGO = String.raw`(?:diretor(?:a|\(a\)|\/a)?|gerente|head|vp|sv
   String.raw`director|general manager|country manager|managing director)`
 const ANUNCIO = new RegExp(String.raw`(?:^|[\s,(])${CONECTOR}\s+(${INICIO_DO_CARGO})(?=$|[\s,.!;:)])`, 'giu')
 
+// Uma palavra de liderança solta no texto, em qualquer lugar (só para o diagnóstico: o Sinal exige o conector antes).
+const LIDERANCA_NO_TEXTO = new RegExp(String.raw`(?:^|[\s,(])${INICIO_DO_CARGO}(?=$|[\s,.!;:)])`, 'iu')
+
 // As palavras que continuam o título ("de Dados", "Executivo", "of Engineering"); o resto (a Conta, a frase) fica fora.
 const LIGACOES = new Set(['de', 'da', 'do', 'das', 'dos', 'of', 'for', 'e', '&', 'and', 'the'])
 const MAX_PALAVRAS_DO_CARGO = 6
@@ -143,7 +146,9 @@ export const ETAPAS_DO_POST = [
   'pessoa não atende',
   'sem termo de movimentação (ou é vaga)',
   'movimento não aceito',
-  'sem cargo de liderança depois do conector',
+  'liderança citada no texto, mas fora do padrão do conector',
+  'nenhum cargo de liderança no texto',
+  'cargo fora dos cargos escolhidos',
   'virou Sinal',
 ] as const
 
@@ -184,8 +189,12 @@ function avaliarPost(
   const movimento = movimentoDoTexto(conteudo, conta.name)
   if (!movimento) return { etapa: 'sem termo de movimentação (ou é vaga)' }
   if (!movimentoAceito(movimento, criterios)) return { etapa: 'movimento não aceito' }
-  const cargo = cargosNoTexto(conteudo, conta.name).find((c) => cargoAtende(c, criterios))
-  if (!cargo) return { etapa: 'sem cargo de liderança depois do conector' }
+  const cargos = cargosNoTexto(conteudo, conta.name)
+  if (!cargos.length) {
+    return { etapa: LIDERANCA_NO_TEXTO.test(conteudo) ? 'liderança citada no texto, mas fora do padrão do conector' : 'nenhum cargo de liderança no texto' }
+  }
+  const cargo = cargos.find((c) => cargoAtende(c, criterios))
+  if (!cargo) return { etapa: 'cargo fora dos cargos escolhidos' }
   const quem = perfil && texto(autor.name) ? ` (${texto(autor.name)})` : ''
   const link = linkDoPost(item)
   return {

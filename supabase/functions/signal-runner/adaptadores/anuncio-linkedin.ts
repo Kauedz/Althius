@@ -20,6 +20,7 @@ const BIBLIOTECA = {
   onde: 'no LinkedIn',
   fonte: 'Biblioteca de anúncios do LinkedIn',
   soAtivos: false,
+  semDataValeAVarredura: true,
 }
 
 function periodoDaBusca(dias: number, agora: number): Record<string, string> {
@@ -28,7 +29,7 @@ function periodoDaBusca(dias: number, agora: number): Record<string, string> {
 }
 
 function linkDoAnuncio(item: Record<string, unknown>, id: string): string {
-  const link = primeiroTexto(item, 'adUrl', 'url')
+  const link = primeiroTexto(item, 'adLibraryUrl', 'adUrl', 'url')
   if (/linkedin\.com\/ad-library\/detail\//.test(link)) return link
   return `https://www.linkedin.com/ad-library/detail/${encodeURIComponent(id)}`
 }

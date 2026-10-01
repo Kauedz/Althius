@@ -101,6 +101,11 @@ export interface Biblioteca {
   fonte: string
   /** Se a busca só traz anúncios no ar (a frase diz "ativos"). */
   soAtivos: boolean
+  /**
+   * Se o anúncio sem data de início ainda conta: a busca já filtrou pelo período, então vale o mês da varredura e a frase
+   * diz "anunciando", sem "começou". Só o LinkedIn: a saída real dele não traz a data (execução de 01/10/2026).
+   */
+  semDataValeAVarredura?: boolean
 }
 
 export function dataCurta(iso: string): string {
@@ -108,9 +113,12 @@ export function dataCurta(iso: string): string {
   return `${dia}/${mes}/${ano}`
 }
 
-/** Se o anúncio passa pelos critérios do Monitoramento: começou no período e, com palavras, tem alguma no texto. */
-export function anuncioAtende(anuncio: Anuncio, criterios: Record<string, unknown>, agora: number): boolean {
-  if (!anuncio.inicio || !dentroDoPeriodo(anuncio.inicio, agora, diasDoPeriodo(criterios))) return false
+/**
+ * Se o anúncio passa pelos critérios do Monitoramento: começou no período e, com palavras, tem alguma no texto. Sem a data
+ * de início, só passa quando a fonte não traz data (`semDataValeAVarredura`): aí a busca já filtrou pelo período.
+ */
+export function anuncioAtende(anuncio: Anuncio, criterios: Record<string, unknown>, agora: number, semDataVale = false): boolean {
+  if (!anuncio.inicio ? !semDataVale : !dentroDoPeriodo(anuncio.inicio, agora, diasDoPeriodo(criterios))) return false
   const palavras = lista(criterios.palavras)
   return !palavras.length || contemAlgum(anuncio.texto, palavras)
 }
@@ -125,15 +133,39 @@ export function sinaisDosAnuncios(
   criterios: Record<string, unknown>,
   agora: number,
 ): SinalDoAdaptador[] {
+  const semDataVale = !!biblioteca.semDataValeAVarredura
+  const dataDaVarredura = new Date(agora).toISOString()
   const unicos = new Map<string, Anuncio>()
-  for (const a of anuncios) if (a.id && !unicos.has(a.id) && anuncioAtende(a, criterios, agora)) unicos.set(a.id, a)
+  for (const a of anuncios) {
+    if (a.id && !unicos.has(a.id) && anuncioAtende(a, criterios, agora, semDataVale)) unicos.set(a.id, a)
+  }
   const grupos = new Map<string, Anuncio[]>()
   for (const a of unicos.values()) {
-    const chave = `${biblioteca.signalType}|${a.anunciante}|${mesDaData(a.inicio!)}`
+    const chave = `${biblioteca.signalType}|${a.anunciante}|${mesDaData(a.inicio ?? dataDaVarredura)}`
     grupos.set(chave, [...(grupos.get(chave) ?? []), a])
   }
   return [...grupos].map(([eventKey, grupo]) => {
-    grupo.sort((a, b) => Date.parse(a.inicio!) - Date.parse(b.inicio!))
+    // Sem nenhuma data no grupo, é só "anunciando no período": a data do Sinal é a da varredura.
+    if (grupo.every((a) => !a.inicio)) {
+      const n = grupo.length
+      const dias = diasDoPeriodo(criterios)
+      const quantos = `${n} ${n === 1 ? 'anúncio' : 'anúncios'}`
+      const trechos = [...new Set(grupo.map((a) => a.texto).filter(Boolean))]
+        .slice(0, MAX_TRECHOS)
+        .map((t) => `“${recortar(t, TAMANHO_DO_TRECHO)}”`)
+      return sinal({
+        eventKey,
+        phrase: `Anunciando ${biblioteca.onde}: ${quantos} nos últimos ${dias} dias`,
+        firedAt: dataDaVarredura,
+        source: biblioteca.fonte,
+        evidence: [
+          `${quantos} de ${grupo[0].nomeDoAnunciante} ${biblioteca.onde} nos últimos ${dias} dias; a biblioteca não informa a data de início (${biblioteca.fonte}).`,
+          ...trechos,
+          grupo[0].link,
+        ].filter(Boolean).join(' '),
+      })
+    }
+    grupo.sort((a, b) => Date.parse(a.inicio ?? dataDaVarredura) - Date.parse(b.inicio ?? dataDaVarredura))
     const [primeiro] = grupo
     const desde = dataCurta(primeiro.inicio!)
     const n = grupo.length
