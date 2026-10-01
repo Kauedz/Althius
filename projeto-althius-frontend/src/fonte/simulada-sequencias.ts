@@ -9,6 +9,7 @@ import {
   type Sequencia,
   type StepSequencia,
   type TaxaDosEnvios,
+  type TaxaPorAbordagem,
 } from './sequencias-tipos'
 
 function validarStepsAlteradosOuNovos(novosSteps?: StepSequencia[], stepsAntigos?: StepSequencia[]): void {
@@ -32,6 +33,13 @@ const TAXAS_DA_DEMONSTRACAO: TaxaDosEnvios[] = [
   { canal: 'email', segmento: 'Infraestrutura de dados', enviados: 48, respostas: 12, positivas: 7, reunioes: 4, oportunidades: 2 },
   { canal: 'email', segmento: 'Software de design', enviados: 20, respostas: 3, positivas: 1, reunioes: 1, oportunidades: 0 },
   { canal: 'linkedin', segmento: 'Infraestrutura de dados', enviados: 15, respostas: 5, positivas: 2, reunioes: 1, oportunidades: 0 },
+]
+
+/** O Resultado dos Envios de exemplo por abordagem (título do passo). */
+const TAXAS_POR_ABORDAGEM_DA_DEMONSTRACAO: TaxaPorAbordagem[] = [
+  { abordagem: 'Abertura pelo Sinal', canal: 'email', enviados: 40, respostas: 11, positivas: 6, reunioes: 4, oportunidades: 2 },
+  { abordagem: 'Conexão no LinkedIn', canal: 'linkedin', enviados: 15, respostas: 5, positivas: 2, reunioes: 1, oportunidades: 0 },
+  { abordagem: 'Follow-up executivo', canal: 'email', enviados: 28, respostas: 4, positivas: 2, reunioes: 1, oportunidades: 0 },
 ]
 
 export interface OpcoesFonteDeSequenciasSimulada {
@@ -203,6 +211,11 @@ export function criarFonteDeSequenciasSimulada(
 
     async confirmarParticipantes(id: string, participantesIds: string[]): Promise<Sequencia> {
       return this.atualizarDocumento(id, { participantesIds })
+    },
+
+    async taxasPorAbordagem(): Promise<TaxaPorAbordagem[]> {
+      await aguardar()
+      return dados.length === 0 ? [] : TAXAS_POR_ABORDAGEM_DA_DEMONSTRACAO.map((taxa) => ({ ...taxa }))
     },
 
     async taxasDosEnvios(): Promise<TaxaDosEnvios[]> {

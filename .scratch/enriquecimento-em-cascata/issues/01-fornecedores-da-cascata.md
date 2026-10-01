@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** needs-info (falta o Nan escolher os fornecedores pagos além do Apify)
+**Status:** ready-for-agent (decidido: a base é o Apify; falta validar os actors numa execução real)
 
 ## Pode mexer
 
@@ -28,3 +28,9 @@
 1. Escolher e contratar os fornecedores pagos de e-mail e telefone; as chaves vão só nos segredos do Supabase.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- **Decisão do Nan (2026-10-01):** a base do enriquecimento (e dos Sinais) é o **Apify**, com os actors que a Althius instala: dados da Receita Federal, LinkedIn e scraping da internet. Apollo, Lusha e similares muitas vezes não trazem dados de empresa brasileira.
+- Os fornecedores pagos (Apollo, Lusha, Snov.io, Hunter.io...) **não entram na cascata da Althius**: o cliente os conecta nos Agentes dele, pelas Conexões, e os Agentes buscam lá com a conta do cliente. A cascata própria começa só com os actors do Apify.
+- Para construir: escolher os actors (Receita Federal por CNPJ, perfil do LinkedIn) e validar cada um numa execução real, como os Sinais 03 e 04 fizeram; precisa de uma sessão com o Network access do Apify liberado.

@@ -135,6 +135,17 @@ export interface TaxaDosEnvios {
   oportunidades: number
 }
 
+/** O Resultado dos Envios por abordagem, que é o título do passo da Sequência (decisão do Nan, 2026-10-01). */
+export interface TaxaPorAbordagem {
+  abordagem: string
+  canal: string
+  enviados: number
+  respostas: number
+  positivas: number
+  reunioes: number
+  oportunidades: number
+}
+
 export interface MetricasDemoSequencia {
   sequenciaId: string
   status: StatusSequencia
@@ -277,6 +288,9 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** O Resultado dos Envios do Workspace, por canal e segmento. Sem o método, a fonte não mede (e a tela não mostra). */
   taxasDosEnvios?(): Promise<TaxaDosEnvios[]>
+
+  /** O Resultado dos Envios do Workspace por abordagem (o título do passo) e canal. */
+  taxasPorAbordagem?(): Promise<TaxaPorAbordagem[]>
 
   /** Os Envios dos passos da sequência. Só o Responsável pela Sequência os vê; os demais recebem uma lista vazia. */
   envios(sequenciaId: string): Promise<EnvioDoPasso[]>

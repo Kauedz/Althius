@@ -24,3 +24,21 @@ describe('Resultado dos envios no Workspace operacional (motor-hermes 03)', () =
     expect(chamadas).toEqual([{ p_workspace_id: 'ws-norte' }])
   })
 })
+
+describe('Resultado dos envios por abordagem no Workspace operacional', () => {
+  it('lê send_outcome_rates_by_approach do Workspace', async () => {
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(ANA),
+      tabelas: {},
+      rpcs: {
+        send_outcome_rates_by_approach: () => [
+          { approach: 'Abertura pelo Sinal', channel: 'email', sent: '3', replied: 1, positive: '1', meetings: 0, opportunities: '0' },
+        ],
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => ANA.id)
+    expect(await fonte.taxasPorAbordagem!()).toEqual([
+      { abordagem: 'Abertura pelo Sinal', canal: 'email', enviados: 3, respostas: 1, positivas: 1, reunioes: 0, oportunidades: 0 },
+    ])
+  })
+})

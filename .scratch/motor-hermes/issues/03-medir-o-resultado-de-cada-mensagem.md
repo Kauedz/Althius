@@ -5,11 +5,11 @@ resposta positiva, reunião marcada e, quando houver, oportunidade. É o dado qu
 
 **Blocked by:** None. Depende dos Envios que já existem (canais-04) e cresce com WhatsApp e LinkedIn (canais-06/07).
 
-**Status:** ready-for-agent (backend e tela prontos; falta só o dado de abordagem)
+**Status:** closed
 
 - [x] O desfecho é registrado por Envio, com quem classificou (pessoa ou Agente) e quando.
 - [x] Resposta negativa não conta como sucesso.
-- [ ] O Workspace vê as taxas por abordagem, canal e segmento das próprias Sequências. — Canal e segmento prontos: a tabela "Resultado dos envios" em Sequências (`resultado-dos-envios.tsx`). Abordagem fica aberta (ver Comments).
+- [x] O Workspace vê as taxas por abordagem, canal e segmento das próprias Sequências. — Tabela "Resultado dos envios" em Sequências, com as vistas Segmento e Abordagem (`resultado-dos-envios.tsx`); `send_outcome_rates` e `send_outcome_rates_by_approach`.
 - [x] Nada disso sai do Workspace (a camada coletiva é o ticket 05).
 
 ## Comments
@@ -20,7 +20,8 @@ resposta positiva, reunião marcada e, quando houver, oportunidade. É o dado qu
 - pgTAP `supabase/tests/resultado_de_cada_envio.sql` (19).
 - **Tela (2026-10-01):** em Sequências, abaixo da lista, a tabela "Resultado dos envios" mostra por canal e segmento os enviados, % de resposta, % de positiva, reuniões e oportunidades, lendo `send_outcome_rates`. A Demonstração traz um exemplo; sem Envios, nada aparece.
 - **Classificar na tela (2026-10-01):** no detalhe da Sequência, o passo de E-mail enviado mostra "Resultado:" com o desfecho registrado (ou "Sem resposta"); o titular escolhe Resposta recebida, positiva, negativa, reunião marcada ou oportunidade (`set_send_outcome`). Migration `20261001110000_desfechos_da_sequencia.sql` acrescenta `public.list_send_outcomes(sequência)`, só do titular; pgTAP `desfechos_da_sequencia.sql` (4).
-- **Aberto:** (1) "abordagem": um passo não carrega variante, então não há como agrupar por abordagem; precisa de uma decisão (título do passo? um campo de variante?); (2) reunião marcada e oportunidade ainda são ditas à mão, sem ligar ao Kanban ou ao CRM; (3) WhatsApp e LinkedIn entram junto com o ciclo real deles (canais 06 e 07), porque a tabela de Envios hoje só tem e-mail.
+- **Abordagem (decisão do Nan, 2026-10-01): o título do passo.** Migration `20261001120000_taxas_por_abordagem.sql` (`public.send_outcome_rates_by_approach`): o título vem do documento da Sequência pelo id do passo; sem título vira "Sem título"; é o título de agora (renomear junta o histórico sob o nome novo). pgTAP `taxas_por_abordagem.sql` (4).
+- **Aberto (fora do ticket):** (1) reunião marcada e oportunidade ainda são ditas à mão, sem ligar ao Kanban ou ao CRM; (2) WhatsApp e LinkedIn entram junto com o ciclo real deles (canais 06 e 07), porque a tabela de Envios hoje só tem e-mail.
 
 ## Passos do Nan
 
@@ -28,5 +29,5 @@ resposta positiva, reunião marcada e, quando houver, oportunidade. É o dado qu
 
 ## Decisões a confirmar
 
-- O que é "abordagem" no dado: o título do passo, um campo novo de variante ou outra coisa.
+- ~~O que é "abordagem" no dado~~: decidido, o título do passo.
 - Quem pode classificar: hoje só a pessoa dona da Sequência ou um Agente do Workspace; um Administrador não classifica Sequência alheia.
