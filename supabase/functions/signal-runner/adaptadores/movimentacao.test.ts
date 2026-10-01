@@ -2,7 +2,7 @@
 // actor da HarvestAPI. Empresas, pessoas, perfis e posts são fictícios: nenhum dado pessoal real.
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@1'
 import { type ContaParaVarrer, SemDadoParaVarrer } from '../handler.ts'
-import { anuncioDeMovimentacao, cargosNoTexto } from './anuncio-de-movimentacao.ts'
+import { anuncioDeMovimentacao, cargosNoTexto, descartesDeMovimentacao } from './anuncio-de-movimentacao.ts'
 import { cargoAtende, cargoNormalizado, comecouNoPeriodo, ehLideranca, inicioDoCargo } from './cargos.ts'
 import { entradasESaidas } from './entradas-e-saidas.ts'
 import { mudancaDeEmprego } from './mudanca-de-emprego.ts'
@@ -402,4 +402,30 @@ Deno.test('Anúncio: o trecho do post tem no máximo 300 caracteres e tudo cabe 
   const trecho = s.evidence!.match(/^"(.*)" https:/)![1]
   assert(trecho.length <= 300)
   assert(s.phrase.length <= 300 && s.eventKey.length <= 300 && s.evidence!.length <= 2000)
+})
+
+Deno.test('Anúncio: a contagem por etapa diz onde cada post parou, só em números', () => {
+  const antigo = post(CHEGADA, { postedAt: { timestamp: Date.parse('2026-07-01T10:00:00Z') } })
+  const outra = post('Começando em um novo cargo como Diretora de Dados na Beta Tecnologia!', { author: { type: 'profile', name: 'Maria Exemplo', info: 'Beta Tecnologia' } })
+  const semTermo = post('Dia de evento da Acme Logística com o time inteiro.')
+  const analista = post('Novo desafio: começo hoje como Analista de Dados na Acme Logística.')
+  const vaga = post('Novo desafio! Estamos contratando: vaga como Gerente de Dados na Acme Logística.')
+  const reacao = { ...post(CHEGADA), type: 'reaction' }
+  const semData = post(CHEGADA, { postedAt: null })
+  const itens = [post(CHEGADA), antigo, outra, semTermo, analista, vaga, reacao, semData, 'erro']
+  const contagem = descartesDeMovimentacao(itens, CONTA, CRITERIOS, AGORA)
+  assertEquals(contagem, {
+    'não é post': 1,
+    'sem texto, id ou data': 1,
+    'fora do período': 1,
+    'não fala da Conta': 1,
+    'pessoa não atende': 0,
+    'sem termo de movimentação (ou é vaga)': 2,
+    'movimento não aceito': 0,
+    'sem cargo de liderança depois do conector': 1,
+    'virou Sinal': 1,
+  })
+  assertEquals(contagem['virou Sinal'], anuncioDeMovimentacao.sinais(itens, CONTA, CRITERIOS, AGORA).length)
+  assertEquals(Object.values(contagem).reduce((a, b) => a + b, 0), itens.length - 1)
+  assertEquals(JSON.stringify(contagem).includes('Maria'), false)
 })

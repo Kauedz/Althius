@@ -15,6 +15,7 @@
 // padrão do card), --max-itens <n> (menos itens, menos custo), --url <https://<ref>.supabase.co>.
 import { parseArgs } from 'jsr:@std/cli@1/parse-args'
 import { ADAPTADORES } from '../supabase/functions/signal-runner/adaptadores.ts'
+import { descartesDeMovimentacao } from '../supabase/functions/signal-runner/adaptadores/anuncio-de-movimentacao.ts'
 import { type ContaParaVarrer, SemDadoParaVarrer } from '../supabase/functions/signal-runner/handler.ts'
 
 // O actor de cada Sinal, como no registro (`private.signal_actors`).
@@ -125,6 +126,11 @@ console.log(`\nExecução ${corpo.runId ?? '(sem id)'} · ${itens.length} itens 
 console.log('\nCampos que o resultado trouxe (caminho: tipos, em quantos itens):')
 for (const [caminho, c] of [...camposVistos(itens)].sort(([a], [b]) => a.localeCompare(b))) {
   console.log(`  ${caminho}: ${[...c.tipos].join('|')} (${c.itens})`)
+}
+
+if (tipo === 'anuncio_de_movimentacao') {
+  console.log('\nOnde cada post parou (só contagem):')
+  for (const [etapa, n] of Object.entries(descartesDeMovimentacao(itens, conta, criterios, agora))) console.log(`  ${etapa}: ${n}`)
 }
 
 const sinais = adaptador.sinais(itens, conta, criterios, agora)

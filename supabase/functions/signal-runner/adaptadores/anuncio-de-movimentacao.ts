@@ -9,7 +9,7 @@
 // `id`, `linkedinUrl`, `content`, `author.name`/`info`/`linkedinUrl`/`publicIdentifier`/`universalName`/`type` e
 // `postedAt.timestamp`/`date`. Suposição que a execução real confirma: o esquema chama `authorsCompanies` de "nomes de
 // empresa", mas o exemplo de `mentioningCompany` aceita a URL da página; vai a URL. A execução real é passo do Nan.
-import type { AdaptadorDeSinal, SinalDoAdaptador } from '../handler.ts'
+import type { AdaptadorDeSinal, ContaParaVarrer, SinalDoAdaptador } from '../handler.ts'
 import { SemDadoParaVarrer } from '../handler.ts'
 import {
   contemAlgum, dataIso, dentroDoPeriodo, diasDoPeriodo, exigirPaginaDoLinkedin, nomeDaEmpresa, normalizar, objeto, objetos,
@@ -127,36 +127,75 @@ export const anuncioDeMovimentacao: AdaptadorDeSinal = {
   },
 
   sinais(itens, conta, criterios, agora) {
-    const dias = diasDoPeriodo(criterios)
-    const paginaDaConta = paginaDoLinkedin(conta.linkedinUrl)
-    const nomeDaConta = nomeDaEmpresa(conta.name)
-    return semRepetidos(objetos(itens).flatMap((item): SinalDoAdaptador[] => {
-      if (texto(item.type) && texto(item.type) !== 'post') return []
-      const conteudo = primeiroTexto(item, 'content', 'text')
-      const autor = objeto(item.author)
-      const publicadoEm = dataIso(objeto(item.postedAt).timestamp) ?? dataIso(objeto(item.postedAt).date) ?? dataIso(item.postedAt)
-      const id = idDoPost(item)
-      if (!conteudo || !id || !publicadoEm || !dentroDoPeriodo(publicadoEm, agora, dias)) return []
-      // O post precisa falar da Conta: o autor é a página dela, ou o nome dela está no texto ou no título do autor.
-      const daPagina = !!paginaDaConta && texto(autor.universalName).toLowerCase() === paginaDaConta
-      const citaAConta = !!nomeDaConta && contemAlgum(`${conteudo} ${texto(autor.info)}`, [nomeDaConta])
-      if (!daPagina && !citaAConta) return []
-      const perfil = perfilDoLinkedin(autor.linkedinUrl) ||
-        (texto(autor.type) === 'profile' ? texto(autor.publicIdentifier).toLowerCase() : '')
-      if (!pessoaAtende(perfil, conta, criterios)) return []
-      const movimento = movimentoDoTexto(conteudo, conta.name)
-      if (!movimento || !movimentoAceito(movimento, criterios)) return []
-      const cargo = cargosNoTexto(conteudo, conta.name).find((c) => cargoAtende(c, criterios))
-      if (!cargo) return []
-      const quem = perfil && texto(autor.name) ? ` (${texto(autor.name)})` : ''
-      const link = linkDoPost(item)
-      return [sinal({
-        eventKey: `post|${id}`,
-        phrase: `Anúncio de ${NOMES[movimento]}: ${cargo}${quem}`,
-        firedAt: publicadoEm,
-        source: 'LinkedIn Posts',
-        evidence: `"${recortar(conteudo, 300)}" ${link}`.trim(),
-      })]
+    return semRepetidos(objetos(itens).flatMap((item) => {
+      const r = avaliarPost(item, conta, criterios, agora)
+      return r.sinal ? [r.sinal] : []
     }))
   },
+}
+
+/** Em que etapa cada post parou, só a contagem (nenhum texto nem nome): serve para entender por que não saiu Sinal. */
+export const ETAPAS_DO_POST = [
+  'não é post',
+  'sem texto, id ou data',
+  'fora do período',
+  'não fala da Conta',
+  'pessoa não atende',
+  'sem termo de movimentação (ou é vaga)',
+  'movimento não aceito',
+  'sem cargo de liderança depois do conector',
+  'virou Sinal',
+] as const
+
+export function descartesDeMovimentacao(
+  itens: unknown[],
+  conta: ContaParaVarrer,
+  criterios: Record<string, unknown>,
+  agora: number,
+): Record<(typeof ETAPAS_DO_POST)[number], number> {
+  const contagem = Object.fromEntries(ETAPAS_DO_POST.map((e) => [e, 0])) as Record<(typeof ETAPAS_DO_POST)[number], number>
+  for (const item of objetos(itens)) contagem[avaliarPost(item, conta, criterios, agora).etapa]++
+  return contagem
+}
+
+function avaliarPost(
+  item: Record<string, unknown>,
+  conta: ContaParaVarrer,
+  criterios: Record<string, unknown>,
+  agora: number,
+): { etapa: (typeof ETAPAS_DO_POST)[number]; sinal?: SinalDoAdaptador } {
+  const dias = diasDoPeriodo(criterios)
+  const paginaDaConta = paginaDoLinkedin(conta.linkedinUrl)
+  const nomeDaConta = nomeDaEmpresa(conta.name)
+  if (texto(item.type) && texto(item.type) !== 'post') return { etapa: 'não é post' }
+  const conteudo = primeiroTexto(item, 'content', 'text')
+  const autor = objeto(item.author)
+  const publicadoEm = dataIso(objeto(item.postedAt).timestamp) ?? dataIso(objeto(item.postedAt).date) ?? dataIso(item.postedAt)
+  const id = idDoPost(item)
+  if (!conteudo || !id || !publicadoEm) return { etapa: 'sem texto, id ou data' }
+  if (!dentroDoPeriodo(publicadoEm, agora, dias)) return { etapa: 'fora do período' }
+  // O post precisa falar da Conta: o autor é a página dela, ou o nome dela está no texto ou no título do autor.
+  const daPagina = !!paginaDaConta && texto(autor.universalName).toLowerCase() === paginaDaConta
+  const citaAConta = !!nomeDaConta && contemAlgum(`${conteudo} ${texto(autor.info)}`, [nomeDaConta])
+  if (!daPagina && !citaAConta) return { etapa: 'não fala da Conta' }
+  const perfil = perfilDoLinkedin(autor.linkedinUrl) ||
+    (texto(autor.type) === 'profile' ? texto(autor.publicIdentifier).toLowerCase() : '')
+  if (!pessoaAtende(perfil, conta, criterios)) return { etapa: 'pessoa não atende' }
+  const movimento = movimentoDoTexto(conteudo, conta.name)
+  if (!movimento) return { etapa: 'sem termo de movimentação (ou é vaga)' }
+  if (!movimentoAceito(movimento, criterios)) return { etapa: 'movimento não aceito' }
+  const cargo = cargosNoTexto(conteudo, conta.name).find((c) => cargoAtende(c, criterios))
+  if (!cargo) return { etapa: 'sem cargo de liderança depois do conector' }
+  const quem = perfil && texto(autor.name) ? ` (${texto(autor.name)})` : ''
+  const link = linkDoPost(item)
+  return {
+    etapa: 'virou Sinal',
+    sinal: sinal({
+      eventKey: `post|${id}`,
+      phrase: `Anúncio de ${NOMES[movimento]}: ${cargo}${quem}`,
+      firedAt: publicadoEm,
+      source: 'LinkedIn Posts',
+      evidence: `"${recortar(conteudo, 300)}" ${link}`.trim(),
+    }),
+  }
 }
