@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Monitoramento real.
 
-**Status:** ready-for-human
+**Status:** closed
 
 ## Pode mexer
 
@@ -21,7 +21,7 @@
 ## Critérios
 
 - [x] Cada tipo testado com um resultado de exemplo do actor, sem dado pessoal real (`adaptadores/movimentacao.test.ts`).
-- [ ] Validar numa execução real (a IA prepara; roda com o `APIFY_TOKEN` do Supabase) e registrar o custo observado. **Preparado:** `scripts/validar-sinais-reais.ts`; falta o Nan rodar.
+- [x] Validado em execução real (30/09 e 01/10/2026, Nan) e custo registrado: `mudanca_de_emprego` (1 perfil, 1 Sinal, US$ 0,004), `nova_lideranca` (13 perfis, 8 Sinais, US$ 0,152), `entradas_e_saidas` (3 perfis, 3 Sinais) e `anuncio_de_movimentacao` (23 posts, 0 Sinais, o resultado certo pelo diagnóstico por etapa; US$ 0,046). Os quatro liberados no registro.
 
 ## Passos do Nan
 
@@ -77,3 +77,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - **Anúncio de movimentação, segunda execução (01/10/2026, Nan, Nubank, `ffYNHKd6YfAh05ydk`):** 23 posts, 0 Sinais. Onde cada post parou: 3 não falam da Conta, 8 sem termo de movimentação (ou são vaga) e 12 com termo de movimentação mas sem cargo de liderança logo depois do conector (nenhum caiu por período, tipo ou pessoa). Faltava saber se esses 12 são mesmo posts de cargo que não é de liderança ou se o padrão do conector perde algum; por isso a etapa foi dividida em "liderança citada no texto, mas fora do padrão do conector" e "nenhum cargo de liderança no texto" (só contagens, o script as imprime). Segue `testing` até essa contagem voltar.
 - **Anúncio de movimentação, terceira execução (01/10/2026, Nan, Nubank, `9vN8xgI7ezPOBdNo0`), com as etapas divididas:** dos 12 posts que paravam no cargo, os 12 caem em "nenhum cargo de liderança no texto" e 0 em "liderança citada, mas fora do padrão do conector". O padrão não perde nenhum post: na Nubank, nos últimos 90 dias, não houve anúncio de cargo de liderança, e o 0 está certo. Liberado no registro (versão 0.0.114, teto US$ 0,10). Custo real: US$ 0,046 por 23 posts (US$ 0,002 por post). Não houve ainda um Sinal positivo numa execução real; o caso positivo está coberto pelos testes com exemplos do README.
 
+- 01/10/2026: os 9 Sinais do lançamento estão `available` no registro. Ticket fechado (todos os critérios marcados).

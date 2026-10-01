@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Monitoramento real.
 
-**Status:** ready-for-human
+**Status:** closed
 
 ## Pode mexer
 
@@ -21,7 +21,7 @@
 ## Critérios
 
 - [x] Cada tipo testado com um resultado de exemplo do actor, sem dado pessoal real (`adaptadores/anuncios.test.ts`).
-- [ ] Validar numa execução real (a IA prepara; roda com o `APIFY_TOKEN` do Supabase) e registrar o custo observado. **Preparado:** `scripts/validar-sinais-reais.ts`; falta o Nan rodar.
+- [x] Validado em execução real (01/10/2026, Nan) e custo registrado: `anuncio_meta` (Nubank, 30 anúncios, 3 Sinais) e `anuncio_linkedin` (Microsoft, 20 anúncios, 1 Sinal, US$ 0,08, só depois da busca de 30 dias). Os dois liberados no registro; o LinkedIn depois do deploy do `signal-runner` de 01/10/2026 às 14:12 UTC.
 
 ## Passos do Nan
 
@@ -71,3 +71,5 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - **Anunciando no LinkedIn, terceira tentativa (01/10/2026, Nan, Microsoft, Estados Unidos, 30 dias, `uB8jH3SjFPlEoQLRV`):** o actor funciona: 20 anúncios com `adId`, `advertiserName`, `advertiserUrl`, `adLibraryUrl`, `body`, `headline`, `ctas`, `format`, `paidBy`, `clickUrl` (só em 2 de 20), `imageUrl`, `videoUrl` e `documentUrl`. **A saída não traz `availability` (nem nenhuma data de início)**, diferente do exemplo do README; o build é o 1.2.3. Por isso o adaptador, que exigia a data, tirou 0 Sinais. Decisão: sem data, o anúncio que a busca já filtrou pelo período conta como Sinal "Anunciando no LinkedIn: N anúncios nos últimos X dias", um por anunciante e mês da varredura (a Meta segue exigindo a data de início). O Brasil (`countries=BR`) voltou vazio duas vezes, com 90 dias; falta testar o Brasil com 30 dias para separar "sem anúncio no Brasil" de "formato de data". O custo do anúncio por evento (`ad-without-details` a US$ 0,002) ainda não foi conferido nesta execução.
 - **Anunciando no LinkedIn, quarta e quinta execuções (01/10/2026, Nan, Microsoft, 30 dias):** Estados Unidos (`tZfJs8R2pv0y8xEgd`) e Brasil (`eaDzDlxxH4olkmYkV`) trouxeram 20 anúncios cada e 1 Sinal cada ("Anunciando no LinkedIn: 5 anúncios" e "2 anúncios nos últimos 30 dias"; o resto eram outras páginas da Microsoft, que não são a Conta). No Brasil, 1 dos 20 anúncios trouxe `availability`, os outros não. **Causa do vazio de antes:** o período de 90 dias (`dateOption=custom-date-range` com `startdate`/`enddate`): a mesma busca da Microsoft no Brasil voltou com 0 em 90 dias e com 20 em 30 dias. Agora a busca é sempre `last-30-days` e a frase diz "nos últimos 30 dias" mesmo com período maior no formulário. Custo real: US$ 0,08 por 20 anúncios com detalhe (US$ 0,004 cada, mais 2 inícios). Fica `testing` até o Nan publicar o `signal-runner` com esta correção; depois, a IA libera no registro (versão 1.2.3, teto US$ 0,10).
 - Conferência visual: [cards de Anúncios](prints/03-catalogo-anuncios.jpg) e [formulário de anúncios](prints/05-formulario-anuncios.jpg).
+
+- 01/10/2026: os 9 Sinais do lançamento estão `available` no registro. Ticket fechado (todos os critérios marcados).

@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Monitoramento real.
 
-**Status:** ready-for-human
+**Status:** closed
 
 ## Pode mexer
 
@@ -23,7 +23,7 @@
 ## Critérios
 
 - [x] Cada tipo testado com um resultado de exemplo do actor, sem dado pessoal real (`adaptadores/vagas.test.ts`, no formato do README de cada actor).
-- [ ] Validar numa execução real (a IA prepara; roda com o `APIFY_TOKEN` do Supabase) e registrar o custo observado. **Preparado:** `scripts/validar-sinais-reais.ts`; falta o Nan rodar (Passos do Nan).
+- [x] Validado em execução real (30/09/2026, Nan, Nubank) e custo registrado: `vaga_linkedin` 50 vagas e 21 Sinais; `vaga_indeed` 92 vagas e 42 Sinais. Os dois liberados no registro (`available`).
 - [x] Com o primeiro actor marcado `available` no registro, o módulo Sinais sai de `indisponiveis` no Workspace operacional (`composicao.ts`), e o card do tipo mostra "Disponível"; o motivo da última falha (`ultimaFalha`) aparece no Monitoramento.
 
 ## Passos do Nan
@@ -72,3 +72,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - Na mesma execução: o `signal-scan` recusava a chave `service_role` legada (corrigido na PR https://github.com/Kauedz/Althius/pull/109), e o custo ficou em branco porque o endpoint síncrono não devolve `x-apify-run-id` (corrigido na PR seguinte, que lê o id da última execução do actor).
 - **Execução real 2 (30/09/2026, Nan): `vaga_indeed` com o Nubank** (Brasil, sem período no Indeed porque 90 dias passa dos 14 que ele aceita). 92 vagas com `key`, `url`, `title`, `datePublished`, `dateOnIndeed`, `location.city`, `employer.name` (91 de 92), `employer.corporateWebsite`, `description.text` e os `attributes` por código. O adaptador tirou 42 Sinais, todos do Nubank. A comparação com a execução 1 mostrou o LinkedIn datando em setembro vagas que o Indeed data em julho e agosto ("Staff Software Engineer | NuPay": 24/09 contra 28/07): com o mês na chave, a mesma vaga contaria duas vezes. A chave passou a levar o ano.
 
+- 01/10/2026: os 9 Sinais do lançamento estão `available` no registro. Ticket fechado (todos os critérios marcados).

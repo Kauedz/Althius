@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Monitoramento real.
 
-**Status:** ready-for-human
+**Status:** closed
 
 ## Pode mexer
 
@@ -21,7 +21,7 @@
 ## Critérios
 
 - [x] Cada tipo testado com um resultado de exemplo do actor, sem dado pessoal real (`adaptadores/avaliacoes-google-maps.test.ts`, inclusive um teste de que nenhum dado do avaliador chega ao Sinal).
-- [ ] Validar numa execução real (a IA prepara; roda com o `APIFY_TOKEN` do Supabase) e registrar o custo observado. **Preparado:** `scripts/validar-sinais-reais.ts`; falta o Nan rodar.
+- [x] Validado em execução real (01/10/2026, Nan, Magazine Luiza): 100 avaliações, 1 Sinal (reclamações repetidas sobre atendimento), nada de quem avaliou; custo US$ 0,116 (vários lugares na busca por nome). Liberado no registro (teto US$ 0,15).
 
 ## Passos do Nan
 
@@ -66,3 +66,5 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - A confirmar na execução real: que a busca por nome brasileiro acha o lugar certo (senão, acrescentar a cidade); quantos lugares o actor raspa numa lista; o campo do site do lugar.
 - **Execução real (01/10/2026, Nan, "Magazine Luiza", `mYG42K90ca9hiXqzC`):** `avaliacoes_google_maps` devolveu 100 avaliações (`placeId`, `title`, `url`, `totalScore`, `reviewsCount`, `stars`, `publishedAtDate`, `text`, `reviewId`) e a busca por nome achou o lugar certo; saiu 1 Sinal (reclamações repetidas sobre atendimento, 3 em 90 dias). Com `personalData: false`, `reviewerId`, `reviewerUrl`, `reviewerPhotoUrl`, `reviewUrl` e o nome de quem avaliou vieram nulos. **O campo `website` não existe na saída**: o lugar foi ligado à Conta só pelo nome (o domínio não ajuda). Liberado no registro (versão 0.0.527). **Custo acima do previsto:** o Apify cobrou 194 avaliações (US$ 0,116) para os 100 itens devolvidos, porque a busca por nome trouxe vários lugares (uma rede de lojas) e leu até 50 avaliações de cada um. O teto subiu de US$ 0,10 para US$ 0,15. Para reduzir, dá para baixar `maxReviews` por lugar; uma Conta de um lugar só custa bem menos.
 - Conferência visual: [card](prints/03-catalogo-anuncios.jpg) e [formulário de avaliações](prints/06-formulario-avaliacoes.jpg).
+
+- 01/10/2026: os 9 Sinais do lançamento estão `available` no registro. Ticket fechado (todos os critérios marcados).
