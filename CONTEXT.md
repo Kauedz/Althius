@@ -162,6 +162,9 @@ _Avoid_: exportar, converter lead
 A varredura que revisita as Contas-alvo com Fit sem Sinal válido: mensal e automática dentro do Teto aprovado, ou sob pedido pelo botão "Buscar Sinais de novo", com o custo mostrado antes. Cada pedido, do clique ou do mês, é uma **Busca de Sinais** numa Conta: varre a Conta com todos os Monitoramentos ativos do Workspace, mesmo que ela não esteja no público deles, e cada Conta é revisitada no máximo uma vez a cada 30 dias.
 _Avoid_: reprocessamento, nova varredura
 
+**Resultado do Envio**:
+O desfecho observado de um Envio de passo que saiu: resposta, resposta positiva, resposta negativa, reunião marcada ou oportunidade. Um Envio sem desfecho está sem resposta. A resposta recebida registra "resposta" sozinha; o resto é dito pela pessoa responsável pela Sequência ou por um Agente, e fica quem classificou e quando. Resposta negativa conta como resposta, nunca como sucesso. As taxas por canal e segmento são do Workspace e não saem dele.
+
 **Crédito**:
 A unidade de consumo de um Workspace. Gastam créditos a varredura de Sinais, a coleta de pessoas, a revelação de e-mail e telefone (só quando acha) e cada Execução de Agente. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
 _Avoid_: token, saldo de uso
