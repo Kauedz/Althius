@@ -380,7 +380,7 @@ function linhasComoTexto(linhas: unknown): string[] {
   })
 }
 
-function corpoDaSecao(secao: SecaoDoPlaybookNaExecucao): string {
+export function corpoDaSecao(secao: SecaoDoPlaybookNaExecucao): string {
   const texto = typeof secao.content?.texto === 'string' ? secao.content.texto.trim() : ''
   return [texto, ...linhasComoTexto(secao.content?.linhas)].filter(Boolean).join('\n')
 }

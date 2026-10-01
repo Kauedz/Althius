@@ -116,7 +116,7 @@ function lerTermo(input: unknown): string | null {
  * O modelo do cliente por dentro: um provedor que recusa a chave dá à Execução o motivo da chave, não o do modelo da
  * Althius, e nada do que ele devolver leva a chave para o log ou para o motivo da Execução.
  */
-function comAChaveDoCliente(modelo: Modelo, apiKey: string): Modelo {
+export function comAChaveDoCliente(modelo: Modelo, apiKey: string): Modelo {
   return {
     nome: modelo.nome,
     async criar(params) {

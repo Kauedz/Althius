@@ -60,3 +60,12 @@ verify_jwt = false
 
 [functions.integration-tools]
 verify_jwt = true
+
+# O gerador das Propostas de resposta (canais-08): chamado pelo próprio banco (pg_cron + pg_net), sem JWT; a função confere
+# o token que o banco guarda (reply_proposal_runner_token_matches).
+[functions.reply-proposal-runner]
+verify_jwt = false
+
+# O envio da resposta aprovada (canais-09): o titular chama com o JWT; o banco confere Participação, responsabilidade e Aprovação.
+[functions.reply-proposal-send]
+verify_jwt = true
