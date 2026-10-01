@@ -113,6 +113,14 @@ export function bancoDasIntegracoes(rpc: Rpc): BancoDeAcessos & BancoDaConexao {
       })
       return permissao === 'ler' || permissao === 'propor' || permissao === 'executar' ? (permissao as Permissao) : null
     },
+    async aprovacaoEmExecucao(a) {
+      return (await chamar<boolean | null>('approval_in_execution', {
+        p_approval_id: a.approvalId,
+        p_workspace_id: a.workspaceId,
+        p_agent_id: a.agenteId,
+        p_integration_id: a.integrationId,
+      })) === true
+    },
     async clienteOAuth(a) {
       const linha = primeira<{ client_id: string; client_secret: string | null }>(await chamar('integration_oauth_client', {
         p_integration_id: a.integrationId,

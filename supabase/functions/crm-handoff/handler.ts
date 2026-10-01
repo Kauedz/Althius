@@ -8,8 +8,14 @@
 //      o progresso a cada objeto criado;
 //   3. `finish_crm_handoff` grava enviado (e o cartão vai para No CRM) ou falhou (com o que já foi criado).
 // As respostas vêm em português e nunca carregam token nem chave.
+//
+// E, para as Aprovações de Agentes (Etapa 5b, CRM-15), o Administrador que acabou de aprovar pede, com o JWT dele,
+//   POST { action: 'executar_aprovacao', approvalId }
+// e o executor (`_shared/executor-de-aprovacoes.ts`) envia pelo Acesso de quem pediu ao Agente, sob a Permissão do
+// Agente e a Aprovação reservada; o banco confere que quem pede é Administrador ativo do Workspace da Aprovação.
 import { comCors } from '../_shared/cors.ts'
 import { escreverNoCrm, nomeDoCrm, type PayloadDoEnvio, type RefsDoCrm } from '../_shared/envio-ao-crm.ts'
+import { type BancoDoExecutor, executarEnvioAprovado } from '../_shared/executor-de-aprovacoes.ts'
 import { chamarFerramenta, type DepsDeAcesso, ErroDoBanco } from '../_shared/integration-access.ts'
 import type { TipoDeAcesso } from '../_shared/integracoes/tipos.ts'
 
@@ -35,6 +41,8 @@ export interface Deps {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
   appOrigin: string
   log?: (campos: Record<string, unknown>) => void
+  /** O banco do executor das Aprovações; sem ele, `executar_aprovacao` fica indisponível. */
+  aprovacoes?: BancoDoExecutor
 }
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
@@ -84,6 +92,27 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       corpo = await req.json()
     } catch {
       return responder({ error: 'Corpo inválido.', code: 'corpo' }, 400)
+    }
+    if (corpo?.action === 'executar_aprovacao') {
+      const approvalId = typeof corpo.approvalId === 'string' ? corpo.approvalId : ''
+      if (!UUID.test(approvalId)) return responder({ error: 'Aprovação obrigatória.', code: 'aprovacao' }, 400)
+      if (!deps.aprovacoes) return responder({ error: 'Ação indisponível.', code: 'acao' }, 400)
+      const desfecho = await executarEnvioAprovado(
+        { banco: deps.aprovacoes, acesso: deps.acesso, log },
+        { approvalId, administrador: user.userId },
+      ).catch((erro) => {
+        log({ type: 'crm_handoff', etapa: 'executar_aprovacao', erro: erro instanceof Error ? erro.name : 'desconhecido' })
+        return null
+      })
+      if (!desfecho) return responder({ error: 'Não foi possível executar a Aprovação agora.', code: 'indisponivel' }, 502)
+      if (desfecho.status === 'enviado') {
+        return responder({ status: 'enviado', mensagem: desfecho.mensagem, pendencias: desfecho.pendencias })
+      }
+      if (desfecho.status === 'recusada') return responder({ error: desfecho.mensagem, code: 'recusada' }, 403)
+      if (desfecho.status === 'nao_liberada') {
+        return responder({ error: desfecho.mensagem, code: desfecho.motivo, status: 'nao_liberada' }, 409)
+      }
+      return responder({ error: desfecho.mensagem, code: 'falhou', status: 'falhou' }, 502)
     }
     if (corpo?.action !== 'enviar') return responder({ error: 'Ação desconhecida.', code: 'acao' }, 400)
     const workspaceId = typeof corpo.workspaceId === 'string' ? corpo.workspaceId : ''

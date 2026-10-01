@@ -57,6 +57,11 @@ export interface BancoDeAcessos extends BancoDeClientesOAuth {
   marcarReconexao(accessId: string, motivo: string): Promise<void>
   /** RPC `integration_agent_permission`; nulo quando o Agente não usa a Integração. */
   permissaoDoAgente(a: { workspaceId: string; agenteId: string; integrationId: string }): Promise<Permissao | null>
+  /**
+   * RPC `approval_in_execution`: a Aprovação deste Agente, nesta Integração e neste Workspace, está sendo executada agora
+   * (reservada por `claim_approved_action`). Opcional: um banco sem ela nunca libera a escrita de quem tem Propor.
+   */
+  aprovacaoEmExecucao?(a: { approvalId: string; workspaceId: string; agenteId: string; integrationId: string }): Promise<boolean>
 }
 
 export interface DepsDeAcesso {
@@ -90,6 +95,12 @@ export interface PedidoDeChamada extends PedidoDeAcesso {
    * nunca a partir do corpo de um pedido. Com `agenteId`, vale a Permissão do Agente e esta marca é ignorada.
    */
   decisaoDaPessoa?: boolean
+  /**
+   * A Aprovação que libera esta escrita de um Agente com a Permissão Propor (CRM-15). Só o executor das Aprovações passa,
+   * depois de reservá-la; vale só quando o banco confirma que ela está em execução, para este Agente e esta Integração.
+   * Não abre nada para quem tem Ler, e não muda nada para quem tem Executar.
+   */
+  aprovacaoId?: string
 }
 
 interface SegredoOAuth {
@@ -355,6 +366,21 @@ export function listarFerramentas(deps: DepsDeAcesso, pedido: PedidoDeAcesso): P
   return comAcesso(deps, pedido, (sessao) => sessao.ferramentas())
 }
 
+/** A Aprovação do pedido está em execução para este Agente e esta Integração. Qualquer falha conta como não. */
+async function aprovacaoValida(deps: DepsDeAcesso, pedido: PedidoDeChamada): Promise<boolean> {
+  if (!pedido.aprovacaoId || !pedido.agenteId || !deps.banco.aprovacaoEmExecucao) return false
+  try {
+    return (await deps.banco.aprovacaoEmExecucao({
+      approvalId: pedido.aprovacaoId,
+      workspaceId: pedido.workspaceId,
+      agenteId: pedido.agenteId,
+      integrationId: pedido.integrationId,
+    })) === true
+  } catch {
+    return false
+  }
+}
+
 /** Chama uma ferramenta em nome de quem pediu, sob a Permissão do Agente (ver `PedidoDeChamada`). */
 export async function chamarFerramenta(
   deps: DepsDeAcesso,
@@ -397,6 +423,9 @@ export async function chamarFerramenta(
       })
     }
     if (pedido.agenteId) {
+      if (atual === 'propor' && exigida === 'executar' && pedido.aprovacaoId && (await aprovacaoValida(deps, pedido))) {
+        return await sessao.chamar(pedido.ferramenta, pedido.argumentos ?? {})
+      }
       if (!atual || RANGO[atual] < RANGO[exigida]) {
         throw new Parada({
           tipo: 'permissao_negada',
