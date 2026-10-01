@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { ingestEmailEventVia } from '../_shared/ingest-email-event.ts'
+import { ingestChatEventVia } from '../_shared/ingest-chat-event.ts'
 import { type AttachmentStore, createHandler, type WebhookDb, type WebhookUnipile } from './handler.ts'
 
 const UNIPILE_API_BASE = 'https://api.unipile.com'
@@ -35,6 +36,7 @@ const db: WebhookDb = {
     return data === true
   },
   ingestEmailEvent: ingestEmailEventVia(admin),
+  ingestChatEvent: ingestChatEventVia(admin),
   async recordReceivedEmailAttachment({ interactionId, attachmentId, storagePath, status }) {
     const { error } = await admin.rpc('record_received_email_attachment', {
       p_interaction_id: interactionId,

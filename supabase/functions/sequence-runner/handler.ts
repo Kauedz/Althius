@@ -10,6 +10,13 @@ import {
   type SendStepDb,
   type UnipileMail,
 } from '../_shared/send-step.ts'
+import {
+  checkChatConversation,
+  type ChatReleaseResult,
+  type ChatSendDb,
+  sendChatStep,
+  type UnipileChat,
+} from '../_shared/send-chat-step.ts'
 
 export interface DueSend {
   send_id: string
@@ -53,9 +60,33 @@ export interface RunnerDb extends SendStepDb {
   finishSenderReconciliation(senderAccountId: string, claimedAt: string): Promise<boolean>
 }
 
+/** Uma conversa de WhatsApp ou LinkedIn a conferir: a do último Envio que saiu pela conta para um Contato. */
+export interface ChatToReconcile {
+  send_id: string
+  provider_chat_id: string
+  sent_at: string
+}
+
+/** O que o Executor usa do banco para os passos de WhatsApp e LinkedIn (canais-06 e canais-07). */
+export interface ChatRunnerDb extends ChatSendDb {
+  /** RPC claim_due_chat_step_sends: os passos de conversa vencidos, reservados por 2 minutos. */
+  claimDueChatSends(limit: number): Promise<DueSend[]>
+  /** RPC release_due_chat_step_send. Lança um erro com code quando o banco recusa (ex.: P0002). */
+  releaseDueChatSend(sendId: string): Promise<ChatReleaseResult>
+  /** RPC chats_to_reconcile: a próxima página de conversas de uma Conta remetente de conversa. */
+  chatsToReconcile(senderAccountId: string, limit: number): Promise<ChatToReconcile[]>
+}
+
+export interface ChatRunnerDeps {
+  db: ChatRunnerDb
+  unipile: UnipileChat
+}
+
 export interface Deps {
   db: RunnerDb
   unipile: UnipileMail
+  /** WhatsApp e LinkedIn. Sem isto, o Executor só envia e-mail, como antes do canais-06. */
+  chat?: ChatRunnerDeps
   /** Passos por chamada: cada um pode levar até o prazo do envio, e a função tem tempo limitado. Padrão 5. */
   maxPerRun?: number
   /** Contas reconciliadas por chamada. Padrão 3. */
@@ -101,6 +132,31 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         page = await deps.db.conversationsToReconcile(senderAccountId, 25)
       } catch {
         return report('list_failed')
+      }
+      // Uma Conta remetente de WhatsApp ou LinkedIn não tem conversas de e-mail: as dela são os chats dos Envios.
+      if (page.length === 0 && deps.chat) {
+        let chats: ChatToReconcile[]
+        try {
+          chats = await deps.chat.db.chatsToReconcile(senderAccountId, 25)
+        } catch {
+          return report('list_failed')
+        }
+        if (chats.length > 0) {
+          for (const row of chats) {
+            const result = await checkChatConversation(deps.chat, {
+              unipile_account_id: account.unipile_account_id,
+              provider_chat_id: row.provider_chat_id,
+            })
+            if (result === 'failed') return report('check_failed')
+            if (result === 'reply_found') replies++
+            checked++
+          }
+          const lastChat = chats[chats.length - 1]
+          if (!(await deps.db.recordReconciliationProgress(senderAccountId, account.claimed_at, lastChat))) {
+            return report('dropped_again')
+          }
+          continue
+        }
       }
       if (page.length === 0) break
       try {
@@ -150,6 +206,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
     }
 
+    await runEmail()
+    await runChat()
+  }
+
+  async function runEmail() {
     let due: DueSend[]
     try {
       due = await deps.db.claimDueSends(deps.maxPerRun ?? 5)
@@ -174,6 +235,36 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           outcome: 'error',
           message: messageOf(error),
         })
+      }
+    }
+  }
+
+  // Os passos de WhatsApp e LinkedIn, depois dos de e-mail: um por vez, na ordem em que foram reservados.
+  async function runChat() {
+    const chat = deps.chat
+    if (!chat) return
+    let due: DueSend[]
+    try {
+      due = await chat.db.claimDueChatSends(deps.maxPerRun ?? 5)
+    } catch (error) {
+      log({ type: 'runner-chat', outcome: 'claim_failed', message: messageOf(error) })
+      return
+    }
+    for (const { send_id: sendId, owner_user_id: userId } of due) {
+      try {
+        const result = await sendChatStep(
+          { db: chat.db, unipile: chat.unipile, sendTimeoutMs: deps.sendTimeoutMs },
+          { sendId, userId, release: () => chat.db.releaseDueChatSend(sendId) },
+        )
+        log({
+          type: 'runner-chat',
+          sendId,
+          outcome: result.kind === 'blocked' || result.kind === 'attempted' ? result.outcome : result.kind,
+          ...(result.kind === 'attempted' && result.reason ? { reason: result.reason } : {}),
+          ...(result.kind === 'attempted' && !result.recorded ? { recorded: false } : {}),
+        })
+      } catch (error) {
+        log({ type: 'runner-chat', sendId, outcome: 'error', message: messageOf(error) })
       }
     }
   }

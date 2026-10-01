@@ -5,6 +5,13 @@
 // injeção de dependência, para o teste ir da requisição à resposta sem rede.
 
 import type { EmailAttachmentRef, IngestedEmail, IngestEmailEventInput } from '../_shared/ingest-email-event.ts'
+import {
+  CHAT_MESSAGE_EVENTS,
+  CHAT_RELATION_EVENTS,
+  type ChatEventType,
+  type IngestChatEventInput,
+  type IngestedChat,
+} from '../_shared/ingest-chat-event.ts'
 export type { EmailAttachmentRef, IngestedEmail }
 
 export interface WebhookDb {
@@ -19,6 +26,11 @@ export interface WebhookDb {
   applyUnipileSenderStatus(unipileAccountId: string, status: string): Promise<boolean>
   /** RPC ingest_unipile_email_event. */
   ingestEmailEvent(input: IngestEmailEventInput): Promise<IngestedEmail>
+  /**
+   * RPC ingest_unipile_chat_event: `message.new` (WhatsApp e LinkedIn) e o evento de nova relação do LinkedIn.
+   * Sem ela, esses eventos são só reconhecidos (HTTP 200) e ignorados, como antes do canais-06.
+   */
+  ingestChatEvent?(input: IngestChatEventInput): Promise<IngestedChat>
   /** RPC record_received_email_attachment. */
   recordReceivedEmailAttachment(input: {
     interactionId: string
@@ -306,6 +318,31 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         if (ingested.outcome === 'reply' && ingested.interaction_id && ingested.attachments?.length) {
           waitUntil(downloadAttachments(accountId, email.id, ingested))
         }
+        return received()
+      }
+
+      // WhatsApp e LinkedIn: o payload de `message.new` é o próprio objeto Message (recebida E enviada); o banco
+      // distingue o eco do titular da resposta do Contato. A nova relação (aceite de convite) é só registrada.
+      if (deps.db.ingestChatEvent && (CHAT_MESSAGE_EVENTS.has(type) || CHAT_RELATION_EVENTS.has(type))) {
+        const payload = event?.payload
+        const eventId = typeof event?.id === 'string' && event.id ? event.id : ''
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !eventId) {
+          log({ type, accountId, outcome: 'invalid_event' })
+          return new Response('Invalid event', { status: 400 })
+        }
+        let ingested: IngestedChat
+        try {
+          ingested = await deps.db.ingestChatEvent({
+            eventId,
+            eventType: type as ChatEventType,
+            unipileAccountId: accountId,
+            payload,
+          })
+        } catch {
+          log({ type, accountId, outcome: 'rpc_error' })
+          return new Response('Event could not be processed', { status: 500 })
+        }
+        log({ type, accountId, outcome: ingested.outcome })
         return received()
       }
 
