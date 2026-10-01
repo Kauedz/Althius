@@ -13,6 +13,7 @@
 //
 // Opções: --contato <perfil do LinkedIn> (repetível; para mudanca_de_emprego), --criterios '<JSON>' (troca os critérios
 // padrão do card), --max-itens <n> (menos itens, menos custo), --url <https://<ref>.supabase.co>.
+// Atalhos sem JSON para trocar um critério do padrão: --pais "Estados Unidos" (a Localização) e --periodo "Últimos 30 dias".
 import { parseArgs } from 'jsr:@std/cli@1/parse-args'
 import { ADAPTADORES } from '../supabase/functions/signal-runner/adaptadores.ts'
 import { descartesDeMovimentacao } from '../supabase/functions/signal-runner/adaptadores/anuncio-de-movimentacao.ts'
@@ -72,7 +73,7 @@ function camposVistos(itens: unknown[]): Map<string, { tipos: Set<string>; itens
 }
 
 const args = parseArgs(Deno.args, {
-  string: ['nome', 'dominio', 'linkedin', 'contato', 'criterios', 'max-itens', 'url'],
+  string: ['nome', 'dominio', 'linkedin', 'contato', 'criterios', 'max-itens', 'url', 'pais', 'periodo'],
   collect: ['contato'],
 })
 const tipo = String(args._[0] ?? '')
@@ -92,7 +93,11 @@ const conta: ContaParaVarrer = {
   linkedinUrl: args.linkedin ?? null,
   contatos: ((args.contato ?? []) as string[]).map((linkedinUrl, i) => ({ id: `contato-${i + 1}`, linkedinUrl })),
 }
-const criterios = args.criterios ? JSON.parse(args.criterios) as Record<string, unknown> : CRITERIOS_PADRAO[tipo]
+const criterios: Record<string, unknown> = {
+  ...(args.criterios ? JSON.parse(args.criterios) as Record<string, unknown> : CRITERIOS_PADRAO[tipo]),
+  ...(args.pais ? { localizacao: [args.pais] } : {}),
+  ...(args.periodo ? { periodo: args.periodo } : {}),
+}
 const agora = Date.now()
 
 let entrada: ReturnType<typeof adaptador.entrada>
