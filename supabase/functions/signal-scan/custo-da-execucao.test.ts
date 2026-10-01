@@ -1,15 +1,16 @@
 import { assertEquals } from 'jsr:@std/assert@1'
 import { clienteDoApify, custoDaExecucaoLida } from './apify.ts'
 
-// Na execução real de 30/09/2026, o custo de um actor que cobra por evento veio 0: o `usageTotalUsd` é só o uso da
-// plataforma, e a cobrança do actor está nos eventos (`chargedEventCounts` × preço em `pricingInfo`).
+// O custo de um actor que cobra por evento: o `usageTotalUsd` é o total e já inclui os eventos (execução real de
+// 01/10/2026); enquanto o Apify não fecha a conta, vale a soma dos eventos cobrados (`chargedEventCounts` × preço em
+// `pricingInfo`).
 
 const porEvento = (eventos: Record<string, unknown>) => ({
   pricingModel: 'PAY_PER_EVENT',
   pricingPerEvent: { actorChargeEvents: eventos },
 })
 
-Deno.test('custo por evento: soma os eventos cobrados ao uso da plataforma, com o preço da faixa Free quando é por faixa', () => {
+Deno.test('custo por evento antes de o Apify fechar a conta: a soma dos eventos, com o preço da faixa Free quando é por faixa', () => {
   const execucao = {
     usageTotalUsd: 0,
     chargedEventCounts: { 'actor-start': 1, 'short-profile': 3 },
@@ -21,7 +22,7 @@ Deno.test('custo por evento: soma os eventos cobrados ao uso da plataforma, com 
   assertEquals(custoDaExecucaoLida(execucao), 0.029)
 })
 
-Deno.test('custo por evento com preço fixo e o uso da plataforma', () => {
+Deno.test('custo por evento com preço fixo: o total do Apify ainda menor que os eventos não derruba o custo', () => {
   assertEquals(custoDaExecucaoLida({
     usageTotalUsd: 0.001,
     chargedEventCounts: { 'apify-default-dataset-item': 50, 'apify-actor-start': 1 },
@@ -29,7 +30,18 @@ Deno.test('custo por evento com preço fixo e o uso da plataforma', () => {
       'apify-default-dataset-item': { eventPriceUsd: 0.002 },
       'apify-actor-start': { eventPriceUsd: 0.00005 },
     }),
-  }), 0.10105)
+  }), 0.10005)
+})
+
+Deno.test('o usageTotalUsd já inclui os eventos: não conta duas vezes (execução real de 01/10/2026)', () => {
+  // 1 perfil a US$ 0,004: o Apify fechou a conta em 0,004, e a soma antiga gravou 0,008.
+  const fechada = { usageTotalUsd: 0.004, chargedEventCounts: { profile: 1 }, pricingInfo: porEvento({ profile: { eventPriceUsd: 0.004 } }) }
+  assertEquals(custoDaExecucaoLida(fechada), 0.004)
+  // Com a plataforma cobrada da conta, o total passa da soma dos eventos e vale o total.
+  assertEquals(custoDaExecucaoLida({ ...fechada, usageTotalUsd: 0.0052 }), 0.0052)
+  // Evento sem preço conhecido: vale o total do Apify, se houver.
+  assertEquals(custoDaExecucaoLida({ ...fechada, pricingInfo: porEvento({}) }), 0.004)
+  assertEquals(custoDaExecucaoLida({ ...fechada, usageTotalUsd: 0, pricingInfo: porEvento({}) }), null)
 })
 
 Deno.test('sem eventos vale o uso da plataforma; evento sem preço conhecido deixa o custo em branco', () => {
