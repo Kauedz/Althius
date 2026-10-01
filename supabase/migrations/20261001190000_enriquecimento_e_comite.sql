@@ -389,7 +389,7 @@ begin
   if v_p.linkedin_url is not null then
     select c.id into v_existing_id from public.contacts c
     where c.workspace_id = v_p.workspace_id and c.linkedin = private.normalize_linkedin(v_p.linkedin_url)
-      and c.deleted_at is null;
+      and c.archived_at is null;
   end if;
 
   if v_existing_id is not null then
@@ -484,7 +484,7 @@ begin
     raise exception 'authentication required' using errcode = '28000';
   end if;
 
-  select * into v_contact from public.contacts c where c.id = p_contact_id and c.deleted_at is null;
+  select * into v_contact from public.contacts c where c.id = p_contact_id and c.archived_at is null;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002';
   end if;
@@ -537,7 +537,7 @@ begin
   end if;
 
   select * into v_contact from public.contacts c
-  where c.id = p_contact_id and c.workspace_id = p_workspace_id and c.deleted_at is null;
+  where c.id = p_contact_id and c.workspace_id = p_workspace_id and c.archived_at is null;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002';
   end if;
@@ -590,7 +590,7 @@ declare
   v_val text := nullif(btrim(coalesce(p_value, '')), '');
   v_debited integer := 0;
 begin
-  select * into v_contact from public.contacts c where c.id = p_contact_id and c.deleted_at is null;
+  select * into v_contact from public.contacts c where c.id = p_contact_id and c.archived_at is null;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002';
   end if;
