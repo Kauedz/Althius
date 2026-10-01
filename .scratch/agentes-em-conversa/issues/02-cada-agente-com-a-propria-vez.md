@@ -36,3 +36,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 ## Comments
 
 - Feito na PR https://github.com/Kauedz/Althius/pull/93
+- Etapa 5b (2026-10-01): com as ferramentas, o próximo Agente vê também o que o anterior FEZ (um mural com cada passo de ferramenta entra no contexto dele), na ponte e no worker do Hermes. Detalhes e Passos do Nan no CRM-14; o código do worker mudou, então reiniciar o worker do Hermes depois de atualizar.

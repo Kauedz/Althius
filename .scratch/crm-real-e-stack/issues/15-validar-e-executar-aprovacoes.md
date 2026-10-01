@@ -4,14 +4,17 @@
 
 **Blocked by:** 14: Executar Conversas e Coordenação com estado recuperável.
 
-**Status:** ready-for-agent (backend e Fonte prontos; a fila real liga com o primeiro executor de ação externa)
+**Status:** ready-for-human (executor do Enviar ao CRM pronto; falta o Nan aplicar a migration 20261001210000 e publicar as funções. A fila real segue desligada: ver Comments, Etapa 5b)
 
 - [x] Proposta e Aprovação persistem com autor, Workspace, integração, ação, payload, estado e timestamp.
 - [x] Ações com permissão Propor aguardam aprovação; Executar segue as permissões específicas definidas sem contornar controles.
 - [x] Backend valida papel, Participação, permissão e estado da Aprovação imediatamente antes de executar.
 - [x] Payload alterado materialmente invalida a decisão anterior e requer nova aprovação.
 - [x] Aprovar, recusar, cancelar, expirar e falhar são estados visíveis e auditáveis.
-- [ ] Fila e detalhe reaproveitam a experiência atual e não exibem roteiros de demonstração no Workspace real.
+- [ ] Fila e detalhe reaproveitam a experiência atual e não exibem roteiros de demonstração no Workspace real. (A Fonte está pronta e já pede a execução ao aprovar; a fila continua desligada, ver Etapa 5b.)
+- [x] Primeiro executor de ação externa: Enviar ao CRM proposto por um Agente (Etapa 5b), uma vez só e com o conteúdo revisado.
+- [x] Com Executar, a Aprovação nasce liberada e o executor envia na hora; com Propor, fica pendente até o Administrador aprovar.
+- [x] Aprovar na Fonte pede ao `crm-handoff` (`executar_aprovacao`) a execução; um envio que não sai não desfaz a decisão.
 
 ## Comments
 
@@ -23,6 +26,24 @@
 - pgTAP `supabase/tests/aprovacoes_reais.sql` (30).
 - Frontend: Fonte `supabase-aprovacoes.ts` (fila e decisão) e os estados novos na tela (Cancelada, Expirada, Aprovada · executada/falhou). A fila real fica atrás de `aprovacoesDisponiveis` em `composicao.ts`, desligada: hoje nenhum executor externo propõe ação, então ligar mostraria uma fila sempre vazia (e o teste de raiz espera a fila indisponível no Workspace operacional). Liga junto com o primeiro executor (Kanban 05, Enviar ao CRM).
 - **Aberto:** o critério "Fila e detalhe reaproveitam a experiência atual" fica para quando a fila ligar; a revisão da Memória do Workspace (ADR-0010) ainda não tem backend.
+
+- **Etapa 5b (2026-10-01).** Migration `20261001210000_ferramentas_dos_agentes.sql` (aditiva): `agent_propose_crm_handoff` guarda na Aprovação o conteúdo exato do envio (`private.crm_handoff_payload`), pela regra de sempre (`propose_agent_action`); `crm_handoff_approval` lê (com `p_admin_user_id`, só Administrador ativo), `begin_approved_crm_handoff` abre o envio ligado à Aprovação depois de `claim_approved_action` reservar, e `approval_in_execution` deixa `chamarFerramenta` escrever por um Agente com Propor só enquanto a Aprovação dele está em execução. pgTAP `ferramentas_dos_agentes.sql` (37).
+- Executor `supabase/functions/_shared/executor-de-aprovacoes.ts` (testes `executor-de-aprovacoes.test.ts`, `integration-access-aprovacao.test.ts`), chamado de dois lugares: pelo motor dos Agentes logo depois de uma proposta que nasceu liberada (Executar), e pela Edge Function `crm-handoff` (`POST { action: 'executar_aprovacao', approvalId }`, com o JWT do Administrador; testes `crm-handoff/handler-aprovacao.test.ts`). A reserva única impede o envio duplo.
+- Fonte `supabase-aprovacoes.ts`: depois de `decide_approval` aprovar, pede a execução ao `crm-handoff`; recusar não pede nada (teste `supabase-aprovacoes-executor.test.ts`).
+- **A fila real continua desligada (`aprovacoesDisponiveis` em `composicao.ts`).** Ligar quebra um teste existente que não pode mudar: `raiz.test.tsx`, "/aprovacoes mostra que o módulo está indisponível, sem dados da Demonstração", espera "Aprovações ainda não estão disponíveis neste Workspace." no Workspace operacional (conferido: com o interruptor ligado, 1 falha em 120). Consequência honesta: com Propor, a Aprovação de envio fica pendente e o Administrador ainda não tem onde decidir no Workspace operacional (o link "Ver a Aprovação" do passo na Conversa leva à tela que diz indisponível). Com Executar, o envio sai normalmente. Para ligar: combinar com o Nan a troca daquele teste (ou um teste novo que o substitua) e passar `aprovacoesDisponiveis: true` em `auth/aplicativo.tsx`, de preferência atrás de uma checagem de que o `crm-handoff` está publicado.
+
+## Passos do Nan
+
+**A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan.**
+
+1. Aplicar a migration `supabase/migrations/20261001210000_ferramentas_dos_agentes.sql` no projeto `ycbdilsmydvzezhlymty` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/ferramentas_dos_agentes.sql`, aplicar e conferir o md5). Depende da `20261001200000_envio_ao_crm.sql` já aplicada.
+2. Publicar as funções (PowerShell, na raiz do repositório):
+   `npx supabase functions deploy agent-conversation crm-handoff --project-ref ycbdilsmydvzezhlymty`
+   e, porque o código compartilhado do Acesso mudou (só acréscimo):
+   `npx supabase functions deploy integration-tools integration-connect integration-callback --project-ref ycbdilsmydvzezhlymty`
+   Nenhum segredo novo.
+3. Se o motor for o Hermes (`AGENT_PROVIDER=hermes`): atualizar o código do worker (`supabase/functions/_hermes-worker`) na máquina dele e reiniciá-lo, como no README da pasta.
+4. Conferência real: dar a um Agente a Permissão Executar no HubSpot, pedir na Conversa "Rhetor, leve a <Conta sob sua responsabilidade> ao HubSpot" e ver o envio no HubSpot e a Aprovação executada. Com Propor, a Aprovação fica pendente (a fila ainda está desligada, ver acima).
 
 ## Decisões a confirmar
 

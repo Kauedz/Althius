@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Estágio de prospecção; `conexoes-funcionais` 03 (Acesso ao HubSpot); CRM-15 (Aprovações).
 
-**Status:** ready-for-human (falta só o teste real com uma conta de CRM; o envio por um Agente com Propor fica para a próxima fatia)
+**Status:** ready-for-human (falta o teste real com uma conta de CRM; o envio por um Agente ficou pronto na Etapa 5b, mas com Propor o Administrador ainda não tem a fila para decidir, ver CRM-15)
 
 ## Pode mexer
 
@@ -18,7 +18,9 @@
 
 ## Critérios
 
-- [ ] Com Propor, nada sai sem Aprovação. (Hoje só a própria pessoa envia, e ela já decide; o executor das Aprovações de Agentes reaproveita `escreverNoCrm` na próxima fatia. Pelo `chamarFerramenta`, um Agente com Propor já recebe `permissao_negada` nas ferramentas que escrevem.)
+- [x] Com Propor, nada sai sem Aprovação. (Etapa 5b: o Agente propõe com `propor_envio_ao_crm`, a Aprovação guarda o conteúdo exato e o executor só envia depois de `claim_approved_action` reservá-la; `chamarFerramenta` só libera a escrita de quem tem Propor enquanto a Aprovação dele está em execução.)
+- [x] Com Executar, a Aprovação nasce liberada e o executor envia na hora, pelo Acesso de quem pediu ao Agente (que precisa ser o Vendedor responsável).
+- [ ] O Administrador decide a Aprovação de envio no Workspace operacional (a fila real segue desligada, CRM-15).
 - [x] Depois do envio, a Althius não escreve de novo sem pedido (índice único em `private.crm_handoffs`; `begin_crm_handoff` recusa com 23505).
 - [x] Só o Vendedor responsável, com Participação ativa, envia; outro Workspace não alcança a Conta; Integração que não é CRM é recusada (pgTAP `envio_ao_crm.sql`).
 - [x] O envio usa o Acesso do PRÓPRIO participante (chave de API); pelo OAuth/MCP responde 409 pedindo a chave, sem inventar ferramenta MCP.
@@ -37,6 +39,8 @@
 - Ferramentas novas nos perfis REST: HubSpot `create_note` e `associations` no `create_contact`; Pipedrive `add_organization`; RD Station CRM `create_organization` e `create_contact`. Pontos não confirmados estão em `naoConfirmado` de cada perfil.
 - Frontend: `enviarAoCrm`/`envioAoCrm` na Fonte de Contas real (a simulada não tem, e o botão some na Demonstração); componente `paginas/enviar-ao-crm.tsx` no detalhe da Conta.
 
+- **Etapa 5b (2026-10-01).** Migration `20261001210000_ferramentas_dos_agentes.sql`: `agent_propose_crm_handoff`, `crm_handoff_approval`, `begin_approved_crm_handoff` (liga a tentativa em `private.crm_handoffs.approval_id`) e `approval_in_execution`. Executor `_shared/executor-de-aprovacoes.ts`, reaproveitando `escreverNoCrm`; ação `executar_aprovacao` no `crm-handoff`. Na Conversa, o passo diz "Rhetor propôs enviar a Acme ao HubSpot — aguardando Aprovação", com o link "Ver a Aprovação".
+
 ## Passos do Nan
 
 **A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan. Com muitos passos, gera um wizard (`/wizard`).**
@@ -50,3 +54,9 @@
 5. Conferência real: numa Conta-alvo sob sua responsabilidade, com um Contato e um Sinal, clicar "Enviar ao CRM", confirmar, e ver no HubSpot a Company, o Contact associado e a nota; na Althius, o cartão em No CRM. Repetir com Pipedrive e RD Station CRM se houver contas de teste. Pontos a conferir (não confirmados pela documentação): o tipo de associação 279 (Contact → Company), os envelopes `organization`/`contact` e o campo do id (`_id` ou `id`) do RD Station CRM.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+### Etapa 5b (envio por um Agente)
+
+6. Aplicar `supabase/migrations/20261001210000_ferramentas_dos_agentes.sql` no projeto `ycbdilsmydvzezhlymty` conforme `docs/agents/migrations.md`, depois da 20261001200000.
+7. Publicar: `npx supabase functions deploy agent-conversation crm-handoff --project-ref ycbdilsmydvzezhlymty` (e `npx supabase functions deploy integration-tools integration-connect integration-callback --project-ref ycbdilsmydvzezhlymty`, pelo código compartilhado do Acesso). Com o Hermes, atualizar e reiniciar o worker.
+8. Conferência: com o Rhetor em Executar no HubSpot, pedir na Conversa que ele leve uma Conta-alvo sua ao HubSpot e ver a Company no HubSpot e o cartão em No CRM.
