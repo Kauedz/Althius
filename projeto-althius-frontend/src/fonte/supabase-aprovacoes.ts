@@ -85,6 +85,14 @@ export function criarFonteDeAprovacoesSupabase(
         p_where: ONDE[onde] ?? 'canal',
       })
       if (error) throw converterErro(error)
+      // Aprovada, a ação sai logo (Etapa 5b): o `crm-handoff` confere de novo que quem pede é Administrador, reserva a
+      // Aprovação uma vez só e envia exatamente o conteúdo revisado. Uma Aprovação que não é de envio ao CRM ele recusa
+      // sem mudar nada. Um envio que não sai não desfaz a decisão: a fila relê e mostra executada ou falhou.
+      if (decisao === 'aprovada') {
+        await cliente.functions
+          .invoke('crm-handoff', { body: { action: 'executar_aprovacao', approvalId: aprovacaoId } })
+          .catch(() => null)
+      }
       for (const ouvinte of ouvintes) ouvinte()
     },
   }
