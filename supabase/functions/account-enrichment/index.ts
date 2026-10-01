@@ -1,0 +1,162 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
+import { tokensDoApify } from '../_shared/apify-ambiente.ts'
+import { clienteDoApify } from '../signal-scan/apify.ts'
+import {
+  criarHandlerEnrichment,
+  type DbEnrichment,
+  type DadosReceitaFederal,
+} from './handler.ts'
+
+function required(name: string) {
+  const value = Deno.env.get(name)
+  if (!value) throw new Error(`Missing required env: ${name}`)
+  return value
+}
+
+const SUPABASE_URL = required('SUPABASE_URL')
+const APP_ORIGIN = required('APP_ORIGIN')
+const admin = createClient(SUPABASE_URL, required('SUPABASE_SERVICE_ROLE_KEY'), {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
+
+function clienteDaSessao(authorization: string, apikey: string) {
+  return createClient(SUPABASE_URL, apikey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+// O Apify é opcional para inicialização da função, mas se configurado nos segredos, assume como base
+let apifyInstance: ReturnType<typeof clienteDoApify> | undefined
+try {
+  const tokens = tokensDoApify((nome) => Deno.env.get(nome))
+  if (tokens.length > 0) {
+    apifyInstance = clienteDoApify({ tokens, timeoutMs: 45_000, runTimeoutSeconds: 40 })
+  }
+} catch {
+  // Apify não configurado: operará apenas com fallback (BrasilAPI / stubs)
+}
+
+const db: DbEnrichment = {
+  async userFromJwt(authorization, apikey) {
+    const token = authorization.replace(/^Bearer\s+/i, '')
+    const { data, error } = await clienteDaSessao(authorization, apikey).auth.getUser(token)
+    if (error || !data.user) return null
+    return { userId: data.user.id }
+  },
+
+  async beginCommitteeDiscovery({
+    workspaceId,
+    targetAccountId,
+    requestKey,
+    maxResults = 10,
+    actorId = 'harvestapi~linkedin-company-employees',
+    allowTesting = true,
+    authorization,
+    apikey,
+  }) {
+    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('begin_committee_discovery', {
+      p_workspace_id: workspaceId,
+      p_target_account_id: targetAccountId,
+      p_request_key: requestKey ?? null,
+      p_max_results: maxResults,
+      p_actor_id: actorId,
+      p_allow_testing: allowTesting,
+    })
+    if (error) throw error
+    const [row] = (data ?? []) as Array<{ run_id: string; reservation_id: string }>
+    if (!row) throw new Error('begin_committee_discovery não retornou dados')
+    return { runId: row.run_id, reservationId: row.reservation_id }
+  },
+
+  async finishCommitteeDiscovery({ runId, success, contactsFound, costUsd, error }) {
+    const { error: err } = await admin.rpc('finish_committee_discovery', {
+      p_run_id: runId,
+      p_success: success,
+      p_contacts_found: contactsFound,
+      p_cost_usd: costUsd ?? null,
+      p_error: error ?? null,
+    })
+    if (err) throw err
+  },
+
+  async recordProposedContact(args) {
+    const { data, error } = await admin.rpc('record_proposed_contact', {
+      p_workspace_id: args.workspaceId,
+      p_target_account_id: args.targetAccountId,
+      p_discovery_run_id: args.discoveryRunId ?? null,
+      p_name: args.name,
+      p_role: args.role ?? null,
+      p_headline: args.headline ?? null,
+      p_linkedin_url: args.linkedinUrl ?? null,
+      p_location: args.location ?? null,
+      p_photo_url: args.photoUrl ?? null,
+      p_persona: args.persona ?? null,
+      p_source_actor: args.sourceActor ?? 'harvestapi~linkedin-company-employees',
+      p_source_provider: args.sourceProvider ?? 'apify',
+      p_source_data: args.sourceData ?? null,
+    })
+    if (error) throw error
+    const [row] = (data ?? []) as Array<{ id: string; created: boolean }>
+    return row ?? { id: crypto.randomUUID(), created: true }
+  },
+
+  async getContactForReveal({ workspaceId, contactId, authorization, apikey }) {
+    const { data, error } = await clienteDaSessao(authorization, apikey)
+      .from('contacts')
+      .select('name, linkedin, workspace_id')
+      .eq('id', contactId)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
+
+    if (error || !data) return null
+    return { name: data.name, linkedin: data.linkedin ?? undefined }
+  },
+
+  async beginRevealContact({ workspaceId, contactId, channel, requestKey, authorization, apikey }) {
+    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('begin_reveal_contact', {
+      p_workspace_id: workspaceId,
+      p_contact_id: contactId,
+      p_channel: channel,
+      p_request_key: requestKey ?? null,
+    })
+    if (error) throw error
+    const [row] = (data ?? []) as Array<{ reservation_id: string }>
+    if (!row) throw new Error('begin_reveal_contact não retornou dados')
+    return { reservationId: row.reservation_id }
+  },
+
+  async finishRevealContact({ reservationId, contactId, channel, value, source }) {
+    const { data, error } = await admin.rpc('finish_reveal_contact', {
+      p_reservation_id: reservationId,
+      p_contact_id: contactId,
+      p_channel: channel,
+      p_value: value ?? null,
+      p_source: source ?? 'apify',
+    })
+    if (error) throw error
+    const [row] = (data ?? []) as Array<{ success: boolean; debited_credits: number }>
+    return {
+      success: row?.success ?? Boolean(value),
+      debitedCredits: row?.debited_credits ?? 0,
+    }
+  },
+
+  async saveReceitaEnrichment({ workspaceId, targetAccountId, cnpj, receitaData, authorization, apikey }) {
+    const { error } = await clienteDaSessao(authorization, apikey).rpc('save_account_receita_enrichment', {
+      p_workspace_id: workspaceId,
+      p_target_account_id: targetAccountId,
+      p_cnpj: cnpj,
+      p_receita_data: receitaData,
+    })
+    if (error) throw error
+  },
+}
+
+Deno.serve(
+  criarHandlerEnrichment({
+    db,
+    apify: apifyInstance,
+    appOrigin: APP_ORIGIN,
+  }),
+)

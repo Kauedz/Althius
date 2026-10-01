@@ -6,6 +6,7 @@ import type { FonteDeOnboarding } from './onboarding-tipos'
 import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
+import type { FonteDeDescobertas } from './descobertas-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
 
 /** O que as telas sabem do ambiente atual: o modo, para se identificar, e se um módulo já tem backend. */
@@ -166,6 +167,24 @@ export function useFonteDeConexoes(): FonteDeConexoes {
   return fonte
 }
 
+const ContextoDaFonteDeDescobertas = createContext<FonteDeDescobertas | null>(null)
+
+export function FonteDeDescobertasProvider({
+  fonte,
+  children,
+}: {
+  fonte?: FonteDeDescobertas
+  children: ReactNode
+}) {
+  return <ContextoDaFonteDeDescobertas.Provider value={fonte ?? null}>{children}</ContextoDaFonteDeDescobertas.Provider>
+}
+
+export function useFonteDeDescobertas(): FonteDeDescobertas {
+  const fonte = useContext(ContextoDaFonteDeDescobertas)
+  if (!fonte) throw new Error('useFonteDeDescobertas precisa de um FonteDeDescobertasProvider')
+  return fonte
+}
+
 export interface EstadoDoCarregamento<T> {
   dados: T | undefined
   carregando: boolean
@@ -308,3 +327,15 @@ export function useDadosDeConexoes<T>(
   const fonte = useFonteDeConexoes()
   return useCarregamento(fonte, carregar, dependencias)
 }
+
+/**
+ * Carrega dados da FonteDeDescobertas do contexto com estado completo de carregamento (dados, carregando, erro e recarregar).
+ */
+export function useDadosDeDescobertas<T>(
+  carregar: (fonte: FonteDeDescobertas) => Promise<T>,
+  dependencias: unknown[] = [],
+): EstadoDoCarregamento<T> {
+  const fonte = useFonteDeDescobertas()
+  return useCarregamento(fonte, carregar, dependencias)
+}
+

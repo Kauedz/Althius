@@ -12,6 +12,8 @@ import type {
   ContaAlvo,
   Contato,
   ContatoArquivado,
+  ContatoProposto,
+  DadosDaReceita,
   DestinosReaisContato,
   EdicaoDoContato,
   FonteDeContas,
@@ -36,6 +38,8 @@ interface RegistroConta {
   domain: string
   linkedin_url: string | null
   segment: string | null
+  legal_identifier?: string | null
+  receita_data?: unknown
   last_interaction_at: string | null
   archived_at?: string | null
 }
@@ -87,7 +91,7 @@ interface RegistroCanal {
 
 const COLUNAS_DO_CONTATO = 'id, target_account_id, name, role, email, whatsapp, linkedin, last_interaction_at'
 
-const COLUNAS_DA_CONTA = 'id, name, canonical_url, domain, linkedin_url, segment, last_interaction_at, archived_at'
+const COLUNAS_DA_CONTA = 'id, name, canonical_url, domain, linkedin_url, segment, legal_identifier, receita_data, last_interaction_at, archived_at'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const naoEncontrada = () => new Error('Conta-alvo não encontrada.')
@@ -256,6 +260,8 @@ function mapearConta(
     siteUrl: linha.canonical_url,
     ...(linha.linkedin_url ? { linkedinUrl: linha.linkedin_url } : {}),
     ...(linha.segment ? { segmento: linha.segment } : {}),
+    ...(linha.legal_identifier ? { legalIdentifier: linha.legal_identifier } : {}),
+    ...(linha.receita_data ? { receitaData: linha.receita_data as any } : {}),
     totalContatos: contatos.length,
     ...(contatos.length > 0
       ? { previaContatos: contatos.slice(0, 3).map((c) => ({ nome: c.nome, ...(c.foto ? { foto: c.foto } : {}) })) }
@@ -702,6 +708,110 @@ export function criarFonteDeContasSupabase(
 
     async apagarContato(contatoId: string, confirmacao: string) {
       await rpc('erase_contact', { p_contact_id: contatoId, p_confirmation: confirmacao })
+    },
+
+    async comiteDaConta(contaId: string): Promise<ContatoProposto[]> {
+      const { data, error } = await cliente.rpc('list_proposed_contacts', {
+        p_target_account_id: contaId,
+        p_state: 'nova',
+      })
+      if (error) return []
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        targetAccountId: r.target_account_id,
+        state: r.state,
+        name: r.name,
+        role: r.role ?? undefined,
+        headline: r.headline ?? undefined,
+        linkedinUrl: r.linkedin_url ?? undefined,
+        location: r.location ?? undefined,
+        photoUrl: r.photo_url ?? undefined,
+        persona: r.persona ?? undefined,
+        contactId: r.contact_id ?? undefined,
+        sourceProvider: r.source_provider ?? undefined,
+        createdAt: r.created_at,
+      }))
+    },
+
+    async buscarComite(contaId: string): Promise<void> {
+      const { data: c, error: errConta } = await cliente.from('target_accounts').select('name, linkedin_url, domain').eq('id', contaId).single()
+      if (errConta || !c) throw new Error('Conta não encontrada')
+      const { error } = await cliente.functions.invoke('account-enrichment', {
+        body: {
+          action: 'comite-compra',
+          workspaceId: workspace(),
+          targetAccountId: contaId,
+          companyName: c.name,
+          companyLinkedinUrl: c.linkedin_url ?? undefined,
+          companyDomain: c.domain ?? undefined,
+        },
+      })
+      if (error) throw converterErro(error)
+      notificar()
+    },
+
+    async aceitarContatoProposto(propostaId: string): Promise<Contato> {
+      const { data, error } = await cliente.rpc('accept_proposed_contact', {
+        p_id: propostaId,
+      })
+      if (error) throw converterErro(error)
+      notificar()
+      return data as Contato
+    },
+
+    async descartarContatoProposto(propostaId: string, motivo?: string): Promise<void> {
+      const { error } = await cliente.rpc('discard_proposed_contact', {
+        p_id: propostaId,
+        p_reason: motivo ?? null,
+      })
+      if (error) throw converterErro(error)
+      notificar()
+    },
+
+    async cotarRevelacaoContato(contatoId: string, canal: 'email' | 'telefone') {
+      const { data, error } = await cliente.rpc('quote_reveal_contact', {
+        p_contact_id: contatoId,
+        p_channel: canal,
+      })
+      if (error) throw converterErro(error)
+      const [linha] = (data ?? []) as any[]
+      return {
+        creditos: linha?.credits ?? (canal === 'email' ? 2 : 5),
+        saldo: Number(linha?.current_balance ?? 0),
+        podeRevelar: Boolean(linha?.can_reveal),
+      }
+    },
+
+    async revelarContato(contatoId: string, canal: 'email' | 'telefone') {
+      const { data, error } = await cliente.functions.invoke('account-enrichment', {
+        body: {
+          action: 'revelar-contato',
+          workspaceId: workspace(),
+          contactId: contatoId,
+          canal,
+        },
+      })
+      if (error) throw converterErro(error)
+      notificar()
+      return {
+        sucesso: Boolean(data?.sucesso),
+        valor: (data?.valor as string) || null,
+        creditosDebitados: Number(data?.creditosDebitados || 0),
+      }
+    },
+
+    async enriquecerReceita(contaId: string, cnpj: string): Promise<DadosDaReceita> {
+      const { data, error } = await cliente.functions.invoke('account-enrichment', {
+        body: {
+          action: 'cnpj-receita',
+          workspaceId: workspace(),
+          targetAccountId: contaId,
+          cnpj,
+        },
+      })
+      if (error) throw converterErro(error)
+      notificar()
+      return data as DadosDaReceita
     },
 
     sinais: nenhum,

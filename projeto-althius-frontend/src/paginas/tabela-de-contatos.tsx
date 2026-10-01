@@ -8,6 +8,7 @@ import type { SecaoDoDocumento } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 import { AcoesDoContato } from './arquivar-e-apagar'
 import { BotaoDeFotoDoContato } from './botao-de-foto-do-contato'
+import { BotoesRevelarContato } from './comite-e-enriquecimento'
 import { AvatarDoContato, CABECALHO, CELULA, CelulaUltimoContato } from './modulo-contas-e-contatos'
 import type { EstadoDaNavegacao } from './voltar-para-a-lista'
 
@@ -140,7 +141,10 @@ export function TabelaDeContatos({
             </td>
             {comAcoes && (
               <td className={CELULA}>
-                <AcoesDoContato contato={contato} />
+                <div className="flex items-center justify-end gap-1">
+                  <BotoesRevelarContato contato={contato} aoRevelar={() => {}} />
+                  <AcoesDoContato contato={contato} />
+                </div>
               </td>
             )}
           </tr>

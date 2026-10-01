@@ -6,6 +6,7 @@ import type { FonteDeContasRemetentes } from './contas-remetentes-tipos'
 import type { FonteDeAutomacao } from './automacao-tipos'
 import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
+import type { FonteDeDescobertas } from './descobertas-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding, FonteDeSequencias, Papel } from './tipos'
 
 export type ModoDoAmbiente = 'demonstracao' | 'real'
@@ -73,6 +74,8 @@ export interface Ambiente {
   fonteDoPlaybook?: FonteDoPlaybook
   /** O automático e os tetos (creditos-e-planos 03). Sem ela, a seção aparece indisponível. */
   fonteDeAutomacao?: FonteDeAutomacao
+  /** As Descobertas de contas pelo ICP (enriquecimento-em-cascata). */
+  fonteDeDescobertas?: FonteDeDescobertas
   /** Os módulos sem backend neste ambiente, que as telas mostram como indisponíveis. Na Demonstração, nenhum. */
   indisponiveis: ReadonlySet<ModuloDoWorkspace>
 }

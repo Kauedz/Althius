@@ -16,6 +16,7 @@ import { criarFonteDeContasRemetentesDaDemonstracao } from '@/fonte/simulada-con
 import { criarFonteDeConexoesSimulada } from '@/fonte/simulada-conexoes'
 import { criarFonteDeAutomacaoSimulada } from '@/fonte/simulada-automacao'
 import { criarFonteDoPlaybookSimulada } from '@/fonte/simulada-playbook'
+import { criarFonteDeDescobertasSimulada } from '@/fonte/simulada-descobertas'
 
 export const DATA_HOJE_TESTES = new Date(2026, 8, 23, 12, 0, 0) // 23 de setembro de 2026
 
@@ -116,6 +117,7 @@ function montarApp({
   })
   fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
   fonteDeSinais.vincularFonteDeContas(fonteDeContas)
+  const fonteDeDescobertas = criarFonteDeDescobertasSimulada({ fonteDeContas })
   const usuario = userEvent.setup()
   if (noNavegador) window.history.replaceState(null, '', rota)
   const ambiente: Ambiente = {
@@ -129,6 +131,7 @@ function montarApp({
     fonteDeConexoes: criarFonteDeConexoesSimulada(),
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
+    fonteDeDescobertas,
     indisponiveis: new Set(indisponiveis),
   }
   const resultado = render(
@@ -141,6 +144,7 @@ function montarApp({
     fonteDeSequencias,
     fonteDeOnboarding,
     fonteDeSinais,
+    fonteDeDescobertas,
     usuario,
   }
 }

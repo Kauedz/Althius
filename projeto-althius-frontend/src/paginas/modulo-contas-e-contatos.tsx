@@ -15,6 +15,7 @@ import { cn, iniciais } from '@/lib/utils'
 const ABAS_MODULO = [
   { rotulo: 'Contas', para: '/contas' },
   { rotulo: 'Contatos', para: '/contatos' },
+  { rotulo: 'Descobertas', para: '/contas/descobertas' },
 ]
 
 export function AbasDoModulo() {

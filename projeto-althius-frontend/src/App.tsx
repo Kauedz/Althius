@@ -19,6 +19,7 @@ import {
   FonteDeSinaisProvider,
   FonteDeAutomacaoProvider,
   FonteDoPlaybookProvider,
+  FonteDeDescobertasProvider,
   FonteProvider,
 } from '@/fonte/contexto'
 import { PaginaAgente } from '@/paginas/agente'
@@ -28,6 +29,7 @@ import { PaginaConexoes } from '@/paginas/conexoes'
 import { PaginaConfiguracoes } from '@/paginas/configuracoes/pagina-configuracoes'
 import { PaginaContas } from '@/paginas/contas'
 import { PaginaContatos } from '@/paginas/contatos'
+import { PaginaDescobertas } from '@/paginas/descobertas'
 import { PaginaImportarContas } from '@/paginas/importar-contas'
 import { PaginaConversaCoordenada } from '@/paginas/conversa-coordenada'
 import { EntradaNaCasca } from '@/paginas/onboarding/entrada-na-casca'
@@ -58,6 +60,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
         <Route element={<Casca />}>
           <Route index element={<TelaDoModulo modulo="agentes" titulo="Agentes" icone={Bot}><PaginaAgentes /></TelaDoModulo>} />
           <Route path="contas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
+          <Route path="contas/descobertas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaDescobertas /></TelaDoModulo>} />
           <Route path="contas/importar" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaImportarContas /></TelaDoModulo>} />
           <Route path="contas/importar/:loteId" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaImportarContas /></TelaDoModulo>} />
           <Route path="contas/:contaId" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
@@ -96,6 +99,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
                   <FonteDeContasRemetentesProvider fonte={ambiente.fonteDeContasRemetentes}>
                     <FonteDoPlaybookProvider fonte={ambiente.fonteDoPlaybook ?? PLAYBOOK_INDISPONIVEL}>
                     <FonteDeAutomacaoProvider fonte={ambiente.fonteDeAutomacao ?? AUTOMACAO_INDISPONIVEL}>
+                    <FonteDeDescobertasProvider fonte={ambiente.fonteDeDescobertas}>
                       <SinaisDoMockupProvider>
                         <ConversasProvider animarDigitacao={animarDigitacao}>
                           <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
@@ -114,6 +118,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
                           </ContextoDasPosicoesDasListas.Provider>
                         </ConversasProvider>
                       </SinaisDoMockupProvider>
+                    </FonteDeDescobertasProvider>
                     </FonteDeAutomacaoProvider>
                     </FonteDoPlaybookProvider>
                   </FonteDeContasRemetentesProvider>
