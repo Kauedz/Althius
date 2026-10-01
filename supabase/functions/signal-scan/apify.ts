@@ -260,16 +260,56 @@ function assinaturaDaCobranca(run: Record<string, unknown>): string {
 }
 
 /**
- * O que o log guarda da execução para conferir o custo: os nomes dos campos e os números da cobrança. Nada da entrada,
- * das opções nem da origem da chamada.
+ * Só números, booleanos e textos curtos de uma parte da execução (nomes de evento, contagens, tempos), no máximo
+ * `fundo` níveis: nada que seja texto livre. Para conferir no log de onde vem o custo.
+ */
+function soNumeros(v: unknown, fundo = 3): unknown {
+  if (typeof v === "number" || typeof v === "boolean") return v;
+  if (typeof v === "string") return v.length <= 60 ? v : undefined;
+  if (fundo <= 0) return undefined;
+  if (Array.isArray(v)) return v.slice(0, 20).map((x) => soNumeros(x, fundo - 1));
+  if (v && typeof v === "object") {
+    return Object.fromEntries(
+      Object.entries(v).slice(0, 40).map(([k, x]) => [k, soNumeros(x, fundo - 1)]),
+    );
+  }
+  return undefined;
+}
+
+/** Os preços de cada evento do actor (`pricingPerEvent`), só nome e valor. */
+function precosDosEventos(run: Record<string, unknown>): Record<string, unknown> {
+  const eventos = registro(registro(registro(run.pricingInfo).pricingPerEvent).actorChargeEvents);
+  return Object.fromEntries(
+    Object.entries(eventos).map(([nome, e]) => {
+      const evento = registro(e);
+      return [
+        nome,
+        numeroValido(evento.eventPriceUsd) ??
+          numeroValido(registro(registro(evento.eventTieredPricingUsd).FREE).tieredEventPriceUsd),
+      ];
+    }),
+  );
+}
+
+/**
+ * O que o log guarda da execução para conferir o custo: os nomes dos campos e os números da cobrança (contagens de
+ * eventos, uso, preços dos eventos, tempos). Nada da entrada, das opções, da mensagem de status nem da origem da chamada.
  */
 function resumoDoCusto(run: Record<string, unknown>): Record<string, unknown> {
+  const detalhes = soNumeros({
+    accountedChargedEventCounts: run.accountedChargedEventCounts,
+    eventUsage: run.eventUsage,
+    stats: run.stats,
+    precos: Object.keys(precosDosEventos(run)).length ? precosDosEventos(run) : undefined,
+  });
+  const texto = JSON.stringify(detalhes);
   return {
     status: typeof run.status === "string" ? run.status : null,
     pricingModel: registro(run.pricingInfo).pricingModel ?? null,
     usageTotalUsd: numeroValido(run.usageTotalUsd),
     chargedEventCounts: Object.fromEntries(eventosCobrados(run)),
     campos: Object.keys(run).sort(),
+    ...(texto && texto !== "{}" ? { cobranca: texto.slice(0, 1500) } : {}),
   };
 }
 

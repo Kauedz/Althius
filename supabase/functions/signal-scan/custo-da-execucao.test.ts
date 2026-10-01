@@ -91,6 +91,7 @@ Deno.test('sem os eventos na primeira leitura, lê de novo e usa a segunda; o lo
     usageTotalUsd: 0,
     chargedEventCounts: { profile: 3 },
     campos: ['chargedEventCounts', 'input', 'meta', 'pricingInfo', 'status', 'usageTotalUsd'],
+    cobranca: '{"precos":{"profile":0.004}}',
     costUsd: 0.012,
   })
   const texto = JSON.stringify(linhas)
@@ -133,4 +134,27 @@ Deno.test('o número de releituras tem teto, e uma releitura que falha não perd
   }) as unknown as typeof fetch
   const apify = clienteDoApify({ tokens: ['conta-a'], fetchFn, esperaDoCustoMs: 1, releiturasDoCusto: 2, log: () => {} })
   assertEquals(await apify.custoDaExecucao!('run-6'), 0.00005)
+})
+
+Deno.test('o log mostra de onde vem a cobrança (eventos contabilizados, uso e preços) sem texto livre', async () => {
+  const run = {
+    status: 'SUCCEEDED',
+    usageTotalUsd: 0.00005,
+    chargedEventCounts: { 'apify-actor-start': 1 },
+    accountedChargedEventCounts: { 'apify-actor-start': 1, 'apify-default-dataset-item': 30 },
+    eventUsage: [{ eventName: 'apify-default-dataset-item', count: 30, titulo: 'x'.repeat(200) }],
+    stats: { runTimeSecs: 12.5, resurrectCount: 0, mensagem: 'y'.repeat(100) },
+    statusMessage: 'Buscando "Pessoa Ficticia"',
+    input: { queries: ['https://www.linkedin.com/in/pessoa-ficticia'] },
+    pricingInfo: porEvento({ 'apify-default-dataset-item': { eventPriceUsd: 0.00075 }, 'apify-actor-start': { eventPriceUsd: 0.00005 } }),
+  }
+  const c = clienteQueLeOCusto([run], 0)
+  await c.apify.custoDaExecucao!('run-7')
+  const cobranca = JSON.parse(String(c.linhas[0].cobranca))
+  assertEquals(cobranca.accountedChargedEventCounts, { 'apify-actor-start': 1, 'apify-default-dataset-item': 30 })
+  assertEquals(cobranca.eventUsage, [{ eventName: 'apify-default-dataset-item', count: 30 }])
+  assertEquals(cobranca.stats, { runTimeSecs: 12.5, resurrectCount: 0 })
+  assertEquals(cobranca.precos, { 'apify-default-dataset-item': 0.00075, 'apify-actor-start': 0.00005 })
+  const texto = JSON.stringify(c.linhas)
+  assertEquals(texto.includes('pessoa-ficticia') || texto.includes('Pessoa Ficticia') || texto.includes('xxxxx') || texto.includes('yyyyy'), false)
 })
