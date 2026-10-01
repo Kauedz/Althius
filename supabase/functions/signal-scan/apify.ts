@@ -174,17 +174,52 @@ export function clienteDoApify(
         await resposta.body?.cancel();
         return null;
       }
-      const valor = ((await resposta.json().catch(() =>
-        null
-      )) as { data?: { usageTotalUsd?: unknown } } | null)?.data
-        ?.usageTotalUsd;
-      return typeof valor === "number" && Number.isFinite(valor) && valor >= 0
-        ? valor
-        : null;
+      const execucao = ((await resposta.json().catch(() => null)) as {
+        data?: Record<string, unknown>;
+      } | null)?.data;
+      return custoDaExecucaoLida(execucao);
     } catch {
       return null;
     } finally {
       clearTimeout(timer);
     }
   }
+}
+
+const numeroValido = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+
+const registro = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v)
+    ? v as Record<string, unknown>
+    : {};
+
+/**
+ * O custo de uma execução lida em `GET /v2/actor-runs/{id}`: o uso da plataforma (`usageTotalUsd`) mais os eventos que
+ * o actor cobrou (`chargedEventCounts` × o preço do evento em `pricingInfo`), nos actors que cobram por evento. Na
+ * execução real de 30/09/2026, o `usageTotalUsd` de um desses actors veio 0 com eventos cobrados (campos do tipo
+ * `ActorRun` do cliente oficial apify-client). Preço por faixa: vale a do plano Free, o da conta da Althius. Um evento
+ * cobrado sem preço conhecido deixa o custo em branco (nulo), em vez de um valor menor que o real.
+ */
+export function custoDaExecucaoLida(execucao: unknown): number | null {
+  const run = registro(execucao);
+  const plataforma = numeroValido(run.usageTotalUsd);
+  const contagens = Object.entries(registro(run.chargedEventCounts))
+    .filter(([, n]) => numeroValido(n));
+  if (!contagens.length) return plataforma;
+  const eventos = registro(
+    registro(registro(run.pricingInfo).pricingPerEvent).actorChargeEvents,
+  );
+  let totalDosEventos = 0;
+  for (const [nome, quantidade] of contagens) {
+    const evento = registro(eventos[nome]);
+    const preco = numeroValido(evento.eventPriceUsd) ??
+      numeroValido(
+        registro(registro(evento.eventTieredPricingUsd).FREE)
+          .tieredEventPriceUsd,
+      );
+    if (preco === null) return null;
+    totalDosEventos += (quantidade as number) * preco;
+  }
+  return Math.round(((plataforma ?? 0) + totalDosEventos) * 1e6) / 1e6;
 }
