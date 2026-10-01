@@ -175,7 +175,7 @@ select is(
 -- Aceitar contato proposto cria o contato na Conta-alvo via create_contact
 create temporary table t_contato_aceito as
   select * from public.accept_proposed_contact(
-    (select id from private.proposed_contacts where name = 'Carlos Alberto Silva')
+    (select id from public.list_proposed_contacts('63000000-0000-0000-0000-000000000001'::uuid, 'nova') where name = 'Carlos Alberto Silva')
   );
 
 select is(
@@ -197,23 +197,23 @@ select is(
 );
 
 select is(
-  (select state from private.proposed_contacts where name = 'Carlos Alberto Silva'),
-  'aceita',
+  (select count(*) from public.list_proposed_contacts('63000000-0000-0000-0000-000000000001'::uuid, 'aceita') where name = 'Carlos Alberto Silva'),
+  1::bigint,
   'proposta foi marcada como aceita'
 );
 
 -- Descartar contato proposto
 select lives_ok(
   $$ select public.discard_proposed_contact(
-       (select id from private.proposed_contacts where name = 'Mariana Santos'),
+       (select id from public.list_proposed_contacts('63000000-0000-0000-0000-000000000001'::uuid, 'nova') where name = 'Mariana Santos'),
        'Não prioritário para abordagem inicial'
      ) $$,
   'descartar contato proposto funciona com motivo'
 );
 
 select is(
-  (select state from private.proposed_contacts where name = 'Mariana Santos'),
-  'descartada',
+  (select count(*) from public.list_proposed_contacts('63000000-0000-0000-0000-000000000001'::uuid, 'descartada') where name = 'Mariana Santos'),
+  1::bigint,
   'proposta foi marcada como descartada'
 );
 
