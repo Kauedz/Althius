@@ -57,6 +57,7 @@ import {
   type AutorizacaoDosEnvios,
   type AtualizacaoDocumento,
   type CanalStep,
+  type DesfechoDoEnvio,
   type EnvioDoPasso,
   type RespostaRecebida,
   type Sequencia,
@@ -1825,12 +1826,66 @@ function RodapeDoEnvio({
           </Button>
         </span>
       )}
+      {envio?.status === 'sent' && <ResultadoDoEnvio envio={envio} />}
       {aviso && (
         <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
           {aviso.texto}
         </span>
       )}
     </>
+  )
+}
+
+const ROTULO_DO_DESFECHO: Record<DesfechoDoEnvio, string> = {
+  resposta: 'Resposta recebida',
+  resposta_positiva: 'Resposta positiva',
+  resposta_negativa: 'Resposta negativa',
+  reuniao_marcada: 'Reunião marcada',
+  oportunidade: 'Oportunidade',
+}
+
+/**
+ * O Resultado do Envio que saiu (motor-hermes 03): o titular diz se teve resposta, se foi positiva ou negativa, se
+ * marcou reunião ou virou oportunidade. A resposta recebida já marca "Resposta recebida" sozinha. Sem o método na fonte, nada.
+ */
+function ResultadoDoEnvio({ envio }: { envio: EnvioDoPasso }) {
+  const fonte = useFonteDeSequencias()
+  const [erro, setErro] = useState<string | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  if (!fonte.classificarEnvio) return null
+
+  async function classificar(valor: string) {
+    if (!(valor in ROTULO_DO_DESFECHO)) return
+    setErro(null)
+    setSalvando(true)
+    try {
+      await fonte.classificarEnvio!(envio.id, valor as DesfechoDoEnvio)
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível guardar o resultado.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <span className="flex basis-full items-center gap-2">
+      <label className="flex items-center gap-2">
+        Resultado:
+        <select
+          aria-label="Resultado do envio"
+          value={envio.desfecho ?? ''}
+          disabled={salvando}
+          onChange={(e) => void classificar(e.target.value)}
+          className="h-7 border border-al-line bg-al-bg px-1.5 text-xs text-al-ink"
+        >
+          <option value="" disabled>Sem resposta</option>
+          {(Object.keys(ROTULO_DO_DESFECHO) as DesfechoDoEnvio[]).map((d) => (
+            <option key={d} value={d}>{ROTULO_DO_DESFECHO[d]}</option>
+          ))}
+        </select>
+      </label>
+      {erro && <span role="alert" className="text-al-atencao">{erro}</span>}
+    </span>
   )
 }
 

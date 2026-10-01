@@ -172,7 +172,12 @@ export interface EnvioDoPasso {
   modo?: 'auto' | 'manual'
   /** Quando o passo sai (automático) ou fica pronto para o titular enviar (manual). */
   programadoPara?: string
+  /** O Resultado do Envio que saiu (motor-hermes 03). Sem valor: sem resposta, ou a fonte não mede. */
+  desfecho?: DesfechoDoEnvio
 }
+
+/** O que aconteceu com um Envio que saiu. "Sem resposta" é a falta de desfecho. */
+export type DesfechoDoEnvio = 'resposta' | 'resposta_positiva' | 'resposta_negativa' | 'reuniao_marcada' | 'oportunidade'
 
 /** A versão autorizada mais recente dos envios da sequência (canais-05). */
 export interface AutorizacaoDosEnvios {
@@ -266,6 +271,9 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Lê apenas a projeção pública da sequência (sem corpos, assuntos ou anexos privados). */
   resumoPublico(id: string): Promise<ResumoPublicoSequencia | null>
+
+  /** O titular diz o que aconteceu com um Envio que saiu. Sem o método, a tela não oferece a classificação. */
+  classificarEnvio?(envioId: string, desfecho: DesfechoDoEnvio): Promise<void>
 
   /** O Resultado dos Envios do Workspace, por canal e segmento. Sem o método, a fonte não mede (e a tela não mostra). */
   taxasDosEnvios?(): Promise<TaxaDosEnvios[]>
