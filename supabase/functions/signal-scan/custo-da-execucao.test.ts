@@ -62,14 +62,14 @@ Deno.test('cobra por evento e não mostra nenhum evento: o custo fica em branco,
 
 const PRECOS = porEvento({ profile: { eventPriceUsd: 0.004 } })
 
-function clienteQueLeOCusto(leituras: Record<string, unknown>[], esperaDoCustoMs: number) {
+function clienteQueLeOCusto(leituras: Record<string, unknown>[], esperaDoCustoMs: number, releiturasDoCusto = 1) {
   const linhas: Record<string, unknown>[] = []
   let lidas = 0
   const fetchFn = ((url: string) => {
     if (url.includes('/actor-runs/')) return Promise.resolve(Response.json({ data: leituras[Math.min(lidas++, leituras.length - 1)] }))
     return Promise.resolve(new Response('x', { status: 500 }))
   }) as unknown as typeof fetch
-  const apify = clienteDoApify({ tokens: ['conta-a'], fetchFn, esperaDoCustoMs, log: (l) => linhas.push(l) })
+  const apify = clienteDoApify({ tokens: ['conta-a'], fetchFn, esperaDoCustoMs, releiturasDoCusto, log: (l) => linhas.push(l) })
   return { apify, linhas, lidas: () => lidas }
 }
 
@@ -97,13 +97,40 @@ Deno.test('sem os eventos na primeira leitura, lê de novo e usa a segunda; o lo
   assertEquals(texto.includes('pessoa-ficticia') || texto.includes('10.0.0.1'), false)
 })
 
-Deno.test('sem espera pedida (o signal-runner), lê uma vez só; e com os eventos já na primeira leitura, não lê de novo', async () => {
+Deno.test('sem espera pedida, lê uma vez só; com espera, o actor que cobra por evento é lido de novo mesmo com eventos', async () => {
   const semEventos = { status: 'SUCCEEDED', usageTotalUsd: 0, pricingInfo: PRECOS }
-  const runner = clienteQueLeOCusto([semEventos], 0)
-  assertEquals(await runner.apify.custoDaExecucao!('run-2'), null)
-  assertEquals(runner.lidas(), 1)
-  assertEquals(runner.linhas.length, 1)
+  const semEspera = clienteQueLeOCusto([semEventos], 0)
+  assertEquals(await semEspera.apify.custoDaExecucao!('run-2'), null)
+  assertEquals(semEspera.lidas(), 1)
+  assertEquals(semEspera.linhas.length, 1)
   const comEventos = clienteQueLeOCusto([{ ...semEventos, chargedEventCounts: { profile: 1 } }], 1)
   assertEquals(await comEventos.apify.custoDaExecucao!('run-3'), 0.004)
-  assertEquals(comEventos.lidas(), 1)
+  assertEquals(comEventos.lidas(), 2)
+})
+
+// Execução real de 01/10/2026 na Meta: 30 anúncios, e a primeira leitura trouxe só o evento de início.
+const DOS_ANUNCIOS = porEvento({ 'apify-actor-start': { eventPriceUsd: 0.00005 }, 'apify-default-dataset-item': { eventPriceUsd: 0.00075 } })
+const SO_O_INICIO = { status: 'SUCCEEDED', usageTotalUsd: 0.00005, chargedEventCounts: { 'apify-actor-start': 1 }, pricingInfo: DOS_ANUNCIOS }
+const COM_OS_ANUNCIOS = { ...SO_O_INICIO, usageTotalUsd: 0.02255, chargedEventCounts: { 'apify-actor-start': 1, 'apify-default-dataset-item': 30 } }
+
+Deno.test('só o evento de início na primeira leitura: relê até a cobrança parar de mudar', async () => {
+  const c = clienteQueLeOCusto([SO_O_INICIO, COM_OS_ANUNCIOS, COM_OS_ANUNCIOS], 1, 2)
+  assertEquals(await c.apify.custoDaExecucao!('run-4'), 0.02255)
+  assertEquals(c.lidas(), 3)
+  assertEquals(c.linhas.map((l) => l.tentativa), [1, 2, 3])
+})
+
+Deno.test('o número de releituras tem teto, e uma releitura que falha não perde a primeira leitura', async () => {
+  const limitada = clienteQueLeOCusto([SO_O_INICIO, COM_OS_ANUNCIOS, COM_OS_ANUNCIOS], 1, 1)
+  assertEquals(await limitada.apify.custoDaExecucao!('run-5'), 0.02255)
+  assertEquals(limitada.lidas(), 2)
+  const fetchFn = ((url: string) => {
+    if (url.includes('/actor-runs/') && !(fetchFn as unknown as { primeira?: boolean }).primeira) {
+      ;(fetchFn as unknown as { primeira?: boolean }).primeira = true
+      return Promise.resolve(Response.json({ data: SO_O_INICIO }))
+    }
+    return Promise.resolve(new Response('x', { status: 500 }))
+  }) as unknown as typeof fetch
+  const apify = clienteDoApify({ tokens: ['conta-a'], fetchFn, esperaDoCustoMs: 1, releiturasDoCusto: 2, log: () => {} })
+  assertEquals(await apify.custoDaExecucao!('run-6'), 0.00005)
 })

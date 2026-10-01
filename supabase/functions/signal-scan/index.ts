@@ -37,8 +37,8 @@ const db: Db = {
 
 const handler = createHandler({
   db,
-  // O Apify fecha a conta da execução uns segundos depois de ela terminar: sem os eventos cobrados, relê o custo em 3 s.
-  apify: clienteDoApify({ tokens: tokensDoApify((nome) => Deno.env.get(nome)), esperaDoCustoMs: 3_000 }),
+  // O Apify fecha a conta da execução uns segundos depois de ela terminar: relê o custo de 3 em 3 s, até 2 vezes.
+  apify: clienteDoApify({ tokens: tokensDoApify((nome) => Deno.env.get(nome)), esperaDoCustoMs: 3_000, releiturasDoCusto: 2 }),
   // A função é chamada só pelo servidor: a chave de serviço ou um JWT de serviço (o gateway confere a assinatura).
   autorizado: (authorization) => autorizadoComoServidor(authorization, SERVICE_ROLE_KEY),
 })

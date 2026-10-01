@@ -20,10 +20,12 @@ export interface OpcoesDoApify {
   /** Prazo da chamada HTTP; um pouco maior que o da execução. */
   timeoutMs?: number;
   /**
-   * Espera antes de ler o custo de novo quando o actor cobra por evento e a execução ainda não mostra os eventos. Zero
-   * (o padrão) lê uma vez só.
+   * Espera antes de ler o custo de novo quando o actor cobra por evento: o Apify fecha a conta da execução alguns
+   * segundos depois de ela terminar. Zero (o padrão) lê uma vez só.
    */
   esperaDoCustoMs?: number;
+  /** Quantas vezes, no máximo, o custo é lido de novo (cada uma depois da espera); para quando duas leituras seguidas coincidem. */
+  releiturasDoCusto?: number;
   /** Onde vai o resumo do custo de cada execução (só nomes de campo e números, nenhum dado pessoal). */
   log?: (campos: Record<string, unknown>) => void;
 }
@@ -39,6 +41,7 @@ export function clienteDoApify(
     runTimeoutSeconds = 120,
     timeoutMs = 135_000,
     esperaDoCustoMs = 0,
+    releiturasDoCusto = 1,
     log = (campos) => console.log(JSON.stringify(campos)),
   }: OpcoesDoApify,
 ): Apify {
@@ -173,19 +176,28 @@ export function clienteDoApify(
   }
 
   /**
-   * O custo da execução. Na execução real de 01/10/2026 (log `apify_cost`), a execução lida logo depois de terminar
-   * vinha com `usageTotalUsd` 0 e sem eventos; 3 s depois, com `usageTotalUsd` 0,004 e `profile: 1`. Por isso, com
-   * `esperaDoCustoMs`, a execução sem eventos é lida de novo uma vez, e o resumo vai para o log.
+   * O custo da execução. O Apify fecha a conta alguns segundos depois de a execução terminar (log `apify_cost` de
+   * 01/10/2026): com 1 perfil, a primeira leitura veio com `usageTotalUsd` 0 e sem eventos, e 3 s depois com 0,004 e
+   * `profile: 1`; com 30 anúncios na Meta, a primeira leitura trouxe só o evento de início. Por isso, com
+   * `esperaDoCustoMs`, o actor que cobra por evento é lido de novo (até `releiturasDoCusto` vezes, parando quando duas
+   * leituras seguidas coincidem), e cada leitura vai para o log.
    */
   async function custo(token: string, runId: string): Promise<number | null> {
     let execucao = await lerExecucao(token, runId);
     if (!execucao) return null;
     let tentativa = 1;
-    if (esperaDoCustoMs > 0 && semOsEventosAinda(execucao)) {
+    while (
+      esperaDoCustoMs > 0 && cobraPorEvento(execucao) &&
+      tentativa <= releiturasDoCusto
+    ) {
       log({ type: "apify_cost", runId, tentativa, ...resumoDoCusto(execucao) });
       await new Promise((r) => setTimeout(r, esperaDoCustoMs));
-      execucao = (await lerExecucao(token, runId)) ?? execucao;
-      tentativa = 2;
+      const nova = await lerExecucao(token, runId);
+      tentativa++;
+      if (!nova) break;
+      const estavel = assinaturaDaCobranca(nova) === assinaturaDaCobranca(execucao);
+      execucao = nova;
+      if (estavel && eventosCobrados(execucao).length) break;
     }
     const costUsd = custoDaExecucaoLida(execucao);
     log({ type: "apify_cost", runId, tentativa, ...resumoDoCusto(execucao), costUsd });
@@ -239,9 +251,12 @@ const eventosCobrados = (run: Record<string, unknown>) =>
   Object.entries(registro(run.chargedEventCounts))
     .filter(([, n]) => numeroValido(n)) as [string, number][];
 
-/** Cobra por evento e a execução ainda não mostra nenhum evento cobrado. */
-function semOsEventosAinda(run: Record<string, unknown>): boolean {
-  return cobraPorEvento(run) && !eventosCobrados(run).length;
+/** A cobrança da execução como texto: duas leituras com o mesmo texto não mudaram. */
+function assinaturaDaCobranca(run: Record<string, unknown>): string {
+  return JSON.stringify([
+    numeroValido(run.usageTotalUsd),
+    eventosCobrados(run).sort(([a], [b]) => (a < b ? -1 : 1)),
+  ]);
 }
 
 /**
