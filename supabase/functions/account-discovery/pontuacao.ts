@@ -4,7 +4,7 @@
 // motivos, nunca a nota). Um termo da lista "excluir" tira a empresa da busca. Nada aqui fala com a rede.
 import { contemAlgum, normalizar } from '../signal-runner/adaptadores/comum.ts'
 import { type CriteriosDeBusca, FAIXAS_DE_PORTE, PORTES_LEGAIS } from './criterios.ts'
-import { ehBrasil, ufDe } from './regioes.ts'
+import { CAPITAIS, ehBrasil, ufDe } from './regioes.ts'
 
 /** Uma empresa como a fonte a descreveu, já numa forma só (cada Actor tem o seu normalizador). */
 export interface CandidataBruta {
@@ -67,7 +67,7 @@ function lista(termos: string[]): string {
 function avaliarSetor(c: CandidataBruta, criterios: CriteriosDeBusca): Motivo | null {
   const termos = [...criterios.setores, ...criterios.palavrasChave]
   if (!termos.length) return null
-  const texto = junta(c.sector, c.tags, c.description, c.name)
+  const texto = junta(c.sector, c.tags, c.description)
   if (!c.sector && !c.description && !c.tags.length) {
     return { criterio: 'setor', atende: null, texto: 'Setor: a fonte não informou a atividade da empresa.' }
   }
@@ -110,7 +110,13 @@ function avaliarPorte(c: CandidataBruta, criterios: CriteriosDeBusca): Motivo | 
 function regiaoBate(regiao: string, c: CandidataBruta, textos: string): boolean {
   if (ehBrasil(regiao)) return ehBrasil(c.country) || /\b(brasil|brazil)\b/.test(normalizar(textos)) || !!c.uf
   const uf = ufDe(regiao)
-  if (uf) return c.uf === uf || ufDe(textos) === uf
+  if (uf) {
+    if (c.uf === uf || ufDe(textos) === uf) return true
+    for (const [capital, estadoUf] of Object.entries(CAPITAIS)) {
+      if (estadoUf === uf && contemAlgum(textos, [capital])) return true
+    }
+    return false
+  }
   return contemAlgum(textos, [regiao])
 }
 

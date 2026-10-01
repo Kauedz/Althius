@@ -32,6 +32,36 @@ export const ESTADOS: Readonly<Record<string, string>> = {
   TO: 'Tocantins',
 }
 
+export const CAPITAIS: Readonly<Record<string, string>> = {
+  'Rio Branco': 'AC',
+  'Maceió': 'AL',
+  'Macapá': 'AP',
+  'Manaus': 'AM',
+  'Salvador': 'BA',
+  'Fortaleza': 'CE',
+  'Brasília': 'DF',
+  'Vitória': 'ES',
+  'Goiânia': 'GO',
+  'São Luís': 'MA',
+  'Cuiabá': 'MT',
+  'Campo Grande': 'MS',
+  'Belo Horizonte': 'MG',
+  'Belém': 'PA',
+  'João Pessoa': 'PB',
+  'Curitiba': 'PR',
+  'Recife': 'PE',
+  'Teresina': 'PI',
+  'Rio de Janeiro': 'RJ',
+  'Natal': 'RN',
+  'Porto Alegre': 'RS',
+  'Porto Velho': 'RO',
+  'Boa Vista': 'RR',
+  'Florianópolis': 'SC',
+  'São Paulo': 'SP',
+  'Aracaju': 'SE',
+  'Palmas': 'TO',
+}
+
 // Do nome mais longo ao mais curto: "Mato Grosso do Sul" antes de "Mato Grosso".
 const POR_NOME = Object.entries(ESTADOS)
   .map(([uf, nome]) => ({ uf, nome: normalizar(nome) }))
