@@ -1,4 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { bancoDoExecutor, executarEnvioAprovado } from '../_shared/executor-de-aprovacoes.ts'
+import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
+import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
+import type { DepsDeAcesso } from '../_shared/integration-access.ts'
 import { creditosDoBanco, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
 import { createHandler, type Db, type Inicio } from './handler.ts'
 import { modeloDaAnthropic } from './model.ts'
@@ -112,12 +116,24 @@ const runDb: RunDb = {
   },
 }
 
+// As ferramentas dos Agentes (Etapa 5b): ligadas por padrão; `AGENT_TOOLS=off` volta ao modo só de conversa. Sem a
+// migration 20261001210000 aplicada, o contexto falha e cada pedido roda como antes.
+const rpcDoServico = (nome: string, parametros: Record<string, unknown>) => admin.rpc(nome, parametros)
+const acesso: DepsDeAcesso = { banco: bancoDasIntegracoes(rpcDoServico), ambiente: (nome) => Deno.env.get(nome) }
+const ferramentas: DepsDasFerramentas | undefined = (Deno.env.get('AGENT_TOOLS') || '').trim().toLowerCase() === 'off'
+  ? undefined
+  : {
+    banco: bancoDasFerramentas(rpcDoServico),
+    acesso,
+    executarAprovacao: (approvalId) => executarEnvioAprovado({ banco: bancoDoExecutor(rpcDoServico), acesso }, { approvalId }),
+  }
+
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para a Execução terminar.
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
 
 Deno.serve(createHandler({
   db,
-  executar: comHermes ? () => Promise.resolve() : modelo ? createRunner({ db: runDb, modelo, modeloDoCliente }) : null,
+  executar: comHermes ? () => Promise.resolve() : modelo ? createRunner({ db: runDb, modelo, modeloDoCliente, ferramentas }) : null,
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : (work) => void work,
   appOrigin: APP_ORIGIN,
 }))

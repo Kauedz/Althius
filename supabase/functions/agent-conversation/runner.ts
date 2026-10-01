@@ -5,6 +5,13 @@
 // rede.
 import type Anthropic from 'npm:@anthropic-ai/sdk@0.128.0'
 import {
+  criarSessaoDeFerramentas,
+  type DepsDasFerramentas,
+  eventoDoPasso,
+  type SessaoDeFerramentas,
+  textoDoMural,
+} from '../_shared/ferramentas-dos-agentes.ts'
+import {
   type AgenteDoWorkspace,
   type ChaveDoCliente,
   codigoDoErro,
@@ -49,6 +56,11 @@ export interface RunnerDeps {
   /** O modelo com a chave do cliente; null quando o provedor dela não é aceito aqui. */
   modeloDoCliente?: (chave: ChaveDoCliente) => Modelo | null
   log?: (fields: Record<string, unknown>) => void
+  /**
+   * As ferramentas dos Agentes (Etapa 5b): buscar contas pelo ICP, ler o Workspace, consultar uma Integração e propor
+   * Enviar ao CRM. Sem elas, o Agente só consulta as Contas-alvo, como antes.
+   */
+  ferramentas?: DepsDasFerramentas
 }
 
 const MAX_TOKENS = 16000
@@ -77,16 +89,35 @@ const REGRAS = [
   'depende de conectar a Integração.',
 ].join('\n')
 
-function systemDoAgente(agente: AgenteDoWorkspace, workspace: string, playbook = ''): string {
+/** As regras quando o Agente tem as ferramentas: ele age, mas só pelo que elas permitem, e diz o que fez. */
+const REGRAS_COM_FERRAMENTAS = [
+  'Responda em português do Brasil, direto e sem enrolação.',
+  'Nunca invente dados, números, nomes ou fatos. Se não souber, ou se a ferramenta não trouxer, diga que não sabe.',
+  'Os dados do Workspace e das Integrações só chegam pelas ferramentas que você recebeu. Use-as para agir: ler as ' +
+  'Contas-alvo e os Sinais, consultar o CRM, pedir buscas e propor envios. Você não age fora delas. Uma ação que ' +
+  'precisa de Aprovação só sai depois que um Administrador aprovar: diga isso, sem fingir que já foi feita. Diga em ' +
+  'uma frase o que você fez com cada ferramenta.',
+].join('\n')
+
+function systemDoAgente(agente: AgenteDoWorkspace, workspace: string, playbook = '', comFerramentas = false): string {
   return [
     `Você é ${agente.name}, um Agente da Althius no Workspace "${workspace}".`,
     ESPECIALIDADES[agente.specialty] ?? '',
     agente.instructions ? `Instruções do Workspace para você:\n${agente.instructions}` : '',
     agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
     playbook,
-    REGRAS,
+    comFerramentas ? REGRAS_COM_FERRAMENTAS : REGRAS,
     INSTRUCAO_DE_DESFECHO,
   ].filter(Boolean).join('\n\n')
+}
+
+function ferramentasDoModelo(sessao: SessaoDeFerramentas | null, agente: AgenteDoWorkspace): Anthropic.Beta.Messages.BetaTool[] {
+  if (!sessao) return []
+  return sessao.paraOAgente(agente).map((f) => ({
+    name: f.nome,
+    description: f.descricao,
+    input_schema: f.esquema as Anthropic.Beta.Messages.BetaTool['input_schema'],
+  }))
 }
 
 function textoDe(resposta: Anthropic.Beta.Messages.BetaMessage): string {
@@ -156,10 +187,14 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     agente: AgenteDoWorkspace,
     contribuicoes: string[],
     playbook = '',
+    sessao: SessaoDeFerramentas | null = null,
   ): Promise<ResultadoDoAgente> {
-    const pedido = contribuicoes.length
-      ? `${reserva.request_text}\n\nO que outros Agentes já responderam neste pedido:\n${contribuicoes.join('\n\n')}`
-      : reserva.request_text
+    const mural = sessao ? textoDoMural(sessao.mural()) : ''
+    const pedido = [
+      reserva.request_text,
+      contribuicoes.length ? `O que outros Agentes já responderam neste pedido:\n${contribuicoes.join('\n\n')}` : '',
+      mural,
+    ].filter(Boolean).join('\n\n')
     const mensagens: Anthropic.Beta.Messages.BetaMessageParam[] = [...historicoDaConversa(reserva), {
       role: 'user',
       content: pedido,
@@ -168,8 +203,8 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
       const resposta = await modelo.criar({
         max_tokens: MAX_TOKENS,
-        system: systemDoAgente(agente, reserva.workspace_name, playbook),
-        tools: [BUSCAR_CONTAS],
+        system: systemDoAgente(agente, reserva.workspace_name, playbook, !!sessao),
+        tools: [BUSCAR_CONTAS, ...ferramentasDoModelo(sessao, agente)],
         messages: mensagens,
         output_config: { effort: 'medium' },
       })
@@ -185,6 +220,18 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       const resultados: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = []
       for (const chamada of chamadas) {
         if (chamada.type !== 'tool_use') continue
+        if (sessao && chamada.name !== BUSCAR_CONTAS.name && sessao.conhece(chamada.name)) {
+          // Uma ferramenta do catálogo: a sessão confere quem pode, executa e nunca lança.
+          const r = await sessao.chamar(agente, chamada.name, chamada.input)
+          await db.append(reserva.run_id, 'ferramenta', agente.id, eventoDoPasso(chamada.name, r.passo))
+          resultados.push({
+            type: 'tool_result',
+            tool_use_id: chamada.id,
+            content: r.paraOAgente,
+            ...(r.erro ? { is_error: true } : {}),
+          })
+          continue
+        }
         const termo = chamada.name === BUSCAR_CONTAS.name ? lerTermo(chamada.input) : null
         if (termo === null) {
           await db.append(reserva.run_id, 'ferramenta', agente.id, {
@@ -304,13 +351,28 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   }
 
   /** O que muda no motor da ponte: as chamadas à Messages API. A ordem e os eventos são de _shared/orquestracao.ts. */
-  function executorDe(modelo: Modelo, reserva: Reserva): Executor {
+  function executorDe(modelo: Modelo, reserva: Reserva, sessao: SessaoDeFerramentas | null): Executor {
     const playbookDe = leitorDoPlaybook(db, reserva.run_id, log, 'agent_run')
     return {
       escolher: () => escolher(modelo, reserva),
       trabalhar: async (agente, falas) =>
-        trabalhar(modelo, reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty)),
+        trabalhar(modelo, reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty), sessao),
       sintetizar: (falas) => sintetizar(modelo, reserva, contribuicoesDe(falas)),
+    }
+  }
+
+  /**
+   * As ferramentas desta Execução, com o contexto (Workspace, quem pediu, Permissões) lido uma vez. Sem o contexto, o
+   * pedido roda como antes, só com a consulta de Contas-alvo, e a falha vai ao log.
+   */
+  async function sessaoDaExecucao(runId: string): Promise<SessaoDeFerramentas | null> {
+    if (!deps.ferramentas) return null
+    try {
+      const ctx = await deps.ferramentas.banco.contexto(runId)
+      return criarSessaoDeFerramentas(deps.ferramentas, { runId, ctx })
+    } catch (error) {
+      log({ type: 'agent_run', runId, outcome: 'tools_context_failed', message: String(error) })
+      return null
     }
   }
 
@@ -323,7 +385,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     let modelo = deps.modelo
     try {
       modelo = await modeloDaExecucao(runId)
-      const executor = executorDe(modelo, reserva)
+      const executor = executorDe(modelo, reserva, await sessaoDaExecucao(runId))
       if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })
       else await coordenarPedido({ reserva, db, executor })
       await db.finish(runId, 'succeeded', null, modelo.nome)
