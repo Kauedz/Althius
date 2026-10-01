@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { MODULO_INDISPONIVEL } from '@/fonte/ambiente'
+import { motivoDoEnvio } from '@/fonte/motivos-do-envio'
 import {
   emailDoPasso,
   posicaoDoDestino,
@@ -1715,7 +1716,7 @@ function descreverEnvio(envio: EnvioDoPasso): string {
       return `Na fila: sai depois do passo anterior, para ${envio.destino}.`
     case 'scheduled':
       return `Sai sozinho ${envio.programadoPara ? formatarDataEHora(envio.programadoPara) : 'no próximo horário válido'} para ${envio.destino}, mesmo com o navegador fechado.${
-        envio.ultimoErro ? ` Última tentativa: ${envio.ultimoErro}.` : ''
+        envio.ultimoErro ? ` Última tentativa: ${motivoDoEnvio(envio.ultimoErro)}.` : ''
       }`
     case 'cancelled':
       return 'Cancelado: a Sequência mudou depois da ativação.'
@@ -1728,7 +1729,7 @@ function descreverEnvio(envio: EnvioDoPasso): string {
     case 'uncertain':
       return 'O provedor não respondeu a tempo e a confirmação não chegou. Confira sua caixa de saída: o e-mail saiu?'
     case 'failed':
-      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${envio.ultimoErro})` : ''}. Reconfirme para tentar de novo.`
+      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${motivoDoEnvio(envio.ultimoErro)})` : ''}. Reconfirme para tentar de novo.`
     case 'bounced':
       return `O e-mail para ${envio.destino} foi devolvido.`
     case 'sending':

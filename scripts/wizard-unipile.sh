@@ -204,7 +204,9 @@ PAINEL="https://supabase.com/dashboard/project/$SUPABASE_REF"
 FUNCOES_URL="https://$SUPABASE_REF.supabase.co/functions/v1"
 WEBHOOK_URL="$FUNCOES_URL/unipile-account-status"
 UNIPILE_API_BASE="https://api.unipile.com"
-UNIPILE_ACCOUNT_EVENTS="account.add,account.reconnect,account.initial_sync.completed,account.status.running,account.status.disconnected,account.status.errored,account.remove,email.new,email.new.bounce"
+# message.new: respostas de WhatsApp e LinkedIn (canais 06 e 07). O evento de nova relação do LinkedIn fica de fora até o
+# nome dele ser confirmado na documentação da Unipile v2: um nome desconhecido pode recusar o cadastro do webhook inteiro.
+UNIPILE_ACCOUNT_EVENTS="account.add,account.reconnect,account.initial_sync.completed,account.status.running,account.status.disconnected,account.status.errored,account.remove,email.new,email.new.bounce,message.new"
 
 [[ -t 0 ]] || { printf 'Rode este wizard num terminal interativo.\n' >&2; exit 1; }
 
