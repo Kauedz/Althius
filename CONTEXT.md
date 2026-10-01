@@ -326,7 +326,7 @@ _Avoid_: importação, sync, integração bidirecional
 O nível de ação de um Agente sobre uma Integração: **Ler**, **Propor** (exige Aprovação) ou **Executar** (age sozinho).
 
 **Aprovação**:
-Uma ação proposta por um Agente que só acontece depois que um humano a aceita, na fila de Aprovações ou no Canal de origem. Guarda o gatilho da Execução que a propôs. Quando um Agente criado é excluído, as Aprovações dele, pendentes ou decididas, são excluídas junto. A Revisão da Memória do Workspace é a única categoria que só Administradores decidem; as demais seguem como antes.
+Uma ação proposta por um Agente que só acontece depois que um humano a aceita, na fila de Aprovações ou no Canal de origem. Guarda o gatilho da Execução que a propôs. Quando um Agente criado é excluído, as Aprovações dele, pendentes ou decididas, são excluídas junto. A Revisão da Memória do Workspace só Administradores decidem. No Workspace operacional, as Aprovações de ação também (decisão do Nan, 2026-10-01): uma pendente vence em 7 dias e vira expirada, quem pediu pode cancelar, e depois de aprovada o servidor confere tudo de novo antes de executar (executada ou falhou). Com a Permissão Executar, a Aprovação já nasce liberada, para ficar auditada.
 _Avoid_: revisão, confirmação
 
 **Aviso do Workspace**:

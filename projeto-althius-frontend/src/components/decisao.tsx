@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { useFonte } from '@/fonte/contexto'
-import { ROTULO_DA_DECISAO } from '@/fonte/regras'
+import { rotuloDoEstadoDaAprovacao } from '@/fonte/regras'
 import type { AprovacaoDeAcao, LugarDaDecisao } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 
@@ -10,8 +10,14 @@ export function DecisaoDeAprovacao({ aprovacao, onde }: { aprovacao: AprovacaoDe
 
   if (aprovacao.estado !== 'pendente') {
     return (
-      <span className={cn('rotulo', aprovacao.estado === 'aprovada' ? 'text-al-sucesso' : 'text-al-erro')}>
-        {ROTULO_DA_DECISAO[aprovacao.estado]}
+      <span
+        className={cn(
+          'rotulo',
+          aprovacao.estado === 'aprovada' && aprovacao.execucao !== 'falhou' ? 'text-al-sucesso' : 'text-al-erro',
+        )}
+        title={aprovacao.falha}
+      >
+        {rotuloDoEstadoDaAprovacao(aprovacao)}
       </span>
     )
   }
