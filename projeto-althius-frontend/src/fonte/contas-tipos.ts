@@ -79,6 +79,8 @@ export interface ContaAlvo {
   dominio?: string
   siteUrl?: string
   linkedinUrl?: string
+  legalIdentifier?: string
+  receitaData?: DadosDaReceita
   /** Endereço da imagem do logo. Sem logo, a tela mostra as iniciais do nome. */
   logo?: string
   /** O logo é um vetor de uma cor só, que a tela pinta com a cor do texto para aparecer nos dois temas. */
@@ -269,6 +271,53 @@ export interface CustoDaBusca {
   motivo: string | null
 }
 
+export interface SocioReceita {
+  nome: string
+  cargo?: string
+  qualificacao?: string
+}
+
+export interface DadosDaReceita {
+  cnpj: string
+  cnpjFormatado: string
+  razaoSocial: string
+  nomeFantasia?: string
+  situacaoCadastral: string
+  dataSituacaoCadastral?: string
+  cnaePrincipal?: { codigo: string; descricao: string }
+  cnaesSecundarios?: Array<{ codigo: string; descricao: string }>
+  capitalSocial?: number
+  porte?: string
+  endereco?: {
+    logradouro?: string
+    numero?: string
+    bairro?: string
+    municipio?: string
+    uf?: string
+    cep?: string
+  }
+  socios?: SocioReceita[]
+  telefones?: string[]
+  email?: string
+  fonte: 'apify' | 'brasilapi'
+}
+
+export interface ContatoProposto {
+  id: string
+  targetAccountId: string
+  state: 'nova' | 'aceita' | 'descartada'
+  name: string
+  role?: string
+  headline?: string
+  linkedinUrl?: string
+  location?: string
+  photoUrl?: string
+  persona?: 'Decisor' | 'Influenciador' | 'Campeao' | 'Outro'
+  contactId?: string
+  sourceProvider?: string
+  createdAt: string
+}
+
 /**
  * A fronteira de dados do módulo Contas e Contatos.
  * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
@@ -409,4 +458,25 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** Apaga o Contato definitivamente, com o nome dele digitado como confirmação. */
   apagarContato?(contatoId: string, confirmacao: string): Promise<void>
+
+  /** Lista os contatos propostos para o comitê de compra de uma Conta-alvo. */
+  comiteDaConta?(contaId: string): Promise<ContatoProposto[]>
+
+  /** Dispara a busca do comitê de compra (1 crédito por contato encontrado). */
+  buscarComite?(contaId: string): Promise<void>
+
+  /** Aceita um contato proposto, criando o Contato na Conta-alvo. */
+  aceitarContatoProposto?(propostaId: string): Promise<Contato>
+
+  /** Descarta um contato proposto com motivo opcional. */
+  descartarContatoProposto?(propostaId: string, motivo?: string): Promise<void>
+
+  /** Cota o custo prévio de revelação de canal (e-mail: 2 créditos, telefone: 5 créditos). */
+  cotarRevelacaoContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ creditos: number; saldo: number; podeRevelar: boolean }>
+
+  /** Revela e-mail ou telefone do contato, debitando apenas se encontrar. */
+  revelarContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ sucesso: boolean; valor: string | null; creditosDebitados: number }>
+
+  /** Enriquece a Conta com dados da Receita Federal a partir do CNPJ. */
+  enriquecerReceita?(contaId: string, cnpj: string): Promise<DadosDaReceita>
 }

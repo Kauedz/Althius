@@ -27,6 +27,8 @@ import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
+import { criarFonteDeDescobertasSimulada } from './simulada-descobertas'
+import { criarFonteDeDescobertasSupabase } from './supabase-descobertas'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
 export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: Storage }): Ambiente {
@@ -47,6 +49,7 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
+    fonteDeDescobertas: criarFonteDeDescobertasSimulada({ armazenamento, fonteDeContas }),
     indisponiveis: new Set(),
   }
 }
@@ -119,6 +122,7 @@ export function criarAmbienteDoWorkspace({
       return new Map(quem.map(({ conta }) => [conta.id, conta.nome]))
     }),
     fonteDeAutomacao: criarFonteDeAutomacaoSupabase(cliente, () => participacao.workspaceId),
+    fonteDeDescobertas: criarFonteDeDescobertasSupabase(cliente, () => participacao.workspaceId),
     indisponiveis,
   }
 }

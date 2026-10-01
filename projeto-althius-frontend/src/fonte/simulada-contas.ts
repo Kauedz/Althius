@@ -1,10 +1,13 @@
 import type {
   ContaAlvo,
   Contato,
+  ContatoProposto,
   CustoDaBusca,
+  DadosDaReceita,
   DestinosReaisContato,
   FonteDeContas,
   Interacao,
+  NovaContaAlvo,
   NovaInteracao,
   NovoSinal,
   Sinal,
@@ -105,6 +108,35 @@ export function criarFonteDeContasSimulada(
   let dados = vazia
     ? { contas: [], contatos: [], sinais: [], interacoes: [] }
     : criarDadosIniciais(hoje)
+
+  let propostasComite: ContatoProposto[] = [
+    {
+      id: 'prop-1',
+      targetAccountId: 'd9000000-0000-0000-0000-000000000001',
+      state: 'nova',
+      name: 'Carlos Alberto Silva',
+      role: 'Chief Executive Officer',
+      headline: 'CEO @ LogiFlow Brasil',
+      linkedinUrl: 'https://linkedin.com/in/carlos-alberto-silva',
+      location: 'Curitiba, PR',
+      persona: 'Decisor',
+      sourceProvider: 'apify',
+      createdAt: '2026-09-30T10:00:00Z',
+    },
+    {
+      id: 'prop-2',
+      targetAccountId: 'd9000000-0000-0000-0000-000000000001',
+      state: 'nova',
+      name: 'Mariana Santos',
+      role: 'Gerente de Operações e Logística',
+      headline: 'Operations Manager @ LogiFlow',
+      linkedinUrl: 'https://linkedin.com/in/mariana-santos-ops',
+      location: 'Curitiba, PR',
+      persona: 'Influenciador',
+      sourceProvider: 'apify',
+      createdAt: '2026-09-30T10:00:00Z',
+    },
+  ]
 
   if (armazenamento && !vazia) {
     try {
@@ -248,6 +280,44 @@ export function criarFonteDeContasSimulada(
         throw new Error(`Conta-alvo "${id}" não encontrada`)
       }
       return projetarConta(encontrada, dados.sinais, hoje)
+    },
+
+    async salvarConta(nova: NovaContaAlvo): Promise<ContaAlvo> {
+      await aguardar()
+      const url = nova.url.trim()
+      if (!url) {
+        throw new Error('A URL da empresa é obrigatória')
+      }
+      let dominio = url.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase()
+      if (dominio.startsWith('www.')) dominio = dominio.slice(4)
+      const siteFormatado = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`
+
+      const existente = dados.contas.find(
+        (c) => c.dominio?.toLowerCase() === dominio || c.siteUrl?.toLowerCase().includes(dominio),
+      )
+      if (existente) {
+        if (nova.nome) existente.nome = nova.nome
+        if (nova.segmento) existente.segmento = nova.segmento
+        notificar()
+        return projetarConta(existente, dados.sinais, hoje)
+      }
+
+      const id = `conta-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+      const contaCriada: ContaAlvo = {
+        id,
+        nome: nova.nome,
+        siteUrl: siteFormatado,
+        dominio,
+        segmento: nova.segmento,
+        totalContatos: 0,
+        quente: false,
+        totalSinaisValidos: 0,
+        origem: { tipo: 'recomendada' },
+        aderencia: 'fit',
+      }
+      dados.contas.push(contaCriada)
+      notificar()
+      return projetarConta(contaCriada, dados.sinais, hoje)
     },
 
     async contatos(): Promise<Contato[]> {
@@ -418,6 +488,144 @@ export function criarFonteDeContasSimulada(
       salvarDestinos()
       notificar()
       return atualizado
+    },
+
+    async comiteDaConta(contaId: string): Promise<ContatoProposto[]> {
+      await aguardar()
+      return propostasComite.filter(
+        (p) => (p.targetAccountId === contaId || p.targetAccountId === 'd9000000-0000-0000-0000-000000000001') && p.state === 'nova',
+      )
+    },
+
+    async buscarComite(contaId: string): Promise<void> {
+      await aguardar()
+      const novaProp: ContatoProposto = {
+        id: `prop-${Date.now()}`,
+        targetAccountId: contaId,
+        state: 'nova',
+        name: 'Roberto Valente',
+        role: 'Diretor de Supply Chain',
+        headline: 'Supply Chain Director',
+        linkedinUrl: 'https://linkedin.com/in/roberto-valente-supply',
+        location: 'São Paulo, SP',
+        persona: 'Decisor',
+        sourceProvider: 'apify',
+        createdAt: new Date().toISOString(),
+      }
+      propostasComite.push(novaProp)
+      notificar()
+    },
+
+    async aceitarContatoProposto(propostaId: string): Promise<Contato> {
+      await aguardar()
+      const proposta = propostasComite.find((p) => p.id === propostaId)
+      if (!proposta) throw new Error('Proposta de contato não encontrada')
+      proposta.state = 'aceita'
+
+      const novoContato: Contato = {
+        id: `contato-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        contaId: proposta.targetAccountId,
+        nome: proposta.name,
+        cargo: proposta.role,
+        persona: proposta.persona,
+        linkedin: proposta.linkedinUrl,
+        canais: {
+          email: false,
+          telefone: false,
+          linkedin: Boolean(proposta.linkedinUrl),
+        },
+      }
+      proposta.contactId = novoContato.id
+      dados.contatos.push(novoContato)
+
+      const contaAlvo = dados.contas.find((c) => c.id === proposta.targetAccountId)
+      if (contaAlvo) {
+        contaAlvo.totalContatos = (contaAlvo.totalContatos || 0) + 1
+      }
+
+      notificar()
+      return novoContato
+    },
+
+    async descartarContatoProposto(propostaId: string, _motivo?: string): Promise<void> {
+      await aguardar()
+      const proposta = propostasComite.find((p) => p.id === propostaId)
+      if (!proposta) throw new Error('Proposta de contato não encontrada')
+      proposta.state = 'descartada'
+      notificar()
+    },
+
+    async cotarRevelacaoContato(_contatoId: string, canal: 'email' | 'telefone') {
+      await aguardar()
+      return {
+        creditos: canal === 'email' ? 2 : 5,
+        saldo: 50,
+        podeRevelar: true,
+      }
+    },
+
+    async revelarContato(contatoId: string, canal: 'email' | 'telefone') {
+      await aguardar()
+      const contato = dados.contatos.find((c) => c.id === contatoId)
+      if (!contato) throw new Error('Contato não encontrado')
+
+      const valor = canal === 'email'
+        ? `${contato.nome.toLowerCase().replace(/\s+/g, '.')}@empresa.com.br`
+        : '+5541999887766'
+
+      if (canal === 'email') {
+        contato.email = valor
+        contato.canais.email = true
+      } else {
+        contato.whatsapp = valor
+        contato.canais.telefone = true
+      }
+      notificar()
+      return {
+        sucesso: true,
+        valor,
+        creditosDebitados: canal === 'email' ? 2 : 5,
+      }
+    },
+
+    async enriquecerReceita(contaId: string, cnpj: string): Promise<DadosDaReceita> {
+      await aguardar()
+      const conta = dados.contas.find((c) => c.id === contaId)
+      const cnpjFormatado = cnpj.includes('/') ? cnpj : `${cnpj.slice(0, 2)}.${cnpj.slice(2, 5)}.${cnpj.slice(5, 8)}/${cnpj.slice(8, 12)}-${cnpj.slice(12, 14)}`
+
+      const receitaData: DadosDaReceita = {
+        cnpj,
+        cnpjFormatado,
+        razaoSocial: conta ? `${conta.nome.toUpperCase()} SERVICOS S.A.` : 'EMPRESA BRASIL S.A.',
+        nomeFantasia: conta?.nome,
+        situacaoCadastral: 'ATIVA',
+        dataSituacaoCadastral: '2018-04-12',
+        cnaePrincipal: { codigo: '4930202', descricao: 'Transporte rodoviário de carga' },
+        cnaesSecundarios: [{ codigo: '5211799', descricao: 'Depósitos de mercadorias para terceiros' }],
+        capitalSocial: 4500000,
+        porte: 'DEMAIS',
+        endereco: {
+          logradouro: 'Avenida das Indústrias',
+          numero: '500',
+          municipio: 'Curitiba',
+          uf: 'PR',
+          cep: '80000-000',
+        },
+        telefones: ['(41) 3322-1100'],
+        email: 'contato@logiflow.com.br',
+        socios: [
+          { nome: 'Carlos Alberto Silva', cargo: 'Presidente', qualificacao: 'Diretor' },
+          { nome: 'Mariana Santos', cargo: 'Diretora', qualificacao: 'Diretora' },
+        ],
+        fonte: 'apify',
+      }
+
+      if (conta) {
+        conta.legalIdentifier = cnpjFormatado
+        conta.receitaData = receitaData
+      }
+      notificar()
+      return receitaData
     },
   }
 }

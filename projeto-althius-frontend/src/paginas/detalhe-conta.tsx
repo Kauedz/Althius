@@ -15,6 +15,7 @@ import { cn, porId } from '@/lib/utils'
 import { AcoesDaConta } from './arquivar-e-apagar'
 import { useCamposDoContato } from './campos-do-contato'
 import { BuscarSinaisDeNovo } from './buscar-sinais-de-novo'
+import { SecaoReceitaFederal, SecaoComiteDeCompra } from './comite-e-enriquecimento'
 import { SeloStatus } from './detalhe-sequencia'
 import { CAMPO, CamposDoContato } from './formulario-de-contato'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
@@ -73,6 +74,17 @@ export function DetalheConta({ contaId }: Props) {
     (f) => f.contatosDaConta(contaId),
     [contaId],
   )
+
+  const {
+    dados: propostas,
+    carregando: carregandoPropostas,
+    recarregar: recarregarPropostas,
+  } = useDadosDeContas((f) => (f.comiteDaConta ? f.comiteDaConta(contaId) : Promise.resolve([])), [contaId])
+
+  const atualizarComite = useCallback(() => {
+    recarregarPropostas()
+    recarregarConta()
+  }, [recarregarPropostas, recarregarConta])
 
   const {
     dados: interacoes,
@@ -313,6 +325,27 @@ export function DetalheConta({ contaId }: Props) {
               </Button>
             </div>
           )}
+        </Secao>
+
+        <Secao
+          id="comite"
+          titulo="Comitê de Compra"
+          contagem={
+            propostas && propostas.filter((p) => p.state === 'nova').length > 0
+              ? contar(propostas.filter((p) => p.state === 'nova').length, 'pessoa sugerida', 'pessoas sugeridas')
+              : undefined
+          }
+        >
+          <SecaoComiteDeCompra
+            contaId={conta.id}
+            propostas={propostas ?? []}
+            carregando={carregandoPropostas}
+            aoAtualizar={atualizarComite}
+          />
+        </Secao>
+
+        <Secao id="receita" titulo="Receita Federal">
+          <SecaoReceitaFederal conta={conta} aoAtualizar={recarregarConta} />
         </Secao>
       </div>
 
