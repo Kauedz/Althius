@@ -4,6 +4,15 @@
 // pelo mesmo contrato da ponte (append_agent_run_event e finish_agent_run). O Hermes não aparece para o usuário: para
 // ele, é a inteligência da Althius, que chama o Scopus, o Ethos, o Rhetor e o Oraculum (ADR-0004, ADR-0018).
 import {
+  criarSessaoDeFerramentas,
+  type DepsDasFerramentas,
+  eventoDoPasso,
+  instrucoesDasFerramentas,
+  lerPedidoDeFerramenta,
+  type SessaoDeFerramentas,
+  textoDoMural,
+} from '../_shared/ferramentas-dos-agentes.ts'
+import {
   type AgenteDoWorkspace,
   agentesMencionados,
   agentesPorId,
@@ -138,12 +147,19 @@ function contasDoWorkspace(contas: ContaEncontrada[]): string {
     : 'O Workspace ainda não tem Contas-alvo ativas.'
 }
 
+const REGRAS_COM_FERRAMENTAS =
+  'Regras: responda em português do Brasil, direto. Nunca invente dados, números, nomes ou fatos: use só o que está ' +
+  'aqui, na conversa ou no resultado das ferramentas, e diga "não sei" quando faltar. Você só age pelas ferramentas da ' +
+  'Althius descritas abaixo: não use terminal, arquivos do computador nem outras ferramentas. Uma ação que precisa de ' +
+  'Aprovação só sai depois que um Administrador aprovar: diga isso, sem fingir que já foi feita.'
+
 /** As instruções de um Agente na sua vez: quem ele é, o que sabe do Workspace e como termina a resposta. */
 export function instrucoesDoAgente(
   reserva: Reserva,
   agente: AgenteDoWorkspace,
   contas: ContaEncontrada[],
   playbook = '',
+  ferramentas = '',
 ): string {
   return [
     IDENTIDADE,
@@ -153,10 +169,14 @@ export function instrucoesDoAgente(
     agente.voice_tone ? `Tom de voz: ${agente.voice_tone}` : '',
     playbook,
     contasDoWorkspace(contas),
-    REGRAS_DO_HERMES,
+    ferramentas ? REGRAS_COM_FERRAMENTAS : REGRAS_DO_HERMES,
+    ferramentas,
     INSTRUCAO_DE_DESFECHO,
   ].filter(Boolean).join('\n\n')
 }
+
+/** Chamadas ao Hermes por Agente e por rodada quando ele usa ferramentas: as que pedem ferramenta e a resposta. */
+const MAX_PASSOS_COM_FERRAMENTA = 4
 
 /** As instruções da Coordenação para escolher quem trabalha: uma lista de ids em JSON, sem agir ela mesma. */
 export function instrucoesDaEscolha(reserva: Reserva): string {
@@ -205,6 +225,11 @@ export interface WorkerDeps {
    * o worker faz uma chamada só, que devolve as etapas de todos os Agentes juntas (o primeiro modo do motor Hermes).
    */
   porAgente?: boolean
+  /**
+   * As ferramentas dos Agentes (Etapa 5b), no modo por Agente: o Agente pede em JSON e o worker executa pelo catálogo
+   * compartilhado. Sem elas, o Agente só lê as Contas-alvo das instruções, como antes.
+   */
+  ferramentas?: DepsDasFerramentas
 }
 
 export function createWorker(deps: WorkerDeps) {
@@ -282,7 +307,7 @@ export function createWorker(deps: WorkerDeps) {
   }
 
   /** O Hermes como motor de cada passo: escolher, trabalhar na vez de cada Agente e juntar. */
-  function executorDoHermes(reserva: Reserva, contas: ContaEncontrada[]): Executor {
+  function executorDoHermes(reserva: Reserva, contas: ContaEncontrada[], sessao: SessaoDeFerramentas | null = null): Executor {
     const runId = reserva.run_id
     const historico = historicoDaConversa(reserva)
     const playbookDe = leitorDoPlaybook(db, runId, log, 'hermes_worker')
@@ -298,16 +323,29 @@ export function createWorker(deps: WorkerDeps) {
       },
       async trabalhar(agente, falas, rodada) {
         const anteriores = contribuicoesDe(falas)
-        const input = anteriores.length
-          ? `${reserva.request_text}\n\nO que outros Agentes já responderam neste pedido:\n${anteriores.join('\n\n')}`
-          : reserva.request_text
-        return {
-          texto: await passo(`althius-${runId}-${agente.id}-r${rodada}`, {
-            input,
-            instructions: instrucoesDoAgente(reserva, agente, contas, await playbookDe(agente.specialty)),
-            conversation_history: historico,
-          }),
+        let input = [
+          reserva.request_text,
+          anteriores.length ? `O que outros Agentes já responderam neste pedido:\n${anteriores.join('\n\n')}` : '',
+          sessao ? textoDoMural(sessao.mural()) : '',
+        ].filter(Boolean).join('\n\n')
+        const ferramentas = sessao ? instrucoesDasFerramentas(sessao.paraOAgente(agente)) : ''
+        const instructions = instrucoesDoAgente(reserva, agente, contas, await playbookDe(agente.specialty), ferramentas)
+        const chave = `althius-${runId}-${agente.id}-r${rodada}`
+        if (!ferramentas || !sessao) {
+          return { texto: await passo(chave, { input, instructions, conversation_history: historico }) }
         }
+        // A ponte das ferramentas: cada pedido em JSON é executado aqui, e o resultado volta na próxima chamada.
+        for (let i = 0; i < MAX_PASSOS_COM_FERRAMENTA; i++) {
+          const saida = await passo(i === 0 ? chave : `${chave}-f${i}`, { input, instructions, conversation_history: historico })
+          const pedido = lerPedidoDeFerramenta(saida)
+          if (!pedido) return { texto: saida }
+          const r = await sessao.chamar(agente, pedido.nome, pedido.entrada)
+          // Um nome fora do catálogo não vira passo com o nome inventado: aparece como pedido inválido.
+          await db.append(runId, 'ferramenta', agente.id, eventoDoPasso(sessao.conhece(pedido.nome) ? pedido.nome : 'invalida', r.passo))
+          input = `${input}\n\nVocê pediu a ferramenta ${pedido.nome}.\nResultado da ferramenta ${pedido.nome}` +
+            `${r.erro ? ' (falhou)' : ''}: ${r.paraOAgente}`
+        }
+        throw new ErroDoModelo('tool_loop_limit')
       },
       async sintetizar(falas) {
         return {
@@ -330,8 +368,16 @@ export function createWorker(deps: WorkerDeps) {
     } catch (error) {
       log({ type: 'hermes_worker', runId, outcome: 'accounts_failed', message: String(error) })
     }
+    let sessao: SessaoDeFerramentas | null = null
+    if (deps.ferramentas) {
+      try {
+        sessao = criarSessaoDeFerramentas(deps.ferramentas, { runId, ctx: await deps.ferramentas.banco.contexto(runId) })
+      } catch (error) {
+        log({ type: 'hermes_worker', runId, outcome: 'tools_context_failed', message: String(error) })
+      }
+    }
     try {
-      const executor = executorDoHermes(reserva, contas)
+      const executor = executorDoHermes(reserva, contas, sessao)
       if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })
       else await coordenarPedido({ reserva, db, executor })
       await db.finish(runId, 'succeeded', null, 'hermes')

@@ -607,3 +607,32 @@ export function bancoDasFerramentas(
     },
   }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// A ponte para motores sem as nossas ferramentas (o Hermes, pela API de runs): o Agente pede em JSON estruturado e o
+// servidor executa. O formato é um objeto só, sem texto fora dele: {"ferramenta": "<nome>", "entrada": {...}}.
+
+/** As instruções que ensinam o pedido de ferramenta, com as que o Agente da vez pode usar. Vazio sem ferramentas. */
+export function instrucoesDasFerramentas(ferramentas: FerramentaParaOModelo[]): string {
+  if (ferramentas.length === 0) return ''
+  const lista = ferramentas.map((f) => `### ${f.nome}\n${f.descricao}\nEntrada (JSON Schema): ${JSON.stringify(f.esquema)}`)
+  return [
+    'Você tem ferramentas da Althius para agir. Para usar uma, responda SÓ com um objeto JSON, sem nenhum texto fora ' +
+    'dele: {"ferramenta": "<nome>", "entrada": {...}}. Você recebe o resultado e continua; use uma ferramenta por ' +
+    'vez. Quando terminar, responda em texto normal, com a linha de STATUS no fim.',
+    ...lista,
+  ].join('\n\n')
+}
+
+/** O pedido de ferramenta na saída do motor, ou null quando a saída é a resposta em texto. */
+export function lerPedidoDeFerramenta(saida: string): { nome: string; entrada: unknown } | null {
+  const limpa = saida.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1').trim()
+  if (!limpa.startsWith('{') || !limpa.endsWith('}')) return null
+  try {
+    const dado = JSON.parse(limpa) as { ferramenta?: unknown; entrada?: unknown }
+    if (typeof dado?.ferramenta !== 'string' || !dado.ferramenta.trim()) return null
+    return { nome: dado.ferramenta.trim(), entrada: dado.entrada ?? {} }
+  } catch {
+    return null
+  }
+}
