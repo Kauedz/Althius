@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(131);
+select plan(132);
 
 -- A chamada HTTP do Executor das propostas fica sob controle do teste, só dentro desta transação.
 create temporary table chamadas (url text, token text);

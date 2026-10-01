@@ -12,6 +12,23 @@
 insert into private.credit_action_prices (action, credits, description) values
   ('account_discovery', 5, 'Uma busca de Contas candidatas pelo ICP (até 50 empresas; 100 contam duas)');
 
+-- A consulta do catálogo de ações provisórias (ADR-0019) preserva as cinco ações base acordadas na sabatina;
+-- a descoberta tem o seu orçamento próprio cotado por quote_account_discovery.
+create or replace function public.list_credit_action_prices()
+returns table (action text, credits numeric, description text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select c.action, c.credits, c.description from private.credit_action_prices c
+  where c.action <> 'account_discovery'
+  order by c.action;
+$$;
+
+revoke all on function public.list_credit_action_prices() from public, anon;
+grant execute on function public.list_credit_action_prices() to authenticated;
+
 -- Quantos blocos de 50 empresas a busca pede: o preço é por bloco.
 create function private.discovery_blocks(p_max_results integer)
 returns integer
