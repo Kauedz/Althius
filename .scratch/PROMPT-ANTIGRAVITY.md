@@ -29,6 +29,28 @@ O dono do produto é o Nan. Ele quer o app "totalmente funcional" e pediu: **sem
 9. O glossário evita a palavra "assinatura": na tela é "Plano do Workspace".
 10. Existe outra sessão trabalhando em Sinais (`sinais-juridicos`, `modulo-de-sinais`). Antes de abrir PR, faça `git merge origin/main` e resolva conflitos mantendo as duas partes.
 
+## Skills do Matt Pocock: uso obrigatório
+
+O repositório traz as skills do Matt Pocock em **`.agents/skills/<nome>/SKILL.md`** (a mesma coleção está em `.claude/skills/`). O Nan exige que você as use, **sem exceção**, para programar do jeito certo. Antes de cada passo abaixo, **abra o `SKILL.md` da skill e siga o que ele manda**; não trabalhe de memória. Se a sua ferramenta não invocar skills por comando (algumas são marcadas como invocadas só pelo usuário), leia o arquivo e execute as instruções dele manualmente.
+
+| Quando | Skill | O que fazer |
+|---|---|---|
+| Antes de começar cada etapa | `implement` e `implement-spec` | Implementar a partir do ticket/spec da frente (`.scratch/<frente>/`). Rodar `tsc` e testes isolados com frequência e a suíte inteira **uma vez, ao final**. |
+| Para todo comportamento novo | `tdd` | Vermelho antes de verde, **uma fatia vertical por vez** (um teste, uma implementação mínima, repete). Teste só nas fronteiras públicas: RPC via pgTAP, handler de Edge Function com dependências injetadas, Fonte e tela via `renderizarApp`. Nada de teste acoplado à implementação, nem tautológico, nem "todos os testes primeiro". |
+| Ao criar módulo, Fonte ou interface plugável (ex.: `ProvedorDeContatos`, `EnviadorDeResposta`) | `codebase-design` | Módulos profundos: interface pequena, implementação escondida, fronteira (seam) explícita. |
+| Ao nomear conceito novo, mexer em `CONTEXT.md` ou registrar decisão (ADR-0019 etc.) | `domain-modeling` | Mesmo vocabulário do glossário; ADR no formato do repositório. |
+| Ao confirmar contrato de API de terceiros (Unipile, HubSpot, Apify, Receita) | `research` | Só fontes oficiais; salve o achado num `.md` no repositório com a fonte; troque cada `// não confirmado:` por fato verificado. |
+| Teste falhando, build quebrado, comportamento estranho | `diagnosing-bugs` | Laço de diagnóstico (reproduzir, isolar, hipótese, prova). Proibido "chutar e rodar de novo". |
+| Ao trazer a `main` para a branch | `resolving-merge-conflicts` | Resolver mantendo as duas partes; nunca descartar o trabalho do outro lado. |
+| **Ao fim de cada etapa, antes do PR** | `code-review` | Comparar com `origin/main`: eixo Standards (regras do repositório) e eixo Spec (o ticket). **Corrija o que achar e siga em frente**; o review não é uma parada para pedir aprovação. |
+| Ao abrir o PR | `pr` | Corpo do PR no modelo da skill (Summary, Evidence, Merge Danger). |
+| Quando sobrar passo que só o Nan faz (segredo, app OAuth, webhook, conta de teste) | `wizard` | Gere o wizard interativo em vez de uma lista solta; use também a seção "Passos do Nan" do ticket. |
+| Ao encerrar uma sessão de trabalho | `handoff` | Documento de passagem para o próximo agente retomar sem reler tudo. |
+
+Fluxo mínimo de **toda** etapa: `implement` → (`tdd` em cada fatia, com `codebase-design`/`domain-modeling`/`research` quando couber) → validações do CI → `code-review` → correções → `pr` → CI verde → aplicar migration → mesclar com merge commit.
+
+Se alguma skill disser para perguntar ao usuário (por exemplo, confirmar as fronteiras de teste), considere as fronteiras já acordadas: **pgTAP nas RPCs, `deno test` nos handlers com dublês, vitest nas Fontes e telas**. Registre a escolha no ticket e siga. Só pare para perguntar ao Nan nos casos da regra 5 (banco remoto) e quando faltar um segredo ou acesso que só ele tem.
+
 ## Como validar (igual ao CI)
 
 - Frontend, em `projeto-althius-frontend/`: `npm ci`, `npm run lint`, `npm test`, `npm run build`.
