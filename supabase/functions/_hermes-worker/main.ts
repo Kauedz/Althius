@@ -4,6 +4,10 @@
 // As chaves ficam só no .env local (nunca no repositório): ver README.md desta pasta.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { type ContaEncontrada, creditosDoBanco, type Reserva, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
+import { bancoDoExecutor, executarEnvioAprovado } from '../_shared/executor-de-aprovacoes.ts'
+import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
+import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
+import type { DepsDeAcesso } from '../_shared/integration-access.ts'
 import { createWorker, type FilaDb, hermesHttp } from './worker.ts'
 
 function required(name: string) {
@@ -41,7 +45,18 @@ const db: FilaDb = {
   usaChaveDoCliente: async (runId) => (await rpc<boolean | null>('agent_run_uses_own_ai_key', { p_run_id: runId })) === true,
 }
 
+// As ferramentas dos Agentes (Etapa 5b): o Agente pede em JSON e o worker executa, pelas mesmas RPCs e o mesmo Acesso da
+// ponte. HERMES_FERRAMENTAS=off volta ao modo só de conversa.
+const rpcDoServico = (nome: string, parametros: Record<string, unknown>) => admin.rpc(nome, parametros)
+const acesso: DepsDeAcesso = { banco: bancoDasIntegracoes(rpcDoServico), ambiente: (nome) => Deno.env.get(nome) }
+const ferramentas: DepsDasFerramentas | undefined = Deno.env.get('HERMES_FERRAMENTAS') === 'off' ? undefined : {
+  banco: bancoDasFerramentas(rpcDoServico),
+  acesso,
+  executarAprovacao: (approvalId) => executarEnvioAprovado({ banco: bancoDoExecutor(rpcDoServico), acesso }, { approvalId }),
+}
+
 const worker = createWorker({
+  ferramentas,
   db,
   hermes: hermesHttp({ url: Deno.env.get('HERMES_URL') || 'http://127.0.0.1:8642', chave: required('HERMES_API_KEY') }),
   // Cada Agente numa chamada própria, na sua vez e em rodadas. HERMES_UMA_CHAMADA=true volta ao modo de uma chamada só.

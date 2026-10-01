@@ -11,6 +11,7 @@ import type {
   ConversaRetomada,
   ConversasRetomadas,
   FonteDeAgentes,
+  LinkDoPasso,
   Mensagem,
   PassoDaConversa,
   PassoDaCoordenacao,
@@ -24,7 +25,7 @@ interface Evento {
   seq: number
   kind: 'chamada' | 'ferramenta' | 'feito' | 'texto' | 'resposta' | 'falha'
   agent_id: string | null
-  payload: { texto?: string; descricao?: string; estado?: string; motivo?: string }
+  payload: { texto?: string; descricao?: string; estado?: string; motivo?: string; link?: unknown }
 }
 
 interface Leitura {
@@ -91,7 +92,7 @@ export function passoDaCoordenacao(evento: Evento): PassoDaCoordenacao | null {
   if (kind === 'falha') return { tipo: 'falha', motivo: mensagemDaFalha(payload.motivo) }
   if (!agenteId) return null
   if (kind === 'chamada') return { tipo: 'chamada', agenteId }
-  if (kind === 'ferramenta') return { tipo: 'ferramenta', agenteId, descricao: descricaoDaConsulta(payload) }
+  if (kind === 'ferramenta') return { tipo: 'ferramenta', agenteId, descricao: descricaoDaConsulta(payload), ...linkDoPasso(payload) }
   if (kind === 'feito') return { tipo: 'feito', agenteId, resumo: payload.texto ?? '' }
   return null
 }
@@ -101,8 +102,16 @@ export function passoDaConversa(evento: Evento): PassoDaConversa | null {
   if (kind === 'falha') return { tipo: 'falha', motivo: mensagemDaFalha(payload.motivo) }
   if (!agenteId) return null
   if (kind === 'texto') return { tipo: 'texto', agenteId, texto: payload.texto ?? '' }
-  if (kind === 'ferramenta') return { tipo: 'ferramenta', agenteId, descricao: descricaoDaConsulta(payload) }
+  if (kind === 'ferramenta') return { tipo: 'ferramenta', agenteId, descricao: descricaoDaConsulta(payload), ...linkDoPasso(payload) }
   return null
+}
+
+/** O link do passo de ferramenta (Etapa 5b), só nos tipos conhecidos; um link estranho é ignorado. */
+function linkDoPasso(payload: Evento['payload']): { link?: LinkDoPasso } {
+  const link = payload.link as { tipo?: unknown; id?: unknown } | undefined
+  if (link?.tipo === 'descobertas') return { link: { tipo: 'descobertas' } }
+  if (link?.tipo === 'aprovacao' && typeof link.id === 'string' && link.id) return { link: { tipo: 'aprovacao', id: link.id } }
+  return {}
 }
 
 function descricaoDaConsulta(payload: Evento['payload']): string {

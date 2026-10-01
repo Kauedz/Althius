@@ -59,6 +59,28 @@ vez lendo o que os outros já disseram (até 3 rodadas) e a Coordenação junta 
 chamadas ao modelo. Para voltar ao modo de uma chamada só, ponha `HERMES_UMA_CHAMADA=true` no `.env` deste worker e
 reinicie.
 
+## As ferramentas dos Agentes (Etapa 5b)
+
+A API de runs do Hermes (`POST /v1/runs`) recebe `input`, `instructions` e `conversation_history`, e não aceita
+ferramentas nossas: as do Hermes são os toolsets dele (que este README manda desligar). Por isso as ferramentas da
+Althius rodam **na ponte, aqui no worker**: no modo por Agente, as instruções de cada Agente listam as ferramentas que a
+Especialidade e a Permissão dele permitem (`_shared/ferramentas-dos-agentes.ts`) e ensinam o pedido, um objeto JSON só,
+sem texto fora dele:
+
+```json
+{"ferramenta": "ler_contas_e_sinais", "entrada": {"so_quentes": true}}
+```
+
+O worker executa pelo mesmo catálogo e as mesmas RPCs da ponte, grava o passo na Conversa (evento `ferramenta`) e chama
+o Hermes de novo com o resultado (uma Idempotency-Key por chamada, `…-r1-f1`, `…-r1-f2`). Até 4 chamadas por Agente e
+rodada, e 6 ferramentas por pedido somando todos os Agentes; passou, a Execução fecha com `tool_loop_limit`. Uma falha
+de ferramenta volta como texto ao Agente. `HERMES_FERRAMENTAS=off` no `.env` volta ao modo só de conversa. As
+ferramentas só existem no modo por Agente (o padrão); com `HERMES_UMA_CHAMADA=true`, não há ferramentas.
+
+O envio ao CRM de um Agente com a Permissão Executar sai daqui mesmo (o executor das Aprovações), pelo Acesso de quem
+pediu. Pela chave de API ele não precisa de nenhum segredo a mais; para renovar um Acesso por OAuth, o worker usaria os
+segredos de cliente OAuth das Integrações, que não ficam neste `.env` (nesse caso o Agente recebe "reconectar").
+
 ## O que saber
 
 - Com `AGENT_PROVIDER=hermes` e o worker desligado, o pedido fica "Trabalhando" e vira falha por prazo em 10 minutos.

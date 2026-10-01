@@ -484,9 +484,15 @@ export interface PreviaDeCanal {
   mensagens: MensagemDeCanal[]
 }
 
+/**
+ * Para onde um passo de ferramenta leva (Etapa 5b): a Caixa de Descobertas, onde a pessoa confirma a busca que o Scopus
+ * pediu, ou a Aprovação que um Agente propôs.
+ */
+export type LinkDoPasso = { tipo: 'descobertas' } | { tipo: 'aprovacao'; id: string }
+
 /** Um passo da resposta de um Agente numa Conversa. */
 export type PassoDaConversa =
-  | { tipo: 'ferramenta'; agenteId: AgenteId; descricao: string }
+  | { tipo: 'ferramenta'; agenteId: AgenteId; descricao: string; link?: LinkDoPasso }
   | { tipo: 'texto'; agenteId: AgenteId; texto: string }
   | { tipo: 'repasse'; de: AgenteId; para: AgenteId; resumo: string }
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }
@@ -500,7 +506,7 @@ export type PassoDaConversa =
  */
 export type PassoDaCoordenacao =
   | { tipo: 'chamada'; agenteId: AgenteId }
-  | { tipo: 'ferramenta'; agenteId: AgenteId; descricao: string }
+  | { tipo: 'ferramenta'; agenteId: AgenteId; descricao: string; link?: LinkDoPasso }
   | { tipo: 'feito'; agenteId: AgenteId; resumo: string }
   | { tipo: 'resposta'; texto: string }
   | { tipo: 'aprovacao'; agenteId: AgenteId; aprovacaoId: string }

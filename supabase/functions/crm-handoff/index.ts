@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { bancoDoExecutor } from '../_shared/executor-de-aprovacoes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import { bancoDoEnvio } from './banco.ts'
 import { createHandler } from './handler.ts'
@@ -26,6 +27,7 @@ const rpc = (nome: string, parametros: Record<string, unknown>) => admin.rpc(nom
 
 Deno.serve(createHandler({
   banco: bancoDoEnvio(rpc),
+  aprovacoes: bancoDoExecutor(rpc),
   acesso: {
     banco: bancoDasIntegracoes(rpc),
     ambiente: (nome) => Deno.env.get(nome),
