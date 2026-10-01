@@ -280,3 +280,37 @@ describe('Módulo Sequências e Casca (Ticket 02 & Ticket 03)', () => {
     expect(screen.queryByText(/Regra de pause na Conta-alvo/i)).not.toBeInTheDocument()
   })
 })
+
+describe('Cadência do Playbook como modelo da Nova sequência', () => {
+  it('oferece o modelo com os toques, marca o que depende do canal e cria a Sequência já com os passos', async () => {
+    const { usuario } = renderizarApp('/sequencias')
+    expect(await screen.findByText('7 sequências')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Nova sequência/i }))
+    const dialog = await screen.findByRole('dialog')
+    await usuario.selectOptions(within(dialog).getByRole('combobox', { name: 'Conta-alvo' }), 'figma')
+    await within(dialog).findByText(/Gabriel Siqueira/i)
+
+    expect(await within(dialog).findByRole('checkbox', { name: /Usar a Cadência do Playbook como modelo \(3 toques\)/ })).toBeChecked()
+    expect(within(dialog).getByText(/Dia 2 · Conexão \(LinkedIn\)/)).toHaveTextContent('depende do canal')
+    expect(within(dialog).getByText(/Dia 1 · Abertura pelo Sinal \(E-mail\)/)).not.toHaveTextContent('depende do canal')
+    expect(within(dialog).getByText(/Ficam de fora, por ainda não terem canal: Ligação de qualificação/)).toBeInTheDocument()
+
+    await usuario.click(within(dialog).getByRole('button', { name: /Criar sequência/i }))
+    expect(await screen.findByRole('heading', { level: 2, name: /Figma/i })).toBeInTheDocument()
+    expect(await screen.findByText('Abertura pelo Sinal')).toBeInTheDocument()
+    expect(screen.getByText('Follow-up')).toBeInTheDocument()
+  })
+
+  it('desmarcar o modelo cria a Sequência vazia, como antes', async () => {
+    const { fonteDeSequencias, usuario } = renderizarApp('/sequencias')
+    expect(await screen.findByText('7 sequências')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Nova sequência/i }))
+    const dialog = await screen.findByRole('dialog')
+    await usuario.selectOptions(within(dialog).getByRole('combobox', { name: 'Conta-alvo' }), 'figma')
+    await usuario.click(await within(dialog).findByRole('checkbox', { name: /Usar a Cadência do Playbook/ }))
+    await usuario.click(within(dialog).getByRole('button', { name: /Criar sequência/i }))
+
+    await screen.findByRole('heading', { level: 2, name: /Figma/i })
+    expect((await fonteDeSequencias.sequenciaPorConta('figma'))?.steps).toEqual([])
+  })
+})
