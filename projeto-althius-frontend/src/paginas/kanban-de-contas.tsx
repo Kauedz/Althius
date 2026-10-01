@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
 import type { ContaAlvo } from '@/fonte/contas-tipos'
+import { estagioSeguinte, type CriteriosDePassagem } from '@/fonte/criterios-de-passagem'
 import {
   ESTAGIO_SO_DO_ENVIO_AO_CRM,
   ESTAGIOS_DE_PROSPECCAO,
@@ -20,18 +21,22 @@ const TIPO_DO_ARRASTE = 'application/x-althius-conta'
  * A vista Kanban das Contas (kanban 03): uma coluna por Estágio de prospecção, na ordem do funil. Arrastar um cartão
  * para outra coluna, ou escolher o estágio no menu do cartão, move a Conta à mão; o banco decide quem pode (só o
  * Vendedor responsável), e a recusa aparece em português acima das colunas. No CRM não recebe cartões à mão: só o
- * envio ao CRM leva a Conta para lá.
+ * envio ao CRM leva a Conta para lá. Os critérios de passagem do Playbook (kanban 04) aparecem no cartão como o que
+ * falta para o próximo Estágio, e mover sem conferi-los só avisa.
  */
 export function KanbanDeContas({
   contas,
   mover,
   estadoDoLink,
+  criterios = {},
 }: {
   contas: ContaAlvo[]
   mover: (contaId: string, estagio: EstagioDeProspeccao) => Promise<void>
   estadoDoLink: EstadoDaNavegacao
+  criterios?: CriteriosDePassagem
 }) {
   const [erro, setErro] = useState<string>()
+  const [aviso, setAviso] = useState<string>()
   const [movendo, setMovendo] = useState<string>()
   const [sobre, setSobre] = useState<EstagioDeProspeccao>()
 
@@ -41,9 +46,15 @@ export function KanbanDeContas({
   async function moverConta(conta: ContaAlvo, estagio: EstagioDeProspeccao) {
     if ((conta.estagio ?? 'descoberta') === estagio) return
     setErro(undefined)
+    setAviso(undefined)
     setMovendo(conta.id)
     try {
       await mover(conta.id, estagio)
+      const criterio = criterios[estagio]
+      if (criterio) {
+        const rotulo = ESTAGIOS_DE_PROSPECCAO.find((e) => e.id === estagio)!.rotulo
+        setAviso(`${conta.nome} foi para ${rotulo}. O Playbook pede: ${criterio}. Confira se foi cumprido.`)
+      }
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível mover a Conta.')
     } finally {
@@ -64,6 +75,11 @@ export function KanbanDeContas({
       {erro && (
         <p role="alert" className="border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
           {erro}
+        </p>
+      )}
+      {aviso && (
+        <p role="status" className="border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
+          {aviso}
         </p>
       )}
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2" aria-label="Kanban de Contas" role="list">
@@ -96,6 +112,7 @@ export function KanbanDeContas({
                   key={conta.id}
                   conta={conta}
                   estadoDoLink={estadoDoLink}
+                  criterios={criterios}
                   movendo={movendo === conta.id}
                   mover={(estagio) => moverConta(conta, estagio)}
                 />
@@ -111,15 +128,19 @@ export function KanbanDeContas({
 function CartaoDaConta({
   conta,
   estadoDoLink,
+  criterios,
   movendo,
   mover,
 }: {
   conta: ContaAlvo
   estadoDoLink: EstadoDaNavegacao
+  criterios: CriteriosDePassagem
   movendo: boolean
   mover: (estagio: EstagioDeProspeccao) => void
 }) {
   const estagio = conta.estagio ?? 'descoberta'
+  const proximo = estagioSeguinte(estagio)
+  const criterio = proximo && criterios[proximo]
   return (
     <article
       aria-label={conta.nome}
@@ -151,6 +172,11 @@ function CartaoDaConta({
         <p className="flex min-w-0 items-center gap-1.5 text-xs text-al-muted" title={conta.ultimoSinal.frase}>
           <RadioTower strokeWidth={1.8} className="size-3.5 shrink-0 text-al-accent" aria-hidden />
           <span className="truncate">{conta.ultimoSinal.frase}</span>
+        </p>
+      )}
+      {criterio && proximo && (
+        <p className="text-xs text-al-muted">
+          Para {ESTAGIOS_DE_PROSPECCAO.find((e) => e.id === proximo)!.rotulo}: {criterio}
         </p>
       )}
       <select

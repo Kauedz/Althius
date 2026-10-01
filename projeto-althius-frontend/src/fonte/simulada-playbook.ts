@@ -23,6 +23,17 @@ const EXEMPLOS: Partial<Record<IdDaSecaoDoPlaybook, ConteudoDoPlaybook>> = {
     texto: 'Incorporadoras com 200 a 2.000 funcionários, com equipe comercial própria e lançamentos em mais de uma cidade.',
     linhas: [],
   },
+  sla_e_metas: {
+    texto: '',
+    linhas: [
+      {
+        definicao: 'Em abordagem',
+        criterio: '3 perfis mapeados e telefone válido',
+        prazo: 'Antes do primeiro toque',
+        meta: '100% das Contas',
+      },
+    ],
+  },
   dor_e_percepcao: {
     texto: '',
     linhas: [
