@@ -22,8 +22,7 @@ insert into public.workspace_memberships (workspace_id, user_id, role, active) v
   ('62000000-0000-0000-0000-000000000002', '61000000-0000-0000-0000-000000000003', 'admin', true);
 
 -- Saldo inicial de 100 créditos para o Workspace
-insert into private.credit_packages (workspace_id, credits, purchased_at) values
-  ('62000000-0000-0000-0000-000000000001', 100, now());
+select public.grant_credits('62000000-0000-0000-0000-000000000001', 100, 'plano', 'Saldo inicial de teste');
 
 -- Cria Conta-alvo para os testes de enriquecimento
 insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, created_by) values
