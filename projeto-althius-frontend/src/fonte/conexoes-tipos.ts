@@ -31,6 +31,32 @@ export interface ItemDeIntegracao {
   appPortal?: string
 }
 
+/** Como o participante conecta o próprio Acesso: autorizando no app (OAuth no servidor MCP) ou colando uma chave de API. */
+export type CaminhoDeConexao = 'autorizacao' | 'chave'
+
+export type EstadoDoAcesso = 'conectado' | 'precisa_reconectar' | 'desconectado'
+
+/** O Acesso do próprio participante a uma Integração habilitada, sem token nem chave (ADR-0017). */
+export interface AcessoDaIntegracao {
+  integracaoId: IntegracaoId
+  estado: EstadoDoAcesso
+  caminho?: CaminhoDeConexao
+  /** A conta do app com que a pessoa entrou. */
+  conta?: string
+  falha?: string
+  /** Quantos participantes ativos do Workspace já conectaram. */
+  conectados: number
+  /** Os caminhos que esta Integração aceita. */
+  caminhos: CaminhoDeConexao[]
+}
+
+/** Uma ferramenta que o servidor da Integração oferece aos Agentes. `escreve` marca as que escrevem ou gastam. */
+export interface FerramentaDaIntegracao {
+  nome: string
+  descricao: string
+  escreve: boolean
+}
+
 export type CanalDeConexao = ItemDeCanal
 export type IntegracaoDeConexao = ItemDeIntegracao
 
@@ -46,4 +72,14 @@ export interface FonteDeConexoes extends FonteObservavel {
   habilitarIntegracao(id: IntegracaoId): Promise<void>
   conectar(conexao: CanalId | IntegracaoId): Promise<void>
   previaDeCanal(canalId: CanalId): Promise<PreviaDeCanal>
+  /** O Acesso do próprio participante em cada Integração habilitada. Ausente: o Workspace ainda não conecta Acessos. */
+  acessos?(): Promise<AcessoDaIntegracao[]>
+  /** Abre a autorização no app e devolve o endereço de consentimento para o navegador ir. */
+  conectarPorAutorizacao?(id: IntegracaoId): Promise<string>
+  /** Valida a chave de API no app e guarda no backend; a chave nunca volta ao navegador. */
+  conectarPorChave?(id: IntegracaoId, chave: string): Promise<void>
+  /** Desconecta só o próprio Acesso. */
+  desconectarAcesso?(id: IntegracaoId): Promise<void>
+  /** As ferramentas que o servidor da Integração oferece, lidas com o próprio Acesso. */
+  ferramentas?(id: IntegracaoId): Promise<FerramentaDaIntegracao[]>
 }

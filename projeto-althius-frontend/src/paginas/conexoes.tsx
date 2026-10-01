@@ -1,5 +1,6 @@
 import { Plug } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
@@ -8,7 +9,32 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useAmbiente, useDados, useFonte, useFonteDeConexoes } from '@/fonte/contexto'
 import type { Aprovacao, CanalId, CategoriaDeIntegracao, IntegracaoId } from '@/fonte/tipos'
-import type { IntegracaoDeConexao } from '@/fonte/conexoes-tipos'
+import type { AcessoDaIntegracao, IntegracaoDeConexao } from '@/fonte/conexoes-tipos'
+import { idaAoApp } from '@/paginas/ida-ao-app'
+
+/** O que a volta da autorização (`?conexao=erro&motivo=…`, da Edge Function integration-callback) quer dizer. */
+const MOTIVOS_DA_VOLTA: Record<string, (nome: string) => string> = {
+  recusada: (nome) => `Você não autorizou o acesso no ${nome}. Nada foi conectado.`,
+  expirada: () => 'A autorização demorou demais e venceu. Comece de novo.',
+  usada: () => 'Esta autorização já foi usada. Comece de novo se precisar.',
+  invalida: () => 'Esta volta da autorização não é válida. Comece de novo pela Althius.',
+  participacao_inativa: () => 'Sua Participação neste Workspace não está ativa.',
+  nao_habilitada: (nome) => `O ${nome} não está habilitado neste Workspace.`,
+  portal_diferente: (nome) => `Esta conta é de outro portal do ${nome}. O Workspace já usa um portal; fale com um Administrador.`,
+  portal_nao_identificado: (nome) => `Não foi possível identificar o portal desta conta do ${nome}. Tente de novo.`,
+  falha_na_troca: (nome) => `O ${nome} não concluiu a autorização. Tente de novo em instantes.`,
+  indisponivel: (nome) => `Não foi possível falar com o ${nome} agora. Tente de novo em instantes.`,
+}
+
+function avisoDaVolta(parametros: URLSearchParams): { texto: string; ok: boolean } | null {
+  const resultado = parametros.get('conexao')
+  if (resultado !== 'ok' && resultado !== 'erro') return null
+  const id = parametros.get('integracao') as IntegracaoId | null
+  const nome = id ? nomeDaIntegracao(id) ?? id : 'app'
+  if (resultado === 'ok') return { texto: `${nome} conectado.`, ok: true }
+  const motivo = MOTIVOS_DA_VOLTA[parametros.get('motivo') ?? '']
+  return { texto: motivo ? motivo(nome) : `Não foi possível conectar o ${nome}. Tente de novo.`, ok: false }
+}
 
 const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga']
 
@@ -21,11 +47,52 @@ export function PaginaConexoes() {
   const canais = useDados(fonteDeConexoes, (fonte) => fonte.canais(), [])
   const integracoes = useDados(fonteDeConexoes, (fonte) => fonte.integracoes(), [])
   const futuras = useDados(fonteDeConexoes, (fonte) => fonte.integracoesFuturas(), [])
+  // Sem a leitura dos Acessos (ou se ela falhar), o cartão fica só com a habilitação, como antes.
+  const acessos = useDados(
+    fonteDeConexoes,
+    (fonte) => (fonte.acessos ? fonte.acessos().catch(() => []) : Promise.resolve([])),
+    [],
+  )
 
   const [conectando, setConectando] = useState<{ id: CanalId | IntegracaoId; nome: string } | null>(null)
   const [previa, setPrevia] = useState<CanalId | null>(null)
   const [habilitando, setHabilitando] = useState<IntegracaoId | null>(null)
   const [erro, setErro] = useState('')
+  const [parametros, setParametros] = useSearchParams()
+  const [volta] = useState(() => avisoDaVolta(parametros))
+  // O resultado da autorização é lido uma vez e sai do endereço, para não reaparecer ao recarregar.
+  useEffect(() => {
+    if (parametros.has('conexao')) setParametros({}, { replace: true })
+  }, [parametros, setParametros])
+  const [comChave, setComChave] = useState<IntegracaoDeConexao | null>(null)
+  const [vendoFerramentas, setVendoFerramentas] = useState<IntegracaoDeConexao | null>(null)
+  const [trabalhando, setTrabalhando] = useState<IntegracaoId | null>(null)
+
+  async function autorizar(integracao: IntegracaoDeConexao) {
+    if (!fonteDeConexoes.conectarPorAutorizacao) return
+    setErro('')
+    setTrabalhando(integracao.id)
+    try {
+      idaAoApp.ir(await fonteDeConexoes.conectarPorAutorizacao(integracao.id))
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível abrir a autorização agora.')
+    } finally {
+      setTrabalhando(null)
+    }
+  }
+
+  async function desconectar(integracao: IntegracaoDeConexao) {
+    if (!fonteDeConexoes.desconectarAcesso) return
+    setErro('')
+    setTrabalhando(integracao.id)
+    try {
+      await fonteDeConexoes.desconectarAcesso(integracao.id)
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível desconectar agora.')
+    } finally {
+      setTrabalhando(null)
+    }
+  }
 
   async function habilitar(id: IntegracaoId) {
     setErro('')
@@ -45,6 +112,11 @@ export function PaginaConexoes() {
         <p className="max-w-2xl text-lg text-al-muted">
           Conecte cada ferramenta uma vez para o Workspace. Depois, escolha em cada agente o que ele pode usar.
         </p>
+        {volta && (
+          <p role="status" className={volta.ok ? 'text-sm text-al-sucesso' : 'text-sm text-al-erro'}>
+            {volta.texto}
+          </p>
+        )}
         {erro && <p className="text-sm text-al-erro">{erro}</p>}
       </div>
 
@@ -113,6 +185,12 @@ export function PaginaConexoes() {
                         ehAdministrador={ehAdministrador}
                         habilitando={habilitando === integracao.id}
                         aoHabilitar={() => habilitar(integracao.id)}
+                        acesso={acessos?.find((a) => a.integracaoId === integracao.id)}
+                        trabalhando={trabalhando === integracao.id}
+                        aoAutorizar={() => autorizar(integracao)}
+                        aoUsarChave={() => setComChave(integracao)}
+                        aoDesconectar={() => desconectar(integracao)}
+                        aoVerFerramentas={() => setVendoFerramentas(integracao)}
                       />
                     ) : (
                       <CartaoDeConexaoDemo
@@ -143,6 +221,8 @@ export function PaginaConexoes() {
       </section>
 
       <DialogoDeConexao conexao={conectando} aoFechar={() => setConectando(null)} />
+      <DialogoDeChave integracao={comChave} aoFechar={() => setComChave(null)} />
+      <DialogoDeFerramentas integracao={vendoFerramentas} aoFechar={() => setVendoFerramentas(null)} />
       <DialogoDePrevia canalId={previa} aoFechar={() => setPrevia(null)} />
     </Pagina>
   )
@@ -153,11 +233,23 @@ function CartaoDeIntegracaoReal({
   ehAdministrador,
   habilitando,
   aoHabilitar,
+  acesso,
+  trabalhando,
+  aoAutorizar,
+  aoUsarChave,
+  aoDesconectar,
+  aoVerFerramentas,
 }: {
   integracao: IntegracaoDeConexao
   ehAdministrador: boolean
   habilitando: boolean
   aoHabilitar: () => void
+  acesso?: AcessoDaIntegracao
+  trabalhando: boolean
+  aoAutorizar: () => void
+  aoUsarChave: () => void
+  aoDesconectar: () => void
+  aoVerFerramentas: () => void
 }) {
   if (integracao.estado === 'em_breve') {
     return (
@@ -187,7 +279,20 @@ function CartaoDeIntegracaoReal({
       <p className="text-sm text-al-muted">{integracao.descricao}</p>
       <div className="mt-auto flex flex-col gap-2">
         {habilitada ? (
-          <span className="text-xs text-al-muted">Habilitada no Workspace</span>
+          <>
+            <span className="text-xs text-al-muted">Habilitada no Workspace</span>
+            {acesso && (
+              <SeuAcesso
+                nome={integracao.nome}
+                acesso={acesso}
+                trabalhando={trabalhando}
+                aoAutorizar={aoAutorizar}
+                aoUsarChave={aoUsarChave}
+                aoDesconectar={aoDesconectar}
+                aoVerFerramentas={aoVerFerramentas}
+              />
+            )}
+          </>
         ) : ehAdministrador ? (
           <Button
             variant="outline"
@@ -202,6 +307,166 @@ function CartaoDeIntegracaoReal({
         )}
       </div>
     </article>
+  )
+}
+
+function SeuAcesso({
+  nome,
+  acesso,
+  trabalhando,
+  aoAutorizar,
+  aoUsarChave,
+  aoDesconectar,
+  aoVerFerramentas,
+}: {
+  nome: string
+  acesso: AcessoDaIntegracao
+  trabalhando: boolean
+  aoAutorizar: () => void
+  aoUsarChave: () => void
+  aoDesconectar: () => void
+  aoVerFerramentas: () => void
+}) {
+  const porAutorizacao = acesso.caminhos.includes('autorizacao')
+  const porChave = acesso.caminhos.includes('chave')
+  const conectados =
+    acesso.conectados === 1 ? '1 participante conectou' : `${acesso.conectados} participantes conectaram`
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-al-line pt-3">
+      {acesso.estado === 'conectado' ? (
+        <span className="text-sm text-al-sucesso">
+          {acesso.conta ? `Conectado como ${acesso.conta}` : 'Conectado'}
+        </span>
+      ) : acesso.estado === 'precisa_reconectar' ? (
+        <span className="text-sm text-al-erro">Precisa reconectar</span>
+      ) : (
+        <span className="text-sm text-al-muted">Você ainda não conectou</span>
+      )}
+      <span className="text-xs text-al-muted">{conectados}</span>
+      <div className="flex flex-wrap gap-2">
+        {acesso.estado === 'conectado' ? (
+          <>
+            <Button variant="outline" onClick={aoVerFerramentas} className="px-4">
+              Ver ferramentas
+            </Button>
+            <Button variant="ghost" onClick={aoDesconectar} disabled={trabalhando} className="px-4">
+              Desconectar
+            </Button>
+          </>
+        ) : (
+          <>
+            {porAutorizacao && (
+              <Button variant="outline" onClick={aoAutorizar} disabled={trabalhando} className="px-4">
+                {acesso.estado === 'precisa_reconectar' ? `Reconectar no ${nome}` : `Conectar no ${nome}`}
+              </Button>
+            )}
+            {porChave && (
+              <Button variant={porAutorizacao ? 'ghost' : 'outline'} onClick={aoUsarChave} disabled={trabalhando} className="px-4">
+                Usar chave de API
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeConexao | null; aoFechar: () => void }) {
+  const fonte = useFonteDeConexoes()
+  const [chave, setChave] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  function fechar() {
+    setChave('')
+    setErro('')
+    aoFechar()
+  }
+
+  async function conectar() {
+    if (!integracao || !fonte.conectarPorChave) return
+    setErro('')
+    setEnviando(true)
+    try {
+      await fonte.conectarPorChave(integracao.id, chave.trim())
+      fechar()
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível validar a chave agora.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Dialog open={integracao !== null} onOpenChange={(aberto) => !aberto && fechar()}>
+      <DialogContent className="gap-6 p-6">
+        <DialogTitle className="titulo-secao text-2xl">Conectar o {integracao?.nome} com chave de API</DialogTitle>
+        <DialogDescription className="text-al-muted">
+          A chave fica guardada só no backend da Althius e não volta a aparecer aqui. Use uma chave da sua própria conta.
+        </DialogDescription>
+        <label className="flex flex-col gap-2 text-sm">
+          Chave de API
+          <input
+            type="password"
+            autoComplete="off"
+            value={chave}
+            onChange={(evento) => setChave(evento.target.value)}
+            className="border border-al-line bg-transparent px-3 py-2"
+          />
+        </label>
+        {erro && <p className="text-sm text-al-erro">{erro}</p>}
+        <DialogFooter className="flex gap-2">
+          <Button variant="ghost" onClick={fechar}>
+            Cancelar
+          </Button>
+          <Button onClick={conectar} disabled={enviando || chave.trim().length === 0} className="px-6">
+            {enviando ? 'Conferindo...' : 'Conectar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DialogoDeFerramentas({ integracao, aoFechar }: { integracao: IntegracaoDeConexao | null; aoFechar: () => void }) {
+  const fonteDeConexoes = useFonteDeConexoes()
+  const ferramentas = useDados(
+    fonteDeConexoes,
+    (fonte) =>
+      integracao && fonte.ferramentas
+        ? fonte.ferramentas(integracao.id).catch(() => null)
+        : Promise.resolve([]),
+    [integracao?.id],
+  )
+
+  return (
+    <Dialog open={integracao !== null} onOpenChange={(aberto) => !aberto && aoFechar()}>
+      <DialogContent className="gap-6 p-6 sm:max-w-lg">
+        <DialogTitle className="titulo-secao text-2xl">Ferramentas do {integracao?.nome}</DialogTitle>
+        <DialogDescription className="text-al-muted">
+          O que os agentes podem usar com o seu Acesso. As que escrevem ou gastam seguem a Permissão de cada agente.
+        </DialogDescription>
+        {ferramentas === undefined ? (
+          <Carregando />
+        ) : ferramentas === null ? (
+          <p className="text-sm text-al-erro">Não foi possível ler as ferramentas agora. Tente de novo em instantes.</p>
+        ) : ferramentas.length === 0 ? (
+          <p className="text-sm text-al-muted">O servidor não ofereceu ferramentas para a sua conta.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {ferramentas.map((ferramenta) => (
+              <li key={ferramenta.nome} className="flex flex-col gap-1 border-l-2 border-al-line pl-3">
+                <span className="font-normal">{ferramenta.nome}</span>
+                {ferramenta.descricao && <span className="text-sm text-al-muted">{ferramenta.descricao}</span>}
+                {ferramenta.escreve && <span className="rotulo">Escreve ou gasta</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 

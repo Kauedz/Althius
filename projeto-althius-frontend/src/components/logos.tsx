@@ -26,6 +26,8 @@ const NOME_DA_INTEGRACAO: Record<IntegracaoId, string> = {
   notion: 'Notion',
   'meta-ads': 'Meta Ads',
   'google-ads': 'Google Ads',
+  pipedrive: 'Pipedrive',
+  'rd-station': 'RD Station CRM',
 }
 
 /** O nome da Integração para o logo, já na primeira pintura, antes da lista assíncrona chegar. */

@@ -353,7 +353,16 @@ export interface ItemDeAtividade {
 }
 
 export type CanalId = 'slack' | 'whatsapp' | 'teams' | 'email'
-export type IntegracaoId = 'hubspot' | 'clay' | 'apollo' | 'lusha' | 'notion' | 'meta-ads' | 'google-ads'
+export type IntegracaoId =
+  | 'hubspot'
+  | 'clay'
+  | 'apollo'
+  | 'lusha'
+  | 'notion'
+  | 'meta-ads'
+  | 'google-ads'
+  | 'pipedrive'
+  | 'rd-station'
 
 export interface Canal {
   id: CanalId
