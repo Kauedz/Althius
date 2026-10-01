@@ -41,7 +41,7 @@ Para o usuário, quem responde é a Althius: o Hermes não diz o nome dele.
    (Supabase → Project Settings → API) e a `HERMES_API_KEY` (a mesma do passo 4). O `.env` não vai para o Git.
 6. **Ligar o worker**, noutro PowerShell, na raiz do repositório:
    ```powershell
-   npx -y deno@2 run --allow-net --allow-env --allow-read --env-file=supabase/functions/_hermes-worker/.env supabase/functions/_hermes-worker/main.ts
+   npx -y deno@2 run --node-modules-dir=none --allow-net --allow-env --allow-read --env-file=supabase/functions/_hermes-worker/.env supabase/functions/_hermes-worker/main.ts
    ```
    Ele diz "Hermes de pé, esperando pedidos."
 7. **Apontar a Edge Function para o Hermes** (uma vez):

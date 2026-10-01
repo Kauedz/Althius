@@ -34,7 +34,7 @@
    ```
    No terminal do worker, `Ctrl+C` e ligar de novo:
    ```powershell
-   npx -y deno@2 run --allow-net --allow-env --allow-read --env-file=supabase/functions/_hermes-worker/.env supabase/functions/_hermes-worker/main.ts
+   npx -y deno@2 run --node-modules-dir=none --allow-net --allow-env --allow-read --env-file=supabase/functions/_hermes-worker/.env supabase/functions/_hermes-worker/main.ts
    ```
 2. Nada muda para o Workspace de vocês até a cobrança ser ligada (ticket 06, `set_credits_enforced`). Para testar a falta de saldo num Workspace de teste, a IA liga e desliga a cobrança nele.
 

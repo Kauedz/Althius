@@ -89,4 +89,26 @@ describe('Kanban de Contas', () => {
     expect(await screen.findByRole('table', { name: 'Tabela de Contas' })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Vista' })).not.toBeInTheDocument()
   })
+
+  it('o cartão mostra o critério do Playbook para o próximo Estágio, e só quando o SLA e metas o traz', async () => {
+    renderizarApp('/contas?vista=kanban')
+    await screen.findByRole('list', { name: 'Kanban de Contas' })
+    const doFit = within(coluna('Fit')).getAllByRole('article')[0]
+    expect(await within(doFit).findByText('Para Em abordagem: 3 perfis mapeados e telefone válido')).toBeInTheDocument()
+    const daDescoberta = within(coluna('Descoberta')).getAllByRole('article')[0]
+    expect(within(daDescoberta).queryByText(/^Para /)).not.toBeInTheDocument()
+  })
+
+  it('mover para um Estágio com critério avisa o que o Playbook pede e deixa a Conta seguir', async () => {
+    const { usuario } = renderizarApp('/contas?vista=kanban')
+    await screen.findByRole('list', { name: 'Kanban de Contas' })
+    const cartao = within(coluna('Fit')).getAllByRole('article')[0]
+    const nome = cartao.getAttribute('aria-label')!
+
+    await usuario.selectOptions(within(cartao).getByRole('combobox', { name: `Mover ${nome}` }), 'em_abordagem')
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      `${nome} foi para Em abordagem. O Playbook pede: 3 perfis mapeados e telefone válido.`,
+    )
+    expect(await within(coluna('Em abordagem')).findByRole('article', { name: nome })).toBeInTheDocument()
+  })
 })
