@@ -48,3 +48,15 @@ verify_jwt = true
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+# Conexões funcionais (conexoes-funcionais 03): o participante conecta o próprio Acesso a uma Integração e vê as ferramentas
+# dela com o JWT do navegador; o banco confere a Participação ativa e a habilitação. O retorno do OAuth chega do app de
+# autorização sem JWT (redirecionamento do navegador): a função só aceita um `state` que casa com uma tentativa pendente.
+[functions.integration-connect]
+verify_jwt = true
+
+[functions.integration-callback]
+verify_jwt = false
+
+[functions.integration-tools]
+verify_jwt = true

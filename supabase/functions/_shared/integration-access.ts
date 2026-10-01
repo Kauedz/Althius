@@ -225,7 +225,7 @@ async function renovarAcesso(
       }
       return await reconectar()
     }
-    if (erro instanceof ErroDeOAuth) return falha({ tipo: 'indisponivel', mensagem: MENSAGENS.indisponivel })
+    // Rede, 5xx ou resposta fora do formato: o Acesso pode estar bom, então nada é marcado.
     return falha({ tipo: 'indisponivel', mensagem: MENSAGENS.indisponivel })
   }
 }
