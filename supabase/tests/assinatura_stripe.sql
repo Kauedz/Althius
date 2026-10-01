@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(25);
+select plan(27);
 
 -- Ana (Admin) e Bruno (Membro) do Norte, criado depois da cobrança (sem assinatura); o Sul tem a marca manual.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -35,13 +35,20 @@ select ok(
     and has_function_privilege('service_role', 'public.apply_stripe_subscription(uuid, text, text, text, integer, timestamptz, timestamptz)', 'execute')
     and not has_function_privilege('authenticated', 'public.grant_seat_credits(text, uuid, integer)', 'execute')
     and not has_function_privilege('authenticated', 'public.set_manual_release(uuid, boolean, text)', 'execute')
-    and not has_function_privilege('authenticated', 'public.set_billing_settings(numeric, integer)', 'execute')
+    and not has_function_privilege('authenticated', 'public.set_billing_settings(numeric, integer, boolean)', 'execute')
     and has_function_privilege('authenticated', 'public.workspace_access(uuid)', 'execute')
     and not has_function_privilege('anon', 'public.workspace_access(uuid)', 'execute'),
   'as permissões: tabelas fechadas, Stripe e ajustes só pelo servidor, o acesso pelo app'
 );
 
--- 2. Sem assinatura, o Workspace fica bloqueado; a marca manual libera.
+-- 2. Com a cobrança desligada (o padrão até o Stripe ir ao ar), todo Workspace abre.
+select pg_temp.entrar_como('5b000000-0000-0000-0000-000000000002');
+select is(pg_temp.acesso('fb000000-0000-0000-0000-000000000001'), '(t,cobranca_desligada,,2)', 'com a cobrança desligada, o Norte abre');
+reset role;
+select public.set_billing_settings(p_enforced => true);
+select is((select enforced from private.billing_settings), true, 'ligar a cobrança é do servidor');
+
+-- 2b. Ligada a cobrança: sem assinatura, o Workspace fica bloqueado; a marca manual libera.
 select pg_temp.entrar_como('5b000000-0000-0000-0000-000000000002');
 select is(pg_temp.acesso('fb000000-0000-0000-0000-000000000001'), '(f,sem_assinatura,,2)', 'sem assinatura, o Norte fica bloqueado');
 select pg_temp.entrar_como('5b000000-0000-0000-0000-000000000003');
@@ -113,7 +120,7 @@ select is(
 
 -- 6. A cota por fatura: zero enquanto o Nan não fecha o valor; depois, assentos × cota, uma vez por fatura.
 select is(public.grant_seat_credits('in_1', 'fb000000-0000-0000-0000-000000000001', 2), 0::numeric, 'com a cota em zero, a fatura não lança crédito');
-select public.set_billing_settings(100, 7);
+select public.set_billing_settings(100, 7);  -- não mexe no interruptor
 select is(public.grant_seat_credits('in_2', 'fb000000-0000-0000-0000-000000000001', 3), 300::numeric, 'com 100 por assento, 3 assentos trazem 300');
 select is(public.grant_seat_credits('in_2', 'fb000000-0000-0000-0000-000000000001', 3), 0::numeric, 'a mesma fatura não lança de novo');
 select is(

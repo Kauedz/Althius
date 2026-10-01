@@ -4,7 +4,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type MotivoDoAcesso = 'liberado_manual' | 'ativa' | 'atrasada' | 'sem_assinatura' | 'cancelada'
+export type MotivoDoAcesso = 'cobranca_desligada' | 'liberado_manual' | 'ativa' | 'atrasada' | 'sem_assinatura' | 'cancelada'
 
 export interface AcessoAoWorkspace {
   liberado: boolean

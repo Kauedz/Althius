@@ -41,6 +41,7 @@
    npx supabase functions deploy stripe-webhook --project-ref ycbdilsmydvzezhlymty --no-verify-jwt
    ```
 6. Decidir a cota de créditos por assento (depois de medir o custo real, ticket 01) e me dizer o número: eu gravo com `public.set_billing_settings`. Até lá, a fatura paga não lança crédito.
+7. Quando o Stripe estiver pronto e testado, me dizer "pode ligar a cobrança": eu rodo `public.set_billing_settings(p_enforced => true)`. Até lá a cobrança fica desligada e todo Workspace abre (a pré-produção segue testando contas novas). Os Workspaces que já existem continuam liberados mesmo depois de ligar.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
 
@@ -50,6 +51,7 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - Migration `20261001140000_assinatura_stripe.sql`: `private.workspace_subscriptions` (estado, liberação manual, cliente e assinatura do Stripe, assentos, fim do período), `billing_settings` (cota por assento, carência), `stripe_events` e `seat_credit_grants`. Funções: `workspace_access` (Participantes), `billing_context` (Administrador), e as do servidor (`record_stripe_customer`, `workspace_by_stripe_customer`, `apply_stripe_subscription`, `grant_seat_credits`, `claim_stripe_event`, `set_billing_settings`, `set_manual_release`). pgTAP `assinatura_stripe.sql` (25).
 - Edge Functions `stripe-billing` (checkout, portal, ajustar assentos) e `stripe-webhook` (assinatura e cota por fatura, assinatura do Stripe conferida), com testes Deno.
 - Escolhas pela experiência e pela margem: um assento por Participante ativo (mínimo 1); ajuste de assentos com cobrança proporcional; cupom aceito no Checkout; fatura atrasada mantém o Workspace aberto por 7 dias de carência; a cota de créditos entra só na criação e na renovação (o ajuste proporcional não dá crédito extra); evento atrasado do Stripe não desfaz um mais novo.
+- A cobrança nasce **desligada** (`billing_settings.enforced = false`): todo Workspace abre até o Nan ligar, para a pré-produção não travar contas novas de teste antes do Stripe estar pronto.
 - O bloqueio é da tela: se a leitura do acesso falha, o Workspace abre (nunca fecha por falha). As funções do banco ainda não recusam por falta de assinatura; isso pede rever cada função e fica para quando houver cliente pagando.
 
 ## Decisões a confirmar

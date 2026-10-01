@@ -27,10 +27,12 @@ create table private.workspace_subscriptions (
 alter table private.workspace_subscriptions enable row level security;
 revoke all on private.workspace_subscriptions from public, anon, authenticated, service_role;
 
--- Os números da cobrança, uma linha só. A cota de créditos por assento começa em zero até o Nan fechar o valor
--- depois de medir o custo real (ticket 01); a carência de uma fatura atrasada, em dias.
+-- Os números da cobrança, uma linha só. A cobrança começa desligada: até o Stripe estar configurado, todo Workspace
+-- abre (a pré-produção segue testando contas novas); o Nan liga quando for ao ar. A cota de créditos por assento começa
+-- em zero até o Nan fechar o valor depois de medir o custo real (ticket 01); a carência de uma fatura atrasada, em dias.
 create table private.billing_settings (
   id boolean primary key default true check (id),
+  enforced boolean not null default false,
   credits_per_seat numeric not null default 0 check (credits_per_seat >= 0),
   grace_days integer not null default 7 check (grace_days between 0 and 60),
   updated_at timestamptz not null default now()
@@ -89,18 +91,22 @@ as $$
 declare
   v private.workspace_subscriptions%rowtype;
   v_grace integer;
+  v_enforced boolean;
 begin
   perform private.require_active_membership(p_workspace_id);
   select * into v from private.workspace_subscriptions s where s.workspace_id = p_workspace_id;
-  select b.grace_days into v_grace from private.billing_settings b;
+  select b.grace_days, b.enforced into v_grace, v_enforced from private.billing_settings b;
   return query select
     case
+      when not v_enforced then true
       when v.manual_release then true
       when v.status = 'ativa' then true
       when v.status = 'atrasada' then coalesce(v.current_period_end, now()) + make_interval(days => v_grace) > now()
       else false
     end,
     case
+      when v.status in ('ativa', 'atrasada', 'cancelada') then v.status
+      when not v_enforced then 'cobranca_desligada'
       when v.manual_release then 'liberado_manual'
       when v.status is null then 'sem_assinatura'
       else v.status
@@ -244,16 +250,18 @@ exception when unique_violation then
 end;
 $$;
 
--- Ajustes da Althius, pelo servidor: a cota por assento e a carência, e a liberação manual de um Workspace.
-create function public.set_billing_settings(p_credits_per_seat numeric, p_grace_days integer default null)
-returns void
+-- Ajustes da Althius, pelo servidor: a cota por assento, a carência, ligar a cobrança e a liberação manual.
+create function public.set_billing_settings(
+  p_credits_per_seat numeric default null, p_grace_days integer default null, p_enforced boolean default null
+) returns void
 language sql
 security definer
 set search_path = ''
 as $$
   update private.billing_settings set
-    credits_per_seat = p_credits_per_seat,
+    credits_per_seat = coalesce(p_credits_per_seat, credits_per_seat),
     grace_days = coalesce(p_grace_days, grace_days),
+    enforced = coalesce(p_enforced, enforced),
     updated_at = now();
 $$;
 
@@ -276,7 +284,7 @@ revoke all on function public.workspace_by_stripe_customer(text) from public, an
 revoke all on function public.apply_stripe_subscription(uuid, text, text, text, integer, timestamptz, timestamptz) from public, anon, authenticated;
 revoke all on function public.grant_seat_credits(text, uuid, integer) from public, anon, authenticated;
 revoke all on function public.claim_stripe_event(text, text) from public, anon, authenticated;
-revoke all on function public.set_billing_settings(numeric, integer) from public, anon, authenticated;
+revoke all on function public.set_billing_settings(numeric, integer, boolean) from public, anon, authenticated;
 revoke all on function public.set_manual_release(uuid, boolean, text) from public, anon, authenticated;
 grant execute on function public.workspace_access(uuid) to authenticated;
 grant execute on function public.billing_context(uuid) to authenticated;
@@ -285,5 +293,5 @@ grant execute on function public.workspace_by_stripe_customer(text) to service_r
 grant execute on function public.apply_stripe_subscription(uuid, text, text, text, integer, timestamptz, timestamptz) to service_role;
 grant execute on function public.grant_seat_credits(text, uuid, integer) to service_role;
 grant execute on function public.claim_stripe_event(text, text) to service_role;
-grant execute on function public.set_billing_settings(numeric, integer) to service_role;
+grant execute on function public.set_billing_settings(numeric, integer, boolean) to service_role;
 grant execute on function public.set_manual_release(uuid, boolean, text) to service_role;
