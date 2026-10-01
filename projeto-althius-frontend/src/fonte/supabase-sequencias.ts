@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
@@ -203,6 +203,17 @@ function converterErro(error: { message: string; code?: string }): Error {
   return new Error(error.message)
 }
 
+/** Uma linha de send_outcome_rates; as contagens chegam como bigint, que o PostgREST pode mandar em texto. */
+interface RegistroDaTaxa {
+  channel: string
+  segment: string
+  sent: number | string
+  replied: number | string
+  positive: number | string
+  meetings: number | string
+  opportunities: number | string
+}
+
 export function criarFonteDeSequenciasSupabase(
   cliente: SupabaseClient,
   obterWorkspaceId: () => string,
@@ -348,6 +359,19 @@ export function criarFonteDeSequenciasSupabase(
       return this.atualizarDocumento(id, { participantesIds })
     },
     async metricasDeDemo(_id: string): Promise<MetricasDemoSequencia | null> { return null },
+    async taxasDosEnvios(): Promise<TaxaDosEnvios[]> {
+      const { data, error } = await cliente.rpc('send_outcome_rates', { p_workspace_id: workspace() })
+      if (error) throw converterErro(error)
+      return ((data ?? []) as RegistroDaTaxa[]).map((linha) => ({
+        canal: linha.channel,
+        segmento: linha.segment,
+        enviados: Number(linha.sent),
+        respostas: Number(linha.replied),
+        positivas: Number(linha.positive),
+        reunioes: Number(linha.meetings),
+        oportunidades: Number(linha.opportunities),
+      }))
+    },
     async envios(sequenciaId) {
       const row = await registroPorId(sequenciaId)
       if (row.owner_user_id !== obterUsuarioId()) return []

@@ -314,3 +314,22 @@ describe('Cadência do Playbook como modelo da Nova sequência', () => {
     expect((await fonteDeSequencias.sequenciaPorConta('figma'))?.steps).toEqual([])
   })
 })
+
+describe('Resultado dos envios em Sequências', () => {
+  it('mostra, por canal e segmento, os envios e os percentuais de resposta e de positiva', async () => {
+    renderizarApp('/sequencias')
+    const tabela = await screen.findByRole('table', { name: 'Resultado dos envios' })
+    const linhas = within(tabela).getAllByRole('row').slice(1)
+    expect(linhas.map((linha) => within(linha).getAllByRole('cell').map((c) => c.textContent))).toEqual([
+      ['E-mail', 'Infraestrutura de dados', '48', '25%', '15%', '4', '2'],
+      ['E-mail', 'Software de design', '20', '15%', '5%', '1', '0'],
+      ['LinkedIn', 'Infraestrutura de dados', '15', '33%', '13%', '1', '0'],
+    ])
+  })
+
+  it('sem Sequências, não há resultado para mostrar', async () => {
+    renderizarApp('/sequencias', {}, { vazia: true })
+    expect(await screen.findByText(/Nenhuma sequência ainda/i)).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Resultado dos envios' })).not.toBeInTheDocument()
+  })
+})
