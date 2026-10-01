@@ -37,7 +37,7 @@ select public.set_signal_actor_state('harvestapi~linkedin-company-employees', 'a
 
 -- 04 · Anúncio público de movimentação (até 40 posts: até US$ 0,08 por Conta)
 update private.signal_actors set max_cost_usd = 0.10,
-  known_price = 'US$ 2,00 por 1.000 posts mais US$ 0,00005 por execução na faixa Free; busca sem resultado cobra US$ 0,001. API pública do Apify, 30/09/2026.'
+  known_price = 'US$ 0,002 por post mais US$ 0,00005 por execução (tabela pública do Apify, 30/09/2026). Observado em 01/10/2026: 23 posts custaram US$ 0,046. Pelo teto de 40 posts, até US$ 0,08.'
 where actor_id = 'harvestapi~linkedin-post-search';
 select public.set_signal_actor_state('harvestapi~linkedin-post-search', 'available', '0.0.114');
 
@@ -48,10 +48,11 @@ where actor_id = 'curious_coder~facebook-ads-library-scraper';
 select public.set_signal_actor_state('curious_coder~facebook-ads-library-scraper', 'available', '2.7.26');
 
 -- 05 · Anunciando no LinkedIn (até 20 anúncios com detalhe: cerca de US$ 0,08 por Conta)
+-- Só depois de o signal-runner sair com a busca de 30 dias (a de 90 dias volta vazia).
 update private.signal_actors set max_cost_usd = 0.10,
-  known_price = 'US$ 4,00 por 1.000 anúncios com detalhe (US$ 2,00 sem) na faixa Free, mais US$ 0,00005 por execução. API pública do Apify, 30/09/2026.'
+  known_price = 'US$ 0,004 por anúncio com detalhe (US$ 0,002 sem) mais US$ 0,00005 por execução (tabela pública do Apify, 30/09/2026). Observado em 01/10/2026: 20 anúncios com detalhe custaram US$ 0,08.'
 where actor_id = 'silva95gustavo~linkedin-ad-library-scraper';
-select public.set_signal_actor_state('silva95gustavo~linkedin-ad-library-scraper', 'available', '1.2.2');
+select public.set_signal_actor_state('silva95gustavo~linkedin-ad-library-scraper', 'available', '1.2.3');
 
 -- 06 · Avaliações no Google Maps (a busca por nome pode trazer vários lugares: visto US$ 0,116 para 100 itens)
 update private.signal_actors set max_cost_usd = 0.15,
