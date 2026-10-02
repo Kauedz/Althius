@@ -762,6 +762,15 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         {/* Ações da regra de pause quando pausada; com a Conta arquivada, só restaurar a Conta libera a retomada */}
         {sequencia.status === 'pausada' && !sequencia.pausadaPelaConta && (
           <div className="flex items-center gap-2 shrink-0">
+            {/* canais-11: a Conta remetente caiu. Reconectar não retoma; depois, a pessoa retoma quando quiser. */}
+            {sequencia.pausadaPelaContaRemetente && (
+              <Link
+                to="/configuracoes/perfil"
+                className="inline-flex h-8 items-center border border-al-ink bg-al-ink px-3 text-xs tracking-rotulo text-al-bg uppercase hover:opacity-90"
+              >
+                Reconectar
+              </Link>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -2661,6 +2670,7 @@ function MiniaturaDoAnexoGuardado({ anexo, carregar }: { anexo: AnexoStep; carre
 function rotuloDoStatusPublico(sequencia: Sequencia): string {
   if (sequencia.status === 'encerrada') return 'Encerrada'
   if (sequencia.pausadaPelaConta) return 'Pausada: Conta-alvo arquivada'
+  if (sequencia.pausadaPelaContaRemetente) return 'Pausada: conta remetente do responsável desconectada'
   return sequencia.status === 'pausada' ? 'Contato respondeu; sequência pausada' : sequencia.status
 }
 

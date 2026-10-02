@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
@@ -196,12 +196,16 @@ function documentoDe(row: RegistroSequencia): DocumentoPrivado | null {
   return documento && typeof documento === 'object' ? documento as DocumentoPrivado : null
 }
 
-function mapear(row: RegistroSequencia, ehResponsavel: boolean): Sequencia {
+const NOME_DO_CANAL_DA_PAUSA: Record<string, string> = { email: 'E-mail', whatsapp: 'WhatsApp', linkedin: 'LinkedIn' }
+
+function mapear(row: RegistroSequencia, ehResponsavel: boolean, canalDaPausa?: CanalStep): Sequencia {
   const documento = ehResponsavel ? documentoDe(row) : null
   const resumo = row.public_summary
   const steps = documento?.steps ?? []
   const participantesIds = documento?.participantesIds ?? []
   const pausadaPelaConta = row.suspended_reason === 'account_archived'
+  // Só o estado: os demais leem que a conta do responsável caiu, nunca o documento (canais-11).
+  const pausadaPelaContaRemetente = row.status === 'pausada' && !pausadaPelaConta ? canalDaPausa : undefined
   const encerradaPor = row.ended_reason ? MOTIVO_DE_ENCERRAMENTO[row.ended_reason] : undefined
   return {
     id: row.id,
@@ -210,6 +214,10 @@ function mapear(row: RegistroSequencia, ehResponsavel: boolean): Sequencia {
     // A pausa pela Conta arquivada vale mais que o motivo guardado no documento: a Conta é o que trava a retomada.
     ...(pausadaPelaConta ? { motivoPause: 'Conta arquivada', pausadaPelaConta } : {}),
     ...(!pausadaPelaConta && ehResponsavel && documento?.motivoPause ? { motivoPause: documento.motivoPause } : {}),
+    ...(pausadaPelaContaRemetente ? { pausadaPelaContaRemetente } : {}),
+    ...(pausadaPelaContaRemetente && !ehResponsavel
+      ? { motivoPause: `Conta remetente de ${NOME_DO_CANAL_DA_PAUSA[pausadaPelaContaRemetente] ?? pausadaPelaContaRemetente} desconectada` }
+      : {}),
     ...(encerradaPor ? { encerradaPor } : {}),
     responsavel: ehResponsavel,
     totalSteps: ehResponsavel ? steps.length : numeroSeguro(resumo.totalSteps),
@@ -371,15 +379,32 @@ export function criarFonteDeSequenciasSupabase(
     return data as RegistroSequencia
   }
 
+  /**
+   * As Sequências do Workspace pausadas porque a Conta remetente do responsável caiu, e de qual Canal (canais-11). Só o
+   * estado; se a leitura falhar (ou o backend ainda não tiver a função), a tela segue sem o motivo.
+   */
+  async function pausasPelaContaRemetente(): Promise<Map<string, CanalStep>> {
+    try {
+      const { data, error } = await cliente.rpc('list_sequence_sender_holds', { p_workspace_id: workspace() })
+      if (error || !Array.isArray(data)) return new Map()
+      return new Map((data as { sequence_id: string; channel: string }[])
+        .filter((linha) => ehCanalSuportado(linha.channel))
+        .map((linha) => [linha.sequence_id, linha.channel as CanalStep]))
+    } catch {
+      return new Map()
+    }
+  }
+
   async function privada(id: string): Promise<Sequencia> {
     const row = await registroPorId(id)
     const ehResponsavel = row.owner_user_id === obterUsuarioId()
-    if (!ehResponsavel) return mapear(row, false)
+    const pausa = row.status === 'pausada' ? (await pausasPelaContaRemetente()).get(row.id) : undefined
+    if (!ehResponsavel) return mapear(row, false, pausa)
     const { data, error } = await cliente.rpc('get_owned_sequence', { p_sequence_id: id })
     if (error) throw converterErro(error)
     const ownerRow = (Array.isArray(data) ? data[0] : data) as RegistroSequencia | null
     if (!ownerRow) throw new Error('Sequência não encontrada ou sem autorização para leitura privada.')
-    return mapear(ownerRow, true)
+    return mapear(ownerRow, true, pausa)
   }
 
   return {
@@ -388,13 +413,14 @@ export function criarFonteDeSequenciasSupabase(
     async sequencias() {
       const rows = await listarRegistros()
       const usuarioId = obterUsuarioId()
+      const pausas = rows.some((row) => row.status === 'pausada') ? await pausasPelaContaRemetente() : new Map<string, CanalStep>()
       return Promise.all(rows.map(async (row) => {
-        if (row.owner_user_id !== usuarioId) return mapear(row, false)
+        if (row.owner_user_id !== usuarioId) return mapear(row, false, pausas.get(row.id))
         const { data, error } = await cliente.rpc('get_owned_sequence', { p_sequence_id: row.id })
         if (error) throw converterErro(error)
         const privateRow = (Array.isArray(data) ? data[0] : data) as RegistroSequencia | null
         if (!privateRow) throw new Error('Não foi possível carregar o documento privado de uma Sequência sua.')
-        return mapear(privateRow, true)
+        return mapear(privateRow, true, pausas.get(row.id))
       }))
     },
     sequencia: privada,

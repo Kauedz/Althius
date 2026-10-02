@@ -85,6 +85,11 @@ export interface Sequencia {
   encerradaPor?: MotivoDeEncerramento
   /** A Conta-alvo está arquivada: a Sequência fica pausada e só volta a ser retomada depois de restaurar a Conta. */
   pausadaPelaConta?: boolean
+  /**
+   * A Conta remetente do responsável neste Canal caiu (credenciais revogadas ou expiradas, conta removida): a Sequência
+   * pausou e nada sai. Reconectar não retoma; o responsável retoma quando quiser (canais-11).
+   */
+  pausadaPelaContaRemetente?: CanalStep
   participantesIds: string[]
   janelaPadrao: JanelaHorario
   regraDePause: string
