@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { bancoDoExecutorDeFerramenta, executarChamadaAprovada } from '../_shared/executor-de-aprovacoes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import { createHandler } from './handler.ts'
 
@@ -21,11 +22,14 @@ function clienteDaSessao(authorization: string, apikey: string) {
   })
 }
 
+const rpcDoServico = (nome: string, parametros: Record<string, unknown>) => admin.rpc(nome, parametros)
+const acesso = { banco: bancoDasIntegracoes(rpcDoServico), ambiente: (nome: string) => Deno.env.get(nome) }
+
 Deno.serve(createHandler({
-  acesso: {
-    banco: bancoDasIntegracoes((nome, parametros) => admin.rpc(nome, parametros)),
-    ambiente: (nome) => Deno.env.get(nome),
-  },
+  acesso,
+  // As Aprovações de ferramenta decididas na Conversa (ADR-0022) saem por aqui, logo depois de aprovadas.
+  executarChamada: ({ approvalId, administrador }) =>
+    executarChamadaAprovada({ banco: bancoDoExecutorDeFerramenta(rpcDoServico), acesso }, { approvalId, administrador }),
   async userFromJwt(authorization, apikey) {
     const { data, error } = await clienteDaSessao(authorization, apikey).auth.getUser(authorization.slice(7))
     if (error || !data.user) return null

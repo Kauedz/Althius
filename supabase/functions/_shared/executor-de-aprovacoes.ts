@@ -257,3 +257,174 @@ export function bancoDoExecutor(
     },
   }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// As Aprovações de ferramenta (ADR-0022): `{ tipo: 'ferramenta', integration_id, ferramenta, argumentos }`, que a
+// ferramenta `usar_conector` dos Agentes propõe. Executa exatamente aquela chamada, uma vez:
+//
+//   1. `tool_approval`            lê a Aprovação; pela tela, confere que quem pede a execução é Administrador ativo;
+//   2. `claim_approved_action`    reserva com o payload guardado (o banco confere o hash, a Permissão e a regra de novo);
+//   3. `chamarFerramenta`         pelo Acesso de quem pediu ao Agente, com o `agenteId` e a Aprovação em execução;
+//   4. `finish_approved_action`   fecha como executada ou falhou, com o motivo.
+
+/** A Aprovação de ferramenta como `tool_approval` devolve. */
+export interface AprovacaoDeFerramenta {
+  workspaceId: string
+  agenteId: string
+  integrationId: string
+  requestedBy: string | null
+  estado: string
+  /** `{ tipo: 'ferramenta', integration_id, ferramenta, argumentos }`, exatamente como foi guardado. */
+  payload: { ferramenta?: unknown; argumentos?: unknown } & Record<string, unknown>
+}
+
+export interface BancoDoExecutorDeFerramenta {
+  /** RPC `tool_approval`. Lança ErroDoBanco (P0002, 42501). */
+  lerAprovacao(approvalId: string, administrador: string | null): Promise<AprovacaoDeFerramenta>
+  /** RPC `claim_approved_action`: 'go' ou o motivo de não poder. */
+  reservar(approvalId: string, payload: unknown): Promise<string>
+  /** RPC `finish_approved_action`. */
+  encerrar(approvalId: string, ok: boolean, falha: string | null): Promise<void>
+}
+
+export interface DepsDoExecutorDeFerramenta {
+  banco: BancoDoExecutorDeFerramenta
+  acesso: DepsDeAcesso
+  log?: (campos: Record<string, unknown>) => void
+}
+
+export type DesfechoDaChamadaAprovada =
+  /** `resultado` é o que a ferramenta devolveu, cortado, para o Agente ou a tela. */
+  | { status: 'executada'; mensagem: string; resultado: string }
+  | { status: 'nao_liberada'; motivo: string; mensagem: string }
+  | { status: 'recusada'; mensagem: string }
+  | { status: 'falhou'; mensagem: string }
+
+const TAMANHO_DO_RESULTADO = 6000
+const MOTIVOS_DA_RESERVA_DE_FERRAMENTA: Record<string, string> = {
+  ...MOTIVOS_DA_RESERVA,
+  payload_changed: 'A chamada mudou depois da Aprovação. Nada foi feito.',
+  tool_blocked: 'O Administrador bloqueou esta ferramenta depois da Aprovação. Nada foi feito.',
+  tool_rule_changed: 'A regra desta ferramenta mudou: agora ela pede a decisão de um Administrador. Nada foi feito.',
+}
+
+function cortar(dado: unknown): string {
+  const json = JSON.stringify(dado ?? null)
+  return json.length > TAMANHO_DO_RESULTADO ? `${json.slice(0, TAMANHO_DO_RESULTADO)}…[cortado]` : json
+}
+
+function argumentosValidos(valor: unknown): valor is Record<string, unknown> | undefined {
+  return valor === undefined || (typeof valor === 'object' && valor !== null && !Array.isArray(valor))
+}
+
+export async function executarChamadaAprovada(
+  deps: DepsDoExecutorDeFerramenta,
+  { approvalId, administrador = null }: { approvalId: string; administrador?: string | null },
+): Promise<DesfechoDaChamadaAprovada> {
+  const log = deps.log ?? ((campos) => console.log(JSON.stringify(campos)))
+  const { banco } = deps
+  const registrar = (campos: Record<string, unknown>) => log({ type: 'approval_executor', tipo: 'ferramenta', approvalId, ...campos })
+
+  let aprovacao: AprovacaoDeFerramenta
+  try {
+    aprovacao = await banco.lerAprovacao(approvalId, administrador)
+  } catch (erro) {
+    if (erro instanceof ErroDoBanco && erro.codigo === '42501') {
+      return { status: 'recusada', mensagem: 'Só Administradores do Workspace executam Aprovações.' }
+    }
+    if (erro instanceof ErroDoBanco && erro.codigo === 'P0002') {
+      return { status: 'recusada', mensagem: 'Aprovação de ferramenta não encontrada.' }
+    }
+    throw erro
+  }
+
+  const reserva = await banco.reservar(approvalId, aprovacao.payload)
+  if (reserva !== 'go') {
+    registrar({ etapa: 'reservar', motivo: reserva })
+    return {
+      status: 'nao_liberada',
+      motivo: reserva,
+      mensagem: MOTIVOS_DA_RESERVA_DE_FERRAMENTA[reserva] ?? 'A Aprovação não pôde ser executada.',
+    }
+  }
+
+  // Daqui em diante a Aprovação está reservada: todo caminho a fecha, executada ou falhou.
+  const encerrar = async (ok: boolean, falha: string | null) => {
+    try {
+      await banco.encerrar(approvalId, ok, falha)
+    } catch (erro) {
+      registrar({ etapa: 'encerrar', erro: erro instanceof Error ? erro.message : 'desconhecido' })
+    }
+  }
+  const falhou = async (mensagem: string, erro: string): Promise<DesfechoDaChamadaAprovada> => {
+    await encerrar(false, mensagem)
+    registrar({ etapa: 'fim', ok: false, erro })
+    return { status: 'falhou', mensagem }
+  }
+
+  const ferramenta = typeof aprovacao.payload.ferramenta === 'string' ? aprovacao.payload.ferramenta : ''
+  const argumentos = aprovacao.payload.argumentos
+  if (!ferramenta || !aprovacao.requestedBy || !argumentosValidos(argumentos)) {
+    return await falhou('A Aprovação não traz uma chamada de ferramenta válida. Nada foi feito.', 'payload_invalido')
+  }
+
+  let r
+  try {
+    r = await chamarFerramenta(deps.acesso, {
+      workspaceId: aprovacao.workspaceId,
+      userId: aprovacao.requestedBy,
+      integrationId: aprovacao.integrationId,
+      ferramenta,
+      argumentos: argumentos ?? {},
+      agenteId: aprovacao.agenteId,
+      aprovacaoId: approvalId,
+    })
+  } catch (erro) {
+    return await falhou(
+      'A ferramenta falhou agora. Confira no app o que foi feito antes de pedir de novo.',
+      erro instanceof Error ? erro.name : 'desconhecido',
+    )
+  }
+  if (!r.ok) return await falhou(r.erro.mensagem, r.erro.tipo)
+  if (r.valor.erro) return await falhou(`O app recusou ${ferramenta}: ${cortar(r.valor.conteudo).slice(0, 400)}`, 'recusada_pelo_app')
+  await encerrar(true, null)
+  registrar({ etapa: 'fim', ok: true })
+  return { status: 'executada', mensagem: `${ferramenta} executada.`, resultado: cortar(r.valor.estruturado ?? r.valor.conteudo) }
+}
+
+/** O banco do executor de ferramentas pelas RPCs de serviço (migrations 20261001130000 e 20261002110000). */
+export function bancoDoExecutorDeFerramenta(
+  rpc: (nome: string, parametros: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>,
+): BancoDoExecutorDeFerramenta {
+  async function chamar<T>(nome: string, parametros: Record<string, unknown>): Promise<T> {
+    const { data, error } = await rpc(nome, parametros)
+    if (error) throw new ErroDoBanco(error.code ?? '', error.message)
+    return data as T
+  }
+  return {
+    async lerAprovacao(approvalId, administrador) {
+      const dados = await chamar<unknown>('tool_approval', { p_approval_id: approvalId, p_admin_user_id: administrador })
+      const linha = ((Array.isArray(dados) ? dados[0] : dados) ?? null) as {
+        workspace_id: string
+        agent_id: string
+        integration_id: string
+        requested_by: string | null
+        state: string
+        payload: AprovacaoDeFerramenta['payload']
+      } | null
+      if (!linha) throw new ErroDoBanco('P0002', 'tool approval not found')
+      return {
+        workspaceId: linha.workspace_id,
+        agenteId: linha.agent_id,
+        integrationId: linha.integration_id,
+        requestedBy: linha.requested_by,
+        estado: linha.state,
+        payload: linha.payload,
+      }
+    },
+    reservar: (approvalId, payload) => chamar<string>('claim_approved_action', { p_approval_id: approvalId, p_payload: payload }),
+    async encerrar(approvalId, ok, falha) {
+      await chamar('finish_approved_action', { p_approval_id: approvalId, p_ok: ok, p_failure: falha })
+    },
+  }
+}
