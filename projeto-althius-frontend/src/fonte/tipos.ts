@@ -363,6 +363,14 @@ export type IntegracaoId =
   | 'google-ads'
   | 'pipedrive'
   | 'rd-station'
+  // O catálogo ampliado de conectores (migration 20261002111000).
+  | 'slack'
+  | 'google-calendar'
+  | 'google-sheets'
+  | 'calendly'
+  | 'zoho-crm'
+  | 'bitrix24'
+  | 'tiktok-ads'
 
 export interface Canal {
   id: CanalId
@@ -371,7 +379,7 @@ export interface Canal {
   conectado: boolean
 }
 
-export type CategoriaDeIntegracao = 'CRM' | 'Enriquecimento' | 'Conhecimento' | 'Mídia paga'
+export type CategoriaDeIntegracao = 'CRM' | 'Enriquecimento' | 'Conhecimento' | 'Mídia paga' | 'Agenda' | 'Comunicação'
 
 export interface Integracao {
   id: IntegracaoId
