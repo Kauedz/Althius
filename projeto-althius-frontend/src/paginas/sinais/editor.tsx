@@ -5,7 +5,7 @@ import { Carregando, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
-import { useDados, useDadosDeSinais } from '@/fonte/contexto'
+import { useAmbiente, useCarregamento, useDadosDeContas, useDadosDeSinais, useFonte } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { publicoRecomendado } from '@/fonte/regras-memoria'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,9 @@ import {
 } from './catalogo'
 import { SecaoDoFormulario, SeloDoEstado } from './componentes'
 import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
+
+/** Monitoramento ainda sem id: no operacional o uuid nasce no banco, e um `novo-…` iria em `p_id`. */
+type MonitoramentoNoEditor = Omit<Monitoramento, 'id'> & { id?: string }
 import { podeMonitorar } from './disponibilidade'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
@@ -89,14 +92,22 @@ function prepararCriterios(descricao: string, fonte?: string): string[] {
   ]
 }
 
-function novoMonitoramento(tipo: TipoDeSinal, aceitaDescoberta: boolean, descricao: string): Monitoramento {
+function novoMonitoramento(
+  tipo: TipoDeSinal,
+  aceitaDescoberta: boolean,
+  descricao: string,
+  operacional: boolean,
+): MonitoramentoNoEditor {
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
   return {
-    id: `novo-${Math.random().toString(36).slice(2, 9)}`,
+    // Na Demonstração o id local marca o rascunho. No operacional ele não existe até o banco devolver o uuid.
+    ...(operacional ? {} : { id: `novo-${Math.random().toString(36).slice(2, 9)}` }),
     tipoId: tipo.id,
     nome: '',
     estado: 'rascunho',
-    publico: publicoInicial(aceitaDescoberta),
+    publico: operacional
+      ? { modo: 'listas', listas: [], usaRecomendado: false }
+      : publicoInicial(aceitaDescoberta),
     criterios: criteriosIniciais(tipo),
     descricao: personalizado ? descricao : undefined,
     criteriosLivres: personalizado ? [] : undefined,
@@ -126,12 +137,13 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const [parametros] = useSearchParams()
   const navegar = useNavigate()
   const { salvar } = useSinaisDoMockup()
+  const operacional = useAmbiente().modo === 'real'
   const familia = familiaDoTipo(tipo)
   const formulario = formularioDoTipo(tipo)
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
 
-  const [monitoramento, setMonitoramento] = useState<Monitoramento>(
-    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? ''),
+  const [monitoramento, setMonitoramento] = useState<MonitoramentoNoEditor>(
+    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional),
   )
   const [etapa, setEtapa] = useState<Etapa>(() => {
     if (!personalizado) return 'editar'
@@ -141,7 +153,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
 
   const jaFunciona = existente?.estado === 'ativo' || existente?.estado === 'pausado'
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
-  const mudar = (parcial: Partial<Monitoramento>) => setMonitoramento((atual) => ({ ...atual, ...parcial }))
+  const mudar = (parcial: Partial<MonitoramentoNoEditor>) => setMonitoramento((atual) => ({ ...atual, ...parcial }))
   const voltarAoTipo = (aviso: string) => navegar(`/sinais/tipos/${tipo.id}`, { state: { aviso } })
   const nomeValido = monitoramento.nome.trim().length > 0
 
@@ -241,6 +253,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
             <SecaoPublico
               publico={monitoramento.publico}
               aceitaDescoberta={familia?.descoberta ?? true}
+              operacional={operacional}
               aoMudar={(publico) => mudar({ publico })}
             />
 
@@ -292,6 +305,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
         {etapa === 'revisar' && (
           <Revisao
             monitoramento={monitoramento}
+            operacional={operacional}
             aoVoltar={() => setEtapa('editar')}
             aoAtivar={async () => {
               try {
@@ -461,18 +475,25 @@ function CampoDeCriterio({
 function SecaoPublico({
   publico,
   aceitaDescoberta,
+  operacional,
   aoMudar,
 }: {
   publico: Publico
   aceitaDescoberta: boolean
+  operacional: boolean
   aoMudar: (publico: Publico) => void
 }) {
   const modos: ModoDePublico[] = aceitaDescoberta ? ['listas', 'descoberta', 'ambos'] : ['listas']
   const comListas = publico.modo !== 'descoberta'
   const comDescoberta = publico.modo !== 'listas'
   // O público recomendado é lido do ICP vigente a cada abertura: aprovar uma revisão do ICP o atualiza aqui.
-  const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
+  const fonte = useFonte()
+  const { dados: memoria, erro: erroDaMemoria } = useCarregamento(fonte, (f) => f.memoriaDoWorkspace(), [])
+  const { dados: contasReais, carregando: carregandoContas } = useDadosDeContas((f) => f.contas(), [])
   const recomendado = memoria && publicoRecomendado(memoria.icp.secoes)
+  const opcoesDePublico = operacional
+    ? (contasReais ?? []).map((conta) => ({ id: conta.id, nome: conta.nome, detalhe: conta.dominio }))
+    : LISTAS.map((lista) => ({ id: lista.id, nome: lista.nome, detalhe: String(lista.contas) }))
 
   return (
     <SecaoDoFormulario numero="03" titulo="Público" descricao="Onde procurar os Sinais.">
@@ -492,7 +513,7 @@ function SecaoPublico({
               , aprovado em {formatarDiaIsoPorExtenso(memoria.icp.aprovadoEm)}.
             </p>
           </>
-        ) : (
+        ) : erroDaMemoria ? null : (
           <Carregando />
         )}
         {aceitaDescoberta && !comDescoberta && (
@@ -517,9 +538,13 @@ function SecaoPublico({
       </Grupo>
       <p className="-mt-3 text-xs text-al-muted">{DESCRICAO_DO_MODO[publico.modo]}</p>
 
-      {comListas && (
+      {comListas && operacional && carregandoContas && <Carregando />}
+      {comListas && !(operacional && carregandoContas) && opcoesDePublico.length === 0 && (
+        <p className="text-sm text-al-muted">Nenhuma Conta-alvo neste Workspace.</p>
+      )}
+      {comListas && !(operacional && carregandoContas) && opcoesDePublico.length > 0 && (
         <Grupo rotulo="Listas de Contas-alvo" papel="group">
-          {LISTAS.map((lista) => (
+          {opcoesDePublico.map((lista) => (
             <Opcao
               key={lista.id}
               marcada={publico.listas.includes(lista.id)}
@@ -527,7 +552,7 @@ function SecaoPublico({
                 aoMudar({ ...publico, listas: alternar(publico.listas, lista.id) })
               }
             >
-              {lista.nome} <span className="text-al-muted">· {lista.contas}</span>
+              {lista.nome} <span className="text-al-muted">· {lista.detalhe}</span>
             </Opcao>
           ))}
         </Grupo>
@@ -556,8 +581,8 @@ function Descrever({
   aoPreparar,
   aoVoltarAosCriterios,
 }: {
-  monitoramento: Monitoramento
-  mudar: (parcial: Partial<Monitoramento>) => void
+  monitoramento: MonitoramentoNoEditor
+  mudar: (parcial: Partial<MonitoramentoNoEditor>) => void
   aoPreparar: () => void
   aoVoltarAosCriterios?: () => void
 }) {
@@ -673,8 +698,8 @@ function CriteriosLivres({
   mudar,
   aoEditarDescricao,
 }: {
-  monitoramento: Monitoramento
-  mudar: (parcial: Partial<Monitoramento>) => void
+  monitoramento: MonitoramentoNoEditor
+  mudar: (parcial: Partial<MonitoramentoNoEditor>) => void
   aoEditarDescricao: () => void
 }) {
   const criterios = monitoramento.criteriosLivres ?? []
@@ -737,15 +762,26 @@ function CriteriosLivres({
   )
 }
 
+function textoDoPublicoOperacional(publico: Publico, contas: { id: string; nome: string }[]): string {
+  const nomes = publico.listas.map((id) => contas.find((conta) => conta.id === id)?.nome).filter((nome): nome is string => !!nome)
+  const listas = nomes.length > 0 ? nomes.join(', ') : 'Nenhuma Conta-alvo'
+  if (publico.modo === 'listas') return listas
+  if (publico.modo === 'descoberta') return 'Descoberta por perfil'
+  return `${listas} e descoberta por perfil`
+}
+
 function Revisao({
   monitoramento,
+  operacional,
   aoVoltar,
   aoAtivar,
 }: {
-  monitoramento: Monitoramento
+  monitoramento: MonitoramentoNoEditor
+  operacional: boolean
   aoVoltar: () => void
   aoAtivar: () => void
 }) {
+  const { dados: contasReais } = useDadosDeContas((f) => f.contas(), [])
   const linhas: [string, ReactNode][] = [['Nome', monitoramento.nome]]
   if (monitoramento.tipoId === TIPO_PERSONALIZADO.id) {
     linhas.push(['Descrição', monitoramento.descricao])
@@ -760,9 +796,12 @@ function Revisao({
       </ol>,
     ])
   } else {
-    for (const { rotulo, texto } of criteriosFormatados(monitoramento)) linhas.push([rotulo, texto])
+    for (const { rotulo, texto } of criteriosFormatados({ ...monitoramento, id: monitoramento.id ?? '' })) linhas.push([rotulo, texto])
   }
-  linhas.push(['Público', resumoDoPublico(monitoramento.publico)])
+  linhas.push([
+    'Público',
+    operacional ? textoDoPublicoOperacional(monitoramento.publico, contasReais ?? []) : resumoDoPublico(monitoramento.publico),
+  ])
   linhas.push(['Validade', `Cada Sinal deixa a Conta-alvo Quente por ${VALIDADE_EM_DIAS} dias a partir do disparo`])
 
   return (

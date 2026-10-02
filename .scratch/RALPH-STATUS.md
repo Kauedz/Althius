@@ -1,3 +1,14 @@
+# Ralph status — prospecção funcional
+
+Updated: 2026-10-02
+
+| Ticket | Status | Branch | PR | Motivo |
+| --- | --- | --- | --- | --- |
+| 00 | done | ralph/00-saude-do-build-da-main | https://github.com/Kauedz/Althius/pull/149 | Os seis checks já passam na `main` `34ed683`. CI run 37023681742 verde (frontend, banco, funções). Sem conserto de código. |
+| A1 | done | ralph/A1-criar-monitoramento-no-modo-real | — | Vitest do editor verde: no operacional `save_signal_monitor` vai com `p_id` nulo e o público em `accountIds` das Contas reais; editar manda só o uuid. Listas de exemplo ficam na Demonstração. Sinal em teste continua recusado. "Buscar Sinais de novo" já ligava com Monitoramento ativo e saldo. Sem migration e sem deploy. |
+
+---
+
 # Ralph status — early-send (CRM × Auth × Canais)
 Updated: 2026-09-25T20:35-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)

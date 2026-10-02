@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useFonteDeSinais } from '@/fonte/contexto'
-import type { FonteDeSinais, ParametrosSimulacaoDisparo, SinalEncontrado } from '@/fonte/sinais-tipos'
+import type { FonteDeSinais, NovoMonitoramento, ParametrosSimulacaoDisparo, SinalEncontrado } from '@/fonte/sinais-tipos'
 import type { EstadoDoMonitoramento, Monitoramento } from './dados-mock'
 
 interface SinaisDoMockup {
   monitoramentos: Monitoramento[]
-  salvar: (monitoramento: Monitoramento) => Promise<Monitoramento>
+  salvar: (monitoramento: Monitoramento | NovoMonitoramento) => Promise<Monitoramento>
   mudarEstado: (id: string, estado: EstadoDoMonitoramento) => Promise<Monitoramento>
   simularDisparo: (parametros: ParametrosSimulacaoDisparo) => Promise<SinalEncontrado>
 }
@@ -47,7 +47,7 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
   }, [fonte])
 
   const salvar = useCallback(
-    async (monitoramento: Monitoramento): Promise<Monitoramento> => {
+    async (monitoramento: Monitoramento | NovoMonitoramento): Promise<Monitoramento> => {
       if (fonte) {
         const salvo = await fonte.salvarMonitoramento(monitoramento)
         setMonitoramentos((atuais) => {
@@ -61,12 +61,14 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
         })
         return salvo
       }
+      // Sem fonte o rascunho fica só na sessão. O operacional sempre tem fonte e não passa por aqui.
+      const gravado = monitoramento as Monitoramento
       setMonitoramentos((atuais) =>
-        atuais.some((m) => m.id === monitoramento.id)
-          ? atuais.map((m) => (m.id === monitoramento.id ? monitoramento : m))
-          : [...atuais, monitoramento],
+        atuais.some((m) => m.id === gravado.id)
+          ? atuais.map((m) => (m.id === gravado.id ? gravado : m))
+          : [...atuais, gravado],
       )
-      return monitoramento
+      return gravado
     },
     [fonte],
   )

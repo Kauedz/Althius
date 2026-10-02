@@ -8,7 +8,8 @@ import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from './componentes'
 export function RegistrarAberturaDeSinais() {
   const fonte = useFonteDeOnboarding()
   useEffect(() => {
-    void fonte.registrarVisitaASinais()
+    // No operacional o onboarding ainda não existe: abrir Sinais não marca o checklist, e a recusa não pode escapar.
+    void fonte.registrarVisitaASinais().catch(() => {})
   }, [fonte])
   return null
 }
