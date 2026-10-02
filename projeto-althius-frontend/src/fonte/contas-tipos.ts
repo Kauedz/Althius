@@ -507,4 +507,15 @@ export interface FonteDeContas extends FonteObservavel {
 
   /** O estado do Envio ao CRM da Conta; nulo quando ela nunca foi enviada. */
   envioAoCrm?(contaId: string): Promise<EnvioAoCrm | null>
+
+  /**
+   * O Envio ao CRM pelos Agentes (ADR-0023), para o CRM conectado pela autorização (servidor MCP): o mesmo pacote vira um
+   * pedido aos Agentes numa Conversa nova, e eles escrevem pelas ferramentas do próprio conector, cada escrita com a
+   * regra dela (no padrão, uma Aprovação no passo da Conversa). Devolve a Conversa para a tela abrir. Rejeita com a
+   * mensagem do servidor. Sem este método, o envio pela autorização segue o caminho de `enviarAoCrm`.
+   */
+  enviarAoCrmPelosAgentes?(contaId: string, integracaoId: IntegracaoId): Promise<{ conversaId: string }>
+
+  /** A Conversa do Envio ao CRM pelos Agentes da Conta, quando a pessoa o pediu; nula fora disso. */
+  conversaDoEnvioAoCrm?(contaId: string): Promise<string | null>
 }
