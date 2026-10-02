@@ -12,3 +12,7 @@
 - [ ] O cartão do Apollo não oferece Sincronização.
 - [ ] Os testes do app cobrem o cartão do Apollo nos seus estados.
 - [ ] Conferência visual no navegador, com prints no `## Comments` deste ticket. A conexão com uma conta real do Apollo fica registrada como pendência humana, se ninguém tiver conta para o teste.
+1. Aplicar a migration e publicar (ticket 30): aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect integration-callback --project-ref ycbdilsmydvzezhlymty`.
+2. Se o registro dinâmico não for aceito, registrar o app OAuth de parceiro (Apollo Partnerships) e gravar `APOLLO_MCP_CLIENT_ID` e `APOLLO_MCP_CLIENT_SECRET`.
+
+Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.

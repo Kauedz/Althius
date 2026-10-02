@@ -20,7 +20,8 @@
 
 - [x] Com Propor, nada sai sem Aprovação. (Etapa 5b: o Agente propõe com `propor_envio_ao_crm`, a Aprovação guarda o conteúdo exato e o executor só envia depois de `claim_approved_action` reservá-la; `chamarFerramenta` só libera a escrita de quem tem Propor enquanto a Aprovação dele está em execução.)
 - [x] Com Executar, a Aprovação nasce liberada e o executor envia na hora, pelo Acesso de quem pediu ao Agente (que precisa ser o Vendedor responsável).
-- [ ] O Administrador decide a Aprovação de envio no Workspace operacional (a fila real segue desligada, CRM-15).
+- [x] O Administrador decide a Aprovação de envio no Workspace operacional: na própria Conversa, no passo do Agente (2026-10-02, `conexoes-funcionais` 30); a fila real segue desligada (CRM-15).
+- [ ] Enviar ao CRM pelo caminho genérico dos conectores: o botão abre um pedido aos Agentes, que levam a empresa, os Contatos e a nota com as ferramentas do próprio conector (desenho e ponto aberto no `conexoes-funcionais` 30). O caminho REST por chave de API continua.
 - [x] Depois do envio, a Althius não escreve de novo sem pedido (índice único em `private.crm_handoffs`; `begin_crm_handoff` recusa com 23505).
 - [x] Só o Vendedor responsável, com Participação ativa, envia; outro Workspace não alcança a Conta; Integração que não é CRM é recusada (pgTAP `envio_ao_crm.sql`).
 - [x] O envio usa o Acesso do PRÓPRIO participante (chave de API); pelo OAuth/MCP responde 409 pedindo a chave, sem inventar ferramenta MCP.
@@ -41,6 +42,8 @@
 
 - **Etapa 5b (2026-10-01).** Migration `20261001210000_ferramentas_dos_agentes.sql`: `agent_propose_crm_handoff`, `crm_handoff_approval`, `begin_approved_crm_handoff` (liga a tentativa em `private.crm_handoffs.approval_id`) e `approval_in_execution`. Executor `_shared/executor-de-aprovacoes.ts`, reaproveitando `escreverNoCrm`; ação `executar_aprovacao` no `crm-handoff`. Na Conversa, o passo diz "Rhetor propôs enviar a Acme ao HubSpot — aguardando Aprovação", com o link "Ver a Aprovação".
 
+- **2026-10-02 (conectores genéricos, `conexoes-funcionais` 30).** A permissão por ferramenta (ADR-0022) vale também aqui: uma ferramenta de escrita "bloqueada" pelo Administrador no CRM faz o envio falhar com o motivo, e no executor das Aprovações a escrita só passa com a Aprovação em execução (como já era). O "Enviar ao CRM" pelo caminho genérico (o botão abrindo um pedido aos Agentes) não foi feito, para não deixar meio-caminho: o desenho e o ponto aberto (como ligar a tentativa à chamada que criou a empresa, sem código por app) estão no ticket 30.
+
 ## Passos do Nan
 
 **A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan. Com muitos passos, gera um wizard (`/wizard`).**
@@ -60,3 +63,8 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 6. Aplicar `supabase/migrations/20261001210000_ferramentas_dos_agentes.sql` no projeto `ycbdilsmydvzezhlymty` conforme `docs/agents/migrations.md`, depois da 20261001200000.
 7. Publicar: `npx supabase functions deploy agent-conversation crm-handoff --project-ref ycbdilsmydvzezhlymty` (e `npx supabase functions deploy integration-tools integration-connect integration-callback --project-ref ycbdilsmydvzezhlymty`, pelo código compartilhado do Acesso). Com o Hermes, atualizar e reiniciar o worker.
 8. Conferência: com o Rhetor em Executar no HubSpot, pedir na Conversa que ele leve uma Conta-alvo sua ao HubSpot e ver a Company no HubSpot e o cartão em No CRM.
+
+### 2026-10-02 (permissão por ferramenta)
+
+9. Aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect integration-callback --project-ref ycbdilsmydvzezhlymty`.
+10. Conferência: com o Rhetor em Propor no HubSpot, pedir na Conversa o envio de uma Conta sua e aprovar no próprio passo da Conversa; em Conexões > HubSpot > Ver ferramentas, conferir que as de escrita aparecem em "Pedir aprovação".
