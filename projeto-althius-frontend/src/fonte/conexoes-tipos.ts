@@ -57,6 +57,20 @@ export interface FerramentaDaIntegracao {
   escreve: boolean
 }
 
+/**
+ * A permissão de uma ferramenta do conector no Workspace, decidida pelo Administrador (ADR-0022): sempre permitir, pedir
+ * Aprovação ou bloquear. Sem decisão, vale o padrão: leitura sempre, escrita ou gasto pede Aprovação.
+ */
+export type RegraDaFerramenta = 'sempre' | 'aprovacao' | 'bloqueada'
+
+/** A regra que vale para a ferramenta: a decidida ou o padrão. */
+export function regraDaFerramenta(
+  regras: Partial<Record<string, RegraDaFerramenta>>,
+  ferramenta: Pick<FerramentaDaIntegracao, 'nome' | 'escreve'>,
+): RegraDaFerramenta {
+  return regras[ferramenta.nome] ?? (ferramenta.escreve ? 'aprovacao' : 'sempre')
+}
+
 export type CanalDeConexao = ItemDeCanal
 export type IntegracaoDeConexao = ItemDeIntegracao
 
@@ -82,4 +96,8 @@ export interface FonteDeConexoes extends FonteObservavel {
   desconectarAcesso?(id: IntegracaoId): Promise<void>
   /** As ferramentas que o servidor da Integração oferece, lidas com o próprio Acesso. */
   ferramentas?(id: IntegracaoId): Promise<FerramentaDaIntegracao[]>
+  /** As regras decididas para as ferramentas da Integração; a que não consta segue o padrão. */
+  regrasDasFerramentas?(id: IntegracaoId): Promise<Partial<Record<string, RegraDaFerramenta>>>
+  /** O Administrador decide a regra de uma ferramenta; nulo volta ao padrão. */
+  definirRegraDaFerramenta?(id: IntegracaoId, ferramenta: string, regra: RegraDaFerramenta | null): Promise<void>
 }

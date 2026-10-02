@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useAmbiente, useDados, useFonte, useFonteDeConexoes } from '@/fonte/contexto'
 import type { Aprovacao, CanalId, CategoriaDeIntegracao, IntegracaoId } from '@/fonte/tipos'
-import type { AcessoDaIntegracao, IntegracaoDeConexao } from '@/fonte/conexoes-tipos'
+import {
+  type AcessoDaIntegracao,
+  type FerramentaDaIntegracao,
+  type IntegracaoDeConexao,
+  type RegraDaFerramenta,
+  regraDaFerramenta,
+} from '@/fonte/conexoes-tipos'
 import { idaAoApp } from '@/paginas/ida-ao-app'
 
 /** O que a volta da autorização (`?conexao=erro&motivo=…`, da Edge Function integration-callback) quer dizer. */
@@ -199,6 +205,13 @@ export function PaginaConexoes() {
                         descricao={integracao.descricao}
                         conectado={integracao.habilitada}
                         aoConectar={() => setConectando(integracao)}
+                        extra={
+                          integracao.habilitada && fonteDeConexoes.ferramentas && (
+                            <Button variant="outline" onClick={() => setVendoFerramentas(integracao)} className="px-4">
+                              Ver ferramentas
+                            </Button>
+                          )
+                        }
                       />
                     ),
                   )}
@@ -222,7 +235,12 @@ export function PaginaConexoes() {
 
       <DialogoDeConexao conexao={conectando} aoFechar={() => setConectando(null)} />
       <DialogoDeChave integracao={comChave} aoFechar={() => setComChave(null)} />
-      <DialogoDeFerramentas integracao={vendoFerramentas} aoFechar={() => setVendoFerramentas(null)} />
+      <DialogoDeFerramentas
+        integracao={vendoFerramentas}
+        ehAdministrador={ehAdministrador}
+        demonstracao={modo === 'demonstracao'}
+        aoFechar={() => setVendoFerramentas(null)}
+      />
       <DialogoDePrevia canalId={previa} aoFechar={() => setPrevia(null)} />
     </Pagina>
   )
@@ -430,7 +448,23 @@ function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeCone
   )
 }
 
-function DialogoDeFerramentas({ integracao, aoFechar }: { integracao: IntegracaoDeConexao | null; aoFechar: () => void }) {
+const OPCOES_DA_REGRA: [RegraDaFerramenta, string][] = [
+  ['sempre', 'Sempre permitir'],
+  ['aprovacao', 'Pedir aprovação'],
+  ['bloqueada', 'Bloquear'],
+]
+
+function DialogoDeFerramentas({
+  integracao,
+  ehAdministrador,
+  demonstracao,
+  aoFechar,
+}: {
+  integracao: IntegracaoDeConexao | null
+  ehAdministrador: boolean
+  demonstracao: boolean
+  aoFechar: () => void
+}) {
   const fonteDeConexoes = useFonteDeConexoes()
   const ferramentas = useDados(
     fonteDeConexoes,
@@ -440,14 +474,51 @@ function DialogoDeFerramentas({ integracao, aoFechar }: { integracao: Integracao
         : Promise.resolve([]),
     [integracao?.id],
   )
+  // Sem a leitura das regras (ou se ela falhar), cada ferramenta mostra o padrão.
+  const regrasLidas = useDados(
+    fonteDeConexoes,
+    (fonte) =>
+      integracao && fonte.regrasDasFerramentas ? fonte.regrasDasFerramentas(integracao.id).catch(() => ({})) : Promise.resolve({}),
+    [integracao?.id],
+  )
+  const [mudancas, setMudancas] = useState<Partial<Record<string, RegraDaFerramenta>>>({})
+  const [salvando, setSalvando] = useState<string | null>(null)
+  const [erro, setErro] = useState('')
+  const regras = { ...(regrasLidas ?? {}), ...mudancas }
+  const podeMudar = ehAdministrador && !!fonteDeConexoes.definirRegraDaFerramenta
+
+  function fechar() {
+    setMudancas({})
+    setErro('')
+    aoFechar()
+  }
+
+  async function definir(ferramenta: FerramentaDaIntegracao, regra: RegraDaFerramenta) {
+    if (!integracao || !fonteDeConexoes.definirRegraDaFerramenta || !podeMudar) return
+    setErro('')
+    setSalvando(ferramenta.nome)
+    try {
+      await fonteDeConexoes.definirRegraDaFerramenta(integracao.id, ferramenta.nome, regra)
+      setMudancas((atuais) => ({ ...atuais, [ferramenta.nome]: regra }))
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível salvar a permissão agora.')
+    } finally {
+      setSalvando(null)
+    }
+  }
 
   return (
-    <Dialog open={integracao !== null} onOpenChange={(aberto) => !aberto && aoFechar()}>
-      <DialogContent className="gap-6 p-6 sm:max-w-lg">
+    <Dialog open={integracao !== null} onOpenChange={(aberto) => !aberto && fechar()}>
+      <DialogContent className="max-h-[85vh] gap-6 overflow-y-auto p-6 sm:max-w-lg">
         <DialogTitle className="titulo-secao text-2xl">Ferramentas do {integracao?.nome}</DialogTitle>
         <DialogDescription className="text-al-muted">
           O que os agentes podem usar com o seu Acesso. As que escrevem ou gastam seguem a Permissão de cada agente.
         </DialogDescription>
+        {demonstracao && <p className="anotacao">exemplos da Demonstração: no Workspace, a lista vem do próprio app</p>}
+        {!podeMudar && ferramentas && ferramentas.length > 0 && (
+          <p className="text-xs text-al-muted">Só um Administrador muda a permissão de cada ferramenta.</p>
+        )}
+        {erro && <p className="text-sm text-al-erro">{erro}</p>}
         {ferramentas === undefined ? (
           <Carregando />
         ) : ferramentas === null ? (
@@ -461,6 +532,25 @@ function DialogoDeFerramentas({ integracao, aoFechar }: { integracao: Integracao
                 <span className="font-normal">{ferramenta.nome}</span>
                 {ferramenta.descricao && <span className="text-sm text-al-muted">{ferramenta.descricao}</span>}
                 {ferramenta.escreve && <span className="rotulo">Escreve ou gasta</span>}
+                <div
+                  role="radiogroup"
+                  aria-label={`Permissão de ${ferramenta.nome}`}
+                  className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-sm"
+                >
+                  {OPCOES_DA_REGRA.map(([valor, rotulo]) => (
+                    <label key={valor} className="flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name={`regra-${ferramenta.nome}`}
+                        value={valor}
+                        checked={regraDaFerramenta(regras, ferramenta) === valor}
+                        disabled={!podeMudar || salvando !== null}
+                        onChange={() => definir(ferramenta, valor)}
+                      />
+                      {rotulo}
+                    </label>
+                  ))}
+                </div>
               </li>
             ))}
           </ul>

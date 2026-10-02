@@ -1,7 +1,28 @@
 import * as demo from './dados-demo'
 import type { ArmazenamentoDemonstrativo } from './simulada-participacoes'
 import type { CanalId, CategoriaDeIntegracao, IntegracaoFutura, IntegracaoId, PreviaDeCanal } from './tipos'
-import type { FonteDeConexoes } from './conexoes-tipos'
+import type { FerramentaDaIntegracao, FonteDeConexoes, RegraDaFerramenta } from './conexoes-tipos'
+
+/** Ferramentas de exemplo da Demonstração: no Workspace operacional, a lista vem do servidor de cada conector. */
+const FERRAMENTAS_DE_EXEMPLO: Partial<Record<IntegracaoId, FerramentaDaIntegracao[]>> = {
+  hubspot: [
+    { nome: 'search_companies', descricao: 'Busca empresas no CRM.', escreve: false },
+    { nome: 'create_company', descricao: 'Cria uma empresa no CRM.', escreve: true },
+    { nome: 'create_note', descricao: 'Cria uma nota num registro do CRM.', escreve: true },
+  ],
+  notion: [
+    { nome: 'notion-search', descricao: 'Busca páginas e bases.', escreve: false },
+    { nome: 'notion-create-pages', descricao: 'Cria páginas.', escreve: true },
+  ],
+  'meta-ads': [
+    { nome: 'ler_relatorio', descricao: 'Lê o desempenho das campanhas.', escreve: false },
+    { nome: 'criar_campanha', descricao: 'Cria uma campanha (gasta verba).', escreve: true },
+  ],
+}
+const FERRAMENTAS_PADRAO_DE_EXEMPLO: FerramentaDaIntegracao[] = [
+  { nome: 'buscar', descricao: 'Busca registros.', escreve: false },
+  { nome: 'criar', descricao: 'Cria um registro.', escreve: true },
+]
 
 export interface OpcoesFonteDeConexoesSimulada {
   atrasoMs?: number
@@ -20,6 +41,7 @@ export function criarFonteDeConexoesSimulada({
     integracoes: demo.integracoes,
     previas: demo.previas,
   })
+  const regras = new Map<IntegracaoId, Partial<Record<string, RegraDaFerramenta>>>()
 
   function avisar() {
     ouvintes.forEach((o) => o())
@@ -72,6 +94,18 @@ export function criarFonteDeConexoesSimulada({
         const integracao = estado.integracoes.find((i) => i.id === id)
         if (integracao) integracao.conectada = true
         avisar()
+      }),
+
+    ferramentas: (id: IntegracaoId) => responder(() => structuredClone(FERRAMENTAS_DE_EXEMPLO[id] ?? FERRAMENTAS_PADRAO_DE_EXEMPLO)),
+
+    regrasDasFerramentas: (id: IntegracaoId) => responder(() => ({ ...(regras.get(id) ?? {}) })),
+
+    definirRegraDaFerramenta: (id: IntegracaoId, ferramenta: string, regra: RegraDaFerramenta | null) =>
+      responder(() => {
+        const atuais = { ...(regras.get(id) ?? {}) }
+        if (regra) atuais[ferramenta] = regra
+        else delete atuais[ferramenta]
+        regras.set(id, atuais)
       }),
 
     previaDeCanal: (canalId: CanalId): Promise<PreviaDeCanal> =>

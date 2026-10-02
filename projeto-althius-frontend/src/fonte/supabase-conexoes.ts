@@ -9,6 +9,7 @@ import type {
   FerramentaDaIntegracao,
   FonteDeConexoes,
   IntegracaoDeConexao,
+  RegraDaFerramenta,
 } from './conexoes-tipos'
 import type { CanalId, CategoriaDeIntegracao, IntegracaoFutura, IntegracaoId, PreviaDeCanal } from './tipos'
 
@@ -178,6 +179,31 @@ export function criarFonteDeConexoesSupabase(
       if (error) throw new Error(await mensagemDaFuncao(error, 'Não foi possível ler as ferramentas agora. Tente de novo em instantes.'))
       const lista = (data as { ferramentas?: unknown } | null)?.ferramentas
       return Array.isArray(lista) ? (lista as FerramentaDaIntegracao[]) : []
+    },
+
+    async regrasDasFerramentas(id: IntegracaoId): Promise<Partial<Record<string, RegraDaFerramenta>>> {
+      const { data, error } = await cliente.rpc('list_integration_tool_rules', {
+        p_workspace_id: obterWorkspaceId(),
+        p_integration_id: id,
+      })
+      if (error) throw new Error('Não foi possível ler as permissões das ferramentas agora.')
+      const linhas = (data ?? []) as { tool_name: string; rule: RegraDaFerramenta }[]
+      return Object.fromEntries(linhas.map((linha) => [linha.tool_name, linha.rule]))
+    },
+
+    async definirRegraDaFerramenta(id: IntegracaoId, ferramenta: string, regra: RegraDaFerramenta | null): Promise<void> {
+      const { error } = await cliente.rpc('set_integration_tool_rule', {
+        p_workspace_id: obterWorkspaceId(),
+        p_integration_id: id,
+        p_tool_name: ferramenta,
+        p_rule: regra,
+      })
+      if (error) {
+        if (error.message.includes('only administrators can set tool rules')) {
+          throw new Error('Só um Administrador muda a permissão de cada ferramenta.')
+        }
+        throw new Error('Não foi possível salvar a permissão agora. Tente de novo em instantes.')
+      }
     },
 
     async previaDeCanal(_canalId: CanalId): Promise<PreviaDeCanal> {
