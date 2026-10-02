@@ -49,7 +49,7 @@
 3. Se o motor for o Hermes (`AGENT_PROVIDER=hermes`): atualizar o código do worker (`supabase/functions/_hermes-worker`) na máquina dele e reiniciá-lo, como no README da pasta.
 4. Conferência real: dar a um Agente a Permissão Executar no HubSpot, pedir na Conversa "Rhetor, leve a <Conta sob sua responsabilidade> ao HubSpot" e ver o envio no HubSpot e a Aprovação executada. Com Propor, a Aprovação fica pendente (a fila ainda está desligada, ver acima).
 
-5. (2026-10-02) Aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect integration-callback --project-ref ycbdilsmydvzezhlymty`. Conferência: com o Rhetor em Propor no HubSpot, pedir na Conversa o envio de uma Conta sua; aprovar no próprio passo da Conversa, como Administrador, e ver o envio no HubSpot.
+5. (2026-10-02) Aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect --project-ref ycbdilsmydvzezhlymty` e `npx supabase functions deploy integration-callback --no-verify-jwt --project-ref ycbdilsmydvzezhlymty`. Conferência: com o Rhetor em Propor no HubSpot, pedir na Conversa o envio de uma Conta sua; aprovar no próprio passo da Conversa, como Administrador, e ver o envio no HubSpot.
 
 ## Decisões a confirmar
 

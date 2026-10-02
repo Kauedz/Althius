@@ -68,7 +68,7 @@
 
 1. Aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` no projeto `ycbdilsmydvzezhlymty` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql` e também `aprovacoes_reais.sql` e `ferramentas_dos_agentes.sql`, aplicar e conferir o md5). Depende de 20261001130000 e 20261001210000 já aplicadas.
 2. Publicar as funções (PowerShell, na raiz do repositório):
-   `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect integration-callback --project-ref ycbdilsmydvzezhlymty`
+   `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect --project-ref ycbdilsmydvzezhlymty` e `npx supabase functions deploy integration-callback --no-verify-jwt --project-ref ycbdilsmydvzezhlymty`
    (o código compartilhado do Acesso mudou; nenhum segredo novo para este ticket). Com o Hermes (`AGENT_PROVIDER=hermes`), atualizar o código de `supabase/functions/_hermes-worker` na máquina dele e reiniciá-lo.
 3. Publicar o frontend como de costume.
 4. Conferência real: em Conexões, conectar o Notion, abrir "Ver ferramentas", deixar uma de escrita em "Pedir aprovação"; dar ao Rhetor a Permissão Executar no Notion; pedir na Conversa "Rhetor, crie no Notion uma página com a pauta da <Conta>"; ver o passo com a Aprovação, aprovar ali e conferir a página no Notion e a Aprovação "Aprovada · executada". Repetir com a ferramenta em "Bloquear" (o Agente diz que está bloqueada) e em "Sempre permitir" (a página sai sem Aprovação).
