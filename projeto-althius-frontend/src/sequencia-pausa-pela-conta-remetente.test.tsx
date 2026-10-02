@@ -91,7 +91,9 @@ describe('Sequência pausada pela Conta remetente (canais-11)', () => {
 
     await usuario.click(screen.getByRole('button', { name: 'Retomar' }))
     await waitFor(() => expect(atualizacoes.at(-1)?.p_status).toBe('ativa'))
-    expect((atualizacoes.at(-1)?.p_private_document as Record<string, unknown>).motivoPause).toBeUndefined()
+    const documento = atualizacoes.at(-1)?.p_private_document as Record<string, unknown> | undefined
+    expect(documento).toBeDefined()
+    expect(documento?.motivoPause).toBeUndefined()
   })
 
   it('quem não é o responsável lê só que a conta remetente dele caiu, e não "Contato respondeu"', async () => {
