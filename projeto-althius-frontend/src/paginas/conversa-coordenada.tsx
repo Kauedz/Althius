@@ -12,6 +12,7 @@ import { useDados } from '@/fonte/contexto'
 import type { AcaoProposta, Agente, AgenteId, Integracao, LinkDoPasso as DestinoDoPasso } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
+import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
 import { NomeDaConversa } from '@/paginas/nome-da-conversa'
 import { NascimentoSequenciaNaConversa } from '@/paginas/nascimento-sequencia-na-conversa'
 
@@ -270,6 +271,7 @@ function EtapaDoAgente({ etapa, agente, ultima }: { etapa: Etapa; agente?: Agent
           <Wrench strokeWidth={1.8} className="size-3.5 shrink-0" aria-hidden />
           {consulta.descricao}
           <LinkDoPasso link={consulta.link} />
+          <AprovacaoDoPasso link={consulta.link} />
         </li>
       ))}
     </ul>

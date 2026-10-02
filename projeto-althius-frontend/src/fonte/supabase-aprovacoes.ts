@@ -14,6 +14,8 @@ interface RegistroDaAprovacao {
   impact: string
   justification: string
   target_account_id: string | null
+  /** O conteúdo guardado; `tipo` diz quem executa (`envio_ao_crm` ou `ferramenta`, ADR-0022). */
+  payload?: { tipo?: unknown } | null
   state: 'pendente' | 'aprovada' | 'recusada' | 'cancelada' | 'expirada' | 'executando' | 'executada' | 'falhou'
   failure: string | null
 }
@@ -48,11 +50,16 @@ function converterErro(error: { message: string }): Error {
 
 const ONDE: Record<string, 'fila' | 'conversa' | 'canal'> = { fila: 'fila', conversa: 'conversa' }
 
+/** Quem executa a Aprovação depois de aprovada: a chamada de ferramenta de conector ou o envio ao CRM (o padrão). */
+const EXECUTOR: Record<string, string> = { ferramenta: 'integration-tools' }
+
 export function criarFonteDeAprovacoesSupabase(
   cliente: SupabaseClient,
   workspaceId: string,
 ): Pick<FonteDeAgentes, 'aprovacoes' | 'decidirAprovacao' | 'observar'> {
   const ouvintes = new Set<() => void>()
+  // O tipo de cada Aprovação lida, para a execução depois de aprovar ir a quem sabe fazê-la.
+  const tipos = new Map<string, string>()
   return {
     observar(ouvinte) {
       ouvintes.add(ouvinte)
@@ -62,6 +69,9 @@ export function criarFonteDeAprovacoesSupabase(
     async aprovacoes() {
       const { data, error } = await cliente.rpc('list_approvals', { p_workspace_id: workspaceId })
       if (error) throw converterErro(error)
+      for (const linha of (data ?? []) as RegistroDaAprovacao[]) {
+        if (typeof linha.payload?.tipo === 'string') tipos.set(linha.id, linha.payload.tipo)
+      }
       return ((data ?? []) as RegistroDaAprovacao[]).map(
         (linha): AprovacaoDeAcao => ({
           id: linha.id,
@@ -87,10 +97,12 @@ export function criarFonteDeAprovacoesSupabase(
       if (error) throw converterErro(error)
       // Aprovada, a ação sai logo (Etapa 5b): o `crm-handoff` confere de novo que quem pede é Administrador, reserva a
       // Aprovação uma vez só e envia exatamente o conteúdo revisado. Uma Aprovação que não é de envio ao CRM ele recusa
-      // sem mudar nada. Um envio que não sai não desfaz a decisão: a fila relê e mostra executada ou falhou.
+      // sem mudar nada. Um envio que não sai não desfaz a decisão: a fila relê e mostra executada ou falhou. A chamada de
+      // ferramenta de um conector (ADR-0022) sai pela `integration-tools`, do mesmo jeito.
       if (decisao === 'aprovada') {
+        const executor = EXECUTOR[tipos.get(aprovacaoId) ?? ''] ?? 'crm-handoff'
         await cliente.functions
-          .invoke('crm-handoff', { body: { action: 'executar_aprovacao', approvalId: aprovacaoId } })
+          .invoke(executor, { body: { action: 'executar_aprovacao', approvalId: aprovacaoId } })
           .catch(() => null)
       }
       for (const ouvinte of ouvintes) ouvinte()

@@ -12,6 +12,7 @@ import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { Agente, AgenteId, AprovacaoDeAcao } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
+import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
 
 export function SecaoConversa({ agente }: { agente: Agente }) {
   const { disponivel } = useAmbiente()
@@ -123,11 +124,14 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
       return <p className="self-end bg-al-surface px-4 py-2">{item.texto}</p>
     case 'ferramenta':
       return (
-        <p className="flex flex-wrap items-center gap-2 text-sm text-al-muted">
-          <Wrench strokeWidth={1.8} className="size-4" aria-hidden />
-          {item.descricao}
-          <LinkDoPasso link={item.link} />
-        </p>
+        <div className="flex flex-col gap-2">
+          <p className="flex flex-wrap items-center gap-2 text-sm text-al-muted">
+            <Wrench strokeWidth={1.8} className="size-4" aria-hidden />
+            {item.descricao}
+            <LinkDoPasso link={item.link} />
+          </p>
+          <AprovacaoDoPasso link={item.link} />
+        </div>
       )
     case 'texto':
       return (

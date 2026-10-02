@@ -10,15 +10,18 @@ import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 /**
  * Uma Aprovação dentro de uma Conversa, direta ou coordenada: a ação, o impacto, o Canal que também
  * a recebeu e, enquanto pendente, a decisão. Cada Conversa mostra o estado do seu jeito, no cabeçalho.
+ * Sem `podeDecidir` (quem não é Administrador), a pendente mostra quem decide em vez dos botões.
  */
 export function AprovacaoNaConversa({
   aprovacaoId,
   cabecalho,
   className,
+  podeDecidir = true,
 }: {
   aprovacaoId: string
   cabecalho: (aprovacao: AprovacaoDeAcao, rotuloDoEstado: string) => ReactNode
   className?: string
+  podeDecidir?: boolean
 }) {
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   // Nas Conversas, os Agentes propõem ações em Integrações; uma revisão da Memória do Workspace fica na fila.
@@ -59,10 +62,13 @@ export function AprovacaoNaConversa({
       {aprovacao.origem !== 'althius' && (
         <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>
       )}
-      {aprovacao.estado === 'pendente' && (
+      {aprovacao.estado === 'pendente' && podeDecidir && (
         <div className="pt-1.5">
           <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" />
         </div>
+      )}
+      {aprovacao.estado === 'pendente' && !podeDecidir && (
+        <p className="text-xs text-al-muted">Só um Administrador decide esta Aprovação.</p>
       )}
     </article>
   )
