@@ -684,7 +684,8 @@ const USAR_CONECTOR: FerramentaDoAgente = {
         ...(efeito ? { targetAccountId: efeito.targetAccountId } : {}),
         acao: `Usar ${ferramenta.nome} no ${nome}`.slice(0, 300),
         impacto: `${ferramenta.escreve ? 'Escreve ou gasta' : 'Lê'} no ${nome} com a conta de quem fez o pedido. ` +
-          `Argumentos: ${cortar(argumentos, 600)}`,
+          `Argumentos: ${cortar(argumentos, 600)}` +
+          (efeito ? ` Leva a empresa ao ${nome}: executada, a Conta vai para No CRM.` : ''),
         justificativa: texto(entrada.justificativa, 2000),
       })
     } catch (erro) {

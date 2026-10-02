@@ -129,6 +129,7 @@ Deno.test('com Aprovação, o efeito e a Conta vão na proposta, e nada chega ao
     efeito: 'empresa_no_crm',
   })
   assertEquals(propostas[0].targetAccountId, ALFA)
+  assertStringIncludes(String(propostas[0].impacto), 'a Conta vai para No CRM', 'quem aprova vê o efeito')
   assertEquals(chamadasAoApp(), [])
   assertEquals(fechamentos, [])
   assertEquals(r.passo.estado, 'aguardando')
