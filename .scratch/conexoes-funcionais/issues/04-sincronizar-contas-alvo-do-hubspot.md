@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Conectar e desconectar o próprio Acesso ao HubSpot).
 
-**Status:** ready-for-agent
+**Status:** wontfix (substituído pelo caminho genérico dos conectores, ver Comments)
 
 - [ ] Só quem tem o próprio Acesso conectado sincroniza; sem Acesso, o cartão pede para conectar.
 - [ ] Uma função SQL executável só pelo backend aplica um lote de Companies e decide todas as mudanças. A Edge Function só lê as páginas do HubSpot, entrega os lotes e guarda o cursor.
@@ -18,3 +18,7 @@
 - [ ] A Sincronização não usa as funções que os usuários chamam, nem as de Sequências, Interações ou Contas remetentes.
 - [ ] pgTAP cobre correspondência, responsável, vazio que não apaga, ignorados, idempotência e a Sincronização única; os testes do app cobrem o botão, o andamento e o resultado.
 - [ ] Conferência visual no navegador do andamento e do resultado, com prints no `## Comments` deste ticket.
+
+## Comments
+
+- 2026-10-02: substituído pelo caminho genérico dos conectores ([ticket 30](./30-conectores-genericos-e-permissao-por-ferramenta.md), [ADR-0022](../../../docs/adr/0022-permissao-por-ferramenta-do-conector.md) e [ADR-0023](../../../docs/adr/0023-envio-ao-crm-pelas-ferramentas-do-conector.md)). Os Agentes já leem o HubSpot (e qualquer CRM conectado) pelas ferramentas do próprio servidor MCP, com `usar_conector`, sem uma Sincronização com código específico do app. O Nan decidiu que os conectores funcionam como os do Claude ("não existe conector especial"), por isso a Sincronização dedicada fica fechada como `wontfix`. O texto original fica acima, como registro.

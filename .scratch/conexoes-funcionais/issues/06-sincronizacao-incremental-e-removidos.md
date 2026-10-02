@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (Sincronizar Contatos e Vínculos do HubSpot).
 
-**Status:** ready-for-agent
+**Status:** wontfix (substituído pelo caminho genérico dos conectores, ver Comments)
 
 - [ ] A Sincronização guarda a marca d'água da última modificação lida e a usa na seguinte.
 - [ ] Duas Sincronizações seguidas sem mudanças no HubSpot terminam sem nenhuma Conta-alvo, Contato ou Vínculo alterado.
@@ -12,3 +12,7 @@
 - [ ] Um Contact sem a associação no HubSpot mantém o Vínculo. Nada é encerrado pela Sincronização.
 - [ ] O cartão mostra a data da última Sincronização e quem a pediu.
 - [ ] pgTAP cobre a marca d'água, a idempotência e a marca de removido; os testes do app cobrem a última Sincronização no cartão.
+
+## Comments
+
+- 2026-10-02: substituído pelo caminho genérico dos conectores ([ticket 30](./30-conectores-genericos-e-permissao-por-ferramenta.md), [ADR-0022](../../../docs/adr/0022-permissao-por-ferramenta-do-conector.md) e [ADR-0023](../../../docs/adr/0023-envio-ao-crm-pelas-ferramentas-do-conector.md)). Os Agentes já leem o HubSpot (e qualquer CRM conectado) pelas ferramentas do próprio servidor MCP, com `usar_conector`, sem uma Sincronização com código específico do app. O Nan decidiu que os conectores funcionam como os do Claude ("não existe conector especial"), por isso a Sincronização dedicada fica fechada como `wontfix`. O texto original fica acima, como registro.
