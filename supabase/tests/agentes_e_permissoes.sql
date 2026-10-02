@@ -249,7 +249,7 @@ select throws_ok(
   $$select public.save_agent_settings((select id from agente_criado), 'x', 'x', array['email'], '[]'::jsonb, '{"hubspot":"admin"}'::jsonb)$$,
   '22023', 'invalid permission', 'só existem Ler, Propor e Executar');
 select throws_ok(
-  $$select public.save_agent_settings((select id from agente_criado), 'x', 'x', array['email'], '[]'::jsonb, '{"salesforce":"ler"}'::jsonb)$$,
+  $$select public.save_agent_settings((select id from agente_criado), 'x', 'x', array['email'], '[]'::jsonb, '{"kommo":"ler"}'::jsonb)$$,
   '22023', 'unknown integration', 'a Permissão é só de uma Integração do catálogo');
 select throws_ok(
   $$select public.save_agent_settings((select id from agente_criado), 'x', 'x', array['email'], '[]'::jsonb, '["hubspot"]'::jsonb)$$,

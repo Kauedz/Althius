@@ -368,6 +368,7 @@ export type IntegracaoId =
   | 'google-calendar'
   | 'google-sheets'
   | 'calendly'
+  | 'salesforce'
   | 'zoho-crm'
   | 'bitrix24'
   | 'tiktok-ads'

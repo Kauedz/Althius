@@ -31,8 +31,9 @@ export interface OpcoesFonteDeConexoesSimulada {
 
 /**
  * Os conectores do catálogo ampliado (migration 20261002111000), só na tela de Conexões da Demonstração e nenhum
- * conectado: o catálogo dos Agentes e da automação (`catalogo-de-conexoes.ts`) não muda. O Zoho CRM vem "Em breve". O
- * Slack fica de fora aqui porque a Demonstração já o mostra como Canal, com a prévia das Aprovações.
+ * conectado: o catálogo dos Agentes e da automação (`catalogo-de-conexoes.ts`) não muda. O Zoho CRM vem "Em breve",
+ * como o Salesforce, que a Demonstração já mostra entre as futuras. O Slack fica de fora aqui porque a Demonstração já o
+ * mostra como Canal, com a prévia das Aprovações.
  */
 const CONECTORES_DA_DEMONSTRACAO: Integracao[] = [
   { id: 'bitrix24', nome: 'Bitrix24', categoria: 'CRM', descricao: 'CRM, tarefas e comunicação do Bitrix24.', escreve: true, conectada: false },

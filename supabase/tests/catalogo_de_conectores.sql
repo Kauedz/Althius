@@ -4,8 +4,7 @@ set local search_path = extensions, public;
 select plan(10);
 
 -- O catálogo ampliado de conectores (migration 20261002111000, ticket 30): os apps novos listados, os que têm servidor
--- MCP com OAuth para terceiros habilitáveis, o Zoho CRM "Em breve" (o Salesforce ainda fora do catálogo, ver o ticket 30)
--- e o Pipedrive pelos dois caminhos.
+-- MCP com OAuth para terceiros habilitáveis, Salesforce e Zoho CRM "Em breve" e o Pipedrive pelos dois caminhos.
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -30,17 +29,18 @@ select set_config('request.jwt.claim.sub', '5e000000-0000-0000-0000-000000000002
 select is(
   (select array_agg(id || ':' || name || ':' || category order by id)
      from public.list_workspace_integrations('fe000000-0000-0000-0000-000000000001')
-    where id in ('slack', 'google-calendar', 'google-sheets', 'calendly', 'zoho-crm', 'bitrix24', 'tiktok-ads')),
+    where id in ('slack', 'google-calendar', 'google-sheets', 'calendly', 'salesforce', 'zoho-crm', 'bitrix24', 'tiktok-ads')),
   array[
     'bitrix24:Bitrix24:CRM',
     'calendly:Calendly:Agenda',
     'google-calendar:Google Calendar:Agenda',
     'google-sheets:Google Sheets:Conhecimento',
+    'salesforce:Salesforce:CRM',
     'slack:Slack:Comunicação',
     'tiktok-ads:TikTok Ads:Mídia paga',
     'zoho-crm:Zoho CRM:CRM'
   ],
-  'os sete apps novos aparecem no catálogo com nome e categoria'
+  'os oito apps novos aparecem no catálogo com nome e categoria'
 );
 
 -- 2. Os que têm servidor MCP com OAuth para terceiros nascem não habilitados (habilitáveis).
@@ -51,18 +51,18 @@ select is(
   'Slack, Google Calendar, Google Sheets, Calendly, Bitrix24 e TikTok Ads são habilitáveis'
 );
 
--- 3-4. O Zoho CRM fica "Em breve", sem perfil de conexão; o Salesforce ainda não está no catálogo.
+-- 3-4. Salesforce e Zoho CRM ficam "Em breve", sem perfil de conexão.
 select is(
   (select array_agg(id || ':' || status order by id) from public.list_workspace_integrations('fe000000-0000-0000-0000-000000000001')
     where id in ('salesforce', 'zoho-crm')),
-  array['zoho-crm:em_breve'],
-  'o Zoho CRM aparece em breve e o Salesforce ainda não aparece'
+  array['salesforce:em_breve', 'zoho-crm:em_breve'],
+  'Salesforce e Zoho CRM aparecem em breve'
 );
 reset role;
 select is(
-  (select count(*)::integer from private.integration_connection_profiles where integration_id = 'zoho-crm'),
+  (select count(*)::integer from private.integration_connection_profiles where integration_id in ('salesforce', 'zoho-crm')),
   0,
-  'o Zoho CRM não tem perfil de conexão'
+  'Salesforce e Zoho CRM não têm perfil de conexão'
 );
 
 -- 5. Os perfis novos conectam só pela autorização no app e não fixam portal.
@@ -81,9 +81,9 @@ select is(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '5e000000-0000-0000-0000-000000000001', true);
 select throws_ok(
-  $$select public.enable_workspace_integration('fe000000-0000-0000-0000-000000000001', 'zoho-crm')$$,
+  $$select public.enable_workspace_integration('fe000000-0000-0000-0000-000000000001', 'salesforce')$$,
   '22023', 'integration is not available for enablement',
-  'o Zoho CRM não se habilita'
+  'o Salesforce não se habilita'
 );
 
 -- 7. Ana (Administradora) habilita o Slack e o Pipedrive; Bruno vê os caminhos de cada um.

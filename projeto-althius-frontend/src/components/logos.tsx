@@ -32,6 +32,7 @@ const NOME_DA_INTEGRACAO: Record<IntegracaoId, string> = {
   'google-calendar': 'Google Calendar',
   'google-sheets': 'Google Sheets',
   calendly: 'Calendly',
+  salesforce: 'Salesforce',
   'zoho-crm': 'Zoho CRM',
   bitrix24: 'Bitrix24',
   'tiktok-ads': 'TikTok Ads',

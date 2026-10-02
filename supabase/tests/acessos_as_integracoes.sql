@@ -63,7 +63,7 @@ select is(
 select is(
   (select array_agg(id order by id) from public.list_workspace_integrations('fa000000-0000-0000-0000-000000000001')
     where status = 'em_breve'),
-  array['clay', 'google-ads', 'zoho-crm'],
+  array['clay', 'google-ads', 'salesforce', 'zoho-crm'],
   'sem perfil de conexão, a Integração continua em breve'
 );
 select throws_ok(
