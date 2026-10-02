@@ -4,8 +4,12 @@
 //   chamar   uma ferramenta de LEITURA (`ferramenta`, `argumentos`), sob a Permissão do Agente quando `agentId` vem. O
 //            navegador nunca chama uma ferramenta que escreve ou gasta: isso é decisão do Agente, sob Propor/Executar
 //            (ADR-0002), e o motor chama `chamarFerramenta` direto, sem passar por aqui.
+//   executar_aprovacao  `{ action, approvalId }`: logo depois de um Administrador aprovar na Conversa uma chamada de
+//            ferramenta que um Agente propôs (ADR-0022), executa exatamente aquela chamada, uma vez, pelo executor das
+//            Aprovações, que confere de novo que quem pede é Administrador ativo do Workspace da Aprovação.
 // Tudo passa por `_shared/integration-access.ts`, que renova o token, confere a Permissão e devolve erros tipados sem token.
 import { comCors } from '../_shared/cors.ts'
+import type { DesfechoDaChamadaAprovada } from '../_shared/executor-de-aprovacoes.ts'
 import {
   chamarFerramenta,
   type DepsDeAcesso,
@@ -18,11 +22,20 @@ export interface Deps {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string; email: string | null } | null>
   appOrigin: string
   log?: (campos: Record<string, unknown>) => void
+  /** O executor das Aprovações de ferramenta; sem ele, `executar_aprovacao` é uma ação desconhecida. */
+  executarChamada?: (a: { approvalId: string; administrador: string | null }) => Promise<DesfechoDaChamadaAprovada>
 }
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const ID_DA_INTEGRACAO = /^[a-z][a-z0-9-]{0,39}$/
 const TETO_DOS_ARGUMENTOS = 50_000
+
+const STATUS_DO_DESFECHO: Record<DesfechoDaChamadaAprovada['status'], number> = {
+  executada: 200,
+  recusada: 403,
+  nao_liberada: 409,
+  falhou: 502,
+}
 
 const STATUS_DO_ERRO: Record<ErroDeIntegracao['tipo'], number> = {
   precisa_reconectar: 409,
@@ -59,6 +72,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     } catch {
       return responder({ error: 'Corpo inválido.', code: 'corpo' }, 400)
     }
+    if (corpo?.action === 'executar_aprovacao' && deps.executarChamada) {
+      const approvalId = typeof corpo.approvalId === 'string' ? corpo.approvalId : ''
+      if (!UUID.test(approvalId)) return responder({ error: 'Aprovação obrigatória.', code: 'aprovacao' }, 400)
+      const desfecho = await deps.executarChamada({ approvalId, administrador: user.userId })
+      log({ type: 'integration_tools', action: 'executar_aprovacao', status: desfecho.status })
+      const corpoDaResposta = desfecho.status === 'executada'
+        ? { status: desfecho.status, mensagem: desfecho.mensagem }
+        : { status: desfecho.status, error: desfecho.mensagem, code: desfecho.status }
+      return responder(corpoDaResposta, STATUS_DO_DESFECHO[desfecho.status])
+    }
+
     const workspaceId = typeof corpo?.workspaceId === 'string' ? corpo.workspaceId : ''
     const integrationId = typeof corpo?.integrationId === 'string' ? corpo.integrationId : ''
     if (!UUID.test(workspaceId)) return responder({ error: 'Workspace obrigatório.', code: 'workspace' }, 400)

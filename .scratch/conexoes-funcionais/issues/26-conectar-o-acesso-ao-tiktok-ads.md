@@ -21,10 +21,16 @@
 - [ ] Confirmar na documentação oficial se o app tem servidor MCP; registrar a fonte.
 - [ ] Permissões Ler, Propor e Executar valem para o Agente; o que escreve ou gasta tem teto (`creditos-e-planos` 03).
 
+## Comments
+
+- **2026-10-02 (conectores genéricos, ticket 30).** Servidor MCP oficial confirmado: `https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer` (a variante de ~40 ferramentas), OAuth no TikTok Ads Manager; registro dinâmico não confirmado e a autorização vale 30 dias. Perfil como dado em `_shared/integracoes/conectores.ts`; o que gasta verba pede Aprovação pela regra padrão (ADR-0022). Entra no catálogo do banco com o SQL do [ticket 30](./30-conectores-genericos-e-permissao-por-ferramenta.md), hoje bloqueado por testes antigos.
+
 ## Passos do Nan
 
 **A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan. Com muitos passos, gera um wizard (`/wizard`).**
 
 1. Criar a conta de teste no app e autorizar o Acesso no navegador.
+2. Aplicar a migration e publicar (ticket 30): aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect --project-ref ycbdilsmydvzezhlymty` e `npx supabase functions deploy integration-callback --no-verify-jwt --project-ref ycbdilsmydvzezhlymty`.
+3. Se o servidor recusar o registro dinâmico: `TIKTOK_ADS_MCP_CLIENT_ID` e `TIKTOK_ADS_MCP_CLIENT_SECRET`.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.

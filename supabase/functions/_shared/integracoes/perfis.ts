@@ -5,6 +5,7 @@
 //
 // Mantenha os caminhos (`caminhosDe`) iguais ao seed de `private.integration_connection_profiles` na migration
 // 20261001160000: o banco decide quem aparece "Não habilitada"/"Habilitada" e quem fixa o portal; este arquivo, como conectar.
+import { CONECTORES } from './conectores.ts'
 import type { PerfilRest } from './rest.ts'
 import type { TipoDeAcesso } from './tipos.ts'
 
@@ -508,7 +509,8 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
     },
     rest: APOLLO_REST,
     naoConfirmado: [
-      'Registro do cliente OAuth no Apollo (dinâmico ou pré-registrado).',
+      // Pesquisa de 2026-10-02: quem integra como parceiro registra um app OAuth antes (APOLLO_MCP_CLIENT_ID e _SECRET).
+      'Registro do cliente OAuth no Apollo (dinâmico ou pré-registrado como app de parceiro).',
       'Endereço de verificação da chave de API e nomes dos parâmetros de busca e enriquecimento da API REST.',
     ],
   },
@@ -538,7 +540,12 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
         identificacao: {},
       },
     },
-    naoConfirmado: ['OAuth do servidor MCP da Meta para cliente de terceiros e a revisão do app, se exigida.'],
+    naoConfirmado: [
+      'OAuth do servidor MCP da Meta para cliente de terceiros e a revisão do app, se exigida.',
+      // Pesquisa de 2026-10-02: a Meta deixa conectar qualquer agente com o próprio app de desenvolvedor (Facebook Login
+      // for Business). Sem registro dinâmico, o app é criado à mão e entra em META_ADS_MCP_CLIENT_ID e _SECRET.
+      'Se o servidor aceita registro dinâmico; a pesquisa indica app de desenvolvedor Meta próprio (pré-registrado).',
+    ],
   },
   pipedrive: {
     id: 'pipedrive',
@@ -582,8 +589,10 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
   },
 }
 
+/** O perfil de uma Integração: os de 20261001160000 (`PERFIS`) ou os conectores do catálogo ampliado (`CONECTORES`). */
 export function perfilDaIntegracao(id: string): PerfilDeIntegracao | null {
-  return Object.hasOwn(PERFIS, id) ? PERFIS[id] : null
+  if (Object.hasOwn(PERFIS, id)) return PERFIS[id]
+  return Object.hasOwn(CONECTORES, id) ? CONECTORES[id] : null
 }
 
 /** Os caminhos de conexão que o perfil oferece; devem ser iguais aos `kinds` do banco. */

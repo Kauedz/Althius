@@ -12,6 +12,8 @@
 - [x] Payload alterado materialmente invalida a decisão anterior e requer nova aprovação.
 - [x] Aprovar, recusar, cancelar, expirar e falhar são estados visíveis e auditáveis.
 - [ ] Fila e detalhe reaproveitam a experiência atual e não exibem roteiros de demonstração no Workspace real. (A Fonte está pronta e já pede a execução ao aprovar; a fila continua desligada, ver Etapa 5b.)
+- [x] A Aprovação pedida por um Agente é decidida na própria Conversa, como passo, com Aprovar e Recusar só para o Administrador (2026-10-02, `conexoes-funcionais` 30).
+- [x] Segundo executor: a chamada de ferramenta de um conector (`{tipo:'ferramenta', …}`), exatamente aquela, uma vez (ADR-0022).
 - [x] Primeiro executor de ação externa: Enviar ao CRM proposto por um Agente (Etapa 5b), uma vez só e com o conteúdo revisado.
 - [x] Com Executar, a Aprovação nasce liberada e o executor envia na hora; com Propor, fica pendente até o Administrador aprovar.
 - [x] Aprovar na Fonte pede ao `crm-handoff` (`executar_aprovacao`) a execução; um envio que não sai não desfaz a decisão.
@@ -32,6 +34,8 @@
 - Fonte `supabase-aprovacoes.ts`: depois de `decide_approval` aprovar, pede a execução ao `crm-handoff`; recusar não pede nada (teste `supabase-aprovacoes-executor.test.ts`).
 - **A fila real continua desligada (`aprovacoesDisponiveis` em `composicao.ts`).** Ligar quebra um teste existente que não pode mudar: `raiz.test.tsx`, "/aprovacoes mostra que o módulo está indisponível, sem dados da Demonstração", espera "Aprovações ainda não estão disponíveis neste Workspace." no Workspace operacional (conferido: com o interruptor ligado, 1 falha em 120). Consequência honesta: com Propor, a Aprovação de envio fica pendente e o Administrador ainda não tem onde decidir no Workspace operacional (o link "Ver a Aprovação" do passo na Conversa leva à tela que diz indisponível). Com Executar, o envio sai normalmente. Para ligar: combinar com o Nan a troca daquele teste (ou um teste novo que o substitua) e passar `aprovacoesDisponiveis: true` em `auth/aplicativo.tsx`, de preferência atrás de uma checagem de que o `crm-handoff` está publicado.
 
+- **2026-10-02 (conexoes-funcionais 30, ADR-0022).** A fila `/aprovacoes` continua desligada (o `raiz.test.tsx` não mudou), mas a decisão deixou de depender dela: o passo de ferramenta com Aprovação mostra o cartão da Aprovação na própria Conversa (`paginas/aprovacao-do-passo.tsx`), com Aprovar e Recusar só para o Administrador; `composicao.ts` liga a leitura e a decisão das Aprovações quando as Conversas estão disponíveis, sem tirar o módulo de `indisponiveis`. Depois de aprovar, a Fonte pede a execução ao `crm-handoff` (envio ao CRM) ou à `integration-tools` (`executar_aprovacao`, chamada de ferramenta). Migration `20261002110000_permissao_por_ferramenta.sql`: `propose_agent_action` e `claim_approved_action` redefinidas a partir de 20261001130000, mudando só a Aprovação de ferramenta (regra do Administrador conferida ao propor e ao reservar), e `tool_approval`. Executor `executarChamadaAprovada` em `_shared/executor-de-aprovacoes.ts`.
+
 ## Passos do Nan
 
 **A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan.**
@@ -44,6 +48,8 @@
    Nenhum segredo novo.
 3. Se o motor for o Hermes (`AGENT_PROVIDER=hermes`): atualizar o código do worker (`supabase/functions/_hermes-worker`) na máquina dele e reiniciá-lo, como no README da pasta.
 4. Conferência real: dar a um Agente a Permissão Executar no HubSpot, pedir na Conversa "Rhetor, leve a <Conta sob sua responsabilidade> ao HubSpot" e ver o envio no HubSpot e a Aprovação executada. Com Propor, a Aprovação fica pendente (a fila ainda está desligada, ver acima).
+
+5. (2026-10-02) Aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect --project-ref ycbdilsmydvzezhlymty` e `npx supabase functions deploy integration-callback --no-verify-jwt --project-ref ycbdilsmydvzezhlymty`. Conferência: com o Rhetor em Propor no HubSpot, pedir na Conversa o envio de uma Conta sua; aprovar no próprio passo da Conversa, como Administrador, e ver o envio no HubSpot.
 
 ## Decisões a confirmar
 

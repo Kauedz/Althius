@@ -88,7 +88,11 @@ export function criarAmbienteDoWorkspace({
   if (conversasDisponiveis) indisponiveis.delete('conversas')
   if (sinaisDisponiveis) indisponiveis.delete('sinais')
   if (aprovacoesDisponiveis) indisponiveis.delete('aprovacoes')
-  const aprovacoes = aprovacoesDisponiveis ? criarFonteDeAprovacoesSupabase(cliente, participacao.workspaceId) : undefined
+  // Com as Conversas, a Aprovação que um Agente pede aparece e é decidida na própria Conversa (ADR-0022), mesmo com a
+  // fila /aprovacoes ainda desligada (o módulo continua em `indisponiveis`).
+  const aprovacoes = aprovacoesDisponiveis || conversasDisponiveis
+    ? criarFonteDeAprovacoesSupabase(cliente, participacao.workspaceId)
+    : undefined
   return {
     modo: 'real',
     // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões e as Conversas

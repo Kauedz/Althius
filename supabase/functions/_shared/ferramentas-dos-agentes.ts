@@ -8,14 +8,18 @@
 //   ler_contas_e_sinais     (todos)              lê Contas-alvo, estágio, Sinais ativos e Contatos do Workspace;
 //   consultar_integracao    (todos, com Ler+)    lê um CRM ou fonte conectado, pelo Acesso de quem pediu, só leitura;
 //   propor_envio_ao_crm     (Scopus, Ethos,      propõe Enviar ao CRM: com Propor, nasce a Aprovação pendente; com
-//                            Rhetor; Propor+)    Executar, ela nasce liberada e o executor das Aprovações envia.
+//                            Rhetor; Propor+)    Executar, ela nasce liberada e o executor das Aprovações envia;
+//   usar_conector           (todos, com Ler+)    lista e chama as ferramentas que o servidor de um conector oferece, sem
+//                                                código por app (ADR-0022): a regra de cada ferramenta somada à Permissão
+//                                                decide se executa, pede Aprovação (com a chamada exata) ou é recusada.
 //
 // O que pode ser feito é sempre conferido de novo no banco (a Especialidade, a Permissão, a Participação, a Integração
 // ligada) e no Acesso (`chamarFerramenta` com o `agenteId`). Uma falha de ferramenta vira texto para o Agente, nunca
 // derruba o pedido. O banco, o Acesso e o executor entram por injeção, para o teste rodar sem rede.
-import type { DesfechoDoEnvioAprovado } from './executor-de-aprovacoes.ts'
+import type { DesfechoDaChamadaAprovada, DesfechoDoEnvioAprovado } from './executor-de-aprovacoes.ts'
 import { chamarFerramenta, type DepsDeAcesso, ErroDoBanco, listarFerramentas, type Permissao } from './integration-access.ts'
 import { perfilDaIntegracao } from './integracoes/perfis.ts'
+import { decidirChamada, regraVigente } from './integracoes/regras.ts'
 import { ferramentasRest } from './integracoes/rest.ts'
 import type { AgenteDoWorkspace } from './orquestracao.ts'
 
@@ -57,6 +61,16 @@ export interface EnvioProposto {
   crm: string
 }
 
+/** Uma chamada de ferramenta de conector que precisa de Aprovação, como vai a `propose_agent_action`. */
+export interface ChamadaProposta {
+  integrationId: string
+  /** `{ tipo: 'ferramenta', integration_id, ferramenta, argumentos }`: exatamente o que o executor vai chamar. */
+  payload: { tipo: 'ferramenta'; integration_id: string; ferramenta: string; argumentos: Record<string, unknown> }
+  acao: string
+  impacto: string
+  justificativa: string
+}
+
 /** O contrato com o banco das ferramentas (migration 20261001210000). Erros do banco chegam como ErroDoBanco. */
 export interface BancoDasFerramentas {
   contexto(runId: string): Promise<ContextoDasFerramentas>
@@ -67,6 +81,8 @@ export interface BancoDasFerramentas {
     agenteId: string,
     a: { targetAccountId: string; integrationId: string; justificativa: string },
   ): Promise<EnvioProposto>
+  /** RPC `propose_agent_action` com a chamada de ferramenta (ADR-0022). Sem ela, `usar_conector` não é oferecida. */
+  proporChamada?(runId: string, agenteId: string, a: ChamadaProposta): Promise<{ approvalId: string; outcome: string }>
 }
 
 export interface DepsDasFerramentas {
@@ -75,6 +91,8 @@ export interface DepsDasFerramentas {
   acesso?: DepsDeAcesso
   /** O executor das Aprovações de envio, para a proposta que nasce liberada (Executar). Sem ele, ela espera a tela. */
   executarAprovacao?: (approvalId: string) => Promise<DesfechoDoEnvioAprovado>
+  /** O executor das Aprovações de ferramenta, para a que nasce liberada. Sem ele, ela espera a decisão na Conversa. */
+  executarChamada?: (approvalId: string) => Promise<DesfechoDaChamadaAprovada>
   log?: (campos: Record<string, unknown>) => void
   /** Prazo de cada chamada; passou, vira texto de falha para o Agente. */
   prazoMs?: number
@@ -122,6 +140,7 @@ export interface FerramentaDoAgente {
 }
 
 const RANGO: Record<Permissao, number> = { ler: 1, propor: 2, executar: 3 }
+const NOME_DA_PERMISSAO: Record<Permissao, string> = { ler: 'Ler', propor: 'Propor', executar: 'Executar' }
 /** Chamadas de ferramenta por pedido, somando todos os Agentes. */
 export const MAX_CHAMADAS_POR_PEDIDO = 6
 const PRAZO_MS = 90_000
@@ -144,9 +163,9 @@ function texto(valor: unknown, maximo = 500): string {
   return typeof valor === 'string' ? valor.trim().slice(0, maximo) : ''
 }
 
-function cortar(dado: unknown): string {
+function cortar(dado: unknown, tamanho = TAMANHO_DO_RESULTADO): string {
   const json = JSON.stringify(dado ?? null)
-  return json.length > TAMANHO_DO_RESULTADO ? `${json.slice(0, TAMANHO_DO_RESULTADO)}…[cortado]` : json
+  return json.length > tamanho ? `${json.slice(0, tamanho)}…[cortado]` : json
 }
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
@@ -171,6 +190,7 @@ function motivoDoBanco(erro: unknown): string {
     if (m.includes('not a CRM')) return 'Esta Integração não é um CRM.'
     if (m.includes('target account not found')) return 'Esta Conta-alvo não existe no Workspace (use o id que ler_contas_e_sinais devolve).'
     if (m.includes('ICP specialist')) return 'Só o Scopus pede busca de contas pelo ICP.'
+    if (m.includes('tool is blocked')) return 'O Administrador bloqueou esta ferramenta neste Workspace. Não a use.'
     if (m.includes('invalid')) return 'A entrada da ferramenta é inválida.'
   }
   return 'A ferramenta falhou agora. Não use dados dela e siga com o que você tem.'
@@ -443,7 +463,175 @@ const PROPOR_ENVIO: FerramentaDoAgente = {
   },
 }
 
+const TAMANHO_DA_LISTA = 12_000
+const TETO_DOS_ARGUMENTOS = 50_000
+
+/** As Integrações em que o Agente tem Permissão (Ler ou mais) e que a Althius sabe conectar. */
+function conectoresDo(agente: AgenteDoWorkspace, ctx: ContextoDasFerramentas) {
+  return permissoesDo(agente, ctx, 'ler').filter((p) => perfilDaIntegracao(p.integrationId))
+}
+
+const MOTIVO_DA_RECUSA = {
+  bloqueada: 'O Administrador bloqueou esta ferramenta neste Workspace. Não a use.',
+  so_ler: 'Você só tem a Permissão Ler neste conector: não escreve nem pede Aprovação.',
+  sem_permissao: 'Você não tem Permissão neste conector.',
+} as const
+
+const USAR_CONECTOR: FerramentaDoAgente = {
+  nome: 'usar_conector',
+  descricao:
+    'Usa as ferramentas de um conector (CRM, agenda, planilha, anúncios…) com a conta de quem fez o pedido. Primeiro ' +
+    'passe ferramenta "listar" para ver o que o conector oferece: nome, descrição, esquema dos argumentos, se escreve e ' +
+    'o que acontece ao usar ("executa" ou "pede Aprovação"). Depois passe o nome da ferramenta e os argumentos. Uma ' +
+    'ferramenta que pede Aprovação não roda na hora: nasce uma Aprovação que um Administrador decide na Conversa.',
+  esquema: {
+    type: 'object',
+    properties: {
+      integracao: { type: 'string', description: 'O id do conector (ex.: notion).' },
+      ferramenta: { type: 'string', description: 'O nome da ferramenta, ou "listar".' },
+      argumentos: { type: 'object', description: 'Os argumentos, como o esquema da ferramenta pede.' },
+      justificativa: { type: 'string', description: 'Por que usar agora, em uma frase, para quem decide a Aprovação.' },
+    },
+    required: ['integracao', 'ferramenta'],
+    additionalProperties: false,
+  },
+  especialidades: ['scopus', 'ethos', 'rhetor', 'oraculum'],
+  exige: { permissao: 'ler' },
+  disponivel: (agente, ctx, deps) =>
+    !!deps.acesso?.banco.regrasDasFerramentas && !!deps.banco.proporChamada && conectoresDo(agente, ctx).length > 0,
+  descricaoPara(agente, ctx) {
+    const linhas = conectoresDo(agente, ctx).map((p) => `- ${p.integrationId} (${p.name}): ${NOME_DA_PERMISSAO[p.permission]}`)
+    return `${USAR_CONECTOR.descricao}\nConectores que você pode usar (com a sua Permissão):\n${linhas.join('\n')}`
+  },
+  async executar({ runId, agente, entrada, ctx, deps }) {
+    const integrationId = texto(entrada.integracao, 40)
+    const nomeDaFerramenta = texto(entrada.ferramenta, 200)
+    const permissao = conectoresDo(agente, ctx).find((p) => p.integrationId === integrationId)
+    const nome = permissao?.name ?? integrationId
+    const acesso = deps.acesso
+    const lerRegras = acesso?.banco.regrasDasFerramentas
+    if (!permissao || !acesso || !lerRegras || !deps.banco.proporChamada) {
+      return falhou(`${agente.name} tentou usar o conector ${nome}`, 'Você não tem Permissão neste conector, ou ele não está ligado.')
+    }
+    const proporChamada = deps.banco.proporChamada
+    const pedido = { workspaceId: ctx.workspaceId, userId: ctx.requestedBy, integrationId }
+    const lista = await listarFerramentas(acesso, pedido)
+    if (!lista.ok) return falhou(`${agente.name} tentou usar o ${nome}`, lista.erro.mensagem)
+    let regras
+    try {
+      regras = await lerRegras({ workspaceId: ctx.workspaceId, integrationId })
+    } catch {
+      return falhou(`${agente.name} tentou usar o ${nome}`, 'As regras deste conector não puderam ser lidas agora. Siga sem ele.')
+    }
+    const decisaoDe = (f: { nome: string; escreve: boolean }) =>
+      decidirChamada({ permissao: permissao.permission, escreve: f.escreve, regra: regraVigente(regras, f) })
+
+    if (nomeDaFerramenta === 'listar') {
+      const usaveis = lista.valor
+        .map((f) => ({ f, decisao: decisaoDe(f) }))
+        .filter(({ decisao }) => decisao.tipo !== 'negada')
+        .map(({ f, decisao }) => ({
+          nome: f.nome,
+          descricao: f.descricao.slice(0, 300),
+          escreve: f.escreve,
+          uso: decisao.tipo === 'executa' ? 'executa' : 'pede Aprovação',
+          esquema: f.esquema,
+        }))
+      return {
+        erro: false,
+        paraOAgente: cortar(usaveis, TAMANHO_DA_LISTA),
+        passo: { descricao: `${agente.name} viu as ferramentas do ${nome}`, estado: 'concluida' },
+      }
+    }
+
+    const ferramenta = lista.valor.find((f) => f.nome === nomeDaFerramenta)
+    if (!ferramenta) {
+      return falhou(
+        `${agente.name} pediu ao ${nome} uma ferramenta que ele não tem`,
+        `O ${nome} não tem a ferramenta "${nomeDaFerramenta}". Use ferramenta "listar" para ver as que existem.`,
+      )
+    }
+    const bruto = entrada.argumentos
+    const argumentos = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto as Record<string, unknown> : {}
+    if (JSON.stringify(argumentos).length > TETO_DOS_ARGUMENTOS) {
+      return falhou(`${agente.name} tentou usar ${ferramenta.nome} no ${nome}`, 'Os argumentos são grandes demais.')
+    }
+    const decisao = decisaoDe(ferramenta)
+    if (decisao.tipo === 'negada') {
+      return falhou(`${agente.name} não pôde usar ${ferramenta.nome} no ${nome}`, MOTIVO_DA_RECUSA[decisao.motivo])
+    }
+
+    if (decisao.tipo === 'executa') {
+      const r = await chamarFerramenta(acesso, { ...pedido, ferramenta: ferramenta.nome, argumentos, agenteId: agente.id })
+      if (!r.ok) return falhou(`${agente.name} tentou usar ${ferramenta.nome} no ${nome}`, r.erro.mensagem)
+      if (r.valor.erro) {
+        return falhou(`${agente.name} usou ${ferramenta.nome} no ${nome}, que recusou`, `O ${nome} recusou: ${cortar(r.valor.conteudo)}`)
+      }
+      return {
+        erro: false,
+        paraOAgente: cortar(r.valor.estruturado ?? r.valor.conteudo),
+        passo: { descricao: `${agente.name} usou ${ferramenta.nome} no ${nome}`, estado: 'concluida' },
+      }
+    }
+
+    // Pede Aprovação: nasce com a chamada exata, e só ela sai depois da decisão.
+    let proposta: { approvalId: string; outcome: string }
+    try {
+      proposta = await proporChamada(runId, agente.id, {
+        integrationId,
+        payload: { tipo: 'ferramenta', integration_id: integrationId, ferramenta: ferramenta.nome, argumentos },
+        acao: `Usar ${ferramenta.nome} no ${nome}`.slice(0, 300),
+        impacto: `${ferramenta.escreve ? 'Escreve ou gasta' : 'Lê'} no ${nome} com a conta de quem fez o pedido. ` +
+          `Argumentos: ${cortar(argumentos, 600)}`,
+        justificativa: texto(entrada.justificativa, 2000),
+      })
+    } catch (erro) {
+      return falhou(`${agente.name} tentou propor usar ${ferramenta.nome} no ${nome}`, `A proposta falhou. ${motivoDoBanco(erro)}`)
+    }
+    const link: LinkDoPasso = { tipo: 'aprovacao', id: proposta.approvalId }
+    if (proposta.outcome !== 'liberada' || !deps.executarChamada) {
+      return {
+        erro: false,
+        paraOAgente:
+          `Aprovação criada: usar ${ferramenta.nome} no ${nome} espera a decisão de um Administrador na Conversa. ` +
+          'Nada foi feito ainda. Termine dizendo que a próxima ação depende da Aprovação.',
+        passo: { descricao: `${agente.name} propôs usar ${ferramenta.nome} no ${nome} — aguardando Aprovação`, estado: 'aguardando', link },
+      }
+    }
+    let desfecho: DesfechoDaChamadaAprovada
+    try {
+      desfecho = await deps.executarChamada(proposta.approvalId)
+    } catch (erro) {
+      deps.log?.({ type: 'agent_tools', ferramenta: 'usar_conector', outcome: 'executor_failed', message: String(erro) })
+      return {
+        erro: true,
+        paraOAgente: 'A chamada falhou agora. Diga ao usuário.',
+        passo: { descricao: `${agente.name} tentou usar ${ferramenta.nome} no ${nome}`, estado: 'falhou', link },
+      }
+    }
+    if (desfecho.status === 'executada') {
+      return {
+        erro: false,
+        paraOAgente: desfecho.resultado,
+        passo: { descricao: `${agente.name} usou ${ferramenta.nome} no ${nome}`, estado: 'concluida', link },
+      }
+    }
+    return {
+      erro: true,
+      paraOAgente: `A chamada de ${ferramenta.nome} no ${nome} não saiu: ${desfecho.mensagem}`,
+      passo: { descricao: `${agente.name} tentou usar ${ferramenta.nome} no ${nome}: ${desfecho.mensagem}`, estado: 'falhou', link },
+    }
+  },
+}
+
 export const CATALOGO: readonly FerramentaDoAgente[] = [LER_CONTAS, BUSCAR_PELO_ICP, CONSULTAR_INTEGRACAO, PROPOR_ENVIO]
+
+/**
+ * O catálogo com a ferramenta genérica dos conectores (ADR-0022). Ela fica à parte do `CATALOGO` das ferramentas da
+ * Etapa 5b porque depende de dois contratos novos do banco (as regras e a proposta de chamada): quem não os tem continua
+ * vendo só as quatro de antes.
+ */
+export const FERRAMENTAS: readonly FerramentaDoAgente[] = [...CATALOGO, USAR_CONECTOR]
 
 /** A ferramenta como o modelo a recebe. */
 export interface FerramentaParaOModelo {
@@ -473,12 +661,12 @@ export function criarSessaoDeFerramentas(
   const mural: string[] = []
   let chamadas = 0
   const permitidas = (agente: AgenteDoWorkspace) =>
-    CATALOGO.filter((f) => f.especialidades.includes(agente.specialty) && f.disponivel(agente, ctx, deps))
+    FERRAMENTAS.filter((f) => f.especialidades.includes(agente.specialty) && f.disponivel(agente, ctx, deps))
 
   return {
     paraOAgente: (agente) =>
       permitidas(agente).map((f) => ({ nome: f.nome, descricao: f.descricaoPara?.(agente, ctx) ?? f.descricao, esquema: f.esquema })),
-    conhece: (nome) => CATALOGO.some((f) => f.nome === nome),
+    conhece: (nome) => FERRAMENTAS.some((f) => f.nome === nome),
     mural: () => [...mural],
     async chamar(agente, nome, entrada) {
       const ferramenta = permitidas(agente).find((f) => f.nome === nome)
@@ -604,6 +792,18 @@ export function bancoDasFerramentas(
         }),
       )
       return { approvalId: linha.approval_id, outcome: linha.outcome, conta: linha.account_name, crm: linha.integration_name }
+    },
+    async proporChamada(runId, agenteId, a) {
+      const linha = primeira<{ approval_id: string; outcome: string }>(await chamar('propose_agent_action', {
+        p_run_id: runId,
+        p_agent_id: agenteId,
+        p_integration_id: a.integrationId,
+        p_action: a.acao,
+        p_payload: a.payload,
+        p_impact: a.impacto.slice(0, 1000),
+        p_justification: a.justificativa,
+      }))
+      return { approvalId: linha.approval_id, outcome: linha.outcome }
     },
   }
 }

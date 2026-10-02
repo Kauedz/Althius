@@ -4,7 +4,12 @@
 // As chaves ficam só no .env local (nunca no repositório): ver README.md desta pasta.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { type ContaEncontrada, creditosDoBanco, type Reserva, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
-import { bancoDoExecutor, executarEnvioAprovado } from '../_shared/executor-de-aprovacoes.ts'
+import {
+  bancoDoExecutor,
+  bancoDoExecutorDeFerramenta,
+  executarChamadaAprovada,
+  executarEnvioAprovado,
+} from '../_shared/executor-de-aprovacoes.ts'
 import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import type { DepsDeAcesso } from '../_shared/integration-access.ts'
@@ -53,6 +58,9 @@ const ferramentas: DepsDasFerramentas | undefined = Deno.env.get('HERMES_FERRAME
   banco: bancoDasFerramentas(rpcDoServico),
   acesso,
   executarAprovacao: (approvalId) => executarEnvioAprovado({ banco: bancoDoExecutor(rpcDoServico), acesso }, { approvalId }),
+  // As Aprovações de ferramenta de conector (ADR-0022) que nascem liberadas saem logo, pelo mesmo Acesso.
+  executarChamada: (approvalId) =>
+    executarChamadaAprovada({ banco: bancoDoExecutorDeFerramenta(rpcDoServico), acesso }, { approvalId }),
 }
 
 const worker = createWorker({

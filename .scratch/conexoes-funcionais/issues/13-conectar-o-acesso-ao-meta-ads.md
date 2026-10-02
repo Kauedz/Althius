@@ -12,3 +12,7 @@
 - [ ] O cartão do Meta Ads não oferece Sincronização.
 - [ ] Os testes do app cobrem o cartão do Meta Ads nos seus estados.
 - [ ] Conferência visual no navegador, com prints no `## Comments` deste ticket. A conexão com uma conta real do Meta Ads fica registrada como pendência humana, se ninguém tiver conta para o teste.
+1. Aplicar a migration e publicar (ticket 30): aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect --project-ref ycbdilsmydvzezhlymty` e `npx supabase functions deploy integration-callback --no-verify-jwt --project-ref ycbdilsmydvzezhlymty`.
+2. Criar o app em https://developers.facebook.com/apps (Facebook Login for Business, URL de retorno `https://ycbdilsmydvzezhlymty.supabase.co/functions/v1/integration-callback`) e gravar `META_ADS_MCP_CLIENT_ID` e `META_ADS_MCP_CLIENT_SECRET`.
+
+Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
