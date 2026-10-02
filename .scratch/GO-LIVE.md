@@ -38,12 +38,12 @@ bash scripts/wizard-go-live.sh
 ## Não confirmado (o primeiro uso real confirma)
 
 - Unipile v2: nomes de campo de chat e o evento de nova relação do LinkedIn (`send-chat-step-adapters.ts`, `ingest-chat-event.ts`).
-- HubSpot: escopos das notas, o tipo de associação Contact → Company, os nomes das ferramentas de escrita do MCP (por isso o Enviar ao CRM pede a chave de API).
+- HubSpot: escopos das notas e o tipo de associação Contact → Company no envio pela chave de API. Pela autorização (MCP), o Enviar ao CRM vai pelos Agentes com as ferramentas do próprio servidor ([ADR-0023](../docs/adr/0023-envio-ao-crm-pelas-ferramentas-do-conector.md)); o primeiro envio real confirma que o Agente acha as ferramentas de criar empresa, contato, associação e nota.
 - RD Station CRM: envelopes e o campo do id na resposta; a nota não vai (sem endpoint confirmado).
 - Apify: os actors de descoberta estão como "a validar numa execução real".
 
 ## Depois do go-live
 
-- Sincronização do HubSpot (conexoes-funcionais 04 a 06), com um portal real.
+- A Sincronização dedicada do HubSpot (conexoes-funcionais 04 a 06) saiu: foi substituída pelo caminho genérico (os Agentes leem qualquer CRM pelas ferramentas do conector; ticket 30).
 - Botão Enviar ao CRM no cartão do Kanban.
 - Avaliar o Jev (TypeSafe) para classificar respostas e pontuar o ICP, e o LAYA (link a enviar).

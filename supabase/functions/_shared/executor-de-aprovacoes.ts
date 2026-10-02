@@ -285,6 +285,12 @@ export interface BancoDoExecutorDeFerramenta {
   reservar(approvalId: string, payload: unknown): Promise<string>
   /** RPC `finish_approved_action`. */
   encerrar(approvalId: string, ok: boolean, falha: string | null): Promise<void>
+  /**
+   * RPC `finish_crm_handoff_by_tool_approval` (ADR-0023): fecha o Envio ao CRM pelos Agentes ligado à Execução da
+   * Aprovação, quando a chamada declara o efeito `empresa_no_crm`. O desfecho vem do estado da Aprovação no banco.
+   * Devolve 'enviado' ou 'falhou'. Sem ele, a Aprovação com o efeito só é executada, como as outras.
+   */
+  fecharEnvioPeloEfeito?(approvalId: string): Promise<string>
 }
 
 export interface DepsDoExecutorDeFerramenta {
@@ -294,8 +300,11 @@ export interface DepsDoExecutorDeFerramenta {
 }
 
 export type DesfechoDaChamadaAprovada =
-  /** `resultado` é o que a ferramenta devolveu, cortado, para o Agente ou a tela. */
-  | { status: 'executada'; mensagem: string; resultado: string }
+  /**
+   * `resultado` é o que a ferramenta devolveu, cortado, para o Agente ou a tela. `envioAoCrm`, só na chamada com o efeito
+   * `empresa_no_crm`: como ficou o Envio ao CRM pelos Agentes ('enviado', ou 'nao_fechado' quando o banco não fechou).
+   */
+  | { status: 'executada'; mensagem: string; resultado: string; envioAoCrm?: 'enviado' | 'nao_fechado' }
   | { status: 'nao_liberada'; motivo: string; mensagem: string }
   | { status: 'recusada'; mensagem: string }
   | { status: 'falhou'; mensagem: string }
@@ -356,8 +365,21 @@ export async function executarChamadaAprovada(
       registrar({ etapa: 'encerrar', erro: erro instanceof Error ? erro.message : 'desconhecido' })
     }
   }
+  // A chamada que declara o efeito `empresa_no_crm` (ADR-0023): depois de encerrada, o banco fecha o Envio ao CRM pelos
+  // Agentes da mesma Execução, Workspace e Conta (executada: enviado; falhou: falhou). Uma falha aqui não desfaz a chamada.
+  const comEfeito = aprovacao.payload.efeito === 'empresa_no_crm' && !!banco.fecharEnvioPeloEfeito
+  const fecharEnvio = async (): Promise<string | null> => {
+    if (!comEfeito) return null
+    try {
+      return await banco.fecharEnvioPeloEfeito!(approvalId)
+    } catch (erro) {
+      registrar({ etapa: 'fechar_envio', code: erro instanceof ErroDoBanco ? erro.codigo : 'desconhecido' })
+      return null
+    }
+  }
   const falhou = async (mensagem: string, erro: string): Promise<DesfechoDaChamadaAprovada> => {
     await encerrar(false, mensagem)
+    await fecharEnvio()
     registrar({ etapa: 'fim', ok: false, erro })
     return { status: 'falhou', mensagem }
   }
@@ -388,8 +410,14 @@ export async function executarChamadaAprovada(
   if (!r.ok) return await falhou(r.erro.mensagem, r.erro.tipo)
   if (r.valor.erro) return await falhou(`O app recusou ${ferramenta}: ${cortar(r.valor.conteudo).slice(0, 400)}`, 'recusada_pelo_app')
   await encerrar(true, null)
-  registrar({ etapa: 'fim', ok: true })
-  return { status: 'executada', mensagem: `${ferramenta} executada.`, resultado: cortar(r.valor.estruturado ?? r.valor.conteudo) }
+  const envio = await fecharEnvio()
+  registrar({ etapa: 'fim', ok: true, ...(comEfeito ? { envio } : {}) })
+  return {
+    status: 'executada',
+    mensagem: `${ferramenta} executada.`,
+    resultado: cortar(r.valor.estruturado ?? r.valor.conteudo),
+    ...(comEfeito ? { envioAoCrm: envio === 'enviado' ? 'enviado' as const : 'nao_fechado' as const } : {}),
+  }
 }
 
 /** O banco do executor de ferramentas pelas RPCs de serviço (migrations 20261001130000 e 20261002110000). */
@@ -426,5 +454,7 @@ export function bancoDoExecutorDeFerramenta(
     async encerrar(approvalId, ok, falha) {
       await chamar('finish_approved_action', { p_approval_id: approvalId, p_ok: ok, p_failure: falha })
     },
+    // Migration 20261002112000 (ADR-0023).
+    fecharEnvioPeloEfeito: (approvalId) => chamar<string>('finish_crm_handoff_by_tool_approval', { p_approval_id: approvalId }),
   }
 }

@@ -855,6 +855,37 @@ export function criarFonteDeContasSupabase(
       }
     },
 
+    // Enviar ao CRM pelos Agentes (ADR-0023): a Edge Function das Conversas confere tudo no banco, guarda o pedido com o
+    // pacote e roda a Execução; a tela abre a Conversa para acompanhar e decidir as Aprovações.
+    async enviarAoCrmPelosAgentes(contaId, integracaoId) {
+      const { data, error } = await cliente.functions.invoke('agent-conversation', {
+        body: {
+          action: 'enviar_ao_crm',
+          workspaceId: workspace(),
+          targetAccountId: contaId,
+          integrationId: integracaoId,
+          clientRequestId: crypto.randomUUID(),
+        },
+      })
+      notificar()
+      if (error) {
+        const recusa = await corpoDoErroDaFuncao(error)
+        if (typeof recusa?.error === 'string') throw new Error(recusa.error)
+        throw new Error(await motivoDaFalhaDaFuncao('agent-conversation', error, 'ANTHROPIC_API_KEY e APP_ORIGIN'))
+      }
+      const conversaId = (data as { conversationId?: unknown } | null)?.conversationId
+      if (typeof conversaId !== 'string') throw new Error('Os Agentes não confirmaram o pedido. Tente de novo.')
+      return { conversaId }
+    },
+
+    async conversaDoEnvioAoCrm(contaId) {
+      const { data, error } = await cliente.rpc('list_crm_handoff_conversations', { p_workspace_id: workspace() })
+      if (error) return null
+      const linha = ((data ?? []) as { target_account_id: string; conversation_id: string }[])
+        .find((l) => l.target_account_id === contaId)
+      return linha?.conversation_id ?? null
+    },
+
     sinais: nenhum,
     sinaisDaConta: nenhum,
     adicionarSinal: () => Promise.reject(new ErroDeModuloIndisponivel('sinais')),
