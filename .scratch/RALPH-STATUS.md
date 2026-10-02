@@ -1,3 +1,13 @@
+# Ralph status — prospecção funcional
+
+Updated: 2026-10-02
+
+| Ticket | Status | Branch | PR | Motivo |
+| --- | --- | --- | --- | --- |
+| 00 | done | ralph/00-saude-do-build-da-main | (abre neste turno) | Os seis checks já passam na `main` `34ed683`. CI run 37023681742 verde (frontend, banco, funções). Sem conserto de código. |
+
+---
+
 # Ralph status — early-send (CRM × Auth × Canais)
 Updated: 2026-09-25T20:35-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
