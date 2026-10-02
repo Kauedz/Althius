@@ -117,7 +117,15 @@ export function stepAttachmentSourceVia(admin: RpcClient & StorageClient): StepA
       const rows = (Array.isArray(data) ? data : []) as (Partial<StepAttachment> & { problem?: string | null })[]
       const problem = rows.find((row) => row.problem)?.problem
       if (problem) return { problem }
-      return { files: rows.filter((row): row is StepAttachment & { problem: null } => !!row.storage_path) }
+      return {
+        files: rows.filter((row) => !!row.storage_path).map((row) => ({
+          attachment_id: String(row.attachment_id),
+          storage_path: String(row.storage_path),
+          file_name: String(row.file_name ?? 'anexo'),
+          mime_type: String(row.mime_type),
+          size_bytes: Number(row.size_bytes),
+        })),
+      }
     },
     async download(storagePath) {
       const { data, error } = await admin.storage.from(SEQUENCE_ATTACHMENTS_BUCKET).download(storagePath)

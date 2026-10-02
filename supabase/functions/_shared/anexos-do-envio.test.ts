@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1'
-import { type StepAttachment, type StepAttachmentSource, toBase64 } from './anexos-do-envio.ts'
+import { type StepAttachment, type StepAttachmentSource, stepAttachmentSourceVia, toBase64 } from './anexos-do-envio.ts'
 import { type ReleasedSend, sendStep, type SendStepDb, type UnipileMail } from './send-step.ts'
 import { type ChatSendDb, type ReleasedChatSend, sendChatStep, type UnipileChat } from './send-chat-step.ts'
 
@@ -281,4 +281,34 @@ Deno.test('no WhatsApp, o anexo que não deu para baixar falha como passageiro, 
   })
   assertEquals(gravados.map((g) => [g.outcome, g.error]), [['failed', 'attachment_download_failed']])
   assertEquals(chamadas.length, 0)
+})
+
+// ---------- Adaptador ----------
+
+function adminFalso(resposta: { data: unknown; error: unknown }) {
+  return {
+    rpc: () => Promise.resolve(resposta),
+    storage: { from: () => ({ download: () => Promise.resolve({ data: new Blob([PNG]), error: null }) }) },
+  }
+}
+
+Deno.test('o adaptador devolve o motivo ou os arquivos que o banco listou', async () => {
+  const comMotivo = stepAttachmentSourceVia(adminFalso({ data: [{ problem: 'attachment_too_large' }], error: null }))
+  assertEquals(await comMotivo.forSend(SEND), { problem: 'attachment_too_large' })
+  const comArquivo = stepAttachmentSourceVia(adminFalso({ data: [{ problem: null, ...ARQUIVO }], error: null }))
+  assertEquals(await comArquivo.forSend(SEND), { files: [ARQUIVO] })
+  assertEquals(await comArquivo.download('anexos/s/a/arquivo'), PNG)
+})
+
+Deno.test('sem a migration aplicada, o passo segue sem anexo em vez de travar os envios', async () => {
+  const semFuncao = stepAttachmentSourceVia(adminFalso({ data: null, error: { code: 'PGRST202', message: 'not found' } }))
+  assertEquals(await semFuncao.forSend(SEND), { files: [] })
+  const outroErro = stepAttachmentSourceVia(adminFalso({ data: null, error: { code: '57014', message: 'timeout' } }))
+  let falhou = false
+  try {
+    await outroErro.forSend(SEND)
+  } catch {
+    falhou = true
+  }
+  assertEquals(falhou, true)
 })
