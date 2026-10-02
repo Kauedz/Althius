@@ -551,6 +551,38 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
     id: 'pipedrive',
     nome: 'Pipedrive',
     portalFixo: true,
+    // O conector oficial do Pipedrive, o mesmo que o Claude usa (migration 20261002111000): o servidor MCP em
+    // mcp.pipedrive.ai (pesquisa-conectores-mcp-todos.md), com OAuth no próprio Pipedrive. Os endereços de autorização e
+    // de token vêm da descoberta (RFC 9728 e 8414), como no Notion. A chave de API continua como alternativa (ADR-0021).
+    mcp: {
+      url: 'https://mcp.pipedrive.ai/mcp',
+      oauth: {
+        // não confirmado: se o servidor anuncia registro dinâmico (RFC 7591). Se não anunciar, o app OAuth é criado à mão
+        // no Developer Hub do Pipedrive e o client id e o secret entram nestes segredos, como no HubSpot.
+        registro: 'dinamico',
+        segredos: { clientId: 'PIPEDRIVE_MCP_CLIENT_ID', clientSecret: 'PIPEDRIVE_MCP_CLIENT_SECRET' },
+        enviarRecurso: true,
+        identificacao: {
+          // A mesma consulta da chave de API, com o token no cabeçalho. não confirmado: que o token emitido para o MCP vale
+          // na API REST (api.pipedrive.com); se não valer, a identificação segue para a ferramenta abaixo.
+          requisicoes: [
+            {
+              metodo: 'GET',
+              url: 'https://api.pipedrive.com/v1/users/me',
+              cabecalhos: { Authorization: 'Bearer {credencial}' },
+              portal: ['data.company_id'],
+              conta: ['data.email', 'data.name'],
+            },
+          ],
+          // O nome da ferramenta vem do conector (pesquisa). não confirmado: os campos do usuário no resultado dela.
+          porFerramentaMcp: {
+            ferramenta: 'getAccountContext',
+            portal: ['user.company_id', 'user.companyId', 'company_id', 'data.user.company_id'],
+            conta: ['user.email', 'user.name', 'email', 'data.user.email'],
+          },
+        },
+      },
+    },
     chaveDeApi: {
       via: 'rest',
       identificacao: {
@@ -566,7 +598,11 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       },
     },
     rest: PIPEDRIVE_REST,
-    naoConfirmado: ['Campos da resposta de /users/me que identificam a conta e a empresa do Pipedrive.', 'Servidor MCP oficial do Pipedrive.'],
+    naoConfirmado: [
+      'Campos da resposta de /users/me que identificam a conta e a empresa do Pipedrive.',
+      'Se o servidor MCP (mcp.pipedrive.ai) anuncia registro dinâmico de cliente; se não, o app OAuth é criado no Developer Hub.',
+      'Se o token OAuth do MCP vale na API REST (/v1/users/me) e os campos do usuário no resultado de getAccountContext.',
+    ],
   },
   'rd-station': {
     id: 'rd-station',

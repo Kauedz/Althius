@@ -11,7 +11,7 @@ const SEED_DO_BANCO: Record<string, { kinds: string[]; pinsPortal: boolean }> = 
   apollo: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: false },
   lusha: { kinds: ['api_key'], pinsPortal: false },
   'meta-ads': { kinds: ['oauth_mcp'], pinsPortal: false },
-  pipedrive: { kinds: ['api_key'], pinsPortal: true },
+  pipedrive: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: true },
   'rd-station': { kinds: ['api_key'], pinsPortal: false },
 }
 

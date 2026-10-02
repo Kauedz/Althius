@@ -240,7 +240,7 @@ Deno.test('Lusha: a chave é validada listando as ferramentas do MCP com x-api-k
 Deno.test('a Integração sem o caminho pedido responde que não conecta assim', async () => {
   const { pedir } = montar({ ambiente: HUBSPOT })
   assertEquals((await pedir({ action: 'chave', workspaceId: WS, integrationId: 'notion', chave: 'qualquer-chave-1' })).status, 400)
-  assertEquals((await pedir({ action: 'iniciar', workspaceId: WS, integrationId: 'pipedrive' })).status, 400)
+  assertEquals((await pedir({ action: 'iniciar', workspaceId: WS, integrationId: 'rd-station' })).status, 400)
 })
 
 Deno.test('o preflight do app é respondido com a origem permitida', async () => {
