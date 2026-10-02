@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { comCors, origensPermitidas } from '../_shared/cors.ts'
+import { comCors, origemDoAppParaLink, origensPermitidas } from '../_shared/cors.ts'
 
 const UNIPILE_API_BASE = 'https://api.unipile.com'
 
@@ -21,7 +21,7 @@ function serviceClient() {
 
 function unipileConfig() {
   const apiKey = Deno.env.get('UNIPILE_API_KEY')
-  // Com várias origens no APP_ORIGIN, o retorno do link hospedado vai para a primeira (a publicada).
+  // A primeira origem do APP_ORIGIN (a publicada) só valida a configuração; o retorno usa a origem do pedido.
   const appOrigin = origensPermitidas(Deno.env.get('APP_ORIGIN') ?? '')[0]
   if (!apiKey || !appOrigin) throw new Error('Backend is not configured')
   const origin = new URL(appOrigin)
@@ -110,7 +110,9 @@ Deno.serve(comCors(Deno.env.get('APP_ORIGIN') ?? '', async (req) => {
       const reconnecting = action === 'reconnect'
       const payload: Record<string, unknown> = {
         expires_on: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        redirect_uri: `${config.appOrigin}/conexoes`,
+        // Volta para a origem de onde o pedido saiu (ex.: o app local), se ela está no APP_ORIGIN: voltar para outra
+        // origem perde a sessão e o Workspace escolhido, e a próxima conexão cai noutro Workspace.
+        redirect_uri: `${origemDoAppParaLink(req, Deno.env.get('APP_ORIGIN') ?? '')}/conexoes`,
         state: attempt.attempt_id,
       }
       if (reconnecting) {
