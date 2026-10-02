@@ -9,7 +9,7 @@ import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferrame
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import type { DepsDeAcesso } from '../_shared/integration-access.ts'
 import { creditosDoBanco, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
-import { createHandler, type Db, type Inicio } from './handler.ts'
+import { createHandler, type Db, type Inicio, recusaDoEnvioPelosAgentes } from './handler.ts'
 import { modeloDaAnthropic } from './model.ts'
 import { modeloDoGroq } from './model-groq.ts'
 import { type ContaEncontrada, createRunner, ErroDoModelo, type Modelo, type Reserva, type RunDb } from './runner.ts'
@@ -84,6 +84,25 @@ const db: Db = {
     if (!linha?.conversation_id || !linha.run_id || !linha.status) {
       throw new Error('start_agent_run não devolveu a Execução')
     }
+    return { kind: 'started', conversationId: linha.conversation_id, runId: linha.run_id, status: linha.status }
+  },
+  // O Enviar ao CRM pelos Agentes (ADR-0023, migration 20261002112000): a chave de serviço, com quem o JWT identificou; o
+  // banco confere a Participação, a responsabilidade, o CRM, o Acesso pela autorização e um Agente que escreve.
+  async iniciarEnvioAoCrm(pedido) {
+    const { data, error } = await admin.rpc('begin_crm_handoff_by_agents', {
+      p_workspace_id: pedido.workspaceId,
+      p_target_account_id: pedido.targetAccountId,
+      p_user_id: pedido.userId,
+      p_integration_id: pedido.integrationId,
+      p_client_request_id: pedido.clientRequestId,
+    })
+    if (error) {
+      const recusa = recusaDoEnvioPelosAgentes(error.code ?? '', error.message)
+      if (recusa.code === 'indisponivel') throw new Error(`begin_crm_handoff_by_agents: ${error.code ?? ''} ${error.message}`)
+      return { kind: 'recusado', ...recusa }
+    }
+    const [linha] = (data ?? []) as { conversation_id?: string; run_id?: string; status?: string }[]
+    if (!linha?.conversation_id || !linha.run_id || !linha.status) throw new Error('begin_crm_handoff_by_agents não devolveu a Execução')
     return { kind: 'started', conversationId: linha.conversation_id, runId: linha.run_id, status: linha.status }
   },
 }

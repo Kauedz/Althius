@@ -64,11 +64,37 @@ export interface EnvioProposto {
 /** Uma chamada de ferramenta de conector que precisa de Aprovação, como vai a `propose_agent_action`. */
 export interface ChamadaProposta {
   integrationId: string
-  /** `{ tipo: 'ferramenta', integration_id, ferramenta, argumentos }`: exatamente o que o executor vai chamar. */
-  payload: { tipo: 'ferramenta'; integration_id: string; ferramenta: string; argumentos: Record<string, unknown> }
+  /**
+   * `{ tipo: 'ferramenta', integration_id, ferramenta, argumentos }`: exatamente o que o executor vai chamar. Com o efeito
+   * declarado pelo Agente (ADR-0023), também `efeito: 'empresa_no_crm'`.
+   */
+  payload: {
+    tipo: 'ferramenta'
+    integration_id: string
+    ferramenta: string
+    argumentos: Record<string, unknown>
+    efeito?: EfeitoDaChamada
+  }
   acao: string
   impacto: string
   justificativa: string
+  /** A Conta-alvo da chamada com o efeito: o banco só fecha o Envio ao CRM desta Conta. */
+  targetAccountId?: string
+}
+
+/**
+ * O efeito que o Agente declara numa chamada de conector (ADR-0023). `empresa_no_crm`: esta chamada leva a empresa ao
+ * CRM no Envio ao CRM pelos Agentes; quando ela termina executada, o envio da Conta fecha como enviado.
+ */
+export type EfeitoDaChamada = 'empresa_no_crm'
+
+/** A chamada liberada sem Aprovação que declarou o efeito, como vai a `finish_crm_handoff_by_tool_call`. */
+export interface ChamadaComEfeito {
+  integrationId: string
+  ferramenta: string
+  targetAccountId: string
+  ok: boolean
+  erro: string | null
 }
 
 /** O contrato com o banco das ferramentas (migration 20261001210000). Erros do banco chegam como ErroDoBanco. */
@@ -83,6 +109,11 @@ export interface BancoDasFerramentas {
   ): Promise<EnvioProposto>
   /** RPC `propose_agent_action` com a chamada de ferramenta (ADR-0022). Sem ela, `usar_conector` não é oferecida. */
   proporChamada?(runId: string, agenteId: string, a: ChamadaProposta): Promise<{ approvalId: string; outcome: string }>
+  /**
+   * RPC `finish_crm_handoff_by_tool_call` (ADR-0023): a chamada com o efeito que executou na hora fecha o Envio ao CRM
+   * pelos Agentes desta Execução. Devolve 'enviado' ou 'falhou'. Sem ele, `usar_conector` não aceita o efeito.
+   */
+  fecharEnvioPelaChamada?(runId: string, agenteId: string, a: ChamadaComEfeito): Promise<string>
 }
 
 export interface DepsDasFerramentas {
@@ -477,6 +508,20 @@ const MOTIVO_DA_RECUSA = {
   sem_permissao: 'Você não tem Permissão neste conector.',
 } as const
 
+/**
+ * Como enviar uma Conta ao CRM pelas ferramentas do próprio conector (ADR-0023), igual para qualquer CRM: a Althius não
+ * sabe o nome das ferramentas de cada app; o Agente as lê no "listar" e declara o efeito na chamada que leva a empresa.
+ */
+export const COMO_ENVIAR_AO_CRM =
+  'Enviar ao CRM (quando o pedido traz o pacote de uma Conta-alvo e o conta_id): 1) liste as ferramentas do CRM; ' +
+  '2) procure a empresa antes de criar (pelo domínio ou pelo nome), para não duplicar; 3) crie a empresa e passe ' +
+  'efeito "empresa_no_crm" e o conta_id nessa chamada (se a empresa já existe no CRM, declare o efeito na primeira ' +
+  'escrita que a usa, como associar um Contato ou criar a nota); 4) crie os Contatos, associe-os à empresa e crie a nota ' +
+  'com o texto do pacote. Não declare o efeito em nenhuma outra chamada. Quando uma escrita pede Aprovação, proponha a ' +
+  'da empresa primeiro e diga que o resto continua depois da decisão na Conversa.'
+
+const UUID_DA_CONTA = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
+
 const USAR_CONECTOR: FerramentaDoAgente = {
   nome: 'usar_conector',
   descricao:
@@ -491,6 +536,12 @@ const USAR_CONECTOR: FerramentaDoAgente = {
       ferramenta: { type: 'string', description: 'O nome da ferramenta, ou "listar".' },
       argumentos: { type: 'object', description: 'Os argumentos, como o esquema da ferramenta pede.' },
       justificativa: { type: 'string', description: 'Por que usar agora, em uma frase, para quem decide a Aprovação.' },
+      efeito: {
+        type: 'string',
+        enum: ['empresa_no_crm'],
+        description: 'Só no Enviar ao CRM: "empresa_no_crm" na chamada que leva a empresa ao CRM (com conta_id).',
+      },
+      conta_id: { type: 'string', description: 'O id da Conta-alvo do Enviar ao CRM, junto com o efeito.' },
     },
     required: ['integracao', 'ferramenta'],
     additionalProperties: false,
@@ -500,8 +551,11 @@ const USAR_CONECTOR: FerramentaDoAgente = {
   disponivel: (agente, ctx, deps) =>
     !!deps.acesso?.banco.regrasDasFerramentas && !!deps.banco.proporChamada && conectoresDo(agente, ctx).length > 0,
   descricaoPara(agente, ctx) {
-    const linhas = conectoresDo(agente, ctx).map((p) => `- ${p.integrationId} (${p.name}): ${NOME_DA_PERMISSAO[p.permission]}`)
-    return `${USAR_CONECTOR.descricao}\nConectores que você pode usar (com a sua Permissão):\n${linhas.join('\n')}`
+    const conectores = conectoresDo(agente, ctx)
+    const linhas = conectores.map((p) => `- ${p.integrationId} (${p.name}): ${NOME_DA_PERMISSAO[p.permission]}`)
+    const crm = conectores.some((p) => p.category === 'CRM' && RANGO[p.permission] >= RANGO.propor)
+    return `${USAR_CONECTOR.descricao}\nConectores que você pode usar (com a sua Permissão):\n${linhas.join('\n')}` +
+      (crm ? `\n${COMO_ENVIAR_AO_CRM}` : '')
   },
   async executar({ runId, agente, entrada, ctx, deps }) {
     const integrationId = texto(entrada.integracao, 40)
@@ -561,15 +615,56 @@ const USAR_CONECTOR: FerramentaDoAgente = {
       return falhou(`${agente.name} não pôde usar ${ferramenta.nome} no ${nome}`, MOTIVO_DA_RECUSA[decisao.motivo])
     }
 
+    // O efeito declarado (ADR-0023): só `empresa_no_crm`, só numa escrita, com a Conta, e só onde o banco sabe fechar.
+    let efeito: { efeito: EfeitoDaChamada; targetAccountId: string } | null = null
+    if (entrada.efeito !== undefined && entrada.efeito !== null && entrada.efeito !== '') {
+      const contaId = texto(entrada.conta_id, 64)
+      const recusar = (motivo: string) => falhou(`${agente.name} tentou usar ${ferramenta.nome} no ${nome}`, motivo)
+      if (entrada.efeito !== 'empresa_no_crm') return recusar('O único efeito que existe é "empresa_no_crm".')
+      if (!ferramenta.escreve) {
+        return recusar('O efeito "empresa_no_crm" vale só para uma ferramenta que escreve no CRM. Use a leitura sem o efeito.')
+      }
+      if (!UUID_DA_CONTA.test(contaId)) return recusar('Com o efeito, passe o conta_id que o pedido traz.')
+      if (!deps.banco.fecharEnvioPelaChamada) return recusar('O Enviar ao CRM pelos Agentes não está disponível agora.')
+      efeito = { efeito: 'empresa_no_crm', targetAccountId: contaId }
+    }
+
     if (decisao.tipo === 'executa') {
       const r = await chamarFerramenta(acesso, { ...pedido, ferramenta: ferramenta.nome, argumentos, agenteId: agente.id })
-      if (!r.ok) return falhou(`${agente.name} tentou usar ${ferramenta.nome} no ${nome}`, r.erro.mensagem)
+      // A chamada com o efeito fecha o Envio ao CRM desta Execução: deu certo, enviado; falhou, falhou (o banco confere).
+      const fecharEnvio = async (ok: boolean, erro: string | null): Promise<string | null> => {
+        if (!efeito) return null
+        try {
+          return await deps.banco.fecharEnvioPelaChamada!(runId, agente.id, {
+            integrationId,
+            ferramenta: ferramenta.nome,
+            targetAccountId: efeito.targetAccountId,
+            ok,
+            erro,
+          })
+        } catch (falha) {
+          deps.log?.({
+            type: 'agent_tools',
+            ferramenta: 'usar_conector',
+            outcome: 'crm_handoff_not_closed',
+            code: falha instanceof ErroDoBanco ? falha.codigo : 'desconhecido',
+          })
+          return null
+        }
+      }
+      if (!r.ok) {
+        await fecharEnvio(false, r.erro.mensagem)
+        return falhou(`${agente.name} tentou usar ${ferramenta.nome} no ${nome}`, r.erro.mensagem)
+      }
       if (r.valor.erro) {
+        await fecharEnvio(false, `O ${nome} recusou ${ferramenta.nome}.`)
         return falhou(`${agente.name} usou ${ferramenta.nome} no ${nome}, que recusou`, `O ${nome} recusou: ${cortar(r.valor.conteudo)}`)
       }
+      const envio = await fecharEnvio(true, null)
+      const resultado = cortar(r.valor.estruturado ?? r.valor.conteudo)
       return {
         erro: false,
-        paraOAgente: cortar(r.valor.estruturado ?? r.valor.conteudo),
+        paraOAgente: efeito ? `${resultado}\n${avisoDoEnvio(envio === 'enviado', nome)}` : resultado,
         passo: { descricao: `${agente.name} usou ${ferramenta.nome} no ${nome}`, estado: 'concluida' },
       }
     }
@@ -579,7 +674,14 @@ const USAR_CONECTOR: FerramentaDoAgente = {
     try {
       proposta = await proporChamada(runId, agente.id, {
         integrationId,
-        payload: { tipo: 'ferramenta', integration_id: integrationId, ferramenta: ferramenta.nome, argumentos },
+        payload: {
+          tipo: 'ferramenta',
+          integration_id: integrationId,
+          ferramenta: ferramenta.nome,
+          argumentos,
+          ...(efeito ? { efeito: efeito.efeito } : {}),
+        },
+        ...(efeito ? { targetAccountId: efeito.targetAccountId } : {}),
         acao: `Usar ${ferramenta.nome} no ${nome}`.slice(0, 300),
         impacto: `${ferramenta.escreve ? 'Escreve ou gasta' : 'Lê'} no ${nome} com a conta de quem fez o pedido. ` +
           `Argumentos: ${cortar(argumentos, 600)}`,
@@ -612,7 +714,7 @@ const USAR_CONECTOR: FerramentaDoAgente = {
     if (desfecho.status === 'executada') {
       return {
         erro: false,
-        paraOAgente: desfecho.resultado,
+        paraOAgente: efeito ? `${desfecho.resultado}\n${avisoDoEnvio(desfecho.envioAoCrm === 'enviado', nome)}` : desfecho.resultado,
         passo: { descricao: `${agente.name} usou ${ferramenta.nome} no ${nome}`, estado: 'concluida', link },
       }
     }
@@ -622,6 +724,13 @@ const USAR_CONECTOR: FerramentaDoAgente = {
       passo: { descricao: `${agente.name} tentou usar ${ferramenta.nome} no ${nome}: ${desfecho.mensagem}`, estado: 'falhou', link },
     }
   },
+}
+
+/** O que o Agente lê depois da chamada com o efeito: se a Conta foi para No CRM. */
+function avisoDoEnvio(enviado: boolean, crm: string): string {
+  return enviado
+    ? `A empresa está no ${crm}: o Envio ao CRM desta Conta foi registrado e ela foi para No CRM. Siga com os Contatos e a nota.`
+    : 'A chamada saiu, mas a Althius não registrou o Envio ao CRM desta Conta (o pedido não é um Enviar ao CRM, ou ele já fechou). Diga isso ao usuário.'
 }
 
 export const CATALOGO: readonly FerramentaDoAgente[] = [LER_CONTAS, BUSCAR_PELO_ICP, CONSULTAR_INTEGRACAO, PROPOR_ENVIO]
@@ -802,9 +911,21 @@ export function bancoDasFerramentas(
         p_payload: a.payload,
         p_impact: a.impacto.slice(0, 1000),
         p_justification: a.justificativa,
+        ...(a.targetAccountId ? { p_target_account_id: a.targetAccountId } : {}),
       }))
       return { approvalId: linha.approval_id, outcome: linha.outcome }
     },
+    // Migration 20261002112000 (ADR-0023).
+    fecharEnvioPelaChamada: (runId, agenteId, a) =>
+      chamar<string>('finish_crm_handoff_by_tool_call', {
+        p_run_id: runId,
+        p_agent_id: agenteId,
+        p_integration_id: a.integrationId,
+        p_tool_name: a.ferramenta,
+        p_target_account_id: a.targetAccountId,
+        p_ok: a.ok,
+        p_error: a.erro,
+      }),
   }
 }
 
