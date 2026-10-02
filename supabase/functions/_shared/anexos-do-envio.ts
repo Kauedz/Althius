@@ -109,6 +109,10 @@ export function stepAttachmentSourceVia(admin: RpcClient & StorageClient): StepA
   return {
     async forSend(sendId) {
       const { data, error } = await admin.rpc('step_send_attachments', { p_send_id: sendId })
+      // Sem a migration do canais-10 aplicada, nenhum documento tem anexo (a tela nem oferece): o passo sai só com o
+      // texto, como antes, em vez de travar todos os envios por uma função que ainda não existe.
+      const code = (error as { code?: string } | null)?.code
+      if (code === 'PGRST202' || code === '42883') return { files: [] }
       if (error) throw error
       const rows = (Array.isArray(data) ? data : []) as (Partial<StepAttachment> & { problem?: string | null })[]
       const problem = rows.find((row) => row.problem)?.problem
