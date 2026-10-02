@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Estágio de prospecção; `conexoes-funcionais` 03 (Acesso ao HubSpot); CRM-15 (Aprovações).
 
-**Status:** ready-for-human (falta o teste real com uma conta de CRM; o envio por um Agente ficou pronto na Etapa 5b, mas com Propor o Administrador ainda não tem a fila para decidir, ver CRM-15)
+**Status:** ready-for-human (falta o teste real com uma conta de CRM; o envio por um Agente ficou pronto na Etapa 5b, mas com Propor o Administrador ainda não tem a fila para decidir, ver CRM-15; o botão no cartão do Kanban ficou pronto em 2026-10-02)
 
 ## Pode mexer
 
@@ -21,14 +21,14 @@
 - [x] Com Propor, nada sai sem Aprovação. (Etapa 5b: o Agente propõe com `propor_envio_ao_crm`, a Aprovação guarda o conteúdo exato e o executor só envia depois de `claim_approved_action` reservá-la; `chamarFerramenta` só libera a escrita de quem tem Propor enquanto a Aprovação dele está em execução.)
 - [x] Com Executar, a Aprovação nasce liberada e o executor envia na hora, pelo Acesso de quem pediu ao Agente (que precisa ser o Vendedor responsável).
 - [x] O Administrador decide a Aprovação de envio no Workspace operacional: na própria Conversa, no passo do Agente (2026-10-02, `conexoes-funcionais` 30); a fila real segue desligada (CRM-15).
-- [ ] Enviar ao CRM pelo caminho genérico dos conectores: o botão abre um pedido aos Agentes, que levam a empresa, os Contatos e a nota com as ferramentas do próprio conector (desenho e ponto aberto no `conexoes-funcionais` 30). O caminho REST por chave de API continua.
+- [x] Enviar ao CRM pelo caminho genérico dos conectores: o botão abre um pedido aos Agentes, que levam a empresa, os Contatos e a nota com as ferramentas do próprio conector. O caminho REST por chave de API continua. (Já na `main`, ADR-0023: migration `20261002112000_envio_ao_crm_pelo_conector.sql`, "Pedir aos Agentes" em `paginas/enviar-ao-crm.tsx`, vitest `paginas/enviar-ao-crm-pelos-agentes.test.tsx`, pgTAP `envio_ao_crm_pelo_conector.sql`.)
 - [x] Depois do envio, a Althius não escreve de novo sem pedido (índice único em `private.crm_handoffs`; `begin_crm_handoff` recusa com 23505).
 - [x] Só o Vendedor responsável, com Participação ativa, envia; outro Workspace não alcança a Conta; Integração que não é CRM é recusada (pgTAP `envio_ao_crm.sql`).
 - [x] O envio usa o Acesso do PRÓPRIO participante (chave de API); pelo OAuth/MCP responde 409 pedindo a chave, sem inventar ferramenta MCP.
 - [x] Erro parcial grava `falhou` com o que já foi criado; a nova tentativa não cria de novo (progresso gravado a cada objeto).
 - [x] Enviado: o cartão vai para No CRM, com quem enviou e o evento `enviada_ao_crm` no histórico.
 - [x] Botão no detalhe da Conta-alvo para o Vendedor responsável, com escolha do CRM conectado e confirmação do que vai.
-- [ ] Botão também no cartão do Kanban (ficou só no detalhe da Conta).
+- [x] Botão também no cartão do Kanban. (2026-10-02: "Enviar ao CRM" no cartão de cada Conta sob a responsabilidade da pessoa, fora de No CRM, abre a mesma confirmação do detalhe (`EnviarAoCrm`), com os dois caminhos; vitest `paginas/kanban-enviar-ao-crm.test.tsx`.)
 - [ ] Teste real com uma conta de teste do HubSpot, do Pipedrive e do RD Station CRM.
 
 ## Comments
@@ -43,6 +43,8 @@
 - **Etapa 5b (2026-10-01).** Migration `20261001210000_ferramentas_dos_agentes.sql`: `agent_propose_crm_handoff`, `crm_handoff_approval`, `begin_approved_crm_handoff` (liga a tentativa em `private.crm_handoffs.approval_id`) e `approval_in_execution`. Executor `_shared/executor-de-aprovacoes.ts`, reaproveitando `escreverNoCrm`; ação `executar_aprovacao` no `crm-handoff`. Na Conversa, o passo diz "Rhetor propôs enviar a Acme ao HubSpot — aguardando Aprovação", com o link "Ver a Aprovação".
 
 - **2026-10-02 (conectores genéricos, `conexoes-funcionais` 30).** A permissão por ferramenta (ADR-0022) vale também aqui: uma ferramenta de escrita "bloqueada" pelo Administrador no CRM faz o envio falhar com o motivo, e no executor das Aprovações a escrita só passa com a Aprovação em execução (como já era). O "Enviar ao CRM" pelo caminho genérico (o botão abrindo um pedido aos Agentes) não foi feito, para não deixar meio-caminho: o desenho e o ponto aberto (como ligar a tentativa à chamada que criou a empresa, sem código por app) estão no ticket 30.
+
+- **2026-10-02 (botão no cartão do Kanban).** O cartão de cada Conta do Kanban ganhou "Enviar ao CRM" (só para o Vendedor responsável, com a Conta ativa e fora de No CRM, e só onde a Fonte envia: a Demonstração não). Ele abre, num diálogo, o mesmo componente do detalhe da Conta já na confirmação: pela chave de API envia direto; pela autorização (servidor MCP) pede aos Agentes. **Decisão:** nada de código por app de CRM (ADR-0022/0023); o "HubSpot primeiro" do texto deste ticket vale só como a primeira conta de teste. O diálogo fica no Kanban, e não no cartão, porque o cartão muda para No CRM quando o envio termina. Nenhuma migration, nenhuma Edge Function nova.
 
 ## Passos do Nan
 
@@ -68,3 +70,7 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 
 9. Aplicar `supabase/migrations/20261002110000_permissao_por_ferramenta.sql` conforme `docs/agents/migrations.md` (validar com rollback, rodar `scripts/pgtap-no-remoto.sh supabase/tests/permissao_por_ferramenta.sql`, aplicar e conferir o md5); depois `npx supabase functions deploy integration-tools agent-conversation crm-handoff integration-connect --project-ref ycbdilsmydvzezhlymty` e `npx supabase functions deploy integration-callback --no-verify-jwt --project-ref ycbdilsmydvzezhlymty`.
 10. Conferência: com o Rhetor em Propor no HubSpot, pedir na Conversa o envio de uma Conta sua e aprovar no próprio passo da Conversa; em Conexões > HubSpot > Ver ferramentas, conferir que as de escrita aparecem em "Pedir aprovação".
+
+### 2026-10-02 (botão no cartão do Kanban)
+
+11. Nada a publicar no backend. Depois do deploy do frontend, conferir: em Contas > Kanban, no cartão de uma Conta sua, "Enviar ao CRM" abre a confirmação; confirmar (pela chave) leva a Conta ao CRM e o cartão para No CRM; pela autorização, "Pedir aos Agentes" abre o pedido numa Conversa.
