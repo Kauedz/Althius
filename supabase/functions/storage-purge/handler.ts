@@ -44,8 +44,8 @@ export interface Deps {
 
 const PAGE = 100
 
-/** Os únicos buckets em que a fila pode apagar: os que guardam dado ligado a um registro (anexos e CSV da importação). */
-export const BUCKETS_PERMITIDOS: ReadonlySet<string> = new Set(['email-attachments', 'csv-imports'])
+/** Os únicos buckets em que a fila pode apagar: os que guardam dado ligado a um registro (anexos recebidos, CSV da importação e anexos dos passos). */
+export const BUCKETS_PERMITIDOS: ReadonlySet<string> = new Set(['email-attachments', 'csv-imports', 'sequence-attachments'])
 
 /**
  * O prefixo tem de apontar para uma pasta de dentro de uma pasta (`recebidos/<id>/`), nunca para a raiz de um bucket nem

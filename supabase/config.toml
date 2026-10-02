@@ -73,3 +73,7 @@ verify_jwt = true
 # Enviar ao CRM (kanban 05): o Vendedor responsável chama com o JWT; o banco confere Participação, responsabilidade e Acesso.
 [functions.crm-handoff]
 verify_jwt = true
+
+# Anexos dos passos da Sequência (canais-10): o titular sobe o arquivo e abre por URL assinada curta.
+[functions.sequence-attachments]
+verify_jwt = true
