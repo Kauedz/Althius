@@ -176,12 +176,21 @@ export function unipileChatVia(apiKey: string, fetchImpl: typeof fetch = fetch):
   const account = (accountId: string) => `/v2/${encodeURIComponent(accountId)}`
 
   return {
-    async startChat(accountId, { userId, text }, { signal }) {
-      return readChatSent(await post(`${account(accountId)}/chats/send`, { [START_CHAT_USERS_FIELD]: [userId], text }, signal))
+    // Os anexos (canais-10) vão no mesmo JSON, com o conteúdo em base64, como no e-mail da v2.
+    // não confirmado: o campo `attachments` e o formato de cada item no envio de mensagem da v2.
+    async startChat(accountId, { userId, text, attachments }, { signal }) {
+      return readChatSent(await post(`${account(accountId)}/chats/send`, {
+        [START_CHAT_USERS_FIELD]: [userId],
+        text,
+        ...(attachments?.length ? { attachments } : {}),
+      }, signal))
     },
-    async sendChatMessage(accountId, chatId, text, { signal }) {
+    async sendChatMessage(accountId, chatId, text, { signal, attachments }) {
       return readChatSent(
-        await post(`${account(accountId)}/chats/${encodeURIComponent(chatId)}/messages/send`, { text }, signal),
+        await post(`${account(accountId)}/chats/${encodeURIComponent(chatId)}/messages/send`, {
+          text,
+          ...(attachments?.length ? { attachments } : {}),
+        }, signal),
         chatId,
       )
     },

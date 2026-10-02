@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
+import { stepAttachmentSourceVia } from '../_shared/anexos-do-envio.ts'
 import { createHandler, type Db, type ReleaseResult } from './handler.ts'
 
 function required(name: string) {
@@ -49,4 +50,9 @@ const db: Db = {
   },
 }
 
-Deno.serve(createHandler({ db, unipile: unipileMailVia(UNIPILE_API_KEY), appOrigin: APP_ORIGIN }))
+Deno.serve(createHandler({
+  db,
+  unipile: unipileMailVia(UNIPILE_API_KEY),
+  appOrigin: APP_ORIGIN,
+  attachments: stepAttachmentSourceVia(admin),
+}))

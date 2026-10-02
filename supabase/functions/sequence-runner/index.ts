@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
 import { sendChatStepDbVia, unipileChatVia } from '../_shared/send-chat-step-adapters.ts'
+import { stepAttachmentSourceVia } from '../_shared/anexos-do-envio.ts'
 import {
   type ChatRunnerDb,
   type ChatToReconcile,
@@ -109,5 +110,6 @@ Deno.serve(createHandler({
   db,
   unipile: unipileMailVia(UNIPILE_API_KEY),
   chat: { db: chatDb, unipile: unipileChatVia(UNIPILE_API_KEY) },
+  attachments: stepAttachmentSourceVia(admin),
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
 }))

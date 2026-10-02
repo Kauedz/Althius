@@ -17,6 +17,7 @@ import {
   sendChatStep,
   type UnipileChat,
 } from '../_shared/send-chat-step.ts'
+import type { StepAttachmentSource } from '../_shared/anexos-do-envio.ts'
 
 export interface DueSend {
   send_id: string
@@ -87,6 +88,8 @@ export interface Deps {
   unipile: UnipileMail
   /** WhatsApp e LinkedIn. Sem isto, o Executor só envia e-mail, como antes do canais-06. */
   chat?: ChatRunnerDeps
+  /** Os anexos dos passos (canais-10), nos três canais. Sem isto, os passos saem só com o texto. */
+  attachments?: StepAttachmentSource
   /** Passos por chamada: cada um pode levar até o prazo do envio, e a função tem tempo limitado. Padrão 5. */
   maxPerRun?: number
   /** Contas reconciliadas por chamada. Padrão 3. */
@@ -226,6 +229,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           type: 'runner',
           sendId,
           outcome: result.kind === 'blocked' || result.kind === 'attempted' ? result.outcome : result.kind,
+          ...(result.kind === 'attempted' && result.reason ? { reason: result.reason } : {}),
           ...(result.kind === 'attempted' && !result.recorded ? { recorded: false } : {}),
         })
       } catch (error) {
@@ -253,7 +257,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     for (const { send_id: sendId, owner_user_id: userId } of due) {
       try {
         const result = await sendChatStep(
-          { db: chat.db, unipile: chat.unipile, sendTimeoutMs: deps.sendTimeoutMs },
+          { db: chat.db, unipile: chat.unipile, sendTimeoutMs: deps.sendTimeoutMs, attachments: deps.attachments },
           { sendId, userId, release: () => chat.db.releaseDueChatSend(sendId) },
         )
         log({

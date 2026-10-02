@@ -10,6 +10,7 @@ import {
   type SendStepDb,
   type UnipileMail,
 } from '../_shared/send-step.ts'
+import { ATTACHMENT_PROBLEM_MESSAGES, type StepAttachmentSource } from '../_shared/anexos-do-envio.ts'
 
 export {
   type BlockedOutcome,
@@ -39,6 +40,8 @@ export interface Deps {
   appOrigin: string
   /** Depois disso, o resultado é incerto: pode ter saído ou não. Padrão 25 s. */
   sendTimeoutMs?: number
+  /** Os anexos do passo (canais-10). Sem isto, o passo sai só com o texto. */
+  attachments?: StepAttachmentSource
 }
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
@@ -97,6 +100,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }, 500)
     }
     if (result.outcome === 'sent') return respond({ outcome: 'sent', sendId })
+    if (result.outcome === 'failed' && result.reason && ATTACHMENT_PROBLEM_MESSAGES[result.reason]) {
+      return respond({ outcome: 'failed', sendId, reason: result.reason, message: ATTACHMENT_PROBLEM_MESSAGES[result.reason] }, 422)
+    }
     if (result.outcome === 'failed') {
       return respond({
         outcome: 'failed',
