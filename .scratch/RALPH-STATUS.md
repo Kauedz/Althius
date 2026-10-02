@@ -4,7 +4,7 @@ Updated: 2026-10-02
 
 | Ticket | Status | Branch | PR | Motivo |
 | --- | --- | --- | --- | --- |
-| 00 | done | ralph/00-saude-do-build-da-main | (abre neste turno) | Os seis checks já passam na `main` `34ed683`. CI run 37023681742 verde (frontend, banco, funções). Sem conserto de código. |
+| 00 | done | ralph/00-saude-do-build-da-main | https://github.com/Kauedz/Althius/pull/149 | Os seis checks já passam na `main` `34ed683`. CI run 37023681742 verde (frontend, banco, funções). Sem conserto de código. |
 
 ---
 
