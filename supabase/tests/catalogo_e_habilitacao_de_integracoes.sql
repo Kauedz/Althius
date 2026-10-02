@@ -56,8 +56,8 @@ select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002
 
 select is(
   (select count(*)::integer from public.list_workspace_integrations('ee000000-0000-0000-0000-000000000001')),
-  9,
-  'membro lista as 9 integrações do catálogo (7 originais + Pipedrive e RD Station CRM)'
+  17,
+  'membro lista as 17 integrações do catálogo (7 originais + Pipedrive e RD Station CRM + 8 do catálogo ampliado)'
 );
 
 select is(

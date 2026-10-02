@@ -42,7 +42,7 @@ function avisoDaVolta(parametros: URLSearchParams): { texto: string; ok: boolean
   return { texto: motivo ? motivo(nome) : `Não foi possível conectar o ${nome}. Tente de novo.`, ok: false }
 }
 
-const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga']
+const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga', 'Agenda', 'Comunicação']
 
 export function PaginaConexoes() {
   const { modo } = useAmbiente()
@@ -177,7 +177,10 @@ export function PaginaConexoes() {
         {!integracoes || !futuras ? (
           <Carregando />
         ) : (
-          CATEGORIAS.map((categoria) => (
+          // Uma categoria sem nenhuma Integração (nem "Em breve") não aparece, para o catálogo não mostrar título vazio.
+          CATEGORIAS.filter(
+            (categoria) => integracoes.some((i) => i.categoria === categoria) || futuras.some((i) => i.categoria === categoria),
+          ).map((categoria) => (
             <div key={categoria} className="flex flex-col gap-4">
               <h3 className="rotulo">{categoria}</h3>
               <div className="grid grid-cols-4 gap-6">

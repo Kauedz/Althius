@@ -28,6 +28,14 @@ const NOME_DA_INTEGRACAO: Record<IntegracaoId, string> = {
   'google-ads': 'Google Ads',
   pipedrive: 'Pipedrive',
   'rd-station': 'RD Station CRM',
+  slack: 'Slack',
+  'google-calendar': 'Google Calendar',
+  'google-sheets': 'Google Sheets',
+  calendly: 'Calendly',
+  salesforce: 'Salesforce',
+  'zoho-crm': 'Zoho CRM',
+  bitrix24: 'Bitrix24',
+  'tiktok-ads': 'TikTok Ads',
 }
 
 /** O nome da Integração para o logo, já na primeira pintura, antes da lista assíncrona chegar. */
