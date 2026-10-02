@@ -3,6 +3,7 @@
 // `rpc`, para o teste trocar o Supabase por um dublê sem importar o SDK aqui.
 import { type AcessoLido, type BancoDeAcessos, ErroDoBanco } from '../integration-access.ts'
 import type { BancoDeClientesOAuth, ClienteGuardado } from './cliente-oauth.ts'
+import type { RegraDaFerramenta, RegrasDaIntegracao } from './regras.ts'
 import type { Permissao, TipoDeAcesso } from './tipos.ts'
 
 export type Rpc = (
@@ -120,6 +121,13 @@ export function bancoDasIntegracoes(rpc: Rpc): BancoDeAcessos & BancoDaConexao {
         p_agent_id: a.agenteId,
         p_integration_id: a.integrationId,
       })) === true
+    },
+    async regrasDasFerramentas(a): Promise<RegrasDaIntegracao> {
+      const linhas = await chamar<{ tool_name: string; rule: RegraDaFerramenta }[] | null>('integration_tool_rules_for_use', {
+        p_workspace_id: a.workspaceId,
+        p_integration_id: a.integrationId,
+      })
+      return Object.fromEntries((linhas ?? []).map((l) => [l.tool_name, l.rule]))
     },
     async clienteOAuth(a) {
       const linha = primeira<{ client_id: string; client_secret: string | null }>(await chamar('integration_oauth_client', {

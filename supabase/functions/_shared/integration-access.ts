@@ -1,6 +1,6 @@
 // A API estável do Acesso à Integração para as Edge Functions e, depois, para os Agentes (conexoes-funcionais, ADR-0017 e
 // ADR-0021): listar as ferramentas de uma Integração e chamar uma, em nome de quem pediu, com o Acesso dele, sempre sob a
-// Permissão do Agente (ADR-0002).
+// Permissão do Agente (ADR-0002) somada à regra do Administrador para cada ferramenta (ADR-0022, `integracoes/regras.ts`).
 //
 //   listarFerramentas(deps, { workspaceId, userId, integrationId })
 //   chamarFerramenta(deps, { workspaceId, userId, integrationId, ferramenta, argumentos, agenteId? })
@@ -13,6 +13,7 @@ import { clienteDaRenovacao, type BancoDeClientesOAuth } from './integracoes/cli
 import { comSessaoMcp, type FerramentaMcp } from './integracoes/mcp-cliente.ts'
 import { ErroDeOAuth, renovarToken } from './integracoes/oauth.ts'
 import { type PerfilDeIntegracao, perfilDaIntegracao } from './integracoes/perfis.ts'
+import { decidirChamada, type RegraDaFerramenta, type RegrasDaIntegracao, regraVigente } from './integracoes/regras.ts'
 import { executarFerramentaRest, ferramentasRest } from './integracoes/rest.ts'
 import {
   ErroDeProvedor,
@@ -27,7 +28,7 @@ import {
   type TipoDeAcesso,
 } from './integracoes/tipos.ts'
 
-export type { ErroDeIntegracao, FerramentaDaIntegracao, Permissao, Resultado, ResultadoDaFerramenta }
+export type { ErroDeIntegracao, FerramentaDaIntegracao, Permissao, RegraDaFerramenta, RegrasDaIntegracao, Resultado, ResultadoDaFerramenta }
 
 /** O Acesso como o banco o entrega ao servidor (`integration_access_for_use`). O segredo é JSON e nunca sai daqui. */
 export interface AcessoLido {
@@ -62,6 +63,12 @@ export interface BancoDeAcessos extends BancoDeClientesOAuth {
    * (reservada por `claim_approved_action`). Opcional: um banco sem ela nunca libera a escrita de quem tem Propor.
    */
   aprovacaoEmExecucao?(a: { approvalId: string; workspaceId: string; agenteId: string; integrationId: string }): Promise<boolean>
+  /**
+   * RPC `integration_tool_rules_for_use`: as regras do Administrador para as ferramentas desta Integração no Workspace
+   * (ADR-0022). Opcional: um banco sem ela fica só com a Permissão do Agente (ADR-0002), como antes; com ela, a regra vale
+   * em todo caminho, e uma falha ao ler as regras não chama nada.
+   */
+  regrasDasFerramentas?(a: { workspaceId: string; integrationId: string }): Promise<RegrasDaIntegracao>
 }
 
 export interface DepsDeAcesso {
@@ -414,6 +421,21 @@ export async function chamarFerramenta(
       throw new Parada({ tipo: 'ferramenta_invalida', mensagem: `A Integração não tem a ferramenta "${pedido.ferramenta}".` })
     }
     const exigida: Permissao = ferramenta.escreve ? 'executar' : 'ler'
+    // Sem o banco das regras, toda ferramenta conta como "sempre": vale só a Permissão do Agente, como antes.
+    let regra: RegraDaFerramenta = 'sempre'
+    if (deps.banco.regrasDasFerramentas) {
+      try {
+        regra = regraVigente(
+          await deps.banco.regrasDasFerramentas({ workspaceId: pedido.workspaceId, integrationId: pedido.integrationId }),
+          ferramenta,
+        )
+      } catch {
+        throw new Parada({ tipo: 'indisponivel', mensagem: MENSAGENS.indisponivel })
+      }
+    }
+    if (regra === 'bloqueada') {
+      throw new Parada({ tipo: 'permissao_negada', exigida, atual, mensagem: 'O Administrador bloqueou esta ferramenta neste Workspace.' })
+    }
     if (ferramenta.escreve && pedido.somenteLeitura) {
       throw new Parada({
         tipo: 'permissao_negada',
@@ -423,17 +445,20 @@ export async function chamarFerramenta(
       })
     }
     if (pedido.agenteId) {
-      if (atual === 'propor' && exigida === 'executar' && pedido.aprovacaoId && (await aprovacaoValida(deps, pedido))) {
+      const decisao = decidirChamada({ permissao: atual, escreve: ferramenta.escreve, regra })
+      if (decisao.tipo === 'pede_aprovacao' && pedido.aprovacaoId && (await aprovacaoValida(deps, pedido))) {
         return await sessao.chamar(pedido.ferramenta, pedido.argumentos ?? {})
       }
-      if (!atual || RANGO[atual] < RANGO[exigida]) {
+      if (decisao.tipo !== 'executa') {
         throw new Parada({
           tipo: 'permissao_negada',
           exigida,
           atual,
-          mensagem: atual === 'propor'
+          mensagem: decisao.tipo === 'negada'
+            ? 'Este Agente não tem a Permissão necessária para esta ferramenta.'
+            : atual === 'propor' && ferramenta.escreve
             ? 'A Permissão deste Agente é Propor: esta ação precisa de Aprovação.'
-            : 'Este Agente não tem a Permissão necessária para esta ferramenta.',
+            : 'Esta ferramenta pede Aprovação neste Workspace.',
         })
       }
     } else if (ferramenta.escreve && !pedido.decisaoDaPessoa) {
