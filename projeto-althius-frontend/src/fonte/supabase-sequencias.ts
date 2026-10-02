@@ -75,6 +75,13 @@ const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   invite_note_too_long: 'A nota de um convite do LinkedIn passou do limite de caracteres. Encurte a nota antes de ativar.',
   whatsapp_sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar. Conecte o WhatsApp antes de ativar.',
   linkedin_sender_not_ready: 'Sua Conta remetente de LinkedIn não está pronta para enviar. Conecte o LinkedIn antes de ativar.',
+  // Os anexos do passo (canais-10).
+  attachment_not_stored: 'Um anexo de um passo não está guardado no Workspace. Anexe o arquivo de novo antes de ativar.',
+  attachment_type_not_supported: 'Um passo tem um anexo de um tipo que o canal dele não aceita. Troque o arquivo antes de ativar.',
+  attachment_too_large: 'Um anexo passa do tamanho que o canal do passo aceita. Troque o arquivo antes de ativar.',
+  too_many_attachments: 'Um passo tem mais anexos do que o canal dele aceita. Tire um antes de ativar.',
+  attachment_not_supported_on_invite: 'O convite do LinkedIn não leva anexo. Tire o anexo ou mude o passo para mensagem.',
+  attachment_not_supported: 'O canal de um passo não aceita anexos.',
 }
 
 interface LinhaDaProposta {
@@ -217,11 +224,41 @@ function mapear(row: RegistroSequencia, ehResponsavel: boolean): Sequencia {
   }
 }
 
-/** O que o backend aceita num passo: um canal suportado e nenhum anexo, que o Workspace ainda não sabe guardar. */
+/**
+ * O que o backend aceita num passo: um canal suportado e só anexos guardados no Workspace (com id). Um endereço local
+ * da Demonstração (blob:) morre com a aba e nunca sairia num envio, então não entra no documento.
+ */
 function validarPassos(steps: StepSequencia[]) {
   for (const step of steps) {
     if (!ehCanalSuportado(step.canal)) throw new Error(`Canal "${step.canal}" fora do escopo.`)
-    if (step.anexos?.length) throw new ErroDeModuloIndisponivel('anexos')
+    if (step.anexos?.some((anexo) => !anexo.id)) throw new ErroDeModuloIndisponivel('anexos')
+  }
+}
+
+/** Só o que identifica o anexo guardado vai para o documento: nunca um endereço. */
+function anexosDoDocumento(steps: StepSequencia[]): StepSequencia[] {
+  return steps.map((step) =>
+    step.anexos?.length
+      ? {
+          ...step,
+          anexos: step.anexos.map(({ id, tipo, nome, mime, tamanho }) => ({
+            id, tipo, nome, ...(mime ? { mime } : {}), ...(tamanho ? { tamanho } : {}),
+          })),
+        }
+      : step,
+  )
+}
+
+/**
+ * Se os anexos dos passos já funcionam neste servidor (canais-10): o módulo foi ligado depois de publicada a Edge
+ * Function sequence-attachments. Até lá, ou se a leitura falhar, os anexos ficam indisponíveis no Workspace operacional.
+ */
+export async function anexosDisponiveis(cliente: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await cliente.rpc('sequence_attachment_limits')
+    return !error && Array.isArray(data) && data.length > 0
+  } catch {
+    return false
   }
 }
 
@@ -398,7 +435,7 @@ export function criarFonteDeSequenciasSupabase(
         participantesIds: atualizacao.participantesIds ?? atual.participantesIds,
         janelaPadrao: atualizacao.janelaPadrao ?? atual.janelaPadrao,
         regraDePause: atualizacao.regraDePause ?? atual.regraDePause,
-        steps: atualizacao.steps ?? atual.steps,
+        steps: atualizacao.steps ? anexosDoDocumento(atualizacao.steps) : atual.steps,
         passoAtual: atual.passoAtual,
         ...('motivoPause' in atualizacao
           ? { motivoPause: atualizacao.motivoPause }
@@ -596,6 +633,40 @@ export function criarFonteDeSequenciasSupabase(
         const corpo = await corpoDoErroDaFuncao(error)
         if (typeof corpo?.error === 'string') throw new Error(corpo.error)
         throw new Error(`Não foi possível abrir o anexo. ${await motivoDaFalhaDaFuncao('received-email-attachments', error, 'APP_ORIGIN')}`)
+      }
+      const url = (data as Record<string, unknown> | null)?.url
+      if (typeof url !== 'string') throw new Error('Não foi possível abrir o anexo.')
+      return url
+    },
+    async anexarArquivo(sequenciaId, stepId, arquivo) {
+      const corpo = new FormData()
+      corpo.set('sequenceId', sequenciaId)
+      corpo.set('stepId', stepId)
+      corpo.set('file', arquivo, arquivo.name)
+      const { data, error } = await cliente.functions.invoke('sequence-attachments', { body: corpo })
+      if (error) {
+        const resposta = await corpoDoErroDaFuncao(error)
+        if (typeof resposta?.error === 'string') throw new Error(resposta.error)
+        throw new Error(`Não foi possível anexar o arquivo. ${await motivoDaFalhaDaFuncao('sequence-attachments', error, 'APP_ORIGIN')}`)
+      }
+      const anexo = data as Record<string, unknown> | null
+      if (typeof anexo?.id !== 'string') throw new Error('Não foi possível anexar o arquivo.')
+      return {
+        id: anexo.id,
+        tipo: anexo.tipo === 'video' ? 'video' : 'imagem',
+        nome: arquivo.name || 'anexo',
+        ...(typeof anexo.mime === 'string' ? { mime: anexo.mime } : {}),
+        ...(typeof anexo.tamanho === 'number' ? { tamanho: anexo.tamanho } : {}),
+      }
+    },
+    async urlDoAnexoDoPasso(anexoId) {
+      const { data, error } = await cliente.functions.invoke('sequence-attachments', {
+        body: { action: 'url', attachmentId: anexoId },
+      })
+      if (error) {
+        const resposta = await corpoDoErroDaFuncao(error)
+        if (typeof resposta?.error === 'string') throw new Error(resposta.error)
+        throw new Error(`Não foi possível abrir o anexo. ${await motivoDaFalhaDaFuncao('sequence-attachments', error, 'APP_ORIGIN')}`)
       }
       const url = (data as Record<string, unknown> | null)?.url
       if (typeof url !== 'string') throw new Error('Não foi possível abrir o anexo.')

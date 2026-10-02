@@ -17,6 +17,14 @@ const MOTIVOS: Record<string, string> = {
   timeout: 'o provedor não respondeu a tempo',
   network: 'a conexão com o provedor caiu',
   unreadable_response: 'o provedor respondeu sem confirmar o envio',
+  // Os anexos do passo (canais-10).
+  attachment_not_stored: 'o anexo do passo não está mais guardado; anexe o arquivo de novo e ative os envios',
+  attachment_type_not_supported: 'o canal deste passo não aceita o tipo do anexo',
+  attachment_too_large: 'o anexo passa do tamanho que o canal deste passo aceita',
+  too_many_attachments: 'o passo tem mais anexos do que o canal aceita',
+  attachment_not_supported_on_invite: 'o convite do LinkedIn não leva anexo',
+  attachment_not_supported: 'este canal não aceita anexos',
+  attachment_download_failed: 'não foi possível ler o anexo; o passo será tentado de novo',
 }
 
 export function motivoDoEnvio(codigo: string): string {

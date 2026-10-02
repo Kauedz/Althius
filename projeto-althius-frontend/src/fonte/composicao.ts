@@ -67,6 +67,7 @@ export function criarAmbienteDoWorkspace({
   conversasDisponiveis = false,
   sinaisDisponiveis = false,
   aprovacoesDisponiveis = false,
+  anexosDisponiveis = false,
 }: {
   cliente: SupabaseClient
   usuario: ContaDeUsuarioDaSessao
@@ -75,6 +76,8 @@ export function criarAmbienteDoWorkspace({
   sinaisDisponiveis?: boolean
   /** A fila real de Aprovações (CRM-15) entra com o primeiro executor de ação externa (ex.: Enviar ao CRM). */
   aprovacoesDisponiveis?: boolean
+  /** Os anexos dos passos (canais-10) entram quando o backend diz que o módulo foi ligado. */
+  anexosDisponiveis?: boolean
 }): Ambiente {
   const participantes = criarFonteDeParticipantesSupabase(cliente, participacao.workspaceId, usuario.id)
   const perfil = criarFonteDoPerfilSupabase(cliente, { usuario, participacao })
@@ -88,6 +91,7 @@ export function criarAmbienteDoWorkspace({
   if (conversasDisponiveis) indisponiveis.delete('conversas')
   if (sinaisDisponiveis) indisponiveis.delete('sinais')
   if (aprovacoesDisponiveis) indisponiveis.delete('aprovacoes')
+  if (anexosDisponiveis) indisponiveis.delete('anexos')
   // Com as Conversas, a Aprovação que um Agente pede aparece e é decidida na própria Conversa (ADR-0022), mesmo com a
   // fila /aprovacoes ainda desligada (o módulo continua em `indisponiveis`).
   const aprovacoes = aprovacoesDisponiveis || conversasDisponiveis
