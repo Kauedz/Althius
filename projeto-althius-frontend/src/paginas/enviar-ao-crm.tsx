@@ -1,7 +1,9 @@
 import { Send } from 'lucide-react'
 import { useId, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { useConversas } from '@/conversa/contexto'
+import type { CaminhoDeConexao } from '@/fonte/conexoes-tipos'
 import { useDadosDeConexoes, useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { ContaAlvo, ResultadoDoEnvioAoCrm } from '@/fonte/contas-tipos'
 import type { IntegracaoId } from '@/fonte/tipos'
@@ -12,6 +14,10 @@ const contar = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
  * "Enviar ao CRM" (kanban-de-prospeccao 05, ADR-0020): o Vendedor responsável leva a Conta-alvo, os Contatos e uma nota com
  * os Sinais e a abordagem para um CRM em que ele tem o próprio Acesso conectado. Confirma vendo o que vai; depois do
  * envio, o CRM manda e a Conta mostra para onde foi. Só aparece onde a Fonte oferece o envio (a Demonstração não).
+ *
+ * Com o CRM conectado pela autorização (servidor MCP) e a Fonte oferecendo o envio pelos Agentes (ADR-0023), confirmar
+ * abre um pedido aos Agentes numa Conversa nova, com o mesmo pacote: eles escrevem pelas ferramentas do próprio conector,
+ * e cada escrita segue a regra dela (no padrão, uma Aprovação no passo da Conversa). Pela chave de API, nada muda.
  */
 export function EnviarAoCrm({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
   const fonte = useFonteDeContas()
@@ -27,20 +33,49 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
     const [integracoes, acessos] = await Promise.all([f.integracoes(), f.acessos?.() ?? Promise.resolve([])])
     const conectados = new Set(acessos.filter((a) => a.estado === 'conectado').map((a) => a.integracaoId))
     const nomes = new Map(integracoes.map((i) => [i.id, i.nome]))
+    const caminhos = new Map<IntegracaoId, CaminhoDeConexao | undefined>(acessos.map((a) => [a.integracaoId, a.caminho]))
     return {
       conectados: integracoes.filter((i) => i.categoria === 'CRM' && i.habilitada && conectados.has(i.id)),
       nomes,
+      caminhos,
     }
   }, [])
+  const conversas = useConversas()
+  const navegar = useNavigate()
+  const { dados: conversaDoEnvio } = useDadosDeContas(
+    (f) => (f.conversaDoEnvioAoCrm && envio?.estado === 'enviando' ? f.conversaDoEnvioAoCrm(conta.id) : Promise.resolve(null)),
+    [conta.id, envio?.estado],
+  )
   const [confirmando, setConfirmando] = useState(false)
   const [escolhido, setEscolhido] = useState<IntegracaoId | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [resultado, setResultado] = useState<ResultadoDoEnvioAoCrm | null>(null)
+  const [pedidoAosAgentes, setPedidoAosAgentes] = useState<string | null>(null)
   const tituloId = useId()
 
   if (envio === undefined || !crms) return null
   const nomeDe = (id: IntegracaoId) => crms.nomes.get(id) ?? id
+  // Pelos Agentes só quando o Acesso é pela autorização e a Fonte sabe pedir; senão, o envio direto de sempre.
+  const pelosAgentes = (id: IntegracaoId) => !!fonte.enviarAoCrmPelosAgentes && crms.caminhos.get(id) === 'autorizacao'
+
+  async function abrirConversa(id: string) {
+    await conversas.abrir(id)
+    navegar('/conversa')
+  }
+
+  const botaoDaConversa = (id: string) => (
+    <div>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => void abrirConversa(id)}
+        className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+      >
+        Abrir a Conversa
+      </Button>
+    </div>
+  )
 
   if (envio?.estado === 'enviado') {
     return (
@@ -57,6 +92,21 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
   }
 
   if (envio?.estado === 'enviando') {
+    const conversaId = pedidoAosAgentes ?? conversaDoEnvio ?? null
+    if (conversaId) {
+      return (
+        <div className="flex flex-col gap-3 border-b border-al-line py-4">
+          <p role="status" className="text-sm text-al-ink">
+            Os Agentes estão levando a {conta.nome} ao {nomeDe(envio.integracaoId)}.
+          </p>
+          <p className="text-xs text-al-muted">
+            Cada escrita no {nomeDe(envio.integracaoId)} segue a regra da ferramenta: as que pedem Aprovação esperam a decisão
+            na Conversa. A Conta vai para No CRM quando a empresa chegar lá.
+          </p>
+          {botaoDaConversa(conversaId)}
+        </div>
+      )
+    }
     return (
       <p role="status" className="border-b border-al-line py-4 text-sm text-al-muted">
         Enviando ao {nomeDe(envio.integracaoId)}…
@@ -78,7 +128,11 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
     setEnviando(true)
     setErro(null)
     try {
-      setResultado(await fonte.enviarAoCrm!(conta.id, destino))
+      if (pelosAgentes(destino)) {
+        setPedidoAosAgentes((await fonte.enviarAoCrmPelosAgentes!(conta.id, destino)).conversaId)
+      } else {
+        setResultado(await fonte.enviarAoCrm!(conta.id, destino))
+      }
       setConfirmando(false)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível enviar ao CRM.')
@@ -124,6 +178,13 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
             Vai para o {nomeDe(destino)}: a empresa {conta.nome}, {contar(contatos, 'Contato', 'Contatos')} e uma nota com os
             Sinais e a abordagem.
           </p>
+          {pelosAgentes(destino) && (
+            <p className="text-xs text-al-muted">
+              O {nomeDe(destino)} está conectado pela autorização: os Agentes levam a Conta pelas ferramentas do conector, numa
+              Conversa nova. Cada escrita segue a regra da ferramenta em Conexões; as que pedem Aprovação esperam a decisão na
+              Conversa.
+            </p>
+          )}
           <p className="text-xs text-al-muted">
             Depois do envio, o CRM passa a ser a fonte da verdade e a Althius não escreve de novo nesta Conta.
           </p>
@@ -134,7 +195,7 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
               onClick={enviar}
               className="h-8 text-xs tracking-rotulo uppercase"
             >
-              Confirmar envio
+              {pelosAgentes(destino) ? 'Pedir aos Agentes' : 'Confirmar envio'}
             </Button>
             <Button
               type="button"
@@ -150,7 +211,7 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
       )}
       {enviando && (
         <p role="status" className="text-xs text-al-muted">
-          Enviando ao {nomeDe(destino)}…
+          {pelosAgentes(destino) ? `Pedindo aos Agentes o envio ao ${nomeDe(destino)}…` : `Enviando ao ${nomeDe(destino)}…`}
         </p>
       )}
       {erro && (
