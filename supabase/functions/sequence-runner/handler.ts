@@ -90,6 +90,11 @@ export interface Deps {
   chat?: ChatRunnerDeps
   /** Os anexos dos passos (canais-10), nos três canais. Sem isto, os passos saem só com o texto. */
   attachments?: StepAttachmentSource
+  /**
+   * RPC hold_sequence_for_unready_send (canais-11): um passo barrado por falta de Conta remetente pausa a Sequência
+   * quando a conta do canal caiu de vez, para não sair sozinho quando ela voltar. Sem isto, o passo só espera.
+   */
+  holdForUnreadySend?: (sendId: string) => Promise<boolean>
   /** Passos por chamada: cada um pode levar até o prazo do envio, e a função tem tempo limitado. Padrão 5. */
   maxPerRun?: number
   /** Contas reconciliadas por chamada. Padrão 3. */
@@ -213,6 +218,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     await runChat()
   }
 
+  // A Conta remetente do canal caiu e o aviso da Unipile pode ter se perdido: a Sequência pausa com o motivo.
+  async function holdIfSenderLost(sendId: string, type: string) {
+    if (!deps.holdForUnreadySend) return
+    try {
+      if (await deps.holdForUnreadySend(sendId)) log({ type, sendId, outcome: 'sequence_held' })
+    } catch (error) {
+      log({ type, sendId, outcome: 'hold_failed', message: messageOf(error) })
+    }
+  }
+
   async function runEmail() {
     let due: DueSend[]
     try {
@@ -225,6 +240,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     for (const { send_id: sendId, owner_user_id: userId } of due) {
       try {
         const result = await sendStep(deps, { sendId, userId, release: () => deps.db.releaseDueSend(sendId) })
+        if (result.kind === 'blocked' && result.outcome === 'sender_not_ready') await holdIfSenderLost(sendId, 'runner')
         log({
           type: 'runner',
           sendId,
@@ -260,6 +276,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           { db: chat.db, unipile: chat.unipile, sendTimeoutMs: deps.sendTimeoutMs, attachments: deps.attachments },
           { sendId, userId, release: () => chat.db.releaseDueChatSend(sendId) },
         )
+        if (result.kind === 'blocked' && result.outcome === 'sender_not_ready') await holdIfSenderLost(sendId, 'runner-chat')
         log({
           type: 'runner-chat',
           sendId,

@@ -111,5 +111,10 @@ Deno.serve(createHandler({
   unipile: unipileMailVia(UNIPILE_API_KEY),
   chat: { db: chatDb, unipile: unipileChatVia(UNIPILE_API_KEY) },
   attachments: stepAttachmentSourceVia(admin),
+  async holdForUnreadySend(sendId) {
+    const { data, error } = await admin.rpc('hold_sequence_for_unready_send', { p_send_id: sendId })
+    if (error) throw error
+    return data === true
+  },
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
 }))
