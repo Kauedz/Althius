@@ -5,6 +5,7 @@ import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
 import { conversasDisponiveis } from '@/fonte/supabase-conversas'
 import { sinaisDisponiveis } from '@/fonte/supabase-sinais'
+import { anexosDisponiveis } from '@/fonte/supabase-sequencias'
 import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
 import { BotoesDaAssinatura, TelaDeAssinatura, useAcessoAoWorkspace } from './assinatura'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
@@ -338,6 +339,8 @@ function AplicativoDoWorkspace({
   const [comConversas, setComConversas] = useState(false)
   // Os Sinais dependem de um actor que passou no teste: até o registro confirmar, ficam indisponíveis.
   const [comSinais, setComSinais] = useState(false)
+  // Os anexos dos passos dependem do módulo ligado no backend (canais-10): até lá, ficam indisponíveis.
+  const [comAnexos, setComAnexos] = useState(false)
   useEffect(() => {
     let ativo = true
     void conversasDisponiveis(cliente).then((disponivel) => {
@@ -345,6 +348,9 @@ function AplicativoDoWorkspace({
     })
     void sinaisDisponiveis(cliente).then((disponivel) => {
       if (ativo) setComSinais(disponivel)
+    })
+    void anexosDisponiveis(cliente).then((disponivel) => {
+      if (ativo) setComAnexos(disponivel)
     })
     return () => {
       ativo = false
@@ -358,8 +364,9 @@ function AplicativoDoWorkspace({
         participacao: { workspaceId, nomeDoWorkspace, papel: role === 'admin' ? 'administrador' : 'membro' },
         conversasDisponiveis: comConversas,
         sinaisDisponiveis: comSinais,
+        anexosDisponiveis: comAnexos,
       }),
-    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, comSinais],
+    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, comSinais, comAnexos],
   )
 
   // A assinatura (creditos-e-planos 06): o Workspace abre enquanto o banco responde, e fecha só quando ele diz que não

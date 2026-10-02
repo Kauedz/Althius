@@ -1,8 +1,9 @@
-import { RadioTower, Users } from 'lucide-react'
+import { RadioTower, Send, Users } from 'lucide-react'
 import { useState, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
 import { LogoDaConta } from '@/components/logos'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { ContaAlvo } from '@/fonte/contas-tipos'
 import { estagioSeguinte, type CriteriosDePassagem } from '@/fonte/criterios-de-passagem'
 import {
@@ -12,6 +13,8 @@ import {
   type EstagioDeProspeccao,
 } from '@/fonte/estagios-de-prospeccao'
 import { cn } from '@/lib/utils'
+import { EnviarAoCrm } from './enviar-ao-crm'
+import { useOfereceEnvioAoCrm } from './oferece-envio-ao-crm'
 import { Foguinho } from './sinais/componentes'
 import type { EstadoDaNavegacao } from './voltar-para-a-lista'
 
@@ -23,6 +26,9 @@ const TIPO_DO_ARRASTE = 'application/x-althius-conta'
  * Vendedor responsável), e a recusa aparece em português acima das colunas. No CRM não recebe cartões à mão: só o
  * envio ao CRM leva a Conta para lá. Os critérios de passagem do Playbook (kanban 04) aparecem no cartão como o que
  * falta para o próximo Estágio, e mover sem conferi-los só avisa.
+ *
+ * "Enviar ao CRM" (kanban 05) também sai do cartão: abre a mesma confirmação do detalhe da Conta (EnviarAoCrm), com os
+ * dois caminhos de lá (a chave REST e o pedido aos Agentes pelo conector, ADR-0023). Enviada, a Conta vai para No CRM.
  */
 export function KanbanDeContas({
   contas,
@@ -39,6 +45,9 @@ export function KanbanDeContas({
   const [aviso, setAviso] = useState<string>()
   const [movendo, setMovendo] = useState<string>()
   const [sobre, setSobre] = useState<EstagioDeProspeccao>()
+  // A Conta cujo envio ao CRM está aberto. Fica aqui, e não no cartão, porque o cartão muda de coluna ao ser enviado.
+  const [envioAberto, setEnvioAberto] = useState<string>()
+  const contaDoEnvio = contas.find((c) => c.id === envioAberto)
 
   const porEstagio = new Map<EstagioDeProspeccao, ContaAlvo[]>(ESTAGIOS_DE_PROSPECCAO.map((e) => [e.id, []]))
   for (const conta of contas) porEstagio.get(conta.estagio ?? 'descoberta')!.push(conta)
@@ -115,12 +124,29 @@ export function KanbanDeContas({
                   criterios={criterios}
                   movendo={movendo === conta.id}
                   mover={(estagio) => moverConta(conta, estagio)}
+                  enviarAoCrm={() => setEnvioAberto(conta.id)}
                 />
               ))}
             </section>
           )
         })}
       </div>
+      <Dialog open={!!contaDoEnvio} onOpenChange={(aberto) => !aberto && setEnvioAberto(undefined)}>
+        {contaDoEnvio && (
+          <DialogContent className="gap-3 p-6 sm:max-w-lg">
+            <DialogTitle className="titulo-secao text-2xl">Enviar {contaDoEnvio.nome} ao CRM</DialogTitle>
+            <DialogDescription className="text-al-muted">
+              A empresa, os Contatos e uma nota com os Sinais e a abordagem vão para o CRM conectado.
+            </DialogDescription>
+            <EnviarAoCrm
+              conta={contaDoEnvio}
+              contatos={contaDoEnvio.totalContatos}
+              confirmandoDeInicio
+              aoCancelar={() => setEnvioAberto(undefined)}
+            />
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   )
 }
@@ -131,14 +157,18 @@ function CartaoDaConta({
   criterios,
   movendo,
   mover,
+  enviarAoCrm,
 }: {
   conta: ContaAlvo
   estadoDoLink: EstadoDaNavegacao
   criterios: CriteriosDePassagem
   movendo: boolean
   mover: (estagio: EstagioDeProspeccao) => void
+  enviarAoCrm: () => void
 }) {
   const estagio = conta.estagio ?? 'descoberta'
+  // No CRM já foi: depois do envio, o CRM manda (ADR-0020) e o cartão não oferece outro.
+  const ofereceEnvio = useOfereceEnvioAoCrm(conta) && estagio !== ESTAGIO_SO_DO_ENVIO_AO_CRM
   const proximo = estagioSeguinte(estagio)
   const criterio = proximo && criterios[proximo]
   return (
@@ -192,6 +222,17 @@ function CartaoDaConta({
           </option>
         ))}
       </select>
+      {ofereceEnvio && (
+        <button
+          type="button"
+          onClick={enviarAoCrm}
+          aria-label={`Enviar ${conta.nome} ao CRM`}
+          className="inline-flex h-7 items-center justify-center gap-1.5 border border-al-line bg-al-bg px-2 text-xs tracking-rotulo text-al-ink uppercase hover:bg-al-surface"
+        >
+          <Send strokeWidth={1.8} className="size-3.5" aria-hidden />
+          Enviar ao CRM
+        </button>
+      )}
     </article>
   )
 }

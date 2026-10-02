@@ -33,7 +33,14 @@ export interface AnexoStep {
   tipo: 'imagem' | 'video'
   nome: string
   duracao?: string
-  /** URL local (blob:) criada via URL.createObjectURL — só persiste na sessão. */
+  /**
+   * O arquivo guardado no Workspace (canais-10): o documento leva só o id, e o conteúdo abre por um endereço temporário
+   * pedido ao backend. Sem id, o anexo é só da Demonstração.
+   */
+  id?: string
+  mime?: string
+  tamanho?: number
+  /** URL local (blob:) da Demonstração, criada via URL.createObjectURL — só persiste na sessão. */
   url?: string
 }
 
@@ -78,6 +85,11 @@ export interface Sequencia {
   encerradaPor?: MotivoDeEncerramento
   /** A Conta-alvo está arquivada: a Sequência fica pausada e só volta a ser retomada depois de restaurar a Conta. */
   pausadaPelaConta?: boolean
+  /**
+   * A Conta remetente do responsável neste Canal caiu (credenciais revogadas ou expiradas, conta removida): a Sequência
+   * pausou e nada sai. Reconectar não retoma; o responsável retoma quando quiser (canais-11).
+   */
+  pausadaPelaContaRemetente?: CanalStep
   participantesIds: string[]
   janelaPadrao: JanelaHorario
   regraDePause: string
@@ -346,6 +358,15 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Um endereço temporário para abrir um anexo recebido. Só para o Responsável pela Sequência. */
   urlDoAnexo(interacaoId: string, anexoId: string): Promise<string>
+
+  /**
+   * Guarda um arquivo no passo (canais-10): o backend confere o tipo, o tamanho e o canal do passo e devolve o anexo a
+   * gravar no documento. Ausente onde o Workspace não guarda arquivos (a Demonstração usa o endereço local).
+   */
+  anexarArquivo?(sequenciaId: string, stepId: string, arquivo: File): Promise<AnexoStep>
+
+  /** Um endereço temporário para ver um anexo de passo. Só para o Responsável pela Sequência. */
+  urlDoAnexoDoPasso?(anexoId: string): Promise<string>
 
   /** A autorização mais recente dos envios automáticos, ou null quando nunca foram ativados. Só para o Responsável. */
   autorizacao(sequenciaId: string): Promise<AutorizacaoDosEnvios | null>

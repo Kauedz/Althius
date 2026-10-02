@@ -3,6 +3,7 @@
 // depois de revalidar tudo, a Unipile envia e o banco grava o resultado. Quem chama só escolhe como liberar: pelo
 // titular (release_sequence_step_send) ou pelo Executor (release_due_step_send).
 import type { IngestedEmail, IngestEmailEventInput } from './ingest-email-event.ts'
+import { type OutgoingAttachment, prepareAttachments, type StepAttachmentSource } from './anexos-do-envio.ts'
 
 export type SendOutcome = 'sent' | 'failed' | 'uncertain'
 
@@ -77,6 +78,8 @@ export interface OutgoingEmail {
   plain_text: string
   custom_headers: { name: string; value: string }[]
   reply_to_message_id?: string
+  /** Os anexos do passo (canais-10), com o conteúdo em base64. Ausente quando o passo não tem anexo. */
+  attachments?: OutgoingAttachment[]
 }
 
 /** O que a Unipile devolve em POST /v2/{account_id}/emails/send: `{"object":"EmailSent","id","message_id"}`. */
@@ -141,13 +144,15 @@ export type StepSendResult =
   /** O banco falhou ao liberar: nada foi enviado. */
   | { kind: 'release_error' }
   /** A Unipile foi chamada. `recorded` diz se o resultado ficou gravado; sem ele, o envio precisa ser conferido. */
-  | { kind: 'attempted'; outcome: SendOutcome; recorded: boolean }
+  | { kind: 'attempted'; outcome: SendOutcome; recorded: boolean; reason?: string }
 
 export interface SendStepDeps {
   db: SendStepDb
   unipile: UnipileMail
   /** Depois disso, o resultado é incerto: pode ter saído ou não. Padrão 25 s. */
   sendTimeoutMs?: number
+  /** Os anexos do passo (canais-10). Sem isto, o passo sai só com o texto, como antes. */
+  attachments?: StepAttachmentSource
 }
 
 /**
@@ -258,6 +263,26 @@ export async function sendStep(
   }
   if (released.outcome !== 'released') return { kind: 'blocked', outcome: released.outcome }
 
+  // Daqui em diante o Envio está em "sending": todo caminho grava um resultado. Um anexo que não serve ao canal não
+  // sai e o Envio falha com o motivo; um que não deu para baixar agora falha como recusa passageira (nova tentativa).
+  const prepared = await prepareAttachments(deps.attachments, sendId)
+  if (prepared.kind === 'invalid') {
+    try {
+      await deps.attachments!.failSend(sendId, prepared.problem)
+    } catch {
+      return { kind: 'attempted', outcome: 'failed', recorded: false, reason: prepared.problem }
+    }
+    return { kind: 'attempted', outcome: 'failed', recorded: true, reason: prepared.problem }
+  }
+  if (prepared.kind === 'unavailable') {
+    try {
+      await deps.db.recordStepSendResult({ sendId, outcome: 'failed', error: 'attachment_download_failed' })
+    } catch {
+      return { kind: 'attempted', outcome: 'failed', recorded: false, reason: 'attachment_download_failed' }
+    }
+    return { kind: 'attempted', outcome: 'failed', recorded: true, reason: 'attachment_download_failed' }
+  }
+
   const email: OutgoingEmail = {
     to: [{
       email: released.destination,
@@ -267,6 +292,7 @@ export async function sendStep(
     plain_text: released.body,
     custom_headers: [{ name: released.tracking_header_name, value: released.tracking_header_value }],
     ...(released.reply_to_message_id ? { reply_to_message_id: released.reply_to_message_id } : {}),
+    ...(prepared.attachments.length ? { attachments: prepared.attachments } : {}),
   }
 
   const result = await enviarEmailComPrazo(deps.unipile, released.unipile_account_id, email, deps.sendTimeoutMs)

@@ -137,8 +137,12 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const fonteDeSequencias = useFonteDeSequencias()
   const ambiente = useAmbiente()
   const permiteAcoesDeDemonstracao = ambiente.modo === 'demonstracao'
-  // Sem armazenamento de arquivos no Workspace, um anexo seria só um endereço local salvo no documento.
+  // Sem armazenamento de arquivos no Workspace, um anexo seria só um endereço local salvo no documento. Com ele
+  // (canais-10), o arquivo vai para o backend e o documento guarda só o id.
   const anexosDisponiveis = ambiente.disponivel('anexos')
+  const guardaArquivos = ambiente.modo !== 'demonstracao' && !!fonteDeSequencias.anexarArquivo
+  const [anexando, setAnexando] = useState(false)
+  const [erroAoAnexar, setErroAoAnexar] = useState<string | null>(null)
   const workspace = useDados((fonte) => fonte.workspace(), [])
   // Na Demonstração, a remetente dos roteiros; num Workspace operacional, a Conta de usuário da sessão, que só abre o
   // documento quando é a Vendedora responsável.
@@ -584,8 +588,22 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     })
   }
 
-  function handleAnexar(arquivo: File, tipo: 'imagem' | 'video') {
+  async function handleAnexar(arquivo: File, tipo: 'imagem' | 'video') {
     if (!stepAtivo) return
+    setErroAoAnexar(null)
+    if (guardaArquivos) {
+      const anexosAtuais = stepAtivo.anexos ?? []
+      setAnexando(true)
+      try {
+        const anexo = await fonteDeSequencias.anexarArquivo!(sequenciaId, stepAtivo.id, arquivo)
+        await handleSalvarStep({ anexos: [...anexosAtuais, anexo] })
+      } catch (erro) {
+        setErroAoAnexar(erro instanceof Error ? erro.message : 'Não foi possível anexar o arquivo.')
+      } finally {
+        setAnexando(false)
+      }
+      return
+    }
     const url = URL.createObjectURL(arquivo)
     const novoAnexo: AnexoStep = { tipo, nome: arquivo.name, url }
     const anexosAtuais = stepAtivo.anexos ?? []
@@ -744,6 +762,15 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         {/* Ações da regra de pause quando pausada; com a Conta arquivada, só restaurar a Conta libera a retomada */}
         {sequencia.status === 'pausada' && !sequencia.pausadaPelaConta && (
           <div className="flex items-center gap-2 shrink-0">
+            {/* canais-11: a Conta remetente caiu. Reconectar não retoma; depois, a pessoa retoma quando quiser. */}
+            {sequencia.pausadaPelaContaRemetente && (
+              <Link
+                to="/configuracoes/perfil"
+                className="inline-flex h-8 items-center border border-al-ink bg-al-ink px-3 text-xs tracking-rotulo text-al-bg uppercase hover:opacity-90"
+              >
+                Reconectar
+              </Link>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -1129,6 +1156,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             remetente={remetente}
             onAnexar={anexosDisponiveis ? handleAnexar : undefined}
             onRemoverAnexo={handleRemoverAnexo}
+            anexosGuardados={guardaArquivos}
+            anexando={anexando}
+            erroAoAnexar={erroAoAnexar}
+            urlDoAnexoDoPasso={fonteDeSequencias.urlDoAnexoDoPasso?.bind(fonteDeSequencias)}
             ultimoCampoRef={ultimoCampoRef}
             envio={envios?.find((e) => e.stepId === stepAtivo.id)}
             enviosIndisponiveis={!!erroDosEnvios}
@@ -1241,6 +1272,12 @@ interface ComposerStepProps {
   /** Sem ele, o ambiente não guarda arquivos: os anexos ficam indisponíveis. */
   onAnexar?: (arquivo: File, tipo: 'imagem' | 'video') => void
   onRemoverAnexo: (indice: number) => void
+  /** O arquivo vai para o Workspace (canais-10), e não fica só nesta aba. */
+  anexosGuardados?: boolean
+  anexando?: boolean
+  erroAoAnexar?: string | null
+  /** Abre um anexo guardado por um endereço temporário. */
+  urlDoAnexoDoPasso?: (anexoId: string) => Promise<string>
   ultimoCampoRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
   onEditarDestinos?: (contato: Contato) => void
   /** O Envio deste passo num Workspace operacional, quando já foi confirmado alguma vez. */
@@ -1320,6 +1357,10 @@ function ComposerStep({
   onInserirVariavel,
   onAnexar,
   onRemoverAnexo,
+  anexosGuardados = false,
+  anexando = false,
+  erroAoAnexar = null,
+  urlDoAnexoDoPasso,
   ultimoCampoRef,
   onEditarDestinos,
   envio,
@@ -1571,6 +1612,10 @@ function ComposerStep({
           anexos={anexos}
           onAnexar={onAnexar}
           onRemover={onRemoverAnexo}
+          guardados={anexosGuardados}
+          anexando={anexando}
+          erro={erroAoAnexar}
+          urlDoAnexo={urlDoAnexoDoPasso}
         />
       )}
 
@@ -2479,11 +2524,20 @@ function LinhaAnexos({
   anexos,
   onAnexar,
   onRemover,
+  guardados = false,
+  anexando = false,
+  erro = null,
+  urlDoAnexo,
 }: {
   anexos: AnexoStep[]
   /** Sem ele, o ambiente não guarda arquivos: não há como anexar. */
   onAnexar?: (arquivo: File, tipo: 'imagem' | 'video') => void
   onRemover: (i: number) => void
+  /** O arquivo vai para o Workspace (canais-10). */
+  guardados?: boolean
+  anexando?: boolean
+  erro?: string | null
+  urlDoAnexo?: (anexoId: string) => Promise<string>
 }) {
   return (
     <div className="grid grid-cols-[80px_1fr] items-start gap-3 border-b border-al-line px-4 py-3">
@@ -2499,6 +2553,8 @@ function LinhaAnexos({
                   ) : (
                     <img src={a.url} alt={a.nome} className="h-full w-full object-cover" />
                   )
+                ) : a.id && urlDoAnexo ? (
+                  <MiniaturaDoAnexoGuardado anexo={a} carregar={() => urlDoAnexo(a.id!)} />
                 ) : (
                   <span className="text-al-muted">
                     {a.tipo === 'video' ? <Video className="size-5" /> : <Image className="size-5" />}
@@ -2555,11 +2611,58 @@ function LinhaAnexos({
             </>
           )}
         </div>
+        {anexando && (
+          <p role="status" className="text-[0.6875rem] text-al-muted">
+            Guardando o arquivo…
+          </p>
+        )}
+        {erro && (
+          <p role="alert" className="text-xs text-al-atencao">
+            {erro}
+          </p>
+        )}
         <p className="text-[0.6875rem] text-al-muted">
-          {onAnexar ? 'O arquivo fica só neste protótipo — nada é enviado.' : MODULO_INDISPONIVEL.anexos}
+          {!onAnexar
+            ? MODULO_INDISPONIVEL.anexos
+            : guardados
+              ? 'O arquivo fica guardado no Workspace, só você o vê, e sai junto com o passo quando o canal aceita o formato e o tamanho.'
+              : 'O arquivo fica só neste protótipo — nada é enviado.'}
         </p>
       </div>
     </div>
+  )
+}
+
+/** A miniatura de um anexo guardado: pede um endereço temporário ao abrir e não o guarda em lugar nenhum. */
+function MiniaturaDoAnexoGuardado({ anexo, carregar }: { anexo: AnexoStep; carregar: () => Promise<string> }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [falhou, setFalhou] = useState(false)
+  // A função muda a cada render do pai; a miniatura só recarrega quando o anexo muda.
+  const carregarRef = useRef(carregar)
+  useEffect(() => {
+    carregarRef.current = carregar
+  })
+  useEffect(() => {
+    let ativo = true
+    carregarRef.current().then(
+      (endereco) => { if (ativo) setUrl(endereco) },
+      () => { if (ativo) setFalhou(true) },
+    )
+    return () => {
+      ativo = false
+    }
+  }, [anexo.id])
+  if (!url) {
+    return (
+      <span className="text-al-muted" title={falhou ? 'Não foi possível carregar a miniatura.' : undefined}>
+        {anexo.tipo === 'video' ? <Video className="size-5" /> : <Image className="size-5" />}
+      </span>
+    )
+  }
+  return anexo.tipo === 'video' ? (
+    <video src={url} className="h-full w-full object-cover" muted aria-label={anexo.nome} />
+  ) : (
+    <img src={url} alt={anexo.nome} className="h-full w-full object-cover" />
   )
 }
 
@@ -2567,6 +2670,7 @@ function LinhaAnexos({
 function rotuloDoStatusPublico(sequencia: Sequencia): string {
   if (sequencia.status === 'encerrada') return 'Encerrada'
   if (sequencia.pausadaPelaConta) return 'Pausada: Conta-alvo arquivada'
+  if (sequencia.pausadaPelaContaRemetente) return 'Pausada: conta remetente do responsável desconectada'
   return sequencia.status === 'pausada' ? 'Contato respondeu; sequência pausada' : sequencia.status
 }
 

@@ -10,6 +10,7 @@ import {
   UnipileUnreadableResponse,
 } from './send-step.ts'
 import type { IngestChatEventInput, IngestedChat } from './ingest-chat-event.ts'
+import { type OutgoingAttachment, prepareAttachments, type StepAttachmentSource } from './anexos-do-envio.ts'
 
 export type ChatChannel = 'whatsapp' | 'linkedin'
 /** A intenção do passo do LinkedIn (`subtipoLinkedIn` do documento). A ação que sai depende da relação. */
@@ -95,9 +96,18 @@ export interface LinkedInProfile {
 
 export interface UnipileChat {
   /** POST /v2/{account_id}/chats/send: abre a conversa com um usuário e envia a primeira mensagem. */
-  startChat(accountId: string, input: { userId: string; text: string }, options: { signal: AbortSignal }): Promise<ChatSent>
-  /** POST /v2/{account_id}/chats/{chat_id}/messages/send: continua uma conversa. */
-  sendChatMessage(accountId: string, chatId: string, text: string, options: { signal: AbortSignal }): Promise<ChatSent>
+  startChat(
+    accountId: string,
+    input: { userId: string; text: string; attachments?: OutgoingAttachment[] },
+    options: { signal: AbortSignal },
+  ): Promise<ChatSent>
+  /** POST /v2/{account_id}/chats/{chat_id}/messages/send: continua uma conversa. Os anexos são do canais-10. */
+  sendChatMessage(
+    accountId: string,
+    chatId: string,
+    text: string,
+    options: { signal: AbortSignal; attachments?: OutgoingAttachment[] },
+  ): Promise<ChatSent>
   /** POST /v2/{account_id}/users/me/relation-requests: convite com nota. */
   sendInvitation(
     accountId: string,
@@ -143,6 +153,8 @@ export interface SendChatStepDeps {
   unipile: UnipileChat
   /** Cada chamada à Unipile. Depois disso, o resultado é incerto: pode ter saído ou não. Padrão 25 s. */
   sendTimeoutMs?: number
+  /** Os anexos do passo (canais-10). Sem isto, o passo sai só com o texto, como antes. */
+  attachments?: StepAttachmentSource
 }
 
 // ---------- Destino e decisão ----------
@@ -265,11 +277,16 @@ async function sendMessage(
   deps: SendChatStepDeps,
   released: ReleasedChatSend,
   userId: string,
+  attachments: OutgoingAttachment[],
 ): Promise<Attempt> {
+  const extra = attachments.length ? { attachments } : {}
   const sent = await withTimeout(deps.sendTimeoutMs ?? 25_000, (signal) =>
     released.provider_chat_id
-      ? deps.unipile.sendChatMessage(released.unipile_account_id, released.provider_chat_id, released.body, { signal })
-      : deps.unipile.startChat(released.unipile_account_id, { userId, text: released.body }, { signal }))
+      ? deps.unipile.sendChatMessage(released.unipile_account_id, released.provider_chat_id, released.body, {
+        signal,
+        ...extra,
+      })
+      : deps.unipile.startChat(released.unipile_account_id, { userId, text: released.body, ...extra }, { signal }))
   if ('error' in sent) return classifySendError(sent.error, sent.aborted)
   return {
     outcome: 'sent',
@@ -278,13 +295,21 @@ async function sendMessage(
   }
 }
 
-async function attemptWhatsApp(deps: SendChatStepDeps, released: ReleasedChatSend): Promise<Attempt> {
+async function attemptWhatsApp(
+  deps: SendChatStepDeps,
+  released: ReleasedChatSend,
+  attachments: OutgoingAttachment[],
+): Promise<Attempt> {
   const userId = toWhatsAppUserId(released.destination)
   if (!userId) return { outcome: 'blocked', error: 'invalid_phone' }
-  return { ...(await sendMessage(deps, released, userId)), providerUserId: userId }
+  return { ...(await sendMessage(deps, released, userId, attachments)), providerUserId: userId }
 }
 
-async function attemptLinkedIn(deps: SendChatStepDeps, released: ReleasedChatSend): Promise<Attempt> {
+async function attemptLinkedIn(
+  deps: SendChatStepDeps,
+  released: ReleasedChatSend,
+  attachments: OutgoingAttachment[],
+): Promise<Attempt> {
   const identifier = linkedInIdentifier(released.destination)
   if (!identifier) return { outcome: 'blocked', error: 'linkedin_profile_invalid' }
   const timeout = deps.sendTimeoutMs ?? 25_000
@@ -313,6 +338,10 @@ async function attemptLinkedIn(deps: SendChatStepDeps, released: ReleasedChatSen
 
   // 2. Convite com nota. A nota nunca é cortada em silêncio, e um segundo convite ao mesmo perfil não sai.
   if (decision.action === 'convite') {
+    // O convite não leva anexo: o passo com arquivo espera o Vendedor responsável tirar o anexo ou mudar o passo.
+    if (attachments.length) {
+      return { outcome: 'blocked', error: 'attachment_not_supported_on_invite', providerUserId: profile.providerId }
+    }
     if (characterCount(released.body) > released.invite_note_limit) {
       return { outcome: 'blocked', error: 'invite_note_too_long', providerUserId: profile.providerId }
     }
@@ -328,7 +357,7 @@ async function attemptLinkedIn(deps: SendChatStepDeps, released: ReleasedChatSen
   }
 
   // 3. Mensagem a uma conexão (ou InMail a quem não é): continua a conversa que já existe ou abre uma.
-  const sent = await sendMessage(deps, released, profile.providerId)
+  const sent = await sendMessage(deps, released, profile.providerId, attachments)
   return { ...sent, providerUserId: profile.providerId, action: decision.action }
 }
 
@@ -359,10 +388,22 @@ export async function sendChatStep(
   }
   if (released.outcome !== 'released') return { kind: 'blocked', outcome: released.outcome }
 
-  // Daqui em diante o Envio está em "sending": todo caminho grava um resultado.
-  const attempt = released.channel === 'whatsapp'
-    ? await attemptWhatsApp(deps, released)
-    : await attemptLinkedIn(deps, released)
+  // Daqui em diante o Envio está em "sending": todo caminho grava um resultado. Um anexo que não serve ao canal não
+  // sai e o Envio falha com o motivo; um que não deu para baixar agora falha como recusa passageira (nova tentativa).
+  const prepared = await prepareAttachments(deps.attachments, sendId)
+  if (prepared.kind === 'invalid') {
+    try {
+      await deps.attachments!.failSend(sendId, prepared.problem)
+    } catch {
+      return { kind: 'attempted', outcome: 'failed', recorded: false, reason: prepared.problem }
+    }
+    return { kind: 'attempted', outcome: 'failed', recorded: true, reason: prepared.problem }
+  }
+  const attempt: Attempt = prepared.kind === 'unavailable'
+    ? { outcome: 'failed', error: 'attachment_download_failed' }
+    : released.channel === 'whatsapp'
+    ? await attemptWhatsApp(deps, released, prepared.attachments)
+    : await attemptLinkedIn(deps, released, prepared.attachments)
 
   try {
     await deps.db.recordChatStepSendResult({

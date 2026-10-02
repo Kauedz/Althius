@@ -24,6 +24,11 @@ export interface WebhookDb {
   }): Promise<string>
   /** RPC apply_unipile_sender_status: true quando alguma Conta remetente mudou. */
   applyUnipileSenderStatus(unipileAccountId: string, status: string): Promise<boolean>
+  /**
+   * RPC hold_sequences_of_lost_sender (canais-11): depois da queda gravada, pausa com o motivo as Sequências ativas que
+   * usam a conta. Devolve quantas pausou. Sem ela, a queda só bloqueia os envios, como antes.
+   */
+  holdSequencesOfLostSender?(unipileAccountId: string): Promise<number>
   /** RPC ingest_unipile_email_event. */
   ingestEmailEvent(input: IngestEmailEventInput): Promise<IngestedEmail>
   /**
@@ -116,6 +121,9 @@ const STATUS_EVENTS: Record<string, string> = {
   'account.status.errored': 'ERROR',
   'account.remove': 'DELETED',
 }
+
+// Os estados que dizem que a conta caiu de vez (credenciais revogadas ou expiradas, erro, removida): a Sequência pausa.
+const LOST_STATUSES = new Set(['CREDENTIALS', 'ERROR', 'DELETED'])
 
 // Na v2 só WhatsApp e IMAP fazem sincronização inicial (docs/initial-sync); os outros provedores já
 // chegam com o histórico disponível, então nunca mandam account.initial_sync.completed.
@@ -279,6 +287,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         } catch {
           log({ type, accountId, status: mappedStatus, outcome: 'rpc_error' })
           return new Response('Event could not be processed', { status: 500 })
+        }
+        // A queda já está gravada e bloqueia os envios; pausar é o passo seguinte. Se falhar, o Executor pausa quando
+        // o próximo passo for barrado, então o evento é confirmado mesmo assim.
+        if (LOST_STATUSES.has(mappedStatus) && deps.db.holdSequencesOfLostSender) {
+          try {
+            const held = await deps.db.holdSequencesOfLostSender(accountId)
+            log({ type, accountId, outcome: 'sequences_held', held })
+          } catch {
+            log({ type, accountId, outcome: 'hold_failed' })
+          }
         }
         return received()
       }

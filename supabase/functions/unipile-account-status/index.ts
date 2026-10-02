@@ -35,6 +35,11 @@ const db: WebhookDb = {
     if (error) throw error
     return data === true
   },
+  async holdSequencesOfLostSender(unipileAccountId) {
+    const { data, error } = await admin.rpc('hold_sequences_of_lost_sender', { p_unipile_account_id: unipileAccountId })
+    if (error) throw error
+    return typeof data === 'number' ? data : 0
+  },
   ingestEmailEvent: ingestEmailEventVia(admin),
   ingestChatEvent: ingestChatEventVia(admin),
   async recordReceivedEmailAttachment({ interactionId, attachmentId, storagePath, status }) {

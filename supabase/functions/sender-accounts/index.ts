@@ -167,6 +167,9 @@ Deno.serve(comCors(Deno.env.get('APP_ORIGIN') ?? '', async (req) => {
       if (updateError || markedDisconnected !== true) {
         return response({ error: 'A desconexão ocorreu, mas o estado ainda não foi atualizado.' }, 502)
       }
+      // canais-11: as Sequências que usavam a conta pausam com o motivo; reconectar não as retoma. Se falhar, o
+      // Executor pausa quando o próximo passo for barrado.
+      await admin.rpc('hold_sequences_of_lost_sender', { p_unipile_account_id: account[0].unipile_account_id })
       return response({ ok: true })
     }
 

@@ -7,6 +7,7 @@ import type { CaminhoDeConexao } from '@/fonte/conexoes-tipos'
 import { useDadosDeConexoes, useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import type { ContaAlvo, ResultadoDoEnvioAoCrm } from '@/fonte/contas-tipos'
 import type { IntegracaoId } from '@/fonte/tipos'
+import { useOfereceEnvioAoCrm } from './oferece-envio-ao-crm'
 
 const contar = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
 
@@ -19,14 +20,33 @@ const contar = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
  * abre um pedido aos Agentes numa Conversa nova, com o mesmo pacote: eles escrevem pelas ferramentas do próprio conector,
  * e cada escrita segue a regra dela (no padrão, uma Aprovação no passo da Conversa). Pela chave de API, nada muda.
  */
-export function EnviarAoCrm({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
-  const fonte = useFonteDeContas()
-  const oferece = !!fonte.enviarAoCrm && !!fonte.envioAoCrm && conta.sobMinhaResponsabilidade !== false && !conta.arquivadaEm
-  if (!oferece) return null
-  return <Envio conta={conta} contatos={contatos} />
+export function EnviarAoCrm({
+  conta,
+  contatos,
+  confirmandoDeInicio = false,
+  aoCancelar,
+}: {
+  conta: ContaAlvo
+  contatos: number
+  /** O cartão do Kanban abre o envio já na confirmação: o clique no cartão foi o "Enviar ao CRM". */
+  confirmandoDeInicio?: boolean
+  aoCancelar?: () => void
+}) {
+  if (!useOfereceEnvioAoCrm(conta)) return null
+  return <Envio conta={conta} contatos={contatos} confirmandoDeInicio={confirmandoDeInicio} aoCancelar={aoCancelar} />
 }
 
-function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
+function Envio({
+  conta,
+  contatos,
+  confirmandoDeInicio,
+  aoCancelar,
+}: {
+  conta: ContaAlvo
+  contatos: number
+  confirmandoDeInicio: boolean
+  aoCancelar?: () => void
+}) {
   const fonte = useFonteDeContas()
   const { dados: envio, recarregar } = useDadosDeContas((f) => f.envioAoCrm!(conta.id), [conta.id])
   const { dados: crms } = useDadosDeConexoes(async (f) => {
@@ -46,7 +66,7 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
     (f) => (f.conversaDoEnvioAoCrm && envio?.estado === 'enviando' ? f.conversaDoEnvioAoCrm(conta.id) : Promise.resolve(null)),
     [conta.id, envio?.estado],
   )
-  const [confirmando, setConfirmando] = useState(false)
+  const [confirmando, setConfirmando] = useState(confirmandoDeInicio)
   const [escolhido, setEscolhido] = useState<IntegracaoId | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -201,7 +221,10 @@ function Envio({ conta, contatos }: { conta: ContaAlvo; contatos: number }) {
               type="button"
               variant="outline"
               disabled={enviando}
-              onClick={() => setConfirmando(false)}
+              onClick={() => {
+                setConfirmando(false)
+                aoCancelar?.()
+              }}
               className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
             >
               Cancelar

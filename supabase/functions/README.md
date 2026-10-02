@@ -192,3 +192,14 @@ continuam intactos, e cada pessoa só precisa reconectar o canal.
 1. Aplicar a migration `20261001200000_envio_ao_crm.sql` (conforme `docs/agents/migrations.md`).
 2. Publicar: `npx supabase functions deploy crm-handoff --project-ref <ref>` (sem segredo novo: usa `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `APP_ORIGIN`).
 3. HubSpot: criar um Private App na conta de teste com os escopos `crm.objects.companies.write`, `crm.objects.contacts.write` (e os de leitura que a Sincronização já usa) e conectar em Conexões pela chave de API. Pela autorização (MCP), o envio responde pedindo a chave.
+
+## Ligar os anexos dos passos (canais-10)
+
+1. Aplicar a migration `20261002120000_anexos_dos_passos.sql` (conforme `docs/agents/migrations.md`). Ela cria o bucket privado `sequence-attachments` (16 MB, só imagem e MP4, sem política em `storage.objects`: só a função, com a chave de serviço, grava e assina).
+2. Publicar: `npx supabase functions deploy sequence-attachments sequence-runner sequence-step-sends storage-purge --project-ref <ref>` (sem segredo novo). `sequence-attachments` exige o JWT do titular: o banco confere a Sequência, o passo e os limites do canal antes de o arquivo ir ao bucket, e abrir devolve uma URL assinada de 2 minutos.
+3. Ligar o módulo, no SQL Editor: `select private.set_sequence_attachments_enabled(true);`. Desligado, a tela diz que os anexos não estão disponíveis.
+
+## Ligar a pausa pela Conta remetente (canais-11)
+
+1. Aplicar a migration `20261002121000_reconexao_e_acesso_revogado.sql`.
+2. Publicar: `npx supabase functions deploy unipile-account-status --no-verify-jwt --project-ref <ref>` e `npx supabase functions deploy sequence-runner sender-accounts --project-ref <ref>`. Nenhum segredo e nenhum evento novo no Webhook Endpoint: os `account.status.*` e o `account.remove` já chegam.
