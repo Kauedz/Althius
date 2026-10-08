@@ -60,7 +60,7 @@ A correção do aceite dos Termos entrou como migration nova `20260925170000_boo
 - **Status:** done (código e testes). Auth-03 continua ready-for-human só pelo e-mail para conta existente (SMTP, Auth-10).
 - **Branch:** `ralph/auth-03-05-redefinir-senha`, com push, sem PR.
 - **Sem migration.** Nada a aplicar no Supabase.
-- **Decisão a confirmar:** quem abre uma tela de acesso ou um convite fica com o Workspace operacional lembrado no navegador (é o que faz o link de confirmação funcionar). Efeito: quem visitou `/cadastro` e saiu vê `/entrar` ao voltar ao início, e não a Demonstração. Alternativa: os links do e-mail voltarem por `/entrar?destino=…`, o que muda as URLs de redirecionamento do Supabase e testes antigos.
+- **Decisão do Renan (2026-10-08): aceito como está.** Quem abre uma tela de acesso ou um convite fica com o Workspace operacional lembrado no navegador (é o que faz o link de confirmação funcionar), e quem visitou `/cadastro` vai para `/entrar` ao voltar ao início, não para a Demonstração. Descartada a alternativa `/entrar?destino=…` nos links do e-mail.
 - **O que o humano roda (PowerShell, na raiz do repo):**
   1. Conferir os testes: `cd projeto-althius-frontend; npx vitest run src/raiz.test.tsx; npx tsc -b`
   2. A branch já está no GitHub. O PR fica a seu critério.
