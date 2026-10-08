@@ -94,3 +94,13 @@ Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e
 
 ## Loop de teste de banco
 Postgres 16 + pgTAP locais, com schema `auth` mínimo do Supabase, via script de sessão (fora do repo): aplica `supabase/migrations/` (repetindo as fora de ordem) e roda `supabase/tests/`.
+
+## enriquecimento — B2 (2026-10-08)
+
+| Campo | Valor |
+| --- | --- |
+| Ticket | prospeccao-funcional B2 |
+| Status | ready-for-human |
+| Branch | ralph/frente-enriquecimento |
+| Commit | b99a2d6b2031f4eb4f2988e8de98203f42939fe7 |
+| O que o humano roda | Com o CI verde, aplicar no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico (`do $apply$` / `$m$`, porque o arquivo usa `$$`), como em `docs/agents/migrations.md`. Ordem, se ainda faltarem: `20261008153000_apagar_conta_limpa_dado_pessoal.sql` (B4), `20261008203000_consulta_cnpj_reserva_credito.sql` (B1), depois `20261008223000_persona_do_contato_no_comite.sql` (B2). Não aplicar antes do CI. Sem push. Depois, na raiz do repositório, no PowerShell, sem `--no-verify-jwt`: `npx supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty`. O pgTAP `plan(16)` não rodou nesta máquina. Vitest: 108 arquivos, 1075 passed. |
