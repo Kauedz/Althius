@@ -4,7 +4,7 @@
 
 **Blocked by:** 05: Executar a Sequência com o navegador fechado.
 
-**Status:** ready-for-agent (o InMail não sai como InMail, e o teste fixa o comportamento errado; antes, decisão do Nan; depois, o envio real pela Unipile)
+**Status:** ready-for-human (InMail fora, por decisão do Renan; o ticket fecha com convite e mensagem no LinkedIn depois do envio real)
 
 - [ ] A identidade pública do Contato é resolvida para o identificador nativo correto antes do envio.
 - [ ] Convite, mensagem e InMail são enviados somente quando a conta e a relação suportam o subtipo escolhido.
@@ -34,6 +34,11 @@
   - Testes rodados: `deno test --allow-all supabase/functions/_shared/send-chat-step.test.ts supabase/functions/_shared/send-chat-step-adapters.test.ts supabase/functions/sequence-runner/handler-chat.test.ts` → 52 passed, 0 failed; pgTAP `canais_whatsapp_linkedin.sql` ok no CI 37707955273.
   - Decisão do Nan antes (ligada ao Seam de Canal da revisão de 29/09): barrar o subtipo `inmail` no núcleo com um motivo próprio, sem migration, ou mandar a marca de InMail no `startChat` com o campo marcado "não confirmado".
   - Depois (humano): o mesmo roteiro do ticket 06, com `select private.set_chat_channel_enabled('linkedin', true);` e um perfil seu. Não usar passo de InMail antes da decisão acima.
+
+- 2026-10-07, decisão do Renan: o InMail fica fora. O ticket fecha com convite e mensagem no LinkedIn.
+  - Com isso, os critérios ficam assim: a identidade resolvida, a nova relação, o aceite e a nota que não contam como resposta, a pausa e os eventos repetidos já estavam cumpridos; o critério 2 vale para convite e mensagem e está cumprido (`supabase/functions/_shared/send-chat-step.ts:184-190,340-357`); o critério 3 está cumprido no backend, e a tradução dos motivos na tela foi para o C1 da `prospeccao-funcional`; o critério 7 tem o caminho permitido e os impedimentos de convite e mensagem cobertos em `send-chat-step.test.ts` ("LinkedIn: quem ainda não é conexão recebe um convite com a nota do passo", "LinkedIn: quem já é conexão recebe mensagem, mesmo num passo de convite", "LinkedIn: mensagem a quem não é conexão é impedimento, nada é enviado", "LinkedIn: sem crédito, assinatura ou elegibilidade o convite vira impedimento com o motivo"), dentro dos 52 testes verdes da rodada anterior.
+  - Falta só o envio real, igual ao ticket 06, com `select private.set_chat_channel_enabled('linkedin', true);` e um perfil de teste: um convite com nota para quem não é conexão e uma mensagem para quem já é. Depois, conferir com `select channel, status, last_error, linkedin_action, provider_chat_id, sent_at from private.sequence_step_sends where channel = 'linkedin' order by updated_at desc limit 10;`.
+  - Risco que fica: a tela ainda oferece "InMail" no passo de LinkedIn (`projeto-althius-frontend/src/paginas/detalhe-sequencia.tsx:2199`), e o núcleo manda esse passo como mensagem comum pelo `startChat` (`send-chat-step.ts:359-361`). Enquanto o InMail estiver fora, nenhum passo deve usá-lo. Tirar a opção da tela e o núcleo recusar `inmail` com um motivo próprio (sem migration) é um ajuste pequeno de agente, que não entrou na fila sem o sim do Renan.
 
 ## Passos do Nan
 

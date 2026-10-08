@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Convidar e gerenciar participantes; 04: Criar e consultar Contas-alvo reais.
 
-**Status:** needs-info (falta só o primeiro critério, que depende da decisão Roleta × Caixa de Descobertas; ver Comments de 2026-10-07)
+**Status:** needs-info (fora do núcleo, por decisão do Renan; não trava a fila do /implement)
 
 - [ ] Uma recomendação real de Conta com URL ainda inexistente cria a Conta e a atribui automaticamente a Administrador ou Membro ativo. — **Só a porta de entrada está pronta:** a RPC `public.recommend_target_account` (só `service_role`) cria a Conta com `origin = 'recomendacao'` e a atribui pela roleta; pgTAP `supabase/tests/responsabilidade_e_roleta.sql` 1–3, 14–16, 54–55. Ainda não existe quem recomende: o runtime dos Agentes é o CRM-13/14. Fica aberto até um Agente real chamar a RPC.
 - [x] Distribuição é rotativa, persistida e atômica mesmo com recomendações simultâneas. — cursor por Workspace em `private.account_roulette_cursors`, travado `FOR UPDATE`, com as Participações travadas `FOR SHARE` antes; pgTAP 4, 11–13, 53; experimento local com recomendações paralelas e uma remoção no meio (ver Comments).
@@ -87,3 +87,5 @@
   - Decisão do Nan (Roleta × Caixa de Descobertas): (a) quem aceita fica com a Conta, e a roleta deixa de valer para recomendações (reescrever o critério e o `CONTEXT.md:74-75`); (b) o aceite passa pela roleta, reaproveitando `recommend_target_account`; (c) um Agente recomenda direto, sem aceite, o que choca com "o Agente propõe, a pessoa decide" (`20261001170000:2`).
   - Depois da decisão (agente): o caminho escolhido e, em qualquer caso, a origem do evento de atribuição no aceite, com pgTAP novo. Conferência visual do aviso de responsável ausente e do diálogo de transferir.
   - O comentário "migration não aplicada" é de 29/09; conferir com `npx supabase migration list --linked`.
+
+- 2026-10-07, decisão do Renan: este ticket fica fora do núcleo, como `needs-info`, e não trava a fila. A decisão Roleta × Caixa de Descobertas e o conserto da origem do evento de atribuição no aceite esperam até ele voltar à pauta. Nenhum outro ticket depende dele.

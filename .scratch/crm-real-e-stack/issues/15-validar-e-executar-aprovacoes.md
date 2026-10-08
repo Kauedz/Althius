@@ -4,7 +4,7 @@
 
 **Blocked by:** 14: Executar Conversas e Coordenação com estado recuperável.
 
-**Status:** ready-for-agent (só falta ligar a fila real; antes, o sim do Nan para trocar o teste `raiz.test.tsx:110`; depois, os Passos do Nan)
+**Status:** ready-for-agent (autorizado trocar só a asserção de `raiz.test.tsx:110` para ligar a fila; depois, os Passos do Nan)
 
 - [x] Proposta e Aprovação persistem com autor, Workspace, integração, ação, payload, estado e timestamp.
 - [x] Ações com permissão Propor aguardam aprovação; Executar segue as permissões específicas definidas sem contornar controles.
@@ -50,6 +50,8 @@
   - Achado novo que torna a fila necessária: as Conversas são privadas de quem pediu (`20260929180000_conversas_dos_agentes.sql:298,316`). Quando um Membro (o Vendedor responsável) pede um envio com Propor, só o Administrador decide (`decide_approval`), mas ele não vê a Conversa do Membro. A Aprovação fica pendente sem lugar para decidir e expira em 7 dias; o link "Ver a Aprovação" (`src/conversa/link-do-passo.tsx:10`) leva à tela indisponível.
   - Falta (agente, depois do sim do Nan para trocar o teste de `raiz.test.tsx:110`): passar `aprovacoesDisponiveis` em `aplicativo.tsx`, de preferência só com o `crm-handoff` publicado; trocar aquele teste por um da fila real (lê `list_approvals`, não mostra nada da Demonstração, o Administrador decide pela fila); emendar a ADR-0010 (ainda diz que qualquer participante decide, contra o `CONTEXT.md:329`). Depois, conferência visual da fila e do cartão no passo da Conversa.
   - Passos do Nan: conferir primeiro o que já está no remoto, no PowerShell, na raiz: `npx supabase link --project-ref ycbdilsmydvzezhlymty`, depois `npx supabase migration list --linked` e `npx supabase functions list --project-ref ycbdilsmydvzezhlymty`. O GO-LIVE diz que a `20261001210000` foi aplicada; a `20261002110000` é posterior. O que faltar segue os passos 1 a 5 acima.
+
+- 2026-10-07, decisão do Renan: autorizado trocar só a asserção de `projeto-althius-frontend/src/raiz.test.tsx:110`, dentro deste ticket, para ligar a fila de Aprovações. É a linha `['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads']` do `it.each` "%s mostra que o módulo está indisponível, sem dados da Demonstração". As outras linhas desse `it.each` e os outros testes ficam como estão. Junto entra o teste novo da fila real: lê `list_approvals`, não mostra nada da Demonstração (nem "Meta Ads"), e o Administrador decide pela fila, inclusive a Aprovação pedida por um Membro. O resto da falta descrita acima continua: passar `aprovacoesDisponiveis` em `src/auth/aplicativo.tsx` e emendar a ADR-0010.
 
 ## Passos do Nan
 

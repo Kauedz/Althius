@@ -4,7 +4,7 @@
 
 **Blocked by:** None (pode começar agora). O merge na `main` espera o 00.
 
-**Status:** ready-for-agent (nada implementado; a primeira coisa é perguntar ao Nan o preço da consulta de CNPJ)
+**Status:** ready-for-agent (preço decidido: 1 crédito, cobrado só quando a Receita devolve dado; nada mais espera resposta)
 
 - [ ] A ação `cnpj-receita` identifica o usuário pela sessão antes de qualquer consulta. A chave anon, sozinha, recebe recusa e o actor não é chamado. O furo está em `supabase/functions/account-enrichment/handler.ts`. `account-discovery` não tem esta ação.
 - [ ] A consulta paga só começa com crédito reservado para o Workspace e para a pessoa da sessão, no mesmo contrato das outras ações (reservar, liquidar o que achou, liberar o resto). Sem saldo ou fora do teto da pessoa, a consulta não chama o Apify.
@@ -57,3 +57,5 @@ Sem `--no-verify-jwt`. A conferência da sessão é do handler: a chave anon tam
   - Testes rodados: `deno test --allow-all supabase/functions/account-enrichment/` → 9 passed (só os mapeadores `consultarApifyReceita` e `consultarBrasilApi` tocam a Receita); pgTAP `enriquecimento_e_comite.sql` ok no CI 37707955273.
   - Este ticket também cobre a parte da Receita do `creditos-e-planos` 01 (custo gravado) e do enriquecimento 01.
   - Pergunta ao Nan antes da migration: o preço em créditos de uma consulta de CNPJ (referência: varredura 1, pessoa coletada 1, e-mail 2, telefone 5, busca de Contas 5).
+
+- 2026-10-07, decisão do Renan: a consulta de CNPJ custa 1 crédito, cobrado só quando a Receita devolve dado. Se o actor ou a BrasilAPI falha, ou o CNPJ não é achado, a reserva é liberada e nada é cobrado. Se o preço se mostrar errado, ele se corrige depois numa migration nova; isso não trava o ticket. Com isso, a pergunta do critério 5 está respondida: a migration grava a ação de crédito da consulta com 1 crédito (timestamp maior que `20261002121000`, a última da `main`), e a tela mostra "1 crédito" antes do clique.

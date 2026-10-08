@@ -218,15 +218,15 @@ Cada ticket abaixo foi conferido critério a critério no código da `main` 59e5
 | creditos-e-planos 04 | closed | `orquestracao.ts:498-518`; pgTAP `creditos_das_execucoes_de_agentes.sql` ok; 37 testes Deno verdes | — |
 | creditos-e-planos 05 | ready-for-agent | Sem papel `observer` (`20260927115135:13`); `credits_per_seat` = 0 | Nan: cota por assento, ajuste de assentos e o combinado com Conexões; depois, agente: Observador |
 | creditos-e-planos 06 | ready-for-human | `workspace_access` e `TelaDeAssinatura`; 138 vitest e 12 Deno verdes | Nan: Stripe e deploy (passos 1 a 7); agente depois: ligar `set_credits_enforced` e o texto do Plano, com o sim do Nan |
-| crm-real-e-stack 15 | ready-for-agent | 10 de 11 critérios; 230 vitest e os Deno verdes; fila desligada (`aplicativo.tsx:359-370`); Membro com Propor fica sem quem decida | Nan: sim para trocar `raiz.test.tsx:110`; agente: ligar a fila; Nan: conferir e aplicar as migrations e publicar |
-| crm-real-e-stack 06 | needs-info | 6 de 7 critérios; ninguém chama `recommend_target_account`; o aceite grava evento `manual` | Nan: Roleta × Caixa de Descobertas |
+| crm-real-e-stack 15 | ready-for-agent | 10 de 11 critérios; 230 vitest e os Deno verdes; fila desligada (`aplicativo.tsx:359-370`); Membro com Propor fica sem quem decida | Agente: ligar a fila, trocando só `raiz.test.tsx:110` (autorizado pelo Renan); Nan: conferir e aplicar as migrations e publicar |
+| crm-real-e-stack 06 | needs-info | 6 de 7 critérios; ninguém chama `recommend_target_account`; o aceite grava evento `manual` | Fora do núcleo, por decisão do Renan; não trava a fila |
 | crm-real-e-stack 17 | ready-for-human | pgTAP `sequencias_nas_contas_reais.sql` ok; arquivar e apagar já ligados pelo 18; 6 prints | Nan: `limpar-sequencias-orfas.sql` e `VALIDATE CONSTRAINT` no SQL Editor; agente: o rótulo cru em `detalhe-sequencia.tsx:2674` |
 | crm-real-e-stack 24 | needs-info | Nada começou (`App.tsx:58`, `composicao.ts:89,123`) | Nan: as 4 perguntas dos Comments |
 | enriquecimento-em-cascata 01 | ready-for-agent | Cascata sem teste (`provedor-de-contatos.ts:290-321`), com stubs pagos; o custo é duplicado de B1 a B3 | Agente, depois de B2 e B3: teste, stubs, Origem, script de validação e promoção em `discovery_actors`; Nan: rodar no Apify |
 | enriquecimento-em-cascata 02 | ready-for-agent | O clique cobra 1 por pessoa (Deno verde); nada dispara ao virar Fit; o interruptor não é lido | Agente, depois do B2 e do 01: o automático pelas Personas do Playbook |
 | enriquecimento-em-cascata 03 | ready-for-agent | Critérios 1 e 2 duplicados do B3; sem ação em lote (`tabela-de-contatos.tsx:145`) | Agente, depois do B3: o lote; Nan: telefone vira `wontfix`? |
 | canais-cadencia-backend 06 | ready-for-human | 7 critérios no código; Deno 32 + 11 + 9 + 15 verdes; pgTAP `canais_whatsapp_linkedin.sql` ok | Nan: `message.new` no webhook, deploy, ligar o WhatsApp, envio e resposta reais |
-| canais-cadencia-backend 07 | ready-for-agent | O InMail sai pelo `startChat` (`send-chat-step.ts:359-361`), e o teste fixa isso | Nan decide o InMail; agente; depois o envio real |
+| canais-cadencia-backend 07 | ready-for-human | InMail fora (decisão do Renan); convite e mensagem cumpridos no código (`send-chat-step.ts:184-190,340-357`) e nos testes | Nan: envio real de um convite e de uma mensagem; risco: a tela ainda oferece InMail |
 | canais-cadencia-backend 08 | ready-for-agent | E-mail cumprido; o chat não tem gatilho (`20261001180000:305`) | Agente, depois do envio real do 06 e do 07 |
 | canais-cadencia-backend 09 | ready-for-agent | E-mail cumprido; `reply-proposal-send/index.ts:79` só envia e-mail | Agente, depois do 08 de chat |
 | canais-cadencia-backend 10 | ready-for-human | Deno 14 + 10, vitest 6, pgTAP `anexos_dos_passos.sql` ok | Nan: migration, deploy, ligar e um anexo real por canal |
@@ -244,25 +244,31 @@ Cada ticket abaixo foi conferido critério a critério no código da `main` 59e5
 | prospeccao-funcional 00 | closed | CI 37707955273 verde na 59e53a6 | — |
 | prospeccao-funcional A1 | closed | `supabase-sinais.ts:197-203`; 7 testes em `monitoramento-real.test.tsx` | — |
 | prospeccao-funcional A2 | closed | `supabase-contas.ts:891`; 7 testes em `monitoramento-real.test.tsx` | — |
-| prospeccao-funcional A3 | needs-info | O registro nasce `testing`; promover quebra 3 asserções em 2 arquivos | Nan: a validação dos comentários vale? Autoriza trocar as 3 asserções? |
-| prospeccao-funcional B1 | ready-for-agent | `account-enrichment/handler.ts:365-406` sem sessão nem crédito | Nan: o preço; agente; Nan: migration e deploy |
+| prospeccao-funcional A3 | ready-for-agent | 5 dos 9 actors têm execução real com id do run e dado devolvido; os 4 sem id seguem `testing`; só `registro_de_actors.sql:18` muda | Agente: migration e pgTAP dos 5; Nan: aplicar a migration |
+| prospeccao-funcional B1 | ready-for-agent | `account-enrichment/handler.ts:365-406` sem sessão nem crédito; preço decidido (1 crédito, só quando acha) | Agente; Nan: migration e deploy |
 | prospeccao-funcional B2 | ready-for-agent | Entrada e saída do actor erradas (`provedor-de-contatos.ts:108-155`); Persona descartada no aceite | Agente, depois do B1 |
 | prospeccao-funcional B3 | ready-for-agent | `coalesce` em `20261001190000:605,610`; telefone a 5 créditos na tela | Agente, depois do B2 |
 | prospeccao-funcional B4 | ready-for-agent | `receita_data` e propostas sobrevivem ao apagamento (`20260929160000:1077-1080`) | Agente; Nan: migration |
 | prospeccao-funcional C1 | ready-for-agent | Painel só com e-mail (`detalhe-sequencia.tsx:909`); a ativação pula o chat em silêncio (`20261002120000:600-601`) | Agente, com a ampliação dos Comments |
 | prospeccao-funcional C3 | ready-for-agent | `respostasRecebidas` só lê e-mail (`supabase-sequencias.ts:647-653`) | Agente, depois do C1 |
 
-### O que o Nan decide para destravar a fila
+### Decisões
 
-1. B1: o preço em créditos da consulta de CNPJ.
-2. crm-real-e-stack 15: o sim para trocar o teste `raiz.test.tsx:110` pela fila real.
-3. A3: se os comentários de sinais-reais 03 a 06 valem como validação, e se autoriza trocar as três asserções.
-4. canais 07: barrar o InMail com motivo próprio ou mandar a marca de InMail.
-5. creditos 03: o que a tela faz com os escopos que ninguém executa.
-6. creditos 05 e 06: a cota por assento, o ajuste de assentos, unir as duas chaves de cobrança e o texto do Plano.
-7. crm-real-e-stack 06: Roleta × Caixa de Descobertas.
+Decididas pelo Renan em 07/10/2026 (gravadas também nos Comments de cada ticket):
+
+1. B1: a consulta de CNPJ custa 1 crédito, cobrado só quando a Receita devolve dado; falha não cobra. Preço errado se corrige depois numa migration e não trava o ticket.
+2. crm-real-e-stack 15: autorizado trocar só a asserção de `raiz.test.tsx:110` (a linha `/aprovacoes` do `it.each` de módulos indisponíveis), dentro deste ticket, para ligar a fila de Aprovações.
+3. A3: só vale o actor cuja execução real está registrada nos comentários de sinais-reais 03 a 06 com o id do run e o dado devolvido; só as asserções desses actors mudam, e os outros seguem `testing`. Caso conferido: as 9 validações foram reais (nenhuma por leitura ou simulação), mas só 5 trazem o id do run (`mudanca_de_emprego`, `nova_lideranca`, `anuncio_de_movimentacao`, `anuncio_linkedin`, `avaliacoes_google_maps`). O A3 entra na fila com esses 5; `vaga_linkedin`, `vaga_indeed`, `entradas_e_saidas` e `anuncio_meta` seguem `testing`. A única asserção que muda é `registro_de_actors.sql:18`.
+4. canais 07: o InMail fica fora; o ticket fecha com convite e mensagem no LinkedIn, depois do envio real. Fica como risco que a tela ainda oferece "InMail" (`detalhe-sequencia.tsx:2199`) e o núcleo o manda como mensagem comum; tirar a opção é um ajuste pequeno que espera o sim do Renan.
+5. crm-real-e-stack 06: fica fora do núcleo, como `needs-info`, e não trava a fila.
+
+Ainda abertas:
+
+6. creditos 03: o que a tela faz com os escopos que ninguém executa.
+7. creditos 05 e 06: a cota por assento, o ajuste de assentos, unir as duas chaves de cobrança e o texto do Plano.
 8. crm-real-e-stack 24: as quatro perguntas do onboarding operacional.
 9. Enriquecimento: tirar os stubs de Apollo, Lusha e Clay; a Origem do Contato aceito do comitê; recobrar quem já foi proposto; telefone `wontfix`.
+10. canais 08 e 09: o Seam de Canal, antes da proposta de resposta por chat.
 
 ### Tickets novos sugeridos (não criados nesta rodada)
 
@@ -280,21 +286,21 @@ Só tickets `ready-for-agent`. "Antes" é o que precisa acontecer para o agente 
 | 1 | autenticacao-google-email 03 (correções A, B e C; leva junto o 05) | — | `raiz.tsx` e `raiz.test.tsx` com o 05 e o crm-real-e-stack 15 |
 | 2 | autenticacao-google-email 09 | 1 | `aceite-do-convite.test.tsx` |
 | 3 | prospeccao-funcional B4 | — | — |
-| 4 | prospeccao-funcional B1 | Preço do Nan | `account-enrichment/handler.ts` com B2 e B3 |
-| 5 | prospeccao-funcional B2 | 4 | `provedor-de-contatos.ts`, handler e `comite-e-enriquecimento.tsx` |
-| 6 | prospeccao-funcional B3 | 5 | os mesmos do 5 |
-| 7 | prospeccao-funcional C1 (ampliado) | — | `detalhe-sequencia.tsx` com o C3 |
-| 8 | prospeccao-funcional C3 | 7 | `detalhe-sequencia.tsx`, `supabase-sequencias.ts` |
-| 9 | crm-real-e-stack 15 (ligar a fila) | Sim do Nan; depois do 1, pelo `raiz.test.tsx` | `aplicativo.tsx`, `raiz.test.tsx` |
-| 10 | agentes-em-conversa 02 (tokens) | — | `_hermes-worker/worker.ts`, `model-groq.ts` |
-| 11 | creditos-e-planos 01 (tokens das propostas) | — | `reply-proposal-runner` com o 12 |
-| 12 | creditos-e-planos 03 (teto nas propostas) | 11 e a decisão dos escopos | `20261001180000` (redefinir a reserva das propostas) |
-| 13 | canais-cadencia-backend 07 (InMail) | Decisão do InMail | `send-chat-step.ts` |
-| 14 | enriquecimento-em-cascata 01 (reduzido) | 5 e 6 | `provedor-de-contatos.ts` |
-| 15 | enriquecimento-em-cascata 03 (lote) | 6 | `comite-e-enriquecimento.tsx`, `tabela-de-contatos.tsx` |
-| 16 | enriquecimento-em-cascata 02 (automático) | 5, 14 e a promoção em `discovery_actors` | `account-enrichment/handler.ts` |
-| 17 | creditos-e-planos 05 (Observador) | Decisões e o combinado com Conexões | Funções que comparam papel |
-| 18 | canais-cadencia-backend 08 (chat) | Envio real do 06 e do 07; decisão do Seam de Canal | `20261001180000` |
+| 4 | prospeccao-funcional A3 (só os 5 actors com id do run) | — | `supabase/tests/registro_de_actors.sql` |
+| 5 | prospeccao-funcional B1 (1 crédito, só quando acha) | — | `account-enrichment/handler.ts` com B2 e B3 |
+| 6 | prospeccao-funcional B2 | 5 | `provedor-de-contatos.ts`, handler e `comite-e-enriquecimento.tsx` |
+| 7 | prospeccao-funcional B3 | 6 | os mesmos do 6 |
+| 8 | prospeccao-funcional C1 (ampliado) | — | `detalhe-sequencia.tsx` com o C3 |
+| 9 | prospeccao-funcional C3 | 8 | `detalhe-sequencia.tsx`, `supabase-sequencias.ts` |
+| 10 | crm-real-e-stack 15 (ligar a fila; troca só `raiz.test.tsx:110`) | 1, pelo `raiz.test.tsx` | `aplicativo.tsx`, `raiz.test.tsx` |
+| 11 | agentes-em-conversa 02 (tokens) | — | `_hermes-worker/worker.ts`, `model-groq.ts` |
+| 12 | creditos-e-planos 01 (tokens das propostas) | — | `reply-proposal-runner` com o 13 |
+| 13 | creditos-e-planos 03 (teto nas propostas) | 12 e a decisão 6 | `20261001180000` (redefinir a reserva das propostas) |
+| 14 | enriquecimento-em-cascata 01 (reduzido) | 6 e 7; decisão 9 | `provedor-de-contatos.ts` |
+| 15 | enriquecimento-em-cascata 03 (lote) | 7 | `comite-e-enriquecimento.tsx`, `tabela-de-contatos.tsx` |
+| 16 | enriquecimento-em-cascata 02 (automático) | 6, 14 e a promoção em `discovery_actors` | `account-enrichment/handler.ts` |
+| 17 | creditos-e-planos 05 (Observador) | Decisão 7 e o combinado com Conexões | Funções que comparam papel |
+| 18 | canais-cadencia-backend 08 (chat) | Envio real do 06 e do 07; decisão 10 | `20261001180000` |
 | 19 | canais-cadencia-backend 09 (chat) | 18 | `reply-proposal-send` |
 
-Fora da fila até o Nan responder: A3, crm-real-e-stack 06 e crm-real-e-stack 24 (`needs-info`). O ajuste do rótulo cru do crm-real-e-stack 17 (`detalhe-sequencia.tsx:2674`) cabe no C1 se o Nan aprovar.
+O canais 07 saiu da fila: sem o InMail, ele só espera o envio real (`ready-for-human`). Fora da fila: crm-real-e-stack 06 (fora do núcleo, por decisão) e crm-real-e-stack 24 (`needs-info`). Esperam o sim do Renan, sem entrar na fila: tirar a opção "InMail" da tela (canais 07) e o rótulo cru do crm-real-e-stack 17 (`detalhe-sequencia.tsx:2674`), que cabe no C1.
