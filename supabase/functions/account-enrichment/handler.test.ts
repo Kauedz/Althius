@@ -341,3 +341,163 @@ Deno.test('handler revelar-contato: quando NÃO acha, não debita nenhum crédit
   assertEquals(body.creditosDebitados, 0)
   assertEquals(debited, 0) // NENHUM crédito debitado quando não encontra!
 })
+
+const CNPJ_LOGIFLOW = '07.526.557/0001-00'
+const ITEM_RECEITA = {
+  razaoSocial: 'LOGIFLOW BRASIL S.A.',
+  situacaoCadastral: 'ATIVA',
+  cnaePrincipal: { codigo: '4930202', descricao: 'Transporte rodoviário de carga' },
+}
+
+function dbDaReceita(opcoes: {
+  passos: string[]
+  user?: { userId: string } | null
+  begin?: () => Promise<{ reservationId: string }>
+}): DbEnrichment {
+  return {
+    async userFromJwt() {
+      opcoes.passos.push('sessao')
+      return opcoes.user === undefined ? { userId: 'user-1' } : opcoes.user
+    },
+    async beginCommitteeDiscovery() {
+      return { runId: '', reservationId: '' }
+    },
+    async finishCommitteeDiscovery() {},
+    async recordProposedContact() {
+      return { id: '', created: true }
+    },
+    async getContactForReveal() {
+      return null
+    },
+    async beginRevealContact() {
+      return { reservationId: '' }
+    },
+    async finishRevealContact() {
+      return { success: false, debitedCredits: 0 }
+    },
+    async beginCnpjReceita() {
+      opcoes.passos.push('begin')
+      return opcoes.begin ? opcoes.begin() : { reservationId: 'res-cnpj' }
+    },
+    async finishCnpjReceita(args: { found: boolean }) {
+      opcoes.passos.push(`finish:${args.found}`)
+      return { debitedCredits: args.found ? 1 : 0 }
+    },
+    async saveReceitaEnrichment() {
+      opcoes.passos.push('save')
+    },
+    async recordDiscoveryCost(args: { runId: string; costUsd: number | null }) {
+      opcoes.passos.push(`custo:${args.costUsd}:${args.runId}`)
+    },
+  } as DbEnrichment
+}
+
+function pedidoReceita(authorization = 'Bearer jwt-da-ana') {
+  return new Request('http://localhost/account-enrichment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: authorization, apikey: 'chave-anon' },
+    body: JSON.stringify({
+      action: 'cnpj-receita',
+      workspaceId: 'ws-1',
+      targetAccountId: 'conta-1',
+      cnpj: CNPJ_LOGIFLOW,
+    }),
+  })
+}
+
+Deno.test('cnpj-receita sem sessão não chama o actor nem a BrasilAPI', async () => {
+  const passos: string[] = []
+  const apify: Apify = {
+    async run() {
+      passos.push('actor')
+      return { runId: 'run-1', items: [ITEM_RECEITA] }
+    },
+  }
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    return new Response('{}', { status: 404 })
+  }
+  const handler = criarHandlerEnrichment({ db: dbDaReceita({ passos, user: null }), apify, fetchFn })
+  const res = await handler(pedidoReceita('Bearer chave-anon'))
+  assertEquals(res.status, 401)
+  assertEquals(await res.json(), { error: 'unauthorized' })
+  assertEquals(passos, ['sessao'])
+})
+
+Deno.test('cnpj-receita com sessão e sem saldo não chama o actor', async () => {
+  const passos: string[] = []
+  const apify: Apify = {
+    async run() {
+      passos.push('actor')
+      return { runId: 'run-1', items: [ITEM_RECEITA] }
+    },
+  }
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    return new Response('{}', { status: 200 })
+  }
+  const handler = criarHandlerEnrichment({
+    db: dbDaReceita({
+      passos,
+      begin: () => Promise.reject(new Error('insufficient credits')),
+    }),
+    apify,
+    fetchFn,
+  })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 402)
+  assertEquals(await res.json(), { error: 'insufficient credits' })
+  assertEquals(passos, ['sessao', 'begin'])
+})
+
+Deno.test('cnpj-receita com reserva, falha do actor libera a reserva e não debita', async () => {
+  const passos: string[] = []
+  const apify: Apify = {
+    async run() {
+      passos.push('actor')
+      throw new Error('apify fora')
+    },
+  }
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    return new Response('nao', { status: 404 })
+  }
+  const handler = criarHandlerEnrichment({ db: dbDaReceita({ passos }), apify, fetchFn })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 404)
+  assertEquals(await res.json(), { error: 'Dados do CNPJ não encontrados' })
+  assertEquals(passos, ['sessao', 'begin', 'actor', 'brasil', 'finish:false'])
+})
+
+Deno.test('cnpj-receita com reserva liquida o crédito e grava o custo em dólar quando acha o CNPJ', async () => {
+  const passos: string[] = []
+  const apify: Apify = {
+    async run() {
+      passos.push('actor')
+      return { runId: 'run-receita-1', items: [ITEM_RECEITA] }
+    },
+    async custoDaExecucao(runId) {
+      passos.push(`mediu:${runId}`)
+      return 0.00155
+    },
+  }
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    return new Response('{}', { status: 200 })
+  }
+  const handler = criarHandlerEnrichment({ db: dbDaReceita({ passos }), apify, fetchFn })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 200)
+  const body = await res.json()
+  assertEquals(body.razaoSocial, 'LOGIFLOW BRASIL S.A.')
+  assertEquals(body.fonte, 'apify')
+  assertEquals(passos, [
+    'sessao',
+    'begin',
+    'actor',
+    'mediu:run-receita-1',
+    'save',
+    'finish:true',
+    'custo:0.00155:run-receita-1',
+  ])
+})

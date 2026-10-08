@@ -39,8 +39,7 @@ describe('Buscar Sinais de novo', () => {
 
   it('com um só Monitoramento o custo é 1 crédito, no singular', async () => {
     renderizarAppCom('/contas/openai', comBusca({ custoDeBuscarSinais: () => Promise.resolve(cotacao({ monitoramentos: 1, creditos: 1 })) }))
-    await botao()
-    expect(screen.getByText('1 crédito')).toBeInTheDocument()
+    expect(await botao()).toHaveAccessibleDescription('1 crédito')
   })
 
   it('clicar pede a busca uma vez e a tela passa a mostrar que ela está em andamento', async () => {

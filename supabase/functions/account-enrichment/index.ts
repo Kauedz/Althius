@@ -151,6 +151,39 @@ const db: DbEnrichment = {
     })
     if (error) throw error
   },
+
+  async beginCnpjReceita({ workspaceId, targetAccountId, requestKey, authorization, apikey }) {
+    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('begin_cnpj_receita', {
+      p_workspace_id: workspaceId,
+      p_target_account_id: targetAccountId,
+      p_request_key: requestKey ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const [row] = (data ?? []) as Array<{ reservation_id: string }>
+    if (!row) throw new Error('begin_cnpj_receita não retornou dados')
+    return { reservationId: row.reservation_id }
+  },
+
+  async finishCnpjReceita({ reservationId, found }) {
+    const { data, error } = await admin.rpc('finish_cnpj_receita', {
+      p_reservation_id: reservationId,
+      p_found: found,
+    })
+    if (error) throw new Error(error.message)
+    const [row] = (data ?? []) as Array<{ debited_credits: number | string }>
+    return { debitedCredits: Number(row?.debited_credits ?? 0) }
+  },
+
+  async recordDiscoveryCost({ workspaceId, actorId, runId, items, costUsd }) {
+    const { error } = await admin.rpc('record_discovery_cost', {
+      p_workspace_id: workspaceId,
+      p_actor_id: actorId,
+      p_run_id: runId,
+      p_items: items,
+      p_cost_usd: costUsd,
+    })
+    if (error) throw new Error(error.message)
+  },
 }
 
 Deno.serve(

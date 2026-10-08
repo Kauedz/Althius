@@ -114,6 +114,27 @@ export interface DbEnrichment {
     authorization: string
     apikey: string
   }): Promise<void>
+  /** begin_cnpj_receita: reserva 1 crédito da consulta para quem está na sessão, antes do Apify. */
+  beginCnpjReceita?(args: {
+    workspaceId: string
+    targetAccountId: string
+    requestKey?: string
+    authorization: string
+    apikey: string
+  }): Promise<{ reservationId: string }>
+  /** finish_cnpj_receita: liquida 1 crédito se achou o CNPJ; senão libera a reserva e debita zero. */
+  finishCnpjReceita?(args: {
+    reservationId: string
+    found: boolean
+  }): Promise<{ debitedCredits: number }>
+  /** record_discovery_cost: o dólar que o Apify devolveu, no registro de custo do actor. */
+  recordDiscoveryCost?(args: {
+    workspaceId: string
+    actorId: string
+    runId: string
+    items: number
+    costUsd: number | null
+  }): Promise<void>
 }
 
 export interface DepsEnrichment {
@@ -235,6 +256,7 @@ export async function consultarApifyReceita(
   cnpjLimpo: string,
   apify: Apify,
   actorId = 'johnatan029~cnpj-empresas-brasil-scraper',
+  medicao?: { runId: string | null; costUsd: number | null },
 ): Promise<DadosReceitaFederal | null> {
   try {
     const exec = await apify.run({
@@ -246,6 +268,17 @@ export async function consultarApifyReceita(
       maxItems: 1,
       maxTotalChargeUsd: 0.05,
     })
+
+    if (medicao) {
+      medicao.runId = exec.runId
+      if (exec.runId && apify.custoDaExecucao) {
+        try {
+          medicao.costUsd = await apify.custoDaExecucao(exec.runId)
+        } catch {
+          medicao.costUsd = null
+        }
+      }
+    }
 
     const item = Array.isArray(exec.items) && exec.items[0] ? (exec.items[0] as Record<string, unknown>) : null
     if (!item) return null
@@ -333,6 +366,13 @@ export async function consultarApifyReceita(
   }
 }
 
+function json(corpo: unknown, status: number) {
+  return new Response(JSON.stringify(corpo), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 export function criarHandlerEnrichment(deps: DepsEnrichment) {
   const provedor = deps.provedorContatos ??
     new CascataProvedorDeContatos([
@@ -361,48 +401,87 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         })
       }
 
-      // 1. Consulta CNPJ na Receita Federal (Apify com fallback para BrasilAPI)
+      // 1. Consulta CNPJ na Receita Federal (Apify com fallback para BrasilAPI).
+      // A sessão e a reserva de 1 crédito vêm antes de qualquer consulta. Achar liquida; não achar libera.
       if (action === 'cnpj-receita') {
+        const user = await deps.db.userFromJwt(authorization, apikey)
+        if (!user) {
+          return json({ error: 'unauthorized' }, 401)
+        }
+
         const rawCnpj = String(body.cnpj ?? '').trim()
         const cnpjLimpo = validarCnpj(rawCnpj)
         if (!cnpjLimpo) {
-          return new Response(JSON.stringify({ error: 'CNPJ inválido' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return json({ error: 'CNPJ inválido' }, 400)
         }
 
+        const workspaceId = String(body.workspaceId ?? '').trim()
+        const targetAccountId = String(body.targetAccountId ?? '').trim()
+        if (!workspaceId || !targetAccountId || !deps.db.beginCnpjReceita || !deps.db.finishCnpjReceita || !deps.db.saveReceitaEnrichment) {
+          return json({ error: 'workspaceId and targetAccountId are required' }, 400)
+        }
+
+        let reservationId: string
+        try {
+          const inicio = await deps.db.beginCnpjReceita({
+            workspaceId,
+            targetAccountId,
+            requestKey: body.requestKey ? String(body.requestKey) : undefined,
+            authorization,
+            apikey,
+          })
+          reservationId = inicio.reservationId
+        } catch (e) {
+          const mensagem = e instanceof Error ? e.message : 'Não foi possível reservar o crédito.'
+          const semCredito = mensagem.includes('insufficient credits') || mensagem.includes('monthly credit limit reached')
+          return json({ error: mensagem }, semCredito ? 402 : 403)
+        }
+
+        const medicao: { runId: string | null; costUsd: number | null } = { runId: null, costUsd: null }
+        const actorId = deps.actorReceita ?? 'johnatan029~cnpj-empresas-brasil-scraper'
         let resultado: DadosReceitaFederal | null = null
         if (deps.apify) {
-          resultado = await consultarApifyReceita(cnpjLimpo, deps.apify, deps.actorReceita)
+          resultado = await consultarApifyReceita(cnpjLimpo, deps.apify, actorId, medicao)
         }
         if (!resultado) {
           resultado = await consultarBrasilApi(cnpjLimpo, deps.fetchFn)
         }
 
-        if (!resultado) {
-          return new Response(JSON.stringify({ error: 'Dados do CNPJ não encontrados' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
+        const gravarCusto = () => {
+          if (!medicao.runId || !deps.db.recordDiscoveryCost) return Promise.resolve()
+          return deps.db.recordDiscoveryCost({
+            workspaceId,
+            actorId,
+            runId: medicao.runId,
+            items: resultado?.fonte === 'apify' ? 1 : 0,
+            costUsd: medicao.costUsd,
+          }).catch(() => {})
         }
 
-        // Se veio targetAccountId, atualiza no banco
-        if (body.targetAccountId && body.workspaceId && deps.db.saveReceitaEnrichment) {
+        if (!resultado) {
+          await deps.db.finishCnpjReceita({ reservationId, found: false })
+          await gravarCusto()
+          return json({ error: 'Dados do CNPJ não encontrados' }, 404)
+        }
+
+        try {
           await deps.db.saveReceitaEnrichment({
-            workspaceId: String(body.workspaceId),
-            targetAccountId: String(body.targetAccountId),
+            workspaceId,
+            targetAccountId,
             cnpj: cnpjLimpo,
             receitaData: resultado,
             authorization,
             apikey,
-          }).catch(() => {})
+          })
+        } catch (e) {
+          await deps.db.finishCnpjReceita({ reservationId, found: false }).catch(() => {})
+          const mensagem = e instanceof Error ? e.message : 'Não foi possível gravar a Receita.'
+          return json({ error: mensagem }, 403)
         }
 
-        return new Response(JSON.stringify(resultado), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
+        await deps.db.finishCnpjReceita({ reservationId, found: true })
+        await gravarCusto()
+        return json(resultado, 200)
       }
 
       // 2. Busca de comitê de compra da empresa
