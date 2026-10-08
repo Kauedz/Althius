@@ -27,21 +27,31 @@ export interface Execucao {
 }
 
 export interface Apify {
-  /** Roda o actor e espera os itens. Lança ApifyRequestError quando o Apify recusa e ApifyTimeoutError no prazo. */
-  run(args: { actorId: string; input: unknown; maxItems: number; maxTotalChargeUsd: number }): Promise<Execucao>
+  /**
+   * Roda o actor e espera os itens. Lança ApifyRequestError quando o Apify recusa e ApifyTimeoutError no prazo.
+   * `corpoTemDeSerLista`: um 200 cujo corpo não é uma lista vira erro, em vez de lista vazia. O id da execução,
+   * quando o Apify o devolve, vai no erro para o custo ainda ser lido.
+   */
+  run(args: {
+    actorId: string
+    input: unknown
+    maxItems: number
+    maxTotalChargeUsd: number
+    corpoTemDeSerLista?: boolean
+  }): Promise<Execucao>
   /** O custo em dólar que o Apify informa para a execução, ou null. Só medida. */
   custoDaExecucao?(runId: string): Promise<number | null>
 }
 
 export class ApifyRequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(readonly status: number, readonly runId: string | null = null) {
     super(`Apify respondeu HTTP ${status}`)
     this.name = 'ApifyRequestError'
   }
 }
 
 export class ApifyTimeoutError extends Error {
-  constructor() {
+  constructor(readonly runId: string | null = null) {
     super('O actor do Apify não respondeu a tempo')
     this.name = 'ApifyTimeoutError'
   }

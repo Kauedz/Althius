@@ -23,6 +23,11 @@ export interface DadoRevelado {
   fonte: string
 }
 
+export interface MedicaoDaBuscaDePessoas {
+  runId: string | null
+  costUsd: number | null
+}
+
 export interface FiltrosEmpresaParaBusca {
   nome: string
   linkedinUrl?: string
@@ -30,6 +35,8 @@ export interface FiltrosEmpresaParaBusca {
   cargos?: string[]
   personas?: string[]
   limite?: number
+  /** Preenchida por buscarPessoas com o id e o dólar que o Apify devolveu, inclusive quando a resposta não é uma lista. */
+  medicao?: MedicaoDaBuscaDePessoas
 }
 
 export interface ProvedorDeContatos {
@@ -75,6 +82,67 @@ export function extrairIdentificadorLinkedin(url?: string): string | null {
   return m ? m[1].toLowerCase() : null
 }
 
+/**
+ * A URL inteira da página, como o schema de `companies` do build 0.0.163 pede
+ * (`https://www.linkedin.com/company/google`). Sem página, null: a busca usa o nome.
+ */
+function urlCompletaDaEmpresaNoLinkedin(url?: string): string | null {
+  if (!url) return null
+  const m = url.trim().match(/linkedin\.com\/(company|school|showcase)\/([^/?#\s]+)/i)
+  if (!m) return null
+  let id = m[2]
+  try {
+    id = decodeURIComponent(id)
+  } catch {
+    // O trecho da URL segue como veio.
+  }
+  return `https://www.linkedin.com/${m[1].toLowerCase()}/${id}`
+}
+
+function runIdDoErro(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('runId' in error)) return null
+  const runId = (error as { runId: unknown }).runId
+  return typeof runId === 'string' && runId.length > 0 ? runId : null
+}
+
+function textoLimpo(valor: unknown): string {
+  return typeof valor === 'string' ? valor.trim() : ''
+}
+
+function registro(valor: unknown): Record<string, unknown> | null {
+  if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return null
+  return valor as Record<string, unknown>
+}
+
+/** Cargo pelos campos do README do build 0.0.163 e do perfil curto real. Headline não entra. */
+function cargoDocumentado(raw: Record<string, unknown>): string {
+  for (const lista of [raw.currentPositions, raw.currentPosition]) {
+    if (!Array.isArray(lista)) continue
+    for (const item of lista) {
+      const posicao = registro(item)
+      if (!posicao) continue
+      const titulo = textoLimpo(posicao.title) || textoLimpo(posicao.position)
+      if (titulo) return titulo
+    }
+  }
+  if (!Array.isArray(raw.experience)) return ''
+  for (const item of raw.experience) {
+    const experiencia = registro(item)
+    const titulo = experiencia ? textoLimpo(experiencia.position) : ''
+    if (titulo) return titulo
+  }
+  return ''
+}
+
+function localDocumentado(raw: Record<string, unknown>): string {
+  const local = registro(raw.location)
+  if (!local) return ''
+  const texto = textoLimpo(local.linkedinText)
+  if (texto) return texto
+  const parsed = registro(local.parsed)
+  return parsed ? textoLimpo(parsed.text) : ''
+}
+
 export interface OpcoesApifyContatos {
   apify: Apify
   actorEmployees?: string
@@ -105,67 +173,78 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
   }
 
   async buscarPessoas(empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]> {
-    const companyKey = extrairIdentificadorLinkedin(empresa.linkedinUrl) ?? empresa.nome.trim()
+    // Build 0.0.163: companies é a URL inteira; o modo Short é o enum do schema; jobTitles filtra o cargo.
+    const company = urlCompletaDaEmpresaNoLinkedin(empresa.linkedinUrl) ?? empresa.nome.trim()
     const maxItems = Math.min(Math.max(empresa.limite ?? 10, 1), 50)
-
     const input: Record<string, unknown> = {
-      companies: [companyKey],
+      profileScraperMode: 'Short ($4 per 1k)',
+      companies: [company],
       maxItems,
     }
     if (empresa.cargos && empresa.cargos.length > 0) {
       input.jobTitles = empresa.cargos
     }
 
+    const anotar = async (runId: string | null) => {
+      if (!empresa.medicao) return
+      empresa.medicao.runId = runId
+      if (!runId || !this.apify.custoDaExecucao) return
+      try {
+        empresa.medicao.costUsd = await this.apify.custoDaExecucao(runId)
+      } catch {
+        empresa.medicao.costUsd = null
+      }
+    }
+
+    let exec: { runId: string | null; items: unknown[] }
     try {
-      const exec = await this.apify.run({
+      exec = await this.apify.run({
         actorId: this.actorEmployees,
         input,
         maxItems,
         maxTotalChargeUsd: this.maxCostEmployees,
+        corpoTemDeSerLista: true,
       })
-
-      const itens = Array.isArray(exec.items) ? exec.items : []
-      const encontradas: PessoaEncontrada[] = []
-
-      for (const item of itens) {
-        if (!item || typeof item !== 'object') continue
-        const raw = item as Record<string, unknown>
-        const firstName = typeof raw.firstName === 'string' ? raw.firstName.trim() : ''
-        const lastName = typeof raw.lastName === 'string' ? raw.lastName.trim() : ''
-        const rawName = typeof raw.name === 'string' ? raw.name.trim() : ''
-        const nome = [firstName, lastName].filter(Boolean).join(' ') || rawName
-        if (!nome) continue
-
-        const headline = typeof raw.headline === 'string' ? raw.headline.trim() : ''
-        const cargo = typeof raw.currentPosition === 'string'
-          ? raw.currentPosition.trim()
-          : (typeof raw.title === 'string' ? raw.title.trim() : '')
-        const linkedinUrl = typeof raw.linkedinUrl === 'string'
-          ? raw.linkedinUrl.trim()
-          : (typeof raw.profileUrl === 'string' ? raw.profileUrl.trim() : undefined)
-        const location = typeof raw.location === 'string' ? raw.location.trim() : undefined
-        const photo = typeof raw.photo === 'string'
-          ? raw.photo.trim()
-          : (typeof raw.pictureUrl === 'string' ? raw.pictureUrl.trim() : undefined)
-
-        const persona = classificarPersona(cargo, headline)
-
-        encontradas.push({
-          nome,
-          cargo: cargo || headline || undefined,
-          headline: headline || undefined,
-          linkedinUrl,
-          localizacao: location,
-          foto: photo,
-          persona,
-          fonte: 'apify:harvestapi~linkedin-company-employees',
-        })
+    } catch (e) {
+      await anotar(runIdDoErro(e))
+      if (e instanceof Error && e.message === 'O Apify não devolveu uma lista.') {
+        throw new Error('A busca do comitê não devolveu uma lista de pessoas.')
       }
-
-      return encontradas
-    } catch {
-      return []
+      throw e
     }
+
+    await anotar(exec.runId)
+
+    if (!Array.isArray(exec.items)) {
+      throw new Error('A busca do comitê não devolveu uma lista de pessoas.')
+    }
+
+    const encontradas: PessoaEncontrada[] = []
+    for (const item of exec.items) {
+      const raw = registro(item)
+      if (!raw) continue
+      const nome = [textoLimpo(raw.firstName), textoLimpo(raw.lastName)].filter(Boolean).join(' ')
+      if (!nome) continue
+
+      const headline = textoLimpo(raw.headline)
+      const cargo = cargoDocumentado(raw)
+      const linkedinUrl = textoLimpo(raw.linkedinUrl)
+      const localizacao = localDocumentado(raw)
+      const foto = textoLimpo(raw.photo)
+
+      encontradas.push({
+        nome,
+        cargo: cargo || undefined,
+        headline: headline || undefined,
+        linkedinUrl: linkedinUrl || undefined,
+        localizacao: localizacao || undefined,
+        foto: foto || undefined,
+        persona: classificarPersona(cargo, headline),
+        fonte: 'apify:harvestapi~linkedin-company-employees',
+      })
+    }
+
+    return encontradas
   }
 
   async revelarContato(

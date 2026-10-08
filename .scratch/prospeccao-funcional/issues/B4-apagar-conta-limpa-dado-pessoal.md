@@ -4,14 +4,14 @@
 
 **Blocked by:** None (pode começar agora). O merge na `main` espera o 00. Não espera o B3: os e-mails adicionais já saem em cascata com o Contato.
 
-**Status:** ready-for-agent (nada implementado; independente dos outros)
+**Status:** done
 
-- [ ] Apagar a Conta grava `receita_data` nulo no marcador. O marcador segue sem nome, URL, domínio, identificador legal, LinkedIn e segmento, como hoje.
-- [ ] Apagar a Conta apaga as linhas de `private.proposed_contacts` dessa Conta, inclusive `source_data`, nome, foto e LinkedIn. A Conta não é removida (vira marcador), então um cascade não dispara: o delete é explícito.
-- [ ] Apagar a Conta continua apagando os Sinais dela. O pgTAP novo prova que não resta Sinal com nome ou URL de LinkedIn de terceiro.
-- [ ] Apagar o Contato apaga as propostas ligadas a ele (`contact_id` ou o mesmo LinkedIn naquela Conta) e os Sinais cujo `event_key` ou `evidence` carregam o LinkedIn dessa pessoa. Os adaptadores de mudança de emprego e de nova liderança põem o perfil na chave e a URL na evidência, junto com o nome. O casamento é pelo LinkedIn, não pelo nome sozinho. Sinal que só fala da empresa (vaga, anúncio, avaliação) permanece.
-- [ ] Outro Workspace não vê o que foi apagado. Participante que não é Administrador continua sem poder apagar a Conta. A confirmação pelo nome continua obrigatória.
-- [ ] pgTAP próprio cobre os três alvos (Receita, propostas, Sinal com LinkedIn) na Conta e no Contato, mais o isolamento.
+- [x] Apagar a Conta grava `receita_data` nulo no marcador. O marcador segue sem nome, URL, domínio, identificador legal, LinkedIn e segmento, como hoje.
+- [x] Apagar a Conta apaga as linhas de `private.proposed_contacts` dessa Conta, inclusive `source_data`, nome, foto e LinkedIn. A Conta não é removida (vira marcador), então um cascade não dispara: o delete é explícito.
+- [x] Apagar a Conta continua apagando os Sinais dela. O pgTAP novo prova que não resta Sinal com nome ou URL de LinkedIn de terceiro.
+- [x] Apagar o Contato apaga as propostas ligadas a ele (`contact_id` ou o mesmo LinkedIn naquela Conta) e os Sinais cujo `event_key` ou `evidence` carregam o LinkedIn dessa pessoa. Os adaptadores de mudança de emprego e de nova liderança põem o perfil na chave e a URL na evidência, junto com o nome. O casamento é pelo LinkedIn, não pelo nome sozinho. Sinal que só fala da empresa (vaga, anúncio, avaliação) permanece.
+- [x] Outro Workspace não vê o que foi apagado. Participante que não é Administrador continua sem poder apagar a Conta. A confirmação pelo nome continua obrigatória.
+- [x] pgTAP próprio cobre os três alvos (Receita, propostas, Sinal com LinkedIn) na Conta e no Contato, mais o isolamento.
 
 ## Pode mexer
 
@@ -46,3 +46,5 @@ Com o CI verde, aplicar a migration no projeto `ycbdilsmydvzezhlymty` como manda
   - Já cumpridos, e a redefinição tem de manter: os Sinais da Conta apagados (`20260930180000:772`; pgTAP "o apagamento conta os Sinais que apagou" e "nenhum Sinal fica no marcador da Conta apagada"); só o Administrador apaga, com a confirmação pelo nome e sem alcançar outro Workspace (`20260929160000:1017-1026`; pgTAP "the responsible seller cannot permanently delete the target account", "an administrator of another Workspace does not find it", "the administrator must type the name of the target account").
   - Testes: pgTAP `arquivar_e_apagar_dados_comerciais.sql` (180) e `monitoramento_real_de_sinais.sql` ok no CI 37707955273.
   - Este ticket cobre em parte o critério 1 do enriquecimento 05 ("Apagar o Contato remove os valores coletados").
+- 2026-10-08: migration `20261008153000_apagar_conta_limpa_dado_pessoal.sql` e pgTAP `apagar_conta_limpa_dado_pessoal.sql` (41). A tela de apagar não mudou: o texto já diz que o dado da empresa e o da pessoa somem. Sem print.
+- Passos do Nan: com o CI verde, aplicar `20261008153000` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico, como em `docs/agents/migrations.md`. Não há deploy de função. Quem executa o ticket não aplica no remoto.

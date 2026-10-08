@@ -1,5 +1,27 @@
-﻿# Ralph status — early-send (CRM × Auth × Canais)
+﻿﻿# Ralph status — early-send (CRM × Auth × Canais)
 Updated: 2026-10-08 (Auth-03 fechado: (B) /termos e /privacidade, (C) aviso a quem já tem conta)
+# Ralph status — enriquecimento
+
+Updated: 2026-10-08
+
+## Atual
+
+| Campo | Valor |
+| --- | --- |
+| Ticket | prospeccao-funcional B1 |
+| Status | ready-for-human |
+| Branch | ralph/frente-enriquecimento |
+| Commit | 861661459b2dd94c07890352a32d783adcddee44 |
+| O que o humano roda | O preço já está decidido (1 crédito). Com o CI verde, aplicar `20261008203000_consulta_cnpj_reserva_credito.sql` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico, como em `docs/agents/migrations.md`. Não aplicar antes do CI. Sem push. Depois, na raiz do repositório, no PowerShell, sem `--no-verify-jwt`: `npx supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty`. O pgTAP `plan(19)` não rodou nesta máquina. |
+
+B4 estava gravado como done. Corrigido para ready-for-human: a migration `20261008153000_apagar_conta_limpa_dado_pessoal.sql` ainda é passo humano no mesmo projeto, pelo `execute_sql`, depois do CI. Sem deploy de função. Sem push.
+
+Próximo da fila, numa sessão nova: prospeccao-funcional B2. Não reabrir o B1: o código está fechado.
+
+## Histórico early-send (2026-09-25)
+
+# Ralph status — early-send (CRM × Auth × Canais)
+Updated: 2026-09-25T20:35-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -188,3 +210,12 @@ Para o próximo agente: não reabra o C3. Os seis checkboxes estão ticados. Nã
 O que o humano roda: nada no banco. Não há migration. A tela lê `list_received_chat_messages`, que já existe. Sem push.
 
 Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 110 arquivos e 1090 testes. `npx tsc -b --pretty false`, exit 0. pgTAP não se aplica: este ticket não muda SQL.
+## enriquecimento — B2 (2026-10-08)
+
+| Campo | Valor |
+| --- | --- |
+| Ticket | prospeccao-funcional B2 |
+| Status | ready-for-human |
+| Branch | ralph/frente-enriquecimento |
+| Commit | b99a2d6b2031f4eb4f2988e8de98203f42939fe7 |
+| O que o humano roda | Com o CI verde, aplicar no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico (`do $apply$` / `$m$`, porque o arquivo usa `$$`), como em `docs/agents/migrations.md`. Ordem, se ainda faltarem: `20261008153000_apagar_conta_limpa_dado_pessoal.sql` (B4), `20261008203000_consulta_cnpj_reserva_credito.sql` (B1), depois `20261008223000_persona_do_contato_no_comite.sql` (B2). Não aplicar antes do CI. Sem push. Depois, na raiz do repositório, no PowerShell, sem `--no-verify-jwt`: `npx supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty`. O pgTAP `plan(16)` não rodou nesta máquina. Vitest: 108 arquivos, 1075 passed. |
