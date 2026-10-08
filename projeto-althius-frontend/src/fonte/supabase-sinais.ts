@@ -5,7 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
 import { SINAL_REAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
-import type { ContaAlvo } from './contas-tipos'
+import type { ContaAlvo, Sinal } from './contas-tipos'
 import type {
   Disponibilidade,
   EstadoDoMonitoramento,
@@ -96,6 +96,33 @@ export async function lerSinaisDasContas(cliente: SupabaseClient, workspaceId: s
         : {}),
     },
   ]))
+}
+
+/**
+ * Os Sinais de uma Conta, do mais novo ao mais antigo, para o detalhe da Conta. A Conta sem Sinal devolve a lista vazia;
+ * uma leitura que falha é uma falha, e não "nenhum Sinal".
+ */
+export async function lerSinaisDaConta(cliente: SupabaseClient, workspaceId: string, contaId: string): Promise<Sinal[]> {
+  const { data, error } = await cliente.rpc('list_signals', { p_workspace_id: workspaceId, p_target_account_id: contaId })
+  if (error) throw new Error('Não foi possível carregar os Sinais da Conta.')
+  return ((data ?? []) as RegistroDoSinal[]).map((s) => {
+    const tipoId = TIPO_DO_SINAL_REAL[s.signal_type]
+    const reencontradoPor = s.seen_again_monitor_id ?? s.monitor_id
+    return {
+      id: s.id,
+      contaId: s.target_account_id,
+      acontecimentoId: s.event_key,
+      ...(tipoId ? { tipoId } : {}),
+      ...(s.monitor_id ? { monitoramentoId: s.monitor_id } : {}),
+      frase: s.phrase,
+      data: s.fired_at,
+      ...(s.source ? { fonte: s.source } : {}),
+      ...(s.evidence ? { evidencia: s.evidence } : {}),
+      ...(s.seen_again_at
+        ? { reencontrado: { data: s.seen_again_at, ...(reencontradoPor ? { monitoramentoId: reencontradoPor } : {}) } }
+        : {}),
+    }
+  })
 }
 
 function mapearMonitor(linha: RegistroDoMonitor): Monitoramento | null {

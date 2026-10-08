@@ -32,7 +32,7 @@ import type {
 import { eEstagioDeProspeccao, type EstagioDeProspeccao } from './estagios-de-prospeccao'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { criarFonteDeImportacaoSupabase } from './supabase-importacao'
-import { lerSinaisDasContas } from './supabase-sinais'
+import { lerSinaisDaConta, lerSinaisDasContas } from './supabase-sinais'
 
 interface RegistroConta {
   id: string
@@ -887,7 +887,8 @@ export function criarFonteDeContasSupabase(
     },
 
     sinais: nenhum,
-    sinaisDaConta: nenhum,
+    // Os Sinais gravados pela varredura (sinais-reais 02), do mais novo ao mais antigo.
+    sinaisDaConta: (contaId) => lerSinaisDaConta(cliente, workspace(), contaId),
     adicionarSinal: () => Promise.reject(new ErroDeModuloIndisponivel('sinais')),
   }
 }

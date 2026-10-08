@@ -4,7 +4,7 @@ import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_SECUNDARIO } from '@/components/botoes'
-import { useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import type { SinalEncontrado } from '@/fonte/sinais-tipos'
 import { cn } from '@/lib/utils'
@@ -37,15 +37,21 @@ function useNomeDoMonitoramento() {
 export function ContaComSinais() {
   const { contaId = '' } = useParams<{ contaId: string }>()
   const hoje = useFonteDeContas().hoje()
+  const operacional = useAmbiente().modo === 'real'
   const {
     dados: contaCarregada,
     carregando: carregandoConta,
     erro: erroConta,
     recarregar: recarregarConta,
   } = useDadosDeContas((f) => f.conta(contaId), [contaId])
-  const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
+  const {
+    dados: sinaisCarregados,
+    erro: erroSinais,
+    recarregar: recarregarSinais,
+  } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
 
-  const contaMock = CONTAS_MOCK.find((c) => c.id === contaId)
+  // A Conta e os Sinais de exemplo completam só a Demonstração; no operacional, a Conta é a do Workspace ou nenhuma.
+  const contaMock = operacional ? undefined : CONTAS_MOCK.find((c) => c.id === contaId)
   const conta = contaCarregada ?? contaMock
 
   if (carregandoConta && !conta) {
@@ -70,6 +76,24 @@ export function ContaComSinais() {
   }
 
   if (!conta) return <Navigate to="/sinais?vista=encontrados" replace />
+
+  // Sem os Sinais gravados, a Conta não está Quente nem fria: espera, ou diz que não deu para ler.
+  if (operacional && !sinaisCarregados) {
+    return (
+      <Pagina titulo={conta.nome} voltar={{ para: '/sinais?vista=encontrados', rotulo: 'Sinais encontrados' }}>
+        {erroSinais ? (
+          <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+            <p className="text-sm text-al-muted">Não foi possível carregar os Sinais da Conta-alvo.</p>
+            <button type="button" onClick={recarregarSinais} className={BOTAO_SECUNDARIO}>
+              Tentar de novo
+            </button>
+          </div>
+        ) : (
+          <Carregando />
+        )}
+      </Pagina>
+    )
+  }
 
   const todosSinais = sinaisCarregados ?? SINAIS_MOCK
   const sinais = ordenarSinaisPorData(
@@ -102,7 +126,9 @@ export function ContaComSinais() {
                 <SeloDeAderencia aderencia={conta.aderencia} />
               </div>
               <p className="text-xs text-al-muted">
-                {conta.dominio ?? `${conta.id}.com`} · {conta.segmento ?? 'Geral'} · {origemEhRecomendada ? 'Recomendada pela Althius' : 'Importada'}
+                {operacional
+                  ? [conta.dominio, conta.segmento].filter(Boolean).join(' · ')
+                  : `${conta.dominio ?? `${conta.id}.com`} · ${conta.segmento ?? 'Geral'} · ${origemEhRecomendada ? 'Recomendada pela Althius' : 'Importada'}`}
               </p>
             </div>
           </div>
@@ -190,6 +216,7 @@ function ItemDoHistorico({
   ultimo: boolean
 }) {
   const nomeDoMonitoramento = useNomeDoMonitoramento()
+  const operacional = useAmbiente().modo === 'real'
   const ehValido = estaValido(sinal.data, hoje)
   const expira = expiraEm(sinal.data)
   return (
@@ -211,7 +238,7 @@ function ItemDoHistorico({
             rel="noreferrer"
             className="text-xs text-al-accent underline hover:text-al-accent-2"
           >
-            Evidência (simulada)
+            {operacional ? 'Evidência' : 'Evidência (simulada)'}
           </a>
         ) : (
           <blockquote className="border-l-2 border-al-line pl-4 text-sm">{sinal.evidencia}</blockquote>

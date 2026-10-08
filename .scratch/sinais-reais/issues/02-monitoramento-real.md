@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Registro de actors; `creditos-e-planos` 02 e 03 (saldo e teto).
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Pode mexer
 
@@ -46,6 +46,14 @@
    ```
    Sem isso nada é chamado. Nenhum Monitoramento roda até um actor ser marcado como `available` (ticket 03).
 
+   Em 07/10/2026 os passos 1 e 2 já estavam feitos no remoto (conferido só por leitura): migrations aplicadas, as duas funções publicadas, o relógio apontado para o `signal-runner` e os 9 actors `available`.
+3. Dar crédito ao Workspace de teste, uma vez, no SQL Editor do Supabase. A varredura reserva 1 crédito por Conta, e um Workspace novo nasce com saldo zero:
+   ```sql
+   select public.grant_credits('05bb7bb8-3ff6-4375-8640-8549c3981927', 50, 'ajuste', 'Crédito de teste do sinais-reais 02');
+   ```
+   (O id é o do "Teste real - Workspace A". Para outro Workspace, troque o id.)
+4. Conferir no navegador, logado no Workspace operacional: criar um Monitoramento de "Abertura de vagas" escolhendo Contas reais, ativar, ver o Monitoramento na lista com "N Contas-alvo", abrir a Conta e clicar "Buscar Sinais de novo". Quando a busca terminar, o Sinal gravado aparece na seção Sinais da Conta e em Sinais → "Sinais encontrados".
+
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
 
 ## Comments
@@ -56,3 +64,12 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - **Adaptadores: nenhum entra neste ticket.** Cada família (tickets 03 a 06) entrega o seu depois de uma execução real do actor, com a entrada e o formato do resultado vistos de verdade (os esquemas dos actors não foram conferidos: a documentação do Apify estava bloqueada). Por isso todos os actors seguem `testing` no registro e ninguém consegue criar Monitoramento real ainda. Os quatro critérios acima estão provados nos seams (banco real e handler); a prova de ponta a ponta com o Apify de verdade é a do ticket 03.
 - Decisões a confirmar: (1) a função nova `signal-runner` e a mudança em `supabase-contas.ts` (o foguinho das Contas reais) não estão na lista "Pode mexer" do ticket, mas o padrão "pg_cron + pg_net, como o sequence-runner" e o critério "o foguinho mostra os Sinais válidos" as exigem; (2) `tipos()` já devolve a disponibilidade de cada card (Disponível, Em teste, Em breve), dado que o ticket 07 usa; (3) o módulo Sinais do Workspace operacional segue indisponível na tela até o primeiro actor passar no teste — o ticket 03 o libera.
 - Frontend já visível: as Contas reais mostram Quente, a contagem de Sinais válidos e o último Sinal (`list_account_signals`). A Fonte real (`supabase-sinais.ts`) e o mapa tipo da tela → Sinal real (`sinais-reais-mapa.ts`) estão prontos.
+- 07/10/2026, caminho pela tela no Workspace operacional (o backend acima já estava na `main`):
+  - Criar Monitoramento: o editor deixa de gerar o id `novo-…` no operacional. A Fonte manda `p_id` nulo e o banco devolve o uuid; editar manda só o uuid gravado. O código desta parte veio da branch `ralph/A1-criar-monitoramento-no-modo-real` (02/10, nunca mergeada), revisado e reorganizado.
+  - Público: no operacional a seção mostra só as Contas-alvo do Workspace (`contas()` da Fonte real), e a Fonte as grava em `accountIds`. As listas de exemplo, a descoberta por perfil e o público recomendado ficam só na Demonstração, porque o banco só aceita `accountIds`. Sem Conta, a seção diz para cadastrar em Contas. A revisão mostra os nomes das Contas e o custo (1 crédito por Conta varrida, automático só com teto). A recusa do banco aparece em palavras do produto (ex.: "Escolha ao menos uma Conta-alvo para ativar o Monitoramento.").
+  - Vazio é vazio: `pagina-sinais.tsx`, `conta-com-sinais.tsx` e `pagina-do-tipo.tsx` não completam mais o operacional com `SINAIS_MOCK`, `CONTAS_MOCK` ou os disparos de exemplo. Uma Conta de exemplo não abre no operacional, e a evidência real não se chama "(simulada)". A página do tipo mostra o público como "N Contas-alvo".
+  - Detalhe da Conta: o `sinaisDaConta` real lê `list_signals` da Conta (`lerSinaisDaConta` em `supabase-sinais.ts`). A falha de leitura vira erro, e não lista vazia. No `supabase-contas.test.ts` só a linha do `sinaisDaConta` mudou, com autorização do Nan.
+  - Testes: `src/paginas/sinais/monitoramento-real.test.tsx` (14 testes de tela com o app inteiro sobre o dublê do Supabase e as Fontes reais). 10 deles falham com o código anterior.
+  - Conferência visual (Chrome, 1400×900), com o mesmo dublê do Supabase, porque não havia credencial para entrar no remoto: [público](prints/02-publico-com-contas-reais.jpg), [revisão](prints/02-revisao.jpg), [lista do tipo](prints/02-lista-do-tipo.jpg), [detalhe da Conta](prints/02-detalhe-da-conta.jpg), [Sinais encontrados](prints/02-sinais-encontrados.jpg), [Conta pelos Sinais](prints/02-conta-com-sinais.jpg), [catálogo sem Sinal](prints/02-catalogo-sem-sinais.jpg), [lista vazia](prints/02-sinais-encontrados-vazio.jpg). Nenhum erro no console. A 360px o app inteiro não se adapta (a barra lateral ocupa a tela); isso já era assim e este ticket não cobre celular.
+  - Fora do "Pode mexer", com autorização do Nan: as telas de `src/paginas/sinais/`, o `sinaisDaConta` de `supabase-contas.ts` e uma linha em `paginas/onboarding/retorno-de-sinais.tsx`. Sem ela, abrir Sinais no operacional deixava uma promessa rejeitada sem tratamento (o onboarding não existe no real).
+  - Decisão a confirmar: com a leitura dos Sinais falhando, o detalhe da Conta (`detalhe-conta.tsx`, fora do autorizado) ainda mostra "Nenhum sinal" em vez do erro.

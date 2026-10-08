@@ -5,7 +5,7 @@ import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
-import { useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import {
@@ -121,8 +121,10 @@ function Catalogo({
   const totalPorOrigem = (origem: Filtro) =>
     origem === 'todos' ? catalogoTipos.length : catalogoTipos.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length
 
+  const operacional = useAmbiente().modo === 'real'
   const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
-  const encontrados = (sinaisCarregados ?? SINAIS_MOCK).length
+  // No operacional a contagem é a dos Sinais gravados, e só aparece quando eles chegam.
+  const encontrados = sinaisCarregados?.length ?? (operacional ? undefined : SINAIS_MOCK.length)
 
   return (
     <>
@@ -139,7 +141,7 @@ function Catalogo({
         <button type="button" onClick={aoVerEncontrados} className={cn(BOTAO_DISCRETO, 'underline-offset-4 hover:underline')}>
           <RadioTower strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
           Sinais encontrados
-          <span className="tabular-nums text-al-ink">{encontrados}</span>
+          {encontrados !== undefined && <span className="tabular-nums text-al-ink">{encontrados}</span>}
         </button>
       </div>
 
@@ -318,15 +320,18 @@ function CartaoPersonalizado({ quantidade }: { quantidade: number }) {
 function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
   const navegar = useNavigate()
   const hoje = useFonteDeContas().hoje()
+  const operacional = useAmbiente().modo === 'real'
   const {
     dados: sinaisCarregados,
     carregando: carregandoSinais,
     erro: erroSinais,
     recarregar: recarregarSinais,
   } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
-  const { dados: contasCarregadas = [] } = useDadosDeContas((f) => f.contas(), [])
+  const { dados: contasCarregadas = [], carregando: carregandoContas } = useDadosDeContas((f) => f.contas(), [])
+  // No operacional a lista espera as Contas, para não mostrar um identificador no lugar do nome.
+  const esperando = (carregandoSinais && !sinaisCarregados) || (operacional && carregandoContas)
 
-  const todosSinais = sinaisCarregados ?? SINAIS_MOCK
+  const todosSinais = sinaisCarregados ?? (operacional ? [] : SINAIS_MOCK)
   const sinais = ordenarSinaisPorData(todosSinais.filter((s) => foiDisparado(s.data, hoje)))
 
   return (
@@ -342,7 +347,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
         </button>
       </div>
 
-      {carregandoSinais && !sinaisCarregados && <Carregando />}
+      {esperando && <Carregando />}
 
       {erroSinais && (
         <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
@@ -358,7 +363,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
         </div>
       )}
 
-      {!erroSinais && (!carregandoSinais || sinaisCarregados) && (
+      {!erroSinais && !esperando && (
         sinais.length === 0 ? (
           <div className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
             <p className="text-sm">Nenhum Sinal encontrado ainda.</p>
@@ -385,9 +390,9 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
               {sinais.map((sinal) => {
                 const conta =
                   contasCarregadas.find((c) => c.id === sinal.contaId) ??
-                  CONTAS_MOCK.find((c) => c.id === sinal.contaId) ?? {
+                  (operacional ? undefined : CONTAS_MOCK.find((c) => c.id === sinal.contaId)) ?? {
                     id: sinal.contaId,
-                    nome: sinal.contaId,
+                    nome: operacional ? 'Conta-alvo' : sinal.contaId,
                     segmento: 'Geral',
                     origem: 'importada' as const,
                     logo: undefined,

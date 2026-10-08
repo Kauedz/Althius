@@ -5,7 +5,7 @@ import { Carregando, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
-import { useDados, useDadosDeSinais } from '@/fonte/contexto'
+import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { publicoRecomendado } from '@/fonte/regras-memoria'
 import { cn } from '@/lib/utils'
@@ -28,9 +28,12 @@ import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Moni
 import { podeMonitorar } from './disponibilidade'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
-import { criteriosFormatados, resumoDoPublico } from './resumos'
+import { criteriosFormatados, resumoDasContas, resumoDoPublico } from './resumos'
 
 type Etapa = 'descrever' | 'preparando' | 'editar' | 'revisar'
+
+/** Monitoramento ainda sem id: no operacional o uuid nasce no banco, e um `novo-…` iria em `p_id`. */
+type MonitoramentoNoEditor = Omit<Monitoramento, 'id'> & { id?: string }
 
 const ROTULO_DO_MODO: Record<ModoDePublico, string> = {
   listas: 'Acompanhar listas',
@@ -89,14 +92,22 @@ function prepararCriterios(descricao: string, fonte?: string): string[] {
   ]
 }
 
-function novoMonitoramento(tipo: TipoDeSinal, aceitaDescoberta: boolean, descricao: string): Monitoramento {
+function novoMonitoramento(
+  tipo: TipoDeSinal,
+  aceitaDescoberta: boolean,
+  descricao: string,
+  operacional: boolean,
+): MonitoramentoNoEditor {
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
   return {
-    id: `novo-${Math.random().toString(36).slice(2, 9)}`,
+    // Na Demonstração o id local marca o rascunho. No operacional ele não existe até o banco devolver o uuid.
+    ...(operacional ? {} : { id: `novo-${Math.random().toString(36).slice(2, 9)}` }),
     tipoId: tipo.id,
     nome: '',
     estado: 'rascunho',
-    publico: publicoInicial(aceitaDescoberta),
+    publico: operacional
+      ? { modo: 'listas', listas: [], usaRecomendado: false }
+      : publicoInicial(aceitaDescoberta),
     criterios: criteriosIniciais(tipo),
     descricao: personalizado ? descricao : undefined,
     criteriosLivres: personalizado ? [] : undefined,
@@ -126,12 +137,13 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const [parametros] = useSearchParams()
   const navegar = useNavigate()
   const { salvar } = useSinaisDoMockup()
+  const operacional = useAmbiente().modo === 'real'
   const familia = familiaDoTipo(tipo)
   const formulario = formularioDoTipo(tipo)
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
 
-  const [monitoramento, setMonitoramento] = useState<Monitoramento>(
-    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? ''),
+  const [monitoramento, setMonitoramento] = useState<MonitoramentoNoEditor>(
+    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional),
   )
   const [etapa, setEtapa] = useState<Etapa>(() => {
     if (!personalizado) return 'editar'
@@ -141,8 +153,10 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
 
   const jaFunciona = existente?.estado === 'ativo' || existente?.estado === 'pausado'
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
-  const mudar = (parcial: Partial<Monitoramento>) => setMonitoramento((atual) => ({ ...atual, ...parcial }))
+  const mudar = (parcial: Partial<MonitoramentoNoEditor>) => setMonitoramento((atual) => ({ ...atual, ...parcial }))
   const voltarAoTipo = (aviso: string) => navegar(`/sinais/tipos/${tipo.id}`, { state: { aviso } })
+  // No operacional a recusa do banco já vem em palavras do produto (ex.: falta escolher uma Conta-alvo para ativar).
+  const motivoDaFalha = (erro: unknown, padrao: string) => (operacional && erro instanceof Error ? erro.message : padrao)
   const nomeValido = monitoramento.nome.trim().length > 0
 
   const titulo = existente?.nome ?? (personalizado ? 'Novo sinal personalizado' : 'Novo monitoramento')
@@ -238,11 +252,15 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
               )
             )}
 
-            <SecaoPublico
-              publico={monitoramento.publico}
-              aceitaDescoberta={familia?.descoberta ?? true}
-              aoMudar={(publico) => mudar({ publico })}
-            />
+            {operacional ? (
+              <PublicoDeContasReais publico={monitoramento.publico} aoMudar={(publico) => mudar({ publico })} />
+            ) : (
+              <SecaoPublico
+                publico={monitoramento.publico}
+                aceitaDescoberta={familia?.descoberta ?? true}
+                aoMudar={(publico) => mudar({ publico })}
+              />
+            )}
 
             <BarraDeAcoes>
               {jaFunciona ? (
@@ -254,8 +272,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                       setErroSalvar(null)
                       await salvar(monitoramento)
                       voltarAoTipo(`Alterações salvas em “${monitoramento.nome}”.`)
-                    } catch {
-                      setErroSalvar('Não foi possível salvar as alterações. Tente de novo.')
+                    } catch (erro) {
+                      setErroSalvar(motivoDaFalha(erro, 'Não foi possível salvar as alterações. Tente de novo.'))
                     }
                   }}
                   className={BOTAO_PRIMARIO}
@@ -272,8 +290,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                         setErroSalvar(null)
                         await salvar({ ...monitoramento, estado: 'rascunho' })
                         voltarAoTipo(`Rascunho “${monitoramento.nome}” salvo.`)
-                      } catch {
-                        setErroSalvar('Não foi possível salvar o rascunho. Tente de novo.')
+                      } catch (erro) {
+                        setErroSalvar(motivoDaFalha(erro, 'Não foi possível salvar o rascunho. Tente de novo.'))
                       }
                     }}
                     className={BOTAO_SECUNDARIO}
@@ -292,14 +310,19 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
         {etapa === 'revisar' && (
           <Revisao
             monitoramento={monitoramento}
+            operacional={operacional}
             aoVoltar={() => setEtapa('editar')}
             aoAtivar={async () => {
               try {
                 setErroSalvar(null)
                 await salvar({ ...monitoramento, estado: 'ativo' })
-                voltarAoTipo(`“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`)
-              } catch {
-                setErroSalvar('Não foi possível ativar o monitoramento. Tente de novo.')
+                voltarAoTipo(
+                  operacional
+                    ? `“${monitoramento.nome}” está ativo.`
+                    : `“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`,
+                )
+              } catch (erro) {
+                setErroSalvar(motivoDaFalha(erro, 'Não foi possível ativar o monitoramento. Tente de novo.'))
               }
             }}
           />
@@ -458,6 +481,49 @@ function CampoDeCriterio({
   )
 }
 
+/**
+ * O público no Workspace operacional: as Contas-alvo do Workspace que o Monitoramento varre. A descoberta por perfil não
+ * roda de verdade e não aparece; as listas de exemplo ficam só na Demonstração.
+ */
+function PublicoDeContasReais({ publico, aoMudar }: { publico: Publico; aoMudar: (publico: Publico) => void }) {
+  const { dados: contas, erro, recarregar } = useDadosDeContas((f) => f.contas(), [])
+
+  return (
+    <SecaoDoFormulario numero="03" titulo="Público" descricao="As Contas-alvo do Workspace em que procurar os Sinais.">
+      {erro ? (
+        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-4">
+          <p className="text-sm text-al-muted">Não foi possível carregar as Contas-alvo.</p>
+          <button type="button" onClick={recarregar} className={BOTAO_SECUNDARIO}>
+            Tentar de novo
+          </button>
+        </div>
+      ) : !contas ? (
+        <Carregando />
+      ) : contas.length === 0 ? (
+        <p className="text-sm text-al-muted">
+          Nenhuma Conta-alvo neste Workspace. Cadastre ou importe em{' '}
+          <Link to="/contas" className="text-al-ink underline-offset-4 hover:underline">
+            Contas
+          </Link>{' '}
+          para escolher o público.
+        </p>
+      ) : (
+        <Grupo rotulo="Contas-alvo" ajuda="Cada Conta varrida debita 1 crédito." papel="group">
+          {contas.map((conta) => (
+            <Opcao
+              key={conta.id}
+              marcada={publico.listas.includes(conta.id)}
+              aoClicar={() => aoMudar({ ...publico, listas: alternar(publico.listas, conta.id) })}
+            >
+              {conta.nome} {conta.dominio && <span className="text-al-muted">· {conta.dominio}</span>}
+            </Opcao>
+          ))}
+        </Grupo>
+      )}
+    </SecaoDoFormulario>
+  )
+}
+
 function SecaoPublico({
   publico,
   aceitaDescoberta,
@@ -556,8 +622,8 @@ function Descrever({
   aoPreparar,
   aoVoltarAosCriterios,
 }: {
-  monitoramento: Monitoramento
-  mudar: (parcial: Partial<Monitoramento>) => void
+  monitoramento: MonitoramentoNoEditor
+  mudar: (parcial: Partial<MonitoramentoNoEditor>) => void
   aoPreparar: () => void
   aoVoltarAosCriterios?: () => void
 }) {
@@ -673,8 +739,8 @@ function CriteriosLivres({
   mudar,
   aoEditarDescricao,
 }: {
-  monitoramento: Monitoramento
-  mudar: (parcial: Partial<Monitoramento>) => void
+  monitoramento: MonitoramentoNoEditor
+  mudar: (parcial: Partial<MonitoramentoNoEditor>) => void
   aoEditarDescricao: () => void
 }) {
   const criterios = monitoramento.criteriosLivres ?? []
@@ -737,12 +803,21 @@ function CriteriosLivres({
   )
 }
 
+/** Os nomes das Contas-alvo do público, na revisão do Workspace operacional. */
+function ContasDoPublico({ ids }: { ids: string[] }) {
+  const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
+  const nomes = ids.map((id) => contas?.find((conta) => conta.id === id)?.nome).filter((nome): nome is string => !!nome)
+  return <>{nomes.length > 0 ? nomes.join(', ') : resumoDasContas(ids.length)}</>
+}
+
 function Revisao({
   monitoramento,
+  operacional,
   aoVoltar,
   aoAtivar,
 }: {
-  monitoramento: Monitoramento
+  monitoramento: MonitoramentoNoEditor
+  operacional: boolean
   aoVoltar: () => void
   aoAtivar: () => void
 }) {
@@ -762,7 +837,10 @@ function Revisao({
   } else {
     for (const { rotulo, texto } of criteriosFormatados(monitoramento)) linhas.push([rotulo, texto])
   }
-  linhas.push(['Público', resumoDoPublico(monitoramento.publico)])
+  linhas.push([
+    'Público',
+    operacional ? <ContasDoPublico key="publico" ids={monitoramento.publico.listas} /> : resumoDoPublico(monitoramento.publico),
+  ])
   linhas.push(['Validade', `Cada Sinal deixa a Conta-alvo Quente por ${VALIDADE_EM_DIAS} dias a partir do disparo`])
 
   return (
@@ -779,7 +857,17 @@ function Revisao({
           </div>
         ))}
       </dl>
-      <p className="anotacao text-base">na demonstração, a coleta é simulada: nenhum dado externo é consultado</p>
+      {operacional ? (
+        <p className="text-sm text-al-muted">
+          Cada Conta varrida debita 1 crédito. A varredura automática só roda dentro do teto aprovado em{' '}
+          <Link to="/configuracoes/automacao" className="text-al-ink underline-offset-4 hover:underline">
+            Automação e tetos
+          </Link>
+          .
+        </p>
+      ) : (
+        <p className="anotacao text-base">na demonstração, a coleta é simulada: nenhum dado externo é consultado</p>
+      )}
       <BarraDeAcoes>
         <button type="button" onClick={aoVoltar} className={BOTAO_SECUNDARIO}>
           Voltar à edição

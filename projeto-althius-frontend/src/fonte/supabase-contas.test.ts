@@ -138,7 +138,7 @@ describe('FonteDeContas do Workspace operacional', () => {
 
     expect(await fonte.contatos()).toEqual([])
     expect(await fonte.contatosDaConta(ID_DA_ALFA)).toEqual([])
-    expect(await fonte.sinaisDaConta(ID_DA_ALFA)).toEqual([])
+    await expect(fonte.sinaisDaConta(ID_DA_ALFA)).rejects.toThrow('Não foi possível carregar os Sinais da Conta.')
   })
 })
 
