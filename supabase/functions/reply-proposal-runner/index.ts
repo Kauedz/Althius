@@ -99,6 +99,15 @@ const db: RunnerDb = {
       p_retryable: passageira,
     })
   },
+  async custo(job, { modelo, entrada, saida }) {
+    await rpc<void>('record_reply_proposal_cost', {
+      p_job_id: job.job_id,
+      p_claim_token: job.claim_token,
+      p_model: modelo,
+      p_input_tokens: entrada,
+      p_output_tokens: saida,
+    })
+  },
 }
 
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para a geração terminar.

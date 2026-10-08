@@ -219,3 +219,15 @@ Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 1
 | Branch | ralph/frente-enriquecimento |
 | Commit | b99a2d6b2031f4eb4f2988e8de98203f42939fe7 |
 | O que o humano roda | Com o CI verde, aplicar no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico (`do $apply$` / `$m$`, porque o arquivo usa `$$`), como em `docs/agents/migrations.md`. Ordem, se ainda faltarem: `20261008153000_apagar_conta_limpa_dado_pessoal.sql` (B4), `20261008203000_consulta_cnpj_reserva_credito.sql` (B1), depois `20261008223000_persona_do_contato_no_comite.sql` (B2). Não aplicar antes do CI. Sem push. Depois, na raiz do repositório, no PowerShell, sem `--no-verify-jwt`: `npx supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty`. O pgTAP `plan(16)` não rodou nesta máquina. Vitest: 108 arquivos, 1075 passed. |
+## Frente créditos — creditos-e-planos 01 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | `.scratch/creditos-e-planos/issues/01-medir-o-custo-real.md` (Medir o custo real de cada ação) |
+| Status | ready-for-human (código fechado; faltam a migration e a publicação das funções) |
+| Branch | `ralph/frente-creditos`, sem push |
+| Commit | `81aa8ed` |
+| O que mudou | As Propostas de resposta gravam o modelo e os tokens de cada chamada ao modelo (`record_reply_proposal_cost`, tipo `reply_proposal` em `private.action_costs`, estimativa no `get_cost_report`). Testes Deno novos do custo no `signal-runner` e no `account-discovery`. A execução cuja leitura de custo no Apify falha é gravada com o valor em branco (`_shared/apify-ambiente.ts`, vale para `signal-runner` e `signal-scan`). |
+| Testes | vermelho e verde registrados no ticket; `deno test --allow-all supabase/functions` 724/724; pgTAP do zero 58 arquivos, 2546/2546 (`custo_das_propostas_de_resposta.sql` 10/10); vitest `--maxWorkers=2` 107 arquivos, 1074/1074; `tsc -b` limpo. Sem tela nova, sem prints. |
+| O que o humano roda | 1. Com o CI verde, logo antes do merge, aplicar `supabase/migrations/20261008233000_custo_das_propostas_de_resposta.sql` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico, como em `docs/agents/migrations.md` (ela tira e põe de volta o `check` de `action_type` só para aceitar `reply_proposal`; nenhuma linha sai). 2. Depois, na raiz do repositório, no PowerShell: `npx supabase functions deploy reply-proposal-runner signal-runner signal-scan --project-ref ycbdilsmydvzezhlymty`. |
+| Decisões em aberto (Nan) | Com a chave de IA do cliente, o custo sai igual ao do modelo da Althius, sem dizer quem pagou (a Execução de Agente já era assim); a chamada com reserva vencida não grava custo, só o log. Detalhes nos Comments do ticket. |
