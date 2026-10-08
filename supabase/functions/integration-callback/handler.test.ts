@@ -169,6 +169,16 @@ Deno.test('o HubSpot sem como identificar o portal não conecta: o portal é o q
   assertEquals(c.concluidas, [])
 })
 
+Deno.test('o portal do HubSpot vem do hub_id da troca do código, mesmo sem a consulta ao token aceitar o token do MCP', async () => {
+  const { c, retorno } = montar({
+    token: { status: 200, corpo: { access_token: 'acc-2', refresh_token: 'ref-2', expires_in: 1800, hub_id: 9876 } },
+    identificacao: { status: 401, corpo: {} },
+  })
+  const r = await retorno('code=c&state=s')
+  assertEquals(destino(r).searchParams.get('conexao'), 'ok')
+  assertEquals(c.concluidas.map((a) => a.appPortal), ['9876'])
+})
+
 Deno.test('a origem de volta só vale se estiver no APP_ORIGIN', async () => {
   const fora = montar({ tentativa: tentativaDoHubspot({ returnTo: 'https://evil.test' }) })
   assertEquals(destino(await fora.retorno('code=c&state=s')).origin, APP)

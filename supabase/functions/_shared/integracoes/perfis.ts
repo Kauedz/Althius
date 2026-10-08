@@ -417,14 +417,17 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       oauth: {
         registro: 'preregistrado',
         segredos: { clientId: 'HUBSPOT_MCP_CLIENT_ID', clientSecret: 'HUBSPOT_MCP_CLIENT_SECRET' },
-        // não confirmado: estes dois endereços vêm de relato de quem configurou o servidor (a documentação oficial não
-        // pôde ser lida daqui); o servidor não publica metadado de autorização nem aceita registro dinâmico.
-        autorizacao: 'https://mcp.hubspot.com/oauth/authorize',
+        // Os do metadado que o servidor publica (`/.well-known/oauth-authorization-server`, lido em 08/10/2026), fixos
+        // aqui para o consentimento não depender de descoberta. O metadado não tem registro dinâmico.
+        autorizacao: 'https://mcp.hubspot.com/oauth/authorize/user',
         token: 'https://mcp.hubspot.com/oauth/v3/token',
         autenticacaoDoToken: 'client_secret_post',
         // não confirmado: se o HubSpot aceita o parâmetro `resource` (RFC 8707); fora por segurança.
         enviarRecurso: false,
         identificacao: {
+          // O token do OAuth v3 do HubSpot devolve o `hub_id` na própria troca do código.
+          // não confirmado: que o servidor do MCP devolve o `hub_id` como o OAuth v3 documentado.
+          daRespostaDoToken: { portal: ['hub_id'] },
           // não confirmado: que o token do MCP Auth App vale para esta consulta (a pesquisa só confirmou para OAuth comum).
           requisicoes: [
             { metodo: 'GET', url: 'https://api.hubapi.com/oauth/v1/access-tokens/{credencial}', portal: ['hub_id'], conta: ['user'] },
@@ -460,8 +463,8 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
     },
     rest: HUBSPOT_REST,
     naoConfirmado: [
-      'Endereços de autorização e de token do MCP Auth App (relato de terceiros, não a documentação oficial).',
-      'Se o token do MCP vale para a consulta de metadados (hub_id) ou se o portal vem de get_user_details.',
+      'Se a troca do código no servidor do MCP devolve o hub_id, como o OAuth v3 documentado.',
+      'Se o token do MCP vale para a consulta de metadados (hub_id e e-mail) ou se a conta vem de get_user_details.',
       'Se o servidor aceita o parâmetro resource (RFC 8707).',
       'Escopos do MCP Auth App para Companies, Contacts e owners.',
       'Tipo de associação 279 (Contact → Company) na criação do Contact; 190 e 202 (nota → Company e Contact) vêm da documentação de Notes.',

@@ -87,7 +87,7 @@ export function candidatosDoMetadadoDoServidor(emissor: string): string[] {
 /**
  * Descobre o servidor de autorização de um servidor MCP: o metadado do recurso protegido (pelo desafio do 401 ou pelo
  * endereço conhecido), depois o metadado do servidor de autorização. Quando o perfil já traz os endereços de
- * autorização e de token, não há descoberta (o HubSpot não publica os dele).
+ * autorização e de token, não há descoberta (o HubSpot os traz fixos, copiados do metadado que ele publica).
  */
 export async function descobrirServidorDeAutorizacao(opcoes: {
   urlMcp: string

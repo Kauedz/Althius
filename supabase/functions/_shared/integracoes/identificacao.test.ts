@@ -81,6 +81,23 @@ Deno.test('HubSpot OAuth: o hub_id vem da consulta ao token; se a API recusa o t
   assertEquals(viaFerramenta, { ok: true, portal: '5678', conta: 'bruno@norte.test' })
 })
 
+Deno.test('HubSpot OAuth: o portal vem do hub_id da resposta do token (OAuth v3), mesmo que a consulta recuse o token do MCP', async () => {
+  const recusada = api({ 'https://api.hubapi.com/oauth/v1/access-tokens/tok-4': () => json({}, 401) })
+  const r = await identificarConta(PERFIS.hubspot.mcp!.oauth!.identificacao, 'tok-4', 'token', {
+    fetch: recusada.fetch,
+    respostaDoToken: { access_token: 'tok-4', refresh_token: 'ref-4', hub_id: 4321, token_type: 'bearer', expires_in: 1800 },
+  })
+  assertEquals(r, { ok: true, portal: '4321', conta: null })
+
+  // Com a consulta aceita, ela só completa a conta: o portal continua o da resposta do token.
+  const aceita = api({ 'https://api.hubapi.com/oauth/v1/access-tokens/tok-5': () => json({ hub_id: 4321, user: 'ana@norte.test' }) })
+  const completa = await identificarConta(PERFIS.hubspot.mcp!.oauth!.identificacao, 'tok-5', 'token', {
+    fetch: aceita.fetch,
+    respostaDoToken: { access_token: 'tok-5', hub_id: 4321 },
+  })
+  assertEquals(completa, { ok: true, portal: '4321', conta: 'ana@norte.test' })
+})
+
 Deno.test('HubSpot OAuth sem como identificar o portal: não_identificada (quem chama recusa, porque o HubSpot fixa portal)', async () => {
   const { fetch } = api({})
   const r = await identificarConta(PERFIS.hubspot.mcp!.oauth!.identificacao, 'tok-3', 'token', { fetch })
