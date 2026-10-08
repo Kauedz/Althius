@@ -1,4 +1,4 @@
-# Ralph status — early-send (CRM × Auth × Canais)
+﻿# Ralph status — early-send (CRM × Auth × Canais)
 Updated: 2026-10-08 (Auth-03 fechado: (B) /termos e /privacidade, (C) aviso a quem já tem conta)
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
@@ -143,3 +143,48 @@ Postgres 16 + pgTAP locais, com schema `auth` mínimo do Supabase, via script de
   3. Depois do merge e do deploy do frontend, passo 6 do ticket:
      - Como **Membro**, com o Rhetor em Propor no HubSpot, pedir na Conversa "Rhetor, leve a <Conta sua> ao HubSpot". O passo mostra "Só um Administrador decide esta Aprovação."
      - Como **Administrador**, a navegação mostra o número de pendentes. Em `/aprovacoes`, clicar em Aprovar: o cartão vira "Aprovada · executada" e a empresa aparece no HubSpot.
+## Frente canais — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | prospeccao-funcional C1 — Ativar pela tela uma Sequência de WhatsApp ou LinkedIn |
+| Status | done |
+| Branch | ralph/frente-canais |
+| Commit | b7fedae175f2e573226e8aaa99115a56e77a8a27 |
+| Push | não feito |
+
+O que o humano roda: nada no banco. Não há migration. A tela lê `list_enabled_chat_channels`, que já existe. O padrão do banco deixa WhatsApp e LinkedIn desligados; este ticket não liga o canal. Sem push.
+
+## Frente canais — ticket 13 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | canais-cadencia-backend 13 — Tirar o InMail da tela e recusá-lo no envio |
+| Status | ready-for-human |
+| Branch | ralph/frente-canais |
+| Commit | 74bcb2ced4d7d872f121526180eeab1b24f949ca |
+| Push | não feito |
+
+Para o próximo agente: não reabra o 13. O código está neste commit, os oito checkboxes estão ticados e os testes já nascem verdes. `ready-for-human` aqui é o passo do Nan, não trabalho de implementação. Não marque o ticket como blocked por falta de vermelho. O próximo da fila é prospeccao-funcional C3.
+
+O que o humano roda, antes de publicar: no SQL Editor, só leitura, a consulta do ticket (Sequências com passo de InMail). Depois do merge, na raiz do repositório: `npx supabase functions deploy sequence-runner --project-ref ycbdilsmydvzezhlymty`. Nenhuma migration e nenhum segredo novo.
+
+Correção de vocabulário neste registro: o Status do prospeccao-funcional C1 passou de `done` para `closed`. Não sobra passo humano de migration nem de deploy nesse ticket. A seção do C1 acima fica como o registro da manhã.
+
+Suítes: `npm test` no frontend, exit 0, 109 arquivos e 1085 testes. `deno test supabase/functions`, exit 0, `ok | 710 passed | 0 failed`. pgTAP não rodou: sem CLI e sem Docker, e este ticket não muda SQL.
+
+## Frente canais — C3 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | prospeccao-funcional C3 — O titular vê as respostas de WhatsApp e LinkedIn |
+| Status | closed |
+| Branch | ralph/frente-canais |
+| Commit | ba61a0738cc0113d3dd422f98863c7d321a7c3bc |
+| Push | não feito |
+
+Para o próximo agente: não reabra o C3. Os seis checkboxes estão ticados. Não há migration nem deploy. Os canais 08 e 09 dependem do envio real do 06/07 (humano). Ao chegar neles, confira o Blocked by; se o bloqueio seguir, marque BLOCKED e pare. Esta sessão para no C3.
+
+O que o humano roda: nada no banco. Não há migration. A tela lê `list_received_chat_messages`, que já existe. Sem push.
+
+Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 110 arquivos e 1090 testes. `npx tsc -b --pretty false`, exit 0. pgTAP não se aplica: este ticket não muda SQL.

@@ -8,6 +8,9 @@ describe('motivoDoEnvio', () => {
     )
     expect(motivoDoEnvio('invite_already_sent')).toBe('já existe um convite pendente para este perfil no LinkedIn')
     expect(motivoDoEnvio('linkedin_profile_not_found')).toBe('o LinkedIn não encontrou o perfil do Contato')
+    expect(motivoDoEnvio('linkedin_inmail_not_supported')).toBe(
+      'o InMail não é enviado pela Althius; troque o passo para Convite ou Mensagem e ative os envios de novo',
+    )
     expect(motivoDoEnvio('invalid_phone')).toBe('o telefone do Contato não é um número de WhatsApp válido')
   })
 

@@ -71,7 +71,7 @@ const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   phone_without_whatsapp: 'O telefone escolhido num passo não está marcado como WhatsApp. Ajuste o Contato ou o passo.',
   contact_without_linkedin: 'O Contato de um passo de LinkedIn não tem perfil cadastrado. Cadastre o LinkedIn antes de ativar.',
   linkedin_profile_invalid: 'O LinkedIn do Contato não é o endereço de um perfil (linkedin.com/in/...). Corrija antes de ativar.',
-  invalid_linkedin_subtype: 'Um passo de LinkedIn está sem tipo válido (convite, mensagem ou InMail). Ajuste o passo.',
+  invalid_linkedin_subtype: 'Um passo de LinkedIn está sem tipo válido (convite ou mensagem). Ajuste o passo.',
   invite_note_too_long: 'A nota de um convite do LinkedIn passou do limite de caracteres. Encurte a nota antes de ativar.',
   whatsapp_sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar. Conecte o WhatsApp antes de ativar.',
   linkedin_sender_not_ready: 'Sua Conta remetente de LinkedIn não está pronta para enviar. Conecte o LinkedIn antes de ativar.',
@@ -185,6 +185,42 @@ function mapearResposta(linha: LinhaDaResposta): RespostaRecebida {
     recebidaEm: linha.received_at,
     anexos: mapearAnexos(linha.attachments),
   }
+}
+
+interface LinhaDaRespostaDeChat {
+  interaction_id: string
+  sequence_id: string
+  send_id: string | null
+  contact_id: string | null
+  channel: string
+  from_name: string | null
+  body: string | null
+  attachments_count: number | null
+  received_at: string
+}
+
+function mapearRespostaDeChat(linha: LinhaDaRespostaDeChat): RespostaRecebida {
+  const canal = linha.channel === 'whatsapp' || linha.channel === 'linkedin' ? linha.channel : undefined
+  const quantidade = typeof linha.attachments_count === 'number' && linha.attachments_count > 0
+    ? linha.attachments_count
+    : undefined
+  return {
+    interacaoId: linha.interaction_id,
+    sequenciaId: linha.sequence_id,
+    ...(linha.send_id ? { envioId: linha.send_id } : {}),
+    ...(linha.contact_id ? { contatoId: linha.contact_id } : {}),
+    ...(canal ? { canal } : {}),
+    de: { ...(linha.from_name ? { nome: linha.from_name } : {}) },
+    ...(linha.body ? { corpo: linha.body } : {}),
+    recebidaEm: linha.received_at,
+    anexos: [],
+    ...(quantidade ? { quantidadeDeAnexos: quantidade } : {}),
+  }
+}
+
+function porMaisRecente(a: RespostaRecebida, b: RespostaRecebida): number {
+  if (a.recebidaEm === b.recebidaEm) return 0
+  return a.recebidaEm < b.recebidaEm ? 1 : -1
 }
 
 function numeroSeguro(valor: unknown): number {
@@ -588,6 +624,13 @@ export function criarFonteDeSequenciasSupabase(
         ...(MENSAGEM_DA_ATIVACAO[linha.outcome] ? { mensagem: MENSAGEM_DA_ATIVACAO[linha.outcome] } : {}),
       }
     },
+    async canaisDeChatLiberados() {
+      // A tela pergunta antes de ativar (list_enabled_chat_channels). Sem a leitura, não finge que o canal está ligado.
+      const { data, error } = await cliente.rpc('list_enabled_chat_channels')
+      if (error || !Array.isArray(data)) return null
+      const lista = data.filter((item): item is string => typeof item === 'string')
+      return { whatsapp: lista.includes('whatsapp'), linkedin: lista.includes('linkedin') }
+    },
     async resolverIncerto(sequenciaId, stepId, saiu) {
       const { error } = await cliente.rpc('resolve_uncertain_step', {
         p_sequence_id: sequenciaId,
@@ -647,9 +690,14 @@ export function criarFonteDeSequenciasSupabase(
     async respostasRecebidas(sequenciaId) {
       const row = await registroPorId(sequenciaId)
       if (row.owner_user_id !== obterUsuarioId()) return []
-      const { data, error } = await cliente.rpc('list_received_emails', { p_sequence_id: sequenciaId })
-      if (error) throw converterErro(error)
-      return ((data ?? []) as LinhaDaResposta[]).map(mapearResposta)
+      const emails = await cliente.rpc('list_received_emails', { p_sequence_id: sequenciaId })
+      if (emails.error) throw converterErro(emails.error)
+      const deEmail = ((emails.data ?? []) as LinhaDaResposta[]).map(mapearResposta)
+      const chats = await cliente.rpc('list_received_chat_messages', { p_sequence_id: sequenciaId })
+      // Falha do chat (função ainda não publicada no dublê, ou recusa) não esconde o e-mail e não busca o texto por outro caminho.
+      if (chats.error) return deEmail.sort(porMaisRecente)
+      const deChat = ((chats.data ?? []) as LinhaDaRespostaDeChat[]).map(mapearRespostaDeChat)
+      return [...deEmail, ...deChat].sort(porMaisRecente)
     },
     async urlDoAnexo(interacaoId, anexoId) {
       const { data, error } = await cliente.functions.invoke('received-email-attachments', {

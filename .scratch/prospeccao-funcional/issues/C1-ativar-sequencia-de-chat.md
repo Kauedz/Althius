@@ -4,14 +4,14 @@
 
 **Blocked by:** None (pode começar agora). O merge na `main` espera o 00.
 
-**Status:** ready-for-agent (nada implementado; ampliado com a tela de chat que faltava aos canais 06 e 07, ver Comments de 2026-10-07)
+**Status:** closed (tela pronta na `ralph/frente-canais`; sem push. O merge na `main` espera o 00. Não sobra passo humano de migration nem de deploy.)
 
-- [ ] No Workspace operacional, a Sequência com passo de WhatsApp ou de LinkedIn, e nenhum passo de e-mail, mostra o controle de ativar. Hoje o painel só aparece quando existe passo de e-mail.
-- [ ] O diálogo lista os passos de e-mail, WhatsApp e LinkedIn que ainda não saíram. Cada um mostra o canal e o Destino que a ativação vai fixar (ADR-0014). O texto deixa de dizer que só os passos de e-mail saem.
-- [ ] Confirmar chama `activate_sequence`. Destino ausente aparece no diálogo antes do clique, com o passo identificado, e a ativação não segue no escuro.
-- [ ] A Demonstração não ganha envio real. O painel de ativação real continua fora dela.
-- [ ] Vitest cobre: Sequência só de WhatsApp abre o diálogo com o número; Sequência só de LinkedIn abre com o perfil; Sequência de e-mail continua mostrando o e-mail; Sequência sem nenhum Destino não ativa calada.
-- [ ] Conferência visual no navegador, desktop e 360px: o diálogo inteiro se lê, o Destino não estoura o cartão, e ativar uma Sequência só de chat fecha o fluxo até a resposta da Fonte.
+- [x] No Workspace operacional, a Sequência com passo de WhatsApp ou de LinkedIn, e nenhum passo de e-mail, mostra o controle de ativar. Hoje o painel só aparece quando existe passo de e-mail.
+- [x] O diálogo lista os passos de e-mail, WhatsApp e LinkedIn que ainda não saíram. Cada um mostra o canal e o Destino que a ativação vai fixar (ADR-0014). O texto deixa de dizer que só os passos de e-mail saem.
+- [x] Confirmar chama `activate_sequence`. Destino ausente aparece no diálogo antes do clique, com o passo identificado, e a ativação não segue no escuro.
+- [x] A Demonstração não ganha envio real. O painel de ativação real continua fora dela.
+- [x] Vitest cobre: Sequência só de WhatsApp abre o diálogo com o número; Sequência só de LinkedIn abre com o perfil; Sequência de e-mail continua mostrando o e-mail; Sequência sem nenhum Destino não ativa calada.
+- [x] Conferência visual no navegador, desktop e 360px: o diálogo inteiro se lê, o Destino não estoura o cartão, e ativar uma Sequência só de chat fecha o fluxo até a resposta da Fonte.
 
 ## Pode mexer
 
@@ -44,3 +44,5 @@ Nenhuma.
   - Testes rodados: `npx vitest run src/raiz.test.tsx -t "Envios automáticos da Sequência"` → 6 passed, só e-mail; não há teste de chat.
   - Ampliação recomendada (vinda dos canais 06 e 07): ler `list_enabled_chat_channels` e dizer no diálogo que o passo de chat não sai com o canal desligado; o rodapé do passo de chat (`detalhe-sequencia.tsx:1833-1834`, hoje sempre "ainda não disponível") passa a mostrar o Envio, adaptando os textos de e-mail de `:1797-1799`; traduzir em `src/fonte/motivos-do-envio.ts` os motivos do LinkedIn (`insufficient_credits`, `subscription_required`, `linkedin_not_connected`, `not_connected`, `recipient_not_found`, `provider_limit_reached`, `invite_already_pending`); `empty_content` por canal. Tudo dentro do "Pode mexer" (`detalhe-sequencia.tsx`, `supabase-sequencias.ts`, `motivos-do-envio.ts`). Pode entrar junto o rótulo cru do resumo público achado no crm-real-e-stack 17 (`detalhe-sequencia.tsx:2674`), se o Nan aprovar tocar nessa função.
   - Conferência visual depois (agente, desktop e 360px): o detalhe da Sequência do titular com "Envios automáticos", o diálogo "Ativar envios" com Sequência só de WhatsApp, só de LinkedIn e mista, e o rodapé do passo de chat depois de ativar.
+- 2026-10-08: feito na tela, sem migration e sem push. A tela lê `list_enabled_chat_channels`. Canal desligado: o diálogo avisa e uma Sequência só de chat não confirma; numa mista, o e-mail ainda pode ativar. Leitura pendente ou falha: não confirma, e não afirma que o passo ficou de fora. O clique de confirmar, reenviar, resolver incerto e classificar resposta continua só no E-mail.
+  - Prints (Chrome, dublê do Supabase, 1400×900 e 360px): [painel](prints/c1-painel-whatsapp.jpg), [diálogo WhatsApp](prints/c1-dialogo-whatsapp.jpg), [WhatsApp a 360px](prints/c1-dialogo-whatsapp-360.jpg), [LinkedIn](prints/c1-dialogo-linkedin.jpg), [LinkedIn a 360px](prints/c1-dialogo-linkedin-360.jpg), [mista](prints/c1-dialogo-mista.jpg), [mista a 360px](prints/c1-dialogo-mista-360.jpg), [depois de ativar](prints/c1-depois-de-ativar-whatsapp.jpg), [rodapé](prints/c1-rodape-whatsapp.jpg), [sem Destino](prints/c1-sem-destino.jpg), [canal desligado](prints/c1-canal-desligado.jpg). O URL longo do LinkedIn quebra dentro do cartão. Ativar fecha o diálogo e o rodapé fica "Programado" com o número.

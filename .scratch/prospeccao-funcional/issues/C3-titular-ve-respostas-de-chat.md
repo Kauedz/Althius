@@ -4,14 +4,14 @@
 
 **Blocked by:** C1. Os dois editam `detalhe-sequencia.tsx`. O merge na `main` espera o 00.
 
-**Status:** ready-for-agent (nada implementado; bloqueado pelo C1, que divide `detalhe-sequencia.tsx`)
+**Status:** closed (tela pronta na `ralph/frente-canais`; sem push. Não sobra passo humano de migration nem de deploy. O merge na `main` espera o 00.)
 
-- [ ] A Fonte de Sequências do Workspace operacional lê `list_received_chat_messages` para o titular e junta essas respostas às de e-mail que `list_received_emails` já devolve. Hoje `respostasRecebidas` só chama a de e-mail, e a função de chat não tem consumidor na tela.
-- [ ] Cada resposta de chat mostra canal, texto, quem enviou e quando. O titular distingue WhatsApp de LinkedIn.
-- [ ] Quem não é o titular não recebe o texto. A função já recusa quem não é o responsável pela Sequência; a tela não contorna isso com outro caminho.
-- [ ] A Demonstração não passa a mostrar essas respostas como se fossem reais.
-- [ ] Vitest cobre: o titular vê uma resposta de WhatsApp e uma de LinkedIn; outro participante não vê o corpo; a resposta de e-mail continua aparecendo.
-- [ ] Conferência visual no navegador, desktop e 360px, no detalhe da Sequência do titular, com as duas respostas de chat e a de e-mail juntas.
+- [x] A Fonte de Sequências do Workspace operacional lê `list_received_chat_messages` para o titular e junta essas respostas às de e-mail que `list_received_emails` já devolve. Hoje `respostasRecebidas` só chama a de e-mail, e a função de chat não tem consumidor na tela.
+- [x] Cada resposta de chat mostra canal, texto, quem enviou e quando. O titular distingue WhatsApp de LinkedIn.
+- [x] Quem não é o titular não recebe o texto. A função já recusa quem não é o responsável pela Sequência; a tela não contorna isso com outro caminho.
+- [x] A Demonstração não passa a mostrar essas respostas como se fossem reais.
+- [x] Vitest cobre: o titular vê uma resposta de WhatsApp e uma de LinkedIn; outro participante não vê o corpo; a resposta de e-mail continua aparecendo.
+- [x] Conferência visual no navegador, desktop e 360px, no detalhe da Sequência do titular, com as duas respostas de chat e a de e-mail juntas.
 
 ## Pode mexer
 
@@ -43,3 +43,12 @@ Nenhuma.
   - Testes rodados (a base de e-mail, verde): `npx vitest run src/fonte/supabase-sequencias.test.ts` (19, entre eles "a Responsável lê as respostas recebidas…" e "quem não é o Responsável não recebe Envios nem respostas") e os 2 de respostas recebidas de `src/raiz.test.tsx` ("a resposta recebida aparece com o conteúdo só para a Vendedora responsável…" e "outro participante vê que o Contato respondeu… sem o conteúdo").
   - Nota: a resposta de chat traz só `attachments_count`; a tela diz que há anexo sem prometer download.
   - Conferência visual depois (agente, desktop e 360px): o bloco "Respostas recebidas" no detalhe da Sequência, com o titular (WhatsApp, LinkedIn e e-mail juntos) e com outro participante.
+
+- 2026-10-08: feito na tela, sem migration e sem push. A Fonte do titular junta `list_received_chat_messages` a `list_received_emails`, da mais recente para a mais antiga. A tela mostra WhatsApp ou LinkedIn, o texto, quem enviou e quando. O anexo de chat só conta ("1 anexo" / "N anexos"), sem botão de baixar. Quem não é o titular continua recebendo lista vazia antes de qualquer chamada, e a tela não busca o corpo por outro caminho. Se a leitura do chat falha, o e-mail já lido continua na lista. A Demonstração segue devolvendo `[]`.
+  - Vermelho: `npx vitest run src/fonte/supabase-sequencias.test.ts -t "lê a resposta de WhatsApp" --maxWorkers=2` — a Fonte devolvia só o e-mail.
+  - Verde focado, depois da revisão: `npx vitest run src/paginas/respostas-de-chat.test.tsx src/fonte/supabase-sequencias.test.ts --maxWorkers=2` — 2 arquivos, 24 testes (tela 3, fonte 21).
+  - `npx tsc -b --pretty false` em `projeto-althius-frontend`, exit 0.
+  - Suíte que fecha o ticket: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 110 arquivos e 1090 testes. pgTAP não se aplica: este ticket não muda SQL.
+  - Duas rodadas anteriores da mesma suíte perderam testes de outras telas por carga da máquina (timeout de 20s; o documento da Demonstração ainda em Carregando). Esses testes passam sozinhos e não fazem parte deste ticket.
+  - Revisão: Padrões sem problema aberto. Spec: uma falha qualquer do chat não pode esconder o e-mail nem buscar o texto por outro caminho; isso ficou coberto pelo teste da recusa 42501. Sem problema aberto.
+  - Conferência visual do titular: `issues/prints/c3-titular-desktop.jpg`, `c3-titular-pagina.jpg` e `c3-titular-360.jpg` (WhatsApp, LinkedIn e e-mail juntos; no 360 o bloco ocupa a coluna e o texto quebra). Outro participante: `c3-outro-participante.jpg` e `c3-outro-participante-360.jpg` (resumo público, sem o texto).
