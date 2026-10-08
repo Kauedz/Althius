@@ -26,7 +26,7 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | canais-04 | blocked | | Blocked by canais-02 (ready-for-human) e canais-03 |
 | Review final | done | — | 0 bloqueantes; 2 importantes + 2 menores em correção |
 | Correções da revisão | done | ralph/revisao-correcoes · PR #30 (draft, topo da pilha) | 4/4; pgTAP 40/40, 21/21, 24/24; suíte 604/604; vincular+editar Contato (CRM-05); enumeração pelo rate limit (Auth); aceite dos Termos só no 1º acesso; erro cru de RPC |
-| Auth-03 + Auth-05 (2026-10-08) | done (código), sem PR | ralph/auth-03-05-redefinir-senha | link de redefinição, `/cadastro`, `/esqueci-a-senha` e link de confirmação abriam a Demonstração num navegador sem escolha; sem migration; ver seção "Auth-03/05 — 2026-10-08" |
+| Auth-03 + Auth-05 (2026-10-08) | parcial: correção (A) da raiz feita; Auth-03 segue com (B) /termos e /privacidade e (C) e-mail para conta existente; Auth-05 só falta o humano do ticket 10 | ralph/auth-03-05-redefinir-senha | link de redefinição, `/cadastro`, `/esqueci-a-senha` e link de confirmação abriam a Demonstração num navegador sem escolha; sem migration; ver seção "Auth-03/05 — 2026-10-08" |
 | Auth-09 | out | — | fora do corte; exige CRM-03 |
 | Auth-10 | human | — | ready-for-human; não spawnar |
 | CRM-03, 16, 19, 20, 21, 22–24 | out | — | fora do corte / ponteiros |
