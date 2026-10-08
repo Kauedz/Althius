@@ -57,7 +57,7 @@ A correção do aceite dos Termos entrou como migration nova `20260925170000_boo
 
 ## Auth-03/05 — 2026-10-08
 - **Ticket:** Auth-03 (cadastro) incluindo Auth-05 (esqueci a senha). Bug: num navegador que nunca escolheu o Workspace operacional, o link de redefinir senha, `/cadastro`, `/esqueci-a-senha` e o link de confirmação do cadastro abriam a Demonstração.
-- **Status:** done (código e testes). Auth-03 continua ready-for-human só pelo e-mail para conta existente (SMTP, Auth-10).
+- **Status:** parcial. Auth-05: código fechado, falta só o passo humano do ticket 10. Auth-03: correção (A) feita; seguem (B) rotas /termos e /privacidade e (C) e-mail para conta existente por Edge Function (trabalho de agente, ver Comments de 2026-10-07 no ticket).
 - **Branch:** `ralph/auth-03-05-redefinir-senha`, com push, sem PR.
 - **Sem migration.** Nada a aplicar no Supabase.
 - **Decisão do Renan (2026-10-08): aceito como está.** Quem abre uma tela de acesso ou um convite fica com o Workspace operacional lembrado no navegador (é o que faz o link de confirmação funcionar), e quem visitou `/cadastro` vai para `/entrar` ao voltar ao início, não para a Demonstração. Descartada a alternativa `/entrar?destino=…` nos links do e-mail.
