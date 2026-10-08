@@ -510,7 +510,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           apikey,
         })
 
-        // O comitê chama o actor direto. A cascata engolia a exceção e a busca virava concluída com zero.
+        // O comitê chama o actor direto, e a medição (id e custo) é a da execução dele.
         const buscaDePessoas = deps.provedorContatos
           ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
         const medicao = { runId: null as string | null, costUsd: null as number | null }

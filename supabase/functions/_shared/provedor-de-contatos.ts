@@ -375,36 +375,28 @@ export class CascataProvedorDeContatos implements ProvedorDeContatos {
   constructor(private readonly provedores: ProvedorDeContatos[]) {}
 
   async buscarPessoas(empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]> {
-    let falha: unknown = null
-    for (const provedor of this.provedores) {
-      try {
-        const pessoas = await provedor.buscarPessoas(empresa)
-        if (pessoas && pessoas.length > 0) {
-          return pessoas
-        }
-      } catch (e) {
-        // Segue para o próximo fornecedor; a falha só volta se nenhum achar.
-        falha ??= e
-      }
-    }
-    if (falha) throw falha
-    return []
+    const pessoas = await this.primeiroQueAcha(async (provedor) => {
+      const encontradas = await provedor.buscarPessoas(empresa)
+      return encontradas?.length ? encontradas : null
+    })
+    return pessoas ?? []
   }
 
-  async revelarContato(
+  revelarContato(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
   ): Promise<DadoRevelado | null> {
+    return this.primeiroQueAcha(async (provedor) => await provedor.revelarContato?.(pessoa, canal) ?? null)
+  }
+
+  /** O primeiro fornecedor que acha, em ordem; null quando nenhum acha. A falha só volta se nenhum achar. */
+  private async primeiroQueAcha<T>(tentar: (provedor: ProvedorDeContatos) => Promise<T | null>): Promise<T | null> {
     let falha: unknown = null
     for (const provedor of this.provedores) {
-      if (!provedor.revelarContato) continue
       try {
-        const resultado = await provedor.revelarContato(pessoa, canal)
-        if (resultado) {
-          return resultado
-        }
+        const resultado = await tentar(provedor)
+        if (resultado !== null) return resultado
       } catch (e) {
-        // Segue para o próximo fornecedor; a falha só volta se nenhum achar.
         falha ??= e
       }
     }

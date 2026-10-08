@@ -1,13 +1,14 @@
 // A execução real de um actor do enriquecimento (enriquecimento-em-cascata 01), para o Nan rodar no computador dele.
-// Roda o actor de um fim do registro (`private.discovery_actors`) com o mesmo código da Edge Function
-// `account-enrichment` (a mesma entrada e a mesma leitura), pela conta do Apify da Althius, e mostra o que interessa para
-// passar o actor a "available": o id da execução, o custo em dólar que o Apify informa, os campos que o resultado trouxe
-// (só os nomes e os tipos, nenhum valor) e o que o adaptador tira dele (só contagens). Os itens brutos ficam em
+// Roda o actor que a Edge Function `account-enrichment` usa para um fim do registro (`private.discovery_actors`), com o
+// mesmo código dela (a mesma entrada e a mesma leitura), pela conta do Apify da Althius, e mostra o que interessa para
+// passar o actor a "available": o id da execução, o custo em dólar que o Apify informa, a entrada sem o perfil e sem o
+// CNPJ do teste, os campos que o resultado trouxe (só os nomes e os tipos, nenhum valor) e o que o adaptador tira dele
+// (só contagens). Os itens brutos ficam em
 // `validacao-enriquecimento/` (fora do Git: têm dado pessoal) para o Nan olhar, e nunca são enviados a lugar nenhum.
 // Nada é gravado no Supabase e nenhum crédito do Workspace é usado.
 //
 // Uso (PowerShell, na raiz do repositório):
-//   $env:APIFY_TOKEN = "<token do Apify da Althius, nunca no chat>"
+//   $env:APIFY_TOKEN = Read-Host "Token do Apify da Althius"   # digitado aqui, fora do histórico e nunca no chat
 //   npx deno run --allow-net --allow-env --allow-read --allow-write scripts/validar-enriquecimento-real.ts cnpj_receita `
 //     --cnpj 07526557000100
 //   npx deno run --allow-net --allow-env --allow-read --allow-write scripts/validar-enriquecimento-real.ts buscar_pessoas `
@@ -76,7 +77,7 @@ function apifyQueAnota(apify: Apify, execucoes: ExecucaoVista[]): Apify {
         throw e
       }
     },
-    custoDaExecucao: apify.custoDaExecucao ? (runId) => apify.custoDaExecucao!(runId) : undefined,
+    custoDaExecucao: apify.custoDaExecucao?.bind(apify),
   }
 }
 
@@ -98,12 +99,15 @@ const apify = clienteDoApify({ tokens, timeoutMs: 45_000, runTimeoutSeconds: 40,
 const execucoes: ExecucaoVista[] = []
 const anotado = apifyQueAnota(apify, execucoes)
 const resumo: string[] = []
+// O perfil e o CNPJ do teste podem ser dado pessoal: a entrada impressa leva uma marca no lugar deles.
+const marcas: Array<[string, string]> = []
 
 console.log(`\nFim: ${fim} · rodando no Apify (até 45 segundos)...`)
 
 if (fim === 'cnpj_receita') {
   const cnpj = validarCnpj(String(args.cnpj ?? ''))
   if (!cnpj) sair('Diga um CNPJ válido: --cnpj 07526557000100.')
+  marcas.push([cnpj, '<cnpj do teste>'])
   const dados = await consultarApifyReceita(cnpj, anotado)
   resumo.push(`A Receita devolveu a empresa: ${dados ? 'sim' : 'não'}`)
   if (dados) {
@@ -115,7 +119,8 @@ if (fim === 'cnpj_receita') {
 
 if (fim === 'buscar_pessoas') {
   if (!args.nome) sair('Diga o nome da empresa do teste: --nome "Empresa".')
-  const limite = args.limite ? Number(args.limite) : 5
+  // Os mesmos limites do comitê na Edge Function: de 1 a 30 pessoas.
+  const limite = Math.min(Math.max(Number(args.limite) || 5, 1), 30)
   try {
     const pessoas = await new ApifyProvedorDeContatos({ apify: anotado }).buscarPessoas({
       nome: args.nome,
@@ -134,10 +139,12 @@ if (fim === 'buscar_pessoas') {
 }
 
 if (fim === 'revelar_contato') {
-  if (!args.perfil) sair('Diga o perfil do LinkedIn do teste: --perfil https://www.linkedin.com/in/pessoa.')
+  const perfil = String(args.perfil ?? '').trim()
+  if (!perfil) sair('Diga o perfil do LinkedIn do teste: --perfil https://www.linkedin.com/in/pessoa.')
+  marcas.push([perfil, '<perfil do teste>'])
   try {
     const dado = await new ApifyProvedorDeContatos({ apify: anotado }).revelarContato(
-      { nome: 'pessoa do teste', linkedinUrl: args.perfil },
+      { nome: 'pessoa do teste', linkedinUrl: perfil },
       'email',
     )
     resumo.push(`E-mail que o adaptador tira: ${dado ? 'achou' : 'não achou'}`)
@@ -156,7 +163,7 @@ for (const exec of execucoes) {
   const custo = exec.runId && apify.custoDaExecucao ? await apify.custoDaExecucao(exec.runId).catch(() => null) : null
   console.log(`\nActor ${exec.actorId}`)
   console.log('Entrada do actor:')
-  console.log(JSON.stringify(exec.entrada, null, 2))
+  console.log(marcas.reduce((texto, [valor, marca]) => texto.replaceAll(valor, marca), JSON.stringify(exec.entrada, null, 2)))
   console.log(`Execução ${exec.runId ?? '(sem id)'} · custo ${custo === null ? '(o Apify não informou)' : `US$ ${custo}`}`)
   if (exec.erro) {
     console.log(`Erro: ${exec.erro}`)
