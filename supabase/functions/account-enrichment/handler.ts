@@ -650,35 +650,35 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
         const actorId = 'harvestapi~linkedin-profile-scraper'
         const medicao = { runId: null as string | null, costUsd: null as number | null }
-        const gravarCusto = (itens: number) => {
+        // Um perfil consultado por execução, achando ou não: input_units é a entrada do actor.
+        const gravarCusto = () => {
           if (!medicao.runId || !deps.db.recordDiscoveryCost) return Promise.resolve()
           return deps.db.recordDiscoveryCost({
             workspaceId,
             actorId,
             runId: medicao.runId,
-            items: itens,
+            items: 1,
             costUsd: medicao.costUsd,
           }).catch(() => {})
         }
 
-        let revelado: DadoRevelado | null = null
+        let revelado: DadoRevelado | null
         try {
-          if (revelador.revelarContato) {
-            revelado = await revelador.revelarContato(
-              {
-                nome: contato.name,
-                linkedinUrl: contato.linkedin,
-                empresa: contato.companyName,
-              },
-              canal,
-              medicao,
-            )
-          }
+          if (!revelador.revelarContato) throw new Error('nenhum provedor revela e-mail')
+          revelado = await revelador.revelarContato(
+            {
+              nome: contato.name,
+              linkedinUrl: contato.linkedin,
+              empresa: contato.companyName,
+            },
+            canal,
+            medicao,
+          )
         } catch (e) {
           // Falha não é "não encontrado": libera a reserva, debita zero e diz que falhou.
           const mensagem = e instanceof Error ? e.message : 'erro desconhecido'
           await deps.db.finishRevealContact({ reservationId: reserva.reservationId, contactId, channel: canal })
-          await gravarCusto(0)
+          await gravarCusto()
           return json({ error: `A busca do e-mail falhou: ${mensagem}` }, 502)
         }
 
@@ -690,7 +690,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           value: revelado?.valor,
           source: revelado?.fonte,
         })
-        await gravarCusto(1)
+        await gravarCusto()
 
         const gravado = finalizado.success && revelado ? revelado : null
         return json({

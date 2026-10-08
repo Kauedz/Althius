@@ -308,7 +308,7 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
 
     const item = registro(exec.items[0])
     const email = item ? emailDoPerfil(item) : null
-    return email ? { canal: 'email', valor: email, fonte: 'apify:harvestapi~linkedin-profile-scraper' } : null
+    return email ? { canal: 'email', valor: email, fonte: `apify:${this.actorProfile}` } : null
   }
 }
 

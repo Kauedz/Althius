@@ -841,10 +841,53 @@ Deno.test('revelar-contato: falha do actor libera a reserva, grava o custo e nã
   assertEquals(registro.finish, [{ value: undefined, source: undefined }])
   assertEquals(registro.custos, [{
     runId: 'apify-run-revelar',
-    items: 0,
+    items: 1,
     costUsd: 0.01,
     actorId: 'harvestapi~linkedin-profile-scraper',
   }])
+})
+
+Deno.test('revelar-contato: e-mail que já é de outro Contato não grava, debita 0 e não vira erro', async () => {
+  const registro = registroDoRevelar()
+  const provedorComDeOutro = {
+    nome: 'fake',
+    async buscarPessoas() {
+      return []
+    },
+    async revelarContato() {
+      return { canal: 'email' as const, valor: 'otto@acme.test', fonte: 'apify:harvestapi~linkedin-profile-scraper' }
+    },
+  }
+  // finish_reveal_contact libera a reserva quando o e-mail é de outro Contato (pgTAP revelar_email_so_cobra_valor_novo).
+  const handler = criarHandlerEnrichment({
+    db: dbDoRevelar(registro, { success: false, debitedCredits: 0 }),
+    provedorContatos: provedorComDeOutro,
+  })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body, {
+    sucesso: false,
+    canal: 'email',
+    valor: null,
+    creditosDebitados: 0,
+    fonte: null,
+    lgpd: body.lgpd,
+  })
+  assertEquals(registro.passos, ['sessao', 'contato', 'begin:email', 'finish'])
+})
+
+Deno.test('revelar-contato: provedor sem revelação é falha, não "não encontrado"', async () => {
+  const registro = registroDoRevelar()
+  const handler = criarHandlerEnrichment({
+    db: dbDoRevelar(registro),
+    provedorContatos: { nome: 'so-busca', async buscarPessoas() { return [] } },
+  })
+  const res = await handler(pedidoDeRevelar('email'))
+
+  assertEquals(res.status, 502)
+  assertEquals(registro.finish, [{ value: undefined, source: undefined }])
 })
 
 Deno.test('revelar-contato: e-mail que o Contato já tem debita 0 e a resposta não o devolve como novo', async () => {

@@ -497,14 +497,14 @@ export function BotoesRevelarContato({
         )}
       </div>
 
-      <Dialog open={aberto} onOpenChange={(abrir) => !abrir && setAberto(false)}>
+      <Dialog open={aberto} onOpenChange={setAberto}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               Revelar E-mail de {contato.nome}
             </DialogTitle>
             <DialogDescription>
-              A Althius tentará encontrar o dado em cascata através de fontes públicas profissionais.
+              A Althius busca o e-mail profissional a partir do perfil público do LinkedIn.
             </DialogDescription>
           </DialogHeader>
 
