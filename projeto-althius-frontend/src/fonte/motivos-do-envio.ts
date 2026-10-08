@@ -15,6 +15,8 @@ const MOTIVOS: Record<string, string> = {
   insufficient_credits: 'os créditos do LinkedIn desta conta acabaram',
   subscription_required: 'esta ação do LinkedIn pede uma assinatura que a conta não tem',
   linkedin_not_connected: 'o Contato ainda não é conexão de primeiro grau no LinkedIn',
+  linkedin_inmail_not_supported:
+    'o InMail não é enviado pela Althius; troque o passo para Convite ou Mensagem e ative os envios de novo',
   not_connected: 'o Contato não é uma conexão no LinkedIn',
   recipient_not_found: 'o LinkedIn não encontrou o destinatário',
   provider_limit_reached: 'o LinkedIn atingiu o limite de envios desta conta',

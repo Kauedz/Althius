@@ -4,16 +4,16 @@
 
 **Blocked by:** prospeccao-funcional C1: Ativar pela tela uma Sequência de WhatsApp ou LinkedIn (`.scratch/prospeccao-funcional/issues/C1-ativar-sequencia-de-chat.md`). Os dois mexem em `detalhe-sequencia.tsx` e em `motivos-do-envio.ts`.
 
-**Status:** ready-for-agent (espera o C1; na fila do `/implement` logo depois dele)
+**Status:** ready-for-human (tela e núcleo na `ralph/frente-canais`; checkboxes fechados; sem push; sem migration. O agente não reimplementa: os testes já nascem verdes. Falta o Nan: a consulta SQL de leitura e, depois do merge, o deploy do `sequence-runner`.)
 
-- [ ] O passo de LinkedIn oferece só "Convite com nota" e "Mensagem". Nenhum passo novo ou editado vira InMail.
-- [ ] Um passo já salvo como InMail não some nem aparece como outro tipo: nenhuma opção fica marcada, e a tela diz, junto das opções, que o InMail não é enviado e que é preciso escolher Convite ou Mensagem. Escolher um dos dois grava o subtipo novo, como hoje.
-- [ ] O núcleo do envio recusa todo passo com `linkedin_subtype = 'inmail'`, seja o Contato conexão ou não, com o motivo `linkedin_inmail_not_supported`, antes de consultar o perfil. Nada é chamado na Unipile: nem `getLinkedInProfile`, nem `startChat`, nem `sendInvitation`. O resultado é `blocked` com esse motivo: o Envio fica falho, sem nova tentativa, e a Sequência para nele até uma nova ativação, como nos outros impedimentos (`send-chat-step.ts:20-25`).
-- [ ] A tela traduz o motivo em `motivos-do-envio.ts`, com um texto que diga o que fazer, por exemplo: "o InMail não é enviado pela Althius; troque o passo para Convite ou Mensagem e ative os envios de novo".
-- [ ] O texto de `invalid_linkedin_subtype` (`supabase-sequencias.ts:74`) deixa de citar o InMail como tipo válido.
-- [ ] Deno: o teste "LinkedIn: InMail só para quem não é conexão" (`send-chat-step.test.ts:377-385`), que hoje fixa o envio como mensagem comum, passa a conferir a recusa para conexão e para não conexão, sem nenhuma chamada à Unipile. O trecho de InMail do teste de crédito (`:394-400`) sai ou vira essa recusa. As asserções de `decideLinkedInAction('inmail', …)` (`:160-161`) acompanham a mudança. Os testes de convite e de mensagem não mudam.
-- [ ] Vitest: `detalhe-sequencia.test.tsx:314` passa a conferir que não existe botão "InMail". Um teste novo cobre o passo já salvo como InMail: o aviso aparece, nenhuma opção está marcada, e trocar para Convite grava `convite`. `motivos-do-envio.test.ts` cobre o motivo novo.
-- [ ] Conferência visual no navegador, desktop e 360px: as duas opções do passo de LinkedIn e o aviso do passo antigo de InMail se leem sem estourar o cartão.
+- [x] O passo de LinkedIn oferece só "Convite com nota" e "Mensagem". Nenhum passo novo ou editado vira InMail.
+- [x] Um passo já salvo como InMail não some nem aparece como outro tipo: nenhuma opção fica marcada, e a tela diz, junto das opções, que o InMail não é enviado e que é preciso escolher Convite ou Mensagem. Escolher um dos dois grava o subtipo novo, como hoje.
+- [x] O núcleo do envio recusa todo passo com `linkedin_subtype = 'inmail'`, seja o Contato conexão ou não, com o motivo `linkedin_inmail_not_supported`, antes de consultar o perfil. Nada é chamado na Unipile: nem `getLinkedInProfile`, nem `startChat`, nem `sendInvitation`. O resultado é `blocked` com esse motivo: o Envio fica falho, sem nova tentativa, e a Sequência para nele até uma nova ativação, como nos outros impedimentos (`send-chat-step.ts:20-25`).
+- [x] A tela traduz o motivo em `motivos-do-envio.ts`, com um texto que diga o que fazer, por exemplo: "o InMail não é enviado pela Althius; troque o passo para Convite ou Mensagem e ative os envios de novo".
+- [x] O texto de `invalid_linkedin_subtype` (`supabase-sequencias.ts:74`) deixa de citar o InMail como tipo válido.
+- [x] Deno: o teste "LinkedIn: InMail só para quem não é conexão" (`send-chat-step.test.ts:377-385`), que hoje fixa o envio como mensagem comum, passa a conferir a recusa para conexão e para não conexão, sem nenhuma chamada à Unipile. O trecho de InMail do teste de crédito (`:394-400`) sai ou vira essa recusa. As asserções de `decideLinkedInAction('inmail', …)` (`:160-161`) acompanham a mudança. Os testes de convite e de mensagem não mudam.
+- [x] Vitest: `detalhe-sequencia.test.tsx:314` passa a conferir que não existe botão "InMail". Um teste novo cobre o passo já salvo como InMail: o aviso aparece, nenhuma opção está marcada, e trocar para Convite grava `convite`. `motivos-do-envio.test.ts` cobre o motivo novo.
+- [x] Conferência visual no navegador, desktop e 360px: as duas opções do passo de LinkedIn e o aviso do passo antigo de InMail se leem sem estourar o cartão.
 
 ## Pode mexer
 
@@ -44,6 +44,13 @@ Nenhuma.
   - Na `main` 59e53a6, a tela oferece "InMail" (`detalhe-sequencia.tsx:2199`). `decideLinkedInAction` devolve `inmail` para quem não é conexão (`send-chat-step.ts:187`) e `mensagem` para quem é (`:185`). Os dois saem por `sendMessage` / `startChat` (`:359-361`), cujo corpo leva só `users_ids` e `text` (`send-chat-step-adapters.ts:181-186`). Ou seja, o passo de InMail sai como mensagem comum.
   - A recusa vale também quando o Contato já é conexão: o passo pediu InMail, que está fora, e mandar uma mensagem no lugar seria o mesmo desvio. O titular troca o passo para Mensagem.
   - Bloqueado pelo C1 porque os dois mexem em `detalhe-sequencia.tsx` e em `motivos-do-envio.ts`. As linhas citadas são da 59e53a6 e vão andar com o C1: procure por `subtipoLinkedIn` e `inmail`.
+- 2026-10-08: tela e núcleo na `ralph/frente-canais`. O passo de LinkedIn oferece só Convite com nota e Mensagem. Passo já salvo como InMail fica sem opção marcada e mostra "O InMail não é enviado. Escolha Convite ou Mensagem." Trocar grava o subtipo. O Executor devolve `blocked` / `linkedin_inmail_not_supported` antes de qualquer chamada à Unipile, para conexão e para quem não é. A ativação continua aceitando o subtipo; a parada é no envio.
+  - Frontend: `npm test` (`vitest run`) em `projeto-althius-frontend`, exit 0. Test Files 109 passed (109). Tests 1085 passed (1085). Duração 2132.63s. A corrida começou às 09:24, antes do aviso 8 do quadro (`--maxWorkers=2`).
+  - Deno: `deno test supabase/functions` na raiz, exit 0. `ok | 710 passed | 0 failed` (24s), depois do teste renomeado.
+  - `npx tsc -b` no frontend, exit 0. `deno check supabase/functions/*/index.ts`, exit 0.
+  - pgTAP não rodou nesta máquina (sem Supabase CLI e sem Docker). Este ticket não muda SQL. `canais_whatsapp_linkedin.sql` continua ativando um passo InMail; a recusa é no Executor.
+  - Conferência visual: desktop e cartão com coluna de cerca de 360px (viewport 688). Um viewport literal de 360px fica esmagado pela sidebar de 15.5rem e pelo `px-10`, arquivos fora deste ticket. Prints em `issues/prints/13-opcoes-linkedin-desktop.jpg`, `13-opcoes-linkedin-360.jpg`, `13-aviso-inmail-desktop.jpg`, `13-aviso-inmail-360.jpg`. Opções, aviso e compositor com scrollWidth igual ao clientWidth.
+  - Revisão de padrões e de spec sem problema aberto. A linha do Envio segue `grid-cols-[80px_1fr]`; o `min-w-0` nas opções segura o aviso. A recusa fica em `decideLinkedInAction` e no retorno cedo de `attemptLinkedIn` de propósito.
 
 ## Passos do Nan
 

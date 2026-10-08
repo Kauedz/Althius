@@ -179,12 +179,12 @@ export type LinkedInDecision = { action: LinkedInAction } | { blocked: string }
 /**
  * Cadência do Nan: LinkedIn é convite com nota e, se a pessoa já é conexão, mensagem. O subtipo do passo é a
  * intenção; a relação decide o que sai. Relação desconhecida (a Unipile não disse) segue a intenção do passo, e o
- * provedor é quem recusa o que não vale.
+ * provedor é quem recusa o que não vale. InMail está fora: o passo é impedimento, seja o Contato conexão ou não.
  */
 export function decideLinkedInAction(subtype: LinkedInSubtype, firstDegree: boolean | null): LinkedInDecision {
+  if (subtype === 'inmail') return { blocked: 'linkedin_inmail_not_supported' }
   if (firstDegree === true) return { action: 'mensagem' }
   if (subtype === 'convite') return { action: 'convite' }
-  if (subtype === 'inmail') return { action: 'inmail' }
   // Mensagem a quem não é conexão: o LinkedIn não deixa. Só com a relação conhecida o núcleo barra antes.
   return firstDegree === false ? { blocked: 'linkedin_not_connected' } : { action: 'mensagem' }
 }
@@ -310,6 +310,11 @@ async function attemptLinkedIn(
   released: ReleasedChatSend,
   attachments: OutgoingAttachment[],
 ): Promise<Attempt> {
+  // InMail está fora. A recusa vem antes do perfil: nada sai na Unipile, nem a consulta.
+  if (released.linkedin_subtype === 'inmail') {
+    return { outcome: 'blocked', error: 'linkedin_inmail_not_supported' }
+  }
+
   const identifier = linkedInIdentifier(released.destination)
   if (!identifier) return { outcome: 'blocked', error: 'linkedin_profile_invalid' }
   const timeout = deps.sendTimeoutMs ?? 25_000
@@ -356,7 +361,7 @@ async function attemptLinkedIn(
     return { outcome: 'sent', messageId: invited.value.id, providerUserId: profile.providerId, action: 'convite' }
   }
 
-  // 3. Mensagem a uma conexão (ou InMail a quem não é): continua a conversa que já existe ou abre uma.
+  // 3. Mensagem a uma conexão: continua a conversa que já existe ou abre uma.
   const sent = await sendMessage(deps, released, profile.providerId, attachments)
   return { ...sent, providerUserId: profile.providerId, action: decision.action }
 }

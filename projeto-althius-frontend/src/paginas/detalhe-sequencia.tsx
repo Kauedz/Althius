@@ -2294,28 +2294,34 @@ function OpcoesPorCanal({
   }
 
   if (step.canal === 'linkedin') {
-    const opcoes: Array<{ valor: typeof step.subtipoLinkedIn; rotulo: string }> = [
+    const opcoes: Array<{ valor: 'convite' | 'mensagem'; rotulo: string }> = [
       { valor: 'convite', rotulo: 'Convite com nota' },
       { valor: 'mensagem', rotulo: 'Mensagem' },
-      { valor: 'inmail', rotulo: 'InMail' },
     ]
     return (
-      <div className="flex items-center gap-1 border border-al-line flex-wrap">
-        {opcoes.map(({ valor, rotulo }) => (
-          <button
-            key={valor}
-            type="button"
-            onClick={() => onSalvar({ subtipoLinkedIn: valor })}
-            aria-pressed={step.subtipoLinkedIn === valor}
-            className={`px-3 py-1 text-xs transition-colors ${
-              step.subtipoLinkedIn === valor
-                ? 'bg-al-surface text-al-ink shadow-[inset_0_-2px_0_var(--al-accent)]'
-                : 'text-al-muted hover:text-al-ink'
-            }`}
-          >
-            {rotulo}
-          </button>
-        ))}
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex items-center gap-1 border border-al-line flex-wrap">
+          {opcoes.map(({ valor, rotulo }) => (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => onSalvar({ subtipoLinkedIn: valor })}
+              aria-pressed={step.subtipoLinkedIn === valor}
+              className={`px-3 py-1 text-xs transition-colors ${
+                step.subtipoLinkedIn === valor
+                  ? 'bg-al-surface text-al-ink shadow-[inset_0_-2px_0_var(--al-accent)]'
+                  : 'text-al-muted hover:text-al-ink'
+              }`}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
+        {step.subtipoLinkedIn === 'inmail' && (
+          <p className="text-xs text-al-atencao">
+            O InMail não é enviado. Escolha Convite ou Mensagem.
+          </p>
+        )}
       </div>
     )
   }
