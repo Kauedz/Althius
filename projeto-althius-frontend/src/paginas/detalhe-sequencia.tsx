@@ -2204,7 +2204,8 @@ function RespostasRecebidas({
   erro: string | null
 }) {
   return (
-    <section aria-label="Respostas recebidas" className="flex flex-col gap-3 border border-al-line bg-al-surface p-4">
+    <section aria-label="Respostas recebidas" className="flex min-w-0 flex-col gap-3 break-words border border-al-line bg-al-surface p-4 max-sm:-mx-10 max-sm:w-[calc(100%+5rem)] max-sm:p-3">
+      {/* Abaixo de sm a coluna útil some no menu fixo e no px-10 da página: o bloco ocupa a largura da coluna. */}
       <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">
         {respostas.length === 1 ? 'Resposta recebida' : `${respostas.length} respostas recebidas`} · só você vê o conteúdo
       </span>
@@ -2215,15 +2216,23 @@ function RespostasRecebidas({
           ?? resposta.de.email
           ?? 'Contato'
         return (
-          <article key={resposta.interacaoId} className="flex flex-col gap-1.5 border-t border-al-line pt-3 first:border-t-0 first:pt-0">
-            <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-al-muted">
+          <article key={resposta.interacaoId} className="flex min-w-0 flex-col gap-1.5 border-t border-al-line pt-3 first:border-t-0 first:pt-0">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-xs text-al-muted">
+              {resposta.canal && (
+                <span className="text-al-ink font-medium">{CANAIS_CONFIG[resposta.canal].rotulo}</span>
+              )}
               <span className="text-al-ink font-medium">{quem}</span>
-              {resposta.de.email && resposta.de.nome && <span>&lt;{resposta.de.email}&gt;</span>}
+              {resposta.de.email && resposta.de.nome && <span className="min-w-0 break-all">&lt;{resposta.de.email}&gt;</span>}
               <span>· {formatarDataCompleta(resposta.recebidaEm)}</span>
             </div>
-            {resposta.assunto && <p className="text-sm font-medium text-al-ink">{resposta.assunto}</p>}
+            {resposta.assunto && <p className="text-sm font-medium text-al-ink break-words">{resposta.assunto}</p>}
             {resposta.corpo && (
-              <p className="text-sm text-al-ink whitespace-pre-wrap leading-relaxed">{textoDaResposta(resposta.corpo)}</p>
+              <p className="text-sm text-al-ink whitespace-pre-wrap break-words leading-relaxed">{textoDaResposta(resposta.corpo)}</p>
+            )}
+            {resposta.quantidadeDeAnexos != null && resposta.quantidadeDeAnexos > 0 && (
+              <p className="text-xs text-al-muted">
+                {resposta.quantidadeDeAnexos === 1 ? '1 anexo' : `${resposta.quantidadeDeAnexos} anexos`}
+              </p>
             )}
             {resposta.anexos.length > 0 && (
               <ul className="flex flex-wrap gap-2 list-none p-0 m-0">

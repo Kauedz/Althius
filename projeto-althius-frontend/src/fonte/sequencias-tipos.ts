@@ -278,11 +278,15 @@ export interface RespostaRecebida {
   sequenciaId: string
   envioId?: string
   contatoId?: string
+  /** WhatsApp ou LinkedIn. A resposta de e-mail não traz canal: o assunto já a identifica. */
+  canal?: 'whatsapp' | 'linkedin'
   de: { email?: string; nome?: string }
   assunto?: string
   corpo?: string
   recebidaEm: string
   anexos: AnexoRecebido[]
+  /** Anexos de chat: a tela só conta. Não há arquivo para baixar. */
+  quantidadeDeAnexos?: number
 }
 
 /**
