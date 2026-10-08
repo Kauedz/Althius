@@ -60,32 +60,44 @@ export function criarFonteDeAprovacoesSupabase(
   const ouvintes = new Set<() => void>()
   // O tipo de cada Aprovação lida, para a execução depois de aprovar ir a quem sabe fazê-la.
   const tipos = new Map<string, string>()
+  // O que abre junto (a navegação, a fila, cada cartão na Conversa) divide a mesma leitura em andamento.
+  let leituraEmAndamento: Promise<AprovacaoDeAcao[]> | null = null
+
+  async function lerAFila(): Promise<AprovacaoDeAcao[]> {
+    const { data, error } = await cliente.rpc('list_approvals', { p_workspace_id: workspaceId })
+    if (error) throw converterErro(error)
+    for (const linha of (data ?? []) as RegistroDaAprovacao[]) {
+      if (typeof linha.payload?.tipo === 'string') tipos.set(linha.id, linha.payload.tipo)
+    }
+    return ((data ?? []) as RegistroDaAprovacao[]).map(
+      (linha): AprovacaoDeAcao => ({
+        id: linha.id,
+        agenteId: linha.agent_id,
+        integracaoId: linha.integration_id as IntegracaoId,
+        acao: linha.action,
+        impacto: linha.impact,
+        justificativa: linha.justification,
+        origem: 'althius',
+        gatilho: 'conversa',
+        ...(linha.target_account_id ? { contaId: linha.target_account_id } : {}),
+        ...estadoDa(linha),
+      }),
+    )
+  }
+
   return {
     observar(ouvinte) {
       ouvintes.add(ouvinte)
       return () => ouvintes.delete(ouvinte)
     },
 
-    async aprovacoes() {
-      const { data, error } = await cliente.rpc('list_approvals', { p_workspace_id: workspaceId })
-      if (error) throw converterErro(error)
-      for (const linha of (data ?? []) as RegistroDaAprovacao[]) {
-        if (typeof linha.payload?.tipo === 'string') tipos.set(linha.id, linha.payload.tipo)
-      }
-      return ((data ?? []) as RegistroDaAprovacao[]).map(
-        (linha): AprovacaoDeAcao => ({
-          id: linha.id,
-          agenteId: linha.agent_id,
-          integracaoId: linha.integration_id as IntegracaoId,
-          acao: linha.action,
-          impacto: linha.impact,
-          justificativa: linha.justification,
-          origem: 'althius',
-          gatilho: 'conversa',
-          ...(linha.target_account_id ? { contaId: linha.target_account_id } : {}),
-          ...estadoDa(linha),
-        }),
-      )
+    aprovacoes() {
+      if (leituraEmAndamento) return leituraEmAndamento
+      const leitura = lerAFila().finally(() => {
+        if (leituraEmAndamento === leitura) leituraEmAndamento = null
+      })
+      leituraEmAndamento = leitura
+      return leitura
     },
 
     async decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {
@@ -97,7 +109,8 @@ export function criarFonteDeAprovacoesSupabase(
       if (error) throw converterErro(error)
       // Aprovada, a ação sai logo (Etapa 5b): o `crm-handoff` confere de novo que quem pede é Administrador, reserva a
       // Aprovação uma vez só e envia exatamente o conteúdo revisado. Uma Aprovação que não é de envio ao CRM ele recusa
-      // sem mudar nada. Um envio que não sai não desfaz a decisão: a fila relê e mostra executada ou falhou. A chamada de
+      // sem mudar nada. Um envio que não sai não desfaz a decisão: a fila relê e mostra executada ou falhou (sem resposta do
+      // executor, a Aprovação fica aprovada, sem execução). A chamada de
       // ferramenta de um conector (ADR-0022) sai pela `integration-tools`, do mesmo jeito.
       if (decisao === 'aprovada') {
         const executor = EXECUTOR[tipos.get(aprovacaoId) ?? ''] ?? 'crm-handoff'
@@ -105,6 +118,8 @@ export function criarFonteDeAprovacoesSupabase(
           .invoke(executor, { body: { action: 'executar_aprovacao', approvalId: aprovacaoId } })
           .catch(() => null)
       }
+      // A leitura que começou antes da decisão não serve mais: quem reler pede de novo.
+      leituraEmAndamento = null
       for (const ouvinte of ouvintes) ouvinte()
     },
   }

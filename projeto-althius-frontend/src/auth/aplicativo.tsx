@@ -370,6 +370,9 @@ function AplicativoDoWorkspace({
         participacao: { workspaceId, nomeDoWorkspace, papel: role === 'admin' ? 'administrador' : 'membro' },
         conversasDisponiveis: comConversas,
         sinaisDisponiveis: comSinais,
+        // A fila de Aprovações (CRM-15) liga com as Conversas: é nelas que os Agentes pedem Aprovações, e o crm-handoff
+        // que executa o envio aprovado é publicado junto com o agent-conversation.
+        aprovacoesDisponiveis: comConversas,
         anexosDisponiveis: comAnexos,
       }),
     [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, comSinais, comAnexos],

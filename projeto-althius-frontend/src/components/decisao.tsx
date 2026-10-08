@@ -4,8 +4,16 @@ import { rotuloDoEstadoDaAprovacao } from '@/fonte/regras'
 import type { AprovacaoDeAcao, LugarDaDecisao } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 
-/** Aprovar ou Recusar uma proposta; depois de decidida, mostra o resultado. */
-export function DecisaoDeAprovacao({ aprovacao, onde }: { aprovacao: AprovacaoDeAcao; onde: LugarDaDecisao }) {
+/** Aprovar ou Recusar uma proposta; depois de decidida, mostra o resultado. Com `podeDecidir` falso, a pendente diz quem decide. */
+export function DecisaoDeAprovacao({
+  aprovacao,
+  onde,
+  podeDecidir = true,
+}: {
+  aprovacao: AprovacaoDeAcao
+  onde: LugarDaDecisao
+  podeDecidir?: boolean
+}) {
   const fonte = useFonte()
 
   if (aprovacao.estado !== 'pendente') {
@@ -21,6 +29,7 @@ export function DecisaoDeAprovacao({ aprovacao, onde }: { aprovacao: AprovacaoDe
       </span>
     )
   }
+  if (!podeDecidir) return <p className="text-xs text-al-muted">Só um Administrador decide esta Aprovação.</p>
   return (
     <div className="flex gap-2">
       <Button onClick={() => fonte.decidirAprovacao(aprovacao.id, 'aprovada', onde)} className="px-6 tracking-rotulo uppercase">

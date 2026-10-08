@@ -1,3 +1,4 @@
+import type { ModoDoAmbiente } from './ambiente'
 import type { Aprovacao, CategoriaDeAprovacao, Decisao, EstadoAprovacao, Especialidade, Papel, Permissao } from './tipos'
 
 /** ADR 0002: Ler por padrão; Propor em qualquer Integração que escreve ou gasta. */
@@ -35,11 +36,16 @@ export const categoriaDa = (aprovacao: Aprovacao): CategoriaDeAprovacao =>
   aprovacao.revisao ? 'revisao-da-memoria' : 'acao'
 
 /**
- * Quem decide cada categoria de Aprovação (ADR 0010): a Revisão da Memória do Workspace, só um Administrador; as
- * demais seguem como antes, com qualquer participante ativo.
+ * Quem decide cada categoria de Aprovação (ADR 0010): a Revisão da Memória do Workspace, só um Administrador. As de
+ * ação, na Demonstração, qualquer participante ativo; no Workspace operacional, também só um Administrador, e o banco
+ * recusa a decisão de um Membro (decisão do Nan, 2026-10-01). Sem o ambiente, vale a regra do Workspace operacional.
  */
-export function podeDecidir(categoria: CategoriaDeAprovacao, papel: Papel): boolean {
-  return categoria !== 'revisao-da-memoria' || papel === 'administrador'
+export function podeDecidir(
+  categoria: CategoriaDeAprovacao,
+  papel: Papel | null | undefined,
+  modo: ModoDoAmbiente = 'real',
+): boolean {
+  return (categoria !== 'revisao-da-memoria' && modo === 'demonstracao') || papel === 'administrador'
 }
 
 export const ERRO_SEM_PARTICIPACAO = 'Você não participa deste Workspace.'

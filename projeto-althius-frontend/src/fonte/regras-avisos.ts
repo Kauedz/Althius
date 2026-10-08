@@ -33,10 +33,10 @@ function ativas(contaIds: ContaDeUsuarioId[], participacoes: ParticipacaoAtiva[]
   return contaIds.filter((contaId) => participacoes.some((p) => p.contaId === contaId))
 }
 
-/** Quem pode decidir a Aprovação, pela categoria dela e pelo papel de cada participante ativo. */
+/** Quem pode decidir a Aprovação, pela categoria dela e pelo papel de cada participante ativo, na Demonstração. */
 function quemDecide(aprovacao: Aprovacao, participacoes: ParticipacaoAtiva[]): ContaDeUsuarioId[] {
   const categoria = categoriaDa(aprovacao)
-  return participacoes.filter((p) => podeDecidir(categoria, p.papel)).map((p) => p.contaId)
+  return participacoes.filter((p) => podeDecidir(categoria, p.papel, 'demonstracao')).map((p) => p.contaId)
 }
 
 /** Uma Aprovação acabou de entrar na fila: avisa quem pode decidi-la. */

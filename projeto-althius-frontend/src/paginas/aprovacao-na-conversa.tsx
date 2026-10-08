@@ -62,13 +62,10 @@ export function AprovacaoNaConversa({
       {aprovacao.origem !== 'althius' && (
         <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>
       )}
-      {aprovacao.estado === 'pendente' && podeDecidir && (
+      {aprovacao.estado === 'pendente' && (
         <div className="pt-1.5">
-          <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" />
+          <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" podeDecidir={podeDecidir} />
         </div>
-      )}
-      {aprovacao.estado === 'pendente' && !podeDecidir && (
-        <p className="text-xs text-al-muted">Só um Administrador decide esta Aprovação.</p>
       )}
     </article>
   )
