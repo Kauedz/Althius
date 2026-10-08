@@ -10,9 +10,7 @@ import {
   type DadoRevelado,
   ApifyProvedorDeContatos,
   CascataProvedorDeContatos,
-  ApolloProvedorStub,
-  LushaProvedorStub,
-  ClayProvedorStub,
+  fornecedoresDaCascata,
 } from '../_shared/provedor-de-contatos.ts'
 
 export interface SocioReceita {
@@ -374,13 +372,7 @@ function json(corpo: unknown, status: number) {
 }
 
 export function criarHandlerEnrichment(deps: DepsEnrichment) {
-  const provedor = deps.provedorContatos ??
-    new CascataProvedorDeContatos([
-      deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : new ApolloProvedorStub(),
-      new ApolloProvedorStub(),
-      new LushaProvedorStub(),
-      new ClayProvedorStub(),
-    ])
+  const provedor = deps.provedorContatos ?? new CascataProvedorDeContatos(fornecedoresDaCascata({ apify: deps.apify }))
 
   const handler = async function handler(req: Request): Promise<Response> {
     if (req.method === 'OPTIONS') {
