@@ -233,3 +233,17 @@ Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 1
 | Testes | vermelho e verde registrados no ticket; `deno test --allow-all supabase/functions` 724/724; pgTAP do zero 58 arquivos, 2546/2546 (`custo_das_propostas_de_resposta.sql` 10/10); vitest `--maxWorkers=2` 107 arquivos, 1074/1074; `tsc -b` limpo. Sem tela nova, sem prints. |
 | O que o humano roda | 1. Com o CI verde, logo antes do merge, aplicar `supabase/migrations/20261008233000_custo_das_propostas_de_resposta.sql` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico, como em `docs/agents/migrations.md` (ela tira e põe de volta o `check` de `action_type` só para aceitar `reply_proposal`; nenhuma linha sai). 2. Depois, na raiz do repositório, no PowerShell: `npx supabase functions deploy reply-proposal-runner signal-runner signal-scan --project-ref ycbdilsmydvzezhlymty`. |
 | Decisões em aberto (Nan) | Com a chave de IA do cliente, o custo sai igual ao do modelo da Althius, sem dizer quem pagou (a Execução de Agente já era assim); a chamada com reserva vencida não grava custo, só o log. Detalhes nos Comments do ticket. |
+
+## Frente canais — 08 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | canais-cadencia-backend 08 — Gerar Propostas de resposta privadas (parte de chat) |
+| Status | blocked |
+| Branch | ralph/frente-canais |
+| Commit | este registro (só o ticket e o RALPH-STATUS; nenhum código) |
+| Push | não feito |
+
+Bloqueado pelo aviso 4 do CTO. O 08 de chat espera o envio real do 06 (WhatsApp) e do 07 (LinkedIn). Os dois seguem `ready-for-human`. Também falta a decisão sobre o Seam de Canal. Não houve vermelho nem código. O 09 depende do 06, do 07 e do 08, então a fila da frente canais fica vazia até o Nan desbloquear.
+
+O que o humano roda: os Passos do Nan dos tickets 06 e 07. São eles: conectar a Conta remetente, recadastrar o webhook com `message.new` (`bash scripts/wizard-unipile.sh`), ligar o canal com `select private.set_chat_channel_enabled('whatsapp', true);` e `select private.set_chat_channel_enabled('linkedin', true);`, enviar um teste e responder. Depois, marcar o 06 e o 07 e voltar o 08 para `ready-for-agent`. Nenhuma migration e nenhum deploy saem deste registro.

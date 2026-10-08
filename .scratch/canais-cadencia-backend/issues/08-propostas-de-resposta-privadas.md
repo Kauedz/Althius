@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Primeiro ciclo real por E-mail.
 
-**Status:** ready-for-agent (só falta a parte de chat; fazer depois do envio real dos tickets 06 e 07 e junto com o 09)
+**Status:** blocked (só falta a parte de chat; espera o envio real dos tickets 06 e 07, que seguem `ready-for-human`; fazer junto com o 09)
 
 - [ ] Uma resposta válida e já persistida cria trabalho idempotente para gerar uma única Proposta de resposta.
 - [ ] O contexto enviado à IA contém apenas os dados comerciais necessários daquela Conta-alvo, Contato, Sequência e conversa relevante.
@@ -30,6 +30,8 @@
   - Não feito para WhatsApp e LinkedIn: o único gatilho é `received_emails_reply_proposal` (`:305`); nada em `private.received_chat_messages` cria proposta.
   - Testes rodados: `deno test --allow-all supabase/functions/reply-proposal-runner/` (17 passed) e `supabase/functions/reply-proposal-send/` (18); `npx vitest run src/paginas/resposta-sugerida.test.tsx src/fonte/supabase-sequencias-propostas.test.ts` (6 + 5); pgTAP `propostas_de_resposta.sql` (132) ok no CI 37707955273.
   - Falta (agente): gatilho em `private.received_chat_messages` chamando `enqueue_reply_proposal` e `mark_reply_proposals_outdated`; `reply_proposal_context` (`:817-905`) lendo a conversa de chat; `list_reply_proposals` e `get_reply_proposal` (`:401,441`) com o trecho vindo de `received_chat_messages`; pgTAP novo. A `prospeccao-funcional` deixou a proposta de chat de fora; a decisão sobre o Seam de Canal vem antes.
+
+- 2026-10-08 (frente canais): blocked, sem código. Pelo aviso 4 do CTO, a parte de chat só começa depois do envio real do 06 e do 07. Os dois seguem `ready-for-human`: nenhuma resposta real de WhatsApp ou LinkedIn chegou em `private.received_chat_messages`. Também falta a decisão sobre o Seam de Canal, que esta frente não pode mexer. Para desbloquear: o Nan faz os Passos do Nan do 06 e do 07 (envio e resposta reais) e marca os dois; aí o 08 volta para `ready-for-agent`.
 
 ## Passos do Nan
 
