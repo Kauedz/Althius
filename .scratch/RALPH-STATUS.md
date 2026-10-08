@@ -120,3 +120,17 @@ Para o próximo agente: não reabra o C3. Os seis checkboxes estão ticados. Nã
 O que o humano roda: nada no banco. Não há migration. A tela lê `list_received_chat_messages`, que já existe. Sem push.
 
 Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 110 arquivos e 1090 testes. `npx tsc -b --pretty false`, exit 0. pgTAP não se aplica: este ticket não muda SQL.
+
+## Frente canais — 08 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | canais-cadencia-backend 08 — Gerar Propostas de resposta privadas (parte de chat) |
+| Status | blocked |
+| Branch | ralph/frente-canais |
+| Commit | este registro (só o ticket e o RALPH-STATUS; nenhum código) |
+| Push | não feito |
+
+Bloqueado pelo aviso 4 do CTO. O 08 de chat espera o envio real do 06 (WhatsApp) e do 07 (LinkedIn). Os dois seguem `ready-for-human`. Também falta a decisão sobre o Seam de Canal. Não houve vermelho nem código. O 09 depende do 06, do 07 e do 08, então a fila da frente canais fica vazia até o Nan desbloquear.
+
+O que o humano roda: os Passos do Nan dos tickets 06 e 07. São eles: conectar a Conta remetente, recadastrar o webhook com `message.new` (`bash scripts/wizard-unipile.sh`), ligar o canal com `select private.set_chat_channel_enabled('whatsapp', true);` e `select private.set_chat_channel_enabled('linkedin', true);`, enviar um teste e responder. Depois, marcar o 06 e o 07 e voltar o 08 para `ready-for-agent`. Nenhuma migration e nenhum deploy saem deste registro.
