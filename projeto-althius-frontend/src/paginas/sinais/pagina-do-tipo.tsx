@@ -4,19 +4,20 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
-import { useDadosDeSinais } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeSinais } from '@/fonte/contexto'
 import type { EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, familiaDoTipo, tipoPorId } from './catalogo'
 import { SeloDoEstado } from './componentes'
 import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
 import { VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
-import { ACAO_DO_ESTADO, resumoDoPublico, resumoDosCriterios } from './resumos'
+import { ACAO_DO_ESTADO, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
 
 export function PaginaDoTipo() {
   const { tipoId = '' } = useParams<{ tipoId: string }>()
   const { state } = useLocation() as { state?: { aviso?: string } }
   const [erroAcao, setErroAcao] = useState<string | null>(null)
+  const operacional = useAmbiente().modo === 'real'
   const tipo = tipoPorId(tipoId)
   const monitoramentos = useMonitoramentos(tipoId)
   const { mudarEstado } = useSinaisDoMockup()
@@ -144,9 +145,10 @@ export function PaginaDoTipo() {
         ) : (
           <ul aria-label="Monitoramentos deste tipo" className="flex flex-col border-t border-al-line">
             {monitoramentos.map((m) => {
+              // No operacional, enquanto os Sinais não chegam, não há contagem: os disparos de exemplo são só da Demonstração.
               const disparados = sinaisEncontrados
                 ? sinaisEncontrados.filter((s) => s.monitoramentoId === m.id).length
-                : sinaisDisparadosPor(m.id)
+                : operacional ? 0 : sinaisDisparadosPor(m.id)
               return (
               <li
                 key={m.id}
@@ -165,7 +167,7 @@ export function PaginaDoTipo() {
                     {resumoDosCriterios(m)}
                   </p>
                   <p className="text-xs text-al-muted">
-                    {resumoDoPublico(m.publico)}
+                    {operacional ? resumoDasContas(m.publico.listas.length) : resumoDoPublico(m.publico)}
                     {disparados > 0 && ` · ${disparados} ${disparados === 1 ? 'Sinal disparado' : 'Sinais disparados'}`}
                   </p>
                   {m.ultimaFalha && (
