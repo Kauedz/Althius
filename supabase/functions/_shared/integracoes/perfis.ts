@@ -37,7 +37,7 @@ export interface PerfilOAuth {
   registro: 'preregistrado' | 'dinamico'
   /** Os nomes dos segredos de ambiente (`npx supabase secrets set`) com o client id e o client secret. */
   segredos: { clientId: string; clientSecret: string }
-  /** Endereços explícitos, quando o servidor não publica o metadado de autorização. */
+  /** Endereços explícitos: o servidor não publica o metadado de autorização, ou o perfil fixa os que ele publica. */
   autorizacao?: string
   token?: string
   escopos?: string[]

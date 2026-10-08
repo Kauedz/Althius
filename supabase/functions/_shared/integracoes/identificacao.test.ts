@@ -90,7 +90,7 @@ Deno.test('HubSpot OAuth: o portal vem do hub_id da resposta do token (OAuth v3)
   assertEquals(r, { ok: true, portal: '4321', conta: null })
 
   // Com a consulta aceita, ela só completa a conta: o portal continua o da resposta do token.
-  const aceita = api({ 'https://api.hubapi.com/oauth/v1/access-tokens/tok-5': () => json({ hub_id: 4321, user: 'ana@norte.test' }) })
+  const aceita = api({ 'https://api.hubapi.com/oauth/v1/access-tokens/tok-5': () => json({ hub_id: 9999, user: 'ana@norte.test' }) })
   const completa = await identificarConta(PERFIS.hubspot.mcp!.oauth!.identificacao, 'tok-5', 'token', {
     fetch: aceita.fetch,
     respostaDoToken: { access_token: 'tok-5', hub_id: 4321 },
