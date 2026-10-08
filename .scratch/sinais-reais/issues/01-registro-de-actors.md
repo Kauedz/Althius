@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Pode mexer
 
@@ -39,3 +39,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 ## Comments
 
 - Feito na PR https://github.com/Kauedz/Althius/pull/97 (registro e função). Várias contas do Apify (rodízio quando o crédito acaba) em PR seguinte.
+- 07/10/2026: Status corrigido para `closed`, como a auditoria de 01/10 (`.scratch/AUDITORIA-2026-10-01.md`, seção 6) dá. Conferido no remoto (só leitura): migration aplicada, `signal-scan` publicada e os 9 actors `available`. O estado `available` foi gravado à mão no remoto: um banco novo ou o CI nasce com todos `testing`. Os segredos `APIFY_TOKEN*` não foram conferidos.

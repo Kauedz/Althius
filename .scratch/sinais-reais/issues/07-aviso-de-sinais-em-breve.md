@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Registro de actors.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Pode mexer
 
@@ -31,3 +31,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - Card em teste ou em breve mostra o selo e o motivo e **não é link**; a página do tipo não oferece "Novo monitoramento" e diz o motivo; o endereço direto do formulário volta para a página do tipo.
 - Aviso no topo do catálogo (`role="note"`) com os Sinais que faltam (Gupy, Google Ads, notícias, tecnologia do site, rodadas de investimento, Reclame Aqui e os Sinais próprios); só aparece quando algum tipo não está disponível. A Demonstração não informa estado e segue mostrando o catálogo completo, sem selos nem aviso.
 - Aparece no Workspace operacional quando o módulo Sinais for liberado (ticket 03); os testes usam uma Fonte com estados.
+- 07/10/2026: Status corrigido para `closed`, como a auditoria de 01/10 (`.scratch/AUDITORIA-2026-10-01.md`, seção 6) dá: o código está na `main`. No remoto os 9 actors estão `available`, então o módulo Sinais aparece no Workspace operacional.

@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Monitoramento real; `creditos-e-planos` 03.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Pode mexer
 
@@ -52,3 +52,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - Frontend: botão "Buscar Sinais de novo" na seção Sinais da Conta (`buscar-sinais-de-novo.tsx`), com o custo ao lado ("2 créditos"), desligado com o motivo (sem Monitoramento ativo, sem saldo), "Buscando Sinais…" enquanto a busca está na fila (a tela confere a cada 8 s e recarrega os Sinais e o foguinho quando termina), última busca e o motivo de não ter varrido tudo. Só aparece com o módulo Sinais liberado no Workspace (ticket 03); a Demonstração mostra um custo de exemplo e não grava Sinal.
 - Decisões a confirmar: (1) "Fit" é o estágio Fit do kanban, porque a Aderência ainda não é gravada em outro lugar; Conta em Em abordagem ou adiante não é reativada. (2) A busca usa **todos** os Monitoramentos ativos do Workspace, mesmo que a Conta não esteja no público deles. (3) Cada Conta é revisitada no máximo uma vez a cada 30 dias, pela mensal ou pelo clique. (4) Fora da lista "Pode mexer" do ticket, mas exigidos pela fila e pela ação na Conta: a função `signal-runner` (`handler.ts`, `index.ts`, README), `contas-tipos.ts`, `simulada-contas.ts`, `supabase-contas.ts`, `detalhe-conta.tsx` e o apoio de teste `src/test/renderizar.tsx`. (5) A varredura dos tickets 02 e 08 sempre reserva crédito, sem o interruptor `credits_enforced` do ticket 04 (que só vale para Agentes): se o Nan quiser varrer sem cobrar antes de assinar, é um ajuste pequeno.
 - Limites conhecidos: (a) o clique numa Conta que já tem busca mensal pendente, ainda sem varredura, assume a busca (vira do clique, com os conferes de saldo e limite de quem pediu). (b) A busca em que todas as varreduras falharam termina como parada, não como revisita, então a mensal tenta de novo. (c) Uma função que cai entre abrir e fechar uma varredura mensal deixa a reserva presa até a faxina de 2 h, que solta o crédito mas não devolve o teto do mês. (d) Uma busca que falha por erro inesperado volta à fila a cada volta até ser encerrada em 2 dias, sem limite de tentativas.
+- 07/10/2026: Status corrigido para `closed`, como a auditoria de 01/10 (`.scratch/AUDITORIA-2026-10-01.md`, seção 6) dá. Conferido no remoto (só leitura): migration `20260930200000` aplicada, relógios `althius-signal-reactivation` e `althius-signal-rescans` agendados, `signal-runner` publicada e `configure_signal_runner` já rodado. Segue aberto o ponto da auditoria (seção 4, Sinais): a reativação só pega o estágio `fit`, e as Contas em Descoberta nunca voltam a ser varridas.
