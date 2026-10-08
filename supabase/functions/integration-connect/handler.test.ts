@@ -94,7 +94,7 @@ Deno.test('HubSpot: devolve o endereço de consentimento com PKCE, e o verificad
   assert(!texto.includes('verificador-secreto'))
   assert(!texto.includes('segredo-hubspot-xyz'))
   const consentimento = new URL(url)
-  assertEquals(consentimento.origin + consentimento.pathname, 'https://mcp.hubspot.com/oauth/authorize')
+  assertEquals(consentimento.origin + consentimento.pathname, 'https://mcp.hubspot.com/oauth/authorize/user')
   assertEquals(consentimento.searchParams.get('client_id'), 'cid-hubspot')
   assertEquals(consentimento.searchParams.get('state'), 'estado-123')
   assertEquals(consentimento.searchParams.get('redirect_uri'), URL_DE_RETORNO)

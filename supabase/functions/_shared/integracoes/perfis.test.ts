@@ -57,6 +57,21 @@ Deno.test('o HubSpot usa o app pré-registrado, com os segredos HUBSPOT_MCP_CLIE
   assertEquals(PERFIS['meta-ads'].mcp!.url, 'https://mcp.facebook.com/ads')
 })
 
+// O que https://mcp.hubspot.com/.well-known/oauth-authorization-server publicava em 08/10/2026 (RFC 8414), resumido. Ele
+// não tem `registration_endpoint`: sem registro dinâmico, o cliente é o MCP Auth App pré-registrado.
+const METADADO_DO_HUBSPOT = {
+  authorization_endpoint: 'https://mcp.hubspot.com/oauth/authorize/user',
+  token_endpoint: 'https://mcp.hubspot.com/oauth/v3/token',
+  token_endpoint_auth_methods_supported: ['client_secret_post'],
+}
+
+Deno.test('o HubSpot usa os endereços e a autenticação do cliente que o próprio servidor publica', () => {
+  const oauth = PERFIS.hubspot.mcp!.oauth!
+  assertEquals(oauth.autorizacao, METADADO_DO_HUBSPOT.authorization_endpoint)
+  assertEquals(oauth.token, METADADO_DO_HUBSPOT.token_endpoint)
+  assert(METADADO_DO_HUBSPOT.token_endpoint_auth_methods_supported.includes(oauth.autenticacaoDoToken!))
+})
+
 Deno.test('as ferramentas REST: caminho com argumento codificado, consulta, corpo com envelope e a chave onde o app manda', () => {
   const hubspot = PERFIS.hubspot.rest!
   const lerRegistro = hubspot.ferramentas.find((f) => f.nome === 'get_record')!

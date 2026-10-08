@@ -31,6 +31,8 @@ O proxy de rede do ambiente bloqueou a leitura direta das páginas oficiais (`de
 | Token na API REST | **não confirmado** se o token do MCP Auth App autoriza chamadas à API REST. |
 | Limite de instalações | Apps do MCP seguem os limites de distribuição dos demais apps: 25 instalações até serem listados no marketplace. [7] | confirmado; se conta por pessoa ou por portal **não confirmado** |
 
+**Conferência de 08/10/2026 (ticket 03):** o servidor publica o metadado de autorização em `https://mcp.hubspot.com/.well-known/oauth-authorization-server`. Ele confirma a autorização em `/oauth/authorize/user`, o token em `/oauth/v3/token`, `client_secret_post`, PKCE S256 e a ausência de registro dinâmico. A troca do código no OAuth v3 devolve o `hub_id` [18], e é de lá que o portal sai primeiro. Que o servidor do MCP também o devolve só se confirma no 09.
+
 ## Notion
 
 | Ponto | O que a fonte oficial diz | Estado |
@@ -78,3 +80,4 @@ O proxy de rede do ambiente bloqueou a leitura direta das páginas oficiais (`de
 15. [Meta's ads MCP server is now available for developers](https://developers.facebook.com/blog/post/2026/07/16/meta-ads-mcp-server/)
 16. [Google Ads MCP server: Developer integration guide](https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server)
 17. [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp)
+18. [OAuth v3 do HubSpot](https://developers.hubspot.com/docs/api-reference/auth-oauth-v3/guide)
