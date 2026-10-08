@@ -6,14 +6,14 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
 
 **Blocked by:** 01: Rotas e casca visual das telas de acesso; 02: Workspace pessoal criado no primeiro acesso.
 
-**Status:** ready-for-agent (código na `main`; faltam a abertura no Workspace operacional, as rotas públicas dos Termos e o e-mail para conta existente, ver Comments de 2026-10-07)
+**Status:** ready-for-agent (a correção (A) da raiz entrou em 2026-10-08, commit 56abc71; faltam (B) rotas públicas /termos e /privacidade e (C) o e-mail para conta existente por Edge Function própria, ver Comments de 2026-10-07)
 
 - [x] `/cadastro` pede só nome, e-mail e senha, dentro da casca das telas de acesso, com link para `/entrar`.
 - [x] Senha com mínimo de 8 caracteres, sem regras de composição, com medidor de força, mostrar/ocultar e `autocomplete` para gerenciadores de senha.
 - [x] Após "Criar conta", a mesma tela pede o código de 6 dígitos; o link do e-mail também confirma no mesmo navegador. Sem verificação não há sessão nem Workspace.
 - [x] "Reenviar código" com intervalo mínimo visível e "Corrigir e-mail" sem perder o nome digitado.
 - [x] Atualizar a página na etapa do código mantém a etapa.
-- [ ] Cadastro com e-mail já existente mostra a mesma resposta do cadastro novo; o e-mail enviado explica como entrar.
+- [ ] Cadastro com e-mail já existente mostra a mesma resposta do cadastro novo; o e-mail enviado explica como entrar. — A tela já responde igual (teste "cadastro com e-mail que já tem conta mostra a mesma resposta do cadastro novo"). Falta o e-mail: o Supabase não envia nada no `signUp` de um e-mail já confirmado, então o aviso depende do SMTP e de um envio próprio (Auth-10).
 - [x] Texto de aceite passivo com links para Termos de Uso e Política de Privacidade abaixo do botão; o aceite é gravado pelo bootstrap.
 - [x] Testes de raiz com o Supabase falso (ampliado para cadastro, confirmação e reenvio) cobrem o caminho completo, e-mail existente, senha curta e atualização da página.
 
@@ -33,3 +33,8 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
     - (B) Rotas públicas `/termos` e `/privacidade`, fora do login e da Demonstração, com teste. O texto jurídico é do Nan.
     - (C) Quando o `signUp` devolver `identities` vazio, `cadastrar` chama em silêncio uma Edge Function nova que confere no Auth a conta confirmada e manda "você já tem conta: entre com Google, senha ou código, ou defina a senha em /esqueci-a-senha", com limite por e-mail (modelo: `supabase/functions/workspace-invitation-email/resend.ts`). Testes Deno e de raiz.
   - Depois do (C), Passo do Nan, no PowerShell, na raiz: `npx supabase functions deploy <nome-da-funcao-nova> --project-ref ycbdilsmydvzezhlymty`, e `npx supabase secrets list --project-ref ycbdilsmydvzezhlymty` para ver que `RESEND_API_KEY` já existe. O modelo "Confirm signup" com `{{ .Token }}` fica no ticket 10.
+- 2026-10-08 (branch `ralph/auth-03-05-redefinir-senha`, junto com o Auth-05): num navegador que nunca tinha escolhido o Workspace operacional, `/cadastro` abria a Demonstração, e o link de confirmação (que volta ao `destino`, fora das telas de acesso) também. A raiz (`src/raiz.tsx`) só tratava `/entrar` e o convite como Workspace operacional.
+  - Correção: `ehCaminhoDeAcesso` (`src/auth/destino.ts`) cobre as quatro telas de acesso e o link do convite. Quem abre um desses endereços fica com o Workspace operacional lembrado neste navegador, para os links do e-mail abertos aqui caírem nele. O botão "Abrir Demonstração (sem login)" continua gravando a Demonstração.
+  - Testes em `src/raiz.test.tsx`: "quem abre /cadastro pela primeira vez neste navegador vê a tela de acesso, e não a Demonstração"; "o link do e-mail abre o Workspace pessoal, e não a Demonstração, num navegador que nunca escolheu o Workspace operacional"; "num navegador novo, a Demonstração aberta a partir de /entrar continua aberta ao atualizar a página". Suíte completa 1078/1078 antes dos ajustes da revisão (os testes afetados passam depois deles); `tsc -b` e `oxlint` limpos.
+  - Conferência visual (Chrome headless, perfil novo, 1400×900 e 360px) com o Supabase falso dos testes, porque não há `.env` com Supabase local: [cadastro](prints/03-cadastro-navegador-novo.jpg), [cadastro a 360px](prints/03-cadastro-360.jpg), [código](prints/03-confirme-seu-email.jpg), [link de confirmação → Workspace pessoal](prints/03-link-de-confirmacao.jpg). Nenhum erro no console.
+  - Decisão do Renan (2026-10-08): aceito como está. Abrir uma tela de acesso ou um convite deixa o Workspace operacional lembrado no navegador, e quem visitou `/cadastro` vai para `/entrar` ao voltar ao início, não para a Demonstração. Descartada a alternativa de os links do e-mail voltarem por `/entrar?destino=…`.

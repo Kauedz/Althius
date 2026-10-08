@@ -1083,6 +1083,18 @@ describe('Telas de acesso', () => {
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
   })
 
+  it.each([
+    ['/cadastro', 'Criar conta'],
+    ['/esqueci-a-senha', 'Esqueci a senha'],
+    // O link de redefinição aberto noutro navegador: ele só vale onde foi pedido, e a tela explica.
+    ['/redefinir-a-senha', 'Redefinir a senha'],
+  ])('quem abre %s pela primeira vez neste navegador vê a tela de acesso, e não a Demonstração', async (rota, titulo) => {
+    window.history.replaceState(null, '', rota)
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { name: titulo })).toBeInTheDocument()
+  })
+
   it('depois de entrar nesta aba, a pessoa volta ao endereço que tentou abrir', async () => {
     window.history.replaceState(null, '', '/contas')
     const { usuario, iniciarSessao } = abrirAlthius({
@@ -1134,6 +1146,19 @@ describe('Telas de acesso', () => {
 
     await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
     expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+  })
+
+  it('num navegador novo, a Demonstração aberta a partir de /entrar continua aberta ao atualizar a página', async () => {
+    demonstracaoJaIniciada()
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, cliente, servicos } = abrirAlthius()
+
+    await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
+    expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+
+    cleanup()
+    render(<RaizDoAplicativo cliente={cliente} servicos={servicos} />)
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Demonstração')).toBeInTheDocument()
   })
 })
 
@@ -1306,6 +1331,24 @@ describe('Cadastro com senha', () => {
     act(() => abrirLinkDeConfirmacao(MARINA.email))
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/sinais')
+  })
+
+  it('o link do e-mail abre o Workspace pessoal, e não a Demonstração, num navegador que nunca escolheu o Workspace operacional', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const supabase = abrirAlthius()
+    await preencherCadastro(supabase.usuario)
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
+    const link = new URL(supabase.linkEnviadoPara(MARINA.email)!)
+
+    // A pessoa abre o link do e-mail numa nova aba deste navegador.
+    cleanup()
+    sessionStorage.clear()
+    window.history.replaceState(null, '', link.pathname + link.search)
+    supabase.abrirLinkDeConfirmacao(MARINA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
   })
 
   it('cadastro com e-mail que já tem conta mostra a mesma resposta do cadastro novo', async () => {
@@ -1787,6 +1830,26 @@ describe('Esqueci a senha', () => {
     await definirNovaSenha(supabase.usuario)
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/sinais')
+  })
+
+  it('o link do e-mail abre a nova senha, e não a Demonstração, num navegador que nunca escolheu o Workspace operacional', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const supabase = abrirAlthius({ contas: [{ ...CONTA_DA_MARINA }] })
+    await supabase.usuario.click(await screen.findByRole('link', { name: 'Esqueci a senha' }))
+    await pedirRedefinicao(supabase.usuario, MARINA.email)
+    await screen.findByRole('status')
+    const link = new URL(supabase.linkEnviadoPara(MARINA.email)!)
+
+    // A pessoa abre o link do e-mail numa nova aba deste navegador.
+    cleanup()
+    sessionStorage.clear()
+    window.history.replaceState(null, '', link.pathname + link.search)
+    supabase.abrirLinkDeRedefinicao(MARINA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
+
+    await definirNovaSenha(supabase.usuario)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
   })
 
   it('quem só entra com Google, sem senha, define a primeira senha pelo mesmo caminho', async () => {
