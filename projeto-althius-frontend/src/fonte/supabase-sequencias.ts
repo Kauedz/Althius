@@ -93,13 +93,22 @@ interface LinhaDaProposta {
   body: string | null
   revision: number
   status: PropostaDeResposta['status']
+  failure_code: string | null
   sent_at: string | null
   send_error: string | null
   origin_received_at: string | null
   origin_excerpt: string | null
 }
 
+/** O motivo que o reply-proposal-runner grava quando o teto barra a primeira geração. */
+const PARADA_PELO_TETO: Record<string, NonNullable<PropostaDeResposta['paradaPeloTeto']>> = {
+  automation_confirm: 'confirmar',
+  automation_no_cap: 'sem_teto',
+  automation_cap_reached: 'teto_atingido',
+}
+
 function mapearProposta(linha: LinhaDaProposta): PropostaDeResposta {
+  const paradaPeloTeto = linha.failure_code ? PARADA_PELO_TETO[linha.failure_code] : undefined
   return {
     id: linha.id,
     canal: linha.channel,
@@ -113,6 +122,7 @@ function mapearProposta(linha: LinhaDaProposta): PropostaDeResposta {
     ...(linha.origin_received_at ? { recebidaEm: linha.origin_received_at } : {}),
     ...(linha.sent_at ? { enviadaEm: linha.sent_at } : {}),
     ...(linha.send_error ? { erroDoEnvio: linha.send_error } : {}),
+    ...(paradaPeloTeto ? { paradaPeloTeto } : {}),
   }
 }
 

@@ -2,6 +2,7 @@ import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '@/App'
 import type { Ambiente, ModuloDoWorkspace } from '@/fonte/ambiente'
+import type { FonteDeAutomacao } from '@/fonte/automacao-tipos'
 import type { FonteDeConexoes } from '@/fonte/conexoes-tipos'
 import type { FonteDeSinais } from '@/fonte/sinais-tipos'
 import type { FonteDeContas, FonteDeOnboarding } from '@/fonte/tipos'
@@ -54,12 +55,14 @@ interface Ajustes {
   sinais?: (fonte: FonteDeSinais) => FonteDeSinais
   /** Troca a Fonte de Conexões simulada por outra feita a partir dela, só neste teste. */
   conexoes?: (fonte: FonteDeConexoes) => FonteDeConexoes
+  /** Troca a Fonte de Automação simulada por outra feita a partir dela, só neste teste. */
+  automacao?: (fonte: FonteDeAutomacao) => FonteDeAutomacao
   /** Os módulos que este teste dá por indisponíveis, como o Workspace operacional ainda sem backend deles. */
   indisponiveis?: ModuloDoWorkspace[]
 }
 
 /** O app como em `renderizarApp`, com uma Fonte ajustada pelo teste no lugar da simulada. */
-export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, conexoes, indisponiveis }: Ajustes) {
+export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, conexoes, automacao, indisponiveis }: Ajustes) {
   return montarApp({
     rota,
     opcoesOnboarding,
@@ -67,6 +70,7 @@ export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, 
     ajustarOnboarding: onboarding,
     ajustarSinais: sinais,
     ajustarConexoes: conexoes,
+    ajustarAutomacao: automacao,
     indisponiveis,
   })
 }
@@ -83,6 +87,7 @@ function montarApp({
   ajustarOnboarding = (fonte) => fonte,
   ajustarSinais = (fonte) => fonte,
   ajustarConexoes = (fonte) => fonte,
+  ajustarAutomacao = (fonte) => fonte,
   indisponiveis = [],
 }: {
   rota: string
@@ -96,6 +101,7 @@ function montarApp({
   ajustarOnboarding?: (fonte: FonteDeOnboarding) => FonteDeOnboarding
   ajustarSinais?: (fonte: FonteDeSinais) => FonteDeSinais
   ajustarConexoes?: (fonte: FonteDeConexoes) => FonteDeConexoes
+  ajustarAutomacao?: (fonte: FonteDeAutomacao) => FonteDeAutomacao
   indisponiveis?: ModuloDoWorkspace[]
 }) {
   const fonte = criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES, ...opcoesFonte })
@@ -136,7 +142,7 @@ function montarApp({
     fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
     fonteDeConexoes: ajustarConexoes(criarFonteDeConexoesSimulada()),
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
-    fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
+    fonteDeAutomacao: ajustarAutomacao(criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() })),
     fonteDeDescobertas,
     indisponiveis: new Set(indisponiveis),
   }
