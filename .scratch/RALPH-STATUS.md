@@ -104,3 +104,19 @@ O que o humano roda, antes de publicar: no SQL Editor, só leitura, a consulta d
 Correção de vocabulário neste registro: o Status do prospeccao-funcional C1 passou de `done` para `closed`. Não sobra passo humano de migration nem de deploy nesse ticket. A seção do C1 acima fica como o registro da manhã.
 
 Suítes: `npm test` no frontend, exit 0, 109 arquivos e 1085 testes. `deno test supabase/functions`, exit 0, `ok | 710 passed | 0 failed`. pgTAP não rodou: sem CLI e sem Docker, e este ticket não muda SQL.
+
+## Frente canais — C3 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | prospeccao-funcional C3 — O titular vê as respostas de WhatsApp e LinkedIn |
+| Status | closed |
+| Branch | ralph/frente-canais |
+| Commit | ba61a0738cc0113d3dd422f98863c7d321a7c3bc |
+| Push | não feito |
+
+Para o próximo agente: não reabra o C3. Os seis checkboxes estão ticados. Não há migration nem deploy. Os canais 08 e 09 dependem do envio real do 06/07 (humano). Ao chegar neles, confira o Blocked by; se o bloqueio seguir, marque BLOCKED e pare. Esta sessão para no C3.
+
+O que o humano roda: nada no banco. Não há migration. A tela lê `list_received_chat_messages`, que já existe. Sem push.
+
+Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 110 arquivos e 1090 testes. `npx tsc -b --pretty false`, exit 0. pgTAP não se aplica: este ticket não muda SQL.
