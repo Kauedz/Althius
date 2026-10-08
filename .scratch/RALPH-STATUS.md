@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-10-08 (Auth-03/05: link de redefinição na Demonstração)
+Updated: 2026-10-08 (Auth-03 fechado: (B) /termos e /privacidade, (C) aviso a quem já tem conta)
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -27,6 +27,7 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | Review final | done | — | 0 bloqueantes; 2 importantes + 2 menores em correção |
 | Correções da revisão | done | ralph/revisao-correcoes · PR #30 (draft, topo da pilha) | 4/4; pgTAP 40/40, 21/21, 24/24; suíte 604/604; vincular+editar Contato (CRM-05); enumeração pelo rate limit (Auth); aceite dos Termos só no 1º acesso; erro cru de RPC |
 | Auth-03 + Auth-05 (2026-10-08) | parcial: correção (A) da raiz feita; Auth-03 segue com (B) /termos e /privacidade e (C) e-mail para conta existente; Auth-05 só falta o humano do ticket 10 | ralph/auth-03-05-redefinir-senha | link de redefinição, `/cadastro`, `/esqueci-a-senha` e link de confirmação abriam a Demonstração num navegador sem escolha; sem migration; ver seção "Auth-03/05 — 2026-10-08" |
+| Auth-03 (B)+(C) (2026-10-08) | closed (código); pending-human: migration 20261008160000 e deploy da `existing-account-email` | ralph/frente-acesso · commit 435ccb0 | /termos e /privacidade públicos; aviso por e-mail a quem já tem conta (Edge Function sem JWT + RPC só de service_role, com limites); vitest 1088/1088, deno 721/721, pgTAP do zero ok; ver seção "Auth-03 (B)+(C) — 2026-10-08" |
 | Auth-09 | out | — | fora do corte; exige CRM-03 |
 | Auth-10 | human | — | ready-for-human; não spawnar |
 | CRM-03, 16, 19, 20, 21, 22–24 | out | — | fora do corte / ponteiros |
@@ -67,11 +68,28 @@ A correção do aceite dos Termos entrou como migration nova `20260925170000_boo
   3. Supabase Auth, pendência antiga do Auth-05 (Dashboard → Authentication → URL Configuration): `https://<domínio>/redefinir-a-senha` e os destinos dos links (`https://<domínio>/**`) nas Redirect URLs. Modelos "Confirm signup" e "Reset Password" com `{{ .Token }}` além do link.
   4. Conferência real, depois do deploy: numa janela anônima, abrir `https://<domínio>/entrar` → "Esqueci a senha" → abrir o link do e-mail na mesma janela → deve aparecer "Defina uma nova senha". Repetir com `https://<domínio>/cadastro` e o link de confirmação → deve abrir o Workspace pessoal.
 
+## Auth-03 (B)+(C) — 2026-10-08
+- **Ticket:** autenticacao-google-email 03, partes (B) e (C). Checkboxes 8/8; Status `closed`, com os Passos do Nan pendentes.
+- **Branch:** `ralph/frente-acesso`, commit `435ccb0`. Sem push.
+- **O que mudou:** `/termos` e `/privacidade` abrem uma página pública (`src/auth/documento-publico.tsx`), fora do login e da Demonstração. O cadastro com e-mail que já tem conta chama em silêncio a Edge Function nova `existing-account-email` (`verify_jwt = false`, responde sempre 202). Ela reserva o aviso pela RPC `claim_existing_account_notice` (migration `20261008160000_aviso_de_conta_existente.sql`) e manda o e-mail pelo Resend do Convite.
+- **Testes:** vitest 1088/1088, `tsc -b` limpo, oxlint sem erros, `deno check` em todas as funções, `deno test supabase/functions` 721/721, pgTAP do zero com todas as migrations ok (`aviso_de_conta_existente.sql` 14/14).
+- **Decisões a confirmar (Nan):**
+  - A função não tem CAPTCHA. Os limites seguram o abuso: 3 avisos por dia por conta e 200 por hora no total.
+  - A página `/termos` mostra o título "Termos de serviço", e o link diz "Termos de Uso".
+  - O remetente é o mesmo do Convite (`INVITE_EMAIL_FROM`).
+- **O que o humano roda (PowerShell, na raiz do repo), depois do merge e do CI verde:**
+  1. Conferir os testes: `cd projeto-althius-frontend; npx vitest run src/raiz.test.tsx; npx tsc -b; cd ..; deno test supabase/functions/existing-account-email`
+  2. Aplicar `supabase/migrations/20261008160000_aviso_de_conta_existente.sql` no Supabase `ycbdilsmydvzezhlymty` como manda `docs/agents/migrations.md` (um agente com o MCP do Supabase, pelo `execute_sql`).
+  3. `npx supabase secrets list --project-ref ycbdilsmydvzezhlymty`: confira que `RESEND_API_KEY` e `APP_ORIGIN` aparecem.
+  4. `npx supabase functions deploy existing-account-email --project-ref ycbdilsmydvzezhlymty`
+  5. Conferência real: numa janela anônima, cadastrar em `https://<domínio>/cadastro` um e-mail que já tem conta confirmada. A tela pede o código como num cadastro novo, e a caixa recebe "Você já tem conta na Althius". Abrir também `/termos` e `/privacidade`.
+
 ## STOP
 Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana.
 
 ## Alerts
 - ALERTA RALPH | migrations | aplicar no remoto, na ordem, as que faltarem: 140000 (se ainda não) → 150000 → 160000 → 170000.
+- ALERTA RALPH | Auth-03 | pending-apply | aplicar `supabase/migrations/20261008160000_aviso_de_conta_existente.sql` e só depois publicar a Edge Function `existing-account-email`.
 - ALERTA RALPH | PR #23 (outra sessão) | o wizard de teste real do canais-01 pode ter criado dados em `public.workspaces` no remoto; conferir se a tabela já existe antes de aplicar a 140000 (que faz `create table`).
 - ALERTA RALPH | canais-03 | GATE | Blocked-by faltando: canais-01 não está done.
 - ALERTA RALPH | CRM-05 | pending-apply + humano | migration 20260925160000 move a tabela antiga de destinatários (canais-02) para `private.target_contacts_canais02` e troca `public.target_contacts` por view; decidir o destino das linhas antigas, se houver.
