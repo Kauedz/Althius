@@ -14,7 +14,8 @@ import {
   CascataProvedorDeContatos,
   ApolloProvedorStub,
 } from '../_shared/provedor-de-contatos.ts'
-import type { Apify } from '../signal-scan/handler.ts'
+import { clienteDoApify } from '../signal-scan/apify.ts'
+import { ApifyTimeoutError, type Apify } from '../signal-scan/handler.ts'
 
 Deno.test('validarCnpj: aceita CNPJ válido com 14 dígitos e calcula os dígitos verificadores', () => {
   // CNPJ da Ambev S.A.: 07.526.557/0001-00
@@ -500,4 +501,277 @@ Deno.test('cnpj-receita com reserva liquida o crédito e grava o custo em dólar
     'finish:true',
     'custo:0.00155:run-receita-1',
   ])
+})
+
+// Schema de entrada lido em 2026-10-08 em GET /v2/acts/harvestapi~linkedin-company-employees,
+// build 0.0.163 (DvpBSFm17AcocApXs, terminou em 2026-10-07T18:08:05.771Z). Não é um chute:
+// companies pede a URL inteira ("Provide full LinkedIn URLs. Example: https://www.linkedin.com/company/google");
+// profileScraperMode tem o enum "Short ($4 per 1k)"; jobTitles filtra o cargo.
+// O README desse build diz que o modo Short devolve nome, URL do perfil, location e as posições atuais.
+// O exemplo de saída traz firstName, lastName, linkedinUrl, headline, photo, location.linkedinText,
+// currentPosition[] e experience[].position. A execução real de 30/09/2026, no modo Short, traz o cargo
+// em currentPositions[].title. Headline não completa cargo, nome nem LinkedIn.
+const MODO_CURTO_DO_SCHEMA = 'Short ($4 per 1k)'
+
+type FinishDoComite = { success: boolean; contactsFound: number; costUsd?: number; error?: string }
+type CustoDoComite = { runId: string; items: number; costUsd: number | null; actorId: string }
+
+function registroDoComite() {
+  return {
+    finish: [] as FinishDoComite[],
+    custos: [] as CustoDoComite[],
+    propostas: [] as string[],
+  }
+}
+
+function dbDoComite(registro: {
+  finish: FinishDoComite[]
+  custos: CustoDoComite[]
+  propostas: string[]
+}): DbEnrichment {
+  return {
+    async userFromJwt() {
+      return { userId: 'user-1' }
+    },
+    async beginCommitteeDiscovery() {
+      return { runId: 'run-comite-1', reservationId: 'res-comite-1' }
+    },
+    async finishCommitteeDiscovery(args) {
+      registro.finish.push({
+        success: args.success,
+        contactsFound: args.contactsFound,
+        costUsd: args.costUsd,
+        error: args.error,
+      })
+    },
+    async recordProposedContact(args) {
+      registro.propostas.push(args.name)
+      return { id: `prop-${registro.propostas.length}`, created: true }
+    },
+    async getContactForReveal() {
+      return null
+    },
+    async beginRevealContact() {
+      return { reservationId: 'res-1' }
+    },
+    async finishRevealContact() {
+      return { success: false, debitedCredits: 0 }
+    },
+    async recordDiscoveryCost(args) {
+      registro.custos.push({
+        runId: args.runId,
+        items: args.items,
+        costUsd: args.costUsd,
+        actorId: args.actorId,
+      })
+    },
+  }
+}
+
+function pedidoDeComite() {
+  return new Request('http://localhost/account-enrichment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+    body: JSON.stringify({
+      action: 'comite-compra',
+      workspaceId: 'ws-1',
+      targetAccountId: 'conta-1',
+      companyName: 'Acme Logística S.A.',
+      companyLinkedinUrl: 'https://www.linkedin.com/company/acme-logistica/',
+      cargos: ['Diretor de Operações'],
+      limite: 10,
+    }),
+  })
+}
+
+Deno.test('comite-compra: a entrada segue o schema do build 0.0.163 e a saída não estima cargo nem LinkedIn', async () => {
+  const entrada: { atual: Record<string, unknown> | null } = { atual: null }
+  const registro = registroDoComite()
+  const apify: Apify = {
+    async run(args) {
+      entrada.atual = args.input as Record<string, unknown>
+      return {
+        runId: 'apify-run-entrada',
+        items: [
+          {
+            firstName: 'Maria',
+            lastName: 'Exemplo',
+            headline: 'Lidero operações na Acme',
+            linkedinUrl: 'https://www.linkedin.com/in/maria-exemplo',
+            photo: 'https://exemplo.test/maria.jpg',
+            location: { linkedinText: 'São Paulo, Brasil' },
+            currentPositions: [{ title: 'Diretora de Operações', companyName: 'Acme Logística' }],
+          },
+          {
+            firstName: 'Joao',
+            lastName: 'Sem Cargo',
+            headline: 'CEO de verdade',
+            profileUrl: 'https://www.linkedin.com/in/nao-documentado',
+            location: { linkedinText: 'Curitiba, Brasil' },
+          },
+          {
+            firstName: 'Towhid',
+            lastName: 'Rahman',
+            headline: 'Pharmacology',
+            linkedinUrl: 'https://www.linkedin.com/in/towhid-rahman',
+            photo: 'https://exemplo.test/towhid.jpg',
+            location: { linkedinText: 'Los Angeles, California, United States' },
+            currentPosition: [{ companyName: 'CVS Health' }],
+            experience: [{ position: 'Staff Pharmacist', companyName: 'CVS Health', endDate: { text: 'Present' } }],
+          },
+        ],
+      }
+    },
+    async custoDaExecucao() {
+      return 0.044
+    },
+  }
+
+  const handler = criarHandlerEnrichment({ db: dbDoComite(registro), apify })
+  const res = await handler(pedidoDeComite())
+  assertEquals(res.status, 200)
+  const body = await res.json()
+
+  assertEquals(entrada.atual?.profileScraperMode, MODO_CURTO_DO_SCHEMA)
+  assertEquals(entrada.atual?.companies, ['https://www.linkedin.com/company/acme-logistica'])
+  assertEquals(entrada.atual?.jobTitles, ['Diretor de Operações'])
+  assertEquals(entrada.atual?.maxItems, 10)
+
+  const [maria, joao, towhid] = body.proposed
+  assertEquals(maria.cargo, 'Diretora de Operações')
+  assertEquals(maria.linkedinUrl, 'https://www.linkedin.com/in/maria-exemplo')
+  assertEquals(maria.localizacao, 'São Paulo, Brasil')
+  assertEquals(maria.foto, 'https://exemplo.test/maria.jpg')
+  assertEquals(maria.persona, 'Decisor')
+  assertEquals(joao.cargo, undefined)
+  assertEquals(joao.linkedinUrl, undefined)
+  assertEquals(towhid.cargo, 'Staff Pharmacist')
+  assertEquals(registro.finish[0]?.costUsd, 0.044)
+  assertEquals(registro.custos[0], {
+    runId: 'apify-run-entrada',
+    items: 3,
+    costUsd: 0.044,
+    actorId: 'harvestapi~linkedin-company-employees',
+  })
+})
+
+Deno.test('comite-compra: exceção do actor termina em falha, libera o crédito e não vira concluída com zero', async () => {
+  const registro = registroDoComite()
+  const apify: Apify = {
+    async run() {
+      throw new Error('O actor do Apify não respondeu a tempo')
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoComite(registro), apify })
+  const res = await handler(pedidoDeComite())
+  const body = await res.json()
+
+  assertEquals(res.status === 200, false)
+  assertEquals(body.contactsFound, undefined)
+  assertEquals(typeof body.error, 'string')
+  assertEquals(registro.propostas, [])
+  assertEquals(registro.finish, [{
+    success: false,
+    contactsFound: 0,
+    costUsd: undefined,
+    error: 'O actor do Apify não respondeu a tempo',
+  }])
+})
+
+Deno.test('comite-compra: lista vazia fica concluída com zero e grava o custo; resposta que não é lista falha com o custo', async () => {
+  const vazia = registroDoComite()
+  const apifyVazio: Apify = {
+    async run() {
+      return { runId: 'apify-run-vazia', items: [] }
+    },
+    async custoDaExecucao() {
+      return 0.02
+    },
+  }
+  const handlerVazio = criarHandlerEnrichment({ db: dbDoComite(vazia), apify: apifyVazio })
+  const resVazia = await handlerVazio(pedidoDeComite())
+  assertEquals(resVazia.status, 200)
+  assertEquals((await resVazia.json()).contactsFound, 0)
+  assertEquals(vazia.finish[0], { success: true, contactsFound: 0, costUsd: 0.02, error: undefined })
+  assertEquals(vazia.custos[0]?.costUsd, 0.02)
+  assertEquals(vazia.custos[0]?.runId, 'apify-run-vazia')
+
+  const ruim = registroDoComite()
+  const apifyRuim: Apify = {
+    async run() {
+      return { runId: 'apify-run-ruim', items: { nao: 'lista' } as unknown as unknown[] }
+    },
+    async custoDaExecucao() {
+      return 0.02
+    },
+  }
+  const handlerRuim = criarHandlerEnrichment({ db: dbDoComite(ruim), apify: apifyRuim })
+  const resRuim = await handlerRuim(pedidoDeComite())
+  assertEquals(resRuim.status === 200, false)
+  assertEquals(ruim.finish[0]?.success, false)
+  assertEquals(ruim.finish[0]?.contactsFound, 0)
+  assertEquals(ruim.finish[0]?.costUsd, 0.02)
+  assertEquals(ruim.custos[0]?.costUsd, 0.02)
+  assertEquals(ruim.propostas, [])
+})
+
+Deno.test('comite-compra: timeout com id de execução grava o custo e não vira concluída com zero', async () => {
+  const registro = registroDoComite()
+  const apify: Apify = {
+    async run() {
+      throw new ApifyTimeoutError('apify-run-timeout')
+    },
+    async custoDaExecucao(runId) {
+      assertEquals(runId, 'apify-run-timeout')
+      return 0.07
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoComite(registro), apify })
+  const res = await handler(pedidoDeComite())
+  const body = await res.json()
+
+  assertEquals(res.status === 200, false)
+  assertEquals(body.error, 'O actor do Apify não respondeu a tempo')
+  assertEquals(registro.propostas, [])
+  assertEquals(registro.finish, [{
+    success: false,
+    contactsFound: 0,
+    costUsd: 0.07,
+    error: 'O actor do Apify não respondeu a tempo',
+  }])
+  assertEquals(registro.custos[0], {
+    runId: 'apify-run-timeout',
+    items: 0,
+    costUsd: 0.07,
+    actorId: 'harvestapi~linkedin-company-employees',
+  })
+})
+
+Deno.test('comite-compra: o cliente do Apify não converte um corpo que não é lista em concluída com zero', async () => {
+  const registro = registroDoComite()
+  const fetchFn = (async (url: string) => {
+    if (url.includes('/actor-runs/')) {
+      return new Response(JSON.stringify({ data: { usageTotalUsd: 0.05 } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    return new Response(JSON.stringify({ data: { message: 'não é lista' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'x-apify-run-id': 'apify-run-corpo' },
+    })
+  }) as typeof fetch
+  const apify = clienteDoApify({ tokens: ['token-de-teste'], fetchFn, log: () => {} })
+  const handler = criarHandlerEnrichment({ db: dbDoComite(registro), apify })
+  const res = await handler(pedidoDeComite())
+  const body = await res.json()
+
+  assertEquals(res.status === 200, false)
+  assertEquals(body.error, 'A busca do comitê não devolveu uma lista de pessoas.')
+  assertEquals(registro.propostas, [])
+  assertEquals(registro.finish[0]?.success, false)
+  assertEquals(registro.finish[0]?.contactsFound, 0)
+  assertEquals(registro.finish[0]?.costUsd, 0.05)
+  assertEquals(registro.custos[0]?.runId, 'apify-run-corpo')
+  assertEquals(registro.custos[0]?.costUsd, 0.05)
 })

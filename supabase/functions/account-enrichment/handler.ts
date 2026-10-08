@@ -506,24 +506,55 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         }
 
         const limite = Math.min(Math.max(Number(body.limite) || 10, 1), 30)
+        const actorId = 'harvestapi~linkedin-company-employees'
         const inicio = await deps.db.beginCommitteeDiscovery({
           workspaceId,
           targetAccountId,
           requestKey: body.requestKey ? String(body.requestKey) : undefined,
           maxResults: limite,
-          actorId: 'harvestapi~linkedin-company-employees',
+          actorId,
           allowTesting: Boolean(body.allowTesting ?? true),
           authorization,
           apikey,
         })
 
-        const pessoas = await provedor.buscarPessoas({
-          nome: companyName,
-          linkedinUrl: body.companyLinkedinUrl ? String(body.companyLinkedinUrl) : undefined,
-          dominio: body.companyDomain ? String(body.companyDomain) : undefined,
-          cargos: Array.isArray(body.cargos) ? body.cargos.map(String) : undefined,
-          limite,
-        })
+        // O comitê chama o actor direto. A cascata engolia a exceção e a busca virava concluída com zero.
+        const buscaDePessoas = deps.provedorContatos
+          ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
+        const medicao = { runId: null as string | null, costUsd: null as number | null }
+        const gravarCusto = (itens: number) => {
+          if (!medicao.runId || !deps.db.recordDiscoveryCost) return Promise.resolve()
+          return deps.db.recordDiscoveryCost({
+            workspaceId,
+            actorId,
+            runId: medicao.runId,
+            items: itens,
+            costUsd: medicao.costUsd,
+          }).catch(() => {})
+        }
+
+        let pessoas: PessoaEncontrada[]
+        try {
+          pessoas = await buscaDePessoas.buscarPessoas({
+            nome: companyName,
+            linkedinUrl: body.companyLinkedinUrl ? String(body.companyLinkedinUrl) : undefined,
+            dominio: body.companyDomain ? String(body.companyDomain) : undefined,
+            cargos: Array.isArray(body.cargos) ? body.cargos.map(String) : undefined,
+            limite,
+            medicao,
+          })
+        } catch (e) {
+          const mensagem = e instanceof Error ? e.message : 'A busca do comitê falhou.'
+          await deps.db.finishCommitteeDiscovery({
+            runId: inicio.runId,
+            success: false,
+            contactsFound: 0,
+            costUsd: medicao.costUsd ?? undefined,
+            error: mensagem,
+          })
+          await gravarCusto(0)
+          return json({ error: mensagem }, 502)
+        }
 
         let gravados = 0
         for (const p of pessoas) {
@@ -539,7 +570,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
               location: p.localizacao,
               photoUrl: p.foto,
               persona: p.persona,
-              sourceActor: 'harvestapi~linkedin-company-employees',
+              sourceActor: actorId,
               sourceProvider: p.fonte,
               sourceData: p,
             })
@@ -549,22 +580,21 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           }
         }
 
-        // Finaliza debitando 1 crédito por contato encontrado
+        // Lista vazia também conclui: debita zero. O custo da execução vai nos dois desfechos.
         await deps.db.finishCommitteeDiscovery({
           runId: inicio.runId,
           success: true,
           contactsFound: gravados,
+          costUsd: medicao.costUsd ?? undefined,
         })
+        await gravarCusto(pessoas.length)
 
-        return new Response(
-          JSON.stringify({
-            runId: inicio.runId,
-            contactsFound: pessoas.length,
-            contactsAdded: gravados,
-            proposed: pessoas,
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )
+        return json({
+          runId: inicio.runId,
+          contactsFound: pessoas.length,
+          contactsAdded: gravados,
+          proposed: pessoas,
+        }, 200)
       }
 
       // 3. Revelar e-mail ou telefone de um contato
