@@ -1,6 +1,8 @@
-﻿﻿# Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-10-08 (Auth-03 fechado: (B) /termos e /privacidade, (C) aviso a quem já tem conta)
-# Ralph status — enriquecimento
+﻿# Ralph status: consolidado das frentes (2026-10-08)
+
+Cada frente (acesso, canais, enriquecimento, creditos) tem sua secao abaixo.
+
+## Frente enriquecimento
 
 Updated: 2026-10-08
 
