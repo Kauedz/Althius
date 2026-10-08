@@ -120,3 +120,26 @@ Postgres 16 + pgTAP locais, com schema `auth` mínimo do Supabase, via script de
      - Abrir o link de um convite pendente → "Já tenho conta: entrar" → "Continuar com Google" com uma conta de **outro** e-mail. Deve aparecer "Convite não aceito", com "Entrar com outra conta".
      - Clicar nele e escolher a conta do e-mail convidado. Deve abrir o Workspace da empresa, com o pessoal no seletor.
      - Repetir por "Criar conta com este e-mail" com o Google do e-mail convidado.
+
+## CRM-15 (frente acesso) — 2026-10-08
+- **Ticket:** crm-real-e-stack 15 (Aplicar Aprovações antes de ações externas). O critério que faltava era a fila. Checkboxes 11/11. Status `ready-for-human`: o código está fechado e faltam os Passos do Nan do ticket.
+- **Branch:** `ralph/frente-acesso`, commit `10e29cf`. Sem push.
+- **O que mudou:**
+  - A fila `/aprovacoes` liga no Workspace operacional junto com as Conversas (`aprovacoesDisponiveis: comConversas` em `aplicativo.tsx`).
+  - O Administrador decide ali a Aprovação pedida na Conversa de um Membro. O Membro vê a Aprovação e o aviso de que só um Administrador decide.
+  - O número de pendentes da navegação vem da fila real.
+  - A introdução da fila não promete mais decidir pelo Canal.
+  - A regra de quem decide fica num lugar só (`podeDecidir` com o ambiente).
+  - ADR-0010 emendada.
+  - O `raiz.test.tsx` não mudou: sem o modelo, a fila segue indisponível, e a autorização de trocar aquela asserção não foi usada.
+  - Sem migration, sem Edge Function e sem segredo novo.
+- **Testes:** vitest `--maxWorkers=2` 109 arquivos e 1096/1096; `tsc -b` limpo; pgTAP local 58 arquivos e 2550/2550 (inclui `aprovacoes_reais` 30, `ferramentas_dos_agentes` 37 e `permissao_por_ferramenta` 30). Prints em `.scratch/crm-real-e-stack/issues/prints/15-*.jpg`.
+- **Fica de fora:**
+  - O cartão da fila não mostra a linha "Conta-alvo", porque `list_approvals` não traz o nome da Conta (pede migration).
+  - A 360px, a casca do Workspace operacional não se adapta em nenhuma tela (já era assim).
+- **O que o humano roda (PowerShell, na raiz do repo):**
+  1. Conferir os testes: `cd projeto-althius-frontend; npx vitest run src/paginas/aprovacoes-reais.test.tsx src/fonte/supabase-aprovacoes-leitura.test.ts; npx tsc -b`
+  2. Conferir o que já está no remoto: `npx supabase migration list --linked` e `npx supabase functions list --project-ref ycbdilsmydvzezhlymty`. O que faltar segue os passos 1, 2 e 5 do ticket. Isso vale para as migrations `20261001210000` e `20261002110000` e para o deploy de `agent-conversation`, `crm-handoff`, `integration-tools`, `integration-connect` e `integration-callback`.
+  3. Depois do merge e do deploy do frontend, passo 6 do ticket:
+     - Como **Membro**, com o Rhetor em Propor no HubSpot, pedir na Conversa "Rhetor, leve a <Conta sua> ao HubSpot". O passo mostra "Só um Administrador decide esta Aprovação."
+     - Como **Administrador**, a navegação mostra o número de pendentes. Em `/aprovacoes`, clicar em Aprovar: o cartão vira "Aprovada · executada" e a empresa aparece no HubSpot.
