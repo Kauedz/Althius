@@ -40,6 +40,8 @@
   - Falta só o envio real, igual ao ticket 06, com `select private.set_chat_channel_enabled('linkedin', true);` e um perfil de teste: um convite com nota para quem não é conexão e uma mensagem para quem já é. Depois, conferir com `select channel, status, last_error, linkedin_action, provider_chat_id, sent_at from private.sequence_step_sends where channel = 'linkedin' order by updated_at desc limit 10;`.
   - Risco que fica: a tela ainda oferece "InMail" no passo de LinkedIn (`projeto-althius-frontend/src/paginas/detalhe-sequencia.tsx:2199`), e o núcleo manda esse passo como mensagem comum pelo `startChat` (`send-chat-step.ts:359-361`). Enquanto o InMail estiver fora, nenhum passo deve usá-lo. Tirar a opção da tela e o núcleo recusar `inmail` com um motivo próprio (sem migration) é um ajuste pequeno de agente, que não entrou na fila sem o sim do Renan.
 
+- 2026-10-08: o Renan deu o sim ao ajuste do InMail. Virou o [ticket 13](13-tirar-inmail-da-tela-e-recusar-no-envio.md) (tirar a opção da tela e o envio recusar o passo de InMail com o motivo `linkedin_inmail_not_supported`), bloqueado pelo C1 da `prospeccao-funcional` e na fila do `/implement` logo depois dele. Este ticket continua só à espera do envio real de convite e mensagem; não depende do 13.
+
 ## Passos do Nan
 
 1. Conectar a sua Conta remetente de LinkedIn pela Unipile (o mesmo fluxo do E-mail).

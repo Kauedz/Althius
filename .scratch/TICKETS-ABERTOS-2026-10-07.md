@@ -259,7 +259,7 @@ Decididas pelo Renan em 07/10/2026 (gravadas também nos Comments de cada ticket
 1. B1: a consulta de CNPJ custa 1 crédito, cobrado só quando a Receita devolve dado; falha não cobra. Preço errado se corrige depois numa migration e não trava o ticket.
 2. crm-real-e-stack 15: autorizado trocar só a asserção de `raiz.test.tsx:110` (a linha `/aprovacoes` do `it.each` de módulos indisponíveis), dentro deste ticket, para ligar a fila de Aprovações.
 3. A3: só vale o actor cuja execução real está registrada nos comentários de sinais-reais 03 a 06 com o id do run e o dado devolvido; só as asserções desses actors mudam, e os outros seguem `testing`. Caso conferido: as 9 validações foram reais (nenhuma por leitura ou simulação), mas só 5 trazem o id do run (`mudanca_de_emprego`, `nova_lideranca`, `anuncio_de_movimentacao`, `anuncio_linkedin`, `avaliacoes_google_maps`). O A3 entra na fila com esses 5; `vaga_linkedin`, `vaga_indeed`, `entradas_e_saidas` e `anuncio_meta` seguem `testing`. A única asserção que muda é `registro_de_actors.sql:18`.
-4. canais 07: o InMail fica fora; o ticket fecha com convite e mensagem no LinkedIn, depois do envio real. Fica como risco que a tela ainda oferece "InMail" (`detalhe-sequencia.tsx:2199`) e o núcleo o manda como mensagem comum; tirar a opção é um ajuste pequeno que espera o sim do Renan.
+4. canais 07: o InMail fica fora; o ticket fecha com convite e mensagem no LinkedIn, depois do envio real. Fica como risco que a tela ainda oferece "InMail" (`detalhe-sequencia.tsx:2199`) e o núcleo o manda como mensagem comum. Em 08/10/2026 o Renan deu o sim ao ajuste: tirar a opção da tela e o envio recusar o passo de InMail com um motivo próprio virou o [canais-cadencia-backend 13](canais-cadencia-backend/issues/13-tirar-inmail-da-tela-e-recusar-no-envio.md), bloqueado pelo C1 (mesmo arquivo).
 5. crm-real-e-stack 06: fica fora do núcleo, como `needs-info`, e não trava a fila.
 
 Ainda abertas:
@@ -290,17 +290,18 @@ Só tickets `ready-for-agent`. "Antes" é o que precisa acontecer para o agente 
 | 5 | prospeccao-funcional B1 (1 crédito, só quando acha) | — | `account-enrichment/handler.ts` com B2 e B3 |
 | 6 | prospeccao-funcional B2 | 5 | `provedor-de-contatos.ts`, handler e `comite-e-enriquecimento.tsx` |
 | 7 | prospeccao-funcional B3 | 6 | os mesmos do 6 |
-| 8 | prospeccao-funcional C1 (ampliado) | — | `detalhe-sequencia.tsx` com o C3 |
-| 9 | prospeccao-funcional C3 | 8 | `detalhe-sequencia.tsx`, `supabase-sequencias.ts` |
-| 10 | crm-real-e-stack 15 (ligar a fila; troca só `raiz.test.tsx:110`) | 1, pelo `raiz.test.tsx` | `aplicativo.tsx`, `raiz.test.tsx` |
-| 11 | agentes-em-conversa 02 (tokens) | — | `_hermes-worker/worker.ts`, `model-groq.ts` |
-| 12 | creditos-e-planos 01 (tokens das propostas) | — | `reply-proposal-runner` com o 13 |
-| 13 | creditos-e-planos 03 (teto nas propostas) | 12 e a decisão 6 | `20261001180000` (redefinir a reserva das propostas) |
-| 14 | enriquecimento-em-cascata 01 (reduzido) | 6 e 7; decisão 9 | `provedor-de-contatos.ts` |
-| 15 | enriquecimento-em-cascata 03 (lote) | 7 | `comite-e-enriquecimento.tsx`, `tabela-de-contatos.tsx` |
-| 16 | enriquecimento-em-cascata 02 (automático) | 6, 14 e a promoção em `discovery_actors` | `account-enrichment/handler.ts` |
-| 17 | creditos-e-planos 05 (Observador) | Decisão 7 e o combinado com Conexões | Funções que comparam papel |
-| 18 | canais-cadencia-backend 08 (chat) | Envio real do 06 e do 07; decisão 10 | `20261001180000` |
-| 19 | canais-cadencia-backend 09 (chat) | 18 | `reply-proposal-send` |
+| 8 | prospeccao-funcional C1 (ampliado) | — | `detalhe-sequencia.tsx` com o 9 e o C3; `motivos-do-envio.ts` com o 9 |
+| 9 | [canais-cadencia-backend 13](canais-cadencia-backend/issues/13-tirar-inmail-da-tela-e-recusar-no-envio.md) (tirar o InMail da tela e recusá-lo no envio) | 8 | `detalhe-sequencia.tsx`, `motivos-do-envio.ts`, `_shared/send-chat-step.ts` |
+| 10 | prospeccao-funcional C3 | 8 | `detalhe-sequencia.tsx`, `supabase-sequencias.ts` |
+| 11 | crm-real-e-stack 15 (ligar a fila; troca só `raiz.test.tsx:110`) | 1, pelo `raiz.test.tsx` | `aplicativo.tsx`, `raiz.test.tsx` |
+| 12 | agentes-em-conversa 02 (tokens) | — | `_hermes-worker/worker.ts`, `model-groq.ts` |
+| 13 | creditos-e-planos 01 (tokens das propostas) | — | `reply-proposal-runner` com o 14 |
+| 14 | creditos-e-planos 03 (teto nas propostas) | 13 e a decisão 6 | `20261001180000` (redefinir a reserva das propostas) |
+| 15 | enriquecimento-em-cascata 01 (reduzido) | 6 e 7; decisão 9 | `provedor-de-contatos.ts` |
+| 16 | enriquecimento-em-cascata 03 (lote) | 7 | `comite-e-enriquecimento.tsx`, `tabela-de-contatos.tsx` |
+| 17 | enriquecimento-em-cascata 02 (automático) | 6, 15 e a promoção em `discovery_actors` | `account-enrichment/handler.ts` |
+| 18 | creditos-e-planos 05 (Observador) | Decisão 7 e o combinado com Conexões | Funções que comparam papel |
+| 19 | canais-cadencia-backend 08 (chat) | Envio real do 06 e do 07; decisão 10 | `20261001180000` |
+| 20 | canais-cadencia-backend 09 (chat) | 19 | `reply-proposal-send` |
 
-O canais 07 saiu da fila: sem o InMail, ele só espera o envio real (`ready-for-human`). Fora da fila: crm-real-e-stack 06 (fora do núcleo, por decisão) e crm-real-e-stack 24 (`needs-info`). Esperam o sim do Renan, sem entrar na fila: tirar a opção "InMail" da tela (canais 07) e o rótulo cru do crm-real-e-stack 17 (`detalhe-sequencia.tsx:2674`), que cabe no C1.
+O canais 07 saiu da fila: sem o InMail, ele só espera o envio real (`ready-for-human`). Tirar a opção "InMail" da tela e recusá-lo no envio virou o canais 13, na posição 9 (sim do Renan em 08/10/2026). Fora da fila: crm-real-e-stack 06 (fora do núcleo, por decisão) e crm-real-e-stack 24 (`needs-info`). Espera o sim do Renan, sem entrar na fila: o rótulo cru do crm-real-e-stack 17 (`detalhe-sequencia.tsx:2674`), que cabe no C1.
