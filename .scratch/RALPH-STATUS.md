@@ -105,3 +105,18 @@ Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e
 
 ## Loop de teste de banco
 Postgres 16 + pgTAP locais, com schema `auth` mínimo do Supabase, via script de sessão (fora do repo): aplica `supabase/migrations/` (repetindo as fora de ordem) e roda `supabase/tests/`.
+
+## Auth-09 — 2026-10-08
+- **Ticket:** autenticacao-google-email 09 (Entrar por convite). Checkboxes 5/5. Status `ready-for-human`: o código está fechado e falta só a conferência com o Google real.
+- **Branch:** `ralph/frente-acesso`, commit `d8c3a7d`. Sem push.
+- **O que mudou:**
+  - Na recusa do convite por outro e-mail (sessão de senha, código ou Google), "Entrar com outra conta" sai da sessão e abre `/entrar?destino=/convite/<token>`, com o e-mail convidado travado e o Google. Se a saída falhar, a tela volta ao link do convite.
+  - A volta do Google ao convite já funcionava e agora tem teste.
+  - Sem migration e sem Edge Function.
+- **Testes:** vermelho do "Entrar com outra conta" no código antigo; `aceite-do-convite.test.tsx` 27/27; `npx vitest run --maxWorkers=2` com 107 arquivos e 1090/1090 testes; `tsc -b` limpo. A suíte sem `--maxWorkers` foi parada por falta de memória na máquina.
+- **O que o humano roda:**
+  1. Conferir os testes (PowerShell, na raiz do repo): `cd projeto-althius-frontend; npx vitest run src/auth/aceite-do-convite.test.tsx; npx tsc -b`
+  2. Depois do Google real do ticket 10, numa janela anônima:
+     - Abrir o link de um convite pendente → "Já tenho conta: entrar" → "Continuar com Google" com uma conta de **outro** e-mail. Deve aparecer "Convite não aceito", com "Entrar com outra conta".
+     - Clicar nele e escolher a conta do e-mail convidado. Deve abrir o Workspace da empresa, com o pessoal no seletor.
+     - Repetir por "Criar conta com este e-mail" com o Google do e-mail convidado.
