@@ -73,6 +73,7 @@ interface RegistroContato {
   whatsapp: string | null
   linkedin: string | null
   last_interaction_at: string | null
+  persona: string | null
 }
 
 /** O estado da foto de um Contato, como a visão `contact_photo_status` o devolve: `photo_url` só vem se ainda vale. */
@@ -92,7 +93,7 @@ interface RegistroCanal {
   whatsapp: boolean | null
 }
 
-const COLUNAS_DO_CONTATO = 'id, target_account_id, name, role, email, whatsapp, linkedin, last_interaction_at'
+const COLUNAS_DO_CONTATO = 'id, target_account_id, name, role, email, whatsapp, linkedin, last_interaction_at, persona'
 
 const COLUNAS_DA_CONTA = 'id, name, canonical_url, domain, linkedin_url, segment, legal_identifier, receita_data, last_interaction_at, archived_at'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -219,6 +220,7 @@ function mapearContato(
     ...(permissoes.podeApagar ? { podeApagar: true } : {}),
     nome: linha.name,
     ...(linha.role ? { cargo: linha.role } : {}),
+    ...(linha.persona ? { persona: linha.persona } : {}),
     canais: { email: !!linha.email, telefone: !!linha.whatsapp, linkedin: !!linha.linkedin },
     ...(linha.email ? { email: linha.email } : {}),
     ...(linha.whatsapp ? { whatsapp: linha.whatsapp } : {}),
@@ -749,7 +751,11 @@ export function criarFonteDeContasSupabase(
           companyDomain: c.domain ?? undefined,
         },
       })
-      if (error) throw converterErro(error)
+      if (error) {
+        const recusa = await corpoDoErroDaFuncao(error)
+        if (typeof recusa?.error === 'string' && recusa.error.trim()) throw new Error(recusa.error)
+        throw new Error('A busca do comitê falhou.')
+      }
       notificar()
     },
 

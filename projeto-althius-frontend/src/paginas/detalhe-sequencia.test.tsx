@@ -308,10 +308,39 @@ describe('Composer de Step por Canal (Ticket 06)', () => {
     // Troca para o step 2 (LinkedIn)
     await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
 
-    // Deve mostrar as opções de subtipo LinkedIn
+    // O passo de LinkedIn oferece só Convite e Mensagem.
     expect(screen.getByRole('button', { name: 'Convite com nota' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mensagem' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'InMail' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'InMail' })).not.toBeInTheDocument()
+  })
+
+  it('um passo já salvo como InMail avisa, não marca opção e grava Convite ao trocar', async () => {
+    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+
+    await screen.findByTestId('composer-step')
+    const sequencia = await fonteDeSequencias.sequencia('sequencia-openai')
+    const passo = sequencia.steps.find((step) => step.canal === 'linkedin')
+    expect(passo).toBeDefined()
+    await fonteDeSequencias.atualizarDocumento(sequencia.id, {
+      steps: sequencia.steps.map((step) =>
+        step.id === passo!.id ? { ...step, subtipoLinkedIn: 'inmail' } : step,
+      ),
+    })
+
+    await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
+
+    expect(await screen.findByText('O InMail não é enviado. Escolha Convite ou Mensagem.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'InMail' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Convite com nota' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Mensagem' })).toHaveAttribute('aria-pressed', 'false')
+
+    await usuario.click(screen.getByRole('button', { name: 'Convite com nota' }))
+
+    await waitFor(async () => {
+      const gravada = await fonteDeSequencias.sequencia('sequencia-openai')
+      const linkedin = gravada.steps.find((step) => step.id === passo!.id)
+      expect(linkedin?.subtipoLinkedIn).toBe('convite')
+    })
   })
 
   it('permite cadastrar e normalizar destinos reais de um contato participante', async () => {

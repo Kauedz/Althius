@@ -12,7 +12,7 @@ import {
   MAX_CARACTERES_DO_PLAYBOOK,
   type SecaoDoPlaybookNaExecucao,
 } from '../_shared/orquestracao.ts'
-import { comAChaveDoCliente, type Modelo } from '../agent-conversation/runner.ts'
+import { comAChaveDoCliente, type Modelo, usoDe } from '../agent-conversation/runner.ts'
 
 /** Um trabalho reservado: o token só vale para quem o reservou. */
 export interface TrabalhoReservado {
@@ -66,6 +66,15 @@ export interface RunnerDb {
   salvar(job: TrabalhoReservado, corpo: string, modelo: string): Promise<void>
   /** RPC fail_reply_proposal_job. */
   falhar(job: TrabalhoReservado, codigo: string, passageira: boolean): Promise<void>
+  /** RPC record_reply_proposal_cost: o modelo e os tokens da chamada, só para medir (creditos-e-planos, ticket 01). */
+  custo?(job: TrabalhoReservado, gasto: GastoDaChamada): Promise<void>
+}
+
+/** O que uma chamada ao modelo gastou: os tokens ficam nulos quando o motor não informa. */
+export interface GastoDaChamada {
+  modelo: string
+  entrada: number | null
+  saida: number | null
 }
 
 export interface Deps {
@@ -196,6 +205,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         system: instrucoesDoRhetor(contexto),
         messages: [{ role: 'user', content: pedidoDaResposta(contexto) }],
         output_config: { effort: 'low' },
+      })
+      // A chamada já gastou, mesmo que a resposta não sirva. O registro é só medida: se falhar, a geração segue.
+      const uso = usoDe(resposta)
+      const gasto = { modelo: modelo.nome, entrada: uso?.entrada ?? null, saida: uso?.saida ?? null }
+      await db.custo?.(job, gasto).catch((erro) => {
+        log({ type: 'reply_proposal', jobId: job.job_id, outcome: 'cost_failed', message: messageOf(erro) })
       })
       if (resposta.stop_reason === 'refusal') throw new ErroDoModelo('model_refusal')
       if (resposta.stop_reason === 'max_tokens') throw new ErroDoModelo('model_incomplete')

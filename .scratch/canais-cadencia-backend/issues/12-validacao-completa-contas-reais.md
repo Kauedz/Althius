@@ -4,7 +4,7 @@
 
 **Blocked by:** 10: Enviar anexos persistentes e privados; 11: Recuperar conexões e interromper acesso revogado.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (todos os critérios pedem duas identidades reais e envio real; bloqueado pelos tickets 06 a 11 e pelos C1 e C3 da `prospeccao-funcional`)
 
 - [ ] Dois usuários reais no mesmo Workspace conectam seus próprios canais e não conseguem usar, alterar ou aprovar recursos um do outro.
 - [ ] Cada canal envia a um destino indicado pelo usuário, recebe resposta e atualiza lista, detalhe da Conta-alvo e Conversa de forma coerente.
@@ -20,3 +20,7 @@
 
 - Destinos reais de E-mail, WhatsApp e LinkedIn indicados pelo usuário.
 - Duas identidades autenticadas e Contas remetentes conectadas pelos respectivos titulares.
+
+## Comments
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6): nenhum dos 9 critérios foi feito, e todos pedem as duas identidades reais com Contas remetentes conectadas e destinos indicados pelo Nan. Depois da rodada humana, voltam para agente: o registro das evidências (critério 7), as verificações de segurança e desempenho do Supabase (critério 8, pelos advisors) e a conferência visual (critério 9). O critério 2 ("atualiza lista, detalhe da Conta-alvo e Conversa") depende do C3, que mostra ao titular as respostas de chat.

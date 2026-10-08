@@ -4,7 +4,7 @@
 
 **Blocked by:** 09: Aprovar e enviar respostas nos três canais.
 
-**Status:** ready-for-human (código pronto e testado; falta a conferência real de uma queda e reconexão, nos Passos do Nan)
+**Status:** ready-for-human (código e testes conferidos; falta a conferência real de uma queda e reconexão; na prática não depende do 09)
 
 - [x] Conta remetente fora do estado pronto bloqueia novos passos e respostas aprovadas sem apagar histórico. (Já existia: `sender_not_ready` nas liberações e em `release_approved_reply`, pgTAP `envios_de_passo_por_email.sql`, `propostas_de_resposta.sql` §15. **Novo:** a queda (credenciais revogadas ou expiradas, erro, conta removida, desconexão pela pessoa) pausa a Sequência com o motivo "Conta remetente de … desconectada", a tela mostra "Reconectar" ao titular e "Pausada: conta remetente do responsável desconectada" aos demais; pgTAP `reconexao_e_acesso_revogado.sql` §1.)
 - [x] Reconexão valida novamente o titular e processa o backlog comercial relevante de forma idempotente antes de liberar envios. (Já existia: `complete_sender_connection_attempt` recusa outra identidade (`identity_mismatch`) e Participação removida; a reconciliação confere as conversas antes de liberar a conta, pgTAP `reconciliacao_da_conta_remetente.sql`. **Novo:** reconectar não retoma: a Sequência continua pausada até o titular retomar; pgTAP §3–§4.)
@@ -22,6 +22,12 @@
 - **Decisão:** a saída do responsável não pausa a Sequência (o `sequencias_nas_contas_reais.sql` fixa "fica como estava até a Transferência"); os envios dele param na hora com o motivo no Envio.
 - Edge Functions: `unipile-account-status` chama a pausa depois de `account.status.disconnected`, `account.status.errored` e `account.remove`; `sequence-runner` a chama quando um passo vencido volta `sender_not_ready`; `sender-accounts` a chama depois da desconexão pela pessoa.
 - Frontend: `pausadaPelaContaRemetente` na Sequência (lida de `list_sequence_sender_holds`, em silêncio se falhar); "Reconectar" leva a Configurações > Meu perfil > Minhas Contas remetentes; "Retomar" continua sendo a única forma de voltar a enviar.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6). Não conferi o remoto.
+  - Os critérios 1 a 7 conferem: `20261002121000_reconexao_e_acesso_revogado.sql` (`:105` `hold_sequences_of_lost_sender`, `:145` `hold_sequence_for_unready_send`, `:178` `list_sequence_sender_holds`), chamadas em `unipile-account-status/handler.ts:28`, `sequence-runner/handler.ts:94` e `sender-accounts/index.ts:172`.
+  - Testes rodados: `deno test --allow-all supabase/functions/sequence-runner/handler-reconexao.test.ts` (3 passed) e `supabase/functions/unipile-account-status/handler-reconexao.test.ts` (5); `npx vitest run src/sequencia-pausa-pela-conta-remetente.test.tsx` (4, entre eles "a responsável lê o motivo honesto, vê Reconectar e só ela retoma"); pgTAP `reconexao_e_acesso_revogado.sql` (42), `reconciliacao_da_conta_remetente.sql` e `envios_de_passo_por_email.sql` ok no CI 37707955273.
+  - Observação, não bloqueia: a chamada em `sender-accounts/index.ts:172` não tem teste unitário.
+  - Passos do Nan: os passos 1 a 3 acima, depois da `20261002120000` do ticket 10.
 
 ## Passos do Nan
 

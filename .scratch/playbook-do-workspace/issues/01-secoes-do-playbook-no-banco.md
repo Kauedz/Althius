@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Pode mexer
 
@@ -38,3 +38,12 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 ## Comments
 
 - Feito na PR https://github.com/Kauedz/Althius/pull/89
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6): os cinco critérios têm código e pgTAP verde (`playbook_do_workspace.sql`, plano 27, e `playbook_na_execucao_dos_agentes.sql`, ok no CI 37707955273).
+  - Seções fixas na ordem e 22023 para a desconhecida: `20260930090500_playbook_do_workspace.sql:7-29,71-83`; asserções "o Playbook tem as 16 seções fixas", "as seções vêm na ordem do modelo", "seção fora do catálogo é recusada".
+  - Só Administrador ativo grava, participante lê, outro Workspace não: `:150,176,213-215,232-234`; asserções "membro não grava", "Administrador inativo não grava", "Administrador de outro Workspace não lê".
+  - Versões e restaurar: `:109-127,223-244`; asserções "segunda gravação é a versão 2", "restaurar a versão 1 cria a versão 3".
+  - `playbook_for_specialty`: `:38-50,247-276`, só `service_role` (`:287-288`); asserções do Scopus e do Rhetor, e "o Ethos recebe a Empresa e as Objeções, e não o ICP" e "o Oraculum recebe a Empresa e o ICP".
+  - RLS e nenhum acesso direto: `:63-68`; asserção "nenhum papel do app lê a tabela diretamente".
+  - Testes rodados: `npx vitest run src/fonte/supabase-playbook.test.ts` → 5 passed.
+  - Fora dos critérios: o "What to build" diz que ICP e Personas da Memória do Workspace passam a ser seções do Playbook. As duas abas convivem (`src/paginas/configuracoes/pagina-configuracoes.tsx:39-47`); depende da decisão Memória × Playbook (contradição 1 da auditoria).

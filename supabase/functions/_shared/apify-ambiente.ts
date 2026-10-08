@@ -34,8 +34,9 @@ export function actorDoRegistro(linha: LinhaDoActor) {
 }
 
 /**
- * Grava o custo real de uma execução, só para medir: se não der para ler o valor ou gravar, os itens já existem e seguem
- * adiante. Devolve o identificador usado (o do Apify, ou um próprio quando o Apify não devolveu o dele).
+ * Grava o custo real de uma execução, só para medir: se não der para ler o valor, a execução é gravada com ele em branco;
+ * se não der para gravar, os itens já existem e seguem adiante. Devolve o identificador usado (o do Apify, ou um próprio
+ * quando o Apify não devolveu o dele).
  */
 export async function gravarCustoDaExecucao(
   { custoDaExecucao, gravar, aoFalhar }: {
@@ -52,8 +53,13 @@ export async function gravarCustoDaExecucao(
   },
 ): Promise<string> {
   const usado = runId ?? `${prefixo}:${crypto.randomUUID()}`
+  let costUsd: number | null = null
   try {
-    const costUsd = runId ? ((await custoDaExecucao?.(runId)) ?? null) : null
+    if (runId) costUsd = (await custoDaExecucao?.(runId)) ?? null
+  } catch {
+    // Sem o valor, a execução é gravada com ele em branco.
+  }
+  try {
     await gravar({ workspaceId, actorId, runId: usado, items, costUsd })
   } catch (erro) {
     aoFalhar(erro)

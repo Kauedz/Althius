@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Estágio de prospecção; `conexoes-funcionais` 03 (Acesso ao HubSpot); CRM-15 (Aprovações).
 
-**Status:** ready-for-human (falta o teste real com uma conta de CRM; o envio por um Agente ficou pronto na Etapa 5b, mas com Propor o Administrador ainda não tem a fila para decidir, ver CRM-15; o botão no cartão do Kanban ficou pronto em 2026-10-02)
+**Status:** ready-for-human (falta o teste real com contas de teste do HubSpot, do Pipedrive e do RD Station; com Propor, o Administrador decidir quando quem pede é um Membro depende da fila do crm-real-e-stack 15)
 
 ## Pode mexer
 
@@ -45,6 +45,13 @@
 - **2026-10-02 (conectores genéricos, `conexoes-funcionais` 30).** A permissão por ferramenta (ADR-0022) vale também aqui: uma ferramenta de escrita "bloqueada" pelo Administrador no CRM faz o envio falhar com o motivo, e no executor das Aprovações a escrita só passa com a Aprovação em execução (como já era). O "Enviar ao CRM" pelo caminho genérico (o botão abrindo um pedido aos Agentes) não foi feito, para não deixar meio-caminho: o desenho e o ponto aberto (como ligar a tentativa à chamada que criou a empresa, sem código por app) estão no ticket 30.
 
 - **2026-10-02 (botão no cartão do Kanban).** O cartão de cada Conta do Kanban ganhou "Enviar ao CRM" (só para o Vendedor responsável, com a Conta ativa e fora de No CRM, e só onde a Fonte envia: a Demonstração não). Ele abre, num diálogo, o mesmo componente do detalhe da Conta já na confirmação: pela chave de API envia direto; pela autorização (servidor MCP) pede aos Agentes. **Decisão:** nada de código por app de CRM (ADR-0022/0023); o "HubSpot primeiro" do texto deste ticket vale só como a primeira conta de teste. O diálogo fica no Kanban, e não no cartão, porque o cartão muda para No CRM quando o envio termina. Nenhuma migration, nenhuma Edge Function nova.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6). Não conferi o remoto (o conector do Supabase não estava ligado nesta sessão).
+  - Cumpridos (código e teste): Propor não envia sem Aprovação (`20261001210000_ferramentas_dos_agentes.sql:290,504`; Deno "com Propor e uma Aprovação que não está em execução, a escrita é recusada sem chegar ao app"); Executar envia na hora (`agent-conversation/index.ts:152`); caminho genérico do conector (`20261002112000_envio_ao_crm_pelo_conector.sql:134`, `src/paginas/enviar-ao-crm.tsx:218`; vitest `src/paginas/enviar-ao-crm-pelos-agentes.test.tsx`, 4 verdes); não escreve de novo (`20261001200000_envio_ao_crm.sql:33,182`); só o Vendedor responsável ativo (`:163,186-188`); Acesso da própria pessoa e 409 pela autorização (`crm-handoff/handler.ts:145-151`); erro parcial sem refazer (`:285`; Deno "erro parcial: a empresa foi criada e o Contato falhou…"); o cartão vai para o estágio `no_crm` (`:277`); o botão no detalhe da Conta (`src/paginas/detalhe-conta.tsx:169`, `enviar-ao-crm.test.tsx` 8 verdes) e no cartão do Kanban (`src/paginas/kanban-de-contas.tsx:141,233`, `kanban-enviar-ao-crm.test.tsx` 5 verdes).
+  - Parcial: o Administrador decide no Workspace operacional só quando foi ele quem pediu na Conversa. Quando quem pede é um Membro, a Conversa é privada dele (`20260929180000_conversas_dos_agentes.sql:298,316`) e a fila está desligada: depende do crm-real-e-stack 15.
+  - Testes rodados: vitest dos 16 arquivos do crm-real-e-stack 15 → 230 passed; `deno test --allow-all supabase/functions/crm-handoff/ …` → verdes; pgTAP `envio_ao_crm.sql` e `envio_ao_crm_pelo_conector.sql` ok no CI 37707955273.
+  - Conferência visual do passo 11 (1400×900), com a Fonte de Contas que ganha o envio, como em `kanban-enviar-ao-crm.test.tsx`: [Kanban com o envio em cada cartão](prints/05-kanban-com-o-envio-no-cartao.jpg), [confirmação pela chave](prints/05-cartao-confirmacao-pela-chave.jpg), [enviado](prints/05-cartao-enviado-pela-chave.jpg), [pedir aos Agentes](prints/05-cartao-pedir-aos-agentes.jpg). O único erro no console é o favicon da página de teste; os logos quebrados dos cartões são das Contas de exemplo.
+  - Passos do Nan: os passos 1 a 10 acima. Antes, ver o que já está no remoto, no PowerShell, na raiz: `npx supabase link --project-ref ycbdilsmydvzezhlymty`, `npx supabase migration list --linked` e `npx supabase functions list --project-ref ycbdilsmydvzezhlymty`. Pontos que o teste real confirma: o tipo de associação 279 (Contact → Company) e os envelopes e o campo do id do RD Station.
 
 ## Passos do Nan
 

@@ -157,8 +157,8 @@ Deno.test('a cadência do Nan: convite com nota e, se já é conexão, mensagem'
   assertEquals(decideLinkedInAction('mensagem', true), { action: 'mensagem' })
   assertEquals(decideLinkedInAction('mensagem', false), { blocked: 'linkedin_not_connected' })
   assertEquals(decideLinkedInAction('mensagem', null), { action: 'mensagem' })
-  assertEquals(decideLinkedInAction('inmail', false), { action: 'inmail' })
-  assertEquals(decideLinkedInAction('inmail', true), { action: 'mensagem' })
+  assertEquals(decideLinkedInAction('inmail', false), { blocked: 'linkedin_inmail_not_supported' })
+  assertEquals(decideLinkedInAction('inmail', true), { blocked: 'linkedin_inmail_not_supported' })
 })
 
 Deno.test('a nota é medida em caracteres, não em bytes', () => {
@@ -374,14 +374,22 @@ Deno.test('LinkedIn: um segundo convite ao mesmo perfil não sai, mas uma conex�
   assertEquals(accepted.calls.includes('startChat'), true)
 })
 
-Deno.test('LinkedIn: InMail só para quem não é conexão', async () => {
-  const stranger = setup({ profile: { providerId: 'ACoAAMaria', firstDegree: false } })
-  await stranger.send(linkedin({ linkedin_subtype: 'inmail' }))
-  assertEquals(stranger.recorded[0].linkedinAction, 'inmail')
-  assertEquals(stranger.calls.includes('startChat'), true)
-  const connection = setup({ profile: { providerId: 'ACoAAMaria', firstDegree: true } })
-  await connection.send(linkedin({ linkedin_subtype: 'inmail' }))
-  assertEquals(connection.recorded[0].linkedinAction, 'mensagem')
+Deno.test('LinkedIn: InMail é recusado para conexão e para quem não é, sem falar com a Unipile', async () => {
+  for (const [relacao, firstDegree] of [['quem não é conexão', false], ['conexão', true]] as const) {
+    const envio = setup({ profile: { providerId: 'ACoAAMaria', firstDegree } })
+    const result = await envio.send(linkedin({ linkedin_subtype: 'inmail' }))
+    assertEquals(result, {
+      kind: 'attempted',
+      outcome: 'blocked',
+      recorded: true,
+      reason: 'linkedin_inmail_not_supported',
+    }, relacao)
+    assertEquals(envio.calls.includes('getLinkedInProfile'), false)
+    assertEquals(envio.calls.includes('startChat'), false)
+    assertEquals(envio.calls.includes('sendInvitation'), false)
+    assertEquals(envio.recorded[0].outcome, 'blocked')
+    assertEquals(envio.recorded[0].error, 'linkedin_inmail_not_supported')
+  }
 })
 
 Deno.test('LinkedIn: sem crédito, assinatura ou elegibilidade o convite vira impedimento com o motivo', async () => {
@@ -391,13 +399,6 @@ Deno.test('LinkedIn: sem crédito, assinatura ou elegibilidade o convite vira im
     assertEquals(result, { kind: 'attempted', outcome: 'blocked', recorded: true, reason })
     assertEquals(t.recorded[0].linkedinAction, 'convite')
   }
-  const inmail = setup({
-    profile: { providerId: 'ACoAAMaria', firstDegree: false },
-    start: new UnipileChatRequestError(402, null, 'insufficient_credits'),
-  })
-  await inmail.send(linkedin({ linkedin_subtype: 'inmail' }))
-  assertEquals(inmail.recorded[0].outcome, 'blocked')
-  assertEquals(inmail.recorded[0].error, 'insufficient_credits')
 })
 
 Deno.test('LinkedIn: o convite com timeout ou resposta ilegível fica incerto', async () => {

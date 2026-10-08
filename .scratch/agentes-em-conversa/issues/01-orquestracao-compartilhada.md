@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Pode mexer
 
@@ -35,3 +35,9 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 ## Comments
 
 - Feito na PR https://github.com/Kauedz/Althius/pull/92
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6):
+  - Os testes da ponte e do worker passam sem alteração: `runner.test.ts` não muda desde 07ed97e e `worker.test.ts` desde a973fdd, os dois anteriores ao PR #92; verdes 10 e 8, entre eles "a Coordenação chama o Agente escolhido, que consulta as Contas-alvo, e junta a resposta" e "a Coordenação: o Hermes recebe o contexto e a resposta volta com as etapas dos Agentes".
+  - O modelo entra por injeção: `supabase/functions/_shared/orquestracao.ts` não tem `import` (`:1-5`), interface `Executor` em `:275-279`; quem fala e em que ordem em `:141-145,291-364`; a ponte injeta em `agent-conversation/runner.ts:354-362` e o worker em `_hermes-worker/worker.ts:310-360`. Teste "na Coordenação, os mencionados sempre trabalham; a escolha entra até o limite, sem repetir".
+  - Testes rodados: `deno test --allow-all supabase/functions/_shared/orquestracao.test.ts supabase/functions/_shared/orquestracao-rodadas.test.ts supabase/functions/_shared/orquestracao-playbook.test.ts supabase/functions/agent-conversation/ supabase/functions/_hermes-worker/` → 99 passed, 0 failed. O CI roda as pastas com `_` (log do CI 37707955273).
+  - Fora dos critérios: a ponte e o worker ainda têm prompts e laço de ferramenta duplicados (`runner.ts:84-112,203-351`, `worker.ts:135-204,338-348`).

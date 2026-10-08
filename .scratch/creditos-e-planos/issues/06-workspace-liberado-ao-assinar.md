@@ -4,7 +4,7 @@
 
 **Blocked by:** 05: Planos e assentos; a escolha do meio de pagamento.
 
-**Status:** ready-for-human (código pronto; falta o Nan configurar o Stripe e publicar as funções)
+**Status:** ready-for-human (os dois critérios têm código e teste; falta o Stripe e publicar as funções; dois itens de agente fora dos critérios nos Comments)
 
 ## Pode mexer
 
@@ -53,6 +53,13 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - Escolhas pela experiência e pela margem: um assento por Participante ativo (mínimo 1); ajuste de assentos com cobrança proporcional; cupom aceito no Checkout; fatura atrasada mantém o Workspace aberto por 7 dias de carência; a cota de créditos entra só na criação e na renovação (o ajuste proporcional não dá crédito extra); evento atrasado do Stripe não desfaz um mais novo.
 - A cobrança nasce **desligada** (`billing_settings.enforced = false`): todo Workspace abre até o Nan ligar, para a pré-produção não travar contas novas de teste antes do Stripe estar pronto.
 - O bloqueio é da tela: se a leitura do acesso falha, o Workspace abre (nunca fecha por falha). As funções do banco ainda não recusam por falta de assinatura; isso pede rever cada função e fica para quando houver cliente pagando.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6). Não conferi o remoto (o conector do Supabase não estava ligado nesta sessão).
+  - Cumprido: sem assinatura, só a Demonstração com a chamada para assinar. `workspace_access` (`20261001140000_assinatura_stripe.sql:84-118`) e `TelaDeAssinatura` (`src/auth/assinatura.tsx:47-116`). pgTAP "sem assinatura, o Norte fica bloqueado" e "com a cobrança desligada, o Norte abre" (`assinatura_stripe.sql` ok no CI 37707955273); vitest "sem assinatura, o Workspace fecha e a Administradora assina pelo Stripe…" e "o Membro de um Workspace sem assinatura pede ao Administrador e ainda abre a Demonstração".
+  - Cumprido: os Workspaces de hoje liberados pela marca manual (`:66-70`, `set_manual_release` em `:268`). pgTAP "a marca manual libera o Sul"; vitest "a liberação manual (pré-produção) abre sem botões de cobrança".
+  - Testes rodados: `npx vitest run src/raiz.test.tsx src/paginas/configuracoes/perfil-e-preferencias-reais.test.tsx` → 138 passed, 0 failed; `deno test --allow-all supabase/functions/stripe-billing/ supabase/functions/stripe-webhook/` → 12 passed.
+  - Fora dos critérios (agente, depois de decisão do Nan): ligar `set_credits_enforced` à assinatura (hoje só os pgTAP a chamam), ou unificar as duas chaves (`credits_enforced` por Workspace e `billing_settings.enforced`); e corrigir Configurações > Plano, que diz "só demonstrativos" (`src/paginas/configuracoes/secao-plano.tsx:133-145`), texto travado pelo teste "no Workspace operacional, o Plano diz que plano e consumo são só demonstrativos…" (`perfil-e-preferencias-reais.test.tsx`): trocar pede o sim do Nan.
+  - Passos do Nan: os passos 1 a 7 acima continuam valendo. O `scripts/wizard-go-live.sh:190-192` não publica as duas funções do Stripe, então o passo 5 é à parte. Para ver o que já está no remoto antes, no PowerShell, na raiz: `npx supabase link --project-ref ycbdilsmydvzezhlymty`, `npx supabase migration list --linked` e `npx supabase functions list --project-ref ycbdilsmydvzezhlymty`.
 
 ## Decisões a confirmar
 

@@ -4,16 +4,26 @@ import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { Carregando, IconeAgente } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
-import { useDados } from '@/fonte/contexto'
+import { useAmbiente, useDados } from '@/fonte/contexto'
+import type { ModoDoAmbiente } from '@/fonte/ambiente'
+import { podeDecidir } from '@/fonte/regras'
 import type { Agente, AprovacaoDeAcao, Integracao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
+/** O que a fila é em cada ambiente: no Workspace operacional, só um Administrador decide, e o Canal ainda não decide. */
+const INTRODUCAO: Record<ModoDoAmbiente, string> = {
+  demonstracao: 'O que os agentes propuseram e só acontece com o seu ok. Também dá para decidir no canal de onde veio o pedido.',
+  real: 'O que os Agentes propuseram e só acontece com o ok de um Administrador. Também dá para decidir no passo da Conversa em que o Agente pediu.',
+}
+
 export function PaginaAprovacoes() {
+  const { modo } = useAmbiente()
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
   const workspace = useDados((fonte) => fonte.workspace(), [])
+  const decideAcoes = podeDecidir('acao', workspace?.papel, modo)
 
   const pendentes = aprovacoes?.filter((a) => a.estado === 'pendente').length ?? 0
   // Uma lista só, com as pendentes primeiro: o cartão não sai do lugar ao ser decidido.
@@ -25,7 +35,7 @@ export function PaginaAprovacoes() {
     <Pagina titulo="Aprovações" icone={ShieldCheck} className="max-w-4xl gap-10">
       <div className="flex flex-col gap-2">
         <p className="max-w-2xl text-lg text-al-muted">
-          O que os agentes propuseram e só acontece com o seu ok. Também dá para decidir no canal de onde veio o pedido.
+          {INTRODUCAO[modo]}
         </p>
       </div>
 
@@ -45,6 +55,7 @@ export function PaginaAprovacoes() {
                     aprovacao={aprovacao}
                     agente={agentes.find((a) => a.id === aprovacao.agenteId)}
                     integracao={integracoes.find((i) => i.id === aprovacao.integracaoId)}
+                    podeDecidir={decideAcoes}
                   />
                 )}
               </li>
@@ -56,15 +67,17 @@ export function PaginaAprovacoes() {
   )
 }
 
-/** Uma ação proposta numa Integração. */
+/** Uma ação proposta numa Integração. Sem `podeDecidir`, a pendente mostra quem decide em vez dos botões. */
 function CartaoDeAprovacao({
   aprovacao,
   agente,
   integracao,
+  podeDecidir,
 }: {
   aprovacao: AprovacaoDeAcao
   agente?: Agente
   integracao?: Integracao
+  podeDecidir: boolean
 }) {
   const { integracaoId } = aprovacao
   const rotuloDaIntegracao = nomeDaIntegracao(integracaoId, integracao?.nome)
@@ -112,7 +125,7 @@ function CartaoDeAprovacao({
         <dt className="rotulo">Por quê</dt>
         <dd className="text-al-muted">{aprovacao.justificativa}</dd>
       </dl>
-      <DecisaoDeAprovacao aprovacao={aprovacao} onde="fila" />
+      <DecisaoDeAprovacao aprovacao={aprovacao} onde="fila" podeDecidir={podeDecidir} />
     </article>
   )
 }

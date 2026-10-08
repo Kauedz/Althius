@@ -6,7 +6,7 @@ import { RaizDoAplicativo } from '@/raiz'
 import { renderizarApp } from '@/test/renderizar'
 import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarBancoDeConexoes, rpcsDeConexoes } from '@/test/conexoes-no-banco'
-import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
+import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, type RespostaDaFuncao, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
 
@@ -1083,6 +1083,18 @@ describe('Telas de acesso', () => {
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
   })
 
+  it.each([
+    ['/cadastro', 'Criar conta'],
+    ['/esqueci-a-senha', 'Esqueci a senha'],
+    // O link de redefinição aberto noutro navegador: ele só vale onde foi pedido, e a tela explica.
+    ['/redefinir-a-senha', 'Redefinir a senha'],
+  ])('quem abre %s pela primeira vez neste navegador vê a tela de acesso, e não a Demonstração', async (rota, titulo) => {
+    window.history.replaceState(null, '', rota)
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { name: titulo })).toBeInTheDocument()
+  })
+
   it('depois de entrar nesta aba, a pessoa volta ao endereço que tentou abrir', async () => {
     window.history.replaceState(null, '', '/contas')
     const { usuario, iniciarSessao } = abrirAlthius({
@@ -1134,6 +1146,19 @@ describe('Telas de acesso', () => {
 
     await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
     expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+  })
+
+  it('num navegador novo, a Demonstração aberta a partir de /entrar continua aberta ao atualizar a página', async () => {
+    demonstracaoJaIniciada()
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, cliente, servicos } = abrirAlthius()
+
+    await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
+    expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+
+    cleanup()
+    render(<RaizDoAplicativo cliente={cliente} servicos={servicos} />)
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Demonstração')).toBeInTheDocument()
   })
 })
 
@@ -1308,6 +1333,24 @@ describe('Cadastro com senha', () => {
     expect(window.location.pathname).toBe('/sinais')
   })
 
+  it('o link do e-mail abre o Workspace pessoal, e não a Demonstração, num navegador que nunca escolheu o Workspace operacional', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const supabase = abrirAlthius()
+    await preencherCadastro(supabase.usuario)
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
+    const link = new URL(supabase.linkEnviadoPara(MARINA.email)!)
+
+    // A pessoa abre o link do e-mail numa nova aba deste navegador.
+    cleanup()
+    sessionStorage.clear()
+    window.history.replaceState(null, '', link.pathname + link.search)
+    supabase.abrirLinkDeConfirmacao(MARINA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
+  })
+
   it('cadastro com e-mail que já tem conta mostra a mesma resposta do cadastro novo', async () => {
     window.history.replaceState(null, '', '/cadastro')
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
@@ -1316,6 +1359,67 @@ describe('Cadastro com senha', () => {
 
     expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  /** A Edge Function que avisa por e-mail quem já tem Conta de usuário; guarda cada pedido e responde como `resposta`. */
+  function avisoDeContaExistente(resposta: RespostaDaFuncao | Promise<RespostaDaFuncao> = { status: 202, corpo: { accepted: true } }) {
+    const pedidos: Record<string, unknown>[] = []
+    const funcoes = {
+      'existing-account-email': (corpo: Record<string, unknown>) => {
+        pedidos.push(corpo)
+        return resposta
+      },
+    }
+    return { pedidos, funcoes }
+  }
+
+  it('cadastro com o e-mail de uma Conta de usuário pede o e-mail que explica como entrar, sem a tela revelar nada', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const aviso = avisoDeContaExistente()
+    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], funcoes: aviso.funcoes })
+
+    await preencherCadastro(usuario)
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => expect(aviso.pedidos).toEqual([{ email: MARINA.email }]))
+    // O Supabase Auth não manda código para uma Conta de usuário que já existe: o e-mail que chega é só o aviso.
+    expect(codigoEnviadoPara(MARINA.email)).toBeUndefined()
+  })
+
+  it('um cadastro novo recebe o código, e não o aviso de Conta de usuário existente', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const aviso = avisoDeContaExistente()
+    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas: [], funcoes: aviso.funcoes })
+
+    await preencherCadastro(usuario)
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(codigoEnviadoPara(MARINA.email)).toBeDefined()
+    expect(aviso.pedidos).toEqual([])
+  })
+
+  it('uma falha no envio do aviso de Conta de usuário existente não aparece na tela', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const aviso = avisoDeContaExistente({ status: 500, corpo: { error: 'falhou' } })
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], funcoes: aviso.funcoes })
+
+    await preencherCadastro(usuario)
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    await waitFor(() => expect(aviso.pedidos).toHaveLength(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('a tela não espera o aviso de Conta de usuário existente', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    const aviso = avisoDeContaExistente(new Promise<RespostaDaFuncao>(() => {}))
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], funcoes: aviso.funcoes })
+
+    await preencherCadastro(usuario)
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
+    expect(aviso.pedidos).toHaveLength(1)
   })
 
   it('"Corrigir e-mail" volta ao formulário sem perder o nome digitado', async () => {
@@ -1371,6 +1475,42 @@ describe('Cadastro com senha', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('Termos de Uso e Política de Privacidade', () => {
+  it.each([
+    ['/termos', 'Termos de serviço', 'Aceitação dos termos'],
+    ['/privacidade', 'Política de privacidade', 'Direitos do titular'],
+  ])('%s abre o documento sem login e sem a Demonstração, num navegador que nunca escolheu um ambiente', async (rota, titulo, secao) => {
+    window.history.replaceState(null, '', rota)
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { level: 1, name: titulo })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: secao })).toBeInTheDocument()
+    expect(screen.getByText(/O texto definitivo ainda será fornecido/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Entrar' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Modo Protótipo (Completo)')).not.toBeInTheDocument()
+    // Nada na página leva ao início, que abriria a Demonstração.
+    expect(screen.queryAllByRole('link').map((link) => link.getAttribute('href'))).not.toContain('/')
+    // Ler os Termos não escolhe ambiente: o próximo acesso a este navegador abre como antes.
+    expect(localStorage.getItem('althius:modo_demo')).toBeNull()
+  })
+
+  it('/termos mostra o documento também a quem já tem sessão, sem abrir o Workspace', async () => {
+    window.history.replaceState(null, '', '/termos')
+    abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas: { workspace_memberships: [participacao('ws-norte')] } })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Termos de serviço' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
+  })
+
+  it('/privacidade abre mesmo sem Supabase configurado', async () => {
+    window.history.replaceState(null, '', '/privacidade')
+    const { servicos } = criarServicosDoNavegadorFalsos()
+    render(<RaizDoAplicativo cliente={null} servicos={servicos} />)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Política de privacidade' })).toBeInTheDocument()
   })
 })
 
@@ -1787,6 +1927,26 @@ describe('Esqueci a senha', () => {
     await definirNovaSenha(supabase.usuario)
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/sinais')
+  })
+
+  it('o link do e-mail abre a nova senha, e não a Demonstração, num navegador que nunca escolheu o Workspace operacional', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const supabase = abrirAlthius({ contas: [{ ...CONTA_DA_MARINA }] })
+    await supabase.usuario.click(await screen.findByRole('link', { name: 'Esqueci a senha' }))
+    await pedirRedefinicao(supabase.usuario, MARINA.email)
+    await screen.findByRole('status')
+    const link = new URL(supabase.linkEnviadoPara(MARINA.email)!)
+
+    // A pessoa abre o link do e-mail numa nova aba deste navegador.
+    cleanup()
+    sessionStorage.clear()
+    window.history.replaceState(null, '', link.pathname + link.search)
+    supabase.abrirLinkDeRedefinicao(MARINA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
+
+    await definirNovaSenha(supabase.usuario)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
   })
 
   it('quem só entra com Google, sem senha, define a primeira senha pelo mesmo caminho', async () => {

@@ -1,38 +1,56 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { App } from '@/App'
 import { AplicativoAutenticado } from '@/auth/aplicativo'
-import { ROTA_DE_ENTRADA, ROTA_DO_CONVITE, tokenDoConviteDoAcesso } from '@/auth/destino'
+import { ehCaminhoDeAcesso } from '@/auth/destino'
+import { PaginaDoDocumentoPublico, documentoPublicoDoCaminho } from '@/auth/documento-publico'
 import type { ServicosDoNavegador } from '@/auth/servicos-do-navegador'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
 import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
 
-/** O último ambiente escolhido neste navegador. O nome antigo da chave fica, para não perder as escolhas já salvas. */
+/**
+ * O ambiente deste navegador: o último escolhido, ou o Workspace operacional de quem abriu uma tela de acesso ou um
+ * convite. O nome antigo da chave fica, para não perder as escolhas já salvas.
+ */
 const CHAVE_DO_AMBIENTE = 'althius:modo_demo'
+
+function lembrarAmbiente(ambiente: ModoDoAmbiente) {
+  localStorage.setItem(CHAVE_DO_AMBIENTE, String(ambiente === 'demonstracao'))
+}
 
 /**
  * A escolha do ambiente: a Demonstração ou o acesso ao Workspace operacional. Sem Supabase configurado, só existe a
  * Demonstração. Cada ambiente monta as próprias fontes; trocar de um para outro desmonta o anterior inteiro.
  */
 export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClient | null; servicos: ServicosDoNavegador }) {
+  // As telas de acesso, inclusive o link de redefinição de senha, e o link de um convite são sempre do Workspace
+  // operacional, mesmo num navegador que nunca o escolheu.
+  const [abriuPeloAcesso] = useState(() => ehCaminhoDeAcesso(window.location.pathname))
+  const [documentoPublico] = useState(() => documentoPublicoDoCaminho(window.location.pathname))
   const [ambiente, setAmbiente] = useState<ModoDoAmbiente>(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('auth') === 'true' || params.get('demo') === 'false') return 'real'
     if (params.get('demo') === 'true') return 'demonstracao'
-    // O link de um convite (mesmo malformado), e as telas de acesso que o lembram como destino, são sempre do
-    // Workspace operacional.
-    const { pathname } = window.location
-    if (pathname === ROTA_DE_ENTRADA || pathname.startsWith(`${ROTA_DO_CONVITE}/`) || tokenDoConviteDoAcesso(window.location)) return 'real'
+    if (abriuPeloAcesso) return 'real'
     const salvo = localStorage.getItem(CHAVE_DO_AMBIENTE)
     if (salvo !== null) return salvo === 'true' ? 'demonstracao' : 'real'
     // No protótipo, a Demonstração é o padrão.
     return 'demonstracao'
   })
 
+  // E fica lembrado neste navegador: os links de confirmação do cadastro e de entrada por código voltam ao destino, fora
+  // das telas de acesso, e também precisam abrir o Workspace operacional.
+  useEffect(() => {
+    if (abriuPeloAcesso && cliente) lembrarAmbiente('real')
+  }, [abriuPeloAcesso, cliente])
+
   const escolherAmbiente = (escolhido: ModoDoAmbiente) => {
-    localStorage.setItem(CHAVE_DO_AMBIENTE, String(escolhido === 'demonstracao'))
+    lembrarAmbiente(escolhido)
     setAmbiente(escolhido)
   }
+
+  // Os Termos e a Política de Privacidade são públicos: não pedem login, não abrem a Demonstração nem escolhem ambiente.
+  if (documentoPublico) return <PaginaDoDocumentoPublico documento={documentoPublico} />
 
   if (ambiente === 'demonstracao' || !cliente) {
     return <AplicativoDeDemonstracao aoAlternarParaAutenticado={cliente ? () => escolherAmbiente('real') : undefined} />

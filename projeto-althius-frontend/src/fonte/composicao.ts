@@ -74,7 +74,7 @@ export function criarAmbienteDoWorkspace({
   participacao: ParticipacaoNoWorkspace
   conversasDisponiveis?: boolean
   sinaisDisponiveis?: boolean
-  /** A fila real de Aprovações (CRM-15) entra com o primeiro executor de ação externa (ex.: Enviar ao CRM). */
+  /** A fila real de Aprovações (CRM-15); o aplicativo a liga junto com as Conversas, onde os Agentes as pedem. */
   aprovacoesDisponiveis?: boolean
   /** Os anexos dos passos (canais-10) entram quando o backend diz que o módulo foi ligado. */
   anexosDisponiveis?: boolean
@@ -92,15 +92,15 @@ export function criarAmbienteDoWorkspace({
   if (sinaisDisponiveis) indisponiveis.delete('sinais')
   if (aprovacoesDisponiveis) indisponiveis.delete('aprovacoes')
   if (anexosDisponiveis) indisponiveis.delete('anexos')
-  // Com as Conversas, a Aprovação que um Agente pede aparece e é decidida na própria Conversa (ADR-0022), mesmo com a
-  // fila /aprovacoes ainda desligada (o módulo continua em `indisponiveis`).
+  // A Fonte das Aprovações entra com a fila ou com as Conversas: a Aprovação que um Agente pede aparece e é decidida na
+  // própria Conversa (ADR-0022) e na fila /aprovacoes.
   const aprovacoes = aprovacoesDisponiveis || conversasDisponiveis
     ? criarFonteDeAprovacoesSupabase(cliente, participacao.workspaceId)
     : undefined
   return {
     modo: 'real',
-    // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões e as Conversas
-    // (com o modelo configurado) já têm backend; as Aprovações e o resto de Configurações, ainda não.
+    // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões, as Conversas e as
+    // Aprovações (com o modelo configurado) já têm backend; o resto de Configurações, ainda não.
     fonte: {
       ...criarFonteDeAgentesIndisponivel({ usuario, participacao }),
       ...participantes,
@@ -108,6 +108,15 @@ export function criarAmbienteDoWorkspace({
       ...agentes,
       ...conversas,
       ...(aprovacoes ? { aprovacoes: aprovacoes.aprovacoes, decidirAprovacao: aprovacoes.decidirAprovacao } : {}),
+      // Com a fila ligada, o número na navegação conta as pendentes dela; uma leitura que falha não tira o Workspace.
+      ...(aprovacoes && aprovacoesDisponiveis
+        ? {
+            async workspace() {
+              const [dados, lista] = await Promise.all([perfil.workspace(), aprovacoes.aprovacoes().catch(() => [])])
+              return { ...dados, aprovacoesPendentes: lista.filter((a) => a.estado === 'pendente').length }
+            },
+          }
+        : {}),
       observar(ouvinte) {
         const paradas = [participantes, perfil, agentes, ...(aprovacoes ? [aprovacoes] : [])].map((fonte) => fonte.observar(ouvinte))
         return () => paradas.forEach((parar) => parar())

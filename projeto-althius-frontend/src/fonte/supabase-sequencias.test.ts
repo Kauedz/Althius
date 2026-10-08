@@ -211,6 +211,93 @@ describe('Envios e respostas da Sequência no Workspace operacional', () => {
     }])
   })
 
+  it('a Responsável lê a resposta de WhatsApp e a de LinkedIn junto com a de e-mail', async () => {
+    const linha = linhaDaMarina()
+    const chamadas: string[] = []
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      tabelas: { sequences: [linha] },
+      rpcs: {
+        list_received_emails: () => {
+          chamadas.push('list_received_emails')
+          return [{
+            interaction_id: 'inter-email', sequence_id: 'sequencia-da-marina', send_id: 'envio-email', contact_id: 'contato-1',
+            from_email: 'maria@empresa-alvo.test', from_name: 'Maria Souza', subject: 'Re: Olá', body: 'Podemos falar amanhã por e-mail?',
+            received_at: '2026-09-26T15:00:00Z', attachments: [],
+          }]
+        },
+        list_received_chat_messages: () => {
+          chamadas.push('list_received_chat_messages')
+          return [
+            {
+              interaction_id: 'inter-li', sequence_id: 'sequencia-da-marina', send_id: 'envio-li', contact_id: 'contato-2',
+              channel: 'linkedin', from_id: 'joao-lima', from_name: 'João Lima', body: 'Vi seu perfil no LinkedIn.',
+              attachments_count: 2, received_at: '2026-09-26T17:00:00Z',
+            },
+            {
+              interaction_id: 'inter-wa', sequence_id: 'sequencia-da-marina', send_id: 'envio-wa', contact_id: 'contato-1',
+              channel: 'whatsapp', from_id: '5511988887777@s.whatsapp.net', from_name: 'Maria Souza',
+              body: 'Pode ser amanhã no WhatsApp.', attachments_count: 0, received_at: '2026-09-26T16:00:00Z',
+            },
+          ]
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+
+    expect(await fonte.respostasRecebidas('sequencia-da-marina')).toEqual([
+      {
+        interacaoId: 'inter-li', sequenciaId: 'sequencia-da-marina', envioId: 'envio-li', contatoId: 'contato-2',
+        canal: 'linkedin', de: { nome: 'João Lima' }, corpo: 'Vi seu perfil no LinkedIn.',
+        recebidaEm: '2026-09-26T17:00:00Z', anexos: [], quantidadeDeAnexos: 2,
+      },
+      {
+        interacaoId: 'inter-wa', sequenciaId: 'sequencia-da-marina', envioId: 'envio-wa', contatoId: 'contato-1',
+        canal: 'whatsapp', de: { nome: 'Maria Souza' }, corpo: 'Pode ser amanhã no WhatsApp.',
+        recebidaEm: '2026-09-26T16:00:00Z', anexos: [],
+      },
+      {
+        interacaoId: 'inter-email', sequenciaId: 'sequencia-da-marina', envioId: 'envio-email', contatoId: 'contato-1',
+        de: { email: 'maria@empresa-alvo.test', nome: 'Maria Souza' }, assunto: 'Re: Olá',
+        corpo: 'Podemos falar amanhã por e-mail?', recebidaEm: '2026-09-26T15:00:00Z', anexos: [],
+      },
+    ])
+    expect(chamadas).toEqual(['list_received_emails', 'list_received_chat_messages'])
+  })
+
+  it('uma recusa do chat não esconde a resposta de e-mail nem entrega o corpo por outro caminho', async () => {
+    const linha = linhaDaMarina()
+    const chamadas: string[] = []
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      tabelas: { sequences: [linha] },
+      rpcs: {
+        list_received_emails: () => {
+          chamadas.push('list_received_emails')
+          return [{
+            interaction_id: 'inter-email', sequence_id: 'sequencia-da-marina', send_id: 'envio-email', contact_id: 'contato-1',
+            from_email: 'maria@empresa-alvo.test', from_name: 'Maria Souza', subject: 'Re: Olá', body: 'Podemos falar amanhã por e-mail?',
+            received_at: '2026-09-26T15:00:00Z', attachments: [],
+          }]
+        },
+        list_received_chat_messages: () => {
+          chamadas.push('list_received_chat_messages')
+          const erro = new Error('sequence not found or not owned by active user') as Error & { code: string }
+          erro.code = '42501'
+          throw erro
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+
+    expect(await fonte.respostasRecebidas('sequencia-da-marina')).toEqual([{
+      interacaoId: 'inter-email', sequenciaId: 'sequencia-da-marina', envioId: 'envio-email', contatoId: 'contato-1',
+      de: { email: 'maria@empresa-alvo.test', nome: 'Maria Souza' }, assunto: 'Re: Olá',
+      corpo: 'Podemos falar amanhã por e-mail?', recebidaEm: '2026-09-26T15:00:00Z', anexos: [],
+    }])
+    expect(chamadas).toEqual(['list_received_emails', 'list_received_chat_messages'])
+  })
+
   it('o anexo abre por um endereço temporário pedido à Edge Function', async () => {
     const { fonte } = sequenciaComEnvios({
       'received-email-attachments': (corpo) => ({ corpo: { url: `https://storage.test/${corpo.attachmentId}?token=abc`, expiresIn: 300 } }),

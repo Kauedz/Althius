@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Building2,
   Check,
@@ -40,6 +40,7 @@ export function SecaoReceitaFederal({
   const [cnpjInput, setCnpjInput] = useState(conta.legalIdentifier ?? '')
 
   const receita = conta.receitaData
+  const custoId = useId()
 
   async function handleBuscar(cnpjAlvo?: string) {
     const doc = cnpjAlvo ?? conta.legalIdentifier ?? cnpjInput
@@ -95,16 +96,20 @@ export function SecaoReceitaFederal({
           )}
 
           {fonte.enriquecerReceita && (
-            <Button
-              type="button"
-              size="sm"
-              disabled={buscando}
-              onClick={() => handleBuscar()}
-              className="h-8 gap-1.5 border border-al-accent bg-al-accent text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
-            >
-              <Sparkles className="size-3.5" />
-              {buscando ? 'Consultando...' : receita ? 'Atualizar Receita' : 'Consultar Receita'}
-            </Button>
+            <>
+              <span id={custoId} className="text-xs text-al-muted">1 crédito</span>
+              <Button
+                type="button"
+                size="sm"
+                disabled={buscando}
+                onClick={() => handleBuscar()}
+                aria-describedby={custoId}
+                className="h-8 gap-1.5 border border-al-accent bg-al-accent text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
+              >
+                <Sparkles className="size-3.5" />
+                {buscando ? 'Consultando...' : receita ? 'Atualizar Receita' : 'Consultar Receita'}
+              </Button>
+            </>
           )}
         </div>
       </div>

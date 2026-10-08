@@ -4,7 +4,7 @@
 
 **Blocked by:** 06: Executar passos e receber respostas pelo WhatsApp; 07: Executar passos e receber respostas pelo LinkedIn.
 
-**Status:** ready-for-human (código pronto e testado com dublês; falta o envio real de um anexo por canal, nos Passos do Nan)
+**Status:** ready-for-human (código e testes conferidos; falta o anexo real por canal; os de WhatsApp e LinkedIn só depois do envio real dos tickets 06 e 07)
 
 - [x] Upload associa o arquivo ao Workspace, responsável, Sequência e passo corretos, com armazenamento privado. (`register_sequence_attachment` grava `private.sequence_attachments` com Workspace, titular, Sequência, passo e canal; bucket privado `sequence-attachments`; pgTAP `anexos_dos_passos.sql` §2.) Anexo em proposta de resposta não entrou: as propostas são só texto hoje.
 - [x] Somente o responsável obtém acesso temporário ao conteúdo; outro participante e outro Workspace não conseguem ler o objeto diretamente. (`get_sequence_attachment_path` só para o titular com Participação ativa e a responsabilidade; URL assinada de 2 min gerada pela Edge Function; nenhuma política em `storage.objects`; pgTAP §3 e §5, deno `sequence-attachments/handler.test.ts`.)
@@ -21,6 +21,11 @@
 - Apagar a Conta-alvo (documento esvaziado) apaga os anexos, e cada registro apagado põe a pasta na fila do `storage-purge` (duas passadas), que passou a aceitar o bucket `sequence-attachments`.
 - Edge Function nova `sequence-attachments` (`verify_jwt = true`): multipart para subir, `{ action: 'url' }` para abrir. Convite do LinkedIn não leva anexo (recusado no upload, na ativação e no envio).
 - Frontend: `anexarArquivo` e `urlDoAnexoDoPasso` na Fonte real; o documento guarda só `{ id, tipo, nome, mime, tamanho }`; o módulo `anexos` entra quando `sequence_attachment_limits` devolve limites; a Demonstração continua com o endereço local.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6). Não conferi o remoto (o conector do Supabase não estava ligado nesta sessão); o GO-LIVE só cobre até a Etapa 5b, então não se sabe se a `20261002120000` foi aplicada.
+  - Os critérios 1 a 6 conferem com o código: `20261002120000_anexos_dos_passos.sql` (`:127` tabela, `:116` bucket, `:267` registro, `:383` caminho só do titular, `:420` `step_send_attachments`, `:469` falha do anexo) e `_shared/anexos-do-envio.ts`.
+  - Testes rodados: `deno test --allow-all supabase/functions/_shared/anexos-do-envio.test.ts` (14 passed) e `supabase/functions/sequence-attachments/handler.test.ts` (10), entre eles "outro participante não recebe URL nenhuma"; `npx vitest run src/sequencia-anexos-guardados.test.tsx` (6, entre eles "…continua lá numa nova sessão"); pgTAP `anexos_dos_passos.sql` (52) ok no CI 37707955273.
+  - Passos do Nan: os passos 1 a 5 acima. Antes, no SQL Editor: `select version from supabase_migrations.schema_migrations where version in ('20261002120000','20261002121000');`.
 
 ## Passos do Nan
 

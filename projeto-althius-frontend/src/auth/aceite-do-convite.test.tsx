@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
@@ -94,7 +94,16 @@ function abrirOLinkDoConvite(
     token = TOKEN,
     quem = CARLA,
     carlaTemConta = true,
-  }: { comSessao?: boolean; token?: string; quem?: typeof CARLA; /** Sem ela, a Carla ainda não tem Conta de usuário. */ carlaTemConta?: boolean } = {},
+    comGoogle = false,
+  }: {
+    comSessao?: boolean
+    token?: string
+    quem?: typeof CARLA
+    /** Sem ela, a Carla ainda não tem Conta de usuário. */
+    carlaTemConta?: boolean
+    /** Com o Client ID do Google configurado: as telas de acesso mostram "Continuar com Google". */
+    comGoogle?: boolean
+  } = {},
 ) {
   window.history.replaceState(null, '', `/convite/${token}`)
   const supabase = criarSupabaseFalso({
@@ -108,8 +117,9 @@ function abrirOLinkDoConvite(
   })
   banco.sessao.usuarioId = async () => (await supabase.cliente.auth.getSession()).data.session?.user.id
   const usuario = userEvent.setup()
-  render(<RaizDoAplicativo cliente={supabase.cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
-  return { ...supabase, usuario }
+  const navegador = criarServicosDoNavegadorFalsos(comGoogle ? { google: {} } : {})
+  render(<RaizDoAplicativo cliente={supabase.cliente} servicos={navegador.servicos} />)
+  return { ...supabase, usuario, google: navegador.google }
 }
 
 /** O campo de e-mail da tela de acesso traz o e-mail convidado, travado e com o aviso; digitar nele não o troca. */
@@ -199,6 +209,8 @@ describe('Aceite do convite', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(explicacao)
     expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+    // A sessão já é a do e-mail convidado: outra conta não resolve a recusa.
+    expect(screen.queryByRole('button', { name: 'Entrar com outra conta' })).not.toBeInTheDocument()
     expect(banco.participacoes.map((p) => p.workspace_id)).toEqual([PESSOAL_DA_CARLA.id])
 
     await usuario.click(screen.getByRole('button', { name: 'Continuar sem o convite' }))
@@ -444,5 +456,51 @@ describe('Entrar por convite', () => {
 
     expect(await screen.findByRole('heading', { name: 'Convite para o Workspace Norte' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('Entrar por convite com Google', () => {
+  const CARLA_NO_GOOGLE = { email: CARLA.email, nome: 'Carla Dias' }
+
+  it('quem cria a Conta de usuário pelo convite com o Google do e-mail convidado volta do Google ao convite e entra no Workspace da empresa', async () => {
+    const banco = bancoComConvite()
+    const { usuario, google } = abrirOLinkDoConvite(banco, { comSessao: false, carlaTemConta: false, comGoogle: true })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Criar conta com este e-mail' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Continuar com Google' }))
+    act(() => google.escolherConta(CARLA_NO_GOOGLE))
+
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN])
+    await abrirPessoasEAcesso(usuario)
+    expect(await within(await screen.findByRole('region', { name: 'Workspace' })).findByText('Norte')).toBeInTheDocument()
+    // O Workspace pessoal continua entre as Participações ativas.
+    expect(banco.participacoes.map((p) => p.workspace_id)).toEqual([PESSOAL_DA_CARLA.id, NORTE.id])
+  })
+
+  it('uma conta Google de outro e-mail não aceita o convite: a tela explica, sem criar Participação, e deixa escolher outra conta', async () => {
+    const banco = bancoComConvite()
+    const { usuario, google } = abrirOLinkDoConvite(banco, { comSessao: false, comGoogle: true })
+
+    await usuario.click(await screen.findByRole('link', { name: 'Já tenho conta: entrar' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Continuar com Google' }))
+    act(() => google.escolherConta({ email: DIEGO.email, nome: 'Diego' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Este convite é para outro e-mail.')
+    expect(await screen.findByText(/Este convite do Workspace/)).toHaveTextContent(`Este convite do Workspace Norte é para ${CARLA.email}.`)
+    expect(screen.getByText(`Você entrou como ${DIEGO.email}.`, { exact: false })).toBeInTheDocument()
+    expect(banco.participacoes.filter((p) => p.workspace_id === NORTE.id)).toEqual([])
+
+    // Escolher outra conta sai da sessão e volta à entrada do convite, onde o Google está de novo.
+    await usuario.click(screen.getByRole('button', { name: 'Entrar com outra conta' }))
+    await emailTravadoDaCarla(usuario)
+    expect(window.location.pathname).toBe('/entrar')
+    expect(new URLSearchParams(window.location.search).get('destino')).toBe(`/convite/${TOKEN}`)
+    await usuario.click(screen.getByRole('button', { name: 'Continuar com Google' }))
+    act(() => google.escolherConta(CARLA_NO_GOOGLE))
+
+    expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
+    expect(banco.aceites).toEqual([TOKEN, TOKEN])
+    expect(banco.participacoes.filter((p) => p.workspace_id === NORTE.id).map((p) => p.user_id)).toEqual([CARLA.id])
   })
 })

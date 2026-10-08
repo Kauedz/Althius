@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Fornecedores da cascata; `creditos-e-planos` 02.
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent (reduzido ao lote com o custo máximo antes, bloqueado pelo B3; os critérios 1 e 2 e a gravação pelo `set_contact_channels` são duplicados do B3 da `prospeccao-funcional`; telefone espera decisão do Nan)
 
 ## Pode mexer
 
@@ -32,3 +32,13 @@
 3. Guardar os segredos dos fornecedores pagos, se houver, direto no PowerShell (`npx supabase secrets set <NOME>=... --project-ref ycbdilsmydvzezhlymty`), nunca no chat.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6):
+  - Critério 1 (não achou, não debita): cumprido no sentido literal (`20261001190000_enriquecimento_e_comite.sql:616-619`; Deno "handler revelar-contato: quando NÃO acha, não debita nenhum crédito (0 créditos)"; pgTAP "ZERO créditos foram debitados quando o dado não foi encontrado"). Mas achar e não gravar debita 2 (o `coalesce` em `:605,610`, liquidando antes em `:600`), e a falha do actor aparece como "não encontrado". Tudo isso está nos critérios 2 e 4 do B3: duplicado.
+  - Critério 2 (unicidade entre Contatos): parcial. O gatilho barra (`20260929170000:83,90`), mas o 23505 desfaz tudo, o handler devolve 500 (`account-enrichment/handler.ts:578-582`) e a reserva fica `reserved` até a faxina. Sem teste. O B3 não lista esse caso: registrado como acréscimo nos Comments do B3. Duplicado.
+  - Critério 3 (lote com custo máximo): não existe ação em lote; o botão é por linha (`src/paginas/tabela-de-contatos.tsx:145`). O B3 não cobre.
+  - Telefone: o ticket pede 5 créditos por telefone, mas a spec da `prospeccao-funcional` deixou o telefone de fora e nenhum actor traz telefone (`20261001170000:279`).
+  - Testes rodados: `deno test --allow-all supabase/functions/account-enrichment/` → 9 passed; pgTAP `enriquecimento_e_comite.sql` e `varios_emails_e_telefones_por_contato.sql` ok no CI 37707955273.
+  - Falta (agente, depois do B3): a ação em lote com o custo máximo antes de rodar, com teste. Pergunta ao Nan: o telefone vira `wontfix` até existir um actor validado?

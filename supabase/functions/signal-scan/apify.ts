@@ -61,6 +61,8 @@ export function clienteDoApify(
           if (exec.runId) contaDaExecucao.set(exec.runId, tokens[i]);
           return exec;
         } catch (error) {
+          const runId = runIdDoErro(error);
+          if (runId) contaDaExecucao.set(runId, tokens[i]);
           if (
             error instanceof ApifyRequestError && SEM_CREDITO.has(error.status)
           ) {
@@ -84,9 +86,8 @@ export function clienteDoApify(
 
   async function rodar(
     token: string,
-    { actorId, input, maxItems, maxTotalChargeUsd }: Parameters<
-      Apify["run"]
-    >[0],
+    { actorId, input, maxItems, maxTotalChargeUsd, corpoTemDeSerLista }:
+      Parameters<Apify["run"]>[0],
   ): Promise<Execucao> {
     const consulta = new URLSearchParams({
       timeout: String(runTimeoutSeconds),
@@ -113,22 +114,38 @@ export function clienteDoApify(
         },
       );
       if (resposta.status === 408) {
+        const runId = resposta.headers.get("x-apify-run-id");
         await resposta.body?.cancel();
-        throw new ApifyTimeoutError();
+        throw new ApifyTimeoutError(runId);
       }
       if (!resposta.ok) {
+        const runId = resposta.headers.get("x-apify-run-id");
         await resposta.body?.cancel();
-        throw new ApifyRequestError(resposta.status);
+        throw new ApifyRequestError(resposta.status, runId);
       }
-      const itens = await resposta.json().catch(() => []);
-      return {
-        runId: resposta.headers.get("x-apify-run-id") ??
-          await ultimaExecucao(token, actorId, inicio),
-        items: Array.isArray(itens) ? itens : [],
-      };
+      let itens: unknown;
+      try {
+        itens = await resposta.json();
+      } catch {
+        itens = undefined;
+      }
+      const runId = resposta.headers.get("x-apify-run-id") ??
+        await ultimaExecucao(token, actorId, inicio);
+      if (!Array.isArray(itens)) {
+        if (corpoTemDeSerLista) {
+          const erro = new Error("O Apify não devolveu uma lista.");
+          (erro as { runId?: string | null }).runId = runId;
+          throw erro;
+        }
+        return { runId, items: [] };
+      }
+      return { runId, items: itens };
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
-        throw new ApifyTimeoutError();
+        const runId = corpoTemDeSerLista
+          ? await ultimaExecucao(token, actorId, inicio)
+          : null;
+        throw new ApifyTimeoutError(runId);
       }
       throw error;
     } finally {
@@ -234,6 +251,12 @@ export function clienteDoApify(
       clearTimeout(timer);
     }
   }
+}
+
+function runIdDoErro(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("runId" in error)) return null;
+  const runId = (error as { runId: unknown }).runId;
+  return typeof runId === "string" && runId.length > 0 ? runId : null;
 }
 
 const numeroValido = (v: unknown): number | null =>

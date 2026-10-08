@@ -1,3 +1,27 @@
+﻿# Ralph status: consolidado das frentes (2026-10-08)
+
+Cada frente (acesso, canais, enriquecimento, creditos) tem sua secao abaixo.
+
+## Frente enriquecimento
+
+Updated: 2026-10-08
+
+## Atual
+
+| Campo | Valor |
+| --- | --- |
+| Ticket | prospeccao-funcional B1 |
+| Status | ready-for-human |
+| Branch | ralph/frente-enriquecimento |
+| Commit | 861661459b2dd94c07890352a32d783adcddee44 |
+| O que o humano roda | O preço já está decidido (1 crédito). Com o CI verde, aplicar `20261008203000_consulta_cnpj_reserva_credito.sql` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico, como em `docs/agents/migrations.md`. Não aplicar antes do CI. Sem push. Depois, na raiz do repositório, no PowerShell, sem `--no-verify-jwt`: `npx supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty`. O pgTAP `plan(19)` não rodou nesta máquina. |
+
+B4 estava gravado como done. Corrigido para ready-for-human: a migration `20261008153000_apagar_conta_limpa_dado_pessoal.sql` ainda é passo humano no mesmo projeto, pelo `execute_sql`, depois do CI. Sem deploy de função. Sem push.
+
+Próximo da fila, numa sessão nova: prospeccao-funcional B2. Não reabrir o B1: o código está fechado.
+
+## Histórico early-send (2026-09-25)
+
 # Ralph status — early-send (CRM × Auth × Canais)
 Updated: 2026-09-25T20:35-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
@@ -26,6 +50,8 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | canais-04 | blocked | | Blocked by canais-02 (ready-for-human) e canais-03 |
 | Review final | done | — | 0 bloqueantes; 2 importantes + 2 menores em correção |
 | Correções da revisão | done | ralph/revisao-correcoes · PR #30 (draft, topo da pilha) | 4/4; pgTAP 40/40, 21/21, 24/24; suíte 604/604; vincular+editar Contato (CRM-05); enumeração pelo rate limit (Auth); aceite dos Termos só no 1º acesso; erro cru de RPC |
+| Auth-03 + Auth-05 (2026-10-08) | parcial: correção (A) da raiz feita; Auth-03 segue com (B) /termos e /privacidade e (C) e-mail para conta existente; Auth-05 só falta o humano do ticket 10 | ralph/auth-03-05-redefinir-senha | link de redefinição, `/cadastro`, `/esqueci-a-senha` e link de confirmação abriam a Demonstração num navegador sem escolha; sem migration; ver seção "Auth-03/05 — 2026-10-08" |
+| Auth-03 (B)+(C) (2026-10-08) | closed (código); pending-human: migration 20261008160000 e deploy da `existing-account-email` | ralph/frente-acesso · commit 435ccb0 | /termos e /privacidade públicos; aviso por e-mail a quem já tem conta (Edge Function sem JWT + RPC só de service_role, com limites); vitest 1088/1088, deno 721/721, pgTAP do zero ok; ver seção "Auth-03 (B)+(C) — 2026-10-08" |
 | Auth-09 | out | — | fora do corte; exige CRM-03 |
 | Auth-10 | human | — | ready-for-human; não spawnar |
 | CRM-03, 16, 19, 20, 21, 22–24 | out | — | fora do corte / ponteiros |
@@ -54,11 +80,40 @@ Pilha mergeada na `main` pelo responsável do produto: #19, #20, #22 (traz #21),
 
 A correção do aceite dos Termos entrou como migration nova `20260925170000_bootstrap_preserva_aceite_dos_termos.sql`, porque a `20260925140000` já tinha sido aplicada no remoto.
 
+## Auth-03/05 — 2026-10-08
+- **Ticket:** Auth-03 (cadastro) incluindo Auth-05 (esqueci a senha). Bug: num navegador que nunca escolheu o Workspace operacional, o link de redefinir senha, `/cadastro`, `/esqueci-a-senha` e o link de confirmação do cadastro abriam a Demonstração.
+- **Status:** parcial. Auth-05: código fechado, falta só o passo humano do ticket 10. Auth-03: correção (A) feita; seguem (B) rotas /termos e /privacidade e (C) e-mail para conta existente por Edge Function (trabalho de agente, ver Comments de 2026-10-07 no ticket).
+- **Branch:** `ralph/auth-03-05-redefinir-senha`, com push, sem PR.
+- **Sem migration.** Nada a aplicar no Supabase.
+- **Decisão do Renan (2026-10-08): aceito como está.** Quem abre uma tela de acesso ou um convite fica com o Workspace operacional lembrado no navegador (é o que faz o link de confirmação funcionar), e quem visitou `/cadastro` vai para `/entrar` ao voltar ao início, não para a Demonstração. Descartada a alternativa `/entrar?destino=…` nos links do e-mail.
+- **O que o humano roda (PowerShell, na raiz do repo):**
+  1. Conferir os testes: `cd projeto-althius-frontend; npx vitest run src/raiz.test.tsx; npx tsc -b`
+  2. A branch já está no GitHub. O PR fica a seu critério.
+  3. Supabase Auth, pendência antiga do Auth-05 (Dashboard → Authentication → URL Configuration): `https://<domínio>/redefinir-a-senha` e os destinos dos links (`https://<domínio>/**`) nas Redirect URLs. Modelos "Confirm signup" e "Reset Password" com `{{ .Token }}` além do link.
+  4. Conferência real, depois do deploy: numa janela anônima, abrir `https://<domínio>/entrar` → "Esqueci a senha" → abrir o link do e-mail na mesma janela → deve aparecer "Defina uma nova senha". Repetir com `https://<domínio>/cadastro` e o link de confirmação → deve abrir o Workspace pessoal.
+
+## Auth-03 (B)+(C) — 2026-10-08
+- **Ticket:** autenticacao-google-email 03, partes (B) e (C). Checkboxes 8/8; Status `closed`, com os Passos do Nan pendentes.
+- **Branch:** `ralph/frente-acesso`, commit `435ccb0`. Sem push.
+- **O que mudou:** `/termos` e `/privacidade` abrem uma página pública (`src/auth/documento-publico.tsx`), fora do login e da Demonstração. O cadastro com e-mail que já tem conta chama em silêncio a Edge Function nova `existing-account-email` (`verify_jwt = false`, responde sempre 202). Ela reserva o aviso pela RPC `claim_existing_account_notice` (migration `20261008160000_aviso_de_conta_existente.sql`) e manda o e-mail pelo Resend do Convite.
+- **Testes:** vitest 1088/1088, `tsc -b` limpo, oxlint sem erros, `deno check` em todas as funções, `deno test supabase/functions` 721/721, pgTAP do zero com todas as migrations ok (`aviso_de_conta_existente.sql` 14/14).
+- **Decisões a confirmar (Nan):**
+  - A função não tem CAPTCHA. Os limites seguram o abuso: 3 avisos por dia por conta e 200 por hora no total.
+  - A página `/termos` mostra o título "Termos de serviço", e o link diz "Termos de Uso".
+  - O remetente é o mesmo do Convite (`INVITE_EMAIL_FROM`).
+- **O que o humano roda (PowerShell, na raiz do repo), depois do merge e do CI verde:**
+  1. Conferir os testes: `cd projeto-althius-frontend; npx vitest run src/raiz.test.tsx; npx tsc -b; cd ..; deno test supabase/functions/existing-account-email`
+  2. Aplicar `supabase/migrations/20261008160000_aviso_de_conta_existente.sql` no Supabase `ycbdilsmydvzezhlymty` como manda `docs/agents/migrations.md` (um agente com o MCP do Supabase, pelo `execute_sql`).
+  3. `npx supabase secrets list --project-ref ycbdilsmydvzezhlymty`: confira que `RESEND_API_KEY` e `APP_ORIGIN` aparecem.
+  4. `npx supabase functions deploy existing-account-email --project-ref ycbdilsmydvzezhlymty`
+  5. Conferência real: numa janela anônima, cadastrar em `https://<domínio>/cadastro` um e-mail que já tem conta confirmada. A tela pede o código como num cadastro novo, e a caixa recebe "Você já tem conta na Althius". Abrir também `/termos` e `/privacidade`.
+
 ## STOP
 Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana.
 
 ## Alerts
 - ALERTA RALPH | migrations | aplicar no remoto, na ordem, as que faltarem: 140000 (se ainda não) → 150000 → 160000 → 170000.
+- ALERTA RALPH | Auth-03 | pending-apply | aplicar `supabase/migrations/20261008160000_aviso_de_conta_existente.sql` e só depois publicar a Edge Function `existing-account-email`.
 - ALERTA RALPH | PR #23 (outra sessão) | o wizard de teste real do canais-01 pode ter criado dados em `public.workspaces` no remoto; conferir se a tabela já existe antes de aplicar a 140000 (que faz `create table`).
 - ALERTA RALPH | canais-03 | GATE | Blocked-by faltando: canais-01 não está done.
 - ALERTA RALPH | CRM-05 | pending-apply + humano | migration 20260925160000 move a tabela antiga de destinatários (canais-02) para `private.target_contacts_canais02` e troca `public.target_contacts` por view; decidir o destino das linhas antigas, se houver.
@@ -74,3 +129,121 @@ Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e
 
 ## Loop de teste de banco
 Postgres 16 + pgTAP locais, com schema `auth` mínimo do Supabase, via script de sessão (fora do repo): aplica `supabase/migrations/` (repetindo as fora de ordem) e roda `supabase/tests/`.
+
+## Auth-09 — 2026-10-08
+- **Ticket:** autenticacao-google-email 09 (Entrar por convite). Checkboxes 5/5. Status `ready-for-human`: o código está fechado e falta só a conferência com o Google real.
+- **Branch:** `ralph/frente-acesso`, commit `d8c3a7d`. Sem push.
+- **O que mudou:**
+  - Na recusa do convite por outro e-mail (sessão de senha, código ou Google), "Entrar com outra conta" sai da sessão e abre `/entrar?destino=/convite/<token>`, com o e-mail convidado travado e o Google. Se a saída falhar, a tela volta ao link do convite.
+  - A volta do Google ao convite já funcionava e agora tem teste.
+  - Sem migration e sem Edge Function.
+- **Testes:** vermelho do "Entrar com outra conta" no código antigo; `aceite-do-convite.test.tsx` 27/27; `npx vitest run --maxWorkers=2` com 107 arquivos e 1090/1090 testes; `tsc -b` limpo. A suíte sem `--maxWorkers` foi parada por falta de memória na máquina.
+- **O que o humano roda:**
+  1. Conferir os testes (PowerShell, na raiz do repo): `cd projeto-althius-frontend; npx vitest run src/auth/aceite-do-convite.test.tsx; npx tsc -b`
+  2. Depois do Google real do ticket 10, numa janela anônima:
+     - Abrir o link de um convite pendente → "Já tenho conta: entrar" → "Continuar com Google" com uma conta de **outro** e-mail. Deve aparecer "Convite não aceito", com "Entrar com outra conta".
+     - Clicar nele e escolher a conta do e-mail convidado. Deve abrir o Workspace da empresa, com o pessoal no seletor.
+     - Repetir por "Criar conta com este e-mail" com o Google do e-mail convidado.
+
+## CRM-15 (frente acesso) — 2026-10-08
+- **Ticket:** crm-real-e-stack 15 (Aplicar Aprovações antes de ações externas). O critério que faltava era a fila. Checkboxes 11/11. Status `ready-for-human`: o código está fechado e faltam os Passos do Nan do ticket.
+- **Branch:** `ralph/frente-acesso`, commit `10e29cf`. Sem push.
+- **O que mudou:**
+  - A fila `/aprovacoes` liga no Workspace operacional junto com as Conversas (`aprovacoesDisponiveis: comConversas` em `aplicativo.tsx`).
+  - O Administrador decide ali a Aprovação pedida na Conversa de um Membro. O Membro vê a Aprovação e o aviso de que só um Administrador decide.
+  - O número de pendentes da navegação vem da fila real.
+  - A introdução da fila não promete mais decidir pelo Canal.
+  - A regra de quem decide fica num lugar só (`podeDecidir` com o ambiente).
+  - ADR-0010 emendada.
+  - O `raiz.test.tsx` não mudou: sem o modelo, a fila segue indisponível, e a autorização de trocar aquela asserção não foi usada.
+  - Sem migration, sem Edge Function e sem segredo novo.
+- **Testes:** vitest `--maxWorkers=2` 109 arquivos e 1096/1096; `tsc -b` limpo; pgTAP local 58 arquivos e 2550/2550 (inclui `aprovacoes_reais` 30, `ferramentas_dos_agentes` 37 e `permissao_por_ferramenta` 30). Prints em `.scratch/crm-real-e-stack/issues/prints/15-*.jpg`.
+- **Fica de fora:**
+  - O cartão da fila não mostra a linha "Conta-alvo", porque `list_approvals` não traz o nome da Conta (pede migration).
+  - A 360px, a casca do Workspace operacional não se adapta em nenhuma tela (já era assim).
+- **O que o humano roda (PowerShell, na raiz do repo):**
+  1. Conferir os testes: `cd projeto-althius-frontend; npx vitest run src/paginas/aprovacoes-reais.test.tsx src/fonte/supabase-aprovacoes-leitura.test.ts; npx tsc -b`
+  2. Conferir o que já está no remoto: `npx supabase migration list --linked` e `npx supabase functions list --project-ref ycbdilsmydvzezhlymty`. O que faltar segue os passos 1, 2 e 5 do ticket. Isso vale para as migrations `20261001210000` e `20261002110000` e para o deploy de `agent-conversation`, `crm-handoff`, `integration-tools`, `integration-connect` e `integration-callback`.
+  3. Depois do merge e do deploy do frontend, passo 6 do ticket:
+     - Como **Membro**, com o Rhetor em Propor no HubSpot, pedir na Conversa "Rhetor, leve a <Conta sua> ao HubSpot". O passo mostra "Só um Administrador decide esta Aprovação."
+     - Como **Administrador**, a navegação mostra o número de pendentes. Em `/aprovacoes`, clicar em Aprovar: o cartão vira "Aprovada · executada" e a empresa aparece no HubSpot.
+## Frente canais — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | prospeccao-funcional C1 — Ativar pela tela uma Sequência de WhatsApp ou LinkedIn |
+| Status | done |
+| Branch | ralph/frente-canais |
+| Commit | b7fedae175f2e573226e8aaa99115a56e77a8a27 |
+| Push | não feito |
+
+O que o humano roda: nada no banco. Não há migration. A tela lê `list_enabled_chat_channels`, que já existe. O padrão do banco deixa WhatsApp e LinkedIn desligados; este ticket não liga o canal. Sem push.
+
+## Frente canais — ticket 13 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | canais-cadencia-backend 13 — Tirar o InMail da tela e recusá-lo no envio |
+| Status | ready-for-human |
+| Branch | ralph/frente-canais |
+| Commit | 74bcb2ced4d7d872f121526180eeab1b24f949ca |
+| Push | não feito |
+
+Para o próximo agente: não reabra o 13. O código está neste commit, os oito checkboxes estão ticados e os testes já nascem verdes. `ready-for-human` aqui é o passo do Nan, não trabalho de implementação. Não marque o ticket como blocked por falta de vermelho. O próximo da fila é prospeccao-funcional C3.
+
+O que o humano roda, antes de publicar: no SQL Editor, só leitura, a consulta do ticket (Sequências com passo de InMail). Depois do merge, na raiz do repositório: `npx supabase functions deploy sequence-runner --project-ref ycbdilsmydvzezhlymty`. Nenhuma migration e nenhum segredo novo.
+
+Correção de vocabulário neste registro: o Status do prospeccao-funcional C1 passou de `done` para `closed`. Não sobra passo humano de migration nem de deploy nesse ticket. A seção do C1 acima fica como o registro da manhã.
+
+Suítes: `npm test` no frontend, exit 0, 109 arquivos e 1085 testes. `deno test supabase/functions`, exit 0, `ok | 710 passed | 0 failed`. pgTAP não rodou: sem CLI e sem Docker, e este ticket não muda SQL.
+
+## Frente canais — C3 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | prospeccao-funcional C3 — O titular vê as respostas de WhatsApp e LinkedIn |
+| Status | closed |
+| Branch | ralph/frente-canais |
+| Commit | ba61a0738cc0113d3dd422f98863c7d321a7c3bc |
+| Push | não feito |
+
+Para o próximo agente: não reabra o C3. Os seis checkboxes estão ticados. Não há migration nem deploy. Os canais 08 e 09 dependem do envio real do 06/07 (humano). Ao chegar neles, confira o Blocked by; se o bloqueio seguir, marque BLOCKED e pare. Esta sessão para no C3.
+
+O que o humano roda: nada no banco. Não há migration. A tela lê `list_received_chat_messages`, que já existe. Sem push.
+
+Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 110 arquivos e 1090 testes. `npx tsc -b --pretty false`, exit 0. pgTAP não se aplica: este ticket não muda SQL.
+## enriquecimento — B2 (2026-10-08)
+
+| Campo | Valor |
+| --- | --- |
+| Ticket | prospeccao-funcional B2 |
+| Status | ready-for-human |
+| Branch | ralph/frente-enriquecimento |
+| Commit | b99a2d6b2031f4eb4f2988e8de98203f42939fe7 |
+| O que o humano roda | Com o CI verde, aplicar no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico (`do $apply$` / `$m$`, porque o arquivo usa `$$`), como em `docs/agents/migrations.md`. Ordem, se ainda faltarem: `20261008153000_apagar_conta_limpa_dado_pessoal.sql` (B4), `20261008203000_consulta_cnpj_reserva_credito.sql` (B1), depois `20261008223000_persona_do_contato_no_comite.sql` (B2). Não aplicar antes do CI. Sem push. Depois, na raiz do repositório, no PowerShell, sem `--no-verify-jwt`: `npx supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty`. O pgTAP `plan(16)` não rodou nesta máquina. Vitest: 108 arquivos, 1075 passed. |
+## Frente créditos — creditos-e-planos 01 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | `.scratch/creditos-e-planos/issues/01-medir-o-custo-real.md` (Medir o custo real de cada ação) |
+| Status | ready-for-human (código fechado; faltam a migration e a publicação das funções) |
+| Branch | `ralph/frente-creditos`, sem push |
+| Commit | `81aa8ed` |
+| O que mudou | As Propostas de resposta gravam o modelo e os tokens de cada chamada ao modelo (`record_reply_proposal_cost`, tipo `reply_proposal` em `private.action_costs`, estimativa no `get_cost_report`). Testes Deno novos do custo no `signal-runner` e no `account-discovery`. A execução cuja leitura de custo no Apify falha é gravada com o valor em branco (`_shared/apify-ambiente.ts`, vale para `signal-runner` e `signal-scan`). |
+| Testes | vermelho e verde registrados no ticket; `deno test --allow-all supabase/functions` 724/724; pgTAP do zero 58 arquivos, 2546/2546 (`custo_das_propostas_de_resposta.sql` 10/10); vitest `--maxWorkers=2` 107 arquivos, 1074/1074; `tsc -b` limpo. Sem tela nova, sem prints. |
+| O que o humano roda | 1. Com o CI verde, logo antes do merge, aplicar `supabase/migrations/20261008233000_custo_das_propostas_de_resposta.sql` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico, como em `docs/agents/migrations.md` (ela tira e põe de volta o `check` de `action_type` só para aceitar `reply_proposal`; nenhuma linha sai). 2. Depois, na raiz do repositório, no PowerShell: `npx supabase functions deploy reply-proposal-runner signal-runner signal-scan --project-ref ycbdilsmydvzezhlymty`. |
+| Decisões em aberto (Nan) | Com a chave de IA do cliente, o custo sai igual ao do modelo da Althius, sem dizer quem pagou (a Execução de Agente já era assim); a chamada com reserva vencida não grava custo, só o log. Detalhes nos Comments do ticket. |
+
+## Frente canais — 08 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | canais-cadencia-backend 08 — Gerar Propostas de resposta privadas (parte de chat) |
+| Status | blocked |
+| Branch | ralph/frente-canais |
+| Commit | este registro (só o ticket e o RALPH-STATUS; nenhum código) |
+| Push | não feito |
+
+Bloqueado pelo aviso 4 do CTO. O 08 de chat espera o envio real do 06 (WhatsApp) e do 07 (LinkedIn). Os dois seguem `ready-for-human`. Também falta a decisão sobre o Seam de Canal. Não houve vermelho nem código. O 09 depende do 06, do 07 e do 08, então a fila da frente canais fica vazia até o Nan desbloquear.
+
+O que o humano roda: os Passos do Nan dos tickets 06 e 07. São eles: conectar a Conta remetente, recadastrar o webhook com `message.new` (`bash scripts/wizard-unipile.sh`), ligar o canal com `select private.set_chat_channel_enabled('whatsapp', true);` e `select private.set_chat_channel_enabled('linkedin', true);`, enviar um teste e responder. Depois, marcar o 06 e o 07 e voltar o 08 para `ready-for-agent`. Nenhuma migration e nenhum deploy saem deste registro.

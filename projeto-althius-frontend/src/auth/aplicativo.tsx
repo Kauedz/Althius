@@ -9,7 +9,7 @@ import { anexosDisponiveis } from '@/fonte/supabase-sequencias'
 import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
 import { BotoesDaAssinatura, TelaDeAssinatura, useAcessoAoWorkspace } from './assinatura'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
-import { destinoDepoisDoAcesso, tokenDoConviteNoEndereco } from './destino'
+import { destinoDepoisDoAcesso, enderecoDeEntrada, tokenDoConviteNoEndereco } from './destino'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
 import { VERSAO_DOS_TERMOS } from './termos'
 import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
@@ -223,19 +223,25 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   }
   if (workspacePessoal === null) return <TelaDeEstado>Preparando seu Workspace pessoal…</TelaDeEstado>
   if (recusaDoConvite) {
+    // A conta da sessão (de senha, código ou Google) não é a do e-mail convidado: a pessoa pode entrar com outra.
+    const conviteDeOutroEmail =
+      conviteRecusado && conviteRecusado.email.toLowerCase() !== sessao.user.email?.toLowerCase() ? conviteRecusado : null
     return (
       <TelaDeEstado>
         <h1 className="titulo-secao text-2xl">Convite não aceito</h1>
         <p role="alert">{recusaDoConvite}</p>
-        <p className="text-sm text-al-muted">Você entrou como {sessao.user.email}. Nenhuma Participação foi criada.</p>
-        {conviteRecusado && conviteRecusado.email.toLowerCase() !== sessao.user.email?.toLowerCase() && (
+        <p className="text-sm text-al-muted">Você entrou como {sessao.user.email}. Nenhuma Participação foi criada no Workspace do convite.</p>
+        {conviteDeOutroEmail && (
           <p className="text-sm">
-            Este convite do Workspace <strong>{conviteRecusado.workspace}</strong> é para{' '}
-            <strong>{conviteRecusado.email}</strong>. Saia e entre com esse e-mail para aceitá-lo.
+            Este convite do Workspace <strong>{conviteDeOutroEmail.workspace}</strong> é para{' '}
+            <strong>{conviteDeOutroEmail.email}</strong>. Saia e entre com esse e-mail para aceitá-lo.
           </p>
         )}
-        <div className="flex gap-2">
-          <Button onClick={() => setRecusaDoConvite(null)}>Continuar sem o convite</Button>
+        <div className="flex flex-wrap gap-2">
+          {conviteDeOutroEmail && <EntrarComOutraConta />}
+          <Button variant={conviteDeOutroEmail ? 'outline' : 'default'} onClick={() => setRecusaDoConvite(null)}>
+            Continuar sem o convite
+          </Button>
           <Sair />
         </div>
       </TelaDeEstado>
@@ -364,6 +370,9 @@ function AplicativoDoWorkspace({
         participacao: { workspaceId, nomeDoWorkspace, papel: role === 'admin' ? 'administrador' : 'membro' },
         conversasDisponiveis: comConversas,
         sinaisDisponiveis: comSinais,
+        // A fila de Aprovações (CRM-15) liga com as Conversas: é nelas que os Agentes pedem Aprovações, e o crm-handoff
+        // que executa o envio aprovado é publicado junto com o agent-conversation.
+        aprovacoesDisponiveis: comConversas,
         anexosDisponiveis: comAnexos,
       }),
     [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, comSinais, comAnexos],
@@ -408,6 +417,21 @@ function AplicativoDoWorkspace({
 function Sair() {
   const { sair, carregando } = useAutenticacao()
   return <Button variant="outline" disabled={carregando} onClick={() => void sair()}>Sair</Button>
+}
+
+/**
+ * Na recusa, ainda no link do convite: sai e abre a entrada com o convite como destino, o e-mail convidado travado e,
+ * com o Client ID configurado, o Google para escolher outra conta. O endereço muda antes de a sessão acabar, para as
+ * telas de acesso já abrirem nele, e não na tela do convite; se a saída falhar, volta ao link do convite.
+ */
+function EntrarComOutraConta() {
+  const { sair, carregando } = useAutenticacao()
+  const entrarComOutraConta = () => {
+    const linkDoConvite = window.location.pathname
+    window.history.replaceState(null, '', enderecoDeEntrada(linkDoConvite))
+    sair().catch(() => window.history.replaceState(null, '', linkDoConvite))
+  }
+  return <Button disabled={carregando} onClick={entrarComOutraConta}>Entrar com outra conta</Button>
 }
 
 function TelaDeEstado({ children }: { children: ReactNode }) {

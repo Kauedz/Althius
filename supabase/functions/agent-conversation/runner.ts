@@ -125,7 +125,7 @@ function textoDe(resposta: Anthropic.Beta.Messages.BetaMessage): string {
 }
 
 /** O que a chamada gastou, quando o motor informa (a Messages API informa; os testes e alguns motores não). */
-function usoDe(resposta: Anthropic.Beta.Messages.BetaMessage): UsoDeTokens | undefined {
+export function usoDe(resposta: Anthropic.Beta.Messages.BetaMessage): UsoDeTokens | undefined {
   const uso = resposta.usage as { input_tokens?: number; output_tokens?: number } | undefined
   if (typeof uso?.input_tokens !== 'number' || typeof uso?.output_tokens !== 'number') return undefined
   return { entrada: uso.input_tokens, saida: uso.output_tokens }
