@@ -74,3 +74,15 @@ Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e
 
 ## Loop de teste de banco
 Postgres 16 + pgTAP locais, com schema `auth` mínimo do Supabase, via script de sessão (fora do repo): aplica `supabase/migrations/` (repetindo as fora de ordem) e roda `supabase/tests/`.
+
+## Frente canais — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | prospeccao-funcional C1 — Ativar pela tela uma Sequência de WhatsApp ou LinkedIn |
+| Status | done |
+| Branch | ralph/frente-canais |
+| Commit | b7fedae175f2e573226e8aaa99115a56e77a8a27 |
+| Push | não feito |
+
+O que o humano roda: nada no banco. Não há migration. A tela lê `list_enabled_chat_channels`, que já existe. O padrão do banco deixa WhatsApp e LinkedIn desligados; este ticket não liga o canal. Sem push.
