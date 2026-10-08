@@ -50,8 +50,16 @@ export function tokenDoConviteDoAcesso({ pathname, search }: { pathname: string;
   return tokenDoConviteNoCaminho(pathname) ?? (destino ? tokenDoConviteNoCaminho(new URL(destino, window.location.origin).pathname) : null)
 }
 
-/** As telas de acesso que lembram o `destino` para depois do login. */
-const TELAS_COM_DESTINO = [ROTA_DE_ENTRADA, ROTA_DE_CADASTRO, ROTA_ESQUECI_A_SENHA, ROTA_DE_REDEFINICAO_DA_SENHA]
+/** As telas de acesso, que lembram o `destino` para depois do login. */
+const TELAS_DE_ACESSO = [ROTA_DE_ENTRADA, ROTA_DE_CADASTRO, ROTA_ESQUECI_A_SENHA, ROTA_DE_REDEFINICAO_DA_SENHA]
+
+/**
+ * Se o caminho leva ao Workspace operacional: uma tela de acesso, inclusive o link de redefinição de senha, ou o link de
+ * um convite, mesmo malformado.
+ */
+export function ehCaminhoDeAcesso(caminho: string): boolean {
+  return TELAS_DE_ACESSO.includes(caminho) || caminho.startsWith(`${ROTA_DO_CONVITE}/`)
+}
 
 /** O endereço de /entrar que lembra o `destino` que a pessoa tentou abrir, para voltar a ele depois do login. */
 export function enderecoDeEntrada(destino: string): string {
@@ -67,7 +75,7 @@ export function destinoDepoisDoAcesso(): string | null {
 }
 
 function destinoLembrado(pathname: string, search: string): string | null {
-  if (!TELAS_COM_DESTINO.includes(pathname)) return null
+  if (!TELAS_DE_ACESSO.includes(pathname)) return null
   const destino = new URLSearchParams(search).get('destino')
   if (!destino?.startsWith('/')) return '/'
   // `//outro.site` e `/\outro.site` também começam com barra; só vale o que continua na mesma origem.

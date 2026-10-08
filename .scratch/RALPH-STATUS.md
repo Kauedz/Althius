@@ -1,5 +1,5 @@
 # Ralph status — early-send (CRM × Auth × Canais)
-Updated: 2026-09-25T20:35-03:00
+Updated: 2026-10-08 (Auth-03/05: link de redefinição na Demonstração)
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
 Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.md`
 
@@ -26,6 +26,7 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 | canais-04 | blocked | | Blocked by canais-02 (ready-for-human) e canais-03 |
 | Review final | done | — | 0 bloqueantes; 2 importantes + 2 menores em correção |
 | Correções da revisão | done | ralph/revisao-correcoes · PR #30 (draft, topo da pilha) | 4/4; pgTAP 40/40, 21/21, 24/24; suíte 604/604; vincular+editar Contato (CRM-05); enumeração pelo rate limit (Auth); aceite dos Termos só no 1º acesso; erro cru de RPC |
+| Auth-03 + Auth-05 (2026-10-08) | done (código), sem PR | ralph/auth-03-05-redefinir-senha | link de redefinição, `/cadastro`, `/esqueci-a-senha` e link de confirmação abriam a Demonstração num navegador sem escolha; sem migration; ver seção "Auth-03/05 — 2026-10-08" |
 | Auth-09 | out | — | fora do corte; exige CRM-03 |
 | Auth-10 | human | — | ready-for-human; não spawnar |
 | CRM-03, 16, 19, 20, 21, 22–24 | out | — | fora do corte / ponteiros |
@@ -53,6 +54,18 @@ Goal: primeiro e-mail real (canais-04). Fonte: `.scratch/ORDEM-BUILD-FUNCIONAL.m
 Pilha mergeada na `main` pelo responsável do produto: #19, #20, #22 (traz #21), #24, #26, #27 (traz #25), #28, #29, #30. PRs #21 e #25 fechados sem merge por estarem contidos em #22 e #27. Na `main`: suíte 604/604, `tsc` ok, pgTAP de workspace_pessoal, contas_alvo_reais e contatos_e_vinculos sem falhas.
 
 A correção do aceite dos Termos entrou como migration nova `20260925170000_bootstrap_preserva_aceite_dos_termos.sql`, porque a `20260925140000` já tinha sido aplicada no remoto.
+
+## Auth-03/05 — 2026-10-08
+- **Ticket:** Auth-03 (cadastro) incluindo Auth-05 (esqueci a senha). Bug: num navegador que nunca escolheu o Workspace operacional, o link de redefinir senha, `/cadastro`, `/esqueci-a-senha` e o link de confirmação do cadastro abriam a Demonstração.
+- **Status:** done (código e testes). Auth-03 continua ready-for-human só pelo e-mail para conta existente (SMTP, Auth-10).
+- **Branch:** `ralph/auth-03-05-redefinir-senha`, com push, sem PR.
+- **Sem migration.** Nada a aplicar no Supabase.
+- **Decisão a confirmar:** quem abre uma tela de acesso ou um convite fica com o Workspace operacional lembrado no navegador (é o que faz o link de confirmação funcionar). Efeito: quem visitou `/cadastro` e saiu vê `/entrar` ao voltar ao início, e não a Demonstração. Alternativa: os links do e-mail voltarem por `/entrar?destino=…`, o que muda as URLs de redirecionamento do Supabase e testes antigos.
+- **O que o humano roda (PowerShell, na raiz do repo):**
+  1. Conferir os testes: `cd projeto-althius-frontend; npx vitest run src/raiz.test.tsx; npx tsc -b`
+  2. A branch já está no GitHub. O PR fica a seu critério.
+  3. Supabase Auth, pendência antiga do Auth-05 (Dashboard → Authentication → URL Configuration): `https://<domínio>/redefinir-a-senha` e os destinos dos links (`https://<domínio>/**`) nas Redirect URLs. Modelos "Confirm signup" e "Reset Password" com `{{ .Token }}` além do link.
+  4. Conferência real, depois do deploy: numa janela anônima, abrir `https://<domínio>/entrar` → "Esqueci a senha" → abrir o link do e-mail na mesma janela → deve aparecer "Defina uma nova senha". Repetir com `https://<domínio>/cadastro` e o link de confirmação → deve abrir o Workspace pessoal.
 
 ## STOP
 Corrida parada no gate de canais: canais-03 depende de canais-01 (in-progress) e canais-04 de canais-02 (ready-for-human). Aguardando decisão humana.
