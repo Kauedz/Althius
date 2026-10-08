@@ -878,6 +878,29 @@ Deno.test('revelar-contato: e-mail que já é de outro Contato não grava, debit
   assertEquals(registro.passos, ['sessao', 'contato', 'begin:email', 'finish'])
 })
 
+Deno.test('revelar-contato: perfil que voltou com o campo do e-mail ainda não confirmado é falha, não "não encontrado"', async () => {
+  const registro = registroDoRevelar()
+  const apify: Apify = {
+    async run() {
+      return {
+        runId: 'apify-run-perfil',
+        items: [{ firstName: 'Mariana', lastName: 'Souza', linkedinUrl: 'https://www.linkedin.com/in/marianasouza' }],
+      }
+    },
+    async custoDaExecucao() {
+      return 0.01
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro), apify })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(res.status, 502)
+  assertEquals(body.error, 'A busca do e-mail falhou: o campo do e-mail na saída do actor ainda não foi confirmado')
+  assertEquals(registro.finish, [{ value: undefined, source: undefined }])
+  assertEquals(registro.custos[0]?.runId, 'apify-run-perfil')
+})
+
 Deno.test('revelar-contato: provedor sem revelação é falha, não "não encontrado"', async () => {
   const registro = registroDoRevelar()
   const handler = criarHandlerEnrichment({

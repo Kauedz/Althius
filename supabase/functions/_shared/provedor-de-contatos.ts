@@ -148,9 +148,10 @@ function localDocumentado(raw: Record<string, unknown>): string {
   return parsed ? textoLimpo(parsed.text) : ''
 }
 
-// PENDENTE (B3): o build 0.0.135 não documenta o campo do e-mail na saída. O nome vem da execução real.
+// PENDENTE (B3): o build 0.0.135 não documenta o campo do e-mail na saída; o nome vem da execução real. Até lá, um
+// perfil que voltou não vira "não encontrado": a busca falha com o motivo, e o handler libera a reserva.
 function emailDoPerfil(_raw: Record<string, unknown>): string | null {
-  return null
+  throw new Error('o campo do e-mail na saída do actor ainda não foi confirmado')
 }
 
 export interface OpcoesApifyContatos {
