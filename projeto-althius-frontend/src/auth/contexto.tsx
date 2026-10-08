@@ -71,6 +71,9 @@ const ERRO_DE_LOGIN = 'E-mail ou senha incorretos'
 /** A recusa de uma senha vazada, venha da consulta feita pela tela ou do `weak_password` do Supabase Auth. */
 const ERRO_DE_SENHA_VAZADA = 'Esta senha já apareceu em vazamentos de dados. Escolha outra senha.'
 
+/** A Edge Function que avisa por e-mail quem tenta se cadastrar com um e-mail que já tem conta. */
+const FUNCAO_DO_AVISO_DE_CONTA_EXISTENTE = 'existing-account-email'
+
 /** Quanto a consulta de senhas vazadas pode demorar antes de a tela seguir sem ela. */
 const TEMPO_LIMITE_DA_CONSULTA_DE_VAZADAS_MS = 2_000
 
@@ -264,7 +267,7 @@ export function ContextoDeAutenticacao({
     async cadastrar({ nome, email, senha }, destino) {
       await recusarSenhaVazada(servicos, senha)
       const captcha = await comCaptcha(servicos, 'cadastro')
-      const { error } = await cliente.auth.signUp({
+      const { data, error } = await cliente.auth.signUp({
         email: email.trim(),
         password: senha,
         options: { data: { full_name: nome.trim() }, emailRedirectTo: window.location.origin + destino, ...captcha },
@@ -272,6 +275,12 @@ export function ContextoDeAutenticacao({
       recusarCaptcha(error)
       if (error?.code === 'weak_password') throw new Error(ERRO_DE_SENHA_VAZADA)
       if (error) throw new Error('Não foi possível criar a conta agora. Tente novamente em instantes.')
+      // Um e-mail que já tem conta volta como usuário sem identidades, e o Supabase Auth não manda nada. A Edge Function
+      // confere a conta e manda o e-mail que explica como entrar; a tela não espera nem mostra o resultado, para
+      // responder igual ao cadastro novo.
+      if (data.user?.identities?.length === 0) {
+        cliente.functions.invoke(FUNCAO_DO_AVISO_DE_CONTA_EXISTENTE, { body: { email: email.trim() } }).catch(() => {})
+      }
     },
     async confirmarCodigoDoCadastro(email, codigo) {
       const { error } = await cliente.auth.verifyOtp({ email: email.trim(), token: codigo.trim(), type: 'signup' })

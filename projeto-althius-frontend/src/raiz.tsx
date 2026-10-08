@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { App } from '@/App'
 import { AplicativoAutenticado } from '@/auth/aplicativo'
 import { ehCaminhoDeAcesso } from '@/auth/destino'
+import { PaginaDoDocumentoPublico, documentoPublicoDoCaminho } from '@/auth/documento-publico'
 import type { ServicosDoNavegador } from '@/auth/servicos-do-navegador'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
 import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
@@ -25,6 +26,7 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
   // As telas de acesso, inclusive o link de redefinição de senha, e o link de um convite são sempre do Workspace
   // operacional, mesmo num navegador que nunca o escolheu.
   const [abriuPeloAcesso] = useState(() => ehCaminhoDeAcesso(window.location.pathname))
+  const [documentoPublico] = useState(() => documentoPublicoDoCaminho(window.location.pathname))
   const [ambiente, setAmbiente] = useState<ModoDoAmbiente>(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('auth') === 'true' || params.get('demo') === 'false') return 'real'
@@ -46,6 +48,9 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
     lembrarAmbiente(escolhido)
     setAmbiente(escolhido)
   }
+
+  // Os Termos e a Política de Privacidade são públicos: não pedem login, não abrem a Demonstração nem escolhem ambiente.
+  if (documentoPublico) return <PaginaDoDocumentoPublico documento={documentoPublico} />
 
   if (ambiente === 'demonstracao' || !cliente) {
     return <AplicativoDeDemonstracao aoAlternarParaAutenticado={cliente ? () => escolherAmbiente('real') : undefined} />

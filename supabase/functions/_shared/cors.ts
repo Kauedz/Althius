@@ -1,7 +1,8 @@
 // CORS das Edge Functions chamadas pelo navegador. O APP_ORIGIN pode listar várias origens separadas por vírgula
 // (o endereço publicado e o de desenvolvimento); http://localhost e http://127.0.0.1 em qualquer porta também valem,
-// porque CORS não é autenticação aqui: toda função exige o JWT do usuário. A resposta devolve a origem de quem
-// chamou quando ela é permitida, e libera os cabeçalhos que o supabase-js manda em functions.invoke.
+// porque CORS não é autenticação aqui: as funções exigem o JWT do usuário, e a única sem ele (existing-account-email)
+// responde sempre igual, sem devolver dado nenhum. A resposta devolve a origem de quem chamou quando ela é permitida,
+// e libera os cabeçalhos que o supabase-js manda em functions.invoke.
 
 const CABECALHOS_PERMITIDOS = 'authorization, x-client-info, apikey, content-type, x-supabase-api-version'
 const ORIGEM_LOCAL = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
