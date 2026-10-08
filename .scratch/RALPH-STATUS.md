@@ -1,3 +1,21 @@
+# Ralph status — enriquecimento
+
+Updated: 2026-10-08
+
+## Atual
+
+| Campo | Valor |
+| --- | --- |
+| Ticket | prospeccao-funcional B4 |
+| Status | done |
+| Branch | ralph/frente-enriquecimento |
+| Commit | 9b8ce9f03f8e1ddc732b676f6e01d97e23c78176 |
+| O que o humano roda | Com o CI verde, aplicar a migration `20261008153000_apagar_conta_limpa_dado_pessoal.sql` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico, como em `docs/agents/migrations.md`. Não há deploy de função. Não aplicar antes do CI. Sem push. |
+
+Próximo da fila, numa sessão nova: prospeccao-funcional B1.
+
+## Histórico early-send (2026-09-25)
+
 # Ralph status — early-send (CRM × Auth × Canais)
 Updated: 2026-09-25T20:35-03:00
 Spend cap: USD 70 (estimativa por tokens reportados pelos halves; não é o gasto real faturado)
