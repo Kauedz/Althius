@@ -777,7 +777,9 @@ export function criarFonteDeContasSupabase(
       notificar()
     },
 
+    // Telefone está fora (prospeccao-funcional B3): nem cotação nem revelação.
     async cotarRevelacaoContato(contatoId: string, canal: 'email' | 'telefone') {
+      if (canal === 'telefone') throw new Error('A revelação de telefone está indisponível.')
       const { data, error } = await cliente.rpc('quote_reveal_contact', {
         p_contact_id: contatoId,
         p_channel: canal,
@@ -792,6 +794,7 @@ export function criarFonteDeContasSupabase(
     },
 
     async revelarContato(contatoId: string, canal: 'email' | 'telefone') {
+      if (canal === 'telefone') throw new Error('A revelação de telefone está indisponível.')
       const { data, error } = await cliente.functions.invoke('account-enrichment', {
         body: {
           action: 'revelar-contato',
@@ -800,7 +803,12 @@ export function criarFonteDeContasSupabase(
           canal,
         },
       })
-      if (error) throw converterErro(error)
+      if (error) {
+        // A falha da busca é falha, com a causa que a função deu; não vira "não encontrado".
+        const recusa = await corpoDoErroDaFuncao(error)
+        if (typeof recusa?.error === 'string' && recusa.error.trim()) throw converterErro({ message: recusa.error })
+        throw converterErro(error)
+      }
       notificar()
       return {
         sucesso: Boolean(data?.sucesso),

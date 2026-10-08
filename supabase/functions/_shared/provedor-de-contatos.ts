@@ -42,9 +42,14 @@ export interface FiltrosEmpresaParaBusca {
 export interface ProvedorDeContatos {
   readonly nome: string
   buscarPessoas(empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]>
+  /**
+   * O dado novo, ou null quando a execução terminou sem ele. Falha da execução lança: não é "não encontrado".
+   * `medicao` recebe o id e o dólar da execução, inclusive na falha.
+   */
   revelarContato?(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
+    medicao?: { runId: string | null; costUsd: number | null },
   ): Promise<DadoRevelado | null>
 }
 
@@ -141,6 +146,11 @@ function localDocumentado(raw: Record<string, unknown>): string {
   if (texto) return texto
   const parsed = registro(local.parsed)
   return parsed ? textoLimpo(parsed.text) : ''
+}
+
+// PENDENTE (B3): o build 0.0.135 não documenta o campo do e-mail na saída. O nome vem da execução real.
+function emailDoPerfil(_raw: Record<string, unknown>): string | null {
+  return null
 }
 
 export interface OpcoesApifyContatos {
@@ -250,53 +260,55 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
   async revelarContato(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
+    medicao?: { runId: string | null; costUsd: number | null },
   ): Promise<DadoRevelado | null> {
-    if (!pessoa.linkedinUrl) return null
+    // Telefone: nenhum actor validado traz telefone. Sem LinkedIn, não há perfil para consultar.
+    const perfil = pessoa.linkedinUrl?.trim()
+    if (canal !== 'email' || !perfil) return null
 
+    // Build 0.0.135: o modo com busca de e-mail é o enum do schema; `queries` aceita a URL do perfil.
     const input = {
-      profileUrls: [pessoa.linkedinUrl],
-      findEmail: canal === 'email',
+      profileScraperMode: 'Profile details + email search ($10 per 1k)',
+      queries: [perfil],
     }
 
+    const anotar = async (runId: string | null) => {
+      if (!medicao) return
+      medicao.runId = runId
+      if (!runId || !this.apify.custoDaExecucao) return
+      try {
+        medicao.costUsd = await this.apify.custoDaExecucao(runId)
+      } catch {
+        medicao.costUsd = null
+      }
+    }
+
+    let exec: { runId: string | null; items: unknown[] }
     try {
-      const exec = await this.apify.run({
+      exec = await this.apify.run({
         actorId: this.actorProfile,
         input,
         maxItems: 1,
         maxTotalChargeUsd: this.maxCostProfile,
+        corpoTemDeSerLista: true,
       })
-
-      const item = Array.isArray(exec.items) && exec.items[0] ? (exec.items[0] as Record<string, unknown>) : null
-      if (!item) return null
-
-      if (canal === 'email') {
-        const email = typeof item.email === 'string'
-          ? item.email.trim()
-          : (typeof item.personalEmail === 'string'
-            ? item.personalEmail.trim()
-            : (typeof item.workEmail === 'string' ? item.workEmail.trim() : null))
-
-        if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          return { canal: 'email', valor: email.toLowerCase(), confianca: 90, fonte: 'apify:harvestapi~linkedin-profile-scraper' }
-        }
+    } catch (e) {
+      await anotar(runIdDoErro(e))
+      if (e instanceof Error && e.message === 'O Apify não devolveu uma lista.') {
+        throw new Error('A busca do e-mail não devolveu uma lista de perfis.')
       }
-
-      if (canal === 'telefone') {
-        const phone = typeof item.phone === 'string'
-          ? item.phone.trim()
-          : (typeof item.mobilePhone === 'string'
-            ? item.mobilePhone.trim()
-            : (typeof item.phoneNumber === 'string' ? item.phoneNumber.trim() : null))
-
-        if (phone && phone.replace(/\D/g, '').length >= 8) {
-          return { canal: 'telefone', valor: phone, confianca: 85, fonte: 'apify:harvestapi~linkedin-profile-scraper' }
-        }
-      }
-
-      return null
-    } catch {
-      return null
+      throw e
     }
+
+    await anotar(exec.runId)
+
+    if (!Array.isArray(exec.items)) {
+      throw new Error('A busca do e-mail não devolveu uma lista de perfis.')
+    }
+
+    const item = registro(exec.items[0])
+    const email = item ? emailDoPerfil(item) : null
+    return email ? { canal: 'email', valor: email, fonte: 'apify:harvestapi~linkedin-profile-scraper' } : null
   }
 }
 

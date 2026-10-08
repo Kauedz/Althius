@@ -329,7 +329,7 @@ Deno.test('handler revelar-contato: quando NÃO acha, não debita nenhum crédit
       action: 'revelar-contato',
       workspaceId: 'ws-1',
       contactId: 'contato-2',
-      canal: 'telefone',
+      canal: 'email',
     }),
   })
 
@@ -745,6 +745,168 @@ Deno.test('comite-compra: timeout com id de execução grava o custo e não vira
     costUsd: 0.07,
     actorId: 'harvestapi~linkedin-company-employees',
   })
+})
+
+// B3: revelar e-mail. O registro guarda a ordem das chamadas ao banco e o que chega ao fim da revelação.
+function registroDoRevelar() {
+  return {
+    passos: [] as string[],
+    finish: [] as Array<{ value?: string; source?: string }>,
+    custos: [] as Array<{ runId: string; items: number; costUsd: number | null; actorId: string }>,
+  }
+}
+
+function dbDoRevelar(
+  registro: ReturnType<typeof registroDoRevelar>,
+  resultado: { success: boolean; debitedCredits: number } = { success: false, debitedCredits: 0 },
+): DbEnrichment {
+  return {
+    async userFromJwt() {
+      registro.passos.push('sessao')
+      return { userId: 'user-1' }
+    },
+    async beginCommitteeDiscovery() {
+      return { runId: '', reservationId: '' }
+    },
+    async finishCommitteeDiscovery() {},
+    async recordProposedContact() {
+      return { id: '', created: true }
+    },
+    async getContactForReveal() {
+      registro.passos.push('contato')
+      return { name: 'Mariana Souza', linkedin: 'https://www.linkedin.com/in/marianasouza' }
+    },
+    async beginRevealContact(args) {
+      registro.passos.push(`begin:${args.channel}`)
+      return { reservationId: 'res-revelar' }
+    },
+    async finishRevealContact(args) {
+      registro.passos.push('finish')
+      registro.finish.push({ value: args.value, source: args.source })
+      return resultado
+    },
+    async recordDiscoveryCost(args) {
+      registro.custos.push({ runId: args.runId, items: args.items, costUsd: args.costUsd, actorId: args.actorId })
+    },
+  }
+}
+
+function pedidoDeRevelar(canal: string) {
+  return new Request('http://localhost/account-enrichment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+    body: JSON.stringify({ action: 'revelar-contato', workspaceId: 'ws-1', contactId: 'contato-1', canal }),
+  })
+}
+
+Deno.test('revelar-contato: telefone é recusado antes de reservar crédito e de chamar o actor', async () => {
+  const registro = registroDoRevelar()
+  let execucoes = 0
+  const apify: Apify = {
+    async run() {
+      execucoes++
+      return { runId: 'nao-devia-rodar', items: [] }
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro), apify })
+  const res = await handler(pedidoDeRevelar('telefone'))
+  const body = await res.json()
+
+  assertEquals(res.status, 400)
+  assertEquals(body.error, 'A revelação de telefone está indisponível.')
+  assertEquals(registro.passos.some((p) => p.startsWith('begin')), false)
+  assertEquals(registro.finish, [])
+  assertEquals(execucoes, 0)
+})
+
+Deno.test('revelar-contato: falha do actor libera a reserva, grava o custo e não parece "não encontrado"', async () => {
+  const registro = registroDoRevelar()
+  const apify: Apify = {
+    async run() {
+      throw new ApifyTimeoutError('apify-run-revelar')
+    },
+    async custoDaExecucao(runId) {
+      assertEquals(runId, 'apify-run-revelar')
+      return 0.01
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro), apify })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(res.status, 502)
+  assertEquals(body.error, 'A busca do e-mail falhou: O actor do Apify não respondeu a tempo')
+  assertEquals(body.sucesso, undefined)
+  assertEquals(registro.passos, ['sessao', 'contato', 'begin:email', 'finish'])
+  assertEquals(registro.finish, [{ value: undefined, source: undefined }])
+  assertEquals(registro.custos, [{
+    runId: 'apify-run-revelar',
+    items: 0,
+    costUsd: 0.01,
+    actorId: 'harvestapi~linkedin-profile-scraper',
+  }])
+})
+
+Deno.test('revelar-contato: e-mail que o Contato já tem debita 0 e a resposta não o devolve como novo', async () => {
+  const registro = registroDoRevelar()
+  const provedorComRepetido = {
+    nome: 'fake',
+    async buscarPessoas() {
+      return []
+    },
+    async revelarContato() {
+      return { canal: 'email' as const, valor: 'mariana@techcorp.com.br', fonte: 'apify:harvestapi~linkedin-profile-scraper' }
+    },
+  }
+  const handler = criarHandlerEnrichment({
+    db: dbDoRevelar(registro, { success: false, debitedCredits: 0 }),
+    provedorContatos: provedorComRepetido,
+  })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body.sucesso, false)
+  assertEquals(body.valor, null)
+  assertEquals(body.creditosDebitados, 0)
+  assertEquals(registro.finish, [{
+    value: 'mariana@techcorp.com.br',
+    source: 'apify:harvestapi~linkedin-profile-scraper',
+  }])
+})
+
+Deno.test('revelar-contato: a entrada segue o schema do build 0.0.135 e o actor sem item termina "não encontrado" com o custo', async () => {
+  const registro = registroDoRevelar()
+  const entrada: { atual: Record<string, unknown> | null; maxItems?: number } = { atual: null }
+  const apify: Apify = {
+    async run(args) {
+      entrada.atual = args.input as Record<string, unknown>
+      entrada.maxItems = args.maxItems
+      return { runId: 'apify-run-vazio', items: [] }
+    },
+    async custoDaExecucao() {
+      return 0.004
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro), apify })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(entrada.atual, {
+    profileScraperMode: 'Profile details + email search ($10 per 1k)',
+    queries: ['https://www.linkedin.com/in/marianasouza'],
+  })
+  assertEquals(entrada.maxItems, 1)
+  assertEquals(res.status, 200)
+  assertEquals(body.sucesso, false)
+  assertEquals(body.creditosDebitados, 0)
+  assertEquals(registro.finish, [{ value: undefined, source: undefined }])
+  assertEquals(registro.custos, [{
+    runId: 'apify-run-vazio',
+    items: 1,
+    costUsd: 0.004,
+    actorId: 'harvestapi~linkedin-profile-scraper',
+  }])
 })
 
 Deno.test('comite-compra: o cliente do Apify não converte um corpo que não é lista em concluída com zero', async () => {
