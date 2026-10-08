@@ -16,6 +16,12 @@ export function resumoDoPublico(publico: Publico): string {
   return `${textoListas} + ${descoberta}`
 }
 
+/** O público de um Monitoramento do Workspace operacional: quantas Contas-alvo ele varre. */
+export function resumoDasContas(quantidade: number): string {
+  if (quantidade === 0) return 'Nenhuma Conta-alvo'
+  return `${quantidade} ${quantidade === 1 ? 'Conta-alvo' : 'Contas-alvo'}`
+}
+
 export interface CriterioFormatado {
   rotulo: string
   texto: string
@@ -24,7 +30,7 @@ export interface CriterioFormatado {
 }
 
 /** Cada critério preenchido de um Monitoramento pronto, como rótulo e texto. */
-export function criteriosFormatados(monitoramento: Monitoramento): CriterioFormatado[] {
+export function criteriosFormatados(monitoramento: Pick<Monitoramento, 'tipoId' | 'criterios'>): CriterioFormatado[] {
   const tipo = tipoPorId(monitoramento.tipoId)
   const formulario = tipo && formularioDoTipo(tipo)
   if (!formulario) return []
