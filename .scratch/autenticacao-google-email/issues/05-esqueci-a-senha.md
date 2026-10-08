@@ -6,7 +6,7 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
 
 **Blocked by:** 03: Cadastro com nome, e-mail e senha, e verificação por código; 04: Entrar com senha ou com código.
 
-**Status:** done (código e testes; 1 item pending-human de configuração do e-mail)
+**Status:** ready-for-agent (num navegador sem escolha salva, o link de redefinir abre a Demonstração e deixa entrar sem trocar a senha; ver Comments de 2026-10-07)
 
 - [x] O pedido responde de forma genérica, exista ou não a conta. — `raiz.test.tsx` › Esqueci a senha › "responde igual exista ou não a Conta de usuário" (mesmo texto de status, sem alerta, nenhum e-mail para quem não tem conta).
 - [x] O e-mail traz código de 6 dígitos e link; os dois levam à definição da nova senha. — testes "redefinição por código" e "o link do e-mail… leva à nova senha" (`resetPasswordForEmail` com `redirectTo` = origem + `/redefinir-a-senha`, `verifyOtp` type `recovery`). **pending-human:** o modelo de e-mail "Reset Password" do Supabase precisa trazer `{{ .Token }}` além do link (e entrega por SMTP real), fora do alcance do código.
@@ -20,3 +20,10 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
 - Fluxo: `/esqueci-a-senha` → código (ou link para `/redefinir-a-senha`) → sessão de recuperação (`redefinindoSenha` no contexto, também ligado pelo evento `PASSWORD_RECOVERY`) → "Defina uma nova senha" → `updateUser` + `signOut({ scope: 'others' })` → Workspace de entrada.
 - Refactor único: `CampoDoCodigo` comum às etapas de código de cadastro, entrada e redefinição.
 - pending-human: modelo "Reset Password" com `{{ .Token }}` e o link; `/redefinir-a-senha` nas URLs de redirecionamento do Supabase Auth de cada ambiente.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6): a branch `ralph/auth-05-esqueci-a-senha` está na `main`. O rótulo `done` saiu: não é do vocabulário e o critério 2 não fecha.
+  - Testes rodados: os 6 de "Esqueci a senha" (`src/raiz.test.tsx`), dentro da rodada de 33 da autenticação, todos verdes, entre eles "redefinição por código: a nova senha encerra as outras sessões e a pessoa entra no Workspace de entrada", "o link do e-mail, aberto neste navegador, também leva à nova senha e depois ao destino lembrado" e "/redefinir-a-senha sem link válido explica e oferece pedir outro".
+  - Cumpridos: o pedido genérico (`src/auth/tela-esqueci-a-senha.tsx:39-47,67-70`); a mesma política de senha (`tela-esqueci-a-senha.tsx:116-146`); as outras sessões encerradas (`src/auth/contexto.tsx:141-149,316-326`).
+  - Parcial (critério 2): num navegador sem escolha salva, o link de `/redefinir-a-senha` abre a Demonstração. Depois de "Acessar tela de login Supabase", a pessoa entra no Workspace sem passar por "Defina uma nova senha". O motivo: `redefinindoSenha` nasce de `pathname === '/redefinir-a-senha'` (`contexto.tsx:167`), mas a Demonstração já trocou o endereço, e o evento `PASSWORD_RECOVERY` passou sem ouvinte. Reproduzido com o Supabase falso num teste de diagnóstico fora do repositório. `/esqueci-a-senha` aberto direto também cai na Demonstração. É o achado (a) da auditoria, detalhado no ticket 03.
+  - Falta (agente): a correção (A) do ticket 03 cobrindo `/esqueci-a-senha` e `/redefinir-a-senha`, com dois testes de raiz sem `ultimoAmbiente`: o link de redefinição num navegador sem escolha salva pede a nova senha antes de abrir o Workspace; `/esqueci-a-senha` aberto direto mostra o pedido.
+  - Humano, no ticket 10: o modelo "Reset Password" com `{{ .Token }}` e `/redefinir-a-senha` nas Redirect URLs de cada ambiente.

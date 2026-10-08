@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Seções do Playbook no banco; `agentes-em-conversa` 03 (contexto do Playbook nos Agentes).
 
-**Status:** ready-for-agent (modelo pronto; falta só o Rhetor personalizar cada toque, que fica para uma Execução própria)
+**Status:** closed (os três critérios estão cumpridos; o Rhetor personalizar cada toque fica para um ticket novo, bloqueado pelo B2 da `prospeccao-funcional`)
 
 ## Pode mexer
 
@@ -33,6 +33,14 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 - Só E-mail, LinkedIn e WhatsApp viram passo. Os outros canais (ligação, SMS...) ficam de fora, listados na própria tela.
 - LinkedIn e WhatsApp aparecem com "depende do canal" enquanto o ciclo real deles (canais 06 e 07) não entrar na `main`. Nada sai sem a confirmação de passo que já existe (ADR-0014): o modelo só cria os passos.
 - Fica aberto: o Rhetor personalizar cada toque pelo Sinal da Conta e pela Persona do Contato. Pede uma Execução própria e a Persona do Contato, que ainda não existe.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6):
+  - O modelo do Playbook na Nova sequência: `src/paginas/nova-sequencia.tsx:64-78,150,261-286`, `src/fonte/modelo-de-cadencia.ts:40-67`; testes "oferece o modelo com os toques, marca o que depende do canal e cria a Sequência já com os passos", "desmarcar o modelo cria a Sequência vazia, como antes", "sem linhas na Cadência, não há modelo".
+  - "depende do canal" em WhatsApp e LinkedIn: `modelo-de-cadencia.ts:17-18,63`, `nova-sequencia.tsx:278`; teste "vira toques só nos canais suportados, lista os que ficam de fora e marca WhatsApp e LinkedIn como dependentes do canal". Os canais 06 e 07 seguem sem o envio real.
+  - Nenhum envio sem a confirmação de passo: o modelo só põe os passos no documento (`modelo-de-cadencia.ts:69-83`, `criarSequencia` em `src/fonte/supabase-sequencias.ts:434-455`); Envios só nascem em `confirm_sequence_step` e `activate_sequence` (`20260929170000_varios_emails_e_telefones_por_contato.sql:469,609`).
+  - Testes rodados: `npx vitest run src/fonte/modelo-de-cadencia.test.ts src/paginas/sequencias.test.tsx` → 5 + 20 passed.
+  - Ticket novo a abrir: o Rhetor personaliza cada toque pelo Sinal da Conta e pela Persona do Contato. Depende do B2 (a Persona chegar ao Contato), de uma Execução própria do Rhetor sobre os passos (hoje `start_agent_run` só aceita pedido em texto livre, `20260929180000_conversas_dos_agentes.sql:154-245`) que grave no documento sem pular `confirm_sequence_step`, e da importação estruturada (playbook 03) para a Cadência importada gerar o modelo. No contexto vão só o nome da Persona e o Sinal da Conta (o agentes-em-conversa 03 proíbe dado pessoal de Contatos).
+  - As "Decisões a confirmar" abaixo continuam com o Nan.
 
 ## Decisões a confirmar
 

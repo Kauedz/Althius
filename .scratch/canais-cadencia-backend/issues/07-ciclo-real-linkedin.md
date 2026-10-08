@@ -4,7 +4,7 @@
 
 **Blocked by:** 05: Executar a Sequência com o navegador fechado.
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent (o InMail não sai como InMail, e o teste fixa o comportamento errado; antes, decisão do Nan; depois, o envio real pela Unipile)
 
 - [ ] A identidade pública do Contato é resolvida para o identificador nativo correto antes do envio.
 - [ ] Convite, mensagem e InMail são enviados somente quando a conta e a relação suportam o subtipo escolhido.
@@ -25,6 +25,15 @@
 - **Desligado por padrão:** `private.chat_channel_settings` nasce com LinkedIn desligado. Enquanto estiver assim, a ativação ignora os passos de LinkedIn e o Executor não os envia.
 - **2026-10-01, tela:** os bloqueios novos da ativação e do envio aparecem em português (`src/fonte/motivos-do-envio.ts` e `supabase-sequencias.ts`).
 - **Não confirmado** (contrato da Unipile v2 levantado por busca, sem acesso à documentação oficial): os nomes de campo marcados com `não confirmado:` em `send-chat-step-adapters.ts` e `ingest-chat-event.ts`, entre eles `users_ids` ou `user_ids` e o nome do evento de nova relação do LinkedIn. O primeiro envio real confirma.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6). Não é duplicado do C1 nem do C3.
+  - Cumpridos no código, com teste: identidade resolvida antes do envio (`_shared/send-chat-step.ts:313-332`; Deno "perfil: GET /v2/{conta}/users/{perfil}…"); nova relação, aceite e nota não contam como resposta (`20261001150000_canais_whatsapp_e_linkedin.sql:1299-1307`; pgTAP "an accepted invitation (new relation) is only recorded", "the echo of the invitation note is not a reply"); resposta real pausa a Sequência (pgTAP "a LinkedIn reply pauses the Sequência"); eventos atrasados ou repetidos (pgTAP "a reply that arrives before the send result cannot be tied yet", "a redelivered reply event is ignored").
+  - Parcial (critério 2): convite e mensagem estão certos (`send-chat-step.ts:184-190,340-357`), mas o InMail sai pelo `startChat` (`:359-361`), cujo corpo leva só `users_ids` e `text` (`send-chat-step-adapters.ts:181-186`), sem marca de InMail.
+  - Parcial (critério 3): o backend devolve impedimento sem retentativa (`send-chat-step-adapters.ts:77-93`; pgTAP "a blocked step is never retried blindly"; Deno "LinkedIn: sem crédito, assinatura ou elegibilidade…"), mas a tela não traduz `insufficient_credits`, `subscription_required`, `linkedin_not_connected`, `not_connected`, `recipient_not_found`, `provider_limit_reached` e `invite_already_pending` (`src/fonte/motivos-do-envio.ts:3-31`), e o rodapé do passo de chat nunca mostra o Envio (`src/paginas/detalhe-sequencia.tsx:1833-1834`). Isso foi para o C1.
+  - Parcial (critério 7): o teste "LinkedIn: InMail só para quem não é conexão" confere que chama `startChat`, ou seja, fixa o erro.
+  - Testes rodados: `deno test --allow-all supabase/functions/_shared/send-chat-step.test.ts supabase/functions/_shared/send-chat-step-adapters.test.ts supabase/functions/sequence-runner/handler-chat.test.ts` → 52 passed, 0 failed; pgTAP `canais_whatsapp_linkedin.sql` ok no CI 37707955273.
+  - Decisão do Nan antes (ligada ao Seam de Canal da revisão de 29/09): barrar o subtipo `inmail` no núcleo com um motivo próprio, sem migration, ou mandar a marca de InMail no `startChat` com o campo marcado "não confirmado".
+  - Depois (humano): o mesmo roteiro do ticket 06, com `select private.set_chat_channel_enabled('linkedin', true);` e um perfil seu. Não usar passo de InMail antes da decisão acima.
 
 ## Passos do Nan
 

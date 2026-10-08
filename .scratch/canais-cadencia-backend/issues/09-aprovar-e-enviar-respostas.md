@@ -4,7 +4,7 @@
 
 **Blocked by:** 06: Executar passos e receber respostas pelo WhatsApp; 07: Executar passos e receber respostas pelo LinkedIn; 08: Gerar Propostas de resposta privadas.
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent (só falta a parte de chat; depende do 08-chat)
 
 - [ ] Somente o titular da Conta remetente lê e decide a proposta; Membro, Administrador e usuário de outro Workspace são rejeitados pelo backend.
 - [ ] Aprovar registra titular, revisão, destinatário e canal e cria um único trabalho de envio.
@@ -20,6 +20,13 @@
 - **2026-10-01, backend** (migration `20261001180000_propostas_de_resposta.sql`, aplicada): propostas privadas do titular, trabalho idempotente por mensagem de origem, revisões, desatualização quando chega outra mensagem, Aprovação da revisão exata e envio uma vez só. Edge Functions `reply-proposal-runner` (o Rhetor gera, sem ferramenta nem credencial de envio) e `reply-proposal-send`. O agendamento `althius-reply-proposal-runner` está ativo no remoto, e o token do Executor se gera sozinho no banco.
 - **2026-10-01, tela:** bloco "Resposta sugerida" no detalhe da Sequência, só para o titular: texto editável (a edição vira uma nova revisão), "Aprovar e enviar", "Gerar de novo", "Rejeitar" e os estados (preparando, falhou, desatualizada, enviada, incerta). Enviar não retoma a Sequência. Testes em `src/paginas/resposta-sugerida.test.tsx` e `src/fonte/supabase-sequencias-propostas.test.ts`.
 - **Parcial:** o envio da resposta sai por E-mail. WhatsApp e LinkedIn entram pelo enviador de chat quando esses canais forem ligados (canais 06 e 07).
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6):
+  - Cumpridos para e-mail: só o titular decide (pgTAP `propostas_de_resposta.sql` §5, Deno "quem não participa do Workspace é recusado…"); aprovar cria um único trabalho (`20261001180000_propostas_de_resposta.sql:543-573`, pgTAP §10); rejeitar e repetir não duplicam (pgTAP §17, Deno "aprovar e clicar duas vezes…"); bloqueios depois da aprovação (pgTAP §13-15); a Sequência continua pausada (Deno "a função só libera, envia e grava: não toca na Sequência").
+  - Parcial (critério 4): a troca de canal é recusada (`:507-509`) e o destinatário só aceita e-mail (`:511-515`).
+  - Não feito (critério 6) para chat: `reply-proposal-send/index.ts:79` só registra `enviadorDeEmail`; `conversation_for_reply` é só e-mail (`:1087`); a recusa `channel_not_supported` está em `:1154` (Deno "um canal sem enviador nunca é enviado pelo e-mail…").
+  - Testes rodados: `deno test --allow-all supabase/functions/reply-proposal-send/` → 18 passed; pgTAP `propostas_de_resposta.sql` ok no CI 37707955273.
+  - Falta (agente): o enviador de chat (reusar `sendChatMessage` no chat de origem); `conversation_for_reply` e `release_approved_reply` para chat, com o destinatário validado pelo telefone ou pelo perfil; pgTAP e Deno.
 
 ## Passos do Nan
 

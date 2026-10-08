@@ -6,7 +6,7 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
 
 **Blocked by:** 03: Cadastro com nome, e-mail e senha, e verificação por código; 04: Entrar com senha ou com código; 06: Bloqueio de senhas vazadas.
 
-**Status:** done (código e testes); Google real pending-human (Auth-10)
+**Status:** closed (o Google real é critério do ticket 10)
 
 - [x] Botão oficial do Google Identity Services no topo de `/cadastro` e `/entrar`, com login por ID token e nonce; escopos só `openid`, `email` e `profile`. Evidência: `raiz.test.tsx` "cadastro pelo botão no topo de /cadastro…" e "o One Tap em /entrar…" (posição antes dos campos; o Supabase falso recusa se SHA-256(nonce cru) ≠ nonce do token); `servicos-do-navegador.test.ts` "desenha o botão oficial e o One Tap por FedCM com o hash do nonce, sem escopos…".
 - [x] One Tap em `/entrar` e `/cadastro` quando há sessão Google no navegador; nunca dentro do app. Evidência: "o One Tap em /entrar…" e "o One Tap nunca aparece dentro do app" (com sessão, o Google nunca é iniciado; após entrar, a limpeza fecha o One Tap).
@@ -18,3 +18,11 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
 ## Comments
 
 - Auth-07 (half Ralph): `ServicosDoNavegador.google?` (ausente sem `VITE_GOOGLE_CLIENT_ID`, e então nada do Google aparece); `ContextoDeAutenticacao.iniciarGoogle` gera o nonce, entrega o SHA-256 ao GIS e chama `signInWithIdToken({ provider: 'google', token, nonce })`; UI em `src/auth/botao-do-google.tsx`, só inserida nas telas. O script do GIS só carrega na implementação real. Checks: `tsc -b` limpo, oxlint 34 (base), vitest 570 verdes (560 + 10); raiz vermelho antes (4 falhas). Pending-human (Auth-10): Client ID Web real, origens autorizadas no Google Cloud, provedor Google no Supabase, verificação de marca e teste manual do botão/One Tap reais.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6): a branch `ralph/auth-07-continuar-com-google` está na `main`. Rótulo `done` trocado por `closed`.
+  - Botão oficial no topo, ID token com nonce, só três escopos: `src/auth/botao-do-google.tsx:10-42`, `src/auth/tela-de-cadastro.tsx:142`, `src/auth/tela-de-entrada.tsx:95`, `src/auth/contexto.tsx:95-100,189-210`, `src/auth/servicos-do-navegador.ts:209-240`; testes "cadastro pelo botão no topo de /cadastro: o nome vem do Google e o aceite dos Termos é gravado" e "desenha o botão oficial e o One Tap por FedCM com o hash do nonce, sem escopos além do ID token".
+  - One Tap só nas telas de acesso: `servicos-do-navegador.ts:223,240,244-248`; testes "o One Tap em /entrar leva quem se cadastrou com senha à mesma Conta de usuário, sem Workspace duplicado" e "o One Tap nunca aparece dentro do app".
+  - Cancelar sem erro: teste "cancelar a escolha de conta volta à tela sem mensagem de erro".
+  - Nome do Google e aceite passivo: `20260925170000_bootstrap_preserva_aceite_dos_termos.sql:29-31`. Os links dos Termos dependem das rotas públicas do ticket 03.
+  - Senha e Google na mesma conta: teste "quem se cadastrou com Google define uma senha pelo \"Esqueci a senha\" e entra com ela na mesma Conta de usuário".
+  - Dependência injetada e testes: `servicos-do-navegador.ts:13,26-38,153`; 7 testes verdes em "Continuar com Google" (`src/raiz.test.tsx`), entre eles "sem o Client ID do Google, /entrar não mostra o Google".

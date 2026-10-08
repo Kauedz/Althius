@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Convidar e gerenciar participantes; 04: Criar e consultar Contas-alvo reais.
 
-**Status:** ready-for-agent
+**Status:** needs-info (falta só o primeiro critério, que depende da decisão Roleta × Caixa de Descobertas; ver Comments de 2026-10-07)
 
 - [ ] Uma recomendação real de Conta com URL ainda inexistente cria a Conta e a atribui automaticamente a Administrador ou Membro ativo. — **Só a porta de entrada está pronta:** a RPC `public.recommend_target_account` (só `service_role`) cria a Conta com `origin = 'recomendacao'` e a atribui pela roleta; pgTAP `supabase/tests/responsabilidade_e_roleta.sql` 1–3, 14–16, 54–55. Ainda não existe quem recomende: o runtime dos Agentes é o CRM-13/14. Fica aberto até um Agente real chamar a RPC.
 - [x] Distribuição é rotativa, persistida e atômica mesmo com recomendações simultâneas. — cursor por Workspace em `private.account_roulette_cursors`, travado `FOR UPDATE`, com as Participações travadas `FOR SHARE` antes; pgTAP 4, 11–13, 53; experimento local com recomendações paralelas e uma remoção no meio (ver Comments).
@@ -80,3 +80,10 @@
 
 - **Transferência na tela (2026-10-01):** no detalhe da Conta, quando o Administrador vê que o responsável já não é Participante ativo (`responsavelAusente`, lido de `list_workspace_participants`), aparece o aviso e o botão "Transferir responsabilidade": escolhe-se um Participante ativo e escreve-se o motivo (obrigatório). As quatro recusas do banco aparecem em português. A Demonstração e quem não é Administrador não veem a ação (a fonte não informa `responsavelAusente`).
 - Fora do "Pode mexer" deste ticket: nada além de `contas-tipos.ts`, `supabase-contas.ts` e `detalhe-conta.tsx` (fonte e tela de Contas). Nenhuma função SQL foi tocada.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6):
+  - Seis critérios cumpridos: roleta atômica (cursor em `20260928234733_responsabilidade_e_roleta.sql:38`, `for update` em `:364`); URL existente não reatribui (`:76`); manual ao criador e importação ao importador (`:432`, chamada em `20260929150000_importacao_csv.sql:1094`); distribuição da importação (`:487`, usada em `src/fonte/supabase-importacao.ts:409`); transferência (`:587`, tela em `src/paginas/detalhe-conta.tsx:168` e `transferir-responsabilidade.tsx`); auditoria e Participação inativa recusada (`:47`, `:132`, `:151`). pgTAP `responsabilidade_e_roleta.sql` ok no CI 37707955273; vitest "o Administrador escolhe quem recebe e diz o motivo, e só então a Conta é transferida" e "transferir chama transfer_target_account_responsibility com a Conta, a pessoa e o motivo" (dentro de 230 passed).
+  - Não feito: o primeiro critério. Nenhum código chama `recommend_target_account` (só a migration e o pgTAP). A descoberta por ICP põe as candidatas na Caixa de Descobertas, e `accept_discovered_account` (`20261001170000_descoberta_de_contas_pelo_icp.sql:599`) usa `save_target_account` (`:647`): quem aceita fica com a Conta, sem roleta. Depois troca `origin` para `recomendacao` (`:651`), mas o evento de atribuição sai como `manual` (`20260928234733:109-118`).
+  - Decisão do Nan (Roleta × Caixa de Descobertas): (a) quem aceita fica com a Conta, e a roleta deixa de valer para recomendações (reescrever o critério e o `CONTEXT.md:74-75`); (b) o aceite passa pela roleta, reaproveitando `recommend_target_account`; (c) um Agente recomenda direto, sem aceite, o que choca com "o Agente propõe, a pessoa decide" (`20261001170000:2`).
+  - Depois da decisão (agente): o caminho escolhido e, em qualquer caso, a origem do evento de atribuição no aceite, com pgTAP novo. Conferência visual do aviso de responsável ausente e do diálogo de transferir.
+  - O comentário "migration não aplicada" é de 29/09; conferir com `npx supabase migration list --linked`.

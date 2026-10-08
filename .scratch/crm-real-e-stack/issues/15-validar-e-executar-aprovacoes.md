@@ -4,7 +4,7 @@
 
 **Blocked by:** 14: Executar Conversas e Coordenação com estado recuperável.
 
-**Status:** ready-for-human (executor do Enviar ao CRM pronto; falta o Nan aplicar a migration 20261001210000 e publicar as funções. A fila real segue desligada: ver Comments, Etapa 5b)
+**Status:** ready-for-agent (só falta ligar a fila real; antes, o sim do Nan para trocar o teste `raiz.test.tsx:110`; depois, os Passos do Nan)
 
 - [x] Proposta e Aprovação persistem com autor, Workspace, integração, ação, payload, estado e timestamp.
 - [x] Ações com permissão Propor aguardam aprovação; Executar segue as permissões específicas definidas sem contornar controles.
@@ -35,6 +35,21 @@
 - **A fila real continua desligada (`aprovacoesDisponiveis` em `composicao.ts`).** Ligar quebra um teste existente que não pode mudar: `raiz.test.tsx`, "/aprovacoes mostra que o módulo está indisponível, sem dados da Demonstração", espera "Aprovações ainda não estão disponíveis neste Workspace." no Workspace operacional (conferido: com o interruptor ligado, 1 falha em 120). Consequência honesta: com Propor, a Aprovação de envio fica pendente e o Administrador ainda não tem onde decidir no Workspace operacional (o link "Ver a Aprovação" do passo na Conversa leva à tela que diz indisponível). Com Executar, o envio sai normalmente. Para ligar: combinar com o Nan a troca daquele teste (ou um teste novo que o substitua) e passar `aprovacoesDisponiveis: true` em `auth/aplicativo.tsx`, de preferência atrás de uma checagem de que o `crm-handoff` está publicado.
 
 - **2026-10-02 (conexoes-funcionais 30, ADR-0022).** A fila `/aprovacoes` continua desligada (o `raiz.test.tsx` não mudou), mas a decisão deixou de depender dela: o passo de ferramenta com Aprovação mostra o cartão da Aprovação na própria Conversa (`paginas/aprovacao-do-passo.tsx`), com Aprovar e Recusar só para o Administrador; `composicao.ts` liga a leitura e a decisão das Aprovações quando as Conversas estão disponíveis, sem tirar o módulo de `indisponiveis`. Depois de aprovar, a Fonte pede a execução ao `crm-handoff` (envio ao CRM) ou à `integration-tools` (`executar_aprovacao`, chamada de ferramenta). Migration `20261002110000_permissao_por_ferramenta.sql`: `propose_agent_action` e `claim_approved_action` redefinidas a partir de 20261001130000, mudando só a Aprovação de ferramenta (regra do Administrador conferida ao propor e ao reservar), e `tool_approval`. Executor `executarChamadaAprovada` em `_shared/executor-de-aprovacoes.ts`.
+
+- 2026-10-07 (reconciliação contra a `main` 59e53a6). Não conferi o remoto (o conector do Supabase não estava ligado nesta sessão).
+  - Dez critérios cumpridos, com evidência:
+    - Persistência: `private.approvals` e `private.approval_events` em `20261001130000_aprovacoes_reais.sql:9,48`.
+    - Propor espera e Executar nasce liberada: `propose_agent_action` (`:113`, redefinida em `20261002110000_permissao_por_ferramenta.sql:149`).
+    - Revalidação antes de executar e payload alterado: `claim_approved_action` (`:260`, redefinida em `20261002110000:212`), hash em `:282`; pgTAP "um payload diferente do aprovado não sai"; Deno "um conteúdo diferente do aprovado não sai".
+    - Estados visíveis: `src/fonte/supabase-aprovacoes.ts:19-37`; vitest "a fila vem de list_approvals, com os estados do banco na linguagem da tela".
+    - Decisão no passo da Conversa, só Administrador: `src/paginas/aprovacao-do-passo.tsx:16`; vitest "o Administrador aprova no passo da Conversa, e a chamada aprovada é executada" e "na Coordenação, quem não é Administrador vê a Aprovação, mas não decide".
+    - Os dois executores: `_shared/executor-de-aprovacoes.ts:101,329`; Deno "uma vez só: a segunda execução não é liberada e nada é chamado de novo".
+    - Aprovar pede a execução: `supabase-aprovacoes.ts:92-105`, `crm-handoff/handler.ts:96-113`; vitest "aprovar pede ao crm-handoff a execução daquela Aprovação; recusar não pede".
+  - Testes rodados: `npx vitest run src/fonte/supabase-aprovacoes.test.ts src/fonte/supabase-aprovacoes-executor.test.ts src/fonte/supabase-aprovacoes-ferramenta.test.ts src/paginas/aprovacao-do-passo.test.tsx src/paginas/aprovacao-simulada.test.tsx src/raiz.test.tsx …` (16 arquivos) → 230 passed, 0 failed; `deno test --allow-all supabase/functions/crm-handoff/ supabase/functions/_shared/executor-de-aprovacoes*.test.ts supabase/functions/_shared/integration-access-aprovacao.test.ts` → verdes; pgTAP `aprovacoes_reais.sql`, `ferramentas_dos_agentes.sql` e `permissao_por_ferramenta.sql` ok no CI 37707955273.
+  - Não feito: a fila. `src/auth/aplicativo.tsx:359-370` não passa `aprovacoesDisponiveis` (padrão `false` em `src/fonte/composicao.ts:69`), e o teste antigo "/aprovacoes mostra que o módulo está indisponível, sem dados da Demonstração" (`src/raiz.test.tsx:110`) trava isso.
+  - Achado novo que torna a fila necessária: as Conversas são privadas de quem pediu (`20260929180000_conversas_dos_agentes.sql:298,316`). Quando um Membro (o Vendedor responsável) pede um envio com Propor, só o Administrador decide (`decide_approval`), mas ele não vê a Conversa do Membro. A Aprovação fica pendente sem lugar para decidir e expira em 7 dias; o link "Ver a Aprovação" (`src/conversa/link-do-passo.tsx:10`) leva à tela indisponível.
+  - Falta (agente, depois do sim do Nan para trocar o teste de `raiz.test.tsx:110`): passar `aprovacoesDisponiveis` em `aplicativo.tsx`, de preferência só com o `crm-handoff` publicado; trocar aquele teste por um da fila real (lê `list_approvals`, não mostra nada da Demonstração, o Administrador decide pela fila); emendar a ADR-0010 (ainda diz que qualquer participante decide, contra o `CONTEXT.md:329`). Depois, conferência visual da fila e do cartão no passo da Conversa.
+  - Passos do Nan: conferir primeiro o que já está no remoto, no PowerShell, na raiz: `npx supabase link --project-ref ycbdilsmydvzezhlymty`, depois `npx supabase migration list --linked` e `npx supabase functions list --project-ref ycbdilsmydvzezhlymty`. O GO-LIVE diz que a `20261001210000` foi aplicada; a `20261002110000` é posterior. O que faltar segue os passos 1 a 5 acima.
 
 ## Passos do Nan
 
