@@ -374,6 +374,12 @@ export interface FonteDeSequencias extends FonteObservavel {
   /** Ativa os envios: autoriza o documento atual e programa o próximo passo. Um bloqueio volta como resultado. */
   ativarEnvios(sequenciaId: string): Promise<ResultadoDaAtivacao>
 
+  /**
+   * Quais canais de chat estão liberados para envio. Null quando a leitura falha: a tela não trata isso como canal
+   * ligado, para uma Sequência só de chat não ativar no escuro.
+   */
+  canaisDeChatLiberados?(): Promise<{ whatsapp: boolean; linkedin: boolean } | null>
+
   /** Resolve um envio incerto que o provedor não confirmou: o titular diz se ele saiu. */
   resolverIncerto(sequenciaId: string, stepId: string, saiu: boolean): Promise<void>
 }

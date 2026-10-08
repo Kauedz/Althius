@@ -588,6 +588,13 @@ export function criarFonteDeSequenciasSupabase(
         ...(MENSAGEM_DA_ATIVACAO[linha.outcome] ? { mensagem: MENSAGEM_DA_ATIVACAO[linha.outcome] } : {}),
       }
     },
+    async canaisDeChatLiberados() {
+      // A tela pergunta antes de ativar (list_enabled_chat_channels). Sem a leitura, não finge que o canal está ligado.
+      const { data, error } = await cliente.rpc('list_enabled_chat_channels')
+      if (error || !Array.isArray(data)) return null
+      const lista = data.filter((item): item is string => typeof item === 'string')
+      return { whatsapp: lista.includes('whatsapp'), linkedin: lista.includes('linkedin') }
+    },
     async resolverIncerto(sequenciaId, stepId, saiu) {
       const { error } = await cliente.rpc('resolve_uncertain_step', {
         p_sequence_id: sequenciaId,

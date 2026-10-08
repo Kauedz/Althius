@@ -186,6 +186,11 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     (f) => f.autorizacao(sequenciaId),
     [sequenciaId],
   )
+  // Null: a leitura falhou. Undefined: ainda carregando. Nos dois casos um passo de chat não sai no escuro.
+  const { dados: canaisDeChat } = useDadosDeSequencias(
+    (f) => (f.canaisDeChatLiberados ? f.canaisDeChatLiberados() : Promise.resolve(null)),
+    [sequenciaId],
+  )
   const [dialogoAtivacaoAberto, setDialogoAtivacaoAberto] = useState(false)
   const [ativando, setAtivando] = useState(false)
   const [avisoDaAtivacao, setAvisoDaAtivacao] = useState<AvisoDoEnvio | null>(null)
@@ -371,9 +376,20 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     }
   }
 
-  // Ativar autoriza o documento atual (a versão que o Executor envia) e fixa o Destino de cada passo de E-mail
+  // Ativar autoriza o documento atual (a versão que o Executor envia) e fixa o Destino de cada passo
   // pendente (ADR-0014). Um bloqueio volta como desfecho, com o passo que o causou.
+  const passosDaAtivacao = sequencia.steps.filter((s) =>
+    passoEntraNaAtivacao(s) && !envios?.some((e) => e.stepId === s.id && ENVIO_JA_SAIU.has(e.status)),
+  )
+  // Sem a leitura, um passo de chat pode sair ou ser pulado sem a tela saber. Não confirma nesse intervalo.
+  const chatAindaSemLeitura = passosDaAtivacao.some((s) => s.canal === 'whatsapp' || s.canal === 'linkedin')
+    && (canaisDeChat === undefined || canaisDeChat === null)
+  const podeConfirmarAtivacao = !chatAindaSemLeitura
+    && passosDaAtivacao.some((s) => situacaoNaAtivacao(s, contatosMap.get(s.contatoId), canaisDeChat) === 'sai')
+    && passosDaAtivacao.every((s) => situacaoNaAtivacao(s, contatosMap.get(s.contatoId), canaisDeChat) !== 'falta-destino')
+
   async function handleAtivarEnvios() {
+    if (!podeConfirmarAtivacao) return
     setAtivando(true)
     setAvisoDaAtivacao(null)
     try {
@@ -388,9 +404,12 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         })
       } else {
         const passo = resultado.stepId ? sequencia!.steps.find((s) => s.id === resultado.stepId) : undefined
+        const mensagem = resultado.outcome === 'empty_content' && passo
+          ? mensagemDoConteudoVazio(passo.canal)
+          : (resultado.mensagem ?? 'Os envios não foram ativados.')
         setAvisoDaAtivacao({
           tipo: 'atencao',
-          texto: `${resultado.mensagem ?? 'Os envios não foram ativados.'}${passo ? ` Passo: "${passo.titulo}".` : ''}`,
+          texto: `${mensagem}${passo ? ` Passo: "${passo.titulo}".` : ''}`,
         })
       }
     } catch (erro) {
@@ -906,7 +925,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         </div>
       </div>
 
-      {!permiteAcoesDeDemonstracao && sequencia.steps.some((s) => s.canal === 'email') && (
+      {!permiteAcoesDeDemonstracao && sequencia.steps.some(passoEntraNaAtivacao) && (
         <PainelDosEnvios
           sequencia={sequencia}
           autorizacao={autorizacao ?? null}
@@ -920,35 +939,38 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       )}
 
       <Dialog open={dialogoAtivacaoAberto} onOpenChange={(aberto) => { if (!aberto && !ativando) setDialogoAtivacaoAberto(false) }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Ativar envios</DialogTitle>
             <DialogDescription>
-              Os passos de E-mail abaixo saem sozinhos, na ordem, em dias úteis e dentro da janela de horário, mesmo com o
-              navegador fechado. Cada um fica com o Destino mostrado aqui. Uma resposta do Contato pausa a Sequência.
+              Cada passo abaixo mostra o canal e o Destino que a ativação vai fixar. Os que estão liberados saem
+              sozinhos, na ordem, em dias úteis e dentro da janela de horário, mesmo com o navegador fechado. Uma resposta
+              do Contato pausa a Sequência.
             </DialogDescription>
           </DialogHeader>
-          <ol aria-label="Passos a ativar" className="flex flex-col gap-2 list-none p-0 m-0 text-xs">
-            {sequencia.steps
-              .filter((s) => s.canal === 'email' && !envios?.some((e) => e.stepId === s.id && ENVIO_JA_SAIU.has(e.status)))
-              .map((s) => {
-                const contato = contatosMap.get(s.contatoId)
-                return (
-                  <li key={s.id} className="flex flex-col gap-0.5 border-t border-al-line pt-2 first:border-t-0 first:pt-0">
-                    <span className="text-al-ink font-medium">{s.titulo}</span>
-                    <span className="text-al-muted">
-                      Para {emailDoPasso(contato, s.destino) ?? 'Contato sem e-mail'} · {s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}
-                      {s.delayDiasUteis > 0 ? ` · ${s.delayDiasUteis} ${s.delayDiasUteis === 1 ? 'dia útil' : 'dias úteis'} depois do anterior` : ''}
-                    </span>
-                  </li>
-                )
-              })}
+          <ol aria-label="Passos a ativar" className="flex min-w-0 flex-col gap-2 list-none p-0 m-0 text-xs">
+            {passosDaAtivacao.map((s) => {
+              const contato = contatosMap.get(s.contatoId)
+              const leitura = leituraDoDestino(s, contato)
+              const aviso = avisoDeChatQueNaoSai(s, canaisDeChat)
+              return (
+                <li key={s.id} className="flex min-w-0 flex-col gap-0.5 border-t border-al-line pt-2 first:border-t-0 first:pt-0">
+                  <span className="text-al-ink font-medium">{s.titulo}</span>
+                  <span className="min-w-0 break-all text-al-muted">
+                    {CANAIS_CONFIG[s.canal].rotulo} · {leitura.valor ?? leitura.ausencia}
+                    {s.canal === 'email' ? ` · ${s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}` : ''}
+                    {s.delayDiasUteis > 0 ? ` · ${s.delayDiasUteis} ${s.delayDiasUteis === 1 ? 'dia útil' : 'dias úteis'} depois do anterior` : ''}
+                  </span>
+                  {aviso && <span className="text-al-atencao">{aviso}</span>}
+                </li>
+              )
+            })}
           </ol>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDialogoAtivacaoAberto(false)} disabled={ativando}>
               Cancelar
             </Button>
-            <Button type="button" onClick={handleAtivarEnvios} disabled={ativando}>
+            <Button type="button" onClick={handleAtivarEnvios} disabled={ativando || !podeConfirmarAtivacao}>
               {ativando ? 'Ativando…' : 'Ativar'}
             </Button>
           </DialogFooter>
@@ -1765,6 +1787,62 @@ const ROTULO_DO_ENVIO: Record<EnvioDoPasso['status'], string> = {
 const ENVIO_REENVIAVEL = new Set<EnvioDoPasso['status']>(['confirmed', 'awaiting_reconfirmation', 'failed', 'bounced'])
 /** Situações em que o passo já saiu (ou pode ter saído): não entra numa nova ativação. */
 const ENVIO_JA_SAIU = new Set<EnvioDoPasso['status']>(['sending', 'sent', 'uncertain'])
+
+type CanaisDeChat = { whatsapp: boolean; linkedin: boolean } | null | undefined
+
+function passoEntraNaAtivacao(step: StepSequencia): boolean {
+  return step.canal === 'email' || step.canal === 'whatsapp' || step.canal === 'linkedin'
+}
+
+function leituraDoDestino(step: StepSequencia, contato: Contato | undefined): { valor?: string; ausencia: string } {
+  const posicao = posicaoDoDestino(step.destino)
+  if (step.canal === 'whatsapp') {
+    const telefone = telefoneDoPasso(contato, step.destino)
+    if (!telefone) return { ausencia: posicao > 1 ? `Nenhum WhatsApp no número ${posicao}` : 'Contato sem WhatsApp' }
+    if (!telefone.whatsapp) return { ausencia: 'O telefone escolhido não está marcado como WhatsApp' }
+    return { valor: telefone.valor, ausencia: '' }
+  }
+  if (step.canal === 'linkedin') {
+    if (!contato?.linkedin) return { ausencia: 'Contato sem perfil no LinkedIn' }
+    return { valor: contato.linkedin, ausencia: '' }
+  }
+  const email = emailDoPasso(contato, step.destino)
+  if (!email) return { ausencia: posicao > 1 ? `Nenhum e-mail no número ${posicao}` : 'Contato sem e-mail' }
+  return { valor: email, ausencia: '' }
+}
+
+/** O que a ativação faz com o passo: sai, não sai (canal de chat desligado ou ainda não lido) ou trava por falta de Destino. */
+function situacaoNaAtivacao(
+  step: StepSequencia,
+  contato: Contato | undefined,
+  canais: CanaisDeChat,
+): 'sai' | 'nao-sai' | 'falta-destino' {
+  const leitura = leituraDoDestino(step, contato)
+  if (step.canal === 'whatsapp' || step.canal === 'linkedin') {
+    if (canais?.[step.canal] !== true) return 'nao-sai'
+    if (!leitura.valor) return 'falta-destino'
+    return 'sai'
+  }
+  // Sem o Contato na tela, o banco decide, como o fluxo de E-mail já fazia.
+  if (contato && !leitura.valor) return 'falta-destino'
+  return 'sai'
+}
+
+function avisoDeChatQueNaoSai(step: StepSequencia, canais: CanaisDeChat): string | null {
+  if (step.canal !== 'whatsapp' && step.canal !== 'linkedin') return null
+  if (canais?.[step.canal] === true) return null
+  const rotulo = CANAIS_CONFIG[step.canal].rotulo
+  if (canais === undefined) return `Confirmando se ${rotulo} está liberado.`
+  if (canais === null) return `Não deu para confirmar se ${rotulo} está liberado.`
+  return `${rotulo} está desligado neste Workspace. Este passo não sai.`
+}
+
+function mensagemDoConteudoVazio(canal: CanalStep): string {
+  if (canal === 'whatsapp') return 'Um passo de WhatsApp está sem texto. Escreva a mensagem antes de ativar.'
+  if (canal === 'linkedin') return 'Um passo de LinkedIn está sem texto. Escreva a mensagem antes de ativar.'
+  return 'Um passo de E-mail está sem texto. Escreva o corpo antes de ativar.'
+}
+
 /** Situações que pedem atenção do Responsável. */
 const ENVIO_COM_ATENCAO = new Set<EnvioDoPasso['status']>(['failed', 'bounced', 'awaiting_reconfirmation', 'uncertain'])
 
@@ -1780,7 +1858,13 @@ function formatarDataEHora(iso: string): string {
   })
 }
 
-function descreverEnvio(envio: EnvioDoPasso): string {
+function nomeDoDestino(canal: CanalStep): string {
+  if (canal === 'whatsapp') return 'telefone'
+  if (canal === 'linkedin') return 'perfil'
+  return 'e-mail'
+}
+
+function descreverEnvio(envio: EnvioDoPasso, canal: CanalStep): string {
   switch (envio.status) {
     case 'waiting':
       return `Na fila: sai depois do passo anterior, para ${envio.destino}.`
@@ -1795,13 +1879,22 @@ function descreverEnvio(envio: EnvioDoPasso): string {
     case 'awaiting_reconfirmation':
       return envio.ultimoErro === 'contact_unlinked'
         ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
-        : `O Contato não tem mais o e-mail confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
+        : `O Contato não tem mais o ${nomeDoDestino(canal)} confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
     case 'uncertain':
+      if (canal === 'whatsapp') return 'O provedor não respondeu a tempo e a confirmação não chegou. Confira o WhatsApp: a mensagem saiu?'
+      if (canal === 'linkedin') return 'O provedor não respondeu a tempo e a confirmação não chegou. Confira o LinkedIn: a mensagem saiu?'
       return 'O provedor não respondeu a tempo e a confirmação não chegou. Confira sua caixa de saída: o e-mail saiu?'
-    case 'failed':
-      return `O provedor não aceitou o envio${envio.ultimoErro ? ` (${motivoDoEnvio(envio.ultimoErro)})` : ''}. Reconfirme para tentar de novo.`
+    case 'failed': {
+      const motivo = envio.ultimoErro ? ` (${motivoDoEnvio(envio.ultimoErro)})` : ''
+      // Reconfirmar só existe no E-mail. No chat a frase não aponta um botão que a tela não tem.
+      return canal === 'email'
+        ? `O provedor não aceitou o envio${motivo}. Reconfirme para tentar de novo.`
+        : `O provedor não aceitou o envio${motivo}.`
+    }
     case 'bounced':
-      return `O e-mail para ${envio.destino} foi devolvido.`
+      return canal === 'email'
+        ? `O e-mail para ${envio.destino} foi devolvido.`
+        : `O envio para ${envio.destino} não foi entregue.`
     case 'sending':
       return `Enviando para ${envio.destino}…`
     case 'confirmed':
@@ -1811,6 +1904,12 @@ function descreverEnvio(envio: EnvioDoPasso): string {
     default:
       return envio.destino
   }
+}
+
+function textoSemEnvio(canal: CanalStep): string {
+  if (canal === 'whatsapp') return 'Ainda não enviado. Ativar os envios fixa o WhatsApp atual do Contato como Destino.'
+  if (canal === 'linkedin') return 'Ainda não enviado. Ativar os envios fixa o perfil do LinkedIn atual do Contato como Destino.'
+  return 'Ainda não enviado. Confirmar fixa o e-mail atual do Contato como Destino.'
 }
 
 function RodapeDoEnvio({
@@ -1830,21 +1929,23 @@ function RodapeDoEnvio({
   onConfirmarEEnviar?: () => void
   onResolverIncerto?: (saiu: boolean) => void
 }) {
-  if (step.canal !== 'email') {
+  if (!passoEntraNaAtivacao(step)) {
     return <span>Envio por {CANAIS_CONFIG[step.canal].rotulo} ainda não disponível neste Workspace.</span>
   }
   if (enviosIndisponiveis && !envio) {
     return <span className="text-al-atencao">Não foi possível carregar a situação do envio deste passo. Recarregue a página antes de enviar.</span>
   }
   // Depois de um envio aceito, o botão só volta quando a lista de Envios já mostra o passo como enviado.
-  const podeEnviar = !!onConfirmarEEnviar && !enviando && aviso?.tipo !== 'ok'
+  // O clique continua só no E-mail: confirmar, reenviar, resolver um incerto e classificar a resposta.
+  // O ciclo real de chat, e a resposta recebida de chat, não são deste ticket.
+  const podeEnviar = step.canal === 'email' && !!onConfirmarEEnviar && !enviando && aviso?.tipo !== 'ok'
     && (!envio || ENVIO_REENVIAVEL.has(envio.status))
   const rotuloDoBotao = enviando
     ? 'Enviando…'
     : envio?.status === 'confirmed' && envio.modo === 'manual'
       ? 'Enviar'
       : envio && envio.status !== 'confirmed' ? 'Reconfirmar e enviar' : 'Confirmar e enviar'
-  const podeResolver = !!onResolverIncerto && envio?.status === 'uncertain' && aviso?.tipo !== 'ok'
+  const podeResolver = step.canal === 'email' && !!onResolverIncerto && envio?.status === 'uncertain' && aviso?.tipo !== 'ok'
   return (
     <>
       <span className="flex items-center gap-2">
@@ -1861,7 +1962,7 @@ function RodapeDoEnvio({
             {ROTULO_DO_ENVIO[envio.status]}
           </span>
         )}
-        <span>{envio ? descreverEnvio(envio) : 'Ainda não enviado. Confirmar fixa o e-mail atual do Contato como Destino.'}</span>
+        <span className="min-w-0 break-all">{envio ? descreverEnvio(envio, step.canal) : textoSemEnvio(step.canal)}</span>
       </span>
       {podeEnviar && (
         <Button
@@ -1897,7 +1998,7 @@ function RodapeDoEnvio({
           </Button>
         </span>
       )}
-      {envio?.status === 'sent' && <ResultadoDoEnvio envio={envio} />}
+      {step.canal === 'email' && envio?.status === 'sent' && <ResultadoDoEnvio envio={envio} />}
       {aviso && (
         <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
           {aviso.texto}
@@ -1980,7 +2081,7 @@ function PainelDosEnvios({
   let texto: string
   let rotulo: string | null = null
   if (!autorizacao) {
-    texto = 'Os passos de E-mail só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.'
+    texto = 'Os passos de E-mail, WhatsApp e LinkedIn só saem sozinhos, mesmo com o navegador fechado, depois que você ativar os envios.'
     rotulo = 'Ativar envios'
   } else if (!autorizacao.ativa) {
     texto = autorizacao.motivoDaRevogacao === 'edited'
