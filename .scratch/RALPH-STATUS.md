@@ -86,3 +86,21 @@ Postgres 16 + pgTAP locais, com schema `auth` mínimo do Supabase, via script de
 | Push | não feito |
 
 O que o humano roda: nada no banco. Não há migration. A tela lê `list_enabled_chat_channels`, que já existe. O padrão do banco deixa WhatsApp e LinkedIn desligados; este ticket não liga o canal. Sem push.
+
+## Frente canais — ticket 13 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | canais-cadencia-backend 13 — Tirar o InMail da tela e recusá-lo no envio |
+| Status | ready-for-human |
+| Branch | ralph/frente-canais |
+| Commit | 74bcb2ced4d7d872f121526180eeab1b24f949ca |
+| Push | não feito |
+
+Para o próximo agente: não reabra o 13. O código está neste commit, os oito checkboxes estão ticados e os testes já nascem verdes. `ready-for-human` aqui é o passo do Nan, não trabalho de implementação. Não marque o ticket como blocked por falta de vermelho. O próximo da fila é prospeccao-funcional C3.
+
+O que o humano roda, antes de publicar: no SQL Editor, só leitura, a consulta do ticket (Sequências com passo de InMail). Depois do merge, na raiz do repositório: `npx supabase functions deploy sequence-runner --project-ref ycbdilsmydvzezhlymty`. Nenhuma migration e nenhum segredo novo.
+
+Correção de vocabulário neste registro: o Status do prospeccao-funcional C1 passou de `done` para `closed`. Não sobra passo humano de migration nem de deploy nesse ticket. A seção do C1 acima fica como o registro da manhã.
+
+Suítes: `npm test` no frontend, exit 0, 109 arquivos e 1085 testes. `deno test supabase/functions`, exit 0, `ok | 710 passed | 0 failed`. pgTAP não rodou: sem CLI e sem Docker, e este ticket não muda SQL.

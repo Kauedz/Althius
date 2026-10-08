@@ -4,7 +4,7 @@
 
 **Blocked by:** None (pode começar agora). O merge na `main` espera o 00.
 
-**Status:** done (tela pronta na `ralph/frente-canais`; sem push. O merge na `main` espera o 00.)
+**Status:** closed (tela pronta na `ralph/frente-canais`; sem push. O merge na `main` espera o 00. Não sobra passo humano de migration nem de deploy.)
 
 - [x] No Workspace operacional, a Sequência com passo de WhatsApp ou de LinkedIn, e nenhum passo de e-mail, mostra o controle de ativar. Hoje o painel só aparece quando existe passo de e-mail.
 - [x] O diálogo lista os passos de e-mail, WhatsApp e LinkedIn que ainda não saíram. Cada um mostra o canal e o Destino que a ativação vai fixar (ADR-0014). O texto deixa de dizer que só os passos de e-mail saem.
