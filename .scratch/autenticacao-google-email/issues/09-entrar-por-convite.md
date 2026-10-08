@@ -6,13 +6,13 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
 
 **Blocked by:** 03: Cadastro com nome, e-mail e senha, e verificação por código; 07: Continuar com Google; CRM-03: [Convites e participantes](../../crm-real-e-stack/issues/03-convites-e-participantes.md).
 
-**Status:** ready-for-agent (faltam a volta do Google com o destino e a divergência de e-mail no Google, com testes; o Google falso basta)
+**Status:** ready-for-human (código e testes com o Google falso fechados em 2026-10-08 na `ralph/frente-acesso`; falta só a conferência com o Google real, nos Passos do Nan dos Comments de 2026-10-08, depois do ticket 10)
 
 - [x] O convite abre `/cadastro` (ou `/entrar`, se a conta existe) com o e-mail travado e o aviso "Este convite é para fulano@empresa.com". — O link sem sessão abre a tela do convite (`src/auth/tela-do-convite.tsx`), que oferece "Criar conta com este e-mail" e "Já tenho conta: entrar": a tela não sabe se a conta existe, para não revelar. `/cadastro`, `/entrar` e `/esqueci-a-senha` com o convite como destino travam o e-mail da prévia do banco, nunca do endereço; `aceite-do-convite.test.tsx` "Entrar por convite".
-- [ ] O destino do convite é preservado entre as rotas, durante a verificação e no retorno do Google. — Feito entre as rotas, no código e no link do cadastro, no "Entrar com código" e no "Esqueci a senha" (testes em `aceite-do-convite.test.tsx`); falta o retorno do Google (ver Comments).
-- [ ] No Google, conta com outro e-mail não aceita o convite: a tela explica e oferece escolher outra conta, sem criar Participação.
+- [x] O destino do convite é preservado entre as rotas, durante a verificação e no retorno do Google. — Entre as rotas, no código e no link do cadastro, no "Entrar com código" e no "Esqueci a senha" (testes em `aceite-do-convite.test.tsx`); na volta do Google, em `/cadastro` e em `/entrar` ("Entrar por convite com Google").
+- [x] No Google, conta com outro e-mail não aceita o convite: a tela explica e oferece escolher outra conta, sem criar Participação. — A recusa diz o Workspace e o e-mail do convite e oferece "Entrar com outra conta" (`EntrarComOutraConta` em `src/auth/aplicativo.tsx`), que sai e abre `/entrar?destino=/convite/<token>`, com o e-mail travado e o Google; nenhuma Participação no Workspace do convite.
 - [x] Após aceitar, a entrada vai para o Workspace da empresa; o Workspace pessoal continua no seletor. — Aceite do CRM-03 (`src/auth/aplicativo.tsx`); coberto pelos caminhos de cadastro (código e link), senha, código e redefinição em `aceite-do-convite.test.tsx`.
-- [ ] Testes de raiz cobrem e-mail travado, destino preservado e divergência de e-mail no Google. — E-mail travado e destino preservado cobertos; a divergência no Google fica com o Google.
+- [x] Testes de raiz cobrem e-mail travado, destino preservado e divergência de e-mail no Google. — `aceite-do-convite.test.tsx`: "Entrar por convite" (e-mail travado, destino) e "Entrar por convite com Google" (volta do Google ao convite; conta Google de outro e-mail recusada, com "Entrar com outra conta" até o aceite).
 
 ## Comments
 
@@ -33,3 +33,23 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
     2. Teste de raiz: Google com outro e-mail → recusa explicada, sem Participação.
     3. Na recusa, "Entrar com outra conta", que sai e volta a `/entrar?destino=/convite/<token>`, onde o Google aparece.
   - A conferência visual das telas do convite está no ticket 10 ([pendente, 360px](prints/10-convite-pendente-360.jpg), [cadastro pelo convite, 360px](prints/10-cadastro-pelo-convite-360.jpg)).
+
+- 2026-10-08 (Google no convite, com o Google falso; branch `ralph/frente-acesso`):
+  - **Volta do Google:** o login por ID token acontece na própria página, então o `?destino=/convite/<token>` continua no endereço e o convite é aceito depois do bootstrap. Já funcionava; ganhou o teste "quem cria a Conta de usuário pelo convite com o Google do e-mail convidado volta do Google ao convite e entra no Workspace da empresa", que falha se a volta ao destino for desligada.
+  - **Divergência:** na recusa por outro e-mail (sessão de senha, código ou Google), a tela mostra "Entrar com outra conta" (`EntrarComOutraConta` em `src/auth/aplicativo.tsx`). O botão troca o endereço para `/entrar?destino=/convite/<token>` e sai. A entrada mostra o e-mail convidado travado e, com o Client ID configurado, o Google. Se a saída falhar, o endereço volta ao link do convite. Com a sessão do e-mail convidado (convite revogado, expirado, usado), o botão não aparece. O texto da recusa passou a "Nenhuma Participação foi criada no Workspace do convite", porque uma conta Google nova ganha o Workspace pessoal.
+  - **Testes:**
+    - Vermelho: `npx vitest run src/auth/aceite-do-convite.test.tsx -t "outro e-mail não aceita o convite"` falhava com `Unable to find an accessible element with the role "button" and name "Entrar com outra conta"`.
+    - Verde: `aceite-do-convite.test.tsx` 27/27.
+    - Suíte completa: `npx vitest run --maxWorkers=2` com 107 arquivos e 1090/1090 testes.
+    - `tsc -b` limpo; o oxlint só mostra o aviso antigo de `aplicativo.tsx:119`.
+  - **Prints** (Supabase e Google falsos; 1400×900 e 360px emulados; sem rolagem lateral; sem erro no console):
+    - [recusa](prints/09-recusa-outro-email-desktop.png)
+    - [recusa a 360px](prints/09-recusa-outro-email-360.png)
+    - [depois de "Entrar com outra conta"](prints/09-entrar-com-outra-conta-desktop.png)
+    - [depois de "Entrar com outra conta" a 360px](prints/09-entrar-com-outra-conta-360.png)
+    - O botão do Google nos prints é o do dublê, não o oficial.
+  - **Passos do Nan** (depois de o Google real ser ligado no ticket 10; sem migration nem deploy próprios):
+    1. Numa janela anônima, abrir o link de um convite pendente e clicar em "Já tenho conta: entrar".
+    2. Clicar em "Continuar com Google" e escolher uma conta de **outro** e-mail. Deve aparecer "Convite não aceito", com o Workspace e o e-mail do convite e o botão "Entrar com outra conta".
+    3. Clicar em "Entrar com outra conta" e, no Google, escolher a conta do e-mail convidado. Deve abrir o Workspace da empresa, com o pessoal no seletor.
+    4. Repetir com outro convite, agora por "Criar conta com este e-mail" e o Google do e-mail convidado. Deve abrir o Workspace da empresa.
