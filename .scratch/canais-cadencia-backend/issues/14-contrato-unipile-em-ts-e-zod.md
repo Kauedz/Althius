@@ -4,7 +4,7 @@
 
 **Blocked by:** [ADR-0024](../../../docs/adr/0024-contratos-v1-e-v2-da-unipile-e-troca-de-conta-sem-perder-historico.md) aceita (PR #157 mergeado).
 
-**Status:** ready-for-agent
+**Status:** closed
 
 - [x] Zod entra como dependência com versão fixada, só neste módulo. Nenhum outro arquivo do repositório importa Zod por causa deste ticket.
 - [x] Schema da configuração de uma conexão: `base_url`, `api_version` (`v1` ou `v2`), nome dos segredos da chave e do webhook. A chave em si nunca faz parte do schema nem aparece em mensagem de erro ou em log.
