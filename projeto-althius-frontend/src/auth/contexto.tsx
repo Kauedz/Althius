@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
+import { corpoDoErroDaFuncao } from '@/fonte/falha-da-edge-function'
 import { ROTA_DE_REDEFINICAO_DA_SENHA, enderecoDeRedefinicao } from './destino'
+import { TAMANHO_MINIMO_DA_SENHA } from './nova-senha'
 import type { AcaoDoCaptcha, ServicosDoNavegador } from './servicos-do-navegador'
 
 interface Autenticacao {
@@ -47,12 +49,12 @@ interface Autenticacao {
   /** Grava a nova senha, encerra as outras sessões da Conta de usuário e segue para o Workspace de entrada. */
   definirNovaSenha: (senha: string) => Promise<void>
   /**
-   * Troca (ou define) a senha da Conta de usuário da sessão em Meu perfil. Toda tentativa confirma de novo que é a
-   * pessoa, e o Supabase Auth confere a confirmação antes da troca: a senha atual (`signInWithPassword`) ou o código de
-   * entrada enviado ao e-mail da sessão por `pedirCodigoDeEntrada` (`verifyOtp`), o caminho de quem entrou só com
-   * Google. A nova senha segue a política do cadastro, e as outras sessões são encerradas. As
-   * identidades (Google, e-mail) continuam todas na mesma Conta de usuário. Resolve depois que a senha foi trocada,
-   * dizendo se as outras sessões caíram.
+   * Troca (ou define) a senha da Conta de usuário da sessão em Meu perfil, no servidor: a Edge Function account-password
+   * identifica a Conta pelo JWT, confere no Supabase Auth a senha atual ou o código de entrada enviado ao e-mail da
+   * sessão por `pedirCodigoDeEntrada` (o caminho de quem entrou só com Google), aplica a política do cadastro e só
+   * então troca a senha. Toda tentativa confirma de novo que é a pessoa. As outras sessões são encerradas, e esta aba
+   * continua com a sessão aberta pela confirmação. As identidades (Google, e-mail) continuam todas na mesma Conta de
+   * usuário. Resolve depois que a senha foi trocada, dizendo se as outras sessões caíram.
    */
   trocarSenha: (confirmacao: ConfirmacaoDeIdentidade, novaSenha: string) => Promise<SenhaTrocada>
 }
@@ -137,9 +139,9 @@ function atingiuLimiteDeEnvio(error: { code?: string; status?: number } | null) 
 const Contexto = createContext<Autenticacao | null>(null)
 
 /**
- * Grava a nova senha da sessão atual e encerra as outras sessões da Conta de usuário. Quem chama já recusou a senha
- * vazada; o `weak_password` do Supabase Auth (senhas vazadas no servidor) vira a mesma mensagem. Lança só se a senha
- * não foi trocada; depois dela, devolve se as outras sessões caíram.
+ * Grava a nova senha da sessão atual (a de recuperação, no "Esqueci a senha") e encerra as outras sessões da Conta de
+ * usuário. Quem chama já recusou a senha vazada; o `weak_password` do Supabase Auth (senhas vazadas no servidor) vira
+ * a mesma mensagem. Lança só se a senha não foi trocada; depois dela, devolve se as outras sessões caíram.
  */
 async function gravarNovaSenha(cliente: SupabaseClient, senha: string): Promise<SenhaTrocada> {
   const { error } = await cliente.auth.updateUser({ password: senha })
@@ -153,6 +155,44 @@ async function gravarNovaSenha(cliente: SupabaseClient, senha: string): Promise<
 
 const ERRO_AO_ENCERRAR_AS_OUTRAS_SESSOES =
   'A senha foi trocada, mas não foi possível encerrar as outras sessões. Tente sair e entrar de novo.'
+
+/** A Edge Function que troca a senha em Meu perfil depois de conferir a senha atual ou o código (CRM-08). */
+const FUNCAO_DA_TROCA_DE_SENHA = 'account-password'
+
+/** O que a account-password devolve quando a senha foi trocada. */
+interface SenhaTrocadaNoServidor {
+  outrasSessoesEncerradas?: unknown
+  /** A sessão aberta pela confirmação: o Supabase Auth encerrou a desta aba ao trocar a senha. */
+  sessao?: { access_token?: unknown; refresh_token?: unknown }
+}
+
+/**
+ * A recusa da account-password em palavras da tela. A função não diz se a senha ou o código está errado; a tela sabe
+ * qual dos dois a pessoa mandou.
+ */
+async function mensagemDaRecusaDaTroca(error: unknown, confirmacao: ConfirmacaoDeIdentidade): Promise<string> {
+  const corpo = await corpoDoErroDaFuncao(error)
+  switch (corpo?.erro) {
+    case 'confirmacao_invalida':
+      return 'codigo' in confirmacao
+        ? 'Código inválido ou expirado. Confira o código ou peça outro.'
+        : 'A senha atual não confere. Tente de novo ou confirme por código.'
+    case 'captcha_invalido':
+      return ERRO_DO_CAPTCHA
+    case 'senha_fraca':
+      if (corpo.motivo === 'curta') return `A senha precisa ter pelo menos ${TAMANHO_MINIMO_DA_SENHA} caracteres.`
+      if (corpo.motivo === 'longa') return 'A senha é longa demais. Use até 72 caracteres.'
+      return ERRO_DE_SENHA_VAZADA
+    case 'mesma_senha':
+      return 'A nova senha precisa ser diferente da atual.'
+    case 'limite':
+      return 'Muitas tentativas de trocar a senha. Espere alguns minutos e tente de novo.'
+    case 'sem_sessao':
+      return 'Entre de novo para trocar a senha.'
+    default:
+      return 'Não foi possível salvar a nova senha. Tente novamente em instantes.'
+  }
+}
 
 export function ContextoDeAutenticacao({
   cliente,
@@ -334,24 +374,34 @@ export function ContextoDeAutenticacao({
       }
     },
     async trocarSenha(confirmacao, novaSenha) {
-      const usuario = sessao?.user
-      if (!usuario?.email) throw new Error('Entre de novo para trocar a senha.')
+      if (!sessao?.user.email) throw new Error('Entre de novo para trocar a senha.')
       setCarregando(true)
       try {
-        // A senha vazada é recusada antes de confirmar a identidade, para não gastar o código nem abrir outra sessão.
+        // A senha vazada é recusada antes de chamar a função, para não gastar o código; o servidor confere de novo.
         await recusarSenhaVazada(servicos, novaSenha)
-        // O Supabase Auth confere a senha atual ou o código a cada tentativa; isso abre uma sessão nova da mesma Conta
-        // de usuário, e as antigas caem ao gravar a senha.
-        if ('codigo' in confirmacao) {
-          const { data, error } = await cliente.auth.verifyOtp({ email: usuario.email, token: confirmacao.codigo.trim(), type: 'email' })
-          if (error || data.user?.id !== usuario.id) throw new Error('Código inválido ou expirado. Confira o código ou peça outro.')
-        } else {
-          const captcha = await comCaptcha(servicos, 'login_com_senha')
-          const { data, error } = await cliente.auth.signInWithPassword({ email: usuario.email, password: confirmacao.senhaAtual, options: captcha })
-          recusarCaptcha(error)
-          if (error || data.user?.id !== usuario.id) throw new Error('A senha atual não confere. Tente de novo ou confirme por código.')
+        // Um token novo do Turnstile por tentativa: a função o repassa ao Supabase Auth, que aceita cada token uma vez.
+        const captcha = await comCaptcha(servicos, 'troca_de_senha')
+        const { data, error } = await cliente.functions.invoke(FUNCAO_DA_TROCA_DE_SENHA, {
+          body: {
+            confirmacao: 'codigo' in confirmacao
+              ? { tipo: 'codigo', codigo: confirmacao.codigo.trim(), ...captcha }
+              : { tipo: 'senha', senhaAtual: confirmacao.senhaAtual, ...captcha },
+            novaSenha,
+          },
+        })
+        if (error) throw new Error(await mensagemDaRecusaDaTroca(error, confirmacao))
+        const trocada = (data ?? {}) as SenhaTrocadaNoServidor
+        // O Supabase Auth encerrou a sessão desta aba ao trocar a senha; ela segue com a sessão aberta pela confirmação.
+        const { access_token, refresh_token } = trocada.sessao ?? {}
+        const adotada = typeof access_token === 'string' && typeof refresh_token === 'string'
+          ? await cliente.auth.setSession({ access_token, refresh_token })
+          : { error: new Error('A account-password não devolveu a sessão') }
+        if (adotada.error) {
+          // Sem a sessão nova, a antiga já não vale: sair daqui leva à entrada, onde a nova senha funciona.
+          await cliente.auth.signOut({ scope: 'local' })
+          throw new Error('A senha foi trocada. Entre de novo com a nova senha.')
         }
-        return await gravarNovaSenha(cliente, novaSenha)
+        return { outrasSessoesEncerradas: trocada.outrasSessoesEncerradas === true }
       } finally {
         setCarregando(false)
       }

@@ -1,9 +1,11 @@
 // A Aprovação que um Agente pediu num passo de ferramenta, mostrada ali mesmo na Conversa (ADR-0022): a ação, o impacto e,
 // enquanto pendente, Aprovar e Recusar. Só o Administrador decide; os demais veem o estado. A mesma Aprovação também
-// está na fila /aprovacoes, onde o Administrador decide as que foram pedidas nas Conversas dos outros.
+// está na fila /aprovacoes, onde o Administrador decide as que foram pedidas nas Conversas dos outros. A nova versão de
+// uma seção do Playbook que o Scopus ou o Ethos propôs (CRM-09) aparece aqui também, com a vigente ao lado da proposta.
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
+import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'
 import { useAmbiente, useDados } from '@/fonte/contexto'
-import { podeDecidir } from '@/fonte/regras'
+import { ehRevisaoDoPlaybook, podeDecidir } from '@/fonte/regras'
 import type { LinkDoPasso } from '@/fonte/tipos'
 
 export function AprovacaoDoPasso({ link }: { link?: LinkDoPasso }) {
@@ -14,6 +16,11 @@ export function AprovacaoDoPasso({ link }: { link?: LinkDoPasso }) {
 function CartaoDaAprovacao({ aprovacaoId }: { aprovacaoId: string }) {
   const { modo } = useAmbiente()
   const workspace = useDados((fonte) => fonte.workspace(), [])
+  const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
+  const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
+  if (aprovacao && ehRevisaoDoPlaybook(aprovacao)) {
+    return <CartaoDeRevisaoDoPlaybook aprovacao={aprovacao} onde="conversa" compacto />
+  }
   return (
     <AprovacaoNaConversa
       aprovacaoId={aprovacaoId}

@@ -24,7 +24,8 @@ export function AprovacaoNaConversa({
   podeDecidir?: boolean
 }) {
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
-  // Nas Conversas, os Agentes propõem ações em Integrações; uma revisão da Memória do Workspace fica na fila.
+  // Aqui só as ações em Integrações. A revisão da Memória do Workspace (Demonstração) fica na fila, e a do Playbook (CRM-09)
+  // tem cartão próprio no passo da Conversa (`CartaoDeRevisaoDoPlaybook`).
   const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
   if (!aprovacao || aprovacao.revisao) return null
 

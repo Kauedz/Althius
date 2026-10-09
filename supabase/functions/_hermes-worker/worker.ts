@@ -154,8 +154,8 @@ function contasDoWorkspace(contas: ContaEncontrada[]): string {
 const REGRAS_COM_FERRAMENTAS =
   'Regras: responda em português do Brasil, direto. Nunca invente dados, números, nomes ou fatos: use só o que está ' +
   'aqui, na conversa ou no resultado das ferramentas, e diga "não sei" quando faltar. Você só age pelas ferramentas da ' +
-  'Althius descritas abaixo: não use terminal, arquivos do computador nem outras ferramentas. Uma ação que precisa de ' +
-  'Aprovação só sai depois que um Administrador aprovar: diga isso, sem fingir que já foi feita.'
+  'Althius descritas abaixo: não use terminal, arquivos do computador nem outras ferramentas. Uma ação ou uma mudança ' +
+  'no Playbook que precisa de Aprovação só vale depois que um Administrador aprovar: diga isso, sem fingir que já foi feita.'
 
 /** As instruções de um Agente na sua vez: quem ele é, o que sabe do Workspace e como termina a resposta. */
 export function instrucoesDoAgente(

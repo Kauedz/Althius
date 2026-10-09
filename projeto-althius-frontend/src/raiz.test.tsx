@@ -124,17 +124,25 @@ describe('Workspace operacional e Demonstração', () => {
   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
   // Preferências também (CRM-08), e o Plano diz que é só demonstrativo: `paginas/configuracoes/perfil-e-preferencias-reais.test.tsx`.
   it.each(['/configuracoes/memoria/icp', '/configuracoes/memoria/personas'])(
-    '%s diz que o ICP e as Personas chegam com a execução dos Agentes, sem documento da Demonstração nem edição direta',
+    '%s mostra a seção do Playbook sem versão aprovada (CRM-09), sem documento da Demonstração nem edição direta',
     async (rota) => {
       window.history.replaceState(null, '', rota)
       abrirAlthius({
         ultimoAmbiente: 'real',
         sessao: sessaoDe(MARINA),
         tabelas: { workspace_memberships: [participacao('ws-norte')] },
+        rpcs: {
+          list_approvals: () => [],
+          list_workspace_participants: () => [],
+          get_playbook_section: (p: Record<string, unknown>) => ({
+            section: p.p_section, name: String(p.p_section), version: null, content: null,
+            updated_by: null, updated_at: null, history: [],
+          }),
+        },
       })
 
-      expect(await screen.findByText('O ICP e as Personas deste Workspace chegam junto com a execução dos Agentes.')).toBeInTheDocument()
-      expect(screen.getByText(/Quem propõe o ICP é o Scopus, e quem propõe as Personas é o Ethos/)).toBeInTheDocument()
+      expect(await screen.findByText('Nenhuma versão aprovada ainda.')).toBeInTheDocument()
+      expect(screen.getByText(/A proposta dele vira uma Aprovação/)).toBeInTheDocument()
       expect(screen.queryByText(/Databricks|Marina Alves|2.000 funcionários/)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Solicitar revisão|Editar/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
@@ -1960,6 +1968,43 @@ describe('Esqueci a senha', () => {
     await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
     await definirNovaSenha(usuario)
 
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  // "Require current password when updating" no Supabase Auth (CRM-08): a sessão aberta pelo código ou pelo link de
+  // redefinição é de recuperação, e o Auth não pede a senha atual a ela. O "Esqueci a senha" não pode quebrar.
+  it('com a senha atual exigida pelo Supabase Auth, a redefinição por código continua trocando a senha', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const { usuario, codigoEnviadoPara } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      contas: [{ ...CONTA_DA_MARINA }],
+      exigeSenhaAtualAoTrocarSenha: true,
+    })
+
+    await pedirRedefinicao(usuario, MARINA.email)
+    await usuario.type(await screen.findByLabelText('Código de 6 dígitos'), codigoEnviadoPara(MARINA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    await definirNovaSenha(usuario)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await entrarComSenha(usuario, MARINA.email, NOVA_SENHA)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('com a senha atual exigida pelo Supabase Auth, o link do e-mail também leva à nova senha', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const supabase = abrirAlthius({ ultimoAmbiente: 'real', contas: [{ ...CONTA_DA_MARINA }], exigeSenhaAtualAoTrocarSenha: true })
+    await pedirRedefinicao(supabase.usuario, MARINA.email)
+    await screen.findByRole('status')
+    const link = new URL(supabase.linkEnviadoPara(MARINA.email)!)
+
+    cleanup()
+    window.history.replaceState(null, '', link.pathname + link.search)
+    supabase.abrirLinkDeRedefinicao(MARINA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
+
+    await definirNovaSenha(supabase.usuario)
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
   })
 

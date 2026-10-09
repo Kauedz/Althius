@@ -1,4 +1,5 @@
 import type { ResumoDeConversa } from './conversas-tipos'
+import type { ConteudoDoPlaybook, IdDaSecaoDoPlaybook } from './playbook-tipos'
 
 // Tipos do domínio, com o vocabulário do CONTEXT.md na raiz do repositório.
 
@@ -272,6 +273,8 @@ export type DocumentoDaMemoria = keyof MemoriaDoWorkspace
  * muda quando um Administrador ativo aprova.
  */
 interface RevisaoDaMemoriaBase {
+  /** Só a revisão do Playbook tem tipo (`playbook`); a da Memória da Demonstração, não. */
+  tipo?: undefined
   documento: DocumentoDaMemoria
   /** O que o participante pediu ao Agente na Conversa. */
   pedido: string
@@ -456,15 +459,49 @@ export interface AprovacaoDeAcao extends AprovacaoBase {
 
 /**
  * Uma Revisão da Memória do Workspace (ADR 0010): não passa por Integração e só um Administrador ativo decide.
- * Pendente, traz o conteúdo proposto; decidida, só o registro da decisão.
+ * Pendente, traz o conteúdo proposto; decidida, só o registro da decisão. Esta é a da Demonstração, sobre os
+ * documentos da Memória; no Workspace operacional, a revisão é sobre uma seção do Playbook (`AprovacaoDeRevisaoDoPlaybook`).
  */
 export type AprovacaoDeRevisao = AprovacaoDeRevisaoPendente | AprovacaoDeRevisaoDecidida
 export type AprovacaoDeRevisaoPendente = AprovacaoBase & { estado: 'pendente'; revisao: RevisaoPendente }
 export type AprovacaoDeRevisaoDecidida = AprovacaoBase & { estado: Decisao; revisao: RevisaoDecidida }
 
-export type Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao
+/**
+ * A revisão de uma seção do Playbook no Workspace operacional (CRM-09): o Scopus ou o Ethos propôs, numa Conversa, uma
+ * nova versão de uma seção da Especialidade dele. Pendente, traz o conteúdo proposto; depois, só o registro: a versão
+ * que a aprovação gravou e quem decidiu. O conteúdo aprovado passa a ser a versão vigente da seção.
+ */
+export interface RevisaoDoPlaybook {
+  tipo: 'playbook'
+  documento?: undefined
+  secao: IdDaSecaoDoPlaybook
+  /** A versão vigente quando o Agente propôs; 0 quando a seção ainda não tinha versão. */
+  versaoBase: number
+  /** O conteúdo proposto, só enquanto pendente. */
+  proposto: ConteudoDoPlaybook | null
+  /** A versão que a aprovação gravou no Playbook. */
+  versaoGravada: number | null
+  /** A Conta de usuário de quem decidiu, quando alguém decidiu. */
+  decididaPor: string | null
+}
 
-/** A categoria de uma Aprovação define quem a decide: a Revisão da Memória do Workspace, só Administradores. */
+/**
+ * Os estados de uma revisão do Playbook: os da Aprovação e `desatualizada`, quando a seção ganhou outra versão antes da
+ * decisão e a proposta não vale mais.
+ */
+export type EstadoDaRevisaoDoPlaybook = 'pendente' | 'aprovada' | 'rejeitada' | 'cancelada' | 'expirada' | 'desatualizada'
+export type AprovacaoDeRevisaoDoPlaybook = AprovacaoBase & { estado: EstadoDaRevisaoDoPlaybook; revisao: RevisaoDoPlaybook }
+
+/**
+ * As duas revisões (a da Memória na Demonstração e a do Playbook no Workspace operacional) são a mesma categoria da ADR
+ * 0010: têm `revisao`, não têm Integração e só um Administrador as decide (`podeDecidir`, por `categoriaDa`).
+ */
+export type Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao | AprovacaoDeRevisaoDoPlaybook
+
+/**
+ * A categoria de uma Aprovação define quem a decide: a Revisão da Memória do Workspace (na Demonstração, os documentos;
+ * no Workspace operacional, as seções do Playbook), só Administradores.
+ */
 export type CategoriaDeAprovacao = 'acao' | 'revisao-da-memoria'
 
 export interface NovaAprovacao {
