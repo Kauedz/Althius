@@ -39,8 +39,8 @@
   - A Demonstração não mudou.
 - Documentação: atualização na ADR-0010 e no glossário (Revisão da Memória do Workspace).
 - Testes:
-  - pgTAP `supabase/tests/revisao_do_playbook_por_aprovacao.sql`: 57/57. pgTAP do zero (Postgres 16 local, todas as migrations desta branch): os 70 arquivos de `supabase/tests` passam.
-  - Deno: `_shared/ferramentas-dos-agentes-playbook.test.ts` (10), `agent-conversation/runner-revisao-do-playbook.test.ts` (1), `_hermes-worker/worker-revisao-do-playbook.test.ts` (2). `deno check supabase/functions/*/index.ts` e `deno test supabase/functions` inteiros: 850 passaram.
+  - pgTAP `supabase/tests/revisao_do_playbook_por_aprovacao.sql`: 57/57. pgTAP do zero (Postgres 16 local, todas as migrations desta branch com a `main` de 09/10 à noite): os 74 arquivos de `supabase/tests` passam.
+  - Deno: `_shared/ferramentas-dos-agentes-playbook.test.ts` (10), `agent-conversation/runner-revisao-do-playbook.test.ts` (1), `_hermes-worker/worker-revisao-do-playbook.test.ts` (2). `deno check supabase/functions/*/index.ts` e `deno test supabase/functions` inteiros: 896 passaram.
   - Vitest: `src/fonte/supabase-aprovacoes-revisao.test.ts` (5) e `src/paginas/revisao-do-playbook-real.test.tsx` (9). Os 14 arquivos vizinhos (fila, passo da Conversa, Memória e Personas da Demonstração, Playbook, avisos, Fontes) passam sem mudança: 95 testes. `tsc -b` limpo; `oxlint` sem erro e sem aviso nos arquivos tocados. A suíte inteira roda no CI do PR.
 - Conferência visual (Supabase falso, Chrome headless a 1400×900, sem erro no console):
   - [fila do Administrador](prints/09-fila-administrador.jpg): ICP e Personas pendentes, a vigente ao lado da proposta
