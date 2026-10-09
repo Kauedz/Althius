@@ -22,6 +22,7 @@ function abrirConexoes({
   papel = 'admin' as 'admin' | 'member',
   banco = criarBancoDeConexoes(),
   modoDemo = false,
+  falharAoDesabilitar = false,
 } = {}) {
   localStorage.setItem('althius:modo_demo', String(modoDemo))
   if (modoDemo) {
@@ -33,6 +34,8 @@ function abrirConexoes({
   sessionStorage.setItem('althius:workspace', NORTE.id)
   window.history.replaceState(null, '', '/conexoes')
 
+  const chamadasRpc: { nome: string; parametros: Record<string, unknown> }[] = []
+  const rpcs = rpcsDeConexoes(banco)
   const supabase = criarSupabaseFalso({
     sessao: sessaoDe(usuarioAtual),
     tabelas: {
@@ -43,14 +46,19 @@ function abrirConexoes({
     },
     rpcs: {
       bootstrap_personal_workspace: () => NORTE,
-      ...rpcsDeConexoes(banco),
+      ...rpcs,
+      disable_workspace_integration: (parametros) => {
+        chamadasRpc.push({ nome: 'disable_workspace_integration', parametros })
+        if (falharAoDesabilitar) throw new Error('database unavailable')
+        return rpcs.disable_workspace_integration(parametros)
+      },
     },
   })
 
   const { servicos } = criarServicosDoNavegadorFalsos()
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={servicos} />)
-  return { ...supabase, servicos, usuario, banco }
+  return { ...supabase, servicos, usuario, banco, chamadasRpc }
 }
 
 describe('Conexões reais no Workspace operacional', () => {
@@ -79,7 +87,7 @@ describe('Conexões reais no Workspace operacional', () => {
     expect(within(secaoIntegracoes).queryByRole('article', { name: 'Meta Ads' })).not.toBeInTheDocument()
     expect(within(secaoIntegracoes).queryByRole('article', { name: 'Google Ads' })).not.toBeInTheDocument()
 
-    // HubSpot e Notion começam como "Não habilitada"; as demais como "Em breve"
+    // HubSpot e Notion começam como "Não habilitada"; as demais ficam fora de Conexões.
     const cartaoHubspot = screen.getByRole('article', { name: 'HubSpot' })
     expect(within(cartaoHubspot).getByText('Não habilitada')).toBeInTheDocument()
 
@@ -141,4 +149,55 @@ it('na Demonstração mostra só HubSpot e Notion em Conexões', async () => {
   await screen.findByRole('article', { name: 'Notion' })
   const secao = screen.getByRole('region', { name: 'Integrações' })
   expect(within(secao).getAllByRole('article').map((cartao) => cartao.getAttribute('aria-label'))).toEqual(['HubSpot', 'Notion'])
+})
+
+it('Administrador confirma antes de desabilitar e pode cancelar', async () => {
+  const banco = criarBancoDeConexoes()
+  banco.habilitadas.push({ workspaceId: NORTE.id, integrationId: 'hubspot', enabledBy: MARINA.id, enabledAt: '2026-10-09T12:00:00Z' })
+  const { usuario, chamadasRpc } = abrirConexoes({ banco })
+  const cartao = await screen.findByRole('article', { name: 'HubSpot' })
+  await usuario.click(within(cartao).getByRole('button', { name: 'Desabilitar' }))
+  const dialogo = await screen.findByRole('dialog', { name: 'Desabilitar HubSpot' })
+  expect(within(dialogo).getByText(/desconecta todos os participantes/)).toBeInTheDocument()
+  expect(chamadasRpc.some((c) => c.nome === 'disable_workspace_integration')).toBe(false)
+  await usuario.click(within(dialogo).getByRole('button', { name: 'Cancelar' }))
+  expect(banco.habilitadas).toHaveLength(1)
+  await usuario.click(within(cartao).getByRole('button', { name: 'Desabilitar' }))
+  const confirmacao = await screen.findByRole('dialog', { name: 'Desabilitar HubSpot' })
+  await usuario.click(within(confirmacao).getByRole('button', { name: 'Desabilitar' }))
+  expect(await within(cartao).findByText('Não habilitada')).toBeInTheDocument()
+  expect(chamadasRpc.filter((c) => c.nome === 'disable_workspace_integration')).toEqual([
+    { nome: 'disable_workspace_integration', parametros: { p_workspace_id: NORTE.id, p_integration_id: 'hubspot' } },
+  ])
+  expect(banco.habilitadas).toHaveLength(0)
+})
+
+it('Membro não vê Desabilitar numa Integração habilitada', async () => {
+  const banco = criarBancoDeConexoes()
+  banco.habilitadas.push({ workspaceId: NORTE.id, integrationId: 'hubspot', enabledBy: MARINA.id, enabledAt: '2026-10-09T12:00:00Z' })
+  abrirConexoes({ banco, usuarioAtual: CARLOS, papel: 'member' })
+  const cartao = await screen.findByRole('article', { name: 'HubSpot' })
+  expect(within(cartao).getByText('Habilitada')).toBeInTheDocument()
+  expect(within(cartao).queryByRole('button', { name: 'Desabilitar' })).not.toBeInTheDocument()
+})
+
+it('recusa do servidor mantém a Integração habilitada e explica a falha em português', async () => {
+  const banco = criarBancoDeConexoes()
+  banco.habilitadas.push({ workspaceId: NORTE.id, integrationId: 'hubspot', enabledBy: MARINA.id, enabledAt: '2026-10-09T12:00:00Z' })
+  const { usuario } = abrirConexoes({ banco, falharAoDesabilitar: true })
+  const cartao = await screen.findByRole('article', { name: 'HubSpot' })
+  await usuario.click(within(cartao).getByRole('button', { name: 'Desabilitar' }))
+  const dialogo = await screen.findByRole('dialog', { name: 'Desabilitar HubSpot' })
+  await usuario.click(within(dialogo).getByRole('button', { name: 'Desabilitar' }))
+  expect(await within(dialogo).findByRole('alert')).toHaveTextContent('Não foi possível desabilitar a Integração agora. Tente novamente.')
+  expect(banco.habilitadas).toHaveLength(1)
+})
+
+it('desabilitar na Demonstração muda só o estado simulado', async () => {
+  const { usuario } = renderizarApp('/conexoes')
+  const cartao = await screen.findByRole('article', { name: 'HubSpot' })
+  await usuario.click(within(cartao).getByRole('button', { name: 'Desabilitar' }))
+  const dialogo = await screen.findByRole('dialog', { name: 'Desabilitar HubSpot' })
+  await usuario.click(within(dialogo).getByRole('button', { name: 'Desabilitar' }))
+  expect(await within(cartao).findByText('Não conectado')).toBeInTheDocument()
 })

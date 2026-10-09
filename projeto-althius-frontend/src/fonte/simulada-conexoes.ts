@@ -97,6 +97,13 @@ export function criarFonteDeConexoesSimulada({
         avisar()
       }),
 
+    desabilitarIntegracao: (id: IntegracaoId) =>
+      responder(() => {
+        const integracao = estado.integracoes.find((i) => i.id === id)
+        if (integracao) integracao.conectada = false
+        avisar()
+      }),
+
     ferramentas: (id: IntegracaoId) => responder(() => structuredClone(FERRAMENTAS_DE_EXEMPLO[id] ?? FERRAMENTAS_PADRAO_DE_EXEMPLO)),
 
     regrasDasFerramentas: (id: IntegracaoId) => responder(() => ({ ...(regras.get(id) ?? {}) })),

@@ -44,6 +44,11 @@ export function rpcsDeConexoes(banco: BancoDeConexoes) {
       })
     },
 
+    disable_workspace_integration(parametros: Record<string, unknown> = {}) {
+      banco.habilitadas = banco.habilitadas.filter((h) => h.workspaceId !== parametros.p_workspace_id || h.integrationId !== parametros.p_integration_id)
+      return 0
+    },
+
     enable_workspace_integration(parametros: Record<string, unknown> = {}) {
       const p_workspace_id = parametros.p_workspace_id as string
       const p_integration_id = parametros.p_integration_id as string
