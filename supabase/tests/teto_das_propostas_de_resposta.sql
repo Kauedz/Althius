@@ -158,7 +158,8 @@ reset role;
 select is(row(pg_temp.gasto('acao:agentes'), pg_temp.gasto('agente:' || pg_temp.i('rhetor')::text))::text, '(0.00,0.00)',
   'a falha devolve o crédito aos dois tetos');
 set local role service_role;
-select public.consume_reply_proposal_cap((select job_id from j1), (select claim_token from j1));
+-- Sem imprimir o 'ok' devolvido: o prove leria a linha como um teste a mais.
+select count(*) as nova_tentativa from (select public.consume_reply_proposal_cap((select job_id from j1), (select claim_token from j1))) as consumo;
 reset role;
 select is(pg_temp.gasto('acao:agentes'), 1::numeric, 'e a nova tentativa soma de novo');
 
