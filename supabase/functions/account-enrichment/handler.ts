@@ -597,11 +597,14 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         }, 200)
       }
 
-      // 3. Revelar e-mail ou telefone de um contato
+      // 3. Revelar o e-mail de um contato. Telefone está fora (spec prospeccao-funcional): recusado antes da reserva.
       if (action === 'revelar-contato') {
+        if (body.canal === 'telefone') {
+          return json({ error: 'A revelação de telefone está indisponível.' }, 400)
+        }
         const workspaceId = String(body.workspaceId ?? '').trim()
         const contactId = String(body.contactId ?? '').trim()
-        const canal = body.canal === 'telefone' ? 'telefone' : 'email'
+        const canal = 'email'
 
         if (!workspaceId || !contactId) {
           return new Response(JSON.stringify({ error: 'workspaceId and contactId are required' }), {
@@ -632,7 +635,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           })
         }
 
-        // Reserva os créditos necessários (2 para e-mail, 5 para telefone)
+        // Reserva os 2 créditos do e-mail
         const reserva = await deps.db.beginRevealContact({
           workspaceId,
           contactId,
@@ -642,42 +645,66 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           apikey,
         })
 
-        let revelado: DadoRevelado | null = null
-        if (provedor.revelarContato) {
-          revelado = await provedor.revelarContato(
+        // O revelar chama o actor direto, como o comitê: a cascata engolia a exceção e a falha virava "não encontrado".
+        const revelador = deps.provedorContatos
+          ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
+        const actorId = 'harvestapi~linkedin-profile-scraper'
+        const medicao = { runId: null as string | null, costUsd: null as number | null }
+        // Um perfil consultado por execução, achando ou não: input_units é a entrada do actor.
+        const gravarCusto = () => {
+          if (!medicao.runId || !deps.db.recordDiscoveryCost) return Promise.resolve()
+          return deps.db.recordDiscoveryCost({
+            workspaceId,
+            actorId,
+            runId: medicao.runId,
+            items: 1,
+            costUsd: medicao.costUsd,
+          }).catch(() => {})
+        }
+
+        let revelado: DadoRevelado | null
+        try {
+          if (!revelador.revelarContato) throw new Error('nenhum provedor revela e-mail')
+          revelado = await revelador.revelarContato(
             {
               nome: contato.name,
               linkedinUrl: contato.linkedin,
               empresa: contato.companyName,
             },
             canal,
+            medicao,
           )
+        } catch (e) {
+          // Falha não é "não encontrado": libera a reserva, debita zero e diz que falhou.
+          const mensagem = e instanceof Error ? e.message : 'erro desconhecido'
+          await deps.db.finishRevealContact({ reservationId: reserva.reservationId, contactId, channel: canal })
+          await gravarCusto()
+          return json({ error: `A busca do e-mail falhou: ${mensagem}` }, 502)
         }
 
-        // Liquida a reserva: se achou, debita os créditos e salva; se não achou, debita 0 e cancela
+        // O banco decide: debita 2 só quando grava um e-mail que o Contato ainda não tinha; senão libera a reserva.
         const finalizado = await deps.db.finishRevealContact({
           reservationId: reserva.reservationId,
           contactId,
           channel: canal,
           value: revelado?.valor,
-          source: revelado?.fonte ?? 'apify',
+          source: revelado?.fonte,
         })
+        await gravarCusto()
 
-        return new Response(
-          JSON.stringify({
-            sucesso: finalizado.success,
-            canal,
-            valor: revelado?.valor ?? null,
-            creditosDebitados: finalizado.debitedCredits,
-            fonte: revelado?.fonte ?? null,
-            lgpd: {
-              origem: revelado?.fonte ?? 'apify',
-              coletadoEm: new Date().toISOString(),
-              baseLegal: 'needs-info (dados profissionais de acesso público)',
-            },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )
+        const gravado = finalizado.success && revelado ? revelado : null
+        return json({
+          sucesso: finalizado.success,
+          canal,
+          valor: gravado?.valor ?? null,
+          creditosDebitados: finalizado.debitedCredits,
+          fonte: gravado?.fonte ?? null,
+          lgpd: {
+            origem: gravado?.fonte ?? null,
+            coletadoEm: new Date().toISOString(),
+            baseLegal: 'needs-info (dados profissionais de acesso público)',
+          },
+        }, 200)
       }
 
       return new Response(JSON.stringify({ error: `Ação não reconhecida: ${action}` }), {
