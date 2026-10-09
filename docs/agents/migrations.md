@@ -36,3 +36,11 @@ Apply once CI is green, right before merging. Use `execute_sql`, because `apply_
 
    The file itself uses `$$`; the outer tags `$apply$` and `$m$` avoid colliding with it.
 2. Check that `md5(statements[1])` in `supabase_migrations.schema_migrations` matches `md5sum` of the file, and that the security advisors show nothing new.
+
+## Swapping the Unipile account
+
+The active Unipile account is a row in `private.unipile_connections` (address, `v1` or `v2`, and the Vault names of the API key and the webhook secret), not code (ADR-0024). To swap it, run `bash scripts/wizard-unipile.sh`: it writes the key and the webhook secret to the Vault, registers the connection with `public.register_unipile_connection(...)` and, once you confirm, activates it with `public.activate_unipile_connection(<id>)`. Both functions are for `service_role` and the SQL Editor only.
+
+- Activating deactivates the previous connection and marks every sender account of the other connections `reconnect_required`. Nothing is deleted.
+- When a person reconnects the channel, `complete_sender_connection_attempt` puts the new Unipile id and the active connection on the **same** sender account row, so sends, replies and interactions stay tied to it. Sends made before the swap are not looked up in the new account.
+- Until canais-16 makes the Edge Functions read the Vault, keep the function secrets `UNIPILE_API_KEY` and `UNIPILE_WEBHOOK_SECRET` equal to the active connection (the wizard's last stage). They are the fallback.
