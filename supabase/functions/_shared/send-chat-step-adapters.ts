@@ -16,6 +16,10 @@ import {
   UnipileChatRequestError,
 } from './send-chat-step.ts'
 import { UnipileUnreadableResponse } from './send-step.ts'
+import { classifyHttpFailure, classifyProviderError, readResponse, v2 } from './unipile/index.ts'
+
+// O motivo classificado de uma recusa mora no contrato (unipile/errors.ts); reexportado para quem importa daqui.
+export { classifyProviderError }
 
 const UNIPILE_API_BASE = 'https://api.unipile.com'
 
@@ -25,11 +29,9 @@ export const CHAT_CHECK_MESSAGE_LIMIT = 50
 // não confirmado: o guia de migração diz `users_ids` (uma identidade ou uma lista); um exemplo do guia de envio mostra
 // `user_ids`. Se a Unipile recusar o campo, é só trocar esta constante.
 export const START_CHAT_USERS_FIELD = 'users_ids'
-// não confirmado: onde a Unipile v2 diz o id nativo do perfil e a distância de rede (1º grau = conexão).
-export const LINKEDIN_PROFILE_ID_FIELDS = ['id', 'provider_id', 'user_id'] as const
+// não confirmado: onde a Unipile v2 diz a distância de rede (1º grau = conexão); o id nativo do perfil e os nomes
+// possíveis estão em unipile/v2.ts (resolveProfile).
 export const LINKEDIN_DISTANCE_FIELDS = ['network_distance', 'distance', 'connection_degree', 'relation'] as const
-const INVITATION_ID_FIELDS = ['id', 'invitation_id', 'relation_request_id'] as const
-const LIST_FIELDS = ['items', 'messages', 'data'] as const
 
 interface RpcClient {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>
@@ -60,38 +62,6 @@ export function sendChatStepDbVia(admin: RpcClient): ChatSendDb {
   }
 }
 
-function firstString(object: Record<string, unknown>, fields: readonly string[]): string | null {
-  for (const field of fields) {
-    const value = object[field]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  }
-  return null
-}
-
-/**
- * O motivo de uma recusa da Unipile, em um código que o Vendedor responsável entende. Quem decide é o texto da
- * resposta (tipo, código, título ou detalhe), em minúsculas; o status só ajuda. Sem pista, vira `http_<status>`.
- * não confirmado: o formato dos erros da Unipile v2; as pistas abaixo são palavras que a busca encontrou.
- */
-export function classifyProviderError(status: number, bodyText: string): string {
-  const text = bodyText.toLowerCase()
-  if (/credit/.test(text) || status === 402) return 'insufficient_credits'
-  if (/(already|pending).*(invit|connect|relation)|(invit|connect|relation).*(already|pending)|already_?invited/.test(text)) {
-    return 'invite_already_pending'
-  }
-  if (/(too.?long|max.*(length|char)|exceed|character.?limit|note.*limit)/.test(text)) return 'invite_note_too_long'
-  if (/(subscription|premium|sales.?navigator|recruiter|upgrade|not.?entitled|plan)/.test(text)) return 'subscription_required'
-  if (/(not.?connected|not.?a.?connection|no.?relation|cannot.?message|first.?degree|not.?allowed.*messag|messag.*not.?allowed)/.test(text)) {
-    return 'not_connected'
-  }
-  if (/(invalid|unknown|not.?found).*(user|recipient|profile|number|phone)|(user|recipient|profile|number|phone).*(invalid|not.?found|not exist)/.test(text)) {
-    return 'recipient_not_found'
-  }
-  if (/(limit|quota|restrict)/.test(text)) return 'provider_limit_reached'
-  return `http_${status}`
-}
-
 function parseFirstDegree(raw: unknown): boolean | null {
   if (typeof raw === 'number') return raw === 1
   if (typeof raw === 'boolean') return raw
@@ -107,16 +77,13 @@ function parseFirstDegree(raw: unknown): boolean | null {
 
 /** O perfil que a Unipile devolveu: o id nativo e se já é conexão. Sem id, a resposta é ilegível. */
 export function readLinkedInProfile(data: unknown): LinkedInProfile {
-  if (!data || typeof data !== 'object') throw new UnipileUnreadableResponse()
-  const object = data as Record<string, unknown>
-  const providerId = firstString(object, LINKEDIN_PROFILE_ID_FIELDS)
+  const object = readResponse(v2.resolveProfile.response, data)
+  const providerId = object.id ?? object.provider_id ?? object.user_id
   if (!providerId) throw new UnipileUnreadableResponse()
   let firstDegree: boolean | null = null
   for (const field of LINKEDIN_DISTANCE_FIELDS) {
-    if (field in object) {
-      firstDegree = parseFirstDegree(object[field])
-      if (firstDegree !== null) break
-    }
+    firstDegree = parseFirstDegree(object[field])
+    if (firstDegree !== null) break
   }
   if (firstDegree === null && typeof object.is_connection === 'boolean') firstDegree = object.is_connection
   return { providerId, firstDegree }
@@ -128,11 +95,9 @@ export function readLinkedInProfile(data: unknown): LinkedInProfile {
  * conversa ao abrir uma (knownChatId nulo) e o da mensagem ao continuar uma.
  */
 export function readChatSent(data: unknown, knownChatId: string | null = null): ChatSent {
-  if (!data || typeof data !== 'object') throw new UnipileUnreadableResponse()
-  const object = data as Record<string, unknown>
-  const plainId = firstString(object, ['id'])
-  const chatId = firstString(object, ['chat_id']) ?? knownChatId ?? plainId
-  const messageId = firstString(object, ['message_id']) ?? (knownChatId !== null ? plainId : null)
+  const sent = readResponse(v2.startChat.response, data)
+  const chatId = sent.chat_id ?? knownChatId ?? sent.id
+  const messageId = sent.message_id ?? (knownChatId !== null ? sent.id : null)
   if (!chatId && !messageId) throw new UnipileUnreadableResponse()
   return { chat_id: chatId, message_id: messageId }
 }
@@ -146,7 +111,7 @@ export function unipileChatVia(apiKey: string, fetchImpl: typeof fetch = fetch):
     throw new UnipileChatRequestError(
       upstream.status,
       retryAfterSeconds(upstream.headers.get('retry-after')),
-      upstream.status >= 400 && upstream.status < 500 && upstream.status !== 408 && upstream.status !== 429
+      classifyHttpFailure(upstream.status) === 'definite_refusal'
         ? classifyProviderError(upstream.status, text.slice(0, 2000))
         : null,
     )
@@ -196,9 +161,7 @@ export function unipileChatVia(apiKey: string, fetchImpl: typeof fetch = fetch):
     },
     async sendInvitation(accountId, { userId, message }, { signal }): Promise<InvitationSent> {
       const data = await post(`${account(accountId)}/users/me/relation-requests`, { user_id: userId, message }, signal)
-      const id = data && typeof data === 'object' ? firstString(data as Record<string, unknown>, INVITATION_ID_FIELDS) : null
-      if (!id) throw new UnipileUnreadableResponse()
-      return { id }
+      return readResponse(v2.inviteLinkedIn.response, data)
     },
     async getLinkedInProfile(accountId, identifier, { signal }) {
       return readLinkedInProfile(await get(`${account(accountId)}/users/${encodeURIComponent(identifier)}`, signal))
@@ -207,17 +170,7 @@ export function unipileChatVia(apiKey: string, fetchImpl: typeof fetch = fetch):
       const data = await get(
         `${account(accountId)}/chats/${encodeURIComponent(chatId)}/messages?limit=${CHAT_CHECK_MESSAGE_LIMIT}`,
       )
-      let list: unknown = data
-      if (!Array.isArray(list) && data && typeof data === 'object') {
-        for (const field of LIST_FIELDS) {
-          const candidate = (data as Record<string, unknown>)[field]
-          if (Array.isArray(candidate)) {
-            list = candidate
-            break
-          }
-        }
-      }
-      return Array.isArray(list) ? list.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object') : []
+      return readResponse(v2.listChatMessages.response, data)
     },
   }
 }
