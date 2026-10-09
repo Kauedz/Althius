@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Criar e consultar Contas-alvo reais.
 
-**Status:** ready-for-human (código e testes no branch `crm/10-interacoes-e-sinais-internos`; faltam o PR, o CI e os Passos do Nan abaixo)
+**Status:** ready-for-human (código e testes no branch `crm/10-interacoes-e-sinais-internos`, unificado na `ralph/unificado-2026-10-09` em 2026-10-09; as 5 decisões foram aceitas pelo Renan; faltam o PR unificado, o CI e os Passos do Nan abaixo)
 
 - [x] Catálogo, Monitoramento, execução e Sinal encontrado são registros separados e persistidos. — `private.signal_catalog` (catálogo), `private.signal_monitors` (Monitoramento), `private.signal_monitor_runs` (cada rodada) e `private.signals` (Sinal, com `run_id`). pgTAP `supabase/tests/sinais_internos_das_interacoes.sql`, seções 1, 3 e 11.
 - [x] Monitoramentos internos usam Interações persistidas, com configuração independente e estados rascunho, ativo e pausado. — a avaliação lê só `public.account_interactions`; cada Monitoramento tem nome, prazo e público próprios. O rascunho não roda, ativar avalia na hora e o pausado não roda. pgTAP seções 2, 3, 6 e 7.
@@ -81,3 +81,4 @@ Não há Edge Function nova, deploy de função nem segredo.
     3. Uma Interação registrada depois, com data anterior ao fim do prazo, não desfaz um Sinal já disparado. O Sinal é um fato observado e não é retirado.
     4. Só os Monitoramentos internos gravam rodadas. O CRM-11 pode gravar as da varredura externa na mesma tabela.
     5. `list_signals` não devolve `origin_interaction_id`. A evidência traz o tipo e o dia da Interação de origem, e a tela ainda não liga o Sinal à Interação.
+- **2026-10-09, decisões do Renan (PR unificado `ralph/unificado-2026-10-09`):** as 5 decisões a confirmar acima foram aceitas como propostas, inclusive a 1: a migration `20261009050000_sinais_internos_das_interacoes.sql` troca as 2 chaves estrangeiras (`signal_monitors_signal_type_fkey` e `signals_signal_type_fkey`) e recria `public.list_signal_monitors`. Os Passos do Nan não mudam.

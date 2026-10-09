@@ -260,3 +260,14 @@ O que o humano roda: os Passos do Nan dos tickets 06 e 07. São eles: conectar a
 | Testes | Vermelho e verde registrados no ticket. pgTAP do zero com 59 arquivos e 2577/2577 (`teto_das_propostas_de_resposta.sql` 31/31). `deno test --allow-all supabase/functions` 727/727; `deno check` limpo. Vitest `--maxWorkers=2` com 112 arquivos e 1082/1082; `tsc -b` limpo; lint com saída 0. Prints em `.scratch/creditos-e-planos/issues/prints/03-*.jpg`. |
 | O que o humano roda | 1. Com o CI verde, depois do merge (a `20261008233000` do ticket 01 vai antes), na raiz do repositório, no PowerShell: `git checkout main; git pull; npx supabase db push`, para aplicar `supabase/migrations/20261009010000_teto_das_propostas_de_resposta.sql` no projeto `ycbdilsmydvzezhlymty`. Ou pelo `execute_sql`, em bloco atômico, como em `docs/agents/migrations.md`. 2. Só depois dela: `npx supabase functions deploy reply-proposal-runner --project-ref ycbdilsmydvzezhlymty`. 3. Saber que, depois disso, nenhuma Proposta de resposta sai sozinha até um Administrador ligar Execuções de Agentes e o Rhetor em Automático, com teto, em Configurações › Automação e tetos. |
 | Decisões em aberto (Nan) | O custo antes do clique (história 4 da spec) não está nos critérios deste ticket, e "Gerar resposta" não mostra o custo. O enriquecimento-em-cascata 02 libera o Enriquecimento redefinindo `private.automation_scope_runs`. |
+
+## PR unificado — 2026-10-09
+
+| Campo | Valor |
+|---|---|
+| Branch | `ralph/unificado-2026-10-09` (a partir da `main` 7929a2b), com push; sem PR aberto |
+| Branches | B3 (#153), enriquecimento 01, S1, créditos 03, CRM-10, Conexões 08, Conexões 31 (`conexoes/ajustes-catalogo-logos-desabilitar`), agentes 02, nesta ordem, `--no-ff` |
+| Tickets | todos `ready-for-human`; o enriquecimento 03 segue `ready-for-agent` |
+| Decisões do Renan | CRM-10: as 5 decisões aceitas (troca de 2 FKs e recriação de `list_signal_monitors`). Agentes 02: tokens de cache do Hermes fora da contagem |
+| Testes | tsc 0, lint 0 erros/50 avisos, deno test 781/781, deno check limpo, pgTAP do zero 69 arquivos 2783/2783, vitest 121 arquivos 1156 testes (1 worker com timeout, refeito sozinho 10/10) |
+| O que o humano roda | Ver `.scratch/PR-UNIFICADO-2026-10-09.md`: abrir o PR, CI verde, 6 migrations em ordem (`20261009010000`, `030000`, `040000`, `050000`, `060000`, `132551`), publicar `account-enrichment`, `reply-proposal-runner`, `agent-conversation`, `integration-connect`, `integration-tools`, `crm-handoff` e `integration-callback --no-verify-jwt`, reiniciar o worker do Hermes e publicar o frontend |

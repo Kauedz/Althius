@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Orquestração compartilhada.
 
-**Status:** ready-for-human (o código está pronto; faltam os Passos do Nan, publicar as funções, reiniciar o worker e conferir no app, e a decisão sobre os tokens de cache do Hermes, nos Comments de 2026-10-08)
+**Status:** ready-for-human (o código está pronto, unificado na `ralph/unificado-2026-10-09`; faltam os Passos do Nan: publicar as funções, reiniciar o worker e conferir no app. A decisão dos tokens de cache do Hermes foi tomada em 2026-10-09, nos Comments)
 
 ## Pode mexer
 
@@ -89,3 +89,5 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
   - Fica como estava: o modo `HERMES_UMA_CHAMADA=true` continua sem tokens, porque a sugestão acima é removê-lo num ticket novo (o ticket ainda não existe em `.scratch/`).
   - Revisão (padrões e spec): `passo` passou a devolver `{ texto, uso }` como o `Executor`; os Passos do Nan ganharam o deploy do `reply-proposal-runner`, o `hermes update` num bloco pronto e a conferência do Groq. Ficou de fora, por mexer na ponte (`runner.ts`): juntar num helper a leitura "dois números, senão nada" que a `usoDe` da ponte e o cliente HTTP do Hermes repetem.
   - Rodados: `deno test supabase/functions` 749 passed, 0 failed; `deno check` das Edge Functions, do `main.ts` do worker e dos testes; `deno lint` nas duas pastas; `npm run lint` (0 erros) e `tsc -b` no frontend; `npx vitest run --maxWorkers=2` 113 arquivos e 1113 testes passed, 0 failed.
+
+- 2026-10-09 (decisão do Renan, PR unificado `ralph/unificado-2026-10-09`): os tokens de cache do Hermes (`cache_read_tokens` e `cache_write_tokens`) ficam fora da contagem. Conta-se só `input_tokens` e `output_tokens`, como o código já faz; nada muda no código.

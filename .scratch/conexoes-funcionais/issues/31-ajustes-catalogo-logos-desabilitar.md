@@ -72,3 +72,5 @@ where version = '20261009132551';
 
 - [Catálogo e logos na Demonstração](prints/31-catalogo.jpg).
 - [Confirmação](prints/31-confirmacao.jpg).
+
+2026-10-09 — Unificado na `ralph/unificado-2026-10-09` (depois da `ralph/conexoes-08-notion`), sem conflito. A linha "Frontend: TOTAL_FRONTEND_PENDENTE" da Validação ficou sem número nesta execução; na branch unificada, o vitest completo deu 121 arquivos e 1156 testes verdes (ver `.scratch/PR-UNIFICADO-2026-10-09.md`). A migration `20261009132551` vem depois da `20261009060000` do S1 e não toca `accept_proposed_contact`.
