@@ -21,7 +21,13 @@ os comentários e as mensagens de commit do protótipo afirmam, não algo que eu
    Proponho 5 tickets novos (canais-14 a canais-18, §5). O canais-07 não cobre nada disso, mas **depende** deles para a
    validação real (§5.3).
 
-### Decisões que preciso de você antes de abrir os tickets
+### Decisões respondidas (2026-10-09)
+
+D1 e D2: **uma** conta Unipile ativa por vez, global (ADR-0015 segue valendo). São cinco contas de teste de 7 dias, trocadas quando uma expira; umas são v1 e outras v2, então existem os dois adaptadores, só um ativo, escolhido pela configuração da conta ativa. A troca é por configuração (chave, endereço, versão e segredo do webhook), sem mudar código e **sem perder histórico**: os usuários só reconectam o canal. D3: fica o modelo atual, sem caixa de entrada completa. D4: Instagram fora. D5: Zod sim, versão fixada, só no módulo novo.
+
+Efeito neste mapa: caem o registro de várias contas, o vínculo por Conta remetente de "qual conta Unipile a controla" como escolha (vira só rastro da conexão a que o id pertence), o webhook por conta (G5), a sincronia por polling (G8) e o canais-18 (G7 parcial / caixa completa). O que muda no desenho está na [ADR-0024](../../docs/adr/0024-contratos-v1-e-v2-da-unipile-e-troca-de-conta-sem-perder-historico.md) e na seção 5.2, que ficou em **4 tickets** (canais-14 a 17).
+
+### Decisões que eu pedia antes de abrir os tickets (histórico, já respondidas acima)
 
 | # | Pergunta | Por que importa | Minha recomendação |
 | --- | --- | --- | --- |
@@ -272,7 +278,12 @@ privacidade por titular, pgTAP.
 **Conclusão: G1, G2, G3, G4, G5, G6, G9, G10 não têm ticket. G7 e G8 têm cobertura parcial (canais-11 e a fatia de histórico
 dos 04/06/07), mas não a parte que importa aqui.**
 
-### 5.2 Tickets novos propostos (não criados; você autoriza e eu escrevo)
+### 5.2 Tickets novos propostos (primeira versão, **substituída**)
+
+> **Substituída em 2026-10-09** pelas respostas de D1 a D5 (ver §0): são 4 tickets, escritos em
+> `.scratch/canais-cadencia-backend/issues/`: **14** contrato em TS e Zod, **15** conexão ativa por configuração e troca sem
+> perder histórico, **16** cliente único e adaptadores v1 e v2, **17** webhook v1 e eventos normalizados. O canais-18 saiu
+> (D3). A tabela abaixo fica só como registro da primeira proposta, com cinco contas simultâneas, que não é mais o desenho.
 
 | Ticket | O que entrega | Bloqueado por | Cobre | Migration | Passos do Nan |
 | --- | --- | --- | --- | --- | --- |
