@@ -7,6 +7,7 @@ import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
 import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
+import { CRITERIOS_DOS_SINAIS_INTERNOS, TIPOS_INTERNOS_REAIS } from '@/fonte/sinais-reais-mapa'
 import { publicoRecomendado } from '@/fonte/regras-memoria'
 import { cn } from '@/lib/utils'
 import {
@@ -92,11 +93,28 @@ function prepararCriterios(descricao: string, fonte?: string): string[] {
   ]
 }
 
+/**
+ * O que cada Sinal interno real (CRM-10) observa nas Interações. O prazo é o único critério: a condição é o próprio tipo
+ * e as etapas do formulário de exemplo não existem nas Interações.
+ */
+const COMO_O_INTERNO_DISPARA: Record<string, string> = {
+  'sem-resposta':
+    'Dispara quando o primeiro e-mail ou mensagem enviado depois da última conversa completa o prazo sem resposta, ligação ou reunião.',
+  'negociacao-parada':
+    'Dispara quando a última Interação da Conta-alvo foi uma conversa (resposta, ligação ou reunião) e mais nada acontece no prazo, nem do seu lado.',
+}
+
+/** Os critérios que a avaliação de um Sinal interno usa; o resto do formulário de exemplo fica de fora. */
+function criteriosDoInterno(criterios: Criterios): Criterios {
+  return Object.fromEntries(Object.entries(criterios).filter(([campo]) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo)))
+}
+
 function novoMonitoramento(
   tipo: TipoDeSinal,
   aceitaDescoberta: boolean,
   descricao: string,
   operacional: boolean,
+  interno: boolean,
 ): MonitoramentoNoEditor {
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
   return {
@@ -108,7 +126,7 @@ function novoMonitoramento(
     publico: operacional
       ? { modo: 'listas', listas: [], usaRecomendado: false }
       : publicoInicial(aceitaDescoberta),
-    criterios: criteriosIniciais(tipo),
+    criterios: interno ? criteriosDoInterno(criteriosIniciais(tipo)) : criteriosIniciais(tipo),
     descricao: personalizado ? descricao : undefined,
     criteriosLivres: personalizado ? [] : undefined,
   }
@@ -141,9 +159,11 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const familia = familiaDoTipo(tipo)
   const formulario = formularioDoTipo(tipo)
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
+  // O Sinal interno real sai só das Interações do Workspace: sem fornecedor, sem crédito e só com o prazo.
+  const interno = operacional && TIPOS_INTERNOS_REAIS.has(tipo.id)
 
   const [monitoramento, setMonitoramento] = useState<MonitoramentoNoEditor>(
-    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional),
+    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional, interno),
   )
   const [etapa, setEtapa] = useState<Etapa>(() => {
     if (!personalizado) return 'editar'
@@ -248,12 +268,21 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                   formulario={formulario}
                   criterios={monitoramento.criterios}
                   aoMudar={(criterios) => mudar({ criterios })}
+                  tipoInterno={interno ? tipo.id : undefined}
                 />
               )
             )}
 
             {operacional ? (
-              <PublicoDeContasReais publico={monitoramento.publico} aoMudar={(publico) => mudar({ publico })} />
+              <PublicoDeContasReais
+                publico={monitoramento.publico}
+                aoMudar={(publico) => mudar({ publico })}
+                ajuda={
+                  interno
+                    ? 'O Monitoramento interno lê só as Interações destas Contas e não gasta crédito.'
+                    : 'Cada Conta varrida debita 1 crédito.'
+                }
+              />
             ) : (
               <SecaoPublico
                 publico={monitoramento.publico}
@@ -311,6 +340,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
           <Revisao
             monitoramento={monitoramento}
             operacional={operacional}
+            interno={interno}
             aoVoltar={() => setEtapa('editar')}
             aoAtivar={async () => {
               try {
@@ -391,22 +421,33 @@ function CriteriosProntos({
   formulario,
   criterios,
   aoMudar,
+  tipoInterno,
 }: {
   formulario: Formulario
   criterios: Criterios
   aoMudar: (criterios: Criterios) => void
+  /** O tipo, quando é um Sinal interno real: só os critérios que a avaliação usa e o que ele observa nas Interações. */
+  tipoInterno?: string
 }) {
+  const campos = tipoInterno ? CAMPOS[formulario].filter((campo) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo.id)) : CAMPOS[formulario]
   return (
     <SecaoDoFormulario numero="02" titulo="Critérios" descricao="O que precisa acontecer para disparar um Sinal. Ajuste ao seu negócio.">
-      {CAMPOS[formulario].map((campo) => (
+      {campos.map((campo) => (
         <CampoDeCriterio key={campo.id} campo={campo} valor={criterios[campo.id]} aoMudar={(valor) => aoMudar({ ...criterios, [campo.id]: valor })} />
       ))}
+      {tipoInterno && (
+        <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
+          {COMO_O_INTERNO_DISPARA[tipoInterno]} O prazo é contado pelas Interações registradas na Conta-alvo: e-mails e
+          mensagens enviados e recebidos, ligações e reuniões. O Sinal dispara no dia em que o prazo vence. Uma resposta
+          comercial isolada continua sendo Interação e não gera Sinal.
+        </p>
+      )}
       {formulario === 'site' && (
         <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
           Na demonstração, as visitas e pessoas identificadas são simuladas. Não há identificação real de visitantes nem conexões externas.
         </p>
       )}
-      {formulario === 'historico' && (
+      {formulario === 'historico' && !tipoInterno && (
         <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
           O prazo define o tempo de inatividade no CRM para que a condição seja detectada. Uma vez disparado, o Sinal tem validade fixa de 30 dias para manter a Conta-alvo Quente. Uma resposta comercial isolada continua sendo Interação e não gera Sinal automaticamente.
         </p>
@@ -485,7 +526,15 @@ function CampoDeCriterio({
  * O público no Workspace operacional: as Contas-alvo do Workspace que o Monitoramento varre. A descoberta por perfil não
  * roda de verdade e não aparece; as listas de exemplo ficam só na Demonstração.
  */
-function PublicoDeContasReais({ publico, aoMudar }: { publico: Publico; aoMudar: (publico: Publico) => void }) {
+function PublicoDeContasReais({
+  publico,
+  aoMudar,
+  ajuda,
+}: {
+  publico: Publico
+  aoMudar: (publico: Publico) => void
+  ajuda: string
+}) {
   const { dados: contas, erro, recarregar } = useDadosDeContas((f) => f.contas(), [])
 
   return (
@@ -508,7 +557,7 @@ function PublicoDeContasReais({ publico, aoMudar }: { publico: Publico; aoMudar:
           para escolher o público.
         </p>
       ) : (
-        <Grupo rotulo="Contas-alvo" ajuda="Cada Conta varrida debita 1 crédito." papel="group">
+        <Grupo rotulo="Contas-alvo" ajuda={ajuda} papel="group">
           {contas.map((conta) => (
             <Opcao
               key={conta.id}
@@ -813,11 +862,13 @@ function ContasDoPublico({ ids }: { ids: string[] }) {
 function Revisao({
   monitoramento,
   operacional,
+  interno,
   aoVoltar,
   aoAtivar,
 }: {
   monitoramento: MonitoramentoNoEditor
   operacional: boolean
+  interno: boolean
   aoVoltar: () => void
   aoAtivar: () => void
 }) {
@@ -857,7 +908,12 @@ function Revisao({
           </div>
         ))}
       </dl>
-      {operacional ? (
+      {interno ? (
+        <p className="text-sm text-al-muted">
+          Os Sinais internos usam só as Interações registradas na Althius e não gastam crédito. A avaliação roda ao ativar
+          e, depois, a cada 24 horas.
+        </p>
+      ) : operacional ? (
         <p className="text-sm text-al-muted">
           Cada Conta varrida debita 1 crédito. A varredura automática só roda dentro do teto aprovado em{' '}
           <Link to="/configuracoes/automacao" className="text-al-ink underline-offset-4 hover:underline">

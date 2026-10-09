@@ -84,6 +84,12 @@ export function BuscarSinaisDeNovo({ contaId, aoTerminar }: { contaId: string; a
         )}
       </div>
       {motivoDeEstarDesligado && !emAndamento && <p className="text-xs text-al-muted">{motivoDeEstarDesligado}</p>}
+      {semMonitoramento && (
+        // A busca só usa os Monitoramentos com fornecedor; os internos (CRM-10) avaliam as Interações sozinhos.
+        <p className="text-xs text-al-muted">
+          Os Sinais internos não entram nesta busca: o Monitoramento interno avalia as Interações sozinho, todo dia.
+        </p>
+      )}
       {!emAndamento && custo.terminouEm && (
         <p className="text-xs text-al-muted">Última busca: {formatarDataDoModulo(custo.terminouEm, fonte.hoje())}</p>
       )}

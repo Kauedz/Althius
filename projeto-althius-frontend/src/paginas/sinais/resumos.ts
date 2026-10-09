@@ -1,5 +1,7 @@
 import { CAMPOS, ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, formularioDoTipo, tipoPorId } from './catalogo'
+import { formatarDataDoModulo } from '@/fonte/formatar-data'
 import { NOME_DO_PUBLICO_RECOMENDADO } from '@/fonte/regras-memoria'
+import type { RodadaDoMonitoramento } from '@/fonte/sinais-tipos'
 import { LISTAS, type EstadoDoMonitoramento, type Monitoramento, type Publico } from './dados-mock'
 import { resumoDoPerfil } from './perfil'
 
@@ -14,6 +16,17 @@ export function resumoDoPublico(publico: Publico): string {
   if (publico.modo === 'listas') return textoListas
   if (publico.modo === 'descoberta') return descoberta.charAt(0).toUpperCase() + descoberta.slice(1)
   return `${textoListas} + ${descoberta}`
+}
+
+/** A última rodada concluída de um Monitoramento do Workspace operacional: quando, quantas Contas e o que encontrou. */
+export function resumoDaRodada(rodada: RodadaDoMonitoramento, hoje: Date): string {
+  const { contasAvaliadas: contas, sinaisNovos: novos, sinaisReencontrados: reencontrados } = rodada
+  return [
+    `Última rodada: ${formatarDataDoModulo(rodada.data, hoje)}`,
+    `${contas} ${contas === 1 ? 'Conta avaliada' : 'Contas avaliadas'}`,
+    `${novos} ${novos === 1 ? 'Sinal novo' : 'Sinais novos'}`,
+    ...(reencontrados > 0 ? [`${reencontrados} ${reencontrados === 1 ? 'reencontrado' : 'reencontrados'}`] : []),
+  ].join(' · ')
 }
 
 /** O público de um Monitoramento do Workspace operacional: quantas Contas-alvo ele varre. */

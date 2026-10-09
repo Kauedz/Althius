@@ -1,10 +1,10 @@
 // Sinais e Monitoramentos do Workspace operacional (sinais-reais, ticket 02): os Monitoramentos e os Sinais vêm do banco,
-// o catálogo de tipos é o da tela, com a disponibilidade de cada um lida do registro de actors. Um tipo sem Sinal real, ou
-// cujo actor ainda está em teste, recusa o Monitoramento em palavras do produto. Disparo simulado só existe na
-// Demonstração.
+// o catálogo de tipos é o da tela, com a disponibilidade de cada um lida do registro de actors (os externos) e do catálogo
+// do banco (os internos, que saem das Interações, CRM-10). Um tipo sem Sinal real, ou cujo actor ainda está em teste,
+// recusa o Monitoramento em palavras do produto. Disparo simulado só existe na Demonstração.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
-import { SINAL_REAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
+import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import type { ContaAlvo, Sinal } from './contas-tipos'
 import type {
   Disponibilidade,
@@ -24,6 +24,14 @@ interface RegistroDoMonitor {
   audience: { accountIds?: string[] } | null
   criteria: Record<string, unknown> | null
   last_error: string | null
+  last_run?: {
+    state: 'rodando' | 'concluida' | 'falhou'
+    startedAt: string
+    finishedAt: string | null
+    accountsChecked: number
+    signalsNew: number
+    signalsRepeated: number
+  } | null
 }
 
 interface RegistroDoSinal {
@@ -57,13 +65,22 @@ function converterErro(error: { message: string; code?: string }): Error {
 }
 
 /**
- * Se o módulo Sinais já roda de verdade: algum actor do registro passou no teste (sinais-reais 03). Até lá, ou se o
- * registro não puder ser lido, o módulo fica indisponível no Workspace operacional.
+ * O estado de cada Sinal real ('available', 'testing' ou 'out'): o registro de actors para os externos e o catálogo do
+ * banco para os internos. O que não puder ser lido fica de fora, e o tipo aparece "em breve".
+ */
+async function estadosDosSinaisReais(cliente: SupabaseClient): Promise<Map<string, string>> {
+  const [actors, catalogo] = await Promise.all([cliente.rpc('list_signal_actors'), cliente.rpc('list_signal_catalog')])
+  const linhas = [actors, catalogo].flatMap(({ data, error }) => (error ? [] : ((data ?? []) as { signal_type: string; state: string }[])))
+  return new Map(linhas.map((l) => [l.signal_type, l.state]))
+}
+
+/**
+ * Se o módulo Sinais já roda de verdade: algum actor do registro passou no teste (sinais-reais 03) ou há um Sinal
+ * interno disponível (CRM-10). Até lá, ou se nada puder ser lido, o módulo fica indisponível no Workspace operacional.
  */
 export async function sinaisDisponiveis(cliente: SupabaseClient): Promise<boolean> {
   try {
-    const { data, error } = await cliente.rpc('list_signal_actors')
-    return !error && ((data ?? []) as { state: string }[]).some((l) => l.state === 'available')
+    return [...(await estadosDosSinaisReais(cliente)).values()].includes('available')
   } catch {
     return false
   }
@@ -136,6 +153,17 @@ function mapearMonitor(linha: RegistroDoMonitor): Monitoramento | null {
     publico: { modo: 'listas', listas: linha.audience?.accountIds ?? [], usaRecomendado: false },
     criterios: linha.criteria ?? {},
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
+    ...(linha.last_run
+      ? {
+          ultimaRodada: {
+            estado: linha.last_run.state,
+            data: linha.last_run.finishedAt ?? linha.last_run.startedAt,
+            contasAvaliadas: linha.last_run.accountsChecked,
+            sinaisNovos: linha.last_run.signalsNew,
+            sinaisReencontrados: linha.last_run.signalsRepeated,
+          },
+        }
+      : {}),
   }
 }
 
@@ -171,10 +199,9 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
 
     async tipos(): Promise<TipoDeSinal[]> {
       // A disponibilidade é um enfeite do catálogo: se o registro não puder ser lido, todos ficam "em breve".
-      const { data } = await cliente.rpc('list_signal_actors')
-      const estados = new Map(((data ?? []) as { signal_type: string; state: string }[]).map((l) => [l.signal_type, l.state]))
+      const estados = await estadosDosSinaisReais(cliente)
       return TIPOS.map((tipo) => {
-        const estado = estados.get(SINAL_REAL_DO_TIPO[tipo.id] ?? '')
+        const estado = estados.get(SINAL_DO_TIPO[tipo.id] ?? '')
         const disponibilidade: Disponibilidade = estado === 'available' ? 'disponivel' : estado === 'testing' ? 'em-teste' : 'em-breve'
         return { ...tipo, disponibilidade }
       })
@@ -192,7 +219,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
     monitoramento,
 
     async salvarMonitoramento(m: Monitoramento | NovoMonitoramento) {
-      const sinal = SINAL_REAL_DO_TIPO[m.tipoId]
+      const sinal = SINAL_DO_TIPO[m.tipoId]
       if (!sinal) throw new Error('Este Sinal ainda não está disponível.')
       const id = (await chamar('save_signal_monitor', {
         p_workspace_id: workspaceId(),
