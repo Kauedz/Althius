@@ -4,7 +4,7 @@
 
 **Blocked by:** ADR-0024 aceita (PR #157 mergeado). Pode andar em paralelo com o canais-14: este ticket é banco e wizard, o 14 é o módulo TypeScript.
 
-**Status:** ready-for-human
+**Status:** closed
 
 - [x] Existe um registro de conexões Unipile com nome, endereço, versão (`v1` ou `v2`), os nomes dos segredos da chave e do webhook no Vault, e se está ativa. O banco garante, com índice único parcial, que **no máximo uma** está ativa. Nenhuma coluna guarda a chave nem o segredo em texto.
 - [x] A migration cria a conexão "padrão" (v2, `https://api.unipile.com`) ativa e liga a ela todas as Contas remetentes que já existem, para o sistema atual seguir igual. Enquanto o Vault não tiver os segredos dela, as funções continuam lendo as variáveis de hoje (a leitura em si é do canais-16).
@@ -12,7 +12,7 @@
 - [x] Operação de cadastrar uma conexão, e outra de ativar uma, só para o Nan (superadmin) e `service_role`. Ativar uma conexão desativa a anterior e marca todas as Contas remetentes das outras conexões como `reconnect_required`, o que a ADR-0015 já exige. Nenhum Envio, resposta, Interação ou Conta remetente é apagado.
 - [x] `complete_sender_connection_attempt`: uma reconexão de uma linha cujo id pertence a uma conexão **que já não é a ativa** aceita o id novo e a conexão ativa na **mesma** linha, mantendo `id`, dono, canal e provedor, e `reconciliation_required`. Continua `identity_mismatch` se a linha já é da conexão ativa, se o dono ou o provedor não batem, ou se a tentativa não é uma reconexão daquela linha. Continua `identity_already_linked` se o id novo já pertence a outra linha da mesma conexão.
 - [x] A conferência e a reconciliação (`conversations_to_reconcile`, `chats_to_reconcile`) e o Executor olham só Envios e Contas remetentes da conexão ativa. Um Envio da conexão anterior não é consultado na conta nova, e o que já foi gravado continua legível para o titular.
-- [ ] `scripts/wizard-unipile.sh` passa a cadastrar a conexão (endereço, versão) e a gravar a chave e o segredo no Vault, sem pedir nada pelo chat, e a ativá-la. Os segredos de função atuais ficam documentados como reserva até o canais-16.
+- [x] `scripts/wizard-unipile.sh` passa a cadastrar a conexão (endereço, versão) e a gravar a chave e o segredo no Vault, sem pedir nada pelo chat, e a ativá-la. Os segredos de função atuais ficam documentados como reserva até o canais-16. — **verificado 2026-10-09**: conexão `trial-2026-10` (v1, `https://api68.unipile.com:19840`) cadastrada com a lógica SQL do wizard, chave e segredo no Vault (`unipile_trial_2026_10_*`), ativada; `padrão` (v2) desativada.
 - [x] pgTAP novo: cadastro e ativação; só uma ativa; a troca marca as Contas e não apaga nada; reconectar depois da troca reaproveita a linha e mantém os Envios e as respostas ligados; os casos de `identity_mismatch` que continuam recusados; a reconciliação ignora a conexão anterior. Os testes pgTAP existentes não mudam de asserção.
 
 ## Pode mexer
