@@ -207,6 +207,16 @@ FUNCOES_URL="https://$SUPABASE_REF.supabase.co/functions/v1"
 WEBHOOK_URL="$FUNCOES_URL/unipile-account-status"
 # message.new: respostas de WhatsApp e LinkedIn (canais 06 e 07). O evento de nova relação do LinkedIn fica de fora até o
 # nome dele ser confirmado na documentação da Unipile v2: um nome desconhecido pode recusar o cadastro do webhook inteiro.
+# APP_ORIGIN (a origem do app, usada pelas Edge Functions para conferir de onde o navegador vem): em produção é
+# https://app.althius.com.br,http://localhost:5173. Passe por --app-origin=<valor> ou pela variável APP_ORIGIN. Sem nenhum
+# dos dois, o bloco de segredos NÃO leva a linha APP_ORIGIN, para não sobrescrever o valor que já está no projeto.
+APP_ORIGIN="${APP_ORIGIN:-}"
+for argumento in "$@"; do
+  case "$argumento" in
+    --app-origin=*) APP_ORIGIN="${argumento#--app-origin=}" ;;
+    *) printf 'Argumento desconhecido: %s (aceito: --app-origin=<origens separadas por vírgula>)\n' "$argumento" >&2; exit 1 ;;
+  esac
+done
 UNIPILE_ACCOUNT_EVENTS="account.add,account.reconnect,account.initial_sync.completed,account.status.running,account.status.disconnected,account.status.errored,account.remove,email.new,email.new.bounce,message.new"
 
 [[ -t 0 ]] || { printf 'Rode este wizard num terminal interativo.\n' >&2; exit 1; }
@@ -362,10 +372,11 @@ if [[ "$UNIPILE_VERSAO" == "v2" ]]; then
     note "mão em Webhooks no painel, com a URL $WEBHOOK_URL e os event types: $UNIPILE_ACCOUNT_EVENTS."
   fi
 else
-  say "Na v1 o cadastro do webhook é manual (o formato do pedido e da assinatura da v1 só será confirmado"
-  say "no canais-17). Cadastre à mão no painel da conta v1 um webhook de conta apontando para:"
+  say "Na v1 o segredo é o que VOCÊ escolhe: a Unipile devolve esse valor no cabeçalho Unipile-Auth de cada aviso, e o"
+  say "webhook (unipile-account-status) o confere. Se a conta já tem um webhook apontando para"
   note "$WEBHOOK_URL"
-  say "e escolha um segredo para ele, que o canais-17 vai conferir."
+  say "cole abaixo o valor do cabeçalho Unipile-Auth dele. Se não tem, escolha um segredo (16+ caracteres) e o passo"
+  say "seguinte cadastra os 4 webhooks da v1 com ele."
 fi
 if [[ -z "$UNIPILE_WEBHOOK_SECRET" ]]; then
   while :; do
@@ -374,6 +385,22 @@ if [[ -z "$UNIPILE_WEBHOOK_SECRET" ]]; then
     [[ "$UNIPILE_WEBHOOK_SECRET" == *"'"* ]] && { warn "O segredo tem um apóstrofo. Cole de novo."; continue; }
     break
   done
+fi
+if [[ "$UNIPILE_VERSAO" == "v1" ]]; then
+  say "Registro dos 4 webhooks da v1 (mensagens, e-mail, estado da conta, relações), pelo script do canais-17."
+  say "Primeiro só mostra o que faria; webhooks antigos não são apagados, só avisados."
+  if command -v deno >/dev/null 2>&1; then
+    registrar_webhooks_v1() {
+      UNIPILE_API_KEY="$UNIPILE_API_KEY" UNIPILE_API_URL="$UNIPILE_API_BASE" UNIPILE_API_VERSION=v1 \
+        UNIPILE_WEBHOOK_SECRET="$UNIPILE_WEBHOOK_SECRET" \
+        deno run --allow-env --allow-net scripts/unipile-webhooks-v1.ts --url="$WEBHOOK_URL" "$@" || warn "O script falhou (veja a mensagem acima)."
+    }
+    registrar_webhooks_v1
+    if confirm "Criar agora os webhooks que faltam (--aplicar)?"; then registrar_webhooks_v1 --aplicar; fi
+  else
+    warn "O deno não está instalado aqui, então o script não roda. Instale o deno e rode, com a chave e o segredo no ambiente:"
+    note "deno run --allow-env --allow-net scripts/unipile-webhooks-v1.ts --url=$WEBHOOK_URL [--aplicar]"
+  fi
 fi
 pause "Tecle Enter para seguir"
 
@@ -414,19 +441,27 @@ SQL=""
 
 stage "Segredos de função (reserva até o canais-16)"
 say "Enquanto o canais-16 não faz as Edge Functions lerem a conexão ativa do Vault, elas ainda leem estes"
-say "segredos de função. Mantenha-os iguais à conexão ativa: é a reserva. Os três só ficam aqui; o wizard não"
-say "grava nenhum deles em disco."
+say "segredos de função. Mantenha-os iguais à conexão ativa: é a reserva. Eles só ficam aqui; o wizard não"
+say "grava nenhum em disco."
 BLOCO_SEGREDOS="UNIPILE_API_KEY=$UNIPILE_API_KEY
-UNIPILE_WEBHOOK_SECRET=$UNIPILE_WEBHOOK_SECRET
-APP_ORIGIN=http://localhost:5173"
+UNIPILE_WEBHOOK_SECRET=$UNIPILE_WEBHOOK_SECRET"
+if [[ -n "$APP_ORIGIN" ]]; then
+  BLOCO_SEGREDOS="$BLOCO_SEGREDOS
+APP_ORIGIN=$APP_ORIGIN"
+fi
 open_url "$PAINEL/functions/secrets"
 if copiar "$BLOCO_SEGREDOS"; then
-  step "O bloco com os 3 segredos já está na área de transferência: cole em Edge Functions → Secrets e salve."
+  step "O bloco de segredos já está na área de transferência: cole em Edge Functions → Secrets e salve."
 else
-  step "Cole os 3 segredos abaixo em Edge Functions → Secrets e salve."
+  step "Cole os segredos abaixo em Edge Functions → Secrets e salve."
   printf '\n%s\n\n' "$BLOCO_SEGREDOS"
 fi
-note "Se o app já tem endereço publicado, troque ou acrescente o APP_ORIGIN por ele depois."
+if [[ -n "$APP_ORIGIN" ]]; then
+  note "APP_ORIGIN vai com o valor que você passou: $APP_ORIGIN"
+else
+  note "APP_ORIGIN ficou de fora de propósito: o valor que já está no projeto não é sobrescrito. Na primeira vez, rode de novo"
+  note "com --app-origin=https://app.althius.com.br,http://localhost:5173 (ou a variável APP_ORIGIN)."
+fi
 pause "Tecle Enter depois de salvar"
 
 finish

@@ -1,7 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { ingestEmailEventVia } from '../_shared/ingest-email-event.ts'
 import { ingestChatEventVia } from '../_shared/ingest-chat-event.ts'
-import { createUnipileRuntime, unipileUnavailableResponse } from '../_shared/unipile/index.ts'
+import { createAccountDirectory } from '../_shared/unipile/account-directory.ts'
+import { createUnipileRuntime, type UnipileBridge, unipileUnavailableResponse } from '../_shared/unipile/index.ts'
 import { type AttachmentStore, createHandler, type WebhookDb } from './handler.ts'
 
 const ATTACHMENTS_BUCKET = 'email-attachments'
@@ -70,13 +71,24 @@ const storage: AttachmentStore = {
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para os anexos serem baixados.
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
 
+// Quais contas são da conexão ativa vem da lista de contas dela; uma lista por ponte, e a troca de conexão traz uma nova.
+let directory: { bridge: UnipileBridge; accounts: ReturnType<typeof createAccountDirectory> } | null = null
+const accountsOf = (bridge: UnipileBridge) => {
+  if (directory?.bridge !== bridge) {
+    directory = { bridge, accounts: createAccountDirectory({ list: () => bridge.listAccounts() }) }
+  }
+  return directory.accounts
+}
+
 Deno.serve(async (req) => {
   const connection = await unipileRuntime.connection()
   const bridge = await unipileRuntime.bridge()
   if (!connection || !bridge) return unipileUnavailableResponse()
   return createHandler({
-    // Hoje o handler confere a assinatura da v2 (HMAC) com este segredo. A autenticação do webhook da v1 é do canais-17.
+    // v2: HMAC do corpo com este segredo. v1: o cabeçalho Unipile-Auth igual a ele (ou a chave ?k= do aviso do link de conexão).
     secret: connection.webhookSecret ?? '',
+    version: connection.version,
+    accounts: accountsOf(bridge),
     db,
     unipile: {
       downloadEmailAttachment: (accountId, emailId, attachment) =>
