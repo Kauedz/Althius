@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(8);
+select plan(10);
 
 -- Usuários e Workspaces de teste
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -34,6 +34,8 @@ insert into public.sales_responsibilities (workspace_id, target_account_id, owne
 
 select is(private.normalize_linkedin('HTTP://BR.LINKEDIN.COM/in/ACwAAABpLK4BOMswYS36naRm32ho6uhmAYmPWoY/?trk=foo'), 'https://www.linkedin.com/in/ACwAAABpLK4BOMswYS36naRm32ho6uhmAYmPWoY', 'esquema e host normalizam sem destruir o caminho');
 select is(private.normalize_linkedin('https://www.linkedin.com/in/Slug/#foo'), 'https://www.linkedin.com/in/Slug', 'remove barra final e fragmento');
+select is(private.linkedin_person_key('https://www.linkedin.com/in/ACwAA'), 'acwaa', 'chave de apagamento continua sem caixa');
+select ok(private.signal_carries_person('mov|acwaa|cargo', null, private.linkedin_person_key('https://www.linkedin.com/in/ACwAA')), 'apagamento ainda encontra Sinal do perfil misto');
 select is(private.normalize_linkedin(''), null::text, 'valor vazio continua nulo');
 create temporary table proposta_a as select id from public.record_proposed_contact('62000000-0000-0000-0000-000000000001','63000000-0000-0000-0000-000000000001',null,'CFO',null,null,'https://www.linkedin.com/in/ACwAA');
 create temporary table proposta_b as select id from public.record_proposed_contact('62000000-0000-0000-0000-000000000001','63000000-0000-0000-0000-000000000001',null,'CFO',null,null,'https://www.linkedin.com/in/acwaa');
