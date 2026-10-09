@@ -127,6 +127,13 @@ o token na Cloudflare com o IP que ele vê (o da Edge Function, não o do navega
 como opcional, sem um erro de IP diferente na lista de erros do `siteverify`, mas isso fica para conferir no teste
 manual (a troca pela senha atual com o Turnstile real).
 
+### Limite de taxa do Supabase Auth
+
+O Auth limita `/token` e `/verify` por IP, e todas as chamadas da função saem da Edge Function, não do navegador. Se
+muitas pessoas trocarem a senha ao mesmo tempo, o limite pode ser atingido para todas (`limite`, "Muitas tentativas…").
+Com o uso de hoje isso não preocupa; se aparecer no log (`authCode: over_request_rate_limit`), aumentar os limites em
+Authentication → Rate Limits.
+
 ## Segredos
 
 `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` vêm do runtime; `APP_ORIGIN` é o mesmo das outras funções (CORS em
