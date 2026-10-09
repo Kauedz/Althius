@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** closed (ACs verificados em 2026-10-09)
 
 ## Pode mexer
 

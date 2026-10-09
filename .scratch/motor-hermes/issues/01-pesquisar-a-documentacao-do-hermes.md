@@ -5,7 +5,7 @@ item da seção "Recomendações a conferir" da spec, com link para a fonte, num
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-human (pesquisa escrita em `pesquisa-hermes.md`; o Nan revisa os pontos "não confirmado", que viram teste no ticket 02)
+**Status:** closed (pesquisa entregue em pesquisa-hermes.md; ACs verificados em 2026-10-09)
 
 - [x] API HTTP: endpoints, autenticação por perfil, `runs` com status, eventos, cancelamento e idempotência. — Seção 1 de `pesquisa-hermes.md`: confirmados endpoints, Bearer por perfil, `runs` com status e SSE, stop, `Idempotency-Key` (24 h, 409 em conflito); divergência de 5 min na seção de CORS anotada.
 - [x] Perfis e gateway multiplexado: o que é separado por perfil (memória, `state.db`, skills, credenciais) e o que não é. — Seção 2: perfil separa config, `.env`, memória, sessões, skills e `state.db`, mas não é sandbox; OAuth, código, HOME e dashboard são compartilhados; `/p/<perfil>/` com chave por perfil confirmado.

@@ -271,3 +271,7 @@ O que o humano roda: os Passos do Nan dos tickets 06 e 07. São eles: conectar a
 | Decisões do Renan | CRM-10: as 5 decisões aceitas (troca de 2 FKs e recriação de `list_signal_monitors`). Agentes 02: tokens de cache do Hermes fora da contagem |
 | Testes | tsc 0, lint 0 erros/50 avisos, deno test 781/781, deno check limpo, pgTAP do zero 69 arquivos 2783/2783, vitest 121 arquivos 1156 testes (1 worker com timeout, refeito sozinho 10/10) |
 | O que o humano roda | Ver `.scratch/PR-UNIFICADO-2026-10-09.md`: abrir o PR, CI verde, 6 migrations em ordem (`20261009010000`, `030000`, `040000`, `050000`, `060000`, `132551`), publicar `account-enrichment`, `reply-proposal-runner`, `agent-conversation`, `integration-connect`, `integration-tools`, `crm-handoff` e `integration-callback --no-verify-jwt`, reiniciar o worker do Hermes e publicar o frontend |
+
+## 2026-10-09: fechamento de status
+
+Fechados (ACs todos marcados): kanban 01, 02, 03; créditos 08; CRM-10 (migration `20261009050000` aplicada em prod); Hermes 01; autenticação 05 (verificado em produção pelo Renan).

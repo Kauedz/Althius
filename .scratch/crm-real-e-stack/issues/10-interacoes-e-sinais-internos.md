@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Criar e consultar Contas-alvo reais.
 
-**Status:** ready-for-human (código e testes no branch `crm/10-interacoes-e-sinais-internos`, unificado na `ralph/unificado-2026-10-09` em 2026-10-09; as 5 decisões foram aceitas pelo Renan; faltam o PR unificado, o CI e os Passos do Nan abaixo)
+**Status:** closed (migration 20261009050000 aplicada em prod em 2026-10-09)
 
 - [x] Catálogo, Monitoramento, execução e Sinal encontrado são registros separados e persistidos. — `private.signal_catalog` (catálogo), `private.signal_monitors` (Monitoramento), `private.signal_monitor_runs` (cada rodada) e `private.signals` (Sinal, com `run_id`). pgTAP `supabase/tests/sinais_internos_das_interacoes.sql`, seções 1, 3 e 11.
 - [x] Monitoramentos internos usam Interações persistidas, com configuração independente e estados rascunho, ativo e pausado. — a avaliação lê só `public.account_interactions`; cada Monitoramento tem nome, prazo e público próprios. O rascunho não roda, ativar avalia na hora e o pausado não roda. pgTAP seções 2, 3, 6 e 7.
