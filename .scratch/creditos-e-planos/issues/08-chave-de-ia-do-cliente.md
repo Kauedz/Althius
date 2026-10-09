@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: Debitar as Execuções de Agentes.
 
-**Status:** ready-for-agent
+**Status:** closed (ACs verificados em 2026-10-09)
 
 ## Pode mexer
 
