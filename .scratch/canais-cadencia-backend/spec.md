@@ -37,7 +37,7 @@ A proposta é concentrar o backend no Supabase e usar Unipile para comunicação
 
 Uma alternativa seria hospedar um servidor e worker separados, usando Supabase só como banco: oferece maior controle de processos longos, mas adiciona infraestrutura operacional. Outra seria executar os passos no navegador: foi descartada porque fechar a página interromperia a cadência e exporia a integração ao cliente. O plano de implementação deve usar operações curtas em backend e estado durável, sem esperar dias dentro de uma função.
 
-O adapter Unipile isola a versão da API e normaliza diferenças entre e-mail e mensageria. A base é a v2, porque a conta criada pelo dashboard atual é v2 e não aceita a v1 (adendo da ADR-0015, 2026-09-26). Não misturar contratos das duas versões.
+O adapter Unipile isola a versão da API e normaliza diferenças entre e-mail e mensageria. A base é a v2, porque a conta criada pelo dashboard atual é v2 e não aceita a v1 (adendo da ADR-0015, 2026-09-26). Não misturar contratos das duas versões. **Emendado pela [ADR-0024](../../docs/adr/0024-contratos-v1-e-v2-da-unipile-e-troca-de-conta-sem-perder-historico.md):** v1 e v2 coexistem atrás de um adaptador, com um só ativo por vez, escolhido pela conexão ativa.
 
 ### Identidade e propriedade
 
