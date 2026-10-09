@@ -38,7 +38,7 @@ interface RegistroConta {
   id: string
   name: string
   canonical_url: string
-  domain: string
+  domain: string | null
   linkedin_url: string | null
   segment: string | null
   legal_identifier?: string | null
@@ -261,7 +261,7 @@ function mapearConta(
     ...(administrador ? { podeApagar: true } : {}),
     id: linha.id,
     nome: linha.name,
-    dominio: linha.domain,
+    dominio: linha.domain ?? '',
     siteUrl: linha.canonical_url,
     ...(linha.linkedin_url ? { linkedinUrl: linha.linkedin_url } : {}),
     ...(linha.segment ? { segmento: linha.segment } : {}),
@@ -533,6 +533,7 @@ export function criarFonteDeContasSupabase(
         p_workspace_id: workspace(),
         p_name: nova.nome.trim(),
         p_url: nova.url.trim(),
+        ...(/^(https?:\/\/)?([a-z]{2,3}\.)?(www\.)?linkedin\.com\/company\/[^/?#]+/i.test(nova.url.trim()) ? { p_linkedin_url: nova.url.trim() } : {}),
         p_segment: nova.segmento?.trim() || null,
       })
       if (error) throw converterErro(error)
@@ -739,7 +740,7 @@ export function criarFonteDeContasSupabase(
     },
 
     async buscarComite(contaId: string): Promise<void> {
-      const { data: c, error: errConta } = await cliente.from('target_accounts').select('name, linkedin_url, domain').eq('id', contaId).single()
+      const { data: c, error: errConta } = await cliente.from('target_accounts').select('name, linkedin_url, domain').eq('workspace_id', workspace()).eq('id', contaId).maybeSingle()
       if (errConta || !c) throw new Error('Conta não encontrada')
       const { error } = await cliente.functions.invoke('account-enrichment', {
         body: {
@@ -748,7 +749,7 @@ export function criarFonteDeContasSupabase(
           targetAccountId: contaId,
           companyName: c.name,
           companyLinkedinUrl: c.linkedin_url ?? undefined,
-          companyDomain: c.domain ?? undefined,
+          companyDomain: /^(www\.)?linkedin\.com$/i.test(c.domain ?? '') ? undefined : c.domain ?? undefined,
         },
       })
       if (error) {
