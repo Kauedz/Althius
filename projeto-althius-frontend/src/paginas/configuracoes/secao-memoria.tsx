@@ -2,12 +2,14 @@ import { ArrowRight, CircleCheck, Clock } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
+import { ConteudoDoPlaybookEmLeitura } from '@/components/conteudo-do-playbook'
 import { ListaDeDependentes, SecoesDoDocumento } from '@/components/documento-da-memoria'
 import { Carregando, IconeAgente, Pulso } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { useDados, useFonte } from '@/fonte/contexto'
-import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
+import { useDados, useFonte, useFonteDoPlaybook } from '@/fonte/contexto'
+import { formatarDataCompleta, formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
+import { ehRevisaoDoPlaybook } from '@/fonte/regras'
 import {
   dependentesDe,
   DOCUMENTOS_DA_MEMORIA,
@@ -16,7 +18,12 @@ import {
   maiuscula,
   revisoesDo,
 } from '@/fonte/regras-memoria'
-import type { AprovacaoDeRevisao, DocumentoDaMemoria, DocumentoVigente } from '@/fonte/tipos'
+import type {
+  AprovacaoDeRevisao,
+  AprovacaoDeRevisaoDoPlaybook,
+  DocumentoDaMemoria,
+  DocumentoVigente,
+} from '@/fonte/tipos'
 import { mensagemDeErro } from '@/lib/utils'
 import { AbasDasPaginas, Bloco, SecaoDeConfiguracoes } from './componentes'
 
@@ -57,29 +64,129 @@ export function SecaoMemoria() {
 }
 
 /**
- * A Memória do Workspace no Workspace operacional (CRM-09, bloqueado pela execução dos Agentes, CRM-14): quem propõe o
- * ICP e as Personas é o Agente do documento, e os Agentes já existem aqui, mas ainda não rodam. Até lá a seção diz por
- * que está vazia, sem documento de exemplo e sem edição direta no lugar.
+ * A Memória do Workspace no Workspace operacional (CRM-09): o ICP e as Personas são as seções do Playbook, a mesma
+ * referência que os Agentes e as telas leem. Uma versão nova chega pela proposta do Agente da seção numa Conversa (o
+ * Scopus no ICP, o Ethos nas Personas) e só vale com a Aprovação de um Administrador. A página mostra a versão aprovada,
+ * a proposta pendente, a última recusa e, sem versão, o que fazer. Nada de exemplo: os documentos de exemplo são da
+ * Demonstração.
  */
 export function SecaoMemoriaDoWorkspaceOperacional() {
-  const { icp, personas } = DOCUMENTOS_DA_MEMORIA
+  const { pagina: documento } = useParams()
+  if (!ehDocumentoDaMemoria(documento)) return <Navigate to="/configuracoes/memoria/icp" replace />
   return (
     <SecaoDeConfiguracoes
       id="memoria-do-workspace"
       titulo="Memória do Workspace"
       alcance="workspace"
-      descricao="O contexto que os Agentes e os módulos usam como referência. É do Workspace e só muda depois da aprovação de um Administrador."
+      descricao="O ICP e as Personas que os Agentes e os módulos usam como referência. São seções do Playbook do Workspace e só mudam com a aprovação de um Administrador."
     >
-      <div role="status" className="flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
-        <span className="selo">Aguardando a execução dos Agentes</span>
-        <p className="text-al-ink">O ICP e as Personas deste Workspace chegam junto com a execução dos Agentes.</p>
+      <AbasDasPaginas secao="memoria" paginas={PAGINAS} rotuloAcessivel="Documentos da Memória do Workspace" />
+      <SecaoDoPlaybookNaMemoria key={documento} documento={documento} />
+    </SecaoDeConfiguracoes>
+  )
+}
+
+function SecaoDoPlaybookNaMemoria({ documento }: { documento: DocumentoDaMemoria }) {
+  const fonteDoPlaybook = useFonteDoPlaybook()
+  const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
+  const agentes = useDados((fonte) => fonte.agentes(), [])
+  const dados = useDados((fonte) => fonte.participantesDoWorkspace(), [])
+  // A fila vem da mais nova para a mais antiga: a primeira decidida é a última decisão.
+  const revisoes = (aprovacoes ?? []).filter(
+    (a): a is AprovacaoDeRevisaoDoPlaybook => ehRevisaoDoPlaybook(a) && a.revisao.secao === documento,
+  )
+  const secao = useDados(fonteDoPlaybook, (f) => f.secao(documento), [documento])
+  const { nome, oNome, agente, especialidade } = DOCUMENTOS_DA_MEMORIA[documento]
+  const { concordar, oVigente, naoMudou } = frasesDo(documento)
+  // Sem a fila de Aprovações (ou enquanto ela carrega), a página mostra a versão vigente sem as propostas.
+  if (!secao) return <Carregando />
+
+  const vigente = secao.vigente
+  const pendente = revisoes.find((r) => r.estado === 'pendente')
+  const ultimaDecidida = revisoes.find((r) => r.estado !== 'pendente')
+  const recusada = ultimaDecidida?.estado === 'rejeitada' ? ultimaDecidida : undefined
+  const quemRecusou = dados?.participantes.find((p) => p.conta.id === recusada?.revisao.decididaPor)?.conta.nome
+  const doAgente = agentes?.find((a) => a.especialidade.id === especialidade && a.tipo === 'padrao')
+
+  return (
+    <section aria-label={`${nome} do Workspace`} className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <IconeAgente especialidade={especialidade} tamanho="lg" />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <h3 className="titulo-secao text-2xl">{nome}</h3>
+              {vigente && (
+                <span className="selo border-al-sucesso/60 text-al-ink">
+                  <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />
+                  Vigente
+                </span>
+              )}
+            </div>
+            <span className="text-sm text-al-muted">
+              {vigente
+                ? `Versão ${vigente.versao} · ${vigente.autor ?? 'Alguém que já não está no Workspace'} · ${formatarDataCompleta(vigente.em)}`
+                : `${concordar('Proposto', 'Propostas')} pelo ${agente}`}
+            </span>
+          </div>
+        </div>
+        {pendente && (
+          <Link to="/aprovacoes" className={BOTAO_SECUNDARIO}>
+            Ver proposta pendente
+            <ArrowRight strokeWidth={1.8} className="size-4" aria-hidden />
+          </Link>
+        )}
+      </div>
+
+      {pendente && (
+        <div className="flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4">
+          <Clock strokeWidth={1.8} className="mt-0.5 size-4 shrink-0 text-al-atencao" aria-hidden />
+          <p className="text-sm">
+            <span className="font-normal">Proposta pendente do {agente}.</span>{' '}
+            <span className="text-al-muted">
+              {vigente
+                ? `Enquanto um Administrador não decidir, ${oNome} abaixo ${concordar('continua', 'continuam')} valendo em todo o Workspace.`
+                : 'Enquanto um Administrador não decidir, nada muda no Workspace.'}
+            </span>
+          </p>
+        </div>
+      )}
+      {!pendente && recusada && (
+        <Mensagem tipo="info">
+          A última proposta do {agente} foi recusada{quemRecusou ? ` por ${quemRecusou}` : ''}.{' '}
+          {vigente ? `${maiuscula(oVigente)} ${naoMudou}.` : 'O Playbook não mudou.'}
+        </Mensagem>
+      )}
+
+      {vigente ? (
+        <div className="cartao p-6">
+          <ConteudoDoPlaybookEmLeitura secao={documento} conteudo={vigente.conteudo} />
+        </div>
+      ) : (
+        <div role="status" className="flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+          <p className="text-al-ink">Nenhuma versão aprovada ainda.</p>
+          <p className="text-sm text-al-muted">
+            Peça ao {agente} numa Conversa. A proposta dele vira uma Aprovação, e {oNome} {concordar('passa', 'passam')} a
+            valer quando um Administrador aprovar.
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-4">
+        {doAgente && (
+          <Link to={`/agentes/${doAgente.id}`} className={BOTAO_PRIMARIO}>
+            Conversar com o {agente}
+          </Link>
+        )}
         <p className="text-sm text-al-muted">
-          Quem propõe o ICP é o {icp.agente}, e quem propõe as Personas é o {personas.agente}; um Administrador aprova em
-          Aprovações. Esses Agentes ainda não rodam neste Workspace, então ainda não há ICP nem Personas a mostrar, e não
-          existe edição direta no lugar deles. Os documentos de exemplo aparecem só na Demonstração.
+          {maiuscula(oNome)} {concordar('é a seção', 'são a seção')} {nome} do Playbook. O histórico de versões fica em{' '}
+          <Link to={`/configuracoes/playbook/${documento}`} className="text-al-ink underline underline-offset-2">
+            Playbook
+          </Link>
+          .
         </p>
       </div>
-    </SecaoDeConfiguracoes>
+    </section>
   )
 }
 

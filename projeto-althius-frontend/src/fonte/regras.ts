@@ -1,5 +1,14 @@
 import type { ModoDoAmbiente } from './ambiente'
-import type { Aprovacao, CategoriaDeAprovacao, Decisao, EstadoAprovacao, Especialidade, Papel, Permissao } from './tipos'
+import type {
+  Aprovacao,
+  AprovacaoDeRevisaoDoPlaybook,
+  CategoriaDeAprovacao,
+  Decisao,
+  EstadoAprovacao,
+  Especialidade,
+  Papel,
+  Permissao,
+} from './tipos'
 
 /** ADR 0002: Ler por padrão; Propor em qualquer Integração que escreve ou gasta. */
 export function permissaoPadrao(integracao: { escreve: boolean }): Permissao {
@@ -34,6 +43,10 @@ export function rotuloDoEstadoDaAprovacao(aprovacao: {
 
 export const categoriaDa = (aprovacao: Aprovacao): CategoriaDeAprovacao =>
   aprovacao.revisao ? 'revisao-da-memoria' : 'acao'
+
+/** Se a Aprovação é a revisão de uma seção do Playbook, a do Workspace operacional (CRM-09). */
+export const ehRevisaoDoPlaybook = (aprovacao: Aprovacao): aprovacao is AprovacaoDeRevisaoDoPlaybook =>
+  aprovacao.revisao?.tipo === 'playbook'
 
 /**
  * Quem decide cada categoria de Aprovação (ADR 0010): a Revisão da Memória do Workspace, só um Administrador. As de
