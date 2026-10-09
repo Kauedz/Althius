@@ -8,10 +8,10 @@ import type { EmailAttachmentRef, IngestedEmail, IngestEmailEventInput } from '.
 import {
   CHAT_MESSAGE_EVENTS,
   CHAT_RELATION_EVENTS,
-  type ChatEventType,
   type IngestChatEventInput,
   type IngestedChat,
 } from '../_shared/ingest-chat-event.ts'
+import { parseV2WebhookEvent } from '../_shared/unipile/index.ts'
 export type { EmailAttachmentRef, IngestedEmail }
 
 export interface WebhookDb {
@@ -112,26 +112,8 @@ export async function signWebhookBody(rawBody: string, timestamp: string, secret
     .join('')
 }
 
-// Traduz os event types de conta da v2 para o vocabulário que apply_unipile_sender_status já entende
-// (a RPC não muda: SYNC_SUCCESS/CREDENTIALS/ERROR/OK/DELETED já existiam para os mesmos significados na v1).
-const STATUS_EVENTS: Record<string, string> = {
-  'account.initial_sync.completed': 'SYNC_SUCCESS',
-  'account.status.running': 'OK',
-  'account.status.disconnected': 'CREDENTIALS',
-  'account.status.errored': 'ERROR',
-  'account.remove': 'DELETED',
-}
-
 // Os estados que dizem que a conta caiu de vez (credenciais revogadas ou expiradas, erro, removida): a Sequência pausa.
 const LOST_STATUSES = new Set(['CREDENTIALS', 'ERROR', 'DELETED'])
-
-// Na v2 só WhatsApp e IMAP fazem sincronização inicial (docs/initial-sync); os outros provedores já
-// chegam com o histórico disponível, então nunca mandam account.initial_sync.completed.
-const PROVIDERS_WITH_INITIAL_SYNC = new Set(['whatsapp', 'imap'])
-
-const EMAIL_EVENTS = new Set(['email.new', 'email.new.bounce'])
-
-const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** Um único segmento de caminho: sem barras, sem nomes só de pontos, no máximo 120 caracteres. */
 function pathSegment(value: string, fallback: string) {
@@ -229,32 +211,34 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
 
     try {
-      const event = JSON.parse(rawBody)
-      const type = typeof event?.type === 'string' ? event.type : ''
-      const accountId = typeof event?.account_id === 'string' ? event.account_id : ''
-      if (!type || !accountId) {
-        log({ type, outcome: 'invalid_event' })
-        return new Response('Invalid event', { status: 400 })
-      }
+      // O formato do evento (e a tradução do estado da conta) mora em _shared/unipile/events.ts; aqui só se decide a resposta.
+      const event = parseV2WebhookEvent(JSON.parse(rawBody))
+      const type = 'event_type' in event ? event.event_type ?? '' : ''
+      const accountId = 'account_id' in event ? event.account_id ?? '' : ''
 
-      if (type === 'account.add' || type === 'account.reconnect') {
-        const attemptId = typeof event?.payload?.state === 'string' ? event.payload.state : ''
-        const provider = typeof event?.payload?.account?.provider === 'string'
-          ? event.payload.account.provider
-          : typeof event?.account_provider === 'string'
-          ? event.account_provider
-          : ''
-        if (!/^[0-9a-f-]{36}$/i.test(attemptId) || !provider) {
-          log({ type, accountId, provider, hasState: attemptId !== '', outcome: 'invalid_event' })
+      if (event.kind === 'ignore') {
+        if (event.reason === 'payload_invalido' || event.reason === 'payload_incompleto') {
+          // Sem o ingestor de chat, os eventos de conversa são só reconhecidos, mesmo malformados, como antes do canais-06.
+          if (!deps.db.ingestChatEvent && (CHAT_MESSAGE_EVENTS.has(type) || CHAT_RELATION_EVENTS.has(type))) {
+            log({ type, accountId, outcome: 'ignored' })
+            return received()
+          }
+          log({ type, accountId, reason: event.reason, outcome: 'invalid_event' })
           return new Response('Invalid event', { status: 400 })
         }
+        log({ type, accountId, outcome: 'ignored' })
+        return received()
+      }
+
+      if (event.kind === 'connection') {
+        const provider = event.provider
         let data: string
         try {
           data = await deps.db.completeSenderConnectionAttempt({
-            attemptId,
+            attemptId: event.attempt_id,
             unipileAccountId: accountId,
             provider: provider.toUpperCase(),
-            initialStatus: type === 'account.add' ? 'CREATION_SUCCESS' : 'RECONNECTED',
+            initialStatus: event.initial_status,
           })
         } catch {
           log({ type, accountId, provider, outcome: 'rpc_error' })
@@ -265,9 +249,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           return new Response('Event rejected', { status: 409 })
         }
         // Só na primeira entrega: uma repetição tardia não pode tirar a conta de reconnect_required.
-        const syncFinished = !PROVIDERS_WITH_INITIAL_SYNC.has(provider.toLowerCase()) ||
-          event?.payload?.account?.initial_sync?.status === 'completed'
-        if (data === 'completed' && syncFinished) {
+        if (data === 'completed' && event.sync_finished) {
           try {
             const applied = await deps.db.applyUnipileSenderStatus(accountId, 'SYNC_SUCCESS')
             log({ type, accountId, status: 'SYNC_SUCCESS', outcome: applied ? 'applied' : 'no_matching_account' })
@@ -279,8 +261,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         return received()
       }
 
-      const mappedStatus = STATUS_EVENTS[type]
-      if (mappedStatus) {
+      if (event.kind === 'account_status') {
+        const mappedStatus = event.status
         try {
           const applied = await deps.db.applyUnipileSenderStatus(accountId, mappedStatus)
           log({ type, accountId, status: mappedStatus, outcome: applied ? 'applied' : 'no_matching_account' })
@@ -301,32 +283,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         return received()
       }
 
-      if (EMAIL_EVENTS.has(type)) {
-        // O payload traz folder_id e email (o objeto Email). Alguns envelopes trazem o Email direto no payload.
-        const payload = event?.payload
-        const email = payload && typeof payload.email === 'object' && payload.email
-          ? payload.email
-          : payload && typeof payload?.id === 'string'
-          ? payload
-          : null
-        const eventId = typeof event?.id === 'string' && event.id ? event.id : ''
-        if (!email || typeof email.id !== 'string' || !eventId) {
-          log({ type, accountId, outcome: 'invalid_event' })
-          return new Response('Invalid event', { status: 400 })
-        }
-        // O endereço do titular vem no envelope (account_name) quando o provedor é de e-mail.
-        const ownerAddresses = [event?.account_name, payload?.account_name]
-          .filter((value): value is string => typeof value === 'string' && EMAIL_ADDRESS.test(value.trim()))
-          .map((value) => value.trim().toLowerCase())
-
+      if (event.kind === 'email') {
+        const email = event.email
         let ingested: IngestedEmail
         try {
           ingested = await deps.db.ingestEmailEvent({
-            eventId,
-            eventType: type as 'email.new' | 'email.new.bounce',
+            eventId: event.event_id,
+            eventType: event.event_type,
             unipileAccountId: accountId,
             email,
-            ownerAddresses,
+            ownerAddresses: event.owner_addresses,
           })
         } catch {
           log({ type, accountId, outcome: 'rpc_error' })
@@ -341,20 +307,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
       // WhatsApp e LinkedIn: o payload de `message.new` é o próprio objeto Message (recebida E enviada); o banco
       // distingue o eco do titular da resposta do Contato. A nova relação (aceite de convite) é só registrada.
-      if (deps.db.ingestChatEvent && (CHAT_MESSAGE_EVENTS.has(type) || CHAT_RELATION_EVENTS.has(type))) {
-        const payload = event?.payload
-        const eventId = typeof event?.id === 'string' && event.id ? event.id : ''
-        if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !eventId) {
-          log({ type, accountId, outcome: 'invalid_event' })
-          return new Response('Invalid event', { status: 400 })
-        }
+      if (deps.db.ingestChatEvent) {
         let ingested: IngestedChat
         try {
           ingested = await deps.db.ingestChatEvent({
-            eventId,
-            eventType: type as ChatEventType,
+            eventId: event.event_id,
+            eventType: event.event_type,
             unipileAccountId: accountId,
-            payload,
+            payload: event.payload,
           })
         } catch {
           log({ type, accountId, outcome: 'rpc_error' })

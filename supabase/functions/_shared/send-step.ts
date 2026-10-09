@@ -88,21 +88,10 @@ export interface EmailSent {
   message_id: string | null
 }
 
-/** A Unipile respondeu, mas fora de 2xx: o envio não aconteceu. */
-export class UnipileRequestError extends Error {
-  constructor(readonly status: number, readonly retryAfterSeconds: number | null = null) {
-    super(`Unipile respondeu HTTP ${status}`)
-    this.name = 'UnipileRequestError'
-  }
-}
-
-/** A Unipile respondeu 2xx, mas sem o `id` do EmailSent: o envio provavelmente saiu, então fica incerto. */
-export class UnipileUnreadableResponse extends Error {
-  constructor() {
-    super('Unipile respondeu 2xx sem o id do e-mail enviado')
-    this.name = 'UnipileUnreadableResponse'
-  }
-}
+// Os erros da Unipile moraram aqui; agora vivem no contrato (unipile/errors.ts), com o tipo de falha. Reexportados
+// para quem já importa daqui.
+import { UnipileRequestError, UnipileUnreadableResponse } from './unipile/errors.ts'
+export { UnipileRequestError, UnipileUnreadableResponse }
 
 export interface UnipileMail {
   sendEmail(accountId: string, email: OutgoingEmail, options: { signal: AbortSignal }): Promise<EmailSent>
