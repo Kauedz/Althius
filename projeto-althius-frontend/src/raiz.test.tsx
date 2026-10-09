@@ -1963,6 +1963,43 @@ describe('Esqueci a senha', () => {
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
   })
 
+  // "Require current password when updating" no Supabase Auth (CRM-08): a sessão aberta pelo código ou pelo link de
+  // redefinição é de recuperação, e o Auth não pede a senha atual a ela. O "Esqueci a senha" não pode quebrar.
+  it('com a senha atual exigida pelo Supabase Auth, a redefinição por código continua trocando a senha', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const { usuario, codigoEnviadoPara } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      contas: [{ ...CONTA_DA_MARINA }],
+      exigeSenhaAtualAoTrocarSenha: true,
+    })
+
+    await pedirRedefinicao(usuario, MARINA.email)
+    await usuario.type(await screen.findByLabelText('Código de 6 dígitos'), codigoEnviadoPara(MARINA.email)!)
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
+    await definirNovaSenha(usuario)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await entrarComSenha(usuario, MARINA.email, NOVA_SENHA)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
+  it('com a senha atual exigida pelo Supabase Auth, o link do e-mail também leva à nova senha', async () => {
+    window.history.replaceState(null, '', '/esqueci-a-senha')
+    const supabase = abrirAlthius({ ultimoAmbiente: 'real', contas: [{ ...CONTA_DA_MARINA }], exigeSenhaAtualAoTrocarSenha: true })
+    await pedirRedefinicao(supabase.usuario, MARINA.email)
+    await screen.findByRole('status')
+    const link = new URL(supabase.linkEnviadoPara(MARINA.email)!)
+
+    cleanup()
+    window.history.replaceState(null, '', link.pathname + link.search)
+    supabase.abrirLinkDeRedefinicao(MARINA.email)
+    render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
+
+    await definirNovaSenha(supabase.usuario)
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+  })
+
   it('/redefinir-a-senha sem link válido explica e oferece pedir outro', async () => {
     window.history.replaceState(null, '', '/redefinir-a-senha')
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })

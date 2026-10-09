@@ -82,3 +82,15 @@ verify_jwt = true
 # publicável (sb_publishable_…) não é JWT. A função responde sempre igual; o banco confere a conta e limita os avisos.
 [functions.existing-account-email]
 verify_jwt = false
+
+# A troca de senha em Meu perfil (CRM-08): o navegador chama com o JWT da sessão; a função identifica a Conta de usuário
+# por ele, confere a senha atual ou o código no Supabase Auth e só então troca a senha. README em account-password/.
+[functions.account-password]
+verify_jwt = true
+
+[auth.email]
+# "Secure password change": trocar a senha por uma sessão aberta há mais de 24 horas exige reautenticação. A troca em
+# Meu perfil passa pela account-password, que confirma a pessoa e troca com a sessão nova da confirmação. A exigência
+# da senha atual ("Require current password when updating") não tem chave no config do CLI 2.118: liga-se no painel
+# (ver supabase/functions/account-password/README.md).
+secure_password_change = true
