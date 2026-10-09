@@ -48,8 +48,8 @@ select is((select id from public.accept_proposed_contact((select id from propost
 reset role;
 select throws_ok($sql$insert into public.contacts(workspace_id,name,linkedin,created_by) values('62000000-0000-0000-0000-000000000001','Duplicado','https://www.linkedin.com/in/acwaa','61000000-0000-0000-0000-000000000001')$sql$, '23505', null, 'índice impede duplicata sem caixa');
 update public.contacts set linkedin = lower(linkedin) where id = (select id from aceito);
--- Reaplica a migration dentro da transação para exercitar a reparação com dado semeado.
-\ir ../migrations/20261009210405_linkedin_preserva_caminho.sql
+-- Executa a mesma reparação chamada pela migration com dado semeado.
+select private.restore_accepted_contact_linkedin();
 select is((select linkedin from public.contacts where id = (select id from aceito)), 'https://www.linkedin.com/in/ACwAA', 'reparação recupera caminho de proposta aceita');
 select is((select count(*) from public.contacts where workspace_id = '62000000-0000-0000-0000-000000000001'), 1::bigint, 'reparação não cria Contatos');
 select * from finish();

@@ -586,6 +586,8 @@ $$;
 
 
 -- Apenas propostas aceitas com identidade equivalente podem recuperar o caminho original.
+create or replace function private.restore_accepted_contact_linkedin()
+returns void language sql set search_path = '' as $$
 with recuperaveis as (
   select distinct on (c.id) c.id,
     private.normalize_linkedin(coalesce(nullif(p.linkedin_url, ''), p.source_data->>'linkedinUrl')) as linkedin
@@ -595,3 +597,6 @@ with recuperaveis as (
   order by c.id, (private.normalize_linkedin(coalesce(nullif(p.linkedin_url, ''), p.source_data->>'linkedinUrl')) <> lower(c.linkedin)) desc, p.decided_at desc nulls last, p.id
 )
 update public.contacts c set linkedin = r.linkedin from recuperaveis r where c.id = r.id and c.linkedin is distinct from r.linkedin;
+$$;
+revoke all on function private.restore_accepted_contact_linkedin() from public, anon, authenticated, service_role;
+select private.restore_accepted_contact_linkedin();
