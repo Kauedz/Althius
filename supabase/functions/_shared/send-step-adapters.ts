@@ -9,6 +9,7 @@ import {
   UnipileRequestError,
   UnipileUnreadableResponse,
 } from './send-step.ts'
+import { readResponse, v2 } from './unipile/index.ts'
 
 const UNIPILE_API_BASE = 'https://api.unipile.com'
 
@@ -88,9 +89,8 @@ export function unipileMailVia(apiKey: string): UnipileMail {
       if (!upstream.ok) {
         throw new UnipileRequestError(upstream.status, retryAfterSeconds(upstream.headers.get('retry-after')))
       }
-      const result = await upstream.json()
-      if (typeof result?.id !== 'string') throw new UnipileUnreadableResponse()
-      return { id: result.id, message_id: typeof result.message_id === 'string' ? result.message_id : null }
+      // Sem o `id`, o e-mail provavelmente saiu: a resposta é ilegível e o envio fica incerto.
+      return readResponse(v2.sendEmail.response, await upstream.json().catch(() => null))
     },
   }
 }
