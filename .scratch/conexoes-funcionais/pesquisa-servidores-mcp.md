@@ -43,6 +43,8 @@ O proxy de rede do ambiente bloqueou a leitura direta das páginas oficiais (`de
 | Renovação | Cada renovação troca o refresh token, e o novo precisa ser gravado junto com o access token antes da próxima chamada. O refresh token vence em 180 dias desde a autorização ou em 30 dias sem renovação. [9] | confirmado |
 | Ferramentas | Busca no workspace e contexto de bancos de dados. [8] | lista completa **não confirmada** |
 
+**Conferência de 08/10/2026 (ticket 08):** o servidor publica os dois metadados. O do recurso protegido (`/.well-known/oauth-protected-resource/mcp`) aponta para o servidor de autorização `https://mcp.notion.com`. O do servidor de autorização (`/.well-known/oauth-authorization-server`) traz a autorização em `/authorize`, o token em `/token`, o registro dinâmico em `/register`, PKCE S256 e a autenticação do cliente por `none`, `client_secret_post` ou `client_secret_basic`. Com `none` na lista, a Althius se registra como cliente público, como o guia faz [9]. O guia diz que a troca do código devolve só `user_id`, `workspace_id` e `email_domain`, e que a renovação não os devolve [9]. O nome do workspace não vem, como o perfil supunha. A conta de quem conectou vem da ferramenta `notion-get-users` com `user_id: "self"` [19]: e-mail, ou o nome quando o e-mail não está disponível. O formato da resposta (`{"results":[{"type":"person","id":…,"name":…,"email":…}],"has_more":false}`) foi lido no mesmo servidor por um cliente MCP já conectado. A lista de ferramentas está em [19]. **Não confirmado** até a conexão real: se o Notion aceita o parâmetro `resource` (RFC 8707), que a Althius manda e o guia não. O metadado lista `https://mcp.notion.com/mcp` entre os recursos protegidos.
+
 ## Outras Integrações do catálogo
 
 | Integração | O que a fonte oficial diz | Estado | Decisão |
@@ -81,3 +83,4 @@ O proxy de rede do ambiente bloqueou a leitura direta das páginas oficiais (`de
 16. [Google Ads MCP server: Developer integration guide](https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server)
 17. [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp)
 18. [OAuth v3 do HubSpot](https://developers.hubspot.com/docs/api-reference/auth-oauth-v3/guide)
+19. [Notion MCP supported tools](https://developers.notion.com/guides/mcp/mcp-supported-tools)

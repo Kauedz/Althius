@@ -1,5 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
 import type { Tentativa } from '../_shared/integracoes/banco-supabase.ts'
+import { servidorMcpFalso } from '../_shared/integracoes/servidor-mcp-falso.ts'
 import { ErroDoBanco } from '../_shared/integration-access.ts'
 import { createHandler, type Db } from './handler.ts'
 
@@ -29,6 +30,8 @@ interface Montagem {
   erroAoConcluir?: ErroDoBanco
   ambiente?: Record<string, string>
   clienteGuardado?: { clientId: string; clientSecret: string | null }
+  /** O servidor MCP do Notion, para a identificação pela ferramenta. */
+  mcp?: Parameters<typeof servidorMcpFalso>[0]
 }
 
 function montar(m: Montagem = {}) {
@@ -47,8 +50,10 @@ function montar(m: Montagem = {}) {
     clienteOAuth: () => Promise.resolve(m.clienteGuardado ?? null),
     salvarClienteOAuth: (a) => Promise.resolve({ clientId: a.clientId, clientSecret: a.clientSecret }),
   }
+  const mcp = servidorMcpFalso(m.mcp)
   const fetchFalso = (async (entrada: string | URL | Request, init?: RequestInit) => {
     const req = new Request(entrada, init)
+    if (req.url === 'https://mcp.notion.com/mcp') return await mcp.fetch(req)
     c.rede.push({ url: req.url, corpo: req.method === 'GET' ? '' : await req.text() })
     if (req.url.endsWith('/token')) {
       const t = m.token ?? { status: 200, corpo: { access_token: 'acc-novo-111', refresh_token: 'ref-novo-111', expires_in: 1800 } }
@@ -186,17 +191,52 @@ Deno.test('a origem de volta só vale se estiver no APP_ORIGIN', async () => {
   assertEquals(destino(await local.retorno('code=c&state=s')).origin, 'http://localhost:5173')
 })
 
-Deno.test('Notion: cliente de registro dinâmico (público) do banco e a conta pelo nome do workspace', async () => {
+// A troca do código no Notion devolve só ids e o domínio do e-mail ("Build an MCP client for Notion", passo 6); o nome e o
+// e-mail de quem conectou vêm de `notion-get-users` com `user_id: "self"`, no formato que o servidor devolveu em 08/10/2026.
+const TROCA_NO_NOTION = {
+  access_token: 'acc-notion',
+  token_type: 'bearer',
+  refresh_token: 'ref-notion',
+  expires_in: 3600,
+  user_id: 'u-notion-1',
+  workspace_id: 'w-notion-1',
+  email_domain: 'norte.test',
+}
+
+function usuarioDoNotion(usuario: { name: string; email?: string }) {
+  return {
+    token: 'acc-notion',
+    ferramentas: [{ name: 'notion-get-users', annotations: { readOnlyHint: true } }],
+    resultados: {
+      'notion-get-users': (argumentos: Record<string, unknown>) => ({
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            results: argumentos.user_id === 'self' ? [{ type: 'person', id: 'u-notion-1', ...usuario }] : [],
+            has_more: false,
+          }),
+        }],
+      }),
+    },
+  }
+}
+
+function tentativaDoNotion() {
+  return tentativaDoHubspot({
+    integrationId: 'notion',
+    issuer: 'https://mcp.notion.com',
+    tokenEndpoint: 'https://mcp.notion.com/token',
+    clientId: 'cid-notion',
+    resource: 'https://mcp.notion.com/mcp',
+  })
+}
+
+Deno.test('Notion: cliente de registro dinâmico (público) do banco e a conta pelo usuário que conectou', async () => {
   const { c, retorno } = montar({
-    tentativa: tentativaDoHubspot({
-      integrationId: 'notion',
-      issuer: 'https://mcp.notion.com',
-      tokenEndpoint: 'https://mcp.notion.com/token',
-      clientId: 'cid-notion',
-      resource: 'https://mcp.notion.com/mcp',
-    }),
+    tentativa: tentativaDoNotion(),
     clienteGuardado: { clientId: 'cid-notion', clientSecret: null },
-    token: { status: 200, corpo: { access_token: 'acc-notion', refresh_token: 'ref-notion', expires_in: 3600, workspace_name: 'Norte Ltda' } },
+    token: { status: 200, corpo: TROCA_NO_NOTION },
+    mcp: usuarioDoNotion({ name: 'Ana Souza', email: 'ana@norte.test' }),
     ambiente: {},
   })
   const r = await retorno('code=codigo-n&state=estado-n')
@@ -205,7 +245,7 @@ Deno.test('Notion: cliente de registro dinâmico (público) do banco e a conta p
   assertEquals(troca.get('client_id'), 'cid-notion')
   assertEquals(troca.get('client_secret'), null)
   assertEquals(troca.get('resource'), 'https://mcp.notion.com/mcp')
-  assertEquals(c.concluidas[0].accountLabel, 'Norte Ltda')
+  assertEquals(c.concluidas[0].accountLabel, 'ana@norte.test')
   assertEquals(c.concluidas[0].appPortal, null)
 })
 
