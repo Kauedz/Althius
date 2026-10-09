@@ -4,9 +4,9 @@
 
 **Blocked by:** B2. Os dois editam o provedor de contatos, o handler e `comite-e-enriquecimento.tsx`. O merge na `main` espera o 00.
 
-**Status:** ready-for-human (código fechado, menos a leitura do e-mail na saída do actor, que espera a execução real em produção; faltam aplicar a migration e publicar a função)
+**Status:** ready-for-human (código fechado, com a leitura do e-mail confirmada na execução real; faltam aplicar a migration e publicar a função)
 
-- [ ] A entrada de `harvestapi~linkedin-profile-scraper` é a do schema do build atual na API do Apify. Leia o schema nessa hora. Não trate `profileUrls` e `findEmail` como corretos e não invente a substituição. Vale o mesmo para o campo do e-mail na saída: o registro do actor já diz que esse nome não estava documentado; confirme no build e, se o schema não trouxer o campo, pare e pergunte. Não chute o nome.
+- [x] A entrada de `harvestapi~linkedin-profile-scraper` é a do schema do build atual na API do Apify. Leia o schema nessa hora. Não trate `profileUrls` e `findEmail` como corretos e não invente a substituição. Vale o mesmo para o campo do e-mail na saída: o registro do actor já diz que esse nome não estava documentado; confirme no build e, se o schema não trouxer o campo, pare e pergunte. Não chute o nome.
 - [x] `finish_reveal_contact` deixa de usar `coalesce(email, …)`. E-mail igual a um que o Contato já tem (principal ou adicional) não debita e não é regravado. E-mail novo entra no primeiro lugar livre, até três, pela escrita de canais que já existe (`set_contact_channels` e `private.contact_emails`). Com os três lugares ocupados por outros e-mails, não debita e não apaga nenhum.
 - [x] `p_source` é usado. A origem do campo fica `automatico`. O texto de `p_source` (o provedor) fica gravado onde o schema já guarda a procedência do dado coletado. A origem não vira o literal `apify` no check que só aceita `manual`, `importacao` e `automatico`. Um `update` direto em `contacts.email` deixa de marcar a origem como manual por acidente do gatilho.
 - [x] Falha do actor (exceção, timeout) libera a reserva, debita zero e a resposta diz que falhou. "Não encontrado" fica para o actor que terminou sem e-mail novo.
@@ -45,8 +45,6 @@ Uma, timestamp UTC maior que `20261002112000`, para `finish_reveal_contact` e, s
 npx supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty
 ```
 
-3. Depois do deploy, revelar o e-mail de um Contato com LinkedIn em produção (cerca de US$ 0,01 por execução). A tela vai dizer que o campo do e-mail ainda não foi confirmado. No Console do Apify, abrir essa execução do `harvestapi~linkedin-profile-scraper` (o id fica em `private.action_costs.source_ref`) e anotar o nome do campo do e-mail no item do dataset. Com o nome, um agente troca `emailDoPerfil` em `supabase/functions/_shared/provedor-de-contatos.ts`, com teste, e a função é publicada de novo.
-
 Quem executa o ticket não aplica migration nem deploy no remoto.
 
 ## Comments
@@ -69,3 +67,9 @@ Quem executa o ticket não aplica migration nem deploy no remoto.
   - `CONTEXT.md`, verbete "Crédito": a revelação de e-mail gasta só quando traz um e-mail novo; telefone não se revela. Commit separado.
   - Pendente (vira ticket próprio, decisão do Renan): `begin_reveal_contact` ainda aceita `telefone` por RPC direta e reserva 5 créditos, que ficam presos até a faxina (e `quote_reveal_contact` ainda cota 5). A RPC precisa recusar `telefone` até o Nan decidir o preço. Fora do "Pode mexer" deste ticket.
   - Passos do Nan: entrou o passo 3, a execução real que confirma o campo do e-mail.
+- 2026-10-08 (leitura do e-mail): critério 1 fechado. A saída do actor foi conferida em execuções reais em produção (08/10).
+  - Formato confirmado no build `0.0.135`, modo `"Profile details + email search ($10 per 1k)"`: campo de topo `emails`, lista de objetos `{ email: string, status: string (ex.: "risky"), qualityScore: number, validEmailServer: boolean, catchAllDomain: boolean, free: boolean }`, ou `null` quando o actor não acha. `companyWebsites[i].validEmailServer` não é e-mail.
+  - Runs: `4uNBrExLfebRmntCf` (perfil com `emails`) e `JINU8l6sWgWksEUIH` (`emails: null`).
+  - `emailDoPerfil` (`_shared/provedor-de-contatos.ts`) devolve o primeiro `emails[i].email` bem formado com `status` diferente de `"invalid"`; item sem e-mail válido é ignorado. `emails` ausente, `null`, vazio ou só com inválidos é "não encontrado" (debita 0). Perfil com e-mail volta a ser achado, grava e debita 2 pelas regras do `finish_reveal_contact`. A falha "o campo do e-mail na saída do actor ainda não foi confirmado" saiu; ficou só "formato inesperado do campo emails na saída do actor" quando `emails` não é lista nem `null` (502, reserva liberada, custo gravado).
+  - Testes: `_shared/provedor-de-contatos.test.ts` novo (10 testes); no `handler.test.ts`, o teste do "campo ainda não confirmado" virou três (achado com `emails`, `emails: null` não encontrado, formato inesperado é falha).
+  - Passos do Nan: saiu o passo 3 (a execução real). Restam a migration e o deploy.

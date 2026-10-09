@@ -148,10 +148,30 @@ function localDocumentado(raw: Record<string, unknown>): string {
   return parsed ? textoLimpo(parsed.text) : ''
 }
 
-// PENDENTE (B3): o build 0.0.135 não documenta o campo do e-mail na saída; o nome vem da execução real. Até lá, um
-// perfil que voltou não vira "não encontrado": a busca falha com o motivo, e o handler libera a reserva.
-function emailDoPerfil(_raw: Record<string, unknown>): string | null {
-  throw new Error('o campo do e-mail na saída do actor ainda não foi confirmado')
+// Build 0.0.135, modo 'Profile details + email search ($10 per 1k)', confirmado nos runs 4uNBrExLfebRmntCf e
+// JINU8l6sWgWksEUIH: `emails` no topo do perfil é uma lista de { email, status, qualityScore, validEmailServer,
+// catchAllDomain, free }, ou null quando o actor não acha. `companyWebsites[i].validEmailServer` não é e-mail.
+const FORMATO_DE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * O primeiro e-mail bem formado cujo status não é "invalid", ou null quando o perfil não tem e-mail.
+ * `emails` fora do formato confirmado lança: é falha, não "não encontrado".
+ */
+function emailDoPerfil(raw: Record<string, unknown>): string | null {
+  const emails = raw.emails
+  if (emails === undefined || emails === null) return null
+  if (!Array.isArray(emails)) {
+    throw new Error('formato inesperado do campo emails na saída do actor')
+  }
+  for (const item of emails) {
+    const entrada = registro(item)
+    if (!entrada) continue
+    const email = textoLimpo(entrada.email)
+    if (!FORMATO_DE_EMAIL.test(email)) continue
+    if (textoLimpo(entrada.status).toLowerCase() === 'invalid') continue
+    return email
+  }
+  return null
 }
 
 export interface OpcoesApifyContatos {

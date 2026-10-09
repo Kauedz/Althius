@@ -878,13 +878,83 @@ Deno.test('revelar-contato: e-mail que já é de outro Contato não grava, debit
   assertEquals(registro.passos, ['sessao', 'contato', 'begin:email', 'finish'])
 })
 
-Deno.test('revelar-contato: perfil que voltou com o campo do e-mail ainda não confirmado é falha, não "não encontrado"', async () => {
+Deno.test('revelar-contato: perfil com `emails` do actor é achado, grava o e-mail e debita 2', async () => {
+  const registro = registroDoRevelar()
+  const apify: Apify = {
+    async run() {
+      // Formato real do build 0.0.135 (run 4uNBrExLfebRmntCf).
+      return {
+        runId: 'apify-run-perfil',
+        items: [{
+          firstName: 'Mariana',
+          lastName: 'Souza',
+          linkedinUrl: 'https://www.linkedin.com/in/marianasouza',
+          companyWebsites: [{ url: 'https://techcorp.com.br', validEmailServer: true }],
+          emails: [{
+            email: 'mariana@techcorp.com.br',
+            status: 'risky',
+            qualityScore: 60,
+            validEmailServer: true,
+            catchAllDomain: false,
+            free: false,
+          }],
+        }],
+      }
+    },
+    async custoDaExecucao() {
+      return 0.01
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro, { success: true, debitedCredits: 2 }), apify })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body.sucesso, true)
+  assertEquals(body.valor, 'mariana@techcorp.com.br')
+  assertEquals(body.creditosDebitados, 2)
+  assertEquals(body.fonte, 'apify:harvestapi~linkedin-profile-scraper')
+  assertEquals(registro.passos, ['sessao', 'contato', 'begin:email', 'finish'])
+  assertEquals(registro.finish, [{
+    value: 'mariana@techcorp.com.br',
+    source: 'apify:harvestapi~linkedin-profile-scraper',
+  }])
+  assertEquals(registro.custos[0]?.runId, 'apify-run-perfil')
+})
+
+Deno.test('revelar-contato: perfil com `emails` null termina "não encontrado", debita 0 e grava o custo', async () => {
+  const registro = registroDoRevelar()
+  const apify: Apify = {
+    async run() {
+      // Run JINU8l6sWgWksEUIH: o perfil voltou sem e-mail.
+      return {
+        runId: 'apify-run-sem-email',
+        items: [{ firstName: 'Mariana', lastName: 'Souza', linkedinUrl: 'https://www.linkedin.com/in/marianasouza', emails: null }],
+      }
+    },
+    async custoDaExecucao() {
+      return 0.01
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro), apify })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body.sucesso, false)
+  assertEquals(body.valor, null)
+  assertEquals(body.creditosDebitados, 0)
+  assertEquals(registro.finish, [{ value: undefined, source: undefined }])
+  assertEquals(registro.custos[0]?.runId, 'apify-run-sem-email')
+})
+
+Deno.test('revelar-contato: `emails` em formato inesperado é falha, libera a reserva e não parece "não encontrado"', async () => {
   const registro = registroDoRevelar()
   const apify: Apify = {
     async run() {
       return {
-        runId: 'apify-run-perfil',
-        items: [{ firstName: 'Mariana', lastName: 'Souza', linkedinUrl: 'https://www.linkedin.com/in/marianasouza' }],
+        runId: 'apify-run-formato',
+        items: [{ firstName: 'Mariana', lastName: 'Souza', emails: 'mariana@techcorp.com.br' }],
       }
     },
     async custoDaExecucao() {
@@ -896,9 +966,9 @@ Deno.test('revelar-contato: perfil que voltou com o campo do e-mail ainda não c
   const body = await res.json()
 
   assertEquals(res.status, 502)
-  assertEquals(body.error, 'A busca do e-mail falhou: o campo do e-mail na saída do actor ainda não foi confirmado')
+  assertEquals(body.error, 'A busca do e-mail falhou: formato inesperado do campo emails na saída do actor')
   assertEquals(registro.finish, [{ value: undefined, source: undefined }])
-  assertEquals(registro.custos[0]?.runId, 'apify-run-perfil')
+  assertEquals(registro.custos[0]?.runId, 'apify-run-formato')
 })
 
 Deno.test('revelar-contato: provedor sem revelação é falha, não "não encontrado"', async () => {
