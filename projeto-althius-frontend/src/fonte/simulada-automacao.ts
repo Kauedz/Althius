@@ -1,7 +1,7 @@
 // A Demonstração dos interruptores e tetos: tudo começa em confirmar, e as mudanças valem só na sessão.
 
 import type { EscopoDeAutomacao, FonteDeAutomacao, ModoDeAutomacao } from './automacao-tipos'
-import { catalogoDeIntegracoes } from './catalogo-de-conexoes'
+import { catalogoDeIntegracoesDosAgentes } from './catalogo-de-conexoes'
 import type { Agente } from './tipos'
 
 const ACOES = [
@@ -31,7 +31,7 @@ export function criarFonteDeAutomacaoSimulada({ agentes }: { agentes: () => Prom
       return [
         ...ACOES.map((a) => comAjuste({ ...a, tipo: 'acao' })),
         ...lista.map((a) => comAjuste({ escopo: `agente:${a.id}`, tipo: 'agente', nome: a.nome })),
-        ...catalogoDeIntegracoes.map((i) => comAjuste({ escopo: `integracao:${i.id}`, tipo: 'integracao', nome: i.nome })),
+        ...catalogoDeIntegracoesDosAgentes.map((i) => comAjuste({ escopo: `integracao:${i.id}`, tipo: 'integracao', nome: i.nome })),
       ]
     },
     async salvar(escopo, modo, teto) {

@@ -71,13 +71,13 @@ describe('Conexões reais no Workspace operacional', () => {
 
     // Catálogo de integrações real
     const secaoIntegracoes = screen.getByRole('region', { name: 'Integrações' })
-    expect(within(secaoIntegracoes).getByText('HubSpot')).toBeInTheDocument()
-    expect(within(secaoIntegracoes).getByText('Notion')).toBeInTheDocument()
-    expect(within(secaoIntegracoes).getByText('Clay')).toBeInTheDocument()
-    expect(within(secaoIntegracoes).getByText('Apollo')).toBeInTheDocument()
-    expect(within(secaoIntegracoes).getByText('Lusha')).toBeInTheDocument()
-    expect(within(secaoIntegracoes).getByText('Meta Ads')).toBeInTheDocument()
-    expect(within(secaoIntegracoes).getByText('Google Ads')).toBeInTheDocument()
+    expect(within(secaoIntegracoes).getByRole('article', { name: 'HubSpot' })).toBeInTheDocument()
+    expect(within(secaoIntegracoes).getByRole('article', { name: 'Notion' })).toBeInTheDocument()
+    expect(within(secaoIntegracoes).queryByRole('article', { name: 'Clay' })).not.toBeInTheDocument()
+    expect(within(secaoIntegracoes).queryByRole('article', { name: 'Apollo' })).not.toBeInTheDocument()
+    expect(within(secaoIntegracoes).queryByRole('article', { name: 'Lusha' })).not.toBeInTheDocument()
+    expect(within(secaoIntegracoes).queryByRole('article', { name: 'Meta Ads' })).not.toBeInTheDocument()
+    expect(within(secaoIntegracoes).queryByRole('article', { name: 'Google Ads' })).not.toBeInTheDocument()
 
     // HubSpot e Notion começam como "Não habilitada"; as demais como "Em breve"
     const cartaoHubspot = screen.getByRole('article', { name: 'HubSpot' })
@@ -86,8 +86,7 @@ describe('Conexões reais no Workspace operacional', () => {
     const cartaoNotion = screen.getByRole('article', { name: 'Notion' })
     expect(within(cartaoNotion).getByText('Não habilitada')).toBeInTheDocument()
 
-    const cartaoClay = screen.getByRole('article', { name: 'Clay' })
-    expect(within(cartaoClay).getByText('Em breve')).toBeInTheDocument()
+    expect(within(secaoIntegracoes).getAllByRole('article')).toHaveLength(2)
   })
 
   it('administrador pode habilitar HubSpot e Notion no Workspace', async () => {
@@ -136,3 +135,10 @@ for (const demonstracao of [false, true]) {
     }
   })
 }
+
+it('na Demonstração mostra só HubSpot e Notion em Conexões', async () => {
+  renderizarApp('/conexoes')
+  await screen.findByRole('article', { name: 'Notion' })
+  const secao = screen.getByRole('region', { name: 'Integrações' })
+  expect(within(secao).getAllByRole('article').map((cartao) => cartao.getAttribute('aria-label'))).toEqual(['HubSpot', 'Notion'])
+})

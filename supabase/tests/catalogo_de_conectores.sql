@@ -30,33 +30,24 @@ select is(
   (select array_agg(id || ':' || name || ':' || category order by id)
      from public.list_workspace_integrations('fe000000-0000-0000-0000-000000000001')
     where id in ('slack', 'google-calendar', 'google-sheets', 'calendly', 'salesforce', 'zoho-crm', 'bitrix24', 'tiktok-ads')),
-  array[
-    'bitrix24:Bitrix24:CRM',
-    'calendly:Calendly:Agenda',
-    'google-calendar:Google Calendar:Agenda',
-    'google-sheets:Google Sheets:Conhecimento',
-    'salesforce:Salesforce:CRM',
-    'slack:Slack:Comunicação',
-    'tiktok-ads:TikTok Ads:Mídia paga',
-    'zoho-crm:Zoho CRM:CRM'
-  ],
-  'os oito apps novos aparecem no catálogo com nome e categoria'
+  null::text[],
+  'os oito apps antigos ficam ocultos no catálogo visível'
 );
 
 -- 2. Os que têm servidor MCP com OAuth para terceiros nascem não habilitados (habilitáveis).
 select is(
   (select array_agg(id order by id) from public.list_workspace_integrations('fe000000-0000-0000-0000-000000000001')
     where id in ('slack', 'google-calendar', 'google-sheets', 'calendly', 'bitrix24', 'tiktok-ads') and status = 'nao_habilitada'),
-  array['bitrix24', 'calendly', 'google-calendar', 'google-sheets', 'slack', 'tiktok-ads'],
-  'Slack, Google Calendar, Google Sheets, Calendly, Bitrix24 e TikTok Ads são habilitáveis'
+  null::text[],
+  'as demais Integrações não são oferecidas no catálogo visível'
 );
 
 -- 3-4. Salesforce e Zoho CRM ficam "Em breve", sem perfil de conexão.
 select is(
   (select array_agg(id || ':' || status order by id) from public.list_workspace_integrations('fe000000-0000-0000-0000-000000000001')
     where id in ('salesforce', 'zoho-crm')),
-  array['salesforce:em_breve', 'zoho-crm:em_breve'],
-  'Salesforce e Zoho CRM aparecem em breve'
+  null::text[],
+  'Salesforce e Zoho CRM não aparecem em Conexões'
 );
 reset role;
 select is(

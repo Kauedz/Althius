@@ -24,7 +24,7 @@ export function rpcsDeConexoes(banco: BancoDeConexoes) {
   return {
     list_workspace_integrations(parametros: Record<string, unknown> = {}) {
       const p_workspace_id = parametros.p_workspace_id as string
-      return CATALOGO.map((item) => {
+      return CATALOGO.filter((i) => i.id === 'hubspot' || i.id === 'notion').map((item) => {
         const habilitada = banco.habilitadas.find((h) => h.workspaceId === p_workspace_id && h.integrationId === item.id)
         let status = 'em_breve'
         if (item.disponivel) {
