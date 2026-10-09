@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Orquestração compartilhada.
 
-**Status:** ready-for-agent (falta o consumo de tokens no worker do Hermes e no adaptador Groq)
+**Status:** ready-for-human (o código está pronto; faltam os Passos do Nan: publicar a ponte, reiniciar o worker e conferir no app)
 
 ## Pode mexer
 
@@ -28,8 +28,28 @@
 
 **A IA que executar este ticket avisa o Nan, com os comandos prontos para o PowerShell, antes de declarar o ticket pronto. Nunca pula um passo manual, nunca pede chave ou senha no chat e nunca roda no remoto o que é do Nan. Com muitos passos, gera um wizard (`/wizard`).**
 
-1. Publicar a ponte e reiniciar o worker, como no ticket 01.
+1. Publicar a ponte e reiniciar o worker, como no ticket 01, depois que a PR entrar na `main` (o adaptador do Groq e o
+   worker do Hermes mudaram em 2026-10-08):
+   ```powershell
+   git pull
+   npx supabase functions deploy agent-conversation --project-ref ycbdilsmydvzezhlymty
+   ```
+   No PowerShell do worker, `Ctrl+C` e, na raiz do repositório:
+   ```powershell
+   npx -y deno@2 run --node-modules-dir=none --allow-net --allow-env --allow-read --env-file=supabase/functions/_hermes-worker/.env supabase/functions/_hermes-worker/main.ts
+   ```
 2. Testar no app: "Scopus e Ethos, montem o ICP e as Personas da minha empresa" e conferir as falas.
+3. Conferir o consumo: no Supabase, SQL Editor, rode a consulta abaixo (só lê). A Execução do passo 2 aparece com
+   `input_units` e `output_units` preenchidos; antes desta mudança, com o Hermes ou o Groq, vinham vazios.
+   ```sql
+   select occurred_at, provider, model_or_actor, input_units, output_units
+   from private.action_costs
+   where action_type = 'agent_run'
+   order by occurred_at desc
+   limit 5;
+   ```
+   Se vierem vazios com o Hermes, o Hermes instalado ainda não devolve o `usage` no `GET /v1/runs/{id}`: rode
+   `hermes update`, feche e abra de novo o `hermes gateway` e repita os passos 2 e 3.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
 
@@ -46,3 +66,11 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
   - Testes rodados: `deno test --allow-all supabase/functions/_shared/orquestracao*.test.ts supabase/functions/agent-conversation/ supabase/functions/_hermes-worker/` → 99 passed, 0 failed.
   - Falta (agente): (1) o worker do Hermes passar o uso de cada `passo` a `escolher`, `trabalhar` e `sintetizar`, se `GET /v1/runs/{id}` devolver o uso; se não devolver, registrar a lacuna como decisão de créditos; (2) `agent-conversation/model-groq.ts` mapear `prompt_tokens` e `completion_tokens` para `usage.input_tokens` e `usage.output_tokens`; (3) um teste novo de cada.
   - Ticket novo sugerido, porque mexe em teste existente (`worker.test.ts`): remover o modo `HERMES_UMA_CHAMADA=true` (`worker.ts:246-291`), que grava `chamada` e `feito` sem `textoDeEtapaValido`, sem Playbook, sem tokens e sem créditos. Junto, a síntese que diz "Nenhuma Integração externa está conectada" mesmo com ferramentas ligadas (`runner.ts:341`, `worker.ts:139-142,195,199-204`).
+
+- 2026-10-08 (branch `ralph/agentes-02-tokens`): o consumo de tokens agora fica no evento com o Hermes e com o Groq.
+  - Hermes: a documentação da API de runs (https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server) mostra `usage` (`input_tokens`, `output_tokens`, `total_tokens`, `cache_read_tokens`, `cache_write_tokens`) no `GET /v1/runs/{id}` de um run concluído. O cliente HTTP lê `input_tokens` e `output_tokens` (`_hermes-worker/worker.ts:482-486`); cada `passo` devolve o uso junto do texto (`:297-309`); `escolher`, `trabalhar` e `sintetizar` o passam ao módulo (`:319-363`), e no laço de ferramentas o uso do Agente na rodada soma todas as chamadas (`:342-348`). Sem `usage` (Hermes mais antigo), o evento fica sem `uso`, como antes.
+  - Groq: `agent-conversation/model-groq.ts:149-153` traduz `prompt_tokens` e `completion_tokens` para `usage.input_tokens` e `usage.output_tokens`, que o executor já lê (`usoDe`).
+  - Testes novos: "o consumo de cada chamada ao Hermes fica no evento, o do Agente e o da Coordenação" (`_hermes-worker/worker-consumo.test.ts`, pelo cliente HTTP com o corpo da documentação, com escolha, um pedido de ferramenta e a síntese) e "o consumo que o Groq informa chega ao executor, para os créditos" (`agent-conversation/model-groq-consumo.test.ts`). Os dois falharam antes da mudança; nenhum teste existente mudou.
+  - Decisão a confirmar (créditos): conto só `input_tokens` e `output_tokens`, como a ponte faz com a Messages API; `cache_read_tokens` e `cache_write_tokens` do Hermes ficam de fora.
+  - Fica como estava: o modo `HERMES_UMA_CHAMADA=true` continua sem tokens, porque a sugestão acima é removê-lo num ticket novo.
+  - Rodados: `deno test supabase/functions` 749 passed, 0 failed; `deno check` das Edge Functions, do `main.ts` do worker e dos testes; `deno lint` nas duas pastas; `npm run lint` (0 erros), `tsc -b` e `npx vitest run --maxWorkers=2` no frontend.

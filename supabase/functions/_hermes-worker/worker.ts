@@ -32,6 +32,8 @@ import {
   registrarCustoDaExecucao,
   type Reserva,
   type RunDb,
+  somarUso,
+  type UsoDeTokens,
 } from '../_shared/orquestracao.ts'
 
 export interface FilaDb extends RunDb {
@@ -46,7 +48,8 @@ export interface FilaDb extends RunDb {
 }
 
 export type FimDoHermes =
-  | { status: 'completed'; output: string }
+  /** `uso`: o que o run gastou, quando o Hermes informa (o GET /v1/runs/{id} de um run concluído traz `usage`). */
+  | { status: 'completed'; output: string; uso?: UsoDeTokens }
   | { status: 'failed' | 'cancelled' | 'interrupted' | 'timeout'; error: string }
 
 export interface Hermes {
@@ -290,8 +293,8 @@ export function createWorker(deps: WorkerDeps) {
     }
   }
 
-  /** Uma chamada ao Hermes, do pedido ao texto limpo; toda falha vira o motivo gravado na Execução. */
-  async function passo(chave: string, corpo: CorpoDoRun): Promise<string> {
+  /** Uma chamada ao Hermes, do pedido ao texto limpo e ao que gastou; toda falha vira o motivo gravado na Execução. */
+  async function passo(chave: string, corpo: CorpoDoRun): Promise<{ saida: string; uso?: UsoDeTokens }> {
     let fim: FimDoHermes
     try {
       fim = await hermes.aguardar(await hermes.iniciar(corpo, chave))
@@ -303,7 +306,7 @@ export function createWorker(deps: WorkerDeps) {
     }
     const saida = limparSaida(fim.output)
     if (!saida) throw new ErroDoModelo('model_empty')
-    return saida
+    return { saida, uso: fim.uso }
   }
 
   /** O Hermes como motor de cada passo: escolher, trabalhar na vez de cada Agente e juntar. */
@@ -313,13 +316,12 @@ export function createWorker(deps: WorkerDeps) {
     const playbookDe = leitorDoPlaybook(db, runId, log, 'hermes_worker')
     return {
       async escolher() {
-        return lerEscolha(
-          await passo(`althius-${runId}-escolha`, {
-            input: reserva.request_text,
-            instructions: instrucoesDaEscolha(reserva),
-            conversation_history: historico,
-          }),
-        )
+        const { saida, uso } = await passo(`althius-${runId}-escolha`, {
+          input: reserva.request_text,
+          instructions: instrucoesDaEscolha(reserva),
+          conversation_history: historico,
+        })
+        return { ...lerEscolha(saida), uso }
       },
       async trabalhar(agente, falas, rodada) {
         const anteriores = contribuicoesDe(falas)
@@ -332,13 +334,18 @@ export function createWorker(deps: WorkerDeps) {
         const instructions = instrucoesDoAgente(reserva, agente, contas, await playbookDe(agente.specialty), ferramentas)
         const chave = `althius-${runId}-${agente.id}-r${rodada}`
         if (!ferramentas || !sessao) {
-          return { texto: await passo(chave, { input, instructions, conversation_history: historico }) }
+          const { saida, uso } = await passo(chave, { input, instructions, conversation_history: historico })
+          return { texto: saida, uso }
         }
-        // A ponte das ferramentas: cada pedido em JSON é executado aqui, e o resultado volta na próxima chamada.
+        // A ponte das ferramentas: cada pedido em JSON é executado aqui, e o resultado volta na próxima chamada. O uso
+        // do Agente na rodada soma todas as chamadas, as que pediram ferramenta e a que respondeu.
+        let uso: UsoDeTokens | undefined
         for (let i = 0; i < MAX_PASSOS_COM_FERRAMENTA; i++) {
-          const saida = await passo(i === 0 ? chave : `${chave}-f${i}`, { input, instructions, conversation_history: historico })
+          const chaveDoPasso = i === 0 ? chave : `${chave}-f${i}`
+          const { saida, uso: doPasso } = await passo(chaveDoPasso, { input, instructions, conversation_history: historico })
+          uso = somarUso(uso, doPasso)
           const pedido = lerPedidoDeFerramenta(saida)
-          if (!pedido) return { texto: saida }
+          if (!pedido) return { texto: saida, uso }
           const r = await sessao.chamar(agente, pedido.nome, pedido.entrada)
           // Um nome fora do catálogo não vira passo com o nome inventado: aparece como pedido inválido.
           await db.append(runId, 'ferramenta', agente.id, eventoDoPasso(sessao.conhece(pedido.nome) ? pedido.nome : 'invalida', r.passo))
@@ -348,13 +355,12 @@ export function createWorker(deps: WorkerDeps) {
         throw new ErroDoModelo('tool_loop_limit')
       },
       async sintetizar(falas) {
-        return {
-          texto: await passo(`althius-${runId}-sintese`, {
-            input: `Pedido: ${reserva.request_text}\n\nRespostas dos Agentes:\n${contribuicoesDe(falas).join('\n\n')}`,
-            instructions: INSTRUCOES_DA_SINTESE,
-            conversation_history: [],
-          }),
-        }
+        const { saida, uso } = await passo(`althius-${runId}-sintese`, {
+          input: `Pedido: ${reserva.request_text}\n\nRespostas dos Agentes:\n${contribuicoesDe(falas).join('\n\n')}`,
+          instructions: INSTRUCOES_DA_SINTESE,
+          conversation_history: [],
+        })
+        return { texto: saida, uso }
       },
     }
   }
@@ -464,10 +470,21 @@ export function hermesHttp(
       while (Date.now() < limite) {
         const resposta = await buscar(`${base}/v1/runs/${encodeURIComponent(runId)}`, { headers: cabecalhos })
         const dado = await resposta.json().catch(() => null) as
-          | { status?: string; output?: unknown; error?: unknown }
+          | {
+            status?: string
+            output?: unknown
+            error?: unknown
+            usage?: { input_tokens?: unknown; output_tokens?: unknown }
+          }
           | null
         if (!resposta.ok || !dado) throw new Error(`Hermes não respondeu o status: HTTP ${resposta.status}`)
-        if (dado.status === 'completed') return { status: 'completed', output: String(dado.output ?? '') }
+        if (dado.status === 'completed') {
+          const { input_tokens, output_tokens } = dado.usage ?? {}
+          const uso = typeof input_tokens === 'number' && typeof output_tokens === 'number'
+            ? { uso: { entrada: input_tokens, saida: output_tokens } }
+            : {}
+          return { status: 'completed', output: String(dado.output ?? ''), ...uso }
+        }
         if (dado.status === 'failed' || dado.status === 'cancelled' || dado.status === 'interrupted') {
           return { status: dado.status, error: String(dado.error ?? '') }
         }
