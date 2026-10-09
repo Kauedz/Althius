@@ -182,20 +182,22 @@ finish() {
 
 # ──────────────────────────────────────────────────────────────────────────
 
-# Configura ou troca a conta Unipile que conecta os canais pessoais (canais-03): a chave de API e o
-# segredo do webhook viram segredos das Edge Functions no Supabase, e o Webhook Endpoint unificado da
-# Unipile v2 é registrado direto por API. Nada disso é gravado em disco por este wizard.
+# Configura ou troca a conta Unipile que conecta os canais pessoais (canais-03, canais-15): cadastra a
+# conexão (nome, endereço e versão, v1 ou v2) no banco, grava a chave de API e o segredo do webhook no
+# Vault do Supabase e ativa a conexão. Ativar desativa a anterior e marca as Contas remetentes das outras
+# conexões para reconectar, sem apagar nada; quando a pessoa reconecta, a mesma Conta remetente recebe o id
+# novo e o histórico continua ligado a ela (docs/adr/0024-contratos-v1-e-v2-da-unipile-e-troca-de-conta-sem-perder-historico.md).
 #
-# Rode este wizard de novo a cada troca de conta Unipile (o teste grátis de 7 dias, depois a conta paga
-# do sócio, depois a conta oficial da empresa): o endpoint fica o mesmo, só os segredos mudam. Ver
-# docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md.
+# Rode este wizard a cada troca de conta Unipile (o teste grátis de 7 dias, depois a conta paga do sócio,
+# depois a conta oficial da empresa) e peça às pessoas que reconectem o canal. Nada é pedido pelo chat, e
+# nada é gravado em disco: a chave e o segredo só passam pela área de transferência, até o SQL Editor.
 #
 # Rode num terminal interativo (de qualquer pasta do repositório):
 #   scripts/wizard-unipile.sh
 # Para outro projeto: SUPABASE_REF=<ref> scripts/wizard-unipile.sh
 # No Windows, rode pelo Git Bash: o Windows PowerShell não executa .sh.
 
-TOTAL_STAGES=5
+TOTAL_STAGES=6
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$RAIZ"
@@ -203,7 +205,6 @@ SUPABASE_REF="${SUPABASE_REF:-ycbdilsmydvzezhlymty}"
 PAINEL="https://supabase.com/dashboard/project/$SUPABASE_REF"
 FUNCOES_URL="https://$SUPABASE_REF.supabase.co/functions/v1"
 WEBHOOK_URL="$FUNCOES_URL/unipile-account-status"
-UNIPILE_API_BASE="https://api.unipile.com"
 # message.new: respostas de WhatsApp e LinkedIn (canais 06 e 07). O evento de nova relação do LinkedIn fica de fora até o
 # nome dele ser confirmado na documentação da Unipile v2: um nome desconhecido pode recusar o cadastro do webhook inteiro.
 UNIPILE_ACCOUNT_EVENTS="account.add,account.reconnect,account.initial_sync.completed,account.status.running,account.status.disconnected,account.status.errored,account.remove,email.new,email.new.bounce,message.new"
@@ -217,6 +218,18 @@ ler_secreto() {
   read -rs valor
   printf '\n' >&2
   printf '%s' "$valor"
+}
+
+# ler_texto PROMPT [PADRAO] lê um valor visível; Enter fica com o padrão.
+ler_texto() {
+  local valor
+  if [[ -n "${2:-}" ]]; then
+    printf '  %s%s%s %s[Enter: %s]%s ' "$BOLD" "$1" "$RESET" "$DIM" "$2" "$RESET" >&2
+  else
+    printf '  %s%s%s ' "$BOLD" "$1" "$RESET" >&2
+  fi
+  read -r valor
+  printf '%s' "${valor:-${2:-}}"
 }
 
 # copiar TEXTO põe o texto na área de transferência; falha se não houver como.
@@ -236,34 +249,75 @@ limpar() {
   printf '%s' "$v" | tr -d '[:space:][:cntrl:]'
 }
 
-# status_da_chave CHAVE imprime o HTTP de GET /v2/webhooks/endpoints: 2xx prova que a chave vale e
-# alcança os webhooks do passo seguinte.
+# apelido TEXTO vira um pedaço de nome de segredo: minúsculas, sem acento, só [a-z0-9_].
+apelido() {
+  printf '%s' "$1" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g'
+}
+
+# status_da_chave CHAVE imprime o HTTP de uma chamada autenticada à API da conexão: 2xx prova que a chave
+# vale e que o endereço responde. Na v2 é a lista de webhooks (a que o passo seguinte usa); na v1, a lista de contas.
 status_da_chave() {
-  local codigo
-  codigo=$(curl -sS -o /dev/null -w '%{http_code}' "$UNIPILE_API_BASE/v2/webhooks/endpoints" \
+  local codigo caminho="/v2/webhooks/endpoints"
+  [[ "$UNIPILE_VERSAO" == "v1" ]] && caminho="/api/v1/accounts"
+  codigo=$(curl -sS -o /dev/null -w '%{http_code}' "$UNIPILE_API_BASE$caminho" \
     -H "X-API-KEY: $1" -H 'accept: application/json' 2>/dev/null) || true
   printf '%s' "${codigo:-000}"
 }
 
-banner "Unipile: configurar ou trocar a conta"
+banner "Unipile: cadastrar e ativar a conexão"
 
 stage "O que não muda entre contas Unipile"
-say "Este projeto Supabase é a mesma pré-produção nas três contas Unipile do plano (o teste grátis de"
-say "7 dias, depois a conta paga do sócio, depois a conta oficial da empresa): o endereço do webhook"
-say "abaixo não muda, e o código das Edge Functions não é publicado de novo numa troca."
+say "Este projeto Supabase é a mesma pré-produção nas contas Unipile do plano (o teste grátis de 7 dias,"
+say "depois a conta paga do sócio, depois a conta oficial da empresa): o endereço do webhook abaixo não"
+say "muda, e o código das Edge Functions não é publicado de novo numa troca."
 note "$WEBHOOK_URL"
 say ""
-say "A Unipile v2 usa um único endereço para toda a API (sem DSN por instância) e é ela quem gera o"
-say "segredo de assinatura do webhook quando ele é cadastrado — os próximos passos cuidam disso."
+say "A conexão ativa é uma configuração no banco: nome, endereço, versão (v1 ou v2) e os NOMES dos segredos"
+say "no Vault. A chave e o segredo do webhook ficam só no Vault. Ativar uma conexão marca as Contas"
+say "remetentes das outras para reconectar, sem apagar nada; depois, peça às pessoas que reconectem o canal."
 pause "Tecle Enter para seguir"
 
-stage "Chave de API na conta Unipile atual"
-say "Sem chave secreta em lugar nenhum do frontend: a chave de API só existe nos segredos das Edge"
-say "Functions, no Supabase."
-open_url "https://dashboardv2.unipile.com/login"
-step "Entre (ou crie a conta/aplicação, se for o teste grátis de 7 dias)."
-step "No menu API Keys, clique em Create Service API Key e copie a chave na hora."
-note "Service, não Account: a Account API Key não consegue cadastrar o webhook do passo seguinte."
+stage "Dados da conexão"
+say "A v2 usa um endereço único (https://api.unipile.com). A v1 usa o endereço próprio da sua conta, o DSN"
+say "que aparece no painel (algo como https://api4.unipile.com:14444). Os campos da v1 vêm do protótipo e"
+say "ficam como não confirmados até o primeiro envio real."
+while :; do
+  UNIPILE_NOME=$(ler_texto "Nome da conexão (ex.: trial-2026-10, padrão):")
+  [[ -n "$UNIPILE_NOME" ]] && break
+  warn "Informe um nome."
+done
+while :; do
+  UNIPILE_VERSAO=$(ler_texto "Versão da conta (v1 ou v2):" "v2")
+  [[ "$UNIPILE_VERSAO" == "v1" || "$UNIPILE_VERSAO" == "v2" ]] && break
+  warn "Digite v1 ou v2."
+done
+PADRAO_ENDERECO=""
+[[ "$UNIPILE_VERSAO" == "v2" ]] && PADRAO_ENDERECO="https://api.unipile.com"
+while :; do
+  UNIPILE_API_BASE=$(ler_texto "Endereço da API (https://host[:porta], sem caminho):" "$PADRAO_ENDERECO")
+  UNIPILE_API_BASE=$(limpar "$UNIPILE_API_BASE")
+  UNIPILE_API_BASE=${UNIPILE_API_BASE%/}
+  [[ "$UNIPILE_API_BASE" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] && break
+  warn "O endereço precisa ser https://host ou https://host:porta, sem caminho."
+done
+APELIDO=$(apelido "$UNIPILE_NOME")
+[[ -n "$APELIDO" ]] || APELIDO="conta"
+SEGREDO_CHAVE="unipile_${APELIDO}_api_key"
+SEGREDO_WEBHOOK="unipile_${APELIDO}_webhook_secret"
+note "Segredos no Vault: $SEGREDO_CHAVE e $SEGREDO_WEBHOOK"
+
+stage "Chave de API na conta Unipile"
+say "Sem chave secreta em lugar nenhum do frontend: a chave de API só existe no Vault do Supabase (e, até o"
+say "canais-16, nos segredos das Edge Functions)."
+if [[ "$UNIPILE_VERSAO" == "v2" ]]; then
+  open_url "https://dashboardv2.unipile.com/login"
+  step "Entre (ou crie a conta/aplicação, se for o teste grátis de 7 dias)."
+  step "No menu API Keys, clique em Create Service API Key e copie a chave na hora."
+  note "Service, não Account: a Account API Key não consegue cadastrar o webhook do passo seguinte."
+else
+  open_url "https://dashboard.unipile.com/login"
+  step "Entre no painel da conta v1 e copie o Access Token (a chave de API) dela."
+fi
 warn "Nunca cole a chave de API no .env.local do app nem em nenhum arquivo do repositório."
 note "O campo é oculto: ao colar (Ctrl+V ou botão direito), nada aparece. Depois tecle Enter."
 while :; do
@@ -272,42 +326,96 @@ while :; do
     warn "Nada foi colado. Cole de novo e tecle Enter."
     continue
   fi
+  if [[ "$UNIPILE_API_KEY" == *"'"* ]]; then
+    warn "A chave tem um apóstrofo, que não existe numa chave Unipile. Cole de novo."
+    continue
+  fi
   STATUS_CHAVE=$(status_da_chave "$UNIPILE_API_KEY")
   case "$STATUS_CHAVE" in
     2*)  note "Chave aceita pela Unipile (${#UNIPILE_API_KEY} caracteres)."; break ;;
-    401) warn "A Unipile não reconheceu a chave (${#UNIPILE_API_KEY} caracteres). Copie de novo a Service API Key inteira; se o painel não a mostra mais, crie outra." ;;
+    401) warn "A Unipile não reconheceu a chave (${#UNIPILE_API_KEY} caracteres). Copie de novo a chave inteira; se o painel não a mostra mais, crie outra." ;;
     403) warn "A chave vale, mas não gerencia webhooks: é uma Account API Key. Crie uma Service API Key." ;;
-    *)   warn "Resposta inesperada da Unipile (HTTP $STATUS_CHAVE). Confira a internet e cole de novo." ;;
+    *)   warn "Resposta inesperada da Unipile (HTTP $STATUS_CHAVE). Confira o endereço, a versão e a internet, e cole de novo." ;;
   esac
 done
 
 stage "Registrar o webhook de conta na Unipile"
-say "Feito por API, direto nesta conta Unipile: nenhum menu do painel precisa ser adivinhado. A"
-say "própria Unipile gera o segredo de assinatura (HMAC) e devolve na resposta."
 UNIPILE_WEBHOOK_SECRET=""
-RESPOSTA_WEBHOOK=$(curl -sS -o /tmp/wizard-unipile-webhook.json -w '%{http_code}' \
-  -X POST "$UNIPILE_API_BASE/v2/webhooks/endpoints" \
-  -H "X-API-KEY: $UNIPILE_API_KEY" -H 'accept: application/json' -H 'content-type: application/json' \
-  -d "$(printf '{"url":"%s","description":"Althius account_status","trigger_events":["%s"]}' "$WEBHOOK_URL" "${UNIPILE_ACCOUNT_EVENTS//,/\",\"}")" \
-  2>/tmp/wizard-unipile-webhook.err) || true
-if [[ "$RESPOSTA_WEBHOOK" == 2* ]]; then
-  UNIPILE_WEBHOOK_SECRET=$(grep -o '"secret"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/wizard-unipile-webhook.json \
-    | head -n1 | sed -E 's/.*"([^"]*)"$/\1/')
-fi
-if [[ -n "$UNIPILE_WEBHOOK_SECRET" ]]; then
-  note "Webhook registrado (HTTP $RESPOSTA_WEBHOOK); segredo de assinatura recebido da Unipile."
-  rm -f /tmp/wizard-unipile-webhook.json /tmp/wizard-unipile-webhook.err
+if [[ "$UNIPILE_VERSAO" == "v2" ]]; then
+  say "Feito por API, direto nesta conta Unipile: nenhum menu do painel precisa ser adivinhado. A"
+  say "própria Unipile gera o segredo de assinatura (HMAC) e devolve na resposta."
+  RESPOSTA_WEBHOOK=$(curl -sS -o /tmp/wizard-unipile-webhook.json -w '%{http_code}' \
+    -X POST "$UNIPILE_API_BASE/v2/webhooks/endpoints" \
+    -H "X-API-KEY: $UNIPILE_API_KEY" -H 'accept: application/json' -H 'content-type: application/json' \
+    -d "$(printf '{"url":"%s","description":"Althius account_status","trigger_events":["%s"]}' "$WEBHOOK_URL" "${UNIPILE_ACCOUNT_EVENTS//,/\",\"}")" \
+    2>/tmp/wizard-unipile-webhook.err) || true
+  if [[ "$RESPOSTA_WEBHOOK" == 2* ]]; then
+    UNIPILE_WEBHOOK_SECRET=$(grep -o '"secret"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/wizard-unipile-webhook.json \
+      | head -n1 | sed -E 's/.*"([^"]*)"$/\1/')
+  fi
+  if [[ -n "$UNIPILE_WEBHOOK_SECRET" ]]; then
+    note "Webhook registrado (HTTP $RESPOSTA_WEBHOOK); segredo de assinatura recebido da Unipile."
+    rm -f /tmp/wizard-unipile-webhook.json /tmp/wizard-unipile-webhook.err
+  else
+    warn "Não foi possível obter o segredo automaticamente (HTTP $RESPOSTA_WEBHOOK)."
+    note "O corpo da resposta está em /tmp/wizard-unipile-webhook.json. Se preferir, cadastre o webhook à"
+    note "mão em Webhooks no painel, com a URL $WEBHOOK_URL e os event types: $UNIPILE_ACCOUNT_EVENTS."
+  fi
 else
-  warn "Não foi possível obter o segredo automaticamente (HTTP $RESPOSTA_WEBHOOK)."
-  note "O corpo da resposta está em /tmp/wizard-unipile-webhook.json. Se preferir, cadastre o webhook à"
-  note "mão em Webhooks no painel, com a URL $WEBHOOK_URL e os event types: $UNIPILE_ACCOUNT_EVENTS."
-  UNIPILE_WEBHOOK_SECRET=$(ler_secreto "Cole o segredo (campo secret) do webhook:")
-  [[ -n "$UNIPILE_WEBHOOK_SECRET" ]] || SKIPPED+=("Segredo do webhook: registre o Webhook Endpoint na Unipile e defina UNIPILE_WEBHOOK_SECRET depois")
+  say "Na v1 o cadastro do webhook é manual (o formato do pedido e da assinatura da v1 só será confirmado"
+  say "no canais-17). Cadastre à mão no painel da conta v1 um webhook de conta apontando para:"
+  note "$WEBHOOK_URL"
+  say "e escolha um segredo para ele, que o canais-17 vai conferir."
+fi
+if [[ -z "$UNIPILE_WEBHOOK_SECRET" ]]; then
+  while :; do
+    UNIPILE_WEBHOOK_SECRET=$(limpar "$(ler_secreto "Cole o segredo do webhook (secret):")")
+    [[ -z "$UNIPILE_WEBHOOK_SECRET" ]] && { warn "Nada foi colado. Cole de novo e tecle Enter."; continue; }
+    [[ "$UNIPILE_WEBHOOK_SECRET" == *"'"* ]] && { warn "O segredo tem um apóstrofo. Cole de novo."; continue; }
+    break
+  done
 fi
 pause "Tecle Enter para seguir"
 
-stage "Segredos no painel do Supabase"
-say "Os três segredos das Edge Functions ficam só aqui; o wizard não grava nenhum deles em disco."
+stage "Vault, cadastro e ativação da conexão"
+say "Um único bloco SQL, no SQL Editor do Supabase: grava a chave e o segredo do webhook no Vault, cadastra a"
+say "conexão \"$UNIPILE_NOME\" ($UNIPILE_VERSAO, $UNIPILE_API_BASE) e, se você confirmar, a ativa."
+warn "Ativar desativa a conexão atual e marca as Contas remetentes dela para reconectar. Nada é apagado."
+ATIVAR="false"
+if confirm "Ativar a conexão \"$UNIPILE_NOME\" agora?"; then ATIVAR="true"; fi
+SQL_NOME=${UNIPILE_NOME//\'/\'\'}
+SQL="do \$w\$
+declare
+  v_id uuid;
+  v_conexao uuid;
+begin
+  select s.id into v_id from vault.secrets s where s.name = '$SEGREDO_CHAVE';
+  if v_id is null then perform vault.create_secret('$UNIPILE_API_KEY', '$SEGREDO_CHAVE');
+  else perform vault.update_secret(v_id, '$UNIPILE_API_KEY'); end if;
+  select s.id into v_id from vault.secrets s where s.name = '$SEGREDO_WEBHOOK';
+  if v_id is null then perform vault.create_secret('$UNIPILE_WEBHOOK_SECRET', '$SEGREDO_WEBHOOK');
+  else perform vault.update_secret(v_id, '$UNIPILE_WEBHOOK_SECRET'); end if;
+  v_conexao := public.register_unipile_connection('$SQL_NOME', '$UNIPILE_API_BASE', '$UNIPILE_VERSAO', '$SEGREDO_CHAVE', '$SEGREDO_WEBHOOK');
+  if $ATIVAR then perform public.activate_unipile_connection(v_conexao); end if;
+end
+\$w\$;
+
+select name, api_version, base_url, active from private.unipile_connections order by created_at;"
+open_url "$PAINEL/sql/new"
+if copiar "$SQL"; then
+  step "O SQL já está na área de transferência: cole no editor e clique em Run."
+else
+  warn "Sem área de transferência aqui: o SQL abaixo tem a chave e o segredo. Copie e cole só no SQL Editor."
+  printf '\n%s\n\n' "$SQL"
+fi
+note "O resultado deve listar a conexão \"$UNIPILE_NOME\" e, se você ativou, ela com active = true."
+pause "Tecle Enter depois de rodar"
+SQL=""
+
+stage "Segredos de função (reserva até o canais-16)"
+say "Enquanto o canais-16 não faz as Edge Functions lerem a conexão ativa do Vault, elas ainda leem estes"
+say "segredos de função. Mantenha-os iguais à conexão ativa: é a reserva. Os três só ficam aqui; o wizard não"
+say "grava nenhum deles em disco."
 BLOCO_SEGREDOS="UNIPILE_API_KEY=$UNIPILE_API_KEY
 UNIPILE_WEBHOOK_SECRET=$UNIPILE_WEBHOOK_SECRET
 APP_ORIGIN=http://localhost:5173"
@@ -321,26 +429,9 @@ fi
 note "Se o app já tem endereço publicado, troque ou acrescente o APP_ORIGIN por ele depois."
 pause "Tecle Enter depois de salvar"
 
-stage "Contas remetentes de uma conta Unipile anterior"
-say "Numa troca de conta, quem já tinha conectado E-mail, WhatsApp ou LinkedIn perde essa conexão: o"
-say "identificador da Unipile só existe na conta antiga. O SQL abaixo marca essas Contas remetentes"
-say "para reconectar, sem apagar nada: Contatos, Contas-alvo, Sequências e Interações continuam intactos"
-say "(docs/adr/0015-conta-unipile-descartavel-durante-a-pre-producao.md)."
-note "Na primeira configuração isso não afeta nenhuma linha; pode rodar do mesmo jeito."
-SQL='update private.sender_accounts
-set status = '"'"'reconnect_required'"'"', reconciliation_required = true, last_status_at = now(), updated_at = now()
-where status <> '"'"'disconnected'"'"'
-returning id, channel, status;'
-open_url "$PAINEL/sql/new"
-if copiar "$SQL"; then
-  step "O SQL já está na área de transferência: cole no editor e clique em Run."
-else
-  step "Copie o SQL abaixo, cole no editor e clique em Run."
-  printf '\n%s\n\n' "$SQL"
-fi
-pause "Tecle Enter depois de rodar"
-
 finish
+note "Peça às pessoas que reconectem o canal na tela de Conexões. A mesma Conta remetente recebe o id novo"
+note "e as respostas de antes continuam na Sequência."
 note "Para testar de ponta a ponta, em projeto-althius-frontend: npm run unipile:testar -- email"
 note "(precisa das identidades do scripts/wizard-teste-real.sh já criadas)."
 printf '\n'

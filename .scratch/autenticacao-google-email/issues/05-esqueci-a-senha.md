@@ -6,7 +6,7 @@ Spec: [Cadastro e login com Google, senha ou código](../spec.md).
 
 **Blocked by:** 03: Cadastro com nome, e-mail e senha, e verificação por código; 04: Entrar com senha ou com código.
 
-**Status:** ready-for-human (código corrigido em 56abc71; falta só o modelo "Reset Password" com {{ .Token }} e /redefinir-a-senha nas Redirect URLs, no ticket 10)
+**Status:** closed (Renan verificou em produção em 2026-10-09: esqueci a senha, login por OTP e troca de senha persistida)
 
 - [x] O pedido responde de forma genérica, exista ou não a conta. — `raiz.test.tsx` › Esqueci a senha › "responde igual exista ou não a Conta de usuário" (mesmo texto de status, sem alerta, nenhum e-mail para quem não tem conta).
 - [x] O e-mail traz código de 6 dígitos e link; os dois levam à definição da nova senha. — testes "redefinição por código" e "o link do e-mail… leva à nova senha" (`resetPasswordForEmail` com `redirectTo` = origem + `/redefinir-a-senha`, `verifyOtp` type `recovery`). **pending-human:** o modelo de e-mail "Reset Password" do Supabase precisa trazer `{{ .Token }}` além do link (e entrega por SMTP real), fora do alcance do código.

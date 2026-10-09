@@ -110,6 +110,13 @@ const listChatMessages = {
     .transform((value) => value.items ?? []),
 }
 
+/** GET /api/v1/chats?account_id=&limit=. Vem do protótipo (conferir.mjs); a paginação é por `cursor`. */
+const listChats = {
+  request: z.object({ account_id: nonBlank, limit: z.number().int().min(1).max(250).optional(), cursor: nonBlank.optional() }),
+  response: z.object({ items: recordList.optional(), cursor: z.string().nullish() })
+    .transform((value) => value.items ?? []),
+}
+
 export const v1 = {
   createAuthLink,
   listAccounts,
@@ -121,4 +128,5 @@ export const v1 = {
   inviteLinkedIn,
   resolveProfile,
   listChatMessages,
+  listChats,
 }

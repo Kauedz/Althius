@@ -1,17 +1,11 @@
-// Os adaptadores reais do núcleo do envio: a Unipile v2 por HTTP e o banco pelas RPCs, com o cliente service_role.
+// Os adaptadores reais do núcleo do envio: o banco pelas RPCs, com o cliente service_role. A Unipile fala pela ponte
+// (unipile/bridge.ts), que escolhe o adaptador pela conexão ativa; `unipileMailVia` é só a ponte v2 com uma chave dada.
 import { ingestEmailEventVia } from './ingest-email-event.ts'
-import {
-  type Conversation,
-  type EmailSent,
-  type OutgoingEmail,
-  type SendStepDb,
-  type UnipileMail,
-  UnipileRequestError,
-  UnipileUnreadableResponse,
-} from './send-step.ts'
-import { readResponse, v2 } from './unipile/index.ts'
+import type { Conversation, SendStepDb, UnipileMail } from './send-step.ts'
+import { createBridge, DEFAULT_V2_BASE_URL, retryAfterSeconds } from './unipile/index.ts'
 
-const UNIPILE_API_BASE = 'https://api.unipile.com'
+// O Retry-After mora no cliente único (unipile/client.ts); reexportado para quem importa daqui.
+export { retryAfterSeconds }
 
 interface RpcClient {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>
@@ -40,57 +34,10 @@ export function sendStepDbVia(admin: RpcClient): SendStepDb {
   }
 }
 
-/** Retry-After em segundos, ou numa data HTTP; ausente ou ilegível, null. */
-export function retryAfterSeconds(value: string | null, now = Date.now()): number | null {
-  if (!value) return null
-  if (/^\d+$/.test(value.trim())) return Number(value.trim())
-  const at = Date.parse(value)
-  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - now) / 1000))
-}
-
-export function unipileMailVia(apiKey: string): UnipileMail {
-  const headers = { 'X-API-KEY': apiKey, accept: 'application/json' }
-
-  async function unipileGet(path: string) {
-    const upstream = await fetch(`${UNIPILE_API_BASE}${path}`, { headers })
-    if (!upstream.ok) {
-      throw new UnipileRequestError(upstream.status, retryAfterSeconds(upstream.headers.get('retry-after')))
-    }
-    return upstream.json()
-  }
-
-  return {
-    async getEmail(accountId, emailId) {
-      const data = await unipileGet(`/v2/${encodeURIComponent(accountId)}/emails/${encodeURIComponent(emailId)}`)
-      if (!data || typeof data !== 'object') throw new UnipileUnreadableResponse()
-      return data as Record<string, unknown>
-    },
-    async listThreadEmails(accountId, threadId) {
-      const data = await unipileGet(`/v2/${encodeURIComponent(accountId)}/threads/${encodeURIComponent(threadId)}`)
-      const list = Array.isArray(data) ? data : data?.emails ?? data?.items ?? data?.messages ?? []
-      return Array.isArray(list) ? list.filter((item) => item && typeof item === 'object') : []
-    },
-    async listEmailSenders(accountId) {
-      const data = await unipileGet(`/v2/${encodeURIComponent(accountId)}/email-senders`)
-      const list = Array.isArray(data) ? data : data?.items ?? data?.senders ?? []
-      if (!Array.isArray(list)) return []
-      return list
-        .map((item) => typeof item === 'string' ? item : item?.email ?? item?.address ?? item?.identifier)
-        .filter((value): value is string => typeof value === 'string' && value.includes('@'))
-        .map((value) => value.trim().toLowerCase())
-    },
-    async sendEmail(accountId: string, email: OutgoingEmail, { signal }): Promise<EmailSent> {
-      const upstream = await fetch(`${UNIPILE_API_BASE}/v2/${encodeURIComponent(accountId)}/emails/send`, {
-        method: 'POST',
-        headers: { ...headers, 'content-type': 'application/json' },
-        body: JSON.stringify(email),
-        signal,
-      })
-      if (!upstream.ok) {
-        throw new UnipileRequestError(upstream.status, retryAfterSeconds(upstream.headers.get('retry-after')))
-      }
-      // Sem o `id`, o e-mail provavelmente saiu: a resposta é ilegível e o envio fica incerto.
-      return readResponse(v2.sendEmail.response, await upstream.json().catch(() => null))
-    },
-  }
+/**
+ * A ponte v2 com a chave dada, no endereço padrão. As Edge Functions usam a ponte da conexão ativa
+ * (unipile/connection.ts); isto fica para quem tem só a chave, como os testes.
+ */
+export function unipileMailVia(apiKey: string, fetchImpl?: typeof fetch): UnipileMail {
+  return createBridge({ version: 'v2', baseUrl: DEFAULT_V2_BASE_URL, apiKey }, { fetch: fetchImpl })
 }

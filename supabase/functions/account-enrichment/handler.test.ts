@@ -1073,3 +1073,32 @@ Deno.test('comite-compra: o cliente do Apify não converte um corpo que não é 
   assertEquals(registro.custos[0]?.runId, 'apify-run-corpo')
   assertEquals(registro.custos[0]?.costUsd, 0.05)
 })
+
+Deno.test('comitê descarta linkedin.com como domínio e termina com o run id do Apify', async () => {
+  const registro = registroDoComite()
+  const db = dbDoComite(registro)
+  const finalizacoes: Array<Parameters<DbEnrichment['finishCommitteeDiscovery']>[0]> = []
+  db.finishCommitteeDiscovery = async args => { finalizacoes.push(args) }
+  const entradas: Record<string, unknown>[] = []
+  const apify: Apify = { async run(args) { entradas.push(args.input as Record<string, unknown>); return { runId: 'real', items: [] } }, async custoDaExecucao() { return 0.04 } }
+  const handler = criarHandlerEnrichment({ db, apify })
+  const request = new Request('http://localhost/account-enrichment', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer fake' }, body: JSON.stringify({ action: 'comite-compra', workspaceId: 'ws', targetAccountId: 'conta', companyName: 'TOTVS', companyDomain: 'LinkedIn.com' }) })
+  assertEquals((await handler(request)).status, 200)
+  assertEquals(entradas[0].companies, ['TOTVS'])
+  assertEquals(finalizacoes[0].apifyRunId, 'real')
+  assertEquals(finalizacoes[0].costUsd, 0.04)
+  apify.run = async () => { throw new ApifyTimeoutError('falha-real') }
+  assertEquals((await handler(pedidoDeComite())).status, 502)
+  assertEquals(finalizacoes[1].apifyRunId, 'falha-real')
+})
+
+Deno.test('revelar passa o nome da Conta-alvo ao provedor', async () => {
+  const registro = registroDoRevelar()
+  const db = dbDoRevelar(registro)
+  db.getContactForReveal = async () => ({ name: 'CFO', linkedin: 'https://www.linkedin.com/in/ACwAA', companyName: 'TOTVS' })
+  let empresa: string | undefined
+  const provedor = { nome: 'fake', async buscarPessoas() { return [] }, async revelarContato(args: { empresa?: string }) { empresa = args.empresa; return null } }
+  const handler = criarHandlerEnrichment({ db, provedorContatos: provedor })
+  assertEquals((await handler(pedidoDeRevelar('email'))).status, 200)
+  assertEquals(empresa, 'TOTVS')
+})

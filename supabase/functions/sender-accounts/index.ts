@@ -1,7 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { comCors, origemDoAppParaLink, origensPermitidas } from '../_shared/cors.ts'
-
-const UNIPILE_API_BASE = 'https://api.unipile.com'
+import { createUnipileRuntime, type UnipileRuntime, UnipileUnreadableResponse } from '../_shared/unipile/index.ts'
 
 type Channel = 'email' | 'whatsapp' | 'linkedin'
 
@@ -19,19 +18,26 @@ function serviceClient() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
-function unipileConfig() {
-  const apiKey = Deno.env.get('UNIPILE_API_KEY')
+// A conta Unipile é a conexão ativa (ADR-0024), lida do banco e do Vault a cada pedido (em cache por 30 s).
+let runtime: UnipileRuntime | null = null
+function unipileRuntime() {
+  return runtime ??= createUnipileRuntime({ rpc: serviceClient(), env: Deno.env })
+}
+
+const UNAVAILABLE = 'O canal de mensagens está indisponível: a conexão Unipile ativa não está configurada.'
+
+function appOriginConfig() {
   // A primeira origem do APP_ORIGIN (a publicada) só valida a configuração; o retorno usa a origem do pedido.
   const appOrigin = origensPermitidas(Deno.env.get('APP_ORIGIN') ?? '')[0]
-  if (!apiKey || !appOrigin) throw new Error('Backend is not configured')
+  if (!appOrigin) throw new Error('Backend is not configured')
   const origin = new URL(appOrigin)
   if (origin.protocol !== 'https:' && origin.hostname !== 'localhost') {
     throw new Error('Backend is not configured')
   }
-  return { apiKey, appOrigin: origin.origin }
+  return { appOrigin: origin.origin }
 }
 
-function providerNames(channel: Channel) {
+function providerNames(channel: Channel): ('google' | 'outlook' | 'imap' | 'whatsapp' | 'linkedin')[] {
   if (channel === 'email') return ['google', 'outlook', 'imap']
   if (channel === 'whatsapp') return ['whatsapp']
   return ['linkedin']
@@ -95,6 +101,11 @@ Deno.serve(comCors(Deno.env.get('APP_ORIGIN') ?? '', async (req) => {
         return response({ error: 'Conta remetente obrigatória para reconectar.' }, 400)
       }
 
+      // Sem conexão ativa não se abre tentativa: ela ficaria pendente sem link possível.
+      const bridge = await unipileRuntime().bridge()
+      if (!bridge) return response({ error: UNAVAILABLE }, 503)
+      appOriginConfig()
+
       const { data: attempts, error: attemptError } = await auth.supabase.rpc(
         'create_sender_connection_attempt',
         {
@@ -106,35 +117,25 @@ Deno.serve(comCors(Deno.env.get('APP_ORIGIN') ?? '', async (req) => {
       const attempt = attempts?.[0]
       if (attemptError || !attempt) return response({ error: 'Não foi possível iniciar a conexão.' }, 403)
 
-      const config = unipileConfig()
-      const reconnecting = action === 'reconnect'
-      const payload: Record<string, unknown> = {
-        expires_on: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        // Volta para a origem de onde o pedido saiu (ex.: o app local), se ela está no APP_ORIGIN: voltar para outra
-        // origem perde a sessão e o Workspace escolhido, e a próxima conexão cai noutro Workspace.
-        redirect_uri: `${origemDoAppParaLink(req, Deno.env.get('APP_ORIGIN') ?? '')}/conexoes`,
-        state: attempt.attempt_id,
-      }
-      if (reconnecting) {
-        payload.account_id = attempt.provider_account_id
-      } else {
-        payload.providers = providerNames(channel)
-      }
-
-      const upstream = await fetch(`${UNIPILE_API_BASE}/v2/auth/link`, {
-        method: 'POST',
-        headers: {
-          'X-API-KEY': config.apiKey,
-          accept: 'application/json',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-      if (!upstream.ok) return response({ error: 'A Unipile não conseguiu iniciar a conexão. Tente novamente.' }, 502)
-      const result = await upstream.json()
-      const link = typeof result?.link === 'string' ? result.link : result?.data?.link
-      if (typeof link !== 'string' || !link.startsWith('https://')) {
-        return response({ error: 'A Unipile retornou um link de autenticação inválido.' }, 502)
+      let link: string
+      try {
+        // O endereço de aviso só serve à v1 (a v2 avisa pelo Webhook Endpoint cadastrado na conta).
+        link = (await bridge.createAuthLink({
+          type: action === 'reconnect' ? 'reconnect' : 'create',
+          providers: action === 'reconnect' ? undefined : providerNames(channel),
+          reconnectAccountId: action === 'reconnect' ? attempt.provider_account_id : null,
+          attemptId: attempt.attempt_id,
+          // Volta para a origem de onde o pedido saiu (ex.: o app local), se ela está no APP_ORIGIN: voltar para outra
+          // origem perde a sessão e o Workspace escolhido, e a próxima conexão cai noutro Workspace.
+          redirectUrl: `${origemDoAppParaLink(req, Deno.env.get('APP_ORIGIN') ?? '')}/conexoes`,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+          notifyUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/unipile-account-status`,
+        })).url
+      } catch (error) {
+        if (error instanceof UnipileUnreadableResponse) {
+          return response({ error: 'A Unipile retornou um link de autenticação inválido.' }, 502)
+        }
+        return response({ error: 'A Unipile não conseguiu iniciar a conexão. Tente novamente.' }, 502)
       }
       return response({ url: link })
     }
@@ -151,12 +152,12 @@ Deno.serve(comCors(Deno.env.get('APP_ORIGIN') ?? '', async (req) => {
       if (accountError || !account?.[0]?.unipile_account_id) {
         return response({ error: 'Conta remetente não encontrada.' }, 403)
       }
-      const config = unipileConfig()
-      const upstream = await fetch(
-        `${UNIPILE_API_BASE}/v2/accounts/${encodeURIComponent(account[0].unipile_account_id)}`,
-        { method: 'DELETE', headers: { 'X-API-KEY': config.apiKey, accept: 'application/json' } },
-      )
-      if (!upstream.ok && upstream.status !== 404) {
+      const bridge = await unipileRuntime().bridge()
+      if (!bridge) return response({ error: UNAVAILABLE }, 503)
+      try {
+        // Uma conta que a Unipile já não tem (404) conta como desconectada.
+        await bridge.disconnectAccount(account[0].unipile_account_id)
+      } catch {
         return response({ error: 'A Unipile não confirmou a desconexão. Tente novamente.' }, 502)
       }
       const { data: markedDisconnected, error: updateError } = await admin.rpc('mark_owned_sender_account_disconnected', {

@@ -1,9 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { ingestEmailEventVia } from '../_shared/ingest-email-event.ts'
 import { ingestChatEventVia } from '../_shared/ingest-chat-event.ts'
-import { type AttachmentStore, createHandler, type WebhookDb, type WebhookUnipile } from './handler.ts'
+import { createUnipileRuntime, unipileUnavailableResponse } from '../_shared/unipile/index.ts'
+import { type AttachmentStore, createHandler, type WebhookDb } from './handler.ts'
 
-const UNIPILE_API_BASE = 'https://api.unipile.com'
 const ATTACHMENTS_BUCKET = 'email-attachments'
 
 function required(name: string) {
@@ -53,17 +53,9 @@ const db: WebhookDb = {
   },
 }
 
-const unipile: WebhookUnipile = {
-  async downloadEmailAttachment(accountId, emailId, attachment) {
-    const url = attachment.url && /^https:\/\//.test(attachment.url)
-      ? attachment.url
-      : `${UNIPILE_API_BASE}/v2/${encodeURIComponent(accountId)}/emails/${encodeURIComponent(emailId)}` +
-        `/attachments/${encodeURIComponent(attachment.id)}`
-    const upstream = await fetch(url, { headers: { 'X-API-KEY': required('UNIPILE_API_KEY'), accept: '*/*' } })
-    if (!upstream.ok) throw new Error(`Unipile respondeu HTTP ${upstream.status} ao baixar o anexo`)
-    return { bytes: new Uint8Array(await upstream.arrayBuffer()), contentType: upstream.headers.get('content-type') }
-  },
-}
+// A conta Unipile é a conexão ativa (ADR-0024): o segredo do webhook e o endereço para baixar anexos vêm dela, lida a cada
+// pedido (em cache por 30 s). Sem conexão ativa, o aviso recebe 503 e a Unipile o reentrega.
+const unipileRuntime = createUnipileRuntime({ rpc: admin, env: Deno.env })
 
 const storage: AttachmentStore = {
   async upload(path, bytes, contentType) {
@@ -78,10 +70,19 @@ const storage: AttachmentStore = {
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para os anexos serem baixados.
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
 
-Deno.serve(createHandler({
-  secret: Deno.env.get('UNIPILE_WEBHOOK_SECRET') ?? '',
-  db,
-  unipile,
-  storage,
-  waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
-}))
+Deno.serve(async (req) => {
+  const connection = await unipileRuntime.connection()
+  const bridge = await unipileRuntime.bridge()
+  if (!connection || !bridge) return unipileUnavailableResponse()
+  return createHandler({
+    // Hoje o handler confere a assinatura da v2 (HMAC) com este segredo. A autenticação do webhook da v1 é do canais-17.
+    secret: connection.webhookSecret ?? '',
+    db,
+    unipile: {
+      downloadEmailAttachment: (accountId, emailId, attachment) =>
+        bridge.downloadEmailAttachment(accountId, emailId, attachment),
+    },
+    storage,
+    waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
+  })(req)
+})

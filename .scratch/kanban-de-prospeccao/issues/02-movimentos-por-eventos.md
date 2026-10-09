@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Estágio de prospecção no banco.
 
-**Status:** ready-for-agent
+**Status:** closed (ACs verificados em 2026-10-09)
 
 ## Pode mexer
 

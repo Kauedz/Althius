@@ -1,6 +1,8 @@
+import { contatoParaRevelar } from './contato-para-revelar.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { tokensDoApify } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
+import { apifyDoEnriquecimento } from './apify-do-enriquecimento.ts'
 import {
   criarHandlerEnrichment,
   type DbEnrichment,
@@ -31,7 +33,7 @@ let apifyInstance: ReturnType<typeof clienteDoApify> | undefined
 try {
   const tokens = tokensDoApify((nome) => Deno.env.get(nome))
   if (tokens.length > 0) {
-    apifyInstance = clienteDoApify({ tokens, timeoutMs: 45_000, runTimeoutSeconds: 40 })
+    apifyInstance = apifyDoEnriquecimento({ tokens })
   }
 } catch {
   // Apify não configurado: a Receita cai na BrasilAPI e a cascata fica sem fornecedor.
@@ -69,11 +71,12 @@ const db: DbEnrichment = {
     return { runId: row.run_id, reservationId: row.reservation_id }
   },
 
-  async finishCommitteeDiscovery({ runId, success, contactsFound, costUsd, error }) {
+  async finishCommitteeDiscovery({ runId, success, contactsFound, costUsd, error, apifyRunId }) {
     const { error: err } = await admin.rpc('finish_committee_discovery', {
       p_run_id: runId,
       p_success: success,
       p_contacts_found: contactsFound,
+      p_apify_run_id: apifyRunId ?? null,
       p_cost_usd: costUsd ?? null,
       p_error: error ?? null,
     })
@@ -102,15 +105,7 @@ const db: DbEnrichment = {
   },
 
   async getContactForReveal({ workspaceId, contactId, authorization, apikey }) {
-    const { data, error } = await clienteDaSessao(authorization, apikey)
-      .from('contacts')
-      .select('name, linkedin, workspace_id')
-      .eq('id', contactId)
-      .eq('workspace_id', workspaceId)
-      .maybeSingle()
-
-    if (error || !data) return null
-    return { name: data.name, linkedin: data.linkedin ?? undefined }
+    return await contatoParaRevelar(clienteDaSessao(authorization, apikey), workspaceId, contactId)
   },
 
   async beginRevealContact({ workspaceId, contactId, channel, requestKey, authorization, apikey }) {

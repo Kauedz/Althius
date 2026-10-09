@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
-import { sendChatStepDbVia, unipileChatVia } from '../_shared/send-chat-step-adapters.ts'
+import { sendStepDbVia } from '../_shared/send-step-adapters.ts'
+import { sendChatStepDbVia } from '../_shared/send-chat-step-adapters.ts'
+import { createUnipileRuntime, unipileUnavailableResponse } from '../_shared/unipile/index.ts'
 import { stepAttachmentSourceVia } from '../_shared/anexos-do-envio.ts'
 import {
   type ChatRunnerDb,
@@ -20,11 +21,13 @@ function required(name: string) {
   return value
 }
 
-const UNIPILE_API_KEY = required('UNIPILE_API_KEY')
-
 const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
   auth: { persistSession: false, autoRefreshToken: false },
 })
+
+// A conta Unipile que envia é a conexão ativa (ADR-0024), lida a cada pedido (em cache por 30 s): trocar de conta não
+// pede deploy. Sem conexão ativa, o Executor nem reserva envio: responde 503 e os passos esperam.
+const unipile = createUnipileRuntime({ rpc: admin, env: Deno.env })
 
 const db: RunnerDb = {
   ...sendStepDbVia(admin),
@@ -106,15 +109,21 @@ const chatDb: ChatRunnerDb = {
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para os envios terminarem.
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
 
-Deno.serve(createHandler({
-  db,
-  unipile: unipileMailVia(UNIPILE_API_KEY),
-  chat: { db: chatDb, unipile: unipileChatVia(UNIPILE_API_KEY) },
-  attachments: stepAttachmentSourceVia(admin),
-  async holdForUnreadySend(sendId) {
-    const { data, error } = await admin.rpc('hold_sequence_for_unready_send', { p_send_id: sendId })
-    if (error) throw error
-    return data === true
-  },
-  waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
-}))
+const handlerFor = (bridge: NonNullable<Awaited<ReturnType<typeof unipile.bridge>>>) =>
+  createHandler({
+    db,
+    unipile: bridge,
+    chat: { db: chatDb, unipile: bridge },
+    attachments: stepAttachmentSourceVia(admin),
+    async holdForUnreadySend(sendId) {
+      const { data, error } = await admin.rpc('hold_sequence_for_unready_send', { p_send_id: sendId })
+      if (error) throw error
+      return data === true
+    },
+    waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
+  })
+
+Deno.serve(async (req) => {
+  const bridge = await unipile.bridge()
+  return bridge ? handlerFor(bridge)(req) : unipileUnavailableResponse()
+})
