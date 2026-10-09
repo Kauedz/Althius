@@ -148,9 +148,9 @@ export function mensagemDoGroq(resposta: RespostaDoChat): Mensagem {
   // O consumo da chamada, para os créditos: o chat conta em prompt_tokens e completion_tokens.
   const { prompt_tokens, completion_tokens } = resposta.usage ?? {}
   const usage = typeof prompt_tokens === 'number' && typeof completion_tokens === 'number'
-    ? { usage: { input_tokens: prompt_tokens, output_tokens: completion_tokens } }
-    : {}
-  return { stop_reason, content, ...usage } as unknown as Mensagem
+    ? { input_tokens: prompt_tokens, output_tokens: completion_tokens }
+    : undefined
+  return { stop_reason, content, ...(usage ? { usage } : {}) } as unknown as Mensagem
 }
 
 export function modeloDoGroq(
