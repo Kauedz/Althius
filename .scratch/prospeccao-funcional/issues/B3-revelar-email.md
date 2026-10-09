@@ -75,3 +75,8 @@ Quem executa o ticket não aplica migration nem deploy no remoto.
   - Passos do Nan: saiu o passo 3 (a execução real). Restam a migration e o deploy.
 
 - 2026-10-09: Teste real de 09/10 (TOTVS/CFO): revelar respondeu sem e-mail e com custo nulo; o caminho LinkedIn tinha perdido a caixa. PR #160 preserva/restaura o perfil, aguarda custo Apify e passa o nome da Conta pelo Vínculo ativo com RLS. Renan deve aplicar migrations, publicar função/frontend e repetir B3 com no máximo 2 créditos. [PR #160](https://github.com/Kauedz/Althius/pull/160).
+- 2026-10-09 (decisão do Renan): **e-mail já existente ou já revelado no Workspace: sem actor e sem custo.**
+  - Se o Contato já tem e-mail (principal ou adicional em `contact_emails`), o servidor devolve o que existe sem reservar, sem chamar o Apify e sem debitar: `creditosDebitados: 0` e `jaExistia: true`. A conferência é do banco: `public.existing_reveal_value`, com a sessão e a Participação. `quote_reveal_contact` cota 0 e `already_known`. O mesmo vale para telefone no banco; a revelação de telefone continua indisponível.
+  - Dentro do Workspace, uma pessoa é um Contato só (`contacts_linkedin_per_workspace`, sem caixa) e um e-mail é de um Contato só: o "outro Contato com o mesmo LinkedIn" é o próprio Contato, coberto pela regra acima. Entre Workspaces nunca há reuso: cada um tem a própria base legal e o próprio registro de coleta (LGPD).
+  - Consequência: o segundo e-mail (posições 2 e 3 de `contact_emails`) deixa de ser buscado pelo actor para quem já tem um. `finish_reveal_contact` não mudou.
+  - Tela: "Já encontrado, sem custo" na cotação e no resultado.

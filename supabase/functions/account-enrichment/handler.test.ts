@@ -5,8 +5,10 @@ import {
   consultarBrasilApi,
   consultarApifyReceita,
   criarHandlerEnrichment,
+  TETO_DO_PEDIDO_DO_COMITE,
   type DbEnrichment,
 } from './handler.ts'
+import { propostaGravada } from './proposta-gravada.ts'
 import {
   classificarPersona,
   extrairIdentificadorLinkedin,
@@ -1101,4 +1103,273 @@ Deno.test('revelar passa o nome da Conta-alvo ao provedor', async () => {
   const handler = criarHandlerEnrichment({ db, provedorContatos: provedor })
   assertEquals((await handler(pedidoDeRevelar('email'))).status, 200)
   assertEquals(empresa, 'TOTVS')
+})
+
+// Nunca cobrar de novo o que já foi descoberto (decisão do Renan, 09/10/2026). O banco em memória faz o que
+// record_proposed_contact e finish_committee_discovery fazem: a proposta repetida da Conta (LinkedIn sem caixa) não é
+// nova, e a busca debita só as propostas novas que ela criou. O pgTAP nao_recobrar_o_ja_descoberto prova o SQL.
+function bancoDoComite(conhecidas: string[] = []) {
+  const chave = (url?: string) => url?.trim().replace(/\/+$/, '').toLowerCase()
+  const propostas = new Map<string, { runId: string; nova: boolean }>()
+  for (const url of conhecidas) propostas.set(chave(url)!, { runId: 'busca-anterior', nova: true })
+  const banco = {
+    gravadas: [] as string[],
+    finish: [] as Array<{ success: boolean; contactsFound: number }>,
+    debitado: -1,
+    db: null as unknown as DbEnrichment,
+  }
+  banco.db = {
+    async userFromJwt() {
+      return { userId: 'user-1' }
+    },
+    async beginCommitteeDiscovery() {
+      return { runId: 'run-comite-2', reservationId: 'res-comite-2' }
+    },
+    async countKnownCommitteePeople() {
+      return propostas.size
+    },
+    async recordProposedContact(args) {
+      banco.gravadas.push(args.name)
+      const k = chave(args.linkedinUrl)
+      if (k && propostas.has(k)) return { id: `prop-${k}`, created: false }
+      if (k) propostas.set(k, { runId: args.discoveryRunId!, nova: true })
+      return { id: `prop-${banco.gravadas.length}`, created: true }
+    },
+    async finishCommitteeDiscovery(args) {
+      banco.finish.push({ success: args.success, contactsFound: args.contactsFound })
+      banco.debitado = [...propostas.values()].filter((p) => p.runId === args.runId && p.nova).length
+    },
+    async getContactForReveal() {
+      return null
+    },
+    async beginRevealContact() {
+      return { reservationId: '' }
+    },
+    async finishRevealContact() {
+      return { success: false, debitedCredits: 0 }
+    },
+  }
+  return banco
+}
+
+function pessoa(nome: string, slug: string) {
+  return { nome, linkedinUrl: `https://www.linkedin.com/in/${slug}`, persona: 'Decisor' as const, fonte: 'mock' }
+}
+
+function pedidoDeComiteComLimite(limite: number) {
+  return new Request('http://localhost/account-enrichment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-1' },
+    body: JSON.stringify({
+      action: 'comite-compra',
+      workspaceId: 'ws-1',
+      targetAccountId: 'conta-1',
+      companyName: 'TOTVS',
+      companyLinkedinUrl: 'https://www.linkedin.com/company/totvs',
+      limite,
+    }),
+  })
+}
+
+Deno.test('comite-compra: created=false não conta como nova nem cobra, e volta como já encontrada', async () => {
+  const banco = bancoDoComite(['https://www.linkedin.com/in/Fernando-Sollak'])
+  const handler = criarHandlerEnrichment({
+    db: banco.db,
+    provedorContatos: new ApolloProvedorStub([
+      pessoa('Ana Nova', 'ana-nova'),
+      pessoa('Fernando Sollak', 'fernando-sollak'),
+      pessoa('Bia Nova', 'bia-nova'),
+    ]),
+  })
+  const res = await handler(pedidoDeComiteComLimite(5))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body.contactsFound, 3)
+  assertEquals(body.contactsAdded, 2)
+  assertEquals(body.contactsAlreadyKnown, 1)
+  assertEquals(body.proposed.map((p: { nome: string; jaEncontrada: boolean }) => `${p.nome}:${p.jaEncontrada}`), [
+    'Ana Nova:false',
+    'Fernando Sollak:true',
+    'Bia Nova:false',
+  ])
+  assertEquals(banco.finish, [{ success: true, contactsFound: 3 }])
+  assertEquals(banco.debitado, 2)
+})
+
+Deno.test('comite-compra: lista só com pessoas já encontradas debita 0', async () => {
+  const banco = bancoDoComite(['https://www.linkedin.com/in/fernando-sollak', 'https://www.linkedin.com/in/gilsomar-maia'])
+  const handler = criarHandlerEnrichment({
+    db: banco.db,
+    provedorContatos: new ApolloProvedorStub([pessoa('Fernando Sollak', 'Fernando-Sollak'), pessoa('Gilsomar Maia', 'gilsomar-maia')]),
+  })
+  const res = await handler(pedidoDeComiteComLimite(1))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body.contactsAdded, 0)
+  assertEquals(body.contactsAlreadyKnown, 2)
+  assertEquals(banco.debitado, 0)
+})
+
+Deno.test('comite-compra: gravação sem linha devolvida é falha, não conta e não cobra', async () => {
+  assertEquals(propostaGravada([{ id: 'prop-1', created: false }]), { id: 'prop-1', created: false })
+  assertEquals(propostaGravada([{ id: 'prop-2', created: true }]), { id: 'prop-2', created: true })
+  for (const vazio of [[], null, undefined, [{ id: null, created: true }]]) {
+    let erro = ''
+    try {
+      propostaGravada(vazio)
+    } catch (e) {
+      erro = e instanceof Error ? e.message : String(e)
+    }
+    assertEquals(erro, 'record_proposed_contact não retornou dados')
+  }
+
+  const banco = bancoDoComite()
+  banco.db.recordProposedContact = async () => propostaGravada([])
+  const handler = criarHandlerEnrichment({
+    db: banco.db,
+    provedorContatos: new ApolloProvedorStub([pessoa('Ana Nova', 'ana-nova')]),
+  })
+  const body = await (await handler(pedidoDeComiteComLimite(1))).json()
+
+  assertEquals(body.contactsFound, 0)
+  assertEquals(body.contactsAdded, 0)
+  assertEquals(banco.finish, [{ success: true, contactsFound: 0 }])
+  assertEquals(banco.debitado, 0)
+})
+
+Deno.test('comite-compra: pede as já conhecidas a mais, com teto, e para no limite de novas', async () => {
+  const conhecidas = ['a', 'b', 'c', 'd', 'e'].map((s) => `https://www.linkedin.com/in/${s}`)
+  const banco = bancoDoComite(conhecidas)
+  const pedidos: Array<number | undefined> = []
+  const handler = criarHandlerEnrichment({
+    db: banco.db,
+    provedorContatos: {
+      nome: 'fake',
+      async buscarPessoas(empresa) {
+        pedidos.push(empresa.limite)
+        return [
+          pessoa('A', 'a'), pessoa('B', 'b'), pessoa('Nova 1', 'nova-1'), pessoa('C', 'c'), pessoa('Nova 2', 'nova-2'),
+          pessoa('D', 'd'),
+        ]
+      },
+    },
+  })
+  const body = await (await handler(pedidoDeComiteComLimite(1))).json()
+
+  // Limite 1 + 5 conhecidas: o actor recebe 6. A busca para na primeira nova e não grava a segunda.
+  assertEquals(pedidos, [6])
+  assertEquals(body.contactsAdded, 1)
+  assertEquals(body.contactsAlreadyKnown, 2)
+  assertEquals(banco.gravadas, ['A', 'B', 'Nova 1'])
+  assertEquals(banco.debitado, 1)
+
+  const muitas = bancoDoComite(Array.from({ length: 80 }, (_, i) => `https://www.linkedin.com/in/p-${i}`))
+  const pedidosComTeto: Array<number | undefined> = []
+  const comTeto = criarHandlerEnrichment({
+    db: muitas.db,
+    provedorContatos: { nome: 'fake', async buscarPessoas(empresa) { pedidosComTeto.push(empresa.limite); return [] } },
+  })
+  await comTeto(pedidoDeComiteComLimite(10))
+  assertEquals(pedidosComTeto, [TETO_DO_PEDIDO_DO_COMITE])
+})
+
+function dbDoRevelarComExistente(
+  registro: ReturnType<typeof registroDoRevelar>,
+  existentes: Record<string, { value: string; provider?: string }>,
+): DbEnrichment {
+  const db = dbDoRevelar(registro)
+  db.existingRevealValue = async (args) => {
+    registro.passos.push(`existente:${args.workspaceId}:${args.contactId}:${args.channel}:${args.authorization}`)
+    return existentes[`${args.workspaceId}/${args.contactId}`] ?? null
+  }
+  return db
+}
+
+Deno.test('revelar-contato: e-mail que o Contato já tem volta sem reservar, sem actor e sem crédito', async () => {
+  const registro = registroDoRevelar()
+  let execucoes = 0
+  const apify: Apify = {
+    async run() {
+      execucoes++
+      return { runId: 'nao-devia-rodar', items: [] }
+    },
+  }
+  const handler = criarHandlerEnrichment({
+    db: dbDoRevelarComExistente(registro, {
+      'ws-1/contato-1': { value: 'gilsomar@totvs.com.br', provider: 'apify:harvestapi~linkedin-profile-scraper' },
+    }),
+    apify,
+  })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body.sucesso, true)
+  assertEquals(body.jaExistia, true)
+  assertEquals(body.valor, 'gilsomar@totvs.com.br')
+  assertEquals(body.creditosDebitados, 0)
+  assertEquals(body.fonte, 'apify:harvestapi~linkedin-profile-scraper')
+  assertEquals(execucoes, 0)
+  assertEquals(registro.passos, ['sessao', 'contato', 'existente:ws-1:contato-1:email:Bearer token-1'])
+  assertEquals(registro.finish, [])
+  assertEquals(registro.custos, [])
+})
+
+Deno.test('revelar-contato: o e-mail já revelado no Workspace é lido pelo banco com a sessão e volta sem actor', async () => {
+  const registro = registroDoRevelar()
+  const provedor = {
+    nome: 'fake',
+    async buscarPessoas() {
+      return []
+    },
+    async revelarContato(): Promise<null> {
+      throw new Error('o actor não devia rodar')
+    },
+  }
+  // Um adicional gravado por set_contact_channels não tem provedor, e a resposta não inventa um.
+  const handler = criarHandlerEnrichment({
+    db: dbDoRevelarComExistente(registro, { 'ws-1/contato-1': { value: 'mariana.pessoal@acme.test' } }),
+    provedorContatos: provedor,
+  })
+  const body = await (await handler(pedidoDeRevelar('email'))).json()
+
+  assertEquals(body.jaExistia, true)
+  assertEquals(body.valor, 'mariana.pessoal@acme.test')
+  assertEquals(body.creditosDebitados, 0)
+  assertEquals(body.fonte, null)
+  assertEquals(registro.passos.some((p) => p.startsWith('begin')), false)
+})
+
+Deno.test('revelar-contato: o e-mail de outro Workspace não é reaproveitado; a revelação segue e cobra pelo banco', async () => {
+  const registro = registroDoRevelar()
+  const provedor = {
+    nome: 'fake',
+    async buscarPessoas() {
+      return []
+    },
+    async revelarContato() {
+      return { canal: 'email' as const, valor: 'mariana@techcorp.com.br', fonte: 'apify:harvestapi~linkedin-profile-scraper' }
+    },
+  }
+  const db = dbDoRevelarComExistente(registro, { 'ws-2/contato-1': { value: 'mariana@outro-workspace.test' } })
+  db.finishRevealContact = async (args) => {
+    registro.passos.push('finish')
+    registro.finish.push({ value: args.value, source: args.source })
+    return { success: true, debitedCredits: 2 }
+  }
+  const handler = criarHandlerEnrichment({ db, provedorContatos: provedor })
+  const body = await (await handler(pedidoDeRevelar('email'))).json()
+
+  assertEquals(body.jaExistia, undefined)
+  assertEquals(body.valor, 'mariana@techcorp.com.br')
+  assertEquals(body.creditosDebitados, 2)
+  assertEquals(registro.passos, [
+    'sessao',
+    'contato',
+    'existente:ws-1:contato-1:email:Bearer token-1',
+    'begin:email',
+    'finish',
+  ])
 })

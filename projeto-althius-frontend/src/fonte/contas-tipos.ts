@@ -318,6 +318,15 @@ export interface ContatoProposto {
   createdAt: string
 }
 
+/** O que uma busca do comitê achou: só as pessoas novas para a Conta custam crédito. */
+export interface ResultadoDoComite {
+  /** Pessoas que a busca examinou (novas + já encontradas). */
+  encontradas: number
+  novas: number
+  /** Já eram propostas da Conta ou Contatos dela: sem custo. */
+  jaEncontradas: number
+}
+
 /** Em que pé está o Envio ao CRM de uma Conta-alvo (a tentativa mais recente). */
 export type EstadoDoEnvioAoCrm = 'enviando' | 'enviado' | 'falhou'
 
@@ -480,8 +489,8 @@ export interface FonteDeContas extends FonteObservavel {
   /** Lista os contatos propostos para o comitê de compra de uma Conta-alvo. */
   comiteDaConta?(contaId: string): Promise<ContatoProposto[]>
 
-  /** Dispara a busca do comitê de compra (1 crédito por contato encontrado). */
-  buscarComite?(contaId: string): Promise<void>
+  /** Dispara a busca do comitê de compra (1 crédito por pessoa nova; quem já foi encontrado não é cobrado). */
+  buscarComite?(contaId: string): Promise<ResultadoDoComite>
 
   /** Aceita um contato proposto, criando o Contato na Conta-alvo. */
   aceitarContatoProposto?(propostaId: string): Promise<Contato>
@@ -489,11 +498,14 @@ export interface FonteDeContas extends FonteObservavel {
   /** Descarta um contato proposto com motivo opcional. */
   descartarContatoProposto?(propostaId: string, motivo?: string): Promise<void>
 
-  /** Cota o custo prévio de revelação de canal (e-mail: 2 créditos, telefone: 5 créditos). */
-  cotarRevelacaoContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ creditos: number; saldo: number; podeRevelar: boolean }>
+  /**
+   * Cota o custo prévio de revelação de canal (e-mail: 2 créditos, telefone: 5 créditos). Se o Contato já tem o dado,
+   * cota 0 e `jaEncontrado`.
+   */
+  cotarRevelacaoContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ creditos: number; saldo: number; podeRevelar: boolean; jaEncontrado?: boolean }>
 
-  /** Revela e-mail ou telefone do contato, debitando apenas se encontrar. */
-  revelarContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ sucesso: boolean; valor: string | null; creditosDebitados: number }>
+  /** Revela e-mail ou telefone do contato, debitando apenas se encontrar. O que o Contato já tem volta com `jaExistia`, sem custo. */
+  revelarContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ sucesso: boolean; valor: string | null; creditosDebitados: number; jaExistia?: boolean }>
 
   /** Enriquece a Conta com dados da Receita Federal a partir do CNPJ. */
   enriquecerReceita?(contaId: string, cnpj: string): Promise<DadosDaReceita>

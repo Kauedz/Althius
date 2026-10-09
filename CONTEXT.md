@@ -166,7 +166,7 @@ _Avoid_: reprocessamento, nova varredura
 O desfecho observado de um Envio de passo que saiu: resposta, resposta positiva, resposta negativa, reunião marcada ou oportunidade. Um Envio sem desfecho está sem resposta. A resposta recebida registra "resposta" sozinha; o resto é dito pela pessoa responsável pela Sequência ou por um Agente, e fica quem classificou e quando. Resposta negativa conta como resposta, nunca como sucesso. As taxas por canal e segmento são do Workspace e não saem dele.
 
 **Crédito**:
-A unidade de consumo de um Workspace. Gastam créditos a varredura de Sinais, a coleta de pessoas, a revelação de e-mail (só quando traz um e-mail que o Contato ainda não tinha) e cada Execução de Agente. Telefone não se revela. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
+A unidade de consumo de um Workspace. Gastam créditos a varredura de Sinais, a coleta de pessoas (só quem a Conta-alvo ainda não conhecia), a revelação de e-mail (só quando traz um e-mail que o Contato ainda não tinha; quem já tem e-mail nem dispara a busca) e cada Execução de Agente. O que já foi descoberto nunca é cobrado de novo. Telefone não se revela. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
 _Avoid_: token, saldo de uso
 
 **Teto**:
