@@ -65,6 +65,7 @@ export interface DbEnrichment {
     runId: string
     success: boolean
     contactsFound: number
+    apifyRunId?: string
     costUsd?: number
     error?: string
   }): Promise<void>
@@ -530,7 +531,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           pessoas = await buscaDePessoas.buscarPessoas({
             nome: companyName,
             linkedinUrl: body.companyLinkedinUrl ? String(body.companyLinkedinUrl) : undefined,
-            dominio: body.companyDomain ? String(body.companyDomain) : undefined,
+            dominio: body.companyDomain && !/^(www\.)?linkedin\.com$/i.test(String(body.companyDomain).trim()) ? String(body.companyDomain).trim() : undefined,
             cargos: Array.isArray(body.cargos) ? body.cargos.map(String) : undefined,
             limite,
             medicao,
@@ -542,6 +543,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
             success: false,
             contactsFound: 0,
             costUsd: medicao.costUsd ?? undefined,
+            apifyRunId: medicao.runId ?? undefined,
             error: mensagem,
           })
           await gravarCusto(0)
@@ -578,6 +580,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           success: true,
           contactsFound: gravados,
           costUsd: medicao.costUsd ?? undefined,
+            apifyRunId: medicao.runId ?? undefined,
         })
         await gravarCusto(pessoas.length)
 

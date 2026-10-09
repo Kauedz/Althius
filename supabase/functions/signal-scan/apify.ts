@@ -348,7 +348,7 @@ export function custoDaExecucaoLida(execucao: unknown): number | null {
   const run = registro(execucao);
   const plataforma = numeroValido(run.usageTotalUsd);
   const contagens = eventosCobrados(run);
-  if (!contagens.length) return cobraPorEvento(run) ? null : plataforma;
+  if (!contagens.length) return plataforma && plataforma > 0 ? plataforma : cobraPorEvento(run) ? null : plataforma;
   const eventos = registro(
     registro(registro(run.pricingInfo).pricingPerEvent).actorChargeEvents,
   );
