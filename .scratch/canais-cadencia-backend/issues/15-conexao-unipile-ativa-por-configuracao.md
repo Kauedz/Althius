@@ -40,3 +40,5 @@
 3. Conferir na tela de Conexões que a Conta remetente volta como "pronta" depois da reconexão, e que as respostas de antes continuam na Sequência.
 
 ## Comments
+
+- 2026-10-09, decisão do Kauê: a unicidade do `unipile_account_id` passa a ser **por conexão** (`unique (unipile_connection_id, unipile_account_id)`), porque a mesma conta Unipile pode reaparecer em outra conexão.
