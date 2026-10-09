@@ -51,7 +51,7 @@ async function mensagemDaFuncao(error: unknown, padrao: string): Promise<string>
 
 /**
  * A Fonte de Conexões do Workspace operacional: lê o catálogo e as habilitações do Supabase.
- * Os Canais aparecem "Em breve"; HubSpot e Notion são habilitáveis; as demais ficam "Em breve".
+ * Os Canais aparecem "Em breve"; o catálogo visível oferece HubSpot e Notion.
  */
 export function criarFonteDeConexoesSupabase(
   cliente: SupabaseClient,
@@ -123,6 +123,20 @@ export function criarFonteDeConexoesSupabase(
           throw new Error('Esta Integração ainda não está disponível para habilitação.')
         }
         throw new Error(error.message)
+      }
+      avisar()
+    },
+
+    async desabilitarIntegracao(id: IntegracaoId): Promise<void> {
+      const { error } = await cliente.rpc('disable_workspace_integration', {
+        p_workspace_id: obterWorkspaceId(),
+        p_integration_id: id,
+      })
+      if (error) {
+        if (error.message.includes('only administrators')) throw new Error('Só um Administrador desabilita Integrações no Workspace.')
+        if (error.message.includes('active workspace membership required')) throw new Error('Sua Participação neste Workspace não está ativa.')
+        if (error.message.includes('integration not enabled')) throw new Error('Esta Integração já está desabilitada.')
+        throw new Error('Não foi possível desabilitar a Integração agora. Tente novamente.')
       }
       avisar()
     },

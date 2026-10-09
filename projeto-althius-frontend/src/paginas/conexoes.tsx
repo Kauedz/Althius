@@ -64,6 +64,8 @@ export function PaginaConexoes() {
   const [previa, setPrevia] = useState<CanalId | null>(null)
   const [habilitando, setHabilitando] = useState<IntegracaoId | null>(null)
   const [erro, setErro] = useState('')
+  const [desabilitando, setDesabilitando] = useState<IntegracaoDeConexao | null>(null)
+  const [erroAoDesabilitar, setErroAoDesabilitar] = useState('')
   const [parametros, setParametros] = useSearchParams()
   const [volta] = useState(() => avisoDaVolta(parametros))
   // O resultado da autorização é lido uma vez e sai do endereço, para não reaparecer ao recarregar.
@@ -98,6 +100,25 @@ export function PaginaConexoes() {
     } finally {
       setTrabalhando(null)
     }
+  }
+
+  async function desabilitar() {
+    if (!desabilitando || !fonteDeConexoes.desabilitarIntegracao) return
+    setErroAoDesabilitar('')
+    setTrabalhando(desabilitando.id)
+    try {
+      await fonteDeConexoes.desabilitarIntegracao(desabilitando.id)
+      setDesabilitando(null)
+    } catch (falha) {
+      setErroAoDesabilitar(falha instanceof Error ? falha.message : 'Não foi possível desabilitar a Integração agora.')
+    } finally {
+      setTrabalhando(null)
+    }
+  }
+
+  function pedirDesabilitacao(integracao: IntegracaoDeConexao) {
+    setErroAoDesabilitar('')
+    setDesabilitando(integracao)
   }
 
   async function habilitar(id: IntegracaoId) {
@@ -194,6 +215,7 @@ export function PaginaConexoes() {
                         ehAdministrador={ehAdministrador}
                         habilitando={habilitando === integracao.id}
                         aoHabilitar={() => habilitar(integracao.id)}
+                        aoDesabilitar={fonteDeConexoes.desabilitarIntegracao ? () => pedirDesabilitacao(integracao) : undefined}
                         acesso={acessos?.find((a) => a.integracaoId === integracao.id)}
                         trabalhando={trabalhando === integracao.id}
                         aoAutorizar={() => autorizar(integracao)}
@@ -205,14 +227,24 @@ export function PaginaConexoes() {
                       <CartaoDeConexaoDemo
                         key={integracao.id}
                         nome={integracao.nome}
+                        logo={<LogoDaIntegracao id={integracao.id} nome={integracao.nome} className="size-6" />}
                         descricao={integracao.descricao}
                         conectado={integracao.habilitada}
                         aoConectar={() => setConectando(integracao)}
                         extra={
-                          integracao.habilitada && fonteDeConexoes.ferramentas && (
-                            <Button variant="outline" onClick={() => setVendoFerramentas(integracao)} className="px-4">
-                              Ver ferramentas
-                            </Button>
+                          integracao.habilitada && (
+                            <>
+                              {fonteDeConexoes.ferramentas && (
+                                <Button variant="outline" onClick={() => setVendoFerramentas(integracao)} className="px-4">
+                                  Ver ferramentas
+                                </Button>
+                              )}
+                              {ehAdministrador && fonteDeConexoes.desabilitarIntegracao && (
+                                <Button variant="ghost" onClick={() => pedirDesabilitacao(integracao)} className="px-4">
+                                  Desabilitar
+                                </Button>
+                              )}
+                            </>
                           )
                         }
                       />
@@ -236,6 +268,22 @@ export function PaginaConexoes() {
         )}
       </section>
 
+      <Dialog open={desabilitando !== null} onOpenChange={(aberto) => !aberto && !trabalhando && setDesabilitando(null)}>
+        <DialogContent className="gap-6 p-6">
+          <DialogTitle className="titulo-secao text-2xl">Desabilitar {desabilitando?.nome}</DialogTitle>
+          <DialogDescription className="text-al-muted">
+            Desabilitar esta Integração desconecta todos os participantes do Workspace e cancela as autorizações pendentes.
+            Para voltar a usar, será preciso habilitar e conectar os Acessos novamente.
+          </DialogDescription>
+          {erroAoDesabilitar && <p role="alert" className="text-sm text-al-erro">{erroAoDesabilitar}</p>}
+          <DialogFooter className="flex gap-2">
+            <Button variant="ghost" onClick={() => setDesabilitando(null)} disabled={trabalhando !== null}>Cancelar</Button>
+            <Button onClick={desabilitar} disabled={trabalhando !== null}>
+              {trabalhando ? 'Desabilitando...' : 'Desabilitar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <DialogoDeConexao conexao={conectando} aoFechar={() => setConectando(null)} />
       <DialogoDeChave integracao={comChave} aoFechar={() => setComChave(null)} />
       <DialogoDeFerramentas
@@ -254,6 +302,7 @@ function CartaoDeIntegracaoReal({
   ehAdministrador,
   habilitando,
   aoHabilitar,
+  aoDesabilitar,
   acesso,
   trabalhando,
   aoAutorizar,
@@ -265,6 +314,7 @@ function CartaoDeIntegracaoReal({
   ehAdministrador: boolean
   habilitando: boolean
   aoHabilitar: () => void
+  aoDesabilitar?: () => void
   acesso?: AcessoDaIntegracao
   trabalhando: boolean
   aoAutorizar: () => void
@@ -292,7 +342,10 @@ function CartaoDeIntegracaoReal({
   return (
     <article aria-label={integracao.nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-lg font-normal">{integracao.nome}</span>
+        <span className="flex items-center gap-3 text-lg font-normal">
+          <LogoDaIntegracao id={integracao.id} nome={integracao.nome} className="size-6" />
+          {integracao.nome}
+        </span>
         <span className={habilitada ? 'rotulo text-al-sucesso' : 'rotulo'}>
           {habilitada ? 'Habilitada' : 'Não habilitada'}
         </span>
@@ -302,6 +355,11 @@ function CartaoDeIntegracaoReal({
         {habilitada ? (
           <>
             <span className="text-xs text-al-muted">Habilitada no Workspace</span>
+            {ehAdministrador && aoDesabilitar && (
+              <Button variant="ghost" onClick={aoDesabilitar} disabled={trabalhando} className="self-start px-4">
+                Desabilitar
+              </Button>
+            )}
             {acesso && (
               <SeuAcesso
                 nome={integracao.nome}
@@ -565,6 +623,7 @@ function DialogoDeFerramentas({
 
 function CartaoDeConexaoDemo({
   nome,
+  logo,
   descricao,
   conectado,
   aoConectar,
@@ -575,11 +634,12 @@ function CartaoDeConexaoDemo({
   conectado: boolean
   aoConectar: () => void
   extra?: React.ReactNode
+  logo?: React.ReactNode
 }) {
   return (
     <article aria-label={nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-lg font-normal">{nome}</span>
+        <span className="flex items-center gap-3 text-lg font-normal">{logo}{nome}</span>
         <span className={conectado ? 'rotulo text-al-sucesso' : 'rotulo'}>
           {conectado ? 'Conectado' : 'Não conectado'}
         </span>

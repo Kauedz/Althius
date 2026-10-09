@@ -11,7 +11,7 @@ export const catalogoDeCanais: Omit<Canal, 'conectado'>[] = [
   { id: 'email', nome: 'E-mail', descricao: 'Encaminhe e-mails e receba resumos das Rotinas.' },
 ]
 
-export const catalogoDeIntegracoes: Omit<Integracao, 'conectada'>[] = [
+export const catalogoDeIntegracoesDosAgentes: Omit<Integracao, 'conectada'>[] = [
   { id: 'hubspot', nome: 'HubSpot', categoria: 'CRM', descricao: 'Contas, contatos, negócios e sequências.', escreve: true },
   { id: 'clay', nome: 'Clay', categoria: 'Enriquecimento', descricao: 'Dados firmográficos e de tecnologia.', escreve: false },
   { id: 'apollo', nome: 'Apollo', categoria: 'Enriquecimento', descricao: 'Contatos e sinais de compra.', escreve: false },
@@ -21,6 +21,9 @@ export const catalogoDeIntegracoes: Omit<Integracao, 'conectada'>[] = [
   { id: 'google-ads', nome: 'Google Ads', categoria: 'Mídia paga', descricao: 'Campanhas de busca e display.', escreve: true },
 ]
 
+/** Integrações disponíveis na tela de Conexões; referências dos Agentes continuam no catálogo completo. */
+export const catalogoDeIntegracoes = catalogoDeIntegracoesDosAgentes.filter((i) => i.id === 'hubspot' || i.id === 'notion')
+
 /** O catálogo de Canais com o estado de conexão que a fonte informa: os que ela não lista ficam não conectados. */
 export function canaisConectados(conectados: readonly CanalId[]): Canal[] {
   return catalogoDeCanais.map((canal) => ({ ...canal, conectado: conectados.includes(canal.id) }))
@@ -28,5 +31,5 @@ export function canaisConectados(conectados: readonly CanalId[]): Canal[] {
 
 /** O catálogo de Integrações com o estado de conexão que a fonte informa. */
 export function integracoesConectadas(conectadas: readonly IntegracaoId[]): Integracao[] {
-  return catalogoDeIntegracoes.map((integracao) => ({ ...integracao, conectada: conectadas.includes(integracao.id) }))
+  return catalogoDeIntegracoesDosAgentes.map((integracao) => ({ ...integracao, conectada: conectadas.includes(integracao.id) }))
 }

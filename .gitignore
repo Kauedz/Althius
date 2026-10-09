@@ -8,3 +8,5 @@ node_modules/
 
 # Itens brutos da execução real dos actors de Sinais (scripts/validar-sinais-reais.ts): têm dado pessoal.
 validacao-sinais/
+# O mesmo para os actors do enriquecimento (scripts/validar-enriquecimento-real.ts).
+validacao-enriquecimento/

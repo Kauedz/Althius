@@ -6,6 +6,7 @@ import { ErroDoModelo, type Modelo } from '../agent-conversation/runner.ts'
 import {
   type ContextoDaResposta,
   createHandler,
+  type MotivoDoTeto,
   type RodadaDeCredito,
   type RunnerDb,
   type TrabalhoReservado,
@@ -51,7 +52,8 @@ async function rpc<T>(nome: string, args: Record<string, unknown>): Promise<T> {
   return data as T
 }
 
-const db: RunnerDb = {
+// O teto é opcional no RunnerDb só pelos dublês de antes dele; aqui ele é obrigatório (creditos-e-planos 03).
+const db: RunnerDb & Required<Pick<RunnerDb, 'consumirTeto' | 'devolverTeto'>> = {
   async tokenMatches(token) {
     const { data, error } = await admin.rpc('reply_proposal_runner_token_matches', { p_token: token })
     if (error) throw error
@@ -70,6 +72,11 @@ const db: RunnerDb = {
     }
     const [linha] = (data ?? []) as { provider: string; model: string; api_key: string }[]
     return linha ? { provider: linha.provider, model: linha.model, apiKey: linha.api_key } : null
+  },
+  consumirTeto: (job) =>
+    rpc<'ok' | MotivoDoTeto>('consume_reply_proposal_cap', { p_job_id: job.job_id, p_claim_token: job.claim_token }),
+  async devolverTeto(job) {
+    await rpc<void>('refund_reply_proposal_cap', { p_job_id: job.job_id, p_claim_token: job.claim_token })
   },
   async abrirCredito(job) {
     const linhas = await rpc<RodadaDeCredito[] | null>('begin_reply_proposal_round', {

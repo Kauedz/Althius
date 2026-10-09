@@ -1,8 +1,8 @@
 // O contrato único da cascata de contatos (enriquecimento-em-cascata, tickets 01 e 02):
 // - Busca de pessoas da empresa para formação do comitê de compra (Decisor, Influenciador, Campeão);
 // - Revelação de e-mail e telefone;
-// - Provedores plugáveis (Apify como base nativa; Apollo, Lusha e Clay como stubs prontos para os Agentes);
-// - Cascata que percorre provedores na ordem configurada.
+// - Provedores plugáveis (Apify como base nativa; Apollo, Lusha e Clay como stubs, fora da cascata da Althius);
+// - Cascata que percorre os fornecedores de `fornecedoresDaCascata` na ordem.
 import type { Apify } from '../signal-scan/handler.ts'
 
 export interface PessoaEncontrada {
@@ -42,9 +42,14 @@ export interface FiltrosEmpresaParaBusca {
 export interface ProvedorDeContatos {
   readonly nome: string
   buscarPessoas(empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]>
+  /**
+   * O dado novo, ou null quando a execução terminou sem ele. Falha da execução lança: não é "não encontrado".
+   * `medicao` recebe o id e o dólar da execução, inclusive na falha.
+   */
   revelarContato?(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
+    medicao?: { runId: string | null; costUsd: number | null },
   ): Promise<DadoRevelado | null>
 }
 
@@ -141,6 +146,32 @@ function localDocumentado(raw: Record<string, unknown>): string {
   if (texto) return texto
   const parsed = registro(local.parsed)
   return parsed ? textoLimpo(parsed.text) : ''
+}
+
+// Build 0.0.135, modo 'Profile details + email search ($10 per 1k)', confirmado nos runs 4uNBrExLfebRmntCf e
+// JINU8l6sWgWksEUIH: `emails` no topo do perfil é uma lista de { email, status, qualityScore, validEmailServer,
+// catchAllDomain, free }, ou null quando o actor não acha. `companyWebsites[i].validEmailServer` não é e-mail.
+const FORMATO_DE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * O primeiro e-mail bem formado cujo status não é "invalid", ou null quando o perfil não tem e-mail.
+ * `emails` fora do formato confirmado lança: é falha, não "não encontrado".
+ */
+function emailDoPerfil(raw: Record<string, unknown>): string | null {
+  const emails = raw.emails
+  if (emails === undefined || emails === null) return null
+  if (!Array.isArray(emails)) {
+    throw new Error('formato inesperado do campo emails na saída do actor')
+  }
+  for (const item of emails) {
+    const entrada = registro(item)
+    if (!entrada) continue
+    const email = textoLimpo(entrada.email)
+    if (!FORMATO_DE_EMAIL.test(email)) continue
+    if (textoLimpo(entrada.status).toLowerCase() === 'invalid') continue
+    return email
+  }
+  return null
 }
 
 export interface OpcoesApifyContatos {
@@ -250,53 +281,55 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
   async revelarContato(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
+    medicao?: { runId: string | null; costUsd: number | null },
   ): Promise<DadoRevelado | null> {
-    if (!pessoa.linkedinUrl) return null
+    // Telefone: nenhum actor validado traz telefone. Sem LinkedIn, não há perfil para consultar.
+    const perfil = pessoa.linkedinUrl?.trim()
+    if (canal !== 'email' || !perfil) return null
 
+    // Build 0.0.135: o modo com busca de e-mail é o enum do schema; `queries` aceita a URL do perfil.
     const input = {
-      profileUrls: [pessoa.linkedinUrl],
-      findEmail: canal === 'email',
+      profileScraperMode: 'Profile details + email search ($10 per 1k)',
+      queries: [perfil],
     }
 
+    const anotar = async (runId: string | null) => {
+      if (!medicao) return
+      medicao.runId = runId
+      if (!runId || !this.apify.custoDaExecucao) return
+      try {
+        medicao.costUsd = await this.apify.custoDaExecucao(runId)
+      } catch {
+        medicao.costUsd = null
+      }
+    }
+
+    let exec: { runId: string | null; items: unknown[] }
     try {
-      const exec = await this.apify.run({
+      exec = await this.apify.run({
         actorId: this.actorProfile,
         input,
         maxItems: 1,
         maxTotalChargeUsd: this.maxCostProfile,
+        corpoTemDeSerLista: true,
       })
-
-      const item = Array.isArray(exec.items) && exec.items[0] ? (exec.items[0] as Record<string, unknown>) : null
-      if (!item) return null
-
-      if (canal === 'email') {
-        const email = typeof item.email === 'string'
-          ? item.email.trim()
-          : (typeof item.personalEmail === 'string'
-            ? item.personalEmail.trim()
-            : (typeof item.workEmail === 'string' ? item.workEmail.trim() : null))
-
-        if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          return { canal: 'email', valor: email.toLowerCase(), confianca: 90, fonte: 'apify:harvestapi~linkedin-profile-scraper' }
-        }
+    } catch (e) {
+      await anotar(runIdDoErro(e))
+      if (e instanceof Error && e.message === 'O Apify não devolveu uma lista.') {
+        throw new Error('A busca do e-mail não devolveu uma lista de perfis.')
       }
-
-      if (canal === 'telefone') {
-        const phone = typeof item.phone === 'string'
-          ? item.phone.trim()
-          : (typeof item.mobilePhone === 'string'
-            ? item.mobilePhone.trim()
-            : (typeof item.phoneNumber === 'string' ? item.phoneNumber.trim() : null))
-
-        if (phone && phone.replace(/\D/g, '').length >= 8) {
-          return { canal: 'telefone', valor: phone, confianca: 85, fonte: 'apify:harvestapi~linkedin-profile-scraper' }
-        }
-      }
-
-      return null
-    } catch {
-      return null
+      throw e
     }
+
+    await anotar(exec.runId)
+
+    if (!Array.isArray(exec.items)) {
+      throw new Error('A busca do e-mail não devolveu uma lista de perfis.')
+    }
+
+    const item = registro(exec.items[0])
+    const email = item ? emailDoPerfil(item) : null
+    return email ? { canal: 'email', valor: email, fonte: `apify:${this.actorProfile}` } : null
   }
 }
 
@@ -358,8 +391,16 @@ export class ClayProvedorStub implements ProvedorDeContatos {
 }
 
 /**
+ * Os fornecedores da cascata da Althius, na ordem em que a cascata os tenta. Só os actors do Apify: Apollo, Lusha e
+ * Clay são do cliente e entram pelas Conexões, nunca aqui (decisão do Nan, 01/10/2026). Sem o Apify, a lista é vazia.
+ */
+export function fornecedoresDaCascata(deps: { apify?: Apify }): ProvedorDeContatos[] {
+  return deps.apify ? [new ApifyProvedorDeContatos({ apify: deps.apify })] : []
+}
+
+/**
  * Cascata de provedores: tenta cada fornecedor registrado em ordem até
- * obter resultados ou esgotar a lista.
+ * obter resultados ou esgotar a lista. Quem falha não para a cascata, mas a falha volta se nenhum achar.
  */
 export class CascataProvedorDeContatos implements ProvedorDeContatos {
   readonly nome = 'cascata'
@@ -367,35 +408,32 @@ export class CascataProvedorDeContatos implements ProvedorDeContatos {
   constructor(private readonly provedores: ProvedorDeContatos[]) {}
 
   async buscarPessoas(empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]> {
-    for (const provedor of this.provedores) {
-      try {
-        const pessoas = await provedor.buscarPessoas(empresa)
-        if (pessoas && pessoas.length > 0) {
-          return pessoas
-        }
-      } catch {
-        // Continua para o próximo fornecedor da cascata
-        continue
-      }
-    }
-    return []
+    const pessoas = await this.primeiroQueAcha(async (provedor) => {
+      const encontradas = await provedor.buscarPessoas(empresa)
+      return encontradas?.length ? encontradas : null
+    })
+    return pessoas ?? []
   }
 
-  async revelarContato(
+  revelarContato(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
   ): Promise<DadoRevelado | null> {
+    return this.primeiroQueAcha(async (provedor) => await provedor.revelarContato?.(pessoa, canal) ?? null)
+  }
+
+  /** O primeiro fornecedor que acha, em ordem; null quando nenhum acha. A falha só volta se nenhum achar. */
+  private async primeiroQueAcha<T>(tentar: (provedor: ProvedorDeContatos) => Promise<T | null>): Promise<T | null> {
+    let falha: unknown = null
     for (const provedor of this.provedores) {
-      if (!provedor.revelarContato) continue
       try {
-        const resultado = await provedor.revelarContato(pessoa, canal)
-        if (resultado) {
-          return resultado
-        }
-      } catch {
-        continue
+        const resultado = await tentar(provedor)
+        if (resultado !== null) return resultado
+      } catch (e) {
+        falha ??= e
       }
     }
+    if (falha) throw falha
     return null
   }
 }

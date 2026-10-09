@@ -104,9 +104,18 @@ Deno.test('HubSpot OAuth sem como identificar o portal: não_identificada (quem 
   assertEquals(r, { ok: false, motivo: 'nao_identificada' })
 })
 
-Deno.test('Notion: a conta vem dos campos da resposta do endpoint de token', async () => {
-  const r = await identificarConta(PERFIS.notion.mcp!.oauth!.identificacao, 'tok', 'token', {
-    respostaDoToken: { access_token: 'tok', workspace_name: 'Norte Ltda', owner: { user: { name: 'Ana' } } },
+Deno.test('Notion: sem o e-mail do usuário (o Notion só o dá quando disponível), a conta é o nome de quem conectou', async () => {
+  const mcp = servidorMcpFalso({
+    resultados: {
+      'notion-get-users': {
+        content: [{ type: 'text', text: JSON.stringify({ results: [{ type: 'person', id: 'u-1', name: 'Ana Souza' }], has_more: false }) }],
+      },
+    },
+    ferramentas: [{ name: 'notion-get-users', annotations: { readOnlyHint: true } }],
   })
-  assertEquals(r, { ok: true, portal: null, conta: 'Norte Ltda' })
+  const r = await identificarConta(PERFIS.notion.mcp!.oauth!.identificacao, 'tok', 'token', {
+    respostaDoToken: { access_token: 'tok', user_id: 'u-1', workspace_id: 'w-1', email_domain: 'norte.test' },
+    mcp: { url: 'https://mcp.notion.com/mcp', cabecalhos: { Authorization: 'Bearer tok' }, fetch: mcp.fetch },
+  })
+  assertEquals(r, { ok: true, portal: null, conta: 'Ana Souza' })
 })

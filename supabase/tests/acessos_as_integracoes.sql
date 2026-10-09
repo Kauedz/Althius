@@ -57,14 +57,14 @@ select public.enable_workspace_integration('fa000000-0000-0000-0000-000000000001
 select is(
   (select array_agg(id order by id) from public.list_workspace_integrations('fa000000-0000-0000-0000-000000000001')
     where status = 'nao_habilitada'),
-  array['apollo', 'bitrix24', 'calendly', 'google-calendar', 'google-sheets', 'meta-ads', 'pipedrive', 'rd-station', 'slack', 'tiktok-ads'],
-  'apollo, bitrix24, calendly, google-calendar, google-sheets, meta-ads, pipedrive, rd-station, slack e tiktok-ads aparecem como não habilitadas'
+  null::text[],
+  'as Integrações ocultas não aparecem como não habilitadas'
 );
 select is(
   (select array_agg(id order by id) from public.list_workspace_integrations('fa000000-0000-0000-0000-000000000001')
     where status = 'em_breve'),
-  array['clay', 'google-ads', 'salesforce', 'zoho-crm'],
-  'sem perfil de conexão, a Integração continua em breve'
+  null::text[],
+  'o catálogo visível não oferece Integrações em breve'
 );
 select throws_ok(
   $$select public.enable_workspace_integration('fa000000-0000-0000-0000-000000000001', 'google-ads')$$,

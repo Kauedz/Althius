@@ -62,6 +62,7 @@ export function DetalheConta({ contaId }: Props) {
   const {
     dados: sinais,
     carregando: carregandoSinais,
+    erro: erroSinais,
     recarregar: recarregarSinais,
   } = useDadosDeContas((f) => f.sinaisDaConta(contaId), [contaId])
 
@@ -173,6 +174,9 @@ export function DetalheConta({ contaId }: Props) {
           {podeBuscarSinais && <BuscarSinaisDeNovo contaId={conta.id} aoTerminar={atualizarSinais} />}
           {carregandoSinais ? (
             <Carregando />
+          ) : erroSinais ? (
+            // Uma leitura que falhou não é "nenhum Sinal": a Conta pode estar Quente.
+            <FalhaAoCarregar mensagem="Não foi possível carregar os Sinais da Conta." tentarDeNovo={recarregarSinais} />
           ) : sinais && sinais.length > 0 ? (
             <SinaisDaConta sinais={sinais} hoje={hoje} />
           ) : (

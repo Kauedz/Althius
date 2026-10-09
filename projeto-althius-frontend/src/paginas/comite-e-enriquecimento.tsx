@@ -419,7 +419,7 @@ export function BotoesRevelarContato({
   aoRevelar: () => void
 }) {
   const fonte = useFonteDeContas()
-  const [modalCanal, setModalCanal] = useState<'email' | 'telefone' | null>(null)
+  const [aberto, setAberto] = useState(false)
   const [cotacao, setCotacao] = useState<{ creditos: number; saldo: number; podeRevelar: boolean } | null>(null)
   const [revelando, setRevelando] = useState(false)
   const [resultado, setResultado] = useState<string | null>(null)
@@ -432,36 +432,37 @@ export function BotoesRevelarContato({
     return null
   }
 
-  async function abrirModal(canal: 'email' | 'telefone') {
-    setModalCanal(canal)
+  async function abrirModal() {
+    setAberto(true)
     setResultado(null)
     setErro(null)
     if (fonte.cotarRevelacaoContato) {
       try {
-        const c = await fonte.cotarRevelacaoContato(contato.id, canal)
+        const c = await fonte.cotarRevelacaoContato(contato.id, 'email')
         setCotacao(c)
       } catch {
-        setCotacao({ creditos: canal === 'email' ? 2 : 5, saldo: 0, podeRevelar: true })
+        setCotacao({ creditos: 2, saldo: 0, podeRevelar: true })
       }
     } else {
-      setCotacao({ creditos: canal === 'email' ? 2 : 5, saldo: 0, podeRevelar: true })
+      setCotacao({ creditos: 2, saldo: 0, podeRevelar: true })
     }
   }
 
   async function confirmarRevelacao() {
-    if (!modalCanal || !fonte.revelarContato) return
+    if (!fonte.revelarContato) return
     setRevelando(true)
     setErro(null)
     try {
-      const res = await fonte.revelarContato(contato.id, modalCanal)
+      const res = await fonte.revelarContato(contato.id, 'email')
       if (res.sucesso && res.valor) {
         setResultado(`Encontrado: ${res.valor} (${res.creditosDebitados} créditos debitados)`)
         aoRevelar()
       } else {
-        setResultado('Dado não encontrado. Nenhum crédito foi debitado.')
+        // Só a busca que terminou chega aqui: a falha é exceção e aparece como erro.
+        setResultado('Nenhum e-mail novo encontrado. Nenhum crédito foi debitado.')
       }
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Falha ao revelar contato.')
+      setErro(e instanceof Error ? e.message : 'A busca do e-mail falhou.')
     } finally {
       setRevelando(false)
     }
@@ -475,7 +476,7 @@ export function BotoesRevelarContato({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => abrirModal('email')}
+            onClick={abrirModal}
             title="Revelar e-mail (2 créditos)"
             className="h-7 gap-1 border-al-line px-2 text-[0.6875rem] hover:border-al-accent hover:text-al-accent"
           >
@@ -484,29 +485,26 @@ export function BotoesRevelarContato({
           </Button>
         )}
 
+        {/* Telefone está fora (prospeccao-funcional B3): sem cotação, sem revelação, sem crédito. */}
         {precisaTelefone && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => abrirModal('telefone')}
-            title="Revelar WhatsApp/Telefone (5 créditos)"
-            className="h-7 gap-1 border-al-line px-2 text-[0.6875rem] hover:border-al-accent hover:text-al-accent"
+          <span
+            title="A revelação de telefone está indisponível."
+            className="inline-flex h-7 items-center gap-1 px-2 text-[0.6875rem] text-al-muted"
           >
             <Phone className="size-3" />
-            Revelar Telefone
-          </Button>
+            Telefone indisponível
+          </span>
         )}
       </div>
 
-      <Dialog open={modalCanal !== null} onOpenChange={(aberto) => !aberto && setModalCanal(null)}>
+      <Dialog open={aberto} onOpenChange={setAberto}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Revelar {modalCanal === 'email' ? 'E-mail' : 'Telefone'} de {contato.nome}
+              Revelar E-mail de {contato.nome}
             </DialogTitle>
             <DialogDescription>
-              A Althius tentará encontrar o dado em cascata através de fontes públicas profissionais.
+              A Althius busca o e-mail profissional a partir do perfil público do LinkedIn.
             </DialogDescription>
           </DialogHeader>
 
@@ -514,10 +512,10 @@ export function BotoesRevelarContato({
             <div className="rounded border border-al-line bg-al-surface p-3">
               <span className="rotulo block text-al-muted">Custo da ação</span>
               <span className="text-sm font-semibold text-al-ink">
-                {modalCanal === 'email' ? '2 créditos' : '5 créditos'}
+                2 créditos
               </span>
               <span className="block mt-1 text-[0.6875rem] text-al-muted">
-                Importante: os créditos só são debitados do saldo se o {modalCanal} for encontrado com sucesso.
+                Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.
               </span>
             </div>
 
@@ -535,7 +533,7 @@ export function BotoesRevelarContato({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setModalCanal(null)}>
+            <Button type="button" variant="outline" onClick={() => setAberto(false)}>
               Fechar
             </Button>
             {!resultado && (

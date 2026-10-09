@@ -34,7 +34,7 @@ try {
     apifyInstance = clienteDoApify({ tokens, timeoutMs: 45_000, runTimeoutSeconds: 40 })
   }
 } catch {
-  // Apify não configurado: operará apenas com fallback (BrasilAPI / stubs)
+  // Apify não configurado: a Receita cai na BrasilAPI e a cascata fica sem fornecedor.
 }
 
 const db: DbEnrichment = {

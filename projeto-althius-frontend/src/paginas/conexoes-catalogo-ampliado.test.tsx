@@ -92,14 +92,12 @@ describe('O catálogo ampliado de conectores', () => {
     expect(within(zoho).queryByRole('button', { name: 'Habilitar' })).not.toBeInTheDocument()
   })
 
-  it('na Demonstração, o Google Calendar e o Calendly aparecem em Agenda e o Zoho CRM em breve', async () => {
+  it('na Demonstração, o catálogo de Conexões mostra apenas HubSpot e Notion', async () => {
     renderizarApp('/conexoes')
-    const secao = await screen.findByRole('region', { name: 'Integrações' })
-    const agenda = (await within(secao).findByRole('heading', { level: 3, name: 'Agenda' })).parentElement!
-    expect(within(agenda).getByRole('article', { name: 'Google Calendar' })).toBeInTheDocument()
-    expect(within(agenda).getByRole('article', { name: 'Calendly' })).toBeInTheDocument()
-    expect(within(within(secao).getByRole('article', { name: 'Zoho CRM' })).getByText('Em breve')).toBeInTheDocument()
-    // Sem conector de Comunicação na Demonstração (o Slack dela é Canal), a categoria não aparece vazia.
+    await screen.findByRole('article', { name: 'Notion' })
+    const secao = screen.getByRole('region', { name: 'Integrações' })
+    expect(within(secao).getAllByRole('article').map((cartao) => cartao.getAttribute('aria-label'))).toEqual(['HubSpot', 'Notion'])
+    expect(within(secao).queryByRole('heading', { level: 3, name: 'Agenda' })).not.toBeInTheDocument()
     expect(within(secao).queryByRole('heading', { level: 3, name: 'Comunicação' })).not.toBeInTheDocument()
   })
 })

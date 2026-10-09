@@ -49,6 +49,7 @@ interface RespostaDoChat {
     finish_reason?: string
     message?: { content?: string | null; tool_calls?: MensagemDoChat['tool_calls'] }
   }[]
+  usage?: { prompt_tokens?: unknown; completion_tokens?: unknown }
 }
 
 function textoDoSystem(system: Params['system']): string {
@@ -144,7 +145,12 @@ export function mensagemDoGroq(resposta: RespostaDoChat): Mensagem {
     : escolha.finish_reason === 'length'
     ? 'max_tokens'
     : 'end_turn'
-  return { stop_reason, content } as unknown as Mensagem
+  // O consumo da chamada, para os créditos: o chat conta em prompt_tokens e completion_tokens.
+  const { prompt_tokens, completion_tokens } = resposta.usage ?? {}
+  const usage = typeof prompt_tokens === 'number' && typeof completion_tokens === 'number'
+    ? { input_tokens: prompt_tokens, output_tokens: completion_tokens }
+    : undefined
+  return { stop_reason, content, ...(usage ? { usage } : {}) } as unknown as Mensagem
 }
 
 export function modeloDoGroq(
