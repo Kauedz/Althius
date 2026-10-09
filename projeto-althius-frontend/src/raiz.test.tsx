@@ -124,17 +124,25 @@ describe('Workspace operacional e Demonstração', () => {
   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
   // Preferências também (CRM-08), e o Plano diz que é só demonstrativo: `paginas/configuracoes/perfil-e-preferencias-reais.test.tsx`.
   it.each(['/configuracoes/memoria/icp', '/configuracoes/memoria/personas'])(
-    '%s diz que o ICP e as Personas chegam com a execução dos Agentes, sem documento da Demonstração nem edição direta',
+    '%s mostra a seção do Playbook sem versão aprovada (CRM-09), sem documento da Demonstração nem edição direta',
     async (rota) => {
       window.history.replaceState(null, '', rota)
       abrirAlthius({
         ultimoAmbiente: 'real',
         sessao: sessaoDe(MARINA),
         tabelas: { workspace_memberships: [participacao('ws-norte')] },
+        rpcs: {
+          list_approvals: () => [],
+          list_workspace_participants: () => [],
+          get_playbook_section: (p: Record<string, unknown>) => ({
+            section: p.p_section, name: String(p.p_section), version: null, content: null,
+            updated_by: null, updated_at: null, history: [],
+          }),
+        },
       })
 
-      expect(await screen.findByText('O ICP e as Personas deste Workspace chegam junto com a execução dos Agentes.')).toBeInTheDocument()
-      expect(screen.getByText(/Quem propõe o ICP é o Scopus, e quem propõe as Personas é o Ethos/)).toBeInTheDocument()
+      expect(await screen.findByText('Nenhuma versão aprovada ainda.')).toBeInTheDocument()
+      expect(screen.getByText(/A proposta dele vira uma Aprovação/)).toBeInTheDocument()
       expect(screen.queryByText(/Databricks|Marina Alves|2.000 funcionários/)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Solicitar revisão|Editar/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
