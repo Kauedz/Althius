@@ -1,8 +1,8 @@
 // O contrato único da cascata de contatos (enriquecimento-em-cascata, tickets 01 e 02):
 // - Busca de pessoas da empresa para formação do comitê de compra (Decisor, Influenciador, Campeão);
 // - Revelação de e-mail e telefone;
-// - Provedores plugáveis (Apify como base nativa; Apollo, Lusha e Clay como stubs prontos para os Agentes);
-// - Cascata que percorre provedores na ordem configurada.
+// - Provedores plugáveis (Apify como base nativa; Apollo, Lusha e Clay como stubs, fora da cascata da Althius);
+// - Cascata que percorre os fornecedores de `fornecedoresDaCascata` na ordem.
 import type { Apify } from '../signal-scan/handler.ts'
 
 export interface PessoaEncontrada {
@@ -391,8 +391,16 @@ export class ClayProvedorStub implements ProvedorDeContatos {
 }
 
 /**
+ * Os fornecedores da cascata da Althius, na ordem em que a cascata os tenta. Só os actors do Apify: Apollo, Lusha e
+ * Clay são do cliente e entram pelas Conexões, nunca aqui (decisão do Nan, 01/10/2026). Sem o Apify, a lista é vazia.
+ */
+export function fornecedoresDaCascata(deps: { apify?: Apify }): ProvedorDeContatos[] {
+  return deps.apify ? [new ApifyProvedorDeContatos({ apify: deps.apify })] : []
+}
+
+/**
  * Cascata de provedores: tenta cada fornecedor registrado em ordem até
- * obter resultados ou esgotar a lista.
+ * obter resultados ou esgotar a lista. Quem falha não para a cascata, mas a falha volta se nenhum achar.
  */
 export class CascataProvedorDeContatos implements ProvedorDeContatos {
   readonly nome = 'cascata'
@@ -400,35 +408,32 @@ export class CascataProvedorDeContatos implements ProvedorDeContatos {
   constructor(private readonly provedores: ProvedorDeContatos[]) {}
 
   async buscarPessoas(empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]> {
-    for (const provedor of this.provedores) {
-      try {
-        const pessoas = await provedor.buscarPessoas(empresa)
-        if (pessoas && pessoas.length > 0) {
-          return pessoas
-        }
-      } catch {
-        // Continua para o próximo fornecedor da cascata
-        continue
-      }
-    }
-    return []
+    const pessoas = await this.primeiroQueAcha(async (provedor) => {
+      const encontradas = await provedor.buscarPessoas(empresa)
+      return encontradas?.length ? encontradas : null
+    })
+    return pessoas ?? []
   }
 
-  async revelarContato(
+  revelarContato(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
   ): Promise<DadoRevelado | null> {
+    return this.primeiroQueAcha(async (provedor) => await provedor.revelarContato?.(pessoa, canal) ?? null)
+  }
+
+  /** O primeiro fornecedor que acha, em ordem; null quando nenhum acha. A falha só volta se nenhum achar. */
+  private async primeiroQueAcha<T>(tentar: (provedor: ProvedorDeContatos) => Promise<T | null>): Promise<T | null> {
+    let falha: unknown = null
     for (const provedor of this.provedores) {
-      if (!provedor.revelarContato) continue
       try {
-        const resultado = await provedor.revelarContato(pessoa, canal)
-        if (resultado) {
-          return resultado
-        }
-      } catch {
-        continue
+        const resultado = await tentar(provedor)
+        if (resultado !== null) return resultado
+      } catch (e) {
+        falha ??= e
       }
     }
+    if (falha) throw falha
     return null
   }
 }
