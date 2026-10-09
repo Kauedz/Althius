@@ -10,6 +10,7 @@ import type {
   NovaContaAlvo,
   NovaInteracao,
   NovoSinal,
+  ResultadoDoComite,
   Sinal,
 } from './contas-tipos'
 import { criarDadosIniciais } from './dados-contas-demo'
@@ -497,8 +498,13 @@ export function criarFonteDeContasSimulada(
       )
     },
 
-    async buscarComite(contaId: string): Promise<void> {
+    async buscarComite(contaId: string): Promise<ResultadoDoComite> {
       await aguardar()
+      // Como no servidor: quem já é proposta da Conta (em qualquer estado) volta como já encontrado, sem custo.
+      const linkedin = 'https://linkedin.com/in/roberto-valente-supply'
+      if (propostasComite.some((p) => p.targetAccountId === contaId && p.linkedinUrl?.toLowerCase() === linkedin)) {
+        return { encontradas: 1, novas: 0, jaEncontradas: 1 }
+      }
       const novaProp: ContatoProposto = {
         id: `prop-${Date.now()}`,
         targetAccountId: contaId,
@@ -506,7 +512,7 @@ export function criarFonteDeContasSimulada(
         name: 'Roberto Valente',
         role: 'Diretor de Supply Chain',
         headline: 'Supply Chain Director',
-        linkedinUrl: 'https://linkedin.com/in/roberto-valente-supply',
+        linkedinUrl: linkedin,
         location: 'São Paulo, SP',
         persona: 'Decisor',
         sourceProvider: 'apify',
@@ -514,6 +520,7 @@ export function criarFonteDeContasSimulada(
       }
       propostasComite.push(novaProp)
       notificar()
+      return { encontradas: 1, novas: 1, jaEncontradas: 0 }
     },
 
     async aceitarContatoProposto(propostaId: string): Promise<Contato> {
@@ -555,12 +562,18 @@ export function criarFonteDeContasSimulada(
       notificar()
     },
 
-    async cotarRevelacaoContato(_contatoId: string, canal: 'email' | 'telefone') {
+    async cotarRevelacaoContato(contatoId: string, canal: 'email' | 'telefone') {
       await aguardar()
+      const contato = dados.contatos.find((c) => c.id === contatoId)
+      // O dado que o Contato já tem não custa nada.
+      if (contato && (canal === 'email' ? contato.email : contato.whatsapp)) {
+        return { creditos: 0, saldo: 50, podeRevelar: true, jaEncontrado: true }
+      }
       return {
         creditos: canal === 'email' ? 2 : 5,
         saldo: 50,
         podeRevelar: true,
+        jaEncontrado: false,
       }
     },
 
@@ -568,6 +581,12 @@ export function criarFonteDeContasSimulada(
       await aguardar()
       const contato = dados.contatos.find((c) => c.id === contatoId)
       if (!contato) throw new Error('Contato não encontrado')
+
+      // Já encontrado: devolve o que existe, sem custo e sem nova busca.
+      const existente = canal === 'email' ? contato.email : contato.whatsapp
+      if (existente) {
+        return { sucesso: true, valor: existente, creditosDebitados: 0, jaExistia: true }
+      }
 
       const valor = canal === 'email'
         ? `${contato.nome.toLowerCase().replace(/\s+/g, '.')}@empresa.com.br`

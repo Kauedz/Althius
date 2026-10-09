@@ -26,6 +26,7 @@ import type {
   ResultadoDaRestauracaoDaConta,
   ResultadoDoApagamentoDaConta,
   ResultadoDoArquivamentoDaConta,
+  ResultadoDoComite,
   ResultadoDoEnvioAoCrm,
   TipoDeInteracao,
 } from './contas-tipos'
@@ -739,10 +740,10 @@ export function criarFonteDeContasSupabase(
       }))
     },
 
-    async buscarComite(contaId: string): Promise<void> {
+    async buscarComite(contaId: string): Promise<ResultadoDoComite> {
       const { data: c, error: errConta } = await cliente.from('target_accounts').select('name, linkedin_url, domain').eq('workspace_id', workspace()).eq('id', contaId).maybeSingle()
       if (errConta || !c) throw new Error('Conta não encontrada')
-      const { error } = await cliente.functions.invoke('account-enrichment', {
+      const { data, error } = await cliente.functions.invoke('account-enrichment', {
         body: {
           action: 'comite-compra',
           workspaceId: workspace(),
@@ -758,6 +759,12 @@ export function criarFonteDeContasSupabase(
         throw new Error('A busca do comitê falhou.')
       }
       notificar()
+      // Só as novas custam crédito; as já encontradas voltam sem custo.
+      return {
+        encontradas: Number(data?.contactsFound ?? 0),
+        novas: Number(data?.contactsAdded ?? 0),
+        jaEncontradas: Number(data?.contactsAlreadyKnown ?? 0),
+      }
     },
 
     async aceitarContatoProposto(propostaId: string): Promise<Contato> {
@@ -791,6 +798,7 @@ export function criarFonteDeContasSupabase(
         creditos: linha?.credits ?? (canal === 'email' ? 2 : 5),
         saldo: Number(linha?.current_balance ?? 0),
         podeRevelar: Boolean(linha?.can_reveal),
+        jaEncontrado: linha?.already_known === true,
       }
     },
 
@@ -815,6 +823,7 @@ export function criarFonteDeContasSupabase(
         sucesso: Boolean(data?.sucesso),
         valor: (data?.valor as string) || null,
         creditosDebitados: Number(data?.creditosDebitados || 0),
+        jaExistia: data?.jaExistia === true,
       }
     },
 

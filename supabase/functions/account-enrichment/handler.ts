@@ -61,6 +61,10 @@ export interface DbEnrichment {
     authorization: string
     apikey: string
   }): Promise<{ runId: string; reservationId: string }>
+  /**
+   * finish_committee_discovery: `contactsFound` são as pessoas que a busca examinou. O banco conta as novas pelas
+   * propostas que a busca criou e liquida a reserva só por elas.
+   */
   finishCommitteeDiscovery(args: {
     runId: string
     success: boolean
@@ -69,6 +73,9 @@ export interface DbEnrichment {
     costUsd?: number
     error?: string
   }): Promise<void>
+  /** count_known_committee_people: quantas pessoas a Conta já conhece (propostas e Contatos com Vínculo). */
+  countKnownCommitteePeople?(args: { workspaceId: string; targetAccountId: string }): Promise<number>
+  /** record_proposed_contact: `created` é "pessoa nova para a Conta", a única que custa crédito. */
   recordProposedContact(args: {
     workspaceId: string
     targetAccountId: string
@@ -90,6 +97,14 @@ export interface DbEnrichment {
     authorization: string
     apikey: string
   }): Promise<{ name: string; linkedin?: string; companyName?: string } | null>
+  /** existing_reveal_value: o dado que o Contato já tem no canal, lido com a sessão; null quando não tem. */
+  existingRevealValue?(args: {
+    workspaceId: string
+    contactId: string
+    channel: 'email' | 'telefone'
+    authorization: string
+    apikey: string
+  }): Promise<{ value: string; provider?: string } | null>
   beginRevealContact(args: {
     workspaceId: string
     contactId: string
@@ -144,6 +159,10 @@ export interface DepsEnrichment {
   actorReceita?: string
   appOrigin?: string
 }
+
+// O actor do comitê não tem campo para excluir perfis (build 0.0.163): pedimos as pessoas já conhecidas a mais, até
+// este teto, para sobrar gente nova. 50 perfis curtos custam no máximo US$ 0,17 (0,02 de início + 0,003 por perfil).
+export const TETO_DO_PEDIDO_DO_COMITE = 50
 
 /** Valida o CNPJ pelos 14 dígitos e dígitos verificadores. */
 export function validarCnpj(valor: string): string | null {
@@ -526,6 +545,16 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           }).catch(() => {})
         }
 
+        // Quem a Conta já conhece não é cobrado de novo; pedir essas pessoas a mais deixa lugar para as novas.
+        let conhecidas = 0
+        if (deps.db.countKnownCommitteePeople) {
+          try {
+            conhecidas = Math.max(0, await deps.db.countKnownCommitteePeople({ workspaceId, targetAccountId }))
+          } catch {
+            conhecidas = 0
+          }
+        }
+
         let pessoas: PessoaEncontrada[]
         try {
           pessoas = await buscaDePessoas.buscarPessoas({
@@ -533,7 +562,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
             linkedinUrl: body.companyLinkedinUrl ? String(body.companyLinkedinUrl) : undefined,
             dominio: body.companyDomain && !/^(www\.)?linkedin\.com$/i.test(String(body.companyDomain).trim()) ? String(body.companyDomain).trim() : undefined,
             cargos: Array.isArray(body.cargos) ? body.cargos.map(String) : undefined,
-            limite,
+            limite: Math.min(limite + conhecidas, TETO_DO_PEDIDO_DO_COMITE),
             medicao,
           })
         } catch (e) {
@@ -550,10 +579,15 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           return json({ error: mensagem }, 502)
         }
 
-        let gravados = 0
+        // Só a pessoa nova para a Conta conta e custa 1 crédito; a já encontrada sai sem custo. A reserva é do
+        // tamanho do limite, então a busca para quando chega a ele.
+        let novas = 0
+        let jaEncontradas = 0
+        const examinadas: Array<PessoaEncontrada & { jaEncontrada: boolean }> = []
         for (const p of pessoas) {
+          if (novas >= limite) break
           try {
-            await deps.db.recordProposedContact({
+            const gravada = await deps.db.recordProposedContact({
               workspaceId,
               targetAccountId,
               discoveryRunId: inicio.runId,
@@ -568,27 +602,31 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
               sourceProvider: p.fonte,
               sourceData: p,
             })
-            gravados++
+            if (gravada.created) novas++
+            else jaEncontradas++
+            examinadas.push({ ...p, jaEncontrada: !gravada.created })
           } catch {
-            // Continua gravando os demais
+            // Gravação que falhou não conta nem cobra; continua com as demais.
           }
         }
 
-        // Lista vazia também conclui: debita zero. O custo da execução vai nos dois desfechos.
+        // Lista vazia também conclui: debita zero. O custo da execução vai nos dois desfechos. O banco liquida pelas
+        // propostas novas que a busca criou, não por este número.
         await deps.db.finishCommitteeDiscovery({
           runId: inicio.runId,
           success: true,
-          contactsFound: gravados,
+          contactsFound: novas + jaEncontradas,
           costUsd: medicao.costUsd ?? undefined,
-            apifyRunId: medicao.runId ?? undefined,
+          apifyRunId: medicao.runId ?? undefined,
         })
         await gravarCusto(pessoas.length)
 
         return json({
           runId: inicio.runId,
-          contactsFound: pessoas.length,
-          contactsAdded: gravados,
-          proposed: pessoas,
+          contactsFound: novas + jaEncontradas,
+          contactsAdded: novas,
+          contactsAlreadyKnown: jaEncontradas,
+          proposed: examinadas,
         }, 200)
       }
 
@@ -628,6 +666,33 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
             status: 404,
             headers: { 'Content-Type': 'application/json' },
           })
+        }
+
+        // Já encontrado: o banco devolve o e-mail que o Contato tem, sem reserva, sem actor e sem crédito. Só o deste
+        // Contato, no Workspace da sessão: nunca o de outro Workspace.
+        if (deps.db.existingRevealValue) {
+          const existente = await deps.db.existingRevealValue({
+            workspaceId,
+            contactId,
+            channel: canal,
+            authorization,
+            apikey,
+          })
+          if (existente) {
+            return json({
+              sucesso: true,
+              canal,
+              valor: existente.value,
+              creditosDebitados: 0,
+              jaExistia: true,
+              fonte: existente.provider ?? null,
+              lgpd: {
+                origem: existente.provider ?? null,
+                coletadoEm: null,
+                baseLegal: 'needs-info (dados profissionais de acesso público)',
+              },
+            }, 200)
+          }
         }
 
         // Reserva os 2 créditos do e-mail
