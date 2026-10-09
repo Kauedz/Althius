@@ -11,7 +11,7 @@ import { SeloDoEstado } from './componentes'
 import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
 import { VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
-import { ACAO_DO_ESTADO, resumoDaExecucao, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
+import { ACAO_DO_ESTADO, resumoDaRodada, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
 
 export function PaginaDoTipo() {
   const { tipoId = '' } = useParams<{ tipoId: string }>()
@@ -174,8 +174,8 @@ export function PaginaDoTipo() {
                   {m.ultimaFalha && (
                     <p className="text-xs text-al-atencao">Última rodada: {m.ultimaFalha}</p>
                   )}
-                  {!m.ultimaFalha && m.ultimaExecucao?.estado === 'concluida' && (
-                    <p className="text-xs text-al-muted">{resumoDaExecucao(m.ultimaExecucao, hoje)}</p>
+                  {!m.ultimaFalha && m.ultimaRodada?.estado === 'concluida' && (
+                    <p className="text-xs text-al-muted">{resumoDaRodada(m.ultimaRodada, hoje)}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-1">

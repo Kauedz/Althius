@@ -185,7 +185,7 @@ describe('Sinais internos das Interações no Workspace operacional (CRM-10)', (
       {
         id: MONITOR, tipoId: 'sem-resposta', nome: 'Sem resposta em 30 dias', estado: 'ativo',
         publico: { modo: 'listas', listas: [CONTA], usaRecomendado: false }, criterios: { prazo: '30' },
-        ultimaExecucao: { estado: 'concluida', data: '2026-10-08T10:00:01Z', contasAvaliadas: 5, sinaisNovos: 2, sinaisReencontrados: 1 },
+        ultimaRodada: { estado: 'concluida', data: '2026-10-08T10:00:01Z', contasAvaliadas: 5, sinaisNovos: 2, sinaisReencontrados: 1 },
       },
     ])
   })
@@ -210,7 +210,7 @@ describe('Sinais internos das Interações no Workspace operacional (CRM-10)', (
           id: 's2', target_account_id: CONTA, monitor_id: MONITOR, signal_type: 'negociacao_parada',
           event_key: 'negociacao_parada|i1', phrase: 'Negociação parada desde 19/08/2026', fired_at: '2026-10-08T10:00:00Z',
           source: 'Interações da Conta',
-          evidence: 'Última Interação: reunião em 19/08/2026, depois de uma conversa com a Conta. Nenhuma Interação registrada desde então (prazo do Monitoramento: 30 dias).',
+          evidence: 'Última Interação: reunião em 19/08/2026. Nenhuma Interação registrada desde então (prazo do Monitoramento: 30 dias).',
           seen_again_at: null, seen_again_monitor_id: null, valid: true,
         },
       ],
@@ -219,7 +219,7 @@ describe('Sinais internos das Interações no Workspace operacional (CRM-10)', (
       {
         id: 's2', contaId: CONTA, acontecimentoId: 'negociacao_parada|i1', tipoId: 'negociacao-parada', monitoramentoId: MONITOR,
         frase: 'Negociação parada desde 19/08/2026', data: '2026-10-08T10:00:00Z', fonte: 'Interações da Conta',
-        evidencia: 'Última Interação: reunião em 19/08/2026, depois de uma conversa com a Conta. Nenhuma Interação registrada desde então (prazo do Monitoramento: 30 dias).',
+        evidencia: 'Última Interação: reunião em 19/08/2026. Nenhuma Interação registrada desde então (prazo do Monitoramento: 30 dias).',
       },
     ])
   })

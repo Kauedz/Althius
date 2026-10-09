@@ -282,6 +282,8 @@ function abrirContasDoNorte(
     esperarLeitura,
     funcoes,
     rpcs: {
+      // Nenhum Sinal gravado nas Contas do Norte: a leitura responde vazio (CRM-10 mostra o erro quando ela falha).
+      list_signals: () => [],
       save_target_account: ({ p_name, p_url }) => {
         const dominio = String(p_url).replace(/^https?:\/\//, '').replace(/\/$/, '')
         const nova = contaNoBanco('6f1c2d3e-4a5b-4c6d-8e7f-000000000003', String(p_name), dominio)

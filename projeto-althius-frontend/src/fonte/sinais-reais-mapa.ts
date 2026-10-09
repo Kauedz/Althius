@@ -33,7 +33,7 @@ export const TIPO_DO_SINAL_REAL: Readonly<Record<string, string>> = Object.fromE
   Object.entries(SINAL_DO_TIPO).map(([tipo, sinal]) => [sinal, tipo]),
 )
 
-export const SINAIS_INTERNOS_REAIS: ReadonlySet<string> = new Set(Object.keys(SINAL_INTERNO_DO_TIPO))
+export const TIPOS_INTERNOS_REAIS: ReadonlySet<string> = new Set(Object.keys(SINAL_INTERNO_DO_TIPO))
 
 /** O prazo é o único critério que a avaliação de um Sinal interno usa; a condição é o próprio tipo. */
 export const CRITERIOS_DOS_SINAIS_INTERNOS: readonly string[] = ['prazo']

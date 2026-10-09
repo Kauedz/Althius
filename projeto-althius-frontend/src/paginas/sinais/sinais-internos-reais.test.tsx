@@ -289,6 +289,14 @@ describe('Sinal interno na Conta do Workspace operacional', () => {
     expect(within(recente).getByText('Fonte: Interações da Conta')).toBeInTheDocument()
   })
 
+  it('"Buscar Sinais de novo" explica que os Sinais internos não entram na busca', async () => {
+    abrir(`/contas/${CONTA}`, { sinais: [sinalInterno()] })
+
+    expect(await screen.findByRole('button', { name: 'Buscar Sinais de novo' })).toBeDisabled()
+    expect(screen.getByText('Nenhum Monitoramento ativo para buscar.')).toBeInTheDocument()
+    expect(screen.getByText(/Os Sinais internos não entram nesta busca/)).toBeInTheDocument()
+  })
+
   it('se os Sinais da Conta não puderem ser lidos, o detalhe diz que falhou em vez de "Nenhum sinal"', async () => {
     const { usuario } = abrir(`/contas/${CONTA}`, { sinais: 'falha' })
 

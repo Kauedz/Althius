@@ -5,16 +5,25 @@
 --   sem_resposta       o primeiro envio (e-mail ou mensagem) depois da última conversa completou o prazo sem resposta,
 --                      ligação nem reunião. O silêncio é o acontecimento: a chave é esse primeiro envio, então os
 --                      envios seguintes sem resposta não contam de novo, e um silêncio novo depois de uma resposta conta.
---   negociacao_parada  a Conta já conversou (resposta, ligação ou reunião) e a última Interação completou o prazo. A
---                      chave é essa última Interação.
+--   negociacao_parada  a última Interação da Conta foi uma conversa (resposta, ligação ou reunião) e nada mais aconteceu,
+--                      de nenhum lado, no prazo. A chave é essa conversa. Quem continua escrevendo sem resposta está em
+--                      sem_resposta, então o mesmo silêncio nunca vira os dois tipos.
 -- "Proposta recusada" fica de fora: nenhuma Interação registra a recusa de uma proposta.
+--
+-- O Sinal interno dispara no dia em que o prazo venceu (a Interação de origem mais o prazo), como o externo grava a data
+-- do acontecimento (decisão do Renan em 09/10/2026). Ativar um Monitoramento não deixa Quente um silêncio antigo: ele
+-- entra no histórico já vencido.
 --
 -- O catálogo dos Sinais reais vira um registro próprio (private.signal_catalog), com a origem de cada tipo; o registro
 -- de actors (sinais-reais 01) continua dizendo qual actor atende cada Sinal externo e se ele está disponível. Monitoramento,
--- execução e Sinal encontrado são registros separados: cada avaliação de um Monitoramento interno grava uma execução
--- (private.signal_monitor_runs), e o Sinal guarda a Interação de origem e a execução que o encontrou. O mesmo
+-- rodada e Sinal encontrado são registros separados: cada avaliação de um Monitoramento interno grava uma rodada
+-- (private.signal_monitor_runs), e o Sinal guarda a Interação de origem e a rodada que o encontrou. O mesmo
 -- acontecimento conta uma vez e reencontrá-lo não renova o prazo; o Sinal novo deixa a Conta Quente por 30 dias, sem
 -- mexer na Aderência (ADR-0007, pela private.record_signal de sempre).
+--
+-- A migration troca duas chaves estrangeiras (o tipo do Monitoramento e do Sinal passa a apontar para o catálogo, que
+-- contém todos os tipos do registro de actors) e recria public.list_signal_monitors com uma coluna a mais. Nenhum dado
+-- é apagado.
 --
 -- O Monitoramento interno é avaliado na hora em que é salvo ou ligado como ativo e, depois, pelo relógio do banco a cada
 -- `every_hours`. A varredura externa (signal-runner) e a "Buscar Sinais de novo" só olham os Sinais com actor, então
@@ -109,7 +118,7 @@ $$;
 
 revoke all on function private.available_signal_origin(text) from public, anon, authenticated, service_role;
 
--- 2. As execuções. Cada avaliação de um Monitoramento grava uma, com o que avaliou e o que encontrou.
+-- 2. As rodadas. Cada avaliação de um Monitoramento grava uma, com o que avaliou e o que encontrou.
 create table private.signal_monitor_runs (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null,
@@ -130,7 +139,7 @@ create index signal_monitor_runs_monitor_idx on private.signal_monitor_runs (wor
 alter table private.signal_monitor_runs enable row level security;
 revoke all on private.signal_monitor_runs from public, anon, authenticated, service_role;
 
--- O Sinal guarda a Interação de onde saiu (a Interação continua no histórico comercial) e a execução que o encontrou.
+-- O Sinal guarda a Interação de onde saiu (a Interação continua no histórico comercial) e a rodada que o encontrou.
 alter table private.signals
   add column origin_interaction_id uuid references public.account_interactions(id) on delete set null,
   add column run_id uuid references private.signal_monitor_runs(id) on delete set null;
@@ -168,6 +177,8 @@ begin
 end;
 $$;
 
+revoke all on function private.internal_signal_days(jsonb) from public, anon, authenticated, service_role;
+
 -- O dia de uma Interação como as frases e as evidências o mostram.
 create function private.signal_day(p_at timestamptz)
 returns text
@@ -178,14 +189,14 @@ as $$
   select to_char(p_at at time zone 'America/Sao_Paulo', 'DD/MM/YYYY');
 $$;
 
-revoke all on function private.internal_signal_days(jsonb) from public, anon, authenticated, service_role;
 revoke all on function private.signal_day(timestamptz) from public, anon, authenticated, service_role;
 
 -- Os Sinais internos que as Interações das Contas mostram agora: um por Conta, com a Interação de origem, a chave do
--- acontecimento, a frase e a evidência (sem dado pessoal: nem nome, nem e-mail, nem conteúdo). Conversa é o que veio da
--- Conta ou aconteceu com ela: e-mail ou mensagem recebidos, ligação e reunião.
+-- acontecimento, a frase, a evidência (sem dado pessoal: nem nome, nem e-mail, nem conteúdo) e o dia em que o prazo
+-- venceu, que é o disparo. Conversa é o que veio da Conta ou aconteceu com ela: e-mail ou mensagem recebidos, ligação e
+-- reunião.
 create function private.internal_signal_candidates(p_workspace_id uuid, p_signal_type text, p_days integer, p_account_ids uuid[])
-returns table (target_account_id uuid, interaction_id uuid, event_key text, phrase text, evidence text)
+returns table (target_account_id uuid, interaction_id uuid, event_key text, phrase text, evidence text, fired_at timestamptz)
 language sql
 stable
 security definer
@@ -208,44 +219,45 @@ as $$
     where not x.conversa and (u.em is null or x.occurred_at > u.em)
     order by x.target_account_id, x.occurred_at, x.id
   ),
-  -- A última Interação de uma Conta que já conversou.
+  -- A última Interação da Conta, quando ela foi uma conversa: depois dela, ninguém escreveu.
   parada as (
-    select distinct on (x.target_account_id) x.target_account_id, x.id, x.kind, x.occurred_at
-    from interacoes x
-    join ultima_conversa u on u.target_account_id = x.target_account_id
-    order by x.target_account_id, x.occurred_at desc, x.id desc
+    select y.target_account_id, y.id, y.kind, y.occurred_at
+    from (
+      select distinct on (x.target_account_id) x.target_account_id, x.id, x.kind, x.occurred_at, x.conversa
+      from interacoes x
+      order by x.target_account_id, x.occurred_at desc, x.id desc
+    ) y
+    where y.conversa
   )
   select s.target_account_id, s.id, 'sem_resposta|' || s.id::text,
     'Sem resposta desde ' || private.signal_day(s.occurred_at),
     format('Primeiro envio sem resposta: %s em %s. Nenhuma resposta, ligação ou reunião registrada desde então '
       '(prazo do Monitoramento: %s dias).',
-      case s.kind when 'email-enviado' then 'e-mail' else 'mensagem' end, private.signal_day(s.occurred_at), p_days)
+      case s.kind when 'email-enviado' then 'e-mail' else 'mensagem' end, private.signal_day(s.occurred_at), p_days),
+    s.occurred_at + make_interval(days => p_days)
   from silencio s
   where p_signal_type = 'sem_resposta' and s.occurred_at <= now() - make_interval(days => p_days)
   union all
   select p.target_account_id, p.id, 'negociacao_parada|' || p.id::text,
     'Negociação parada desde ' || private.signal_day(p.occurred_at),
-    format('Última Interação: %s em %s, depois de uma conversa com a Conta. Nenhuma Interação registrada desde então '
-      '(prazo do Monitoramento: %s dias).',
+    format('Última Interação: %s em %s. Nenhuma Interação registrada desde então (prazo do Monitoramento: %s dias).',
       case p.kind
-        when 'email-enviado' then 'e-mail enviado'
         when 'email-recebido' then 'e-mail recebido'
-        when 'mensagem-enviada' then 'mensagem enviada'
         when 'mensagem-recebida' then 'mensagem recebida'
         when 'ligacao' then 'ligação'
-        when 'reuniao' then 'reunião'
-        else 'Interação'
+        else 'reunião'
       end,
-      private.signal_day(p.occurred_at), p_days)
+      private.signal_day(p.occurred_at), p_days),
+    p.occurred_at + make_interval(days => p_days)
   from parada p
   where p_signal_type = 'negociacao_parada' and p.occurred_at <= now() - make_interval(days => p_days);
 $$;
 
 revoke all on function private.internal_signal_candidates(uuid, text, integer, uuid[]) from public, anon, authenticated, service_role;
 
--- Avalia um Monitoramento interno: grava a execução, um Sinal por acontecimento novo (o reencontro só fica anotado) e
+-- Avalia um Monitoramento interno: grava a rodada, um Sinal por acontecimento novo (o reencontro só fica anotado) e
 -- agenda a próxima. Só as Contas do público que aceitam escrita (nem arquivadas, nem apagadas). Uma falha fica na
--- execução e no Monitoramento, sem Sinal pela metade, e a próxima tentativa vem em uma hora. Devolve a execução.
+-- rodada e no Monitoramento, sem Sinal pela metade, e a próxima tentativa vem em uma hora. Devolve a rodada.
 create function private.run_internal_signal_monitor(p_monitor_id uuid)
 returns uuid
 language plpgsql
@@ -285,8 +297,8 @@ begin
       raise exception 'invalid internal monitor criteria' using errcode = '22023';
     end if;
     for c in select * from private.internal_signal_candidates(v.workspace_id, v.signal_type, v_days, v_accounts) loop
-      if private.record_signal(v.workspace_id, c.target_account_id, v.id, v.signal_type, c.event_key, c.phrase, now(),
-        'Interações da Conta', c.evidence)
+      if private.record_signal(v.workspace_id, c.target_account_id, v.id, v.signal_type, c.event_key, c.phrase,
+        c.fired_at, 'Interações da Conta', c.evidence)
       then
         update private.signals g set origin_interaction_id = c.interaction_id, run_id = v_run
         where g.workspace_id = v.workspace_id and g.target_account_id = c.target_account_id
@@ -316,7 +328,8 @@ $$;
 
 revoke all on function private.run_internal_signal_monitor(uuid) from public, anon, authenticated, service_role;
 
--- O relógio: avalia os Monitoramentos internos ativos e vencidos. Devolve quantos avaliou.
+-- O relógio: avalia os Monitoramentos internos ativos e vencidos. Devolve quantos avaliou. Um Monitoramento que quebra
+-- fora da avaliação (ao gravar a rodada, por exemplo) não derruba os outros do lote.
 create function private.run_due_internal_signal_monitors(p_limit integer default 50)
 returns integer
 language plpgsql
@@ -335,8 +348,12 @@ begin
     limit least(greatest(coalesce(p_limit, 50), 1), 500)
     for update of m skip locked
   loop
-    perform private.run_internal_signal_monitor(v.id);
-    v_count := v_count + 1;
+    begin
+      perform private.run_internal_signal_monitor(v.id);
+      v_count := v_count + 1;
+    exception when others then
+      raise warning 'internal signal monitor % could not run: % (%)', v.id, sqlerrm, sqlstate;
+    end;
   end loop;
   return v_count;
 end;
@@ -422,15 +439,13 @@ begin
     state = p_state, updated_at = now(),
     next_run_at = case when p_state = 'ativo' then coalesce(next_run_at, now()) else next_run_at end
   where id = p_id;
-  if p_state = 'ativo'
-    and exists (select 1 from private.signal_catalog k where k.signal_type = v.signal_type and k.origin = 'interno')
-  then
+  if p_state = 'ativo' and private.available_signal_origin(v.signal_type) = 'interno' then
     perform private.run_internal_signal_monitor(p_id);
   end if;
 end;
 $$;
 
--- Os Monitoramentos do Workspace com a última execução de cada um (redefinida a partir de 20260930180000, com a coluna
+-- Os Monitoramentos do Workspace com a última rodada de cada um (redefinida a partir de 20260930180000, com a coluna
 -- last_run a mais).
 drop function public.list_signal_monitors(uuid);
 

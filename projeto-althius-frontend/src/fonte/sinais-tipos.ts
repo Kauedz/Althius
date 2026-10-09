@@ -32,11 +32,11 @@ export interface Monitoramento {
   /** Por que a última rodada não varreu tudo, em palavras do produto (só o Workspace operacional informa). */
   ultimaFalha?: string
   /** A última avaliação gravada no banco (só o Workspace operacional informa). */
-  ultimaExecucao?: ExecucaoDoMonitoramento
+  ultimaRodada?: RodadaDoMonitoramento
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */
-export interface ExecucaoDoMonitoramento {
+export interface RodadaDoMonitoramento {
   estado: 'rodando' | 'concluida' | 'falhou'
   data: string
   contasAvaliadas: number

@@ -155,7 +155,7 @@ function mapearMonitor(linha: RegistroDoMonitor): Monitoramento | null {
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
       ? {
-          ultimaExecucao: {
+          ultimaRodada: {
             estado: linha.last_run.state,
             data: linha.last_run.finishedAt ?? linha.last_run.startedAt,
             contasAvaliadas: linha.last_run.accountsChecked,

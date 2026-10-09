@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(54);
+select plan(55);
 
 -- Ana (Admin) e Bruno (Membro) do Norte; Carla é de fora. Nenhum actor do Apify está disponível: os Sinais internos não
 -- dependem dele.
@@ -26,16 +26,18 @@ insert into public.target_accounts (id, workspace_id, name, canonical_url, domai
   ('dc000000-0000-0000-0000-000000000004', 'fc000000-0000-0000-0000-000000000001', 'Delta', 'https://delta.test', 'delta.test', '5c000000-0000-0000-0000-000000000001'),
   ('dc000000-0000-0000-0000-000000000005', 'fc000000-0000-0000-0000-000000000001', 'Epsilon', 'https://epsilon.test', 'epsilon.test', '5c000000-0000-0000-0000-000000000001'),
   ('dc000000-0000-0000-0000-000000000006', 'fc000000-0000-0000-0000-000000000001', 'Zeta', 'https://zeta.test', 'zeta.test', '5c000000-0000-0000-0000-000000000001'),
+  ('dc000000-0000-0000-0000-000000000007', 'fc000000-0000-0000-0000-000000000001', 'Eta', 'https://eta.test', 'eta.test', '5c000000-0000-0000-0000-000000000001'),
   ('dc000000-0000-0000-0000-000000000009', 'fc000000-0000-0000-0000-000000000002', 'Sul S/A', 'https://sul.test', 'sul.test', '5c000000-0000-0000-0000-000000000003');
 
--- As Interações reais de cada Conta, em dias atrás:
+-- As Interações reais de cada Conta, em dias atrás. O Sinal dispara no dia em que o prazo venceu (a Interação mais o prazo):
 --   Alfa     e-mail enviado 40, mensagem enviada 35                       → sem resposta desde o e-mail de 40 dias
---   Beta     e-mail enviado 60, e-mail recebido 50                        → houve conversa e parou há 50 dias
+--   Beta     e-mail enviado 60, e-mail recebido 50                        → a conversa parou há 50 dias
 --   Gama     e-mail enviado 10                                            → ainda dentro do prazo de 30 dias
 --   Delta    e-mail enviado 100, reunião 90, e-mail enviado 50, mensagem enviada 45
---            → sem resposta desde o e-mail de 50 dias (depois da reunião) e parada desde a mensagem de 45 dias
+--            → sem resposta desde o e-mail de 50 dias; continuou escrevendo, então não é negociação parada
 --   Epsilon  e-mail enviado 40, mas a Conta está arquivada                → não recebe Sinal
 --   Zeta     nenhuma Interação                                            → nada
+--   Eta      e-mail enviado 400                                           → o prazo venceu há muito: Sinal já vencido
 insert into public.account_interactions (id, workspace_id, target_account_id, kind, occurred_at, recorded_by) values
   ('ec000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000001', 'email-enviado', now() - interval '40 days', '5c000000-0000-0000-0000-000000000001'),
   ('ec000000-0000-0000-0000-000000000002', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000001', 'mensagem-enviada', now() - interval '35 days', '5c000000-0000-0000-0000-000000000001'),
@@ -46,7 +48,8 @@ insert into public.account_interactions (id, workspace_id, target_account_id, ki
   ('ec000000-0000-0000-0000-000000000007', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000004', 'reuniao', now() - interval '90 days', '5c000000-0000-0000-0000-000000000001'),
   ('ec000000-0000-0000-0000-000000000008', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000004', 'email-enviado', now() - interval '50 days', '5c000000-0000-0000-0000-000000000001'),
   ('ec000000-0000-0000-0000-000000000009', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000004', 'mensagem-enviada', now() - interval '45 days', '5c000000-0000-0000-0000-000000000001'),
-  ('ec000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000005', 'email-enviado', now() - interval '40 days', '5c000000-0000-0000-0000-000000000001');
+  ('ec000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000005', 'email-enviado', now() - interval '40 days', '5c000000-0000-0000-0000-000000000001'),
+  ('ec000000-0000-0000-0000-000000000013', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000007', 'email-enviado', now() - interval '400 days', '5c000000-0000-0000-0000-000000000001');
 update public.target_accounts set archived_at = now() where id = 'dc000000-0000-0000-0000-000000000005';
 
 -- A Aderência fica separada: Alfa já é Fit e Beta é Não fit (Descartada) antes de qualquer Sinal.
@@ -78,7 +81,7 @@ select is(
 
 -- 2. O Monitoramento interno: configuração própria, criada por qualquer participante, sem actor disponível.
 insert into r (k, id) select 'sem', public.save_signal_monitor('fc000000-0000-0000-0000-000000000001', null, 'sem_resposta', 'Sem resposta em 30 dias', 'rascunho',
-  '{"accountIds":["dc000000-0000-0000-0000-000000000001","dc000000-0000-0000-0000-000000000002","dc000000-0000-0000-0000-000000000003","dc000000-0000-0000-0000-000000000004","dc000000-0000-0000-0000-000000000005","dc000000-0000-0000-0000-000000000006"]}',
+  '{"accountIds":["dc000000-0000-0000-0000-000000000001","dc000000-0000-0000-0000-000000000002","dc000000-0000-0000-0000-000000000003","dc000000-0000-0000-0000-000000000004","dc000000-0000-0000-0000-000000000005","dc000000-0000-0000-0000-000000000006","dc000000-0000-0000-0000-000000000007"]}',
   '{"prazo":"30"}', 24);
 select is(
   (select row(signal_type, state, criteria ->> 'prazo')::text from public.list_signal_monitors('fc000000-0000-0000-0000-000000000001')
@@ -122,7 +125,7 @@ select is(
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
--- 3. Ativar avalia as Interações na hora: uma execução registrada, e um Sinal por silêncio encontrado.
+-- 3. Ativar avalia as Interações na hora: uma rodada registrada, e um Sinal por silêncio encontrado.
 select lives_ok(format($$select public.set_signal_monitor_state(%L, 'ativo')$$, (select id from r where k = 'sem')), 'Bruno ativa o Monitoramento');
 
 reset role;
@@ -130,14 +133,14 @@ insert into r (k, id) select 'run1', x.id from private.signal_monitor_runs x whe
 select is(
   (select row(state, accounts_checked, signals_new, signals_repeated, error is null, finished_at is not null)::text
    from private.signal_monitor_runs where id = (select id from r where k = 'run1')),
-  '(concluida,5,2,0,t,t)', 'a execução fica registrada: 5 Contas operáveis avaliadas, 2 Sinais novos'
+  '(concluida,6,3,0,t,t)', 'a rodada fica registrada: 6 Contas operáveis avaliadas, 3 Sinais novos'
 );
 select is(
   (select row(g.signal_type, g.event_key, g.origin_interaction_id, g.run_id = (select id from r where k = 'run1'), g.source,
-     g.monitor_id = (select id from r where k = 'sem'), g.fired_at = now())::text
+     g.monitor_id = (select id from r where k = 'sem'), g.fired_at = now() - interval '10 days')::text
    from private.signals g where g.target_account_id = 'dc000000-0000-0000-0000-000000000001'),
   '(sem_resposta,sem_resposta|ec000000-0000-0000-0000-000000000001,ec000000-0000-0000-0000-000000000001,t,"Interações da Conta",t,t)',
-  'o Sinal de Alfa guarda a Conta, a Interação de origem, a execução, a data do disparo e a identidade do silêncio'
+  'o Sinal de Alfa guarda a Conta, a Interação de origem, a rodada, o dia em que o prazo venceu e a identidade do silêncio'
 );
 select is(
   (select phrase from private.signals where target_account_id = 'dc000000-0000-0000-0000-000000000001'),
@@ -178,10 +181,15 @@ select is(
   '(1,t)', 'Alfa fica Quente pelo Sinal interno'
 );
 select is(
+  (select row(valid_signals, hot)::text from public.list_account_signals('fc000000-0000-0000-0000-000000000001')
+   where target_account_id = 'dc000000-0000-0000-0000-000000000007'),
+  '(0,f)', 'o silêncio de 400 dias entra no histórico já vencido: ativar não deixa Eta Quente'
+);
+select is(
   (select row(last_run ->> 'state', (last_run ->> 'accountsChecked')::integer, (last_run ->> 'signalsNew')::integer,
      (last_run ->> 'signalsRepeated')::integer, last_run ->> 'finishedAt' is not null)::text
    from public.list_signal_monitors('fc000000-0000-0000-0000-000000000001') where id = (select id from r where k = 'sem')),
-  '(concluida,5,2,0,t)', 'a lista de Monitoramentos traz a última execução'
+  '(concluida,6,3,0,t)', 'a lista de Monitoramentos traz a última rodada'
 );
 
 reset role;
@@ -190,7 +198,8 @@ select is(
   'fit', 'o Sinal não mexe na Aderência: Alfa continua Fit'
 );
 
--- 4. Negociação parada: houve conversa e depois nenhuma Interação no prazo. Criado já ativo, avalia na hora.
+-- 4. Negociação parada: a última Interação foi uma conversa e nada mais aconteceu no prazo. Criado já ativo, avalia na
+-- hora.
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '5c000000-0000-0000-0000-000000000001', true);
@@ -199,11 +208,10 @@ insert into r (k, id) select 'parada', public.save_signal_monitor('fc000000-0000
   '{"prazo":30}', 24);
 reset role;
 select is(
-  (select array_agg(row(target_account_id, event_key)::text order by event_key) from private.signals
-   where signal_type = 'negociacao_parada'),
-  array['(dc000000-0000-0000-0000-000000000002,negociacao_parada|ec000000-0000-0000-0000-000000000004)',
-        '(dc000000-0000-0000-0000-000000000004,negociacao_parada|ec000000-0000-0000-0000-000000000009)'],
-  'Beta e Delta pararam depois de uma conversa; Alfa nunca conversou'
+  (select array_agg(row(target_account_id, event_key, fired_at = now() - interval '20 days')::text order by event_key)
+   from private.signals where signal_type = 'negociacao_parada'),
+  array['(dc000000-0000-0000-0000-000000000002,negociacao_parada|ec000000-0000-0000-0000-000000000004,t)'],
+  'só Beta parou depois de uma conversa: Alfa nunca conversou e Delta continuou escrevendo (é Ausência de resposta)'
 );
 select is(
   (select phrase from private.signals where target_account_id = 'dc000000-0000-0000-0000-000000000002'),
@@ -212,7 +220,7 @@ select is(
 );
 select matches(
   (select evidence from private.signals where target_account_id = 'dc000000-0000-0000-0000-000000000002'),
-  '^Última Interação: e-mail recebido em [0-9]{2}/[0-9]{2}/[0-9]{4}, depois de uma conversa com a Conta\. Nenhuma Interação registrada desde então \(prazo do Monitoramento: 30 dias\)\.$',
+  '^Última Interação: e-mail recebido em [0-9]{2}/[0-9]{2}/[0-9]{4}\. Nenhuma Interação registrada desde então \(prazo do Monitoramento: 30 dias\)\.$',
   'a evidência da negociação parada aponta a última Interação'
 );
 select is(
@@ -226,7 +234,7 @@ select is(
 );
 select is(
   (select stage from private.prospecting_stages where target_account_id = 'dc000000-0000-0000-0000-000000000004'),
-  'quente', 'Delta, sem Aderência, vai para Quente no kanban'
+  'quente', 'Delta, sem Aderência, foi para Quente no kanban pela Ausência de resposta'
 );
 
 -- 5. A rodada seguinte: reencontrar o mesmo silêncio não conta de novo nem renova o prazo.
@@ -237,7 +245,7 @@ select is(private.run_due_internal_signal_monitors(), 1, 'só o Monitoramento ve
 select is(
   (select row(state, signals_new, signals_repeated)::text from private.signal_monitor_runs
    where monitor_id = (select id from r where k = 'sem') and id <> (select id from r where k = 'run1')),
-  '(concluida,0,2)', 'a segunda execução reencontra os dois silêncios'
+  '(concluida,0,3)', 'a segunda rodada reencontra os três silêncios'
 );
 select is(
   (select row(count(*), min(fired_at) = now() - interval '29 days', bool_and(seen_again_at = now()))::text from private.signals
@@ -249,17 +257,26 @@ select is(
   'o Monitoramento que não venceu não roda de novo'
 );
 
--- 6. Um silêncio novo é outro acontecimento: Alfa respondeu e, depois, ficou sem resposta de novo.
+-- 6. Um silêncio novo é outro acontecimento: Alfa respondeu há 3 dias e ficou sem resposta de novo. Bruno encurta o
+-- prazo para 1 dia, e salvar um Monitoramento ativo avalia na hora.
 insert into public.account_interactions (id, workspace_id, target_account_id, kind, occurred_at, recorded_by) values
-  ('ec000000-0000-0000-0000-000000000011', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000001', 'email-recebido', now() - interval '34 days', '5c000000-0000-0000-0000-000000000001'),
-  ('ec000000-0000-0000-0000-000000000012', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000001', 'email-enviado', now() - interval '32 days', '5c000000-0000-0000-0000-000000000001');
-update private.signal_monitors set next_run_at = now() - interval '1 minute' where id = (select id from r where k = 'sem');
-select is(private.run_due_internal_signal_monitors(), 1, 'roda de novo');
+  ('ec000000-0000-0000-0000-000000000011', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000001', 'email-recebido', now() - interval '3 days', '5c000000-0000-0000-0000-000000000001'),
+  ('ec000000-0000-0000-0000-000000000012', 'fc000000-0000-0000-0000-000000000001', 'dc000000-0000-0000-0000-000000000001', 'email-enviado', now() - interval '2 days', '5c000000-0000-0000-0000-000000000001');
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5c000000-0000-0000-0000-000000000002', true);
+select lives_ok(
+  format($$select public.save_signal_monitor('fc000000-0000-0000-0000-000000000001', %L, 'sem_resposta', 'Sem resposta em 1 dia', 'ativo',
+    '{"accountIds":["dc000000-0000-0000-0000-000000000001","dc000000-0000-0000-0000-000000000002","dc000000-0000-0000-0000-000000000003","dc000000-0000-0000-0000-000000000004","dc000000-0000-0000-0000-000000000005","dc000000-0000-0000-0000-000000000006","dc000000-0000-0000-0000-000000000007"]}',
+    '{"prazo":"1"}', 24)$$, (select id from r where k = 'sem')),
+  'Bruno encurta o prazo do Monitoramento ativo'
+);
+reset role;
 select is(
-  (select array_agg(event_key order by event_key) from private.signals
+  (select array_agg(row(event_key, fired_at = now() - interval '1 day')::text order by event_key) from private.signals
    where target_account_id = 'dc000000-0000-0000-0000-000000000001' and signal_type = 'sem_resposta'),
-  array['sem_resposta|ec000000-0000-0000-0000-000000000001', 'sem_resposta|ec000000-0000-0000-0000-000000000012'],
-  'o silêncio depois da resposta é um Sinal novo'
+  array['(sem_resposta|ec000000-0000-0000-0000-000000000001,f)', '(sem_resposta|ec000000-0000-0000-0000-000000000012,t)'],
+  'o silêncio depois da resposta é um Sinal novo, que dispara quando o novo prazo vence'
 );
 
 -- 7. Pausado não roda, mesmo vencido.
@@ -271,7 +288,7 @@ reset role;
 update private.signal_monitors set next_run_at = now() - interval '1 minute' where id = (select id from r where k = 'sem');
 select is(private.run_due_internal_signal_monitors(), 0, 'o pausado não roda');
 select is(
-  (select count(*)::integer from private.signals where monitor_id = (select id from r where k = 'sem')), 3,
+  (select count(*)::integer from private.signals where monitor_id = (select id from r where k = 'sem')), 5,
   'pausar preserva os Sinais anteriores'
 );
 
@@ -287,9 +304,9 @@ select is(
   '"Buscar Sinais de novo" não conta Monitoramento interno'
 );
 
--- 9. Uma falha na avaliação fica registrada na execução e no Monitoramento, sem derrubar a rodada dos outros.
+-- 9. Uma falha na avaliação fica registrada na rodada e no Monitoramento, sem derrubar o relógio.
 create or replace function private.internal_signal_candidates(p_workspace_id uuid, p_signal_type text, p_days integer, p_account_ids uuid[])
-returns table (target_account_id uuid, interaction_id uuid, event_key text, phrase text, evidence text)
+returns table (target_account_id uuid, interaction_id uuid, event_key text, phrase text, evidence text, fired_at timestamptz)
 language plpgsql
 set search_path = ''
 as $$
@@ -297,12 +314,12 @@ begin
   raise exception 'falha simulada no teste';
 end;
 $$;
-select is(private.run_due_internal_signal_monitors(), 1, 'a rodada termina mesmo com a falha');
+select is(private.run_due_internal_signal_monitors(), 1, 'o relógio termina mesmo com a falha');
 select is(
   (select row(state, error)::text from private.signal_monitor_runs
    where monitor_id = (select id from r where k = 'parada') order by started_at desc, id desc limit 1),
   '(falhou,"Não foi possível avaliar as Interações. A próxima rodada tenta de novo.")',
-  'a execução que falhou guarda o motivo em palavras do produto'
+  'a rodada que falhou guarda o motivo em palavras do produto'
 );
 select is(
   (select last_error from public.list_signal_monitors('fc000000-0000-0000-0000-000000000001') where id = (select id from r where k = 'parada')),
@@ -310,7 +327,7 @@ select is(
   'e o Monitoramento mostra o motivo da última rodada'
 );
 select is(
-  (select count(*)::integer from private.signals where signal_type = 'negociacao_parada'), 2,
+  (select count(*)::integer from private.signals where signal_type = 'negociacao_parada'), 1,
   'a falha não apaga nem inventa Sinal'
 );
 
@@ -352,7 +369,7 @@ select is(
   (select count(*)::integer from information_schema.table_privileges
    where table_schema = 'private' and table_name in ('signal_catalog', 'signal_monitor_runs')
      and grantee in ('anon', 'authenticated', 'service_role')), 0,
-  'o catálogo e as execuções só se leem pelas funções'
+  'o catálogo e as rodadas só se leem pelas funções'
 );
 select ok(
   (select c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
