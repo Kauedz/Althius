@@ -275,3 +275,10 @@ O que o humano roda: os Passos do Nan dos tickets 06 e 07. São eles: conectar a
 ## 2026-10-09: fechamento de status
 
 Fechados (ACs todos marcados): kanban 01, 02, 03; créditos 08; CRM-10 (migration `20261009050000` aplicada em prod); Hermes 01; autenticação 05 (verificado em produção pelo Renan).
+
+## 2026-10-09: publicação canais 14, 15, 16
+
+Migrations `20261009205538` e `20261009214037` aplicadas em prod (md5 conferido). Publicadas `sender-accounts`, `sequence-runner`, `sequence-step-sends`, `reply-proposal-send` e `unipile-account-status` (`--no-verify-jwt`).
+
+Fechado (ACs todos marcados): canais-14.
+Seguem abertos: canais-15 e canais-16, com AC desmarcado que depende de rodar `scripts/wizard-unipile.sh` (chave de API e segredo do webhook da Unipile, interativo) e do primeiro uso real.
