@@ -1,3 +1,4 @@
+import type { BloqueioDoTeto } from './automacao-tipos'
 import type { FonteObservavel } from './tipos'
 
 export type StatusSequencia = 'ativa' | 'pausada' | 'reuniao' | 'esgotada' | 'encerrada'
@@ -270,6 +271,11 @@ export interface PropostaDeResposta {
   recebidaEm?: string
   enviadaEm?: string
   erroDoEnvio?: string
+  /**
+   * Por que a primeira geração, que é automática, não saiu (creditos-e-planos 03): o automático está em confirmar, sem
+   * teto ou no teto do mês. A proposta espera o titular pedir a resposta.
+   */
+  paradaPeloTeto?: BloqueioDoTeto
 }
 
 /** Uma resposta do Contato guardada pela Althius; só o Responsável pela Sequência a lê. */

@@ -1,4 +1,4 @@
-﻿# Ralph status: consolidado das frentes (2026-10-08)
+# Ralph status: consolidado das frentes (2026-10-08)
 
 Cada frente (acesso, canais, enriquecimento, creditos) tem sua secao abaixo.
 
@@ -247,3 +247,16 @@ Suíte: `npx vitest run --maxWorkers=2` em `projeto-althius-frontend`, exit 0, 1
 Bloqueado pelo aviso 4 do CTO. O 08 de chat espera o envio real do 06 (WhatsApp) e do 07 (LinkedIn). Os dois seguem `ready-for-human`. Também falta a decisão sobre o Seam de Canal. Não houve vermelho nem código. O 09 depende do 06, do 07 e do 08, então a fila da frente canais fica vazia até o Nan desbloquear.
 
 O que o humano roda: os Passos do Nan dos tickets 06 e 07. São eles: conectar a Conta remetente, recadastrar o webhook com `message.new` (`bash scripts/wizard-unipile.sh`), ligar o canal com `select private.set_chat_channel_enabled('whatsapp', true);` e `select private.set_chat_channel_enabled('linkedin', true);`, enviar um teste e responder. Depois, marcar o 06 e o 07 e voltar o 08 para `ready-for-agent`. Nenhuma migration e nenhum deploy saem deste registro.
+
+## Frente créditos — creditos-e-planos 03 — 2026-10-08
+
+| Campo | Valor |
+|---|---|
+| Ticket | `.scratch/creditos-e-planos/issues/03-interruptores-e-tetos.md` (Interruptores "confirmar ou automático" e tetos) |
+| Status | ready-for-human (código fechado; faltam a migration e a publicação do `reply-proposal-runner`) |
+| Branch | `ralph/frente-creditos`, sem push |
+| Commit | `c4f3423` |
+| O que mudou | Decisões do Renan de 08/10/2026. A primeira geração da Proposta de resposta só roda com Execuções de Agentes **e** o Rhetor em automático, com teto, e soma a rodada aos dois (`consume_reply_proposal_cap`); a que falha devolve (`refund_reply_proposal_cap`). Barrada, a proposta mostra o motivo e "Gerar resposta", e o clique do titular não passa pelo teto. Enriquecimento, Integrações e os outros Agentes ficam travados em confirmar: o banco recusa ligar o automático deles, a página os mostra travados (`list_runnable_automation_scopes`) e o automático já gravado volta a confirmar. Teste das Permissões dos Agentes na página. |
+| Testes | Vermelho e verde registrados no ticket. pgTAP do zero com 59 arquivos e 2577/2577 (`teto_das_propostas_de_resposta.sql` 31/31). `deno test --allow-all supabase/functions` 727/727; `deno check` limpo. Vitest `--maxWorkers=2` com 112 arquivos e 1082/1082; `tsc -b` limpo; lint com saída 0. Prints em `.scratch/creditos-e-planos/issues/prints/03-*.jpg`. |
+| O que o humano roda | 1. Com o CI verde, depois do merge (a `20261008233000` do ticket 01 vai antes), na raiz do repositório, no PowerShell: `git checkout main; git pull; npx supabase db push`, para aplicar `supabase/migrations/20261009010000_teto_das_propostas_de_resposta.sql` no projeto `ycbdilsmydvzezhlymty`. Ou pelo `execute_sql`, em bloco atômico, como em `docs/agents/migrations.md`. 2. Só depois dela: `npx supabase functions deploy reply-proposal-runner --project-ref ycbdilsmydvzezhlymty`. 3. Saber que, depois disso, nenhuma Proposta de resposta sai sozinha até um Administrador ligar Execuções de Agentes e o Rhetor em Automático, com teto, em Configurações › Automação e tetos. |
+| Decisões em aberto (Nan) | O custo antes do clique (história 4 da spec) não está nos critérios deste ticket, e "Gerar resposta" não mostra o custo. O enriquecimento-em-cascata 02 libera o Enriquecimento redefinindo `private.automation_scope_runs`. |

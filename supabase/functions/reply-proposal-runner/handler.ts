@@ -49,6 +49,9 @@ export interface RodadaDeCredito {
   reservation_id: string | null
 }
 
+/** Por que a primeira geração, que é automática, não roda sozinha (creditos-e-planos 03). */
+export type MotivoDoTeto = 'confirmar' | 'sem_teto' | 'teto_atingido'
+
 export interface RunnerDb {
   /** RPC reply_proposal_runner_token_matches: o token que o banco guarda e manda no cabeçalho. */
   tokenMatches(token: string): Promise<boolean>
@@ -58,6 +61,13 @@ export interface RunnerDb {
   context(job: TrabalhoReservado): Promise<ContextoDaResposta>
   /** RPC reply_proposal_ai_key: a chave de IA do cliente do Workspace, ou null. Lança ErroDoModelo se o Vault não a tem. */
   chaveDoCliente(job: TrabalhoReservado): Promise<ChaveDoCliente | null>
+  /**
+   * RPC consume_reply_proposal_cap, antes de reservar o crédito: 'ok', ou o motivo de a proposta esperar o clique do
+   * titular. Sem ela (os dublês de antes do teto), nada é consultado.
+   */
+  consumirTeto?(job: TrabalhoReservado): Promise<'ok' | MotivoDoTeto>
+  /** RPC refund_reply_proposal_cap: a geração que passou pelo teto e falhou devolve o que somou. */
+  devolverTeto?(job: TrabalhoReservado): Promise<void>
   /** RPC begin_reply_proposal_round. */
   abrirCredito(job: TrabalhoReservado): Promise<RodadaDeCredito>
   /** RPC end_agent_round: concluída, debita; falha, solta a reserva. */
@@ -95,6 +105,13 @@ const MAX_CARACTERES_DA_RESPOSTA = 20_000
 
 /** Os motivos que passam sozinhos: a IA fora do ar, lenta ou no limite de uso. O resto exige a ação da pessoa. */
 const PASSAGEIROS = /^(model_timeout|model_unreachable|model_rate_limited|model_http_5\d\d|internal_error)$/
+
+/** O motivo do teto como a proposta o grava: ela fica parada até o titular pedir a resposta. */
+const CODIGO_DO_TETO: Record<MotivoDoTeto, string> = {
+  confirmar: 'automation_confirm',
+  sem_teto: 'automation_no_cap',
+  teto_atingido: 'automation_cap_reached',
+}
 
 /** Quem escreve e como: o Rhetor, sem ferramenta, com o mínimo de contexto e o conteúdo recebido como dado. */
 export function instrucoesDoRhetor(contexto: ContextoDaResposta): string {
@@ -192,9 +209,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   async function gerar(job: TrabalhoReservado) {
     const { db } = deps
     let reserva: string | null = null
+    let somouNoTeto = false
     try {
       const contexto = await db.context(job)
       const modelo = await modeloDoTrabalho(job)
+      const teto = (await db.consumirTeto?.(job)) ?? 'ok'
+      if (teto !== 'ok') throw new ErroDoModelo(CODIGO_DO_TETO[teto])
+      somouNoTeto = true
       const rodada = await db.abrirCredito(job)
       if (rodada.outcome === 'no_credits') throw new ErroDoModelo('insufficient_credits')
       reserva = rodada.outcome === 'go' ? rodada.reservation_id : null
@@ -230,6 +251,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       log({ type: 'reply_proposal', jobId: job.job_id, outcome: 'failed', errorCode: codigo, message: messageOf(error) })
       // A reserva que ficar presa por um erro aqui é solta pela faxina do banco.
       if (reserva) await db.fecharCredito(reserva, false).catch(() => {})
+      // Antes de falhar o trabalho: devolver exige a reserva dele ainda aberta.
+      if (somouNoTeto) await db.devolverTeto?.(job).catch((erro) => {
+        log({ type: 'reply_proposal', jobId: job.job_id, outcome: 'cap_refund_failed', message: messageOf(erro) })
+      })
       try {
         await db.falhar(job, codigo, PASSAGEIROS.test(codigo))
       } catch (erroAoFalhar) {

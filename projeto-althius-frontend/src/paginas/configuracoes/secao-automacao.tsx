@@ -25,8 +25,8 @@ const numero = new Intl.NumberFormat('pt-BR')
 /**
  * Automação e tetos (creditos-e-planos 03): numa página só, o interruptor "confirmar ou automático" de cada tipo de
  * ação, Agente e Integração, e o teto mensal em créditos de cada automático. Nada automático roda sem teto; a página
- * diz por quê. As Permissões Ler/Propor/Executar dos Agentes aparecem aqui só para leitura, lidas da configuração do
- * Agente, onde elas se mudam.
+ * diz por quê. O escopo que ninguém executa sozinho ainda fica travado em confirmar. As Permissões Ler/Propor/Executar
+ * dos Agentes aparecem aqui só para leitura, lidas da configuração do Agente, onde elas se mudam.
  */
 export function SecaoAutomacao() {
   const fonte = useFonteDeAutomacao()
@@ -127,7 +127,7 @@ function LinhaDoEscopo({
           </span>
         )}
       </div>
-      {administrador ? (
+      {administrador && escopo.bloqueio !== 'sem_executor' ? (
         <div className="flex flex-wrap items-center gap-2">
           <select
             aria-label={`Modo de ${escopo.nome}`}

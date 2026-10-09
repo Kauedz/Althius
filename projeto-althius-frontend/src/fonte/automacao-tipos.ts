@@ -5,8 +5,14 @@ import type { FonteObservavel } from './tipos'
 
 export type ModoDeAutomacao = 'confirmar' | 'automatico'
 
-/** Por que o automático não roda agora: está em confirmar, não tem teto aprovado ou chegou no teto do mês. */
-export type BloqueioDaAutomacao = 'confirmar' | 'sem_teto' | 'teto_atingido'
+/** O que o teto diz de um escopo que roda sozinho: está em confirmar, não tem teto aprovado ou chegou no teto do mês. */
+export type BloqueioDoTeto = 'confirmar' | 'sem_teto' | 'teto_atingido'
+
+/**
+ * Por que o automático não roda agora: o bloqueio do teto, ou ninguém executa este escopo sozinho ainda (sem_executor:
+ * fica travado em confirmar).
+ */
+export type BloqueioDaAutomacao = BloqueioDoTeto | 'sem_executor'
 
 export interface EscopoDeAutomacao {
   /** "acao:varredura", "acao:enriquecimento", "acao:agentes", "agente:<id>" ou "integracao:<id>". */
@@ -32,4 +38,5 @@ export const MOTIVO_DO_BLOQUEIO: Record<BloqueioDaAutomacao, string> = {
   confirmar: 'Cada ação pede confirmação.',
   sem_teto: 'O automático não roda sem um teto mensal aprovado.',
   teto_atingido: 'Chegou no teto do mês: o automático está pausado até o mês virar ou o teto subir.',
+  sem_executor: 'Ainda não roda sozinho: cada ação pede confirmação.',
 }

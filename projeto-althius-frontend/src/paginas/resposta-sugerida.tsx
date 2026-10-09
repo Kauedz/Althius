@@ -4,6 +4,16 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { PropostaDeResposta } from '@/fonte/sequencias-tipos'
 
+/** A primeira geração é automática: sem o automático liberado, o Rhetor espera o titular pedir (creditos-e-planos 03). */
+const MOTIVO_DA_PARADA: Record<NonNullable<PropostaDeResposta['paradaPeloTeto']>, string> = {
+  confirmar:
+    'O Rhetor só prepara a resposta quando você pede: o automático de Execuções de Agentes ou o do Rhetor está em Confirmar (Configurações › Automação e tetos).',
+  sem_teto:
+    'O Rhetor não preparou a resposta sozinho: o automático de Execuções de Agentes ou o do Rhetor não tem teto mensal aprovado (Configurações › Automação e tetos).',
+  teto_atingido:
+    'O Rhetor não preparou a resposta sozinho: o automático de Execuções de Agentes ou o do Rhetor chegou no teto do mês (Configurações › Automação e tetos).',
+}
+
 interface Props {
   propostas: PropostaDeResposta[]
   aoAprovarEEnviar: (pedido: { id: string; revisao: number; textoEditado?: string }) => Promise<{ enviada: boolean; mensagem?: string }>
@@ -71,11 +81,12 @@ function CartaoDaProposta({
   const destinatario = proposta.nomeDoDestinatario
     ? `Para ${proposta.nomeDoDestinatario} · ${proposta.destinatario}`
     : `Para ${proposta.destinatario}`
-  const gerarDeNovo = (
+  const gerar = (rotulo: string) => (
     <Button variant="ghost" disabled={trabalhando} onClick={() => executar(async () => (await aoGerarDeNovo(proposta.id), null))}>
-      Gerar de novo
+      {rotulo}
     </Button>
   )
+  const gerarDeNovo = gerar('Gerar de novo')
 
   return (
     <article className="flex flex-col gap-2 border-l-2 border-al-line pl-3">
@@ -86,7 +97,14 @@ function CartaoDaProposta({
 
       {proposta.status === 'gerando' && <p className="text-sm text-al-muted">O Rhetor está preparando uma resposta…</p>}
 
-      {proposta.status === 'falhou' && (
+      {proposta.status === 'falhou' && proposta.paradaPeloTeto && (
+        <>
+          <p className="text-sm text-al-muted">{MOTIVO_DA_PARADA[proposta.paradaPeloTeto]}</p>
+          <div className="flex gap-2">{gerar('Gerar resposta')}</div>
+        </>
+      )}
+
+      {proposta.status === 'falhou' && !proposta.paradaPeloTeto && (
         <>
           <p className="text-sm text-al-atencao">
             Não foi possível preparar a resposta. A mensagem do Contato está guardada e a Sequência segue pausada.
