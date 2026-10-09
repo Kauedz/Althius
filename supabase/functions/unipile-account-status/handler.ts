@@ -1,6 +1,9 @@
-// Único receptor de webhook da Unipile v2: eventos de conta (account.*) e de e-mail (email.new,
-// email.new.bounce), assinados por HMAC-SHA256. A função grava e responde 2xx em menos de 5 s; o que decide
-// fica nas RPCs (apply_unipile_sender_status, complete_sender_connection_attempt, ingest_unipile_email_event).
+// Único receptor de webhook da Unipile: eventos de conta (account.*), de e-mail (email.new, email.new.bounce) e de conversa,
+// no contrato da versão da conexão ativa (ADR-0024). A v2 vem assinada por HMAC-SHA256; a v1, com o cabeçalho Unipile-Auth
+// (ou, no aviso do link de conexão, a chave ?k=). Os eventos da v1 são traduzidos, no limite, para a mesma forma canônica da v2
+// (_shared/unipile/events-v1.ts), então o resto daqui e o banco não sabem a versão. A função grava e responde 2xx em menos
+// de 5 s; o que decide fica nas RPCs (apply_unipile_sender_status, complete_sender_connection_attempt,
+// ingest_unipile_email_event, ingest_unipile_chat_event).
 // O trabalho pesado (baixar anexos) roda depois da resposta. O banco, a Unipile e o Storage entram por
 // injeção de dependência, para o teste ir da requisição à resposta sem rede.
 
@@ -11,7 +14,9 @@ import {
   type IngestChatEventInput,
   type IngestedChat,
 } from '../_shared/ingest-chat-event.ts'
-import { parseV2WebhookEvent } from '../_shared/unipile/index.ts'
+import type { AccountDirectory, AccountLookup } from '../_shared/unipile/account-directory.ts'
+import { completeV1Connection, parseV1WebhookEvent, parseV2WebhookEvent, type UnipileApiVersion } from '../_shared/unipile/index.ts'
+import { authenticateV1Webhook } from '../_shared/unipile/webhook-auth.ts'
 export type { EmailAttachmentRef, IngestedEmail }
 
 export interface WebhookDb {
@@ -60,7 +65,15 @@ export interface AttachmentStore {
 }
 
 export interface Deps {
+  /** O segredo da conexão ativa: a chave do HMAC (v2) ou o valor do Unipile-Auth (v1). Vazio recusa tudo. */
   secret: string
+  /** A versão da conexão ativa: decide a autenticação e o parse do evento. Padrão v2. */
+  version?: UnipileApiVersion
+  /**
+   * As contas da conexão ativa. Evento de uma conta que não é dela devolve 200 e não toca o banco. Ausente: sem a checagem,
+   * como antes do canais-17.
+   */
+  accounts?: AccountDirectory
   db: WebhookDb
   unipile: WebhookUnipile
   storage: AttachmentStore
@@ -195,26 +208,67 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
   }
 
+  const version = deps.version ?? 'v2'
+
   return async (req) => {
     if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
-    const signatureHeader = req.headers.get('unipile-signature')
-    if (!deps.secret || !signatureHeader) {
-      log({ outcome: 'unauthorized', reason: deps.secret ? 'missing_signature' : 'missing_secret' })
-      return new Response('Unauthorized', { status: 401 })
-    }
-
-    const rawBody = await req.text()
-    if (!(await verifySignature(rawBody, signatureHeader, deps.secret, now()))) {
-      log({ outcome: 'unauthorized', reason: 'invalid_signature' })
-      return new Response('Unauthorized', { status: 401 })
+    // A autenticação vem ANTES de interpretar o corpo, e falha dá 401.
+    let rawBody: string
+    let authorizedBy: 'signature' | 'header' | 'key'
+    if (version === 'v1') {
+      rawBody = await req.text()
+      const how = await authenticateV1Webhook({
+        rawBody,
+        header: req.headers.get('unipile-auth'),
+        key: new URL(req.url).searchParams.get('k'),
+        secret: deps.secret,
+      })
+      if (!how) {
+        log({ outcome: 'unauthorized', reason: deps.secret ? 'invalid_credentials' : 'missing_secret' })
+        return new Response('Unauthorized', { status: 401 })
+      }
+      authorizedBy = how
+    } else {
+      const signatureHeader = req.headers.get('unipile-signature')
+      if (!deps.secret || !signatureHeader) {
+        log({ outcome: 'unauthorized', reason: deps.secret ? 'missing_signature' : 'missing_secret' })
+        return new Response('Unauthorized', { status: 401 })
+      }
+      rawBody = await req.text()
+      if (!(await verifySignature(rawBody, signatureHeader, deps.secret, now()))) {
+        log({ outcome: 'unauthorized', reason: 'invalid_signature' })
+        return new Response('Unauthorized', { status: 401 })
+      }
+      authorizedBy = 'signature'
     }
 
     try {
-      // O formato do evento (e a tradução do estado da conta) mora em _shared/unipile/events.ts; aqui só se decide a resposta.
-      const event = parseV2WebhookEvent(JSON.parse(rawBody))
+      // O formato do evento (e a tradução do estado da conta) mora em _shared/unipile/events*.ts; aqui só se decide a resposta.
+      const json: unknown = JSON.parse(rawBody)
+      const event = version === 'v1' ? parseV1WebhookEvent(json) : parseV2WebhookEvent(json)
       const type = 'event_type' in event ? event.event_type ?? '' : ''
       const accountId = 'account_id' in event ? event.account_id ?? '' : ''
+
+      // A chave do endereço do aviso do link só autentica o evento de conexão, nunca uma mensagem nem um estado.
+      if (authorizedBy === 'key' && event.kind !== 'connection') {
+        log({ type, accountId, outcome: 'unauthorized', reason: 'key_not_for_event' })
+        return new Response('Unauthorized', { status: 401 })
+      }
+
+      // Não há webhook por conta: o segredo é o da conexão ativa, então a conta do evento tem de ser dela. A conta removida
+      // (DELETED) já não consta na lista, e é justamente o que pausa as Sequências: ela segue. Sem prova (lista indisponível
+      // ou cortada), o evento segue como seguia antes.
+      let lookup: AccountLookup | null = null
+      if (
+        deps.accounts && accountId && event.kind !== 'ignore' && !(event.kind === 'account_status' && event.status === 'DELETED')
+      ) {
+        lookup = await deps.accounts.lookup(accountId)
+        if (lookup.status === 'foreign') {
+          log({ type, accountId, outcome: 'other_connection' })
+          return received()
+        }
+      }
 
       if (event.kind === 'ignore') {
         if (event.reason === 'payload_invalido' || event.reason === 'payload_incompleto') {
@@ -231,14 +285,29 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
 
       if (event.kind === 'connection') {
-        const provider = event.provider
+        let connection = event
+        if (connection.provider === null) {
+          // O aviso da v1 não diz o provedor: vem da lista de contas da conexão. Sem ele, o banco não pode decidir (um
+          // provedor errado falharia a tentativa de vez), então a Unipile entrega de novo depois.
+          if (lookup?.status !== 'member') {
+            log({ type, accountId, outcome: 'provider_unresolved' })
+            return new Response('Provider could not be resolved', { status: 503 })
+          }
+          const completed = completeV1Connection(connection, lookup.provider)
+          if (!completed) {
+            log({ type, accountId, outcome: 'ignored', reason: 'provider_not_supported' })
+            return received()
+          }
+          connection = completed
+        }
+        const provider = connection.provider as string
         let data: string
         try {
           data = await deps.db.completeSenderConnectionAttempt({
-            attemptId: event.attempt_id,
+            attemptId: connection.attempt_id,
             unipileAccountId: accountId,
             provider: provider.toUpperCase(),
-            initialStatus: event.initial_status,
+            initialStatus: connection.initial_status,
           })
         } catch {
           log({ type, accountId, provider, outcome: 'rpc_error' })
@@ -249,7 +318,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           return new Response('Event rejected', { status: 409 })
         }
         // Só na primeira entrega: uma repetição tardia não pode tirar a conta de reconnect_required.
-        if (data === 'completed' && event.sync_finished) {
+        if (data === 'completed' && connection.sync_finished) {
           try {
             const applied = await deps.db.applyUnipileSenderStatus(accountId, 'SYNC_SUCCESS')
             log({ type, accountId, status: 'SYNC_SUCCESS', outcome: applied ? 'applied' : 'no_matching_account' })

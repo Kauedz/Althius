@@ -72,6 +72,11 @@ export interface ActiveBridgeConnection {
   version: UnipileApiVersion
   baseUrl: string
   apiKey: string
+  /**
+   * O segredo do webhook da conexão. Na v1 o endereço de aviso do link de conexão leva uma chave derivada dele (`?k=`),
+   * porque esse aviso não aceita cabeçalho; sem ele, o aviso chegaria sem autenticação.
+   */
+  webhookSecret?: string | null
 }
 
 export interface CreateBridgeOptions {
@@ -87,5 +92,5 @@ export function createBridge(connection: ActiveBridgeConnection, options: Create
     fetch: options.fetch,
     timeoutMs: options.timeoutMs,
   })
-  return connection.version === 'v1' ? createV1Bridge(client) : createV2Bridge(client)
+  return connection.version === 'v1' ? createV1Bridge(client, { webhookSecret: connection.webhookSecret }) : createV2Bridge(client)
 }
