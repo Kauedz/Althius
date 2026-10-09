@@ -205,6 +205,7 @@ export function PaginaConexoes() {
                       <CartaoDeConexaoDemo
                         key={integracao.id}
                         nome={integracao.nome}
+                        logo={<LogoDaIntegracao id={integracao.id} nome={integracao.nome} className="size-6" />}
                         descricao={integracao.descricao}
                         conectado={integracao.habilitada}
                         aoConectar={() => setConectando(integracao)}
@@ -292,7 +293,10 @@ function CartaoDeIntegracaoReal({
   return (
     <article aria-label={integracao.nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-lg font-normal">{integracao.nome}</span>
+        <span className="flex items-center gap-3 text-lg font-normal">
+          <LogoDaIntegracao id={integracao.id} nome={integracao.nome} className="size-6" />
+          {integracao.nome}
+        </span>
         <span className={habilitada ? 'rotulo text-al-sucesso' : 'rotulo'}>
           {habilitada ? 'Habilitada' : 'Não habilitada'}
         </span>
@@ -565,6 +569,7 @@ function DialogoDeFerramentas({
 
 function CartaoDeConexaoDemo({
   nome,
+  logo,
   descricao,
   conectado,
   aoConectar,
@@ -579,7 +584,7 @@ function CartaoDeConexaoDemo({
   return (
     <article aria-label={nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-lg font-normal">{nome}</span>
+        <span className="flex items-center gap-3 text-lg font-normal">{logo}{nome}</span>
         <span className={conectado ? 'rotulo text-al-sucesso' : 'rotulo'}>
           {conectado ? 'Conectado' : 'Não conectado'}
         </span>

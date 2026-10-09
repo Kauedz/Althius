@@ -125,3 +125,14 @@ describe('Conexões reais no Workspace operacional', () => {
     expect(botaoConectar).toBeInTheDocument()
   })
 })
+
+for (const demonstracao of [false, true]) {
+  it('mostra os logos de HubSpot e Notion nos cartões ' + (demonstracao ? 'da Demonstração' : 'operacionais'), async () => {
+    if (demonstracao) renderizarApp('/conexoes')
+    else abrirConexoes()
+    for (const nome of ['HubSpot', 'Notion']) {
+      const cartao = await screen.findByRole('article', { name: nome })
+      expect(within(cartao).getByRole('img', { name: nome })).toBeInTheDocument()
+    }
+  })
+}
