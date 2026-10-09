@@ -1,6 +1,6 @@
 // A união canônica dos eventos de webhook da Unipile (ADR-0024): o que o resto da Althius enxerga, seja qual for a
 // versão da conexão ativa. Este arquivo tem o FORMATO da união e o parse da v2 que já existia no webhook
-// (unipile-account-status/handler.ts); traduzir os eventos da v1 para a mesma união é do canais-17.
+// (unipile-account-status/handler.ts); os eventos da v1 são traduzidos para a mesma união em events-v1.ts (canais-17).
 import { CHAT_MESSAGE_EVENTS, CHAT_RELATION_EVENTS } from '../ingest-chat-event.ts'
 import { emailAddress, nonBlank } from './common.ts'
 import { z } from './zod.ts'
@@ -60,7 +60,8 @@ export const canonicalEventSchema = z.discriminatedUnion('kind', [
     account_id,
     event_type: z.enum(['account.add', 'account.reconnect']),
     attempt_id: z.string().regex(/^[0-9a-f-]{36}$/i),
-    provider: nonBlank,
+    /** Nulo no aviso da v1, que não diz o provedor: quem recebe o completa pela lista de contas (events-v1.ts). */
+    provider: nonBlank.nullable(),
     initial_status: z.enum(['CREATION_SUCCESS', 'RECONNECTED']),
     /** WhatsApp e IMAP só ficam prontos depois da sincronização inicial; os outros provedores, já no evento. */
     sync_finished: z.boolean(),

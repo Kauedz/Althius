@@ -8,6 +8,7 @@ import { UnipileRequestError, UnipileUnsupportedOperationError } from './errors.
 import type { UnipileClient } from './client.ts'
 import { CHAT_CHECK_MESSAGE_LIMIT, readChatSent, readLinkedInProfile } from './readers.ts'
 import { v1 } from './v1.ts'
+import { withConnectionNoticeKey } from './webhook-auth.ts'
 import type { AccountState, ConnectableProvider, UnipileAccountSummary, UnipileBridge } from './bridge.ts'
 
 const API = '/api/v1'
@@ -46,7 +47,7 @@ function accountState(sources: { status: string }[] | undefined): AccountState {
   return sources.every((source) => source.status.toUpperCase() === 'OK') ? 'connected' : 'attention'
 }
 
-export function createV1Bridge(client: UnipileClient): UnipileBridge {
+export function createV1Bridge(client: UnipileClient, options: { webhookSecret?: string | null } = {}): UnipileBridge {
   const unsupported = (operation: string): never => {
     throw new UnipileUnsupportedOperationError(operation, 'v1')
   }
@@ -137,7 +138,10 @@ export function createV1Bridge(client: UnipileClient): UnipileBridge {
           api_url: client.baseUrl,
           expiresOn: request.expiresAt.toISOString(),
           success_redirect_url: request.redirectUrl,
-          notify_url: request.notifyUrl,
+          // O aviso do link não aceita cabeçalho: a chave ?k= do pedido o autentica (webhook-auth.ts, canais-17).
+          notify_url: options.webhookSecret
+            ? await withConnectionNoticeKey(request.notifyUrl, options.webhookSecret, request.attemptId)
+            : request.notifyUrl,
           // Na v1 o pedido volta no aviso do notify_url como `name` (não há `state`).
           name: request.attemptId,
         },

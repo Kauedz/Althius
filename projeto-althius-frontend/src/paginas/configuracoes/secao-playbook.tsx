@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Carregando } from '@/components/marca'
@@ -14,7 +14,9 @@ import {
   type SecaoDoPlaybook,
   type VersaoDoPlaybook,
 } from '@/fonte/playbook-tipos'
+import { ehRevisaoDoPlaybook } from '@/fonte/regras'
 import { COLUNAS_DO_PLAYBOOK, linhaVazia, type ColunaDoPlaybook } from '@/fonte/regras-playbook'
+import type { AprovacaoDeRevisaoDoPlaybook } from '@/fonte/tipos'
 import { mensagemDeErro } from '@/lib/utils'
 import { SecaoDeConfiguracoes } from './componentes'
 import { ImportarPlaybook } from './importar-playbook'
@@ -28,6 +30,10 @@ const CONTEUDO_VAZIO: ConteudoDoPlaybook = { texto: '', linhas: [] }
 export function SecaoPlaybook() {
   const { pagina } = useParams()
   const workspace = useDados((f) => f.workspace(), [])
+  // As propostas dos Agentes (CRM-09) aparecem na seção que querem mudar; sem a fila, nenhuma.
+  const aprovacoes = useDados((f) => f.aprovacoes(), [])
+  const revisoes = (aprovacoes ?? []).filter(ehRevisaoDoPlaybook)
+  const comProposta = new Set(revisoes.filter((r) => r.estado === 'pendente').map((r) => r.revisao.secao))
   const administrador = workspace?.papel === 'administrador'
   const importando = pagina === IMPORTAR
   if (!importando && !ehSecaoDoPlaybook(pagina)) return <Navigate to="/configuracoes/playbook/empresa" replace />
@@ -46,6 +52,12 @@ export function SecaoPlaybook() {
               <li key={id}>
                 <ItemDoMenu para={id} atual={id === pagina}>
                   {nome}
+                  {comProposta.has(id) && (
+                    <>
+                      <span className="ml-2 inline-block size-1.5 rounded-full bg-al-atencao align-middle" aria-hidden />
+                      <span className="sr-only">, proposta pendente</span>
+                    </>
+                  )}
                 </ItemDoMenu>
               </li>
             ))}
@@ -69,7 +81,11 @@ export function SecaoPlaybook() {
             <Carregando />
           )
         ) : (
-          <SecaoAberta key={pagina} id={pagina as IdDaSecaoDoPlaybook} />
+          <SecaoAberta
+            key={pagina}
+            id={pagina as IdDaSecaoDoPlaybook}
+            revisoes={revisoes.filter((r) => r.revisao.secao === pagina)}
+          />
         )}
       </div>
     </SecaoDeConfiguracoes>
@@ -79,7 +95,7 @@ export function SecaoPlaybook() {
 /** A página do menu que importa a planilha do setup, ao lado das seções. */
 const IMPORTAR = 'importar'
 
-function ItemDoMenu({ para, atual, children }: { para: string; atual: boolean; children: string }) {
+function ItemDoMenu({ para, atual, children }: { para: string; atual: boolean; children: ReactNode }) {
   return (
     <Link
       to={`/configuracoes/playbook/${para}`}
@@ -95,12 +111,37 @@ function ItemDoMenu({ para, atual, children }: { para: string; atual: boolean; c
   )
 }
 
-function SecaoAberta({ id }: { id: IdDaSecaoDoPlaybook }) {
+function SecaoAberta({ id, revisoes }: { id: IdDaSecaoDoPlaybook; revisoes: AprovacaoDeRevisaoDoPlaybook[] }) {
   const fonte = useFonteDoPlaybook()
   const secao = useDados(fonte, (f) => f.secao(id), [id])
   const workspace = useDados((f) => f.workspace(), [])
   if (!secao || !workspace) return <Carregando />
-  return <ConteudoDaSecao key={secao.vigente?.versao ?? 0} secao={secao} podeEditar={workspace.papel === 'administrador'} />
+  const podeEditar = workspace.papel === 'administrador'
+  const pendente = revisoes.find((r) => r.estado === 'pendente')
+  return (
+    <div className="flex flex-col gap-6">
+      {pendente && <PropostaPendente nome={secao.nome} podeEditar={podeEditar} />}
+      <ConteudoDaSecao key={secao.vigente?.versao ?? 0} secao={secao} podeEditar={podeEditar} />
+    </div>
+  )
+}
+
+/** Um Agente propôs uma versão nova desta seção (CRM-09): ela só vale com a Aprovação de um Administrador. */
+function PropostaPendente({ nome, podeEditar }: { nome: string; podeEditar: boolean }) {
+  return (
+    <div role="status" className="flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4 text-sm">
+      <p>
+        <span className="font-normal">Há uma proposta de um Agente para {nome}, aguardando Aprovação.</span>{' '}
+        <span className="text-al-muted">
+          A versão abaixo continua valendo até um Administrador decidir.
+          {podeEditar && ' Salvar uma versão agora deixa a proposta desatualizada.'}
+        </span>{' '}
+        <Link to="/aprovacoes" className="text-al-ink underline underline-offset-2">
+          Ver a proposta
+        </Link>
+      </p>
+    </div>
+  )
 }
 
 function ConteudoDaSecao({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEditar: boolean }) {

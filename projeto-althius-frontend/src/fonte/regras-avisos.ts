@@ -1,6 +1,6 @@
 // Regras dos Avisos do Workspace: a quem cada aviso se destina, pela Participação e pelo papel, e o que ele diz.
 // Um aviso só informa; a capacidade de decidir continua nas operações.
-import { categoriaDa, podeDecidir, ROTULO_DA_DECISAO } from './regras'
+import { categoriaDa, ehRevisaoDoPlaybook, podeDecidir, ROTULO_DA_DECISAO } from './regras'
 import { DOCUMENTOS_DA_MEMORIA, efeitoDaDecisao, frasesDo } from './regras-memoria'
 import type {
   Aprovacao,
@@ -46,7 +46,8 @@ export function avisoDeAprovacaoSolicitada(
   participacoes: ParticipacaoAtiva[],
 ): NovoAviso {
   const destinatarios = quemDecide(aprovacao, participacoes)
-  if (!aprovacao.revisao) {
+  // A revisão do Playbook é do Workspace operacional, que não emite estes avisos; o texto genérico basta para ela.
+  if (!aprovacao.revisao || ehRevisaoDoPlaybook(aprovacao)) {
     return {
       tipo: 'aprovacao-solicitada',
       destinatarios,

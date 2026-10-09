@@ -64,7 +64,7 @@ _Avoid_: CP
 A documentação compartilhada do Cliente, incluindo o ICP e as definições de Personas, que serve de referência para todo o Workspace. É distinta da Memória individual de cada Agente.
 
 **Revisão da Memória do Workspace**:
-A proposta de um Agente para substituir o ICP (Scopus) ou as definições de Personas (Ethos), pedida por qualquer participante numa Conversa. É uma categoria de Aprovação que só um Administrador ativo decide: enquanto pendente ou recusada, nada muda; aprovada, substitui o documento vigente e atualiza de uma vez as configurações que dependem dele. Não é uma versão do documento: a Memória do Workspace guarda só o vigente.
+A proposta de um Agente para substituir o ICP (Scopus) ou as definições de Personas (Ethos), pedida por qualquer participante numa Conversa. É uma categoria de Aprovação que só um Administrador ativo decide: enquanto pendente ou recusada, nada muda; aprovada, substitui o documento vigente e atualiza de uma vez as configurações que dependem dele. Não é uma versão do documento: a Memória do Workspace guarda só o vigente. No Workspace operacional, a revisão é a nova versão de uma seção do Playbook da Especialidade do Agente (o Scopus no ICP e no Mercado; o Ethos nas Personas, no Processo de compra, na Dor e percepção e nas Objeções): aprovada, vira a versão vigente da seção; se a seção mudou antes da decisão, fica desatualizada e não vale mais.
 _Avoid_: versão, rascunho
 
 **Conta-alvo**:
@@ -166,7 +166,7 @@ _Avoid_: reprocessamento, nova varredura
 O desfecho observado de um Envio de passo que saiu: resposta, resposta positiva, resposta negativa, reunião marcada ou oportunidade. Um Envio sem desfecho está sem resposta. A resposta recebida registra "resposta" sozinha; o resto é dito pela pessoa responsável pela Sequência ou por um Agente, e fica quem classificou e quando. Resposta negativa conta como resposta, nunca como sucesso. As taxas por canal e segmento são do Workspace e não saem dele.
 
 **Crédito**:
-A unidade de consumo de um Workspace. Gastam créditos a varredura de Sinais, a coleta de pessoas, a revelação de e-mail (só quando traz um e-mail que o Contato ainda não tinha) e cada Execução de Agente. Telefone não se revela. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
+A unidade de consumo de um Workspace. Gastam créditos a varredura de Sinais, a coleta de pessoas (só quem a Conta-alvo ainda não conhecia), a revelação de e-mail (só quando traz um e-mail que o Contato ainda não tinha; quem já tem e-mail nem dispara a busca) e cada Execução de Agente. O que já foi descoberto nunca é cobrado de novo. Telefone não se revela. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
 _Avoid_: token, saldo de uso
 
 **Teto**:

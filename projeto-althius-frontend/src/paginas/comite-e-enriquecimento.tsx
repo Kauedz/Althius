@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { ContaAlvo, Contato, ContatoProposto } from '@/fonte/contas-tipos'
+import type { ContaAlvo, Contato, ContatoProposto, ResultadoDoComite } from '@/fonte/contas-tipos'
 import { useFonteDeContas } from '@/fonte/contexto'
 import { cn } from '@/lib/utils'
 
@@ -231,6 +231,13 @@ export function SecaoReceitaFederal({
   )
 }
 
+/** "N novas · M já encontradas (sem custo)": só as novas custaram crédito. */
+function resumoDoComite({ novas, jaEncontradas }: ResultadoDoComite) {
+  const textoDasNovas = `${novas} ${novas === 1 ? 'nova' : 'novas'}`
+  const textoDasJaEncontradas = `${jaEncontradas} já ${jaEncontradas === 1 ? 'encontrada' : 'encontradas'} (sem custo)`
+  return `${textoDasNovas} · ${textoDasJaEncontradas}`
+}
+
 export function SecaoComiteDeCompra({
   contaId,
   propostas,
@@ -246,13 +253,15 @@ export function SecaoComiteDeCompra({
   const [buscando, setBuscando] = useState(false)
   const [acaoId, setAcaoId] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [resumo, setResumo] = useState<ResultadoDoComite | null>(null)
 
   async function handleBuscarComite() {
     if (!fonte.buscarComite) return
     setBuscando(true)
     setErro(null)
+    setResumo(null)
     try {
-      await fonte.buscarComite(contaId)
+      setResumo(await fonte.buscarComite(contaId))
       aoAtualizar()
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao buscar comitê de compra.')
@@ -303,7 +312,9 @@ export function SecaoComiteDeCompra({
 
         {fonte.buscarComite && (
           <div className="flex items-center gap-3">
-            <span className="text-xs text-al-muted">Custo: 1 crédito por contato encontrado</span>
+            <span className="text-xs text-al-muted">
+              Custo: 1 crédito por pessoa nova. Pessoas já encontradas não são cobradas.
+            </span>
             <Button
               type="button"
               size="sm"
@@ -321,6 +332,12 @@ export function SecaoComiteDeCompra({
       {erro && (
         <div role="alert" className="rounded bg-al-erro/10 p-3 text-xs text-al-erro">
           {erro}
+        </div>
+      )}
+
+      {resumo && (
+        <div role="status" className="rounded bg-al-ink/5 p-3 text-xs text-al-ink">
+          {resumoDoComite(resumo)}
         </div>
       )}
 
@@ -420,7 +437,9 @@ export function BotoesRevelarContato({
 }) {
   const fonte = useFonteDeContas()
   const [aberto, setAberto] = useState(false)
-  const [cotacao, setCotacao] = useState<{ creditos: number; saldo: number; podeRevelar: boolean } | null>(null)
+  const [cotacao, setCotacao] = useState<
+    { creditos: number; saldo: number; podeRevelar: boolean; jaEncontrado?: boolean } | null
+  >(null)
   const [revelando, setRevelando] = useState(false)
   const [resultado, setResultado] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -454,7 +473,11 @@ export function BotoesRevelarContato({
     setErro(null)
     try {
       const res = await fonte.revelarContato(contato.id, 'email')
-      if (res.sucesso && res.valor) {
+      if (res.jaExistia && res.valor) {
+        // O Contato já tinha o e-mail: volta o que existe, sem busca e sem crédito.
+        setResultado(`Já encontrado, sem custo: ${res.valor}`)
+        aoRevelar()
+      } else if (res.sucesso && res.valor) {
         setResultado(`Encontrado: ${res.valor} (${res.creditosDebitados} créditos debitados)`)
         aoRevelar()
       } else {
@@ -511,12 +534,23 @@ export function BotoesRevelarContato({
           <div className="flex flex-col gap-3 py-3 text-xs">
             <div className="rounded border border-al-line bg-al-surface p-3">
               <span className="rotulo block text-al-muted">Custo da ação</span>
-              <span className="text-sm font-semibold text-al-ink">
-                2 créditos
-              </span>
-              <span className="block mt-1 text-[0.6875rem] text-al-muted">
-                Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.
-              </span>
+              {cotacao?.jaEncontrado ? (
+                <>
+                  <span className="text-sm font-semibold text-al-ink">Já encontrado, sem custo</span>
+                  <span className="block mt-1 text-[0.6875rem] text-al-muted">
+                    Este Contato já tem e-mail. Nenhuma busca nova é feita e nenhum crédito é debitado.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm font-semibold text-al-ink">
+                    {cotacao?.creditos ?? 2} créditos
+                  </span>
+                  <span className="block mt-1 text-[0.6875rem] text-al-muted">
+                    Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.
+                  </span>
+                </>
+              )}
             </div>
 
             {resultado && (

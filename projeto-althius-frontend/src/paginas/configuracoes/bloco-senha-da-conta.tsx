@@ -16,8 +16,9 @@ const SENHA_SALVA_COM_SESSOES_ABERTAS =
 /**
  * A senha da Conta de usuário, no Workspace operacional. Trocar exige confirmar que é a pessoa: com a senha atual ou
  * com um código enviado ao e-mail, o caminho de quem entrou só com Google e quer definir uma senha sem perder o Google.
- * A nova senha segue a política do cadastro (mínimo de 8 caracteres, sem senhas vazadas). Nada é dado como salvo
- * antes de o Supabase Auth confirmar.
+ * A nova senha segue a política do cadastro (mínimo de 8 caracteres, sem senhas vazadas). A troca é feita no servidor
+ * (Edge Function account-password), que confere a confirmação e a política de novo; as recusas dele chegam aqui como
+ * mensagens prontas. Nada é dado como salvo antes de o servidor confirmar.
  */
 export function BlocoDeSenhaDaConta() {
   const { trocarSenha, pedirCodigoDeEntrada, sessao } = useAutenticacao()

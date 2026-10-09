@@ -1,4 +1,5 @@
 import { contatoParaRevelar } from './contato-para-revelar.ts'
+import { propostaGravada } from './proposta-gravada.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { tokensDoApify } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
@@ -100,12 +101,31 @@ const db: DbEnrichment = {
       p_source_data: args.sourceData ?? null,
     })
     if (error) throw error
-    const [row] = (data ?? []) as Array<{ id: string; created: boolean }>
-    return row ?? { id: crypto.randomUUID(), created: true }
+    return propostaGravada(data)
+  },
+
+  async countKnownCommitteePeople({ workspaceId, targetAccountId }) {
+    const { data, error } = await admin.rpc('count_known_committee_people', {
+      p_workspace_id: workspaceId,
+      p_target_account_id: targetAccountId,
+    })
+    if (error) throw error
+    return Number(data ?? 0)
   },
 
   async getContactForReveal({ workspaceId, contactId, authorization, apikey }) {
     return await contatoParaRevelar(clienteDaSessao(authorization, apikey), workspaceId, contactId)
+  },
+
+  async existingRevealValue({ workspaceId, contactId, channel, authorization, apikey }) {
+    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('existing_reveal_value', {
+      p_workspace_id: workspaceId,
+      p_contact_id: contactId,
+      p_channel: channel,
+    })
+    if (error) throw error
+    const [row] = (data ?? []) as Array<{ value: string | null; provider: string | null }>
+    return row?.value ? { value: row.value, provider: row.provider ?? undefined } : null
   },
 
   async beginRevealContact({ workspaceId, contactId, channel, requestKey, authorization, apikey }) {
