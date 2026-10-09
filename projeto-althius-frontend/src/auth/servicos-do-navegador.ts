@@ -13,7 +13,8 @@ export interface ServicosDoNavegador {
   google?: ServicoDoGoogle
   /**
    * Um token novo do Cloudflare Turnstile invisível para esta ação, a mandar em `options.captchaToken` da chamada ao
-   * Supabase Auth, que o valida quando o CAPTCHA está ligado no projeto. `null` quando o Turnstile não está
+   * Supabase Auth (ou no corpo da Edge Function account-password, que o repassa a ele), que o valida quando o CAPTCHA
+   * está ligado no projeto. `null` quando o Turnstile não está
    * configurado (sem site key): a chamada segue sem token. Falha quando o Turnstile não confirma a pessoa.
    */
   tokenDoCaptcha: (acao: AcaoDoCaptcha) => Promise<string | null>
@@ -37,8 +38,17 @@ export interface ServicoDoGoogle {
   }) => () => void
 }
 
-/** As chamadas ao Supabase Auth protegidas pelo CAPTCHA; vira o `action` do Turnstile, visível na Cloudflare. */
-export type AcaoDoCaptcha = 'cadastro' | 'reenvio_do_cadastro' | 'login_com_senha' | 'codigo_de_entrada' | 'redefinicao_de_senha'
+/**
+ * As chamadas ao Supabase Auth protegidas pelo CAPTCHA; vira o `action` do Turnstile, visível na Cloudflare. A
+ * `troca_de_senha` vai à Edge Function account-password, que repassa o token ao Supabase Auth ao conferir a senha atual.
+ */
+export type AcaoDoCaptcha =
+  | 'cadastro'
+  | 'reenvio_do_cadastro'
+  | 'login_com_senha'
+  | 'codigo_de_entrada'
+  | 'redefinicao_de_senha'
+  | 'troca_de_senha'
 
 /** A parte da API do Turnstile (`window.turnstile`) que o app usa. */
 export interface ApiDoTurnstile {

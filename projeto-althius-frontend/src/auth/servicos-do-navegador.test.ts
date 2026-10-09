@@ -147,6 +147,16 @@ describe('Turnstile invisível', () => {
     expect(document.querySelector('[data-turnstile]')).toBeNull()
   })
 
+  it('a troca de senha em Meu perfil pede o próprio token, com uma ação que o Turnstile aceita', async () => {
+    const { carregarTurnstile, renderizados } = turnstileFalso('token')
+    const servicos = criarServicosDoNavegador({ siteKeyDoTurnstile: 'site-key-de-teste', carregarTurnstile })
+
+    expect(await servicos.tokenDoCaptcha('troca_de_senha')).toBe('token-de-widget-1')
+    expect(renderizados.map(({ action }) => action)).toEqual(['troca_de_senha'])
+    // A Cloudflare aceita até 32 caracteres: letras, números, "_" e "-".
+    expect(renderizados[0].action).toMatch(/^[\w-]{1,32}$/)
+  })
+
   it.each(['erro', 'nao-renderiza'] as const)('quando o Turnstile não confirma a pessoa (%s), o pedido falha', async (resposta) => {
     const { carregarTurnstile } = turnstileFalso(resposta)
     const servicos = criarServicosDoNavegador({ siteKeyDoTurnstile: 'site-key-de-teste', carregarTurnstile })

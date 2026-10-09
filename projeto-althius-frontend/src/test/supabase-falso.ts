@@ -40,8 +40,17 @@ export interface OpcoesDoSupabaseFalso {
    * conta o Auth não envia nada, então não há limite a atingir.
    */
   limiteDeEnvioAtingido?: string[]
-  /** Encerrar as outras sessões (`signOut({ scope: 'others' })`) falha, como numa queda de rede. */
+  /**
+   * Encerrar as outras sessões (`signOut({ scope: 'others' })`, ou o passo da account-password) falha, como numa queda
+   * de rede.
+   */
   falhaAoEncerrarOutrasSessoes?: boolean
+  /**
+   * "Require current password when updating" ligado no Supabase Auth: `updateUser({ password })` de uma Conta de
+   * usuário que tem senha é recusado com `current_password_required`, salvo numa sessão aberta por código ou link do
+   * e-mail (recuperação ou código de entrada), como o GoTrue faz.
+   */
+  exigeSenhaAtualAoTrocarSenha?: boolean
 }
 
 /** O que uma Edge Function do teste devolve: o status HTTP (200 por padrão) e o corpo JSON. */
@@ -97,7 +106,7 @@ export function sessaoDe(usuario: { id: string; email: string }): Session {
  * O cliente do Supabase na fronteira com o fornecedor: Auth, as tabelas filtradas por `eq`, as RPCs e os canais do
  * Realtime, em memória. Só cobre o que o app usa; o resto não existe, para um uso novo falhar alto.
  */
-export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura, rpcs = {}, funcoes = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [], falhaAoEncerrarOutrasSessoes = false }: OpcoesDoSupabaseFalso = {}) {
+export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura, rpcs = {}, funcoes = {}, contas, senhasVazadasNoServidor = [], exigeCaptcha = false, limiteDeEnvioAtingido = [], falhaAoEncerrarOutrasSessoes = false, exigeSenhaAtualAoTrocarSenha = false }: OpcoesDoSupabaseFalso = {}) {
   let sessaoAtual = sessao
   const ouvintesDaSessao = new Set<(evento: string, sessao: Session | null) => void>()
   const canaisAbertos = new Set<string>()
@@ -120,9 +129,13 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
     return { message: 'captcha protection: request disallowed (no captcha response)', status: 400, code: 'captcha_failed' }
   }
 
-  function abrirSessao(usuarioId: string) {
+  /** As sessões abertas por um código ou link do e-mail, que o GoTrue trata como recuperação. */
+  const sessoesPeloEmail = new Set<string>()
+
+  function abrirSessao(usuarioId: string, peloEmail = false) {
     const id = `sessao-${++sessoesCriadas}`
     sessoesAbertas.push({ id, usuarioId })
+    if (peloEmail) sessoesPeloEmail.add(id)
     return id
   }
 
@@ -130,9 +143,9 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
     for (let i = sessoesAbertas.length - 1; i >= 0; i--) if (!manter(sessoesAbertas[i])) sessoesAbertas.splice(i, 1)
   }
 
-  function comecarSessao(novaSessao: Session, evento = 'SIGNED_IN') {
+  function comecarSessao(novaSessao: Session, evento = 'SIGNED_IN', peloEmail = false) {
     sessaoAtual = novaSessao
-    idDaSessaoAtual = abrirSessao(novaSessao.user.id)
+    idDaSessaoAtual = abrirSessao(novaSessao.user.id, peloEmail)
     for (const ouvinte of ouvintesDaSessao) ouvinte(evento, novaSessao)
   }
 
@@ -204,6 +217,43 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
       },
     }
     return construtor
+  }
+
+  /**
+   * A Edge Function account-password como o servidor a roda (`supabase/functions/account-password`), sobre o mesmo Auth
+   * em memória: a Conta de usuário vem da sessão; a política (8 caracteres, até 72 bytes, nada vazado no servidor) vale
+   * antes da confirmação; a senha atual (com o CAPTCHA, quando ligado) ou o código de entrada são conferidos como no
+   * Auth, com o mesmo erro para os dois; a troca abre a sessão da confirmação, que volta ao navegador, e encerra as
+   * outras. Como o `updateUser` deste dublê, a troca não encerra as outras sessões sozinha: isso é o passo seguinte,
+   * que `falhaAoEncerrarOutrasSessoes` faz falhar. Um teste que passa `funcoes['account-password']` responde no lugar.
+   */
+  function trocarSenhaNoServidor(corpo: Record<string, unknown>): RespostaDaFuncao {
+    const conta = sessaoAtual && contaCom(sessaoAtual.user.email ?? '')
+    if (!conta) return { status: 401, corpo: { erro: 'sem_sessao' } }
+    const confirmacao = (corpo.confirmacao ?? {}) as { tipo?: string; senhaAtual?: string; codigo?: string; captchaToken?: string }
+    const novaSenha = typeof corpo.novaSenha === 'string' ? corpo.novaSenha : ''
+    const fraca = (motivo: string) => ({ status: 422, corpo: { erro: 'senha_fraca', motivo } })
+    if (novaSenha.length < 8) return fraca('curta')
+    if (new TextEncoder().encode(novaSenha).length > 72) return fraca('longa')
+    if (senhasVazadasNoServidor.includes(novaSenha)) return fraca('vazada')
+    const recusada = { status: 400, corpo: { erro: 'confirmacao_invalida' } }
+    if (confirmacao.tipo === 'senha') {
+      if (conferirCaptcha('account-password', confirmacao.captchaToken)) return { status: 400, corpo: { erro: 'captcha_invalido' } }
+      if (!conta.senha || conta.senha !== confirmacao.senhaAtual) return recusada
+    } else if (confirmacao.tipo !== 'codigo' || !consumirCodigo(conta.email, String(confirmacao.codigo ?? ''), 'email')) {
+      return recusada
+    }
+    if (conta.senha === novaSenha) return { status: 422, corpo: { erro: 'mesma_senha' } }
+    conta.senha = novaSenha
+    const daConfirmacao = abrirSessao(conta.id, confirmacao.tipo === 'codigo')
+    if (!falhaAoEncerrarOutrasSessoes) encerrarSessoes((aberta) => aberta.usuarioId !== conta.id || aberta.id === daConfirmacao)
+    return {
+      corpo: {
+        ok: true,
+        outrasSessoesEncerradas: !falhaAoEncerrarOutrasSessoes,
+        sessao: { access_token: `token-${conta.id}`, refresh_token: `refresh-${daConfirmacao}` },
+      },
+    }
   }
 
   const cliente = {
@@ -295,7 +345,8 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
         }
         conta.verificada = true
         const novaSessao = sessaoDaConta(conta)
-        comecarSessao(novaSessao, type === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN')
+        // Todo código conferido abre uma sessão `otp`, que o GoTrue trata como recuperação.
+        comecarSessao(novaSessao, type === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN', true)
         return { data: { user: novaSessao.user, session: novaSessao }, error: null }
       },
       // Um e-mail sem conta recebe a mesma resposta, sem e-mail enviado.
@@ -313,12 +364,31 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
         if (!conta) return { data: { user: null }, error: { message: 'Auth session missing!', status: 400, code: 'session_not_found' } }
         if (password.length < 6) return { data: { user: null }, error: { message: 'Password should be at least 6 characters.', status: 422, code: 'weak_password' } }
         if (senhasVazadasNoServidor.includes(password)) return { data: { user: null }, error: senhaVazadaNoServidor() }
+        if (exigeSenhaAtualAoTrocarSenha && conta.senha && !(idDaSessaoAtual && sessoesPeloEmail.has(idDaSessaoAtual))) {
+          return { data: { user: null }, error: { message: 'Current password required when setting new password.', status: 400, code: 'current_password_required' } }
+        }
         if (password === conta.senha) {
           return { data: { user: null }, error: { message: 'New password should be different from the old password.', status: 422, code: 'same_password' } }
         }
         conta.senha = password
         for (const ouvinte of ouvintesDaSessao) ouvinte('USER_UPDATED', sessaoAtual)
         return { data: { user: sessaoAtual!.user }, error: null }
+      },
+      // Como no supabase-js: a sessão recebida (a que a account-password abriu) passa a ser a desta aba. O refresh token
+      // diz qual sessão é; uma que já foi encerrada é recusada.
+      async setSession({ access_token, refresh_token }: { access_token: string; refresh_token: string }) {
+        const aberta = sessoesAbertas.find((s) => `refresh-${s.id}` === refresh_token)
+        const conta = aberta && usuarios.find((c) => c.id === aberta.usuarioId)
+        if (!access_token || !aberta || !conta) {
+          return { data: { user: null, session: null }, error: { message: 'Invalid Refresh Token: Refresh Token Not Found', status: 400, code: 'refresh_token_not_found' } }
+        }
+        const nova = sessaoDaConta(conta)
+        // Os métodos de acesso continuam os da Conta de usuário.
+        const novaSessao = sessaoAtual?.user.id === conta.id ? { ...nova, user: { ...nova.user, app_metadata: sessaoAtual.user.app_metadata } } : nova
+        sessaoAtual = novaSessao
+        idDaSessaoAtual = aberta.id
+        for (const ouvinte of ouvintesDaSessao) ouvinte('SIGNED_IN', novaSessao)
+        return { data: { user: novaSessao.user, session: novaSessao }, error: null }
       },
       // Como no supabase-js, sem escopo a saída é global: encerra todas as sessões da Conta de usuário.
       async signOut({ scope = 'global' }: { scope?: 'global' | 'local' | 'others' } = {}) {
@@ -350,7 +420,7 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
     },
     functions: {
       async invoke(nome: string, opcoes: { body?: Record<string, unknown> } = {}) {
-        const responder = funcoes[nome]
+        const responder = funcoes[nome] ?? (nome === 'account-password' ? trocarSenhaNoServidor : undefined)
         if (!responder) {
           return { data: null, error: { name: 'FunctionsFetchError', message: `Edge Function ${nome} indisponível no teste` } }
         }
@@ -404,7 +474,7 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
       const ultimo = codigosEnviados.findLast((enviado) => enviado.email === email)
       if (ultimo?.tipo !== 'recovery' || ultimo.usado) throw new Error(`nenhum link de redefinição válido para ${email}`)
       const conta = consumirCodigo(email, ultimo.codigo, 'recovery')!
-      comecarSessao(sessaoDaConta(conta), 'PASSWORD_RECOVERY')
+      comecarSessao(sessaoDaConta(conta), 'PASSWORD_RECOVERY', true)
     },
     /** A Conta de usuário entra por outro navegador ou aparelho; devolve o id dessa sessão. */
     abrirSessaoEmOutroAparelho(email: string) {

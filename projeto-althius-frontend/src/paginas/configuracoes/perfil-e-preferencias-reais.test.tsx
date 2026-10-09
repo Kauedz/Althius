@@ -1,11 +1,11 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { navegadorComNotificacoes } from '@/test/notificacoes'
 import { renderizarApp } from '@/test/renderizar'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
-import { criarSupabaseFalso, sessaoDe, type ContaDoAuth, type OpcoesDoSupabaseFalso } from '@/test/supabase-falso'
+import { criarSupabaseFalso, sessaoDe, type ContaDoAuth, type OpcoesDoSupabaseFalso, type RespostaDaFuncao } from '@/test/supabase-falso'
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL_DA_MARINA = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
@@ -108,7 +108,7 @@ function abrir(
     navegador?: OpcoesDosServicosFalsos
     metodos?: string[]
     /** Como o Supabase Auth do teste se comporta (ex.: falha ao encerrar as outras sessões). */
-    auth?: Pick<OpcoesDoSupabaseFalso, 'falhaAoEncerrarOutrasSessoes'>
+    auth?: Pick<OpcoesDoSupabaseFalso, 'falhaAoEncerrarOutrasSessoes' | 'exigeCaptcha' | 'senhasVazadasNoServidor' | 'exigeSenhaAtualAoTrocarSenha' | 'funcoes'>
   } = {},
 ) {
   localStorage.setItem('althius:modo_demo', 'false')
@@ -422,6 +422,164 @@ describe('Senha em Meu perfil', () => {
     await usuario.type(screen.getByLabelText('Senha'), NOVA)
     await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
     expect(await formularioDoPerfil()).toBeTruthy()
+  })
+  // A troca no servidor (Edge Function account-password): o navegador manda a confirmação e a nova senha; a função
+  // confere tudo e troca. O dublê do Supabase roda a mesma regra da função sobre o Auth em memória.
+
+  it('a troca vai ao servidor com um CAPTCHA novo a cada tentativa, e o navegador não grava a senha', async () => {
+    const { usuario, cliente, captchasRecebidos, sessoesAbertasDe, abrirSessaoEmOutroAparelho } = abrir(bancoDaMarina(), '/configuracoes/perfil', {
+      contas: [{ ...MARINA, senha: SENHA_ATUAL }],
+      navegador: { captcha: 'ligado' },
+      auth: { exigeCaptcha: true },
+    })
+    const gravarPeloNavegador = vi.spyOn(cliente.auth, 'updateUser')
+    const entrarPeloNavegador = vi.spyOn(cliente.auth, 'signInWithPassword')
+    abrirSessaoEmOutroAparelho(MARINA.email)
+    const formulario = await abrirTrocaDeSenha(usuario)
+
+    await usuario.type(formulario.getByLabelText('Senha atual'), 'nao-e-a-senha')
+    await usuario.type(formulario.getByLabelText('Nova senha'), NOVA)
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar nova senha' }))
+    expect(await formulario.findByText(/A senha atual não confere/)).toBeInTheDocument()
+
+    await usuario.clear(formulario.getByLabelText('Senha atual'))
+    await usuario.type(formulario.getByLabelText('Senha atual'), SENHA_ATUAL)
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar nova senha' }))
+    expect(await screen.findByText(/Senha salva/)).toHaveTextContent('As outras sessões da sua conta foram encerradas')
+
+    // Cada tentativa levou um token novo do Turnstile, e quem conferiu a senha atual foi o servidor.
+    const tokens = captchasRecebidos().filter(({ chamada }) => chamada === 'account-password').map(({ token }) => token)
+    expect(tokens).toEqual(['token-captcha-1', 'token-captcha-2'])
+    expect(gravarPeloNavegador).not.toHaveBeenCalled()
+    expect(entrarPeloNavegador).not.toHaveBeenCalled()
+    // Esta aba continua aberta, com a sessão da confirmação; a antiga e a do outro aparelho caíram.
+    expect(sessoesAbertasDe(MARINA.email)).toHaveLength(1)
+    expect(await formularioDoPerfil()).toBeTruthy()
+  })
+
+  it('o servidor recusa a senha vazada mesmo quando a consulta da tela falha, e a senha atual continua valendo', async () => {
+    const { usuario } = abrir(bancoDaMarina(), '/configuracoes/perfil', {
+      contas: [{ ...MARINA, senha: SENHA_ATUAL }],
+      navegador: { consultaDeVazadas: 'falha' },
+      auth: { senhasVazadasNoServidor: ['senha-vazada-no-servidor'] },
+    })
+    const formulario = await abrirTrocaDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), SENHA_ATUAL)
+    await usuario.type(formulario.getByLabelText('Nova senha'), 'senha-vazada-no-servidor')
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar nova senha' }))
+    expect(await formulario.findByText(/já apareceu em vazamentos/)).toBeInTheDocument()
+    expect(screen.queryByText(/Senha salva|senha foi trocada/)).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await usuario.type(screen.getByLabelText('Senha'), SENHA_ATUAL)
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(await formularioDoPerfil()).toBeTruthy()
+  })
+
+  it('enquanto o servidor confere, a tela mostra "Salvando…" e nada é dado como salvo antes da resposta', async () => {
+    let responder!: (resposta: RespostaDaFuncao) => void
+    const { usuario } = abrir(bancoDaMarina(), '/configuracoes/perfil', {
+      contas: [{ ...MARINA, senha: SENHA_ATUAL }],
+      auth: { funcoes: { 'account-password': () => new Promise<RespostaDaFuncao>((resolver) => { responder = resolver }) } },
+    })
+    const formulario = await abrirTrocaDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), SENHA_ATUAL)
+    await usuario.type(formulario.getByLabelText('Nova senha'), NOVA)
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar nova senha' }))
+
+    expect(await formulario.findByRole('button', { name: 'Salvando…' })).toBeDisabled()
+    expect(screen.queryByText(/Senha salva|senha foi trocada/)).not.toBeInTheDocument()
+
+    act(() => responder({ status: 400, corpo: { erro: 'confirmacao_invalida' } }))
+    expect(await formulario.findByText(/A senha atual não confere/)).toBeInTheDocument()
+    expect(formulario.getByRole('button', { name: 'Salvar nova senha' })).toBeEnabled()
+  })
+
+  it.each([
+    ['captcha_invalido', 400, {}, 'Não foi possível confirmar que você é uma pessoa. Tente novamente.'],
+    ['senha_fraca', 422, { motivo: 'curta' }, 'A senha precisa ter pelo menos 8 caracteres.'],
+    ['senha_fraca', 422, { motivo: 'longa' }, 'A senha é longa demais. Use até 72 caracteres.'],
+    ['senha_fraca', 422, { motivo: 'vazada' }, 'Esta senha já apareceu em vazamentos de dados. Escolha outra senha.'],
+    ['mesma_senha', 422, {}, 'A nova senha precisa ser diferente da atual.'],
+    ['limite', 429, {}, 'Muitas tentativas de trocar a senha. Espere alguns minutos e tente de novo.'],
+    ['sem_sessao', 401, {}, 'Entre de novo para trocar a senha.'],
+    ['falha', 502, {}, 'Não foi possível salvar a nova senha. Tente novamente em instantes.'],
+  ])('a recusa %s do servidor (HTTP %i) vira uma mensagem clara, e o formulário continua aberto para tentar de novo', async (erro, status, extra, texto) => {
+    const { usuario } = abrir(bancoDaMarina(), '/configuracoes/perfil', {
+      contas: [{ ...MARINA, senha: SENHA_ATUAL }],
+      auth: { funcoes: { 'account-password': () => ({ status, corpo: { erro, ...extra } }) } },
+    })
+    const formulario = await abrirTrocaDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), SENHA_ATUAL)
+    await usuario.type(formulario.getByLabelText('Nova senha'), NOVA)
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar nova senha' }))
+
+    expect(await formulario.findByRole('alert')).toHaveTextContent(texto)
+    expect(formulario.getByRole('button', { name: 'Salvar nova senha' })).toBeEnabled()
+    expect(screen.queryByText(/Senha salva|senha foi trocada/)).not.toBeInTheDocument()
+  })
+
+  it('com "Require current password" ligado no Supabase Auth, a troca em Meu perfil segue funcionando, e o caminho direto do navegador é recusado', async () => {
+    const { usuario, cliente } = abrir(bancoDaMarina(), '/configuracoes/perfil', {
+      contas: [{ ...MARINA, senha: SENHA_ATUAL }],
+      auth: { exigeSenhaAtualAoTrocarSenha: true },
+    })
+    // Uma sessão aberta não troca a senha direto pelo Supabase Auth sem a senha atual.
+    const direto = await cliente.auth.updateUser({ password: 'trocada-sem-confirmar-nada' })
+    expect(direto.error?.code).toBe('current_password_required')
+
+    const formulario = await abrirTrocaDeSenha(usuario)
+    await usuario.type(formulario.getByLabelText('Senha atual'), SENHA_ATUAL)
+    await usuario.type(formulario.getByLabelText('Nova senha'), NOVA)
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar nova senha' }))
+    expect(await screen.findByText(/Senha salva/)).toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await usuario.type(screen.getByLabelText('Senha'), NOVA)
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(await formularioDoPerfil()).toBeTruthy()
+  })
+
+  it('quem só tem Google define a senha pelo código no servidor, sem gravar nada pelo navegador, também com "Require current password" ligado', async () => {
+    const { usuario, cliente, codigoEnviadoPara, contasDoAuthCom } = abrir(bancoDaMarina(), '/configuracoes/perfil', {
+      contas: [{ ...MARINA, nome: 'Marina Souza' }],
+      navegador: { captcha: 'ligado' },
+      auth: { exigeCaptcha: true, exigeSenhaAtualAoTrocarSenha: true },
+      metodos: ['google'],
+    })
+    const gravarPeloNavegador = vi.spyOn(cliente.auth, 'updateUser')
+    const confirmarPeloNavegador = vi.spyOn(cliente.auth, 'verifyOtp')
+    const formulario = await abrirTrocaDeSenha(usuario)
+    await usuario.click(formulario.getByRole('button', { name: 'Enviar código' }))
+    expect(await formulario.findByText(`Enviamos um código para ${MARINA.email}.`)).toBeInTheDocument()
+    await usuario.type(formulario.getByLabelText('Código'), codigoEnviadoPara(MARINA.email)!)
+    await usuario.type(formulario.getByLabelText('Nova senha'), NOVA)
+    await usuario.click(formulario.getByRole('button', { name: 'Salvar nova senha' }))
+
+    expect(await screen.findByText(/Senha salva/)).toBeInTheDocument()
+    expect(gravarPeloNavegador).not.toHaveBeenCalled()
+    expect(confirmarPeloNavegador).not.toHaveBeenCalled()
+    expect(contasDoAuthCom(MARINA.email)).toHaveLength(1)
+
+    await usuario.click(screen.getByRole('button', { name: 'Sair' }))
+    await usuario.type(await screen.findByLabelText('E-mail'), MARINA.email)
+    await usuario.type(screen.getByLabelText('Senha'), NOVA)
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(await formularioDoPerfil()).toBeTruthy()
+  })
+
+  it('na Demonstração, a senha continua demonstrativa: sem servidor, sem confirmação por código', async () => {
+    const { usuario } = renderizarApp('/configuracoes/perfil')
+    await usuario.click(await screen.findByRole('button', { name: 'Alterar senha' }))
+    const formulario = within(await screen.findByRole('form', { name: 'Alterar senha' }))
+    expect(formulario.queryByRole('radio', { name: 'Com um código por e-mail' })).not.toBeInTheDocument()
+    await usuario.type(formulario.getByLabelText('Senha atual'), 'antiga-123')
+    await usuario.type(formulario.getByLabelText('Nova senha'), 'nova-senha-1')
+    await usuario.type(formulario.getByLabelText('Confirmar nova senha'), 'nova-senha-1')
+    await usuario.click(formulario.getByRole('button', { name: 'Alterar senha' }))
+    expect(await screen.findByText(/Demonstração: nenhuma senha foi alterada/)).toBeInTheDocument()
   })
 })
 
