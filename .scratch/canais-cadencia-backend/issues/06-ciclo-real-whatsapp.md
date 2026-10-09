@@ -44,6 +44,8 @@
     3. Conectar o WhatsApp no app. No SQL Editor, conferir `select version, name from supabase_migrations.schema_migrations where version >= '20261001150000' order by version;` e `select * from private.chat_channel_settings;`, e ligar com `select private.set_chat_channel_enabled('whatsapp', true);`.
     4. Enviar para um número seu, responder e conferir: `select channel, status, last_error, provider_chat_id, sent_at from private.sequence_step_sends where channel = 'whatsapp' order by updated_at desc limit 10;` e `select event_type, outcome, provider_chat_id, received_at from private.unipile_chat_events order by received_at desc limit 20;`. Uma resposta real com `outcome = 'unrelated'` vira ticket de agente (`@lid` ou formato de campo).
 
+- 2026-10-09 (agente). Fechada a lacuna apontada acima: `unipile-account-status/handler.test.ts` ganhou 6 testes do roteamento de `message.new` e `relation.new` até `ingestChatEvent` (ver `.scratch/handoffs/canais-06.md`). Nenhum código de produção mudou. Os checkboxes seguem desmarcados até o envio real.
+
 ## Passos do Nan
 
 1. Conectar a sua Conta remetente de WhatsApp pela Unipile (o mesmo fluxo do E-mail).

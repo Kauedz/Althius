@@ -1,4 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1'
+import type { IngestChatEventInput, IngestedChat } from '../_shared/ingest-chat-event.ts'
 import {
   attachmentContentType,
   attachmentPath,
@@ -300,4 +301,88 @@ Deno.test('o anexo guarda um tipo útil mesmo quando o download chega genérico'
   assertEquals(attachmentContentType('application/octet-stream', { name: 'image.PNG' }), 'image/png')
   assertEquals(attachmentContentType(null, { name: 'proposta.pdf' }), 'application/pdf')
   assertEquals(attachmentContentType(null, { name: 'planilha.xlsx' }), null)
+})
+
+// WhatsApp (canais-06): o webhook só encaminha `message.new` ao banco, que decide se é eco, resposta ou conversa pessoal.
+function fakeChatDb(ingested: IngestedChat | Error = { outcome: 'reply', interaction_id: 'int-1', send_id: 'send-1' }) {
+  const { db, calls } = fakeDb()
+  const chat: IngestChatEventInput[] = []
+  db.ingestChatEvent = async (input) => {
+    chat.push(input)
+    if (ingested instanceof Error) throw ingested
+    return ingested
+  }
+  return { db, calls, chat }
+}
+
+const whatsappMessage = {
+  id: 'msg-1',
+  chat_id: 'chat-1',
+  sender_id: '5511999990000@s.whatsapp.net',
+  is_sender: false,
+  text: 'Pode ser amanhã.',
+}
+
+Deno.test('message.new vai para a ingestão de conversa com o id do evento, a conta e o payload; nada de e-mail', async () => {
+  const { db, calls, chat } = fakeChatDb()
+  const { handle, background } = handlerWith({ db })
+  const res = await handle(
+    await signedRequest({ id: 'evt-w1', type: 'message.new', account_id: 'acc-wa', payload: whatsappMessage }),
+  )
+  await Promise.all(background)
+  assertEquals(res.status, 200)
+  assertEquals(chat, [
+    { eventId: 'evt-w1', eventType: 'message.new', unipileAccountId: 'acc-wa', payload: whatsappMessage },
+  ])
+  assertEquals(calls.ingest.length, 0)
+  assertEquals(calls.apply.length, 0)
+})
+
+Deno.test('message.new de conversa pessoal (ignorada pelo banco) também é confirmado com 2xx', async () => {
+  const { db, chat } = fakeChatDb({ outcome: 'unrelated', interaction_id: null, send_id: null })
+  const { handle } = handlerWith({ db })
+  const res = await handle(
+    await signedRequest({ id: 'evt-w2', type: 'message.new', account_id: 'acc-wa', payload: whatsappMessage }),
+  )
+  assertEquals(res.status, 200)
+  assertEquals(chat.length, 1)
+})
+
+Deno.test('message.new sem id de evento ou sem payload é inválido e não chega ao banco', async () => {
+  const { db, chat } = fakeChatDb()
+  const { handle } = handlerWith({ db })
+  const semId = await handle(await signedRequest({ type: 'message.new', account_id: 'acc-wa', payload: whatsappMessage }))
+  const semPayload = await handle(await signedRequest({ id: 'evt-w3', type: 'message.new', account_id: 'acc-wa' }))
+  assertEquals(semId.status, 400)
+  assertEquals(semPayload.status, 400)
+  assertEquals(chat.length, 0)
+})
+
+Deno.test('erro na ingestão de conversa devolve 500 para a Unipile tentar de novo', async () => {
+  const { db } = fakeChatDb(new Error('db down'))
+  const { handle } = handlerWith({ db })
+  const res = await handle(
+    await signedRequest({ id: 'evt-w4', type: 'message.new', account_id: 'acc-wa', payload: whatsappMessage }),
+  )
+  assertEquals(res.status, 500)
+})
+
+Deno.test('relation.new (aceite de convite) chega ao banco só para registro, sem tratar como resposta', async () => {
+  const { db, chat } = fakeChatDb({ outcome: 'recorded', interaction_id: null, send_id: null })
+  const { handle } = handlerWith({ db })
+  const res = await handle(
+    await signedRequest({ id: 'evt-r1', type: 'relation.new', account_id: 'acc-li', payload: { user_id: 'u1' } }),
+  )
+  assertEquals(res.status, 200)
+  assertEquals(chat.map((c) => c.eventType), ['relation.new'])
+})
+
+Deno.test('message.new com a ingestão de conversa desligada é reconhecido e ignorado', async () => {
+  const { db, calls } = fakeDb()
+  const { handle } = handlerWith({ db })
+  const res = await handle(
+    await signedRequest({ id: 'evt-w5', type: 'message.new', account_id: 'acc-wa', payload: whatsappMessage }),
+  )
+  assertEquals(res.status, 200)
+  assertEquals(calls.ingest.length, 0)
 })
