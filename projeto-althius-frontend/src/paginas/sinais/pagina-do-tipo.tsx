@@ -4,20 +4,21 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
-import { useAmbiente, useDadosDeSinais } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import type { EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, familiaDoTipo, tipoPorId } from './catalogo'
 import { SeloDoEstado } from './componentes'
 import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
 import { VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
-import { ACAO_DO_ESTADO, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
+import { ACAO_DO_ESTADO, resumoDaExecucao, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
 
 export function PaginaDoTipo() {
   const { tipoId = '' } = useParams<{ tipoId: string }>()
   const { state } = useLocation() as { state?: { aviso?: string } }
   const [erroAcao, setErroAcao] = useState<string | null>(null)
   const operacional = useAmbiente().modo === 'real'
+  const hoje = useFonteDeContas().hoje()
   const tipo = tipoPorId(tipoId)
   const monitoramentos = useMonitoramentos(tipoId)
   const { mudarEstado } = useSinaisDoMockup()
@@ -172,6 +173,9 @@ export function PaginaDoTipo() {
                   </p>
                   {m.ultimaFalha && (
                     <p className="text-xs text-al-atencao">Última rodada: {m.ultimaFalha}</p>
+                  )}
+                  {!m.ultimaFalha && m.ultimaExecucao?.estado === 'concluida' && (
+                    <p className="text-xs text-al-muted">{resumoDaExecucao(m.ultimaExecucao, hoje)}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-1">

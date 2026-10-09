@@ -135,3 +135,92 @@ describe('Módulo Sinais no Workspace operacional (sinais-reais 03)', () => {
     expect(await sinaisDisponiveis(cliente({}))).toBe(false)
   })
 })
+
+describe('Sinais internos das Interações no Workspace operacional (CRM-10)', () => {
+  const catalogo = () => [
+    { signal_type: 'negociacao_parada', origin: 'interno', state: 'available' },
+    { signal_type: 'sem_resposta', origin: 'interno', state: 'available' },
+    { signal_type: 'vaga_linkedin', origin: 'externo', state: 'testing' },
+  ]
+  const monitorInterno = {
+    ...monitorNoBanco, signal_type: 'sem_resposta', name: 'Sem resposta em 30 dias', criteria: { prazo: '30' },
+  }
+
+  it('Ausência de resposta e Negociação parada ficam disponíveis sem actor; Proposta recusada fica em breve', async () => {
+    const f = fonte({ list_signal_actors: () => [{ signal_type: 'vaga_linkedin', state: 'testing' }], list_signal_catalog: catalogo })
+    const tipos = await f.tipos()
+    const estado = (id: string) => tipos.find((t) => t.id === id)?.disponibilidade
+    expect(estado('sem-resposta')).toBe('disponivel')
+    expect(estado('negociacao-parada')).toBe('disponivel')
+    expect(estado('proposta-recusada')).toBe('em-breve')
+    expect(estado('abertura-de-vagas')).toBe('em-teste')
+  })
+
+  it('sem o catálogo no banco, os internos ficam em breve', async () => {
+    const f = fonte({ list_signal_actors: () => [{ signal_type: 'vaga_linkedin', state: 'available' }] })
+    const tipos = await f.tipos()
+    expect(tipos.find((t) => t.id === 'sem-resposta')?.disponibilidade).toBe('em-breve')
+    expect(tipos.find((t) => t.id === 'abertura-de-vagas')?.disponibilidade).toBe('disponivel')
+  })
+
+  it('o módulo Sinais abre com um Sinal interno disponível, mesmo com todos os actors em teste', async () => {
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(USUARIO),
+      rpcs: { list_signal_actors: () => [{ signal_type: 'vaga_linkedin', state: 'testing' }], list_signal_catalog: catalogo },
+    })
+    expect(await sinaisDisponiveis(cliente)).toBe(true)
+  })
+
+  it('o Monitoramento interno vem do banco com o prazo e a última rodada', async () => {
+    const f = fonte({
+      list_signal_monitors: () => [{
+        ...monitorInterno,
+        last_run: {
+          state: 'concluida', startedAt: '2026-10-08T10:00:00Z', finishedAt: '2026-10-08T10:00:01Z',
+          accountsChecked: 5, signalsNew: 2, signalsRepeated: 1,
+        },
+      }],
+    })
+    expect(await f.monitoramentos()).toEqual([
+      {
+        id: MONITOR, tipoId: 'sem-resposta', nome: 'Sem resposta em 30 dias', estado: 'ativo',
+        publico: { modo: 'listas', listas: [CONTA], usaRecomendado: false }, criterios: { prazo: '30' },
+        ultimaExecucao: { estado: 'concluida', data: '2026-10-08T10:00:01Z', contasAvaliadas: 5, sinaisNovos: 2, sinaisReencontrados: 1 },
+      },
+    ])
+  })
+
+  it('salvar um Monitoramento interno grava o Sinal sem_resposta com o prazo', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const f = fonte({
+      save_signal_monitor: (p) => (chamadas.push(p), MONITOR),
+      list_signal_monitors: () => [monitorInterno],
+    })
+    await f.salvarMonitoramento({
+      tipoId: 'sem-resposta', nome: 'Sem resposta em 30 dias', estado: 'ativo',
+      publico: { modo: 'listas', listas: [CONTA], usaRecomendado: false }, criterios: { prazo: '30' },
+    })
+    expect(chamadas[0]).toMatchObject({ p_signal_type: 'sem_resposta', p_criteria: { prazo: '30' }, p_audience: { accountIds: [CONTA] } })
+  })
+
+  it('o Sinal interno aparece entre os encontrados, com a fonte e a evidência da Interação', async () => {
+    const f = fonte({
+      list_signals: () => [
+        {
+          id: 's2', target_account_id: CONTA, monitor_id: MONITOR, signal_type: 'negociacao_parada',
+          event_key: 'negociacao_parada|i1', phrase: 'Negociação parada desde 19/08/2026', fired_at: '2026-10-08T10:00:00Z',
+          source: 'Interações da Conta',
+          evidence: 'Última Interação: reunião em 19/08/2026, depois de uma conversa com a Conta. Nenhuma Interação registrada desde então (prazo do Monitoramento: 30 dias).',
+          seen_again_at: null, seen_again_monitor_id: null, valid: true,
+        },
+      ],
+    })
+    expect(await f.sinaisEncontrados()).toEqual([
+      {
+        id: 's2', contaId: CONTA, acontecimentoId: 'negociacao_parada|i1', tipoId: 'negociacao-parada', monitoramentoId: MONITOR,
+        frase: 'Negociação parada desde 19/08/2026', data: '2026-10-08T10:00:00Z', fonte: 'Interações da Conta',
+        evidencia: 'Última Interação: reunião em 19/08/2026, depois de uma conversa com a Conta. Nenhuma Interação registrada desde então (prazo do Monitoramento: 30 dias).',
+      },
+    ])
+  })
+})
