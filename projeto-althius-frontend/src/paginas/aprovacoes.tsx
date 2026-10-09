@@ -6,9 +6,10 @@ import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
-import { podeDecidir } from '@/fonte/regras'
+import { ehRevisaoDoPlaybook, podeDecidir } from '@/fonte/regras'
 import type { Agente, AprovacaoDeAcao, Integracao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
+import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
 /** O que a fila é em cada ambiente: no Workspace operacional, só um Administrador decide, e o Canal ainda não decide. */
@@ -48,7 +49,9 @@ export function PaginaAprovacoes() {
           <ul className="flex flex-col gap-6">
             {ordenadas.map((aprovacao) => (
               <li key={aprovacao.id}>
-                {aprovacao.revisao ? (
+                {ehRevisaoDoPlaybook(aprovacao) ? (
+                  <CartaoDeRevisaoDoPlaybook aprovacao={aprovacao} onde="fila" />
+                ) : aprovacao.revisao ? (
                   <CartaoDeRevisao aprovacao={aprovacao} papel={workspace.papel} />
                 ) : (
                   <CartaoDeAprovacao

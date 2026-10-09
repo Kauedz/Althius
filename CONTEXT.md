@@ -64,7 +64,7 @@ _Avoid_: CP
 A documentação compartilhada do Cliente, incluindo o ICP e as definições de Personas, que serve de referência para todo o Workspace. É distinta da Memória individual de cada Agente.
 
 **Revisão da Memória do Workspace**:
-A proposta de um Agente para substituir o ICP (Scopus) ou as definições de Personas (Ethos), pedida por qualquer participante numa Conversa. É uma categoria de Aprovação que só um Administrador ativo decide: enquanto pendente ou recusada, nada muda; aprovada, substitui o documento vigente e atualiza de uma vez as configurações que dependem dele. Não é uma versão do documento: a Memória do Workspace guarda só o vigente.
+A proposta de um Agente para substituir o ICP (Scopus) ou as definições de Personas (Ethos), pedida por qualquer participante numa Conversa. É uma categoria de Aprovação que só um Administrador ativo decide: enquanto pendente ou recusada, nada muda; aprovada, substitui o documento vigente e atualiza de uma vez as configurações que dependem dele. Não é uma versão do documento: a Memória do Workspace guarda só o vigente. No Workspace operacional, a revisão é a nova versão de uma seção do Playbook da Especialidade do Agente (o Scopus no ICP e no Mercado; o Ethos nas Personas, no Processo de compra, na Dor e percepção e nas Objeções): aprovada, vira a versão vigente da seção; se a seção mudou antes da decisão, fica desatualizada e não vale mais.
 _Avoid_: versão, rascunho
 
 **Conta-alvo**:

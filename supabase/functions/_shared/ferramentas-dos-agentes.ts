@@ -11,7 +11,10 @@
 //                            Rhetor; Propor+)    Executar, ela nasce liberada e o executor das Aprovações envia;
 //   usar_conector           (todos, com Ler+)    lista e chama as ferramentas que o servidor de um conector oferece, sem
 //                                                código por app (ADR-0022): a regra de cada ferramenta somada à Permissão
-//                                                decide se executa, pede Aprovação (com a chamada exata) ou é recusada.
+//                                                decide se executa, pede Aprovação (com a chamada exata) ou é recusada;
+//   propor_mudanca_no_playbook (Scopus, Ethos)   propõe uma nova versão de uma seção do Playbook da Especialidade (CRM-09,
+//                                                ADR-0010): nasce uma Aprovação que só um Administrador decide, e o
+//                                                Playbook só muda quando ela é aprovada.
 //
 // O que pode ser feito é sempre conferido de novo no banco (a Especialidade, a Permissão, a Participação, a Integração
 // ligada) e no Acesso (`chamarFerramenta` com o `agenteId`). Uma falha de ferramenta vira texto para o Agente, nunca
@@ -97,6 +100,23 @@ export interface ChamadaComEfeito {
   erro: string | null
 }
 
+/** O conteúdo de uma seção do Playbook, como o banco o guarda: o texto e as linhas da tabela (campo → texto). */
+export interface ConteudoDoPlaybook {
+  texto: string
+  linhas: Record<string, string>[]
+}
+
+/** A nova versão de uma seção que o Agente propôs (CRM-09), como `agent_propose_playbook_revision` devolve. */
+export interface RevisaoProposta {
+  approvalId: string
+  /** `pendente` (nasceu agora) ou `existente` (a mesma proposta já tinha sido feita nesta Execução). */
+  outcome: 'pendente' | 'existente' | string
+  /** O nome da seção no catálogo do Playbook. */
+  secao: string
+  /** A versão vigente de que a proposta partiu (0: a seção ainda não tinha versão). */
+  versaoBase: number
+}
+
 /** O contrato com o banco das ferramentas (migration 20261001210000). Erros do banco chegam como ErroDoBanco. */
 export interface BancoDasFerramentas {
   contexto(runId: string): Promise<ContextoDasFerramentas>
@@ -114,6 +134,15 @@ export interface BancoDasFerramentas {
    * pelos Agentes desta Execução. Devolve 'enviado' ou 'falhou'. Sem ele, `usar_conector` não aceita o efeito.
    */
   fecharEnvioPelaChamada?(runId: string, agenteId: string, a: ChamadaComEfeito): Promise<string>
+  /**
+   * RPC `agent_propose_playbook_revision` (CRM-09): a nova versão de uma seção do Playbook vira uma Aprovação da categoria
+   * revisão. Sem ela, `propor_mudanca_no_playbook` não é oferecida.
+   */
+  proporRevisao?(
+    runId: string,
+    agenteId: string,
+    a: { secao: string; conteudo: ConteudoDoPlaybook; justificativa: string },
+  ): Promise<RevisaoProposta>
 }
 
 export interface DepsDasFerramentas {
@@ -222,6 +251,13 @@ function motivoDoBanco(erro: unknown): string {
     if (m.includes('target account not found')) return 'Esta Conta-alvo não existe no Workspace (use o id que ler_contas_e_sinais devolve).'
     if (m.includes('ICP specialist')) return 'Só o Scopus pede busca de contas pelo ICP.'
     if (m.includes('tool is blocked')) return 'O Administrador bloqueou esta ferramenta neste Workspace. Não a use.'
+    if (m.includes('does not propose this playbook section')) return 'Você não propõe mudanças nesta seção do Playbook.'
+    if (m.includes('does not change the playbook section')) {
+      return 'O conteúdo proposto é igual à versão vigente da seção: nada mudaria. Diga isso ao usuário.'
+    }
+    if (m.includes('playbook content too long')) return 'O conteúdo passou do tamanho máximo de uma seção do Playbook.'
+    if (m.includes('unknown playbook section')) return 'Esta seção do Playbook não existe.'
+    if (m.includes('active workspace membership required')) return 'Quem fez o pedido não participa mais do Workspace.'
     if (m.includes('invalid')) return 'A entrada da ferramenta é inválida.'
   }
   return 'A ferramenta falhou agora. Não use dados dela e siga com o que você tem.'
@@ -734,14 +770,159 @@ function avisoDoEnvio(enviado: boolean, crm: string): string {
     : 'A chamada saiu, mas a Althius não registrou o Envio ao CRM desta Conta (o pedido não é um Enviar ao CRM, ou ele já fechou). Diga isso ao usuário.'
 }
 
+/**
+ * As seções do Playbook que cada Especialidade propõe: as dela em `playbook_specialty_sections`, só no Scopus e no Ethos
+ * (ADR-0010; a Empresa não é de ninguém). O banco confere de novo. `colunas` são as da tabela da seção, as mesmas da tela
+ * (`regras-playbook.ts`), para o Agente escrever as linhas nos campos que a tela mostra.
+ */
+const SECOES_QUE_PROPOE: Record<string, readonly { id: string; nome: string; doNome: string; colunas?: readonly string[] }[]> = {
+  scopus: [
+    { id: 'icp', nome: 'ICP', doNome: 'do ICP' },
+    { id: 'mercado', nome: 'Mercado', doNome: 'do Mercado', colunas: ['segmento', 'tam', 'sam', 'som', 'complexidade'] },
+  ],
+  ethos: [
+    { id: 'personas', nome: 'Personas', doNome: 'das Personas', colunas: ['papel', 'cargo', 'dores', 'objecoes', 'gatilhos'] },
+    {
+      id: 'processo_de_compra',
+      nome: 'Processo de compra',
+      doNome: 'do Processo de compra',
+      colunas: ['etapa', 'quem_decide', 'criterio', 'prazo'],
+    },
+    {
+      id: 'dor_e_percepcao',
+      nome: 'Dor e percepção',
+      doNome: 'da Dor e percepção',
+      colunas: ['dor', 'urgencia', 'consciencia', 'gravidade', 'frequencia', 'pergunta'],
+    },
+    { id: 'objecoes', nome: 'Objeções', doNome: 'das Objeções', colunas: ['objecao', 'resposta', 'prova'] },
+  ],
+}
+
+const TETO_DO_CONTEUDO = 100_000
+const MAX_LINHAS = 200
+
+/** O conteúdo como o Agente o mandou, só com o que o Playbook guarda: texto e linhas de campos de texto. */
+function conteudoProposto(bruto: unknown): ConteudoDoPlaybook {
+  const objeto = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto as Record<string, unknown> : {}
+  const linhas = Array.isArray(objeto.linhas) ? objeto.linhas : []
+  return {
+    texto: typeof objeto.texto === 'string' ? objeto.texto.trim() : '',
+    linhas: linhas
+      .flatMap((linha) => {
+        if (!linha || typeof linha !== 'object' || Array.isArray(linha)) return []
+        const campos = Object.entries(linha as Record<string, unknown>)
+          .filter((par): par is [string, string] => typeof par[1] === 'string' && par[1].trim() !== '')
+          .map(([campo, valor]) => [campo.trim().slice(0, 60), valor.trim()])
+        return campos.length ? [Object.fromEntries(campos)] : []
+      })
+      .slice(0, MAX_LINHAS),
+  }
+}
+
+const PROPOR_MUDANCA_NO_PLAYBOOK: FerramentaDoAgente = {
+  nome: 'propor_mudanca_no_playbook',
+  descricao:
+    'Propõe uma nova versão de uma seção do Playbook da sua Especialidade, quando a Conversa chega a um ICP, a Personas, ' +
+    'a uma dor ou a uma objeção nova, ou quando pedem para ajustar o Playbook. Escreva a seção INTEIRA como deve ficar ' +
+    '(o texto e, se a seção tem tabela, todas as linhas), partindo da versão vigente que você recebeu no Playbook. Nada ' +
+    'muda na hora: nasce uma Aprovação que só um Administrador decide; aprovada, a versão nova vale para todos os Agentes.',
+  esquema: {
+    type: 'object',
+    properties: {
+      secao: {
+        type: 'string',
+        enum: Object.values(SECOES_QUE_PROPOE).flatMap((secoes) => secoes.map((s) => s.id)),
+        description: 'A seção do Playbook (só as da sua Especialidade).',
+      },
+      conteudo: {
+        type: 'object',
+        properties: {
+          texto: { type: 'string', description: 'O texto inteiro da seção.' },
+          linhas: {
+            type: 'array',
+            items: { type: 'object', additionalProperties: { type: 'string' } },
+            description: 'As linhas da tabela da seção, inteiras, nos campos indicados.',
+          },
+        },
+        additionalProperties: false,
+      },
+      justificativa: { type: 'string', description: 'Por que mudar, em uma ou duas frases, para o Administrador que decide.' },
+    },
+    required: ['secao', 'conteudo', 'justificativa'],
+    additionalProperties: false,
+  },
+  especialidades: ['scopus', 'ethos'],
+  exige: null,
+  disponivel: (_agente, _ctx, deps) => !!deps.banco.proporRevisao,
+  descricaoPara(agente) {
+    const linhas = (SECOES_QUE_PROPOE[agente.specialty] ?? []).map((s) =>
+      `- ${s.id} (${s.nome})${s.colunas ? `: linhas com os campos ${s.colunas.join(', ')}` : ': só texto'}`
+    )
+    return `${PROPOR_MUDANCA_NO_PLAYBOOK.descricao}\nSeções que você pode propor:\n${linhas.join('\n')}`
+  },
+  async executar({ runId, agente, entrada, deps }) {
+    const secoes = SECOES_QUE_PROPOE[agente.specialty] ?? []
+    const id = texto(entrada.secao, 40)
+    const secao = secoes.find((s) => s.id === id)
+    if (!secao || !deps.banco.proporRevisao) {
+      return falhou(
+        `${agente.name} tentou propor uma mudança no Playbook`,
+        `Você só propõe mudanças nestas seções do Playbook: ${secoes.map((s) => s.nome).join(', ') || 'nenhuma'}.`,
+      )
+    }
+    const conteudo = conteudoProposto(entrada.conteudo)
+    if (!conteudo.texto && conteudo.linhas.length === 0) {
+      return falhou(
+        `${agente.name} tentou propor uma nova versão ${secao.doNome}`,
+        'Escreva o conteúdo inteiro da seção: o texto e, se ela tem tabela, as linhas.',
+      )
+    }
+    if (JSON.stringify(conteudo).length > TETO_DO_CONTEUDO) {
+      return falhou(`${agente.name} tentou propor uma nova versão ${secao.doNome}`, 'O conteúdo é grande demais para uma seção.')
+    }
+    const justificativa = texto(entrada.justificativa, 2000)
+    if (!justificativa) {
+      return falhou(
+        `${agente.name} tentou propor uma nova versão ${secao.doNome}`,
+        'Diga em uma ou duas frases por que mudar a seção: é o que o Administrador lê para decidir.',
+      )
+    }
+    let proposta: RevisaoProposta
+    try {
+      proposta = await deps.banco.proporRevisao(runId, agente.id, { secao: secao.id, conteudo, justificativa })
+    } catch (erro) {
+      return falhou(`${agente.name} tentou propor uma nova versão ${secao.doNome}`, `A proposta falhou. ${motivoDoBanco(erro)}`)
+    }
+    const link: LinkDoPasso = { tipo: 'aprovacao', id: proposta.approvalId }
+    if (proposta.outcome === 'existente') {
+      return {
+        erro: false,
+        paraOAgente: `Esta mesma proposta ${secao.doNome} já existe nesta Conversa. Nada novo foi criado.`,
+        passo: { descricao: `${agente.name} lembrou a proposta ${secao.doNome} que já está em Aprovações`, estado: 'aguardando', link },
+      }
+    }
+    return {
+      erro: false,
+      paraOAgente:
+        `Proposta criada: a nova versão ${secao.doNome} espera a decisão de um Administrador, aqui na Conversa ou em ` +
+        'Aprovações. O Playbook não mudou ainda. Termine dizendo que a mudança só vale depois da Aprovação.',
+      passo: {
+        descricao: `${agente.name} propôs uma nova versão ${secao.doNome} — aguardando Aprovação de um Administrador`,
+        estado: 'aguardando',
+        link,
+      },
+    }
+  },
+}
+
 export const CATALOGO: readonly FerramentaDoAgente[] = [LER_CONTAS, BUSCAR_PELO_ICP, CONSULTAR_INTEGRACAO, PROPOR_ENVIO]
 
 /**
- * O catálogo com a ferramenta genérica dos conectores (ADR-0022). Ela fica à parte do `CATALOGO` das ferramentas da
- * Etapa 5b porque depende de dois contratos novos do banco (as regras e a proposta de chamada): quem não os tem continua
- * vendo só as quatro de antes.
+ * O catálogo com a ferramenta genérica dos conectores (ADR-0022) e a proposta de mudança no Playbook (CRM-09). Elas ficam
+ * à parte do `CATALOGO` das ferramentas da Etapa 5b porque dependem de contratos novos do banco (as regras, a proposta de
+ * chamada, a proposta de revisão): quem não os tem continua vendo só as quatro de antes.
  */
-export const FERRAMENTAS: readonly FerramentaDoAgente[] = [...CATALOGO, USAR_CONECTOR]
+export const FERRAMENTAS: readonly FerramentaDoAgente[] = [...CATALOGO, USAR_CONECTOR, PROPOR_MUDANCA_NO_PLAYBOOK]
 
 /** A ferramenta como o modelo a recebe. */
 export interface FerramentaParaOModelo {
@@ -927,6 +1108,24 @@ export function bancoDasFerramentas(
         p_ok: a.ok,
         p_error: a.erro,
       }),
+    // Migration 20261009220509 (CRM-09).
+    async proporRevisao(runId, agenteId, a) {
+      const linha = primeira<{ approval_id: string; outcome: string; section_name: string; base_version: number | string }>(
+        await chamar('agent_propose_playbook_revision', {
+          p_run_id: runId,
+          p_agent_id: agenteId,
+          p_section: a.secao,
+          p_content: a.conteudo,
+          p_justification: a.justificativa,
+        }),
+      )
+      return {
+        approvalId: linha.approval_id,
+        outcome: linha.outcome,
+        secao: linha.section_name,
+        versaoBase: Number(linha.base_version ?? 0),
+      }
+    },
   }
 }
 
