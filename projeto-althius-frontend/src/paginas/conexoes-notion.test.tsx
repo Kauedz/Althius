@@ -140,6 +140,16 @@ describe('O cartão do Notion no Workspace operacional', () => {
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['notion'])
   })
 
+  it('um Membro vê o Notion não habilitado e que só um Administrador o habilita', async () => {
+    abrir({ papel: 'member', habilitadas: [] })
+
+    const cartao = await screen.findByRole('article', { name: 'Notion' })
+    expect(within(cartao).getByText('Não habilitada')).toBeInTheDocument()
+    expect(within(cartao).getByText('Só um Administrador habilita.')).toBeInTheDocument()
+    expect(within(cartao).queryByRole('button', { name: 'Habilitar' })).not.toBeInTheDocument()
+    expect(within(cartao).queryByRole('button', { name: 'Conectar no Notion' })).not.toBeInTheDocument()
+  })
+
   it('sem Acesso, conecta só pela autorização no próprio Notion, sem chave de API e sem Sincronização', async () => {
     const indo = vi.spyOn(idaAoApp, 'ir').mockImplementation(() => {})
     const { usuario, pedidos } = abrir()
@@ -214,10 +224,14 @@ describe('O cartão do Notion no Workspace operacional', () => {
     expect(window.location.search).toBe('')
   })
 
-  it('o consentimento recusado no Notion avisa e o cartão não finge que conectou', async () => {
-    abrir({ rota: '/conexoes?conexao=erro&integracao=notion&motivo=recusada' })
+  it.each([
+    ['recusada', 'Você não autorizou o acesso no Notion. Nada foi conectado.'],
+    ['expirada', 'A autorização demorou demais e venceu. Comece de novo.'],
+    ['indisponivel', 'Não foi possível falar com o Notion agora. Tente de novo em instantes.'],
+  ])('a volta "%s" da autorização avisa e o cartão não finge que conectou', async (motivo, aviso) => {
+    abrir({ rota: `/conexoes?conexao=erro&integracao=notion&motivo=${motivo}` })
 
-    expect(await screen.findByText('Você não autorizou o acesso no Notion. Nada foi conectado.')).toBeInTheDocument()
+    expect(await screen.findByText(aviso)).toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'Notion' })
     expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
   })

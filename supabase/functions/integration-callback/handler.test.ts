@@ -1,6 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
 import type { Tentativa } from '../_shared/integracoes/banco-supabase.ts'
-import { servidorMcpFalso } from '../_shared/integracoes/servidor-mcp-falso.ts'
+import { type OpcoesDoServidorFalso, servidorMcpFalso } from '../_shared/integracoes/servidor-mcp-falso.ts'
 import { ErroDoBanco } from '../_shared/integration-access.ts'
 import { createHandler, type Db } from './handler.ts'
 
@@ -30,8 +30,8 @@ interface Montagem {
   erroAoConcluir?: ErroDoBanco
   ambiente?: Record<string, string>
   clienteGuardado?: { clientId: string; clientSecret: string | null }
-  /** O servidor MCP do Notion, para a identificação pela ferramenta. */
-  mcp?: Parameters<typeof servidorMcpFalso>[0]
+  /** O servidor MCP do Notion (`https://mcp.notion.com/mcp`), para a identificação pela ferramenta. */
+  mcpDoNotion?: OpcoesDoServidorFalso
 }
 
 function montar(m: Montagem = {}) {
@@ -50,10 +50,10 @@ function montar(m: Montagem = {}) {
     clienteOAuth: () => Promise.resolve(m.clienteGuardado ?? null),
     salvarClienteOAuth: (a) => Promise.resolve({ clientId: a.clientId, clientSecret: a.clientSecret }),
   }
-  const mcp = servidorMcpFalso(m.mcp)
+  const mcpDoNotion = servidorMcpFalso(m.mcpDoNotion)
   const fetchFalso = (async (entrada: string | URL | Request, init?: RequestInit) => {
     const req = new Request(entrada, init)
-    if (req.url === 'https://mcp.notion.com/mcp') return await mcp.fetch(req)
+    if (req.url === 'https://mcp.notion.com/mcp') return await mcpDoNotion.fetch(req)
     c.rede.push({ url: req.url, corpo: req.method === 'GET' ? '' : await req.text() })
     if (req.url.endsWith('/token')) {
       const t = m.token ?? { status: 200, corpo: { access_token: 'acc-novo-111', refresh_token: 'ref-novo-111', expires_in: 1800 } }
@@ -236,7 +236,7 @@ Deno.test('Notion: cliente de registro dinâmico (público) do banco e a conta p
     tentativa: tentativaDoNotion(),
     clienteGuardado: { clientId: 'cid-notion', clientSecret: null },
     token: { status: 200, corpo: TROCA_NO_NOTION },
-    mcp: usuarioDoNotion({ name: 'Ana Souza', email: 'ana@norte.test' }),
+    mcpDoNotion: usuarioDoNotion({ name: 'Ana Souza', email: 'ana@norte.test' }),
     ambiente: {},
   })
   const r = await retorno('code=codigo-n&state=estado-n')

@@ -480,6 +480,8 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       oauth: {
         registro: 'dinamico',
         segredos: { clientId: 'NOTION_MCP_CLIENT_ID', clientSecret: 'NOTION_MCP_CLIENT_SECRET' },
+        // não confirmado: se o Notion aceita o parâmetro `resource` (RFC 8707). O guia não o manda, mas o metadado (lido em
+        // 08/10/2026) lista https://mcp.notion.com/mcp entre os recursos protegidos, e a especificação do MCP o pede.
         enviarRecurso: true,
         identificacao: {
           // A troca do código devolve só `user_id`, `workspace_id` e `email_domain` ("Build an MCP client for Notion");
@@ -488,10 +490,7 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
         },
       },
     },
-    naoConfirmado: [
-      // O metadado (lido em 08/10/2026) lista https://mcp.notion.com/mcp entre os recursos protegidos; o guia não manda `resource`.
-      'Se o Notion aceita o parâmetro resource (RFC 8707) no consentimento e na troca do código.',
-    ],
+    naoConfirmado: ['Se o Notion aceita o parâmetro resource (RFC 8707) no consentimento e na troca do código.'],
   },
   apollo: {
     id: 'apollo',
