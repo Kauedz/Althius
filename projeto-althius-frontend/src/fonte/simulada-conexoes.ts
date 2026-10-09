@@ -1,6 +1,7 @@
 import * as demo from './dados-demo'
+import { catalogoDeIntegracoes } from './catalogo-de-conexoes'
 import type { ArmazenamentoDemonstrativo } from './simulada-participacoes'
-import type { CanalId, CategoriaDeIntegracao, Integracao, IntegracaoFutura, IntegracaoId, PreviaDeCanal } from './tipos'
+import type { CanalId, CategoriaDeIntegracao, IntegracaoId, PreviaDeCanal } from './tipos'
 import type { FerramentaDaIntegracao, FonteDeConexoes, RegraDaFerramenta } from './conexoes-tipos'
 
 /** Ferramentas de exemplo da Demonstração: no Workspace operacional, a lista vem do servidor de cada conector. */
@@ -30,21 +31,6 @@ export interface OpcoesFonteDeConexoesSimulada {
 }
 
 /**
- * Os conectores do catálogo ampliado (migration 20261002111000), só na tela de Conexões da Demonstração e nenhum
- * conectado: o catálogo dos Agentes e da automação (`catalogo-de-conexoes.ts`) não muda. O Zoho CRM vem "Em breve",
- * como o Salesforce, que a Demonstração já mostra entre as futuras. O Slack fica de fora aqui porque a Demonstração já o
- * mostra como Canal, com a prévia das Aprovações.
- */
-const CONECTORES_DA_DEMONSTRACAO: Integracao[] = [
-  { id: 'bitrix24', nome: 'Bitrix24', categoria: 'CRM', descricao: 'CRM, tarefas e comunicação do Bitrix24.', escreve: true, conectada: false },
-  { id: 'google-sheets', nome: 'Google Sheets', categoria: 'Conhecimento', descricao: 'Planilhas do Google Sheets.', escreve: true, conectada: false },
-  { id: 'tiktok-ads', nome: 'TikTok Ads', categoria: 'Mídia paga', descricao: 'Campanhas e públicos do TikTok Ads.', escreve: true, conectada: false },
-  { id: 'google-calendar', nome: 'Google Calendar', categoria: 'Agenda', descricao: 'Agenda e eventos do Google Calendar.', escreve: true, conectada: false },
-  { id: 'calendly', nome: 'Calendly', categoria: 'Agenda', descricao: 'Tipos de evento e agendamentos do Calendly.', escreve: true, conectada: false },
-]
-const FUTURAS_DA_DEMONSTRACAO: IntegracaoFutura[] = [{ nome: 'Zoho CRM', categoria: 'CRM' }]
-
-/**
  * A Fonte de Conexões da Demonstração: preserva o fluxo simulado de Canais, Integrações e prévias.
  */
 export function criarFonteDeConexoesSimulada({
@@ -53,7 +39,7 @@ export function criarFonteDeConexoesSimulada({
   const ouvintes = new Set<() => void>()
   const estado = structuredClone({
     canais: demo.canais,
-    integracoes: [...demo.integracoes, ...CONECTORES_DA_DEMONSTRACAO],
+    integracoes: demo.integracoes.filter((i) => catalogoDeIntegracoes.some((disponivel) => disponivel.id === i.id)),
     previas: demo.previas,
   })
   const regras = new Map<IntegracaoId, Partial<Record<string, RegraDaFerramenta>>>()
@@ -93,7 +79,7 @@ export function criarFonteDeConexoesSimulada({
         })),
       ),
 
-    integracoesFuturas: () => responder(() => [...(demo.integracoesFuturas as IntegracaoFutura[]), ...FUTURAS_DA_DEMONSTRACAO]),
+    integracoesFuturas: () => responder(() => []),
 
     conectar: (conexao: CanalId | IntegracaoId) =>
       responder(() => {
@@ -108,6 +94,13 @@ export function criarFonteDeConexoesSimulada({
       responder(() => {
         const integracao = estado.integracoes.find((i) => i.id === id)
         if (integracao) integracao.conectada = true
+        avisar()
+      }),
+
+    desabilitarIntegracao: (id: IntegracaoId) =>
+      responder(() => {
+        const integracao = estado.integracoes.find((i) => i.id === id)
+        if (integracao) integracao.conectada = false
         avisar()
       }),
 

@@ -513,14 +513,15 @@ describe('Conexões e Aprovações', () => {
     expect(await within(whatsapp).findByText('Conectado')).toBeInTheDocument()
   })
 
-  it('mostra Integrações por categoria, incluindo as futuras', async () => {
+  it('mostra HubSpot e Notion por categoria, sem Integrações futuras', async () => {
     renderizarApp('/conexoes')
     const integracoes = await screen.findByRole('region', { name: 'Integrações' })
     await within(integracoes).findByRole('article', { name: 'HubSpot' })
-    for (const nome of ['HubSpot', 'Clay', 'Apollo', 'Lusha', 'Notion', 'Meta Ads', 'Google Ads']) {
+    for (const nome of ['HubSpot', 'Notion']) {
       expect(within(integracoes).getByRole('article', { name: nome })).toBeInTheDocument()
     }
-    expect(within(integracoes).getAllByText('Em breve').length).toBeGreaterThan(0)
+    expect(within(integracoes).getAllByRole('article')).toHaveLength(2)
+    expect(within(integracoes).queryByText('Em breve')).not.toBeInTheDocument()
   })
 
   it('aprova uma proposta e o resultado aparece na Atividade do Agente', async () => {

@@ -56,8 +56,8 @@ select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002
 
 select is(
   (select count(*)::integer from public.list_workspace_integrations('ee000000-0000-0000-0000-000000000001')),
-  17,
-  'membro lista as 17 integrações do catálogo (7 originais + Pipedrive e RD Station CRM + 8 do catálogo ampliado)'
+  2,
+  'membro lista somente HubSpot e Notion'
 );
 
 select is(
@@ -74,8 +74,8 @@ select is(
 
 select is(
   (select status from public.list_workspace_integrations('ee000000-0000-0000-0000-000000000001') where id = 'clay'),
-  'em_breve',
-  'Clay tem status em_breve'
+  null::text,
+  'Clay não aparece no catálogo visível'
 );
 
 -- 4. Membro ativo (Bruno) NÃO pode habilitar integração.

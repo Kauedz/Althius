@@ -9,7 +9,7 @@ import {
 } from '@/fonte/automacao-tipos'
 import { useDados, useFonteDeAutomacao } from '@/fonte/contexto'
 import type { Permissao } from '@/fonte/tipos'
-import { catalogoDeIntegracoes } from '@/fonte/catalogo-de-conexoes'
+import { catalogoDeIntegracoesDosAgentes } from '@/fonte/catalogo-de-conexoes'
 import { cn } from '@/lib/utils'
 import { Bloco, SecaoDeConfiguracoes } from './componentes'
 
@@ -95,7 +95,7 @@ function LinhaDoEscopo({
   const [salvando, setSalvando] = useState(false)
   const mudou = modo !== escopo.modo || teto !== (escopo.teto === null ? '' : String(escopo.teto))
   const listaDePermissoes = Object.entries(permissoes ?? {})
-    .map(([id, p]) => `${catalogoDeIntegracoes.find((i) => i.id === id)?.nome ?? id}: ${ROTULO_DA_PERMISSAO[p!]}`)
+    .map(([id, p]) => `${catalogoDeIntegracoesDosAgentes.find((i) => i.id === id)?.nome ?? id}: ${ROTULO_DA_PERMISSAO[p!]}`)
 
   async function enviar() {
     setErro(undefined)
