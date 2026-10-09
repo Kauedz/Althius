@@ -4,6 +4,11 @@ export * from './config.ts'
 export * from './errors.ts'
 export * from './events.ts'
 export { readResponse } from './common.ts'
+export * from './bridge.ts'
+export * from './client.ts'
+export * from './conferir.ts'
+export * from './connection.ts'
+export * from './readers.ts'
 export { v1 } from './v1.ts'
 export { v2 } from './v2.ts'
 
@@ -18,6 +23,7 @@ export const UNIPILE_OPERATIONS = [
   'inviteLinkedIn',
   'resolveProfile',
   'listChatMessages',
+  'listChats',
 ] as const
 
 export type UnipileOperation = (typeof UNIPILE_OPERATIONS)[number]

@@ -57,3 +57,5 @@ jobs:
       # à resposta sem rede.
       - run: deno check supabase/functions/*/index.ts
       - run: deno test supabase/functions
+      # Ninguém escreve o endereço da Unipile nem lê a chave da variável de função (canais-16): lê arquivos, então precisa de --allow-read.
+      - run: deno test --allow-read=supabase/functions supabase/functions/_shared/unipile/sem-base-fixa.test.ts

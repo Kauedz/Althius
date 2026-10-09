@@ -1,6 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { enviadorDeEmail, type LiberacaoDaResposta } from '../_shared/enviador-de-resposta.ts'
-import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
+import { comCors } from '../_shared/cors.ts'
+import { sendStepDbVia } from '../_shared/send-step-adapters.ts'
+import { createUnipileRuntime, unipileUnavailableResponse } from '../_shared/unipile/index.ts'
 import type { Conversation } from '../_shared/send-step.ts'
 import { createHandler, type Db } from './handler.ts'
 
@@ -10,13 +12,16 @@ function required(name: string) {
   return value
 }
 
-// Lidos na inicialização: uma função sem configuração não libera envio nenhum.
-const UNIPILE_API_KEY = required('UNIPILE_API_KEY')
+// Lido na inicialização: uma função sem configuração não libera envio nenhum.
 const APP_ORIGIN = required('APP_ORIGIN')
 
 const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
   auth: { persistSession: false, autoRefreshToken: false },
 })
+
+// A conta Unipile que envia é a conexão ativa (ADR-0024), lida a cada pedido (em cache por 30 s). Sem conexão ativa, a
+// função responde 503 antes de liberar qualquer envio.
+const unipileRuntime = createUnipileRuntime({ rpc: admin, env: Deno.env })
 
 const db: Db = {
   ingestEmailEvent: sendStepDbVia(admin).ingestEmailEvent,
@@ -69,13 +74,18 @@ const db: Db = {
   },
 }
 
-const unipile = unipileMailVia(UNIPILE_API_KEY)
+// O 503 do canal desligado também leva o CORS: sem ele, o navegador veria só uma falha de rede.
+const unavailable = comCors(APP_ORIGIN, () => Promise.resolve(unipileUnavailableResponse()))
 
 // Hoje só o E-mail envia respostas. O WhatsApp e o LinkedIn entram aqui, com um enviador de cada, quando o núcleo de chat
 // (_shared/send-chat-step.ts) existir na main: o banco passa a liberar o canal assim que ele estiver nesta lista.
-Deno.serve(createHandler({
-  db,
-  unipile,
-  enviadores: [enviadorDeEmail(unipile)],
-  appOrigin: APP_ORIGIN,
-}))
+Deno.serve(async (req) => {
+  const unipile = await unipileRuntime.bridge()
+  if (!unipile) return unavailable(req)
+  return createHandler({
+    db,
+    unipile,
+    enviadores: [enviadorDeEmail(unipile)],
+    appOrigin: APP_ORIGIN,
+  })(req)
+})

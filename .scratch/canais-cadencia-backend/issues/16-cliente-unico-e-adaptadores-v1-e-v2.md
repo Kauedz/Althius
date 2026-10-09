@@ -4,17 +4,17 @@
 
 **Blocked by:** canais-14 (contrato Zod) e canais-15 (conexão ativa por configuração).
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (código e testes prontos; faltam os Passos do Nan: aplicar a migration `20261009214037` (depois da `20261009205538`), o wizard, o deploy das cinco funções e o primeiro uso real; o critério da conexão ativa fica "pendente apply")
 
-- [ ] Um cliente único cuida de cabeçalho `X-API-KEY`, tempo limite, JSON e multipart, e da classificação do erro (4xx definitivo exceto 408 e 429; o resto, incerto e nunca reenviado sozinho), com os erros tipados do canais-14.
-- [ ] A interface `UnipileBridge` é a única porta que o Executor, o `sender-accounts`, o `reply-proposal-send` e os adaptadores de envio enxergam. Os testes deles continuam passando; só a fábrica muda.
-- [ ] Adaptador v2: o que existe hoje, movido para atrás da interface, sem mudar contrato.
-- [ ] Adaptador v1: link de conexão (`hosted/accounts/link`), listar contas (`cursor`), enviar e-mail (JSON, `body` HTML, `to[].identifier`, `Idempotency-Key` em UUID), abrir chat e responder (multipart com `account_id`), listar chats. Campos que o protótipo só alega ter conferido ficam `optional()` e marcados "não confirmado". Nenhum pedido é traduzido de uma versão para a outra.
-- [ ] A conexão ativa vem do banco do canais-15 (endereço e versão) e do Vault (chave). Sem conexão ativa ou sem chave, o canal fica desligado e nada é enviado, nunca um envio simulado. Enquanto o Vault não tiver a chave, vale a reserva da variável de hoje.
-- [ ] As quatro bases escritas no código (`sender-accounts`, `unipile-account-status`, `send-step-adapters`, `send-chat-step-adapters`) e as leituras diretas de `UNIPILE_API_KEY` (`sequence-runner`, `sequence-step-sends`, `reply-proposal-send`, `sender-accounts`, `unipile-account-status`) somem. Um teste (ou `grep` no CI) falha se voltarem.
-- [ ] Script de diagnóstico só de leitura, `unipile:conferir`, que lista as contas e os 3 últimos chats da conexão ativa, e com `--link <provedor>` gera um link de conexão. Nunca imprime a chave.
-- [ ] A frase da linha 87 do `ORDEM-BUILD-FUNCIONAL.md` deixa de dizer que a chave é a variável `UNIPILE_API_KEY` e passa a apontar a conexão ativa, sem mudar o resto da regra.
-- [ ] Deno: um mesmo conjunto de testes do contrato roda contra os dois adaptadores com servidores simulados. Os 52 testes do 06 e do 07 passam sem mudar de asserção.
+- [x] Um cliente único cuida de cabeçalho `X-API-KEY`, tempo limite, JSON e multipart, e da classificação do erro (4xx definitivo exceto 408 e 429; o resto, incerto e nunca reenviado sozinho), com os erros tipados do canais-14. — `_shared/unipile/client.ts` (`client.test.ts`, 6 testes).
+- [x] A interface `UnipileBridge` é a única porta que o Executor, o `sender-accounts`, o `reply-proposal-send` e os adaptadores de envio enxergam. Os testes deles continuam passando; só a fábrica muda. — `UnipileBridge` em `bridge.ts`; as cinco funções e os dois adaptadores de banco só enxergam a ponte.
+- [x] Adaptador v2: o que existe hoje, movido para atrás da interface, sem mudar contrato. — `bridge-v2.ts`, mesmo contrato de antes; os testes antigos dos adaptadores passam sem mudar de asserção.
+- [x] Adaptador v1: link de conexão (`hosted/accounts/link`), listar contas (`cursor`), enviar e-mail (JSON, `body` HTML, `to[].identifier`, `Idempotency-Key` em UUID), abrir chat e responder (multipart com `account_id`), listar chats. Campos que o protótipo só alega ter conferido ficam `optional()` e marcados "não confirmado". Nenhum pedido é traduzido de uma versão para a outra. — `bridge-v1.ts`, portado do protótipo; **tudo "não confirmado"** até o primeiro uso real. Anexo, resposta em conversa de e-mail e leitura de e-mail recusam antes de chamar a Unipile (ver o handoff).
+- [ ] A conexão ativa vem do banco do canais-15 (endereço e versão) e do Vault (chave). Sem conexão ativa ou sem chave, o canal fica desligado e nada é enviado, nunca um envio simulado. Enquanto o Vault não tiver a chave, vale a reserva da variável de hoje. — **pendente apply**: código e testes com dublês prontos (`connection.test.ts`, pgTAP `unipile_conexao_ativa_leitura.sql` 13/13, com Vault de mentira); a leitura real só se prova depois da migration `20261009205538` (canais-15), da `20261009214037` e do wizard.
+- [x] As quatro bases escritas no código (`sender-accounts`, `unipile-account-status`, `send-step-adapters`, `send-chat-step-adapters`) e as leituras diretas de `UNIPILE_API_KEY` (`sequence-runner`, `sequence-step-sends`, `reply-proposal-send`, `sender-accounts`, `unipile-account-status`) somem. Um teste (ou `grep` no CI) falha se voltarem. — o teste `sem-base-fixa.test.ts` (com `--allow-read`, passo próprio no CI) falha se o endereço ou a leitura de `UNIPILE_*` voltarem para fora de `connection.ts`.
+- [x] Script de diagnóstico só de leitura, `unipile:conferir`, que lista as contas e os 3 últimos chats da conexão ativa, e com `--link <provedor>` gera um link de conexão. Nunca imprime a chave. — `conferir.ts` e `scripts/unipile-conferir.ts` (`npm run unipile:conferir`); testado com `fetch` simulado nas duas versões, sem a chave na saída. Falta o uso real.
+- [x] A frase da linha 87 do `ORDEM-BUILD-FUNCIONAL.md` deixa de dizer que a chave é a variável `UNIPILE_API_KEY` e passa a apontar a conexão ativa, sem mudar o resto da regra. — linha 87 atualizada.
+- [x] Deno: um mesmo conjunto de testes do contrato roda contra os dois adaptadores com servidores simulados. Os 52 testes do 06 e do 07 passam sem mudar de asserção. — `bridge.test.ts` roda o mesmo conjunto contra v1 e v2; `deno test supabase/functions`: 883 passed, 0 failed.
 
 ## Pode mexer
 
@@ -31,7 +31,7 @@
 
 ## Migration
 
-Nenhuma.
+O ticket dizia "nenhuma"; o Kauê autorizou uma, aditiva: `20261009214037_leitura_da_conexao_unipile_ativa.sql`, uma função nova (`public.get_active_unipile_connection()`, só `service_role`) que lê a conexão ativa e o Vault.
 
 ## Passos do Nan
 
@@ -39,3 +39,5 @@ Nenhuma.
 2. Rodar o `unipile:conferir` com a conexão ativa para ver que a conta responde. Com uma conta v1, esse é o primeiro contato real com os campos da v1: registrar nos Comments o que a Unipile devolveu de fato.
 
 ## Comments
+
+- 2026-10-09 (agente): implementado. Decisões do Kauê: seguir com 14 e 15 `ready-for-human`; manter 429 e 503 como estão em `send-chat-step.ts`; não mexer nas funções SQL de ingestão (canais-17). Arquivos fora do `Pode mexer` tocados: `.github/workflows/ci.yml` (passo da guarda), `projeto-althius-frontend/package.json` (script `unipile:conferir`), `send-chat-step.ts` (só a classe `UnipileChatRequestError`, movida para o contrato e reexportada), o segredo do webhook em `unipile-account-status/index.ts` (agora vem da conexão ativa) e a migration. Detalhes, limites da v1 e o que só se prova em produção: `.scratch/handoffs/canais-16.md`.
