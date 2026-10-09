@@ -1,5 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { sendStepDbVia, unipileMailVia } from '../_shared/send-step-adapters.ts'
+import { comCors } from '../_shared/cors.ts'
+import { sendStepDbVia } from '../_shared/send-step-adapters.ts'
+import { createUnipileRuntime, unipileUnavailableResponse } from '../_shared/unipile/index.ts'
 import { stepAttachmentSourceVia } from '../_shared/anexos-do-envio.ts'
 import { createHandler, type Db, type ReleaseResult } from './handler.ts'
 
@@ -9,13 +11,16 @@ function required(name: string) {
   return value
 }
 
-// Lidos na inicialização: uma função sem configuração não libera envio nenhum.
-const UNIPILE_API_KEY = required('UNIPILE_API_KEY')
+// Lido na inicialização: uma função sem configuração não libera envio nenhum.
 const APP_ORIGIN = required('APP_ORIGIN')
 
 const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
   auth: { persistSession: false, autoRefreshToken: false },
 })
+
+// A conta Unipile que envia é a conexão ativa (ADR-0024), lida a cada pedido (em cache por 30 s). Sem conexão ativa, a
+// função responde 503 antes de liberar qualquer envio.
+const unipile = createUnipileRuntime({ rpc: admin, env: Deno.env })
 
 const db: Db = {
   ...sendStepDbVia(admin),
@@ -50,9 +55,16 @@ const db: Db = {
   },
 }
 
-Deno.serve(createHandler({
-  db,
-  unipile: unipileMailVia(UNIPILE_API_KEY),
-  appOrigin: APP_ORIGIN,
-  attachments: stepAttachmentSourceVia(admin),
-}))
+// O 503 do canal desligado também leva o CORS: sem ele, o navegador veria só uma falha de rede.
+const unavailable = comCors(APP_ORIGIN, () => Promise.resolve(unipileUnavailableResponse()))
+
+Deno.serve(async (req) => {
+  const bridge = await unipile.bridge()
+  if (!bridge) return unavailable(req)
+  return createHandler({
+    db,
+    unipile: bridge,
+    appOrigin: APP_ORIGIN,
+    attachments: stepAttachmentSourceVia(admin),
+  })(req)
+})

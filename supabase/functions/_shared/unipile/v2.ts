@@ -128,6 +128,16 @@ const listChatMessages = {
   ]),
 }
 
+/** GET /v2/{account_id}/chats?limit=N: as conversas recentes (só para a conferência por conta). não confirmado: a lista vem pura, ou em items, chats ou data. */
+const listChats = {
+  request: z.object({ account_id: nonBlank, limit: z.number().int().min(1).max(100).optional() }),
+  response: z.union([
+    recordList,
+    z.object({ items: recordList.optional(), chats: recordList.optional(), data: recordList.optional() })
+      .transform((value) => value.items ?? value.chats ?? value.data ?? []),
+  ]),
+}
+
 export const v2 = {
   createAuthLink,
   listAccounts,
@@ -138,4 +148,5 @@ export const v2 = {
   inviteLinkedIn,
   resolveProfile,
   listChatMessages,
+  listChats,
 }

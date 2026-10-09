@@ -35,6 +35,33 @@ export class UnipileRequestError extends Error {
 }
 
 /**
+ * A Unipile recusou (HTTP fora de 2xx) e o corpo da recusa disse o motivo, quando disse. Todo erro HTTP do cliente único
+ * (client.ts) é desta classe: o `reason` só vem numa recusa definitiva (4xx), e o núcleo do e-mail ignora o motivo.
+ */
+export class UnipileChatRequestError extends UnipileRequestError {
+  constructor(status: number, retryAfterSeconds: number | null, readonly reason: string | null) {
+    super(status, retryAfterSeconds)
+    this.name = 'UnipileChatRequestError'
+  }
+}
+
+/** O motivo que a tela mostra quando a versão da conexão ativa não faz a operação pedida. */
+export const UNSUPPORTED_ON_PROVIDER_VERSION = 'unsupported_on_provider_version'
+
+/**
+ * A operação existe na Althius, mas o adaptador da versão da conexão ativa ainda não a faz (ex.: anexo e resposta em
+ * conversa de e-mail na v1). Nada foi chamado na Unipile, então a recusa é definitiva e nada saiu. O status 422 só marca
+ * "recusada por nós" para o núcleo do envio, que já trata 4xx como impedimento.
+ */
+export class UnipileUnsupportedOperationError extends UnipileChatRequestError {
+  constructor(readonly operation: string, readonly version: 'v1' | 'v2') {
+    super(422, null, UNSUPPORTED_ON_PROVIDER_VERSION)
+    this.name = 'UnipileUnsupportedOperationError'
+    this.message = `A API ${version} da Unipile não faz "${operation}" nesta versão da Althius`
+  }
+}
+
+/**
  * A Unipile respondeu 2xx, mas a resposta não bate com o schema (em geral, sem o id do envio): o envio provavelmente
  * saiu, então fica incerto. `issues` diz onde a resposta falhou (caminhos), nunca o valor.
  */

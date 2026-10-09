@@ -11,6 +11,7 @@ import {
 } from './send-step.ts'
 import type { IngestChatEventInput, IngestedChat } from './ingest-chat-event.ts'
 import { type OutgoingAttachment, prepareAttachments, type StepAttachmentSource } from './anexos-do-envio.ts'
+import { UnipileChatRequestError } from './unipile/errors.ts'
 
 export type ChatChannel = 'whatsapp' | 'linkedin'
 /** A intenção do passo do LinkedIn (`subtipoLinkedIn` do documento). A ação que sai depende da relação. */
@@ -120,13 +121,8 @@ export interface UnipileChat {
   listChatMessages(accountId: string, chatId: string): Promise<Record<string, unknown>[]>
 }
 
-/** A Unipile recusou (HTTP fora de 2xx) e o corpo da recusa disse o motivo, quando disse. */
-export class UnipileChatRequestError extends UnipileRequestError {
-  constructor(status: number, retryAfterSeconds: number | null, readonly reason: string | null) {
-    super(status, retryAfterSeconds)
-    this.name = 'UnipileChatRequestError'
-  }
-}
+// A recusa da Unipile com o motivo mora no contrato (unipile/errors.ts); reexportada para quem importa daqui.
+export { UnipileChatRequestError }
 
 export const CHAT_BLOCKED_MESSAGES: Record<ChatBlockedOutcome, string> = {
   ...BLOCKED_MESSAGES,
