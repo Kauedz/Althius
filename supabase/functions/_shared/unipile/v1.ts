@@ -47,6 +47,11 @@ const listAccounts = {
       created_at: z.string().optional(),
       // OK, CREDENTIALS, ERROR, STOPPED, PERMISSIONS…
       sources: z.array(z.object({ status: z.string() })).optional(),
+      // não confirmado: onde a v1 diz o número da conta de WhatsApp (connection_params.im.id e/ou .phone_number). Um formato que
+      // não é esse é descartado, nunca derruba a lista.
+      connection_params: z.object({
+        im: z.object({ id: looseId, phone_number: looseId }).passthrough().optional().catch(undefined),
+      }).passthrough().optional().catch(undefined),
     })),
     cursor: z.string().nullish(),
   }),

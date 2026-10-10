@@ -81,21 +81,22 @@ select is((select coalesce(provider_message_id, '') || coalesce(provider_thread_
 set local role service_role;
 
 -- Um e-mail no formato que o webhook v1 entrega já traduzido: o objeto Email canônico com in_reply_to {id, message_id}.
-create function pg_temp.resposta_v1(p_id text, p_in_reply_to jsonb) returns jsonb language sql as $f$
+create function pg_temp.resposta_v1(p_id text, p_in_reply_to jsonb, p_subject text default 'Re: Apresentação') returns jsonb language sql as $f$
   select jsonb_strip_nulls(jsonb_build_object(
-    'id', p_id, 'subject', 'Re: Apresentação', 'body', 'Obrigada!', 'date', '2026-10-10T10:00:00Z',
+    'id', p_id, 'subject', p_subject, 'body', 'Obrigada!', 'date', '2026-10-10T10:00:00Z',
     'from', jsonb_build_object('email', 'maria@empresa-alvo.test', 'display_name', 'Maria'),
     'in_reply_to', p_in_reply_to))
 $f$;
-grant execute on function pg_temp.resposta_v1(text, jsonb) to service_role;
+grant execute on function pg_temp.resposta_v1(text, jsonb, text) to service_role;
 
 -- A. Sem in_reply_to (e sem conversa nem Message-ID), a resposta não tem como ligar: continua sem relação.
 select is((select outcome from public.ingest_unipile_email_event('evt-v1-1', 'email.new', 'unipile-v1-9',
   pg_temp.resposta_v1('lYwp-E_oXMKFkkhGid3iGQ', null), '{}')),
   'unrelated', 'a reply without in_reply_to, conversation or Message-ID is still unrelated');
--- B. in_reply_to de outro e-mail: sem relação.
+-- B. in_reply_to de outro e-mail, de outro assunto: sem relação. (Com o mesmo remetente e o mesmo assunto, a correção de
+-- fix-v1-email-whatsapp liga pelo passo 4b mesmo com in_reply_to.id desconhecido: ver resposta_de_email_v1_pelo_remetente.sql.)
 select is((select outcome from public.ingest_unipile_email_event('evt-v1-2', 'email.new', 'unipile-v1-9',
-  pg_temp.resposta_v1('reply-outro', jsonb_build_object('id', 'outro-email-id')), '{}')),
+  pg_temp.resposta_v1('reply-outro', jsonb_build_object('id', 'outro-email-id'), 'Re: Outro assunto'), '{}')),
   'unrelated', 'a reply to an e-mail the sequence did not send is unrelated');
 -- C. in_reply_to malformado (texto em vez de objeto) não derruba nem liga.
 select is((select outcome from public.ingest_unipile_email_event('evt-v1-3', 'email.new', 'unipile-v1-9',

@@ -302,3 +302,32 @@ Deno.test('[v1] envio de e-mail pelo núcleo: a resposta real da v1 vira sent co
   const result = await enviarEmailComPrazo(bridge('v1', f), 'conta-1', email)
   assertEquals(result, { outcome: 'sent', sent: { id: 'UJp_CFd5UVe3XTbXf_vK4A', message_id: null } })
 })
+
+// Bug B (fix-v1-email-whatsapp): o número da própria conta de WhatsApp vem da lista de contas da v1
+// (connection_params.im), no formato do remetente das mensagens: <dígitos>@s.whatsapp.net.
+// não confirmado: o formato real de connection_params na v1 (id e/ou phone_number).
+Deno.test('[v1] contas: a conta de WhatsApp traz o número próprio no formato do remetente; as outras não', async () => {
+  const f = fakeFetch(
+    json({
+      items: [
+        { id: 'wa1', type: 'WHATSAPP', sources: [{ status: 'OK' }], connection_params: { im: { id: '5511900000000@s.whatsapp.net', phone_number: '5511900000000' } } },
+        { id: 'wa2', type: 'WHATSAPP', sources: [{ status: 'OK' }], connection_params: { im: { phone_number: '+55 (11) 90000-0001' } } },
+        { id: 'wa3', type: 'WHATSAPP', sources: [{ status: 'OK' }] },
+        { id: 'wa4', type: 'WHATSAPP', sources: [{ status: 'OK' }], connection_params: 'lixo' },
+        { id: 'li1', type: 'LINKEDIN', sources: [{ status: 'OK' }], connection_params: { im: { id: 'ACoAAMaria', username: 'maria' } } },
+      ],
+      cursor: null,
+    }),
+  )
+  const { accounts } = await bridge('v1', f).listAccounts(signal())
+  assertEquals(
+    accounts.map((account) => [account.id, account.ownProviderId ?? null]),
+    [['wa1', '5511900000000@s.whatsapp.net'], ['wa2', '5511900000001@s.whatsapp.net'], ['wa3', null], ['wa4', null], ['li1', null]],
+  )
+})
+
+Deno.test('[v2] contas: a lista da v2 não ganha campo novo', async () => {
+  const f = fakeFetch(json({ data: [{ id: 'a', provider: 'whatsapp', status: 'running' }], has_more: false }))
+  const { accounts } = await bridge('v2', f).listAccounts(signal())
+  assertEquals(accounts, [{ id: 'a', provider: 'whatsapp', state: 'connected', createdAt: null }])
+})

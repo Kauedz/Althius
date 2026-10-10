@@ -41,6 +41,11 @@ export function sendChatStepDbVia(admin: RpcClient): ChatSendDb {
       return row ?? null
     },
     ingestChatEvent: ingestChatEventVia(admin),
+    async ownProviderId(unipileAccountId) {
+      const { data, error } = await admin.rpc('sender_own_provider_id', { p_unipile_account_id: unipileAccountId })
+      if (error) throw error
+      return typeof data === 'string' && data ? data : null
+    },
     async recordChatStepSendResult(input) {
       const { error } = await admin.rpc('record_chat_step_send_result', {
         p_send_id: input.sendId,

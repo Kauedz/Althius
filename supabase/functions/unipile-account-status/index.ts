@@ -43,6 +43,13 @@ const db: WebhookDb = {
   },
   ingestEmailEvent: ingestEmailEventVia(admin),
   ingestChatEvent: ingestChatEventVia(admin),
+  async learnSenderOwnProviderId(unipileAccountId, ownProviderId) {
+    const { error } = await admin.rpc('learn_sender_own_provider_id', {
+      p_unipile_account_id: unipileAccountId,
+      p_own_provider_id: ownProviderId,
+    })
+    if (error) throw error
+  },
   async recordReceivedEmailAttachment({ interactionId, attachmentId, storagePath, status }) {
     const { error } = await admin.rpc('record_received_email_attachment', {
       p_interaction_id: interactionId,

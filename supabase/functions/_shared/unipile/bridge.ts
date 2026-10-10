@@ -34,6 +34,8 @@ export interface UnipileAccountSummary {
   provider: string
   state: AccountState
   createdAt: string | null
+  /** Só na v1, só WhatsApp: o número da própria conta no formato do remetente das mensagens (<dígitos>@s.whatsapp.net). */
+  ownProviderId?: string
 }
 
 export interface DownloadedAttachment {

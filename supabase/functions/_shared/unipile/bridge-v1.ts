@@ -41,6 +41,15 @@ export async function idempotencyUuid(key: string): Promise<string> {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`
 }
 
+const WHATSAPP_ID = /^[0-9]{8,15}@(s\.whatsapp\.net|lid)$/
+
+/** O número da própria conta de WhatsApp, no formato do remetente das mensagens: o id da conta ou, sem ele, o telefone. */
+export function whatsappOwnId(im: { id?: string; phone_number?: string } | undefined): string | undefined {
+  if (im?.id && WHATSAPP_ID.test(im.id)) return im.id
+  const digits = (im?.phone_number ?? '').replace(/\D/g, '')
+  return digits.length >= 8 && digits.length <= 15 ? `${digits}@s.whatsapp.net` : undefined
+}
+
 function accountState(sources: { status: string }[] | undefined): AccountState {
   if (!sources?.length) return 'unknown'
   // OK é a única fonte sã; CREDENTIALS, ERROR, STOPPED, PERMISSIONS… pedem atenção.
@@ -160,12 +169,16 @@ export function createV1Bridge(client: UnipileClient, options: { webhookSecret?:
     },
     async listAccounts({ signal } = {}) {
       const data = await client.json(`${API}/accounts`, { query: { limit: 250 }, signal }, v1.listAccounts.response)
-      const accounts: UnipileAccountSummary[] = data.items.map((item) => ({
-        id: item.id,
-        provider: item.type,
-        state: accountState(item.sources),
-        createdAt: item.created_at ?? null,
-      }))
+      const accounts: UnipileAccountSummary[] = data.items.map((item) => {
+        const own = item.type.toUpperCase() === 'WHATSAPP' ? whatsappOwnId(item.connection_params?.im) : undefined
+        return {
+          id: item.id,
+          provider: item.type,
+          state: accountState(item.sources),
+          createdAt: item.created_at ?? null,
+          ...(own ? { ownProviderId: own } : {}),
+        }
+      })
       return { accounts, complete: !data.cursor }
     },
     async listChats(accountId, { limit = 3, signal } = {}) {

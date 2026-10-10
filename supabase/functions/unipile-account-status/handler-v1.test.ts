@@ -358,3 +358,101 @@ Deno.test('v1 mail_received: log temporário do corpo bruto, sem o texto do e-ma
   await other.handle(post(raw, { 'Unipile-Auth': 'errado' }))
   assertEquals(other.logs.some((fields) => fields.type === 'temp_v1_mail_raw'), false)
 })
+
+// Bug B (fix-v1-email-whatsapp): a resposta de WhatsApp da v1 fica sem relação porque a Conta remetente não conhece o próprio
+// número. A conexão ativa sabe (a lista de contas traz o número): o webhook o ensina ao banco antes de ingerir a mensagem.
+const OWN = '5511900000000@s.whatsapp.net'
+const whatsappMessage = (extra: Record<string, unknown> = {}) => ({
+  event: 'message_received',
+  account_id: 'acc1',
+  account_type: 'WHATSAPP',
+  chat_id: 'chat1',
+  message_id: 'm1',
+  message: 'Tenho interesse',
+  sender: { attendee_provider_id: '5511988887777@s.whatsapp.net' },
+  attendees: [{}, {}],
+  ...extra,
+})
+
+function learningDb(fail = false) {
+  const base = fakeDb()
+  const order: string[] = []
+  const learned: [string, string][] = []
+  const db: WebhookDb = {
+    ...base.db,
+    learnSenderOwnProviderId: async (accountId, ownProviderId) => {
+      order.push('learn')
+      if (fail) throw new Error('banco fora')
+      learned.push([accountId, ownProviderId])
+    },
+    ingestChatEvent: async (input) => {
+      order.push('ingest')
+      return await base.db.ingestChatEvent!(input)
+    },
+  }
+  return { db, order, learned, calls: base.calls }
+}
+
+Deno.test('v1 WhatsApp: ensina o número próprio da conta antes de ingerir a mensagem, e só uma vez', async () => {
+  const t = learningDb()
+  const { dir } = directory({}, { status: 'member', provider: 'WHATSAPP', ownProviderId: OWN })
+  const { handle } = handlerWith({ db: t.db, accounts: dir })
+  assertEquals((await handle(authed(whatsappMessage()))).status, 200)
+  assertEquals((await handle(authed(whatsappMessage({ message_id: 'm2' })))).status, 200)
+  assertEquals(t.learned, [['acc1', OWN]])
+  assertEquals(t.order, ['learn', 'ingest', 'ingest'])
+})
+
+Deno.test('v1 WhatsApp: a conexão concluída também ensina o número, depois de gravar a conta', async () => {
+  const base = fakeDb()
+  const order: string[] = []
+  const db: WebhookDb = {
+    ...base.db,
+    completeSenderConnectionAttempt: async (input) => {
+      order.push('complete')
+      return await base.db.completeSenderConnectionAttempt(input)
+    },
+    learnSenderOwnProviderId: async () => {
+      order.push('learn')
+    },
+  }
+  const { dir } = directory({}, { status: 'member', provider: 'WHATSAPP', ownProviderId: OWN })
+  const { handle } = handlerWith({ db, accounts: dir })
+  assertEquals((await handle(post(notice, {}, await noticeUrl()))).status, 200)
+  assertEquals(order, ['complete', 'learn'])
+})
+
+Deno.test('v1: conta sem número próprio na lista (LinkedIn, ou WhatsApp sem o dado) não ensina nada', async () => {
+  const t = learningDb()
+  const { dir } = directory({}, { status: 'member', provider: 'LINKEDIN' })
+  const { handle } = handlerWith({ db: t.db, accounts: dir })
+  await handle(authed(linkedinMessage()))
+  await handle(authed(whatsappMessage()))
+  assertEquals(t.learned, [])
+})
+
+Deno.test('v1 WhatsApp: se o banco não aceita o número, a mensagem é ingerida do mesmo jeito', async () => {
+  const t = learningDb(true)
+  const { dir } = directory({}, { status: 'member', provider: 'WHATSAPP', ownProviderId: OWN })
+  const { handle, logs } = handlerWith({ db: t.db, accounts: dir })
+  assertEquals((await handle(authed(whatsappMessage()))).status, 200)
+  assertEquals(t.order, ['learn', 'ingest'])
+  assertEquals(logs.some((fields) => fields.outcome === 'own_id_not_saved'), true)
+})
+
+// TEMPORÁRIO (fix-v1-email-whatsapp): o log do corpo do aviso de chat da v1, para ver os campos reais (quem é o remetente, se
+// vem is_sender ou account_info). Sai quando o formato estiver confirmado.
+Deno.test('v1 message_received: log temporário do corpo bruto do chat, sem o texto da mensagem', async () => {
+  const { db } = fakeDb()
+  const { handle, logs } = handlerWith({ db })
+  assertEquals((await handle(authed(whatsappMessage({ message: 'texto privado do lead' })))).status, 200)
+  const entry = logs.find((fields) => fields.type === 'temp_v1_chat_raw')
+  const raw = entry?.raw as Record<string, unknown>
+  assertEquals(raw.chat_id, 'chat1')
+  assertEquals(raw.sender, { attendee_provider_id: '5511988887777@s.whatsapp.net' })
+  assertEquals(JSON.stringify(logs).includes('texto privado do lead'), false)
+  assertEquals(JSON.stringify(logs).includes(SECRET), false)
+  const other = handlerWith({ db: fakeDb().db })
+  await other.handle(authed(mail))
+  assertEquals(other.logs.some((fields) => fields.type === 'temp_v1_chat_raw'), false)
+})
