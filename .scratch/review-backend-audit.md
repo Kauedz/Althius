@@ -2,6 +2,8 @@
 
 Escopo: revisão estática de Edge Functions, adaptadores, migrations, worker e CI. Nenhuma consulta remota, aplicação de migration, mudança de segredo ou implementação. AGENTS.md e guia da plataforma lidos; skill Supabase consultada. A existência de código/migration prova implementação, não deploy nem comportamento real.
 
+Complemento da frente principal: Deno979/979 e gate separado2/2 passaram, check limpo. CI do PR172 aplicou migrations do zero e pgTAP77 arquivos/2998 testes passou. A tentativa isolada bloqueada descrita ao fim é histórica; não prevalece sobre esses resultados. Eles não comprovam configuração/execução remota.
+
 ## Achados acionáveis
 
 1. **P1 — E-mail v1 impede continuidade de cadência e reconciliação.** `supabase/functions/_shared/unipile/bridge-v1.ts:78-80` rejeita incondicionalmente `getEmail`, `listThreadEmails`, `listEmailSenders`. `send-step.ts:161` chama listEmailSenders ao conferir conversa existente; `send-step.ts:239-243` devolve `thread_check_failed` antes da liberação do próximo envio. `sequence-runner/handler.ts:171-173` também impede reconciliação de conta reconectada com páginas de e-mail. Impacto: o primeiro envio não demonstra funcionamento da cadência completa. O envio de resposta aprovada também confere conversa (`reply-proposal-send/handler.ts:87-95`). Critério: teste com adaptador v1 real, primeiro envio, resposta recebida, pausa, reconexão e próximo passo sem resposta; manter proteção contra webhook perdido, sem simplesmente retirar a conferência.
@@ -37,6 +39,40 @@ CORS (`_shared/cors.ts`) usa APP_ORIGIN e admite localhost; isso não dispensa a
 CI versiona jobs de frontend (npm ci/lint/test/build), banco (Supabase 2.118.0, migrations do zero, pgTAP) e funções (deno check e deno test + sem-base-fixa com permissão de leitura). CI verde não é prova de frontend/Edge/worker/migrations já implantados. README do Hermes contém modelo de exemplo e instruções de desabilitar toolsets; configuração real não foi inspecionada. Necessária decisão operacional sobre dono do deploy/worker e canal de acesso VPS, sem trocar ou pedir senha no chat.
 
 ## Feedback executado por esta frente
+
+### Inventário verify_jwt de cada função
+
+Leitura de `supabase/config.toml` versus os 25 diretórios com `index.ts`. Default refere-se à ausência de override versionado; não confirma flags do deploy remoto.
+
+| Função | verify_jwt versionado |
+|---|---|
+| account-discovery | default true, sem seção própria |
+| account-enrichment | default true, sem seção própria |
+| account-password | true |
+| agent-conversation | true |
+| contact-photo-lookup | true |
+| crm-handoff | true |
+| csv-import | true |
+| existing-account-email | false; resposta indistinguível/limite |
+| integration-callback | false; state OAuth |
+| integration-connect | true |
+| integration-tools | true |
+| received-email-attachments | default true, sem seção própria |
+| reply-proposal-runner | false; token do runner |
+| reply-proposal-send | true |
+| sender-accounts | true |
+| sequence-attachments | true |
+| sequence-runner | false; token do runner |
+| sequence-step-sends | default true, sem seção própria |
+| signal-runner | false; token do runner |
+| signal-scan | true |
+| storage-purge | false; token do serviço |
+| stripe-billing | true |
+| stripe-webhook | false; assinatura Stripe |
+| unipile-account-status | false; assinatura v2/header v1 |
+| workspace-invitation-email | true |
+
+Não concluir que verify_jwt=true sozinho protege as autorizações de negócio: handler/RPC conferem identidade/participação e escopo. Inventário de tabelas/RPCs acima é de contratos principais; não é listagem exaustiva de toda coluna e política histórica.
 
 Comando: `deno test supabase/functions/_shared/unipile/bridge.test.ts supabase/functions/_shared/unipile/events-v1.test.ts supabase/functions/unipile-account-status/handler-v1.test.ts supabase/functions/reply-proposal-send/handler.test.ts supabase/functions/signal-runner/handler.test.ts`.
 Resultado: GATE FAIL de infraestrutura, exit 1 antes de testes: não foi possível baixar manifesto https://jsr.io/@std/assert/meta.json; download de registry.npmjs.org/zod também foi iniciado. Nenhum teste dessa chamada passou ou falhou logicamente. A frente principal pode repetir com dependências disponíveis; não contar testes existentes como executados.

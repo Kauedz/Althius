@@ -12,7 +12,7 @@ Snapshot: `origin/main` **04c1d183cd6d0c83ab546e841e49cdb6c3ee09ac**. Branch: `r
 6. Instagram não consta no contrato de envio do aplicativo; telefone está explicitamente indisponível.
 7. Hermes tem worker e fila implementados; disponibilidade na VPS, modelo em execução e isolamento real não foram observados nesta revisão.
 8. Onboarding operacional CRM-24 depende de decisões; cobrança tem backend Stripe, mas a seção Plano ainda é incompleta.
-9. Deno: 979 testes passaram, 2 ignorados; `deno check` passou. Gates de frontend/banco e limites de execução estão registrados abaixo.
+9. CI do código auditado verde: Vitest1200/1200, pgTAP2998/2998, Deno979/979 mais gate separado2/2, lint e build.
 10. Dos 212 tickets, 115 têm entrega estática/demo/encerramento administrativo, 44 estão parciais, 36 pendentes e 17 bloqueados; **115 não significa funcionalidades prontas em produção**.
 
 ## Método e grau da evidência
@@ -49,10 +49,10 @@ Mapeamento detalhado de **telas, rotas, Fontes, Edge Functions, tabelas e RPCs**
 |---|---|
 | `deno test supabase/functions` na raiz isolada | Primeira tentativa bloqueada por download JSR. Repetido com dependências disponíveis: **979 passed / 0 failed / 2 ignored**, exit0. |
 | `deno check supabase/functions/*/index.ts` | Primeira tentativa bloqueada por DNS do registry. Repetido: **exit0**. |
-| `npm ci --ignore-scripts` em projeto-althius-frontend | Instalação inicial falhou DNS; repetição/resultado final registrado no complemento dos gates. |
-| `npm run lint`, `npm test -- --maxWorkers=2`, `npm run build` | Primeiras tentativas bloqueadas: executáveis oxlint/vitest/tsc ausentes enquanto dependências não estavam instaladas. Não é falha lógica do app. Complemento registra a rodada definitiva. |
-| `supabase test db` | **GATE FAIL de ambiente**, comando ausente. Docker/Postgres ausentes; WSL executável presente, subsistema não instalado. pgTAP do zero não executado. |
-| GitHub checks do snapshot | API combined status devolveu lista vazia; API workflow do head171 também vazia. Não interpretar como CI verde nem vermelho. CI está definido, mas sua conclusão atual não foi obtida. |
+| `npm ci --ignore-scripts` em projeto-althius-frontend | Reparo sequencial exit0; CI executou também `npm ci` normal, exit0. Preparação inicial detalhada no complemento. |
+| `npm run lint`, `npm test`, `npm run build` | **CI: todos verdes; Vitest126 arquivos /1200 testes**, 503,46s. Lint/build também passaram localmente. Vitest local foi encerrado após sucesso da mesma suíte na CI, sem resultado local conclusivo. |
+| `supabase test db` | Local bloqueado: CLI/Docker/Postgres ausentes, WSL não instalado. **Executado na CI do PR172 após migrations do zero:77 arquivos,2998 testes, PASS.** |
+| GitHub checks | APIs do snapshot171 devolveram lista vazia, sem conclusão. **CI do PR172 no commit358b3cd: três jobs concluídos success**, run38023853539. Esse commit só adiciona documentação ao código04c1d18. |
 | Navegador `https://app.althius.com.br` | Abriu `/onboarding` em Demonstração, banner “Modo Protótipo (Completo)”. Botão de acesso abriu login com senha/código/demo. Sem sessão operacional: fluxos autenticados e mobile não validados. |
 
 Não foi usado pgTAP no remoto como substituto: o pedido proíbe aplicar alterações no Supabase remoto. Os comandos de Deno são os mesmos da CI, sem permissão global de rede para o código dos testes. Logs locais são diagnósticos e não vão para o PR; nenhum segredo necessário.
@@ -70,6 +70,34 @@ Metadados consultados nesta revisão, em [evidência compacta](review-prs-eviden
 | [48](https://github.com/Kauedz/Althius/pull/48) | Candidato a fechar por superação, revisar diferenças residuais | Catálogo real/habilitação já presentes e ampliados em main; integração atual tem acessos/regras/canais. Não aplicar código antigo por cima. Preservar documentação ou teste ainda exclusivo se houver. |
 
 ## Tickets para matar agora
+
+Distribuição da triagem estática. “Feito” inclui o escopo visual/demo e encerramentos administrativos, conforme cada linha do anexo; não é aceite operacional.
+
+| Frente | Total | Feito | Parcial | Pendente | Bloqueado |
+|---|---:|---:|---:|---:|---:|
+| agentes-em-conversa |5|3|2|0|0|
+| autenticacao-google-email |11|7|3|0|1|
+| canais-cadencia-backend |17|6|8|0|3|
+| conexoes-funcionais |31|4|8|19|0|
+| configuracoes |9|9|0|0|0|
+| contas-e-contatos |13|13|0|0|0|
+| creditos-e-planos |8|4|4|0|0|
+| crm-real-e-stack |27|13|9|1|4|
+| enriquecimento-em-cascata |5|0|1|0|4|
+| fase-2-revenue |10|0|0|10|0|
+| kanban-de-prospeccao |6|3|2|0|1|
+| modulo-de-sinais |9|9|0|0|0|
+| motor-hermes |6|2|1|0|3|
+| onboarding-pos-login |5|5|0|0|0|
+| pagina-de-agentes |10|10|0|0|0|
+| playbook-do-workspace |5|4|0|0|1|
+| prospeccao-funcional |11|5|5|1|0|
+| sequencias |10|10|0|0|0|
+| sinais-juridicos |4|0|1|3|0|
+| sinais-reais |10|8|0|2|0|
+| **Total** |**212**|**115**|**44**|**36**|**17**|
+
+As cinco entregas visuais de onboarding-pos-login não fecham CRM24 operacional; as dez de sequencias não fecham canais06–12. Os19 conectores pendentes e fase2 são roadmap: produto precisa definir recorte de lançamento, em vez de chamar todo roadmap de regressão.
 
 - Fechar administrativamente PR163/165 após cotejo residual; implementação já localizada. Não reimplementar CRM08/09.
 - Consolidar canais15/16 com evidência do #164 e relato atual; fechar seu escopo de conexão/adaptador sem prometer paridade v1/v2.
@@ -131,8 +159,9 @@ A instalação inicial foi acidentalmente repetida enquanto outra tentativa aind
 - `npm run lint`: exit0, avisos existentes de Fast Refresh, sem erro.
 - `npm run build`: TypeScript e Vite concluídos; bundle principal1.338,22kB (gzip381,97kB), aviso de chunk >500kB. Aviso de tamanho não é falha de build.
 - `deno test --allow-read=supabase/functions supabase/functions/_shared/unipile/sem-base-fixa.test.ts`: 2 passed / 0 failed, exit0. Os2 ignored da suíte Deno geral correspondem ao gate com permissão separada, executado agora.
-- pgTAP continua bloqueado pelo ambiente; não se afirma suíte de banco verde.
-- Vitest: rodada definitiva ainda em execução na abertura do PR rascunho; resultado final será registrado antes da entrega.
+- pgTAP local bloqueado; CI do PR172 executou o banco do zero e passou **77 arquivos /2998 testes**, job114130405064 no [run38023853539](https://github.com/Kauedz/Althius/actions/runs/38023853539). Esse resultado elimina o gate de banco não executado; não comprova migrations aplicadas em produção.
+- Vitest na CI: **126 arquivos /1200 testes passaram**, job114130405069, duração503,46s. Rodada local encerrada após confirmação da CI verde; não se declara sucesso local do Vitest.
+- Todos os jobs do run38023853539 passaram (commit358b3cd, somente documentação sobre main04c1d18). A atualização final deste relatório altera apenas Markdown; pode disparar nova CI, que não substitui o resultado já obtido do mesmo código funcional.
 
 ## Limites finais da verificação
 
