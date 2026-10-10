@@ -84,7 +84,9 @@ set local role service_role;
 create function pg_temp.resposta_v1(p_id text, p_from text, p_subject text, p_in_reply_to jsonb, p_thread text default null)
 returns jsonb language sql as $f$
   select jsonb_strip_nulls(jsonb_build_object(
-    'id', p_id, 'thread_id', p_thread, 'subject', p_subject, 'body', 'Obrigada!', 'date', '2026-10-10T10:00:00Z',
+    'id', p_id, 'thread_id', p_thread, 'subject', p_subject, 'body', 'Obrigada!',
+    -- Sempre depois do envio do passo 1 (que usa o relógio real): uma data fixa vira "antes do envio" assim que passa.
+    'date', to_char((now() + interval '1 hour') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
     'from', jsonb_build_object('email', p_from, 'display_name', 'Maria'),
     'in_reply_to', p_in_reply_to))
 $f$;
