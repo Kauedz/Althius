@@ -297,3 +297,9 @@ Migrations `20261009205538` e `20261009214037` aplicadas em prod (md5 conferido)
 
 Fechado (ACs todos marcados): canais-14.
 Seguem abertos: canais-15 e canais-16, com AC desmarcado que depende de rodar `scripts/wizard-unipile.sh` (chave de API e segredo do webhook da Unipile, interativo) e do primeiro uso real.
+
+## 2026-10-09: conexão Unipile v1 ativa
+
+Conexão `trial-2026-10` (v1) ativa; chave testada pela VPS (200, 4 contas). Segredos de função `UNIPILE_API_KEY` e `UNIPILE_WEBHOOK_SECRET` iguais à conexão ativa. Sender accounts: 4 em `reconnect_required`.
+
+Fechados: canais-15, canais-16. Segue aberto: canais-17 (falta o `Unipile-Auth` no webhook `AAA` e a mensagem de teste).
