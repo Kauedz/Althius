@@ -134,14 +134,18 @@ Deno.test('conexão ativa: uma falha não fica em cache, e a leitura seguinte te
 
 Deno.test('runtime: a ponte segue a versão da conexão ativa, e sem conexão devolve nulo em vez de enviar', async () => {
   const sent: string[] = []
-  const impl = ((input: string | URL | Request) => {
-    sent.push(String(input))
-    return Promise.resolve(new Response(JSON.stringify({ id: 'em-1' }), { status: 200 }))
-  }) as typeof fetch
+  // Cada ponte recebe a resposta da SUA versão: a v2 devolve `id`; a v1, `tracking_id` e `provider_id`.
+  const respondWith = (body: unknown) =>
+    ((input: string | URL | Request) => {
+      sent.push(String(input))
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
+    }) as typeof fetch
+  const impl = respondWith({ id: 'em-1' })
+  const implV1 = respondWith({ object: 'EmailSent', tracking_id: 'em-1', provider_id: 'p-1' })
   const email = { to: [{ email: 'a@b.co' }], subject: 's', plain_text: 'p', custom_headers: [] }
   const signal = { signal: new AbortController().signal }
 
-  const v1Runtime = createUnipileRuntime({ rpc: rpcReturning({ data: [ROW], error: null }).rpc, env: env({}), fetch: impl })
+  const v1Runtime = createUnipileRuntime({ rpc: rpcReturning({ data: [ROW], error: null }).rpc, env: env({}), fetch: implV1 })
   const v1Bridge = await v1Runtime.bridge()
   assertEquals(v1Bridge?.version, 'v1')
   await v1Bridge!.sendEmail('acc', email, signal)

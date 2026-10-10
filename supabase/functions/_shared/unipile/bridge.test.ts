@@ -2,11 +2,26 @@
 // ponte manda bate com o schema de pedido da versão, e o que a Unipile devolve vira o que o núcleo do envio espera.
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1'
 import { createBridge } from './bridge.ts'
+import { enviarEmailComPrazo } from '../send-step.ts'
 import { failureKind, UnipileUnsupportedOperationError } from './errors.ts'
 import { v1 } from './v1.ts'
 import { v2 } from './v2.ts'
 
 type Version = 'v1' | 'v2'
+
+// O que cada versão responde ao envio de e-mail. A v1 não diz `id` nem `message_id`: devolve o id do e-mail na Unipile
+// (`tracking_id`) e o id do provedor (`provider_id`); resposta real do envio f66db843-10d3-44a8-8951-f2fe4c1a8dca.
+const EMAIL_SENT: Record<Version, { body: Record<string, unknown>; parsed: { id: string; message_id: string | null } }> = {
+  v2: { body: { id: 'em-1', message_id: '<a@b>' }, parsed: { id: 'em-1', message_id: '<a@b>' } },
+  v1: {
+    body: { object: 'EmailSent', tracking_id: 'UJp_CFd5UVe3XTbXf_vK4A', provider_id: '1a1234990c2a7b02' },
+    parsed: { id: 'UJp_CFd5UVe3XTbXf_vK4A', message_id: null },
+  },
+}
+const EMAIL_SENT_WITHOUT_ID: Record<Version, Record<string, unknown>> = {
+  v2: { message_id: '<sem-id@b>' },
+  v1: { object: 'EmailSent' },
+}
 
 interface Call {
   url: string
@@ -50,7 +65,7 @@ const email = {
 
 for (const version of ['v2', 'v1'] as const) {
   Deno.test(`[${version}] ponte: informa a versão, e todo pedido leva a chave e a base da conexão`, async () => {
-    const f = fakeFetch(json({ id: 'em-1', message_id: '<a@b>' }))
+    const f = fakeFetch(json(EMAIL_SENT[version].body))
     const b = bridge(version, f)
     assertEquals(b.version, version)
     await b.sendEmail('conta-1', email, signal())
@@ -59,9 +74,9 @@ for (const version of ['v2', 'v1'] as const) {
   })
 
   Deno.test(`[${version}] e-mail: o pedido bate com o schema da versão e a resposta vira { id, message_id }`, async () => {
-    const f = fakeFetch(json({ id: 'em-1', message_id: '<a@b>' }), json({ message_id: '<sem-id@b>' }))
+    const f = fakeFetch(json(EMAIL_SENT[version].body), json(EMAIL_SENT_WITHOUT_ID[version]))
     const b = bridge(version, f)
-    assertEquals(await b.sendEmail('conta-1', email, signal()), { id: 'em-1', message_id: '<a@b>' })
+    assertEquals(await b.sendEmail('conta-1', email, signal()), EMAIL_SENT[version].parsed)
     const call = f.calls[0]
     if (version === 'v2') {
       assertEquals(call.url, 'https://api.unipile.com/v2/conta-1/emails/send')
@@ -278,4 +293,12 @@ Deno.test('[v1] link de conexão: cada provedor vai com o nome que o assistente 
     await b.createAuthLink({ ...base, type: 'create', providers: [provider] }, signal())
   }
   assertEquals(f.calls.map((call) => call.json?.providers), [['GOOGLE'], ['OUTLOOK'], ['MAIL'], ['WHATSAPP'], ['LINKEDIN']])
+})
+
+// O defeito de produção: com a resposta real da v1, o núcleo do envio marcava `unreadable_response` (incerto) e não gravava
+// os ids, e a resposta do lead não virava Interação. Agora o envio sai como `sent` com o id do e-mail para a ligação.
+Deno.test('[v1] envio de e-mail pelo núcleo: a resposta real da v1 vira sent com o id do e-mail, não incerto', async () => {
+  const f = fakeFetch(json(EMAIL_SENT.v1.body))
+  const result = await enviarEmailComPrazo(bridge('v1', f), 'conta-1', email)
+  assertEquals(result, { outcome: 'sent', sent: { id: 'UJp_CFd5UVe3XTbXf_vK4A', message_id: null } })
 })
