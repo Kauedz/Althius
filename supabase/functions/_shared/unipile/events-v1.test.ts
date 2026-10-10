@@ -9,6 +9,7 @@ import {
   V1_ACCOUNT_STATES,
   v1AccountState,
 } from './events-v1.ts'
+import { v1LinkedinReceived, v1MailNew, v1MailReply, v1WhatsappReceived, v1WhatsappVoiceNote } from './events-v1.fixtures.ts'
 
 const PEDIDO = 'f6000000-0000-0000-0000-000000000001'
 
@@ -259,7 +260,7 @@ Deno.test('v1 conexão completada com o provedor da lista de contas: só WhatsAp
 
 // A resposta de um e-mail na v1 vem com `in_reply_to` {id, message_id}: o id do e-mail respondido na Unipile e o Message-ID
 // do cabeçalho. É o que liga a resposta ao envio quando o envio só guardou o id do e-mail (sem conversa nem Message-ID).
-// não confirmado: o formato real de `in_reply_to.id` na v1; o log temporário do webhook serve para validar.
+// Formato confirmado com uma resposta real (events-v1.fixtures.ts).
 Deno.test('v1 mail_received: in_reply_to {id, message_id} vai no e-mail canônico; sem ele, a chave nem existe', () => {
   const base = { event: 'mail_received', account_id: 'acc2', email_id: 'lYwp-E_oXMKFkkhGid3iGQ', from_attendee: { identifier: 'jonas@serra.test' } }
   const parsed = (extra: Record<string, unknown>) => {
@@ -280,4 +281,59 @@ Deno.test('v1 mail_received: in_reply_to {id, message_id} vai no e-mail canônic
     assertEquals(email !== null && 'in_reply_to' in email, false)
   }
   assertEquals(canonicalEventSchema.safeParse(parseV1WebhookEvent({ ...base, in_reply_to: { id: 'x' } })).success, true)
+})
+
+// Payloads reais da v1, anonimizados (events-v1.fixtures.ts): confirmam os formatos que o resto do arquivo supunha.
+Deno.test('v1 payload real de e-mail: a resposta leva in_reply_to {id, message_id}; o e-mail novo não leva a chave', () => {
+  const reply = parseV1WebhookEvent(v1MailReply)
+  assertEquals(reply.kind, 'email')
+  if (reply.kind !== 'email') return
+  assertEquals(reply.event_id, `${v1MailReply.account_id}:${v1MailReply.email_id}`)
+  assertEquals(reply.email.in_reply_to, { id: v1MailReply.in_reply_to.id, message_id: v1MailReply.in_reply_to.message_id })
+  assertEquals((reply.email.from as { email: string }).email, 'remetente.ficticio@example.com')
+  assertEquals(reply.email.thread_id, v1MailReply.thread_id)
+  assertEquals(canonicalEventSchema.safeParse(reply).success, true)
+
+  const fresh = parseV1WebhookEvent(v1MailNew)
+  assertEquals(fresh.kind, 'email')
+  assertEquals(fresh.kind === 'email' && 'in_reply_to' in fresh.email, false)
+})
+
+Deno.test('v1 payload real de chat: is_sender false e sender do contato viram message.new; WhatsApp sem texto leva o anexo', () => {
+  const whatsapp = parseV1WebhookEvent(v1WhatsappReceived)
+  assertEquals(whatsapp.kind, 'message')
+  if (whatsapp.kind !== 'message') return
+  assertEquals(whatsapp.event_id, `${v1WhatsappReceived.account_id}:${v1WhatsappReceived.message_id}`)
+  assertEquals(whatsapp.payload.sender_id, '10000000000001@lid')
+  assertEquals(whatsapp.payload.sender_name, 'Contato Teste')
+  assertEquals(whatsapp.payload.text, 'Mensagem de teste')
+  // O WhatsApp só traz o número do titular (account_info.phone_number), não um id do provedor: não afirma is_sender.
+  assertEquals('is_sender' in whatsapp.payload, false)
+  assertEquals(canonicalEventSchema.safeParse(whatsapp).success, true)
+
+  const voice = parseV1WebhookEvent(v1WhatsappVoiceNote)
+  assertEquals(voice.kind, 'message')
+  if (voice.kind !== 'message') return
+  assertEquals('text' in voice.payload, false)
+  assertEquals((voice.payload.attachments as unknown[]).length, 1)
+})
+
+Deno.test('v1 payload real do LinkedIn: o titular vem em account_info.user_id e o contato não é confundido com ele', () => {
+  const linkedin = parseV1WebhookEvent(v1LinkedinReceived)
+  assertEquals(linkedin.kind, 'message')
+  if (linkedin.kind !== 'message') return
+  assertEquals(linkedin.payload.sender_id, v1LinkedinReceived.sender.attendee_provider_id)
+  assertEquals(linkedin.payload.is_sender, false)
+  assertEquals(canonicalEventSchema.safeParse(linkedin).success, true)
+
+  // O mesmo aviso, mas com o titular como remetente (eco da própria conta): ignorado.
+  const echo = parseV1WebhookEvent({
+    ...v1LinkedinReceived,
+    sender: { ...v1LinkedinReceived.sender, attendee_provider_id: v1LinkedinReceived.account_info.user_id },
+  })
+  assertEquals(echo, ignored('mensagem_propria', 'message_received', v1LinkedinReceived.account_id))
+  assertEquals(
+    parseV1WebhookEvent({ ...v1LinkedinReceived, is_sender: true }),
+    ignored('mensagem_propria', 'message_received', v1LinkedinReceived.account_id),
+  )
 })

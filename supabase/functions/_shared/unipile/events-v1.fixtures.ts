@@ -1,0 +1,168 @@
+// Avisos de webhook da Unipile v1 como chegaram de verdade (logs temporários do unipile-account-status, 2026-10-10), com
+// ids, e-mails, telefones e nomes trocados por valores falsos no mesmo formato. Formato confirmado: `in_reply_to` {id, message_id}
+// no e-mail; `is_sender` e `sender` no chat. O texto das mensagens nunca foi registrado; aqui vai um texto de teste.
+
+/** Resposta de e-mail (Gmail): `in_reply_to.id` é o id Unipile do e-mail respondido; `deprecated_id` é o id antigo do próprio e-mail. */
+export const v1MailReply = {
+  event: 'mail_received',
+  email_id: 'Qm4xT7kLw9ZpR2vNc5HdEa',
+  account_id: 'Ac0unt1MailXXXXXXXXXXA',
+  webhook_name: 'althius-email',
+  date: '2026-10-10T10:23:56.000Z',
+  from_attendee: { display_name: 'Contato Fictício', identifier: 'remetente.ficticio@example.com', identifier_type: 'EMAIL_ADDRESS' },
+  to_attendees: [{ display_name: 'titular@example.com', identifier: 'titular@example.com', identifier_type: 'EMAIL_ADDRESS' }],
+  cc_attendees: [],
+  bcc_attendees: [],
+  reply_to_attendees: [{ display_name: 'resposta@example.com', identifier: 'resposta@example.com', identifier_type: 'EMAIL_ADDRESS' }],
+  subject: 'Re: Assunto de teste',
+  body: '<div dir="ltr">Resposta de teste</div>',
+  body_plain: 'Resposta de teste',
+  message_id: '<CAFakeMsgIdReplyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX@mail.example.com>',
+  provider_id: '1fa00000000000a2',
+  read_date: null,
+  is_complete: true,
+  has_attachments: false,
+  attachments: [],
+  folders: ['CATEGORY_PERSONAL', 'INBOX', 'UNREAD', 'IMPORTANT'],
+  role: 'inbox',
+  origin: 'external',
+  in_reply_to: {
+    message_id: '<CAFakeMsgIdSentXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX@mail.example.com>',
+    id: 'Sn7dQ1wXe4YbK8mUj2LpVt',
+  },
+  thread_id: '1fa00000000000b1',
+  deprecated_id: 'Dp3rEc4tEdIdXXXXXXXXXA',
+}
+
+/** E-mail que não é resposta (sem `in_reply_to`). */
+export const v1MailNew = {
+  event: 'mail_received',
+  email_id: 'Nw8yU2cHq6VmT1xBe9ZkJd',
+  account_id: 'Ac0unt1MailXXXXXXXXXXA',
+  webhook_name: 'althius-email',
+  date: '2026-10-10T10:45:07.000Z',
+  from_attendee: { display_name: 'Newsletter Fictícia', identifier: 'newsletter@example.net', identifier_type: 'EMAIL_ADDRESS' },
+  to_attendees: [{ display_name: 'titular@example.com', identifier: 'titular@example.com', identifier_type: 'EMAIL_ADDRESS' }],
+  cc_attendees: [],
+  bcc_attendees: [],
+  reply_to_attendees: [],
+  subject: 'Assunto de teste',
+  body: '<p>Texto de teste</p>',
+  body_plain: 'Texto de teste',
+  message_id: '<0100000000000000-00000000-0000-0000-0000-000000000000-000000@mail.example.net>',
+  provider_id: '1fa00000000000c3',
+  read_date: null,
+  is_complete: true,
+  has_attachments: false,
+  attachments: [],
+  folders: ['CATEGORY_PROMOTIONS', 'INBOX', 'UNREAD'],
+  role: 'inbox',
+  origin: 'external',
+  thread_id: '1fa00000000000c3',
+  deprecated_id: 'Dp3rEc4tEdId2XXXXXXXXA',
+}
+
+const whatsappAttendee = {
+  attendee_id: 'At7eNdeEWhatsApp1XXXXA',
+  attendee_provider_id: '10000000000001@lid',
+  attendee_name: 'Contato Teste',
+  attendee_profile_url: null,
+  attendee_specifics: { provider: 'WHATSAPP', phone_number: '+5511900000001', lid: '10000000000001@lid' },
+  attendee_public_identifier: '5511900000001@s.whatsapp.net',
+}
+
+/** Mensagem recebida no WhatsApp: remetente é o contato (`@lid`), `is_sender: false`, o número do titular em `account_info.phone_number`. */
+export const v1WhatsappReceived = {
+  event: 'message_received',
+  account_id: 'Ac0unt1WhatsAppXXXXXXA',
+  account_type: 'WHATSAPP',
+  account_info: { type: 'WHATSAPP', phone_number: '+5511900000002' },
+  webhook_name: 'althius-mensagens',
+  chat_id: 'Ch4tWhatsApp1XXXXXXXXXA',
+  attendees: [whatsappAttendee],
+  sender: whatsappAttendee,
+  subject: null,
+  message: 'Mensagem de teste',
+  message_id: 'M3ssageWhatsApp1XXXXXXA',
+  timestamp: '2026-10-10T10:35:10.000Z',
+  attachments: [],
+  is_sender: false,
+  provider_chat_id: '10000000000001@lid',
+  provider_message_id: '3A0000000000000000A1',
+  is_event: 0,
+  chat_pinned: 0,
+  quoted: null,
+  reply_to: null,
+  is_forwarded: false,
+  is_view_once: false,
+  deleted_for: null,
+  chat_content_type: null,
+  message_type: null,
+  is_group: false,
+  folder: ['INBOX'],
+  event_type: null,
+}
+
+/** Nota de voz no WhatsApp: sem texto (`message: null`) e com um anexo de áudio. */
+export const v1WhatsappVoiceNote = {
+  ...v1WhatsappReceived,
+  message: null,
+  message_id: 'M3ssageWhatsApp2XXXXXXA',
+  timestamp: '2026-10-10T10:44:21.000Z',
+  attachments: [{
+    attachment_id: '3A0000000000000000A2',
+    attachment_type: 'audio',
+    attachment_url: null,
+    attachment_size: 33874,
+    attachment_unavailable: false,
+    voice_note: true,
+  }],
+  provider_message_id: '3A0000000000000000A2',
+}
+
+const linkedinAttendee = {
+  attendee_id: 'At7eNdeELinkedIn1XXXXA',
+  attendee_provider_id: 'ACoAAFakeProviderId000000000000000000000000',
+  attendee_name: 'Pessoa Teste',
+  attendee_profile_url: 'https://www.linkedin.com/in/ACoAAFakeProviderId000000000000000000000000',
+  attendee_specifics: {
+    provider: 'LINKEDIN',
+    member_urn: 'urn:li:member:1000000001',
+    occupation: '--',
+    is_company: false,
+    network_distance: 'DISTANCE_1',
+  },
+  attendee_public_identifier: null,
+}
+
+/** Mensagem recebida no LinkedIn: o titular vem em `account_info.user_id`, e o remetente é o contato. */
+export const v1LinkedinReceived = {
+  event: 'message_received',
+  account_id: 'Ac0unt1LinkedInXXXXXXA',
+  account_type: 'LINKEDIN',
+  account_info: { type: 'LINKEDIN', feature: 'classic', user_id: 'ACoAAFakeOwnerId0000000000000000000000000000' },
+  webhook_name: 'althius-mensagens',
+  chat_id: 'Ch4tLinkedIn1XXXXXXXXXA',
+  attendees: [linkedinAttendee],
+  sender: linkedinAttendee,
+  subject: null,
+  message: 'Oi',
+  message_id: 'M3ssageLinkedIn1XXXXXXA',
+  timestamp: '2026-10-10T10:23:48.598Z',
+  attachments: [],
+  is_sender: false,
+  provider_chat_id: '2-ZmFrZUNoYXRJZDAwMDAwMDAwMDAwMDAwMDAwMA==',
+  provider_message_id: '2-ZmFrZU1lc3NhZ2VJZDAwMDAwMDAwMDAwMDAwMDAwMA==',
+  is_event: 0,
+  chat_pinned: 0,
+  quoted: null,
+  reply_to: null,
+  is_forwarded: null,
+  is_view_once: null,
+  deleted_for: null,
+  chat_content_type: null,
+  message_type: 'MESSAGE',
+  is_group: false,
+  folder: ['INBOX', 'INBOX_LINKEDIN_CLASSIC'],
+  event_type: null,
+}
