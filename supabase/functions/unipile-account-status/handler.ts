@@ -166,6 +166,16 @@ async function sha256Hex(value: string) {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+// TEMPORÁRIO (fix-resposta-email-v1): ver o log `temp_v1_mail_raw` em createHandler.
+function isMailReceived(json: unknown): json is Record<string, unknown> {
+  return !!json && typeof json === 'object' && !Array.isArray(json) && (json as Record<string, unknown>).event === 'mail_received'
+}
+
+function withoutMailText(json: Record<string, unknown>): Record<string, unknown> {
+  const size = (value: unknown) => (typeof value === 'string' ? `[${value.length} caracteres]` : value)
+  return { ...json, ...('body' in json ? { body: size(json.body) } : {}), ...('body_plain' in json ? { body_plain: size(json.body_plain) } : {}) }
+}
+
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const log = deps.log ?? ((fields) => console.log(JSON.stringify(fields)))
   const now = deps.now ?? Date.now
@@ -249,6 +259,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       const event = version === 'v1' ? parseV1WebhookEvent(json) : parseV2WebhookEvent(json)
       const type = 'event_type' in event ? event.event_type ?? '' : ''
       const accountId = 'account_id' in event ? event.account_id ?? '' : ''
+
+      // TEMPORÁRIO (fix-resposta-email-v1): remover quando o formato de `in_reply_to.id` da v1 estiver confirmado com uma resposta
+      // real. Registra o corpo do aviso de e-mail da v1 como chegou, sem o texto do e-mail (body e body_plain viram só o tamanho).
+      // Nenhum segredo passa por aqui: o cabeçalho Unipile-Auth e a chave ?k= não fazem parte do corpo.
+      if (version === 'v1' && isMailReceived(json)) log({ type: 'temp_v1_mail_raw', accountId, raw: withoutMailText(json) })
 
       // A chave do endereço do aviso do link só autentica o evento de conexão, nunca uma mensagem nem um estado.
       if (authorizedBy === 'key' && event.kind !== 'connection') {

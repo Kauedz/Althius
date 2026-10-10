@@ -1,8 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { comCors, origemDoAppParaLink, origensPermitidas } from '../_shared/cors.ts'
 import { createUnipileRuntime, type UnipileRuntime, UnipileUnreadableResponse } from '../_shared/unipile/index.ts'
-
-type Channel = 'email' | 'whatsapp' | 'linkedin'
+import { authLinkFor, type Channel } from './link.ts'
 
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -35,12 +34,6 @@ function appOriginConfig() {
     throw new Error('Backend is not configured')
   }
   return { appOrigin: origin.origin }
-}
-
-function providerNames(channel: Channel): ('google' | 'outlook' | 'imap' | 'whatsapp' | 'linkedin')[] {
-  if (channel === 'email') return ['google', 'outlook', 'imap']
-  if (channel === 'whatsapp') return ['whatsapp']
-  return ['linkedin']
 }
 
 async function caller(req: Request) {
@@ -121,9 +114,8 @@ Deno.serve(comCors(Deno.env.get('APP_ORIGIN') ?? '', async (req) => {
       try {
         // O endereço de aviso só serve à v1 (a v2 avisa pelo Webhook Endpoint cadastrado na conta).
         link = (await bridge.createAuthLink({
-          type: action === 'reconnect' ? 'reconnect' : 'create',
-          providers: action === 'reconnect' ? undefined : providerNames(channel),
-          reconnectAccountId: action === 'reconnect' ? attempt.provider_account_id : null,
+          // Conta de outra conexão (troca de conta Unipile): o banco não devolve o id, e o link é de conexão nova.
+          ...authLinkFor(action, channel, attempt),
           attemptId: attempt.attempt_id,
           // Volta para a origem de onde o pedido saiu (ex.: o app local), se ela está no APP_ORIGIN: voltar para outra
           // origem perde a sessão e o Workspace escolhido, e a próxima conexão cai noutro Workspace.

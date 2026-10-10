@@ -70,9 +70,15 @@ const sendEmail = {
     body: z.string(),
     custom_headers: customHeaders.optional(),
   }),
-  // não confirmado: o campo do id do e-mail enviado (o protótipo aceita id/message_id nulos; a Althius exige o `id`).
-  response: z.object({ id: nonBlank, message_id: z.string().nullish().catch(undefined) })
-    .transform((value) => ({ id: value.id, message_id: value.message_id ?? null })),
+  // Resposta real: `{"object":"EmailSent","tracking_id":"...","provider_id":"..."}` (envio f66db843-10d3-44a8-8951-f2fe4c1a8dca).
+  // Não há `id` nem `message_id`. O `tracking_id` é o id do e-mail na Unipile, o que o núcleo do envio grava como
+  // `provider_email_id` (na v2 é o `id`); sem ele, vale o `provider_id`, o id do provedor. Sem nenhum dos dois, o e-mail
+  // provavelmente saiu e a resposta é ilegível: o envio fica incerto.
+  // não confirmado: que o `email_id` dos eventos `mail_received` é este mesmo `tracking_id` (e não o `provider_id`), que
+  // liga o eco e a resposta ao envio; o Message-ID do cabeçalho (`message_id`) não vem na resposta, então fica nulo.
+  response: z.object({ tracking_id: looseId, provider_id: looseId })
+    .refine((value) => value.tracking_id !== undefined || value.provider_id !== undefined, { message: 'nenhum id' })
+    .transform((value) => ({ id: (value.tracking_id ?? value.provider_id) as string, message_id: null })),
 }
 
 /** POST /api/v1/chats (multipart): abre o chat e envia a primeira mensagem. */

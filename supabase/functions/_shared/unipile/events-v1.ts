@@ -126,6 +126,9 @@ const mailSchema = z.object({
   body_plain: optional(text),
   attachments: optional(z.array(record)),
   headers: optional(z.array(record)),
+  // não confirmado: o formato de `in_reply_to` no aviso de e-mail da v1 ({ id, message_id }: o id do e-mail respondido na Unipile e o
+  // Message-ID do cabeçalho). Um formato que não é objeto, ou um campo com o tipo errado, é descartado.
+  in_reply_to: optional(z.object({ id: optional(id), message_id: optional(text) }).passthrough()),
 })
 
 const relationSchema = z.object({
@@ -225,6 +228,10 @@ export function parseV1WebhookEvent(raw: unknown): CanonicalEvent {
     const sender = mail.from_attendee?.identifier
     if (!mail.email_id || !sender) return ignore('payload_incompleto', eventType, accountId)
     const plain = present(mail.body_plain)
+    // Liga a resposta ao envio quando o envio da v1 só guardou o id do e-mail (sem conversa nem Message-ID): ingest_unipile_email_event
+    // compara `in_reply_to.id` com o id do e-mail enviado e `in_reply_to.message_id` com o Message-ID enviado.
+    const replyToId = mail.in_reply_to?.id
+    const replyToMessageId = present(mail.in_reply_to?.message_id)
     return {
       kind: 'email',
       // O id do e-mail só é único dentro da conta: o prefixo faz a deduplicação por event_id valer.
@@ -242,6 +249,9 @@ export function parseV1WebhookEvent(raw: unknown): CanonicalEvent {
         ...(plain ? { snippet: plain.slice(0, SNIPPET_LIMIT) } : {}),
         ...(mail.attachments ? { attachments: mail.attachments } : {}),
         ...(mail.headers ? { headers: mail.headers } : {}),
+        ...(replyToId || replyToMessageId
+          ? { in_reply_to: { ...(replyToId ? { id: replyToId } : {}), ...(replyToMessageId ? { message_id: replyToMessageId } : {}) } }
+          : {}),
       },
       // A v1 não diz o endereço do titular no aviso: o banco compara com o e-mail que a Conta remetente já conhece.
       owner_addresses: [],

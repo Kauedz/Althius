@@ -140,9 +140,11 @@ const examples: Record<'v1' | 'v2', Record<(typeof UNIPILE_OPERATIONS)[number], 
         custom_headers: [{ name: 'X-Althius-Envio', value: 'send-1' }],
       },
       badRequest: { account_id: 'acc-1', to: [{ email: 'maria@empresa.com.br' }], subject: 'Olá', body: 'x' },
-      response: { id: 'em-1' },
-      parsed: { id: 'em-1', message_id: null },
-      badResponse: {},
+      // Resposta real da v1 (envio f66db843-10d3-44a8-8951-f2fe4c1a8dca): `tracking_id` é o id do e-mail na Unipile,
+      // `provider_id` é o do provedor. Não há `id` nem `message_id`.
+      response: { object: 'EmailSent', tracking_id: 'UJp_CFd5UVe3XTbXf_vK4A', provider_id: '1a1234990c2a7b02' },
+      parsed: { id: 'UJp_CFd5UVe3XTbXf_vK4A', message_id: null },
+      badResponse: { object: 'EmailSent' },
     },
     startChat: {
       request: { account_id: 'acc-1', attendees_ids: ['5511988887777@s.whatsapp.net'], text: 'Olá' },
@@ -226,6 +228,14 @@ Deno.test('v2: a lista de mensagens aceita lista pura, items, messages ou data, 
   assertEquals(v2.listChatMessages.response.parse({ messages: [{ id: 'm2' }] }), [{ id: 'm2' }])
   assertEquals(v2.listChatMessages.response.parse({ data: [{ id: 'm3' }] }), [{ id: 'm3' }])
   assertEquals(v2.listChatMessages.response.parse({}), [])
+})
+
+Deno.test('v1: o envio de e-mail sem tracking_id usa o provider_id, e sem nenhum dos dois a resposta é ilegível', () => {
+  assertEquals(v1.sendEmail.response.parse({ object: 'EmailSent', provider_id: '1a1234990c2a7b02' }), {
+    id: '1a1234990c2a7b02',
+    message_id: null,
+  })
+  assertEquals(v1.sendEmail.response.safeParse({ object: 'EmailSent', tracking_id: '  ', provider_id: null }).success, false)
 })
 
 Deno.test('v1: reconexão leva reconnect_account; criação leva providers', () => {
