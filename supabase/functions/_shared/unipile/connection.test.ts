@@ -136,7 +136,11 @@ Deno.test('runtime: a ponte segue a versão da conexão ativa, e sem conexão de
   const sent: string[] = []
   const impl = ((input: string | URL | Request) => {
     sent.push(String(input))
-    return Promise.resolve(new Response(JSON.stringify({ id: 'em-1' }), { status: 200 }))
+    // Cada versão responde ao envio no seu formato (a v1 não devolve `id`).
+    const body = String(input).includes('/api/v1/')
+      ? { object: 'EmailSent', tracking_id: 'em-1', provider_id: 'p-1' }
+      : { id: 'em-1' }
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   }) as typeof fetch
   const email = { to: [{ email: 'a@b.co' }], subject: 's', plain_text: 'p', custom_headers: [] }
   const signal = { signal: new AbortController().signal }
