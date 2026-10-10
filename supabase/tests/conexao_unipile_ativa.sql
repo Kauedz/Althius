@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(51);
+select plan(53);
 
 -- Conexão Unipile ativa por configuração e troca sem perder o histórico (canais-15, ADR-0024).
 
@@ -183,9 +183,15 @@ select is((select count(*)::int from public.claim_sender_reconciliations(3)), 0,
 -- 8. Reconectar depois da troca reaproveita a linha, com o id novo e a conexão ativa.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '95000000-0000-0000-0000-000000000001', true);
-insert into ids select 'reconexao', attempt_id::text from public.create_sender_connection_attempt(
-  '96000000-0000-0000-0000-000000000001', 'email', (select valor::uuid from ids where chave = 'linha'));
+with a as (
+  select * from public.create_sender_connection_attempt(
+    '96000000-0000-0000-0000-000000000001', 'email', (select valor::uuid from ids where chave = 'linha'))
+)
+insert into ids select 'reconexao', attempt_id::text from a
+union all select 'reconexao-id', coalesce(provider_account_id, '(sem id)') from a;
 reset role;
+select is((select valor from ids where chave = 'reconexao-id'), '(sem id)',
+  'a row of a connection that is not the active one gets no id to reconnect: the caller opens a new link');
 select is(public.complete_sender_connection_attempt(
   (select valor::uuid from ids where chave = 'reconexao'), 'unipile-b-1', 'GOOGLE', 'RECONNECTED'), 'completed',
   'after the swap, the reconnection accepts the new id on the same row');
@@ -235,9 +241,15 @@ select is(public.complete_sender_connection_attempt(
   'a row already on the active connection does not accept a different id');
 -- 10b. O mesmo id na conexão ativa continua reconectando.
 set local role authenticated;
-insert into ids select 'mesmo-id', attempt_id::text from public.create_sender_connection_attempt(
-  '96000000-0000-0000-0000-000000000001', 'email', (select valor::uuid from ids where chave = 'linha'));
+with a as (
+  select * from public.create_sender_connection_attempt(
+    '96000000-0000-0000-0000-000000000001', 'email', (select valor::uuid from ids where chave = 'linha'))
+)
+insert into ids select 'mesmo-id', attempt_id::text from a
+union all select 'mesmo-id-conta', coalesce(provider_account_id, '(sem id)') from a;
 reset role;
+select is((select valor from ids where chave = 'mesmo-id-conta'), 'unipile-b-1',
+  'a row of the active connection still gets its id to reconnect');
 select is(public.complete_sender_connection_attempt(
   (select valor::uuid from ids where chave = 'mesmo-id'), 'unipile-b-1', 'GOOGLE', 'RECONNECTED'), 'completed',
   'the same id on the active connection still reconnects');
