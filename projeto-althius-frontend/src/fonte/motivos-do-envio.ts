@@ -8,6 +8,8 @@ const MOTIVOS: Record<string, string> = {
   contact_unlinked: 'o Contato saiu da Conta-alvo',
   destination_changed: 'o Destino do Contato mudou depois da confirmação',
   invalid_phone: 'o telefone do Contato não é um número de WhatsApp válido',
+  destination_is_sender_account:
+    'o número do Contato é o da própria Conta remetente de WhatsApp; troque o telefone do Contato ou a Conta remetente e ative os envios de novo',
   invite_already_sent: 'já existe um convite pendente para este perfil no LinkedIn',
   invite_note_too_long: 'a nota do convite passou do limite do LinkedIn',
   linkedin_profile_invalid: 'o endereço do LinkedIn do Contato não é de um perfil',

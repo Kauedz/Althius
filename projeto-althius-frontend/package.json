@@ -11,7 +11,8 @@
     "test": "vitest run",
     "teste:real": "node scripts/teste-real-sequencias.mjs",
     "unipile:testar": "node scripts/testar-conexao-unipile.mjs",
-    "unipile:conferir": "deno run --allow-env --allow-net ../scripts/unipile-conferir.ts"
+    "unipile:conferir": "deno run --allow-env --allow-net ../scripts/unipile-conferir.ts",
+    "unipile:numero-proprio": "deno run --allow-env --allow-net ../scripts/unipile-numero-proprio.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

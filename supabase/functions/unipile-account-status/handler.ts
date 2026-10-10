@@ -41,6 +41,11 @@ export interface WebhookDb {
    * Sem ela, esses eventos são só reconhecidos (HTTP 200) e ignorados, como antes do canais-06.
    */
   ingestChatEvent?(input: IngestChatEventInput): Promise<IngestedChat>
+  /**
+   * RPC learn_sender_own_provider_id (fix-v1-email-whatsapp): grava na Conta remetente de WhatsApp o número da própria conta, que a
+   * lista de contas da conexão traz. Sem ele, a resposta da v1 não se distingue de uma mensagem do titular e fica sem relação.
+   */
+  learnSenderOwnProviderId?(unipileAccountId: string, ownProviderId: string): Promise<void>
   /** RPC record_received_email_attachment. */
   recordReceivedEmailAttachment(input: {
     interactionId: string
@@ -171,6 +176,15 @@ function isMailReceived(json: unknown): json is Record<string, unknown> {
   return !!json && typeof json === 'object' && !Array.isArray(json) && (json as Record<string, unknown>).event === 'mail_received'
 }
 
+// TEMPORÁRIO (fix-v1-email-whatsapp): ver o log `temp_v1_chat_raw` em createHandler.
+function isMessageReceived(json: unknown): json is Record<string, unknown> {
+  return !!json && typeof json === 'object' && !Array.isArray(json) && (json as Record<string, unknown>).event === 'message_received'
+}
+
+function withoutChatText(json: Record<string, unknown>): Record<string, unknown> {
+  return 'message' in json && typeof json.message === 'string' ? { ...json, message: `[${json.message.length} caracteres]` } : json
+}
+
 function withoutMailText(json: Record<string, unknown>): Record<string, unknown> {
   const size = (value: unknown) => (typeof value === 'string' ? `[${value.length} caracteres]` : value)
   return { ...json, ...('body' in json ? { body: size(json.body) } : {}), ...('body_plain' in json ? { body_plain: size(json.body_plain) } : {}) }
@@ -215,6 +229,21 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           status: 'failed',
         }).catch(() => {})
       }
+    }
+  }
+
+  // O número próprio de cada conta, ensinado ao banco uma vez por instância: a lista de contas da conexão o traz (WhatsApp v1).
+  const taughtOwnIds = new Set<string>()
+  async function teachOwnId(accountId: string, lookup: AccountLookup | null, type: string) {
+    if (!deps.db.learnSenderOwnProviderId || lookup?.status !== 'member' || !lookup.ownProviderId) return
+    const key = `${accountId}|${lookup.ownProviderId}`
+    if (taughtOwnIds.has(key)) return
+    try {
+      await deps.db.learnSenderOwnProviderId(accountId, lookup.ownProviderId)
+      taughtOwnIds.add(key)
+    } catch {
+      // Sem o número a mensagem ainda é ingerida; a próxima tenta de novo.
+      log({ type, accountId, outcome: 'own_id_not_saved' })
     }
   }
 
@@ -332,6 +361,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         if (data !== 'completed' && data !== 'ignored') {
           return new Response('Event rejected', { status: 409 })
         }
+        if (data === 'completed') await teachOwnId(accountId, lookup, type)
         // Só na primeira entrega: uma repetição tardia não pode tirar a conta de reconnect_required.
         if (data === 'completed' && connection.sync_finished) {
           try {
@@ -392,6 +422,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       // WhatsApp e LinkedIn: o payload de `message.new` é o próprio objeto Message (recebida E enviada); o banco
       // distingue o eco do titular da resposta do Contato. A nova relação (aceite de convite) é só registrada.
       if (deps.db.ingestChatEvent) {
+        // TEMPORÁRIO (fix-v1-email-whatsapp): remover quando os campos do aviso de chat da v1 estiverem confirmados com uma resposta
+        // real (quem é o remetente, se vem is_sender ou account_info). Só a mensagem que vai ser ingerida; o texto vira só o tamanho.
+        if (version === 'v1' && isMessageReceived(json)) log({ type: 'temp_v1_chat_raw', accountId, raw: withoutChatText(json) })
+        await teachOwnId(accountId, lookup, type)
         let ingested: IngestedChat
         try {
           ingested = await deps.db.ingestChatEvent({

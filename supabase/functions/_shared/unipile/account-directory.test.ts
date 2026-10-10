@@ -72,3 +72,12 @@ Deno.test('lista incompleta ou falha na leitura: não dá para provar, então a 
   const failing = directory([new Error('HTTP 503')])
   assertEquals(await failing.dir.lookup('a1'), { status: 'unknown' })
 })
+
+Deno.test('conta com o número próprio na lista: o número vai junto no resultado; sem ele, o resultado é o de sempre', async () => {
+  const { dir } = directory([{
+    accounts: [{ ...account('wa1', 'WHATSAPP'), ownProviderId: '5511900000000@s.whatsapp.net' }, account('wa2', 'WHATSAPP')],
+    complete: true,
+  }])
+  assertEquals(await dir.lookup('wa1'), { status: 'member', provider: 'WHATSAPP', ownProviderId: '5511900000000@s.whatsapp.net' })
+  assertEquals(await dir.lookup('wa2'), { status: 'member', provider: 'WHATSAPP' })
+})

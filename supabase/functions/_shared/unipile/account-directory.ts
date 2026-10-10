@@ -9,7 +9,7 @@ export const ACCOUNT_LIST_TTL_MS = 60_000
 export const MISS_RELOAD_INTERVAL_MS = 10_000
 
 export type AccountLookup =
-  | { status: 'member'; provider: string }
+  | { status: 'member'; provider: string; ownProviderId?: string }
   | { status: 'foreign' }
   | { status: 'unknown' }
 
@@ -48,7 +48,9 @@ export function createAccountDirectory(options: AccountDirectoryOptions): Accoun
         if (!(await reload())) return { status: 'unknown' }
         found = snapshot!.accounts.get(accountId)
       }
-      if (found) return { status: 'member', provider: found.provider }
+      if (found) {
+        return { status: 'member', provider: found.provider, ...(found.ownProviderId ? { ownProviderId: found.ownProviderId } : {}) }
+      }
       return snapshot!.complete ? { status: 'foreign' } : { status: 'unknown' }
     },
   }

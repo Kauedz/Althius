@@ -216,3 +216,20 @@ Deno.test('o banco: as RPCs recebem os parâmetros com os nomes do banco', async
     },
   })
 })
+
+// Bug C: o número da própria conta (own_provider_id) vem do banco por uma RPC só do service_role.
+Deno.test('o número da própria Conta remetente é lido pela RPC sender_own_provider_id', async () => {
+  const calls: { fn: string; args: Record<string, unknown> }[] = []
+  const admin = {
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      calls.push({ fn, args })
+      return Promise.resolve({ data: fn === 'sender_own_provider_id' ? '5511900000000@s.whatsapp.net' : null, error: null })
+    },
+  }
+  assertEquals(await sendChatStepDbVia(admin).ownProviderId?.('unipile-wa-1'), '5511900000000@s.whatsapp.net')
+  assertEquals(calls, [{ fn: 'sender_own_provider_id', args: { p_unipile_account_id: 'unipile-wa-1' } }])
+  const none = { rpc: () => Promise.resolve({ data: null, error: null }) }
+  assertEquals(await sendChatStepDbVia(none).ownProviderId?.('unipile-wa-1'), null)
+  const broken = { rpc: () => Promise.resolve({ data: null, error: { code: '42501' } }) }
+  await assertRejects(() => sendChatStepDbVia(broken).ownProviderId!('unipile-wa-1'))
+})

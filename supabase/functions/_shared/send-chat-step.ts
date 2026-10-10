@@ -64,6 +64,11 @@ export interface ChatSendDb {
   chatConversationForSend(sendId: string, userId: string): Promise<ChatConversation | null>
   /** RPC ingest_unipile_chat_event, para gravar o que a conferência da conversa encontrar. */
   ingestChatEvent(input: IngestChatEventInput): Promise<IngestedChat>
+  /**
+   * RPC sender_own_provider_id (fix-v1-email-whatsapp): o número da própria Conta remetente de WhatsApp (<dígitos>@s.whatsapp.net), ou
+   * null se a conta ainda não o conhece. Sem esta leitura, ou sem o número, o envio segue como sempre.
+   */
+  ownProviderId?(unipileAccountId: string): Promise<string | null>
   /** RPC record_chat_step_send_result. */
   recordChatStepSendResult(input: {
     sendId: string
@@ -291,6 +296,22 @@ async function sendMessage(
   }
 }
 
+/**
+ * O Destino é o número da própria Conta remetente? A Unipile v1 aceita a mensagem e ela cai no chat "Você": o envio ficaria `sent`
+ * sem ninguém ter recebido nada. Sem o número da conta (ou com a leitura falhando), não há como saber e o envio segue.
+ */
+async function isSenderOwnNumber(deps: SendChatStepDeps, released: ReleasedChatSend): Promise<boolean> {
+  if (!deps.db.ownProviderId) return false
+  let own: string | null
+  try {
+    own = await deps.db.ownProviderId(released.unipile_account_id)
+  } catch {
+    return false
+  }
+  const match = /^([0-9]{8,15})@s\.whatsapp\.net$/.exec(own ?? '')
+  return !!match && match[1] === released.destination.replace(/\D/g, '')
+}
+
 async function attemptWhatsApp(
   deps: SendChatStepDeps,
   released: ReleasedChatSend,
@@ -298,6 +319,7 @@ async function attemptWhatsApp(
 ): Promise<Attempt> {
   const userId = toWhatsAppUserId(released.destination)
   if (!userId) return { outcome: 'blocked', error: 'invalid_phone' }
+  if (await isSenderOwnNumber(deps, released)) return { outcome: 'blocked', error: 'destination_is_sender_account' }
   return { ...(await sendMessage(deps, released, userId, attachments)), providerUserId: userId }
 }
 
