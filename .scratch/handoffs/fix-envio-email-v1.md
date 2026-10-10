@@ -40,6 +40,13 @@ O envio `f66db843…` já gravado como `uncertain` continua assim: a correção 
 - `deno test supabase/functions`: 977 passaram, 0 falharam. `deno check` limpo. Guard `sem-base-fixa` ok. `deno lint` limpo nos arquivos alterados (a main tem avisos antigos em outros testes).
 - Os fixtures do envio de e-mail da v1 em `bridge.test.ts` e `connection.test.ts` passaram para o formato real.
 
+## v1 e v2 coexistem: cada ponte valida a resposta da sua versão
+
+- A v2 não foi tocada: `v2.ts`, `bridge-v2.ts` e o parse `{ id, message_id }` ficam como estavam. Só `v1.ts` mudou no código de produção.
+- Fixtures separados por versão: em `bridge.test.ts` (`EMAIL_SENT.v2` com `{ id, message_id }`, `EMAIL_SENT.v1` com `tracking_id`/`provider_id`), em `contract.test.ts` (seções v2 e v1 já separadas) e em `connection.test.ts` (o teste de runtime usa uma resposta por versão, antes era uma só para as duas).
+- Prova de que os testes da v2 não mudaram: copiei os 4 arquivos de teste da `main` (`bridge`, `contract`, `connection`, `adapters`), sem nenhuma edição, para junto do código novo e rodei os testes da v2 (`--filter "/v2/"`): 25 passaram, 0 falharam. Na suíte inteira desses arquivos originais só falham os 4 testes que usavam o formato errado da v1 (o defeito) e o de runtime que dava a resposta da v2 à ponte v1.
+- Nos arquivos alterados, os valores esperados da v2 são os mesmos de antes (`{ id: 'em-1', message_id: '<a@b>' }`); o que mudou é só de onde vem o fixture.
+
 ## Pendente de publicação (nada foi aplicado nem publicado)
 
 Funções que importam `_shared/unipile/v1.ts` e precisam ser republicadas para a correção valer em produção: `sequence-runner` (envio do Executor), `sequence-step-sends` (envio manual), `reply-proposal-send`, `sender-accounts` e `unipile-account-status` (as duas últimas só carregam o módulo, não enviam e-mail; republicar por consistência é opcional). O mínimo para o envio: `sequence-runner`, `sequence-step-sends` e `reply-proposal-send`.
