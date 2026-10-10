@@ -262,3 +262,20 @@ Deno.test('anexo recebido: a chave só vai à origem da conexão; uma URL de out
     assertEquals('X-API-KEY' in f.calls[2].headers, false)
   }
 })
+
+// A v1 recusa com 400 invalid_parameters o provedor 'IMAP' no assistente de conexão; e-mail por IMAP é 'MAIL'
+// (GOOGLE, OUTLOOK e MAIL respondem 201, conferido na conta v1 real). Um teste por provedor, no pedido que sai.
+Deno.test('[v1] link de conexão: cada provedor vai com o nome que o assistente da v1 aceita (IMAP é MAIL)', async () => {
+  const f = fakeFetch(...Array.from({ length: 5 }, () => json({ url: 'https://auth.unipile.com/x' })))
+  const b = bridge('v1', f)
+  const base = {
+    attemptId: 'tentativa-1',
+    redirectUrl: 'https://app.althius.com/conexoes',
+    expiresAt: new Date('2026-10-10T12:00:00.000Z'),
+    notifyUrl: 'https://projeto.supabase.co/functions/v1/unipile-account-status',
+  }
+  for (const provider of ['google', 'outlook', 'imap', 'whatsapp', 'linkedin'] as const) {
+    await b.createAuthLink({ ...base, type: 'create', providers: [provider] }, signal())
+  }
+  assertEquals(f.calls.map((call) => call.json?.providers), [['GOOGLE'], ['OUTLOOK'], ['MAIL'], ['WHATSAPP'], ['LINKEDIN']])
+})

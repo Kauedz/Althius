@@ -13,12 +13,12 @@ import type { AccountState, ConnectableProvider, UnipileAccountSummary, UnipileB
 
 const API = '/api/v1'
 
-// não confirmado: os nomes dos provedores no assistente da v1. O protótipo manda o nome em maiúsculas (e OUTLOOK para o
-// da Microsoft); o guia da v1 também cita MAIL, IMAP e GOOGLE_OAUTH.
+// Os nomes dos provedores no assistente da v1, em maiúsculas. Conferido numa conta v1 real: GOOGLE, OUTLOOK e MAIL dão
+// 201; IMAP dá 400 invalid_parameters. E-mail por IMAP é MAIL (e a v1 devolve esse tipo como IMAP na lista de contas).
 const V1_PROVIDER: Record<ConnectableProvider, string> = {
   google: 'GOOGLE',
   outlook: 'OUTLOOK',
-  imap: 'IMAP',
+  imap: 'MAIL',
   whatsapp: 'WHATSAPP',
   linkedin: 'LINKEDIN',
 }
