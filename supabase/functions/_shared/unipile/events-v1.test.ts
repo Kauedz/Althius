@@ -256,3 +256,28 @@ Deno.test('v1 conexão completada com o provedor da lista de contas: só WhatsAp
   assertEquals(completeV1Connection(base, 'MAIL'), { ...base, provider: 'IMAP', sync_finished: false })
   assertEquals(completeV1Connection(base, 'TELEGRAM'), null)
 })
+
+// A resposta de um e-mail na v1 vem com `in_reply_to` {id, message_id}: o id do e-mail respondido na Unipile e o Message-ID
+// do cabeçalho. É o que liga a resposta ao envio quando o envio só guardou o id do e-mail (sem conversa nem Message-ID).
+// não confirmado: o formato real de `in_reply_to.id` na v1; o log temporário do webhook serve para validar.
+Deno.test('v1 mail_received: in_reply_to {id, message_id} vai no e-mail canônico; sem ele, a chave nem existe', () => {
+  const base = { event: 'mail_received', account_id: 'acc2', email_id: 'lYwp-E_oXMKFkkhGid3iGQ', from_attendee: { identifier: 'jonas@serra.test' } }
+  const parsed = (extra: Record<string, unknown>) => {
+    const event = parseV1WebhookEvent({ ...base, ...extra })
+    assertEquals(event.kind, 'email')
+    return event.kind === 'email' ? event.email : null
+  }
+  assertEquals(parsed({ in_reply_to: { id: 'nSJU60KtTQaNv-k2we_GIw', message_id: '<abc@mail.test>' } })?.in_reply_to, {
+    id: 'nSJU60KtTQaNv-k2we_GIw',
+    message_id: '<abc@mail.test>',
+  })
+  // Só o id (o envio da v1 não guarda Message-ID): o message_id nulo ou vazio não vai.
+  assertEquals(parsed({ in_reply_to: { id: 'nSJU60KtTQaNv-k2we_GIw', message_id: null } })?.in_reply_to, { id: 'nSJU60KtTQaNv-k2we_GIw' })
+  assertEquals(parsed({ in_reply_to: { id: 'nSJU60KtTQaNv-k2we_GIw', message_id: '' } })?.in_reply_to, { id: 'nSJU60KtTQaNv-k2we_GIw' })
+  // Sem in_reply_to, ou com um formato que não é objeto, ou sem nenhum dos dois ids: o e-mail segue sem a chave e não cai.
+  for (const extra of [{}, { in_reply_to: null }, { in_reply_to: 'nSJU60KtTQaNv-k2we_GIw' }, { in_reply_to: {} }, { in_reply_to: { id: '  ' } }]) {
+    const email = parsed(extra)
+    assertEquals(email !== null && 'in_reply_to' in email, false)
+  }
+  assertEquals(canonicalEventSchema.safeParse(parseV1WebhookEvent({ ...base, in_reply_to: { id: 'x' } })).success, true)
+})
