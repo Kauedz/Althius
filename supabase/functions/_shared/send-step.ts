@@ -26,6 +26,9 @@ export type BlockedOutcome =
   | 'not_scheduled'
   | 'destination_bounced'
   | 'wrong_channel'
+  | 'rate_limited'
+  | 'daily_cap'
+  | 'weekly_cap'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -123,6 +126,9 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   not_scheduled: 'Este passo espera o envio manual do Vendedor responsável.',
   destination_bounced: 'O e-mail deste Contato já voltou nesta Sequência. Corrija o e-mail e reconfirme o passo.',
   wrong_channel: 'Este passo não é de E-mail: o WhatsApp e o LinkedIn saem pelo Executor, não por este envio.',
+  rate_limited: 'Sua Conta remetente enviou há pouco e precisa esperar um intervalo antes do próximo envio.',
+  daily_cap: 'Sua Conta remetente chegou ao limite de envios de hoje. O passo sai no próximo dia útil.',
+  weekly_cap: 'Sua Conta remetente chegou ao limite de envios desta semana. O passo sai na próxima semana.',
 }
 
 export type StepSendResult =
