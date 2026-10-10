@@ -116,7 +116,8 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
   - a cada minuto, o pg_cron roda `private.kick_sequence_runner()`. Ele passa a incertos os envios esquecidos em voo e, só quando há passo automático vencido de uma versão ativa, chama a função pelo pg_net;
   - a chamada leva `x-runner-token`, um token gerado e guardado só no banco (`private.sequence_runner_settings`). A função o confere por `sequence_runner_token_matches` e roda sem verificação JWT do gateway;
   - a função responde `202` na hora e segue em segundo plano. Reserva até 5 passos (`claim_due_step_sends`) e envia um por vez pelo mesmo núcleo do envio manual (`_shared/send-step.ts`), liberando por `release_due_step_send`;
-  - o resultado vai para `record_sequence_step_send_result`, com o `Retry-After` da Unipile quando houver.
+  - o resultado vai para `record_sequence_step_send_result`, com o `Retry-After` da Unipile quando houver;
+  - com o ritmo ligado (ritmo-de-envio), cada rodada reserva no máximo um passo por Conta remetente, espera de 1 a 4 s entre dois envios, renova a reserva do que falta (`renew_due_step_send_claims`) e trata `rate_limited`, `daily_cap` e `weekly_cap` como adiamento: o banco reagenda o passo e nada é enviado.
 - `sequence-runner` também reconcilia uma Conta remetente que voltou de uma queda (canais-03). Antes dos envios de cada rodada, com até 60 s, ele:
   - reserva as contas prontas para reconciliar (`claim_sender_reconciliations`);
   - confere na Unipile, em páginas e guardando até onde foi (`conversations_to_reconcile`, `record_reconciliation_progress`), a última conversa de cada Contato das Sequências que saíram pela conta;
@@ -156,6 +157,14 @@ autentica cada entrega pela assinatura HMAC, com uma janela de 5 minutos contra 
 3. No SQL Editor, uma vez por projeto: `select private.configure_sequence_runner('https://<ref>.supabase.co');`. Sem esse endereço, o banco não chama nada.
 
 `scripts/wizard-canais-05.sh` conduz esses três passos e o teste real com o navegador fechado.
+
+## Ligar o ritmo de envio (ritmo-de-envio)
+
+1. Aplicar a migration `20261010120000_ritmo_de_envio.sql` (conforme `docs/agents/migrations.md`).
+2. Publicar: `npx supabase functions deploy sequence-runner sequence-step-sends --project-ref <ref>` (sem segredo novo).
+3. Ligar, no SQL Editor: `select private.set_send_rate_enabled(true);`. Desligado, nada muda: o horário dos passos, o lote e a reserva são os de antes.
+
+Os padrões (intervalo, variação e limites por Conta remetente) estão em `private.send_rate_settings` e `private.send_caps`; o administrador do Workspace os muda por `set_send_pacing` e `set_send_cap`.
 
 ## Ligar a importação por CSV (CRM-07)
 
