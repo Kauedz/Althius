@@ -99,7 +99,7 @@ const messageSchema = z.object({
   is_event: optional(flag),
   deleted: optional(flag),
   is_group: optional(flag),
-  // não confirmado: a v1 pode ou não mandar `is_sender` no aviso; quando manda, vale.
+  // confirmado com tráfego real: o aviso traz `is_sender` (false para o contato); quando manda, vale.
   is_sender: optional(flag),
   content_type: optional(text),
   sender: optional(z.object({
@@ -126,7 +126,7 @@ const mailSchema = z.object({
   body_plain: optional(text),
   attachments: optional(z.array(record)),
   headers: optional(z.array(record)),
-  // não confirmado: o formato de `in_reply_to` no aviso de e-mail da v1 ({ id, message_id }: o id do e-mail respondido na Unipile e o
+  // confirmado com tráfego real: o formato de `in_reply_to` no aviso de e-mail da v1 ({ id, message_id }: o id do e-mail respondido na Unipile e o
   // Message-ID do cabeçalho). Um formato que não é objeto, ou um campo com o tipo errado, é descartado.
   in_reply_to: optional(z.object({ id: optional(id), message_id: optional(text) }).passthrough()),
 })

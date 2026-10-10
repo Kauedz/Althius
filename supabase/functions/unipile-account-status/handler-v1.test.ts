@@ -338,27 +338,6 @@ Deno.test('v1 erro no banco devolve 500 para a Unipile entregar de novo', async 
   assertEquals((await handle(authed(linkedinMessage()))).status, 500)
 })
 
-// TEMPORÁRIO (fix-resposta-email-v1): o log do corpo do webhook de e-mail da v1, para validar o formato de `in_reply_to.id` com a
-// próxima resposta real. Sai quando o formato estiver confirmado.
-Deno.test('v1 mail_received: log temporário do corpo bruto, sem o texto do e-mail, só para o e-mail da v1', async () => {
-  const { db } = fakeDb()
-  const { handle, logs } = handlerWith({ db })
-  const raw = { ...mail, in_reply_to: { id: 'nSJU60KtTQaNv-k2we_GIw', message_id: null }, body: '<p>texto privado do lead</p>', body_plain: 'texto privado do lead' }
-  assertEquals((await handle(authed(raw))).status, 200)
-  const entry = logs.find((fields) => fields.type === 'temp_v1_mail_raw')
-  assertEquals(entry?.raw && (entry.raw as Record<string, unknown>).in_reply_to, { id: 'nSJU60KtTQaNv-k2we_GIw', message_id: null })
-  assertEquals((entry?.raw as Record<string, unknown>).email_id, 'e9')
-  const printed = JSON.stringify(logs)
-  assertEquals(printed.includes('texto privado do lead'), false)
-  assertEquals(printed.includes(SECRET), false)
-
-  // Mensagem de chat e e-mail sem autenticação não geram o log.
-  const other = handlerWith({ db: fakeDb().db })
-  await other.handle(authed(linkedinMessage()))
-  await other.handle(post(raw, { 'Unipile-Auth': 'errado' }))
-  assertEquals(other.logs.some((fields) => fields.type === 'temp_v1_mail_raw'), false)
-})
-
 // Bug B (fix-v1-email-whatsapp): a resposta de WhatsApp da v1 fica sem relação porque a Conta remetente não conhece o próprio
 // número. A conexão ativa sabe (a lista de contas traz o número): o webhook o ensina ao banco antes de ingerir a mensagem.
 const OWN = '5511900000000@s.whatsapp.net'
@@ -440,19 +419,13 @@ Deno.test('v1 WhatsApp: se o banco não aceita o número, a mensagem é ingerida
   assertEquals(logs.some((fields) => fields.outcome === 'own_id_not_saved'), true)
 })
 
-// TEMPORÁRIO (fix-v1-email-whatsapp): o log do corpo do aviso de chat da v1, para ver os campos reais (quem é o remetente, se
-// vem is_sender ou account_info). Sai quando o formato estiver confirmado.
-Deno.test('v1 message_received: log temporário do corpo bruto do chat, sem o texto da mensagem', async () => {
+// Os logs temporários do corpo bruto (temp_v1_mail_raw, temp_v1_chat_raw) saíram: o formato foi confirmado com tráfego real
+// (_shared/unipile/events-v1.fixtures.ts) e o corpo carregava metadados pessoais.
+Deno.test('v1: aviso de e-mail ou de chat não registra o corpo bruto no log', async () => {
   const { db } = fakeDb()
   const { handle, logs } = handlerWith({ db })
+  assertEquals((await handle(authed({ ...mail, in_reply_to: { id: 'x', message_id: null }, body_plain: 'texto privado do lead' }))).status, 200)
   assertEquals((await handle(authed(whatsappMessage({ message: 'texto privado do lead' })))).status, 200)
-  const entry = logs.find((fields) => fields.type === 'temp_v1_chat_raw')
-  const raw = entry?.raw as Record<string, unknown>
-  assertEquals(raw.chat_id, 'chat1')
-  assertEquals(raw.sender, { attendee_provider_id: '5511988887777@s.whatsapp.net' })
+  assertEquals(logs.some((fields) => 'raw' in fields || String(fields.type).startsWith('temp_v1')), false)
   assertEquals(JSON.stringify(logs).includes('texto privado do lead'), false)
-  assertEquals(JSON.stringify(logs).includes(SECRET), false)
-  const other = handlerWith({ db: fakeDb().db })
-  await other.handle(authed(mail))
-  assertEquals(other.logs.some((fields) => fields.type === 'temp_v1_chat_raw'), false)
 })
