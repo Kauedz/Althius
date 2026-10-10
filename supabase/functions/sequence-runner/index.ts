@@ -72,6 +72,11 @@ const db: RunnerDb = {
     if (error) throw error
     return data === true
   },
+  async renewDueClaims(sendIds) {
+    const { data, error } = await admin.rpc('renew_due_step_send_claims', { p_send_ids: sendIds })
+    if (error) throw error
+    return typeof data === 'number' ? data : 0
+  },
   async releaseDueSend(sendId) {
     const { data, error } = await admin.rpc('release_due_step_send', { p_send_id: sendId })
     if (error) throw error
@@ -115,6 +120,8 @@ const handlerFor = (bridge: NonNullable<Awaited<ReturnType<typeof unipile.bridge
     unipile: bridge,
     chat: { db: chatDb, unipile: bridge },
     attachments: stepAttachmentSourceVia(admin),
+    // Ritmo de envio: 1 a 4 s entre dois envios da mesma execução. O intervalo por Conta remetente é do banco.
+    pauseBetweenSendsMs: { min: 1000, max: 4000 },
     async holdForUnreadySend(sendId) {
       const { data, error } = await admin.rpc('hold_sequence_for_unready_send', { p_send_id: sendId })
       if (error) throw error

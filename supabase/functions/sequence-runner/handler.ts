@@ -47,6 +47,11 @@ export interface RunnerDb extends SendStepDb {
   claimDueSends(limit: number): Promise<DueSend[]>
   /** RPC release_due_step_send. Lança um erro com code quando o banco recusa (ex.: P0002). */
   releaseDueSend(sendId: string): Promise<ReleaseResult>
+  /**
+   * RPC renew_due_step_send_claims: renova por mais 2 minutos a reserva dos passos que ainda esperam a vez, nos três
+   * canais. Sem isto, a reserva do lote pode acabar no meio de uma rodada lenta (5 envios de LinkedIn de até 50 s).
+   */
+  renewDueClaims?(sendIds: string[]): Promise<number>
   /** RPC claim_sender_reconciliations: as contas que voltaram e esperam a reconciliação, reservadas por 5 minutos. */
   claimSenderReconciliations(limit: number): Promise<SenderToReconcile[]>
   /** RPC conversations_to_reconcile: a próxima página de conversas, a partir de onde a reconciliação parou. */
@@ -103,6 +108,15 @@ export interface Deps {
   reconcileBudgetMs?: number
   /** Relógio do orçamento de tempo. Padrão Date.now. */
   now?: () => number
+  /**
+   * Pausa aleatória, em ms, entre dois envios da mesma execução (ritmo-de-envio): o Executor não dispara os passos de
+   * todas as Contas em rajada. Sem faixa, não pausa. Quem não enviou nada (passo adiado pelo banco) não faz ninguém esperar.
+   */
+  pauseBetweenSendsMs?: { min: number; max: number }
+  /** Espera a pausa. Padrão setTimeout. */
+  pause?: (ms: number) => Promise<void>
+  /** Sorteio de 0 a 1 da pausa. Padrão Math.random. */
+  random?: () => number
   sendTimeoutMs?: number
   /** Continua o trabalho depois da resposta (EdgeRuntime.waitUntil). Padrão: fire-and-forget. */
   waitUntil?: (work: Promise<unknown>) => void
@@ -116,6 +130,8 @@ function messageOf(error: unknown) {
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const log = deps.log ?? ((fields) => console.log(JSON.stringify(fields)))
   const now = deps.now ?? Date.now
+  const pause = deps.pause ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  const random = deps.random ?? Math.random
   const waitUntil = deps.waitUntil ?? ((work) => {
     work.catch(() => {})
   })
@@ -193,6 +209,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   }
 
   async function run() {
+    pauseBeforeNext = false
     // A reconciliação vem antes dos envios: uma conta liberada nesta rodada já pode enviar os passos vencidos.
     const deadline = now() + (deps.reconcileBudgetMs ?? 60_000)
     let accounts: SenderToReconcile[] = []
@@ -228,6 +245,25 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
   }
 
+  // Depois de um envio de verdade, o próximo passo da execução espera uma pausa aleatória da faixa configurada.
+  let pauseBeforeNext = false
+
+  // Antes de liberar cada passo: a pausa que o envio anterior pediu e, a partir do segundo, a reserva dos que ainda
+  // esperam (o lote pode passar dos 2 minutos). Renovar é um favor: se falhar, o envio segue.
+  async function beforeRelease(type: string, remaining: string[], first: boolean) {
+    if (pauseBeforeNext) {
+      pauseBeforeNext = false
+      const range = deps.pauseBetweenSendsMs
+      if (range) await pause(Math.floor(range.min + random() * (range.max - range.min)))
+    }
+    if (first || !deps.db.renewDueClaims) return
+    try {
+      await deps.db.renewDueClaims(remaining)
+    } catch (error) {
+      log({ type, sendId: remaining[0], outcome: 'renew_failed', message: messageOf(error) })
+    }
+  }
+
   async function runEmail() {
     let due: DueSend[]
     try {
@@ -237,10 +273,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return
     }
     // Um passo por vez: a mesma Conta remetente não recebe envios em rajada.
-    for (const { send_id: sendId, owner_user_id: userId } of due) {
+    for (const [index, { send_id: sendId, owner_user_id: userId }] of due.entries()) {
       try {
+        await beforeRelease('runner', due.slice(index).map((d) => d.send_id), index === 0)
         const result = await sendStep(deps, { sendId, userId, release: () => deps.db.releaseDueSend(sendId) })
         if (result.kind === 'blocked' && result.outcome === 'sender_not_ready') await holdIfSenderLost(sendId, 'runner')
+        if (result.kind === 'attempted') pauseBeforeNext = true
         log({
           type: 'runner',
           sendId,
@@ -270,13 +308,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       log({ type: 'runner-chat', outcome: 'claim_failed', message: messageOf(error) })
       return
     }
-    for (const { send_id: sendId, owner_user_id: userId } of due) {
+    for (const [index, { send_id: sendId, owner_user_id: userId }] of due.entries()) {
       try {
+        await beforeRelease('runner-chat', due.slice(index).map((d) => d.send_id), index === 0)
         const result = await sendChatStep(
           { db: chat.db, unipile: chat.unipile, sendTimeoutMs: deps.sendTimeoutMs, attachments: deps.attachments },
           { sendId, userId, release: () => chat.db.releaseDueChatSend(sendId) },
         )
         if (result.kind === 'blocked' && result.outcome === 'sender_not_ready') await holdIfSenderLost(sendId, 'runner-chat')
+        if (result.kind === 'attempted') pauseBeforeNext = true
         log({
           type: 'runner-chat',
           sendId,
