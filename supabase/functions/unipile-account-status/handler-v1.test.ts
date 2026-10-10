@@ -337,3 +337,24 @@ Deno.test('v1 erro no banco devolve 500 para a Unipile entregar de novo', async 
   const { handle } = handlerWith({ db })
   assertEquals((await handle(authed(linkedinMessage()))).status, 500)
 })
+
+// TEMPORÁRIO (fix-resposta-email-v1): o log do corpo do webhook de e-mail da v1, para validar o formato de `in_reply_to.id` com a
+// próxima resposta real. Sai quando o formato estiver confirmado.
+Deno.test('v1 mail_received: log temporário do corpo bruto, sem o texto do e-mail, só para o e-mail da v1', async () => {
+  const { db } = fakeDb()
+  const { handle, logs } = handlerWith({ db })
+  const raw = { ...mail, in_reply_to: { id: 'nSJU60KtTQaNv-k2we_GIw', message_id: null }, body: '<p>texto privado do lead</p>', body_plain: 'texto privado do lead' }
+  assertEquals((await handle(authed(raw))).status, 200)
+  const entry = logs.find((fields) => fields.type === 'temp_v1_mail_raw')
+  assertEquals(entry?.raw && (entry.raw as Record<string, unknown>).in_reply_to, { id: 'nSJU60KtTQaNv-k2we_GIw', message_id: null })
+  assertEquals((entry?.raw as Record<string, unknown>).email_id, 'e9')
+  const printed = JSON.stringify(logs)
+  assertEquals(printed.includes('texto privado do lead'), false)
+  assertEquals(printed.includes(SECRET), false)
+
+  // Mensagem de chat e e-mail sem autenticação não geram o log.
+  const other = handlerWith({ db: fakeDb().db })
+  await other.handle(authed(linkedinMessage()))
+  await other.handle(post(raw, { 'Unipile-Auth': 'errado' }))
+  assertEquals(other.logs.some((fields) => fields.type === 'temp_v1_mail_raw'), false)
+})
