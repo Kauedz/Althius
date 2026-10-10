@@ -1,5 +1,19 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Revisão do aplicativo inteiro — 2026-10-10
+
+Referência atual desta auditoria: main `04c1d18` (inclui #168–#171), branch `review/app-completo`. Os registros abaixo são históricos e não comprovam o estado operacional atual.
+
+- Relatório: [review-app-completo.md](review-app-completo.md); inventário de [212 tickets](review-tickets-audit.md), com evidência e lacuna por ticket; anexos [frontend](review-frontend-audit.md) e [backend](review-backend-audit.md).
+- Contagem estática: 115 entregues no escopo código/demo ou encerrados administrativamente; 44 parciais; 36 pendentes; 17 bloqueados. Não converter essa contagem em funcionalidades prontas em produção.
+- P1 confirmado: e-mail v1 não suporta as leituras exigidas para continuação, reconciliação e resposta aprovada. #171 implementa `in_reply_to`, mas falta prova de resposta real ligada. Log temporário permanece. WhatsApp/LinkedIn exigem ciclo pela Sequência; Instagram não consta no contrato do app.
+- Onboarding CRM24 segue decisão de produto; créditos05/Plano estão incompletos. Hermes implementado, disponibilidade VPS não observada. CRM11 é parcial: agendador salva last_error; falta trilha persistida/correlacionada das execuções externas.
+- Deno nesta revisão: 979 passed / 0 failed / 2 ignored; check exit0; teste sem-base-fixa 2/2. pgTAP local bloqueado: CLI/Docker/Postgres indisponíveis. Frontend e vulnerabilidades: resultados finais no relatório, sem alegar CI verde a partir de API vazia.
+- PR163/165: candidatos a fechar por entrega incorporada ao #167; PR164 candidato documental para15/16, conciliando texto obsoleto e status17. PR48/149 candidatos por superação após preservar diferenças residuais. Nenhum PR antigo fechado ou mergeado nesta revisão.
+- Produção foi relatada pelo usuário; nenhuma migration/deploy/segredo remoto inspecionado ou alterado. Navegador público mostrou Demonstração e login; fluxos autenticados não foram validados.
+
+Nenhum ticket individual teve seu estado alterado automaticamente. Pendências do Nan/Kauê, decisões e critérios novos estão no relatório. Não implementar novamente tickets já entregues; completar os gates faltantes com evidência.
+
 Cada frente (acesso, canais, enriquecimento, creditos) tem sua secao abaixo.
 
 ## Frente enriquecimento
