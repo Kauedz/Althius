@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(80);
+select plan(84);
 
 -- Ritmo de envio por Conta remetente (anti-bloqueio no LinkedIn e no WhatsApp): variação aleatória no horário do
 -- passo, intervalo mínimo entre envios da mesma Conta, limites por dia e por semana e o motivo do adiamento.
@@ -446,6 +446,22 @@ create temporary table reservados4 as select * from public.claim_due_step_sends(
 select is((select outcome from public.release_due_step_send((select send_id from reservados4))), 'daily_cap',
   'the third e-mail of the day hits the cap of two');
 select is((pg_temp.envio('e2')).scheduled_for, '2026-10-21 09:00-03'::timestamptz, 'and waits for 09:00 of the next business day');
+
+-- 10. Duas execuções do Executor sobrepostas: reservam passos diferentes e a Conta ainda só envia um de cada vez.
+select pg_temp.relogio('2026-10-21 08:00-03');
+set local role authenticated;
+select pg_temp.nova_sequencia('d0000000-0000-0000-0000-00000000000a', 'f1', 'email', 61);
+select pg_temp.ativar('d0000000-0000-0000-0000-00000000000a', 'f1');
+reset role;
+select pg_temp.relogio('2026-10-21 10:00-03');
+create temporary table execucao_1 as select * from public.claim_due_step_sends(5);
+create temporary table execucao_2 as select * from public.claim_due_step_sends(5);
+select is((select count(*)::int from execucao_1) || ' ' || (select count(*)::int from execucao_2), '1 1',
+  'two overlapping runs each reserve one step of the account');
+select isnt((select send_id from execucao_1), (select send_id from execucao_2), 'and never the same step');
+select is((select string_agg(r.outcome, ',' order by r.outcome) from (
+  select (public.release_due_step_send(send_id)).outcome from (select send_id from execucao_2 union all select send_id from execucao_1) x
+) r), 'rate_limited,released', 'released at the same instant, only one of them goes out; the other waits for its turn');
 
 select * from finish();
 rollback;
