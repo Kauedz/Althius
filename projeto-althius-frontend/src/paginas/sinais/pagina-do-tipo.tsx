@@ -21,12 +21,7 @@ export function PaginaDoTipo() {
   const hoje = useFonteDeContas().hoje()
   const tipo = tipoPorId(tipoId)
   const monitoramentos = useMonitoramentos(tipoId)
-  const { mudarEstado } = useSinaisDoMockup()
-  const {
-    carregando,
-    erro,
-    recarregar,
-  } = useDadosDeSinais((f) => f.monitoramentosDoTipo(tipoId), [tipoId])
+  const { mudarEstado, carregando, erro, recarregar } = useSinaisDoMockup()
   const { dados: sinaisEncontrados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
   // O estado do tipo (disponível, em teste ou em breve) só o Workspace operacional informa.
   const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
@@ -121,7 +116,7 @@ export function PaginaDoTipo() {
         </div>
       )}
 
-      {!erro && (
+      {!erro && !carregando && (
       <section aria-labelledby="titulo-monitoramentos" className="flex flex-col gap-4">
         <h2 id="titulo-monitoramentos" className="flex items-baseline gap-3">
           <span className="titulo-secao text-lg">Monitoramentos</span>

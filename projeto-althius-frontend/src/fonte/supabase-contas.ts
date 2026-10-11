@@ -434,12 +434,11 @@ export function criarFonteDeContasSupabase(
   }
 
   /**
-   * O Estágio de prospecção de cada Conta do Workspace. É um enfeite da lista: se a leitura falhar, as Contas
-   * aparecem sem estágio (Descoberta no kanban) em vez de a lista falhar.
+   * O Estágio de prospecção de cada Conta do Workspace. Uma falha impede mostrar um estágio incorreto no Kanban.
    */
   async function estagiosDoWorkspace(): Promise<Map<string, EstagioDeProspeccao>> {
     const { data, error } = await cliente.rpc('list_prospecting_stages', { p_workspace_id: workspace() })
-    if (error) return new Map()
+    if (error) throw converterErro(error)
     const linhas = (data ?? []) as { target_account_id: string; stage: string }[]
     return new Map(
       linhas.filter((l) => eEstagioDeProspeccao(l.stage)).map((l) => [l.target_account_id, l.stage as EstagioDeProspeccao]),
