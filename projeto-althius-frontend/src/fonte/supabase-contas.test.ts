@@ -593,6 +593,11 @@ describe('Revelar o e-mail de um Contato no Workspace operacional (prospeccao-fu
     return criarFonteDeContasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
   }
 
+  it('recusa cotação sem preço retornado pelo servidor', async () => {
+    const fonte = fonteDoRevelar({}, { quote_reveal_contact: () => [] })
+    await expect(fonte.cotarRevelacaoContato!(ID_DA_MARIA, 'email')).rejects.toThrow('Não foi possível consultar a cotação.')
+  })
+
   it('recusa o telefone sem cotar nem chamar a revelação', async () => {
     const chamadas: string[] = []
     const fonte = fonteDoRevelar(
