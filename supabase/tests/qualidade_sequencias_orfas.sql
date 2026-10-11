@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(8);
+select plan(9);
 
 -- Simula exclusivamente nesta transação linhas legadas anteriores às FKs e aos gatilhos.
 set local session_replication_role = replica;
@@ -34,9 +34,10 @@ select results_eq(
   'diagnóstico lista cada motivo real, sem classificar rascunho saudável sem passos como órfão');
 select is((select count(*) from private.diagnose_sequence_orphans() where sequence_id='ad000000-0000-0000-0000-000000000007'),0::bigint,'rascunho sem autorização não é órfão');
 select throws_ok($$insert into public.sequences(workspace_id,target_account_id,owner_user_id) values ('ab000000-0000-0000-0000-000000000001','ac000000-0000-0000-0000-000000000008','aa000000-0000-0000-0000-000000000001')$$,
-  '55006','sequence target account is unavailable','escrita direta não cria Sequência ativa em Conta arquivada');
-select lives_ok($$select private.pause_orphan_sequence('ad000000-0000-0000-0000-000000000001')$$,'limpeza pausa legado sem apagar');
-select is((select status from public.sequences where id='ad000000-0000-0000-0000-000000000001'),'pausada','legado permanece como histórico pausado');
+  '55006','the target account is archived','escrita direta não cria Sequência ativa em Conta arquivada');
+select is(private.pause_orphan_sequence('ad000000-0000-0000-0000-000000000001')->>'action','requires_account_repair','FK inválida exige reparo explícito, sem enfraquecer integridade');
+select lives_ok($$select private.pause_orphan_sequence('ad000000-0000-0000-0000-000000000003')$$,'limpeza pausa legado com Conta real sem apagar');
+select is((select status from public.sequences where id='ad000000-0000-0000-0000-000000000003'),'pausada','legado permanece como histórico pausado');
 select is((select count(*) from private.sequence_orphan_cleanup_events where sequence_id='ad000000-0000-0000-0000-000000000001'),1::bigint,'limpeza registra ação');
 select lives_ok($$select private.pause_orphan_sequence('ad000000-0000-0000-0000-000000000006')$$,'pausa autorização sem passos');
 select is((select count(*) from private.sequence_authorizations where sequence_id='ad000000-0000-0000-0000-000000000006' and revoked_at is null),0::bigint,'limpeza revoga autorização sem passos');

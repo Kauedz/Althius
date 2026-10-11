@@ -34,15 +34,19 @@ begin
   where a.workspace_id=new.workspace_id and a.id=case
     when new.target_account_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     then new.target_account_id::uuid end for share;
-  if not found or v_account.deleted_at is not null or v_account.archived_at is not null then
-    raise exception 'sequence target account is unavailable' using errcode='55006';
+  if not found then return new; end if;
+  if v_account.deleted_at is not null then
+    raise exception 'the target account was deleted' using errcode='55006';
+  end if;
+  if v_account.archived_at is not null then
+    raise exception 'the target account is archived' using errcode='55006';
   end if;
   return new;
 end;
 $$;
 revoke all on function private.guard_sequence_account_availability() from public, anon, authenticated, service_role;
-create trigger sequences_guard_account_availability
-before insert or update of status, workspace_id, target_account_id on public.sequences
+create trigger sequences_zz_guard_account_availability
+before update of status, workspace_id, target_account_id on public.sequences
 for each row execute function private.guard_sequence_account_availability();
 
 create table private.sequence_orphan_cleanup_events (
@@ -50,7 +54,7 @@ create table private.sequence_orphan_cleanup_events (
   sequence_id uuid not null references public.sequences(id),
   reason text not null,
   previous_status text not null,
-  action text not null check(action='paused'),
+  action text not null check(action in ('paused','requires_account_repair')),
   performed_at timestamptz not null default now(),
   performed_by text not null default session_user
 );
@@ -72,6 +76,13 @@ begin
   if not found then raise exception 'sequence not found' using errcode='P0002'; end if;
   select d.reason into v_reason from private.diagnose_sequence_orphans() d where d.sequence_id=p_id;
   if v_reason is null then return jsonb_build_object('sequence_id',p_id,'action','unchanged'); end if;
+  -- A FK NOT VALID existente bloqueia até updates de status de vínculos legados inválidos.
+  -- Não desabilitamos constraints nem inventamos uma Conta para conseguir escrever.
+  if v_reason in ('invalid_account_id','account_missing') then
+    insert into private.sequence_orphan_cleanup_events(sequence_id,reason,previous_status,action)
+    values(p_id,v_reason,v_sequence.status,'requires_account_repair') returning id into v_event;
+    return jsonb_build_object('sequence_id',p_id,'reason',v_reason,'action','requires_account_repair','event_id',v_event);
+  end if;
   update private.sequence_authorizations set revoked_at=now(), revoked_reason='edited'
   where sequence_id=p_id and revoked_at is null;
   get diagnostics v_rows = row_count;
