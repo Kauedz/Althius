@@ -147,8 +147,8 @@ export function RotaDoEditor() {
   const tipo = tipoPorId(tipoId)
   const existente = monitoramentos.find((m) => m.id === monitoramentoId && m.tipoId === tipoId)
   if (!tipo) return <Navigate to="/sinais" replace />
-  if (monitoramentoId && carregando) return <Carregando />
-  if (monitoramentoId && erro) return (
+  if (monitoramentoId && !existente && carregando) return <Carregando />
+  if (monitoramentoId && !existente && erro) return (
     <div role="alert" className="flex flex-col items-start gap-3 p-6">
       <p>Não foi possível carregar os monitoramentos.</p>
       <button type="button" onClick={recarregar} className={BOTAO_SECUNDARIO}>Tentar de novo</button>
