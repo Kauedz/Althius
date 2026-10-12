@@ -62,7 +62,7 @@ interface Ajustes {
 }
 
 /** O app como em `renderizarApp`, com uma Fonte ajustada pelo teste no lugar da simulada. */
-export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, conexoes, automacao, indisponiveis }: Ajustes) {
+export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, conexoes, automacao, indisponiveis }: Ajustes, noNavegador = false) {
   return montarApp({
     rota,
     opcoesOnboarding,
@@ -72,6 +72,7 @@ export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, 
     ajustarConexoes: conexoes,
     ajustarAutomacao: automacao,
     indisponiveis,
+    noNavegador,
   })
 }
 
