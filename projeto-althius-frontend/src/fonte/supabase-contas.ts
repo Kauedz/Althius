@@ -792,12 +792,20 @@ export function criarFonteDeContasSupabase(
         p_channel: canal,
       })
       if (error) throw converterErro(error)
-      const [linha] = (data ?? []) as any[]
+      const [linha] = (data ?? []) as {
+        credits: number | string
+        current_balance: number | string
+        can_reveal: boolean
+        already_known?: boolean
+      }[]
+      if (!linha || linha.credits == null || linha.current_balance == null
+        || !Number.isFinite(Number(linha.credits)) || !Number.isFinite(Number(linha.current_balance))
+        || typeof linha.can_reveal !== 'boolean') throw new Error('Não foi possível consultar a cotação.')
       return {
-        creditos: linha?.credits ?? (canal === 'email' ? 2 : 5),
-        saldo: Number(linha?.current_balance ?? 0),
-        podeRevelar: Boolean(linha?.can_reveal),
-        jaEncontrado: linha?.already_known === true,
+        creditos: Number(linha.credits),
+        saldo: Number(linha.current_balance),
+        podeRevelar: linha.can_reveal,
+        jaEncontrado: linha.already_known === true,
       }
     },
 
