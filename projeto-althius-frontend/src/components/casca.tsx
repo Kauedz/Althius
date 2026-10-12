@@ -63,7 +63,7 @@ function Sidebar() {
   return (
     <aside
       aria-label="Navegação"
-      className="sticky top-0 flex h-screen flex-col gap-6 border-r border-al-line p-4"
+      className="al-zona-escura sticky top-0 flex h-screen flex-col gap-6 border-r border-al-divisor p-4"
     >
       <div className="flex flex-col gap-4">
         <Logo />
@@ -282,8 +282,8 @@ function ItemDeNavegacao({
         className={cn(
           'flex h-8.5 items-center gap-2.5 border-l-2 px-2 text-sm font-normal',
           ativo
-            ? 'border-al-accent bg-al-surface text-al-ink'
-            : 'border-transparent text-al-muted hover:bg-al-surface hover:text-al-ink',
+            ? 'border-al-accent bg-al-hover text-al-ink'
+            : 'border-transparent text-al-muted transition-colors duration-200 hover:bg-al-hover hover:text-al-ink',
         )}
       >
         {icone}
