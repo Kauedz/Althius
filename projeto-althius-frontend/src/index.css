@@ -230,6 +230,13 @@
     border: 1px solid var(--al-line);
     background: var(--al-bg);
     padding: 0.5rem 1rem;
+    transition: border-color 0.2s ease;
+  }
+  .campo:hover {
+    border-color: var(--al-line-forte);
+  }
+  .campo::placeholder {
+    color: var(--al-ink-3);
   }
   /* Selo: etiqueta quadrada e discreta, como o de estado e o de demonstração. */
   .selo {
@@ -292,9 +299,18 @@
     padding: --spacing(6) 0 --spacing(10);
     background: linear-gradient(to bottom, transparent, var(--al-bg) --spacing(6));
   }
+  /* Anotação à mão (Indie Flower): escrita da esquerda para a direita, como .al-nota-mao no site. */
   .anotacao {
     font-family: var(--font-mao);
     color: var(--al-ink-muted);
+    animation: al-escrever 1.3s cubic-bezier(0.3, 0.6, 0.4, 1) both;
+  }
+  /* Palavra em degradê da marca, como "COM ALTHIUS" no site. */
+  .al-degrade-texto {
+    background: var(--al-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }
 
@@ -306,8 +322,13 @@
 .pulso-anel {
   animation: pulso 1.6s ease-out infinite;
 }
+@keyframes al-escrever {
+  from { clip-path: inset(-4px 100% -4px 0); }
+  to { clip-path: inset(-4px -4px -4px 0); }
+}
 @media (prefers-reduced-motion: reduce) {
   .pulso-anel { animation: none; }
+  .anotacao { animation: none; }
 }
 
 
