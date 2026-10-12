@@ -365,7 +365,7 @@ export function SecaoComiteDeCompra({
                         ehDecisor
                           ? 'bg-al-atencao-suave text-al-atencao'
                           : ehInfluenciador
-                            ? 'bg-al-agente-suave text-al-agente'
+                            ? 'bg-al-hover text-al-ink'
                             : 'bg-al-sucesso-suave text-al-sucesso',
                       )}
                     >
