@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Rotinas que rodam sozinhas (o teto da Rotina e o escopo `rotina:<id>` nascem lá).
 
-**Status:** needs-triage (a primeira dúvida para o Renan decide o desenho da reserva; o padrão proposto basta para começar)
+**Status:** ready-for-human (código e testes prontos com os padrões propostos nas dúvidas; faltam a migration `20261012143547`, o deploy da ponte e do worker e ver a falta de saldo na porta; ver `.scratch/handoffs/orq-02.md`)
 
 ## O que existe hoje (lido na `main` em 12/10/2026)
 
@@ -28,18 +28,18 @@
 
 ## Critérios
 
-- [ ] Cobrança ligada, saldo suficiente: depois do `claim_agent_run` existe uma reserva `reserved` com a chave `run:<execução>` e a quantidade estimada, antes de qualquer evento de modelo. Chamar o claim de novo (a Execução já `running`) devolve `null` e não cria segunda reserva.
-- [ ] Sem saldo, ou acima do limite mensal da pessoa: o claim devolve `null`, a Execução fica `failed` com `insufficient_credits`, não há reserva aberta e o worker não chama o Hermes (teste Deno com banco falso).
-- [ ] Execução com sucesso e todas as rodadas concluídas: `finish_agent_run` deixa a reserva `settled` com `settled_quantity` = rodadas concluídas, e o extrato (`credit_entries`) tem um único lançamento `acao` para a Execução.
-- [ ] Execução que reservou 3 e concluiu 1 rodada: debita 1, e o saldo disponível volta a ser saldo menos 1. Execução que falha sem rodada concluída: reserva `released`, nada debitado.
-- [ ] Rodada extra além da estimativa: reserva mais uma e, sem saldo, a Execução fecha como `insufficient_credits` mantendo o que as rodadas anteriores já concluíram.
-- [ ] Chave de IA do cliente: a reserva e o acerto saem a 20% por rodada (`private.own_ai_key_factor`).
-- [ ] Cobrança desligada (`credits_enforced = false`): nada é reservado, nada é debitado e os pgTAP de `creditos_das_execucoes_de_agentes.sql` continuam verdes sem edição.
-- [ ] Execução presa que vira `timeout` solta a reserva na mesma transação; o job `althius-credit-janitor` continua existindo.
-- [ ] Rotina: teto `rotina:<id>` de 5 créditos, estimativa provisória 3: depois de uma Execução que usou 1 rodada, o gasto do escopo no mês é 1, não 3 (estorno da diferença). No teto, a próxima Execução da Rotina não nasce (`teto_atingido`) e uma Execução em andamento que pede rodada extra fecha com `automation_cap_reached` e sem chamar o modelo.
-- [ ] O teto de um Agente não bloqueia a Conversa que a pessoa abre com ele; o limite mensal da pessoa (`credit_member_limits`) continua valendo.
-- [ ] Isolamento: reserva, estorno e teto de um Workspace nunca mexem em outro; as funções novas são só do `service_role`.
-- [ ] `get_credit_balance` e o relatório de custos (`get_cost_report`) seguem coerentes: o crédito continua em `credit_entries`, o dólar em `action_costs`, sem se misturarem.
+- [x] Cobrança ligada, saldo suficiente: depois do `claim_agent_run` existe uma reserva `reserved` com a chave `run:<execução>` e a quantidade estimada, antes de qualquer evento de modelo. Chamar o claim de novo (a Execução já `running`) devolve `null` e não cria segunda reserva.
+- [x] Sem saldo, ou acima do limite mensal da pessoa: o claim devolve `null`, a Execução fica `failed` com `insufficient_credits`, não há reserva aberta e o worker não chama o Hermes (teste Deno com banco falso).
+- [x] Execução com sucesso e todas as rodadas concluídas: `finish_agent_run` deixa a reserva `settled` com `settled_quantity` = rodadas concluídas, e o extrato (`credit_entries`) tem um único lançamento `acao` para a Execução.
+- [x] Execução que reservou 3 e concluiu 1 rodada: debita 1, e o saldo disponível volta a ser saldo menos 1. Execução que falha sem rodada concluída: reserva `released`, nada debitado.
+- [x] Rodada extra além da estimativa: reserva mais uma e, sem saldo, a Execução fecha como `insufficient_credits` mantendo o que as rodadas anteriores já concluíram.
+- [x] Chave de IA do cliente: a reserva e o acerto saem a 20% por rodada (`private.own_ai_key_factor`).
+- [x] Cobrança desligada (`credits_enforced = false`): nada é reservado, nada é debitado e os pgTAP de `creditos_das_execucoes_de_agentes.sql` continuam verdes sem edição.
+- [x] Execução presa que vira `timeout` solta a reserva na mesma transação; o job `althius-credit-janitor` continua existindo.
+- [x] Rotina: teto `rotina:<id>` de 5 créditos, estimativa provisória 3: depois de uma Execução que usou 1 rodada, o gasto do escopo no mês é 1, não 3 (estorno da diferença). No teto, a próxima Execução da Rotina não nasce (`teto_atingido`) e uma Execução em andamento que pede rodada extra fecha com `automation_cap_reached` e sem chamar o modelo.
+- [x] O teto de um Agente não bloqueia a Conversa que a pessoa abre com ele; o limite mensal da pessoa (`credit_member_limits`) continua valendo.
+- [x] Isolamento: reserva, estorno e teto de um Workspace nunca mexem em outro; as funções novas são só do `service_role`.
+- [x] `get_credit_balance` e o relatório de custos (`get_cost_report`) seguem coerentes: o crédito continua em `credit_entries`, o dólar em `action_costs`, sem se misturarem.
 
 ## Pode mexer
 

@@ -478,14 +478,32 @@ export class SemSaldo extends ErroDoModelo {
   }
 }
 
-/** Uma rodada aberta; `id` nulo quando não há o que fechar (a cobrança do Workspace está desligada, ou a rodada já foi paga). */
+/**
+ * Execução de Rotina: a rodada passa do que o relógio já somou ao teto da Rotina, e o teto não a deixa abrir. A Execução
+ * para antes da rodada, sem chamar o modelo e sem resposta inventada (ticket 02 de orquestracao).
+ */
+export class TetoAtingido extends ErroDoModelo {
+  constructor() {
+    super('automation_cap_reached')
+    this.name = 'TetoAtingido'
+  }
+}
+
+/**
+ * Uma rodada aberta; `id` nulo quando não há o que fechar (a cobrança do Workspace está desligada fora das Rotinas, ou a
+ * rodada já foi paga). O banco devolve um id também para a rodada que saiu da reserva de estimativa do claim, e para a
+ * de uma Rotina com a cobrança desligada, que conta as rodadas para acertar o teto.
+ */
 export interface RodadaAberta {
   id: string | null
 }
 
 /** O contrato com o banco dos créditos: um Agente por rodada é um débito, que só se confirma quando a rodada conclui. */
 export interface Creditos {
-  /** Reserva o crédito da rodada. Lança SemSaldo quando não há saldo ou quem pediu está no limite mensal. */
+  /**
+   * Abre a rodada: sai da reserva que o claim fez para a Execução, ou reserva mais um crédito quando ela acabou. Lança
+   * SemSaldo quando não há saldo ou quem pediu está no limite mensal, e TetoAtingido quando o teto da Rotina a barra.
+   */
   abrir(runId: string, agenteId: string, rodada: number): Promise<RodadaAberta>
   /** Concluída, debita; falha, solta a reserva. */
   fechar(id: string, concluida: boolean): Promise<void>
@@ -533,8 +551,9 @@ export function creditosDoBanco(
       const linha = linhas?.[0]
       if (!linha) throw new Error('begin_agent_round não respondeu')
       if (linha.outcome === 'no_credits') throw new SemSaldo()
-      // "free" (cobrança desligada) e "paid" (rodada já paga) rodam sem nada a fechar.
-      return { id: linha.outcome === 'go' ? linha.reservation_id : null }
+      if (linha.outcome === 'cap_reached') throw new TetoAtingido()
+      // "paid" (rodada já paga) roda sem nada a fechar; "free" só traz id quando a Rotina conta a rodada para o teto.
+      return { id: linha.outcome === 'go' || linha.outcome === 'free' ? linha.reservation_id : null }
     },
     async fechar(id, concluida) {
       await rpc<void>('end_agent_round', { p_reservation_id: id, p_success: concluida })

@@ -73,6 +73,8 @@ const MOTIVOS: Record<string, string> = {
   membership_inactive: 'Você não participa mais deste Workspace.',
   insufficient_credits:
     'O Workspace está sem créditos para este pedido, ou você chegou ao seu limite do mês. Avise o Administrador.',
+  automation_cap_reached:
+    'O teto mensal desta Rotina foi atingido, e a Execução parou antes de gastar mais. Um Administrador pode subir o teto em Configurações.',
   workspace_ai_key_invalid: 'O provedor de IA recusou a chave do Workspace. Avise o Administrador.',
   workspace_ai_key_unavailable: 'A chave de IA do Workspace não está disponível. Avise o Administrador.',
   workspace_ai_key_unsupported:
