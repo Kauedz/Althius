@@ -303,3 +303,22 @@ Seguem abertos: canais-15 e canais-16, com AC desmarcado que depende de rodar `s
 Conexão `trial-2026-10` (v1) ativa; chave testada pela VPS (200, 4 contas). Segredos de função `UNIPILE_API_KEY` e `UNIPILE_WEBHOOK_SECRET` iguais à conexão ativa. Sender accounts: 4 em `reconnect_required`.
 
 Fechados: canais-15, canais-16. Segue aberto: canais-17 (falta o `Unipile-Auth` no webhook `AAA` e a mensagem de teste).
+
+## 2026-10-10: evidência real da v1 (e-mail, WhatsApp, LinkedIn)
+
+Produção, workspace `667e38aa`, Unipile v1, relatada pelo Auxiliar Renan. Só documentação: nenhum código, migration ou deploy neste registro.
+
+| Canal | Envio | O que a produção mostrou |
+|---|---|---|
+| E-mail | `72f14695` | a resposta ligou ao envio (`provider_message_id` e conversa preenchidos), virou recebido e pausou a Sequência |
+| WhatsApp | `1a1cfaed` | a resposta ligou ao envio, virou recebido e pausou a Sequência |
+| LinkedIn | `b7cfb116` | a resposta ligou ao envio, virou `mensagem-recebida` e pausou a Sequência |
+| Webhooks v1 | n/a | chegam autenticados pelo `Unipile-Auth`, sem 401 |
+
+Só foram marcados os critérios que essa evidência cobre.
+
+- **canais-17: fechado.** Os 9 critérios já estavam marcados pelo código; faltavam os Passos do Nan e o primeiro tráfego real. Sem tráfego real ainda (seguem como item do canais-12): `new_relation`, `AccountStatus`, o aviso do link de conexão com `?k=` de ponta a ponta, o remetente `@lid` do WhatsApp e os `headers` do `GET /api/v1/webhooks`.
+- **canais-06: segue `ready-for-human`, 1 de 7.** Marcado: o envio real pela Conta remetente (1). Aberto: conversa reutilizada ou nova (2), distinção de eco próprio e da API (3), conversa pessoal ignorada (4), idempotência e restrição do conteúdo na pausa (5), timeout sem reenvio cego (6), reconexão com backlog (7).
+- **canais-07: segue `ready-for-human`, 1 de 7.** Marcado: a identidade do Contato resolvida antes do envio real (1). Aberto: o convite, que não foi exercitado (2), impedimentos acionáveis (3), `new_relation` e aceite (4), conteúdo privado com evento público mínimo na pausa (5), evento atrasado ou repetido (6), testes (7, que é de código, não de produção). InMail segue fora (ticket 13).
+- **canais-16** (já fechado): o texto velho "pendente apply" do critério 5 foi trocado pela nota de que as migrations `20261009205538` e `20261009214037` foram aplicadas em 2026-10-09.
+- **canais-15** e **canais-16**: sem mudança de status.
