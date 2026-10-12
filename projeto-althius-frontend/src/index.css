@@ -99,7 +99,8 @@
 }
 
 :root {
-  --radius-field: 0px;
+  /* Formas do site: campos e botões arredondados (8px), cartões 16px, pílulas; tabelas e abas seguem retas. */
+  --radius-field: 8px;
   --radius-card: 16px;
   /* Exceção aprovada no mock (ticket 02) ao raio 0 dos campos: o composer é arredondado. */
   --radius-composer: 24px;
@@ -178,10 +179,11 @@
   --color-foreground: var(--foreground);
   --color-background: var(--background);
 
-  --radius-sm: var(--radius-field);
+  --radius-sm: 6px;
   --radius-md: var(--radius-field);
-  --radius-lg: var(--radius-field);
-  --radius-xl: var(--radius-field);
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: var(--radius-card);
   --radius-card: var(--radius-card);
 }
 
@@ -197,6 +199,35 @@
     font-weight: 300;
     font-size: 0.9375rem;
     line-height: 1.6;
+  }
+  /* Controles arredondados como no site; quem declara o próprio raio (utilitário) prevalece. */
+  button:where(:not([role="tab"])),
+  input:where(:not([type="checkbox"], [type="radio"], [type="range"])),
+  select,
+  textarea {
+    border-radius: var(--radius-field);
+  }
+  /* Transições sutis em todo o app (150–250ms, ease); some com prefers-reduced-motion. */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role="tab"],
+  [role="menuitem"] {
+    transition-property: color, background-color, border-color, box-shadow, opacity, outline-color;
+    transition-duration: 180ms;
+    transition-timing-function: ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
   /* Foco sempre visível: contorno rosa de 2px com 3px de afastamento. */
   :focus-visible {
@@ -228,7 +259,8 @@
   .campo {
     width: 100%;
     border: 1px solid var(--al-line);
-    background: var(--al-bg);
+    border-radius: var(--radius-field);
+    background: var(--al-surface);
     padding: 0.5rem 1rem;
     transition: border-color 0.2s ease;
   }
@@ -246,6 +278,7 @@
     height: 1.375rem;
     padding: 0 0.5rem;
     border: 1px solid var(--al-line);
+    border-radius: var(--radius-sm);
     font-weight: 400;
     font-size: 0.6875rem;
     letter-spacing: 0.18em;
