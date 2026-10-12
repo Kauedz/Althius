@@ -4,7 +4,7 @@
 
 **Blocked by:** canais-16 (cliente e adaptadores). Só é necessário antes de a primeira conta v1 ficar ativa; com uma conta v2 ativa, os canais-14, 15 e 16 bastam.
 
-**Status:** ready-for-human (código e testes prontos; faltam os Passos do Nan: publicar `unipile-account-status`, o webhook v1 e a mensagem de teste; ver `.scratch/handoffs/canais-17.md`)
+**Status:** closed (todos os 9 critérios marcados; os Passos do Nan foram feitos e a produção confirmou em 10/10/2026 os webhooks v1 autenticados, sem 401; ver o último comentário e `.scratch/handoffs/canais-17.md`)
 
 - [x] A autenticação segue a versão da conexão ativa. v2: HMAC-SHA256 de `<t>.<corpo bruto>` com janela de 5 minutos e o segredo da conexão (o que existe hoje). v1: cabeçalho `Unipile-Auth` igual ao segredo da conexão e, para o aviso do link de conexão, que não aceita cabeçalho, a chave `?k=` derivada por HMAC do pedido, válida só para o evento de conexão. A conferência vem **antes** de parsear o corpo, e falha dá 401.
 - [x] Os eventos v1 (`message_received`, `mail_received`, `new_relation`, estado da conta e conexão) são validados com Zod e traduzidos, no limite, para a união canônica do canais-14. A mensagem própria, o grupo, o evento sem texto e o anúncio do LinkedIn (`sponsored`, `linkedin_offer`) viram "ignorar" com motivo.
@@ -40,3 +40,7 @@ Nenhuma.
 ## Comments
 
 - 2026-10-09 (canais-17): feito. Campos da v1 sem confirmação (viram item do canais-12 quando houver conta v1): ver a lista no handoff `.scratch/handoffs/canais-17.md`, seção "Não confirmado". A pendência herdada do canais-15 (funções SQL que buscam só por `unipile_account_id`) **não** está neste ticket ("Não mexa": banco e operações de ingestão): fica para um ticket com migration.
+
+- 2026-10-10 (evidência real, produção, workspace `667e38aa`, relatada pelo Auxiliar Renan; Unipile **v1**): os webhooks v1 chegam autenticados pelo `Unipile-Auth`, **sem 401**, e os eventos reais foram traduzidos e ingeridos até o fim: a resposta de e-mail (envio `72f14695`), a de WhatsApp (`1a1cfaed`) e a de LinkedIn (`b7cfb116`) ligaram aos envios, viraram recebidas e pausaram a Sequência. Todos os critérios já estavam marcados pelo código e pelos testes; este é o primeiro tráfego real. Por isso o ticket fecha.
+  - Formatos da v1 que o tráfego real **confirmou**: `mail_received` com `in_reply_to {id, message_id}`; `message_received` de LinkedIn com `is_sender`, `sender` e `account_info.user_id`; `message_received` de WhatsApp sem `is_sender`. As fixtures anonimizadas estão em `_shared/unipile/events-v1.fixtures.ts`.
+  - **Ainda sem tráfego real** (continuam como item do canais-12, "Não confirmado" do handoff): `new_relation`, `AccountStatus` e os nomes de estado, o aviso do link de conexão com `?k=` de ponta a ponta, o formato do remetente `@lid` do WhatsApp e se `GET /api/v1/webhooks` devolve os `headers`.

@@ -4,9 +4,9 @@
 
 **Blocked by:** 05: Executar a Sequência com o navegador fechado.
 
-**Status:** ready-for-human (InMail fora, por decisão do Renan; o ticket fecha com convite e mensagem no LinkedIn depois do envio real)
+**Status:** ready-for-human (InMail fora, por decisão do Renan; 1 de 7 critérios provado em produção em 10/10/2026, pela v1; falta provar o convite, os impedimentos e os eventos de relação; ver o último comentário)
 
-- [ ] A identidade pública do Contato é resolvida para o identificador nativo correto antes do envio.
+- [x] A identidade pública do Contato é resolvida para o identificador nativo correto antes do envio. — produção 10/10/2026 (v1): envio `b7cfb116`.
 - [ ] Convite, mensagem e InMail são enviados somente quando a conta e a relação suportam o subtipo escolhido.
 - [ ] Falta de crédito, assinatura, elegibilidade ou relação aparece como impedimento acionável e não gera retentativa cega.
 - [ ] `new_relation`, aceite de convite, nota original e eventos técnicos não são contados como resposta comercial.
@@ -41,6 +41,17 @@
   - Risco que fica: a tela ainda oferece "InMail" no passo de LinkedIn (`projeto-althius-frontend/src/paginas/detalhe-sequencia.tsx:2199`), e o núcleo manda esse passo como mensagem comum pelo `startChat` (`send-chat-step.ts:359-361`). Enquanto o InMail estiver fora, nenhum passo deve usá-lo. Tirar a opção da tela e o núcleo recusar `inmail` com um motivo próprio (sem migration) é um ajuste pequeno de agente, que não entrou na fila sem o sim do Renan.
 
 - 2026-10-08: o Renan deu o sim ao ajuste do InMail. Virou o [ticket 13](13-tirar-inmail-da-tela-e-recusar-no-envio.md) (tirar a opção da tela e o envio recusar o passo de InMail com o motivo `linkedin_inmail_not_supported`), bloqueado pelo C1 da `prospeccao-funcional` e na fila do `/implement` logo depois dele. Este ticket continua só à espera do envio real de convite e mensagem; não depende do 13.
+
+- 2026-10-10 (evidência real, produção, workspace `667e38aa`, relatada pelo Auxiliar Renan; Unipile **v1**): o envio `b7cfb116` de LinkedIn saiu pela Conta remetente do responsável, a resposta do Contato **ligou** ao envio, virou `mensagem-recebida` e **pausou** a Sequência.
+  - **Marcado:** o critério 1 (o envio só sai se o perfil do Contato foi resolvido para o identificador nativo; o envio real aconteceu).
+  - **Continua aberto, porque a evidência não mostra:**
+    - Critério 2: o **convite** não foi exercitado (e o relato não diz se o `b7cfb116` foi convite ou mensagem). InMail está fora por decisão do Renan (ticket 13).
+    - Critério 3: o impedimento acionável sem retentativa cega (sem crédito, assinatura, elegibilidade ou relação) não apareceu em produção.
+    - Critério 4: `new_relation`, aceite de convite, nota original e eventos técnicos que não contam como resposta.
+    - Critério 5: a pausa foi observada; faltam, em produção, o conteúdo privado com evento público mínimo.
+    - Critério 6: evento atrasado, repetido ou fora de ordem.
+    - Critério 7: este critério é de testes; os 52 testes continuam verdes no código, mas não é algo que a evidência de produção prove.
+  - Para fechar: um convite com nota a quem não é conexão, e a aceitação dele (`new_relation`), além de uma mensagem a quem já é conexão, com a conferência do `linkedin_action` em `private.sequence_step_sends`.
 
 ## Passos do Nan
 

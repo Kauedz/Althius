@@ -4,9 +4,9 @@
 
 **Blocked by:** 05: Executar a Sequência com o navegador fechado.
 
-**Status:** ready-for-human (os sete critérios estão no código e nos testes com dublês; só o envio e a resposta reais pela Unipile confirmam os campos "não confirmado"; a tela de chat foi para o C1 da `prospeccao-funcional`)
+**Status:** ready-for-human (1 de 7 critérios provado em produção em 10/10/2026, pela v1; os outros seis estão no código e nos testes, mas a produção ainda não os mostrou; ver o último comentário; a tela de chat foi para o C1 da `prospeccao-funcional`)
 
-- [ ] O responsável envia um passo ao número real e normalizado do Contato usando apenas sua Conta remetente de WhatsApp.
+- [x] O responsável envia um passo ao número real e normalizado do Contato usando apenas sua Conta remetente de WhatsApp. — produção 10/10/2026 (v1): envio `1a1cfaed`.
 - [ ] Uma conversa existente é reutilizada quando correlacionada com segurança; uma nova conversa é iniciada somente para o destinatário aprovado.
 - [ ] O evento `message_received` distingue mensagem recebida do Contato, envio do próprio titular e envio feito pela API.
 - [ ] Conversa pessoal ou sem correlação com Contato participante não vira Interação compartilhada nem pausa a Sequência.
@@ -45,6 +45,17 @@
     4. Enviar para um número seu, responder e conferir: `select channel, status, last_error, provider_chat_id, sent_at from private.sequence_step_sends where channel = 'whatsapp' order by updated_at desc limit 10;` e `select event_type, outcome, provider_chat_id, received_at from private.unipile_chat_events order by received_at desc limit 20;`. Uma resposta real com `outcome = 'unrelated'` vira ticket de agente (`@lid` ou formato de campo).
 
 - 2026-10-09 (agente). Fechada a lacuna apontada acima: `unipile-account-status/handler.test.ts` ganhou 6 testes do roteamento de `message.new` e `relation.new` até `ingestChatEvent` (ver `.scratch/handoffs/canais-06.md`). Nenhum código de produção mudou. Os checkboxes seguem desmarcados até o envio real.
+
+- 2026-10-10 (evidência real, produção, workspace `667e38aa`, relatada pelo Auxiliar Renan; Unipile **v1**): o envio `1a1cfaed` de WhatsApp saiu pela Conta remetente do responsável, a resposta do Contato **ligou** ao envio, virou `recebido` e **pausou** a Sequência. As correções da v1 de 10/10 (número próprio da Conta, `own_provider_id`) estão em `.scratch/handoffs/fix-v1-email-whatsapp.md`; o relato não diz qual delas estava publicada quando a resposta ligou.
+  - **Marcado:** o critério 1 (envio real pela Conta remetente do responsável).
+  - **Continua aberto, porque a evidência não mostra:**
+    - Critério 2: a conversa existente reutilizada (a evidência não diz se o envio abriu conversa nova ou usou uma aberta) e a conversa nova só para o destinatário aprovado.
+    - Critério 3: a resposta do Contato foi distinguida como recebida, mas o eco do envio pela API e a mensagem escrita à mão pelo titular não foram observados em produção.
+    - Critério 4: conversa pessoal ou sem Contato participante ignorada, sem pausar.
+    - Critério 5: a pausa foi observada; faltam, em produção, a idempotência (entrega repetida) e a restrição do conteúdo ao responsável.
+    - Critério 6: timeout ou aceitação incerta sem reenvio cego.
+    - Critério 7: a reconexão que deduplica o backlog antes de continuar a Sequência.
+  - Campos da v1 vistos com tráfego real (fixtures em `_shared/unipile/events-v1.fixtures.ts`): o aviso `message_received` de WhatsApp não traz `is_sender`, por isso a resposta só se liga com o número da Conta (`own_provider_id`). O formato do remetente com `@lid` continua sem confirmação.
 
 ## Passos do Nan
 
