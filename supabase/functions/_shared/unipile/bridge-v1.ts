@@ -3,7 +3,7 @@
 // conferido o envio e a listagem numa conta v1 real. TUDO aqui continua "não confirmado" para a Althius até o primeiro
 // uso real: o contrato está em v1.ts. O que a v1 ainda não faz (anexo, resposta em conversa de e-mail, ler e-mail e
 // conversa de e-mail) recusa ANTES de chamar a Unipile, com um erro definitivo: nada sai pela metade.
-import { readResponse } from './common.ts'
+import { invitationNote, readResponse } from './common.ts'
 import { UnipileRequestError, UnipileUnsupportedOperationError } from './errors.ts'
 import type { UnipileClient } from './client.ts'
 import { CHAT_CHECK_MESSAGE_LIMIT, readChatSent, readLinkedInProfile } from './readers.ts'
@@ -114,7 +114,7 @@ export function createV1Bridge(client: UnipileClient, options: { webhookSecret?:
     async sendInvitation(accountId, { userId, message }, { signal }) {
       return await client.json(
         `${API}/users/invite`,
-        { method: 'POST', json: { account_id: accountId, provider_id: userId, message }, signal },
+        { method: 'POST', json: { account_id: accountId, provider_id: userId, ...invitationNote(message) }, signal },
         v1.inviteLinkedIn.response,
       )
     },

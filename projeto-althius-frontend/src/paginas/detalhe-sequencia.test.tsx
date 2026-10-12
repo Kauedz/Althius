@@ -343,6 +343,60 @@ describe('Composer de Step por Canal (Ticket 06)', () => {
     })
   })
 
+  it('o convite do LinkedIn trata a nota como opcional: conta até 300 e não mostra prévia nem aviso de conteúdo vazio', async () => {
+    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+
+    await screen.findByTestId('composer-step')
+    const sequencia = await fonteDeSequencias.sequencia('sequencia-openai')
+    const passo = sequencia.steps.find((step) => step.canal === 'linkedin')
+    expect(passo).toBeDefined()
+    await fonteDeSequencias.atualizarDocumento(sequencia.id, {
+      steps: sequencia.steps.map((step) =>
+        step.id === passo!.id ? { ...step, subtipoLinkedIn: 'convite', corpo: '' } : step,
+      ),
+    })
+
+    await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
+
+    // Editor: a nota é opcional e o contador vai até 300, sem aviso de conteúdo vazio.
+    const composer = await screen.findByTestId('composer-step')
+    expect(within(composer).getByText('Nota (opcional):')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Corpo da mensagem' })).toHaveAttribute(
+      'placeholder',
+      expect.stringMatching(/opcional/i),
+    )
+    expect(within(composer).getByLabelText('Contador de caracteres')).toHaveTextContent('0/300')
+    expect(composer).not.toHaveTextContent(/sem texto|conteúdo vazio|corpo vazio/i)
+
+    // Prévia: um convite sem nota não mostra a nota vazia nem o texto de "vazio".
+    await usuario.click(screen.getByRole('button', { name: 'Pré-visualizar' }))
+    const previa = await screen.findByTestId('preview-linkedin')
+    expect(previa.querySelector('.al-pv-empty')).toBeNull()
+    expect(previa).not.toHaveTextContent(/Nota do convite…/)
+    expect(previa).not.toHaveTextContent(/sem texto|conteúdo vazio|corpo vazio/i)
+  })
+
+  it('a mensagem do LinkedIn continua com o rótulo e sem o contador do convite', async () => {
+    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+
+    await screen.findByTestId('composer-step')
+    const sequencia = await fonteDeSequencias.sequencia('sequencia-openai')
+    const passo = sequencia.steps.find((step) => step.canal === 'linkedin')
+    await fonteDeSequencias.atualizarDocumento(sequencia.id, {
+      steps: sequencia.steps.map((step) =>
+        step.id === passo!.id ? { ...step, subtipoLinkedIn: 'mensagem' } : step,
+      ),
+    })
+
+    await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
+
+    const composer = await screen.findByTestId('composer-step')
+    await waitFor(() => expect(within(composer).getByRole('button', { name: 'Mensagem' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(within(composer).getByText('Mensagem:')).toBeInTheDocument()
+    expect(within(composer).queryByText('Nota (opcional):')).not.toBeInTheDocument()
+    expect(within(composer).queryByLabelText('Contador de caracteres')).not.toBeInTheDocument()
+  })
+
   it('permite cadastrar e normalizar destinos reais de um contato participante', async () => {
     const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 

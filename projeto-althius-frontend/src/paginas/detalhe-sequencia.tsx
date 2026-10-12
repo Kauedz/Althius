@@ -1407,7 +1407,15 @@ function ComposerStep({
   const corpo = step.corpo ?? ''
   const anexos = step.anexos ?? []
 
-  const rotuloMensagem = step.canal === 'ligacao' ? 'Roteiro:' : step.canal === 'tarefa' ? 'Nota:' : 'Mensagem:'
+  // A nota do convite do LinkedIn é opcional: em branco, o convite sai sem nota.
+  const ehConvite = step.canal === 'linkedin' && step.subtipoLinkedIn === 'convite'
+  const rotuloMensagem = step.canal === 'ligacao'
+    ? 'Roteiro:'
+    : step.canal === 'tarefa'
+      ? 'Nota:'
+      : ehConvite
+        ? 'Nota (opcional):'
+        : 'Mensagem:'
 
   return (
     <div className="flex flex-col bg-al-surface" data-testid="composer-step">
@@ -1610,7 +1618,9 @@ function ComposerStep({
                   ? 'Roteiro ou instruções da chamada...'
                   : step.canal === 'tarefa'
                     ? 'Nota ou detalhes da tarefa...'
-                    : 'Texto da mensagem...'
+                    : ehConvite
+                      ? 'Nota opcional. Em branco, o convite vai sem nota.'
+                      : 'Texto da mensagem...'
               }
               className="w-full border border-al-line bg-al-bg p-2.5 text-xs text-al-ink outline-none leading-relaxed resize-y font-sans"
             />
@@ -2501,10 +2511,7 @@ function PreviaCanal({
               </span>
             </div>
             <small className="al-pv-li-when">Convite para se conectar · agora</small>
-            <div
-              className="al-pv-li-note"
-              dangerouslySetInnerHTML={{ __html: corpoHtml || '<span class="al-pv-empty">Nota do convite…</span>' }}
-            />
+            {corpoHtml && <div className="al-pv-li-note" dangerouslySetInnerHTML={{ __html: corpoHtml }} />}
             <div className="al-pv-li-actions">
               <span className="al-pv-li-btn ghost">Ignorar</span>
               <span className="al-pv-li-btn">Aceitar</span>

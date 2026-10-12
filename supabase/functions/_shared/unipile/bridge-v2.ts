@@ -1,7 +1,7 @@
 // O adaptador da Unipile v2 (https://api.unipile.com, prefixo /v2/{account_id}/…) atrás da ponte (canais-16). É o que
 // os adaptadores de e-mail e de conversa faziam, movido para atrás da interface e sobre o cliente único: o contrato de
 // cada operação está em v2.ts. Os campos "não confirmados" têm o aviso lá e em readers.ts.
-import { readResponse } from './common.ts'
+import { invitationNote, readResponse } from './common.ts'
 import { UnipileUnreadableResponse } from './errors.ts'
 import { UnipileRequestError } from './errors.ts'
 import type { UnipileClient } from './client.ts'
@@ -81,7 +81,7 @@ export function createV2Bridge(client: UnipileClient): UnipileBridge {
     async sendInvitation(accountId, { userId, message }, { signal }) {
       return await client.json(
         `${account(accountId)}/users/me/relation-requests`,
-        { method: 'POST', json: { user_id: userId, message }, signal },
+        { method: 'POST', json: { user_id: userId, ...invitationNote(message) }, signal },
         v2.inviteLinkedIn.response,
       )
     },
