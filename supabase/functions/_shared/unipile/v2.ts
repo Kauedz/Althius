@@ -95,7 +95,7 @@ const sendChatMessage = {
   response: chatSentResponse,
 }
 
-/** POST /v2/{account_id}/users/me/relation-requests: convite com nota. */
+/** POST /v2/{account_id}/users/me/relation-requests: convite; a nota (`message`) é opcional. */
 const inviteLinkedIn = {
   request: z.object({ user_id: nonBlank, message: z.string().optional() }),
   // não confirmado: o nome do campo do id do convite (id, invitation_id ou relation_request_id).

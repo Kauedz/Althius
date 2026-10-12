@@ -25,6 +25,11 @@ export const isoDateTime = z.string().datetime()
 /** O anexo no corpo do envio: o conteúdo em base64 (canais-10). */
 export const outgoingAttachment = z.object({ filename: nonBlank, content_type: nonBlank, content: nonBlank })
 
+/** A nota do convite do LinkedIn é opcional: em branco, o campo `message` não vai no pedido (nunca como texto vazio). */
+export function invitationNote(message: string | undefined): { message?: string } {
+  return message?.trim() ? { message } : {}
+}
+
 export const customHeaders = z.array(z.object({ name: nonBlank, value: z.string() }))
 
 /** Uma chamada de DELETE responde com um objeto (ou nada que importe): só uma resposta que não é objeto é ilegível. */

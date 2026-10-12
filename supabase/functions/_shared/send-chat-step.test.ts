@@ -364,6 +364,31 @@ Deno.test('LinkedIn: a nota maior que o limite nunca é cortada: é impedimento 
   assertEquals(exact.calls.includes('sendInvitation'), true)
 })
 
+Deno.test('LinkedIn: o convite com nota leva a nota no pedido à Unipile', async () => {
+  const t = setup()
+  await t.send(linkedin({ body: 'Oi Maria, vamos nos conectar?' }))
+  assertEquals(t.used.invite, { account: 'unipile-li-1', userId: 'ACoAAMaria', message: 'Oi Maria, vamos nos conectar?' })
+})
+
+Deno.test('LinkedIn: o convite sem nota sai sem o campo message, com o corpo vazio ou só de espaços', async () => {
+  for (const body of ['', '   ', ' \n\t ']) {
+    const t = setup()
+    const result = await t.send(linkedin({ body }))
+    assertEquals(result, { kind: 'attempted', outcome: 'sent', recorded: true })
+    assertEquals(t.used.invite, { account: 'unipile-li-1', userId: 'ACoAAMaria' })
+    assertEquals(Object.hasOwn(t.used.invite as object, 'message'), false)
+    assertEquals(t.recorded[0].linkedinAction, 'convite')
+    assertEquals(t.recorded[0].providerMessageId, 'inv-1')
+  }
+})
+
+Deno.test('LinkedIn: o convite sem nota continua barrado quando um convite já saiu para o mesmo perfil', async () => {
+  const t = setup()
+  const result = await t.send(linkedin({ body: '', invite_sent: true }))
+  assertEquals(result, { kind: 'attempted', outcome: 'blocked', recorded: true, reason: 'invite_already_sent' })
+  assertEquals(t.calls.includes('sendInvitation'), false)
+})
+
 Deno.test('LinkedIn: um segundo convite ao mesmo perfil não sai, mas uma conexão nova recebe mensagem', async () => {
   const again = setup()
   const result = await again.send(linkedin({ invite_sent: true }))

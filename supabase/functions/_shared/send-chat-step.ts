@@ -114,10 +114,10 @@ export interface UnipileChat {
     text: string,
     options: { signal: AbortSignal; attachments?: OutgoingAttachment[] },
   ): Promise<ChatSent>
-  /** POST /v2/{account_id}/users/me/relation-requests: convite com nota. */
+  /** POST /v2/{account_id}/users/me/relation-requests: convite, com nota se `message` vier (a nota é opcional). */
   sendInvitation(
     accountId: string,
-    input: { userId: string; message: string },
+    input: { userId: string; message?: string },
     options: { signal: AbortSignal },
   ): Promise<InvitationSent>
   /** GET /v2/{account_id}/users/{identifier}: o id nativo e a distância de rede de um perfil. */
@@ -359,7 +359,7 @@ async function attemptLinkedIn(
     return { outcome: 'blocked', error: decision.blocked, providerUserId: profile.providerId }
   }
 
-  // 2. Convite com nota. A nota nunca é cortada em silêncio, e um segundo convite ao mesmo perfil não sai.
+  // 2. Convite, com nota ou sem. A nota nunca é cortada em silêncio, e um segundo convite ao mesmo perfil não sai.
   if (decision.action === 'convite') {
     // O convite não leva anexo: o passo com arquivo espera o Vendedor responsável tirar o anexo ou mudar o passo.
     if (attachments.length) {
@@ -371,8 +371,10 @@ async function attemptLinkedIn(
     if (released.invite_sent) {
       return { outcome: 'blocked', error: 'invite_already_sent', providerUserId: profile.providerId }
     }
+    // A nota é opcional: com o corpo em branco o convite sai sem o campo `message`, nunca com texto vazio.
+    const note = released.body.trim() ? { message: released.body } : {}
     const invited = await withTimeout(timeout, (signal) =>
-      deps.unipile.sendInvitation(released.unipile_account_id, { userId: profile.providerId, message: released.body }, { signal }))
+      deps.unipile.sendInvitation(released.unipile_account_id, { userId: profile.providerId, ...note }, { signal }))
     if ('error' in invited) {
       return { ...classifySendError(invited.error, invited.aborted), providerUserId: profile.providerId, action: 'convite' }
     }

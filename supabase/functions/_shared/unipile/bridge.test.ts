@@ -208,6 +208,20 @@ for (const version of ['v2', 'v1'] as const) {
     }
   })
 
+  Deno.test(`[${version}] LinkedIn: o convite sem nota não leva o campo message, e com nota leva`, async () => {
+    const f = fakeFetch(...Array.from({ length: 4 }, () => json(version === 'v2' ? { id: 'inv-1' } : { invitation_id: 'inv-1' })))
+    const b = bridge(version, f)
+    await b.sendInvitation('acc', { userId: 'ACoAA' }, signal())
+    await b.sendInvitation('acc', { userId: 'ACoAA', message: '' }, signal())
+    await b.sendInvitation('acc', { userId: 'ACoAA', message: '   ' }, signal())
+    await b.sendInvitation('acc', { userId: 'ACoAA', message: 'Oi' }, signal())
+    const id = version === 'v2' ? { user_id: 'ACoAA' } : { account_id: 'acc', provider_id: 'ACoAA' }
+    assertEquals(f.calls[0].json, id)
+    assertEquals(f.calls[1].json, id)
+    assertEquals(f.calls[2].json, id)
+    assertEquals(f.calls[3].json, { ...id, message: 'Oi' })
+  })
+
   Deno.test(`[${version}] chats: as conversas recentes da conta, para a conferência`, async () => {
     const f = fakeFetch(json(version === 'v2' ? [{ id: 'c1' }, 'lixo'] : { items: [{ id: 'c1' }], cursor: null }))
     assertEquals(await bridge(version, f).listChats('acc', { limit: 3 }), [{ id: 'c1' }])

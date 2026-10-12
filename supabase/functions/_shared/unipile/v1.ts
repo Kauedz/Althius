@@ -98,7 +98,7 @@ const sendChatMessage = {
   response: chatSentResponse,
 }
 
-/** POST /api/v1/users/invite. não confirmado: não há no protótipo. */
+/** POST /api/v1/users/invite; a nota (`message`) é opcional. não confirmado: não há no protótipo. */
 const inviteLinkedIn = {
   request: z.object({ account_id: nonBlank, provider_id: nonBlank, message: z.string().optional() }),
   response: z.object({ invitation_id: looseId, id: looseId })
