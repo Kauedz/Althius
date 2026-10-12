@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** needs-triage (as dúvidas para o Renan abaixo trazem um padrão proposto; nenhuma trava o começo)
+**Status:** ready-for-human (código e testes prontos com os padrões propostos nas dúvidas; faltam a migration `20261012120532` e ver uma Rotina rodar de verdade; ver `.scratch/handoffs/orq-01.md`)
 
 ## O que existe hoje (lido na `main` em 12/10/2026)
 
@@ -27,17 +27,17 @@
 
 ## Critérios
 
-- [ ] Rotina diária com `run_time = '09:00'`: com o relógio às 08:59 (Brasília) o cron não cria nada; às 09:00 cria uma Execução `queued` com `trigger_kind = 'rotina'`, `routine_id`, `requested_by` = dono e `request_text` = `task`. Rodar o cron de novo no mesmo horário não cria a segunda.
-- [ ] Semanal só dispara no `weekday` dela; mensal só no `day_of_month`; as três frequências avançam `next_run_at` para o próximo horário futuro.
-- [ ] Rotina pausada não cria Execução. Retomar não gera rajada: `next_run_at` vira o próximo horário futuro e nenhum horário perdido é recuperado.
-- [ ] Com a Execução anterior da mesma Rotina ainda `queued` ou `running`, o horário seguinte é pulado em vez de criar outra. Com o worker desligado, a fila guarda no máximo uma Execução por Rotina.
-- [ ] Execução de Rotina que entra na fila e cuja Rotina é pausada ou apagada antes do `claim_agent_run`: o claim devolve `null` e fecha a Execução como `failed` com `routine_paused`, sem evento de modelo.
-- [ ] Dono que saiu do Workspace: o cron não cria Execução e a Rotina fica pausada; uma Execução já na fila fecha com `membership_inactive`, como hoje.
-- [ ] Teto: sem teto aprovado, em `confirmar` ou no teto, o cron não cria Execução e devolve o motivo do `consume_automation_cap` (`confirmar`, `sem_teto`, `teto_atingido`); ao bater o teto sai um Aviso do Workspace uma vez. O teto de uma Rotina não bloqueia outra Rotina do mesmo Agente nem as Conversas.
-- [ ] `list_queued_agent_runs` lista a Execução de Rotina e `claim_agent_run` a devolve com `kind = 'agente'` e o `agent_id` da Rotina. O diff não toca `supabase/functions/_hermes-worker/` nem `_shared/orquestracao.ts`, e os testes Deno do worker passam sem edição.
-- [ ] Isolamento: um Workspace nunca dispara, lista nem consome o teto de Rotina de outro. As funções novas são só do cron e do `service_role` (`revoke` explícito) e as colunas novas não ficam legíveis por `authenticated` fora das funções que já existem.
-- [ ] `list_automation_settings` mostra as Rotinas com o teto e o gasto do mês; salvar Automático numa Rotina sem teto é recusado, como nos outros escopos.
-- [ ] Onde existe o pg_cron, o job `althius-agent-routines` existe com `*/5 * * * *` (mesmo molde de `supabase/tests/executor_da_sequencia.sql:88-107`).
+- [x] Rotina diária com `run_time = '09:00'`: com o relógio às 08:59 (Brasília) o cron não cria nada; às 09:00 cria uma Execução `queued` com `trigger_kind = 'rotina'`, `routine_id`, `requested_by` = dono e `request_text` = `task`. Rodar o cron de novo no mesmo horário não cria a segunda.
+- [x] Semanal só dispara no `weekday` dela; mensal só no `day_of_month`; as três frequências avançam `next_run_at` para o próximo horário futuro.
+- [x] Rotina pausada não cria Execução. Retomar não gera rajada: `next_run_at` vira o próximo horário futuro e nenhum horário perdido é recuperado.
+- [x] Com a Execução anterior da mesma Rotina ainda `queued` ou `running`, o horário seguinte é pulado em vez de criar outra. Com o worker desligado, a fila guarda no máximo uma Execução por Rotina.
+- [x] Execução de Rotina que entra na fila e cuja Rotina é pausada ou apagada antes do `claim_agent_run`: o claim devolve `null` e fecha a Execução como `failed` com `routine_paused`, sem evento de modelo.
+- [x] Dono que saiu do Workspace: o cron não cria Execução e a Rotina fica pausada; uma Execução já na fila fecha com `membership_inactive`, como hoje.
+- [x] Teto: sem teto aprovado, em `confirmar` ou no teto, o cron não cria Execução e devolve o motivo do `consume_automation_cap` (`confirmar`, `sem_teto`, `teto_atingido`); ao bater o teto sai um Aviso do Workspace uma vez. O teto de uma Rotina não bloqueia outra Rotina do mesmo Agente nem as Conversas.
+- [x] `list_queued_agent_runs` lista a Execução de Rotina e `claim_agent_run` a devolve com `kind = 'agente'` e o `agent_id` da Rotina. O diff não toca `supabase/functions/_hermes-worker/` nem `_shared/orquestracao.ts`, e os testes Deno do worker passam sem edição.
+- [x] Isolamento: um Workspace nunca dispara, lista nem consome o teto de Rotina de outro. As funções novas são só do cron e do `service_role` (`revoke` explícito) e as colunas novas não ficam legíveis por `authenticated` fora das funções que já existem.
+- [x] `list_automation_settings` mostra as Rotinas com o teto e o gasto do mês; salvar Automático numa Rotina sem teto é recusado, como nos outros escopos.
+- [x] Onde existe o pg_cron, o job `althius-agent-routines` existe com `*/5 * * * *` (mesmo molde de `supabase/tests/executor_da_sequencia.sql:88-107`).
 
 ## Pode mexer
 
@@ -82,3 +82,9 @@
 3. Para ver uma Rotina rodar de verdade, o worker do Hermes precisa estar ligado no computador do Nan (`supabase/functions/_hermes-worker/README.md`). Criar uma Rotina de teste num Workspace de teste, com teto de poucos créditos, e esperar o próximo horário. Sem o worker, a Execução fica `queued` e vira `timeout` depois do prazo.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+- 2026-10-12 (agente). Feito com os padrões propostos nas dúvidas 2 a 6 (a 1 só confirma a lista de arquivos compartilhados abaixo). Migration `supabase/migrations/20261012120532_rotinas_que_rodam_sozinhas.sql` (não aplicada) e pgTAP `supabase/tests/rotinas_que_rodam_sozinhas.sql` (89 asserções, escrito vermelho primeiro). Detalhes, decisões e o que o ticket não previa em `.scratch/handoffs/orq-01.md`.
+  - O critério 11 (o job `althius-agent-routines`) só se prova num banco com pg_cron: o Postgres local não o tem, então o pgTAP passa pela saída `sem pg_cron`; quem prova é o job "Banco" do CI.
+  - A estimativa provisória que o relógio soma ao teto é de 3 rodadas de `agent_round`. O ticket 02 acerta a diferença no fim da Execução.

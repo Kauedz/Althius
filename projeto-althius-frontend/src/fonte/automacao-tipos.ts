@@ -15,9 +15,9 @@ export type BloqueioDoTeto = 'confirmar' | 'sem_teto' | 'teto_atingido'
 export type BloqueioDaAutomacao = BloqueioDoTeto | 'sem_executor'
 
 export interface EscopoDeAutomacao {
-  /** "acao:varredura", "acao:enriquecimento", "acao:agentes", "agente:<id>" ou "integracao:<id>". */
+  /** "acao:varredura", "acao:enriquecimento", "acao:agentes", "agente:<id>", "rotina:<id>" ou "integracao:<id>". */
   escopo: string
-  tipo: 'acao' | 'agente' | 'integracao'
+  tipo: 'acao' | 'agente' | 'rotina' | 'integracao'
   nome: string
   modo: ModoDeAutomacao
   /** O teto mensal aprovado, em créditos; sem ele, o automático não roda. */
@@ -28,7 +28,7 @@ export interface EscopoDeAutomacao {
 }
 
 export interface FonteDeAutomacao extends FonteObservavel {
-  /** Todos os escopos do Workspace, em ordem: tipos de ação, Agentes e Integrações. Todo participante consulta. */
+  /** Todos os escopos do Workspace, em ordem: tipos de ação, Agentes, Integrações e Rotinas. Todo participante consulta. */
   escopos(): Promise<EscopoDeAutomacao[]>
   /** Liga ou desliga o automático e aprova o teto. Só Administrador; automático sem teto é recusado. */
   salvar(escopo: string, modo: ModoDeAutomacao, teto: number | null): Promise<void>

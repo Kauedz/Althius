@@ -7,6 +7,20 @@ import type { Agente, CanalId, Frequencia, NovaRotina, Rotina } from '@/fonte/ti
 import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
 import { descreverFrequencia, DIAS_DA_SEMANA, ROTULO_DA_FREQUENCIA, ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
+const numero = new Intl.NumberFormat('pt-BR')
+
+/** O que o teto diz da Rotina: roda sozinha com o teto aprovado, ou por que não roda. Sem o dado (Demonstração), nada. */
+function descreverTeto(rotina: Rotina): string | null {
+  if (rotina.bloqueio === undefined) return null
+  if (rotina.bloqueio === null) {
+    return `Roda sozinha. ${numero.format(rotina.gastoNoMes ?? 0)} de ${numero.format(rotina.teto ?? 0)} créditos usados no mês.`
+  }
+  if (rotina.bloqueio === 'teto_atingido') {
+    return 'Chegou no teto do mês: a Rotina fica pausada até o mês virar ou o teto subir.'
+  }
+  return 'Não roda sozinha: o Administrador aprova o teto mensal e liga o automático dela em Configurações › Automação e tetos.'
+}
+
 export function SecaoRotinas({ agente }: { agente: Agente }) {
   const fonte = useFonte()
   const rotinas = useDados((f) => f.rotinas(agente.id), [agente.id])
@@ -104,6 +118,9 @@ function ItemDeRotina({
           {descreverFrequencia(rotina)}
           {rotina.canalDestino && ` · envia no ${ROTULO_DO_CANAL[rotina.canalDestino]}`}
         </span>
+        {!rotina.pausada && descreverTeto(rotina) && (
+          <span className={rotina.bloqueio ? 'text-sm text-al-atencao' : 'text-sm text-al-muted'}>{descreverTeto(rotina)}</span>
+        )}
         <Mensagem tipo="erro">{erro}</Mensagem>
       </div>
       {rotina.pausada && <span className="rotulo self-center border border-al-line px-2 py-1">Pausada</span>}
@@ -141,6 +158,7 @@ function FormularioDeRotina({
   const [tarefa, setTarefa] = useState(inicial?.tarefa ?? '')
   const [frequencia, setFrequencia] = useState<Frequencia>(inicial?.frequencia ?? 'semanal')
   const [diaDaSemana, setDiaDaSemana] = useState(inicial?.diaDaSemana ?? 'segunda')
+  const [diaDoMes, setDiaDoMes] = useState(String(inicial?.diaDoMes ?? 1))
   const [horario, setHorario] = useState(inicial?.horario ?? '09:00')
   const [canalDestino, setCanalDestino] = useState<CanalId | ''>(inicial?.canalDestino ?? '')
   const { erro, escrever } = useEscritaDeAgente()
@@ -153,6 +171,7 @@ function FormularioDeRotina({
         tarefa: tarefa.trim(),
         frequencia,
         diaDaSemana: frequencia === 'semanal' ? diaDaSemana : undefined,
+        diaDoMes: frequencia === 'mensal' ? Number(diaDoMes) : undefined,
         horario,
         canalDestino: canalDestino || null,
       }),
@@ -185,6 +204,20 @@ function FormularioDeRotina({
               </option>
             ))}
           </select>
+        </label>
+      )}
+      {frequencia === 'mensal' && (
+        <label className="flex flex-col gap-2">
+          <span className="rotulo">Dia do mês</span>
+          <input
+            type="number"
+            min={1}
+            max={28}
+            required
+            value={diaDoMes}
+            onChange={(e) => setDiaDoMes(e.target.value)}
+            className="campo"
+          />
         </label>
       )}
       <label className="flex flex-col gap-2">

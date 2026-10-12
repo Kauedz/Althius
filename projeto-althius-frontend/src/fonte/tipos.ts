@@ -328,12 +328,22 @@ export interface Rotina {
   tarefa: string
   frequencia: Frequencia
   diaDaSemana?: string
+  /** Só a Rotina mensal: o dia do mês, de 1 a 28. */
+  diaDoMes?: number
   horario: string
   canalDestino: CanalId | null
   pausada: boolean
+  /**
+   * O teto mensal aprovado para a Rotina, em créditos (Configurações › Automação e tetos); nulo quando não há teto. Sem
+   * ele, a Rotina não roda. Ausente na Demonstração, que não executa Rotinas.
+   */
+  teto?: number | null
+  gastoNoMes?: number
+  /** Por que a Rotina não roda sozinha agora; nulo quando roda. */
+  bloqueio?: 'confirmar' | 'sem_teto' | 'teto_atingido' | null
 }
 
-export type NovaRotina = Omit<Rotina, 'id' | 'pausada'>
+export type NovaRotina = Omit<Rotina, 'id' | 'pausada' | 'teto' | 'gastoNoMes' | 'bloqueio'>
 
 export type Gatilho = 'conversa' | 'mencao' | 'coordenacao' | 'rotina' | 'canal'
 
