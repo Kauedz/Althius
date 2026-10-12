@@ -1,4 +1,5 @@
 import { Flame } from 'lucide-react'
+import { badgeVariants } from '@/components/ui/badge'
 import type { ReactNode } from 'react'
 import { Pulso } from '@/components/marca'
 import { cn } from '@/lib/utils'
@@ -34,9 +35,9 @@ export function Foguinho({ quantidade, className }: { quantidade: number; classN
       role="img"
       aria-label={`Quente, ${quantidade} ${quantidade === 1 ? 'sinal válido' : 'sinais válidos'}`}
       title={`Quente: há Sinais disparados nos últimos ${VALIDADE_EM_DIAS} dias`}
-      className={cn('inline-flex items-center gap-1 text-sm whitespace-nowrap text-al-accent-2', className)}
+      className={cn(badgeVariants({ tom: 'quente', forma: 'pilula' }), 'tabular-nums', className)}
     >
-      <Flame strokeWidth={1.8} className="size-4 fill-al-accent-2/25" aria-hidden />
+      <Flame strokeWidth={1.8} className="size-3.5" aria-hidden />
       <span className="tabular-nums">{texto}</span>
     </span>
   )
@@ -44,8 +45,8 @@ export function Foguinho({ quantidade, className }: { quantidade: number; classN
 
 /** A Aderência do Scopus, sempre ao lado do foguinho e nunca substituída por ele. */
 export function SeloDeAderencia({ aderencia }: { aderencia?: AderenciaMock }) {
-  if (!aderencia) return <span className="selo">Aderência não avaliada</span>
-  return <span className={cn('selo', aderencia === 'fit' && 'border-al-ink/40 text-al-ink')}>{ROTULO_DA_ADERENCIA[aderencia]}</span>
+  if (!aderencia) return <span className={badgeVariants({ tom: 'neutro' })}>Aderência não avaliada</span>
+  return <span className={cn(badgeVariants({ tom: 'neutro' }), aderencia === 'fit' && 'border-al-ink/40 text-al-ink')}>{ROTULO_DA_ADERENCIA[aderencia]}</span>
 }
 
 /** Seção numerada de um formulário do mockup. */

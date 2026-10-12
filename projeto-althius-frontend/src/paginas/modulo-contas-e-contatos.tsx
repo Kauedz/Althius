@@ -214,9 +214,9 @@ export function SemResultado({ mensagem, limparBuscaEFiltros }: { mensagem: stri
 
 // Cabeçalho fixo no topo do quadro que rola.
 export const CABECALHO =
-  'rotulo sticky top-0 z-2 h-9.5 border-b border-al-line bg-al-bg pr-4 text-[0.6875rem] whitespace-nowrap'
+  'rotulo sticky top-0 z-2 h-9.5 border-b border-al-line bg-al-bg pr-4 text-[0.6875rem] font-normal whitespace-nowrap text-al-ink-3'
 // Linhas compactas, separadas só pela linha do token.
-export const CELULA = 'border-b border-al-line pr-4'
+export const CELULA = 'border-b border-al-divisor pr-4'
 
 /** A mensagem curta de erro da lista, com "Tentar de novo". */
 export function FalhaAoCarregar({ mensagem, tentarDeNovo }: { mensagem: string; tentarDeNovo: () => void }) {

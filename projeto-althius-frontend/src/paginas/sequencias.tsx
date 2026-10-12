@@ -221,7 +221,7 @@ function ListaGlobalSequencias() {
                       <tr
                         key={seq.id}
                         onClick={() => navegar(`/sequencias/${seq.id}`)}
-                        className="h-12 cursor-pointer hover:bg-al-surface/60 transition-colors"
+                        className="h-12 cursor-pointer hover:bg-al-hover transition-colors"
                       >
                         <td className="py-3 pr-4 font-medium text-al-ink">
                           <div className="flex flex-col">
