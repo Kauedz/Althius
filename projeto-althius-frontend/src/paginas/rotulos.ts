@@ -29,10 +29,12 @@ export const ROTULO_DA_PERMISSAO: Record<Permissao, string> = {
 
 export const DIAS_DA_SEMANA = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo']
 
-export function descreverFrequencia(rotina: Pick<Rotina, 'frequencia' | 'diaDaSemana' | 'horario'>): string {
+export function descreverFrequencia(rotina: Pick<Rotina, 'frequencia' | 'diaDaSemana' | 'diaDoMes' | 'horario'>): string {
   const quando =
     rotina.frequencia === 'semanal' && rotina.diaDaSemana
       ? `${['sábado', 'domingo'].includes(rotina.diaDaSemana) ? 'Todo' : 'Toda'} ${rotina.diaDaSemana}`
-      : ROTULO_DA_FREQUENCIA[rotina.frequencia]
+      : rotina.frequencia === 'mensal' && rotina.diaDoMes
+        ? `${ROTULO_DA_FREQUENCIA.mensal}, dia ${rotina.diaDoMes}`
+        : ROTULO_DA_FREQUENCIA[rotina.frequencia]
   return `${quando} às ${rotina.horario}`
 }

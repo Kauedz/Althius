@@ -17,6 +17,7 @@ const GRUPOS: { tipo: EscopoDeAutomacao['tipo']; titulo: string; descricao: stri
   { tipo: 'acao', titulo: 'Tipos de ação', descricao: 'Varredura de Sinais, enriquecimento e Execuções de Agentes.' },
   { tipo: 'agente', titulo: 'Agentes', descricao: 'Cada Agente, com as Permissões dele nas Integrações.' },
   { tipo: 'integracao', titulo: 'Integrações', descricao: 'O que cada Integração faz sozinha.' },
+  { tipo: 'rotina', titulo: 'Rotinas', descricao: 'Cada Rotina de um Agente tem o teto dela; sem teto aprovado, ela não roda.' },
 ]
 
 const ROTULO_DA_PERMISSAO: Record<Permissao, string> = { ler: 'Ler', propor: 'Propor', executar: 'Executar' }
@@ -53,7 +54,7 @@ export function SecaoAutomacao() {
       ) : (
         <>
           {!administrador && <Mensagem tipo="info">Só um Administrador muda o automático e os tetos.</Mensagem>}
-          {GRUPOS.map((grupo) => (
+          {GRUPOS.filter((grupo) => grupo.tipo !== 'rotina' || escopos.some((e) => e.tipo === 'rotina')).map((grupo) => (
             <Bloco key={grupo.tipo} titulo={grupo.titulo} descricao={grupo.descricao}>
               <ul className="flex flex-col divide-y divide-al-line">
                 {escopos

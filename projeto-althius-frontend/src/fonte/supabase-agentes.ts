@@ -79,6 +79,10 @@ interface RegistroDaRotina {
   run_time: string
   destination_channel: CanalId | null
   paused: boolean
+  day_of_month?: number | null
+  monthly_cap?: number | string | null
+  month_spent?: number | string
+  blocked_reason?: 'confirmar' | 'sem_teto' | 'teto_atingido' | null
 }
 
 /** Uma recusa das funções do banco: o SQLSTATE, o trecho da mensagem que a identifica e o texto para a pessoa. */
@@ -109,6 +113,7 @@ const RECUSAS: Recusa[] = [
   ['22023', 'invalid task', () => 'Descreva a tarefa da Rotina, com até 500 caracteres.'],
   ['22023', 'invalid frequency', () => 'Escolha a frequência da Rotina: todo dia, toda semana ou todo mês.'],
   ['22023', 'invalid weekday', () => 'Escolha o dia da semana de uma Rotina semanal; só ela tem dia da semana.'],
+  ['22023', 'invalid day of month', () => 'Informe o dia do mês da Rotina mensal, de 1 a 28.'],
   ['22023', 'invalid time', () => 'Informe um horário válido, como 09:00.'],
 ]
 
@@ -134,9 +139,17 @@ function converterRotina(agenteId: AgenteId, linha: RegistroDaRotina): Rotina {
     tarefa: linha.task,
     frequencia: linha.frequency,
     ...(linha.weekday ? { diaDaSemana: linha.weekday } : {}),
+    ...(linha.day_of_month ? { diaDoMes: linha.day_of_month } : {}),
     horario: linha.run_time,
     canalDestino: linha.destination_channel,
     pausada: linha.paused,
+    ...(linha.blocked_reason !== undefined
+      ? {
+          teto: linha.monthly_cap == null ? null : Number(linha.monthly_cap),
+          gastoNoMes: Number(linha.month_spent ?? 0),
+          bloqueio: linha.blocked_reason,
+        }
+      : {}),
   }
 }
 
@@ -286,6 +299,8 @@ export function criarFonteDeAgentesSupabase(cliente: SupabaseClient, workspaceId
         p_weekday: rotina.diaDaSemana ?? null,
         p_time: rotina.horario,
         p_channel: rotina.canalDestino,
+        // Só a Rotina mensal manda o dia do mês: as outras seguem como antes, mesmo com o banco ainda sem a migration.
+        ...(rotina.frequencia === 'mensal' ? { p_day_of_month: rotina.diaDoMes ?? null } : {}),
       }),
     editarRotina: (rotinaId, rotina) =>
       gravar('update_agent_routine', {
@@ -295,6 +310,8 @@ export function criarFonteDeAgentesSupabase(cliente: SupabaseClient, workspaceId
         p_weekday: rotina.diaDaSemana ?? null,
         p_time: rotina.horario,
         p_channel: rotina.canalDestino,
+        // Só a Rotina mensal manda o dia do mês: as outras seguem como antes, mesmo com o banco ainda sem a migration.
+        ...(rotina.frequencia === 'mensal' ? { p_day_of_month: rotina.diaDoMes ?? null } : {}),
       }),
     definirRotinaPausada: (rotinaId, pausada) =>
       gravar('set_agent_routine_paused', { p_routine_id: rotinaId, p_paused: pausada }),
