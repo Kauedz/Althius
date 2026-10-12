@@ -301,8 +301,8 @@ export function PaginaDescobertas() {
                     <span
                       className={cn(
                         'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded',
-                        c.fitLevel === 'alto' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-                        c.fitLevel === 'medio' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+                        c.fitLevel === 'alto' && 'bg-al-sucesso-suave text-al-sucesso',
+                        c.fitLevel === 'medio' && 'bg-al-atencao-suave text-al-atencao',
                         c.fitLevel === 'baixo' && 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
                       )}
                     >
@@ -353,7 +353,7 @@ export function PaginaDescobertas() {
                             size="sm"
                             onClick={() => aceitar(c)}
                             title="Aceitar candidata e criar Conta-alvo"
-                            className="h-8 border border-emerald-600 bg-emerald-600 px-2.5 text-xs text-white hover:bg-emerald-700"
+                            className="h-8 border border-al-sucesso bg-al-sucesso px-2.5 text-xs text-al-on-accent hover:opacity-90"
                           >
                             <Check className="mr-1 size-3.5" aria-hidden />
                             Aceitar
@@ -375,7 +375,7 @@ export function PaginaDescobertas() {
                       )}
 
                       {estadoAba === 'aceita' && (
-                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        <span className="inline-flex items-center gap-1 text-xs text-al-sucesso font-medium">
                           <Check className="size-3.5" aria-hidden />
                           {c.targetAccountId ? (
                             <Link to={`/contas/${c.targetAccountId}`} className="hover:underline">

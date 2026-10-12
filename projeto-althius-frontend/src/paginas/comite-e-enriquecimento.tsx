@@ -129,7 +129,7 @@ export function SecaoReceitaFederal({
             </div>
             <div>
               <span className="rotulo block text-al-muted">Situação Cadastral</span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-al-sucesso-suave text-al-sucesso font-medium">
                 {receita.situacaoCadastral}
               </span>
             </div>
@@ -363,10 +363,10 @@ export function SecaoComiteDeCompra({
                       className={cn(
                         'inline-flex items-center px-2 py-0.5 rounded text-[0.6875rem] font-medium uppercase tracking-wider',
                         ehDecisor
-                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                          ? 'bg-al-atencao-suave text-al-atencao'
                           : ehInfluenciador
-                            ? 'bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                            : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+                            ? 'bg-al-agente-suave text-al-agente'
+                            : 'bg-al-sucesso-suave text-al-sucesso',
                       )}
                     >
                       {p.persona ?? 'Outro'}
@@ -554,7 +554,7 @@ export function BotoesRevelarContato({
             </div>
 
             {resultado && (
-              <div role="status" className="rounded bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-400 font-medium">
+              <div role="status" className="rounded bg-al-sucesso-suave p-3 text-al-sucesso font-medium">
                 {resultado}
               </div>
             )}
