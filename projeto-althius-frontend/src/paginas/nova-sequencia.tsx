@@ -223,13 +223,13 @@ function FormularioNovaSequencia({
           )}
 
           {!carregandoContatos && contatos.length === 0 && (
-            <p className="border border-al-line bg-al-surface p-3 text-xs text-al-muted">
+            <p className="rounded-xl border border-al-line bg-al-surface p-3 text-xs text-al-muted">
               Nenhum contato mapeado nesta Conta-alvo. Mapeie ao menos um contato antes de criar a sequência.
             </p>
           )}
 
           {!carregandoContatos && contatos.length > 0 && (
-            <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto border border-al-line bg-al-surface p-3">
+            <div className="rounded-xl flex max-h-48 flex-col gap-1.5 overflow-y-auto border border-al-line bg-al-surface p-3">
               {contatos.map((contato) => {
                 const marcado = participantesIds.includes(contato.id)
                 return (
@@ -259,7 +259,7 @@ function FormularioNovaSequencia({
       )}
 
       {contaId && !jaTemSequencia && comModelo && (
-        <div className="flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
+        <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
           <label className="flex cursor-pointer items-center gap-2.5 font-medium">
             <input
               type="checkbox"

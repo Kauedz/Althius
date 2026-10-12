@@ -271,7 +271,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             ? textoDoEncerramento(sequencia)
             : 'Esta Sequência tem outro Vendedor responsável. Você pode consultar o status, mas não o documento nem os detalhes privados.'}
         </p>
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 border border-al-line bg-al-surface p-4 text-sm">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 rounded-2xl border border-al-line bg-al-surface p-4 text-sm">
           <dt className="text-al-muted">Conta-alvo</dt><dd>{nomeConta}</dd>
           <dt className="text-al-muted">Status</dt>
           <dd>{rotuloDoStatusPublico(sequencia)}</dd>
@@ -654,7 +654,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-al-line pb-6">
         <div className="flex items-start gap-4">
           {/* Logo da Conta-alvo ou Fallback */}
-          <div className="size-11 shrink-0 border border-al-line bg-al-surface flex items-center justify-center font-heading text-lg font-light text-al-ink">
+          <div className="size-11 shrink-0 rounded-xl border border-al-line bg-al-surface flex items-center justify-center font-heading text-lg font-light text-al-ink">
             {conta?.logo ? (
               <img src={conta.logo} alt="" className="size-8 object-contain" />
             ) : (
@@ -740,7 +740,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 
       {/* Regra de Pause na Conta-alvo */}
       <div
-        className={`flex items-start justify-between gap-4 border p-4 transition-colors ${
+        className={`flex items-start justify-between gap-4 rounded-2xl border p-4 transition-colors duration-200 ${
           sequencia.status === 'pausada'
             ? 'border-al-atencao/70 bg-al-atencao/10 text-al-ink'
             : sequencia.status === 'reuniao'
@@ -813,7 +813,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       </div>
 
       {/* Configurações da Sequência (seq-settings): Participantes e Janela padrão */}
-      <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] border border-al-line bg-al-surface divide-y md:divide-y-0 md:divide-x divide-al-line">
+      <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] overflow-hidden rounded-2xl border border-al-line bg-al-surface divide-y md:divide-y-0 md:divide-x divide-al-line">
         {/* Participantes */}
         <div className="p-3.5 flex flex-col gap-2.5">
           <span className="rotulo text-[0.6875rem] text-al-muted tracking-rotulo uppercase">
@@ -827,7 +827,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               return (
                 <span
                   key={id}
-                  className="inline-flex h-7.5 items-center gap-1.5 border border-al-line bg-al-bg px-2 py-0.5 text-xs"
+                  className="inline-flex h-7.5 items-center gap-1.5 rounded-full border border-al-line bg-al-bg pl-1 pr-2.5 py-0.5 text-xs"
                 >
                   <span className="size-4.5 rounded-full bg-al-line text-[0.6875rem] font-medium flex items-center justify-center text-al-ink">
                     {iniciais(nome)}
@@ -1022,7 +1022,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       </Dialog>
 
       {/* Corpo da Sequência (seq-body): Timeline (340px) + Editor de Step */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] border border-al-line bg-al-surface min-h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] overflow-hidden rounded-2xl border border-al-line bg-al-surface min-h-[600px]">
         {/* Coluna 1: Timeline lateral (seq-timeline) */}
         <div className="border-b lg:border-b-0 lg:border-r border-al-line p-3.5 flex flex-col gap-3">
           <div className="flex items-center justify-between text-[0.6875rem] font-normal uppercase tracking-rotulo text-al-muted px-1">
@@ -1044,7 +1044,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               return (
                 <li key={step.id} className="flex flex-col">
                   {idx > 0 && (
-                    <div className="flex items-center gap-2 py-1.5 px-2.5 text-[0.6875rem] text-al-muted">
+                    <div className="ml-[1.1rem] flex items-center gap-2 border-l border-dashed border-al-line-forte py-2 pl-3.5 text-[0.6875rem] text-al-muted">
                       <Clock className="size-3 text-al-muted" />
                       <span>
                         Aguardar {step.delayDiasUteis}{' '}
@@ -1057,10 +1057,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                   <button
                     type="button"
                     onClick={() => setStepSelecionadoId(step.id)}
-                    className={`flex w-full items-center gap-2.5 p-2 text-left border transition-all text-xs ${
+                    className={`flex w-full items-center gap-2.5 rounded-xl p-2 text-left border transition-[background-color,border-color,box-shadow] duration-200 ease-out text-xs ${
                       selecionado
-                        ? 'border-al-line bg-al-bg shadow-sm'
-                        : 'border-transparent hover:bg-al-bg/50'
+                        ? 'border-al-line bg-al-bg shadow-(--al-sombra-cartao) ring-1 ring-al-accent/15'
+                        : 'border-transparent hover:border-al-divisor hover:bg-al-hover'
                     }`}
                   >
                     {/* Badge numérica ou checkmark */}
@@ -1099,7 +1099,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                     {/* Indicador de resposta (real, ou de demonstração) e de desfecho de demo */}
                     {(respondido || step.metricas?.respondeu) && (
                       <span
-                        className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.6875rem] font-medium tracking-rotulo uppercase shrink-0"
+                        className="px-2 py-0.5 rounded-full border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.6875rem] font-medium tracking-rotulo uppercase shrink-0"
                         title={respondido ? 'O Contato respondeu a este passo' : 'Demonstração: obteve resposta'}
                       >
                         {respondido ? 'Respondeu' : '1 resposta'}
@@ -1107,7 +1107,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                     )}
                     {step.metricas?.desfecho && (
                       <span
-                        className="px-1.5 py-0.5 border border-al-line bg-al-surface text-al-muted text-[0.6875rem] font-medium shrink-0"
+                        className="px-2 py-0.5 rounded-full border border-al-line bg-al-surface text-al-muted text-[0.6875rem] font-medium shrink-0"
                         title="Demonstração: desfecho"
                       >
                         {step.metricas.desfecho}
@@ -2110,7 +2110,7 @@ function PainelDosEnvios({
     texto = 'Envios ativos. Nenhum passo programado agora.'
   }
   return (
-    <section aria-label="Envios automáticos" className="flex flex-wrap items-center gap-3 border border-al-line bg-al-surface px-4 py-3 text-xs text-al-muted">
+    <section aria-label="Envios automáticos" className="flex flex-wrap items-center gap-3 rounded-2xl border border-al-line bg-al-surface px-4 py-3 text-xs text-al-muted">
       <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">Envios automáticos</span>
       <span>{texto}</span>
       {rotulo && (
@@ -2214,7 +2214,7 @@ function RespostasRecebidas({
   erro: string | null
 }) {
   return (
-    <section aria-label="Respostas recebidas" className="flex min-w-0 flex-col gap-3 break-words border border-al-line bg-al-surface p-4 max-sm:-mx-10 max-sm:w-[calc(100%+5rem)] max-sm:p-3">
+    <section aria-label="Respostas recebidas" className="flex min-w-0 flex-col gap-3 break-words rounded-2xl border border-al-line bg-al-surface p-4 max-sm:-mx-10 max-sm:w-[calc(100%+5rem)] max-sm:p-3">
       {/* Abaixo de sm a coluna útil some no menu fixo e no px-10 da página: o bloco ocupa a largura da coluna. */}
       <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">
         {respostas.length === 1 ? 'Resposta recebida' : `${respostas.length} respostas recebidas`} · só você vê o conteúdo
