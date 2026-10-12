@@ -53,6 +53,8 @@
     - Critério 7: este critério é de testes; os 52 testes continuam verdes no código, mas não é algo que a evidência de produção prove.
   - Para fechar: um convite com nota a quem não é conexão, e a aceitação dele (`new_relation`), além de uma mensagem a quem já é conexão, com a conferência do `linkedin_action` em `private.sequence_step_sends`.
 
+- 2026-10-12 (fix do aceite, [handoff](../../handoffs/fix-aceite-convite-linkedin.md)): o `new_relation` só era registrado. Agora liga ao Envio do convite (mesma Conta remetente, `provider_user_id`, ação `convite`, status `sent`), cria a Interação `convite-aceito` sem pausar a Sequência, é idempotente, e a migration `20261012150845_aceite_de_convite_linkedin.sql` religa os aceites antigos (inclui o evento `ab1f1f41`). Critério 4 continua aberto até a migration ser aplicada e o aceite conferido em produção.
+
 ## Passos do Nan
 
 1. Conectar a sua Conta remetente de LinkedIn pela Unipile (o mesmo fluxo do E-mail).
