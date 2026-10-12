@@ -361,7 +361,7 @@ export function SecaoComiteDeCompra({
                   <div className="flex items-start justify-between gap-2">
                     <span
                       className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded text-[0.625rem] font-medium uppercase tracking-wider',
+                        'inline-flex items-center px-2 py-0.5 rounded text-[0.6875rem] font-medium uppercase tracking-wider',
                         ehDecisor
                           ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
                           : ehInfluenciador

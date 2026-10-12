@@ -682,7 +682,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 <>
                   <span>·</span>
                   <span className="inline-flex items-center gap-1.5" title="Métricas de demonstração">
-                    <span className="px-1.5 py-0.2 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
+                    <span className="px-1.5 py-0.2 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
                       Demonstração
                     </span>
                     <span className="text-al-ink font-medium">
@@ -816,7 +816,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] border border-al-line bg-al-surface divide-y md:divide-y-0 md:divide-x divide-al-line">
         {/* Participantes */}
         <div className="p-3.5 flex flex-col gap-2.5">
-          <span className="rotulo text-[0.625rem] text-al-muted tracking-rotulo uppercase">
+          <span className="rotulo text-[0.6875rem] text-al-muted tracking-rotulo uppercase">
             Participantes · {sequencia.participantesIds.length} de {todosContatosDaConta.length} Contatos
           </span>
           <div className="flex flex-wrap items-center gap-2">
@@ -829,7 +829,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                   key={id}
                   className="inline-flex h-7.5 items-center gap-1.5 border border-al-line bg-al-bg px-2 py-0.5 text-xs"
                 >
-                  <span className="size-4.5 rounded-full bg-al-line text-[0.5625rem] font-medium flex items-center justify-center text-al-ink">
+                  <span className="size-4.5 rounded-full bg-al-line text-[0.6875rem] font-medium flex items-center justify-center text-al-ink">
                     {iniciais(nome)}
                   </span>
                   <span className="font-medium text-al-ink">{nome}</span>
@@ -845,7 +845,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                       }
                     }}
                     aria-label={temDestinos ? `Editar destinos de ${nome}` : `Cadastrar destinos de ${nome}`}
-                    className={`ml-1 text-[0.625rem] px-1 py-0.5 border ${
+                    className={`ml-1 text-[0.6875rem] px-1 py-0.5 border ${
                       temDestinos
                         ? 'border-al-line text-al-ink hover:border-al-accent'
                         : 'border-dashed border-al-atencao text-al-atencao hover:border-al-ink'
@@ -890,7 +890,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 
         {/* Janela de envio padrão */}
         <div className="p-3.5 flex flex-col gap-2.5">
-          <span className="rotulo text-[0.625rem] text-al-muted tracking-rotulo uppercase">
+          <span className="rotulo text-[0.6875rem] text-al-muted tracking-rotulo uppercase">
             Janela padrão
           </span>
           <div className="flex flex-wrap items-center gap-2 text-xs text-al-ink">
@@ -1025,7 +1025,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] border border-al-line bg-al-surface min-h-[600px]">
         {/* Coluna 1: Timeline lateral (seq-timeline) */}
         <div className="border-b lg:border-b-0 lg:border-r border-al-line p-3.5 flex flex-col gap-3">
-          <div className="flex items-center justify-between text-[0.625rem] font-normal uppercase tracking-rotulo text-al-muted px-1">
+          <div className="flex items-center justify-between text-[0.6875rem] font-normal uppercase tracking-rotulo text-al-muted px-1">
             <span>
               {stepsMesclados.length} steps · {diasUteisTotais} {diasUteisTotais === 1 ? 'dia útil' : 'dias úteis'}
             </span>
@@ -1099,7 +1099,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                     {/* Indicador de resposta (real, ou de demonstração) e de desfecho de demo */}
                     {(respondido || step.metricas?.respondeu) && (
                       <span
-                        className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0"
+                        className="px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.6875rem] font-medium tracking-rotulo uppercase shrink-0"
                         title={respondido ? 'O Contato respondeu a este passo' : 'Demonstração: obteve resposta'}
                       >
                         {respondido ? 'Respondeu' : '1 resposta'}
@@ -1107,7 +1107,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                     )}
                     {step.metricas?.desfecho && (
                       <span
-                        className="px-1.5 py-0.5 border border-al-line bg-al-surface text-al-muted text-[0.625rem] font-medium shrink-0"
+                        className="px-1.5 py-0.5 border border-al-line bg-al-surface text-al-muted text-[0.6875rem] font-medium shrink-0"
                         title="Demonstração: desfecho"
                       >
                         {step.metricas.desfecho}
@@ -1117,7 +1117,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                     {/* Ícone do canal e avatar */}
                     <IconeCanal canal={step.canal} />
                     <span
-                      className="size-4.5 rounded-full bg-al-line text-[0.5625rem] font-medium flex items-center justify-center text-al-ink shrink-0"
+                      className="size-4.5 rounded-full bg-al-line text-[0.6875rem] font-medium flex items-center justify-center text-al-ink shrink-0"
                       title={nomeContato}
                     >
                       {iniciais(nomeContato)}
@@ -1733,7 +1733,7 @@ function ComposerStep({
           />
         ) : (
           <>
-            <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted font-medium">
+            <span className="px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted font-medium">
               Demonstração
             </span>
             {step.metricas ? (
@@ -1961,7 +1961,7 @@ function RodapeDoEnvio({
       <span className="flex items-center gap-2">
         {envio && (
           <span
-            className={`px-1.5 py-0.5 border text-[0.625rem] uppercase tracking-rotulo font-medium ${
+            className={`px-1.5 py-0.5 border text-[0.6875rem] uppercase tracking-rotulo font-medium ${
               envio.status === 'sent'
                 ? 'border-al-sucesso/40 text-al-sucesso'
                 : ENVIO_COM_ATENCAO.has(envio.status)
@@ -2383,7 +2383,7 @@ function BarraVariaveis({
           aria-label={`Inserir variável ${token}`}
           className="inline-flex h-6 items-center gap-1 border border-al-line bg-al-bg px-2 font-mono text-[0.6875rem] text-al-ink hover:border-al-accent hover:text-al-accent"
         >
-          <em className="not-italic text-[0.5625rem] uppercase tracking-widest text-al-muted font-sans">
+          <em className="not-italic text-[0.6875rem] uppercase tracking-widest text-al-muted font-sans">
             {grupo}
           </em>
           {token}
@@ -2684,7 +2684,7 @@ function LinhaAnexos({
                   </span>
                 )}
               </div>
-              <span className="px-1.5 py-1 text-[0.625rem] text-al-muted truncate">{a.nome}</span>
+              <span className="px-1.5 py-1 text-[0.6875rem] text-al-muted truncate">{a.nome}</span>
               <button
                 type="button"
                 onClick={() => onRemover(i)}
@@ -2962,7 +2962,7 @@ export function DialogoDestinosContato({
           )}
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="destino-email" className="rotulo text-[0.625rem] text-al-muted uppercase tracking-rotulo">
+            <label htmlFor="destino-email" className="rotulo text-[0.6875rem] text-al-muted uppercase tracking-rotulo">
               E-mail corporativo real
             </label>
             <input
@@ -2976,7 +2976,7 @@ export function DialogoDestinosContato({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="destino-whatsapp" className="rotulo text-[0.625rem] text-al-muted uppercase tracking-rotulo">
+            <label htmlFor="destino-whatsapp" className="rotulo text-[0.6875rem] text-al-muted uppercase tracking-rotulo">
               WhatsApp (formato E.164)
             </label>
             <input
@@ -2993,7 +2993,7 @@ export function DialogoDestinosContato({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="destino-linkedin" className="rotulo text-[0.625rem] text-al-muted uppercase tracking-rotulo">
+            <label htmlFor="destino-linkedin" className="rotulo text-[0.6875rem] text-al-muted uppercase tracking-rotulo">
               Perfil do LinkedIn (URL ou usuário)
             </label>
             <input

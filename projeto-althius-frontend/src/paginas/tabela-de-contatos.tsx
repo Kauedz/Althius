@@ -223,7 +223,7 @@ function DadosDeContato({
               />
             </span>
             {mais > 0 && (
-              <span aria-hidden className="text-[0.625rem] text-al-muted">
+              <span aria-hidden className="text-[0.6875rem] text-al-muted">
                 +{mais}
               </span>
             )}

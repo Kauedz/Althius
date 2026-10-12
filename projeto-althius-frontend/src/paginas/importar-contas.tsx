@@ -657,7 +657,7 @@ function Contagens({ lote }: { lote: LoteDeImportacao }) {
     <dl className="flex flex-wrap gap-6">
       {itens.map(([rotulo, valor]) => (
         <div key={rotulo} className="flex flex-col">
-          <dt className="rotulo text-[0.625rem]">{rotulo}</dt>
+          <dt className="rotulo text-[0.6875rem]">{rotulo}</dt>
           <dd className="text-2xl">{valor}</dd>
         </div>
       ))}

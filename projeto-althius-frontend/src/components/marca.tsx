@@ -56,7 +56,7 @@ export function IconeAgente({ especialidade, tamanho = 'md' }: { especialidade: 
   )
 }
 
-const TAMANHOS_DO_AVATAR = { sm: 'size-6.5 text-[0.625rem]', md: 'size-8 text-xs', lg: 'size-16 text-lg' } as const
+const TAMANHOS_DO_AVATAR = { sm: 'size-6.5 text-[0.6875rem]', md: 'size-8 text-xs', lg: 'size-16 text-lg' } as const
 
 /** A foto de uma pessoa num círculo, ou as iniciais do nome quando não há foto. */
 export function AvatarDePessoa({

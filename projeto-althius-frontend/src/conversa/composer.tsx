@@ -89,7 +89,7 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
       <div className="flex items-center gap-1.5 pt-1.5 pr-2.5 pb-2.5 pl-3.5">
         <span className="inline-flex h-7.5 items-center gap-1.5 rounded-full bg-al-bg pr-3 pl-2.5 text-sm whitespace-nowrap">
           <Building2 strokeWidth={1.8} className="size-3.5 text-al-muted" aria-hidden />
-          <span className="rotulo text-[0.5625rem]">Workspace</span>
+          <span className="rotulo text-[0.6875rem]">Workspace</span>
           {workspace?.cliente}
         </span>
         {comEspecialidades && especialidades && (

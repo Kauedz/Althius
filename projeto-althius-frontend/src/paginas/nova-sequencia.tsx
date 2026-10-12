@@ -246,7 +246,7 @@ function FormularioNovaSequencia({
                     <span className="font-medium">{contato.nome}</span>
                     {contato.cargo && <span className="text-al-muted">· {contato.cargo}</span>}
                     {contato.persona && (
-                      <span className="rotulo text-[10px] text-al-muted">
+                      <span className="rotulo text-[0.6875rem] text-al-muted">
                         ({contato.persona})
                       </span>
                     )}

@@ -147,7 +147,7 @@ export function ContaComSinais() {
             <thead>
               <tr>
                 {['Empresa', 'Quente', 'Aderência', 'Último sinal'].map((coluna) => (
-                  <th key={coluna} scope="col" className="rotulo h-9 border-b border-al-line pr-4 text-[0.625rem]">
+                  <th key={coluna} scope="col" className="rotulo h-9 border-b border-al-line pr-4 text-[0.6875rem]">
                     {coluna}
                   </th>
                 ))}

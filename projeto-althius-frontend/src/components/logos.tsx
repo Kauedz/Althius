@@ -91,7 +91,7 @@ export function LogoDaConta({
       role="img"
       aria-label={nome}
       className={cn(
-        'grid size-6 shrink-0 place-items-center rounded-[4px] border border-al-line bg-al-surface text-[0.625rem] font-semibold text-al-muted',
+        'grid size-6 shrink-0 place-items-center rounded-[4px] border border-al-line bg-al-surface text-[0.6875rem] font-semibold text-al-muted',
         className,
       )}
     >

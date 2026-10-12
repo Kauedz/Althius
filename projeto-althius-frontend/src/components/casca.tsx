@@ -181,7 +181,7 @@ function SeletorDeWorkspace({
       >
         <LogoDoWorkspace nome={cliente ?? ''} endereco={logo} />
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="rotulo text-[0.5625rem]">Workspace</span>
+          <span className="rotulo text-[0.6875rem]">Workspace</span>
           <span className="truncate font-normal">{cliente}</span>
         </span>
         <ChevronsUpDown strokeWidth={1.8} className="size-4 text-al-muted" aria-hidden />
@@ -216,7 +216,7 @@ function MenuDoUsuario() {
       <AvatarDePessoa nome={nome} foto={workspace?.usuario.foto} />
       <span className="flex min-w-0 flex-1 flex-col leading-tight">
         <span className="truncate text-sm font-normal">{nome}</span>
-        <span className="rotulo text-[0.5625rem]">{rotuloDoTema}</span>
+        <span className="rotulo text-[0.6875rem]">{rotuloDoTema}</span>
       </span>
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Menu do usuário: ${nome}`} />}>
@@ -245,7 +245,7 @@ function MenuDoUsuario() {
 function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <nav aria-label={titulo} className="flex flex-col gap-0.5">
-      <span className="rotulo px-2 pb-1 text-[0.625rem]" aria-hidden>
+      <span className="rotulo px-2 pb-1 text-[0.6875rem]" aria-hidden>
         {titulo}
       </span>
       <ul className="flex flex-col gap-0.5">{children}</ul>

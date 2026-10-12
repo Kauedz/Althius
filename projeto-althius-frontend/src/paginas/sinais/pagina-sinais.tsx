@@ -224,7 +224,7 @@ function Catalogo({
             <section key={familia.id} aria-labelledby={`familia-${familia.id}`} className="flex flex-col gap-4">
               <h2 id={`familia-${familia.id}`} className="flex items-baseline gap-3">
                 <span className="titulo-secao text-lg">{familia.nome}</span>
-                <span className="rotulo text-[0.625rem]">{ROTULO_DA_ORIGEM[familia.origem]}</span>
+                <span className="rotulo text-[0.6875rem]">{ROTULO_DA_ORIGEM[familia.origem]}</span>
               </h2>
               <ul className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-4">
                 {tipos.map((tipo) => (
@@ -380,7 +380,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
             <thead>
               <tr>
                 {['Empresa', 'Sinal', 'Data'].map((coluna) => (
-                  <th key={coluna} scope="col" className="rotulo h-9.5 border-b border-al-line pr-4 text-[0.625rem]">
+                  <th key={coluna} scope="col" className="rotulo h-9.5 border-b border-al-line pr-4 text-[0.6875rem]">
                     {coluna}
                   </th>
                 ))}
