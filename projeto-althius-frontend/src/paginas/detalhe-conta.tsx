@@ -144,7 +144,7 @@ export function DetalheConta({ contaId }: Props) {
             type="button"
             variant="outline"
             onClick={recarregarConta}
-            className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+            className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
           >
             Tentar de novo
           </Button>
@@ -241,13 +241,13 @@ export function DetalheConta({ contaId }: Props) {
         >
 
           {carregandoSequencia && (
-            <div className="border border-al-line bg-al-surface p-4">
+            <div className="rounded-xl border border-al-line bg-al-surface p-4">
               <Carregando />
             </div>
           )}
 
           {!carregandoSequencia && sequencia && (
-            <div className="flex flex-col gap-3 border border-al-line bg-al-surface p-5">
+            <div className="rounded-2xl flex flex-col gap-3 border border-al-line bg-al-surface p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-al-line pb-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <SeloStatus status={sequencia.status} />
@@ -290,7 +290,7 @@ export function DetalheConta({ contaId }: Props) {
               )}
 
               {sequencia.status === 'pausada' && (
-                <div className="mt-2 flex items-start gap-2.5 border border-al-atencao/40 bg-al-atencao/10 p-3 text-xs text-al-ink">
+                <div className="rounded-xl mt-2 flex items-start gap-2.5 border border-al-atencao/40 bg-al-atencao/10 p-3 text-xs text-al-ink">
                   <Pause className="size-4 shrink-0 text-al-atencao mt-0.5" />
                   <div className="flex flex-col gap-0.5">
                     <p>
@@ -311,7 +311,7 @@ export function DetalheConta({ contaId }: Props) {
           )}
 
           {!carregandoSequencia && (!sequencia || sequenciaEncerrada) && podeCriarSequencia && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-dashed border-al-line bg-al-surface/40 p-5">
+            <div className="rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-dashed border-al-line bg-al-surface/40 p-5">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium text-al-ink">
                   {sequenciaEncerrada ? 'Nenhuma sequência em andamento nesta Conta-alvo.' : 'Nenhuma sequência nesta Conta-alvo.'}
@@ -324,7 +324,7 @@ export function DetalheConta({ contaId }: Props) {
               <Button
                 type="button"
                 onClick={() => setDialogoNovaAberto(true)}
-                className="inline-flex items-center gap-1.5 h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2 shrink-0"
+                className="rounded-md inline-flex items-center gap-1.5 h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2 shrink-0"
               >
                 <Plus className="size-3.5" />
                 Criar sequência
@@ -454,7 +454,7 @@ function Secao({
 
 function SecaoVazia({ children }: { children: ReactNode }) {
   return (
-    <div className="grid min-h-30 place-items-center border border-dashed border-al-line text-sm text-al-muted">
+    <div className="rounded-lg grid min-h-30 place-items-center border border-dashed border-al-line text-sm text-al-muted">
       {children}
     </div>
   )
@@ -487,7 +487,7 @@ function SinaisDaConta({ sinais, hoje }: { sinais: Sinal[]; hoje: Date }) {
     <>
       <article
         aria-label="Sinal mais recente"
-        className="border-l-2 border-al-accent bg-al-surface px-5 py-4.5"
+        className="rounded-2xl bg-al-surface px-5 py-4.5 ring-1 ring-al-accent/30"
       >
         <p className="mb-2 text-lg font-light text-al-ink">{maisRecente.frase}</p>
         {maisRecente.descricao && maisRecente.descricao !== maisRecente.frase && (
@@ -602,7 +602,7 @@ function FormularioDeInteracao({ contaId }: { contaId: string }) {
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value as TipoDeInteracao)}
-          className="h-9 cursor-pointer border border-al-line bg-al-surface pr-8 pl-3 text-sm text-al-ink"
+          className="rounded-md h-9 cursor-pointer border border-al-line bg-al-surface pr-8 pl-3 text-sm text-al-ink"
         >
           {Object.entries(ROTULOS_INTERACOES).map(([valor, rotulo]) => (
             <option key={valor} value={valor}>
@@ -615,7 +615,7 @@ function FormularioDeInteracao({ contaId }: { contaId: string }) {
         type="submit"
         variant="outline"
         disabled={salvando}
-        className="h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+        className="h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
       >
         Registrar
       </Button>
@@ -628,7 +628,7 @@ function FormularioDeInteracao({ contaId }: { contaId: string }) {
   )
 }
 
-const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
+const BOTAO_SECUNDARIO = 'h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface'
 
 /**
  * O que o Vendedor responsável faz com os Contatos da Conta: cadastrar um Contato novo, vincular um Contato que já
@@ -752,12 +752,12 @@ function FormularioNovoContato({ contaId, fechar }: { contaId: string; fechar: (
   }
 
   return (
-    <form aria-label="Novo Contato" onSubmit={enviar} className="flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4">
+    <form aria-label="Novo Contato" onSubmit={enviar} className="rounded-xl flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4">
       <CamposDoContato campos={campos} editar={editar} />
       <Button
         type="submit"
         disabled={salvando}
-        className="h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
+        className="rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2"
       >
         Salvar
       </Button>

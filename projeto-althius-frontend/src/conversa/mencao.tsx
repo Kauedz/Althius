@@ -60,7 +60,7 @@ export function ListaDeMencoes({
   className?: string
 }) {
   return (
-    <ul id={id} role="listbox" aria-label="Agentes" className={cn('border border-al-line bg-al-surface', className)}>
+    <ul id={id} role="listbox" aria-label="Agentes" className={cn('rounded-lg border border-al-line bg-al-surface', className)}>
       {opcoes.map((agente, i) => (
         <li
           key={agente.id}

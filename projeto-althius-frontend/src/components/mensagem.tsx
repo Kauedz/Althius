@@ -14,10 +14,10 @@ export function Mensagem({ tipo, children }: { tipo: 'sucesso' | 'erro' | 'info'
       className={
         children
           ? cn(
-              'flex items-start gap-2 border-l-2 py-1 pl-3 text-sm',
-              tipo === 'sucesso' && 'border-al-sucesso',
-              tipo === 'erro' && 'border-al-erro text-al-ink',
-              tipo === 'info' && 'border-al-line text-al-muted',
+              'flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-sm',
+              tipo === 'sucesso' && 'bg-al-sucesso-suave text-al-ink',
+              tipo === 'erro' && 'bg-al-erro/10 text-al-ink',
+              tipo === 'info' && 'bg-al-hover text-al-muted',
             )
           : 'sr-only'
       }

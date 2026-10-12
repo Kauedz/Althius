@@ -18,13 +18,13 @@ import { cn } from '@/lib/utils'
 import { DialogoDeEdicaoDoContato } from './formulario-de-contato'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 
-const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
+const BOTAO_SECUNDARIO = 'h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface'
 /** O botão que alterna a lista padrão e a de arquivados, ao lado da contagem. */
-export const BOTAO_DO_CABECALHO = 'h-9 shrink-0 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
+export const BOTAO_DO_CABECALHO = 'h-9 shrink-0 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface'
 const BOTAO_DE_PERIGO =
-  'h-9 border border-al-erro bg-al-erro px-4 text-xs font-medium tracking-rotulo text-white uppercase hover:opacity-90 disabled:opacity-50'
+  'rounded-md h-9 border border-al-erro bg-al-erro px-4 text-sm font-medium tracking-[0.04em] text-white hover:opacity-90 disabled:opacity-50'
 const BOTAO_PRIMARIO =
-  'h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2 disabled:opacity-50'
+  'rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2 disabled:opacity-50'
 
 const comoTexto = (valor: string) => valor.trim().toLowerCase()
 
@@ -87,7 +87,7 @@ function CorpoDoDialogo({ aoMudar, titulo, descricao, rotuloDaAcao, confirmarCom
             onChange={(e) => setTexto(e.target.value)}
             autoComplete="off"
             aria-label="Nome para confirmar"
-            className="h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink"
+            className="rounded-md h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink"
           />
         </label>
       )}

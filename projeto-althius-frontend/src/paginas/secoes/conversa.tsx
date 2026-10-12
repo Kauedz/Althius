@@ -115,7 +115,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
         <Button
           type="submit"
           disabled={respondendo || !texto.trim()}
-          className="h-10 gap-1.5 rounded-full pr-3 pl-4 tracking-rotulo uppercase"
+          className="h-10 gap-1.5 rounded-full pr-3 pl-4 tracking-[0.04em]"
         >
           Enviar
           <ArrowUp strokeWidth={1.8} className="size-4" aria-hidden />

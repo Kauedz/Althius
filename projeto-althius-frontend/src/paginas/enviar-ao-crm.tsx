@@ -90,7 +90,7 @@ function Envio({
         type="button"
         variant="outline"
         onClick={() => void abrirConversa(id)}
-        className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+        className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
       >
         Abrir a Conversa
       </Button>
@@ -174,7 +174,7 @@ function Envio({
             type="button"
             variant="outline"
             onClick={() => setConfirmando(true)}
-            className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+            className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
           >
             <Send strokeWidth={1.8} className="size-3.5" aria-hidden />
             Enviar ao CRM
@@ -213,7 +213,7 @@ function Envio({
               type="button"
               disabled={enviando}
               onClick={enviar}
-              className="h-8 text-xs tracking-rotulo uppercase"
+              className="h-8 text-sm tracking-[0.04em]"
             >
               {pelosAgentes(destino) ? 'Pedir aos Agentes' : 'Confirmar envio'}
             </Button>
@@ -225,7 +225,7 @@ function Envio({
                 setConfirmando(false)
                 aoCancelar?.()
               }}
-              className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+              className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
             >
               Cancelar
             </Button>

@@ -180,7 +180,7 @@ function CelulaPersona({ persona, personas }: { persona?: string; personas?: Sec
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
-          <Popover.Popup className="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 border border-al-line bg-al-surface p-4 text-sm text-al-ink shadow-md outline-none">
+          <Popover.Popup className="rounded-xl flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 border border-al-line bg-al-surface p-4 text-sm text-al-ink shadow-md outline-none">
             <Popover.Title className="font-normal">{persona}</Popover.Title>
             <Popover.Description className="leading-relaxed text-al-muted">{definicao}</Popover.Description>
             <Link to="/configuracoes/memoria/personas" className="rotulo text-al-ink underline-offset-4 hover:underline">

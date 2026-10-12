@@ -102,7 +102,7 @@ function LeituraDoSiteNoChecklist({ estado, fonte }: PropsDaEtapa) {
   const { situacao } = estado.leitura
   if (situacao === 'inativa') return null
   return (
-    <section aria-label="Leitura do site" className="flex flex-col gap-2 border border-al-line p-4">
+    <section aria-label="Leitura do site" className="rounded-xl flex flex-col gap-2 border border-al-line p-4">
       <p className="rotulo">Leitura do site</p>
       <p aria-live="polite">
         {situacao === 'lendo' && `Lendo o site ${estado.dominio}. Você pode editar os campos enquanto isso.`}
@@ -270,7 +270,7 @@ function PainelDoProgresso({ estado }: { estado: EstadoDeOnboarding }) {
   return (
     <section
       aria-label="Onboarding completo"
-      className={cn('flex flex-col gap-3 border p-4', completo ? 'border-al-ink' : 'border-al-line')}
+      className={cn('rounded-xl flex flex-col gap-3 border p-4', completo ? 'border-al-ink' : 'border-al-line')}
     >
       <div className="flex items-baseline justify-between gap-3">
         <p className="rotulo">Onboarding completo</p>
@@ -311,7 +311,7 @@ function PainelDoProgresso({ estado }: { estado: EstadoDeOnboarding }) {
       <p aria-live="polite">
         {completo ? (
           <span className="flex animate-in items-center gap-2 font-medium duration-500 fade-in-0 zoom-in-95">
-            <span className="grid size-6 shrink-0 place-items-center bg-al-ink text-al-bg">
+            <span className="grid size-6 shrink-0 place-items-center rounded-md bg-al-ink text-al-bg">
               <Check strokeWidth={2.5} className="size-4" aria-hidden />
             </span>
             Onboarding 100% completo: mini-ICP, Persona e Sinal concluídos.
@@ -332,13 +332,13 @@ function ProximosPassos() {
         Depois do checklist
       </h2>
       <ol aria-label="Próximos passos" className="flex flex-col gap-3">
-        <li className="flex flex-col gap-1 border border-al-line p-4">
+        <li className="rounded-xl flex flex-col gap-1 border border-al-line p-4">
           <Link to="/sinais?vista=encontrados" className="font-medium underline underline-offset-4">
             Ver Contas-alvo com Sinal
           </Link>
           <p className="text-sm text-al-muted">As Contas-alvo com Sinal encontrado vêm primeiro.</p>
         </li>
-        <li className="flex flex-col gap-1 border border-al-line p-4">
+        <li className="rounded-xl flex flex-col gap-1 border border-al-line p-4">
           <Link to="/sequencias" className="font-medium underline underline-offset-4">
             Criar a Sequência
           </Link>
@@ -364,7 +364,7 @@ function Item({
   return (
     <li
       aria-label={nome}
-      className={cn('flex flex-col gap-3 border bg-al-surface p-4', concluido ? 'border-al-ink' : 'border-al-line')}
+      className={cn('rounded-xl flex flex-col gap-3 border bg-al-surface p-4', concluido ? 'border-al-ink' : 'border-al-line')}
     >
       <div className="flex items-center justify-between gap-3">
         <h2 className="titulo-secao text-lg">{nome}</h2>

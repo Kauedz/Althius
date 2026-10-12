@@ -64,7 +64,7 @@ export function PaginaSinais() {
           {carregando && !tiposCarregados && <Carregando />}
 
           {erro && (
-            <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+            <div role="alert" className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
               <p className="text-sm text-al-muted">Não foi possível carregar os sinais.</p>
               <button
                 type="button"
@@ -148,7 +148,7 @@ function Catalogo({
       {catalogoTipos.some((tipo) => !podeMonitorar(tipo)) && <AvisoDeNovosSinais />}
 
       {totalAtivos === 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border border-dashed border-al-line px-5 py-4">
+        <div className="rounded-2xl flex flex-wrap items-center justify-between gap-3 border border-dashed border-al-line px-5 py-4">
           <p className="text-sm text-al-muted">
             Nenhum Monitoramento ativo ainda. Escolha um tipo abaixo ou comece pelo mais comum.
           </p>
@@ -171,17 +171,13 @@ function Catalogo({
             className="campo h-9 pl-9 text-sm placeholder:text-al-muted"
           />
         </div>
-        <div role="group" aria-label="Filtrar por origem" className="flex border border-al-line">
+        <div role="group" aria-label="Filtrar por origem" className="segmentado">
           {FILTROS.map((opcao) => (
             <button
               key={opcao}
               type="button"
               aria-pressed={filtro === opcao}
               onClick={() => setFiltro(opcao)}
-              className={cn(
-                'flex h-9 items-center gap-1.5 border-l border-al-line px-4 text-xs tracking-rotulo uppercase first:border-l-0',
-                filtro === opcao ? 'bg-al-surface text-al-ink shadow-[inset_0_-2px_0_var(--al-accent)]' : 'text-al-muted hover:text-al-ink',
-              )}
             >
               {opcao === 'todos' ? 'Todos' : ROTULO_DA_ORIGEM_NO_PLURAL[opcao]}
               <span className="text-al-muted tabular-nums" aria-hidden>
@@ -195,7 +191,7 @@ function Catalogo({
       <CartaoPersonalizado quantidade={personalizados} />
 
       {familias.length === 0 ? (
-        <div className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+        <div className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
           <p className="text-sm">Nenhum tipo de sinal corresponde a “{busca.trim()}”.</p>
           <p className="text-sm text-al-muted">Tente outras palavras, mude o filtro ou descreva o que procura num sinal personalizado.</p>
           <div className="flex flex-wrap gap-2">
@@ -276,7 +272,7 @@ function CartaoDeTipo({ tipo, ativos }: { tipo: TipoDeSinal; ativos: number }) {
           <span className="rotulo opacity-60">Nenhum ativo</span>
         )}
         <span
-          className="grid size-8 place-items-center border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
+          className="rounded-md grid size-8 place-items-center border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
           aria-hidden
         >
           <ArrowRight strokeWidth={1.8} className="size-4 transition-transform group-hover:translate-x-0.5" />
@@ -291,9 +287,8 @@ function CartaoPersonalizado({ quantidade }: { quantidade: number }) {
   return (
     <section
       aria-label="Sinal personalizado"
-      className="relative flex flex-wrap items-center justify-between gap-6 overflow-hidden border border-al-line bg-al-surface p-6 pl-8"
+      className="cartao flex flex-wrap items-center justify-between gap-6 p-6"
     >
-      <span className="absolute inset-y-0 left-0 w-1 bg-(image:--al-gradient)" aria-hidden />
       <div className="flex max-w-2xl flex-col gap-1.5">
         <h2 className="titulo-secao text-xl">Não encontrou o que procura?</h2>
         <p className="text-sm text-al-muted">
@@ -350,7 +345,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
       {esperando && <Carregando />}
 
       {erroSinais && (
-        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+        <div role="alert" className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
           <p className="text-sm text-al-muted">Não foi possível carregar os sinais encontrados.</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={recarregarSinais} className={BOTAO_SECUNDARIO}>
@@ -365,7 +360,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
 
       {!erroSinais && !esperando && (
         sinais.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+          <div className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
             <p className="text-sm">Nenhum Sinal encontrado ainda.</p>
             <p className="text-sm text-al-muted">
               Os Monitoramentos ativos procuram novos acontecimentos; os disparos aparecem aqui e no Último sinal de cada

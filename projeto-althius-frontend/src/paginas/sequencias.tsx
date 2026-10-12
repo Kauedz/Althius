@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Calendar, Pause, Plus, Route, Search } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { LogoDaConta } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
@@ -108,7 +109,7 @@ function ListaGlobalSequencias() {
             type="button"
             variant="outline"
             onClick={recarregar}
-            className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+            className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
           >
             Tentar de novo
           </Button>
@@ -125,7 +126,7 @@ function ListaGlobalSequencias() {
           {permiteCriarSequencia && <Button
             type="button"
             onClick={() => setDialogoNovaAberto(true)}
-            className="h-9 border border-al-line bg-al-surface px-4 text-xs font-medium tracking-rotulo text-al-ink uppercase hover:bg-al-bg"
+            className="rounded-md h-9 border border-al-line bg-al-surface px-4 text-sm font-medium tracking-[0.04em] text-al-ink hover:bg-al-bg"
           >
             <Plus className="size-4 mr-1.5" /> Nova sequência
           </Button>}
@@ -167,7 +168,7 @@ function ListaGlobalSequencias() {
             {permiteCriarSequencia && <Button
               type="button"
               onClick={() => setDialogoNovaAberto(true)}
-              className="h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
+              className="rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2"
             >
               <Plus className="size-4 mr-1.5" /> Nova sequência
             </Button>}
@@ -224,17 +225,20 @@ function ListaGlobalSequencias() {
                         className="h-12 cursor-pointer hover:bg-al-hover transition-colors"
                       >
                         <td className="py-3 pr-4 font-medium text-al-ink">
-                          <div className="flex flex-col">
-                            <Link
-                              to={`/sequencias/${seq.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-medium text-al-ink hover:underline hover:text-al-accent"
-                            >
-                              {nomeConta}
-                            </Link>
-                            {conta?.dominio && (
-                              <span className="text-xs text-al-muted">{conta.dominio}</span>
-                            )}
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <LogoDaConta nome={nomeConta} logo={conta?.logo} deUmaCor={conta?.logoDeUmaCor} />
+                            <div className="flex min-w-0 flex-col leading-tight">
+                              <Link
+                                to={`/sequencias/${seq.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="truncate font-medium text-al-ink hover:underline hover:text-al-accent"
+                              >
+                                {nomeConta}
+                              </Link>
+                              {conta?.dominio && (
+                                <span className="truncate text-[0.6875rem] text-al-muted">{conta.dominio}</span>
+                              )}
+                            </div>
                           </div>
                         </td>
 
@@ -265,7 +269,7 @@ function ListaGlobalSequencias() {
                                       : `Pausada · ${seq.motivoPause}`)
                                   : 'Pausada · aguardando análise humana'}
                               </span>
-                              <span className="px-1 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.6875rem] font-medium tracking-rotulo uppercase shrink-0">
+                              <span className="rounded-md px-1 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.6875rem] font-medium tracking-rotulo uppercase shrink-0">
                                 Pausa da Conta
                               </span>
                             </span>

@@ -28,18 +28,28 @@ export function SecaoAjuda() {
   if (!ehPagina(pagina)) return <Navigate to="/configuracoes/ajuda/central" replace />
 
   return (
-    <SecaoDeConfiguracoes
-      id="ajuda"
-      titulo="Ajuda e informações"
-      alcance="althius"
-      descricao="Informações da Althius, iguais para todos os Workspaces."
-    >
-      <AbasDasPaginas secao="ajuda" paginas={PAGINAS} rotuloAcessivel="Páginas de Ajuda e informações" />
-      {pagina === 'central' && <CentralDeAjuda />}
-      {pagina === 'feedback' && <Feedback />}
-      {pagina === 'termos' && <Documento documento={TERMOS_DE_SERVICO} />}
-      {pagina === 'privacidade' && <Documento documento={POLITICA_DE_PRIVACIDADE} />}
-    </SecaoDeConfiguracoes>
+    <>
+      <SecaoDeConfiguracoes
+        id="ajuda"
+        titulo="Ajuda e informações"
+        alcance="althius"
+        descricao="Informações da Althius, iguais para todos os Workspaces."
+      >
+        <AbasDasPaginas secao="ajuda" paginas={PAGINAS} rotuloAcessivel="Páginas de Ajuda e informações" />
+        {pagina === 'central' && <CentralDeAjuda />}
+        {pagina === 'feedback' && <Feedback />}
+        {pagina === 'termos' && <Documento documento={TERMOS_DE_SERVICO} />}
+        {pagina === 'privacidade' && <Documento documento={POLITICA_DE_PRIVACIDADE} />}
+      </SecaoDeConfiguracoes>
+      {/* Fora da região da Ajuda, que não tem link externo; a licença do Scroll Progress pede um crédito visível ao rareui.com. */}
+      <p className="text-xs text-al-ink-3">
+        O indicador de leitura das páginas é o Scroll Progress, de{' '}
+        <a href="https://rareui.com/components/scrollprogressindicator" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-al-ink">
+          rareui.com
+        </a>
+        .
+      </p>
+    </>
   )
 }
 
@@ -166,7 +176,7 @@ function Feedback() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <Button type="submit" className="px-6 tracking-rotulo uppercase">
+            <Button type="submit" className="px-6 tracking-[0.04em]">
               Enviar feedback
             </Button>
             <Button type="button" variant="ghost" disabled={!preenchido} onClick={cancelar}>

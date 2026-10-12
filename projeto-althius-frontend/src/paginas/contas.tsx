@@ -296,7 +296,7 @@ function ListaContas() {
         {fonte.importacao && (
           <Link
             to="/contas/importar"
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 border border-al-line bg-al-bg px-4 text-xs font-medium tracking-rotulo text-al-ink uppercase hover:bg-al-surface"
+            className="rounded-md inline-flex h-9 shrink-0 items-center gap-1.5 border border-al-line bg-al-bg px-4 text-sm font-medium tracking-[0.04em] text-al-ink hover:bg-al-surface"
           >
             <Upload className="size-3.5" aria-hidden />
             Importar CSV
@@ -306,7 +306,7 @@ function ListaContas() {
           <Button
             type="button"
             onClick={() => setCadastrando(true)}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
+            className="rounded-md inline-flex h-9 shrink-0 items-center gap-1.5 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2"
           >
             <Plus className="size-3.5" aria-hidden />
             Nova Conta-alvo
@@ -328,17 +328,13 @@ function ListaContas() {
           />
           <span className="flex-1" />
           {fonte.moverEstagio && (
-            <div role="group" aria-label="Vista" className="flex h-9 border border-al-line">
+            <div role="group" aria-label="Vista" className="segmentado">
               {(['tabela', 'kanban'] as const).map((vista) => (
                 <button
                   key={vista}
                   type="button"
                   aria-pressed={kanban === (vista === 'kanban')}
                   onClick={() => recorte.definir('vista', vista, 'tabela')}
-                  className={cn(
-                    'px-3 text-xs font-medium tracking-rotulo uppercase',
-                    kanban === (vista === 'kanban') ? 'bg-al-surface text-al-ink' : 'text-al-muted hover:text-al-ink',
-                  )}
                 >
                   {vista === 'kanban' ? 'Kanban' : 'Tabela'}
                 </button>
@@ -350,7 +346,7 @@ function ListaContas() {
             aria-label="Ordenar por"
             value={ordem}
             onChange={(e) => eOrdenacao(e.target.value) && ordenar(e.target.value)}
-            className="h-9 cursor-pointer border border-al-line bg-al-surface pr-8 pl-3 text-sm text-al-ink"
+            className="rounded-md h-9 cursor-pointer border border-al-line bg-al-surface pr-8 pl-3 text-sm text-al-ink"
           >
             {Object.entries(ORDENACOES).map(([valor, { rotulo }]) => (
               <option key={valor} value={valor}>
@@ -653,7 +649,7 @@ function PopUpDaEmpresa({ conta, children }: { conta: ContaAlvo; children: React
             onKeyDown={tabNoPopUp}
             // O portal tira o pop-up da linha no DOM, mas não na árvore do React: o clique não pode abrir o detalhe.
             onClick={(e) => e.stopPropagation()}
-            className="flex min-w-40 flex-col border border-al-line bg-al-surface py-1 text-sm text-al-ink shadow-md outline-none"
+            className="rounded-lg flex min-w-40 flex-col border border-al-line bg-al-surface py-1 text-sm text-al-ink shadow-md outline-none"
           >
             {links.map((link) => (
               <a
@@ -733,7 +729,7 @@ function CelulaSegmento({ segmento }: { segmento?: string }) {
   )
 }
 
-const CAMPO_DO_FORMULARIO = 'h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
+const CAMPO_DO_FORMULARIO = 'rounded-md h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
 
 /**
  * O cadastro manual de uma Conta-alvo: nome e URL da empresa, e o segmento, se houver. A Conta fica sob a
@@ -775,7 +771,7 @@ function FormularioNovaConta({
     <form
       aria-label="Nova Conta-alvo"
       onSubmit={enviar}
-      className="flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4"
+      className="rounded-xl flex flex-wrap items-end gap-3 border border-al-line bg-al-surface/40 p-4"
     >
       <label className="flex flex-col gap-1 text-xs text-al-muted">
         Nome da empresa
@@ -798,7 +794,7 @@ function FormularioNovaConta({
       <Button
         type="submit"
         disabled={salvando}
-        className="h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2"
+        className="rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2"
       >
         Salvar
       </Button>
@@ -806,7 +802,7 @@ function FormularioNovaConta({
         type="button"
         variant="outline"
         onClick={fechar}
-        className="h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+        className="h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
       >
         Cancelar
       </Button>

@@ -99,7 +99,7 @@ export function PaginaConversaCoordenada() {
       acoes={
         <Link
           to="/"
-          className="inline-flex h-8 items-center border border-al-line px-4 text-xs font-normal tracking-rotulo uppercase hover:border-al-ink"
+          className="rounded-md inline-flex h-8 items-center border border-al-line px-4 text-sm font-normal tracking-[0.04em] hover:border-al-ink"
         >
           Voltar para a grade
         </Link>
@@ -183,7 +183,7 @@ function TurnoDaConversa({
 
   return (
     <div className="flex flex-col gap-10">
-      <p className="max-w-4/5 self-end border border-al-line bg-al-surface px-4 py-2">{turno.pedido.texto}</p>
+      <p className="rounded-xl max-w-4/5 self-end border border-al-line bg-al-surface px-4 py-2">{turno.pedido.texto}</p>
 
       {etapas.length > 0 && (
         <section aria-label="Coordenação" className="flex flex-col gap-3.5">

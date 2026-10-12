@@ -82,12 +82,12 @@ export function KanbanDeContas({
     // O kanban ocupa o resto da janela: as colunas rolam na horizontal e cada uma rola os cartões na vertical.
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {erro && (
-        <p role="alert" className="border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
+        <p role="alert" className="rounded-lg border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
           {erro}
         </p>
       )}
       {aviso && (
-        <p role="status" className="border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
+        <p role="status" className="rounded-lg border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink">
           {aviso}
         </p>
       )}
@@ -108,11 +108,11 @@ export function KanbanDeContas({
               onDragLeave={() => setSobre((atual) => (atual === id ? undefined : atual))}
               onDrop={(e) => aceita && soltar(e, id)}
               className={cn(
-                'flex w-64 shrink-0 flex-col gap-2 overflow-y-auto border border-al-line bg-al-bg p-2',
+                'rounded-lg flex w-64 shrink-0 flex-col gap-2 overflow-y-auto border border-al-line bg-al-bg p-2',
                 sobre === id && 'border-al-accent bg-al-surface/40',
               )}
             >
-              <h3 className="sticky top-0 z-1 -mx-2 -mt-2 flex items-center justify-between bg-al-bg px-3 py-2 text-xs font-medium tracking-rotulo text-al-muted uppercase">
+              <h3 className="sticky top-0 z-1 -mx-2 -mt-2 flex items-center justify-between bg-al-bg px-3 py-2 text-sm font-medium tracking-[0.04em] text-al-muted">
                 <span>{rotulo}</span>
                 <span className="tabular-nums">{daColuna.length}</span>
               </h3>
@@ -180,7 +180,7 @@ function CartaoDaConta({
         e.dataTransfer.effectAllowed = 'move'
       }}
       className={cn(
-        'flex cursor-grab flex-col gap-2 border border-al-line bg-al-surface p-2.5 text-sm active:cursor-grabbing',
+        'rounded-lg flex cursor-grab flex-col gap-2 border border-al-line bg-al-surface p-2.5 text-sm active:cursor-grabbing',
         movendo && 'opacity-60',
       )}
     >
@@ -214,7 +214,7 @@ function CartaoDaConta({
         value={estagio}
         disabled={movendo}
         onChange={(e) => eEstagioDeProspeccao(e.target.value) && mover(e.target.value)}
-        className="h-7 cursor-pointer border border-al-line bg-al-bg px-1.5 text-xs text-al-ink"
+        className="rounded-md h-7 cursor-pointer border border-al-line bg-al-bg px-1.5 text-xs text-al-ink"
       >
         {ESTAGIOS_DE_PROSPECCAO.map(({ id, rotulo }) => (
           <option key={id} value={id} disabled={id === ESTAGIO_SO_DO_ENVIO_AO_CRM && estagio !== id}>
@@ -227,7 +227,7 @@ function CartaoDaConta({
           type="button"
           onClick={enviarAoCrm}
           aria-label={`Enviar ${conta.nome} ao CRM`}
-          className="inline-flex h-7 items-center justify-center gap-1.5 border border-al-line bg-al-bg px-2 text-xs tracking-rotulo text-al-ink uppercase hover:bg-al-surface"
+          className="rounded-md inline-flex h-7 items-center justify-center gap-1.5 border border-al-line bg-al-bg px-2 text-sm tracking-[0.04em] text-al-ink hover:bg-al-surface"
         >
           <Send strokeWidth={1.8} className="size-3.5" aria-hidden />
           Enviar ao CRM

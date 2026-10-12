@@ -48,7 +48,7 @@ export function IconeAgente({ especialidade, tamanho = 'md' }: { especialidade: 
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center border border-al-line bg-al-bg text-al-ink',
+        'rounded-lg overflow-hidden inline-flex shrink-0 items-center justify-center border border-al-line bg-al-bg text-al-ink',
         { sm: 'size-6', md: 'size-7', lg: 'size-12' }[tamanho],
       )}
     >
@@ -98,7 +98,7 @@ export function IndicadorDeEstado({ estado, className }: { estado: EstadoAgente;
   if (estado === 'ocioso') return null
   return (
     <span className={cn('relative inline-flex size-2 shrink-0 items-center justify-center', className)} aria-hidden>
-      {estado === 'trabalhando' && <span className="pulso-anel absolute -inset-1 rounded-full border border-al-accent" />}
+      {estado === 'trabalhando' && <span className="pulso-anel absolute inset-0 rounded-full border border-al-accent" />}
       <span className="size-1.5 rounded-full bg-al-accent" />
     </span>
   )

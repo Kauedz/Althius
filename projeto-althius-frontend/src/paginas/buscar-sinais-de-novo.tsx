@@ -67,7 +67,7 @@ export function BuscarSinaisDeNovo({ contaId, aoTerminar }: { contaId: string; a
           disabled={pedindo || emAndamento || !!motivoDeEstarDesligado}
           onClick={pedir}
           aria-describedby={semMonitoramento ? undefined : custoId}
-          className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+          className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
         >
           <RefreshCw strokeWidth={1.8} className="size-3.5" aria-hidden />
           Buscar Sinais de novo

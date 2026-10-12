@@ -102,8 +102,8 @@ function ItemDoMenu({ para, atual, children }: { para: string; atual: boolean; c
       aria-current={atual ? 'page' : undefined}
       className={
         atual
-          ? 'block border-l-2 border-al-accent py-1.5 pl-3 text-sm text-al-ink'
-          : 'block border-l-2 border-transparent py-1.5 pl-3 text-sm text-al-muted hover:text-al-ink'
+          ? 'block rounded-lg bg-al-hover px-3 py-1.5 text-sm text-al-ink'
+          : 'block rounded-lg px-3 py-1.5 text-sm text-al-muted hover:bg-al-hover hover:text-al-ink'
       }
     >
       {children}
@@ -129,7 +129,7 @@ function SecaoAberta({ id, revisoes }: { id: IdDaSecaoDoPlaybook; revisoes: Apro
 /** Um Agente propôs uma versão nova desta seção (CRM-09): ela só vale com a Aprovação de um Administrador. */
 function PropostaPendente({ nome, podeEditar }: { nome: string; podeEditar: boolean }) {
   return (
-    <div role="status" className="flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4 text-sm">
+    <div role="status" className="rounded-xl flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4 text-sm">
       <p>
         <span className="font-normal">Há uma proposta de um Agente para {nome}, aguardando Aprovação.</span>{' '}
         <span className="text-al-muted">
@@ -310,7 +310,7 @@ function TabelaEditavel({
       {linhas.length === 0 && <p className="text-sm text-al-muted">Nenhuma linha ainda.</p>}
       <ul className="flex flex-col gap-4">
         {linhas.map((linha, i) => (
-          <li key={i} aria-label={`Linha ${i + 1}`} className="flex flex-col gap-3 border border-al-line p-4">
+          <li key={i} aria-label={`Linha ${i + 1}`} className="rounded-xl flex flex-col gap-3 border border-al-line p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {colunas.map(({ campo, rotulo }) => (
                 <div key={campo} className="flex flex-col gap-1.5">

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useDadosDeSequencias } from '@/fonte/contexto'
 import type { TaxaDosEnvios, TaxaPorAbordagem } from '@/fonte/sequencias-tipos'
-import { cn } from '@/lib/utils'
 
 const NOME_DO_CANAL: Record<string, string> = { email: 'E-mail', linkedin: 'LinkedIn', whatsapp: 'WhatsApp' }
 
@@ -54,17 +53,13 @@ export function ResultadoDosEnvios() {
           Resultado dos envios
         </h2>
         {temAbordagem && (
-          <div role="group" aria-label="Agrupar resultado por" className="flex border border-al-line text-xs">
+          <div role="group" aria-label="Agrupar resultado por" className="segmentado">
             {(['segmento', 'abordagem'] as const).map((v) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={vistaAtual === v}
                 onClick={() => setVista(v)}
-                className={cn(
-                  'h-7 px-3 tracking-rotulo uppercase',
-                  vistaAtual === v ? 'bg-al-surface text-al-ink' : 'text-al-muted hover:text-al-ink',
-                )}
               >
                 {v === 'segmento' ? 'Segmento' : 'Abordagem'}
               </button>

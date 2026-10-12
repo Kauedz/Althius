@@ -43,6 +43,10 @@
   --al-agente: #a78bfa;
   --al-agente-suave: #221a33;
   --al-sombra-flutuante: 0 24px 48px -12px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  /* Controle segmentado: o trilho e a opção ativa. */
+  --al-seg-trilho: rgba(255, 255, 255, 0.07);
+  --al-seg-ativo: rgba(255, 255, 255, 0.14);
+  --al-seg-sombra: none;
   /* Cores próprias das marcas das Integrações, usadas só nos logos. */
   --logo-hubspot: #ff7a59;
   --logo-meta: #0467df;
@@ -77,6 +81,9 @@
   --al-agente: #7c3aed;
   --al-agente-suave: #f3effe;
   --al-sombra-flutuante: 0 16px 36px -12px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(19, 19, 19, 0.06);
+  --al-seg-trilho: rgba(19, 19, 19, 0.06);
+  --al-seg-ativo: #ffffff;
+  --al-seg-sombra: 0 1px 2px rgba(19, 19, 19, 0.12), 0 0 0 1px rgba(19, 19, 19, 0.04);
   color-scheme: light;
 }
 /* A barra lateral é sempre escura, como o cabeçalho do site, também no tema claro. */
@@ -99,8 +106,8 @@
 }
 
 :root {
-  /* Formas do site: campos e botões arredondados (8px), cartões 16px, pílulas; tabelas e abas seguem retas. */
-  --radius-field: 8px;
+  /* Formas do app: campos e botões arredondados (10px), cartões 16px, selos e filtros em pílula; tabelas e abas sublinhadas seguem sem caixa. */
+  --radius-field: 10px;
   --radius-card: 16px;
   /* Exceção aprovada no mock (ticket 02) ao raio 0 dos campos: o composer é arredondado. */
   --radius-composer: 24px;
@@ -133,7 +140,7 @@
   --font-sans: "Oswald", "Arial Narrow", sans-serif;
   --font-heading: "Oswald", "Arial Narrow", sans-serif;
   --font-mao: "Indie Flower", "Segoe Script", cursive;
-  --tracking-rotulo: 0.18em;
+  --tracking-rotulo: 0.14em;
 
   --color-al-bg: var(--al-bg);
   --color-al-surface: var(--al-surface);
@@ -196,7 +203,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-weight: 300;
+    font-weight: 400;
     font-size: 0.9375rem;
     line-height: 1.6;
   }
@@ -206,6 +213,42 @@
   select,
   textarea {
     border-radius: var(--radius-field);
+  }
+  /* Caixas de seleção e rádios no desenho do app (a marca de seleção em rosa), no lugar dos controles nativos. */
+  input:where([type="checkbox"], [type="radio"]) {
+    appearance: none;
+    display: inline-grid;
+    flex-shrink: 0;
+    place-content: center;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid var(--al-line-forte);
+    background-color: var(--al-surface);
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  input:where([type="checkbox"]) {
+    border-radius: 5px;
+  }
+  input:where([type="radio"]) {
+    border-radius: 9999px;
+  }
+  input:where([type="checkbox"]):checked {
+    border-color: var(--al-accent);
+    background-color: var(--al-accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23131313' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-7'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 0.75rem;
+  }
+  input:where([type="radio"]):checked {
+    border-color: var(--al-accent);
+    background-color: var(--al-accent);
+    box-shadow: inset 0 0 0 3px var(--al-surface);
+  }
+  input:where([type="checkbox"], [type="radio"]):disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
   /* Transições sutis em todo o app (150–250ms, ease); some com prefers-reduced-motion. */
   a,
@@ -234,14 +277,23 @@
     outline: 2px solid var(--al-accent);
     outline-offset: 2px;
   }
+  /* Barras de rolagem finas e discretas, na cor das linhas, no lugar da barra cinza do navegador. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--al-line-media) transparent;
+  }
+  /* Quem salta para uma seção (o indicador de leitura) não a deixa embaixo da barra de topo fixa. */
+  main h2 {
+    scroll-margin-top: 5.5rem;
+  }
 }
 
 @layer components {
-  /* Rótulo / etiqueta: Oswald 400 maiúsculo, entreletra 0,18em. */
+  /* Rótulo / etiqueta: Oswald 400 maiúsculo, entreletra 0,14em. */
   .rotulo {
     font-weight: 400;
     font-size: 0.75rem;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--al-ink-muted);
   }
@@ -270,7 +322,16 @@
   .campo::placeholder {
     color: var(--al-ink-3);
   }
-  /* Selo: etiqueta quadrada e discreta, como o de estado e o de demonstração. */
+  /* A seta do select é um chevron na cor do texto discreto, e não a seta cinza do navegador. */
+  select:not([multiple]):not([size]) {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238e8e8e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+    padding-right: 2.25rem;
+  }
+  /* Selo: etiqueta em pílula, discreta, como o de estado e o de demonstração. */
   .selo {
     display: inline-flex;
     align-items: center;
@@ -278,13 +339,69 @@
     height: 1.375rem;
     padding: 0 0.5rem;
     border: 1px solid var(--al-line);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pilula);
     font-weight: 400;
     font-size: 0.6875rem;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     white-space: nowrap;
     color: var(--al-ink-muted);
+  }
+  /* Rola sem barra: o menu lateral esmaece só as bordas que têm mais conteúdo (ver RolagemDiscreta). */
+  .rolagem-discreta {
+    --esmaecer-topo: 0px;
+    --esmaecer-base: 0px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--esmaecer-topo), #000 calc(100% - var(--esmaecer-base)), transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--esmaecer-topo), #000 calc(100% - var(--esmaecer-base)), transparent);
+  }
+  .rolagem-discreta::-webkit-scrollbar {
+    display: none;
+  }
+  /* Controle segmentado: um trilho arredondado com a opção ativa em destaque (botões com aria-pressed ou aria-selected,
+     ou rótulos de rádio). Substitui os grupos de botões quadrados lado a lado. */
+  .segmentado {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    align-self: flex-start;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: calc(var(--radius-field) + 3px);
+    background: var(--al-seg-trilho);
+  }
+  .segmentado > :is(button, label) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    height: 1.875rem;
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: var(--radius-field);
+    background: transparent;
+    font-size: 0.875rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    cursor: pointer;
+    color: var(--al-ink-muted);
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .segmentado > :is(button, label):hover {
+    color: var(--al-ink);
+  }
+  .segmentado > :is(button[aria-pressed="true"], button[aria-selected="true"], label:has(input:checked)) {
+    background: var(--al-seg-ativo);
+    color: var(--al-ink);
+    box-shadow: var(--al-seg-sombra);
+  }
+  .segmentado > label:has(input:focus-visible) {
+    outline: 2px solid var(--al-accent);
+    outline-offset: 2px;
   }
   .cartao {
     background: var(--al-surface);
@@ -349,8 +466,8 @@
 
 /* O pulso: anéis que substituem o spinner genérico. */
 @keyframes pulso {
-  0% { transform: scale(0.6); opacity: 0.9; }
-  100% { transform: scale(1.8); opacity: 0; }
+  0% { transform: scale(0.8); opacity: 0.9; }
+  100% { transform: scale(2.2); opacity: 0; }
 }
 .pulso-anel {
   animation: pulso 1.6s ease-out infinite;
@@ -386,7 +503,7 @@
 }
 .al-pv-empty { color: var(--al-ink-muted); font-style: italic; }
 
-.al-pv { border: 1px solid var(--al-line); font-size: 0.75rem; color: var(--al-ink); background: var(--al-bg); overflow: hidden; max-width: 400px; width: 100%; }
+.al-pv { border: 1px solid var(--al-line); border-radius: 14px; font-size: 0.75rem; color: var(--al-ink); background: var(--al-bg); overflow: hidden; max-width: 400px; width: 100%; }
 .al-pv-avatar { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--al-line); color: var(--al-ink); font-size: 0.6875rem; font-weight: 600; flex-shrink: 0; }
 .al-pv-who { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .al-pv-who strong { font-weight: 600; font-size: 0.75rem; }

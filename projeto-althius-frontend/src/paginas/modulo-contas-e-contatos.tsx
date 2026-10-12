@@ -58,7 +58,7 @@ export function CampoDeBusca({
   buscar: (valor: string) => void
 }) {
   return (
-    <label className="flex h-9 w-full max-w-105 items-center gap-2 border border-al-line bg-al-surface px-3 text-al-muted focus-within:border-al-muted">
+    <label className="rounded-md flex h-9 w-full max-w-105 items-center gap-2 border border-al-line bg-al-surface px-3 text-al-muted focus-within:border-al-muted">
       <Search className="size-4 shrink-0" aria-hidden />
       <input
         type="search"
@@ -100,14 +100,14 @@ export function MenuDeFiltros({
       <Popover.Trigger
         aria-label={ativos ? `Filtros, ${ativos} ${ativos === 1 ? 'ativo' : 'ativos'}` : 'Filtros'}
         className={cn(
-          'flex h-9 cursor-pointer items-center gap-2 border bg-al-surface px-3 text-sm whitespace-nowrap text-al-ink hover:border-al-muted',
+          'rounded-md flex h-9 cursor-pointer items-center gap-2 border bg-al-surface px-3 text-sm whitespace-nowrap text-al-ink hover:border-al-muted',
           ativos ? 'border-al-accent' : 'border-al-line',
         )}
       >
         <ListFilter className="size-4" aria-hidden />
         Filtros
         {ativos > 0 && (
-          <span className="grid h-4.5 min-w-4.5 place-items-center bg-al-accent text-[0.6875rem] font-semibold text-[var(--al-on-accent)]">
+          <span className="grid h-4.5 min-w-4.5 place-items-center rounded-full bg-al-accent text-[0.6875rem] font-semibold text-[var(--al-on-accent)]">
             {ativos}
           </span>
         )}
@@ -116,7 +116,7 @@ export function MenuDeFiltros({
         <Popover.Positioner side="bottom" align="end" sideOffset={6} className="z-50">
           <Popover.Popup
             className={cn(
-              'max-w-[calc(100vw-2rem)] border border-al-line bg-al-surface text-al-ink shadow-md outline-none',
+              'max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-al-line bg-al-surface text-al-ink shadow-md outline-none',
               largura,
             )}
           >
@@ -171,7 +171,7 @@ export function ChipsDosFiltros({ filtros, limparFiltros }: { filtros: FiltroAti
       {filtros.map(({ rotulo, remover }) => (
         <span
           key={rotulo}
-          className="inline-flex h-6.75 shrink-0 items-center gap-1.75 border border-al-line bg-al-surface px-2 text-xs whitespace-nowrap text-al-ink"
+          className="rounded-md inline-flex h-6.75 shrink-0 items-center gap-1.75 border border-al-line bg-al-surface px-2 text-xs whitespace-nowrap text-al-ink"
         >
           {rotulo}
           <button
@@ -204,7 +204,7 @@ export function SemResultado({ mensagem, limparBuscaEFiltros }: { mensagem: stri
         type="button"
         variant="outline"
         onClick={limparBuscaEFiltros}
-        className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+        className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
       >
         Limpar busca e filtros
       </Button>
@@ -227,7 +227,7 @@ export function FalhaAoCarregar({ mensagem, tentarDeNovo }: { mensagem: string; 
         type="button"
         variant="outline"
         onClick={tentarDeNovo}
-        className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+        className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
       >
         Tentar de novo
       </Button>

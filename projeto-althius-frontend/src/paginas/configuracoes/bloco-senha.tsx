@@ -128,7 +128,7 @@ export function BlocoSenha() {
             )
           })}
           <div className="flex items-center gap-4">
-            <Button type="submit" className="px-6 tracking-rotulo uppercase">
+            <Button type="submit" className="px-6 tracking-[0.04em]">
               Alterar senha
             </Button>
             <Button type="button" variant="ghost" onClick={fechar}>

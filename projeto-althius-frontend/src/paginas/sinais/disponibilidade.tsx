@@ -36,7 +36,7 @@ export function SeloDaDisponibilidade({ disponibilidade }: { disponibilidade: Di
 /** O aviso no topo do catálogo: os Sinais que faltam entram quando passam no teste com dados reais. */
 export function AvisoDeNovosSinais() {
   return (
-    <aside role="note" aria-label="Novos Sinais" className="border-l-2 border-al-accent bg-al-surface px-4 py-3 text-sm">
+    <aside role="note" aria-label="Novos Sinais" className="rounded-xl bg-al-rosa-suave px-4 py-3 text-sm">
       <p>
         <strong className="font-medium">Novos Sinais entram aqui assim que passam no teste.</strong> Em breve: Gupy, Google
         Ads, notícias, tecnologia do site, rodadas de investimento, Reclame Aqui e os Sinais próprios da Althius.

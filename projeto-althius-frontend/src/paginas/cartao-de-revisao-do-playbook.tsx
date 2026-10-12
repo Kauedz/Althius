@@ -145,14 +145,14 @@ function DecisaoDaRevisao({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-2">
-        <Button disabled={decidindo} onClick={() => decidir('aprovada')} className="px-6 tracking-rotulo uppercase">
+        <Button disabled={decidindo} onClick={() => decidir('aprovada')} className="px-6 tracking-[0.04em]">
           Aprovar
         </Button>
         <Button
           variant="outline"
           disabled={decidindo}
           onClick={() => decidir('rejeitada')}
-          className="px-6 tracking-rotulo uppercase"
+          className="px-6 tracking-[0.04em]"
         >
           Recusar
         </Button>

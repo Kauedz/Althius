@@ -29,7 +29,7 @@ export function AbasSublinhadas({ rotuloAcessivel, abas, className }: AbasSublin
               end={end}
               className={({ isActive }) =>
                 cn(
-                  '-mb-px block border-b-2 py-4 text-sm font-normal tracking-rotulo uppercase',
+                  '-mb-px block border-b-2 py-4 text-[0.9375rem] font-normal tracking-[0.02em]',
                   isActive ? 'border-al-accent text-al-ink' : 'border-transparent text-al-muted hover:text-al-ink',
                 )
               }

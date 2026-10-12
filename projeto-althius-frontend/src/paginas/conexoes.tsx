@@ -161,7 +161,7 @@ export function PaginaConexoes() {
                 <article
                   key={canal.id}
                   aria-label={canal.nome}
-                  className="flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
+                  className="rounded-2xl flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-normal text-al-ink">{canal.nome}</span>
@@ -256,7 +256,7 @@ export function PaginaConexoes() {
                     <article
                       key={futura.nome}
                       aria-label={futura.nome}
-                      className="flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
+                      className="rounded-2xl flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
                     >
                       <span className="font-normal">{futura.nome}</span>
                       <span className="rotulo">Em breve</span>
@@ -326,7 +326,7 @@ function CartaoDeIntegracaoReal({
     return (
       <article
         aria-label={integracao.nome}
-        className="flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
+        className="rounded-2xl flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
       >
         <div className="flex items-center justify-between gap-2">
           <span className="font-normal text-al-ink">{integracao.nome}</span>
@@ -492,7 +492,7 @@ function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeCone
             autoComplete="off"
             value={chave}
             onChange={(evento) => setChave(evento.target.value)}
-            className="border border-al-line bg-transparent px-3 py-2"
+            className="rounded-lg border border-al-line bg-transparent px-3 py-2"
           />
         </label>
         {erro && <p className="text-sm text-al-erro">{erro}</p>}
@@ -681,7 +681,7 @@ function DialogoDeConexao({
               if (conexao) await fonte.conectar(conexao.id)
               aoFechar()
             }}
-            className="px-6 uppercase tracking-rotulo"
+            className="px-6 tracking-[0.04em]"
           >
             Autorizar
           </Button>

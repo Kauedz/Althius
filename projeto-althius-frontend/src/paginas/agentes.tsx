@@ -30,7 +30,7 @@ export function PaginaAgentes() {
         podeAdministrar && (
           <Button
             onClick={() => setCriando(true)}
-            className="h-8 gap-2 bg-al-ink px-4 tracking-rotulo text-al-bg uppercase hover:bg-al-ink/90"
+            className="h-8 gap-2 bg-al-ink px-4 tracking-[0.04em] text-al-bg hover:bg-al-ink/90"
           >
             <Plus strokeWidth={1.8} aria-hidden />
             Novo agente
@@ -86,7 +86,7 @@ function PedidoCoordenado() {
             type="button"
             disabled={respondendo}
             onClick={() => coordenar({ texto: sugestao.texto, sugestaoId: sugestao.id })}
-            className="inline-flex h-8 items-center gap-2 border border-al-line px-3 text-sm hover:border-al-ink disabled:opacity-50"
+            className="rounded-md inline-flex h-8 items-center gap-2 border border-al-line px-3 text-sm hover:border-al-ink disabled:opacity-50"
           >
             <MessageSquare strokeWidth={1.8} className="size-3.5 text-al-muted" aria-hidden />
             {sugestao.texto}
@@ -96,7 +96,7 @@ function PedidoCoordenado() {
       {ultimoPedido && (
         <section
           aria-label="Conversa coordenada em andamento"
-          className="flex items-center justify-between gap-6 border border-al-line bg-al-surface py-3 pr-6 pl-5"
+          className="rounded-lg flex items-center justify-between gap-6 border border-al-line bg-al-surface py-3 pr-6 pl-5"
         >
           <span className="flex min-w-0 items-center gap-3">
             <MessageSquare strokeWidth={1.8} className="size-4 shrink-0 text-al-muted" aria-hidden />
@@ -107,7 +107,7 @@ function PedidoCoordenado() {
           </span>
           <Link
             to="/conversa"
-            className="inline-flex h-8 shrink-0 items-center border border-al-line px-4 text-xs font-normal tracking-rotulo uppercase hover:border-al-ink"
+            className="rounded-md inline-flex h-8 shrink-0 items-center border border-al-line px-4 text-sm font-normal tracking-[0.04em] hover:border-al-ink"
           >
             Abrir conversa
           </Link>

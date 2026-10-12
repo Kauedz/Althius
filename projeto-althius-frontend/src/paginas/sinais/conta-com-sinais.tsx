@@ -65,7 +65,7 @@ export function ContaComSinais() {
   if (erroConta && !conta && !erroConta.message.includes('não encontrada')) {
     return (
       <Pagina titulo="Erro" voltar={{ para: '/sinais?vista=encontrados', rotulo: 'Sinais encontrados' }}>
-        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+        <div role="alert" className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
           <p className="text-sm text-al-muted">Não foi possível carregar os dados da Conta-alvo.</p>
           <button type="button" onClick={recarregarConta} className={BOTAO_SECUNDARIO}>
             Tentar de novo
@@ -82,7 +82,7 @@ export function ContaComSinais() {
     return (
       <Pagina titulo={conta.nome} voltar={{ para: '/sinais?vista=encontrados', rotulo: 'Sinais encontrados' }}>
         {erroSinais ? (
-          <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+          <div role="alert" className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
             <p className="text-sm text-al-muted">Não foi possível carregar os Sinais da Conta-alvo.</p>
             <button type="button" onClick={recarregarSinais} className={BOTAO_SECUNDARIO}>
               Tentar de novo
@@ -118,7 +118,7 @@ export function ContaComSinais() {
       <div className="flex max-w-4xl flex-col gap-8">
         <header className="flex flex-col gap-3 border-b border-al-line pb-6">
           <div className="flex flex-wrap items-center gap-4">
-            <LogoDaConta nome={conta.nome} logo={conta.logo} deUmaCor={conta.logoDeUmaCor} className="size-12 border border-al-line p-2" />
+            <LogoDaConta nome={conta.nome} logo={conta.logo} deUmaCor={conta.logoDeUmaCor} className="rounded-lg size-12 border border-al-line p-2" />
             <div className="flex flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="titulo-secao text-2xl">{conta.nome}</h2>
@@ -190,7 +190,7 @@ export function ContaComSinais() {
             Histórico de sinais
           </h3>
           {sinais.length === 0 ? (
-            <div className="border border-dashed border-al-line p-6">
+            <div className="rounded-2xl border border-dashed border-al-line p-6">
               <p className="text-sm text-al-muted">Nenhum sinal registrado para esta Conta-alvo.</p>
             </div>
           ) : (

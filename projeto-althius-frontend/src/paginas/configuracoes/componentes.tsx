@@ -92,7 +92,7 @@ export function Bloco({
 /** Faixa que identifica conteúdo provisório, a ser trocado pelo definitivo sem redesenhar a página. */
 export function FaixaProvisoria({ children }: { children: ReactNode }) {
   return (
-    <div role="note" className="flex items-center gap-3 border border-dashed border-al-atencao/60 px-4 py-3 text-sm">
+    <div role="note" className="rounded-xl flex items-center gap-3 border border-dashed border-al-atencao/60 px-4 py-3 text-sm">
       <span className="selo shrink-0 border-al-atencao/60 text-al-atencao">Conteúdo provisório</span>
       <span className="text-al-muted">{children}</span>
     </div>

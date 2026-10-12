@@ -169,7 +169,7 @@ function FormularioNovaSequencia({
       </DialogHeader>
 
       {erro && (
-        <div role="alert" className="border border-al-erro/40 bg-al-erro/10 p-3 text-xs text-al-ink">
+        <div role="alert" className="rounded-xl border border-al-erro/40 bg-al-erro/10 p-3 text-xs text-al-ink">
           {erro}
         </div>
       )}
@@ -241,7 +241,7 @@ function FormularioNovaSequencia({
                       type="checkbox"
                       checked={marcado}
                       onChange={() => alternarContato(contato.id)}
-                      className="size-4 rounded-none accent-al-accent"
+                      className="size-4"
                     />
                     <span className="font-medium">{contato.nome}</span>
                     {contato.cargo && <span className="text-al-muted">· {contato.cargo}</span>}
@@ -265,7 +265,7 @@ function FormularioNovaSequencia({
               type="checkbox"
               checked={usarModelo}
               onChange={(e) => setUsarModelo(e.target.checked)}
-              className="size-4 rounded-none accent-al-accent"
+              className="size-4"
             />
             Usar a Cadência do Playbook como modelo ({modelo.toques.length} {modelo.toques.length === 1 ? 'toque' : 'toques'})
           </label>
@@ -295,14 +295,14 @@ function FormularioNovaSequencia({
           type="button"
           variant="outline"
           onClick={aoFechar}
-          className="h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+          className="h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
         >
           Cancelar
         </Button>
         <Button
           type="submit"
           disabled={!podeCriar}
-          className="h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2 disabled:opacity-50"
+          className="rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2 disabled:opacity-50"
         >
           {criando ? 'Criando...' : 'Criar sequência'}
         </Button>

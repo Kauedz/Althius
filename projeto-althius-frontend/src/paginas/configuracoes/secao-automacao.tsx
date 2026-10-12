@@ -134,7 +134,7 @@ function LinhaDoEscopo({
             aria-label={`Modo de ${escopo.nome}`}
             value={modo}
             onChange={(e) => setModo(e.target.value as ModoDeAutomacao)}
-            className="h-9 border border-al-line bg-al-surface px-2 text-sm"
+            className="rounded-md h-9 border border-al-line bg-al-surface px-2 text-sm"
           >
             <option value="confirmar">Confirmar</option>
             <option value="automatico">Automático</option>
@@ -145,7 +145,7 @@ function LinhaDoEscopo({
             placeholder="Teto (créditos)"
             value={teto}
             onChange={(e) => setTeto(e.target.value)}
-            className="h-9 w-36 border border-al-line bg-al-surface px-2 text-sm"
+            className="rounded-md h-9 w-36 border border-al-line bg-al-surface px-2 text-sm"
           />
           <button type="button" disabled={!mudou || salvando} onClick={enviar} className={BOTAO_PRIMARIO}>
             Salvar

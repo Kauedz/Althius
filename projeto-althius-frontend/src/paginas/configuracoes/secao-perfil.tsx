@@ -261,7 +261,7 @@ function FormularioDePerfil({
       </div>
 
       <div className="flex items-center gap-4">
-        <Button type="submit" disabled={!alterado || salvando} className="px-6 tracking-rotulo uppercase">
+        <Button type="submit" disabled={!alterado || salvando} className="px-6 tracking-[0.04em]">
           Salvar
         </Button>
         <Button type="button" variant="ghost" disabled={!alterado || salvando} onClick={cancelar}>
@@ -302,7 +302,7 @@ function SeusWorkspaces({ contaId }: { contaId: string }) {
               aria-label={participacao.nomeDoWorkspace}
               className="flex items-center gap-3 border-b border-al-line py-3 last:border-b-0"
             >
-              <span className="grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg" aria-hidden>
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-al-ink text-sm font-medium text-al-bg" aria-hidden>
                 {participacao.nomeDoWorkspace[0]}
               </span>
               <span className="font-normal">{participacao.nomeDoWorkspace}</span>

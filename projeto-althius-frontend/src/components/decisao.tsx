@@ -32,13 +32,13 @@ export function DecisaoDeAprovacao({
   if (!podeDecidir) return <p className="text-xs text-al-muted">Só um Administrador decide esta Aprovação.</p>
   return (
     <div className="flex gap-2">
-      <Button onClick={() => fonte.decidirAprovacao(aprovacao.id, 'aprovada', onde)} className="px-6 tracking-rotulo uppercase">
+      <Button onClick={() => fonte.decidirAprovacao(aprovacao.id, 'aprovada', onde)} className="px-6 tracking-[0.04em]">
         Aprovar
       </Button>
       <Button
         variant="outline"
         onClick={() => fonte.decidirAprovacao(aprovacao.id, 'rejeitada', onde)}
-        className="px-6 tracking-rotulo uppercase"
+        className="px-6 tracking-[0.04em]"
       >
         Recusar
       </Button>

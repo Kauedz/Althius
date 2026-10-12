@@ -191,7 +191,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
         </div>
 
         {erroSalvar && (
-          <div role="alert" className="flex items-center justify-between border-l-2 border-al-perigo bg-al-surface px-4 py-3 text-sm text-al-perigo">
+          <div role="alert" className="flex items-center justify-between rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
             <span>{erroSalvar}</span>
             <button
               type="button"
@@ -436,24 +436,24 @@ function CriteriosProntos({
         <CampoDeCriterio key={campo.id} campo={campo} valor={criterios[campo.id]} aoMudar={(valor) => aoMudar({ ...criterios, [campo.id]: valor })} />
       ))}
       {tipoInterno && (
-        <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
+        <p className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm text-al-ink">
           {COMO_O_INTERNO_DISPARA[tipoInterno]} O prazo é contado pelas Interações registradas na Conta-alvo: e-mails e
           mensagens enviados e recebidos, ligações e reuniões. O Sinal dispara no dia em que o prazo vence. Uma resposta
           comercial isolada continua sendo Interação e não gera Sinal.
         </p>
       )}
       {formulario === 'site' && (
-        <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
+        <p className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm text-al-ink">
           Na demonstração, as visitas e pessoas identificadas são simuladas. Não há identificação real de visitantes nem conexões externas.
         </p>
       )}
       {formulario === 'historico' && !tipoInterno && (
-        <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
+        <p className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm text-al-ink">
           O prazo define o tempo de inatividade no CRM para que a condição seja detectada. Uma vez disparado, o Sinal tem validade fixa de 30 dias para manter a Conta-alvo Quente. Uma resposta comercial isolada continua sendo Interação e não gera Sinal automaticamente.
         </p>
       )}
       {formulario === 'verificacao' && (
-        <p className="border-l-2 border-al-atencao px-4 text-sm text-al-muted">
+        <p className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm text-al-ink">
           Na demonstração, nenhuma verificação real é executada, nenhum site é varrido e nenhuma mensagem é enviada. Não é necessário configurar agentes executores, APIs ou credenciais.
         </p>
       )}
@@ -540,7 +540,7 @@ function PublicoDeContasReais({
   return (
     <SecaoDoFormulario numero="03" titulo="Público" descricao="As Contas-alvo do Workspace em que procurar os Sinais.">
       {erro ? (
-        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-4">
+        <div role="alert" className="rounded-xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-4">
           <p className="text-sm text-al-muted">Não foi possível carregar as Contas-alvo.</p>
           <button type="button" onClick={recarregar} className={BOTAO_SECUNDARIO}>
             Tentar de novo
@@ -591,7 +591,7 @@ function SecaoPublico({
 
   return (
     <SecaoDoFormulario numero="03" titulo="Público" descricao="Onde procurar os Sinais.">
-      <aside aria-label="Público recomendado" className="flex flex-col gap-2 border border-al-line bg-al-surface p-4">
+      <aside aria-label="Público recomendado" className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-4">
         <span className="rotulo inline-flex items-center gap-2 text-al-accent">
           <Sparkles strokeWidth={1.8} className="size-3.5" aria-hidden />
           Recomendado pelas suas configurações
@@ -741,7 +741,7 @@ function Preparando({
   aoConcluir: () => void
 }) {
   return (
-    <section aria-label="Em preparação" className="flex flex-col gap-6 border border-al-line bg-al-surface p-8">
+    <section aria-label="Em preparação" className="rounded-2xl flex flex-col gap-6 border border-al-line bg-al-surface p-8">
       <div className="flex items-center gap-4">
         <span className="relative size-8">
           <Pulso className="absolute inset-0" />
@@ -833,7 +833,7 @@ function CriteriosLivres({
               type="button"
               aria-label={`Remover critério ${indice + 1}`}
               onClick={() => mudar({ criteriosLivres: criterios.filter((_, i) => i !== indice) })}
-              className="grid size-10 shrink-0 place-items-center border border-al-line text-al-muted hover:text-al-ink"
+              className="rounded-lg grid size-10 shrink-0 place-items-center border border-al-line text-al-muted hover:text-al-ink"
             >
               <X strokeWidth={1.8} className="size-4" aria-hidden />
             </button>

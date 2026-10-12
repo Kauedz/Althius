@@ -139,7 +139,7 @@ function SecaoDoPlaybookNaMemoria({ documento }: { documento: DocumentoDaMemoria
       </div>
 
       {pendente && (
-        <div className="flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4">
+        <div className="rounded-xl flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4">
           <Clock strokeWidth={1.8} className="mt-0.5 size-4 shrink-0 text-al-atencao" aria-hidden />
           <p className="text-sm">
             <span className="font-normal">Proposta pendente do {agente}.</span>{' '}
@@ -163,7 +163,7 @@ function SecaoDoPlaybookNaMemoria({ documento }: { documento: DocumentoDaMemoria
           <ConteudoDoPlaybookEmLeitura secao={documento} conteudo={vigente.conteudo} />
         </div>
       ) : (
-        <div role="status" className="flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+        <div role="status" className="rounded-2xl flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
           <p className="text-al-ink">Nenhuma versão aprovada ainda.</p>
           <p className="text-sm text-al-muted">
             Peça ao {agente} numa Conversa. A proposta dele vira uma Aprovação, e {oNome} {concordar('passa', 'passam')} a
@@ -242,7 +242,7 @@ function DocumentoNaMemoria({
         </div>
 
         {pendente && (
-          <div className="flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4">
+          <div className="rounded-xl flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4">
             <Clock strokeWidth={1.8} className="mt-0.5 size-4 shrink-0 text-al-atencao" aria-hidden />
             <p className="text-sm">
               <span className="font-normal">Proposta pendente do {agente}.</span>{' '}

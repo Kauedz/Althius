@@ -227,7 +227,7 @@ export function NascimentoSequenciaNaConversa({
     return (
       <article
         aria-label={`Oferta de sequência: ${nomeConta}`}
-        className="flex flex-col gap-4 border border-al-line bg-al-surface p-5"
+        className="rounded-2xl flex flex-col gap-4 border border-al-line bg-al-surface p-5"
       >
         <div className="flex items-center gap-2 text-sm text-al-muted">
           <IconeAgente especialidade="rhetor" tamanho="sm" />
@@ -253,7 +253,7 @@ export function NascimentoSequenciaNaConversa({
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-al-line/60">
           <div className="flex items-center gap-2 text-xs text-al-muted">
-            <span className="px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
+            <span className="rounded-md px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
               Human-in-the-loop
             </span>
             <span>Exige confirmação humana antes de gravar na conta</span>
@@ -262,7 +262,7 @@ export function NascimentoSequenciaNaConversa({
           <Button
             type="button"
             onClick={handleConfirmarOferta}
-            className="inline-flex items-center gap-1.5 h-8 border border-al-ink bg-al-ink px-4 text-xs font-medium tracking-rotulo text-al-surface uppercase hover:bg-al-muted"
+            className="rounded-md inline-flex items-center gap-1.5 h-8 border border-al-ink bg-al-ink px-4 text-sm font-medium tracking-[0.04em] text-al-surface hover:bg-al-muted"
           >
             <Sparkles className="size-3.5" />
             Montar sequência
@@ -279,7 +279,7 @@ export function NascimentoSequenciaNaConversa({
     return (
       <article
         aria-label={`Sugestão de participantes: ${nomeConta}`}
-        className="flex flex-col gap-4 border border-al-line bg-al-surface p-5"
+        className="rounded-2xl flex flex-col gap-4 border border-al-line bg-al-surface p-5"
       >
         <div className="flex items-center gap-2 text-sm text-al-muted">
           <IconeAgente especialidade="rhetor" tamanho="sm" />
@@ -303,7 +303,7 @@ export function NascimentoSequenciaNaConversa({
         <div
           role="group"
           aria-label="Contatos participantes da sequência"
-          className="flex flex-col divide-y divide-al-line border border-al-line bg-al-bg"
+          className="rounded-lg overflow-hidden flex flex-col divide-y divide-al-line border border-al-line bg-al-bg"
         >
           {contatosConta.map((contato) => {
             const selecionado = participantesSelecionados.includes(contato.id)
@@ -320,18 +320,18 @@ export function NascimentoSequenciaNaConversa({
                     checked={selecionado}
                     onChange={() => handleAlternarParticipante(contato.id)}
                     aria-label={contato.nome}
-                    className="size-4 rounded-none accent-al-ink cursor-pointer"
+                    className="size-4"
                   />
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-al-ink">{contato.nome}</span>
                       {contato.persona && (
-                        <span className="px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-rotulo bg-al-surface border border-al-line text-al-muted">
+                        <span className="rounded-md px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-rotulo bg-al-surface border border-al-line text-al-muted">
                           {contato.persona}
                         </span>
                       )}
                       {sugerido && (
-                        <span className="px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-rotulo bg-al-accent/10 border border-al-accent/30 text-al-accent font-medium">
+                        <span className="rounded-md px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-rotulo bg-al-accent/10 border border-al-accent/30 text-al-accent font-medium">
                           Sugerido pelo Rhetor
                         </span>
                       )}
@@ -380,7 +380,7 @@ export function NascimentoSequenciaNaConversa({
               type="button"
               variant="outline"
               onClick={() => setEstagio('oferta')}
-              className="h-8 border-al-line text-xs uppercase tracking-rotulo"
+              className="h-8 border-al-line text-sm tracking-[0.04em]"
             >
               Voltar
             </Button>
@@ -388,7 +388,7 @@ export function NascimentoSequenciaNaConversa({
               type="button"
               onClick={handleConfirmarParticipantes}
               disabled={participantesSelecionados.length === 0 || salvando}
-              className="inline-flex items-center gap-1.5 h-8 border border-al-ink bg-al-ink px-4 text-xs font-medium tracking-rotulo text-al-surface uppercase hover:bg-al-muted disabled:opacity-40"
+              className="rounded-md inline-flex items-center gap-1.5 h-8 border border-al-ink bg-al-ink px-4 text-sm font-medium tracking-[0.04em] text-al-surface hover:bg-al-muted disabled:opacity-40"
             >
               <Users className="size-3.5" />
               {salvando ? 'Gravando…' : 'Confirmar participantes e gerar sequência'}
@@ -409,7 +409,7 @@ export function NascimentoSequenciaNaConversa({
     <div className="flex flex-col gap-6">
       <article
         aria-label={`Documento da sequência: ${nomeConta}`}
-        className="flex flex-col gap-3 border border-al-line bg-al-surface p-4"
+        className="rounded-xl flex flex-col gap-3 border border-al-line bg-al-surface p-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-al-line pb-3 text-xs text-al-muted">
           <div className="flex items-center gap-2">
@@ -418,7 +418,7 @@ export function NascimentoSequenciaNaConversa({
             <span className="text-al-line">·</span>
             <span className="rotulo text-al-accent font-medium">Documento vivo da sequência</span>
           </div>
-          <span className="px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
+          <span className="rounded-md px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
             Espelhado com Detalhe da Conta e Lista Global
           </span>
         </div>
@@ -449,7 +449,7 @@ export function NascimentoSequenciaNaConversa({
                 </span>
               </div>
             )}
-            className="border border-al-line bg-al-surface p-5 gap-2"
+            className="rounded-2xl border border-al-line bg-al-surface p-5 gap-2"
           />
         </section>
       )}

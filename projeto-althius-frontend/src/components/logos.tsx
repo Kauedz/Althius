@@ -126,7 +126,7 @@ function LogoOuInicial({ nome, endereco, className }: { nome: string; endereco: 
         src={endereco}
         alt={rotulo}
         onError={() => setFalhou(true)}
-        className={cn('size-7 shrink-0 object-contain', className)}
+        className={cn('size-7 shrink-0 rounded-md object-contain', className)}
       />
     )
   }
@@ -134,7 +134,7 @@ function LogoOuInicial({ nome, endereco, className }: { nome: string; endereco: 
     <span
       role="img"
       aria-label={rotulo}
-      className={cn('grid size-7 shrink-0 place-items-center bg-al-ink text-sm font-medium text-al-bg', className)}
+      className={cn('grid size-7 shrink-0 place-items-center rounded-lg bg-al-ink text-sm font-medium text-al-bg', className)}
     >
       {nome.trim().charAt(0).toUpperCase()}
     </span>
