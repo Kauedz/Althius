@@ -575,31 +575,31 @@ describe('Conexões e Aprovações', () => {
 })
 
 describe('Tema', () => {
-  it('começa no escuro e troca para o claro pelo menu do usuário', async () => {
+  it('começa no claro e troca para o escuro pelo menu do usuário', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
-    expect(document.documentElement.dataset.theme).toBe('escuro')
-    await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
-    await usuario.click(await screen.findByRole('menuitem', { name: 'Tema claro' }))
     expect(document.documentElement.dataset.theme).toBe('claro')
+    await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
+    await usuario.click(await screen.findByRole('menuitem', { name: 'Tema escuro' }))
+    expect(document.documentElement.dataset.theme).toBe('escuro')
   })
 
   it('um tema gravado no navegador volta na abertura seguinte', () => {
-    localStorage.setItem('althius:tema', 'claro')
+    localStorage.setItem('althius:tema', 'escuro')
     renderizarApp('/')
-    expect(document.documentElement.dataset.theme).toBe('claro')
+    expect(document.documentElement.dataset.theme).toBe('escuro')
   })
 
   it('a escolha de tema persiste depois de a app ser remontada', async () => {
     const { usuario, unmount } = renderizarApp('/')
     await grade()
     await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
-    await usuario.click(await screen.findByRole('menuitem', { name: 'Tema claro' }))
-    expect(document.documentElement.dataset.theme).toBe('claro')
+    await usuario.click(await screen.findByRole('menuitem', { name: 'Tema escuro' }))
+    expect(document.documentElement.dataset.theme).toBe('escuro')
 
     unmount()
     renderizarApp('/')
-    expect(document.documentElement.dataset.theme).toBe('claro')
+    expect(document.documentElement.dataset.theme).toBe('escuro')
   })
 })
 
