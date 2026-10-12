@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(164);
+select plan(182);
 
 -- O relógio da agenda fica parado onde o teste quiser, só dentro desta transação.
 create function pg_temp.relogio(p_at timestamptz) returns void language plpgsql security definer as $f$
@@ -431,6 +431,16 @@ create temporary table liberado_li as select * from public.release_due_chat_step
 grant all on convite, liberado_li to authenticated, service_role;
 select is((select outcome || ' ' || coalesce(linkedin_subtype, '-') || ' ' || invite_note_limit || ' ' || invite_sent from liberado_li),
   'released convite 300 false', 'the invitation is released with its subtype, the note limit and no earlier invitation');
+-- O aceite (v1: new_relation com o provider_id do perfil) pode chegar antes de o resultado do convite estar gravado:
+-- sem um convite enviado a esse perfil, fica só registrado, e o mesmo evento pode ser avaliado de novo depois.
+select is((select outcome || ' ' || coalesce(send_id::text, '-') || ' ' || coalesce(interaction_id::text, '-')
+  from public.ingest_unipile_chat_event('rel-a', 'unipile-li-1', 'new_relation',
+    jsonb_build_object('provider_id', 'ACoAAEva', 'public_identifier', 'eva-prado'))), 'relation - -',
+  'an acceptance that arrives before the invitation result is recorded, tied to nothing yet');
+select is((select outcome from public.ingest_unipile_chat_event('rel-b', 'unipile-li-1', 'new_relation',
+  jsonb_build_object('provider_id', 'ACoAAEva'))), 'relation', 'a second acceptance event for the same profile is recorded');
+select is((select outcome from public.ingest_unipile_chat_event('rel-c', 'unipile-li-1', 'new_relation',
+  jsonb_build_object('provider_id', 'ACoAAEva'))), 'relation', 'and a third one');
 select is(public.record_chat_step_send_result((pg_temp.envio('l1')).id, 'sent', null, 'inv-1', 'ACoAAEva', 'convite', null), 'sent',
   'the invitation was accepted by the provider');
 reset role;
@@ -447,6 +457,44 @@ select is((select outcome from public.ingest_unipile_chat_event('evt-note', 'uni
 reset role;
 select is((select status from public.sequences where id = (select valor::uuid from ids where chave = 'seq-3')), 'ativa',
   'neither the acceptance nor the note echo pauses the Sequência');
+
+-- O aceite do convite (v1 new_relation) é ligado ao Envio do convite: mesma Conta remetente, o provider_user_id do
+-- Envio é o provider_id do evento, ação 'convite' e status 'sent'. Vira a Interação 'convite-aceito', sem pausar nada.
+set local role service_role;
+create temporary table aceite as select * from public.ingest_unipile_chat_event('rel-c', 'unipile-li-1', 'new_relation',
+  jsonb_build_object('provider_id', 'ACoAAEva'));
+grant all on aceite to authenticated, service_role;
+select is((select outcome from aceite), 'relation', 'the acceptance event is evaluated again once the invitation was sent, still a relation');
+select is((select send_id from aceite), (pg_temp.envio('l1')).id, 'and is now tied to the Envio of the invitation');
+select isnt((select interaction_id from aceite), null, 'and it records an Interação');
+select is((select outcome from public.ingest_unipile_chat_event('rel-c', 'unipile-li-1', 'new_relation',
+  jsonb_build_object('provider_id', 'ACoAAEva'))), 'duplicate_event', 'a redelivered acceptance that is already tied is ignored');
+select is((select outcome || ' ' || coalesce(send_id::text, '-') from public.ingest_unipile_chat_event('rel-d', 'unipile-li-1', 'new_relation',
+  jsonb_build_object('provider_id', 'ACoAAOutro'))), 'relation -', 'an acceptance from a profile we did not invite is only recorded');
+reset role;
+select is((select kind || ' ' || source || ' ' || (contact_id = (select valor::uuid from ids where chave = 'eva'))::text
+  from public.account_interactions where id = (select interaction_id from aceite)),
+  'convite-aceito sequencia true', 'the Interação is convite-aceito, from the Sequência, tied to the invited Contato');
+select is((select count(*)::int from public.account_interactions
+  where kind = 'convite-aceito' and target_account_id = (select valor::uuid from ids where chave = 'conta-3')), 1,
+  'one acceptance of the invitation is one Interação');
+select is((select send_id from private.unipile_chat_events where event_id = 'rel-c'), (pg_temp.envio('l1')).id,
+  'the event keeps the Envio it was tied to');
+select is((select status from public.sequences where id = (select valor::uuid from ids where chave = 'seq-3')), 'ativa',
+  'the accepted invitation does not pause the Sequência');
+select is((pg_temp.envio('l2')).status, 'scheduled', 'and the next step stays scheduled');
+
+-- A religação das relações que ficaram sem Envio (feita uma vez pela migration): os eventos antigos ganham o Envio, sem
+-- duplicar a Interação, e uma segunda passada não encontra mais nada.
+select is(private.relink_linkedin_relations(), 2, 'the backfill ties the two older acceptance events to the invitation');
+select is((select count(*)::int from private.unipile_chat_events where event_id in ('rel-a', 'rel-b') and send_id = (pg_temp.envio('l1')).id), 2,
+  'both events now point to the Envio');
+select is((select count(*)::int from public.account_interactions
+  where kind = 'convite-aceito' and target_account_id = (select valor::uuid from ids where chave = 'conta-3')), 1,
+  'and the backfill does not repeat the Interação');
+select is(private.relink_linkedin_relations(), 0, 'a second backfill finds nothing left');
+select is((select outcome || ' ' || coalesce(send_id::text, '-') from public.ingest_unipile_chat_event('evt-rel1', 'unipile-li-1', 'relation.new',
+  jsonb_build_object('user_id', 'ACoAAEva'))), 'relation -', 'the v2 event (no profile id the join can read) stays only recorded');
 select pg_temp.relogio('2026-10-01 10:30-03');
 set local role service_role;
 create temporary table liberado_li2 as select * from public.claim_due_chat_step_sends(10);

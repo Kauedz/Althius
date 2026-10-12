@@ -411,7 +411,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           log({ type, accountId, outcome: 'rpc_error' })
           return new Response('Event could not be processed', { status: 500 })
         }
-        log({ type, accountId, outcome: ingested.outcome })
+        // O aceite de um convite nosso volta com o Envio a que foi ligado; só ele aparece no log.
+        log({ type, accountId, outcome: ingested.outcome, ...(ingested.outcome === 'relation' && ingested.send_id ? { send_id: ingested.send_id } : {}) })
         return received()
       }
 

@@ -211,6 +211,20 @@ Deno.test('v1 new_relation: chega ao banco só para registro', async () => {
   assertEquals(calls.chat[0].payload, { public_identifier: 'joao', provider_id: 'ACoJ' })
 })
 
+Deno.test('v1 new_relation: o aceite ligado a um convite vai para o log com o envio; sem ligação, o log não leva envio', async () => {
+  const linked = fakeDb()
+  linked.db.ingestChatEvent = async () => ({ outcome: 'relation', interaction_id: 'int-9', send_id: 'send-86a34e62' })
+  const first = handlerWith({ db: linked.db })
+  const body = { event: 'new_relation', account_id: 'acc1', user_provider_id: 'ACoJ' }
+  assertEquals((await first.handle(authed(body))).status, 200)
+  assertEquals(first.logs.at(-1), { type: 'new_relation', accountId: 'acc1', outcome: 'relation', send_id: 'send-86a34e62' })
+  const loose = fakeDb()
+  loose.db.ingestChatEvent = async () => ({ outcome: 'relation', interaction_id: null, send_id: null })
+  const second = handlerWith({ db: loose.db })
+  assertEquals((await second.handle(authed(body))).status, 200)
+  assertEquals(second.logs.at(-1), { type: 'new_relation', accountId: 'acc1', outcome: 'relation' })
+})
+
 Deno.test('v1 aviso do link de conexão: com a chave do endereço do pedido conclui a tentativa, com o provedor da lista de contas', async () => {
   const { db, calls } = fakeDb()
   const { dir, asked } = directory({ acc7: { status: 'member', provider: 'GOOGLE_OAUTH' } })
