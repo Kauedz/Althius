@@ -1,4 +1,5 @@
 import { Eye, Feather, Target, UserRound, type LucideIcon } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { EspecialidadeId, EstadoAgente } from '@/fonte/tipos'
 import { cn, iniciais } from '@/lib/utils'
 
@@ -56,7 +57,7 @@ export function IconeAgente({ especialidade, tamanho = 'md' }: { especialidade: 
   )
 }
 
-const TAMANHOS_DO_AVATAR = { sm: 'size-6.5 text-[0.625rem]', md: 'size-8 text-xs', lg: 'size-16 text-lg' } as const
+const TAMANHOS_DO_AVATAR = { sm: 'size-6.5 text-[0.6875rem]', md: 'size-8 text-xs', lg: 'size-16 text-lg' } as const
 
 /** A foto de uma pessoa num círculo, ou as iniciais do nome quando não há foto. */
 export function AvatarDePessoa({
@@ -123,14 +124,21 @@ export function Pulso({ className }: { className?: string }) {
   )
 }
 
-/** Estado de carregamento: pulso no lugar de spinner. */
+/** Estado de carregamento: pulso no lugar de spinner, com o esqueleto do conteúdo que vem (Coss UI Skeleton). */
 export function Carregando({ rotulo = 'Carregando' }: { rotulo?: string }) {
   return (
-    <div role="status" className="flex items-center gap-4 py-10 text-al-muted">
-      <span className="relative size-6">
-        <Pulso className="absolute inset-0" />
-      </span>
-      <span className="rotulo">{rotulo}</span>
+    <div role="status" className="flex flex-col gap-5 py-10 text-al-muted">
+      <div className="flex items-center gap-4">
+        <span className="relative size-6">
+          <Pulso className="absolute inset-0" />
+        </span>
+        <span className="rotulo">{rotulo}</span>
+      </div>
+      <div className="flex max-w-xl flex-col gap-2.5" aria-hidden>
+        <Skeleton className="h-3 w-3/4" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
     </div>
   )
 }

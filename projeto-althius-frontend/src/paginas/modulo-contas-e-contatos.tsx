@@ -107,7 +107,7 @@ export function MenuDeFiltros({
         <ListFilter className="size-4" aria-hidden />
         Filtros
         {ativos > 0 && (
-          <span className="grid h-4.5 min-w-4.5 place-items-center bg-al-accent text-[0.625rem] font-semibold text-[var(--al-on-accent)]">
+          <span className="grid h-4.5 min-w-4.5 place-items-center bg-al-accent text-[0.6875rem] font-semibold text-[var(--al-on-accent)]">
             {ativos}
           </span>
         )}
@@ -151,7 +151,7 @@ export function GrupoDeFiltros({
     <fieldset className={cn('min-w-0 border-al-line px-4 pt-3.5 pb-4 not-last:border-r', className)}>
       <legend className="contents">
         {/* O título do grupo, como os cabeçalhos da tabela. */}
-        <span className="rotulo mb-2.5 block text-[0.625rem]">{titulo}</span>
+        <span className="rotulo mb-2.5 block text-[0.6875rem]">{titulo}</span>
       </legend>
       {children}
     </fieldset>
@@ -214,9 +214,9 @@ export function SemResultado({ mensagem, limparBuscaEFiltros }: { mensagem: stri
 
 // Cabeçalho fixo no topo do quadro que rola.
 export const CABECALHO =
-  'rotulo sticky top-0 z-2 h-9.5 border-b border-al-line bg-al-bg pr-4 text-[0.625rem] whitespace-nowrap'
+  'rotulo sticky top-0 z-2 h-9.5 border-b border-al-line bg-al-bg pr-4 text-[0.6875rem] font-normal whitespace-nowrap text-al-ink-3'
 // Linhas compactas, separadas só pela linha do token.
-export const CELULA = 'border-b border-al-line pr-4'
+export const CELULA = 'border-b border-al-divisor pr-4'
 
 /** A mensagem curta de erro da lista, com "Tentar de novo". */
 export function FalhaAoCarregar({ mensagem, tentarDeNovo }: { mensagem: string; tentarDeNovo: () => void }) {
@@ -259,7 +259,7 @@ export function AvatarDoContato({ contato, className }: { contato: PreviaContato
       role="img"
       aria-label={contato.nome}
       title={contato.nome}
-      className={cn(circulo, 'grid place-items-center bg-al-surface text-[0.625rem] font-normal text-al-ink')}
+      className={cn(circulo, 'grid place-items-center bg-al-surface text-[0.6875rem] font-normal text-al-ink')}
     >
       {iniciais(contato.nome)}
     </span>

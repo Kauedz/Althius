@@ -253,7 +253,7 @@ export function NascimentoSequenciaNaConversa({
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-al-line/60">
           <div className="flex items-center gap-2 text-xs text-al-muted">
-            <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
+            <span className="px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
               Human-in-the-loop
             </span>
             <span>Exige confirmação humana antes de gravar na conta</span>
@@ -326,12 +326,12 @@ export function NascimentoSequenciaNaConversa({
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-al-ink">{contato.nome}</span>
                       {contato.persona && (
-                        <span className="px-1.5 py-0.5 text-[0.625rem] uppercase tracking-rotulo bg-al-surface border border-al-line text-al-muted">
+                        <span className="px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-rotulo bg-al-surface border border-al-line text-al-muted">
                           {contato.persona}
                         </span>
                       )}
                       {sugerido && (
-                        <span className="px-1.5 py-0.5 text-[0.625rem] uppercase tracking-rotulo bg-al-accent/10 border border-al-accent/30 text-al-accent font-medium">
+                        <span className="px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-rotulo bg-al-accent/10 border border-al-accent/30 text-al-accent font-medium">
                           Sugerido pelo Rhetor
                         </span>
                       )}
@@ -418,7 +418,7 @@ export function NascimentoSequenciaNaConversa({
             <span className="text-al-line">·</span>
             <span className="rotulo text-al-accent font-medium">Documento vivo da sequência</span>
           </div>
-          <span className="px-1.5 py-0.5 border border-al-line text-[0.625rem] uppercase tracking-rotulo text-al-muted">
+          <span className="px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
             Espelhado com Detalhe da Conta e Lista Global
           </span>
         </div>

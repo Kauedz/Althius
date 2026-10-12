@@ -182,7 +182,7 @@ function NotificacoesDoNavegador() {
               </label>
               <span
                 className={cn(
-                  'rotulo text-[0.625rem]',
+                  'rotulo text-[0.6875rem]',
                   ativado && 'text-al-sucesso',
                   estado === 'bloqueado' && 'text-al-atencao',
                 )}

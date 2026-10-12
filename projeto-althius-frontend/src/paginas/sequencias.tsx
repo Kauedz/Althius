@@ -221,7 +221,7 @@ function ListaGlobalSequencias() {
                       <tr
                         key={seq.id}
                         onClick={() => navegar(`/sequencias/${seq.id}`)}
-                        className="h-12 cursor-pointer hover:bg-al-surface/60 transition-colors"
+                        className="h-12 cursor-pointer hover:bg-al-hover transition-colors"
                       >
                         <td className="py-3 pr-4 font-medium text-al-ink">
                           <div className="flex flex-col">
@@ -265,7 +265,7 @@ function ListaGlobalSequencias() {
                                       : `Pausada · ${seq.motivoPause}`)
                                   : 'Pausada · aguardando análise humana'}
                               </span>
-                              <span className="px-1 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.625rem] font-medium tracking-rotulo uppercase shrink-0">
+                              <span className="px-1 py-0.5 border border-al-atencao/40 bg-al-atencao/10 text-al-atencao text-[0.6875rem] font-medium tracking-rotulo uppercase shrink-0">
                                 Pausa da Conta
                               </span>
                             </span>

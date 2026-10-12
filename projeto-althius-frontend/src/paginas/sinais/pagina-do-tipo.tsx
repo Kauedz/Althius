@@ -125,7 +125,7 @@ export function PaginaDoTipo() {
       <section aria-labelledby="titulo-monitoramentos" className="flex flex-col gap-4">
         <h2 id="titulo-monitoramentos" className="flex items-baseline gap-3">
           <span className="titulo-secao text-lg">Monitoramentos</span>
-          <span className="rotulo text-[0.625rem]">
+          <span className="rotulo text-[0.6875rem]">
             {monitoramentos.length} no total · {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
           </span>
         </h2>

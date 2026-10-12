@@ -222,7 +222,7 @@ function Documento({ documento }: { documento: DocumentoInstitucional }) {
         ))}
       </article>
       <nav aria-label={`Seções de ${titulo}`} className="sticky top-22 flex flex-col gap-1 self-start">
-        <span className="rotulo pb-1 text-[0.625rem]">Nesta página</span>
+        <span className="rotulo pb-1 text-[0.6875rem]">Nesta página</span>
         {secoes.map((secao) => (
           <a
             key={secao.id}

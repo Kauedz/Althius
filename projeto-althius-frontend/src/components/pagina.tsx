@@ -35,7 +35,7 @@ export function Pagina({ titulo, icone: Icone, voltar, acoes, ocupaAJanela, clas
             </>
           )}
           {Icone && <Icone strokeWidth={1.8} className="size-[18px] text-al-muted" aria-hidden />}
-          <h1 className="titulo-display truncate text-2xl">{titulo}</h1>
+          <h1 className="titulo-display al-degrade-texto truncate text-2xl">{titulo}</h1>
         </div>
         {acoes && <div className="flex items-center gap-2">{acoes}</div>}
       </header>

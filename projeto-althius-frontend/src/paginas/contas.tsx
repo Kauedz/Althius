@@ -428,7 +428,7 @@ function ListaContas() {
               {contasExibidas.map((conta) => (
                 <tr
                   key={conta.id}
-                  className="h-11 cursor-pointer transition-colors hover:bg-al-surface/40"
+                  className="h-11 cursor-pointer transition-colors hover:bg-al-hover"
                   onClick={(e) => {
                     if ((e.target as HTMLElement).closest('a, button')) return
                     navegar(`/contas/${conta.id}`, { state: estadoDoLink })
