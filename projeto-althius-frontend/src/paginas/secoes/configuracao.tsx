@@ -117,13 +117,9 @@ function FormularioDePersonalizacao({
                       </Link>
                     )}
                   </div>
-                  <div role="radiogroup" aria-label={`Permissão em ${integracao.nome}`} className="flex">
+                  <div role="radiogroup" aria-label={`Permissão em ${integracao.nome}`} className="segmentado">
                     {(Object.keys(ROTULO_DA_PERMISSAO) as Permissao[]).map((permissao) => (
-                      <label
-                        key={permissao}
-                        title={DESCRICAO_DA_PERMISSAO[permissao]}
-                        className="cursor-pointer border border-al-line px-4 py-2 text-sm has-[:checked]:border-al-ink has-[:checked]:bg-al-ink has-[:checked]:text-al-bg has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-3 has-[:focus-visible]:outline-al-accent"
-                      >
+                      <label key={permissao} title={DESCRICAO_DA_PERMISSAO[permissao]}>
                         <input
                           type="radio"
                           className="sr-only"
@@ -184,7 +180,7 @@ function FormularioDePersonalizacao({
 
       {podeAdministrar && (
         <div className="flex items-center gap-6">
-          <Button type="submit" className="h-auto px-6 py-4 tracking-rotulo uppercase">
+          <Button type="submit" className="h-auto px-6 py-4 tracking-[0.04em]">
             Salvar personalização
           </Button>
           <p role="status" className="text-al-sucesso">

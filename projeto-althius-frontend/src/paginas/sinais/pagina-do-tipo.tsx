@@ -81,19 +81,19 @@ export function PaginaDoTipo() {
       </div>
 
       {motivoDeNaoCriar && (
-        <p role="status" className="border-l-2 border-al-atencao bg-al-surface px-4 py-3 text-sm">
+        <p role="status" className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm">
           {motivoDeNaoCriar}
         </p>
       )}
 
       {state?.aviso && (
-        <p role="status" className="border-l-2 border-al-sucesso bg-al-surface px-4 py-3 text-sm">
+        <p role="status" className="rounded-xl bg-al-sucesso-suave px-4 py-3 text-sm">
           {state.aviso}
         </p>
       )}
 
       {erroAcao && (
-        <div role="alert" className="flex items-center justify-between border-l-2 border-al-perigo bg-al-surface px-4 py-3 text-sm text-al-perigo">
+        <div role="alert" className="flex items-center justify-between rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
           <span>{erroAcao}</span>
           <button
             type="button"
@@ -109,7 +109,7 @@ export function PaginaDoTipo() {
       {carregando && monitoramentos.length === 0 && <Carregando />}
 
       {erro && (
-        <div role="alert" className="flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+        <div role="alert" className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
           <p className="text-sm text-al-muted">Não foi possível carregar os monitoramentos.</p>
           <button
             type="button"
@@ -131,7 +131,7 @@ export function PaginaDoTipo() {
         </h2>
 
         {monitoramentos.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 border border-dashed border-al-line p-6">
+          <div className="rounded-2xl flex flex-col items-start gap-3 border border-dashed border-al-line p-6">
             <p className="text-sm">
               {personalizado ? 'Nenhum sinal personalizado ainda.' : 'Nenhum Monitoramento deste tipo ainda.'}
             </p>

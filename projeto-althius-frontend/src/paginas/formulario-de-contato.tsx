@@ -13,10 +13,10 @@ import {
 } from './campos-do-contato'
 import { ListasDeCanais } from './canais-do-contato'
 
-export const CAMPO = 'h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
-const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
+export const CAMPO = 'rounded-md h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
+const BOTAO_SECUNDARIO = 'h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface'
 const BOTAO_PRIMARIO =
-  'h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2 disabled:opacity-50'
+  'rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2 disabled:opacity-50'
 
 const ROTULOS_OPCIONAIS: [keyof CamposDoFormularioDeContato, string][] = [
   ['cargo', 'Cargo (opcional)'],

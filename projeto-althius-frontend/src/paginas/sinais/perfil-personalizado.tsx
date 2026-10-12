@@ -32,7 +32,7 @@ export function PerfilPersonalizado({ perfil, aoMudar }: { perfil: PerfilFirmogr
 
   return (
     <div className="-mt-2 flex flex-col gap-3">
-      <div role="group" aria-label="Perfil firmográfico" className="flex flex-col divide-y divide-al-line border border-al-line">
+      <div role="group" aria-label="Perfil firmográfico" className="rounded-lg overflow-hidden flex flex-col divide-y divide-al-line border border-al-line">
         <Bloco titulo="Localização">
           <Localizacao perfil={perfil} localidades={dados?.localidades} mudar={mudar} />
         </Bloco>
@@ -341,7 +341,7 @@ function SelecaoMultipla({
       {selecionadas.length > 0 && (
         <ul aria-label={`${rotulo} escolhidas`} className="flex flex-wrap gap-1.5">
           {selecionadas.map((valor) => (
-            <li key={valor} className="flex max-w-full items-center gap-1 border border-al-accent/60 bg-al-accent/10 py-0.5 pr-1 pl-2 text-xs">
+            <li key={valor} className="rounded-md flex max-w-full items-center gap-1 border border-al-accent/60 bg-al-accent/10 py-0.5 pr-1 pl-2 text-xs">
               <span className="truncate" title={detalhes.get(valor) ? `${valor} · ${detalhes.get(valor)}` : valor}>
                 {valor}
                 {detalhes.get(valor) && (
@@ -392,7 +392,7 @@ function SelecaoMultipla({
             id={`${id}-opcoes`}
             role="listbox"
             aria-label={`Opções de ${rotulo}`}
-            className="absolute inset-x-0 top-full z-20 max-h-72 overflow-y-auto border border-al-line bg-al-surface shadow-lg"
+            className="rounded-lg absolute inset-x-0 top-full z-20 max-h-72 overflow-y-auto border border-al-line bg-al-surface shadow-lg"
           >
             {visiveis.map((opcao) => (
               <li

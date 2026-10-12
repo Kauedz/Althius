@@ -43,7 +43,7 @@ function ListaDeConversas() {
     <section aria-label="Conversas anteriores" className="flex flex-col gap-3">
       <h2 className="rotulo">Conversas anteriores</h2>
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <ul className="flex flex-col divide-y divide-al-line border border-al-line">
+      <ul className="rounded-lg overflow-hidden flex flex-col divide-y divide-al-line border border-al-line">
         {salvas.slice(0, QUANTAS).map((conversa) => (
           <li key={conversa.id} className="flex items-center justify-between gap-6 py-3 pr-4 pl-5">
             <span className="flex min-w-0 items-center gap-3">

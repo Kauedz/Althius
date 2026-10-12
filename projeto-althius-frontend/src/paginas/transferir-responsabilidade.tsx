@@ -12,9 +12,9 @@ import {
 import type { ContaAlvo } from '@/fonte/contas-tipos'
 import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 
-const BOTAO_SECUNDARIO = 'h-9 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface'
+const BOTAO_SECUNDARIO = 'h-9 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface'
 const BOTAO_PRIMARIO =
-  'h-9 border border-al-accent bg-al-accent px-4 text-xs font-medium tracking-rotulo text-al-on-accent uppercase hover:bg-al-accent-2 disabled:opacity-50'
+  'rounded-md h-9 border border-al-accent bg-al-accent px-4 text-sm font-medium tracking-[0.04em] text-al-on-accent hover:bg-al-accent-2 disabled:opacity-50'
 
 /**
  * Depois que o Vendedor responsável sai do Workspace, o Administrador transfere a Conta-alvo a um Participante ativo,
@@ -28,7 +28,7 @@ export function TransferirResponsabilidade({ conta }: { conta: ContaAlvo }) {
   if (!fonte.transferirResponsabilidade || conta.responsavelAusente !== true || conta.arquivadaEm) return null
 
   return (
-    <div className="flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-sm">
+    <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-sm">
       <p>O Vendedor responsável por esta Conta saiu do Workspace. Um Administrador pode passar a Conta a outra pessoa.</p>
       <div>
         <Button type="button" variant="outline" onClick={() => setAberto(true)} className={BOTAO_SECUNDARIO}>
@@ -104,7 +104,7 @@ function FormularioDaTransferencia({
           aria-label="Novo responsável"
           value={novoResponsavel}
           onChange={(e) => setNovoResponsavel(e.target.value)}
-          className="h-9 border border-al-line bg-al-bg px-2 text-sm text-al-ink"
+          className="rounded-md h-9 border border-al-line bg-al-bg px-2 text-sm text-al-ink"
         >
           <option value="">Escolha um Participante...</option>
           {(participantes ?? []).map((p) => (
@@ -121,7 +121,7 @@ function FormularioDaTransferencia({
           value={motivo}
           onChange={(e) => setMotivo(e.target.value)}
           rows={3}
-          className="border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink"
+          className="rounded-lg border border-al-line bg-al-surface px-3 py-2 text-sm text-al-ink"
         />
       </label>
       {erro && (

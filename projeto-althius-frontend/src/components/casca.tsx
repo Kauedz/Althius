@@ -12,11 +12,12 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
+import { IndicadorDeSecoes } from '@/components/indicador-de-secoes'
 import { LogoDoWorkspace } from '@/components/logos'
-import { Button } from '@/components/ui/button'
+import { RolagemDiscreta } from '@/components/rolagem-discreta'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +58,7 @@ export function Casca() {
     })
   return (
     <div
+      style={{ '--barra-lateral': recolhida ? '4.25rem' : '15.5rem' } as CSSProperties}
       className={cn(
         'grid min-h-screen transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none',
         recolhida ? 'grid-cols-[4.25rem_1fr]' : 'grid-cols-[15.5rem_1fr]',
@@ -68,6 +70,7 @@ export function Casca() {
       <main className="flex min-w-0 flex-col">
         <Outlet />
       </main>
+      <IndicadorDeSecoes />
     </div>
   )
 }
@@ -102,16 +105,15 @@ function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
   const naAbaDeSinais = pathname === '/sinais' || pathname.startsWith('/sinais/')
   const pendentes = workspace?.aprovacoesPendentes ?? 0
 
+  const lateral = recolhida ? 'px-2.5' : 'px-4'
+
   return (
     <aside
       aria-label="Navegação"
       data-recolhida={recolhida || undefined}
-      className={cn(
-        'al-zona-escura sticky top-0 flex h-screen flex-col gap-6 overflow-x-hidden overflow-y-auto border-r border-al-divisor py-5',
-        recolhida ? 'px-2.5' : 'px-4',
-      )}
+      className="al-zona-escura sticky top-0 flex h-screen flex-col overflow-hidden border-r border-al-divisor"
     >
-      <div className="flex flex-col gap-4">
+      <div className={cn('flex flex-col gap-4 pt-5 pb-4', lateral)}>
         <div className={cn('flex h-8 items-center', recolhida ? 'flex-col justify-center gap-3 h-auto' : 'justify-between pl-2')}>
           <LogoDaBarra recolhida={recolhida} />
           <button
@@ -119,7 +121,7 @@ function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
             onClick={alternarBarra}
             aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
             title={recolhida ? 'Expandir menu' : 'Recolher menu'}
-            className="grid size-8 place-items-center rounded-md text-al-muted transition-colors duration-200 hover:bg-al-hover hover:text-al-ink"
+            className="grid size-8 place-items-center rounded-lg text-al-muted transition-colors duration-200 hover:bg-al-hover hover:text-al-ink"
           >
             {recolhida ? (
               <PanelLeftOpen strokeWidth={1.8} className="size-4" aria-hidden />
@@ -128,77 +130,82 @@ function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
             )}
           </button>
         </div>
-        <div className="flex flex-col gap-2">
-          <SeletorDeWorkspace cliente={cliente} descricao={descricao} logo={doOnboarding?.logo ?? null} />
-          {/* A Demonstração se identifica pelo selo (ADR 0003); o Workspace operacional, pelo seu. */}
-          <span className={cn('selo self-start', recolhida && 'sr-only')}>{modo === 'demonstracao' ? 'Demonstração' : 'Operacional'}</span>
-        </div>
+        {/* A Demonstração se identifica pelo selo (ADR 0003); o Workspace operacional, pelo seu. */}
+        <SeletorDeWorkspace
+          cliente={cliente}
+          descricao={descricao}
+          logo={doOnboarding?.logo ?? null}
+          ambiente={modo === 'demonstracao' ? 'Demonstração' : 'Operacional'}
+        />
       </div>
 
-      {progresso?.pendente && <AtalhoDoOnboarding percentual={progresso.percentual} />}
+      {/* A navegação rola sem barra; o logo e o Workspace em cima e a conta embaixo ficam parados. */}
+      <RolagemDiscreta className={cn('flex min-h-0 flex-1 flex-col gap-6 py-2', lateral)}>
+        {progresso?.pendente && <AtalhoDoOnboarding percentual={progresso.percentual} />}
 
-      {/* Um Workspace sem Agentes guardados não mostra o grupo vazio. */}
-      {agentesPadrao?.length !== 0 && (
-        <Secao titulo="Especialistas">
-          {agentesPadrao?.map((agente) => (
-            <ItemDeNavegacao
-              key={agente.id}
-              para={`/agentes/${agente.id}`}
-              ativo={pathname.startsWith(`/agentes/${agente.id}/`)}
-              icone={<IconeDaEspecialidade especialidade={agente.especialidade.id} />}
-              fim={
-                <span title={ROTULO_DO_ESTADO[agente.estado]}>
-                  <IndicadorDeEstado estado={agente.estado} />
+        {/* Um Workspace sem Agentes guardados não mostra o grupo vazio. */}
+        {agentesPadrao?.length !== 0 && (
+          <Secao titulo="Especialistas">
+            {agentesPadrao?.map((agente) => (
+              <ItemDeNavegacao
+                key={agente.id}
+                para={`/agentes/${agente.id}`}
+                ativo={pathname.startsWith(`/agentes/${agente.id}/`)}
+                icone={<IconeDaEspecialidade especialidade={agente.especialidade.id} />}
+                fim={
+                  <span title={ROTULO_DO_ESTADO[agente.estado]}>
+                    <IndicadorDeEstado estado={agente.estado} />
+                  </span>
+                }
+              >
+                {agente.nome}
+              </ItemDeNavegacao>
+            ))}
+          </Secao>
+        )}
+
+        <Secao titulo="Workspace">
+          <ItemDeNavegacao para="/contas" ativo={naAbaDeContas} icone={<IconeDeNavegacao icone={Building2} />}>
+            Contas e Contatos
+          </ItemDeNavegacao>
+          <ItemDeNavegacao para="/sequencias" ativo={naAbaDeSequencias} icone={<IconeDeNavegacao icone={Route} />}>
+            Sequências
+          </ItemDeNavegacao>
+          <ItemDeNavegacao para="/" ativo={naAbaDeAgentes} icone={<IconeDeNavegacao icone={Bot} />}>
+            Agentes
+          </ItemDeNavegacao>
+          <ItemDeNavegacao para="/sinais" ativo={naAbaDeSinais} icone={<IconeDeNavegacao icone={RadioTower} />}>
+            Sinais
+          </ItemDeNavegacao>
+          <ItemDeNavegacao
+            para="/aprovacoes"
+            ativo={pathname.startsWith('/aprovacoes')}
+            icone={<IconeDeNavegacao icone={ShieldCheck} />}
+            rotulo={pendentes > 0 ? `Aprovações, ${pendentes} ${pendentes === 1 ? 'pendente' : 'pendentes'}` : undefined}
+            fim={
+              pendentes > 0 && (
+                <span className="grid h-4.5 min-w-5 place-items-center rounded-full bg-al-accent px-1.5 text-xs font-medium text-al-on-accent tabular-nums">
+                  {pendentes}
                 </span>
-              }
-            >
-              {agente.nome}
-            </ItemDeNavegacao>
-          ))}
+              )
+            }
+          >
+            Aprovações
+          </ItemDeNavegacao>
+          <ItemDeNavegacao para="/conexoes" ativo={pathname.startsWith('/conexoes')} icone={<IconeDeNavegacao icone={Plug} />}>
+            Conexões
+          </ItemDeNavegacao>
+          <ItemDeNavegacao
+            para="/configuracoes/perfil"
+            ativo={pathname.startsWith('/configuracoes')}
+            icone={<IconeDeNavegacao icone={Settings} />}
+          >
+            Configurações
+          </ItemDeNavegacao>
         </Secao>
-      )}
+      </RolagemDiscreta>
 
-      <Secao titulo="Workspace">
-        <ItemDeNavegacao para="/contas" ativo={naAbaDeContas} icone={<IconeDeNavegacao icone={Building2} />}>
-          Contas e Contatos
-        </ItemDeNavegacao>
-        <ItemDeNavegacao para="/sequencias" ativo={naAbaDeSequencias} icone={<IconeDeNavegacao icone={Route} />}>
-          Sequências
-        </ItemDeNavegacao>
-        <ItemDeNavegacao para="/" ativo={naAbaDeAgentes} icone={<IconeDeNavegacao icone={Bot} />}>
-          Agentes
-        </ItemDeNavegacao>
-        <ItemDeNavegacao para="/sinais" ativo={naAbaDeSinais} icone={<IconeDeNavegacao icone={RadioTower} />}>
-          Sinais
-        </ItemDeNavegacao>
-        <ItemDeNavegacao
-          para="/aprovacoes"
-          ativo={pathname.startsWith('/aprovacoes')}
-          icone={<IconeDeNavegacao icone={ShieldCheck} />}
-          rotulo={pendentes > 0 ? `Aprovações, ${pendentes} ${pendentes === 1 ? 'pendente' : 'pendentes'}` : undefined}
-          fim={
-            pendentes > 0 && (
-              <span className="grid h-4.5 min-w-5 place-items-center rounded-full bg-al-accent px-1.5 text-xs font-medium text-al-on-accent tabular-nums">
-                {pendentes}
-              </span>
-            )
-          }
-        >
-          Aprovações
-        </ItemDeNavegacao>
-        <ItemDeNavegacao para="/conexoes" ativo={pathname.startsWith('/conexoes')} icone={<IconeDeNavegacao icone={Plug} />}>
-          Conexões
-        </ItemDeNavegacao>
-        <ItemDeNavegacao
-          para="/configuracoes/perfil"
-          ativo={pathname.startsWith('/configuracoes')}
-          icone={<IconeDeNavegacao icone={Settings} />}
-        >
-          Configurações
-        </ItemDeNavegacao>
-      </Secao>
-
-      <MenuDoUsuario />
+      <MenuDoUsuario className={lateral} />
     </aside>
   )
 }
@@ -224,10 +231,13 @@ function SeletorDeWorkspace({
   cliente,
   descricao,
   logo,
+  ambiente,
 }: {
   cliente?: string
   descricao?: string
   logo: string | null
+  /** Onde o Workspace roda: a Demonstração simulada ou o Workspace operacional. */
+  ambiente: 'Demonstração' | 'Operacional'
 }) {
   const recolhida = useContext(BarraRecolhida)
   return (
@@ -239,18 +249,21 @@ function SeletorDeWorkspace({
             aria-label={`Workspace: ${cliente ?? ''}`}
             title={recolhida ? `Workspace: ${cliente ?? ''}` : undefined}
             className={cn(
-              'flex w-full items-center gap-2.5 rounded-xl border border-al-line bg-al-surface text-left transition-colors duration-200 hover:border-al-line-forte hover:bg-al-hover',
-              recolhida ? 'h-11 justify-center p-1' : 'h-12 px-2.5',
+              'flex w-full items-center gap-3 rounded-2xl bg-al-surface text-left ring-1 ring-al-line ring-inset transition-colors duration-200 hover:bg-al-hover hover:ring-al-line-forte',
+              recolhida ? 'h-12 justify-center p-1.5' : 'h-14 pr-3 pl-2.5',
             )}
           />
         }
       >
-        <LogoDoWorkspace nome={cliente ?? ''} endereco={logo} />
-        <span className={cn('flex min-w-0 flex-1 flex-col leading-tight', recolhida && 'sr-only')}>
-          <span className="rotulo text-[0.6875rem]">Workspace</span>
-          <span className="truncate font-normal">{cliente}</span>
+        <LogoDoWorkspace nome={cliente ?? ''} endereco={logo} className="size-9 rounded-xl text-base" />
+        <span className={cn('flex min-w-0 flex-1 flex-col gap-0.5 leading-tight', recolhida && 'sr-only')}>
+          <span className="truncate text-[0.9375rem] font-normal text-al-ink">{cliente}</span>
+          <span className="flex items-center gap-1.5 text-xs text-al-ink-3">
+            <span aria-hidden className={cn('size-1.5 rounded-full', ambiente === 'Demonstração' ? 'bg-al-atencao' : 'bg-al-sucesso')} />
+            {ambiente}
+          </span>
         </span>
-        {!recolhida && <ChevronsUpDown strokeWidth={1.8} className="size-4 text-al-muted" aria-hidden />}
+        {!recolhida && <ChevronsUpDown strokeWidth={1.8} className="size-4 shrink-0 text-al-muted" aria-hidden />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
         <DropdownMenuGroup>
@@ -264,7 +277,7 @@ function SeletorDeWorkspace({
   )
 }
 
-function MenuDoUsuario() {
+function MenuDoUsuario({ className }: { className?: string }) {
   const workspace = useDados((fonte) => fonte.workspace(), [])
   const { tema, alternar, salvamento } = useTemaDaConta()
   const nome = workspace?.usuario.nome ?? ''
@@ -279,32 +292,45 @@ function MenuDoUsuario() {
           : 'Tema claro'
 
   return (
-    <div className={cn('mt-auto flex items-center gap-2.5 border-t border-al-line pt-4', recolhida && 'flex-col gap-2')}>
-      <AvatarDePessoa nome={nome} foto={workspace?.usuario.foto} />
-      <span className={cn('flex min-w-0 flex-1 flex-col leading-tight', recolhida && 'sr-only')}>
-        <span className="truncate text-sm font-normal">{nome}</span>
-        <span className="rotulo text-[0.6875rem]">{rotuloDoTema}</span>
-      </span>
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Menu do usuário: ${nome}`} />}>
-          <ChevronsUpDown strokeWidth={1.8} className="text-al-muted" aria-hidden />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="top" className="min-w-56">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>
-              <span className="block font-normal text-al-ink">{nome}</span>
-              <span className="block text-al-muted">{workspace?.usuario.cargo}</span>
-              {workspace?.papel && (
-                <span className="block text-al-muted">{ROTULO_DO_PAPEL[workspace.papel]} neste Workspace</span>
-              )}
-            </DropdownMenuLabel>
-          </DropdownMenuGroup>
-          <DropdownMenuItem render={<Link to="/configuracoes/perfil" />}>Meu perfil</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void alternar()} disabled={salvamento.estado === 'salvando'}>
-            {tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <div className={cn('pt-2 pb-4', className)}>
+      <div className="border-t border-al-divisor pt-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label={`Menu do usuário: ${nome}`}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-xl p-2 text-left transition-colors duration-200 hover:bg-al-hover',
+                  recolhida && 'justify-center',
+                )}
+              />
+            }
+          >
+            <AvatarDePessoa nome={nome} foto={workspace?.usuario.foto} />
+            <span className={cn('flex min-w-0 flex-1 flex-col leading-tight', recolhida && 'sr-only')}>
+              <span className="truncate text-sm font-normal">{nome}</span>
+              <span className="text-xs text-al-ink-3">{rotuloDoTema}</span>
+            </span>
+            {!recolhida && <ChevronsUpDown strokeWidth={1.8} className="size-4 shrink-0 text-al-muted" aria-hidden />}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="min-w-56">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>
+                <span className="block font-normal text-al-ink">{nome}</span>
+                <span className="block text-al-muted">{workspace?.usuario.cargo}</span>
+                {workspace?.papel && (
+                  <span className="block text-al-muted">{ROTULO_DO_PAPEL[workspace.papel]} neste Workspace</span>
+                )}
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
+            <DropdownMenuItem render={<Link to="/configuracoes/perfil" />}>Meu perfil</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void alternar()} disabled={salvamento.estado === 'salvando'}>
+              {tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
@@ -350,11 +376,11 @@ function ItemDeNavegacao({
         aria-current={ativo ? 'page' : undefined}
         title={recolhida ? (rotulo ?? (typeof children === 'string' ? children : undefined)) : undefined}
         className={cn(
-          'relative flex h-9 items-center gap-2.5 rounded-lg border-l-2 px-2.5 text-sm font-normal',
+          'relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-normal',
           recolhida && 'justify-center px-0',
           ativo
-            ? 'border-al-accent bg-al-hover text-al-ink'
-            : 'border-transparent text-al-muted transition-colors duration-200 hover:bg-al-hover hover:text-al-ink',
+            ? 'bg-al-hover text-al-ink before:absolute before:top-2 before:bottom-2 before:left-0 before:w-[3px] before:rounded-full before:bg-al-accent'
+            : 'text-al-muted transition-colors duration-200 hover:bg-al-hover hover:text-al-ink',
         )}
       >
         {icone}

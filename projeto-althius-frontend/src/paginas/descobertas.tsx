@@ -152,7 +152,7 @@ export function PaginaDescobertas() {
               disabled={botaoDesabilitado}
               onClick={dispararBusca}
               aria-describedby={custoId}
-              className="h-9 border-al-accent bg-al-accent/5 text-xs font-medium tracking-rotulo text-al-accent uppercase hover:bg-al-accent/10"
+              className="h-9 border-al-accent bg-al-accent/5 text-sm font-medium tracking-[0.04em] text-al-accent hover:bg-al-accent/10"
             >
               {emAndamento ? (
                 <RefreshCw className="mr-1.5 size-3.5 animate-spin" aria-hidden />
@@ -183,7 +183,7 @@ export function PaginaDescobertas() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           {/* Abas de estado: Novas / Aceitas / Descartadas */}
-          <div className="flex h-9 border border-al-line" role="tablist">
+          <div className="segmentado" role="tablist">
             {(['nova', 'aceita', 'descartada'] as const).map((aba) => (
               <button
                 key={aba}
@@ -191,12 +191,6 @@ export function PaginaDescobertas() {
                 role="tab"
                 aria-selected={estadoAba === aba}
                 onClick={() => setEstadoAba(aba)}
-                className={cn(
-                  'px-4 text-xs font-medium tracking-rotulo uppercase transition-colors',
-                  estadoAba === aba
-                    ? 'bg-al-surface text-al-ink font-semibold'
-                    : 'text-al-muted hover:text-al-ink hover:bg-al-bg',
-                )}
               >
                 {aba === 'nova' ? 'Novas' : aba === 'aceita' ? 'Aceitas' : 'Descartadas'}
               </button>
@@ -326,7 +320,7 @@ export function PaginaDescobertas() {
                       {c.motivos.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {c.motivos.map((m, i) => (
-                            <span key={i} className="inline-block bg-al-surface px-1.5 py-0.5 text-[0.75rem] text-al-ink border border-al-line">
+                            <span key={i} className="rounded-md inline-block bg-al-surface px-1.5 py-0.5 text-[0.75rem] text-al-ink border border-al-line">
                               {m}
                             </span>
                           ))}
@@ -353,7 +347,7 @@ export function PaginaDescobertas() {
                             size="sm"
                             onClick={() => aceitar(c)}
                             title="Aceitar candidata e criar Conta-alvo"
-                            className="h-8 border border-al-sucesso bg-al-sucesso px-2.5 text-xs text-al-on-accent hover:opacity-90"
+                            className="rounded-md h-8 border border-al-sucesso bg-al-sucesso px-2.5 text-xs text-al-on-accent hover:opacity-90"
                           >
                             <Check className="mr-1 size-3.5" aria-hidden />
                             Aceitar
@@ -411,7 +405,7 @@ export function PaginaDescobertas() {
       {/* Modal para informar o site da empresa quando faltar */}
       {modalUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md border border-al-line bg-al-surface p-6 shadow-xl">
+          <div className="rounded-2xl w-full max-w-md border border-al-line bg-al-surface p-6 shadow-xl">
             <h3 className="text-base font-semibold text-al-ink">Informar site de {modalUrl.nome}</h3>
             <p className="mt-1 text-xs text-al-muted">
               Uma Conta-alvo requer o endereço do site da empresa como identidade para evitar duplicidades.
@@ -426,7 +420,7 @@ export function PaginaDescobertas() {
                 placeholder="https://empresa.com.br"
                 value={urlInformada}
                 onChange={(e) => setUrlInformada(e.target.value)}
-                className="mt-1 w-full border border-al-line bg-al-bg px-3 py-2 text-sm text-al-ink outline-none focus:border-al-accent"
+                className="rounded-lg mt-1 w-full border border-al-line bg-al-bg px-3 py-2 text-sm text-al-ink outline-none focus:border-al-accent"
               />
             </div>
             <div className="mt-6 flex justify-end gap-2">
@@ -452,7 +446,7 @@ export function PaginaDescobertas() {
       {/* Modal de confirmação de descarte com motivo */}
       {motivoDescarte && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md border border-al-line bg-al-surface p-6 shadow-xl">
+          <div className="rounded-2xl w-full max-w-md border border-al-line bg-al-surface p-6 shadow-xl">
             <h3 className="text-base font-semibold text-al-ink">Descartar {motivoDescarte.nome}?</h3>
             <p className="mt-1 text-xs text-al-muted">
               A empresa sairá da lista e a Caixa lembrará dela para não voltar em buscas futuras.
@@ -467,7 +461,7 @@ export function PaginaDescobertas() {
                 value={textoDescarte}
                 onChange={(e) => setTextoDescarte(e.target.value)}
                 maxLength={300}
-                className="mt-1 w-full border border-al-line bg-al-bg px-3 py-2 text-sm text-al-ink outline-none focus:border-al-accent"
+                className="rounded-lg mt-1 w-full border border-al-line bg-al-bg px-3 py-2 text-sm text-al-ink outline-none focus:border-al-accent"
               />
             </div>
             <div className="mt-6 flex justify-end gap-2">

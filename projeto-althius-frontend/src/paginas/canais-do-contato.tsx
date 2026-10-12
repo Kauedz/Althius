@@ -10,8 +10,8 @@ import {
   TIPOS_DE_TELEFONE,
 } from '@/fonte/canais-do-contato'
 
-const CAMPO = 'h-9 min-w-0 border border-al-line bg-al-surface px-2.5 text-sm text-al-ink'
-const ACAO = 'h-8 border-al-line px-2 text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface'
+const CAMPO = 'rounded-md h-9 min-w-0 border border-al-line bg-al-surface px-2.5 text-sm text-al-ink'
+const ACAO = 'h-8 border-al-line px-2 text-sm tracking-[0.04em] hover:bg-al-surface'
 
 /**
  * As listas de e-mails e de telefones do Contato (até três de cada), no diálogo de edição. O primeiro item é o

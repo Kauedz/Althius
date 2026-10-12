@@ -150,14 +150,14 @@ function DecisaoDaRevisao({ aprovacao, papel }: { aprovacao: AprovacaoDeRevisao;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex gap-2">
-        <Button disabled={decidindo} onClick={() => decidir('aprovada')} className="px-6 tracking-rotulo uppercase">
+        <Button disabled={decidindo} onClick={() => decidir('aprovada')} className="px-6 tracking-[0.04em]">
           Aprovar
         </Button>
         <Button
           variant="outline"
           disabled={decidindo}
           onClick={() => decidir('rejeitada')}
-          className="px-6 tracking-rotulo uppercase"
+          className="px-6 tracking-[0.04em]"
         >
           Recusar
         </Button>
@@ -175,8 +175,8 @@ function AguardandoAdministrador() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex gap-2" aria-hidden>
-        <span className={cn(buttonVariants(), 'pointer-events-none px-6 tracking-rotulo uppercase opacity-40')}>Aprovar</span>
-        <span className={cn(buttonVariants({ variant: 'outline' }), 'pointer-events-none px-6 tracking-rotulo uppercase opacity-40')}>
+        <span className={cn(buttonVariants(), 'pointer-events-none px-6 tracking-[0.04em] opacity-40')}>Aprovar</span>
+        <span className={cn(buttonVariants({ variant: 'outline' }), 'pointer-events-none px-6 tracking-[0.04em] opacity-40')}>
           Recusar
         </span>
       </div>

@@ -104,7 +104,7 @@ export function SecaoReceitaFederal({
                 disabled={buscando}
                 onClick={() => handleBuscar()}
                 aria-describedby={custoId}
-                className="h-8 gap-1.5 border border-al-accent bg-al-accent text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
+                className="rounded-md h-8 gap-1.5 border border-al-accent bg-al-accent text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
               >
                 <Sparkles className="size-3.5" />
                 {buscando ? 'Consultando...' : receita ? 'Atualizar Receita' : 'Consultar Receita'}
@@ -220,7 +220,7 @@ export function SecaoReceitaFederal({
               type="button"
               disabled={buscando || !cnpjInput.trim()}
               onClick={() => handleBuscar(cnpjInput)}
-              className="border border-al-accent bg-al-accent font-medium text-al-on-accent hover:bg-al-accent-2"
+              className="rounded-lg border border-al-accent bg-al-accent font-medium text-al-on-accent hover:bg-al-accent-2"
             >
               {buscando ? 'Consultando...' : 'Buscar na Receita'}
             </Button>
@@ -320,7 +320,7 @@ export function SecaoComiteDeCompra({
               size="sm"
               disabled={buscando}
               onClick={handleBuscarComite}
-              className="h-8 gap-1.5 border border-al-accent bg-al-accent text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
+              className="rounded-md h-8 gap-1.5 border border-al-accent bg-al-accent text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
             >
               <Search className="size-3.5" />
               {buscando ? 'Buscando...' : 'Buscar comitê pelo LinkedIn'}
@@ -413,7 +413,7 @@ export function SecaoComiteDeCompra({
                     size="sm"
                     disabled={acaoId === p.id}
                     onClick={() => handleAceitar(p.id)}
-                    className="h-7 gap-1 border border-al-accent bg-al-accent px-2.5 text-[0.6875rem] font-medium text-al-on-accent hover:bg-al-accent-2"
+                    className="rounded-md h-7 gap-1 border border-al-accent bg-al-accent px-2.5 text-[0.6875rem] font-medium text-al-on-accent hover:bg-al-accent-2"
                   >
                     <Check className="size-3" />
                     Aceitar Contato
@@ -575,7 +575,7 @@ export function BotoesRevelarContato({
                 type="button"
                 disabled={revelando || cotacao?.podeRevelar === false}
                 onClick={confirmarRevelacao}
-                className="border border-al-accent bg-al-accent font-medium text-al-on-accent hover:bg-al-accent-2"
+                className="rounded-lg border border-al-accent bg-al-accent font-medium text-al-on-accent hover:bg-al-accent-2"
               >
                 {revelando ? 'Buscando...' : 'Confirmar e Revelar'}
               </Button>

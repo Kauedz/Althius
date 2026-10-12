@@ -170,7 +170,7 @@ function NotificacoesDoNavegador() {
         <Carregando />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-4 border border-al-line p-4">
+          <div className="rounded-xl flex items-center gap-4 border border-al-line p-4">
             <Icone
               strokeWidth={1.8}
               className={cn('size-5', ativado ? 'text-al-accent' : 'text-al-muted')}
@@ -249,12 +249,9 @@ function SeletorDeTema({
     { valor: 'claro', rotulo: 'Claro' },
   ]
   return (
-    <div role="radiogroup" aria-label="Tema" className="flex">
+    <div role="radiogroup" aria-label="Tema" className="segmentado">
       {opcoes.map((opcao) => (
-        <label
-          key={opcao.valor}
-          className="cursor-pointer border border-al-line px-4 py-2 text-sm has-[:checked]:border-al-ink has-[:checked]:bg-al-ink has-[:checked]:text-al-bg has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-3 has-[:focus-visible]:outline-al-accent"
-        >
+        <label key={opcao.valor}>
           <input
             type="radio"
             name="tema"

@@ -24,7 +24,7 @@ import type { Participante } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
 import { CABECALHO, CELULA } from './modulo-contas-e-contatos'
 
-const CAMPO = 'h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
+const CAMPO = 'rounded-md h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
 const TAMANHO_DA_PAGINA = 50
 
 const ROTULO_DO_ESTADO: Record<EstadoDoLote, string> = {
@@ -114,7 +114,7 @@ function EnviarArquivo({ importacao }: { importacao: FonteDeImportacaoDeContas }
           e.preventDefault()
           void enviar()
         }}
-        className="flex flex-col items-start gap-3 border border-al-line bg-al-surface/40 p-4"
+        className="rounded-xl flex flex-col items-start gap-3 border border-al-line bg-al-surface/40 p-4"
       >
         <div className="flex flex-wrap items-center gap-3">
           {/* O controle nativo fica escondido só para os olhos: o rótulo é o botão, e o foco do teclado aparece nele. */}

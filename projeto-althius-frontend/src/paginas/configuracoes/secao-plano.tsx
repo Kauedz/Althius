@@ -116,7 +116,7 @@ function Uso({ uso }: { uso: UsoDoWorkspace }) {
 function Indicador({ rotulo, valor, children }: { rotulo: string; valor: number; children: ReactNode }) {
   const id = useId()
   return (
-    <div role="group" aria-labelledby={id} className="flex flex-col gap-1 border border-al-line p-5">
+    <div role="group" aria-labelledby={id} className="rounded-2xl flex flex-col gap-1 border border-al-line p-5">
       <span id={id} className="rotulo">
         {rotulo}
       </span>
@@ -133,7 +133,7 @@ function Indicador({ rotulo, valor, children }: { rotulo: string; valor: number;
 export function SecaoPlanoDoWorkspaceOperacional() {
   return (
     <SecaoDeConfiguracoes id="plano" titulo="Plano" alcance="workspace" descricao="A situação do Workspace na Althius.">
-      <div role="status" className="flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+      <div role="status" className="rounded-2xl flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
         <span className="selo">Demonstrativo</span>
         <p className="text-al-ink">Plano e consumo ainda são só demonstrativos na Althius.</p>
         <p className="text-sm text-al-muted">

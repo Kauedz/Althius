@@ -246,7 +246,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             type="button"
             variant="outline"
             onClick={recarregar}
-            className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+            className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
           >
             Tentar de novo
           </Button>
@@ -637,7 +637,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 
 
   return (
-    <div className={`flex flex-col gap-6 ${incorporado ? 'border border-al-line bg-al-bg p-4' : 'py-2'}`}>
+    <div className={`flex flex-col gap-6 ${incorporado ? 'rounded-xl border border-al-line bg-al-bg p-4' : 'py-2'}`}>
       {/* Navegação de volta */}
       {!incorporado && (
         <div>
@@ -682,7 +682,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 <>
                   <span>·</span>
                   <span className="inline-flex items-center gap-1.5" title="Métricas de demonstração">
-                    <span className="px-1.5 py-0.2 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
+                    <span className="rounded-md px-1.5 py-0.2 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted">
                       Demonstração
                     </span>
                     <span className="text-al-ink font-medium">
@@ -729,7 +729,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               variant="outline"
               onClick={handleSimularResposta}
               title="Demonstração"
-              className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+              className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
             >
               <Smartphone className="size-3.5 mr-1 text-al-muted" />
               Simular resposta
@@ -760,7 +760,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 Regra de pause na Conta-alvo
               </span>
               {sequencia.status === 'pausada' && (
-                <span className="text-[0.6875rem] font-semibold tracking-rotulo uppercase text-al-atencao px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10">
+                <span className="rounded-md text-[0.6875rem] font-semibold tracking-rotulo uppercase text-al-atencao px-1.5 py-0.5 border border-al-atencao/40 bg-al-atencao/10">
                   Pausa da Conta inteira
                 </span>
               )}
@@ -785,7 +785,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             {sequencia.pausadaPelaContaRemetente && (
               <Link
                 to="/configuracoes/perfil"
-                className="inline-flex h-8 items-center border border-al-ink bg-al-ink px-3 text-xs tracking-rotulo text-al-bg uppercase hover:opacity-90"
+                className="rounded-md inline-flex h-8 items-center border border-al-ink bg-al-ink px-3 text-sm tracking-[0.04em] text-al-bg hover:opacity-90"
               >
                 Reconectar
               </Link>
@@ -795,7 +795,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               variant="outline"
               size="sm"
               onClick={handleRetomar}
-              className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+              className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
             >
               Retomar
             </Button>
@@ -804,7 +804,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               variant="outline"
               size="sm"
               onClick={handleMarcarReuniao}
-              className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+              className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
             >
               Marcar reunião
             </Button>}
@@ -848,7 +848,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                     className={`ml-1 text-[0.6875rem] px-1 py-0.5 border ${
                       temDestinos
                         ? 'border-al-line text-al-ink hover:border-al-accent'
-                        : 'border-dashed border-al-atencao text-al-atencao hover:border-al-ink'
+                        : 'rounded-lg border-dashed border-al-atencao text-al-atencao hover:border-al-ink'
                     }`}
                     title={temDestinos ? 'Destinos cadastrados' : 'Cadastrar destinos reais'}
                   >
@@ -873,7 +873,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 aria-label="Adicionar Contato"
                 value=""
                 onChange={(e) => handleAdicionarParticipante(e.target.value)}
-                className="h-7.5 border border-dashed border-al-line bg-transparent px-2 text-xs text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer outline-none"
+                className="rounded-lg h-7.5 border border-dashed border-al-line bg-transparent px-2 text-xs text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer outline-none"
               >
                 <option value="" disabled>
                   + Adicionar Contato
@@ -899,7 +899,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               aria-label="Horário inicial"
               value={sequencia.janelaPadrao.de}
               onChange={(e) => handleAlterarJanelaPadrao('de', e.target.value)}
-              className="h-7 border border-al-line bg-al-bg px-2 text-xs text-al-ink outline-none"
+              className="rounded-md h-7 border border-al-line bg-al-bg px-2 text-xs text-al-ink outline-none"
             >
               {HORARIOS_DISPONIVEIS.map((h) => (
                 <option key={`de-${h}`} value={h} className="bg-al-surface">
@@ -912,7 +912,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               aria-label="Horário final"
               value={sequencia.janelaPadrao.ate}
               onChange={(e) => handleAlterarJanelaPadrao('ate', e.target.value)}
-              className="h-7 border border-al-line bg-al-bg px-2 text-xs text-al-ink outline-none"
+              className="rounded-md h-7 border border-al-line bg-al-bg px-2 text-xs text-al-ink outline-none"
             >
               {HORARIOS_DISPONIVEIS.map((h) => (
                 <option key={`ate-${h}`} value={h} className="bg-al-surface">
@@ -1133,20 +1133,20 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             <button
               type="button"
               onClick={() => setMenuAdicionarAberto(!menuAdicionarAberto)}
-              className="flex w-full items-center justify-center gap-1.5 border border-dashed border-al-line p-2 text-xs text-al-muted hover:border-al-ink hover:text-al-ink transition-colors"
+              className="rounded-lg flex w-full items-center justify-center gap-1.5 border border-dashed border-al-line p-2 text-xs text-al-muted hover:border-al-ink hover:text-al-ink transition-colors"
             >
               <Plus className="size-3.5" /> Adicionar step
             </button>
 
             {menuAdicionarAberto && (
-              <div className="grid grid-cols-3 gap-1.5 mt-2 p-2 border border-al-line bg-al-bg">
+              <div className="rounded-lg grid grid-cols-3 gap-1.5 mt-2 p-2 border border-al-line bg-al-bg">
                 {CANAIS_SUPORTADOS.map((canal) => (
                   <button
                     key={canal}
                     type="button"
                     onClick={() => handleAdicionarStep(canal)}
                     aria-label={`Adicionar step ${CANAIS_CONFIG[canal].rotulo}`}
-                    className="flex items-center gap-2 p-1.5 text-xs text-al-muted hover:text-al-ink hover:bg-al-surface border border-transparent hover:border-al-line transition-colors"
+                    className="rounded-lg flex items-center gap-2 p-1.5 text-xs text-al-muted hover:text-al-ink hover:bg-al-surface border border-transparent hover:border-al-line transition-colors"
                   >
                     <IconeCanal canal={canal} />
                     <span>{CANAIS_CONFIG[canal].rotulo}</span>
@@ -1345,7 +1345,7 @@ export function SeletorDeDestino({
       aria-label={canal === 'email' ? 'E-mail do Contato neste passo' : 'Telefone do Contato neste passo'}
       value={existe ? atual : ''}
       onChange={(e) => onEscolher(e.target.value === '1' ? undefined : Number(e.target.value))}
-      className="border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
+      className="rounded-md border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
     >
       {!existe && (
         <option value="" disabled>
@@ -1422,7 +1422,7 @@ function ComposerStep({
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-al-line px-5 py-3.5">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <span className="size-8 shrink-0 border border-al-line bg-al-bg flex items-center justify-center text-al-ink">
+          <span className="rounded-md overflow-hidden size-8 shrink-0 border border-al-line bg-al-bg flex items-center justify-center text-al-ink">
             <IconeCanal canal={step.canal} />
           </span>
           <input
@@ -1440,7 +1440,7 @@ function ComposerStep({
             disabled={indice === 0}
             onClick={() => onMover(-1)}
             aria-label="Mover para cima"
-            className="p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
+            className="rounded-lg p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
           >
             <ChevronUp className="size-4" />
           </button>
@@ -1449,7 +1449,7 @@ function ComposerStep({
             disabled={indice === total - 1}
             onClick={() => onMover(1)}
             aria-label="Mover para baixo"
-            className="p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
+            className="rounded-lg p-1 border border-al-line bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-30 disabled:pointer-events-none"
           >
             <ChevronDown className="size-4" />
           </button>
@@ -1458,7 +1458,7 @@ function ComposerStep({
             disabled={total <= 1}
             onClick={onExcluir}
             aria-label="Excluir step"
-            className="p-1 border border-al-line bg-al-bg text-al-erro hover:bg-al-erro/10 disabled:opacity-30 disabled:pointer-events-none"
+            className="rounded-lg p-1 border border-al-line bg-al-bg text-al-erro hover:bg-al-erro/10 disabled:opacity-30 disabled:pointer-events-none"
           >
             <Trash2 className="size-4" />
           </button>
@@ -1508,7 +1508,7 @@ function ComposerStep({
             aria-label="Destinatário"
             value={step.contatoId}
             onChange={(e) => onSalvar({ contatoId: e.target.value, destino: undefined })}
-            className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
+            className="rounded-lg border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none"
           >
             {participantesIds.map((id) => {
               const c = contatosMap.get(id)
@@ -1585,7 +1585,7 @@ function ComposerStep({
             onChange={(e) => onSalvar({ assunto: e.target.value })}
             onFocus={(e) => { ultimoCampoRef.current = e.currentTarget }}
             placeholder="Assunto da mensagem"
-            className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none w-full"
+            className="rounded-lg border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none w-full"
           />
         </div>
       )}
@@ -1622,7 +1622,7 @@ function ComposerStep({
                       ? 'Nota opcional. Em branco, o convite vai sem nota.'
                       : 'Texto da mensagem...'
               }
-              className="w-full border border-al-line bg-al-bg p-2.5 text-xs text-al-ink outline-none leading-relaxed resize-y font-sans"
+              className="rounded-lg w-full border border-al-line bg-al-bg p-2.5 text-xs text-al-ink outline-none leading-relaxed resize-y font-sans"
             />
             {limiteCaracteres !== null && (
               <span
@@ -1671,7 +1671,7 @@ function ComposerStep({
                     delayDiasUteis: Math.max(0, parseInt(e.target.value, 10) || 0),
                   })
                 }
-                className="w-14 border border-al-line bg-al-bg px-2 py-0.5 text-center text-xs text-al-ink outline-none"
+                className="rounded-md w-14 border border-al-line bg-al-bg px-2 py-0.5 text-center text-xs text-al-ink outline-none"
               />
               <span className="text-al-muted">dias úteis após o step {indice}</span>
             </>
@@ -1696,7 +1696,7 @@ function ComposerStep({
                 onSalvar({ janela: null })
               }
             }}
-            className="border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
+            className="rounded-md border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
           >
             <option value="herdar">
               Janela da sequência ({janelaPadrao.de}–{janelaPadrao.ate})
@@ -1715,7 +1715,7 @@ function ComposerStep({
           value={step.objetivo ?? ''}
           onChange={(e) => onSalvar({ objetivo: e.target.value })}
           placeholder="O que este step precisa conseguir"
-          className="border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none w-full"
+          className="rounded-lg border border-al-line bg-al-bg px-2.5 py-1 text-xs text-al-ink outline-none w-full"
         />
       </div>
 
@@ -1733,7 +1733,7 @@ function ComposerStep({
           />
         ) : (
           <>
-            <span className="px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted font-medium">
+            <span className="rounded-md px-1.5 py-0.5 border border-al-line text-[0.6875rem] uppercase tracking-rotulo text-al-muted font-medium">
               Demonstração
             </span>
             {step.metricas ? (
@@ -1980,7 +1980,7 @@ function RodapeDoEnvio({
           variant="outline"
           size="sm"
           onClick={onConfirmarEEnviar}
-          className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface ml-auto"
+          className="h-7 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface ml-auto"
         >
           <Mail className="size-3.5 mr-1 text-al-muted" />
           {rotuloDoBotao}
@@ -1993,7 +1993,7 @@ function RodapeDoEnvio({
             variant="outline"
             size="sm"
             onClick={() => onResolverIncerto!(true)}
-            className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface"
+            className="h-7 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
           >
             Saiu
           </Button>
@@ -2002,7 +2002,7 @@ function RodapeDoEnvio({
             variant="outline"
             size="sm"
             onClick={() => onResolverIncerto!(false)}
-            className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-surface"
+            className="h-7 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
           >
             Não saiu
           </Button>
@@ -2058,7 +2058,7 @@ function ResultadoDoEnvio({ envio }: { envio: EnvioDoPasso }) {
           value={envio.desfecho ?? ''}
           disabled={salvando}
           onChange={(e) => void classificar(e.target.value)}
-          className="h-7 border border-al-line bg-al-bg px-1.5 text-xs text-al-ink"
+          className="rounded-md h-7 border border-al-line bg-al-bg px-1.5 text-xs text-al-ink"
         >
           <option value="" disabled>Sem resposta</option>
           {(Object.keys(ROTULO_DO_DESFECHO) as DesfechoDoEnvio[]).map((d) => (
@@ -2119,7 +2119,7 @@ function PainelDosEnvios({
           variant="outline"
           size="sm"
           onClick={onAtivar}
-          className="h-7 border-al-line text-[0.6875rem] tracking-rotulo uppercase hover:bg-al-bg ml-auto"
+          className="h-7 border-al-line text-sm tracking-[0.04em] hover:bg-al-bg ml-auto"
         >
           <Mail className="size-3.5 mr-1 text-al-muted" />
           {rotulo}
@@ -2190,7 +2190,7 @@ function MiniaturaDoAnexo({
       type="button"
       onClick={() => onAmpliar({ nome: anexo.nome, url })}
       aria-label={`Ampliar ${anexo.nome}`}
-      className="block border border-al-line bg-al-bg p-1 hover:border-al-ink cursor-zoom-in"
+      className="rounded-lg block border border-al-line bg-al-bg p-1 hover:border-al-ink cursor-zoom-in"
     >
       <img src={url} alt={anexo.nome} className="h-32 max-w-[240px] object-contain" />
     </button>
@@ -2292,18 +2292,13 @@ function OpcoesPorCanal({
 }) {
   if (step.canal === 'email') {
     return (
-      <div className="flex items-center gap-1 border border-al-line">
+      <div className="segmentado">
         {(['auto', 'manual'] as const).map((modo) => (
           <button
             key={modo}
             type="button"
             onClick={() => onSalvar({ modoEmail: modo })}
             aria-pressed={step.modoEmail === modo}
-            className={`px-3 py-1 text-xs transition-colors ${
-              step.modoEmail === modo
-                ? 'bg-al-surface text-al-ink shadow-[inset_0_-2px_0_var(--al-accent)]'
-                : 'text-al-muted hover:text-al-ink'
-            }`}
           >
             {modo === 'auto' ? 'Automático' : 'Manual — revisar antes'}
           </button>
@@ -2319,18 +2314,13 @@ function OpcoesPorCanal({
     ]
     return (
       <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex items-center gap-1 border border-al-line flex-wrap">
+        <div className="segmentado flex-wrap">
           {opcoes.map(({ valor, rotulo }) => (
             <button
               key={valor}
               type="button"
               onClick={() => onSalvar({ subtipoLinkedIn: valor })}
               aria-pressed={step.subtipoLinkedIn === valor}
-              className={`px-3 py-1 text-xs transition-colors ${
-                step.subtipoLinkedIn === valor
-                  ? 'bg-al-surface text-al-ink shadow-[inset_0_-2px_0_var(--al-accent)]'
-                  : 'text-al-muted hover:text-al-ink'
-              }`}
             >
               {rotulo}
             </button>
@@ -2381,7 +2371,7 @@ function BarraVariaveis({
           onMouseDown={(e) => e.preventDefault()} // mantém foco no campo de texto
           onClick={() => onInserir(token)}
           aria-label={`Inserir variável ${token}`}
-          className="inline-flex h-6 items-center gap-1 border border-al-line bg-al-bg px-2 font-mono text-[0.6875rem] text-al-ink hover:border-al-accent hover:text-al-accent"
+          className="rounded-md inline-flex h-6 items-center gap-1 border border-al-line bg-al-bg px-2 font-mono text-[0.6875rem] text-al-ink hover:border-al-accent hover:text-al-accent"
         >
           <em className="not-italic text-[0.6875rem] uppercase tracking-widest text-al-muted font-sans">
             {grupo}
@@ -2389,13 +2379,12 @@ function BarraVariaveis({
           {token}
         </button>
       ))}
-      <div className="ml-auto flex items-center gap-1 border border-al-line">
+      <div className="segmentado ml-auto">
         <button
           type="button"
           onClick={() => onModoPrevia(false)}
           aria-pressed={!modoPrevia}
           aria-label="Modo edição"
-          className={`p-1.5 transition-colors ${!modoPrevia ? 'bg-al-surface text-al-ink' : 'text-al-muted hover:text-al-ink'}`}
         >
           <Pencil className="size-3.5" />
         </button>
@@ -2404,7 +2393,6 @@ function BarraVariaveis({
           onClick={() => onModoPrevia(true)}
           aria-pressed={modoPrevia}
           aria-label="Pré-visualizar"
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[0.6875rem] transition-colors ${modoPrevia ? 'bg-al-surface text-al-ink' : 'text-al-muted hover:text-al-ink'}`}
         >
           <Eye className="size-3.5" />
           Pré-visualizar
@@ -2668,7 +2656,7 @@ function LinhaAnexos({
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-2">
           {anexos.map((a, i) => (
-            <div key={i} className="relative flex flex-col border border-al-line bg-al-bg w-28">
+            <div key={i} className="rounded-lg overflow-hidden relative flex flex-col border border-al-line bg-al-bg w-28">
               <div className="h-16 flex items-center justify-center overflow-hidden bg-al-surface">
                 {a.url ? (
                   a.tipo === 'video' ? (
@@ -2699,7 +2687,7 @@ function LinhaAnexos({
           {onAnexar && (
             <>
               {/* Botão para imagem */}
-              <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
+              <label className="rounded-lg overflow-hidden flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
                 <Image className="size-4" />
                 Imagem ou print
                 <input
@@ -2716,7 +2704,7 @@ function LinhaAnexos({
               </label>
 
               {/* Botão para vídeo */}
-              <label className="flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
+              <label className="rounded-lg overflow-hidden flex flex-col items-center justify-center w-28 h-24 border border-dashed border-al-line text-al-muted hover:border-al-ink hover:text-al-ink cursor-pointer gap-1.5 text-xs">
                 <Video className="size-4" />
                 Vídeo
                 <input
@@ -2807,35 +2795,35 @@ export function SeloStatus({ status }: { status: StatusSequencia }) {
   switch (status) {
     case 'ativa':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-sucesso">
+        <span className="rounded-md inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-sucesso">
           <span className="size-1.5 rounded-full bg-al-sucesso" />
           Ativa
         </span>
       )
     case 'pausada':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-atencao">
+        <span className="rounded-md inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-atencao">
           <span className="size-1.5 rounded-full bg-al-atencao" />
           Pausada
         </span>
       )
     case 'reuniao':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-accent">
+        <span className="rounded-md inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-accent">
           <span className="size-1.5 rounded-full bg-al-accent" />
           Reunião
         </span>
       )
     case 'esgotada':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-muted">
+        <span className="rounded-md inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-muted">
           <span className="size-1.5 rounded-full bg-al-muted" />
           Esgotada
         </span>
       )
     case 'encerrada':
       return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-muted">
+        <span className="rounded-md inline-flex items-center gap-1.5 px-2 py-0.5 border border-al-line text-xs font-normal text-al-muted">
           <span className="size-1.5 rounded-full bg-al-muted" />
           Encerrada
         </span>
@@ -2956,7 +2944,7 @@ export function DialogoDestinosContato({
 
         <form onSubmit={handleSalvar} className="flex flex-col gap-4">
           {erro && (
-            <div role="alert" className="p-2.5 text-xs border border-al-atencao/40 bg-al-atencao/10 text-al-atencao">
+            <div role="alert" className="rounded-lg p-2.5 text-xs border border-al-atencao/40 bg-al-atencao/10 text-al-atencao">
               {erro}
             </div>
           )}
@@ -2971,7 +2959,7 @@ export function DialogoDestinosContato({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="ex: marina.costa@empresa.com"
-              className="h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
+              className="rounded-md h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
             />
           </div>
 
@@ -2985,7 +2973,7 @@ export function DialogoDestinosContato({
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
               placeholder="ex: 11999998888 ou +5511999998888"
-              className="h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
+              className="rounded-md h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
             />
             <span className="text-[0.6875rem] text-al-muted">
               Números do Brasil sem código de país serão normalizados automaticamente com +55.
@@ -3002,7 +2990,7 @@ export function DialogoDestinosContato({
               value={linkedin}
               onChange={(e) => setLinkedin(e.target.value)}
               placeholder="ex: https://linkedin.com/in/usuario ou usuario"
-              className="h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
+              className="rounded-md h-9 border border-al-line bg-al-bg px-3 text-xs text-al-ink outline-none focus:border-al-ink"
             />
           </div>
 
@@ -3011,14 +2999,14 @@ export function DialogoDestinosContato({
               type="button"
               variant="outline"
               onClick={() => aoMudar(false)}
-              className="h-8 border-al-line text-xs tracking-rotulo uppercase hover:bg-al-surface"
+              className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
             >
               Cancelar
             </Button>
             <Button
               type="submit"
               disabled={salvando}
-              className="h-8 bg-al-ink text-al-bg text-xs tracking-rotulo uppercase hover:bg-al-ink/90"
+              className="h-8 bg-al-ink text-al-bg text-sm tracking-[0.04em] hover:bg-al-ink/90"
             >
               {salvando ? 'Salvando...' : 'Salvar destinos'}
             </Button>

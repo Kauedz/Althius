@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { RAMOS_DE_ONBOARDING, type RamoDeOnboarding } from '@/fonte/onboarding-tipos'
-import { cn } from '@/lib/utils'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, PARAMETRO_DE_CONVITE, type PropsDaEtapa } from './componentes'
 
 const ROTULO_DO_RAMO: Record<RamoDeOnboarding, string> = {
@@ -46,7 +45,7 @@ export function TrocaDeRamoDaDemonstracao({ estado, fonte }: PropsDaEtapa) {
       <span className="rotulo" aria-hidden>
         Ver como
       </span>
-      <div className="flex border border-al-line">
+      <div className="segmentado">
         {RAMOS_DE_ONBOARDING.map((ramo) => {
           const ativo = ramo === estado.ramo
           return (
@@ -55,7 +54,6 @@ export function TrocaDeRamoDaDemonstracao({ estado, fonte }: PropsDaEtapa) {
               type="button"
               aria-pressed={ativo}
               onClick={() => escolher(ramo)}
-              className={cn('px-2.5 py-1 text-xs', ativo ? 'bg-al-ink text-al-bg' : 'bg-al-surface hover:bg-al-bg')}
             >
               {ROTULO_DO_RAMO[ramo]}
             </button>

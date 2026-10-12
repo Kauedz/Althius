@@ -101,7 +101,7 @@ function ExcluirAgente({ agente }: { agente: Agente }) {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setConfirmando(true)} className="h-8 gap-2 px-4 tracking-rotulo uppercase">
+      <Button variant="outline" onClick={() => setConfirmando(true)} className="h-8 gap-2 px-4 tracking-[0.04em]">
         <Trash2 strokeWidth={1.8} aria-hidden />
         Excluir agente
       </Button>
@@ -124,7 +124,7 @@ function ExcluirAgente({ agente }: { agente: Agente }) {
             <Button variant="ghost" onClick={() => setConfirmando(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={excluir} className="px-6 tracking-rotulo uppercase">
+            <Button variant="destructive" onClick={excluir} className="px-6 tracking-[0.04em]">
               Excluir
             </Button>
           </DialogFooter>

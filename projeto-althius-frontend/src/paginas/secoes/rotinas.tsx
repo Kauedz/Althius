@@ -39,7 +39,7 @@ export function SecaoRotinas({ agente }: { agente: Agente }) {
           <p className="text-al-muted">Tarefas que {agente.nome} executa sozinho, no horário combinado.</p>
         </div>
         {!criando && podeAdministrar && (
-          <Button onClick={() => setCriando(true)} className="px-6 tracking-rotulo uppercase">
+          <Button onClick={() => setCriando(true)} className="px-6 tracking-[0.04em]">
             Nova rotina
           </Button>
         )}
@@ -123,7 +123,7 @@ function ItemDeRotina({
         )}
         <Mensagem tipo="erro">{erro}</Mensagem>
       </div>
-      {rotina.pausada && <span className="rotulo self-center border border-al-line px-2 py-1">Pausada</span>}
+      {rotina.pausada && <span className="rounded-lg rotulo self-center border border-al-line px-2 py-1">Pausada</span>}
       {podeAdministrar && (
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => escrever(() => fonte.definirRotinaPausada(rotina.id, !rotina.pausada))}>
@@ -240,7 +240,7 @@ function FormularioDeRotina({
         <Mensagem tipo="erro">{erro}</Mensagem>
       </div>
       <div className="col-span-2 flex gap-2">
-        <Button type="submit" className="px-6 tracking-rotulo uppercase">
+        <Button type="submit" className="px-6 tracking-[0.04em]">
           {rotuloDoBotao}
         </Button>
         <Button type="button" variant="ghost" onClick={aoCancelar}>

@@ -111,7 +111,7 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
         <button
           type="submit"
           disabled={!podeEnviar}
-          className="group ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-al-ink bg-al-ink pr-3 pl-4 text-xs font-normal tracking-rotulo whitespace-nowrap text-al-bg uppercase transition-colors disabled:border-al-line disabled:bg-transparent disabled:text-al-muted"
+          className="group ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-al-ink bg-al-ink pr-3 pl-4 text-sm font-normal tracking-[0.04em] whitespace-nowrap text-al-bg transition-colors disabled:border-al-line disabled:bg-transparent disabled:text-al-muted"
         >
           Enviar
           <span

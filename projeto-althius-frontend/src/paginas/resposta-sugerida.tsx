@@ -25,7 +25,7 @@ export function RespostaSugerida({ propostas, aoAprovarEEnviar, aoRejeitar, aoGe
   const visiveis = propostas.filter((p) => p.status !== 'rejeitada')
   if (visiveis.length === 0) return null
   return (
-    <section aria-label="Resposta sugerida" className="flex flex-col gap-3 border border-al-line bg-al-surface p-4">
+    <section aria-label="Resposta sugerida" className="rounded-xl flex flex-col gap-3 border border-al-line bg-al-surface p-4">
       <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">
         Resposta sugerida · só você vê · nada sai sem a sua Aprovação
       </span>
@@ -130,7 +130,7 @@ function CartaoDaProposta({
               value={texto}
               onChange={(evento) => setTexto(evento.target.value)}
               rows={6}
-              className="border border-al-line bg-transparent px-3 py-2"
+              className="rounded-lg border border-al-line bg-transparent px-3 py-2"
             />
           </label>
           <div className="flex flex-wrap gap-2">

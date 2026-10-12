@@ -8,7 +8,7 @@ import { MODULO_INDISPONIVEL, type ModuloDoWorkspace } from '@/fonte/ambiente'
  */
 export function AvisoDeModuloIndisponivel({ modulo }: { modulo: ModuloDoWorkspace }) {
   return (
-    <div role="status" className="flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+    <div role="status" className="rounded-2xl flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
       <span className="selo">Indisponível</span>
       <p className="text-al-ink">{MODULO_INDISPONIVEL[modulo]}</p>
       <p className="text-sm text-al-muted">

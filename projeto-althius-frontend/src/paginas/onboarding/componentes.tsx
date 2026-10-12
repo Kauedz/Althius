@@ -4,9 +4,9 @@ import type { EstadoDeOnboarding, FonteDeOnboarding } from '@/fonte/onboarding-t
 import { cn } from '@/lib/utils'
 
 export const BOTAO_PRIMARIO =
-  'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 border border-al-accent bg-al-accent px-4 text-xs font-normal tracking-rotulo text-al-on-accent uppercase transition-colors hover:border-al-accent-2 hover:bg-al-accent-2 disabled:pointer-events-none disabled:opacity-50'
+  'rounded-md inline-flex h-9 shrink-0 items-center justify-center gap-1.5 border border-al-accent bg-al-accent px-4 text-sm font-normal tracking-[0.04em] text-al-on-accent transition-colors hover:border-al-accent-2 hover:bg-al-accent-2 disabled:pointer-events-none disabled:opacity-50'
 export const BOTAO_SECUNDARIO =
-  'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 border border-al-line bg-al-bg px-4 text-xs font-normal tracking-rotulo text-al-ink uppercase transition-colors hover:border-al-muted hover:bg-al-surface disabled:pointer-events-none disabled:opacity-50'
+  'rounded-md inline-flex h-9 shrink-0 items-center justify-center gap-1.5 border border-al-line bg-al-bg px-4 text-sm font-normal tracking-[0.04em] text-al-ink transition-colors hover:border-al-muted hover:bg-al-surface disabled:pointer-events-none disabled:opacity-50'
 
 /** No protótipo, este parâmetro no endereço simula a chegada por um link de convite. */
 export const PARAMETRO_DE_CONVITE = 'convite'
@@ -38,7 +38,7 @@ export function EscolhaUnica<T extends string>({
             role="radio"
             aria-checked={ativa}
             onClick={() => aoEscolher(opcao)}
-            className={cn('border px-3 py-2 text-sm', ativa ? 'border-al-ink bg-al-ink text-al-bg' : 'border-al-line bg-al-surface')}
+            className={cn('rounded-lg border px-3 py-2 text-sm', ativa ? 'border-al-ink bg-al-ink text-al-bg' : 'border-al-line bg-al-surface')}
           >
             {opcao}
           </button>

@@ -64,7 +64,7 @@ function Formulario({ aoFechar }: { aoFechar: () => void }) {
           {especialidades.map((especialidade) => (
             <label
               key={especialidade.id}
-              className="flex cursor-pointer items-start gap-3 border border-al-line p-4 hover:border-al-muted has-[:checked]:border-al-ink has-[:checked]:bg-al-surface has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-3 has-[:focus-visible]:outline-al-accent"
+              className="rounded-xl flex cursor-pointer items-start gap-3 border border-al-line p-4 hover:border-al-muted has-[:checked]:border-al-ink has-[:checked]:bg-al-surface has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-3 has-[:focus-visible]:outline-al-accent"
             >
               <input
                 type="radio"
@@ -137,7 +137,7 @@ function Formulario({ aoFechar }: { aoFechar: () => void }) {
         <Button type="button" variant="ghost" onClick={aoFechar}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!podeCriar} className="px-6 tracking-rotulo uppercase">
+        <Button type="submit" disabled={!podeCriar} className="px-6 tracking-[0.04em]">
           Criar agente
         </Button>
       </DialogFooter>
