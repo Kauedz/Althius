@@ -1,4 +1,4 @@
-import { ArrowRight, Check, Copy, Wrench } from 'lucide-react'
+import { ArrowRight, ArrowUp, Check, Copy, Wrench } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente, Pulso } from '@/components/marca'
@@ -83,14 +83,17 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
             variant="outline"
             disabled={respondendo}
             onClick={() => conversas.enviar(agente.id, { texto: sugestao.texto, sugestaoId: sugestao.id })}
-            className="h-auto px-4 py-2 font-light whitespace-normal"
+            className="h-auto rounded-full px-4 py-2 font-light whitespace-normal"
           >
             {sugestao.texto}
           </Button>
         ))}
       </div>
 
-      <form onSubmit={enviar} className="relative flex gap-2">
+      <form
+        onSubmit={enviar}
+        className="composer relative flex-row items-center gap-2 p-1.5 pl-2 shadow-(--al-sombra-cartao) focus-within:border-al-line-forte has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-al-accent"
+      >
         {mencao.aberta && (
           <ListaDeMencoes
             id="conversa-mencoes"
@@ -107,10 +110,15 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
           onChange={(evento) => setTexto(evento.target.value)}
           onKeyDown={(evento) => mencao.aoTeclar(evento)}
           placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
-          className="campo flex-1"
+          className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-[0.9375rem] placeholder:text-al-ink-3 focus-visible:outline-none"
         />
-        <Button type="submit" disabled={respondendo || !texto.trim()} className="h-auto px-6 tracking-rotulo uppercase">
+        <Button
+          type="submit"
+          disabled={respondendo || !texto.trim()}
+          className="h-10 gap-1.5 rounded-full pr-3 pl-4 tracking-rotulo uppercase"
+        >
           Enviar
+          <ArrowUp strokeWidth={1.8} className="size-4" aria-hidden />
         </Button>
       </form>
     </section>

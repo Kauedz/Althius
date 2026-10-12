@@ -19,7 +19,7 @@ const badgeVariants = cva(
         erro: "border border-al-erro/40 text-al-erro",
         agente: "bg-al-agente-suave text-al-agente",
       },
-      forma: { selo: "rounded-none", pilula: "rounded-full" },
+      forma: { selo: "rounded-sm", pilula: "rounded-full" },
     },
     defaultVariants: { tom: "neutro", forma: "selo" },
   }

@@ -15,9 +15,9 @@ function ehTema(valor: unknown): valor is Tema {
 function lerTema(): Tema {
   try {
     const bruto = localStorage.getItem(CHAVE_DO_TEMA)
-    return ehTema(bruto) ? bruto : 'escuro'
+    return ehTema(bruto) ? bruto : 'claro'
   } catch {
-    return 'escuro'
+    return 'claro'
   }
 }
 
@@ -31,7 +31,7 @@ function definirTema(tema: Tema) {
   ouvintes.forEach((ouvinte) => ouvinte())
 }
 
-/** Tema escuro por padrão; a escolha é gravada no navegador e volta na abertura seguinte. */
+/** Tema claro por padrão (como o site); a escolha é gravada no navegador e volta na abertura seguinte. */
 export function useTema() {
   const [tema, setTema] = useState<Tema>(lerTema)
 

@@ -592,23 +592,23 @@ describe('Preferências no Workspace operacional', () => {
     expect(await screen.findByText(/fica salva na sua Conta de usuário/)).toBeInTheDocument()
 
     banco.segurar = true
-    await usuario.click(await screen.findByRole('radio', { name: 'Claro' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'Escuro' }))
     expect(await screen.findByText('Salvando o tema…')).toBeInTheDocument()
-    expect(tema()).toBe('escuro')
-    expect(screen.getByRole('radio', { name: 'Escuro' })).toBeChecked()
+    expect(tema()).toBe('claro')
+    expect(screen.getByRole('radio', { name: 'Claro' })).toBeChecked()
 
     act(() => banco.liberar())
     expect(await screen.findByText(/Tema salvo na sua Conta de usuário/)).toBeInTheDocument()
-    expect(tema()).toBe('claro')
-    expect(banco.preferencias.theme).toBe('claro')
+    expect(tema()).toBe('escuro')
+    expect(banco.preferencias.theme).toBe('escuro')
 
     // Outro dispositivo: nada guardado no navegador, e o tema volta do backend ao entrar.
     unmount()
     localStorage.clear()
-    document.documentElement.dataset.theme = 'escuro'
+    document.documentElement.dataset.theme = 'claro'
     abrir(banco, '/configuracoes/preferencias')
-    await waitFor(() => expect(tema()).toBe('claro'))
-    expect(await screen.findByRole('radio', { name: 'Claro' })).toBeChecked()
+    await waitFor(() => expect(tema()).toBe('escuro'))
+    expect(await screen.findByRole('radio', { name: 'Escuro' })).toBeChecked()
   })
 
   it('pelo menu pessoal, o tema também fica salvo na Conta de usuário', async () => {
@@ -626,16 +626,16 @@ describe('Preferências no Workspace operacional', () => {
     const banco = bancoDaMarina()
     const { usuario } = abrir(banco, '/configuracoes/preferencias')
     banco.falhas = 1
-    await usuario.click(await screen.findByRole('radio', { name: 'Claro' }))
+    await usuario.click(await screen.findByRole('radio', { name: 'Escuro' }))
 
     const regiao = within(screen.getByRole('region', { name: 'Tema' }))
     expect(await regiao.findByRole('alert')).toHaveTextContent('Não foi possível salvar o tema')
-    expect(tema()).toBe('escuro')
+    expect(tema()).toBe('claro')
     expect(banco.preferencias.theme).toBeNull()
 
     await usuario.click(regiao.getByRole('button', { name: 'Tentar de novo' }))
-    await waitFor(() => expect(tema()).toBe('claro'))
-    expect(banco.preferencias.theme).toBe('claro')
+    await waitFor(() => expect(tema()).toBe('escuro'))
+    expect(banco.preferencias.theme).toBe('escuro')
   })
 
   it('as notificações ativadas ficam salvas na Conta de usuário e voltam ao entrar de novo', async () => {

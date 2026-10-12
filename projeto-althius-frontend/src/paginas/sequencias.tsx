@@ -175,7 +175,7 @@ function ListaGlobalSequencias() {
 
           {/* Estado sem resultados no filtro */}
           {sequenciasFiltradas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-1.5 border border-al-line bg-al-surface py-12 text-center">
+            <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-al-line-forte bg-al-surface py-12 text-center">
               <strong className="text-sm font-medium text-al-ink">Nenhuma sequência encontrada</strong>
               <p className="text-xs text-al-muted">Ajuste a busca ou o filtro de status.</p>
             </div>

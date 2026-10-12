@@ -8,7 +8,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   localStorage.clear()
-  document.documentElement.dataset.theme = 'escuro'
+  document.documentElement.dataset.theme = 'claro'
 })
 
 // jsdom não implementa estas APIs, usadas pelos componentes.
