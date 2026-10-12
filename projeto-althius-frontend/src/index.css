@@ -12,19 +12,37 @@
 
 /* Tokens do Manual da Marca Althius v2.0 · capítulo 11. Nunca escrever valor cru. */
 :root,
-[data-theme="escuro"] {
+[data-theme="escuro"],
+.al-zona-escura {
+  /* Valores do tema do site (althius-tema.css, tema escuro). */
   --al-bg: #131313;
-  --al-surface: #212121;
-  --al-line: #353535;
+  --al-surface: #1c1c1c;
+  --al-surface-2: #181818;
+  --al-hover: #202020;
+  --al-divisor: #242424;
+  --al-line: #2e2e2e;
+  --al-line-media: #353535;
+  --al-line-forte: #4a4a4a;
+  --al-borda-cartao: #262626;
+  --al-sombra-cartao: none;
   --al-ink: #f4f4f4;
   --al-ink-muted: #8e8e8e;
+  --al-ink-3: #7e7e7e;
+  --al-ink-4: #5e5e5e;
   --al-accent: #f7054f;
   --al-accent-2: #fd6d1f;
   --al-on-accent: #131313;
+  --al-rosa-texto: #ff3d7a;
+  --al-rosa-suave: #2a1219;
   --al-gradient: linear-gradient(100deg, var(--al-accent) 0%, var(--al-accent) 45%, var(--al-accent-2) 100%);
-  --al-sucesso: #2e7d5b;
-  --al-atencao: #c79a1f;
-  --al-erro: #c0392b;
+  --al-sucesso: #4cc38a;
+  --al-sucesso-suave: #14271d;
+  --al-atencao: #e8b33d;
+  --al-atencao-suave: #2a2312;
+  --al-erro: #ff6b5b;
+  --al-agente: #a78bfa;
+  --al-agente-suave: #221a33;
+  --al-sombra-flutuante: 0 24px 48px -12px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.04);
   /* Cores próprias das marcas das Integrações, usadas só nos logos. */
   --logo-hubspot: #ff7a59;
   --logo-meta: #0467df;
@@ -36,10 +54,48 @@
 [data-theme="claro"] {
   --al-bg: #f4f4f4;
   --al-surface: #ffffff;
-  --al-line: #c1c1c1;
+  --al-surface-2: #fafafa;
+  --al-hover: #f7f7f7;
+  --al-divisor: #ededed;
+  --al-line: #e2e2e2;
+  --al-line-media: #dcdcdc;
+  --al-line-forte: #cfcfcf;
+  --al-borda-cartao: transparent;
+  --al-sombra-cartao: 0 1px 2px rgba(19, 19, 19, 0.04);
   --al-ink: #131313;
-  --al-ink-muted: #8e8e8e;
+  /* Texto 2 do site (#5f5f5f): passa AA sobre o branco, o #8e8e8e não passava. */
+  --al-ink-muted: #5f5f5f;
+  --al-ink-3: #767676;
+  --al-ink-4: #a3a3a3;
+  --al-rosa-texto: #c40340;
+  --al-rosa-suave: #fff1f4;
+  --al-sucesso: #15803d;
+  --al-sucesso-suave: #eef8f0;
+  --al-atencao: #8a6200;
+  --al-atencao-suave: #fff8e8;
+  --al-erro: #c0392b;
+  --al-agente: #7c3aed;
+  --al-agente-suave: #f3effe;
+  --al-sombra-flutuante: 0 16px 36px -12px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(19, 19, 19, 0.06);
   color-scheme: light;
+}
+/* A barra lateral é sempre escura, como o cabeçalho do site, também no tema claro. */
+[data-theme="claro"] .al-zona-escura {
+  --al-bg: #131313;
+  --al-surface: #1c1c1c;
+  --al-surface-2: #181818;
+  --al-hover: #202020;
+  --al-divisor: #242424;
+  --al-line: #2e2e2e;
+  --al-ink: #f4f4f4;
+  --al-ink-muted: #8e8e8e;
+  --al-ink-3: #7e7e7e;
+  --al-ink-4: #5e5e5e;
+  --al-rosa-texto: #ff3d7a;
+  --al-rosa-suave: #2a1219;
+  color-scheme: dark;
+  background: var(--al-bg);
+  color: var(--al-ink);
 }
 
 :root {
@@ -88,6 +144,20 @@
   --color-al-sucesso: var(--al-sucesso);
   --color-al-atencao: var(--al-atencao);
   --color-al-erro: var(--al-erro);
+  --color-al-surface-2: var(--al-surface-2);
+  --color-al-hover: var(--al-hover);
+  --color-al-divisor: var(--al-divisor);
+  --color-al-line-media: var(--al-line-media);
+  --color-al-line-forte: var(--al-line-forte);
+  --color-al-ink-3: var(--al-ink-3);
+  --color-al-ink-4: var(--al-ink-4);
+  --color-al-rosa-texto: var(--al-rosa-texto);
+  --color-al-rosa-suave: var(--al-rosa-suave);
+  --color-al-sucesso-suave: var(--al-sucesso-suave);
+  --color-al-atencao-suave: var(--al-atencao-suave);
+  --color-al-agente: var(--al-agente);
+  --color-al-agente-suave: var(--al-agente-suave);
+  --radius-pilula: 999px;
 
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -125,12 +195,13 @@
   body {
     @apply bg-background text-foreground;
     font-weight: 300;
+    font-size: 0.9375rem;
     line-height: 1.6;
   }
   /* Foco sempre visível: contorno rosa de 2px com 3px de afastamento. */
   :focus-visible {
     outline: 2px solid var(--al-accent);
-    outline-offset: 3px;
+    outline-offset: 2px;
   }
 }
 
@@ -169,7 +240,7 @@
     padding: 0 0.5rem;
     border: 1px solid var(--al-line);
     font-weight: 400;
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -177,7 +248,9 @@
   }
   .cartao {
     background: var(--al-surface);
+    border: 1px solid var(--al-borda-cartao);
     border-radius: var(--radius-card);
+    box-shadow: var(--al-sombra-cartao);
   }
   /* Composer: uma superfície única e arredondada, com o campo que cresce com a mensagem. */
   .composer {
