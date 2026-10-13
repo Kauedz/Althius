@@ -34,6 +34,28 @@ describe('Sinais reais no Workspace operacional', () => {
     expect(estado('rodadas')).toBe('em-breve')
   })
 
+  it('as cascatas do catálogo vêm de list_cascade_catalog, com o estado em palavras da tela', async () => {
+    const f = fonte({
+      list_cascade_catalog: () => [
+        { signal_type: 'vaga_comex', icp: 'A', name: 'Vaga de Comex', state: 'available', scope: 'conta', sem_fonte_motivo: null },
+        { signal_type: 'novo_importador', icp: 'A', name: 'Novo importador', state: 'testing', scope: 'mercado', sem_fonte_motivo: null },
+        { signal_type: 'habilitacao_radar', icp: 'A', name: 'Habilitação no Radar', state: 'sem_fonte', scope: 'conta', sem_fonte_motivo: 'Sem fonte aberta.' },
+      ],
+    })
+    expect(await f.cascatas()).toEqual([
+      { tipo: 'vaga_comex', icp: 'A', nome: 'Vaga de Comex', estado: 'disponivel', escopo: 'conta' },
+      { tipo: 'novo_importador', icp: 'A', nome: 'Novo importador', estado: 'em-teste', escopo: 'mercado' },
+      { tipo: 'habilitacao_radar', icp: 'A', nome: 'Habilitação no Radar', estado: 'sem-fonte', escopo: 'conta', motivo: 'Sem fonte aberta.' },
+    ])
+  })
+
+  it('uma cascata com estado desconhecido fica fora; a leitura que falha rejeita com texto neutro', async () => {
+    const f = fonte({ list_cascade_catalog: () => [{ signal_type: 'x', icp: 'A', name: 'X', state: 'disabled', scope: 'conta', sem_fonte_motivo: null }] })
+    expect(await f.cascatas()).toEqual([])
+    const quebrada = fonte({ list_cascade_catalog: () => { throw new Error('boom') } })
+    await expect(quebrada.cascatas()).rejects.toThrow('Não foi possível carregar os Sinais por mercado.')
+  })
+
   it('lista os Monitoramentos do banco, com o público como Contas', async () => {
     const f = fonte({ list_signal_monitors: () => [monitorNoBanco, { ...monitorNoBanco, id: 'outro', signal_type: 'sem_tipo_na_tela' }] })
     const monitoramentos = await f.monitoramentos()

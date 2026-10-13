@@ -1,0 +1,5 @@
+Verde do ticket 13.
+Frontend completo: npx vitest run -> Test Files 138 passed (138) | Tests 1243 passed (1243) | 688 s
+Typecheck: npx tsc -b sem erros. Build: npx vite build ok. Lint: npx oxlint sem erro novo (só avisos já existentes).
+Paridade: mudar "Agro B2B" para "Agro B2C" na cópia da tela faz mapa-de-cascatas.test.ts falhar (mutação conferida e desfeita).
+pgTAP da RPC: roda no job Banco do CI desta PR.

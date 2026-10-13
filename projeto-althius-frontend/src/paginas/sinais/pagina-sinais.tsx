@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Plus, RadioTower, Search, Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
@@ -21,6 +21,7 @@ import {
 } from './catalogo'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { AvisoDeNovosSinais, motivoDaIndisponibilidade, podeMonitorar, SeloDaDisponibilidade } from './disponibilidade'
+import { agruparCascatasPorIcp, SecaoDeCascatas } from './cascatas'
 import { useMonitoramentos } from './estado'
 
 type Filtro = 'todos' | Origem
@@ -118,8 +119,16 @@ function Catalogo({
     tipos: catalogoTipos.filter((tipo) => tipo.familiaId === familia.id && corresponde(tipo)),
   })).filter((grupo) => grupo.tipos.length > 0)
 
+  // Os Sinais por mercado são externos. Se a leitura deles falhar, o catálogo segue sem a seção, sem erro na tela.
+  const { dados: cascatasCarregadas } = useDadosDeSinais((f) => f.cascatas(), [])
+  const cascatas = cascatasCarregadas ?? []
+  const gruposDeCascatas = filtro === 'todos' || filtro === 'externo' ? agruparCascatasPorIcp(cascatas, busca) : []
+
+  const indiceDoUltimoExterno = familias.findLastIndex(({ familia }) => familia.origem === 'externo')
+
   const totalPorOrigem = (origem: Filtro) =>
-    origem === 'todos' ? catalogoTipos.length : catalogoTipos.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length
+    (origem === 'todos' ? catalogoTipos.length : catalogoTipos.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length) +
+    (origem === 'todos' || origem === 'externo' ? cascatas.length : 0)
 
   const operacional = useAmbiente().modo === 'real'
   const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
@@ -190,7 +199,7 @@ function Catalogo({
 
       <CartaoPersonalizado quantidade={personalizados} />
 
-      {familias.length === 0 ? (
+      {familias.length === 0 && gruposDeCascatas.length === 0 ? (
         <div className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
           <p className="text-sm">Nenhum tipo de sinal corresponde a “{busca.trim()}”.</p>
           <p className="text-sm text-al-muted">Tente outras palavras, mude o filtro ou descreva o que procura num sinal personalizado.</p>
@@ -216,8 +225,11 @@ function Catalogo({
         </div>
       ) : (
         <section aria-label="Catálogo de sinais" className="flex flex-col gap-10">
-          {familias.map(({ familia, tipos }) => (
-            <section key={familia.id} aria-labelledby={`familia-${familia.id}`} className="flex flex-col gap-4">
+          {/* Os Sinais por mercado são externos: entram logo depois da última família externa (ou no topo, se nenhuma aparece). */}
+          {!familias.some(({ familia }) => familia.origem === 'externo') && <SecaoDeCascatas grupos={gruposDeCascatas} />}
+          {familias.map(({ familia, tipos }, indice) => (
+            <Fragment key={familia.id}>
+            <section aria-labelledby={`familia-${familia.id}`} className="flex flex-col gap-4">
               <h2 id={`familia-${familia.id}`} className="flex items-baseline gap-3">
                 <span className="titulo-secao text-lg">{familia.nome}</span>
                 <span className="rotulo text-[0.6875rem]">{ROTULO_DA_ORIGEM[familia.origem]}</span>
@@ -230,6 +242,8 @@ function Catalogo({
                 ))}
               </ul>
             </section>
+            {indice === indiceDoUltimoExterno && <SecaoDeCascatas grupos={gruposDeCascatas} />}
+            </Fragment>
           ))}
         </section>
       )}

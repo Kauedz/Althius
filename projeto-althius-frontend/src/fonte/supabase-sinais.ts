@@ -7,6 +7,7 @@ import { TIPOS } from '@/paginas/sinais/catalogo'
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import type { ContaAlvo, Sinal } from './contas-tipos'
 import type {
+  CascataDoCatalogo,
   Disponibilidade,
   EstadoDoMonitoramento,
   FonteDeSinais,
@@ -46,6 +47,21 @@ interface RegistroDoSinal {
   evidence: string | null
   seen_again_at: string | null
   seen_again_monitor_id: string | null
+}
+
+interface RegistroDaCascata {
+  signal_type: string
+  icp: string
+  name: string
+  state: string
+  scope: string
+  sem_fonte_motivo: string | null
+}
+
+const ESTADO_DA_CASCATA: Readonly<Record<string, CascataDoCatalogo['estado']>> = {
+  available: 'disponivel',
+  testing: 'em-teste',
+  sem_fonte: 'sem-fonte',
 }
 
 function converterErro(error: { message: string; code?: string }): Error {
@@ -204,6 +220,22 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         const estado = estados.get(SINAL_DO_TIPO[tipo.id] ?? '')
         const disponibilidade: Disponibilidade = estado === 'available' ? 'disponivel' : estado === 'testing' ? 'em-teste' : 'em-breve'
         return { ...tipo, disponibilidade }
+      })
+    },
+    async cascatas(): Promise<CascataDoCatalogo[]> {
+      const { data, error } = await cliente.rpc('list_cascade_catalog')
+      if (error) throw new Error('Não foi possível carregar os Sinais por mercado.')
+      return ((data ?? []) as RegistroDaCascata[]).flatMap((c) => {
+        const estado = ESTADO_DA_CASCATA[c.state]
+        if (!estado) return []
+        return [{
+          tipo: c.signal_type,
+          icp: c.icp,
+          nome: c.name,
+          estado,
+          escopo: c.scope === 'mercado' ? 'mercado' : 'conta',
+          ...(estado === 'sem-fonte' && c.sem_fonte_motivo ? { motivo: c.sem_fonte_motivo } : {}),
+        }]
       })
     },
     async tipo(id) {
