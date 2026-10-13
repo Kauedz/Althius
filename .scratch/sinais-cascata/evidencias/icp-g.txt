@@ -1,0 +1,61 @@
+ICP G — evidência TDD (13/10/2026)
+
+=== VERMELHO 1: teste escrito antes da migração e do código ===
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts
+Uncaught error from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts FAILED
+
+ ERRORS 
+
+./supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts (uncaught error)
+error: (in promise) NotFound: No such file or directory (os error 2): readfile '/home/user/Althius/.claude/worktrees/agent-af05d5f9bf2cde282/supabase/migrations/20261013210000_cascatas_icp_g.sql'
+const MIGRACAO = Deno.readTextFileSync(new URL('../../../../migrations/20261013210000_cascatas_icp_g.sql', import.meta.url))
+                      ^
+This error was not caught from a test and caused the test runner to fail on the referenced module.
+It most likely originated from a dangling promise, event/timeout handler or top-level code.
+
+ FAILURES 
+
+./supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts (uncaught error)
+
+FAILED | 0 passed | 1 failed (0ms)
+
+error: Test failed
+
+Stack backtrace:
+
+=== VERMELHO 2: migração registrada, passos ainda não implementados (stub) ===
+running 27 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts
+todo passo do ICP G tem o handler registrado (com prefixo g_), plano Free, e o pior caso cabe no teto ... FAILED (8ms)
+headcount, 1ª rodada: só grava a base (sem Sinal), enriquece só quem tem página e cobra só o que consultou ... FAILED (45ms)
+headcount, 2ª rodada: cruzar 50/100/200 vira Sinal da Conta, pela faixa mais alta cruzada, com a contagem antes e depois ... FAILED (76ms)
+headcount: a mesma rodada de novo não grava o Sinal outra vez (eventKey por faixa) ... FAILED (772µs)
+headcount: voltar a cruzar a mesma faixa depois de oscilar gera o mesmo eventKey (a chave não depende do mês nem da contagem) ... FAILED (747µs)
+headcount: os limiares são configuráveis no modelo de entrada e no pedido; encolher nunca gera Sinal ... FAILED (923µs)
+headcount: a Conta fotografada há menos de 20 dias não é consultada de novo (nada é cobrado) ... FAILED (770µs)
+headcount: no máximo 100 Contas por rodada, as sem fotografia primeiro e depois as mais antigas ... FAILED (1ms)
+headcount (LGPD): só a contagem de funcionários e a faixa são guardadas; nada de saúde, descrição ou contato ... FAILED (684µs)
+headcount: a fonte fora do ar falha com mensagem neutra e não grava fotografia ... FAILED (799µs)
+headcount: sem nenhuma Conta com página do LinkedIn a cascata termina sem chamar a fonte ... FAILED (1ms)
+filial, 1ª rodada: só grava a base (lista de ordens), um mapa por raiz, e a Conta sem CNPJ fica de fora ... FAILED (1ms)
+filial, 2ª rodada: a filial ativa e recente que não estava na base vira Sinal, com o CNPJ da filial na chave ... FAILED (985µs)
+filial: a mesma rodada de novo não grava o Sinal outra vez ... FAILED (814µs)
+filial: a primeira filial de uma empresa que tinha só a matriz é Sinal (a base vazia vale como base) ... FAILED (1ms)
+filial: raiz que o actor não entregou (fonte indisponível) não vira "zero filiais": sem fotografia e sem Sinal ... FAILED (1ms)
+filial: a Conta fotografada há menos de 25 dias não é consultada (o mapa é mensal) e não custa nada ... FAILED (1ms)
+filial: no máximo 40 mapas por rodada (US$ 0,40), as Contas sem fotografia primeiro ... FAILED (1ms)
+filial (LGPD): só a contagem e as ordens das filiais são guardadas; sócios e nomes nunca ... FAILED (1ms)
+filial: rede enorme demais para a fotografia (mais de 2.500 filiais) é pulada sem erro e sem fotografia ... FAILED (9ms)
+filial: no máximo 10 Sinais por Conta na rodada (os de início mais recente), e a evidência diz quantas são ... FAILED (610µs)
+filial: a fonte fora do ar falha com mensagem neutra e não grava fotografia ... FAILED (504µs)
+filial: sem nenhuma Conta com CNPJ a cascata termina sem chamar a fonte ... FAILED (613µs)
+FAILED | 4 passed | 23 failed (286ms)
+
+=== VERDE: passos implementados ===
+running 27 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts
+ok | 27 passed | 0 failed (69ms)
+
+=== pgTAP: scripts/pgtap-local.sh pgtap_icp_g supabase/tests/cascatas_icp_g.sql ===
+ok     cascatas_icp_g.sql: 23/23
+
+=== suíte completa: deno test -A supabase/functions/_shared/cascata-de-sinais ===
+ok | 100 passed | 0 failed ; deno check supabase/functions/*/index.ts: sem erros
