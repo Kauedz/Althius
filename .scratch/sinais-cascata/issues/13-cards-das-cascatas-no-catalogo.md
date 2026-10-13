@@ -45,13 +45,13 @@ Commit: PR do ticket 13 (migração `20261014130000_catalogo_de_cascatas_para_a_
 ## Critérios
 
 - [x] **Vermelho primeiro (vitest):** os testes dos cartões, da fonte Supabase e do mapa foram escritos e falharam antes do código (`evidencias/13-vermelho.txt`, `13-verde.txt`). O pgTAP da RPC foi escrito antes da migração, mas **não rodou local** (o Postgres local não foi iniciado nesta sessão): quem o roda é o job Banco do CI.
-- [ ] pgTAP: `authenticated` lê a RPC; `anon` e `public` não; a resposta tem **só** as 6 colunas acordadas; `disabled` não aparece; o resultado bate com as cascatas semeadas (39 linhas, 8 de `mercado`, 12 `sem_fonte`) e `sem_fonte` sempre vem com motivo.
+- [x] pgTAP (verde no job Banco do CI da PR 192): `authenticated` lê a RPC; `anon` e `public` não; a resposta tem **só** as 6 colunas acordadas; `disabled` não aparece; o resultado bate com as cascatas semeadas (39 linhas, 8 de `mercado`, 12 `sem_fonte`) e `sem_fonte` sempre vem com motivo.
 - [x] A página Sinais mostra, para cada ICP A–H, os cartões das suas cascatas na ordem do Mapa, com nome, selo de disponibilidade e (quando for o caso) selo de Mercado.
 - [x] Cartão `sem_fonte` mostra o motivo e não permite monitorar; `testing` mostra "Em teste" e não permite monitorar; `available` segue o fluxo atual.
 - [x] Os 39 tipos do Mapa aparecem; um teste de paridade falha se o frontend e `mapa-de-sinais.ts` divergirem em ICP, nome do ICP ou lista de tipos.
 - [x] Nenhum texto renderizado cita fornecedor ou "actor" (teste com `MARCA_INTERNA` sobre o HTML do cartão e do motivo).
 - [x] Com a RPC falhando ou vazia o catálogo atual continua intacto, sem erro na tela.
-- [ ] Lint, vitest e build do frontend verdes (feito local: 138 arquivos, 1243 testes); CI das três jobs verde (falta a rodada desta PR).
+- [x] Lint, vitest e build do frontend verdes (local: 138 arquivos, 1243 testes) e as três jobs do CI verdes na PR 192.
 - [x] Verificação visual no desktop (`evidencias/13-desktop.png`): com cascatas de exemplo na Demonstração (remendo temporário, não commitado), os grupos A, C e H, os selos Em teste, Disponível, Sem fonte e Mercado e o motivo aparecem como esperado. **No celular não deu para validar:** a página Sinais inteira (as famílias que já existiam também) fica com ~62 px de largura em 390 px e rola na horizontal, antes e depois desta mudança. Isso é do layout da página, fora deste ticket.
 
 ## Passos do Nan
