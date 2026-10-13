@@ -14,6 +14,7 @@ import { LIMITES, normalizar, objetos, primeiroTexto, recortar } from '../../../
 import { nomeDoMes } from '../comexstat.ts'
 import type { ContextoDoPasso, FontePublica, ImplDoPasso, Item, RegistroDePassos } from '../tipos.ts'
 import { cnpjLimpo, lista, objeto, texto } from './comum.ts'
+import { consultaDeCnpjs } from './cnpj-lotes.ts'
 import { itemDeEmpresaComFatos } from './empresas.ts'
 import { CRITERIO_DA_TABELA, mascaraCnae, setorDoCnae, setorDoMes } from './icp-b-cnae.ts'
 
@@ -257,8 +258,7 @@ const receitaFotografia: ImplDoPasso = {
 
   montarEntrada(_entrada, ctx) {
     const cnpjs = cnpjsDasContas(ctx).slice(0, ctx.def.maxItems ?? 100)
-    if (!cnpjs.length) return { pular: 'Nenhuma Conta com CNPJ cadastrado.' }
-    return { input: { mode: 'lookup', cnpjs }, maxItems: cnpjs.length }
+    return consultaDeCnpjs(cnpjs, 'Nenhuma Conta com CNPJ cadastrado.')
   },
 
   normalizar(brutos, _entrada, ctx) {

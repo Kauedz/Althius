@@ -32,6 +32,15 @@ Deno.test('fechar manda o custo real e os contadores e devolve os créditos cobr
   assertEquals(chamadas[0].args, { p_run_id: 'run-1', p_state: 'succeeded', p_real_cost_usd: 0.25, p_matched: 3, p_signals_new: 2, p_signals_repeated: 1, p_friendly_error: null })
 })
 
+Deno.test('gravarAmostraValidacao manda o CNPJ e a razão social da execução', async () => {
+  const { admin, chamadas } = rpcFalso({})
+  await criarDbDaCascata(admin).gravarAmostraValidacao({ runId: 'run-1', amostra: [{ cnpj: '11222333000181', nome: 'GAMA LTDA' }] })
+  assertEquals(chamadas[0], {
+    nome: 'record_cascade_validation_sample',
+    args: { p_run_id: 'run-1', p_sample: [{ cnpj: '11222333000181', nome: 'GAMA LTDA' }] },
+  })
+})
+
 Deno.test('o rastro do passo: abre e fecha com run id, conta usada, custo, status e erro real', async () => {
   const { admin, chamadas } = rpcFalso({ start_cascade_step: 'passo-1' })
   const db = criarDbDaCascata(admin)

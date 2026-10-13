@@ -95,12 +95,16 @@ export const casarFatosComContas: ImplDoPasso = {
   executar(entrada, ctx) {
     const sinais = new Map<string, Item>()
     const semConta: string[] = []
+    const amostra: { cnpj: string | null; nome: string }[] = []
+    const cpfNoNome = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/
     for (const item of entrada) {
       const ef = empresaComFatosDoItem(item)
       if (!ef) continue
       const conta = contaDaEmpresa(ctx.contas, ef.empresa)
       if (!conta) {
         semConta.push(ef.empresa.nome)
+        const cnpj = cnpjLimpo(ef.empresa.cnpj)
+        if (amostra.length < 5 && !cpfNoNome.test(ef.empresa.nome)) amostra.push({ cnpj: cnpj || null, nome: ef.empresa.nome })
         continue
       }
       for (const fato of ef.fatos) {
@@ -110,6 +114,7 @@ export const casarFatosComContas: ImplDoPasso = {
     }
     ctx.memoria.set('semConta', semConta.length)
     ctx.memoria.set('semContaNomes', semConta.slice(0, 10))
+    ctx.memoria.set('semContaAmostra', amostra)
     return [...sinais.values()]
   },
 }

@@ -1,7 +1,7 @@
 import { contatoParaRevelar } from './contato-para-revelar.ts'
 import { propostaGravada } from './proposta-gravada.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { tokensDoApify } from '../_shared/apify-ambiente.ts'
+import { type AdminDeColeta, contasDeColeta, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { apifyDoEnriquecimento } from './apify-do-enriquecimento.ts'
 import {
@@ -32,9 +32,13 @@ function clienteDaSessao(authorization: string, apikey: string) {
 // O Apify é opcional para inicialização da função, mas se configurado nos segredos, assume como base
 let apifyInstance: ReturnType<typeof clienteDoApify> | undefined
 try {
-  const tokens = tokensDoApify((nome) => Deno.env.get(nome))
-  if (tokens.length > 0) {
-    apifyInstance = apifyDoEnriquecimento({ tokens })
+  const contas = contasDeColeta((nome) => Deno.env.get(nome))
+  if (contas.length > 0) {
+    apifyInstance = apifyDoEnriquecimento({
+      tokens: contas.map((c) => c.token),
+      contas,
+      memoria: memoriaDasContasDeColeta(admin as unknown as AdminDeColeta),
+    })
   }
 } catch {
   // Apify não configurado: a Receita cai na BrasilAPI e a cascata fica sem fornecedor.

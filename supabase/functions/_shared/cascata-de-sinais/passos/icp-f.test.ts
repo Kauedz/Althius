@@ -503,6 +503,18 @@ Deno.test('o pior caso de cada cascata do ICP F cabe no teto dela', () => {
   assertEquals(piorCasoUsd(cascataNovoCdOuFilial()), 0.49605)
 })
 
+Deno.test('F2: onze matrizes saem em lotes de no máximo 5', async () => {
+  const contas = Array.from({ length: 11 }, (_, i) => ({
+    id: `conta-${i}`, name: `Conta ${i}`, domain: null, linkedinUrl: null, cnpj: `${String(20_000_000 + i)}000181`,
+  }))
+  const c = cenario(cascataTrocaDeSede(), { [LOOKUP]: { itens: [], usageTotalUsd: 0 } }, { contas })
+  await c.rodar()
+  const consultas = c.posts().filter((q) => q.caminho.includes('cnpj-empresas-brasil-scraper'))
+  const tamanhos = consultas.map((q) => ((q.corpo as { cnpjs?: string[] }).cnpjs ?? []).length)
+  assertEquals(tamanhos, [5, 5, 1])
+  assert(consultas.every((q) => q.consulta.get('timeout') === '40'))
+})
+
 Deno.test('o teto duro vale mesmo com o actor caro: o passo seguinte que estouraria o teto não começa', async () => {
   const c = cenario(cascataNovoCdOuFilial({ capUsd: 0.03 }), {
     [BRANCH]: { itens: MAPA_DA_SEGUNDA_RODADA, usageTotalUsd: 0.0101 },

@@ -324,7 +324,7 @@ function defC2Monitor(): CascataDef {
   return d
 }
 
-Deno.test('C2: o monitor é o principal; ato fora da data e sem a frase dispara a reserva mesmo com execução bem-sucedida', async () => {
+Deno.test('C2: o monitor é o principal; ato de abril não dispara a busca longa', async () => {
   const anvisaAbril = {
     data: '08/04/2026', secao: 'do1', tipo: 'Resolução', titulo: 'Resolução da ANVISA', orgao: 'Agência Nacional de Vigilância Sanitária',
     ementa: 'Dispõe sobre registro de medicamento.', url: 'https://www.in.gov.br/web/dou/-/anvisa-abril', termo_encontrado: 'anvisa',
@@ -339,11 +339,28 @@ Deno.test('C2: o monitor é o principal; ato fora da data e sem a frase dispara 
     [JENKO]: { itens: [certo], usageTotalUsd: 0.2 },
   })
   const r = await c.rodar()
-  assertEquals(c.posts().map((p) => p.caminho.split('/')[3]), [DOU_MONITOR, JENKO])
+  assertEquals(c.posts().map((p) => p.caminho.split('/')[3]), [DOU_MONITOR])
   assertEquals(c.posts()[0].corpo, { q: TERMOS_DOU, s: 'DO1' })
   assertEquals(r.desfecho, 'concluida')
-  assertEquals(r.mercado.map((m) => m.eventKey), ['dou|lc-1'])
+  assertEquals(r.mercado, [])
   assert(!JSON.stringify(r).includes('medicamento'))
+  assert(!MARCA_INTERNA.test(JSON.stringify(r)))
+})
+
+Deno.test('C2: data dd/mm/aaaa dos últimos 3 dias cabe na janela de 7 e vira Sinal, sem a busca longa', async () => {
+  const certo = pubDou({
+    data: '11/10/2026', url: 'https://www.in.gov.br/web/dou/-/lc-1', url_title: 'lc-1', tipo: 'Instrução Normativa',
+    orgao: 'Receita Federal do Brasil', titulo: 'INSTRUÇÃO NORMATIVA Nº 9', ementa: 'Dispõe sobre a CBS e o IBS na reforma tributária.',
+    termo_encontrado: 'CBS',
+  })
+  const c = cenario(defC2Monitor(), {
+    [DOU_MONITOR]: { itens: [certo], usageTotalUsd: 0.12 },
+    [JENKO]: { itens: [pubDou({ data: '01/01/2020', titulo: 'não devia', url: 'https://www.in.gov.br/web/dou/-/reserva' })], usageTotalUsd: 0.2 },
+  })
+  const r = await c.rodar()
+  assertEquals(c.posts().map((p) => p.caminho.split('/')[3]), [DOU_MONITOR])
+  assertEquals(r.mercado.map((m) => m.eventKey), ['dou|lc-1'])
+  assertEquals(r.mercado[0].firedAt, '2026-10-11T12:00:00.000Z')
   assert(!MARCA_INTERNA.test(JSON.stringify(r)))
 })
 
@@ -358,7 +375,7 @@ Deno.test('C2: palavra solta não vira Sinal; só a publicação com a frase exa
     [JENKO]: { itens: [], usageTotalUsd: 0.05 },
   })
   const r = await c.rodar()
-  assertEquals(c.posts().map((p) => p.caminho.split('/')[3]), [DOU_MONITOR, JENKO])
+  assertEquals(c.posts().map((p) => p.caminho.split('/')[3]), [DOU_MONITOR])
   assertEquals(r.mercado.length, 0)
 })
 

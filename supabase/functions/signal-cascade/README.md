@@ -13,6 +13,7 @@ Quem chama: só o servidor, com a chave de serviço no `Authorization` (o worker
 - `criterios`: `termos` e `periodo`, quando o tipo os aceita.
 - `tetoCreditos` (1 a 50): quanto quem pede aceita gastar. O teto em dólar da execução é o menor entre o da cascata e este; **nenhum passo começa** se o custo acumulado mais a estimativa dele passar do teto, e o `maxTotalChargeUsd` de cada run cabe no que resta.
 - `chave`: repetir a mesma chave não reserva, não cobra nem grava de novo. Sem ela, a função cria uma.
+- `validacao: true` (só a equipe; o Hermes nunca envia): deixa rodar um Sinal ainda em teste. A execução guarda até 5 CNPJs e razões sociais achados que não são Conta, sem dado de pessoa, para criar a Conta e repetir a busca.
 
 `{ action: 'catalogo' }` devolve `{ sinais: [{ sinal, icp, nome, estado, escopo, motivo }] }`, com `estado` em `disponivel`, `em_validacao`, `sem_fonte` ou `fora_do_ar`.
 
@@ -22,7 +23,7 @@ Quem chama: só o servidor, com a chave de serviço no `Authorization` (o worker
 
 ## Contas do Apify
 
-`APIFY_TOKEN` e, se houver, `APIFY_TOKEN_2` a `APIFY_TOKEN_5` (`_shared/apify-ambiente.ts`). Trocar ou somar uma conta é mudar segredo. A conta que recusa por **falta de crédito ou de limite de uso** (402; 403 de recurso desligado ou limite de uso) é pulada e o passo se repete na próxima, uma vez por conta; outros erros (5xx, 403 de permissão, 429) **não** giram a conta. Todas sem crédito: falha amigável, reserva liberada. O índice da conta usada fica no rastro do passo; o token nunca.
+`APIFY_TOKEN_1` a `APIFY_TOKEN_5` e, se houver, o legado `APIFY_TOKEN` (índice 0) (`_shared/apify-ambiente.ts`). Segredo vazio é pulado. Trocar ou somar uma conta é mudar segredo. A conta que recusa por **falta de crédito, limite de uso** (402; 403 desses casos) **ou 429** é pulada, entra em espera (30 min para crédito, 2 min para limite; a migração `20261014150000` guarda a espera para a instância seguinte) e o passo se repete na conta seguinte. 5xx e 403 de permissão não giram. O rodízio começa na conta seguinte a cada chamada. Todas sem crédito ou limite: falha amigável, reserva liberada. O índice da conta usada fica no rastro do passo; o valor nunca. A foto de Contato não entra neste rodízio.
 
 ## Custo
 

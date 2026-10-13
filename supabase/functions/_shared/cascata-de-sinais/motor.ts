@@ -67,6 +67,24 @@ export const MENSAGENS = {
   nada: 'A busca terminou e não encontrou Sinais nas suas Contas desta vez.',
 } as const
 
+const CPF_NO_NOME = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/
+
+/** Até 5 empresas achadas sem Conta: só CNPJ (14 dígitos) e razão social. Nome com CPF fica de fora. */
+function amostraDeValidacao(valor: unknown): { cnpj: string | null; nome: string }[] {
+  if (!Array.isArray(valor)) return []
+  const saida: { cnpj: string | null; nome: string }[] = []
+  for (const item of valor) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const nome = typeof o.nome === 'string' ? o.nome.trim() : ''
+    const cnpj = typeof o.cnpj === 'string' && /^\d{14}$/.test(o.cnpj) ? o.cnpj : null
+    if (!nome || nome.length > 200 || CPF_NO_NOME.test(nome)) continue
+    saida.push({ cnpj, nome })
+    if (saida.length === 5) break
+  }
+  return saida
+}
+
 const DESFECHO_DA_ABERTURA: Partial<Record<ResultadoDaAbertura['outcome'], [Desfecho, string]>> = {
   em_teste: ['em_teste', MENSAGENS.em_teste],
   indisponivel: ['indisponivel', MENSAGENS.indisponivel],
@@ -272,17 +290,29 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
       }
     }
 
-    const tentativas: AlternativaDoPasso[] = [{ kind: 'actor', actorId: passo.actorId ?? undefined }, ...passo.fallbacks]
+    // A busca longa do Diário Oficial ignora a consulta e custa caro: não entra como reserva, mesmo que o banco ainda a liste.
+    const tentativas: AlternativaDoPasso[] = [
+      { kind: 'actor', actorId: passo.actorId ?? undefined },
+      ...passo.fallbacks.filter((f) => !(f.kind === 'actor' && f.actorId === 'jenko_systems~diario-oficial-uniao-dou')),
+    ]
     let gasto = 0
     let ultimaMensagem: string = MENSAGEM_DA_FONTE.indisponivel
+    let proximaTentativa = 1
+    const restanteMs = () => (pedido.prazoFinal === undefined ? Infinity : pedido.prazoFinal - agora() - FOLGA_FINAL_MS)
+    const timeoutDoLote = (pedidoSegundos?: number) => {
+      const peloRelogio = Math.floor(restanteMs() / 1000)
+      const tetoSegundos = pedidoSegundos === undefined ? TIMEOUT_MAXIMO_S : Math.min(TIMEOUT_MAXIMO_S, pedidoSegundos)
+      return Math.max(10, Math.min(tetoSegundos, peloRelogio))
+    }
     for (let i = 0; i < tentativas.length; i++) {
       const alt = tentativas[i]
-      const tentativa = i + 1
       const handlerDaTentativa = alt.kind === 'fonte_publica' ? (alt.source ?? passo.handler) : passo.handler
       const actorId = alt.kind === 'actor' ? (alt.actorId ?? null) : null
+      const tentativa = proximaTentativa
 
       // Fonte pública como alternativa de um actor.
       if (alt.kind === 'fonte_publica') {
+        proximaTentativa++
         try {
           const saida = await registro.fontes[alt.source ?? ''].buscar(entradaDoPasso, ctx)
           await registrar(passo, tentativa, handlerDaTentativa, null, entradaDoPasso.length, {
@@ -302,6 +332,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
 
       const montada = impl.montarEntrada!(entradaDoPasso, ctx, actorId ?? '')
       if ('pular' in montada) {
+        proximaTentativa++
         await registrar(passo, tentativa, passo.handler, actorId, entradaDoPasso.length, {
           estado: 'skipped', apifyRunId: null, build: null, tokenIndex: null, itensSaida: entradaDoPasso.length,
           custoUsd: 0, statusHttp: null, erroReal: redigir(montada.pular),
@@ -309,17 +340,19 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
         return { tipo: 'pulado', saida: entradaDoPasso }
       }
 
+      const lotes = 'lotes' in montada ? montada.lotes : [montada]
       // O teto rígido e o prazo: antes de gastar.
       const estimativa = estimarPasso(passo, i === 0 ? null : alt, entradaDoPasso, impl, ctx)
       if (arredondar(acumulado + gasto + estimativa) > teto + 1e-9) {
+        proximaTentativa++
         await registrar(passo, tentativa, passo.handler, actorId, entradaDoPasso.length, {
           estado: 'aborted_cap', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: 0, statusHttp: null,
           erroReal: `Estimativa do passo US$ ${estimativa} com US$ ${arredondar(acumulado + gasto)} já gastos passaria do teto de US$ ${teto}.`,
         })
         return { tipo: 'teto', custoUsd: gasto }
       }
-      const restanteMs = pedido.prazoFinal === undefined ? Infinity : pedido.prazoFinal - agora() - FOLGA_FINAL_MS
-      if (restanteMs < 10_000) {
+      if (restanteMs() < 10_000) {
+        proximaTentativa++
         await registrar(passo, tentativa, passo.handler, actorId, entradaDoPasso.length, {
           estado: 'aborted_cap', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: 0, statusHttp: null,
           erroReal: 'O prazo da função acabou antes deste passo.',
@@ -327,53 +360,90 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
         return { tipo: 'prazo', custoUsd: gasto }
       }
 
-      const passoId = await db.abrirPasso({
-        runId, ordem: passo.ordem, tentativa, handler: passo.handler, kind: passo.kind, actorId, itensEntrada: entradaDoPasso.length,
-      })
-      try {
-        const exec = await fonte.rodar({
-          actorId: actorId!,
-          input: montada.input,
-          maxItems: Math.min(montada.maxItems, passo.maxItems ?? montada.maxItems),
-          maxTotalChargeUsd: arredondar(Math.max(teto - acumulado - gasto, 0)),
-          timeoutSegundos: Math.max(10, Math.min(TIMEOUT_MAXIMO_S, Math.floor(restanteMs / 1000))),
-        })
-        const custo = exec.custoUsd ?? estimativa
-        gasto = arredondar(gasto + custo)
-        const brutos = Array.isArray(exec.items) ? exec.items : []
-        const saida = impl.normalizar!(brutos, entradaDoPasso, ctx, actorId ?? '')
-        // Bruto não vazio que não confere com a consulta nem com a janela: a alternativa assume. Lista vazia de verdade não.
-        const foraDaConsulta = brutos.length > 0 && impl.confereConsulta !== undefined &&
-          !impl.confereConsulta(brutos, saida, ctx, actorId ?? '')
-        if (foraDaConsulta) {
-          await db.fecharPasso({
-            passoId, estado: 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
-            itensSaida: 0, custoUsd: exec.custoUsd, statusHttp: null,
-            erroReal: 'O resultado não confere com a consulta nem com a janela de datas.',
-          })
-          if (i < tentativas.length - 1) continue
-          return { tipo: 'vazio', saida: [], custoUsd: gasto }
+      const brutos: unknown[] = []
+      let interrompido = false
+      let semCredito = false
+      let foraDaConsulta = false
+      for (let b = 0; b < lotes.length; b++) {
+        const lote = lotes[b]
+        const tentativaDoLote = proximaTentativa++
+        if (b > 0 && restanteMs() < 10_000) {
+          interrompido = true
+          break
         }
-        await db.fecharPasso({
-          passoId, estado: saida.length ? 'succeeded' : 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
-          itensSaida: saida.length, custoUsd: exec.custoUsd, statusHttp: null,
-          erroReal: exec.custoUsd === null ? 'Não foi possível ler o custo real do run; vale a estimativa do passo.' : null,
+        const passoId = await db.abrirPasso({
+          runId, ordem: passo.ordem, tentativa: tentativaDoLote, handler: passo.handler, kind: passo.kind, actorId, itensEntrada: entradaDoPasso.length,
         })
-        return saida.length ? { tipo: 'ok', saida, custoUsd: gasto } : { tipo: 'vazio', saida, custoUsd: gasto }
-      } catch (e) {
-        const erro = e instanceof ErroDaFonte ? e : null
-        gasto = arredondar(gasto + custoDoErro(e))
-        ultimaMensagem = mensagemDoTipo(erro?.tipo)
-        await db.fecharPasso({
-          passoId, estado: 'failed', apifyRunId: erro?.detalhe.apifyRunId ?? null, build: erro?.detalhe.build ?? null,
-          tokenIndex: erro?.detalhe.tokenIndex ?? null, itensSaida: 0, custoUsd: erro?.detalhe.custoUsd ?? null,
-          statusHttp: erro?.detalhe.statusHttp ?? null,
-          erroReal: redigir(erro?.detalhe.erroReal ?? (e instanceof Error ? `${e.name}: ${e.message}` : e)),
-        })
-        log({ type: 'cascata', runId, ordem: passo.ordem, tentativa, outcome: 'step_failed', errorKind: erro?.tipo ?? 'inesperado', status: erro?.detalhe.statusHttp ?? null })
-        // Sem crédito em todas as contas: o actor alternativo usaria as mesmas contas.
-        if (erro?.tipo === 'sem_credito_em_todas') break
+        try {
+          const exec = await fonte.rodar({
+            actorId: actorId!,
+            input: lote.input,
+            maxItems: Math.min(lote.maxItems, passo.maxItems ?? lote.maxItems),
+            maxTotalChargeUsd: arredondar(Math.max(teto - acumulado - gasto, 0)),
+            timeoutSegundos: timeoutDoLote(lote.timeoutSegundos),
+          })
+          const custo = exec.custoUsd ?? (lotes.length === 1 ? estimativa : 0)
+          gasto = arredondar(gasto + custo)
+          const itens = Array.isArray(exec.items) ? exec.items : []
+          brutos.push(...itens)
+          if (lotes.length > 1) {
+            await db.fecharPasso({
+              passoId, estado: itens.length ? 'succeeded' : 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
+              itensSaida: itens.length, custoUsd: exec.custoUsd, statusHttp: null,
+              erroReal: exec.custoUsd === null ? 'Não foi possível ler o custo real do run; vale a estimativa do passo.' : null,
+            })
+            continue
+          }
+          const saida = impl.normalizar!(itens, entradaDoPasso, ctx, actorId ?? '')
+          // Bruto não vazio que não confere com a consulta nem com a janela: a alternativa assume. Lista vazia de verdade não.
+          foraDaConsulta = itens.length > 0 && impl.confereConsulta !== undefined &&
+            !impl.confereConsulta(itens, saida, ctx, actorId ?? '')
+          if (foraDaConsulta) {
+            await db.fecharPasso({
+              passoId, estado: 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
+              itensSaida: 0, custoUsd: exec.custoUsd, statusHttp: null,
+              erroReal: 'O resultado não confere com a consulta nem com a janela de datas.',
+            })
+            break
+          }
+          await db.fecharPasso({
+            passoId, estado: saida.length ? 'succeeded' : 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
+            itensSaida: saida.length, custoUsd: exec.custoUsd, statusHttp: null,
+            erroReal: exec.custoUsd === null ? 'Não foi possível ler o custo real do run; vale a estimativa do passo.' : null,
+          })
+          return saida.length ? { tipo: 'ok', saida, custoUsd: gasto } : { tipo: 'vazio', saida, custoUsd: gasto }
+        } catch (e) {
+          const erro = e instanceof ErroDaFonte ? e : null
+          gasto = arredondar(gasto + custoDoErro(e))
+          ultimaMensagem = mensagemDoTipo(erro?.tipo)
+          await db.fecharPasso({
+            passoId, estado: 'failed', apifyRunId: erro?.detalhe.apifyRunId ?? null, build: erro?.detalhe.build ?? null,
+            tokenIndex: erro?.detalhe.tokenIndex ?? null, itensSaida: 0, custoUsd: erro?.detalhe.custoUsd ?? null,
+            statusHttp: erro?.detalhe.statusHttp ?? null,
+            erroReal: redigir(erro?.detalhe.erroReal ?? (e instanceof Error ? `${e.name}: ${e.message}` : e)),
+          })
+          log({ type: 'cascata', runId, ordem: passo.ordem, tentativa: tentativaDoLote, outcome: 'step_failed', errorKind: erro?.tipo ?? 'inesperado', status: erro?.detalhe.statusHttp ?? null })
+          interrompido = true
+          // Sem crédito em todas as contas: o actor alternativo usaria as mesmas contas.
+          if (erro?.tipo === 'sem_credito_em_todas') semCredito = true
+          break
+        }
       }
+      if (semCredito) break
+      if (lotes.length === 1) {
+        if (foraDaConsulta && i < tentativas.length - 1) continue
+        if (foraDaConsulta) return { tipo: 'vazio', saida: [], custoUsd: gasto }
+        if (interrompido) continue
+        continue
+      }
+      if (interrompido) continue
+      const saida = impl.normalizar!(brutos, entradaDoPasso, ctx, actorId ?? '')
+      const fora = brutos.length > 0 && impl.confereConsulta !== undefined && !impl.confereConsulta(brutos, saida, ctx, actorId ?? '')
+      if (fora) {
+        if (i < tentativas.length - 1) continue
+        return { tipo: 'vazio', saida: [], custoUsd: gasto }
+      }
+      return saida.length ? { tipo: 'ok', saida, custoUsd: gasto } : { tipo: 'vazio', saida, custoUsd: gasto }
     }
     return { tipo: 'falhou', mensagem: ultimaMensagem, custoUsd: gasto }
   }
@@ -462,8 +532,19 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     estado = 'succeeded'
     desfecho = 'concluida'
     mensagem = temSinais
-      ? `${novos} Sinal${novos === 1 ? ' novo' : 'is novos'} gravado${novos === 1 ? '' : 's'}${repetidos ? `; ${repetidos} já ${repetidos === 1 ? 'era conhecido' : 'eram conhecidos'}` : ''}.`
+      ? `${novos} ${novos === 1 ? 'Sinal novo' : 'Sinais novos'} gravado${novos === 1 ? '' : 's'}${repetidos ? `; ${repetidos} já ${repetidos === 1 ? 'era conhecido' : 'eram conhecidos'}` : ''}.`
       : MENSAGENS.nada
+  }
+
+  if (pedido.permitirTeste) {
+    const amostra = amostraDeValidacao(ctxBase.memoria.get('semContaAmostra'))
+    if (amostra.length) {
+      try {
+        await db.gravarAmostraValidacao({ runId, amostra })
+      } catch (e) {
+        log({ type: 'cascata', runId, outcome: 'validation_sample_failed', message: redigir(e instanceof Error ? e.message : e, [], 300) })
+      }
+    }
   }
 
   const custo = arredondar(acumulado)

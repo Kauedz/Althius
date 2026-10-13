@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { tokensDoApify } from '../_shared/apify-ambiente.ts'
+import { contasDeColeta, type AdminDeColeta, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { type ClienteRpc, criarMotorDeCascata, escolherLlmDosSinais } from '../_shared/cascata-de-sinais/index.ts'
 import { autorizadoComoServidor } from '../signal-scan/autorizacao.ts'
 import { createHandler } from './handler.ts'
@@ -22,10 +22,15 @@ const llm = escolherLlmDosSinais({
   admin: admin as unknown as ClienteRpc,
   log: (campos) => console.log(JSON.stringify(campos)),
 })
+const contas = contasDeColeta((nome) => Deno.env.get(nome))
+const log = (campos: Record<string, unknown>) => console.log(JSON.stringify(campos))
 const motor = criarMotorDeCascata({
   admin: admin as unknown as ClienteRpc,
-  tokens: tokensDoApify((nome) => Deno.env.get(nome)),
+  tokens: contas.map((c) => c.token),
+  contas,
+  memoria: memoriaDasContasDeColeta(admin as unknown as AdminDeColeta, log),
   ...(llm ? { llm } : {}),
+  log,
 })
 
 Deno.serve(createHandler({

@@ -10,11 +10,14 @@
 //   data_xplorer/google-news-scraper-fast  entrada keywords, timeframe, region_language, maxArticles...; saída title, source, url, publishedAt
 import { LIMITES, normalizar, objetos, primeiroTexto, recortar } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ContextoDoPasso, ImplDoPasso, Item, RegistroDePassos } from '../tipos.ts'
-import { cnpjLimpo, dataIso, janelaDoPasso, listaDoPasso, texto } from './comum.ts'
+import { cnpjLimpo, dataIso, janelaDoPasso, listaDoPasso, objeto, texto } from './comum.ts'
 import { type EmpresaComFatos, itemDeEmpresaComFatos } from './empresas.ts'
 import { CNAES_AGRO, ehCnaeAgro } from './icp-h-cnae.ts'
 
 const DIA_EM_MS = 86_400_000
+/** A base aberta atrasa alguns meses: 60 dias nunca alcançam o mês que ela ainda publica. */
+const DIAS_MINIMOS_DA_BASE = 120
+const SO_DEFASAGEM = 'h_so_defasagem'
 const BRT_EM_MS = 3 * 3_600_000
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
@@ -83,6 +86,27 @@ function cooperativaDoItem(b: Record<string, unknown>, daReserva: boolean): Coop
   }
 }
 
+/** "2026-07" no resultado da base, quando ela declara o mês do índice. */
+function mesDeReferencia(brutos: Record<string, unknown>[]): string | null {
+  for (const b of brutos) {
+    const versao = objeto(b.versaoDosDados)
+    const atraso = objeto(b.staleness)
+    const mes = [texto(versao.referenceMonth), texto(versao.snapshotMonth), texto(atraso.indexMonth)].find((m) => /^\d{4}-\d{2}$/.test(m))
+    if (mes) return mes
+  }
+  return null
+}
+
+/** O início aceito. O período do pedido vale como está. Sem ele, a janela da cascata abre até cerca de 120 dias, ou até o mês de referência da base quando ela o declara. */
+function inicioAceito(ctx: ContextoDoPasso, referencia: string | null): number {
+  const pedidoTemPeriodo = ctx.criterios.periodo !== undefined
+  const dias = pedidoTemPeriodo ? janelaDoPasso(ctx) : Math.max(janelaDoPasso(ctx), DIAS_MINIMOS_DA_BASE)
+  const porDias = ctx.agora - dias * DIA_EM_MS
+  if (pedidoTemPeriodo || !referencia) return porDias
+  const inicioMes = Date.parse(`${referencia}-01T00:00:00.000Z`)
+  return Number.isNaN(inicioMes) ? porDias : Math.min(porDias, inicioMes)
+}
+
 function ufDoPedido(ctx: ContextoDoPasso): string {
   const uf = texto(ctx.criterios.uf).toUpperCase()
   return /^[A-Z]{2}$/.test(uf) ? uf : ''
@@ -110,22 +134,31 @@ const cooperativasAbertas: ImplDoPasso = {
   },
 
   normalizar(brutos, _entrada, ctx, actorId) {
-    const dias = janelaDoPasso(ctx)
+    const linhas = objetos(brutos)
+    const inicio = inicioAceito(ctx, mesDeReferencia(linhas))
     const somenteAgro = ctx.criterios.somenteAgro !== undefined ? ctx.criterios.somenteAgro !== false : ctx.def.inputTemplate.somenteAgro !== false
     const gruposAgro = listaDoPasso(ctx, 'cnaes', 'cnaesAgro')
     const vistos = new Set<string>()
     const saida: Item[] = []
-    for (const b of objetos(brutos)) {
+    let soPorData = 0
+    let porOutro = 0
+    for (const b of linhas) {
       const c = cooperativaDoItem(b, actorId.startsWith('johnatan029~'))
       if (!c || !c.cnpj || !c.razao) continue
       // Só cooperativa (214-3), ativa e matriz: pessoa física (empresário individual) e o resto nem entram.
-      if (c.natureza.replace(/\D/g, '') !== '2143') continue
-      if (c.situacao && c.situacao.toUpperCase() !== 'ATIVA') continue
-      if (c.matriz && c.matriz.toUpperCase() !== 'MATRIZ') continue
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(c.data)) continue
-      const quando = Date.parse(meioDia(c.data))
-      if (Number.isNaN(quando) || quando > ctx.agora || quando < ctx.agora - dias * DIA_EM_MS) continue
-      if (somenteAgro && !ehCnaeAgro(c.cnae, gruposAgro.length ? gruposAgro : CNAES_AGRO)) continue
+      const naturezaOk = c.natureza.replace(/\D/g, '') === '2143'
+      const situacaoOk = !c.situacao || c.situacao.toUpperCase() === 'ATIVA'
+      const matrizOk = !c.matriz || c.matriz.toUpperCase() === 'MATRIZ'
+      const quando = /^\d{4}-\d{2}-\d{2}$/.test(c.data) ? Date.parse(meioDia(c.data)) : Number.NaN
+      const agroOk = !somenteAgro || ehCnaeAgro(c.cnae, gruposAgro.length ? gruposAgro : CNAES_AGRO)
+      if (!naturezaOk || !situacaoOk || !matrizOk || Number.isNaN(quando) || !agroOk) {
+        porOutro++
+        continue
+      }
+      if (quando > ctx.agora || quando < inicio) {
+        soPorData++
+        continue
+      }
       if (vistos.has(c.cnpj)) continue
       vistos.add(c.cnpj)
 
@@ -140,18 +173,20 @@ const cooperativasAbertas: ImplDoPasso = {
           fonte: FONTE_RECEITA,
           evidencia: recortar(
             `${c.razao} (CNPJ ${cnpjFormatado(c.cnpj)}): cooperativa (natureza jurídica 214-3) com início de atividade em ${dataBr(c.data)}${atividade}${c.porte ? `; porte ${c.porte}` : ''}. ` +
-              'Base aberta de CNPJ da Receita Federal, atualizada uma vez por mês: a abertura pode aparecer com até 30 dias de atraso.',
+              'Base aberta de CNPJ da Receita Federal, atualizada uma vez por mês: a abertura pode aparecer com alguns meses de atraso.',
             LIMITES.evidencia,
           ),
         }],
       }
       saida.push(itemDeEmpresaComFatos(ef))
     }
+    // Só a data ficou de fora (a base atrasa): a outra consulta usa o mesmo índice, então não vale chamá-la.
+    ctx.memoria.set(SO_DEFASAGEM, saida.length === 0 && soPorData > 0 && porOutro === 0)
     return saida
   },
 
-  /** Cooperativa baixada, antiga ou fora do agro não conta: se o bruto não passou no filtro, a outra base assume. */
-  confereConsulta: (_brutos, saida) => saida.length > 0,
+  /** Fora do agro, baixada ou de outra natureza: a outra base assume. Só atraso da base não. */
+  confereConsulta: (_brutos, saida, ctx) => saida.length > 0 || ctx.memoria.get(SO_DEFASAGEM) === true,
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

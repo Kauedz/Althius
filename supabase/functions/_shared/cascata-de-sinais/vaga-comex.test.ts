@@ -6,8 +6,9 @@ import { dbFalso } from './db-falso.ts'
 import { clienteAssincronoDoApify } from './fonte-apify.ts'
 import { cascataVagaComex } from './fixtures.ts'
 import { rodarCascata } from './motor.ts'
+import { cnpjDaConta } from './passos/cnpj-da-conta.ts'
 import { registroDePassos } from './passos/index.ts'
-import type { ContaDoWorkspace } from './tipos.ts'
+import type { ContaDoWorkspace, ContextoDoPasso } from './tipos.ts'
 import { MARCA_INTERNA } from '../marca.ts'
 
 const AGORA = Date.parse('2026-10-13T12:00:00Z')
@@ -35,7 +36,7 @@ const VAGAS = [
   vaga({ id: '3700000006', title: 'Analista de Comex Sênior', postedAt: dias(20).slice(0, 10) }),
 ]
 
-function cenario(porActor: Record<string, ComportamentoDoRun>, opcoes: { contas?: ContaDoWorkspace[]; brasilapi?: Response } = {}) {
+function cenario(porActor: Record<string, ComportamentoDoRun>, opcoes: { contas?: ContaDoWorkspace[]; brasilapi?: Response; agora?: () => number } = {}) {
   const fake = apifyFalso((_token, actorId) => porActor[actorId] ?? { itens: [], usageTotalUsd: 0 })
   const logs: unknown[] = []
   const fonte = clienteAssincronoDoApify({ tokens: [TOKEN_1, TOKEN_2], fetchFn: fake.fetchFn, dormir: () => Promise.resolve(), esperaDoCustoMs: 0, log: (c) => logs.push(c) })
@@ -46,7 +47,7 @@ function cenario(porActor: Record<string, ComportamentoDoRun>, opcoes: { contas?
   }) as typeof fetch
   const banco = dbFalso(cascataVagaComex(), { contas: opcoes.contas ?? [ALFA, BETA] })
   const rodar = (extra: Record<string, unknown> = {}) =>
-    rodarCascata({ db: banco.db, fonte, registro: registroDePassos(fetchPublico), agora: () => AGORA, log: (c) => logs.push(c) }, {
+    rodarCascata({ db: banco.db, fonte, registro: registroDePassos(fetchPublico), agora: opcoes.agora ?? (() => AGORA), log: (c) => logs.push(c) }, {
       workspaceId: 'ws-1', userId: 'user-1', signalType: 'vaga_comex', origem: 'conversa', chave: 'k1', ...extra,
     })
   return { fake, banco, rodar, logs, brasilapi }
@@ -79,10 +80,9 @@ Deno.test('A1: a vaga de comex de uma Conta vira Sinal, passando por vagas, conf
   const entrada1 = posts[0].corpo as { urls: string[]; scrapeCompany: boolean }
   assertEquals(entrada1.scrapeCompany, false)
   assert(entrada1.urls.length === 4 && entrada1.urls.every((u) => u.includes('f_TPR=r604800') && u.includes('location=Brazil')), JSON.stringify(entrada1.urls))
-  // Passo 3: só as empresas que ainda não são Conta pela página do LinkedIn (a Alfa já casa).
+  // Passo 3: só a empresa que já é Conta e ainda não tem a página (a Alfa já casa; a Gama não é Conta).
   assertEquals((posts[1].corpo as { companies: string[] }).companies, [
     'https://www.linkedin.com/company/beta-trading',
-    'https://www.linkedin.com/company/gama-logistica',
   ])
   // Passo 5: só o CNPJ da Conta que o tem.
   assertEquals(posts[2].corpo, { mode: 'lookup', cnpjs: ['11222333000181'] })
@@ -104,6 +104,40 @@ Deno.test('A1: a vaga de comex de uma Conta vira Sinal, passando por vagas, conf
   assertEquals(r.custoUsd, 0.0218)
   assert(!MARCA_INTERNA.test(r.mensagem))
   assert(!JSON.stringify(r).includes(TOKEN_1))
+})
+
+Deno.test('A1: a página da empresa só é consultada para quem já é Conta e ainda não tem a página', async () => {
+  const c = cenario({
+    'curious_coder~linkedin-jobs-scraper': { itens: VAGAS, usageTotalUsd: 0.0122, build: '1.7.18' },
+    'harvestapi~linkedin-company': { itens: COMPANY, usageTotalUsd: 0.008 },
+    'johnatan029~cnpj-empresas-brasil-scraper': { itens: CNPJ, usageTotalUsd: 0.0016 },
+  })
+  await c.rodar()
+  const empresa = c.fake.requisicoes.filter((q) => q.metodo === 'POST').find((q) => q.caminho.includes('linkedin-company'))
+  assertEquals((empresa?.corpo as { companies?: string[] } | undefined)?.companies, ['https://www.linkedin.com/company/beta-trading'])
+})
+
+Deno.test('a consulta de CNPJ é pulada quando o prazo da função está perto', () => {
+  const montada = cnpjDaConta.montarEntrada!(
+    [{ cnpjDaConta: '11222333000181', evidence: 'Abriu vaga.' }],
+    { agora: 1_000_000, pedido: { prazoFinal: 1_015_000 }, def: { maxItems: 20 } } as ContextoDoPasso,
+    '',
+  )
+  assert('pular' in montada)
+})
+
+Deno.test('A1: perto do prazo, o CNPJ não roda e a execução com Sinais fecha concluída', async () => {
+  let n = 0
+  const c = cenario({
+    'curious_coder~linkedin-jobs-scraper': { itens: VAGAS, usageTotalUsd: 0.0122 },
+    'harvestapi~linkedin-company': { itens: COMPANY, usageTotalUsd: 0.008 },
+    'johnatan029~cnpj-empresas-brasil-scraper': { itens: CNPJ, usageTotalUsd: 0.0016 },
+  }, { agora: () => (n++ < 8 ? AGORA : AGORA + 145_000) })
+  const r = await c.rodar({ prazoFinal: AGORA + 160_000 })
+  assertEquals(r.desfecho, 'concluida')
+  assert(r.novos > 0)
+  assert(!c.fake.requisicoes.some((q) => q.metodo === 'POST' && q.caminho.includes('cnpj-empresas-brasil-scraper')))
+  assertEquals(c.banco.passos.find((p) => p.handler === 'cnpj_da_conta')?.fim?.estado, 'skipped')
 })
 
 Deno.test('A1: vaga com mais de 7 dias e título sem termo de comex não viram Sinal', async () => {

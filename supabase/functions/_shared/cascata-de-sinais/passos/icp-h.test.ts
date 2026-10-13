@@ -150,6 +150,48 @@ Deno.test('H1: a cooperativa agro aberta na janela vira Sinal da Conta (CNPJ ou 
   assertEquals(r.custoUsd, 0.0099)
 })
 
+Deno.test('H1: cooperativa do mês de referência da base (2026-07) vira Sinal e não chama a outra base', async () => {
+  const item = coop({
+    cnpj: '11222333000181', razao_social: 'COOPERATIVA AGROPECUARIA ALFA LTDA', data_abertura: '2026-07-15',
+    versaoDosDados: { referenceMonth: '2026-07', snapshotMonth: '2026-08' },
+    staleness: { indexMonth: '2026-07', stale: true },
+  })
+  const c = cenario(cascataCooperativa(), {
+    [PRIMARIO]: { itens: [item], usageTotalUsd: 0.01 },
+    [RESERVA]: { itens: [item], usageTotalUsd: 0.5 },
+  })
+  const r = await c.rodar()
+  assertEquals(c.posts().map((q) => q.caminho.split('/')[3]), [PRIMARIO])
+  assertEquals(r.sinais.map((s) => s.contaId), ['conta-alfa'])
+  assertEquals(r.sinais[0].firedAt, '2026-07-15T12:00:00.000Z')
+})
+
+Deno.test('H1: cooperativa só antiga demais não chama a outra base, que tem o mesmo atraso', async () => {
+  const velha = coop({
+    cnpj: '11222333000181', razao_social: 'COOPERATIVA AGROPECUARIA ALFA LTDA', data_abertura: '2020-01-10',
+    versaoDosDados: { referenceMonth: '2026-07' },
+  })
+  const c = cenario(cascataCooperativa(), {
+    [PRIMARIO]: { itens: [velha], usageTotalUsd: 0.01 },
+    [RESERVA]: { itens: [coop({ cnpj: '11222333000181', razao_social: 'COOPERATIVA AGROPECUARIA ALFA LTDA', data_abertura: '2026-09-10' })], usageTotalUsd: 0.5 },
+  })
+  const r = await c.rodar()
+  assertEquals(c.posts().map((q) => q.caminho.split('/')[3]), [PRIMARIO])
+  assertEquals(r.sinais, [])
+})
+
+Deno.test('H1: na validação, a execução guarda o CNPJ sem Conta; fora dela, não guarda', async () => {
+  const com = cenario(cascataCooperativa(), { [PRIMARIO]: { itens: RECEITA, usageTotalUsd: 0.01 } })
+  await com.rodar({ permitirTeste: true })
+  assertEquals(com.banco.amostras, [{
+    runId: 'run-db-1',
+    amostra: [{ cnpj: '33444555000122', nome: 'COOPERATIVA GAMA DE LEITE' }],
+  }])
+  const sem = cenario(cascataCooperativa(), { [PRIMARIO]: { itens: RECEITA, usageTotalUsd: 0.01 } })
+  await sem.rodar()
+  assertEquals(sem.banco.amostras, [])
+})
+
 Deno.test('H1: repetir a rodada não grava de novo (eventKey por empresa, fato e data de abertura)', async () => {
   const c = cenario(cascataCooperativa(), { [PRIMARIO]: { itens: RECEITA, usageTotalUsd: 0.0099 } })
   const a = await c.rodar({ chave: 'a' })

@@ -216,7 +216,7 @@ const douPublicacoes: ImplDoPasso = {
     })
   },
 
-  /** Bruto que some inteiro no filtro (fora da frase ou da data) não serve: a alternativa assume. */
+  /** Fora da frase ou da data não serve. Data dd/mm/aaaa dentro da janela pedida confere, mesmo que a fonte só cubra uns 3 dias. */
   confereConsulta: (_brutos, saida) => saida.length > 0,
 }
 

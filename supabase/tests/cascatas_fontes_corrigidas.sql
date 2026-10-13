@@ -8,8 +8,8 @@ select is(
   (select s.actor_id from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
   'brasildados~dou-monitor', 'mudança regulatória busca no monitor do Diário Oficial');
 select is(
-  (select s.fallbacks -> 0 ->> 'actorId' from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
-  'jenko_systems~diario-oficial-uniao-dou', 'a busca longa fica de reserva');
+  (select coalesce(jsonb_array_length(s.fallbacks), 0)::text from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
+  '0', 'a mudança regulatória não reserva a busca longa');
 select is(
   (select s.input_template -> 'termos' from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
   '["IBS","CBS","reforma tributária","agência reguladora"]'::jsonb, 'os termos exatos da mudança regulatória');
@@ -21,15 +21,14 @@ select is(
    where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
   '3:3:72', 'a janela e a cadência da mudança regulatória acompanham os 3 dias da busca');
 select ok(
-  (select s.known_price ->> 'fonte' like '%12/10/2026%' and s.est_fixed_usd + s.est_per_item_usd * s.max_items
-        + (s.fallbacks -> 0 ->> 'estFixedUsd')::numeric <= c.cap_usd
+  (select s.known_price ->> 'fonte' like '%12/10/2026%' and s.est_fixed_usd + s.est_per_item_usd * s.max_items <= c.cap_usd
    from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id
    where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
-  'o preço conhecido segue datado e o pior caso do principal mais a reserva cabem no teto');
+  'o preço conhecido segue datado e o pior caso do principal cabe no teto');
 
 select is(
-  (select s.actor_id || '>' || (s.fallbacks -> 0 ->> 'actorId') from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'licenca_instalacao_dou' and s.ordem = 1),
-  'brasildados~dou-monitor>jenko_systems~diario-oficial-uniao-dou', 'a licença no DOU tem monitor e reserva');
+  (select s.actor_id || ':' || coalesce(jsonb_array_length(s.fallbacks), 0) from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'licenca_instalacao_dou' and s.ordem = 1),
+  'brasildados~dou-monitor:0', 'a licença no DOU fica só no monitor');
 select is(
   (select s.input_template ->> 'termo' from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'licenca_instalacao_dou' and s.ordem = 1),
   '"licença de instalação"', 'a frase exata da licença de instalação');
@@ -41,10 +40,10 @@ select is(
    where c.signal_type = 'licenca_instalacao_dou' and s.ordem = 1),
   'do1:3:3:72:0.5000', 'seção 1, janela de 3 dias, cadência de 72 horas e teto de US$ 0,50');
 select ok(
-  (select s.est_fixed_usd + s.est_per_item_usd * s.max_items + (s.fallbacks -> 0 ->> 'estFixedUsd')::numeric <= c.cap_usd
+  (select s.est_fixed_usd + s.est_per_item_usd * s.max_items <= c.cap_usd
    from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id
    where c.signal_type = 'licenca_instalacao_dou' and s.ordem = 1),
-  'o pior caso do monitor mais a reserva da licença cabem no teto');
+  'o pior caso do monitor da licença cabe no teto');
 
 -- Grupo A: a lista aberta continua; sem URL inventada. A nota diz a degradação.
 select ok(

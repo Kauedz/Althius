@@ -74,6 +74,10 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
       return { creditosCobrados: Number(l.credits_charged ?? 0) }
     },
 
+    async gravarAmostraValidacao(a) {
+      await chamar(admin, 'record_cascade_validation_sample', { p_run_id: a.runId, p_sample: a.amostra })
+    },
+
     async abrirPasso(a) {
       const id = await chamar(admin, 'start_cascade_step', {
         p_run_id: a.runId,

@@ -1,6 +1,7 @@
-// A fachada da cascata de Sinais: monta o motor com o banco (Supabase), as contas do Apify (APIFY_TOKEN e _2.._5) e os
+// A fachada da cascata de Sinais: monta o motor com o banco (Supabase), as contas de coleta (APIFY_TOKEN_1..5 e o legado) e os
 // passos do servidor. As duas portas de entrada usam esta mesma fachada: o Monitoramento (`signal-runner`) e a conversa do
 // Hermes (`signal-cascade`).
+import { type ContaDeColeta, type MemoriaDasContas } from '../apify-ambiente.ts'
 import { type ClienteRpc, criarDbDaCascata } from './db.ts'
 import { clienteAssincronoDoApify } from './fonte-apify.ts'
 import { rodarCascata } from './motor.ts'
@@ -31,9 +32,11 @@ export interface EntradaDoCatalogo {
 }
 
 export function criarMotorDeCascata(
-  { admin, tokens, fetchFn, log, llm }: {
+  { admin, tokens, contas, memoria, fetchFn, log, llm }: {
     admin: ClienteRpc
     tokens: string[]
+    contas?: ContaDeColeta[]
+    memoria?: MemoriaDasContas
     fetchFn?: typeof fetch
     /** O modelo de linguagem dos passos que classificam texto; sem ele, usam a regra simples. */
     llm?: Llm
@@ -41,7 +44,7 @@ export function criarMotorDeCascata(
   },
 ): MotorDeCascata {
   const db = criarDbDaCascata(admin)
-  const fonte = clienteAssincronoDoApify({ tokens, fetchFn, log })
+  const fonte = clienteAssincronoDoApify({ tokens, contas, memoria, fetchFn, log })
   const registro = registroDePassos(fetchFn)
   return {
     async ehCascata(signalType) {
