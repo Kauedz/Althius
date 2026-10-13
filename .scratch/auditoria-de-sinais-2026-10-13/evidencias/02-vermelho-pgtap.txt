@@ -1,0 +1,2 @@
+FALHOU tipos_genericos_em_cascatas.sql: plano 48, ok 0, not ok 0
+psql:supabase/tests/tipos_genericos_em_cascatas.sql:46: ERROR:  relation "private.signal_type_cascades" does not exist

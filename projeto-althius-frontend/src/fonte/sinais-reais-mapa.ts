@@ -24,10 +24,31 @@ export const SINAL_REAL_DO_TIPO: Readonly<Record<string, string>> = {
 export const SINAL_INTERNO_DO_TIPO: Readonly<Record<string, string>> = {
   'sem-resposta': 'sem_resposta',
   'negociacao-parada': 'negociacao_parada',
+  // A recusa vem do desfecho de um Envio (resposta negativa), não de uma Interação; o banco a avalia como as outras duas.
+  'proposta-recusada': 'proposta_recusada',
 }
 
-/** Todo tipo da tela com um Sinal real, externo ou interno. */
-export const SINAL_DO_TIPO: Readonly<Record<string, string>> = { ...SINAL_REAL_DO_TIPO, ...SINAL_INTERNO_DO_TIPO }
+/**
+ * Os tipos genéricos do catálogo que as cascatas do Mapa de Mercado atendem (auditoria de Sinais, 13/10/2026). Cada um tem um
+ * tipo no catálogo do banco, e o banco liga esse tipo às cascatas de empresa que o servem, de qualquer ICP: o estado dele é o
+ * melhor estado dessas cascatas, e o Monitoramento roda cada uma. O Sinal é gravado no tipo genérico, então a tela não
+ * precisa conhecer as cascatas. "Abertura de vagas" não entra aqui: continua em SINAL_REAL_DO_TIPO (`vaga_linkedin`) e o
+ * banco liga as cascatas de vaga a esse mesmo tipo.
+ */
+export const SINAL_AGREGADO_DO_TIPO: Readonly<Record<string, string>> = {
+  'novo-escritorio': 'novo_escritorio',
+  'registros-empresariais': 'registros_empresariais',
+  'investimentos-anunciados': 'investimentos_anunciados',
+  'crescimento-de-equipes': 'crescimento_de_equipes',
+  'expansao-geografica': 'expansao_geografica',
+}
+
+/** Todo tipo da tela com um Sinal real, externo, interno ou atendido por cascatas. */
+export const SINAL_DO_TIPO: Readonly<Record<string, string>> = {
+  ...SINAL_REAL_DO_TIPO,
+  ...SINAL_INTERNO_DO_TIPO,
+  ...SINAL_AGREGADO_DO_TIPO,
+}
 
 export const TIPO_DO_SINAL_REAL: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(SINAL_DO_TIPO).map(([tipo, sinal]) => [sinal, tipo]),

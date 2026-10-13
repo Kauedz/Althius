@@ -344,3 +344,15 @@ Só foram marcados os critérios que essa evidência cobre.
 - **canais-07: segue `ready-for-human`, 1 de 7.** Marcado: a identidade do Contato resolvida antes do envio real (1). Aberto: o convite, que não foi exercitado (2), impedimentos acionáveis (3), `new_relation` e aceite (4), conteúdo privado com evento público mínimo na pausa (5), evento atrasado ou repetido (6), testes (7, que é de código, não de produção). InMail segue fora (ticket 13).
 - **canais-16** (já fechado): o texto velho "pendente apply" do critério 5 foi trocado pela nota de que as migrations `20261009205538` e `20261009214037` foram aplicadas em 2026-10-09.
 - **canais-15** e **canais-16**: sem mudança de status.
+
+## Auditoria de Sinais de 13/10/2026: proposta_recusada e tipos genéricos em cascatas
+
+| Campo | Valor |
+|---|---|
+| Tickets | `.scratch/auditoria-de-sinais-2026-10-13/issues/01-sinal-interno-proposta-recusada.md` e `02-tipos-genericos-em-cascatas.md` (GATE conferido primeiro nos dois) |
+| Status | ready-for-human (código fechado; faltam as 2 migrações e a publicação do `signal-runner`) |
+| Branch | `claude/audit-signals-catalog-i2a697`, a partir da `main` d4fbf05; PR de rascunho contra `main`, sem merge |
+| O que mudou | 01: Sinal interno `proposta_recusada` (resposta negativa registrada no desfecho de um Envio; dispara no registro mais o prazo; superado se a Conta voltou a conversar; sem dado pessoal, sem crédito). 02: seis tipos genéricos do catálogo ligados às cascatas de empresa, de qualquer ICP, por dado (`private.signal_type_cascades`); o Monitoramento roda as cascatas disponíveis e devidas (cadência) e grava o Sinal no tipo genérico. Regra do ICP registrada no `CONTEXT.md` e imposta no banco (só cascata de escopo Conta) |
+| Fora do escopo (outro PR) | `src/**/sinais/**`, RPC de `market_signals`. A tela precisa de uma linha em `editor.tsx` (texto de `proposta-recusada`); ver o PR |
+| Migrações a aplicar (em ordem, depois da `20261014170000`) | `20261015100000_sinal_proposta_recusada.sql`, `20261015110000_tipos_genericos_em_cascatas.sql`. Nenhuma tem `drop`; as duas usam `create or replace` em funções existentes (mesmo contrato) |
+| O que o humano roda | Com o CI verde: aplicar as 2 migrações pelo `execute_sql` em bloco atômico; `npx supabase functions deploy signal-runner --project-ref ycbdilsmydvzezhlymty`; publicar o frontend. Os seis tipos ficam "Em teste" até uma cascata ligada ser validada e marcada disponível |

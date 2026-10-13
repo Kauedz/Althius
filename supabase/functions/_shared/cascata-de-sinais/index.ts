@@ -19,6 +19,18 @@ export interface MotorDeCascata {
   rodar(pedido: PedidoDeCascata): Promise<ResultadoDaCascata>
   /** O catálogo de cascatas, sem nada técnico. */
   catalogo(): Promise<EntradaDoCatalogo[]>
+  /**
+   * O plano de um Monitoramento de tipo genérico: as cascatas que atendem o tipo e estão disponíveis, e entre elas as que
+   * estão no prazo da cadência (a cascata mensal não roda todo dia). Vazio quando o tipo não é atendido por cascatas.
+   */
+  planoDoMonitor(monitorId: string): Promise<PlanoDoMonitor>
+}
+
+export interface PlanoDoMonitor {
+  /** Os `signal_type` das cascatas disponíveis que atendem o tipo do Monitoramento, na ordem do banco. */
+  disponiveis: string[]
+  /** As disponíveis que estão no prazo da cadência, ainda sem execução dentro dela. */
+  devidas: string[]
 }
 
 export interface EntradaDoCatalogo {
@@ -51,6 +63,12 @@ export function criarMotorDeCascata(
       return (await db.definicao(signalType)) !== null
     },
     rodar: (pedido) => rodarCascata({ db, fonte, registro, llm, log }, pedido),
+    async planoDoMonitor(monitorId) {
+      const { data, error } = await admin.rpc('signal_type_cascade_plan', { p_monitor_id: monitorId })
+      if (error) throw new Error(`signal_type_cascade_plan: ${error.code ?? ''} ${error.message}`.trim())
+      const linhas = ((data ?? []) as { cascade_signal_type: string; state: string; due: boolean }[]).filter((l) => l.state === 'available')
+      return { disponiveis: linhas.map((l) => l.cascade_signal_type), devidas: linhas.filter((l) => l.due).map((l) => l.cascade_signal_type) }
+    },
     async catalogo() {
       const { data, error } = await admin.rpc('signal_cascade_catalog')
       if (error) throw new Error(`signal_cascade_catalog: ${error.code ?? ''} ${error.message}`.trim())

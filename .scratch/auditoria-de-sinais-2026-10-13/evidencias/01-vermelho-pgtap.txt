@@ -1,0 +1,6 @@
+FALHOU sinal_proposta_recusada.sql: plano 44, ok 0, not ok 1
+not ok 1 - o catálogo traz os três Sinais internos que saem do histórico comercial, disponíveis
+# Failed test 1: "o catálogo traz os três Sinais internos que saem do histórico comercial, disponíveis"
+#         have: {"(negociacao_parada,interno,available)","(sem_resposta,interno,available)"}
+#         want: {"(negociacao_parada,interno,available)","(proposta_recusada,interno,available)","(sem_resposta,interno,available)"}
+psql:supabase/tests/sinal_proposta_recusada.sql:115: ERROR:  signal type is not available
