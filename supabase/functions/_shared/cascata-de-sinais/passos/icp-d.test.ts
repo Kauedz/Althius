@@ -226,14 +226,41 @@ Deno.test('D2: a URL da lista da CCEE vem do modelo do passo (configurável) e a
   assertEquals(ccee.urls.slice(1).map((u) => u.searchParams.get('offset')), ['0', '2', '4'])
 })
 
-Deno.test('D2: se a CCEE não responde ou a lista não cabe, nenhum "provável cativo" é afirmado', async () => {
+Deno.test('D2: lista bloqueada grava Sinal sem a exclusão e deixa isso marcado', async () => {
   const bloqueada = cenario(cascataGrupoACativo(), { 'epicscrapers~brazil-cnpj-scraper': { itens: [empresaReceita({})], usageTotalUsd: 0.001 } }, {
     contas: [ALFA], fetchPublico: cceeFalsa([], { status: 403 }).fetchFn,
   })
   const a = await bloqueada.rodar({ criterios: { cnae: '2320600' } })
-  assertEquals([a.desfecho, a.sinais.length, a.novos], ['falhou', 0, 0])
+  assertEquals(a.desfecho, 'concluida')
+  assertEquals(a.sinais.map((s) => s.eventKey), ['alfa cimentos|grupo_a_cativo|2026|sem_lista'])
+  const s = a.sinais[0]
+  assert(s.phrase.includes('não foi consultada') && s.phrase.includes('não foi excluído'), s.phrase)
+  assert(s.evidence.includes('Sem a exclusão') && !s.evidence.includes('não consta'), s.evidence)
   semMarca(a)
+})
 
+Deno.test('D2: se a URL principal bloqueia e a reserva responde, a exclusão usa a reserva', async () => {
+  const reserva = 'https://dados.exemplo.test/ccee/datastore_search?resource_id=reserva'
+  const def = cascataGrupoACativo()
+  def.steps[1].inputTemplate = { ...def.steps[1].inputTemplate, urlReserva: reserva }
+  const fetchFn = ((u: string | URL | Request) => {
+    const url = new URL(String(u))
+    if (url.host === 'dadosabertos.ccee.org.br') return Promise.resolve(new Response('Acesso bloqueado', { status: 403 }))
+    if (url.searchParams.get('distinct') === 'true') {
+      return Promise.resolve(new Response(JSON.stringify({ success: true, result: { records: [{ MES_REFERENCIA: '202610' }], total: 1 } })))
+    }
+    return Promise.resolve(new Response(JSON.stringify({ success: true, result: { records: [], total: 0 } })))
+  }) as typeof fetch
+  const c = cenario(def, { 'epicscrapers~brazil-cnpj-scraper': { itens: [empresaReceita({})], usageTotalUsd: 0.001 } }, {
+    contas: [ALFA], fetchPublico: fetchFn,
+  })
+  const r = await c.rodar({ criterios: { cnae: '2320600' } })
+  assertEquals(r.sinais.map((s) => s.eventKey), ['alfa cimentos|grupo_a_cativo|2026'])
+  assert(r.sinais[0].evidence.includes('não consta'), r.sinais[0].evidence)
+  semMarca(r)
+})
+
+Deno.test('D2: se a lista não cabe no limite de leitura, nenhum "provável cativo" é afirmado', async () => {
   // A lista tem 100 CNPJs e o modelo só deixa ler 2 páginas de 10: incompleta, então não vale como exclusão.
   const def = cascataGrupoACativo()
   def.steps[1].inputTemplate = { ...def.steps[1].inputTemplate, tamanhoDaPagina: 10, maxPaginas: 2 }

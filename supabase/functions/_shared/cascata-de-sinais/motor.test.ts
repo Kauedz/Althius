@@ -206,6 +206,57 @@ Deno.test('item malformado do actor é ignorado; o Sinal sem os campos não é g
   assertEquals(sinais.map((s) => s.sinal.eventKey), ['teste|conta-1|1'])
 })
 
+Deno.test('resultado que não confere com a consulta dispara a alternativa, mesmo sem erro da fonte', async () => {
+  const def = cascataDeTeste()
+  def.steps[0].fallbacks = [{ kind: 'actor', actorId: 'time~reserva', priceModel: 'PAY_PER_EVENT', estFixedUsd: 0, estPerItemUsd: 0.001 }]
+  const reg = registro({
+    gerar: { confereConsulta: (brutos) => brutos.some((b) => !!b && typeof b === 'object' && (b as Item).confere === true) },
+  })
+  const { db, passos } = dbFalso(def)
+  const { fonte, chamadas } = fonteFalsa({
+    'time~um': exec([{ n: 1, confere: false }], 0.01),
+    'time~reserva': exec([{ n: 2, confere: true }], 0.002, 'apify-r'),
+    'time~dois': exec([{ n: 2, nome: 'dois' }], 0.01),
+  })
+  const r = await rodarCascata({ db, fonte, registro: reg, agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals(r.desfecho, 'concluida')
+  assertEquals(chamadas.map((c) => c.actorId), ['time~um', 'time~reserva', 'time~dois'])
+  assertEquals(passos.filter((p) => p.ordem === 1).map((p) => [p.tentativa, p.fim?.estado]), [[1, 'empty'], [2, 'succeeded']])
+  assertEquals(r.sinais.map((s) => s.eventKey), ['teste|conta-1|2'])
+  assert(!MARCA_INTERNA.test(r.mensagem))
+})
+
+Deno.test('lista vazia de verdade não dispara a alternativa', async () => {
+  const def = cascataDeTeste()
+  def.steps[0].fallbacks = [{ kind: 'actor', actorId: 'time~reserva', priceModel: 'FREE', estPerItemUsd: 0 }]
+  const reg = registro({
+    gerar: { confereConsulta: () => false },
+  })
+  const { db } = dbFalso(def)
+  const { fonte, chamadas } = fonteFalsa({
+    'time~um': exec([], 0.01),
+    'time~reserva': exec([{ n: 1, confere: true }], 0),
+    'time~dois': exec([{ n: 1, nome: 'um' }], 0.01),
+  })
+  const r = await rodarCascata({ db, fonte, registro: reg, agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals(chamadas.map((c) => c.actorId), ['time~um'])
+  assertEquals(r.sinais.length, 0)
+})
+
+Deno.test('se nenhuma tentativa confere com a consulta, o resultado fora da janela não vira Sinal', async () => {
+  const def = cascataDeTeste()
+  def.steps[0].fallbacks = [{ kind: 'actor', actorId: 'time~reserva', priceModel: 'PAY_PER_EVENT', estPerItemUsd: 0.001 }]
+  const reg = registro({ gerar: { confereConsulta: () => false } })
+  const { db, sinais } = dbFalso(def)
+  const { fonte, chamadas } = fonteFalsa({
+    'time~um': exec([{ n: 1, confere: false }], 0.01),
+    'time~reserva': exec([{ n: 9, confere: false }], 0.002),
+  })
+  const r = await rodarCascata({ db, fonte, registro: reg, agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals(chamadas.map((c) => c.actorId), ['time~um', 'time~reserva'])
+  assertEquals([r.desfecho, r.sinais.length, sinais.length], ['concluida', 0, 0])
+})
+
 Deno.test('o actor principal falha e o alternativo assume; os dois ficam no rastro', async () => {
   const def = cascataDeTeste()
   def.steps[0].fallbacks = [{ kind: 'actor', actorId: 'time~reserva', priceModel: 'PAY_PER_EVENT', estPerItemUsd: 0.001 }]

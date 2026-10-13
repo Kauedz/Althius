@@ -245,7 +245,7 @@ Deno.test('C1: a contagem trabalhista e tributária usa o tipo de tribunal e, na
 
 const pubDou = (extra: Record<string, unknown>) => ({
   url_title: 'portaria-1', secao: 'do1', tipo: 'Portaria', titulo: 'PORTARIA Nº 1, DE 5 DE OUTUBRO DE 2026', orgao: 'Agência Nacional de Energia Elétrica',
-  orgao_path: 'Ministério de Minas e Energia/Agência Nacional de Energia Elétrica', ementa: 'Altera as regras do mercado livre de energia elétrica. Processo do CPF 123.456.789-09.',
+  orgao_path: 'Ministério de Minas e Energia/Agência Nacional de Energia Elétrica', ementa: 'Altera as regras do mercado livre de energia elétrica da agência reguladora. Processo do CPF 123.456.789-09.',
   data: '08/10/2026', url: 'https://www.in.gov.br/en/web/dou/-/portaria-1', termo_encontrado: 'agência reguladora', ...extra,
 })
 const PUBS = [
@@ -308,11 +308,65 @@ Deno.test('C2: se o modelo falha, a regra de palavras-chave assume e a evidênci
   assertStringIncludes(r.mercado[0].evidence, 'palavras-chave')
 })
 
+function defC2Monitor(): CascataDef {
+  const d = defC2({ capUsd: 0.8 })
+  d.steps[0] = {
+    ...d.steps[0],
+    actorId: DOU_MONITOR,
+    estFixedUsd: 0.1,
+    estPerItemUsd: 0.01,
+    estItems: 10,
+    maxItems: 20,
+    fallbacks: [{ kind: 'actor', actorId: JENKO, priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.2, estPerItemUsd: 0.0001 }],
+    inputTemplate: { termos: TERMOS_DOU, secao: 'do1', janelaDias: 7 },
+  }
+  d.steps[1] = { ...d.steps[1], inputTemplate: { janelaDias: 7 } }
+  return d
+}
+
+Deno.test('C2: o monitor é o principal; ato fora da data e sem a frase dispara a reserva mesmo com execução bem-sucedida', async () => {
+  const anvisaAbril = {
+    data: '08/04/2026', secao: 'do1', tipo: 'Resolução', titulo: 'Resolução da ANVISA', orgao: 'Agência Nacional de Vigilância Sanitária',
+    ementa: 'Dispõe sobre registro de medicamento.', url: 'https://www.in.gov.br/web/dou/-/anvisa-abril', termo_encontrado: 'anvisa',
+  }
+  const certo = pubDou({
+    data: '12/10/2026', url: 'https://www.in.gov.br/web/dou/-/lc-1', url_title: 'lc-1', tipo: 'Instrução Normativa',
+    orgao: 'Receita Federal do Brasil', titulo: 'INSTRUÇÃO NORMATIVA Nº 9', ementa: 'Dispõe sobre a CBS e o IBS na reforma tributária.',
+    termo_encontrado: 'CBS',
+  })
+  const c = cenario(defC2Monitor(), {
+    [DOU_MONITOR]: { itens: [anvisaAbril], usageTotalUsd: 0.12 },
+    [JENKO]: { itens: [certo], usageTotalUsd: 0.2 },
+  })
+  const r = await c.rodar()
+  assertEquals(c.posts().map((p) => p.caminho.split('/')[3]), [DOU_MONITOR, JENKO])
+  assertEquals(c.posts()[0].corpo, { q: TERMOS_DOU, s: 'DO1' })
+  assertEquals(r.desfecho, 'concluida')
+  assertEquals(r.mercado.map((m) => m.eventKey), ['dou|lc-1'])
+  assert(!JSON.stringify(r).includes('medicamento'))
+  assert(!MARCA_INTERNA.test(JSON.stringify(r)))
+})
+
+Deno.test('C2: palavra solta não vira Sinal; só a publicação com a frase exata do termo', async () => {
+  const solta = pubDou({
+    data: '12/10/2026', url: 'https://www.in.gov.br/web/dou/-/solta', url_title: 'solta',
+    titulo: 'Resolução sobre a reforma do marco', orgao: 'Agência Nacional de Energia Elétrica',
+    ementa: 'Altera regra de energia elétrica. Não cita o tributo novo.', termo_encontrado: 'reforma',
+  })
+  const c = cenario(defC2Monitor(), {
+    [DOU_MONITOR]: { itens: [solta], usageTotalUsd: 0.11 },
+    [JENKO]: { itens: [], usageTotalUsd: 0.05 },
+  })
+  const r = await c.rodar()
+  assertEquals(c.posts().map((p) => p.caminho.split('/')[3]), [DOU_MONITOR, JENKO])
+  assertEquals(r.mercado.length, 0)
+})
+
 Deno.test('C2: o actor principal falha e o alternativo (monitor do DOU) assume com a entrada e a saída dele', async () => {
   const c = cenario(defC2(), {
     [JENKO]: { estados: ['FAILED'], mensagem: 'boom', usageTotalUsd: 0 },
     [DOU_MONITOR]: {
-      itens: [{ secao: 'DO1', data: '09/10/2026', titulo: 'Resolução ANATEL', tipo: 'Resolução', resumo: 'Regulamento de telecomunicações.', url: 'https://www.in.gov.br/web/dou/-/resolucao-77', termoBuscado: 'agência reguladora', orgao: 'Agência Nacional de Telecomunicações' }],
+      itens: [{ secao: 'DO1', data: '09/10/2026', titulo: 'Resolução ANATEL', tipo: 'Resolução', resumo: 'Regulamento de telecomunicações da agência reguladora.', url: 'https://www.in.gov.br/web/dou/-/resolucao-77', termoBuscado: 'agência reguladora', orgao: 'Agência Nacional de Telecomunicações' }],
       usageTotalUsd: 0.11,
     },
   })

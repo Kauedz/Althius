@@ -7,9 +7,9 @@
 //   impacto_reforma_cnae  (C4) tabela interna CNAE → impacto + amostra de empresas ativas do CNAE (actor) → Sinal de MERCADO.
 // Esquemas de entrada e saída dos actors: lidos na API pública da Apify Store em 13/10/2026 (ver a migração).
 // Fica DESLIGADO o actor de processos individuais (traz partes, inclusive pessoa física): ver as decisões da migração.
-import { LIMITES, mesmaEmpresa, nomeDaEmpresa, normalizar, objetos, primeiroTexto, recortar } from '../../../signal-runner/adaptadores/comum.ts'
+import { contemAlgum, LIMITES, mesmaEmpresa, nomeDaEmpresa, normalizar, objetos, primeiroTexto, recortar } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ContextoDoPasso, ImplDoPasso, Item, Llm, RegistroDePassos } from '../tipos.ts'
-import { cnpjLimpo, dataIso, janelaDoPasso, listaDoPasso, objeto, texto } from './comum.ts'
+import { cnpjLimpo, dataIso, dentroDoPeriodo, janelaDoPasso, listaDoPasso, objeto, texto } from './comum.ts'
 import { type EmpresaDoFato, type Fato, itemDeEmpresaComFatos } from './empresas.ts'
 import {
   IMPACTO_DA_REFORMA, type ImpactoDoSetor, SETOR_DA_REFORMA, classificarPorPalavras, divisaoDoCnae, impactoDaDivisao,
@@ -168,11 +168,23 @@ function dataDoDou(v: unknown): string | null {
 /** CPF (com ou sem máscara) que apareça num texto do Diário Oficial nunca segue adiante. */
 const semCpf = (t: string) => t.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b|\*{3}\.?\d{3}\.?\d{3}-?\*{2}/g, '[cpf omitido]')
 
+/** Os termos desta busca, para a regra do passo seguinte (o modelo dela pode não repetir a lista). */
+const TERMOS_DOU = 'termosDou'
+
+function termosDoDou(ctx: ContextoDoPasso): string[] {
+  const doPasso = listaDoPasso(ctx, 'termos', 'termos')
+  if (doPasso.length) return doPasso
+  const guardados = ctx.memoria.get(TERMOS_DOU)
+  return Array.isArray(guardados) ? guardados.filter((t): t is string => typeof t === 'string' && t.length > 0) : []
+}
+
 const douPublicacoes: ImplDoPasso = {
   montarEntrada(_entrada, ctx, actorId) {
     const termos = listaDoPasso(ctx, 'termos', 'termos')
     if (!termos.length) return { pular: 'Sem termo de busca no Diário Oficial.' }
+    ctx.memoria.set(TERMOS_DOU, termos)
     const maximo = ctx.def.maxItems ?? 50
+    // O monitor da Seção 1 olha cerca de 3 dias e casa palavra solta: a frase exata fica no normalizar.
     if (actorId.startsWith('brasildados~')) return { input: { q: termos.slice(0, 30), s: 'DO1' }, maxItems: maximo }
     return {
       input: { mode: 'monitorar', termos, secao: 'do1', dias: janelaDoPasso(ctx), max_resultados: maximo, texto_completo: false },
@@ -180,22 +192,32 @@ const douPublicacoes: ImplDoPasso = {
     }
   },
 
-  normalizar(brutos) {
+  normalizar(brutos, _entrada, ctx) {
+    const termos = termosDoDou(ctx)
+    const janela = janelaDoPasso(ctx)
     const vistas = new Set<string>()
     return objetos(brutos).flatMap((b): Item[] => {
       const url = primeiroTexto(b, 'url')
       const data = dataDoDou(b.data)
       const titulo = semCpf(primeiroTexto(b, 'titulo'))
+      const tipoAto = primeiroTexto(b, 'tipo')
+      const ementa = semCpf(primeiroTexto(b, 'ementa', 'resumo'))
       if (!data || !titulo || (url && vistas.has(url))) return []
+      // A palavra achada pela fonte não prova a frase: o texto do ato tem de trazer o termo, dentro da janela.
+      if (termos.length && !contemAlgum(`${titulo} ${ementa} ${tipoAto}`, termos)) return []
+      if (!dentroDoPeriodo(data, ctx.agora, janela)) return []
       if (url) vistas.add(url)
       const hierarquia = Array.isArray(b.hierarquia) ? b.hierarquia.filter((x): x is string => typeof x === 'string') : []
       return [{
-        tipo: 'publicacao_dou', titulo, tipoAto: primeiroTexto(b, 'tipo'), url, data,
-        orgao: primeiroTexto(b, 'orgao') || hierarquia.at(-1) || '', ementa: semCpf(primeiroTexto(b, 'ementa', 'resumo')),
+        tipo: 'publicacao_dou', titulo, tipoAto, url, data,
+        orgao: primeiroTexto(b, 'orgao') || hierarquia.at(-1) || '', ementa,
         secao: primeiroTexto(b, 'secao'), termo: primeiroTexto(b, 'termo_encontrado', 'termoBuscado'),
       }]
     })
   },
+
+  /** Bruto que some inteiro no filtro (fora da frase ou da data) não serve: a alternativa assume. */
+  confereConsulta: (_brutos, saida) => saida.length > 0,
 }
 
 // Ato de pessoal cita nome de pessoa: fica fora antes de qualquer classificação e nunca vai ao modelo.
@@ -242,10 +264,13 @@ const MAX_SINAIS_DOU = 10
 const classificarMudanca: ImplDoPasso = {
   async executar(entrada, ctx) {
     const janela = janelaDoPasso(ctx)
-    const pubs = entrada.filter((i) =>
-      i.tipo === 'publicacao_dou' && Date.parse(texto(i.data)) >= ctx.agora - janela * DIA &&
-      !ATO_DE_PESSOAL.test(normalizar(`${texto(i.tipoAto)} ${texto(i.titulo)} ${texto(i.ementa)}`))
-    )
+    const termos = termosDoDou(ctx)
+    const pubs = entrada.filter((i) => {
+      if (i.tipo !== 'publicacao_dou' || Date.parse(texto(i.data)) < ctx.agora - janela * DIA) return false
+      const corpo = `${texto(i.tipoAto)} ${texto(i.titulo)} ${texto(i.ementa)}`
+      if (ATO_DE_PESSOAL.test(normalizar(corpo))) return false
+      return !termos.length || contemAlgum(corpo, termos)
+    })
     let porModelo: Map<number, Classificada> | null = null
     if (ctx.llm && pubs.length) {
       try {

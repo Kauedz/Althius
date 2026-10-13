@@ -6,9 +6,9 @@
 //   setor_afetado_cbs_ibs        (B4) Sinal de MERCADO: um setor da tabela interna (icp-b-cnae.ts), dimensionado por amostra
 // Dado pessoal: o Sinal é da empresa. O quadro societário nunca chega a Sinal, evidência, chave nem fotografia com nome ou
 // documento: guarda-se só a contagem e um código curto por sócio (hash truncado do CNPJ e do nome), que serve para ver se
-// alguém entrou e não permite voltar ao nome. Razão social de empresário individual (nome de pessoa e CPF) é trocada por um
-// texto neutro. Formatos de entrada e saída: esquemas publicados de cada fonte (leitura de 13/10/2026); o que não pôde ser
-// conferido está no relatório da fatia.
+// alguém entrou e não permite voltar ao nome. MEI e empresário individual (natureza 213-5 e naturezas de pessoa, ou razão
+// com CPF) são descartados antes de virar item: não há Sinal nem nome neutro. Formatos de entrada e saída: esquemas
+// publicados de cada fonte (leitura de 13/10/2026); o que não pôde ser conferido está no relatório da fatia.
 import { createHash } from 'node:crypto'
 import { LIMITES, normalizar, objetos, primeiroTexto, recortar } from '../../../signal-runner/adaptadores/comum.ts'
 import { nomeDoMes } from '../comexstat.ts'
@@ -23,7 +23,8 @@ const FONTE_SETOR = 'Receita Federal (CNPJ) e critério interno de setores'
 const AVISO_BASE_MENSAL =
   'A base da Receita é mensal e chega com até cerca de 30 dias de atraso: o fato pode ter ocorrido antes de aparecer aqui.'
 const MAX_SOCIOS_NA_FOTOGRAFIA = 300
-const NOME_NEUTRO = 'Empresário individual'
+/** Naturezas jurídicas de pessoa (só os dígitos): empresário individual, produtor rural e assemelhados. EIRELI (2305) fica. */
+const NATUREZAS_DE_PESSOA = new Set(['2135', '4014', '4081', '4090', '4120'])
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Pequenos auxiliares.
@@ -67,10 +68,17 @@ function nomeDoMesIso(iso: string): string {
 
 const inicioDoMes = (agora: number) => `${new Date(agora).toISOString().slice(0, 7)}-01T00:00:00.000Z`
 
-/** Razão social que é nome de pessoa: empresário individual (natureza 2135) ou nome com CPF no fim. */
-function pareceNomeDePessoa(razao: string, natureza: string): boolean {
-  const n = normalizar(natureza)
-  return !razao || n === '2135' || n.startsWith('empresario') || /\d{11}\b/.test(razao)
+/** MEI, empresário individual e razão que é nome de pessoa (com ou sem CPF). Não vira Sinal. */
+function ehEntidadeDePessoa(razao: string, natureza: string, mei: boolean): boolean {
+  if (mei || !razao) return true
+  const digitos = natureza.replace(/\D/g, '')
+  if (digitos && NATUREZAS_DE_PESSOA.has(digitos)) return true
+  if (normalizar(natureza).startsWith('empresario')) return true
+  return /\d{11}\b/.test(razao)
+}
+
+function marcadoComoMei(b: Record<string, unknown>): boolean {
+  return [b.mei, b.opcaoMei, b.opcao_mei, b.opcao_pelo_mei, b.opcaoPeloMei].some((v) => v === true || normalizar(v) === 'sim')
 }
 
 function listaDoPedido(ctx: ContextoDoPasso, ...chaves: string[]): string[] {
@@ -128,8 +136,8 @@ interface EmpresaNova {
 
 function itemDeEmpresaNova(e: EmpresaNova): Item | null {
   const quando = quandoDoFato(e.inicio)
-  if (!e.cnpj || !quando) return null
-  const nome = pareceNomeDePessoa(e.razao, e.natureza) ? NOME_NEUTRO : recortar(e.razao, 150)
+  if (!e.cnpj || !quando || ehEntidadeDePessoa(e.razao, e.natureza, false)) return null
+  const nome = recortar(e.razao, 150)
   const partes = [
     `início de atividade em ${dataBr(quando)}`,
     e.cnae ? `CNAE ${mascaraCnae(e.cnae)}` : '',
@@ -219,7 +227,7 @@ const cnpjNovosDaReceita: ImplDoPasso = {
           uf: texto(b.uf).toUpperCase(), porte: porteCanonico(b.porte), baseDeReferencia: defasada && /^\d{4}-\d{2}$/.test(mesIndice) ? nomeDoMesIso(`${mesIndice}-01`) : '',
         }
       }
-      if (vistos.has(nova.cnpj)) return []
+      if (vistos.has(nova.cnpj) || ehEntidadeDePessoa(nova.razao, nova.natureza, marcadoComoMei(b))) return []
       vistos.add(nova.cnpj)
       const item = itemDeEmpresaNova(nova)
       return item ? [item] : []

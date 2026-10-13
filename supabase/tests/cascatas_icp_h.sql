@@ -19,7 +19,7 @@ select is(
   array['calendario_de_safra'], 'o passo do calendário de safra');
 select is(
   (select s.actor_id || ' > ' || (s.fallbacks -> 0 ->> 'actorId') from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'nova_cooperativa' and s.ordem = 1),
-  'epicscrapers~brazil-cnpj-scraper > johnatan029~cnpj-new-companies', 'a base por natureza jurídica e a alternativa por CNAE');
+  'johnatan029~cnpj-new-companies > epicscrapers~brazil-cnpj-scraper', 'empresas novas do agro e, na reserva, a base por natureza jurídica');
 select is(
   (select s.actor_id from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'liberacao_plano_safra' and s.ordem = 1),
   'data_xplorer~google-news-scraper-fast', 'a busca de notícias do Plano Safra');

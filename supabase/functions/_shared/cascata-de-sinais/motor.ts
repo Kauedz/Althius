@@ -8,6 +8,8 @@
 //
 // Decisões:
 //  - passo sem itens encerra a cascata sem rodar nem cobrar o resto;
+//  - se o passo declara `confereConsulta` e o principal devolve itens que não conferem com a consulta nem com a janela,
+//    a alternativa assume (o mesmo caminho da falha). Lista vazia de verdade não dispara a alternativa;
 //  - sem crédito em todas as contas é falha da fonte inteira: o actor alternativo não é tentado (é a mesma conta);
 //  - falha ou aborto DEPOIS de os Sinais estarem confirmados (um enriquecimento que falha, o teto no passo de Receita)
 //    grava os Sinais confirmados e a execução fica "parcial"; antes disso, nada é gravado e só o consumido é cobrado;
@@ -338,7 +340,20 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
         })
         const custo = exec.custoUsd ?? estimativa
         gasto = arredondar(gasto + custo)
-        const saida = impl.normalizar!(exec.items, entradaDoPasso, ctx, actorId ?? '')
+        const brutos = Array.isArray(exec.items) ? exec.items : []
+        const saida = impl.normalizar!(brutos, entradaDoPasso, ctx, actorId ?? '')
+        // Bruto não vazio que não confere com a consulta nem com a janela: a alternativa assume. Lista vazia de verdade não.
+        const foraDaConsulta = brutos.length > 0 && impl.confereConsulta !== undefined &&
+          !impl.confereConsulta(brutos, saida, ctx, actorId ?? '')
+        if (foraDaConsulta) {
+          await db.fecharPasso({
+            passoId, estado: 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
+            itensSaida: 0, custoUsd: exec.custoUsd, statusHttp: null,
+            erroReal: 'O resultado não confere com a consulta nem com a janela de datas.',
+          })
+          if (i < tentativas.length - 1) continue
+          return { tipo: 'vazio', saida: [], custoUsd: gasto }
+        }
         await db.fecharPasso({
           passoId, estado: saida.length ? 'succeeded' : 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
           itensSaida: saida.length, custoUsd: exec.custoUsd, statusHttp: null,

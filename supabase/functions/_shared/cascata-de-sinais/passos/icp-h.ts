@@ -149,6 +149,9 @@ const cooperativasAbertas: ImplDoPasso = {
     }
     return saida
   },
+
+  /** Cooperativa baixada, antiga ou fora do agro não conta: se o bruto não passou no filtro, a outra base assume. */
+  confereConsulta: (_brutos, saida) => saida.length > 0,
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
