@@ -1,0 +1,28 @@
+=== VERMELHO: icp-b-cnae.test.ts (modulo ainda nao existe) ===
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-b-cnae.test.ts
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/.claude/worktrees/agent-a080fe854a75de963/supabase/functions/_shared/cascata-de-sinais/passos/icp-b-cnae.ts'.
+    at file:///home/user/Althius/.claude/worktrees/agent-a080fe854a75de963/supabase/functions/_shared/cascata-de-sinais/passos/icp-b-cnae.test.ts:4:92
+
+TS7006 [ERROR]: Parameter 's' implicitly has an 'any' type.
+  const codigos = SETORES_AFETADOS.map((s) => s.cnae)
+                                        ^
+    at file:///home/user/Althius/.claude/worktrees/agent-a080fe854a75de963/supabase/functions/_shared/cascata-de-sinais/passos/icp-b-cnae.test.ts:9:41
+
+Found 2 errors.
+
+error: Type checking failed.
+
+=== VERMELHO: icp-b.test.ts (passos ainda nao implementados; stub vazio) ===
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-b.test.ts
+TS2305 [ERROR]: Module '"file:///home/user/Althius/.claude/worktrees/agent-a080fe854a75de963/supabase/functions/_shared/cascata-de-sinais/passos/icp-b.ts"' has no exported member 'idDoSocio'.
+import { passosDoIcp_b, idDoSocio } from './icp-b.ts'
+                        ~~~~~~~~~
+    at file:///home/user/Althius/.claude/worktrees/agent-a080fe854a75de963/supabase/functions/_shared/cascata-de-sinais/passos/icp-b.test.ts:12:25
+
+error: Type checking failed.
+
+  info: The program failed type-checking, but it still might work correctly.
+  hint: Re-run with --no-check to skip type-checking.
+
+Stack backtrace:
+   0: <unknown>
