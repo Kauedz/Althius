@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(16);
+select plan(14);
 
 -- A leitura da tela para os Sinais de mercado (ticket 16): só o feed do ICP do Workspace de quem participa, sem dado
 -- pessoal e sem o que a cascata guarda por dentro (fonte, evidência, chave, payload).

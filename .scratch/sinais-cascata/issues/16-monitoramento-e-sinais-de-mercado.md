@@ -71,7 +71,7 @@
    $apply$;
    ```
 
-   Conferir que `md5(statements[1])` em `supabase_migrations.schema_migrations` bate com o hash do arquivo, e que os avisores de segurança não mostram nada novo. O pgTAP é `supabase/tests/sinais_de_mercado_na_tela.sql` (`plan(16)`).
+   Conferir que `md5(statements[1])` em `supabase_migrations.schema_migrations` bate com o hash do arquivo, e que os avisores de segurança não mostram nada novo. O pgTAP é `supabase/tests/sinais_de_mercado_na_tela.sql` (`plan(14)`).
 
 2. Publicar o frontend pelo fluxo normal do repositório. Não há função nova para publicar.
 
@@ -85,7 +85,7 @@
 
 ## Comments
 
-- 2026-10-13: código na branch `cursor/monitoramento-e-sinais-de-mercado-2567`. PR: https://github.com/Kauedz/Althius/pull/195 (não mergear daqui). Vitest do botão, do fluxo, da vista e da Fonte ficou vermelho antes da implementação e verde depois. Suíte inteira do frontend: 139 arquivos, 1252 testes, exit 0. `npx tsc -b` limpo. oxlint sem erro. pgTAP `plan(16)` não rodou aqui (sem Postgres, Docker nem Supabase CLI); o job Banco do CI executa `supabase/tests/sinais_de_mercado_na_tela.sql`. No Chrome, `/sinais?demo=true`: cartão a 390 px com 290 px de largura (antes ~62), sem rolagem horizontal; a 360 px, 260 px; a 1400×900, grade de várias colunas. A Demonstração não traz cascata, então o botão e a vista de mercado foram exercitados no Vitest, não no navegador.
+- 2026-10-13: código na branch `cursor/monitoramento-e-sinais-de-mercado-2567`. PR: https://github.com/Kauedz/Althius/pull/195 (não mergear daqui). Vitest do botão, do fluxo, da vista e da Fonte ficou vermelho antes da implementação e verde depois. Suíte inteira do frontend: 139 arquivos, 1252 testes, exit 0. `npx tsc -b` limpo. oxlint sem erro. pgTAP `plan(14)` não rodou aqui (sem Postgres, Docker nem Supabase CLI); o job Banco do CI executa `supabase/tests/sinais_de_mercado_na_tela.sql`. No Chrome, `/sinais?demo=true`: cartão a 390 px com 290 px de largura (antes ~62), sem rolagem horizontal; a 360 px, 260 px; a 1400×900, grade de várias colunas. A Demonstração não traz cascata, então o botão e a vista de mercado foram exercitados no Vitest, não no navegador.
 
 ![Sinais a 390 px](prints/16-sinais-390.jpg)
 
