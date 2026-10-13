@@ -1,0 +1,93 @@
+$ deno test -A supabase/functions/_shared/cascata-de-sinais/passos/icp-e*.test.ts   # VERMELHO (antes da implementação)
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-e-vagas.test.ts
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-e.test.ts
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-e-xlsx.test.ts
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/.claude/worktrees/agent-ab109811d4024fb2c/supabase/functions/_shared/cascata-de-sinais/passos/icp-e-noticias.ts'.
+    at file:///home/user/Althius/.claude/worktrees/agent-ab109811d4024fb2c/supabase/functions/_shared/cascata-de-sinais/passos/icp-e.test.ts:14:33
+
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/.claude/worktrees/agent-ab109811d4024fb2c/supabase/functions/_shared/cascata-de-sinais/passos/icp-e-xlsx.ts'.
+    at file:///home/user/Althius/.claude/worktrees/agent-ab109811d4024fb2c/supabase/functions/_shared/cascata-de-sinais/passos/icp-e-xlsx.test.ts:4:45
+
+TS2322 [ERROR]: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+  Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+  const flux = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))
+                         ~~~~~
+    at file:///home/user/Althius/.claude/worktrees/agent-ab109811d4024fb2c/supabase/functions/_shared/cascata-de-sinais/passos/icp-e-xlsx-falso.ts:32:26
+
+TS7006 [ERROR]: Parameter 'n' implicitly has an 'any' type.
+  const achados = await lerZip(bytes, (n) => n === 'a.txt')
+                                       ^
+    at file:///home/user/Althius/.claude/worktrees/agent-ab109811d4024fb2c/supabase/functions/_shared/cascata-de-sinais/passos/icp-e-xlsx.test.ts:33:40
+
+TS2345 [ERROR]: Argument of type 'Uint8Array<ArrayBufferLike>' is not assignable to parameter of type 'BodyInit | null | undefined'.
+  Type 'Uint8Array<ArrayBufferLike>' is missing the following properties from type 'URLSearchParams': append, delete, getAll, get, and 2 more.
+      return Promise.resolve(new Response(opcoes.finep, { status: 200, headers: { 'content-length': String(opcoes.finep.length) } }))
+                                          ~~~~~~~~~~~~
+    at file:///home/user/Althius/.claude/worktrees/agent-ab109811d4024fb2c/supabase/functions/_shared/cascata-de-sinais/passos/icp-e.test.ts:119:43
+
+Found 5 errors.
+
+error: Type checking failed.
+
+  info: The program failed type-checking, but it still might work correctly.
+  hint: Re-run with --no-check to skip type-checking.
+
+Stack backtrace:
+   0: <unknown>
+
+$ deno test -A supabase/functions/_shared/cascata-de-sinais/passos/icp-e*.test.ts   # VERDE (depois da implementação)
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-e-vagas.test.ts
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-e.test.ts
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-e-xlsx.test.ts
+running 4 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-e-vagas.test.ts
+E: a vaga de engenharia ou manutenção de uma Conta vira Sinal pela mesma cascata do A1, com os termos da indústria ... ok (20ms)
+E: técnico de manutenção, vaga com mais de 7 dias e vaga de comex não viram Sinal ... ok (1ms)
+E: os termos de confirmação do pedido valem mais que os do modelo ... ok (1ms)
+E: a mesma vaga, em outra rodada, não cria o Sinal duas vezes ... ok (1ms)
+running 20 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-e.test.ts
+financiamento: o BNDES e a Finep viram um Sinal por contrato da Conta, casando pelo CNPJ ou pelo nome ... ok (42ms)
+financiamento: o recurso do BNDES é achado pelo nome, a lista vem do mais novo para o mais antigo e para na janela ... ok (2ms)
+financiamento: com páginas pequenas, pede a seguinte enquanto a janela não acabou ... ok (1ms)
+financiamento: no máximo 3 contratos por empresa (os maiores) e CPF ou CNPJ inválido é descartado ... ok (1ms)
+financiamento: a mesma rodada de novo (outra chave) não grava de novo ... ok (6ms)
+financiamento: se o BNDES cai, a Finep segue; se as duas caem, a execução falha com mensagem neutra e sem custo ... ok (2s)
+financiamento: a janela do pedido (período) vale mais que a do modelo ... ok (4ms)
+financiamento: o actor alternativo (registrado, ainda não executado pelo motor) monta a entrada e lê a saída do esquema publicado ... ok (1ms)
+expansão (regra de palavra-chave, sem modelo): a empresa da manchete casa com a Conta e vira um Sinal por mês ... ok (5ms)
+expansão (com modelo): o modelo extrai a empresa e o local, o custo dele soma ao da execução e a evidência marca a classificação ... ok (1ms)
+expansão: se o modelo falha, o lote cai na regra de palavra-chave e a execução segue ... ok (1ms)
+expansão: o modelo devolvendo lixo (ou empresa grande demais) não vira Sinal ... ok (583µs)
+expansão: rodar de novo não grava de novo ... ok (1ms)
+expansão: sem notícia útil, a cascata termina sem Sinal e sem rodar a Receita ... ok (478µs)
+expansão: a empresa da notícia que não é Conta só é contada ... ok (564µs)
+a regra de palavra-chave acha a empresa na manchete e recusa o que não é empresa ... ok (900µs)
+licença de instalação no DOU: vira Sinal de mercado, só a publicação que traz a expressão, sem pessoa física ... ok (2ms)
+licença de instalação no DOU: a entrada do actor segue o esquema publicado e a janela de 14 dias ... ok (920µs)
+licença de instalação no DOU: rodar de novo não grava de novo; sem publicação útil, termina sem Sinal ... ok (1ms)
+licença estadual e importação de máquinas por empresa: sem fonte, o motivo sai em palavras do produto e nada é reservado ... ok (931µs)
+running 4 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-e-xlsx.test.ts
+as abas pedidas voltam como linhas por título de coluna, mesmo com título e "Posição" antes do cabeçalho ... ok (15ms)
+aba que não existe volta vazia; arquivo que não é zip falha com mensagem clara ... ok (2ms)
+o zip sem compressão (método 0) também é lido ... ok (1ms)
+o número de série do Excel vira data ISO (meio-dia UTC) ... ok (145µs)
+
+ok | 28 passed | 0 failed (2s)
+
+
+$ deno test -A supabase/functions/_shared/cascata-de-sinais   # suíte inteira
+ok | 101 passed | 0 failed (3s)
+
+
+$ deno check supabase/functions/*/index.ts
+0
+(0 = nenhum erro)
+
+$ scripts/pgtap-local.sh pgtap_icp_e supabase/tests/cascatas_icp_e.sql
+ok     cascatas_icp_e.sql: 31/31
+
+--- Conferência contra as fontes reais (13/10/2026, só leitura, sem token) ---
+finepContratos sobre o Contratacao.xlsx real (7,5 MB, janela 30 dias): 422 ms, 19 empresas
+bndesOperacoes contra o CKAN real (janela 90 dias): 7,4 s, 62 empresas (primeiro: DESTILARIA AGUA BONITA LTDA, bndes|26901201, R$ 50 mi)
