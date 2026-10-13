@@ -1,5 +1,16 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Sinais em cascata — cache das fontes e segunda passagem (2026-10-13)
+
+- **Ticket:** `.scratch/sinais-cascata/issues/16-cache-fontes-e-segunda-passagem.md`
+- **Status:** ready-for-human (código e Deno verdes; falta o Nan aplicar a migração e publicar as funções, com o CI verde)
+- **Branch:** `cursor/cache-fontes-e-validacao-5fcf`
+- **PR:** (preencher com a URL ao abrir)
+- **O que muda:** cópia mensal da estatística de comércio exterior e da lista de consumidores livres; espera 10/20/40 s e execução `adiado` sem crédito; CSV oficial do mesmo recurso quando a busca da lista bloqueia; `validacao: true` compara a fotografia na hora. O relógio diário, onde o agendador existe, pede o aquecimento ao `signal-runner`.
+- **Migração nova (não aplicar daqui):** `supabase/migrations/20261014200000_cache_de_fontes_e_execucao_adiada.sql`. Sem deploy. Sem escrita no projeto remoto.
+- **Testes (2026-10-13):** `deno check supabase/functions/*/index.ts` limpo. `deno test supabase/functions` 1344 passed / 0 failed / 34 ignored. Com `--allow-read`, mapa + icp-c + icp-g + icp-h: 77 passed / 0 failed. pgTAP novo não rodou aqui (sem Postgres); o job Banco do CI executa `supabase/tests/cache_de_fontes_publicas.sql` (16 asserts).
+- **O que o humano roda, depois do CI verde:** aplicar essa migração no `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico (`docs/agents/migrations.md`) e publicar `signal-cascade` e `signal-runner`. Comandos no ticket, seção Passos do Nan. Não marcar cascata como disponível.
+
 ## Sinais em cascata — validação de produção de 13/10/2026
 
 - **Ticket:** `.scratch/sinais-cascata/issues/15-validacao-de-produccao-2026-10-13.md`

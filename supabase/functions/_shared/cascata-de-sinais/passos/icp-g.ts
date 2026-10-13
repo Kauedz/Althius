@@ -35,7 +35,7 @@ async function escolherContas<T extends { conta: ContaDoWorkspace }>(
   ctx: ContextoDoPasso,
   padraoDoIntervalo: number,
 ): Promise<(T & { foto?: Fotografia })[]> {
-  const intervalo = numero(ctx, 'intervaloMinimoDias', padraoDoIntervalo) * DIA_EM_MS
+  const intervalo = (ctx.criterios.segundaPassagem === true ? 0 : numero(ctx, 'intervaloMinimoDias', padraoDoIntervalo)) * DIA_EM_MS
   const limite = ctx.def.maxItems ?? 50
   const fotos = candidatas.length ? await ctx.snapshots.ler(candidatas.map((c) => c.conta.id)) : new Map<string, Fotografia>()
   return candidatas

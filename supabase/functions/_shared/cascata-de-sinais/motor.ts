@@ -15,6 +15,7 @@
 //    grava os Sinais confirmados e a execução fica "parcial"; antes disso, nada é gravado e só o consumido é cobrado;
 //  - todo texto de `mensagem` está em palavras do produto: o fornecedor e o actor só aparecem na coluna técnica.
 import { MENSAGEM_DA_FONTE } from '../marca.ts'
+import { FonteAdiada } from './fonte-publica.ts'
 import { modeloDaExecucao } from './llm-da-execucao.ts'
 import { redigir } from './redacao.ts'
 import {
@@ -155,6 +156,7 @@ type ResultadoDoPasso =
   | { tipo: 'teto'; custoUsd: number }
   | { tipo: 'prazo'; custoUsd: number }
   | { tipo: 'falhou'; mensagem: string; custoUsd: number }
+  | { tipo: 'adiado'; mensagem: string; custoUsd: number }
 
 /** A mensagem ao usuário de uma falha da fonte, pelo tipo dela: nunca o texto que a fonte ou o cliente deram. */
 function mensagemDoTipo(tipo: ErroDaFonte['tipo'] | undefined): string {
@@ -230,13 +232,30 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     contas,
     criterios: pedido.criterios ?? {},
     memoria: new Map<string, unknown>(),
+    cacheFonte: {
+      ler: async (fonte: string, chave: string, mes: string | null) => {
+        try {
+          return await db.lerCache({ fonte, chave, mes })
+        } catch (e) {
+          log({ type: 'cascata', outcome: 'cache_read_failed', message: redigir(e instanceof Error ? e.message : e, [], 300) })
+          return null
+        }
+      },
+      gravar: async (fonte: string, chave: string, mes: string, payload: unknown) => {
+        try {
+          await db.gravarCache({ fonte, chave, mes, payload })
+        } catch (e) {
+          log({ type: 'cascata', outcome: 'cache_write_failed', message: redigir(e instanceof Error ? e.message : e, [], 300) })
+        }
+      },
+    },
   }
   const executados: PassoExecutado[] = []
   let acumulado = 0
   let entrada: Item[] = []
   let confirmados: SinalConfirmado[] = []
   let deMercado: SinalDeMercado[] = []
-  let desfechoDaFalha: { estado: 'failed' | 'aborted'; mensagem: string } | null = null
+  let desfechoDaFalha: { estado: 'failed' | 'aborted' | 'adiado'; mensagem: string } | null = null
 
   async function registrar(
     passo: PassoDef,
@@ -282,10 +301,13 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
         })
         return saida.length ? { tipo: 'ok', saida, custoUsd: extra } : { tipo: 'vazio', saida, custoUsd: extra }
       } catch (e) {
+        const adiada = e instanceof FonteAdiada
         await registrar(passo, 1, passo.handler, null, entradaDoPasso.length, {
-          estado: 'failed', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: extra, statusHttp: null,
+          estado: 'failed', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: adiada ? 0 : extra,
+          statusHttp: adiada ? 429 : null,
           erroReal: redigir(e instanceof Error ? `${e.name}: ${e.message}` : e),
         })
+        if (adiada) return { tipo: 'adiado', mensagem: e.message, custoUsd: 0 }
         return { tipo: 'falhou', mensagem: MENSAGEM_DA_FONTE.indisponivel, custoUsd: extra }
       }
     }
@@ -322,10 +344,13 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
           const normalizada = impl.normalizar ? impl.normalizar(saida, entradaDoPasso, ctx, handlerDaTentativa) : saida
           return normalizada.length ? { tipo: 'ok', saida: normalizada, custoUsd: gasto } : { tipo: 'vazio', saida: normalizada, custoUsd: gasto }
         } catch (e) {
+          const adiada = e instanceof FonteAdiada
           await registrar(passo, tentativa, handlerDaTentativa, null, entradaDoPasso.length, {
-            estado: 'failed', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: 0, statusHttp: null,
+            estado: 'failed', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: 0,
+            statusHttp: adiada ? 429 : null,
             erroReal: redigir(e instanceof Error ? `${e.name}: ${e.message}` : e),
           })
+          if (adiada) return { tipo: 'adiado', mensagem: e.message, custoUsd: gasto }
           continue
         }
       }
@@ -454,12 +479,12 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     const estado: PassoExecutado['estado'] = r.tipo === 'ok' ? 'succeeded'
       : r.tipo === 'vazio' ? 'empty'
       : r.tipo === 'pulado' ? 'skipped'
-      : r.tipo === 'falhou' ? 'failed'
+      : r.tipo === 'falhou' || r.tipo === 'adiado' ? 'failed'
       : 'aborted_cap'
     executados.push({ ordem: passo.ordem, handler: passo.handler, estado, itensEntrada: entrada.length, itensSaida: 'saida' in r ? r.saida.length : 0 })
 
-    if (r.tipo === 'falhou') {
-      desfechoDaFalha = { estado: 'failed', mensagem: r.mensagem }
+    if (r.tipo === 'falhou' || r.tipo === 'adiado') {
+      desfechoDaFalha = { estado: r.tipo === 'adiado' ? 'adiado' : 'failed', mensagem: r.mensagem }
       break
     }
     if (r.tipo === 'teto' || r.tipo === 'prazo') {
@@ -513,11 +538,14 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
 
   const temSinais = confirmados.length + deMercado.length > 0
   let desfecho: Desfecho
-  let estado: 'succeeded' | 'partial' | 'aborted' | 'failed'
+  let estado: 'succeeded' | 'partial' | 'aborted' | 'failed' | 'adiado'
   let mensagem: string
   if (desfechoDaFalha) {
     mensagem = desfechoDaFalha.mensagem
-    if (temSinais) {
+    if (desfechoDaFalha.estado === 'adiado') {
+      estado = 'adiado'
+      desfecho = 'adiado'
+    } else if (temSinais) {
       estado = 'partial'
       desfecho = 'parcial'
     } else {
@@ -547,7 +575,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     }
   }
 
-  const custo = arredondar(acumulado)
+  const custo = estado === 'adiado' ? 0 : arredondar(acumulado)
   const fechado = await db.fechar({
     runId, estado, custoUsd: custo, casados: confirmados.length + deMercado.length, novos, repetidos,
     erroAmigavel: estado === 'succeeded' ? null : mensagem,

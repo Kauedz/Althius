@@ -155,6 +155,11 @@ export interface Cascatas {
   rodar(pedido: PedidoDeCascata): Promise<ResultadoDaCascata>
 }
 
+export interface ResultadoDoAquecimento {
+  desfecho: 'concluida' | 'adiado' | 'falhou'
+  mensagem: string
+}
+
 export interface Deps {
   db: Db
   apify: Apify
@@ -163,6 +168,8 @@ export interface Deps {
   cascatas?: Cascatas
   /** A fila de buscas; sem ela, a função cuida só dos Monitoramentos. */
   buscas?: Buscas
+  /** Guarda a estatística de comércio exterior do mês. O corpo `{ action: 'aquecer' }` usa isto e não reivindica Monitoramento. */
+  aquecer?: () => Promise<ResultadoDoAquecimento>
   agora?: () => number
   log?: (campos: Record<string, unknown>) => void
 }
@@ -445,6 +452,31 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (req.method !== 'POST') return responder({ error: 'Método não permitido.' }, 405)
     if (!(await deps.db.tokenMatches(req.headers.get('x-runner-token') ?? ''))) {
       return responder({ error: 'Não autorizado.' }, 401)
+    }
+    let acao: unknown
+    try {
+      const texto = await req.text()
+      if (texto.trim()) {
+        const lido: unknown = JSON.parse(texto)
+        if (!lido || typeof lido !== 'object' || Array.isArray(lido)) return responder({ error: 'Corpo inválido.' }, 400)
+        acao = (lido as { action?: unknown }).action
+      }
+    } catch {
+      return responder({ error: 'Corpo inválido.' }, 400)
+    }
+    // O relógio diário pede só a cópia da estatística. Corpo vazio ou `{}` continua reivindicando Monitoramentos.
+    if (acao === 'aquecer') {
+      if (!deps.aquecer) {
+        return responder({ desfecho: 'falhou', mensagem: 'Não foi possível guardar a estatística de comércio exterior agora.' }, 500)
+      }
+      try {
+        const r = await deps.aquecer()
+        log({ type: 'signal_runner', outcome: `warm_${r.desfecho}` })
+        return responder({ desfecho: r.desfecho, mensagem: r.mensagem })
+      } catch (e) {
+        log({ type: 'signal_runner', outcome: 'warm_failed', message: String(e) })
+        return responder({ desfecho: 'falhou', mensagem: 'Não foi possível guardar a estatística de comércio exterior agora.' }, 500)
+      }
     }
     const prazo = agora() + PRAZO_PARA_COMECAR_EM_MS
     // As buscas primeiro: quem clicou está esperando; os Monitoramentos do relógio podem esperar a próxima volta.

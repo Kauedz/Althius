@@ -260,6 +260,71 @@ Deno.test('D2: se a URL principal bloqueia e a reserva responde, a exclusão usa
   semMarca(r)
 })
 
+const CSV_DA_LISTA = [
+  '_id,MES_REFERENCIA,CNPJ,CLASSE_AGENTE',
+  '1,202610,"11222333000181",Consumidor Livre',
+  '2,202609,33444555000199,Consumidor Especial',
+  '3,202610,99888777000166,Gerador',
+].join('\n')
+
+Deno.test('D2: quando a busca da lista bloqueia, o arquivo da mesma lista faz a exclusão', async () => {
+  const urls: string[] = []
+  const fetchFn = ((u: string | URL | Request) => {
+    const url = String(u)
+    urls.push(url)
+    if (url.includes('/datastore/dump/')) return Promise.resolve(new Response(`\uFEFF${CSV_DA_LISTA}`))
+    return Promise.resolve(new Response('Acesso bloqueado', { status: 403 }))
+  }) as typeof fetch
+  const c = cenario(cascataGrupoACativo(), {
+    'epicscrapers~brazil-cnpj-scraper': {
+      usageTotalUsd: 0.002,
+      itens: [
+        empresaReceita({}),
+        empresaReceita({ cnpj: '33444555000199', razao_social: 'BETA VIDROS LTDA', nome_fantasia: 'BETA' }),
+      ],
+    },
+  }, {
+    contas: [ALFA, { id: 'conta-beta', name: 'Beta Vidros', domain: 'beta.test', linkedinUrl: null, cnpj: '33.444.555/0001-99' }],
+    fetchPublico: fetchFn,
+  })
+  const r = await c.rodar({ criterios: { cnae: '2320600' } })
+  assertEquals(r.desfecho, 'concluida')
+  assertEquals(r.sinais.map((s) => s.eventKey), ['beta vidros|grupo_a_cativo|2026'])
+  assert(r.sinais[0].evidence.includes('202610') && r.sinais[0].evidence.includes('não consta'), r.sinais[0].evidence)
+  assert(urls.some((u) => u === 'https://dadosabertos.ccee.org.br/datastore/dump/2ab64875-9c28-4ccf-931b-0111116bf4e6?bom=True'))
+  assertEquals(await c.banco.db.lerCache({ fonte: 'consumidores_livres', chave: 'lista', mes: '2026-10' }), {
+    raizes: ['11222333'], mes: '202610',
+  })
+  semMarca(r)
+})
+
+Deno.test('D2: a cópia recente da lista exclui sem consultar a rede de novo', async () => {
+  const urls: string[] = []
+  const fetchFn = ((u: string | URL | Request) => {
+    urls.push(String(u))
+    return Promise.resolve(new Response('Acesso bloqueado', { status: 403 }))
+  }) as typeof fetch
+  const c = cenario(cascataGrupoACativo(), {
+    'epicscrapers~brazil-cnpj-scraper': {
+      usageTotalUsd: 0.001,
+      itens: [empresaReceita({ cnpj: '33444555000199', razao_social: 'BETA VIDROS LTDA', nome_fantasia: 'BETA' })],
+    },
+  }, {
+    contas: [{ id: 'conta-beta', name: 'Beta Vidros', domain: 'beta.test', linkedinUrl: null, cnpj: '33.444.555/0001-99' }],
+    fetchPublico: fetchFn,
+  })
+  await c.banco.db.gravarCache({
+    fonte: 'consumidores_livres', chave: 'lista', mes: '2026-10',
+    payload: { raizes: ['11222333'], mes: '202610' },
+  })
+  const r = await c.rodar({ criterios: { cnae: '2320600' } })
+  assertEquals(urls, [])
+  assertEquals(r.sinais.map((s) => s.eventKey), ['beta vidros|grupo_a_cativo|2026'])
+  assert(r.sinais[0].evidence.includes('não consta') && r.sinais[0].evidence.includes('202610'), r.sinais[0].evidence)
+  assert(!JSON.stringify(r).includes('cópia') && !JSON.stringify(r).toLowerCase().includes('cache'))
+  semMarca(r)
+})
+
 Deno.test('D2: se a lista não cabe no limite de leitura, nenhum "provável cativo" é afirmado', async () => {
   // A lista tem 100 CNPJs e o modelo só deixa ler 2 páginas de 10: incompleta, então não vale como exclusão.
   const def = cascataGrupoACativo()
@@ -347,6 +412,22 @@ Deno.test('D3: a primeira rodada só grava a fotografia (falta base) e a segunda
   // A fotografia nova só entra no fim (depois do Sinal gravado): 3 filiais, 2 ativas.
   assertEquals(c2.banco.gravadas.map((g) => [g.chave, g.data.ordens, g.data.total, g.data.ativas]), [['11222333', [ORDEM_2, ORDEM_3, '0004'], 3, 2]])
   semMarca(b)
+})
+
+Deno.test('D3: a base de hoje, na segunda passagem, só vira Sinal se a filial é nova', async () => {
+  const hoje = new Date(AGORA).toISOString()
+  const base = { mes: '2026-09', ordens: [ORDEM_2], total: 1, ativas: 1, truncado: false }
+  const igual = cenario(cascataNovaPlantaFilial(), {
+    'johnatan029~branch-network': { itens: [mapa([{ ordem: ORDEM_2, uf: 'SC' }]), resumo], usageTotalUsd: 0.01 },
+  }, { contas: [ALFA], fotografias: { '11222333': [{ takenAt: hoje, data: base }] } })
+  assertEquals((await igual.rodar({ criterios: { segundaPassagem: true } })).novos, 0)
+
+  const nova = cenario(cascataNovaPlantaFilial(), {
+    'johnatan029~branch-network': { itens: [mapa([{ ordem: ORDEM_2, uf: 'SC' }, { ordem: ORDEM_3, uf: 'PR', inicio: '2026-09-14' }]), resumo], usageTotalUsd: 0.01 },
+  }, { contas: [ALFA], fotografias: { '11222333': [{ takenAt: hoje, data: base }] } })
+  const r = await nova.rodar({ criterios: { segundaPassagem: true } })
+  assertEquals(r.novos, 1)
+  assertEquals(r.sinais[0].eventKey, `alfa cimentos|filial|${cnpjFilial(ORDEM_3)}00`)
 })
 
 Deno.test('D3: sem notícia, o Sinal sai do mesmo jeito (o reforço não filtra); repetir a rodada não grava de novo', async () => {

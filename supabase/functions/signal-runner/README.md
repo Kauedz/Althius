@@ -47,3 +47,5 @@ Um tipo de Sinal que é **cascata** (`private.signal_cascades`, ao lado do regis
 - a "Buscar Sinais de novo" (reativação) por enquanto só olha os Sinais com actor e adaptador; incluir as cascatas nela é um passo seguinte.
 
 Diagnóstico de "o Monitoramento nunca roda": `select private.signal_runner_diagnostics();` (só leitura, no SQL Editor).
+
+O relógio diário (`private.kick_comexstat_cache`, onde o agendador existe) chama esta mesma função com `{ "action": "aquecer" }` e o token do relógio. Isso só guarda a estatística de comércio exterior do mês e não reivindica Monitoramento. Corpo vazio continua a varredura de sempre.

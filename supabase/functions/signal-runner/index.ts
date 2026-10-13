@@ -201,4 +201,4 @@ const cascatas = criarMotorDeCascata({
   ...(llm ? { llm } : {}),
 })
 
-Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas, cascatas }))
+Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas, cascatas, aquecer: () => cascatas.aquecer() }))

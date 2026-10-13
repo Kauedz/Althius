@@ -22,6 +22,19 @@ export class ErroDeFontePublica extends Error {
   }
 }
 
+/**
+ * A fonte pediu para tentar de novo mais tarde (limite de consultas). A execução adia e não cobra crédito.
+ * A mensagem pode ir ao usuário: sem fornecedor de coleta e sem o código HTTP.
+ */
+export class FonteAdiada extends ErroDeFontePublica {
+  constructor(
+    mensagem = 'A estatística de comércio exterior está limitando as consultas. A busca fica para a próxima tentativa e nenhum crédito é cobrado.',
+  ) {
+    super(429, mensagem)
+    this.name = 'FonteAdiada'
+  }
+}
+
 /** O JSON de uma URL pública. Lança `ErroDeFontePublica` (só com o status) quando não consegue. */
 export async function lerJson(url: string, opcoes: OpcoesDaLeitura = {}): Promise<unknown> {
   const { fetchFn = fetch, repeticoes = 2, esperaMs = 10_000, dormir = dormirDeVerdade, init, prazoMs = 30_000 } = opcoes

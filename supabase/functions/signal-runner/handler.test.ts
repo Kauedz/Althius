@@ -102,6 +102,47 @@ function montar(opcoes: Opcoes = {}) {
 const chamar = (handler: (r: Request) => Promise<Response>, token = 'token-certo-com-mais-de-trinta-e-dois-caracteres', method = 'POST') =>
   handler(new Request('http://x/signal-runner', { method, headers: { 'x-runner-token': token }, body: method === 'POST' ? '{}' : undefined }))
 
+Deno.test('aquecer guarda a estatística e não reivindica Monitoramento', async () => {
+  let chamadas = 0
+  const { handler, c } = montar()
+  const comAquecer = createHandler({
+    db: {
+      tokenMatches: (t) => Promise.resolve(t === 'token-certo-com-mais-de-trinta-e-dois-caracteres'),
+      claim: () => {
+        c.aberturas.push({ accountId: 'nao', slot: SLOT, userId: null })
+        return Promise.resolve([monitor()])
+      },
+      actorForType: () => Promise.resolve(ACTOR),
+      beginScan: () => Promise.resolve({ outcome: 'go', reservationId: 'res' }),
+      endScan: () => Promise.resolve(),
+      recordSignal: () => Promise.resolve(true),
+      recordCost: () => Promise.resolve(),
+      finish: () => Promise.resolve(),
+    },
+    apify: { run: () => Promise.resolve({ runId: 'run-1', items: [] }) },
+    adaptadores: { vaga_linkedin: adaptador },
+    aquecer: () => {
+      chamadas++
+      return Promise.resolve({
+        desfecho: 'concluida',
+        mensagem: 'A estatística de comércio exterior deste mês foi guardada.',
+      })
+    },
+    log: () => {},
+  })
+  const r = await comAquecer(new Request('http://x/signal-runner', {
+    method: 'POST',
+    headers: { 'x-runner-token': 'token-certo-com-mais-de-trinta-e-dois-caracteres' },
+    body: JSON.stringify({ action: 'aquecer' }),
+  }))
+  assertEquals(r.status, 200)
+  assertEquals(await r.json(), { desfecho: 'concluida', mensagem: 'A estatística de comércio exterior deste mês foi guardada.' })
+  assertEquals(chamadas, 1)
+  assertEquals(c.aberturas.length, 0)
+  const normal = await chamar(handler)
+  assertEquals((await normal.json()).monitors, 1)
+})
+
 Deno.test('só POST com o token do relógio', async () => {
   const { handler, c } = montar()
   assertEquals((await chamar(handler, 'x', 'GET')).status, 405)

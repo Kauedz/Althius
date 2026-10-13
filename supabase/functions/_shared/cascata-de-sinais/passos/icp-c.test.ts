@@ -159,6 +159,15 @@ Deno.test('C1: salto de 3 ou mais processos trabalhistas e tributários contra a
   assertEquals(c.banco.gravadas.find((g) => g.chave === '22333444000155')?.data, { total: 12, trabalhista: 2, tributario: 1 })
 })
 
+Deno.test('C1: a base de hoje, na segunda passagem, só emite um salto real', async () => {
+  const igual = cenario(defC1(), { [LAWSUITS]: { itens: [linhaProcessos('11222333000181', 40, 5, 4)], usageTotalUsd: 0.1 } },
+    { contas: [ALFA], fotografias: FOTO('11222333000181', 40, 5, 4, 0) })
+  assertEquals((await igual.rodar({ criterios: { segundaPassagem: true } })).novos, 0)
+  const salto = cenario(defC1(), { [LAWSUITS]: { itens: [linhaProcessos('11222333000181', 47, 8, 6)], usageTotalUsd: 0.1 } },
+    { contas: [ALFA], fotografias: FOTO('11222333000181', 40, 5, 4, 0) })
+  assertEquals((await salto.rodar({ criterios: { segundaPassagem: true } })).novos, 1)
+})
+
 Deno.test('C1: o mesmo salto, repetido contra a mesma base, não grava o Sinal de novo', async () => {
   const mk = () => cenario(defC1(), { [LAWSUITS]: { itens: [linhaProcessos('11222333000181', 47, 8, 6)], usageTotalUsd: 0.1 } },
     { contas: [ALFA], fotografias: FOTO('11222333000181', 40, 5, 4, 30) })

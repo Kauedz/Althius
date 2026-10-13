@@ -37,4 +37,13 @@ Deno.serve(createHandler({
   motor,
   // Chamada só pelo servidor (o worker do Hermes): a chave de serviço ou um JWT de serviço (o gateway confere a assinatura).
   autorizado: (authorization) => autorizadoComoServidor(authorization, SERVICE_ROLE_KEY),
+  // O relógio manda aquecer pelo signal-runner. Se um dia a chamada chegar aqui, o mesmo token só libera essa ação.
+  tokenDeRotina: async (token) => {
+    const { data, error } = await admin.rpc('signal_runner_token_matches', { p_token: token })
+    if (error) {
+      log({ type: 'signal_cascade', outcome: 'runner_token_failed', message: error.message })
+      return false
+    }
+    return data === true
+  },
 }))

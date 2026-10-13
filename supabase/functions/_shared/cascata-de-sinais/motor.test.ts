@@ -3,6 +3,7 @@
 // (actor, regra, actor, regra). Os preços em créditos são do banco e têm o pgTAP próprio.
 import { assert, assertEquals } from 'jsr:@std/assert@1'
 import { cascataDeTeste, dbFalso } from './db-falso.ts'
+import { FonteAdiada } from './fonte-publica.ts'
 import { rodarCascata } from './motor.ts'
 import { MARCA_INTERNA } from '../marca.ts'
 import {
@@ -485,6 +486,33 @@ Deno.test('o Sinal que o banco recusa não derruba os outros: a execução fica 
   const r = await rodarCascata({ db, fonte, registro: registro(), agora: () => AGORA, log: () => {} }, pedido())
   assertEquals(r.desfecho, 'parcial')
   assertEquals(sinais.map((s) => s.sinal.eventKey), ['teste|conta-1|2'])
+})
+
+Deno.test('o limite da estatística de comércio adia a execução e não cobra crédito', async () => {
+  const def = cascataDeTeste({
+    scope: 'mercado',
+    steps: [{
+      ordem: 1, kind: 'fonte_publica', handler: 'comex', actorId: null, fallbacks: [],
+      inputTemplate: {}, priceModel: 'FREE', estFixedUsd: 0, estPerItemUsd: 0, estItems: 0, maxItems: null,
+    }],
+  })
+  const { db, fechamentos, passos } = dbFalso(def)
+  const r = await rodarCascata({
+    db,
+    fonte: { rodar: () => Promise.reject(new Error('a fonte de coleta não entra nesta cascata')) },
+    registro: { passos: {}, fontes: { comex: { buscar: () => Promise.reject(new FonteAdiada()) } } },
+    agora: () => AGORA,
+    log: () => {},
+  }, pedido())
+  assertEquals(r.desfecho, 'adiado')
+  assertEquals(r.creditosCobrados, 0)
+  assertEquals(r.custoUsd, 0)
+  assertEquals(r.novos, 0)
+  assertEquals(r.mensagem, 'A estatística de comércio exterior está limitando as consultas. A busca fica para a próxima tentativa e nenhum crédito é cobrado.')
+  assertEquals(fechamentos[0].estado, 'adiado')
+  assertEquals(fechamentos[0].custoUsd, 0)
+  assertEquals(passos[0].fim?.estado, 'failed')
+  assertEquals(passos[0].fim?.statusHttp, 429)
 })
 
 Deno.test('um passo que devolve Sinal de uma Conta fora do pedido não o grava (isolamento)', async () => {

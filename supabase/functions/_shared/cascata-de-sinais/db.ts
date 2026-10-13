@@ -143,6 +143,24 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
       })
     },
 
+    async lerCache(a) {
+      const data = await chamar(admin, 'read_public_source_cache', {
+        p_source: a.fonte,
+        p_query_key: a.chave,
+        p_reference_month: a.mes,
+      })
+      return data ?? null
+    },
+
+    async gravarCache(a) {
+      await chamar(admin, 'write_public_source_cache', {
+        p_source: a.fonte,
+        p_query_key: a.chave,
+        p_reference_month: a.mes,
+        p_payload: a.payload,
+      })
+    },
+
     async gravarSinal({ workspaceId, contaId, monitorId, signalType, sinal }) {
       const data = await chamar(admin, 'record_signal', {
         p_workspace_id: workspaceId,
