@@ -1,3 +1,4 @@
+=================== VERMELHO (testes antes da implementação: o passo do ICP D era um stub vazio) ===================
 Check supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts
 running 21 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts
 a tabela de CNAEs eletrointensivos: subclasses de 7 dígitos sem repetição, marcada como critério interno ... ok (827µs)
@@ -332,3 +333,40 @@ error: Test failed
 
 Stack backtrace:
    0: <unknown>
+
+=================== VERDE (depois da implementação) ===================
+running 21 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts
+a tabela de CNAEs eletrointensivos: subclasses de 7 dígitos sem repetição, marcada como critério interno ... ok (888µs)
+o rodízio semanal escolhe sempre o mesmo CNAE na mesma semana e anda um por semana ... ok (89µs)
+D1: a empresa de CNAE eletrointensivo que é Conta vira Sinal, com o reforço da página só para quem precisa ... ok (21ms)
+D1: sem Conta que precise da página, o passo do LinkedIn não roda nem custa; sem pedido, o rodízio escolhe o CNAE ... ok (2ms)
+D1: só a atividade principal vale; o mesmo fato em outra rodada não grava duas vezes ... ok (1ms)
+D1: CNAE pedido fora da tabela não roda nem custa ... ok (235µs)
+D2: a empresa de CNAE e porte do Grupo A que não está na lista da CCEE vira "provável cativo", dito como inferência ... ok (3ms)
+D2: a URL da lista da CCEE vem do modelo do passo (configurável) e a lista é lida em páginas ... ok (1ms)
+D2: se a CCEE não responde ou a lista não cabe, nenhum "provável cativo" é afirmado ... ok (5ms)
+D2: sem empresa que seja Conta, a lista da CCEE nem é lida ... ok (542µs)
+D3: a primeira rodada só grava a fotografia (falta base) e a segunda mostra a filial nova, com o reforço das notícias ... ok (5ms)
+D3: sem notícia, o Sinal sai do mesmo jeito (o reforço não filtra); repetir a rodada não grava de novo ... ok (3ms)
+D3: se a cascata para antes do Sinal, a fotografia não avança (a filial aparece de novo na próxima rodada) ... ok (2ms)
+D3: raiz sem filial nova só atualiza a fotografia; filial baixada não conta; fotografia truncada não afirma nada ... ok (922µs)
+D3: sem Conta com CNPJ não custa nada ... ok (212µs)
+D3: o pior caso do mapa cabe no teto da cascata ... ok (103µs)
+D4: a meta ESG confirmada por palavra-chave na página do próprio site vira Sinal da Conta ... ok (2ms)
+D4: página sem palavra de meta não confirma; sem página do próprio site, o rastreador nem roda ... ok (979µs)
+D4: a mesma meta em outra rodada do ano não grava de novo ... ok (1ms)
+D5: vencimento de contrato de energia é "sem fonte": resposta válida, sem reservar crédito nem chamar fonte ... ok (187µs)
+o registro do ICP D tem todos os passos e fontes que as cascatas citam ... ok (576µs)
+
+ok | 21 passed | 0 failed (66ms)
+
+
+=== deno test -A supabase/functions/_shared/cascata-de-sinais (todos) ===
+ok | 94 passed | 0 failed (1s)
+
+
+=== deno check supabase/functions/*/index.ts ===
+(sem erros)
+
+=== pgTAP ===
+ok     cascatas_icp_d.sql: 21/21
