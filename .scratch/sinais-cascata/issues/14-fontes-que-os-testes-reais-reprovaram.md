@@ -54,3 +54,4 @@ Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral
 ## Comments
 
 - Origem: teste real das fontes em 13/10/2026. A lista da CCEE (API e download) respondeu 403 também nesta sessão; não há URL reserva conferida, então a degradação explícita é o caminho.
+- PR: https://github.com/Kauedz/Althius/pull/193. Testes verdes em 13/10/2026 (deno 1303/0 e pgTAP das cascatas tocadas). Falta o Nan aplicar a migração e publicar as funções.
