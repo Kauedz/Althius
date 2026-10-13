@@ -22,6 +22,7 @@
 // O que pode ser feito é sempre conferido de novo no banco (a Especialidade, a Permissão, a Participação, a Integração
 // ligada) e no Acesso (`chamarFerramenta` com o `agenteId`). Uma falha de ferramenta vira texto para o Agente, nunca
 // derruba o pedido. O banco, o Acesso e o executor entram por injeção, para o teste rodar sem rede.
+import { icpDoSinalDoMapa, MAPA_DE_SINAIS } from './mapa-de-sinais.ts'
 import type { DesfechoDaChamadaAprovada, DesfechoDoEnvioAprovado } from './executor-de-aprovacoes.ts'
 import { chamarFerramenta, type DepsDeAcesso, ErroDoBanco, listarFerramentas, type Permissao } from './integration-access.ts'
 import { perfilDaIntegracao } from './integracoes/perfis.ts'
@@ -1013,10 +1014,16 @@ const BUSCAR_SINAIS: FerramentaDoAgente = {
     }
 
     if (!sinal) {
-      const lista = catalogo.filter((c) => !icp || c.icp === icp)
+      // Só os Sinais do Mapa de Mercado: nada fora dele é oferecido.
+      const lista = catalogo.filter((c) => icpDoSinalDoMapa(c.sinal) !== null && (!icp || c.icp === icp))
+      const dosIcps = [...new Set(lista.map((c) => c.icp))].flatMap((i) => {
+        const m = MAPA_DE_SINAIS[i]
+        return m ? [{ icp: i, nome: m.nome, gatilho: m.gatilho, ...(m.restricao ? { restricao: m.restricao } : {}) }] : []
+      })
       return {
         erro: false,
         paraOAgente: cortar({
+          icps: dosIcps,
           catalogo: lista,
           orientacao:
             'Ofereça só estes tipos. "disponivel" roda agora (pede um teto de Créditos); "em_validacao" ainda não roda; ' +
@@ -1027,7 +1034,7 @@ const BUSCAR_SINAIS: FerramentaDoAgente = {
       }
     }
 
-    const item = catalogo.find((c) => c.sinal === sinal)
+    const item = icpDoSinalDoMapa(sinal) === null ? undefined : catalogo.find((c) => c.sinal === sinal)
     if (!item) {
       return falhou(
         `${agente.name} pediu um Sinal que não está no catálogo`,

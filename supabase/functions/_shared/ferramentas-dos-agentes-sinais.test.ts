@@ -26,6 +26,9 @@ const CATALOGO_DE_SINAIS = [
   { sinal: 'novo_importador', icp: 'A', nome: 'Novo importador', estado: 'em_validacao', escopo: 'conta', motivo: null },
   { sinal: 'habilitacao_radar', icp: 'A', nome: 'Habilitação no Radar', estado: 'sem_fonte', escopo: 'conta', motivo: 'A consulta é individual e exige verificação humana; não há fonte pública em massa.' },
   { sinal: 'cnpj_novo', icp: 'B', nome: 'CNPJ novo', estado: 'disponivel', escopo: 'conta', motivo: null },
+  { sinal: 'processos_publicos', icp: 'C', nome: 'Processos públicos', estado: 'em_validacao', escopo: 'conta', motivo: null },
+  // Fora do Mapa de Mercado: o catálogo do banco pode ter um tipo a mais, e o Hermes não o oferece.
+  { sinal: 'sinal_fora_do_mapa', icp: 'A', nome: 'Fora do Mapa', estado: 'disponivel', escopo: 'conta', motivo: null },
 ]
 
 const RESPOSTA: RespostaDaBusca = {
@@ -150,7 +153,7 @@ Deno.test('o cliente HTTP chama a função de Sinais com a chave de serviço e t
     return Promise.resolve(new Response(JSON.stringify(corpo), { status: 200 }))
   }) as typeof fetch
   const busca = buscaDeSinaisPorHttp({ baseUrl: 'https://proj.supabase.co', chaveDeServico: 'chave-de-servico', fetchFn })
-  assertEquals((await busca.catalogo()).length, 4)
+  assertEquals((await busca.catalogo()).length, CATALOGO_DE_SINAIS.length)
   const r = await busca.buscar({ workspaceId: 'ws-1', userId: 'u', sinal: 'vaga_comex', chave: 'k', tetoCreditos: 3 })
   assertEquals(r.creditos, 2)
   assertEquals(chamadas[1].url, 'https://proj.supabase.co/functions/v1/signal-cascade')
@@ -167,4 +170,19 @@ Deno.test('o cliente HTTP nunca põe a chave de serviço no erro', async () => {
   } catch (e) {
     assert(!String(e).includes('chave-de-servico'))
   }
+})
+
+Deno.test('o catálogo traz o gatilho e a restrição de cada ICP e só oferece Sinais do Mapa de Mercado', async () => {
+  const { sessao, buscas } = montar()
+  const todos = JSON.parse((await sessao.chamar(SCOPUS, 'buscar_sinais', {})).paraOAgente)
+  assertEquals(todos.catalogo.some((c: { sinal: string }) => c.sinal === 'sinal_fora_do_mapa'), false)
+  assertEquals(todos.icps.map((i: { icp: string }) => i.icp), ['A', 'B', 'C'])
+  const juridico = todos.icps.find((i: { icp: string }) => i.icp === 'C')
+  assertEquals(juridico.nome, 'Jurídico empresarial')
+  assertStringIncludes(juridico.restricao, 'sem dado pessoal')
+  assertEquals(todos.icps.find((i: { icp: string }) => i.icp === 'A').restricao, undefined)
+  assert(!MARCA_INTERNA.test(JSON.stringify(todos)))
+  const foraDoMapa = await sessao.chamar(SCOPUS, 'buscar_sinais', { sinal: 'sinal_fora_do_mapa' })
+  assertEquals(foraDoMapa.erro, true)
+  assertEquals(buscas.length, 0)
 })
