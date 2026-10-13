@@ -140,13 +140,20 @@ function alternar(lista: string[], item: string): string[] {
 /** A rota do editor: resolve o tipo e o Monitoramento, e recomeça o formulário ao trocar de um para outro. */
 export function RotaDoEditor() {
   const { tipoId = '', monitoramentoId } = useParams<{ tipoId: string; monitoramentoId?: string }>()
-  const { monitoramentos } = useSinaisDoMockup()
+  const { monitoramentos, carregando, erro, recarregar } = useSinaisDoMockup()
   // Um tipo em teste ou em breve não deixa criar Monitoramento: volta para a página do tipo, que diz o motivo.
   const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
   if (tipoDaFonte && !monitoramentoId && !podeMonitorar(tipoDaFonte)) return <Navigate to={`/sinais/tipos/${tipoId}`} replace />
   const tipo = tipoPorId(tipoId)
   const existente = monitoramentos.find((m) => m.id === monitoramentoId && m.tipoId === tipoId)
   if (!tipo) return <Navigate to="/sinais" replace />
+  if (monitoramentoId && !existente && carregando) return <Carregando />
+  if (monitoramentoId && !existente && erro) return (
+    <div role="alert" className="flex flex-col items-start gap-3 p-6">
+      <p>Não foi possível carregar os monitoramentos.</p>
+      <button type="button" onClick={recarregar} className={BOTAO_SECUNDARIO}>Tentar de novo</button>
+    </div>
+  )
   if (monitoramentoId && !existente) return <Navigate to={`/sinais/tipos/${tipo.id}`} replace />
   return <EditorDeMonitoramento key={`${tipo.id}/${monitoramentoId ?? 'novo'}`} tipo={tipo} existente={existente} />
 }

@@ -408,6 +408,8 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
     from: consulta,
     async rpc(nome: string, parametros: Record<string, unknown>) {
       const responder = rpcs[nome]
+      // Estágios fazem parte da leitura obrigatória das Contas. Uma base vazia saudável não é RPC indisponível.
+      if (!responder && nome === 'list_prospecting_stages') return { data: [], error: null }
       if (!responder) return { data: null, error: { message: `RPC ${nome} indisponível no teste`, code: 'PGRST202' } }
       // Uma resposta que lança vira o erro do PostgREST, como uma exceção levantada pela função no banco.
       try {

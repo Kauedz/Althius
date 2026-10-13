@@ -1,0 +1,20 @@
+projeto-althius-frontend@0.0.0 C:\Users\usuario\Althius\.scratch\qualidade-p2-e\projeto-althius-frontend
+├─┬ @tailwindcss/vite@4.3.3
+│ └─┬ @tailwindcss/node@4.3.3
+│   └── source-map-js@1.2.2
+├─┬ jsdom@30.1.1
+│ └─┬ css-tree@3.2.1
+│   └── source-map-js@1.2.2 deduped
+└─┬ shadcn@4.21.4
+  ├── @modelcontextprotocol/sdk@1.32.1
+  ├─┬ @shadcn/registry@0.1.3
+  │ └── fast-glob@3.3.3 deduped
+  ├─┬ fast-glob@3.3.3
+  │ └─┬ micromatch@4.0.8
+  │   └── braces@3.0.3
+  ├─┬ postcss@8.5.28
+  │ └── source-map-js@1.2.2 deduped
+  └─┬ ts-morph@26.0.0
+    └─┬ @ts-morph/common@0.27.0
+      └── fast-glob@3.3.3 deduped
+

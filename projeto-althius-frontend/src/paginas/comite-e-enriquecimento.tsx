@@ -453,22 +453,23 @@ export function BotoesRevelarContato({
 
   async function abrirModal() {
     setAberto(true)
+    setCotacao(null)
     setResultado(null)
     setErro(null)
     if (fonte.cotarRevelacaoContato) {
       try {
         const c = await fonte.cotarRevelacaoContato(contato.id, 'email')
         setCotacao(c)
-      } catch {
-        setCotacao({ creditos: 2, saldo: 0, podeRevelar: true })
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : 'Não foi possível consultar a cotação.')
       }
     } else {
-      setCotacao({ creditos: 2, saldo: 0, podeRevelar: true })
+      setErro('A cotação da revelação está indisponível.')
     }
   }
 
   async function confirmarRevelacao() {
-    if (!fonte.revelarContato) return
+    if (!fonte.revelarContato || !cotacao?.podeRevelar || revelando) return
     setRevelando(true)
     setErro(null)
     try {
@@ -500,7 +501,7 @@ export function BotoesRevelarContato({
             variant="outline"
             size="sm"
             onClick={abrirModal}
-            title="Revelar e-mail (2 créditos)"
+            title="Consultar o custo de revelar e-mail"
             className="h-7 gap-1 border-al-line px-2 text-[0.6875rem] hover:border-al-accent hover:text-al-accent"
           >
             <Mail className="size-3" />
@@ -544,7 +545,7 @@ export function BotoesRevelarContato({
               ) : (
                 <>
                   <span className="text-sm font-semibold text-al-ink">
-                    {cotacao?.creditos ?? 2} créditos
+                    {cotacao ? `${cotacao.creditos} créditos` : erro ? 'Cotação indisponível' : 'Consultando cotação...'}
                   </span>
                   <span className="block mt-1 text-[0.6875rem] text-al-muted">
                     Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.
@@ -559,9 +560,18 @@ export function BotoesRevelarContato({
               </div>
             )}
 
+            {cotacao && !cotacao.podeRevelar && (
+              <div role="alert" className="rounded bg-al-erro/10 p-3 text-al-erro">
+                {cotacao.saldo < cotacao.creditos
+                  ? `Saldo insuficiente: ${cotacao.saldo} créditos disponíveis; são necessários ${cotacao.creditos}.`
+                  : 'A revelação não está disponível para este Contato.'}
+              </div>
+            )}
+
             {erro && (
               <div role="alert" className="rounded bg-al-erro/10 p-3 text-al-erro">
                 {erro}
+                {!cotacao && <Button type="button" variant="outline" onClick={abrirModal}>Tentar de novo</Button>}
               </div>
             )}
           </div>
@@ -573,7 +583,7 @@ export function BotoesRevelarContato({
             {!resultado && (
               <Button
                 type="button"
-                disabled={revelando || cotacao?.podeRevelar === false}
+                disabled={revelando || !cotacao?.podeRevelar}
                 onClick={confirmarRevelacao}
                 className="rounded-lg border border-al-accent bg-al-accent font-medium text-al-on-accent hover:bg-al-accent-2"
               >

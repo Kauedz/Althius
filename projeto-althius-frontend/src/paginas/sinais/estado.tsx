@@ -1,10 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFonteDeSinais } from '@/fonte/contexto'
 import type { FonteDeSinais, NovoMonitoramento, ParametrosSimulacaoDisparo, SinalEncontrado } from '@/fonte/sinais-tipos'
 import type { EstadoDoMonitoramento, Monitoramento } from './dados-mock'
 
 interface SinaisDoMockup {
   monitoramentos: Monitoramento[]
+  carregando: boolean
+  erro: boolean
+  recarregar: () => Promise<void>
   salvar: (monitoramento: Monitoramento | NovoMonitoramento) => Promise<Monitoramento>
   mudarEstado: (id: string, estado: EstadoDoMonitoramento) => Promise<Monitoramento>
   simularDisparo: (parametros: ParametrosSimulacaoDisparo) => Promise<SinalEncontrado>
@@ -24,27 +27,34 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
 
   // Os Monitoramentos vêm só da fonte do ambiente: a da Demonstração traz os de exemplo; um Workspace real, os seus.
   const [monitoramentos, setMonitoramentos] = useState<Monitoramento[]>([])
+  const [carregando, setCarregando] = useState(!!fonte)
+  const [erro, setErro] = useState(false)
+  const leitura = useRef(0)
+
+  const recarregar = useCallback(async () => {
+    if (!fonte) return
+    const atual = ++leitura.current
+    setCarregando(true)
+    setErro(false)
+    try {
+      const dados = await fonte.monitoramentos()
+      if (atual === leitura.current) setMonitoramentos(dados)
+    } catch {
+      if (atual === leitura.current) setErro(true)
+    } finally {
+      if (atual === leitura.current) setCarregando(false)
+    }
+  }, [fonte])
 
   useEffect(() => {
     if (!fonte) return
-    let ativo = true
-    fonte
-      .monitoramentos()
-      .then((dados) => {
-        if (ativo) setMonitoramentos(dados)
-      })
-      .catch(() => {})
-
-    return fonte.observar(() => {
-      if (!fonte) return
-      fonte
-        .monitoramentos()
-        .then((dados) => {
-          if (ativo) setMonitoramentos(dados)
-        })
-        .catch(() => {})
-    })
-  }, [fonte])
+    void recarregar()
+    const parar = fonte.observar(() => { void recarregar() })
+    return () => {
+      leitura.current++
+      parar()
+    }
+  }, [fonte, recarregar])
 
   const salvar = useCallback(
     async (monitoramento: Monitoramento | NovoMonitoramento): Promise<Monitoramento> => {
@@ -102,8 +112,8 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
   )
 
   const valor = useMemo(
-    () => ({ monitoramentos, salvar, mudarEstado, simularDisparo }),
-    [monitoramentos, salvar, mudarEstado, simularDisparo],
+    () => ({ monitoramentos, carregando, erro, recarregar, salvar, mudarEstado, simularDisparo }),
+    [monitoramentos, carregando, erro, recarregar, salvar, mudarEstado, simularDisparo],
   )
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
 }
