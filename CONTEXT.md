@@ -119,14 +119,14 @@ A classificação de um Contato por um papel do Comitê de compra descrito pelo 
 _Avoid_: perfil, papel, arquétipo
 
 **Sinal**:
-Uma evidência de possível necessidade comercial de uma Conta-alvo relacionada ao que o Cliente oferece, obtida de acontecimentos externos, condições históricas internas ou ações realizadas para investigar essa necessidade. Tem data e, quando houver, fonte e evidência de origem; uma resposta comercial ou a interpretação de seu conteúdo, por si só, não é um Sinal.
+Uma evidência de possível necessidade comercial de uma Conta-alvo relacionada ao que o Cliente oferece, obtida de acontecimentos externos, condições históricas internas ou ações realizadas para investigar essa necessidade. Tem data e, quando houver, fonte e evidência de origem; uma resposta comercial ou a interpretação de seu conteúdo, por si só, não é um Sinal. Os Sinais de cada ICP detectam acontecimentos nas empresas para quem o ICP vende (as Contas-alvo do Workspace), nunca no próprio ICP: o ICP de contabilidade vende a empresas novas e em mudança de porte, e o Sinal olha essas empresas, não os escritórios de contabilidade.
 _Avoid_: evento, alerta, gatilho
 
 **Sinal externo**:
 Um Sinal obtido de acontecimentos ou condições de mercado que o Cliente não provoca, como contratações, investimentos ou mudanças financeiras.
 
 **Sinal interno**:
-Um Sinal obtido de condições históricas e temporais dos dados comerciais do Cliente, como uma negociação parada, ausência de resposta ou uma proposta recusada há determinado tempo. A Interação de origem permanece no histórico comercial.
+Um Sinal obtido de condições históricas e temporais dos dados comerciais do Cliente, como uma negociação parada, ausência de resposta ou uma proposta recusada há determinado tempo. A Interação de origem permanece no histórico comercial. A proposta recusada é a resposta negativa que o Workspace registrou no desfecho de um Envio, e deixa de valer se a Conta voltou a conversar depois.
 
 **Sinal originado**:
 Um Sinal obtido a partir de uma ação realizada para investigar uma possível necessidade comercial, como um teste de atendimento que identifica ausência de resposta segundo os critérios definidos.
