@@ -3,7 +3,7 @@
 // do Hermes, que já tem a OpenAI, o responde, e esta função lê a resposta até o prazo. Passou do prazo ou falhou: lança, e o
 // passo usa a regra de palavra-chave. Só o texto do pedido vai para a fila (notícia e diário oficial públicos); nenhum
 // segredo, e a resposta é lida por id.
-import { custoPorTokens, jsonDoTexto, MENSAGEM_DO_PRAZO, MENSAGEM_SEM_JSON, PRAZO_PADRAO_DA_CLASSIFICACAO_MS, type PrecoDoModelo } from './llm-comum.ts'
+import { MENSAGEM_DO_PRAZO, PRAZO_PADRAO_DA_CLASSIFICACAO_MS, type PrecoDoModelo, respostaDoModelo } from './llm-comum.ts'
 import type { Llm } from './tipos.ts'
 
 export interface PedidoNaFila {
@@ -43,15 +43,7 @@ export function llmDoHermes(
       const id = await fila.enfileirar({ workspaceId, sistema, usuario, maxTokens })
       for (;;) {
         const r = await fila.ler(id)
-        if (r.status === 'done') {
-          let json: unknown
-          try {
-            json = jsonDoTexto(r.texto ?? '')
-          } catch {
-            throw new Error(MENSAGEM_SEM_JSON)
-          }
-          return { json, custoUsd: custoPorTokens(preco, r.entrada ?? 0, r.saida ?? 0) }
-        }
+        if (r.status === 'done') return respostaDoModelo(r.texto ?? '', preco, r.entrada, r.saida)
         // O erro real do worker fica no banco (coluna técnica); aqui só uma mensagem neutra.
         if (r.status === 'failed') throw new Error('A classificação não pôde ser feita agora')
         if (relogio() >= limite) throw new Error(MENSAGEM_DO_PRAZO)

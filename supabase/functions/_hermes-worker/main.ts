@@ -83,6 +83,22 @@ const worker = createWorker({
   porAgente: Deno.env.get('HERMES_UMA_CHAMADA') !== 'true',
 })
 
+// As classificações dos Sinais têm a volta própria: um pedido de Agente pode levar minutos no Hermes, e a Edge Function só
+// espera a classificação por 45 s. Sem esta volta separada, ela venceria o prazo antes de o worker olhar a fila.
+if (filaDeSinais) {
+  void (async () => {
+    for (;;) {
+      try {
+        const respondidos = await processarPedidosDeIa({ db: filaDeSinais, hermes })
+        if (respondidos > 0) console.log(`${respondidos} classificação(ões) de Sinais respondida(s).`)
+      } catch (error) {
+        console.log(`Falha na volta das classificações de Sinais: ${error instanceof Error ? error.name : 'erro'}`)
+      }
+      await new Promise((resolver) => setTimeout(resolver, 1000))
+    }
+  })()
+}
+
 console.log('Worker do Hermes ligado. Ctrl+C para parar.')
 let ultimoAviso = ''
 const avisar = (texto: string) => {
@@ -92,10 +108,6 @@ const avisar = (texto: string) => {
 for (;;) {
   try {
     const feitos = await worker.rodada()
-    if (filaDeSinais && feitos !== null) {
-      const respondidos = await processarPedidosDeIa({ db: filaDeSinais, hermes })
-      if (respondidos > 0) console.log(`${respondidos} classificação(ões) de Sinais respondida(s).`)
-    }
     if (feitos === null) avisar('O Hermes não respondeu em HERMES_URL. Ele está rodando com o `hermes gateway`?')
     else if (feitos > 0) console.log(`${feitos} pedido(s) respondido(s).`)
     else avisar('Hermes de pé, esperando pedidos.')

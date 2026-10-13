@@ -1,7 +1,7 @@
 // O modelo de linguagem dos passos de Sinais pela API da OpenAI (plano B do provedor `hermes`): chat com modo JSON, por
 // `fetch`. A chave e o modelo vêm do ambiente (OPENAI_API_KEY, OPENAI_MODEL), nunca do cliente. O custo volta com a resposta
 // (tokens × preço configurado) e soma ao custo real da execução. Erros levam só o status HTTP: nunca a chave nem o corpo.
-import { custoPorTokens, jsonDoTexto, MENSAGEM_DO_PRAZO, MENSAGEM_SEM_JSON, PRAZO_PADRAO_DA_CLASSIFICACAO_MS, type PrecoDoModelo } from './llm-comum.ts'
+import { MENSAGEM_DO_PRAZO, MENSAGEM_SEM_JSON, PRAZO_PADRAO_DA_CLASSIFICACAO_MS, type PrecoDoModelo, respostaDoModelo } from './llm-comum.ts'
 import type { Llm } from './tipos.ts'
 
 const URL_DA_API = 'https://api.openai.com/v1/chat/completions'
@@ -52,13 +52,7 @@ export function llmDaOpenai(
         } | null
         const texto = corpo?.choices?.[0]?.message?.content
         if (typeof texto !== 'string') throw new Error(MENSAGEM_SEM_JSON)
-        let json: unknown
-        try {
-          json = jsonDoTexto(texto)
-        } catch {
-          throw new Error(MENSAGEM_SEM_JSON)
-        }
-        return { json, custoUsd: custoPorTokens(preco, corpo?.usage?.prompt_tokens ?? 0, corpo?.usage?.completion_tokens ?? 0) }
+        return respostaDoModelo(texto, preco, corpo?.usage?.prompt_tokens, corpo?.usage?.completion_tokens)
       } finally {
         clearTimeout(relogio)
       }

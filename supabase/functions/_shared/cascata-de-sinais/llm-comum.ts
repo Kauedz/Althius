@@ -48,3 +48,19 @@ export function custoPorTokens(preco: PrecoDoModelo, entrada: number, saida: num
 
 export const MENSAGEM_DO_PRAZO = 'A classificação não respondeu a tempo'
 export const MENSAGEM_SEM_JSON = 'A classificação não devolveu um JSON válido'
+
+/** O texto do modelo vira JSON e o uso de tokens vira custo: o fim comum de todos os adaptadores. */
+export function respostaDoModelo(
+  texto: string,
+  preco: PrecoDoModelo,
+  entrada: number | null | undefined,
+  saida: number | null | undefined,
+): { json: unknown; custoUsd: number } {
+  let json: unknown
+  try {
+    json = jsonDoTexto(texto)
+  } catch {
+    throw new Error(MENSAGEM_SEM_JSON)
+  }
+  return { json, custoUsd: custoPorTokens(preco, entrada ?? 0, saida ?? 0) }
+}

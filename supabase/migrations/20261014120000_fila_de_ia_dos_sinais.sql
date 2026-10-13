@@ -26,12 +26,15 @@ create table private.signal_llm_requests (
 
 create index signal_llm_requests_fila_idx on private.signal_llm_requests (created_at) where status = 'queued';
 create index signal_llm_requests_limpeza_idx on private.signal_llm_requests (finished_at) where finished_at is not null;
+create index signal_llm_requests_pendentes_idx on private.signal_llm_requests (workspace_id, created_at) where status in ('queued', 'running');
 
 alter table private.signal_llm_requests enable row level security;
+-- Nem o service_role lê a tabela direto (diferente de outras tabelas `private`): todo acesso é pelas quatro funções abaixo.
 revoke all on private.signal_llm_requests from public, anon, authenticated, service_role;
 
 -- A função que enfileira (a Edge Function). Também limpa o que já passou de um dia e dá por falho o que ficou parado sem
--- worker (a função já desistiu: o prazo dela é de 90 s no máximo).
+-- worker por mais de 3 minutos (a função já desistiu: o prazo de uma classificação é de 90 s no máximo), e recusa o
+-- Workspace que já tem 50 pedidos esperando (nenhum Workspace entope a fila dos outros).
 create function public.enqueue_signal_llm_request(p_workspace_id uuid, p_system text, p_user text, p_max_tokens integer default 800)
 returns uuid
 language plpgsql
@@ -47,7 +50,10 @@ begin
   delete from private.signal_llm_requests where finished_at < now() - interval '1 day';
   update private.signal_llm_requests
      set status = 'failed', error = 'A classificação não foi respondida a tempo', finished_at = now()
-   where status in ('queued', 'running') and created_at < now() - interval '10 minutes';
+   where status in ('queued', 'running') and created_at < now() - interval '3 minutes';
+  if (select count(*) from private.signal_llm_requests q where q.workspace_id = p_workspace_id and q.status = 'queued') >= 50 then
+    raise exception 'Fila de classificações cheia para o Workspace.' using errcode = '53400';
+  end if;
   insert into private.signal_llm_requests (workspace_id, system_prompt, user_prompt, max_tokens)
   values (p_workspace_id, p_system, p_user, least(greatest(coalesce(p_max_tokens, 800), 1), 4000))
   returning id into v_id;
@@ -66,7 +72,7 @@ as $$
      set status = 'running', claimed_at = now()
    where r.id = (
      select q.id from private.signal_llm_requests q
-      where q.status = 'queued' and q.created_at > now() - interval '10 minutes'
+      where q.status = 'queued' and q.created_at > now() - interval '3 minutes'
       order by q.created_at
       for update skip locked
       limit 1)

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(16);
+select plan(18);
 
 -- A fila de classificações dos Sinais (provedor `hermes`): a Edge Function enfileira, o worker do Hermes reserva e responde,
 -- a função lê. Só o servidor usa; nenhum papel de usuário enxerga a fila.
@@ -60,6 +60,22 @@ set local role service_role;
 select public.enqueue_signal_llm_request('f2000000-0000-0000-0000-000000000001', 's', 'u', 100);
 reset role;
 select is((select count(*)::integer from private.signal_llm_requests where finished_at < now() - interval '1 day'), 0, 'o pedido resolvido há mais de um dia some');
+
+-- Um pedido que ficou esperando mais de 3 minutos não é mais reservado (a função já desistiu dele).
+set local role service_role;
+select public.enqueue_signal_llm_request('f2000000-0000-0000-0000-000000000002', 'velho', 'u', 100);
+reset role;
+update private.signal_llm_requests set created_at = now() - interval '4 minutes' where system_prompt = 'velho';
+set local role service_role;
+select is((select count(*)::integer from public.claim_signal_llm_request() where system_prompt = 'velho'), 0, 'o pedido parado há mais de 3 minutos não é reservado');
+reset role;
+
+-- Nenhum Workspace entope a fila: com 50 esperando, o 51º é recusado, e o outro Workspace segue enfileirando.
+insert into private.signal_llm_requests (workspace_id, system_prompt, user_prompt, max_tokens)
+select 'f2000000-0000-0000-0000-000000000001', 's', 'u', 100 from generate_series(1, 50);
+set local role service_role;
+select throws_ok($$ select public.enqueue_signal_llm_request('f2000000-0000-0000-0000-000000000001', 's', 'u', 100) $$, '53400', null, 'com 50 pedidos esperando, o Workspace não enfileira mais');
+reset role;
 
 select * from finish();
 rollback;
