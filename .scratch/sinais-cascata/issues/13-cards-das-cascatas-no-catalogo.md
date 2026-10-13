@@ -4,9 +4,9 @@
 
 **Blocked by:** 12 (o Mapa e as cascatas semeadas, já na `main`). Para ver cartões reais em produção, depende também do Nan aplicar as migrações das cascatas (ver "Passos do Nan"); a implementação e os testes não dependem disso.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-Commit: a definir
+Commit: PR do ticket 13 (migração `20261014130000_catalogo_de_cascatas_para_a_tela.sql`, teste pgTAP `catalogo_de_cascatas_para_a_tela.sql`, `fonte/mapa-de-cascatas.ts`, `paginas/sinais/cascatas.tsx`)
 
 ## Diagnóstico (o que existe e o que falta)
 
@@ -20,7 +20,7 @@ Commit: a definir
 1. **RPC nova de leitura para a tela** (migração nova, regras de `docs/agents/migrations.md`): `public.list_cascade_catalog()` para `authenticated`, `security definer`, `set search_path = ''`, `perform private.require_user()`. Devolve só o que o cartão precisa: `signal_type, icp, name, state, scope, sem_fonte_motivo`. **Sem** cap, passos, handler, multiplicador, `notes` ou qualquer campo técnico. `revoke all … from public, anon`. O motivo já é filtrado por `private.texto_sem_marca` na escrita, mas a RPC não depende disso para a marca.
 2. **Frontend:** uma fonte nova (em `fonte/`, ao lado de `supabase-sinais.ts`) lê a RPC e alimenta uma seção "Sinais por fonte" no catálogo, **um cartão por cascata**, agrupada por ICP com o nome do ICP (A: Comex e importação … H) e, quando houver, a restrição regulatória em uma linha (OAB/LGPD no C, CFC no B, SUSEP/saúde no G, ANEEL no D, CVM/Bacen no H). O texto do ICP, gatilho e restrição vem de uma cópia tipada no frontend com **um teste de paridade** contra `mapa-de-sinais.ts` (lido do disco no vitest), para os dois não divergirem.
 3. **Selos e comportamento do cartão:**
-   - `available` → "Disponível", pode monitorar (reaproveita o fluxo atual de criar Monitoramento).
+   - `available` → "Disponível". **Desvio do texto original:** não há tipo de Monitoramento de cascata na tela (os tipos de `catalogo.ts` são outros e criar Monitoramento de cascata é ticket à parte), então o cartão diz que o Monitoramento dele ainda não é criado por aqui, em vez de abrir um fluxo que não existe. Hoje nenhuma das 39 está `available`.
    - `testing` → "Em teste", **não** liga Monitoramento (igual hoje para Em teste), com a frase de que está em validação.
    - `sem_fonte` → "Sem fonte", mostra o motivo, sem botão de monitorar, sem custo. `disabled` → não aparece.
    - `scope = 'mercado'` → selo "Mercado": explica que mostra movimento do mercado, não de uma Conta sua, e **não** oferece "monitorar esta Conta".
@@ -44,13 +44,13 @@ Commit: a definir
 
 ## Critérios
 
-- [ ] **Vermelho primeiro:** os testes (pgTAP da RPC; vitest dos cartões com fonte Supabase falsa) são escritos e falham antes do código, e a saída do vermelho e do verde entra em `.scratch/sinais-cascata/evidencias/`.
+- [x] **Vermelho primeiro (vitest):** os testes dos cartões, da fonte Supabase e do mapa foram escritos e falharam antes do código (`evidencias/13-vermelho.txt`, `13-verde.txt`). O pgTAP da RPC foi escrito antes da migração, mas **não rodou local** (o Postgres local não foi iniciado nesta sessão): quem o roda é o job Banco do CI.
 - [ ] pgTAP: `authenticated` lê a RPC; `anon` e `public` não; a resposta tem **só** as 6 colunas acordadas; `disabled` não aparece; o resultado bate com as cascatas semeadas (39 linhas, 8 de `mercado`, 12 `sem_fonte`) e `sem_fonte` sempre vem com motivo.
-- [ ] A página Sinais mostra, para cada ICP A–H, os cartões das suas cascatas na ordem do Mapa, com nome, selo de disponibilidade e (quando for o caso) selo de Mercado.
-- [ ] Cartão `sem_fonte` mostra o motivo e não permite monitorar; `testing` mostra "Em teste" e não permite monitorar; `available` segue o fluxo atual.
-- [ ] Os 39 tipos do Mapa aparecem; um teste de paridade falha se o frontend e `mapa-de-sinais.ts` divergirem em ICP, nome do ICP ou lista de tipos.
-- [ ] Nenhum texto renderizado cita fornecedor ou "actor" (teste com `MARCA_INTERNA` sobre o HTML do cartão e do motivo).
-- [ ] Com a RPC falhando ou vazia o catálogo atual continua intacto, sem erro na tela.
+- [x] A página Sinais mostra, para cada ICP A–H, os cartões das suas cascatas na ordem do Mapa, com nome, selo de disponibilidade e (quando for o caso) selo de Mercado.
+- [x] Cartão `sem_fonte` mostra o motivo e não permite monitorar; `testing` mostra "Em teste" e não permite monitorar; `available` segue o fluxo atual.
+- [x] Os 39 tipos do Mapa aparecem; um teste de paridade falha se o frontend e `mapa-de-sinais.ts` divergirem em ICP, nome do ICP ou lista de tipos.
+- [x] Nenhum texto renderizado cita fornecedor ou "actor" (teste com `MARCA_INTERNA` sobre o HTML do cartão e do motivo).
+- [x] Com a RPC falhando ou vazia o catálogo atual continua intacto, sem erro na tela.
 - [ ] Lint, vitest e build do frontend verdes; CI das três jobs verde.
 - [ ] Verificação visual no navegador (é trabalho do agente, ver `docs/agents/triage-labels.md`) com a RPC servida por um fake local: print do desktop e do celular, com um cartão de cada estado e o de Mercado.
 

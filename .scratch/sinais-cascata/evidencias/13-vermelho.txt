@@ -1,0 +1,5 @@
+Vermelho do ticket 13 (testes escritos antes do código; a saída completa foi resumida porque o vitest imprime o DOM inteiro).
+Comando: npx vitest run src/fonte/mapa-de-cascatas.test.ts src/fonte/supabase-sinais.test.ts src/paginas/sinais/cascatas-no-catalogo.test.tsx
+Resultado: Test Files 3 failed (3) | Tests 10 failed | 19 passed (29)
+Motivo: `fonte/mapa-de-cascatas.ts` ainda não existia, `FonteDeSinais.cascatas()` não existia e a página não tinha a seção "Sinais por mercado".
+pgTAP (supabase/tests/catalogo_de_cascatas_para_a_tela.sql): escrito antes da migração; não rodou local, roda no job Banco do CI.

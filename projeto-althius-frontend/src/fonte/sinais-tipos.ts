@@ -120,6 +120,25 @@ export interface ParametrosSimulacaoDisparo {
   data?: string | Date
 }
 
+/** Como a tela diz o estado de um Sinal por mercado: o que roda, o que ainda está em validação e o que não tem fonte. */
+export type EstadoDaCascata = 'disponivel' | 'em-teste' | 'sem-fonte'
+
+/**
+ * Um Sinal do Mapa de Mercado, como o cartão do catálogo o mostra: só o que o usuário lê. Sem teto, passos nem
+ * fornecedor. O `motivo` só existe quando o Sinal está sem fonte.
+ */
+export interface CascataDoCatalogo {
+  /** O `signal_type` do Mapa (por exemplo `vaga_comex`). */
+  tipo: string
+  /** A letra do ICP do Mapa, de A a H. */
+  icp: string
+  nome: string
+  estado: EstadoDaCascata
+  /** `mercado`: mostra movimento do mercado, não de uma Conta do usuário. */
+  escopo: 'conta' | 'mercado'
+  motivo?: string
+}
+
 /**
  * A fronteira de dados do módulo Sinais e Monitoramentos.
  * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
@@ -130,6 +149,9 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Lista todos os tipos do catálogo de sinais. */
   tipos(): Promise<TipoDeSinal[]>
+
+  /** Os Sinais por mercado do Mapa (um cartão cada). A Demonstração não tem; uma leitura que falha rejeita. */
+  cascatas(): Promise<CascataDoCatalogo[]>
 
   /** Busca um tipo de sinal pelo id. Rejeita se não existir. */
   tipo(id: string): Promise<TipoDeSinal>
