@@ -4,7 +4,7 @@
 // lista abaixo, um por um, com o motivo.
 import { describe, expect, it } from 'vitest'
 
-const MARCA = /apify|actor/i
+const MARCA = /apify|\bactors?\b/i
 
 // Todo código de produção de src/ (os testes e as ferramentas de teste ficam de fora), lido como texto.
 const CODIGO = import.meta.glob(['./**/*.ts', './**/*.tsx', '!./**/*.test.ts', '!./**/*.test.tsx', '!./test/**'], {

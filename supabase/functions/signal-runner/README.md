@@ -36,3 +36,14 @@ A mesma função cuida da fila de buscas (`private.signal_rescans`), **antes** d
 - Cada varredura reserva pela busca e pelo Monitoramento, então repetir a volta nunca cobra duas vezes; a que falha não é cobrada. Se o tempo da função acaba no meio, a busca volta à fila e a função chama o relógio de novo (`kick_rescan_runner`).
 - Só acontecimento novo reaquece: o banco (`record_signal`) trata o mesmo acontecimento como reencontro, sem Sinal novo nem prazo renovado.
 - O Monitoramento que não pode varrer a Conta (falta a página do LinkedIn, por ex.) é pulado na busca sem cobrar; se nenhum pôde, a busca para com o motivo.
+
+## Sinais em cascata (sinais em cascata, fatia 2)
+
+Um tipo de Sinal que é **cascata** (`private.signal_cascades`, ao lado do registro de actors) roda pelo MESMO motor da conversa do Hermes (`_shared/cascata-de-sinais`), uma vez por rodada do Monitoramento e para o público inteiro, e não pelo caminho de uma varredura por Conta com adaptador:
+
+- a chave da execução é `monitor:<id do Monitoramento>:<hora marcada da rodada>`: repetir a rodada nunca reserva, cobra nem grava duas vezes;
+- a reserva de crédito é a da cascata (`begin_cascade_run`), não o 1 crédito por Conta (`begin_account_scan`); o Monitoramento automático ainda confere o interruptor e o teto da varredura automática, e roda uma vez por dia;
+- cada passo grava run id do Apify, actor, conta usada (índice), custo real, status HTTP e o erro real (`signal_cascade_run_steps`); o que chega a `signal_monitors.last_error` é só a mensagem em palavras do produto;
+- a "Buscar Sinais de novo" (reativação) por enquanto só olha os Sinais com actor e adaptador; incluir as cascatas nela é um passo seguinte.
+
+Diagnóstico de "o Monitoramento nunca roda": `select private.signal_runner_diagnostics();` (só leitura, no SQL Editor).

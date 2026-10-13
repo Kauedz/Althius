@@ -1,0 +1,33 @@
+# signal-cascade
+
+A busca de Sinais por **cascata**, pedida pela conversa do Hermes. Um Sinal é uma cascata de 1..N passos (um actor do Apify, uma fonte pública aberta ou uma regra interna); a saída normalizada de um passo é a entrada do próximo, e a cascata inteira é **um** Sinal: uma reserva de crédito, uma execução com N passos registrada (`private.signal_cascade_runs` e `_run_steps`) e um `record_signal` por acontecimento no fim. O motor é o `_shared/cascata-de-sinais`, o **mesmo** do Monitoramento (`signal-runner`): a conversa e as rotinas não têm caminhos separados.
+
+Quem chama: só o servidor, com a chave de serviço no `Authorization` (o worker do Hermes, que roda fora do Supabase e não tem as contas do Apify). `verify_jwt = true` no `supabase/config.toml`; a função confere o papel de serviço (`signal-scan/autorizacao.ts`).
+
+## Pedido
+
+`POST` com `{ workspaceId, userId, sinal, contas?, criterios?, tetoCreditos?, chave? }`:
+
+- `sinal`: o tipo do catálogo (`vaga_comex`...). Em teste, "sem fonte" ou fora do ar, nada é reservado nem rodado.
+- `contas`: ids de Contas-alvo do Workspace; sem elas, todas as ativas (até o máximo da cascata). A cascata só grava Sinal em Conta do Workspace do pedido.
+- `criterios`: `termos` e `periodo`, quando o tipo os aceita.
+- `tetoCreditos` (1 a 50): quanto quem pede aceita gastar. O teto em dólar da execução é o menor entre o da cascata e este; **nenhum passo começa** se o custo acumulado mais a estimativa dele passar do teto, e o `maxTotalChargeUsd` de cada run cabe no que resta.
+- `chave`: repetir a mesma chave não reserva, não cobra nem grava de novo. Sem ela, a função cria uma.
+
+`{ action: 'catalogo' }` devolve `{ sinais: [{ sinal, icp, nome, estado, escopo, motivo }] }`, com `estado` em `disponivel`, `em_validacao`, `sem_fonte` ou `fora_do_ar`.
+
+## Resposta
+
+`{ desfecho, mensagem, creditos, novos, repetidos, empresasSemConta, sinais: [{ conta, contaId, frase, quando, fonte, evidencia }] }`. Nada técnico: sem custo em dólar, actor, run id nem erro real (esses ficam em `signal_cascade_run_steps`, que nenhum RPC da tela lê). A mensagem é sempre em palavras do produto ("Sem saldo na fonte de dados; avisamos a equipe.", "Nossa busca não respondeu a tempo.").
+
+## Contas do Apify
+
+`APIFY_TOKEN` e, se houver, `APIFY_TOKEN_2` a `APIFY_TOKEN_5` (`_shared/apify-ambiente.ts`). Trocar ou somar uma conta é mudar segredo. A conta que recusa por **falta de crédito ou de limite de uso** (402; 403 de recurso desligado ou limite de uso) é pulada e o passo se repete na próxima, uma vez por conta; outros erros (5xx, 403 de permissão, 429) **não** giram a conta. Todas sem crédito: falha amigável, reserva liberada. O índice da conta usada fica no rastro do passo; o token nunca.
+
+## Custo
+
+Preço ao usuário = custo real do run (`usageTotalUsd`, lido de `GET /v2/actor-runs/{id}`) × `price_multiplier` (3) ÷ `private.signal_cascade_settings.usd_per_credit` (US$ 0,30 por crédito), arredondado para baixo, no mínimo 1 crédito quando a execução gerou Sinal novo, nunca acima do reservado. Falha ou aborto sem custo liberam a reserva; falha parcial cobra só o consumido. Teto do Workspace por dia: `daily_credit_cap` (50). O Monitoramento automático roda uma vez por dia por Monitoramento e confere o teto da varredura automática.
+
+## Segredos e passos manuais
+
+Ver "Passos do Nan" no PR da frente: `functions deploy signal-cascade`, os segredos acima e a execução real de cada actor antes de `set_signal_cascade_state(..., 'available')`.

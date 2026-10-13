@@ -3,7 +3,8 @@
 // README das funções, nunca em texto que o cliente lê, em `last_error` ou em resultado de ferramenta.
 
 /** O que nenhuma mensagem ao cliente, `last_error` ou resultado de ferramenta pode conter. */
-export const MARCA_INTERNA = /apify|actor/i
+// "actor" como palavra inteira: "factor" e "contractor" de uma vaga ou de uma notícia não são a marca.
+export const MARCA_INTERNA = /apify|\bactors?\b/i
 
 /** As mensagens em palavras do produto para a falha de uma fonte de dados. */
 export const MENSAGEM_DA_FONTE = {

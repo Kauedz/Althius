@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
+import { type ClienteRpc, criarMotorDeCascata } from '../_shared/cascata-de-sinais/index.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { ADAPTADORES } from './adaptadores.ts'
 import {
@@ -171,11 +172,16 @@ const buscas: Buscas = {
 
 // Esta função tem 150 s; cada Conta espera o Apify no máximo 70 s (60 s de execução) e mais 3 s para reler o custo quando
 // o Apify ainda não fechou a conta da execução, e uma Conta nova só começa até 72 s.
+const tokens = tokensDoApify((nome) => Deno.env.get(nome))
 const apify = clienteDoApify({
-  tokens: tokensDoApify((nome) => Deno.env.get(nome)),
+  tokens,
   runTimeoutSeconds: 60,
   timeoutMs: 70_000,
   esperaDoCustoMs: 3_000,
 })
 
-Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas }))
+// Os Sinais em cascata (um Sinal = vários passos) rodam pelo mesmo motor da conversa do Hermes: as mesmas contas do Apify,
+// o mesmo banco, o mesmo teto. O Monitoramento de um tipo que é cascata não passa pelo caminho de uma varredura por Conta.
+const cascatas = criarMotorDeCascata({ admin: admin as unknown as ClienteRpc, tokens })
+
+Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas, cascatas }))

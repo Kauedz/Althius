@@ -12,6 +12,9 @@
 //   usar_conector           (todos, com Ler+)    lista e chama as ferramentas que o servidor de um conector oferece, sem
 //                                                código por app (ADR-0022): a regra de cada ferramenta somada à Permissão
 //                                                decide se executa, pede Aprovação (com a chamada exata) ou é recusada;
+//   buscar_sinais           (Scopus)             busca Sinais de um tipo do catálogo (os 8 ICPs do Mapa de Mercado) nas Contas do
+//                                                Workspace, pelo mesmo motor de cascata dos Monitoramentos, com teto de
+//                                                Créditos; sem o Sinal, lista o catálogo e os que não têm fonte;
 //   propor_mudanca_no_playbook (Scopus, Ethos)   propõe uma nova versão de uma seção do Playbook da Especialidade (CRM-09,
 //                                                ADR-0010): nasce uma Aprovação que só um Administrador decide, e o
 //                                                Playbook só muda quando ela é aprovada.
@@ -145,8 +148,49 @@ export interface BancoDasFerramentas {
   ): Promise<RevisaoProposta>
 }
 
+/** Um Sinal do catálogo como o Hermes o vê: sem fornecedor, actor nem custo em dólar. */
+export interface SinalDoCatalogo {
+  sinal: string
+  icp: string
+  nome: string
+  /** disponivel | em_validacao | sem_fonte | fora_do_ar */
+  estado: string
+  /** conta: grava na Conta do Workspace; mercado: acontece no mercado todo e não vai para uma Conta. */
+  escopo: string
+  /** O porquê de não haver fonte, em palavras do produto. */
+  motivo: string | null
+}
+
+export interface RespostaDaBusca {
+  desfecho: string
+  mensagem: string
+  creditos: number
+  novos: number
+  repetidos: number
+  empresasSemConta: number
+  sinais: { conta: string; contaId: string; frase: string; quando: string; fonte: string; evidencia: string }[]
+  /** Sinais de mercado (sem Conta), quando o tipo é de mercado. */
+  mercado?: { frase: string; quando: string; fonte: string; evidencia: string }[]
+}
+
+/** A busca de Sinais pelo motor de cascata (a Edge Function `signal-cascade`). Sem ela, `buscar_sinais` não é oferecida. */
+export interface BuscaDeSinais {
+  catalogo(): Promise<SinalDoCatalogo[]>
+  buscar(a: {
+    workspaceId: string
+    userId: string
+    sinal: string
+    contas?: string[]
+    criterios?: Record<string, unknown>
+    tetoCreditos?: number
+    chave: string
+  }): Promise<RespostaDaBusca>
+}
+
 export interface DepsDasFerramentas {
   banco: BancoDasFerramentas
+  /** A busca de Sinais por cascata; sem ela, `buscar_sinais` não é oferecida. */
+  sinais?: BuscaDeSinais
   /** O Acesso às Integrações; sem ele, `consultar_integracao` não é oferecida. */
   acesso?: DepsDeAcesso
   /** O executor das Aprovações de envio, para a proposta que nasce liberada (Executar). Sem ele, ela espera a tela. */
@@ -915,6 +959,148 @@ const PROPOR_MUDANCA_NO_PLAYBOOK: FerramentaDoAgente = {
   },
 }
 
+
+const TETO_PADRAO_DA_BUSCA_DE_SINAIS = 5
+const TETO_MAXIMO_DA_BUSCA_DE_SINAIS = 20
+const MAX_SINAIS_NO_RESULTADO = 15
+const FALHAS_DA_BUSCA = new Set(['falhou', 'abortada', 'sem_creditos', 'limite_diario', 'sem_contas', 'indisponivel', 'em_teste', 'sem_cascata'])
+
+/** Uma impressão curta e estável de um objeto, para a mesma busca repetida na Execução levar a mesma chave. */
+function impressao(dado: unknown): string {
+  const texto = JSON.stringify(dado ?? null)
+  let h = 2166136261
+  for (let i = 0; i < texto.length; i++) h = Math.imul(h ^ texto.charCodeAt(i), 16777619)
+  return (h >>> 0).toString(36)
+}
+
+const BUSCAR_SINAIS: FerramentaDoAgente = {
+  nome: 'buscar_sinais',
+  descricao:
+    'Busca Sinais de compra em fontes públicas para as Contas-alvo do Workspace, de um tipo do catálogo (ex.: vaga de analista ' +
+    'de comex). Roda na hora, gasta Créditos pelo custo real até o teto que você informar e grava os Sinais nas Contas que os ' +
+    'tiveram. Sem "sinal", devolve o catálogo do ICP pedido (A a H) e quais tipos ainda não têm fonte, para você explicar ao ' +
+    'usuário. Só ofereça tipos do catálogo; um tipo "sem fonte" não roda e não custa nada. Os Sinais voltam já normalizados.',
+  esquema: {
+    type: 'object',
+    properties: {
+      sinal: { type: 'string', description: 'O tipo de Sinal do catálogo. Vazio devolve o catálogo.' },
+      icp: { type: 'string', enum: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], description: 'Filtra o catálogo pelo ICP.' },
+      contas: { type: 'array', items: { type: 'string' }, description: 'Ids de Contas-alvo (de ler_contas_e_sinais). Vazio usa todas.' },
+      criterios: {
+        type: 'object',
+        properties: {
+          termos: { type: 'array', items: { type: 'string' }, description: 'Termos da busca, quando o tipo aceita.' },
+          periodo: { type: 'string', description: 'Ex.: "Últimos 7 dias".' },
+        },
+        additionalProperties: false,
+      },
+      teto_creditos: { type: 'integer', description: `Quanto você aceita gastar nesta busca, de 1 a ${TETO_MAXIMO_DA_BUSCA_DE_SINAIS} (padrão ${TETO_PADRAO_DA_BUSCA_DE_SINAIS}).` },
+    },
+    additionalProperties: false,
+  },
+  especialidades: ['scopus'],
+  exige: null,
+  disponivel: (_agente, _ctx, deps) => !!deps.sinais,
+  async executar({ runId, agente, entrada, ctx, deps }) {
+    const busca = deps.sinais!
+    const sinal = texto(entrada.sinal, 80)
+    const icp = typeof entrada.icp === 'string' && /^[A-H]$/.test(entrada.icp) ? entrada.icp : null
+    let catalogo: SinalDoCatalogo[]
+    try {
+      catalogo = await busca.catalogo()
+    } catch {
+      return falhou(`${agente.name} tentou ler o catálogo de Sinais`, 'O catálogo de Sinais não respondeu agora. Siga sem ele.')
+    }
+
+    if (!sinal) {
+      const lista = catalogo.filter((c) => !icp || c.icp === icp)
+      return {
+        erro: false,
+        paraOAgente: cortar({
+          catalogo: lista,
+          orientacao:
+            'Ofereça só estes tipos. "disponivel" roda agora (pede um teto de Créditos); "em_validacao" ainda não roda; ' +
+            '"sem_fonte" é um Sinal sem fonte pública confiável (explique o motivo, sem inventar uma alternativa); escopo ' +
+            '"mercado" acontece no mercado todo e não vira Sinal de uma Conta.',
+        }),
+        passo: { descricao: `${agente.name} leu o catálogo de Sinais${icp ? ` do ICP ${icp}` : ''} (${plural(lista.length, 'tipo', 'tipos')})`, estado: 'concluida' },
+      }
+    }
+
+    const item = catalogo.find((c) => c.sinal === sinal)
+    if (!item) {
+      return falhou(
+        `${agente.name} pediu um Sinal que não está no catálogo`,
+        `"${sinal}" não está no catálogo de Sinais. Chame buscar_sinais sem "sinal" para ver os tipos e ofereça só esses.`,
+      )
+    }
+    if (item.estado === 'sem_fonte') {
+      return {
+        erro: false,
+        paraOAgente: `Este Sinal (${item.nome}) não tem fonte pública confiável hoje: ${item.motivo ?? 'sem fonte adequada'}. Nada foi rodado nem cobrado. Explique isso ao usuário e não proponha outra fonte por conta própria.`,
+        passo: { descricao: `${agente.name} explicou que "${item.nome}" ainda não tem fonte pública`, estado: 'concluida' },
+      }
+    }
+    if (item.estado !== 'disponivel') {
+      return {
+        erro: false,
+        paraOAgente: `Este Sinal (${item.nome}) ainda está em validação ou fora do ar e não roda neste Workspace. Nada foi rodado nem cobrado.`,
+        passo: { descricao: `${agente.name} viu que "${item.nome}" ainda está em validação`, estado: 'concluida' },
+      }
+    }
+
+    const contas = textos(entrada.contas, 100)
+    const brutos = entrada.criterios && typeof entrada.criterios === 'object' && !Array.isArray(entrada.criterios)
+      ? entrada.criterios as Record<string, unknown>
+      : undefined
+    const criterios = brutos
+      ? {
+        ...(textos(brutos.termos).length ? { termos: textos(brutos.termos) } : {}),
+        ...(texto(brutos.periodo, 60) ? { periodo: texto(brutos.periodo, 60) } : {}),
+      }
+      : undefined
+    const teto = Number.isInteger(entrada.teto_creditos)
+      ? Math.min(Math.max(entrada.teto_creditos as number, 1), TETO_MAXIMO_DA_BUSCA_DE_SINAIS)
+      : TETO_PADRAO_DA_BUSCA_DE_SINAIS
+    const chave = `hermes:${runId}:${agente.id}:${sinal}:${impressao({ contas, criterios, teto })}`
+    try {
+      const r = await busca.buscar({
+        workspaceId: ctx.workspaceId,
+        userId: ctx.requestedBy,
+        sinal,
+        ...(contas.length ? { contas } : {}),
+        ...(criterios && Object.keys(criterios).length ? { criterios } : {}),
+        tetoCreditos: teto,
+        chave,
+      })
+      const falha = FALHAS_DA_BUSCA.has(r.desfecho)
+      return {
+        erro: false,
+        paraOAgente: cortar({
+          sinal,
+          desfecho: r.desfecho,
+          mensagem: r.mensagem,
+          creditos: r.creditos,
+          novos: r.novos,
+          repetidos: r.repetidos,
+          empresasSemConta: r.empresasSemConta,
+          sinais: r.sinais.slice(0, MAX_SINAIS_NO_RESULTADO),
+          ...(r.mercado ? { mercado: r.mercado.slice(0, MAX_SINAIS_NO_RESULTADO) } : {}),
+        }),
+        passo: {
+          descricao: falha
+            ? `${agente.name} tentou buscar Sinais de "${item.nome}": ${r.mensagem}`
+            : `${agente.name} buscou Sinais de "${item.nome}" (${plural(r.novos, 'Sinal novo', 'Sinais novos')}, ${r.creditos} Créditos)`,
+          estado: falha ? 'falhou' : 'concluida',
+        },
+      }
+    } catch (erro) {
+      deps.log?.({ type: 'agent_tools', runId, ferramenta: 'buscar_sinais', outcome: 'failed', message: String(erro).slice(0, 300) })
+      return falhou(`${agente.name} tentou buscar Sinais de "${item.nome}"`, 'A busca de Sinais falhou agora. Não use dados dela e diga ao usuário que tente de novo mais tarde.')
+    }
+  },
+}
+
 export const CATALOGO: readonly FerramentaDoAgente[] = [LER_CONTAS, BUSCAR_PELO_ICP, CONSULTAR_INTEGRACAO, PROPOR_ENVIO]
 
 /**
@@ -922,7 +1108,7 @@ export const CATALOGO: readonly FerramentaDoAgente[] = [LER_CONTAS, BUSCAR_PELO_
  * à parte do `CATALOGO` das ferramentas da Etapa 5b porque dependem de contratos novos do banco (as regras, a proposta de
  * chamada, a proposta de revisão): quem não os tem continua vendo só as quatro de antes.
  */
-export const FERRAMENTAS: readonly FerramentaDoAgente[] = [...CATALOGO, USAR_CONECTOR, PROPOR_MUDANCA_NO_PLAYBOOK]
+export const FERRAMENTAS: readonly FerramentaDoAgente[] = [...CATALOGO, USAR_CONECTOR, PROPOR_MUDANCA_NO_PLAYBOOK, BUSCAR_SINAIS]
 
 /** A ferramenta como o modelo a recebe. */
 export interface FerramentaParaOModelo {

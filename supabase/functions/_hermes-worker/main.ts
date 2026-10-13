@@ -10,6 +10,7 @@ import {
   executarChamadaAprovada,
   executarEnvioAprovado,
 } from '../_shared/executor-de-aprovacoes.ts'
+import { buscaDeSinaisPorHttp } from '../_shared/busca-de-sinais.ts'
 import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import type { DepsDeAcesso } from '../_shared/integration-access.ts'
@@ -57,6 +58,11 @@ const acesso: DepsDeAcesso = { banco: bancoDasIntegracoes(rpcDoServico), ambient
 const ferramentas: DepsDasFerramentas | undefined = Deno.env.get('HERMES_FERRAMENTAS') === 'off' ? undefined : {
   banco: bancoDasFerramentas(rpcDoServico),
   acesso,
+  // A busca de Sinais por cascata roda na Edge Function signal-cascade, onde estão as contas do Apify: o worker não as tem.
+  // HERMES_SINAIS=off desliga só esta ferramenta.
+  ...(Deno.env.get('HERMES_SINAIS') === 'off' ? {} : {
+    sinais: buscaDeSinaisPorHttp({ baseUrl: required('SUPABASE_URL'), chaveDeServico: required('SUPABASE_SERVICE_ROLE_KEY') }),
+  }),
   executarAprovacao: (approvalId) => executarEnvioAprovado({ banco: bancoDoExecutor(rpcDoServico), acesso }, { approvalId }),
   // As Aprovações de ferramenta de conector (ADR-0022) que nascem liberadas saem logo, pelo mesmo Acesso.
   executarChamada: (approvalId) =>

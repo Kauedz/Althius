@@ -18,7 +18,7 @@ import {
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { instrucoesDoAgente } from '../_hermes-worker/worker.ts'
 import { MARCA_INTERNA } from './marca.ts'
-import { criarSessaoDeFerramentas, type BancoDasFerramentas } from './ferramentas-dos-agentes.ts'
+import { type BancoDasFerramentas, criarSessaoDeFerramentas, instrucoesDasFerramentas } from './ferramentas-dos-agentes.ts'
 import type { AgenteDoWorkspace, Reserva } from './orquestracao.ts'
 
 const WS = '22222222-2222-4222-8222-222222222222'
@@ -238,4 +238,35 @@ Deno.test('o prompt do Hermes proíbe nomear fornecedores e não carrega a marca
     const semARegra = prompt.replace(/Regra de marca:[^\n]*/g, '')
     semMarca(semARegra, 'prompt do Hermes')
   }
+})
+
+Deno.test('as instruções de todas as ferramentas do Scopus, com a busca de Sinais, não citam a marca nem o token', () => {
+  const agente: AgenteDoWorkspace = { id: 'ag-scopus', name: 'Scopus', specialty: 'scopus', kind: 'padrao', instructions: '', voice_tone: '' }
+  const sessao = criarSessaoDeFerramentas(
+    {
+      banco: {} as BancoDasFerramentas,
+      sinais: { catalogo: () => Promise.resolve([]), buscar: () => Promise.reject(new Error(TOKEN_FALSO)) },
+      log: () => {},
+    },
+    { runId: 'r1', ctx: { workspaceId: 'ws-1', requestedBy: 'u', permissoes: [] } },
+  )
+  const ferramentas = sessao.paraOAgente(agente)
+  assert(ferramentas.some((f) => f.nome === 'buscar_sinais'))
+  semMarca(instrucoesDasFerramentas(ferramentas), 'instruções das ferramentas')
+})
+
+Deno.test('a busca de Sinais que falha com o token no erro não o devolve ao Hermes', async () => {
+  const agente: AgenteDoWorkspace = { id: 'ag-scopus', name: 'Scopus', specialty: 'scopus', kind: 'padrao', instructions: '', voice_tone: '' }
+  const sessao = criarSessaoDeFerramentas(
+    {
+      banco: {} as BancoDasFerramentas,
+      sinais: {
+        catalogo: () => Promise.resolve([{ sinal: 'vaga_comex', icp: 'A', nome: 'Vaga', estado: 'disponivel', escopo: 'conta', motivo: null }]),
+        buscar: () => Promise.reject(new Error(`falhou com ${TOKEN_FALSO} no Apify`)),
+      },
+      log: () => {},
+    },
+    { runId: 'r1', ctx: { workspaceId: 'ws-1', requestedBy: 'u', permissoes: [] } },
+  )
+  semMarca(await sessao.chamar(agente, 'buscar_sinais', { sinal: 'vaga_comex' }), 'resultado de buscar_sinais')
 })

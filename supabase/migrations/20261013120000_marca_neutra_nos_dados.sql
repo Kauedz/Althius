@@ -122,15 +122,15 @@ begin
   get diagnostics v_provedor_email = row_count;
 
   update private.signal_monitors set last_error = private.mensagem_neutra_da_falha(last_error)
-  where last_error ~* '(apify|actor)';
+  where last_error ~* '(apify|\yactors?\y)';
   get diagnostics v_monitores = row_count;
-  update private.signal_monitor_runs set error = private.mensagem_neutra_da_falha(error) where error ~* '(apify|actor)';
+  update private.signal_monitor_runs set error = private.mensagem_neutra_da_falha(error) where error ~* '(apify|\yactors?\y)';
   get diagnostics v_rodadas = row_count;
   update private.signal_rescans set last_error = private.mensagem_neutra_da_falha(last_error)
-  where last_error ~* '(apify|actor)';
+  where last_error ~* '(apify|\yactors?\y)';
   get diagnostics v_buscas = row_count;
   update private.discovery_runs set last_error = private.mensagem_neutra_da_falha(last_error)
-  where last_error ~* '(apify|actor)';
+  where last_error ~* '(apify|\yactors?\y)';
   get diagnostics v_pedidos = row_count;
 
   return jsonb_build_object(

@@ -41,6 +41,11 @@ verify_jwt = true
 [functions.signal-runner]
 verify_jwt = false
 
+# A busca de Sinais por cascata, pedida pelo worker do Hermes com a chave de serviço (o gateway confere que é um JWT; a
+# função confere o papel de serviço). Roda o mesmo motor do signal-runner, com as contas do Apify que só existem nos segredos.
+[functions.signal-cascade]
+verify_jwt = true
+
 # Assinatura pelo Stripe (creditos-e-planos 05 e 06): o navegador pede checkout, portal e ajuste de assentos com o JWT;
 # o Stripe chama o webhook sem JWT, e a função confere a assinatura Stripe-Signature.
 [functions.stripe-billing]
