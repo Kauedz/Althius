@@ -74,3 +74,17 @@ mudança de sede: sem rua num dos lados, só município, UF e CEP decidem ... ok
 o hash é estável e distingue textos ... ok
 o município aparece em português ("SAO PAULO" vira "Sao Paulo", com as preposições em minúsculas) ... ok
 ok | 35 passed | 0 failed
+
+=== pgTAP VERMELHO (sem a migração) ===
+FALHOU cascatas_icp_f.sql: plano 30, ok 6, not ok 23
+not ok 1 - o estado e o escopo de cada Sinal do ICP F
+# Failed test 1: "o estado e o escopo de cada Sinal do ICP F"
+#         have: NULL
+#         want: {crescimento_comex_embarcador:sem_fonte:conta,novo_cd_ou_filial:testing:conta,troca_de_sede:testing:conta,vaga_logistica:testing:conta}
+not ok 3 - os passos de F1
+# Failed test 3: "os passos de F1"
+#         have: NULL
+
+=== pgTAP VERDE ===
+ok     cascatas_icp_f.sql: 30/30
+ok     cascatas_icp_a_resto.sql: 16/16
