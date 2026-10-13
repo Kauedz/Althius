@@ -391,7 +391,7 @@ Deno.test('B4: a alternativa mais cara não cabe no teto padrão (o motor a barr
   assert(!JSON.stringify(b).includes('FULANO') && !JSON.stringify(b).includes('x@y.test'))
 })
 
-Deno.test('B4: o pior caso de cada cascata de Conta ou de mercado cabe no teto com a alternativa barata', () => {
+Deno.test('B4: o pior caso do actor principal cabe no teto (US$ 0,09 para 100 empresas)', () => {
   assert(estimativaDaCascata(DEF_B4()) <= 0.15)
   assertEquals(estimativaDaCascata(DEF_B4()), 0.09005)
 })

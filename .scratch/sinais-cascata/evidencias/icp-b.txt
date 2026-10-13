@@ -26,3 +26,36 @@ error: Type checking failed.
 
 Stack backtrace:
    0: <unknown>
+
+=== VERMELHO (sem checagem de tipos): comportamento ===
+FAILED | 0 passed | 1 failed (4ms)
+
+=== VERDE: deno test -A supabase/functions/_shared/cascata-de-sinais ===
+a tabela é um critério interno revisável: subclasses de 7 dígitos, sem repetir, com motivo e sem marca ... ok (998µs)
+mascaraCnae e setorDoCnae aceitam o código com ou sem máscara ... ok (293µs)
+setorDoMes gira pela tabela, um setor por mês, sempre o mesmo para o mesmo mês ... ok (170µs)
+B1: o CNPJ novo de uma Conta vira Sinal "CNPJ aberto em", com o aviso de base mensal; o resto só é contado, sem nome de pessoa ... ok (18ms)
+B1: os filtros do pedido (UF, CNAE, porte, mês) vão para o actor no formato dele ... ok (1ms)
+B1: repetir a rodada não grava o Sinal de novo (a chave é a empresa e o CNPJ) ... ok (2ms)
+B1: sem o actor principal, a base mensal alternativa assume e nenhum contato (telefone, e-mail) chega ao Sinal ... ok (2ms)
+B1: sem filtros, a base alternativa pede desde o primeiro dia do mês anterior ... ok (842µs)
+B1: a última alternativa (base geral) só entrega matriz ativa aberta na janela, e nenhum dado de sócio passa ... ok (2ms)
+B1: sem Conta no Workspace a busca nem começa, e o pior caso cabe no teto ... ok (386µs)
+B2: a primeira rodada só grava a base (sem Sinal) e consulta só as Contas com CNPJ ... ok (1ms)
+B2: o porte e o Simples que mudaram desde a fotografia do mês anterior viram um Sinal da Conta ... ok (827µs)
+B2: virar MEI e deixar o MEI, optar pelo Simples e mudar o regime também; campo que falta num dos lados não gera Sinal ... ok (1ms)
+B2: sem o actor, a BrasilAPI dá a fotografia (porte, Simples, MEI e o regime do último ano) e nenhum nome de sócio é lido ... ok (880µs)
+B2 e B3: sem Conta com CNPJ a consulta é pulada e não custa nada ... ok (456µs)
+B2 e B3: o pior caso (100 CNPJs) cabe no teto da cascata ... ok (93µs)
+B3: a primeira rodada grava só contagem e códigos curtos dos sócios, nunca nome nem CPF ... ok (1ms)
+B3: o sócio novo desde a fotografia anterior vira "Entrou sócio", sem nome na frase nem na evidência ... ok (947µs)
+B3: dois sócios novos, e troca de sócio com a mesma contagem, contam como entrada; saída de sócio não ... ok (1ms)
+B3: a fonte sem quadro societário não gera Sinal nem apaga a base anterior ... ok (380µs)
+B3: a BrasilAPI como alternativa entrega o mesmo código de sócio que o actor (a troca de fonte não inventa entrada) ... ok (642µs)
+B4: a amostra do CNAE vira um Sinal de mercado com o tamanho e quantas ficam fora do Simples e do MEI, sem dado de empresa nem de sócio ... ok (5ms)
+B4: amostra cheia diz "ao menos"; sem pedido, o setor do mês é o da tabela; CNAE fora da tabela é ignorado; sem UF, o Brasil ... ok (633µs)
+B4: CNAE sem empresa ativa na amostra não gera Sinal ... ok (395µs)
+B4: a alternativa mais cara não cabe no teto padrão (o motor a barra); com teto maior ela roda e a amostra sai sem o dado do Simples ... ok (998µs)
+B4: o pior caso do actor principal cabe no teto (US$ 0,09 para 100 empresas) ... ok (109µs)
+o registro do ICP B traz os handlers e a fonte pública que as cascatas usam ... ok (88µs)
+ok | 100 passed | 0 failed (1s)
