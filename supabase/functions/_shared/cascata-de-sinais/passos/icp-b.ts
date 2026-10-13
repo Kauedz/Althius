@@ -391,7 +391,10 @@ const diffSocios: ImplDoPasso = {
     const fotos = fotografias(entrada).filter((f) => Array.isArray(f.ids))
     if (!fotos.length) return []
     const inicio = inicioDoMes(ctx.agora)
-    const antes = await ctx.snapshots.ler(fotos.map((f) => String(f.cnpj)), inicio)
+    const antes = await ctx.snapshots.ler(
+      fotos.map((f) => String(f.cnpj)),
+      ctx.criterios.segundaPassagem === true ? undefined : inicio,
+    )
     const sinais: Item[] = []
     for (const f of fotos) {
       const cnpj = String(f.cnpj)

@@ -6,12 +6,15 @@ import { type ClienteRpc, criarDbDaCascata } from './db.ts'
 import { clienteAssincronoDoApify } from './fonte-apify.ts'
 import { rodarCascata } from './motor.ts'
 import { registroDePassos } from './passos/index.ts'
+import { aquecerEstatistica, type ResultadoDoAquecimento } from './passos/icp-a-resto.ts'
 import type { Llm, PedidoDeCascata, ResultadoDaCascata } from './tipos.ts'
 
 export type { ClienteRpc } from './db.ts'
 export { MENSAGENS } from './motor.ts'
 export { escolherLlmDosSinais } from './llm-seletor.ts'
 export type * from './tipos.ts'
+
+export type { ResultadoDoAquecimento }
 
 export interface MotorDeCascata {
   /** Se o tipo de Sinal é uma cascata (e não um actor do registro). */
@@ -24,6 +27,8 @@ export interface MotorDeCascata {
    * estão no prazo da cadência (a cascata mensal não roda todo dia). Vazio quando o tipo não é atendido por cascatas.
    */
   planoDoMonitor(monitorId: string): Promise<PlanoDoMonitor>
+  /** Guarda a estatística de comércio exterior do mês. Não abre execução e não cobra crédito. */
+  aquecer(): Promise<ResultadoDoAquecimento>
 }
 
 export interface PlanoDoMonitor {
@@ -85,5 +90,26 @@ export function criarMotorDeCascata(
         semFonteMotivo: l.sem_fonte_motivo, cadenceHours: l.cadence_hours,
       }))
     },
+    aquecer: () => aquecerEstatistica({
+      fetchFn,
+      prazoFinal: Date.now() + 140_000,
+      cache: {
+        ler: async (chave: string, mes: string | null) => {
+          try {
+            return await db.lerCache({ fonte: 'comexstat', chave, mes })
+          } catch (e) {
+            log?.({ type: 'cascata', outcome: 'cache_read_failed', message: String(e).slice(0, 300) })
+            return null
+          }
+        },
+        gravar: async (chave: string, mes: string, payload: unknown) => {
+          try {
+            await db.gravarCache({ fonte: 'comexstat', chave, mes, payload })
+          } catch (e) {
+            log?.({ type: 'cascata', outcome: 'cache_write_failed', message: String(e).slice(0, 300) })
+          }
+        },
+      },
+    }),
   }
 }

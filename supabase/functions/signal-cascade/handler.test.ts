@@ -127,3 +127,48 @@ Deno.test('a validação da equipe (validacao: true) deixa rodar um Sinal em tes
   await pedir({ ...valido })
   assertEquals(pedidos.map((p) => p.permitirTeste), [true, false, false])
 })
+
+Deno.test('a segunda passagem só liga com validacao: true e ignora o critério mandado pelo cliente', async () => {
+  const { pedir, pedidos } = montar()
+  await pedir({ ...valido, validacao: true, criterios: { uf: 'SP', segundaPassagem: false } })
+  await pedir({ ...valido, criterios: { segundaPassagem: true } })
+  await pedir({ ...valido, validacao: 'sim', criterios: { uf: 'RJ', segundaPassagem: true } })
+  assertEquals(pedidos[0].criterios, { uf: 'SP', segundaPassagem: true })
+  assertEquals(pedidos[1].criterios, undefined)
+  assertEquals(pedidos[2].criterios, { uf: 'RJ' })
+})
+
+Deno.test('aquecer não abre busca e devolve o desfecho, sem crédito', async () => {
+  let aquecimentos = 0
+  const motor: MotorDaConversa = {
+    rodar: () => Promise.reject(new Error('não devia buscar')),
+    catalogo: () => Promise.resolve([]),
+    aquecer: () => {
+      aquecimentos++
+      return Promise.resolve({
+        desfecho: 'adiado',
+        mensagem: 'A estatística de comércio exterior está limitando as consultas. A busca fica para a próxima tentativa e nenhum crédito é cobrado.',
+      })
+    },
+  }
+  const handler = createHandler({
+    motor,
+    autorizado: (a) => a === 'Bearer chave-de-servico',
+    tokenDeRotina: (t) => Promise.resolve(t === 'token-do-relogio-com-mais-de-trinta-e-dois'),
+    log: () => {},
+  })
+  const pedir = (corpo: unknown, headers: Record<string, string> = { Authorization: 'Bearer chave-de-servico' }) =>
+    handler(new Request('http://x/signal-cascade', { method: 'POST', headers, body: JSON.stringify(corpo) }))
+  const adiado = await pedir({ action: 'aquecer' })
+  assertEquals(adiado.status, 200)
+  assertEquals(await adiado.json(), {
+    desfecho: 'adiado',
+    mensagem: 'A estatística de comércio exterior está limitando as consultas. A busca fica para a próxima tentativa e nenhum crédito é cobrado.',
+  })
+  const peloRelogio = await pedir({ action: 'aquecer' }, { 'x-runner-token': 'token-do-relogio-com-mais-de-trinta-e-dois' })
+  assertEquals(peloRelogio.status, 200)
+  const buscaDoRelogio = await pedir(valido, { 'x-runner-token': 'token-do-relogio-com-mais-de-trinta-e-dois' })
+  assertEquals(buscaDoRelogio.status, 401)
+  assertEquals(aquecimentos, 2)
+  assert(!MARCA_INTERNA.test(JSON.stringify(await (await pedir({ action: 'aquecer' })).json())))
+})

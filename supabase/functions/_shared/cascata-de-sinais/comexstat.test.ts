@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1'
 import { clienteComexStat, dolares, fimDoMes, mesMais, ncmComPontos } from './comexstat.ts'
+import { FonteAdiada } from './fonte-publica.ts'
 
 Deno.test('o cliente espaça as requisições em 12 s e manda o corpo no formato da API', async () => {
   const esperas: number[] = []
@@ -36,6 +37,104 @@ Deno.test('429 espera pelo menos 10 s e faz até 3 novas tentativas', async () =
   assertEquals(n, 4, 'uma chamada e três novas tentativas')
   assertEquals(esperas.length, 3)
   assert(esperas.every((ms) => ms >= 10_000), JSON.stringify(esperas))
+})
+
+Deno.test('a cópia do mês dispensa a consulta à rede', async () => {
+  let chamadas = 0
+  const fetchFn = (() => {
+    chamadas++
+    return Promise.resolve(new Response('nope', { status: 500 }))
+  }) as typeof fetch
+  const copias = new Map<string, unknown>([
+    ['dates/updated|2026-10', { data: { updated: '2026-10-06', year: '2026', monthNumber: '09' } }],
+  ])
+  const c = clienteComexStat({
+    fetchFn,
+    relogio: () => Date.parse('2026-10-13T12:00:00Z'),
+    cache: {
+      ler: (chave, mes) => Promise.resolve(copias.get(`${chave}|${mes ?? ''}`) ?? null),
+      gravar: () => Promise.resolve(),
+    },
+  })
+  assertEquals(await c.ultimoMes(), { ano: 2026, mes: 9 })
+  assertEquals(chamadas, 0)
+})
+
+Deno.test('429 espera 10 s, depois 20 s e depois 40 s', async () => {
+  const esperas: number[] = []
+  let n = 0
+  const fetchFn = (() => {
+    n++
+    if (n < 4) return Promise.resolve(new Response('limite', { status: 429 }))
+    return Promise.resolve(new Response(JSON.stringify({ data: { list: [{ coNcm: '84799999', metricFOB: '1', metricKG: '1' }] } })))
+  }) as typeof fetch
+  const c = clienteComexStat({ fetchFn, dormir: (ms) => (esperas.push(ms), Promise.resolve()) })
+  const linhas = await c.geral({ fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09', filtros: [], detalhes: ['ncm'] })
+  assertEquals(linhas[0].coNcm, '84799999')
+  assertEquals(esperas, [10_000, 20_000, 40_000])
+})
+
+Deno.test('429 que não cede adia a consulta, sem tratar como fonte fora', async () => {
+  const fetchFn = (() => Promise.resolve(new Response('limite', { status: 429 }))) as typeof fetch
+  const c = clienteComexStat({ fetchFn, dormir: () => Promise.resolve() })
+  const erro = await assertRejects(
+    () => c.geral({ fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09', filtros: [], detalhes: ['ncm'] }),
+    FonteAdiada,
+  )
+  assertEquals(erro.status, 429)
+})
+
+Deno.test('não espera a próxima tentativa quando ela passaria do prazo', async () => {
+  const t0 = Date.parse('2026-10-13T12:00:00Z')
+  const esperas: number[] = []
+  let n = 0
+  const fetchFn = (() => {
+    n++
+    return Promise.resolve(new Response('limite', { status: 429 }))
+  }) as typeof fetch
+  const c = clienteComexStat({
+    fetchFn,
+    dormir: (ms) => (esperas.push(ms), Promise.resolve()),
+    relogio: () => t0,
+    prazoFinal: t0 + 20_000,
+  })
+  await assertRejects(
+    () => c.geral({ fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09', filtros: [], detalhes: ['ncm'] }),
+    FonteAdiada,
+  )
+  assertEquals(esperas, [10_000])
+  assertEquals(n, 2)
+})
+
+Deno.test('a consulta geral reusa a cópia do mês publicado e não chama a rede', async () => {
+  let chamadas = 0
+  const fetchFn = (() => {
+    chamadas++
+    return Promise.resolve(new Response('nope', { status: 500 }))
+  }) as typeof fetch
+  const chave = JSON.stringify({
+    fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09',
+    filtros: [{ filter: 'chapter', values: [84, 85] }], detalhes: ['ncm'], metricas: ['metricFOB', 'metricKG'],
+  })
+  const copias = new Map<string, unknown>([
+    ['dates/updated|2026-10', { data: { year: '2026', monthNumber: '09' } }],
+    [`${chave}|2026-09`, { data: { list: [{ coNcm: '84799999', metricFOB: '1', metricKG: '1' }] } }],
+  ])
+  const c = clienteComexStat({
+    fetchFn,
+    relogio: () => Date.parse('2026-10-13T12:00:00Z'),
+    cache: {
+      ler: (chaveDaConsulta, mes) => Promise.resolve(copias.get(`${chaveDaConsulta}|${mes ?? ''}`) ?? null),
+      gravar: () => Promise.resolve(),
+    },
+  })
+  await c.ultimoMes()
+  const linhas = await c.geral({
+    fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09',
+    filtros: [{ filter: 'chapter', values: [84, 85] }], detalhes: ['ncm'],
+  })
+  assertEquals(linhas[0].coNcm, '84799999')
+  assertEquals(chamadas, 0)
 })
 
 Deno.test('sem o último mês ou com a API fora, falha sem texto da API', async () => {

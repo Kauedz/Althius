@@ -207,6 +207,18 @@ Deno.test('F1: a notícia sem nenhuma manchete que sirva deixa a evidência como
   assert(!r.sinais[0].evidence.includes('Notícia'), r.sinais[0].evidence)
 })
 
+Deno.test('F1: a base de hoje, na segunda passagem, só emite filial que não estava na rede', async () => {
+  const igual = cenario(cascataNovoCdOuFilial(), {
+    [BRANCH]: { itens: [mapa('11222333', [filial('11222333000262', 'SP', dia(500))]), RESUMO], usageTotalUsd: 0.01 },
+  }, { fotografias: { [MATRIZ_ALFA]: [foto(0, BASE_ANTERIOR)] } })
+  assertEquals((await igual.rodar({ criterios: { segundaPassagem: true } })).novos, 0)
+
+  const nova = cenario(cascataNovoCdOuFilial(), {
+    [BRANCH]: { itens: MAPA_DA_SEGUNDA_RODADA, usageTotalUsd: 0.01 },
+  }, { fotografias: { [MATRIZ_ALFA]: [foto(0, BASE_ANTERIOR)] } })
+  assertEquals((await nova.rodar({ criterios: { segundaPassagem: true } })).novos, 1)
+})
+
 Deno.test('F1: sem filial nova a fotografia se renova e nada é emitido', async () => {
   const c = cenario(cascataNovoCdOuFilial(), {
     [BRANCH]: { itens: [mapa('11222333', [filial('11222333000262', 'SP', dia(500))]), RESUMO], usageTotalUsd: 0.01 },
@@ -346,6 +358,18 @@ Deno.test('F2: a mudança de endereço dentro do mesmo município também é Sin
   })
   const r = await c.rodar()
   assertEquals(r.sinais.map((s) => s.phrase), ['Mudou o endereço da sede, dentro de Campinas/SP'])
+})
+
+Deno.test('F2: a base de hoje, na segunda passagem, só emite troca real de sede', async () => {
+  const base = await baseDaPrimeiraRodada(CAMPINAS)
+  const igual = cenario(cascataTrocaDeSede(), { [LOOKUP]: { itens: [registro(CAMPINAS)], usageTotalUsd: 0.0016 } }, {
+    contas: [ALFA], fotografias: { [MATRIZ_ALFA]: [foto(0, base)] },
+  })
+  assertEquals((await igual.rodar({ criterios: { segundaPassagem: true } })).novos, 0)
+  const trocou = cenario(cascataTrocaDeSede(), { [LOOKUP]: { itens: [registro({ ...CAMPINAS, municipio: 'BARUERI' })], usageTotalUsd: 0.0016 } }, {
+    contas: [ALFA], fotografias: { [MATRIZ_ALFA]: [foto(0, base)] },
+  })
+  assertEquals((await trocou.rodar({ criterios: { segundaPassagem: true } })).novos, 1)
 })
 
 Deno.test('F2: o mesmo endereço escrito de outro jeito não é mudança; a fotografia se renova', async () => {

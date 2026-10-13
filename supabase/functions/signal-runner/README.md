@@ -58,3 +58,5 @@ Um tipo genérico da tela (Novo escritório, Registros empresariais, Investiment
 - a "Buscar Sinais de novo" continua só com os Sinais com actor.
 
 Diagnóstico de "o Monitoramento nunca roda": `select private.signal_runner_diagnostics();` (só leitura, no SQL Editor).
+
+O relógio diário (`private.kick_comexstat_cache`, onde o agendador existe) chama esta mesma função com `{ "action": "aquecer" }` e o token do relógio. Isso só guarda a estatística de comércio exterior do mês e não reivindica Monitoramento. Corpo vazio continua a varredura de sempre.

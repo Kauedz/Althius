@@ -13,13 +13,15 @@ Quem chama: só o servidor, com a chave de serviço no `Authorization` (o worker
 - `criterios`: `termos` e `periodo`, quando o tipo os aceita.
 - `tetoCreditos` (1 a 50): quanto quem pede aceita gastar. O teto em dólar da execução é o menor entre o da cascata e este; **nenhum passo começa** se o custo acumulado mais a estimativa dele passar do teto, e o `maxTotalChargeUsd` de cada run cabe no que resta.
 - `chave`: repetir a mesma chave não reserva, não cobra nem grava de novo. Sem ela, a função cria uma.
-- `validacao: true` (só a equipe; o Hermes nunca envia): deixa rodar um Sinal ainda em teste. A execução guarda até 5 CNPJs e razões sociais achados que não são Conta, sem dado de pessoa, para criar a Conta e repetir a busca.
+- `validacao: true` (só a equipe; o Hermes nunca envia): deixa rodar um Sinal ainda em teste e compara na hora com a fotografia já guardada (segunda passagem). Dado igual à base não vira Sinal. A execução guarda até 5 CNPJs e razões sociais achados que não são Conta, sem dado de pessoa, para criar a Conta e repetir a busca.
 
 `{ action: 'catalogo' }` devolve `{ sinais: [{ sinal, icp, nome, estado, escopo, motivo }] }`, com `estado` em `disponivel`, `em_validacao`, `sem_fonte` ou `fora_do_ar`.
 
+`{ action: 'aquecer' }` guarda a estatística de comércio exterior deste mês (as consultas da NCM e do volume por porto) sem abrir execução e sem cobrar crédito. A resposta é só `{ desfecho, mensagem }`. `desfecho` `adiado` quer dizer que a fonte limitou as consultas: nada foi cobrado e a próxima tentativa relê a cópia. Quem chama continua sendo o servidor (`verify_jwt = true`). O relógio diário pede o mesmo aquecimento ao `signal-runner`, que já aceita o token do relógio.
+
 ## Resposta
 
-`{ desfecho, mensagem, creditos, novos, repetidos, empresasSemConta, sinais: [{ conta, contaId, frase, quando, fonte, evidencia }] }`. Nada técnico: sem custo em dólar, actor, run id nem erro real (esses ficam em `signal_cascade_run_steps`, que nenhum RPC da tela lê). A mensagem é sempre em palavras do produto ("Sem saldo na fonte de dados; avisamos a equipe.", "Nossa busca não respondeu a tempo.").
+`{ desfecho, mensagem, creditos, novos, repetidos, empresasSemConta, sinais: [{ conta, contaId, frase, quando, fonte, evidencia }] }`. `desfecho` pode ser `concluida`, `parcial`, `abortada`, `falhou` ou `adiado`. `adiado` não cobra crédito: a fonte pública pediu para tentar de novo mais tarde. Nada técnico: sem custo em dólar, actor, run id nem erro real (esses ficam em `signal_cascade_run_steps`, que nenhum RPC da tela lê). A mensagem é sempre em palavras do produto ("Sem saldo na fonte de dados; avisamos a equipe.", "Nossa busca não respondeu a tempo.").
 
 ## Contas do Apify
 

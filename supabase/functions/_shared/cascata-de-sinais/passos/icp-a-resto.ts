@@ -5,7 +5,8 @@
 //                           CGU/CMRI 467/2024); o Comex Stat é agregado, sem empresa
 //   habilitacao_radar (A5)  sem fonte: a consulta é individual, por CNPJ, e exige verificação humana
 // Sem empresa e sem custo de fonte: o Sinal vai para o feed do Workspace, não para uma Conta.
-import { dolares, fimDoMes, type LinhaDoComexStat, mesMais, ncmComPontos, nomeDoMes, clienteComexStat } from '../comexstat.ts'
+import { dolares, fimDoMes, type LinhaDoComexStat, mesCalendario, mesMais, ncmComPontos, nomeDoMes, clienteComexStat, type CacheDaConsulta } from '../comexstat.ts'
+import { ErroDeFontePublica, FonteAdiada } from '../fonte-publica.ts'
 import type { ContextoDoPasso, FontePublica, ImplDoPasso, Item, RegistroDePassos } from '../tipos.ts'
 import { listaDoPasso, objeto, texto } from './comum.ts'
 
@@ -36,15 +37,30 @@ function portoDaUrf(urf: string): { cod: string; nome: string } {
   return { cod: cod.trim(), nome }
 }
 
+function cacheDoComex(ctx: ContextoDoPasso): CacheDaConsulta | undefined {
+  const cache = ctx.cacheFonte
+  if (!cache) return undefined
+  return {
+    ler: (chave, mes) => cache.ler('comexstat', chave, mes),
+    gravar: (chave, mes, payload) => cache.gravar('comexstat', chave, mes, payload),
+  }
+}
+
 export function passosDoIcp_a_resto(fetchFn: typeof fetch = fetch, opcoes: Opcoes = {}): RegistroDePassos {
-  const comex = () => clienteComexStat({ fetchFn, ...opcoes })
+  const comex = (ctx: ContextoDoPasso) => clienteComexStat({
+    fetchFn,
+    ...opcoes,
+    prazoFinal: ctx.pedido.prazoFinal,
+    mesDaCopia: () => mesCalendario(ctx.agora),
+    cache: cacheDoComex(ctx),
+  })
 
   // A3, passo 1: as importações por NCM dos capítulos nos últimos N meses e nos 12 meses anteriores a eles.
   const comexstatNcmJanelas: FontePublica = {
     async buscar(_entrada, ctx) {
       const meses = Math.min(Math.max(Math.round(limiar(ctx, 'meses', 3)), 1), 6)
       const filtros = [{ filter: 'chapter', values: capitulos(ctx) }]
-      const c = comex()
+      const c = comex(ctx)
       const { ano, mes } = await c.ultimoMes()
       const recenteDe = mesMais(ano, mes, -(meses - 1))
       const recenteAte = mesMais(ano, mes, 0)
@@ -97,7 +113,7 @@ export function passosDoIcp_a_resto(fetchFn: typeof fetch = fetch, opcoes: Opcoe
   // A4, passo 1: as importações por porto e aeroporto (URF) nos 4 últimos meses.
   const comexstatUrfMensal: FontePublica = {
     async buscar(_entrada, ctx) {
-      const c = comex()
+      const c = comex(ctx)
       const { ano, mes } = await c.ultimoMes()
       const linhas = await c.geral({
         fluxo: 'import', porMes: true, de: mesMais(ano, mes, -3), ate: mesMais(ano, mes, 0),
@@ -147,5 +163,44 @@ export function passosDoIcp_a_resto(fetchFn: typeof fetch = fetch, opcoes: Opcoe
   return {
     passos: { ncms_novas_na_pauta: ncmsNovasNaPauta, volume_por_porto: volumePorPorto },
     fontes: { comexstat_ncm_janelas: comexstatNcmJanelas, comexstat_urf_mensal: comexstatUrfMensal },
+  }
+}
+
+export interface ResultadoDoAquecimento {
+  desfecho: 'concluida' | 'adiado' | 'falhou'
+  mensagem: string
+}
+
+const CAPITULOS_DO_AQUECIMENTO = [84, 85]
+const MENSAGEM_GUARDADA = 'A estatística de comércio exterior deste mês foi guardada.'
+const MENSAGEM_FONTE_FORA = 'A fonte pública está indisponível agora.'
+
+/**
+ * Enche a cópia mensal das três consultas que a NCM e o volume por porto usam (capítulos 84 e 85, janela de 3 meses).
+ * Não abre execução e não reserva crédito. 429 esgotado devolve `adiado`; a próxima tentativa relê a cópia.
+ */
+export async function aquecerEstatistica(
+  opcoes: {
+    fetchFn?: typeof fetch
+    dormir?: (ms: number) => Promise<void>
+    esperaMs?: number
+    relogio?: () => number
+    mesDaCopia?: () => string
+    cache?: CacheDaConsulta
+    prazoFinal?: number
+  } = {},
+): Promise<ResultadoDoAquecimento> {
+  const c = clienteComexStat(opcoes)
+  try {
+    const { ano, mes } = await c.ultimoMes()
+    const filtros = [{ filter: 'chapter', values: CAPITULOS_DO_AQUECIMENTO }]
+    await c.geral({ fluxo: 'import', porMes: false, de: mesMais(ano, mes, -2), ate: mesMais(ano, mes, 0), filtros, detalhes: ['ncm'] })
+    await c.geral({ fluxo: 'import', porMes: false, de: mesMais(ano, mes, -14), ate: mesMais(ano, mes, -3), filtros, detalhes: ['ncm'] })
+    await c.geral({ fluxo: 'import', porMes: true, de: mesMais(ano, mes, -3), ate: mesMais(ano, mes, 0), filtros, detalhes: ['urf'] })
+    return { desfecho: 'concluida', mensagem: MENSAGEM_GUARDADA }
+  } catch (e) {
+    if (e instanceof FonteAdiada) return { desfecho: 'adiado', mensagem: e.message }
+    if (e instanceof ErroDeFontePublica) return { desfecho: 'falhou', mensagem: MENSAGEM_FONTE_FORA }
+    throw e
   }
 }

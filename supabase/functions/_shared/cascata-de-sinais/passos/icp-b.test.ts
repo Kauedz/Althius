@@ -293,6 +293,20 @@ Deno.test('B3: a primeira rodada grava só contagem e códigos curtos dos sócio
   assert(!/FULANO|BELTRANA|\*\*\*/.test(tudo), 'nada de nome nem documento mascarado')
 })
 
+Deno.test('B3: a segunda passagem compara com a fotografia deste mês e só emite sócio novo', async () => {
+  const mesmos = [idDoSocio(ALFA_CNPJ, 'FULANO DE TAL'), idDoSocio(ALFA_CNPJ, 'BELTRANA DA SILVA')].sort()
+  const desteMes = { [ALFA_CNPJ]: [{ takenAt: INICIO_DO_MES, data: { socios: 2, ids: mesmos } }] }
+  const igual = cenario(DEF_B3, { 'johnatan029~cnpj-empresas-brasil-scraper': { itens: [lookup()], usageTotalUsd: 0.0016 } }, { fotografias: desteMes })
+  assertEquals((await igual.rodar({ criterios: { segundaPassagem: true } })).sinais.length, 0)
+
+  const menos = { [ALFA_CNPJ]: [{ takenAt: INICIO_DO_MES, data: { socios: 1, ids: [idDoSocio(ALFA_CNPJ, 'FULANO DE TAL')] } }] }
+  const semFlag = cenario(DEF_B3, { 'johnatan029~cnpj-empresas-brasil-scraper': { itens: [lookup()], usageTotalUsd: 0.0016 } }, { fotografias: menos })
+  assertEquals((await semFlag.rodar()).sinais.length, 0)
+  const comFlag = cenario(DEF_B3, { 'johnatan029~cnpj-empresas-brasil-scraper': { itens: [lookup()], usageTotalUsd: 0.0016 } }, { fotografias: menos })
+  const r = await comFlag.rodar({ criterios: { segundaPassagem: true } })
+  assertEquals(r.sinais.map((s) => s.eventKey), ['entrada_socio|11222333000181|2026-10'])
+})
+
 Deno.test('B3: o sócio novo desde a fotografia anterior vira "Entrou sócio", sem nome na frase nem na evidência', async () => {
   const antes = { socios: 1, ids: [idDoSocio(ALFA_CNPJ, 'FULANO DE TAL')] }
   const c = cenario(DEF_B3, { 'johnatan029~cnpj-empresas-brasil-scraper': { itens: [lookup()], usageTotalUsd: 0.0016 } }, { fotografias: foto(antes) })

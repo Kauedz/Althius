@@ -6,7 +6,8 @@ import { dbFalso } from '../db-falso.ts'
 import { rodarCascata } from '../motor.ts'
 import type { CascataDef, ClienteDaFonte, PassoDef } from '../tipos.ts'
 import { MARCA_INTERNA } from '../../marca.ts'
-import { passosDoIcp_a_resto } from './icp-a-resto.ts'
+import { chaveDoGeral } from '../comexstat.ts'
+import { aquecerEstatistica, passosDoIcp_a_resto } from './icp-a-resto.ts'
 
 const AGORA = Date.parse('2026-10-13T12:00:00Z')
 const semFonte: ClienteDaFonte = { rodar: () => Promise.reject(new Error('não devia chamar o Apify')) }
@@ -77,6 +78,36 @@ Deno.test('A3: a NCM com importação nos últimos 3 meses e nenhuma nos 12 ante
   assert(!MARCA_INTERNA.test(JSON.stringify(r)))
 })
 
+Deno.test('A3: a cópia do mês dispensa a rede e ainda emite o Sinal', async () => {
+  let chamadas = 0
+  const fetchFn = (() => {
+    chamadas++
+    return Promise.resolve(new Response('limite', { status: 429 }))
+  }) as typeof fetch
+  const filtros = [{ filter: 'chapter', values: [84, 85] }]
+  const banco = dbFalso(DEF_A3, { contas: [] })
+  await banco.db.gravarCache({ fonte: 'comexstat', chave: 'dates/updated', mes: '2026-10', payload: { data: { year: '2026', monthNumber: '09' } } })
+  await banco.db.gravarCache({
+    fonte: 'comexstat',
+    chave: chaveDoGeral({ fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09', filtros, detalhes: ['ncm'] }),
+    mes: '2026-09',
+    payload: { data: { list: [ncm('84799999', 1_200_000, 'Máquinas novas')] } },
+  })
+  await banco.db.gravarCache({
+    fonte: 'comexstat',
+    chave: chaveDoGeral({ fluxo: 'import', porMes: false, de: '2025-07', ate: '2026-06', filtros, detalhes: ['ncm'] }),
+    mes: '2026-09',
+    payload: { data: { list: [] } },
+  })
+  const registro = passosDoIcp_a_resto(fetchFn, { dormir: () => Promise.resolve() })
+  const r = await rodarCascata({ db: banco.db, fonte: semFonte, registro, agora: () => AGORA, log: () => {} }, {
+    workspaceId: 'ws-1', userId: 'u1', signalType: DEF_A3.signalType, origem: 'conversa', chave: 'k-cache',
+  })
+  assertEquals(chamadas, 0)
+  assertEquals(r.mercado.map((m) => m.eventKey), ['ncm|84799999|2026-09'])
+  assertEquals(r.desfecho, 'concluida')
+})
+
 Deno.test('A3: os capítulos e o piso do pedido valem mais que o padrão; sem nada novo, a execução termina sem Sinal', async () => {
   const c = comexFalso(() => [ncm('84713012', 9_000_000)])
   const { r } = await rodar(DEF_A3, c.fetchFn, { capitulos: ['87'], limiarFobUsd: 5_000_000 })
@@ -133,5 +164,56 @@ Deno.test('as cascatas sem fonte do ICP A não reservam crédito e explicam o mo
   const def: CascataDef = { ...cascata('novo_importador', []), state: 'sem_fonte', semFonteMotivo: motivo, scope: 'conta' }
   const { r, banco } = await rodar(def, (() => Promise.reject(new Error('rede'))) as typeof fetch)
   assertEquals([r.desfecho, r.mensagem, banco.aberturas.length], ['sem_fonte', motivo, 0])
+  assert(!MARCA_INTERNA.test(r.mensagem))
+})
+
+Deno.test('o aquecimento guarda as três consultas do mês e não abre execução de cascata', async () => {
+  const c = comexFalso(() => [])
+  const gravados: { chave: string; mes: string }[] = []
+  const r = await aquecerEstatistica({
+    fetchFn: c.fetchFn,
+    dormir: () => Promise.resolve(),
+    esperaMs: 0,
+    relogio: () => AGORA,
+    cache: {
+      ler: () => Promise.resolve(null),
+      gravar: (chave, mes) => {
+        gravados.push({ chave, mes })
+        return Promise.resolve()
+      },
+    },
+  })
+  assertEquals(r, { desfecho: 'concluida', mensagem: 'A estatística de comércio exterior deste mês foi guardada.' })
+  assertEquals(c.pedidos.map((p) => ({
+    from: (p.period as { from: string }).from,
+    to: (p.period as { to: string }).to,
+    monthDetail: p.monthDetail,
+    details: p.details,
+    filters: p.filters,
+  })), [
+    { from: '2026-07', to: '2026-09', monthDetail: false, details: ['ncm'], filters: [{ filter: 'chapter', values: [84, 85] }] },
+    { from: '2025-07', to: '2026-06', monthDetail: false, details: ['ncm'], filters: [{ filter: 'chapter', values: [84, 85] }] },
+    { from: '2026-06', to: '2026-09', monthDetail: true, details: ['urf'], filters: [{ filter: 'chapter', values: [84, 85] }] },
+  ])
+  assertEquals(gravados.filter((g) => g.chave === 'dates/updated').map((g) => g.mes), ['2026-10'])
+  assertEquals(gravados.filter((g) => g.chave !== 'dates/updated').length, 3)
+  assert(!MARCA_INTERNA.test(JSON.stringify(r)))
+})
+
+Deno.test('o aquecimento adia, sem cobrança, quando a estatística limita as consultas', async () => {
+  const fetchFn = (() => Promise.resolve(new Response('limite', { status: 429 }))) as typeof fetch
+  const esperas: number[] = []
+  const r = await aquecerEstatistica({
+    fetchFn,
+    dormir: (ms) => {
+      esperas.push(ms)
+      return Promise.resolve()
+    },
+    relogio: () => 0,
+    prazoFinal: 200_000,
+  })
+  assertEquals(r.desfecho, 'adiado')
+  assertEquals(r.mensagem, 'A estatística de comércio exterior está limitando as consultas. A busca fica para a próxima tentativa e nenhum crédito é cobrado.')
+  assertEquals(esperas, [10_000, 20_000, 40_000])
   assert(!MARCA_INTERNA.test(r.mensagem))
 })

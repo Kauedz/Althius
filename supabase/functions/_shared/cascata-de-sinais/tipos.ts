@@ -126,6 +126,7 @@ export type Desfecho =
   | 'automatico_parado'
   | 'em_andamento'
   | 'ja_concluida'
+  | 'adiado'
 
 export interface PassoExecutado {
   ordem: number
@@ -197,7 +198,7 @@ export interface DbDaCascata {
   abrir(args: AbrirExecucao): Promise<ResultadoDaAbertura>
   fechar(args: {
     runId: string
-    estado: 'succeeded' | 'partial' | 'aborted' | 'failed'
+    estado: 'succeeded' | 'partial' | 'aborted' | 'failed' | 'adiado'
     custoUsd: number | null
     casados: number
     novos: number
@@ -238,6 +239,15 @@ export interface DbDaCascata {
   /** A fotografia mais recente de cada assunto (antes de `antesDe`, quando informado). */
   lerSnapshots(args: { workspaceId: string; signalType: string; chaves: string[]; antesDe?: string }): Promise<Map<string, { takenAt: string; data: Record<string, unknown> }>>
   gravarSnapshots(args: { workspaceId: string; signalType: string; itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[] }): Promise<void>
+  /** A cópia mensal de uma fonte pública. `mes` nulo pede a mais recente ainda válida. */
+  lerCache(args: { fonte: string; chave: string; mes: string | null }): Promise<unknown | null>
+  gravarCache(args: { fonte: string; chave: string; mes: string; payload: unknown }): Promise<void>
+}
+
+/** Cópia de fonte pública à disposição do passo. Erro de cache não falha a execução: quem monta o contexto engole. */
+export interface CacheDeFonte {
+  ler(fonte: string, chave: string, mes: string | null): Promise<unknown | null>
+  gravar(fonte: string, chave: string, mes: string, payload: unknown): Promise<void>
 }
 
 export type TipoDeErroDaFonte =
@@ -323,6 +333,8 @@ export interface ContextoDoPasso {
   def: PassoDef
   /** Memória comum aos passos da execução (o que um passo guarda para o seguinte). */
   memoria: Map<string, unknown>
+  /** Cópia mensal das fontes públicas. Ausente nos testes que não passam pelo motor. */
+  cacheFonte?: CacheDeFonte
 }
 
 export interface LoteDoActor {

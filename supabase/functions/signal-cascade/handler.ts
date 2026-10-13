@@ -6,14 +6,23 @@
 import type { EntradaDoCatalogo } from '../_shared/cascata-de-sinais/index.ts'
 import type { PedidoDeCascata, ResultadoDaCascata } from '../_shared/cascata-de-sinais/tipos.ts'
 
+export interface ResultadoDoAquecimento {
+  desfecho: 'concluida' | 'adiado' | 'falhou'
+  mensagem: string
+}
+
 export interface MotorDaConversa {
   rodar(pedido: PedidoDeCascata): Promise<ResultadoDaCascata>
   catalogo(): Promise<EntradaDoCatalogo[]>
+  /** Opcional: quem não aquece o cache mensal simplesmente não declara. */
+  aquecer?(): Promise<ResultadoDoAquecimento>
 }
 
 export interface Deps {
   motor: MotorDaConversa
   autorizado(authorization: string): boolean | Promise<boolean>
+  /** O token do relógio. Só autoriza a ação `aquecer`, nunca uma busca. */
+  tokenDeRotina?(token: string): Promise<boolean>
   agora?: () => number
   log?: (campos: Record<string, unknown>) => void
 }
@@ -43,7 +52,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
   return async (req) => {
     if (req.method !== 'POST') return responder({ error: 'Método não permitido.' }, 405)
-    if (!(await deps.autorizado(req.headers.get('Authorization') ?? ''))) return responder({ error: 'Não autorizado.' }, 401)
 
     let corpo: Record<string, unknown>
     try {
@@ -53,7 +61,25 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return responder({ error: 'Corpo inválido.' }, 400)
     const acao = corpo.action === undefined ? 'buscar' : corpo.action
-    if (acao !== 'buscar' && acao !== 'catalogo') return responder({ error: 'Ação inválida.' }, 400)
+    const servico = await deps.autorizado(req.headers.get('Authorization') ?? '')
+    const rotina = !servico && acao === 'aquecer' && deps.tokenDeRotina
+      ? await deps.tokenDeRotina(req.headers.get('x-runner-token') ?? '')
+      : false
+    if (!servico && !rotina) return responder({ error: 'Não autorizado.' }, 401)
+    if (acao !== 'buscar' && acao !== 'catalogo' && acao !== 'aquecer') return responder({ error: 'Ação inválida.' }, 400)
+
+    if (acao === 'aquecer') {
+      if (!deps.motor.aquecer) {
+        return responder({ desfecho: 'falhou', mensagem: 'Não foi possível guardar a estatística de comércio exterior agora.' }, 500)
+      }
+      try {
+        const r = await deps.motor.aquecer()
+        return responder({ desfecho: r.desfecho, mensagem: r.mensagem })
+      } catch (e) {
+        log({ type: 'signal_cascade', outcome: 'warm_failed', message: String(e) })
+        return responder({ desfecho: 'falhou', mensagem: 'Não foi possível guardar a estatística de comércio exterior agora.' }, 500)
+      }
+    }
 
     if (acao === 'catalogo') {
       try {
@@ -90,6 +116,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (criterios !== undefined && (typeof criterios !== 'object' || criterios === null || Array.isArray(criterios) || JSON.stringify(criterios).length > MAX_TAMANHO_DOS_CRITERIOS)) {
       return responder({ error: 'Critérios inválidos.' }, 400)
     }
+    // A segunda passagem compara na hora com a base já guardada. Só a validação da equipe liga isso;
+    // um critério mandado pelo cliente é ignorado.
+    let criteriosPedido: Record<string, unknown> | undefined
+    if (criterios !== undefined) {
+      criteriosPedido = { ...(criterios as Record<string, unknown>) }
+      delete criteriosPedido.segundaPassagem
+    }
+    if (corpo.validacao === true) criteriosPedido = { ...(criteriosPedido ?? {}), segundaPassagem: true }
     const chave = typeof corpo.chave === 'string' && corpo.chave.trim() && corpo.chave.length <= 200 ? corpo.chave.trim() : `conversa:${crypto.randomUUID()}`
 
     try {
@@ -100,7 +134,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         origem: 'conversa',
         chave,
         ...(contas ? { idsDeContas: contas as string[] } : {}),
-        ...(criterios ? { criterios: criterios as Record<string, unknown> } : {}),
+        ...(criteriosPedido && Object.keys(criteriosPedido).length ? { criterios: criteriosPedido } : {}),
         ...(teto !== undefined ? { tetoCreditos: teto as number } : {}),
         // Só a equipe, com a chave de serviço, valida um Sinal ainda em teste; o Hermes nunca envia este campo.
         permitirTeste: corpo.validacao === true,

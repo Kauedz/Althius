@@ -194,8 +194,83 @@ const fatosCnaeEletrointensivo: ImplDoPasso = {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // D2. Grupo A ainda cativo: a lista de agentes da CCEE (dados abertos, sem custo) tira quem já está no mercado livre.
+// A busca CKAN e, se ela não responder, o CSV do mesmo recurso. A cópia do mês dispensa a rede. Sem as duas e sem cópia
+// recente, o Sinal fica marcado de que a exclusão não foi feita.
 
 const CLASSES_PADRAO = ['Consumidor Livre', 'Consumidor Especial']
+const FONTE_DA_LISTA = 'consumidores_livres'
+const CHAVE_DA_LISTA = 'lista'
+
+function celulasCsv(linha: string, sep: string): string[] {
+  const saida: string[] = []
+  let atual = ''
+  let aspas = false
+  for (let i = 0; i < linha.length; i++) {
+    const c = linha[i]
+    if (aspas) {
+      if (c === '"') {
+        if (linha[i + 1] === '"') {
+          atual += '"'
+          i++
+        } else aspas = false
+      } else atual += c
+    } else if (c === '"') aspas = true
+    else if (c === sep) {
+      saida.push(atual)
+      atual = ''
+    } else atual += c
+  }
+  saida.push(atual)
+  return saida
+}
+
+function tabelaCsv(corpo: string): string[][] {
+  const limpo = corpo.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const linhas = limpo.split('\n').filter((l) => l.trim().length > 0)
+  if (!linhas.length) return []
+  const virgulas = linhas[0].match(/,/g)?.length ?? 0
+  const pontos = linhas[0].match(/;/g)?.length ?? 0
+  const sep = pontos > virgulas ? ';' : ','
+  return linhas.map((l) => celulasCsv(l, sep).map((c) => c.trim()))
+}
+
+/** O CSV oficial do mesmo recurso, no portal. Só quando o id do recurso é o identificador publicado. */
+function urlDoArquivo(base: URL): URL | null {
+  const id = base.searchParams.get('resource_id') ?? ''
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null
+  return new URL(`https://${base.host}/datastore/dump/${id}?bom=True`)
+}
+
+function listaDoCsv(corpo: string, classes: string[]): { raizes: Set<string>; mes: string } {
+  const tabela = tabelaCsv(corpo)
+  const cabecalho = (tabela[0] ?? []).map((c) => c.toUpperCase())
+  const iCnpj = cabecalho.indexOf('CNPJ')
+  const iClasse = cabecalho.indexOf('CLASSE_AGENTE')
+  const iMes = cabecalho.indexOf('MES_REFERENCIA')
+  if (iCnpj < 0 || iClasse < 0 || iMes < 0) throw new Error('O arquivo da lista não tem as colunas da lista de agentes.')
+  const aceitas = new Set(classes.map((c) => c.toLowerCase()))
+  const porMes = new Map<string, Set<string>>()
+  for (const linha of tabela.slice(1)) {
+    const classe = (linha[iClasse] ?? '').toLowerCase()
+    const mes = linha[iMes] ?? ''
+    if (!aceitas.has(classe) || !/^\d{6}$/.test(mes)) continue
+    const raiz = raizDoCnpj(linha[iCnpj])
+    const doMes = porMes.get(mes) ?? new Set<string>()
+    if (raiz) doMes.add(raiz)
+    porMes.set(mes, doMes)
+  }
+  const mes = [...porMes.keys()].sort().at(-1)
+  if (!mes) throw new Error('O arquivo da lista não informou o mês de referência.')
+  return { raizes: porMes.get(mes) ?? new Set(), mes }
+}
+
+function listaDaCopia(bruto: unknown): { raizes: Set<string>; mes: string } | null {
+  if (!bruto || typeof bruto !== 'object') return null
+  const o = bruto as { raizes?: unknown; mes?: unknown }
+  if (!Array.isArray(o.raizes) || typeof o.mes !== 'string' || !/^\d{6}$/.test(o.mes)) return null
+  const raizes = new Set(o.raizes.filter((r): r is string => typeof r === 'string' && /^\d{8}$/.test(r)))
+  return { raizes, mes: o.mes }
+}
 
 /** URL https do modelo do passo. `null` se o texto não for https (a reserva opcional simplesmente não entra). */
 function urlHttps(valor: unknown): URL | null {
@@ -246,6 +321,29 @@ export function cceeAgentes(fetchFn: typeof fetch = fetch, opcoes: Opcoes = {}):
     }
     return { raizes, mes }
   }
+  const aplicar = (candidatas: EmpresaReceita[], listaPronta: { raizes: Set<string>; mes: string }) =>
+    candidatas.map((e) => itemDeReceita({
+      ...e,
+      naCcee: listaPronta.raizes.has(raizDoCnpj(e.cnpj)),
+      cceeMes: listaPronta.mes,
+      cceeConsumidores: listaPronta.raizes.size,
+    }))
+  const guardar = async (ctx: ContextoDoPasso, listaPronta: { raizes: Set<string>; mes: string }) => {
+    if (!ctx.cacheFonte) return
+    const referencia = `${listaPronta.mes.slice(0, 4)}-${listaPronta.mes.slice(4)}`
+    await ctx.cacheFonte.gravar(FONTE_DA_LISTA, CHAVE_DA_LISTA, referencia, {
+      raizes: [...listaPronta.raizes],
+      mes: listaPronta.mes,
+    })
+  }
+  const lerArquivo = async (url: URL) => {
+    const resposta = await fetchFn(url.toString())
+    if (!resposta.ok) {
+      await resposta.body?.cancel()
+      throw new Error('O arquivo da lista não respondeu.')
+    }
+    return await resposta.text()
+  }
   return {
     async buscar(entrada, ctx) {
       // Só vale ler a lista se alguma empresa achada é Conta: o resto não vira Sinal de qualquer jeito.
@@ -254,6 +352,9 @@ export function cceeAgentes(fetchFn: typeof fetch = fetch, opcoes: Opcoes = {}):
         return e && casarReceita(ctx.contas, e) ? [e] : []
       })
       if (!candidatas.length) return []
+
+      const copiada = listaDaCopia(await ctx.cacheFonte?.ler(FONTE_DA_LISTA, CHAVE_DA_LISTA, null))
+      if (copiada) return aplicar(candidatas, copiada)
 
       // A URL é a do modelo do passo (configurável no banco); nunca vem do pedido. `urlReserva` é opcional.
       const tpl = ctx.def.inputTemplate
@@ -267,11 +368,22 @@ export function cceeAgentes(fetchFn: typeof fetch = fetch, opcoes: Opcoes = {}):
       const bases = reserva && reserva.href !== base.href ? [base, reserva] : [base]
       for (const url of bases) {
         try {
-          const { raizes, mes } = await lerLista(url, classes, tamanho, maxPaginas)
-          return candidatas.map((e) => itemDeReceita({ ...e, naCcee: raizes.has(raizDoCnpj(e.cnpj)), cceeMes: mes, cceeConsumidores: raizes.size }))
+          const listaPronta = await lerLista(url, classes, tamanho, maxPaginas)
+          await guardar(ctx, listaPronta)
+          return aplicar(candidatas, listaPronta)
         } catch (e) {
-          // Lista incompleta não vira "cativo". Bloqueio, rede ou corpo ilegível: tenta a reserva e, sem ela, degrada.
+          // Lista incompleta não vira "cativo" e não cai no arquivo: o arquivo seria a lista inteira, e o teste
+          // de limite precisa continuar falhando a execução.
           if (e instanceof Error && e.message.includes('limite de leitura')) throw e
+        }
+        const arquivo = urlDoArquivo(url)
+        if (!arquivo) continue
+        try {
+          const listaPronta = listaDoCsv(await lerArquivo(arquivo), classes)
+          await guardar(ctx, listaPronta)
+          return aplicar(candidatas, listaPronta)
+        } catch {
+          // Bloqueio ou arquivo ilegível: tenta a reserva.
         }
       }
       return candidatas.map((e) => itemDeReceita({ ...e, listaIndisponivel: true }))

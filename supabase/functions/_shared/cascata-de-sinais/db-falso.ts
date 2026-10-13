@@ -33,6 +33,8 @@ export function dbFalso(
   const fotografias = new Map<string, { takenAt: string; data: Record<string, unknown> }[]>(Object.entries(opcoes.fotografias ?? {}).map(([k, v]) => [k, v]))
   const gravadas: { chave: string; data: Record<string, unknown>; takenAt?: string }[] = []
   const amostras: { runId: string; amostra: { cnpj: string | null; nome: string }[] }[] = []
+  const copias: { fonte: string; chave: string; mes: string; payload: unknown; fetchedAt: number }[] = []
+  const DIAS_40 = 40 * 24 * 60 * 60 * 1000
   let proximoPasso = 1
   const db: DbDaCascata = {
     definicao: () => Promise.resolve(definicao),
@@ -44,6 +46,7 @@ export function dbFalso(
     },
     fechar: (args) => {
       fechamentos.push(args)
+      if (args.estado === 'adiado') return Promise.resolve({ creditosCobrados: 0 })
       const creditos = args.custoUsd === null ? 0 : Math.floor(args.custoUsd * (definicao?.multiplier ?? 3) / (opcoes.usdPorCredito ?? 0.3))
       return Promise.resolve({ creditosCobrados: args.novos > 0 ? Math.max(creditos, 1) : creditos })
     },
@@ -79,6 +82,19 @@ export function dbFalso(
     },
     gravarSnapshots: ({ itens }) => {
       gravadas.push(...itens)
+      return Promise.resolve()
+    },
+    lerCache: ({ fonte, chave, mes }) => {
+      const daChave = copias.filter((c) => c.fonte === fonte && c.chave === chave)
+      if (mes) return Promise.resolve(daChave.findLast((c) => c.mes === mes)?.payload ?? null)
+      const limite = Date.now() - DIAS_40
+      return Promise.resolve(daChave.findLast((c) => c.fetchedAt >= limite)?.payload ?? null)
+    },
+    gravarCache: ({ fonte, chave, mes, payload }) => {
+      const i = copias.findIndex((c) => c.fonte === fonte && c.chave === chave && c.mes === mes)
+      const copia = { fonte, chave, mes, payload, fetchedAt: Date.now() }
+      if (i >= 0) copias[i] = copia
+      else copias.push(copia)
       return Promise.resolve()
     },
     gravarSinal: ({ contaId, monitorId, signalType, sinal }) => {

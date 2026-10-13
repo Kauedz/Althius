@@ -264,6 +264,20 @@ teste('headcount: os limiares são configuráveis no modelo de entrada e no pedi
   assertEquals(c.sinais.map((s) => s.eventKey), ['alfa industria|headcount|60'])
 })
 
+teste('headcount: a validação compara na hora com a base recente e só emite se a faixa cruzou', async () => {
+  const igual = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 41)], usageTotalUsd: 0.004 } }, {
+    contas: [ALFA], fotografias: { 'conta-alfa': [foto(5, 41, 0)] },
+  })
+  const semMudanca = await igual.rodar({ criterios: { segundaPassagem: true } })
+  assertEquals([semMudanca.sinais.length, igual.chamadas().length], [0, 1])
+
+  const cruza = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 63)], usageTotalUsd: 0.004 } }, {
+    contas: [ALFA], fotografias: { 'conta-alfa': [foto(5, 41, 0)] },
+  })
+  const r = await cruza.rodar({ criterios: { segundaPassagem: true } })
+  assertEquals(r.sinais.map((s) => s.eventKey), ['alfa industria|headcount|50'])
+})
+
 teste('headcount: a Conta fotografada há menos de 20 dias não é consultada de novo (nada é cobrado)', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 63)], usageTotalUsd: 0.004 } }, {
     contas: [ALFA], fotografias: { 'conta-alfa': [foto(5, 41, 0)] },
@@ -435,6 +449,21 @@ teste('filial: raiz que o actor não entregou (fonte indisponível) não vira "z
   const r = await c.rodar()
   assertEquals(r.sinais.map((s) => s.contaId), ['conta-alfa'])
   assertEquals(c.banco.gravadas.map((g) => g.chave), ['conta-alfa'])
+})
+
+teste('filial: a validação compara na hora e só emite a filial que não estava na base', async () => {
+  const igual = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('11222333', [filial('11222333000262', 'SP', dataAntes(10))]), RESUMO], usageTotalUsd: 0.01 } }, {
+    contas: [ALFA], fotografias: { 'conta-alfa': [fotoF(10, ['0002'])] },
+  })
+  const sem = await igual.rodar({ criterios: { segundaPassagem: true } })
+  assertEquals([sem.sinais.length, igual.chamadas().length], [0, 1])
+
+  const nova = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('11222333', [filial('11222333000262', 'SP', dataAntes(10))]), RESUMO], usageTotalUsd: 0.01 } }, {
+    contas: [ALFA], fotografias: { 'conta-alfa': [fotoF(10, [])] },
+  })
+  const r = await nova.rodar({ criterios: { segundaPassagem: true } })
+  assertEquals(r.sinais.length, 1)
+  assert(r.sinais[0].phrase.includes('nova filial'), r.sinais[0].phrase)
 })
 
 teste('filial: a Conta fotografada há menos de 25 dias não é consultada (o mapa é mensal) e não custa nada', async () => {

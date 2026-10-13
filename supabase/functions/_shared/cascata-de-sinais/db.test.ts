@@ -65,6 +65,21 @@ Deno.test('gravarSinal usa o record_signal de sempre e diz se o Sinal é novo', 
   assertEquals(chamadas[0].args?.p_monitor_id, null)
 })
 
+Deno.test('a cópia da fonte pública lê e grava pela chave, sem o mês quando se quer a mais nova', async () => {
+  const { admin, chamadas } = rpcFalso({ read_public_source_cache: { raizes: ['11222333'], mes: '2026-10' } })
+  const db = criarDbDaCascata(admin)
+  assertEquals(await db.lerCache({ fonte: 'consumidores_livres', chave: 'lista', mes: null }), { raizes: ['11222333'], mes: '2026-10' })
+  await db.gravarCache({ fonte: 'comexstat', chave: 'dates/updated', mes: '2026-10', payload: { data: { year: '2026' } } })
+  assertEquals(chamadas[0], {
+    nome: 'read_public_source_cache',
+    args: { p_source: 'consumidores_livres', p_query_key: 'lista', p_reference_month: null },
+  })
+  assertEquals(chamadas[1], {
+    nome: 'write_public_source_cache',
+    args: { p_source: 'comexstat', p_query_key: 'dates/updated', p_reference_month: '2026-10', p_payload: { data: { year: '2026' } } },
+  })
+})
+
 Deno.test('a definição, a configuração e as Contas vêm do banco; o erro do banco vira exceção com o nome da função', async () => {
   const def = { id: 'c1', signalType: 'vaga_comex', steps: [{ ordem: 1 }] }
   const ok = rpcFalso({
