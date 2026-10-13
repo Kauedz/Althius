@@ -52,6 +52,8 @@ interface EmpresaReceita {
   naCcee?: boolean
   cceeMes?: string
   cceeConsumidores?: number
+  /** A lista de consumidores livres não respondeu: o Sinal sai sem a exclusão, marcado. */
+  listaIndisponivel?: boolean
 }
 
 function itemDeReceita(e: EmpresaReceita): Item {
@@ -63,6 +65,7 @@ function receitaDoItem(i: Item): EmpresaReceita | null {
   return {
     cnpj: cnpjLimpo(i.cnpj), razao: texto(i.razao), fantasia: texto(i.fantasia), cnae: texto(i.cnae), cnaeDescricao: texto(i.cnaeDescricao),
     porte: texto(i.porte), uf: texto(i.uf), municipio: texto(i.municipio), linkedinUrl: texto(i.linkedinUrl), site: texto(i.site),
+    ...(i.listaIndisponivel === true ? { listaIndisponivel: true } : {}),
     ...(typeof i.naCcee === 'boolean' ? { naCcee: i.naCcee, cceeMes: texto(i.cceeMes), cceeConsumidores: num(i.cceeConsumidores) } : {}),
   }
 }
@@ -194,11 +197,54 @@ const fatosCnaeEletrointensivo: ImplDoPasso = {
 
 const CLASSES_PADRAO = ['Consumidor Livre', 'Consumidor Especial']
 
+/** URL https do modelo do passo. `null` se o texto não for https (a reserva opcional simplesmente não entra). */
+function urlHttps(valor: unknown): URL | null {
+  try {
+    const u = new URL(texto(valor))
+    return u.protocol === 'https:' ? u : null
+  } catch {
+    return null
+  }
+}
+
 export function cceeAgentes(fetchFn: typeof fetch = fetch, opcoes: Opcoes = {}): FontePublica {
   const ler = async (url: URL) => {
     const j = objeto(await lerJson(url.toString(), { fetchFn, repeticoes: 2, esperaMs: opcoes.esperaMs ?? 2_000, dormir: opcoes.dormir }))
     if (j.success !== true) throw new Error('A lista da CCEE respondeu sem sucesso.')
     return objeto(j.result)
+  }
+  const lerLista = async (base: URL, classes: string[], tamanho: number, maxPaginas: number) => {
+    const meses = new URL(base)
+    meses.searchParams.set('fields', 'MES_REFERENCIA')
+    meses.searchParams.set('distinct', 'true')
+    meses.searchParams.set('limit', '100')
+    const resultadoMeses = await ler(meses)
+    const referencias = (Array.isArray(resultadoMeses.records) ? resultadoMeses.records as unknown[] : [])
+      .map((r) => texto(objeto(r).MES_REFERENCIA)).filter((m) => /^\d{6}$/.test(m)).sort()
+    const mes = referencias.at(-1)
+    if (!mes) throw new Error('A lista da CCEE não informou o mês de referência.')
+
+    const raizes = new Set<string>()
+    let lidos = 0
+    for (let pagina = 0; pagina < maxPaginas; pagina++) {
+      const u = new URL(base)
+      u.searchParams.set('filters', JSON.stringify({ CLASSE_AGENTE: classes, MES_REFERENCIA: mes }))
+      u.searchParams.set('fields', 'CNPJ')
+      u.searchParams.set('limit', String(tamanho))
+      u.searchParams.set('offset', String(pagina * tamanho))
+      const r = await ler(u)
+      const registros = Array.isArray(r.records) ? r.records as unknown[] : []
+      const total = num(r.total)
+      // Lista maior do que o modelo deixa ler: a exclusão ficaria incompleta e afirmaria "cativo" a quem não é.
+      if (pagina === 0 && total > tamanho * maxPaginas) throw new Error(`A lista da CCEE tem ${total} agentes e o limite de leitura é ${tamanho * maxPaginas}.`)
+      for (const reg of registros) {
+        const raiz = raizDoCnpj(objeto(reg).CNPJ)
+        if (raiz) raizes.add(raiz)
+      }
+      lidos += registros.length
+      if (!registros.length || lidos >= total) break
+    }
+    return { raizes, mes }
   }
   return {
     async buscar(entrada, ctx) {
@@ -209,45 +255,26 @@ export function cceeAgentes(fetchFn: typeof fetch = fetch, opcoes: Opcoes = {}):
       })
       if (!candidatas.length) return []
 
-      // A URL é a do modelo do passo (configurável no banco); nunca vem do pedido.
+      // A URL é a do modelo do passo (configurável no banco); nunca vem do pedido. `urlReserva` é opcional.
       const tpl = ctx.def.inputTemplate
-      const base = new URL(texto(tpl.url))
-      if (base.protocol !== 'https:') throw new Error('A fonte da lista de agentes precisa ser https.')
+      const base = urlHttps(tpl.url)
+      if (!base) throw new Error('A fonte da lista de agentes precisa ser https.')
+      const reserva = urlHttps(tpl.urlReserva)
       const classes = lista(tpl.classes).length ? lista(tpl.classes) : CLASSES_PADRAO
       const tamanho = limitar(tpl.tamanhoDaPagina, 5000, 1, 32_000)
       const maxPaginas = limitar(tpl.maxPaginas, 8, 1, 20)
 
-      const meses = new URL(base)
-      meses.searchParams.set('fields', 'MES_REFERENCIA')
-      meses.searchParams.set('distinct', 'true')
-      meses.searchParams.set('limit', '100')
-      const resultadoMeses = await ler(meses)
-      const referencias = (Array.isArray(resultadoMeses.records) ? resultadoMeses.records as unknown[] : [])
-        .map((r) => texto(objeto(r).MES_REFERENCIA)).filter((m) => /^\d{6}$/.test(m)).sort()
-      const mes = referencias.at(-1)
-      if (!mes) throw new Error('A lista da CCEE não informou o mês de referência.')
-
-      const raizes = new Set<string>()
-      let lidos = 0
-      for (let pagina = 0; pagina < maxPaginas; pagina++) {
-        const u = new URL(base)
-        u.searchParams.set('filters', JSON.stringify({ CLASSE_AGENTE: classes, MES_REFERENCIA: mes }))
-        u.searchParams.set('fields', 'CNPJ')
-        u.searchParams.set('limit', String(tamanho))
-        u.searchParams.set('offset', String(pagina * tamanho))
-        const r = await ler(u)
-        const registros = Array.isArray(r.records) ? r.records as unknown[] : []
-        const total = num(r.total)
-        // Lista maior do que o modelo deixa ler: a exclusão ficaria incompleta e afirmaria "cativo" a quem não é.
-        if (pagina === 0 && total > tamanho * maxPaginas) throw new Error(`A lista da CCEE tem ${total} agentes e o limite de leitura é ${tamanho * maxPaginas}.`)
-        for (const reg of registros) {
-          const raiz = raizDoCnpj(objeto(reg).CNPJ)
-          if (raiz) raizes.add(raiz)
+      const bases = reserva && reserva.href !== base.href ? [base, reserva] : [base]
+      for (const url of bases) {
+        try {
+          const { raizes, mes } = await lerLista(url, classes, tamanho, maxPaginas)
+          return candidatas.map((e) => itemDeReceita({ ...e, naCcee: raizes.has(raizDoCnpj(e.cnpj)), cceeMes: mes, cceeConsumidores: raizes.size }))
+        } catch (e) {
+          // Lista incompleta não vira "cativo". Bloqueio, rede ou corpo ilegível: tenta a reserva e, sem ela, degrada.
+          if (e instanceof Error && e.message.includes('limite de leitura')) throw e
         }
-        lidos += registros.length
-        if (!registros.length || lidos >= total) break
       }
-      return candidatas.map((e) => itemDeReceita({ ...e, naCcee: raizes.has(raizDoCnpj(e.cnpj)), cceeMes: mes, cceeConsumidores: raizes.size }))
+      return candidatas.map((e) => itemDeReceita({ ...e, listaIndisponivel: true }))
     },
   }
 }
@@ -259,18 +286,29 @@ const provavelCativo: ImplDoPasso = {
     const saida: Item[] = []
     for (const i of entrada) {
       const e = receitaDoItem(i)
-      if (!e || e.naCcee !== false || !portes.includes(normalizar(e.porte))) continue
+      if (!e || !portes.includes(normalizar(e.porte))) continue
       const casada = casarReceita(ctx.contas, e)
       if (!casada) continue
       const t = cnaeEletrointensivo(e.cnae)
       const atividade = `CNAE ${e.cnae}${t ? ` (${t.descricao})` : ''}`
-      const fato: Fato = {
-        chave: `grupo_a_cativo|${ano(ctx.agora)}`,
-        frase: `Provável consumidor ainda cativo do Grupo A: ${atividade}, porte ${e.porte}, fora da lista de consumidores livres da CCEE (inferido, não confirmado)`,
-        quando: iso(ctx.agora),
-        fonte: 'Receita Federal e lista de agentes da CCEE (dados abertos)',
-        evidencia: `Inferido, não confirmado. Receita Federal: ${atividade}; ${dadosDaReceita(e)}. O CNPJ (pela raiz) não consta entre os ${e.cceeConsumidores ?? 0} consumidores livres e especiais da lista de agentes da CCEE (referência ${e.cceeMes}). A ausência na lista indica provável contrato no mercado cativo, mas pode haver outro CNPJ do grupo no mercado livre ou consumo abaixo do Grupo A; confirme com a empresa.`,
-      }
+      const fato: Fato | null = e.listaIndisponivel
+        ? {
+          chave: `grupo_a_cativo|${ano(ctx.agora)}|sem_lista`,
+          frase: `A lista pública de consumidores livres não foi consultada; ${atividade}, porte ${e.porte}. Quem já está no mercado livre não foi excluído`,
+          quando: iso(ctx.agora),
+          fonte: 'Receita Federal (lista de consumidores livres indisponível)',
+          evidencia: `Sem a exclusão da lista de consumidores livres e especiais: a lista pública não respondeu nesta rodada. Receita Federal: ${atividade}; ${dadosDaReceita(e)}. Este registro não afirma que a empresa está no mercado cativo nem no mercado livre.`,
+        }
+        : e.naCcee === false
+        ? {
+          chave: `grupo_a_cativo|${ano(ctx.agora)}`,
+          frase: `Provável consumidor ainda cativo do Grupo A: ${atividade}, porte ${e.porte}, fora da lista de consumidores livres da CCEE (inferido, não confirmado)`,
+          quando: iso(ctx.agora),
+          fonte: 'Receita Federal e lista de agentes da CCEE (dados abertos)',
+          evidencia: `Inferido, não confirmado. Receita Federal: ${atividade}; ${dadosDaReceita(e)}. O CNPJ (pela raiz) não consta entre os ${e.cceeConsumidores ?? 0} consumidores livres e especiais da lista de agentes da CCEE (referência ${e.cceeMes}). A ausência na lista indica provável contrato no mercado cativo, mas pode haver outro CNPJ do grupo no mercado livre ou consumo abaixo do Grupo A; confirme com a empresa.`,
+        }
+        : null
+      if (!fato) continue
       saida.push(itemDeEmpresaComFatos({ empresa: empresaDoFato(e, casada.nome), fatos: [fato] }))
     }
     return saida

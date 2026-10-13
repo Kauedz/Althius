@@ -329,6 +329,12 @@ export interface ImplDoPasso {
   montarEntrada?(entrada: Item[], ctx: ContextoDoPasso, actorId: string): EntradaDoActor
   /** Passo de actor: o resultado bruto vira itens normalizados para o passo seguinte. */
   normalizar?(brutos: unknown[], entrada: Item[], ctx: ContextoDoPasso, actorId: string): Item[]
+  /**
+   * Quando o principal devolve itens, diz se eles conferem com a consulta e a janela de datas.
+   * `false` com bruto não vazio dispara a alternativa (o mesmo caminho da falha). Lista vazia de verdade não chama isto.
+   * Passo que não declara segue como hoje: resultado vazio encerra, sem alternativa.
+   */
+  confereConsulta?(brutos: unknown[], normalizados: Item[], ctx: ContextoDoPasso, actorId: string): boolean
   /** Quantos itens o actor cobra para esta entrada (para a estimativa do passo); padrão: os que entram, até `maxItems`. */
   itensCobrados?(entrada: Item[], ctx: ContextoDoPasso): number
   /** Passo de regra: executa direto. */

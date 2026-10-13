@@ -30,7 +30,7 @@ select is(
   array['licencas_dou', 'licencas_de_instalacao_dou'], 'os passos da licença no Diário Oficial');
 select is(
   (select s.actor_id from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'licenca_instalacao_dou' and s.ordem = 1),
-  'jenko_systems~diario-oficial-uniao-dou', 'a busca do Diário Oficial usa o actor do Diário Oficial');
+  'brasildados~dou-monitor', 'a busca do Diário Oficial usa o monitor da Seção 1');
 select is(
   (select count(*)::integer from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type in ('licenca_instalacao', 'importacao_de_maquinas')),
   0, 'o Sinal sem fonte não tem passos');
@@ -69,8 +69,8 @@ select ok(
      from private.signal_cascades c join private.signal_cascade_steps s on s.cascade_id = c.id where c.icp = 'E' group by c.id, c.cap_usd) t),
   'o pior caso de cada cascata de E cabe no teto');
 select ok(
-  (select bool_and(cap_usd <= 0.30) from private.signal_cascades where signal_type in ('financiamento_bndes_finep', 'licenca_instalacao_dou')),
-  'o teto das cascatas de custo baixo é baixo');
+  (select bool_and(cap_usd <= 0.30) from private.signal_cascades where signal_type = 'financiamento_bndes_finep'),
+  'o teto da cascata de custo baixo é baixo');
 select ok(
   (select bool_and(cap_usd <= 0.50) from private.signal_cascades where icp = 'E'), 'nenhum teto passa do padrão de US$ 0,50');
 

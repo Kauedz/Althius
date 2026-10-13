@@ -1,5 +1,16 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Sinais em cascata — fontes reprovadas no teste real (2026-10-13)
+
+- **Ticket:** `.scratch/sinais-cascata/issues/14-fontes-que-os-testes-reais-reprovaram.md`
+- **Status:** ready-for-human (código e testes verdes; falta o Nan aplicar a migração e publicar as funções)
+- **Branch:** `cursor/fontes-cascatas-corrigidas-121e`
+- **PR:** https://github.com/Kauedz/Althius/pull/193 (não mergear daqui; o merge, quando for, é commit de merge)
+- **O que muda:** DOU (monitor como principal, frase exata, reserva também quando o resultado não confere), Grupo A cativo (Sinal marcado se a lista pública não responder), nova cooperativa (ativa, recente, CNAE do agro), CNPJ novo (descarta MEI e empresário individual antes do Sinal).
+- **Migração nova (não aplicar daqui):** `supabase/migrations/20261014140000_fontes_das_cascatas_corrigidas.sql`. Sem deploy. Sem escrita no projeto remoto.
+- **Testes (2026-10-13):** `deno test supabase/functions` 1303 passed / 0 failed / 32 ignored. Com `--allow-read`, icp-c e icp-h 41/41. pgTAP local (`pgtap_fontes`): `cascatas_fontes_corrigidas` 16/16, `cascatas_icp_c` 22/22, `cascatas_icp_e` 31/31, `cascatas_icp_h` 24/24, `cascatas_icp_d` 21/21, `cascatas_icp_b` 21/21.
+- **O que o humano roda, depois do CI verde:** aplicar essa migração no `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico (`docs/agents/migrations.md`) e publicar `signal-cascade` e `signal-runner`. Comandos no ticket, seção Passos do Nan. Não marcar as cascatas como disponíveis.
+
 ## Revisão do aplicativo inteiro — 2026-10-10
 
 Referência atual desta auditoria: main `04c1d18` (inclui #168–#171), branch `review/app-completo`. Os registros abaixo são históricos e não comprovam o estado operacional atual.

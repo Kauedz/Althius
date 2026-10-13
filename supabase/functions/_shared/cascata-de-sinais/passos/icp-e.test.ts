@@ -457,6 +457,51 @@ Deno.test('licença de instalação no DOU: vira Sinal de mercado, só a publica
   marcaLimpa(r)
 })
 
+Deno.test('licença de instalação: o monitor é o principal, a frase vai na seção 1, e ato de abril dispara a reserva', async () => {
+  const def = DEF_LICENCA_DOU()
+  def.capUsd = 0.8
+  def.steps[0] = {
+    ...def.steps[0],
+    actorId: 'brasildados~dou-monitor',
+    estFixedUsd: 0.1,
+    estPerItemUsd: 0.01,
+    estItems: 10,
+    maxItems: 20,
+    fallbacks: [{ kind: 'actor', actorId: 'jenko_systems~diario-oficial-uniao-dou', priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.2, estPerItemUsd: 0.0001 }],
+    inputTemplate: { termo: '"licença de instalação"', secao: 'do1', janelaDias: 14 },
+  }
+  const fake = apifyFalso((_t, actorId) => {
+    if (actorId === 'brasildados~dou-monitor') {
+      return {
+        itens: [{
+          data: '08/04/2026', secao: 'DO1', tipo: 'Resolução', titulo: 'Resolução da ANVISA', orgao: 'ANVISA',
+          resumo: 'Registro de medicamento.', url: 'https://www.in.gov.br/web/dou/-/anvisa-abril',
+        }],
+        usageTotalUsd: 0.11,
+      }
+    }
+    return {
+      itens: [dou({
+        data: '12/10/2026', ementa: '', resumo: 'O IBAMA concede Licença de Instalação 90/2026 à indústria de cimento',
+        titulo: 'Extrato', url: 'https://www.in.gov.br/web/dou/-/li-90', url_title: 'li-90', orgao: 'IBAMA',
+      })],
+      usageTotalUsd: 0.2,
+    }
+  })
+  const fonte = clienteAssincronoDoApify({ tokens: [TOKEN], fetchFn: fake.fetchFn, dormir: () => Promise.resolve(), esperaDoCustoMs: 0, log: () => {} })
+  const banco = dbFalso(def, { contas: [] })
+  const r = await rodarCascata({ db: banco.db, fonte, registro: registroDePassos(nunca), agora: () => AGORA, log: () => {} }, {
+    workspaceId: 'ws-1', userId: 'u1', signalType: 'licenca_instalacao_dou', origem: 'rotina', chave: 'k-dou',
+  })
+  const posts = fake.requisicoes.filter((q) => q.metodo === 'POST')
+  assertEquals(posts.map((p) => p.caminho.split('/')[3]), ['brasildados~dou-monitor', 'jenko_systems~diario-oficial-uniao-dou'])
+  assertEquals(posts[0].corpo, { q: ['licença de instalação'], s: 'DO1' })
+  assertEquals(r.mercado.map((m) => m.eventKey), ['licenca|li-90'])
+  assert(r.mercado[0].evidence.includes('Licença de Instalação') || r.mercado[0].phrase.includes('Licença de instalação'), JSON.stringify(r.mercado[0]))
+  assert(!JSON.stringify(r).includes('medicamento'))
+  marcaLimpa(r)
+})
+
 Deno.test('licença de instalação no DOU: a entrada do actor segue o esquema publicado e a janela de 14 dias', async () => {
   const c = rodarDou()
   await c.rodar()

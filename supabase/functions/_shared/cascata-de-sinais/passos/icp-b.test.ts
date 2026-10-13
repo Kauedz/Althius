@@ -96,15 +96,15 @@ Deno.test('B1: o CNPJ novo de uma Conta vira Sinal "CNPJ aberto em", com o aviso
     },
   })
   const r = await c.rodar()
-  assertEquals([r.desfecho, r.novos, r.semConta], ['concluida', 1, 2])
+  assertEquals([r.desfecho, r.novos, r.semConta], ['concluida', 1, 1])
   assertEquals(r.sinais.length, 1)
   const s = r.sinais[0]
   assertEquals([s.contaId, s.phrase, s.firedAt, s.source], ['conta-alfa', 'CNPJ aberto em 14/09/2026', '2026-09-14T12:00:00.000Z', 'Receita Federal (base mensal de CNPJ)'])
   assert(s.eventKey.endsWith('|cnpj_novo|11222333000181'), s.eventKey)
   assert(s.evidence.includes('11.222.333/0001-81') && s.evidence.includes('6920-6/01') && s.evidence.includes('ME'), s.evidence)
   assert(/mensal/.test(s.evidence) && /30 dias/.test(s.evidence), 'a evidência avisa do atraso da base mensal')
-  // O empresário individual não tem nome nem CPF na resposta ao usuário.
-  assertEquals(r.semContaNomes, ['GAMA SERVICOS LTDA', 'Empresário individual'])
+  // O empresário individual é descartado antes do Sinal: nem o nome neutro entra na contagem.
+  assertEquals(r.semContaNomes, ['GAMA SERVICOS LTDA'])
   const tudo = JSON.stringify(r)
   assert(!tudo.includes('JOSE DA SILVA') && !tudo.includes('12345678901'), 'nome e CPF do empresário individual nunca saem')
   assert(!MARCA_INTERNA.test(tudo))
@@ -112,6 +112,24 @@ Deno.test('B1: o CNPJ novo de uma Conta vira Sinal "CNPJ aberto em", com o aviso
   assertEquals(c.posts()[0].corpo, { maxResults: 100 })
   assertEquals(r.custoUsd, 0.0124)
   assertEquals(c.banco.passos.map((p) => [p.ordem, p.fim?.estado]), [[1, 'succeeded'], [2, 'succeeded']])
+})
+
+Deno.test('B1: MEI e empresário individual não viram Sinal, mesmo quando o CNPJ é de uma Conta', async () => {
+  const c = cenario(DEF_B1, {
+    'johnatan029~cnpj-new-companies': {
+      itens: [
+        nova(ALFA_CNPJ, 'JOSE DA SILVA 12345678901', '2026-09-14', { naturezaJuridica: '2135' }),
+        nova('99888777000166', 'MARIA SOUZA', '2026-09-02', { naturezaJuridica: '213-5' }),
+        nova('88777666000155', 'PRODUTOR 11122233344', '2026-09-03', { naturezaJuridica: '4120' }),
+      ],
+      usageTotalUsd: 0.01,
+    },
+  })
+  const r = await c.rodar()
+  assertEquals([r.desfecho, r.sinais.length, r.novos], ['concluida', 0, 0])
+  const tudo = JSON.stringify(r)
+  for (const x of ['JOSE', '12345678901', 'MARIA', '11122233344', 'PRODUTOR']) assert(!tudo.includes(x), `vazou: ${x}`)
+  assert(!MARCA_INTERNA.test(tudo))
 })
 
 Deno.test('B1: os filtros do pedido (UF, CNAE, porte, mês) vão para o actor no formato dele', async () => {

@@ -1,13 +1,15 @@
 // ICP E, Sinal de licença de instalação (parcial, de MERCADO): o Diário Oficial da União publica as licenças federais (IBAMA
-// e afins); os órgãos ambientais estaduais (CETESB, FEAM, INEA...) têm portais distintos e ficam sem fonte. Actor
-// jenko_systems/diario-oficial-uniao-dou (esquema de entrada publicado, leitura da API pública em 13/10/2026): `mode` ("busca"),
-// `termo` (aspas = busca exata), `secao`, `data_inicio`/`data_fim` (AAAA-MM-DD), `max_resultados` (até 500), `texto_completo`.
-// Saída (visão padrão do dataset): `data` ("dd/mm/aaaa"), `secao`, `tipo`, `titulo`, `subtitulo`, `orgao`, `orgao_path`,
-// `ementa`, `edicao`, `pagina`, `termo_encontrado`, `url`, `url_title`. O Sinal vai para o feed do Workspace (sem Conta).
+// e afins); os órgãos ambientais estaduais (CETESB, FEAM, INEA...) têm portais distintos e ficam sem fonte.
+// Principal: brasildados/dou-monitor, entrada `{q: [frase], s: 'DO1'}`. Só olha cerca de 3 dias e casa palavra solta, então
+// o normalizar fica com a frase exata ("licença de instalação") dentro da janela. Reserva: jenko_systems/diario-oficial-uniao-dou
+// (esquema publicado, leitura da API pública em 13/10/2026): `mode` ("busca"), `termo` (aspas = busca exata), `secao`,
+// `data_inicio`/`data_fim` (AAAA-MM-DD), `max_resultados` (até 500), `texto_completo`.
+// Saída: `data` ("dd/mm/aaaa"), `secao`, `tipo`, `titulo`, `subtitulo`, `orgao`, `ementa` ou `resumo`, `edicao`, `pagina`, `url`.
+// O Sinal vai para o feed do Workspace (sem Conta).
 //
 // Dado pessoal: licença que cita CPF é de pessoa física e é descartada; o trecho da ementa só entra na evidência quando traz
 // o CNPJ da empresa licenciada, e o CNPJ vai para o `payload` (nunca o nome do licenciado).
-import { objetos, primeiroTexto, recortar, LIMITES, normalizar } from '../../../signal-runner/adaptadores/comum.ts'
+import { contemAlgum, objetos, primeiroTexto, recortar, LIMITES, normalizar } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ImplDoPasso, Item } from '../tipos.ts'
 import { cnpjLimpo, dentroDoPeriodo, janelaDoPasso, texto } from './comum.ts'
 import { dataBr } from './icp-e-formato.ts'
@@ -29,14 +31,22 @@ function dataDoDou(valor: string): string | null {
 const cnpjFormatado = (c: string) => `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
 const SECOES: Record<string, string> = { do1: 'Seção 1', do2: 'Seção 2', do3: 'Seção 3' }
 
+/** A frase pedida, sem as aspas que o esquema antigo usava para busca exata. */
+function termoExato(template: Record<string, unknown>): string {
+  const cru = texto(template.termo) || 'licença de instalação'
+  return cru.replace(/^["“”']+|["“”']+$/g, '').trim() || 'licença de instalação'
+}
+
 export const licencasDou: ImplDoPasso = {
-  montarEntrada(_entrada, ctx) {
+  montarEntrada(_entrada, ctx, actorId) {
     const dias = janelaDoPasso(ctx)
     const maximo = Math.min(ctx.def.maxItems ?? 50, 500)
+    const termo = termoExato(ctx.def.inputTemplate)
+    if (actorId.startsWith('brasildados~')) return { input: { q: [termo], s: 'DO1' }, maxItems: maximo }
     return {
       input: {
         mode: 'busca',
-        termo: texto(ctx.def.inputTemplate.termo) || '"licença de instalação"',
+        termo: `"${termo}"`,
         secao: texto(ctx.def.inputTemplate.secao) || 'todos',
         data_inicio: new Date(ctx.agora - dias * 86_400_000).toISOString().slice(0, 10),
         data_fim: new Date(ctx.agora).toISOString().slice(0, 10),
@@ -47,19 +57,30 @@ export const licencasDou: ImplDoPasso = {
     }
   },
 
-  normalizar(brutos) {
+  normalizar(brutos, _entrada, ctx) {
+    const termo = termoExato(ctx.def.inputTemplate)
+    const dias = janelaDoPasso(ctx)
     return objetos(brutos).flatMap((b): Item[] => {
       const quando = dataDoDou(primeiroTexto(b, 'data'))
       const url = primeiroTexto(b, 'url')
+      const titulo = primeiroTexto(b, 'titulo')
+      const subtitulo = primeiroTexto(b, 'subtitulo')
+      const tipoDoAto = primeiroTexto(b, 'tipo')
+      const ementa = primeiroTexto(b, 'ementa', 'resumo')
       if (!quando || !url) return []
+      // Pessoa física que traz a frase segue até a regra (ela descarta o CPF). Fora da frase ou da data, não.
+      if (!contemAlgum(`${titulo} ${subtitulo} ${tipoDoAto} ${ementa}`, [termo])) return []
+      if (!dentroDoPeriodo(quando, ctx.agora, dias)) return []
       return [{
         tipo: 'publicacao_dou', quando, url, slug: primeiroTexto(b, 'url_title') || url.split('/').pop() || url,
-        titulo: primeiroTexto(b, 'titulo'), subtitulo: primeiroTexto(b, 'subtitulo'), tipoDoAto: primeiroTexto(b, 'tipo'),
-        orgao: primeiroTexto(b, 'orgao'), ementa: primeiroTexto(b, 'ementa'), secao: primeiroTexto(b, 'secao'),
+        titulo, subtitulo, tipoDoAto, orgao: primeiroTexto(b, 'orgao'), ementa, secao: primeiroTexto(b, 'secao'),
         edicao: primeiroTexto(b, 'edicao'), pagina: primeiroTexto(b, 'pagina'),
       }]
     })
   },
+
+  /** Bruto que some no filtro (fora da frase ou da data) não serve: a reserva assume. */
+  confereConsulta: (_brutos, saida) => saida.length > 0,
 }
 
 /** `licencas_de_instalacao_dou`: só a publicação que traz "licença de instalação", sem pessoa física, uma por endereço. */

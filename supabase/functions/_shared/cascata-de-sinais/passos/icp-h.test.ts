@@ -166,6 +166,34 @@ Deno.test('H1: a UF e o período do pedido valem mais que o padrão; "somente ag
   assertEquals([r.semConta, r.semContaNomes], [1, ['COOPERATIVA DE CREDITO BETA']])
 })
 
+Deno.test('H1: cooperativa baixada de 2007 fora do agro não serve; a busca de empresas novas do agro assume', async () => {
+  const def = cascataCooperativa()
+  def.steps[0] = {
+    ...def.steps[0],
+    actorId: 'johnatan029~cnpj-new-companies',
+    estFixedUsd: 0.00005,
+    estPerItemUsd: 0.004,
+    estItems: 100,
+    maxItems: 100,
+    fallbacks: [{ kind: 'actor', actorId: 'epicscrapers~brazil-cnpj-scraper', priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.00005, estPerItemUsd: 0.0009 }],
+  }
+  const velha = {
+    recordType: 'NEW_COMPANY', cnpj: '99000000000100', razaoSocial: 'COOPERATIVA DE TRANSPORTE ANTIGA', dataInicio: '2007-03-01',
+    cnaePrincipal: '4929901', uf: 'SP', naturezaJuridica: '2143', matrizFilial: 'matriz', situacao: 'BAIXADA', porte: '05',
+  }
+  const c = cenario(def, {
+    'johnatan029~cnpj-new-companies': { itens: [velha], usageTotalUsd: 0.01 },
+    'epicscrapers~brazil-cnpj-scraper': { itens: [coop({ cnpj: '11222333000181', razao_social: 'COOPERATIVA AGROPECUARIA ALFA LTDA', data_abertura: '2026-09-10' })], usageTotalUsd: 0.02 },
+  })
+  const r = await c.rodar()
+  assertEquals(c.posts().map((q) => q.caminho.split('/')[3]), ['johnatan029~cnpj-new-companies', 'epicscrapers~brazil-cnpj-scraper'])
+  const corpo = c.posts()[0].corpo as { cnaes: string[] }
+  assertEquals(corpo.cnaes, CNAES_AGRO)
+  assertEquals(r.sinais.map((s) => s.contaId), ['conta-alfa'])
+  assert(!JSON.stringify(r).includes('TRANSPORTE ANTIGA'))
+  assert(!JSON.stringify(r).includes('2007'))
+})
+
 Deno.test('H1: se a base principal falha, a alternativa filtra por CNAE do agro e fica só com a natureza de cooperativa', async () => {
   const novas = [
     { recordType: 'NEW_COMPANY', cnpj: '11222333000181', cnpjFormatado: '11.222.333/0001-81', razaoSocial: 'COOPERATIVA AGROPECUARIA ALFA', dataInicio: '2026-09-10', cnaePrincipal: '0161003', uf: 'GO', municipioCodigo: '9373', porte: '05', naturezaJuridica: '2143', capitalSocial: '1000,00', matrizFilial: 'matriz', situacao: 'ATIVA' },
