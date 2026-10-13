@@ -121,3 +121,40 @@ Deno.test('um passo de regra com custo estimado que passa do teto aborta antes d
   assertEquals([r.desfecho, rodou, passos[0].fim?.estado, fechamentos[0].estado], ['abortada', false, 'aborted_cap', 'aborted'])
   assert(r.mensagem.includes('teto'))
 })
+
+Deno.test('o motor entrega o Workspace do pedido ao modelo (o caminho hermes enfileira por Workspace) sem o passo precisar saber', async () => {
+  const def: CascataDef = cascataDeTeste({ scope: 'mercado', steps: [passo(1, 'regra', 'classificar')] })
+  const { db } = dbFalso(def)
+  const vistos: (string | undefined)[] = []
+  const llm: Llm = { json: (a) => (vistos.push(a.workspaceId), Promise.resolve({ json: {}, custoUsd: 0 })) }
+  const registro: RegistroDePassos = {
+    passos: { classificar: { async executar(_e, ctx) { await ctx.llm!.json({ sistema: 's', usuario: 'u' }); return [] } } },
+    fontes: {},
+  }
+  await rodarCascata({ db, fonte: semFonte, registro, llm, agora: () => AGORA, log: () => {} }, pedido({ workspaceId: 'ws-do-pedido' }))
+  assertEquals(vistos, ['ws-do-pedido'])
+})
+
+Deno.test('um modelo que falha (erro ou prazo) não derruba a execução: o passo usa a regra e o custo do modelo fica em zero', async () => {
+  const def: CascataDef = cascataDeTeste({ scope: 'mercado', steps: [passo(1, 'regra', 'classificar')] })
+  const { db, passos, fechamentos } = dbFalso(def)
+  const llm: Llm = { json: () => Promise.reject(new Error('A classificação não respondeu a tempo')) }
+  const registro: RegistroDePassos = {
+    passos: {
+      classificar: {
+        async executar(_e, ctx) {
+          let phrase = 'regra simples'
+          try {
+            const r = await ctx.llm!.json({ sistema: 's', usuario: 'u' })
+            ctx.custo.adicionar(r.custoUsd)
+            phrase = 'com modelo'
+          } catch { /* a regra assume */ }
+          return [{ eventKey: 'k', phrase, firedAt: '2026-10-06T00:00:00Z', source: 's', evidence: 'e' }]
+        },
+      },
+    },
+    fontes: {},
+  }
+  const r = await rodarCascata({ db, fonte: semFonte, registro, llm, agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals([r.desfecho, r.mercado[0].phrase, passos[0].fim?.custoUsd, fechamentos[0].custoUsd], ['concluida', 'regra simples', 0, 0])
+})

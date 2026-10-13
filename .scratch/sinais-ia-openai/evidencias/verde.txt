@@ -1,0 +1,5 @@
+# Verde (14/10/2026)
+deno test supabase/functions (sem -A, como o CI) ...... ok | 1291 passed | 0 failed | 32 ignorados (os que leem migrações rodam no passo próprio do CI)
+deno check supabase/functions/*/index.ts e _hermes-worker/main.ts ... exit 0
+pgTAP, suíte inteira local ................... 96 arquivos, todos ok (novo: fila_de_ia_dos_sinais.sql 16/16)
+Novos testes: llm-openai (4), llm-hermes (5), llm-seletor (6), _hermes-worker/sinais-ia (5), motor-infra (+2), guarda-de-marca (+2)

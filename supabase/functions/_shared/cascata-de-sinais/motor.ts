@@ -203,7 +203,8 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
       gravar: (itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[]) =>
         db.gravarSnapshots({ workspaceId: pedido.workspaceId, signalType: def.signalType, itens }),
     },
-    llm: deps.llm,
+    // O modelo de cada pedido leva o Workspace dele (o caminho hermes enfileira por Workspace); o passo só chama `json`.
+    llm: deps.llm ? { json: (a: Parameters<Llm['json']>[0]) => deps.llm!.json({ workspaceId: pedido.workspaceId, ...a }) } : undefined,
     pedido,
     contas,
     criterios: pedido.criterios ?? {},

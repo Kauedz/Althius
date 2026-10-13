@@ -290,9 +290,13 @@ export interface Snapshots {
   gravar(itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[]): Promise<void>
 }
 
-/** Um modelo de linguagem para classificar ou extrair de texto (notícia, diário oficial). O custo volta com a resposta. */
+/**
+ * Um modelo de linguagem para classificar ou extrair de texto (notícia, diário oficial). O custo volta com a resposta.
+ * `workspaceId` é posto pelo motor (o passo não precisa saber): o caminho que passa pela fila do Hermes enfileira por Workspace.
+ * Quem usa trata a falha (erro ou prazo) caindo na regra de palavra-chave.
+ */
 export interface Llm {
-  json(a: { sistema: string; usuario: string; maxTokens?: number }): Promise<{ json: unknown; custoUsd: number }>
+  json(a: { sistema: string; usuario: string; maxTokens?: number; workspaceId?: string }): Promise<{ json: unknown; custoUsd: number }>
 }
 
 /** O que um passo vê do pedido. */

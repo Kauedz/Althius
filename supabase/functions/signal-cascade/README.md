@@ -30,4 +30,8 @@ Preço ao usuário = custo real do run (`usageTotalUsd`, lido de `GET /v2/actor-
 
 ## Segredos e passos manuais
 
+## O modelo dos passos de IA
+
+Os passos que classificam texto (notícia de recuperação judicial ou de expansão de planta, diário oficial) usam o modelo escolhido por `SIGNALS_LLM_PROVIDER` (`hermes`, `openai` ou `regra`; o padrão é `regra`). Ver `supabase/functions/README.md` e `_shared/cascata-de-sinais/llm-seletor.ts`. Com `hermes`, a função enfileira o pedido e espera o worker até o prazo da classificação; sem resposta a tempo, o passo cai na regra de palavra-chave.
+
 Ver "Passos do Nan" no PR da frente: `functions deploy signal-cascade`, os segredos acima e a execução real de cada actor antes de `set_signal_cascade_state(..., 'available')`.

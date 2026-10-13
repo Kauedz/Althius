@@ -14,6 +14,7 @@ import { buscaDeSinaisPorHttp } from '../_shared/busca-de-sinais.ts'
 import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import type { DepsDeAcesso } from '../_shared/integration-access.ts'
+import { filaDeSinaisPorRpc, processarPedidosDeIa } from './sinais-ia.ts'
 import { createWorker, type FilaDb, hermesHttp } from './worker.ts'
 
 function required(name: string) {
@@ -69,10 +70,15 @@ const ferramentas: DepsDasFerramentas | undefined = Deno.env.get('HERMES_FERRAME
     executarChamadaAprovada({ banco: bancoDoExecutorDeFerramenta(rpcDoServico), acesso }, { approvalId }),
 }
 
+const hermes = hermesHttp({ url: Deno.env.get('HERMES_URL') || 'http://127.0.0.1:8642', chave: required('HERMES_API_KEY') })
+// Os pedidos de IA dos Sinais (SIGNALS_LLM_PROVIDER=hermes nas Edge Functions): o worker os responde pelo Hermes.
+// HERMES_SINAIS_IA=off desliga só isto.
+const filaDeSinais = Deno.env.get('HERMES_SINAIS_IA') === 'off' ? null : filaDeSinaisPorRpc(rpc)
+
 const worker = createWorker({
   ferramentas,
   db,
-  hermes: hermesHttp({ url: Deno.env.get('HERMES_URL') || 'http://127.0.0.1:8642', chave: required('HERMES_API_KEY') }),
+  hermes,
   // Cada Agente numa chamada própria, na sua vez e em rodadas. HERMES_UMA_CHAMADA=true volta ao modo de uma chamada só.
   porAgente: Deno.env.get('HERMES_UMA_CHAMADA') !== 'true',
 })
@@ -86,6 +92,10 @@ const avisar = (texto: string) => {
 for (;;) {
   try {
     const feitos = await worker.rodada()
+    if (filaDeSinais && feitos !== null) {
+      const respondidos = await processarPedidosDeIa({ db: filaDeSinais, hermes })
+      if (respondidos > 0) console.log(`${respondidos} classificação(ões) de Sinais respondida(s).`)
+    }
     if (feitos === null) avisar('O Hermes não respondeu em HERMES_URL. Ele está rodando com o `hermes gateway`?')
     else if (feitos > 0) console.log(`${feitos} pedido(s) respondido(s).`)
     else avisar('Hermes de pé, esperando pedidos.')

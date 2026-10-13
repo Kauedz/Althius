@@ -9,7 +9,7 @@ import type { Llm, PedidoDeCascata, ResultadoDaCascata } from './tipos.ts'
 
 export type { ClienteRpc } from './db.ts'
 export { MENSAGENS } from './motor.ts'
-export { llmDaAnthropic } from './llm-anthropic.ts'
+export { escolherLlmDosSinais } from './llm-seletor.ts'
 export type * from './tipos.ts'
 
 export interface MotorDeCascata {
