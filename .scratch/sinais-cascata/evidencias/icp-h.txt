@@ -1,0 +1,219 @@
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts
+running 15 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts
+H1: a cooperativa agro aberta na janela vira Sinal da Conta (CNPJ ou nome); o resto é descartado ou contado ... FAILED (25ms)
+H1: repetir a rodada não grava de novo (eventKey por empresa, fato e data de abertura) ... FAILED (1ms)
+H1: a UF e o período do pedido valem mais que o padrão; "somente agro" pode ser desligado ... FAILED (465µs)
+H1: se a base principal falha, a alternativa filtra por CNAE do agro e fica só com a natureza de cooperativa ... FAILED (741µs)
+H1: o pior caso de cada fonte cabe no teto da cascata e a alternativa não é barrada pela estimativa ... ok (159µs)
+H1: a alternativa, ao rodar de fato, estima só os itens que pede (não os 300 da principal) ... FAILED (1ms)
+H2: dentro da temporada, a notícia de anúncio e a de liberação viram Sinais de mercado, um por safra, programa e etapa ... FAILED (707µs)
+H2: a mesma notícia em outra rodada não grava de novo; a safra sem ano no título sai da data ... FAILED (545µs)
+H2: fora da temporada (maio a setembro) o passo é pulado, sem custo e sem chamar a coleta; o pedido pode forçar ... FAILED (589µs)
+H2: o período do pedido muda a janela da busca e das notícias ... FAILED (473µs)
+H3: a divulgação da CONAB que acabou de acontecer vira Sinal de mercado; a futura e a antiga, não ... FAILED (1ms)
+H3: dentro da janela de compra de insumos (fev a mai) há um Sinal por ano, marcado como não conferido ... FAILED (578µs)
+H3: sem a tabela no modelo do passo, o Sinal termina vazio em vez de inventar datas ... FAILED (439µs)
+H4: CPR registrada e área no CAR são resultado válido sem fonte: o motivo vai ao usuário, sem coleta e sem crédito ... FAILED (138ms)
+o ICP H registra os quatro handlers dos seus passos ... FAILED (598µs)
+ ERRORS 
+H1: a cooperativa agro aberta na janela vira Sinal da Conta (CNPJ ou nome); o resto é descartado ou contado => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:111:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
+-   falhou
++   concluida
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:115:3
+H1: repetir a rodada não grava de novo (eventKey por empresa, fato e data de abertura) => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:153:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
+    [
++     2,
+      0,
+      0,
+-     0,
+-     0,
++     2,
+    ]
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:157:3
+H1: a UF e o período do pedido valem mais que o padrão; "somente agro" pode ser desligado => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:160:6
+error: TypeError: Cannot read properties of undefined (reading 'corpo')
+  assertEquals(c.posts()[0].corpo, { uf: 'MT', naturezaJuridica: '2143', maxItems: 300 })
+                           ^
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:163:28
+H1: se a base principal falha, a alternativa filtra por CNAE do agro e fica só com a natureza de cooperativa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:169:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
+-   falhou
++   concluida
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:182:3
+H1: a alternativa, ao rodar de fato, estima só os itens que pede (não os 300 da principal) => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:205:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
++   [
++     [
++       1,
++       "failed",
++     ],
++     [
++       2,
++       "empty",
++     ],
++   ]
+-   []
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:212:3
+H2: dentro da temporada, a notícia de anúncio e a de liberação viram Sinais de mercado, um por safra, programa e etapa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:234:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
+-   falhou
++   concluida
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:238:3
+H2: a mesma notícia em outra rodada não grava de novo; a safra sem ano no título sai da data => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:274:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
++   [
++     [
++       "plano-safra|2026/27|geral|anuncio",
++       "Plano Safra 2026/27 foi anunciado (R$ 400 bi)",
++     ],
++   ]
+-   []
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:280:3
+H2: fora da temporada (maio a setembro) o passo é pulado, sem custo e sem chamar a coleta; o pedido pode forçar => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:284:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
+    [
+-     "falhou",
++     "concluida",
+      0,
+-     null,
++     0,
+    ]
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:287:3
+H2: o período do pedido muda a janela da busca e das notícias => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:296:6
+error: TypeError: Cannot read properties of undefined (reading 'corpo')
+  assertEquals((c.posts()[0].corpo as { timeframe: string }).timeframe, '30d')
+                            ^
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:299:29
+H3: a divulgação da CONAB que acabou de acontecer vira Sinal de mercado; a futura e a antiga, não => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:314:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
+-   falhou
++   concluida
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:316:3
+H3: dentro da janela de compra de insumos (fev a mai) há um Sinal por ano, marcado como não conferido => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:330:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
++   [
++     [
++       "calendario|janela-insumos-2027",
++       "Janela de compra de insumos da próxima safra aberta (de fev a mai)",
++       "2027-02-01T12:00:00.000Z",
++     ],
++   ]
+-   []
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:332:3
+H3: sem a tabela no modelo do passo, o Sinal termina vazio em vez de inventar datas => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:343:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
+    [
+-     "falhou",
++     "concluida",
+      0,
+    ]
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:350:3
+H4: CPR registrada e área no CAR são resultado válido sem fonte: o motivo vai ao usuário, sem coleta e sem crédito => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:356:6
+error: NotFound: No such file or directory (os error 2): readfile '/home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/migrations/20261013220000_cascatas_icp_h.sql'
+  const sql = await Deno.readTextFile(new URL('../../../../migrations/20261013220000_cascatas_icp_h.sql', import.meta.url))
+                         ^
+    at Object.readTextFile (ext:deno_fs/30_fs.js:1:10048)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:357:26
+o ICP H registra os quatro handlers dos seus passos => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:376:6
+error: AssertionError: Values are not equal.
+    [Diff] Actual / Expected
++   [
++     "calendario_de_safra",
++     "cooperativas_abertas",
++     "noticias_plano_safra",
++     "plano_safra_da_noticia",
++   ]
+-   []
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a62bfc28bc4e558e6/supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:378:3
+ FAILURES 
+H1: a cooperativa agro aberta na janela vira Sinal da Conta (CNPJ ou nome); o resto é descartado ou contado => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:111:6
+H1: repetir a rodada não grava de novo (eventKey por empresa, fato e data de abertura) => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:153:6
+H1: a UF e o período do pedido valem mais que o padrão; "somente agro" pode ser desligado => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:160:6
+H1: se a base principal falha, a alternativa filtra por CNAE do agro e fica só com a natureza de cooperativa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:169:6
+H1: a alternativa, ao rodar de fato, estima só os itens que pede (não os 300 da principal) => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:205:6
+H2: dentro da temporada, a notícia de anúncio e a de liberação viram Sinais de mercado, um por safra, programa e etapa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:234:6
+H2: a mesma notícia em outra rodada não grava de novo; a safra sem ano no título sai da data => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:274:6
+H2: fora da temporada (maio a setembro) o passo é pulado, sem custo e sem chamar a coleta; o pedido pode forçar => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:284:6
+H2: o período do pedido muda a janela da busca e das notícias => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:296:6
+H3: a divulgação da CONAB que acabou de acontecer vira Sinal de mercado; a futura e a antiga, não => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:314:6
+H3: dentro da janela de compra de insumos (fev a mai) há um Sinal por ano, marcado como não conferido => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:330:6
+H3: sem a tabela no modelo do passo, o Sinal termina vazio em vez de inventar datas => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:343:6
+H4: CPR registrada e área no CAR são resultado válido sem fonte: o motivo vai ao usuário, sem coleta e sem crédito => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:356:6
+o ICP H registra os quatro handlers dos seus passos => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts:376:6
+FAILED | 1 passed | 14 failed (184ms)
+error: Test failed
+Stack backtrace:
+   0: <unknown>
+
+=== VERDE (depois da implementação) ===
+running 15 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts
+H1: a cooperativa agro aberta na janela vira Sinal da Conta (CNPJ ou nome); o resto é descartado ou contado ... ok (17ms)
+H1: repetir a rodada não grava de novo (eventKey por empresa, fato e data de abertura) ... ok (2ms)
+H1: a UF e o período do pedido valem mais que o padrão; "somente agro" pode ser desligado ... ok (915µs)
+H1: se a base principal falha, a alternativa filtra por CNAE do agro e fica só com a natureza de cooperativa ... ok (1ms)
+H1: o pior caso de cada fonte cabe no teto da cascata e a alternativa não é barrada pela estimativa ... ok (122µs)
+H1: a alternativa, ao rodar de fato, estima só os itens que pede (não os 300 da principal) ... ok (826µs)
+H2: dentro da temporada, a notícia de anúncio e a de liberação viram Sinais de mercado, um por safra, programa e etapa ... ok (2ms)
+H2: a mesma notícia em outra rodada não grava de novo; a safra sem ano no título sai da data ... ok (1ms)
+H2: fora da temporada (maio a setembro) o passo é pulado, sem custo e sem chamar a coleta; o pedido pode forçar ... ok (533µs)
+H2: o período do pedido muda a janela da busca e das notícias ... ok (736µs)
+H3: a divulgação da CONAB que acabou de acontecer vira Sinal de mercado; a futura e a antiga, não ... ok (693µs)
+H3: dentro da janela de compra de insumos (fev a mai) há um Sinal por ano, marcado como não conferido ... ok (1ms)
+H3: sem a tabela no modelo do passo, o Sinal termina vazio em vez de inventar datas ... ok (145µs)
+H4: CPR registrada e área no CAR são resultado válido sem fonte: o motivo vai ao usuário, sem coleta e sem crédito ... ok (932µs)
+o ICP H registra os quatro handlers dos seus passos ... ok (174µs)
+
+ok | 15 passed | 0 failed (39ms)
+
+
+=== todos os testes da cascata ===
+
+ok | 88 passed | 0 failed (1s)
+
+=== pgTAP ===
+ok     cascatas_icp_h.sql: 24/24
