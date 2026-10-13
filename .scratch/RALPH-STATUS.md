@@ -5,6 +5,7 @@
 - **Ticket:** `.scratch/sinais-cascata/issues/15-validacao-de-produccao-2026-10-13.md`
 - **Status:** ready-for-human (código e Deno verdes; falta o Nan aplicar a migração, cadastrar os segredos e publicar as funções, com o CI verde)
 - **Branch:** `cursor/validacao-producao-sinais-6455`
+- **PR:** https://github.com/Kauedz/Althius/pull/194 (não mergear daqui)
 - **O que muda:** rodízio `APIFY_TOKEN_1`..`APIFY_TOKEN_5` mais o legado, com espera persistida; CNPJ em lotes de 5 e BrasilAPI no TIMED-OUT; espera de 429 na NCM; vaga de logística só consulta página de Conta e pula o CNPJ perto do prazo; meta ESG aceita domínio da marca; frase "Sinais novos gravados".
 - **Migração nova (não aplicar daqui):** `supabase/migrations/20261014150000_rodizio_das_contas_de_coleta.sql`. Sem deploy. Sem escrita no projeto remoto. Segredos novos: `APIFY_TOKEN_1` a `APIFY_TOKEN_5`. Manter `APIFY_TOKEN` (a foto de Contato ainda o lê).
 - **Testes (2026-10-13):** vermelho primeiro (14 falhas, inclusive "Sinalis"). Verde: `deno check supabase/functions/*/index.ts` limpo; `deno test supabase/functions` 1316 passed / 0 failed / 32 ignored. pgTAP novo não rodou aqui (sem Postgres); o job Banco do CI executa `supabase/tests/rodizio_das_contas_de_coleta.sql` (16 asserts).

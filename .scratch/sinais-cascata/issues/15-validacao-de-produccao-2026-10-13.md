@@ -65,3 +65,4 @@ npx supabase functions deploy signal-cascade signal-runner signal-scan account-d
 - A espera de crédito dura 30 minutos; a de limite de taxa, 2 minutos. As duas valem para a instância seguinte porque ficam no banco. Se a migração ainda não foi aplicada, a função segue com a espera só na memória da instância e registra a falha da gravação sem o segredo.
 - A foto de Contato não entra no rodízio neste ticket.
 - Vermelho (13/10/2026, antes do código): 14 falhas, entre elas "2 Sinalis novos gravados.", lote `[11]`, 429 sem troca de conta, página da Gama ainda consultada, domínio da Natura recusado. Verde: `deno check supabase/functions/*/index.ts` limpo; `deno test supabase/functions` 1316 passed / 0 failed / 32 ignored.
+- PR: https://github.com/Kauedz/Althius/pull/194. Sem merge. Falta o Nan aplicar a migração, cadastrar os segredos e publicar as funções.
