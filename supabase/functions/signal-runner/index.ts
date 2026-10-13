@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
-import { type ClienteRpc, criarMotorDeCascata, llmDaAnthropic } from '../_shared/cascata-de-sinais/index.ts'
+import { type ClienteRpc, criarMotorDeCascata, escolherLlmDosSinais } from '../_shared/cascata-de-sinais/index.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { ADAPTADORES } from './adaptadores.ts'
 import {
@@ -182,12 +182,17 @@ const apify = clienteDoApify({
 
 // Os Sinais em cascata (um Sinal = vários passos) rodam pelo mesmo motor da conversa do Hermes: as mesmas contas do Apify,
 // o mesmo banco, o mesmo teto. O Monitoramento de um tipo que é cascata não passa pelo caminho de uma varredura por Conta.
-// Os passos que classificam texto (notícia, diário oficial) usam o modelo de linguagem da Althius quando há ANTHROPIC_API_KEY.
-const chaveDaIa = Deno.env.get('ANTHROPIC_API_KEY')
+// Os passos que classificam texto (notícia, diário oficial) usam o modelo escolhido por SIGNALS_LLM_PROVIDER (hermes, openai
+// ou regra; o padrão é regra, sem modelo).
+const llm = escolherLlmDosSinais({
+  env: (nome) => Deno.env.get(nome),
+  admin: admin as unknown as ClienteRpc,
+  log: (campos) => console.log(JSON.stringify(campos)),
+})
 const cascatas = criarMotorDeCascata({
   admin: admin as unknown as ClienteRpc,
   tokens,
-  ...(chaveDaIa ? { llm: llmDaAnthropic({ apiKey: chaveDaIa }) } : {}),
+  ...(llm ? { llm } : {}),
 })
 
 Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas, cascatas }))

@@ -88,3 +88,7 @@ segredos de cliente OAuth das Integrações, que não ficam neste `.env` (nesse 
 - Neste corte, o Hermes recebe as Contas-alvo ativas do Workspace (até 10) nas instruções. As consultas que ele faz
   por conta própria ainda não aparecem como passos na tela.
 - `SUPABASE_SERVICE_ROLE_KEY` dá acesso total ao banco: só no `.env` deste computador (e depois no da VPS).
+
+## As classificações dos Sinais
+
+Com `SIGNALS_LLM_PROVIDER=hermes` nas Edge Functions `signal-runner` e `signal-cascade`, os passos de IA dos Sinais (notícia e diário oficial) não chamam um modelo direto: enfileiram o pedido no banco (`claim_signal_llm_request`) e este worker o responde pelo Hermes, que já usa a OpenAI. O worker reserva até 5 pedidos por volta, entrega ao Hermes só o texto do pedido (público) e a regra de marca, e grava a resposta e os tokens (`finish_signal_llm_request`); o erro real fica só no log, sem segredo, e o pedido guarda uma mensagem neutra. As classificações têm uma volta própria (a cada 1 s), separada da dos pedidos dos Agentes, para a Edge Function não vencer o prazo enquanto um Agente conversa. O texto classificado vem da internet: o Hermes o recebe como dado, com a ordem de ignorar instruções dentro dele, e **os toolsets do passo 3 acima precisam estar desligados** (sem terminal, arquivos, navegador nem execução de código). Se o worker não está ligado, a Edge Function desiste no prazo e o passo usa a regra de palavra-chave. `HERMES_SINAIS_IA=off` no `.env` desliga só isto.

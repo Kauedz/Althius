@@ -13,6 +13,7 @@
 //    grava os Sinais confirmados e a execução fica "parcial"; antes disso, nada é gravado e só o consumido é cobrado;
 //  - todo texto de `mensagem` está em palavras do produto: o fornecedor e o actor só aparecem na coluna técnica.
 import { MENSAGEM_DA_FONTE } from '../marca.ts'
+import { modeloDaExecucao } from './llm-da-execucao.ts'
 import { redigir } from './redacao.ts'
 import {
   type AlternativaDoPasso,
@@ -203,7 +204,8 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
       gravar: (itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[]) =>
         db.gravarSnapshots({ workspaceId: pedido.workspaceId, signalType: def.signalType, itens }),
     },
-    llm: deps.llm,
+    // O modelo desta execução: leva o Workspace do pedido e tem circuito e orçamento de tempo (ver llm-da-execucao.ts).
+    llm: deps.llm ? modeloDaExecucao(deps.llm, { workspaceId: pedido.workspaceId, agora }) : undefined,
     pedido,
     contas,
     criterios: pedido.criterios ?? {},

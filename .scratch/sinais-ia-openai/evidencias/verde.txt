@@ -1,0 +1,6 @@
+# Verde (14/10/2026)
+deno test supabase/functions (sem -A, como o CI) ...... ok | 1293 passed | 0 failed | 32 ignorados (os que leem migrações rodam no passo próprio do CI)
+deno check supabase/functions/*/index.ts e _hermes-worker/main.ts ... exit 0
+pgTAP, suíte inteira local ................... 96 arquivos, todos ok (novo: fila_de_ia_dos_sinais.sql 18/18)
+Novos testes: llm-openai (4), llm-hermes (5), llm-seletor (6), _hermes-worker/sinais-ia (5), motor-infra (+4: Workspace, falha do modelo, circuito, orçamento de tempo), guarda-de-marca (+2)
+Vermelho antes de cada um: vermelho.txt (módulos inexistentes e o campo workspaceId no tipo); circuito e orçamento falharam 2 de 2 antes de llm-da-execucao.ts.

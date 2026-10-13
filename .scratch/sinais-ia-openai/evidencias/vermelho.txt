@@ -1,0 +1,8 @@
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/supabase/functions/_shared/cascata-de-sinais/llm-openai.ts'.
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/supabase/functions/_shared/cascata-de-sinais/llm-hermes.ts'.
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/supabase/functions/_shared/cascata-de-sinais/llm-seletor.ts'.
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/supabase/functions/_hermes-worker/sinais-ia.ts'.
+TS2345 [ERROR]: Argument of type '{ SIGNALS_LLM_PROVIDER: string; OPENAI_MODEL: string; OPENAI_API_KEY?: undefined; } | { SIGNALS_LLM_PROVIDER: string; OPENAI_API_KEY: string; OPENAI_MODEL?: undefined; }' is not assignable to parameter of type 'Record<string, string>'.
+TS2339 [ERROR]: Property 'workspaceId' does not exist on type '{ sistema: string; usuario: string; maxTokens?: number | undefined; }'.
+Found 11 errors.
+error: Type checking failed.

@@ -270,3 +270,86 @@ Deno.test('a busca de Sinais que falha com o token no erro não o devolve ao Her
   )
   semMarca(await sessao.chamar(agente, 'buscar_sinais', { sinal: 'vaga_comex' }), 'resultado de buscar_sinais')
 })
+
+// Passos de IA dos Sinais: o modelo de linguagem (OpenAI, direto ou pelo Hermes) nunca aparece no que o usuário ou o Hermes
+// leem, e a chave do fornecedor nunca vai a log, a erro nem a resultado, mesmo com o modelo falhando de todo jeito.
+import { llmDaOpenai } from './cascata-de-sinais/llm-openai.ts'
+import { llmDoHermes } from './cascata-de-sinais/llm-hermes.ts'
+import { cascataDeTeste, dbFalso } from './cascata-de-sinais/db-falso.ts'
+import { rodarCascata } from './cascata-de-sinais/motor.ts'
+import type { ClienteDaFonte, Llm, RegistroDePassos } from './cascata-de-sinais/tipos.ts'
+
+const CHAVE_DA_IA = 'sk-proj-SEGREDO_DA_IA_123456789'
+
+function modelosQueFalham(): { nome: string; llm: Llm }[] {
+  const respostaComMarca = () => Promise.resolve(new Response(`{"error":{"message":"OpenAI: Incorrect API key ${CHAVE_DA_IA} (gpt-5)"}}`, { status: 401 }))
+  const naRede = () => Promise.reject(new Error(`falha de rede para api.openai.com com ${CHAVE_DA_IA}`))
+  return [
+    { nome: 'openai 401', llm: llmDaOpenai({ apiKey: CHAVE_DA_IA, modelo: 'gpt-5', preco: { entradaPorMilhao: 1, saidaPorMilhao: 1 }, fetchFn: respostaComMarca as typeof fetch }) },
+    { nome: 'openai rede', llm: llmDaOpenai({ apiKey: CHAVE_DA_IA, modelo: 'gpt-5', preco: { entradaPorMilhao: 1, saidaPorMilhao: 1 }, fetchFn: naRede as typeof fetch }) },
+    {
+      nome: 'hermes falho',
+      llm: llmDoHermes({
+        fila: { enfileirar: () => Promise.resolve('r1'), ler: () => Promise.resolve({ status: 'failed' as const, erro: `OpenAI recusou ${CHAVE_DA_IA}` }) },
+        preco: { entradaPorMilhao: 1, saidaPorMilhao: 1 }, prazoMs: 1_000, intervaloMs: 0, esperar: () => Promise.resolve(),
+      }),
+    },
+    {
+      nome: 'hermes sem worker',
+      llm: (() => {
+        let agora = 0
+        return llmDoHermes({
+          fila: { enfileirar: () => Promise.resolve('r1'), ler: () => Promise.resolve({ status: 'queued' as const }) },
+          preco: { entradaPorMilhao: 1, saidaPorMilhao: 1 }, prazoMs: 100, intervaloMs: 50, esperar: () => (agora += 50, Promise.resolve()), relogio: () => agora,
+        })
+      })(),
+    },
+  ]
+}
+
+Deno.test('passos de IA dos Sinais: o modelo falhando não vaza fornecedor nem chave para a mensagem, o rastro, o log nem o resultado', async () => {
+  const semFonte: ClienteDaFonte = { rodar: () => Promise.reject(new Error('sem actor')) }
+  for (const { nome, llm } of modelosQueFalham()) {
+    const def = cascataDeTeste({
+      scope: 'mercado',
+      steps: [{ ordem: 1, kind: 'regra', handler: 'classificar', actorId: null, fallbacks: [], inputTemplate: {}, priceModel: 'NONE', estFixedUsd: 0, estPerItemUsd: 0, estItems: 0, maxItems: null }],
+    })
+    const { db, passos } = dbFalso(def)
+    const logs: unknown[] = []
+    const registro: RegistroDePassos = {
+      passos: {
+        classificar: {
+          async executar(_e, ctx) {
+            const frase = 'regra de palavra-chave'
+            try {
+              await ctx.llm!.json({ sistema: 's', usuario: 'u' })
+            } catch { /* o passo cai na regra */ }
+            return [{ eventKey: 'k', phrase: frase, firedAt: '2026-10-06T00:00:00Z', source: 'Diário Oficial da União', evidence: 'e' }]
+          },
+        },
+      },
+      fontes: {},
+    }
+    const r = await rodarCascata({ db, fonte: semFonte, registro, llm, agora: () => Date.parse('2026-10-13T12:00:00Z'), log: (c) => logs.push(c) }, {
+      workspaceId: 'ws-1', userId: 'u1', signalType: 'teste_em_cascata', origem: 'conversa', chave: `k-${nome}`,
+    })
+    assertEquals(r.desfecho, 'concluida', nome)
+    semMarca([r.mensagem, r.sinais, r.mercado], `resultado (${nome})`)
+    assert(!JSON.stringify([passos, logs]).includes(CHAVE_DA_IA), `${nome}: o rastro ou o log levou a chave da IA`)
+    assert(!JSON.stringify(r).includes(CHAVE_DA_IA))
+  }
+})
+
+Deno.test('passos de IA dos Sinais: a falha de cada adaptador chega ao passo em palavras neutras, sem fornecedor nem chave', async () => {
+  for (const { nome, llm } of modelosQueFalham()) {
+    let erro: Error | null = null
+    try {
+      await llm.json({ sistema: 's', usuario: 'u', workspaceId: 'ws-1' })
+    } catch (e) {
+      erro = e as Error
+    }
+    assert(erro, `${nome} devia falhar`)
+    semMarca(erro.message, `erro do modelo (${nome})`)
+    assert(!erro.message.includes(CHAVE_DA_IA))
+  }
+})

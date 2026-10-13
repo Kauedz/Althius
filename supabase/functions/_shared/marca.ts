@@ -1,10 +1,13 @@
 // A marca do produto (sinais em cascata, fatia 1): o usuário e o Hermes só conhecem "fonte pública", "Receita Federal" e
-// "nossa busca". O nome do fornecedor de coleta (Apify), os actors e os segredos ficam em log, em coluna técnica e no
-// README das funções, nunca em texto que o cliente lê, em `last_error` ou em resultado de ferramenta.
+// "nossa busca". O nome do fornecedor de coleta (Apify), os actors, o fornecedor do modelo de linguagem (OpenAI, Anthropic) e
+// os segredos ficam em log, em coluna técnica e no README das funções, nunca em texto que o cliente lê, em `last_error` ou
+// em resultado de ferramenta.
 
 /** O que nenhuma mensagem ao cliente, `last_error` ou resultado de ferramenta pode conter. */
-// "actor" como palavra inteira: "factor" e "contractor" de uma vaga ou de uma notícia não são a marca.
-export const MARCA_INTERNA = /apify|\bactors?\b/i
+// "actor" como palavra inteira: "factor" e "contractor" de uma vaga ou de uma notícia não são a marca. Os fornecedores de
+// modelo de linguagem (OpenAI, Anthropic, Claude, GPT-n, Codex) também ficam fora do que o usuário lê: toda IA da Althius
+// é "a Althius". "Hermes" não entra aqui: é o nome do motor interno e já não é dito ao usuário pelas instruções do Agente.
+export const MARCA_INTERNA = /apify|\bactors?\b|openai|anthropic|\bclaude\b|\bgpt[-\s]?\d|\bcodex\b/i
 
 /** As mensagens em palavras do produto para a falha de uma fonte de dados. */
 export const MENSAGEM_DA_FONTE = {

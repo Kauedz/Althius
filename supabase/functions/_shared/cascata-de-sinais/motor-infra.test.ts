@@ -121,3 +121,90 @@ Deno.test('um passo de regra com custo estimado que passa do teto aborta antes d
   assertEquals([r.desfecho, rodou, passos[0].fim?.estado, fechamentos[0].estado], ['abortada', false, 'aborted_cap', 'aborted'])
   assert(r.mensagem.includes('teto'))
 })
+
+Deno.test('o motor entrega o Workspace do pedido ao modelo (o caminho hermes enfileira por Workspace) sem o passo precisar saber', async () => {
+  const def: CascataDef = cascataDeTeste({ scope: 'mercado', steps: [passo(1, 'regra', 'classificar')] })
+  const { db } = dbFalso(def)
+  const vistos: (string | undefined)[] = []
+  const llm: Llm = { json: (a) => (vistos.push(a.workspaceId), Promise.resolve({ json: {}, custoUsd: 0 })) }
+  const registro: RegistroDePassos = {
+    passos: { classificar: { async executar(_e, ctx) { await ctx.llm!.json({ sistema: 's', usuario: 'u' }); return [] } } },
+    fontes: {},
+  }
+  await rodarCascata({ db, fonte: semFonte, registro, llm, agora: () => AGORA, log: () => {} }, pedido({ workspaceId: 'ws-do-pedido' }))
+  assertEquals(vistos, ['ws-do-pedido'])
+})
+
+Deno.test('um modelo que falha (erro ou prazo) não derruba a execução: o passo usa a regra e o custo do modelo fica em zero', async () => {
+  const def: CascataDef = cascataDeTeste({ scope: 'mercado', steps: [passo(1, 'regra', 'classificar')] })
+  const { db, passos, fechamentos } = dbFalso(def)
+  const llm: Llm = { json: () => Promise.reject(new Error('A classificação não respondeu a tempo')) }
+  const registro: RegistroDePassos = {
+    passos: {
+      classificar: {
+        async executar(_e, ctx) {
+          let phrase = 'regra simples'
+          try {
+            const r = await ctx.llm!.json({ sistema: 's', usuario: 'u' })
+            ctx.custo.adicionar(r.custoUsd)
+            phrase = 'com modelo'
+          } catch { /* a regra assume */ }
+          return [{ eventKey: 'k', phrase, firedAt: '2026-10-06T00:00:00Z', source: 's', evidence: 'e' }]
+        },
+      },
+    },
+    fontes: {},
+  }
+  const r = await rodarCascata({ db, fonte: semFonte, registro, llm, agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals([r.desfecho, r.mercado[0].phrase, passos[0].fim?.custoUsd, fechamentos[0].custoUsd], ['concluida', 'regra simples', 0, 0])
+})
+
+Deno.test('depois da primeira falha do modelo na execução, as chamadas seguintes falham na hora (sem esperar o prazo de novo)', async () => {
+  const def: CascataDef = cascataDeTeste({ scope: 'mercado', steps: [passo(1, 'regra', 'classificar')] })
+  const { db } = dbFalso(def)
+  let chamadasAoModelo = 0
+  const llm: Llm = { json: () => (chamadasAoModelo++, Promise.reject(new Error('A classificação não respondeu a tempo'))) }
+  const registro: RegistroDePassos = {
+    passos: {
+      classificar: {
+        async executar(_e, ctx) {
+          const erros: string[] = []
+          for (let lote = 0; lote < 3; lote++) {
+            try { await ctx.llm!.json({ sistema: 's', usuario: `lote ${lote}` }) } catch (e) { erros.push((e as Error).message) }
+          }
+          return [{ eventKey: 'k', phrase: erros.join('|'), firedAt: '2026-10-06T00:00:00Z', source: 's', evidence: 'e' }]
+        },
+      },
+    },
+    fontes: {},
+  }
+  const r = await rodarCascata({ db, fonte: semFonte, registro, llm, agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals(chamadasAoModelo, 1)
+  assertEquals(r.mercado[0].phrase.split('|').length, 3)
+  assert(r.mercado[0].phrase.includes('indisponível nesta execução'))
+})
+
+Deno.test('o tempo total do modelo numa execução tem orçamento: estourado, as chamadas seguintes falham na hora', async () => {
+  const def: CascataDef = cascataDeTeste({ scope: 'mercado', steps: [passo(1, 'regra', 'classificar')] })
+  const { db } = dbFalso(def)
+  let relogio = AGORA
+  let chamadas = 0
+  const llm: Llm = { json: () => (chamadas++, relogio += 40_000, Promise.resolve({ json: {}, custoUsd: 0 })) }
+  const registro: RegistroDePassos = {
+    passos: {
+      classificar: {
+        async executar(_e, ctx) {
+          let feitas = 0
+          for (let lote = 0; lote < 5; lote++) {
+            try { await ctx.llm!.json({ sistema: 's', usuario: 'u' }); feitas++ } catch { /* orçamento */ }
+          }
+          return [{ eventKey: 'k', phrase: `feitas ${feitas}`, firedAt: '2026-10-06T00:00:00Z', source: 's', evidence: 'e' }]
+        },
+      },
+    },
+    fontes: {},
+  }
+  const r = await rodarCascata({ db, fonte: semFonte, registro, llm, agora: () => relogio, log: () => {} }, pedido())
+  // Orçamento de 60 s: a 1ª (40 s) e a 2ª (80 s acumulados) rodam; as outras falham sem chamar o modelo.
+  assertEquals([chamadas, r.mercado[0].phrase], [2, 'feitas 2'])
+})

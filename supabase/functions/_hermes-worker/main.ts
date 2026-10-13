@@ -14,6 +14,7 @@ import { buscaDeSinaisPorHttp } from '../_shared/busca-de-sinais.ts'
 import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import type { DepsDeAcesso } from '../_shared/integration-access.ts'
+import { filaDeSinaisPorRpc, processarPedidosDeIa } from './sinais-ia.ts'
 import { createWorker, type FilaDb, hermesHttp } from './worker.ts'
 
 function required(name: string) {
@@ -69,13 +70,34 @@ const ferramentas: DepsDasFerramentas | undefined = Deno.env.get('HERMES_FERRAME
     executarChamadaAprovada({ banco: bancoDoExecutorDeFerramenta(rpcDoServico), acesso }, { approvalId }),
 }
 
+const hermes = hermesHttp({ url: Deno.env.get('HERMES_URL') || 'http://127.0.0.1:8642', chave: required('HERMES_API_KEY') })
+// Os pedidos de IA dos Sinais (SIGNALS_LLM_PROVIDER=hermes nas Edge Functions): o worker os responde pelo Hermes.
+// HERMES_SINAIS_IA=off desliga só isto.
+const filaDeSinais = Deno.env.get('HERMES_SINAIS_IA') === 'off' ? null : filaDeSinaisPorRpc(rpc)
+
 const worker = createWorker({
   ferramentas,
   db,
-  hermes: hermesHttp({ url: Deno.env.get('HERMES_URL') || 'http://127.0.0.1:8642', chave: required('HERMES_API_KEY') }),
+  hermes,
   // Cada Agente numa chamada própria, na sua vez e em rodadas. HERMES_UMA_CHAMADA=true volta ao modo de uma chamada só.
   porAgente: Deno.env.get('HERMES_UMA_CHAMADA') !== 'true',
 })
+
+// As classificações dos Sinais têm a volta própria: um pedido de Agente pode levar minutos no Hermes, e a Edge Function só
+// espera a classificação por 45 s. Sem esta volta separada, ela venceria o prazo antes de o worker olhar a fila.
+if (filaDeSinais) {
+  void (async () => {
+    for (;;) {
+      try {
+        const respondidos = await processarPedidosDeIa({ db: filaDeSinais, hermes })
+        if (respondidos > 0) console.log(`${respondidos} classificação(ões) de Sinais respondida(s).`)
+      } catch (error) {
+        console.log(`Falha na volta das classificações de Sinais: ${error instanceof Error ? error.name : 'erro'}`)
+      }
+      await new Promise((resolver) => setTimeout(resolver, 1000))
+    }
+  })()
+}
 
 console.log('Worker do Hermes ligado. Ctrl+C para parar.')
 let ultimoAviso = ''
