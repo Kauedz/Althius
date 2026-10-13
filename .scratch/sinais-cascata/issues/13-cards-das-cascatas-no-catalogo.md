@@ -51,8 +51,8 @@ Commit: PR do ticket 13 (migração `20261014130000_catalogo_de_cascatas_para_a_
 - [x] Os 39 tipos do Mapa aparecem; um teste de paridade falha se o frontend e `mapa-de-sinais.ts` divergirem em ICP, nome do ICP ou lista de tipos.
 - [x] Nenhum texto renderizado cita fornecedor ou "actor" (teste com `MARCA_INTERNA` sobre o HTML do cartão e do motivo).
 - [x] Com a RPC falhando ou vazia o catálogo atual continua intacto, sem erro na tela.
-- [ ] Lint, vitest e build do frontend verdes; CI das três jobs verde.
-- [ ] Verificação visual no navegador (é trabalho do agente, ver `docs/agents/triage-labels.md`) com a RPC servida por um fake local: print do desktop e do celular, com um cartão de cada estado e o de Mercado.
+- [ ] Lint, vitest e build do frontend verdes (feito local: 138 arquivos, 1243 testes); CI das três jobs verde (falta a rodada desta PR).
+- [x] Verificação visual no desktop (`evidencias/13-desktop.png`): com cascatas de exemplo na Demonstração (remendo temporário, não commitado), os grupos A, C e H, os selos Em teste, Disponível, Sem fonte e Mercado e o motivo aparecem como esperado. **No celular não deu para validar:** a página Sinais inteira (as famílias que já existiam também) fica com ~62 px de largura em 390 px e rola na horizontal, antes e depois desta mudança. Isso é do layout da página, fora deste ticket.
 
 ## Passos do Nan
 
