@@ -493,11 +493,15 @@ Deno.test('Jusbrasil/DataJud por CNPJ: sem fonte, com o motivo, sem reservar cr�
   assertEquals([r.desfecho, r.mensagem, c.banco.aberturas.length], ['sem_fonte', motivo, 0])
 })
 
-Deno.test('a migração do ICP C só aponta para handlers que o código implementa, e as cascatas nascem em teste', async () => {
-  const sql = await Deno.readTextFile(new URL('../../../../migrations/20261013170000_cascatas_icp_c.sql', import.meta.url))
+// Lê a migração: precisa de --allow-read (o passo próprio do CI); sem a permissão, é ignorado.
+const ARQUIVO_DA_MIGRACAO = new URL('../../../../migrations/20261013170000_cascatas_icp_c.sql', import.meta.url)
+const podeLer = (await Deno.permissions.query({ name: 'read', path: ARQUIVO_DA_MIGRACAO })).state === 'granted'
+
+Deno.test({ name: 'a migração do ICP C só aponta para handlers que o código implementa, e as cascatas nascem em teste', ignore: !podeLer, async fn() {
+  const sql = await Deno.readTextFile(ARQUIVO_DA_MIGRACAO)
   const handlers = [...sql.matchAll(/"handler":\s*"([a-z0-9_]+)"/g)].map((m) => m[1])
   assert(handlers.length >= 10)
   const registro = registroDePassos()
   for (const h of handlers) assert(registro.passos[h], `handler sem implementação: ${h}`)
   assert(!/"state":\s*"available"/.test(sql))
-})
+} })
