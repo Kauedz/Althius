@@ -1,0 +1,334 @@
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts
+running 21 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts
+a tabela de CNAEs eletrointensivos: subclasses de 7 dígitos sem repetição, marcada como critério interno ... ok (827µs)
+o rodízio semanal escolhe sempre o mesmo CNAE na mesma semana e anda um por semana ... ok (151µs)
+D1: a empresa de CNAE eletrointensivo que é Conta vira Sinal, com o reforço da página só para quem precisa ... FAILED (24ms)
+D1: sem Conta que precise da página, o passo do LinkedIn não roda nem custa; sem pedido, o rodízio escolhe o CNAE ... FAILED (2ms)
+D1: só a atividade principal vale; o mesmo fato em outra rodada não grava duas vezes ... FAILED (768µs)
+D1: CNAE pedido fora da tabela não roda nem custa ... FAILED (723µs)
+D2: a empresa de CNAE e porte do Grupo A que não está na lista da CCEE vira "provável cativo", dito como inferência ... FAILED (1ms)
+D2: a URL da lista da CCEE vem do modelo do passo (configurável) e a lista é lida em páginas ... FAILED (649µs)
+D2: se a CCEE não responde ou a lista não cabe, nenhum "provável cativo" é afirmado ... ok (443µs)
+D2: sem empresa que seja Conta, a lista da CCEE nem é lida ... FAILED (657µs)
+D3: a primeira rodada só grava a fotografia (falta base) e a segunda mostra a filial nova, com o reforço das notícias ... FAILED (892µs)
+D3: sem notícia, o Sinal sai do mesmo jeito (o reforço não filtra); repetir a rodada não grava de novo ... FAILED (837µs)
+D3: se a cascata para antes do Sinal, a fotografia não avança (a filial aparece de novo na próxima rodada) ... ok (330µs)
+D3: raiz sem filial nova só atualiza a fotografia; filial baixada não conta; fotografia truncada não afirma nada ... FAILED (590µs)
+D3: sem Conta com CNPJ não custa nada ... FAILED (528µs)
+D3: o pior caso do mapa cabe no teto da cascata ... ok (146µs)
+D4: a meta ESG confirmada por palavra-chave na página do próprio site vira Sinal da Conta ... FAILED (733µs)
+D4: página sem palavra de meta não confirma; sem página do próprio site, o rastreador nem roda ... FAILED (575µs)
+D4: a mesma meta em outra rodada do ano não grava de novo ... FAILED (624µs)
+D5: vencimento de contrato de energia é "sem fonte": resposta válida, sem reservar crédito nem chamar fonte ... ok (278µs)
+o registro do ICP D tem todos os passos e fontes que as cascatas citam ... FAILED (667µs)
+
+ ERRORS 
+
+D1: a empresa de CNAE eletrointensivo que é Conta vira Sinal, com o reforço da página só para quem precisa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:86:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+-   falhou
++   concluida
+
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:105:3
+
+D1: sem Conta que precise da página, o passo do LinkedIn não roda nem custa; sem pedido, o rodízio escolhe o CNAE => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:127:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     "falhou",
+-     0,
++     "concluida",
++     1,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:130:3
+
+D1: só a atividade principal vale; o mesmo fato em outra rodada não grava duas vezes => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:137:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     "falhou",
++     "concluida",
+      0,
+      0,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:142:3
+
+D1: CNAE pedido fora da tabela não roda nem custa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:151:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     "falhou",
++     "concluida",
+      0,
+      0,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:154:3
+
+D2: a empresa de CNAE e porte do Grupo A que não está na lista da CCEE vira "provável cativo", dito como inferência => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:180:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+-   falhou
++   concluida
+
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:198:3
+
+D2: a URL da lista da CCEE vem do modelo do passo (configurável) e a lista é lida em páginas => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:217:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+-   0
++   1
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:224:3
+
+D2: sem empresa que seja Conta, a lista da CCEE nem é lida => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:247:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     "falhou",
++     "concluida",
+      0,
+      0,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:253:3
+
+D3: a primeira rodada só grava a fotografia (falta base) e a segunda mostra a filial nova, com o reforço das notícias => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:277:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     "falhou",
++     "concluida",
+      0,
+      0,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:281:3
+
+D3: sem notícia, o Sinal sai do mesmo jeito (o reforço não filtra); repetir a rodada não grava de novo => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:325:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     0,
+-     0,
++     1,
++     1,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:332:3
+
+D3: raiz sem filial nova só atualiza a fotografia; filial baixada não conta; fotografia truncada não afirma nada => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:355:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+      0,
+      0,
+-     0,
++     1,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:361:3
+
+D3: sem Conta com CNPJ não custa nada => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:370:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     "falhou",
++     "concluida",
+      0,
+      0,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:373:3
+
+D4: a meta ESG confirmada por palavra-chave na página do próprio site vira Sinal da Conta => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:394:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+-   falhou
++   concluida
+
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:424:3
+
+D4: página sem palavra de meta não confirma; sem página do próprio site, o rastreador nem roda => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:450:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
+-     "falhou",
++     "concluida",
+      0,
+      0,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:456:3
+
+D4: a mesma meta em outra rodada do ano não grava de novo => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:465:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+    [
++     1,
+      0,
+-     0,
+-     0,
++     1,
+    ]
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:472:3
+
+o registro do ICP D tem todos os passos e fontes que as cascatas citam => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:490:6
+error: AssertionError: Values are not equal.
+
+
+    [Diff] Actual / Expected
+
+
+-   [
+-     "cnpj_por_cnae",
+-     "linkedin_empresa_por_cnae",
+-     "fatos_cnae_eletrointensivo",
+-     "cnpj_por_cnae",
+-     "ccee_agentes",
+-     "provavel_cativo",
+-     "mapa_de_filiais",
+-     "filiais_novas",
+-     "noticias_de_expansao",
+-     "gravar_fotografia_filiais",
+-     "busca_esg",
+-     "paginas_esg",
+-     "confirmar_esg_no_site",
+-     "confirmar_esg",
+-   ]
++   []
+
+  throw new AssertionError(message);
+        ^
+    at assertEquals (https://jsr.io/@std/assert/1.0.19/equals.ts:67:9)
+    at file:///home/user/Althius/.claude/worktrees/agent-a5c9f4c790d3ceee6/supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:496:3
+
+ FAILURES 
+
+D1: a empresa de CNAE eletrointensivo que é Conta vira Sinal, com o reforço da página só para quem precisa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:86:6
+D1: sem Conta que precise da página, o passo do LinkedIn não roda nem custa; sem pedido, o rodízio escolhe o CNAE => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:127:6
+D1: só a atividade principal vale; o mesmo fato em outra rodada não grava duas vezes => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:137:6
+D1: CNAE pedido fora da tabela não roda nem custa => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:151:6
+D2: a empresa de CNAE e porte do Grupo A que não está na lista da CCEE vira "provável cativo", dito como inferência => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:180:6
+D2: a URL da lista da CCEE vem do modelo do passo (configurável) e a lista é lida em páginas => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:217:6
+D2: sem empresa que seja Conta, a lista da CCEE nem é lida => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:247:6
+D3: a primeira rodada só grava a fotografia (falta base) e a segunda mostra a filial nova, com o reforço das notícias => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:277:6
+D3: sem notícia, o Sinal sai do mesmo jeito (o reforço não filtra); repetir a rodada não grava de novo => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:325:6
+D3: raiz sem filial nova só atualiza a fotografia; filial baixada não conta; fotografia truncada não afirma nada => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:355:6
+D3: sem Conta com CNPJ não custa nada => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:370:6
+D4: a meta ESG confirmada por palavra-chave na página do próprio site vira Sinal da Conta => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:394:6
+D4: página sem palavra de meta não confirma; sem página do próprio site, o rastreador nem roda => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:450:6
+D4: a mesma meta em outra rodada do ano não grava de novo => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:465:6
+o registro do ICP D tem todos os passos e fontes que as cascatas citam => ./supabase/functions/_shared/cascata-de-sinais/passos/icp-d.test.ts:490:6
+
+FAILED | 6 passed | 15 failed (48ms)
+
+error: Test failed
+
+Stack backtrace:
+   0: <unknown>
