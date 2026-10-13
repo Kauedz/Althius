@@ -105,6 +105,7 @@ Deno.test('cascata de 4 passos: a saída de um vira a entrada do próximo e o Si
 
   assertEquals(r.desfecho, 'concluida')
   assertEquals(r.novos, 2)
+  assertEquals(r.mensagem, '2 Sinais novos gravados.')
   assertEquals(sinais.map((s) => s.sinal.eventKey), ['teste|conta-1|1', 'teste|conta-1|2'])
   // O passo 1 gerou 3 itens; o passo 2 tirou o repetido; o passo 3 recebeu só 1 e 2.
   assertEquals(chamadas[1].input, { ns: [1, 2] })

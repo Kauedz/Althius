@@ -4,7 +4,11 @@
 // Nunca lê o quadro societário (nome de pessoa): só a razão social, o porte, o CNAE e a UF da empresa.
 import { objetos, primeiroTexto, recortar, LIMITES } from '../../../signal-runner/adaptadores/comum.ts'
 import type { FontePublica, ImplDoPasso, Item } from '../tipos.ts'
+import { consultaDeCnpjs } from './cnpj-lotes.ts'
 import { cnpjLimpo, objeto, texto } from './comum.ts'
+
+/** Abaixo disto não começa a consulta: os Sinais já confirmados fecham a execução, e o CNPJ fica para a próxima rodada. */
+const FOLGA_DO_CNPJ_MS = 20_000
 
 interface DadosDaReceita {
   cnpj: string
@@ -43,9 +47,10 @@ export const cnpjDaConta: ImplDoPasso = {
   itensCobrados: (entrada) => cnpjsDaEntrada(entrada).length,
 
   montarEntrada(entrada, ctx) {
+    const restante = ctx.pedido.prazoFinal === undefined ? Infinity : ctx.pedido.prazoFinal - ctx.agora
+    if (restante < FOLGA_DO_CNPJ_MS) return { pular: 'O prazo da função está perto; a consulta de CNPJ fica para a próxima rodada.' }
     const cnpjs = cnpjsDaEntrada(entrada).slice(0, ctx.def.maxItems ?? 20)
-    if (!cnpjs.length) return { pular: 'Nenhuma Conta com CNPJ cadastrado.' }
-    return { input: { mode: 'lookup', cnpjs }, maxItems: cnpjs.length }
+    return consultaDeCnpjs(cnpjs, 'Nenhuma Conta com CNPJ cadastrado.')
   },
 
   normalizar(brutos, entrada) {

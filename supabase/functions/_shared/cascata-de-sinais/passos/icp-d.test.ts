@@ -474,6 +474,30 @@ Deno.test('D4: a meta ESG confirmada por palavra-chave na página do próprio si
   semMarca(r)
 })
 
+Deno.test('D4: com site cadastrado, o domínio da marca (natura.net, naturaeco.com) entra; natural.com e um ranking não', async () => {
+  const natura: ContaDoWorkspace = { id: 'conta-na', name: 'Natura Cosméticos S.A.', domain: 'natura.com', linkedinUrl: null, cnpj: null }
+  const c = cenario(cascataMetaEsg(), {
+    'scraperlink~google-search-results-serp-scraper': {
+      usageTotalUsd: 0.001,
+      itens: [
+        linha('"Natura Cosméticos S.A." "net zero"', [
+          { title: 'Net zero', url: 'https://www.natura.net/clima', description: 'meta net zero' },
+          { title: 'Net zero no grupo', url: 'https://www.naturaeco.com/sustentabilidade', description: 'net zero' },
+          { title: 'Natural', url: 'https://www.natural.com/clima', description: 'net zero' },
+          { title: 'Ranking', url: 'https://ranking.test/natura', description: 'net zero' },
+        ]),
+      ],
+    },
+    'apify~website-content-crawler': { itens: [], usageTotalUsd: 0 },
+  }, { contas: [natura] })
+  await c.rodar()
+  const crawler = c.posts().find((q) => q.caminho.includes('website-content-crawler'))
+  const urls = ((crawler?.corpo as { startUrls?: { url: string }[] } | undefined)?.startUrls ?? []).map((u) => u.url)
+  assert(urls.includes('https://www.natura.net/clima'), JSON.stringify(urls))
+  assert(urls.includes('https://www.naturaeco.com/sustentabilidade'), JSON.stringify(urls))
+  assert(!urls.some((u) => u.includes('natural.com') || u.includes('ranking.test')), JSON.stringify(urls))
+})
+
 Deno.test('D4: página sem palavra de meta não confirma; sem página do próprio site, o rastreador nem roda', async () => {
   const semMeta = cenario(cascataMetaEsg(), {
     'scraperlink~google-search-results-serp-scraper': { itens: [linha('"Norte Energia Industrial S.A." "net zero"', [{ title: 'Clima', url: 'https://www.norteenergia.com.br/clima', description: 'net zero' }])], usageTotalUsd: 0.001 },

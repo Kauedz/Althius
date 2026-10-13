@@ -226,7 +226,7 @@ Deno.test('cliente do Apify: sem crédito numa conta, a próxima assume e o cust
   assertEquals(usados, ['run:Bearer a', 'run:Bearer b', 'custo:Bearer b', 'run:Bearer b'])
 })
 
-Deno.test('cliente do Apify: todas sem crédito devolve 402; 429 não troca de conta', async () => {
+Deno.test('cliente do Apify: todas sem crédito devolve 402; 429 troca de conta', async () => {
   const semCredito = clienteDoApify({
     tokens: ['a', 'b'],
     fetchFn: (() => Promise.resolve(new Response('x', { status: 402 }))) as unknown as typeof fetch,
@@ -241,16 +241,14 @@ Deno.test('cliente do Apify: todas sem crédito devolve 402; 429 não troca de c
   let chamadas = 0
   const limitada = clienteDoApify({
     tokens: ['a', 'b'],
-    fetchFn: (() => {
+    fetchFn: ((_url: string, init?: RequestInit) => {
       chamadas++
-      return Promise.resolve(new Response('x', { status: 429 }))
+      const auth = (init?.headers as Record<string, string>).Authorization
+      if (auth === 'Bearer a') return Promise.resolve(new Response('x', { status: 429 }))
+      return Promise.resolve(Response.json([], { headers: { 'x-apify-run-id': 'r429' } }))
     }) as unknown as typeof fetch,
   })
-  try {
-    await limitada.run({ actorId: ACTOR, input: {}, maxItems: 1, maxTotalChargeUsd: 1 })
-  } catch (e) {
-    erro = e
-  }
-  assertEquals((erro as ApifyRequestError).status, 429)
-  assertEquals(chamadas, 1)
+  const exec = await limitada.run({ actorId: ACTOR, input: {}, maxItems: 1, maxTotalChargeUsd: 1 })
+  assertEquals(exec.runId, 'r429')
+  assertEquals(chamadas, 2)
 })

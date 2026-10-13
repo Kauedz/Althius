@@ -532,13 +532,41 @@ function chaveDaUrl(url: string): string {
   }
 }
 
-/** A página é do próprio site da Conta: o domínio dela; sem site cadastrado, o nome da empresa dentro do domínio. */
+const ROTULOS_GENERICOS = new Set(['com', 'br', 'net', 'org', 'io', 'app', 'gov', 'edu', 'www'])
+/** O que pode grudar na marca num domínio próprio (`natura` + `eco` = naturaeco.com). */
+const SUFIXOS_DE_MARCA = new Set(['eco', 'group', 'grupo', 'brasil', 'holding', 'global', 'latam', 'sa', 'inc', 'co'])
+
+function rotulosDoHost(host: string): string[] {
+  return host.split('.').filter((r) => r && !ROTULOS_GENERICOS.has(r))
+}
+
+function marcasDaConta(conta: ContaDoWorkspace): string[] {
+  const nome = nomeDaEmpresa(conta.name)
+  const marcas = new Set<string>()
+  const primeira = nome.split(' ')[0] ?? ''
+  const compacto = nome.replace(/ /g, '')
+  if (primeira.length >= 5) marcas.add(primeira)
+  if (compacto.length >= 5) marcas.add(compacto)
+  const site = dominio(conta.domain)
+  const doSite = site.split('.')[0] ?? ''
+  if (doSite.length >= 4 && !ROTULOS_GENERICOS.has(doSite)) marcas.add(doSite)
+  return [...marcas]
+}
+
+function rotuloDaMarca(rotulo: string, marca: string): boolean {
+  if (rotulo === marca) return true
+  if (!rotulo.startsWith(marca)) return false
+  return SUFIXOS_DE_MARCA.has(rotulo.slice(marca.length))
+}
+
+/** Página do site da Conta: o domínio cadastrado, um subdomínio, ou um domínio da marca (rótulo igual ou com sufixo conhecido). */
 function ehDoSiteDaConta(conta: ContaDoWorkspace, url: string): boolean {
   const host = dominio(url)
   if (!host) return false
-  if (dominio(conta.domain)) return mesmoDominio(host, dominio(conta.domain))
-  const nome = nomeDaEmpresa(conta.name).replace(/ /g, '')
-  return nome.length >= 4 && host.replace(/[^a-z0-9]/g, '').includes(nome)
+  const site = dominio(conta.domain)
+  if (site && mesmoDominio(host, site)) return true
+  const marcas = marcasDaConta(conta)
+  return rotulosDoHost(host).some((rotulo) => marcas.some((marca) => rotuloDaMarca(rotulo, marca)))
 }
 
 const paginasEsg: ImplDoPasso = {

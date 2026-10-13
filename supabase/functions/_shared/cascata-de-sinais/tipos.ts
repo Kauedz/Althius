@@ -317,7 +317,14 @@ export interface ContextoDoPasso {
   memoria: Map<string, unknown>
 }
 
-export type EntradaDoActor = { input: unknown; maxItems: number } | { pular: string }
+export interface LoteDoActor {
+  input: unknown
+  maxItems: number
+  /** Prazo deste lote no actor, em segundos. Sem ele, vale o prazo que ainda resta na função. */
+  timeoutSegundos?: number
+}
+
+export type EntradaDoActor = LoteDoActor | { lotes: LoteDoActor[] } | { pular: string }
 
 export interface FontePublica {
   buscar(entrada: Item[], ctx: ContextoDoPasso): Promise<Item[]>

@@ -414,6 +414,28 @@ Deno.test('B4: o pior caso do actor principal cabe no teto (US$ 0,09 para 100 em
   assertEquals(estimativaDaCascata(DEF_B4()), 0.09005)
 })
 
+const onzeContas = () => Array.from({ length: 11 }, (_, i) => ({
+  id: `conta-${i}`, name: `Conta ${i}`, domain: null, linkedinUrl: null, cnpj: `${String(10_000_000 + i)}000181`,
+}))
+
+Deno.test('B2: onze CNPJs saem em lotes de no máximo 5, cada um com prazo próprio', async () => {
+  const c = cenario(DEF_B2, { 'johnatan029~cnpj-empresas-brasil-scraper': { itens: [], usageTotalUsd: 0 } }, { contas: onzeContas() })
+  await c.rodar()
+  const consultas = c.posts().filter((q) => q.caminho.includes('cnpj-empresas-brasil-scraper'))
+  const tamanhos = consultas.map((q) => ((q.corpo as { cnpjs?: string[] }).cnpjs ?? []).length)
+  assertEquals(tamanhos, [5, 5, 1])
+  assert(consultas.every((q) => q.consulta.get('timeout') === '40'), JSON.stringify(consultas.map((q) => q.consulta.get('timeout'))))
+})
+
+Deno.test('B2: TIMED-OUT no primeiro lote interrompe os seguintes e a BrasilAPI assume', async () => {
+  const c = cenario(DEF_B2, { 'johnatan029~cnpj-empresas-brasil-scraper': { estados: ['TIMED-OUT'], mensagem: 'Timed out', usageTotalUsd: 0 } }, { contas: onzeContas() })
+  await c.rodar()
+  const consultas = c.posts().filter((q) => q.caminho.includes('cnpj-empresas-brasil-scraper'))
+  const tamanhos = consultas.map((q) => ((q.corpo as { cnpjs?: string[] }).cnpjs ?? []).length)
+  assertEquals(tamanhos, [5])
+  assertEquals(c.brasilapi.length, 11)
+})
+
 Deno.test('o registro do ICP B traz os handlers e a fonte pública que as cascatas usam', () => {
   const r = passosDoIcp_b(fetch)
   assertEquals(Object.keys(r.passos).sort(), ['cnpj_novos_da_receita', 'diff_porte_regime', 'diff_socios', 'receita_fotografia', 'receita_por_cnae', 'setor_afetado_cbs_ibs'])

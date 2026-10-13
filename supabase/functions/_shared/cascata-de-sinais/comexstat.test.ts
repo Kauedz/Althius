@@ -1,7 +1,7 @@
-import { assertEquals, assertRejects } from 'jsr:@std/assert@1'
+import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1'
 import { clienteComexStat, dolares, fimDoMes, mesMais, ncmComPontos } from './comexstat.ts'
 
-Deno.test('o cliente espaça as requisições em 10 s e manda o corpo no formato da API', async () => {
+Deno.test('o cliente espaça as requisições em 12 s e manda o corpo no formato da API', async () => {
   const esperas: number[] = []
   const vistos: { url: string; metodo: string; corpo?: unknown }[] = []
   const fetchFn = ((url: string | URL | Request, init?: RequestInit) => {
@@ -15,11 +15,27 @@ Deno.test('o cliente espaça as requisições em 10 s e manda o corpo no formato
   assertEquals(await c.ultimoMes(), { ano: 2026, mes: 9 })
   const linhas = await c.geral({ fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09', filtros: [{ filter: 'chapter', values: [84, 85] }], detalhes: ['ncm'] })
   assertEquals(linhas[0].coNcm, '84799999')
-  assertEquals(esperas, [10_000])
+  assertEquals(esperas, [12_000])
   assertEquals(vistos[1], {
     url: 'https://api-comexstat.mdic.gov.br/general', metodo: 'POST',
     corpo: { flow: 'import', monthDetail: false, period: { from: '2026-07', to: '2026-09' }, filters: [{ filter: 'chapter', values: [84, 85] }], details: ['ncm'], metrics: ['metricFOB', 'metricKG'] },
   })
+})
+
+Deno.test('429 espera pelo menos 10 s e faz até 3 novas tentativas', async () => {
+  const esperas: number[] = []
+  let n = 0
+  const fetchFn = (() => {
+    n++
+    if (n < 4) return Promise.resolve(new Response(JSON.stringify({ message: 'tente novamente em 10 segundos' }), { status: 429 }))
+    return Promise.resolve(new Response(JSON.stringify({ data: { list: [{ coNcm: '84799999', metricFOB: '1', metricKG: '1' }] } })))
+  }) as typeof fetch
+  const c = clienteComexStat({ fetchFn, dormir: (ms) => (esperas.push(ms), Promise.resolve()) })
+  const linhas = await c.geral({ fluxo: 'import', porMes: false, de: '2026-07', ate: '2026-09', filtros: [], detalhes: ['ncm'] })
+  assertEquals(linhas[0].coNcm, '84799999')
+  assertEquals(n, 4, 'uma chamada e três novas tentativas')
+  assertEquals(esperas.length, 3)
+  assert(esperas.every((ms) => ms >= 10_000), JSON.stringify(esperas))
 })
 
 Deno.test('sem o último mês ou com a API fora, falha sem texto da API', async () => {

@@ -4,6 +4,7 @@
 // do Apify como a função contact-photo-lookup já os usa. Na execução real de 30/09/2026 o endpoint síncrono não devolveu o
 // cabeçalho `x-apify-run-id`; sem ele, o id vem da última execução do actor na mesma conta
 // (`GET /v2/acts/{actor}/runs/last`, o `lastRun` do cliente oficial apify-client), aceita só se começou depois da chamada.
+import { type ContaDeColeta, type MemoriaDasContas } from "../_shared/apify-ambiente.ts";
 import {
   type Apify,
   ApifyRequestError,
@@ -12,9 +13,14 @@ import {
 } from "./handler.ts";
 
 export interface OpcoesDoApify {
-  /** As contas do Apify, na ordem de uso. Quando os créditos de uma acabam, a próxima assume. */
+  /** As contas, na ordem de uso. O índice do log é a posição na lista quando `contas` não vem. */
   tokens: string[];
+  /** Contas com o índice do segredo. Quando vem, o log guarda esse índice. */
+  contas?: ContaDeColeta[];
+  /** Espera e cursor compartilhados entre execuções. */
+  memoria?: MemoriaDasContas;
   fetchFn?: typeof fetch;
+  agora?: () => number;
   /** Prazo da execução no Apify, em segundos. */
   runTimeoutSeconds?: number;
   /** Prazo da chamada HTTP; um pouco maior que o da execução. */
@@ -30,14 +36,30 @@ export interface OpcoesDoApify {
   log?: (campos: Record<string, unknown>) => void;
 }
 
-// Créditos esgotados: o Apify recusa com 402 ou 403 (ainda não conferido contra a documentação). Só esses códigos
-// passam para a próxima conta; 429, 5xx e prazo não são falta de crédito.
-const SEM_CREDITO = new Set([402, 403]);
+const ESPERA_DE_CREDITO_MS = 30 * 60 * 1000;
+const ESPERA_DE_LIMITE_MS = 2 * 60 * 1000;
+const corpoDoErro = new WeakMap<ApifyRequestError, string>();
+
+function motivoDoStatus(error: unknown): "credito" | "limite" | null {
+  if (!(error instanceof ApifyRequestError)) return null;
+  if (error.status === 429) return "limite";
+  if (error.status === 402) return "credito";
+  if (error.status !== 403) return null;
+  const corpo = corpoDoErro.get(error) ?? "";
+  if (
+    /usage|credit|limit|billing|subscription|platform feature|not-enough-usage|platform-feature-disabled/i
+      .test(corpo)
+  ) return "credito";
+  return null;
+}
 
 export function clienteDoApify(
   {
     tokens,
+    contas: contasInformadas,
+    memoria,
     fetchFn = fetch,
+    agora = () => Date.now(),
     runTimeoutSeconds = 120,
     timeoutMs = 135_000,
     esperaDoCustoMs = 0,
@@ -45,36 +67,81 @@ export function clienteDoApify(
     log = (campos) => console.log(JSON.stringify(campos)),
   }: OpcoesDoApify,
 ): Apify {
-  if (tokens.length === 0) throw new Error("Sem conta do Apify configurada");
-  // Contas que já recusaram por falta de crédito nesta instância: são puladas até a instância reiniciar.
-  const esgotadas = new Set<number>();
+  const contas = contasInformadas?.length
+    ? contasInformadas
+    : tokens.map((token, slot) => ({ slot, token }));
+  if (contas.length === 0) throw new Error("Sem conta do Apify configurada");
+  const esgotadas = new Map<number, number>();
+  let partida = 0;
   // Qual conta rodou cada execução, para ler o custo na mesma conta.
   const contaDaExecucao = new Map<string, string>();
 
+  async function partidaDaChamada(): Promise<number> {
+    if (memoria) {
+      try {
+        return await memoria.proximaPartida(contas.length);
+      } catch {
+        log({ type: "apify", outcome: "cursor_failed" });
+      }
+    }
+    const atual = partida;
+    partida = (partida + 1) % contas.length;
+    return atual;
+  }
+
   return {
     async run(args): Promise<Execucao> {
-      let ultimo: unknown = new ApifyRequestError(402);
-      for (let i = 0; i < tokens.length; i++) {
-        if (esgotadas.has(i)) continue;
+      if (memoria) {
         try {
-          const exec = await rodar(tokens[i], args);
-          if (exec.runId) contaDaExecucao.set(exec.runId, tokens[i]);
+          for (const espera of await memoria.esgotadas()) {
+            const atual = esgotadas.get(espera.slot);
+            if (atual === undefined || espera.ateMs > atual) {
+              esgotadas.set(espera.slot, espera.ateMs);
+            }
+          }
+        } catch {
+          log({ type: "apify", outcome: "cooldown_read_failed" });
+        }
+      }
+      const inicio = await partidaDaChamada();
+      let ultimo: unknown = new ApifyRequestError(402);
+      for (let n = 0; n < contas.length; n++) {
+        const conta = contas[(inicio + n) % contas.length];
+        const ate = esgotadas.get(conta.slot);
+        if (ate !== undefined && ate > agora()) continue;
+        try {
+          const exec = await rodar(conta.token, args);
+          if (exec.runId) contaDaExecucao.set(exec.runId, conta.token);
           return exec;
         } catch (error) {
           const runId = runIdDoErro(error);
-          if (runId) contaDaExecucao.set(runId, tokens[i]);
-          if (
-            error instanceof ApifyRequestError && SEM_CREDITO.has(error.status)
-          ) {
-            esgotadas.add(i);
+          if (runId) contaDaExecucao.set(runId, conta.token);
+          const motivo = motivoDoStatus(error);
+          if (motivo) {
+            const ateMs = agora() +
+              (motivo === "limite" ? ESPERA_DE_LIMITE_MS : ESPERA_DE_CREDITO_MS);
+            esgotadas.set(conta.slot, ateMs);
             ultimo = error;
+            log({
+              type: "apify",
+              outcome: "account_exhausted",
+              tokenIndex: conta.slot,
+              status: error instanceof ApifyRequestError ? error.status : null,
+            });
+            try {
+              await memoria?.marcar(conta.slot, ateMs, motivo);
+            } catch {
+              log({
+                type: "apify",
+                outcome: "cooldown_write_failed",
+                tokenIndex: conta.slot,
+              });
+            }
             continue;
           }
           throw error;
         }
       }
-      // Todas esgotadas: quem chama recebe o 402 do Apify; na próxima tentativa todas voltam a ser testadas.
-      esgotadas.clear();
       throw ultimo;
     },
     async custoDaExecucao(runId): Promise<number | null> {
@@ -120,8 +187,15 @@ export function clienteDoApify(
       }
       if (!resposta.ok) {
         const runId = resposta.headers.get("x-apify-run-id");
-        await resposta.body?.cancel();
-        throw new ApifyRequestError(resposta.status, runId);
+        let corpo = "";
+        try {
+          corpo = await resposta.text();
+        } catch {
+          // Sem corpo, só o status decide se a conta gira.
+        }
+        const erro = new ApifyRequestError(resposta.status, runId);
+        if (corpo) corpoDoErro.set(erro, corpo.slice(0, 500));
+        throw erro;
       }
       let itens: unknown;
       try {

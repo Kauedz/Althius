@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
+import { actorDoRegistro, type AdminDeColeta, contasDeColeta, type LinhaDoActor, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { type ClienteRpc, criarMotorDeCascata, escolherLlmDosSinais } from '../_shared/cascata-de-sinais/index.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { ADAPTADORES } from './adaptadores.ts'
@@ -172,9 +172,13 @@ const buscas: Buscas = {
 
 // Esta função tem 150 s; cada Conta espera o Apify no máximo 70 s (60 s de execução) e mais 3 s para reler o custo quando
 // o Apify ainda não fechou a conta da execução, e uma Conta nova só começa até 72 s.
-const tokens = tokensDoApify((nome) => Deno.env.get(nome))
+const contas = contasDeColeta((nome) => Deno.env.get(nome))
+const tokens = contas.map((c) => c.token)
+const memoria = memoriaDasContasDeColeta(admin as unknown as AdminDeColeta, (campos) => console.log(JSON.stringify(campos)))
 const apify = clienteDoApify({
   tokens,
+  contas,
+  memoria,
   runTimeoutSeconds: 60,
   timeoutMs: 70_000,
   esperaDoCustoMs: 3_000,
@@ -192,6 +196,8 @@ const llm = escolherLlmDosSinais({
 const cascatas = criarMotorDeCascata({
   admin: admin as unknown as ClienteRpc,
   tokens,
+  contas,
+  memoria,
   ...(llm ? { llm } : {}),
 })
 

@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
+import { actorDoRegistro, type AdminDeColeta, contasDeColeta, type LinhaDoActor, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from './apify.ts'
 import { autorizadoComoServidor } from './autorizacao.ts'
 import { createHandler, type Db } from './handler.ts'
@@ -35,10 +35,17 @@ const db: Db = {
   },
 }
 
+const contas = contasDeColeta((nome) => Deno.env.get(nome))
 const handler = createHandler({
   db,
   // O Apify fecha a conta da execução uns segundos depois de ela terminar: relê o custo de 3 em 3 s, até 2 vezes.
-  apify: clienteDoApify({ tokens: tokensDoApify((nome) => Deno.env.get(nome)), esperaDoCustoMs: 3_000, releiturasDoCusto: 2 }),
+  apify: clienteDoApify({
+    tokens: contas.map((c) => c.token),
+    contas,
+    memoria: memoriaDasContasDeColeta(admin as unknown as AdminDeColeta, (campos) => console.log(JSON.stringify(campos))),
+    esperaDoCustoMs: 3_000,
+    releiturasDoCusto: 2,
+  }),
   // A função é chamada só pelo servidor: a chave de serviço ou um JWT de serviço (o gateway confere a assinatura).
   autorizado: (authorization) => autorizadoComoServidor(authorization, SERVICE_ROLE_KEY),
 })

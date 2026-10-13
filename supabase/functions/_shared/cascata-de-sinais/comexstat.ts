@@ -5,7 +5,8 @@
 //                    details: ["ncm"|"urf"|"country"|"state"...], metrics: ["metricFOB", "metricKG", "metricStatistic"] }
 //   -> { data: { list: [{ year, monthNumber?, <detalhe>, metricFOB, metricKG }] } }   (valores como texto)
 //   GET /general/dates/updated -> { data: { updated, year, monthNumber } }  (o último mês com dado)
-// O limite da API é uma requisição a cada 10 segundos (429 com "tente novamente em 10 segundos"): este cliente espaça as suas.
+// O limite da API é uma requisição a cada 10 segundos (429 com "tente novamente em 10 segundos"): este cliente espera 12 s
+// entre consultas e, no 429, faz até 3 novas tentativas com a mesma espera.
 import { lerJson } from './fonte-publica.ts'
 
 const BASE = 'https://api-comexstat.mdic.gov.br'
@@ -28,8 +29,11 @@ export interface ClienteComexStat {
   geral(pedido: PedidoGeral): Promise<LinhaDoComexStat[]>
 }
 
+const ESPERA_MS = 12_000
+const REPETICOES_NO_429 = 3
+
 export function clienteComexStat(
-  { fetchFn = fetch, dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)), esperaMs = 10_000 }: {
+  { fetchFn = fetch, dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)), esperaMs = ESPERA_MS }: {
     fetchFn?: typeof fetch
     dormir?: (ms: number) => Promise<void>
     esperaMs?: number
@@ -47,7 +51,7 @@ export function clienteComexStat(
   return {
     async ultimoMes() {
       await espacar()
-      const d = await lerJson(`${BASE}/general/dates/updated`, { fetchFn, dormir, esperaMs }) as { data?: { year?: string; monthNumber?: string } }
+      const d = await lerJson(`${BASE}/general/dates/updated`, { fetchFn, dormir, esperaMs, repeticoes: REPETICOES_NO_429 }) as { data?: { year?: string; monthNumber?: string } }
       const ano = Number(d?.data?.year)
       const mes = Number(d?.data?.monthNumber)
       if (!Number.isInteger(ano) || !Number.isInteger(mes) || mes < 1 || mes > 12) throw new Error('O Comex Stat não informou o último mês.')
@@ -56,7 +60,7 @@ export function clienteComexStat(
     async geral(p) {
       await espacar()
       const d = await lerJson(`${BASE}/general`, {
-        fetchFn, dormir, esperaMs,
+        fetchFn, dormir, esperaMs, repeticoes: REPETICOES_NO_429,
         init: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

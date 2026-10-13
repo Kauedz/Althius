@@ -22,7 +22,7 @@ Quem chama: só o servidor, com a chave de serviço no `Authorization` (o worker
 
 ## Contas do Apify
 
-`APIFY_TOKEN` e, se houver, `APIFY_TOKEN_2` a `APIFY_TOKEN_5` (`_shared/apify-ambiente.ts`). Trocar ou somar uma conta é mudar segredo. A conta que recusa por **falta de crédito ou de limite de uso** (402; 403 de recurso desligado ou limite de uso) é pulada e o passo se repete na próxima, uma vez por conta; outros erros (5xx, 403 de permissão, 429) **não** giram a conta. Todas sem crédito: falha amigável, reserva liberada. O índice da conta usada fica no rastro do passo; o token nunca.
+`APIFY_TOKEN_1` a `APIFY_TOKEN_5` e, se houver, o legado `APIFY_TOKEN` (índice 0) (`_shared/apify-ambiente.ts`). Segredo vazio é pulado. Trocar ou somar uma conta é mudar segredo. A conta que recusa por **falta de crédito, limite de uso** (402; 403 desses casos) **ou 429** é pulada, entra em espera (30 min para crédito, 2 min para limite; a migração `20261014150000` guarda a espera para a instância seguinte) e o passo se repete na conta seguinte. 5xx e 403 de permissão não giram. O rodízio começa na conta seguinte a cada chamada. Todas sem crédito ou limite: falha amigável, reserva liberada. O índice da conta usada fica no rastro do passo; o valor nunca. A foto de Contato não entra neste rodízio.
 
 ## Custo
 

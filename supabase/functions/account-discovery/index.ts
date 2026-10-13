@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { tokensDoApify } from '../_shared/apify-ambiente.ts'
+import { type AdminDeColeta, contasDeColeta, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { createHandler, type Db, ErroDoBanco, type IcpLido } from './handler.ts'
 import type { CriteriosDeBusca } from './criterios.ts'
@@ -115,11 +115,14 @@ const db: Db = {
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta, para a busca terminar.
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (trabalho: Promise<unknown>) => void } }).EdgeRuntime
 
+const contas = contasDeColeta((nome) => Deno.env.get(nome))
 Deno.serve(createHandler({
   db,
   // A busca roda em segundo plano: o Actor tem até 100 s e o custo é relido de 3 em 3 s, até 2 vezes.
   apify: clienteDoApify({
-    tokens: tokensDoApify((nome) => Deno.env.get(nome)),
+    tokens: contas.map((c) => c.token),
+    contas,
+    memoria: memoriaDasContasDeColeta(admin as unknown as AdminDeColeta),
     runTimeoutSeconds: 100,
     timeoutMs: 110_000,
     esperaDoCustoMs: 3_000,

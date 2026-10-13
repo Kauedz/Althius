@@ -1,17 +1,22 @@
 // O cliente do Apify da cascata de Sinais: roda o actor de forma ASSÍNCRONA (`POST /v2/acts/{id}/runs`), com o teto de
 // cobrança (`maxTotalChargeUsd`), espera o run terminar, lê o dataset e o custo real do run. O id do run vem da resposta
-// do POST, nunca de `/runs/last` (frágil: pega o run de outra chamada). As contas do Apify são APIFY_TOKEN e
-// APIFY_TOKEN_2..5 (`apify-ambiente.ts`): trocar ou somar uma conta é mudar segredo. Só a falta de crédito ou de limite
-// de uso (402; 403 de recurso desligado ou de limite) gira para a próxima conta e repete o passo uma vez por conta; os
-// outros erros, e o 429 por padrão, não giram. O token vai só no cabeçalho Authorization e nunca em erro, log ou prompt.
+// do POST, nunca de `/runs/last` (frágil: pega o run de outra chamada). As contas são APIFY_TOKEN_1..5 e, se houver, o
+// legado APIFY_TOKEN (`apify-ambiente.ts`). Falta de crédito, limite de uso (402; 403 desses casos) e 429 giram para a
+// conta seguinte; a conta fica de lado (crédito por 30 min, limite por 2 min) e, se der, essa espera fica no banco. O
+// rodízio começa na conta seguinte a cada chamada. O token vai só no cabeçalho Authorization e nunca em erro, log ou prompt.
+import { type ContaDeColeta, type MemoriaDasContas } from '../apify-ambiente.ts'
 import { custoDaExecucaoLida } from '../../signal-scan/apify.ts'
 import { MENSAGEM_DA_FONTE } from '../marca.ts'
 import { redigir } from './redacao.ts'
 import { type ClienteDaFonte, ErroDaFonte, type ExecucaoDaFonte } from './tipos.ts'
 
 export interface OpcoesDoClienteAssincrono {
-  /** As contas do Apify, na ordem de uso. */
+  /** As contas, na ordem de uso. O índice do rastro é a posição na lista quando `contas` não vem. */
   tokens: string[]
+  /** Contas com o índice do segredo. Quando vem, o rastro guarda esse índice, não a posição na lista. */
+  contas?: ContaDeColeta[]
+  /** Espera e cursor compartilhados entre execuções. Sem isto, a espera fica só nesta instância. */
+  memoria?: MemoriaDasContas
   fetchFn?: typeof fetch
   agora?: () => number
   dormir?: (ms: number) => Promise<void>
@@ -22,7 +27,8 @@ export interface OpcoesDoClienteAssincrono {
   releiturasDoCusto?: number
   /** Quanto tempo uma conta sem crédito fica de lado antes de ser tentada de novo. */
   esperaDaContaSemCreditoMs?: number
-  girarEm429?: boolean
+  /** Quanto tempo uma conta limitada por taxa (429) fica de lado. */
+  esperaDaLimiteMs?: number
   log?: (campos: Record<string, unknown>) => void
 }
 
@@ -40,7 +46,6 @@ function registro(v: unknown): Record<string, unknown> {
 
 export function clienteAssincronoDoApify(opcoes: OpcoesDoClienteAssincrono): ClienteDaFonte {
   const {
-    tokens,
     fetchFn = fetch,
     agora = () => Date.now(),
     dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
@@ -48,12 +53,16 @@ export function clienteAssincronoDoApify(opcoes: OpcoesDoClienteAssincrono): Cli
     esperaDoCustoMs = 4_000,
     releiturasDoCusto = 3,
     esperaDaContaSemCreditoMs = 30 * 60 * 1000,
-    girarEm429 = false,
+    esperaDaLimiteMs = 2 * 60 * 1000,
+    memoria,
     log = (c) => console.log(JSON.stringify(c)),
   } = opcoes
-  if (tokens.length === 0) throw new Error('Sem conta do Apify configurada')
-  // As contas que acabaram de recusar por falta de crédito: voltam a ser tentadas depois da janela.
+  const contas = opcoes.contas?.length ? opcoes.contas : opcoes.tokens.map((token, slot) => ({ slot, token }))
+  if (contas.length === 0) throw new Error('Sem conta do Apify configurada')
+  const tokens = contas.map((c) => c.token)
+  // As contas que recusaram por crédito ou limite: voltam depois da janela. A chave é o índice do segredo.
   const semCreditoAte = new Map<number, number>()
+  let partida = 0
 
   const limpar = (t: unknown, limite?: number) => redigir(t, tokens, limite)
 
@@ -93,10 +102,11 @@ export function clienteAssincronoDoApify(opcoes: OpcoesDoClienteAssincrono): Cli
     return { tipo, mensagem, bruto: limpar(bruto || mensagem) }
   }
 
-  function ehSemCredito(status: number, tipo: string, mensagem: string): boolean {
-    if (status === 402) return true
-    if (status === 403) return TIPOS_403_SEM_LIMITE.has(tipo) || MENSAGEM_DE_LIMITE.test(mensagem)
-    return status === 429 && girarEm429
+  function motivoDeEsgotamento(status: number, tipo: string, mensagem: string): 'credito' | 'limite' | null {
+    if (status === 429) return 'limite'
+    if (status === 402) return 'credito'
+    if (status === 403 && (TIPOS_403_SEM_LIMITE.has(tipo) || MENSAGEM_DE_LIMITE.test(mensagem))) return 'credito'
+    return null
   }
 
   async function lerRun(token: string, runId: string, espera = 0, tempoMax = 30_000): Promise<Record<string, unknown> | null> {
@@ -133,10 +143,11 @@ export function clienteAssincronoDoApify(opcoes: OpcoesDoClienteAssincrono): Cli
   }
 
   async function rodarComToken(
-    indice: number,
+    conta: ContaDeColeta,
     args: Parameters<ClienteDaFonte['rodar']>[0],
   ): Promise<ExecucaoDaFonte> {
-    const token = tokens[indice]
+    const token = conta.token
+    const indice = conta.slot
     const inicioMs = agora()
     const consulta = new URLSearchParams({
       maxTotalChargeUsd: String(args.maxTotalChargeUsd),
@@ -147,7 +158,7 @@ export function clienteAssincronoDoApify(opcoes: OpcoesDoClienteAssincrono): Cli
     if (resposta.status !== 201) {
       const { tipo, mensagem, bruto } = await corpoDoErro(resposta)
       const status = resposta.status
-      if (ehSemCredito(status, tipo, mensagem)) {
+      if (motivoDeEsgotamento(status, tipo, mensagem)) {
         throw new ErroDaFonte('sem_credito', MENSAGEM_DA_FONTE.semSaldo, { statusHttp: status, tokenIndex: indice, erroReal: bruto })
       }
       throw new ErroDaFonte('http', MENSAGEM_DA_FONTE.indisponivel, { statusHttp: status, tokenIndex: indice, erroReal: bruto })
@@ -213,34 +224,64 @@ export function clienteAssincronoDoApify(opcoes: OpcoesDoClienteAssincrono): Cli
     return { apifyRunId: runId, build, tokenIndex: indice, items: itens, custoUsd }
   }
 
+  async function partidaDaChamada(): Promise<number> {
+    if (memoria) {
+      try {
+        return await memoria.proximaPartida(contas.length)
+      } catch {
+        log({ type: 'cascata_fonte', outcome: 'cursor_failed' })
+      }
+    }
+    const atual = partida
+    partida = (partida + 1) % contas.length
+    return atual
+  }
+
   return {
     async rodar(args) {
+      if (memoria) {
+        try {
+          for (const espera of await memoria.esgotadas()) {
+            const atual = semCreditoAte.get(espera.slot)
+            if (atual === undefined || espera.ateMs > atual) semCreditoAte.set(espera.slot, espera.ateMs)
+          }
+        } catch {
+          log({ type: 'cascata_fonte', outcome: 'cooldown_read_failed' })
+        }
+      }
+      const inicio = await partidaDaChamada()
       let ultimo: ErroDaFonte | null = null
-      for (let i = 0; i < tokens.length; i++) {
-        const ate = semCreditoAte.get(i)
+      for (let n = 0; n < contas.length; n++) {
+        const conta = contas[(inicio + n) % contas.length]
+        const ate = semCreditoAte.get(conta.slot)
         if (ate !== undefined && ate > agora()) continue
         try {
-          return await rodarComToken(i, args)
+          return await rodarComToken(conta, args)
         } catch (e) {
           if (!(e instanceof ErroDaFonte)) {
-            throw new ErroDaFonte('rede', MENSAGEM_DA_FONTE.indisponivel, { tokenIndex: i, erroReal: limpar(e instanceof Error ? e.message : e) })
+            throw new ErroDaFonte('rede', MENSAGEM_DA_FONTE.indisponivel, { tokenIndex: conta.slot, erroReal: limpar(e instanceof Error ? e.message : e) })
           }
           if (e.tipo === 'sem_credito') {
-            semCreditoAte.set(i, agora() + esperaDaContaSemCreditoMs)
+            const motivo = e.detalhe.statusHttp === 429 ? 'limite' : 'credito'
+            const ateMs = agora() + (motivo === 'limite' ? esperaDaLimiteMs : esperaDaContaSemCreditoMs)
+            semCreditoAte.set(conta.slot, ateMs)
             ultimo = e
-            log({ type: 'cascata_fonte', outcome: 'account_out_of_credit', actorId: args.actorId, tokenIndex: i, status: e.detalhe.statusHttp })
+            log({ type: 'cascata_fonte', outcome: 'account_out_of_credit', actorId: args.actorId, tokenIndex: conta.slot, status: e.detalhe.statusHttp })
+            try {
+              await memoria?.marcar(conta.slot, ateMs, motivo)
+            } catch {
+              log({ type: 'cascata_fonte', outcome: 'cooldown_write_failed', tokenIndex: conta.slot })
+            }
             continue
           }
-          if (e.detalhe.tokenIndex === undefined) throw new ErroDaFonte(e.tipo, e.message, { ...e.detalhe, tokenIndex: i })
+          if (e.detalhe.tokenIndex === undefined) throw new ErroDaFonte(e.tipo, e.message, { ...e.detalhe, tokenIndex: conta.slot })
           throw e
         }
       }
-      // Todas as contas recusaram por falta de crédito (ou ainda estão de lado desde a última recusa).
-      semCreditoAte.clear()
       throw new ErroDaFonte('sem_credito_em_todas', MENSAGEM_DA_FONTE.semSaldo, {
         statusHttp: ultimo?.detalhe.statusHttp ?? 402,
         tokenIndex: ultimo?.detalhe.tokenIndex ?? null,
-        erroReal: ultimo?.detalhe.erroReal ?? 'Todas as contas do Apify estão sem crédito ou sem limite de uso.',
+        erroReal: ultimo?.detalhe.erroReal ?? 'Todas as contas estão sem crédito ou sem limite de uso.',
       })
     },
   }

@@ -15,6 +15,7 @@
 // Nomes dos handlers com o prefixo `logistica_`: o registro de passos é um só para todos os ICPs.
 import { contemAlgum, LIMITES, normalizar, objetos, primeiroTexto, recortar } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ContaDoWorkspace, ContextoDoPasso, FontePublica, ImplDoPasso, Item, RegistroDePassos } from '../tipos.ts'
+import { consultaDeCnpjs } from './cnpj-lotes.ts'
 import { cnpjLimpo, dataIso, dentroDoPeriodo, nomeDaEmpresa, objeto, texto } from './comum.ts'
 import { sinalDoFato } from './empresas.ts'
 import { cnpjDaMatriz, enderecoDoItem, type EnderecoDaSede, formatarCnpj, mudancaDeSede, raizDoCnpj, tituloDoMunicipio } from './icp-f-dados.ts'
@@ -271,9 +272,7 @@ const enderecoDaMatriz: ImplDoPasso = {
   itensCobrados: (entrada, ctx) => Math.min(matrizesDaEntrada(entrada).length, ctx.def.maxItems ?? Infinity),
 
   montarEntrada(entrada) {
-    const cnpjs = matrizesDaEntrada(entrada)
-    if (!cnpjs.length) return { pular: 'Nenhuma Conta com CNPJ para consultar.' }
-    return { input: { mode: 'lookup', cnpjs }, maxItems: cnpjs.length }
+    return consultaDeCnpjs(matrizesDaEntrada(entrada), 'Nenhuma Conta com CNPJ para consultar.')
   },
 
   // Do registro só entram o CNPJ e o endereço: o quadro societário, o telefone e o e-mail nunca são lidos.

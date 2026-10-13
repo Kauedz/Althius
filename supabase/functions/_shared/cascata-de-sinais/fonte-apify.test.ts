@@ -96,11 +96,81 @@ Deno.test('403 de recurso desligado ou limite de uso gira a conta; 403 de permis
   assertEquals(caiu.requisicoes.filter((q) => q.metodo === 'POST').length, 1)
 })
 
-Deno.test('429 não gira a conta por padrão', async () => {
-  const fake = apifyFalso({ [TOKEN_1]: { inicio: { status: 429, corpo: { error: { type: 'rate-limit-exceeded', message: 'slow down' } } } }, [TOKEN_2]: { itens: [] } })
-  const erro = await assertRejects(() => cliente(fake).c.rodar(ARGS), ErroDaFonte) as ErroDaFonte
-  assertEquals(erro.detalhe.statusHttp, 429)
-  assertEquals(fake.requisicoes.filter((q) => q.metodo === 'POST').length, 1)
+Deno.test('429 gira para a próxima conta e não registra o token', async () => {
+  const fake = apifyFalso({
+    [TOKEN_1]: { inicio: { status: 429, corpo: { error: { type: 'rate-limit-exceeded', message: 'slow down' } } } },
+    [TOKEN_2]: { itens: [{ ok: true }], usageTotalUsd: 0 },
+  })
+  const { c, logs } = cliente(fake)
+  const r = await c.rodar(ARGS)
+  assertEquals(r.tokenIndex, 1)
+  assertEquals(r.items, [{ ok: true }])
+  assertEquals(fake.requisicoes.filter((q) => q.metodo === 'POST').map((q) => q.token), [TOKEN_1, TOKEN_2])
+  assert(!JSON.stringify(logs).includes(TOKEN_1) && !JSON.stringify(logs).includes(TOKEN_2))
+})
+
+Deno.test('conta em espera persistida é pulada e o log só traz o índice', async () => {
+  const marcas: { slot: number; motivo: string }[] = []
+  const memoria = {
+    esgotadas: () => Promise.resolve([{ slot: 0, ateMs: 9_000_000_000_000 }]),
+    marcar: (slot: number, _ate: number, motivo: 'credito' | 'limite') => {
+      marcas.push({ slot, motivo })
+      return Promise.resolve()
+    },
+    proximaPartida: () => Promise.resolve(0),
+  }
+  const fake = apifyFalso({
+    [TOKEN_1]: { inicio: { status: 429, corpo: { error: { type: 'rate-limit-exceeded', message: 'slow down' } } } },
+    [TOKEN_2]: { itens: [{ ok: true }], usageTotalUsd: 0 },
+  })
+  const { c, logs } = cliente(fake, [TOKEN_1, TOKEN_2], {
+    contas: [{ slot: 0, token: TOKEN_1 }, { slot: 3, token: TOKEN_2 }],
+    memoria,
+    agora: () => 1_000_000,
+  })
+  const r = await c.rodar(ARGS)
+  assertEquals(r.tokenIndex, 3)
+  assertEquals(fake.requisicoes.filter((q) => q.metodo === 'POST').map((q) => q.token), [TOKEN_2])
+  assertEquals(marcas, [])
+  assert(!JSON.stringify(logs).includes(TOKEN_1) && !JSON.stringify(logs).includes(TOKEN_2))
+})
+
+Deno.test('429 marca a conta com motivo de limite, só pelo índice', async () => {
+  const marcas: { slot: number; motivo: string }[] = []
+  const memoria = {
+    esgotadas: () => Promise.resolve([]),
+    marcar: (slot: number, _ate: number, motivo: 'credito' | 'limite') => {
+      marcas.push({ slot, motivo })
+      return Promise.resolve()
+    },
+    proximaPartida: () => Promise.resolve(0),
+  }
+  const fake = apifyFalso({
+    [TOKEN_1]: { inicio: { status: 429, corpo: { error: { type: 'rate-limit-exceeded', message: 'slow down' } } } },
+    [TOKEN_2]: { itens: [{ ok: true }], usageTotalUsd: 0 },
+  })
+  const { c, logs } = cliente(fake, [TOKEN_1, TOKEN_2], {
+    contas: [{ slot: 3, token: TOKEN_1 }, { slot: 5, token: TOKEN_2 }],
+    memoria,
+    agora: () => 1_000_000,
+  })
+  const r = await c.rodar(ARGS)
+  assertEquals(r.tokenIndex, 5)
+  assertEquals(marcas, [{ slot: 3, motivo: 'limite' }])
+  assert(logs.some((l) => (l as { tokenIndex?: number }).tokenIndex === 3))
+  assert(!JSON.stringify(logs).includes(TOKEN_1) && !JSON.stringify(logs).includes(TOKEN_2))
+})
+
+Deno.test('o rodízio começa na conta seguinte na chamada seguinte', async () => {
+  const fake = apifyFalso({
+    [TOKEN_1]: { itens: [{ a: 1 }], usageTotalUsd: 0 },
+    [TOKEN_2]: { itens: [{ a: 2 }], usageTotalUsd: 0 },
+  })
+  const { c } = cliente(fake)
+  const primeira = await c.rodar(ARGS)
+  const segunda = await c.rodar(ARGS)
+  assertEquals([primeira.tokenIndex, segunda.tokenIndex], [0, 1])
+  assertEquals(fake.requisicoes.filter((q) => q.metodo === 'POST').map((q) => q.token), [TOKEN_1, TOKEN_2])
 })
 
 Deno.test('prazo: o run que não termina é abortado e o erro leva o run id', async () => {
