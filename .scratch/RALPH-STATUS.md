@@ -7,9 +7,20 @@
 - **Branch:** `cursor/cache-fontes-e-validacao-5fcf`
 - **PR:** https://github.com/Kauedz/Althius/pull/197 (rascunho; não mergear daqui)
 - **O que muda:** cópia mensal da estatística de comércio exterior e da lista de consumidores livres; espera 10/20/40 s e execução `adiado` sem crédito; CSV oficial do mesmo recurso quando a busca da lista bloqueia; `validacao: true` compara a fotografia na hora. O relógio diário, onde o agendador existe, pede o aquecimento ao `signal-runner`.
-- **Migração nova (não aplicar daqui):** `supabase/migrations/20261014200000_cache_de_fontes_e_execucao_adiada.sql`. Sem deploy. Sem escrita no projeto remoto.
-- **Testes (2026-10-13):** `deno check supabase/functions/*/index.ts` limpo. `deno test supabase/functions` 1344 passed / 0 failed / 34 ignored. Com `--allow-read`, mapa + icp-c + icp-g + icp-h: 77 passed / 0 failed. pgTAP novo não rodou aqui (sem Postgres); o job Banco do CI executa `supabase/tests/cache_de_fontes_publicas.sql` (16 asserts).
+- **Migração nova (não aplicar daqui):** `supabase/migrations/20261015120000_cache_de_fontes_e_execucao_adiada.sql`. Sem deploy. Sem escrita no projeto remoto.
+- **Testes (2026-10-13):** o job Banco falhou ao aplicar `20261014200000` porque `begin_cascade_run` foi criada de novo (`42723`, a função já existia). A correção troca por `create or replace` e renomeia o arquivo para depois de `20261015110000`.
 - **O que o humano roda, depois do CI verde:** aplicar essa migração no `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico (`docs/agents/migrations.md`) e publicar `signal-cascade` e `signal-runner`. Comandos no ticket, seção Passos do Nan. Não marcar cascata como disponível.
+
+## Sinais em cascata — Monitoramento no cartão e Sinais de mercado (2026-10-13)
+
+- **Ticket:** `.scratch/sinais-cascata/issues/16-monitoramento-e-sinais-de-mercado.md`
+- **Status:** ready-for-human (código e Vitest verdes; falta o Nan aplicar a migração e publicar o frontend, com o CI verde)
+- **Branch:** `cursor/monitoramento-e-sinais-de-mercado-2567`
+- **PR:** https://github.com/Kauedz/Althius/pull/195 (não mergear daqui)
+- **O que muda:** cartão de cascata `available` de Conta ganha "Criar Monitoramento" e abre o fluxo já preenchido (ICP do Workspace, modo da varredura, limite de créditos), gravando por `save_signal_monitor`. Cartão em teste ou sem fonte continua só com o motivo. Cartão de Mercado abre "Ver Sinais de mercado", lido por `list_market_signals_for_workspace_icp` (só id, tipo, nome, frase e data; e-mail, CPF, telefone e nome de fornecedor na frase viram "Sinal de mercado registrado."). No celular a barra fica só com os ícones e o miolo encolhe, então o cartão deixa de nascer a ~62 px.
+- **Migração nova (não aplicar daqui):** `supabase/migrations/20261014180000_sinais_de_mercado_na_tela.sql`. Sem deploy de função. Sem escrita no projeto remoto.
+- **Testes (2026-10-13):** vermelho primeiro nos três arquivos do ticket. Verde: suíte do frontend, 139 arquivos / 1252 testes. `npx tsc -b` exit 0. pgTAP `sinais_de_mercado_na_tela.sql` (`plan(14)`) não rodou aqui. No Chrome, cartão de Sinais a 390 px mede 290 px, sem rolagem horizontal.
+- **O que o humano roda, depois do CI verde:** aplicar essa migração no `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico e publicar o frontend. Comandos no ticket, seção Passos do Nan. Não mergear daqui.
 
 ## Sinais em cascata — validação de produção de 13/10/2026
 
@@ -355,3 +366,15 @@ Só foram marcados os critérios que essa evidência cobre.
 - **canais-07: segue `ready-for-human`, 1 de 7.** Marcado: a identidade do Contato resolvida antes do envio real (1). Aberto: o convite, que não foi exercitado (2), impedimentos acionáveis (3), `new_relation` e aceite (4), conteúdo privado com evento público mínimo na pausa (5), evento atrasado ou repetido (6), testes (7, que é de código, não de produção). InMail segue fora (ticket 13).
 - **canais-16** (já fechado): o texto velho "pendente apply" do critério 5 foi trocado pela nota de que as migrations `20261009205538` e `20261009214037` foram aplicadas em 2026-10-09.
 - **canais-15** e **canais-16**: sem mudança de status.
+
+## Auditoria de Sinais de 13/10/2026: proposta_recusada e tipos genéricos em cascatas
+
+| Campo | Valor |
+|---|---|
+| Tickets | `.scratch/auditoria-de-sinais-2026-10-13/issues/01-sinal-interno-proposta-recusada.md` e `02-tipos-genericos-em-cascatas.md` (GATE conferido primeiro nos dois) |
+| Status | ready-for-human (código fechado; faltam as 2 migrações e a publicação do `signal-runner`) |
+| Branch | `claude/audit-signals-catalog-i2a697`, a partir da `main` d4fbf05; PR de rascunho contra `main`, sem merge |
+| O que mudou | 01: Sinal interno `proposta_recusada` (resposta negativa registrada no desfecho de um Envio; dispara no registro mais o prazo; superado se a Conta voltou a conversar; sem dado pessoal, sem crédito). 02: seis tipos genéricos do catálogo ligados às cascatas de empresa, de qualquer ICP, por dado (`private.signal_type_cascades`); o Monitoramento roda as cascatas disponíveis e devidas (cadência) e grava o Sinal no tipo genérico. Regra do ICP registrada no `CONTEXT.md` e imposta no banco (só cascata de escopo Conta) |
+| Fora do escopo (outro PR) | `src/**/sinais/**`, RPC de `market_signals`. A tela precisa de uma linha em `editor.tsx` (texto de `proposta-recusada`); ver o PR |
+| Migrações a aplicar (em ordem, depois da `20261014170000`) | `20261015100000_sinal_proposta_recusada.sql`, `20261015110000_tipos_genericos_em_cascatas.sql`. Nenhuma tem `drop`; as duas usam `create or replace` em funções existentes (mesmo contrato) |
+| O que o humano roda | Com o CI verde: aplicar as 2 migrações pelo `execute_sql` em bloco atômico; `npx supabase functions deploy signal-runner --project-ref ycbdilsmydvzezhlymty`; publicar o frontend. Os seis tipos ficam "Em teste" até uma cascata ligada ser validada e marcada disponível |

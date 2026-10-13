@@ -80,6 +80,12 @@ export interface PedidoDeCascata {
   permitirTeste?: boolean
   /** Hora limite (ms) para a execução inteira terminar; passos novos não começam perto dela. */
   prazoFinal?: number
+  /**
+   * O tipo genérico do catálogo em que o Sinal de Conta é gravado: o Monitoramento de um tipo genérico (novo escritório,
+   * expansão geográfica...) roda as cascatas que o atendem, e o Sinal fica no tipo do Monitoramento. A execução, a reserva de
+   * crédito e o rastro continuam sendo da cascata. O Sinal de mercado nunca troca de tipo: não tem Conta.
+   */
+  registrarComo?: string
 }
 
 /** Um Sinal confirmado pela cascata, pronto para o `record_signal`. */

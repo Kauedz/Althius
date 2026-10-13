@@ -81,7 +81,7 @@ alter table private.signal_cascade_runs drop constraint signal_cascade_runs_stat
 alter table private.signal_cascade_runs add constraint signal_cascade_runs_state_check
   check (state in ('running', 'succeeded', 'partial', 'aborted', 'failed', 'adiado'));
 
-create function public.begin_cascade_run(
+create or replace function public.begin_cascade_run(
   p_workspace_id uuid,
   p_user_id uuid,
   p_signal_type text,
@@ -209,7 +209,7 @@ end;
 $$;
 
 -- Adiado cobra zero mesmo que a execução tenha visto Sinal: a fonte pediu para tentar de novo e nada se confirma.
-create function public.finish_cascade_run(
+create or replace function public.finish_cascade_run(
   p_run_id uuid,
   p_state text,
   p_real_cost_usd numeric,

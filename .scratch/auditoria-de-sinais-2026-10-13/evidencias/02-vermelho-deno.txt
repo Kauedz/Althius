@@ -1,0 +1,13 @@
+TS2353 [ERROR]: Object literal may only specify known properties, and 'registrarComo' does not exist in type 'Partial<PedidoDeCascata>'.
+TS2353 [ERROR]: Object literal may only specify known properties, and 'registrarComo' does not exist in type 'Partial<PedidoDeCascata>'.
+TS2353 [ERROR]: Object literal may only specify known properties, and 'registrarComo' does not exist in type 'Partial<PedidoDeCascata>'.
+TS2353 [ERROR]: Object literal may only specify known properties, and 'registrarComo' does not exist in type 'Partial<PedidoDeCascata>'.
+TS2339 [ERROR]: Property 'planoDoMonitor' does not exist on type 'MotorDeCascata'.
+TS2339 [ERROR]: Property 'planoDoMonitor' does not exist on type 'MotorDeCascata'.
+TS2339 [ERROR]: Property 'planoDoMonitor' does not exist on type 'MotorDeCascata'.
+TS2353 [ERROR]: Object literal may only specify known properties, and 'planoDoMonitor' does not exist in type 'Cascatas'.
+TS7006 [ERROR]: Parameter 'monitorId' implicitly has an 'any' type.
+TS2339 [ERROR]: Property 'registrarComo' does not exist on type 'PedidoDeCascata'.
+TS2339 [ERROR]: Property 'registrarComo' does not exist on type 'PedidoDeCascata'.
+Found 11 errors.
+error: Type checking failed.

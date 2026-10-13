@@ -46,6 +46,17 @@ Um tipo de Sinal que é **cascata** (`private.signal_cascades`, ao lado do regis
 - cada passo grava run id do Apify, actor, conta usada (índice), custo real, status HTTP e o erro real (`signal_cascade_run_steps`); o que chega a `signal_monitors.last_error` é só a mensagem em palavras do produto;
 - a "Buscar Sinais de novo" (reativação) por enquanto só olha os Sinais com actor e adaptador; incluir as cascatas nela é um passo seguinte.
 
+### Tipos genéricos do catálogo atendidos por cascatas (auditoria de Sinais, 13/10/2026)
+
+Um tipo genérico da tela (Novo escritório, Registros empresariais, Investimentos anunciados, Crescimento de equipes, Expansão geográfica e a Abertura de vagas, `vaga_linkedin`) não é uma cascata: `private.signal_type_cascades` liga o tipo às cascatas de empresa que o servem, de qualquer ICP. O Monitoramento do tipo roda assim:
+
+- o tipo com **actor disponível** e adaptador segue o caminho do actor, como sempre; o plano das cascatas nem é consultado;
+- senão, o runner pede o plano ao banco (`signal_type_cascade_plan(<id do Monitoramento>)`): as cascatas do tipo que estão **disponíveis** e, entre elas, as **devidas**, isto é, sem execução concluída, parcial ou em andamento deste Monitoramento dentro da cadência da própria cascata (a mensal não roda todo dia). Cascata em teste não roda;
+- cada cascata devida roda, uma depois da outra, pelo mesmo motor, com **a sua** reserva de crédito, o seu teto e o seu rastro (`signalType` da cascata). O pedido leva `registrarComo: <tipo genérico>`: o Sinal de Conta é gravado no tipo do Monitoramento, então a tela não precisa conhecer as cascatas. A chave é `monitor:<id>:<hora marcada>:<cascata>`;
+- uma cascata que falha não derruba as outras; as mensagens iguais aparecem uma vez no Monitoramento. Uma cascata nova só começa até o prazo para começar; as que não couberam continuam devidas e o Monitoramento volta já (`continuar`), sem repetir as que já rodaram;
+- a cascata de **mercado** nunca atende um tipo genérico (o motor a recusa; o banco também): o evento tem de ser numa empresa compradora do Workspace;
+- a "Buscar Sinais de novo" continua só com os Sinais com actor.
+
 Diagnóstico de "o Monitoramento nunca roda": `select private.signal_runner_diagnostics();` (só leitura, no SQL Editor).
 
 O relógio diário (`private.kick_comexstat_cache`, onde o agendador existe) chama esta mesma função com `{ "action": "aquecer" }` e o token do relógio. Isso só guarda a estatística de comércio exterior do mês e não reivindica Monitoramento. Corpo vazio continua a varredura de sempre.

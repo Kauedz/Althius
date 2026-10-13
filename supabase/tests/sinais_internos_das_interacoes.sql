@@ -67,16 +67,16 @@ select set_config('request.jwt.claim.sub', '5c000000-0000-0000-0000-000000000002
 select is(
   (select array_agg(row(signal_type, origin, state)::text order by signal_type) from public.list_signal_catalog()
    where origin = 'interno'),
-  array['(negociacao_parada,interno,available)', '(sem_resposta,interno,available)'],
-  'o catálogo traz os dois Sinais internos que saem das Interações, disponíveis'
+  array['(negociacao_parada,interno,available)', '(proposta_recusada,interno,available)', '(sem_resposta,interno,available)'],
+  'o catálogo traz os Sinais internos que saem do histórico comercial, disponíveis (a Proposta recusada sai do desfecho dos Envios)'
 );
 select is(
   (select row(origin, state)::text from public.list_signal_catalog() where signal_type = 'vaga_linkedin'),
   '(externo,testing)', 'um Sinal externo aparece com o estado do actor dele'
 );
 select is(
-  (select count(*)::integer from public.list_signal_catalog() where signal_type = 'proposta_recusada'), 0,
-  'proposta recusada não entra: nenhuma Interação a registra'
+  (select count(*)::integer from public.list_signal_catalog() where signal_type = 'proposta_recusada'), 1,
+  'proposta recusada entra no catálogo; a regra dela tem o pgTAP próprio (sinal_proposta_recusada.sql)'
 );
 
 -- 2. O Monitoramento interno: configuração própria, criada por qualquer participante, sem actor disponível.
@@ -109,7 +109,7 @@ select throws_ok(
   '22023', 'invalid monitor', 'sem prazo é recusado'
 );
 select throws_ok(
-  $$select public.save_signal_monitor('fc000000-0000-0000-0000-000000000001', null, 'proposta_recusada', 'Recusadas', 'rascunho', '{}', '{"prazo":"90"}', 24)$$,
+  $$select public.save_signal_monitor('fc000000-0000-0000-0000-000000000001', null, 'visitas_ao_site', 'Visitas', 'rascunho', '{}', '{"prazo":"90"}', 24)$$,
   '55000', 'signal type is not available', 'um Sinal interno fora do catálogo não cria Monitoramento'
 );
 select throws_ok(

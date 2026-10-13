@@ -89,6 +89,56 @@ describe('Sinais reais no Workspace operacional', () => {
     expect(salvo.id).toBe(MONITOR)
   })
 
+  it('salvar um Monitoramento de cascata disponível chama save_signal_monitor com o tipo da cascata', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const f = fonte({
+      list_cascade_catalog: () => [
+        { signal_type: 'vaga_comex', icp: 'A', name: 'Vaga de Comex', state: 'available', scope: 'conta', sem_fonte_motivo: null },
+      ],
+      save_signal_monitor: (p) => (chamadas.push(p), MONITOR),
+      list_signal_monitors: () => [{ ...monitorNoBanco, signal_type: 'vaga_comex', name: 'Vaga de Comex' }],
+    })
+    const salvo = await f.salvarMonitoramento({
+      tipoId: 'vaga_comex', nome: 'Vaga de Comex', estado: 'rascunho',
+      publico: { modo: 'listas', listas: [CONTA], usaRecomendado: false }, criterios: {},
+    })
+    expect(chamadas[0]).toMatchObject({
+      p_workspace_id: 'ws-norte', p_id: null, p_signal_type: 'vaga_comex', p_name: 'Vaga de Comex', p_state: 'rascunho',
+      p_audience: { accountIds: [CONTA] },
+    })
+    expect(salvo.tipoId).toBe('vaga_comex')
+  })
+
+  it('uma cascata que não está disponível não grava Monitoramento', async () => {
+    const f = fonte({
+      list_cascade_catalog: () => [
+        { signal_type: 'vaga_comex', icp: 'A', name: 'Vaga de Comex', state: 'testing', scope: 'conta', sem_fonte_motivo: null },
+      ],
+      save_signal_monitor: () => MONITOR,
+    })
+    await expect(f.salvarMonitoramento({ tipoId: 'vaga_comex', nome: 'Vaga de Comex' })).rejects.toThrow(
+      'Este Sinal ainda não está disponível.',
+    )
+  })
+
+  it('os Sinais de mercado do ICP vêm da leitura segura, sem fonte nem evidência', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const f = fonte({
+      list_market_signals_for_workspace_icp: (p) => {
+        chamadas.push(p)
+        return [{
+          id: 's-mercado', signal_type: 'volume_por_porto', name: 'Aumento de volume importado por porto',
+          phrase: 'Volume importado pelo porto de Santos subiu', fired_at: '2026-10-01T00:00:00Z',
+        }]
+      },
+    })
+    expect(await f.sinaisDeMercado('A')).toEqual([{
+      id: 's-mercado', tipo: 'volume_por_porto', nome: 'Aumento de volume importado por porto',
+      frase: 'Volume importado pelo porto de Santos subiu', data: '2026-10-01T00:00:00Z',
+    }])
+    expect(chamadas[0]).toEqual({ p_workspace_id: 'ws-norte', p_icp: 'A' })
+  })
+
   it('um tipo sem Sinal real ainda é recusado em palavras do produto', async () => {
     const f = fonte({})
     await expect(f.salvarMonitoramento({ tipoId: 'rodadas', nome: 'Rodadas' })).rejects.toThrow('Este Sinal ainda não está disponível.')

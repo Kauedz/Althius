@@ -153,6 +153,12 @@ export interface Buscas {
 export interface Cascatas {
   ehCascata(signalType: string): Promise<boolean>
   rodar(pedido: PedidoDeCascata): Promise<ResultadoDaCascata>
+  /**
+   * O plano do Monitoramento de um tipo genérico do catálogo (novo escritório, expansão geográfica...), que as cascatas do
+   * Mapa de Mercado atendem: as disponíveis e, entre elas, as que estão no prazo da cadência. Vazio quando o tipo não é
+   * atendido por cascatas. Sem este método, só o tipo que é uma cascata roda por aqui.
+   */
+  planoDoMonitor?(monitorId: string): Promise<{ disponiveis: string[]; devidas: string[] }>
 }
 
 export interface ResultadoDoAquecimento {
@@ -184,6 +190,9 @@ const BUSCAS_POR_CHAMADA = 5
 const PRAZO_PARA_COMECAR_EM_MS = 72_000
 // Um Sinal com disparo até um dia no futuro vira "agora" (relógios e fusos); mais que isso, ou uma data ilegível, é descartado.
 const TOLERANCIA_DE_DATA_EM_MS = 24 * 60 * 60 * 1000
+
+// O que o Monitoramento diz quando uma rodada quebra por dentro; o detalhe fica só no log.
+const MENSAGEM_DA_RODADA_QUE_FALHOU = 'A rodada falhou; tentamos de novo na próxima.'
 
 const MOTIVO_DA_PARADA: Record<MotivoDeParada, string> = {
   no_credits: 'Sem créditos ou no limite mensal do participante: a varredura espera.',
@@ -272,6 +281,54 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     return { scanned: r.desfecho === 'concluida' || r.desfecho === 'parcial' ? m.accounts.length : 0, signals: r.novos }
   }
 
+  /**
+   * Um Monitoramento de tipo genérico: roda, uma depois da outra, as cascatas que o banco diz estarem devidas (disponíveis e
+   * fora da cadência delas), cada uma pelo MESMO motor, com a sua reserva de crédito, o seu teto e o seu rastro. O Sinal é
+   * gravado no tipo genérico, que é o do Monitoramento. A chave junta o Monitoramento, a hora marcada e a cascata, então
+   * repetir a rodada nunca cobra nem grava duas vezes. Uma cascata que falha não derruba as outras; a que não coube no tempo
+   * da função continua devida e entra na rodada seguinte.
+   */
+  async function varrerPorCascatasDoTipo(
+    m: MonitorReivindicado,
+    devidas: string[],
+    prazo: number,
+  ): Promise<{ scanned: number; signals: number }> {
+    let sinais = 0
+    let alguma = false
+    let feitas = 0
+    const problemas: string[] = []
+    for (const tipo of devidas) {
+      // Uma cascata nova só começa até o prazo para começar; o resto fica devido para a próxima rodada.
+      if (agora() > prazo) break
+      feitas++
+      try {
+        const r = await deps.cascatas!.rodar({
+          workspaceId: m.workspaceId,
+          userId: m.createdBy,
+          signalType: tipo,
+          registrarComo: m.signalType,
+          origem: 'monitor',
+          monitorId: m.monitorId,
+          chave: `monitor:${m.monitorId}:${m.slot}:${tipo}`,
+          contas: m.accounts.map((c) => ({ id: c.id, name: c.name, domain: c.domain, linkedinUrl: c.linkedinUrl, cnpj: c.cnpj ?? null })),
+          criterios: m.criteria,
+          prazoFinal: prazo - PRAZO_PARA_COMECAR_EM_MS + PRAZO_DA_CASCATA_EM_MS,
+        })
+        sinais += r.novos
+        alguma ||= r.desfecho === 'concluida' || r.desfecho === 'parcial'
+        if (!(r.desfecho === 'concluida' || r.desfecho === 'ja_rodou_hoje' || r.desfecho === 'ja_concluida')) problemas.push(r.mensagem)
+      } catch (e) {
+        log({ type: 'signal_runner', monitorId: m.monitorId, signalType: tipo, outcome: 'cascade_failed', message: String(e) })
+        problemas.push(MENSAGEM_DA_RODADA_QUE_FALHOU)
+      }
+    }
+    const faltam = devidas.length - feitas
+    if (faltam > 0) problemas.push(`Rodamos ${feitas} de ${devidas.length} fontes; as outras entram na próxima rodada.`)
+    const erro = [...new Set(problemas)].join(' ')
+    await deps.db.finish(m.monitorId, m.accounts.length, erro || null, faltam > 0)
+    return { scanned: alguma ? m.accounts.length : 0, signals: sinais }
+  }
+
   async function varrerMonitor(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
     // O tempo já acabou nos Monitoramentos anteriores: este nem começa; solta a reserva e volta já.
     if (agora() > prazo) {
@@ -280,11 +337,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     if (deps.cascatas && await deps.cascatas.ehCascata(m.signalType)) return await varrerPorCascata(m, prazo)
     const adaptador = deps.adaptadores[m.signalType]
+    const actor = adaptador ? await deps.db.actorForType(m.signalType) : null
+    // O tipo genérico do catálogo é atendido por cascatas; o tipo com actor disponível segue pelo actor, como sempre.
+    if (deps.cascatas?.planoDoMonitor && !(adaptador && actor?.state === 'available')) {
+      const plano = await deps.cascatas.planoDoMonitor(m.monitorId)
+      if (plano.disponiveis.length > 0) return await varrerPorCascatasDoTipo(m, plano.devidas, prazo)
+    }
     if (!adaptador) {
       await deps.db.finish(m.monitorId, 0, `Ainda não há adaptador para o Sinal ${m.signalType}.`, false)
       return { scanned: 0, signals: 0 }
     }
-    const actor = await deps.db.actorForType(m.signalType)
     if (!actor || actor.state !== 'available') {
       await deps.db.finish(m.monitorId, 0, 'A fonte de dados deste Sinal não está disponível.', false)
       return { scanned: 0, signals: 0 }
@@ -511,7 +573,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         signals += r.signals
       } catch (e) {
         log({ type: 'signal_runner', monitorId: m.monitorId, outcome: 'monitor_failed', message: String(e) })
-        await deps.db.finish(m.monitorId, 0, 'A rodada falhou; tentamos de novo na próxima.', false).catch(() => {})
+        await deps.db.finish(m.monitorId, 0, MENSAGEM_DA_RODADA_QUE_FALHOU, false).catch(() => {})
       }
     }
     log({ type: 'signal_runner', outcome: 'done', monitors: monitores.length, scanned, signals, rescans: totalDasBuscas.count })

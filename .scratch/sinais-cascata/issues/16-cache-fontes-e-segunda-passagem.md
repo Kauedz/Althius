@@ -43,7 +43,7 @@
 
 1. Com o CI verde, aplicar no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql`, em bloco atômico, como em `docs/agents/migrations.md`. Se as migrações do ticket 15 ainda não estiverem aplicadas, elas vêm antes.
 
-   - `supabase/migrations/20261014200000_cache_de_fontes_e_execucao_adiada.sql`
+   - `supabase/migrations/20261015120000_cache_de_fontes_e_execucao_adiada.sql`
 2. Publicar as funções que leem o cache e fecham a execução adiada, sem `--no-verify-jwt`:
 
 ```powershell
@@ -58,3 +58,4 @@ npx supabase functions deploy signal-cascade signal-runner --project-ref ycbdils
 - Verde (2026-10-13): `deno check supabase/functions/*/index.ts` limpo. `deno test supabase/functions` 1344 passed / 0 failed / 34 ignored. Com `--allow-read`, mapa + icp-c + icp-g + icp-h: 77 passed / 0 failed.
 - pgTAP `supabase/tests/cache_de_fontes_publicas.sql` (16 asserts) não rodou aqui: sem Postgres local. O job Banco do CI executa o arquivo. Não aplicar no remoto a partir daqui.
 - O relógio diário chama o `signal-runner` com `{"action":"aquecer"}`. `signal-cascade` continua com `verify_jwt = true`. Sem deploy.
+- CI Banco (run 38475956693): a migração `20261014200000` parou em `42723` porque `begin_cascade_run` usava `create function` e a função já existia. Correção: `create or replace` em `begin_cascade_run` e `finish_cascade_run`, arquivo renomeado para `20261015120000` (depois de `20261015110000`, que entrou na main com os PRs 195 e 196). Deno depois do merge: 1360 passed / 0 failed / 34 ignored; com `--allow-read`, 77 passed.

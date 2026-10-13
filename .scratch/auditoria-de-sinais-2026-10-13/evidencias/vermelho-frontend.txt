@@ -1,0 +1,40 @@
+    253|     async salvarMonitoramento(m: Monitoramento | NovoMonitoramento) {
+    254|       const sinal = SINAL_DO_TIPO[m.tipoId]
+    255|       if (!sinal) throw new Error('Este Sinal ainda não está disponíve…
+       |                         ^
+    256|       const id = (await chamar('save_signal_monitor', {
+    257|         p_workspace_id: workspaceId(),
+ ❯ src/fonte/sinais-agregados.test.ts:114:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  src/fonte/sinais-agregados.test.ts > Tipos genéricos servidos por cascatas > os Sinais encontrados do tipo genérico aparecem no card genérico
+AssertionError: expected [] to deeply equal [ [ 'expansao-geografica', …(1) ] ]
+
+- Expected
++ Received
+
+- [
+-   [
+-     "expansao-geografica",
+-     "Nova filial em Curitiba",
+-   ],
+- ]
++ []
+
+ ❯ src/fonte/sinais-agregados.test.ts:131:75
+    129|       }],
+    130|     })
+    131|     expect((await f.sinaisEncontrados()).map((s) => [s.tipoId, s.frase…
+       |                                                                           ^
+    132|   })
+    133| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed (8)
+   Start at  21:17:20
+   Duration  1.57s (environment 65%, transform 22%, setup 9%, tests 2%, import 1%)
+

@@ -40,14 +40,20 @@ describe('Catálogo de Sinais: as cascatas dentro de Externo, agrupadas por ICP'
     expect(within(comex).queryByText(/CFC|OAB|SUSEP|ANEEL|CVM/)).not.toBeInTheDocument()
   })
 
-  it('disponível mostra o selo; em teste mostra o selo e que está em validação; nenhum deixa criar Monitoramento por aqui', async () => {
+  it('disponível de Conta oferece Criar Monitoramento; em teste explica a validação e não oferece', async () => {
     renderizarAppCom('/sinais', { sinais: comCascatas(CASCATAS) })
     const disponivel = await cartao('Vaga de Comex')
     expect(within(disponivel).getByText('Disponível')).toBeInTheDocument()
+    expect(within(disponivel).getByRole('link', { name: 'Criar Monitoramento' })).toHaveAttribute(
+      'href',
+      '/sinais/cascatas/vaga_comex/novo',
+    )
+    expect(within(disponivel).queryByText(/ainda não é criado por aqui/)).not.toBeInTheDocument()
     const emTeste = await cartao('Processos públicos')
     expect(within(emTeste).getByText('Em teste')).toBeInTheDocument()
     expect(within(emTeste).getByText(/validação/)).toBeInTheDocument()
-    for (const c of [disponivel, emTeste]) expect(within(c).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(emTeste).queryByRole('link', { name: 'Criar Monitoramento' })).not.toBeInTheDocument()
+    expect(within(emTeste).queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('sem fonte mostra o selo e o motivo, sem custo e sem Monitoramento', async () => {

@@ -5,6 +5,7 @@ import type { FonteDeContas } from './contas-tipos'
 import type {
   CascataDoCatalogo,
   EstadoDoMonitoramento,
+  SinalDeMercado,
   FonteDeSinais,
   Monitoramento,
   NovoMonitoramento,
@@ -130,6 +131,11 @@ export function criarFonteDeSinaisSimulada(
 
     // A Demonstração mostra o catálogo simulado inteiro: os Sinais por mercado só existem no Workspace operacional.
     async cascatas(): Promise<CascataDoCatalogo[]> {
+      await aguardar()
+      return []
+    },
+
+    async sinaisDeMercado(): Promise<SinalDeMercado[]> {
       await aguardar()
       return []
     },

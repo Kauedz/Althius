@@ -21,7 +21,7 @@ interface Props {
 export function Pagina({ titulo, icone: Icone, voltar, acoes, ocupaAJanela, className, children }: Props) {
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b border-al-line bg-al-bg px-10">
+      <header className="sticky top-0 z-10 flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-al-line bg-al-bg px-4 py-3 md:h-16 md:flex-nowrap md:px-10 md:py-0">
         <div className="flex min-w-0 items-center gap-2">
           {voltar && (
             <>
@@ -41,7 +41,7 @@ export function Pagina({ titulo, icone: Icone, voltar, acoes, ocupaAJanela, clas
       </header>
       <div
         className={cn(
-          'flex flex-col gap-6 px-10 pt-6 pb-16',
+          'flex min-w-0 flex-col gap-6 px-4 pt-6 pb-16 md:px-10',
           // A altura da janela menos a da barra de topo (h-16).
           ocupaAJanela && 'h-[calc(100vh-4rem)] pb-0',
           className,

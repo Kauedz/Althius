@@ -182,6 +182,8 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
   const def = await db.definicao(pedido.signalType)
   if (!def) return vazio('sem_cascata', MENSAGENS.sem_cascata)
   if (def.state === 'sem_fonte') return vazio('sem_fonte', def.semFonteMotivo ?? 'Esse Sinal não tem uma fonte pública confiável.')
+  // Um tipo genérico é um tipo de Conta (o evento é numa empresa do Workspace): cascata de mercado, que não tem Conta, não o atende.
+  if (pedido.registrarComo && def.scope !== 'conta') return vazio('indisponivel', MENSAGENS.indisponivel)
 
   // Toda implementação de passo precisa existir antes de reservar qualquer crédito.
   for (const p of def.steps) {
@@ -515,7 +517,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
   for (const s of confirmados) {
     try {
       const novo = await db.gravarSinal({
-        workspaceId: pedido.workspaceId, contaId: s.contaId, monitorId: pedido.monitorId ?? null, signalType: def.signalType, sinal: s,
+        workspaceId: pedido.workspaceId, contaId: s.contaId, monitorId: pedido.monitorId ?? null, signalType: pedido.registrarComo ?? def.signalType, sinal: s,
       })
       if (novo) novos++
       else repetidos++

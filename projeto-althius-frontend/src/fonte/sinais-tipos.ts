@@ -140,6 +140,18 @@ export interface CascataDoCatalogo {
 }
 
 /**
+ * Um Sinal de mercado como a tela o mostra: a frase e a data, do ICP do Workspace. Sem fonte, evidência, chave nem
+ * payload — nada disso sai da leitura.
+ */
+export interface SinalDeMercado {
+  id: string
+  tipo: string
+  nome: string
+  frase: string
+  data: string
+}
+
+/**
  * A fronteira de dados do módulo Sinais e Monitoramentos.
  * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
  */
@@ -152,6 +164,12 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Os Sinais por mercado do Mapa (um cartão cada). A Demonstração não tem; uma leitura que falha rejeita. */
   cascatas(): Promise<CascataDoCatalogo[]>
+
+  /**
+   * O feed de Sinais de mercado do ICP (letra A–H) neste Workspace. A Demonstração não tem. A leitura que falha rejeita
+   * com texto neutro.
+   */
+  sinaisDeMercado(icp: string): Promise<SinalDeMercado[]>
 
   /** Busca um tipo de sinal pelo id. Rejeita se não existir. */
   tipo(id: string): Promise<TipoDeSinal>
