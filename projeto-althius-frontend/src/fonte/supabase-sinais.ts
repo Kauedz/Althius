@@ -13,6 +13,7 @@ import type {
   FonteDeSinais,
   Monitoramento,
   NovoMonitoramento,
+  SinalDeMercado,
   SinalEncontrado,
   TipoDeSinal,
 } from './sinais-tipos'
@@ -158,8 +159,8 @@ export async function lerSinaisDaConta(cliente: SupabaseClient, workspaceId: str
   })
 }
 
-function mapearMonitor(linha: RegistroDoMonitor): Monitoramento | null {
-  const tipoId = TIPO_DO_SINAL_REAL[linha.signal_type]
+function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<string>): Monitoramento | null {
+  const tipoId = TIPO_DO_SINAL_REAL[linha.signal_type] ?? (tiposDeCascata.has(linha.signal_type) ? linha.signal_type : null)
   if (!tipoId) return null
   return {
     id: linha.id,
@@ -187,10 +188,19 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
   const ouvintes = new Set<() => void>()
   const notificar = () => ouvintes.forEach((ouvinte) => ouvinte())
 
+  async function tiposDeCascata(): Promise<Set<string>> {
+    const { data, error } = await cliente.rpc('list_cascade_catalog')
+    if (error) return new Set()
+    return new Set(((data ?? []) as RegistroDaCascata[]).map((c) => c.signal_type))
+  }
+
   async function monitoramentos(): Promise<Monitoramento[]> {
-    const { data, error } = await cliente.rpc('list_signal_monitors', { p_workspace_id: workspaceId() })
+    const [{ data, error }, tipos] = await Promise.all([
+      cliente.rpc('list_signal_monitors', { p_workspace_id: workspaceId() }),
+      tiposDeCascata(),
+    ])
     if (error) throw new Error('Não foi possível carregar os Monitoramentos.')
-    return ((data ?? []) as RegistroDoMonitor[]).map(mapearMonitor).filter((m): m is Monitoramento => m !== null)
+    return ((data ?? []) as RegistroDoMonitor[]).map((linha) => mapearMonitor(linha, tipos)).filter((m): m is Monitoramento => m !== null)
   }
 
   async function monitoramento(id: string): Promise<Monitoramento> {
@@ -238,6 +248,20 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         }]
       })
     },
+    async sinaisDeMercado(icp): Promise<SinalDeMercado[]> {
+      const { data, error } = await cliente.rpc('list_market_signals_for_workspace_icp', {
+        p_workspace_id: workspaceId(),
+        p_icp: icp,
+      })
+      if (error) throw new Error('Não foi possível carregar os Sinais de mercado.')
+      return ((data ?? []) as { id: string; signal_type: string; name: string; phrase: string; fired_at: string }[]).map((s) => ({
+        id: s.id,
+        tipo: s.signal_type,
+        nome: s.name,
+        frase: s.phrase,
+        data: s.fired_at,
+      }))
+    },
     async tipo(id) {
       const encontrado = (await this.tipos()).find((t) => t.id === id)
       if (!encontrado) throw new Error(`Tipo de Sinal "${id}" não encontrado`)
@@ -251,8 +275,18 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
     monitoramento,
 
     async salvarMonitoramento(m: Monitoramento | NovoMonitoramento) {
-      const sinal = SINAL_DO_TIPO[m.tipoId]
-      if (!sinal) throw new Error('Este Sinal ainda não está disponível.')
+      let sinal = SINAL_DO_TIPO[m.tipoId]
+      if (!sinal) {
+        // Catálogo ausente e cascata fora de `available` caem na mesma frase: o tipo não vira Monitoramento.
+        let disponivel = false
+        try {
+          disponivel = (await this.cascatas()).some((c) => c.tipo === m.tipoId && c.estado === 'disponivel')
+        } catch {
+          disponivel = false
+        }
+        if (!disponivel) throw new Error('Este Sinal ainda não está disponível.')
+        sinal = m.tipoId
+      }
       const id = (await chamar('save_signal_monitor', {
         p_workspace_id: workspaceId(),
         p_id: m.id ?? null,

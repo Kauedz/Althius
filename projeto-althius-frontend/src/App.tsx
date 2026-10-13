@@ -38,7 +38,7 @@ import { RegistrarAberturaDeSinais, RetornoDoChecklist } from '@/paginas/onboard
 import { PaginaSequencias } from '@/paginas/sequencias'
 import { SinaisDoMockupProvider } from '@/paginas/sinais/estado'
 import { ContextoDasPosicoesDasListas, criarPosicoesDasListas } from '@/paginas/voltar-para-a-lista'
-import { ContaComSinais, LayoutSinais, PaginaDoTipo, PaginaSinais, RotaDoEditor } from '@/paginas/sinais/rotas'
+import { ContaComSinais, LayoutSinais, PaginaDeSinaisDeMercado, PaginaDoTipo, PaginaSinais, RotaDoEditor, RotaDoEditorDeCascata } from '@/paginas/sinais/rotas'
 
 interface Props {
   /** As fontes do ambiente, escolhidas no ponto de composição pela sessão e pelo Workspace. */
@@ -72,6 +72,8 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
             <Route path="tipos/:tipoId" element={<PaginaDoTipo />} />
             <Route path="tipos/:tipoId/novo" element={<RotaDoEditor />} />
             <Route path="tipos/:tipoId/:monitoramentoId" element={<RotaDoEditor />} />
+            <Route path="cascatas/:tipo/novo" element={<RotaDoEditorDeCascata />} />
+            <Route path="mercado/:icp" element={<PaginaDeSinaisDeMercado />} />
             <Route path="contas/:contaId" element={<ContaComSinais />} />
           </Route>
           <Route path="conversa" element={<TelaDoModulo modulo="conversas" titulo="Conversa" icone={MessageSquare}><PaginaConversaCoordenada /></TelaDoModulo>} />

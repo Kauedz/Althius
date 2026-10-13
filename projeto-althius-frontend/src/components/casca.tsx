@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
-import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
 import { IndicadorDeSecoes } from '@/components/indicador-de-secoes'
@@ -44,8 +44,27 @@ function lerBarraRecolhida() {
   }
 }
 
+/** No celular a barra larga espreme o miolo (a 390 px sobravam ~62 px para o cartão). Aí ela fica só com os ícones. */
+function useTelaEstreita() {
+  const [estreita, setEstreita] = useState(() => {
+    if (typeof window.matchMedia !== 'function') return false
+    return window.matchMedia('(max-width: 767px)').matches
+  })
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const consulta = window.matchMedia('(max-width: 767px)')
+    const atualizar = () => setEstreita(consulta.matches)
+    atualizar()
+    consulta.addEventListener('change', atualizar)
+    return () => consulta.removeEventListener('change', atualizar)
+  }, [])
+  return estreita
+}
+
 export function Casca() {
   const [recolhida, setRecolhida] = useState(lerBarraRecolhida)
+  const estreita = useTelaEstreita()
+  const recolhidaNaTela = recolhida || estreita
   const alternarBarra = () =>
     setRecolhida((atual) => {
       const nova = !atual
@@ -58,13 +77,14 @@ export function Casca() {
     })
   return (
     <div
-      style={{ '--barra-lateral': recolhida ? '4.25rem' : '15.5rem' } as CSSProperties}
+      style={{ '--barra-lateral': recolhidaNaTela ? '4.25rem' : '15.5rem' } as CSSProperties}
       className={cn(
         'grid min-h-screen transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none',
-        recolhida ? 'grid-cols-[4.25rem_1fr]' : 'grid-cols-[15.5rem_1fr]',
+        // minmax(0, 1fr) deixa o miolo encolher até a largura da janela, em vez de herdar o mínimo do cartão.
+        recolhidaNaTela ? 'grid-cols-[4.25rem_minmax(0,1fr)]' : 'grid-cols-[15.5rem_minmax(0,1fr)]',
       )}
     >
-      <BarraRecolhida.Provider value={recolhida}>
+      <BarraRecolhida.Provider value={recolhidaNaTela}>
         <Sidebar alternarBarra={alternarBarra} />
       </BarraRecolhida.Provider>
       <main className="flex min-w-0 flex-col">

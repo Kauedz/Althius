@@ -1,5 +1,15 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Sinais em cascata — Monitoramento no cartão e Sinais de mercado (2026-10-13)
+
+- **Ticket:** `.scratch/sinais-cascata/issues/16-monitoramento-e-sinais-de-mercado.md`
+- **Status:** ready-for-human (código e Vitest verdes; falta o Nan aplicar a migração e publicar o frontend, com o CI verde)
+- **Branch:** `cursor/monitoramento-e-sinais-de-mercado-2567`
+- **O que muda:** cartão de cascata `available` de Conta ganha "Criar Monitoramento" e abre o fluxo já preenchido (ICP do Workspace, modo da varredura, limite de créditos), gravando por `save_signal_monitor`. Cartão em teste ou sem fonte continua só com o motivo. Cartão de Mercado abre "Ver Sinais de mercado", lido por `list_market_signals_for_workspace_icp` (só id, tipo, nome, frase e data; e-mail, CPF, telefone e nome de fornecedor na frase viram "Sinal de mercado registrado."). No celular a barra fica só com os ícones e o miolo encolhe, então o cartão deixa de nascer a ~62 px.
+- **Migração nova (não aplicar daqui):** `supabase/migrations/20261014180000_sinais_de_mercado_na_tela.sql`. Sem deploy de função. Sem escrita no projeto remoto.
+- **Testes (2026-10-13):** vermelho primeiro nos três arquivos do ticket. Verde: suíte do frontend, 139 arquivos / 1252 testes. `npx tsc -b` exit 0. pgTAP `sinais_de_mercado_na_tela.sql` (`plan(16)`) não rodou aqui. No Chrome, cartão de Sinais a 390 px mede 290 px, sem rolagem horizontal.
+- **O que o humano roda, depois do CI verde:** aplicar essa migração no `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico e publicar o frontend. Comandos no ticket, seção Passos do Nan. Não mergear daqui.
+
 ## Sinais em cascata — validação de produção de 13/10/2026
 
 - **Ticket:** `.scratch/sinais-cascata/issues/15-validacao-de-produccao-2026-10-13.md`

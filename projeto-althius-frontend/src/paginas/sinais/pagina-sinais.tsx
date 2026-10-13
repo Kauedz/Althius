@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Plus, RadioTower, Search, Sparkles } from 'lucide-react'
 import { Fragment, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
 import { Pagina } from '@/components/pagina'
@@ -21,7 +21,7 @@ import {
 } from './catalogo'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { AvisoDeNovosSinais, motivoDaIndisponibilidade, podeMonitorar, SeloDaDisponibilidade } from './disponibilidade'
-import { agruparCascatasPorIcp, SecaoDeCascatas } from './cascatas'
+import { agruparCascatasPorIcp, GRADE_DE_CARTOES, SecaoDeCascatas } from './cascatas'
 import { useMonitoramentos } from './estado'
 
 type Filtro = 'todos' | Origem
@@ -39,6 +39,7 @@ function normalizar(texto: string): string {
 /** A página principal de Sinais: o catálogo e, por um acesso discreto, os Sinais encontrados. */
 export function PaginaSinais() {
   const [parametros, setParametros] = useSearchParams()
+  const { state } = useLocation() as { state?: { aviso?: string } }
   const vendoEncontrados = parametros.get('vista') === 'encontrados'
   const {
     dados: tiposCarregados,
@@ -75,6 +76,12 @@ export function PaginaSinais() {
                 Tentar de novo
               </button>
             </div>
+          )}
+
+          {state?.aviso && (
+            <p role="status" className="text-sm text-al-muted">
+              {state.aviso}
+            </p>
           )}
 
           {!erro && (!carregando || tiposCarregados) && (
@@ -180,7 +187,7 @@ function Catalogo({
             className="campo h-9 pl-9 text-sm placeholder:text-al-muted"
           />
         </div>
-        <div role="group" aria-label="Filtrar por origem" className="segmentado">
+        <div role="group" aria-label="Filtrar por origem" className="segmentado max-w-full flex-wrap">
           {FILTROS.map((opcao) => (
             <button
               key={opcao}
@@ -234,9 +241,9 @@ function Catalogo({
                 <span className="titulo-secao text-lg">{familia.nome}</span>
                 <span className="rotulo text-[0.6875rem]">{ROTULO_DA_ORIGEM[familia.origem]}</span>
               </h2>
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-4">
+              <ul className={GRADE_DE_CARTOES}>
                 {tipos.map((tipo) => (
-                  <li key={tipo.id}>
+                  <li key={tipo.id} className="min-w-0">
                     <CartaoDeTipo tipo={tipo} ativos={ativosPorTipo.get(tipo.id) ?? 0} />
                   </li>
                 ))}
