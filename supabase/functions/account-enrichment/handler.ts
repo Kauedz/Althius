@@ -12,6 +12,7 @@ import {
   CascataProvedorDeContatos,
   fornecedoresDaCascata,
 } from '../_shared/provedor-de-contatos.ts'
+import { mensagemSegura } from '../_shared/marca.ts'
 
 export interface SocioReceita {
   nome: string
@@ -46,7 +47,7 @@ export interface DadosReceitaFederal {
   telefones: string[]
   email?: string
   socios: SocioReceita[]
-  fonte: 'apify' | 'brasilapi'
+  fonte: 'receita' | 'brasilapi'
 }
 
 export interface DbEnrichment {
@@ -377,7 +378,7 @@ export async function consultarApifyReceita(
       telefones,
       email: item.email ? String(item.email).trim().toLowerCase() : undefined,
       socios,
-      fonte: 'apify',
+      fonte: 'receita',
     }
   } catch {
     return null
@@ -444,7 +445,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           })
           reservationId = inicio.reservationId
         } catch (e) {
-          const mensagem = e instanceof Error ? e.message : 'Não foi possível reservar o crédito.'
+          const mensagem = mensagemSegura(e, 'Não foi possível reservar o crédito.')
           const semCredito = mensagem.includes('insufficient credits') || mensagem.includes('monthly credit limit reached')
           return json({ error: mensagem }, semCredito ? 402 : 403)
         }
@@ -465,7 +466,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
             workspaceId,
             actorId,
             runId: medicao.runId,
-            items: resultado?.fonte === 'apify' ? 1 : 0,
+            items: resultado?.fonte === 'receita' ? 1 : 0,
             costUsd: medicao.costUsd,
           }).catch(() => {})
         }
@@ -487,7 +488,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           })
         } catch (e) {
           await deps.db.finishCnpjReceita({ reservationId, found: false }).catch(() => {})
-          const mensagem = e instanceof Error ? e.message : 'Não foi possível gravar a Receita.'
+          const mensagem = mensagemSegura(e, 'Não foi possível gravar a Receita.')
           return json({ error: mensagem }, 403)
         }
 
@@ -566,7 +567,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
             medicao,
           })
         } catch (e) {
-          const mensagem = e instanceof Error ? e.message : 'A busca do comitê falhou.'
+          const mensagem = mensagemSegura(e, 'A busca do comitê falhou.')
           await deps.db.finishCommitteeDiscovery({
             runId: inicio.runId,
             success: false,
@@ -736,7 +737,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           )
         } catch (e) {
           // Falha não é "não encontrado": libera a reserva, debita zero e diz que falhou.
-          const mensagem = e instanceof Error ? e.message : 'erro desconhecido'
+          const mensagem = mensagemSegura(e, 'erro desconhecido')
           await deps.db.finishRevealContact({ reservationId: reserva.reservationId, contactId, channel: canal })
           await gravarCusto()
           return json({ error: `A busca do e-mail falhou: ${mensagem}` }, 502)
@@ -772,7 +773,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         headers: { 'Content-Type': 'application/json' },
       })
     } catch (e) {
-      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'Erro interno' }), {
+      return new Response(JSON.stringify({ error: mensagemSegura(e, 'Erro interno') }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       })

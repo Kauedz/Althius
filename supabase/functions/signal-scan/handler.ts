@@ -5,6 +5,7 @@
 // Sinais é do Monitoramento (ticket 02), não desta função. Banco e Apify entram por injeção, para o teste ir da
 // requisição à resposta sem rede.
 import { gravarCustoDaExecucao } from '../_shared/apify-ambiente.ts'
+import { MENSAGEM_DA_FONTE, mensagemDaFalhaDaFonte } from '../_shared/marca.ts'
 
 export interface ActorDoRegistro {
   actorId: string
@@ -45,14 +46,14 @@ export interface Apify {
 
 export class ApifyRequestError extends Error {
   constructor(readonly status: number, readonly runId: string | null = null) {
-    super(`Apify respondeu HTTP ${status}`)
+    super(`A fonte pública respondeu HTTP ${status}`)
     this.name = 'ApifyRequestError'
   }
 }
 
 export class ApifyTimeoutError extends Error {
   constructor(readonly runId: string | null = null) {
-    super('O actor do Apify não respondeu a tempo')
+    super(MENSAGEM_DA_FONTE.tempo)
     this.name = 'ApifyTimeoutError'
   }
 }
@@ -100,10 +101,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!(tetoPedido > 0)) return responder({ error: 'maxTotalChargeUsd precisa ser maior que zero.' }, 400)
     const entrada = corpo?.input
     if (!entrada || typeof entrada !== 'object' || Array.isArray(entrada)) {
-      return responder({ error: 'A entrada do actor precisa ser um objeto.' }, 400)
+      return responder({ error: 'A entrada da fonte precisa ser um objeto.' }, 400)
     }
     if (JSON.stringify(entrada).length > TAMANHO_MAXIMO_DA_ENTRADA) {
-      return responder({ error: 'A entrada do actor é grande demais.' }, 400)
+      return responder({ error: 'A entrada da fonte é grande demais.' }, 400)
     }
 
     let actor: ActorDoRegistro | null
@@ -111,13 +112,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       actor = await deps.db.actorForScan(actorId)
     } catch (error) {
       log({ type: 'signal_scan', actorId, outcome: 'registry_failed', message: String(error) })
-      return responder({ error: 'Não foi possível consultar o registro de actors.' }, 500)
+      return responder({ error: 'Não foi possível consultar o registro de fontes.' }, 500)
     }
     // Fora do registro, ou marcado "fora": nunca roda. "Em teste": só com o aval explícito de quem chama.
-    if (!actor) return responder({ error: 'Este actor não está no registro.', code: 'actor_not_registered' }, 404)
-    if (actor.state === 'out') return responder({ error: 'Este actor está fora do ar.', code: 'actor_out' }, 403)
+    if (!actor) return responder({ error: 'Esta fonte não está no registro.', code: 'actor_not_registered' }, 404)
+    if (actor.state === 'out') return responder({ error: 'Esta fonte está fora do ar.', code: 'actor_out' }, 403)
     if (actor.state === 'testing' && corpo.allowTesting !== true) {
-      return responder({ error: 'Este actor ainda está em teste.', code: 'actor_testing' }, 403)
+      return responder({ error: 'Esta fonte ainda está em teste.', code: 'actor_testing' }, 403)
     }
 
     // O teto nunca passa do que o registro permite, por mais que quem chama peça.
@@ -133,7 +134,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         : 'apify_unreachable'
       log({ type: 'signal_scan', workspaceId, actorId, outcome: 'failed', errorCode: codigo })
       return responder(
-        { error: codigo === 'timeout' ? 'O Apify não respondeu a tempo.' : 'O Apify não conseguiu rodar o actor.', code: codigo },
+        { error: mensagemDaFalhaDaFonte(codigo), code: codigo },
         codigo === 'timeout' ? 504 : 502,
       )
     }

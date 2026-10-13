@@ -22,6 +22,7 @@ import { ACTOR_RECEITA, candidatasDaReceita, candidatasDoLinkedin } from './norm
 import { type Avaliacao, avaliar, type CandidataBruta } from './pontuacao.ts'
 import { montarPlano, type PlanoDaBusca } from './plano.ts'
 import type { CriteriosDeBusca } from './criterios.ts'
+import { mensagemDaFalhaDaFonte } from '../_shared/marca.ts'
 
 export interface ActorRegistrado {
   actorId: string
@@ -145,17 +146,17 @@ function recusaDoBanco(erro: ErroDoBanco): Response {
   if (erro.code === '55000' && m.includes('testing')) {
     return responder({
       code: 'actor_em_teste',
-      error: 'O Actor desta busca ainda está em teste. Só um Administrador roda em modo de teste.',
+      error: 'A fonte desta busca ainda está em teste. Só um Administrador roda em modo de teste.',
     }, 403)
   }
   if (erro.code === '55000' && m.includes('is out')) {
-    return responder({ code: 'actor_fora', error: 'O Actor desta busca está fora do ar.' }, 503)
+    return responder({ code: 'actor_fora', error: 'A fonte desta busca está fora do ar.' }, 503)
   }
   if (erro.code === '55000') {
     return responder({ code: 'pedido_invalido', error: 'Este pedido não está esperando confirmação.' }, 409)
   }
   if (erro.code === 'P0002') {
-    return responder({ code: 'nao_encontrado', error: 'O Actor desta busca não está no registro.' }, 404)
+    return responder({ code: 'nao_encontrado', error: 'A fonte desta busca não está no registro.' }, 404)
   }
   if (erro.code === '42501') {
     return responder({ code: 'sem_participacao', error: 'Você não participa deste Workspace.' }, 403)
@@ -173,10 +174,7 @@ function codigoDaFalha(erro: unknown): string {
 }
 
 function mensagemDaFalha(codigos: string[]): string {
-  const [primeiro] = codigos
-  if (primeiro === 'timeout') return 'O Apify não respondeu a tempo.'
-  if (primeiro === 'apify_http_402' || primeiro === 'apify_http_403') return 'A conta do Apify da Althius está sem crédito.'
-  return 'O Apify não conseguiu rodar o Actor.'
+  return mensagemDaFalhaDaFonte(codigos[0])
 }
 
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
@@ -313,14 +311,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       actor = (await deps.db.actoresDeBusca()).find((x) => x.actorId === plano.actorId)
     } catch (erro) {
       log({ type: 'account_discovery', outcome: 'registry_failed', message: String(erro) })
-      return responder({ code: 'erro', error: 'Não foi possível consultar o registro de Actors.' }, 500)
+      return responder({ code: 'erro', error: 'Não foi possível consultar o registro de fontes.' }, 500)
     }
-    if (!actor) return responder({ code: 'actor_nao_registrado', error: 'O Actor desta busca não está no registro.' }, 503)
-    if (actor.state === 'out') return responder({ code: 'actor_fora', error: 'O Actor desta busca está fora do ar.' }, 503)
+    if (!actor) return responder({ code: 'actor_nao_registrado', error: 'A fonte desta busca não está no registro.' }, 503)
+    if (actor.state === 'out') return responder({ code: 'actor_fora', error: 'A fonte desta busca está fora do ar.' }, 503)
     if (actor.state === 'testing' && !a.allowTesting) {
       return responder({
         code: 'actor_em_teste',
-        error: 'O Actor desta busca ainda está em teste. Só um Administrador roda em modo de teste.',
+        error: 'A fonte desta busca ainda está em teste. Só um Administrador roda em modo de teste.',
       }, 403)
     }
 

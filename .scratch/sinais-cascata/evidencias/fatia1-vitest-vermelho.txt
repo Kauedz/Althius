@@ -1,0 +1,43 @@
+
+ RUN  v5.0.1 /home/user/Althius/projeto-althius-frontend
+
+ ❯ src/guarda-de-marca.test.ts (2 tests | 1 failed) 38ms
+   ❯ marca: o usuário não lê "Apify" nem "actor" (2)
+     × nenhum texto da tela, das Fontes ou da Demonstração cita o fornecedor ou o actor 33ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/guarda-de-marca.test.ts > marca: o usuário não lê "Apify" nem "actor" > nenhum texto da tela, das Fontes ou da Demonstração cita o fornecedor ou o actor
+AssertionError: expected [ Array(8) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "fonte/contas-tipos.ts: apify",
++   "fonte/simulada-contas.ts: apify",
++   "fonte/simulada-contas.ts: apify",
++   "fonte/simulada-contas.ts: apify",
++   "fonte/simulada-contas.ts: apify",
++   "fonte/supabase-contas.ts: APIFY_TOKEN e APP_ORIGIN",
++   "paginas/comite-e-enriquecimento.tsx: apify",
++   "paginas/comite-e-enriquecimento.tsx: Apify",
++ ]
+
+ ❯ src/guarda-de-marca.test.ts:58:24
+     56|       }
+     57|     }
+     58|     expect(vazamentos).toEqual([])
+       |                        ^
+     59|   })
+     60| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  00:03:28
+   Duration  1.45s (environment 79%, setup 11%, transform 6%, tests 3%, import 1%, worker 1%)
+

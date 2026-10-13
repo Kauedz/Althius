@@ -299,7 +299,8 @@ export interface DadosDaReceita {
   socios?: SocioReceita[]
   telefones?: string[]
   email?: string
-  fonte: 'apify' | 'brasilapi'
+  /** Origem técnica do dado, só para o servidor: a tela mostra sempre "Receita Federal". */
+  fonte?: string
 }
 
 export interface ContatoProposto {
@@ -314,7 +315,6 @@ export interface ContatoProposto {
   photoUrl?: string
   persona?: 'Decisor' | 'Influenciador' | 'Campeao' | 'Outro'
   contactId?: string
-  sourceProvider?: string
   createdAt: string
 }
 

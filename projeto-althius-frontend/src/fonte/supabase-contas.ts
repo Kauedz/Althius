@@ -641,7 +641,7 @@ export function criarFonteDeContasSupabase(
       }
       const recusa = await corpoDoErroDaFuncao(error)
       if (typeof recusa?.error === 'string') throw new Error(recusa.error)
-      throw new Error(await motivoDaFalhaDaFuncao('contact-photo-lookup', error, 'APIFY_TOKEN e APP_ORIGIN'))
+      throw new Error(await motivoDaFalhaDaFuncao('contact-photo-lookup', error, ''))
     },
 
     // Arquivar e apagar (CRM-18). Depois de apagada, a Conta some da tela (o RLS a esconde); arquivada, vai para a lista
@@ -735,7 +735,6 @@ export function criarFonteDeContasSupabase(
         photoUrl: r.photo_url ?? undefined,
         persona: r.persona ?? undefined,
         contactId: r.contact_id ?? undefined,
-        sourceProvider: r.source_provider ?? undefined,
         createdAt: r.created_at,
       }))
     },

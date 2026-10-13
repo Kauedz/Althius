@@ -110,3 +110,12 @@ Deno.test('um banco sem a leitura do Playbook roda como antes', async () => {
   const { db } = bancoComPlaybook('sem')
   assertEquals(await leitorDoPlaybook(db, 'r1', () => {}, 'agent_run')('scopus'), '')
 })
+
+Deno.test('a regra de marca vai nas instruções da escolha e das ferramentas: o Hermes não nomeia provedores', async () => {
+  const { instrucoesDaEscolha } = await import('../_hermes-worker/worker.ts')
+  const { REGRA_DE_MARCA } = await import('./marca.ts')
+  const reserva = { workspace_name: 'Norte', agents: [] } as unknown as Parameters<typeof instrucoesDaEscolha>[0]
+  assertStringIncludes(instrucoesDaEscolha(reserva), REGRA_DE_MARCA)
+  assertStringIncludes(REGRA_DE_MARCA, 'nunca nomeie provedores, plataformas de raspagem, actors nem ferramentas internas')
+  assertStringIncludes(REGRA_DE_MARCA, 'fonte pública')
+})

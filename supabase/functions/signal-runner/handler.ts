@@ -239,7 +239,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const actor = await deps.db.actorForType(m.signalType)
     if (!actor || actor.state !== 'available') {
-      await deps.db.finish(m.monitorId, 0, 'O actor deste Sinal não está disponível.', false)
+      await deps.db.finish(m.monitorId, 0, 'A fonte de dados deste Sinal não está disponível.', false)
       return { scanned: 0, signals: 0 }
     }
 
@@ -389,7 +389,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         : semAdaptador > 0
         ? 'Ainda não há adaptador para os Sinais dos Monitoramentos ativos.'
         : semActor > 0
-        ? 'O actor do Sinal dos Monitoramentos ativos não está disponível.'
+        ? 'A fonte de dados dos Monitoramentos ativos não está disponível.'
         : 'Nenhum Monitoramento ativo para buscar.'
       await buscas.finish(b.rescanId, 'stopped', 0, motivo)
       return { scanned: 0, signals: 0, voltou: false }

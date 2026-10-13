@@ -353,7 +353,7 @@ const BUSCAR_PELO_ICP: FerramentaDoAgente = {
       const saldo = r.saldo < r.creditos
         ? ` O saldo de Créditos (${r.saldo}) não cobre a busca (${r.creditos}): avise que é preciso comprar Créditos antes de confirmar.`
         : ''
-      const actor = r.estadoDoActor === 'available' ? '' : ' A busca de empresas ainda não está liberada no Workspace (o Actor está em teste ou fora do ar).'
+      const actor = r.estadoDoActor === 'available' ? '' : ' A busca de empresas ainda não está liberada no Workspace (a fonte de dados está em teste ou fora do ar).'
       return {
         erro: false,
         paraOAgente:

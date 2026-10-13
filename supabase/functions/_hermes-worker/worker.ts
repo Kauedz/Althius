@@ -3,6 +3,7 @@
 // (claim_agent_run), entrega ao Hermes pela API de runs dele (POST /v1/runs, com Idempotency-Key) e grava a resposta
 // pelo mesmo contrato da ponte (append_agent_run_event e finish_agent_run). O Hermes não aparece para o usuário: para
 // ele, é a inteligência da Althius, que chama o Scopus, o Ethos, o Rhetor e o Oraculum (ADR-0004, ADR-0018).
+import { REGRA_DE_MARCA } from '../_shared/marca.ts'
 import {
   criarSessaoDeFerramentas,
   type DepsDasFerramentas,
@@ -89,6 +90,7 @@ export function corpoDoRun(reserva: Reserva, contas: ContaEncontrada[]): CorpoDo
     'Regras: responda em português do Brasil, direto. Nunca invente dados, números, nomes ou fatos: use só o que está ' +
     'aqui ou na conversa, e diga "não sei" quando faltar. Nenhuma Integração está conectada: não envie mensagem, não ' +
     'grave nada fora da Althius, não use terminal nem arquivos do computador. Se o pedido exigir isso, diga o que faria.',
+    REGRA_DE_MARCA,
   ]
   if (reserva.kind === 'agente' && anfitriao) {
     partes.push(
@@ -174,6 +176,7 @@ export function instrucoesDoAgente(
     playbook,
     contasDoWorkspace(contas),
     ferramentas ? REGRAS_COM_FERRAMENTAS : REGRAS_DO_HERMES,
+    REGRA_DE_MARCA,
     ferramentas,
     INSTRUCAO_DE_DESFECHO,
   ].filter(Boolean).join('\n\n')
@@ -197,6 +200,7 @@ export function instrucoesDaEscolha(reserva: Reserva): string {
     'Responda SÓ com um objeto JSON, sem texto fora dele: {"agentes": ["<id>", ...], "resposta_direta": "<vazio, ou a ' +
     'resposta quando ninguém for chamado>"}.',
     REGRAS_DO_HERMES,
+    REGRA_DE_MARCA,
   ].join('\n\n')
 }
 

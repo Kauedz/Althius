@@ -73,7 +73,7 @@ export function SecaoReceitaFederal({
             <h3 className="text-sm font-medium text-al-ink">Dados da Receita Federal (CNPJ)</h3>
             <p className="text-xs text-al-muted">
               {receita ? (
-                <>Razão Social: <span className="font-medium text-al-ink">{receita.razaoSocial}</span> ({receita.fonte === 'apify' ? 'Apify' : 'BrasilAPI'})</>
+                <>Razão Social: <span className="font-medium text-al-ink">{receita.razaoSocial}</span> (Receita Federal)</>
               ) : (
                 'Dados cadastrais oficiais, quadro societário (QSA) e CNAE'
               )}

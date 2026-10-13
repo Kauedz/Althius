@@ -161,7 +161,7 @@ function emailDoPerfil(raw: Record<string, unknown>): string | null {
   const emails = raw.emails
   if (emails === undefined || emails === null) return null
   if (!Array.isArray(emails)) {
-    throw new Error('formato inesperado do campo emails na saída do actor')
+    throw new Error('formato inesperado do campo emails na resposta da fonte')
   }
   for (const item of emails) {
     const entrada = registro(item)
@@ -181,6 +181,12 @@ export interface OpcoesApifyContatos {
   maxCostUsdEmployees?: number
   maxCostUsdProfile?: number
 }
+
+/**
+ * A origem que fica gravada junto do dado coletado e que o cliente pode ler (`fonte`, `lgpd.origem`): a descrição pública
+ * do dado, nunca o fornecedor nem o actor, que ficam em `action_costs` e no log.
+ */
+export const ORIGEM_PUBLICA_DO_LINKEDIN = 'linkedin_publico'
 
 /**
  * Provedor nativo baseado no Apify.
@@ -271,7 +277,7 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
         localizacao: localizacao || undefined,
         foto: foto || undefined,
         persona: classificarPersona(cargo, headline),
-        fonte: 'apify:harvestapi~linkedin-company-employees',
+        fonte: ORIGEM_PUBLICA_DO_LINKEDIN,
       })
     }
 
@@ -329,7 +335,7 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
 
     const item = registro(exec.items[0])
     const email = item ? emailDoPerfil(item) : null
-    return email ? { canal: 'email', valor: email, fonte: `apify:${this.actorProfile}` } : null
+    return email ? { canal: 'email', valor: email, fonte: ORIGEM_PUBLICA_DO_LINKEDIN } : null
   }
 }
 

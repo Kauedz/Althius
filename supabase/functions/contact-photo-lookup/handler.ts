@@ -62,7 +62,7 @@ export interface Actor {
 /** O Apify respondeu, mas recusou ou falhou: a execução não deu resultado. */
 export class ActorRequestError extends Error {
   constructor(readonly status: number, readonly detail = '') {
-    super(`Apify respondeu HTTP ${status}`)
+    super(`A fonte pública respondeu HTTP ${status}`)
     this.name = 'ActorRequestError'
   }
 }
@@ -70,7 +70,7 @@ export class ActorRequestError extends Error {
 /** O Actor não terminou no prazo. */
 export class ActorTimeoutError extends Error {
   constructor() {
-    super('O Actor do Apify não respondeu a tempo')
+    super('Nossa busca não respondeu a tempo.')
     this.name = 'ActorTimeoutError'
   }
 }
@@ -212,9 +212,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (resultado.outcome === 'found') return respond({ status: 'found' })
     if (resultado.outcome === 'not_found') return respond({ status: 'not_found' })
     if (resultado.errorCode === 'timeout') {
-      return respond({ error: 'O Apify não respondeu a tempo. Tente de novo em alguns minutos.' }, 504)
+      return respond({ error: 'Nossa busca não respondeu a tempo. Tente de novo em alguns minutos.' }, 504)
     }
-    return respond({ error: 'O Apify não conseguiu buscar a foto agora. Tente de novo em alguns minutos.' }, 502)
+    return respond({ error: 'A fonte pública está indisponível agora. Tente de novo em alguns minutos.' }, 502)
   })
 }
 

@@ -97,7 +97,7 @@ const db: DbEnrichment = {
       p_photo_url: args.photoUrl ?? null,
       p_persona: args.persona ?? null,
       p_source_actor: args.sourceActor ?? 'harvestapi~linkedin-company-employees',
-      p_source_provider: args.sourceProvider ?? 'apify',
+      p_source_provider: args.sourceProvider ?? 'linkedin_publico',
       p_source_data: args.sourceData ?? null,
     })
     if (error) throw error
@@ -147,7 +147,7 @@ const db: DbEnrichment = {
       p_contact_id: contactId,
       p_channel: channel,
       p_value: value ?? null,
-      p_source: source ?? 'apify',
+      p_source: source ?? 'linkedin_publico',
     })
     if (error) throw error
     const [row] = (data ?? []) as Array<{ success: boolean; debited_credits: number }>

@@ -123,7 +123,7 @@ Deno.test('o Apify recusa: a falha é gravada com o código HTTP e a resposta é
   const { actor } = fakeActor(new ActorRequestError(500, 'boom'))
   const resposta = await createHandler({ ...DEPS, db, actor })(pedido(CORPO))
   assertEquals(resposta.status, 502)
-  assertStringIncludes((await resposta.json()).error, 'não conseguiu buscar a foto')
+  assertStringIncludes((await resposta.json()).error, 'A fonte pública está indisponível agora')
   assertEquals([gravados[0].outcome, gravados[0].errorCode], ['failed', 'actor_http_500'])
 })
 
