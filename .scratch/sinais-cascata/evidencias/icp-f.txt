@@ -1,0 +1,76 @@
+=== VERMELHO ===
+--- icp-f-dados.test.ts (módulo ainda não existe)
+Check supabase/functions/_shared/cascata-de-sinais/passos/icp-f-dados.test.ts
+TS2307 [ERROR]: Cannot find module 'file:///home/user/Althius/.claude/worktrees/agent-a3178e6ac4717e156/supabase/functions/_shared/cascata-de-sinais/passos/icp-f-dados.ts'.
+    at file:///home/user/Althius/.claude/worktrees/agent-a3178e6ac4717e156/supabase/functions/_shared/cascata-de-sinais/passos/icp-f-dados.test.ts:4:105
+
+error: Type checking failed.
+
+  info: The program failed type-checking, but it still might work correctly.
+  hint: Re-run with --no-check to skip type-checking.
+--- icp-f.test.ts (stub sem passos)
+F1: a primeira rodada só grava a base (filiais ativas pelos 14 dígitos), sem Sinal e sem consultar notícia ... FAILED (24ms)
+F1: filiais ativas novas desde a rodada anterior viram um Sinal da Conta, e a notícia reforça a evidência ... FAILED (2ms)
+F1: a mesma rodada de novo (outra chave) não cria o Sinal duas vezes ... FAILED (770µs)
+F1: a notícia que falha não derruba o Sinal: execução parcial, com o Sinal gravado ... FAILED (704µs)
+F1: a notícia sem nenhuma manchete que sirva deixa a evidência como estava ... FAILED (743µs)
+F1: sem filial nova a fotografia se renova e nada é emitido ... FAILED (654µs)
+F1: rede grande demais para a fotografia guarda só a contagem e avisa quando a contagem sobe ... FAILED (2ms)
+F1: sem Conta com CNPJ não há consulta nem custo ... FAILED (650µs)
+F1: cada rodada fotografa as Contas sem fotografia primeiro e depois as mais antigas, no máximo 35 ... FAILED (856µs)
+F1: duas Contas da mesma raiz fazem uma só consulta e cada uma recebe o seu Sinal ... FAILED (543µs)
+F1: o mapa de filiais que falha não grava fotografia nem Sinal e a mensagem é do produto ... FAILED (504µs)
+F1: o índice sem a raiz (resultado vazio) não apaga a base nem emite Sinal ... ok (277µs)
+F2: a primeira rodada só grava a base (município, UF e marcas do endereço), sem Sinal e sem dado pessoal ... FAILED (611µs)
+F2: a sede em outro município vira Sinal, sem o endereço completo na frase nem na evidência ... FAILED (570µs)
+F2: a mudança de endereço dentro do mesmo município também é Sinal ... FAILED (435µs)
+F2: o mesmo endereço escrito de outro jeito não é mudança; a fotografia se renova ... FAILED (1ms)
+F2: a Conta com o CNPJ de uma filial é consultada pela matriz da raiz ... FAILED (349µs)
+F2: a consulta cai para a BrasilAPI (formato real) quando o serviço de CNPJ falha, e o quadro societário nunca é lido ... FAILED (436µs)
+F2: a mesma troca de sede, rodada de novo no mês, conta uma vez só ... FAILED (486µs)
+F2: endereço que a fonte não trouxe não apaga a base nem vira Sinal ... FAILED (391µs)
+F3: a vaga de logística de uma Conta vira Sinal; título de outra área, vaga velha e termo de comex não ... ok (171ms)
+F3: a vaga de comex não vira Sinal de logística (a confirmação lê os termos da cascata, não um tema fixo) ... ok (1ms)
+F3: a mesma vaga, rodada de novo com outra chave, não cria o Sinal duas vezes ... ok (3ms)
+F4: o Sinal sem fonte não reserva crédito, não chama fonte nenhuma e explica o motivo sem citar fornecedor ... ok (397µs)
+o pior caso de cada cascata do ICP F cabe no teto dela ... ok (165µs)
+o teto duro vale mesmo com o actor caro: o passo seguinte que estouraria o teto não começa ... FAILED (533µs)
+FAILED | 6 passed | 20 failed (225ms)
+
+=== VERDE ===
+F1: a primeira rodada só grava a base (filiais ativas pelos 14 dígitos), sem Sinal e sem consultar notícia ... ok
+F1: filiais ativas novas desde a rodada anterior viram um Sinal da Conta, e a notícia reforça a evidência ... ok
+F1: a mesma rodada de novo (outra chave) não cria o Sinal duas vezes ... ok
+F1: a notícia que falha não derruba o Sinal: execução parcial, com o Sinal gravado ... ok
+F1: a notícia sem nenhuma manchete que sirva deixa a evidência como estava ... ok
+F1: sem filial nova a fotografia se renova e nada é emitido ... ok
+F1: rede grande demais para a fotografia guarda só a contagem e avisa quando a contagem sobe ... ok
+F1: sem Conta com CNPJ não há consulta nem custo ... ok
+F1: cada rodada fotografa as Contas sem fotografia primeiro e depois as mais antigas, no máximo 35 ... ok
+F1: duas Contas da mesma raiz fazem uma só consulta e cada uma recebe o seu Sinal ... ok
+F1: o mapa de filiais que falha não grava fotografia nem Sinal e a mensagem é do produto ... ok
+F1: o índice sem a raiz (resultado vazio) não apaga a base nem emite Sinal ... ok
+F2: a primeira rodada só grava a base (município, UF e marcas do endereço), sem Sinal e sem dado pessoal ... ok
+F2: a sede em outro município vira Sinal, sem o endereço completo na frase nem na evidência ... ok
+F2: a mudança de endereço dentro do mesmo município também é Sinal ... ok
+F2: o mesmo endereço escrito de outro jeito não é mudança; a fotografia se renova ... ok
+F2: a Conta com o CNPJ de uma filial é consultada pela matriz da raiz ... ok
+F2: a consulta cai para a BrasilAPI (formato real) quando o serviço de CNPJ falha, e o quadro societário nunca é lido ... ok
+F2: a mesma troca de sede, rodada de novo no mês, conta uma vez só ... ok
+F2: endereço que a fonte não trouxe não apaga a base nem vira Sinal ... ok
+F3: a vaga de logística de uma Conta vira Sinal; título de outra área, vaga velha e termo de comex não ... ok
+F3: a vaga de comex não vira Sinal de logística (a confirmação lê os termos da cascata, não um tema fixo) ... ok
+F3: a mesma vaga, rodada de novo com outra chave, não cria o Sinal duas vezes ... ok
+F4: o Sinal sem fonte não reserva crédito, não chama fonte nenhuma e explica o motivo sem citar fornecedor ... ok
+o pior caso de cada cascata do ICP F cabe no teto dela ... ok
+o teto duro vale mesmo com o actor caro: o passo seguinte que estouraria o teto não começa ... ok
+o CNPJ da matriz é a raiz, 0001 e os dígitos verificadores (numérico e alfanumérico) ... ok
+o CNPJ da matriz é vazio para o que não é CNPJ ... ok
+o CNPJ formatado leva a máscara ... ok
+o endereço da sede guarda município, UF e só a marca (hash) da rua e do CEP, nunca o texto ... ok
+o endereço sem município e UF não serve ... ok
+mudança de sede: outro município ou UF, outra rua ou número; o mesmo endereço escrito de outro jeito não conta ... ok
+mudança de sede: sem rua num dos lados, só município, UF e CEP decidem ... ok
+o hash é estável e distingue textos ... ok
+o município aparece em português ("SAO PAULO" vira "Sao Paulo", com as preposições em minúsculas) ... ok
+ok | 35 passed | 0 failed
