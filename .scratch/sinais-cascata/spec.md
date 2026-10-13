@@ -13,7 +13,7 @@
 
 **Um Sinal é uma cascata de 1..N passos** (actor | fonte pública aberta | regra interna), a saída normalizada de um passo é a entrada do seguinte.
 
-- UMA reserva de crédito por execução (`reserve_credits`), liquidada no fim pelo custo real × 3 (arredondado para cima, nunca acima do reservado); `release_credits` se falha. Chave idempotente por execução.
+- UMA reserva de crédito por execução (`reserve_credits`), liquidada no fim pelo custo real × 3 ÷ US$ 0,30 por crédito, arredondado para baixo, nunca acima do reservado (mínimo de 1 crédito quando há Sinal novo). Falha ou aborto sem custo libera a reserva (`release_credits`); com custo parcial, liquida o que foi consumido. Chave idempotente por execução.
 - UM registro de execução (`signal_cascade_runs`) com o rastro de cada passo (`signal_cascade_run_steps`: run id, actor, versão, conta usada, custo, status HTTP, erro real truncado e sem segredo).
 - Teto duro de dólar por cascata: o motor não começa um passo que passe do que resta.
 - `record_signal` no fim (Conta) ou `record_market_signal` (escopo `mercado`, feed do Workspace, sem Conta).

@@ -119,3 +119,11 @@ Deno.test('a falha do motor responde com uma mensagem neutra e o erro real fica 
   assertEquals(corpo.mensagem, 'Não foi possível fazer a busca agora. Tente de novo em alguns minutos.')
   assert(JSON.stringify(logs).includes('permission denied'))
 })
+
+Deno.test('a validação da equipe (validacao: true) deixa rodar um Sinal em teste; sem ela, o pedido nunca o permite', async () => {
+  const { pedir, pedidos } = montar()
+  await pedir({ ...valido, validacao: true })
+  await pedir({ ...valido, validacao: 'sim' })
+  await pedir({ ...valido })
+  assertEquals(pedidos.map((p) => p.permitirTeste), [true, false, false])
+})

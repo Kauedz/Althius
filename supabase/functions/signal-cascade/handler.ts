@@ -102,7 +102,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         ...(contas ? { idsDeContas: contas as string[] } : {}),
         ...(criterios ? { criterios: criterios as Record<string, unknown> } : {}),
         ...(teto !== undefined ? { tetoCreditos: teto as number } : {}),
-        permitirTeste: false,
+        // Só a equipe, com a chave de serviço, valida um Sinal ainda em teste; o Hermes nunca envia este campo.
+        permitirTeste: corpo.validacao === true,
         prazoFinal: agora() + PRAZO_EM_MS,
       })
       return responder({

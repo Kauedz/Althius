@@ -1,0 +1,16 @@
+# ICP A (resto): evidência
+Vermelho: a fatia nasceu junto da infraestrutura (os passos icp-a-resto não existiam; ver commit eca92de, que traz teste e código juntos).
+Verde em 13/10/2026:
+running 7 tests from ./supabase/functions/_shared/cascata-de-sinais/passos/icp-a-resto.test.ts
+A3: a NCM com importação nos últimos 3 meses e nenhuma nos 12 anteriores vira Sinal de mercado ... ok (35ms)
+A3: os capítulos e o piso do pedido valem mais que o padrão; sem nada novo, a execução termina sem Sinal ... ok (1ms)
+A3: a janela recente vazia encerra a cascata sem consultar a base ... ok (626µs)
+A4: o porto que subiu 25% ou mais sobre a média dos 3 meses anteriores, com volume relevante, vira Sinal de mercado ... ok (1ms)
+A4: o porto sem os 3 meses anteriores não gera Sinal (sem base, sem comparação) ... ok (2ms)
+a Comex Stat fora do ar falha a cascata com mensagem neutra e cobra nada ... ok (1ms)
+as cascatas sem fonte do ICP A não reservam crédito e explicam o motivo sem citar fornecedor ... ok (276µs)
+
+ok | 7 passed | 0 failed (47ms)
+
+NOTICE:  database "pgtap_a" does not exist, skipping
+ok     cascatas_icp_a_resto.sql: 16/16
