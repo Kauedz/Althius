@@ -67,6 +67,24 @@ export const MENSAGENS = {
   nada: 'A busca terminou e não encontrou Sinais nas suas Contas desta vez.',
 } as const
 
+const CPF_NO_NOME = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/
+
+/** Até 5 empresas achadas sem Conta: só CNPJ (14 dígitos) e razão social. Nome com CPF fica de fora. */
+function amostraDeValidacao(valor: unknown): { cnpj: string | null; nome: string }[] {
+  if (!Array.isArray(valor)) return []
+  const saida: { cnpj: string | null; nome: string }[] = []
+  for (const item of valor) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const nome = typeof o.nome === 'string' ? o.nome.trim() : ''
+    const cnpj = typeof o.cnpj === 'string' && /^\d{14}$/.test(o.cnpj) ? o.cnpj : null
+    if (!nome || nome.length > 200 || CPF_NO_NOME.test(nome)) continue
+    saida.push({ cnpj, nome })
+    if (saida.length === 5) break
+  }
+  return saida
+}
+
 const DESFECHO_DA_ABERTURA: Partial<Record<ResultadoDaAbertura['outcome'], [Desfecho, string]>> = {
   em_teste: ['em_teste', MENSAGENS.em_teste],
   indisponivel: ['indisponivel', MENSAGENS.indisponivel],
@@ -272,7 +290,11 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
       }
     }
 
-    const tentativas: AlternativaDoPasso[] = [{ kind: 'actor', actorId: passo.actorId ?? undefined }, ...passo.fallbacks]
+    // A busca longa do Diário Oficial ignora a consulta e custa caro: não entra como reserva, mesmo que o banco ainda a liste.
+    const tentativas: AlternativaDoPasso[] = [
+      { kind: 'actor', actorId: passo.actorId ?? undefined },
+      ...passo.fallbacks.filter((f) => !(f.kind === 'actor' && f.actorId === 'jenko_systems~diario-oficial-uniao-dou')),
+    ]
     let gasto = 0
     let ultimaMensagem: string = MENSAGEM_DA_FONTE.indisponivel
     let proximaTentativa = 1
@@ -512,6 +534,17 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     mensagem = temSinais
       ? `${novos} ${novos === 1 ? 'Sinal novo' : 'Sinais novos'} gravado${novos === 1 ? '' : 's'}${repetidos ? `; ${repetidos} já ${repetidos === 1 ? 'era conhecido' : 'eram conhecidos'}` : ''}.`
       : MENSAGENS.nada
+  }
+
+  if (pedido.permitirTeste) {
+    const amostra = amostraDeValidacao(ctxBase.memoria.get('semContaAmostra'))
+    if (amostra.length) {
+      try {
+        await db.gravarAmostraValidacao({ runId, amostra })
+      } catch (e) {
+        log({ type: 'cascata', runId, outcome: 'validation_sample_failed', message: redigir(e instanceof Error ? e.message : e, [], 300) })
+      }
+    }
   }
 
   const custo = arredondar(acumulado)

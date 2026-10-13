@@ -13,6 +13,7 @@ Quem chama: só o servidor, com a chave de serviço no `Authorization` (o worker
 - `criterios`: `termos` e `periodo`, quando o tipo os aceita.
 - `tetoCreditos` (1 a 50): quanto quem pede aceita gastar. O teto em dólar da execução é o menor entre o da cascata e este; **nenhum passo começa** se o custo acumulado mais a estimativa dele passar do teto, e o `maxTotalChargeUsd` de cada run cabe no que resta.
 - `chave`: repetir a mesma chave não reserva, não cobra nem grava de novo. Sem ela, a função cria uma.
+- `validacao: true` (só a equipe; o Hermes nunca envia): deixa rodar um Sinal ainda em teste. A execução guarda até 5 CNPJs e razões sociais achados que não são Conta, sem dado de pessoa, para criar a Conta e repetir a busca.
 
 `{ action: 'catalogo' }` devolve `{ sinais: [{ sinal, icp, nome, estado, escopo, motivo }] }`, com `estado` em `disponivel`, `em_validacao`, `sem_fonte` ou `fora_do_ar`.
 

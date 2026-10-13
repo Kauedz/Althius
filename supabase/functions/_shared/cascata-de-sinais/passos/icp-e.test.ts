@@ -457,7 +457,7 @@ Deno.test('licença de instalação no DOU: vira Sinal de mercado, só a publica
   marcaLimpa(r)
 })
 
-Deno.test('licença de instalação: o monitor é o principal, a frase vai na seção 1, e ato de abril dispara a reserva', async () => {
+Deno.test('licença de instalação: o monitor é o principal; ato de abril não vira Sinal e a busca longa não roda', async () => {
   const def = DEF_LICENCA_DOU()
   def.capUsd = 0.8
   def.steps[0] = {
@@ -494,11 +494,47 @@ Deno.test('licença de instalação: o monitor é o principal, a frase vai na se
     workspaceId: 'ws-1', userId: 'u1', signalType: 'licenca_instalacao_dou', origem: 'rotina', chave: 'k-dou',
   })
   const posts = fake.requisicoes.filter((q) => q.metodo === 'POST')
-  assertEquals(posts.map((p) => p.caminho.split('/')[3]), ['brasildados~dou-monitor', 'jenko_systems~diario-oficial-uniao-dou'])
+  assertEquals(posts.map((p) => p.caminho.split('/')[3]), ['brasildados~dou-monitor'])
   assertEquals(posts[0].corpo, { q: ['licença de instalação'], s: 'DO1' })
-  assertEquals(r.mercado.map((m) => m.eventKey), ['licenca|li-90'])
-  assert(r.mercado[0].evidence.includes('Licença de Instalação') || r.mercado[0].phrase.includes('Licença de instalação'), JSON.stringify(r.mercado[0]))
+  assertEquals(r.mercado, [])
   assert(!JSON.stringify(r).includes('medicamento'))
+  marcaLimpa(r)
+})
+
+Deno.test('licença de instalação: data dd/mm/aaaa dos últimos 3 dias, dentro da janela de 14, vira Sinal e não chama a busca longa', async () => {
+  const def = DEF_LICENCA_DOU()
+  def.capUsd = 0.8
+  def.steps[0] = {
+    ...def.steps[0],
+    actorId: 'brasildados~dou-monitor',
+    estFixedUsd: 0.1,
+    estPerItemUsd: 0.01,
+    estItems: 10,
+    maxItems: 20,
+    fallbacks: [{ kind: 'actor', actorId: 'jenko_systems~diario-oficial-uniao-dou', priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.2, estPerItemUsd: 0.0001 }],
+    inputTemplate: { termo: '"licença de instalação"', secao: 'do1', janelaDias: 14 },
+  }
+  const fake = apifyFalso((_t, actorId) => {
+    if (actorId === 'brasildados~dou-monitor') {
+      return {
+        itens: [dou({
+          data: '11/10/2026', ementa: '', resumo: 'O IBAMA concede Licença de Instalação 90/2026 à indústria de cimento',
+          titulo: 'Extrato', url: 'https://www.in.gov.br/web/dou/-/li-90', url_title: 'li-90', orgao: 'IBAMA',
+        })],
+        usageTotalUsd: 0.11,
+      }
+    }
+    return { itens: [dou({ data: '12/10/2026', titulo: 'não devia', url: 'https://www.in.gov.br/web/dou/-/reserva', url_title: 'reserva' })], usageTotalUsd: 0.2 }
+  })
+  const fonte = clienteAssincronoDoApify({ tokens: [TOKEN], fetchFn: fake.fetchFn, dormir: () => Promise.resolve(), esperaDoCustoMs: 0, log: () => {} })
+  const banco = dbFalso(def, { contas: [] })
+  const r = await rodarCascata({ db: banco.db, fonte, registro: registroDePassos(nunca), agora: () => AGORA, log: () => {} }, {
+    workspaceId: 'ws-1', userId: 'u1', signalType: 'licenca_instalacao_dou', origem: 'rotina', chave: 'k-dou-3d',
+  })
+  const posts = fake.requisicoes.filter((q) => q.metodo === 'POST')
+  assertEquals(posts.map((p) => p.caminho.split('/')[3]), ['brasildados~dou-monitor'])
+  assertEquals(r.mercado.map((m) => m.eventKey), ['licenca|li-90'])
+  assertEquals(r.mercado[0].firedAt, '2026-10-11T12:00:00.000Z')
   marcaLimpa(r)
 })
 

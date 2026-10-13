@@ -244,6 +244,19 @@ Deno.test('lista vazia de verdade não dispara a alternativa', async () => {
   assertEquals(r.sinais.length, 0)
 })
 
+Deno.test('a busca longa do Diário Oficial não roda como reserva, mesmo quando o principal falha', async () => {
+  const def = cascataDeTeste()
+  def.steps[0].fallbacks = [{ kind: 'actor', actorId: 'jenko_systems~diario-oficial-uniao-dou', priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.2, estPerItemUsd: 0.0001 }]
+  const { db } = dbFalso(def)
+  const { fonte, chamadas } = fonteFalsa({
+    'time~um': new ErroDaFonte('http', 'A fonte pública está indisponível agora.', { statusHttp: 500, erroReal: 'boom' }),
+    'jenko_systems~diario-oficial-uniao-dou': exec([{ n: 1 }], 0.2),
+    'time~dois': exec([{ n: 1, nome: 'um' }], 0.01),
+  })
+  await rodarCascata({ db, fonte, registro: registro(), agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals(chamadas.map((c) => c.actorId).includes('jenko_systems~diario-oficial-uniao-dou'), false)
+})
+
 Deno.test('se nenhuma tentativa confere com a consulta, o resultado fora da janela não vira Sinal', async () => {
   const def = cascataDeTeste()
   def.steps[0].fallbacks = [{ kind: 'actor', actorId: 'time~reserva', priceModel: 'PAY_PER_EVENT', estPerItemUsd: 0.001 }]

@@ -198,6 +198,8 @@ export interface DbDaCascata {
     repetidos: number
     erroAmigavel: string | null
   }): Promise<{ creditosCobrados: number }>
+  /** Na validação da equipe: até 5 CNPJs e razões sociais achados que não são Conta. Sem dado de pessoa. */
+  gravarAmostraValidacao(args: { runId: string; amostra: { cnpj: string | null; nome: string }[] }): Promise<void>
   abrirPasso(args: {
     runId: string
     ordem: number

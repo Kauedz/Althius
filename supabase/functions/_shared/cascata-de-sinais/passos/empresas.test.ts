@@ -33,3 +33,18 @@ Deno.test('casar_fatos_com_contas: um Sinal por fato da Conta, os fatos repetido
   ])
   assertEquals([c.memoria.get('semConta'), c.memoria.get('semContaNomes')], [1, ['Gama Ltda']])
 })
+
+Deno.test('casar_fatos_com_contas: a amostra para validação leva até 5 CNPJs e razões sociais, e descarta nome com CPF', () => {
+  const empresas = [
+    ...Array.from({ length: 6 }, (_, i) => itemDeEmpresaComFatos({
+      empresa: { nome: `EMPRESA ${i} LTDA`, cnpj: String(10_000_000_000_000 + i) },
+      fatos: [fato('a')],
+    })),
+    itemDeEmpresaComFatos({ empresa: { nome: 'JOAO 123.456.789-09', cnpj: '99888777000166' }, fatos: [fato('z')] }),
+  ]
+  const c = ctx([])
+  casarFatosComContas.executar!(empresas, c)
+  assertEquals(c.memoria.get('semContaAmostra'), [0, 1, 2, 3, 4].map((i) => ({
+    cnpj: String(10_000_000_000_000 + i), nome: `EMPRESA ${i} LTDA`,
+  })))
+})

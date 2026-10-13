@@ -32,6 +32,7 @@ export function dbFalso(
   const mercado: SinalDeMercado[] = []
   const fotografias = new Map<string, { takenAt: string; data: Record<string, unknown> }[]>(Object.entries(opcoes.fotografias ?? {}).map(([k, v]) => [k, v]))
   const gravadas: { chave: string; data: Record<string, unknown>; takenAt?: string }[] = []
+  const amostras: { runId: string; amostra: { cnpj: string | null; nome: string }[] }[] = []
   let proximoPasso = 1
   const db: DbDaCascata = {
     definicao: () => Promise.resolve(definicao),
@@ -45,6 +46,10 @@ export function dbFalso(
       fechamentos.push(args)
       const creditos = args.custoUsd === null ? 0 : Math.floor(args.custoUsd * (definicao?.multiplier ?? 3) / (opcoes.usdPorCredito ?? 0.3))
       return Promise.resolve({ creditosCobrados: args.novos > 0 ? Math.max(creditos, 1) : creditos })
+    },
+    gravarAmostraValidacao: (a) => {
+      amostras.push(a)
+      return Promise.resolve()
     },
     abrirPasso: (a) => {
       const id = `passo-${proximoPasso++}`
@@ -85,7 +90,7 @@ export function dbFalso(
       return Promise.resolve(novo)
     },
   }
-  return { db, passos, sinais, aberturas, fechamentos, mercado, gravadas }
+  return { db, passos, sinais, aberturas, fechamentos, mercado, gravadas, amostras }
 }
 
 /** Uma cascata sintética para os testes do motor. */

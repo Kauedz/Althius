@@ -3,12 +3,12 @@
 ## Sinais em cascata — validação de produção de 13/10/2026
 
 - **Ticket:** `.scratch/sinais-cascata/issues/15-validacao-de-produccao-2026-10-13.md`
-- **Status:** ready-for-human (código e Deno verdes; falta o Nan aplicar a migração, cadastrar os segredos e publicar as funções, com o CI verde)
+- **Status:** ready-for-human (código e Deno verdes; falta o Nan aplicar as migrações, cadastrar os segredos e publicar as funções, com o CI verde)
 - **Branch:** `cursor/validacao-producao-sinais-6455`
 - **PR:** https://github.com/Kauedz/Althius/pull/194 (não mergear daqui)
-- **O que muda:** rodízio `APIFY_TOKEN_1`..`APIFY_TOKEN_5` mais o legado, com espera persistida; CNPJ em lotes de 5 e BrasilAPI no TIMED-OUT; espera de 429 na NCM; vaga de logística só consulta página de Conta e pula o CNPJ perto do prazo; meta ESG aceita domínio da marca; frase "Sinais novos gravados".
-- **Migração nova (não aplicar daqui):** `supabase/migrations/20261014150000_rodizio_das_contas_de_coleta.sql`. Sem deploy. Sem escrita no projeto remoto. Segredos novos: `APIFY_TOKEN_1` a `APIFY_TOKEN_5`. Manter `APIFY_TOKEN` (a foto de Contato ainda o lê).
-- **Testes (2026-10-13):** vermelho primeiro (14 falhas, inclusive "Sinalis"). Verde: `deno check supabase/functions/*/index.ts` limpo; `deno test supabase/functions` 1316 passed / 0 failed / 32 ignored. pgTAP novo não rodou aqui (sem Postgres); o job Banco do CI executa `supabase/tests/rodizio_das_contas_de_coleta.sql` (16 asserts).
+- **O que muda:** rodízio `APIFY_TOKEN_1`..`APIFY_TOKEN_5` mais o legado, com espera persistida; CNPJ em lotes de 5 e BrasilAPI no TIMED-OUT; espera de 429 na NCM; vaga de logística só consulta página de Conta e pula o CNPJ perto do prazo; meta ESG aceita domínio da marca; frase "Sinais novos gravados". DOU aceita data dd/mm/aaaa num trecho mais curto que a janela pedida e tira a busca longa das reservas. Cooperativa abre a janela para cerca de 120 dias (ou o mês de referência da base) e não chama a outra base quando a recusa é só o atraso. Na validação, a execução guarda até 5 CNPJs sem Conta.
+- **Migração nova (não aplicar daqui):** `supabase/migrations/20261014150000_rodizio_das_contas_de_coleta.sql`, `20261014160000_dou_sem_busca_longa.sql`, `20261014170000_amostra_de_validacao.sql`. Sem deploy. Sem escrita no projeto remoto. Segredos novos: `APIFY_TOKEN_1` a `APIFY_TOKEN_5`. Manter `APIFY_TOKEN` (a foto de Contato ainda o lê).
+- **Testes (2026-10-13):** vermelho primeiro (itens 0–5: 14 falhas, inclusive "Sinalis"; itens 6–8: 8 falhas). Verde: `deno check supabase/functions/*/index.ts` limpo; `deno test supabase/functions` 1324 passed / 0 failed / 32 ignored. pgTAP novo não rodou aqui (sem Postgres); o job Banco do CI executa `supabase/tests/rodizio_das_contas_de_coleta.sql` (16 asserts) e `supabase/tests/amostra_de_validacao.sql` (8 asserts).
 - **O que o humano roda, depois do CI verde:** aplicar a migração no `ycbdilsmydvzezhlymty` (a `20261014140000` antes, se ainda não estiver), cadastrar `APIFY_TOKEN_1`..`APIFY_TOKEN_5` no terminal sem colar no chat, e publicar `signal-cascade`, `signal-runner`, `signal-scan`, `account-discovery` e `account-enrichment`. Comandos no ticket, seção Passos do Nan. Não marcar cascata como disponível.
 
 ## Sinais em cascata — fontes reprovadas no teste real (2026-10-13)

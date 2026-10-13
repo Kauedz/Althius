@@ -1,9 +1,8 @@
 // ICP E, Sinal de licença de instalação (parcial, de MERCADO): o Diário Oficial da União publica as licenças federais (IBAMA
 // e afins); os órgãos ambientais estaduais (CETESB, FEAM, INEA...) têm portais distintos e ficam sem fonte.
 // Principal: brasildados/dou-monitor, entrada `{q: [frase], s: 'DO1'}`. Só olha cerca de 3 dias e casa palavra solta, então
-// o normalizar fica com a frase exata ("licença de instalação") dentro da janela. Reserva: jenko_systems/diario-oficial-uniao-dou
-// (esquema publicado, leitura da API pública em 13/10/2026): `mode` ("busca"), `termo` (aspas = busca exata), `secao`,
-// `data_inicio`/`data_fim` (AAAA-MM-DD), `max_resultados` (até 500), `texto_completo`.
+// o normalizar fica com a frase exata ("licença de instalação") dentro da janela. O monitor devolve `data` em dd/mm/aaaa e
+// só cobre cerca de 3 dias: esse trecho confere quando cabe na janela pedida (7 ou 14), mesmo mais curto. Não há reserva.
 // Saída: `data` ("dd/mm/aaaa"), `secao`, `tipo`, `titulo`, `subtitulo`, `orgao`, `ementa` ou `resumo`, `edicao`, `pagina`, `url`.
 // O Sinal vai para o feed do Workspace (sem Conta).
 //
@@ -79,7 +78,7 @@ export const licencasDou: ImplDoPasso = {
     })
   },
 
-  /** Bruto que some no filtro (fora da frase ou da data) não serve: a reserva assume. */
+  /** Fora da frase ou da data não serve. Data dd/mm/aaaa dentro da janela pedida confere, mesmo que a fonte só cubra uns 3 dias. */
   confereConsulta: (_brutos, saida) => saida.length > 0,
 }
 

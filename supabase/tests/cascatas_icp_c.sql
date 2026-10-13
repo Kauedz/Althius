@@ -39,8 +39,8 @@ select ok(
   (select bool_and(s.known_price is not null and s.known_price ->> 'fonte' like '%12/10/2026%') from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.icp = 'C' and s.kind = 'actor'),
   'todo actor registra o preço conhecido e a fonte dele');
 select is(
-  (select jsonb_array_length(s.fallbacks) || ':' || (s.fallbacks -> 0 ->> 'actorId') from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
-  '1:jenko_systems~diario-oficial-uniao-dou', 'C2 tem a busca longa do DOU como reserva do monitor');
+  (select coalesce(jsonb_array_length(s.fallbacks), 0)::text from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type = 'mudanca_regulatoria' and s.ordem = 1),
+  '0', 'C2 não reserva a busca longa do Diário Oficial');
 select is(
   (select sum(jsonb_array_length(s.fallbacks))::integer from private.signal_cascade_steps s join private.signal_cascades c on c.id = s.cascade_id where c.signal_type in ('processos_publicos', 'recuperacao_judicial')),
   0, 'o actor de processos individuais (traz partes) não é alternativa de nada');
