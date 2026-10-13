@@ -59,3 +59,5 @@ jobs:
       - run: deno test supabase/functions
       # Ninguém escreve o endereço da Unipile nem lê a chave da variável de função (canais-16): lê arquivos, então precisa de --allow-read.
       - run: deno test --allow-read=supabase/functions supabase/functions/_shared/unipile/sem-base-fixa.test.ts
+      # Os testes dos ICPs G e H leem a migração que registra os Sinais (provam que o código e o banco combinam): precisam de --allow-read.
+      - run: deno test --allow-read=supabase/migrations,supabase/functions supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts

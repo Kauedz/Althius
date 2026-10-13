@@ -355,8 +355,12 @@ Deno.test('H3: sem a tabela no modelo do passo, o Sinal termina vazio em vez de 
 // ---------------------------------------------------------------------------------------------------------------------
 // Sem fonte e registro.
 
-Deno.test('H4: CPR registrada e área no CAR são resultado válido sem fonte: o motivo vai ao usuário, sem coleta e sem crédito', async () => {
-  const sql = await Deno.readTextFile(new URL('../../../../migrations/20261013220000_cascatas_icp_h.sql', import.meta.url))
+// Lê a migração: precisa de --allow-read (o passo próprio do CI); sem a permissão, é ignorado.
+const ARQUIVO_DA_MIGRACAO = new URL('../../../../migrations/20261013220000_cascatas_icp_h.sql', import.meta.url)
+const podeLer = (await Deno.permissions.query({ name: 'read', path: ARQUIVO_DA_MIGRACAO })).state === 'granted'
+
+Deno.test({ name: 'H4: CPR registrada e área no CAR são resultado válido sem fonte: o motivo vai ao usuário, sem coleta e sem crédito', ignore: !podeLer, async fn() {
+  const sql = await Deno.readTextFile(ARQUIVO_DA_MIGRACAO)
   for (const tipo of ['cpr_registrada', 'area_no_car']) {
     const bloco = sql.split('select private.seed_signal_cascade').find((b) => b.includes(`"signalType": "${tipo}"`))
     assert(bloco, `${tipo} está na migração`)
@@ -373,7 +377,7 @@ Deno.test('H4: CPR registrada e área no CAR são resultado válido sem fonte: o
     })
     assertEquals([r.desfecho, r.mensagem, r.creditosCobrados, banco.aberturas.length], ['sem_fonte', motivo, 0, 0])
   }
-})
+} })
 
 Deno.test('o ICP H registra os quatro handlers dos seus passos', () => {
   const r = passosDoIcp_h()

@@ -47,7 +47,11 @@ interface Seed {
   }[]
 }
 
-const MIGRACAO = Deno.readTextFileSync(new URL('../../../../migrations/20261013210000_cascatas_icp_g.sql', import.meta.url))
+// Os testes leem a migração: precisam de --allow-read (o passo próprio do CI); no `deno test` sem permissão, são ignorados.
+const ARQUIVO_DA_MIGRACAO = new URL('../../../../migrations/20261013210000_cascatas_icp_g.sql', import.meta.url)
+const podeLer = (await Deno.permissions.query({ name: 'read', path: ARQUIVO_DA_MIGRACAO })).state === 'granted'
+const teste = (name: string, fn: () => void | Promise<void>) => Deno.test({ name, ignore: !podeLer, fn })
+const MIGRACAO = podeLer ? Deno.readTextFileSync(ARQUIVO_DA_MIGRACAO) : ''
 const SEEDS: Seed[] = [...MIGRACAO.matchAll(/\$j\$([\s\S]*?)\$j\$/g)].map((m) => JSON.parse(m[1]))
 
 function defDaMigracao(signalType: string): CascataDef {
@@ -101,7 +105,7 @@ const DELTA: ContaDoWorkspace = { id: 'conta-delta', name: 'Delta Comércio', do
 // ---------------------------------------------------------------------------------------------------------------------
 // A migração.
 
-Deno.test('a migração registra os cinco Sinais do ICP G: dois em teste com cascata e três sem fonte', () => {
+teste('a migração registra os cinco Sinais do ICP G: dois em teste com cascata e três sem fonte', () => {
   assertEquals(
     SEEDS.map((s) => `${s.signalType}:${s.state ?? 'testing'}:${s.scope ?? 'conta'}`).sort(),
     [
@@ -119,7 +123,7 @@ Deno.test('a migração registra os cinco Sinais do ICP G: dois em teste com cas
   }
 })
 
-Deno.test('todo passo do ICP G tem o handler registrado (com prefixo g_), plano Free, e o pior caso cabe no teto', () => {
+teste('todo passo do ICP G tem o handler registrado (com prefixo g_), plano Free, e o pior caso cabe no teto', () => {
   const registro = registroDePassos()
   for (const s of SEEDS.filter((x) => x.state !== 'sem_fonte')) {
     const def = defDaMigracao(s.signalType)
@@ -137,13 +141,13 @@ Deno.test('todo passo do ICP G tem o handler registrado (com prefixo g_), plano 
   }
 })
 
-Deno.test('nenhum texto do ICP G que o usuário ou o Hermes lê cita fornecedor de coleta', () => {
+teste('nenhum texto do ICP G que o usuário ou o Hermes lê cita fornecedor de coleta', () => {
   for (const s of SEEDS) {
     assert(!MARCA_INTERNA.test(JSON.stringify([s.name, s.notes ?? '', s.semFonteMotivo ?? ''])), s.signalType)
   }
 })
 
-Deno.test('os três Sinais sem fonte não reservam crédito e dizem o motivo em palavras do produto', async () => {
+teste('os três Sinais sem fonte não reservam crédito e dizem o motivo em palavras do produto', async () => {
   for (const tipo of ['renovacao_de_apolice', 'frota_crescendo', 'caged_por_empresa']) {
     const def = defDaMigracao(tipo)
     assertEquals(def.state, 'sem_fonte')
@@ -174,7 +178,7 @@ const pagina = (slug: string, funcionarios: number | null, extra: Record<string,
 
 const foto = (dias: number, funcionarios: number, faixa: number) => ({ takenAt: antes(dias), data: { funcionarios, faixa } })
 
-Deno.test('headcount, 1ª rodada: só grava a base (sem Sinal), enriquece só quem tem página e cobra só o que consultou', async () => {
+teste('headcount, 1ª rodada: só grava a base (sem Sinal), enriquece só quem tem página e cobra só o que consultou', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 41), pagina('beta-servicos', 95), pagina('gama-logistica', 90)], usageTotalUsd: 0.012 } }, {
     contas: [ALFA, BETA, GAMA, DELTA],
   })
@@ -200,7 +204,7 @@ Deno.test('headcount, 1ª rodada: só grava a base (sem Sinal), enriquece só qu
   assertEquals(r.custoUsd, 0.012)
 })
 
-Deno.test('headcount, 2ª rodada: cruzar 50/100/200 vira Sinal da Conta, pela faixa mais alta cruzada, com a contagem antes e depois', async () => {
+teste('headcount, 2ª rodada: cruzar 50/100/200 vira Sinal da Conta, pela faixa mais alta cruzada, com a contagem antes e depois', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 63), pagina('beta-servicos', 99), pagina('gama-logistica', 230)], usageTotalUsd: 0.012 } }, {
     contas: [ALFA, BETA, GAMA],
     fotografias: { 'conta-alfa': [foto(40, 41, 0)], 'conta-beta': [foto(35, 95, 50)], 'conta-gama': [foto(50, 90, 50)] },
@@ -227,7 +231,7 @@ Deno.test('headcount, 2ª rodada: cruzar 50/100/200 vira Sinal da Conta, pela fa
   assert(!JSON.stringify(r).includes(TOKEN))
 })
 
-Deno.test('headcount: a mesma rodada de novo não grava o Sinal outra vez (eventKey por faixa)', async () => {
+teste('headcount: a mesma rodada de novo não grava o Sinal outra vez (eventKey por faixa)', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 63)], usageTotalUsd: 0.004 } }, {
     contas: [ALFA], fotografias: { 'conta-alfa': [foto(40, 41, 0)] },
   })
@@ -236,7 +240,7 @@ Deno.test('headcount: a mesma rodada de novo não grava o Sinal outra vez (event
   assertEquals([a.novos, a.repetidos, b.novos, b.repetidos], [1, 0, 0, 1])
 })
 
-Deno.test('headcount: voltar a cruzar a mesma faixa depois de oscilar gera o mesmo eventKey (a chave não depende do mês nem da contagem)', async () => {
+teste('headcount: voltar a cruzar a mesma faixa depois de oscilar gera o mesmo eventKey (a chave não depende do mês nem da contagem)', async () => {
   const sobe = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 104)], usageTotalUsd: 0.004 } }, { contas: [ALFA], fotografias: { 'conta-alfa': [foto(40, 98, 50)] } })
   const primeira = await sobe.rodar({ chave: 'a' })
   assertEquals(primeira.sinais.map((s) => s.eventKey), ['alfa industria|headcount|100'])
@@ -246,7 +250,7 @@ Deno.test('headcount: voltar a cruzar a mesma faixa depois de oscilar gera o mes
   assertEquals(segunda.sinais.map((s) => s.eventKey), ['alfa industria|headcount|100'])
 })
 
-Deno.test('headcount: os limiares são configuráveis no modelo de entrada e no pedido; encolher nunca gera Sinal', async () => {
+teste('headcount: os limiares são configuráveis no modelo de entrada e no pedido; encolher nunca gera Sinal', async () => {
   const itens = [pagina('alfa-industria', 63), pagina('gama-logistica', 90)]
   const fotos: Fotografias = { 'conta-alfa': [foto(40, 41, 0)], 'conta-gama': [foto(40, 230, 200)] }
   // Pelo pedido: cruzar 60 (a Alfa 41 -> 63) e não 50.
@@ -260,7 +264,7 @@ Deno.test('headcount: os limiares são configuráveis no modelo de entrada e no 
   assertEquals(c.sinais.map((s) => s.eventKey), ['alfa industria|headcount|60'])
 })
 
-Deno.test('headcount: a Conta fotografada há menos de 20 dias não é consultada de novo (nada é cobrado)', async () => {
+teste('headcount: a Conta fotografada há menos de 20 dias não é consultada de novo (nada é cobrado)', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 63)], usageTotalUsd: 0.004 } }, {
     contas: [ALFA], fotografias: { 'conta-alfa': [foto(5, 41, 0)] },
   })
@@ -269,7 +273,7 @@ Deno.test('headcount: a Conta fotografada há menos de 20 dias não é consultad
   assertEquals(r.custoUsd, 0)
 })
 
-Deno.test('headcount: no máximo 100 Contas por rodada, as sem fotografia primeiro e depois as mais antigas', async () => {
+teste('headcount: no máximo 100 Contas por rodada, as sem fotografia primeiro e depois as mais antigas', async () => {
   const contas: ContaDoWorkspace[] = Array.from({ length: 130 }, (_, i) => ({
     id: `c${String(i).padStart(3, '0')}`, name: `Empresa ${i}`, domain: null, linkedinUrl: `https://www.linkedin.com/company/empresa-${i}`, cnpj: null,
   }))
@@ -285,7 +289,7 @@ Deno.test('headcount: no máximo 100 Contas por rodada, as sem fotografia primei
   assert(0.00005 + 0.004 * 100 <= defDaMigracao(TIPO_H).capUsd)
 })
 
-Deno.test('headcount (LGPD): só a contagem de funcionários e a faixa são guardadas; nada de saúde, descrição ou contato', async () => {
+teste('headcount (LGPD): só a contagem de funcionários e a faixa são guardadas; nada de saúde, descrição ou contato', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', 63), pagina('beta-servicos', 99)], usageTotalUsd: 0.008 } }, {
     contas: [ALFA, BETA], fotografias: { 'conta-alfa': [foto(40, 41, 0)] },
   })
@@ -298,7 +302,7 @@ Deno.test('headcount (LGPD): só a contagem de funcionários e a faixa são guar
   }
 })
 
-Deno.test('headcount: página sem contagem de funcionários ou que o actor não achou não gera fotografia nem Sinal', async () => {
+teste('headcount: página sem contagem de funcionários ou que o actor não achou não gera fotografia nem Sinal', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { itens: [pagina('alfa-industria', null), pagina('beta-servicos', 0)], usageTotalUsd: 0.008 } }, {
     contas: [ALFA, BETA, GAMA], fotografias: { 'conta-alfa': [foto(40, 41, 0)] },
   })
@@ -306,14 +310,14 @@ Deno.test('headcount: página sem contagem de funcionários ou que o actor não 
   assertEquals([r.sinais.length, c.banco.gravadas.length], [0, 0])
 })
 
-Deno.test('headcount: a fonte fora do ar falha com mensagem neutra e não grava fotografia', async () => {
+teste('headcount: a fonte fora do ar falha com mensagem neutra e não grava fotografia', async () => {
   const c = cenario(TIPO_H, { [ACTOR_H]: { estados: ['FAILED'], mensagem: 'LinkedIn blocked', usageTotalUsd: 0 } }, { contas: [ALFA] })
   const r = await c.rodar()
   assertEquals([r.desfecho, r.mensagem, c.banco.gravadas.length], ['falhou', 'A fonte pública está indisponível agora.', 0])
   assert(!MARCA_INTERNA.test(r.mensagem))
 })
 
-Deno.test('headcount: sem nenhuma Conta com página do LinkedIn a cascata termina sem chamar a fonte', async () => {
+teste('headcount: sem nenhuma Conta com página do LinkedIn a cascata termina sem chamar a fonte', async () => {
   const c = cenario(TIPO_H, {}, { contas: [DELTA] })
   const r = await c.rodar()
   assertEquals([r.desfecho, c.chamadas().length, r.custoUsd], ['concluida', 0, 0])
@@ -342,7 +346,7 @@ const RESUMO = { recordType: 'RUN_SUMMARY', recordsWritten: 3, unitsRequested: 3
 
 const fotoF = (dias: number, ordens: string[], total = ordens.length) => ({ takenAt: antes(dias), data: { total, ordens } })
 
-Deno.test('filial, 1ª rodada: só grava a base (lista de ordens), um mapa por raiz, e a Conta sem CNPJ fica de fora', async () => {
+teste('filial, 1ª rodada: só grava a base (lista de ordens), um mapa por raiz, e a Conta sem CNPJ fica de fora', async () => {
   const c = cenario(TIPO_F, {
     [ACTOR_F]: {
       itens: [
@@ -371,7 +375,7 @@ Deno.test('filial, 1ª rodada: só grava a base (lista de ordens), um mapa por r
   ])
 })
 
-Deno.test('filial, 2ª rodada: a filial ativa e recente que não estava na base vira Sinal, com o CNPJ da filial na chave', async () => {
+teste('filial, 2ª rodada: a filial ativa e recente que não estava na base vira Sinal, com o CNPJ da filial na chave', async () => {
   const c = cenario(TIPO_F, {
     [ACTOR_F]: {
       itens: [
@@ -407,7 +411,7 @@ Deno.test('filial, 2ª rodada: a filial ativa e recente que não estava na base 
   assert(!JSON.stringify(r).includes(TOKEN))
 })
 
-Deno.test('filial: a mesma rodada de novo não grava o Sinal outra vez', async () => {
+teste('filial: a mesma rodada de novo não grava o Sinal outra vez', async () => {
   const c = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('11222333', [filial('11222333000262', 'SP', dataAntes(10))]), RESUMO], usageTotalUsd: 0.01 } }, {
     contas: [ALFA], fotografias: { 'conta-alfa': [fotoF(40, [])] },
   })
@@ -416,7 +420,7 @@ Deno.test('filial: a mesma rodada de novo não grava o Sinal outra vez', async (
   assertEquals([a.novos, a.repetidos, b.novos, b.repetidos], [1, 0, 0, 1])
 })
 
-Deno.test('filial: a primeira filial de uma empresa que tinha só a matriz é Sinal (a base vazia vale como base)', async () => {
+teste('filial: a primeira filial de uma empresa que tinha só a matriz é Sinal (a base vazia vale como base)', async () => {
   const c = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('44555666', [filial('44555666000258', 'MG', dataAntes(12))]), RESUMO], usageTotalUsd: 0.01 } }, {
     contas: [DELTA], fotografias: { 'conta-delta': [fotoF(35, [], 0)] },
   })
@@ -424,7 +428,7 @@ Deno.test('filial: a primeira filial de uma empresa que tinha só a matriz é Si
   assertEquals(r.sinais.map((s) => s.phrase), ['Abriu nova filial em MG (CNPJ 44.555.666/0002-58)'])
 })
 
-Deno.test('filial: raiz que o actor não entregou (fonte indisponível) não vira "zero filiais": sem fotografia e sem Sinal', async () => {
+teste('filial: raiz que o actor não entregou (fonte indisponível) não vira "zero filiais": sem fotografia e sem Sinal', async () => {
   const c = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('11222333', [filial('11222333000262', 'SP', dataAntes(10))]), RESUMO], usageTotalUsd: 0.01 } }, {
     contas: [ALFA, DELTA], fotografias: { 'conta-alfa': [fotoF(40, [])], 'conta-delta': [fotoF(40, ['0002'])] },
   })
@@ -433,13 +437,13 @@ Deno.test('filial: raiz que o actor não entregou (fonte indisponível) não vir
   assertEquals(c.banco.gravadas.map((g) => g.chave), ['conta-alfa'])
 })
 
-Deno.test('filial: a Conta fotografada há menos de 25 dias não é consultada (o mapa é mensal) e não custa nada', async () => {
+teste('filial: a Conta fotografada há menos de 25 dias não é consultada (o mapa é mensal) e não custa nada', async () => {
   const c = cenario(TIPO_F, { [ACTOR_F]: { itens: [], usageTotalUsd: 0 } }, { contas: [ALFA], fotografias: { 'conta-alfa': [fotoF(10, ['0002'])] } })
   const r = await c.rodar()
   assertEquals([r.desfecho, c.chamadas().length, r.custoUsd], ['concluida', 0, 0])
 })
 
-Deno.test('filial: no máximo 40 mapas por rodada (US$ 0,40), as Contas sem fotografia primeiro', async () => {
+teste('filial: no máximo 40 mapas por rodada (US$ 0,40), as Contas sem fotografia primeiro', async () => {
   const contas: ContaDoWorkspace[] = Array.from({ length: 70 }, (_, i) => ({
     id: `c${String(i).padStart(3, '0')}`, name: `Empresa ${i}`, domain: null, linkedinUrl: null, cnpj: `${String(10000000 + i)}000100`,
   }))
@@ -450,7 +454,7 @@ Deno.test('filial: no máximo 40 mapas por rodada (US$ 0,40), as Contas sem foto
   assertEquals([corpo.cnpjs.length, corpo.maxResults, corpo.cnpjs[0]], [40, 40, '10000002'])
 })
 
-Deno.test('filial (LGPD): só a contagem e as ordens das filiais são guardadas; sócios e nomes nunca', async () => {
+teste('filial (LGPD): só a contagem e as ordens das filiais são guardadas; sócios e nomes nunca', async () => {
   const c = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('11222333', [filial('11222333000262', 'SP', dataAntes(10))], { qsa: [{ nome: 'Beltrana' }] }), RESUMO], usageTotalUsd: 0.01 } }, {
     contas: [ALFA], fotografias: { 'conta-alfa': [fotoF(40, [])] },
   })
@@ -463,7 +467,7 @@ Deno.test('filial (LGPD): só a contagem e as ordens das filiais são guardadas;
   }
 })
 
-Deno.test('filial: rede enorme demais para a fotografia (mais de 2.500 filiais) é pulada sem erro e sem fotografia', async () => {
+teste('filial: rede enorme demais para a fotografia (mais de 2.500 filiais) é pulada sem erro e sem fotografia', async () => {
   const muitas = Array.from({ length: 2600 }, (_, i) => filial(`11222333${String(i + 2).padStart(4, '0')}00`, 'SP', '2020-01-10'))
   const c = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('11222333', muitas), RESUMO], usageTotalUsd: 0.01 } }, {
     contas: [ALFA], fotografias: { 'conta-alfa': [fotoF(40, ['0002'])] },
@@ -472,7 +476,7 @@ Deno.test('filial: rede enorme demais para a fotografia (mais de 2.500 filiais) 
   assertEquals([r.desfecho, r.sinais.length, c.banco.gravadas.length], ['concluida', 0, 0])
 })
 
-Deno.test('filial: no máximo 10 Sinais por Conta na rodada (os de início mais recente), e a evidência diz quantas são', async () => {
+teste('filial: no máximo 10 Sinais por Conta na rodada (os de início mais recente), e a evidência diz quantas são', async () => {
   const novas = Array.from({ length: 12 }, (_, i) => filial(`11222333${String(i + 2).padStart(4, '0')}00`, 'SP', dataAntes(i + 1)))
   const c = cenario(TIPO_F, { [ACTOR_F]: { itens: [mapa('11222333', novas), RESUMO], usageTotalUsd: 0.01 } }, {
     contas: [ALFA], fotografias: { 'conta-alfa': [fotoF(40, [])] },
@@ -482,14 +486,14 @@ Deno.test('filial: no máximo 10 Sinais por Conta na rodada (os de início mais 
   assert(r.sinais.every((s) => s.evidence.includes('12 filiais novas')), r.sinais[0].evidence)
 })
 
-Deno.test('filial: a fonte fora do ar falha com mensagem neutra e não grava fotografia', async () => {
+teste('filial: a fonte fora do ar falha com mensagem neutra e não grava fotografia', async () => {
   const c = cenario(TIPO_F, { [ACTOR_F]: { estados: ['FAILED'], mensagem: 'index unavailable', usageTotalUsd: 0 } }, { contas: [ALFA] })
   const r = await c.rodar()
   assertEquals([r.desfecho, r.mensagem, c.banco.gravadas.length], ['falhou', 'A fonte pública está indisponível agora.', 0])
   assert(!MARCA_INTERNA.test(r.mensagem))
 })
 
-Deno.test('filial: sem nenhuma Conta com CNPJ a cascata termina sem chamar a fonte', async () => {
+teste('filial: sem nenhuma Conta com CNPJ a cascata termina sem chamar a fonte', async () => {
   const c = cenario(TIPO_F, {}, { contas: [GAMA] })
   const r = await c.rodar()
   assertEquals([r.desfecho, c.chamadas().length, r.custoUsd], ['concluida', 0, 0])
