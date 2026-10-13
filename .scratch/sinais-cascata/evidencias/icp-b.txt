@@ -59,3 +59,11 @@ B4: a alternativa mais cara não cabe no teto padrão (o motor a barra); com tet
 B4: o pior caso do actor principal cabe no teto (US$ 0,09 para 100 empresas) ... ok (109µs)
 o registro do ICP B traz os handlers e a fonte pública que as cascatas usam ... ok (88µs)
 ok | 100 passed | 0 failed (1s)
+
+=== VERDE: pgTAP (scripts/pgtap-local.sh pgtap_icp_b, suite inteira sem falhas) ===
+ok     cascatas_de_sinais.sql: 73/73
+ok     cascatas_icp_a_resto.sql: 16/16
+ok     cascatas_icp_b.sql: 21/21
+ok     cascatas_mercado_e_snapshots.sql: 23/23
+
+=== deno test -A supabase/functions/_shared/cascata-de-sinais: 100 passed | 0 failed; deno check supabase/functions/*/index.ts: exit 0 ===
