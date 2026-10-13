@@ -1,0 +1,64 @@
+# ICP C: TDD. Vermelho (antes de implementar: handlers ausentes, 22 de 23 falhando), depois verde.
+
+## Vermelho (deno test passos/icp-c.test.ts, registro vazio)
+C1: a primeira rodada só grava a base (contas sem CNPJ são puladas, só o CNPJ vai ao actor) => icp-c.test.ts:125:6
+C1: salto de 3 ou mais processos trabalhistas e tributários contra a fotografia vira Sinal da Conta => icp-c.test.ts:141:6
+C1: o mesmo salto, repetido contra a mesma base, não grava o Sinal de novo => icp-c.test.ts:165:6
+C1: salto abaixo do limiar, base velha demais e CNPJ sem resposta não geram Sinal => icp-c.test.ts:175:6
+C1: dado pessoal nunca passa — partes, advogados, CPF e processos individuais são descartados => icp-c.test.ts:189:6
+C1: Conta sem CNPJ, com CPF no lugar ou razão social de empresário individual (nome + CPF) é pulada e contada => icp-c.test.ts:207:6
+C1: no máximo 10 CNPJs por rodada, os sem fotografia primeiro e depois os mais antigos; o pior caso cabe no teto => icp-c.test.ts:217:6
+C1: com teto menor que o passo, o motor aborta antes de gastar => icp-c.test.ts:233:6
+C1: a contagem trabalhista e tributária usa o tipo de tribunal e, na falta dele, o nome do tribunal e a execução fiscal => icp-c.test.ts:239:6
+C2: a publicação normativa do DOU vira Sinal de mercado com os setores (CNAE) afetados, pela regra de palavras-chave => icp-c.test.ts:261:6
+C2: com o modelo de linguagem, ele classifica (divisões validadas), o custo soma e o ato de pessoal nem é enviado => icp-c.test.ts:285:6
+C2: se o modelo falha, a regra de palavras-chave assume e a evidência diz => icp-c.test.ts:305:6
+C2: o actor principal falha e o alternativo (monitor do DOU) assume com a entrada e a saída dele => icp-c.test.ts:313:6
+C2: a regra por palavras-chave (tabela interna) reconhece setor por agência e a reforma tributária => icp-c.test.ts:329:6
+C3: a notícia de recuperação judicial de uma Conta vira Sinal, confirmado nos processos do CNPJ; o resto só é contado => icp-c.test.ts:356:6
+C3: sem Conta com CNPJ a confirmação é pulada (não custa); exigir confirmação descarta a que os processos não confirmam => icp-c.test.ts:382:6
+C3: a extração por regra tira o nome da manchete e descarta negativas, pessoa física e fora da janela => icp-c.test.ts:400:6
+C3: com o modelo de linguagem, só vale o que ele diz ser pessoa jurídica com entrada em recuperação ou falência => icp-c.test.ts:410:6
+C4: escolhe o setor de maior impacto ainda não sinalizado no ano e traz uma amostra de empresas sem dado pessoal => icp-c.test.ts:437:6
+C4: o setor já sinalizado no ano é pulado na rodada seguinte, e o pedido pode escolher o CNAE => icp-c.test.ts:465:6
+C4: a tabela interna de impacto é consistente => icp-c.test.ts:478:6
+a migração do ICP C só aponta para handlers que o código implementa, e as cascatas nascem em teste => icp-c.test.ts:503:6
+C1: a primeira rodada só grava a base (contas sem CNPJ são puladas, só o CNPJ vai ao actor) => icp-c.test.ts:125:6
+C1: salto de 3 ou mais processos trabalhistas e tributários contra a fotografia vira Sinal da Conta => icp-c.test.ts:141:6
+C1: o mesmo salto, repetido contra a mesma base, não grava o Sinal de novo => icp-c.test.ts:165:6
+C1: salto abaixo do limiar, base velha demais e CNPJ sem resposta não geram Sinal => icp-c.test.ts:175:6
+C1: dado pessoal nunca passa — partes, advogados, CPF e processos individuais são descartados => icp-c.test.ts:189:6
+C1: Conta sem CNPJ, com CPF no lugar ou razão social de empresário individual (nome + CPF) é pulada e contada => icp-c.test.ts:207:6
+C1: no máximo 10 CNPJs por rodada, os sem fotografia primeiro e depois os mais antigos; o pior caso cabe no teto => icp-c.test.ts:217:6
+C1: com teto menor que o passo, o motor aborta antes de gastar => icp-c.test.ts:233:6
+
+## Verde (deno test -A supabase/functions/_shared/cascata-de-sinais)
+C1: a primeira rodada só grava a base (contas sem CNPJ são puladas, só o CNPJ vai ao actor) ... ok (22ms)
+C1: salto de 3 ou mais processos trabalhistas e tributários contra a fotografia vira Sinal da Conta ... ok (5ms)
+C1: o mesmo salto, repetido contra a mesma base, não grava o Sinal de novo ... ok (2ms)
+C1: salto abaixo do limiar, base velha demais e CNPJ sem resposta não geram Sinal ... ok (1ms)
+C1: dado pessoal nunca passa — partes, advogados, CPF e processos individuais são descartados ... ok (1ms)
+C1: Conta sem CNPJ, com CPF no lugar ou razão social de empresário individual (nome + CPF) é pulada e contada ... ok (336µs)
+C1: no máximo 10 CNPJs por rodada, os sem fotografia primeiro e depois os mais antigos; o pior caso cabe no teto ... ok (3ms)
+C1: com teto menor que o passo, o motor aborta antes de gastar ... ok (667µs)
+C1: a contagem trabalhista e tributária usa o tipo de tribunal e, na falta dele, o nome do tribunal e a execução fiscal ... ok (1ms)
+C2: a publicação normativa do DOU vira Sinal de mercado com os setores (CNAE) afetados, pela regra de palavras-chave ... ok (5ms)
+C2: com o modelo de linguagem, ele classifica (divisões validadas), o custo soma e o ato de pessoal nem é enviado ... ok (3ms)
+C2: se o modelo falha, a regra de palavras-chave assume e a evidência diz ... ok (2ms)
+C2: o actor principal falha e o alternativo (monitor do DOU) assume com a entrada e a saída dele ... ok (2ms)
+C2: a regra por palavras-chave (tabela interna) reconhece setor por agência e a reforma tributária ... ok (537µs)
+C3: a notícia de recuperação judicial de uma Conta vira Sinal, confirmado nos processos do CNPJ; o resto só é contado ... ok (5ms)
+C3: sem Conta com CNPJ a confirmação é pulada (não custa); sem confirmação nos processos, o Sinal fica e a evidência diz ... ok (1ms)
+C3: a extração por regra tira o nome da manchete e descarta negativas, pessoa física e fora da janela ... ok (762µs)
+C3: com o modelo de linguagem, só vale o que ele diz ser pessoa jurídica com entrada em recuperação ou falência ... ok (1ms)
+C4: escolhe o setor de maior impacto ainda não sinalizado no ano e traz uma amostra de empresas sem dado pessoal ... ok (1ms)
+C4: o setor já sinalizado no ano é pulado na rodada seguinte, e o pedido pode escolher o CNAE ... ok (1ms)
+C4: a tabela interna de impacto é consistente ... ok (295µs)
+Jusbrasil/DataJud por CNPJ: sem fonte, com o motivo, sem reservar crédito nem citar fornecedor ... ok (298µs)
+a migração do ICP C só aponta para handlers que o código implementa, e as cascatas nascem em teste ... ok (1ms)
+ok | 96 passed | 0 failed (1s)
+
+## deno check supabase/functions/*/index.ts: exit 0
+
+## pgTAP (scripts/pgtap-local.sh pgtap_icp_c supabase/tests/cascatas_icp_c.sql)
+ok     cascatas_icp_c.sql: 22/22

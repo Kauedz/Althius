@@ -107,7 +107,7 @@ Deno.test('consultarApifyReceita: mapeia retorno do Actor com QSA, CNAE e endere
   assertEquals(dados.cnaesSecundarios.length, 1)
   assertEquals(dados.socios.length, 2)
   assertEquals(dados.socios[0].nome, 'CARLOS ALBERTO SILVA')
-  assertEquals(dados.fonte, 'apify')
+  assertEquals(dados.fonte, 'receita')
 })
 
 Deno.test('consultarBrasilApi: mapeia retorno da BrasilAPI como fallback', async () => {
@@ -493,7 +493,7 @@ Deno.test('cnpj-receita com reserva liquida o crédito e grava o custo em dólar
   assertEquals(res.status, 200)
   const body = await res.json()
   assertEquals(body.razaoSocial, 'LOGIFLOW BRASIL S.A.')
-  assertEquals(body.fonte, 'apify')
+  assertEquals(body.fonte, 'receita')
   assertEquals(passos, [
     'sessao',
     'begin',
@@ -676,7 +676,7 @@ Deno.test('comite-compra: exceção do actor termina em falha, libera o crédito
     success: false,
     contactsFound: 0,
     costUsd: undefined,
-    error: 'O actor do Apify não respondeu a tempo',
+    error: 'Nossa busca não respondeu a tempo.',
   }])
 })
 
@@ -733,13 +733,13 @@ Deno.test('comite-compra: timeout com id de execução grava o custo e não vira
   const body = await res.json()
 
   assertEquals(res.status === 200, false)
-  assertEquals(body.error, 'O actor do Apify não respondeu a tempo')
+  assertEquals(body.error, 'Nossa busca não respondeu a tempo.')
   assertEquals(registro.propostas, [])
   assertEquals(registro.finish, [{
     success: false,
     contactsFound: 0,
     costUsd: 0.07,
-    error: 'O actor do Apify não respondeu a tempo',
+    error: 'Nossa busca não respondeu a tempo.',
   }])
   assertEquals(registro.custos[0], {
     runId: 'apify-run-timeout',
@@ -837,7 +837,7 @@ Deno.test('revelar-contato: falha do actor libera a reserva, grava o custo e nã
   const body = await res.json()
 
   assertEquals(res.status, 502)
-  assertEquals(body.error, 'A busca do e-mail falhou: O actor do Apify não respondeu a tempo')
+  assertEquals(body.error, 'A busca do e-mail falhou: Nossa busca não respondeu a tempo.')
   assertEquals(body.sucesso, undefined)
   assertEquals(registro.passos, ['sessao', 'contato', 'begin:email', 'finish'])
   assertEquals(registro.finish, [{ value: undefined, source: undefined }])
@@ -857,7 +857,7 @@ Deno.test('revelar-contato: e-mail que já é de outro Contato não grava, debit
       return []
     },
     async revelarContato() {
-      return { canal: 'email' as const, valor: 'otto@acme.test', fonte: 'apify:harvestapi~linkedin-profile-scraper' }
+      return { canal: 'email' as const, valor: 'otto@acme.test', fonte: 'linkedin_publico' }
     },
   }
   // finish_reveal_contact libera a reserva quando o e-mail é de outro Contato (pgTAP revelar_email_so_cobra_valor_novo).
@@ -915,11 +915,11 @@ Deno.test('revelar-contato: perfil com `emails` do actor é achado, grava o e-ma
   assertEquals(body.sucesso, true)
   assertEquals(body.valor, 'mariana@techcorp.com.br')
   assertEquals(body.creditosDebitados, 2)
-  assertEquals(body.fonte, 'apify:harvestapi~linkedin-profile-scraper')
+  assertEquals(body.fonte, 'linkedin_publico')
   assertEquals(registro.passos, ['sessao', 'contato', 'begin:email', 'finish'])
   assertEquals(registro.finish, [{
     value: 'mariana@techcorp.com.br',
-    source: 'apify:harvestapi~linkedin-profile-scraper',
+    source: 'linkedin_publico',
   }])
   assertEquals(registro.custos[0]?.runId, 'apify-run-perfil')
 })
@@ -968,7 +968,7 @@ Deno.test('revelar-contato: `emails` em formato inesperado é falha, libera a re
   const body = await res.json()
 
   assertEquals(res.status, 502)
-  assertEquals(body.error, 'A busca do e-mail falhou: formato inesperado do campo emails na saída do actor')
+  assertEquals(body.error, 'A busca do e-mail falhou: formato inesperado do campo emails na resposta da fonte')
   assertEquals(registro.finish, [{ value: undefined, source: undefined }])
   assertEquals(registro.custos[0]?.runId, 'apify-run-formato')
 })
@@ -993,7 +993,7 @@ Deno.test('revelar-contato: e-mail que o Contato já tem debita 0 e a resposta n
       return []
     },
     async revelarContato() {
-      return { canal: 'email' as const, valor: 'mariana@techcorp.com.br', fonte: 'apify:harvestapi~linkedin-profile-scraper' }
+      return { canal: 'email' as const, valor: 'mariana@techcorp.com.br', fonte: 'linkedin_publico' }
     },
   }
   const handler = criarHandlerEnrichment({
@@ -1009,7 +1009,7 @@ Deno.test('revelar-contato: e-mail que o Contato já tem debita 0 e a resposta n
   assertEquals(body.creditosDebitados, 0)
   assertEquals(registro.finish, [{
     value: 'mariana@techcorp.com.br',
-    source: 'apify:harvestapi~linkedin-profile-scraper',
+    source: 'linkedin_publico',
   }])
 })
 
@@ -1298,7 +1298,7 @@ Deno.test('revelar-contato: e-mail que o Contato já tem volta sem reservar, sem
   }
   const handler = criarHandlerEnrichment({
     db: dbDoRevelarComExistente(registro, {
-      'ws-1/contato-1': { value: 'gilsomar@totvs.com.br', provider: 'apify:harvestapi~linkedin-profile-scraper' },
+      'ws-1/contato-1': { value: 'gilsomar@totvs.com.br', provider: 'linkedin_publico' },
     }),
     apify,
   })
@@ -1310,7 +1310,7 @@ Deno.test('revelar-contato: e-mail que o Contato já tem volta sem reservar, sem
   assertEquals(body.jaExistia, true)
   assertEquals(body.valor, 'gilsomar@totvs.com.br')
   assertEquals(body.creditosDebitados, 0)
-  assertEquals(body.fonte, 'apify:harvestapi~linkedin-profile-scraper')
+  assertEquals(body.fonte, 'linkedin_publico')
   assertEquals(execucoes, 0)
   assertEquals(registro.passos, ['sessao', 'contato', 'existente:ws-1:contato-1:email:Bearer token-1'])
   assertEquals(registro.finish, [])
@@ -1350,7 +1350,7 @@ Deno.test('revelar-contato: o e-mail de outro Workspace não é reaproveitado; a
       return []
     },
     async revelarContato() {
-      return { canal: 'email' as const, valor: 'mariana@techcorp.com.br', fonte: 'apify:harvestapi~linkedin-profile-scraper' }
+      return { canal: 'email' as const, valor: 'mariana@techcorp.com.br', fonte: 'linkedin_publico' }
     },
   }
   const db = dbDoRevelarComExistente(registro, { 'ws-2/contato-1': { value: 'mariana@outro-workspace.test' } })

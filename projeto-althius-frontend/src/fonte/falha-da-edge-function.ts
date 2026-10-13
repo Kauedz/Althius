@@ -4,7 +4,7 @@
  * Por que a chamada a uma Edge Function falhou, em palavras de quem opera o Workspace: a função não publicada, a
  * função que não subiu (segredo ausente), a origem do app fora do APP_ORIGIN (o navegador bloqueia a resposta) ou o
  * status e o código devolvidos. Usado quando a função não respondeu com a mensagem própria dela. `segredos` nomeia os
- * segredos que a função exige para subir.
+ * segredos que a função exige para subir; vazio quando o nome não é para o usuário ler.
  */
 export async function motivoDaFalhaDaFuncao(
   nome: string,
@@ -21,7 +21,11 @@ export async function motivoDaFalhaDaFuncao(
     const codigo = typeof corpo?.code === 'string' ? corpo.code : ''
     if (status === 404 || codigo === 'NOT_FOUND') return `A Edge Function ${nome} não está publicada neste projeto.`
     if (codigo === 'BOOT_ERROR' || status === 503) {
-      return `A Edge Function ${nome} não conseguiu iniciar. Confira os segredos ${segredos}.`
+      // Sem `segredos`, a função depende de uma credencial de fornecedor que o usuário não conhece: a mensagem não a nomeia
+      // (o nome fica no README das funções e no log do servidor).
+      return segredos
+        ? `A Edge Function ${nome} não conseguiu iniciar. Confira os segredos ${segredos}.`
+        : `A função ${nome} não conseguiu iniciar agora; avisamos a equipe.`
     }
     const detalhe = typeof corpo?.message === 'string' ? `: ${corpo.message}` : ''
     return `A Edge Function ${nome} respondeu HTTP ${status}${codigo ? ` (${codigo})` : ''}${detalhe}.`

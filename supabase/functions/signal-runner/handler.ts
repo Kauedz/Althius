@@ -8,6 +8,7 @@
 // os Monitoramentos ativos do Workspace, e vêm antes dos Monitoramentos do relógio. Banco, Apify e relógio entram por
 // injeção, para o teste ir do token à resposta sem rede.
 import { gravarCustoDaExecucao } from '../_shared/apify-ambiente.ts'
+import type { PedidoDeCascata, ResultadoDaCascata } from '../_shared/cascata-de-sinais/tipos.ts'
 import type { Apify, ActorDoRegistro } from '../signal-scan/handler.ts'
 
 export interface ContaParaVarrer {
@@ -15,6 +16,8 @@ export interface ContaParaVarrer {
   name: string
   domain: string | null
   linkedinUrl: string | null
+  /** O CNPJ da Conta, quando o Workspace o tem (a cascata de Sinais consulta a Receita por ele). */
+  cnpj?: string | null
   /** O LinkedIn dos Contatos vinculados à Conta (sinais-reais 04); só vem quem tem LinkedIn. */
   contatos?: { id: string; linkedinUrl: string }[]
 }
@@ -142,10 +145,22 @@ export interface Buscas {
   kick(): Promise<void>
 }
 
+/**
+ * O motor de cascata de Sinais (um Sinal = uma cascata de passos, sinais em cascata): o Monitoramento de um tipo de Sinal
+ * que é cascata roda uma vez por rodada, pelo MESMO motor da conversa do Hermes, e não pelo caminho de uma varredura por
+ * Conta com adaptador. A reserva do crédito, o teto e o rastro dos passos são do motor.
+ */
+export interface Cascatas {
+  ehCascata(signalType: string): Promise<boolean>
+  rodar(pedido: PedidoDeCascata): Promise<ResultadoDaCascata>
+}
+
 export interface Deps {
   db: Db
   apify: Apify
   adaptadores: Record<string, AdaptadorDeSinal>
+  /** As cascatas de Sinais; sem elas, só os Sinais com actor e adaptador rodam. */
+  cascatas?: Cascatas
   /** A fila de buscas; sem ela, a função cuida só dos Monitoramentos. */
   buscas?: Buscas
   agora?: () => number
@@ -153,6 +168,8 @@ export interface Deps {
 }
 
 const MONITORES_POR_CHAMADA = 5
+// O tempo da função é de 150 s; a cascata de um Monitoramento termina antes disto (a partir do início da chamada).
+const PRAZO_DA_CASCATA_EM_MS = 140_000
 const BUSCAS_POR_CHAMADA = 5
 // O tempo da Edge Function é de 150 s. Uma Conta nova só começa até este prazo; o cliente do Apify desta função espera no
 // máximo 70 s por Conta, mais 3 s para reler o custo (index.ts), então a última termina antes do limite. O que faltar fica
@@ -226,12 +243,35 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     return encontrados.length
   }
 
+  /**
+   * Um Monitoramento de cascata: uma execução do motor para o público inteiro. A chave é o Monitoramento e a hora marcada
+   * da rodada, então repetir a rodada nunca cobra nem grava duas vezes. O motivo de não ter rodado (saldo, automático em
+   * "confirmar", teto, falha da fonte) volta em palavras do produto e fica no Monitoramento.
+   */
+  async function varrerPorCascata(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
+    const r = await deps.cascatas!.rodar({
+      workspaceId: m.workspaceId,
+      userId: m.createdBy,
+      signalType: m.signalType,
+      origem: 'monitor',
+      monitorId: m.monitorId,
+      chave: `monitor:${m.monitorId}:${m.slot}`,
+      contas: m.accounts.map((c) => ({ id: c.id, name: c.name, domain: c.domain, linkedinUrl: c.linkedinUrl, cnpj: c.cnpj ?? null })),
+      criterios: m.criteria,
+      prazoFinal: prazo - PRAZO_PARA_COMECAR_EM_MS + PRAZO_DA_CASCATA_EM_MS,
+    })
+    const semProblema = r.desfecho === 'concluida' || r.desfecho === 'ja_rodou_hoje' || r.desfecho === 'ja_concluida'
+    await deps.db.finish(m.monitorId, m.accounts.length, semProblema ? null : r.mensagem, false)
+    return { scanned: r.desfecho === 'concluida' || r.desfecho === 'parcial' ? m.accounts.length : 0, signals: r.novos }
+  }
+
   async function varrerMonitor(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
     // O tempo já acabou nos Monitoramentos anteriores: este nem começa; solta a reserva e volta já.
     if (agora() > prazo) {
       await deps.db.finish(m.monitorId, 0, null, true)
       return { scanned: 0, signals: 0 }
     }
+    if (deps.cascatas && await deps.cascatas.ehCascata(m.signalType)) return await varrerPorCascata(m, prazo)
     const adaptador = deps.adaptadores[m.signalType]
     if (!adaptador) {
       await deps.db.finish(m.monitorId, 0, `Ainda não há adaptador para o Sinal ${m.signalType}.`, false)
@@ -239,7 +279,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const actor = await deps.db.actorForType(m.signalType)
     if (!actor || actor.state !== 'available') {
-      await deps.db.finish(m.monitorId, 0, 'O actor deste Sinal não está disponível.', false)
+      await deps.db.finish(m.monitorId, 0, 'A fonte de dados deste Sinal não está disponível.', false)
       return { scanned: 0, signals: 0 }
     }
 
@@ -389,7 +429,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         : semAdaptador > 0
         ? 'Ainda não há adaptador para os Sinais dos Monitoramentos ativos.'
         : semActor > 0
-        ? 'O actor do Sinal dos Monitoramentos ativos não está disponível.'
+        ? 'A fonte de dados dos Monitoramentos ativos não está disponível.'
         : 'Nenhum Monitoramento ativo para buscar.'
       await buscas.finish(b.rescanId, 'stopped', 0, motivo)
       return { scanned: 0, signals: 0, voltou: false }

@@ -1,0 +1,58 @@
+running 9 tests from ./_shared/guarda-de-marca.test.ts
+descoberta de contas: a falha do fornecedor grava um motivo em palavras do produto ... FAILED (15ms)
+descoberta de contas: o Actor em teste, fora ou fora do registro responde sem a palavra Actor ... FAILED (2ms)
+foto do Contato: a falha do fornecedor responde sem a marca ... FAILED (2ms)
+signal-scan: toda recusa e falha responde sem a marca ... FAILED (1ms)
+as mensagens dos erros do cliente do Apify não citam o fornecedor ... FAILED (544µs)
+signal-runner: o Monitoramento e a busca param sem citar o actor ... FAILED (2ms)
+o cliente do Apify nunca põe o token em erro nem em log ... FAILED (13ms)
+ferramenta de busca de contas: o resultado ao Hermes não cita o Actor ... FAILED (2ms)
+o prompt do Hermes proíbe nomear fornecedores e não carrega a marca nem o token ... FAILED (632µs)
+
+ ERRORS 
+
+descoberta de contas: a falha do fornecedor grava um motivo em palavras do produto => ./_shared/guarda-de-marca.test.ts:41:6
+error: AssertionError: discovery_runs.last_error deixou vazar a marca: A conta do Apify da Althius está sem crédito.
+
+descoberta de contas: o Actor em teste, fora ou fora do registro responde sem a palavra Actor => ./_shared/guarda-de-marca.test.ts:72:6
+error: AssertionError: descoberta (testing) deixou vazar a marca: {"code":"actor_em_teste","error":"O Actor desta busca ainda está em teste. Só um Administrador roda em modo de teste."}
+
+foto do Contato: a falha do fornecedor responde sem a marca => ./_shared/guarda-de-marca.test.ts:95:6
+error: AssertionError: foto (ActorRequestError: Apify respondeu HTTP 500) deixou vazar a marca: {"error":"O Apify não conseguiu buscar a foto agora. Tente de novo em alguns minutos."}
+
+signal-scan: toda recusa e falha responde sem a marca => ./_shared/guarda-de-marca.test.ts:119:6
+error: AssertionError: signal-scan (available) deixou vazar a marca: {"error":"O Apify não conseguiu rodar o actor.","code":"apify_http_402"}
+
+as mensagens dos erros do cliente do Apify não citam o fornecedor => ./_shared/guarda-de-marca.test.ts:145:6
+error: AssertionError: ApifyRequestError deixou vazar a marca: Apify respondeu HTTP 500
+
+signal-runner: o Monitoramento e a busca param sem citar o actor => ./_shared/guarda-de-marca.test.ts:151:6
+error: AssertionError: signal_monitors.last_error deixou vazar a marca: ["O actor deste Sinal não está disponível."]
+
+o cliente do Apify nunca põe o token em erro nem em log => ./_shared/guarda-de-marca.test.ts:191:6
+error: AssertionError: erro do cliente do Apify deixou vazar a marca: ApifyRequestError: Apify respondeu HTTP 402
+
+ferramenta de busca de contas: o resultado ao Hermes não cita o Actor => ./_shared/guarda-de-marca.test.ts:206:6
+error: AssertionError: buscar_contas_pelo_icp (testing) deixou vazar a marca: {"erro":false,"paraOAgente":"Busca pedida, aguardando a confirmação de uma pessoa na Caixa de Descobertas (custa 5 Créditos). Candidatas novas já na Caixa: 0. Nenhuma Conta-alvo foi criada. A busca de empresas ainda não está liberada no Workspace (o Actor está em teste ou fora do ar).","passo":{"descricao":"Scopus pediu uma busca de contas pelo ICP (até 50 empresas, 5 Créditos): confirme na Caixa de Descobertas","estado":"aguardando","link":{"tipo":"descobertas"}}}
+
+o prompt do Hermes proíbe nomear fornecedores e não carrega a marca nem o token => ./_shared/guarda-de-marca.test.ts:224:6
+error: AssertionError: o prompt precisa da regra explícita de marca
+
+ FAILURES 
+
+descoberta de contas: a falha do fornecedor grava um motivo em palavras do produto => ./_shared/guarda-de-marca.test.ts:41:6
+descoberta de contas: o Actor em teste, fora ou fora do registro responde sem a palavra Actor => ./_shared/guarda-de-marca.test.ts:72:6
+foto do Contato: a falha do fornecedor responde sem a marca => ./_shared/guarda-de-marca.test.ts:95:6
+signal-scan: toda recusa e falha responde sem a marca => ./_shared/guarda-de-marca.test.ts:119:6
+as mensagens dos erros do cliente do Apify não citam o fornecedor => ./_shared/guarda-de-marca.test.ts:145:6
+signal-runner: o Monitoramento e a busca param sem citar o actor => ./_shared/guarda-de-marca.test.ts:151:6
+o cliente do Apify nunca põe o token em erro nem em log => ./_shared/guarda-de-marca.test.ts:191:6
+ferramenta de busca de contas: o resultado ao Hermes não cita o Actor => ./_shared/guarda-de-marca.test.ts:206:6
+o prompt do Hermes proíbe nomear fornecedores e não carrega a marca nem o token => ./_shared/guarda-de-marca.test.ts:224:6
+
+FAILED | 0 passed | 9 failed (51ms)
+
+error: Test failed
+
+Stack backtrace:
+   0: <unknown>

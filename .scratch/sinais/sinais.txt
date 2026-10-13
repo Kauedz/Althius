@@ -1,0 +1,1850 @@
+            Althius
+            REVENUE OS
+
+
+
+
+MAPA DE MERCADO · OUTUBRO DE 2026
+
+
+
+
+Onde o Silo de
+Receita vende
+primeiro
+Esteira de testes por ICP, mercado endereçável (TAM, SAM e SOM),
+Conta de Receita Ideal e 4Ps de copy para cada nicho.
+
+
+
+
+DOCUMENTO INTERNO · USO ESTRATÉGICO                  8 ICPs · TICKET A PARTIR DE R$ 5 MIL/MÊS
+    Althius                                                                                                      MAPA DE MERCADO · OUT/2026
+
+
+
+
+SUMÁRIO
+
+
+O que está neste documento
+01 Resumo executivo . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3
+
+02 A régua do cliente ideal . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4
+
+03 Serviço quente e promessa única . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+
+04 Ranking ponderado das verticais . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+
+05 Esteira de testes por ICP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+
+06 Mercado endereçável: TAM, SAM e SOM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+
+07 Quanto dinheiro gira em cada vertical . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+
+08 CRI · Conta de Receita Ideal por ICP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+
+   ICP A · Comex e serviços de importação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+
+   ICP B · Contabilidade e tributário . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+
+   ICP C · Jurídico empresarial . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+
+   ICP D · Energia e mercado livre . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+
+   ICP E · Indústria: fornecedores B2B . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+
+   ICP F · Logística e transporte . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+
+   ICP G · Corretoras de benefícios . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+
+   ICP H · Agro B2B . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+
+09 Jurídico: motion dentro da OAB e da LGPD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 32
+
+10 Premissas, limites e próximos passos . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+
+Fontes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+
+
+
+
+Revenue OS · Documento interno                                                                                                                 02
+       Althius                                                                                          MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 01
+
+
+Resumo executivo
+A Althius não aposta em uma vertical só. Ela roda uma esteira de testes por ICP, cada um na sua
+janela de sazonalidade, e mede qual movimenta mais receita. Se um ICP não performar, a esteira
+segue para o próximo.
+
+
+ 8                                        94.029                      270                             R$ 16,2 mi
+ ICPS NA ESTEIRA                          EMPRESAS NO SAM             CLIENTES NA META (SOM)          RECEITA ANUAL NO SOM
+
+
+
+
+As decisões que este documento registra
+• Posicionamento: a Althius se apresenta como Silo de Receita, o departamento comercial que a empresa com
+  caixa não quer construir, instalado como software e serviço.
+• Régua de entrada: empresa com caixa que vende por indicação e não quer montar comercial. Fica fora quem não
+  tem dinheiro nem estrutura.
+• Piso de ticket: a partir de R$ 5 mil por mês. O SAM de cada ICP só conta empresas com faturamento acima de R$
+  4,8 mi por ano, em que a Althius custa no máximo 1,25% do faturamento.
+• Maior nota ponderada: Comex e serviços de importação (95 de 100). O jurídico tem a nota mais baixa em
+  regulação porque a OAB limita o motion do escritório a inbound. Fornecedores de governo ficaram fora da esteira.
+• Prova por nicho: cada ICP é convencido com números do próprio mercado, nunca com case de outro setor.
+• Propostas descrevem o formato da oferta (diagnóstico, investimento comparado ao custo de um comercial
+  próprio, pipeline visível no painel), sem prazo nem resultado garantido.
+
+
+A esteira em uma tabela
+ ICP             VERTICAL                          NOTA        SAM    SOM R$/ANO   JANELA DO TESTE
+
+ ICP A           Comex e serviços de                95      1.323    R$ 2,4 mi     Ago a nov: empresas planejam pedidos antes do
+                 importação                                                        fechamento do ano e do Ano Novo Chinês.
+
+ ICP B           Contabilidade e tributário         70      3.820    R$ 2,3 mi     Jun a nov: fora do pico de obrigações de jan a
+                                                                                   mai; 2026 e 2027 com a transição da CBS/IBS.
+
+ ICP C           Jurídico empresarial               64      5.281    R$ 2,4 mi     Fev a nov: evitar o recesso forense de fim de
+                                                                                   ano.
+
+ ICP D           Energia e mercado livre            92        129    R$ 780 mil    Todo 2027, antes da abertura da baixa tensão
+                                                                                   para indústria e comércio.
+
+ ICP E           Indústria: fornecedores            88      36.077   R$ 2,2 mi     Set a nov: fechamento do orçamento de
+                 B2B                                                               investimento do ano seguinte.
+
+ ICP F           Logística e transporte             83      31.110   R$ 1,9 mi     Jan a abr e ago a set: fora do pico de fim de ano.
+
+ ICP G           Corretoras de benefícios           77      9.268    R$ 2,2 mi     Set a dez: empresas planejam benefícios para o
+                                                                                   ano seguinte.
+
+ ICP H           Agro B2B                           77      7.021    R$ 2,1 mi     Fev a mai: entre a colheita da soja e a compra de
+                                                                                   insumos da próxima safra.
+
+
+
+
+Revenue OS · Documento interno                                                                                                      03
+    Althius                                                                              MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 02
+
+
+A régua do cliente ideal
+Uma regra só, aplicada a todo ICP antes de qualquer critério de nicho.
+
+  DENTRO                                                   FORA
+
+
+
+  Empresa que tem caixa e vende bem, mas vende             Empresa sem dinheiro e sem estrutura, que não
+  por indicação e não quer montar comercial. Seja por      vende porque não tem com o que vender. Ela não
+  cultura (o advogado que vê vendedor como                 paga o ticket e não sustenta o motion.
+  mercantilização), seja por atraso tecnológico (a
+  importadora que vive de planilha e WhatsApp).
+
+
+
+
+Como a Althius vai atrás
+A Althius vende para todos os ICPs com a própria plataforma, por prospecção ativa: sinais, enriquecimento em
+cascata e abordagem por agentes de IA. Cada cliente fechado assim é prova viva de que o Silo de Receita funciona.
+Inbound e conteúdo da própria Althius entram na fase seguinte. O motion que a Althius instala no cliente muda por
+nicho e está descrito em cada ICP.
+
+
+Filtro de caixa
+O piso de R$ 5 mil por mês (R$ 60 mil por ano) define o filtro: faturamento acima de R$ 4,8 mi por ano, o teto de
+Empresa de Pequeno Porte. Nesse ponto a Althius representa no máximo 1,25% do faturamento do cliente. Na
+maioria dos nichos esse recorte vem do porte declarado na Receita Federal; onde esse dado não serve (advocacia),
+o recorte é premissa e está sinalizado.
+
+
+
+
+Revenue OS · Documento interno                                                                                   04
+    Althius                                                                               MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 03
+
+
+Serviço quente e promessa única
+Um serviço quente não é necessariamente o melhor: é o que já é vendido em volume, prova de que
+o público quer e paga. A estratégia não é copiar, é achar o que os concorrentes não entregam e criar
+uma promessa única por cima da demanda que já existe.
+
+
+Por que é quente
+O serviço já é quente
+Prospecção terceirizada, SDR como serviço e ferramentas de dados para vendas já são vendidos em volume no
+Brasil. Players como Monaco (startups) e Frontrunner (times de GTM) provam que existe quem pague por GTM
+nichado. A Althius não precisa criar demanda: precisa disputar uma demanda que já paga.
+
+Validação de demanda
+Se empresas B2B já pagam por SDR terceirizado, lista de leads e automação de prospecção, a dor é real e o
+orçamento existe. O risco não é falta de mercado, é falta de diferenciação.
+
+Economia de esforço
+Entrar num mercado quente poupa a fase de educar o cliente sobre por que terceirizar o comercial. O esforço vai
+todo para mostrar por que a Althius faz diferente.
+
+Comportamento do cliente
+O cliente B2B já está acostumado a pagar recorrência por software e por serviço comercial. A barreira de consciência
+que existia anos atrás caiu; o que falta é uma promessa que não pareça mais do mesmo.
+
+
+O que está saturado
+O que está saturado
+'Agência de outbound', 'SDR terceirizado' e 'base de leads' viraram commodity: todos vendem o meio (quantidade de
+e-mails, ligações, contatos) e o cliente compara por preço, como aconteceu com o 'gestor de tráfego'.
+
+
+A nova roupagem
+A NOVA ROUPAGEM: SILO DE RECEITA
+
+
+
+  Assim como 'gestor de tráfego' virou 'assessoria em vendas', a
+  Althius não se apresenta como agência de prospecção. Ela é o Silo
+  de Receita: o departamento comercial que a empresa com caixa
+  não quer construir, instalado como software e serviço, alimentado
+  pelos sinais do mercado dela.
+
+
+
+
+Revenue OS · Documento interno                                                                                    05
+    Althius                                                                                 MAPA DE MERCADO · OUT/2026
+
+
+
+
+A promessa
+PROMESSA ÚNICA (GLOBAL)
+
+
+
+  Reuniões com quem já está pronto para comprar, encontradas
+  pelos sinais do seu mercado, sem você contratar nenhum
+  vendedor.
+
+Fim, não meio
+A Althius não vende ligações, e-mails nem listas. Vende o fim: reunião qualificada e contrato novo. O meio (sinais,
+enriquecimento em cascata, agentes de IA, GEO/SEO/AEO, inbound) é a engrenagem que sustenta a promessa.
+
+
+Como provar
+A régua de custo que o cliente já conhece
+Um SDR CLT custa de R$ 3.500 a R$ 7.000 de salário (Glassdoor), mais 65% a 80% de encargos no Lucro Real ou
+Presumido, e leva de 30 a 90 dias para render. A Althius, a partir de R$ 5 mil por mês, se posiciona como alternativa a
+esse custo: sem contratação, sem encargos e sem o risco de rotatividade.
+
+Prova viva
+A Althius vende para os ICPs com a própria plataforma: prospecção ativa, sinais e IA. Cada cliente fechado pelo Silo
+de Receita é a prova de que ele funciona. Inbound e conteúdo entram na fase seguinte.
+
+Prova por nicho, não por case
+Case de um ICP não convence outro. A prova de cada ICP é feita com números reais do mercado dele (aba Mapa de
+cliente ideal), não com depoimento de cliente de outro setor.
+
+
+
+
+Revenue OS · Documento interno                                                                                        06
+       Althius                                                                                            MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 04
+
+
+Ranking ponderado das verticais
+Cada vertical recebe nota de 1 a 5 em seis critérios. A barra soma o peso de cada critério numa
+escala de 0 a 100.
+
+   Sinais replicáveis 25%                          Dinheiro em circulação 20%               Liberdade regulatória 20%
+   Dor de GTM 15%                                  Espaço competitivo 10%                   Fit com a Althius 10%
+
+
+ICP A · Comex e serviços de importação                                                                                          95
+
+ICP D · Energia e mercado livre                                                                                                92
+
+ICP E · Indústria: fornecedores B2B                                                                                       88
+
+ICP F · Logística e transporte                                                                                       83
+
+ICP G · Corretoras de benefícios                                                                            77
+
+ICP H · Agro B2B                                                                                            77
+
+ICP B · Contabilidade e tributário                                                                   70
+
+ICP C · Jurídico empresarial                                                                    64
+
+
+                                                                25                50                   75                           100
+
+
+
+
+Notas por critério
+ ICP             VERTICAL                 SINAIS        DINHEIRO      REGULAÇÃO   DOR GTM      COMPETIÇÃO        FIT                      NOTA
+
+ ICP A           Comex e serviços de      5             5             5           4            4                 5                         95
+                 importação
+
+ ICP D           Energia e mercado        5             5             4           5            4                 4                         92
+                 livre
+
+ ICP E           Indústria:               4             5             5           4            4                 4                         88
+                 fornecedores B2B
+
+ ICP F           Logística e transporte   3             5             5           4            4                 4                         83
+
+ ICP G           Corretoras de            4             4             3           5            3                 4                         77
+                 benefícios
+
+ ICP H           Agro B2B                 4             5             4           3            3                 3                         77
+
+ ICP B           Contabilidade e          4             3             3           4            3                 4                         70
+                 tributário
+
+ ICP C           Jurídico empresarial     4             4             1           4            3                 3                         64
+
+As notas são avaliação da Althius com base nos números de mercado da seção 07. O fit com a Althius pesa a experiência do time em
+comex, o que favorece o ICP A.
+
+
+
+
+Revenue OS · Documento interno                                                                                                               07
+       Althius                                                                                               MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 05
+
+
+Esteira de testes por ICP
+A ordem de teste, a janela do ano em que cada teste deve rodar e o motion que a Althius instala no
+cliente. As janelas são hipótese a validar nas primeiras conversas.
+
+ ICP             VERTICAL                    JANELA DO TESTE                           MOTION
+
+ ICP A           Comex e serviços de         Ago a nov: empresas planejam              Outbound por sinal + WhatsApp e ligação;
+                 importação                  pedidos antes do fechamento do ano        SEO/GEO para termos de importação.
+                                             e do Ano Novo Chinês.
+
+ ICP B           Contabilidade e             Jun a nov: fora do pico de obrigações     Inbound e autoridade (GEO/AEO, conteúdo
+                 tributário                  de jan a mai; 2026 e 2027 com a           técnico) + outbound consultivo de tom técnico.
+                                             transição da CBS/IBS.
+
+ ICP C           Jurídico empresarial        Fev a nov: evitar o recesso forense       Sinais por empresa › lista de contas › anúncio de
+                                             de fim de ano.                            conteúdo informativo por conta + busca e IA ›
+                                                                                       captura com consentimento › o interessado
+                                                                                       agenda.
+
+ ICP D           Energia e mercado livre     Todo 2027, antes da abertura da           Outbound por sinal em escala + inbound
+                                             baixa tensão para indústria e             educativo sobre mercado livre.
+                                             comércio.
+
+ ICP E           Indústria: fornecedores     Set a nov: fechamento do orçamento        Outbound por sinal ao comprador e à engenharia
+                 B2B                         de investimento do ano seguinte.          + SEO técnico.
+
+ ICP F           Logística e transporte      Jan a abr e ago a set: fora do pico de    Outbound por evento do embarcador +
+                                             fim de ano.                               WhatsApp.
+
+ ICP G           Corretoras de               Set a dez: empresas planejam              Outbound por sinal de contratação + inbound por
+                 benefícios                  benefícios para o ano seguinte.           conteúdo de benefícios.
+
+ ICP H           Agro B2B                    Fev a mai: entre a colheita da soja e a   Outbound por sinal ao produtor + conteúdo
+                                             compra de insumos da próxima safra.       regional.
+
+
+ICP A · TESTE 1
+
+Comex e serviços de importação
+Importadoras, tradings e despachantes têm margem e volume, mas crescem só por indicação e pelo relacionamento
+do sócio. A Althius vira o departamento de prospecção deles: lê o Comex Stat, acha quem começou a importar a
+NCM que eles dominam e aborda antes do concorrente.
+
+POR QUE NÃO MONTA                  O 'comercial' é quem responde cotação; a cultura é de relacionamento, a tecnologia é planilha e
+COMERCIAL
+                                   WhatsApp pessoal.
+
+FILTRO DE CAIXA                    Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                                   orçamento); importa com regularidade (aparece no Comex Stat em meses seguidos), Radar
+                                   ilimitado, mais de uma NCM na pauta.
+
+QUEM COMPRA A ALTHIUS              Tradings, comissárias de despacho, freight forwarders, armazéns alfandegados, fintechs de câmbio
+
+
+
+
+Revenue OS · Documento interno                                                                                                             08
+    Althius                                                                                         MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP B · TESTE 2
+
+Contabilidade e tributário
+O contador vende bem na mesa, mas não quer, e o CFC não deixa, fazer venda agressiva. A reforma tributária abre a
+maior janela de troca de contador em décadas. A Althius entrega autoridade (GEO/SEO/AEO e conteúdo técnico) e
+prospecção consultiva para empresas que mudam de porte, regime ou setor afetado: o escritório só aparece na
+reunião.
+
+POR QUE NÃO MONTA         Contador não se vê como vendedor; cresce por indicação de cliente e não tem quem cuide de
+COMERCIAL
+                          demanda.
+
+FILTRO DE CAIXA           Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                          orçamento); carteira PJ estabelecida, equipe própria, atende lucro presumido e real (não só MEI e
+                          Simples).
+
+QUEM COMPRA A ALTHIUS     Escritórios contábeis, consultorias tributárias não advocatícias, BPO financeiro
+
+
+ICP C · TESTE 3
+
+Jurídico empresarial
+Advogado tem repulsa a contratar vendedor e a OAB proíbe captação ativa e mala direta, então o escritório
+empresarial com caixa fica preso à indicação. A Althius vira o silo de GTM permitido: lê sinais no nível da empresa,
+transforma em lista de contas (sem dado pessoal) e faz o conteúdo técnico do escritório aparecer para quem
+trabalha nessas contas, além de busca e IA. Ninguém recebe contato frio; quem quer conversar pede.
+
+POR QUE NÃO MONTA         Vender é visto como mercantilização da advocacia; contratar comercial é tabu cultural e risco ético.
+COMERCIAL
+
+FILTRO DE CAIXA           Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                          orçamento); escritório empresarial ou tributário com vários sócios e clientes PJ recorrentes.
+
+QUEM COMPRA A ALTHIUS     Escritórios de advocacia empresarial e tributária; legal techs
+
+
+ICP D · TESTE 4
+
+Energia e mercado livre
+Comercializadoras e gestoras vão disputar milhões de PMEs a partir da abertura da baixa tensão com times
+técnicos, não comerciais. Quem montar a máquina de sinais (consumidor cativo, conta alta, CNAE) antes da
+abertura fica com a carteira. A Althius vende essa máquina pronta antes da corrida.
+
+POR QUE NÃO MONTA         Estrutura nasceu para grandes contas de alta tensão; não existe operação para volume de PME.
+COMERCIAL
+
+FILTRO DE CAIXA           Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                          orçamento); habilitada na CCEE como varejista ou gestora com carteira ativa de clientes.
+
+QUEM COMPRA A ALTHIUS     Comercializadoras varejistas, gestoras de energia, integradoras solar e eficiência energética
+
+
+
+
+Revenue OS · Documento interno                                                                                                   09
+    Althius                                                                                        MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP E · TESTE 5
+
+Indústria: fornecedores B2B
+Fornecedores industriais vendem por representante e engenheiro de aplicação; outbound não existe. Mas o sinal de
+compra é público: crédito BNDES aprovado, licença de instalação, planta nova. A Althius transforma esses gatilhos
+em reunião com o comprador na semana em que o orçamento abre.
+
+POR QUE NÃO MONTA         Venda técnica feita por engenheiro e representante autônomo; marketing é catálogo e feira.
+COMERCIAL
+
+FILTRO DE CAIXA           Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                          orçamento); fornecedor com base instalada e ticket alto por venda.
+
+QUEM COMPRA A ALTHIUS     Fabricantes e distribuidores de máquinas, automação, MRO, embalagens, química, manutenção
+                          industrial
+
+
+ICP F · TESTE 6
+
+Logística e transporte
+Transportadoras e 3PL vendem pelo relacionamento do dono e brigam por preço de frete. O embarcador troca de
+fornecedor quando muda de volume, de CD ou de rota, e esses eventos são visíveis. A Althius chega nesse
+momento com proposta ancorada no evento e tira a venda da guerra de frete.
+
+POR QUE NÃO MONTA         O dono é o vendedor; o resto do time é operação e cotação.
+COMERCIAL
+
+FILTRO DE CAIXA           Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                          orçamento); frota ou operação própria, contratos com embarcadores PJ.
+
+QUEM COMPRA A ALTHIUS     Transportadoras, 3PL, armazéns e operadores de last mile que vendem para embarcadores
+
+
+ICP G · TESTE 7
+
+Corretoras de benefícios
+A corretora média é o próprio sócio vendendo: renova a carteira, mas não abre conta nova. Empresa que cruza faixa
+de funcionários precisa de benefício, e isso aparece nas vagas. A Althius gera a agenda de empresas novas para a
+corretora só cotar e fechar.
+
+POR QUE NÃO MONTA         O sócio é o vendedor; não há tempo nem processo para prospectar fora da carteira.
+COMERCIAL
+
+FILTRO DE CAIXA           Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                          orçamento); corretora PJ com carteira empresarial e ramos de benefícios ativos.
+
+QUEM COMPRA A ALTHIUS     Corretoras PJ de saúde empresarial, vida em grupo, frota e riscos corporativos
+
+
+ICP H · TESTE 8
+
+Agro B2B
+Revendas e fintechs de crédito rural vivem de técnico de campo e relacionamento. O crédito privado (CPR, Fiagro)
+cresce e coloca produtor novo no radar todo mês. A Althius põe esse produtor na agenda do técnico certo, na janela
+da safra.
+
+POR QUE NÃO MONTA         Venda acontece no campo, pelo técnico de vendas; o digital é fraco e sem processo.
+COMERCIAL
+
+FILTRO DE CAIXA           Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                          orçamento); revenda ou fintech com operação em mais de uma praça.
+
+QUEM COMPRA A ALTHIUS     Revendas de insumos, máquinas agrícolas, fintechs de crédito rural, Fiagros, armazéns
+
+
+
+
+Revenue OS · Documento interno                                                                                             10
+    Althius                      MAPA DE MERCADO · OUT/2026
+
+
+
+
+Revenue OS · Documento interno                           11
+       Althius                                                                                 MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 06
+
+
+Mercado endereçável: TAM, SAM e SOM
+Quanto de mercado cada ICP oferece no ticket da Althius.
+
+• TAM: todas as empresas do nicho no Brasil, contadas em fonte pública.
+• SAM: só as que faturam o bastante para pagar o piso de R$ 5 mil por mês: faturamento acima de R$ 4,8 mi por ano
+   (fora de ME e EPP).
+• SOM: a meta de 12 a 36 meses, limitada pela capacidade de entrega.
+• Em reais: empresas × R$ 5 mil × 12. É o piso: contratos acima de R$ 5 mil aumentam todos os valores.
+
+ ICP             VERTICAL                         TAM      SAM       SOM       TAM R$/ANO     SAM R$/ANO        SOM R$/ANO
+
+ ICP A           Comex e serviços de           5.613    1.323         40    R$ 336,8 mi      R$ 79,4 mi         R$ 2,4 mi
+                 importação
+
+ ICP B           Contabilidade e tributário   112.364   3.820         38      R$ 6,7 bi     R$ 229,2 mi         R$ 2,3 mi
+
+ ICP C           Jurídico empresarial         105.617   5.281         40      R$ 6,3 bi     R$ 316,9 mi         R$ 2,4 mi
+
+ ICP D           Energia e mercado livre         506      129         13     R$ 30,4 mi       R$ 7,7 mi       R$ 780 mil
+
+ ICP E           Indústria: fornecedores      417.377   36.077        36       R$ 25 bi       R$ 2,2 bi         R$ 2,2 mi
+                 B2B
+
+ ICP F           Logística e transporte       216.039   31.110        31       R$ 13 bi       R$ 1,9 bi         R$ 1,9 mi
+
+ ICP G           Corretoras de benefícios     72.974    9.268         37      R$ 4,4 bi     R$ 556,1 mi         R$ 2,2 mi
+
+ ICP H           Agro B2B                     13.555    7.021         35    R$ 813,3 mi     R$ 421,3 mi         R$ 2,1 mi
+
+                 Total                        944.045   94.029       270     R$ 56,6 bi       R$ 5,6 bi       R$ 16,2 mi
+
+
+
+
+SOM em receita recorrente anual
+ICP A · Comex e serviços de importação                                                                        R$ 2,4 mi · 40 clientes
+
+ICP C · Jurídico empresarial                                                                                  R$ 2,4 mi · 40 clientes
+
+ICP B · Contabilidade e tributário                                                                         R$ 2,3 mi · 38 clientes
+
+ICP G · Corretoras de benefícios                                                                      R$ 2,2 mi · 37 clientes
+
+ICP E · Indústria: fornecedores B2B                                                                  R$ 2,2 mi · 36 clientes
+
+ICP H · Agro B2B                                                                                   R$ 2,1 mi · 35 clientes
+
+ICP F · Logística e transporte                                                               R$ 1,9 mi · 31 clientes
+
+ICP D · Energia e mercado livre                                  R$ 780 mil · 13 clientes
+
+
+
+
+Revenue OS · Documento interno                                                                                           12
+       Althius                                                                                              MAPA DE MERCADO · OUT/2026
+
+
+
+
+De onde vem cada número
+ ICP             UNIVERSO (TAM) E FONTE                CRITÉRIO DO SAM                                      SAM É              % SOM
+
+ ICP A           Empresas de despacho aduaneiro        23,6% · Médias e grandes (fora de ME/EPP):           Dado público          3%
+                 (CNAE 5250-8/02) e agenciamento       19,4% dos despachos e 26,1% dos agentes de
+                 de cargas (5250-8/03)                 carga
+                 Receita Federal via Portal Salário
+                 (ago/2026)
+
+ ICP B           Empresas de contabilidade (CNAE       3,4% · Médias e grandes (fora de ME/EPP); a          Dado público          1%
+                 6920-6/01)                            pesquisa Sescon-SP 2024 indica cerca de 7%
+                 Receita Federal via Portal Salário    acima de R$ 5 mi em SP
+                 (ago/2026)
+
+ ICP C           Sociedades de advogados ativas na     5% · Escritórios com estrutura para faturar          Premissa           0,75%
+                 OAB                                   acima de R$ 4,8 mi (em geral 10+ advogados). A
+                 CFOAB via Migalhas (2021)             média é de 2,1 advogados por sociedade, então
+                                                       a fatia é pequena
+
+ ICP D           Comercializadoras de energia          25,5% · As 129 habilitadas como varejistas, que      Dado público         10%
+                 registradas na CCEE                   atendem PME (86,4% do CNAE 3513-1/00 é de
+                 CCEE via Cenário Energia (out/2024)   médio e grande porte)
+
+ ICP E           Empresas industriais com 1 ou mais    8,6% · As 36.077 com 30 ou mais pessoas              Dado público        0,1%
+                 pessoas ocupadas                      ocupadas; inclui toda a indústria, então o recorte
+                 IBGE, PIA-Empresa 2023 (cadastro)     de quem vende para outras indústrias é menor
+
+ ICP F           Empresas de transporte rodoviário     14,4% · Médias e grandes (fora de ME/EPP)            Dado público        0,1%
+                 de carga (CNAE 4930-2/02)
+                 Receita Federal via Portal Salário
+                 (ago/2026)
+
+ ICP G           Corretoras e agentes de seguros,      12,7% · Médias e grandes (fora de ME/EPP);           Dado público        0,4%
+                 previdência e saúde (CNAE             nem todas trabalham benefícios empresariais
+                 6622-3/00)
+                 Receita Federal via Portal Salário
+                 (ago/2026)
+
+ ICP H           Atacadistas de defensivos,            51,8% · Médias e grandes (fora de ME/EPP)            Dado público        0,5%
+                 fertilizantes e corretivos (CNAE
+                 4683-4/00)
+                 Receita Federal via Portal Salário
+                 (ago/2026)
+
+O porte da Receita (ME, EPP, demais) é declarado pela empresa e é uma aproximação de faturamento. Na advocacia ele não vale: a
+sociedade de advogados é registrada na OAB e cai como "demais" por padrão, por isso o SAM do ICP C é premissa.
+
+
+
+
+Revenue OS · Documento interno                                                                                                      13
+    Althius                                                                             MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 07
+
+
+Quanto dinheiro gira em cada vertical
+Indicadores públicos de tamanho e de movimento de cada mercado. Unidades diferentes: servem
+de ordem de grandeza e de prova nos 4Ps.
+
+ VERTICAL          INDICADOR                                         VALOR   PERÍODO    FONTE
+
+ Comex             Importações do Brasil                      US$ 280,4 bi   2025       MDIC/Secex via Monitor
+                                                                                        Mercantil
+
+ Energia           Consumidores no mercado livre de               85,4 mil   fev/2026   CCEE via Canal Solar
+                   energia
+
+ Energia           Comercializadoras de energia registradas            506   out/2024   CCEE via Cenário Energia
+
+ Indústria         Orçamento Nova Indústria Brasil               R$ 300 bi   2025       BNDES via Agência Brasil
+                   (BNDES)
+
+ Logística         Custos logísticos do Brasil                   R$ 940 bi   2025       Instituto ILOS via Mundo
+                                                                                        Logística
+
+ Seguros           Corretoras de seguros PJ ativas                  61.282   mar/2025   Susep via CQCS
+
+ Agro              Registros de emissão de CPR                   R$ 560 bi   mar/2026   Mapa via Revista Cultivar
+
+ Contabilidade     Organizações contábeis ativas                   100.037   2025       CFC via BNE
+
+ Comex             Empresas importadoras                            60.115   2025       MDIC via CRC-MA
+
+ Jurídico          Sociedades de advogados ativas na OAB           105.617   2021       CFOAB via Migalhas
+
+ Agro              Faturamento das distribuidoras de             R$ 167 bi   2024       Andav via Agrolink
+                   insumos (Andav)
+
+
+
+
+Revenue OS · Documento interno                                                                                      14
+    Althius                                                                     MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 08
+
+
+CRI · Conta de Receita Ideal por ICP
+O mapa de cliente ideal da Althius, um por ICP: quem é a empresa, quem são as três pessoas da
+compra (campeão, influenciador e decisor, o batedor de martelo) e como a Althius se explica na
+língua daquele nicho. Depois, os 4Ps de copy com prova feita de números do próprio mercado.
+
+• Faixas de porte partem do piso de faturamento para pagar a Althius.
+• Propostas descrevem o formato da oferta, sem prazo nem resultado garantido.
+• Prova usa só números do mercado do ICP, nunca case de outro setor.
+
+
+
+
+Revenue OS · Documento interno                                                                          15
+    Althius                                                                                            MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP A · TESTE 1 · NOTA 95
+
+
+Comex e serviços de importação
+   Importadores qualificados na agenda do sócio, sem contratar
+   vendedor.
+
+            TAM
+
+
+
+
+                           5.613                      1.323                      40                         R$ 2,4 mi
+            SAM            TAM EMPRESAS               SAM EMPRESAS               SOM CLIENTES               SOM R$/ANO
+
+
+
+
+Janela do teste: Ago a nov: empresas planejam pedidos antes do fechamento do ano e do Ano Novo Chinês.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO            Prestadores de serviço de comex: tradings (conta e ordem e encomenda), comissárias de despacho,
+                            agentes de carga e armazéns alfandegados.
+
+TAMANHO                     Faturamento de R$ 4,8 mi a R$ 100 mi por ano (piso para pagar a partir de R$ 5 mil por mês); 10 a 80
+                            funcionários.
+
+REQUISITOS BÁSICOS          Operação recorrente e carteira de importadores ativa; já vende por indicação; não tem SDR ou tem
+                            um vendedor generalista que vira cotador.
+
+FILTRO DE CAIXA             Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                            orçamento); importa com regularidade (aparece no Comex Stat em meses seguidos), Radar
+                            ilimitado, mais de uma NCM na pauta.
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO               INFLUENCIADOR                                CAMPEÃO DA COMPRA
+
+  Sócio-diretor ou CEO                       Gerente comercial ou de operações            Analista de comex sênior ou
+                                                                                          coordenador que hoje responde as
+                                                                                          cotações
+
+
+CANAIS DE CONTATO           WhatsApp e ligação direta para o sócio; LinkedIn para o gerente; e-mail corporativo para formalizar
+                            proposta.
+
+SONHOS                      Agenda cheia de importadores qualificados sem depender da rede do sócio; saber quantas
+                            operações novas entram por mês.
+
+PESADELOS                   Perder o maior cliente e não ter reposição; a reforma tributária encarecer a conta e ordem e o cliente
+                            migrar; contratar vendedor que só vira cotador.
+
+
+
+
+Revenue OS · Documento interno                                                                                                       16
+    Althius                                                                                       MAPA DE MERCADO · OUT/2026
+
+
+
+
+A Althius neste nicho
+O QUE É                   Uma central de novas operações de importação: a Althius encontra quem começou a importar a
+                          NCM que vocês dominam e coloca na agenda do sócio.
+
+CARACTERÍSTICAS           Monitor de sinais de comex (Comex Stat, Radar, NCM nova), enriquecimento em cascata do
+                          comprador, abordagem por agente de IA no WhatsApp e e-mail, SEO/GEO para termos de
+                          importação, tudo num painel só.
+
+BENEFÍCIOS                Operações novas sem contratar vendedor; previsibilidade mensal; o time de operação continua
+                          operando.
+
+DOR QUE RESOLVE           Crescimento travado na rede de indicação do sócio e um comercial que só responde cotação.
+
+ENGRENAGEM ÚNICA (PUV)    O sinal de comex: sabemos quem passou a importar o que você opera antes de esse importador
+                          procurar fornecedor.
+
+
+
+4Ps de copy
+  1 · URGENTE                                                  2 · ÚNICA
+
+
+  Problema                                                     Promessa
+  Cada mês sem operação nova é um mês dependente de três       Novas operações de importação, sem montar time
+  ou quatro clientes. Se um deles troca de trading, o          comercial.
+  faturamento cai junto.
+
+
+  3 · INQUESTIONÁVEL                                           4 · IRRESISTÍVEL
+
+
+  Prova                                                        Proposta
+  60.115 empresas importaram em 2025, 7,6% a mais que em       Começa por um diagnóstico de vazamento de receita no seu
+  2024, e o Brasil importou o recorde de US$ 280,4 bi. Um      comex: onde a operação perde importadores hoje e quais
+  SDR CLT custa de R$ 3.500 a R$ 7.000 mais 65% a 80% de       sinais do seu mercado ninguém trabalha. A Althius entra
+  encargos e leva de 30 a 90 dias para render.                 como investimento comparado ao custo de montar e manter
+                                                               um comercial próprio, com todo o pipeline visível no painel.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS        Novo importador no Comex Stat, habilitação Radar, NCM nova na pauta, aumento de volume por
+                          porto, vaga de analista de comex
+
+GATILHO DE TIMING         Reforma tributária muda custo de importação e regime de conta e ordem
+
+MOTION NO CLIENTE         Outbound por sinal + WhatsApp e ligação; SEO/GEO para termos de importação.
+
+RESTRIÇÃO                 Nenhuma relevante para outbound
+
+
+
+
+Revenue OS · Documento interno                                                                                                17
+    Althius                                                                                              MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP B · TESTE 2 · NOTA 70
+
+
+Contabilidade e tributário
+   Clientes de honorário maior chegando por autoridade, sem o sócio
+   virar vendedor.
+
+            TAM
+
+
+
+
+                             112.364                    3.820                      38                          R$ 2,3 mi
+                             TAM EMPRESAS               SAM EMPRESAS               SOM CLIENTES                SOM R$/ANO
+
+
+
+
+Janela do teste: Jun a nov: fora do pico de obrigações de jan a mai; 2026 e 2027 com a transição da CBS/IBS.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO              Escritórios contábeis, consultorias tributárias não advocatícias e BPO financeiro que atendem
+                              empresas do Lucro Presumido e Real.
+
+TAMANHO                       Faturamento de R$ 4,8 mi a R$ 30 mi por ano (piso para pagar a partir de R$ 5 mil por mês); 20 a 150
+                              colaboradores; carteira PJ no Presumido e Real.
+
+REQUISITOS BÁSICOS            Carteira PJ recorrente fora do MEI; sócio com especialização tributária; ninguém dedicado a trazer
+                              cliente novo.
+
+FILTRO DE CAIXA               Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                              orçamento); carteira PJ estabelecida, equipe própria, atende lucro presumido e real (não só MEI e
+                              Simples).
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO                 INFLUENCIADOR                                CAMPEÃO DA COMPRA
+
+  Sócio-fundador ou sócio contador             Gerente contábil ou líder da área            Coordenador de relacionamento,
+                                               tributária                                   onboarding ou marketing (quando
+                                                                                            existe)
+
+
+CANAIS DE CONTATO             LinkedIn e e-mail para o sócio; WhatsApp depois do primeiro contato; conteúdo técnico e eventos do
+                              CRC como aquecimento.
+
+SONHOS                        Trocar clientes pequenos e trabalhosos por clientes de honorário alto; virar a referência em reforma
+                              tributária na região.
+
+PESADELOS                     A reforma tributária levar clientes para escritórios que parecem mais consultivos; guerra de preço;
+                              equipe afogada no primeiro semestre.
+
+
+
+
+Revenue OS · Documento interno                                                                                                       18
+    Althius                                                                                           MAPA DE MERCADO · OUT/2026
+
+
+
+
+A Althius neste nicho
+O QUE É                       Um motor de clientes consultivos: o escritório aparece como autoridade em reforma tributária nas
+                              buscas e nas IAs, e a Althius aborda, com tom técnico, só quem tem gatilho real.
+
+CARACTERÍSTICAS               GEO/AEO/SEO focado em CBS/IBS, conteúdo técnico na voz do sócio, sinais de mudança de porte
+                              e regime, enriquecimento do decisor financeiro, cadência consultiva dentro das regras do CFC.
+
+BENEFÍCIOS                    Clientes de honorário maior; agenda consultiva no segundo semestre, quando a operação respira;
+                              marca de especialista sem parecer vendedor.
+
+DOR QUE RESOLVE               Crescer só por indicação, com clientes de ticket baixo, numa profissão em que propaganda agressiva
+                              é malvista.
+
+ENGRENAGEM ÚNICA (PUV)        Autoridade técnica que prospecta: o escritório vira resposta quando o empresário pergunta sobre
+                              reforma tributária, e só quem tem gatilho recebe abordagem.
+
+
+
+4Ps de copy
+  1 · URGENTE                                                       2 · ÚNICA
+
+
+  Problema                                                          Promessa
+  A reforma tributária vai redistribuir carteiras entre 2026 e      Clientes consultivos da reforma tributária chegando até
+  2033. Quem não for lembrado como especialista agora               você, sem você vender.
+  perde o cliente para quem for.
+
+
+  3 · INQUESTIONÁVEL                                                4 · IRRESISTÍVEL
+
+
+  Prova                                                             Proposta
+  São 100.037 organizações contábeis disputando a mesma             Começa por um diagnóstico de vazamento de receita do
+  base. A transição da CBS/IBS cria demanda consultiva até          escritório: quais clientes de honorário alto passam sem ser
+  2033, e o CFC exige publicidade informativa e moderada, o         trabalhados e como a reforma muda isso. Investimento
+  que favorece autoridade sobre anúncio.                            comparado ao custo de um comercial interno, num formato
+                                                                    que respeita as regras de publicidade do CFC, com tudo
+                                                                    visível no painel.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS            CNPJ novo, mudança de porte ou regime, entrada de sócio, empresa em setor mais afetado pela
+                              CBS/IBS
+
+GATILHO DE TIMING             Transição da reforma tributária (CBS/IBS) gera demanda consultiva até 2033
+
+MOTION NO CLIENTE             Inbound e autoridade (GEO/AEO, conteúdo técnico) + outbound consultivo de tom técnico.
+
+RESTRIÇÃO                     CFC exige publicidade informativa, moderada e sem mercantilização; prospecção possível com tom
+                              técnico
+
+
+
+
+Revenue OS · Documento interno                                                                                                    19
+    Althius                                                                                                MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP C · TESTE 3 · NOTA 64
+
+
+Jurídico empresarial
+   O cliente certo encontra o seu escritório, e você nunca precisa
+   vender.
+
+            TAM
+
+
+
+
+                              105.617                     5.281                     40                          R$ 2,4 mi
+                              TAM EMPRESAS                SAM EMPRESAS              SOM CLIENTES                SOM R$/ANO
+
+
+
+
+Janela do teste: Fev a nov: evitar o recesso forense de fim de ano.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO               Escritórios de advocacia empresarial, tributária e trabalhista patronal que atendem PJ.
+
+TAMANHO                        Faturamento de R$ 4,8 mi a R$ 50 mi por ano (piso para pagar a partir de R$ 5 mil por mês); em geral
+                               10 a 60 advogados; dois ou mais sócios.
+
+REQUISITOS BÁSICOS             Carteira PJ recorrente; especialidade clara; site no ar; nenhuma estrutura comercial.
+
+FILTRO DE CAIXA                Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                               orçamento); escritório empresarial ou tributário com vários sócios e clientes PJ recorrentes.
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO                  INFLUENCIADOR                                CAMPEÃO DA COMPRA
+
+  Sócio-administrador (managing                 Sócio da área (tributário, trabalhista,      Gerente administrativo, de marketing
+  partner)                                      societário)                                  jurídico ou controller do escritório
+
+
+CANAIS DE CONTATO              A Althius aborda o escritório de forma ativa por LinkedIn, e-mail e telefone: a regra da OAB limita o
+                               advogado a captar cliente, não a Althius a vender para o escritório.
+
+SONHOS                         Ser o escritório lembrado quando o diretor financeiro tem um problema; crescer sem precisar vender.
+
+PESADELOS                      Ser visto como mercantilista; responder a processo ético na OAB; depender de dois ou três clientes
+                               grandes.
+
+
+
+
+Revenue OS · Documento interno                                                                                                         20
+    Althius                                                                                            MAPA DE MERCADO · OUT/2026
+
+
+
+
+A Althius neste nicho
+O QUE É                      Um silo de go-to-market permitido: o escritório nunca aborda ninguém. A Althius lê sinais no nível da
+                             empresa e faz o conteúdo técnico do escritório chegar a quem trabalha nessas empresas, por
+                             anúncio de conteúdo, busca e IA.
+
+CARACTERÍSTICAS              Sinais públicos por CNPJ (mudança regulatória, processo, reforma no setor) › lista de contas sem
+                             dado pessoal › anúncio de conteúdo informativo segmentado por empresa e cargo › Google por
+                             palavra-chave e GEO/AEO/SEO › material técnico com consentimento › nutrição só de quem pediu.
+
+BENEFÍCIOS                   Clientes PJ novos sem contratar comercial e sem captação ativa; demanda que chega pedindo a
+                             especialidade do escritório.
+
+DOR QUE RESOLVE              Depender de indicação, rejeitar a ideia de vendedor e não ter nenhum canal próprio de demanda.
+
+ENGRENAGEM ÚNICA (PUV)       Sinal por conta: o escritório não prospecta; o conteúdo dele aparece primeiro para as empresas que
+                             acabaram de ganhar um problema jurídico, sem tocar em dado pessoal de ninguém.
+
+
+
+4Ps de copy
+  1 · URGENTE                                                       2 · ÚNICA
+
+
+  Problema                                                          Promessa
+  A indicação é concentrada: quando o principal indicador se        Clientes PJ encontrando o seu escritório pela especialidade,
+  aposenta ou muda de empresa, o escritório perde o canal           sem nenhuma captação ativa.
+  inteiro.
+
+
+  3 · INQUESTIONÁVEL                                                4 · IRRESISTÍVEL
+
+
+  Prova                                                             Proposta
+  São 105.617 sociedades de advogados ativas na OAB e               Começa por um diagnóstico de presença: como o escritório
+  mais de 1,3 milhão de advogados disputando atenção.               aparece hoje no Google e nas IAs para as perguntas da sua
+  Como a OAB veda captação ativa e mala direta, quem                área. Modelo desenhado para caber no Provimento
+  domina conteúdo, busca e IA domina a demanda.                     205/2021 e na LGPD, sem abordagem do escritório a
+                                                                    ninguém e com todo conteúdo aprovado pelo sócio.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS           Processos públicos, mudança regulatória, recuperação judicial de cliente do prospect
+
+GATILHO DE TIMING            Reforma tributária gera demanda por contencioso e planejamento
+
+MOTION NO CLIENTE            Sinais por empresa › lista de contas › anúncio de conteúdo informativo por conta + busca e IA ›
+                             captura com consentimento › o interessado agenda.
+
+RESTRIÇÃO                    OAB veda captação, mala direta e anúncio que ofereça serviço jurídico; o motion usa só conteúdo
+                             informativo e dados de empresa, e dado pessoal só com consentimento (LGPD).
+
+O passo a passo do motion jurídico, dentro da OAB e da LGPD, está na seção 09.
+
+
+
+
+Revenue OS · Documento interno                                                                                                       21
+    Althius                                                                                             MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP D · TESTE 4 · NOTA 92
+
+
+Energia e mercado livre
+   Comece a formar sua carteira de PMEs antes da abertura da baixa
+   tensão.
+
+            TAM
+
+
+
+
+                             506                        129                        13                        R$ 780 mil
+            SAM              TAM EMPRESAS               SAM EMPRESAS               SOM CLIENTES              SOM R$/ANO
+
+
+
+
+Janela do teste: Todo 2027, antes da abertura da baixa tensão para indústria e comércio.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO              Comercializadoras varejistas, gestoras de energia e integradoras de energia solar e eficiência
+                              energética.
+
+TAMANHO                       Faturamento de R$ 10 mi a R$ 500 mi por ano; 15 a 200 funcionários.
+
+REQUISITOS BÁSICOS            Habilitação na CCEE ou parceria com varejista; produto para PME pronto; meta de carteira para a
+                              abertura da baixa tensão.
+
+FILTRO DE CAIXA               Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                              orçamento); habilitada na CCEE como varejista ou gestora com carteira ativa de clientes.
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO                 INFLUENCIADOR                               CAMPEÃO DA COMPRA
+
+  CEO ou diretor comercial                     Head de novos negócios ou gerente           Analista de inteligência de mercado ou
+                                               de mercado livre                            coordenador de pré-vendas
+
+
+CANAIS DE CONTATO             LinkedIn e e-mail; ligação para o diretor comercial; eventos do setor como aquecimento.
+
+SONHOS                        Chegar na abertura da baixa tensão com uma carteira de PMEs já qualificada.
+
+PESADELOS                     Chegar em novembro de 2027 sem máquina de volume e perder a corrida para distribuidoras com
+                              marca.
+
+
+
+
+Revenue OS · Documento interno                                                                                                  22
+    Althius                                                                                           MAPA DE MERCADO · OUT/2026
+
+
+
+
+A Althius neste nicho
+O QUE É                     A máquina de aquisição de PMEs para o mercado livre, pronta antes da abertura.
+
+CARACTERÍSTICAS             Sinais de consumo (Grupo A ainda cativo, CNAE eletrointensivo, contrato vencendo),
+                            enriquecimento do decisor da PME, abordagem por IA em escala, conteúdo educativo sobre
+                            mercado livre com GEO/AEO.
+
+BENEFÍCIOS                  Carteira de PMEs pré-qualificadas antes da abertura; custo por cliente abaixo de campanha de
+                            massa.
+
+DOR QUE RESOLVE             Estrutura comercial feita para poucos clientes grandes, sem capacidade de falar com milhares de
+                            PMEs.
+
+ENGRENAGEM ÚNICA (PUV)      Lista viva de PMEs que vão migrar, já enriquecida e aquecida antes de a porta abrir.
+
+
+
+4Ps de copy
+  1 · URGENTE                                                      2 · ÚNICA
+
+
+  Problema                                                         Promessa
+  A janela é única: quem não tiver carteira formada na abertura    Sua carteira de PMEs do mercado livre formada antes da
+  vai disputar PME por preço depois.                               abertura.
+
+
+  3 · INQUESTIONÁVEL                                               4 · IRRESISTÍVEL
+
+
+  Prova                                                            Proposta
+  Já são 85,4 mil consumidores no mercado livre e 506              Começa por um diagnóstico de prontidão para a abertura:
+  comercializadoras registradas. O varejo responde por 75%         tamanho da carteira potencial na sua área e os sinais de
+  das migrações, e a baixa tensão de indústria e comércio          PME já visíveis. Investimento comparado ao custo de
+  abre até novembro de 2027.                                       estruturar um time de volume, com o funil visível no painel.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS          Empresa Grupo A ainda cativa, vencimento de contrato de energia, nova planta ou filial, CNAE
+                            eletrointensivo, meta ESG publicada
+
+GATILHO DE TIMING           Abertura da baixa tensão para indústria e comércio até nov/2027
+
+MOTION NO CLIENTE           Outbound por sinal em escala + inbound educativo sobre mercado livre.
+
+RESTRIÇÃO                   Regras ANEEL de comercialização varejista; sem barreira a prospecção ativa
+
+
+
+
+Revenue OS · Documento interno                                                                                                    23
+    Althius                                                                                             MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP E · TESTE 5 · NOTA 88
+
+
+Indústria: fornecedores B2B
+   Reunião com a indústria que acabou de aprovar investimento,
+   antes de o concorrente saber.
+
+            TAM
+
+
+
+
+                            417.377                    36.077                     36                         R$ 2,2 mi
+                            TAM EMPRESAS               SAM EMPRESAS               SOM CLIENTES               SOM R$/ANO
+
+
+
+
+Janela do teste: Set a nov: fechamento do orçamento de investimento do ano seguinte.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO             Fabricantes e distribuidores que vendem para a indústria: máquinas, automação, MRO, embalagens,
+                             química e manutenção industrial.
+
+TAMANHO                      Faturamento de R$ 20 mi a R$ 300 mi por ano; 50 a 500 funcionários.
+
+REQUISITOS BÁSICOS           Ticket alto por venda; base instalada; vende por representante ou engenheiro de aplicação; não tem
+                             SDR.
+
+FILTRO DE CAIXA              Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                             orçamento); fornecedor com base instalada e ticket alto por venda.
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO                INFLUENCIADOR                                CAMPEÃO DA COMPRA
+
+  Diretor comercial ou CEO                    Gerente de vendas ou de engenharia           Coordenador de marketing ou de
+                                              de aplicação                                 inside sales
+
+
+CANAIS DE CONTATO            Telefone e LinkedIn; e-mail técnico; feiras setoriais como aquecimento.
+
+SONHOS                       Estar na mesa quando o cliente aprova o investimento, e não depois do concorrente.
+
+PESADELOS                    Descobrir a planta nova do cliente pelo jornal, quando o pedido já foi para outro fornecedor.
+
+
+
+
+Revenue OS · Documento interno                                                                                                    24
+    Althius                                                                                          MAPA DE MERCADO · OUT/2026
+
+
+
+
+A Althius neste nicho
+O QUE É                     Um radar de investimento industrial: a Althius avisa e marca a reunião quando um cliente potencial
+                            aprova crédito, licença ou expansão.
+
+CARACTERÍSTICAS             Monitor de BNDES e Finep, licenças ambientais, vagas de engenharia e importação de máquinas;
+                            enriquecimento do comprador e da engenharia; abordagem técnica por IA; SEO técnico.
+
+BENEFÍCIOS                  Entrada no início do ciclo de compra; representantes focados em fechar, não em procurar.
+
+DOR QUE RESOLVE             Venda reativa, dependente de representante e de feira.
+
+ENGRENAGEM ÚNICA (PUV)      Sabemos quem vai investir antes de a cotação existir.
+
+
+
+4Ps de copy
+  1 · URGENTE                                                      2 · ÚNICA
+
+
+  Problema                                                         Promessa
+  Quando a cotação chega, o projeto já tem fornecedor              Entre no projeto antes da cotação.
+  preferido. Quem entra tarde só compete em preço.
+
+
+  3 · INQUESTIONÁVEL                                               4 · IRRESISTÍVEL
+
+
+  Prova                                                            Proposta
+  São 209,3 mil unidades industriais com 5 ou mais pessoas,        Começa por um diagnóstico dos sinais de investimento no
+  e o BNDES ampliou a Nova Indústria Brasil para R$ 300 bi.        seu segmento e de onde a venda técnica perde
+  Financiamentos e licenças são públicos: o sinal está lá para     oportunidade hoje. Investimento comparado ao custo de
+  quem olhar primeiro.                                             ampliar representantes, com o pipeline visível no painel.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS          Financiamento BNDES ou Finep, licença ambiental de instalação, expansão de planta, vaga de
+                            engenharia ou manutenção, importação de máquinas (NCM 84/85)
+
+GATILHO DE TIMING           Nova Indústria Brasil ampliou crédito para investimento industrial
+
+MOTION NO CLIENTE           Outbound por sinal ao comprador e à engenharia + SEO técnico.
+
+RESTRIÇÃO                   Nenhuma relevante
+
+
+
+
+Revenue OS · Documento interno                                                                                                   25
+     Althius                                                                                            MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP F · TESTE 6 · NOTA 83
+
+
+Logística e transporte
+   Contratos novos com embarcadores que estão mudando a
+   operação, sem disputar só no frete.
+
+             TAM
+
+
+
+
+                              216.039                      31.110                 31                         R$ 1,9 mi
+                              TAM EMPRESAS                 SAM EMPRESAS           SOM CLIENTES               SOM R$/ANO
+
+
+
+
+Janela do teste: Jan a abr e ago a set: fora do pico de fim de ano.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO               Transportadoras de carga fracionada e lotação, operadores 3PL, armazéns gerais e last mile B2B.
+
+TAMANHO                        Faturamento de R$ 10 mi a R$ 200 mi por ano; 50 a 800 funcionários, incluindo motoristas.
+
+REQUISITOS BÁSICOS             Frota ou operação própria; contratos com embarcadores PJ; o dono ainda é o principal vendedor.
+
+FILTRO DE CAIXA                Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                               orçamento); frota ou operação própria, contratos com embarcadores PJ.
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO                   INFLUENCIADOR                             CAMPEÃO DA COMPRA
+
+  Sócio-diretor                                  Gerente comercial ou de operações         Analista comercial ou de pricing
+
+
+CANAIS DE CONTATO              WhatsApp e ligação; LinkedIn para o gerente; e-mail para proposta.
+
+SONHOS                         Contratos de médio prazo com embarcadores bons pagadores, fora da guerra do frete spot.
+
+PESADELOS                      Caminhão parado; depender de um único embarcador; margem esmagada pelo diesel.
+
+
+
+A Althius neste nicho
+O QUE É                        Um gerador de contratos com embarcadores no momento em que eles mudam de operação.
+
+CARACTERÍSTICAS                Sinais de novo CD, filial, vaga de logística e aumento de comex do embarcador; enriquecimento do
+                               gerente de logística; abordagem por IA com proposta ligada ao evento.
+
+BENEFÍCIOS                     Venda por valor, não por preço; ocupação de frota mais previsível.
+
+DOR QUE RESOLVE                Crescimento preso ao relacionamento do dono e à cotação de frete.
+
+ENGRENAGEM ÚNICA (PUV)         Chegamos ao embarcador no exato evento que obriga a troca de fornecedor.
+
+
+
+
+Revenue OS · Documento interno                                                                                                    26
+    Althius                                                                                        MAPA DE MERCADO · OUT/2026
+
+
+
+
+4Ps de copy
+  1 · URGENTE                                                    2 · ÚNICA
+
+
+  Problema                                                       Promessa
+  Cada caminhão parado é custo fixo correndo, e carteira         Embarcadores em mudança de operação na sua agenda,
+  concentrada deixa a transportadora refém de preço.             antes da cotação.
+
+
+  3 · INQUESTIONÁVEL                                             4 · IRRESISTÍVEL
+
+
+  Prova                                                          Proposta
+  Os custos logísticos do Brasil chegaram a R$ 940 bi em         Começa por um diagnóstico de vazamento de receita: quais
+  2025, e cerca de 285 mil empresas registradas no RNTRC         embarcadores da sua rota estão mudando de operação e
+  disputam carga. O embarcador troca de fornecedor quando        por que a venda hoje vira só cotação de frete. Investimento
+  muda de operação: é aí que a venda acontece.                   comparado ao custo de montar um time comercial, com
+                                                                 tudo visível no painel.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS          Novo CD ou filial do embarcador, vaga de logística, crescimento de comex do embarcador, troca de
+                            sede
+
+GATILHO DE TIMING           Mercado fragmentado e em consolidação; custo logístico em alta
+
+MOTION NO CLIENTE           Outbound por evento do embarcador + WhatsApp.
+
+RESTRIÇÃO                   Nenhuma relevante
+
+
+
+
+Revenue OS · Documento interno                                                                                                 27
+    Althius                                                                                             MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP G · TESTE 7 · NOTA 77
+
+
+Corretoras de benefícios
+   Cotações de benefícios com empresas que acabaram de crescer.
+
+            TAM
+
+
+
+
+                             72.974                     9.268                      37                       R$ 2,2 mi
+                             TAM EMPRESAS               SAM EMPRESAS               SOM CLIENTES             SOM R$/ANO
+
+
+
+
+Janela do teste: Set a dez: empresas planejam benefícios para o ano seguinte.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO              Corretoras de seguros PJ focadas em benefícios corporativos: saúde empresarial, vida em grupo,
+                              frota e riscos.
+
+TAMANHO                       Faturamento de R$ 4,8 mi a R$ 40 mi por ano (piso para pagar a partir de R$ 5 mil por mês); 15 a 80
+                              funcionários.
+
+REQUISITOS BÁSICOS            Registro Susep ativo; carteira empresarial; o sócio ainda é quem vende.
+
+FILTRO DE CAIXA               Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                              orçamento); corretora PJ com carteira empresarial e ramos de benefícios ativos.
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO                 INFLUENCIADOR                              CAMPEÃO DA COMPRA
+
+  Sócio-diretor                                Gerente comercial ou de benefícios         Executivo de relacionamento ou de
+                                                                                          pós-venda
+
+
+CANAIS DE CONTATO             WhatsApp, ligação e LinkedIn; e-mail para cotação.
+
+SONHOS                        Contas empresariais novas todo trimestre, sem depender só da renovação.
+
+PESADELOS                     Perder uma conta grande na renovação para corretora mais barata; sinistralidade alta derrubando a
+                              carteira.
+
+
+
+
+Revenue OS · Documento interno                                                                                                      28
+    Althius                                                                                           MAPA DE MERCADO · OUT/2026
+
+
+
+
+A Althius neste nicho
+O QUE É                    Uma agenda de empresas que acabaram de crescer e precisam de benefício agora.
+
+CARACTERÍSTICAS            Sinais de contratação (vagas, faixa de funcionários), nova filial e frota; enriquecimento do RH e do
+                           financeiro; abordagem por IA; conteúdo de benefícios com GEO.
+
+BENEFÍCIOS                 Contas novas sem tirar o sócio da carteira; cotação no momento certo.
+
+DOR QUE RESOLVE            A corretora só renova; o sócio não tem tempo nem processo para abrir conta nova.
+
+ENGRENAGEM ÚNICA (PUV)     Sabemos quando a empresa cresce o bastante para o RH colocar benefício na pauta.
+
+
+
+4Ps de copy
+  1 · URGENTE                                                      2 · ÚNICA
+
+
+  Problema                                                         Promessa
+  Renovação sem conta nova é carteira encolhendo devagar,          Empresas em crescimento pedindo cotação de benefício
+  e uma conta perdida leva o lucro do ano.                         para você.
+
+
+  3 · INQUESTIONÁVEL                                               4 · IRRESISTÍVEL
+
+
+  Prova                                                            Proposta
+  São 61.282 corretoras PJ ativas disputando as mesmas             Começa por um diagnóstico da carteira: quanto do
+  empresas. Contratação é sinal público nas vagas: quem            faturamento depende de renovação e quais empresas da
+  chega primeiro no RH ganha a cotação.                            sua região estão crescendo. Investimento comparado ao
+                                                                   custo de um executivo comercial dedicado, com o pipeline
+                                                                   visível no painel.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS         Empresa cruzando faixa de headcount (vagas, CAGED), renovação anual de apólice, nova filial, frota
+                           crescendo
+
+GATILHO DE TIMING          Muitas corretoras pequenas sem estrutura comercial própria
+
+MOTION NO CLIENTE          Outbound por sinal de contratação + inbound por conteúdo de benefícios.
+
+RESTRIÇÃO                  SUSEP exige corretor habilitado e regras de oferta; cuidado com dados de saúde (LGPD)
+
+
+
+
+Revenue OS · Documento interno                                                                                                    29
+    Althius                                                                                               MAPA DE MERCADO · OUT/2026
+
+
+
+
+ICP H · TESTE 8 · NOTA 77
+
+
+Agro B2B
+   Seus técnicos visitando só produtor com intenção de compra nesta
+   safra.
+
+            TAM
+
+
+            SAM
+                             13.555                      7.021                      35                        R$ 2,1 mi
+                             TAM EMPRESAS                SAM EMPRESAS               SOM CLIENTES              SOM R$/ANO
+
+
+
+
+Janela do teste: Fev a mai: entre a colheita da soja e a compra de insumos da próxima safra.
+
+
+Sobre a empresa
+NICHO DE ATUAÇÃO              Revendas e distribuidoras de insumos, concessionárias de máquinas agrícolas, fintechs de crédito
+                              rural e Fiagros.
+
+TAMANHO                       Faturamento de R$ 30 mi a R$ 1 bi por ano; 30 a 500 funcionários.
+
+REQUISITOS BÁSICOS            Operação em mais de uma praça; time de técnicos de vendas (RTV); carteira de produtores; CRM
+                              básico.
+
+FILTRO DE CAIXA               Faturamento acima de R$ 4,8 mi por ano (para o ticket a partir de R$ 5 mil por mês caber no
+                              orçamento); revenda ou fintech com operação em mais de uma praça.
+
+
+
+Sobre as pessoas
+  DECISOR · BATEDOR DE MARTELO                 INFLUENCIADOR                                   CAMPEÃO DA COMPRA
+
+  Diretor comercial ou CEO                     Gerente regional de vendas                      Coordenador de marketing ou de
+                                                                                               inteligência comercial
+
+
+CANAIS DE CONTATO             WhatsApp e ligação; dias de campo e eventos; LinkedIn para a diretoria.
+
+SONHOS                        RTV visitando só produtor com intenção de compra; crescer em praça nova.
+
+PESADELOS                     Inadimplência; RTV levando a carteira para o concorrente; perder a janela da safra.
+
+
+
+
+Revenue OS · Documento interno                                                                                                    30
+    Althius                                                                                          MAPA DE MERCADO · OUT/2026
+
+
+
+
+A Althius neste nicho
+O QUE É                    Inteligência de produtor para o RTV: quem plantou, quem tomou crédito e quem está na janela de
+                           compra.
+
+CARACTERÍSTICAS            Sinais de CPR, CAR, Plano Safra e calendário agrícola; enriquecimento do produtor e da fazenda;
+                           abordagem por WhatsApp com IA; conteúdo regional.
+
+BENEFÍCIOS                 Visitas que convertem mais; carteira da empresa, não do técnico.
+
+DOR QUE RESOLVE            Venda dependente do técnico de campo e sem dado de intenção.
+
+ENGRENAGEM ÚNICA (PUV)     O produtor certo, na janela certa da safra, na agenda do técnico certo.
+
+
+
+4Ps de copy
+  1 · URGENTE                                                      2 · ÚNICA
+
+
+  Problema                                                         Promessa
+  A janela de compra de insumo é curta: quem chega depois          Produtor com intenção de compra na agenda do seu
+  da decisão perde a safra inteira.                                técnico, dentro da janela.
+
+
+  3 · INQUESTIONÁVEL                                               4 · IRRESISTÍVEL
+
+
+  Prova                                                            Proposta
+  Os registros de emissão de CPR chegaram a R$ 560 bi, e as        Começa por um diagnóstico da sua praça: onde estão os
+  distribuidoras associadas à Andav faturaram R$ 167 bi em         produtores com sinal de compra e quanto da carteira está na
+  2024. Crédito rural registrado é sinal público de quem vai       mão de cada técnico. Investimento comparado ao custo de
+  comprar.                                                         ampliar o time de campo, com tudo visível no painel.
+
+
+
+Sinais, gatilho e restrição
+SINAIS REPLICÁVEIS         CPR registrada, área no CAR, calendário de safra, liberação do Plano Safra, nova cooperativa
+
+GATILHO DE TIMING          Crédito privado (CPR, LCA, Fiagro) cresce mais rápido que o subsidiado
+
+MOTION NO CLIENTE          Outbound por sinal ao produtor + conteúdo regional.
+
+RESTRIÇÃO                  Crédito e títulos seguem regras CVM e Bacen para quem oferta
+
+
+
+
+Revenue OS · Documento interno                                                                                                   31
+    Althius                                                                                                MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 09
+
+
+Jurídico: motion dentro da OAB e da LGPD
+O motion que a Althius instala no escritório (ICP C). Nenhuma empresa recebe contato frio e
+nenhum dado pessoal é usado sem consentimento: o escritório só conversa com quem pediu.
+
+   Os e-mails enriquecidos servem para a Althius vender ao escritório, nunca para o escritório abordar o cliente.
+
+Este desenho não substitui parecer jurídico. Antes de oferecer o motion a escritórios, vale validar com um especialista em ética da OAB e
+em LGPD.
+
+ ETAPA                   O QUE A ALTHIUS FAZ                              POR QUE CABE NA OAB             POR QUE CABE NA LGPD
+
+ 01                      Monitoramos sinais públicos de empresas          Nenhum contato acontece:        Dado de pessoa jurídica não
+ Sinal por empresa       pelo CNPJ: mudança regulatória do setor,         é pesquisa de mercado.          é dado pessoal (a LGPD
+                         processo relevante, impacto da reforma                                           protege pessoa natural, art.
+                         tributária no CNAE, recuperação judicial de                                      5º, I).
+                         fornecedor.
+
+ 02                      As empresas com sinal viram uma lista de         Não há lista de                 Nenhum e-mail, telefone ou
+ Lista de contas,        contas (nome e site). Os e-mails                 destinatários, então não        nome de pessoa é usado.
+ não de pessoas          enriquecidos não entram aqui: ficam só           existe mala direta.
+                         para a Althius vender ao próprio escritório.
+
+ 03                      Anúncio no LinkedIn com segmentação por          O Provimento 205 permite        O casamento é feito pela
+ Conteúdo para a         lista de empresas e por cargo (diretor           impulsionar conteúdo            plataforma no nível da
+ conta                   financeiro, jurídico interno): quem trabalha     informativo, desde que o        empresa; o escritório não
+                         nessas empresas vê um artigo técnico do          anúncio não ofereça serviço     sobe dado pessoal.
+                         escritório sobre o tema do sinal.                jurídico.
+
+ 04                      Google Ads por palavra-chave para quem já        O anexo do Provimento 205       Nenhum dado pessoal
+ Busca e IA              está pesquisando o tema, e                       admite palavra-chave            envolvido.
+                         GEO/AEO/SEO para o escritório aparecer           quando responde a uma
+                         nas respostas de buscadores e IAs.               busca iniciada pelo
+                                                                          interessado.
+
+ 05                      Material técnico (guia, checklist,               Vira publicidade passiva: só    Base legal de
+ Captura com             calculadora de impacto da reforma) com           para quem pediu (art. 2º,       consentimento (art. 7º, I),
+ consentimento           formulário e consentimento explícito.            VII).                           com política de privacidade
+                                                                                                          e opção de sair.
+
+ 06                      Newsletter e conteúdos seguintes apenas          Comunicação a quem              Nunca usar e-mail coletado
+ Nutrição só de          para quem consentiu. Público semelhante          autorizou é permitida; mala     ou enriquecido de terceiros
+ quem pediu              (lookalike) só a partir dessa base própria e     direta para coletividade é      para público de anúncio.
+                         de visitantes com consentimento de               vedada.
+                         cookies.
+
+ 07                      A reunião é marcada pelo próprio                 Não há captação: o cliente      O dado entra no CRM com a
+ O interessado           interessado, num link do escritório. O           procurou o escritório.          base legal registrada.
+ agenda                  escritório responde; não aborda.
+
+ 08                      Nenhuma empresa recebe contato frio,             A marca do escritório nunca     Sem disparo, não há
+ Sem queimar             então nenhuma conta é queimada: quem             aparece numa mensagem           reclamação de titular por
+ cartucho                não engajou continua na lista e é impactada      não solicitada.                 contato indevido.
+                         de novo no próximo sinal.
+
+ 09                      Todo conteúdo passa pelo sócio. Nada de          Arts. 3º e 6º do Provimento     Contrato de operador entre
+ Regras de copy          resultado, caso concreto, cliente, preço,        205.                            Althius e escritório (o
+                         tamanho do escritório, linguagem de                                              escritório é o controlador
+                         autopromoção ou especialidade sem título.                                        dos leads).
+
+
+
+
+Revenue OS · Documento interno                                                                                                          32
+    Althius                                                                                 MAPA DE MERCADO · OUT/2026
+
+
+
+
+SEÇÃO 10
+
+
+Premissas, limites e próximos passos
+Premissas a validar
+• Percentual de SOM de cada ICP e capacidade de entrega da Althius para atendê-los.
+• SAM do jurídico (5% das sociedades de advogados), sem dado público de faturamento.
+• Janelas de sazonalidade de cada teste.
+• Faixas de porte em faturamento e funcionários de cada CRI.
+• Ticket: todos os valores em reais usam o piso de R$ 5 mil por mês.
+
+
+Limites dos dados
+• O porte da Receita é declarado pela empresa e aproxima o faturamento; não é o faturamento real.
+• O SAM da indústria inclui toda empresa industrial com 30 ou mais pessoas; o recorte de fornecedores B2B é
+  menor.
+• O SAM de corretoras inclui todo o CNAE 6622-3/00, não só quem trabalha benefícios empresariais.
+• O TAM do ICP A usa despacho aduaneiro e agenciamento de cargas; tradings não têm CNAE próprio e ficaram de
+  fora da contagem.
+
+
+Próximos passos sugeridos
+• Definir o critério de sucesso e de saída de cada teste (reuniões, prazo, ticket mínimo) para trocar de ICP por
+  número.
+• Rodar o ICP A com a plataforma Althius e registrar o resultado como prova viva.
+• Validar o motion jurídico com parecer de ética da OAB e LGPD antes do ICP C.
+
+
+
+
+Revenue OS · Documento interno                                                                                      33
+    Althius                                                                                MAPA DE MERCADO · OUT/2026
+
+
+
+
+Fontes
+ FONTE                                          ENDEREÇO
+
+ Balança comercial 2025 (MDIC)                  monitormercantil.com.br/deficit-com-eua-cresce-e-reduz-saldo…
+
+ Empresas importadoras e exportadoras           crcma.org.br/noticias/brasil-tem-29-818-empresas-exportadora…
+ 2025 (MDIC, via CRC-MA)
+
+ Exportadoras por porte 2024 (Fenacon)          fenacon.org.br/noticias/2024-tem-recorde-de-empresas-exporta…
+
+ Despachantes aduaneiros (Fenacon)              fenacon.org.br/noticias/especial-federacoes-conhecendo-o-tra…
+
+ Lei 15.269/2025 e abertura do mercado livre    www.griinstitute.org/infrastructure/event/mercado-livre-de-e…
+ (GRI Institute)
+
+ Comercializadoras na CCEE (Cenário             cenarioenergia.com.br/2024/11/14/ccee-atinge-16-mil-agentes-…
+ Energia)
+
+ Migrações ao mercado livre 2025 (Canal         canalsolar.com.br/mercado-livre-soma-migracoes-2025/
+ Solar)
+
+ Varejo responde por 75% das migrações          cenarioenergia.com.br/2026/05/27/varejo-consolida-protagonis…
+ (Cenário Energia)
+
+ Nova Indústria Brasil (BNDES, via Acionista)   acionista.com.br/bndes-amplia-em-r-41-bilhoes-investimentos-…
+
+ PIA-Empresa 2023, notas técnicas (IBGE)        biblioteca.ibge.gov.br/visualizacao/periodicos/1719/pia_2023…
+
+ Custos logísticos 2025 (ILOS, via Mundo        mundologistica.com.br/noticias/transporte-rodoviario-preco-a…
+ Logística)
+
+ Corretores de seguros ativos (Susep, via       cqcs.com.br/noticia/susep-registrou-2-125-corretores-de-segu…
+ CQCS)
+
+ Emissões de CPR (Mapa, via Revista             www.revistacultivar.com.br/noticias/emissoes-de-cpr-somam-rd…
+ Cultivar)
+
+ Distribuidoras de insumos Andav 2024           www.agrolink.com.br/noticias/empresas-de-distribuicao-de-ins…
+ (Agrolink)
+
+ Organizações contábeis (CFC, via BNE)          www.bne.com.br/blog/?p=8787
+
+ Pesquisa Sescon-SP 2024 (Makro System)         makrosystem.com.br/blog/pesquisa-do-sescon-sp-2024
+
+ Código de Ética do Contador NBC PG 01          netcpa.com.br/noticias/cfc-codigo-de-etica-profissional-do-c…
+ (NetCPA)
+
+ Sociedades de advogados (CFOAB, via            www.migalhas.com.br/quentes/354684/estudo-aponta-perfil-naci…
+ Migalhas)
+
+ Perfil ADV 2024 (Conjur)                       www.conjur.com.br/2024-mai-06/menos-de-um-terco-dos-advogado…
+
+ Provimento 205/2021 da OAB (Conjur)            www.conjur.com.br/dl/pr/provimento-2052021.pdf
+
+ Segmentação por lista de empresas              www.linkedin.com/help/lms/answer/a423102
+ (LinkedIn)
+
+ Custo de SDR em 2026 (Clint)                   www.clint.digital/blog/sdr-humano-vs-sdr-com-ia-custo-whatsa…
+
+ Empresas de despacho aduaneiro (CNAE           www.salario.com.br/empresas/agenciamento-de-cargas/
+ 5250-8/02) e agenciamento de cargas
+ (5250-8/03) (Portal Salário)
+
+
+
+
+Revenue OS · Documento interno                                                                                     34
+    Althius                                                                              MAPA DE MERCADO · OUT/2026
+
+
+
+
+ FONTE                                          ENDEREÇO
+
+ Empresas de contabilidade (CNAE                www.salario.com.br/empresas/atividades-de-contabilidade/
+ 6920-6/01) (Portal Salário)
+
+ Empresas de transporte rodoviário de carga     www.salario.com.br/empresas/transporte-rodoviario-de-carga-e…
+ (CNAE 4930-2/02) (Portal Salário)
+
+ Corretoras e agentes de seguros,               www.salario.com.br/empresas/corretores-e-agentes-de-seguros-…
+ previdência e saúde (CNAE 6622-3/00)
+ (Portal Salário)
+
+ Atacadistas de defensivos, fertilizantes e     www.salario.com.br/empresas/comercio-atacadista-de-defensivo…
+ corretivos (CNAE 4683-4/00) (Portal Salário)
+
+
+
+
+Revenue OS · Documento interno                                                                                   35
+

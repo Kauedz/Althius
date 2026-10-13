@@ -1,0 +1,8 @@
+# Verde final (13/10/2026)
+deno test supabase/functions (sem -A, como o CI) ........ ok | 1270 passed | 0 failed | 32 ignored
+  (os 32 ignorados são os testes que leem as migrações; rodam no passo próprio do CI:)
+deno test --allow-read=supabase/migrations,supabase/functions mapa-de-sinais + icp-c + icp-g + icp-h ... 67 passed | 0 failed
+deno check supabase/functions/*/index.ts ................ exit 0
+pgTAP, suíte inteira (scripts/pgtap-local.sh) ............ 94 arquivos, todos ok (cascatas_*: 73+16+21+22+21+31+30+23+24+23, marca_neutra 11)
+vitest run (projeto-althius-frontend) .................... 133 arquivos, 1219 testes, todos passaram
+  (uma primeira rodada, junto de outra carga na máquina, falhou 1 teste de aceite-do-convite por tempo; sozinho e na rodada seguinte passou)

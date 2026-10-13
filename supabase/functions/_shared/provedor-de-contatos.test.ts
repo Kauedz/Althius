@@ -205,7 +205,7 @@ Deno.test('revelarContato: um item devolve emails[0].email (run 4uNBrExLfebRmntC
   assertEquals(await revelar([perfilReal([itemDeEmail('mariana@techcorp.com.br')])]), {
     canal: 'email',
     valor: 'mariana@techcorp.com.br',
-    fonte: 'apify:harvestapi~linkedin-profile-scraper',
+    fonte: 'linkedin_publico',
   })
 })
 

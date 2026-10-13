@@ -121,7 +121,6 @@ export function criarFonteDeContasSimulada(
       linkedinUrl: 'https://linkedin.com/in/carlos-alberto-silva',
       location: 'Curitiba, PR',
       persona: 'Decisor',
-      sourceProvider: 'apify',
       createdAt: '2026-09-30T10:00:00Z',
     },
     {
@@ -134,7 +133,6 @@ export function criarFonteDeContasSimulada(
       linkedinUrl: 'https://linkedin.com/in/mariana-santos-ops',
       location: 'Curitiba, PR',
       persona: 'Influenciador',
-      sourceProvider: 'apify',
       createdAt: '2026-09-30T10:00:00Z',
     },
   ]
@@ -515,7 +513,6 @@ export function criarFonteDeContasSimulada(
         linkedinUrl: linkedin,
         location: 'São Paulo, SP',
         persona: 'Decisor',
-        sourceProvider: 'apify',
         createdAt: new Date().toISOString(),
       }
       propostasComite.push(novaProp)
@@ -636,7 +633,7 @@ export function criarFonteDeContasSimulada(
           { nome: 'Carlos Alberto Silva', cargo: 'Presidente', qualificacao: 'Diretor' },
           { nome: 'Mariana Santos', cargo: 'Diretora', qualificacao: 'Diretora' },
         ],
-        fonte: 'apify',
+        fonte: 'receita',
       }
 
       if (conta) {
