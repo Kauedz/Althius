@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { tokensDoApify } from '../_shared/apify-ambiente.ts'
-import { type ClienteRpc, criarMotorDeCascata } from '../_shared/cascata-de-sinais/index.ts'
+import { type ClienteRpc, criarMotorDeCascata, llmDaAnthropic } from '../_shared/cascata-de-sinais/index.ts'
 import { autorizadoComoServidor } from '../signal-scan/autorizacao.ts'
 import { createHandler } from './handler.ts'
 
@@ -16,7 +16,12 @@ const admin = createClient(required('SUPABASE_URL'), SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
 
-const motor = criarMotorDeCascata({ admin: admin as unknown as ClienteRpc, tokens: tokensDoApify((nome) => Deno.env.get(nome)) })
+const chaveDaIa = Deno.env.get('ANTHROPIC_API_KEY')
+const motor = criarMotorDeCascata({
+  admin: admin as unknown as ClienteRpc,
+  tokens: tokensDoApify((nome) => Deno.env.get(nome)),
+  ...(chaveDaIa ? { llm: llmDaAnthropic({ apiKey: chaveDaIa }) } : {}),
+})
 
 Deno.serve(createHandler({
   motor,

@@ -1,6 +1,6 @@
 // O banco da cascata em memória, para os testes do motor: registra o que o motor abriu, fechou e gravou. Imita o que
 // importa do banco real: a mesma chave devolve a mesma execução, e o mesmo acontecimento é gravado uma vez só.
-import type { CascataDef, ContaDoWorkspace, DbDaCascata, ResultadoDaAbertura, SinalConfirmado } from './tipos.ts'
+import type { CascataDef, ContaDoWorkspace, DbDaCascata, ResultadoDaAbertura, SinalConfirmado, SinalDeMercado } from './tipos.ts'
 
 export interface PassoRegistrado {
   id: string
@@ -20,6 +20,8 @@ export function dbFalso(
     abertura?: Partial<ResultadoDaAbertura>
     usdPorCredito?: number
     falhaAoGravar?: (s: SinalConfirmado) => boolean
+    /** Fotografias que já existiam, por chave (a mais recente por último). */
+    fotografias?: Record<string, { takenAt: string; data: Record<string, unknown> }[]>
   } = {},
 ) {
   const passos: PassoRegistrado[] = []
@@ -27,6 +29,9 @@ export function dbFalso(
   const aberturas: Parameters<DbDaCascata['abrir']>[0][] = []
   const fechamentos: Parameters<DbDaCascata['fechar']>[0][] = []
   const conhecidos = new Set<string>()
+  const mercado: SinalDeMercado[] = []
+  const fotografias = new Map<string, { takenAt: string; data: Record<string, unknown> }[]>(Object.entries(opcoes.fotografias ?? {}).map(([k, v]) => [k, v]))
+  const gravadas: { chave: string; data: Record<string, unknown>; takenAt?: string }[] = []
   let proximoPasso = 1
   const db: DbDaCascata = {
     definicao: () => Promise.resolve(definicao),
@@ -51,6 +56,26 @@ export function dbFalso(
       if (p) p.fim = a
       return Promise.resolve()
     },
+    gravarSinalDeMercado: ({ signalType, sinal }) => {
+      const chave = `mercado|${signalType}|${sinal.eventKey}`
+      const novo = !conhecidos.has(chave)
+      conhecidos.add(chave)
+      mercado.push(sinal)
+      return Promise.resolve(novo)
+    },
+    lerSnapshots: ({ chaves, antesDe }) => {
+      const mapa = new Map<string, { takenAt: string; data: Record<string, unknown> }>()
+      for (const c of chaves) {
+        const lista = (fotografias.get(c) ?? []).filter((f) => !antesDe || Date.parse(f.takenAt) < Date.parse(antesDe))
+        const ultima = lista.at(-1)
+        if (ultima) mapa.set(c, ultima)
+      }
+      return Promise.resolve(mapa)
+    },
+    gravarSnapshots: ({ itens }) => {
+      gravadas.push(...itens)
+      return Promise.resolve()
+    },
     gravarSinal: ({ contaId, monitorId, signalType, sinal }) => {
       if (opcoes.falhaAoGravar?.(sinal)) return Promise.reject(new Error('o banco recusou o Sinal'))
       const chave = `${contaId}|${signalType}|${sinal.eventKey}`
@@ -60,7 +85,7 @@ export function dbFalso(
       return Promise.resolve(novo)
     },
   }
-  return { db, passos, sinais, aberturas, fechamentos }
+  return { db, passos, sinais, aberturas, fechamentos, mercado, gravadas }
 }
 
 /** Uma cascata sintética para os testes do motor. */

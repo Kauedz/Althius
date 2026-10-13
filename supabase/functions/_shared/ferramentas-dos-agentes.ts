@@ -170,7 +170,7 @@ export interface RespostaDaBusca {
   empresasSemConta: number
   sinais: { conta: string; contaId: string; frase: string; quando: string; fonte: string; evidencia: string }[]
   /** Sinais de mercado (sem Conta), quando o tipo é de mercado. */
-  mercado?: { frase: string; quando: string; fonte: string; evidencia: string }[]
+  mercado?: { frase: string; quando: string; fonte: string; evidencia: string; numeros?: Record<string, unknown> }[]
 }
 
 /** A busca de Sinais pelo motor de cascata (a Edge Function `signal-cascade`). Sem ela, `buscar_sinais` não é oferecida. */

@@ -112,6 +112,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         novos: r.novos,
         repetidos: r.repetidos,
         empresasSemConta: r.semConta,
+        ...(r.mercado.length
+          ? { mercado: r.mercado.map((m) => ({ frase: m.phrase, quando: m.firedAt, fonte: m.source, evidencia: m.evidence, numeros: m.payload })) }
+          : {}),
         sinais: r.sinais.map((s) => ({
           conta: s.contaNome, contaId: s.contaId, frase: s.phrase, quando: s.firedAt, fonte: s.source, evidencia: s.evidence,
         })),

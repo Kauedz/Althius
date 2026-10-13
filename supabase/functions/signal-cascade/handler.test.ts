@@ -18,7 +18,7 @@ const resultado: ResultadoDaCascata = {
     contaId: CONTA, contaNome: 'Alfa', eventKey: 'vaga|alfa|analista|2026', phrase: 'Abriu vaga de Analista de Comex',
     firedAt: '2026-10-12T10:00:00Z', source: 'LinkedIn Vagas', evidence: 'Analista de Comex — Alfa, publicada em 12/10/2026.',
   }],
-  novos: 1, repetidos: 0, semConta: 2,
+  novos: 1, repetidos: 0, semConta: 2, semContaNomes: ['Gama', 'Delta'], mercado: [],
   passos: [{ ordem: 1, handler: 'linkedin_vagas', estado: 'succeeded', itensEntrada: 0, itensSaida: 9 }],
 }
 

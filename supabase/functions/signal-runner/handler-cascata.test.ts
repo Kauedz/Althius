@@ -17,7 +17,7 @@ const MONITOR: MonitorReivindicado = {
 }
 
 const resultado = (extra: Partial<ResultadoDaCascata> = {}): ResultadoDaCascata => ({
-  desfecho: 'concluida', mensagem: '1 Sinal novo gravado.', creditosCobrados: 1, custoUsd: 0.02, sinais: [], novos: 1, repetidos: 0, semConta: 0, passos: [], ...extra,
+  desfecho: 'concluida', mensagem: '1 Sinal novo gravado.', creditosCobrados: 1, custoUsd: 0.02, sinais: [], novos: 1, repetidos: 0, semConta: 0, semContaNomes: [], mercado: [], passos: [], ...extra,
 })
 
 function montar(r: ResultadoDaCascata | Error, tipos = ['vaga_comex']) {

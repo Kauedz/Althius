@@ -102,6 +102,43 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
       })
     },
 
+    async gravarSinalDeMercado({ workspaceId, signalType, sinal }) {
+      const data = await chamar(admin, 'record_market_signal', {
+        p_workspace_id: workspaceId,
+        p_signal_type: signalType,
+        p_event_key: sinal.eventKey,
+        p_phrase: sinal.phrase,
+        p_fired_at: sinal.firedAt,
+        p_source: sinal.source || null,
+        p_evidence: sinal.evidence || null,
+        p_payload: sinal.payload,
+      })
+      return data === true
+    },
+
+    async lerSnapshots({ workspaceId, signalType, chaves, antesDe }) {
+      const data = await chamar(admin, 'signal_snapshots_get', {
+        p_workspace_id: workspaceId,
+        p_signal_type: signalType,
+        p_subject_keys: chaves,
+        p_before: antesDe ?? null,
+      })
+      const mapa = new Map<string, { takenAt: string; data: Record<string, unknown> }>()
+      for (const l of (Array.isArray(data) ? data : []) as { subject_key: string; taken_at: string; data: Record<string, unknown> }[]) {
+        mapa.set(l.subject_key, { takenAt: l.taken_at, data: l.data ?? {} })
+      }
+      return mapa
+    },
+
+    async gravarSnapshots({ workspaceId, signalType, itens }) {
+      if (itens.length === 0) return
+      await chamar(admin, 'signal_snapshots_put', {
+        p_workspace_id: workspaceId,
+        p_signal_type: signalType,
+        p_items: itens.map((i) => ({ subjectKey: i.chave, data: i.data, ...(i.takenAt ? { takenAt: i.takenAt } : {}) })),
+      })
+    },
+
     async gravarSinal({ workspaceId, contaId, monitorId, signalType, sinal }) {
       const data = await chamar(admin, 'record_signal', {
         p_workspace_id: workspaceId,

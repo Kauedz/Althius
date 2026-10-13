@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { actorDoRegistro, type LinhaDoActor, tokensDoApify } from '../_shared/apify-ambiente.ts'
-import { type ClienteRpc, criarMotorDeCascata } from '../_shared/cascata-de-sinais/index.ts'
+import { type ClienteRpc, criarMotorDeCascata, llmDaAnthropic } from '../_shared/cascata-de-sinais/index.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { ADAPTADORES } from './adaptadores.ts'
 import {
@@ -182,6 +182,12 @@ const apify = clienteDoApify({
 
 // Os Sinais em cascata (um Sinal = vários passos) rodam pelo mesmo motor da conversa do Hermes: as mesmas contas do Apify,
 // o mesmo banco, o mesmo teto. O Monitoramento de um tipo que é cascata não passa pelo caminho de uma varredura por Conta.
-const cascatas = criarMotorDeCascata({ admin: admin as unknown as ClienteRpc, tokens })
+// Os passos que classificam texto (notícia, diário oficial) usam o modelo de linguagem da Althius quando há ANTHROPIC_API_KEY.
+const chaveDaIa = Deno.env.get('ANTHROPIC_API_KEY')
+const cascatas = criarMotorDeCascata({
+  admin: admin as unknown as ClienteRpc,
+  tokens,
+  ...(chaveDaIa ? { llm: llmDaAnthropic({ apiKey: chaveDaIa }) } : {}),
+})
 
 Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas, cascatas }))

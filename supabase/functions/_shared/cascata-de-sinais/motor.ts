@@ -24,6 +24,7 @@ import {
   ErroDaFonte,
   type ClienteDaFonte,
   type Item,
+  type Llm,
   type PassoDef,
   type PassoExecutado,
   type PedidoDeCascata,
@@ -31,12 +32,15 @@ import {
   type ResultadoDaAbertura,
   type ResultadoDaCascata,
   type SinalConfirmado,
+  type SinalDeMercado,
 } from './tipos.ts'
 
 export interface DepsDoMotor {
   db: DbDaCascata
   fonte: ClienteDaFonte
   registro: RegistroDePassos
+  /** O modelo de linguagem dos passos que classificam ou extraem de texto; sem ele, esses passos usam a regra simples. */
+  llm?: Llm
   agora?: () => number
   log?: (campos: Record<string, unknown>) => void
 }
@@ -80,10 +84,23 @@ const FOLGA_FINAL_MS = 15_000
 const arredondar = (n: number) => Math.round(n * 1e6) / 1e6
 
 function vazio(desfecho: Desfecho, mensagem: string): ResultadoDaCascata {
-  return { desfecho, mensagem, creditosCobrados: 0, custoUsd: null, sinais: [], novos: 0, repetidos: 0, semConta: 0, passos: [] }
+  return {
+    desfecho, mensagem, creditosCobrados: 0, custoUsd: null, sinais: [], novos: 0, repetidos: 0, semConta: 0, semContaNomes: [], mercado: [],
+    passos: [],
+  }
 }
 
 const texto = (v: unknown) => (typeof v === 'string' ? v : '')
+
+/** Um item que cumpre o contrato de Sinal de mercado. */
+export function comoSinalDeMercado(item: unknown): SinalDeMercado | null {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+  const i = item as Record<string, unknown>
+  const payload = i.payload && typeof i.payload === 'object' && !Array.isArray(i.payload) ? i.payload as Record<string, unknown> : {}
+  const s = { eventKey: texto(i.eventKey), phrase: texto(i.phrase), firedAt: texto(i.firedAt), source: texto(i.source), evidence: texto(i.evidence), payload }
+  if (!s.eventKey || !s.phrase || Number.isNaN(Date.parse(s.firedAt))) return null
+  return s
+}
 
 /** Um item que cumpre o contrato de Sinal confirmado (e é de uma das Contas do pedido). */
 export function comoSinal(item: unknown, contas: ContaDoWorkspace[]): SinalConfirmado | null {
@@ -131,7 +148,7 @@ function custoDoErro(e: unknown): number {
 }
 
 export function estimativaDaCascata(def: CascataDef): number {
-  return arredondar(def.steps.reduce((soma, p) => soma + (p.kind === 'actor' ? p.estFixedUsd + p.estPerItemUsd * p.estItems : 0), 0))
+  return arredondar(def.steps.reduce((soma, p) => soma + p.estFixedUsd + p.estPerItemUsd * p.estItems, 0))
 }
 
 export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): Promise<ResultadoDaCascata> {
@@ -179,6 +196,14 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
   const teto = abertura.capUsd
 
   const ctxBase = {
+    workspaceId: pedido.workspaceId,
+    snapshots: {
+      ler: (chaves: string[], antesDe?: string) =>
+        db.lerSnapshots({ workspaceId: pedido.workspaceId, signalType: def.signalType, chaves, antesDe }),
+      gravar: (itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[]) =>
+        db.gravarSnapshots({ workspaceId: pedido.workspaceId, signalType: def.signalType, itens }),
+    },
+    llm: deps.llm,
     pedido,
     contas,
     criterios: pedido.criterios ?? {},
@@ -188,6 +213,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
   let acumulado = 0
   let entrada: Item[] = []
   let confirmados: SinalConfirmado[] = []
+  let deMercado: SinalDeMercado[] = []
   let desfechoDaFalha: { estado: 'failed' | 'aborted'; mensagem: string } | null = null
 
   async function registrar(
@@ -210,26 +236,35 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
   }
 
   async function executarPasso(passo: PassoDef, entradaDoPasso: Item[]): Promise<ResultadoDoPasso> {
-    const ctx: ContextoDoPasso = { ...ctxBase, agora: agora(), def: passo }
+    let extra = 0
+    const ctx: ContextoDoPasso = { ...ctxBase, agora: agora(), def: passo, custo: { adicionar: (usd) => { extra = arredondar(extra + Math.max(usd, 0)) } } }
     const impl = registro.passos[passo.handler]
 
-    // Regra interna ou fonte pública como passo: sem custo da plataforma.
+    // Regra interna ou fonte pública como passo: sem custo de actor; o modelo de linguagem, se usado, soma o dele.
     if (passo.kind !== 'actor') {
+      const estimativaDoPasso = estimarPasso(passo, null, entradaDoPasso, impl, ctx)
+      if (arredondar(acumulado + estimativaDoPasso) > teto + 1e-9) {
+        await registrar(passo, 1, passo.handler, null, entradaDoPasso.length, {
+          estado: 'aborted_cap', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: 0, statusHttp: null,
+          erroReal: `Estimativa do passo US$ ${estimativaDoPasso} com US$ ${acumulado} já gastos passaria do teto de US$ ${teto}.`,
+        })
+        return { tipo: 'teto', custoUsd: 0 }
+      }
       try {
         const saida = passo.kind === 'regra'
           ? await impl.executar!(entradaDoPasso, ctx)
           : await registro.fontes[passo.handler].buscar(entradaDoPasso, ctx)
         await registrar(passo, 1, passo.handler, null, entradaDoPasso.length, {
           estado: saida.length ? 'succeeded' : 'empty', apifyRunId: null, build: null, tokenIndex: null,
-          itensSaida: saida.length, custoUsd: 0, statusHttp: null, erroReal: null,
+          itensSaida: saida.length, custoUsd: extra, statusHttp: null, erroReal: null,
         })
-        return saida.length ? { tipo: 'ok', saida, custoUsd: 0 } : { tipo: 'vazio', saida, custoUsd: 0 }
+        return saida.length ? { tipo: 'ok', saida, custoUsd: extra } : { tipo: 'vazio', saida, custoUsd: extra }
       } catch (e) {
         await registrar(passo, 1, passo.handler, null, entradaDoPasso.length, {
-          estado: 'failed', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: 0, statusHttp: null,
+          estado: 'failed', apifyRunId: null, build: null, tokenIndex: null, itensSaida: 0, custoUsd: extra, statusHttp: null,
           erroReal: redigir(e instanceof Error ? `${e.name}: ${e.message}` : e),
         })
-        return { tipo: 'falhou', mensagem: MENSAGEM_DA_FONTE.indisponivel, custoUsd: 0 }
+        return { tipo: 'falhou', mensagem: MENSAGEM_DA_FONTE.indisponivel, custoUsd: extra }
       }
     }
 
@@ -349,8 +384,16 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
       break
     }
     entrada = r.saida
-    const sinais = sinaisDe(entrada, contas)
-    if (sinais.length) confirmados = sinais
+    if (def.scope === 'mercado') {
+      const sinais = entrada.flatMap((i) => {
+        const s = comoSinalDeMercado(i)
+        return s ? [s] : []
+      })
+      if (sinais.length) deMercado = sinais
+    } else {
+      const sinais = sinaisDe(entrada, contas)
+      if (sinais.length) confirmados = sinais
+    }
   }
 
   // Grava os Sinais confirmados (também na falha parcial: já foram pagos) e conta novos e repetidos.
@@ -370,7 +413,18 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     }
   }
 
-  const temSinais = confirmados.length > 0
+  for (const s of deMercado) {
+    try {
+      const novo = await db.gravarSinalDeMercado({ workspaceId: pedido.workspaceId, signalType: def.signalType, sinal: s })
+      if (novo) novos++
+      else repetidos++
+    } catch (e) {
+      gravacoesComFalha++
+      log({ type: 'cascata', runId, outcome: 'record_market_signal_failed', message: redigir(e instanceof Error ? e.message : e, [], 300) })
+    }
+  }
+
+  const temSinais = confirmados.length + deMercado.length > 0
   let desfecho: Desfecho
   let estado: 'succeeded' | 'partial' | 'aborted' | 'failed'
   let mensagem: string
@@ -397,14 +451,16 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
 
   const custo = arredondar(acumulado)
   const fechado = await db.fechar({
-    runId, estado, custoUsd: custo, casados: confirmados.length, novos, repetidos,
+    runId, estado, custoUsd: custo, casados: confirmados.length + deMercado.length, novos, repetidos,
     erroAmigavel: estado === 'succeeded' ? null : mensagem,
   })
   log({ type: 'cascata', runId, signalType: def.signalType, outcome: desfecho, novos, repetidos, creditos: fechado.creditosCobrados, costUsd: custo })
 
   const semConta = Number(ctxBase.memoria.get('semConta') ?? 0)
+  const nomes = ctxBase.memoria.get('semContaNomes')
+  const semContaNomes = Array.isArray(nomes) ? nomes.filter((n): n is string => typeof n === 'string').slice(0, 10) : []
   return {
     desfecho, mensagem, creditosCobrados: fechado.creditosCobrados, custoUsd: custo,
-    sinais: confirmados, novos, repetidos, semConta, passos: executados,
+    sinais: confirmados, novos, repetidos, semConta, semContaNomes, mercado: deMercado, passos: executados,
   }
 }

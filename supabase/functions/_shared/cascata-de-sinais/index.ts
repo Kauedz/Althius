@@ -5,10 +5,11 @@ import { type ClienteRpc, criarDbDaCascata } from './db.ts'
 import { clienteAssincronoDoApify } from './fonte-apify.ts'
 import { rodarCascata } from './motor.ts'
 import { registroDePassos } from './passos/index.ts'
-import type { PedidoDeCascata, ResultadoDaCascata } from './tipos.ts'
+import type { Llm, PedidoDeCascata, ResultadoDaCascata } from './tipos.ts'
 
 export type { ClienteRpc } from './db.ts'
 export { MENSAGENS } from './motor.ts'
+export { llmDaAnthropic } from './llm-anthropic.ts'
 export type * from './tipos.ts'
 
 export interface MotorDeCascata {
@@ -30,10 +31,12 @@ export interface EntradaDoCatalogo {
 }
 
 export function criarMotorDeCascata(
-  { admin, tokens, fetchFn, log }: {
+  { admin, tokens, fetchFn, log, llm }: {
     admin: ClienteRpc
     tokens: string[]
     fetchFn?: typeof fetch
+    /** O modelo de linguagem dos passos que classificam texto; sem ele, usam a regra simples. */
+    llm?: Llm
     log?: (campos: Record<string, unknown>) => void
   },
 ): MotorDeCascata {
@@ -44,7 +47,7 @@ export function criarMotorDeCascata(
     async ehCascata(signalType) {
       return (await db.definicao(signalType)) !== null
     },
-    rodar: (pedido) => rodarCascata({ db, fonte, registro, log }, pedido),
+    rodar: (pedido) => rodarCascata({ db, fonte, registro, llm, log }, pedido),
     async catalogo() {
       const { data, error } = await admin.rpc('signal_cascade_catalog')
       if (error) throw new Error(`signal_cascade_catalog: ${error.code ?? ''} ${error.message}`.trim())

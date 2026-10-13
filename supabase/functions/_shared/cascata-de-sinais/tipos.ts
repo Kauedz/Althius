@@ -93,6 +93,17 @@ export type SinalConfirmado = {
   evidence: string
 }
 
+/** Um Sinal que acontece no mercado todo (Comex Stat, DOU, Plano Safra): sem Conta. */
+export type SinalDeMercado = {
+  eventKey: string
+  phrase: string
+  firedAt: string
+  source: string
+  evidence: string
+  /** Os números do acontecimento, para a tela e o Hermes. */
+  payload: Record<string, unknown>
+}
+
 export type Desfecho =
   | 'concluida'
   | 'parcial'
@@ -130,6 +141,10 @@ export interface ResultadoDaCascata {
   repetidos: number
   /** Empresas que a cascata achou e que não são Conta do Workspace. */
   semConta: number
+  /** Os nomes (até 10) das empresas que não são Conta, para o Hermes dizer; vazio quando não há. */
+  semContaNomes: string[]
+  /** Os Sinais de mercado (cascatas de escopo `mercado`): vão para o feed do Workspace, não para uma Conta. */
+  mercado: SinalDeMercado[]
   passos: PassoExecutado[]
 }
 
@@ -210,6 +225,11 @@ export interface DbDaCascata {
     signalType: string
     sinal: SinalConfirmado
   }): Promise<boolean>
+  /** O Sinal de mercado vai para o feed do Workspace (`record_market_signal`). */
+  gravarSinalDeMercado(args: { workspaceId: string; signalType: string; sinal: SinalDeMercado }): Promise<boolean>
+  /** A fotografia mais recente de cada assunto (antes de `antesDe`, quando informado). */
+  lerSnapshots(args: { workspaceId: string; signalType: string; chaves: string[]; antesDe?: string }): Promise<Map<string, { takenAt: string; data: Record<string, unknown> }>>
+  gravarSnapshots(args: { workspaceId: string; signalType: string; itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[] }): Promise<void>
 }
 
 export type TipoDeErroDaFonte =
@@ -264,8 +284,26 @@ export interface ClienteDaFonte {
   }): Promise<ExecucaoDaFonte>
 }
 
+/** As fotografias do assunto desta cascata (CNPJ ou Conta) para comparar com a rodada anterior. */
+export interface Snapshots {
+  ler(chaves: string[], antesDe?: string): Promise<Map<string, { takenAt: string; data: Record<string, unknown> }>>
+  gravar(itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[]): Promise<void>
+}
+
+/** Um modelo de linguagem para classificar ou extrair de texto (notícia, diário oficial). O custo volta com a resposta. */
+export interface Llm {
+  json(a: { sistema: string; usuario: string; maxTokens?: number }): Promise<{ json: unknown; custoUsd: number }>
+}
+
 /** O que um passo vê do pedido. */
 export interface ContextoDoPasso {
+  workspaceId: string
+  /** As fotografias do tipo de Sinal desta cascata, neste Workspace. */
+  snapshots: Snapshots
+  /** O modelo de linguagem, quando a função o tem ligado; passos que dependem dele escolhem a regra simples sem ele. */
+  llm?: Llm
+  /** Custo em dólar que o passo gastou fora de um actor (o modelo de linguagem); soma ao custo real da execução. */
+  custo: { adicionar(usd: number): void }
   pedido: PedidoDeCascata
   contas: ContaDoWorkspace[]
   criterios: Record<string, unknown>
