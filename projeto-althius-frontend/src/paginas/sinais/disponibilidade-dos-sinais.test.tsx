@@ -13,7 +13,8 @@ const comDisponibilidade = (disponiveis: Record<string, Disponibilidade>) => (fo
 
 const REAL = comDisponibilidade({ 'abertura-de-vagas': 'disponivel', 'nova-lideranca': 'em-teste' })
 
-const cartao = async (nome: string) => (await screen.findByRole('heading', { level: 3, name: nome })).closest('li') as HTMLElement
+const cartao = async (nome: string) =>
+  (await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('heading', { level: 3, name: nome })).closest('li') as HTMLElement
 
 describe('Catálogo de Sinais: o card visível não carrega selo de estado', () => {
   it('a Demonstração mostra o catálogo sem aviso nem selos de estado', async () => {
@@ -50,8 +51,8 @@ describe('Catálogo de Sinais: o card visível não carrega selo de estado', () 
     expect(screen.queryByRole('button', { name: /Salvar|Ativar/ })).not.toBeInTheDocument()
   })
 
-  it('o tipo visível oferece Criar Monitoramento', async () => {
+  it('o tipo visível oferece Ativar Monitoramento', async () => {
     renderizarAppCom('/sinais/tipos/abertura-de-vagas', { sinais: REAL })
-    expect(await screen.findByRole('link', { name: 'Criar Monitoramento' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Ativar Monitoramento' })).toBeInTheDocument()
   })
 })

@@ -74,7 +74,7 @@ describe('Revisão do ICP pelo Scopus', () => {
 /** O preexistente "Vagas de engenharia de dados" descobre empresas pelo público recomendado. */
 async function publicoDoMonitoramentoPreexistente(usuario: Usuario) {
   await usuario.click(within(await screen.findByRole('complementary', { name: 'Navegação' })).getByRole('link', { name: /Sinais/ }))
-  await usuario.click(await screen.findByRole('link', { name: /Abertura de vagas/ }))
+  await usuario.click(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas/ }))
   await usuario.click(await screen.findByRole('link', { name: /Vagas de engenharia de dados/ }))
   return screen.findByRole('complementary', { name: 'Público recomendado' })
 }

@@ -21,7 +21,7 @@ const comCascatas = (cascatas: CascataDoCatalogo[] | Error) => (fonte: FonteDeSi
 describe('Catálogo único: cascatas e letras fora da grade', () => {
   it('não agrupa por letra e não mostra selo de cascata', async () => {
     renderizarAppCom('/sinais', { sinais: comCascatas(CASCATAS) })
-    await screen.findByRole('heading', { level: 3, name: 'Abertura de vagas' })
+    await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('heading', { level: 3, name: 'Abertura de vagas' })
     expect(screen.queryByRole('region', { name: 'Sinais por mercado' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /A ·/ })).not.toBeInTheDocument()
     expect(screen.queryByText('Em teste')).not.toBeInTheDocument()
@@ -32,13 +32,13 @@ describe('Catálogo único: cascatas e letras fora da grade', () => {
 
   it('a Demonstração também não tem a seção antiga', async () => {
     renderizarApp('/sinais')
-    await screen.findByRole('heading', { level: 3, name: 'Abertura de vagas' })
+    await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('heading', { level: 3, name: 'Abertura de vagas' })
     expect(screen.queryByRole('region', { name: 'Sinais por mercado' })).not.toBeInTheDocument()
   })
 
   it('se a leitura das cascatas falha, o catálogo segue sem erro na tela', async () => {
     renderizarAppCom('/sinais', { sinais: comCascatas(new Error('rpc fora do ar: sk-SEGREDO')) })
-    await screen.findByRole('heading', { level: 3, name: 'Abertura de vagas' })
+    await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('heading', { level: 3, name: 'Abertura de vagas' })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(document.body.textContent).not.toContain('SEGREDO')
   })

@@ -1,25 +1,49 @@
-import { ArrowLeft, ArrowRight, RadioTower, Search } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowLeft, RadioTower, Search } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
 import { Pagina } from '@/components/pagina'
-import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
-import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
-import type { CardSobPedido } from '@/fonte/sinais-tipos'
+import { BOTAO_DISCRETO, BOTAO_SECUNDARIO } from '@/components/botoes'
+import {
+  useAmbiente,
+  useDados,
+  useDadosDeContas,
+  useDadosDeSequencias,
+  useDadosDeSinais,
+  useFonteDeContas,
+} from '@/fonte/contexto'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import { FAMILIAS, tipoPorId } from './catalogo'
-import {
-  CATALOGO_VISIVEL,
-  nomesDosNichos,
-  valeParaTodosOsNichos,
-  type CardDoCatalogo,
-} from './catalogo-visivel'
+import { CATALOGO_VISIVEL, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
 import { NICHOS } from './nichos'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { GRADE_DE_CARTOES } from './cascatas'
 import { useMonitoramentos } from './estado'
+import {
+  ZONA_DA_VITRINE,
+  ativosDoCard,
+  cardDoExtra,
+  eLancamento,
+  exclusivosEmProducao,
+  montarPrateleiras,
+  nichoDoWorkspace,
+  sinalDaSemana,
+  ultimasDetectadas,
+  usePedidosDaVitrine,
+} from './vitrine'
+import {
+  CartaoDaVitrine,
+  CartaoDeLancamento,
+  CartaoDePedido,
+  CartaoEmProducao,
+  CartoesDaPrateleira,
+  MeusSinais,
+  Prateleira,
+  PrateleiraVazia,
+  SinalDaSemana,
+} from './vitrine-pecas'
 
 function normalizar(texto: string): string {
   return texto
@@ -51,6 +75,7 @@ export function PaginaSinais() {
         </Link>
       }
     >
+      <div className={ZONA_DA_VITRINE}>
       {vendoEncontrados ? (
         <SinaisEncontrados aoVoltar={() => setParametros({})} />
       ) : (
@@ -81,29 +106,9 @@ export function PaginaSinais() {
           )}
         </>
       )}
+      </div>
     </Pagina>
   )
-}
-
-function cardDoExtra(extra: CardSobPedido): CardDoCatalogo {
-  const familia = FAMILIAS.find((item) => item.id === extra.familiaId)
-  return {
-    id: extra.id,
-    nome: extra.nome,
-    frase: extra.frase,
-    familiaId: extra.familiaId,
-    formulario: familia?.formulario ?? 'expansao',
-    nichos: extra.nichos,
-    fonte: extra.fonte,
-    custoRotulo: extra.custoRotulo,
-    custoUsd: null,
-    coletores: extra.coletores,
-    contados: [extra.id],
-  }
-}
-
-function ativosDoCard(card: CardDoCatalogo, monitoramentos: { tipoId: string; estado: string }[]): number {
-  return monitoramentos.filter((m) => m.estado === 'ativo' && card.contados.includes(m.tipoId)).length
 }
 
 function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
@@ -112,13 +117,30 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
   const [nicho, setNicho] = useState('todos')
   const [familiaId, setFamiliaId] = useState('todos')
   const { dados: extras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
-  const cards = [...CATALOGO_VISIVEL, ...(extras ?? []).map(cardDoExtra)]
+  const exclusivos = (extras ?? []).map(cardDoExtra)
+  const cards = [...CATALOGO_VISIVEL, ...exclusivos]
   const operacional = useAmbiente().modo === 'real'
-  const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
-  const encontrados = sinaisCarregados?.length ?? (operacional ? undefined : SINAIS_MOCK.length)
+  const hoje = useFonteDeContas().hoje()
+  const { dados: sinaisCarregados, recarregar: recarregarSinais } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
+  const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
+  const { dados: sequencias } = useDadosDeSequencias((f) => f.sequencias(), [])
+  const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
+  const { pedidos, avisar, avisado } = usePedidosDaVitrine()
+  const sinais = sinaisCarregados ?? (operacional ? undefined : SINAIS_MOCK)
+  const encontrados = sinais?.length
   const totalAtivos = cards.reduce((soma, card) => soma + ativosDoCard(card, monitoramentos), 0)
+  const segmentos = memoria?.icp.secoes.find((secao) => secao.titulo === 'Segmentos')?.texto ?? ''
+  const nichoDoIcp = nichoDoWorkspace(segmentos)
+
+  // No Workspace operacional, a prévia do Sinal da semana busca disparos novos a cada minuto.
+  useEffect(() => {
+    if (!operacional) return
+    const relogio = setInterval(recarregarSinais, 60_000)
+    return () => clearInterval(relogio)
+  }, [operacional, recarregarSinais])
 
   const termo = normalizar(busca)
+  const filtrando = Boolean(termo) || nicho !== 'todos' || familiaId !== 'todos'
   const visiveis = cards.filter((card) => {
     if (nicho !== 'todos' && !card.nichos.includes(nicho)) return false
     if (familiaId !== 'todos' && card.familiaId !== familiaId) return false
@@ -128,141 +150,198 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
     return normalizar(`${card.nome} ${card.frase} ${familia} ${nomes}`).includes(termo)
   })
   const familiasDoCatalogo = FAMILIAS.filter((familia) => cards.some((card) => card.familiaId === familia.id))
+  const idsExclusivos = new Set(exclusivos.map((card) => card.id))
+  const seloDe = (card: CardDoCatalogo) =>
+    idsExclusivos.has(card.id) ? 'Exclusivo' : eLancamento(card.id) ? 'Lançamento' : undefined
+  const ativosDe = (card: CardDoCatalogo) => ativosDoCard(card, monitoramentos)
+
+  const prateleiras = montarPrateleiras({ cards: CATALOGO_VISIVEL, exclusivos, monitoramentos, nicho: nichoDoIcp })
+  const destaque = sinalDaSemana({ cards, sinais: sinais ?? [], hoje, nicho: nichoDoIcp })
+  const emProducao = exclusivosEmProducao(pedidos)
+  const disparosPorMonitoramento = (id: string) => (sinais ?? []).filter((s) => s.monitoramentoId === id && foiDisparado(s.data, hoje)).length
+  // Só os Monitoramentos de um Sinal da vitrine: os de um tipo arquivado não têm página para abrir.
+  const ativos = monitoramentos
+    .filter((m) => m.estado === 'ativo' && cards.some((card) => card.contados.includes(m.tipoId)))
+    .map((m) => ({ id: m.id, tipoId: m.tipoId, nome: m.nome, disparos: disparosPorMonitoramento(m.id) }))
+    .toSorted((a, b) => b.disparos - a.disparos)
+  const idsAtivos = new Set(ativos.map((m) => m.id))
+  const disparos = sinais === undefined ? undefined : sinais.filter((s) => idsAtivos.has(s.monitoramentoId) && foiDisparado(s.data, hoje)).length
 
   return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex max-w-2xl flex-col gap-1">
-          <p className="text-sm text-al-muted">
-            Acontecimentos que indicam uma possível necessidade do que você vende. Escolha um Sinal para configurar
-            Monitoramentos; cada Sinal disparado deixa a Conta-alvo Quente por {VALIDADE_EM_DIAS} dias.
-          </p>
+    <div className="flex min-w-0 flex-col gap-10">
+      <p className="max-w-2xl text-sm text-al-muted">
+        Acontecimentos que indicam uma possível necessidade do que você vende. Escolha um Sinal e ative um Monitoramento;
+        cada Sinal disparado deixa a Conta-alvo Quente por {VALIDADE_EM_DIAS} dias.
+      </p>
+
+      {!filtrando && destaque && (
+        <SinalDaSemana
+          card={destaque}
+          ativos={ativosDoCard(destaque, monitoramentos)}
+          detectadas={ultimasDetectadas(destaque, sinais ?? [], hoje)}
+          contas={contas ?? (operacional ? [] : CONTAS_MOCK)}
+          hoje={hoje}
+          operacional={operacional}
+        />
+      )}
+
+      {!filtrando && (
+        <MeusSinais
+          monitoramentosAtivos={ativos}
+          disparos={disparos}
+          contasQuentes={contas?.filter((conta) => conta.quente).length}
+          sequenciasAtivas={sequencias?.filter((sequencia) => sequencia.status === 'ativa').length}
+          acaoDosEncontrados={
+            <button type="button" onClick={aoVerEncontrados} className={cn(BOTAO_DISCRETO, 'underline-offset-4 hover:underline')}>
+              <RadioTower strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
+              Sinais encontrados
+              {encontrados !== undefined && <span className="tabular-nums text-al-ink">{encontrados}</span>}
+            </button>
+          }
+        />
+      )}
+
+      {!filtrando && (
+        <>
+          <Prateleira
+            id="para-o-seu-nicho"
+            titulo="Para o seu nicho"
+            subtitulo={
+              nichoDoIcp
+                ? `${nichoDoIcp.nome}, pelos Segmentos do ICP do Workspace`
+                : 'Sinais que valem para qualquer nicho. Descreva os Segmentos do ICP na Memória para afinar.'
+            }
+          >
+            <CartoesDaPrateleira cards={prateleiras.paraOSeuNicho} ativosDe={ativosDe} />
+          </Prateleira>
+
+          <Prateleira id="mais-ativados" titulo="Mais ativados" subtitulo="Pelos Monitoramentos ativos do seu Workspace">
+            {prateleiras.maisAtivados.length > 0 ? (
+              <CartoesDaPrateleira cards={prateleiras.maisAtivados} ativosDe={ativosDe} />
+            ) : (
+              <PrateleiraVazia titulo="Nenhum Monitoramento ativo ainda.">
+                Os Sinais que você ativar aparecem aqui, do mais usado ao menos usado.
+              </PrateleiraVazia>
+            )}
+          </Prateleira>
+
+          <Prateleira id="novos" titulo="Novos" subtitulo="Os últimos Sinais que entraram no catálogo">
+            <CartoesDaPrateleira cards={prateleiras.novos} ativosDe={ativosDe} seloDe={(card) => seloDe(card) ?? 'Novo'} />
+          </Prateleira>
+
+          <Prateleira id="movimento-de-equipe" titulo="Movimento de equipe" subtitulo="Vagas, chegadas, saídas e promoções">
+            <CartoesDaPrateleira cards={prateleiras.movimentoDeEquipe} ativosDe={ativosDe} />
+          </Prateleira>
+
+          <Prateleira id="midia-e-anuncios" titulo="Mídia e anúncios" subtitulo="Campanhas, publicações e reputação pública">
+            <CartoesDaPrateleira cards={prateleiras.midiaEAnuncios} ativosDe={ativosDe} />
+          </Prateleira>
+
+          <Prateleira
+            id="exclusivos"
+            titulo="Exclusivos do seu Workspace"
+            subtitulo="Sinais que a equipe Althius monta só para você"
+          >
+            <CartoesDaPrateleira cards={exclusivos} ativosDe={ativosDe} seloDe={() => 'Exclusivo'} />
+            {emProducao.map(({ pedido, situacao }) => (
+              <CartaoEmProducao key={pedido.id} pedido={pedido} situacao={situacao} />
+            ))}
+            {exclusivos.length === 0 && emProducao.length === 0 && (
+              <PrateleiraVazia titulo="Nenhum Sinal exclusivo ainda.">
+                Conte o evento que você quer acompanhar e a equipe Althius monta um Sinal só para este Workspace.{' '}
+                <Link to="/sinais/pedidos" className="text-al-ink underline underline-offset-4 hover:text-al-accent">
+                  Pedir um Sinal exclusivo
+                </Link>
+              </PrateleiraVazia>
+            )}
+          </Prateleira>
+
+          {prateleiras.lancamentos.length > 0 && (
+            <Prateleira id="lancamentos" titulo="Lançamentos" subtitulo="Em preparação pela equipe Althius. Peça para ser avisado.">
+              {prateleiras.lancamentos.map((card) => (
+                <CartaoDeLancamento key={card.id} card={card} avisado={avisado(card)} aoAvisar={avisar} />
+              ))}
+            </Prateleira>
+          )}
+        </>
+      )}
+
+      <section aria-labelledby="titulo-todos-os-sinais" className="flex min-w-0 flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 id="titulo-todos-os-sinais" className="titulo-secao text-lg">
+            Todos os Sinais
+          </h2>
           <span className="rotulo">
             {cards.length} Sinais · {totalAtivos} {totalAtivos === 1 ? 'Monitoramento ativo' : 'Monitoramentos ativos'}
           </span>
         </div>
-        <button type="button" onClick={aoVerEncontrados} className={cn(BOTAO_DISCRETO, 'underline-offset-4 hover:underline')}>
-          <RadioTower strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
-          Sinais encontrados
-          {encontrados !== undefined && <span className="tabular-nums text-al-ink">{encontrados}</span>}
-        </button>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div className="relative w-full max-w-sm">
-          <Search strokeWidth={1.8} className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-al-muted" aria-hidden />
-          <input
-            type="search"
-            aria-label="Buscar tipos de sinal"
-            placeholder="Buscar por nome ou descrição"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="campo h-9 pl-9 text-sm placeholder:text-al-muted"
-          />
-        </div>
-        <div role="group" aria-label="Filtrar por nicho" className="segmentado max-w-full flex-wrap">
-          <button type="button" aria-pressed={nicho === 'todos'} onClick={() => setNicho('todos')}>
-            Todos
-          </button>
-          {NICHOS.map((item) => (
-            <button key={item.slug} type="button" aria-pressed={nicho === item.slug} onClick={() => setNicho(item.slug)}>
-              {item.nome}
+        <div className="flex flex-col gap-3">
+          <div className="relative w-full max-w-sm">
+            <Search strokeWidth={1.8} className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-al-muted" aria-hidden />
+            <input
+              type="search"
+              aria-label="Buscar tipos de sinal"
+              placeholder="Buscar por nome ou descrição"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="campo h-9 pl-9 text-sm placeholder:text-al-muted"
+            />
+          </div>
+          <div role="group" aria-label="Filtrar por nicho" className="segmentado max-w-full flex-wrap">
+            <button type="button" aria-pressed={nicho === 'todos'} onClick={() => setNicho('todos')}>
+              Todos
             </button>
-          ))}
-        </div>
-        <div role="group" aria-label="Filtrar por família" className="segmentado max-w-full flex-wrap">
-          <button type="button" aria-pressed={familiaId === 'todos'} onClick={() => setFamiliaId('todos')}>
-            Todas
-          </button>
-          {familiasDoCatalogo.map((familia) => (
-            <button
-              key={familia.id}
-              type="button"
-              aria-pressed={familiaId === familia.id}
-              onClick={() => setFamiliaId(familia.id)}
-            >
-              {familia.nome}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {visiveis.length === 0 ? (
-        <div className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
-          <p className="text-sm">Nenhum tipo de sinal corresponde a “{busca.trim() || 'esse filtro'}”.</p>
-          <button
-            type="button"
-            onClick={() => {
-              setBusca('')
-              setNicho('todos')
-              setFamiliaId('todos')
-            }}
-            className={BOTAO_SECUNDARIO}
-          >
-            Limpar busca
-          </button>
-        </div>
-      ) : (
-        <section aria-label="Catálogo de sinais" className="flex flex-col gap-4">
-          <ul className={GRADE_DE_CARTOES}>
-            {visiveis.map((card) => (
-              <CartaoDoCatalogo key={card.id} card={card} ativos={ativosDoCard(card, monitoramentos)} />
+            {NICHOS.map((item) => (
+              <button key={item.slug} type="button" aria-pressed={nicho === item.slug} onClick={() => setNicho(item.slug)}>
+                {item.nome}
+              </button>
             ))}
-          </ul>
-        </section>
-      )}
+          </div>
+          <div role="group" aria-label="Filtrar por família" className="segmentado max-w-full flex-wrap">
+            <button type="button" aria-pressed={familiaId === 'todos'} onClick={() => setFamiliaId('todos')}>
+              Todas
+            </button>
+            {familiasDoCatalogo.map((familia) => (
+              <button
+                key={familia.id}
+                type="button"
+                aria-pressed={familiaId === familia.id}
+                onClick={() => setFamiliaId(familia.id)}
+              >
+                {familia.nome}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {visiveis.length === 0 ? (
+          <div className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
+            <p className="text-sm">Nenhum tipo de sinal corresponde a “{busca.trim() || 'esse filtro'}”.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setBusca('')
+                setNicho('todos')
+                setFamiliaId('todos')
+              }}
+              className={BOTAO_SECUNDARIO}
+            >
+              Limpar busca
+            </button>
+          </div>
+        ) : (
+          <section aria-label="Catálogo de sinais">
+            <ul className={GRADE_DE_CARTOES}>
+              {visiveis.map((card) => (
+                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} />
+              ))}
+            </ul>
+          </section>
+        )}
+      </section>
 
       <CartaoDePedido />
-    </>
-  )
-}
-
-function CartaoDoCatalogo({ card, ativos }: { card: CardDoCatalogo; ativos: number }) {
-  const nichos = valeParaTodosOsNichos(card) ? ['Todos os nichos'] : nomesDosNichos(card.nichos)
-  return (
-    <li className="min-w-0">
-      <Link
-        to={`/sinais/tipos/${card.id}`}
-        className="cartao group flex h-full min-h-48 flex-col gap-3 border border-transparent p-6 transition-colors hover:border-al-accent"
-      >
-        <h3 className="text-lg leading-snug font-normal">{card.nome}</h3>
-        <p className="text-sm text-al-muted">{card.frase}</p>
-        <ul aria-label={`Nichos de ${card.nome}`} className="flex flex-wrap gap-1.5">
-          {nichos.map((nome) => (
-            <li key={nome} className="selo">{nome}</li>
-          ))}
-        </ul>
-        <div className="mt-auto flex items-end justify-between gap-3 pt-3">
-          <span className="rotulo inline-flex items-center gap-2 text-al-ink">
-            {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
-            {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
-          </span>
-          <span
-            className="rounded-md grid size-8 place-items-center border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
-            aria-hidden
-          >
-            <ArrowRight strokeWidth={1.8} className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </div>
-      </Link>
-    </li>
-  )
-}
-
-/** O pedido à equipe Althius. Sempre visível, no fim da grade. */
-function CartaoDePedido() {
-  return (
-    <section aria-label="Pedir um Sinal" className="cartao flex flex-wrap items-center justify-between gap-6 p-6">
-      <div className="flex max-w-2xl flex-col gap-1.5">
-        <h2 className="titulo-secao text-xl">Precisa de outro Sinal?</h2>
-        <p className="text-sm text-al-muted">
-          Conte o evento que você quer acompanhar e a equipe Althius monta para você.
-        </p>
-      </div>
-      <Link to="/sinais/pedidos" className={BOTAO_PRIMARIO}>
-        Falar com a equipe Althius
-      </Link>
-    </section>
+    </div>
   )
 }
 

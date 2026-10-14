@@ -188,9 +188,10 @@ describe('Sinais internos no catálogo do Workspace operacional', () => {
   it('Ausência de resposta, Negociação parada e Proposta recusada são cards iguais, sem selo', async () => {
     abrir('/sinais')
 
-    expect(await screen.findByRole('link', { name: /Ausência de resposta/ })).toHaveAttribute('href', '/sinais/tipos/sem-resposta')
-    expect(screen.getByRole('link', { name: /Negociação parada/ })).toHaveAttribute('href', '/sinais/tipos/negociacao-parada')
-    expect(screen.getByRole('link', { name: /Proposta recusada/ })).toHaveAttribute('href', '/sinais/tipos/proposta-recusada')
+    const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
+    expect(await within(catalogo).findByRole('link', { name: /Ausência de resposta/ })).toHaveAttribute('href', '/sinais/tipos/sem-resposta')
+    expect(within(catalogo).getByRole('link', { name: /Negociação parada/ })).toHaveAttribute('href', '/sinais/tipos/negociacao-parada')
+    expect(within(catalogo).getByRole('link', { name: /Proposta recusada/ })).toHaveAttribute('href', '/sinais/tipos/proposta-recusada')
     expect(screen.queryByText('Disponível')).not.toBeInTheDocument()
     expect(screen.queryByText('Em breve')).not.toBeInTheDocument()
   })
@@ -267,10 +268,10 @@ describe('Monitoramento interno no Workspace operacional', () => {
     expect(screen.queryByText(/simulad/i)).not.toBeInTheDocument()
   })
 
-  it('a página de Proposta recusada oferece Criar Monitoramento', async () => {
+  it('a página de Proposta recusada oferece Ativar Monitoramento', async () => {
     abrir('/sinais/tipos/proposta-recusada')
 
-    expect(await screen.findByRole('link', { name: 'Criar Monitoramento' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Ativar Monitoramento' })).toHaveAttribute(
       'href',
       '/sinais/tipos/proposta-recusada/novo',
     )

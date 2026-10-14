@@ -29,9 +29,9 @@ describe('Catálogo único de Sinais', () => {
     expect(screen.getByRole('link', { name: 'Falar com a equipe Althius' })).toHaveAttribute('href', '/sinais/pedidos')
   })
 
-  it('a página do tipo tem um botão só, Criar Monitoramento, e a letra antiga do mercado vira o slug', async () => {
+  it('a página do tipo tem um botão só, Ativar Monitoramento, e a letra antiga do mercado vira o slug', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/abertura-de-vagas')
-    expect(await screen.findByRole('link', { name: 'Criar Monitoramento' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Ativar Monitoramento' })).toHaveAttribute(
       'href',
       '/sinais/tipos/abertura-de-vagas/novo',
     )

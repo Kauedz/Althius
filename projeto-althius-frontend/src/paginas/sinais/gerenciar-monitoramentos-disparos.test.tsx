@@ -9,7 +9,7 @@ describe('Ticket 04: Gerenciar vários Monitoramentos e simular disparos', () =>
     expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
 
     // 1. Cria o primeiro monitoramento novo
-    await usuario.click(screen.getByRole('link', { name: 'Criar Monitoramento' }))
+    await usuario.click(screen.getByRole('link', { name: 'Ativar Monitoramento' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
 
     await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Vagas de Produto SP')
@@ -27,7 +27,7 @@ describe('Ticket 04: Gerenciar vários Monitoramentos e simular disparos', () =>
     expect(within(listaAposPrimeiro).getByRole('listitem', { name: 'Vagas de Produto SP' })).toBeInTheDocument()
 
     // 2. Cria o segundo monitoramento do mesmo tipo
-    await usuario.click(screen.getByRole('link', { name: 'Criar Monitoramento' }))
+    await usuario.click(screen.getByRole('link', { name: 'Ativar Monitoramento' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
 
     await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Vagas de Dados México')
@@ -116,7 +116,7 @@ describe('Ticket 04: Gerenciar vários Monitoramentos e simular disparos', () =>
     // Contagem inicial: 3 no total · 1 ativo
     expect(screen.getByText(/3 no total · 1 ativo/)).toBeInTheDocument()
 
-    await usuario.click(screen.getByRole('link', { name: 'Criar Monitoramento' }))
+    await usuario.click(screen.getByRole('link', { name: 'Ativar Monitoramento' }))
     await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Monitoramento Ciclo Completo')
     const grupoCargos = screen.getByRole('group', { name: 'Cargos ou funções' })
     await usuario.click(within(grupoCargos).getByRole('checkbox', { name: 'IA e machine learning' }))
@@ -165,8 +165,7 @@ describe('Ticket 04: Gerenciar vários Monitoramentos e simular disparos', () =>
 
     // Volta ao catálogo e confere que o card reflete exatamente os 2 ativos
     await usuario.click(within(screen.getByRole('main')).getByRole('link', { name: 'Sinais' }))
-    expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Abertura de vagas.*2 ativos/ })).toBeInTheDocument()
+    expect(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas.*2 ativos/ })).toBeInTheDocument()
   })
 
   it('produz disparos simulados apenas para Monitoramentos Ativos, alimentando o armazenamento compartilhado e as projeções', async () => {
@@ -301,7 +300,7 @@ describe('Ticket 04: Gerenciar vários Monitoramentos e simular disparos', () =>
     expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
 
     // Abre o editor
-    await usuario.click(screen.getByRole('link', { name: 'Criar Monitoramento' }))
+    await usuario.click(screen.getByRole('link', { name: 'Ativar Monitoramento' }))
     const campoNome = await screen.findByRole('textbox', { name: 'Nome do monitoramento' })
     await usuario.type(campoNome, 'Engenharia com Resiliência')
 

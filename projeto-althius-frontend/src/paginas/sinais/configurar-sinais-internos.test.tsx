@@ -256,11 +256,11 @@ describe('Ticket 06: Configurar sinais internos', () => {
 
   it('trata estados vazios e falhas recuperáveis adequadamente', async () => {
     // Tipo sem monitoramentos ativos ou configurados
-    renderizarApp('/sinais/tipos/anuncios-google', {}, {}, {}, { vazia: true })
+    renderizarApp('/sinais/tipos/anuncios-meta', {}, {}, {}, { vazia: true })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Anunciando no Google' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anunciando na Meta' })).toBeInTheDocument()
     expect(screen.getByText('Nenhum Monitoramento deste tipo ainda.')).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Criar Monitoramento' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('link', { name: 'Ativar Monitoramento' }).length).toBeGreaterThan(0)
 
     // Falha recuperável no catálogo
     const appComFalha = renderizarApp('/sinais', {}, {}, {}, { falha: true })

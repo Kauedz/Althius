@@ -40,7 +40,7 @@ describe('Ticket 05: Completar os sinais externos', () => {
     expect(screen.getByText('Externo')).toBeInTheDocument()
     expect(screen.getByText('Movimentação profissional')).toBeInTheDocument()
 
-    await usuario.click(screen.getAllByRole('link', { name: 'Criar Monitoramento' })[0])
+    await usuario.click(screen.getAllByRole('link', { name: 'Ativar Monitoramento' })[0])
 
     // Campos adequados da família pessoas
     expect(await screen.findByRole('group', { name: 'Cargos acompanhados' })).toBeInTheDocument()
