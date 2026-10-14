@@ -462,8 +462,8 @@
     background-clip: text;
     color: transparent;
   }
-  /* Vitrine de Sinais: a capa é uma imagem da marca (rosa e laranja sobre o escuro) com um véu de baixo para cima,
-     para o texto da capa ficar legível. O conteúdo fica acima do véu. */
+  /* Vitrine de Sinais: a capa é uma imagem da marca (rosa e laranja) com um véu da cor do fundo, de baixo para cima,
+     para o texto da capa ficar legível nos dois temas. O conteúdo fica acima do véu. */
   .vitrine-capa {
     position: relative;
     isolation: isolate;
@@ -495,6 +495,11 @@
     mix-blend-mode: screen;
     opacity: 0.55;
     animation: vitrine-deriva 16s ease-in-out infinite alternate;
+  }
+  /* No tema claro, o brilho "tela" sumiria no fundo claro: ele tinge em vez de clarear. */
+  [data-theme="claro"] .vitrine-brilho {
+    mix-blend-mode: multiply;
+    opacity: 0.35;
   }
   /* A prateleira: uma faixa horizontal que rola sem barra e encaixa card a card. */
   .vitrine-prateleira {

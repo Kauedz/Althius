@@ -28,9 +28,9 @@ import { FAMILIAS } from './catalogo'
 import { CATALOGO_VISIVEL, nomesDosNichos, valeParaTodosOsNichos, type CardDoCatalogo } from './catalogo-visivel'
 import { NICHOS, type Nicho } from './nichos'
 
-/** A vitrine é escura em qualquer tema e ocupa a área da página inteira, sob a barra de topo. */
+/** A vitrine segue o tema (claro ou escuro) e ocupa a área da página inteira, sob a barra de topo. */
 export const ZONA_DA_VITRINE =
-  'al-zona-escura -mx-4 -mt-6 -mb-16 flex min-h-[calc(100vh-4rem)] min-w-0 flex-col gap-6 px-4 py-6 md:-mx-10 md:px-10 md:py-8'
+  'bg-al-bg text-al-ink -mx-4 -mt-6 -mb-16 flex min-h-[calc(100vh-4rem)] min-w-0 flex-col gap-6 px-4 py-6 md:-mx-10 md:px-10 md:py-8'
 
 const CAPAS = [capa1, capa2, capa3, capa4]
 const POSICOES = ['center', 'left top', 'right center', 'center bottom', 'left center', 'right top']
