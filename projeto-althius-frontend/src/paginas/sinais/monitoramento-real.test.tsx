@@ -230,7 +230,7 @@ describe('Criar Monitoramento no Workspace operacional', () => {
 
     const revisao = screen.getByRole('region', { name: 'Revisão antes de ativar' })
     expect(await within(revisao).findByText('Norte Alimentos')).toBeInTheDocument()
-    expect(within(revisao).getByText(/Cada Conta varrida debita 1 crédito/)).toBeInTheDocument()
+    expect(within(revisao).getByText(/Cada Conta varrida debita 2 créditos/)).toBeInTheDocument()
     expect(within(revisao).queryByText(/na demonstração/i)).not.toBeInTheDocument()
     await usuario.click(within(revisao).getByRole('button', { name: 'Ativar monitoramento' }))
 

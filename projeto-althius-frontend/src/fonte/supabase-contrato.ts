@@ -23,7 +23,7 @@ export async function lerResumoDoContrato(cliente: SupabaseClient, workspaceId: 
         status: ResumoDoContrato['estado']
         billing_mode: ResumoDoContrato['modo']
         tier_name: string
-        max_users: number | string
+        max_users: number | string | null
         active_users: number | string
         monthly_credits: number | string
         monthly_credit_limit: number | string
@@ -36,7 +36,7 @@ export async function lerResumoDoContrato(cliente: SupabaseClient, workspaceId: 
     estado: linha.status,
     modo: linha.billing_mode,
     faixa: linha.tier_name,
-    maximoDeUsuarios: Number(linha.max_users),
+    maximoDeUsuarios: linha.max_users === null ? null : Number(linha.max_users),
     usuariosAtivos: Number(linha.active_users),
     creditosMensais: Number(linha.monthly_credits),
     limiteMensal: Number(linha.monthly_credit_limit),

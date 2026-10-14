@@ -224,7 +224,8 @@ export interface ResumoDoContrato {
   /** `contrato` é cobrado fora da plataforma; `saas` mantém o Stripe. */
   modo: 'contrato' | 'saas'
   faixa: string
-  maximoDeUsuarios: number
+  /** Nulo na Equipe Althius, que não tem limite de usuários. */
+  maximoDeUsuarios: number | null
   usuariosAtivos: number
   creditosMensais: number
   /** O limite mensal de gasto em créditos do Workspace. */

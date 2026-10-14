@@ -26,7 +26,7 @@ import {
 } from './catalogo'
 import { SecaoDoFormulario, SeloDoEstado } from './componentes'
 import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
-import { cardPorId, cardQueConta, cargosDoNicho } from './catalogo-visivel'
+import { ajudaDoCusto, cardPorId, cardQueConta, cargosDoNicho } from './catalogo-visivel'
 import { sinalArquivado } from './arquivados'
 import { NICHOS } from './nichos'
 import { podeMonitorar } from './disponibilidade'
@@ -297,7 +297,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                 ajuda={
                   interno
                     ? 'O Monitoramento interno lê só as Interações destas Contas e não gasta crédito.'
-                    : 'Cada Conta varrida debita 1 crédito.'
+                    : ajudaDoCusto(tipo.id)
                 }
               />
             ) : (
@@ -961,7 +961,7 @@ function Revisao({
         </p>
       ) : operacional ? (
         <p className="text-sm text-al-muted">
-          Cada Conta varrida debita 1 crédito. A varredura automática só roda dentro do teto aprovado em{' '}
+          {ajudaDoCusto(monitoramento.tipoId)} A varredura automática só roda dentro do teto aprovado em{' '}
           <Link to="/configuracoes/automacao" className="text-al-ink underline-offset-4 hover:underline">
             Automação e tetos
           </Link>

@@ -173,7 +173,7 @@ export function SecaoPlanoDoWorkspaceOperacional() {
             />
             <DadoDoContrato
               rotulo="Usuários"
-              valor={contrato.ilimitado ? `${contrato.usuariosAtivos}` : `${contrato.usuariosAtivos} de ${contrato.maximoDeUsuarios}`}
+              valor={contrato.ilimitado || contrato.maximoDeUsuarios === null ? `${contrato.usuariosAtivos}` : `${contrato.usuariosAtivos} de ${contrato.maximoDeUsuarios}`}
             />
           </dl>
         </section>
