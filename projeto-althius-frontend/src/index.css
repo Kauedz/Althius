@@ -499,22 +499,29 @@
     opacity: 0.55;
     animation: vitrine-deriva 16s ease-in-out infinite alternate;
   }
-  /* A prateleira: uma faixa horizontal que rola sem barra e encaixa card a card. */
+  /* A prateleira em Cover Flow 3D: os cards ficam empilhados na mesma célula e a Prateleira dá a pose de cada um
+     (centro de frente, vizinhos girados em perspectiva). A altura é a do card mais alto; o que passa da borda é cortado. */
   .vitrine-prateleira {
-    display: flex;
-    gap: 1rem;
+    display: grid;
+    grid-template-areas: "card";
+    place-items: center;
     min-width: 0;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    padding-bottom: 0.25rem;
-  }
-  .vitrine-prateleira::-webkit-scrollbar {
-    display: none;
+    overflow: hidden;
+    perspective: 1200px;
+    padding-block: 1.25rem;
+    touch-action: pan-y;
+    outline: none;
   }
   .vitrine-prateleira > li {
-    scroll-snap-align: start;
+    grid-area: card;
+    transition:
+      transform 550ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 400ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vitrine-prateleira > li {
+      transition: none;
+    }
   }
 }
 

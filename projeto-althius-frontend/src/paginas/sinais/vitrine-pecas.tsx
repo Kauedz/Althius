@@ -1,7 +1,7 @@
 // As peças da vitrine de Sinais: capa, card, prateleira, Sinal da semana, Meus Sinais e o pedido à equipe. O fundo segue
 // o tema (claro ou escuro); as capas são escuras nos dois, com o degradê da marca. A página e a casca são as mesmas.
 
-import { createElement, useRef, useState, type ReactNode } from 'react'
+import { createElement, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import {
   ArrowRight,
   BellRing,
@@ -141,7 +141,35 @@ function CartaoSimples({
   )
 }
 
-/** Uma prateleira horizontal, com setas para rolar no computador e o dedo no celular. */
+/** Onde o Cover Flow começa: perto do meio, sem passar do terceiro card, para os dois lados terem vizinhos. */
+function centroInicial(total: number): number {
+  return Math.max(0, Math.min(2, Math.floor((total - 1) / 2)))
+}
+
+/** Quanto o dedo precisa arrastar (px) para trocar o card do centro. */
+const ARRASTO_MINIMO = 40
+
+/**
+ * A pose de um card no Cover Flow pela distância ao centro (inspirado no "3D Cover Flow" do amicro, MIT): o do centro fica
+ * de frente e à frente; os vizinhos giram para dentro, recuam e somem aos poucos.
+ */
+function poseDoCard(distancia: number, largura: number): { transform: string; opacity: number; zIndex: number } {
+  const longe = Math.abs(distancia)
+  if (distancia === 0) return { transform: 'translateX(0) translateZ(40px) scale(1.04)', opacity: 1, zIndex: 100 }
+  const passo = (largura || 240) * 0.62
+  const giro = distancia < 0 ? 38 : -38
+  return {
+    transform: `translateX(${distancia * passo}px) translateZ(${-longe * 90}px) rotateY(${giro}deg) scale(${1 - longe * 0.06})`,
+    // Opacos até o segundo vizinho, para o texto de um card não aparecer através do outro; depois somem.
+    opacity: longe > 3 ? 0 : longe === 3 ? 0.5 : 1,
+    zIndex: 100 - longe,
+  }
+}
+
+/**
+ * Uma prateleira em Cover Flow 3D: um card no centro, os vizinhos girados em perspectiva. As setas, as teclas de seta,
+ * o arrasto e o toque num card do lado trocam o centro; o card do centro abre normalmente.
+ */
 export function Prateleira({
   id,
   titulo,
@@ -154,10 +182,74 @@ export function Prateleira({
   children: ReactNode
 }) {
   const lista = useRef<HTMLUListElement>(null)
-  const rolar = (sentido: 1 | -1) => {
-    const elemento = lista.current
-    elemento?.scrollBy?.({ left: sentido * Math.max(elemento.clientWidth * 0.8, 240), behavior: 'smooth' })
+  const [escolhido, setEscolhido] = useState<number | null>(null)
+  const [total, setTotal] = useState(0)
+  const inicioDoArrasto = useRef<number | null>(null)
+  const arrastou = useRef(false)
+  const centro = Math.min(escolhido ?? centroInicial(total), Math.max(total - 1, 0))
+
+  // A pose de cada card vem do DOM: os filhos são <li> de vários tipos (card, lançamento, pedido, vazio).
+  useLayoutEffect(() => {
+    const itens = Array.from(lista.current?.children ?? []) as HTMLElement[]
+    if (itens.length !== total) setTotal(itens.length)
+    const atual = Math.min(escolhido ?? centroInicial(itens.length), Math.max(itens.length - 1, 0))
+    itens.forEach((item, indice) => {
+      const pose = poseDoCard(indice - atual, item.offsetWidth)
+      item.style.transform = pose.transform
+      item.style.opacity = String(pose.opacity)
+      item.style.zIndex = String(pose.zIndex)
+      item.style.pointerEvents = pose.opacity === 0 ? 'none' : ''
+      if (indice === atual) item.setAttribute('aria-current', 'true')
+      else item.removeAttribute('aria-current')
+    })
+  }, [children, escolhido, total])
+
+  const mover = (passos: number) => setEscolhido(Math.min(Math.max(centro + passos, 0), Math.max(total - 1, 0)))
+  const indiceDe = (alvo: EventTarget) => {
+    const item = (alvo as HTMLElement).closest?.('.vitrine-prateleira > li')
+    return item ? Array.prototype.indexOf.call(lista.current?.children ?? [], item) : -1
   }
+
+  // O toque num card do lado o traz para o centro em vez de abrir; depois de um arrasto, o clique não vale.
+  const aoClicar = (evento: MouseEvent<HTMLUListElement>) => {
+    const indice = indiceDe(evento.target)
+    if (arrastou.current || (indice >= 0 && indice !== centro)) {
+      evento.preventDefault()
+      evento.stopPropagation()
+      if (!arrastou.current && indice >= 0) setEscolhido(indice)
+    }
+    arrastou.current = false
+  }
+  const aoTeclar = (evento: KeyboardEvent<HTMLUListElement>) => {
+    if (evento.key === 'ArrowLeft') mover(-1)
+    if (evento.key === 'ArrowRight') mover(1)
+  }
+  // Com o teclado (Tab), o card que recebe o foco vem para o centro.
+  const aoFocar = (evento: { target: EventTarget }) => {
+    let peloTeclado = false
+    try {
+      peloTeclado = (evento.target as HTMLElement).matches(':focus-visible')
+    } catch {
+      peloTeclado = false
+    }
+    const indice = indiceDe(evento.target)
+    if (peloTeclado && indice >= 0 && indice !== centro) setEscolhido(indice)
+  }
+  const aoApertar = (evento: PointerEvent<HTMLUListElement>) => {
+    inicioDoArrasto.current = evento.clientX
+    arrastou.current = false
+  }
+  const aoSoltar = (evento: PointerEvent<HTMLUListElement>) => {
+    if (inicioDoArrasto.current === null) return
+    const deslocamento = evento.clientX - inicioDoArrasto.current
+    inicioDoArrasto.current = null
+    if (Math.abs(deslocamento) < ARRASTO_MINIMO) return
+    arrastou.current = true
+    mover(deslocamento < 0 ? 1 : -1)
+  }
+
+  const botaoDaSeta =
+    'grid size-8 place-items-center rounded-full border border-al-line text-al-muted transition-colors hover:border-al-ink hover:text-al-ink disabled:pointer-events-none disabled:opacity-40'
   return (
     <section aria-labelledby={`prateleira-${id}`} className="flex min-w-0 flex-col gap-3">
       <div className="flex items-end justify-between gap-3">
@@ -167,28 +259,44 @@ export function Prateleira({
           </h2>
           {subtitulo && <p className="text-sm text-al-muted">{subtitulo}</p>}
         </div>
-        <div className="hidden shrink-0 gap-1 sm:flex">
-          <button
-            type="button"
-            onClick={() => rolar(-1)}
-            aria-label={`Voltar em ${titulo}`}
-            className="grid size-8 place-items-center rounded-full border border-al-line text-al-muted transition-colors hover:border-al-ink hover:text-al-ink"
-          >
+        <div className="flex shrink-0 gap-1">
+          <button type="button" onClick={() => mover(-1)} disabled={centro <= 0} aria-label={`Voltar em ${titulo}`} className={botaoDaSeta}>
             <ChevronLeft strokeWidth={1.8} className="size-4" aria-hidden />
           </button>
           <button
             type="button"
-            onClick={() => rolar(1)}
+            onClick={() => mover(1)}
+            disabled={centro >= total - 1}
             aria-label={`Avançar em ${titulo}`}
-            className="grid size-8 place-items-center rounded-full border border-al-line text-al-muted transition-colors hover:border-al-ink hover:text-al-ink"
+            className={botaoDaSeta}
           >
             <ChevronRight strokeWidth={1.8} className="size-4" aria-hidden />
           </button>
         </div>
       </div>
-      <ul ref={lista} aria-label={titulo} className="vitrine-prateleira">
+      <ul
+        ref={lista}
+        aria-label={titulo}
+        className="vitrine-prateleira"
+        onClickCapture={aoClicar}
+        onKeyDown={aoTeclar}
+        onFocus={aoFocar}
+        onPointerDown={aoApertar}
+        onPointerUp={aoSoltar}
+        onPointerCancel={() => (inicioDoArrasto.current = null)}
+      >
         {children}
       </ul>
+      {total > 1 && (
+        <div className="flex justify-center gap-1.5" aria-hidden>
+          {Array.from({ length: total }, (_, indice) => (
+            <span
+              key={indice}
+              className={cn('h-1 rounded-full transition-all duration-300', indice === centro ? 'w-4 bg-al-accent' : 'w-1 bg-al-line-forte')}
+            />
+          ))}
+        </div>
+      )}
     </section>
   )
 }
