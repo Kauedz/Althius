@@ -207,6 +207,14 @@ export interface PlanoDoWorkspace {
   uso: UsoDoWorkspace | null
 }
 
+/** O saldo de créditos do Workspace. `ilimitado` é a Equipe: a tela mostra "Ilimitado" e não o número, que pode ficar negativo. */
+export interface SaldoDeCreditos {
+  lancado: number
+  reservado: number
+  disponivel: number
+  ilimitado: boolean
+}
+
 /** Os dados editáveis em Meu perfil: nome, e-mail e foto da Conta de usuário. Sem foto, iniciais. */
 export interface Perfil {
   nome: string
@@ -675,6 +683,12 @@ export interface FonteDeAgentes extends FonteObservavel {
    * Agentes do mês até hoje, as mesmas que sobem nos Agentes.
    */
   plano(): Promise<PlanoDoWorkspace>
+
+  /**
+   * O saldo de créditos do Workspace operacional. Ausente na Demonstração. Nulo quando o banco não responde.
+   * No Workspace ilimitado, `ilimitado` é verdadeiro.
+   */
+  saldoDeCreditos?(): Promise<SaldoDeCreditos | null>
 
   /** O catálogo fixo: não há operação para criar uma Especialidade. */
   especialidades(): Promise<Especialidade[]>

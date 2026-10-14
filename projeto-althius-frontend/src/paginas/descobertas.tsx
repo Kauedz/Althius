@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Carregando } from '@/components/marca'
-import { useDadosDeDescobertas, useFonteDeDescobertas } from '@/fonte/contexto'
+import { useDados, useDadosDeDescobertas, useFonteDeDescobertas } from '@/fonte/contexto'
 import type { ContaDescoberta, EstadoContaDescoberta } from '@/fonte/descobertas-tipos'
 import { cn } from '@/lib/utils'
 import { AbasDoModulo, CampoDeBusca, Contagem } from './modulo-contas-e-contatos'
@@ -15,6 +15,7 @@ const rotuloCreditos = (n: number) => `${n.toLocaleString('pt-BR')} ${n === 1 ? 
 
 export function PaginaDescobertas() {
   const fonte = useFonteDeDescobertas()
+  const saldo = useDados((f) => (f.saldoDeCreditos ? f.saldoDeCreditos() : Promise.resolve(null)), [])
   const [estadoAba, setEstadoAba] = useState<EstadoContaDescoberta>('nova')
   const [busca, setBusca] = useState('')
   const [pedindoBusca, setPedindoBusca] = useState(false)
@@ -62,7 +63,8 @@ export function PaginaDescobertas() {
     )
   }
 
-  const semSaldo = cotacao ? cotacao.saldoDisponivel < cotacao.creditos : false
+  const ilimitado = saldo?.ilimitado === true
+  const semSaldo = ilimitado ? false : cotacao ? cotacao.saldoDisponivel < cotacao.creditos : false
   const botaoDesabilitado = pedindoBusca || emAndamento || semSaldo
 
   async function dispararBusca() {
@@ -163,7 +165,7 @@ export function PaginaDescobertas() {
             </Button>
             {cotacao && !emAndamento && (
               <span id={custoId} className="text-xs text-al-muted">
-                {rotuloCreditos(cotacao.creditos)}
+                {ilimitado ? 'Ilimitado' : rotuloCreditos(cotacao.creditos)}
               </span>
             )}
           </div>

@@ -80,6 +80,14 @@ Deno.test('a cópia da fonte pública lê e grava pela chave, sem o mês quando 
   })
 })
 
+Deno.test('semTetoDeSinais lê workspace_credits_unlimited e trata função ausente como limitado', async () => {
+  const sim = rpcFalso({ workspace_credits_unlimited: true })
+  assertEquals(await criarDbDaCascata(sim.admin).semTetoDeSinais!('ws'), true)
+  assertEquals(sim.chamadas[0], { nome: 'workspace_credits_unlimited', args: { p_workspace_id: 'ws' } })
+  const ausente = rpcFalso({}, { code: 'PGRST202', message: 'Could not find the function' })
+  assertEquals(await criarDbDaCascata(ausente.admin).semTetoDeSinais!('ws'), false)
+})
+
 Deno.test('a definição, a configuração e as Contas vêm do banco; o erro do banco vira exceção com o nome da função', async () => {
   const def = { id: 'c1', signalType: 'vaga_comex', steps: [{ ordem: 1 }] }
   const ok = rpcFalso({

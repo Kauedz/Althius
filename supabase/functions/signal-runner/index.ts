@@ -72,6 +72,11 @@ const db: Db = {
     if (!linha) throw new Error('begin_account_scan não respondeu')
     return { outcome: linha.outcome, reservationId: linha.reservation_id }
   },
+  async creditsUnlimited(workspaceId) {
+    const { data, error } = await admin.rpc('workspace_credits_unlimited', { p_workspace_id: workspaceId })
+    if (error) return false
+    return data === true
+  },
   async endScan(reservationId, success) {
     const { error } = await admin.rpc('end_account_scan', { p_reservation_id: reservationId, p_success: success })
     if (error) throw falha(error)
