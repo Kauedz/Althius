@@ -83,6 +83,31 @@ describe('Vitrine de Sinais', () => {
     expect(within(screen.getByRole('region', { name: 'Mais ativados' })).getByText('Nenhum Monitoramento ativo ainda.')).toBeInTheDocument()
   })
 
+  it('as prateleiras são um Cover Flow: um card no centro, as setas trocam o centro e o card do lado vem para o centro', async () => {
+    const { usuario } = renderizarApp('/sinais')
+    const prateleira = await screen.findByRole('region', { name: 'Movimento de equipe' })
+    // Só os cards da faixa (os filhos diretos): dentro de cada card há outras listas, como a dos nichos.
+    const cards = Array.from(within(prateleira).getByRole('list', { name: 'Movimento de equipe' }).children) as HTMLElement[]
+    const noCentro = () => cards.findIndex((card) => card.getAttribute('aria-current') === 'true')
+    expect(cards.length).toBeGreaterThan(2)
+    expect(cards.filter((card) => card.getAttribute('aria-current') === 'true')).toHaveLength(1)
+
+    const inicio = noCentro()
+    await usuario.click(within(prateleira).getByRole('button', { name: 'Avançar em Movimento de equipe' }))
+    expect(noCentro()).toBe(inicio + 1)
+    await usuario.click(within(prateleira).getByRole('button', { name: 'Voltar em Movimento de equipe' }))
+    expect(noCentro()).toBe(inicio)
+
+    // O card do lado não abre o Sinal no primeiro toque: vem para o centro. No centro, abre.
+    const vizinho = cards[inicio + 1]
+    const nome = within(vizinho).getByRole('heading', { level: 3 }).textContent ?? ''
+    await usuario.click(within(vizinho).getByRole('link'))
+    expect(noCentro()).toBe(inicio + 1)
+    expect(await screen.findByRole('region', { name: 'Movimento de equipe' })).toBeInTheDocument()
+    await usuario.click(within(vizinho).getByRole('link'))
+    expect(await screen.findByRole('heading', { level: 1, name: nome })).toBeInTheDocument()
+  })
+
   it('o filtro mostra só a grade, sem o destaque e sem as prateleiras', async () => {
     const { usuario } = renderizarApp('/sinais')
     await screen.findByRole('region', { name: /^Sinal da semana: / })
