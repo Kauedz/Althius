@@ -61,8 +61,11 @@ select is(
      'nova-empresa-aberta', 'avaliacoes-google-maps', 'financiamento-bndes-finep', 'sem-resposta')),
   'abertura-de-vagas=2,anuncios-meta=2,avaliacoes-google-maps=1,financiamento-bndes-finep=1,nova-empresa-aberta=1,nova-lideranca=2,publicacoes-da-empresa=2,sem-resposta=0',
   'faixa 1 (fontes públicas) custa 1, faixa 2 (vagas, anúncios, publicações, pessoas) custa 2, histórico do Workspace custa 0');
-select is((select count(*)::int from public.signal_catalog where workspace_id is null and credits_per_account not between 0 and 2), 0,
-  'nenhum card passa de 2 créditos por Conta');
+select is((select count(*)::int from public.signal_catalog
+  where workspace_id is null
+    and id not in ('nova-mercadoria-importada', 'mudanca-regulatoria-e-licenca', 'calendario-e-plano-safra')
+    and credits_per_account not between 0 and 2), 0,
+  'nenhum card por Conta passa de 2 créditos; os 3 de Mercado cobram 3 por execução');
 select is((select estimated_cost_label from public.signal_catalog where id = 'abertura-de-vagas'), '2 créditos por Conta varrida', 'o rótulo diz o preço em créditos');
 select is((select estimated_cost_label from public.signal_catalog where id = 'nova-empresa-aberta'), '1 crédito por Conta varrida', 'no singular, para 1');
 select is((select estimated_cost_label from public.signal_catalog where id = 'nova-mercadoria-importada'), '3 créditos por execução', 'o Sinal de Mercado custa 3 por execução');
