@@ -8,6 +8,7 @@ import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
 import { TextoDigitado } from '@/conversa/texto'
+import { quemEstaRespondendo } from '@/conversa/vez'
 import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { Agente, AgenteId, AprovacaoDeAcao } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
@@ -70,7 +71,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
             <span className="relative size-5">
               <Pulso className="absolute inset-0" />
             </span>
-            <span className="rotulo">{agente.nome} está trabalhando</span>
+            <span className="rotulo">{quemEstaRespondendo(itens, agente, agentes).nome} está respondendo</span>
           </div>
         )}
         <div ref={fim} />

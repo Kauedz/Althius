@@ -332,7 +332,7 @@ describe('Conversa', () => {
     const aprovacao = await screen.findByRole('article', { name: /Aprovação pendente/ })
     expect(within(aprovacao).getByRole('img', { name: 'HubSpot' })).toBeInTheDocument()
     expect(within(aprovacao).getByText(/Slack/)).toBeInTheDocument()
-    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/está respondendo/)).not.toBeInTheDocument())
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Especialistas' })).getByRole('link', { name: 'Ethos' }))
     expect(await screen.findByText('Detectou algo')).toBeInTheDocument()
@@ -393,7 +393,7 @@ describe('Conversa com Agentes criados e Menções', () => {
     expect(await screen.findByRole('note', { name: 'Repasse de Ethos para Scopus · Enterprise LATAM' })).toBeInTheDocument()
     expect(await screen.findByText(/Scopus · Enterprise LATAM entrou na Conversa/)).toBeInTheDocument()
 
-    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/está respondendo/)).not.toBeInTheDocument())
     await usuario.type(campo, '@Scopus e a aderência dela?{Enter}')
     expect(await screen.findByRole('note', { name: 'Repasse de Ethos para Scopus' })).toBeInTheDocument()
     expect(await screen.findByText(/^Scopus entrou na Conversa/)).toBeInTheDocument()
@@ -403,7 +403,7 @@ describe('Conversa com Agentes criados e Menções', () => {
     const { usuario } = renderizarApp('/agentes/ethos/conversa')
     await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Ethos' }), '@Scopus · Enterprise LATAM prioriza a Stripe?{Enter}')
     await screen.findByText(/Scopus · Enterprise LATAM entrou na Conversa/)
-    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/está respondendo/)).not.toBeInTheDocument())
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
     await usuario.click(within(await grade()).getByRole('link', { name: 'Scopus · Enterprise LATAM' }))
@@ -885,7 +885,7 @@ describe('Execuções', () => {
     const { usuario } = renderizarApp('/agentes/rhetor/conversa')
     await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' }), 'qual é a previsão do tempo?{Enter}')
     await screen.findByText(/90 palavras/)
-    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/está respondendo/)).not.toBeInTheDocument())
 
     const rhetor = await cartaoNaGrade(usuario, 'Rhetor')
     expect(await within(rhetor).findByText('245')).toBeInTheDocument()
@@ -895,7 +895,7 @@ describe('Execuções', () => {
     const { usuario } = renderizarApp('/agentes/ethos/conversa')
     await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Ethos' }), '@Scopus · Enterprise LATAM prioriza a Stripe?{Enter}')
     await screen.findByText(/Scopus · Enterprise LATAM entrou na Conversa/)
-    await waitFor(() => expect(screen.queryByText(/está trabalhando/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/está respondendo/)).not.toBeInTheDocument())
 
     const mencionado = await cartaoNaGrade(usuario, 'Scopus · Enterprise LATAM')
     expect(await within(mencionado).findByText('59')).toBeInTheDocument()

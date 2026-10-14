@@ -9,10 +9,11 @@ import { createWorker, type FilaDb, type Hermes } from './worker.ts'
 const SCOPUS: AgenteDoWorkspace = { id: 'a-scopus', name: 'Scopus', specialty: 'scopus', kind: 'padrao', instructions: '', voice_tone: '' }
 const reserva = (runId: string): Reserva => ({
   run_id: runId,
-  kind: 'agente',
+  // A Coordenação sem Menção: o pedido que ainda vai pelo modo de uma chamada (PR-11).
+  kind: 'coordenada',
   workspace_name: 'Norte',
   request_text: 'Oi',
-  agent_id: SCOPUS.id,
+  agent_id: null,
   mentions: [],
   agents: [SCOPUS],
   history: [],

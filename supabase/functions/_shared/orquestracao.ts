@@ -4,6 +4,8 @@
 // a ponte (`agent-conversation`, que fala com a API de um modelo) e o worker do Hermes usam este módulo, e o modelo
 // entra sempre por injeção nas pontas. Não importa nenhuma biblioteca de provedor.
 
+import { reconhecerMencoes } from './mencoes.ts'
+
 export interface AgenteDoWorkspace {
   id: string
   name: string
@@ -131,10 +133,14 @@ export function anfitriaoDaConversa(reserva: Reserva): AgenteDoWorkspace {
   return anfitriao
 }
 
-/** Na página de um Agente: ele responde primeiro, e cada @mencionado entra em seguida. */
+/** Quantos Agentes podem falar numa Conversa, contando o anfitrião e os chamados por outro Agente (PR-11). */
+export const MAX_PARTICIPANTES_DA_CONVERSA = 4
+
+/** Na página de um Agente: ele responde primeiro, e cada @mencionado entra em seguida, até o limite de participantes. */
 export function participantesDaConversa(reserva: Reserva): AgenteDoWorkspace[] {
   const anfitriao = anfitriaoDaConversa(reserva)
   return [anfitriao, ...agentesMencionados(reserva).filter((agente) => agente.id !== anfitriao.id)]
+    .slice(0, MAX_PARTICIPANTES_DA_CONVERSA)
 }
 
 /** Na Coordenação: os @mencionados sempre trabalham, mais os que ela escolheu, até o limite. */
@@ -289,18 +295,33 @@ interface Rodadas {
  * só os que pediram para continuar, até `MAX_RODADAS_DO_PEDIDO`. Para na hora quando um Agente pergunta ao usuário.
  */
 export async function rodarRodadas(
-  { agentes, executor, antes, aoFalar, maximo = MAX_RODADAS_DO_PEDIDO }: {
+  { agentes, executor, antes, aoFalar, maximo = MAX_RODADAS_DO_PEDIDO, convidaveis = [], maxParticipantes = MAX_PARTICIPANTES_DA_CONVERSA }: {
     agentes: AgenteDoWorkspace[]
     executor: Pick<Executor, 'trabalhar'>
     antes?: (agente: AgenteDoWorkspace, rodada: number) => Promise<unknown>
     aoFalar: (fala: Fala, uso?: UsoDeTokens) => Promise<unknown>
     maximo?: number
+    /**
+     * Os Agentes que um Agente pode chamar escrevendo "@Nome" na fala (PR-11): o chamado fala na rodada seguinte, até
+     * `maximo` rodadas e `maxParticipantes` Agentes diferentes na Conversa. Vazio, ninguém é chamado pelo texto.
+     */
+    convidaveis?: AgenteDoWorkspace[]
+    maxParticipantes?: number
   },
 ): Promise<Rodadas> {
   const falas: Fala[] = []
+  const participantes = new Set(agentes.map((agente) => agente.id))
   let daVez = agentes
   for (let rodada = 1; rodada <= maximo && daVez.length > 0; rodada++) {
     const continuam: AgenteDoWorkspace[] = []
+    const entra = (agente: AgenteDoWorkspace) => {
+      if (continuam.some((a) => a.id === agente.id)) return
+      if (!participantes.has(agente.id)) {
+        if (participantes.size >= maxParticipantes) return
+        participantes.add(agente.id)
+      }
+      continuam.push(agente)
+    }
     for (const agente of daVez) {
       await antes?.(agente, rodada)
       const resultado = await executor.trabalhar(agente, falas, rodada)
@@ -310,7 +331,8 @@ export async function rodarRodadas(
       falas.push(fala)
       await aoFalar(fala, resultado.uso)
       if (desfecho === 'pergunta') return { falas, pergunta: fala }
-      if (desfecho === 'continuar') continuam.push(agente)
+      if (desfecho === 'continuar') entra(agente)
+      for (const chamado of reconhecerMencoes(texto, convidaveis)) if (chamado.id !== agente.id) entra(chamado)
     }
     daVez = continuam
   }
@@ -326,6 +348,7 @@ export async function conversarNaPagina(
   await rodarRodadas({
     agentes: participantesDaConversa(reserva),
     executor,
+    convidaveis: reserva.agents,
     aoFalar: (fala, uso) => registro.texto(fala.agente.id, fala.texto, uso),
   })
 }
@@ -347,6 +370,7 @@ export async function coordenarPedido(
   const { falas, pergunta } = await rodarRodadas({
     agentes: chamados,
     executor,
+    convidaveis: reserva.agents,
     antes: (agente, rodada) => registro.chamada(agente.id, rodada),
     aoFalar: (fala, uso) => registro.feito(fala.agente.id, fala.texto, uso),
   })
@@ -532,7 +556,7 @@ export function comCreditos(executor: Executor, { runId, creditos }: { runId: st
   }
 }
 
-function cobrandoOsCreditos(executor: Executor, db: RunDb, runId: string): Executor {
+export function cobrandoOsCreditos(executor: Executor, db: RunDb, runId: string): Executor {
   return db.creditos ? comCreditos(executor, { runId, creditos: db.creditos }) : executor
 }
 
