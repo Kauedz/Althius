@@ -3,13 +3,16 @@ import { MONITORAMENTOS_INICIAIS, SINAIS_MOCK, publicoInicial } from '@/paginas/
 import { foiDisparado, parseDataDisparo } from '@/fonte/regras-sinais'
 import type { FonteDeContas } from './contas-tipos'
 import type {
+  CardSobPedido,
   CascataDoCatalogo,
   EstadoDoMonitoramento,
   SinalDeMercado,
   FonteDeSinais,
   Monitoramento,
   NovoMonitoramento,
+  NovoPedidoDeSinal,
   ParametrosSimulacaoDisparo,
+  PedidoDeSinal,
   SinalEncontrado,
   TipoDeSinal,
 } from './sinais-tipos'
@@ -66,6 +69,7 @@ export function criarFonteDeSinaisSimulada(
     : MONITORAMENTOS_INICIAIS.map(clonarMonitoramento)
 
   let sinais: SinalEncontrado[] = vazia ? [] : [...SINAIS_MOCK]
+  let pedidos: PedidoDeSinal[] = []
 
   function notificar(): void {
     for (const ouvinte of ouvintes) {
@@ -373,6 +377,40 @@ export function criarFonteDeSinaisSimulada(
 
       notificar()
       return { ...novoSinal }
+    },
+
+    async pedidosDeSinal(): Promise<PedidoDeSinal[]> {
+      await aguardar()
+      return pedidos.map((pedido) => ({ ...pedido, contato: { ...pedido.contato } }))
+    },
+
+    async pedirSinal(pedido: NovoPedidoDeSinal): Promise<PedidoDeSinal> {
+      await aguardar()
+      const evento = pedido.evento.trim()
+      const empresasOuNicho = pedido.empresasOuNicho.trim()
+      if (!evento || !empresasOuNicho) throw new Error('Conte o evento e as empresas ou o nicho.')
+      const fontes = pedido.fontesConhecidas?.trim()
+      const novo: PedidoDeSinal = {
+        id: `pedido-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        evento,
+        empresasOuNicho,
+        ...(fontes ? { fontesConhecidas: fontes } : {}),
+        urgencia: pedido.urgencia,
+        contato: {
+          nome: pedido.contato.nome.trim(),
+          email: pedido.contato.email.trim(),
+          ...(pedido.contato.whatsapp?.trim() ? { whatsapp: pedido.contato.whatsapp.trim() } : {}),
+        },
+        status: 'novo',
+        criadoEm: new Date().toISOString(),
+      }
+      pedidos = [novo, ...pedidos]
+      notificar()
+      return { ...novo, contato: { ...novo.contato } }
+    },
+
+    catalogoDoWorkspace(): Promise<CardSobPedido[]> {
+      return Promise.resolve([])
     },
   }
 }

@@ -1,74 +1,46 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { TIPOS, familiaDoTipo } from './catalogo'
+import { CAMPOS } from './catalogo'
 import { renderizarApp } from '@/test/renderizar'
 
 describe('Ticket 05: Completar os sinais externos', () => {
-  it('cobre todas as 9 famílias externas e seus 41 tipos específicos com descrições de negócio claras', async () => {
+  it('filtra o catálogo por família e não mostra tipos que saíram da tela', async () => {
     const { usuario } = renderizarApp('/sinais')
     const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
+    const familias = screen.getByRole('group', { name: 'Filtrar por família' })
 
-    const familiasEsperadas = [
-      'Vagas e equipes',
-      'Movimentação profissional',
-      'Capital e finanças',
-      'Expansão e registros',
-      'Tecnologia',
-      'Notícias e iniciativas',
-      'Eventos e conteúdo',
-      'Reputação e concorrência',
-      'Comunidades e intenção',
-    ]
-
-    // Todas as 9 famílias externas estão presentes
-    for (const familia of familiasEsperadas) {
-      expect(within(catalogo).getByRole('heading', { level: 2, name: new RegExp(`^${familia}`) })).toBeInTheDocument()
+    for (const familia of ['Vagas e equipes', 'Movimentação profissional', 'Capital e finanças', 'Expansão e registros']) {
+      expect(within(familias).getByRole('button', { name: familia })).toBeInTheDocument()
     }
 
-    // Filtro "Externos" isola as famílias externas (46 tipos, com os 5 cards do lançamento de Sinais reais) e oculta as
-    // internas e originadas
-    const botaoExternos = screen.getByRole('button', { name: /Externos/ })
-    expect(botaoExternos).toHaveTextContent('46')
-    await usuario.click(botaoExternos)
-
-    // Internos e originados não aparecem
-    expect(screen.queryByRole('heading', { level: 2, name: /^Comportamento no site/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: /^Histórico comercial/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: /^Testes e verificações/ })).not.toBeInTheDocument()
-
-    // Todos os 46 tipos externos têm cards específicos e não apenas um genérico por família
-    const tiposExternos = TIPOS.filter((t) => familiaDoTipo(t)?.origem === 'externo')
-    expect(tiposExternos).toHaveLength(46)
-
-    for (const tipo of tiposExternos) {
-      expect(within(catalogo).getByRole('link', { name: new RegExp(tipo.nome) })).toBeInTheDocument()
-    }
+    await usuario.click(within(familias).getByRole('button', { name: 'Histórico comercial' }))
+    expect(within(catalogo).getByRole('link', { name: /Ausência de resposta/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Abertura de vagas/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Rodadas de investimento/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Certificações/ })).not.toBeInTheDocument()
   })
 
-  it('permite buscar e filtrar tipos externos mantendo a classificação externa mesmo para fontes técnicas ou de dados', async () => {
+  it('a busca acha um Sinal visível e a página mostra a família, sem a letra do nicho', async () => {
     const { usuario } = renderizarApp('/sinais')
     const busca = await screen.findByRole('searchbox', { name: 'Buscar tipos de sinal' })
+    await usuario.type(busca, 'google maps')
+    const card = screen.getByRole('link', { name: /Avaliações no Google Maps/ })
+    await usuario.click(card)
 
-    // Sinais que no futuro usam API externa continuam categorizados como Externos, não Originados
-    await usuario.type(busca, 'repositórios')
-    const cardRepositorios = screen.getByRole('link', { name: /Interesse em repositórios/ })
-    expect(cardRepositorios).toBeInTheDocument()
-    await usuario.click(cardRepositorios)
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Interesse em repositórios' })).toBeInTheDocument()
-    // Classificação "Externo" mantida
+    expect(await screen.findByRole('heading', { level: 1, name: 'Avaliações no Google Maps' })).toBeInTheDocument()
     expect(screen.getByText('Externo')).toBeInTheDocument()
-    expect(screen.getByText('Comunidades e intenção')).toBeInTheDocument()
+    expect(screen.getByText('Reputação e concorrência')).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/\b[A-H] ·/)
   })
 
   it('percurso completo em Movimentação profissional: campos específicos de cargos e pessoas, rascunho, revisão e ativação', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/promocoes')
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Promoções' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Promoções e mudança de emprego' })).toBeInTheDocument()
     expect(screen.getByText('Externo')).toBeInTheDocument()
     expect(screen.getByText('Movimentação profissional')).toBeInTheDocument()
 
-    await usuario.click(screen.getByRole('link', { name: 'Novo monitoramento' }))
+    await usuario.click(screen.getAllByRole('link', { name: 'Criar Monitoramento' })[0])
 
     // Campos adequados da família pessoas
     expect(await screen.findByRole('group', { name: 'Cargos acompanhados' })).toBeInTheDocument()
@@ -87,7 +59,7 @@ describe('Ticket 05: Completar os sinais externos', () => {
 
     // Salva rascunho
     await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Promoções' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Promoções e mudança de emprego' })).toBeInTheDocument()
     expect(screen.getByText(/Rascunho “Promoções de novos decisores” salvo/)).toBeInTheDocument()
 
     const lista = screen.getByRole('list', { name: 'Monitoramentos deste tipo' })
@@ -106,40 +78,26 @@ describe('Ticket 05: Completar os sinais externos', () => {
     expect(revisao).toHaveTextContent('Contatos das Contas-alvo')
 
     await usuario.click(within(revisao).getByRole('button', { name: 'Ativar monitoramento' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Promoções' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Promoções e mudança de emprego' })).toBeInTheDocument()
     expect(screen.getByText(/Promoções de novos decisores.*está ativo/)).toBeInTheDocument()
     expect(within(screen.getByRole('list', { name: 'Monitoramentos deste tipo' })).getByRole('listitem', { name: 'Promoções de novos decisores' })).toHaveTextContent('Ativo')
   })
 
-  it('percurso completo em Tecnologia com formulário de segurança: certificações e incidentes usam campos de normas e acontecimentos', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/certificacoes/novo')
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
-    expect(screen.getByText(/Tecnologia/)).toBeInTheDocument()
-
-    // O tipo certificações utiliza o formulário seguranca em vez do padrão de tecnologia
-    expect(screen.getByRole('group', { name: 'Acontecimentos' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Normas e certificações' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Onde observar' })).toBeInTheDocument()
-
-    await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Certificações ISO 27001 e SOC 2')
-    await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
-
-    const revisao = screen.getByRole('region', { name: 'Revisão antes de ativar' })
-    expect(revisao).toHaveTextContent('ISO 27001, SOC 2')
-    expect(revisao).toHaveTextContent('Certificação em andamento, Certificação conquistada')
-
-    await usuario.click(within(revisao).getByRole('button', { name: 'Ativar monitoramento' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Certificações' })).toBeInTheDocument()
-    expect(within(screen.getByRole('list', { name: 'Monitoramentos deste tipo' })).getByRole('listitem', { name: 'Certificações ISO 27001 e SOC 2' })).toHaveTextContent('Ativo')
+  it('certificações saiu da tela: a URL de criar volta ao catálogo e o formulário continua no código', async () => {
+    renderizarApp('/sinais/tipos/certificacoes/novo')
+    expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Certificações' })).not.toBeInTheDocument()
+    expect(CAMPOS.seguranca.map((campo) => campo.rotulo)).toEqual(
+      expect.arrayContaining(['Acontecimentos', 'Normas e certificações']),
+    )
   })
 
   it('percurso completo em Expansão e registros: licitações e contratos públicos com pausa e retomada independentes', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/licitacoes/novo')
+    const { usuario } = renderizarApp('/sinais/tipos/nova-empresa-aberta/novo')
 
     await usuario.type(await screen.findByRole('textbox', { name: 'Nome do monitoramento' }), 'Contratos públicos em SP')
     const eventos = screen.getByRole('group', { name: 'Acontecimentos' })
-    expect(within(eventos).getByRole('checkbox', { name: 'Licitação ou contrato público' })).toHaveAttribute('aria-checked', 'true')
+    await usuario.click(within(eventos).getByRole('checkbox', { name: 'Licitação ou contrato público' }))
 
     await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
     await usuario.click(within(screen.getByRole('region', { name: 'Revisão antes de ativar' })).getByRole('button', { name: 'Ativar monitoramento' }))

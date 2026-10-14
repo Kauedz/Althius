@@ -49,7 +49,7 @@ export function SecaoDeCascatas({ grupos }: { grupos: ReturnType<typeof agruparC
         <section key={icp.id} aria-labelledby={`icp-${icp.id}`} className="flex flex-col gap-3">
           <div className="flex flex-col gap-0.5">
             <h3 id={`icp-${icp.id}`} className="text-base font-normal">
-              {icp.id} · {icp.nome}
+              {icp.nome}
             </h3>
             {icp.restricao && <p className="text-sm text-al-muted">{icp.restricao}</p>}
           </div>
