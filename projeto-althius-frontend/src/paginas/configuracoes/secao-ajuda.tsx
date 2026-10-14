@@ -1,31 +1,46 @@
-import { useRef, useState, type FormEvent, type MouseEvent } from 'react'
-import { Navigate, useParams } from 'react-router-dom'
+import { Info, Search, TriangleAlert } from 'lucide-react'
+import { Fragment, useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { buscar, PAGINAS_DA_DOCUMENTACAO, type Bloco, type PaginaDaDocumentacao } from '@/ajuda/documentacao'
 import { Mensagem } from '@/components/mensagem'
 import { Opcao } from '@/components/opcao'
 import { Button } from '@/components/ui/button'
-import { AbasDasPaginas, FaixaProvisoria, SecaoDeConfiguracoes } from './componentes'
-import { CENTRAL_DE_AJUDA, POLITICA_DE_PRIVACIDADE, TERMOS_DE_SERVICO, type DocumentoInstitucional } from './conteudo-ajuda'
+import { cn } from '@/lib/utils'
+import { FaixaProvisoria, SecaoDeConfiguracoes } from './componentes'
+import { POLITICA_DE_PRIVACIDADE, TERMOS_DE_SERVICO, type DocumentoInstitucional } from './conteudo-ajuda'
 
-const PAGINAS = {
-  central: 'Central de ajuda',
+/** As páginas institucionais, depois da documentação. */
+const INFORMACOES = {
   feedback: 'Enviar feedback',
   termos: 'Termos de serviço',
   privacidade: 'Política de privacidade',
 } as const
 
-type Pagina = keyof typeof PAGINAS
+const GRUPOS: { titulo: string; paginas: { id: string; titulo: string }[] }[] = [
+  ...PAGINAS_DA_DOCUMENTACAO.reduce((grupos, p) => {
+    const grupo = grupos.find((g) => g.titulo === p.grupo)
+    if (grupo) grupo.paginas.push({ id: p.id, titulo: p.titulo })
+    else grupos.push({ titulo: p.grupo, paginas: [{ id: p.id, titulo: p.titulo }] })
+    return grupos
+  }, [] as { titulo: string; paginas: { id: string; titulo: string }[] }[]),
+  { titulo: 'Informações', paginas: Object.entries(INFORMACOES).map(([id, titulo]) => ({ id, titulo })) },
+]
 
-function ehPagina(valor: string | undefined): valor is Pagina {
-  return valor !== undefined && valor in PAGINAS
-}
+/** Rotas antigas da Ajuda e a página equivalente de agora. */
+const ROTAS_ANTIGAS: Record<string, string> = { central: 'comecar' }
+
+const PRIMEIRA = PAGINAS_DA_DOCUMENTACAO[0].id
 
 /**
- * Ajuda e informações: orientações, feedback, termos e privacidade, iguais para todos os Workspaces. Uma página por aba
- * (/configuracoes/ajuda/termos); o conteúdo vem de `conteudo-ajuda.ts`.
+ * Ajuda e informações em formato de documentação, dentro da rota /configuracoes/ajuda/:pagina: barra lateral com
+ * grupos recolhíveis e busca (Ctrl+K), o conteúdo no centro e "Nesta página" à direita. O texto vem dos arquivos
+ * Markdown de `src/ajuda`; os Termos e a Política, de `conteudo-ajuda.ts`.
  */
 export function SecaoAjuda() {
   const { pagina } = useParams()
-  if (!ehPagina(pagina)) return <Navigate to="/configuracoes/ajuda/central" replace />
+  if (pagina && ROTAS_ANTIGAS[pagina]) return <Navigate to={`/configuracoes/ajuda/${ROTAS_ANTIGAS[pagina]}`} replace />
+  const doc = PAGINAS_DA_DOCUMENTACAO.find((p) => p.id === pagina)
+  if (!doc && !(pagina && pagina in INFORMACOES)) return <Navigate to={`/configuracoes/ajuda/${PRIMEIRA}`} replace />
 
   return (
     <>
@@ -33,13 +48,17 @@ export function SecaoAjuda() {
         id="ajuda"
         titulo="Ajuda e informações"
         alcance="althius"
-        descricao="Informações da Althius, iguais para todos os Workspaces."
+        descricao="Como a Althius funciona, igual para todos os Workspaces."
       >
-        <AbasDasPaginas secao="ajuda" paginas={PAGINAS} rotuloAcessivel="Páginas de Ajuda e informações" />
-        {pagina === 'central' && <CentralDeAjuda />}
-        {pagina === 'feedback' && <Feedback />}
-        {pagina === 'termos' && <Documento documento={TERMOS_DE_SERVICO} />}
-        {pagina === 'privacidade' && <Documento documento={POLITICA_DE_PRIVACIDADE} />}
+        <div className="grid gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
+          <BarraLateral atual={pagina!} />
+          <div className="min-w-0">
+            {doc && <PaginaDeDocumentacao pagina={doc} />}
+            {pagina === 'feedback' && <Feedback />}
+            {pagina === 'termos' && <Documento documento={TERMOS_DE_SERVICO} />}
+            {pagina === 'privacidade' && <Documento documento={POLITICA_DE_PRIVACIDADE} />}
+          </div>
+        </div>
       </SecaoDeConfiguracoes>
       {/* Fora da região da Ajuda, que não tem link externo; a licença do Scroll Progress pede um crédito visível ao rareui.com. */}
       <p className="text-xs text-al-ink-3">
@@ -53,21 +72,234 @@ export function SecaoAjuda() {
   )
 }
 
-function CentralDeAjuda() {
+function irPara(evento: MouseEvent<HTMLAnchorElement>, id: string) {
+  evento.preventDefault()
+  const alvo = document.getElementById(id)
+  alvo?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  alvo?.focus({ preventScroll: true })
+}
+
+function BarraLateral({ atual }: { atual: string }) {
+  const navegar = useNavigate()
+  const campo = useRef<HTMLInputElement>(null)
+  const [termo, setTermo] = useState('')
+  const resultados = buscar(termo)
+
+  useEffect(() => {
+    function atalho(evento: KeyboardEvent) {
+      if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'k') {
+        evento.preventDefault()
+        campo.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', atalho)
+    return () => window.removeEventListener('keydown', atalho)
+  }, [])
+
   return (
-    <section aria-label="Central de ajuda" className="flex flex-col gap-6">
-      {CENTRAL_DE_AJUDA.provisorio && (
-        <FaixaProvisoria>Orientações curtas para a demonstração; o texto definitivo substitui estas orientações.</FaixaProvisoria>
+    <aside className="flex flex-col gap-4 lg:sticky lg:top-22 lg:self-start">
+      <div className="relative">
+        <Search strokeWidth={1.8} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-al-muted" aria-hidden />
+        <input
+          ref={campo}
+          type="search"
+          aria-label="Buscar na Ajuda"
+          placeholder="Buscar (Ctrl+K)"
+          value={termo}
+          onChange={(e) => setTermo(e.target.value)}
+          className="campo w-full pl-9"
+        />
+      </div>
+      {termo.trim().length >= 2 && (
+        <ul aria-label="Resultados da busca" className="flex flex-col gap-1">
+          {resultados.length === 0 && <li className="text-sm text-al-muted">Nada encontrado.</li>}
+          {resultados.map((r, i) => (
+            <li key={i}>
+              <Link
+                to={`/configuracoes/ajuda/${r.pagina.id}${r.ancora ? `#${r.ancora}` : ''}`}
+                onClick={() => setTermo('')}
+                className="flex flex-col rounded-md px-2 py-1 text-sm hover:bg-al-line/40"
+              >
+                <span className="text-al-ink">{r.rotulo}</span>
+                <span className="text-xs text-al-muted">
+                  <Destaque texto={r.trecho} termo={termo} />
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
-      <ul className="grid grid-cols-2 gap-4">
-        {CENTRAL_DE_AJUDA.orientacoes.map(({ titulo, texto }) => (
-          <li key={titulo} className="cartao flex flex-col gap-2 p-5">
-            <h3 className="font-normal">{titulo}</h3>
-            <p className="text-sm text-al-muted">{texto}</p>
-          </li>
+      <select
+        aria-label="Ir para a página"
+        value={atual}
+        onChange={(e) => navegar(`/configuracoes/ajuda/${e.target.value}`)}
+        className="campo lg:hidden"
+      >
+        {GRUPOS.map((g) => (
+          <optgroup key={g.titulo} label={g.titulo}>
+            {g.paginas.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.titulo}
+              </option>
+            ))}
+          </optgroup>
         ))}
-      </ul>
-    </section>
+      </select>
+      <nav aria-label="Páginas de Ajuda e informações" className="hidden flex-col gap-3 lg:flex">
+        {GRUPOS.map((g) => (
+          <details key={g.titulo} open className="group">
+            <summary className="rotulo cursor-pointer pb-1 text-[0.6875rem]">{g.titulo}</summary>
+            <ul className="flex flex-col">
+              {g.paginas.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    to={`/configuracoes/ajuda/${p.id}`}
+                    aria-current={p.id === atual ? 'page' : undefined}
+                    className={cn(
+                      'block rounded-md px-2 py-1 text-sm text-al-muted hover:text-al-ink',
+                      p.id === atual && 'bg-al-line/40 text-al-ink',
+                    )}
+                  >
+                    {p.titulo}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </nav>
+    </aside>
+  )
+}
+
+/** O trecho do resultado com o termo buscado em destaque, sem diferenciar acentos. */
+function Destaque({ texto, termo }: { texto: string; termo: string }) {
+  const normal = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  // A normalização remove os acentos sem mudar o tamanho de cada letra, então as posições batem com o texto original.
+  const pos = normal(texto).indexOf(normal(termo.trim()))
+  if (pos < 0) return <>{texto}</>
+  const fim = pos + termo.trim().length
+  return (
+    <>
+      {texto.slice(0, pos)}
+      <mark className="rounded-sm bg-al-accent/20 text-al-ink">{texto.slice(pos, fim)}</mark>
+      {texto.slice(fim)}
+    </>
+  )
+}
+
+/** Texto com **negrito**. */
+function Inline({ texto }: { texto: string }) {
+  return (
+    <>
+      {texto.split('**').map((parte, i) => (i % 2 ? <strong key={i} className="font-normal text-al-ink">{parte}</strong> : <Fragment key={i}>{parte}</Fragment>))}
+    </>
+  )
+}
+
+function BlocoDaPagina({ bloco }: { bloco: Bloco }): ReactNode {
+  switch (bloco.tipo) {
+    case 'titulo':
+      return (
+        <h4 id={bloco.id} tabIndex={-1} className="titulo-secao scroll-mt-24 pt-4 text-xl">
+          {bloco.texto}
+        </h4>
+      )
+    case 'paragrafo':
+      return (
+        <p className="leading-relaxed text-al-muted">
+          <Inline texto={bloco.texto} />
+        </p>
+      )
+    case 'lista':
+      return (
+        <ul className="flex list-disc flex-col gap-1 pl-5 text-al-muted">
+          {bloco.itens.map((item) => (
+            <li key={item}>
+              <Inline texto={item} />
+            </li>
+          ))}
+        </ul>
+      )
+    case 'tabela':
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-al-line">
+                {bloco.cabecalho.map((c) => (
+                  <th key={c} className="py-2 pr-4 font-normal text-al-ink">
+                    {c}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bloco.linhas.map((linha, i) => (
+                <tr key={i} className="border-b border-al-line/60">
+                  {linha.map((c, j) => (
+                    <td key={j} className="py-2 pr-4 text-al-muted">
+                      <Inline texto={c} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    case 'aviso': {
+      const Icone = bloco.nivel === 'atencao' ? TriangleAlert : Info
+      return (
+        <div
+          role="note"
+          aria-label={bloco.nivel === 'atencao' ? 'Atenção' : 'Nota'}
+          className={cn(
+            'rounded-xl flex items-start gap-3 border p-4 text-sm',
+            bloco.nivel === 'atencao' ? 'border-al-atencao/50 bg-al-atencao/5' : 'border-al-line bg-al-line/20',
+          )}
+        >
+          <Icone strokeWidth={1.8} className={cn('mt-0.5 size-4 shrink-0', bloco.nivel === 'atencao' ? 'text-al-atencao' : 'text-al-muted')} aria-hidden />
+          <p>
+            <Inline texto={bloco.texto} />
+          </p>
+        </div>
+      )
+    }
+  }
+}
+
+function PaginaDeDocumentacao({ pagina }: { pagina: PaginaDaDocumentacao }) {
+  const titulos = pagina.blocos.filter((b): b is Extract<Bloco, { tipo: 'titulo' }> => b.tipo === 'titulo')
+  // Chegando por um resultado da busca (#ancora), leva até a seção.
+  useEffect(() => {
+    const id = window.location.hash.slice(1)
+    if (id) document.getElementById(id)?.focus({ preventScroll: false })
+  }, [pagina.id])
+  return (
+    <div className="grid gap-10 xl:grid-cols-[minmax(0,720px)_12rem]">
+      <article aria-labelledby="titulo-da-pagina" className="flex max-w-[720px] flex-col gap-4">
+        <header className="flex flex-col gap-1">
+          <h3 id="titulo-da-pagina" className="titulo-secao text-2xl">
+            {pagina.titulo}
+          </h3>
+          <span className="text-sm text-al-muted">Atualizado em {pagina.atualizado}</span>
+        </header>
+        {pagina.blocos.map((bloco, i) => (
+          <BlocoDaPagina key={i} bloco={bloco} />
+        ))}
+      </article>
+      {titulos.length > 0 && (
+        <nav aria-label={`Seções de ${pagina.titulo}`} className="hidden flex-col gap-1 self-start xl:sticky xl:top-22 xl:flex">
+          <span className="rotulo pb-1 text-[0.6875rem]">Nesta página</span>
+          {titulos.map((t) => (
+            <a key={t.id} href={`#${t.id}`} onClick={(e) => irPara(e, t.id)} className="py-0.5 text-sm text-al-muted hover:text-al-ink">
+              {t.texto}
+            </a>
+          ))}
+        </nav>
+      )}
+    </div>
   )
 }
 
@@ -195,13 +427,6 @@ function Feedback() {
  */
 function Documento({ documento }: { documento: DocumentoInstitucional }) {
   const { titulo, versao, provisorio, secoes } = documento
-
-  function irPara(evento: MouseEvent<HTMLAnchorElement>, id: string) {
-    evento.preventDefault()
-    const alvo = document.getElementById(id)
-    alvo?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    alvo?.focus({ preventScroll: true })
-  }
 
   return (
     <div className="grid grid-cols-[1fr_12rem] gap-10">
