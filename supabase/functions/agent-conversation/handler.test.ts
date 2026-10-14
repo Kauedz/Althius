@@ -149,3 +149,38 @@ Deno.test('só POST', async () => {
   const resposta = await montar().handler(pedido(null, { method: 'GET' }))
   assertEquals(resposta.status, 405)
 })
+
+Deno.test('anexos: são reservados com a sessão antes de o pedido ser guardado', async () => {
+  const ordem: string[] = []
+  const reservados: Pedido[] = []
+  const { db } = fakeDb()
+  const startRun = db.startRun
+  db.startRun = (p) => {
+    ordem.push('start')
+    return startRun(p)
+  }
+  db.reservarAnexos = (p) => {
+    ordem.push('reservar')
+    reservados.push(p)
+    return Promise.resolve('ok')
+  }
+  const handler = createHandler({ db, executar: () => Promise.resolve(), waitUntil: () => {}, appOrigin: 'https://app.althius.com.br', log: () => {} })
+  const anexo = 'f0000000-0000-0000-0000-000000000001'
+  const resposta = await handler(pedido({ ...ENVIO, attachments: [anexo, anexo] }))
+  assertEquals(resposta.status, 202)
+  assertEquals(ordem, ['reservar', 'start'])
+  assertEquals(reservados[0].attachments, [anexo])
+})
+
+Deno.test('anexos: mais de 5, id inválido ou anexo alheio são recusados sem guardar o pedido', async () => {
+  const ids = Array.from({ length: 6 }, (_, i) => `f0000000-0000-0000-0000-00000000000${i}`)
+  const { handler, pedidos } = montar()
+  assertEquals((await handler(pedido({ ...ENVIO, attachments: ids }))).status, 400)
+  assertEquals((await handler(pedido({ ...ENVIO, attachments: ['x'] }))).status, 400)
+  assertEquals((await handler(pedido({ ...ENVIO, attachments: [ids[0]] }))).status, 503)
+  const { db } = fakeDb()
+  db.reservarAnexos = () => Promise.resolve('not_found')
+  const comBanco = createHandler({ db, executar: () => Promise.resolve(), waitUntil: () => {}, appOrigin: 'https://app.althius.com.br', log: () => {} })
+  assertEquals((await comBanco(pedido({ ...ENVIO, attachments: [ids[0]] }))).status, 404)
+  assertEquals(pedidos.length, 0)
+})

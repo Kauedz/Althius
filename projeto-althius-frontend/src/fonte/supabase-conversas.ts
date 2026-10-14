@@ -8,6 +8,7 @@ import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-func
 import { reconhecerMencoes } from './mencoes'
 import type {
   AgenteId,
+  AnexoDaMensagem,
   ConversaRetomada,
   ConversasRetomadas,
   FonteDeAgentes,
@@ -58,6 +59,10 @@ type Fonte = Pick<
   | 'novaConversaDoAgente'
   | 'conversaDoAgenteAtual'
   | 'sugestoesDoAgente'
+  | 'anexarArquivo'
+  | 'removerAnexo'
+  | 'urlDoAnexo'
+  | 'pararPedido'
 >
 
 interface ConversaListada {
@@ -89,6 +94,7 @@ const MOTIVOS: Record<string, string> = {
     'Este Workspace usa a própria chave de IA, e o motor dos Agentes ainda não a aceita. Avise o Administrador.',
   hermes_unreachable: 'O motor dos Agentes não respondeu. Confira se ele está ligado e tente de novo.',
   hermes_failed: 'O motor dos Agentes não conseguiu terminar este pedido. Tente de novo.',
+  cancelled: 'Você parou este pedido.',
 }
 
 /** O motivo gravado na Execução, em palavras de quem pediu. */
@@ -152,6 +158,8 @@ export function criarFonteDeConversasSupabase(
   // A Conversa em curso de cada lugar: a do composer e a de cada Agente. Recarregar a página as recupera do banco.
   let coordenada: string | null = null
   const porAgente = new Map<AgenteId, string>()
+  // A Execução em curso de cada lugar (nulo = a Coordenação), para o Parar.
+  const emCurso = new Map<AgenteId | null, string>()
 
   const esperar = () => new Promise((resolver) => setTimeout(resolver, intervaloMs))
 
@@ -192,6 +200,7 @@ export function criarFonteDeConversasSupabase(
     texto: string,
     conversa: string | null,
     agenteId: AgenteId | null,
+    anexos: AnexoDaMensagem[] = [],
   ): Promise<{ conversationId: string; runId: string } | { motivo: string }> {
     const mencionados = reconhecerMencoes(texto, await agentes().catch(() => [])).map((agente) => agente.id)
     const { data, error } = await cliente.functions.invoke('agent-conversation', {
@@ -203,6 +212,7 @@ export function criarFonteDeConversasSupabase(
         text: texto,
         mentions: mencionados.slice(0, 4),
         clientRequestId: crypto.randomUUID(),
+        ...(anexos.length ? { attachments: anexos.map((anexo) => anexo.id) } : {}),
       },
     })
     if (error) {
@@ -214,38 +224,103 @@ export function criarFonteDeConversasSupabase(
   }
 
   async function* conversar(agenteId: AgenteId, mensagem: Mensagem): AsyncGenerator<PassoDaConversa> {
-    const inicio = await enviar(mensagem.texto, porAgente.get(agenteId) ?? null, agenteId)
+    const inicio = await enviar(mensagem.texto, porAgente.get(agenteId) ?? null, agenteId, mensagem.anexos)
     if ('motivo' in inicio) {
       yield { tipo: 'falha', motivo: inicio.motivo }
       return
     }
     porAgente.set(agenteId, inicio.conversationId)
+    emCurso.set(agenteId, inicio.runId)
     yield* acompanhar(inicio.runId, 0, passoDaConversa)
   }
 
   async function* conversarCoordenado(pedido: Mensagem, anteriores: Mensagem[]): AsyncGenerator<PassoDaCoordenacao> {
-    const inicio = await enviar(pedido.texto, anteriores.length > 0 ? coordenada : null, null)
+    const inicio = await enviar(pedido.texto, anteriores.length > 0 ? coordenada : null, null, pedido.anexos)
     if ('motivo' in inicio) {
       yield { tipo: 'falha', motivo: inicio.motivo }
       return
     }
     coordenada = inicio.conversationId
+    emCurso.set(null, inicio.runId)
     yield* acompanhar(inicio.runId, 0, passoDaCoordenacao)
   }
 
+  /** Os anexos de cada pedido da Conversa. Sem a função (migração ainda não aplicada) ou com falha, nenhum. */
+  async function anexosDaConversa(id: string): Promise<Map<string, AnexoDaMensagem[]>> {
+    const porExecucao = new Map<string, AnexoDaMensagem[]>()
+    const { data, error } = await cliente.rpc('list_agent_conversation_attachments', { p_conversation_id: id })
+    if (error || !Array.isArray(data)) return porExecucao
+    for (const linha of data as { run_id: string; id: string; file_name: string; mime: string; size: number }[]) {
+      const anexo: AnexoDaMensagem = {
+        id: linha.id,
+        nome: linha.file_name,
+        mime: linha.mime,
+        tamanho: Number(linha.size),
+        tipo: linha.mime.startsWith('image/') ? 'imagem' : 'arquivo',
+      }
+      porExecucao.set(linha.run_id, [...(porExecucao.get(linha.run_id) ?? []), anexo])
+    }
+    return porExecucao
+  }
+
+  async function erroDaFuncao(error: unknown, padrao: string): Promise<Error> {
+    const corpo = await corpoDoErroDaFuncao(error)
+    if (typeof corpo?.error === 'string') return new Error(corpo.error)
+    return new Error(`${padrao} ${await motivoDaFalhaDaFuncao('agent-attachments', error, 'APP_ORIGIN')}`)
+  }
+
+  async function anexarArquivo(arquivo: File): Promise<AnexoDaMensagem> {
+    const corpo = new FormData()
+    corpo.set('workspaceId', workspaceId)
+    corpo.set('file', arquivo, arquivo.name)
+    const { data, error } = await cliente.functions.invoke('agent-attachments', { body: corpo })
+    if (error) throw await erroDaFuncao(error, 'Não foi possível anexar o arquivo.')
+    const anexo = data as { id?: unknown; tipo?: unknown; mime?: unknown; tamanho?: unknown } | null
+    if (typeof anexo?.id !== 'string') throw new Error('Não foi possível anexar o arquivo.')
+    return {
+      id: anexo.id,
+      nome: arquivo.name || 'anexo',
+      mime: typeof anexo.mime === 'string' ? anexo.mime : arquivo.type,
+      tamanho: typeof anexo.tamanho === 'number' ? anexo.tamanho : arquivo.size,
+      tipo: anexo.tipo === 'imagem' ? 'imagem' : 'arquivo',
+    }
+  }
+
+  async function removerAnexo(id: string): Promise<void> {
+    await cliente.functions.invoke('agent-attachments', { body: { action: 'remove', attachmentId: id } })
+  }
+
+  async function urlDoAnexo(id: string): Promise<string> {
+    const { data, error } = await cliente.functions.invoke('agent-attachments', { body: { action: 'url', attachmentId: id } })
+    if (error) throw await erroDaFuncao(error, 'Não foi possível abrir o anexo.')
+    const url = (data as { url?: unknown } | null)?.url
+    if (typeof url !== 'string') throw new Error('Não foi possível abrir o anexo.')
+    return url
+  }
+
+  async function pararPedido(agenteId: AgenteId | null): Promise<void> {
+    const runId = emCurso.get(agenteId)
+    if (!runId) return
+    const { error } = await cliente.rpc('cancel_agent_run', { p_run_id: runId })
+    if (error) throw new Error('Não foi possível parar o pedido. Tente de novo.')
+  }
+
   /** Uma Conversa salva: os pedidos terminados com os passos, e a leitura do que ainda está rodando. */
-  async function lerConversa<P>(id: string, converter: (evento: Evento) => P | null) {
+  async function lerConversa<P>(id: string, converter: (evento: Evento) => P | null, lugar: AgenteId | null) {
     const { data, error } = await cliente.rpc('get_agent_conversation', { p_conversation_id: id })
     if (error) throw new Error('Não foi possível carregar a Conversa.')
     const execucoes = (data as { runs: ExecucaoSalva[] }).runs
+    const anexos = await anexosDaConversa(id)
     const turnos: TurnoRetomado<P>[] = execucoes.map((execucao) => ({
       pedido: execucao.request_text,
       passos: execucao.events.flatMap((evento) => converter(evento) ?? []),
+      ...(anexos.get(execucao.id)?.length ? { anexos: anexos.get(execucao.id) } : {}),
     }))
     const aberta = execucoes.at(-1)
     const emAndamento = aberta && !terminou(aberta.status)
       ? acompanhar(aberta.id, aberta.events.at(-1)?.seq ?? 0, converter)
       : undefined
+    if (aberta && emAndamento) emCurso.set(lugar, aberta.id)
     return { turnos, emAndamento }
   }
 
@@ -262,11 +337,11 @@ export function criarFonteDeConversasSupabase(
     const retomadas: ConversasRetomadas = { coordenada: null, porAgente: {} }
     if (ultimaCoordenada) {
       coordenada = ultimaCoordenada.id
-      retomadas.coordenada = await lerConversa(ultimaCoordenada.id, passoDaCoordenacao)
+      retomadas.coordenada = await lerConversa(ultimaCoordenada.id, passoDaCoordenacao, null)
     }
     for (const [agenteId, id] of ultimas) {
       porAgente.set(agenteId, id)
-      retomadas.porAgente[agenteId] = await lerConversa(id, passoDaConversa)
+      retomadas.porAgente[agenteId] = await lerConversa(id, passoDaConversa, agenteId)
     }
     return retomadas
   }
@@ -310,7 +385,7 @@ export function criarFonteDeConversasSupabase(
 
   /** Abre uma Conversa salva com o Agente: o próximo pedido a ele continua esta. */
   async function abrirConversaDoAgente(agenteId: AgenteId, id: string): Promise<ConversaRetomada<PassoDaConversa>> {
-    const conversa = await lerConversa(id, passoDaConversa)
+    const conversa = await lerConversa(id, passoDaConversa, agenteId)
     porAgente.set(agenteId, id)
     return conversa
   }
@@ -334,7 +409,7 @@ export function criarFonteDeConversasSupabase(
 
   /** Abre uma Conversa salva: o próximo pedido da Coordenação passa a continuar esta. */
   async function abrirConversa(id: string): Promise<ConversaRetomada<PassoDaCoordenacao>> {
-    const conversa = await lerConversa(id, passoDaCoordenacao)
+    const conversa = await lerConversa(id, passoDaCoordenacao, null)
     coordenada = id
     return conversa
   }
@@ -357,5 +432,9 @@ export function criarFonteDeConversasSupabase(
     },
     conversaDoAgenteAtual: (agenteId) => porAgente.get(agenteId) ?? null,
     sugestoesDoAgente,
+    anexarArquivo,
+    removerAnexo,
+    urlDoAnexo,
+    pararPedido,
   }
 }

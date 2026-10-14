@@ -3,7 +3,13 @@
 //     supabase/functions/_hermes-worker/main.ts
 // As chaves ficam só no .env local (nunca no repositório): ver README.md desta pasta.
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { type ContaEncontrada, creditosDoBanco, type Reserva, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
+import {
+  anexosDoBanco,
+  type ContaEncontrada,
+  creditosDoBanco,
+  type Reserva,
+  type SecaoDoPlaybookNaExecucao,
+} from '../_shared/orquestracao.ts'
 import {
   bancoDoExecutor,
   bancoDoExecutorDeFerramenta,
@@ -50,6 +56,8 @@ const db: FilaDb = {
     (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
   creditos: creditosDoBanco(rpc),
   usaChaveDoCliente: async (runId) => (await rpc<boolean | null>('agent_run_uses_own_ai_key', { p_run_id: runId })) === true,
+  // Os anexos do pedido (PR-10), só o texto: o Hermes não recebe imagem.
+  anexos: anexosDoBanco(rpc),
 }
 
 // As ferramentas dos Agentes (Etapa 5b): o Agente pede em JSON e o worker executa, pelas mesmas RPCs e o mesmo Acesso da

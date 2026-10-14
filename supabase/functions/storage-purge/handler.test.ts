@@ -149,3 +149,8 @@ Deno.test('um bucket fora da lista não é apagado, mesmo com um prefixo válido
   assertEquals(finished, [{ id: 11, error: 'invalid_prefix' }])
   assertEquals(logs, [{ type: 'storage-purge', jobId: 11, outcome: 'invalid_prefix' }])
 })
+
+Deno.test('a fila também apaga os anexos das Conversas, e só eles além dos de antes', async () => {
+  const { BUCKETS_PERMITIDOS } = await import('./handler.ts')
+  assertEquals([...BUCKETS_PERMITIDOS].sort(), ['agent-attachments', 'csv-imports', 'email-attachments', 'sequence-attachments'])
+})

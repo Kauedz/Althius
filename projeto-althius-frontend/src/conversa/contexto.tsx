@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFonte } from '@/fonte/contexto'
-import type { AgenteId, Mensagem, PassoDaConversa, PassoDaCoordenacao } from '@/fonte/tipos'
+import type { AgenteId, AnexoDaMensagem, Mensagem, PassoDaConversa, PassoDaCoordenacao } from '@/fonte/tipos'
 
 export type ItemDaConversa =
-  | { id: number; tipo: 'usuario'; texto: string }
+  | { id: number; tipo: 'usuario'; texto: string; anexos?: AnexoDaMensagem[] }
   | ({ id: number } & PassoDaConversa)
 
 export type ItemDaCoordenacao =
-  | { id: number; tipo: 'pedido'; texto: string }
+  | { id: number; tipo: 'pedido'; texto: string; anexos?: AnexoDaMensagem[] }
   | ({ id: number } & PassoDaCoordenacao)
 
 interface EstadoDasConversas {
@@ -32,6 +32,8 @@ interface Conversas {
   abrirDoAgente(agenteId: AgenteId, id: string): Promise<void>
   /** Começa uma Conversa nova com o Agente: a tela fica vazia e o pedido seguinte não continua a anterior. */
   novaDoAgente(agenteId: AgenteId): void
+  /** Para o pedido que roda no Agente (ou na Coordenação, com nulo). Só onde a fonte sabe parar. */
+  parar?(agenteId: AgenteId | null): void
   animarDigitacao: boolean
 }
 
@@ -72,9 +74,14 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
   const pedidosDaSessao = useRef(new Set<AgenteId | 'coordenada'>())
 
   const enviar = useCallback(
-    async (agenteId: AgenteId, mensagem: { texto: string; sugestaoId?: string }) => {
+    async (agenteId: AgenteId, mensagem: Mensagem) => {
       pedidosDaSessao.current.add(agenteId)
-      adicionar(agenteId, { id: proximoId++, tipo: 'usuario', texto: mensagem.texto })
+      adicionar(agenteId, {
+        id: proximoId++,
+        tipo: 'usuario',
+        texto: mensagem.texto,
+        ...(mensagem.anexos?.length ? { anexos: mensagem.anexos } : {}),
+      })
       definirRespondendo(agenteId, true)
       try {
         for await (const passo of fonte.conversar(agenteId, mensagem)) {
@@ -118,7 +125,7 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
           pedidosDaConversa.current = coordenada.turnos.map((turno) => ({ texto: turno.pedido }))
           mudarCoordenada(() => ({
             itens: coordenada.turnos.flatMap((turno): ItemDaCoordenacao[] => [
-              { id: proximoId++, tipo: 'pedido', texto: turno.pedido },
+              { id: proximoId++, tipo: 'pedido', texto: turno.pedido, ...(turno.anexos ? { anexos: turno.anexos } : {}) },
               ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
             ]),
             respondendo: Boolean(coordenada.emAndamento),
@@ -134,7 +141,7 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
         for (const [agenteId, conversa] of Object.entries(retomadas.porAgente)) {
           if (!conversa || conversa.turnos.length === 0 || pedidosDaSessao.current.has(agenteId)) continue
           const itens = conversa.turnos.flatMap((turno): ItemDaConversa[] => [
-            { id: proximoId++, tipo: 'usuario', texto: turno.pedido },
+            { id: proximoId++, tipo: 'usuario', texto: turno.pedido, ...(turno.anexos ? { anexos: turno.anexos } : {}) },
             ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
           ])
           setEstado((atual) => ({
@@ -172,7 +179,7 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       pedidosDaConversa.current = conversa.turnos.map((turno) => ({ texto: turno.pedido }))
       mudarCoordenada(() => ({
         itens: conversa.turnos.flatMap((turno): ItemDaCoordenacao[] => [
-          { id: proximoId++, tipo: 'pedido', texto: turno.pedido },
+          { id: proximoId++, tipo: 'pedido', texto: turno.pedido, ...(turno.anexos ? { anexos: turno.anexos } : {}) },
           ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
         ]),
         respondendo: Boolean(conversa.emAndamento),
@@ -206,7 +213,7 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       if (!vale()) return
       pedidosDaSessao.current.add(agenteId)
       const itens = conversa.turnos.flatMap((turno): ItemDaConversa[] => [
-        { id: proximoId++, tipo: 'usuario', texto: turno.pedido },
+        { id: proximoId++, tipo: 'usuario', texto: turno.pedido, ...(turno.anexos ? { anexos: turno.anexos } : {}) },
         ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
       ])
       setEstado((atual) => ({
@@ -251,7 +258,12 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       aberturaAtual.current++
       const anteriores = continuando ? pedidosDaConversa.current : []
       pedidosDaConversa.current = [...anteriores, pedido]
-      const item: ItemDaCoordenacao = { id: proximoId++, tipo: 'pedido', texto: pedido.texto }
+      const item: ItemDaCoordenacao = {
+        id: proximoId++,
+        tipo: 'pedido',
+        texto: pedido.texto,
+        ...(pedido.anexos?.length ? { anexos: pedido.anexos } : {}),
+      }
       mudarCoordenada((atual) => ({ itens: continuando ? [...atual.itens, item] : [item], respondendo: true }))
       try {
         for await (const passo of fonte.conversarCoordenado(pedido, anteriores)) {
@@ -276,9 +288,10 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       abrir,
       abrirDoAgente,
       novaDoAgente,
+      ...(fonte.pararPedido ? { parar: (agenteId: AgenteId | null) => void fonte.pararPedido?.(agenteId).catch(() => {}) } : {}),
       animarDigitacao,
     }),
-    [estado, enviar, pedirACoordenacao, abrir, abrirDoAgente, novaDoAgente, animarDigitacao],
+    [estado, enviar, pedirACoordenacao, abrir, abrirDoAgente, novaDoAgente, fonte, animarDigitacao],
   )
 
   return <ContextoDasConversas.Provider value={valor}>{children}</ContextoDasConversas.Provider>

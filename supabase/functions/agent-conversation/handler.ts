@@ -29,6 +29,8 @@ export interface Pedido {
   text: string
   mentions: string[]
   clientRequestId: string
+  /** Os anexos já subidos pela agent-attachments (PR-10), até 5. */
+  attachments?: string[]
 }
 
 export interface PedidoDeEnvioAoCrm {
@@ -49,6 +51,11 @@ export interface Db {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
   /** RPC start_agent_run, com a sessão de quem pede. Lança quando o banco falha por outro motivo. */
   startRun(pedido: Pedido): Promise<Inicio>
+  /**
+   * RPC reserve_agent_attachments, com a sessão de quem pede, antes de guardar o pedido: cada anexo tem de ser dela,
+   * deste Workspace e já guardado. Devolve 'ok' ou o motivo da recusa.
+   */
+  reservarAnexos?(pedido: Pedido): Promise<'ok' | 'not_found' | 'invalid' | 'forbidden'>
   /** RPC `begin_crm_handoff_by_agents` (chave de serviço). Sem ele, `enviar_ao_crm` fica indisponível. */
   iniciarEnvioAoCrm?(pedido: PedidoDeEnvioAoCrm): Promise<InicioDoEnvioAoCrm>
 }
@@ -65,6 +72,7 @@ export interface Deps {
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const TAMANHO_MAXIMO = 4000
+const MAXIMO_DE_ANEXOS = 5
 const ID_DA_INTEGRACAO = /^[a-z][a-z0-9-]{0,39}$/
 
 /** A recusa de `begin_crm_handoff_by_agents` em palavras do produto (o banco já conferiu; aqui só se traduz). */
@@ -181,28 +189,54 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const clientRequestId = uuidOuNulo(body.clientRequestId)
     const text = typeof body.text === 'string' ? body.text.trim() : ''
     const mentions = Array.isArray(body.mentions) ? body.mentions : body.mentions === undefined ? [] : null
+    const attachments = Array.isArray(body.attachments) ? body.attachments : body.attachments === undefined ? [] : null
     if (
       !workspaceId || conversationId === undefined || agentId === undefined || !clientRequestId || !mentions ||
-      mentions.length > 4 || !mentions.every((id) => typeof id === 'string' && UUID.test(id))
+      mentions.length > 4 || !mentions.every((id) => typeof id === 'string' && UUID.test(id)) || !attachments ||
+      !attachments.every((id) => typeof id === 'string' && UUID.test(id))
     ) {
       return respond({ error: 'Pedido inválido.' }, 400)
+    }
+    if (new Set(attachments).size > MAXIMO_DE_ANEXOS) {
+      return respond({ error: `Anexe até ${MAXIMO_DE_ANEXOS} arquivos por pedido.` }, 400)
     }
     if (!text || text.length > TAMANHO_MAXIMO) {
       return respond({ error: `Escreva um pedido de até ${TAMANHO_MAXIMO} caracteres.` }, 400)
     }
 
+    const pedido: Pedido = {
+      authorization,
+      apikey,
+      workspaceId,
+      conversationId,
+      agentId,
+      text,
+      mentions: mentions as string[],
+      clientRequestId,
+    }
+    const anexos = [...new Set(attachments as string[])]
+    if (anexos.length > 0) pedido.attachments = anexos
+    // Os anexos são reservados antes de o pedido existir: quando a Execução nasce, o banco já os liga a ela, e nenhum
+    // motor a pega sem eles.
+    if (anexos.length > 0) {
+      if (!deps.db.reservarAnexos) return respond({ error: 'Anexos ainda não estão disponíveis neste ambiente.' }, 503)
+      let reserva: Awaited<ReturnType<NonNullable<Db['reservarAnexos']>>>
+      try {
+        reserva = await deps.db.reservarAnexos(pedido)
+      } catch (error) {
+        log({ type: 'agent_conversation', outcome: 'attachments_failed', message: String(error) })
+        return respond({ error: 'Não foi possível preparar os anexos agora.' }, 500)
+      }
+      if (reserva === 'not_found') {
+        return respond({ error: 'Um dos anexos não está disponível. Remova e anexe de novo.' }, 404)
+      }
+      if (reserva === 'forbidden') return respond({ error: 'Você não participa deste Workspace.' }, 403)
+      if (reserva === 'invalid') return respond({ error: `Anexe até ${MAXIMO_DE_ANEXOS} arquivos por pedido.` }, 400)
+    }
+
     let inicio: Inicio
     try {
-      inicio = await deps.db.startRun({
-        authorization,
-        apikey,
-        workspaceId,
-        conversationId,
-        agentId,
-        text,
-        mentions: mentions as string[],
-        clientRequestId,
-      })
+      inicio = await deps.db.startRun(pedido)
     } catch (error) {
       log({ type: 'agent_conversation', outcome: 'start_failed', message: String(error) })
       return respond({ error: 'Não foi possível guardar o pedido agora.' }, 500)

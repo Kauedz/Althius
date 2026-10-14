@@ -15,6 +15,7 @@ export function modeloDaAnthropic({ apiKey, modelo }: { apiKey: string; modelo: 
     : {}
   return {
     nome: modelo,
+    aceitaImagens: true,
     async criar(params) {
       try {
         return await client.beta.messages.create({ ...params, ...fallback, model: modelo })

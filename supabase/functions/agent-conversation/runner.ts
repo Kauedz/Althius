@@ -13,6 +13,7 @@ import {
 } from '../_shared/ferramentas-dos-agentes.ts'
 import {
   type AgenteDoWorkspace,
+  type AnexoDaExecucao,
   type ChaveDoCliente,
   codigoDoErro,
   type ContaEncontrada,
@@ -26,6 +27,8 @@ import {
   historicoDaConversa,
   INSTRUCAO_DE_DESFECHO,
   leitorDoPlaybook,
+  lerAnexos,
+  reservaComAnexos,
   registrarCustoDaExecucao,
   type Reserva,
   type ResultadoDoAgente,
@@ -43,6 +46,8 @@ export type { AgenteDoWorkspace, ChaveDoCliente, ContaEncontrada, Reserva, RunDb
 export interface Modelo {
   /** O id do modelo, gravado na Execução. */
   nome: string
+  /** O modelo recebe imagem como entrada (os anexos de imagem do pedido vão como imagem, não só pelo nome). */
+  aceitaImagens?: boolean
   /** Uma chamada à Messages API. Lança ErroDoModelo quando a API recusa ou não responde. */
   criar(
     params: Omit<Anthropic.Beta.Messages.MessageCreateParamsNonStreaming, 'model'>,
@@ -189,6 +194,7 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
     contribuicoes: string[],
     playbook = '',
     sessao: SessaoDeFerramentas | null = null,
+    imagens: AnexoDaExecucao[] = [],
   ): Promise<ResultadoDoAgente> {
     const mural = sessao ? textoDoMural(sessao.mural()) : ''
     const pedido = [
@@ -196,9 +202,24 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       contribuicoes.length ? `O que outros Agentes já responderam neste pedido:\n${contribuicoes.join('\n\n')}` : '',
       mural,
     ].filter(Boolean).join('\n\n')
+    // As imagens do pedido vão como imagem, antes do texto, quando o modelo as aceita.
+    const blocosDeImagem = modelo.aceitaImagens
+      ? imagens.flatMap((imagem): Anthropic.Beta.Messages.BetaImageBlockParam[] =>
+        imagem.imagemBase64
+          ? [{
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: imagem.mime as 'image/png' | 'image/jpeg' | 'image/webp',
+              data: imagem.imagemBase64,
+            },
+          }]
+          : []
+      )
+      : []
     const mensagens: Anthropic.Beta.Messages.BetaMessageParam[] = [...historicoDaConversa(reserva), {
       role: 'user',
-      content: pedido,
+      content: blocosDeImagem.length ? [...blocosDeImagem, { type: 'text', text: pedido }] : pedido,
     }]
     let uso: UsoDeTokens | undefined
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
@@ -352,12 +373,17 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   }
 
   /** O que muda no motor da ponte: as chamadas à Messages API. A ordem e os eventos são de _shared/orquestracao.ts. */
-  function executorDe(modelo: Modelo, reserva: Reserva, sessao: SessaoDeFerramentas | null): Executor {
+  function executorDe(
+    modelo: Modelo,
+    reserva: Reserva,
+    sessao: SessaoDeFerramentas | null,
+    imagens: AnexoDaExecucao[] = [],
+  ): Executor {
     const playbookDe = leitorDoPlaybook(db, reserva.run_id, log, 'agent_run')
     return {
       escolher: () => escolher(modelo, reserva),
       trabalhar: async (agente, falas) =>
-        trabalhar(modelo, reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty), sessao),
+        trabalhar(modelo, reserva, agente, contribuicoesDe(falas), await playbookDe(agente.specialty), sessao, imagens),
       sintetizar: (falas) => sintetizar(modelo, reserva, contribuicoesDe(falas)),
     }
   }
@@ -378,15 +404,20 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   }
 
   return async (runId) => {
-    const reserva = await db.claim(runId)
-    if (!reserva) {
+    const reservada = await db.claim(runId)
+    if (!reservada) {
       log({ type: 'agent_run', runId, outcome: 'not_claimed' })
       return
     }
+    let reserva = reservada
     let modelo = deps.modelo
     try {
       modelo = await modeloDaExecucao(runId)
-      const executor = executorDe(modelo, reserva, await sessaoDaExecucao(runId))
+      // Os anexos do pedido (PR-10): os documentos como texto junto do pedido; as imagens como imagem, se o modelo as vê.
+      const anexos = await lerAnexos(db, runId, log, 'agent_run')
+      reserva = reservaComAnexos(reservada, anexos, { imagensVistas: modelo.aceitaImagens === true })
+      const imagens = anexos.filter((anexo) => anexo.mime.startsWith('image/'))
+      const executor = executorDe(modelo, reserva, await sessaoDaExecucao(runId), imagens)
       if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })
       else await coordenarPedido({ reserva, db, executor })
       await db.finish(runId, 'succeeded', null, modelo.nome)

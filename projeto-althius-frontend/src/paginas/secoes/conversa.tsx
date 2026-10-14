@@ -1,14 +1,15 @@
-import { ArrowRight, ArrowUp, Check, Copy, PanelLeftClose, PanelLeftOpen, Wrench } from 'lucide-react'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { ArrowRight, Check, Copy, PanelLeftClose, PanelLeftOpen, Wrench } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente, Pulso } from '@/components/marca'
 import { AvisoDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { Button } from '@/components/ui/button'
+import { AnexosDaMensagem } from '@/conversa/anexos-da-mensagem'
+import { Composer } from '@/conversa/composer'
 import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
 import { HistoricoDeConversas } from '@/conversa/historico'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
-import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
 import { TextoDigitado } from '@/conversa/texto'
 import { quemEstaRespondendo } from '@/conversa/vez'
 import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
@@ -126,8 +127,6 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
   const agentes = useDados((fonte) => fonte.agentes(), []) ?? []
   const itens = conversas.itens(agente.id)
   const respondendo = conversas.respondendo(agente.id)
-  const [texto, setTexto] = useState('')
-  const mencao = useMencao(texto, setTexto, agentes)
   const fim = useRef<HTMLDivElement>(null)
   const agentesPorId = porId(agentes)
   // No Workspace operacional, as sugestões vêm dos dados do Workspace; na Demonstração, as frases da Especialidade.
@@ -140,14 +139,6 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
   useEffect(() => {
     fim.current?.scrollIntoView({ block: 'end' })
   }, [itens.length])
-
-  function enviar(evento: FormEvent) {
-    evento.preventDefault()
-    const mensagem = texto.trim()
-    if (!mensagem || respondendo) return
-    conversas.enviar(agente.id, { texto: mensagem })
-    setTexto('')
-  }
 
   return (
     <section aria-labelledby="titulo-conversa" className="flex max-w-3xl flex-col gap-6">
@@ -187,37 +178,15 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
         ))}
       </div>
 
-      <form
-        onSubmit={enviar}
-        className="composer relative flex-row items-center gap-2 p-1.5 pl-2 shadow-(--al-sombra-cartao) focus-within:border-al-line-forte has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-al-accent"
-      >
-        {mencao.aberta && (
-          <ListaDeMencoes
-            id="conversa-mencoes"
-            opcoes={mencao.opcoes}
-            indice={mencao.indice}
-            aoSelecionar={mencao.selecionar}
-            className="absolute bottom-full left-0 mb-2 w-96"
-          />
-        )}
-        <input
-          aria-label={`Mensagem para ${agente.nome}`}
-          aria-controls={mencao.aberta ? 'conversa-mencoes' : undefined}
-          value={texto}
-          onChange={(evento) => setTexto(evento.target.value)}
-          onKeyDown={(evento) => mencao.aoTeclar(evento)}
-          placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
-          className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-[0.9375rem] placeholder:text-al-ink-3 focus-visible:outline-none"
-        />
-        <Button
-          type="submit"
-          disabled={respondendo || !texto.trim()}
-          className="h-10 gap-1.5 rounded-full pr-3 pl-4 tracking-[0.04em]"
-        >
-          Enviar
-          <ArrowUp strokeWidth={1.8} className="size-4" aria-hidden />
-        </Button>
-      </form>
+      <Composer
+        nome={`Conversa com ${agente.nome}`}
+        rotulo={`Mensagem para ${agente.nome}`}
+        placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
+        ocupado={respondendo}
+        aoEnviar={(mensagem, anexos) =>
+          conversas.enviar(agente.id, { texto: mensagem, ...(anexos.length ? { anexos } : {}) })}
+        aoParar={conversas.parar ? () => conversas.parar?.(agente.id) : undefined}
+      />
     </section>
   )
 }
@@ -226,7 +195,12 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
   const nome = (id: AgenteId) => agentes[id]?.nome
   switch (item.tipo) {
     case 'usuario':
-      return <p className="self-end bg-al-surface px-4 py-2">{item.texto}</p>
+      return (
+        <div className="flex flex-col items-end gap-2 self-end">
+          <p className="bg-al-surface px-4 py-2">{item.texto}</p>
+          <AnexosDaMensagem anexos={item.anexos} />
+        </div>
+      )
     case 'ferramenta':
       return (
         <div className="flex flex-col gap-2">
