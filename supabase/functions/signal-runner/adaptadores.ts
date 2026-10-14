@@ -7,6 +7,8 @@ import { anuncioDeMovimentacao } from './adaptadores/anuncio-de-movimentacao.ts'
 import { anuncioGoogle } from './adaptadores/anuncio-google.ts'
 import { anuncioLinkedin } from './adaptadores/anuncio-linkedin.ts'
 import { anuncioMeta } from './adaptadores/anuncio-meta.ts'
+import { crescimentoDeEquipes } from './adaptadores/crescimento-de-equipes.ts'
+import { publicacaoDaEmpresa } from './adaptadores/publicacao-da-empresa.ts'
 import { avaliacoesGoogleMaps } from './adaptadores/avaliacoes-google-maps.ts'
 import { entradasESaidas } from './adaptadores/entradas-e-saidas.ts'
 import { mudancaDeEmprego } from './adaptadores/mudanca-de-emprego.ts'
@@ -25,6 +27,8 @@ const TODOS: AdaptadorDeSinal[] = [
   anuncioMeta,
   anuncioGoogle,
   avaliacoesGoogleMaps,
+  crescimentoDeEquipes,
+  publicacaoDaEmpresa,
 ]
 
 export const ADAPTADORES: Record<string, AdaptadorDeSinal> = Object.fromEntries(TODOS.map((a) => [a.signalType, a]))

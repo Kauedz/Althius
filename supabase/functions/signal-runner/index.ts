@@ -96,6 +96,36 @@ const db: Db = {
     if (error) throw falha(error)
     return data === true
   },
+  async headcountBase(workspaceId, accountId, desde, antesDe) {
+    const { data, error } = await admin.rpc('account_headcount_base', {
+      p_workspace_id: workspaceId,
+      p_target_account_id: accountId,
+      p_since: desde,
+      p_before: antesDe,
+    })
+    if (error) throw falha(error)
+    const [linha] = (data ?? []) as { taken_on: string; headcount: number }[]
+    return linha ? { takenOn: linha.taken_on, headcount: linha.headcount } : null
+  },
+  async recordHeadcount(workspaceId, accountId, foto, fonte) {
+    const { error } = await admin.rpc('record_account_headcount', {
+      p_workspace_id: workspaceId,
+      p_target_account_id: accountId,
+      p_taken_on: foto.takenOn,
+      p_headcount: foto.headcount,
+      p_source: fonte,
+    })
+    if (error) throw falha(error)
+  },
+  async countJobSignals(workspaceId, accountId, desdeIso) {
+    const { data, error } = await admin.rpc('count_account_job_signals', {
+      p_workspace_id: workspaceId,
+      p_target_account_id: accountId,
+      p_since: desdeIso,
+    })
+    if (error) throw falha(error)
+    return Number(data ?? 0)
+  },
   async recordCost({ workspaceId, actorId, runId, items, costUsd }) {
     const { error } = await admin.rpc('record_signal_scan_cost', {
       p_workspace_id: workspaceId,
@@ -206,4 +236,13 @@ const cascatas = criarMotorDeCascata({
   ...(llm ? { llm } : {}),
 })
 
-Deno.serve(createHandler({ db, apify, adaptadores: ADAPTADORES, buscas, cascatas, aquecer: () => cascatas.aquecer() }))
+// O mesmo modelo classifica as Publicações da empresa (PR-8); sem ele, o adaptador usa a regra de palavra-chave.
+Deno.serve(createHandler({
+  db,
+  apify,
+  adaptadores: ADAPTADORES,
+  buscas,
+  cascatas,
+  aquecer: () => cascatas.aquecer(),
+  ...(llm ? { llm } : {}),
+}))

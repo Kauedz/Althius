@@ -238,6 +238,7 @@ export const PESO_DO_SINAL: Readonly<Record<string, number>> = {
   mudanca_regulatoria: 30,
   ncm_nova_na_pauta: 30,
   nova_lideranca: 30,
+  publicacao_da_empresa: 30,
   setor_afetado_cbs_ibs: 30,
   vaga_comex: 30,
   vaga_engenharia_manutencao: 30,
