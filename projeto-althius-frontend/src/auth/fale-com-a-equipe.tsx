@@ -8,23 +8,30 @@ import { enviarPedidoDeAcesso, ERRO_DO_PEDIDO_DE_ACESSO } from '@/fonte/supabase
  * "Fale com a equipe Althius": o que abre quando o visitante tenta uma ação paga na demonstração. Nome, empresa,
  * telefone e mensagem vão para a equipe, que cria o Workspace depois do contrato.
  */
+const DESCRICAO_DO_VISITANTE =
+  'Esta ação não está disponível na demonstração. O Workspace da sua empresa nasce depois do contrato: conte um pouco sobre vocês e a equipe Althius responde.'
+
 export function ModalFaleComAEquipe({
   cliente,
   aberto,
   aoMudar,
+  descricao = DESCRICAO_DO_VISITANTE,
 }: {
-  cliente: SupabaseClient
+  cliente: SupabaseClient | null
   aberto: boolean
   aoMudar: (aberto: boolean) => void
+  descricao?: string
 }) {
   return (
     <Dialog open={aberto} onOpenChange={aoMudar}>
-      <DialogContent className="gap-5 p-6 sm:max-w-lg">{aberto && <Corpo cliente={cliente} aoFechar={() => aoMudar(false)} />}</DialogContent>
+      <DialogContent className="gap-5 p-6 sm:max-w-lg">
+        {aberto && <Corpo cliente={cliente} aoFechar={() => aoMudar(false)} descricao={descricao} />}
+      </DialogContent>
     </Dialog>
   )
 }
 
-function Corpo({ cliente, aoFechar }: { cliente: SupabaseClient; aoFechar: () => void }) {
+function Corpo({ cliente, aoFechar, descricao }: { cliente: SupabaseClient | null; aoFechar: () => void; descricao: string }) {
   const [nome, setNome] = useState('')
   const [empresa, setEmpresa] = useState('')
   const [telefone, setTelefone] = useState('')
@@ -37,6 +44,10 @@ function Corpo({ cliente, aoFechar }: { cliente: SupabaseClient; aoFechar: () =>
     e.preventDefault()
     if (!nome.trim() || !empresa.trim() || !telefone.trim() || !mensagem.trim()) {
       setErro('Preencha nome, empresa, telefone e mensagem.')
+      return
+    }
+    if (!cliente) {
+      setErro(ERRO_DO_PEDIDO_DE_ACESSO)
       return
     }
     setErro(null)
@@ -71,10 +82,7 @@ function Corpo({ cliente, aoFechar }: { cliente: SupabaseClient; aoFechar: () =>
     <>
       <DialogHeader>
         <DialogTitle className="titulo-secao text-xl">Fale com a equipe Althius</DialogTitle>
-        <DialogDescription>
-          Esta ação não está disponível na demonstração. O Workspace da sua empresa nasce depois do contrato: conte um
-          pouco sobre vocês e a equipe Althius responde.
-        </DialogDescription>
+        <DialogDescription>{descricao}</DialogDescription>
       </DialogHeader>
       <form noValidate onSubmit={enviar} className="flex flex-col gap-4">
         <Campo rotulo="Nome">

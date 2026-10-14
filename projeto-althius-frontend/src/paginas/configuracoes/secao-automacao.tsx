@@ -5,6 +5,7 @@ import { Mensagem } from '@/components/mensagem'
 import {
   type EscopoDeAutomacao,
   type ModoDeAutomacao,
+  type ResumoDoLimite,
   MOTIVO_DO_BLOQUEIO,
 } from '@/fonte/automacao-tipos'
 import { useDados, useFonteDeAutomacao } from '@/fonte/contexto'
@@ -24,14 +25,15 @@ const ROTULO_DA_PERMISSAO: Record<Permissao, string> = { ler: 'Ler', propor: 'Pr
 const numero = new Intl.NumberFormat('pt-BR')
 
 /**
- * Automação e tetos (creditos-e-planos 03): numa página só, o interruptor "confirmar ou automático" de cada tipo de
- * ação, Agente e Integração, e o teto mensal em créditos de cada automático. Nada automático roda sem teto; a página
- * diz por quê. O escopo que ninguém executa sozinho ainda fica travado em confirmar. As Permissões Ler/Propor/Executar
- * dos Agentes aparecem aqui só para leitura, lidas da configuração do Agente, onde elas se mudam.
+ * Automação e tetos (creditos-e-planos 03, automacao-e-contrato-inativo): um limite mensal do Workspace, o do
+ * contrato, e o interruptor "confirmar ou automático" de cada tipo de ação. Agente, Integração e Rotina continuam com
+ * o teto de cada um. Nada automático desses roda sem teto; a página diz por quê. O escopo que ninguém executa sozinho
+ * ainda fica travado em confirmar. As Permissões Ler/Propor/Executar dos Agentes aparecem aqui só para leitura.
  */
 export function SecaoAutomacao() {
   const fonte = useFonteDeAutomacao()
   const escopos = useDados(fonte, (f) => f.escopos(), [])
+  const resumo = useDados(fonte, async (f) => (f.resumoDoLimite ? f.resumoDoLimite() : null), [])
   const workspace = useDados((f) => f.workspace(), [])
   const permissoes = useDados(async (f) => {
     const agentes = await f.agentes()
@@ -47,13 +49,14 @@ export function SecaoAutomacao() {
       id="automacao"
       titulo="Automação e tetos"
       alcance="workspace"
-      descricao="Escolha o que pede confirmação e o que roda sozinho. Nada automático roda sem um teto mensal aprovado; chegou no teto, pausa e avisa os Administradores."
+      descricao="Escolha o que pede confirmação e o que roda sozinho. O limite mensal do Workspace é o do contrato, até os créditos da faixa. Chegou nele, a Automação pausa e avisa os Administradores."
     >
       {!escopos ? (
         <Carregando />
       ) : (
         <>
           {!administrador && <Mensagem tipo="info">Só um Administrador muda o automático e os tetos.</Mensagem>}
+          {resumo ? <LimiteDoMes resumo={resumo} administrador={administrador} /> : null}
           {GRUPOS.filter((grupo) => grupo.tipo !== 'rotina' || escopos.some((e) => e.tipo === 'rotina')).map((grupo) => (
             <Bloco key={grupo.tipo} titulo={grupo.titulo} descricao={grupo.descricao}>
               <ul className="flex flex-col divide-y divide-al-line">
@@ -64,6 +67,7 @@ export function SecaoAutomacao() {
                       key={escopo.escopo}
                       escopo={escopo}
                       administrador={administrador}
+                      limiteDaAcao={escopo.tipo === 'acao' && resumo ? { ilimitado: resumo.ilimitado, limite: resumo.limite } : null}
                       salvar={(modo, teto) => fonte.salvar(escopo.escopo, modo, teto)}
                       permissoes={
                         escopo.tipo === 'agente' ? permissoes?.get(escopo.escopo.slice('agente:'.length)) : undefined
@@ -79,14 +83,78 @@ export function SecaoAutomacao() {
   )
 }
 
+function LimiteDoMes({ resumo, administrador }: { resumo: ResumoDoLimite; administrador: boolean }) {
+  const fonte = useFonteDeAutomacao()
+  const [texto, setTexto] = useState<string | null>(null)
+  const [erro, setErro] = useState<string>()
+  const [salvando, setSalvando] = useState(false)
+  const exibido = texto ?? (resumo.limite === null ? '' : String(resumo.limite))
+  const mudou = texto !== null && texto !== (resumo.limite === null ? '' : String(resumo.limite))
+
+  async function enviar() {
+    if (!fonte.salvarLimite) return
+    setErro(undefined)
+    const valor = Number(exibido.trim().replace(',', '.'))
+    if (!(valor > 0)) return setErro('O limite precisa ser maior que zero.')
+    if (resumo.tetoDaFaixa !== null && valor > resumo.tetoDaFaixa) {
+      return setErro('O limite não pode passar dos créditos da faixa.')
+    }
+    setSalvando(true)
+    try {
+      await fonte.salvarLimite(valor)
+      setTexto(null)
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível salvar.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <Bloco titulo="Limite do mês" descricao="Um limite para a varredura, o enriquecimento e as Execuções de Agentes.">
+      {resumo.ilimitado ? (
+        <p className="text-sm font-medium">Ilimitado</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm">
+            {numero.format(resumo.uso)} de {numero.format(resumo.limite ?? 0)} créditos usados no mês.
+          </p>
+          {administrador && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label="Limite mensal do Workspace"
+                inputMode="decimal"
+                value={exibido}
+                onChange={(e) => setTexto(e.target.value)}
+                className="rounded-md h-9 w-36 border border-al-line bg-al-surface px-2 text-sm"
+              />
+              <button type="button" disabled={!mudou || salvando} onClick={enviar} className={BOTAO_PRIMARIO}>
+                Salvar limite
+              </button>
+              {erro && (
+                <p role="alert" className="w-full text-sm text-al-atencao">
+                  {erro}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Bloco>
+  )
+}
+
 function LinhaDoEscopo({
   escopo,
   administrador,
+  limiteDaAcao,
   salvar,
   permissoes,
 }: {
   escopo: EscopoDeAutomacao
   administrador: boolean
+  /** Nos tipos de ação, o teto é o limite do Workspace: a linha só troca Confirmar e Automático. */
+  limiteDaAcao: { ilimitado: boolean; limite: number | null } | null
   salvar: (modo: ModoDeAutomacao, teto: number | null) => Promise<void>
   permissoes?: Partial<Record<string, Permissao>>
 }) {
@@ -94,15 +162,26 @@ function LinhaDoEscopo({
   const [teto, setTeto] = useState(escopo.teto === null ? '' : String(escopo.teto))
   const [erro, setErro] = useState<string>()
   const [salvando, setSalvando] = useState(false)
-  const mudou = modo !== escopo.modo || teto !== (escopo.teto === null ? '' : String(escopo.teto))
+  const semCampoDeTeto = limiteDaAcao !== null
+  const mudou = semCampoDeTeto
+    ? modo !== escopo.modo
+    : modo !== escopo.modo || teto !== (escopo.teto === null ? '' : String(escopo.teto))
   const listaDePermissoes = Object.entries(permissoes ?? {})
     .map(([id, p]) => `${catalogoDeIntegracoesDosAgentes.find((i) => i.id === id)?.nome ?? id}: ${ROTULO_DA_PERMISSAO[p!]}`)
 
   async function enviar() {
     setErro(undefined)
-    const valor = teto.trim() === '' ? null : Number(teto.replace(',', '.'))
-    if (valor !== null && !(valor > 0)) return setErro('O teto precisa ser maior que zero.')
-    if (modo === 'automatico' && valor === null) return setErro('O automático precisa de um teto mensal aprovado.')
+    const valor = limiteDaAcao
+      ? limiteDaAcao.ilimitado
+        ? null
+        : limiteDaAcao.limite
+      : teto.trim() === ''
+        ? null
+        : Number(teto.replace(',', '.'))
+    if (!semCampoDeTeto && valor !== null && !(valor > 0)) return setErro('O teto precisa ser maior que zero.')
+    if (modo === 'automatico' && valor === null && !limiteDaAcao?.ilimitado) {
+      return setErro('O automático precisa de um teto mensal aprovado.')
+    }
     setSalvando(true)
     try {
       await salvar(modo, valor)
@@ -120,7 +199,9 @@ function LinhaDoEscopo({
         <span className={cn('text-sm', escopo.bloqueio === 'teto_atingido' ? 'text-al-atencao' : 'text-al-muted')}>
           {escopo.bloqueio
             ? MOTIVO_DO_BLOQUEIO[escopo.bloqueio]
-            : `Automático: ${numero.format(escopo.gastoNoMes)} de ${numero.format(escopo.teto ?? 0)} créditos usados no mês.`}
+            : semCampoDeTeto
+              ? 'Roda sozinho, dentro do limite do mês.'
+              : `Automático: ${numero.format(escopo.gastoNoMes)} de ${numero.format(escopo.teto ?? 0)} créditos usados no mês.`}
         </span>
         {permissoes && (
           <span className="text-xs text-al-muted">
@@ -139,14 +220,16 @@ function LinhaDoEscopo({
             <option value="confirmar">Confirmar</option>
             <option value="automatico">Automático</option>
           </select>
-          <input
-            aria-label={`Teto mensal de ${escopo.nome}`}
-            inputMode="decimal"
-            placeholder="Teto (créditos)"
-            value={teto}
-            onChange={(e) => setTeto(e.target.value)}
-            className="rounded-md h-9 w-36 border border-al-line bg-al-surface px-2 text-sm"
-          />
+          {!semCampoDeTeto && (
+            <input
+              aria-label={`Teto mensal de ${escopo.nome}`}
+              inputMode="decimal"
+              placeholder="Teto (créditos)"
+              value={teto}
+              onChange={(e) => setTeto(e.target.value)}
+              className="rounded-md h-9 w-36 border border-al-line bg-al-surface px-2 text-sm"
+            />
+          )}
           <button type="button" disabled={!mudou || salvando} onClick={enviar} className={BOTAO_PRIMARIO}>
             Salvar
           </button>

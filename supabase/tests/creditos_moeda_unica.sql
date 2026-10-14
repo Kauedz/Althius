@@ -255,7 +255,9 @@ update private.automation_settings set mode = 'confirmar', monthly_cap = null wh
 select private.seed_contract_automation('cd100000-0000-4000-8000-000000000001');
 select is((select mode from private.automation_settings where workspace_id = 'cd100000-0000-4000-8000-000000000001' and scope = 'acao:varredura'), 'confirmar',
   'a migração não sobrescreve a escolha de um Administrador');
-select is((select count(*)::int from private.automation_settings where workspace_id = 'e0a17e00-0000-4000-8000-000000000001'), 0, 'a Equipe, ilimitada, não precisa de teto');
+select is((select string_agg(scope || '=' || mode || ':' || coalesce(monthly_cap::text, 'ilimitado'), ',' order by scope) from private.automation_settings where workspace_id = 'e0a17e00-0000-4000-8000-000000000001'),
+  'acao:agentes=automatico:ilimitado,acao:enriquecimento=automatico:ilimitado,acao:varredura=automatico:ilimitado',
+  'a Equipe, ilimitada, fica em automático sem teto');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'cd000000-0000-4000-8000-000000000002', true);
 create temporary table provisionado on commit drop as select * from public.staff_provision_workspace('Cliente Novo', 'admin@cliente.test', 'profissional', null);

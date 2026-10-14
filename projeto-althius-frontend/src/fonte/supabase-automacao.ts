@@ -4,7 +4,7 @@
 // travados em confirmar (creditos-e-planos 03).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { BloqueioDoTeto, EscopoDeAutomacao, FonteDeAutomacao } from './automacao-tipos'
+import type { BloqueioDoTeto, EscopoDeAutomacao, FonteDeAutomacao, ResumoDoLimite } from './automacao-tipos'
 
 interface RegistroDeEscopo {
   scope: string
@@ -26,6 +26,13 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('automatic mode requires an approved monthly cap')) {
     return new Error('O automático precisa de um teto mensal aprovado.')
   }
+  if (error.message.includes('monthly limit above tier')) {
+    return new Error('O limite não pode passar dos créditos da faixa.')
+  }
+  if (error.message.includes('unlimited workspace has no monthly limit')) {
+    return new Error('Este Workspace não tem limite mensal.')
+  }
+  if (error.message.includes('active contract required')) return new Error('É preciso um contrato ativo para definir o limite.')
   if (error.message.includes('invalid monthly cap')) return new Error('O teto precisa ser maior que zero.')
   return new Error('Não foi possível salvar. Tente de novo.')
 }
@@ -68,6 +75,38 @@ export function criarFonteDeAutomacaoSupabase(cliente: SupabaseClient, workspace
         p_monthly_cap: teto,
       })
       if (error) throw converterErro(error)
+      ouvintes.forEach((ouvinte) => ouvinte())
+    },
+    async resumoDoLimite() {
+      const { data, error } = await cliente.rpc('automation_limit_summary', { p_workspace_id: workspaceId() })
+      if (error) throw new Error('Não foi possível carregar o limite do mês.')
+      const linha = ((Array.isArray(data) ? data[0] : data) ?? null) as {
+        unlimited: boolean
+        monthly_limit: number | string | null
+        tier_credits: number | string | null
+        month_usage: number | string
+        inactive: boolean
+      } | null
+      if (!linha) throw new Error('Não foi possível carregar o limite do mês.')
+      const numero = (valor: number | string | null) => (valor === null ? null : Number(valor))
+      const resumo: ResumoDoLimite = {
+        ilimitado: linha.unlimited,
+        limite: numero(linha.monthly_limit),
+        tetoDaFaixa: numero(linha.tier_credits),
+        uso: Number(linha.month_usage),
+        inativo: linha.inactive,
+      }
+      return resumo
+    },
+    async salvarLimite(limite) {
+      const { error } = await cliente.rpc('set_workspace_monthly_limit', {
+        p_workspace_id: workspaceId(),
+        p_limit: limite,
+      })
+      if (error) {
+        if (error.message.includes('invalid monthly cap')) throw new Error('O limite precisa ser maior que zero.')
+        throw converterErro(error)
+      }
       ouvintes.forEach((ouvinte) => ouvinte())
     },
   }

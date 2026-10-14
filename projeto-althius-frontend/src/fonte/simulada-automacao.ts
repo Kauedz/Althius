@@ -1,6 +1,6 @@
 // A Demonstração dos interruptores e tetos: tudo começa em confirmar, e as mudanças valem só na sessão.
 
-import type { EscopoDeAutomacao, FonteDeAutomacao, ModoDeAutomacao } from './automacao-tipos'
+import type { EscopoDeAutomacao, FonteDeAutomacao, ModoDeAutomacao, ResumoDoLimite } from './automacao-tipos'
 import { catalogoDeIntegracoesDosAgentes } from './catalogo-de-conexoes'
 import type { Agente } from './tipos'
 
@@ -10,9 +10,16 @@ const ACOES = [
   { escopo: 'acao:agentes', nome: 'Execuções de Agentes' },
 ]
 
-export function criarFonteDeAutomacaoSimulada({ agentes }: { agentes: () => Promise<Agente[]> }): FonteDeAutomacao {
+export function criarFonteDeAutomacaoSimulada({
+  agentes,
+  ilimitado = false,
+}: {
+  agentes: () => Promise<Agente[]>
+  ilimitado?: boolean
+}): FonteDeAutomacao {
   const ouvintes = new Set<() => void>()
   const ajustes = new Map<string, { modo: ModoDeAutomacao; teto: number | null }>()
+  const limite = { valor: ilimitado ? null : 100, tetoDaFaixa: ilimitado ? null : 100, uso: 0 }
 
   function comAjuste(base: Pick<EscopoDeAutomacao, 'escopo' | 'tipo' | 'nome'>): EscopoDeAutomacao {
     const ajuste = ajustes.get(base.escopo)
@@ -36,8 +43,26 @@ export function criarFonteDeAutomacaoSimulada({ agentes }: { agentes: () => Prom
     },
     async salvar(escopo, modo, teto) {
       if (teto !== null && !(teto > 0)) throw new Error('O teto precisa ser maior que zero.')
-      if (modo === 'automatico' && teto === null) throw new Error('O automático precisa de um teto mensal aprovado.')
+      if (modo === 'automatico' && teto === null && !ilimitado) throw new Error('O automático precisa de um teto mensal aprovado.')
       ajustes.set(escopo, { modo, teto })
+      ouvintes.forEach((ouvinte) => ouvinte())
+    },
+    async resumoDoLimite(): Promise<ResumoDoLimite> {
+      return {
+        ilimitado,
+        limite: limite.valor,
+        tetoDaFaixa: limite.tetoDaFaixa,
+        uso: limite.uso,
+        inativo: false,
+      }
+    },
+    async salvarLimite(valor) {
+      if (ilimitado) throw new Error('Este Workspace não tem limite mensal.')
+      if (!(valor > 0)) throw new Error('O limite precisa ser maior que zero.')
+      if (limite.tetoDaFaixa !== null && valor > limite.tetoDaFaixa) {
+        throw new Error('O limite não pode passar dos créditos da faixa.')
+      }
+      limite.valor = valor
       ouvintes.forEach((ouvinte) => ouvinte())
     },
   }

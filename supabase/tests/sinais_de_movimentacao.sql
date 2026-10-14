@@ -13,6 +13,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('fb000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('fb000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w where w.id in ('fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000002') on conflict (workspace_id) do nothing; -- contrato de teste (automacao-e-contrato-inativo)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('fb000000-0000-0000-0000-000000000001', '5b000000-0000-0000-0000-000000000001', 'admin', true),
   ('fb000000-0000-0000-0000-000000000002', '5b000000-0000-0000-0000-000000000002', 'admin', true);

@@ -4,6 +4,7 @@ import {
   type AdaptadorDeSinal,
   createHandler,
   type Db,
+  outcomeEfetivo,
   type MonitorReivindicado,
   type ResultadoDaAbertura,
 } from './handler.ts'
@@ -204,6 +205,17 @@ Deno.test('automático em confirmar, sem teto ou no teto: não varre, não cobra
     assertEquals(c.fins[0].error?.toLowerCase().includes(texto), true, String(c.fins[0].error))
     assertEquals(c.fins[0].continuar, false)
   }
+})
+
+Deno.test('contrato inativo: não varre, não cobra e diz para falar com a equipe', async () => {
+  assertEquals(outcomeEfetivo('contrato_inativo', true, true), 'contrato_inativo')
+  const { handler, c } = montar({ abertura: () => ({ outcome: 'contrato_inativo', reservationId: null }) })
+  assertEquals((await (await chamar(handler)).json()).scanned, 0)
+  assertEquals(c.runs.length, 0)
+  assertEquals(c.fechamentos, [])
+  assertEquals(c.aberturas.length, 1)
+  assertEquals(c.fins[0].error, 'Contrato inativo. Fale com a equipe Althius para reativar.')
+  assertEquals(c.fins[0].continuar, false)
 })
 
 Deno.test('sem créditos ou no limite do participante: para o Monitoramento e avisa', async () => {

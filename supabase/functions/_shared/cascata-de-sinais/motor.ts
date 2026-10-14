@@ -99,6 +99,7 @@ const DESFECHO_DA_ABERTURA: Partial<Record<ResultadoDaAbertura['outcome'], [Desf
   confirmar: ['automatico_parado', MENSAGENS.automatico_parado],
   sem_teto: ['automatico_parado', MENSAGENS.automatico_parado],
   teto_atingido: ['automatico_parado', MENSAGENS.limite_do_mes],
+  contrato_inativo: ['automatico_parado', 'Contrato inativo. Fale com a equipe Althius para reativar.'],
   em_andamento: ['em_andamento', MENSAGENS.em_andamento],
   done: ['ja_concluida', MENSAGENS.ja_concluida],
   sem_fonte: ['sem_fonte', ''],

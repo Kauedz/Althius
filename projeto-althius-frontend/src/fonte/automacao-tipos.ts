@@ -27,11 +27,26 @@ export interface EscopoDeAutomacao {
   bloqueio: BloqueioDaAutomacao | null
 }
 
+/** O limite mensal único do Workspace, o do contrato. Ausente nas fontes que ainda tratam um teto por tipo de ação. */
+export interface ResumoDoLimite {
+  ilimitado: boolean
+  /** Nulo no Workspace ilimitado e sem contrato. */
+  limite: number | null
+  /** Os créditos da faixa. O Administrador não passa daqui. Nulo sem faixa. */
+  tetoDaFaixa: number | null
+  uso: number
+  inativo: boolean
+}
+
 export interface FonteDeAutomacao extends FonteObservavel {
   /** Todos os escopos do Workspace, em ordem: tipos de ação, Agentes, Integrações e Rotinas. Todo participante consulta. */
   escopos(): Promise<EscopoDeAutomacao[]>
   /** Liga ou desliga o automático e aprova o teto. Só Administrador; automático sem teto é recusado. */
   salvar(escopo: string, modo: ModoDeAutomacao, teto: number | null): Promise<void>
+  /** O limite mensal do contrato e o uso do mês. Ausente quando a fonte não separa esse limite dos tetos. */
+  resumoDoLimite?(): Promise<ResumoDoLimite>
+  /** Grava o limite mensal do Workspace, até os créditos da faixa. Só Administrador. */
+  salvarLimite?(limite: number): Promise<void>
 }
 
 export const MOTIVO_DO_BLOQUEIO: Record<BloqueioDaAutomacao, string> = {

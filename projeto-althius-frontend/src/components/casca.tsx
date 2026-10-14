@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { AvisoDeContratoInativo } from '@/components/aviso-de-contrato-inativo'
 import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
 import { IndicadorDeSecoes } from '@/components/indicador-de-secoes'
 import { LogoDoWorkspace } from '@/components/logos'
@@ -88,6 +89,7 @@ export function Casca() {
         <Sidebar alternarBarra={alternarBarra} />
       </BarraRecolhida.Provider>
       <main className="flex min-w-0 flex-col">
+        <AvisoDeContratoInativo />
         <Outlet />
       </main>
       <IndicadorDeSecoes />

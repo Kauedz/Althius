@@ -5,7 +5,7 @@ import type { Ambiente, ModuloDoWorkspace } from '@/fonte/ambiente'
 import type { FonteDeAutomacao } from '@/fonte/automacao-tipos'
 import type { FonteDeConexoes } from '@/fonte/conexoes-tipos'
 import type { FonteDeSinais } from '@/fonte/sinais-tipos'
-import type { FonteDeContas, FonteDeOnboarding } from '@/fonte/tipos'
+import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding } from '@/fonte/tipos'
 import { criarFonteDeContasSimulada, type OpcoesFonteDeContasSimulada } from '@/fonte/simulada-contas'
 import {
   criarFonteDeOnboardingSimulada,
@@ -48,6 +48,8 @@ export function renderizarAppNoNavegador(rota: string) {
 
 interface Ajustes {
   opcoesOnboarding?: OpcoesFonteDeOnboardingSimulada
+  /** Troca a Fonte de Agentes da demo por outra feita a partir dela, só neste teste. */
+  fonte?: (fonte: FonteDeAgentes) => FonteDeAgentes
   /** Troca a Fonte de contas da demo por outra feita a partir dela, só neste teste. */
   contas?: (fonte: FonteDeContas) => FonteDeContas
   /** Troca a Fonte de onboarding simulada por outra feita a partir dela, só neste teste. */
@@ -65,10 +67,11 @@ interface Ajustes {
 }
 
 /** O app como em `renderizarApp`, com uma Fonte ajustada pelo teste no lugar da simulada. */
-export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, conexoes, automacao, descobertas, indisponiveis }: Ajustes, noNavegador = false) {
+export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, fonte, contas, onboarding, sinais, conexoes, automacao, descobertas, indisponiveis }: Ajustes, noNavegador = false) {
   return montarApp({
     rota,
     opcoesOnboarding,
+    ajustarFonte: fonte,
     ajustarContas: contas,
     ajustarOnboarding: onboarding,
     ajustarSinais: sinais,
@@ -88,6 +91,7 @@ function montarApp({
   opcoesSinais = {},
   opcoesFonte = {},
   noNavegador = false,
+  ajustarFonte = (fonte) => fonte,
   ajustarContas = (fonte) => fonte,
   ajustarOnboarding = (fonte) => fonte,
   ajustarSinais = (fonte) => fonte,
@@ -103,6 +107,7 @@ function montarApp({
   opcoesSinais?: OpcoesFonteDeSinaisSimulada
   opcoesFonte?: OpcoesFonteSimulada
   noNavegador?: boolean
+  ajustarFonte?: (fonte: FonteDeAgentes) => FonteDeAgentes
   ajustarContas?: (fonte: FonteDeContas) => FonteDeContas
   ajustarOnboarding?: (fonte: FonteDeOnboarding) => FonteDeOnboarding
   ajustarSinais?: (fonte: FonteDeSinais) => FonteDeSinais
@@ -111,7 +116,7 @@ function montarApp({
   ajustarDescobertas?: (fonte: FonteDeDescobertas) => FonteDeDescobertas
   indisponiveis?: ModuloDoWorkspace[]
 }) {
-  const fonte = criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES, ...opcoesFonte })
+  const fonte = ajustarFonte(criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES, ...opcoesFonte }))
   const fonteDeContas = criarFonteDeContasSimulada({
     atrasoMs: 0,
     hoje: DATA_HOJE_TESTES,

@@ -422,6 +422,16 @@ Deno.test('cada recusa da abertura vira uma resposta neutra e nada roda', async 
   }
 })
 
+Deno.test('contrato inativo vira a resposta do produto e a fonte não roda', async () => {
+  const { db } = dbFalso(cascataDeTeste(), { abertura: { outcome: 'contrato_inativo' } })
+  const { fonte, chamadas } = fonteFalsa({})
+  const r = await rodarCascata({ db, fonte, registro: registro(), agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals(r.desfecho, 'automatico_parado')
+  assertEquals(r.mensagem, 'Contrato inativo. Fale com a equipe Althius para reativar.')
+  assertEquals(chamadas.length, 0)
+  assertEquals(r.creditosCobrados, 0)
+})
+
 Deno.test('o Workspace sem Contas-alvo não gasta nada numa cascata por Conta', async () => {
   const { db, aberturas } = dbFalso(cascataDeTeste(), { contas: [] })
   const r = await rodarCascata(

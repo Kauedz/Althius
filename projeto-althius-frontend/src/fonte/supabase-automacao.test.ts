@@ -37,4 +37,23 @@ describe('Automação e tetos no Workspace operacional', () => {
     await expect(f.salvar('acao:agentes', 'automatico', 5)).rejects.toThrow('Só um Administrador muda o automático e os tetos.')
     await expect(f.salvar('acao:varredura', 'automatico', null)).rejects.toThrow('O automático precisa de um teto mensal aprovado.')
   })
+
+  it('lê o limite único e grava até a faixa', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const f = fonte({
+      automation_limit_summary: () => [
+        { unlimited: false, monthly_limit: '2000', tier_credits: '3000', month_usage: '40', contract_status: 'ativo', inactive: false },
+      ],
+      set_workspace_monthly_limit: (p) => {
+        chamadas.push(p)
+        if (p.p_limit === 4000) throw Object.assign(new Error('monthly limit above tier'), { code: '22023' })
+        if (p.p_limit === 0) throw Object.assign(new Error('invalid monthly cap'), { code: '22023' })
+      },
+    })
+    expect(await f.resumoDoLimite?.()).toEqual({ ilimitado: false, limite: 2000, tetoDaFaixa: 3000, uso: 40, inativo: false })
+    await f.salvarLimite?.(2000)
+    expect(chamadas[0]).toEqual({ p_workspace_id: 'ws-norte', p_limit: 2000 })
+    await expect(f.salvarLimite?.(4000)).rejects.toThrow('O limite não pode passar dos créditos da faixa.')
+    await expect(f.salvarLimite?.(0)).rejects.toThrow('O limite precisa ser maior que zero.')
+  })
 })

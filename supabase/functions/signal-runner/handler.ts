@@ -86,11 +86,12 @@ function montarEntrada(
  * nesta rodada) não; `no_credits` para o Monitoramento por falta de saldo ou de limite; `confirmar`, `sem_teto` e
  * `teto_atingido` param o Monitoramento porque o automático não roda.
  */
-export type MotivoDeParada = 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido'
+export type MotivoDeParada = 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido' | 'contrato_inativo'
 export type ResultadoDaAbertura = 'go' | 'resume' | 'done' | 'skip' | MotivoDeParada
 
 /**
  * Workspace ilimitado com reserva já feita: confirmar, sem teto e teto atingido não param a varredura.
+ * contrato_inativo continua parando: o ilimitado não recebe esse desfecho do banco.
  * Sem reserva, o desfecho segue como veio (a recusa não deixou o que liquidar).
  */
 export function outcomeEfetivo(outcome: ResultadoDaAbertura, ilimitado: boolean, temReserva: boolean): ResultadoDaAbertura {
@@ -211,6 +212,7 @@ const MOTIVO_DA_PARADA: Record<MotivoDeParada, string> = {
     'A varredura automática está em "confirmar". Ligue o automático com um teto em Configurações › Automação e tetos.',
   sem_teto: 'A varredura automática não roda sem um teto mensal aprovado (Configurações › Automação e tetos).',
   teto_atingido: 'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.',
+  contrato_inativo: 'Contrato inativo. Fale com a equipe Althius para reativar.',
 }
 
 // A busca do clique fala com quem pediu; a mensal, com o teto. O saldo e o limite mensal são de quem pediu.
