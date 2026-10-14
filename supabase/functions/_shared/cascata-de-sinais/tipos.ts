@@ -201,6 +201,7 @@ export type ResultadoDaAbertura = {
     | 'confirmar'
     | 'sem_teto'
     | 'teto_atingido'
+    | 'contrato_inativo'
   runId: string | null
   estCredits: number
   capUsd: number

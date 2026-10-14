@@ -424,3 +424,8 @@ export function useAutenticacao(): Autenticacao {
   if (!contexto) throw new Error('useAutenticacao precisa de ContextoDeAutenticacao')
   return contexto
 }
+
+/** O cliente do Supabase quando a árvore tem autenticação. Na Demonstração e nos testes do app, é nulo. */
+export function useClienteOpcional(): SupabaseClient | null {
+  return useContext(Contexto)?.cliente ?? null
+}
