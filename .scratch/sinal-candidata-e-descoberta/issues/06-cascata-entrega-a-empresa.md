@@ -6,13 +6,13 @@
 
 **Blocked by:** 02, 05.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] As empresas sem Conta, com CNPJ ou site, saem do passo com o acontecimento (chave, frase, data, fonte, evidência).
-- [ ] O motor grava cada uma pelo resolvedor, com o peso do tipo vindo de `pontuacao.ts`, sem mexer em créditos nem no desfecho da execução.
-- [ ] Uma falha ao gravar uma empresa não derruba a execução.
-- [ ] O signal-runner não muda: ele só varre Contas.
+- [x] As empresas sem Conta, com CNPJ ou site, saem do passo com o acontecimento (chave, frase, data, fonte, evidência).
+- [x] O motor grava cada uma pelo resolvedor, com o peso do tipo vindo de `pontuacao.ts`, sem mexer em créditos nem no desfecho da execução.
+- [x] Uma falha ao gravar uma empresa não derruba a execução.
+- [x] O signal-runner não muda: ele só varre Contas.
 
 ## Passos do Nan
 

@@ -6,15 +6,15 @@
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] Empresa que já é Conta: o Sinal vai para a Conta pelo `record_signal` e a Conta fica Quente.
-- [ ] Empresa que não é: cria ou atualiza a candidata com `origin = 'sinal'`, grava o Sinal com `discovered_account_id` e o motivo.
-- [ ] Nunca duas candidatas para a mesma empresa (CNPJ ou domínio); a regra de comparação é a de `private.discovery_duplicate`.
-- [ ] `record_market_signal` com `cnpj` no payload segue o mesmo caminho e guarda o vínculo (`market_signal_id`); sem empresa, só o painel de Mercado.
-- [ ] Frases e fontes que vão à tela não citam fornecedor, e-mail, CPF nem telefone.
-- [ ] Criar candidata não gasta crédito.
+- [x] Empresa que já é Conta: o Sinal vai para a Conta pelo `record_signal` e a Conta fica Quente.
+- [x] Empresa que não é: cria ou atualiza a candidata com `origin = 'sinal'`, grava o Sinal com `discovered_account_id` e o motivo.
+- [x] Nunca duas candidatas para a mesma empresa (CNPJ ou domínio); a regra de comparação é a de `private.discovery_duplicate`.
+- [x] `record_market_signal` com `cnpj` no payload segue o mesmo caminho e guarda o vínculo (`market_signal_id`); sem empresa, só o painel de Mercado.
+- [x] Frases e fontes que vão à tela não citam fornecedor, e-mail, CPF nem telefone.
+- [x] Criar candidata não gasta crédito.
 
 ## Passos do Nan
 

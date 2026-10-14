@@ -6,15 +6,15 @@
 
 **Blocked by:** 02, 03, 04, 05.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] Coluna "Motivos / Sinais" com o Sinal mais recente em linguagem de usuário e "+N"; o detalhe lista todos com data e fonte.
-- [ ] Filtro "Origem" (Sinal, Busca, Sincronização); Sincronização só quando existir dado dessa origem.
-- [ ] "Voltou por novo Sinal" com o motivo do descarte anterior.
-- [ ] Aceite sem site quando há CNPJ; depois do aceite, o Comitê dispara quando `committee` é `liberado`; senão a Conta fica com "Enriquecer Comitê".
-- [ ] Em Mercado e em Sinais encontrados, o Sinal com empresa ganha "Ver candidata" ou "Ver Conta".
-- [ ] A Demonstração segue simulada e sem nada disso no Workspace operacional.
+- [x] Coluna "Motivos / Sinais" com o Sinal mais recente em linguagem de usuário e "+N"; o detalhe lista todos com data e fonte.
+- [x] Filtro "Origem" (Sinal, Busca, Sincronização); Sincronização só quando existir dado dessa origem.
+- [x] "Voltou por novo Sinal" com o motivo do descarte anterior.
+- [x] Aceite sem site quando há CNPJ; depois do aceite, o Comitê dispara quando `committee` é `liberado`; senão a Conta fica com "Enriquecer Comitê".
+- [x] Em Mercado e em Sinais encontrados, o Sinal com empresa ganha "Ver candidata" ou "Ver Conta".
+- [x] A Demonstração segue simulada e sem nada disso no Workspace operacional.
 
 ## Passos do Nan
 

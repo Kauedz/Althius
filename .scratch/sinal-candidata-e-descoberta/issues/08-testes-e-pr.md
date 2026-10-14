@@ -6,12 +6,12 @@
 
 **Blocked by:** 01 a 07.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] pgTAP, Deno, `deno check`, lint, `tsc -b`, Vitest e build verdes; migrações reaplicam sem erro.
-- [ ] PR com migrações (versão e nome), Edge Functions alteradas, ordem de publicação, Passos do Kauê e decisões a confirmar.
-- [ ] Sem merge: o Kauê faz o merge, com merge commit.
+- [x] pgTAP, Deno, `deno check`, lint, `tsc -b`, Vitest e build verdes; migrações reaplicam sem erro.
+- [x] PR com migrações (versão e nome), Edge Functions alteradas, ordem de publicação, Passos do Kauê e decisões a confirmar.
+- [x] Sem merge: o Kauê faz o merge, com merge commit.
 
 ## Passos do Nan
 

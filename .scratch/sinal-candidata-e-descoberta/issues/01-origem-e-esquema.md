@@ -6,14 +6,14 @@
 
 **Blocked by:** nenhum.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] `private.discovered_accounts.origin` (`busca`, `sinal`, `sincronizacao`, padrão `busca`), `reopened_by_signal_at`, `reopened_discard_reason`, `reopened_decided_at`.
-- [ ] `private.signals`: `target_account_id` opcional, `discovered_account_id` com FK, `market_signal_id`, check de exatamente um dos dois e unicidade do Sinal da candidata.
-- [ ] `private.discovery_reasons(discovered_account_id, signal_id, weight)` com RLS ligado e sem acesso direto.
-- [ ] `target_accounts.canonical_url` aceita nulo, com índice único por CNPJ para a Conta sem site.
-- [ ] Os leitores de `private.signals` que assumiam Conta (`list_signals`, `list_account_signals`, `expire_signals` e os demais) seguem certos com linhas de candidata.
+- [x] `private.discovered_accounts.origin` (`busca`, `sinal`, `sincronizacao`, padrão `busca`), `reopened_by_signal_at`, `reopened_discard_reason`, `reopened_decided_at`.
+- [x] `private.signals`: `target_account_id` opcional, `discovered_account_id` com FK, `market_signal_id`, check de exatamente um dos dois e unicidade do Sinal da candidata.
+- [x] `private.discovery_reasons(discovered_account_id, signal_id, weight)` com RLS ligado e sem acesso direto.
+- [x] `target_accounts.canonical_url` aceita nulo, com índice único por CNPJ para a Conta sem site.
+- [x] Os leitores de `private.signals` que assumiam Conta (`list_signals`, `list_account_signals`, `expire_signals` e os demais) seguem certos com linhas de candidata.
 
 ## Passos do Nan
 

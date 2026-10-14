@@ -6,14 +6,14 @@
 
 **Blocked by:** 01, 02.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] Aceite por CNPJ sem site cria a Conta sem site (ou liga a que já existe pelo CNPJ).
-- [ ] A Conta nasce ou é ligada com `origin = 'recomendacao'`; quem aceita vira o Vendedor responsável, como já era.
-- [ ] Os Sinais da candidata migram para a Conta e a Conta fica Quente; um Sinal que a Conta já tinha não duplica.
-- [ ] A resposta traz `committee` (`liberado`, `sem_saldo`, `limite_do_mes`, `sem_contrato`) pelas mesmas regras do `reserve_credits`, sem reservar; a Equipe Althius é sempre `liberado`.
-- [ ] Aceitar não cobra crédito; sem site e sem CNPJ continua recusando.
+- [x] Aceite por CNPJ sem site cria a Conta sem site (ou liga a que já existe pelo CNPJ).
+- [x] A Conta nasce ou é ligada com `origin = 'recomendacao'`; quem aceita vira o Vendedor responsável, como já era.
+- [x] Os Sinais da candidata migram para a Conta e a Conta fica Quente; um Sinal que a Conta já tinha não duplica.
+- [x] A resposta traz `committee` (`liberado`, `sem_saldo`, `limite_do_mes`, `sem_contrato`) pelas mesmas regras do `reserve_credits`, sem reservar; a Equipe Althius é sempre `liberado`.
+- [x] Aceitar não cobra crédito; sem site e sem CNPJ continua recusando.
 
 ## Passos do Nan
 

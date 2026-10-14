@@ -6,13 +6,13 @@
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] A busca por ICP nunca traz de volta uma descartada.
-- [ ] Sinal novo e válido, depois do descarte e mais de 90 dias depois de `decided_at`: a candidata volta a `nova`, com `reopened_by_signal_at` e o motivo anterior guardado.
-- [ ] Dentro dos 90 dias o Sinal é registrado e a candidata segue descartada.
-- [ ] `restore_discovered_account` continua restaurando a qualquer momento; o motivo do descarte fica guardado.
+- [x] A busca por ICP nunca traz de volta uma descartada.
+- [x] Sinal novo e válido, depois do descarte e mais de 90 dias depois de `decided_at`: a candidata volta a `nova`, com `reopened_by_signal_at` e o motivo anterior guardado.
+- [x] Dentro dos 90 dias o Sinal é registrado e a candidata segue descartada.
+- [x] `restore_discovered_account` continua restaurando a qualquer momento; o motivo do descarte fica guardado.
 
 ## Passos do Nan
 

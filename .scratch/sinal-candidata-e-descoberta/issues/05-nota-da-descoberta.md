@@ -6,13 +6,13 @@
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
-- [ ] Pesos por tipo de Sinal numa constante documentada em `pontuacao.ts`; peso cheio até 30 dias, zero em 90.
-- [ ] A nota é Encaixe ICP mais os Sinais, com teto para os Sinais; o nível (alto, médio, baixo, sem dado) sai da nota.
-- [ ] `list_discovered_accounts` ordena pela nota e, no empate, pelo Sinal mais recente, e devolve o nível, nunca o número (ADR-0006).
-- [ ] A curva, o teto e os cortes de nível são os mesmos no TypeScript e no SQL, com teste dos dois lados.
+- [x] Pesos por tipo de Sinal numa constante documentada em `pontuacao.ts`; peso cheio até 30 dias, zero em 90.
+- [x] A nota é Encaixe ICP mais os Sinais, com teto para os Sinais; o nível (alto, médio, baixo, sem dado) sai da nota.
+- [x] `list_discovered_accounts` ordena pela nota e, no empate, pelo Sinal mais recente, e devolve o nível, nunca o número (ADR-0006).
+- [x] A curva, o teto e os cortes de nível são os mesmos no TypeScript e no SQL, com teste dos dois lados.
 
 ## Passos do Nan
 
