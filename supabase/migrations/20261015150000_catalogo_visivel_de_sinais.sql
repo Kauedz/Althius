@@ -47,6 +47,11 @@ grant select on public.signal_niches to authenticated;
 grant select on public.signal_catalog to authenticated;
 grant select on public.signal_catalog_niches to authenticated;
 
+-- O CHECK chama private.texto_sem_marca com o papel de quem insere. Sem o EXECUTE, a equipe
+-- leva 42501 (permission denied for function) antes de gravar o card do Workspace. O schema
+-- private continua sem USAGE para authenticated: o papel não chama a função pelo nome.
+grant execute on function private.texto_sem_marca(text) to authenticated;
+
 -- Quem pode gravar um Sinal feito sob pedido. A lista começa vazia: o Nan inclui os user ids.
 create table private.althius_staff (
   user_id uuid primary key references auth.users(id) on delete cascade,
