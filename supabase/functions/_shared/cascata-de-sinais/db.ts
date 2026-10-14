@@ -116,7 +116,7 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
       })
     },
 
-    async gravarSinalDeMercado({ workspaceId, signalType, sinal }) {
+    async gravarSinalDeMercado({ workspaceId, signalType, sinal, peso }) {
       const data = await chamar(admin, 'record_market_signal', {
         p_workspace_id: workspaceId,
         p_signal_type: signalType,
@@ -126,8 +126,34 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
         p_source: sinal.source || null,
         p_evidence: sinal.evidence || null,
         p_payload: sinal.payload,
+        p_weight: peso ?? null,
       })
       return data === true
+    },
+
+    async gravarSinalDeEmpresa({ workspaceId, monitorId, signalType, sinal, peso }) {
+      const e = sinal.empresa
+      const data = await chamar(admin, 'record_signal_for_company', {
+        p_workspace_id: workspaceId,
+        p_company: {
+          name: e.nome,
+          ...(e.cnpj ? { cnpj: e.cnpj } : {}),
+          ...(e.site ? { website: e.site } : {}),
+          ...(e.linkedinUrl ? { linkedinUrl: e.linkedinUrl } : {}),
+          ...(e.uf ? { uf: e.uf } : {}),
+          ...(e.municipio ? { city: e.municipio } : {}),
+        },
+        p_monitor_id: monitorId,
+        p_signal_type: signalType,
+        p_event_key: sinal.eventKey,
+        p_phrase: sinal.phrase,
+        p_fired_at: sinal.firedAt,
+        p_source: sinal.source || null,
+        p_evidence: sinal.evidence || null,
+        p_weight: peso,
+      })
+      const [linha] = (Array.isArray(data) ? data : [data]) as { resolved?: string; is_new?: boolean }[]
+      return { resolvido: linha?.resolved ?? 'sem_identidade', novo: linha?.is_new === true }
     },
 
     async lerSnapshots({ workspaceId, signalType, chaves, antesDe }) {

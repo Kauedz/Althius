@@ -169,3 +169,149 @@ export function avaliar(c: CandidataBruta, criterios: CriteriosDeBusca): Avaliac
   const score = Math.round((100 * batidos) / total)
   return { score, level: score >= 75 ? 'alto' : score >= 45 ? 'medio' : 'baixo', reasons: motivos, excluida: false }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// A nota final: Encaixe ICP mais o peso dos Sinais
+//
+// Uma candidata da Caixa de Descobertas tem o Encaixe ICP (acima, de 0 a 100) e, quando veio de um Sinal, os Sinais que a
+// trouxeram. A nota final é o Encaixe mais o peso dos Sinais, e só ela ordena a lista. O número nunca aparece (ADR-0006):
+// a tela mostra o nível (alto, médio, baixo). Quem calcula na leitura é o banco (`private.discovery_note` e
+// `private.discovery_level`, migração 20261018130000), porque o decaimento depende da data de hoje; este arquivo tem a
+// mesma regra com os mesmos números, é de onde vêm os pesos que o banco guarda em cada motivo, e um teste de cada lado
+// confere os dois.
+
+/** Quantos dias depois do disparo um Sinal ainda pesa por inteiro. */
+export const DIAS_DE_PESO_CHEIO = 30
+/** Em quantos dias o peso de um Sinal chega a zero (cai em linha reta dos 30 aos 90). */
+export const DIAS_ATE_ZERO = 90
+/** Quanto os Sinais, juntos, podem somar na nota: muitos Sinais não passam o Encaixe ICP. */
+export const TETO_DOS_SINAIS = 60
+/** Os cortes do nível, na nota final. Abaixo do médio é baixo. */
+export const CORTE_ALTO = 75
+export const CORTE_MEDIO = 45
+
+/**
+ * O peso cheio de um Sinal, pelo tipo. Três faixas, pela força do que o acontecimento diz sobre comprar agora:
+ *   - forte (40): o negócio da empresa mudou ou vai mudar de tamanho (expansão, investimento, financiamento, filial,
+ *     planta, centro de distribuição, sede, escritório, CNPJ novo, importação, licença, mudança de porte);
+ *   - médio (30): contratação e movimento de mercado que aumentam a chance de compra (vagas, equipes, liderança,
+ *     movimentação de pessoas, sócio, anúncios, volume de comércio exterior, mudança regulatória, safra);
+ *   - contexto (15): fatos que situam a empresa mas pouco dizem sobre o momento (apólice, contrato de energia, CAGED,
+ *     processos, avaliações, ESG, registros, área rural).
+ * Um tipo que não está aqui pesa `PESO_PADRAO_DO_SINAL`. O banco recebe o peso de quem grava o Sinal, então mudar um
+ * número aqui vale para os Sinais novos; os que já foram gravados guardam o peso da época.
+ */
+export const PESO_DO_SINAL: Readonly<Record<string, number>> = {
+  // forte
+  cnpj_novo: 40,
+  cruzando_faixa_de_headcount: 40,
+  expansao_de_planta: 40,
+  expansao_geografica: 40,
+  financiamento_bndes_finep: 40,
+  frota_crescendo: 40,
+  habilitacao_radar: 40,
+  importacao_de_maquinas: 40,
+  investimentos_anunciados: 40,
+  licenca_instalacao: 40,
+  licenca_instalacao_dou: 40,
+  mudanca_de_porte_ou_regime: 40,
+  nova_cooperativa: 40,
+  nova_filial_icp_g: 40,
+  nova_planta_filial: 40,
+  novo_cd_ou_filial: 40,
+  novo_escritorio: 40,
+  novo_importador: 40,
+  troca_de_sede: 40,
+  // médio
+  anuncio_de_movimentacao: 30,
+  anuncio_linkedin: 30,
+  anuncio_meta: 30,
+  calendario_de_safra: 30,
+  cpr_registrada: 30,
+  crescimento_comex_embarcador: 30,
+  crescimento_de_equipes: 30,
+  entrada_de_socio: 30,
+  impacto_reforma_cnae: 30,
+  liberacao_plano_safra: 30,
+  mudanca_de_emprego: 30,
+  mudanca_regulatoria: 30,
+  ncm_nova_na_pauta: 30,
+  nova_lideranca: 30,
+  setor_afetado_cbs_ibs: 30,
+  vaga_comex: 30,
+  vaga_engenharia_manutencao: 30,
+  vaga_indeed: 30,
+  vaga_linkedin: 30,
+  vaga_logistica: 30,
+  volume_por_porto: 30,
+  // contexto
+  area_no_car: 15,
+  avaliacoes_google_maps: 15,
+  caged_por_empresa: 15,
+  cnae_eletrointensivo: 15,
+  entradas_e_saidas: 15,
+  grupo_a_cativo: 15,
+  meta_esg_publicada: 15,
+  processos_jusbrasil_datajud: 15,
+  processos_publicos: 15,
+  recuperacao_judicial: 15,
+  registros_empresariais: 15,
+  renovacao_de_apolice: 15,
+  vencimento_contrato_energia: 15,
+}
+
+export const PESO_PADRAO_DO_SINAL = 20
+
+export function pesoDoSinal(tipo: string): number {
+  return PESO_DO_SINAL[tipo] ?? PESO_PADRAO_DO_SINAL
+}
+
+/** A fração do peso que um Sinal ainda tem, `dias` depois do disparo: 1 até 30 dias, 0 a partir de 90, linear entre os dois. */
+export function decaimentoDoSinal(dias: number): number {
+  if (dias <= DIAS_DE_PESO_CHEIO) return 1
+  if (dias >= DIAS_ATE_ZERO) return 0
+  return (DIAS_ATE_ZERO - dias) / (DIAS_ATE_ZERO - DIAS_DE_PESO_CHEIO)
+}
+
+const MS_POR_DIA = 86_400_000
+
+export interface SinalParaNota {
+  /** O peso cheio gravado no motivo; sem ele, o do tipo. */
+  peso?: number
+  tipo: string
+  /** ISO 8601 do disparo. */
+  disparadoEm: string
+}
+
+/** A nota final: o Encaixe ICP (0 a 100) mais os Sinais com decaimento, que somam no máximo `TETO_DOS_SINAIS`. */
+export function notaFinal(encaixeIcp: number, sinais: SinalParaNota[], agora: number): number {
+  const soma = sinais.reduce((acc, s) => {
+    const dias = (agora - Date.parse(s.disparadoEm)) / MS_POR_DIA
+    return acc + (s.peso ?? pesoDoSinal(s.tipo)) * decaimentoDoSinal(dias)
+  }, 0)
+  return encaixeIcp + Math.min(TETO_DOS_SINAIS, soma)
+}
+
+/**
+ * O nível que a tela mostra. `encaixeAvaliado` diz se a busca avaliou a empresa no ICP: uma empresa avaliada que ficou
+ * fora do ICP é "baixo" mesmo com nota zero; uma que ninguém avaliou e não tem Sinal vigente fica "sem dado".
+ */
+export function nivelDaNota(nota: number, encaixeAvaliado: boolean): NivelDeEncaixe {
+  if (nota >= CORTE_ALTO) return 'alto'
+  if (nota >= CORTE_MEDIO) return 'medio'
+  return nota > 0 || encaixeAvaliado ? 'baixo' : 'sem_dado'
+}
+
+/**
+ * A ordem da lista: a maior nota primeiro e, no empate, o Sinal mais recente. `ultimoSinalEm` é o disparo mais recente
+ * entre os Sinais da candidata (ISO 8601), ou nulo.
+ */
+export function compararCandidatas(
+  a: { nota: number; ultimoSinalEm: string | null },
+  b: { nota: number; ultimoSinalEm: string | null },
+): number {
+  if (a.nota !== b.nota) return b.nota - a.nota
+  const ta = a.ultimoSinalEm ? Date.parse(a.ultimoSinalEm) : Number.NEGATIVE_INFINITY
+  const tb = b.ultimoSinalEm ? Date.parse(b.ultimoSinalEm) : Number.NEGATIVE_INFINITY
+  return tb - ta
+}

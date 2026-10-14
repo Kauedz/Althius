@@ -60,5 +60,5 @@ jobs:
       - run: deno test scripts/admin/limpar-sequencias-orfas.test.ts
       # Ninguém escreve o endereço da Unipile nem lê a chave da variável de função (canais-16): lê arquivos, então precisa de --allow-read.
       - run: deno test --allow-read=supabase/functions supabase/functions/_shared/unipile/sem-base-fixa.test.ts
-      # Os testes do Mapa de Sinais e dos ICPs C, G e H leem a migração que registra os Sinais (provam que o código e o banco combinam): precisam de --allow-read.
-      - run: deno test --allow-read=supabase/migrations,supabase/functions supabase/functions/_shared/mapa-de-sinais.test.ts supabase/functions/_shared/cascata-de-sinais/passos/icp-c.test.ts supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts
+      # Os testes do Mapa de Sinais, dos ICPs C, G e H e da nota da Descoberta leem as migrações (provam que o código e o banco combinam): precisam de --allow-read.
+      - run: deno test --allow-read=supabase/migrations,supabase/functions supabase/functions/_shared/mapa-de-sinais.test.ts supabase/functions/_shared/cascata-de-sinais/passos/icp-c.test.ts supabase/functions/_shared/cascata-de-sinais/passos/icp-g.test.ts supabase/functions/_shared/cascata-de-sinais/passos/icp-h.test.ts supabase/functions/account-discovery/pontuacao-nota.test.ts
