@@ -215,6 +215,34 @@ Deno.test('o custo por evento é lido de novo até estabilizar (o Apify fecha a 
   assertEquals((await c.rodar(ARGS)).custoUsd, 0.004)
 })
 
+Deno.test('o custo gravado é o usageTotalUsd do run, não a soma dos eventos que fecha antes', async () => {
+  const fake = apifyFalso({
+    [TOKEN_1]: {
+      itens: [{ a: 1 }],
+      pricingModel: 'PAY_PER_EVENT',
+      chargedEventCounts: { resultado: 1 },
+      precosDosEventos: { resultado: 1.25 },
+      usagePorLeitura: [0, 0, 1.25, 2.7, 2.7],
+      stats: { computeUnits: 0.02, runTimeSecs: 40 },
+    },
+  })
+  const { c, logs } = cliente(fake, [TOKEN_1], { esperaDoCustoMs: 1, releiturasDoCusto: 5 })
+  assertEquals((await c.rodar(ARGS)).custoUsd, 2.7)
+  assert(fake.requisicoes.some((q) => q.metodo === 'GET' && q.caminho.startsWith('/v2/actor-runs/')))
+  assert(logs.some((l) => (l as { outcome?: string; usageTotalUsd?: number }).outcome === 'run_cost' && (l as { usageTotalUsd?: number }).usageTotalUsd === 2.7))
+})
+
+Deno.test('sem usageTotalUsd no topo, o total em stats vale; a rotação das contas não muda', async () => {
+  const fake = apifyFalso({
+    [TOKEN_1]: { itens: [{ a: 1 }], semUsageNoTopo: true, stats: { usageTotalUsd: 0.42, computeUnits: 0.01 } },
+    [TOKEN_2]: { itens: [{ a: 2 }], usageTotalUsd: 0.01 },
+  })
+  const { c } = cliente(fake)
+  const primeira = await c.rodar(ARGS)
+  const segunda = await c.rodar(ARGS)
+  assertEquals([primeira.custoUsd, primeira.tokenIndex, segunda.tokenIndex], [0.42, 0, 1])
+})
+
 Deno.test('erro de rede vira falha da fonte, sem o token', async () => {
   const c = clienteAssincronoDoApify({
     tokens: [TOKEN_1],

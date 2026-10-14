@@ -342,9 +342,11 @@ export interface LoteDoActor {
   maxItems: number
   /** Prazo deste lote no actor, em segundos. Sem ele, vale o prazo que ainda resta na função. */
   timeoutSegundos?: number
+  /** Teto de dólar deste lote, além do que ainda resta na cascata. A chamada para no menor dos dois. */
+  tetoUsd?: number
 }
 
-export type EntradaDoActor = LoteDoActor | { lotes: LoteDoActor[] } | { pular: string }
+export type EntradaDoActor = LoteDoActor | { lotes: LoteDoActor[]; parcial?: boolean } | { pular: string }
 
 export interface FontePublica {
   buscar(entrada: Item[], ctx: ContextoDoPasso): Promise<Item[]>
@@ -353,9 +355,9 @@ export interface FontePublica {
 /** Como um passo monta a entrada e lê a saída. Cada `handler` do registro tem uma. */
 export interface ImplDoPasso {
   /** Passo de actor: a entrada do actor (ou o motivo de pular o passo, sem custo). */
-  montarEntrada?(entrada: Item[], ctx: ContextoDoPasso, actorId: string): EntradaDoActor
+  montarEntrada?(entrada: Item[], ctx: ContextoDoPasso, actorId: string): EntradaDoActor | Promise<EntradaDoActor>
   /** Passo de actor: o resultado bruto vira itens normalizados para o passo seguinte. */
-  normalizar?(brutos: unknown[], entrada: Item[], ctx: ContextoDoPasso, actorId: string): Item[]
+  normalizar?(brutos: unknown[], entrada: Item[], ctx: ContextoDoPasso, actorId: string): Item[] | Promise<Item[]>
   /**
    * Quando o principal devolve itens, diz se eles conferem com a consulta e a janela de datas.
    * `false` com bruto não vazio dispara a alternativa (o mesmo caminho da falha). Lista vazia de verdade não chama isto.

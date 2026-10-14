@@ -1,0 +1,231 @@
+{
+ "res": {
+  "label": "dou_brasildados",
+  "actor": "brasildados~dou-monitor",
+  "status": "SUCCEEDED",
+  "runId": "WAIucVq06PpLoFYYa",
+  "cost": 0.1,
+  "items": 10,
+  "logtail": "2026-10-13T17:47:59.505Z ACTOR: Pulling container image of build mbvFiHORN7SQ1Hhh9 from registry.\n2026-10-13T17:48:00.854Z ACTOR: Creating container.\n2026-10-13T17:48:00.913Z ACTOR: Starting container.\n2026-10-13T17:48:00.917Z ACTOR: Running under \"LIMITED_PERMISSIONS\".\n2026-10-13T17:48:01.268Z \n2026-10-13T17:48:01.270Z > dou-monitor@1.0.0 start\n2026-10-13T17:48:01.272Z > node dist/main.js\n2026-10-13T17:48:01.274Z \n2026-10-13T17:48:01.559Z INFO  System info {\"apifyVersion\":\"3.7.2\",\"apifyClientVersion\":\"2.25.0\",\"crawleeVersion\":\"3.18.1\",\"osType\":\"Linux\",\"nodeVersion\":\"v24.21.0\"}\n2026-10-13T17:48:01.670Z INFO  Buscando 1 termo(s) no DOU (últimos 3 dias, seção: DO1)\n2026-10-13T17:48:03.249Z INFO  Termo \"licença de instalação\": 20 publicação(ões)\n2026-10-13T17:48:03.341Z INFO  Concluído. 20 publicação(ões) retornadas.\n",
+  "usage_before": 0.46268376842423875,
+  "usage_after": 0.4629837684242388
+ },
+ "input": {
+  "q": [
+   "licença de instalação"
+  ],
+  "s": "DO1"
+ },
+ "items": [
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "DESPACHOS De 9 de outubro de 2026",
+   "tipo": "Despacho",
+   "ocorrencias": [
+    "INSTALACAO"
+   ],
+   "resumo": "Processo: 08228.029023/2026-91 Requerente: ALLSEAS BRASIL SERVICOS DE INSTALACAO DE DUTOS LTDA. ... Processo: 08228.029025/2026-81 Requerente: ALLSEAS BRASIL SERVICOS DE INSTALACAO DE DUTOS LTDA. ... Processo: 08228.029227/2026-21 Requerente: ALLSEAS BRASIL SERVICOS DE INSTALACAO DE DUTOS LTDA. ... Processo: 08228.029237/2026-67 Requerente: ALLSEAS BRASIL SERVICOS DE INSTALACAO DE DUTOS LTDA. ... Processo: 08228.029692/2026-62 Requerente: ALLSEAS BRASIL SERVICOS DE INSTALACAO DE DUTOS LTDA.",
+   "url": "https://www.in.gov.br/web/dou/-/despachos-de-9-de-outubro-de-2026-737796444",
+   "edicao": "193",
+   "pagina": "62",
+   "hierarquia": [
+    "Ministério da Justiça e Segurança Pública",
+    "Secretaria Nacional de Justiça",
+    "Departamento de Migrações",
+    "Coordenação-Geral de Imigração Laboral"
+   ],
+   "orgao": "Ministério da Justiça e Segurança Pública/Secretaria Nacional de Justiça/Departamento de Migrações/Coordenação-Geral de Imigração Laboral",
+   "idPublicacao": "737796446",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "PORTARIA SEFIC/MINC Nº 689, DE 9 DE OUTUBRO DE 2026",
+   "tipo": "Portaria",
+   "ocorrencias": [
+    "instalação"
+   ],
+   "resumo": "A mostra contará com painéis fotográficos, xilogravuras, cards poéticos gratuitos e a instalação audiovisual ... Aprovado: R$ 96.525,00 Prazo de Captação: 13/10/2026 à 31/12/2026 Resumo do Projeto: Realização de instalaçãoPORTARIA SEFIC/MINC Nº 689, DE 9 DE OUTUBRO DE 2026 O SECRETÁRIO D...",
+   "url": "https://www.in.gov.br/web/dou/-/portaria-sefic/minc-n-689-de-9-de-outubro-de-2026-737793523",
+   "edicao": "193",
+   "pagina": "23",
+   "hierarquia": [
+    "Ministério da Cultura",
+    "Secretaria de Fomento e Incentivo à Cultura"
+   ],
+   "orgao": "Ministério da Cultura/Secretaria de Fomento e Incentivo à Cultura",
+   "idPublicacao": "737793525",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "Despacho",
+   "tipo": "Despacho",
+   "ocorrencias": [
+    "Licença"
+   ],
+   "resumo": "Autorização de Pesquisa Despacho publicado(256) 830.130/2018-DEUSDETE CARNEIRO SILVA COSTA-Guia de Utilização Licença ... 830.557/2018-JOSE CARLOS DA SILVA Fase de Licenciamento Autoriza averbação da Prorrogação do Registro de Licença ... (742) 830.489/2018-MINERACAO NOVA IMPERATRIZ LTDA- Registro de Licença N° 5121/2019 - Vencimento em 17 ... Licença Ambiental. - Ofício nº 52571/2026/COROUT-MG/ANM 830.047/2004-EMFX MINERACAO LTDA-Guia de Utilização ... Licença Ambiental - Ofício nº 51800/2026/COROUT-MG/ANM Determina cumprimento de exigência - Prazo 60",
+   "url": "https://www.in.gov.br/web/dou/-/despacho-737792989",
+   "edicao": "193",
+   "pagina": "77",
+   "hierarquia": [
+    "Ministério de Minas e Energia",
+    "Agência Nacional de Mineração",
+    "Gerência Regional da ANM no Estado de Minas Gerais"
+   ],
+   "orgao": "Ministério de Minas e Energia/Agência Nacional de Mineração/Gerência Regional da ANM no Estado de Minas Gerais",
+   "idPublicacao": "737792993",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "DESPACHO SSO-ANP Nº 1.557, DE 9 DE OUTUBRO DE 2026",
+   "tipo": "Despacho",
+   "ocorrencias": [
+    "Instalação"
+   ],
+   "resumo": "nº 48610.222658/2025-85, resolve: Aprovar a Documentação de Segurança Operacional (DSO) relativa à Instalação ... Marítima Lone Star (SS-79) / Operador do Contrato: Brava Energia S.A. / Operador da Instalação: ServiçosDESPACHO SSO-ANP Nº 1.557, DE 9 DE OUTUBRO DE 2026 A SUPERINTENDENTE D...",
+   "url": "https://www.in.gov.br/web/dou/-/despacho-sso-anp-n-1.557-de-9-de-outubro-de-2026-737792801",
+   "edicao": "193",
+   "pagina": "83",
+   "hierarquia": [
+    "Ministério de Minas e Energia",
+    "Agência Nacional do Petróleo, Gás Natural e Biocombustíveis",
+    "Superintendência de Segurança Operacional"
+   ],
+   "orgao": "Ministério de Minas e Energia/Agência Nacional do Petróleo, Gás Natural e Biocombustíveis/Superintendência de Segurança Operacional",
+   "idPublicacao": "737792803",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "DESPACHO SDL-ANP Nº 1.561, DE 9 DE OUTUBRO DE 2026",
+   "tipo": "Despacho",
+   "ocorrencias": [
+    "instalações"
+   ],
+   "resumo": "autorizações para o exercício da atividade de revenda de gás liquefeito de petróleo - GLP, observado: I) as instalaçõesDESPACHO SDL-ANP Nº 1.561, DE 9 DE OUTUBRO DE 2026 O SUPERINTENDENTE ADJUNTO DE DISTRIBUIÇÃO E LOGÍSTICA DA AGÊNCIA NACIONAL DO PETRÓLEO, GÁS NATURAL E BIOCOMBUSTÍVEIS - ANP, no uso das atribuições que lhe foram conferidas pe...",
+   "url": "https://www.in.gov.br/web/dou/-/despacho-sdl-anp-n-1.561-de-9-de-outubro-de-2026-737792669",
+   "edicao": "193",
+   "pagina": "84",
+   "hierarquia": [
+    "Ministério de Minas e Energia",
+    "Agência Nacional do Petróleo, Gás Natural e Biocombustíveis",
+    "Superintendência de Distribuição e Logística"
+   ],
+   "orgao": "Ministério de Minas e Energia/Agência Nacional do Petróleo, Gás Natural e Biocombustíveis/Superintendência de Distribuição e Logística",
+   "idPublicacao": "737792671",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "DECISÃO SUPAS Nº 1.417, DE 5 DE OUTUBRO DE 2026",
+   "tipo": "Decisão",
+   "ocorrencias": [
+    "licenças"
+   ],
+   "resumo": "Art. 7º Será disponibilizado às autorizatárias o acesso ao sistema para a emissão das licenças de viagemDECISÃO SUPAS Nº 1.417, DE 5 DE OUTUBRO DE 2026 O Superintendente de Serviços de Transporte Rodoviário de Passageiros Substituto da Agência Nacional de Transportes Terrestres - ANTT, no uso de suas atribuições, em conformidade com o art. 3º...",
+   "url": "https://www.in.gov.br/web/dou/-/decisao-supas-n-1.417-de-5-de-outubro-de-2026-737791934",
+   "edicao": "193",
+   "pagina": "171",
+   "hierarquia": [
+    "Ministério dos Transportes",
+    "Agência Nacional de Transportes Terrestres",
+    "Superintendência de Serviços de Transporte Rodoviário de Passageiros"
+   ],
+   "orgao": "Ministério dos Transportes/Agência Nacional de Transportes Terrestres/Superintendência de Serviços de Transporte Rodoviário de Passageiros",
+   "idPublicacao": "737791936",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "DECISÃO SUROC Nº 621, DE 5 DE OUTUBRO DE 2026",
+   "tipo": "Decisão",
+   "ocorrencias": [
+    "Licença"
+   ],
+   "resumo": "rodoviário internacional de cargas, pelas fronteiras habilitadas, e emitir os respectivos Certificados de Licença Originária, que terão vigência de 10 (dez) anos a partir de suas datas de emissão, e a Relação de frota habilitada, com tráfego bilateral entre: I - Brasil e Argentina; II - Brasil e Chile, com trânsito pela Argentina; III - Brasil e Paraguai; e IV - Brasil e Uruguai. Art. 2º Esta Decisão entra em vigor na data da sua publicação. JOSE AIRES AMARAL FILHO",
+   "url": "https://www.in.gov.br/web/dou/-/decisao-suroc-n-621-de-5-de-outubro-de-2026-737791806",
+   "edicao": "193",
+   "pagina": "172",
+   "hierarquia": [
+    "Ministério dos Transportes",
+    "Agência Nacional de Transportes Terrestres",
+    "Superintendência de Serviços de Transporte Rodoviário e Multimodal de Cargas"
+   ],
+   "orgao": "Ministério dos Transportes/Agência Nacional de Transportes Terrestres/Superintendência de Serviços de Transporte Rodoviário e Multimodal de Cargas",
+   "idPublicacao": "737791808",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "Despacho",
+   "tipo": "Despacho",
+   "ocorrencias": [
+    "Licença"
+   ],
+   "resumo": "N°29580/2026/GER-PI/ANM Autoriza averbação da Prorrogação do Registro de Licença(742) 803.556/2012-ELITES ... SEFERES CHEVES COSTA BULAMARQUES DE SOUZA- Registro de Licença N° 02/2013 - Vencimento em 15/05/2036 ... COSTA BULAMARQUES DE SOUZA- Cessionário:Mineradora Extrema Ltda- CNPJ 62.377.541/0001-90- Registro de Licença ... N° 02/2013- Vencimento da Licença: 15/05/2036 Fase de Requerimento de Lavra Determina cumprimento de",
+   "url": "https://www.in.gov.br/web/dou/-/despacho-737790988",
+   "edicao": "193",
+   "pagina": "79",
+   "hierarquia": [
+    "Ministério de Minas e Energia",
+    "Agência Nacional de Mineração",
+    "Gerência Regional da ANM no Estado do Piauí"
+   ],
+   "orgao": "Ministério de Minas e Energia/Agência Nacional de Mineração/Gerência Regional da ANM no Estado do Piauí",
+   "idPublicacao": "737790990",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "DESPACHO Nº 3.912, DE 6 DE OUTUBRO DE 2026",
+   "tipo": "Despacho",
+   "ocorrencias": [
+    "instalações"
+   ],
+   "resumo": "Permissões e Autorizações dos Serviços de Energia Elétrica - SCE, que autorizou a implantação de reforços em instalações regimentais, de acordo com a deliberação da Diretoria, bem como o que consta do Processo nº 48500.905565/2023-73, decide: conhecer do Pedido de Reconsideração interposto pela Linha de Transmissão do Itatim S/A - ITATIM, ins...",
+   "url": "https://www.in.gov.br/web/dou/-/despacho-n-3.912-de-6-de-outubro-de-2026-737790860",
+   "edicao": "193",
+   "pagina": "81",
+   "hierarquia": [
+    "Ministério de Minas e Energia",
+    "Agência Nacional de Energia Elétrica",
+    "Diretoria Colegiada"
+   ],
+   "orgao": "Ministério de Minas e Energia/Agência Nacional de Energia Elétrica/Diretoria Colegiada",
+   "idPublicacao": "737790862",
+   "termoBuscado": "licença de instalação"
+  },
+  {
+   "secao": "DO1",
+   "data": "13/10/2026",
+   "titulo": "DECISÃO SUROC Nº 612, DE 2 DE OUTUBRO DE 2026",
+   "tipo": "Decisão",
+   "ocorrencias": [
+    "Licença"
+   ],
+   "resumo": "Chile, com trânsito pela Argentina, pelas fronteiras habilitadas, e emitir o respectivo Certificado de LicençaDECISÃO SUROC Nº 612, DE 2 DE OUTUBRO DE 2026 A Superintendente de Serviços de Transporte Rodoviário e Multimodal de Cargas Substituta, da Agência Nacional de Transportes Terrestres - ANTT, no uso de suas atribuições, em conformidade ...",
+   "url": "https://www.in.gov.br/web/dou/-/decisao-suroc-n-612-de-2-de-outubro-de-2026-737790507",
+   "edicao": "193",
+   "pagina": "172",
+   "hierarquia": [
+    "Ministério dos Transportes",
+    "Agência Nacional de Transportes Terrestres",
+    "Superintendência de Serviços de Transporte Rodoviário e Multimodal de Cargas"
+   ],
+   "orgao": "Ministério dos Transportes/Agência Nacional de Transportes Terrestres/Superintendência de Serviços de Transporte Rodoviário e Multimodal de Cargas",
+   "idPublicacao": "737790514",
+   "termoBuscado": "licença de instalação"
+  }
+ ]
+}

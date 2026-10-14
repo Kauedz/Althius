@@ -11,21 +11,12 @@
 import { contemAlgum, objetos, primeiroTexto, recortar, LIMITES, normalizar } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ImplDoPasso, Item } from '../tipos.ts'
 import { cnpjLimpo, dentroDoPeriodo, janelaDoPasso, texto } from './comum.ts'
+import { dataDoDou } from './data-dou.ts'
 import { dataBr } from './icp-e-formato.ts'
 
 const MAX_SINAIS_POR_RODADA = 15
 const CPF = /\bCPF\b|\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/i
 const CNPJ = /\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/
-
-/** "09/10/2026" ou "2026-10-09" em ISO ao meio-dia UTC; nulo se não for data. */
-function dataDoDou(valor: string): string | null {
-  const br = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(valor)
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(valor)
-  const [a, m, d] = br ? [br[3], br[2], br[1]] : iso ? [iso[1], iso[2], iso[3]] : []
-  if (!a) return null
-  const ms = Date.UTC(Number(a), Number(m) - 1, Number(d), 12)
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString()
-}
 
 const cnpjFormatado = (c: string) => `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
 const SECOES: Record<string, string> = { do1: 'Seção 1', do2: 'Seção 2', do3: 'Seção 3' }

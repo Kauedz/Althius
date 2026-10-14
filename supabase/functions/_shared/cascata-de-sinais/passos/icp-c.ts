@@ -10,6 +10,7 @@
 import { contemAlgum, LIMITES, mesmaEmpresa, nomeDaEmpresa, normalizar, objetos, primeiroTexto, recortar } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ContextoDoPasso, ImplDoPasso, Item, Llm, RegistroDePassos } from '../tipos.ts'
 import { cnpjLimpo, dataIso, dentroDoPeriodo, janelaDoPasso, listaDoPasso, objeto, texto } from './comum.ts'
+import { dataDoDou } from './data-dou.ts'
 import { type EmpresaDoFato, type Fato, itemDeEmpresaComFatos } from './empresas.ts'
 import {
   IMPACTO_DA_REFORMA, type ImpactoDoSetor, SETOR_DA_REFORMA, classificarPorPalavras, divisaoDoCnae, impactoDaDivisao,
@@ -158,12 +159,6 @@ const saltosDeProcessos: ImplDoPasso = {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // C2 · Mudança regulatória (DOU)
-
-/** "08/10/2026" → ISO ao meio-dia UTC; nulo se não for data. */
-function dataDoDou(v: unknown): string | null {
-  const m = texto(v).match(/^(\d{2})\/(\d{2})\/(\d{4})/)
-  return m ? dataIso(`${m[3]}-${m[2]}-${m[1]}T12:00:00Z`) : dataIso(v)
-}
 
 /** CPF (com ou sem máscara) que apareça num texto do Diário Oficial nunca segue adiante. */
 const semCpf = (t: string) => t.replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b|\*{3}\.?\d{3}\.?\d{3}-?\*{2}/g, '[cpf omitido]')

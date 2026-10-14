@@ -1,5 +1,15 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Cascatas — confiabilidade (DOU, ESG, custo, CNPJ novo, amostra) (2026-10-14)
+
+- **Tickets:** `.scratch/cascatas-confiabilidade/issues/01` a `05`
+- **Status:** ready-for-human (código e Deno verdes; falta o Nan aplicar a migração e publicar as funções, com o CI verde)
+- **Branch:** `cursor/cascatas-confiabilidade-2a0f`
+- **O que muda:** data do DOU em `dd/mm/aaaa` com ISO de reserva; meta ESG em lotes de 10 com prazo e cursor; custo do run lido de `usageTotalUsd`; CNPJ novo para em 25 empresas e US$ 0,20; amostra de validação nas cascatas de Conta que descartam a empresa antes do casamento.
+- **Migração nova (não aplicar daqui):** `supabase/migrations/20261015130000_teto_do_cnpj_novo.sql`. Sem deploy. Sem escrita no projeto remoto. Sem segredo.
+- **Testes (2026-10-14):** `deno check supabase/functions/*/index.ts` limpo. `deno test supabase/functions` 1372 passed / 0 failed / 34 ignored. Com `--allow-read`, mapa + icp-c + icp-g + icp-h: 77 passed / 0 failed. pgTAP `teto_do_cnpj_novo.sql` (`plan(4)`) não rodou aqui.
+- **O que o humano roda, depois do CI verde:** aplicar essa migração no `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico (`docs/agents/migrations.md`) e publicar `signal-cascade` e `signal-runner`. Comandos no ticket 04, seção Passos do Nan. Não marcar cascata como disponível.
+
 ## Sinais em cascata — cache das fontes e segunda passagem (2026-10-13)
 
 - **Ticket:** `.scratch/sinais-cascata/issues/16-cache-fontes-e-segunda-passagem.md`

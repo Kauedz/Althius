@@ -158,9 +158,33 @@ function itemDeEmpresaNova(e: EmpresaNova): Item | null {
   })
 }
 
+const TETO_RESULTADOS_PADRAO = 25
+const TETO_USD_PADRAO = 0.2
+
+function numeroPositivo(v: unknown): number | null {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/** Quantas empresas esta rodada ainda pode trazer. Padrão 25; o pedido ou o modelo do passo mudam, sem passar de `maxItems`. */
+function tetoDeResultados(ctx: ContextoDoPasso): number {
+  const pedido = numeroPositivo(ctx.criterios.tetoResultados ?? ctx.def.inputTemplate.tetoResultados)
+  const configurado = pedido === null ? TETO_RESULTADOS_PADRAO : Math.floor(pedido)
+  const doPasso = ctx.def.maxItems ?? configurado
+  return Math.min(Math.max(configurado, 1), doPasso, 500)
+}
+
+/** Dólar que esta chamada pode gastar. Padrão US$ 0,20; o motor ainda corta pelo que resta do teto da cascata. */
+function tetoDeCusto(ctx: ContextoDoPasso): number {
+  return numeroPositivo(ctx.criterios.tetoUsd ?? ctx.def.inputTemplate.tetoUsd) ?? TETO_USD_PADRAO
+}
+
 const cnpjNovosDaReceita: ImplDoPasso = {
+  itensCobrados: (_entrada, ctx) => tetoDeResultados(ctx),
+
   montarEntrada(_entrada, ctx, actorId) {
-    const maximo = ctx.def.maxItems ?? 100
+    const maximo = tetoDeResultados(ctx)
+    const tetoUsd = tetoDeCusto(ctx)
     const ufs = ufsDoPedido(ctx)
     const cnaes = cnaesDoPedido(ctx)
     const portes = portesDoPedido(ctx)
@@ -177,6 +201,7 @@ const cnpjNovosDaReceita: ImplDoPasso = {
           maxResultados: maximo,
         },
         maxItems: maximo,
+        tetoUsd,
       }
     }
     if (actorId.startsWith('epicscrapers~')) {
@@ -184,6 +209,7 @@ const cnpjNovosDaReceita: ImplDoPasso = {
       return {
         input: { uf: ufs[0] ?? 'SP', ...(cnaes.length ? { cnae: cnaes[0] } : {}), maxItems: maximo, pageSize: Math.min(maximo, 100) },
         maxItems: maximo,
+        tetoUsd,
       }
     }
     const mes = mesDoPedido(ctx)
@@ -196,13 +222,15 @@ const cnpjNovosDaReceita: ImplDoPasso = {
         maxResults: maximo,
       },
       maxItems: maximo,
+      tetoUsd,
     }
   },
 
   normalizar(brutos, _entrada, ctx, actorId) {
     const vistos = new Set<string>()
     const janela = janelaDeAbertura(ctx)
-    return objetos(brutos).flatMap((b): Item[] => {
+    const teto = tetoDeResultados(ctx)
+    const saida = objetos(brutos).flatMap((b): Item[] => {
       let nova: EmpresaNova
       if (actorId.startsWith('brazilayer~')) {
         nova = {
@@ -233,6 +261,7 @@ const cnpjNovosDaReceita: ImplDoPasso = {
       const item = itemDeEmpresaNova(nova)
       return item ? [item] : []
     })
+    return saida.slice(0, teto)
   },
 }
 

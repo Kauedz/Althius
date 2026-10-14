@@ -19,7 +19,7 @@ import { lerJson } from '../fonte-publica.ts'
 import type { ContaDoWorkspace, ContextoDoPasso, FontePublica, ImplDoPasso, Item, RegistroDePassos } from '../tipos.ts'
 import { cnpjLimpo, dataIso, dominio, lista, nomeDaEmpresa, objeto, paginaDoLinkedin, texto } from './comum.ts'
 import { CRITERIO_CNAE_ELETROINTENSIVO, cnaeDoRodizio, cnaeEletrointensivo, cnaeLimpo } from './icp-d-cnae.ts'
-import { contaDaEmpresa, empresaComFatosDoItem, type EmpresaDoFato, type Fato, itemDeEmpresaComFatos } from './empresas.ts'
+import { contaDaEmpresa, empresaComFatosDoItem, lembrarAmostra, type EmpresaDoFato, type Fato, itemDeEmpresaComFatos } from './empresas.ts'
 
 type Opcoes = { dormir?: (ms: number) => Promise<void>; esperaMs?: number }
 
@@ -176,9 +176,14 @@ const fatosCnaeEletrointensivo: ImplDoPasso = {
     const saida: Item[] = []
     for (const i of entrada) {
       const e = receitaDoItem(i)
-      const t = e ? cnaeEletrointensivo(e.cnae) : undefined
-      const casada = e && t ? casarReceita(ctx.contas, e) : undefined
-      if (!e || !t || !casada) continue
+      if (!e) continue
+      const casada = casarReceita(ctx.contas, e)
+      if (!casada) {
+        lembrarAmostra(ctx, [{ cnpj: e.cnpj, nome: e.razao || e.fantasia }])
+        continue
+      }
+      const t = cnaeEletrointensivo(e.cnae)
+      if (!t) continue
       const fato: Fato = {
         chave: `cnae_eletrointensivo|${t.codigo}`,
         frase: `Atua em setor eletrointensivo: ${t.descricao} (CNAE ${t.codigo})`,
@@ -346,11 +351,13 @@ export function cceeAgentes(fetchFn: typeof fetch = fetch, opcoes: Opcoes = {}):
   }
   return {
     async buscar(entrada, ctx) {
-      // Só vale ler a lista se alguma empresa achada é Conta: o resto não vira Sinal de qualquer jeito.
-      const candidatas = entrada.flatMap((i) => {
+      // Só vale ler a lista se alguma empresa achada é Conta: o resto não vira Sinal, mas entra na amostra da validação.
+      const empresas = entrada.flatMap((i) => {
         const e = receitaDoItem(i)
-        return e && casarReceita(ctx.contas, e) ? [e] : []
+        return e ? [e] : []
       })
+      const candidatas = empresas.filter((e) => casarReceita(ctx.contas, e))
+      lembrarAmostra(ctx, empresas.filter((e) => !casarReceita(ctx.contas, e)).map((e) => ({ cnpj: e.cnpj, nome: e.razao || e.fantasia })))
       if (!candidatas.length) return []
 
       const copiada = listaDaCopia(await ctx.cacheFonte?.ler(FONTE_DA_LISTA, CHAVE_DA_LISTA, null))
@@ -600,9 +607,20 @@ const TERMOS_DE_RELATORIO = ['relatório de sustentabilidade', 'relatório ESG',
 
 const termosDe = (ctx: ContextoDoPasso, chave: string, padrao: string[]) => (lista(ctx.def.inputTemplate[chave]).length ? lista(ctx.def.inputTemplate[chave]) : padrao)
 
-function consultasEsg(ctx: ContextoDoPasso): { query: string; conta: ContaDoWorkspace; tema: 'meta' | 'relatorio' }[] {
+const EMPRESAS_POR_LOTE_ESG = 10
+const PRAZO_DO_LOTE_ESG_S = 35
+const CHAVE_DO_CURSOR_ESG = 'busca-esg'
+
+interface PlanoEsg {
+  lotes: { contas: ContaDoWorkspace[] }[]
+  inicio: number
+  assinatura: string
+  total: number
+  prazo: number
+}
+
+function consultasDasContas(contas: ContaDoWorkspace[], ctx: ContextoDoPasso): { query: string; conta: ContaDoWorkspace; tema: 'meta' | 'relatorio' }[] {
   const consultas = lista(ctx.def.inputTemplate.consultas).length ? lista(ctx.def.inputTemplate.consultas) : ['relatório de sustentabilidade', 'net zero']
-  const contas = ctx.contas.slice(0, Math.max(Math.floor((ctx.def.maxItems ?? 100) / consultas.length), 1))
   return contas.flatMap((conta) =>
     consultas.map((c) => ({
       query: `"${semAspas(conta.name)}" "${semAspas(c)}"`, conta, tema: contemAlgum(c, ['net zero', 'meta', 'metas', 'neutralidade']) ? 'meta' as const : 'relatorio' as const,
@@ -610,21 +628,61 @@ function consultasEsg(ctx: ContextoDoPasso): { query: string; conta: ContaDoWork
   )
 }
 
+function contasOrdenadas(ctx: ContextoDoPasso): ContaDoWorkspace[] {
+  return [...ctx.contas].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
+
+/** O plano desta rodada: a partir de onde a anterior parou, em lotes de 10 empresas. Lista de Contas diferente recomeça. */
+async function planoDaBuscaEsg(ctx: ContextoDoPasso): Promise<PlanoEsg | null> {
+  const todas = contasOrdenadas(ctx)
+  if (!todas.length) return null
+  const porLote = limitar(ctx.criterios.empresasPorLote ?? ctx.def.inputTemplate.empresasPorLote, EMPRESAS_POR_LOTE_ESG, 1, 50)
+  const prazo = limitar(ctx.criterios.prazoSegundos ?? ctx.def.inputTemplate.prazoSegundos, PRAZO_DO_LOTE_ESG_S, 10, 90)
+  const assinatura = todas.map((c) => c.id).join('\n')
+  let inicio = 0
+  try {
+    const foto = await ctx.snapshots.ler([CHAVE_DO_CURSOR_ESG])
+    const data = foto.get(CHAVE_DO_CURSOR_ESG)?.data
+    const indice = Number(data?.indice)
+    if (data?.assinatura === assinatura && Number.isInteger(indice) && indice >= 0 && indice < todas.length) inicio = indice
+  } catch {
+    inicio = 0
+  }
+  const lotes: { contas: ContaDoWorkspace[] }[] = []
+  for (let i = inicio; i < todas.length; i += porLote) lotes.push({ contas: todas.slice(i, i + porLote) })
+  return { lotes, inicio, assinatura, total: todas.length, prazo }
+}
+
+function consultasEsg(ctx: ContextoDoPasso): { query: string; conta: ContaDoWorkspace; tema: 'meta' | 'relatorio' }[] {
+  const plano = ctx.memoria.get('planoEsg') as PlanoEsg | undefined
+  const contas = plano ? plano.lotes.flatMap((l) => l.contas) : contasOrdenadas(ctx)
+  return consultasDasContas(contas, ctx)
+}
+
+function entradaDoLote(contas: ContaDoWorkspace[], ctx: ContextoDoPasso, prazo: number) {
+  const consultas = consultasDasContas(contas, ctx)
+  return {
+    input: { keyword: consultas.map((c) => c.query).join('\n'), limit: '10', include_merged: false, gl: 'BR', hl: 'pt' },
+    maxItems: consultas.length,
+    timeoutSegundos: prazo,
+  }
+}
+
 const buscaEsg: ImplDoPasso = {
   itensCobrados: (_entrada, ctx) => consultasEsg(ctx).length,
 
-  montarEntrada(_entrada, ctx) {
-    const consultas = consultasEsg(ctx)
-    if (!consultas.length) return { pular: 'Nenhuma Conta para buscar.' }
-    return {
-      input: { keyword: consultas.map((c) => c.query).join('\n'), limit: '10', include_merged: false, gl: 'BR', hl: 'pt' },
-      maxItems: consultas.length,
-    }
+  async montarEntrada(_entrada, ctx) {
+    const plano = await planoDaBuscaEsg(ctx)
+    if (!plano) return { pular: 'Nenhuma Conta para buscar.' }
+    ctx.memoria.set('planoEsg', plano)
+    const lotes = plano.lotes.map((l) => entradaDoLote(l.contas, ctx, plano.prazo))
+    return lotes.length === 1 ? lotes[0] : { lotes, parcial: true }
   },
 
-  normalizar(brutos, _entrada, ctx) {
+  async normalizar(brutos, _entrada, ctx) {
+    const plano = ctx.memoria.get('planoEsg') as PlanoEsg | undefined
     const porConsulta = new Map(consultasEsg(ctx).map((c) => [c.query, c]))
-    return objetos(brutos).flatMap((linha) => {
+    const saida = objetos(brutos).flatMap((linha) => {
       const consulta = porConsulta.get(texto(linha.query))
       if (!consulta) return []
       return objetos(Array.isArray(linha.results) ? linha.results : []).flatMap((r): Item[] => {
@@ -632,6 +690,18 @@ const buscaEsg: ImplDoPasso = {
         return url ? [{ tipo: 'esg_resultado', contaId: consulta.conta.id, tema: consulta.tema, url, titulo: texto(r.title), descricao: texto(r.description) }] : []
       })
     })
+    if (plano) {
+      const concluidos = Number(ctx.memoria.get('lotesConcluidos') ?? plano.lotes.length)
+      let indice = plano.inicio
+      for (let i = 0; i < concluidos && i < plano.lotes.length; i++) indice += plano.lotes[i].contas.length
+      if (indice >= plano.total) indice = 0
+      try {
+        await ctx.snapshots.gravar([{ chave: CHAVE_DO_CURSOR_ESG, data: { indice, assinatura: plano.assinatura, total: plano.total } }])
+      } catch {
+        // Sem o cursor, a próxima rodada recomeça do início.
+      }
+    }
+    return saida
   },
 }
 
