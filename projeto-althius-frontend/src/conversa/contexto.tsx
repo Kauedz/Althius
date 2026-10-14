@@ -28,6 +28,10 @@ interface Conversas {
   continuar(pedido: Mensagem): void
   /** Abre uma Conversa coordenada salva no lugar da atual: o pedido seguinte a continua. Sem efeito onde não há Conversas salvas. */
   abrir(id: string): Promise<void>
+  /** Abre uma Conversa salva com o Agente no lugar da atual: o pedido seguinte a continua. */
+  abrirDoAgente(agenteId: AgenteId, id: string): Promise<void>
+  /** Começa uma Conversa nova com o Agente: a tela fica vazia e o pedido seguinte não continua a anterior. */
+  novaDoAgente(agenteId: AgenteId): void
   animarDigitacao: boolean
 }
 
@@ -189,6 +193,57 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
     [fonte, mudarCoordenada],
   )
 
+  // Qual abertura de Conversa vale em cada Agente, como na Coordenação.
+  const aberturaDoAgente = useRef(new Map<AgenteId, number>())
+
+  const abrirDoAgente = useCallback(
+    async (agenteId: AgenteId, id: string) => {
+      if (!fonte.abrirConversaDoAgente) return
+      const abertura = (aberturaDoAgente.current.get(agenteId) ?? 0) + 1
+      aberturaDoAgente.current.set(agenteId, abertura)
+      const vale = () => aberturaDoAgente.current.get(agenteId) === abertura
+      const conversa = await fonte.abrirConversaDoAgente(agenteId, id)
+      if (!vale()) return
+      pedidosDaSessao.current.add(agenteId)
+      const itens = conversa.turnos.flatMap((turno): ItemDaConversa[] => [
+        { id: proximoId++, tipo: 'usuario', texto: turno.pedido },
+        ...turno.passos.map((passo) => ({ id: proximoId++, ...passo })),
+      ])
+      setEstado((atual) => ({
+        ...atual,
+        itens: { ...atual.itens, [agenteId]: itens },
+        respondendo: { ...atual.respondendo, [agenteId]: Boolean(conversa.emAndamento) },
+      }))
+      const emAndamento = conversa.emAndamento
+      if (!emAndamento) return
+      void (async () => {
+        try {
+          for await (const passo of emAndamento) {
+            if (!vale()) return
+            adicionar(agenteId, { id: proximoId++, ...passo })
+          }
+        } finally {
+          if (vale()) definirRespondendo(agenteId, false)
+        }
+      })()
+    },
+    [fonte, adicionar, definirRespondendo],
+  )
+
+  const novaDoAgente = useCallback(
+    (agenteId: AgenteId) => {
+      aberturaDoAgente.current.set(agenteId, (aberturaDoAgente.current.get(agenteId) ?? 0) + 1)
+      pedidosDaSessao.current.add(agenteId)
+      fonte.novaConversaDoAgente?.(agenteId)
+      setEstado((atual) => ({
+        ...atual,
+        itens: { ...atual.itens, [agenteId]: [] },
+        respondendo: { ...atual.respondendo, [agenteId]: false },
+      }))
+    },
+    [fonte],
+  )
+
   /** Envia um pedido à Coordenação: numa Conversa nova, ou continuando a atual. */
   const pedirACoordenacao = useCallback(
     async (pedido: Mensagem, continuando: boolean) => {
@@ -219,9 +274,11 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       coordenar: (pedido) => void pedirACoordenacao(pedido, false),
       continuar: (pedido) => void pedirACoordenacao(pedido, true),
       abrir,
+      abrirDoAgente,
+      novaDoAgente,
       animarDigitacao,
     }),
-    [estado, enviar, pedirACoordenacao, abrir, animarDigitacao],
+    [estado, enviar, pedirACoordenacao, abrir, abrirDoAgente, novaDoAgente, animarDigitacao],
   )
 
   return <ContextoDasConversas.Provider value={valor}>{children}</ContextoDasConversas.Provider>

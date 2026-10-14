@@ -794,6 +794,21 @@ export interface FonteDeAgentes extends FonteObservavel {
   abrirConversa?(id: string): Promise<ConversaRetomada<PassoDaCoordenacao>>
   /** A Conversa coordenada em curso (a que o próximo pedido continua), ou nulo numa Conversa nova. */
   conversaCoordenadaAtual?(): string | null
+  /**
+   * O histórico de Conversas de quem está na sessão com um Agente (ou com a Coordenação, sem Agente), da mais recente
+   * à mais antiga, sem as arquivadas; `antesDe` pede a página seguinte. Só no Workspace operacional.
+   */
+  historicoDeConversas?(agenteId: AgenteId | null, antesDe?: string): Promise<ResumoDeConversa[]>
+  /** Arquiva a Conversa: ela sai do histórico, sem ser apagada. */
+  arquivarConversa?(id: string): Promise<void>
+  /** Abre uma Conversa salva com o Agente: o próximo pedido a ele a continua. */
+  abrirConversaDoAgente?(agenteId: AgenteId, id: string): Promise<ConversaRetomada<PassoDaConversa>>
+  /** Começa uma Conversa nova com o Agente: o próximo pedido não continua a anterior. */
+  novaConversaDoAgente?(agenteId: AgenteId): void
+  /** A Conversa em curso com o Agente, ou nulo numa nova. */
+  conversaDoAgenteAtual?(agenteId: AgenteId): string | null
+  /** As sugestões de pedido a partir dos dados do Workspace. Sem elas, valem as frases da Especialidade. */
+  sugestoesDoAgente?(agenteId: AgenteId): Promise<Sugestao[]>
 }
 
 export * from './contas-tipos'

@@ -32,18 +32,22 @@ const linha = (extra: Record<string, unknown>) => ({
 
 describe('Conversas nomeadas: a fonte do Supabase', () => {
   it('lista só as Conversas coordenadas, com o nome, o primeiro pedido e se ainda respondem', async () => {
+    const chamadas: Record<string, unknown>[] = []
     const { fonte } = montar({
-      list_named_agent_conversations: () => [
-        linha({ id: 'c1', title: 'ICP da Norte' }),
-        linha({ id: 'c2', open_run_id: 'run-9', first_request: null }),
-        linha({ id: 'c3', kind: 'agente', agent_id: 'a-scopus' }),
-      ],
+      list_agent_conversations_of_agent: (parametros) => {
+        chamadas.push(parametros)
+        return [
+          linha({ id: 'c1', title: 'ICP da Norte', named: true }),
+          linha({ id: 'c2', open_run_id: 'run-9', first_request: null, title: null, named: false }),
+        ]
+      },
     })
 
     expect(await fonte.conversasSalvas!()).toEqual([
       { id: 'c1', titulo: 'ICP da Norte', primeiroPedido: 'Primeiro pedido', atualizadaEm: '2026-09-30T12:00:00Z', emAndamento: false },
       { id: 'c2', titulo: null, primeiroPedido: '', atualizadaEm: '2026-09-30T12:00:00Z', emAndamento: true },
     ])
+    expect(chamadas).toEqual([{ p_workspace_id: 'ws-norte', p_agent_id: null, p_limit: 30, p_before: null }])
   })
 
   it('renomear chama a função com o nome; os erros viram texto para a pessoa', async () => {
@@ -93,5 +97,59 @@ describe('Conversas nomeadas: a fonte do Supabase', () => {
       void _
     }
     expect(enviados[0]).toEqual(expect.objectContaining({ conversationId: 'c2', text: 'E o orçamento?' }))
+  })
+
+  it('o histórico do Agente pede a página dele, e o título dado só vale quando a pessoa nomeou', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte } = montar({
+      list_agent_conversations_of_agent: (parametros) => {
+        chamadas.push(parametros)
+        return [linha({ id: 'a1', kind: 'agente', agent_id: 'a-scopus', title: 'Primeiro pedido', named: false })]
+      },
+    })
+    const lista = await fonte.historicoDeConversas!('a-scopus', '2026-10-01T00:00:00Z')
+    expect(lista[0]).toEqual(expect.objectContaining({ id: 'a1', titulo: null, primeiroPedido: 'Primeiro pedido' }))
+    expect(chamadas).toEqual([{ p_workspace_id: 'ws-norte', p_agent_id: 'a-scopus', p_limit: 30, p_before: '2026-10-01T00:00:00Z' }])
+  })
+
+  it('arquivar chama a função; uma Conversa que sumiu vira texto para a pessoa', async () => {
+    let falhar = false
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte } = montar({
+      archive_agent_conversation: (parametros) => {
+        chamadas.push(parametros)
+        if (falhar) throw Object.assign(new Error('x'), { code: 'P0002' })
+        return null
+      },
+    })
+    await fonte.arquivarConversa!('c1')
+    expect(chamadas).toEqual([{ p_conversation_id: 'c1' }])
+    falhar = true
+    await expect(fonte.arquivarConversa!('c1')).rejects.toThrow('Esta Conversa não existe mais.')
+  })
+
+  it('as sugestões do Agente vêm do banco; uma falha não mostra nenhuma', async () => {
+    let falhar = false
+    const { fonte } = montar({
+      agent_prompt_suggestions: () => {
+        if (falhar) throw new Error('x')
+        return [{ id: 'scopus-aderencia-quente', texto: 'Pontue a aderência da Alfa ao nosso ICP' }, { id: 1 }]
+      },
+    })
+    expect(await fonte.sugestoesDoAgente!('a-scopus')).toEqual([
+      { id: 'dados-scopus-aderencia-quente', texto: 'Pontue a aderência da Alfa ao nosso ICP' },
+    ])
+    falhar = true
+    expect(await fonte.sugestoesDoAgente!('a-scopus')).toEqual([])
+  })
+
+  it('abrir uma Conversa do Agente faz o próximo pedido continuá-la; Nova conversa recomeça', async () => {
+    const { fonte, enviados } = montar({ get_agent_conversation: () => ({ runs: [] }) })
+    await fonte.abrirConversaDoAgente!('a-scopus', 'a1')
+    expect(fonte.conversaDoAgenteAtual!('a-scopus')).toBe('a1')
+    for await (const _ of fonte.conversar('a-scopus', { texto: 'E agora?' })) void _
+    expect(enviados.at(-1)).toEqual(expect.objectContaining({ conversationId: 'a1', agentId: 'a-scopus' }))
+    fonte.novaConversaDoAgente!('a-scopus')
+    expect(fonte.conversaDoAgenteAtual!('a-scopus')).toBeNull()
   })
 })

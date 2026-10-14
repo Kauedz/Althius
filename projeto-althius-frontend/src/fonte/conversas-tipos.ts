@@ -14,5 +14,11 @@ export interface ResumoDeConversa {
 
 /** O nome que a tela mostra: o que a pessoa deu ou, sem ele, o primeiro pedido. */
 export function nomeDaConversa(conversa: Pick<ResumoDeConversa, 'titulo' | 'primeiroPedido'>): string {
-  return conversa.titulo ?? conversa.primeiroPedido
+  return conversa.titulo ?? tituloAutomatico(conversa.primeiroPedido)
+}
+
+/** Sem nome dado, o título é o começo do primeiro pedido, com até 60 caracteres. */
+export function tituloAutomatico(pedido: string): string {
+  const limpo = pedido.trim()
+  return limpo.length <= 60 ? limpo : `${limpo.slice(0, 59).trimEnd()}…`
 }
