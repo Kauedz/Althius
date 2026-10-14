@@ -403,11 +403,9 @@ grant execute on function public.record_signal_for_company(uuid, jsonb, uuid, te
   to service_role;
 
 -- 4. O Sinal de mercado com CNPJ segue o mesmo caminho: além do feed de Mercado, vira Sinal da Conta (por CNPJ) ou motivo
--- de uma candidata. Sem CNPJ, continua só como painel de contexto. Redefinida a partir da definição mais recente
--- (20261013140000), com o peso do tipo (`pontuacao.ts`). A assinatura muda (entra `p_weight`): a antiga sai para não
--- deixar duas funções com o mesmo nome.
-drop function if exists public.record_market_signal(uuid, text, text, text, timestamptz, text, text, jsonb);
-
+-- de uma candidata. Sem CNPJ, continua só como painel de contexto. A lógica fica na versão com o peso do tipo
+-- (`pontuacao.ts`), partida da definição mais recente (20261013140000); o `p_weight` não tem valor padrão para que uma
+-- chamada de oito argumentos continue achando só a versão antiga, que agora delega a esta sem peso.
 create or replace function public.record_market_signal(
   p_workspace_id uuid,
   p_signal_type text,
@@ -416,8 +414,8 @@ create or replace function public.record_market_signal(
   p_fired_at timestamptz,
   p_source text,
   p_evidence text,
-  p_payload jsonb default '{}'::jsonb,
-  p_weight integer default null
+  p_payload jsonb,
+  p_weight integer
 ) returns boolean
 language plpgsql
 security definer
@@ -458,6 +456,25 @@ revoke all on function public.record_market_signal(uuid, text, text, text, times
   from public, anon, authenticated;
 grant execute on function public.record_market_signal(uuid, text, text, text, timestamptz, text, text, jsonb, integer)
   to service_role;
+
+-- A assinatura de sempre (oito argumentos) fica como estava e delega à de nove, sem peso: o peso padrão vale 20.
+create or replace function public.record_market_signal(
+  p_workspace_id uuid,
+  p_signal_type text,
+  p_event_key text,
+  p_phrase text,
+  p_fired_at timestamptz,
+  p_source text,
+  p_evidence text,
+  p_payload jsonb default '{}'::jsonb
+) returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  select public.record_market_signal(
+    p_workspace_id, p_signal_type, p_event_key, p_phrase, p_fired_at, p_source, p_evidence, p_payload, null::integer);
+$$;
 
 -- 5. Descartar leva a decisão atual; a reabertura anterior deixa de valer (a próxima grava a dela). Redefinida a partir da
 -- definição mais recente (20261001170000): só entram as colunas da reabertura.

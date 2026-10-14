@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(78);
+select plan(107);
 
 -- Ana (Admin) e Bruno (Membro) do Norte; Carla é do Sul.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -399,6 +399,156 @@ select is(
   true, 'um Sinal novo reabre também a candidata que veio da sincronização');
 select is((select origin from private.discovered_accounts where id = 'ca000000-0000-0000-0000-000000000009'), 'sincronizacao',
   'sem mudar a origem dela');
+
+
+-- 4. O aceite (ticket 04). Ana (Admin) aceita; quem aceita vira a Vendedora responsável.
+-- Uma candidata de Sinal que só tem CNPJ (veio de um Sinal de mercado) e dois Sinais, um que ainda vale e um que não.
+select is(
+  (select r.resolved from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Omega Energia SA","cnpj":"04.252.011/0001-10"}', null, 'nova_filial_icp_g', 'filial|omega|1',
+    'Abriu filial em Campinas', now() - interval '2 days', 'Diário Oficial', 'Ato 20', 35) r),
+  'candidata', 'nasce uma candidata só com CNPJ');
+select public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+  '{"cnpj":"04252011000110"}', null, 'financiamento_bndes_finep', 'fin|omega|velho', 'Financiamento antigo',
+  now() - interval '50 days', 'Notícia', 'Nota 20', 40);
+insert into ids (chave, valor)
+select 'omega', d.id::text from private.discovered_accounts d where d.workspace_id = 'fa000000-0000-0000-0000-000000000001' and d.cnpj_key = '04252011000110';
+select is((select count(*)::integer from private.signals where discovered_account_id::text = (select valor from ids where chave = 'omega')), 2,
+  'a candidata tem os dois Sinais');
+-- Uma Conta que já tem o Sinal "filial|omega|1" não pode duplicá-lo no aceite: simulamos, abaixo, com outra candidata.
+
+insert into ids (chave, valor) values ('creditos2', (select count(*)::text from private.credit_entries) || '/' || (select count(*)::text from private.credit_reservations));
+
+-- Quem não participa não aceita; descartada não aceita.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000003', true);
+select throws_ok(
+  format($$select * from public.accept_discovered_account(%L)$$, (select valor from ids where chave = 'omega')),
+  'P0002', 'discovered account not found', 'quem é de outro Workspace não aceita');
+reset role;
+
+-- O aceite por CNPJ, sem site, sem saldo para o Comitê (o Workspace ainda não tem crédito).
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select is(
+  (select row(r.created, r.signals_moved, r.committee)::text
+   from public.accept_discovered_account((select valor from ids where chave = 'omega')::uuid) r),
+  '(t,2,sem_saldo)', 'Ana aceita a candidata sem site: a Conta nasce, os dois Sinais migram e o Comitê espera saldo');
+reset role;
+insert into ids (chave, valor)
+select 'conta-omega', d.target_account_id::text from private.discovered_accounts d where d.id::text = (select valor from ids where chave = 'omega');
+select is(
+  (select row(a.name, a.canonical_url, a.domain, a.legal_identifier, a.origin, a.created_by)::text
+   from public.target_accounts a where a.id::text = (select valor from ids where chave = 'conta-omega')),
+  '("Omega Energia SA",,,04.252.011/0001-10,recomendacao,5a000000-0000-0000-0000-000000000001)',
+  'a Conta fica sem site, com o CNPJ, a origem recomendacao e Ana como criadora');
+select is(
+  (select owner_user_id::text from public.sales_responsibilities where target_account_id = (select valor from ids where chave = 'conta-omega')),
+  '5a000000-0000-0000-0000-000000000001', 'e Ana é a Vendedora responsável');
+select is(
+  (select row(d.state, d.decided_by)::text from private.discovered_accounts d where d.id::text = (select valor from ids where chave = 'omega')),
+  '(aceita,5a000000-0000-0000-0000-000000000001)', 'a candidata fica aceita');
+select is(
+  (select count(*)::integer from private.signals where target_account_id::text = (select valor from ids where chave = 'conta-omega') and discovered_account_id is null),
+  2, 'os Sinais da candidata passam a ser da Conta');
+select is((select count(*)::integer from private.signals where discovered_account_id::text = (select valor from ids where chave = 'omega')), 0,
+  'e a candidata não guarda nenhum');
+select is((select count(*)::integer from private.discovery_reasons where discovered_account_id::text = (select valor from ids where chave = 'omega')), 2,
+  'os motivos continuam, para a tela contar por que ela veio');
+select is((select stage from private.prospecting_stages where target_account_id::text = (select valor from ids where chave = 'conta-omega')), 'quente',
+  'a Conta fica Quente: um dos Sinais ainda vale');
+select is(
+  (select count(*)::text from private.credit_entries) || '/' || (select count(*)::text from private.credit_reservations),
+  (select valor from ids where chave = 'creditos2'), 'aceitar não cobra crédito');
+
+-- Aceitar de novo devolve a mesma Conta.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select is(
+  (select row(r.target_account_id::text = (select valor from ids where chave = 'conta-omega'), r.created, r.signals_moved)::text
+   from public.accept_discovered_account((select valor from ids where chave = 'omega')::uuid) r),
+  '(t,f,0)', 'aceitar de novo devolve a mesma Conta, sem criar nada');
+reset role;
+
+-- A empresa aceita agora é Conta: o Sinal seguinte vai direto para ela, pelo CNPJ.
+select is(
+  (select row(r.resolved, r.target_account_id::text = (select valor from ids where chave = 'conta-omega'))::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"cnpj":"04252011000110"}', null, 'expansao_de_planta', 'planta|omega|1', 'Anunciou nova planta', now() - interval '1 day', 'Notícia', 'Nota 21', 40) r),
+  '(conta,t)', 'um Sinal novo da empresa aceita vai direto para a Conta');
+
+-- O Comitê libera quando há saldo; segura quando o limite do mês não cabe; sempre libera na Equipe Althius.
+select public.grant_credits('fa000000-0000-0000-0000-000000000001', 100, 'plano', 'saldo de teste');
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001'), 'liberado',
+  'com saldo e limite, o Comitê pode disparar');
+update private.workspace_contracts set monthly_credit_limit = 5 where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001'), 'limite_do_mes',
+  'com o limite mensal menor que a busca, não dispara');
+update private.workspace_contracts set monthly_credit_limit = null where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select is(private.committee_gate('e0a17e00-0000-4000-8000-000000000001', null), 'liberado', 'a Equipe Althius é ilimitada');
+insert into public.workspaces (id, kind, name) values ('fa000000-0000-0000-0000-000000000003', 'empresa', 'Sem Contrato');
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000003', null), 'sem_contrato', 'sem contrato ativo, não dispara');
+
+-- Mesma regra do reserve_credits: com o limite que barra o gate, a reserva também recusa.
+update private.workspace_contracts set monthly_credit_limit = 5 where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select throws_ok(
+  $$select public.reserve_credits('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'person_collected', 'gate-teste', 10)$$,
+  'P0001', 'monthly credit limit reached', 'a reserva de 10 pessoas também recusa nesse limite');
+update private.workspace_contracts set monthly_credit_limit = null where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select lives_ok(
+  $$select public.reserve_credits('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'person_collected', 'gate-teste-2', 10)$$,
+  'e, sem o limite, reserva');
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001'), 'liberado',
+  'com 90 de saldo livre, ainda libera');
+
+-- Aceitar com site e sem CNPJ; aceitar sem nenhum dos dois; Sinal que a Conta já tinha não duplica.
+insert into private.discovered_accounts (id, workspace_id, name, linkedin_url, linkedin_key, name_key, source_actor) values
+  ('ca000000-0000-0000-0000-0000000000b1', 'fa000000-0000-0000-0000-000000000001', 'So LinkedIn', 'https://www.linkedin.com/company/so-linkedin', 'so-linkedin', 'so linkedin', 'harvestapi~linkedin-company-search');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $$select * from public.accept_discovered_account('ca000000-0000-0000-0000-0000000000b1')$$,
+  '22023', 'a website is required to accept this account', 'sem site e sem CNPJ continua recusando');
+select is(
+  (select row(r.created, r.signals_moved)::text from public.accept_discovered_account('ca000000-0000-0000-0000-0000000000b1', 'https://solinkedin.test') r),
+  '(t,0)', 'com o site informado, aceita');
+reset role;
+select is(
+  (select row(a.canonical_url, a.origin)::text from public.target_accounts a
+   join private.discovered_accounts d on d.target_account_id = a.id where d.id = 'ca000000-0000-0000-0000-0000000000b1'),
+  '(https://solinkedin.test,recomendacao)', 'a Conta nasce com o site informado');
+
+-- Candidata com CNPJ de uma Conta sem site que já existe: liga, sem criar outra.
+insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, legal_identifier, created_by) values
+  ('da000000-0000-0000-0000-0000000000c1', 'fa000000-0000-0000-0000-000000000001', 'Teta Sem Site', null, null, '33.000.167/0001-01',
+   '5a000000-0000-0000-0000-000000000002');
+insert into public.sales_responsibilities (workspace_id, target_account_id, owner_user_id) values
+  ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-0000000000c1', '5a000000-0000-0000-0000-000000000002');
+update private.discovered_accounts set state = 'nova', decided_at = null, decided_by = null, target_account_id = null
+where cnpj_key = '33000167000101' and workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select is(
+  (select count(*)::integer from private.discovered_accounts where cnpj_key = '33000167000101' and workspace_id = 'fa000000-0000-0000-0000-000000000001'), 1,
+  'a candidata do CNPJ da licença existe (veio do Sinal de mercado)');
+-- O Sinal que a Conta já tem (mesmo tipo e mesmo acontecimento) não duplica no aceite.
+insert into private.signals (workspace_id, target_account_id, signal_type, event_key, phrase, fired_at)
+values ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-0000000000c1', 'licenca_instalacao_dou', 'lic|1', 'Licença', now() - interval '1 day');
+insert into ids (chave, valor)
+select 'teta', d.id::text from private.discovered_accounts d where d.cnpj_key = '33000167000101' and d.workspace_id = 'fa000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
+select is(
+  (select row(r.target_account_id, r.created, r.signals_moved)::text
+   from public.accept_discovered_account((select valor from ids where chave = 'teta')::uuid) r),
+  '(da000000-0000-0000-0000-0000000000c1,f,0)', 'a candidata se liga à Conta sem site que tem o mesmo CNPJ, sem duplicar o Sinal');
+reset role;
+select is((select count(*)::integer from private.signals where event_key = 'lic|1' and workspace_id = 'fa000000-0000-0000-0000-000000000001'), 1,
+  'só um Sinal ficou: o da Conta');
+select ok((select seen_again_at is not null from private.signals where event_key = 'lic|1' and target_account_id is not null),
+  'e ele ficou marcado como visto de novo');
+select is(
+  (select origin from public.target_accounts where id = 'da000000-0000-0000-0000-0000000000c1'), 'manual',
+  'ligar à Conta que já existe não mexe nos dados dela');
 
 select * from finish();
 rollback;
