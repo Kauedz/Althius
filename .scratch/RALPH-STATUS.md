@@ -5,6 +5,7 @@
 - **Tickets:** `.scratch/cascatas-confiabilidade/issues/01` a `05`
 - **Status:** ready-for-human (código e Deno verdes; falta o Nan aplicar a migração e publicar as funções, com o CI verde)
 - **Branch:** `cursor/cascatas-confiabilidade-2a0f`
+- **PR:** https://github.com/Kauedz/Althius/pull/198 (rascunho; não mergear daqui)
 - **O que muda:** data do DOU em `dd/mm/aaaa` com ISO de reserva; meta ESG em lotes de 10 com prazo e cursor; custo do run lido de `usageTotalUsd`; CNPJ novo para em 25 empresas e US$ 0,20; amostra de validação nas cascatas de Conta que descartam a empresa antes do casamento.
 - **Migração nova (não aplicar daqui):** `supabase/migrations/20261015130000_teto_do_cnpj_novo.sql`. Sem deploy. Sem escrita no projeto remoto. Sem segredo.
 - **Testes (2026-10-14):** `deno check supabase/functions/*/index.ts` limpo. `deno test supabase/functions` 1372 passed / 0 failed / 34 ignored. Com `--allow-read`, mapa + icp-c + icp-g + icp-h: 77 passed / 0 failed. pgTAP `teto_do_cnpj_novo.sql` (`plan(4)`) não rodou aqui.
