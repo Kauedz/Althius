@@ -110,6 +110,16 @@ export function PaginaDeSinaisDeMercado() {
                 <p className="text-sm text-al-muted">
                   {sinal.nome} · {formatarDataCompleta(sinal.data)}
                 </p>
+                {sinal.empresa?.tipo === 'conta' && (
+                  <Link to={`/sinais/contas/${sinal.empresa.id}`} className="w-fit text-sm text-al-accent hover:underline">
+                    Ver Conta
+                  </Link>
+                )}
+                {sinal.empresa?.tipo === 'candidata' && (
+                  <Link to={`/contas/descobertas?candidata=${sinal.empresa.id}`} className="w-fit text-sm text-al-accent hover:underline">
+                    Ver candidata
+                  </Link>
+                )}
               </li>
             ))}
           </ul>

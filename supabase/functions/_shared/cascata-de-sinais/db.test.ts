@@ -73,6 +73,47 @@ Deno.test('gravarSinal usa o record_signal de sempre e diz se o Sinal é novo', 
   assertEquals(chamadas[0].args?.p_monitor_id, null)
 })
 
+Deno.test('gravarSinalDeEmpresa chama record_signal_for_company com a empresa e o peso, e devolve onde o Sinal foi parar', async () => {
+  const { admin, chamadas } = rpcFalso({ record_signal_for_company: [{ resolved: 'candidata', is_new: true, target_account_id: null, discovered_account_id: 'c-1', reopened: false }] })
+  const r = await criarDbDaCascata(admin).gravarSinalDeEmpresa({
+    workspaceId: 'ws', monitorId: 'm', signalType: 'nova_filial_icp_g', peso: 40,
+    sinal: {
+      empresa: { nome: 'Gama Logística', cnpj: '47960950000121', site: 'https://gama.test', uf: 'SP', municipio: 'Campinas' },
+      eventKey: 'filial|gama|1', phrase: 'Abriu filial em Campinas', firedAt: '2026-10-12T10:00:00Z', source: 'Diário Oficial', evidence: 'Ato',
+    },
+  })
+  assertEquals(r, { resolvido: 'candidata', novo: true })
+  assertEquals(chamadas[0], {
+    nome: 'record_signal_for_company',
+    args: {
+      p_workspace_id: 'ws',
+      p_company: { name: 'Gama Logística', cnpj: '47960950000121', website: 'https://gama.test', uf: 'SP', city: 'Campinas' },
+      p_monitor_id: 'm', p_signal_type: 'nova_filial_icp_g', p_event_key: 'filial|gama|1', p_phrase: 'Abriu filial em Campinas',
+      p_fired_at: '2026-10-12T10:00:00Z', p_source: 'Diário Oficial', p_evidence: 'Ato', p_weight: 40,
+    },
+  })
+})
+
+Deno.test('gravarSinalDeEmpresa só manda da empresa o que ela tem, e uma resposta vazia não é Sinal novo', async () => {
+  const { admin, chamadas } = rpcFalso({})
+  const r = await criarDbDaCascata(admin).gravarSinalDeEmpresa({
+    workspaceId: 'ws', monitorId: null, signalType: 'vaga_comex', peso: 30,
+    sinal: { empresa: { nome: 'Só Site', site: 'https://so.test' }, eventKey: 'k', phrase: 'f', firedAt: '2026-10-12T10:00:00Z', source: '', evidence: '' },
+  })
+  assertEquals(r, { resolvido: 'sem_identidade', novo: false })
+  assertEquals(chamadas[0].args?.p_company, { name: 'Só Site', website: 'https://so.test' })
+  assertEquals([chamadas[0].args?.p_source, chamadas[0].args?.p_evidence], [null, null])
+})
+
+Deno.test('gravarSinalDeMercado manda o peso do tipo (ou nulo) para o banco levar o CNPJ à Conta ou à candidata', async () => {
+  const { admin, chamadas } = rpcFalso({ record_market_signal: true })
+  const db = criarDbDaCascata(admin)
+  const sinal = { eventKey: 'lic|1', phrase: 'Licença', firedAt: '2026-10-12T10:00:00Z', source: 'DOU', evidence: 'Ato', payload: { cnpj: '47960950000121' } }
+  assertEquals(await db.gravarSinalDeMercado({ workspaceId: 'ws', signalType: 'licenca_instalacao_dou', sinal, peso: 40 }), true)
+  assertEquals(await db.gravarSinalDeMercado({ workspaceId: 'ws', signalType: 'licenca_instalacao_dou', sinal }), true)
+  assertEquals(chamadas.map((c) => c.args?.p_weight), [40, null])
+})
+
 Deno.test('a cópia da fonte pública lê e grava pela chave, sem o mês quando se quer a mais nova', async () => {
   const { admin, chamadas } = rpcFalso({ read_public_source_cache: { raizes: ['11222333'], mes: '2026-10' } })
   const db = criarDbDaCascata(admin)

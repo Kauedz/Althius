@@ -99,6 +99,20 @@ export type SinalConfirmado = {
   evidence: string
 }
 
+/**
+ * Um Sinal de uma empresa que não é Conta do Workspace (uma vaga, uma filial, um financiamento). Vai para o banco, que a
+ * procura nas Contas por CNPJ e domínio e, se não é Conta, guarda o Sinal na candidata da Caixa de Descobertas
+ * (`record_signal_for_company`). Só dado da empresa: nunca nome de pessoa.
+ */
+export type SinalDeEmpresa = {
+  empresa: { nome: string; cnpj?: string; site?: string; linkedinUrl?: string; uf?: string; municipio?: string }
+  eventKey: string
+  phrase: string
+  firedAt: string
+  source: string
+  evidence: string
+}
+
 /** Um Sinal que acontece no mercado todo (Comex Stat, DOU, Plano Safra): sem Conta. */
 export type SinalDeMercado = {
   eventKey: string
@@ -241,8 +255,19 @@ export interface DbDaCascata {
     signalType: string
     sinal: SinalConfirmado
   }): Promise<boolean>
-  /** O Sinal de mercado vai para o feed do Workspace (`record_market_signal`). */
-  gravarSinalDeMercado(args: { workspaceId: string; signalType: string; sinal: SinalDeMercado }): Promise<boolean>
+  /** O Sinal de mercado vai para o feed do Workspace (`record_market_signal`); com CNPJ, o banco o leva também à Conta ou à candidata. */
+  gravarSinalDeMercado(args: { workspaceId: string; signalType: string; sinal: SinalDeMercado; peso?: number }): Promise<boolean>
+  /**
+   * O Sinal de uma empresa que o passo de casamento não achou entre as Contas (`record_signal_for_company`): o banco decide se
+   * é Conta (CNPJ, depois domínio) ou candidata. Devolve onde foi parar e se o Sinal é novo.
+   */
+  gravarSinalDeEmpresa(args: {
+    workspaceId: string
+    monitorId: string | null
+    signalType: string
+    sinal: SinalDeEmpresa
+    peso: number
+  }): Promise<{ resolvido: string; novo: boolean }>
   /** A fotografia mais recente de cada assunto (antes de `antesDe`, quando informado). */
   lerSnapshots(args: { workspaceId: string; signalType: string; chaves: string[]; antesDe?: string }): Promise<Map<string, { takenAt: string; data: Record<string, unknown> }>>
   gravarSnapshots(args: { workspaceId: string; signalType: string; itens: { chave: string; data: Record<string, unknown>; takenAt?: string }[] }): Promise<void>

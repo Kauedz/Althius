@@ -1,10 +1,11 @@
 // A forma comum das cascatas por ICP (B a H): uma empresa com os fatos que a trouxeram (CNPJ novo, filial nova, financiamento,
 // notícia de expansão...). Cada passo de busca entrega `EmpresaComFatos`; o passo `casar_fatos_com_contas` cruza com as
 // Contas-alvo do Workspace (CNPJ primeiro, depois página do LinkedIn, site ou nome) e entrega os Sinais confirmados, com o
-// CNPJ da Conta para o passo da Receita. Só dado da empresa: nunca nome de pessoa.
+// CNPJ da Conta para o passo da Receita. Os fatos das empresas que não são Conta (com CNPJ ou site) vão à memória da
+// execução, e o motor os entrega ao banco como Sinais de empresa. Só dado da empresa: nunca nome de pessoa.
 import { LIMITES, mesmaEmpresa, nomeDaEmpresa, recortar } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ContaDoWorkspace, ImplDoPasso, Item } from '../tipos.ts'
-import { chaveDaEmpresa, cnpjLimpo, objeto, texto } from './comum.ts'
+import { chaveDaEmpresa, cnpjLimpo, guardarSinalDeEmpresa, objeto, texto } from './comum.ts'
 
 /** Um acontecimento da empresa que pode virar Sinal. */
 export interface Fato {
@@ -134,6 +135,26 @@ export const casarFatosComContas: ImplDoPasso = {
       if (!conta) {
         semConta.push(ef.empresa.nome)
         fora.push({ cnpj: cnpjLimpo(ef.empresa.cnpj) || null, nome: ef.empresa.nome })
+        // O banco decide se é Conta (CNPJ, depois domínio) ou candidata da Caixa de Descobertas.
+        const virtual = { id: '', name: ef.empresa.nome, domain: null, linkedinUrl: null, cnpj: ef.empresa.cnpj ?? null }
+        for (const fato of ef.fatos) {
+          const s = sinalDoFato(virtual, ef.empresa, fato)
+          guardarSinalDeEmpresa(ctx.memoria, {
+            empresa: {
+              nome: ef.empresa.nome,
+              ...(cnpjLimpo(ef.empresa.cnpj) ? { cnpj: cnpjLimpo(ef.empresa.cnpj) } : {}),
+              ...(ef.empresa.site ? { site: ef.empresa.site } : {}),
+              ...(ef.empresa.linkedinUrl ? { linkedinUrl: ef.empresa.linkedinUrl } : {}),
+              ...(ef.empresa.uf ? { uf: ef.empresa.uf } : {}),
+              ...(ef.empresa.municipio ? { municipio: ef.empresa.municipio } : {}),
+            },
+            eventKey: String(s.eventKey),
+            phrase: String(s.phrase),
+            firedAt: String(s.firedAt),
+            source: String(s.source ?? ''),
+            evidence: String(s.evidence ?? ''),
+          })
+        }
         continue
       }
       for (const fato of ef.fatos) {

@@ -12,7 +12,7 @@ import {
   paginaDoLinkedin,
   texto,
 } from '../../../signal-runner/adaptadores/comum.ts'
-import type { ContextoDoPasso, Item } from '../tipos.ts'
+import type { ContextoDoPasso, Item, SinalDeEmpresa } from '../tipos.ts'
 
 export { dentroDoPeriodo, dataIso, diasDoPeriodo, dominio, lista, nomeDaEmpresa, objeto, paginaDoLinkedin, texto }
 
@@ -117,4 +117,36 @@ export function paginaLimpa(url: string): string {
 export function cnpjLimpo(valor: unknown): string {
   const v = texto(valor).replace(/[^0-9A-Za-z]/g, '').toUpperCase()
   return v.length === 14 ? v : ''
+}
+
+/** Quantas empresas que não são Conta uma execução leva ao banco: o resto fica só na contagem de "sem Conta". */
+export const MAX_EMPRESAS_SEM_CONTA = 50
+
+/**
+ * Guarda o Sinal de uma empresa que não é Conta, para o motor entregá-lo ao banco depois dos Sinais das Contas. Fica na
+ * memória da execução, e não no fluxo dos itens, para os passos seguintes (a Receita, por exemplo) só verem Contas.
+ * Sem CNPJ válido nem site, o banco não consegue deduplicar a empresa com segurança e nada seria gravado: nem guarda.
+ */
+export function guardarSinalDeEmpresa(memoria: Map<string, unknown>, s: SinalDeEmpresa): void {
+  if (!cnpjLimpo(s.empresa.cnpj) && !texto(s.empresa.site)) return
+  const atual = memoria.get('sinaisDeEmpresas')
+  const lista = Array.isArray(atual) ? atual as SinalDeEmpresa[] : []
+  if (lista.length >= MAX_EMPRESAS_SEM_CONTA * 10) return
+  lista.push(s)
+  memoria.set('sinaisDeEmpresas', lista)
+}
+
+/** O que os passos guardaram, no formato que o banco aceita, de até `MAX_EMPRESAS_SEM_CONTA` empresas diferentes. */
+export function sinaisDeEmpresaDaMemoria(memoria: Map<string, unknown>): SinalDeEmpresa[] {
+  const atual = memoria.get('sinaisDeEmpresas')
+  if (!Array.isArray(atual)) return []
+  const empresas = new Set<string>()
+  const saida: SinalDeEmpresa[] = []
+  for (const s of atual as SinalDeEmpresa[]) {
+    const chave = cnpjLimpo(s.empresa.cnpj) || paginaDoLinkedin(s.empresa.linkedinUrl) || dominio(s.empresa.site) || s.empresa.nome
+    if (!empresas.has(chave) && empresas.size >= MAX_EMPRESAS_SEM_CONTA) continue
+    empresas.add(chave)
+    saida.push(s)
+  }
+  return saida
 }

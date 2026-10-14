@@ -1,11 +1,12 @@
-import { Building2, ExternalLink, Check, Trash2, RotateCcw, Sparkles, RefreshCw } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateCcw, Sparkles, RefreshCw } from 'lucide-react'
+import { Fragment, useEffect, useId, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Carregando } from '@/components/marca'
-import { useDados, useDadosDeDescobertas, useFonteDeDescobertas } from '@/fonte/contexto'
-import type { ContaDescoberta, EstadoContaDescoberta } from '@/fonte/descobertas-tipos'
+import { useDados, useDadosDeDescobertas, useFonteDeContas, useFonteDeDescobertas } from '@/fonte/contexto'
+import type { ContaDescoberta, EstadoContaDescoberta, OrigemDaDescoberta, ResultadoDoAceite, SinalDoMotivo } from '@/fonte/descobertas-tipos'
+import { formatarDataCompleta } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import { AbasDoModulo, CampoDeBusca, Contagem } from './modulo-contas-e-contatos'
 
@@ -13,8 +14,82 @@ const INTERVALO_POLLING_MS = 5_000
 
 const rotuloCreditos = (n: number) => `${n.toLocaleString('pt-BR')} ${n === 1 ? 'crédito' : 'créditos'}`
 
+const ROTULO_DA_ORIGEM: Record<OrigemDaDescoberta, string> = { sinal: 'Sinal', busca: 'Busca', sincronizacao: 'Sincronização' }
+const ORDEM_DAS_ORIGENS: OrigemDaDescoberta[] = ['sinal', 'busca', 'sincronizacao']
+
+const ROTULO_DO_ENCAIXE: Record<ContaDescoberta['fitLevel'], string> = {
+  alto: 'Encaixe alto',
+  medio: 'Encaixe medio',
+  baixo: 'Encaixe baixo',
+  sem_dado: 'Encaixe sem dado',
+}
+
+/** O dia e o mês de um Sinal, como a pessoa escreve ("12/10"), no fuso de Brasília. */
+function diaEMes(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })
+}
+
+const minuscula = (frase: string) => (frase ? frase.charAt(0).toLowerCase() + frase.slice(1) : frase)
+
+/** O Sinal mais recente em linguagem de usuário: "Sinal: abriu filial em Campinas (12/10)". */
+export function frasePorExtensoDoSinal(sinal: SinalDoMotivo): string {
+  return `Sinal: ${minuscula(sinal.frase.replace(/\.$/, ''))} (${diaEMes(sinal.data)})`
+}
+
+/** A primeira frase do aviso depois de aceitar: a Conta e os Sinais que vieram com ela. */
+function baseDoAviso(nome: string, r: ResultadoDoAceite): string {
+  const sinais = r.sinaisMigrados > 0 ? ` com ${r.sinaisMigrados} ${r.sinaisMigrados === 1 ? 'Sinal' : 'Sinais'}` : ''
+  return `${nome} agora é uma Conta-alvo${sinais}.`
+}
+
+/** O que a pessoa lê depois de aceitar, e o que aconteceu com o Comitê (o aceite confere o saldo e o limite do mês). */
+function avisoDoAceite(nome: string, r: ResultadoDoAceite): string {
+  const base = baseDoAviso(nome, r)
+  if (r.comite === 'liberado') return `${base} Buscando o Comitê de compra…`
+  if (r.comite === 'limite_do_mes') {
+    return `${base} Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius. Use Enriquecer Comitê na Conta quando houver limite.`
+  }
+  if (r.comite === 'sem_contrato') return `${base} Sem contrato ativo, o Comitê não pode ser enriquecido agora.`
+  return `${base} Sem créditos suficientes para enriquecer o Comitê agora: use Enriquecer Comitê na Conta quando houver saldo.`
+}
+
+/** O detalhe de uma candidata: o que a descreve e todos os Sinais que a trouxeram, com data e fonte pública. */
+function DetalheDaCandidata({ candidata }: { candidata: ContaDescoberta }) {
+  return (
+    <div aria-label={`Detalhes de ${candidata.nome}`} role="group" className="flex flex-col gap-3 text-xs">
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-al-muted">
+        <span>Origem: {ROTULO_DA_ORIGEM[candidata.origem]}</span>
+        {candidata.descricao && <span className="text-al-ink">{candidata.descricao}</span>}
+      </div>
+      {candidata.voltouPorSinalEm && (
+        <p className="text-al-ink">
+          <span className="font-medium text-al-accent">Voltou por novo Sinal</span> em {formatarDataCompleta(candidata.voltouPorSinalEm)}.
+          {candidata.motivoDoDescarteAnterior ? ` Motivo do descarte anterior: ${candidata.motivoDoDescarteAnterior}.` : ''}
+        </p>
+      )}
+      {candidata.motivosDeSinal.length > 0 ? (
+        <ul aria-label="Sinais da candidata" className="flex flex-col divide-y divide-al-line border-y border-al-line">
+          {candidata.motivosDeSinal.map((m) => (
+            <li key={m.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-1.5">
+              <span className={m.valido ? 'text-al-ink' : 'text-al-muted'}>{m.frase}</span>
+              <span className="text-al-muted">
+                {formatarDataCompleta(m.data)}
+                {m.fonte ? ` · ${m.fonte}` : ''}
+                {m.valido ? '' : ' · vencido'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-al-muted">Nenhum Sinal registrado para esta candidata.</p>
+      )}
+    </div>
+  )
+}
+
 export function PaginaDescobertas() {
   const fonte = useFonteDeDescobertas()
+  const fonteDeContas = useFonteDeContas()
   const saldo = useDados((f) => (f.saldoDeCreditos ? f.saldoDeCreditos() : Promise.resolve(null)), [])
   const [estadoAba, setEstadoAba] = useState<EstadoContaDescoberta>('nova')
   const [busca, setBusca] = useState('')
@@ -24,6 +99,9 @@ export function PaginaDescobertas() {
   const [urlInformada, setUrlInformada] = useState('')
   const [motivoDescarte, setMotivoDescarte] = useState<{ id: string; nome: string } | null>(null)
   const [textoDescarte, setTextoDescarte] = useState('')
+  const [filtroOrigem, setFiltroOrigem] = useState<OrigemDaDescoberta | 'todas'>('todas')
+  const [detalheAberto, setDetalheAberto] = useState<string | null>(null)
+  const [avisoDeAceite, setAvisoDeAceite] = useState<string | null>(null)
 
   const { dados: cotacao, recarregar: recarregarCotacao } = useDadosDeDescobertas(
     (f) => f.cotarBusca(),
@@ -41,6 +119,28 @@ export function PaginaDescobertas() {
 
   const emAndamento = cotacao?.emAndamento ?? false
   const custoId = useId()
+
+  // "Ver candidata", vindo de Mercado e de Sinais encontrados: abre a aba onde a candidata está, com o detalhe aberto.
+  const [parametros] = useSearchParams()
+  const candidataDoLink = parametros.get('candidata')
+  useEffect(() => {
+    if (!candidataDoLink || !fonte) return
+    let ativo = true
+    void (async () => {
+      for (const estado of ['nova', 'aceita', 'descartada'] as const) {
+        const lista = await fonte.listarDescobertas(estado).catch(() => [])
+        if (!ativo) return
+        if (lista.some((c) => c.id === candidataDoLink)) {
+          setEstadoAba(estado)
+          setDetalheAberto(candidataDoLink)
+          return
+        }
+      }
+    })()
+    return () => {
+      ativo = false
+    }
+  }, [candidataDoLink, fonte])
 
   // Polling enquanto a busca em segundo plano está ativa
   useEffect(() => {
@@ -84,16 +184,29 @@ export function PaginaDescobertas() {
 
   async function aceitar(candidata: ContaDescoberta, url?: string) {
     setErroAcao(null)
+    setAvisoDeAceite(null)
     const site = url ?? candidata.website
-    if (!site) {
+    // O site é opcional quando há CNPJ: a Conta nasce sem site. Sem site e sem CNPJ, a pessoa informa o endereço.
+    if (!site && !candidata.cnpj) {
       setModalUrl({ id: candidata.id, nome: candidata.nome })
       setUrlInformada('')
       return
     }
     try {
-      await fonte.aceitarDescoberta(candidata.id, site)
+      const resultado = await fonte.aceitarDescoberta(candidata.id, site)
       setModalUrl(null)
+      setAvisoDeAceite(avisoDoAceite(candidata.nome, resultado))
       recarregarLista()
+      // O Comitê só dispara se o saldo e o limite do mês permitem (o aceite confere); senão a Conta fica com "Enriquecer Comitê".
+      if (resultado.comite === 'liberado' && fonteDeContas.buscarComite) {
+        const base = baseDoAviso(candidata.nome, resultado)
+        try {
+          const comite = await fonteDeContas.buscarComite(resultado.targetAccountId)
+          setAvisoDeAceite(`${base} Comitê de compra: ${comite.novas} ${comite.novas === 1 ? 'pessoa sugerida' : 'pessoas sugeridas'} para abordagem.`)
+        } catch {
+          setAvisoDeAceite(`${base} Não foi possível enriquecer o Comitê agora: use Enriquecer Comitê na Conta.`)
+        }
+      }
     } catch (e) {
       setErroAcao(e instanceof Error ? e.message : 'Não foi possível aceitar a candidata.')
     }
@@ -123,7 +236,13 @@ export function PaginaDescobertas() {
     }
   }
 
+  // As origens que existem na lista: "Sincronização" só aparece quando há dado dessa origem.
+  const origensPresentes = ORDEM_DAS_ORIGENS.filter((o) => (candidatas ?? []).some((c) => c.origem === o))
+  const origemEmUso = filtroOrigem !== 'todas' && origensPresentes.includes(filtroOrigem) ? filtroOrigem : 'todas'
+  const opcoesDeOrigem = ORDEM_DAS_ORIGENS.filter((o) => o !== 'sincronizacao' || origensPresentes.includes(o))
+
   const listaFiltrada = (candidatas ?? []).filter((c) => {
+    if (origemEmUso !== 'todas' && c.origem !== origemEmUso) return false
     if (!busca.trim()) return true
     const termo = busca.toLowerCase()
     return (
@@ -183,6 +302,12 @@ export function PaginaDescobertas() {
           </p>
         )}
 
+        {avisoDeAceite && (
+          <p role="status" className="text-xs text-al-ink">
+            {avisoDeAceite}
+          </p>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           {/* Abas de estado: Novas / Aceitas / Descartadas */}
           <div className="segmentado" role="tablist">
@@ -198,6 +323,22 @@ export function PaginaDescobertas() {
               </button>
             ))}
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-al-muted">
+            Origem
+            <select
+              value={origemEmUso}
+              onChange={(e) => setFiltroOrigem(e.target.value as OrigemDaDescoberta | 'todas')}
+              className="rounded-md h-8 border border-al-line bg-al-bg px-2 text-xs text-al-ink outline-none focus:border-al-accent"
+            >
+              <option value="todas">Todas</option>
+              {opcoesDeOrigem.map((o) => (
+                <option key={o} value={o}>
+                  {ROTULO_DA_ORIGEM[o]}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <div className="flex flex-1 max-w-sm items-center gap-2">
             <CampoDeBusca
@@ -256,7 +397,8 @@ export function PaginaDescobertas() {
             </thead>
             <tbody className="divide-y divide-al-line">
               {listaFiltrada.map((c) => (
-                <tr key={c.id} className="hover:bg-al-surface/40 transition-colors">
+                <Fragment key={c.id}>
+                <tr className="hover:bg-al-surface/40 transition-colors">
                   <td className="p-3 align-top">
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-al-ink">{c.nome}</span>
@@ -299,10 +441,10 @@ export function PaginaDescobertas() {
                         'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded',
                         c.fitLevel === 'alto' && 'bg-al-sucesso-suave text-al-sucesso',
                         c.fitLevel === 'medio' && 'bg-al-atencao-suave text-al-atencao',
-                        c.fitLevel === 'baixo' && 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
+                        (c.fitLevel === 'baixo' || c.fitLevel === 'sem_dado') && 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
                       )}
                     >
-                      Encaixe {c.fitLevel}
+                      {ROTULO_DO_ENCAIXE[c.fitLevel] ?? ROTULO_DO_ENCAIXE.baixo}
                     </span>
                   </td>
 
@@ -319,6 +461,14 @@ export function PaginaDescobertas() {
 
                   <td className="p-3 align-top">
                     <div className="flex flex-col gap-1 text-xs">
+                      {c.voltouPorSinalEm && (
+                        <span className="text-[0.75rem] font-medium text-al-accent">
+                          Voltou por novo Sinal
+                          {c.motivoDoDescarteAnterior && (
+                            <span className="font-normal text-al-muted"> · Descarte anterior: {c.motivoDoDescarteAnterior}</span>
+                          )}
+                        </span>
+                      )}
                       {c.motivos.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {c.motivos.map((m, i) => (
@@ -328,20 +478,48 @@ export function PaginaDescobertas() {
                           ))}
                         </div>
                       )}
-                      {c.sinais.length > 0 && (
-                        <div className="flex flex-col gap-0.5 pt-0.5">
-                          {c.sinais.slice(0, 2).map((s, i) => (
-                            <span key={i} className="text-[0.75rem] text-al-muted truncate">
-                              • {s.frase}
-                            </span>
-                          ))}
+                      {c.motivosDeSinal.length > 0 ? (
+                        <div className="flex items-baseline gap-1.5 pt-0.5">
+                          <span className="truncate text-[0.75rem] text-al-ink">{frasePorExtensoDoSinal(c.motivosDeSinal[0])}</span>
+                          {c.motivosDeSinal.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setDetalheAberto(c.id)}
+                              aria-label={`Mais ${c.motivosDeSinal.length - 1} ${c.motivosDeSinal.length - 1 === 1 ? 'Sinal' : 'Sinais'} de ${c.nome}`}
+                              className="shrink-0 text-[0.75rem] font-medium text-al-accent hover:underline"
+                            >
+                              +{c.motivosDeSinal.length - 1}
+                            </button>
+                          )}
                         </div>
+                      ) : (
+                        c.sinais.length > 0 && (
+                          <div className="flex flex-col gap-0.5 pt-0.5">
+                            {c.sinais.slice(0, 2).map((s, i) => (
+                              <span key={i} className="text-[0.75rem] text-al-muted truncate">
+                                • {s.frase}
+                              </span>
+                            ))}
+                          </div>
+                        )
                       )}
                     </div>
                   </td>
 
                   <td className="p-3 align-top text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-expanded={detalheAberto === c.id}
+                        aria-label={`${detalheAberto === c.id ? 'Ocultar' : 'Ver'} detalhes de ${c.nome}`}
+                        title={detalheAberto === c.id ? 'Ocultar detalhes' : 'Ver detalhes'}
+                        onClick={() => setDetalheAberto(detalheAberto === c.id ? null : c.id)}
+                        className="h-8 px-2 text-xs text-al-muted hover:text-al-ink"
+                      >
+                        {detalheAberto === c.id ? <ChevronUp className="size-3.5" aria-hidden /> : <ChevronDown className="size-3.5" aria-hidden />}
+                      </Button>
                       {estadoAba === 'nova' && (
                         <>
                           <Button
@@ -398,6 +576,14 @@ export function PaginaDescobertas() {
                     </div>
                   </td>
                 </tr>
+                {detalheAberto === c.id && (
+                  <tr className="bg-al-surface/30">
+                    <td colSpan={6} className="p-3">
+                      <DetalheDaCandidata candidata={c} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

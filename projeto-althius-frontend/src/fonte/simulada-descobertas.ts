@@ -3,9 +3,13 @@ import type {
   ContaDescoberta,
   CotacaoDaDescoberta,
   FonteDeDescobertas,
+  ResultadoDoAceite,
 } from './descobertas-tipos'
 
-const CANDIDATAS_INICIAIS: ContaDescoberta[] = [
+/** Como a Demonstração escreve uma candidata: sem origem, é da busca; sem Sinais reais, não tem motivos de Sinal. */
+type CandidataDaDemonstracao = Omit<ContaDescoberta, 'origem' | 'motivosDeSinal'> & Partial<Pick<ContaDescoberta, 'origem' | 'motivosDeSinal'>>
+
+const CANDIDATAS_INICIAIS: CandidataDaDemonstracao[] = [
   {
     id: 'desc-1',
     state: 'nova',
@@ -71,6 +75,49 @@ const CANDIDATAS_INICIAIS: ContaDescoberta[] = [
     sinais: [],
     criadaEm: '2026-09-29T16:00:00.000Z',
   },
+  {
+    id: 'desc-4',
+    state: 'nova',
+    nome: 'Órbita Agroindustrial S.A.',
+    website: 'https://orbitaagro.com.br',
+    dominio: 'orbitaagro.com.br',
+    cnpj: '04.252.011/0001-10',
+    localizacao: 'Campinas, SP',
+    uf: 'SP',
+    setor: 'Agroindústria',
+    tags: [],
+    fitLevel: 'baixo',
+    motivos: [],
+    sinais: [],
+    origem: 'sinal',
+    motivosDeSinal: [
+      { id: 'sinal-4a', tipo: 'nova_filial_icp_g', frase: 'Abriu filial em Campinas', fonte: 'Diário Oficial', data: '2026-09-21T12:00:00.000Z', valido: true, mercado: false },
+      { id: 'sinal-4b', tipo: 'financiamento_bndes_finep', frase: 'Financiamento aprovado para nova linha de produção', fonte: 'Notícia', data: '2026-07-20T12:00:00.000Z', valido: false, mercado: false },
+      { id: 'sinal-4c', tipo: 'vaga_comex', frase: 'Abriu vaga de Analista de Comércio Exterior em Campinas, SP', fonte: 'LinkedIn', data: '2026-06-02T12:00:00.000Z', valido: false, mercado: false },
+    ],
+    criadaEm: '2026-09-21T13:00:00.000Z',
+  },
+  {
+    id: 'desc-5',
+    state: 'nova',
+    nome: 'Vértice Embalagens Ltda',
+    website: 'https://verticeembalagens.com.br',
+    dominio: 'verticeembalagens.com.br',
+    localizacao: 'Joinville, SC',
+    uf: 'SC',
+    setor: 'Embalagens',
+    tags: [],
+    fitLevel: 'baixo',
+    motivos: [],
+    sinais: [],
+    origem: 'sinal',
+    motivosDeSinal: [
+      { id: 'sinal-5a', tipo: 'nova_planta_filial', frase: 'Inaugurou nova planta em Joinville', fonte: 'Notícia', data: '2026-09-20T12:00:00.000Z', valido: true, mercado: false },
+    ],
+    voltouPorSinalEm: '2026-09-20T13:00:00.000Z',
+    motivoDoDescarteAnterior: 'Fora do ICP: porte menor que o mínimo',
+    criadaEm: '2026-05-10T10:00:00.000Z',
+  },
 ]
 
 export function criarFonteDeDescobertasSimulada({
@@ -80,10 +127,10 @@ export function criarFonteDeDescobertasSimulada({
 }: {
   armazenamento?: Storage
   fonteDeContas?: FonteDeContas
-  candidatasIniciais?: ContaDescoberta[]
+  candidatasIniciais?: CandidataDaDemonstracao[]
   saldoInicial?: number
 } = {}): FonteDeDescobertas {
-  let candidatas = candidatasIniciais.map((c) => ({ ...c }))
+  let candidatas: ContaDescoberta[] = candidatasIniciais.map((c) => ({ origem: 'busca', motivosDeSinal: [], ...c }))
   let saldo = saldoInicial
   let emAndamento = false
   const ouvintes = new Set<() => void>()
@@ -128,6 +175,8 @@ export function criarFonteDeDescobertasSimulada({
         fitLevel: 'alto',
         motivos: ['Setor: Agronegócio', 'Porte: 50-100 funcionários', 'Localização: São Paulo'],
         sinais: [{ frase: 'Captação Seed anunciada recentemente', fonte: 'noticias', data: '2026-10-01' }],
+        origem: 'busca',
+        motivosDeSinal: [],
         criadaEm: new Date().toISOString(),
       }
       candidatas.unshift(nova)
@@ -140,11 +189,11 @@ export function criarFonteDeDescobertasSimulada({
       return candidatas.filter((c) => c.state === estado)
     },
 
-    async aceitarDescoberta(id: string, url?: string): Promise<{ targetAccountId: string; created: boolean }> {
+    async aceitarDescoberta(id: string, url?: string): Promise<ResultadoDoAceite> {
       const candidata = candidatas.find((c) => c.id === id)
       if (!candidata) throw new Error('Candidata não encontrada.')
       if (candidata.state === 'aceita') {
-        return { targetAccountId: candidata.targetAccountId ?? id, created: false }
+        return { targetAccountId: candidata.targetAccountId ?? id, created: false, sinaisMigrados: 0, comite: 'liberado' }
       }
       if (candidata.state === 'descartada') {
         throw new Error('Candidata já havia sido descartada.')
@@ -168,8 +217,10 @@ export function criarFonteDeDescobertasSimulada({
       candidata.state = 'aceita'
       candidata.targetAccountId = targetAccountId
       candidata.decididoEm = new Date().toISOString()
+      candidata.voltouPorSinalEm = undefined
+      candidata.motivoDoDescarteAnterior = undefined
       notificar()
-      return { targetAccountId, created: true }
+      return { targetAccountId, created: true, sinaisMigrados: candidata.motivosDeSinal.length, comite: 'liberado' }
     },
 
     async descartarDescoberta(id: string, motivo?: string): Promise<void> {
@@ -181,6 +232,8 @@ export function criarFonteDeDescobertasSimulada({
       candidata.state = 'descartada'
       candidata.motivoDescarte = motivo
       candidata.decididoEm = new Date().toISOString()
+      candidata.voltouPorSinalEm = undefined
+      candidata.motivoDoDescarteAnterior = undefined
       notificar()
     },
 

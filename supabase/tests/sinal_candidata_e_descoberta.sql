@@ -1,0 +1,719 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = extensions, public;
+select plan(150);
+
+-- Ana (Admin) e Bruno (Membro) do Norte; Carla é do Sul.
+insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
+                        created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
+                        is_sso_user, is_anonymous)
+values
+  ('5a000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana@norte.test', '', now(), now(), now(), '{}', '{}', false, false),
+  ('5a000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'bruno@norte.test', '', now(), now(), now(), '{}', '{}', false, false),
+  ('5a000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'carla@sul.test', '', now(), now(), now(), '{}', '{}', false, false);
+insert into public.workspaces (id, kind, name) values
+  ('fa000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
+  ('fa000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into public.workspace_memberships (workspace_id, user_id, role, active) values
+  ('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'admin', true),
+  ('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000002', 'member', true),
+  ('fa000000-0000-0000-0000-000000000002', '5a000000-0000-0000-0000-000000000003', 'admin', true);
+
+-- Contas que o Norte já tem: Alfa (domínio), Beta (domínio e CNPJ), Gama (LinkedIn), Delta (será arquivada).
+insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, legal_identifier, linkedin_url, created_by) values
+  ('da000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', 'Alfa Tecnologia Ltda', 'https://alfa.test', 'alfa.test', null, null, '5a000000-0000-0000-0000-000000000001'),
+  ('da000000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-000000000001', 'Beta Soluções', 'https://beta.test', 'beta.test', '11.222.333/0001-81', null, '5a000000-0000-0000-0000-000000000001'),
+  ('da000000-0000-0000-0000-000000000003', 'fa000000-0000-0000-0000-000000000001', 'Gama Dados', 'https://gama.test', 'gama.test', null, 'https://www.linkedin.com/company/gama-dados/', '5a000000-0000-0000-0000-000000000001'),
+  ('da000000-0000-0000-0000-000000000004', 'fa000000-0000-0000-0000-000000000001', 'Delta Sistemas', 'https://delta.test', 'delta.test', null, null, '5a000000-0000-0000-0000-000000000001');
+insert into public.sales_responsibilities (workspace_id, target_account_id, owner_user_id) values
+  ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001'),
+  ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-000000000002', '5a000000-0000-0000-0000-000000000001'),
+  ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-000000000003', '5a000000-0000-0000-0000-000000000001'),
+  ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-000000000004', '5a000000-0000-0000-0000-000000000001');
+
+create temporary table ids (chave text primary key, valor text);
+grant all on ids to authenticated;
+
+-- 1. O esquema (ticket 01).
+insert into private.discovered_accounts (id, workspace_id, name, domain, domain_key, name_key, source_actor) values
+  ('ca000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', 'Busca Um', 'busca1.test', 'busca1.test', 'busca um', 'harvestapi~linkedin-company-search');
+select is((select origin from private.discovered_accounts where id = 'ca000000-0000-0000-0000-000000000001'), 'busca',
+  'uma candidata sem origem informada é da busca');
+select throws_ok(
+  $$update private.discovered_accounts set origin = 'outro' where id = 'ca000000-0000-0000-0000-000000000001'$$,
+  '23514', null, 'a origem só aceita busca, sinal ou sincronizacao');
+select lives_ok(
+  $$update private.discovered_accounts set origin = 'sincronizacao' where id = 'ca000000-0000-0000-0000-000000000001'$$,
+  'sincronizacao é um valor válido (ninguém grava, por enquanto)');
+update private.discovered_accounts set origin = 'busca' where id = 'ca000000-0000-0000-0000-000000000001';
+
+select throws_ok(
+  $$insert into private.signals (workspace_id, signal_type, event_key, phrase, fired_at)
+    values ('fa000000-0000-0000-0000-000000000001', 'novo_importador', 'k-nenhum', 'Sem dono', now())$$,
+  '23514', null, 'um Sinal sem Conta e sem candidata é recusado');
+select throws_ok(
+  $$insert into private.signals (workspace_id, target_account_id, discovered_account_id, signal_type, event_key, phrase, fired_at)
+    values ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000001',
+      'novo_importador', 'k-dois', 'Dois donos', now())$$,
+  '23514', null, 'um Sinal com Conta e candidata ao mesmo tempo é recusado');
+select lives_ok(
+  $$insert into private.signals (workspace_id, discovered_account_id, signal_type, event_key, phrase, fired_at)
+    values ('fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000001', 'novo_importador', 'k-cand', 'Da candidata', now())$$,
+  'um Sinal só da candidata é aceito');
+select throws_ok(
+  $$insert into private.signals (workspace_id, discovered_account_id, signal_type, event_key, phrase, fired_at)
+    values ('fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000001', 'novo_importador', 'k-cand', 'Repetido', now())$$,
+  '23505', null, 'o mesmo acontecimento é um Sinal só dentro da candidata');
+select throws_ok(
+  $$insert into private.signals (workspace_id, discovered_account_id, signal_type, event_key, phrase, fired_at)
+    values ('fa000000-0000-0000-0000-000000000002', 'ca000000-0000-0000-0000-000000000001', 'novo_importador', 'k-cruzado', 'Outro Workspace', now())$$,
+  '23503', null, 'a candidata de um Workspace não recebe Sinal de outro');
+select lives_ok(
+  $$insert into private.discovery_reasons (discovered_account_id, signal_id, workspace_id, weight)
+    select s.discovered_account_id, s.id, s.workspace_id, 25 from private.signals s where s.event_key = 'k-cand'$$,
+  'o motivo liga a candidata ao Sinal');
+select throws_ok(
+  $$insert into private.discovery_reasons (discovered_account_id, signal_id, workspace_id, weight)
+    select s.discovered_account_id, s.id, s.workspace_id, 101 from private.signals s where s.event_key = 'k-cand'$$,
+  '23514', null, 'o peso de um motivo fica entre 0 e 100');
+select ok((select relrowsecurity from pg_class where oid = 'private.discovery_reasons'::regclass),
+  'os motivos têm RLS ligado');
+select ok(not has_table_privilege('authenticated', 'private.discovery_reasons', 'select'),
+  'e ninguém de fora lê os motivos direto');
+
+-- Quem lê "os Sinais das Contas" não vê o Sinal da candidata.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
+select is((select count(*)::integer from public.list_signals('fa000000-0000-0000-0000-000000000001')), 0,
+  'list_signals só devolve Sinais de Contas');
+select is((select count(*)::integer from public.list_account_signals('fa000000-0000-0000-0000-000000000001')), 0,
+  'list_account_signals não cria uma linha sem Conta para o Sinal da candidata');
+reset role;
+
+-- Apagar a candidata leva o Sinal e o motivo.
+delete from private.discovered_accounts where id = 'ca000000-0000-0000-0000-000000000001';
+select is((select count(*)::integer from private.signals where event_key = 'k-cand')
+  + (select count(*)::integer from private.discovery_reasons), 0, 'apagar a candidata apaga o Sinal e o motivo dela');
+
+-- A Conta que nasce do aceite por CNPJ não tem site; duas Contas sem site não repetem o CNPJ.
+select lives_ok(
+  $$insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, legal_identifier, created_by)
+    values ('da000000-0000-0000-0000-0000000000a1', 'fa000000-0000-0000-0000-000000000001', 'Sem Site SA', null, null,
+      '47.960.950/0001-21', '5a000000-0000-0000-0000-000000000001')$$,
+  'uma Conta pode não ter site');
+select throws_ok(
+  $$insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, legal_identifier, created_by)
+    values ('da000000-0000-0000-0000-0000000000a2', 'fa000000-0000-0000-0000-000000000001', 'Sem Site Outra', null, null,
+      '47960950000121', '5a000000-0000-0000-0000-000000000001')$$,
+  '23505', null, 'duas Contas sem site não têm o mesmo CNPJ');
+select lives_ok(
+  $$insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, legal_identifier, created_by)
+    values ('da000000-0000-0000-0000-0000000000a3', 'fa000000-0000-0000-0000-000000000002', 'Sem Site Sul', null, null,
+      '47960950000121', '5a000000-0000-0000-0000-000000000003')$$,
+  'o mesmo CNPJ sem site em outro Workspace é outra Conta');
+delete from public.target_accounts where id in ('da000000-0000-0000-0000-0000000000a1', 'da000000-0000-0000-0000-0000000000a3');
+
+
+-- 2. A resolução do Sinal em Conta ou candidata (ticket 02). O servidor chama; o crédito não se mexe.
+select ok(not has_function_privilege('authenticated', 'public.record_signal_for_company(uuid,jsonb,uuid,text,text,text,timestamptz,text,text,integer)', 'execute'),
+  'quem usa o app não grava o Sinal de uma empresa');
+select ok(has_function_privilege('service_role', 'public.record_signal_for_company(uuid,jsonb,uuid,text,text,text,timestamptz,text,text,integer)', 'execute'),
+  'o servidor grava');
+select ok(not has_function_privilege('authenticated', 'public.record_market_signal(uuid,text,text,text,timestamptz,text,text,jsonb,integer)', 'execute'),
+  'nem o Sinal de mercado');
+
+insert into ids (chave, valor) values ('creditos', (select count(*)::text from private.credit_entries) || '/' || (select count(*)::text from private.credit_reservations));
+
+-- 2.1 A empresa é Conta: por CNPJ, por domínio, e o CNPJ vence o domínio.
+select is(
+  (select row(r.resolved, r.is_new, r.target_account_id, r.discovered_account_id)::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Beta Soluções S.A.","cnpj":"11.222.333/0001-81"}', null, 'nova_filial_icp_g', 'filial|beta|1',
+     'Abriu filial em Campinas', now() - interval '2 days', 'Diário Oficial', 'Ato 1', 35) r),
+  '(conta,t,da000000-0000-0000-0000-000000000002,)', 'a empresa que já é Conta, pelo CNPJ: o Sinal vai para a Conta');
+select is(
+  (select stage from private.prospecting_stages where target_account_id = 'da000000-0000-0000-0000-000000000002'),
+  'quente', 'e a Conta fica Quente');
+select is(
+  (select count(*)::integer from private.signals where target_account_id = 'da000000-0000-0000-0000-000000000002' and event_key = 'filial|beta|1'),
+  1, 'o Sinal é da Conta (e nenhuma candidata nasceu)');
+select is((select count(*)::integer from private.discovered_accounts where workspace_id = 'fa000000-0000-0000-0000-000000000001'), 0,
+  'a Caixa continua vazia');
+select is(
+  (select row(r.resolved, r.target_account_id)::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Alfa","website":"https://www.alfa.test/produtos"}', null, 'nova_filial_icp_g', 'filial|alfa|1',
+     'Abriu filial em Recife', now() - interval '1 day', 'Diário Oficial', 'Ato 2') r),
+  '(conta,da000000-0000-0000-0000-000000000001)', 'e pelo domínio, quando não há CNPJ');
+select is(
+  (select r.target_account_id::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Mistura","cnpj":"11222333000181","website":"https://alfa.test"}', null, 'nova_filial_icp_g', 'filial|mistura|1',
+     'Abriu filial em Natal', now() - interval '1 day', 'Diário Oficial', 'Ato 3') r),
+  'da000000-0000-0000-0000-000000000002', 'quando CNPJ e domínio apontam Contas diferentes, vale o CNPJ');
+select is(
+  (select r.is_new from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"cnpj":"11222333000181"}', null, 'nova_filial_icp_g', 'filial|beta|1',
+     'Abriu filial em Campinas', now() - interval '2 days', 'Diário Oficial', 'Ato 1') r),
+  false, 'o mesmo acontecimento é um reencontro, e não um Sinal novo');
+
+-- 2.2 Não é Conta: nasce a candidata, com o motivo.
+select is(
+  (select row(r.resolved, r.is_new, r.target_account_id is null, r.discovered_account_id is not null, r.reopened)::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Zeta Indústria Ltda","cnpj":"47.960.950/0001-21","website":"https://www.zeta.test","uf":"sp","sector":"Indústria"}',
+     null, 'nova_filial_icp_g', 'filial|zeta|1', 'Abriu filial em Campinas', now() - interval '3 days', 'Diário Oficial', 'Ato 4', 35) r),
+  '(candidata,t,t,t,f)', 'a empresa que não é Conta vira candidata');
+insert into ids (chave, valor)
+select 'zeta', d.id::text from private.discovered_accounts d where d.workspace_id = 'fa000000-0000-0000-0000-000000000001' and d.cnpj_key = '47960950000121';
+select is(
+  (select row(d.origin, d.state, d.name, d.domain, d.cnpj, d.uf, d.source_actor, d.fit_level, d.fit_score)::text
+   from private.discovered_accounts d where d.id::text = (select valor from ids where chave = 'zeta')),
+  '(sinal,nova,"Zeta Indústria Ltda",zeta.test,47960950000121,SP,sinal:nova_filial_icp_g,sem_dado,0)',
+  'com a origem sinal, os dados da empresa e o encaixe ainda sem dado');
+select is(
+  (select row(g.target_account_id is null, g.phrase, r.weight)::text
+   from private.signals g join private.discovery_reasons r on r.signal_id = g.id
+   where g.discovered_account_id::text = (select valor from ids where chave = 'zeta')),
+  '(t,"Abriu filial em Campinas",35)', 'o Sinal é da candidata e o motivo guarda o peso do tipo');
+select is(
+  (select r.is_new from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Zeta","cnpj":"47960950000121"}', null, 'nova_filial_icp_g', 'filial|zeta|1',
+     'Abriu filial em Campinas', now() - interval '3 days', 'Diário Oficial', 'Ato 4', 35) r),
+  false, 'o mesmo acontecimento não vira outro Sinal');
+select ok((select seen_again_at is not null from private.signals where event_key = 'filial|zeta|1'),
+  'mas fica registrado que foi visto de novo');
+-- Outro acontecimento da mesma empresa, achada só pelo domínio: a mesma candidata, mais um motivo.
+select is(
+  (select row(r.resolved, r.is_new, r.discovered_account_id::text = (select valor from ids where chave = 'zeta'))::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Zeta Ind.","website":"https://zeta.test/imprensa"}', null, 'expansao_de_planta', 'planta|zeta|1',
+     'Anunciou nova planta', now() - interval '1 day', 'Notícia', 'Nota 1', 40) r),
+  '(candidata,t,t)', 'a mesma empresa, achada por outro dado, é a mesma candidata');
+select is((select count(*)::integer from private.discovered_accounts where workspace_id = 'fa000000-0000-0000-0000-000000000001'), 1,
+  'nunca duas candidatas para a mesma empresa');
+select is((select count(*)::integer from private.discovery_reasons where discovered_account_id::text = (select valor from ids where chave = 'zeta')), 2,
+  'o motivo foi acrescentado');
+select is(
+  (select row(d.domain_key, d.cnpj_key)::text from private.discovered_accounts d where d.id::text = (select valor from ids where chave = 'zeta')),
+  '(zeta.test,47960950000121)', 'e as chaves de comparação seguem as da empresa');
+-- Quem chega só com CNPJ (um Sinal de mercado traz só o CNPJ) completa a candidata que veio pelo domínio.
+insert into private.discovered_accounts (id, workspace_id, name, domain, domain_key, website, name_key, source_actor, origin) values
+  ('ca000000-0000-0000-0000-000000000009', 'fa000000-0000-0000-0000-000000000001', 'Sigma Lab', 'sigma.test', 'sigma.test', 'https://sigma.test', 'sigma lab', 'harvestapi~linkedin-company-search', 'busca');
+select is(
+  (select row(r.resolved, r.discovered_account_id)::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Sigma Laboratórios","cnpj":"60746948000112","website":"https://sigma.test"}', null, 'financiamento_bndes_finep', 'fin|sigma|1',
+     'Financiamento aprovado', now() - interval '2 days', 'Notícia', 'Nota 2', 40) r),
+  '(candidata,ca000000-0000-0000-0000-000000000009)', 'a candidata que veio da busca recebe o Sinal');
+select is(
+  (select row(d.origin, d.cnpj_key, d.cnpj)::text from private.discovered_accounts d where d.id = 'ca000000-0000-0000-0000-000000000009'),
+  '(sinal,60746948000112,60746948000112)', 'a origem passa de busca para sinal e o CNPJ que faltava entra');
+update private.discovered_accounts set origin = 'sincronizacao' where id = 'ca000000-0000-0000-0000-000000000009';
+select is(
+  (select r.is_new from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Sigma","website":"https://sigma.test"}', null, 'expansao_de_planta', 'planta|sigma|1',
+     'Anunciou nova planta', now() - interval '1 day', 'Notícia', 'Nota 3', 40) r),
+  true, 'outro Sinal para a mesma candidata');
+select is((select origin from private.discovered_accounts where id = 'ca000000-0000-0000-0000-000000000009'), 'sincronizacao',
+  'a origem sincronizacao nunca é trocada por um Sinal');
+
+-- 2.3 Isolamento, identidade mínima, Conta arquivada e empresa que já é Conta por LinkedIn.
+select is(
+  (select r.discovered_account_id::text <> (select valor from ids where chave = 'zeta')
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000002',
+     '{"name":"Zeta Indústria Ltda","cnpj":"47960950000121"}', null, 'nova_filial_icp_g', 'filial|zeta|1',
+     'Abriu filial em Campinas', now() - interval '3 days', 'Diário Oficial', 'Ato 4', 35) r),
+  true, 'o outro Workspace tem a candidata dele, separada');
+select is((select count(*)::integer from private.signals where discovered_account_id::text = (select valor from ids where chave = 'zeta')), 2,
+  'e a candidata do Norte não ganhou nada');
+select is(
+  (select row(r.resolved, r.is_new, r.target_account_id, r.discovered_account_id)::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Sem Identidade"}', null, 'nova_filial_icp_g', 'filial|ninguem|1',
+     'Abriu filial', now() - interval '1 day', 'Diário Oficial', 'Ato 5') r),
+  '(sem_identidade,f,,)', 'sem CNPJ válido nem site, nada é gravado');
+select is(
+  (select r.resolved from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"CNPJ errado","cnpj":"11111111111111"}', null, 'nova_filial_icp_g', 'filial|errado|1',
+     'Abriu filial', now() - interval '1 day', 'Diário Oficial', 'Ato 6') r),
+  'sem_identidade', 'um CNPJ que não fecha não é identidade');
+update public.target_accounts set archived_at = now(), archived_by = '5a000000-0000-0000-0000-000000000001' where id = 'da000000-0000-0000-0000-000000000004';
+select is(
+  (select row(r.resolved, r.is_new, r.target_account_id)::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Delta","website":"https://delta.test"}', null, 'nova_filial_icp_g', 'filial|delta|1',
+     'Abriu filial', now() - interval '1 day', 'Diário Oficial', 'Ato 7') r),
+  '(conta_arquivada,f,da000000-0000-0000-0000-000000000004)', 'a Conta arquivada não recebe Sinal nem vira candidata');
+select is((select count(*)::integer from private.signals where event_key = 'filial|delta|1'), 0, 'nada foi gravado para ela');
+select is(
+  (select r.resolved from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"name":"Gama Dados Brasil","cnpj":"00000000000191","linkedinUrl":"https://br.linkedin.com/company/Gama-Dados"}', null,
+     'nova_filial_icp_g', 'filial|gama|1', 'Abriu filial', now() - interval '1 day', 'Diário Oficial', 'Ato 8') r),
+  'ja_e_conta', 'a empresa que a deduplicação reconhece como Conta (LinkedIn) não vira candidata');
+select throws_ok(
+  $$select * from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001', '{"cnpj":"47960950000121"}',
+    'aaaaaaaa-0000-0000-0000-000000000000', 'nova_filial_icp_g', 'k', 'f', now(), null, null)$$,
+  'P0002', 'monitor not found', 'um Monitoramento que não existe é recusado');
+select throws_ok(
+  $$select * from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001', '{"cnpj":"47960950000121"}',
+    null, 'nova_filial_icp_g', 'k', 'f', now() + interval '3 days', null, null)$$,
+  '22023', 'invalid signal date', 'uma data muito no futuro é recusada');
+
+-- 2.4 O Sinal de mercado com CNPJ segue o mesmo caminho; sem CNPJ fica só no painel de Mercado.
+select is(
+  public.record_market_signal('fa000000-0000-0000-0000-000000000001', 'licenca_instalacao_dou', 'lic|1',
+    'Licença de instalação publicada no DOU por IBAMA', now() - interval '1 day', 'Diário Oficial da União', 'Ato 9',
+    '{"orgao":"IBAMA","cnpj":"33000167000101"}', 30),
+  true, 'o Sinal de mercado é gravado');
+select is(
+  (select row(d.origin, d.name, d.cnpj_key)::text from private.discovered_accounts d
+   where d.workspace_id = 'fa000000-0000-0000-0000-000000000001' and d.cnpj_key = '33000167000101'),
+  '(sinal,"CNPJ 33.000.167/0001-01",33000167000101)', 'a empresa do CNPJ vira candidata, com o CNPJ no lugar do nome');
+select is(
+  (select row(r.weight, g.market_signal_id is not null, g.signal_type)::text
+   from private.signals g join private.discovery_reasons r on r.signal_id = g.id
+   join private.discovered_accounts d on d.id = g.discovered_account_id and d.cnpj_key = '33000167000101'),
+  '(30,t,licenca_instalacao_dou)', 'o motivo guarda o peso e o vínculo com o Sinal de mercado');
+select is(
+  public.record_market_signal('fa000000-0000-0000-0000-000000000001', 'licenca_instalacao_dou', 'lic|1',
+    'Licença de instalação publicada no DOU por IBAMA', now() - interval '1 day', 'Diário Oficial da União', 'Ato 9',
+    '{"orgao":"IBAMA","cnpj":"33000167000101"}', 30),
+  false, 'repetir o Sinal de mercado não grava de novo');
+select is((select count(*)::integer from private.signals where event_key = 'lic|1'), 1, 'nem cria outro Sinal para a candidata');
+select is(
+  public.record_market_signal('fa000000-0000-0000-0000-000000000001', 'licenca_instalacao_dou', 'lic|2',
+    'Licença de instalação publicada no DOU por IBAMA', now() - interval '1 day', 'Diário Oficial da União', 'Ato 10',
+    '{"orgao":"IBAMA","cnpj":"11222333000181"}', 30),
+  true, 'o Sinal de mercado de um CNPJ que já é Conta');
+select is(
+  (select row(g.target_account_id, g.market_signal_id is not null)::text from private.signals g where g.event_key = 'lic|2'),
+  '(da000000-0000-0000-0000-000000000002,t)', 'vai para a Conta (por CNPJ) e guarda o vínculo');
+select is(
+  public.record_market_signal('fa000000-0000-0000-0000-000000000001', 'licenca_instalacao_dou', 'lic|3',
+    'Licença de instalação publicada no DOU por IBAMA', now() - interval '1 day', 'Diário Oficial da União', 'Ato 11',
+    '{"orgao":"IBAMA"}'),
+  true, 'o Sinal de mercado sem empresa');
+select is((select count(*)::integer from private.signals where event_key = 'lic|3'), 0, 'continua só como painel de contexto, sem candidata');
+select is((select count(*)::integer from private.market_signals where event_key in ('lic|1', 'lic|2', 'lic|3')), 3,
+  'e os três estão no feed de Mercado');
+
+select is(
+  (select count(*)::text from private.credit_entries) || '/' || (select count(*)::text from private.credit_reservations),
+  (select valor from ids where chave = 'creditos'), 'criar candidata e gravar Sinal não gasta crédito');
+
+-- 3. A regra do descarte (ticket 03).
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
+select lives_ok(
+  format($$select public.discard_discovered_account(%L, 'Fora do ICP: indústria pesada')$$, (select valor from ids where chave = 'zeta')),
+  'o Membro descarta a candidata com um motivo');
+reset role;
+select is(
+  (select row(state, discard_reason, decided_by)::text from private.discovered_accounts where id::text = (select valor from ids where chave = 'zeta')),
+  '(descartada,"Fora do ICP: indústria pesada",5a000000-0000-0000-0000-000000000002)', 'ela fica descartada, com o motivo guardado');
+
+-- A busca por ICP nunca a traz de volta.
+insert into private.discovery_runs (id, workspace_id, requested_by, state, criteria, max_results, actor_id)
+values ('aa000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000002',
+  'em_andamento', '{}', 50, 'harvestapi~linkedin-company-search');
+select is(
+  (select row(r.added, r.duplicates)::text from public.record_discovered_accounts('aa000000-0000-0000-0000-000000000001',
+    '[{"name":"Zeta Indústria","cnpj":"47.960.950/0001-21"}]'::jsonb) r),
+  '(0,1)', 'a busca pelo ICP trata a descartada como repetida');
+
+-- Dentro dos 90 dias o Sinal só é registrado.
+select is(
+  (select row(r.resolved, r.is_new, r.reopened)::text from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Zeta","cnpj":"47960950000121"}', null, 'nova_filial_icp_g', 'filial|zeta|2', 'Abriu outra filial', now(), 'Diário Oficial', 'Ato 12', 35) r),
+  '(candidata,t,f)', 'dentro dos 90 dias o Sinal novo é registrado, sem reabrir');
+select is(
+  (select row(state, reopened_by_signal_at is null)::text from private.discovered_accounts where id::text = (select valor from ids where chave = 'zeta')),
+  '(descartada,t)', 'e a candidata segue descartada');
+select is((select count(*)::integer from private.signals where discovered_account_id::text = (select valor from ids where chave = 'zeta')), 3,
+  'o Sinal ficou guardado nela');
+
+-- Passados os 90 dias, um Sinal velho (de antes do descarte, ou que já venceu) também não reabre.
+update private.discovered_accounts set decided_at = now() - interval '91 days'
+where id::text = (select valor from ids where chave = 'zeta');
+select is(
+  (select r.reopened from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Zeta","cnpj":"47960950000121"}', null, 'nova_filial_icp_g', 'filial|zeta|antigo', 'Abriu filial antiga',
+    now() - interval '100 days', 'Diário Oficial', 'Ato 13', 35) r),
+  false, 'um Sinal que aconteceu antes do descarte não reabre');
+select is(
+  (select r.reopened from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Zeta","cnpj":"47960950000121"}', null, 'nova_filial_icp_g', 'filial|zeta|vencido', 'Abriu filial vencida',
+    now() - interval '40 days', 'Diário Oficial', 'Ato 14', 35) r),
+  false, 'nem um Sinal que já venceu (mais de 30 dias)');
+select is(
+  (select r.reopened from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Zeta","cnpj":"47960950000121"}', null, 'nova_filial_icp_g', 'filial|zeta|2', 'Abriu outra filial', now(), 'Diário Oficial', 'Ato 12', 35) r),
+  false, 'nem o reencontro de um Sinal que já estava registrado');
+select is((select state from private.discovered_accounts where id::text = (select valor from ids where chave = 'zeta')), 'descartada',
+  'a candidata segue descartada');
+
+-- Um Sinal novo, que vale, depois do descarte e mais de 90 dias depois dele, reabre.
+select is(
+  (select row(r.resolved, r.is_new, r.reopened)::text from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Zeta","cnpj":"47960950000121"}', null, 'financiamento_bndes_finep', 'fin|zeta|1', 'Financiamento aprovado',
+    now() - interval '1 day', 'Notícia', 'Nota 4', 40) r),
+  '(candidata,t,t)', 'um Sinal novo depois dos 90 dias reabre a candidata');
+select is(
+  (select row(state, origin, reopened_by_signal_at is not null, reopened_discard_reason, reopened_decided_at is not null,
+    decided_at is null, decided_by is null, discard_reason is null)::text
+   from private.discovered_accounts where id::text = (select valor from ids where chave = 'zeta')),
+  '(nova,sinal,t,"Fora do ICP: indústria pesada",t,t,t,t)',
+  'volta para nova, com o motivo do descarte anterior guardado e a decisão limpa');
+
+-- O usuário descarta de novo: a reabertura anterior deixa de valer.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
+select public.discard_discovered_account((select valor from ids where chave = 'zeta')::uuid, 'Ainda fora do ICP');
+reset role;
+select is(
+  (select row(state, reopened_by_signal_at is null, reopened_discard_reason is null, discard_reason)::text
+   from private.discovered_accounts where id::text = (select valor from ids where chave = 'zeta')),
+  '(descartada,t,t,"Ainda fora do ICP")', 'descartar de novo limpa a reabertura e guarda o novo motivo');
+
+-- Restaurar vale a qualquer momento, mesmo dentro dos 90 dias.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  format($$select public.restore_discovered_account(%L)$$, (select valor from ids where chave = 'zeta')),
+  'a pessoa restaura a candidata, mesmo dentro dos 90 dias');
+reset role;
+select is((select state from private.discovered_accounts where id::text = (select valor from ids where chave = 'zeta')), 'nova', 'e ela volta para nova');
+
+-- A origem sincronizacao não é trocada na reabertura.
+update private.discovered_accounts set state = 'descartada', decided_at = now() - interval '120 days', decided_by = '5a000000-0000-0000-0000-000000000001',
+  origin = 'sincronizacao', discard_reason = 'Cliente antigo'
+where id = 'ca000000-0000-0000-0000-000000000009';
+select is(
+  (select r.reopened from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Sigma","website":"https://sigma.test"}', null, 'novo_cd_ou_filial', 'cd|sigma|1', 'Abriu novo CD',
+    now() - interval '1 day', 'Notícia', 'Nota 5', 30) r),
+  true, 'um Sinal novo reabre também a candidata que veio da sincronização');
+select is((select origin from private.discovered_accounts where id = 'ca000000-0000-0000-0000-000000000009'), 'sincronizacao',
+  'sem mudar a origem dela');
+
+
+-- 4. O aceite (ticket 04). Ana (Admin) aceita; quem aceita vira a Vendedora responsável.
+-- Uma candidata de Sinal que só tem CNPJ (veio de um Sinal de mercado) e dois Sinais, um que ainda vale e um que não.
+select is(
+  (select r.resolved from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Omega Energia SA","cnpj":"04.252.011/0001-10"}', null, 'nova_filial_icp_g', 'filial|omega|1',
+    'Abriu filial em Campinas', now() - interval '2 days', 'Diário Oficial', 'Ato 20', 35) r),
+  'candidata', 'nasce uma candidata só com CNPJ');
+select public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+  '{"cnpj":"04252011000110"}', null, 'financiamento_bndes_finep', 'fin|omega|velho', 'Financiamento antigo',
+  now() - interval '50 days', 'Notícia', 'Nota 20', 40);
+insert into ids (chave, valor)
+select 'omega', d.id::text from private.discovered_accounts d where d.workspace_id = 'fa000000-0000-0000-0000-000000000001' and d.cnpj_key = '04252011000110';
+select is((select count(*)::integer from private.signals where discovered_account_id::text = (select valor from ids where chave = 'omega')), 2,
+  'a candidata tem os dois Sinais');
+-- Uma Conta que já tem o Sinal "filial|omega|1" não pode duplicá-lo no aceite: simulamos, abaixo, com outra candidata.
+
+insert into ids (chave, valor) values ('creditos2', (select count(*)::text from private.credit_entries) || '/' || (select count(*)::text from private.credit_reservations));
+
+-- Quem não participa não aceita; descartada não aceita.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000003', true);
+select throws_ok(
+  format($$select * from public.accept_discovered_account(%L)$$, (select valor from ids where chave = 'omega')),
+  'P0002', 'discovered account not found', 'quem é de outro Workspace não aceita');
+reset role;
+
+-- O aceite por CNPJ, sem site, sem saldo para o Comitê (o Workspace ainda não tem crédito).
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select is(
+  (select row(r.created, r.signals_moved, r.committee)::text
+   from public.accept_discovered_account((select valor from ids where chave = 'omega')::uuid) r),
+  '(t,2,sem_saldo)', 'Ana aceita a candidata sem site: a Conta nasce, os dois Sinais migram e o Comitê espera saldo');
+reset role;
+insert into ids (chave, valor)
+select 'conta-omega', d.target_account_id::text from private.discovered_accounts d where d.id::text = (select valor from ids where chave = 'omega');
+select is(
+  (select row(a.name, a.canonical_url, a.domain, a.legal_identifier, a.origin, a.created_by)::text
+   from public.target_accounts a where a.id::text = (select valor from ids where chave = 'conta-omega')),
+  '("Omega Energia SA",,,04.252.011/0001-10,recomendacao,5a000000-0000-0000-0000-000000000001)',
+  'a Conta fica sem site, com o CNPJ, a origem recomendacao e Ana como criadora');
+select is(
+  (select owner_user_id::text from public.sales_responsibilities where target_account_id = (select valor from ids where chave = 'conta-omega')),
+  '5a000000-0000-0000-0000-000000000001', 'e Ana é a Vendedora responsável');
+select is(
+  (select row(d.state, d.decided_by)::text from private.discovered_accounts d where d.id::text = (select valor from ids where chave = 'omega')),
+  '(aceita,5a000000-0000-0000-0000-000000000001)', 'a candidata fica aceita');
+select is(
+  (select count(*)::integer from private.signals where target_account_id::text = (select valor from ids where chave = 'conta-omega') and discovered_account_id is null),
+  2, 'os Sinais da candidata passam a ser da Conta');
+select is((select count(*)::integer from private.signals where discovered_account_id::text = (select valor from ids where chave = 'omega')), 0,
+  'e a candidata não guarda nenhum');
+select is((select count(*)::integer from private.discovery_reasons where discovered_account_id::text = (select valor from ids where chave = 'omega')), 2,
+  'os motivos continuam, para a tela contar por que ela veio');
+select is((select stage from private.prospecting_stages where target_account_id::text = (select valor from ids where chave = 'conta-omega')), 'quente',
+  'a Conta fica Quente: um dos Sinais ainda vale');
+select is(
+  (select count(*)::text from private.credit_entries) || '/' || (select count(*)::text from private.credit_reservations),
+  (select valor from ids where chave = 'creditos2'), 'aceitar não cobra crédito');
+
+-- Aceitar de novo devolve a mesma Conta.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select is(
+  (select row(r.target_account_id::text = (select valor from ids where chave = 'conta-omega'), r.created, r.signals_moved)::text
+   from public.accept_discovered_account((select valor from ids where chave = 'omega')::uuid) r),
+  '(t,f,0)', 'aceitar de novo devolve a mesma Conta, sem criar nada');
+reset role;
+
+-- A empresa aceita agora é Conta: o Sinal seguinte vai direto para ela, pelo CNPJ.
+select is(
+  (select row(r.resolved, r.target_account_id::text = (select valor from ids where chave = 'conta-omega'))::text
+   from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+     '{"cnpj":"04252011000110"}', null, 'expansao_de_planta', 'planta|omega|1', 'Anunciou nova planta', now() - interval '1 day', 'Notícia', 'Nota 21', 40) r),
+  '(conta,t)', 'um Sinal novo da empresa aceita vai direto para a Conta');
+
+-- O Comitê libera quando há saldo; segura quando o limite do mês não cabe; sempre libera na Equipe Althius.
+select public.grant_credits('fa000000-0000-0000-0000-000000000001', 100, 'plano', 'saldo de teste');
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001'), 'liberado',
+  'com saldo e limite, o Comitê pode disparar');
+update private.workspace_contracts set monthly_credit_limit = 5 where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001'), 'limite_do_mes',
+  'com o limite mensal menor que a busca, não dispara');
+update private.workspace_contracts set monthly_credit_limit = null where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select is(private.committee_gate('e0a17e00-0000-4000-8000-000000000001', null), 'liberado', 'a Equipe Althius é ilimitada');
+insert into public.workspaces (id, kind, name) values ('fa000000-0000-0000-0000-000000000003', 'empresa', 'Sem Contrato');
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000003', null), 'sem_contrato', 'sem contrato ativo, não dispara');
+
+-- Mesma regra do reserve_credits: com o limite que barra o gate, a reserva também recusa.
+update private.workspace_contracts set monthly_credit_limit = 5 where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select throws_ok(
+  $$select public.reserve_credits('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'person_collected', 'gate-teste', 10)$$,
+  'P0001', 'monthly credit limit reached', 'a reserva de 10 pessoas também recusa nesse limite');
+update private.workspace_contracts set monthly_credit_limit = null where workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select lives_ok(
+  $$select public.reserve_credits('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'person_collected', 'gate-teste-2', 10)$$,
+  'e, sem o limite, reserva');
+select is(private.committee_gate('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001'), 'liberado',
+  'com 90 de saldo livre, ainda libera');
+
+-- Aceitar com site e sem CNPJ; aceitar sem nenhum dos dois; Sinal que a Conta já tinha não duplica.
+insert into private.discovered_accounts (id, workspace_id, name, linkedin_url, linkedin_key, name_key, source_actor) values
+  ('ca000000-0000-0000-0000-0000000000b1', 'fa000000-0000-0000-0000-000000000001', 'So LinkedIn', 'https://www.linkedin.com/company/so-linkedin', 'so-linkedin', 'so linkedin', 'harvestapi~linkedin-company-search');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $$select * from public.accept_discovered_account('ca000000-0000-0000-0000-0000000000b1')$$,
+  '22023', 'a website is required to accept this account', 'sem site e sem CNPJ continua recusando');
+select is(
+  (select row(r.created, r.signals_moved)::text from public.accept_discovered_account('ca000000-0000-0000-0000-0000000000b1', 'https://solinkedin.test') r),
+  '(t,0)', 'com o site informado, aceita');
+reset role;
+select is(
+  (select row(a.canonical_url, a.origin)::text from public.target_accounts a
+   join private.discovered_accounts d on d.target_account_id = a.id where d.id = 'ca000000-0000-0000-0000-0000000000b1'),
+  '(https://solinkedin.test,recomendacao)', 'a Conta nasce com o site informado');
+
+-- Candidata com CNPJ de uma Conta sem site que já existe: liga, sem criar outra.
+insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, legal_identifier, created_by) values
+  ('da000000-0000-0000-0000-0000000000c1', 'fa000000-0000-0000-0000-000000000001', 'Teta Sem Site', null, null, '33.000.167/0001-01',
+   '5a000000-0000-0000-0000-000000000002');
+insert into public.sales_responsibilities (workspace_id, target_account_id, owner_user_id) values
+  ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-0000000000c1', '5a000000-0000-0000-0000-000000000002');
+update private.discovered_accounts set state = 'nova', decided_at = null, decided_by = null, target_account_id = null
+where cnpj_key = '33000167000101' and workspace_id = 'fa000000-0000-0000-0000-000000000001';
+select is(
+  (select count(*)::integer from private.discovered_accounts where cnpj_key = '33000167000101' and workspace_id = 'fa000000-0000-0000-0000-000000000001'), 1,
+  'a candidata do CNPJ da licença existe (veio do Sinal de mercado)');
+-- O Sinal que a Conta já tem (mesmo tipo e mesmo acontecimento) não duplica no aceite.
+insert into private.signals (workspace_id, target_account_id, signal_type, event_key, phrase, fired_at)
+values ('fa000000-0000-0000-0000-000000000001', 'da000000-0000-0000-0000-0000000000c1', 'licenca_instalacao_dou', 'lic|1', 'Licença', now() - interval '1 day');
+insert into ids (chave, valor)
+select 'teta', d.id::text from private.discovered_accounts d where d.cnpj_key = '33000167000101' and d.workspace_id = 'fa000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
+select is(
+  (select row(r.target_account_id, r.created, r.signals_moved)::text
+   from public.accept_discovered_account((select valor from ids where chave = 'teta')::uuid) r),
+  '(da000000-0000-0000-0000-0000000000c1,f,0)', 'a candidata se liga à Conta sem site que tem o mesmo CNPJ, sem duplicar o Sinal');
+reset role;
+select is((select count(*)::integer from private.signals where event_key = 'lic|1' and workspace_id = 'fa000000-0000-0000-0000-000000000001'), 1,
+  'só um Sinal ficou: o da Conta');
+select ok((select seen_again_at is not null from private.signals where event_key = 'lic|1' and target_account_id is not null),
+  'e ele ficou marcado como visto de novo');
+select is(
+  (select origin from public.target_accounts where id = 'da000000-0000-0000-0000-0000000000c1'), 'manual',
+  'ligar à Conta que já existe não mexe nos dados dela');
+select ok((select market_signal_id is not null from private.signals where event_key = 'lic|1' and target_account_id is not null),
+  'e ele herda o vínculo com o Sinal de mercado que a candidata tinha');
+
+
+-- Apagar a Conta sem site (CRM-18) funciona, leva os Sinais e a candidata aceita dela, e a empresa pode voltar como candidata.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  format($$select public.erase_target_account(%L, 'Omega Energia SA')$$, (select valor from ids where chave = 'conta-omega')),
+  'o Administrador apaga a Conta que nasceu sem site');
+reset role;
+select is(
+  (select row(a.name, a.canonical_url is not null, a.deleted_at is not null)::text from public.target_accounts a where a.id::text = (select valor from ids where chave = 'conta-omega')),
+  '("Conta apagada",t,t)', 'a Conta vira só o marcador');
+select is(
+  (select count(*)::integer from private.discovered_accounts where id::text = (select valor from ids where chave = 'omega'))
+  + (select count(*)::integer from private.signals where event_key in ('filial|omega|1', 'fin|omega|velho', 'planta|omega|1')), 0,
+  'a candidata aceita e os Sinais dela saem junto');
+select is(
+  (select row(r.resolved, r.is_new)::text from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Omega Energia SA","cnpj":"04252011000110"}', null, 'nova_filial_icp_g', 'filial|omega|2', 'Abriu outra filial', now() - interval '1 day', 'Diário Oficial', 'Ato 22', 40) r),
+  '(candidata,t)', 'depois de apagada, a empresa pode voltar como candidata nova');
+
+-- 5. A nota e as leituras (tickets 05 e 07).
+-- 5.1 A curva: peso cheio até 30 dias, zero aos 90, em linha reta entre os dois.
+select is(private.discovery_signal_decay(now() - interval '0 days', now()), 1::numeric, 'hoje: peso cheio');
+select is(private.discovery_signal_decay(now() - interval '30 days', now()), 1::numeric, 'aos 30 dias: ainda peso cheio');
+select is(private.discovery_signal_decay(now() - interval '60 days', now()), 0.5::numeric, 'aos 60 dias: metade');
+select is(private.discovery_signal_decay(now() - interval '75 days', now()), 0.25::numeric, 'aos 75 dias: um quarto');
+select is(private.discovery_signal_decay(now() - interval '90 days', now()), 0::numeric, 'aos 90 dias: zero');
+select is(private.discovery_signal_decay(now() - interval '200 days', now()), 0::numeric, 'depois disso, zero');
+select is(private.discovery_signal_decay(now() + interval '1 day', now()), 1::numeric, 'um disparo logo adiante conta cheio');
+
+-- 5.2 O nível: 75 alto, 45 médio, o resto baixo; sem Encaixe nem Sinal, sem dado.
+select is(private.discovery_level(75, 'sem_dado'), 'alto', '75: alto');
+select is(private.discovery_level(74.9, 'sem_dado'), 'medio', '74,9: médio');
+select is(private.discovery_level(45, 'sem_dado'), 'medio', '45: médio');
+select is(private.discovery_level(44.9, 'sem_dado'), 'baixo', '44,9: baixo');
+select is(private.discovery_level(0, 'sem_dado'), 'sem_dado', 'zero e nada avaliado: sem dado');
+select is(private.discovery_level(0, 'baixo'), 'baixo', 'zero, mas a busca avaliou e achou fora do ICP: baixo');
+
+-- 5.3 A nota: Encaixe ICP mais os Sinais com decaimento e teto de 60.
+insert into private.discovered_accounts (id, workspace_id, name, domain, domain_key, name_key, source_actor, fit_score, fit_level, created_at) values
+  ('ca000000-0000-0000-0000-0000000000d1', 'fa000000-0000-0000-0000-000000000001', 'Nota Um', 'nota1.test', 'nota1.test', 'nota um', 'x', 40, 'medio', now() - interval '3 days'),
+  ('ca000000-0000-0000-0000-0000000000d2', 'fa000000-0000-0000-0000-000000000001', 'Nota Dois', 'nota2.test', 'nota2.test', 'nota dois', 'x', 0, 'sem_dado', now() - interval '2 days'),
+  ('ca000000-0000-0000-0000-0000000000d3', 'fa000000-0000-0000-0000-000000000001', 'Nota Tres', 'nota3.test', 'nota3.test', 'nota tres', 'x', 0, 'sem_dado', now() - interval '1 day'),
+  ('ca000000-0000-0000-0000-0000000000d4', 'fa000000-0000-0000-0000-000000000001', 'Nota Quatro', 'nota4.test', 'nota4.test', 'nota quatro', 'x', 10, 'baixo', now());
+insert into private.signals (id, workspace_id, discovered_account_id, signal_type, event_key, phrase, source, fired_at) values
+  ('b1000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-0000000000d1', 'nova_filial_icp_g', 'n1a', 'Abriu filial em Recife', 'Diário Oficial', now() - interval '10 days'),
+  ('b1000000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-0000000000d1', 'expansao_de_planta', 'n1b', 'Anunciou nova planta', 'Notícia', now() - interval '60 days'),
+  ('b1000000-0000-0000-0000-000000000003', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-0000000000d2', 'nova_filial_icp_g', 'n2a', 'Vaga publicada via Apify actor x1', 'harvestapi~linkedin', now() - interval '5 days'),
+  ('b1000000-0000-0000-0000-000000000004', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-0000000000d3', 'nova_filial_icp_g', 'n3a', 'Abriu filial em Natal', 'Diário Oficial', now() - interval '1 day'),
+  ('b1000000-0000-0000-0000-000000000005', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-0000000000d4', 'nova_filial_icp_g', 'n4a', 'Abriu filial em Manaus', 'Diário Oficial', now() - interval '100 days');
+insert into private.discovery_reasons (discovered_account_id, signal_id, workspace_id, weight) values
+  ('ca000000-0000-0000-0000-0000000000d1', 'b1000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', 35),
+  ('ca000000-0000-0000-0000-0000000000d1', 'b1000000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-000000000001', 30),
+  ('ca000000-0000-0000-0000-0000000000d2', 'b1000000-0000-0000-0000-000000000003', 'fa000000-0000-0000-0000-000000000001', 35),
+  ('ca000000-0000-0000-0000-0000000000d3', 'b1000000-0000-0000-0000-000000000004', 'fa000000-0000-0000-0000-000000000001', 35),
+  ('ca000000-0000-0000-0000-0000000000d4', 'b1000000-0000-0000-0000-000000000005', 'fa000000-0000-0000-0000-000000000001', 40);
+select is(private.discovery_note(40, 'ca000000-0000-0000-0000-0000000000d1', now()), 90::numeric,
+  'Encaixe 40 + Sinal cheio de 35 + Sinal de 60 dias (metade de 30): 90');
+select is(private.discovery_note(0, 'ca000000-0000-0000-0000-0000000000d3', now()), 35::numeric, 'só Sinal: o peso do tipo');
+select is(private.discovery_note(10, 'ca000000-0000-0000-0000-0000000000d4', now()), 10::numeric, 'o Sinal de mais de 90 dias não pesa mais');
+insert into private.signals (workspace_id, discovered_account_id, signal_type, event_key, phrase, fired_at)
+select 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-0000000000d3', 'nova_filial_icp_g', 'teto|' || g, 'Mais um Sinal', now() from generate_series(1, 3) g;
+insert into private.discovery_reasons (discovered_account_id, signal_id, workspace_id, weight)
+select s.discovered_account_id, s.id, s.workspace_id, 40 from private.signals s where s.event_key like 'teto|%';
+select is(private.discovery_note(0, 'ca000000-0000-0000-0000-0000000000d3', now()), 60::numeric,
+  'os Sinais somam no máximo 60 pontos');
+delete from private.signals where event_key like 'teto|%';
+
+-- 5.4 A lista: ordenada pela nota e, no empate, pelo Sinal mais recente; só o nível, nunca o número.
+insert into ids (chave, valor) values ('icp', (select icp from private.signal_cascades where signal_type = 'licenca_instalacao_dou'));
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
+select is(
+  (select array_agg(x.name order by x.rn) from (
+     select l.name, row_number() over () as rn from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l) x
+   where x.name like 'Nota %'),
+  array['Nota Um', 'Nota Tres', 'Nota Dois', 'Nota Quatro']::text[],
+  'a ordem é a da nota (90, 35, 35 e 10) e, no empate, o Sinal mais recente vem primeiro');
+select is(
+  (select array_agg(l.name || ':' || l.fit_level order by l.name) from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name like 'Nota %'),
+  array['Nota Dois:baixo', 'Nota Quatro:baixo', 'Nota Tres:baixo', 'Nota Um:alto']::text[],
+  'a tela recebe o nível calculado pela nota');
+select ok(
+  (select not (p.proargnames::text[] && array['fit_score', 'score', 'note', 'nota', 'weight', 'peso'])
+   from pg_proc p where p.oid = 'public.list_discovered_accounts(uuid, text, integer)'::regprocedure),
+  'a lista não devolve o número da nota (ADR-0006)');
+select is(
+  (select row(l.origin, l.reopened_by_signal_at is not null, l.reopened_discard_reason)::text
+   from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name = 'Sigma Lab'),
+  '(sincronizacao,t,"Cliente antigo")', 'a lista traz a origem, a reabertura por Sinal novo e o motivo do descarte anterior');
+select is(
+  (select row(l.origin, l.reopened_by_signal_at is null)::text
+   from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name = 'Nota Um'),
+  '(busca,t)', 'uma candidata da busca segue com a origem busca');
+-- Os Sinais da candidata: do mais recente ao mais antigo, sem fornecedor nem dado pessoal.
+select is(
+  (select jsonb_array_length(l.signal_reasons) from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name = 'Nota Um'),
+  2, 'o detalhe lista os Sinais da candidata');
+select is(
+  (select l.signal_reasons -> 0 ->> 'frase' from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name = 'Nota Um'),
+  'Abriu filial em Recife', 'o mais recente primeiro');
+select is(
+  (select l.signal_reasons -> 0 ->> 'fonte' from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name = 'Nota Um'),
+  'Diário Oficial', 'com a fonte (a pública, e não o fornecedor)');
+select is(
+  (select row(l.signal_reasons -> 0 ->> 'frase', l.signal_reasons -> 0 ->> 'fonte', (l.signal_reasons -> 0 ->> 'valido')::boolean)::text
+   from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name = 'Nota Dois'),
+  '("Sinal registrado.",,t)', 'a frase com nome de fornecedor vira neutra e a fonte de fornecedor some');
+select is(
+  (select (l.signal_reasons -> 1 ->> 'valido')::boolean from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001') l where l.name = 'Nota Um'),
+  false, 'o Sinal de 60 dias já passou dos 30 e aparece como vencido');
+select throws_ok(
+  $$select * from public.list_discovered_accounts('fa000000-0000-0000-0000-000000000001', 'qualquer')$$,
+  '22023', 'invalid state', 'um estado que não existe segue recusado');
+
+-- 5.5 Sinais encontrados e Mercado: os Sinais das candidatas novas, e os vínculos dos Sinais de mercado com empresa.
+select is(
+  (select array_agg(c.company_name order by c.company_name) from public.list_candidate_signals('fa000000-0000-0000-0000-000000000001') c
+   where c.company_name like 'Nota %'),
+  array['Nota Dois', 'Nota Quatro', 'Nota Tres', 'Nota Um', 'Nota Um']::text[],
+  'os Sinais das candidatas novas, com o nome da empresa');
+select is(
+  (select c.phrase from public.list_candidate_signals('fa000000-0000-0000-0000-000000000001') c where c.company_name = 'Nota Dois'),
+  'Sinal registrado.', 'e a frase sai sem nome de fornecedor');
+select is(
+  (select count(*)::integer from public.list_candidate_signals('fa000000-0000-0000-0000-000000000001') c where c.discovered_account_id is null), 0,
+  'nenhum Sinal de Conta aparece entre os das candidatas');
+select throws_ok(
+  $$select * from public.list_market_signal_companies('fa000000-0000-0000-0000-000000000001', 'Z')$$,
+  '22023', 'invalid icp', 'o nicho precisa ser válido');
+select ok(
+  (select count(*)::integer from public.list_market_signal_companies('fa000000-0000-0000-0000-000000000001', (select valor from ids where chave = 'icp'))) >= 2,
+  'a leitura de Mercado traz os Sinais de mercado que têm empresa');
+select ok(
+  exists (select 1 from public.list_market_signal_companies('fa000000-0000-0000-0000-000000000001', (select valor from ids where chave = 'icp')) m
+    where m.target_account_id = 'da000000-0000-0000-0000-000000000002' and m.discovered_account_id is null),
+  'um é da Conta (por CNPJ)');
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000003', true);
+select throws_ok(
+  $$select * from public.list_candidate_signals('fa000000-0000-0000-0000-000000000001')$$,
+  '42501', 'active workspace membership required', 'quem é de outro Workspace não lê os Sinais das candidatas');
+select throws_ok(
+  $$select * from public.list_market_signal_companies('fa000000-0000-0000-0000-000000000001', 'A')$$,
+  '42501', 'active workspace membership required', 'nem os vínculos de Mercado');
+reset role;
+select ok(not has_function_privilege('anon', 'public.list_candidate_signals(uuid,integer)', 'execute')
+  and not has_function_privilege('anon', 'public.list_market_signal_companies(uuid,text)', 'execute')
+  and not has_function_privilege('anon', 'public.list_discovered_accounts(uuid,text,integer)', 'execute')
+  and not has_function_privilege('anon', 'public.accept_discovered_account(uuid,text)', 'execute'),
+  'o visitante anônimo não executa nenhuma delas');
+
+-- A candidata descartada some dos Sinais encontrados.
+update private.discovered_accounts set state = 'descartada', decided_at = now(), decided_by = '5a000000-0000-0000-0000-000000000001'
+where id = 'ca000000-0000-0000-0000-0000000000d2';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
+select is(
+  (select count(*)::integer from public.list_candidate_signals('fa000000-0000-0000-0000-000000000001') c where c.company_name = 'Nota Dois'), 0,
+  'a descartada fica escondida em Sinais encontrados');
+reset role;
+
+select * from finish();
+rollback;

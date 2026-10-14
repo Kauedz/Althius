@@ -14,9 +14,11 @@
 //  - falha ou aborto DEPOIS de os Sinais estarem confirmados (um enriquecimento que falha, o teto no passo de Receita)
 //    grava os Sinais confirmados e a execução fica "parcial"; antes disso, nada é gravado e só o consumido é cobrado;
 //  - todo texto de `mensagem` está em palavras do produto: o fornecedor e o actor só aparecem na coluna técnica.
+import { pesoDoSinal } from '../../account-discovery/pontuacao.ts'
 import { MENSAGEM_DA_FONTE } from '../marca.ts'
 import { FonteAdiada } from './fonte-publica.ts'
 import { modeloDaExecucao } from './llm-da-execucao.ts'
+import { sinaisDeEmpresaDaMemoria } from './passos/comum.ts'
 import { redigir } from './redacao.ts'
 import {
   type AlternativaDoPasso,
@@ -543,12 +545,28 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
 
   for (const s of deMercado) {
     try {
-      const novo = await db.gravarSinalDeMercado({ workspaceId: pedido.workspaceId, signalType: def.signalType, sinal: s })
+      const novo = await db.gravarSinalDeMercado({ workspaceId: pedido.workspaceId, signalType: def.signalType, sinal: s, peso: pesoDoSinal(def.signalType) })
       if (novo) novos++
       else repetidos++
     } catch (e) {
       gravacoesComFalha++
       log({ type: 'cascata', runId, outcome: 'record_market_signal_failed', message: redigir(e instanceof Error ? e.message : e, [], 300) })
+    }
+  }
+
+  // Os Sinais das empresas que o passo de casamento não achou entre as Contas: o banco decide se são de uma Conta (CNPJ,
+  // depois domínio) ou da candidata da Caixa de Descobertas. Não entram na contagem de novos nem no desfecho, e criar
+  // candidata não gasta crédito: um problema aqui vai só para o log.
+  let candidatas = 0
+  const tipoGravado = pedido.registrarComo ?? def.signalType
+  for (const s of def.scope === 'conta' ? sinaisDeEmpresaDaMemoria(ctxBase.memoria) : []) {
+    try {
+      const r = await db.gravarSinalDeEmpresa({
+        workspaceId: pedido.workspaceId, monitorId: pedido.monitorId ?? null, signalType: tipoGravado, sinal: s, peso: pesoDoSinal(tipoGravado),
+      })
+      if (r.novo && r.resolvido === 'candidata') candidatas++
+    } catch (e) {
+      log({ type: 'cascata', runId, outcome: 'record_company_signal_failed', message: redigir(e instanceof Error ? e.message : e, [], 300) })
     }
   }
 
@@ -596,7 +614,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     runId, estado, custoUsd: custo, casados: confirmados.length + deMercado.length, novos, repetidos,
     erroAmigavel: estado === 'succeeded' ? null : mensagem,
   })
-  log({ type: 'cascata', runId, signalType: def.signalType, outcome: desfecho, novos, repetidos, creditos: fechado.creditosCobrados, costUsd: custo })
+  log({ type: 'cascata', runId, signalType: def.signalType, outcome: desfecho, novos, repetidos, candidatas, creditos: fechado.creditosCobrados, costUsd: custo })
 
   const semConta = Number(ctxBase.memoria.get('semConta') ?? 0)
   const nomes = ctxBase.memoria.get('semContaNomes')
