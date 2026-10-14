@@ -47,7 +47,7 @@ describe('Mockup do módulo Sinais', () => {
 
   it('abre um card numa página própria com os Monitoramentos do tipo e volta ao catálogo', async () => {
     const { usuario } = renderizarApp('/sinais')
-    await usuario.click(await screen.findByRole('link', { name: /Abertura de vagas.*1 ativo/ }))
+    await usuario.click(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas.*1 ativo/ }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
     const lista = screen.getByRole('list', { name: 'Monitoramentos deste tipo' })
@@ -61,7 +61,7 @@ describe('Mockup do módulo Sinais', () => {
 
   it('cria um segundo Monitoramento do mesmo tipo: rascunho, revisão, ativação, pausa e retomada', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/financiamento-bndes-finep')
-    await usuario.click(await screen.findByRole('link', { name: 'Criar Monitoramento' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Ativar Monitoramento' }))
 
     expect(screen.getByRole('button', { name: 'Revisar e ativar' })).toBeDisabled()
     await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Fusões no México')
@@ -86,7 +86,7 @@ describe('Mockup do módulo Sinais', () => {
     expect(novo).toHaveTextContent('Ativo')
 
     await usuario.click(within(screen.getByRole('main')).getByRole('link', { name: 'Sinais' }))
-    expect(await screen.findByRole('link', { name: /Financiamento BNDES\/Finep.*1 ativo/ })).toBeInTheDocument()
+    expect(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Financiamento BNDES\/Finep.*1 ativo/ })).toBeInTheDocument()
   })
 
   it('tipos que compartilham um formulário abrem com os valores do próprio tipo', async () => {

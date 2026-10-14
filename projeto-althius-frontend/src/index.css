@@ -462,6 +462,63 @@
     background-clip: text;
     color: transparent;
   }
+  /* Vitrine de Sinais: a capa é uma imagem da marca (rosa e laranja sobre o escuro) com um véu de baixo para cima,
+     para o texto da capa ficar legível. O conteúdo fica acima do véu. */
+  .vitrine-capa {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--al-bg);
+    background-repeat: no-repeat;
+    background-size: cover;
+  }
+  .vitrine-capa::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+      to top,
+      color-mix(in srgb, var(--al-bg) 92%, transparent) 0%,
+      color-mix(in srgb, var(--al-bg) 50%, transparent) 50%,
+      color-mix(in srgb, var(--al-bg) 8%, transparent) 100%
+    );
+  }
+  /* O brilho do Sinal da semana: o degradê da marca deriva devagar sobre a capa. Some com prefers-reduced-motion. */
+  .vitrine-brilho {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      radial-gradient(45% 60% at 25% 25%, color-mix(in srgb, var(--al-accent) 70%, transparent), transparent 70%),
+      radial-gradient(40% 55% at 75% 65%, color-mix(in srgb, var(--al-accent-2) 65%, transparent), transparent 70%);
+    background-size: 200% 200%;
+    mix-blend-mode: screen;
+    opacity: 0.55;
+    animation: vitrine-deriva 16s ease-in-out infinite alternate;
+  }
+  /* A prateleira: uma faixa horizontal que rola sem barra e encaixa card a card. */
+  .vitrine-prateleira {
+    display: flex;
+    gap: 1rem;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: 0.25rem;
+  }
+  .vitrine-prateleira::-webkit-scrollbar {
+    display: none;
+  }
+  .vitrine-prateleira > li {
+    scroll-snap-align: start;
+  }
+}
+
+@keyframes vitrine-deriva {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 60% 40%; }
+  100% { background-position: 100% 100%; }
 }
 
 /* O pulso: anéis que substituem o spinner genérico. */

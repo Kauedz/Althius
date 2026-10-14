@@ -18,7 +18,7 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
     expect(screen.queryByRole('link', { name: /Abertura de vagas/ })).not.toBeInTheDocument()
 
     await usuario.click(within(familias).getByRole('button', { name: 'Todas' }))
-    expect(screen.getByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Catálogo de sinais' })).getByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
 
     // Busca por termo que não corresponde
     const busca = screen.getByRole('searchbox', { name: 'Buscar tipos de sinal' })
@@ -27,15 +27,14 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
 
     // Ação de continuidade: Limpar busca
     await usuario.click(screen.getByRole('button', { name: 'Limpar busca' }))
-    expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
+    expect(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
   })
 
   it('abre Abertura de vagas em página própria com retorno ao catálogo, contagem de ativos excluindo rascunhos e lista de monitoramentos', async () => {
     const { usuario } = renderizarApp('/sinais')
 
     // Clica no card de Abertura de vagas
-    await usuario.click(await screen.findByRole('link', { name: /Abertura de vagas/ }))
+    await usuario.click(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas/ }))
 
     // Página própria do tipo
     expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
@@ -63,7 +62,7 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
     const { usuario } = renderizarApp('/sinais/tipos/abertura-de-vagas')
 
     // Clica em Novo monitoramento
-    await usuario.click(await screen.findByRole('link', { name: 'Criar Monitoramento' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Ativar Monitoramento' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
 
     // Preenche nome
@@ -120,7 +119,7 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
     const { usuario } = renderizarApp('/sinais/tipos/abertura-de-vagas')
 
     // 1. Criar e salvar um Rascunho
-    await usuario.click(await screen.findByRole('link', { name: 'Criar Monitoramento' }))
+    await usuario.click(await screen.findByRole('link', { name: 'Ativar Monitoramento' }))
     await usuario.type(
       await screen.findByRole('textbox', { name: 'Nome do monitoramento' }),
       'Rascunho Persistente na Sessão',
@@ -144,7 +143,7 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Sinais' })).toBeInTheDocument()
 
     // 4. Abrir Abertura de vagas
-    await usuario.click(await screen.findByRole('link', { name: /Abertura de vagas/ }))
+    await usuario.click(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas/ }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
 
     // 5. O rascunho continua presente
@@ -170,7 +169,7 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
     expect(screen.getByText('0 no total · 0 ativos')).toBeInTheDocument()
     expect(screen.getByText('Nenhum Monitoramento deste tipo ainda.')).toBeInTheDocument()
 
-    const botaoCriar = screen.getAllByRole('link', { name: 'Criar Monitoramento' })[0]
+    const botaoCriar = screen.getAllByRole('link', { name: 'Ativar Monitoramento' })[0]
     expect(botaoCriar).toBeInTheDocument()
 
     await usuario.click(botaoCriar)

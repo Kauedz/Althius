@@ -1,35 +1,31 @@
-import { useState } from 'react'
-import { Pause, Play, Plus } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { CalendarClock, Coins, Database, Flame, Pause, Play, Zap, type LucideIcon } from 'lucide-react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { cn } from '@/lib/utils'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
-import { useAmbiente, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import type { CardSobPedido, EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, familiaDoTipo, tipoPorId, type TipoDeSinal } from './catalogo'
-import { cardPorId, cardQueConta, nomesDosNichos, valeParaTodosOsNichos, TETO_PADRAO_USD, type CardDoCatalogo } from './catalogo-visivel'
+import { cardPorId, cardQueConta, nomesDosNichos, valeParaTodosOsNichos, TETO_PADRAO_USD } from './catalogo-visivel'
 import { sinalArquivado } from './arquivados'
 import { SeloDoEstado } from './componentes'
 import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
-import { VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
+import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
+import {
+  ZONA_DA_VITRINE,
+  cardDoExtra,
+  custoEmCreditos,
+  eLancamento,
+  frequenciaDoCard,
+  resultadoDoCard,
+  ultimasDetectadas,
+  usePedidosDaVitrine,
+} from './vitrine'
+import { BotaoAviseMe, CapaDoSinal, PreviaDasDetectadas } from './vitrine-pecas'
 import { ACAO_DO_ESTADO, resumoDaRodada, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
-
-function cardDoExtra(extra: CardSobPedido): CardDoCatalogo {
-  return {
-    id: extra.id,
-    nome: extra.nome,
-    frase: extra.frase,
-    familiaId: extra.familiaId,
-    formulario: 'expansao',
-    nichos: extra.nichos,
-    fonte: extra.fonte,
-    custoRotulo: extra.custoRotulo,
-    custoUsd: null,
-    coletores: extra.coletores,
-    contados: [extra.id],
-  }
-}
 
 function tipoDoExtra(extra: CardSobPedido): TipoDeSinal {
   return {
@@ -52,6 +48,8 @@ export function PaginaDoTipo() {
   const { dados: sinaisEncontrados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
   const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
   const { dados: extras, carregando: carregandoExtras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
+  const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
+  const { avisar, avisado } = usePedidosDaVitrine()
   const extra = extras?.find((card) => card.id === tipoId)
   const card = cardPorId(tipoId)
   const tipo = tipoPorId(tipoId) ?? (extra ? tipoDoExtra(extra) : undefined)
@@ -83,48 +81,90 @@ export function PaginaDoTipo() {
     }
   }
 
+  const lancamento = eLancamento(tipo.id)
+  const exclusivo = Boolean(extra)
+  const acao = lancamento && detalhe ? (
+    <BotaoAviseMe card={detalhe} avisado={avisado(detalhe)} aoAvisar={avisar} />
+  ) : permiteCriar ? (
+    <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
+      <Zap strokeWidth={1.8} className="size-4" aria-hidden />
+      Ativar Monitoramento
+    </Link>
+  ) : null
+  const sinaisDoWorkspace = sinaisEncontrados ?? (operacional ? [] : SINAIS_MOCK)
+
   return (
-    <Pagina
-      titulo={tipo.nome}
-      voltar={{ para: '/sinais', rotulo: 'Sinais' }}
-      acoes={
-        permiteCriar ? (
-          <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
-            <Plus strokeWidth={1.8} className="size-4" aria-hidden />
-            Criar Monitoramento
-          </Link>
-        ) : undefined
-      }
-    >
-      <div className="flex max-w-3xl flex-col gap-3">
-        <div className="flex flex-wrap gap-2">
-          {familia ? (
-            <>
-              <span className="selo">{ROTULO_DA_ORIGEM[familia.origem]}</span>
-              <span className="selo">{familia.nome}</span>
-            </>
-          ) : (
-            <span className="selo">Qualquer origem</span>
-          )}
-        </div>
-        <p className="text-base">{tipo.descricao}</p>
-        {detalhe && (
-          <div className="flex flex-col gap-2 text-sm text-al-muted">
-            <p>Fonte: {detalhe.fonte}</p>
-            <p>Custo estimado: {detalhe.custoRotulo}</p>
-            <p>Teto padrão de US$ {TETO_PADRAO_USD} por mês neste Workspace.</p>
-            <ul aria-label="Nichos" className="flex flex-wrap gap-2">
-              {(valeParaTodosOsNichos(detalhe) ? ['Todos os nichos'] : nomesDosNichos(detalhe.nichos)).map((nome) => (
-                <li key={nome} className="selo">{nome}</li>
-              ))}
-            </ul>
+    <Pagina titulo={tipo.nome} voltar={{ para: '/sinais', rotulo: 'Sinais' }}>
+      <div className={cn(ZONA_DA_VITRINE, 'gap-8')}>
+      <section aria-label="Capa do Sinal" className="overflow-hidden rounded-[var(--radius-card)]">
+        <CapaDoSinal id={tipo.id} className="flex min-h-72 flex-col justify-end gap-4 p-6 md:min-h-80 md:p-10">
+          <div className="vitrine-brilho" aria-hidden />
+          <div className="flex flex-wrap gap-2">
+            {familia ? (
+              <>
+                <span className="selo border-al-ink/30 bg-al-bg/60 text-al-ink">{ROTULO_DA_ORIGEM[familia.origem]}</span>
+                <span className="selo border-al-ink/30 bg-al-bg/60 text-al-ink">{familia.nome}</span>
+              </>
+            ) : (
+              <span className="selo border-al-ink/30 bg-al-bg/60 text-al-ink">Qualquer origem</span>
+            )}
+            {exclusivo && <span className="selo border-al-ink/30 bg-al-bg/60 text-al-ink">Exclusivo</span>}
+            {lancamento && <span className="selo border-al-ink/30 bg-al-bg/60 text-al-ink">Lançamento</span>}
           </div>
-        )}
-        <p className="text-sm text-al-muted">
-          Cada Sinal disparado deixa a Conta-alvo Quente por {VALIDADE_EM_DIAS} dias. Pausar um Monitoramento interrompe novas detecções e
-          preserva os sinais anteriores.
-        </p>
-      </div>
+          <p className="titulo-display max-w-3xl text-4xl md:text-6xl" aria-hidden>
+            {tipo.nome}
+          </p>
+          <p className="max-w-xl text-base text-al-ink">{tipo.descricao}</p>
+          {acao && <div className="flex flex-wrap items-center gap-3 pt-1">{acao}</div>}
+        </CapaDoSinal>
+      </section>
+
+      {detalhe && (
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <PreviaDasDetectadas
+            titulo="Prévia: últimas empresas detectadas"
+            detectadas={ultimasDetectadas(detalhe, sinaisDoWorkspace, hoje)}
+            contas={contas ?? (operacional ? [] : CONTAS_MOCK)}
+            hoje={hoje}
+            operacional={operacional}
+          />
+          <dl className="grid min-w-0 content-start gap-3 sm:grid-cols-2">
+            <Ficha icone={Database} rotulo="Fonte">
+              {detalhe.fonte}
+            </Ficha>
+            <Ficha icone={CalendarClock} rotulo="Frequência">
+              {frequenciaDoCard(detalhe)}
+            </Ficha>
+            <Ficha icone={Coins} rotulo="Custo em créditos">
+              <span>{custoEmCreditos(detalhe)}</span>
+              <span className="text-xs text-al-muted">
+                {detalhe.custoUsd !== null && `Custo da fonte: ${detalhe.custoRotulo}. `}Teto padrão de US$ {TETO_PADRAO_USD} por mês neste
+                Workspace.
+              </span>
+            </Ficha>
+            <Ficha icone={Flame} rotulo="Resultado">
+              {resultadoDoCard(detalhe, operacional).map((linha) => (
+                <span key={linha}>{linha}</span>
+              ))}
+            </Ficha>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <dt className="rotulo">Nichos</dt>
+              <dd>
+                <ul aria-label="Nichos" className="flex flex-wrap gap-2">
+                  {(valeParaTodosOsNichos(detalhe) ? ['Todos os nichos'] : nomesDosNichos(detalhe.nichos)).map((nome) => (
+                    <li key={nome} className="selo">{nome}</li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
+
+      <p className="max-w-3xl text-sm text-al-muted">
+        Cada Sinal disparado deixa a Conta-alvo Quente por {VALIDADE_EM_DIAS} dias. Pausar um Monitoramento interrompe novas detecções e
+        preserva os sinais anteriores.
+      </p>
 
       {motivoDeNaoCriar && (
         <p role="status" className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm">
@@ -180,14 +220,10 @@ export function PaginaDoTipo() {
           <div className="rounded-2xl flex flex-col items-start gap-3 border border-dashed border-al-line p-6">
             <p className="text-sm">Nenhum Monitoramento deste tipo ainda.</p>
             <p className="text-sm text-al-muted">
-              Você pode criar vários, cada um com nome, critérios e público próprios.
+              {lancamento
+                ? 'Este Sinal ainda está em preparação pela equipe Althius. Peça o aviso e ative quando ele lançar.'
+                : 'Ative pelo botão da capa. Você pode ter vários, cada um com nome, critérios e público próprios.'}
             </p>
-            {permiteCriar && (
-              <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
-                <Plus strokeWidth={1.8} className="size-4" aria-hidden />
-                Criar Monitoramento
-              </Link>
-            )}
           </div>
         ) : (
           <ul aria-label="Monitoramentos deste tipo" className="flex flex-col border-t border-al-line">
@@ -248,6 +284,19 @@ export function PaginaDoTipo() {
         )}
       </section>
       )}
+      </div>
     </Pagina>
+  )
+}
+
+function Ficha({ icone: Icone, rotulo, children }: { icone: LucideIcon; rotulo: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2 rounded-[var(--radius-card)] border border-al-line bg-al-surface p-4">
+      <dt className="rotulo inline-flex items-center gap-2">
+        <Icone strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
+        {rotulo}
+      </dt>
+      <dd className="flex flex-col gap-1 text-sm">{children}</dd>
+    </div>
   )
 }
