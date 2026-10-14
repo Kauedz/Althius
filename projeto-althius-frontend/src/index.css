@@ -13,7 +13,8 @@
 /* Tokens do Manual da Marca Althius v2.0 · capítulo 11. Nunca escrever valor cru. */
 :root,
 [data-theme="escuro"],
-.al-zona-escura {
+.al-zona-escura,
+.vitrine-capa {
   /* Valores do tema do site (althius-tema.css, tema escuro). */
   --al-bg: #131313;
   --al-surface: #1c1c1c;
@@ -462,9 +463,11 @@
     background-clip: text;
     color: transparent;
   }
-  /* Vitrine de Sinais: a capa é uma imagem da marca (rosa e laranja) com um véu da cor do fundo, de baixo para cima,
-     para o texto da capa ficar legível nos dois temas. O conteúdo fica acima do véu. */
+  /* Vitrine de Sinais: a capa é uma imagem da marca (rosa e laranja sobre o escuro) com um véu de baixo para cima,
+     para o texto da capa ficar legível. A capa é escura nos dois temas (tem os tokens do escuro, no topo deste
+     arquivo); só o fundo da página segue o tema. O conteúdo fica acima do véu. */
   .vitrine-capa {
+    color: var(--al-ink);
     position: relative;
     isolation: isolate;
     background-color: var(--al-bg);
@@ -495,11 +498,6 @@
     mix-blend-mode: screen;
     opacity: 0.55;
     animation: vitrine-deriva 16s ease-in-out infinite alternate;
-  }
-  /* No tema claro, o brilho "tela" sumiria no fundo claro: ele tinge em vez de clarear. */
-  [data-theme="claro"] .vitrine-brilho {
-    mix-blend-mode: multiply;
-    opacity: 0.35;
   }
   /* A prateleira: uma faixa horizontal que rola sem barra e encaixa card a card. */
   .vitrine-prateleira {

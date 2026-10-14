@@ -1,5 +1,5 @@
 // As peças da vitrine de Sinais: capa, card, prateleira, Sinal da semana, Meus Sinais e o pedido à equipe. O fundo segue
-// o tema (claro ou escuro), com o degradê da marca nas capas; a página e a casca continuam as mesmas.
+// o tema (claro ou escuro); as capas são escuras nos dois, com o degradê da marca. A página e a casca são as mesmas.
 
 import { createElement, useRef, useState, type ReactNode } from 'react'
 import {
