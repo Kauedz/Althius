@@ -74,7 +74,9 @@ export function CartaoDaVitrine({
     <li className={cn('min-w-0', className)}>
       <Link
         to={`/sinais/tipos/${card.id}`}
-        className="group flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-al-line bg-al-surface transition-colors hover:border-al-accent"
+        // O clip-path arredondado segura os cantos enquanto a capa cresce no hover: só com overflow-hidden, o navegador
+        // anima a capa numa camada própria e os cantos ficam quadrados até a animação acabar.
+        className="group flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-al-line bg-al-surface [clip-path:inset(0_round_var(--radius-card))] transition-colors hover:border-al-accent"
       >
         <div className="overflow-hidden">
           <CapaDoSinal
