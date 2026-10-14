@@ -491,7 +491,13 @@ interface AprovacaoBase extends Omit<AcaoProposta, 'integracaoId'> {
   origem: Origem
   /** O gatilho da Execução que propôs a Aprovação; a decisão entra na Atividade com ele. */
   gatilho: Gatilho
+  /** Até quando a pendente pode ser decidida, em ISO. Sem prazo, não vence. */
+  venceEm?: string
+  /** O tipo, para filtrar a fila: envio, chamada numa Integração ou revisão do Playbook. */
+  tipo?: TipoDeAprovacao
 }
+
+export type TipoDeAprovacao = 'envio' | 'integracao' | 'revisao'
 
 /** Uma ação que um Agente quer fazer numa Integração, pela Permissão Propor (ADR 0002). */
 export interface AprovacaoDeAcao extends AprovacaoBase {

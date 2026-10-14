@@ -141,7 +141,7 @@ export function criarAmbienteDoWorkspace({
     fonteDoPlaybook: criarFonteDoPlaybookSupabase(cliente, () => participacao.workspaceId, async () => {
       const { participantes: quem } = await participantes.participantesDoWorkspace()
       return new Map(quem.map(({ conta }) => [conta.id, conta.nome]))
-    }),
+    }, aprovacoes),
     fonteDeAutomacao: criarFonteDeAutomacaoSupabase(cliente, () => participacao.workspaceId),
     fonteDeDescobertas: criarFonteDeDescobertasSupabase(cliente, () => participacao.workspaceId),
     indisponiveis,

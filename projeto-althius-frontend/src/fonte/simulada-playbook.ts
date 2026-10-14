@@ -106,6 +106,9 @@ export function criarFonteDoPlaybookSimulada({
     async salvar(id, conteudo) {
       return gravar(id, conteudo)
     },
+    async propor() {
+      throw new Error('Na Demonstração, só o Administrador edita o Playbook.')
+    },
     async restaurar(id, versao) {
       const antiga = (versoes.get(id) ?? []).find((v) => v.versao === versao)
       if (!antiga) throw new Error('Esta versão do Playbook não existe.')

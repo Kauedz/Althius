@@ -1,4 +1,5 @@
-import { ShieldCheck } from 'lucide-react'
+import { Clock, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { Carregando, IconeAgente } from '@/components/marca'
@@ -6,8 +7,15 @@ import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
 import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
+import {
+  filtrarFila,
+  MOTIVO_DA_VENCIDA,
+  prazoDaAprovacao,
+  ROTULO_DO_TIPO,
+  type FiltroDaFila,
+} from '@/fonte/fila-de-aprovacoes'
 import { ehRevisaoDoPlaybook, podeDecidir } from '@/fonte/regras'
-import type { Agente, AprovacaoDeAcao, Integracao } from '@/fonte/tipos'
+import type { Agente, Aprovacao, AprovacaoDeAcao, Integracao, TipoDeAprovacao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
@@ -25,10 +33,11 @@ export function PaginaAprovacoes() {
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
   const workspace = useDados((fonte) => fonte.workspace(), [])
   const decideAcoes = podeDecidir('acao', workspace?.papel, modo)
+  const [filtro, setFiltro] = useState<FiltroDaFila>({ tipo: 'todos', agenteId: 'todos' })
 
   const pendentes = aprovacoes?.filter((a) => a.estado === 'pendente').length ?? 0
   // Uma lista só, com as pendentes primeiro: o cartão não sai do lugar ao ser decidido.
-  const ordenadas = [...(aprovacoes ?? [])].sort(
+  const ordenadas = filtrarFila(aprovacoes ?? [], filtro).sort(
     (a, b) => Number(b.estado === 'pendente') - Number(a.estado === 'pendente'),
   )
 
@@ -46,9 +55,14 @@ export function PaginaAprovacoes() {
         <section aria-label="Propostas" className="flex flex-col gap-6">
           <h2 className="titulo-secao text-3xl">Pendentes · {pendentes}</h2>
           {pendentes === 0 && <p className="anotacao text-lg">nada esperando por você</p>}
+          <FiltrosDaFila filtro={filtro} aoMudar={setFiltro} agentes={agentes} />
+          {ordenadas.length === 0 && (aprovacoes.length > 0) && (
+            <p className="text-sm text-al-muted">Nenhuma Aprovação com esses filtros.</p>
+          )}
           <ul className="flex flex-col gap-6">
             {ordenadas.map((aprovacao) => (
-              <li key={aprovacao.id}>
+              <li key={aprovacao.id} className="flex flex-col gap-2">
+                <PrazoDaAprovacao aprovacao={aprovacao} />
                 {ehRevisaoDoPlaybook(aprovacao) ? (
                   <CartaoDeRevisaoDoPlaybook aprovacao={aprovacao} onde="fila" />
                 ) : aprovacao.revisao ? (
@@ -67,6 +81,74 @@ export function PaginaAprovacoes() {
         </section>
       )}
     </Pagina>
+  )
+}
+
+/** O prazo da pendente ("vence em 6 h") ou, na vencida, o motivo. */
+function PrazoDaAprovacao({ aprovacao }: { aprovacao: Aprovacao }) {
+  if (aprovacao.estado === 'expirada') {
+    return (
+      <p className="flex items-center gap-2 text-sm text-al-muted">
+        <Clock aria-hidden className="size-4" />
+        <span>
+          <span className="font-normal text-al-ink">Vencida.</span> {MOTIVO_DA_VENCIDA}
+        </span>
+      </p>
+    )
+  }
+  const prazo = prazoDaAprovacao(aprovacao)
+  if (!prazo) return null
+  return (
+    <p className="flex items-center gap-2 text-sm text-al-muted">
+      <Clock aria-hidden className="size-4" />
+      <span>{prazo.charAt(0).toUpperCase() + prazo.slice(1)}</span>
+    </p>
+  )
+}
+
+const TIPOS: (TipoDeAprovacao | 'todos')[] = ['todos', 'envio', 'integracao', 'revisao']
+
+function FiltrosDaFila({
+  filtro,
+  aoMudar,
+  agentes,
+}: {
+  filtro: FiltroDaFila
+  aoMudar: (filtro: FiltroDaFila) => void
+  agentes: Agente[]
+}) {
+  return (
+    <div className="flex flex-wrap gap-4">
+      <label className="flex items-center gap-2 text-sm">
+        <span className="rotulo">Tipo</span>
+        <select
+          className="campo w-auto"
+          value={filtro.tipo}
+          onChange={(e) => aoMudar({ ...filtro, tipo: e.target.value as FiltroDaFila['tipo'] })}
+        >
+          {TIPOS.map((tipo) => (
+            <option key={tipo} value={tipo}>
+              {tipo === 'todos' ? 'Todos' : ROTULO_DO_TIPO[tipo]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <span className="rotulo">Agente</span>
+        <select
+          className="campo w-auto"
+          value={filtro.agenteId}
+          onChange={(e) => aoMudar({ ...filtro, agenteId: e.target.value })}
+        >
+          <option value="todos">Todos</option>
+          {agentes.map((agente) => (
+            <option key={agente.id} value={agente.id}>
+              {agente.nome}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   )
 }
 

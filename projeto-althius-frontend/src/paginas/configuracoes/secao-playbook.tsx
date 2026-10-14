@@ -4,7 +4,7 @@ import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/b
 import { Carregando } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { useDados, useFonteDoPlaybook } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonteDoPlaybook } from '@/fonte/contexto'
 import { formatarDataCompleta } from '@/fonte/formatar-data'
 import {
   ehSecaoDoPlaybook,
@@ -115,13 +115,21 @@ function SecaoAberta({ id, revisoes }: { id: IdDaSecaoDoPlaybook; revisoes: Apro
   const fonte = useFonteDoPlaybook()
   const secao = useDados(fonte, (f) => f.secao(id), [id])
   const workspace = useDados((f) => f.workspace(), [])
+  const { modo } = useAmbiente()
   if (!secao || !workspace) return <Carregando />
   const podeEditar = workspace.papel === 'administrador'
+  // A regra única: o Administrador grava direto; no Workspace operacional, o Membro propõe uma revisão.
+  const podePropor = !podeEditar && workspace.papel === 'membro' && modo === 'real'
   const pendente = revisoes.find((r) => r.estado === 'pendente')
   return (
     <div className="flex flex-col gap-6">
       {pendente && <PropostaPendente nome={secao.nome} podeEditar={podeEditar} />}
-      <ConteudoDaSecao key={secao.vigente?.versao ?? 0} secao={secao} podeEditar={podeEditar} />
+      <ConteudoDaSecao
+        key={secao.vigente?.versao ?? 0}
+        secao={secao}
+        podeEditar={podeEditar}
+        podePropor={podePropor}
+      />
     </div>
   )
 }
@@ -131,7 +139,7 @@ function PropostaPendente({ nome, podeEditar }: { nome: string; podeEditar: bool
   return (
     <div role="status" className="rounded-xl flex items-start gap-3 border border-al-atencao/50 bg-al-atencao/5 p-4 text-sm">
       <p>
-        <span className="font-normal">Há uma proposta de um Agente para {nome}, aguardando Aprovação.</span>{' '}
+        <span className="font-normal">Há uma proposta para {nome}, aguardando Aprovação.</span>{' '}
         <span className="text-al-muted">
           A versão abaixo continua valendo até um Administrador decidir.
           {podeEditar && ' Salvar uma versão agora deixa a proposta desatualizada.'}
@@ -144,7 +152,15 @@ function PropostaPendente({ nome, podeEditar }: { nome: string; podeEditar: bool
   )
 }
 
-function ConteudoDaSecao({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEditar: boolean }) {
+function ConteudoDaSecao({
+  secao,
+  podeEditar,
+  podePropor = false,
+}: {
+  secao: SecaoDoPlaybook
+  podeEditar: boolean
+  podePropor?: boolean
+}) {
   const fonte = useFonteDoPlaybook()
   const colunas = COLUNAS_DO_PLAYBOOK[secao.id]
   const vigente = secao.vigente
@@ -153,6 +169,7 @@ function ConteudoDaSecao({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEd
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [salvo, setSalvo] = useState(false)
+  const [justificativa, setJustificativa] = useState('')
   const [restaurando, setRestaurando] = useState<VersaoDoPlaybook | null>(null)
 
   const original = vigente?.conteudo ?? CONTEUDO_VAZIO
@@ -164,7 +181,8 @@ function ConteudoDaSecao({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEd
     setErro('')
     setSalvo(false)
     try {
-      await fonte.salvar(secao.id, { texto, linhas })
+      if (podeEditar) await fonte.salvar(secao.id, { texto, linhas })
+      else await fonte.propor(secao.id, { texto, linhas }, justificativa)
       setSalvo(true)
     } catch (falha) {
       setErro(mensagemDeErro(falha))
@@ -184,8 +202,8 @@ function ConteudoDaSecao({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEd
         </span>
       </section>
 
-      {podeEditar ? (
-        <form aria-label={`Editar ${secao.nome}`} noValidate onSubmit={salvar} className="flex flex-col gap-5">
+      {podeEditar || podePropor ? (
+        <form aria-label={podeEditar ? `Editar ${secao.nome}` : `Propor revisão de ${secao.nome}`} noValidate onSubmit={salvar} className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="playbook-texto" className="rotulo">
               Texto
@@ -211,11 +229,30 @@ function ConteudoDaSecao({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEd
               }}
             />
           )}
+          {!podeEditar && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="playbook-justificativa" className="rotulo">
+                Por quê
+              </label>
+              <textarea
+                id="playbook-justificativa"
+                rows={2}
+                value={justificativa}
+                onChange={(e) => setJustificativa(e.target.value)}
+                className="campo"
+              />
+              <span className="text-sm text-al-muted">
+                A proposta vai para Aprovações; a versão vigente continua valendo até um Administrador decidir.
+              </span>
+            </div>
+          )}
           <Mensagem tipo="erro">{erro}</Mensagem>
-          <Mensagem tipo="sucesso">{salvo ? 'Playbook salvo.' : ''}</Mensagem>
+          <Mensagem tipo="sucesso">
+            {salvo ? (podeEditar ? 'Playbook salvo.' : 'Proposta enviada para Aprovações.') : ''}
+          </Mensagem>
           <div className="flex gap-2">
             <button type="submit" disabled={salvando || !alterado} className={BOTAO_PRIMARIO}>
-              Salvar
+              {podeEditar ? 'Salvar' : 'Propor revisão'}
             </button>
           </div>
         </form>

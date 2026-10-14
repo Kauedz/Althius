@@ -1,5 +1,6 @@
 // O Playbook do Workspace operacional, no Supabase (playbook-do-workspace, ticket 02). Tudo passa pelas funções do
-// banco, que conferem a Participação ativa e o papel: todo participante lê, só Administrador grava e restaura.
+// banco, que conferem a Participação ativa e o papel: todo participante lê, só Administrador grava e restaura; o Membro
+// propõe uma revisão, que vai para Aprovações.
 // O autor de cada versão chega como Conta de usuário; o nome vem de quem participa do Workspace.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -31,6 +32,7 @@ const ERRO_SO_ADMINISTRADOR = 'Só um Administrador edita o Playbook.'
 
 const MOTIVOS: [code: string, trecho: string, texto: string][] = [
   ['42501', 'only administrators', ERRO_SO_ADMINISTRADOR],
+  ['22023', 'the revision does not change', 'A proposta é igual à versão vigente.'],
   ['42501', 'active workspace membership required', 'Você não participa mais deste Workspace.'],
   ['22023', 'invalid playbook content', 'O conteúdo desta seção não está no formato do Playbook.'],
   ['22023', 'playbook content too long', 'O conteúdo desta seção passou do tamanho máximo.'],
@@ -60,9 +62,12 @@ export function criarFonteDoPlaybookSupabase(
   obterWorkspaceId: () => string,
   /** Os nomes de quem participa do Workspace, pela Conta de usuário. */
   nomes: () => Promise<Map<string, string>>,
+  /** A fila de Aprovações: decidir uma revisão relê o Playbook, e propor relê a fila. */
+  aprovacoes?: { observar(ouvinte: () => void): () => void; invalidar(): void },
 ): FonteDoPlaybook {
   const ouvintes = new Set<() => void>()
   const avisar = () => ouvintes.forEach((ouvinte) => ouvinte())
+  aprovacoes?.observar(avisar)
 
   async function chamar<T>(funcao: string, parametros: Record<string, unknown>): Promise<T> {
     const { data, error } = await cliente.rpc(funcao, { p_workspace_id: obterWorkspaceId(), ...parametros })
@@ -100,6 +105,15 @@ export function criarFonteDoPlaybookSupabase(
       const versao = await chamar<number>('save_playbook_section', { p_section: id, p_content: conteudo })
       avisar()
       return versao
+    },
+    async propor(id, conteudo, justificativa = '') {
+      await chamar<unknown>('propose_playbook_revision', {
+        p_section: id,
+        p_content: conteudo,
+        p_justification: justificativa,
+      })
+      aprovacoes?.invalidar()
+      avisar()
     },
     async restaurar(id, versao) {
       const nova = await chamar<number>('restore_playbook_version', { p_section: id, p_version: versao })

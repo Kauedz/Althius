@@ -16,6 +16,40 @@ function clienteCom(rpc: (funcao: string, parametros: Record<string, unknown>) =
 }
 
 describe('Playbook no Supabase', () => {
+  it('o Membro propõe pela função do banco; a fila e o Playbook relêem juntos', async () => {
+    const { cliente, chamadas } = clienteCom(() => ({ data: [{ approval_id: 'ap-1', outcome: 'criada' }] }))
+    let ouvinteDaFila: (() => void) | null = null
+    const aprovacoes = {
+      observar: (ouvinte: () => void) => {
+        ouvinteDaFila = ouvinte
+        return () => undefined
+      },
+      invalidar: vi.fn(),
+    }
+    const fonte = criarFonteDoPlaybookSupabase(cliente, () => 'ws-1', NOMES, aprovacoes)
+    const aviso = vi.fn()
+    fonte.observar(aviso)
+
+    await fonte.propor('icp', { texto: 'Indústria', linhas: [] }, 'Vi nos fechamentos')
+
+    expect(chamadas).toEqual([
+      {
+        funcao: 'propose_playbook_revision',
+        parametros: {
+          p_workspace_id: 'ws-1',
+          p_section: 'icp',
+          p_content: { texto: 'Indústria', linhas: [] },
+          p_justification: 'Vi nos fechamentos',
+        },
+      },
+    ])
+    expect(aprovacoes.invalidar).toHaveBeenCalledTimes(1)
+    expect(aviso).toHaveBeenCalledTimes(1)
+    // Decidir na fila relê o Playbook (e a Memória, que é ele no Workspace operacional).
+    ouvinteDaFila!()
+    expect(aviso).toHaveBeenCalledTimes(2)
+  })
+
   it('lê a seção com a versão vigente, o autor pelo nome e o histórico', async () => {
     const { cliente, chamadas } = clienteCom(() => ({
       data: {

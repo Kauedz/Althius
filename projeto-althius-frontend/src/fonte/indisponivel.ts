@@ -138,5 +138,6 @@ export function criarFonteDoPlaybookIndisponivel(): FonteDoPlaybook {
     secao: recusar('configuracoes'),
     salvar: recusar('configuracoes'),
     restaurar: recusar('configuracoes'),
+    propor: recusar('configuracoes'),
   }
 }

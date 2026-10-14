@@ -14,6 +14,7 @@ import type {
   FonteDeAgentes,
   IntegracaoId,
   LugarDaDecisao,
+  TipoDeAprovacao,
 } from './tipos'
 
 type EstadoNoBanco =
@@ -40,6 +41,7 @@ interface RegistroDaAprovacao {
   state: EstadoNoBanco
   failure: string | null
   decided_by?: string | null
+  expires_at?: string | null
   /** `revisao` na revisão do Playbook (CRM-09); sem ela, ação. */
   category?: 'acao' | 'revisao' | null
   playbook_section?: string | null
@@ -95,6 +97,12 @@ const ONDE: Record<string, 'fila' | 'conversa' | 'canal'> = { fila: 'fila', conv
  */
 const EXECUTOR: Record<string, string | null> = { ferramenta: 'integration-tools', revisao_do_playbook: null }
 
+/** O tipo da Aprovação para a fila: a revisão do Playbook, a chamada de ferramenta de um conector ou o envio. */
+function tipoDa(linha: RegistroDaAprovacao): TipoDeAprovacao {
+  if (linha.category === 'revisao') return 'revisao'
+  return linha.payload?.tipo === 'ferramenta' ? 'integracao' : 'envio'
+}
+
 function aprovacaoDa(linha: RegistroDaAprovacao): Aprovacao {
   const base = {
     id: linha.id,
@@ -104,6 +112,8 @@ function aprovacaoDa(linha: RegistroDaAprovacao): Aprovacao {
     justificativa: linha.justification,
     origem: 'althius' as const,
     gatilho: 'conversa' as const,
+    ...(linha.expires_at ? { venceEm: linha.expires_at } : {}),
+    tipo: tipoDa(linha),
   }
   const secao = linha.playbook_section ?? undefined
   if (linha.category === 'revisao' && ehSecaoDoPlaybook(secao)) {
@@ -131,7 +141,7 @@ function aprovacaoDa(linha: RegistroDaAprovacao): Aprovacao {
 export function criarFonteDeAprovacoesSupabase(
   cliente: SupabaseClient,
   workspaceId: string,
-): Pick<FonteDeAgentes, 'aprovacoes' | 'decidirAprovacao' | 'observar'> {
+): Pick<FonteDeAgentes, 'aprovacoes' | 'decidirAprovacao' | 'observar'> & { invalidar(): void } {
   const ouvintes = new Set<() => void>()
   // O tipo de cada Aprovação lida, para a execução depois de aprovar ir a quem sabe fazê-la.
   const tipos = new Map<string, string>()
@@ -151,6 +161,12 @@ export function criarFonteDeAprovacoesSupabase(
     observar(ouvinte) {
       ouvintes.add(ouvinte)
       return () => ouvintes.delete(ouvinte)
+    },
+
+    /** Uma proposta nova (do Membro, no Playbook) entrou na fila: quem lê, lê de novo. */
+    invalidar() {
+      leituraEmAndamento = null
+      for (const ouvinte of ouvintes) ouvinte()
     },
 
     aprovacoes() {
