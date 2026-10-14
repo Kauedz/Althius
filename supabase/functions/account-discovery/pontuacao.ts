@@ -224,6 +224,7 @@ export const PESO_DO_SINAL: Readonly<Record<string, number>> = {
   troca_de_sede: 40,
   // médio
   anuncio_de_movimentacao: 30,
+  anuncio_google: 30,
   anuncio_linkedin: 30,
   anuncio_meta: 30,
   calendario_de_safra: 30,
