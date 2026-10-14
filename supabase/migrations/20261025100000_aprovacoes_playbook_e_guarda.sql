@@ -36,7 +36,7 @@ begin
   from private.agents a
   left join private.playbook_specialty_sections m on m.specialty = a.specialty and m.section = p_section
   where a.workspace_id = p_workspace_id and a.kind = 'padrao' and (m.section is not null or a.specialty = 'scopus')
-  order by (m.section is null), a.specialty
+  order by (m.section is null), (a.specialty not in ('scopus', 'ethos')), a.specialty
   limit 1;
   if v_agent is null then
     raise exception 'agent not found' using errcode = 'P0002';
