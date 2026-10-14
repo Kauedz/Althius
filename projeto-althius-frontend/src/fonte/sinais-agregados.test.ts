@@ -130,7 +130,8 @@ describe('Tipos genéricos servidos por cascatas', () => {
         seen_again_at: null, seen_again_monitor_id: null, valid: true,
       }],
     })
-    expect((await f.sinaisEncontrados()).map((s) => [s.tipoId, s.frase])).toEqual([['expansao-geografica', 'Nova filial em Curitiba']])
+    // Expansão geográfica entrou no card Nova filial ou mudança de sede. O coletor continua o mesmo.
+    expect((await f.sinaisEncontrados()).map((s) => [s.tipoId, s.frase])).toEqual([['nova-filial-ou-sede', 'Nova filial em Curitiba']])
   })
 })
 

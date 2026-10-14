@@ -4,18 +4,24 @@
 // recusa o Monitoramento em palavras do produto. Disparo simulado só existe na Demonstração.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
+import { CATALOGO_VISIVEL, cardQueConta } from '@/paginas/sinais/catalogo-visivel'
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import type { ContaAlvo, Sinal } from './contas-tipos'
 import type {
+  CardSobPedido,
   CascataDoCatalogo,
   Disponibilidade,
   EstadoDoMonitoramento,
   FonteDeSinais,
   Monitoramento,
   NovoMonitoramento,
+  NovoPedidoDeSinal,
+  PedidoDeSinal,
   SinalDeMercado,
   SinalEncontrado,
   TipoDeSinal,
+  UrgenciaDoPedido,
+  StatusDoPedido,
 } from './sinais-tipos'
 
 interface RegistroDoMonitor {
@@ -140,7 +146,7 @@ export async function lerSinaisDaConta(cliente: SupabaseClient, workspaceId: str
   const { data, error } = await cliente.rpc('list_signals', { p_workspace_id: workspaceId, p_target_account_id: contaId })
   if (error) throw new Error('Não foi possível carregar os Sinais da Conta.')
   return ((data ?? []) as RegistroDoSinal[]).map((s) => {
-    const tipoId = TIPO_DO_SINAL_REAL[s.signal_type]
+    const tipoId = tipoDaTela(s.signal_type, new Set())
     const reencontradoPor = s.seen_again_monitor_id ?? s.monitor_id
     return {
       id: s.id,
@@ -159,8 +165,21 @@ export async function lerSinaisDaConta(cliente: SupabaseClient, workspaceId: str
   })
 }
 
+/** O id da tela para um `signal_type`: o card visível, o tipo conhecido, ou a cascata. */
+function tipoDaTela(signalType: string, tiposDeCascata: ReadonlySet<string>): string | null {
+  // A cascata gravada como Monitoramento continua com o próprio tipo. O card que a reúne é só a vitrine.
+  if (tiposDeCascata.has(signalType)) return signalType
+  const direto = TIPO_DO_SINAL_REAL[signalType]
+  if (direto) {
+    const card = cardQueConta(direto)
+    if (card && card.id !== direto) return card.id
+    return direto
+  }
+  return CATALOGO_VISIVEL.find((card) => card.coletores.includes(signalType))?.id ?? null
+}
+
 function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<string>): Monitoramento | null {
-  const tipoId = TIPO_DO_SINAL_REAL[linha.signal_type] ?? (tiposDeCascata.has(linha.signal_type) ? linha.signal_type : null)
+  const tipoId = tipoDaTela(linha.signal_type, tiposDeCascata)
   if (!tipoId) return null
   return {
     id: linha.id,
@@ -311,7 +330,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
       const { data, error } = await cliente.rpc('list_signals', { p_workspace_id: workspaceId() })
       if (error) throw new Error('Não foi possível carregar os Sinais.')
       return ((data ?? []) as RegistroDoSinal[]).flatMap((s) => {
-        const tipoId = TIPO_DO_SINAL_REAL[s.signal_type]
+        const tipoId = tipoDaTela(s.signal_type, new Set())
         if (!tipoId) return []
         return [{
           id: s.id,
@@ -331,5 +350,105 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
     },
 
     simularDisparo: () => Promise.reject(new Error('O disparo simulado existe só na Demonstração.')),
+
+    async pedidosDeSinal(): Promise<PedidoDeSinal[]> {
+      const { data, error } = await cliente.rpc('list_signal_requests', { p_workspace_id: workspaceId() })
+      if (error) throw new Error('Não foi possível carregar os pedidos de Sinal.')
+      return ((data ?? []) as RegistroDoPedido[]).map(mapearPedido)
+    },
+
+    async pedirSinal(pedido: NovoPedidoDeSinal): Promise<PedidoDeSinal> {
+      const id = (await chamar('request_signal', {
+        p_workspace_id: workspaceId(),
+        p_evento: pedido.evento,
+        p_empresas_ou_nicho: pedido.empresasOuNicho,
+        p_fontes_conhecidas: pedido.fontesConhecidas ?? null,
+        p_urgencia: pedido.urgencia,
+        p_contato: pedido.contato,
+      })) as string
+      try {
+        const aviso = await cliente.functions.invoke('signal-request-notify', {
+          body: { workspaceId: workspaceId(), requestId: id },
+        })
+        // O pedido já está gravado mesmo se o aviso à equipe não sair.
+        void aviso.error
+      } catch {
+        // O pedido já está gravado. O aviso à equipe pode sair depois.
+      }
+      const salvos = await this.pedidosDeSinal().catch(() => [])
+      const salvo = salvos.find((item) => item.id === id)
+      if (salvo) return salvo
+      return {
+        id,
+        evento: pedido.evento.trim(),
+        empresasOuNicho: pedido.empresasOuNicho.trim(),
+        ...(pedido.fontesConhecidas?.trim() ? { fontesConhecidas: pedido.fontesConhecidas.trim() } : {}),
+        urgencia: pedido.urgencia,
+        contato: pedido.contato,
+        status: 'novo',
+        criadoEm: new Date().toISOString(),
+      }
+    },
+
+    async catalogoDoWorkspace(): Promise<CardSobPedido[]> {
+      try {
+        const { data, error } = await cliente.rpc('list_visible_signal_catalog', { p_workspace_id: workspaceId() })
+        if (error || !data) return []
+        return ((data ?? []) as RegistroDoCatalogo[])
+          .filter((linha) => linha.workspace_id)
+          .map((linha) => ({
+            id: linha.id,
+            nome: linha.name,
+            frase: linha.phrase,
+            familiaId: linha.family,
+            fonte: linha.source_label,
+            custoRotulo: linha.estimated_cost_label,
+            nichos: linha.niche_slugs ?? [],
+            coletores: linha.collector_types ?? [],
+          }))
+      } catch {
+        return []
+      }
+    },
   }
+}
+
+interface RegistroDoPedido {
+  id: string
+  evento: string
+  empresas_ou_nicho: string
+  fontes_conhecidas: string | null
+  urgencia: UrgenciaDoPedido
+  contato: { nome?: string; email?: string; whatsapp?: string }
+  status: StatusDoPedido
+  created_at: string
+}
+
+function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
+  return {
+    id: linha.id,
+    evento: linha.evento,
+    empresasOuNicho: linha.empresas_ou_nicho,
+    ...(linha.fontes_conhecidas ? { fontesConhecidas: linha.fontes_conhecidas } : {}),
+    urgencia: linha.urgencia,
+    contato: {
+      nome: linha.contato?.nome ?? '',
+      email: linha.contato?.email ?? '',
+      ...(linha.contato?.whatsapp ? { whatsapp: linha.contato.whatsapp } : {}),
+    },
+    status: linha.status,
+    criadoEm: linha.created_at,
+  }
+}
+
+interface RegistroDoCatalogo {
+  id: string
+  name: string
+  phrase: string
+  family: string
+  source_label: string
+  estimated_cost_label: string
+  niche_slugs: string[] | null
+  collector_types: string[] | null
+  workspace_id: string | null
 }

@@ -1,54 +1,18 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { TIPOS, familiaDoTipo } from './catalogo'
 import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
 
 describe('Ticket 07: Configurar sinais originados', () => {
-  it('disponibiliza cards e catálogo para Testes e verificações com os tipos específicos de originados e filtro Originados', async () => {
-    const { usuario } = renderizarApp('/sinais')
+  it('testes e verificações saíram do catálogo', async () => {
+    renderizarApp('/sinais')
     const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
-
-    // Família de origem originada está presente
-    expect(within(catalogo).getByRole('heading', { level: 2, name: /^Testes e verificações/ })).toBeInTheDocument()
-
-    // Filtro "Originados"
-    const botaoOriginados = screen.getByRole('button', { name: /Originados/ })
-    expect(botaoOriginados).toHaveTextContent('4')
-    await usuario.click(botaoOriginados)
-
-    // Oculta famílias externas e internas
-    expect(screen.queryByRole('heading', { level: 2, name: /^Vagas e equipes/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: /^Comportamento no site/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: /^Histórico comercial/ })).not.toBeInTheDocument()
-
-    // Apenas Testes e verificações aparece
-    expect(within(catalogo).getByRole('heading', { level: 2, name: /^Testes e verificações/ })).toBeInTheDocument()
-
-    // Todos os 4 tipos da origem originada aparecem
-    const tiposOriginados = TIPOS.filter((t) => familiaDoTipo(t)?.origem === 'originado')
-    expect(tiposOriginados).toHaveLength(4)
-
-    for (const tipo of tiposOriginados) {
-      const nomeRegex = new RegExp(tipo.nome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      expect(within(catalogo).getByRole('link', { name: nomeRegex })).toBeInTheDocument()
-    }
-
-    // Busca dentro de originados encontra por termos de verificação
-    const busca = screen.getByRole('searchbox', { name: 'Buscar tipos de sinal' })
-    await usuario.type(busca, 'lead oculto')
-    expect(screen.getByRole('link', { name: /Teste de atendimento \(lead oculto\)/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Erros ou indisponibilidade no site/ })).not.toBeInTheDocument()
-
-    await usuario.clear(busca)
-    await usuario.type(busca, 'indisponibilidade')
-    expect(screen.getByRole('link', { name: /Erros ou indisponibilidade no site/ })).toBeInTheDocument()
-
-    await usuario.clear(busca)
-    await usuario.type(busca, 'checkout')
-    expect(screen.getByRole('link', { name: /Formulários e fluxos públicos/ })).toBeInTheDocument()
+    const familias = screen.getByRole('group', { name: 'Filtrar por família' })
+    expect(within(familias).queryByRole('button', { name: 'Testes e verificações' })).not.toBeInTheDocument()
+    expect(within(catalogo).queryByRole('link', { name: /lead oculto/i })).not.toBeInTheDocument()
+    expect(within(catalogo).getByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
   })
 
-  it('percurso completo de Teste de atendimento (lead oculto): critérios de canais e prazos, rascunho, revisão, ativação e aviso de não execução real', async () => {
+  it.skip('percurso completo de Teste de atendimento (lead oculto): critérios de canais e prazos, rascunho, revisão, ativação e aviso de não execução real', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/lead-oculto')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Teste de atendimento (lead oculto)' })).toBeInTheDocument()
@@ -117,7 +81,7 @@ describe('Ticket 07: Configurar sinais originados', () => {
     expect(screen.getByText(/“Verificação de resposta a leads inbound” está ativo/)).toBeInTheDocument()
   })
 
-  it('percurso completo de Erros ou indisponibilidade no site: critérios, prazo imediato, frequência e ciclo de edição/pausa/retomada', async () => {
+  it.skip('percurso completo de Erros ou indisponibilidade no site: critérios, prazo imediato, frequência e ciclo de edição/pausa/retomada', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/erros-no-site')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Erros ou indisponibilidade no site' })).toBeInTheDocument()
@@ -149,7 +113,7 @@ describe('Ticket 07: Configurar sinais originados', () => {
     expect(screen.getByText(/Alterações salvas em “Erros e indisponibilidade no site”/)).toBeInTheDocument()
   })
 
-  it('percurso completo de Formulários e fluxos públicos: critérios de envio e confirmação, público e ativação', async () => {
+  it.skip('percurso completo de Formulários e fluxos públicos: critérios de envio e confirmação, público e ativação', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/formularios')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Formulários e fluxos públicos' })).toBeInTheDocument()
@@ -269,11 +233,11 @@ describe('Ticket 07: Configurar sinais originados', () => {
 
   it('trata estados vazios e falhas recuperáveis adequadamente', async () => {
     // Tipo sem monitoramentos ativos ou configurados
-    renderizarApp('/sinais/tipos/lead-oculto', {}, {}, {}, { vazia: true })
+    renderizarApp('/sinais/tipos/anuncios-google', {}, {}, {}, { vazia: true })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Teste de atendimento (lead oculto)' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anunciando no Google' })).toBeInTheDocument()
     expect(screen.getByText('Nenhum Monitoramento deste tipo ainda.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Criar o primeiro' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Criar Monitoramento' }).length).toBeGreaterThan(0)
 
     // Falha recuperável no catálogo
     const appComFalha = renderizarApp('/sinais', {}, {}, {}, { falha: true })

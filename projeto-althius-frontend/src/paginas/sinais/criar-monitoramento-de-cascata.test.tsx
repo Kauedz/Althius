@@ -1,5 +1,4 @@
-// Criar Monitoramento a partir do cartão de cascata (ticket 16) e a vista de Sinais de mercado. A Fonte é a do
-// Workspace, simulada: nunca há rede nem banco. O operacional que chama save_signal_monitor está no teste da Fonte.
+// O editor da cascata continua no endereço direto. O painel de mercado não é card do catálogo.
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { CascataDoCatalogo, FonteDeSinais, NovoMonitoramento, SinalDeMercado } from '@/fonte/sinais-tipos'
@@ -12,6 +11,7 @@ const CASCATAS: CascataDoCatalogo[] = [
   { tipo: 'habilitacao_radar', icp: 'A', nome: 'Habilitação no Radar', estado: 'sem-fonte', escopo: 'conta', motivo: 'Não há fonte pública aberta para este dado.' },
   { tipo: 'volume_por_porto', icp: 'A', nome: 'Aumento de volume importado por porto', estado: 'disponivel', escopo: 'mercado' },
   { tipo: 'novo_importador', icp: 'A', nome: 'Novo importador', estado: 'em-teste', escopo: 'mercado' },
+  { tipo: 'tipo_estranho', icp: 'Z', nome: 'Fora do mapa', estado: 'disponivel', escopo: 'conta' },
 ]
 
 const SINAIS: SinalDeMercado[] = [
@@ -36,17 +36,14 @@ function fonteComCascatas(gravados: NovoMonitoramento[]) {
     })
 }
 
-const cartao = async (nome: string) => (await screen.findByRole('heading', { level: 4, name: nome })).closest('li') as HTMLElement
-
 describe('Criar Monitoramento a partir da cascata disponível', () => {
-  it('abre o fluxo preenchido com a cascata, o ICP do Workspace e o modo de Automação', async () => {
-    const { usuario } = renderizarAppCom('/sinais', { sinais: fonteComCascatas([]) })
-    const vaga = await cartao('Vaga de Comex')
-    await usuario.click(within(vaga).getByRole('link', { name: 'Criar Monitoramento' }))
+  it('abre o fluxo preenchido com a cascata, o nome do nicho e o modo de Automação', async () => {
+    renderizarAppCom('/sinais/cascatas/vaga_comex/novo', { sinais: fonteComCascatas([]) })
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Nome do monitoramento' })).toHaveValue('Vaga de Comex')
-    expect(screen.getByText(/Comex e importação/)).toBeInTheDocument()
+    expect(screen.getByText('Comex e importação')).toBeInTheDocument()
+    expect(screen.queryByText(/A ·/)).not.toBeInTheDocument()
     expect(screen.getByText('ICP do Workspace')).toBeInTheDocument()
     expect(screen.getByText(/varredura está em confirmar/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Automação e tetos' })).toHaveAttribute('href', '/configuracoes/automacao')
@@ -56,8 +53,7 @@ describe('Criar Monitoramento a partir da cascata disponível', () => {
 
   it('salvar o rascunho grava o Monitoramento da cascata e volta para Sinais', async () => {
     const gravados: NovoMonitoramento[] = []
-    const { usuario } = renderizarAppCom('/sinais', { sinais: fonteComCascatas(gravados) })
-    await usuario.click(within(await cartao('Vaga de Comex')).getByRole('link', { name: 'Criar Monitoramento' }))
+    const { usuario } = renderizarAppCom('/sinais/cascatas/vaga_comex/novo', { sinais: fonteComCascatas(gravados) })
     await screen.findByRole('textbox', { name: 'Nome do monitoramento' })
     await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
 
@@ -70,32 +66,25 @@ describe('Criar Monitoramento a partir da cascata disponível', () => {
     })
   })
 
-  it('sem fonte continua só com o motivo, sem Criar Monitoramento', async () => {
-    renderizarAppCom('/sinais', { sinais: fonteComCascatas([]) })
-    const semFonte = await cartao('Habilitação no Radar')
-    expect(within(semFonte).getByText('Não há fonte pública aberta para este dado.')).toBeInTheDocument()
-    expect(within(semFonte).queryByRole('link', { name: 'Criar Monitoramento' })).not.toBeInTheDocument()
+  it('nicho desconhecido no editor diz Nicho não encontrado', async () => {
+    renderizarAppCom('/sinais/cascatas/tipo_estranho/novo', { sinais: fonteComCascatas([]) })
+    expect(await screen.findByText('Nicho não encontrado')).toBeInTheDocument()
   })
 })
 
 describe('Ver Sinais de mercado', () => {
-  it('o cartão de Mercado abre a vista do ICP com a frase gravada, sem dado pessoal', async () => {
-    const { usuario } = renderizarAppCom('/sinais', { sinais: fonteComCascatas([]) })
-    const mercado = await cartao('Aumento de volume importado por porto')
-    expect(within(mercado).getByRole('link', { name: 'Ver Sinais de mercado' })).toHaveAttribute(
-      'href',
-      '/sinais/mercado/A?tipo=volume_por_porto',
-    )
-    await usuario.click(within(mercado).getByRole('link', { name: 'Ver Sinais de mercado' }))
-
+  it('a letra antiga abre o slug e mostra a frase gravada, sem dado pessoal', async () => {
+    renderizarAppCom('/sinais/mercado/A?tipo=volume_por_porto', { sinais: fonteComCascatas([]) })
     const vista = await screen.findByRole('region', { name: 'Sinais de mercado' })
     expect(within(vista).getByText('Volume importado pelo porto de Santos subiu')).toBeInTheDocument()
+    expect(within(vista).getByText(/deste nicho/)).toBeInTheDocument()
+    expect(vista.textContent).not.toMatch(/\bA ·/)
     expect(vista.textContent).not.toMatch(MARCA_INTERNA)
     expect(vista.textContent).not.toMatch(/@|cpf|evidência|payload/i)
   })
 
   it('cascata de mercado disponível explica como ativar o Monitoramento, dentro do teto e da Automação', async () => {
-    renderizarAppCom('/sinais/mercado/A?tipo=volume_por_porto', { sinais: fonteComCascatas([]) })
+    renderizarAppCom('/sinais/mercado/comex-e-importacao?tipo=volume_por_porto', { sinais: fonteComCascatas([]) })
     const vista = await screen.findByRole('region', { name: 'Sinais de mercado' })
     const criar = within(vista).getByRole('link', { name: 'Criar Monitoramento' })
     expect(criar).toHaveAttribute('href', '/sinais/cascatas/volume_por_porto/novo')
@@ -104,11 +93,7 @@ describe('Ver Sinais de mercado', () => {
   })
 
   it('cascata de mercado em teste explica a validação e não oferece criar', async () => {
-    const { usuario } = renderizarAppCom('/sinais', { sinais: fonteComCascatas([]) })
-    const emTeste = await cartao('Novo importador')
-    expect(within(emTeste).getByText(/validação/)).toBeInTheDocument()
-    expect(within(emTeste).queryByRole('link', { name: 'Criar Monitoramento' })).not.toBeInTheDocument()
-    await usuario.click(within(emTeste).getByRole('link', { name: 'Ver Sinais de mercado' }))
+    renderizarAppCom('/sinais/mercado/comex-e-importacao?tipo=novo_importador', { sinais: fonteComCascatas([]) })
     const vista = await screen.findByRole('region', { name: 'Sinais de mercado' })
     expect(within(vista).getByText(/validação/)).toBeInTheDocument()
     expect(within(vista).queryByRole('link', { name: 'Criar Monitoramento' })).not.toBeInTheDocument()

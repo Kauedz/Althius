@@ -5,7 +5,7 @@ import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
 import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
-import { ICPS_DO_MAPA } from '@/fonte/mapa-de-cascatas'
+import { nichoPorLetra } from './nichos'
 import { NOME_DO_PUBLICO_RECOMENDADO, publicoRecomendado } from '@/fonte/regras-memoria'
 import type { CascataDoCatalogo } from '@/fonte/sinais-tipos'
 import { SecaoDoFormulario } from './componentes'
@@ -48,7 +48,7 @@ function EditorDeCascata({ cascata }: { cascata: CascataDoCatalogo }) {
   const navegar = useNavigate()
   const { salvar } = useSinaisDoMockup()
   const operacional = useAmbiente().modo === 'real'
-  const icp = ICPS_DO_MAPA.find((item) => item.id === cascata.icp)
+  const nicho = nichoPorLetra(cascata.icp)
   const memoria = useDados((fonte) => fonte.memoriaDoWorkspace(), [])
   const recomendado = memoria ? publicoRecomendado(memoria.icp.secoes) : null
   const [nome, setNome] = useState(cascata.nome)
@@ -81,8 +81,7 @@ function EditorDeCascata({ cascata }: { cascata: CascataDoCatalogo }) {
       <div className="flex max-w-3xl flex-col gap-8">
         <div className="flex flex-col gap-1">
           <p className="text-sm text-al-muted">
-            {icp ? `${icp.id} · ${icp.nome}` : `ICP ${cascata.icp}`}
-            {icp?.restricao ? ` · ${icp.restricao}` : ''}
+            {nicho ? nicho.nome : 'Nicho não encontrado'}
           </p>
           {cascata.escopo === 'mercado' && (
             <p className="text-sm text-al-muted">Os Sinais aparecem em Sinais de mercado, não numa Conta.</p>

@@ -1,48 +1,33 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { TIPOS, familiaDoTipo } from './catalogo'
 import { DATA_HOJE_TESTES, renderizarApp } from '@/test/renderizar'
 
 describe('Ticket 06: Configurar sinais internos', () => {
-  it('disponibiliza cards e catálogo para as duas famílias internas com 6 tipos específicos e filtro Internos', async () => {
+  it('o histórico comercial fica no catálogo e o comportamento no site saiu da tela', async () => {
     const { usuario } = renderizarApp('/sinais')
     const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
+    const familias = screen.getByRole('group', { name: 'Filtrar por família' })
+    await usuario.click(within(familias).getByRole('button', { name: 'Histórico comercial' }))
 
-    // Famílias internas esperadas
-    expect(within(catalogo).getByRole('heading', { level: 2, name: /^Comportamento no site/ })).toBeInTheDocument()
-    expect(within(catalogo).getByRole('heading', { level: 2, name: /^Histórico comercial/ })).toBeInTheDocument()
+    expect(within(catalogo).getByRole('link', { name: /Ausência de resposta/ })).toBeInTheDocument()
+    expect(within(catalogo).getByRole('link', { name: /Negociação parada/ })).toBeInTheDocument()
+    expect(within(catalogo).getByRole('link', { name: /Proposta recusada/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Abertura de vagas/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Visitas ao site/ })).not.toBeInTheDocument()
+    expect(within(familias).queryByRole('button', { name: 'Comportamento no site' })).not.toBeInTheDocument()
 
-    // Filtro "Internos"
-    const botaoInternos = screen.getByRole('button', { name: /Internos/ })
-    expect(botaoInternos).toHaveTextContent('6')
-    await usuario.click(botaoInternos)
-
-    // Apenas as duas famílias internas aparecem, e nenhuma externa ou originada
-    expect(screen.queryByRole('heading', { level: 2, name: /^Vagas e equipes/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: /^Testes e verificações/ })).not.toBeInTheDocument()
-    expect(within(catalogo).getByRole('heading', { level: 2, name: /^Comportamento no site/ })).toBeInTheDocument()
-    expect(within(catalogo).getByRole('heading', { level: 2, name: /^Histórico comercial/ })).toBeInTheDocument()
-
-    // Todos os 6 tipos internos específicos estão presentes
-    const tiposInternos = TIPOS.filter((t) => familiaDoTipo(t)?.origem === 'interno')
-    expect(tiposInternos).toHaveLength(6)
-
-    for (const tipo of tiposInternos) {
-      expect(within(catalogo).getByRole('link', { name: new RegExp(tipo.nome) })).toBeInTheDocument()
-    }
-
-    // Busca interna por termos comerciais e de páginas
     const busca = screen.getByRole('searchbox', { name: 'Buscar tipos de sinal' })
-    await usuario.type(busca, 'preços')
-    expect(screen.getByRole('link', { name: /Visitas às páginas de preço e produto/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Negociação parada/ })).not.toBeInTheDocument()
-
-    await usuario.clear(busca)
     await usuario.type(busca, 'sem resposta')
     expect(screen.getByRole('link', { name: /Ausência de resposta/ })).toBeInTheDocument()
   })
 
-  it('configuração de Comportamento no site: páginas específicas, URLs, simulação sem dados reais, público recomendado e ciclo completo', async () => {
+  it('páginas específicas saiu da tela: a URL volta ao catálogo', async () => {
+    renderizarApp('/sinais/tipos/paginas-especificas')
+    expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Páginas específicas' })).not.toBeInTheDocument()
+  })
+
+  it.skip('configuração de Comportamento no site: páginas específicas, URLs, simulação sem dados reais, público recomendado e ciclo completo', async () => {
     const { usuario } = renderizarApp('/sinais/tipos/paginas-especificas')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Páginas específicas' })).toBeInTheDocument()
@@ -271,11 +256,11 @@ describe('Ticket 06: Configurar sinais internos', () => {
 
   it('trata estados vazios e falhas recuperáveis adequadamente', async () => {
     // Tipo sem monitoramentos ativos ou configurados
-    renderizarApp('/sinais/tipos/visitas-ao-site', {}, {}, {}, { vazia: true })
+    renderizarApp('/sinais/tipos/anuncios-google', {}, {}, {}, { vazia: true })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Visitas ao site' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anunciando no Google' })).toBeInTheDocument()
     expect(screen.getByText('Nenhum Monitoramento deste tipo ainda.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Criar o primeiro' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Criar Monitoramento' }).length).toBeGreaterThan(0)
 
     // Falha recuperável no catálogo
     const appComFalha = renderizarApp('/sinais', {}, {}, {}, { falha: true })

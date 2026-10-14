@@ -2,6 +2,7 @@
 // tipos da mesma família compartilham o mesmo formulário de critérios.
 
 import type { Criterios, Familia, Formulario, Origem, TipoDeSinal } from '@/fonte/sinais-tipos'
+import { cardPorId } from './catalogo-visivel'
 
 export type { Criterios, Familia, Formulario, Origem, TipoDeSinal }
 
@@ -26,6 +27,11 @@ export const FAMILIAS: Familia[] = [
   { id: 'noticias-e-iniciativas', nome: 'Notícias e iniciativas', origem: 'externo', formulario: 'noticias', descoberta: true },
   { id: 'eventos-e-conteudo', nome: 'Eventos e conteúdo', origem: 'externo', formulario: 'eventos', descoberta: true },
   { id: 'anuncios', nome: 'Anúncios', origem: 'externo', formulario: 'anuncios', descoberta: false },
+  { id: 'presenca-publica', nome: 'Presença pública', origem: 'externo', formulario: 'noticias', descoberta: true },
+  { id: 'comercio-exterior', nome: 'Comércio exterior', origem: 'externo', formulario: 'expansao', descoberta: true },
+  { id: 'regulacao', nome: 'Regulação e processos', origem: 'externo', formulario: 'expansao', descoberta: false },
+  { id: 'energia', nome: 'Energia', origem: 'externo', formulario: 'expansao', descoberta: true },
+  { id: 'agro', nome: 'Agro', origem: 'externo', formulario: 'expansao', descoberta: true },
   { id: 'reputacao-e-concorrencia', nome: 'Reputação e concorrência', origem: 'externo', formulario: 'reputacao', descoberta: true },
   { id: 'comunidades-e-intencao', nome: 'Comunidades e intenção', origem: 'externo', formulario: 'comunidade', descoberta: true },
   { id: 'comportamento-no-site', nome: 'Comportamento no site', origem: 'interno', formulario: 'site', descoberta: true },
@@ -122,6 +128,18 @@ export function formularioDoTipo(tipo: TipoDeSinal): Formulario | undefined {
 }
 
 export function tipoPorId(id: string): TipoDeSinal | undefined {
+  const card = cardPorId(id)
+  if (card) {
+    const base = TIPOS.find((tipo) => tipo.id === id)
+    return {
+      id: card.id,
+      nome: card.nome,
+      descricao: card.frase,
+      familiaId: card.familiaId,
+      formulario: card.formulario,
+      padroes: card.padroes ?? base?.padroes,
+    }
+  }
   if (id === TIPO_PERSONALIZADO.id) return TIPO_PERSONALIZADO
   return TIPOS.find((tipo) => tipo.id === id)
 }

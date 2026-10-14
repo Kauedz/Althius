@@ -1,32 +1,25 @@
-import { ArrowLeft, ArrowRight, Plus, RadioTower, Search, Sparkles } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { ArrowLeft, ArrowRight, RadioTower, Search } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { LogoDaConta } from '@/components/logos'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
+import type { CardSobPedido } from '@/fonte/sinais-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
+import { FAMILIAS, tipoPorId } from './catalogo'
 import {
-  FAMILIAS,
-  ROTULO_DA_ORIGEM,
-  ROTULO_DA_ORIGEM_NO_PLURAL,
-  TIPOS,
-  TIPO_PERSONALIZADO,
-  familiaDoTipo,
-  tipoPorId,
-  type Origem,
-  type TipoDeSinal,
-} from './catalogo'
+  CATALOGO_VISIVEL,
+  nomesDosNichos,
+  valeParaTodosOsNichos,
+  type CardDoCatalogo,
+} from './catalogo-visivel'
+import { NICHOS } from './nichos'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
-import { AvisoDeNovosSinais, motivoDaIndisponibilidade, podeMonitorar, SeloDaDisponibilidade } from './disponibilidade'
-import { agruparCascatasPorIcp, GRADE_DE_CARTOES, SecaoDeCascatas } from './cascatas'
+import { GRADE_DE_CARTOES } from './cascatas'
 import { useMonitoramentos } from './estado'
-
-type Filtro = 'todos' | Origem
-
-const FILTROS: Filtro[] = ['todos', 'externo', 'interno', 'originado']
 
 function normalizar(texto: string): string {
   return texto
@@ -53,9 +46,8 @@ export function PaginaSinais() {
       titulo="Sinais"
       icone={RadioTower}
       acoes={
-        <Link to="/sinais/tipos/personalizado/novo" className={BOTAO_PRIMARIO}>
-          <Sparkles strokeWidth={1.8} className="size-4" aria-hidden />
-          Criar sinal personalizado
+        <Link to="/sinais/mercado" className={BOTAO_SECUNDARIO}>
+          Painéis de mercado
         </Link>
       }
     >
@@ -85,10 +77,7 @@ export function PaginaSinais() {
           )}
 
           {!erro && (!carregando || tiposCarregados) && (
-            <Catalogo
-              tiposDisponiveis={tiposCarregados}
-              aoVerEncontrados={() => setParametros({ vista: 'encontrados' })}
-            />
+            <Catalogo aoVerEncontrados={() => setParametros({ vista: 'encontrados' })} />
           )}
         </>
       )}
@@ -96,62 +85,60 @@ export function PaginaSinais() {
   )
 }
 
-function Catalogo({
-  tiposDisponiveis,
-  aoVerEncontrados,
-}: {
-  tiposDisponiveis?: TipoDeSinal[]
-  aoVerEncontrados: () => void
-}) {
-  const navegar = useNavigate()
+function cardDoExtra(extra: CardSobPedido): CardDoCatalogo {
+  const familia = FAMILIAS.find((item) => item.id === extra.familiaId)
+  return {
+    id: extra.id,
+    nome: extra.nome,
+    frase: extra.frase,
+    familiaId: extra.familiaId,
+    formulario: familia?.formulario ?? 'expansao',
+    nichos: extra.nichos,
+    fonte: extra.fonte,
+    custoRotulo: extra.custoRotulo,
+    custoUsd: null,
+    coletores: extra.coletores,
+    contados: [extra.id],
+  }
+}
+
+function ativosDoCard(card: CardDoCatalogo, monitoramentos: { tipoId: string; estado: string }[]): number {
+  return monitoramentos.filter((m) => m.estado === 'ativo' && card.contados.includes(m.tipoId)).length
+}
+
+function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
   const [busca, setBusca] = useState('')
-  const [filtro, setFiltro] = useState<Filtro>('todos')
-
-  const catalogoTipos = tiposDisponiveis ?? TIPOS
-
-  const ativosPorTipo = new Map<string, number>()
-  for (const m of monitoramentos) {
-    if (m.estado === 'ativo') ativosPorTipo.set(m.tipoId, (ativosPorTipo.get(m.tipoId) ?? 0) + 1)
-  }
-  const totalAtivos = [...ativosPorTipo.values()].reduce((soma, n) => soma + n, 0)
-  const personalizados = monitoramentos.filter((m) => m.tipoId === TIPO_PERSONALIZADO.id).length
-
-  const termo = normalizar(busca)
-  const corresponde = (tipo: TipoDeSinal) =>
-    (filtro === 'todos' || familiaDoTipo(tipo)?.origem === filtro) &&
-    (!termo || normalizar(`${tipo.nome} ${tipo.descricao} ${familiaDoTipo(tipo)?.nome ?? ''}`).includes(termo))
-  const familias = FAMILIAS.map((familia) => ({
-    familia,
-    tipos: catalogoTipos.filter((tipo) => tipo.familiaId === familia.id && corresponde(tipo)),
-  })).filter((grupo) => grupo.tipos.length > 0)
-
-  // Os Sinais por mercado são externos. Se a leitura deles falhar, o catálogo segue sem a seção, sem erro na tela.
-  const { dados: cascatasCarregadas } = useDadosDeSinais((f) => f.cascatas(), [])
-  const cascatas = cascatasCarregadas ?? []
-  const gruposDeCascatas = filtro === 'todos' || filtro === 'externo' ? agruparCascatasPorIcp(cascatas, busca) : []
-
-  const indiceDoUltimoExterno = familias.findLastIndex(({ familia }) => familia.origem === 'externo')
-
-  const totalPorOrigem = (origem: Filtro) =>
-    (origem === 'todos' ? catalogoTipos.length : catalogoTipos.filter((tipo) => familiaDoTipo(tipo)?.origem === origem).length) +
-    (origem === 'todos' || origem === 'externo' ? cascatas.length : 0)
-
+  const [nicho, setNicho] = useState('todos')
+  const [familiaId, setFamiliaId] = useState('todos')
+  const { dados: extras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
+  const cards = [...CATALOGO_VISIVEL, ...(extras ?? []).map(cardDoExtra)]
   const operacional = useAmbiente().modo === 'real'
   const { dados: sinaisCarregados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
-  // No operacional a contagem é a dos Sinais gravados, e só aparece quando eles chegam.
   const encontrados = sinaisCarregados?.length ?? (operacional ? undefined : SINAIS_MOCK.length)
+  const totalAtivos = cards.reduce((soma, card) => soma + ativosDoCard(card, monitoramentos), 0)
+
+  const termo = normalizar(busca)
+  const visiveis = cards.filter((card) => {
+    if (nicho !== 'todos' && !card.nichos.includes(nicho)) return false
+    if (familiaId !== 'todos' && card.familiaId !== familiaId) return false
+    if (!termo) return true
+    const nomes = nomesDosNichos(card.nichos).join(' ')
+    const familia = FAMILIAS.find((item) => item.id === card.familiaId)?.nome ?? ''
+    return normalizar(`${card.nome} ${card.frase} ${familia} ${nomes}`).includes(termo)
+  })
+  const familiasDoCatalogo = FAMILIAS.filter((familia) => cards.some((card) => card.familiaId === familia.id))
 
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex max-w-2xl flex-col gap-1">
           <p className="text-sm text-al-muted">
-            Acontecimentos que indicam uma possível necessidade do que você vende. Escolha um tipo para configurar
+            Acontecimentos que indicam uma possível necessidade do que você vende. Escolha um Sinal para configurar
             Monitoramentos; cada Sinal disparado deixa a Conta-alvo Quente por {VALIDADE_EM_DIAS} dias.
           </p>
           <span className="rotulo">
-            {TIPOS.length} tipos · {totalAtivos} {totalAtivos === 1 ? 'Monitoramento ativo' : 'Monitoramentos ativos'}
+            {cards.length} Sinais · {totalAtivos} {totalAtivos === 1 ? 'Monitoramento ativo' : 'Monitoramentos ativos'}
           </span>
         </div>
         <button type="button" onClick={aoVerEncontrados} className={cn(BOTAO_DISCRETO, 'underline-offset-4 hover:underline')}>
@@ -161,21 +148,7 @@ function Catalogo({
         </button>
       </div>
 
-      {catalogoTipos.some((tipo) => !podeMonitorar(tipo)) && <AvisoDeNovosSinais />}
-
-      {totalAtivos === 0 && (
-        <div className="rounded-2xl flex flex-wrap items-center justify-between gap-3 border border-dashed border-al-line px-5 py-4">
-          <p className="text-sm text-al-muted">
-            Nenhum Monitoramento ativo ainda. Escolha um tipo abaixo ou comece pelo mais comum.
-          </p>
-          <Link to="/sinais/tipos/abertura-de-vagas/novo" className={BOTAO_SECUNDARIO}>
-            <Plus strokeWidth={1.8} className="size-4" aria-hidden />
-            Monitorar abertura de vagas
-          </Link>
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3">
         <div className="relative w-full max-w-sm">
           <Search strokeWidth={1.8} className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-al-muted" aria-hidden />
           <input
@@ -187,147 +160,108 @@ function Catalogo({
             className="campo h-9 pl-9 text-sm placeholder:text-al-muted"
           />
         </div>
-        <div role="group" aria-label="Filtrar por origem" className="segmentado max-w-full flex-wrap">
-          {FILTROS.map((opcao) => (
+        <div role="group" aria-label="Filtrar por nicho" className="segmentado max-w-full flex-wrap">
+          <button type="button" aria-pressed={nicho === 'todos'} onClick={() => setNicho('todos')}>
+            Todos
+          </button>
+          {NICHOS.map((item) => (
+            <button key={item.slug} type="button" aria-pressed={nicho === item.slug} onClick={() => setNicho(item.slug)}>
+              {item.nome}
+            </button>
+          ))}
+        </div>
+        <div role="group" aria-label="Filtrar por família" className="segmentado max-w-full flex-wrap">
+          <button type="button" aria-pressed={familiaId === 'todos'} onClick={() => setFamiliaId('todos')}>
+            Todas
+          </button>
+          {familiasDoCatalogo.map((familia) => (
             <button
-              key={opcao}
+              key={familia.id}
               type="button"
-              aria-pressed={filtro === opcao}
-              onClick={() => setFiltro(opcao)}
+              aria-pressed={familiaId === familia.id}
+              onClick={() => setFamiliaId(familia.id)}
             >
-              {opcao === 'todos' ? 'Todos' : ROTULO_DA_ORIGEM_NO_PLURAL[opcao]}
-              <span className="text-al-muted tabular-nums" aria-hidden>
-                {totalPorOrigem(opcao)}
-              </span>
+              {familia.nome}
             </button>
           ))}
         </div>
       </div>
 
-      <CartaoPersonalizado quantidade={personalizados} />
-
-      {familias.length === 0 && gruposDeCascatas.length === 0 ? (
+      {visiveis.length === 0 ? (
         <div className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
-          <p className="text-sm">Nenhum tipo de sinal corresponde a “{busca.trim()}”.</p>
-          <p className="text-sm text-al-muted">Tente outras palavras, mude o filtro ou descreva o que procura num sinal personalizado.</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setBusca('')
-                setFiltro('todos')
-              }}
-              className={BOTAO_SECUNDARIO}
-            >
-              Limpar busca
-            </button>
-            <button
-              type="button"
-              onClick={() => navegar(`/sinais/tipos/personalizado/novo?descricao=${encodeURIComponent(busca.trim())}`)}
-              className={BOTAO_SECUNDARIO}
-            >
-              Criar personalizado com essa busca
-            </button>
-          </div>
+          <p className="text-sm">Nenhum tipo de sinal corresponde a “{busca.trim() || 'esse filtro'}”.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setBusca('')
+              setNicho('todos')
+              setFamiliaId('todos')
+            }}
+            className={BOTAO_SECUNDARIO}
+          >
+            Limpar busca
+          </button>
         </div>
       ) : (
-        <section aria-label="Catálogo de sinais" className="flex flex-col gap-10">
-          {/* Os Sinais por mercado são externos: entram logo depois da última família externa (ou no topo, se nenhuma aparece). */}
-          {!familias.some(({ familia }) => familia.origem === 'externo') && <SecaoDeCascatas grupos={gruposDeCascatas} />}
-          {familias.map(({ familia, tipos }, indice) => (
-            <Fragment key={familia.id}>
-            <section aria-labelledby={`familia-${familia.id}`} className="flex flex-col gap-4">
-              <h2 id={`familia-${familia.id}`} className="flex items-baseline gap-3">
-                <span className="titulo-secao text-lg">{familia.nome}</span>
-                <span className="rotulo text-[0.6875rem]">{ROTULO_DA_ORIGEM[familia.origem]}</span>
-              </h2>
-              <ul className={GRADE_DE_CARTOES}>
-                {tipos.map((tipo) => (
-                  <li key={tipo.id} className="min-w-0">
-                    <CartaoDeTipo tipo={tipo} ativos={ativosPorTipo.get(tipo.id) ?? 0} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-            {indice === indiceDoUltimoExterno && <SecaoDeCascatas grupos={gruposDeCascatas} />}
-            </Fragment>
-          ))}
+        <section aria-label="Catálogo de sinais" className="flex flex-col gap-4">
+          <ul className={GRADE_DE_CARTOES}>
+            {visiveis.map((card) => (
+              <CartaoDoCatalogo key={card.id} card={card} ativos={ativosDoCard(card, monitoramentos)} />
+            ))}
+          </ul>
         </section>
       )}
+
+      <CartaoDePedido />
     </>
   )
 }
 
-function CartaoDeTipo({ tipo, ativos }: { tipo: TipoDeSinal; ativos: number }) {
-  const motivo = motivoDaIndisponibilidade(tipo)
-  // Em teste ou em breve: o card mostra o estado e o motivo e não leva a lugar nenhum, então não deixa criar Monitoramento.
-  if (motivo && tipo.disponibilidade) {
-    return (
-      <div aria-disabled="true" className="cartao flex h-full min-h-48 flex-col gap-3 border border-transparent p-6 opacity-80">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-lg leading-snug font-normal">{tipo.nome}</h3>
-          <SeloDaDisponibilidade disponibilidade={tipo.disponibilidade} />
-        </div>
-        <p className="text-sm text-al-muted">{tipo.descricao}</p>
-        <p className="mt-auto pt-3 text-sm text-al-muted">{motivo}</p>
-      </div>
-    )
-  }
+function CartaoDoCatalogo({ card, ativos }: { card: CardDoCatalogo; ativos: number }) {
+  const nichos = valeParaTodosOsNichos(card) ? ['Todos os nichos'] : nomesDosNichos(card.nichos)
   return (
-    <Link
-      to={`/sinais/tipos/${tipo.id}`}
-      className="cartao group flex h-full min-h-48 flex-col gap-3 border border-transparent p-6 transition-colors hover:border-al-accent"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-lg leading-snug font-normal">{tipo.nome}</h3>
-        {tipo.disponibilidade && <SeloDaDisponibilidade disponibilidade={tipo.disponibilidade} />}
-      </div>
-      <p className="text-sm text-al-muted">{tipo.descricao}</p>
-      <div className="mt-auto flex items-end justify-between gap-3 pt-3">
-        {ativos > 0 ? (
+    <li className="min-w-0">
+      <Link
+        to={`/sinais/tipos/${card.id}`}
+        className="cartao group flex h-full min-h-48 flex-col gap-3 border border-transparent p-6 transition-colors hover:border-al-accent"
+      >
+        <h3 className="text-lg leading-snug font-normal">{card.nome}</h3>
+        <p className="text-sm text-al-muted">{card.frase}</p>
+        <ul aria-label={`Nichos de ${card.nome}`} className="flex flex-wrap gap-1.5">
+          {nichos.map((nome) => (
+            <li key={nome} className="selo">{nome}</li>
+          ))}
+        </ul>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-3">
           <span className="rotulo inline-flex items-center gap-2 text-al-ink">
-            <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />
+            {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
             {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
           </span>
-        ) : (
-          <span className="rotulo opacity-60">Nenhum ativo</span>
-        )}
-        <span
-          className="rounded-md grid size-8 place-items-center border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
-          aria-hidden
-        >
-          <ArrowRight strokeWidth={1.8} className="size-4 transition-transform group-hover:translate-x-0.5" />
-        </span>
-      </div>
-    </Link>
+          <span
+            className="rounded-md grid size-8 place-items-center border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
+            aria-hidden
+          >
+            <ArrowRight strokeWidth={1.8} className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </Link>
+    </li>
   )
 }
 
-/** O destaque do sinal personalizado: descrição livre, sem código nem API. */
-function CartaoPersonalizado({ quantidade }: { quantidade: number }) {
+/** O pedido à equipe Althius. Sempre visível, no fim da grade. */
+function CartaoDePedido() {
   return (
-    <section
-      aria-label="Sinal personalizado"
-      className="cartao flex flex-wrap items-center justify-between gap-6 p-6"
-    >
+    <section aria-label="Pedir um Sinal" className="cartao flex flex-wrap items-center justify-between gap-6 p-6">
       <div className="flex max-w-2xl flex-col gap-1.5">
-        <h2 className="titulo-secao text-xl">Não encontrou o que procura?</h2>
+        <h2 className="titulo-secao text-xl">Precisa de outro Sinal?</h2>
         <p className="text-sm text-al-muted">
-          Descreva em linguagem livre o que quer acompanhar e, se souber, onde encontrar. A Althius prepara os critérios
-          para você revisar antes de ativar, sem código nem API.
+          Conte o evento que você quer acompanhar e a equipe Althius monta para você.
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {quantidade > 0 && (
-          <Link to="/sinais/tipos/personalizado" className={BOTAO_SECUNDARIO}>
-            Meus personalizados · {quantidade}
-          </Link>
-        )}
-        <Link to="/sinais/tipos/personalizado/novo" className={BOTAO_PRIMARIO}>
-          <Plus strokeWidth={1.8} className="size-4" aria-hidden />
-          Descrever um sinal
-        </Link>
-      </div>
+      <Link to="/sinais/pedidos" className={BOTAO_PRIMARIO}>
+        Falar com a equipe Althius
+      </Link>
     </section>
   )
 }

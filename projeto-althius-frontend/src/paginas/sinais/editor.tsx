@@ -26,6 +26,9 @@ import {
 } from './catalogo'
 import { SecaoDoFormulario, SeloDoEstado } from './componentes'
 import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
+import { cardPorId, cardQueConta, cargosDoNicho } from './catalogo-visivel'
+import { sinalArquivado } from './arquivados'
+import { NICHOS } from './nichos'
 import { podeMonitorar } from './disponibilidade'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
@@ -141,9 +144,15 @@ function alternar(lista: string[], item: string): string[] {
 export function RotaDoEditor() {
   const { tipoId = '', monitoramentoId } = useParams<{ tipoId: string; monitoramentoId?: string }>()
   const { monitoramentos, carregando, erro, recarregar } = useSinaisDoMockup()
-  // Um tipo em teste ou em breve não deixa criar Monitoramento: volta para a página do tipo, que diz o motivo.
   const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
-  if (tipoDaFonte && !monitoramentoId && !podeMonitorar(tipoDaFonte)) return <Navigate to={`/sinais/tipos/${tipoId}`} replace />
+  if (tipoId === 'personalizado') return <Navigate to="/sinais/pedidos" replace />
+  const unido = cardQueConta(tipoId)
+  if (!monitoramentoId && unido && unido.id !== tipoId) return <Navigate to={`/sinais/tipos/${unido.id}/novo`} replace />
+  if (!monitoramentoId && sinalArquivado(tipoId)) return <Navigate to="/sinais" replace />
+  // Card do catálogo visível sempre abre o editor. Tipo fora do catálogo, em teste ou em breve, volta para a página.
+  if (tipoDaFonte && !monitoramentoId && !cardPorId(tipoId) && !podeMonitorar(tipoDaFonte)) {
+    return <Navigate to={`/sinais/tipos/${tipoId}`} replace />
+  }
   const tipo = tipoPorId(tipoId)
   const existente = monitoramentos.find((m) => m.id === monitoramentoId && m.tipoId === tipoId)
   if (!tipo) return <Navigate to="/sinais" replace />
@@ -276,6 +285,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                   criterios={monitoramento.criterios}
                   aoMudar={(criterios) => mudar({ criterios })}
                   tipoInterno={interno ? tipo.id : undefined}
+                  tipoId={tipo.id}
                 />
               )
             )}
@@ -429,19 +439,48 @@ function CriteriosProntos({
   criterios,
   aoMudar,
   tipoInterno,
+  tipoId,
 }: {
   formulario: Formulario
   criterios: Criterios
   aoMudar: (criterios: Criterios) => void
   /** O tipo, quando é um Sinal interno real: só os critérios que a avaliação usa e o que ele observa nas Interações. */
   tipoInterno?: string
+  tipoId?: string
 }) {
   const campos = tipoInterno ? CAMPOS[formulario].filter((campo) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo.id)) : CAMPOS[formulario]
+  const nichoDoCargo = tipoId === 'abertura-de-vagas' ? (typeof criterios.nicho === 'string' && criterios.nicho ? criterios.nicho : 'qualquer') : null
+  const cargosDoFiltro = nichoDoCargo && nichoDoCargo !== 'qualquer' ? cargosDoNicho(nichoDoCargo) : null
   return (
     <SecaoDoFormulario numero="02" titulo="Critérios" descricao="O que precisa acontecer para disparar um Sinal. Ajuste ao seu negócio.">
-      {campos.map((campo) => (
-        <CampoDeCriterio key={campo.id} campo={campo} valor={criterios[campo.id]} aoMudar={(valor) => aoMudar({ ...criterios, [campo.id]: valor })} />
-      ))}
+      {nichoDoCargo && (
+        <Grupo rotulo="Nicho do cargo" papel="radiogroup" ajuda="Qualquer mantém a lista geral. Um nicho troca os cargos sugeridos.">
+          <Opcao papel="radio" marcada={nichoDoCargo === 'qualquer'} aoClicar={() => aoMudar({ ...criterios, nicho: 'qualquer' })}>
+            Qualquer
+          </Opcao>
+          {NICHOS.map((nicho) => (
+            <Opcao
+              key={nicho.slug}
+              papel="radio"
+              marcada={nichoDoCargo === nicho.slug}
+              aoClicar={() => aoMudar({ ...criterios, nicho: nicho.slug, funcoes: [] })}
+            >
+              {nicho.nome}
+            </Opcao>
+          ))}
+        </Grupo>
+      )}
+      {campos.map((campo) => {
+        const campoEfetivo = campo.id === 'funcoes' && cargosDoFiltro ? { ...campo, opcoes: [...cargosDoFiltro] } : campo
+        return (
+          <CampoDeCriterio
+            key={campo.id}
+            campo={campoEfetivo}
+            valor={criterios[campo.id]}
+            aoMudar={(valor) => aoMudar({ ...criterios, [campo.id]: valor })}
+          />
+        )
+      })}
       {tipoInterno && (
         <p className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm text-al-ink">
           {COMO_O_INTERNO_DISPARA[tipoInterno]} O prazo é contado pelas Interações registradas na Conta-alvo: e-mails e

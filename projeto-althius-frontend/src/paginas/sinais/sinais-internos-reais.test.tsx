@@ -185,15 +185,14 @@ function abrir(rota: string, opcoes: { monitores?: MonitorNoBanco[]; sinais?: Si
 }
 
 describe('Sinais internos no catálogo do Workspace operacional', () => {
-  it('Ausência de resposta e Negociação parada rodam de verdade sem actor; Proposta recusada fica em breve', async () => {
+  it('Ausência de resposta, Negociação parada e Proposta recusada são cards iguais, sem selo', async () => {
     abrir('/sinais')
 
-    const semResposta = await screen.findByRole('link', { name: /Ausência de resposta/ })
-    expect(within(semResposta).getByText('Disponível')).toBeInTheDocument()
-    expect(within(screen.getByRole('link', { name: /Negociação parada/ })).getByText('Disponível')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Proposta recusada/ })).not.toBeInTheDocument()
-    const recusada = screen.getByRole('heading', { level: 3, name: 'Proposta recusada' }).parentElement!.parentElement!
-    expect(within(recusada).getByText('Em breve')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /Ausência de resposta/ })).toHaveAttribute('href', '/sinais/tipos/sem-resposta')
+    expect(screen.getByRole('link', { name: /Negociação parada/ })).toHaveAttribute('href', '/sinais/tipos/negociacao-parada')
+    expect(screen.getByRole('link', { name: /Proposta recusada/ })).toHaveAttribute('href', '/sinais/tipos/proposta-recusada')
+    expect(screen.queryByText('Disponível')).not.toBeInTheDocument()
+    expect(screen.queryByText('Em breve')).not.toBeInTheDocument()
   })
 })
 
@@ -268,11 +267,14 @@ describe('Monitoramento interno no Workspace operacional', () => {
     expect(screen.queryByText(/simulad/i)).not.toBeInTheDocument()
   })
 
-  it('a página do tipo não oferece Monitoramento para Proposta recusada', async () => {
+  it('a página de Proposta recusada oferece Criar Monitoramento', async () => {
     abrir('/sinais/tipos/proposta-recusada')
 
-    expect(await screen.findByText(/chega em breve/)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Novo monitoramento/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Criar Monitoramento' })).toHaveAttribute(
+      'href',
+      '/sinais/tipos/proposta-recusada/novo',
+    )
+    expect(screen.queryByText(/chega em breve/)).not.toBeInTheDocument()
   })
 })
 

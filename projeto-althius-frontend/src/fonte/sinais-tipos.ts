@@ -197,5 +197,58 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Simula um disparo para um Monitoramento Ativo (Ticket 04). */
   simularDisparo(parametros: ParametrosSimulacaoDisparo): Promise<SinalEncontrado>
+
+  /** Pedidos de Sinal feitos à equipe Althius neste Workspace, do mais novo ao mais antigo. */
+  pedidosDeSinal(): Promise<PedidoDeSinal[]>
+
+  /** Grava um pedido. Não cobra. O aviso à equipe sai em seguida, quando há provedor. */
+  pedirSinal(pedido: NovoPedidoDeSinal): Promise<PedidoDeSinal>
+
+  /**
+   * Cards de Sinal construídos para este Workspace (workspace_id preenchido). O catálogo global é o da tela.
+   * Sem a migração, ou se a leitura falhar, devolve lista vazia.
+   */
+  catalogoDoWorkspace(): Promise<CardSobPedido[]>
+}
+
+export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'
+
+export type StatusDoPedido = 'novo' | 'em_analise' | 'em_construcao' | 'disponivel' | 'recusado'
+
+export interface ContatoDoPedido {
+  nome: string
+  email: string
+  whatsapp?: string
+}
+
+export interface PedidoDeSinal {
+  id: string
+  evento: string
+  empresasOuNicho: string
+  fontesConhecidas?: string
+  urgencia: UrgenciaDoPedido
+  contato: ContatoDoPedido
+  status: StatusDoPedido
+  criadoEm: string
+}
+
+export interface NovoPedidoDeSinal {
+  evento: string
+  empresasOuNicho: string
+  fontesConhecidas?: string
+  urgencia: UrgenciaDoPedido
+  contato: ContatoDoPedido
+}
+
+/** Card visível só no Workspace que pediu. O catálogo global não passa por aqui. */
+export interface CardSobPedido {
+  id: string
+  nome: string
+  frase: string
+  familiaId: string
+  fonte: string
+  custoRotulo: string
+  nichos: string[]
+  coletores: string[]
 }
 

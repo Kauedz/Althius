@@ -17,6 +17,10 @@ verify_jwt = false
 [functions.workspace-invitation-email]
 verify_jwt = true
 
+# Pedido de Sinal à equipe (PR-A): o navegador chama com o JWT; o banco reserva o aviso uma vez.
+[functions.signal-request-notify]
+verify_jwt = true
+
 [functions.contact-photo-lookup]
 verify_jwt = true
 

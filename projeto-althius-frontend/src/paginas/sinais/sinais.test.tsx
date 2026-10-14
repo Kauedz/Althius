@@ -18,41 +18,29 @@ describe('Mockup do módulo Sinais', () => {
     expect(screen.queryByRole('combobox', { name: 'Estado do mockup' })).not.toBeInTheDocument()
   })
 
-  it('busca e filtra o catálogo por origem e oferece continuidade quando nada corresponde', async () => {
+  it('busca e filtra o catálogo por família e oferece continuidade quando nada corresponde', async () => {
     const { usuario } = renderizarApp('/sinais')
-    const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
+    await screen.findByRole('region', { name: 'Catálogo de sinais' })
 
-    // As doze famílias aparecem, das três origens.
-    for (const familia of [
-      'Vagas e equipes',
-      'Movimentação profissional',
-      'Capital e finanças',
-      'Expansão e registros',
-      'Tecnologia',
-      'Notícias e iniciativas',
-      'Eventos e conteúdo',
-      'Reputação e concorrência',
-      'Comunidades e intenção',
-      'Comportamento no site',
-      'Histórico comercial',
-      'Testes e verificações',
-    ]) {
-      expect(within(catalogo).getByRole('heading', { level: 2, name: new RegExp(`^${familia}`) })).toBeInTheDocument()
+    const familias = screen.getByRole('group', { name: 'Filtrar por família' })
+    for (const familia of ['Vagas e equipes', 'Movimentação profissional', 'Histórico comercial']) {
+      expect(within(familias).getByRole('button', { name: familia })).toBeInTheDocument()
     }
 
-    await usuario.click(screen.getByRole('button', { name: /Internos/ }))
+    await usuario.click(within(familias).getByRole('button', { name: 'Histórico comercial' }))
     expect(screen.getByRole('link', { name: /Proposta recusada/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Abertura de vagas/ })).not.toBeInTheDocument()
 
-    await usuario.click(screen.getByRole('button', { name: /Todos/ }))
+    await usuario.click(within(familias).getByRole('button', { name: 'Todas' }))
     const busca = screen.getByRole('searchbox', { name: 'Buscar tipos de sinal' })
-    await usuario.type(busca, 'rodadas')
-    expect(screen.getByRole('link', { name: /Rodadas de investimento/ })).toBeInTheDocument()
+    await usuario.type(busca, 'abertura')
+    expect(screen.getByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Proposta recusada/ })).not.toBeInTheDocument()
 
     await usuario.clear(busca)
     await usuario.type(busca, 'xyzabc')
     expect(screen.getByText('Nenhum tipo de sinal corresponde a “xyzabc”.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Pedir um Sinal' })).toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: 'Limpar busca' }))
     expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
   })
@@ -72,8 +60,8 @@ describe('Mockup do módulo Sinais', () => {
   })
 
   it('cria um segundo Monitoramento do mesmo tipo: rascunho, revisão, ativação, pausa e retomada', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/rodadas')
-    await usuario.click(await screen.findByRole('link', { name: 'Novo monitoramento' }))
+    const { usuario } = renderizarApp('/sinais/tipos/financiamento-bndes-finep')
+    await usuario.click(await screen.findByRole('link', { name: 'Criar Monitoramento' }))
 
     expect(screen.getByRole('button', { name: 'Revisar e ativar' })).toBeDisabled()
     await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Fusões no México')
@@ -84,15 +72,13 @@ describe('Mockup do módulo Sinais', () => {
 
     await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
     const revisao = screen.getByRole('region', { name: 'Revisão antes de ativar' })
-    expect(revisao).toHaveTextContent('Rodada, Fusão ou aquisição')
+    expect(revisao).toHaveTextContent('Fusão ou aquisição')
     expect(revisao).toHaveTextContent('Descoberta pelo ICP do Workspace')
     await usuario.click(within(revisao).getByRole('button', { name: 'Ativar monitoramento' }))
 
     const lista = await screen.findByRole('list', { name: 'Monitoramentos deste tipo' })
     const novo = within(lista).getByRole('listitem', { name: 'Fusões no México' })
     expect(novo).toHaveTextContent('Ativo')
-    // O outro Monitoramento do mesmo tipo continua com os próprios critérios.
-    expect(within(lista).getByRole('listitem', { name: 'Rodadas a partir de US$ 50 mi' })).toHaveTextContent('US$ 50 mi ou mais')
 
     await usuario.click(within(novo).getByRole('button', { name: 'Pausar' }))
     expect(novo).toHaveTextContent('Pausado')
@@ -100,7 +86,7 @@ describe('Mockup do módulo Sinais', () => {
     expect(novo).toHaveTextContent('Ativo')
 
     await usuario.click(within(screen.getByRole('main')).getByRole('link', { name: 'Sinais' }))
-    expect(await screen.findByRole('link', { name: /Rodadas de investimento.*2 ativos/ })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /Financiamento BNDES\/Finep.*1 ativo/ })).toBeInTheDocument()
   })
 
   it('tipos que compartilham um formulário abrem com os valores do próprio tipo', async () => {
@@ -112,7 +98,7 @@ describe('Mockup do módulo Sinais', () => {
   })
 
   it('no público personalizado, o perfil combina várias UFs e cidades, faixas de porte, tempo de empresa e CNAE', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/rodadas/novo')
+    const { usuario } = renderizarApp('/sinais/tipos/financiamento-bndes-finep/novo')
     await usuario.type(await screen.findByRole('textbox', { name: 'Nome do monitoramento' }), 'Rodadas no Sudeste')
     await usuario.click(screen.getByRole('radio', { name: 'Público personalizado' }))
     const perfil = screen.getByRole('group', { name: 'Perfil firmográfico' })
@@ -152,7 +138,7 @@ describe('Mockup do módulo Sinais', () => {
   })
 
   it('fora do Brasil, a localização é só por estado', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/rodadas/novo')
+    const { usuario } = renderizarApp('/sinais/tipos/financiamento-bndes-finep/novo')
     await usuario.click(await screen.findByRole('radio', { name: 'Público personalizado' }))
     const perfil = screen.getByRole('group', { name: 'Perfil firmográfico' })
     await usuario.selectOptions(within(perfil).getByRole('combobox', { name: 'País' }), 'México')
@@ -164,32 +150,11 @@ describe('Mockup do módulo Sinais', () => {
     expect(within(perfil).getByRole('button', { name: 'Remover Nuevo León' })).toBeInTheDocument()
   })
 
-  it('cria um sinal personalizado por descrição: Em preparação, critérios editáveis e ativação sem API', async () => {
+  it('o pedido à equipe substitui o construtor de sinal personalizado', async () => {
     const { usuario } = renderizarApp('/sinais')
-    await usuario.click(await screen.findByRole('link', { name: 'Descrever um sinal' }))
-
-    await usuario.type(screen.getByRole('textbox', { name: 'O que você quer acompanhar?' }), 'Hospitais que anunciam novas alas')
-    await usuario.type(screen.getByRole('textbox', { name: /Fonte, se você souber/ }), 'Diário oficial')
-    await usuario.click(screen.getByRole('button', { name: 'Preparar critérios' }))
-
-    const preparacao = screen.getByRole('region', { name: 'Em preparação' })
-    expect(preparacao).toHaveTextContent('Hospitais que anunciam novas alas')
-    await usuario.click(within(preparacao).getByRole('button', { name: 'Ver critérios preparados' }))
-
-    const criterios = screen.getByRole('list', { name: 'Critérios editáveis' })
-    const segundo = within(criterios).getByRole('textbox', { name: 'Critério 2' })
-    expect(segundo).toHaveValue('Observar em: Diário oficial')
-    await usuario.clear(segundo)
-    await usuario.type(segundo, 'Observar em: diários oficiais estaduais')
-
-    await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
-    const revisao = screen.getByRole('region', { name: 'Revisão antes de ativar' })
-    expect(revisao).toHaveTextContent('Observar em: diários oficiais estaduais')
-    await usuario.click(within(revisao).getByRole('button', { name: 'Ativar monitoramento' }))
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Sinais personalizados' })).toBeInTheDocument()
-    expect(screen.getByRole('listitem', { name: 'Hospitais que anunciam novas alas' })).toHaveTextContent('Ativo')
-    expect(screen.getByRole('listitem', { name: 'Varejistas sem agendamento de entrega' })).toHaveTextContent('Em preparação')
+    await usuario.click(await screen.findByRole('link', { name: 'Falar com a equipe Althius' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Falar com a equipe Althius' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Novo sinal personalizado' })).not.toBeInTheDocument()
   })
 
   it('Sinais encontrados leva à Conta-alvo com o foguinho separado da Aderência, e volta', async () => {

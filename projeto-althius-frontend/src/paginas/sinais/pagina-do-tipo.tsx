@@ -5,13 +5,41 @@ import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { useAmbiente, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
-import type { EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
-import { ROTULO_DA_ORIGEM, TIPO_PERSONALIZADO, familiaDoTipo, tipoPorId } from './catalogo'
+import type { CardSobPedido, EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
+import { ROTULO_DA_ORIGEM, familiaDoTipo, tipoPorId, type TipoDeSinal } from './catalogo'
+import { cardPorId, cardQueConta, nomesDosNichos, valeParaTodosOsNichos, TETO_PADRAO_USD, type CardDoCatalogo } from './catalogo-visivel'
+import { sinalArquivado } from './arquivados'
 import { SeloDoEstado } from './componentes'
 import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
 import { VALIDADE_EM_DIAS, sinaisDisparadosPor } from './dados-mock'
 import { ACAO_DO_ESTADO, resumoDaRodada, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
+
+function cardDoExtra(extra: CardSobPedido): CardDoCatalogo {
+  return {
+    id: extra.id,
+    nome: extra.nome,
+    frase: extra.frase,
+    familiaId: extra.familiaId,
+    formulario: 'expansao',
+    nichos: extra.nichos,
+    fonte: extra.fonte,
+    custoRotulo: extra.custoRotulo,
+    custoUsd: null,
+    coletores: extra.coletores,
+    contados: [extra.id],
+  }
+}
+
+function tipoDoExtra(extra: CardSobPedido): TipoDeSinal {
+  return {
+    id: extra.id,
+    nome: extra.nome,
+    descricao: extra.frase,
+    familiaId: extra.familiaId,
+    formulario: familiaDoTipo({ id: extra.id, nome: extra.nome, descricao: extra.frase, familiaId: extra.familiaId })?.formulario ?? 'expansao',
+  }
+}
 
 export function PaginaDoTipo() {
   const { tipoId = '' } = useParams<{ tipoId: string }>()
@@ -19,19 +47,30 @@ export function PaginaDoTipo() {
   const [erroAcao, setErroAcao] = useState<string | null>(null)
   const operacional = useAmbiente().modo === 'real'
   const hoje = useFonteDeContas().hoje()
-  const tipo = tipoPorId(tipoId)
-  const monitoramentos = useMonitoramentos(tipoId)
+  const todos = useMonitoramentos()
   const { mudarEstado, carregando, erro, recarregar } = useSinaisDoMockup()
   const { dados: sinaisEncontrados } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
-  // O estado do tipo (disponível, em teste ou em breve) só o Workspace operacional informa.
   const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
+  const { dados: extras, carregando: carregandoExtras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
+  const extra = extras?.find((card) => card.id === tipoId)
+  const card = cardPorId(tipoId)
+  const tipo = tipoPorId(tipoId) ?? (extra ? tipoDoExtra(extra) : undefined)
+  const monitoramentos = card
+    ? todos.filter((m) => card.contados.includes(m.tipoId))
+    : todos.filter((m) => m.tipoId === tipoId)
 
+  if (tipoId === 'personalizado') return <Navigate to="/sinais/pedidos" replace />
+  const unido = cardQueConta(tipoId)
+  if (unido && unido.id !== tipoId) return <Navigate to={`/sinais/tipos/${unido.id}`} replace />
+  if (sinalArquivado(tipoId)) return <Navigate to="/sinais" replace />
+  if (!tipo && carregandoExtras && !extras) return <Carregando />
   if (!tipo) return <Navigate to="/sinais" replace />
-  const permiteCriar = !tipoDaFonte || podeMonitorar(tipoDaFonte)
-  const motivoDeNaoCriar = tipoDaFonte ? motivoDaIndisponibilidade(tipoDaFonte) : null
+  const visivel = Boolean(card || extra)
+  const permiteCriar = visivel || !tipoDaFonte || podeMonitorar(tipoDaFonte)
+  const motivoDeNaoCriar = visivel || !tipoDaFonte ? null : motivoDaIndisponibilidade(tipoDaFonte)
   const familia = familiaDoTipo(tipo)
-  const personalizado = tipo.id === TIPO_PERSONALIZADO.id
   const ativos = monitoramentos.filter((m) => m.estado === 'ativo').length
+  const detalhe = card ?? (extra ? cardDoExtra(extra) : undefined)
 
   const alternarEstado = async (id: string, novoEstado: EstadoDoMonitoramento) => {
     setErroAcao(null)
@@ -52,7 +91,7 @@ export function PaginaDoTipo() {
         permiteCriar ? (
           <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
             <Plus strokeWidth={1.8} className="size-4" aria-hidden />
-            {personalizado ? 'Novo personalizado' : 'Novo monitoramento'}
+            Criar Monitoramento
           </Link>
         ) : undefined
       }
@@ -69,6 +108,18 @@ export function PaginaDoTipo() {
           )}
         </div>
         <p className="text-base">{tipo.descricao}</p>
+        {detalhe && (
+          <div className="flex flex-col gap-2 text-sm text-al-muted">
+            <p>Fonte: {detalhe.fonte}</p>
+            <p>Custo estimado: {detalhe.custoRotulo}</p>
+            <p>Teto padrão de US$ {TETO_PADRAO_USD} por mês neste Workspace.</p>
+            <ul aria-label="Nichos" className="flex flex-wrap gap-2">
+              {(valeParaTodosOsNichos(detalhe) ? ['Todos os nichos'] : nomesDosNichos(detalhe.nichos)).map((nome) => (
+                <li key={nome} className="selo">{nome}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <p className="text-sm text-al-muted">
           Cada Sinal disparado deixa a Conta-alvo Quente por {VALIDADE_EM_DIAS} dias. Pausar um Monitoramento interrompe novas detecções e
           preserva os sinais anteriores.
@@ -127,16 +178,16 @@ export function PaginaDoTipo() {
 
         {monitoramentos.length === 0 ? (
           <div className="rounded-2xl flex flex-col items-start gap-3 border border-dashed border-al-line p-6">
-            <p className="text-sm">
-              {personalizado ? 'Nenhum sinal personalizado ainda.' : 'Nenhum Monitoramento deste tipo ainda.'}
-            </p>
+            <p className="text-sm">Nenhum Monitoramento deste tipo ainda.</p>
             <p className="text-sm text-al-muted">
               Você pode criar vários, cada um com nome, critérios e público próprios.
             </p>
-            <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
-              <Plus strokeWidth={1.8} className="size-4" aria-hidden />
-              {personalizado ? 'Descrever um sinal' : 'Criar o primeiro'}
-            </Link>
+            {permiteCriar && (
+              <Link to={`/sinais/tipos/${tipo.id}/novo`} className={BOTAO_PRIMARIO}>
+                <Plus strokeWidth={1.8} className="size-4" aria-hidden />
+                Criar Monitoramento
+              </Link>
+            )}
           </div>
         ) : (
           <ul aria-label="Monitoramentos deste tipo" className="flex flex-col border-t border-al-line">
