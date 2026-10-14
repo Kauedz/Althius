@@ -13,9 +13,9 @@ insert into public.workspaces (id, kind, name) values ('aaaaaaaa-5000-0000-0000-
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('aaaaaaaa-5000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001', 'admin', true);
 
--- O registro de lançamento: os 9 actors, todos em teste, sem preço nem versão inventados.
-select is((select count(*)::int from private.signal_actors), 9, 'os 9 actors do lançamento estão cadastrados');
-select is((select count(*)::int from private.signal_actors where state = 'testing'), 9, 'todos nascem em teste');
+-- O registro de lançamento: os 9 actors e o do Google (PR-7), todos em teste, sem preço nem versão inventados.
+select is((select count(*)::int from private.signal_actors), 10, 'os 9 actors do lançamento e o do Google estão cadastrados');
+select is((select count(*)::int from private.signal_actors where state = 'testing'), 10, 'todos nascem em teste');
 select is((select count(*)::int from private.signal_actors where known_price is not null or version is not null), 0,
   'preço e versão ficam em branco até alguém conferir no Apify');
 select is(
@@ -37,7 +37,7 @@ select throws_ok(
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '65000000-0000-0000-0000-000000000002', true);
-select is((select count(*)::int from public.list_signal_actors()), 9, 'qualquer Conta de usuário vê o catálogo');
+select is((select count(*)::int from public.list_signal_actors()), 10, 'qualquer Conta de usuário vê o catálogo');
 select is(
   (select array_to_string(p.proargnames, ',') from pg_proc p
    where p.proname = 'list_signal_actors' and p.pronamespace = 'public'::regnamespace),

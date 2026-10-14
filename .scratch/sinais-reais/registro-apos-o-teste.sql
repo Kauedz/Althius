@@ -59,3 +59,10 @@ update private.signal_actors set max_cost_usd = 0.15,
   known_price = 'US$ 0,0006 por avaliação lida mais US$ 0,00005 por execução (tabela pública do Apify, 30/09/2026). Observado em 01/10/2026: a busca por "Magazine Luiza" trouxe vários lugares e o Apify cobrou 194 avaliações (US$ 0,116) para 100 itens devolvidos. Conta de um lugar só custa bem menos.'
 where actor_id = 'compass~google-maps-reviews-scraper';
 select public.set_signal_actor_state('compass~google-maps-reviews-scraper', 'available', '0.0.527');
+
+-- PR-7 · Anunciando no Google (Central de Transparência de Anúncios; até 40 anúncios: até US$ 0,061 por Conta na faixa Free)
+-- Só depois da amostra real (`scripts/validar-sinais-reais.ts anuncio_google`). Confira a versão em `taggedBuilds.latest`.
+update private.signal_actors set max_cost_usd = 0.10,
+  known_price = 'US$ 1,50 por 1.000 anúncios na faixa Free (US$ 1,00 na Bronze, 0,90 na Silver, 0,80 da Gold em diante), mais US$ 0,001 por início de execução. API pública do Apify, 14/10/2026.'
+where actor_id = 'solidcode~ads-transparency-scraper';
+select public.set_signal_actor_state('solidcode~ads-transparency-scraper', 'available', '1.0.27');

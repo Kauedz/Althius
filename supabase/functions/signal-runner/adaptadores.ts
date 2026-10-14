@@ -4,6 +4,7 @@
 // Monitoramento daquele tipo espera ("Ainda não há adaptador").
 import type { AdaptadorDeSinal } from './handler.ts'
 import { anuncioDeMovimentacao } from './adaptadores/anuncio-de-movimentacao.ts'
+import { anuncioGoogle } from './adaptadores/anuncio-google.ts'
 import { anuncioLinkedin } from './adaptadores/anuncio-linkedin.ts'
 import { anuncioMeta } from './adaptadores/anuncio-meta.ts'
 import { avaliacoesGoogleMaps } from './adaptadores/avaliacoes-google-maps.ts'
@@ -22,6 +23,7 @@ const TODOS: AdaptadorDeSinal[] = [
   anuncioDeMovimentacao,
   anuncioLinkedin,
   anuncioMeta,
+  anuncioGoogle,
   avaliacoesGoogleMaps,
 ]
 
