@@ -103,7 +103,7 @@ select is(
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values ('e3000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana@serra.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values ('e4000000-0000-0000-0000-000000000001', 'empresa', 'Serra');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values ('e4000000-0000-0000-0000-000000000001', 'e3000000-0000-0000-0000-000000000001', 'admin', true);
 select public.grant_credits('e4000000-0000-0000-0000-000000000001', 50, 'plano', 'saldo de teste');
 select is(
@@ -115,10 +115,10 @@ select is(
   'em_teste', 'o Sinal em teste espera o aval');
 create temporary table ab on commit drop as
   select * from public.begin_cascade_run('e4000000-0000-0000-0000-000000000001', null, 'licenca_instalacao_dou', 'rotina', null, 'k-dou', 0.205, null, true);
-select is((select outcome || ':' || est_credits from ab), 'go:3', 'o Diário Oficial (US$ 0,205 de custo estimado) reserva 3 créditos');
+select is((select outcome || ':' || est_credits from ab), 'go:3', 'o Diário Oficial, Sinal de Mercado, reserva o preço fixo de 3 créditos por execução');
 select is(
-  (select credits_charged from public.finish_cascade_run((select run_id from ab), 'succeeded', 0.205, 0, 0, 0, null)), 2,
-  'sem Sinal novo, cobra o custo real da fonte (2 créditos), não os 3 reservados');
+  (select credits_charged from public.finish_cascade_run((select run_id from ab), 'succeeded', 0.205, 0, 0, 0, null)), 3,
+  'concluída sem Sinal novo, cobra o preço fixo de Mercado (3), seja qual for o custo da fonte');
 
 select * from finish();
 rollback;

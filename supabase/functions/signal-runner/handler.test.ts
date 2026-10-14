@@ -194,7 +194,7 @@ Deno.test('Workspace ilimitado com reserva: teto atingido não para a varredura'
 })
 
 Deno.test('automático em confirmar, sem teto ou no teto: não varre, não cobra e diz por quê', async () => {
-  for (const [outcome, texto] of [['confirmar', 'confirmar'], ['sem_teto', 'teto'], ['teto_atingido', 'teto']] as const) {
+  for (const [outcome, texto] of [['confirmar', 'confirmar'], ['sem_teto', 'teto'], ['teto_atingido', 'limite do mês']] as const) {
     const { handler, c } = montar({ abertura: () => ({ outcome, reservationId: null }) })
     assertEquals((await (await chamar(handler)).json()).scanned, 0)
     assertEquals(c.runs.length, 0)

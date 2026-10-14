@@ -150,7 +150,7 @@ describe('Página do Sinal na vitrine', () => {
     expect(screen.getByText('Prévia: últimas empresas detectadas')).toBeInTheDocument()
     expect(screen.getByText('Movimentação pública de cargos de liderança')).toBeInTheDocument()
     expect(screen.getByText('Varredura diária de cada Conta do público')).toBeInTheDocument()
-    expect(screen.getByText('1 crédito por Conta varrida')).toBeInTheDocument()
+    expect(screen.getByText('2 créditos por Conta varrida')).toBeInTheDocument()
     expect(screen.getByText('Conta Quente por 30 dias, nas suas Contas-alvo')).toBeInTheDocument()
     expect(screen.getByText('Candidata na Descoberta, quando a empresa ainda não é Conta-alvo')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(EMOJI)

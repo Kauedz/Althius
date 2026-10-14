@@ -105,7 +105,7 @@ describe('vitrine de Sinais', () => {
   })
 
   it('a ficha do Sinal: frequência, custo em créditos e resultado', () => {
-    expect(custoEmCreditos(card('abertura-de-vagas'))).toBe('1 crédito por Conta varrida')
+    expect(custoEmCreditos(card('abertura-de-vagas'))).toBe('2 créditos por Conta varrida')
     expect(custoEmCreditos(card('sem-resposta'))).toBe('Não gasta crédito')
     expect(frequenciaDoCard(card('entrada-de-socio'))).toMatch(/atualizada uma vez por mês/)
     expect(frequenciaDoCard(card('nova-lideranca'))).toBe('Varredura diária de cada Conta do público')

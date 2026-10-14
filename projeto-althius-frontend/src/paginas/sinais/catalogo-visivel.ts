@@ -5,9 +5,6 @@
 import type { Criterios, Formulario } from '@/fonte/sinais-tipos'
 import { CARGOS_POR_NICHO, NICHOS, SLUGS_DE_NICHO } from './nichos'
 
-/** Teto padrão de varredura de Sinais, em dólar por mês, por Workspace. A Automação que o liga fica para outro PR. */
-export const TETO_PADRAO_USD = 20
-
 export interface CardDoCatalogo {
   id: string
   nome: string
@@ -19,9 +16,12 @@ export interface CardDoCatalogo {
   nichos: readonly string[]
   /** Fonte em linguagem de usuário. Sem nome de fornecedor. */
   fonte: string
+  /** O preço em créditos, como a tela o diz: fixo por Conta varrida, ou por execução nos Sinais de Mercado. */
   custoRotulo: string
-  /** Estimativa por Monitoramento de cerca de 200 empresas por mês. Nulo quando não há fonte paga. */
-  custoUsd: number | null
+  /** Créditos por Conta varrida (creditos-moeda-unica). Zero: Sinal do histórico do próprio Workspace. */
+  creditosPorConta: number
+  /** Sinais de Mercado, sem Conta: créditos por execução. */
+  creditosPorExecucao?: number
   /** `signal_type` dos coletores que continuam no banco. */
   coletores: readonly string[]
   /**
@@ -34,10 +34,16 @@ export interface CardDoCatalogo {
 
 const TODOS = SLUGS_DE_NICHO
 
-const dentroDoTeto = `Dentro do teto de US$ ${TETO_PADRAO_USD} por mês do Workspace`
-const porDuzentas = (usd: string) => `Cerca de US$ ${usd} a cada 200 empresas por mês`
+/** O preço em créditos, nas mesmas palavras de `signal_catalog.estimated_cost_label` (migração 20261017100000). */
+export function rotuloDoCusto(creditosPorConta: number, creditosPorExecucao?: number): string {
+  if (creditosPorExecucao !== undefined) return `${creditosPorExecucao} créditos por execução`
+  if (creditosPorConta === 0) return 'Sem custo em créditos'
+  return creditosPorConta === 1 ? '1 crédito por Conta varrida' : `${creditosPorConta} créditos por Conta varrida`
+}
 
-export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
+type CardSemRotulo = Omit<CardDoCatalogo, 'custoRotulo'>
+
+const CARDS: readonly CardSemRotulo[] = [
   {
     id: 'abertura-de-vagas',
     nome: 'Abertura de vagas',
@@ -46,8 +52,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'vagas',
     nichos: TODOS,
     fonte: 'Vagas públicas em sites de emprego',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 2,
     coletores: ['vaga_linkedin', 'vaga_indeed', 'vaga_comex', 'vaga_logistica', 'vaga_engenharia_manutencao'],
     contados: ['abertura-de-vagas', 'vagas-no-indeed'],
   },
@@ -59,8 +64,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'pessoas',
     nichos: TODOS,
     fonte: 'Movimentação pública de cargos de liderança',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 2,
     coletores: ['nova_lideranca'],
     contados: ['nova-lideranca'],
     padroes: { cargos: ['CDO', 'CTO'], movimento: ['Chegada'] },
@@ -73,8 +77,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'pessoas',
     nichos: TODOS,
     fonte: 'Movimentação pública de pessoas nas empresas',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 2,
     coletores: ['entradas_e_saidas'],
     contados: ['novas-contratacoes'],
     padroes: { cargos: ['Head de Dados', 'VP de Engenharia'], movimento: ['Chegada'] },
@@ -87,8 +90,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'pessoas',
     nichos: TODOS,
     fonte: 'Movimentação pública de carreira',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 2,
     coletores: ['mudanca_de_emprego'],
     contados: ['promocoes'],
     padroes: { movimento: ['Promoção'], pessoas: 'Contatos das Contas-alvo' },
@@ -101,8 +103,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'pessoas',
     nichos: TODOS,
     fonte: 'Publicações públicas de profissionais',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 2,
     coletores: ['anuncio_de_movimentacao'],
     contados: ['anuncio-de-movimentacao'],
     padroes: { movimento: ['Chegada', 'Promoção'] },
@@ -115,8 +116,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'vagas',
     nichos: ['corretoras-de-beneficios', 'contabilidade-e-tributario', 'logistica-e-transporte', 'industria-fornecedores-b2b'],
     fonte: 'Quadro público de pessoas da empresa, comparado mês a mês',
-    custoRotulo: porDuzentas('0,80'),
-    custoUsd: 0.8,
+    creditosPorConta: 2,
     coletores: ['crescimento_de_equipes', 'cruzando_faixa_de_headcount'],
     contados: ['crescimento-de-equipes'],
     padroes: { funcoes: ['Engenharia de dados', 'IA e machine learning'], senioridade: 'Qualquer' },
@@ -129,8 +129,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'anuncios',
     nichos: ['contabilidade-e-tributario', 'juridico-empresarial', 'corretoras-de-beneficios', 'agro-b2b', 'industria-fornecedores-b2b'],
     fonte: 'Biblioteca pública de anúncios',
-    custoRotulo: porDuzentas('0,50'),
-    custoUsd: 0.5,
+    creditosPorConta: 2,
     coletores: ['anuncio_meta'],
     contados: ['anuncios-meta'],
   },
@@ -142,8 +141,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'anuncios',
     nichos: ['contabilidade-e-tributario', 'juridico-empresarial', 'corretoras-de-beneficios', 'agro-b2b', 'industria-fornecedores-b2b'],
     fonte: 'Transparência pública de anúncios',
-    custoRotulo: porDuzentas('0,40'),
-    custoUsd: 0.4,
+    creditosPorConta: 2,
     coletores: [],
     contados: ['anuncios-google'],
   },
@@ -155,8 +153,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'anuncios',
     nichos: ['industria-fornecedores-b2b', 'energia-e-mercado-livre', 'logistica-e-transporte'],
     fonte: 'Biblioteca pública de anúncios profissionais',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 2,
     coletores: ['anuncio_linkedin'],
     contados: ['anuncios-linkedin'],
   },
@@ -168,8 +165,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'noticias',
     nichos: TODOS,
     fonte: 'Publicações públicas da empresa',
-    custoRotulo: porDuzentas('3'),
-    custoUsd: 3,
+    creditosPorConta: 2,
     coletores: [],
     contados: ['publicacoes-da-empresa'],
   },
@@ -181,8 +177,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'avaliacoes',
     nichos: ['logistica-e-transporte', 'industria-fornecedores-b2b', 'agro-b2b', 'energia-e-mercado-livre'],
     fonte: 'Avaliações públicas de estabelecimentos',
-    custoRotulo: porDuzentas('0,60'),
-    custoUsd: 0.6,
+    creditosPorConta: 1,
     coletores: ['avaliacoes_google_maps'],
     contados: ['avaliacoes-google-maps'],
     padroes: { nota: 'Até 2 estrelas' },
@@ -195,8 +190,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['contabilidade-e-tributario', 'juridico-empresarial', 'corretoras-de-beneficios'],
     fonte: 'Base pública de CNPJ',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['cnpj_novo'],
     contados: ['nova-empresa-aberta'],
   },
@@ -208,8 +202,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['agro-b2b'],
     fonte: 'Base pública de CNPJ',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['nova_cooperativa'],
     contados: ['nova-cooperativa'],
   },
@@ -221,8 +214,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['contabilidade-e-tributario', 'juridico-empresarial'],
     fonte: 'Base pública de CNPJ',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['entrada_de_socio'],
     contados: ['entrada-de-socio'],
   },
@@ -234,8 +226,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['contabilidade-e-tributario'],
     fonte: 'Base pública de CNPJ',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['mudanca_de_porte_ou_regime'],
     contados: ['mudanca-de-porte-ou-regime'],
   },
@@ -247,8 +238,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['logistica-e-transporte', 'industria-fornecedores-b2b', 'energia-e-mercado-livre', 'corretoras-de-beneficios'],
     fonte: 'Base pública de CNPJ',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['nova_planta_filial', 'novo_cd_ou_filial', 'nova_filial_icp_g', 'troca_de_sede', 'expansao_de_planta'],
     contados: ['nova-filial-ou-sede', 'novo-escritorio', 'expansao-geografica'],
   },
@@ -260,8 +250,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'capital',
     nichos: ['industria-fornecedores-b2b', 'energia-e-mercado-livre'],
     fonte: 'Divulgações públicas de financiamento',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['financiamento_bndes_finep'],
     contados: ['financiamento-bndes-finep'],
     padroes: { eventos: ['Investimento anunciado'] },
@@ -274,8 +263,8 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['comex-e-importacao'],
     fonte: 'Estatísticas públicas de comércio exterior',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
+    creditosPorExecucao: 3,
     coletores: ['ncm_nova_na_pauta'],
     contados: ['nova-mercadoria-importada'],
   },
@@ -287,8 +276,8 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['juridico-empresarial', 'industria-fornecedores-b2b'],
     fonte: 'Publicações oficiais',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
+    creditosPorExecucao: 3,
     coletores: ['mudanca_regulatoria', 'licenca_instalacao_dou'],
     contados: ['mudanca-regulatoria-e-licenca'],
   },
@@ -300,8 +289,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['juridico-empresarial'],
     fonte: 'Publicações oficiais de processos',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['processos_publicos', 'recuperacao_judicial'],
     contados: ['processos-e-recuperacao'],
   },
@@ -313,8 +301,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'noticias',
     nichos: ['energia-e-mercado-livre'],
     fonte: 'Relatos públicos da empresa',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['meta_esg_publicada'],
     contados: ['meta-esg-publicada'],
   },
@@ -326,8 +313,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'expansao',
     nichos: ['energia-e-mercado-livre'],
     fonte: 'Dados públicos do mercado de energia e base de CNPJ',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
     coletores: ['grupo_a_cativo', 'cnae_eletrointensivo'],
     contados: ['grupo-a-e-cnae-eletrointensivo'],
   },
@@ -339,8 +325,8 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'noticias',
     nichos: ['agro-b2b'],
     fonte: 'Calendários públicos da safra',
-    custoRotulo: dentroDoTeto,
-    custoUsd: null,
+    creditosPorConta: 1,
+    creditosPorExecucao: 3,
     coletores: ['calendario_de_safra', 'liberacao_plano_safra'],
     contados: ['calendario-e-plano-safra'],
   },
@@ -352,8 +338,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'historico',
     nichos: TODOS,
     fonte: 'Interações do próprio Workspace',
-    custoRotulo: 'Sem custo de fonte externa',
-    custoUsd: null,
+    creditosPorConta: 0,
     coletores: ['sem_resposta'],
     contados: ['sem-resposta'],
     padroes: { condicao: 'Sem resposta', prazo: '45', etapas: ['Descoberta', 'Proposta'] },
@@ -366,8 +351,7 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'historico',
     nichos: TODOS,
     fonte: 'Interações do próprio Workspace',
-    custoRotulo: 'Sem custo de fonte externa',
-    custoUsd: null,
+    creditosPorConta: 0,
     coletores: ['negociacao_parada'],
     contados: ['negociacao-parada'],
     padroes: { condicao: 'Negociação parada', prazo: '30', etapas: ['Negociação'] },
@@ -380,13 +364,17 @@ export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = [
     formulario: 'historico',
     nichos: TODOS,
     fonte: 'Interações do próprio Workspace',
-    custoRotulo: 'Sem custo de fonte externa',
-    custoUsd: null,
+    creditosPorConta: 0,
     coletores: ['proposta_recusada'],
     contados: ['proposta-recusada'],
     padroes: { condicao: 'Proposta recusada', prazo: '90', etapas: ['Proposta'] },
   },
 ]
+
+export const CATALOGO_VISIVEL: readonly CardDoCatalogo[] = CARDS.map((card) => ({
+  ...card,
+  custoRotulo: rotuloDoCusto(card.creditosPorConta, card.creditosPorExecucao),
+}))
 
 const POR_ID = new Map(CATALOGO_VISIVEL.map((card) => [card.id, card]))
 

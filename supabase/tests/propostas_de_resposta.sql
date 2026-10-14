@@ -22,7 +22,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('69000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('69000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('69000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000001', 'member', true),
   ('69000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002', 'admin', true),

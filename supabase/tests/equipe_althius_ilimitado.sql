@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(36);
+select plan(37);
 
 -- Ana participa do Norte (normal) e do Livre (ilimitado por coluna, fora da Equipe).
 -- Kaue é o fundador que passa a existir depois da migração.
@@ -17,7 +17,7 @@ insert into public.workspaces (id, kind, name) values
   ('e0a17e00-0000-4000-8000-000000000010', 'empresa', 'Norte'),
   ('e0a17e00-0000-4000-8000-000000000011', 'empresa', 'Livre'),
   ('e0a17e00-0000-4000-8000-000000000012', 'empresa', 'Isento');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('e0a17e00-0000-4000-8000-000000000010', 'e0a17e00-0000-4000-8000-000000000021', 'admin', true),
   ('e0a17e00-0000-4000-8000-000000000010', 'e0a17e00-0000-4000-8000-000000000022', 'member', true),
@@ -103,14 +103,14 @@ select isnt(
 
 -- 3. Teto de Sinais: dólar do mês e automático da varredura.
 insert into private.action_costs (workspace_id, action_type, provider, model_or_actor, source_ref, cost_usd) values
-  ('e0a17e00-0000-4000-8000-000000000010', 'apify_actor', 'apify', 'actor-teste', 'equipe-norte', 25),
+  ('e0a17e00-0000-4000-8000-000000000010', 'apify_actor', 'apify', 'actor-teste', 'equipe-norte', 300),
   ('e0a17e00-0000-4000-8000-000000000011', 'apify_actor', 'apify', 'actor-teste', 'equipe-livre', 25),
   ('e0a17e00-0000-4000-8000-000000000012', 'apify_actor', 'apify', 'actor-teste', 'equipe-isento', 25);
 update private.workspace_signal_budget set monthly_cap_usd = null
 where workspace_id = 'e0a17e00-0000-4000-8000-000000000012';
-select is(private.signal_budget_block('e0a17e00-0000-4000-8000-000000000010', 0), 'teto_atingido', 'US$ 25 no mês estoura o teto de US$ 20');
+select is(private.signal_budget_block('e0a17e00-0000-4000-8000-000000000010', 0), 'teto_atingido', 'US$ 300 no mês estouram a guarda de US$ 280 da faixa Escala');
 select ok(private.signal_budget_block('e0a17e00-0000-4000-8000-000000000011', 0) is null, 'o ilimitado não é bloqueado pelo gasto do mês');
-select ok(private.signal_budget_block('e0a17e00-0000-4000-8000-000000000012', 0) is null, 'teto gravado nulo é isento, mesmo sem créditos ilimitados');
+select ok(private.signal_budget_block('e0a17e00-0000-4000-8000-000000000012', 0) is null, 'a guarda vem da faixa: a linha antiga nula não isenta, e US$ 25 de US$ 280 não bloqueiam');
 
 insert into private.automation_settings (workspace_id, scope, mode, monthly_cap) values
   ('e0a17e00-0000-4000-8000-000000000010', 'acao:varredura', 'automatico', 1),
@@ -128,13 +128,15 @@ select is(
 
 -- 4. Quem participa vê "ilimitado" e o teto nulo. Sem linha, o teto continua 20.
 delete from private.workspace_signal_budget where workspace_id = 'e0a17e00-0000-4000-8000-000000000010';
+-- Sem a linha antiga do teto, a guarda da faixa continua valendo.
+select is(private.signal_budget_block('e0a17e00-0000-4000-8000-000000000010', 0), 'teto_atingido', 'sem linha de teto, a guarda da faixa continua valendo (US$ 300 de US$ 280)');
+select ok(not has_function_privilege('authenticated', 'private.signal_budget_block(uuid, numeric)', 'execute'), 'o cliente não chama a guarda interna');
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', 'de76a0e7-0434-4833-9698-a005ec187025', true);
-select ok(public.workspace_signal_monthly_cap('e0a17e00-0000-4000-8000-000000000001') is null, 'a Equipe mostra teto nulo para quem participa');
+select ok(not has_function_privilege('authenticated', 'public.workspace_signal_monthly_cap(uuid)', 'execute'), 'o teto em dólar não é lido pelo cliente');
 select is((select unlimited from public.get_credit_balance('e0a17e00-0000-4000-8000-000000000001')), true, 'o saldo da Equipe diz que é ilimitado');
 select set_config('request.jwt.claim.sub', 'e0a17e00-0000-4000-8000-000000000021', true);
-select is(public.workspace_signal_monthly_cap('e0a17e00-0000-4000-8000-000000000010'), 20::numeric, 'sem linha de teto, o Workspace segue com US$ 20');
 select is((select unlimited from public.get_credit_balance('e0a17e00-0000-4000-8000-000000000010')), false, 'o saldo do Norte não é ilimitado');
 reset role;
 

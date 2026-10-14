@@ -14,7 +14,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('c2000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('c2000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('c2000000-0000-0000-0000-000000000001', 'c1000000-0000-0000-0000-000000000001', 'admin', true),
   ('c2000000-0000-0000-0000-000000000002', 'c1000000-0000-0000-0000-000000000002', 'admin', true);
@@ -32,11 +32,11 @@ select ok(
   'ninguém do app lê as tabelas de cascata direto'
 );
 select ok(
-  not has_function_privilege('authenticated', 'public.begin_cascade_run(uuid, uuid, text, text, uuid, text, numeric, integer, boolean)', 'execute')
+  not has_function_privilege('authenticated', 'public.begin_cascade_run(uuid, uuid, text, text, uuid, text, numeric, integer, boolean, integer)', 'execute')
     and not has_function_privilege('authenticated', 'public.finish_cascade_run(uuid, text, numeric, integer, integer, integer, text)', 'execute')
     and not has_function_privilege('authenticated', 'public.signal_cascade_for_type(text)', 'execute')
     and not has_function_privilege('authenticated', 'public.signal_cascade_catalog()', 'execute')
-    and has_function_privilege('service_role', 'public.begin_cascade_run(uuid, uuid, text, text, uuid, text, numeric, integer, boolean)', 'execute')
+    and has_function_privilege('service_role', 'public.begin_cascade_run(uuid, uuid, text, text, uuid, text, numeric, integer, boolean, integer)', 'execute')
     and has_function_privilege('service_role', 'public.finish_cascade_run(uuid, text, numeric, integer, integer, integer, text)', 'execute'),
   'abrir, fechar e ler cascatas é só do servidor'
 );
@@ -125,11 +125,11 @@ create temporary table abertura on commit drop as
   select * from public.begin_cascade_run('c2000000-0000-0000-0000-000000000001', 'c1000000-0000-0000-0000-000000000001', 'vaga_comex', 'conversa', null, 'k-1', 0.30, null, false);
 select is((select outcome from abertura), 'go', 'cascata disponível abre a execução');
 select is(
-  (select est_credits from abertura), 3,
-  'reserva a estimativa: US$ 0,30 × 3 ÷ US$ 0,30 por crédito = 3 créditos');
+  (select est_credits from abertura), 2,
+  'reserva o preço fixo: vaga é faixa 2, 2 créditos por Conta, numa Conta (o custo da fonte não entra)');
 select is(
-  (select amount from private.credit_reservations where id = (select reservation_id from abertura)), 3.00,
-  'a reserva no extrato é de 3 créditos');
+  (select amount from private.credit_reservations where id = (select reservation_id from abertura)), 2.00,
+  'a reserva no extrato é de 2 créditos');
 select is(
   (select state from private.signal_cascade_runs where id = (select run_id from abertura)), 'running',
   'a execução fica registrada como em andamento');
@@ -165,16 +165,16 @@ select is(
   'Workspace com 1 crédito não abre uma cascata de 3');
 select is((select count(*)::integer from private.signal_cascade_runs where workspace_id = 'c2000000-0000-0000-0000-000000000002'), 0, 'a recusa não deixa execução');
 
--- 10. Liquidação: o custo real × multiplicador, para baixo, nunca acima do reservado.
+-- 10. Liquidação: o preço é fixo. Concluída, cobra o que reservou; o custo real da fonte só alimenta a guarda em dólar.
 create temporary table fechamento on commit drop as
   select * from public.finish_cascade_run((select run_id from abertura), 'succeeded', 0.25, 0, 0, 0, null);
-select is((select credits_charged from fechamento), 2, 'US$ 0,25 de custo × 3 ÷ 0,30 = 2,5 → 2 créditos (arredonda a favor de quem paga)');
+select is((select credits_charged from fechamento), 2, 'concluída, cobra o preço fixo (2 créditos), seja qual for o custo da fonte');
 select is(
   (select status from private.credit_reservations where id = (select reservation_id from abertura)), 'settled',
   'a reserva foi liquidada');
 select is(
   (select settled_quantity from private.credit_reservations where id = (select reservation_id from abertura)), 2,
-  'só 2 dos 3 reservados foram cobrados');
+  'os 2 reservados foram cobrados');
 select is(
   (select row(state, real_cost_usd, credits_charged)::text from private.signal_cascade_runs where id = (select run_id from abertura)),
   '(succeeded,0.250000,2)', 'a execução guarda o custo real e os créditos cobrados');
@@ -182,12 +182,12 @@ select is(
   (select credits_charged from public.finish_cascade_run((select run_id from abertura), 'succeeded', 9.99, 0, 0, 0, null)), 2,
   'fechar de novo devolve o mesmo e não cobra de novo');
 
--- mínimo de 1 crédito quando a execução gerou Sinal
+-- o custo irrisório da fonte não muda o preço: concluída, cobra o preço fixo
 create temporary table abertura2 on commit drop as
   select * from public.begin_cascade_run('c2000000-0000-0000-0000-000000000001', null, 'vaga_comex', 'conversa', null, 'k-2', 0.30, null, false);
 select is(
-  (select credits_charged from public.finish_cascade_run((select run_id from abertura2), 'succeeded', 0.002, 1, 1, 0, null)), 1,
-  'custo irrisório com Sinal gerado cobra o mínimo de 1 crédito');
+  (select credits_charged from public.finish_cascade_run((select run_id from abertura2), 'succeeded', 0.002, 1, 1, 0, null)), 2,
+  'custo irrisório com Sinal gerado cobra o preço fixo de 2 créditos');
 
 -- sem resultado e sem custo: libera a reserva, cobra zero
 create temporary table abertura3 on commit drop as
@@ -199,19 +199,19 @@ select is(
   (select status from private.credit_reservations where id = (select reservation_id from abertura3)), 'released',
   'a reserva da falha total foi liberada');
 
--- falha parcial: cobra só o que foi consumido
+-- aborto: o preço é fixo e a execução não entregou, então não cobra
 create temporary table abertura4 on commit drop as
   select * from public.begin_cascade_run('c2000000-0000-0000-0000-000000000001', null, 'vaga_comex', 'conversa', null, 'k-4', 0.30, null, false);
 select is(
-  (select credits_charged from public.finish_cascade_run((select run_id from abertura4), 'aborted', 0.10, 0, 0, 0, 'O teto da busca foi atingido.')), 1,
-  'abortada por teto depois de gastar US$ 0,10 cobra só 1 crédito (o consumido)');
+  (select credits_charged from public.finish_cascade_run((select run_id from abertura4), 'aborted', 0.10, 0, 0, 0, 'O teto da busca foi atingido.')), 0,
+  'abortada por teto não cobra, mesmo com custo de fonte já gasto: a guarda interna absorve');
 
--- o custo real nunca passa do reservado
+-- o custo real da fonte não muda o que o cliente paga
 create temporary table abertura5 on commit drop as
   select * from public.begin_cascade_run('c2000000-0000-0000-0000-000000000001', null, 'vaga_comex', 'conversa', null, 'k-5', 0.30, null, false);
 select is(
-  (select credits_charged from public.finish_cascade_run((select run_id from abertura5), 'succeeded', 50, 3, 3, 0, null)), 3,
-  'um custo muito acima do estimado é cobrado só até o reservado');
+  (select credits_charged from public.finish_cascade_run((select run_id from abertura5), 'succeeded', 50, 3, 3, 0, null)), 2,
+  'um custo muito acima do estimado não muda o preço fixo');
 
 -- 11. O rastro por passo: run id do Apify, actor, custo e erro real ficam gravados.
 create temporary table passo on commit drop as
@@ -253,8 +253,8 @@ select is(
   (select outcome from public.begin_cascade_run('c2000000-0000-0000-0000-000000000001', 'c1000000-0000-0000-0000-000000000001', 'vaga_comex', 'monitor', 'c4000000-0000-0000-0000-000000000001', 'm-3', 0.30, null, false)),
   'ja_rodou_hoje', 'o Monitoramento automático roda uma vez por dia');
 select is(
-  (select spent from private.automation_spend where workspace_id = 'c2000000-0000-0000-0000-000000000001' and scope = 'acao:varredura'), 3.00,
-  'a execução consumiu 3 créditos do teto do automático');
+  (select spent from private.automation_spend where workspace_id = 'c2000000-0000-0000-0000-000000000001' and scope = 'acao:varredura'), 2.00,
+  'a execução consumiu 2 créditos (o preço fixo) do teto do automático');
 select public.finish_cascade_run((select run_id from abertura6), 'succeeded', 0.25, 0, 0, 0, null);
 select is(
   (select spent from private.automation_spend where workspace_id = 'c2000000-0000-0000-0000-000000000001' and scope = 'acao:varredura'), 2.00,

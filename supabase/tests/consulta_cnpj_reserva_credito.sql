@@ -13,7 +13,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('b1200000-0000-0000-0000-000000000001', 'empresa', 'Workspace da Receita'),
   ('b1200000-0000-0000-0000-000000000002', 'empresa', 'Workspace de Fora');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('b1200000-0000-0000-0000-000000000001', 'b1100000-0000-0000-0000-000000000001', 'admin', true),
@@ -33,8 +33,8 @@ select is(
 
 select is(
   (select string_agg(action || '=' || credits::text, ',' order by action) from public.list_credit_action_prices()),
-  'account_scan=1.00,agent_round=1.00,email_revealed=2.00,person_collected=1.00,phone_revealed=5.00',
-  'a consulta de CNPJ não entra na lista provisória da sabatina'
+  'account_discovery=5.00,account_scan=1.00,agent_round=1.00,cnpj_receita=1.00,email_revealed=2.00,person_collected=1.00,phone_revealed=5.00',
+  'a consulta de CNPJ e a Descoberta aparecem na tabela de preços, e a cascata não é uma ação à parte'
 );
 
 select ok(

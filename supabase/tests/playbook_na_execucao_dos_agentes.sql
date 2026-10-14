@@ -15,7 +15,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('aaaaaaaa-2000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('aaaaaaaa-2000-0000-0000-000000000002', 'empresa', 'Sul');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 select public.grant_credits(w.id, 1000, 'plano', 'saldo de teste') from public.workspaces w where w.id <> 'e0a17e00-0000-4000-8000-000000000001'; -- a rodada de Agente sempre reserva (acesso-e-planos)
 
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values

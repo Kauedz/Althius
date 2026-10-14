@@ -180,7 +180,7 @@ select is(public.consume_reply_proposal_cap((select job_id from j3), (select cla
 reset role;
 select is(
   (select string_agg(title, ' | ') from private.workspace_notices where workspace_id = '6d000000-0000-0000-0000-000000000001'),
-  'Teto mensal atingido: Execuções de Agentes', 'o Aviso do teto sai uma vez só');
+  'Limite do mês atingido: Execuções de Agentes', 'o Aviso do teto sai uma vez só');
 select is(pg_temp.gasto('agente:' || pg_temp.i('rhetor')::text), 2::numeric,
   'e o Rhetor não soma a proposta que o outro teto barrou');
 
@@ -220,11 +220,11 @@ reset role;
 select is(pg_temp.gasto('acao:agentes'), 2::numeric, 'e as Execuções de Agentes não somam a rodada que o Rhetor barrou');
 select is(
   (select count(*)::int from private.workspace_notices
-   where workspace_id = '6d000000-0000-0000-0000-000000000001' and title = 'Teto mensal atingido: Rhetor'),
+   where workspace_id = '6d000000-0000-0000-0000-000000000001' and title = 'Limite do mês atingido: Rhetor'),
   1, 'o Rhetor pausa e avisa os Administradores');
 select is(
   (select row(c.paused_at is null, (select count(*) from private.workspace_notices n
-     where n.workspace_id = c.workspace_id and n.title = 'Teto mensal atingido: Execuções de Agentes'))::text
+     where n.workspace_id = c.workspace_id and n.title = 'Limite do mês atingido: Execuções de Agentes'))::text
    from private.automation_settings c
    where c.workspace_id = '6d000000-0000-0000-0000-000000000001' and c.scope = 'acao:agentes'),
   '(t,1)', 'e as Execuções de Agentes não pausam nem avisam de novo');
@@ -245,7 +245,7 @@ select is(public.consume_reply_proposal_cap((select job_id from j5), (select cla
 reset role;
 select is(
   (select row(c.paused_at is null, (select count(*) from private.workspace_notices n
-     where n.workspace_id = c.workspace_id and n.title = 'Teto mensal atingido: Execuções de Agentes'))::text
+     where n.workspace_id = c.workspace_id and n.title = 'Limite do mês atingido: Execuções de Agentes'))::text
    from private.automation_settings c
    where c.workspace_id = '6d000000-0000-0000-0000-000000000001' and c.scope = 'acao:agentes'),
   '(t,1)', 'e as Execuções de Agentes não pausam nem avisam por ela');

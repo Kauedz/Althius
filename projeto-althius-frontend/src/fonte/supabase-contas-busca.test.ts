@@ -51,7 +51,7 @@ describe('Buscar Sinais de novo no Workspace operacional (reativação de Sinais
     const semSaldo = fonte({ request_account_rescan: recusa('insufficient credits') })
     await expect(semSaldo.buscarSinaisDeNovo!(ALFA)).rejects.toThrow('Sem créditos suficientes para esta busca.')
     const noLimite = fonte({ request_account_rescan: recusa('monthly credit limit reached') })
-    await expect(noLimite.buscarSinaisDeNovo!(ALFA)).rejects.toThrow('Você chegou ao seu limite mensal de créditos.')
+    await expect(noLimite.buscarSinaisDeNovo!(ALFA)).rejects.toThrow('Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.')
     const arquivada = fonte({ quote_account_rescan: recusa('the target account is archived', '55006') })
     await expect(arquivada.custoDeBuscarSinais!(ALFA)).rejects.toThrow('A Conta-alvo está arquivada. Restaure-a para continuar.')
   })

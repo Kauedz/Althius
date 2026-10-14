@@ -168,6 +168,8 @@ export interface AbrirExecucao {
   estimativaUsd: number
   tetoCreditos: number | null
   permitirTeste: boolean
+  /** Quantas Contas a execução varre (Sinal de Conta). O preço é fixo por Conta; o Sinal de Mercado não tem Conta. */
+  contas?: number
 }
 
 export type ResultadoDaAbertura = {

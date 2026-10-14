@@ -138,7 +138,7 @@ function recusaDoBanco(erro: ErroDoBanco): Response {
     return responder({ code: 'sem_creditos', error: 'O Workspace não tem créditos suficientes para esta busca.' }, 402)
   }
   if (erro.code === 'P0001' && m.includes('monthly credit limit')) {
-    return responder({ code: 'limite_mensal', error: 'Você chegou ao seu limite mensal de créditos.' }, 429)
+    return responder({ code: 'limite_mensal', error: 'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.' }, 429)
   }
   if (erro.code === '55006') {
     return responder({ code: 'busca_em_andamento', error: 'Já existe uma busca em andamento neste Workspace. Espere ela terminar.' }, 409)

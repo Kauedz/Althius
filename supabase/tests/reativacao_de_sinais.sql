@@ -15,7 +15,9 @@ values
 insert into public.workspaces (id, kind, name) values
   ('f8000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('f8000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+-- Este teste conta de 1 em 1 crédito por varredura; o preço fixo por Sinal (vagas: 2) é testado em precos_por_sinal.sql.
+update public.signal_catalog set credits_per_account = 1 where workspace_id is null;
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('f8000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000001', 'admin', true),
   ('f8000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000002', 'member', true),

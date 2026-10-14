@@ -220,7 +220,7 @@ export function frequenciaDoCard(card: CardDoCatalogo): string {
 
 /** O custo em créditos, como o editor do Monitoramento cobra. */
 export function custoEmCreditos(card: CardDoCatalogo): string {
-  return interno(card) ? 'Não gasta crédito' : '1 crédito por Conta varrida'
+  return interno(card) ? 'Não gasta crédito' : card.custoRotulo
 }
 
 /**
@@ -291,7 +291,7 @@ export function cardDoExtra(extra: CardSobPedido): CardDoCatalogo {
     nichos: extra.nichos,
     fonte: extra.fonte,
     custoRotulo: extra.custoRotulo,
-    custoUsd: null,
+    creditosPorConta: extra.creditosPorConta ?? 1,
     coletores: extra.coletores,
     contados: [extra.id],
   }
