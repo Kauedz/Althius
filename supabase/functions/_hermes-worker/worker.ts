@@ -38,6 +38,8 @@ import {
   type RunDb,
   somarUso,
   type UsoDeTokens,
+  lerAnexos,
+  reservaComAnexos,
 } from '../_shared/orquestracao.ts'
 
 export interface FilaDb extends RunDb {
@@ -460,8 +462,10 @@ export function createWorker(deps: WorkerDeps) {
     if (!(await hermes.vivo().catch(() => false))) return null
     let feitos = 0
     for (const runId of await db.listQueued(limite)) {
-      const reserva = await db.claim(runId)
-      if (!reserva) continue
+      const reservada = await db.claim(runId)
+      if (!reservada) continue
+      // Os anexos do pedido (PR-10) entram como texto: o Hermes não recebe imagem, só o nome dela.
+      const reserva = reservaComAnexos(reservada, await lerAnexos(db, runId, log, 'hermes_worker'))
       // Sem saber se há chave do cliente, a Execução não roda: seria cobrada como se usasse o modelo dele.
       let comChaveDoCliente = false
       try {

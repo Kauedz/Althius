@@ -58,6 +58,17 @@ export interface Agente {
 export interface Mensagem {
   texto: string
   sugestaoId?: string
+  /** Os anexos já subidos (PR-10), até 5. Só no Workspace operacional. */
+  anexos?: AnexoDaMensagem[]
+}
+
+/** Um anexo de pedido, já guardado no bucket privado: abre por uma URL assinada curta. */
+export interface AnexoDaMensagem {
+  id: string
+  nome: string
+  mime: string
+  tamanho: number
+  tipo: 'imagem' | 'arquivo'
 }
 
 export interface Sugestao {
@@ -612,6 +623,7 @@ export type PassoDaCoordenacao =
 export interface TurnoRetomado<P> {
   pedido: string
   passos: P[]
+  anexos?: AnexoDaMensagem[]
 }
 
 /** Uma Conversa salva: os pedidos em ordem e, se o último ainda está rodando, a leitura do resto dele. */
@@ -809,6 +821,14 @@ export interface FonteDeAgentes extends FonteObservavel {
   conversaDoAgenteAtual?(agenteId: AgenteId): string | null
   /** As sugestões de pedido a partir dos dados do Workspace. Sem elas, valem as frases da Especialidade. */
   sugestoesDoAgente?(agenteId: AgenteId): Promise<Sugestao[]>
+  /** Sobe um arquivo para anexar ao próximo pedido (até 10 MB; imagem, PDF, CSV, TXT, DOCX ou XLSX). */
+  anexarArquivo?(arquivo: File): Promise<AnexoDaMensagem>
+  /** Tira do servidor um anexo ainda não enviado. */
+  removerAnexo?(id: string): Promise<void>
+  /** Uma URL assinada curta para abrir o anexo. */
+  urlDoAnexo?(id: string): Promise<string>
+  /** Para o pedido que ainda roda no Agente (ou na Coordenação, sem Agente). */
+  pararPedido?(agenteId: AgenteId | null): Promise<void>
 }
 
 export * from './contas-tipos'

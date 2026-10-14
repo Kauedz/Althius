@@ -8,7 +8,7 @@ import {
 import { bancoDasFerramentas, type DepsDasFerramentas } from '../_shared/ferramentas-dos-agentes.ts'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
 import type { DepsDeAcesso } from '../_shared/integration-access.ts'
-import { creditosDoBanco, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
+import { anexosDoBanco, creditosDoBanco, type SecaoDoPlaybookNaExecucao } from '../_shared/orquestracao.ts'
 import { createHandler, type Db, type Inicio, recusaDoEnvioPelosAgentes } from './handler.ts'
 import { modeloDaAnthropic } from './model.ts'
 import { modeloDoGroq } from './model-groq.ts'
@@ -86,6 +86,18 @@ const db: Db = {
     }
     return { kind: 'started', conversationId: linha.conversation_id, runId: linha.run_id, status: linha.status }
   },
+  async reservarAnexos(pedido) {
+    const { error } = await clienteDaSessao(pedido.authorization, pedido.apikey).rpc('reserve_agent_attachments', {
+      p_workspace_id: pedido.workspaceId,
+      p_client_request_id: pedido.clientRequestId,
+      p_attachment_ids: pedido.attachments ?? [],
+    })
+    if (error?.code === 'P0002') return 'not_found'
+    if (error?.code === '22023') return 'invalid'
+    if (error?.code === '42501') return 'forbidden'
+    if (error) throw new Error(`${error.code ?? ''} ${error.message}`)
+    return 'ok'
+  },
   // O Enviar ao CRM pelos Agentes (ADR-0023, migration 20261002112000): a chave de serviço, com quem o JWT identificou; o
   // banco confere a Participação, a responsabilidade, o CRM, o Acesso pela autorização e um Agente que escreve.
   async iniciarEnvioAoCrm(pedido) {
@@ -113,6 +125,12 @@ async function rpc<T>(nome: string, args: Record<string, unknown>): Promise<T> {
   return data as T
 }
 
+function emBase64(bytes: Uint8Array): string {
+  let binario = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) binario += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(binario)
+}
+
 const runDb: RunDb = {
   claim: (runId) => rpc<Reserva | null>('claim_agent_run', { p_run_id: runId }),
   append: (runId, kind, agentId, payload) =>
@@ -128,6 +146,12 @@ const runDb: RunDb = {
     (await rpc<SecaoDoPlaybookNaExecucao[] | null>('agent_run_playbook', { p_run_id: runId, p_specialty: specialty })) ?? [],
   creditos: creditosDoBanco(rpc),
   // A chave de IA do cliente do Workspace (créditos 08): lida do Vault só aqui, nunca gravada nem registrada.
+  // Os anexos do pedido (PR-10): o texto dos documentos e, nas imagens, os bytes lidos do bucket privado.
+  anexos: anexosDoBanco(rpc, async (path) => {
+    const { data, error } = await admin.storage.from('agent-attachments').download(path)
+    if (error || !data) throw error ?? new Error('attachment not downloaded')
+    return emBase64(new Uint8Array(await data.arrayBuffer()))
+  }),
   chaveDoCliente: async (runId) => {
     const { data, error } = await admin.rpc('agent_run_ai_key', { p_run_id: runId })
     if (error) {

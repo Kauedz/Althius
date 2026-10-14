@@ -91,6 +91,9 @@ verify_jwt = true
 [functions.sequence-attachments]
 verify_jwt = true
 
+[functions.agent-attachments]
+verify_jwt = true
+
 # O aviso a quem tenta se cadastrar com um e-mail que já tem conta (auth 03): quem chama ainda não tem sessão, e a chave
 # publicável (sb_publishable_…) não é JWT. A função responde sempre igual; o banco confere a conta e limita os avisos.
 [functions.existing-account-email]

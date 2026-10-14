@@ -77,7 +77,7 @@ function PedidoCoordenado() {
         placeholder="Descreva o trabalho. A Althius chama os agentes certos. Use @ para chamar um agente específico."
         comEspecialidades
         ocupado={respondendo}
-        aoEnviar={(texto) => coordenar({ texto })}
+        aoEnviar={(texto, anexos) => coordenar({ texto, ...(anexos.length ? { anexos } : {}) })}
       />
       <div className="flex flex-wrap gap-2">
         {sugestoes?.map((sugestao) => (

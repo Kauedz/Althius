@@ -4,6 +4,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { LogoDaIntegracao } from '@/components/logos'
 import { IconeAgente, IndicadorDeEstado, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
+import { AnexosDaMensagem } from '@/conversa/anexos-da-mensagem'
 import { Composer } from '@/conversa/composer'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { useConversas, type ItemDaCoordenacao } from '@/conversa/contexto'
@@ -128,7 +129,8 @@ export function PaginaConversaCoordenada() {
             rotulo="Continue a Conversa"
             placeholder="Ex.: agora faz um e-mail pro CFO"
             ocupado={respondendo}
-            aoEnviar={(texto) => conversas.continuar({ texto })}
+            aoEnviar={(texto, anexos) => conversas.continuar({ texto, ...(anexos.length ? { anexos } : {}) })}
+            aoParar={conversas.parar ? () => conversas.parar?.(null) : undefined}
           />
         </div>
         <div ref={fim} />
@@ -184,6 +186,7 @@ function TurnoDaConversa({
   return (
     <div className="flex flex-col gap-10">
       <p className="rounded-xl max-w-4/5 self-end border border-al-line bg-al-surface px-4 py-2">{turno.pedido.texto}</p>
+      <AnexosDaMensagem anexos={turno.pedido.anexos} className="self-end" />
 
       {etapas.length > 0 && (
         <section aria-label="Coordenação" className="flex flex-col gap-3.5">
