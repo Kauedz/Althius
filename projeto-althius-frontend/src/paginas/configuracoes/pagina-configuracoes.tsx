@@ -7,7 +7,7 @@ import type { ModuloDoWorkspace } from '@/fonte/ambiente'
 import { useAmbiente } from '@/fonte/contexto'
 import { SecaoAjuda } from './secao-ajuda'
 import { SecaoAutomacao } from './secao-automacao'
-import { SecaoMemoria, SecaoMemoriaDoWorkspaceOperacional } from './secao-memoria'
+import { SecaoMemoria } from './secao-memoria'
 import { SecaoPerfil, SecaoPerfilDoWorkspaceOperacional } from './secao-perfil'
 import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
 import { SecaoPlaybook } from './secao-playbook'
@@ -39,8 +39,9 @@ const SECOES: Record<
   workspace: { rotulo: 'Workspace', Componente: SecaoWorkspace, modulo: 'participantes' },
   memoria: {
     rotulo: 'Memória do Workspace',
+    // O Contexto do Workspace: o mesmo componente nos dois ambientes; a Demonstração só troca a fonte.
     Componente: SecaoMemoria,
-    NoWorkspaceOperacional: SecaoMemoriaDoWorkspaceOperacional,
+    NoWorkspaceOperacional: SecaoMemoria,
     comPaginas: true,
   },
   // O Playbook tem backend (playbook-do-workspace): a mesma seção serve à Demonstração e ao Workspace operacional.

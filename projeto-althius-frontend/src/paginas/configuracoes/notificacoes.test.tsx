@@ -29,7 +29,7 @@ async function ativarNotificacoes(usuario: Usuario) {
 /** Da seção atual de Configurações, pede ao Scopus a revisão do ICP pela Conversa da Memória do Workspace. */
 async function pedirRevisaoAoScopus(usuario: Usuario) {
   await usuario.click(await screen.findByRole('link', { name: 'Memória do Workspace' }))
-  await usuario.click(await screen.findByRole('button', { name: 'Solicitar revisão ao Scopus' }))
+  await usuario.click(await screen.findByRole('button', { name: 'Pedir revisão ao Scopus' }))
   const dialogo = within(await screen.findByRole('dialog', { name: 'Revisão do ICP' }))
   await usuario.type(dialogo.getByRole('textbox', { name: 'O que deveria mudar?' }), 'Estamos fechando na Colômbia.')
   await usuario.click(dialogo.getByRole('button', { name: 'Enviar ao Scopus' }))

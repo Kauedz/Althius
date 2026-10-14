@@ -159,10 +159,10 @@ describe('Workspace operacional e Demonstração', () => {
         },
       })
 
-      expect(await screen.findByText('Nenhuma versão aprovada ainda.')).toBeInTheDocument()
-      expect(screen.getByText(/A proposta dele vira uma Aprovação/)).toBeInTheDocument()
+      expect(await screen.findByText(/^Ainda não há (ICP|Personas)\. Importe o Playbook ou peça ao/)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Abrir o Playbook' })).toBeInTheDocument()
       expect(screen.queryByText(/Databricks|Marina Alves|2.000 funcionários/)).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /Solicitar revisão|Editar/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Pedir revisão|Editar/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     },
   )
