@@ -240,9 +240,17 @@ export function ContextoDeAutenticacao({
         nonceComHash,
         contexto,
         aoReceberCredencial(idToken) {
-          void cliente.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce }).then(({ error }) => {
-            if (error) aoFalhar('Não foi possível entrar com Google. Tente novamente ou use outro método.')
-          })
+          // O Google também passa pelo CAPTCHA, quando ele está ligado no Supabase Auth.
+          void (async () => {
+            try {
+              const captcha = await comCaptcha(servicos, 'login_com_google')
+              const { error } = await cliente.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce, options: captcha })
+              recusarCaptcha(error)
+              if (error) throw new Error('Não foi possível entrar com Google. Tente novamente ou use outro método.')
+            } catch (falha) {
+              aoFalhar(falha instanceof Error ? falha.message : 'Não foi possível entrar com Google. Tente novamente ou use outro método.')
+            }
+          })()
         },
       })
     })

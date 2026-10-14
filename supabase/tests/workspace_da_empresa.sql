@@ -1,10 +1,12 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(30);
+select plan(32);
 
--- Marina já tem o Workspace pessoal, com uma Conta-alvo e uma Conta remetente; ela cria o Workspace da empresa.
--- Rui é outra Conta de usuário verificada; Nina ainda não verificou o e-mail.
+-- Acesso fechado (acesso-e-planos): create_company_workspace deixou de ser chamável por authenticated; só a Althius cria
+-- Workspace (staff_provision_workspace). A função continua no banco e mantém o comportamento, que este teste confere
+-- chamando-a por um invólucro do dono, como o service_role. Marina já tem o Workspace pessoal, com uma Conta-alvo e uma
+-- Conta remetente. Rui é outra Conta de usuário verificada; Nina ainda não verificou o e-mail.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
                         is_sso_user, is_anonymous)
@@ -36,10 +38,23 @@ begin
 end;
 $$;
 
+-- O invólucro do dono: chama a função com a identidade da sessão (auth.uid() vem das claims).
+create function pg_temp.criar(p_name text, p_request_id uuid)
+returns setof public.workspaces
+language sql
+security definer
+as $$ select * from public.create_company_workspace(p_name, p_request_id) $$;
+grant execute on function pg_temp.criar(text, uuid) to authenticated;
+
+-- O Workspace pessoal que a Marina já tinha, criado antes do fechamento.
+insert into public.workspaces (kind, name, owner_user_id)
+values ('pessoal', 'Marina Alves', '50000000-0000-0000-0000-000000000001');
+insert into public.workspace_memberships (workspace_id, user_id, role, active)
+select id, '50000000-0000-0000-0000-000000000001', 'admin', true from public.workspaces where name = 'Marina Alves';
+create temporary table pessoal on commit drop as select * from public.workspaces where name = 'Marina Alves';
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
-create temporary table pessoal on commit drop as select * from public.bootstrap_personal_workspace('2026-09-25');
 
 reset role;
 insert into public.target_accounts (workspace_id, name, canonical_url, domain, created_by)
@@ -61,44 +76,54 @@ select throws_ok(
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '', true);
 select throws_ok(
-  $$select public.create_company_workspace('Norte', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
+  $$select public.create_company_workspace('Norte', 'aaaaaaaa-0000-4000-8000-000000000002')$$,
+  '42501', 'permission denied for function create_company_workspace',
+  'a Conta de usuário autenticada não cria Workspace da empresa: só a Althius cria');
+select ok(not has_function_privilege('authenticated', 'public.create_company_workspace(text, uuid)', 'execute'),
+  'a permissão de execução saiu de authenticated');
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$select pg_temp.criar('Norte', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '42501', 'authentication required',
   'sem Conta de usuário na sessão, a criação é recusada');
 
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000003', true);
 select throws_ok(
-  $$select public.create_company_workspace('Norte', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
+  $$select pg_temp.criar('Norte', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '42501', 'email not verified',
   'quem não verificou o e-mail não cria Workspace da empresa');
 
 -- O nome da empresa é informado pela pessoa.
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
 select throws_ok(
-  $$select public.create_company_workspace('   ', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
+  $$select pg_temp.criar('   ', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '22023', 'company name is required',
   'o nome da empresa não pode ficar em branco');
 select throws_ok(
-  $$select public.create_company_workspace(E'\n\t ', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
+  $$select pg_temp.criar(E'\n\t ', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '22023', 'company name is required',
   'quebras de linha e tabulações também contam como nome em branco');
 select throws_ok(
-  $$select public.create_company_workspace(null, 'aaaaaaaa-0000-4000-8000-000000000001')$$,
+  $$select pg_temp.criar(null, 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '22023', 'company name is required',
   'o nome da empresa é obrigatório');
 select throws_ok(
-  format($$select public.create_company_workspace(%L, 'aaaaaaaa-0000-4000-8000-000000000001')$$, repeat('a', 101)),
+  format($$select pg_temp.criar(%L, 'aaaaaaaa-0000-4000-8000-000000000001')$$, repeat('a', 101)),
   '22023', 'company name is too long',
   'o nome da empresa tem no máximo 100 caracteres');
 select throws_ok(
-  $$select public.create_company_workspace('Norte', null)$$,
+  $$select pg_temp.criar('Norte', null)$$,
   '22023', 'request id is required',
   'o pedido precisa da chave que o torna repetível');
 select is((select count(*)::int from public.workspaces), 1, 'pedidos recusados não criam Workspace');
 
 -- A criação.
 create temporary table empresa on commit drop as
-  select * from public.create_company_workspace('  Norte Distribuidora ', 'aaaaaaaa-0000-4000-8000-000000000001');
+  select * from pg_temp.criar('  Norte Distribuidora ', 'aaaaaaaa-0000-4000-8000-000000000001');
 
 select is((select kind from empresa), 'empresa', 'a ação cria um Workspace da empresa');
 select is((select name from empresa), 'Norte Distribuidora', 'o Workspace da empresa tem o nome informado');
@@ -114,10 +139,10 @@ select is(
 
 -- Repetir o pedido (nova tentativa, clique duplo) com a mesma chave não cria outro.
 select is(
-  (select id from public.create_company_workspace('Norte Distribuidora', 'aaaaaaaa-0000-4000-8000-000000000001')),
+  (select id from pg_temp.criar('Norte Distribuidora', 'aaaaaaaa-0000-4000-8000-000000000001')),
   (select id from empresa), 'repetir o pedido com a mesma chave devolve o mesmo Workspace');
 select is(
-  (select name from public.create_company_workspace('Norte Distribuidora S.A.', 'aaaaaaaa-0000-4000-8000-000000000001')),
+  (select name from pg_temp.criar('Norte Distribuidora S.A.', 'aaaaaaaa-0000-4000-8000-000000000001')),
   'Norte Distribuidora', 'a repetição devolve o Workspace já criado, sem renomeá-lo');
 select is((select count(*)::int from public.workspaces where kind = 'empresa'), 1,
   'repetir o pedido não cria um segundo Workspace da empresa');
@@ -156,7 +181,7 @@ select is(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);
 select isnt(
-  (select id from public.create_company_workspace('Sul Varejo', 'aaaaaaaa-0000-4000-8000-000000000001')),
+  (select id from pg_temp.criar('Sul Varejo', 'aaaaaaaa-0000-4000-8000-000000000001')),
   (select id from empresa), 'a mesma chave de outra Conta de usuário não devolve o Workspace da Marina');
 select is((select array_agg(name order by name) from public.workspaces), array['Sul Varejo'],
   'o Workspace da empresa da Marina fica invisível para quem não participa dele');
@@ -164,7 +189,7 @@ select is((select array_agg(name order by name) from public.workspaces), array['
 -- Um novo pedido, com outra chave, é outra escolha explícita e cria outro Workspace.
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
 select isnt(
-  (select id from public.create_company_workspace('Norte Distribuidora', 'aaaaaaaa-0000-4000-8000-000000000002')),
+  (select id from pg_temp.criar('Norte Distribuidora', 'aaaaaaaa-0000-4000-8000-000000000002')),
   (select id from empresa), 'um novo pedido, com outra chave, cria outro Workspace da empresa');
 
 select throws_ok(
@@ -180,7 +205,7 @@ update public.workspace_memberships set active = false
 where workspace_id = (select id from empresa) and user_id = '50000000-0000-0000-0000-000000000001';
 set local role authenticated;
 select throws_ok(
-  $$select public.create_company_workspace('Norte Distribuidora', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
+  $$select pg_temp.criar('Norte Distribuidora', 'aaaaaaaa-0000-4000-8000-000000000001')$$,
   '42501', 'active workspace membership required',
   'repetir o pedido de um Workspace do qual a pessoa foi removida não devolve a Participação');
 reset role;

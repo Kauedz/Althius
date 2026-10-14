@@ -46,6 +46,7 @@ export type AcaoDoCaptcha =
   | 'cadastro'
   | 'reenvio_do_cadastro'
   | 'login_com_senha'
+  | 'login_com_google'
   | 'codigo_de_entrada'
   | 'redefinicao_de_senha'
   | 'troca_de_senha'

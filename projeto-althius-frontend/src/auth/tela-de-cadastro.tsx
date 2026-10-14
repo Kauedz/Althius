@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ContinuarComGoogle } from './botao-do-google'
 import { useAutenticacao } from './contexto'
@@ -43,15 +43,23 @@ function guardarEtapa(etapa: EtapaDoCodigo | null) {
 }
 
 /**
- * /cadastro: nome, e-mail e senha; depois, na mesma tela, o código de 6 dígitos enviado por e-mail. Aberto a partir de
- * um convite pendente, o e-mail é o do convite, travado.
+ * /cadastro: só para quem tem um convite pendente (acesso-e-planos): nome, e-mail do convite, travado, e senha; depois,
+ * na mesma tela, o código de 6 dígitos enviado por e-mail. Sem convite pendente, leva à entrada.
  */
 export function TelaDeCadastro() {
   return (
     <CascaDeAcesso>
-      <ComOConviteDoAcesso>{(emailTravado) => <Cadastro key={emailTravado} emailTravado={emailTravado} />}</ComOConviteDoAcesso>
+      <ComOConviteDoAcesso>
+        {(emailTravado) => (emailTravado ? <Cadastro key={emailTravado} emailTravado={emailTravado} /> : <SemConvite />)}
+      </ComOConviteDoAcesso>
     </CascaDeAcesso>
   )
+}
+
+/** O cadastro aberto por e-mail e senha não existe mais (acesso-e-planos): sem um convite pendente, vai à entrada. */
+function SemConvite() {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: ROTA_DE_ENTRADA, search }} replace />
 }
 
 function Cadastro({ emailTravado }: { emailTravado: string | null }) {

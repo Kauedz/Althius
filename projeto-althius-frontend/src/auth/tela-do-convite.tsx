@@ -52,7 +52,7 @@ export function TelaDoConvite() {
           <strong className="text-al-ink">{previa.email}</strong>.
         </p>
         <p className="text-sm text-al-muted">
-          Para aceitar, crie sua conta ou entre com este e-mail. Você também terá seu Workspace pessoal.
+          Para aceitar, crie sua conta ou entre com este e-mail.
         </p>
         <Link to={{ pathname: ROTA_DE_CADASTRO, search: destino }} className={buttonVariants()}>Criar conta com este e-mail</Link>
         <Link to={{ pathname: ROTA_DE_ENTRADA, search: destino }} className={buttonVariants({ variant: 'outline' })}>

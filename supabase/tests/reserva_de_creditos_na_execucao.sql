@@ -19,6 +19,7 @@ insert into public.workspaces (id, kind, name) values
   ('7b000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('7b000000-0000-0000-0000-000000000002', 'empresa', 'Sul'),
   ('7b000000-0000-0000-0000-000000000003', 'empresa', 'Leste');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('7b000000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001', 'admin', true),
   ('7b000000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000002', 'member', true),
@@ -114,19 +115,16 @@ select ok(
     and has_function_privilege('service_role', 'public.finish_agent_run(uuid, text, text, text)', 'execute'),
   'o claim e o fim da Execução continuam só do servidor');
 
--- 2. Cobrança desligada (Sul): nada é reservado nem debitado, e a rodada continua livre.
+-- 2. Sul nunca ligou a cobrança: a rodada sempre reserva (acesso-e-planos), então sem saldo a Execução não abre.
 select public.grant_credits('7b000000-0000-0000-0000-000000000001', 20, 'plano');
 select public.set_credits_enforced('7b000000-0000-0000-0000-000000000001', true);
 select public.set_credits_enforced('7b000000-0000-0000-0000-000000000003', true);
 select pg_temp.pedido('sul1', '7b000000-0000-0000-0000-000000000002', '7a000000-0000-0000-0000-000000000003', 'agente', pg_temp.i('scopus_sul'));
-select ok(pg_temp.claim('sul1'), 'cobrança desligada: a Execução abre');
-select is((select count(*)::int from private.credit_reservations where workspace_id = '7b000000-0000-0000-0000-000000000002'), 0, 'e nada é reservado na porta');
-select is(pg_temp.abrir('sul1', 'scopus_sul', 1), 'free', 'a rodada é livre');
-select lives_ok($$select pg_temp.sucesso('sul1')$$, 'a Execução fecha');
-select is(
-  (select count(*)::int from private.credit_reservations where workspace_id = '7b000000-0000-0000-0000-000000000002')
-    + (select count(*)::int from private.credit_entries where workspace_id = '7b000000-0000-0000-0000-000000000002'),
-  0, 'e nada é debitado');
+select ok(not pg_temp.claim('sul1'), 'sem a cobrança ligada e sem saldo, a Execução não abre');
+select is((select count(*)::int from private.credit_reservations where workspace_id = '7b000000-0000-0000-0000-000000000002'), 0, 'e nada é reservado');
+select is(pg_temp.motivo('sul1'), 'failed|insufficient_credits', 'a Execução fecha pelo motivo claro');
+select lives_ok($$select public.grant_credits('7b000000-0000-0000-0000-000000000002', 1000, 'plano', 'saldo do contrato')$$, 'o contrato traz o saldo do mês');
+select is(pg_temp.disponivel('7b000000-0000-0000-0000-000000000002'), 1000.00::numeric, 'e o Sul passa a ter saldo');
 
 -- 3. Cobrança ligada, saldo suficiente: o claim reserva a estimativa antes de qualquer evento de modelo.
 select pg_temp.pedido('a1', '7b000000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001', 'agente', pg_temp.i('scopus'));
@@ -290,8 +288,8 @@ update private.agent_routines set next_run_at = '2030-01-01 12:00:00+00';
 select is(pg_temp.disparar('rot_a', 'ra1'), 'criada', 'a Rotina com teto de 5 cria a Execução');
 select is(pg_temp.gasto('rot_a'), 3.00::numeric, 'e o cron soma a estimativa provisória (3)');
 select ok(pg_temp.claim('ra1'), 'o claim abre a Execução da Rotina');
-select is(pg_temp.estimativa('ra1'), 'nenhuma', 'sem cobrança ligada, nada é reservado na porta');
-select is(pg_temp.abrir('ra1', 'scopus_sul', 1), 'free', 'a rodada é livre, mas fica contada para o teto');
+select is(pg_temp.estimativa('ra1'), 'reserved|1|1.00|-', 'a rodada sempre reserva: o claim reserva a estimativa na porta');
+select is(pg_temp.abrir('ra1', 'scopus_sul', 1), 'go', 'a rodada sai da estimativa e fica contada para o teto');
 select pg_temp.concluir('ra1', 'scopus_sul', 1, true);
 select pg_temp.sucesso('ra1');
 select is(pg_temp.gasto('rot_a'), 1.00::numeric, 'a Execução usou 1 rodada: o gasto do escopo no mês é 1, não 3');
@@ -309,7 +307,7 @@ select is(pg_temp.gasto('rot_c'), 0.00::numeric, 'e devolve o teto que o cron so
 -- fecha sem chamar o modelo; a próxima Execução da Rotina não nasce.
 select is(pg_temp.disparar('rot_b', 'rb1'), 'criada', 'a Rotina com teto de 3 cria a Execução');
 select ok(pg_temp.claim('rb1'), 'e abre');
-select is(pg_temp.abrir('rb1', 'scopus_sul', 1) || pg_temp.abrir('rb1', 'scopus_sul', 2) || pg_temp.abrir('rb1', 'scopus_sul', 3), 'freefreefree', 'as 3 rodadas que o cron já somou abrem');
+select is(pg_temp.abrir('rb1', 'scopus_sul', 1) || pg_temp.abrir('rb1', 'scopus_sul', 2) || pg_temp.abrir('rb1', 'scopus_sul', 3), 'gogogo', 'as 3 rodadas que o cron já somou abrem');
 select pg_temp.concluir('rb1', 'scopus_sul', 1, true);
 select pg_temp.concluir('rb1', 'scopus_sul', 2, true);
 select pg_temp.concluir('rb1', 'scopus_sul', 3, true);
@@ -342,7 +340,7 @@ select is(pg_temp.estimativa('rn1') || ' | ' || pg_temp.gasto_norte('rot_n')::te
 
 -- 15. Isolamento e coerência dos livros: nenhuma reserva ou teto de um Workspace mexe em outro, nada fica reservado, e
 -- o crédito segue em credit_entries, sem tocar no custo em dólar.
-select is((select count(*)::int from private.credit_reservations where workspace_id = '7b000000-0000-0000-0000-000000000002'), 0, 'Sul nunca reservou crédito');
+select is((select count(*)::int from private.credit_reservations where workspace_id = '7b000000-0000-0000-0000-000000000002' and status = 'reserved'), 0, 'Sul não tem reserva aberta');
 select is((select count(*)::int from private.credit_reservations where workspace_id = '7b000000-0000-0000-0000-000000000003' and status = 'reserved'), 0, 'Leste não tem reserva aberta');
 select is((select reserved from private.credit_totals('7b000000-0000-0000-0000-000000000001')), 0::numeric, 'Norte não tem reserva aberta');
 select is(

@@ -14,6 +14,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('f9000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('f9000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('f9000000-0000-0000-0000-000000000001', '59000000-0000-0000-0000-000000000001', 'admin', true),
   ('f9000000-0000-0000-0000-000000000001', '59000000-0000-0000-0000-000000000002', 'member', true),

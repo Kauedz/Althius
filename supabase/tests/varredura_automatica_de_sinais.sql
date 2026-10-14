@@ -12,6 +12,7 @@ values
   ('57000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'bruno@norte.test', '', now(), now(), now(), '{}', '{}', false, false),
   ('57000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'eva@norte.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values ('f7000000-0000-0000-0000-000000000001', 'empresa', 'Norte');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('f7000000-0000-0000-0000-000000000001', '57000000-0000-0000-0000-000000000001', 'admin', true),
   ('f7000000-0000-0000-0000-000000000001', '57000000-0000-0000-0000-000000000002', 'member', true),
