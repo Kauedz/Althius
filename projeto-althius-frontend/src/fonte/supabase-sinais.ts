@@ -403,6 +403,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
             familiaId: linha.family,
             fonte: linha.source_label,
             custoRotulo: linha.estimated_cost_label,
+            creditosPorConta: linha.credits_per_account,
             nichos: linha.niche_slugs ?? [],
             coletores: linha.collector_types ?? [],
           }))
@@ -448,6 +449,7 @@ interface RegistroDoCatalogo {
   family: string
   source_label: string
   estimated_cost_label: string
+  credits_per_account: number
   niche_slugs: string[] | null
   collector_types: string[] | null
   workspace_id: string | null

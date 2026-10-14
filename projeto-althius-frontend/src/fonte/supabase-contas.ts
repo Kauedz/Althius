@@ -115,7 +115,7 @@ function converterErro(error: { message: string; code?: string }): Error {
     return new Error('Nenhum Monitoramento ativo para buscar. Ative um em Sinais.')
   }
   if (error.message.includes('insufficient credits')) return new Error('Sem créditos suficientes para esta busca.')
-  if (error.message.includes('monthly credit limit reached')) return new Error('Você chegou ao seu limite mensal de créditos.')
+  if (error.message.includes('monthly credit limit reached')) return new Error('Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.')
   // Transferir a responsabilidade (CRM-06): as recusas de transfer_target_account_responsibility.
   if (error.message.includes('the responsible seller is still an active participant')) {
     return new Error('O responsável ainda é Participante ativo: só se transfere depois que ele sair do Workspace.')

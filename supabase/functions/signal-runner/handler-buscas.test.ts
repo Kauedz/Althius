@@ -194,11 +194,11 @@ Deno.test('no teto, a busca mensal para e para as outras buscas mensais do Works
   await chamar(handler)
   assertEquals(c.fins.map((f) => [f.state, f.error]), [[
     'stopped',
-    'O teto mensal da varredura automática foi atingido; ela volta no próximo mês ou quando o teto subir.',
+    'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.',
   ]])
   assertEquals(c.paradas, [{
     workspaceId: WS,
-    error: 'O teto mensal da varredura automática foi atingido; ela volta no próximo mês ou quando o teto subir.',
+    error: 'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.',
   }])
 })
 

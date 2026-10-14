@@ -56,7 +56,7 @@ select ok(
   ),
   'nenhum card cita fornecedor ou modelo'
 );
-select is(public.workspace_signal_monthly_cap('b1100000-0000-0000-0000-000000000001'), 20::numeric, 'o teto padrão do Workspace é US$ 20');
+select ok(not has_function_privilege('authenticated', 'public.workspace_signal_monthly_cap(uuid)', 'execute'), 'o cliente não lê o teto em dólar do Workspace');
 select throws_ok(
   $$select * from public.list_visible_signal_catalog('b1100000-0000-0000-0000-000000000002')$$,
   '42501', 'not a member of this workspace',

@@ -16,13 +16,21 @@ function rpcFalso(respostas: Record<string, unknown>, erro?: { code?: string; me
 Deno.test('abrir chama begin_cascade_run e devolve o desfecho com a execução, os créditos e o teto', async () => {
   const { admin, chamadas } = rpcFalso({ begin_cascade_run: [{ outcome: 'go', run_id: 'run-1', reservation_id: 'res-1', est_credits: 4, cap_usd: '0.5' }] })
   const r = await criarDbDaCascata(admin).abrir({
-    workspaceId: 'ws', userId: 'u', signalType: 'vaga_comex', origem: 'monitor', monitorId: 'm', chave: 'k', estimativaUsd: 0.3, tetoCreditos: 2, permitirTeste: false,
+    workspaceId: 'ws', userId: 'u', signalType: 'vaga_comex', origem: 'monitor', monitorId: 'm', chave: 'k', estimativaUsd: 0.3, tetoCreditos: 2, permitirTeste: false, contas: 12,
   })
   assertEquals(r, { outcome: 'go', runId: 'run-1', estCredits: 4, capUsd: 0.5 })
   assertEquals(chamadas[0], {
     nome: 'begin_cascade_run',
-    args: { p_workspace_id: 'ws', p_user_id: 'u', p_signal_type: 'vaga_comex', p_origin: 'monitor', p_monitor_id: 'm', p_key: 'k', p_est_usd: 0.3, p_cap_credits: 2, p_allow_testing: false },
+    args: { p_workspace_id: 'ws', p_user_id: 'u', p_signal_type: 'vaga_comex', p_origin: 'monitor', p_monitor_id: 'm', p_key: 'k', p_est_usd: 0.3, p_cap_credits: 2, p_allow_testing: false, p_accounts: 12 },
   })
+})
+
+Deno.test('sem o número de Contas, abrir manda p_accounts nulo (Sinal de Mercado ou chamada antiga)', async () => {
+  const { admin, chamadas } = rpcFalso({ begin_cascade_run: [{ outcome: 'go', run_id: 'run-1', reservation_id: 'res-1', est_credits: 3, cap_usd: '0.5' }] })
+  await criarDbDaCascata(admin).abrir({
+    workspaceId: 'ws', userId: 'u', signalType: 'ncm_nova_na_pauta', origem: 'conversa', monitorId: null, chave: 'k', estimativaUsd: 0, tetoCreditos: null, permitirTeste: true,
+  })
+  assertEquals(chamadas[0].args?.p_accounts, null)
 })
 
 Deno.test('fechar manda o custo real e os contadores e devolve os créditos cobrados', async () => {

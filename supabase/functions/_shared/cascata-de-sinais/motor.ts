@@ -59,7 +59,8 @@ export const MENSAGENS = {
   limite_diario: 'As buscas em várias fontes chegaram ao limite de créditos de hoje neste Workspace; tente amanhã.',
   ja_rodou_hoje: 'Esse Monitoramento já rodou hoje; a próxima rodada é amanhã.',
   automatico_parado:
-    'A varredura automática está parada (em "confirmar", sem teto aprovado ou com o teto do mês atingido). Ajuste em Configurações › Automação e tetos.',
+    'A varredura automática está parada (em "confirmar" ou sem um limite aprovado). Ajuste em Configurações › Automação e tetos.',
+  limite_do_mes: 'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.',
   em_andamento: 'Essa busca já está em andamento.',
   ja_concluida: 'Essa busca já foi feita; os Sinais encontrados estão gravados.',
   teto: 'Paramos antes de gastar além do teto da busca; só o que já foi consumido é cobrado.',
@@ -95,7 +96,7 @@ const DESFECHO_DA_ABERTURA: Partial<Record<ResultadoDaAbertura['outcome'], [Desf
   ja_rodou_hoje: ['ja_rodou_hoje', MENSAGENS.ja_rodou_hoje],
   confirmar: ['automatico_parado', MENSAGENS.automatico_parado],
   sem_teto: ['automatico_parado', MENSAGENS.automatico_parado],
-  teto_atingido: ['automatico_parado', MENSAGENS.automatico_parado],
+  teto_atingido: ['automatico_parado', MENSAGENS.limite_do_mes],
   em_andamento: ['em_andamento', MENSAGENS.em_andamento],
   done: ['ja_concluida', MENSAGENS.ja_concluida],
   sem_fonte: ['sem_fonte', ''],
@@ -212,6 +213,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     estimativaUsd: estimativaDaCascata(def),
     tetoCreditos: pedido.tetoCreditos ?? null,
     permitirTeste: pedido.permitirTeste ?? false,
+    contas: def.scope === 'conta' ? contas.length : 0,
   })
   if (abertura.outcome !== 'go' || !abertura.runId) {
     const [desfecho, mensagem] = DESFECHO_DA_ABERTURA[abertura.outcome] ?? ['indisponivel', MENSAGENS.indisponivel]

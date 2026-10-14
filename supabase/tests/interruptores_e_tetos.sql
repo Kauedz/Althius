@@ -108,7 +108,7 @@ select is(
 );
 select is(
   (select title from public.list_workspace_notices('f5000000-0000-0000-0000-000000000001')),
-  'Teto mensal atingido: Varredura de Sinais', 'o Administrador vê o Aviso'
+  'Limite do mês atingido: Varredura de Sinais', 'o Administrador vê o Aviso'
 );
 select public.save_automation_setting('f5000000-0000-0000-0000-000000000001', 'acao:varredura', 'automatico', 20);
 select is(

@@ -248,6 +248,8 @@ export interface CardSobPedido {
   familiaId: string
   fonte: string
   custoRotulo: string
+  /** O preço fixo em créditos por Conta varrida (`signal_catalog.credits_per_account`). */
+  creditosPorConta?: number
   nichos: string[]
   coletores: string[]
 }

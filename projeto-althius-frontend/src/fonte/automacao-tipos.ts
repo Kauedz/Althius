@@ -37,6 +37,6 @@ export interface FonteDeAutomacao extends FonteObservavel {
 export const MOTIVO_DO_BLOQUEIO: Record<BloqueioDaAutomacao, string> = {
   confirmar: 'Cada ação pede confirmação.',
   sem_teto: 'O automático não roda sem um teto mensal aprovado.',
-  teto_atingido: 'Chegou no teto do mês: o automático está pausado até o mês virar ou o teto subir.',
+  teto_atingido: 'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.',
   sem_executor: 'Ainda não roda sozinho: cada ação pede confirmação.',
 }

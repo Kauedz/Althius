@@ -210,7 +210,7 @@ const MOTIVO_DA_PARADA: Record<MotivoDeParada, string> = {
   confirmar:
     'A varredura automática está em "confirmar". Ligue o automático com um teto em Configurações › Automação e tetos.',
   sem_teto: 'A varredura automática não roda sem um teto mensal aprovado (Configurações › Automação e tetos).',
-  teto_atingido: 'O teto mensal da varredura automática foi atingido; ela volta no próximo mês ou quando o teto subir.',
+  teto_atingido: 'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.',
 }
 
 // A busca do clique fala com quem pediu; a mensal, com o teto. O saldo e o limite mensal são de quem pediu.

@@ -8,7 +8,7 @@ import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/b
 import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
 import type { CardSobPedido, EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, familiaDoTipo, tipoPorId, type TipoDeSinal } from './catalogo'
-import { cardPorId, cardQueConta, nomesDosNichos, valeParaTodosOsNichos, TETO_PADRAO_USD } from './catalogo-visivel'
+import { cardPorId, cardQueConta, nomesDosNichos, valeParaTodosOsNichos } from './catalogo-visivel'
 import { sinalArquivado } from './arquivados'
 import { SeloDoEstado } from './componentes'
 import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
@@ -138,8 +138,7 @@ export function PaginaDoTipo() {
             <Ficha icone={Coins} rotulo="Custo em créditos">
               <span>{custoEmCreditos(detalhe)}</span>
               <span className="text-xs text-al-muted">
-                {detalhe.custoUsd !== null && `Custo da fonte: ${detalhe.custoRotulo}. `}Teto padrão de US$ {TETO_PADRAO_USD} por mês neste
-                Workspace.
+                Preço fixo, dentro do limite mensal de créditos do seu contrato.
               </span>
             </Ficha>
             <Ficha icone={Flame} rotulo="Resultado">

@@ -101,7 +101,7 @@ select is((select count(*)::integer from public.signal_cascade_catalog() where i
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values ('f1000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana@rota.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values ('f2000000-0000-0000-0000-000000000001', 'empresa', 'Rota');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values ('f2000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000001', 'admin', true);
 select public.grant_credits('f2000000-0000-0000-0000-000000000001', 50, 'plano', 'saldo de teste');
 select is(
@@ -115,8 +115,8 @@ create temporary table ab on commit drop as
   select * from public.begin_cascade_run('f2000000-0000-0000-0000-000000000001', null, 'troca_de_sede', 'conversa', null, 'k-f2', 0.05, null, true);
 select is((select outcome from ab), 'go', 'com o aval, a cascata de F roda');
 select is(
-  (select credits_charged from public.finish_cascade_run((select run_id from ab), 'succeeded', 0, 0, 0, 0, null)), 0,
-  'sem Sinal novo e sem custo, nada é cobrado');
+  (select credits_charged from public.finish_cascade_run((select run_id from ab), 'succeeded', 0, 0, 0, 0, null)), 1,
+  'concluída, cobra o preço fixo (faixa 1: 1 crédito por Conta), ache ou não um Sinal novo');
 
 select * from finish();
 rollback;

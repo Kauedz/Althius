@@ -72,7 +72,7 @@ select is((select scope from public.signal_cascade_catalog() where signal_type =
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values ('c1000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana@juridico.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values ('c2000000-0000-0000-0000-000000000001', 'empresa', 'Juridico');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values ('c2000000-0000-0000-0000-000000000001', 'c1000000-0000-0000-0000-000000000001', 'admin', true);
 select public.grant_credits('c2000000-0000-0000-0000-000000000001', 50, 'plano', 'saldo de teste');
 select is(
@@ -81,10 +81,10 @@ select is(
 select is(
   (select outcome from public.begin_cascade_run('c2000000-0000-0000-0000-000000000001', null, 'processos_publicos', 'conversa', null, 'k-c1', 1.0, null, false)),
   'em_teste', 'o Sinal em teste espera o aval');
--- Com o aval, C1 reserva 10 créditos (US$ 1,00 x 3 / 0,30) e o teto da execução é de US$ 1,00.
+-- Com o aval, C1 reserva o preço fixo (processos: faixa 1, 1 crédito por Conta, numa Conta) e o teto da execução é de US$ 1,00.
 select is(
   (select est_credits || ':' || cap_usd from public.begin_cascade_run('c2000000-0000-0000-0000-000000000001', null, 'processos_publicos', 'conversa', null, 'k-c1b', 1.0, null, true)),
-  '10:1.0000', 'com o aval, C1 reserva 10 créditos e o teto da execução é US$ 1,00');
+  '1:1.0000', 'com o aval, C1 reserva 1 crédito (preço fixo) e o teto da execução é US$ 1,00');
 
 select * from finish();
 rollback;

@@ -47,8 +47,10 @@ export function dbFalso(
     fechar: (args) => {
       fechamentos.push(args)
       if (args.estado === 'adiado') return Promise.resolve({ creditosCobrados: 0 })
-      const creditos = args.custoUsd === null ? 0 : Math.floor(args.custoUsd * (definicao?.multiplier ?? 3) / (opcoes.usdPorCredito ?? 0.3))
-      return Promise.resolve({ creditosCobrados: args.novos > 0 ? Math.max(creditos, 1) : creditos })
+      // O preço é fixo (creditos-moeda-unica): concluída cobra o que reservou; parcial, só se achou algo; o resto não cobra.
+      const estimados = opcoes.abertura?.estCredits ?? 3
+      const cobra = args.estado === 'succeeded' || (args.estado === 'partial' && (args.casados > 0 || args.novos > 0))
+      return Promise.resolve({ creditosCobrados: cobra ? estimados : 0 })
     },
     gravarAmostraValidacao: (a) => {
       amostras.push(a)

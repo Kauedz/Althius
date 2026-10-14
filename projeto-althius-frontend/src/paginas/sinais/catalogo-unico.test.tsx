@@ -36,7 +36,9 @@ describe('Catálogo único de Sinais', () => {
       '/sinais/tipos/abertura-de-vagas/novo',
     )
     expect(screen.queryByRole('link', { name: 'Criar o primeiro' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Teto padrão de US\$ 20 por mês/)).toBeInTheDocument()
+    expect(screen.getByText('2 créditos por Conta varrida')).toBeInTheDocument()
+    expect(screen.getByText(/Preço fixo, dentro do limite mensal de créditos do seu contrato/)).toBeInTheDocument()
+    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument()
     expect(screen.getByText(/Vagas públicas em sites de emprego/)).toBeInTheDocument()
 
     await usuario.click(within(screen.getByRole('main')).getByRole('link', { name: 'Sinais' }))

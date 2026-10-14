@@ -51,6 +51,7 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
         p_est_usd: a.estimativaUsd,
         p_cap_credits: a.tetoCreditos,
         p_allow_testing: a.permitirTeste,
+        p_accounts: a.contas ?? null,
       }))
       if (typeof l.outcome !== 'string') throw new Error('begin_cascade_run não respondeu')
       return {

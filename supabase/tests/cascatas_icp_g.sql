@@ -66,7 +66,7 @@ select ok((select sem_fonte_motivo like '%CNPJ%' from public.signal_cascade_cata
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values ('e1000000-0000-0000-0000-0000000000a7', 'authenticated', 'authenticated', 'ana@corretora.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values ('e2000000-0000-0000-0000-0000000000a7', 'empresa', 'Corretora');
-insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values ('e2000000-0000-0000-0000-0000000000a7', 'e1000000-0000-0000-0000-0000000000a7', 'admin', true);
 select public.grant_credits('e2000000-0000-0000-0000-0000000000a7', 50, 'plano', 'saldo de teste');
 select is(
@@ -80,10 +80,10 @@ create temporary table ab on commit drop as
   select * from public.begin_cascade_run('e2000000-0000-0000-0000-0000000000a7', null, 'cruzando_faixa_de_headcount', 'conversa', null, 'k-g3', 0.4, null, true);
 select is((select outcome || ':' || (est_credits > 0)::text from ab), 'go:true', 'com o aval, a cascata reserva crédito');
 select is(
-  (select credits_charged from public.finish_cascade_run((select run_id from ab), 'succeeded', 0, 0, 0, 0, null)), 0,
-  'sem consumo e sem Sinal novo, nada é cobrado');
+  (select credits_charged from public.finish_cascade_run((select run_id from ab), 'succeeded', 0, 0, 0, 0, null)), 2,
+  'concluída, cobra o preço fixo (faixa 2: 2 créditos por Conta), ache ou não um Sinal novo');
 select is(
-  (select status from private.credit_reservations where action_key = 'cascade:k-g3'), 'released', 'e a reserva é liberada');
+  (select status from private.credit_reservations where action_key = 'cascade:k-g3'), 'settled', 'e a reserva é liquidada');
 
 select * from finish();
 rollback;
