@@ -38,9 +38,11 @@ function contaRemetente(extra: Linha): Linha {
  */
 function abrirMeuPerfil({
   contas = [],
+  cotas,
   responder = () => ({ corpo: { url: 'https://account.unipile.com/link-novo' } }),
 }: {
   contas?: Linha[]
+  cotas?: Linha[]
   responder?: (corpo: Record<string, unknown>) => RespostaDaFuncao
 } = {}) {
   localStorage.setItem('althius:modo_demo', 'false')
@@ -63,6 +65,11 @@ function abrirMeuPerfil({
         if (backend.falhar) throw new Error('falha de rede')
         return backend.contas
       },
+      ...(cotas
+        ? {
+            list_my_sender_entry_quotas: () => cotas,
+          }
+        : {}),
     },
     funcoes: {
       'sender-accounts': (corpo) => {
@@ -309,6 +316,35 @@ describe('Minhas Contas remetentes no Workspace operacional', () => {
 
     expect(await within(await minhasContas()).findByText(/conectou no Workspace Norte Distribuidora/)).toBeInTheDocument()
   })
+
+  it('mostra X de Y hoje e a fila de amanhã na Conta remetente pronta', async () => {
+    abrirMeuPerfil({
+      contas: [contaRemetente({ id: 'wa', channel: 'whatsapp', provider: 'WHATSAPP', status: 'ready' })],
+      cotas: [
+        {
+          sender_account_id: 'wa',
+          channel: 'whatsapp',
+          used_today: 5,
+          cap_today: 5,
+          queued_for_tomorrow: 1,
+          warming: true,
+        },
+      ],
+    })
+
+    const whatsapp = await canal('WhatsApp')
+    expect(await within(whatsapp).findByText('5 de 5 hoje · 1 na fila para amanhã · em aquecimento')).toBeInTheDocument()
+  })
+
+  it('sem a cota no backend, a lista segue sem o contador', async () => {
+    abrirMeuPerfil({
+      contas: [contaRemetente({ id: 'wa', channel: 'whatsapp', provider: 'WHATSAPP', status: 'ready' })],
+    })
+
+    const whatsapp = await canal('WhatsApp')
+    expect(await within(whatsapp).findByText('Pronta')).toBeInTheDocument()
+    expect(within(whatsapp).queryByText(/na fila para amanhã/)).not.toBeInTheDocument()
+  })
 })
 
 describe('Minhas Contas remetentes na Demonstração', () => {
@@ -318,5 +354,6 @@ describe('Minhas Contas remetentes na Demonstração', () => {
     const bloco = await minhasContas()
     expect(within(bloco).getByText(/Na Demonstração, nenhuma Conta remetente é conectada/)).toBeInTheDocument()
     expect(within(bloco).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(bloco).queryByText(/na fila para amanhã/)).not.toBeInTheDocument()
   })
 })

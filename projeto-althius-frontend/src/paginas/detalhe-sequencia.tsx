@@ -49,6 +49,8 @@ import {
   useFonteDeContas,
   useFonteDeSequencias,
 } from '@/fonte/contexto'
+import { canaisDosPassos } from '@/paginas/cota-de-entrada'
+import { CotasDeEntradaDaSequencia } from '@/paginas/cotas-de-entrada-da-sequencia'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { textoDaResposta } from '@/fonte/texto-do-email'
 import { carregarAnexo, formaDoAnexo } from '@/fonte/anexo-recebido'
@@ -718,6 +720,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 Ver Conta-alvo
               </Link>
             </div>
+            {ambiente.modo === 'real' && <CotasDeEntradaDaSequencia canais={canaisDosPassos(sequencia.steps)} />}
           </div>
         </div>
 

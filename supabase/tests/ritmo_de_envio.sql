@@ -151,7 +151,7 @@ select is((select schedule_jitter_seconds from private.send_rate_settings where 
 select ok((select schedule_jitter_seconds from private.send_rate_settings where workspace_id is null and channel = 'email')
   < (select schedule_jitter_seconds from private.send_rate_settings where workspace_id is null and channel = 'linkedin'),
   'and less on e-mail');
-select is((select count(*)::int from private.send_caps where workspace_id is null), 6,
+select is((select count(*)::int from private.send_caps where workspace_id is null), 9,
   'there is a safe default cap for each kind of send');
 select is((select max_sends from private.send_caps where workspace_id is null and kind = 'linkedin_invite' and period = 'day'),
   20, 'LinkedIn invitations: 20 a day by default');
