@@ -357,11 +357,19 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
     recarregar: recarregarSinais,
   } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
   const { dados: contasCarregadas = [], carregando: carregandoContas } = useDadosDeContas((f) => f.contas(), [])
+  // Os Sinais das empresas que ainda não são Conta (candidatas da Caixa de Descobertas). Uma leitura que falha não tira a lista.
+  const { dados: sinaisDeCandidatas = [] } = useDadosDeSinais((f) => (f.sinaisDeCandidatas ? f.sinaisDeCandidatas() : Promise.resolve([])), [])
   // No operacional a lista espera as Contas, para não mostrar um identificador no lugar do nome.
   const esperando = (carregandoSinais && !sinaisCarregados) || (operacional && carregandoContas)
 
   const todosSinais = sinaisCarregados ?? (operacional ? [] : SINAIS_MOCK)
   const sinais = ordenarSinaisPorData(todosSinais.filter((s) => foiDisparado(s.data, hoje)))
+  const deCandidatas = sinaisDeCandidatas.filter((s) => foiDisparado(s.data, hoje))
+  // Os Sinais das Contas e os das candidatas, juntos, do mais recente ao mais antigo.
+  const linhas: ({ tipo: 'conta'; sinal: (typeof sinais)[number] } | { tipo: 'candidata'; sinal: (typeof deCandidatas)[number] })[] = [
+    ...sinais.map((sinal) => ({ tipo: 'conta' as const, sinal })),
+    ...deCandidatas.map((sinal) => ({ tipo: 'candidata' as const, sinal })),
+  ].sort((a, b) => dataDoDisparo(b.sinal.data).getTime() - dataDoDisparo(a.sinal.data).getTime())
 
   return (
     <>
@@ -393,7 +401,7 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
       )}
 
       {!erroSinais && !esperando && (
-        sinais.length === 0 ? (
+        linhas.length === 0 ? (
           <div className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
             <p className="text-sm">Nenhum Sinal encontrado ainda.</p>
             <p className="text-sm text-al-muted">
@@ -416,7 +424,44 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
               </tr>
             </thead>
             <tbody>
-              {sinais.map((sinal) => {
+              {linhas.map((linha) => {
+                if (linha.tipo === 'candidata') {
+                  const candidata = linha.sinal
+                  const expiradoDaCandidata = !estaValido(candidata.data, hoje)
+                  return (
+                    <tr
+                      key={`candidata-${candidata.id}`}
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest('a')) return
+                        navegar(`/contas/descobertas?candidata=${candidata.candidataId}`)
+                      }}
+                      className={cn('h-12 cursor-pointer transition-colors hover:bg-al-surface/60', expiradoDaCandidata && 'text-al-muted')}
+                    >
+                      <td className="w-56 border-b border-al-line pr-4">
+                        <span className="flex flex-col py-2 leading-snug">
+                          <span>{candidata.empresa}</span>
+                          <Link to={`/contas/descobertas?candidata=${candidata.candidataId}`} className="text-xs text-al-accent hover:underline">
+                            Ver candidata
+                          </Link>
+                        </span>
+                      </td>
+                      <td className="border-b border-al-line pr-4">
+                        <span className="flex flex-col py-2 leading-snug">
+                          <span>{candidata.frase}</span>
+                          <span className="text-xs text-al-muted">
+                            {tipoPorId(candidata.tipoId)?.nome ?? 'Sinal'}
+                            {candidata.fonte && ` · ${candidata.fonte}`}
+                            {expiradoDaCandidata && ' · expirado'}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="w-36 border-b border-al-line pr-4 whitespace-nowrap" title={formatarDataCompleta(dataDoDisparo(candidata.data))}>
+                        {formatarDataDoModulo(dataDoDisparo(candidata.data), hoje, { maiuscula: true })}
+                      </td>
+                    </tr>
+                  )
+                }
+                const sinal = linha.sinal
                 const conta =
                   contasCarregadas.find((c) => c.id === sinal.contaId) ??
                   (operacional ? undefined : CONTAS_MOCK.find((c) => c.id === sinal.contaId)) ?? {
@@ -440,9 +485,14 @@ function SinaisEncontrados({ aoVoltar }: { aoVoltar: () => void }) {
                     <td className="w-56 border-b border-al-line pr-4">
                       <span className="flex items-center gap-2.5">
                         <LogoDaConta nome={conta.nome} logo={conta.logo} deUmaCor={conta.logoDeUmaCor} />
-                        <Link to={`/sinais/contas/${conta.id}`} className="hover:text-al-accent hover:underline">
-                          {conta.nome}
-                        </Link>
+                        <span className="flex flex-col leading-snug">
+                          <Link to={`/sinais/contas/${conta.id}`} className="hover:text-al-accent hover:underline">
+                            {conta.nome}
+                          </Link>
+                          <Link to={`/sinais/contas/${conta.id}`} className="text-xs text-al-accent hover:underline">
+                            Ver Conta
+                          </Link>
+                        </span>
                       </span>
                     </td>
                     <td className="border-b border-al-line pr-4">

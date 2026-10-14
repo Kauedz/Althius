@@ -5,7 +5,11 @@ import type {
   EstadoContaDescoberta,
   FonteDeDescobertas,
   NivelDeEncaixe,
+  OrigemDaDescoberta,
+  ResultadoDoAceite,
   SinalDaCandidata,
+  SinalDoMotivo,
+  SituacaoDoComite,
 } from './descobertas-tipos'
 
 export function criarFonteDeDescobertasSupabase(
@@ -88,15 +92,29 @@ export function criarFonteDeDescobertasSupabase(
         fitLevel: (d.fit_level ?? 'baixo') as NivelDeEncaixe,
         motivos: Array.isArray(d.reasons) ? d.reasons : [],
         sinais: Array.isArray(d.signals) ? (d.signals as SinalDaCandidata[]) : [],
+        origem: (['busca', 'sinal', 'sincronizacao'].includes(d.origin) ? d.origin : 'busca') as OrigemDaDescoberta,
+        motivosDeSinal: Array.isArray(d.signal_reasons)
+          ? (d.signal_reasons as any[]).map((m): SinalDoMotivo => ({
+            id: m.id,
+            tipo: m.tipo,
+            frase: m.frase,
+            ...(m.fonte ? { fonte: m.fonte } : {}),
+            data: m.data,
+            valido: Boolean(m.valido),
+            mercado: Boolean(m.mercado),
+          }))
+          : [],
+        ...(d.reopened_by_signal_at ? { voltouPorSinalEm: d.reopened_by_signal_at } : {}),
+        ...(d.reopened_discard_reason ? { motivoDoDescarteAnterior: d.reopened_discard_reason } : {}),
         targetAccountId: d.target_account_id ?? undefined,
-        decididoPor: d.decidido_by ?? undefined,
-        decididoEm: d.decidido_at ?? undefined,
+        decididoPor: d.decided_by ?? undefined,
+        decididoEm: d.decided_at ?? undefined,
         motivoDescarte: d.discard_reason ?? undefined,
         criadaEm: d.created_at,
       }))
     },
 
-    async aceitarDescoberta(id: string, url?: string): Promise<{ targetAccountId: string; created: boolean }> {
+    async aceitarDescoberta(id: string, url?: string): Promise<ResultadoDoAceite> {
       const { data, error } = await cliente.rpc('accept_discovered_account', {
         p_id: id,
         p_url: url ? url.trim() : null,
@@ -104,9 +122,12 @@ export function criarFonteDeDescobertasSupabase(
       if (error) throw new Error(error.message)
       const linha = Array.isArray(data) ? data[0] : data
       notificar()
+      const comites: SituacaoDoComite[] = ['liberado', 'sem_saldo', 'limite_do_mes', 'sem_contrato']
       return {
         targetAccountId: linha.target_account_id,
         created: Boolean(linha.created),
+        sinaisMigrados: Number(linha.signals_moved ?? 0),
+        comite: comites.includes(linha.committee) ? linha.committee : 'sem_saldo',
       }
     },
 

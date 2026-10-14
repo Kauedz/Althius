@@ -1,12 +1,29 @@
 import type { FonteObservavel } from './tipos'
 
 export type EstadoContaDescoberta = 'nova' | 'aceita' | 'descartada'
-export type NivelDeEncaixe = 'alto' | 'medio' | 'baixo'
+export type NivelDeEncaixe = 'alto' | 'medio' | 'baixo' | 'sem_dado'
+/** De onde a candidata veio: da busca pelo ICP, de um Sinal ou da sincronização com o CRM (ainda sem dado). */
+export type OrigemDaDescoberta = 'busca' | 'sinal' | 'sincronizacao'
+/** O que o aceite diz sobre o Comitê: `liberado` quando o saldo e o limite do mês permitem enriquecer agora. */
+export type SituacaoDoComite = 'liberado' | 'sem_saldo' | 'limite_do_mes' | 'sem_contrato'
 
 export interface SinalDaCandidata {
   frase: string
   fonte: string
   data?: string
+}
+
+/** Um Sinal que trouxe a candidata para a Caixa, já em linguagem de usuário: sem fornecedor nem dado pessoal. */
+export interface SinalDoMotivo {
+  id: string
+  tipo: string
+  frase: string
+  fonte?: string
+  data: string
+  /** O Sinal ainda vale (30 dias). */
+  valido: boolean
+  /** Veio de um Sinal de mercado com o CNPJ da empresa. */
+  mercado: boolean
 }
 
 export interface ContaDescoberta {
@@ -28,6 +45,13 @@ export interface ContaDescoberta {
   fitLevel: NivelDeEncaixe
   motivos: string[]
   sinais: SinalDaCandidata[]
+  origem: OrigemDaDescoberta
+  /** Os Sinais reais que a trouxeram, do mais recente ao mais antigo. */
+  motivosDeSinal: SinalDoMotivo[]
+  /** Quando a candidata voltou para Novas por um Sinal novo, depois de 90 dias do descarte. */
+  voltouPorSinalEm?: string
+  /** O motivo do descarte que valia antes de ela voltar. */
+  motivoDoDescarteAnterior?: string
   targetAccountId?: string
   decididoPor?: string
   decididoEm?: string
@@ -43,11 +67,19 @@ export interface CotacaoDaDescoberta {
   podeTestar: boolean
 }
 
+export interface ResultadoDoAceite {
+  targetAccountId: string
+  created: boolean
+  /** Quantos Sinais da candidata passaram a ser da Conta. */
+  sinaisMigrados: number
+  comite: SituacaoDoComite
+}
+
 export interface FonteDeDescobertas extends FonteObservavel {
   cotarBusca(maxResults?: number): Promise<CotacaoDaDescoberta>
   buscarContas(args?: { maxResults?: number; allowTesting?: boolean }): Promise<void>
   listarDescobertas(estado?: EstadoContaDescoberta): Promise<ContaDescoberta[]>
-  aceitarDescoberta(id: string, url?: string): Promise<{ targetAccountId: string; created: boolean }>
+  aceitarDescoberta(id: string, url?: string): Promise<ResultadoDoAceite>
   descartarDescoberta(id: string, motivo?: string): Promise<void>
   restaurarDescoberta(id: string): Promise<void>
 }

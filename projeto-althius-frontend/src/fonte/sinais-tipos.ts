@@ -149,6 +149,20 @@ export interface SinalDeMercado {
   nome: string
   frase: string
   data: string
+  /** Quando o Sinal tem empresa (CNPJ): a Conta do Workspace ou a candidata da Caixa de Descobertas. */
+  empresa?: { tipo: 'conta' | 'candidata'; id: string }
+}
+
+/** Um Sinal de uma empresa que ainda não é Conta: está na candidata da Caixa de Descobertas, esperando decisão. */
+export interface SinalDeCandidata {
+  id: string
+  candidataId: string
+  /** O nome da empresa. */
+  empresa: string
+  tipoId: string
+  frase: string
+  data: string
+  fonte: string
 }
 
 /**
@@ -170,6 +184,12 @@ export interface FonteDeSinais extends FonteObservavel {
    * com texto neutro.
    */
   sinaisDeMercado(icp: string): Promise<SinalDeMercado[]>
+
+  /**
+   * Os Sinais das candidatas novas da Caixa de Descobertas (empresas que ainda não são Conta). A Demonstração não tem;
+   * quem não implementa não tem candidatas.
+   */
+  sinaisDeCandidatas?(): Promise<SinalDeCandidata[]>
 
   /** Busca um tipo de sinal pelo id. Rejeita se não existir. */
   tipo(id: string): Promise<TipoDeSinal>

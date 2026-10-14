@@ -19,6 +19,7 @@ import { criarFonteDeConexoesSimulada } from '@/fonte/simulada-conexoes'
 import { criarFonteDeAutomacaoSimulada } from '@/fonte/simulada-automacao'
 import { criarFonteDoPlaybookSimulada } from '@/fonte/simulada-playbook'
 import { criarFonteDeDescobertasSimulada } from '@/fonte/simulada-descobertas'
+import type { FonteDeDescobertas } from '@/fonte/descobertas-tipos'
 
 export const DATA_HOJE_TESTES = new Date(2026, 8, 23, 12, 0, 0) // 23 de setembro de 2026
 
@@ -57,12 +58,14 @@ interface Ajustes {
   conexoes?: (fonte: FonteDeConexoes) => FonteDeConexoes
   /** Troca a Fonte de Automação simulada por outra feita a partir dela, só neste teste. */
   automacao?: (fonte: FonteDeAutomacao) => FonteDeAutomacao
+  /** Troca a Fonte de Descobertas simulada por outra feita a partir dela, só neste teste. */
+  descobertas?: (fonte: FonteDeDescobertas) => FonteDeDescobertas
   /** Os módulos que este teste dá por indisponíveis, como o Workspace operacional ainda sem backend deles. */
   indisponiveis?: ModuloDoWorkspace[]
 }
 
 /** O app como em `renderizarApp`, com uma Fonte ajustada pelo teste no lugar da simulada. */
-export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, conexoes, automacao, indisponiveis }: Ajustes, noNavegador = false) {
+export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, onboarding, sinais, conexoes, automacao, descobertas, indisponiveis }: Ajustes, noNavegador = false) {
   return montarApp({
     rota,
     opcoesOnboarding,
@@ -71,6 +74,7 @@ export function renderizarAppCom(rota: string, { opcoesOnboarding = {}, contas, 
     ajustarSinais: sinais,
     ajustarConexoes: conexoes,
     ajustarAutomacao: automacao,
+    ajustarDescobertas: descobertas,
     indisponiveis,
     noNavegador,
   })
@@ -89,6 +93,7 @@ function montarApp({
   ajustarSinais = (fonte) => fonte,
   ajustarConexoes = (fonte) => fonte,
   ajustarAutomacao = (fonte) => fonte,
+  ajustarDescobertas = (fonte) => fonte,
   indisponiveis = [],
 }: {
   rota: string
@@ -103,6 +108,7 @@ function montarApp({
   ajustarSinais?: (fonte: FonteDeSinais) => FonteDeSinais
   ajustarConexoes?: (fonte: FonteDeConexoes) => FonteDeConexoes
   ajustarAutomacao?: (fonte: FonteDeAutomacao) => FonteDeAutomacao
+  ajustarDescobertas?: (fonte: FonteDeDescobertas) => FonteDeDescobertas
   indisponiveis?: ModuloDoWorkspace[]
 }) {
   const fonte = criarFonteSimulada({ atrasoMs: 0, hoje: DATA_HOJE_TESTES, ...opcoesFonte })
@@ -144,7 +150,7 @@ function montarApp({
     fonteDeConexoes: ajustarConexoes(criarFonteDeConexoesSimulada()),
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     fonteDeAutomacao: ajustarAutomacao(criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() })),
-    fonteDeDescobertas,
+    fonteDeDescobertas: ajustarDescobertas(fonteDeDescobertas),
     indisponiveis: new Set(indisponiveis),
   }
   const resultado = render(

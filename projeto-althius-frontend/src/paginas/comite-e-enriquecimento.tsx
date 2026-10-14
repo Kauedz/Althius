@@ -323,7 +323,7 @@ export function SecaoComiteDeCompra({
               className="rounded-md h-8 gap-1.5 border border-al-accent bg-al-accent text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
             >
               <Search className="size-3.5" />
-              {buscando ? 'Buscando...' : 'Buscar comitê pelo LinkedIn'}
+              {buscando ? 'Buscando...' : 'Enriquecer Comitê'}
             </Button>
           </div>
         )}
@@ -345,7 +345,7 @@ export function SecaoComiteDeCompra({
         <div className="py-6 text-center text-xs text-al-muted">Carregando comitê...</div>
       ) : novas.length === 0 ? (
         <div className="rounded border border-dashed border-al-line p-6 text-center text-xs text-al-muted">
-          Nenhuma pessoa proposta para o comitê de compra no momento. Clique em "Buscar comitê pelo LinkedIn" para coletar os perfis de Decisores, Influenciadores e Campeões.
+          Nenhuma pessoa proposta para o comitê de compra no momento. Clique em "Enriquecer Comitê" para coletar os perfis de Decisores, Influenciadores e Campeões.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

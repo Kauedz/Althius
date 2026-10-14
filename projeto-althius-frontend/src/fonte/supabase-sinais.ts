@@ -17,6 +17,7 @@ import type {
   NovoMonitoramento,
   NovoPedidoDeSinal,
   PedidoDeSinal,
+  SinalDeCandidata,
   SinalDeMercado,
   SinalEncontrado,
   TipoDeSinal,
@@ -273,12 +274,44 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         p_icp: icp,
       })
       if (error) throw new Error('Não foi possível carregar os Sinais de mercado.')
-      return ((data ?? []) as { id: string; signal_type: string; name: string; phrase: string; fired_at: string }[]).map((s) => ({
+      const sinais = ((data ?? []) as { id: string; signal_type: string; name: string; phrase: string; fired_at: string }[]).map((s) => ({
         id: s.id,
         tipo: s.signal_type,
         nome: s.name,
         frase: s.phrase,
         data: s.fired_at,
+      }))
+      // O vínculo com a empresa é um extra: se a leitura dele falhar, a lista de Mercado aparece como sempre.
+      const vinculos = new Map<string, { tipo: 'conta' | 'candidata'; id: string }>()
+      try {
+        const { data: ligacoes, error: erroDeLigacao } = await cliente.rpc('list_market_signal_companies', {
+          p_workspace_id: workspaceId(),
+          p_icp: icp,
+        })
+        if (!erroDeLigacao) {
+          for (const l of (ligacoes ?? []) as { market_signal_id: string; target_account_id: string | null; discovered_account_id: string | null }[]) {
+            if (l.target_account_id) vinculos.set(l.market_signal_id, { tipo: 'conta', id: l.target_account_id })
+            else if (l.discovered_account_id) vinculos.set(l.market_signal_id, { tipo: 'candidata', id: l.discovered_account_id })
+          }
+        }
+      } catch {
+        // sem vínculo
+      }
+      return sinais.map((s) => (vinculos.has(s.id) ? { ...s, empresa: vinculos.get(s.id)! } : s))
+    },
+
+    async sinaisDeCandidatas(): Promise<SinalDeCandidata[]> {
+      const { data, error } = await cliente.rpc('list_candidate_signals', { p_workspace_id: workspaceId() })
+      if (error) throw new Error('Não foi possível carregar os Sinais das candidatas.')
+      return ((data ?? []) as RegistroDoSinalDeCandidata[]).map((s) => ({
+        id: s.id,
+        candidataId: s.discovered_account_id,
+        empresa: s.company_name,
+        // Um tipo que a tela não reconhece aparece como "Sinal": a candidata não pode sumir por isso.
+        tipoId: tipoDaTela(s.signal_type, new Set()) ?? s.signal_type,
+        frase: s.phrase,
+        data: s.fired_at,
+        fonte: s.source ?? '',
       }))
     },
     async tipo(id) {
@@ -440,6 +473,16 @@ function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
     status: linha.status,
     criadoEm: linha.created_at,
   }
+}
+
+interface RegistroDoSinalDeCandidata {
+  id: string
+  discovered_account_id: string
+  company_name: string
+  signal_type: string
+  phrase: string
+  fired_at: string
+  source: string | null
 }
 
 interface RegistroDoCatalogo {

@@ -91,7 +91,7 @@ describe('Comitê sem recobrança', () => {
   it('o resultado separa as novas das já encontradas, sem custo', async () => {
     renderizarComite({ buscarComite: vi.fn().mockResolvedValue({ encontradas: 3, novas: 1, jaEncontradas: 2 }) })
 
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Buscar comitê pelo LinkedIn' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Enriquecer Comitê' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('1 nova · 2 já encontradas (sem custo)')
   })
@@ -99,7 +99,7 @@ describe('Comitê sem recobrança', () => {
   it('a repetição de 09/10 (uma pessoa já proposta) aparece como já encontrada', async () => {
     renderizarComite({ buscarComite: vi.fn().mockResolvedValue({ encontradas: 1, novas: 0, jaEncontradas: 1 }) })
 
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Buscar comitê pelo LinkedIn' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Enriquecer Comitê' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('0 novas · 1 já encontrada (sem custo)')
   })
