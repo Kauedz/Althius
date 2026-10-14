@@ -179,7 +179,7 @@ begin
   end if;
 
   -- Os Sinais da candidata passam a ser da Conta. Um que a Conta já tinha (mesmo tipo e mesmo acontecimento) não
-  -- duplica: fica o da Conta, marcado como visto de novo.
+  -- duplica: fica o da Conta, marcado como visto de novo (e com o vínculo ao Sinal de mercado, se o dele ainda não tinha).
   with duplicados as (
     delete from private.signals g
     where g.workspace_id = v_d.workspace_id and g.discovered_account_id = v_d.id
@@ -187,9 +187,9 @@ begin
         select 1 from private.signals x
         where x.workspace_id = g.workspace_id and x.target_account_id = v_account.id
           and x.signal_type = g.signal_type and x.event_key = g.event_key)
-    returning g.signal_type, g.event_key
+    returning g.signal_type, g.event_key, g.market_signal_id
   )
-  update private.signals x set seen_again_at = now()
+  update private.signals x set seen_again_at = now(), market_signal_id = coalesce(x.market_signal_id, dup.market_signal_id)
   from duplicados dup
   where x.workspace_id = v_d.workspace_id and x.target_account_id = v_account.id
     and x.signal_type = dup.signal_type and x.event_key = dup.event_key;
