@@ -19,8 +19,13 @@ export interface ComportamentoDoRun {
   usageTotalUsd?: number
   /** Leituras do custo: a primeira pode vir incompleta (o Apify fecha a conta depois). */
   usagePorLeitura?: number[]
+  /** Quando verdadeiro, o run não traz `usageTotalUsd` no topo (o total pode estar em `stats`). */
+  semUsageNoTopo?: boolean
+  stats?: Record<string, unknown>
   pricingModel?: string
   chargedEventCounts?: Record<string, number>
+  /** Preço em dólar de cada evento cobrado (`eventPriceUsd`). */
+  precosDosEventos?: Record<string, number>
   build?: string
 }
 
@@ -60,6 +65,9 @@ export function apifyFalso(
       const c = run.comportamento
       const estados = c.estados ?? ['SUCCEEDED']
       const usage = c.usagePorLeitura ? c.usagePorLeitura[Math.min(Math.max(n - 1, 0), c.usagePorLeitura.length - 1)] : c.usageTotalUsd
+      const eventos = c.precosDosEventos
+        ? { actorChargeEvents: Object.fromEntries(Object.entries(c.precosDosEventos).map(([nome, preco]) => [nome, { eventPriceUsd: preco }])) }
+        : undefined
       return Promise.resolve(json({
         data: {
           id: leitura[1],
@@ -67,9 +75,10 @@ export function apifyFalso(
           statusMessage: c.mensagem,
           defaultDatasetId: `ds-${leitura[1]}`,
           buildNumber: c.build ?? '1.0.0',
-          usageTotalUsd: usage,
+          ...(c.semUsageNoTopo ? {} : { usageTotalUsd: usage }),
+          stats: c.stats,
           chargedEventCounts: c.chargedEventCounts ?? {},
-          pricingInfo: { pricingModel: c.pricingModel ?? 'PRICE_PER_DATASET_ITEM' },
+          pricingInfo: { pricingModel: c.pricingModel ?? 'PRICE_PER_DATASET_ITEM', ...(eventos ? { pricingPerEvent: eventos } : {}) },
         },
       }))
     }

@@ -90,21 +90,50 @@ export function sinalDoFato(conta: ContaDoWorkspace, e: EmpresaDoFato, f: Fato):
 
 export { chaveDaEmpresa }
 
+const CPF_NO_NOME = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/
+
+/**
+ * Até 5 empresas achadas que não são Conta, para a validação. Junta com o que um passo anterior já guardou
+ * (não apaga). Nome com CPF fica de fora. O motor grava isto na execução quando a rodada é de validação.
+ */
+export function lembrarAmostra(ctx: { memoria: Map<string, unknown> }, itens: { cnpj?: string | null; nome?: string | null }[]): void {
+  const atual = ctx.memoria.get('semContaAmostra')
+  const amostra: { cnpj: string | null; nome: string }[] = Array.isArray(atual)
+    ? atual.flatMap((item) => {
+      if (!item || typeof item !== 'object') return []
+      const o = item as { cnpj?: unknown; nome?: unknown }
+      const nome = typeof o.nome === 'string' ? o.nome.trim() : ''
+      const cnpj = typeof o.cnpj === 'string' && /^\d{14}$/.test(o.cnpj) ? o.cnpj : null
+      return nome ? [{ cnpj, nome }] : []
+    })
+    : []
+  const vistos = new Set(amostra.map((a) => a.cnpj || a.nome))
+  for (const item of itens) {
+    if (amostra.length >= 5) break
+    const nome = (item.nome ?? '').trim()
+    if (!nome || nome.length > 200 || CPF_NO_NOME.test(nome)) continue
+    const cnpj = item.cnpj && /^\d{14}$/.test(item.cnpj) ? item.cnpj : null
+    const chave = cnpj || nome
+    if (vistos.has(chave)) continue
+    vistos.add(chave)
+    amostra.push({ cnpj, nome })
+  }
+  ctx.memoria.set('semContaAmostra', amostra)
+}
+
 /** `casar_fatos_com_contas`: cada fato de uma empresa que é Conta do Workspace vira Sinal da Conta; o resto só é contado. */
 export const casarFatosComContas: ImplDoPasso = {
   executar(entrada, ctx) {
     const sinais = new Map<string, Item>()
     const semConta: string[] = []
-    const amostra: { cnpj: string | null; nome: string }[] = []
-    const cpfNoNome = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/
+    const fora: { cnpj: string | null; nome: string }[] = []
     for (const item of entrada) {
       const ef = empresaComFatosDoItem(item)
       if (!ef) continue
       const conta = contaDaEmpresa(ctx.contas, ef.empresa)
       if (!conta) {
         semConta.push(ef.empresa.nome)
-        const cnpj = cnpjLimpo(ef.empresa.cnpj)
-        if (amostra.length < 5 && !cpfNoNome.test(ef.empresa.nome)) amostra.push({ cnpj: cnpj || null, nome: ef.empresa.nome })
+        fora.push({ cnpj: cnpjLimpo(ef.empresa.cnpj) || null, nome: ef.empresa.nome })
         continue
       }
       for (const fato of ef.fatos) {
@@ -114,7 +143,7 @@ export const casarFatosComContas: ImplDoPasso = {
     }
     ctx.memoria.set('semConta', semConta.length)
     ctx.memoria.set('semContaNomes', semConta.slice(0, 10))
-    ctx.memoria.set('semContaAmostra', amostra)
+    lembrarAmostra(ctx, fora)
     return [...sinais.values()]
   },
 }

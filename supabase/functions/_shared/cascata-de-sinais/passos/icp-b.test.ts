@@ -109,7 +109,7 @@ Deno.test('B1: o CNPJ novo de uma Conta vira Sinal "CNPJ aberto em", com o aviso
   assert(!tudo.includes('JOSE DA SILVA') && !tudo.includes('12345678901'), 'nome e CPF do empresário individual nunca saem')
   assert(!MARCA_INTERNA.test(tudo))
   // Entrada do actor: só o limite, sem filtros que ninguém pediu; o resumo gratuito não vira empresa.
-  assertEquals(c.posts()[0].corpo, { maxResults: 100 })
+  assertEquals(c.posts()[0].corpo, { maxResults: 25 })
   assertEquals(r.custoUsd, 0.0124)
   assertEquals(c.banco.passos.map((p) => [p.ordem, p.fim?.estado]), [[1, 'succeeded'], [2, 'succeeded']])
 })
@@ -135,7 +135,7 @@ Deno.test('B1: MEI e empresário individual não viram Sinal, mesmo quando o CNP
 Deno.test('B1: os filtros do pedido (UF, CNAE, porte, mês) vão para o actor no formato dele', async () => {
   const c = cenario(DEF_B1, { 'johnatan029~cnpj-new-companies': { itens: [RESUMO], usageTotalUsd: 0 } })
   const r = await c.rodar({ criterios: { uf: ['SP', 'MG'], cnae: ['69'], porte: ['ME', 'EPP'], mes: '2026-09' } })
-  assertEquals(c.posts()[0].corpo, { ufs: ['SP', 'MG'], cnaes: ['69'], portes: ['01', '03'], mes: '2026-09', maxResults: 100 })
+  assertEquals(c.posts()[0].corpo, { ufs: ['SP', 'MG'], cnaes: ['69'], portes: ['01', '03'], mes: '2026-09', maxResults: 25 })
   assertEquals([r.desfecho, r.novos], ['concluida', 0])
 })
 
@@ -157,7 +157,7 @@ Deno.test('B1: sem o actor principal, a base mensal alternativa assume e nenhum 
   const r = await c.rodar({ criterios: { mes: '2026-09', uf: ['SP'], cnae: ['69'], porte: ['ME'] } })
   assertEquals([r.desfecho, r.novos], ['concluida', 1])
   assertEquals(r.sinais[0].phrase, 'CNPJ aberto em 14/09/2026')
-  assertEquals(c.posts()[1].corpo, { aberturaDe: '2026-09-01', aberturaAte: '2026-09-30', uf: 'SP', cnae: '69', porte: 'micro_empresa', comContato: false, maxResultados: 100 })
+  assertEquals(c.posts()[1].corpo, { aberturaDe: '2026-09-01', aberturaAte: '2026-09-30', uf: 'SP', cnae: '69', porte: 'micro_empresa', comContato: false, maxResultados: 25 })
   const tudo = JSON.stringify(r)
   assert(!tudo.includes('1140040015') && !tudo.includes('contato@alfa.test'))
   assertEquals(c.banco.passos.filter((p) => p.ordem === 1).map((p) => [p.tentativa, p.fim?.estado]), [[1, 'failed'], [2, 'succeeded']])
@@ -166,7 +166,7 @@ Deno.test('B1: sem o actor principal, a base mensal alternativa assume e nenhum 
 Deno.test('B1: sem filtros, a base alternativa pede desde o primeiro dia do mês anterior', async () => {
   const c = cenario(DEF_B1, { 'johnatan029~cnpj-new-companies': FALHA, 'brazilayer~brazilian-new-companies': { itens: [], usageTotalUsd: 0 } })
   await c.rodar()
-  assertEquals(c.posts()[1].corpo, { aberturaDe: '2026-09-01', comContato: false, maxResultados: 100 })
+  assertEquals(c.posts()[1].corpo, { aberturaDe: '2026-09-01', comContato: false, maxResultados: 25 })
 })
 
 Deno.test('B1: a última alternativa (base geral) só entrega matriz ativa aberta na janela, e nenhum dado de sócio passa', async () => {
@@ -184,9 +184,24 @@ Deno.test('B1: a última alternativa (base geral) só entrega matriz ativa abert
   })
   const r = await c.rodar({ criterios: { uf: ['SP'], cnae: ['6920601'], mes: '2026-09' } })
   assertEquals([r.desfecho, r.novos, r.semConta], ['concluida', 1, 0])
-  assertEquals(c.posts()[2].corpo, { uf: 'SP', cnae: '6920601', maxItems: 100, pageSize: 100 })
+  assertEquals(c.posts()[2].corpo, { uf: 'SP', cnae: '6920601', maxItems: 25, pageSize: 25 })
   const tudo = JSON.stringify(r)
   assert(!tudo.includes('FULANO') && !tudo.includes('x@y.test'))
+})
+
+Deno.test('B1: o teto padrão pede 25 empresas e US$ 0,20 e descarta o que passar; o pedido pode subir os dois', async () => {
+  const muitas = Array.from({ length: 30 }, (_, i) => nova(String(10_000_000_000_000 + i), `EMPRESA ${i} LTDA`, '2026-09-14'))
+  const padrao = cenario(DEF_B1, { 'johnatan029~cnpj-new-companies': { itens: muitas, usageTotalUsd: 0.4 } }, { contas: [ALFA] })
+  const r = await padrao.rodar({ permitirTeste: true })
+  assertEquals((padrao.posts()[0].corpo as { maxResults: number }).maxResults, 25)
+  assertEquals(padrao.posts()[0].consulta.get('maxTotalChargeUsd'), '0.2')
+  assertEquals(r.semConta, 25)
+  assertEquals(padrao.banco.amostras[0]?.amostra.length, 5)
+
+  const amplo = cenario(DEF_B1, { 'johnatan029~cnpj-new-companies': { itens: [RESUMO], usageTotalUsd: 0 } }, { contas: [ALFA] })
+  await amplo.rodar({ criterios: { tetoResultados: 40, tetoUsd: 0.35 } })
+  assertEquals((amplo.posts()[0].corpo as { maxResults: number }).maxResults, 40)
+  assertEquals(amplo.posts()[0].consulta.get('maxTotalChargeUsd'), '0.35')
 })
 
 Deno.test('B1: sem Conta no Workspace a busca nem começa, e o pior caso cabe no teto', async () => {

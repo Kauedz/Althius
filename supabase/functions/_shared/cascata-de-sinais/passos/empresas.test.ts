@@ -1,4 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1'
+import { casarComContas } from './casar-com-contas.ts'
 import { casarFatosComContas, contaDaEmpresa, itemDeEmpresaComFatos } from './empresas.ts'
 import type { ContaDoWorkspace, ContextoDoPasso } from '../tipos.ts'
 
@@ -7,7 +8,7 @@ const BETA: ContaDoWorkspace = { id: 'c2', name: 'Beta Logística', domain: 'bet
 const fato = (chave: string) => ({ chave, frase: `Fato ${chave}`, quando: '2026-10-01T00:00:00Z', fonte: 'Fonte', evidencia: 'Evidência' })
 
 function ctx(contas: ContaDoWorkspace[]): ContextoDoPasso {
-  return { contas, memoria: new Map() } as unknown as ContextoDoPasso
+  return { contas, memoria: new Map(), agora: Date.parse('2026-10-13T12:00:00Z') } as unknown as ContextoDoPasso
 }
 
 Deno.test('o CNPJ decide a Conta quando as duas pontas o têm; sem CNPJ, vale o nome, o site ou o LinkedIn', () => {
@@ -47,4 +48,26 @@ Deno.test('casar_fatos_com_contas: a amostra para validação leva até 5 CNPJs 
   assertEquals(c.memoria.get('semContaAmostra'), [0, 1, 2, 3, 4].map((i) => ({
     cnpj: String(10_000_000_000_000 + i), nome: `EMPRESA ${i} LTDA`,
   })))
+})
+
+Deno.test('casar_com_contas: empresa que não é Conta entra na amostra e não apaga a que já estava', () => {
+  const c = ctx([ALFA])
+  c.memoria.set('semContaAmostra', [{ cnpj: '99888777000166', nome: 'JA GUARDADA LTDA' }])
+  const saida = casarComContas.executar!([
+    {
+      tipo: 'empresa',
+      empresa: { nome: 'Gama Transportes Ltda' },
+      vagas: [{ titulo: 'Analista de comércio', fonte: 'Vagas' }],
+    },
+    {
+      tipo: 'empresa',
+      empresa: { nome: 'Alfa Indústria S.A.', site: 'https://alfa.test' },
+      vagas: [{ titulo: 'Analista', fonte: 'Vagas' }],
+    },
+  ], c) as { contaId: string }[]
+  assertEquals(saida.map((s) => s.contaId), ['c1'])
+  assertEquals(c.memoria.get('semContaAmostra'), [
+    { cnpj: '99888777000166', nome: 'JA GUARDADA LTDA' },
+    { cnpj: null, nome: 'Gama Transportes Ltda' },
+  ])
 })

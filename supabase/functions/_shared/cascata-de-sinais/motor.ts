@@ -343,7 +343,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
             estado: saida.length ? 'succeeded' : 'empty', apifyRunId: null, build: null, tokenIndex: null,
             itensSaida: saida.length, custoUsd: 0, statusHttp: null, erroReal: null,
           })
-          const normalizada = impl.normalizar ? impl.normalizar(saida, entradaDoPasso, ctx, handlerDaTentativa) : saida
+          const normalizada = impl.normalizar ? await impl.normalizar(saida, entradaDoPasso, ctx, handlerDaTentativa) : saida
           return normalizada.length ? { tipo: 'ok', saida: normalizada, custoUsd: gasto } : { tipo: 'vazio', saida: normalizada, custoUsd: gasto }
         } catch (e) {
           const adiada = e instanceof FonteAdiada
@@ -357,7 +357,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
         }
       }
 
-      const montada = impl.montarEntrada!(entradaDoPasso, ctx, actorId ?? '')
+      const montada = await impl.montarEntrada!(entradaDoPasso, ctx, actorId ?? '')
       if ('pular' in montada) {
         proximaTentativa++
         await registrar(passo, tentativa, passo.handler, actorId, entradaDoPasso.length, {
@@ -368,6 +368,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
       }
 
       const lotes = 'lotes' in montada ? montada.lotes : [montada]
+      const parcial = 'lotes' in montada && montada.parcial === true
       // O teto rígido e o prazo: antes de gastar.
       const estimativa = estimarPasso(passo, i === 0 ? null : alt, entradaDoPasso, impl, ctx)
       if (arredondar(acumulado + gasto + estimativa) > teto + 1e-9) {
@@ -391,28 +392,33 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
       let interrompido = false
       let semCredito = false
       let foraDaConsulta = false
+      let concluidos = 0
+      let parouNoPrazo = false
       for (let b = 0; b < lotes.length; b++) {
         const lote = lotes[b]
         const tentativaDoLote = proximaTentativa++
         if (b > 0 && restanteMs() < 10_000) {
-          interrompido = true
+          parouNoPrazo = true
           break
         }
         const passoId = await db.abrirPasso({
           runId, ordem: passo.ordem, tentativa: tentativaDoLote, handler: passo.handler, kind: passo.kind, actorId, itensEntrada: entradaDoPasso.length,
         })
         try {
+          const restanteUsd = Math.max(teto - acumulado - gasto, 0)
+          const tetoDoLote = typeof lote.tetoUsd === 'number' && Number.isFinite(lote.tetoUsd) && lote.tetoUsd > 0 ? lote.tetoUsd : restanteUsd
           const exec = await fonte.rodar({
             actorId: actorId!,
             input: lote.input,
             maxItems: Math.min(lote.maxItems, passo.maxItems ?? lote.maxItems),
-            maxTotalChargeUsd: arredondar(Math.max(teto - acumulado - gasto, 0)),
+            maxTotalChargeUsd: arredondar(Math.min(restanteUsd, tetoDoLote)),
             timeoutSegundos: timeoutDoLote(lote.timeoutSegundos),
           })
           const custo = exec.custoUsd ?? (lotes.length === 1 ? estimativa : 0)
           gasto = arredondar(gasto + custo)
           const itens = Array.isArray(exec.items) ? exec.items : []
           brutos.push(...itens)
+          concluidos++
           if (lotes.length > 1) {
             await db.fecharPasso({
               passoId, estado: itens.length ? 'succeeded' : 'empty', apifyRunId: exec.apifyRunId, build: exec.build, tokenIndex: exec.tokenIndex,
@@ -421,7 +427,8 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
             })
             continue
           }
-          const saida = impl.normalizar!(itens, entradaDoPasso, ctx, actorId ?? '')
+          ctx.memoria.set('lotesConcluidos', 1)
+          const saida = await impl.normalizar!(itens, entradaDoPasso, ctx, actorId ?? '')
           // Bruto não vazio que não confere com a consulta nem com a janela: a alternativa assume. Lista vazia de verdade não.
           foraDaConsulta = itens.length > 0 && impl.confereConsulta !== undefined &&
             !impl.confereConsulta(itens, saida, ctx, actorId ?? '')
@@ -463,8 +470,12 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
         if (interrompido) continue
         continue
       }
-      if (interrompido) continue
-      const saida = impl.normalizar!(brutos, entradaDoPasso, ctx, actorId ?? '')
+      // Lote que declara retomada guarda o que já voltou quando o prazo acaba ou um lote seguinte falha.
+      const manterParcial = parcial && concluidos > 0 && (parouNoPrazo || interrompido)
+      if ((interrompido || parouNoPrazo) && !manterParcial) continue
+      if (concluidos === 0) continue
+      ctx.memoria.set('lotesConcluidos', concluidos)
+      const saida = await impl.normalizar!(brutos, entradaDoPasso, ctx, actorId ?? '')
       const fora = brutos.length > 0 && impl.confereConsulta !== undefined && !impl.confereConsulta(brutos, saida, ctx, actorId ?? '')
       if (fora) {
         if (i < tentativas.length - 1) continue

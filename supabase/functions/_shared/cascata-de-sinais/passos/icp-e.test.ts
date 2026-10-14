@@ -231,12 +231,12 @@ Deno.test('financiamento: a janela do pedido (período) vale mais que a do model
   assertEquals(r.sinais.map((s) => s.contaId), ['conta-kata'], 'o contrato do BNDES de 31/08 fica fora dos 30 dias')
 })
 
-Deno.test('financiamento: o actor alternativo (registrado, ainda não executado pelo motor) monta a entrada e lê a saída do esquema publicado', () => {
+Deno.test('financiamento: o actor alternativo (registrado, ainda não executado pelo motor) monta a entrada e lê a saída do esquema publicado', async () => {
   const impl = passosDoIcp_e(nunca).passos.financiamentos_publicos
   const ctx = { agora: AGORA, criterios: {}, def: passo({ ordem: 1, kind: 'fonte_publica', handler: 'financiamentos_publicos', maxItems: 5, inputTemplate: { janelaDias: 60 } }), contas: [], memoria: new Map() } as never
-  const montada = impl.montarEntrada!([], ctx, 'nexgenwatch~brazil-bndes-financing-operations')
+  const montada = await impl.montarEntrada!([], ctx, 'nexgenwatch~brazil-bndes-financing-operations')
   assertEquals(montada, { input: { fileKey: 'nao-automaticas', maxRecords: 5, fieldMatch: { contract_date: ['2026-10', '2026-09', '2026-08'] } }, maxItems: 5 })
-  const saida = impl.normalizar!([
+  const saida = await impl.normalizar!([
     { record_type: 'bndes_financing_operation', contract_number: '1247021', cnpj: '56.024.581/0001-56', client: 'MUNICIPIO X', project: 'PROGRAMA Y', uf: 'SP', municipality: 'RIBEIRAO PRETO', contract_date: '2026-09-02', value_contracted_brl: '9090000,0', product: 'BNDES FINEM' },
     { cnpj: '***.1-**', client: 'SEM CNPJ', contract_date: '2026-09-02', value_contracted_brl: '10,0', contract_number: '2' },
   ], [], ctx, 'nexgenwatch~brazil-bndes-financing-operations') as { empresa: { cnpj: string }; fatos: { chave: string; frase: string }[] }[]

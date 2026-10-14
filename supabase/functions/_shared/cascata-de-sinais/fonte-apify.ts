@@ -22,7 +22,7 @@ export interface OpcoesDoClienteAssincrono {
   dormir?: (ms: number) => Promise<void>
   /** Espera entre duas leituras do estado do run (além do `waitForFinish` do servidor). */
   esperaPorRodadaMs?: number
-  /** Antes de reler o custo de um actor que cobra por evento: o Apify fecha a conta alguns segundos depois do run. */
+  /** Espera entre duas leituras do custo real do run: a conta fecha alguns segundos depois do fim. */
   esperaDoCustoMs?: number
   releiturasDoCusto?: number
   /** Quanto tempo uma conta sem crédito fica de lado antes de ser tentada de novo. */
@@ -123,23 +123,45 @@ export function clienteAssincronoDoApify(opcoes: OpcoesDoClienteAssincrono): Cli
     }
   }
 
-  /** O custo real do run. O Apify fecha a conta depois do fim: no actor por evento, relê até duas leituras coincidirem. */
+  /** `usageTotalUsd` do run, ou o mesmo campo dentro de `stats` quando a conta ainda não o pôs no topo. */
+  function usoDoRun(run: Record<string, unknown>): number | null {
+    const stats = registro(run.stats)
+    const direto = typeof run.usageTotalUsd === 'number' && Number.isFinite(run.usageTotalUsd) && run.usageTotalUsd > 0
+      ? run.usageTotalUsd
+      : null
+    if (direto !== null) return direto
+    for (const campo of [stats.usageTotalUsd, stats.usageUsd, run.usageUsd]) {
+      if (typeof campo === 'number' && Number.isFinite(campo) && campo > 0) return campo
+    }
+    return typeof run.usageTotalUsd === 'number' && Number.isFinite(run.usageTotalUsd) ? run.usageTotalUsd : null
+  }
+
+  /**
+   * O custo real do run, lido em GET /v2/actor-runs/{id}. Relê até `usageTotalUsd` (ou o de `stats`) ficar positivo e
+   * igual em duas leituras: a conta fecha depois do fim, e a soma dos eventos pode aparecer antes do total. Se o total
+   * não chega, vale o maior entre ele e a soma dos eventos. Nunca a estimativa do passo.
+   */
   async function custoDoRun(token: string, runId: string, primeira: Record<string, unknown> | null): Promise<number | null> {
     let run = primeira ?? await lerRun(token, runId)
     if (!run) return null
-    let custo = custoDaExecucaoLida(run)
-    const porEvento = registro(run.pricingInfo).pricingModel === 'PAY_PER_EVENT'
-    for (let n = 0; porEvento && esperaDoCustoMs > 0 && n < releiturasDoCusto; n++) {
+    let uso = usoDoRun(run)
+    for (let n = 0; esperaDoCustoMs > 0 && n < releiturasDoCusto; n++) {
+      const anterior = uso
       await dormir(esperaDoCustoMs)
       const nova = await lerRun(token, runId)
       if (!nova) break
-      const novoCusto = custoDaExecucaoLida(nova)
-      const estavel = novoCusto !== null && novoCusto === custo && novoCusto > 0
       run = nova
-      custo = novoCusto ?? custo
-      if (estavel) break
+      uso = usoDoRun(nova)
+      if (uso !== null && uso > 0 && uso === anterior) break
     }
-    return custo
+    const stats = registro(run.stats)
+    const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+    log({
+      type: 'cascata_fonte', outcome: 'run_cost', apifyRunId: runId,
+      usageTotalUsd: uso, computeUnits: numero(stats.computeUnits), runTimeSecs: numero(stats.runTimeSecs),
+    })
+    if (uso !== null && uso > 0) return Math.round(uso * 1e6) / 1e6
+    return custoDaExecucaoLida(run)
   }
 
   async function rodarComToken(

@@ -6,17 +6,20 @@ import { mesmaEmpresa } from '../../../signal-runner/adaptadores/comum.ts'
 import { sinalDaVaga } from '../../../signal-runner/adaptadores/vagas.ts'
 import type { ImplDoPasso, Item } from '../tipos.ts'
 import { candidataDoItem, cnpjLimpo } from './comum.ts'
+import { lembrarAmostra } from './empresas.ts'
 
 export const casarComContas: ImplDoPasso = {
   executar(entrada, ctx) {
     const sinais = new Map<string, Item>()
     const semConta: string[] = []
+    const fora: { cnpj: null; nome: string }[] = []
     for (const item of entrada) {
       const c = candidataDoItem(item)
       if (!c) continue
       const conta = ctx.contas.find((x) => mesmaEmpresa(x, c.empresa))
       if (!conta) {
         semConta.push(c.empresa.nome)
+        fora.push({ cnpj: null, nome: c.empresa.nome })
         continue
       }
       for (const vaga of c.vagas) {
@@ -37,6 +40,7 @@ export const casarComContas: ImplDoPasso = {
     }
     ctx.memoria.set('semConta', semConta.length)
     ctx.memoria.set('semContaNomes', semConta.slice(0, 10))
+    lembrarAmostra(ctx, fora)
     return [...sinais.values()]
   },
 }

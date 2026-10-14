@@ -27,10 +27,24 @@ const TOKEN = 'apify_api_SEGREDO_DO_TESTE_0123456789'
 function cenario(
   def: CascataDef,
   porActor: Record<string, ComportamentoDoRun>,
-  opcoes: { contas: ContaDoWorkspace[]; fetchPublico?: typeof fetch; fotografias?: Record<string, { takenAt: string; data: Record<string, unknown> }[]> },
+  opcoes: {
+    contas: ContaDoWorkspace[]
+    fetchPublico?: typeof fetch
+    fotografias?: Record<string, { takenAt: string; data: Record<string, unknown> }[]>
+    agora?: () => number
+    /** Roda no POST do actor, antes da resposta, para o relógio andar entre um lote e o seguinte. */
+    aoPostar?: (actorId: string) => void
+  },
 ) {
   const fake = apifyFalso((_t, actorId) => porActor[actorId] ?? { itens: [], usageTotalUsd: 0 })
-  const fonte = clienteAssincronoDoApify({ tokens: [TOKEN], fetchFn: fake.fetchFn, dormir: () => Promise.resolve(), esperaDoCustoMs: 0, log: () => {} })
+  const fetchFn = ((entrada: string | URL | Request, init?: RequestInit) => {
+    if ((init?.method ?? 'GET') === 'POST' && opcoes.aoPostar) {
+      const actor = new URL(String(entrada)).pathname.match(/^\/v2\/acts\/([^/]+)\/runs$/)?.[1]
+      if (actor) opcoes.aoPostar(decodeURIComponent(actor))
+    }
+    return fake.fetchFn(entrada, init)
+  }) as typeof fetch
+  const fonte = clienteAssincronoDoApify({ tokens: [TOKEN], fetchFn, dormir: () => Promise.resolve(), esperaDoCustoMs: 0, log: () => {} })
   const banco = dbFalso(def, { contas: opcoes.contas, fotografias: opcoes.fotografias })
   const rede: string[] = []
   const fetchPublico = opcoes.fetchPublico ?? ((u: string | URL | Request) => {
@@ -38,7 +52,7 @@ function cenario(
     return Promise.reject(new Error('não devia usar a rede'))
   }) as typeof fetch
   const rodar = (extra: Record<string, unknown> = {}) =>
-    rodarCascata({ db: banco.db, fonte, registro: registroDePassos(fetchPublico), agora: () => AGORA, log: () => {} }, {
+    rodarCascata({ db: banco.db, fonte, registro: registroDePassos(fetchPublico), agora: opcoes.agora ?? (() => AGORA), log: () => {} }, {
       workspaceId: 'ws-1', userId: 'u1', signalType: def.signalType, origem: 'conversa', chave: 'k1', ...extra,
     })
   const posts = () => fake.requisicoes.filter((q) => q.metodo === 'POST')
@@ -146,6 +160,18 @@ Deno.test('D1: só a atividade principal vale; o mesmo fato em outra rodada não
   const b = await d.rodar({ chave: 'b', criterios: { cnae: '2320600' } })
   assertEquals([a.novos, a.repetidos, b.novos, b.repetidos], [1, 0, 0, 1])
   assertEquals(a.sinais[0].eventKey, 'alfa cimentos|cnae_eletrointensivo|2320600')
+})
+
+Deno.test('D1: na validação, a empresa de CNAE que não é Conta fica na amostra', async () => {
+  const c = cenario(cascataCnaeEletrointensivo(), {
+    'epicscrapers~brazil-cnpj-scraper': {
+      itens: [empresaReceita({}), empresaReceita({ cnpj: '99000111000100', razao_social: 'GAMA CIMENTOS', nome_fantasia: '' })],
+      usageTotalUsd: 0.001,
+    },
+  }, { contas: [ALFA] })
+  const r = await c.rodar({ permitirTeste: true, criterios: { cnae: '2320600' } })
+  assertEquals(r.sinais.map((s) => s.contaId), ['conta-alfa'])
+  assertEquals(c.banco.amostras, [{ runId: 'run-db-1', amostra: [{ cnpj: '99000111000100', nome: 'GAMA CIMENTOS' }] }])
 })
 
 Deno.test('D1: CNAE pedido fora da tabela não roda nem custa', async () => {
@@ -334,6 +360,20 @@ Deno.test('D2: se a lista não cabe no limite de leitura, nenhum "provável cati
   })
   const b = await cheia.rodar({ criterios: { cnae: '2320600' } })
   assertEquals([b.desfecho, b.sinais.length], ['falhou', 0])
+})
+
+Deno.test('D2: empresas que não são Conta entram na amostra e a lista da CCEE não é lida', async () => {
+  const ccee = cceeFalsa(['11222333000181'])
+  const itens = Array.from({ length: 9 }, (_, i) => empresaReceita({
+    razao_social: `EMPRESA ${i} SA`, nome_fantasia: '', cnpj: String(20_000_000_000_000 + i),
+  }))
+  const c = cenario(cascataGrupoACativo(), {
+    'epicscrapers~brazil-cnpj-scraper': { itens, usageTotalUsd: 0.001 },
+  }, { contas: [ALFA], fetchPublico: ccee.fetchFn })
+  const r = await c.rodar({ criterios: { cnae: '2320600' }, permitirTeste: true })
+  assertEquals([r.desfecho, r.novos, r.sinais.length, ccee.urls.length], ['concluida', 0, 0, 0])
+  assertEquals(c.banco.amostras[0]?.amostra.length, 5)
+  assertEquals(c.banco.amostras[0]?.amostra[0], { cnpj: '20000000000000', nome: 'EMPRESA 0 SA' })
 })
 
 Deno.test('D2: sem empresa que seja Conta, a lista da CCEE nem é lida', async () => {
@@ -592,6 +632,89 @@ Deno.test('D4: página sem palavra de meta não confirma; sem página do própri
   }, { contas: [NORTE_ENERGIA] })
   const b = await foraDoSite.rodar()
   assertEquals([b.novos, foraDoSite.posts().length], [0, 1])
+})
+
+function contasEsg(qtd: number): ContaDoWorkspace[] {
+  return Array.from({ length: qtd }, (_, i) => ({
+    id: `conta-${String(i).padStart(2, '0')}`,
+    name: `Empresa ${String(i).padStart(2, '0')}`,
+    domain: null,
+    linkedinUrl: null,
+    cnpj: null,
+  }))
+}
+
+const SERP = 'scraperlink~google-search-results-serp-scraper'
+const linhasDo = (corpo: unknown) => String((corpo as { keyword?: string }).keyword ?? '').split('\n')
+
+Deno.test('D4: a busca ESG vai em lotes de 10, para quando o prazo acaba e retoma do cursor', async () => {
+  const contas = contasEsg(12)
+  const atores = { [SERP]: { itens: [], usageTotalUsd: 0.001 } }
+  let relogio = AGORA
+  let avancou = false
+  const prazoFinal = AGORA + 25_500
+  const apertado = cenario(cascataMetaEsg(), atores, {
+    contas,
+    agora: () => relogio,
+    aoPostar: (actor) => {
+      if (actor !== SERP || avancou) return
+      avancou = true
+      relogio = prazoFinal
+    },
+  })
+  const a = await apertado.rodar({ prazoFinal })
+  assertEquals(a.desfecho, 'concluida')
+  assertEquals(apertado.posts().length, 1)
+  const linhas = linhasDo(apertado.posts()[0].corpo)
+  assertEquals(linhas.length, 20)
+  assert(linhas.some((l) => l.includes('"Empresa 00"')))
+  assert(!linhas.some((l) => l.includes('"Empresa 10"')))
+  assertEquals(apertado.posts()[0].consulta.get('timeout'), '10')
+  const cursor = apertado.banco.gravadas.find((g) => g.chave === 'busca-esg')
+  assertEquals(cursor?.data.indice, 10)
+  assertEquals(cursor?.data.total, 12)
+
+  const retomada = cenario(cascataMetaEsg(), atores, {
+    contas,
+    fotografias: { 'busca-esg': [{ takenAt: '2026-10-13T12:00:00.000Z', data: cursor!.data }] },
+  })
+  await retomada.rodar()
+  assertEquals(retomada.posts().length, 1)
+  const resto = linhasDo(retomada.posts()[0].corpo)
+  assertEquals(resto, [
+    '"Empresa 10" "relatório de sustentabilidade"', '"Empresa 10" "net zero"',
+    '"Empresa 11" "relatório de sustentabilidade"', '"Empresa 11" "net zero"',
+  ])
+  assertEquals(retomada.posts()[0].consulta.get('timeout'), '35')
+  assertEquals(retomada.banco.gravadas.find((g) => g.chave === 'busca-esg')?.data.indice, 0)
+
+  const outraLista = cenario(cascataMetaEsg(), atores, {
+    contas,
+    fotografias: { 'busca-esg': [{ takenAt: '2026-10-13T12:00:00.000Z', data: { ...cursor!.data, assinatura: 'outra' } }] },
+  })
+  await outraLista.rodar()
+  assert(linhasDo(outraLista.posts()[0].corpo).some((l) => l.includes('"Empresa 00"')))
+})
+
+Deno.test('D4: sem aperto de prazo, doze Contas viram dois lotes e o cursor volta ao início', async () => {
+  const c = cenario(cascataMetaEsg(), { [SERP]: { itens: [], usageTotalUsd: 0.001 } }, { contas: contasEsg(12) })
+  await c.rodar()
+  const posts = c.posts()
+  assertEquals(posts.length, 2)
+  assertEquals(linhasDo(posts[0].corpo).length, 20)
+  assertEquals(linhasDo(posts[1].corpo).length, 4)
+  assert(linhasDo(posts[1].corpo).every((l) => l.includes('"Empresa 10"') || l.includes('"Empresa 11"')))
+  assertEquals(posts[0].consulta.get('timeout'), '35')
+  assertEquals(c.banco.gravadas.find((g) => g.chave === 'busca-esg')?.data.indice, 0)
+})
+
+Deno.test('D4: empresasPorLote do pedido muda o tamanho do lote', async () => {
+  const c = cenario(cascataMetaEsg(), { [SERP]: { itens: [], usageTotalUsd: 0.001 } }, { contas: contasEsg(4) })
+  await c.rodar({ criterios: { empresasPorLote: 3 } })
+  assertEquals(c.posts().length, 2)
+  assertEquals(linhasDo(c.posts()[0].corpo).length, 6)
+  assert(!linhasDo(c.posts()[0].corpo).some((l) => l.includes('"Empresa 03"')))
+  assert(linhasDo(c.posts()[1].corpo).every((l) => l.includes('"Empresa 03"')))
 })
 
 Deno.test('D4: a mesma meta em outra rodada do ano não grava de novo', async () => {

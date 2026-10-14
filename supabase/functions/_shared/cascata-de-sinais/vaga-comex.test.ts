@@ -117,8 +117,8 @@ Deno.test('A1: a página da empresa só é consultada para quem já é Conta e a
   assertEquals((empresa?.corpo as { companies?: string[] } | undefined)?.companies, ['https://www.linkedin.com/company/beta-trading'])
 })
 
-Deno.test('a consulta de CNPJ é pulada quando o prazo da função está perto', () => {
-  const montada = cnpjDaConta.montarEntrada!(
+Deno.test('a consulta de CNPJ é pulada quando o prazo da função está perto', async () => {
+  const montada = await cnpjDaConta.montarEntrada!(
     [{ cnpjDaConta: '11222333000181', evidence: 'Abriu vaga.' }],
     { agora: 1_000_000, pedido: { prazoFinal: 1_015_000 }, def: { maxItems: 20 } } as ContextoDoPasso,
     '',
