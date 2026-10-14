@@ -2,7 +2,7 @@
 
 **Status:** ready-for-agent
 
-**GATE:** nenhum bloqueio de outro ticket. Sem aplicar migração no projeto remoto. Sem `delete`, `drop` ou reescrita de dado existente. A migração nova tem timestamp maior que `20261015120000`. `private.signal_catalog` (registro técnico) não muda de contrato. A Automação não é ligada.
+**GATE:** nenhum bloqueio de outro ticket. Sem aplicar migração no projeto remoto. Sem `delete`, `drop` ou reescrita de dado existente. A migração nova tem timestamp maior que `20261015130000` (o `teto_do_cnpj_novo` do PR #198). `private.signal_catalog` (registro técnico) não muda de contrato. A Automação não é ligada.
 
 ## O que construir
 
@@ -28,12 +28,12 @@
 
 ## Passos do Nan
 
-1. Com o CI verde, aplicar `supabase/migrations/20261015130000_catalogo_visivel_de_sinais.sql` pelo bloco atômico de `docs/agents/migrations.md` (não usar `apply_migration`).
+1. Com o CI verde, aplicar `supabase/migrations/20261015150000_catalogo_visivel_de_sinais.sql` pelo bloco atômico de `docs/agents/migrations.md` (não usar `apply_migration`).
 2. Conferir `md5(statements[1])` com o `md5sum` do arquivo.
 3. Não publicar a Edge Function neste ticket.
 
 ## Comments
 
-Implementado nesta branch, sem aplicar no remoto. A migração `20261015130000_catalogo_visivel_de_sinais.sql` cria `public.signal_niches`, `public.signal_catalog` (workspace_id nulo = global), `public.signal_catalog_niches`, `private.althius_staff`, `private.is_althius_staff` e `private.workspace_signal_budget` (default 20, com backfill e gatilho no Workspace novo). A RPC `list_visible_signal_catalog` e `workspace_signal_monthly_cap` ficam para o membro ativo. pgTAP em `supabase/tests/catalogo_visivel_de_sinais.sql` (plan 14). O Docker local não estava disponível; o job Banco do CI é a conferência.
+Implementado nesta branch, sem aplicar no remoto. A migração `20261015150000_catalogo_visivel_de_sinais.sql` cria `public.signal_niches`, `public.signal_catalog` (workspace_id nulo = global), `public.signal_catalog_niches`, `private.althius_staff`, `private.is_althius_staff` e `private.workspace_signal_budget` (default 20, com backfill e gatilho no Workspace novo). A RPC `list_visible_signal_catalog` e `workspace_signal_monthly_cap` ficam para o membro ativo. pgTAP em `supabase/tests/catalogo_visivel_de_sinais.sql` (plan 14). O Docker local não estava disponível; o job Banco do CI é a conferência.
 
 Passos do Nan, depois do CI verde: aplicar o arquivo pelo bloco atômico de `docs/agents/migrations.md` (não usar `apply_migration`) e conferir o md5. Não publicar Edge Function neste ticket.

@@ -1,6 +1,6 @@
 // O catálogo que a tela mostra (PR-A). Um card por Sinal, com os nichos em que ele vale e os coletores por trás.
 // O registro técnico (`private.signal_catalog`) e as cascatas continuam: este arquivo não apaga tipo nenhum.
-// A cópia no banco é a migração `20261015130000_catalogo_visivel_de_sinais.sql`; o teste de paridade confere os dois.
+// A cópia no banco é a migração `20261015150000_catalogo_visivel_de_sinais.sql`; o teste de paridade confere os dois.
 
 import type { Criterios, Formulario } from '@/fonte/sinais-tipos'
 import { CARGOS_POR_NICHO, NICHOS, SLUGS_DE_NICHO } from './nichos'

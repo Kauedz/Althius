@@ -32,12 +32,12 @@
 
 ## Passos do Nan
 
-1. Aplicar `supabase/migrations/20261015140000_pedidos_de_sinal.sql` pelo bloco atômico de `docs/agents/migrations.md`, depois do CI verde. Conferir o md5.
+1. Aplicar `supabase/migrations/20261015160000_pedidos_de_sinal.sql` pelo bloco atômico de `docs/agents/migrations.md`, depois do CI verde. Conferir o md5.
 2. Publicar a função `signal-request-notify` (os segredos `RESEND_API_KEY`, `APP_ORIGIN` e `SUPABASE_URL` já existem; nenhum segredo novo).
 3. Inserir em `private.althius_staff` o `user_id` de quem pode mudar o status. Sem isso, o pedido é gravado e o e-mail sai, mas ninguém atualiza o status pela RPC.
 
 ## Comments
 
-Implementado nesta branch, sem aplicar no remoto e sem deploy. A migração `20261015140000_pedidos_de_sinal.sql` cria `public.signal_requests` e as RPCs `request_signal`, `list_signal_requests`, `review_signal_request` e `claim_signal_request_notice`. A Edge Function `signal-request-notify` reusa `resend.ts` e envia para `althius.relacionamento@gmail.com`. O card "Precisa de outro Sinal?" abre `/sinais/pedidos`. A rota antiga `/sinais/tipos/personalizado/novo` redireciona para lá. `perfil-personalizado.tsx` permanece (perfil firmográfico do público). pgTAP em `supabase/tests/pedidos_de_sinal.sql` (plan 11). Teste Deno da função sem rede.
+Implementado nesta branch, sem aplicar no remoto e sem deploy. A migração `20261015160000_pedidos_de_sinal.sql` cria `public.signal_requests` e as RPCs `request_signal`, `list_signal_requests`, `review_signal_request` e `claim_signal_request_notice`. A Edge Function `signal-request-notify` reusa `resend.ts` e envia para `althius.relacionamento@gmail.com`. O card "Precisa de outro Sinal?" abre `/sinais/pedidos`. A rota antiga `/sinais/tipos/personalizado/novo` redireciona para lá. `perfil-personalizado.tsx` permanece (perfil firmográfico do público). pgTAP em `supabase/tests/pedidos_de_sinal.sql` (plan 11). Teste Deno da função sem rede.
 
-Passos do Nan, depois do CI verde: aplicar a migração pelo bloco atômico (depois da `20261015130000`) e conferir o md5. Publicar `signal-request-notify` com os segredos que já existem (`RESEND_API_KEY`, `APP_ORIGIN`, `SUPABASE_URL`, `INVITE_EMAIL_FROM`); nenhum segredo novo. Inserir em `private.althius_staff` o `user_id` de quem pode mudar o status. Sem essa linha, o pedido é gravado e o e-mail sai, mas a RPC de status recusa.
+Passos do Nan, depois do CI verde: aplicar a migração pelo bloco atômico (depois da `20261015150000`) e conferir o md5. Publicar `signal-request-notify` com os segredos que já existem (`RESEND_API_KEY`, `APP_ORIGIN`, `SUPABASE_URL`, `INVITE_EMAIL_FROM`); nenhum segredo novo. Inserir em `private.althius_staff` o `user_id` de quem pode mudar o status. Sem essa linha, o pedido é gravado e o e-mail sai, mas a RPC de status recusa.

@@ -1,6 +1,6 @@
 -- Pedido de Sinal à equipe Althius. O Workspace descreve o evento; a equipe monta. Sem cobrança.
 -- Membro ativo lê e insere os pedidos do próprio Workspace. Só private.althius_staff atualiza o status.
--- Depende de private.is_althius_staff (20261015130000).
+-- Depende de private.is_althius_staff (20261015150000).
 
 create table public.signal_requests (
   id uuid primary key default gen_random_uuid(),

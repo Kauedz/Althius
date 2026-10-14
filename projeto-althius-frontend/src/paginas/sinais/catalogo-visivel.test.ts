@@ -7,7 +7,7 @@ import { CATALOGO_VISIVEL } from './catalogo-visivel'
 import { PAINEIS_DE_MERCADO } from './nichos'
 
 const sql = readFileSync(
-  path.resolve(import.meta.dirname, '../../../../supabase/migrations/20261015130000_catalogo_visivel_de_sinais.sql'),
+  path.resolve(import.meta.dirname, '../../../../supabase/migrations/20261015150000_catalogo_visivel_de_sinais.sql'),
   'utf8',
 )
 
