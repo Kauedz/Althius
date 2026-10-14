@@ -30,6 +30,8 @@ const ACTOR_DO_SINAL: Record<string, string> = {
   anuncio_linkedin: 'silva95gustavo~linkedin-ad-library-scraper',
   anuncio_meta: 'curious_coder~facebook-ads-library-scraper',
   anuncio_google: 'solidcode~ads-transparency-scraper',
+  crescimento_de_equipes: 'harvestapi~linkedin-company',
+  publicacao_da_empresa: 'harvestapi~linkedin-company-posts',
   avaliacoes_google_maps: 'compass~google-maps-reviews-scraper',
 }
 
@@ -45,6 +47,8 @@ const CRITERIOS_PADRAO: Record<string, Record<string, unknown>> = {
   anuncio_linkedin: { ...LARGO, palavras: '' },
   anuncio_meta: { ...LARGO, palavras: '' },
   anuncio_google: { ...LARGO, palavras: '' },
+  crescimento_de_equipes: { ...LARGO },
+  publicacao_da_empresa: { ...LARGO },
   avaliacoes_google_maps: { periodo: 'Últimos 90 dias', nota: 'Até 3 estrelas', palavras: '' },
 }
 

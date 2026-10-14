@@ -24,6 +24,8 @@ Quem chama: só o relógio, com o cabeçalho `x-runner-token` (gerado e guardado
 | `anuncio_linkedin` | silva95gustavo/linkedin-ad-library-scraper | Biblioteca de anúncios pelo anunciante com o nome da Conta | Um Sinal por campanha nova (anunciante e mês de início) |
 | `anuncio_meta` | curious_coder/facebook-ads-library-scraper | Biblioteca de anúncios por palavra-chave, só ativos, no país | Idem, quando o anúncio leva ao site da Conta ou é da página dela |
 | `avaliacoes_google_maps` | compass/google-maps-reviews-scraper | Busca do Maps pelo nome da Conta, sem dado de quem avaliou | Queda de nota, reclamações repetidas no mesmo assunto, muitas negativas |
+| `crescimento_de_equipes` | harvestapi/linkedin-company | Página da Conta no LinkedIn | Headcount 10% e +5 pessoas acima da foto mais antiga dos últimos 90 dias, ou crescimento menor com 3 ou mais vagas no período (PR-8; grava a foto em `private.account_headcount_snapshots`) |
+| `publicacao_da_empresa` | harvestapi/linkedin-company-posts | Até 10 posts da página da Conta no período | Post classificado (modelo dos Sinais ou regra) em expansão, nova unidade, contratação, investimento ou certificação (PR-8) |
 
 Regras comuns (`adaptadores/comum.ts`): a empresa do resultado só é a Conta pela página do LinkedIn, pelo domínio ou pelo nome sem a forma jurídica (na dúvida, não é); tudo é filtrado pelo período; os textos cabem nos limites da tabela de Sinais; nada de e-mail, telefone, foto nem dado de quem avaliou. A Conta sem o dado que o actor precisa (a página do LinkedIn, um Contato com LinkedIn) é pulada antes de abrir a varredura, sem reservar crédito, e o motivo aparece no Monitoramento ("Contas sem a página da empresa no LinkedIn ficaram de fora: Beta.").
 

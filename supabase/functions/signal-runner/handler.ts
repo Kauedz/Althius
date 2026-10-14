@@ -54,6 +54,39 @@ export interface AdaptadorDeSinal {
   signalType: string
   entrada(conta: ContaParaVarrer, criterios: Record<string, unknown>, agora: number): { input: Record<string, unknown>; maxItems: number }
   sinais(itens: unknown[], conta: ContaParaVarrer, criterios: Record<string, unknown>, agora: number): SinalDoAdaptador[]
+  /**
+   * Para o Sinal que compara com a leitura anterior ou classifica texto (PR-8): o mesmo papel de `sinais`, com o contexto
+   * do Workspace. Quando a função tem o contexto, é este que roda; sem ele, `sinais`.
+   */
+  sinaisComContexto?(
+    itens: unknown[],
+    conta: ContaParaVarrer,
+    criterios: Record<string, unknown>,
+    agora: number,
+    ctx: ContextoDoAdaptador,
+  ): Promise<SinalDoAdaptador[]>
+}
+
+/** Uma foto de headcount de uma Conta (PR-8): a contagem que a página da empresa informa, nunca dado de pessoa. */
+export interface FotoDeHeadcount {
+  takenOn: string
+  headcount: number
+}
+
+/** O que um adaptador com estado vê do Workspace (PR-8). */
+export interface ContextoDoAdaptador {
+  workspaceId: string
+  headcount: {
+    /** A foto mais antiga da Conta desde `desde` (AAAA-MM-DD) e antes de `antesDe`, ou nada. */
+    base(accountId: string, desde: string, antesDe: string): Promise<FotoDeHeadcount | null>
+    gravar(accountId: string, foto: FotoDeHeadcount, fonte: string): Promise<void>
+  }
+  /** Quantas vagas da Conta (Sinais de vaga) foram vistas desde a data ISO. */
+  vagasAbertas(accountId: string, desdeIso: string): Promise<number>
+  /** O modelo de linguagem dos Sinais, quando ligado (`SIGNALS_LLM_PROVIDER`); sem ele, a regra de palavra-chave. */
+  llm?: { json(a: { sistema: string; usuario: string; maxTokens?: number }): Promise<{ json: unknown; custoUsd: number }> }
+  /** O custo em dólar gasto fora do actor (o modelo); vai para `action_costs` junto com a execução. */
+  custo: { adicionar(usd: number, itens: number): void }
 }
 
 /** Falta à Conta o dado que o actor precisa; a mensagem diz qual, em palavras do produto. */
@@ -126,6 +159,11 @@ export interface Db {
   finish(monitorId: string, attempted: number, error: string | null, continuar: boolean): Promise<void>
   /** Créditos ilimitados neste Workspace. Ausente, ou falha de leitura, trata como limitado. */
   creditsUnlimited?(workspaceId: string): Promise<boolean>
+  /** As fotos de headcount (PR-8). Sem elas, os adaptadores com contexto não rodam com estado. */
+  headcountBase?(workspaceId: string, accountId: string, desde: string, antesDe: string): Promise<FotoDeHeadcount | null>
+  recordHeadcount?(workspaceId: string, accountId: string, foto: FotoDeHeadcount, fonte: string): Promise<void>
+  /** Quantos Sinais de vaga a Conta teve desde a data (PR-8). */
+  countJobSignals?(workspaceId: string, accountId: string, desdeIso: string): Promise<number>
 }
 
 /** Uma busca da fila (reativação de Sinais): varre uma Conta com os Monitoramentos ativos do Workspace. */
@@ -188,6 +226,8 @@ export interface Deps {
   buscas?: Buscas
   /** Guarda a estatística de comércio exterior do mês. O corpo `{ action: 'aquecer' }` usa isto e não reivindica Monitoramento. */
   aquecer?: () => Promise<ResultadoDoAquecimento>
+  /** O modelo de linguagem dos Sinais (`SIGNALS_LLM_PROVIDER`), para os adaptadores que classificam texto (PR-8). */
+  llm?: { json(a: { sistema: string; usuario: string; maxTokens?: number; workspaceId?: string }): Promise<{ json: unknown; custoUsd: number }> }
   agora?: () => number
   log?: (campos: Record<string, unknown>) => void
 }
@@ -247,7 +287,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     { input, maxItems }: Entrada,
   ): Promise<number> {
     const execucao = await deps.apify.run({ actorId: actor.actorId, input, maxItems, maxTotalChargeUsd: actor.maxCostUsd })
-    const encontrados = sinaisComDataValida(adaptador.sinais(execucao.items, conta, m.criteria, agora()), agora())
+    const ctx = contextoDoAdaptador(m.workspaceId)
+    let custoDoModelo = 0
+    let itensDoModelo = 0
+    if (ctx) ctx.custo = { adicionar: (usd, itens) => { custoDoModelo += usd; itensDoModelo += itens } }
+    const brutos = adaptador.sinaisComContexto && ctx
+      ? await adaptador.sinaisComContexto(execucao.items, conta, m.criteria, agora(), ctx)
+      : adaptador.sinais(execucao.items, conta, m.criteria, agora())
+    const encontrados = sinaisComDataValida(brutos, agora())
     for (const s of encontrados) {
       await deps.db.recordSignal({
         workspaceId: m.workspaceId,
@@ -269,7 +316,37 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       },
       { workspaceId: m.workspaceId, actorId: actor.actorId, runId: execucao.runId, items: execucao.items.length, prefixo: 'signal-runner' },
     )
+    // O modelo que classificou os itens: outra linha de custo, ligada à mesma execução.
+    if (custoDoModelo > 0 && execucao.runId) {
+      try {
+        await deps.db.recordCost({
+          workspaceId: m.workspaceId,
+          actorId: actor.actorId,
+          runId: `${execucao.runId}:modelo`,
+          items: itensDoModelo,
+          costUsd: Math.round(custoDoModelo * 1e8) / 1e8,
+        })
+      } catch (erro) {
+        log({ type: 'signal_runner', monitorId: m.monitorId, outcome: 'cost_failed', message: String(erro) })
+      }
+    }
     return encontrados.length
+  }
+
+  /** O contexto dos adaptadores com estado, quando o banco tem as fotos e a contagem de vagas. */
+  function contextoDoAdaptador(workspaceId: string): ContextoDoAdaptador | null {
+    const { headcountBase, recordHeadcount, countJobSignals } = deps.db
+    if (!headcountBase || !recordHeadcount || !countJobSignals) return null
+    return {
+      workspaceId,
+      headcount: {
+        base: (accountId, desde, antesDe) => headcountBase.call(deps.db, workspaceId, accountId, desde, antesDe),
+        gravar: (accountId, foto, fonte) => recordHeadcount.call(deps.db, workspaceId, accountId, foto, fonte),
+      },
+      vagasAbertas: (accountId, desdeIso) => countJobSignals.call(deps.db, workspaceId, accountId, desdeIso),
+      ...(deps.llm ? { llm: { json: (a) => deps.llm!.json({ ...a, workspaceId }) } } : {}),
+      custo: { adicionar: () => {} },
+    }
   }
 
   /**

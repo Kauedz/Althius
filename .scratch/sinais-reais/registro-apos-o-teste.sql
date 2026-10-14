@@ -66,3 +66,16 @@ update private.signal_actors set max_cost_usd = 0.10,
   known_price = 'US$ 1,50 por 1.000 anúncios na faixa Free (US$ 1,00 na Bronze, 0,90 na Silver, 0,80 da Gold em diante), mais US$ 0,001 por início de execução. API pública do Apify, 14/10/2026.'
 where actor_id = 'solidcode~ads-transparency-scraper';
 select public.set_signal_actor_state('solidcode~ads-transparency-scraper', 'available', '1.0.27');
+
+-- PR-8 · Equipe crescendo (1 empresa por Conta: cerca de US$ 0,004). A amostra real mostra `employeeCount`; o Sinal só sai
+-- a partir da segunda foto (a primeira rodada grava a base em `private.account_headcount_snapshots`).
+update private.signal_actors set max_cost_usd = 0.02,
+  known_price = 'US$ 4,00 por 1.000 empresas na faixa Free, mais US$ 0,00005 por execução. API pública do Apify, 14/10/2026.'
+where actor_id = 'harvestapi~linkedin-company';
+select public.set_signal_actor_state('harvestapi~linkedin-company', 'available', '0.0.44');
+
+-- PR-8 · Publicações da empresa (até 10 posts por Conta: cerca de US$ 0,02, mais a classificação pelo modelo dos Sinais)
+update private.signal_actors set max_cost_usd = 0.05,
+  known_price = 'US$ 2,00 por 1.000 posts na faixa Free, mais US$ 0,00005 por execução; reações e comentários desligados. API pública do Apify, 14/10/2026.'
+where actor_id = 'harvestapi~linkedin-company-posts';
+select public.set_signal_actor_state('harvestapi~linkedin-company-posts', 'available', '0.0.53');
