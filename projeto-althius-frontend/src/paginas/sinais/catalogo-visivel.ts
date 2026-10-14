@@ -263,7 +263,7 @@ const CARDS: readonly CardSemRotulo[] = [
     formulario: 'expansao',
     nichos: ['comex-e-importacao'],
     fonte: 'Estatísticas públicas de comércio exterior',
-    creditosPorConta: 1,
+    creditosPorConta: 3,
     creditosPorExecucao: 3,
     coletores: ['ncm_nova_na_pauta'],
     contados: ['nova-mercadoria-importada'],
@@ -276,7 +276,7 @@ const CARDS: readonly CardSemRotulo[] = [
     formulario: 'expansao',
     nichos: ['juridico-empresarial', 'industria-fornecedores-b2b'],
     fonte: 'Publicações oficiais',
-    creditosPorConta: 1,
+    creditosPorConta: 3,
     creditosPorExecucao: 3,
     coletores: ['mudanca_regulatoria', 'licenca_instalacao_dou'],
     contados: ['mudanca-regulatoria-e-licenca'],
@@ -325,7 +325,7 @@ const CARDS: readonly CardSemRotulo[] = [
     formulario: 'noticias',
     nichos: ['agro-b2b'],
     fonte: 'Calendários públicos da safra',
-    creditosPorConta: 1,
+    creditosPorConta: 3,
     creditosPorExecucao: 3,
     coletores: ['calendario_de_safra', 'liberacao_plano_safra'],
     contados: ['calendario-e-plano-safra'],
@@ -385,6 +385,17 @@ export function cardPorId(id: string): CardDoCatalogo | undefined {
 /** O card que exibe os Monitoramentos deste id (o próprio ou um id unido nele). */
 export function cardQueConta(tipoId: string): CardDoCatalogo | undefined {
   return CATALOGO_VISIVEL.find((card) => card.contados.includes(tipoId))
+}
+
+/**
+ * A frase de custo do editor, com o preço do próprio tipo: o Sinal de Mercado cobra por execução, os demais por Conta varrida.
+ * Tipo sem card cobra 1 por Conta, como `private.credits_per_account`.
+ */
+export function ajudaDoCusto(tipoId: string): string {
+  const card = cardPorId(tipoId) ?? cardQueConta(tipoId)
+  if (card?.creditosPorExecucao !== undefined) return `Cada execução debita ${card.creditosPorExecucao} créditos.`
+  const n = card?.creditosPorConta ?? 1
+  return n === 1 ? 'Cada Conta varrida debita 1 crédito.' : `Cada Conta varrida debita ${n} créditos.`
 }
 
 export function cargosDoNicho(slug: string): readonly string[] {
