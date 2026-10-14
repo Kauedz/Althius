@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
-import { type AcessoAoWorkspace, lerAcessoAoWorkspace, pedirAoStripe } from '@/fonte/supabase-assinatura'
+import { type AcessoAoWorkspace, ehMotivoDeContrato, lerAcessoAoWorkspace, pedirAoStripe } from '@/fonte/supabase-assinatura'
 
 /** O acesso ao Workspace operacional, lido uma vez por Workspace. Enquanto lê, ou se a leitura falha, fica nulo. */
 export function useAcessoAoWorkspace(cliente: SupabaseClient, workspaceId: string): AcessoAoWorkspace | null {
@@ -64,6 +64,18 @@ export function TelaDeAssinatura({
   sair: ReactNode
 }) {
   const { pedindo, erro, pedir } = useAcaoDoStripe(cliente, workspaceId)
+  if (ehMotivoDeContrato(acesso.motivo)) {
+    // O acesso vem de um contrato externo: não há checkout nem portal do Stripe, só a equipe Althius.
+    return (
+      <TelaDeContrato
+        nomeDoWorkspace={nomeDoWorkspace}
+        motivo={acesso.motivo}
+        aoAcessarDemonstracao={aoAcessarDemonstracao}
+        aoTrocarDeWorkspace={aoTrocarDeWorkspace}
+        sair={sair}
+      />
+    )
+  }
   const assentos = Math.max(1, acesso.assentosEmUso)
   const titulo =
     acesso.motivo === 'cancelada'
@@ -97,6 +109,65 @@ export function TelaDeAssinatura({
             {erro}
           </p>
         )}
+        <div className="flex flex-wrap gap-2">
+          {aoAcessarDemonstracao && (
+            <Button variant="outline" onClick={aoAcessarDemonstracao}>
+              Abrir Demonstração
+            </Button>
+          )}
+          {aoTrocarDeWorkspace && (
+            <Button variant="outline" onClick={aoTrocarDeWorkspace}>
+              Trocar de Workspace
+            </Button>
+          )}
+          {sair}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+const CONTRATO_FECHADO: Record<string, { titulo: (nome: string) => string; texto: string }> = {
+  contrato_suspenso: {
+    titulo: (nome) => `O contrato do ${nome} está suspenso`,
+    texto: 'O acesso volta quando o contrato for retomado.',
+  },
+  contrato_encerrado: {
+    titulo: (nome) => `O contrato do ${nome} foi encerrado`,
+    texto: 'O acesso termina com o contrato.',
+  },
+  contrato_a_iniciar: {
+    titulo: (nome) => `O contrato do ${nome} ainda não começou`,
+    texto: 'O acesso abre na data de início do contrato.',
+  },
+}
+
+/** O Workspace com contrato que não está ativo: nada do Stripe, só o caminho até a equipe Althius. */
+function TelaDeContrato({
+  nomeDoWorkspace,
+  motivo,
+  aoAcessarDemonstracao,
+  aoTrocarDeWorkspace,
+  sair,
+}: {
+  nomeDoWorkspace: string
+  motivo: string
+  aoAcessarDemonstracao?: () => void
+  aoTrocarDeWorkspace?: () => void
+  sair: ReactNode
+}) {
+  const { titulo, texto } = CONTRATO_FECHADO[motivo] ?? CONTRATO_FECHADO.contrato_suspenso
+  return (
+    <main className="grid min-h-screen place-items-center bg-al-bg p-6 text-al-ink">
+      <section aria-label="Contrato do Workspace" className="flex max-w-xl flex-col items-start gap-4">
+        <h1 className="titulo-secao text-3xl">{titulo(nomeDoWorkspace)}</h1>
+        <p className="text-al-muted">
+          {texto} Fale com a equipe Althius em{' '}
+          <a className="text-al-accent underline" href="mailto:althius.relacionamento@gmail.com">
+            althius.relacionamento@gmail.com
+          </a>
+          .
+        </p>
         <div className="flex flex-wrap gap-2">
           {aoAcessarDemonstracao && (
             <Button variant="outline" onClick={aoAcessarDemonstracao}>

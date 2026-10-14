@@ -22,6 +22,7 @@ values
 
 insert into public.workspaces (id, kind, name) values
   ('cccccccc-0000-0000-0000-000000000001', 'empresa', 'Norte');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('cccccccc-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'admin', true),
@@ -178,9 +179,15 @@ select throws_ok(
   'P0002', 'invitation not found',
   'um token desconhecido é recusado');
 
--- Carla se cadastra pelo convite: ganha o Workspace pessoal e entra no Workspace do convite.
+-- Carla vem pelo convite, já com o Workspace pessoal que existia, e entra no Workspace do convite.
+-- A Carla já tinha o Workspace pessoal, criado antes do fechamento do acesso (o bootstrap não cria mais).
+reset role;
+insert into public.workspaces (kind, name, owner_user_id) values ('pessoal', 'Workspace pessoal', '40000000-0000-0000-0000-000000000003');
+insert into public.workspace_memberships (workspace_id, user_id, role, active)
+select id, '40000000-0000-0000-0000-000000000003', 'admin', true from public.workspaces where kind = 'pessoal' and owner_user_id = '40000000-0000-0000-0000-000000000003';
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '40000000-0000-0000-0000-000000000003', true);
-select lives_ok($$select public.bootstrap_personal_workspace('2026-09-25')$$, 'quem vem pelo convite também tem o bootstrap');
+select lives_ok($$select public.bootstrap_personal_workspace('2026-09-25')$$, 'quem vem pelo convite também passa pelo bootstrap, que só grava o aceite');
 select is(
   (select id from public.accept_workspace_invitation((select token from convite_da_carla))),
   'cccccccc-0000-0000-0000-000000000001'::uuid, 'o aceite devolve o Workspace do convite');
@@ -288,6 +295,12 @@ select throws_ok(
   $$select public.remove_participant('cccccccc-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001')$$,
   '42501', 'you cannot remove yourself',
   'ninguém remove a si mesmo por aqui');
+-- O Bruno já tinha o Workspace pessoal, criado antes do fechamento do acesso (o bootstrap não cria mais).
+reset role;
+insert into public.workspaces (kind, name, owner_user_id) values ('pessoal', 'Workspace pessoal', '40000000-0000-0000-0000-000000000002');
+insert into public.workspace_memberships (workspace_id, user_id, role, active)
+select id, '40000000-0000-0000-0000-000000000002', 'admin', true from public.workspaces where kind = 'pessoal' and owner_user_id = '40000000-0000-0000-0000-000000000002';
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '40000000-0000-0000-0000-000000000002', true);
 select lives_ok($$select public.bootstrap_personal_workspace('2026-09-25')$$, 'o Bruno tem o próprio Workspace pessoal');
 select set_config('request.jwt.claim.sub', '40000000-0000-0000-0000-000000000001', true);
@@ -310,6 +323,12 @@ select is(
   'quem foi removido mantém o próprio Workspace pessoal');
 
 -- Workspace pessoal: um Administrador convidado não remove nem rebaixa o Titular.
+-- A Ana já tinha o Workspace pessoal, criado antes do fechamento do acesso (o bootstrap não cria mais).
+reset role;
+insert into public.workspaces (kind, name, owner_user_id) values ('pessoal', 'Workspace pessoal', '40000000-0000-0000-0000-000000000001');
+insert into public.workspace_memberships (workspace_id, user_id, role, active)
+select id, '40000000-0000-0000-0000-000000000001', 'admin', true from public.workspaces where kind = 'pessoal' and owner_user_id = '40000000-0000-0000-0000-000000000001';
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '40000000-0000-0000-0000-000000000001', true);
 create temporary table pessoal_da_ana on commit drop as
   select * from public.bootstrap_personal_workspace('2026-09-25');

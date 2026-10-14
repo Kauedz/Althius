@@ -38,6 +38,7 @@ motions para elas (GEO/SEO, inbound, PLG, públicos de anúncio) são fase 2.
 | Execução | Sequências por e-mail, WhatsApp e LinkedIn pelas contas de cada vendedor | `.scratch/canais-cadencia-backend/` |
 | Conexões | Canais e Integrações pelo servidor MCP oficial de cada app; Ler, Propor, Executar | `.scratch/conexoes-funcionais/` |
 | Créditos e planos | Setup, cobrança por usuário, créditos, tetos e interruptores | `.scratch/creditos-e-planos/` |
+| Acesso e planos | Contrato por faixa, Workspace só depois do contrato, visitante na Demonstração, "Fale com a equipe Althius" | `.scratch/acesso-e-planos/` |
 | Fase 2 | Vendas e Oportunidades, transcrições, GEO/SEO, inbound, PLG | `.scratch/fase-2-revenue/` |
 
 ## 3. Regras que valem em todo lugar
@@ -59,6 +60,9 @@ motions para elas (GEO/SEO, inbound, PLG, públicos de anúncio) são fase 2.
   prospecção; o que foi enviado ao CRM passa a ser lido de lá.
 - **LGPD:** nada de dado pessoal na inteligência coletiva sem consentimento e anonimização; aviso de gravação em toda
   transcrição; apagar um Contato apaga os canais dele.
+- **Acesso por contrato** ([ADR-0025](./adr/0025-workspace-so-por-contrato-e-visitante-na-demonstracao.md)): o Workspace
+  operacional só existe depois do contrato, e só a Althius o cria. Toda ação paga exige contrato ativo (ou créditos
+  ilimitados, a Equipe). Quem entra sem Workspace contratado vê a Demonstração, só leitura.
 - **Isolamento:** tudo pertence a um Workspace; nenhuma função devolve dado de outro Workspace; RLS explícito em toda
   tabela nova; testes de permissão em pgTAP.
 

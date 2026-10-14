@@ -7,7 +7,7 @@ import { CampoDoCodigo } from './campo-do-codigo'
 import { useAutenticacao } from './contexto'
 import { CampoDeEmailDoAcesso, useEmailDoAcesso } from './campo-de-email-do-acesso'
 import { ComOConviteDoAcesso } from './convite-do-acesso'
-import { ROTA_DE_CADASTRO, ROTA_ESQUECI_A_SENHA, destinoDepoisDoAcesso } from './destino'
+import { ROTA_ESQUECI_A_SENHA, destinoDepoisDoAcesso } from './destino'
 
 /**
  * `/entrar`: e-mail e senha, ou "Entrar com código" — o código de 6 dígitos é pedido nesta mesma tela, e o link do
@@ -89,7 +89,8 @@ function Entrada({ emailTravado, aoAcessarDemonstracao }: { emailTravado: string
       <div>
         <h1 className="titulo-secao text-2xl">Entrar</h1>
         <p className="mt-2 text-sm text-al-muted">
-          Ainda não tem conta? <Link to={{ pathname: ROTA_DE_CADASTRO, search }} className="text-al-accent hover:underline">Criar conta</Link>
+          O Workspace da sua empresa nasce do contrato com a Althius. Quem foi convidado entra pelo link do convite; com o
+          Google, você vê a demonstração.
         </p>
       </div>
       <ContinuarComGoogle contexto="signin" />

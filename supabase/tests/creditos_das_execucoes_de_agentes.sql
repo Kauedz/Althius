@@ -15,6 +15,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('f8000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('f8000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('f8000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000001', 'admin', true),
   ('f8000000-0000-0000-0000-000000000001', '58000000-0000-0000-0000-000000000002', 'member', true),
@@ -53,15 +54,15 @@ select ok(
 );
 select ok(not has_table_privilege('authenticated', 'private.workspace_billing', 'select'), 'a tabela da cobrança não é lida direto');
 
--- 2. Enquanto o Workspace não assinou, a cobrança está desligada: o Agente roda e nada é reservado.
-select is(split_part(pg_temp.rodada('e8000000-0000-0000-0000-000000000001', pg_temp.agente('f8000000-0000-0000-0000-000000000001'), 1), ':', 1), 'free', 'cobrança desligada: a rodada é livre');
-select is((select count(*)::integer from private.credit_reservations), 0, 'e nada é reservado');
+-- 2. A rodada sempre reserva (acesso-e-planos): mesmo sem ligar a cobrança, sem saldo o Agente não roda.
+select is(split_part(pg_temp.rodada('e8000000-0000-0000-0000-000000000001', pg_temp.agente('f8000000-0000-0000-0000-000000000001'), 1), ':', 1), 'no_credits', 'sem ligar a cobrança, a rodada já exige saldo');
+select is((select count(*)::integer from private.credit_reservations), 0, 'e nada fica reservado');
 
--- 3. Ligada a cobrança, sem saldo o Agente não roda.
+-- 3. Ligar a cobrança (dormente) não muda nada: sem saldo o Agente não roda.
 select public.set_credits_enforced('f8000000-0000-0000-0000-000000000001', true);
 select is(split_part(pg_temp.rodada('e8000000-0000-0000-0000-000000000001', pg_temp.agente('f8000000-0000-0000-0000-000000000001'), 1), ':', 1), 'no_credits', 'sem saldo, a rodada não abre');
 select is((select count(*)::integer from private.credit_reservations), 0, 'e nada fica reservado');
-select is(split_part(pg_temp.rodada('e8000000-0000-0000-0000-000000000004', pg_temp.agente('f8000000-0000-0000-0000-000000000002'), 1), ':', 1), 'free', 'o Workspace que não assinou segue livre');
+select is(split_part(pg_temp.rodada('e8000000-0000-0000-0000-000000000004', pg_temp.agente('f8000000-0000-0000-0000-000000000002'), 1), ':', 1), 'no_credits', 'o Workspace que nunca ligou a cobrança também não roda sem saldo');
 
 -- 4. Com saldo: um Agente por rodada é um débito, e repetir a rodada não cobra duas vezes.
 select public.grant_credits('f8000000-0000-0000-0000-000000000001', 5, 'plano');

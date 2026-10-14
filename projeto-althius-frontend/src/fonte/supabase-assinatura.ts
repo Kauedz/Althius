@@ -4,7 +4,21 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type MotivoDoAcesso = 'cobranca_desligada' | 'liberado_manual' | 'ativa' | 'atrasada' | 'sem_assinatura' | 'cancelada'
+export type MotivoDoAcesso =
+  | 'cobranca_desligada'
+  | 'liberado_manual'
+  | 'ativa'
+  | 'atrasada'
+  | 'sem_assinatura'
+  | 'cancelada'
+  // O contrato externo (acesso-e-planos): quem libera, ou fecha, é o contrato, e não o Stripe.
+  | 'contrato'
+  | 'contrato_suspenso'
+  | 'contrato_encerrado'
+  | 'contrato_a_iniciar'
+
+/** O acesso vem de um contrato externo: não há checkout nem portal do Stripe a mostrar. */
+export const ehMotivoDeContrato = (motivo: MotivoDoAcesso) => motivo.startsWith('contrato')
 
 export interface AcessoAoWorkspace {
   liberado: boolean

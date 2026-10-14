@@ -22,6 +22,15 @@ afterEach(() => {
 const WORKSPACE_PESSOAL_DA_MARINA = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 
 /**
+ * O único caminho para criar conta (acesso-e-planos) é o link de um convite pendente: `/cadastro?destino=/convite/<token>`.
+ * O token destes testes carrega o e-mail convidado, que a prévia do convite devolve como o e-mail travado.
+ */
+const PREFIXO_DO_CONVITE = 'convite-de-'
+const cadastroPeloConvite = (email = MARINA.email) =>
+  `/cadastro?${new URLSearchParams({ destino: `/convite/${PREFIXO_DO_CONVITE}${email}` })}`
+const CADASTRO = cadastroPeloConvite()
+
+/**
  * A raiz como o navegador a abre, com a escolha de ambiente que a pessoa fez da última vez e o último Workspace
  * usado nesta aba. Salvo quando o teste responde o bootstrap, o banco garante o Workspace pessoal da Marina.
  */
@@ -45,6 +54,12 @@ function abrirAlthius({
     tabelas,
     rpcs: {
       bootstrap_personal_workspace: workspacePessoalDaMarinaNoBanco(tabelas),
+      // O convite de quem cria conta: pendente, para o e-mail do token, e aceito no Workspace que a Marina já tinha.
+      workspace_invitation_preview: ({ p_token }) =>
+        typeof p_token === 'string' && p_token.startsWith(PREFIXO_DO_CONVITE)
+          ? [{ email: p_token.slice(PREFIXO_DO_CONVITE.length), workspace_name: WORKSPACE_PESSOAL_DA_MARINA.name, role: 'member', status: 'pendente' }]
+          : [],
+      accept_workspace_invitation: () => WORKSPACE_PESSOAL_DA_MARINA,
       ...rpcsDeAgentes(criarBancoDeAgentes()),
       ...rpcsDeConexoes(criarBancoDeConexoes()),
       ...rpcs,
@@ -60,7 +75,10 @@ function participacao(workspaceId: string, role: 'admin' | 'member' = 'admin') {
   return { workspace_id: workspaceId, role, user_id: MARINA.id, active: true }
 }
 
-/** O bootstrap como o banco o executa: cria o Workspace pessoal e a Participação de Administrador uma única vez. */
+/**
+ * O bootstrap como o banco o executa depois do fechamento do acesso: devolve o Workspace pessoal que a Marina já tinha, com a
+ * Participação de Administrador, sem criar nada. (Os testes de quem não tem Workspace respondem o bootstrap vazio.)
+ */
 function workspacePessoalDaMarinaNoBanco(tabelas: Record<string, Record<string, unknown>[]>) {
   return () => {
     const workspaces = (tabelas.workspaces ??= [])
@@ -1094,7 +1112,7 @@ describe('Telas de acesso', () => {
   })
 
   it.each([
-    ['/cadastro', 'Criar conta'],
+    [CADASTRO, 'Criar conta'],
     ['/esqueci-a-senha', 'Esqueci a senha'],
     // O link de redefinição aberto noutro navegador: ele só vale onde foi pedido, e a tela explica.
     ['/redefinir-a-senha', 'Redefinir a senha'],
@@ -1172,20 +1190,23 @@ describe('Telas de acesso', () => {
   })
 })
 
-describe('Workspace pessoal no primeiro acesso', () => {
-  it('uma Conta de usuário sem Participação entra e cai no seu Workspace pessoal', async () => {
+describe('Primeiro acesso depois do fechamento do acesso', () => {
+  it('uma Conta de usuário sem Participação entra e cai no Workspace visitante, sem Workspace pessoal novo', async () => {
     window.history.replaceState(null, '', '/entrar')
-    const { iniciarSessao } = abrirAlthius({ ultimoAmbiente: 'real' })
+    const { iniciarSessao } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      rpcs: { bootstrap_personal_workspace: () => ({ id: null, kind: null, name: null, owner_user_id: null }) },
+    })
     await screen.findByRole('heading', { name: 'Entrar' })
 
     act(() => iniciarSessao(sessaoDe(MARINA)))
 
-    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
-    expect(screen.getByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()
+    expect(screen.queryByText('Operacional')).not.toBeInTheDocument()
     expect(screen.queryByText('Nenhum Workspace ativo')).not.toBeInTheDocument()
   })
 
-  it('quem já tem Participação num Workspace da empresa, sem outro destino, abre o Workspace pessoal', async () => {
+  it('quem já tem Participação num Workspace da empresa e um Workspace pessoal contratados, sem outro destino, abre o pessoal', async () => {
     abrirAlthius({
       ultimoAmbiente: 'real',
       sessao: sessaoDe(MARINA),
@@ -1196,7 +1217,7 @@ describe('Workspace pessoal no primeiro acesso', () => {
     expect(screen.getByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
   })
 
-  it('enquanto o Workspace pessoal é preparado, a pessoa vê o carregamento; se falhar, pode tentar de novo', async () => {
+  it('enquanto o acesso é preparado, a pessoa vê o carregamento; se falhar, pode tentar de novo', async () => {
     let tentativas = 0
     let concluirPrimeira: (erro: Error) => void = () => {}
     const tabelas: Record<string, Record<string, unknown>[]> = {}
@@ -1214,12 +1235,12 @@ describe('Workspace pessoal no primeiro acesso', () => {
       },
     })
 
-    expect(await screen.findByText('Preparando seu Workspace pessoal…')).toBeInTheDocument()
+    expect(await screen.findByText('Preparando seu acesso…')).toBeInTheDocument()
     // O carregamento aparece antes de o efeito chamar o bootstrap; rejeitar antes disso cairia no vazio.
     await waitFor(() => expect(tentativas).toBe(1))
     await act(async () => concluirPrimeira(new Error('connection reset')))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível preparar seu Workspace pessoal.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível preparar seu acesso.')
     expect(screen.queryByText('connection reset')).not.toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: 'Tentar novamente' }))
 
@@ -1233,13 +1254,14 @@ describe('Cadastro com senha', () => {
 
   async function preencherCadastro(usuario: ReturnType<typeof userEvent.setup>, { email = MARINA.email, senha = SENHA } = {}) {
     await usuario.type(await screen.findByLabelText('Nome'), 'Marina Souza')
-    await usuario.type(screen.getByLabelText('E-mail'), email)
+    // O e-mail do convite vem travado; só um cadastro sem convite (que já não existe) o digitaria.
+    if (!screen.getByLabelText<HTMLInputElement>('E-mail').readOnly) await usuario.type(screen.getByLabelText('E-mail'), email)
     await usuario.type(screen.getByLabelText('Senha'), senha)
     await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
   }
 
-  it('/cadastro pede nome, e-mail e senha, com link para entrar e o aceite passivo dos Termos', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+  it('o cadastro pelo convite pede nome e senha, com o e-mail do convite travado, link para entrar e o aceite passivo dos Termos', async () => {
+    window.history.replaceState(null, '', CADASTRO)
     abrirAlthius({ ultimoAmbiente: 'real' })
 
     expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
@@ -1247,22 +1269,38 @@ describe('Cadastro com senha', () => {
     expect(screen.getByLabelText('E-mail')).toHaveAttribute('autocomplete', 'email')
     expect(screen.getByLabelText('Senha')).toHaveAttribute('autocomplete', 'new-password')
     expect(screen.getAllByRole('textbox')).toHaveLength(2)
-    expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/entrar')
+    expect(screen.getByLabelText('E-mail')).toHaveValue(MARINA.email)
+    expect(screen.getByLabelText('E-mail')).toHaveAttribute('readonly')
+    expect(screen.getByText(`Este convite é para ${MARINA.email}`)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', expect.stringMatching(/^\/entrar/))
     expect(screen.getByRole('link', { name: 'Termos de Uso' })).toHaveAttribute('href', '/termos')
     expect(screen.getByRole('link', { name: 'Política de Privacidade' })).toHaveAttribute('href', '/privacidade')
   })
 
-  it('/entrar tem link para criar conta', async () => {
+  it('/entrar não oferece cadastro aberto: não há "Criar conta" e o texto explica o contrato', async () => {
     window.history.replaceState(null, '', '/entrar')
-    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
+    abrirAlthius({ ultimoAmbiente: 'real' })
 
-    await usuario.click(await screen.findByRole('link', { name: 'Criar conta' }))
-    expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/cadastro')
+    await screen.findByRole('heading', { name: 'Entrar' })
+    expect(screen.queryByRole('link', { name: 'Criar conta' })).not.toBeInTheDocument()
+    expect(screen.getByText(/O Workspace da sua empresa nasce do contrato com a Althius/)).toBeInTheDocument()
+  })
+
+  it('/cadastro sem um convite pendente leva à entrada, e um convite que não vale mais também', async () => {
+    window.history.replaceState(null, '', '/cadastro')
+    abrirAlthius({ ultimoAmbiente: 'real' })
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/entrar')
+    cleanup()
+
+    window.history.replaceState(null, '', `/cadastro?${new URLSearchParams({ destino: '/convite/token-que-nao-existe' })}`)
+    abrirAlthius({ ultimoAmbiente: 'real' })
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Criar conta' })).not.toBeInTheDocument()
   })
 
   it('a senha tem medidor de força e pode ser mostrada e ocultada', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
 
     const senha = await screen.findByLabelText('Senha')
@@ -1281,7 +1319,7 @@ describe('Cadastro com senha', () => {
   })
 
   it('uma senha com menos de 8 caracteres é recusada antes de criar a conta', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
 
     await preencherCadastro(usuario, { senha: '1234567' })
@@ -1292,7 +1330,7 @@ describe('Cadastro com senha', () => {
   })
 
   it('caminho completo: cria a conta, confirma o código e cai no Workspace pessoal, com o aceite gravado pelo bootstrap', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const versoesAceitas: unknown[] = []
     const tabelas: Record<string, Record<string, unknown>[]> = {}
     const noBanco = workspacePessoalDaMarinaNoBanco(tabelas)
@@ -1328,7 +1366,7 @@ describe('Cadastro com senha', () => {
   })
 
   it('o link do e-mail também confirma neste navegador e leva ao destino lembrado', async () => {
-    window.history.replaceState(null, '', `/cadastro?${new URLSearchParams({ destino: '/sinais' })}`)
+    window.history.replaceState(null, '', CADASTRO)
     const { usuario, linkEnviadoPara, abrirLinkDeConfirmacao } = abrirAlthius({
       ultimoAmbiente: 'real',
       tabelas: { workspace_memberships: [participacao('ws-norte')] },
@@ -1336,15 +1374,14 @@ describe('Cadastro com senha', () => {
 
     await preencherCadastro(usuario)
     await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
-    expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe('/sinais')
+    expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe(`/convite/${PREFIXO_DO_CONVITE}${MARINA.email}`)
 
     act(() => abrirLinkDeConfirmacao(MARINA.email))
     expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/sinais')
   })
 
   it('o link do e-mail abre o Workspace pessoal, e não a Demonstração, num navegador que nunca escolheu o Workspace operacional', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const supabase = abrirAlthius()
     await preencherCadastro(supabase.usuario)
     await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
@@ -1362,7 +1399,7 @@ describe('Cadastro com senha', () => {
   })
 
   it('cadastro com e-mail que já tem conta mostra a mesma resposta do cadastro novo', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA] })
 
     await preencherCadastro(usuario)
@@ -1384,7 +1421,7 @@ describe('Cadastro com senha', () => {
   }
 
   it('cadastro com o e-mail de uma Conta de usuário pede o e-mail que explica como entrar, sem a tela revelar nada', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const aviso = avisoDeContaExistente()
     const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], funcoes: aviso.funcoes })
 
@@ -1398,7 +1435,7 @@ describe('Cadastro com senha', () => {
   })
 
   it('um cadastro novo recebe o código, e não o aviso de Conta de usuário existente', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const aviso = avisoDeContaExistente()
     const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real', contas: [], funcoes: aviso.funcoes })
 
@@ -1410,7 +1447,7 @@ describe('Cadastro com senha', () => {
   })
 
   it('uma falha no envio do aviso de Conta de usuário existente não aparece na tela', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const aviso = avisoDeContaExistente({ status: 500, corpo: { error: 'falhou' } })
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], funcoes: aviso.funcoes })
 
@@ -1422,7 +1459,7 @@ describe('Cadastro com senha', () => {
   })
 
   it('a tela não espera o aviso de Conta de usuário existente', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const aviso = avisoDeContaExistente(new Promise<RespostaDaFuncao>(() => {}))
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], funcoes: aviso.funcoes })
 
@@ -1432,24 +1469,19 @@ describe('Cadastro com senha', () => {
     expect(aviso.pedidos).toHaveLength(1)
   })
 
-  it('"Corrigir e-mail" volta ao formulário sem perder o nome digitado', async () => {
-    window.history.replaceState(null, '', '/cadastro')
-    const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
+  it('o e-mail do convite não se corrige: quem digitaria outro não consegue, e a etapa do código leva à entrada', async () => {
+    window.history.replaceState(null, '', CADASTRO)
+    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
 
     await preencherCadastro(usuario, { email: 'marina@errado.com.br' })
-    await usuario.click(await screen.findByRole('button', { name: 'Corrigir e-mail' }))
-
-    expect(screen.getByLabelText('Nome')).toHaveValue('Marina Souza')
-    await usuario.clear(screen.getByLabelText('E-mail'))
-    await usuario.type(screen.getByLabelText('E-mail'), MARINA.email)
-    await usuario.click(screen.getByRole('button', { name: 'Criar conta' }))
 
     expect(await screen.findByText(MARINA.email)).toBeInTheDocument()
-    expect(codigoEnviadoPara(MARINA.email)).toBeDefined()
+    expect(screen.queryByText('marina@errado.com.br')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Corrigir e-mail' })).not.toBeInTheDocument()
   })
 
   it('atualizar a página na etapa do código mantém a etapa, sem guardar a senha', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const supabase = abrirAlthius({ ultimoAmbiente: 'real' })
     await preencherCadastro(supabase.usuario)
     await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
@@ -1469,7 +1501,7 @@ describe('Cadastro com senha', () => {
   it('"Reenviar código" só fica disponível depois do intervalo mínimo, que a tela mostra', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      window.history.replaceState(null, '', '/cadastro')
+      window.history.replaceState(null, '', CADASTRO)
       const { usuario, codigoEnviadoPara } = abrirAlthius({ ultimoAmbiente: 'real' })
       await preencherCadastro(usuario)
       await screen.findByRole('heading', { name: 'Confirme seu e-mail' })
@@ -1532,7 +1564,7 @@ async function entrarComSenha(usuario: ReturnType<typeof userEvent.setup>, email
 }
 
 describe('Entrar com senha ou com código', () => {
-  it('/entrar oferece senha, código, "Esqueci a senha" e o link para criar conta, sem o formulário de link antigo', async () => {
+  it('/entrar oferece senha, código e "Esqueci a senha", sem cadastro aberto e sem o formulário de link antigo', async () => {
     window.history.replaceState(null, '', '/entrar')
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
 
@@ -1547,7 +1579,7 @@ describe('Entrar com senha ou com código', () => {
 
     expect(screen.getByRole('button', { name: 'Entrar com código' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Esqueci a senha' })).toHaveAttribute('href', '/esqueci-a-senha')
-    expect(screen.getByRole('link', { name: 'Criar conta' })).toHaveAttribute('href', '/cadastro')
+    expect(screen.queryByRole('link', { name: 'Criar conta' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Enviar link de acesso' })).not.toBeInTheDocument()
   })
 
@@ -1663,156 +1695,66 @@ describe('Workspace de entrada depois do login', () => {
   })
 })
 
-/**
- * A função do banco que cria o Workspace da empresa, como ela se comporta: com a mesma chave devolve o Workspace já
- * criado; com outra chave, cria outro. `perderResposta` simula as respostas que se perdem depois de o banco confirmar.
- */
-function workspaceDaEmpresaNoBanco(
-  tabelas: Record<string, Record<string, unknown>[]>,
-  { perderResposta = 0, segurar }: { perderResposta?: number; segurar?: () => Promise<void> } = {},
-) {
-  const pedidos: Record<string, unknown>[] = []
-  const criados = new Map<string, Record<string, unknown>>()
-  async function create_company_workspace(parametros: Record<string, unknown>) {
-    pedidos.push(parametros)
-    await segurar?.()
-    const chave = String(parametros.p_request_id)
-    let workspace = criados.get(chave)
-    if (!workspace) {
-      workspace = { id: `ws-empresa-${criados.size + 1}`, kind: 'empresa', name: String(parametros.p_name).trim(), owner_user_id: null }
-      criados.set(chave, workspace)
-      ;(tabelas.workspaces ??= []).push(workspace)
-      ;(tabelas.workspace_memberships ??= []).push(participacao(String(workspace.id)))
-    }
-    if (pedidos.length <= perderResposta) throw new Error('Failed to fetch')
-    return workspace
-  }
-  return { rpcs: { create_company_workspace }, pedidos }
-}
-
 const opcoesDoSeletor = async () =>
   within(await screen.findByRole('combobox', { name: 'Selecione o Workspace' })).getAllByRole('option').map((opcao) => opcao.textContent)
 
 const workspaceNaNavegacao = async (nome: string) =>
   within(await screen.findByRole('complementary', { name: 'Navegação' })).findByRole('button', { name: `Workspace: ${nome}` })
 
-describe('Workspace da empresa por ação explícita', () => {
-  it('no Workspace pessoal, a pessoa cria o Workspace da empresa pelo nome, entra nele como Administradora e mantém o pessoal', async () => {
-    const tabelas: Record<string, Record<string, unknown>[]> = {}
-    const banco = workspaceDaEmpresaNoBanco(tabelas)
-    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas, rpcs: banco.rpcs })
+describe('Entrada fechada: o Workspace da empresa nasce do contrato', () => {
+  const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte', owner_user_id: null }
+
+  it('não há botão para criar Workspace da empresa, nem no Workspace pessoal, e nada é pedido ao banco', async () => {
+    const criacoes: unknown[] = []
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte', 'member')], workspaces: [NORTE] },
+      rpcs: { create_company_workspace: (parametros) => { criacoes.push(parametros); return NORTE } },
+    })
 
     expect(await workspaceNaNavegacao('Marina Souza')).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-    expect(screen.getByText(/nada do seu Workspace pessoal é copiado nem movido/i)).toBeInTheDocument()
-    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
-    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-
-    expect(await workspaceNaNavegacao('Norte Distribuidora')).toBeInTheDocument()
-    expect(banco.pedidos).toEqual([{ p_name: 'Norte Distribuidora', p_request_id: expect.any(String) }])
-    await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
-    expect(await screen.findByText('Administrador neste Workspace')).toBeInTheDocument()
-    await usuario.keyboard('{Escape}')
-    // Criar outro Workspace da empresa é uma ação do Workspace pessoal.
     expect(screen.queryByRole('button', { name: 'Criar Workspace da empresa' })).not.toBeInTheDocument()
-
-    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
-    expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza', 'Norte Distribuidora'])
-    await usuario.selectOptions(screen.getByRole('combobox', { name: 'Selecione o Workspace' }), 'Marina Souza')
-    expect(await workspaceNaNavegacao('Marina Souza')).toBeInTheDocument()
+    expect(criacoes).toEqual([])
   })
 
-  it('clicar duas vezes ou tentar de novo depois de uma falha repete o mesmo pedido e não cria dois Workspaces', async () => {
-    const tabelas: Record<string, Record<string, unknown>[]> = {}
-    let liberar: () => void = () => {}
-    const segurando = new Promise<void>((resolver) => { liberar = resolver })
-    // O banco cria o Workspace no primeiro pedido, mas a resposta se perde no caminho.
-    const banco = workspaceDaEmpresaNoBanco(tabelas, { perderResposta: 1, segurar: () => segurando })
-    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas, rpcs: banco.rpcs })
-
-    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
-    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
-    await usuario.dblClick(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-    expect(screen.getByRole('button', { name: 'Criando…' })).toBeDisabled()
-    await act(async () => liberar())
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível criar o Workspace da empresa agora.')
-    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-
-    expect(await workspaceNaNavegacao('Norte Distribuidora')).toBeInTheDocument()
-    expect(banco.pedidos).toHaveLength(2)
-    expect(new Set(banco.pedidos.map((p) => p.p_request_id)).size).toBe(1)
-    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
-    expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza', 'Norte Distribuidora'])
-  })
-
-  it('perdida a resposta, voltar e reabrir o formulário repete o mesmo pedido e abre o Workspace já criado', async () => {
-    const tabelas: Record<string, Record<string, unknown>[]> = {}
-    const banco = workspaceDaEmpresaNoBanco(tabelas, { perderResposta: 1 })
-    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', sessao: sessaoDe(MARINA), tabelas, rpcs: banco.rpcs })
-
-    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
-    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
-    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível criar o Workspace da empresa agora.')
-
-    await usuario.click(screen.getByRole('button', { name: 'Voltar ao Workspace pessoal' }))
-    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
-    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
-    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-
-    expect(await workspaceNaNavegacao('Norte Distribuidora')).toBeInTheDocument()
-    expect(new Set(banco.pedidos.map((p) => p.p_request_id)).size).toBe(1)
-    expect((tabelas.workspaces ?? []).filter((w) => w.kind === 'empresa')).toHaveLength(1)
-  })
-
-  it('sem o nome da empresa nada é pedido ao banco, e a recusa do banco aparece para a pessoa', async () => {
-    const pedidos: Record<string, unknown>[] = []
+  it('o seletor lista os Workspaces e marca "sem contrato" o que não tem, sem apagar nada', async () => {
     const { usuario } = abrirAlthius({
       ultimoAmbiente: 'real',
       sessao: sessaoDe(MARINA),
-      rpcs: {
-        create_company_workspace: (parametros) => {
-          pedidos.push(parametros)
-          throw Object.assign(new Error('company name is too long'), { code: '22023' })
-        },
-      },
+      tabelas: { workspace_memberships: [participacao('ws-norte', 'member')], workspaces: [NORTE] },
+      // Só o Norte tem contrato; o Workspace pessoal que a Marina já tinha continua, sem contrato.
+      rpcs: { list_my_contracted_workspaces: () => [{ workspace_id: 'ws-norte', tier_name: 'Essencial', billing_mode: 'contrato' }] },
     })
 
-    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
-    await usuario.type(screen.getByLabelText('Nome da empresa'), '   ')
-    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Informe o nome da empresa.')
-    expect(pedidos).toEqual([])
-
-    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte')
-    await usuario.click(screen.getByRole('button', { name: 'Criar Workspace da empresa' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Use até 100 caracteres no nome da empresa.')
-    expect(pedidos).toHaveLength(1)
+    // O Norte é o único contratado e abre na hora, em vez do pessoal.
+    expect(await workspaceNaNavegacao('Norte')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
+    expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza (sem contrato)', 'Norte'])
   })
 
-  it('entrar, voltar sem criar e trocar de Workspace nunca criam um Workspace da empresa', async () => {
-    const tabelas: Record<string, Record<string, unknown>[]> = {
-      workspace_memberships: [participacao('ws-norte', 'member')],
-      workspaces: [{ id: 'ws-norte', kind: 'empresa', name: 'Norte', owner_user_id: null }],
-    }
-    const banco = workspaceDaEmpresaNoBanco(tabelas)
-    window.history.replaceState(null, '', '/entrar')
-    const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], tabelas, rpcs: banco.rpcs })
-    await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
+  it('só Workspaces sem contrato: a pessoa é visitante e vê a demonstração', async () => {
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte', 'member')], workspaces: [NORTE] },
+      rpcs: { list_my_contracted_workspaces: () => [] },
+    })
 
-    await usuario.click(await screen.findByRole('button', { name: 'Criar Workspace da empresa' }))
-    await usuario.type(screen.getByLabelText('Nome da empresa'), 'Norte Distribuidora')
-    await usuario.click(screen.getByRole('button', { name: 'Voltar ao Workspace pessoal' }))
-    expect(await workspaceNaNavegacao('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Trocar de Workspace' })).not.toBeInTheDocument()
+  })
 
-    await usuario.click(screen.getByRole('button', { name: 'Trocar de Workspace' }))
-    expect(await opcoesDoSeletor()).toEqual(['Escolher participação…', 'Marina Souza', 'Norte'])
-    await usuario.selectOptions(screen.getByRole('combobox', { name: 'Selecione o Workspace' }), 'Norte')
-    expect(await workspaceNaNavegacao('Norte')).toBeInTheDocument()
+  it('se o banco não diz quais Workspaces têm contrato, a entrada avisa em vez de adivinhar', async () => {
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte', 'member')], workspaces: [NORTE] },
+      rpcs: { list_my_contracted_workspaces: () => { throw new Error('connection reset') } },
+    })
 
-    expect(banco.pedidos).toEqual([])
-    expect(tabelas.workspaces.map((w) => w.name)).toEqual(['Norte', 'Marina Souza'])
+    expect(await screen.findByText(/Não foi possível validar seu acesso ao Workspace/)).toBeInTheDocument()
+    expect(screen.queryByText('Você está vendo uma demonstração')).not.toBeInTheDocument()
   })
 })
 
@@ -2052,7 +1994,7 @@ describe('Bloqueio de senhas vazadas', () => {
   }
 
   it('no cadastro, a senha vazada é recusada com mensagem clara e sem criar a conta; outra senha segue', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const { usuario, codigoEnviadoPara, nomeCadastrado } = abrirAlthius({ ultimoAmbiente: 'real', navegador: { senhasVazadas: [VAZADA] } })
 
     await tentarCadastro(usuario, VAZADA)
@@ -2081,7 +2023,7 @@ describe('Bloqueio de senhas vazadas', () => {
   })
 
   it('se a consulta de vazadas falhar, o cadastro e a redefinição seguem', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const cadastro = abrirAlthius({ ultimoAmbiente: 'real', navegador: { consultaDeVazadas: 'falha' } })
     await tentarCadastro(cadastro.usuario, BOA)
     expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument()
@@ -2102,7 +2044,7 @@ describe('Bloqueio de senhas vazadas', () => {
   it('se a consulta de vazadas demorar, o cadastro segue depois de um tempo curto', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      window.history.replaceState(null, '', '/cadastro')
+      window.history.replaceState(null, '', CADASTRO)
       const { usuario } = abrirAlthius({ ultimoAmbiente: 'real', navegador: { consultaDeVazadas: 'demora' } })
       await tentarCadastro(usuario, BOA)
       expect(screen.getByRole('button', { name: 'Criando…' })).toBeDisabled()
@@ -2115,7 +2057,7 @@ describe('Bloqueio de senhas vazadas', () => {
   })
 
   it('a recusa weak_password do Supabase Auth mostra a mesma mensagem, no cadastro e na redefinição', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const cadastro = abrirAlthius({ ultimoAmbiente: 'real', senhasVazadasNoServidor: [VAZADA] })
     await tentarCadastro(cadastro.usuario, VAZADA)
     expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
@@ -2136,7 +2078,7 @@ describe('Continuar com Google', () => {
   /** O botão oficial do Google, que o Google Identity Services desenha na tela. */
   const botaoDoGoogle = () => screen.findByRole('button', { name: 'Continuar com Google' })
 
-  it.each(['/entrar', '/cadastro'])('sem o Client ID do Google, %s não mostra o Google', async (rota) => {
+  it.each(['/entrar', CADASTRO])('sem o Client ID do Google, %s não mostra o Google', async (rota) => {
     window.history.replaceState(null, '', rota)
     abrirAlthius({ ultimoAmbiente: 'real' })
 
@@ -2145,7 +2087,7 @@ describe('Continuar com Google', () => {
   })
 
   it('cadastro pelo botão no topo de /cadastro: o nome vem do Google e o aceite dos Termos é gravado', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', CADASTRO)
     const versoesAceitas: unknown[] = []
     const tabelas: Record<string, Record<string, unknown>[]> = {}
     const noBanco = workspacePessoalDaMarinaNoBanco(tabelas)
@@ -2260,7 +2202,7 @@ describe('CAPTCHA invisível', () => {
   const MENSAGEM = 'Não foi possível confirmar que você é uma pessoa. Tente novamente.'
 
   it('cadastro, login com senha, envio de código, reenvio e redefinição mandam um token novo ao Supabase Auth, sem desafio na tela', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', cadastroPeloConvite('ana@cliente.com.br'))
     const { usuario, captchasRecebidos, captchasPedidos } = abrirAlthius({
       ultimoAmbiente: 'real',
       contas: [CONTA_DA_MARINA],
@@ -2308,7 +2250,7 @@ describe('CAPTCHA invisível', () => {
   it('o reenvio do código do cadastro também leva um token', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      window.history.replaceState(null, '', '/cadastro')
+      window.history.replaceState(null, '', cadastroPeloConvite('ana@cliente.com.br'))
       const { usuario, captchasRecebidos } = abrirAlthius({ ultimoAmbiente: 'real', exigeCaptcha: true, navegador: { captcha: 'ligado' } })
       await usuario.type(await screen.findByLabelText('Nome'), 'Ana Lima')
       await usuario.type(screen.getByLabelText('E-mail'), 'ana@cliente.com.br')
@@ -2347,7 +2289,7 @@ describe('CAPTCHA invisível', () => {
   })
 
   it('se o Supabase Auth recusar o CAPTCHA, cadastro, envio de código e redefinição mostram a mesma mensagem clara', async () => {
-    window.history.replaceState(null, '', '/cadastro')
+    window.history.replaceState(null, '', cadastroPeloConvite('ana@cliente.com.br'))
     const cadastro = abrirAlthius({ ultimoAmbiente: 'real', exigeCaptcha: true })
     await cadastro.usuario.type(await screen.findByLabelText('Nome'), 'Ana Lima')
     await cadastro.usuario.type(screen.getByLabelText('E-mail'), 'ana@cliente.com.br')
@@ -2373,6 +2315,38 @@ describe('CAPTCHA invisível', () => {
     await redefinicao.usuario.click(screen.getByRole('button', { name: 'Enviar código' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
     expect(redefinicao.codigoEnviadoPara(MARINA.email)).toBeUndefined()
+  })
+
+  it('o login com Google também leva um token do Turnstile ao Supabase Auth', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, google, captchasPedidos, captchasRecebidos } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      exigeCaptcha: true,
+      navegador: { captcha: 'ligado', google: {} },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Continuar com Google' }))
+    act(() => google.escolherConta({ email: MARINA.email, nome: 'Marina Souza' }))
+
+    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(captchasPedidos()).toEqual(['login_com_google'])
+    expect(captchasRecebidos()).toEqual([{ chamada: 'signInWithIdToken', token: 'token-captcha-1' }])
+  })
+
+  it('se o Turnstile não confirmar a pessoa no login com Google, a tela explica e não abre sessão', async () => {
+    window.history.replaceState(null, '', '/entrar')
+    const { usuario, google, captchasRecebidos } = abrirAlthius({
+      ultimoAmbiente: 'real',
+      exigeCaptcha: true,
+      navegador: { captcha: 'ligado', falhasDoCaptcha: 1, google: {} },
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Continuar com Google' }))
+    act(() => google.escolherConta({ email: MARINA.email, nome: 'Marina Souza' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(MENSAGEM)
+    expect(captchasRecebidos()).toEqual([])
+    expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
   })
 
   it('sem a site key do Turnstile, nenhum token é pedido nem enviado e o acesso funciona como antes', async () => {

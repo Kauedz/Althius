@@ -318,8 +318,10 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
       // O ID token do Google: o Auth confere que o hash do nonce cru é o nonce do token e vincula pelo e-mail verificado
       // à Conta de usuário existente, ou cria uma com o nome do Google. Um cadastro com senha ainda não confirmado perde
       // a senha, para quem o fez sem ser dono do e-mail não entrar na conta.
-      async signInWithIdToken({ provider, token, nonce, ...resto }: { provider: string; token: string; nonce?: string }) {
+      async signInWithIdToken({ provider, token, nonce, options, ...resto }: { provider: string; token: string; nonce?: string; options?: { captchaToken?: string } }) {
         if (provider !== 'google' || Object.keys(resto).length) throw new Error('signInWithIdToken só simula o Google com nonce')
+        const recusa = conferirCaptcha('signInWithIdToken', options?.captchaToken)
+        if (recusa) return { data: { user: null, session: null }, error: recusa }
         const claims = JSON.parse(atob(token.split('.')[1])) as { email: string; email_verified: boolean; name: string; nonce?: string }
         if (!nonce || !claims.nonce || (await sha256Hex(nonce)) !== claims.nonce) {
           return { data: { user: null, session: null }, error: { message: 'Nonces mismatch', status: 400, code: 'bad_jwt' } }
@@ -408,6 +410,17 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
     from: consulta,
     async rpc(nome: string, parametros: Record<string, unknown>) {
       const responder = rpcs[nome]
+      // Sem outra resposta do teste, todo Workspace em que a sessão participa é contratado: os testes de tela não repetem o
+      // contrato. Um teste que quer o visitante responde `list_my_contracted_workspaces` com a lista vazia.
+      if (!responder && nome === 'list_my_contracted_workspaces') {
+        const usuarioId = sessaoAtual?.user.id
+        return {
+          data: (tabelas.workspace_memberships ?? [])
+            .filter((linha) => linha.user_id === usuarioId && linha.active !== false)
+            .map((linha) => ({ workspace_id: linha.workspace_id, tier_name: 'Essencial', billing_mode: 'contrato' })),
+          error: null,
+        }
+      }
       // Estágios fazem parte da leitura obrigatória das Contas. Uma base vazia saudável não é RPC indisponível.
       if (!responder && nome === 'list_prospecting_stages') return { data: [], error: null }
       if (!responder) return { data: null, error: { message: `RPC ${nome} indisponível no teste`, code: 'PGRST202' } }

@@ -270,6 +270,22 @@ describe('Pessoas e acesso no Workspace operacional', () => {
     expect(banco.convites).toHaveLength(0)
   })
 
+  it('quando os usuários chegam ao máximo do plano, o convite é recusado com a mensagem do plano', async () => {
+    const banco = bancoDoNorte()
+    banco.rpcs.invite_to_workspace = () => {
+      throw recusa('P0001', 'Seu plano permite até 2 usuários. Fale com a equipe Althius para ampliar.')
+    }
+    const { usuario } = abrirPessoasEAcesso(banco)
+
+    await usuario.click(await screen.findByRole('button', { name: 'Convidar pessoa' }))
+    const dialogo = within(await screen.findByRole('dialog', { name: 'Convidar pessoa' }))
+    await usuario.type(dialogo.getByRole('textbox', { name: 'E-mail' }), 'carla@norte.com.br')
+    await usuario.click(dialogo.getByRole('button', { name: 'Registrar convite' }))
+
+    expect(await dialogo.findByRole('alert')).toHaveTextContent('Seu plano permite até 2 usuários. Fale com a equipe Althius para ampliar.')
+    expect(banco.convites).toHaveLength(0)
+  })
+
   it('sem conseguir ler os participantes, a seção diz que falhou e tenta de novo, em vez de carregar para sempre', async () => {
     const banco = bancoDoNorte()
     const listar = banco.rpcs.list_workspace_participants

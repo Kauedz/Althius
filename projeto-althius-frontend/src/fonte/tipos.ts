@@ -215,6 +215,26 @@ export interface SaldoDeCreditos {
   ilimitado: boolean
 }
 
+/**
+ * O contrato do Workspace operacional (acesso-e-planos), para a tela Plano. Tudo em créditos: nenhum valor em dólar chega
+ * ao cliente.
+ */
+export interface ResumoDoContrato {
+  estado: 'ativo' | 'suspenso' | 'encerrado'
+  /** `contrato` é cobrado fora da plataforma; `saas` mantém o Stripe. */
+  modo: 'contrato' | 'saas'
+  faixa: string
+  maximoDeUsuarios: number
+  usuariosAtivos: number
+  creditosMensais: number
+  /** O limite mensal de gasto em créditos do Workspace. */
+  limiteMensal: number
+  /** O que o Workspace gastou neste mês, em créditos. */
+  usoDoMes: number
+  /** A Equipe Althius: sem limite de saldo. */
+  ilimitado: boolean
+}
+
 /** Os dados editáveis em Meu perfil: nome, e-mail e foto da Conta de usuário. Sem foto, iniciais. */
 export interface Perfil {
   nome: string
@@ -689,6 +709,9 @@ export interface FonteDeAgentes extends FonteObservavel {
    * No Workspace ilimitado, `ilimitado` é verdadeiro.
    */
   saldoDeCreditos?(): Promise<SaldoDeCreditos | null>
+
+  /** O contrato do Workspace operacional. Ausente na Demonstração. Nulo sem contrato, ou quando o banco não responde. */
+  contratoDoWorkspace?(): Promise<ResumoDoContrato | null>
 
   /** O catálogo fixo: não há operação para criar uma Especialidade. */
   especialidades(): Promise<Especialidade[]>

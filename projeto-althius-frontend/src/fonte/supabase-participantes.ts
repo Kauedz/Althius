@@ -74,6 +74,8 @@ const RECUSAS: Recusa[] = [
  * servidor) vira `falha`, sem mostrar o erro técnico.
  */
 function converterErro(error: { message: string; code?: string }, falha: string, email?: string): Error {
+  // O limite de usuários do plano (acesso-e-planos): a mensagem já vem do banco, em português, para a pessoa.
+  if (error.code === 'P0001' && error.message.startsWith('Seu plano permite até')) return new Error(error.message)
   const recusa = RECUSAS.find(([code, trecho]) => error.code === code && error.message.includes(trecho))
   return new Error(recusa ? recusa[2](email) : falha)
 }

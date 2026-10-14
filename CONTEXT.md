@@ -12,6 +12,15 @@ _Avoid_: CRM, ferramenta de vendas
 O espaço de trabalho dentro da Althius, com seus agentes, conexões e dados próprios. Pode ser um Workspace pessoal ou um Workspace da empresa.
 _Avoid_: conta, tenant, organização
 
+**Workspace visitante**:
+O ambiente que uma Conta de usuário vê quando não participa de nenhum Workspace contratado: a Demonstração, só leitura, com o banner "Você está vendo uma demonstração". Toda ação paga abre "Fale com a equipe Althius". Não é um Workspace no banco; nada do que acontece nele chega a um Workspace operacional.
+
+**Contrato**:
+O acordo externo, por faixa, que abre um Workspace operacional (`private.workspace_contracts`). É cobrado fora da plataforma; só a Althius cria o Workspace e o contrato, depois de fechar o negócio. Sem contrato ativo (ou sem créditos ilimitados), nenhuma ação paga roda.
+
+**Faixa**:
+O plano único do contrato, com número de usuários, créditos mensais e uma guarda interna em dólar que o cliente nunca vê: Essencial, Profissional ou Escala.
+
 **Workspace operacional**:
 Um Workspace real, aberto por uma Conta de usuário autenticada com Participação ativa. Só mostra o que foi guardado e confirmado; um módulo ainda sem backend aparece como indisponível, sem dados, resultados ou ações da Demonstração.
 
@@ -20,14 +29,14 @@ O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com d
 _Avoid_: modo demo
 
 **Workspace pessoal**:
-O Workspace próprio de uma Conta de usuário, criado automaticamente no cadastro e inicialmente nomeado com o nome da pessoa. É onde quem se cadastra sem convite começa e configura sua empresa ou projeto. Pode receber participantes por convite e ter seu próprio plano, e permanece disponível quando a pessoa perde acesso a um Workspace da empresa.
+O Workspace próprio de uma Conta de usuário, nomeado com o nome da pessoa. Deixou de ser criado no primeiro acesso ([ADR-0025](docs/adr/0025-workspace-so-por-contrato-e-visitante-na-demonstracao.md)): os que já existem continuam, sem apagar nada, mas sem contrato recusam as ações pagas. Pode receber participantes por convite e ter seu próprio plano, e permanece disponível quando a pessoa perde acesso a um Workspace da empresa.
 
 **Titular do Workspace pessoal**:
 A Conta de usuário para a qual o Workspace pessoal foi criado. É Administrador nele e não pode ser removido nem rebaixado, mesmo por outro Administrador convidado; compartilhar o Workspace pessoal não transfere a titularidade.
 _Avoid_: dono, owner
 
 **Workspace da empresa**:
-O Workspace de um Cliente, criado por escolha explícita, cujo acesso depende da Participação de cada pessoa. Remover essa Participação encerra o acesso aos dados da empresa, sem transferi-los ao Workspace pessoal.
+O Workspace de um Cliente, criado só pela Althius depois do contrato, cujo acesso depende da Participação de cada pessoa. Remover essa Participação encerra o acesso aos dados da empresa, sem transferi-los ao Workspace pessoal.
 
 **Sugestão de Workspace por domínio**:
 A indicação de um Workspace da empresa associado ao domínio do e-mail verificado da pessoa. Ajuda a encontrar a empresa, mas não concede Participação nem substitui o convite necessário para acessar seus dados.

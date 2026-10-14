@@ -676,32 +676,84 @@ describe('Preferências no Workspace operacional', () => {
   })
 })
 
-describe('Plano fora do escopo de billing', () => {
+const CONTRATO_PROFISSIONAL = {
+  status: 'ativo',
+  billing_mode: 'contrato',
+  tier_id: 'profissional',
+  tier_name: 'Profissional',
+  max_users: 3,
+  active_users: 2,
+  monthly_credits: 4500,
+  monthly_credit_limit: 4500,
+  month_usage: 120,
+  starts_at: '2026-10-01T00:00:00Z',
+  unlimited: false,
+}
+
+describe('Plano com contrato', () => {
   it('na Demonstração, o plano e o consumo aparecem identificados como demonstrativos', async () => {
     renderizarApp('/configuracoes/plano')
     expect(await screen.findByText(/Os números abaixo são demonstrativos/)).toBeInTheDocument()
   })
 
-  it('no Workspace operacional, o Plano diz que plano e consumo são só demonstrativos, sem números de exemplo', async () => {
+  it('no Workspace operacional, mostra o contrato ativo, a faixa, o saldo, o limite mensal e o uso do mês', async () => {
+    const banco = bancoDaMarina()
+    banco.rpcs.get_contract_summary = () => [CONTRATO_PROFISSIONAL]
+    banco.rpcs.get_credit_balance = () => [
+      { balance: 4380, reserved: 0, available: 4380, my_month_usage: 120, my_monthly_limit: null, unlimited: false },
+    ]
+    abrir(banco, '/configuracoes/plano')
+
+    const contrato = within(await screen.findByRole('region', { name: 'Contrato' }))
+    expect(contrato.getByText('Contrato ativo')).toBeInTheDocument()
+    expect(contrato.getByText('Profissional')).toBeInTheDocument()
+    expect(contrato.getByRole('status', { name: 'Saldo de créditos' })).toHaveTextContent('4.380')
+    expect(contrato.getByText('Limite mensal').nextSibling).toHaveTextContent('4.500 créditos')
+    expect(contrato.getByText('Uso do mês').nextSibling).toHaveTextContent('120 créditos')
+    expect(contrato.getByText('Usuários').nextSibling).toHaveTextContent('2 de 3')
+    expect(screen.queryByText(/Plano e consumo ainda são só demonstrativos/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument()
+  })
+
+  it('não oferece checkout nem portal do Stripe: mudar de faixa é com a equipe Althius', async () => {
+    const banco = bancoDaMarina()
+    banco.rpcs.get_contract_summary = () => [CONTRATO_PROFISSIONAL]
+    abrir(banco, '/configuracoes/plano')
+    const contrato = within(await screen.findByRole('region', { name: 'Contrato' }))
+    expect(contrato.getByText(/fale com a equipe Althius/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Contratar o plano|Atualizar o pagamento|Ajustar assentos|Fazer upgrade/ })).not.toBeInTheDocument()
+  })
+
+  it('um contrato suspenso aparece como suspenso', async () => {
+    const banco = bancoDaMarina()
+    banco.rpcs.get_contract_summary = () => [{ ...CONTRATO_PROFISSIONAL, status: 'suspenso' }]
+    abrir(banco, '/configuracoes/plano')
+    expect(await within(await screen.findByRole('region', { name: 'Contrato' })).findByText('Contrato suspenso')).toBeInTheDocument()
+  })
+
+  it('sem contrato ativo, diz isso e manda falar com a equipe', async () => {
     abrir(bancoDaMarina(), '/configuracoes/plano')
-    expect(await screen.findByText(/Plano e consumo ainda são só demonstrativos/)).toBeInTheDocument()
-    expect(screen.getByText(/fora do escopo de cobrança/)).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Plano atual' })).not.toBeInTheDocument()
+    expect(await screen.findByText('Este Workspace ainda não tem um contrato ativo na Althius.')).toBeInTheDocument()
+    expect(screen.getByText('Sem contrato ativo')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Contrato' })).not.toBeInTheDocument()
     expect(screen.queryByRole('status', { name: 'Saldo de créditos' })).not.toBeInTheDocument()
   })
 
-  it('no Workspace ilimitado, o Plano mostra Ilimitado', async () => {
+  it('no Workspace ilimitado, o Plano mostra Ilimitado e sem limite', async () => {
     const banco = bancoDaMarina()
+    banco.rpcs.get_contract_summary = () => [{ ...CONTRATO_PROFISSIONAL, tier_name: 'Escala', max_users: 5, unlimited: true }]
     banco.rpcs.get_credit_balance = () => [
       { balance: -3, reserved: 0, available: -3, my_month_usage: 3, my_monthly_limit: null, unlimited: true },
     ]
     abrir(banco, '/configuracoes/plano')
-    expect(await screen.findByRole('status', { name: 'Saldo de créditos' })).toHaveTextContent('Ilimitado')
-    expect(screen.getByText(/Plano e consumo ainda são só demonstrativos/)).toBeInTheDocument()
+    const contrato = within(await screen.findByRole('region', { name: 'Contrato' }))
+    expect(contrato.getByRole('status', { name: 'Saldo de créditos' })).toHaveTextContent('Ilimitado')
+    expect(contrato.getByText('Limite mensal').nextSibling).toHaveTextContent('Sem limite')
   })
 
   it('com saldo finito, o Plano mostra o número disponível', async () => {
     const banco = bancoDaMarina()
+    banco.rpcs.get_contract_summary = () => [CONTRATO_PROFISSIONAL]
     banco.rpcs.get_credit_balance = () => [
       { balance: 12, reserved: 0, available: 12, my_month_usage: 0, my_monthly_limit: null, unlimited: false },
     ]

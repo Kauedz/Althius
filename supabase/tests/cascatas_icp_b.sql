@@ -74,6 +74,7 @@ select is((select state from public.signal_cascade_catalog() where signal_type =
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values ('e1000000-0000-0000-0000-0000000000b1', 'authenticated', 'authenticated', 'bia@norte.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values ('e2000000-0000-0000-0000-0000000000b1', 'empresa', 'Norte B');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values ('e2000000-0000-0000-0000-0000000000b1', 'e1000000-0000-0000-0000-0000000000b1', 'admin', true);
 select public.grant_credits('e2000000-0000-0000-0000-0000000000b1', 50, 'plano', 'saldo de teste');
 select is(

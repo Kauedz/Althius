@@ -22,6 +22,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('69000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('69000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('69000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000001', 'member', true),
   ('69000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002', 'admin', true),
@@ -288,9 +289,9 @@ select ok(
   (select position('pedro' in lower(c::text)) = 0 and position('@' in c::text) = 0 and position('Mercado' in c::text) = 0 from contexto),
   'e nada além do necessário: nem o outro Contato, nem e-mails, nem o Mercado');
 
--- 7. Créditos pelo mecanismo existente: livre enquanto o Workspace não assinou; depois reserva, debita ao concluir e não cobra duas vezes.
+-- 7. Créditos pelo mecanismo existente: a geração sempre reserva (acesso-e-planos); com saldo debita ao concluir e não cobra duas vezes.
 select is((select outcome from public.begin_reply_proposal_round((select job_id from reserva), (select claim_token from reserva))),
-  'free', 'sem cobrança ligada a geração é livre');
+  'no_credits', 'sem ligar a cobrança e sem saldo a geração já não começa: a rodada sempre reserva');
 select public.set_credits_enforced('69000000-0000-0000-0000-000000000001', true);
 select is((select outcome from public.begin_reply_proposal_round((select job_id from reserva), (select claim_token from reserva))),
   'no_credits', 'com a cobrança ligada e sem saldo a geração não começa');

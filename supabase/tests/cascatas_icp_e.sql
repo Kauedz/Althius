@@ -103,6 +103,7 @@ select is(
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values ('e3000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana@serra.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values ('e4000000-0000-0000-0000-000000000001', 'empresa', 'Serra');
+insert into private.workspace_contracts (workspace_id, tier_id) select w.id, 'escala' from public.workspaces w on conflict (workspace_id) do nothing; -- contrato de teste (acesso-e-planos)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values ('e4000000-0000-0000-0000-000000000001', 'e3000000-0000-0000-0000-000000000001', 'admin', true);
 select public.grant_credits('e4000000-0000-0000-0000-000000000001', 50, 'plano', 'saldo de teste');
 select is(

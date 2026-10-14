@@ -403,10 +403,8 @@ describe('Entrar por convite', () => {
     expect(entrar).toHaveAttribute('href', `/entrar?${DESTINO_DO_CONVITE}`)
     await usuario.click(entrar)
 
-    // A etapa do código não prende mais o cadastro: voltar a ele mostra o formulário.
-    await usuario.click(await screen.findByRole('link', { name: 'Criar conta' }))
-    expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument()
-    await usuario.click(screen.getByRole('link', { name: 'Entrar' }))
+    // A entrada não oferece cadastro aberto: o único caminho de volta ao cadastro é o link do convite.
+    expect(screen.queryByRole('link', { name: 'Criar conta' })).not.toBeInTheDocument()
 
     await emailTravadoDaCarla(usuario)
     await usuario.type(screen.getByLabelText('Senha'), 'senha-longa-da-carla')

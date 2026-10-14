@@ -127,29 +127,72 @@ function Indicador({ rotulo, valor, children }: { rotulo: string; valor: number;
   )
 }
 
+const ROTULO_DO_ESTADO: Record<string, string> = {
+  ativo: 'Contrato ativo',
+  suspenso: 'Contrato suspenso',
+  encerrado: 'Contrato encerrado',
+}
+
 /**
- * Plano no Workspace operacional: cobrança, franquia e medição de uso ainda não existem (fora do escopo de billing), então
- * não há número real a mostrar, e os números de exemplo ficam só na Demonstração. A seção diz isso em vez de ficar muda.
+ * Plano no Workspace operacional (acesso-e-planos): o contrato com a Althius, cobrado fora da plataforma. Mostra o estado
+ * do contrato, a faixa, o saldo de créditos, o limite mensal e o uso do mês, tudo em créditos. Não há checkout nem portal:
+ * mudar de faixa, ampliar usuários ou renovar é com a equipe Althius. Os números de exemplo ficam só na Demonstração.
  */
 export function SecaoPlanoDoWorkspaceOperacional() {
   const saldo = useDados((fonte) => (fonte.saldoDeCreditos ? fonte.saldoDeCreditos() : Promise.resolve(null)), [])
+  const contrato = useDados((fonte) => (fonte.contratoDoWorkspace ? fonte.contratoDoWorkspace() : Promise.resolve(null)), [])
 
   return (
     <SecaoDeConfiguracoes id="plano" titulo="Plano" alcance="workspace" descricao="A situação do Workspace na Althius.">
-      <div role="status" className="rounded-2xl flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
-        <span className="selo">Demonstrativo</span>
-        <p className="text-al-ink">Plano e consumo ainda são só demonstrativos na Althius.</p>
-        <p className="text-sm text-al-muted">
-          Cobrança, franquia e medição de uso estão fora do escopo de cobrança desta fase: não há plano nem consumo reais a
-          mostrar neste Workspace. Os números de exemplo aparecem só na Demonstração.
-        </p>
-      </div>
-      {saldo && (
+      {contrato === undefined ? (
+        <Carregando />
+      ) : contrato === null ? (
+        <div role="status" className="rounded-2xl flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
+          <span className="selo">Sem contrato ativo</span>
+          <p className="text-al-ink">Este Workspace ainda não tem um contrato ativo na Althius.</p>
+          <p className="text-sm text-al-muted">Fale com a equipe Althius para contratar ou retomar o acesso.</p>
+        </div>
+      ) : (
+        <section aria-label="Contrato" className="cartao flex max-w-3xl flex-col gap-5 p-6">
+          <div className="flex flex-col gap-1">
+            <span className="selo self-start">{ROTULO_DO_ESTADO[contrato.estado] ?? contrato.estado}</span>
+            <span className="titulo-secao text-3xl">{contrato.faixa}</span>
+            <span className="text-sm text-al-muted">
+              Cobrado fora da plataforma. Para ampliar usuários ou mudar de faixa, fale com a equipe Althius.
+            </span>
+          </div>
+          <dl className="grid grid-cols-2 gap-4">
+            <DadoDoContrato rotulo="Saldo de créditos" valor={saldo ? textoDoSaldo(saldo) : '—'} comoStatus />
+            <DadoDoContrato
+              rotulo="Limite mensal"
+              valor={contrato.ilimitado ? 'Sem limite' : `${numero.format(contrato.limiteMensal)} créditos`}
+            />
+            <DadoDoContrato
+              rotulo="Uso do mês"
+              valor={`${numero.format(contrato.usoDoMes)} ${contrato.usoDoMes === 1 ? 'crédito' : 'créditos'}`}
+            />
+            <DadoDoContrato
+              rotulo="Usuários"
+              valor={contrato.ilimitado ? `${contrato.usuariosAtivos}` : `${contrato.usuariosAtivos} de ${contrato.maximoDeUsuarios}`}
+            />
+          </dl>
+        </section>
+      )}
+      {contrato === null && saldo && (
         <div role="status" aria-label="Saldo de créditos" className="flex max-w-2xl flex-col gap-1">
           <span className="rotulo">Saldo de créditos</span>
           <span className="titulo-secao text-3xl">{textoDoSaldo(saldo)}</span>
         </div>
       )}
     </SecaoDeConfiguracoes>
+  )
+}
+
+function DadoDoContrato({ rotulo, valor, comoStatus = false }: { rotulo: string; valor: string; comoStatus?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1 border border-al-line p-4" {...(comoStatus ? { role: 'status', 'aria-label': rotulo } : {})}>
+      <dt className="rotulo">{rotulo}</dt>
+      <dd className="titulo-secao text-2xl tabular-nums">{valor}</dd>
+    </div>
   )
 }
