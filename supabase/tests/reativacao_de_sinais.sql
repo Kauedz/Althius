@@ -311,8 +311,8 @@ select is(
 select is(split_part(pg_temp.abrir('mensal2', 'vagas'), ':', 1), 'teto_atingido', 'no teto, a próxima varredura não abre');
 select public.end_rescan_scan((select id from r where k = 'mensal1'), (select id from r where k = 'auto2'), false);
 select is(
-  (select row(spent, (select paused_at is null from private.automation_settings where scope = 'acao:varredura'))::text
-   from private.automation_spend where scope = 'acao:varredura'),
+  (select row(spent, (select paused_at is null from private.automation_settings where workspace_id = 'f8000000-0000-0000-0000-000000000001' and scope = 'acao:varredura'))::text
+   from private.automation_spend where workspace_id = 'f8000000-0000-0000-0000-000000000001' and scope = 'acao:varredura'),
   '(1.00,t)', 'a varredura da busca mensal que falha devolve o teto e tira a pausa'
 );
 select public.end_rescan_scan((select id from r where k = 'mensal1'), (select id from r where k = 'auto1'), true);
@@ -361,11 +361,11 @@ values ('f8000000-0000-0000-0000-000000000001', 'd8000000-0000-0000-0000-0000000
 select is(private.enqueue_monthly_rescans(), 0, 'uma busca do clique recente também adia a mensal');
 
 delete from private.signal_rescans;
-update private.automation_settings set mode = 'confirmar' where scope = 'acao:varredura';
+update private.automation_settings set mode = 'confirmar' where workspace_id = 'f8000000-0000-0000-0000-000000000001' and scope = 'acao:varredura';
 select is(private.enqueue_monthly_rescans(), 0, 'com o automático em "confirmar", nada é enfileirado');
-update private.automation_settings set mode = 'automatico', paused_at = now() where scope = 'acao:varredura';
+update private.automation_settings set mode = 'automatico', paused_at = now() where workspace_id = 'f8000000-0000-0000-0000-000000000001' and scope = 'acao:varredura';
 select is(private.enqueue_monthly_rescans(), 0, 'com a varredura pausada pelo teto, nada é enfileirado');
-update private.automation_settings set paused_at = null where scope = 'acao:varredura';
+update private.automation_settings set paused_at = null where workspace_id = 'f8000000-0000-0000-0000-000000000001' and scope = 'acao:varredura';
 update private.signal_monitors set state = 'pausado' where workspace_id = 'f8000000-0000-0000-0000-000000000001';
 select is(private.enqueue_monthly_rescans(), 0, 'sem Monitoramento ativo, nada é enfileirado');
 update private.signal_monitors set state = 'ativo' where id in (select id from r where k in ('vagas', 'lideranca'));

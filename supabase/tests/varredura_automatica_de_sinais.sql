@@ -129,8 +129,8 @@ select is((select count(*)::integer from private.workspace_notices), 1, 'e um Av
 select is((select count(*)::integer from private.credit_reservations where status = 'reserved'), 0, 'sem deixar reserva presa');
 select private.refund_automation_cap('f7000000-0000-0000-0000-000000000001', 'acao:varredura', 1);
 select is(
-  (select row(spent, (select paused_at is null from private.automation_settings where scope = 'acao:varredura'))::text
-   from private.automation_spend where scope = 'acao:varredura'),
+  (select row(spent, (select paused_at is null from private.automation_settings where workspace_id = 'f7000000-0000-0000-0000-000000000001' and scope = 'acao:varredura'))::text
+   from private.automation_spend where workspace_id = 'f7000000-0000-0000-0000-000000000001' and scope = 'acao:varredura'),
   '(4.00,t)', 'estornar 1 do teto tira a pausa'
 );
 

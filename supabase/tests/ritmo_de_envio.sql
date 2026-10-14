@@ -37,6 +37,7 @@ values
 insert into public.workspaces (id, kind, name) values
   ('d1000000-0000-0000-0000-000000000001', 'empresa', 'Cliente'),
   ('d1000000-0000-0000-0000-000000000002', 'empresa', 'Outra empresa');
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at) select w.id, 'escala', date_trunc('month', now()) from public.workspaces w where w.id in ('d1000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000002') on conflict (workspace_id) do nothing; -- contrato de teste (automacao-e-contrato-inativo)
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('d1000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-00000000000a', 'member', true),
   ('d1000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-00000000000b', 'member', true),
