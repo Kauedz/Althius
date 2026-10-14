@@ -4,6 +4,7 @@ import { Carregando, IconeDaEspecialidade } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
 import { useDados } from '@/fonte/contexto'
 import { formatarPeriodoIsoPorExtenso } from '@/fonte/formatar-data'
+import { textoDoSaldo } from '@/fonte/creditos'
 import type { PlanoDoWorkspace, UsoDoWorkspace } from '@/fonte/tipos'
 import { ERRO_SEM_PARTICIPACAO } from '@/fonte/regras'
 import { cn } from '@/lib/utils'
@@ -131,6 +132,8 @@ function Indicador({ rotulo, valor, children }: { rotulo: string; valor: number;
  * não há número real a mostrar, e os números de exemplo ficam só na Demonstração. A seção diz isso em vez de ficar muda.
  */
 export function SecaoPlanoDoWorkspaceOperacional() {
+  const saldo = useDados((fonte) => (fonte.saldoDeCreditos ? fonte.saldoDeCreditos() : Promise.resolve(null)), [])
+
   return (
     <SecaoDeConfiguracoes id="plano" titulo="Plano" alcance="workspace" descricao="A situação do Workspace na Althius.">
       <div role="status" className="rounded-2xl flex max-w-2xl flex-col items-start gap-2 border border-dashed border-al-line px-5 py-4">
@@ -141,6 +144,12 @@ export function SecaoPlanoDoWorkspaceOperacional() {
           mostrar neste Workspace. Os números de exemplo aparecem só na Demonstração.
         </p>
       </div>
+      {saldo && (
+        <div role="status" aria-label="Saldo de créditos" className="flex max-w-2xl flex-col gap-1">
+          <span className="rotulo">Saldo de créditos</span>
+          <span className="titulo-secao text-3xl">{textoDoSaldo(saldo)}</span>
+        </div>
+      )}
     </SecaoDeConfiguracoes>
   )
 }

@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
+import { useDados, useDadosDeContas, useFonteDeContas } from '@/fonte/contexto'
 import { formatarDataDoModulo } from '@/fonte/formatar-data'
 
 /** De quanto em quanto tempo a tela confere se a busca em andamento terminou. */
@@ -16,6 +16,7 @@ const creditos = (n: number) => `${n.toLocaleString('pt-BR')} ${n === 1 ? 'créd
  */
 export function BuscarSinaisDeNovo({ contaId, aoTerminar }: { contaId: string; aoTerminar: () => void }) {
   const fonte = useFonteDeContas()
+  const saldo = useDados((f) => (f.saldoDeCreditos ? f.saldoDeCreditos() : Promise.resolve(null)), [])
   const { dados: custo, recarregar } = useDadosDeContas((f) => f.custoDeBuscarSinais!(contaId), [contaId])
   const [pedindo, setPedindo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -38,7 +39,8 @@ export function BuscarSinaisDeNovo({ contaId, aoTerminar }: { contaId: string; a
   if (!custo) return null
 
   const semMonitoramento = custo.monitoramentos === 0
-  const semSaldo = !semMonitoramento && custo.saldo < custo.creditos
+  const ilimitado = saldo?.ilimitado === true
+  const semSaldo = !ilimitado && !semMonitoramento && custo.saldo < custo.creditos
   const motivoDeEstarDesligado = semMonitoramento
     ? 'Nenhum Monitoramento ativo para buscar.'
     : semSaldo
@@ -74,7 +76,7 @@ export function BuscarSinaisDeNovo({ contaId, aoTerminar }: { contaId: string; a
         </Button>
         {!semMonitoramento && (
           <span id={custoId} className="text-xs text-al-muted">
-            {creditos(custo.creditos)}
+            {ilimitado ? 'Ilimitado' : creditos(custo.creditos)}
           </span>
         )}
         {emAndamento && (

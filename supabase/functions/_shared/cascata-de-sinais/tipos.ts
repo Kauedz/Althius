@@ -196,6 +196,11 @@ export interface DbDaCascata {
   configuracao(): Promise<{ usdPorCredito: number; limiteDiario: number }>
   contas(workspaceId: string, ids: string[] | null, limite: number): Promise<ContaDoWorkspace[]>
   abrir(args: AbrirExecucao): Promise<ResultadoDaAbertura>
+  /**
+   * O Workspace não tem Teto de Sinais (créditos ilimitados). Opcional: sem isto, o motor honra o teto da execução.
+   * Quando verdadeiro, a execução não aborta no teto, e cada chamada ao fornecedor continua limitada ao `capUsd` do tipo.
+   */
+  semTetoDeSinais?(workspaceId: string): Promise<boolean>
   fechar(args: {
     runId: string
     estado: 'succeeded' | 'partial' | 'aborted' | 'failed' | 'adiado'

@@ -57,6 +57,7 @@ interface Opcoes {
   semAdaptador?: boolean
   adaptador?: AdaptadorDeSinal
   recordSignal?: () => Promise<boolean>
+  ilimitado?: boolean
 }
 
 function montar(opcoes: Opcoes = {}) {
@@ -82,6 +83,7 @@ function montar(opcoes: Opcoes = {}) {
     },
     recordCost: () => Promise.resolve(),
     finish: (monitorId, attempted, error, continuar) => (c.fins.push({ monitorId, attempted, error, continuar }), Promise.resolve()),
+    ...(opcoes.ilimitado ? { creditsUnlimited: () => Promise.resolve(true) } : {}),
   }
   const apify: Apify = {
     run: opcoes.apify ?? ((args) => {
@@ -179,6 +181,16 @@ Deno.test('a rodada já concluída ou já falhada não roda o actor nem cobra ou
   assertEquals((await (await chamar(b.handler)).json()).scanned, 0)
   assertEquals(b.c.runs.length, 0)
   assertEquals(b.c.fins[0].attempted, 2)
+})
+
+Deno.test('Workspace ilimitado com reserva: teto atingido não para a varredura', async () => {
+  const { handler, c } = montar({
+    abertura: () => ({ outcome: 'teto_atingido', reservationId: 'res-ilimitado' }),
+    ilimitado: true,
+  })
+  assertEquals((await (await chamar(handler)).json()).scanned, 2)
+  assertEquals(c.runs.length, 2)
+  assertEquals(c.fechamentos.map((f) => f.success), [true, true])
 })
 
 Deno.test('automático em confirmar, sem teto ou no teto: não varre, não cobra e diz por quê', async () => {

@@ -61,6 +61,15 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
       }
     },
 
+    async semTetoDeSinais(workspaceId) {
+      try {
+        const data = await chamar(admin, 'workspace_credits_unlimited', { p_workspace_id: workspaceId })
+        return data === true
+      } catch {
+        return false
+      }
+    },
+
     async fechar(a) {
       const l = primeiraLinha(await chamar(admin, 'finish_cascade_run', {
         p_run_id: a.runId,

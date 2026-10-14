@@ -29,6 +29,7 @@ import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
 import { criarFonteDeDescobertasSimulada } from './simulada-descobertas'
 import { criarFonteDeDescobertasSupabase } from './supabase-descobertas'
+import { lerSaldoDeCreditos } from './creditos'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
 export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: Storage }): Ambiente {
@@ -106,6 +107,7 @@ export function criarAmbienteDoWorkspace({
       ...participantes,
       ...perfil,
       ...agentes,
+      saldoDeCreditos: () => lerSaldoDeCreditos(cliente, participacao.workspaceId),
       ...conversas,
       ...(aprovacoes ? { aprovacoes: aprovacoes.aprovacoes, decidirAprovacao: aprovacoes.decidirAprovacao } : {}),
       // Com a fila ligada, o número na navegação conta as pendentes dela; uma leitura que falha não tira o Workspace.

@@ -89,6 +89,15 @@ function montarEntrada(
 export type MotivoDeParada = 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido'
 export type ResultadoDaAbertura = 'go' | 'resume' | 'done' | 'skip' | MotivoDeParada
 
+/**
+ * Workspace ilimitado com reserva já feita: confirmar, sem teto e teto atingido não param a varredura.
+ * Sem reserva, o desfecho segue como veio (a recusa não deixou o que liquidar).
+ */
+export function outcomeEfetivo(outcome: ResultadoDaAbertura, ilimitado: boolean, temReserva: boolean): ResultadoDaAbertura {
+  if (ilimitado && temReserva && (outcome === 'confirmar' || outcome === 'sem_teto' || outcome === 'teto_atingido')) return 'go'
+  return outcome
+}
+
 export interface Db {
   tokenMatches(token: string): Promise<boolean>
   claim(limit: number): Promise<MonitorReivindicado[]>
@@ -114,6 +123,8 @@ export interface Db {
   recordCost(args: { workspaceId: string; actorId: string; runId: string; items: number; costUsd: number | null }): Promise<void>
   /** finish_signal_monitor_run: `attempted` são as Contas que a rodada tentou (a rotação avança por elas); `continuar` pede a próxima rodada já. */
   finish(monitorId: string, attempted: number, error: string | null, continuar: boolean): Promise<void>
+  /** Créditos ilimitados neste Workspace. Ausente, ou falha de leitura, trata como limitado. */
+  creditsUnlimited?(workspaceId: string): Promise<boolean>
 }
 
 /** Uma busca da fila (reativação de Sinais): varre uma Conta com os Monitoramentos ativos do Workspace. */
@@ -359,6 +370,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     let continuar = false
     const falhas: string[] = []
     const semDado = new Map<string, string[]>()
+    const ilimitado = deps.db.creditsUnlimited ? await deps.db.creditsUnlimited(m.workspaceId) : false
     for (const conta of m.accounts) {
       if (agora() > prazo) {
         erro = `Varridas ${varridas} de ${m.accounts.length} Contas; o resto na próxima rodada.`
@@ -381,13 +393,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         semDado.set(entrada.message, [...(semDado.get(entrada.message) ?? []), conta.name])
         continue
       }
-      const { outcome, reservationId } = await deps.db.beginScan({
+      const aberto = await deps.db.beginScan({
         workspaceId: m.workspaceId,
         userId: m.createdBy,
         monitorId: m.monitorId,
         accountId: conta.id,
         slot: m.slot,
       })
+      const reservationId = aberto.reservationId
+      const outcome = outcomeEfetivo(aberto.outcome, ilimitado, reservationId !== null)
       if (outcome === 'done' || outcome === 'skip') {
         tentadas++
         continue
@@ -431,6 +445,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const semDado = new Set<string>()
     let acabouOTempo = false
     let parou: MotivoDeParada | null = null
+    const ilimitado = deps.db.creditsUnlimited ? await deps.db.creditsUnlimited(b.workspaceId) : false
     for (const m of b.monitors) {
       if (agora() > prazo) {
         acabouOTempo = true
@@ -459,7 +474,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         semDado.add(entrada.message)
         continue
       }
-      const { outcome, reservationId } = await buscas.beginScan({ rescanId: b.rescanId, monitorId: m.monitorId })
+      const aberto = await buscas.beginScan({ rescanId: b.rescanId, monitorId: m.monitorId })
+      const reservationId = aberto.reservationId
+      const outcome = outcomeEfetivo(aberto.outcome, ilimitado, reservationId !== null)
       if (outcome === 'done' || outcome === 'skip') {
         tentadas++
         continue

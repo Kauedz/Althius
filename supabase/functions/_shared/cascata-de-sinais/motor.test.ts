@@ -178,6 +178,18 @@ Deno.test('timeout num passo do meio: falha, cobra só o consumido e nada vira S
   assertEquals([f.estado, f.apifyRunId, f.custoUsd], ['failed', 'apify-t', 0.004])
 })
 
+Deno.test('o Workspace sem teto de Sinais não aborta no meio, e cada chamada continua limitada ao capUsd', async () => {
+  const { db, passos, fechamentos } = dbFalso(cascataDeTeste({ capUsd: 0.045 }))
+  db.semTetoDeSinais = () => Promise.resolve(true)
+  const { fonte, chamadas } = fonteFalsa({ 'time~um': exec(GERADOS, 0.04), 'time~dois': exec(ENRIQUECIDOS, 0.01) })
+  const r = await rodarCascata({ db, fonte, registro: registro(), agora: () => AGORA, log: () => {} }, pedido())
+  assertEquals(r.desfecho, 'concluida')
+  assertEquals(chamadas.map((c) => c.actorId), ['time~um', 'time~dois'])
+  assert(chamadas.every((c) => Number.isFinite(c.maxTotalChargeUsd) && c.maxTotalChargeUsd <= 0.045), JSON.stringify(chamadas.map((c) => c.maxTotalChargeUsd)))
+  assertEquals(passos.find((p) => p.ordem === 3)?.fim?.estado, 'succeeded')
+  assertEquals(fechamentos[0].estado, 'succeeded')
+})
+
 Deno.test('o teto rígido aborta no meio: o passo seguinte não roda e só o consumido é liquidado', async () => {
   // Teto de US$ 0,05: o passo 1 gasta 0,04; o passo 3 estima 0,001+0,004×2 = 0,009, que passaria do teto.
   const { db, passos, sinais, fechamentos } = dbFalso(cascataDeTeste({ capUsd: 0.045 }))

@@ -218,7 +218,8 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     return vazio(desfecho, mensagem || (def.semFonteMotivo ?? MENSAGENS.indisponivel))
   }
   const runId = abertura.runId
-  const teto = abertura.capUsd
+  const semTeto = db.semTetoDeSinais ? await db.semTetoDeSinais(pedido.workspaceId) : false
+  const teto = semTeto ? Infinity : abertura.capUsd
 
   const ctxBase = {
     workspaceId: pedido.workspaceId,
@@ -405,7 +406,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
           runId, ordem: passo.ordem, tentativa: tentativaDoLote, handler: passo.handler, kind: passo.kind, actorId, itensEntrada: entradaDoPasso.length,
         })
         try {
-          const restanteUsd = Math.max(teto - acumulado - gasto, 0)
+          const restanteUsd = Number.isFinite(teto) ? Math.max(teto - acumulado - gasto, 0) : abertura.capUsd
           const tetoDoLote = typeof lote.tetoUsd === 'number' && Number.isFinite(lote.tetoUsd) && lote.tetoUsd > 0 ? lote.tetoUsd : restanteUsd
           const exec = await fonte.rodar({
             actorId: actorId!,

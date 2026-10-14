@@ -687,5 +687,27 @@ describe('Plano fora do escopo de billing', () => {
     expect(await screen.findByText(/Plano e consumo ainda são só demonstrativos/)).toBeInTheDocument()
     expect(screen.getByText(/fora do escopo de cobrança/)).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Plano atual' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Saldo de créditos' })).not.toBeInTheDocument()
+  })
+
+  it('no Workspace ilimitado, o Plano mostra Ilimitado', async () => {
+    const banco = bancoDaMarina()
+    banco.rpcs.get_credit_balance = () => [
+      { balance: -3, reserved: 0, available: -3, my_month_usage: 3, my_monthly_limit: null, unlimited: true },
+    ]
+    abrir(banco, '/configuracoes/plano')
+    expect(await screen.findByRole('status', { name: 'Saldo de créditos' })).toHaveTextContent('Ilimitado')
+    expect(screen.getByText(/Plano e consumo ainda são só demonstrativos/)).toBeInTheDocument()
+  })
+
+  it('com saldo finito, o Plano mostra o número disponível', async () => {
+    const banco = bancoDaMarina()
+    banco.rpcs.get_credit_balance = () => [
+      { balance: 12, reserved: 0, available: 12, my_month_usage: 0, my_monthly_limit: null, unlimited: false },
+    ]
+    abrir(banco, '/configuracoes/plano')
+    const saldo = await screen.findByRole('status', { name: 'Saldo de créditos' })
+    expect(saldo).toHaveTextContent('12')
+    expect(saldo).not.toHaveTextContent('Ilimitado')
   })
 })
