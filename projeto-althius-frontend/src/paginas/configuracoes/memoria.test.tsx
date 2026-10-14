@@ -19,7 +19,7 @@ describe('Memória do Workspace: ICP vigente', () => {
     expect(icp.getByText('Empresas com 2.000 funcionários ou mais.')).toBeInTheDocument()
     expect(icp.getByText('Brasil e México.')).toBeInTheDocument()
     expect(icp.getByText(/mantido pelo Scopus/)).toBeInTheDocument()
-    expect(icp.getByRole('button', { name: 'Solicitar revisão ao Scopus' })).toBeInTheDocument()
+    expect(icp.getByRole('button', { name: 'Pedir revisão ao Scopus' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
@@ -29,7 +29,7 @@ type Usuario = ReturnType<typeof renderizarApp>['usuario']
 
 /** Na Memória do Workspace, pede a revisão do ICP ao Scopus pela Conversa do diálogo. */
 async function pedirRevisaoAoScopus(usuario: Usuario, pedido = 'Estamos fechando com empresas menores na Colômbia e no Chile.') {
-  await usuario.click(await screen.findByRole('button', { name: 'Solicitar revisão ao Scopus' }))
+  await usuario.click(await screen.findByRole('button', { name: 'Pedir revisão ao Scopus' }))
   const dialogo = within(await screen.findByRole('dialog', { name: 'Revisão do ICP' }))
   await usuario.type(dialogo.getByRole('textbox', { name: 'O que deveria mudar?' }), pedido)
   await usuario.click(dialogo.getByRole('button', { name: 'Enviar ao Scopus' }))
@@ -49,7 +49,7 @@ describe('Revisão do ICP pelo Scopus', () => {
     const icp = within(screen.getByRole('region', { name: 'ICP vigente' }))
     expect(icp.getByText('Empresas com 2.000 funcionários ou mais.')).toBeInTheDocument()
     expect(icp.getByText(/Proposta pendente do Scopus/)).toBeInTheDocument()
-    expect(icp.queryByRole('button', { name: 'Solicitar revisão ao Scopus' })).not.toBeInTheDocument()
+    expect(icp.queryByRole('button', { name: 'Pedir revisão ao Scopus' })).not.toBeInTheDocument()
 
     await usuario.click(icp.getByRole('link', { name: 'Ver proposta pendente' }))
     const cartao = within(await screen.findByRole('article', { name: 'Revisar o ICP do Workspace' }))
@@ -200,7 +200,7 @@ describe('Recusa, pendência e revisões sucessivas', () => {
     const icp = await voltarParaAMemoria(usuario)
     expect(icp.getByText('Empresas com 2.000 funcionários ou mais.')).toBeInTheDocument()
     expect(icp.getByText(/A última proposta do Scopus foi recusada por Marina Alves/)).toBeInTheDocument()
-    expect(icp.getByRole('button', { name: 'Solicitar revisão ao Scopus' })).toBeInTheDocument()
+    expect(icp.getByRole('button', { name: 'Pedir revisão ao Scopus' })).toBeInTheDocument()
     const publico = await publicoDoMonitoramentoPreexistente(usuario)
     expect(publico).toHaveTextContent('Empresas com 2.000 funcionários ou mais · Time de dados próprio, com engenharia e ciência de dados · Brasil e México')
   })
@@ -243,8 +243,7 @@ describe('Recusa, pendência e revisões sucessivas', () => {
     expect(icp.getAllByText('Porte')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: /Restaurar|Versões|Histórico/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/versão anterior/i)).not.toBeInTheDocument()
-    const dependentes = within(screen.getByRole('list', { name: 'Configurações que usam o ICP' }))
-    expect(dependentes.getByText('Segmentos: Serviços financeiros, saúde e telecomunicações')).toBeInTheDocument()
+    expect(icp.getByText(/Usado por Scopus na nota de aderência/)).toBeInTheDocument()
 
     // Atualizar o ICP não dispara Sinal nem muda Aderência ou Quente das Contas-alvo.
     expect(await fonteDeSinais.sinaisEncontrados()).toEqual(sinaisAntes)

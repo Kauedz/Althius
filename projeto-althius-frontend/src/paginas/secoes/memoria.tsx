@@ -21,6 +21,14 @@ export function SecaoMemoria({ agente }: { agente: Agente }) {
           Memória
         </h2>
         <p className="text-al-muted">O que {agente.nome} aprendeu sobre a {workspace?.cliente} e sobre você. Corrija o que estiver errado.</p>
+        <p className="text-sm text-al-muted">
+          Esta é a Memória do Agente: as notas e preferências que só {agente.nome} guarda. O que vale para todos os
+          Agentes, como o ICP e as Personas, fica no{' '}
+          <Link to="/configuracoes/memoria/icp" className="text-al-ink underline underline-offset-2">
+            Contexto do Workspace
+          </Link>
+          .
+        </p>
       </div>
       {!fatos ? (
         <Carregando />

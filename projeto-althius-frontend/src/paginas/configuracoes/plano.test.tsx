@@ -96,7 +96,7 @@ describe('Plano do Workspace', () => {
     const { usuario, unmount } = abrir('/configuracoes/memoria', { armazenamento })
 
     // Pedir a revisão do ICP é uma Conversa com o Scopus: uma Execução dele.
-    await usuario.click(await screen.findByRole('button', { name: 'Solicitar revisão ao Scopus' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Pedir revisão ao Scopus' }))
     const dialogo = within(await screen.findByRole('dialog', { name: 'Revisão do ICP' }))
     await usuario.type(dialogo.getByRole('textbox', { name: 'O que deveria mudar?' }), 'Incluir a Colômbia.')
     await usuario.click(dialogo.getByRole('button', { name: 'Enviar ao Scopus' }))

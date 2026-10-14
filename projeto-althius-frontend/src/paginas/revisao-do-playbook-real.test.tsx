@@ -214,10 +214,16 @@ describe('A Memória do Workspace operacional lê o ICP e as Personas do Playboo
   it('mostra o ICP aprovado e a proposta pendente, sem nada da Demonstração', async () => {
     abrir('/configuracoes/memoria/icp', 'member')
 
-    const icp = await screen.findByRole('region', { name: 'ICP do Workspace' })
+    const icp = await screen.findByRole('region', { name: 'ICP vigente' })
     expect(await within(icp).findByText('Empresas de 50 a 200 pessoas no Brasil')).toBeInTheDocument()
     expect(within(icp).getByText('Vigente')).toBeInTheDocument()
-    expect(within(icp).getByText(/Versão 2 · Ana Prado/)).toBeInTheDocument()
+    expect(within(icp).getByText(/Versão 2, atualizada em .* por Ana Prado/)).toBeInTheDocument()
+    expect(within(icp).getByText('Revisão pendente')).toBeInTheDocument()
+    // O Membro não edita aqui: propõe a revisão no Playbook.
+    expect(within(icp).getByRole('link', { name: 'Pedir revisão' })).toHaveAttribute('href', '/configuracoes/playbook/icp')
+    expect(within(icp).getByRole('link', { name: /Ver histórico/ })).toHaveAttribute('href', '/configuracoes/playbook/icp')
+    expect(within(icp).queryByRole('link', { name: /Editar no Playbook/ })).not.toBeInTheDocument()
+    expect(within(icp).getByText(/Usado por Scopus na nota de aderência/)).toBeInTheDocument()
     expect(await within(icp).findByText('Proposta pendente do Scopus.')).toBeInTheDocument()
     expect(within(icp).getByRole('link', { name: /Ver proposta pendente/ })).toHaveAttribute('href', '/aprovacoes')
     expect(screen.queryByText(/Aguardando a execução dos Agentes/)).not.toBeInTheDocument()
@@ -227,18 +233,21 @@ describe('A Memória do Workspace operacional lê o ICP e as Personas do Playboo
 
   it('depois de uma recusa, diz quem recusou e que o ICP vigente não mudou', async () => {
     abrir('/configuracoes/memoria/icp', 'admin', { fila: [revisaoDoIcp('recusada')] })
-    const icp = await screen.findByRole('region', { name: 'ICP do Workspace' })
+    const icp = await screen.findByRole('region', { name: 'ICP vigente' })
     expect(await within(icp).findByText(/A última proposta do Scopus foi recusada por Ana Prado\. O ICP vigente não mudou\./))
       .toBeInTheDocument()
     expect(within(icp).queryByText('Proposta pendente do Scopus.')).not.toBeInTheDocument()
+    // O Administrador edita no Playbook, que gera a versão nova.
+    expect(within(icp).getByRole('link', { name: /Editar no Playbook/ })).toHaveAttribute('href', '/configuracoes/playbook/icp')
   })
 
-  it('sem versão aprovada, as Personas dizem o que fazer: pedir ao Ethos numa Conversa', async () => {
+  it('sem versão, as Personas dizem o que fazer: importar o Playbook ou pedir ao Ethos', async () => {
     abrir('/configuracoes/memoria/personas', 'admin', { fila: [] })
-    const personas = await screen.findByRole('region', { name: 'Personas do Workspace' })
-    expect(await within(personas).findByText('Nenhuma versão aprovada ainda.')).toBeInTheDocument()
-    expect(within(personas).getByText(/Peça ao Ethos numa Conversa/)).toBeInTheDocument()
-    expect(within(personas).getByRole('link', { name: 'Conversar com o Ethos' })).toHaveAttribute('href', '/agentes/agente-ethos')
+    const personas = await screen.findByRole('region', { name: 'Personas vigentes' })
+    expect(
+      await within(personas).findByText('Ainda não há Personas. Importe o Playbook ou peça ao Ethos para montar.'),
+    ).toBeInTheDocument()
+    expect(within(personas).getByRole('link', { name: 'Abrir o Playbook' })).toHaveAttribute('href', '/configuracoes/playbook/personas')
     expect(within(personas).queryByText('Vigente')).not.toBeInTheDocument()
   })
 })

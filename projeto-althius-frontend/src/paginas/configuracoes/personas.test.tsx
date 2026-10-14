@@ -24,15 +24,12 @@ describe('Memória do Workspace: Personas vigentes', () => {
     expect(personas.getByText('Campeão interno')).toBeInTheDocument()
     expect(personas.getByText(/Aprovadas em 5 de setembro de 2026 por Rafael Couto · mantidas pelo Ethos/)).toBeInTheDocument()
     expect(personas.getByText(/classificam os Contatos em Contas e Contatos e não são participantes do Workspace/)).toBeInTheDocument()
-    expect(personas.getByRole('button', { name: 'Solicitar revisão ao Ethos' })).toBeInTheDocument()
+    expect(personas.getByRole('button', { name: 'Pedir revisão ao Ethos' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'ICP vigente' })).not.toBeInTheDocument()
 
-    const dependentes = within(screen.getByRole('list', { name: 'Configurações que usam as Personas' }))
-    expect(dependentes.getByRole('listitem', { name: 'Classificação de Contatos por Persona' })).toHaveTextContent('Contas e Contatos')
-    expect(dependentes.getByRole('listitem', { name: 'Habilidade “Sequência por persona”' })).toHaveTextContent('Rhetor')
-    expect(dependentes.getByRole('listitem', { name: 'Contexto do Workspace na Memória dos Agentes' })).toBeInTheDocument()
+    expect(personas.getByText(/Usadas por Ethos no Comitê/)).toBeInTheDocument()
 
     await usuario.click(documentos.getByRole('link', { name: 'ICP' }))
     expect(await screen.findByRole('region', { name: 'ICP vigente' })).toBeInTheDocument()
@@ -43,7 +40,7 @@ type Usuario = ReturnType<typeof renderizarApp>['usuario']
 
 /** Na aba Personas da Memória do Workspace, pede a revisão ao Ethos pela Conversa do diálogo. */
 async function pedirRevisaoAoEthos(usuario: Usuario, pedido = 'Governança de dados aparece em quase todas as objeções.') {
-  await usuario.click(await screen.findByRole('button', { name: 'Solicitar revisão ao Ethos' }))
+  await usuario.click(await screen.findByRole('button', { name: 'Pedir revisão ao Ethos' }))
   const dialogo = within(await screen.findByRole('dialog', { name: 'Revisão das Personas' }))
   await usuario.type(dialogo.getByRole('textbox', { name: 'O que deveria mudar?' }), pedido)
   await usuario.click(dialogo.getByRole('button', { name: 'Enviar ao Ethos' }))
@@ -64,7 +61,7 @@ describe('Revisão das Personas pelo Ethos', () => {
     expect(personas.queryByText('Líder de governança de dados')).not.toBeInTheDocument()
     expect(personas.getByText(/Proposta pendente do Ethos/)).toBeInTheDocument()
     expect(personas.getByText(/as Personas abaixo continuam valendo em todo o Workspace/)).toBeInTheDocument()
-    expect(personas.queryByRole('button', { name: 'Solicitar revisão ao Ethos' })).not.toBeInTheDocument()
+    expect(personas.queryByRole('button', { name: 'Pedir revisão ao Ethos' })).not.toBeInTheDocument()
 
     await usuario.click(personas.getByRole('link', { name: 'Ver proposta pendente' }))
     const cartao = within(await screen.findByRole('article', { name: 'Revisar as Personas do Workspace' }))
@@ -167,7 +164,7 @@ describe('Recusa e pendência da revisão das Personas', () => {
     const personas = await abrirDocumento(usuario, 'Personas')
     expect(personas.queryByText('Líder de governança de dados')).not.toBeInTheDocument()
     expect(personas.getByText(/A última proposta do Ethos foi recusada por Marina Alves. As Personas vigentes não mudaram./)).toBeInTheDocument()
-    expect(personas.getByRole('button', { name: 'Solicitar revisão ao Ethos' })).toBeInTheDocument()
+    expect(personas.getByRole('button', { name: 'Pedir revisão ao Ethos' })).toBeInTheDocument()
     expect(await habilidadeSequenciaPorPersona(usuario, 'Rhetor')).toHaveTextContent('Uma variação para cada uma das 7 Personas')
   })
 
