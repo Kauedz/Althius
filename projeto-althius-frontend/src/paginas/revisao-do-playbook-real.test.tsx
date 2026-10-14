@@ -249,7 +249,7 @@ describe('O Playbook marca a seção com proposta pendente', () => {
     const menu = await screen.findByRole('navigation', { name: 'Seções do Playbook' })
     expect(await within(menu).findByRole('link', { name: 'ICP, proposta pendente' })).toBeInTheDocument()
     expect(within(menu).getByRole('link', { name: 'Personas' })).toBeInTheDocument()
-    expect(await screen.findByText('Há uma proposta de um Agente para ICP, aguardando Aprovação.')).toBeInTheDocument()
+    expect(await screen.findByText('Há uma proposta para ICP, aguardando Aprovação.')).toBeInTheDocument()
     expect(screen.getByText(/Salvar uma versão agora deixa a proposta desatualizada/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ver a proposta' })).toHaveAttribute('href', '/aprovacoes')
   })

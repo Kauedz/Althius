@@ -61,4 +61,6 @@ export interface FonteDoPlaybook extends FonteObservavel {
   salvar(id: IdDaSecaoDoPlaybook, conteudo: ConteudoDoPlaybook): Promise<number>
   /** Grava uma versão nova com o conteúdo de uma versão antiga. Só Administrador. Devolve o número da versão criada. */
   restaurar(id: IdDaSecaoDoPlaybook, versao: number): Promise<number>
+  /** Propõe o conteúdo como revisão da seção, que vai para Aprovações. É o caminho do Membro. */
+  propor(id: IdDaSecaoDoPlaybook, conteudo: ConteudoDoPlaybook, justificativa?: string): Promise<void>
 }
