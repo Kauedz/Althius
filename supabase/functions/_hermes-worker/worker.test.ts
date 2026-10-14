@@ -71,10 +71,10 @@ Deno.test('a Coordenação: o Hermes recebe o contexto e a resposta volta com as
     resposta: 'Temos a Alfa.',
   })
   const { worker, eventos, fechamentos, corpos } = montar({
-    reservada: reserva({ mentions: [RHETOR.id] }),
     fim: { status: 'completed', output: `<think>pensando</think>\n\`\`\`json\n${saida}\n\`\`\`` },
   })
-  assertEquals(await worker.rodada(), 1)
+  // Com Menção, a rodada vai pelo modo por Agente (PR-11); o modo de uma chamada é testado direto.
+  await worker.processar(reserva({ mentions: [RHETOR.id] }))
   assertEquals(eventos.map((e) => `${e.kind}:${e.agentId ?? '-'}`), [
     'chamada:a-scopus',
     'feito:a-scopus',
@@ -98,12 +98,9 @@ Deno.test('sem o JSON pedido, a saída do motor vira a resposta, sem etapas inve
   assertEquals(eventos, [{ kind: 'resposta', agentId: null, payload: { texto: 'Temos a Alfa.' } }])
 })
 
-Deno.test('na página do Agente, a resposta é dele', async () => {
-  const { worker, eventos, corpos } = montar({
-    reservada: reserva({ kind: 'agente', agent_id: SCOPUS.id }),
-    fim: { status: 'completed', output: 'A Alfa tem aderência.' },
-  })
-  await worker.rodada()
+Deno.test('no modo de uma chamada, na página do Agente sem Menção, a resposta é dele', async () => {
+  const { worker, eventos, corpos } = montar({ fim: { status: 'completed', output: 'A Alfa tem aderência.' } })
+  await worker.processar(reserva({ kind: 'agente', agent_id: SCOPUS.id }))
   assertEquals(eventos, [{ kind: 'texto', agentId: SCOPUS.id, payload: { texto: 'A Alfa tem aderência.' } }])
   assertStringIncludes(corpos[0].corpo.instructions, 'Responda como Scopus')
 })

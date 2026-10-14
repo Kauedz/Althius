@@ -17,6 +17,7 @@ import {
   type AgenteDoWorkspace,
   agentesMencionados,
   agentesPorId,
+  cobrandoOsCreditos,
   codigoDoErro,
   type ContaEncontrada,
   contribuicoesDe,
@@ -29,6 +30,7 @@ import {
   historicoDaConversa,
   INSTRUCAO_DE_DESFECHO,
   leitorDoPlaybook,
+  MAX_PARTICIPANTES_DA_CONVERSA,
   registrador,
   registrarCustoDaExecucao,
   type Reserva,
@@ -92,11 +94,17 @@ export function corpoDoRun(reserva: Reserva, contas: ContaEncontrada[]): CorpoDo
     'grave nada fora da Althius, não use terminal nem arquivos do computador. Se o pedido exigir isso, diga o que faria.',
     REGRA_DE_MARCA,
   ]
-  if (reserva.kind === 'agente' && anfitriao) {
+  if (reserva.kind === 'agente' && anfitriao && mencionados.length) {
+    // Com Menção, cada Agente fala por si (PR-11): o mesmo JSON de etapas da Coordenação, uma etapa por Agente.
+    const quem = [anfitriao.name, ...mencionados.filter((nome) => nome !== anfitriao.name)]
     partes.push(
-      `Responda como ${anfitriao.name}, com a Especialidade dele, em texto corrido.` +
-        (mencionados.length ? ` O pedido também menciona ${mencionados.join(', ')}: inclua a contribuição deles.` : ''),
+      `Esta é a Conversa na página de ${anfitriao.name}, e o pedido menciona ${mencionados.join(', ')}. Cada um ` +
+        `responde por si, com a própria Especialidade, nesta ordem: ${quem.join(', ')}. ` +
+        'Responda SÓ com um objeto JSON, sem texto fora dele: ' +
+        '{"etapas": [{"agente": "<nome exato do Agente>", "texto": "<a fala dele ao usuário>"}], "resposta": ""}.',
     )
+  } else if (reserva.kind === 'agente' && anfitriao) {
+    partes.push(`Responda como ${anfitriao.name}, com a Especialidade dele, em texto corrido.`)
   } else {
     partes.push(
       'Você coordena: decida quais Agentes trabalham no pedido (na dúvida sobre dados do Workspace, o Scopus) e faça o ' +
@@ -159,6 +167,15 @@ const REGRAS_COM_FERRAMENTAS =
   'Althius descritas abaixo: não use terminal, arquivos do computador nem outras ferramentas. Uma ação ou uma mudança ' +
   'no Playbook que precisa de Aprovação só vale depois que um Administrador aprovar: diga isso, sem fingir que já foi feita.'
 
+/** Os outros Agentes do Workspace, que o Agente pode chamar escrevendo "@Nome" na resposta (PR-11). */
+function outrosAgentes(reserva: Reserva, agente: AgenteDoWorkspace): string {
+  const outros = reserva.agents.filter((a) => a.id !== agente.id).map((a) => `@${a.name}`)
+  return outros.length
+    ? `Se precisar da contribuição de outro Agente, escreva o nome dele com @ na resposta (${outros.join(', ')}): ele ` +
+      'fala em seguida, nesta mesma Conversa. Só chame quando a Especialidade dele for necessária.'
+    : ''
+}
+
 /** As instruções de um Agente na sua vez: quem ele é, o que sabe do Workspace e como termina a resposta. */
 export function instrucoesDoAgente(
   reserva: Reserva,
@@ -178,6 +195,7 @@ export function instrucoesDoAgente(
     ferramentas ? REGRAS_COM_FERRAMENTAS : REGRAS_DO_HERMES,
     REGRA_DE_MARCA,
     ferramentas,
+    outrosAgentes(reserva, agente),
     INSTRUCAO_DE_DESFECHO,
   ].filter(Boolean).join('\n\n')
 }
@@ -222,6 +240,11 @@ function lerEscolha(saida: string): { agentes: string[]; resposta_direta: string
     } catch { /* tenta o próximo candidato */ }
   }
   throw new ErroDoModelo('model_invalid_output')
+}
+
+/** Se a Execução vai pelo modo por Agente: sempre com Menção ou na página de um Agente; senão, o modo configurado. */
+export function precisaDoModoPorAgente(reserva: Pick<Reserva, 'kind' | 'mentions'>, porAgente = false): boolean {
+  return porAgente || reserva.kind === 'agente' || reserva.mentions.length > 0
 }
 
 export interface WorkerDeps {
@@ -274,7 +297,9 @@ export function createWorker(deps: WorkerDeps) {
     if (!saida) return falhar(runId, 'model_empty')
     try {
       const registro = registrador(db, runId)
-      if (reserva.kind === 'agente') {
+      if (reserva.kind === 'agente' && agentesMencionados(reserva).length) {
+        await falasPorAgente(reserva, saida)
+      } else if (reserva.kind === 'agente') {
         await registro.texto(reserva.agent_id, saida)
       } else {
         const coordenado = lerCoordenado(saida)
@@ -295,6 +320,38 @@ export function createWorker(deps: WorkerDeps) {
       log({ type: 'hermes_worker', runId, kind: reserva.kind, outcome: 'succeeded' })
     } catch (error) {
       await falhar(runId, 'internal_error', String(error))
+    }
+  }
+
+  /**
+   * O modo de uma chamada na página de um Agente com Menção (fallback, PR-11): uma fala por Agente, na ordem anfitrião e
+   * mencionados, cada uma cobrada como a rodada daquele Agente. Sem o JSON, a saída inteira fica com o anfitrião.
+   */
+  async function falasPorAgente(reserva: Reserva, saida: string) {
+    const registro = registrador(db, reserva.run_id)
+    const porNome = new Map(reserva.agents.map((agente) => [agente.name.toLowerCase(), agente]))
+    const permitidos = new Set([reserva.agent_id, ...reserva.mentions])
+    const vistos = new Set<string>()
+    const etapas = (lerCoordenado(saida)?.etapas ?? []).flatMap((etapa) => {
+      const agente = porNome.get(etapa.agente.trim().toLowerCase())
+      const texto = etapa.texto.trim()
+      if (!agente || !texto || !permitidos.has(agente.id) || vistos.has(agente.id)) return []
+      if (vistos.size >= MAX_PARTICIPANTES_DA_CONVERSA) return []
+      vistos.add(agente.id)
+      return [{ agente, texto }]
+    })
+    const anfitriao = agentesPorId(reserva).get(reserva.agent_id ?? '')
+    const falas = etapas.length ? etapas : anfitriao ? [{ agente: anfitriao, texto: saida }] : []
+    if (!falas.length) throw new ErroDoModelo('agent_not_found')
+    // A cobrança é a mesma do modo por Agente: cada fala abre e fecha a rodada do Agente que falou.
+    const cobranca = cobrandoOsCreditos(
+      { escolher: () => Promise.reject(new Error('sem escolha')), sintetizar: () => Promise.reject(new Error('sem síntese')), trabalhar: (_a, _f, _r) => Promise.resolve({ texto: '' }) },
+      db,
+      reserva.run_id,
+    )
+    for (const fala of falas) {
+      await cobranca.trabalhar(fala.agente, [], 1)
+      await registro.texto(fala.agente.id, fala.texto)
     }
   }
 
@@ -419,7 +476,9 @@ export function createWorker(deps: WorkerDeps) {
         feitos++
         continue
       }
-      await (deps.porAgente ? processarPorAgente(reserva) : processar(reserva))
+      // A Menção e a página de um Agente vão sempre pelo modo por Agente, mesmo com HERMES_UMA_CHAMADA=true (PR-11):
+      // no modo de uma chamada, o mencionado não falava. A chamada única fica só para a Coordenação sem Menção.
+      await (precisaDoModoPorAgente(reserva, deps.porAgente) ? processarPorAgente(reserva) : processar(reserva))
       feitos++
     }
     return feitos
