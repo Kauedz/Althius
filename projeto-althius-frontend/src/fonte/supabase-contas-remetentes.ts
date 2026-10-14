@@ -5,6 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   ContaRemetente,
+  CotaDeEntrada,
   EstadoDaContaRemetente,
   FonteDeContasRemetentes,
 } from './contas-remetentes-tipos'
@@ -18,6 +19,15 @@ interface LinhaDaContaRemetente {
   status: string
   reconciliation_required: boolean
   last_status_at: string
+}
+
+interface LinhaDaCotaDeEntrada {
+  sender_account_id: string
+  channel: string
+  used_today: number
+  cap_today: number | null
+  queued_for_tomorrow: number
+  warming: boolean
 }
 
 const ESTADO: Record<string, EstadoDaContaRemetente> = {
@@ -78,6 +88,24 @@ export function criarFonteDeContasRemetentesSupabase(
       const { data, error } = await cliente.rpc('list_owned_sender_accounts', { p_workspace_id: obterWorkspaceId() })
       if (error) throw new Error('Não foi possível carregar suas Contas remetentes.')
       return ((data ?? []) as LinhaDaContaRemetente[]).map(mapear)
+    },
+    async cotasDeEntrada() {
+      const { data, error } = await cliente.rpc('list_my_sender_entry_quotas', { p_workspace_id: obterWorkspaceId() })
+      // A migração da fila pode ainda não estar aplicada: a lista de Contas remetentes segue sem o contador.
+      if (error) return []
+      const cotas: CotaDeEntrada[] = []
+      for (const linha of (data ?? []) as LinhaDaCotaDeEntrada[]) {
+        if (!ehCanalSuportado(linha.channel)) continue
+        cotas.push({
+          id: linha.sender_account_id,
+          canal: linha.channel,
+          usadasHoje: linha.used_today,
+          tetoHoje: linha.cap_today,
+          naFilaParaAmanha: linha.queued_for_tomorrow,
+          emAquecimento: linha.warming === true,
+        })
+      }
+      return cotas
     },
     async conectar(canal) {
       return linkHospedado(await pedir({ action: 'connect', channel: canal }))

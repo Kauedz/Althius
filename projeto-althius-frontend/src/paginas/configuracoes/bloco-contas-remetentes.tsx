@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Carregando } from '@/components/marca'
+import { LinhaDaCotaDeEntrada } from '@/paginas/cota-de-entrada'
 import { Mensagem } from '@/components/mensagem'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import type { CanalDaContaRemetente, ContaRemetente } from '@/fonte/contas-remetentes-tipos'
+import type { CanalDaContaRemetente, ContaRemetente, CotaDeEntrada } from '@/fonte/contas-remetentes-tipos'
 import { useAmbiente, useCarregamento, useDados, useFonteDeContasRemetentes } from '@/fonte/contexto'
 import { CONTAS_REMETENTES_NA_DEMONSTRACAO } from '@/fonte/simulada-contas-remetentes'
 import { cn } from '@/lib/utils'
@@ -91,6 +92,7 @@ export function BlocoDeContasRemetentes() {
 function ContasRemetentesDoTitular() {
   const fonte = useFonteDeContasRemetentes()
   const { dados: contas, erro: erroDaLista, recarregar } = useCarregamento(fonte, (f) => f.minhas(), [])
+  const { dados: cotas } = useCarregamento(fonte, (f) => f.cotasDeEntrada(), [])
   const [espera, setEspera] = useState<Espera | null>(null)
   const [pedindo, setPedindo] = useState(false)
   const [erro, setErro] = useState('')
@@ -227,13 +229,13 @@ function ContasRemetentesDoTitular() {
               // Sem conta ativa, o Canal mostra a última desconectada, se houver, e oferece uma conexão nova.
               const ultima = doCanal.at(-1)
               return [
-                <LinhaDoCanal key={canal} nome={nome} conta={ultima} situacao={ultima ? 'desconectada' : 'sem-conta'}>
+                <LinhaDoCanal key={canal} nome={nome} conta={ultima} situacao={ultima ? 'desconectada' : 'sem-conta'} cota={cotaDe(cotas, ultima)}>
                   {conectar}
                 </LinhaDoCanal>,
               ]
             }
             return ativas.map((conta) => (
-              <LinhaDoCanal key={conta.id} nome={nome} conta={conta} situacao={situacaoDe(conta)}>
+              <LinhaDoCanal key={conta.id} nome={nome} conta={conta} situacao={situacaoDe(conta)} cota={cotaDe(cotas, conta)}>
                 {conta.estado === 'requer-reconexao' && (
                   <button
                     type="button"
@@ -271,15 +273,22 @@ function ContasRemetentesDoTitular() {
   )
 }
 
+function cotaDe(cotas: CotaDeEntrada[] | undefined, conta: ContaRemetente | undefined): CotaDeEntrada | undefined {
+  if (!conta || conta.estado !== 'pronta') return undefined
+  return cotas?.find((cota) => cota.id === conta.id)
+}
+
 function LinhaDoCanal({
   nome,
   conta,
   situacao,
+  cota,
   children,
 }: {
   nome: string
   conta?: ContaRemetente
   situacao: Situacao
+  cota?: CotaDeEntrada
   children: ReactNode
 }) {
   const { rotulo, descricao, className } = SITUACAO[situacao]
@@ -293,6 +302,7 @@ function LinhaDoCanal({
           <span className={cn('selo', className)}>{rotulo}</span>
         </div>
         <p className="text-sm text-al-muted">{descricao}</p>
+        {cota && <LinhaDaCotaDeEntrada cota={cota} />}
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
     </li>

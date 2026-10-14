@@ -11,6 +11,7 @@ export function criarFonteDeContasRemetentesDaDemonstracao(): FonteDeContasRemet
   return {
     observar: () => () => {},
     minhas: async () => [],
+    cotasDeEntrada: async () => [],
     conectar: recusar,
     reconectar: recusar,
     desconectar: recusar,

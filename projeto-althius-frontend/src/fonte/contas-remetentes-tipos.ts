@@ -28,10 +28,28 @@ export interface ContaRemetente {
   estadoDesde: string
 }
 
+/**
+ * A cota de entrada de um remetente pronto: quantas Contas novas ele já ocupa hoje, o teto do dia e quantas esperam
+ * o próximo dia útil. `tetoHoje` nulo é sem limite, e a tela não desenha a linha.
+ */
+export interface CotaDeEntrada {
+  id: string
+  canal: CanalDaContaRemetente
+  usadasHoje: number
+  tetoHoje: number | null
+  naFilaParaAmanha: number
+  emAquecimento: boolean
+}
+
 /** As Contas remetentes do titular no Workspace atual. */
 export interface FonteDeContasRemetentes extends FonteObservavel {
   /** As Contas remetentes da Conta de usuário da sessão, nunca as de outro participante. */
   minhas(): Promise<ContaRemetente[]>
+  /**
+   * A cota de cada remetente pronto do titular. Se o backend ainda não tem a fila, devolve vazio: a tela segue sem o
+   * contador.
+   */
+  cotasDeEntrada(): Promise<CotaDeEntrada[]>
   /**
    * Pede ao backend um link novo de autenticação hospedada para conectar uma identidade deste Canal. Devolve o
    * endereço a abrir; a conexão só existe quando o backend a confirmar.
