@@ -13,7 +13,8 @@
 /* Tokens do Manual da Marca Althius v2.0 · capítulo 11. Nunca escrever valor cru. */
 :root,
 [data-theme="escuro"],
-.al-zona-escura {
+.al-zona-escura,
+.vitrine-capa {
   /* Valores do tema do site (althius-tema.css, tema escuro). */
   --al-bg: #131313;
   --al-surface: #1c1c1c;
@@ -463,8 +464,10 @@
     color: transparent;
   }
   /* Vitrine de Sinais: a capa é uma imagem da marca (rosa e laranja sobre o escuro) com um véu de baixo para cima,
-     para o texto da capa ficar legível. O conteúdo fica acima do véu. */
+     para o texto da capa ficar legível. A capa é escura nos dois temas (tem os tokens do escuro, no topo deste
+     arquivo); só o fundo da página segue o tema. O conteúdo fica acima do véu. */
   .vitrine-capa {
+    color: var(--al-ink);
     position: relative;
     isolation: isolate;
     background-color: var(--al-bg);
