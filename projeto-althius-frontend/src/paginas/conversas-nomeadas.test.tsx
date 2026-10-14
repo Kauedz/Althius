@@ -67,6 +67,10 @@ function abrir(rota: string, salvas: Linha[], conversas: Record<string, unknown>
       ...rpcsDeAgentes(criarBancoDeAgentes()),
       list_agent_conversations: () => salvas.map(({ id, kind, agent_id }) => ({ id, kind, agent_id })),
       list_named_agent_conversations: () => salvas,
+      list_agent_conversations_of_agent: (parametros) =>
+        salvas
+          .filter((c) => (parametros.p_agent_id == null ? c.kind === 'coordenada' : c.agent_id === parametros.p_agent_id))
+          .map((c) => ({ ...c, named: c.title !== null })),
       get_agent_conversation: (parametros) => conversas[String(parametros.p_conversation_id)] ?? { runs: [] },
       rename_agent_conversation: (parametros) => {
         renomeadas.push({ id: parametros.p_conversation_id, titulo: parametros.p_title })

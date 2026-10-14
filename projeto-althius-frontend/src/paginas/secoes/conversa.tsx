@@ -1,17 +1,19 @@
-import { ArrowRight, ArrowUp, Check, Copy, Wrench } from 'lucide-react'
+import { ArrowRight, ArrowUp, Check, Copy, PanelLeftClose, PanelLeftOpen, Wrench } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente, Pulso } from '@/components/marca'
 import { AvisoDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { Button } from '@/components/ui/button'
 import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
+import { HistoricoDeConversas } from '@/conversa/historico'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
 import { TextoDigitado } from '@/conversa/texto'
 import { quemEstaRespondendo } from '@/conversa/vez'
-import { useAmbiente, useDados } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import type { Agente, AgenteId, AprovacaoDeAcao } from '@/fonte/tipos'
-import { porId } from '@/lib/utils'
+import { mensagemDeErro, porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
 
@@ -28,10 +30,98 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
       </section>
     )
   }
-  return <ConversaComOAgente agente={agente} />
+  return <ConversaComHistorico agente={agente} />
+}
+
+/**
+ * A Conversa com o Agente e, no Workspace operacional, o histórico dele ao lado, que dá para recolher. A Conversa
+ * aberta fica no endereço (?conversa=<id>), para voltar a ela pelo link.
+ */
+function ConversaComHistorico({ agente }: { agente: Agente }) {
+  const fonte = useFonte()
+  const conversas = useConversas()
+  const [parametros, setParametros] = useSearchParams()
+  const [aberto, setAberto] = useState(true)
+  const [erro, setErro] = useState('')
+  const pedida = parametros.get('conversa')
+  const respondendo = conversas.respondendo(agente.id)
+  const atual = fonte.conversaDoAgenteAtual?.(agente.id) ?? null
+  const abrirDoAgente = conversas.abrirDoAgente
+
+  useEffect(() => {
+    if (!pedida || !fonte.abrirConversaDoAgente || fonte.conversaDoAgenteAtual?.(agente.id) === pedida) return
+    abrirDoAgente(agente.id, pedida).catch((falha) => setErro(mensagemDeErro(falha)))
+  }, [pedida, agente.id, fonte, abrirDoAgente])
+
+  // Depois do primeiro pedido de uma Conversa nova, o endereço passa a apontar para ela.
+  useEffect(() => {
+    if (!respondendo && atual && atual !== pedida) {
+      setParametros((anteriores) => {
+        const proximos = new URLSearchParams(anteriores)
+        proximos.set('conversa', atual)
+        return proximos
+      }, { replace: true })
+    }
+  }, [respondendo, atual, pedida, setParametros])
+
+  if (!fonte.historicoDeConversas) return <ConversaComOAgente agente={agente} />
+
+  function escolher(id: string) {
+    setErro('')
+    setParametros((anteriores) => {
+      const proximos = new URLSearchParams(anteriores)
+      proximos.set('conversa', id)
+      return proximos
+    })
+  }
+
+  function nova() {
+    setErro('')
+    conversas.novaDoAgente(agente.id)
+    setParametros((anteriores) => {
+      const proximos = new URLSearchParams(anteriores)
+      proximos.delete('conversa')
+      return proximos
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+      <div className={aberto ? 'flex w-full shrink-0 flex-col gap-3 lg:w-72' : 'flex shrink-0 flex-col'}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setAberto((valor) => !valor)}
+          aria-expanded={aberto}
+          aria-label={aberto ? 'Recolher o histórico' : 'Mostrar o histórico'}
+          className="self-start"
+        >
+          {aberto ? <PanelLeftClose strokeWidth={1.8} aria-hidden /> : <PanelLeftOpen strokeWidth={1.8} aria-hidden />}
+        </Button>
+        {aberto && (
+          <HistoricoDeConversas
+            agenteId={agente.id}
+            atual={atual}
+            aoAbrir={escolher}
+            aoNova={nova}
+            versao={`${respondendo}-${atual}`}
+          />
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        {erro && (
+          <p role="alert" className="text-sm text-al-atencao">
+            {erro}
+          </p>
+        )}
+        <ConversaComOAgente agente={agente} />
+      </div>
+    </div>
+  )
 }
 
 function ConversaComOAgente({ agente }: { agente: Agente }) {
+  const fonteDaConversa = useFonte()
   const conversas = useConversas()
   const agentes = useDados((fonte) => fonte.agentes(), []) ?? []
   const itens = conversas.itens(agente.id)
@@ -40,6 +130,12 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
   const mencao = useMencao(texto, setTexto, agentes)
   const fim = useRef<HTMLDivElement>(null)
   const agentesPorId = porId(agentes)
+  // No Workspace operacional, as sugestões vêm dos dados do Workspace; na Demonstração, as frases da Especialidade.
+  const doWorkspace = useDados(
+    (fonte) => (fonte.sugestoesDoAgente ? fonte.sugestoesDoAgente(agente.id) : Promise.resolve(null)),
+    [agente.id, respondendo],
+  )
+  const sugestoes = fonteDaConversa.sugestoesDoAgente ? (doWorkspace ?? []) : agente.especialidade.sugestoes
 
   useEffect(() => {
     fim.current?.scrollIntoView({ block: 'end' })
@@ -78,7 +174,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {agente.especialidade.sugestoes.map((sugestao) => (
+        {sugestoes.map((sugestao) => (
           <Button
             key={sugestao.id}
             variant="outline"

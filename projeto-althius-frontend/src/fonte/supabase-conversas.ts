@@ -16,6 +16,7 @@ import type {
   PassoDaConversa,
   PassoDaCoordenacao,
   ResumoDeConversa,
+  Sugestao,
   TurnoRetomado,
 } from './tipos'
 
@@ -51,12 +52,19 @@ type Fonte = Pick<
   | 'renomearConversa'
   | 'abrirConversa'
   | 'conversaCoordenadaAtual'
+  | 'historicoDeConversas'
+  | 'arquivarConversa'
+  | 'abrirConversaDoAgente'
+  | 'novaConversaDoAgente'
+  | 'conversaDoAgenteAtual'
+  | 'sugestoesDoAgente'
 >
 
 interface ConversaListada {
   id: string
   kind: Tipo
   title: string | null
+  named?: boolean
   first_request: string | null
   updated_at: string
   open_run_id: string | null
@@ -263,19 +271,57 @@ export function criarFonteDeConversasSupabase(
     return retomadas
   }
 
+  /**
+   * O histórico de quem pede com um Agente (ou com a Coordenação, sem Agente), da mais recente à mais antiga, sem as
+   * arquivadas. A página seguinte pede as anteriores a `antesDe`.
+   */
+  async function historicoDeConversas(agenteId: AgenteId | null, antesDe?: string): Promise<ResumoDeConversa[]> {
+    const { data, error } = await cliente.rpc('list_agent_conversations_of_agent', {
+      p_workspace_id: workspaceId,
+      p_agent_id: agenteId,
+      p_limit: 30,
+      p_before: antesDe ?? null,
+    })
+    if (error) throw new Error('Não foi possível carregar as Conversas.')
+    return (data as ConversaListada[]).map((linha) => ({
+      id: linha.id,
+      titulo: linha.named ? linha.title : null,
+      primeiroPedido: linha.first_request ?? '',
+      atualizadaEm: linha.updated_at,
+      emAndamento: linha.open_run_id !== null,
+    }))
+  }
+
   /** As Conversas coordenadas salvas, da mais recente à mais antiga. */
   async function conversasSalvas(): Promise<ResumoDeConversa[]> {
-    const { data, error } = await cliente.rpc('list_named_agent_conversations', { p_workspace_id: workspaceId })
-    if (error) throw new Error('Não foi possível carregar as Conversas.')
-    return (data as ConversaListada[])
-      .filter((linha) => linha.kind === 'coordenada')
-      .map((linha) => ({
-        id: linha.id,
-        titulo: linha.title,
-        primeiroPedido: linha.first_request ?? '',
-        atualizadaEm: linha.updated_at,
-        emAndamento: linha.open_run_id !== null,
-      }))
+    return historicoDeConversas(null)
+  }
+
+  async function arquivarConversa(id: string): Promise<void> {
+    const { error } = await cliente.rpc('archive_agent_conversation', { p_conversation_id: id })
+    if (!error) {
+      if (coordenada === id) coordenada = null
+      for (const [agenteId, conversa] of porAgente) if (conversa === id) porAgente.delete(agenteId)
+      return
+    }
+    if (error.code === 'P0002') throw new Error('Esta Conversa não existe mais.')
+    throw new Error('Não foi possível arquivar a Conversa. Tente de novo.')
+  }
+
+  /** Abre uma Conversa salva com o Agente: o próximo pedido a ele continua esta. */
+  async function abrirConversaDoAgente(agenteId: AgenteId, id: string): Promise<ConversaRetomada<PassoDaConversa>> {
+    const conversa = await lerConversa(id, passoDaConversa)
+    porAgente.set(agenteId, id)
+    return conversa
+  }
+
+  /** As sugestões de pedido do Agente, a partir dos dados do Workspace. Sem resposta, nenhuma. */
+  async function sugestoesDoAgente(agenteId: AgenteId): Promise<Sugestao[]> {
+    const { data, error } = await cliente.rpc('agent_prompt_suggestions', { p_workspace_id: workspaceId, p_agent_id: agenteId })
+    if (error || !Array.isArray(data)) return []
+    return (data as { id?: unknown; texto?: unknown }[])
+      .filter((item) => typeof item.id === 'string' && typeof item.texto === 'string')
+      .map((item) => ({ id: `dados-${item.id as string}`, texto: item.texto as string }))
   }
 
   async function renomearConversa(id: string, titulo: string): Promise<void> {
@@ -303,5 +349,13 @@ export function criarFonteDeConversasSupabase(
     renomearConversa,
     abrirConversa,
     conversaCoordenadaAtual: () => coordenada,
+    historicoDeConversas,
+    arquivarConversa,
+    abrirConversaDoAgente,
+    novaConversaDoAgente: (agenteId) => {
+      porAgente.delete(agenteId)
+    },
+    conversaDoAgenteAtual: (agenteId) => porAgente.get(agenteId) ?? null,
+    sugestoesDoAgente,
   }
 }
