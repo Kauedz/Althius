@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(146);
+select plan(150);
 
 -- Ana (Admin) e Bruno (Membro) do Norte; Carla é do Sul.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -552,6 +552,26 @@ select is(
 select ok((select market_signal_id is not null from private.signals where event_key = 'lic|1' and target_account_id is not null),
   'e ele herda o vínculo com o Sinal de mercado que a candidata tinha');
 
+
+-- Apagar a Conta sem site (CRM-18) funciona, leva os Sinais e a candidata aceita dela, e a empresa pode voltar como candidata.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  format($$select public.erase_target_account(%L, 'Omega Energia SA')$$, (select valor from ids where chave = 'conta-omega')),
+  'o Administrador apaga a Conta que nasceu sem site');
+reset role;
+select is(
+  (select row(a.name, a.canonical_url is not null, a.deleted_at is not null)::text from public.target_accounts a where a.id::text = (select valor from ids where chave = 'conta-omega')),
+  '("Conta apagada",t,t)', 'a Conta vira só o marcador');
+select is(
+  (select count(*)::integer from private.discovered_accounts where id::text = (select valor from ids where chave = 'omega'))
+  + (select count(*)::integer from private.signals where event_key in ('filial|omega|1', 'fin|omega|velho', 'planta|omega|1')), 0,
+  'a candidata aceita e os Sinais dela saem junto');
+select is(
+  (select row(r.resolved, r.is_new)::text from public.record_signal_for_company('fa000000-0000-0000-0000-000000000001',
+    '{"name":"Omega Energia SA","cnpj":"04252011000110"}', null, 'nova_filial_icp_g', 'filial|omega|2', 'Abriu outra filial', now() - interval '1 day', 'Diário Oficial', 'Ato 22', 40) r),
+  '(candidata,t)', 'depois de apagada, a empresa pode voltar como candidata nova');
 
 -- 5. A nota e as leituras (tickets 05 e 07).
 -- 5.1 A curva: peso cheio até 30 dias, zero aos 90, em linha reta entre os dois.
