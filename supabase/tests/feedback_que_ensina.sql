@@ -39,11 +39,11 @@ select set_config('request.jwt.claims', '{"sub":"5b000000-0000-0000-0000-0000000
 set local role authenticated;
 select throws_ok($$select public.discard_discovered_account_with_code('cb000000-0000-0000-0000-000000000001', 'xyz')$$,
   '22023', null, 'o motivo estruturado tem de ser um dos conhecidos');
-select public.discard_discovered_account_with_code('cb000000-0000-0000-0000-00000000000' || i, 'setor', 'fora do setor')
+select public.discard_discovered_account_with_code(('cb000000-0000-0000-0000-00000000000' || i)::uuid, 'setor', 'fora do setor')
 from generate_series(1, 2) i;
 select is((select count(*)::int from public.list_discovery_learning('fb000000-0000-0000-0000-000000000001')), 0,
   'com 2 descartes, nada aprendido ainda');
-select public.discard_discovered_account_with_code('cb000000-0000-0000-0000-00000000000' || i, 'setor', null)
+select public.discard_discovered_account_with_code(('cb000000-0000-0000-0000-00000000000' || i)::uuid, 'setor', null)
 from generate_series(3, 6) i;
 select results_eq(
   $$select dimension, value, adjustment, evidence_count from public.list_discovery_learning('fb000000-0000-0000-0000-000000000001')$$,
