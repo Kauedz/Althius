@@ -68,6 +68,11 @@ const db: Db = {
       ? { donoId: linha.owner_id, donoNome: linha.owner_name, agenteId: linha.agent_id, agenteNome: linha.agent_name }
       : null
   },
+  // O limite de uso por pessoa e por Workspace (slack-canal 08, migration 20261101100000).
+  async limiteDeUso(workspaceId, userId) {
+    const limite = await chamar<string>('slack_channel_usage_limit', { p_workspace_id: workspaceId, p_user_id: userId })
+    return limite === 'pessoa' || limite === 'workspace' ? limite : 'ok'
+  },
 }
 
 function recusaDoFio(codigo: string, mensagem: string): Extract<AberturaDoFio, { kind: 'recusado' }>['motivo'] {

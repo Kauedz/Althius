@@ -101,6 +101,11 @@ export interface Db {
   abrirFio?(pedido: PedidoDeFio): Promise<AberturaDoFio>
   /** RPC `slack_channel_thread` (slack-canal 04): o fio desta chave, ou nulo. Sem ela, nenhum thread é um fio. */
   lerFio?(chave: ChaveDoFio): Promise<FioDoSlack | null>
+  /**
+   * RPC `slack_channel_usage_limit` (slack-canal 08): se a pessoa ou o Workspace passou do limite de pedidos pelo Canal.
+   * Sem ela, não há limite.
+   */
+  limiteDeUso?(workspaceId: string, userId: string): Promise<'ok' | 'pessoa' | 'workspace'>
 }
 
 export interface Deps {
@@ -133,6 +138,8 @@ export const RESPOSTAS = {
   fioDaConversaDe: (dono: string) => `Este fio é a Conversa de ${dono}. Abra o seu em outro thread ou no DM com o bot.`,
   fioDoAgente: (agente: string) => `Este fio é do Agente ${agente}. Para falar com outro, abra outro thread.`,
   indisponivel: 'Não consegui abrir este fio agora. Tente de novo em instantes.',
+  limiteDaPessoa: 'Você mandou muitos pedidos seguidos pelo Slack. Espere alguns minutos e tente de novo.',
+  limiteDoWorkspace: 'Este Workspace chegou ao limite de pedidos pelo Slack nesta hora. Tente de novo mais tarde.',
 } as const
 
 type Objeto = Record<string, unknown>
@@ -270,6 +277,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       const pedido = { workspaceId: instalacao.workspaceId, userId, agentId: agente.id, canal: m.canal, threadTs: m.threadTs }
       if (!deps.db.abrirFio) return registrar(eventId, 'abrir_fio', pedido)
       if (util.length > TAMANHO_MAXIMO) return responderNoThread(RESPOSTAS.longoDemais, 'longo_demais')
+      // Limite de uso (slack-canal 08): passou, recusa curta, sem Execução nem Crédito. Se a leitura do limite falhar, o
+      // pedido segue (o "ainda respondendo" e os Créditos continuam valendo) e a falha fica no log.
+      if (deps.db.limiteDeUso) {
+        let limite: 'ok' | 'pessoa' | 'workspace' = 'ok'
+        try {
+          limite = await deps.db.limiteDeUso(instalacao.workspaceId, userId!)
+        } catch (e) {
+          registrar(eventId, 'falha_ao_ler_limite', { erro: e instanceof Error ? e.name : 'desconhecido' })
+        }
+        if (limite === 'pessoa') return responderNoThread(RESPOSTAS.limiteDaPessoa, 'limite_da_pessoa')
+        if (limite === 'workspace') return responderNoThread(RESPOSTAS.limiteDoWorkspace, 'limite_do_workspace')
+      }
       const abertura = await deps.db.abrirFio({ ...pedido, teamId, texto: util, eventId })
       if (abertura.kind === 'aberto') return registrar(eventId, resultado, { ...pedido, runId: abertura.runId })
       if (abertura.motivo === 'sem_instalacao') return registrar(eventId, 'sem_instalacao')

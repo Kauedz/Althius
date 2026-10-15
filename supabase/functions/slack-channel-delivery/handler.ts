@@ -2,16 +2,18 @@
 // final, um gatilho no banco chama esta função pelo pg_net, sem JWT (`verify_jwt = false`), com o id da Execução e o
 // segredo interno da entrega no cabeçalho `x-slack-delivery-secret`. A entrega independe do motor que rodou a Execução.
 //
-// A função reserva a entrega no banco (`claim_slack_channel_delivery`), que marca a Execução como entregue antes de
-// qualquer postagem: uma Execução é postada uma vez só, mesmo que a chamada se repita. Depois posta no thread do fio, com
-// o token do bot:
+// A função reserva a entrega no banco (`claim_slack_channel_delivery`, com prazo de 2 minutos): enquanto a reserva vale,
+// ninguém mais posta a mesma Execução. Depois posta no thread do fio, com o token do bot, e só então confirma a entrega
+// (`confirm_slack_channel_delivery`, slack-canal 09). Se o Slack falhar depois das tentativas, a falha volta ao banco
+// (`fail_slack_channel_delivery`): a reserva é solta e o relógio do banco pede a entrega de novo, até desistir na 5ª
+// tentativa ou numa recusa definitiva do Slack. O que vai no thread:
 //   - sucesso: a resposta final do Agente;
 //   - falha: uma falha clara com o motivo humano (sem Créditos, sem contrato, prazo vencido, erro do Agente), nunca uma
 //     resposta inventada (slack-canal 05);
 //   - Aprovação pendente pedida pela Execução: no mesmo post, o aviso de que ela aguarda na fila de Aprovações da
 //     Althius, sem botões no Slack (slack-canal 05);
 //   - Canal retirado entre o pedido e a entrega: não posta, só fica marcada.
-// Uma falha ao postar fica no log e não é repetida. O log nunca traz a resposta nem o token.
+// Toda falha ao postar fica no log com o id da Execução. O log nunca traz a resposta nem o token.
 import { ErroDoSlack, postarNoThread } from '../_shared/slack-api.ts'
 
 /** O que o banco devolve ao reservar a entrega de uma Execução do Canal já terminada. */
@@ -31,6 +33,10 @@ export interface Entrega {
 export interface Db {
   /** RPC `claim_slack_channel_delivery`: a entrega, ou nulo quando já foi feita (ou a Execução não é do Canal ou não terminou). */
   reservarEntrega(runId: string): Promise<Entrega | null>
+  /** RPC `confirm_slack_channel_delivery`: o Slack aceitou o post (slack-canal 09). */
+  confirmarEntrega?(runId: string): Promise<void>
+  /** RPC `fail_slack_channel_delivery`: solta a reserva para nova tentativa, ou desiste (`final` ou na 5ª tentativa). */
+  falharEntrega?(runId: string, motivo: string, final: boolean): Promise<'nova_tentativa' | 'desistiu' | 'nada'>
 }
 
 export interface Deps {
@@ -134,8 +140,29 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         fetch: deps.fetch,
       })
     } catch (e) {
-      registrar(runId, 'falha_ao_postar', { erro: e instanceof ErroDoSlack ? e.message : e instanceof Error ? e.name : 'desconhecido' })
-      return responder({ error: 'slack unavailable' }, 502)
+      const erro = e instanceof ErroDoSlack ? e.message : e instanceof Error ? e.name : 'desconhecido'
+      // Uma recusa do Slack (canal apagado, bot fora do canal, token inválido) não melhora com nova tentativa.
+      const final = e instanceof ErroDoSlack && e.tipo === 'recusado'
+      const motivo = e instanceof ErroDoSlack ? `${e.tipo}${e.codigo ? `:${e.codigo}` : ''}` : 'desconhecido'
+      let decisao: string = 'sem_registro'
+      if (deps.db.falharEntrega) {
+        try {
+          decisao = await deps.db.falharEntrega(runId, motivo, final)
+        } catch (falha) {
+          decisao = 'falha_ao_registrar'
+          registrar(runId, 'falha_ao_registrar_falha', { erro: falha instanceof Error ? falha.name : 'desconhecido' })
+        }
+      }
+      registrar(runId, 'falha_ao_postar', { erro, decisao })
+      return responder({ error: 'slack unavailable', decisao }, 502)
+    }
+    if (deps.db.confirmarEntrega) {
+      try {
+        await deps.db.confirmarEntrega(runId)
+      } catch (falha) {
+        // O post saiu; sem a confirmação, a reserva vence e o post pode sair de novo. Fica no log.
+        registrar(runId, 'falha_ao_confirmar', { erro: falha instanceof Error ? falha.name : 'desconhecido' })
+      }
     }
     registrar(runId, entrega.status === 'succeeded' ? 'resposta_postada' : 'falha_postada', {
       codigoDoErro: entrega.codigoDoErro,

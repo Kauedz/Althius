@@ -40,5 +40,15 @@ Deno.serve(createHandler({
         }
         : null
     },
+    // A migration 20261101110000: confirmar depois do post, ou soltar a reserva e registrar a falha.
+    async confirmarEntrega(runId) {
+      const { error } = await admin.rpc('confirm_slack_channel_delivery', { p_run_id: runId })
+      if (error) throw new Error(`confirm_slack_channel_delivery: ${error.code ?? ''} ${error.message}`)
+    },
+    async falharEntrega(runId, motivo, final) {
+      const { data, error } = await admin.rpc('fail_slack_channel_delivery', { p_run_id: runId, p_error: motivo, p_final: final })
+      if (error) throw new Error(`fail_slack_channel_delivery: ${error.code ?? ''} ${error.message}`)
+      return data as 'nova_tentativa' | 'desistiu' | 'nada'
+    },
   },
 }))
