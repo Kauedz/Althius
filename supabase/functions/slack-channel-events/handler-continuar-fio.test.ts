@@ -276,3 +276,25 @@ Deno.test('se a leitura do fio falha numa resposta de canal sem menção, nada �
   assertEquals(m.c.postagens, [])
   assertEquals(m.c.logs.map((l) => l.resultado), ['falha_ao_ler_fio'])
 })
+
+Deno.test('o dono removido do Workspace no meio do fio é recusado como não reconhecido, sem pedir Execução', async () => {
+  const m = montar()
+  const conta = CONTAS['ana@norte.test']
+  delete CONTAS['ana@norte.test']
+  try {
+    await entregar(m, noThreadDoCanal('e a terceira?'))
+  } finally {
+    CONTAS['ana@norte.test'] = conta
+  }
+  assertEquals(m.c.pedidos, [])
+  assertEquals(m.c.postagens.map((p) => [p.thread_ts, p.text]), [['1700000000.000100', RESPOSTAS.naoReconhecido]])
+  assertEquals(m.c.logs.map((l) => l.resultado), ['nao_reconhecido'])
+})
+
+Deno.test('o dono removido entre a leitura e o pedido: o banco recusa e o thread recebe "não reconheci"', async () => {
+  const m = montar(() => ({ kind: 'recusado', motivo: 'nao_reconhecido' }))
+  await entregar(m, noThreadDoCanal('e a terceira?'))
+  assertEquals(m.c.pedidos.length, 1)
+  assertEquals(m.c.postagens.map((p) => p.text), [RESPOSTAS.naoReconhecido])
+  assertEquals(m.c.logs.map((l) => l.resultado), ['nao_reconhecido'])
+})
