@@ -12,8 +12,14 @@
 // nenhuma cria Execução, Conversa ou consumo de Crédito. Com exatamente um Agente que atende no Slack, a função abre o fio
 // (slack-canal 03): pede ao banco a Execução pelo Canal em nome de quem mencionou, no thread da mensagem (o `ts` dela
 // quando estava solta), e não posta nada. Quem responde no thread é a entrega (`slack-channel-delivery`), quando a
-// Execução termina. As mensagens de canal sem menção ao bot só continuam um fio já aberto (ticket 04); por ora são
-// ignoradas sem resposta.
+// Execução termina.
+//
+// Dentro de um thread que já é um fio (slack-canal 04), quem decide é o fio, lido pela chave antes de tudo: o dono
+// continua a Conversa com o Agente do fio sem novo @ (Q19); outra pessoa recebe "este fio é a Conversa de <dono>" (Q13);
+// o dono que menciona outro Agente recebe "este fio é do Agente <X>" (Q20); com uma Execução aberta no fio, o banco
+// recusa e a pessoa recebe "ainda respondendo". As mensagens de canal sem menção ao bot (`message.channels`) só servem
+// para continuar um fio: fora dele, são ignoradas sem resposta e sem ler quem escreveu. A cópia em `message.channels` de
+// uma menção ao bot também é ignorada, porque o `app_mention` da mesma mensagem já a trata.
 //
 // O banco, o Slack e o relógio entram por injeção de dependência, para o teste ir da requisição à resposta sem rede. O log
 // nunca traz o e-mail, o texto da mensagem nem o token.
@@ -32,6 +38,22 @@ export interface AgenteDoSlack {
   id: string
   nome: string
   noSlack: boolean
+}
+
+/** A chave de um fio: o workspace Slack, o canal (ou o DM) e o `thread_ts`, no Workspace da instalação. */
+export interface ChaveDoFio {
+  workspaceId: string
+  teamId: string
+  canal: string
+  threadTs: string
+}
+
+/** Um fio já aberto (`slack_channel_thread`): o dono, com o nome que a Althius mostra (nulo sem nome), e o Agente. */
+export interface FioDoSlack {
+  donoId: string
+  donoNome: string | null
+  agenteId: string
+  agenteNome: string
 }
 
 /** Por que o Slack retirou o Canal: o app foi desinstalado ou o token do bot foi revogado. */
@@ -77,6 +99,8 @@ export interface Db {
   retirarPeloSlack(teamId: string, motivo: MotivoDaRetirada): Promise<boolean>
   /** RPC `start_slack_channel_run` (slack-canal 03). Sem ela, a função só registra a decisão de abrir o fio. */
   abrirFio?(pedido: PedidoDeFio): Promise<AberturaDoFio>
+  /** RPC `slack_channel_thread` (slack-canal 04): o fio desta chave, ou nulo. Sem ela, nenhum thread é um fio. */
+  lerFio?(chave: ChaveDoFio): Promise<FioDoSlack | null>
 }
 
 export interface Deps {
@@ -106,6 +130,8 @@ export const RESPOSTAS = {
   semContrato: 'Não foi possível responder: este Workspace está sem contrato ativo na Althius.',
   fioDeOutraPessoa: 'Este fio é a Conversa de outra pessoa. Abra o seu em outro thread ou no DM com o bot.',
   fioDeOutroAgente: 'Este fio é de outro Agente. Para falar com outro, abra outro thread.',
+  fioDaConversaDe: (dono: string) => `Este fio é a Conversa de ${dono}. Abra o seu em outro thread ou no DM com o bot.`,
+  fioDoAgente: (agente: string) => `Este fio é do Agente ${agente}. Para falar com outro, abra outro thread.`,
   indisponivel: 'Não consegui abrir este fio agora. Tente de novo em instantes.',
 } as const
 
@@ -120,42 +146,60 @@ const lista = (valor: unknown) => (Array.isArray(valor) ? valor : [])
  */
 const SUBTIPOS_ACEITOS = new Set([undefined, 'file_share'])
 
-/** Tira do texto as menções ao bot (`<@U…>` ou `<@U…|nome>`) e desfaz o escape do Slack. */
+/** A menção ao bot no texto do Slack: `<@U…>` ou `<@U…|nome>`. */
+const mencaoAoBot = (botUserId: string) => new RegExp(`<@${botUserId}(\\|[^>]*)?>`, 'g')
+
+/** Tira do texto as menções ao bot e desfaz o escape do Slack. */
 function textoUtil(bruto: string, botUserId: string): string {
   return bruto
-    .replace(new RegExp(`<@${botUserId}(\\|[^>]*)?>`, 'g'), ' ')
+    .replace(mencaoAoBot(botUserId), ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .trim()
 }
 
-/** Uma mensagem que o bot trata: a menção num canal ou a mensagem no DM, escrita por uma pessoa. */
+/**
+ * Uma mensagem que o bot trata, escrita por uma pessoa: a menção num canal, a mensagem no DM ou a resposta num thread de
+ * canal (esta só quando o thread é um fio).
+ */
 interface Mensagem {
+  origem: 'mencao' | 'dm' | 'canal'
   usuario: string
   timeDoUsuario: string | null
   canal: string
   /** O thread em que a resposta vai: o de cima, se a mensagem já está num thread, ou o da própria mensagem. */
   threadTs: string
+  /** Se a mensagem é uma resposta dentro de um thread, que pode ser um fio. */
+  noThread: boolean
   texto: string
   temAnexo: boolean
 }
 
 function mensagemTratada(evento: Objeto): Mensagem | null {
   const tipo = evento.type
-  const noDm = tipo === 'message' && evento.channel_type === 'im'
-  if (tipo !== 'app_mention' && !noDm) return null
+  const origem = tipo === 'app_mention'
+    ? 'mencao'
+    : tipo === 'message' && evento.channel_type === 'im'
+    ? 'dm'
+    : tipo === 'message' && evento.channel_type === 'channel' && texto(evento.thread_ts)
+    ? 'canal'
+    : null
+  if (!origem) return null
   if (!SUBTIPOS_ACEITOS.has(evento.subtype as string | undefined)) return null
   if (evento.bot_id || evento.bot_profile || evento.edited) return null
   const usuario = texto(evento.user)
   const canal = texto(evento.channel)
   const ts = texto(evento.ts)
   if (!usuario || !canal || !ts) return null
+  const threadTs = texto(evento.thread_ts) ?? ts
   return {
+    origem,
     usuario,
     timeDoUsuario: texto(evento.user_team),
     canal,
-    threadTs: texto(evento.thread_ts) ?? ts,
+    threadTs,
+    noThread: threadTs !== ts,
     texto: typeof evento.text === 'string' ? evento.text : '',
     temAnexo: lista(evento.files).length > 0 || lista(evento.attachments).length > 0 || evento.subtype === 'file_share',
   }
@@ -181,6 +225,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const instalacao = await deps.db.instalacaoAtiva(teamId)
     if (!instalacao) return registrar(eventId, 'sem_instalacao')
     if (m.usuario === instalacao.botUserId) return
+    // Num thread de canal, a mensagem que menciona o bot chega também como `app_mention`, que é quem a trata.
+    if (m.origem === 'canal' && mencaoAoBot(instalacao.botUserId).test(m.texto)) return registrar(eventId, 'ignorado', { evento: tipo })
+    // O fio desta chave, se a mensagem está num thread. Fora de fio, a resposta de canal sem menção ao bot não é com a
+    // Althius: nada é reservado nem lido de quem escreveu.
+    const fio = m.noThread && deps.db.lerFio
+      ? await deps.db.lerFio({ workspaceId: instalacao.workspaceId, teamId, canal: m.canal, threadTs: m.threadTs })
+      : null
+    if (m.origem === 'canal' && !fio) return registrar(eventId, 'ignorado', { evento: tipo })
     if (!(await deps.db.reservarEvento(eventId, teamId, tipo))) return registrar(eventId, 'reenvio')
     const responderNoThread = async (resposta: string, resultado: string) => {
       await postarNoThread({ token: instalacao.token, canal: m.canal, threadTs: m.threadTs, texto: resposta, fetch: deps.fetch })
@@ -201,35 +253,56 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     if (!userId) return responderNoThread(RESPOSTAS.naoReconhecido, 'nao_reconhecido')
 
-    // Conteúdo (Q16): só o texto segue.
+    // Pede ao banco a Execução pelo Canal com o Agente, no thread da mensagem. O banco abre o fio ou continua o que já
+    // existe, e recusa com uma Execução aberta no fio ("ainda respondendo").
+    const pedirExecucao = async (agente: { id: string; nome: string }, util: string, resultado: 'fio_aberto' | 'fio_continuado') => {
+      const pedido = { workspaceId: instalacao.workspaceId, userId, agentId: agente.id, canal: m.canal, threadTs: m.threadTs }
+      if (!deps.db.abrirFio) return registrar(eventId, 'abrir_fio', pedido)
+      if (util.length > TAMANHO_MAXIMO) return responderNoThread(RESPOSTAS.longoDemais, 'longo_demais')
+      const abertura = await deps.db.abrirFio({ ...pedido, teamId, texto: util, eventId })
+      if (abertura.kind === 'aberto') return registrar(eventId, resultado, { ...pedido, runId: abertura.runId })
+      if (abertura.motivo === 'sem_instalacao') return registrar(eventId, 'sem_instalacao')
+      const recusas: Record<typeof abertura.motivo, string> = {
+        ocupado: RESPOSTAS.aindaRespondendo,
+        sem_contrato: RESPOSTAS.semContrato,
+        nao_reconhecido: RESPOSTAS.naoReconhecido,
+        nao_atende_no_slack: RESPOSTAS.naoAtendeNoSlack(agente.nome),
+        fio_de_outra_pessoa: RESPOSTAS.fioDeOutraPessoa,
+        fio_de_outro_agente: RESPOSTAS.fioDeOutroAgente,
+        indisponivel: RESPOSTAS.indisponivel,
+      }
+      return responderNoThread(recusas[abertura.motivo], abertura.motivo)
+    }
     const util = textoUtil(m.texto, instalacao.botUserId)
+    const mencionadosNoTexto = async () =>
+      reconhecerMencoes(util, (await deps.db.agentes(instalacao.workspaceId)).map((a) => ({ ...a, name: a.nome })))
+
+    // Fio existente: um thread, um dono, um Agente (Q13, Q19, Q20). O dono continua sem novo @; o Agente do fio pode ser
+    // mencionado de novo, outro Agente não.
+    if (fio) {
+      if (userId !== fio.donoId) {
+        return responderNoThread(fio.donoNome ? RESPOSTAS.fioDaConversaDe(fio.donoNome) : RESPOSTAS.fioDeOutraPessoa, 'fio_de_outra_pessoa')
+      }
+      if (!util) return m.temAnexo ? responderNoThread(RESPOSTAS.soTexto, 'so_texto') : registrar(eventId, 'sem_texto')
+      if ((await mencionadosNoTexto()).some((a) => a.id !== fio.agenteId)) {
+        return responderNoThread(RESPOSTAS.fioDoAgente(fio.agenteNome), 'fio_de_outro_agente')
+      }
+      return pedirExecucao({ id: fio.agenteId, nome: fio.agenteNome }, util, 'fio_continuado')
+    }
+
+    // Conteúdo (Q16): só o texto segue.
     if (!util) return responderNoThread(m.temAnexo ? RESPOSTAS.soTexto : RESPOSTAS.mencioneUmAgente, m.temAnexo ? 'so_texto' : 'sem_agente')
 
     // Fio novo: as Menções pela mesma regra do app (Q10, Q14, US 18), sobre todos os Agentes, para o que não atende no
     // Slack receber a recusa. Mais de um Agente é recusado antes, mesmo que algum não atenda no Slack: um fio, um Agente.
-    const mencionados = reconhecerMencoes(util, (await deps.db.agentes(instalacao.workspaceId)).map((a) => ({ ...a, name: a.nome })))
+    const mencionados = await mencionadosNoTexto()
     if (mencionados.length === 0) return responderNoThread(RESPOSTAS.mencioneUmAgente, 'sem_agente')
     if (mencionados.length > 1) return responderNoThread(RESPOSTAS.umAgentePorFio, 'mais_de_um_agente')
     const [agente] = mencionados
     if (!agente.noSlack) return responderNoThread(RESPOSTAS.naoAtendeNoSlack(agente.nome), 'agente_fora_do_slack')
 
     // Abrir o fio (Q8, Q21): a Conversa de quem mencionou com o Agente, no thread da mensagem.
-    const fio = { workspaceId: instalacao.workspaceId, userId, agentId: agente.id, canal: m.canal, threadTs: m.threadTs }
-    if (!deps.db.abrirFio) return registrar(eventId, 'abrir_fio', fio)
-    if (util.length > TAMANHO_MAXIMO) return responderNoThread(RESPOSTAS.longoDemais, 'longo_demais')
-    const abertura = await deps.db.abrirFio({ ...fio, teamId, texto: util, eventId })
-    if (abertura.kind === 'aberto') return registrar(eventId, 'fio_aberto', { ...fio, runId: abertura.runId })
-    if (abertura.motivo === 'sem_instalacao') return registrar(eventId, 'sem_instalacao')
-    const recusas: Record<typeof abertura.motivo, string> = {
-      ocupado: RESPOSTAS.aindaRespondendo,
-      sem_contrato: RESPOSTAS.semContrato,
-      nao_reconhecido: RESPOSTAS.naoReconhecido,
-      nao_atende_no_slack: RESPOSTAS.naoAtendeNoSlack(agente.nome),
-      fio_de_outra_pessoa: RESPOSTAS.fioDeOutraPessoa,
-      fio_de_outro_agente: RESPOSTAS.fioDeOutroAgente,
-      indisponivel: RESPOSTAS.indisponivel,
-    }
-    return responderNoThread(recusas[abertura.motivo], abertura.motivo)
+    return pedirExecucao(agente, util, 'fio_aberto')
   }
 
   async function processar(evento: Objeto, eventId: string, teamId: string | null) {
