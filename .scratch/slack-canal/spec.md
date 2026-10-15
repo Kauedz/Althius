@@ -177,6 +177,12 @@ Isso mantém uma regra só para canal e DM. Esta é uma interpretação do Q19/Q
   - quando há uma Aprovação pendente, posta que ela aguarda na fila da Althius, sem botões no Slack;
   - quando o Canal foi retirado entre o pedido e a entrega, não posta e só marca.
 
+### Limites e falhas de postagem
+
+- **Limite do Slack (429):** toda postagem (`chat.postMessage`) respeita o `Retry-After` do Slack e tenta de novo; 5xx e rede fora também são tentados, com espera crescente, até 3 vezes. Uma espera pedida maior que o prazo da função não é esperada: a falha sobe e fica no log.
+- **Falha ao postar:** nunca se perde em silêncio. Fica no log com o `run_id` (entrega) ou o `event_id` (eventos), sem texto nem token. A Execução só deve ficar marcada como entregue depois de o Slack confirmar o post; se o Slack falhar, a falha fica gravada e a entrega é tentada de novo até um limite (ticket 09).
+- **Limite de uso:** um limite de pedidos por pessoa e por Workspace numa janela de tempo, com recusa curta no thread, sem Execução nem Crédito (ticket 08). Até lá valem o "ainda respondendo" (uma Execução aberta por fio) e o limite de Créditos.
+
 ### Frontend
 
 - A Fonte real de Conexões deixa o Canal Slack sair de "Em breve":
@@ -221,6 +227,7 @@ Isso mantém uma regra só para canal e DM. Esta é uma interpretação do Q19/Q
 - Um bot por Agente.
 - Um workspace Slack servindo vários Workspaces Althius.
 - Convidados, Slack Connect e vínculo de um segundo e-mail.
+- Canais privados sem menção: continuar um fio sem @ num canal privado precisaria de `groups:history` e `message.groups`. Fora da v1 (decisão do Renan, 2026-10-15); a menção ao bot num canal privado continua funcionando.
 - WhatsApp, Microsoft Teams e E-mail como Canais.
 - Mudanças na Demonstração.
 

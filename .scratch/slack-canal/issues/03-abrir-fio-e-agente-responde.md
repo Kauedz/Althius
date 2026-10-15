@@ -28,15 +28,15 @@ Spec: [../spec.md](../spec.md) (seções "Fio e Conversa", "Execução com gatil
 
 ## Critérios
 
-- [ ] Mensagem solta no canal com @Althius e um @Agente válido abre o fio no `ts` dela e recebe a resposta no thread
-- [ ] O mesmo no DM com o bot, sem @Althius
-- [ ] A Conversa é `kind = 'agente'`, dono é quem mencionou, origem Slack
-- [ ] A Execução tem `trigger_kind = 'canal'`, aparece na Atividade e cobra Créditos pela mesma regra da Conversa
-- [ ] O mesmo `event_id` não cria duas Execuções
-- [ ] A RPC só roda com service role; sem Participação, sem contrato ou com Agente fora da lista ela recusa
-- [ ] O gatilho dispara só para `trigger_kind = 'canal'` e em estado final; a entrega posta uma vez só e marca entregue
-- [ ] Menção escrita pelo Agente numa Execução `canal` não faz outro Agente falar
-- [ ] lint, `tsc -b`, vitest, `deno test`, `deno check` e pgTAP do zero verdes
+- [x] Mensagem solta no canal com @Althius e um @Agente válido abre o fio no `ts` dela e recebe a resposta no thread
+- [x] O mesmo no DM com o bot, sem @Althius
+- [x] A Conversa é `kind = 'agente'`, dono é quem mencionou, origem Slack
+- [x] A Execução tem `trigger_kind = 'canal'`, aparece na Atividade e cobra Créditos pela mesma regra da Conversa (pgTAP: reserva de Créditos e gatilho Canal; a Atividade lê as Execuções sem filtro de gatilho)
+- [x] O mesmo `event_id` não cria duas Execuções
+- [x] A RPC só roda com service role; sem Participação, sem contrato ou com Agente fora da lista ela recusa
+- [x] O gatilho dispara só para `trigger_kind = 'canal'` e em estado final; a entrega posta uma vez só e marca entregue
+- [x] Menção escrita pelo Agente numa Execução `canal` não faz outro Agente falar
+- [x] lint, `tsc -b`, vitest, `deno test`, `deno check` e pgTAP do zero verdes (CI do PR #224: Edge Functions e Frontend verdes; pgTAP `fio_do_canal_slack.sql` verde)
 
 ## Passos do Nan
 
@@ -45,3 +45,13 @@ Spec: [../spec.md](../spec.md) (seções "Fio e Conversa", "Execução com gatil
 - Republicar a `agent-conversation` e atualizar o worker do Hermes na VPS, se o ticket mexeu neles
 - Aplicar a migration conforme `docs/agents/migrations.md`
 - No Slack de teste: mencionar @Althius com @Scopus num canal e @Ethos no DM; conferir a resposta no thread e a Execução na Atividade
+
+## Comments
+
+**2026-10-15, agente:** implementado em `2d89e9b` e `98b3700`, no `main` pelo PR #220.
+
+- Migration `20261029100000_fio_do_canal_slack.sql` (aditiva): `trigger_kind = 'canal'`, origem da Conversa, registro do fio, marca de entregue, `start_slack_channel_run`, gatilho de entrega por `pg_net` e `claim_slack_channel_delivery`. pgTAP `supabase/tests/fio_do_canal_slack.sql`.
+- Edge Function `slack-channel-delivery` (sem JWT, segredo interno) e a abertura do fio em `slack-channel-events` (`handler-abrir-fio.test.ts`).
+- Runner e worker não puxam Agente mencionado numa Execução `canal`: `agent-conversation/runner-canal.test.ts` e `_hermes-worker/worker-canal.test.ts`.
+
+Falta: os Passos do Nan.

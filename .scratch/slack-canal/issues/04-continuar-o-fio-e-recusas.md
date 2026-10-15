@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (seção "Do evento à decisão" item 3; US 22–
 
 **Blocked by:** 03 (Abrir um fio e o Agente responde no thread).
 
-**Status:** ready-for-human (código pronto; falta o Nan aplicar as migrations e publicar as funções)
+**Status:** ready-for-human (código no PR #224; falta o merge, o Nan aplicar a migration `20261030100000` e publicar a função de eventos)
 
 ## Pode mexer
 
@@ -25,12 +25,14 @@ Spec: [../spec.md](../spec.md) (seção "Do evento à decisão" item 3; US 22–
 
 - [x] No thread de canal, a resposta do dono sem @ (nem ao bot) continua a Conversa com o Agente do fio
 - [x] No thread do DM, o mesmo
-- [x] O Agente recebe o histórico da Conversa (lembra o que foi dito antes)
+- [x] O Agente recebe o histórico da Conversa (lembra o que foi dito antes): é a mesma Conversa do 03; pgTAP 9 de `leitura_do_fio_do_canal_slack.sql` prova que a Execução seguinte leva o histórico (`claim_agent_run`)
+- [x] O dono removido do Workspace no meio do fio recebe "não reconheci" e nenhuma Execução é pedida (2 testes Deno: sem Participação na leitura do e-mail, e recusa `nao_reconhecido` do banco)
+- [x] Se a leitura do fio falha, a menção ou o DM recebe "tente de novo" e a falha fica no log (`falha_ao_ler_fio`); a resposta de canal sem menção só vai para o log
 - [x] Outra pessoa no thread recebe a recusa com o nome do dono e a dica de abrir o próprio fio
 - [x] O dono mencionando outro Agente no thread recebe a recusa com o nome do Agente do fio
 - [x] Mensagem com Execução aberta no fio recebe "ainda respondendo" e não é perdida em silêncio
 - [x] Mensagem de canal fora de thread mapeado e sem menção ao bot é ignorada sem resposta
-- [ ] lint, `deno test`, `deno check` (e pgTAP do zero, se houver migration) verdes — lint, `deno test` e `deno check` verdes; o pgTAP novo (`supabase/tests/leitura_do_fio_do_canal_slack.sql`) só roda no CI, sem Postgres local
+- [ ] lint, `deno test`, `deno check` (e pgTAP do zero, se houver migration) verdes: lint, `deno test` (58) e `deno check` verdes. O pgTAP `leitura_do_fio_do_canal_slack.sql` **falhou no CI** do PR #224 (o teste 5 lia `private.agents` como service role); corrigido, aguardando o CI
 
 ## Passos do Nan
 
@@ -39,5 +41,8 @@ Spec: [../spec.md](../spec.md) (seção "Do evento à decisão" item 3; US 22–
 
 ## Comments
 
-- Implementado em `3c0cc09`. Migration aditiva `20261026100000_leitura_do_fio_do_canal_slack` (`slack_channel_thread`: dono e Agente do fio pela chave). Falta: pgTAP verde no CI e os Passos do Nan.
+- Implementado em `a1b4e3e` e `87d7139` (PR #224). Migration aditiva `20261030100000_leitura_do_fio_do_canal_slack` (era `20261026100000`, que colidia com `feedback_que_ensina` da produção): `slack_channel_thread`, dono e Agente do fio pela chave.
+- `87d7139`: falha em `lerFio` vai para o log `falha_ao_ler_fio`; na menção ou no DM, o thread recebe `RESPOSTAS.indisponivel`.
+- O pgTAP falhou no CI (permission denied for schema private na linha 89); o teste foi corrigido sem mudar a migration.
+- Falta: pgTAP verde no CI e os Passos do Nan.
 - A recusa a outra pessoa traz o nome do dono na Althius, não um @ do Slack: o fio não guarda o id do dono no Slack.

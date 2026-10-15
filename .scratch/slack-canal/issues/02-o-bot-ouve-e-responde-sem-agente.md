@@ -40,7 +40,7 @@ Neste ticket, uma mensagem válida com exatamente um Agente ainda não abre fio 
 - [x] Os avisos e recusas acima saem sempre no thread da mensagem, nunca soltos, sem Execução nem Crédito
 - [x] `app_uninstalled` e `tokens_revoked` marcam a instalação como retirada
 - [x] Confirmado na documentação oficial do Slack o escopo e o evento que entregam as respostas de thread em canal sem menção ao bot, com a fonte registrada nos Comments deste ticket
-- [ ] lint, `deno test`, `deno check` e pgTAP do zero verdes (Deno verde; pgTAP não rodado localmente, ver Comments)
+- [x] lint, `deno test`, `deno check` e pgTAP do zero verdes (pgTAP `eventos_do_canal_slack.sql` verde no CI do PR #224, job "Banco (migrations do zero e pgTAP)")
 
 ## Passos do Nan
 
@@ -63,9 +63,9 @@ Neste ticket, uma mensagem válida com exatamente um Agente ainda não abre fio 
 - Confirmar em até 3 segundos; o Slack reenvia até 3 vezes (`x-slack-retry-num`), e o `event_id` é único entre todos os workspaces. Fonte: https://docs.slack.dev/apis/events-api
 - E-mail do usuário: `users.info` com `users:read` e `users:read.email`; quem vem de outro workspace por canal compartilhado traz `is_stranger`. Fonte: https://docs.slack.dev/reference/methods/users.info
 
-**2026-10-15, agente:** implementado (commit na `main` local, ainda não publicado).
+**2026-10-15, agente:** implementado; entrou no `main` pelo PR #220.
 
-- Migration `20261024100000_eventos_do_canal_slack.sql` (aditiva) com o pgTAP `supabase/tests/eventos_do_canal_slack.sql` (24 asserções): `claim_slack_channel_event`, `slack_channel_active_installation`, `slack_channel_account_by_email`, `slack_channel_agents` e `withdraw_slack_channel_by_slack`, só para o service role.
+- Migration `20261028100000_eventos_do_canal_slack.sql` (aditiva; era `20261024100000`, renomeada no `f77caa6`) com o pgTAP `supabase/tests/eventos_do_canal_slack.sql` (24 asserções): `claim_slack_channel_event`, `slack_channel_active_installation`, `slack_channel_account_by_email`, `slack_channel_agents` e `withdraw_slack_channel_by_slack`, só para o service role.
 - Edge Function `slack-channel-events` (sem JWT, segredo `SLACK_CHANNEL_SIGNING_SECRET`), no padrão `createHandler(deps)`. `_shared/slack-api.ts` ganhou a assinatura, `users.info` e `chat.postMessage`. `supabase/config.toml` ganhou a função (fora do "Pode mexer", necessário para publicar sem JWT, como no 01).
 - Com exatamente um Agente que atende no Slack, a função chega à decisão `abrir_fio` (no log, com Conta, Agente, canal e `thread_ts`) e para ali.
 
@@ -75,4 +75,5 @@ Escolhas a confirmar com o Nan:
 - Um Agente do Slack e outro fora da lista na mesma mensagem recebem "um Agente por fio" (a regra de mais de um Agente vem antes).
 - `thread_broadcast` (resposta de thread também enviada ao canal) é tratado como "outro subtipo" e ignorado.
 - A reserva do `event_id` guarda só o id, o `team_id` e o tipo, e é apagada depois de 30 dias.
-- `supabase/functions/README.md` ainda não descreve as funções do Canal Slack (nem as do 01).
+- `supabase/functions/README.md` ainda não descreve as funções do Canal Slack (nem as do 01). Pendente.
+- Canal privado sem menção (`groups:history`): **fora da v1** (decisão do Renan, 2026-10-15).

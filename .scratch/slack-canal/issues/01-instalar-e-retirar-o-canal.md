@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (seções "Instalação", "Frontend"; US 1–10).
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-human (código pronto; falta o Nan aplicar as migrations e publicar as funções)
+**Status:** ready-for-human (código no `main` pelo PR #220; falta o Nan confirmar se a migration `20261027100000_canal_slack.sql` já está aplicada em produção, publicar as funções e fazer os Passos abaixo)
 
 ## Pode mexer
 
@@ -45,9 +45,9 @@ Spec: [../spec.md](../spec.md) (seções "Instalação", "Frontend"; US 1–10).
 
 ## Comments
 
-**2026-10-15, agente:** implementado no commit `8cc8952` (na `main` local, ainda não publicado).
+**2026-10-15, agente:** implementado; no `main` pelo PR #220 como `33384eb` (o `8cc8952` era o commit local de antes do rebase).
 
-- Migration `20261023100000_canal_slack.sql` (aditiva) com o pgTAP `supabase/tests/canal_slack.sql` (34 asserções).
+- Migration `20261027100000_canal_slack.sql` (aditiva; era `20261023100000`, renomeada no `f77caa6` para vir depois da última migration de produção) com o pgTAP `supabase/tests/canal_slack.sql` (34 asserções).
 - Edge Functions `slack-channel-connect` (com JWT: iniciar e retirar) e `slack-channel-callback` (sem JWT, `state` de uso único). Cliente da API do Slack em `_shared/slack-api.ts`.
 - Fonte real de Conexões e tela com o cartão do Canal Slack, mais o teste `conexoes-canal-slack.test.tsx`.
 - `supabase/config.toml` ganhou as duas funções (fora do "Pode mexer", necessário para publicar o retorno sem JWT).
@@ -55,7 +55,7 @@ Spec: [../spec.md](../spec.md) (seções "Instalação", "Frontend"; US 1–10).
 Verificação: pgTAP do zero com os 117 arquivos verdes; `deno test` com 1467 passando; `deno check`, lint e `tsc -b` limpos; vitest com 1350 passando e 1 falha. A falha é em `conversas-reais.test.tsx` › "depois de recarregar, a Conversa coordenada volta como estava". Ela falha também na `main` sem esta mudança (3 de 3 execuções), então não vem deste ticket.
 
 Decisões a confirmar com o Nan:
-- O escopo de leitura cobre só canais públicos (`channels:history`). Continuar um fio sem @ em canal privado precisa de `groups:history`.
+- O escopo de leitura cobre só canais públicos (`channels:history`). Continuar um fio sem @ em canal privado precisaria de `groups:history`. **Decidido (2026-10-15, Renan): fora da v1**, registrado no Out of Scope da spec.
 - Na instalação recusada, o token recebido não é guardado nem revogado (revogar poderia derrubar o Canal do outro Workspace).
 - Se a leitura do estado do Slack falhar (por exemplo, migration ainda não aplicada), o cartão mostra "Em breve".
 
