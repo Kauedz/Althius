@@ -11,6 +11,7 @@ import { useAmbiente, useDados, useFonte, useFonteDeConexoes } from '@/fonte/con
 import type { Aprovacao, CanalId, CategoriaDeIntegracao, IntegracaoId } from '@/fonte/tipos'
 import {
   type AcessoDaIntegracao,
+  type CanalDeConexao,
   type FerramentaDaIntegracao,
   type IntegracaoDeConexao,
   type RegraDaFerramenta,
@@ -32,9 +33,22 @@ const MOTIVOS_DA_VOLTA: Record<string, (nome: string) => string> = {
   indisponivel: (nome) => `Não foi possível falar com o ${nome} agora. Tente de novo em instantes.`,
 }
 
+/** As recusas próprias da instalação do Canal Slack (`?canal=slack`, da Edge Function slack-channel-callback). */
+const MOTIVOS_DA_VOLTA_DO_SLACK: Record<string, string> = {
+  slack_diferente: 'Este Workspace já usa outro Slack. Conecte de novo o mesmo Slack da primeira instalação.',
+  slack_de_outro_workspace: 'Este Slack já está ligado a outro Workspace da Althius e não pode ser usado aqui.',
+  nao_administrador: 'Só um Administrador do Workspace conecta o Slack.',
+}
+
 function avisoDaVolta(parametros: URLSearchParams): { texto: string; ok: boolean } | null {
   const resultado = parametros.get('conexao')
   if (resultado !== 'ok' && resultado !== 'erro') return null
+  if (parametros.get('canal') === 'slack') {
+    if (resultado === 'ok') return { texto: 'Slack conectado.', ok: true }
+    const motivo = parametros.get('motivo') ?? ''
+    const texto = MOTIVOS_DA_VOLTA_DO_SLACK[motivo] ?? MOTIVOS_DA_VOLTA[motivo]?.('Slack')
+    return { texto: texto ?? 'Não foi possível conectar o Slack. Tente de novo.', ok: false }
+  }
   const id = parametros.get('integracao') as IntegracaoId | null
   const nome = id ? nomeDaIntegracao(id) ?? id : 'app'
   if (resultado === 'ok') return { texto: `${nome} conectado.`, ok: true }
@@ -75,6 +89,21 @@ export function PaginaConexoes() {
   const [comChave, setComChave] = useState<IntegracaoDeConexao | null>(null)
   const [vendoFerramentas, setVendoFerramentas] = useState<IntegracaoDeConexao | null>(null)
   const [trabalhando, setTrabalhando] = useState<IntegracaoId | null>(null)
+  const [instalandoCanal, setInstalandoCanal] = useState<CanalId | null>(null)
+  const [retirandoCanal, setRetirandoCanal] = useState<CanalDeConexao | null>(null)
+
+  async function instalarCanal(canal: CanalDeConexao) {
+    if (!fonteDeConexoes.instalarCanal) return
+    setErro('')
+    setInstalandoCanal(canal.id)
+    try {
+      idaAoApp.ir(await fonteDeConexoes.instalarCanal(canal.id))
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : `Não foi possível abrir a instalação do ${canal.nome} agora.`)
+    } finally {
+      setInstalandoCanal(null)
+    }
+  }
 
   async function autorizar(integracao: IntegracaoDeConexao) {
     if (!fonteDeConexoes.conectarPorAutorizacao) return
@@ -157,7 +186,16 @@ export function PaginaConexoes() {
         ) : (
           <div className="grid grid-cols-4 gap-6">
             {canais.map((canal) =>
-              modo === 'real' || canal.estado === 'em_breve' ? (
+              modo === 'real' && canal.estado !== 'em_breve' ? (
+                <CartaoDeCanalReal
+                  key={canal.id}
+                  canal={canal}
+                  ehAdministrador={ehAdministrador}
+                  instalando={instalandoCanal === canal.id}
+                  aoInstalar={() => instalarCanal(canal)}
+                  aoRetirar={() => setRetirandoCanal(canal)}
+                />
+              ) : modo === 'real' || canal.estado === 'em_breve' ? (
                 <article
                   key={canal.id}
                   aria-label={canal.nome}
@@ -284,6 +322,7 @@ export function PaginaConexoes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DialogoDeRetirarCanal canal={retirandoCanal} aoFechar={() => setRetirandoCanal(null)} />
       <DialogoDeConexao conexao={conectando} aoFechar={() => setConectando(null)} />
       <DialogoDeChave integracao={comChave} aoFechar={() => setComChave(null)} />
       <DialogoDeFerramentas
@@ -294,6 +333,106 @@ export function PaginaConexoes() {
       />
       <DialogoDePrevia canalId={previa} aoFechar={() => setPrevia(null)} />
     </Pagina>
+  )
+}
+
+const ROTULO_DO_CANAL: Record<CanalDeConexao['estado'], string> = {
+  em_breve: 'Em breve',
+  conectado: 'Ativo',
+  nao_conectado: 'Não conectado',
+  retirado: 'Retirado',
+}
+
+/** O Canal real (hoje, só o Slack): o estado para todos; Conectar e Retirar só para o Administrador. */
+function CartaoDeCanalReal({
+  canal,
+  ehAdministrador,
+  instalando,
+  aoInstalar,
+  aoRetirar,
+}: {
+  canal: CanalDeConexao
+  ehAdministrador: boolean
+  instalando: boolean
+  aoInstalar: () => void
+  aoRetirar: () => void
+}) {
+  const ativo = canal.estado === 'conectado'
+  return (
+    <article aria-label={canal.nome} className="cartao flex flex-col gap-4 p-6">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-lg font-normal">{canal.nome}</span>
+        <span className={ativo ? 'rotulo text-al-sucesso' : 'rotulo'}>{ROTULO_DO_CANAL[canal.estado]}</span>
+      </div>
+      <p className="text-sm text-al-muted">{canal.descricao}</p>
+      <div className="mt-auto flex flex-col gap-2">
+        {canal.instaladoEm && canal.estado !== 'nao_conectado' && (
+          <span className="text-xs text-al-muted">Workspace do {canal.nome}: {canal.instaladoEm}</span>
+        )}
+        {!ehAdministrador ? (
+          <span className="text-xs text-al-muted">Só um Administrador conecta ou retira o {canal.nome}.</span>
+        ) : ativo ? (
+          <Button variant="ghost" onClick={aoRetirar} className="self-start px-4">
+            Retirar
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={aoInstalar} disabled={instalando} className="self-start px-4">
+            {instalando
+              ? 'Abrindo...'
+              : canal.estado === 'retirado'
+                ? `Conectar o ${canal.nome} de novo`
+                : `Conectar o ${canal.nome}`}
+          </Button>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function DialogoDeRetirarCanal({ canal, aoFechar }: { canal: CanalDeConexao | null; aoFechar: () => void }) {
+  const fonte = useFonteDeConexoes()
+  const [retirando, setRetirando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  function fechar() {
+    if (retirando) return
+    setErro('')
+    aoFechar()
+  }
+
+  async function retirar() {
+    if (!canal || !fonte.retirarCanal) return
+    setErro('')
+    setRetirando(true)
+    try {
+      await fonte.retirarCanal(canal.id)
+      setRetirando(false)
+      aoFechar()
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : `Não foi possível retirar o ${canal.nome} agora.`)
+      setRetirando(false)
+    }
+  }
+
+  return (
+    <Dialog open={canal !== null} onOpenChange={(aberto) => !aberto && fechar()}>
+      <DialogContent className="gap-6 p-6">
+        <DialogTitle className="titulo-secao text-2xl">Retirar o {canal?.nome}</DialogTitle>
+        <DialogDescription className="text-al-muted">
+          O bot @Althius para de responder no {canal?.nome}. As Conversas e a Atividade ficam. Para voltar, conecte de novo
+          no mesmo {canal?.nome}.
+        </DialogDescription>
+        {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
+        <DialogFooter className="flex gap-2">
+          <Button variant="ghost" onClick={fechar} disabled={retirando}>
+            Cancelar
+          </Button>
+          <Button onClick={retirar} disabled={retirando}>
+            {retirando ? 'Retirando...' : 'Retirar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

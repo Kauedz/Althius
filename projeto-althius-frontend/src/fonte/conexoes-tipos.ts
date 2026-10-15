@@ -8,7 +8,8 @@ import type {
 } from './tipos'
 
 export type EstadoDeIntegracao = 'em_breve' | 'nao_habilitada' | 'habilitada'
-export type EstadoDeCanal = 'em_breve' | 'conectado' | 'nao_conectado'
+/** `retirado`: o Canal já foi instalado e um Administrador o retirou; reinstalar só no mesmo app (Slack). */
+export type EstadoDeCanal = 'em_breve' | 'conectado' | 'nao_conectado' | 'retirado'
 
 export interface ItemDeCanal {
   id: CanalId
@@ -16,6 +17,8 @@ export interface ItemDeCanal {
   descricao: string
   estado: EstadoDeCanal
   conectado: boolean
+  /** Onde o Canal está instalado (o nome do workspace Slack). */
+  instaladoEm?: string
 }
 
 export interface ItemDeIntegracao {
@@ -96,6 +99,10 @@ export interface FonteDeConexoes extends FonteObservavel {
   conectarPorChave?(id: IntegracaoId, chave: string): Promise<void>
   /** Desconecta só o próprio Acesso. */
   desconectarAcesso?(id: IntegracaoId): Promise<void>
+  /** Abre a instalação do Canal no app e devolve o endereço para o navegador ir; exige Administrador ativo. */
+  instalarCanal?(id: CanalId): Promise<string>
+  /** Retira o Canal: o app para de responder e nada é apagado; exige Administrador ativo. */
+  retirarCanal?(id: CanalId): Promise<void>
   /** As ferramentas que o servidor da Integração oferece, lidas com o próprio Acesso. */
   ferramentas?(id: IntegracaoId): Promise<FerramentaDaIntegracao[]>
   /** As regras decididas para as ferramentas da Integração; a que não consta segue o padrão. */
