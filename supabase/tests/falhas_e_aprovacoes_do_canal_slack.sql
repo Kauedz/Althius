@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(19);
+select plan(20);
 
 -- Falhas e Aprovações no thread do Canal Slack (slack-canal 05): a Aprovação pedida pela Execução do Canal fica na fila
 -- com o gatilho Canal e a entrega traz a ação dela; a falha chega à entrega com o motivo; o relógio vence as Execuções do
@@ -154,6 +154,12 @@ select is(
   'Criar a empresa Alfa no HubSpot|pendente', 'a Aprovação aguarda na fila da Althius'
 );
 reset role;
+-- 8b. A mesma Aprovação, vista pela fila (list_approvals), chega à Execução do Canal pelo run_id: o gatilho Canal.
+select is(
+  (select string_agg(r.trigger_kind, ',') from public.list_approvals('fd000000-0000-0000-0000-000000000001') l
+     join private.approvals a on a.id = l.id join private.agent_runs r on r.id = a.run_id),
+  'canal', 'a Aprovação da fila chega ao gatilho Canal pelo run_id'
+);
 
 -- 9-11. Com a Permissão Executar, a ação nasce liberada e não aguarda na fila. A Execução termina bem e a entrega traz a
 -- resposta e só a ação pendente, uma vez só.
