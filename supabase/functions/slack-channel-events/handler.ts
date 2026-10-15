@@ -229,9 +229,20 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (m.origem === 'canal' && mencaoAoBot(instalacao.botUserId).test(m.texto)) return registrar(eventId, 'ignorado', { evento: tipo })
     // O fio desta chave, se a mensagem está num thread. Fora de fio, a resposta de canal sem menção ao bot não é com a
     // Althius: nada é reservado nem lido de quem escreveu.
-    const fio = m.noThread && deps.db.lerFio
-      ? await deps.db.lerFio({ workspaceId: instalacao.workspaceId, teamId, canal: m.canal, threadTs: m.threadTs })
-      : null
+    // Se a leitura do fio falhar, a mensagem não se perde em silêncio: fica no log e, quando a pessoa falou com o bot (menção
+    // ou DM), ela recebe "tente de novo" no thread. Uma resposta de canal sem menção pode nem ser de um fio, então só o log.
+    let fio: FioDoSlack | null = null
+    if (m.noThread && deps.db.lerFio) {
+      try {
+        fio = await deps.db.lerFio({ workspaceId: instalacao.workspaceId, teamId, canal: m.canal, threadTs: m.threadTs })
+      } catch (e) {
+        registrar(eventId, 'falha_ao_ler_fio', { evento: tipo, erro: e instanceof Error ? e.name : 'desconhecido' })
+        if (m.origem === 'canal') return
+        if (!(await deps.db.reservarEvento(eventId, teamId, tipo))) return registrar(eventId, 'reenvio')
+        await postarNoThread({ token: instalacao.token, canal: m.canal, threadTs: m.threadTs, texto: RESPOSTAS.indisponivel, fetch: deps.fetch })
+        return registrar(eventId, 'indisponivel', { workspaceId: instalacao.workspaceId })
+      }
+    }
     if (m.origem === 'canal' && !fio) return registrar(eventId, 'ignorado', { evento: tipo })
     if (!(await deps.db.reservarEvento(eventId, teamId, tipo))) return registrar(eventId, 'reenvio')
     const responderNoThread = async (resposta: string, resultado: string) => {

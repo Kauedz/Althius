@@ -26,6 +26,9 @@ const FIOS: Record<string, FioDoSlack> = {
   'C0GERAL|1700000000.000500': { donoId: ANA, donoNome: null, agenteId: 'ag-scopus', agenteNome: 'Scopus' },
 }
 
+/** Um thread cuja leitura do fio falha no banco. */
+const FIO_QUE_FALHA = '1700000000.000999'
+
 const EMAILS: Record<string, string> = { UANA: 'ana@norte.test', UBIA: 'bia@norte.test' }
 const CONTAS: Record<string, string> = { 'ana@norte.test': ANA, 'bia@norte.test': BIA }
 
@@ -49,6 +52,7 @@ function montar(abertura: (p: PedidoDeFio) => AberturaDoFio = () => ({ kind: 'ab
       retirarPeloSlack: () => Promise.resolve(false),
       lerFio: (fio) => {
         c.leiturasDeFio.push(`${fio.workspaceId}|${fio.teamId}|${fio.canal}|${fio.threadTs}`)
+        if (fio.threadTs === FIO_QUE_FALHA) return Promise.reject(new Error('banco fora do ar'))
         return Promise.resolve(FIOS[`${fio.canal}|${fio.threadTs}`] ?? null)
       },
       abrirFio: (pedido) => {
@@ -256,4 +260,19 @@ Deno.test('o log da continuação e das recusas não traz o texto nem o nome do 
   const logs = JSON.stringify(m.c.logs)
   assertEquals(logs.includes('segredo'), false)
   assertEquals(logs.includes('Ana Souza'), false)
+})
+
+Deno.test('se a leitura do fio falha, a menção recebe "tente de novo" no thread e a falha fica no log', async () => {
+  const m = montar()
+  await entregar(m, mencaoNoThread('continua', { thread_ts: FIO_QUE_FALHA }))
+  assertEquals(m.c.pedidos, [])
+  assertEquals(m.c.postagens.map((p) => [p.thread_ts, p.text]), [[FIO_QUE_FALHA, RESPOSTAS.indisponivel]])
+  assertEquals(m.c.logs.map((l) => l.resultado), ['falha_ao_ler_fio', 'indisponivel'])
+})
+
+Deno.test('se a leitura do fio falha numa resposta de canal sem menção, nada é postado, mas a falha fica no log', async () => {
+  const m = montar()
+  await entregar(m, noThreadDoCanal('continua', { thread_ts: FIO_QUE_FALHA }))
+  assertEquals(m.c.postagens, [])
+  assertEquals(m.c.logs.map((l) => l.resultado), ['falha_ao_ler_fio'])
 })
