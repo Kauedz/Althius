@@ -15,7 +15,7 @@ const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_
 Deno.serve(createHandler({
   segredoInterno: required('SLACK_CHANNEL_DELIVERY_SECRET'),
   db: {
-    // A migration 20261029100000: marca a Execução como entregue e devolve o que postar.
+    // As migrations 20261025100000 e 20261027100000: marca a Execução como entregue e devolve o que postar.
     async reservarEntrega(runId) {
       const { data, error } = await admin.rpc('claim_slack_channel_delivery', { p_run_id: runId })
       if (error) throw new Error(`claim_slack_channel_delivery: ${error.code ?? ''} ${error.message}`)
@@ -26,6 +26,7 @@ Deno.serve(createHandler({
         channel_id: string
         thread_ts: string
         bot_token: string | null
+        pending_approvals: string[] | null
       }[]
       return linha
         ? {
@@ -35,6 +36,7 @@ Deno.serve(createHandler({
           canal: linha.channel_id,
           threadTs: linha.thread_ts,
           token: linha.bot_token,
+          aprovacoesPendentes: linha.pending_approvals ?? [],
         }
         : null
     },

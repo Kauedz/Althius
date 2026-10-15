@@ -6,7 +6,10 @@
 // qualquer postagem: uma Execução é postada uma vez só, mesmo que a chamada se repita. Depois posta no thread do fio, com
 // o token do bot:
 //   - sucesso: a resposta final do Agente;
-//   - falha: uma falha clara, nunca uma resposta inventada (o motivo humano de cada falha é o ticket 05);
+//   - falha: uma falha clara com o motivo humano (sem Créditos, sem contrato, prazo vencido, erro do Agente), nunca uma
+//     resposta inventada (slack-canal 05);
+//   - Aprovação pendente pedida pela Execução: no mesmo post, o aviso de que ela aguarda na fila de Aprovações da
+//     Althius, sem botões no Slack (slack-canal 05);
 //   - Canal retirado entre o pedido e a entrega: não posta, só fica marcada.
 // Uma falha ao postar fica no log e não é repetida. O log nunca traz a resposta nem o token.
 import { ErroDoSlack, postarNoThread } from '../_shared/slack-api.ts'
@@ -21,6 +24,8 @@ export interface Entrega {
   threadTs: string
   /** O token do bot; nulo quando o Canal foi retirado. */
   token: string | null
+  /** As ações das Aprovações que a Execução pediu e que ainda aguardam na fila, em ordem. */
+  aprovacoesPendentes?: string[]
 }
 
 export interface Db {
@@ -37,8 +42,50 @@ export interface Deps {
 }
 
 export const RESPOSTAS = {
+  /** O erro do Agente (do modelo, do motor ou interno), e qualquer motivo sem frase própria. */
   falha: 'Não consegui terminar a resposta a este pedido. Tente de novo em instantes.',
-} as const
+  semCreditos:
+    'Não foi possível responder: o Workspace está sem Créditos para este pedido, ou você chegou ao seu limite do mês. Avise o Administrador.',
+  semContrato: 'Não foi possível responder: este Workspace está sem contrato ativo na Althius.',
+  passouDoTempo: 'O pedido passou do tempo e foi interrompido, sem resposta. Tente de novo.',
+  semParticipacao: 'Não foi possível responder: você não participa mais deste Workspace.',
+  chaveDeIa: 'Não foi possível responder: a chave de IA do Workspace não pôde ser usada. Avise o Administrador.',
+  aprovacoesNaFila: (acoes: string[]) =>
+    acoes.length === 1
+      ? `A Aprovação de "${escapar(acoes[0])}" aguarda na fila de Aprovações da Althius.`
+      : `${acoes.length} Aprovações aguardam na fila de Aprovações da Althius: ${acoes.map((a) => `"${escapar(a)}"`).join(', ')}.`,
+}
+
+/** A ação foi escrita pelo Agente: no Slack, `<`, `>` e `&` viram texto, para nunca formar uma menção como `<!channel>`. */
+function escapar(texto: string): string {
+  return texto.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+}
+
+/**
+ * O motivo gravado na Execução que falhou, em palavras de quem pediu. É uma cópia resumida do mapa da Conversa na Althius
+ * (`mensagemDaFalha`, no frontend): um código novo de falha entra nos dois.
+ */
+const MOTIVOS: Record<string, string> = {
+  insufficient_credits: RESPOSTAS.semCreditos,
+  contrato_inativo: RESPOSTAS.semContrato,
+  timeout: RESPOSTAS.passouDoTempo,
+  membership_inactive: RESPOSTAS.semParticipacao,
+  workspace_ai_key_invalid: RESPOSTAS.chaveDeIa,
+  workspace_ai_key_unavailable: RESPOSTAS.chaveDeIa,
+  workspace_ai_key_unsupported: RESPOSTAS.chaveDeIa,
+}
+
+/** O que vai no thread: a resposta ou a falha, e o aviso das Aprovações que aguardam na fila. */
+function textoDaEntrega(entrega: Entrega): string {
+  const aprovacoes = entrega.aprovacoesPendentes ?? []
+  const aviso = aprovacoes.length ? RESPOSTAS.aprovacoesNaFila(aprovacoes) : ''
+  let principal: string
+  if (entrega.status === 'failed') principal = (entrega.codigoDoErro && MOTIVOS[entrega.codigoDoErro]) || RESPOSTAS.falha
+  else if (entrega.resposta?.trim()) principal = entrega.resposta
+  // Terminou bem sem uma fala: com a Aprovação na fila, o aviso basta; sem nada, é falha, nunca um post vazio.
+  else principal = aviso ? '' : RESPOSTAS.falha
+  return [principal, aviso].filter(Boolean).join('\n\n')
+}
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 
@@ -78,14 +125,22 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       registrar(runId, 'canal_retirado')
       return responder({ ok: true, entregue: false })
     }
-    const texto = entrega.status === 'succeeded' && entrega.resposta?.trim() ? entrega.resposta : RESPOSTAS.falha
     try {
-      await postarNoThread({ token: entrega.token, canal: entrega.canal, threadTs: entrega.threadTs, texto, fetch: deps.fetch })
+      await postarNoThread({
+        token: entrega.token,
+        canal: entrega.canal,
+        threadTs: entrega.threadTs,
+        texto: textoDaEntrega(entrega),
+        fetch: deps.fetch,
+      })
     } catch (e) {
       registrar(runId, 'falha_ao_postar', { erro: e instanceof ErroDoSlack ? e.message : e instanceof Error ? e.name : 'desconhecido' })
       return responder({ error: 'slack unavailable' }, 502)
     }
-    registrar(runId, entrega.status === 'succeeded' ? 'resposta_postada' : 'falha_postada', { codigoDoErro: entrega.codigoDoErro })
+    registrar(runId, entrega.status === 'succeeded' ? 'resposta_postada' : 'falha_postada', {
+      codigoDoErro: entrega.codigoDoErro,
+      aprovacoesPendentes: entrega.aprovacoesPendentes?.length ?? 0,
+    })
     return responder({ ok: true, entregue: true })
   }
 }
