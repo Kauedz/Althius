@@ -3,8 +3,8 @@
 // que conferem a Participação ativa de quem chama: todo participante consulta, e só o Administrador cria, exclui e
 // altera. O banco também guarda que o Agente padrão não é excluído nem renomeado. Nada aqui executa um Agente: não há
 // Execução, Atividade nem Aprovação de Agente ainda (CRM-14), e o estado do Agente é sempre ocioso.
-// As Conexões (Canais e Integrações) não são deste módulo: os Canais vêm da mesma leitura de Conexões (o Slack conectado
-// quando instalado e ativo), e as Integrações, do catálogo, todas não conectadas.
+// Conectar Canais e Integrações é do módulo de Conexões. Aqui os Canais só dizem se estão conectados, pela mesma leitura
+// de Conexões (o Slack quando instalado e ativo); as Integrações vêm do catálogo, todas não conectadas.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { integracoesConectadas } from './catalogo-de-conexoes'

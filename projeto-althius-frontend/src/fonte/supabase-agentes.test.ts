@@ -165,4 +165,3 @@ describe('Configuração dos Agentes no Workspace operacional', () => {
     expect((await fonte.canais()).some((canal) => canal.conectado)).toBe(false)
   })
 })
-
