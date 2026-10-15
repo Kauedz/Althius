@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (seção "Do evento à decisão" item 3; US 22–
 
 **Blocked by:** 03 (Abrir um fio e o Agente responde no thread).
 
-**Status:** ready-for-human (código no PR #224; falta o merge, o Nan aplicar a migration `20261030100000` e publicar a função de eventos)
+**Status:** ready-for-human (código no PR #224; falta o merge, o Nan aplicar a migration `20261102100000` e publicar a função de eventos)
 
 ## Pode mexer
 
@@ -41,7 +41,7 @@ Spec: [../spec.md](../spec.md) (seção "Do evento à decisão" item 3; US 22–
 
 ## Comments
 
-- Implementado em `a1b4e3e` e `87d7139` (PR #224). Migration aditiva `20261030100000_leitura_do_fio_do_canal_slack` (era `20261026100000`, que colidia com `feedback_que_ensina` da produção): `slack_channel_thread`, dono e Agente do fio pela chave.
+- Implementado em `a1b4e3e` e `87d7139` (PR #224). Migration aditiva `20261102100000_leitura_do_fio_do_canal_slack` (era `20261026100000`, que colidia com `feedback_que_ensina` da produção, e depois `20261030100000`, que colidia com a branch `atividade-e-canais-do-agente`): `slack_channel_thread`, dono e Agente do fio pela chave.
 - `87d7139`: falha em `lerFio` vai para o log `falha_ao_ler_fio`; na menção ou no DM, o thread recebe `RESPOSTAS.indisponivel`.
 - O pgTAP falhou no CI (permission denied for schema private na linha 89); o teste foi corrigido sem mudar a migration.
 - Falta: os Passos do Nan.

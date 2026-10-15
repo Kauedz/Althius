@@ -16,7 +16,7 @@
 -- Se o post der certo e a confirmação falhar, a reserva vence e o post pode sair de novo: o risco fica nesse caso raro.
 --
 -- Aditiva: colunas novas, RPCs novas, um relógio novo e a redefinição de claim_slack_channel_delivery a partir de
--- 20261031100000 com `create or replace` (mesmo retorno, sem `drop`). As Execuções já reservadas antes desta migration
+-- 20261102110000 com `create or replace` (mesmo retorno, sem `drop`). As Execuções já reservadas antes desta migration
 -- contam como postadas, para o relógio não repostar o histórico.
 
 alter table private.agent_runs
@@ -34,7 +34,7 @@ create index agent_runs_channel_pending_delivery_idx on private.agent_runs (fini
   where trigger_kind = 'canal' and channel_posted_at is null and channel_delivery_failed_at is null
     and status in ('succeeded', 'failed');
 
--- 1. Reservar. O que volta é o mesmo de 20261031100000.
+-- 1. Reservar. O que volta é o mesmo de 20261102110000.
 create or replace function public.claim_slack_channel_delivery(p_run_id uuid)
 returns table (
   status text, error_code text, answer text, team_id text, channel_id text, thread_ts text, bot_token text,

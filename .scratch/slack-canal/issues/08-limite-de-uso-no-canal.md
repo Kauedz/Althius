@@ -6,7 +6,7 @@ Spec: [../spec.md](../spec.md) (seção "Limites e falhas de postagem").
 
 **Padrões (ajustáveis por Workspace):** 20 pedidos por pessoa a cada 10 minutos e 200 pedidos por Workspace por hora. Ficam nas colunas `person_limit`, `person_window`, `workspace_limit` e `workspace_window` da instalação do Canal (`private.slack_channel_installations`); ajustar é um `update` nessa linha (ainda sem tela). Contam as Execuções com o gatilho Canal criadas na janela.
 
-**GATE:** migration aditiva `20261101100000_limite_de_uso_do_canal_slack.sql` (colunas com padrão, índice `agent_runs_channel_usage_idx` e a RPC nova `slack_channel_usage_limit`, só do service role; sem `drop`), com pgTAP. Sem deploy e sem aplicar no remoto.
+**GATE:** migration aditiva `20261102120000_limite_de_uso_do_canal_slack.sql` (colunas com padrão, índice `agent_runs_channel_usage_idx` e a RPC nova `slack_channel_usage_limit`, só do service role; sem `drop`), com pgTAP. Sem deploy e sem aplicar no remoto.
 
 **Blocked by:** 03.
 
