@@ -319,6 +319,10 @@ Uma ferramenta externa habilitada no Workspace por um Administrador e usada pelo
 Uma Conexão onde se conversa com um Agente (ex.: Slack, WhatsApp, Teams, E-mail).
 _Avoid_: integração
 
+**Telefone verificado**:
+O número de celular que uma Conta de usuário provou ser seu com um código. Um número pertence a uma só Conta de usuário; é por ele que o Canal WhatsApp reconhece quem escreve, e o Workspace onde a conversa acontece é escolhido depois, não pelo número.
+_Avoid_: telefone da Participação, telefone do Contato
+
 **Integração**:
 Uma Conexão com um app externo, de onde os Agentes leem e para onde escrevem dados sob a Permissão, e que pode alimentar uma Sincronização (ex.: HubSpot, Clay, Apollo, Lusha, Notion, Meta Ads, Google Ads). Habilitá-la no Workspace não dá acesso a ninguém: cada participante entra com o próprio Acesso à Integração.
 
