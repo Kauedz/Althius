@@ -5,8 +5,7 @@
 // (ADR-0022). Os endereços de autorização e de token vêm da descoberta (RFC 9728 e RFC 8414), nunca escritos aqui.
 //
 // Ficam de fora, e aparecem "Em breve": quem não tem servidor remoto oficial (Kommo, LinkedIn Ads, Google Ads), quem só
-// tem servidor criado na conta de cada cliente (Salesforce, Zoho CRM, Microsoft Teams, RD Station) e quem não teve a URL
-// confirmada (Clay). Os perfis da migration 20261001160000 continuam em `perfis.ts`; `perfilDaIntegracao` lê os dois.
+// tem servidor criado na conta de cada cliente (Salesforce, Zoho CRM, Microsoft Teams, RD Station). Os perfis da migration 20261001160000 continuam em `perfis.ts`; `perfilDaIntegracao` lê os dois.
 import type { PerfilDeIntegracao } from './perfis.ts'
 
 const GOOGLE = 'https://www.googleapis.com/auth/'
@@ -78,6 +77,35 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
       'Se o servidor publica o metadado de autorização (RFC 9728) apontando para o OAuth do Google.',
       'Se o refresh token vem sem access_type=offline no consentimento.',
       'Se drive.file basta para achar as planilhas ou se é preciso drive.readonly (escopo restrito).',
+    ],
+  },
+  clay: {
+    id: 'clay',
+    nome: 'Clay',
+    // O token do Clay é por usuário e por workspace do Clay: cada participante conecta a própria conta, e nada identifica
+    // com segurança um "portal" único a fixar no Workspace (como o hub do HubSpot). Por isso o portal não fica fixo.
+    portalFixo: false,
+    mcp: {
+      // Fonte oficial: https://university.clay.com/docs/connect-to-clay-mcp (lida em 15/10/2026). HTTP streamable; o
+      // metadado do recurso fica no caminho com sufixo (/.well-known/oauth-protected-resource/v3/mcp, RFC 9728), que a
+      // descoberta já tenta antes da raiz (a raiz responde 404).
+      url: 'https://api.clay.com/v3/mcp',
+      oauth: {
+        // Registro dinâmico em https://api.clay.com/oauth/register; aceitou o redirect do integration-callback (teste de
+        // 15/10/2026). Autorização em app.clay.com, token em api.clay.com, PKCE S256, escopo `mcp`.
+        registro: 'dinamico',
+        segredos: { clientId: 'CLAY_MCP_CLIENT_ID', clientSecret: 'CLAY_MCP_CLIENT_SECRET' },
+        escopos: ['mcp'],
+        // não confirmado: se o Clay aceita o parâmetro `resource` (RFC 8707); o metadado anuncia o recurso
+        // https://api.clay.com/v3/mcp, e a especificação do MCP o pede.
+        enviarRecurso: true,
+        // não confirmado: não há endpoint REST público confiável para ler a conta do Clay; a identificação fica mínima.
+        identificacao: {},
+      },
+    },
+    naoConfirmado: [
+      'Como a conta e o workspace do Clay são identificados para o cartão (sem endpoint REST confirmado).',
+      'Se o Clay aceita o parâmetro resource (RFC 8707) no consentimento e na troca do código.',
     ],
   },
   calendly: {
