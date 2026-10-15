@@ -45,7 +45,7 @@ function NichosDoCard({ card }: { card: CardDoCatalogo }) {
   const nomes = valeParaTodosOsNichos(card) ? ['Todos os nichos'] : nomesDosNichos(card.nichos)
   const mostrados = nomes.slice(0, 2)
   return (
-    <ul aria-label={`Nichos de ${card.nome}`} className="flex flex-wrap gap-1.5">
+    <ul aria-label={`Nichos de ${card.nome}`} className="flex flex-wrap justify-center gap-1.5">
       {mostrados.map((nome) => (
         <li key={nome} className="selo">{nome}</li>
       ))}
@@ -89,11 +89,11 @@ export function CartaoDaVitrine({
             </span>
           </CapaDoSinal>
         </div>
-        <div className="flex flex-1 flex-col gap-2 p-4">
+        <div className="flex flex-1 flex-col items-center gap-2 p-4 text-center">
           <h3 className="text-base leading-snug font-normal">{card.nome}</h3>
           <p className="line-clamp-2 text-sm text-al-muted">{card.frase}</p>
           <NichosDoCard card={card} />
-          <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+          <div className="mt-auto flex w-full items-end justify-between gap-3 pt-2">
             <span className="rotulo inline-flex items-center gap-2 text-al-ink">
               {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
               {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
@@ -134,7 +134,7 @@ function CartaoSimples({
             <Icone strokeWidth={1.8} className="size-4" />
           </span>
         </CapaDoSinal>
-        <div className="flex flex-1 flex-col gap-2 p-4">
+        <div className="flex flex-1 flex-col items-center gap-2 p-4 text-center">
           <h3 className="line-clamp-2 text-base leading-snug font-normal">{titulo}</h3>
           {children}
         </div>
@@ -254,14 +254,14 @@ export function Prateleira({
     'grid size-8 place-items-center rounded-full border border-al-line text-al-muted transition-colors hover:border-al-ink hover:text-al-ink disabled:pointer-events-none disabled:opacity-40'
   return (
     <section aria-labelledby={`prateleira-${id}`} className="flex min-w-0 flex-col gap-3">
-      <div className="flex items-end justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="relative flex items-center justify-center">
+        <div className="flex min-w-0 flex-col items-center text-center gap-0.5 px-10 sm:px-14">
           <h2 id={`prateleira-${id}`} className="titulo-secao text-lg">
             {titulo}
           </h2>
-          {subtitulo && <p className="text-sm text-al-muted">{subtitulo}</p>}
+          {subtitulo && <p className="text-sm text-al-muted max-w-xl">{subtitulo}</p>}
         </div>
-        <div className="flex shrink-0 gap-1">
+        <div className="absolute right-0 flex shrink-0 gap-1">
           <button type="button" onClick={() => mover(-1)} disabled={centro <= 0} aria-label={`Voltar em ${titulo}`} className={botaoDaSeta}>
             <ChevronLeft strokeWidth={1.8} className="size-4" aria-hidden />
           </button>
@@ -321,7 +321,7 @@ export function CartoesDaPrateleira({
 /** A prateleira vazia diz o porquê, no lugar dos cards. */
 export function PrateleiraVazia({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <li className="flex min-h-40 w-72 shrink-0 flex-col justify-center gap-1.5 rounded-[var(--radius-card)] border border-dashed border-al-line p-5 sm:w-80">
+    <li className="flex min-h-40 w-72 shrink-0 flex-col items-center justify-center text-center gap-1.5 rounded-[var(--radius-card)] border border-dashed border-al-line p-5 sm:w-80">
       <p className="text-sm text-al-ink">{titulo}</p>
       <div className="text-sm text-al-muted">{children}</div>
     </li>
@@ -351,7 +351,7 @@ export function BotaoAviseMe({
     )
   }
   return (
-    <div className={cn('flex flex-col items-start gap-1.5', className)}>
+    <div className={cn('flex flex-col items-center gap-1.5', className)}>
       <button
         type="button"
         disabled={enviando}
