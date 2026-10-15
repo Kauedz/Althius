@@ -68,6 +68,16 @@ export interface RunnerDeps {
   ferramentas?: DepsDasFerramentas
 }
 
+/**
+ * A Execução do Canal Slack (slack-canal 03) roda só com o Agente do fio: um fio, um Agente (Q20). Sem os outros Agentes
+ * na reserva, ninguém entra por Menção, nem pela do pedido nem pela que o Agente escrever (o "Agente chama Agente" do
+ * PR-11 não vale no Canal).
+ */
+function soComOAgenteDoFio(reserva: Reserva): Reserva {
+  if ((reserva as Reserva & { trigger_kind?: string }).trigger_kind !== 'canal') return reserva
+  return { ...reserva, mentions: [], agents: reserva.agents.filter((agente) => agente.id === reserva.agent_id) }
+}
+
 const MAX_TOKENS = 16000
 /** Rodadas de ferramenta por Agente num pedido. */
 const MAX_RODADAS = 4
@@ -409,13 +419,14 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
       log({ type: 'agent_run', runId, outcome: 'not_claimed' })
       return
     }
-    let reserva = reservada
+    let reserva = soComOAgenteDoFio(reservada)
     let modelo = deps.modelo
     try {
       modelo = await modeloDaExecucao(runId)
       // Os anexos do pedido (PR-10): os documentos como texto junto do pedido; as imagens como imagem, se o modelo as vê.
       const anexos = await lerAnexos(db, runId, log, 'agent_run')
-      reserva = reservaComAnexos(reservada, anexos, { imagensVistas: modelo.aceitaImagens === true })
+      // Parte da `reserva` já só com o Agente do fio (slack-canal 03): partir da `reservada` desfaria o filtro.
+      reserva = reservaComAnexos(reserva, anexos, { imagensVistas: modelo.aceitaImagens === true })
       const imagens = anexos.filter((anexo) => anexo.mime.startsWith('image/'))
       const executor = executorDe(modelo, reserva, await sessaoDaExecucao(runId), imagens)
       if (reserva.kind === 'agente') await conversarNaPagina({ reserva, db, executor })

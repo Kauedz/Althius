@@ -87,6 +87,11 @@ verify_jwt = false
 [functions.slack-channel-events]
 verify_jwt = false
 
+# A entrega no thread do Canal Slack (slack-canal 03): chamada pelo próprio banco (gatilho + pg_net), sem JWT; a função
+# confere o segredo interno da entrega (SLACK_CHANNEL_DELIVERY_SECRET, o mesmo do Vault).
+[functions.slack-channel-delivery]
+verify_jwt = false
+
 # O gerador das Propostas de resposta (canais-08): chamado pelo próprio banco (pg_cron + pg_net), sem JWT; a função confere
 # o token que o banco guarda (reply_proposal_runner_token_matches).
 [functions.reply-proposal-runner]

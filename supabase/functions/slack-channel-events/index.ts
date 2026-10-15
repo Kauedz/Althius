@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { ErroDoBanco } from '../_shared/integration-access.ts'
-import { type AgenteDoSlack, createHandler, type Db } from './handler.ts'
+import { type AberturaDoFio, type AgenteDoSlack, createHandler, type Db } from './handler.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -40,6 +40,33 @@ const db: Db = {
     return (linhas ?? []).map((l): AgenteDoSlack => ({ id: l.agent_id, nome: l.name, noSlack: l.in_slack }))
   },
   retirarPeloSlack: (teamId, motivo) => chamar<boolean>('withdraw_slack_channel_by_slack', { p_team_id: teamId, p_reason: motivo }),
+  // O fio (slack-canal 03, migration 20261025100000): o banco confere tudo de novo e traduz-se aqui o código da recusa.
+  async abrirFio(pedido) {
+    const { data, error } = await admin.rpc('start_slack_channel_run', {
+      p_workspace_id: pedido.workspaceId,
+      p_user_id: pedido.userId,
+      p_agent_id: pedido.agentId,
+      p_team_id: pedido.teamId,
+      p_channel_id: pedido.canal,
+      p_thread_ts: pedido.threadTs,
+      p_text: pedido.texto,
+      p_event_id: pedido.eventId,
+    })
+    if (error) return { kind: 'recusado', motivo: recusaDoFio(error.code ?? '', error.message) }
+    const [linha] = (data ?? []) as { conversation_id?: string; run_id?: string }[]
+    if (!linha?.conversation_id || !linha.run_id) throw new Error('start_slack_channel_run não devolveu a Execução')
+    return { kind: 'aberto', conversationId: linha.conversation_id, runId: linha.run_id }
+  },
+}
+
+function recusaDoFio(codigo: string, mensagem: string): Extract<AberturaDoFio, { kind: 'recusado' }>['motivo'] {
+  if (codigo === '55006') return 'ocupado'
+  if (codigo === '55000') return 'sem_instalacao'
+  if (codigo === 'P0001' && mensagem.includes('contract')) return 'sem_contrato'
+  if (codigo === '42501') return mensagem.includes('thread') ? 'fio_de_outra_pessoa' : 'nao_reconhecido'
+  if (codigo === '22023' && mensagem.includes('another agent')) return 'fio_de_outro_agente'
+  if (codigo === '22023' && mensagem.includes('slack')) return 'nao_atende_no_slack'
+  return 'indisponivel'
 }
 
 // EdgeRuntime.waitUntil mantém a função viva depois da resposta: o Slack recebe o 200 em menos de 3 segundos.

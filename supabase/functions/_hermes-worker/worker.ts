@@ -249,6 +249,16 @@ export function precisaDoModoPorAgente(reserva: Pick<Reserva, 'kind' | 'mentions
   return porAgente || reserva.kind === 'agente' || reserva.mentions.length > 0
 }
 
+/**
+ * A Execução do Canal Slack (slack-canal 03) roda só com o Agente do fio: um fio, um Agente (Q20). Sem os outros Agentes
+ * na reserva, ninguém entra por Menção, nem pela do pedido nem pela que o Agente escrever (o "Agente chama Agente" do
+ * PR-11 não vale no Canal), e as instruções não oferecem outro Agente para chamar.
+ */
+export function soComOAgenteDoFio(reserva: Reserva): Reserva {
+  if ((reserva as Reserva & { trigger_kind?: string }).trigger_kind !== 'canal') return reserva
+  return { ...reserva, mentions: [], agents: reserva.agents.filter((agente) => agente.id === reserva.agent_id) }
+}
+
 export interface WorkerDeps {
   db: FilaDb
   hermes: Hermes
@@ -276,7 +286,8 @@ export function createWorker(deps: WorkerDeps) {
   }
 
   /** Roda uma Execução reservada, do pedido ao Hermes e de volta ao banco. */
-  async function processar(reserva: Reserva) {
+  async function processar(reservada: Reserva) {
+    const reserva = soComOAgenteDoFio(reservada)
     const runId = reserva.run_id
     let contas: ContaEncontrada[] = []
     try {
@@ -465,7 +476,8 @@ export function createWorker(deps: WorkerDeps) {
       const reservada = await db.claim(runId)
       if (!reservada) continue
       // Os anexos do pedido (PR-10) entram como texto: o Hermes não recebe imagem, só o nome dela.
-      const reserva = reservaComAnexos(reservada, await lerAnexos(db, runId, log, 'hermes_worker'))
+      // A Execução do Canal (slack-canal 03) segue só com o Agente do fio, e o anexo continua no pedido.
+      const reserva = soComOAgenteDoFio(reservaComAnexos(reservada, await lerAnexos(db, runId, log, 'hermes_worker')))
       // Sem saber se há chave do cliente, a Execução não roda: seria cobrada como se usasse o modelo dele.
       let comChaveDoCliente = false
       try {
