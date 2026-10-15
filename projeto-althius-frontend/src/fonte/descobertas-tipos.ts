@@ -1,3 +1,4 @@
+import type { AjusteAprendido, CodigoDoDescarte } from './aprendizado-da-descoberta'
 import type { FonteObservavel } from './tipos'
 
 export type EstadoContaDescoberta = 'nova' | 'aceita' | 'descartada'
@@ -80,6 +81,10 @@ export interface FonteDeDescobertas extends FonteObservavel {
   buscarContas(args?: { maxResults?: number; allowTesting?: boolean }): Promise<void>
   listarDescobertas(estado?: EstadoContaDescoberta): Promise<ContaDescoberta[]>
   aceitarDescoberta(id: string, url?: string): Promise<ResultadoDoAceite>
-  descartarDescoberta(id: string, motivo?: string): Promise<void>
+  descartarDescoberta(id: string, motivo?: string, codigo?: CodigoDoDescarte): Promise<void>
+  /** O que a Descoberta aprendeu com os aceites e descartes do Workspace (feedback-que-ensina). */
+  aprendizado?(): Promise<AjusteAprendido[]>
+  /** Desfaz um ajuste ou, sem argumentos, recomeça o aprendizado. Só Administrador. */
+  desfazerAprendizado?(ajuste?: Pick<AjusteAprendido, 'dimensao' | 'valor'>): Promise<void>
   restaurarDescoberta(id: string): Promise<void>
 }

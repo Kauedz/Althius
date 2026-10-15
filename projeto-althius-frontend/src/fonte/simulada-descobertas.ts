@@ -1,3 +1,4 @@
+import type { AjusteAprendido, CodigoDoDescarte, DimensaoAprendida } from './aprendizado-da-descoberta'
 import type { FonteDeContas } from './tipos'
 import type {
   ContaDescoberta,
@@ -131,6 +132,13 @@ export function criarFonteDeDescobertasSimulada({
   saldoInicial?: number
 } = {}): FonteDeDescobertas {
   let candidatas: ContaDescoberta[] = candidatasIniciais.map((c) => ({ origem: 'busca', motivosDeSinal: [], ...c }))
+  // O aprendizado da Demonstração: a mesma regra do banco (feedback-que-ensina), sem decaimento.
+  const aprendido = new Map<string, { delta: number; decisoes: number; em: string }>()
+  const aprender = (dimensao: DimensaoAprendida, valor: string, sinal: 1 | -1) => {
+    const chave = `${dimensao}|${valor.trim().toLowerCase()}`
+    const a = aprendido.get(chave) ?? { delta: 0, decisoes: 0, em: '' }
+    aprendido.set(chave, { delta: a.delta + 2.5 * sinal, decisoes: a.decisoes + 1, em: new Date().toISOString() })
+  }
   let saldo = saldoInicial
   let emAndamento = false
   const ouvintes = new Set<() => void>()
@@ -190,6 +198,11 @@ export function criarFonteDeDescobertasSimulada({
     },
 
     async aceitarDescoberta(id: string, url?: string): Promise<ResultadoDoAceite> {
+      const aceita = candidatas.find((c) => c.id === id)
+      if (aceita && aceita.state === 'nova') {
+        if (aceita.setor) aprender('setor', aceita.setor, 1)
+        if (aceita.uf) aprender('regiao', aceita.uf, 1)
+      }
       const candidata = candidatas.find((c) => c.id === id)
       if (!candidata) throw new Error('Candidata não encontrada.')
       if (candidata.state === 'aceita') {
@@ -223,12 +236,30 @@ export function criarFonteDeDescobertasSimulada({
       return { targetAccountId, created: true, sinaisMigrados: candidata.motivosDeSinal.length, comite: 'liberado' }
     },
 
-    async descartarDescoberta(id: string, motivo?: string): Promise<void> {
+    async aprendizado(): Promise<AjusteAprendido[]> {
+      return [...aprendido.entries()]
+        .map(([chave, a]) => {
+          const [dimensao, valor] = chave.split('|') as [DimensaoAprendida, string]
+          return { dimensao, valor, ajuste: a.decisoes < 3 ? 0 : Math.max(-15, Math.min(15, a.delta)), decisoes: a.decisoes, atualizadoEm: a.em }
+        })
+        .filter((a) => a.ajuste !== 0)
+    },
+
+    async desfazerAprendizado(ajuste?: Pick<AjusteAprendido, 'dimensao' | 'valor'>): Promise<void> {
+      if (ajuste) aprendido.delete(`${ajuste.dimensao}|${ajuste.valor}`)
+      else aprendido.clear()
+      notificar()
+    },
+
+    async descartarDescoberta(id: string, motivo?: string, codigo?: CodigoDoDescarte): Promise<void> {
       const candidata = candidatas.find((c) => c.id === id)
       if (!candidata) throw new Error('Candidata não encontrada.')
       if (candidata.state === 'aceita') {
         throw new Error('Não é possível descartar uma conta que já foi aceita.')
       }
+      const dimensao = codigo === 'setor' ? 'setor' : codigo === 'porte' ? 'porte' : codigo === 'regiao' ? 'regiao' : undefined
+      const valor = dimensao === 'setor' ? candidata.setor : dimensao === 'porte' ? candidata.tamanho : dimensao === 'regiao' ? candidata.uf : undefined
+      if (dimensao && valor) aprender(dimensao, valor, -1)
       candidata.state = 'descartada'
       candidata.motivoDescarte = motivo
       candidata.decididoEm = new Date().toISOString()
