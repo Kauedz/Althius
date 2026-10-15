@@ -27,7 +27,12 @@ const POSTAR = 'https://slack.com/api/chat.postMessage'
 
 /** `recusado`: o Slack respondeu `ok: false`; `indisponivel`: rede ou 5xx; `resposta_invalida`: faltou o que se espera. */
 export class ErroDoSlack extends Error {
-  constructor(readonly tipo: 'recusado' | 'indisponivel' | 'resposta_invalida', readonly codigo: string | null = null) {
+  constructor(
+    readonly tipo: 'recusado' | 'indisponivel' | 'resposta_invalida',
+    readonly codigo: string | null = null,
+    /** Em um 429, os segundos que o Slack pediu para esperar (`Retry-After`). */
+    readonly esperarSegundos: number | null = null,
+  ) {
     super(`Slack: ${tipo}${codigo ? ` (${codigo})` : ''}`)
     this.name = 'ErroDoSlack'
   }
@@ -59,7 +64,11 @@ async function chamar(fetcher: typeof fetch, url: string, init: RequestInit): Pr
   } catch {
     throw new ErroDoSlack('indisponivel')
   }
-  if (resposta.status === 429 || resposta.status >= 500) throw new ErroDoSlack('indisponivel', String(resposta.status))
+  if (resposta.status === 429) {
+    const pedido = Number(resposta.headers.get('Retry-After'))
+    throw new ErroDoSlack('indisponivel', '429', Number.isFinite(pedido) && pedido >= 0 ? pedido : null)
+  }
+  if (resposta.status >= 500) throw new ErroDoSlack('indisponivel', String(resposta.status))
   try {
     const corpo = await resposta.json()
     if (corpo && typeof corpo === 'object') return corpo as Record<string, unknown>
@@ -174,18 +183,41 @@ export async function lerUsuarioDoSlack(a: { token: string; usuario: string; fet
   }
 }
 
-/** Posta uma mensagem no thread (`chat.postMessage` com `thread_ts`): o bot nunca responde solto no canal. */
+/** Quantas vezes a postagem é tentada, e a maior espera aceita entre duas tentativas (a função tem prazo curto). */
+export const TENTATIVAS_DE_POSTAR = 3
+export const ESPERA_MAXIMA_EM_SEGUNDOS = 5
+
+/**
+ * Posta uma mensagem no thread (`chat.postMessage` com `thread_ts`): o bot nunca responde solto no canal.
+ * Um 429 (limite do Slack), um 5xx ou a rede fora são tentados de novo até `TENTATIVAS_DE_POSTAR` vezes: no 429 a espera é
+ * o `Retry-After` do Slack; sem ele, 1s e depois 2s. Um `Retry-After` maior que `ESPERA_MAXIMA_EM_SEGUNDOS` não é
+ * esperado: o erro sobe para quem chamou registrar. Um `ok: false` do Slack não é repetido (repetir não muda a resposta).
+ */
 export async function postarNoThread(a: {
   token: string
   canal: string
   threadTs: string
   texto: string
   fetch?: typeof fetch
+  esperar?: (ms: number) => Promise<void>
 }): Promise<void> {
-  const corpo = await chamar(a.fetch ?? fetch, POSTAR, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${a.token}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ channel: a.canal, thread_ts: a.threadTs, text: a.texto }),
-  })
-  if (corpo.ok !== true) throw new ErroDoSlack('recusado', texto(corpo.error))
+  const esperar = a.esperar ?? ((ms: number) => new Promise<void>((ok) => setTimeout(ok, ms)))
+  for (let tentativa = 1; ; tentativa++) {
+    let corpo: Record<string, unknown>
+    try {
+      corpo = await chamar(a.fetch ?? fetch, POSTAR, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${a.token}`, 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ channel: a.canal, thread_ts: a.threadTs, text: a.texto }),
+      })
+    } catch (e) {
+      if (!(e instanceof ErroDoSlack) || e.tipo !== 'indisponivel' || tentativa >= TENTATIVAS_DE_POSTAR) throw e
+      const segundos = e.esperarSegundos ?? 2 ** (tentativa - 1)
+      if (segundos > ESPERA_MAXIMA_EM_SEGUNDOS) throw e
+      await esperar(segundos * 1000)
+      continue
+    }
+    if (corpo.ok !== true) throw new ErroDoSlack('recusado', texto(corpo.error))
+    return
+  }
 }

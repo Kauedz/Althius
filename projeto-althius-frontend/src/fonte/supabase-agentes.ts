@@ -3,12 +3,14 @@
 // que conferem a Participação ativa de quem chama: todo participante consulta, e só o Administrador cria, exclui e
 // altera. O banco também guarda que o Agente padrão não é excluído nem renomeado. Nada aqui executa um Agente: não há
 // Execução, Atividade nem Aprovação de Agente ainda (CRM-14), e o estado do Agente é sempre ocioso.
-// As Conexões (Canais e Integrações) não são deste módulo: a fonte só devolve o catálogo, tudo não conectado.
+// Conectar Canais e Integrações é do módulo de Conexões. Aqui os Canais só dizem se estão conectados, pela mesma leitura
+// de Conexões (o Slack quando instalado e ativo); as Integrações vêm do catálogo, todas não conectadas.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { canaisConectados, integracoesConectadas } from './catalogo-de-conexoes'
+import { integracoesConectadas } from './catalogo-de-conexoes'
 import { especialidade, especialidades } from './especialidades'
 import { ERRO_SEM_PARTICIPACAO, ERRO_SO_ADMINISTRADOR, nomeDeAgenteCriado } from './regras'
+import { lerCanaisDoWorkspace } from './supabase-conexoes'
 import type {
   Agente,
   AgenteId,
@@ -340,8 +342,11 @@ export function criarFonteDeAgentesSupabase(cliente: SupabaseClient, workspaceId
         p_permissions: personalizacao.permissoes,
       }),
 
-    // Conectar Canais e Integrações é o módulo de Conexões: aqui só o catálogo, e nenhum está conectado.
-    canais: async () => canaisConectados([]),
+    // Conectar Canais e Integrações é o módulo de Conexões: aqui o Canal só diz se está conectado, para o Agente atender nele.
+    async canais() {
+      const canais = await lerCanaisDoWorkspace(cliente, workspaceId)
+      return canais.map(({ id, nome, descricao, conectado }) => ({ id, nome, descricao, conectado }))
+    },
     integracoes: async () => integracoesConectadas([]),
     integracoesFuturas: async () => [],
   }

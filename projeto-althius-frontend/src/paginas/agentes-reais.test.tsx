@@ -17,7 +17,12 @@ afterEach(() => {
 })
 
 /** A Marina abre o Norte, onde tem o papel dado, sobre o `banco` de Agentes: outra sessão com o mesmo banco reencontra o salvo. */
-function abrir(banco: BancoDeAgentes, rota: string, papel: 'admin' | 'member' = 'admin') {
+function abrir(
+  banco: BancoDeAgentes,
+  rota: string,
+  papel: 'admin' | 'member' = 'admin',
+  outrasRpcs: Record<string, (parametros: Record<string, unknown>) => unknown> = {},
+) {
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', NORTE.id)
   window.history.replaceState(null, '', rota)
@@ -31,7 +36,7 @@ function abrir(banco: BancoDeAgentes, rota: string, papel: 'admin' | 'member' = 
   const supabase = criarSupabaseFalso({
     sessao: sessaoDe(MARINA),
     tabelas,
-    rpcs: { bootstrap_personal_workspace: () => PESSOAL, list_owned_sender_accounts: () => [], ...rpcsDeAgentes(banco, papel) },
+    rpcs: { bootstrap_personal_workspace: () => PESSOAL, list_owned_sender_accounts: () => [], ...rpcsDeAgentes(banco, papel), ...outrasRpcs },
   })
   const servicos = criarServicosDoNavegadorFalsos()
   const usuario = userEvent.setup()
@@ -179,5 +184,25 @@ describe('Agentes no Workspace operacional', () => {
     const slack = (await screen.findByText('Slack')).closest('li')!
     expect(within(slack).getByText('Canal não conectado no Workspace.')).toBeInTheDocument()
     expect(within(slack).getByRole('switch')).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('com o Canal Slack ativo no Workspace, o Administrador liga o Slack no Agente e a Personalização grava', async () => {
+    const banco = criarBancoDeAgentes()
+    const { usuario } = abrir(banco, '/agentes/agente-scopus/canais', 'admin', {
+      slack_channel_status: (p) => {
+        expect(p).toEqual({ p_workspace_id: NORTE.id })
+        return [{ state: 'ativo', team_name: 'Norte no Slack' }]
+      },
+    })
+
+    const slack = (await screen.findByText('Slack')).closest('li')!
+    expect(within(slack).getByText('Mencione um Agente em qualquer canal ou thread.')).toBeInTheDocument()
+    const teams = screen.getByText('Microsoft Teams').closest('li')!
+    expect(within(teams).getByRole('switch')).toHaveAttribute('aria-disabled', 'true')
+
+    await usuario.click(within(slack).getByRole('switch'))
+
+    await waitFor(() => expect(banco.agentes.find((a) => a.id === 'agente-scopus')!.channels).toEqual(['slack']))
+    await waitFor(() => expect(within(slack).getByRole('switch')).toHaveAttribute('aria-checked', 'true'))
   })
 })
