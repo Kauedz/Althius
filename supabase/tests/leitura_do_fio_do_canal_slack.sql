@@ -65,6 +65,10 @@ select ok(
   'a leitura do fio é security definer com search_path vazio'
 );
 
+-- O id do Scopus do Norte, lido antes de virar service role (que não lê o schema private direto).
+select set_config('teste.scopus_norte', (select a.id::text from private.agents a
+  where a.workspace_id = 'ff000000-0000-0000-0000-000000000001' and a.name = 'Scopus'), true);
+
 set local role service_role;
 
 -- 3-5. O dono com o nome de Meu perfil, do cadastro, ou sem nome; e o Agente do fio.
@@ -81,8 +85,7 @@ select is(
   'sem Meu perfil, o nome do cadastro; o fio do DM também se lê pela chave'
 );
 select is(
-  (select coalesce(t.owner_name, 'sem nome') || '|' || (t.agent_id = (select a.id from private.agents a
-     where a.workspace_id = 'ff000000-0000-0000-0000-000000000001' and a.name = 'Scopus'))::text
+  (select coalesce(t.owner_name, 'sem nome') || '|' || (t.agent_id = current_setting('teste.scopus_norte')::uuid)::text
    from public.slack_channel_thread('ff000000-0000-0000-0000-000000000001', 'T2NORTE', 'C2GERAL', '1700000000.000300') t),
   'sem nome|true',
   'sem nome nenhum, o nome vem nulo e nunca o e-mail'
