@@ -49,6 +49,26 @@ const ESTADO_DO_CANAL_SLACK: Record<string, EstadoDeCanal> = {
   retirado: 'retirado',
 }
 
+/** O Canal Slack do Workspace como a tela o mostra: o estado e onde está instalado. */
+export interface CanalSlackDoWorkspace {
+  estado: EstadoDeCanal
+  instaladoEm?: string
+}
+
+/**
+ * Lê o Canal Slack do Workspace (`slack_channel_status`). Sem a leitura (banco sem a migration, falha ou estado
+ * desconhecido), devolve `undefined`: quem chama trata o Slack como não conectado. As Conexões e a página do Agente
+ * leem por aqui, para as duas telas concordarem.
+ */
+export async function lerCanalSlack(cliente: SupabaseClient, workspaceId: string): Promise<CanalSlackDoWorkspace | undefined> {
+  const { data, error } = await cliente.rpc('slack_channel_status', { p_workspace_id: workspaceId })
+  if (error) return undefined
+  const linha = (Array.isArray(data) ? data[0] : data) as LinhaDoCanalSlack | null | undefined
+  const estado = linha ? ESTADO_DO_CANAL_SLACK[linha.state] : undefined
+  if (!estado) return undefined
+  return { estado, instaladoEm: linha?.team_name ?? undefined }
+}
+
 /** A mensagem que a Edge Function devolveu (`{ error }`), ou uma genérica: ela já vem em português e sem segredo. */
 async function mensagemDaFuncao(error: unknown, padrao: string): Promise<string> {
   const contexto = (error as { context?: { json?: () => Promise<unknown> } }).context
@@ -96,18 +116,16 @@ export function criarFonteDeConexoesSupabase(
 
     async canais(): Promise<CanalDeConexao[]> {
       // Sem a leitura do Canal Slack (banco sem a migration, ou falha), o Slack fica "Em breve" como os outros.
-      const { data, error } = await cliente.rpc('slack_channel_status', { p_workspace_id: obterWorkspaceId() })
-      const slack = error ? undefined : ((Array.isArray(data) ? data[0] : data) as LinhaDoCanalSlack | null | undefined)
-      const estadoDoSlack = slack ? ESTADO_DO_CANAL_SLACK[slack.state] : undefined
+      const slack = await lerCanalSlack(cliente, obterWorkspaceId())
       return catalogoDeCanais.map((canal) => {
-        if (canal.id === 'slack' && estadoDoSlack) {
+        if (canal.id === 'slack' && slack) {
           return {
             id: canal.id,
             nome: canal.nome,
             descricao: canal.descricao,
-            estado: estadoDoSlack,
-            conectado: estadoDoSlack === 'conectado',
-            instaladoEm: slack?.team_name ?? undefined,
+            estado: slack.estado,
+            conectado: slack.estado === 'conectado',
+            instaladoEm: slack.instaladoEm,
           }
         }
         return { id: canal.id, nome: canal.nome, descricao: canal.descricao, estado: 'em_breve', conectado: false }
