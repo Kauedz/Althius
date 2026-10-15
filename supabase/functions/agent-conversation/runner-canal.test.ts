@@ -2,7 +2,8 @@
 // para a rodada, e o pedido roda só com o Agente do fio, mesmo que a reserva traga Menções.
 import { assertEquals } from 'jsr:@std/assert@1'
 import type Anthropic from 'npm:@anthropic-ai/sdk@0.128.0'
-import { type AgenteDoWorkspace, type AnexoDaExecucao, createRunner, type Modelo, type Reserva, type RunDb, type TipoDeEvento } from './runner.ts'
+import type { AnexoDaExecucao } from '../_shared/orquestracao.ts'
+import { type AgenteDoWorkspace, createRunner, type Modelo, type Reserva, type RunDb, type TipoDeEvento } from './runner.ts'
 
 type Mensagem = Anthropic.Beta.Messages.BetaMessage
 
