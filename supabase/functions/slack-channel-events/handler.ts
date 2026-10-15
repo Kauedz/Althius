@@ -8,10 +8,12 @@
 //
 // Do evento à decisão, nesta ordem: instalação ativa do `team_id` (sem ela, nada); quem escreveu (convidado, Slack Connect
 // ou e-mail sem Participação ativa recebem "não reconhecido"); só texto (só arquivo, áudio ou canvas recebem o aviso); e as
-// Menções aos Agentes (nenhum, fora da lista de canais, mais de um). Todas as respostas vão no thread da mensagem e nenhuma
-// cria Execução, Conversa ou consumo de Crédito. Com exatamente um Agente que atende no Slack, a decisão é abrir o fio:
-// isso é o ticket 03, e aqui a função para e registra a decisão no log. As mensagens de canal sem menção ao bot só
-// continuam um fio já aberto (ticket 04); por ora são ignoradas sem resposta.
+// Menções aos Agentes (nenhum, fora da lista de canais, mais de um). Todas essas respostas vão no thread da mensagem e
+// nenhuma cria Execução, Conversa ou consumo de Crédito. Com exatamente um Agente que atende no Slack, a função abre o fio
+// (slack-canal 03): pede ao banco a Execução pelo Canal em nome de quem mencionou, no thread da mensagem (o `ts` dela
+// quando estava solta), e não posta nada. Quem responde no thread é a entrega (`slack-channel-delivery`), quando a
+// Execução termina. As mensagens de canal sem menção ao bot só continuam um fio já aberto (ticket 04); por ora são
+// ignoradas sem resposta.
 //
 // O banco, o Slack e o relógio entram por injeção de dependência, para o teste ir da requisição à resposta sem rede. O log
 // nunca traz o e-mail, o texto da mensagem nem o token.
@@ -35,6 +37,35 @@ export interface AgenteDoSlack {
 /** Por que o Slack retirou o Canal: o app foi desinstalado ou o token do bot foi revogado. */
 export type MotivoDaRetirada = 'desinstalado' | 'token_revogado'
 
+/** O pedido de abrir o fio (`start_slack_channel_run`): quem mencionou, o Agente, o fio e o texto. */
+export interface PedidoDeFio {
+  workspaceId: string
+  userId: string
+  agentId: string
+  teamId: string
+  canal: string
+  threadTs: string
+  texto: string
+  /** O `event_id` do Slack: o mesmo evento devolve a mesma Execução. */
+  eventId: string
+}
+
+/** O banco abriu o fio e guardou a Execução, ou recusou (a recusa já traduzida dos códigos da RPC). */
+export type AberturaDoFio =
+  | { kind: 'aberto'; conversationId: string; runId: string }
+  | {
+    kind: 'recusado'
+    motivo:
+      | 'ocupado'
+      | 'sem_contrato'
+      | 'nao_reconhecido'
+      | 'nao_atende_no_slack'
+      | 'fio_de_outra_pessoa'
+      | 'fio_de_outro_agente'
+      | 'sem_instalacao'
+      | 'indisponivel'
+  }
+
 export interface Db {
   /** RPC `claim_slack_channel_event`: true na primeira vez, false num reenvio. */
   reservarEvento(eventId: string, teamId: string | null, tipo: string): Promise<boolean>
@@ -44,6 +75,8 @@ export interface Db {
   agentes(workspaceId: string): Promise<AgenteDoSlack[]>
   /** RPC `withdraw_slack_channel_by_slack`. */
   retirarPeloSlack(teamId: string, motivo: MotivoDaRetirada): Promise<boolean>
+  /** RPC `start_slack_channel_run` (slack-canal 03). Sem ela, a função só registra a decisão de abrir o fio. */
+  abrirFio?(pedido: PedidoDeFio): Promise<AberturaDoFio>
 }
 
 export interface Deps {
@@ -57,6 +90,9 @@ export interface Deps {
   log?: (campos: Record<string, unknown>) => void
 }
 
+/** O tamanho máximo do pedido, o mesmo da Conversa na Althius. */
+const TAMANHO_MAXIMO = 4000
+
 /** As respostas curtas do bot, que não chamam Agente. */
 export const RESPOSTAS = {
   naoReconhecido:
@@ -65,6 +101,12 @@ export const RESPOSTAS = {
   naoAtendeNoSlack: (agente: string) => `O Agente ${agente} não atende no Slack.`,
   umAgentePorFio: 'Mencione um Agente só: cada fio é com um Agente. Para falar com outro, abra outro thread.',
   soTexto: 'Só leio texto por enquanto.',
+  longoDemais: `Mensagem longa demais: escreva até ${TAMANHO_MAXIMO} caracteres.`,
+  aindaRespondendo: 'Ainda estou respondendo neste fio. Espere a resposta para escrever de novo.',
+  semContrato: 'Não foi possível responder: este Workspace está sem contrato ativo na Althius.',
+  fioDeOutraPessoa: 'Este fio é a Conversa de outra pessoa. Abra o seu em outro thread ou no DM com o bot.',
+  fioDeOutroAgente: 'Este fio é de outro Agente. Para falar com outro, abra outro thread.',
+  indisponivel: 'Não consegui abrir este fio agora. Tente de novo em instantes.',
 } as const
 
 type Objeto = Record<string, unknown>
@@ -171,14 +213,23 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const [agente] = mencionados
     if (!agente.noSlack) return responderNoThread(RESPOSTAS.naoAtendeNoSlack(agente.nome), 'agente_fora_do_slack')
 
-    // Abrir o fio é o ticket 03.
-    registrar(eventId, 'abrir_fio', {
-      workspaceId: instalacao.workspaceId,
-      userId,
-      agentId: agente.id,
-      canal: m.canal,
-      threadTs: m.threadTs,
-    })
+    // Abrir o fio (Q8, Q21): a Conversa de quem mencionou com o Agente, no thread da mensagem.
+    const fio = { workspaceId: instalacao.workspaceId, userId, agentId: agente.id, canal: m.canal, threadTs: m.threadTs }
+    if (!deps.db.abrirFio) return registrar(eventId, 'abrir_fio', fio)
+    if (util.length > TAMANHO_MAXIMO) return responderNoThread(RESPOSTAS.longoDemais, 'longo_demais')
+    const abertura = await deps.db.abrirFio({ ...fio, teamId, texto: util, eventId })
+    if (abertura.kind === 'aberto') return registrar(eventId, 'fio_aberto', { ...fio, runId: abertura.runId })
+    if (abertura.motivo === 'sem_instalacao') return registrar(eventId, 'sem_instalacao')
+    const recusas: Record<typeof abertura.motivo, string> = {
+      ocupado: RESPOSTAS.aindaRespondendo,
+      sem_contrato: RESPOSTAS.semContrato,
+      nao_reconhecido: RESPOSTAS.naoReconhecido,
+      nao_atende_no_slack: RESPOSTAS.naoAtendeNoSlack(agente.nome),
+      fio_de_outra_pessoa: RESPOSTAS.fioDeOutraPessoa,
+      fio_de_outro_agente: RESPOSTAS.fioDeOutroAgente,
+      indisponivel: RESPOSTAS.indisponivel,
+    }
+    return responderNoThread(recusas[abertura.motivo], abertura.motivo)
   }
 
   async function processar(evento: Objeto, eventId: string, teamId: string | null) {

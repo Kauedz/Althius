@@ -63,6 +63,16 @@ export interface RunnerDeps {
   ferramentas?: DepsDasFerramentas
 }
 
+/**
+ * A Execução do Canal Slack (slack-canal 03) roda só com o Agente do fio: um fio, um Agente (Q20). Sem os outros Agentes
+ * na reserva, ninguém entra por Menção, nem pela do pedido nem pela que o Agente escrever (o "Agente chama Agente" do
+ * PR-11 não vale no Canal).
+ */
+function soComOAgenteDoFio(reserva: Reserva): Reserva {
+  if ((reserva as Reserva & { trigger_kind?: string }).trigger_kind !== 'canal') return reserva
+  return { ...reserva, mentions: [], agents: reserva.agents.filter((agente) => agente.id === reserva.agent_id) }
+}
+
 const MAX_TOKENS = 16000
 /** Rodadas de ferramenta por Agente num pedido. */
 const MAX_RODADAS = 4
@@ -378,11 +388,12 @@ export function createRunner(deps: RunnerDeps): (runId: string) => Promise<void>
   }
 
   return async (runId) => {
-    const reserva = await db.claim(runId)
-    if (!reserva) {
+    const reservada = await db.claim(runId)
+    if (!reservada) {
       log({ type: 'agent_run', runId, outcome: 'not_claimed' })
       return
     }
+    const reserva = soComOAgenteDoFio(reservada)
     let modelo = deps.modelo
     try {
       modelo = await modeloDaExecucao(runId)
