@@ -1,5 +1,15 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Canal Slack 04 e 05, Canais do Agente e spec do Canal WhatsApp (2026-10-15)
+
+- **Tickets:** `.scratch/slack-canal/issues/04` e `05` (código pronto); `01` a `03` já no `main` (PR #220); `06` segue ready-for-agent. Spec nova: `.scratch/canais-althius/` (Canal WhatsApp com controle total, 19 issues, ADR-0027 `proposed`).
+- **Status:** ready-for-human (código e Deno verdes; falta o Nan aplicar as migrations e publicar as funções, com o CI verde)
+- **Branch:** `renan/slack-04-05-e-canal-whatsapp-spec`, a partir do `origin/main` 7097f77
+- **Migrations novas (não aplicar daqui), depois da `20261029100000`:** `20261030100000_leitura_do_fio_do_canal_slack.sql` (era 20261026100000, colidia com `feedback_que_ensina`) e `20261031100000_falhas_e_aprovacoes_do_canal_slack.sql` (era 20261027100000, colidia com `canal_slack`). Só `create`/`create or replace`, sem `drop`.
+- **Correção:** a falha ao ler o fio deixa de se perder em silêncio: fica no log (`falha_ao_ler_fio`) e, na menção ou no DM, a pessoa recebe "tente de novo" no thread.
+- **Testes (2026-10-15):** `deno check` e `deno test` em `slack-channel-events` (56 passed, com 2 testes novos da falha ao ler o fio) e `slack-channel-delivery` (22 passed); `deno lint` limpo. pgTAP e Vitest não rodaram aqui (sem Supabase local nem Node no Mac).
+- **O que o humano roda, depois do CI verde:** aplicar as 2 migrations pelo `execute_sql` em bloco atômico (`docs/agents/migrations.md`) e publicar `slack-channel-events` e `slack-channel-delivery`; conferir no Slack de teste os roteiros dos tickets 04 e 05.
+
 ## Cascatas — confiabilidade (DOU, ESG, custo, CNPJ novo, amostra) (2026-10-14)
 
 - **Tickets:** `.scratch/cascatas-confiabilidade/issues/01` a `05`
