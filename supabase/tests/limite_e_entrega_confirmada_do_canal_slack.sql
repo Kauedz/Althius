@@ -214,6 +214,7 @@ reset role;
 set local role service_role;
 insert into ids values ('e4', pg_temp.abrir('5d000000-0000-0000-0000-000000000001', '1700000203.000100', '@Scopus e4', 'EvE4'));
 select public.claim_agent_run(pg_temp.i('e4'));
+select public.append_agent_run_event(pg_temp.i('e4'), 'texto', pg_temp.i('scopus'), '{"texto": "Resposta e4."}');
 select public.finish_agent_run(pg_temp.i('e4'), 'succeeded', null, 'hermes');
 reset role;
 update private.agent_runs

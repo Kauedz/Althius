@@ -179,9 +179,9 @@ Isso mantém uma regra só para canal e DM. Esta é uma interpretação do Q19/Q
 
 ### Limites e falhas de postagem
 
-- **Limite do Slack (429):** toda postagem (`chat.postMessage`) respeita o `Retry-After` do Slack e tenta de novo; 5xx e rede fora também são tentados, com espera crescente, até 3 vezes. Uma espera pedida maior que o prazo da função não é esperada: a falha sobe e fica no log.
-- **Falha ao postar:** nunca se perde em silêncio. Fica no log com o `run_id` (entrega) ou o `event_id` (eventos), sem texto nem token. A Execução só deve ficar marcada como entregue depois de o Slack confirmar o post; se o Slack falhar, a falha fica gravada e a entrega é tentada de novo até um limite (ticket 09).
-- **Limite de uso:** um limite de pedidos por pessoa e por Workspace numa janela de tempo, com recusa curta no thread, sem Execução nem Crédito (ticket 08). Até lá valem o "ainda respondendo" (uma Execução aberta por fio) e o limite de Créditos.
+- **Limite do Slack (429):** toda postagem (`chat.postMessage`) respeita o `Retry-After` do Slack e tenta de novo; 5xx e rede fora também são tentados, com espera crescente, até 3 vezes. Uma espera pedida maior que 5 segundos não é esperada: a falha sobe e vai para a nova tentativa da entrega.
+- **Entrega confirmada (ticket 09):** reservar (prazo de 2 minutos), postar e só então confirmar. Falha ao postar solta a reserva com o motivo e a tentativa; um relógio no `pg_cron` (a cada 2 minutos) pede a entrega de novo, até 5 tentativas; uma recusa do Slack desiste na hora. Tudo no log com o `run_id`, sem texto nem token.
+- **Limite de uso (ticket 08):** por padrão, 20 pedidos por pessoa a cada 10 minutos e 200 por Workspace por hora, ajustáveis por Workspace na instalação do Canal. Passou, recusa curta no thread, sem Execução nem Crédito. Se a leitura do limite falhar, o pedido segue.
 
 ### Frontend
 
