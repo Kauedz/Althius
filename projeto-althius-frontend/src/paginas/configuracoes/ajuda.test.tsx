@@ -10,18 +10,49 @@ async function irPara(usuario: Usuario, secao: string) {
   await usuario.click(within(abas).getByRole('link', { name: secao }))
 }
 
-describe('Central de ajuda', () => {
-  it('abre pela aba Ajuda e informações, com orientações curtas para as funções do aplicativo', async () => {
+describe('Documentação da Ajuda', () => {
+  it('abre pela aba Ajuda e informações na primeira página, com grupos, "Atualizado em" e notas', async () => {
     const { usuario } = renderizarApp('/configuracoes/perfil')
     await irPara(usuario, 'Ajuda e informações')
 
     expect(await screen.findByRole('heading', { level: 2, name: 'Ajuda e informações' })).toBeInTheDocument()
-    const central = screen.getByRole('region', { name: 'Central de ajuda' })
-    for (const funcao of ['Agentes e Especialidades', 'Aprovações', 'Sequências', 'Sinais', 'Conexões', 'Memória do Workspace']) {
-      expect(within(central).getByRole('heading', { name: funcao })).toBeInTheDocument()
+    const pagina = await screen.findByRole('article', { name: 'Começar' })
+    expect(within(pagina).getByText('Atualizado em 14/10/2026')).toBeInTheDocument()
+    expect(within(pagina).getAllByRole('note').length).toBeGreaterThan(0)
+    const paginas = within(screen.getByRole('navigation', { name: 'Páginas de Ajuda e informações' }))
+    for (const titulo of ['Créditos e Automação', 'Sinais', 'Descoberta', 'Contas e Comitê', 'Sequências', 'Agentes', 'Contexto do Workspace', 'Conexões']) {
+      expect(paginas.getByRole('link', { name: titulo })).toBeInTheDocument()
     }
-    expect(within(central).getByRole('note')).toHaveTextContent('Conteúdo provisório')
-    expect(screen.queryByText(/ainda não foi implementada/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/CRM/)).not.toBeInTheDocument()
+  })
+
+  it('"Nesta página" lista as âncoras dos títulos e leva o foco até a seção', async () => {
+    const { usuario } = renderizarApp('/configuracoes/ajuda/creditos')
+    const indice = within(await screen.findByRole('navigation', { name: 'Seções de Créditos e Automação' }))
+    const link = indice.getByRole('link', { name: 'Renovação mensal' })
+    expect(link).toHaveAttribute('href', '#renovacao-mensal')
+    await usuario.click(link)
+    expect(screen.getByRole('heading', { level: 4, name: 'Renovação mensal' })).toHaveFocus()
+  })
+
+  it('a busca (Ctrl+K) acha o termo nos títulos e no texto, com destaque, e abre a página', async () => {
+    const { usuario } = renderizarApp('/configuracoes/ajuda/comecar')
+    await screen.findByRole('article', { name: 'Começar' })
+    await usuario.keyboard('{Control>}k{/Control}')
+    const busca = screen.getByRole('searchbox', { name: 'Buscar na Ajuda' })
+    expect(busca).toHaveFocus()
+    await usuario.type(busca, 'aquecimento')
+    const resultados = within(screen.getByRole('list', { name: 'Resultados da busca' }))
+    const primeiro = resultados.getAllByRole('link')[0]
+    expect(primeiro).toHaveTextContent('Sequências')
+    expect(primeiro.querySelector('mark')).toHaveTextContent('aquecimento')
+    await usuario.click(primeiro)
+    expect(await screen.findByRole('article', { name: 'Sequências' })).toBeInTheDocument()
+  })
+
+  it('a rota antiga da Central de ajuda leva à página equivalente', async () => {
+    renderizarApp('/configuracoes/ajuda/central')
+    expect(await screen.findByRole('article', { name: 'Começar' })).toBeInTheDocument()
   })
 })
 
@@ -38,16 +69,16 @@ describe('Páginas de Ajuda e informações', () => {
     expect(await screen.findByRole('heading', { level: 3, name: 'Termos de serviço' })).toBeInTheDocument()
     await usuario.click(paginas.getByRole('link', { name: 'Política de privacidade' }))
     expect(await screen.findByRole('heading', { level: 3, name: 'Política de privacidade' })).toBeInTheDocument()
-    await usuario.click(paginas.getByRole('link', { name: 'Central de ajuda' }))
-    expect(await screen.findByRole('region', { name: 'Central de ajuda' })).toBeInTheDocument()
+    await usuario.click(paginas.getByRole('link', { name: 'Começar' }))
+    expect(await screen.findByRole('article', { name: 'Começar' })).toBeInTheDocument()
 
     await irPara(usuario, 'Meu perfil')
     expect(await screen.findByRole('heading', { level: 2, name: 'Meu perfil' })).toBeInTheDocument()
   })
 
-  it('um endereço de página que não existe leva à Central de ajuda, em vez de uma página quebrada', async () => {
+  it('um endereço de página que não existe leva à primeira página, em vez de uma página quebrada', async () => {
     renderizarApp('/configuracoes/ajuda/manual')
-    expect(await screen.findByRole('region', { name: 'Central de ajuda' })).toBeInTheDocument()
+    expect(await screen.findByRole('article', { name: 'Começar' })).toBeInTheDocument()
   })
 })
 
@@ -148,7 +179,7 @@ describe('Links de Ajuda e informações', () => {
     const envio = vi.spyOn(globalThis, 'fetch')
     try {
       const { usuario } = renderizarApp('/configuracoes/ajuda/central')
-      for (const pagina of ['Central de ajuda', 'Enviar feedback', 'Termos de serviço', 'Política de privacidade']) {
+      for (const pagina of ['Começar', 'Créditos e Automação', 'Sequências', 'Enviar feedback', 'Termos de serviço', 'Política de privacidade']) {
         const paginas = within(await screen.findByRole('navigation', { name: 'Páginas de Ajuda e informações' }))
         await usuario.click(paginas.getByRole('link', { name: pagina }))
         const secao = await screen.findByRole('region', { name: 'Ajuda e informações' })
@@ -158,7 +189,7 @@ describe('Links de Ajuda e informações', () => {
           if (destino.startsWith('#')) {
             expect(document.getElementById(destino.slice(1)), destino).not.toBeNull()
           } else {
-            expect(destino, link.textContent ?? '').toMatch(/^\/configuracoes\/ajuda\/(central|feedback|termos|privacidade)$/)
+            expect(destino, link.textContent ?? '').toMatch(/^\/configuracoes\/ajuda\/(comecar|creditos|sinais|descoberta|contas-e-comite|sequencias|agentes|contexto|conexoes|feedback|termos|privacidade)$/)
           }
         }
       }
