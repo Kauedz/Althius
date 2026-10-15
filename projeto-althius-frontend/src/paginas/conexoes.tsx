@@ -203,7 +203,7 @@ export function PaginaConexoes() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 font-normal text-al-ink">
-                      <LogoDoCanal id={canal.id} nome={canal.nome} className="size-5" />
+                      <LogoDoCanal id={canal.id} className="size-5" />
                       {canal.nome}
                     </span>
                     <span className="rotulo">Em breve</span>
@@ -365,7 +365,7 @@ function CartaoDeCanalReal({
     <article aria-label={canal.nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-lg font-normal">
-          <LogoDoCanal id={canal.id} nome={canal.nome} className="size-5" />
+          <LogoDoCanal id={canal.id} className="size-5" />
           {canal.nome}
         </span>
         <span className={ativo ? 'rotulo text-al-sucesso' : 'rotulo'}>{ROTULO_DO_CANAL[canal.estado]}</span>
