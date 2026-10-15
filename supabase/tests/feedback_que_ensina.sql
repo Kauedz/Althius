@@ -49,10 +49,12 @@ select results_eq(
   $$select dimension, value, adjustment, evidence_count from public.list_discovery_learning('fb000000-0000-0000-0000-000000000001')$$,
   $$values ('setor'::text, 'logística'::text, -15.0::numeric, 6)$$,
   'seis descartes por setor: -15 para Logística');
+reset role;
 select is((select discard_reason_code from private.discovered_accounts where id = 'cb000000-0000-0000-0000-000000000001'), 'setor',
   'o descarte guarda o motivo estruturado');
 select is(private.discovery_fit_adjusted(60, 'cb000000-0000-0000-0000-000000000007', now()), 45::numeric,
   'a nota da candidata parecida perde 15 pontos de Encaixe');
+set local role authenticated;
 select throws_ok($$select public.reset_discovery_learning('fb000000-0000-0000-0000-000000000001')$$,
   null, null, 'o Membro não recomeça o aprendizado');
 reset role;
