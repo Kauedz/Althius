@@ -317,3 +317,29 @@ export function compararCandidatas(
   const tb = b.ultimoSinalEm ? Date.parse(b.ultimoSinalEm) : Number.NEGATIVE_INFINITY
   return tb - ta
 }
+
+/**
+ * O aprendizado por Workspace (feedback-que-ensina): cada aceite soma `PASSO_DO_APRENDIZADO` e cada descarte com motivo
+ * ligado à dimensão subtrai o mesmo, por dimensão e valor (setor, porte, região, tecnologia, tipo de Sinal). O ajuste
+ * só conta a partir de `MINIMO_DE_DECISOES`, vale no máximo ±`TETO_DO_AJUSTE` e cai pela metade a cada
+ * `MEIA_VIDA_DO_AJUSTE_DIAS` sem evidência nova. O banco espelha a regra em `private.discovery_learned_effective`.
+ */
+export const PASSO_DO_APRENDIZADO = 2.5
+export const MINIMO_DE_DECISOES = 3
+export const TETO_DO_AJUSTE = 15
+export const MEIA_VIDA_DO_AJUSTE_DIAS = 60
+
+export function ajusteEfetivo(delta: number, decisoes: number, diasSemEvidencia: number): number {
+  if (decisoes < MINIMO_DE_DECISOES) return 0
+  const limitado = Math.max(-TETO_DO_AJUSTE, Math.min(TETO_DO_AJUSTE, delta))
+  return limitado * Math.pow(0.5, Math.max(0, diasSemEvidencia) / MEIA_VIDA_DO_AJUSTE_DIAS)
+}
+
+/**
+ * O Encaixe ICP com os ajustes aprendidos: nunca passa de 100 e nunca cai abaixo da metade do Encaixe original, para o
+ * aprendizado não zerar um critério que o próprio ICP pede.
+ */
+export function encaixeAjustado(encaixeIcp: number, ajustes: number[]): number {
+  const soma = ajustes.reduce((a, b) => a + b, 0)
+  return Math.min(100, Math.max(encaixeIcp / 2, encaixeIcp + soma))
+}

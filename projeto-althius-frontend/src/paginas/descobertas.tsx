@@ -7,6 +7,13 @@ import { Carregando } from '@/components/marca'
 import { useDados, useDadosDeDescobertas, useFonteDeContas, useFonteDeDescobertas } from '@/fonte/contexto'
 import type { ContaDescoberta, EstadoContaDescoberta, OrigemDaDescoberta, ResultadoDoAceite, SinalDoMotivo } from '@/fonte/descobertas-tipos'
 import { formatarDataCompleta } from '@/fonte/formatar-data'
+import {
+  ajustesDaCandidata,
+  fraseDoAjuste,
+  MOTIVOS_DO_DESCARTE,
+  type AjusteAprendido,
+  type CodigoDoDescarte,
+} from '@/fonte/aprendizado-da-descoberta'
 import { cn } from '@/lib/utils'
 import { AbasDoModulo, CampoDeBusca, Contagem } from './modulo-contas-e-contatos'
 
@@ -54,13 +61,15 @@ function avisoDoAceite(nome: string, r: ResultadoDoAceite): string {
 }
 
 /** O detalhe de uma candidata: o que a descreve e todos os Sinais que a trouxeram, com data e fonte pública. */
-function DetalheDaCandidata({ candidata }: { candidata: ContaDescoberta }) {
+function DetalheDaCandidata({ candidata, ajustes = [] }: { candidata: ContaDescoberta; ajustes?: AjusteAprendido[] }) {
+  const aprendido = ajustesDaCandidata(candidata, ajustes)[0]
   return (
     <div aria-label={`Detalhes de ${candidata.nome}`} role="group" className="flex flex-col gap-3 text-xs">
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-al-muted">
         <span>Origem: {ROTULO_DA_ORIGEM[candidata.origem]}</span>
         {candidata.descricao && <span className="text-al-ink">{candidata.descricao}</span>}
       </div>
+      {aprendido && <p className="text-al-muted">{fraseDoAjuste(aprendido)}.</p>}
       {candidata.voltouPorSinalEm && (
         <p className="text-al-ink">
           <span className="font-medium text-al-accent">Voltou por novo Sinal</span> em {formatarDataCompleta(candidata.voltouPorSinalEm)}.
@@ -99,6 +108,21 @@ export function PaginaDescobertas() {
   const [urlInformada, setUrlInformada] = useState('')
   const [motivoDescarte, setMotivoDescarte] = useState<{ id: string; nome: string } | null>(null)
   const [textoDescarte, setTextoDescarte] = useState('')
+  const [codigoDescarte, setCodigoDescarte] = useState<CodigoDoDescarte | null>(null)
+  const [ajustes, setAjustes] = useState<AjusteAprendido[]>([])
+  const [versaoDoAprendizado, setVersaoDoAprendizado] = useState(0)
+  const workspace = useDados((f) => f.workspace(), [])
+  useEffect(() => {
+    if (!fonte?.aprendizado) return
+    let vivo = true
+    fonte
+      .aprendizado()
+      .then((lista) => vivo && setAjustes(lista))
+      .catch(() => vivo && setAjustes([]))
+    return () => {
+      vivo = false
+    }
+  }, [fonte, versaoDoAprendizado])
   const [filtroOrigem, setFiltroOrigem] = useState<OrigemDaDescoberta | 'todas'>('todas')
   const [detalheAberto, setDetalheAberto] = useState<string | null>(null)
   const [avisoDeAceite, setAvisoDeAceite] = useState<string | null>(null)
@@ -216,9 +240,11 @@ export function PaginaDescobertas() {
     if (!motivoDescarte || !fonte) return
     setErroAcao(null)
     try {
-      await fonte.descartarDescoberta(motivoDescarte.id, textoDescarte.trim() || undefined)
+      await fonte.descartarDescoberta(motivoDescarte.id, textoDescarte.trim() || undefined, codigoDescarte ?? undefined)
       setMotivoDescarte(null)
       setTextoDescarte('')
+      setCodigoDescarte(null)
+      setVersaoDoAprendizado((v) => v + 1)
       recarregarLista()
     } catch (e) {
       setErroAcao(e instanceof Error ? e.message : 'Não foi possível descartar a candidata.')
@@ -579,7 +605,7 @@ export function PaginaDescobertas() {
                 {detalheAberto === c.id && (
                   <tr className="bg-al-surface/30">
                     <td colSpan={6} className="p-3">
-                      <DetalheDaCandidata candidata={c} />
+                      <DetalheDaCandidata candidata={c} ajustes={ajustes} />
                     </td>
                   </tr>
                 )}
@@ -631,6 +657,22 @@ export function PaginaDescobertas() {
         </div>
       )}
 
+      {fonte?.aprendizado && (
+        <OQueADescobertaAprendeu
+          ajustes={ajustes}
+          podeDesfazer={workspace?.papel === 'administrador' && Boolean(fonte.desfazerAprendizado)}
+          aoDesfazer={async (ajuste) => {
+            setErroAcao(null)
+            try {
+              await fonte.desfazerAprendizado?.(ajuste)
+              setVersaoDoAprendizado((v) => v + 1)
+            } catch (e) {
+              setErroAcao(e instanceof Error ? e.message : 'Não foi possível desfazer o aprendizado.')
+            }
+          }}
+        />
+      )}
+
       {/* Modal de confirmação de descarte com motivo */}
       {motivoDescarte && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -639,9 +681,30 @@ export function PaginaDescobertas() {
             <p className="mt-1 text-xs text-al-muted">
               A empresa sairá da lista e a Caixa lembrará dela para não voltar em buscas futuras.
             </p>
+            <fieldset className="mt-4">
+              <legend className="block text-xs font-medium text-al-ink uppercase tracking-rotulo">Por que descartar?</legend>
+              <div role="radiogroup" aria-label="Motivo do descarte" className="mt-2 flex flex-wrap gap-2">
+                {MOTIVOS_DO_DESCARTE.map((m) => (
+                  <button
+                    key={m.codigo}
+                    type="button"
+                    role="radio"
+                    aria-checked={codigoDescarte === m.codigo}
+                    onClick={() => setCodigoDescarte(m.codigo)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs',
+                      codigoDescarte === m.codigo ? 'border-al-accent text-al-ink' : 'border-al-line text-al-muted',
+                    )}
+                  >
+                    {m.rotulo}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-al-muted">O motivo ensina a Descoberta a dar menos peso a empresas parecidas.</p>
+            </fieldset>
             <div className="mt-4">
               <label className="block text-xs font-medium text-al-ink uppercase tracking-rotulo">
-                Motivo do descarte (opcional)
+                Detalhe (opcional)
               </label>
               <input
                 type="text"
@@ -658,6 +721,7 @@ export function PaginaDescobertas() {
               </Button>
               <Button
                 type="button"
+                disabled={!codigoDescarte}
                 onClick={confirmarDescarte}
                 className="bg-al-atencao text-white hover:bg-al-atencao/90"
               >
@@ -668,5 +732,77 @@ export function PaginaDescobertas() {
         </div>
       )}
     </Pagina>
+  )
+}
+
+/** O que a Descoberta aprendeu com os aceites e descartes do Workspace. Desfazer é só do Administrador. */
+function OQueADescobertaAprendeu({
+  ajustes,
+  podeDesfazer,
+  aoDesfazer,
+}: {
+  ajustes: AjusteAprendido[]
+  podeDesfazer: boolean
+  aoDesfazer: (ajuste?: AjusteAprendido) => Promise<void>
+}) {
+  const [confirmando, setConfirmando] = useState<AjusteAprendido | 'tudo' | null>(null)
+  return (
+    <details className="mt-6 rounded-xl border border-al-line p-4">
+      <summary className="cursor-pointer text-sm text-al-ink">O que a Descoberta aprendeu</summary>
+      <section aria-label="O que a Descoberta aprendeu" className="mt-3 flex flex-col gap-3 text-sm">
+        {ajustes.length === 0 ? (
+          <p className="text-al-muted">
+            Ainda nada. A partir de 3 aceites ou descartes parecidos, a Descoberta passa a dar mais ou menos peso a empresas assim.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {ajustes.map((a) => (
+              <li key={`${a.dimensao}:${a.valor}`} className="flex flex-wrap items-center justify-between gap-3">
+                <span>
+                  {fraseDoAjuste(a)}.{' '}
+                  <span className="text-al-muted">
+                    {a.decisoes} decisões, a última em {formatarDataCompleta(a.atualizadoEm)}.
+                  </span>
+                </span>
+                {podeDesfazer && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setConfirmando(a)}>
+                    Desfazer este ajuste
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {podeDesfazer && ajustes.length > 0 && (
+          <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => setConfirmando('tudo')}>
+            <RotateCcw className="size-4" aria-hidden />
+            Recomeçar o aprendizado
+          </Button>
+        )}
+        {confirmando && (
+          <div role="alertdialog" aria-label="Confirmar" className="flex flex-wrap items-center gap-3 rounded-lg border border-al-atencao/50 p-3">
+            <span>
+              {confirmando === 'tudo'
+                ? 'Recomeçar apaga tudo o que a Descoberta aprendeu neste Workspace. Continuar?'
+                : `Desfazer "${fraseDoAjuste(confirmando)}"?`}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={async () => {
+                const alvo = confirmando
+                setConfirmando(null)
+                await aoDesfazer(alvo === 'tudo' ? undefined : alvo)
+              }}
+            >
+              Confirmar
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setConfirmando(null)}>
+              Cancelar
+            </Button>
+          </div>
+        )}
+      </section>
+    </details>
   )
 }

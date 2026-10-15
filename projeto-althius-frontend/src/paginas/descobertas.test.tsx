@@ -80,6 +80,13 @@ describe('Caixa de Descobertas por ICP', () => {
     await usuario.type(inputMotivo, 'Setor não prioritário no momento')
 
     const botaoConfirmar = screen.getByRole('button', { name: 'Descartar' })
+    // O motivo estruturado é obrigatório: ele ensina a Descoberta.
+    expect(botaoConfirmar).toBeDisabled()
+    const motivos = within(screen.getByRole('radiogroup', { name: 'Motivo do descarte' }))
+    for (const m of ['Setor fora do ICP', 'Porte errado', 'Região fora', 'Já é cliente ou concorrente', 'Sinal fraco ou irrelevante', 'Outro']) {
+      expect(motivos.getByRole('radio', { name: m })).toBeInTheDocument()
+    }
+    await usuario.click(motivos.getByRole('radio', { name: 'Setor fora do ICP' }))
     await usuario.click(botaoConfirmar)
 
     // Sai de Novas
@@ -111,5 +118,34 @@ describe('Caixa de Descobertas por ICP', () => {
     // Nova candidata aparece
     expect(await screen.findByText('AgroTech Soluções de Precisão')).toBeInTheDocument()
     expect(screen.getAllByText('Encaixe alto').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('O que a Descoberta aprendeu', () => {
+  it('mostra os ajustes com a frase e deixa o Administrador desfazer, com confirmação', async () => {
+    const { usuario } = renderizarApp('/contas/descobertas')
+    const nome = 'Metalúrgica Catarinense S.A.'
+    expect(await screen.findByText(nome)).toBeInTheDocument()
+    const painel = within(screen.getByRole('region', { name: 'O que a Descoberta aprendeu', hidden: true }))
+    expect(painel.getByText(/Ainda nada/)).toBeInTheDocument()
+
+    for (let i = 0; i < 3; i++) {
+      await usuario.click(within(screen.getByText(nome).closest('tr')!).getByTitle(/Descartar/i))
+      await usuario.click(within(screen.getByRole('radiogroup', { name: 'Motivo do descarte' })).getByRole('radio', { name: 'Região fora' }))
+      await usuario.click(screen.getByRole('button', { name: 'Descartar' }))
+      if (i < 2) {
+        await usuario.click(screen.getByRole('tab', { name: /Descartadas/i }))
+        await usuario.click(await screen.findByRole('button', { name: /Restaurar/i }))
+        await usuario.click(screen.getByRole('tab', { name: /Novas/i }))
+        expect(await screen.findByText(nome)).toBeInTheDocument()
+      }
+    }
+    expect(await painel.findByText(/Menos peso para SC porque você descartou 3 parecidas/)).toBeInTheDocument()
+    const desfazer = painel.queryByRole('button', { name: 'Desfazer este ajuste', hidden: true })
+    if (desfazer) {
+      await usuario.click(desfazer)
+      await usuario.click(painel.getByRole('button', { name: 'Confirmar', hidden: true }))
+      await waitFor(() => expect(painel.getByText(/Ainda nada/)).toBeInTheDocument())
+    }
   })
 })

@@ -1,3 +1,4 @@
+import type { AjusteAprendido, CodigoDoDescarte, DimensaoAprendida } from './aprendizado-da-descoberta'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   ContaDescoberta,
@@ -131,10 +132,38 @@ export function criarFonteDeDescobertasSupabase(
       }
     },
 
-    async descartarDescoberta(id: string, motivo?: string): Promise<void> {
-      const { error } = await cliente.rpc('discard_discovered_account', {
-        p_id: id,
-        p_reason: motivo ? motivo.trim() : null,
+    async descartarDescoberta(id: string, motivo?: string, codigo?: CodigoDoDescarte): Promise<void> {
+      const { error } = codigo
+        ? await cliente.rpc('discard_discovered_account_with_code', {
+            p_id: id,
+            p_reason_code: codigo,
+            p_reason: motivo ? motivo.trim() : null,
+          })
+        : await cliente.rpc('discard_discovered_account', {
+            p_id: id,
+            p_reason: motivo ? motivo.trim() : null,
+          })
+      if (error) throw new Error(error.message)
+      notificar()
+    },
+
+    async aprendizado(): Promise<AjusteAprendido[]> {
+      const { data, error } = await cliente.rpc('list_discovery_learning', { p_workspace_id: obterWorkspaceId() })
+      if (error) throw new Error(error.message)
+      return ((data ?? []) as { dimension: DimensaoAprendida; value: string; adjustment: number; evidence_count: number; updated_at: string }[]).map((l) => ({
+        dimensao: l.dimension,
+        valor: l.value,
+        ajuste: Number(l.adjustment),
+        decisoes: l.evidence_count,
+        atualizadoEm: l.updated_at,
+      }))
+    },
+
+    async desfazerAprendizado(ajuste?: Pick<AjusteAprendido, 'dimensao' | 'valor'>): Promise<void> {
+      const { error } = await cliente.rpc('reset_discovery_learning', {
+        p_workspace_id: obterWorkspaceId(),
+        p_dimension: ajuste?.dimensao ?? null,
+        p_value: ajuste?.valor ?? null,
       })
       if (error) throw new Error(error.message)
       notificar()
