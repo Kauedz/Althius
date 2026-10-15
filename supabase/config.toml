@@ -82,6 +82,11 @@ verify_jwt = true
 [functions.slack-channel-callback]
 verify_jwt = false
 
+# Os eventos do Canal Slack (slack-canal 02): o Slack chama sem JWT; a função confere a assinatura do app do Canal
+# (SLACK_CHANNEL_SIGNING_SECRET) antes de ler o corpo.
+[functions.slack-channel-events]
+verify_jwt = false
+
 # O gerador das Propostas de resposta (canais-08): chamado pelo próprio banco (pg_cron + pg_net), sem JWT; a função confere
 # o token que o banco guarda (reply_proposal_runner_token_matches).
 [functions.reply-proposal-runner]

@@ -1,7 +1,10 @@
-// O cliente da API do Slack para o Canal Slack (slack-canal 01): o endereço de instalação do app @Althius, a troca do
-// código pelo token do bot e a revogação do token. É o app do Canal, distinto do app da Integração Slack pelo MCP.
-// Referências: https://api.slack.com/authentication/oauth-v2, https://api.slack.com/methods/oauth.v2.access e
-// https://api.slack.com/methods/auth.revoke. O token nunca aparece em erro nem em log.
+// O cliente da API do Slack para o Canal Slack (slack-canal 01 e 02): o endereço de instalação do app @Althius, a troca do
+// código pelo token do bot, a revogação do token, a assinatura dos eventos, a leitura de um usuário e a resposta no
+// thread. É o app do Canal, distinto do app da Integração Slack pelo MCP.
+// Referências: https://api.slack.com/authentication/oauth-v2, https://api.slack.com/methods/oauth.v2.access,
+// https://api.slack.com/methods/auth.revoke, https://docs.slack.dev/authentication/verifying-requests-from-slack,
+// https://docs.slack.dev/reference/methods/users.info e https://docs.slack.dev/reference/methods/chat.postMessage.
+// O token nunca aparece em erro nem em log.
 
 /**
  * Os escopos do bot, só os da spec: ler as menções ao app, ler o histórico do DM com o app e dos canais públicos em que o
@@ -19,6 +22,8 @@ export const ESCOPOS_DO_BOT = [
 const AUTORIZAR = 'https://slack.com/oauth/v2/authorize'
 const TROCAR = 'https://slack.com/api/oauth.v2.access'
 const REVOGAR = 'https://slack.com/api/auth.revoke'
+const USUARIO = 'https://slack.com/api/users.info'
+const POSTAR = 'https://slack.com/api/chat.postMessage'
 
 /** `recusado`: o Slack respondeu `ok: false`; `indisponivel`: rede ou 5xx; `resposta_invalida`: faltou o que se espera. */
 export class ErroDoSlack extends Error {
@@ -104,4 +109,83 @@ export async function revogarTokenDoSlack(a: { token: string; fetch?: typeof fet
   const codigo = texto(corpo.error)
   if (codigo && JA_INVALIDO.has(codigo)) return 'ja_invalido'
   throw new ErroDoSlack('recusado', codigo)
+}
+
+function hex(buffer: ArrayBuffer): string {
+  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function iguais(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diferenca = 0
+  for (let i = 0; i < a.length; i++) diferenca |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diferenca === 0
+}
+
+/**
+ * Confere a assinatura de um pedido do Slack: `X-Slack-Signature` é `v0=` mais o hex do HMAC-SHA256 de
+ * `v0:{X-Slack-Request-Timestamp}:{corpo}` com o segredo de assinatura do app, comparado em tempo constante. Um
+ * timestamp a mais de 5 minutos do relógio é recusado, para um pedido gravado não ser repetido depois.
+ */
+export async function assinaturaDoSlackValida(a: {
+  corpo: string
+  timestamp: string | null
+  assinatura: string | null
+  segredo: string
+  agoraEmSegundos: number
+}): Promise<boolean> {
+  if (!a.segredo || !a.assinatura || !a.timestamp || !/^\d+$/.test(a.timestamp)) return false
+  if (Math.abs(a.agoraEmSegundos - Number(a.timestamp)) > 300) return false
+  const chave = await crypto.subtle.importKey('raw', new TextEncoder().encode(a.segredo), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const esperado = `v0=${hex(await crypto.subtle.sign('HMAC', chave, new TextEncoder().encode(`v0:${a.timestamp}:${a.corpo}`)))}`
+  return iguais(a.assinatura, esperado)
+}
+
+/** O que a Althius precisa saber de quem escreveu: o e-mail e se é de casa (nem convidado, nem de outro Slack). */
+export interface UsuarioDoSlack {
+  email: string | null
+  teamId: string | null
+  /** Convidado do Slack (`is_restricted` ou `is_ultra_restricted`). */
+  convidado: boolean
+  /** Membro de outro workspace Slack visto por um canal compartilhado (Slack Connect, `is_stranger`). */
+  deFora: boolean
+  bot: boolean
+  apagado: boolean
+}
+
+/** Lê um usuário (`users.info`, escopos `users:read` e `users:read.email`). */
+export async function lerUsuarioDoSlack(a: { token: string; usuario: string; fetch?: typeof fetch }): Promise<UsuarioDoSlack> {
+  const corpo = await chamar(a.fetch ?? fetch, USUARIO, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${a.token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ user: a.usuario }).toString(),
+  })
+  if (corpo.ok !== true) throw new ErroDoSlack('recusado', texto(corpo.error))
+  const usuario = corpo.user as Record<string, unknown> | undefined
+  if (!usuario || typeof usuario !== 'object') throw new ErroDoSlack('resposta_invalida')
+  const perfil = (usuario.profile ?? {}) as Record<string, unknown>
+  return {
+    email: texto(perfil.email),
+    teamId: texto(usuario.team_id),
+    convidado: usuario.is_restricted === true || usuario.is_ultra_restricted === true,
+    deFora: usuario.is_stranger === true,
+    bot: usuario.is_bot === true,
+    apagado: usuario.deleted === true,
+  }
+}
+
+/** Posta uma mensagem no thread (`chat.postMessage` com `thread_ts`): o bot nunca responde solto no canal. */
+export async function postarNoThread(a: {
+  token: string
+  canal: string
+  threadTs: string
+  texto: string
+  fetch?: typeof fetch
+}): Promise<void> {
+  const corpo = await chamar(a.fetch ?? fetch, POSTAR, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${a.token}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel: a.canal, thread_ts: a.threadTs, text: a.texto }),
+  })
+  if (corpo.ok !== true) throw new ErroDoSlack('recusado', texto(corpo.error))
 }
