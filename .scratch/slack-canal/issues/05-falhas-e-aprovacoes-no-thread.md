@@ -30,7 +30,7 @@ Spec: [../spec.md](../spec.md) (seção "Entrega da resposta no thread"; US 38�
 - [x] Cada Execução é postada uma vez só
 - [x] `chat.postMessage` com 429 respeita o `Retry-After` (até 5s) e tenta de novo; 5xx e rede fora são tentados até 3 vezes; recusa `ok: false` não é repetida (`_shared/slack-api-postar.test.ts`)
 - [x] Falha ao postar fica no log com o `run_id` (`falha_ao_postar`) e a função responde 502
-- [x] lint, `deno test`, `deno check` e pgTAP do zero verdes (pgTAP `falhas_e_aprovacoes_do_canal_slack.sql` verde no CI do PR #224; o assert novo aguarda o CI)
+- [x] lint, `deno test`, `deno check` e pgTAP do zero verdes (pgTAP `falhas_e_aprovacoes_do_canal_slack.sql` verde no CI do PR #224 com o assert novo, run 38776771010)
 
 ## Passos do Nan
 
