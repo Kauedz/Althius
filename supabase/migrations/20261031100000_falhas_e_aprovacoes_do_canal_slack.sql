@@ -4,14 +4,14 @@
 -- 1. A reserva da entrega passa a devolver também as ações das Aprovações pendentes pedidas pela Execução, para a função
 --    de entrega avisar no thread. A Aprovação já guarda o gatilho Canal pela Execução que a propôs (`run_id`, com o
 --    `trigger_kind` dela), como as de Conversa e de Rotina: nada muda nela.
--- 2. O prazo vencido: o gatilho de 20261025100000 já chama a entrega quando a Execução vira `failed` por prazo, mas uma
+-- 2. O prazo vencido: o gatilho de 20261029100000 já chama a entrega quando a Execução vira `failed` por prazo, mas uma
 --    Execução do Canal parada (o motor caiu) só vencia quando alguém escrevia de novo no fio. Um relógio vence as
 --    paradas além do prazo, e a falha "passou do tempo" chega ao thread sem ninguém precisar escrever.
 --
--- Funções redefinidas a partir da definição mais recente da `main`: claim_slack_channel_delivery (20261025100000), que
+-- Funções redefinidas a partir da definição mais recente da `main`: claim_slack_channel_delivery (20261029100000), que
 -- ganha a coluna `pending_approvals` (por isso é recriada, com as mesmas permissões).
 
--- 1. A reserva da entrega, com as Aprovações pendentes da Execução. O resto é a definição de 20261025100000.
+-- 1. A reserva da entrega, com as Aprovações pendentes da Execução. O resto é a definição de 20261029100000.
 drop function public.claim_slack_channel_delivery(uuid);
 
 create function public.claim_slack_channel_delivery(p_run_id uuid)

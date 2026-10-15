@@ -2,7 +2,7 @@
 -- função de eventos precisa saber, antes de pedir qualquer Execução, de quem é o fio e com qual Agente: o dono continua
 -- a Conversa sem novo @ (Q19); outra pessoa recebe "este fio é a Conversa de <dono>" (Q13); o dono que menciona outro
 -- Agente recebe "este fio é do Agente <X>" (Q20). As recusas saem daqui sem tocar a Execução nem os Créditos. A
--- continuação e o "ocupado" seguem pela start_slack_channel_run (20261025100000), sem mudança.
+-- continuação e o "ocupado" seguem pela start_slack_channel_run (20261029100000), sem mudança.
 --
 -- Devolve o dono (a Conta de usuário e o nome que a Althius mostra dela: o de Meu perfil ou, sem ele, o do cadastro) e o
 -- Agente (id e nome), ou nenhuma linha quando o thread não é um fio deste Workspace. Nunca devolve o e-mail.

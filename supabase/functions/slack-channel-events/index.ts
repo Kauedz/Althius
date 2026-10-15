@@ -57,7 +57,7 @@ const db: Db = {
     if (!linha?.conversation_id || !linha.run_id) throw new Error('start_slack_channel_run não devolveu a Execução')
     return { kind: 'aberto', conversationId: linha.conversation_id, runId: linha.run_id }
   },
-  // O fio pela chave (slack-canal 04, migration 20261026100000): o dono e o Agente, para continuar ou recusar.
+  // O fio pela chave (slack-canal 04, migration 20261030100000): o dono e o Agente, para continuar ou recusar.
   async lerFio(chave) {
     const linhas = await chamar<{ owner_id: string; owner_name: string | null; agent_id: string; agent_name: string }[] | null>(
       'slack_channel_thread',
