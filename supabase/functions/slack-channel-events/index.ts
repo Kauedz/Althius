@@ -40,7 +40,7 @@ const db: Db = {
     return (linhas ?? []).map((l): AgenteDoSlack => ({ id: l.agent_id, nome: l.name, noSlack: l.in_slack }))
   },
   retirarPeloSlack: (teamId, motivo) => chamar<boolean>('withdraw_slack_channel_by_slack', { p_team_id: teamId, p_reason: motivo }),
-  // O fio (slack-canal 03, migration 20261025100000): o banco confere tudo de novo e traduz-se aqui o código da recusa.
+  // O fio (slack-canal 03, migration 20261029100000): o banco confere tudo de novo e traduz-se aqui o código da recusa.
   async abrirFio(pedido) {
     const { data, error } = await admin.rpc('start_slack_channel_run', {
       p_workspace_id: pedido.workspaceId,
