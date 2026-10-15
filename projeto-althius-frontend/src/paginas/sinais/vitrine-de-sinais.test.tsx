@@ -111,7 +111,7 @@ describe('Vitrine de Sinais', () => {
   it('o filtro mostra só a grade, sem o destaque e sem as prateleiras', async () => {
     const { usuario } = renderizarApp('/sinais')
     await screen.findByRole('region', { name: /^Sinal da semana: / })
-    await usuario.click(within(screen.getByRole('group', { name: 'Filtrar por nicho' })).getByRole('button', { name: 'Agro B2B' }))
+    await usuario.click(within(screen.getByRole('group', { name: 'Filtrar por família' })).getByRole('button', { name: 'Agro' }))
     expect(screen.queryByRole('region', { name: /^Sinal da semana: / })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Novos' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()

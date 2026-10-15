@@ -17,7 +17,6 @@ import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-dat
 import { cn } from '@/lib/utils'
 import { FAMILIAS, tipoPorId } from './catalogo'
 import { CATALOGO_VISIVEL, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
-import { NICHOS } from './nichos'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { GRADE_DE_CARTOES } from './cascatas'
 import { useMonitoramentos } from './estado'
@@ -69,11 +68,6 @@ export function PaginaSinais() {
     <Pagina
       titulo="Sinais"
       icone={RadioTower}
-      acoes={
-        <Link to="/sinais/mercado" className={BOTAO_SECUNDARIO}>
-          Painéis de mercado
-        </Link>
-      }
     >
       <div className={ZONA_DA_VITRINE}>
       {vendoEncontrados ? (
@@ -114,7 +108,6 @@ export function PaginaSinais() {
 function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
   const [busca, setBusca] = useState('')
-  const [nicho, setNicho] = useState('todos')
   const [familiaId, setFamiliaId] = useState('todos')
   const { dados: extras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
   const exclusivos = (extras ?? []).map(cardDoExtra)
@@ -140,9 +133,8 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
   }, [operacional, recarregarSinais])
 
   const termo = normalizar(busca)
-  const filtrando = Boolean(termo) || nicho !== 'todos' || familiaId !== 'todos'
+  const filtrando = Boolean(termo) || familiaId !== 'todos'
   const visiveis = cards.filter((card) => {
-    if (nicho !== 'todos' && !card.nichos.includes(nicho)) return false
     if (familiaId !== 'todos' && card.familiaId !== familiaId) return false
     if (!termo) return true
     const nomes = nomesDosNichos(card.nichos).join(' ')
@@ -287,16 +279,6 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
               className="campo h-9 pl-9 text-sm placeholder:text-al-muted"
             />
           </div>
-          <div role="group" aria-label="Filtrar por nicho" className="segmentado max-w-full flex-wrap">
-            <button type="button" aria-pressed={nicho === 'todos'} onClick={() => setNicho('todos')}>
-              Todos
-            </button>
-            {NICHOS.map((item) => (
-              <button key={item.slug} type="button" aria-pressed={nicho === item.slug} onClick={() => setNicho(item.slug)}>
-                {item.nome}
-              </button>
-            ))}
-          </div>
           <div role="group" aria-label="Filtrar por família" className="segmentado max-w-full flex-wrap">
             <button type="button" aria-pressed={familiaId === 'todos'} onClick={() => setFamiliaId('todos')}>
               Todas
@@ -321,7 +303,6 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
               type="button"
               onClick={() => {
                 setBusca('')
-                setNicho('todos')
                 setFamiliaId('todos')
               }}
               className={BOTAO_SECUNDARIO}

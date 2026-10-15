@@ -13,13 +13,7 @@ describe('Catálogo único de Sinais', () => {
     expect(screen.queryByText('Sem fonte')).not.toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/\b[A-H] ·/)
 
-    const nichos = screen.getByRole('group', { name: 'Filtrar por nicho' })
-    await usuario.click(within(nichos).getByRole('button', { name: 'Agro B2B' }))
-    expect(screen.getByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Entrada de sócio/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Nova cooperativa/ })).toBeInTheDocument()
 
-    await usuario.click(within(nichos).getByRole('button', { name: 'Todos' }))
     const familias = screen.getByRole('group', { name: 'Filtrar por família' })
     await usuario.click(within(familias).getByRole('button', { name: 'Histórico comercial' }))
     expect(screen.getByRole('link', { name: /Proposta recusada/ })).toBeInTheDocument()
@@ -30,7 +24,7 @@ describe('Catálogo único de Sinais', () => {
   })
 
   it('a página do tipo tem um botão só, Ativar Monitoramento, e a letra antiga do mercado vira o slug', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/abertura-de-vagas')
+    renderizarApp('/sinais/tipos/abertura-de-vagas')
     expect(await screen.findByRole('link', { name: 'Ativar Monitoramento' })).toHaveAttribute(
       'href',
       '/sinais/tipos/abertura-de-vagas/novo',
@@ -41,8 +35,7 @@ describe('Catálogo único de Sinais', () => {
     expect(screen.queryByText(/US\$/)).not.toBeInTheDocument()
     expect(screen.getByText(/Vagas públicas em sites de emprego/)).toBeInTheDocument()
 
-    await usuario.click(within(screen.getByRole('main')).getByRole('link', { name: 'Sinais' }))
-    await usuario.click(await screen.findByRole('link', { name: 'Painéis de mercado' }))
+    renderizarApp('/sinais/mercado')
     expect(await screen.findByRole('link', { name: 'Comex e importação' })).toHaveAttribute(
       'href',
       '/sinais/mercado/comex-e-importacao',
