@@ -4,6 +4,7 @@ import type {
   AcessoDaIntegracao,
   CaminhoDeConexao,
   CanalDeConexao,
+  EstadoDeCanal,
   EstadoDeIntegracao,
   EstadoDoAcesso,
   FerramentaDaIntegracao,
@@ -37,6 +38,17 @@ interface LinhaDeAcesso {
 
 const CAMINHO: Record<string, CaminhoDeConexao> = { oauth_mcp: 'autorizacao', api_key: 'chave' }
 
+interface LinhaDoCanalSlack {
+  state: string
+  team_name: string | null
+}
+
+const ESTADO_DO_CANAL_SLACK: Record<string, EstadoDeCanal> = {
+  nao_instalado: 'nao_conectado',
+  ativo: 'conectado',
+  retirado: 'retirado',
+}
+
 /** A mensagem que a Edge Function devolveu (`{ error }`), ou uma genérica: ela já vem em português e sem segredo. */
 async function mensagemDaFuncao(error: unknown, padrao: string): Promise<string> {
   const contexto = (error as { context?: { json?: () => Promise<unknown> } }).context
@@ -51,7 +63,8 @@ async function mensagemDaFuncao(error: unknown, padrao: string): Promise<string>
 
 /**
  * A Fonte de Conexões do Workspace operacional: lê o catálogo e as habilitações do Supabase.
- * Os Canais aparecem "Em breve"; o catálogo visível oferece HubSpot e Notion.
+ * O Slack é o único Canal real (slack-canal 01); os outros Canais aparecem "Em breve". O catálogo visível oferece
+ * HubSpot e Notion.
  */
 export function criarFonteDeConexoesSupabase(
   cliente: SupabaseClient,
@@ -63,6 +76,16 @@ export function criarFonteDeConexoesSupabase(
     ouvintes.forEach((ouvinte) => ouvinte())
   }
 
+  /** Chama a `slack-channel-connect`; o Slack é o único Canal que instala. */
+  async function noCanalSlack(id: CanalId, action: 'iniciar' | 'retirar', padrao: string): Promise<unknown> {
+    if (id !== 'slack') throw new Error('Este Canal ainda não está disponível.')
+    const { data, error } = await cliente.functions.invoke('slack-channel-connect', {
+      body: { action, workspaceId: obterWorkspaceId() },
+    })
+    if (error) throw new Error(await mensagemDaFuncao(error, padrao))
+    return data
+  }
+
   return {
     observar(ouvinte) {
       ouvintes.add(ouvinte)
@@ -72,13 +95,35 @@ export function criarFonteDeConexoesSupabase(
     },
 
     async canais(): Promise<CanalDeConexao[]> {
-      return catalogoDeCanais.map((canal) => ({
-        id: canal.id,
-        nome: canal.nome,
-        descricao: canal.descricao,
-        estado: 'em_breve',
-        conectado: false,
-      }))
+      // Sem a leitura do Canal Slack (banco sem a migration, ou falha), o Slack fica "Em breve" como os outros.
+      const { data, error } = await cliente.rpc('slack_channel_status', { p_workspace_id: obterWorkspaceId() })
+      const slack = error ? undefined : ((Array.isArray(data) ? data[0] : data) as LinhaDoCanalSlack | null | undefined)
+      const estadoDoSlack = slack ? ESTADO_DO_CANAL_SLACK[slack.state] : undefined
+      return catalogoDeCanais.map((canal) => {
+        if (canal.id === 'slack' && estadoDoSlack) {
+          return {
+            id: canal.id,
+            nome: canal.nome,
+            descricao: canal.descricao,
+            estado: estadoDoSlack,
+            conectado: estadoDoSlack === 'conectado',
+            instaladoEm: slack?.team_name ?? undefined,
+          }
+        }
+        return { id: canal.id, nome: canal.nome, descricao: canal.descricao, estado: 'em_breve', conectado: false }
+      })
+    },
+
+    async instalarCanal(id: CanalId): Promise<string> {
+      const padrao = 'Não foi possível abrir a instalação do Slack agora. Tente de novo em instantes.'
+      const url = ((await noCanalSlack(id, 'iniciar', padrao)) as { url?: unknown } | null)?.url
+      if (typeof url !== 'string' || !url) throw new Error(padrao)
+      return url
+    },
+
+    async retirarCanal(id: CanalId): Promise<void> {
+      await noCanalSlack(id, 'retirar', 'Não foi possível retirar o Slack agora. Tente de novo em instantes.')
+      avisar()
     },
 
     async integracoes(): Promise<IntegracaoDeConexao[]> {

@@ -74,6 +74,24 @@ verify_jwt = false
 [functions.integration-tools]
 verify_jwt = true
 
+# O Canal Slack (slack-canal 01): o Administrador instala e retira com o JWT do navegador; o banco confere que é
+# Administrador ativo. O retorno da instalação chega do Slack sem JWT: a função só aceita um `state` de uso único.
+[functions.slack-channel-connect]
+verify_jwt = true
+
+[functions.slack-channel-callback]
+verify_jwt = false
+
+# Os eventos do Canal Slack (slack-canal 02): o Slack chama sem JWT; a função confere a assinatura do app do Canal
+# (SLACK_CHANNEL_SIGNING_SECRET) antes de ler o corpo.
+[functions.slack-channel-events]
+verify_jwt = false
+
+# A entrega no thread do Canal Slack (slack-canal 03): chamada pelo próprio banco (gatilho + pg_net), sem JWT; a função
+# confere o segredo interno da entrega (SLACK_CHANNEL_DELIVERY_SECRET, o mesmo do Vault).
+[functions.slack-channel-delivery]
+verify_jwt = false
+
 # O gerador das Propostas de resposta (canais-08): chamado pelo próprio banco (pg_cron + pg_net), sem JWT; a função confere
 # o token que o banco guarda (reply_proposal_runner_token_matches).
 [functions.reply-proposal-runner]
