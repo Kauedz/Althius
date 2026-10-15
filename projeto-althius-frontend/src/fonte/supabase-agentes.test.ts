@@ -137,4 +137,32 @@ describe('Configuração dos Agentes no Workspace operacional', () => {
       semRede.salvarPersonalizacao('a1', { instrucoes: '', tomDeVoz: '', baseDeConhecimento: [], canais: [], permissoes: {} }),
     ).rejects.toThrow('Não foi possível concluir agora. Nada foi alterado; verifique sua conexão e tente de novo.')
   })
+
+  it('o Slack é conectado quando o Canal Slack está ativo no Workspace, e os outros Canais seguem não conectados', async () => {
+    const fonte = fonteCom({
+      slack_channel_status: (p) => {
+        expect(p).toEqual({ p_workspace_id: 'ws-norte' })
+        return [{ state: 'ativo', team_name: 'Norte no Slack' }]
+      },
+    })
+
+    expect(await fonte.canais()).toEqual([
+      { id: 'slack', nome: 'Slack', descricao: 'Mencione um Agente em qualquer canal ou thread.', conectado: true },
+      { id: 'whatsapp', nome: 'WhatsApp', descricao: 'Converse com os Agentes pelo número do Workspace.', conectado: false },
+      { id: 'teams', nome: 'Microsoft Teams', descricao: 'Mencione um Agente em chats e canais do Teams.', conectado: false },
+      { id: 'email', nome: 'E-mail', descricao: 'Encaminhe e-mails e receba resumos das Rotinas.', conectado: false },
+    ])
+  })
+
+  it.each([
+    ['retirado', () => [{ state: 'retirado', team_name: 'Norte no Slack' }]],
+    ['não instalado', () => [{ state: 'nao_instalado', team_name: null }]],
+    ['sem linha', () => []],
+    ['com a leitura falhando', recusando('42501', 'not a member')],
+  ])('o Slack fica não conectado com o Canal %s', async (_caso, slackChannelStatus) => {
+    const fonte = fonteCom({ slack_channel_status: slackChannelStatus })
+
+    expect((await fonte.canais()).some((canal) => canal.conectado)).toBe(false)
+  })
 })
+
