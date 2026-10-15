@@ -1,7 +1,7 @@
 import { Plug } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
+import { LogoDaIntegracao, LogoDoCanal, nomeDaIntegracao } from '@/components/logos'
 import { Carregando } from '@/components/marca'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { Pagina } from '@/components/pagina'
@@ -202,7 +202,10 @@ export function PaginaConexoes() {
                   className="rounded-2xl flex flex-col gap-2 border border-dashed border-al-line p-6 text-al-muted"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-normal text-al-ink">{canal.nome}</span>
+                    <span className="flex items-center gap-2 font-normal text-al-ink">
+                      <LogoDoCanal id={canal.id} className="size-5" />
+                      {canal.nome}
+                    </span>
                     <span className="rotulo">Em breve</span>
                   </div>
                   <p className="text-sm text-al-muted">{canal.descricao}</p>
@@ -361,7 +364,10 @@ function CartaoDeCanalReal({
   return (
     <article aria-label={canal.nome} className="cartao flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-lg font-normal">{canal.nome}</span>
+        <span className="flex items-center gap-2 text-lg font-normal">
+          <LogoDoCanal id={canal.id} className="size-5" />
+          {canal.nome}
+        </span>
         <span className={ativo ? 'rotulo text-al-sucesso' : 'rotulo'}>{ROTULO_DO_CANAL[canal.estado]}</span>
       </div>
       <p className="text-sm text-al-muted">{canal.descricao}</p>
