@@ -2,16 +2,17 @@ import { ChevronRight, Wrench } from 'lucide-react'
 import { useEffect, useRef, type RefObject } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { LogoDaIntegracao } from '@/components/logos'
-import { IconeAgente, IndicadorDeEstado, Pulso } from '@/components/marca'
+import { IconeAgente, IndicadorDeEstado } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { AnexosDaMensagem } from '@/conversa/anexos-da-mensagem'
+import { BolhaDoUsuario, COLUNA_DO_CHAT, IndicadorDeResposta, RodapeDoChat } from '@/conversa/chat'
 import { Composer } from '@/conversa/composer'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { useConversas, type ItemDaCoordenacao } from '@/conversa/contexto'
 import { TextoDigitado } from '@/conversa/texto'
 import { useDados } from '@/fonte/contexto'
 import type { AcaoProposta, Agente, AgenteId, Integracao, LinkDoPasso as DestinoDoPasso } from '@/fonte/tipos'
-import { porId } from '@/lib/utils'
+import { cn, porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
 import { NomeDaConversa } from '@/paginas/nome-da-conversa'
@@ -107,9 +108,9 @@ export function PaginaConversaCoordenada() {
       }
       className="flex-1 pb-0"
     >
-      <div className="mx-auto flex w-full max-w-180 flex-1 flex-col">
+      <div className={cn(COLUNA_DO_CHAT, 'flex flex-1 flex-col')}>
         <NomeDaConversa respondendo={respondendo} />
-        <div ref={conteudo} aria-live="polite" className="flex flex-1 flex-col gap-10 pb-10">
+        <div ref={conteudo} aria-live="polite" className="flex flex-1 flex-col gap-12 pb-10">
           {turnos.map((turno, i) => {
             const emAndamento = respondendo && i === turnos.length - 1
             return (
@@ -123,7 +124,7 @@ export function PaginaConversaCoordenada() {
             )
           })}
         </div>
-        <div className="rodape-da-conversa">
+        <RodapeDoChat>
           <Composer
             nome="Continuar a Conversa"
             rotulo="Continue a Conversa"
@@ -132,7 +133,7 @@ export function PaginaConversaCoordenada() {
             aoEnviar={(texto, anexos) => conversas.continuar({ texto, ...(anexos.length ? { anexos } : {}) })}
             aoParar={conversas.parar ? () => conversas.parar?.(null) : undefined}
           />
-        </div>
+        </RodapeDoChat>
         <div ref={fim} />
       </div>
     </Pagina>
@@ -184,12 +185,13 @@ function TurnoDaConversa({
   const chamados = `${etapas.length} ${etapas.length === 1 ? 'agente chamado' : 'agentes chamados'}`
 
   return (
-    <div className="flex flex-col gap-10">
-      <p className="rounded-xl max-w-4/5 self-end border border-al-line bg-al-surface px-4 py-2">{turno.pedido.texto}</p>
-      <AnexosDaMensagem anexos={turno.pedido.anexos} className="self-end" />
+    <div className="flex flex-col gap-8">
+      <BolhaDoUsuario texto={turno.pedido.texto}>
+        <AnexosDaMensagem anexos={turno.pedido.anexos} />
+      </BolhaDoUsuario>
 
       {etapas.length > 0 && (
-        <section aria-label="Coordenação" className="flex flex-col gap-3.5">
+        <section aria-label="Coordenação" className="cartao flex flex-col gap-4 border border-al-line p-5">
           <span className="rotulo">Coordenação · {chamados}</span>
           <ol aria-label="Agentes chamados" className="flex flex-col">
             {etapas.map((etapa, i) => (
@@ -205,16 +207,11 @@ function TurnoDaConversa({
       )}
 
       {emAndamento && !etapaAtiva && resposta === undefined && falha === undefined && (
-        <div role="status" className="flex items-center gap-4 text-al-muted">
-          <span className="relative size-5">
-            <Pulso className="absolute inset-0" />
-          </span>
-          <span className="rotulo">Trabalhando</span>
-        </div>
+        <IndicadorDeResposta>Trabalhando</IndicadorDeResposta>
       )}
 
       {resposta !== undefined && (
-        <section aria-label={etapas.length > 0 ? 'Resposta consolidada' : 'Resposta direta'} className="flex flex-col gap-2.5">
+        <section aria-label={etapas.length > 0 ? 'Resposta consolidada' : 'Resposta direta'} className="flex flex-col gap-2.5 leading-relaxed">
           <span className="rotulo">
             {etapas.length > 0 ? 'Resposta consolidada' : 'Resposta direta · nenhum agente chamado'}
           </span>

@@ -17,5 +17,5 @@ export function ConversasSalvas() {
     navegar('/conversa')
   }
 
-  return <HistoricoDeConversas agenteId={null} aoAbrir={abrir} versao={respondendo} ocultarVazio />
+  return <HistoricoDeConversas agenteId={null} aoAbrir={abrir} versao={respondendo} ocultarVazio variante="pagina" />
 }

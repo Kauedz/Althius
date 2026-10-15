@@ -1,8 +1,8 @@
-import { Bot, CalendarClock, MessageSquare, MousePointerClick, Plus, Repeat2 } from 'lucide-react'
+import { ArrowRight, Bot, CalendarClock, MessageSquare, MousePointerClick, Plus, Repeat2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogoDaIntegracao } from '@/components/logos'
-import { Carregando, IconeAgente, SeloDeEstado } from '@/components/marca'
+import { Carregando, IconeAgente, Pulso, SeloDeEstado } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { AvisoDeModuloIndisponivel } from '@/components/modulo-indisponivel'
@@ -96,10 +96,16 @@ function PedidoCoordenado() {
       {ultimoPedido && (
         <section
           aria-label="Conversa coordenada em andamento"
-          className="rounded-lg flex items-center justify-between gap-6 border border-al-line bg-al-surface py-3 pr-6 pl-5"
+          className="cartao flex items-center justify-between gap-6 border border-al-line py-3 pr-4 pl-5"
         >
-          <span className="flex min-w-0 items-center gap-3">
-            <MessageSquare strokeWidth={1.8} className="size-4 shrink-0 text-al-muted" aria-hidden />
+          <span className="flex min-w-0 items-center gap-3.5">
+            <span className="relative grid size-8 shrink-0 place-items-center rounded-full bg-al-bg">
+              {respondendo ? (
+                <Pulso className="absolute inset-0" />
+              ) : (
+                <MessageSquare strokeWidth={1.8} className="size-4 text-al-muted" aria-hidden />
+              )}
+            </span>
             <span className="flex min-w-0 flex-col">
               <span className="rotulo">Conversa coordenada em andamento</span>
               <span className="truncate">{ultimoPedido.texto}</span>
@@ -107,9 +113,10 @@ function PedidoCoordenado() {
           </span>
           <Link
             to="/conversa"
-            className="rounded-md inline-flex h-8 shrink-0 items-center border border-al-line px-4 text-sm font-normal tracking-[0.04em] hover:border-al-ink"
+            className="rounded-lg inline-flex h-9 shrink-0 items-center gap-1.5 border border-al-line bg-al-bg px-4 text-sm font-normal tracking-[0.04em] transition-colors hover:border-al-ink"
           >
             Abrir conversa
+            <ArrowRight strokeWidth={1.8} className="size-4" aria-hidden />
           </Link>
         </section>
       )}
