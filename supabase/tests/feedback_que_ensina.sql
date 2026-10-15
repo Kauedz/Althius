@@ -60,7 +60,7 @@ select throws_ok($$select public.reset_discovery_learning('fb000000-0000-0000-00
 reset role;
 
 -- 3. O aceite ensina para o outro lado.
-update private.discovered_accounts set state = 'aceita' where id = 'cb000000-0000-0000-0000-000000000007';
+update private.discovered_accounts set state = 'aceita', decided_at = now() where id = 'cb000000-0000-0000-0000-000000000007';
 select is((select evidence_count from private.discovery_learned_weights
   where workspace_id = 'fb000000-0000-0000-0000-000000000001' and dimension = 'regiao' and value = 'sp'), 1,
   'aceitar soma evidência nas dimensões da candidata');
