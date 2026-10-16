@@ -11,6 +11,7 @@ Deno.test('os conectores com servidor MCP remoto e OAuth para terceiros confirma
     slack: 'https://mcp.slack.com/mcp',
     'google-calendar': 'https://calendarmcp.googleapis.com/mcp/v1',
     'google-sheets': 'https://sheetsmcp.googleapis.com/mcp/v1',
+    clay: 'https://api.clay.com/v3/mcp',
     calendly: 'https://mcp.calendly.com',
     bitrix24: 'https://mcp.bitrix24.com/mcp/',
     'tiktok-ads': 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer',
@@ -53,7 +54,19 @@ Deno.test('cada conector é só dado coerente: https, OAuth, segredos <APP>_MCP_
 })
 
 Deno.test('quem não tem servidor remoto oficial confirmado, ou só tem por conta, fica fora: aparece "Em breve"', () => {
-  for (const id of ['kommo', 'linkedin-ads', 'google-ads', 'salesforce', 'zoho-crm', 'microsoft-teams', 'clay']) {
+  for (const id of ['kommo', 'linkedin-ads', 'google-ads', 'salesforce', 'zoho-crm', 'microsoft-teams']) {
     assertEquals(perfilDaIntegracao(id), null, id)
   }
+})
+
+Deno.test('o Clay conecta pelo servidor MCP oficial com registro dinâmico, escopo mcp e portal não fixo', () => {
+  const clay = perfilDaIntegracao('clay')!
+  assertEquals(clay.id, 'clay')
+  assertEquals(clay.portalFixo, false)
+  assertEquals(clay.mcp!.url, 'https://api.clay.com/v3/mcp')
+  assertEquals(clay.mcp!.oauth!.registro, 'dinamico')
+  assertEquals(clay.mcp!.oauth!.segredos, { clientId: 'CLAY_MCP_CLIENT_ID', clientSecret: 'CLAY_MCP_CLIENT_SECRET' })
+  assertEquals(clay.mcp!.oauth!.escopos, ['mcp'])
+  assertEquals(caminhosDe(clay), ['oauth_mcp'])
+  assertEquals(clay.chaveDeApi, undefined)
 })
