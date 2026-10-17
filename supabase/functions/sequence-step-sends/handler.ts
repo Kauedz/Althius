@@ -2,6 +2,7 @@
 // núcleo compartilhado (../_shared/send-step.ts) confere a conversa, libera pelo banco (release_sequence_step_send),
 // envia pela Unipile e grava o resultado. A Unipile e o banco entram por injeção de dependência, para o teste ir da
 // requisição à resposta sem rede.
+import type { UnsubscribeLinks } from '../_shared/descadastro.ts'
 import { comCors } from '../_shared/cors.ts'
 import {
   BLOCKED_MESSAGES,
@@ -42,6 +43,8 @@ export interface Deps {
   sendTimeoutMs?: number
   /** Os anexos do passo (canais-10). Sem isto, o passo sai só com o texto. */
   attachments?: StepAttachmentSource
+  /** Os links de descadastro do rodapé e do List-Unsubscribe. */
+  unsubscribeLinks?: UnsubscribeLinks
 }
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i

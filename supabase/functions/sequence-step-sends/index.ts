@@ -1,3 +1,4 @@
+import { unsubscribeLinksFrom } from '../_shared/descadastro.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { comCors } from '../_shared/cors.ts'
 import { sendStepDbVia } from '../_shared/send-step-adapters.ts'
@@ -66,5 +67,6 @@ Deno.serve(async (req) => {
     unipile: bridge,
     appOrigin: APP_ORIGIN,
     attachments: stepAttachmentSourceVia(admin),
+    unsubscribeLinks: unsubscribeLinksFrom(APP_ORIGIN, required('SUPABASE_URL')),
   })(req)
 })
