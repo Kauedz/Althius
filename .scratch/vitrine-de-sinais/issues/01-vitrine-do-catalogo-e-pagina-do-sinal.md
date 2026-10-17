@@ -1,6 +1,6 @@
 # 01: Vitrine do catálogo e página do Sinal
 
-**Status:** ready-for-agent
+**Status:** closed
 
 **GATE:** depois do PR-A (catálogo único). Sem migração, deploy ou segredo. Só a camada visual de `/sinais` e `/sinais/tipos/:id`.
 

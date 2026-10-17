@@ -1,6 +1,6 @@
 # 02: Grade única, letras fora da URL e painéis de mercado
 
-**Status:** ready-for-agent
+**Status:** closed
 
 **GATE:** pode seguir em paralelo ao 01 na mesma PR. A tela usa o catálogo do código (e, no operacional, a RPC quando ela existir). Sem deploy. Sem aplicar migração.
 
@@ -25,10 +25,10 @@
 
 ## Critérios
 
-- [ ] A grade não mostra letra A–H, "Em teste", "Em breve" nem "Sem fonte".
-- [ ] `/sinais/mercado/A` redireciona para o slug e o título é "Comex e importação".
-- [ ] O editor de cascata sem nicho conhecido diz "Nicho não encontrado".
-- [ ] Textos da UI em pt-BR. Nenhum nome de fornecedor.
+- [x] A grade não mostra letra A–H, "Em teste", "Em breve" nem "Sem fonte".
+- [x] `/sinais/mercado/A` redireciona para o slug e o título é "Comex e importação".
+- [x] O editor de cascata sem nicho conhecido diz "Nicho não encontrado".
+- [x] Textos da UI em pt-BR. Nenhum nome de fornecedor.
 
 ## Passos do Nan
 
