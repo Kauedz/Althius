@@ -85,7 +85,8 @@ export function PaginaConversaCoordenada() {
   const fim = useRef<HTMLDivElement>(null)
   useSeguirOFim(conteudo, fim)
 
-  if (itens.length === 0) return <Navigate to="/" replace />
+  // Depois de recarregar, a Conversa salva ainda está chegando do banco: só sem ela a tela volta à grade.
+  if (itens.length === 0) return conversas.retomando ? null : <Navigate to="/" replace />
 
   const turnos = emTurnos(itens)
   const referencias: Referencias = {

@@ -34,6 +34,8 @@ interface Conversas {
   novaDoAgente(agenteId: AgenteId): void
   /** Para o pedido que roda no Agente (ou na Coordenação, com nulo). Só onde a fonte sabe parar. */
   parar?(agenteId: AgenteId | null): void
+  /** As Conversas salvas ainda estão chegando do banco: a tela espera antes de concluir que não há Conversa. */
+  retomando: boolean
   animarDigitacao: boolean
 }
 
@@ -102,6 +104,10 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
   // Os pedidos da Conversa coordenada, que a Coordenação recebe para continuar a partir do que já foi feito.
   const pedidosDaConversa = useRef<Mensagem[]>([])
 
+  // A Fonte cuja retomada já terminou. Derivar `retomando` dela, e não de um estado ligado no efeito, vale já no render
+  // em que a Fonte com Conversas chega: o efeito roda depois do render das telas, que redirecionariam antes.
+  const [retomadaDe, setRetomadaDe] = useState<typeof fonte | null>(null)
+
   // No Workspace operacional, as Conversas estão no banco: voltam depois de recarregar a página, e o pedido que ainda
   // roda continua de onde a leitura parou, sem ser enviado de novo. Um pedido feito antes disso chegar tem prioridade.
   useEffect(() => {
@@ -120,6 +126,7 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
     fonte.retomarConversas().then(
       (retomadas) => {
         if (!ativo) return
+        setRetomadaDe(fonte)
         const { coordenada } = retomadas
         if (coordenada && coordenada.turnos.length > 0 && !pedidosDaSessao.current.has('coordenada')) {
           pedidosDaConversa.current = coordenada.turnos.map((turno) => ({ texto: turno.pedido }))
@@ -159,7 +166,9 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
         }
       },
       // Sem as Conversas salvas, a tela começa vazia, como numa Conversa nova.
-      () => {},
+      () => {
+        if (ativo) setRetomadaDe(fonte)
+      },
     )
     return () => {
       ativo = false
@@ -289,9 +298,10 @@ export function ConversasProvider({ children, animarDigitacao }: { children: Rea
       abrirDoAgente,
       novaDoAgente,
       ...(fonte.pararPedido ? { parar: (agenteId: AgenteId | null) => void fonte.pararPedido?.(agenteId).catch(() => {}) } : {}),
+      retomando: Boolean(fonte.retomarConversas) && retomadaDe !== fonte,
       animarDigitacao,
     }),
-    [estado, enviar, pedirACoordenacao, abrir, abrirDoAgente, novaDoAgente, fonte, animarDigitacao],
+    [estado, enviar, pedirACoordenacao, abrir, abrirDoAgente, novaDoAgente, fonte, retomadaDe, animarDigitacao],
   )
 
   return <ContextoDasConversas.Provider value={valor}>{children}</ContextoDasConversas.Provider>
