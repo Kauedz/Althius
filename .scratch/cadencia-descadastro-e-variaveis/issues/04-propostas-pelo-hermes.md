@@ -13,6 +13,7 @@
 - [x] `modeloParaTrabalho` no handler; `REPLY_PROPOSAL_PROVIDER=hermes` ou `AGENT_PROVIDER=hermes` no index: Deno.
 - [x] Migração `20261103110000_propostas_de_resposta_pelo_hermes.sql` (purpose, enfileirar pela Proposta reservada, claim devolve purpose): pgTAP escrito.
 - [x] O worker usa a instrução de rascunho para `purpose = 'resposta'`: Deno; README atualizado.
+- [x] O sistema com o Playbook inteiro cabe na fila (check de `system_prompt` passa a 40.000); pedido grande demais ou recusado pela fila por dado inválido é `model_invalid_request`, que não volta à fila sozinho: pgTAP e Deno.
 - [ ] Ligado em produção (passos do Nan abaixo).
 
 ## Passos do Nan

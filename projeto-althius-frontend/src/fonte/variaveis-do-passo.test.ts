@@ -25,4 +25,10 @@ describe('variáveis do passo', () => {
     })).toEqual(['cargo', 'persona'])
     expect(variaveisSemValor('Oi {{ primeiro_nome }}', dados)).toEqual([])
   })
+
+  it('Sinal e Persona não são variáveis do envio: ficam como faltando, como no banco', () => {
+    expect(valorDaVariavel('conta.sinal', dados)).toBeNull()
+    expect(valorDaVariavel('persona', dados)).toBeNull()
+    expect(variaveisSemValor('{{conta.sinal}} para {{persona}} na {{empresa}}', dados)).toEqual(['conta.sinal', 'persona'])
+  })
 })

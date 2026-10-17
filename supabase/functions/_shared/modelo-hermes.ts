@@ -2,7 +2,8 @@
 // Edge Functions). O Hermes roda fora do Supabase, só na rede interna: a função ENFILEIRA o pedido (sistema + texto) na
 // fila de IA do banco, o worker `_hermes-worker` o responde pelo Hermes e esta função lê a resposta até o prazo. Para
 // quem chama, parece a Messages API: um texto, sem ferramentas. Falha do worker é passageira (model_unreachable) e o
-// prazo é model_timeout: o trabalho volta à fila do próprio runner.
+// prazo é model_timeout: o trabalho volta à fila do próprio runner. O pedido que a fila recusa por ser inválido (grande
+// demais, por exemplo) é model_invalid_request, que NÃO passa sozinho: tentar de novo daria o mesmo erro para sempre.
 import type Anthropic from 'npm:@anthropic-ai/sdk@0.128.0'
 import { ErroDoModelo } from './orquestracao.ts'
 import type { Modelo } from '../agent-conversation/runner.ts'
@@ -18,6 +19,18 @@ export interface FilaDoHermes {
 }
 
 type Params = Parameters<Modelo['criar']>[0]
+
+/** Os tetos da fila (private.signal_llm_requests): o sistema leva o Playbook inteiro mais as instruções. */
+export const MAX_CARACTERES_DO_SISTEMA_NA_FILA = 40_000
+export const MAX_CARACTERES_DO_PEDIDO_NA_FILA = 60_000
+
+/** O código do Postgres quando a fila recusa: classe 22 (dado inválido) e 23 (check) não passam sozinhas. */
+function codigoDaRecusa(e: unknown): string {
+  const code = (e as { code?: unknown })?.code
+  if (typeof code === 'string' && /^2[23]/.test(code)) return 'model_invalid_request'
+  if (code === '53400') return 'model_rate_limited'
+  return 'model_unreachable'
+}
 
 function textoDe(conteudo: unknown): string {
   if (typeof conteudo === 'string') return conteudo
@@ -45,12 +58,18 @@ export function modeloDoHermes({
     async criar(params: Params) {
       const sistema = textoDe(params.system)
       const usuario = (params.messages ?? []).map((m) => textoDe(m.content)).filter(Boolean).join('\n\n')
+      if (
+        !sistema || !usuario || sistema.length > MAX_CARACTERES_DO_SISTEMA_NA_FILA ||
+        usuario.length > MAX_CARACTERES_DO_PEDIDO_NA_FILA
+      ) {
+        throw new ErroDoModelo('model_invalid_request', `sistema ${sistema.length}, pedido ${usuario.length} caracteres`)
+      }
       const limite = relogio() + prazoMs
       let id: string
       try {
         id = await fila.enfileirar({ sistema, usuario, maxTokens: params.max_tokens })
       } catch (e) {
-        throw new ErroDoModelo('model_unreachable', e instanceof Error ? e.name : 'erro')
+        throw new ErroDoModelo(codigoDaRecusa(e), e instanceof Error ? e.message : 'erro')
       }
       for (;;) {
         const r = await fila.ler(id)
@@ -80,7 +99,7 @@ type ClienteRpc = { rpc(nome: string, args: Record<string, unknown>): PromiseLik
 export function filaDaPropostaPorRpc(admin: ClienteRpc, job: { job_id: string; claim_token: string }): FilaDoHermes {
   async function chamar(nome: string, args: Record<string, unknown>) {
     const { data, error } = await admin.rpc(nome, args)
-    if (error) throw new Error(`${nome}: ${error.code ?? ''}`.trim())
+    if (error) throw Object.assign(new Error(`${nome}: ${error.code ?? ''}`.trim()), { code: error.code })
     return data
   }
   return {

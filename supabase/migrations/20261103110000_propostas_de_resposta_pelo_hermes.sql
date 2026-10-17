@@ -7,6 +7,13 @@
 alter table private.signal_llm_requests
   add column purpose text not null default 'sinal' check (purpose in ('sinal', 'resposta'));
 
+-- O sistema da Proposta leva o Playbook (até 24.000 caracteres, MAX_CARACTERES_DO_PLAYBOOK) mais as instruções do
+-- Rhetor: os 20.000 da fila dos Sinais não cabem. O teto passa a 40.000; a função corta antes (modelo-hermes.ts) e trata
+-- o pedido grande demais como falha que não passa sozinha.
+alter table private.signal_llm_requests
+  drop constraint signal_llm_requests_system_prompt_check,
+  add constraint signal_llm_requests_system_prompt_check check (length(system_prompt) between 1 and 40000);
+
 create function public.enqueue_reply_proposal_llm_request(
   p_job_id uuid,
   p_claim_token uuid,

@@ -15,7 +15,7 @@ de resposta presas a chave de API.
   (aceitos pela Unipile em `custom_headers`), Edge Function `descadastro` e página pública `/descadastro?t=` no app.
 - A liberação do E-mail barra Contato suprimido (`contact_suppressed`, Envio cancelado) e variável sem valor
   (`missing_variable`, Envio aguardando reconfirmação com `missing_variable:<nomes>`).
-- A resposta que pede para sair registra a Supressão (constraint trigger adiado em `private.received_emails`).
+- A resposta que pede para sair registra a Supressão (gatilho AFTER INSERT em `private.received_emails`) e não gera Proposta de resposta; a resposta aprovada não sai para Contato suprimido.
 - `public.create_sequences_in_batch`: uma Sequência por Conta-alvo com a mesma Cadência (ADR-0009).
 - `reply-proposal-runner` com provedor `hermes` pela fila de IA do worker (ADR-0018).
 

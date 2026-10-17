@@ -42,6 +42,8 @@ export type MotivoDoBloqueioDaResposta =
   | 'sender_not_ready'
   | 'contact_unlinked'
   | 'destination_changed'
+  /** O Contato se descadastrou (contact_suppressions) depois da Aprovação. */
+  | 'contact_suppressed'
   /** Só da função: a conversa não pôde ser conferida na Unipile antes de enviar. */
   | 'thread_check_failed'
 
@@ -120,5 +122,6 @@ export const MENSAGENS_DO_BLOQUEIO_DA_RESPOSTA: Record<MotivoDoBloqueioDaRespost
   sender_not_ready: 'Sua Conta remetente não está pronta para enviar. Reconecte-a em Conexões.',
   contact_unlinked: 'O Contato não está mais vinculado à Conta-alvo.',
   destination_changed: 'O endereço do Contato mudou depois da Aprovação. Edite o destinatário e aprove de novo.',
+  contact_suppressed: 'O Contato pediu para não receber mais e-mails (Descadastro). A resposta não foi enviada.',
   thread_check_failed: 'Não foi possível conferir a conversa na Unipile antes de enviar. Tente de novo em instantes.',
 }
