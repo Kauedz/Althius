@@ -1,6 +1,6 @@
 # 01: Catálogo visível no banco
 
-**Status:** ready-for-agent
+**Status:** closed
 
 **GATE:** nenhum bloqueio de outro ticket. Sem aplicar migração no projeto remoto. Sem `delete`, `drop` ou reescrita de dado existente. A migração nova tem timestamp maior que `20261015130000` (o `teto_do_cnpj_novo` do PR #198). `private.signal_catalog` (registro técnico) não muda de contrato. A Automação não é ligada.
 
@@ -23,8 +23,8 @@
 
 ## Critérios
 
-- [ ] pgTAP: anon não lê; membro lê os globais e os do seu Workspace e não os de outro; staff grava card com `workspace_id`; o default do teto é 20; nenhum texto cita fornecedor.
-- [ ] Nenhum teste pgTAP antigo foi editado.
+- [x] pgTAP: anon não lê; membro lê os globais e os do seu Workspace e não os de outro; staff grava card com `workspace_id`; o default do teto é 20; nenhum texto cita fornecedor.
+- [x] Nenhum teste pgTAP antigo foi editado.
 
 ## Passos do Nan
 

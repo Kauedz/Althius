@@ -4,7 +4,7 @@
 
 **Blocked by:** None (pode começar agora). O merge na `main` espera o 00. Não espera o B3: os e-mails adicionais já saem em cascata com o Contato.
 
-**Status:** done
+**Status:** closed
 
 - [x] Apagar a Conta grava `receita_data` nulo no marcador. O marcador segue sem nome, URL, domínio, identificador legal, LinkedIn e segmento, como hoje.
 - [x] Apagar a Conta apaga as linhas de `private.proposed_contacts` dessa Conta, inclusive `source_data`, nome, foto e LinkedIn. A Conta não é removida (vira marcador), então um cascade não dispara: o delete é explícito.

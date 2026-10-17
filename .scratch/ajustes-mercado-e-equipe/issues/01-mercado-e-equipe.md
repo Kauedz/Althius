@@ -1,6 +1,6 @@
 # 01: Preço dos cards de Mercado e Equipe sem limite de usuários
 
-**Status:** done (aguardando merge)
+**Status:** closed
 
 - [x] Migração `20261019100000_ajustes_mercado_e_equipe.sql`
 - [x] Editor usa `ajudaDoCusto(tipoId)`
