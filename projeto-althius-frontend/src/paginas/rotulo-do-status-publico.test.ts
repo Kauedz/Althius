@@ -23,7 +23,29 @@ describe('rótulo do status público da Sequência', () => {
     expect(rotuloDoStatusPublico(sequencia('ativa'))).toBe('Ativa')
     expect(rotuloDoStatusPublico(sequencia('reuniao'))).toBe('Reunião')
     expect(rotuloDoStatusPublico(sequencia('esgotada'))).toBe('Esgotada')
-    expect(rotuloDoStatusPublico(sequencia('pausada'))).toBe('Contato respondeu; sequência pausada')
+    expect(rotuloDoStatusPublico(sequencia('pausada'))).toBe('Pausada')
     expect(rotuloDoStatusPublico(sequencia('encerrada'))).toBe('Encerrada')
+  })
+
+  it('pausada sem motivoPause mostra só Pausada', () => {
+    expect(rotuloDoStatusPublico(sequencia('pausada'))).toBe('Pausada')
+  })
+
+  it('pausada por resposta do Contato mostra o motivo', () => {
+    expect(rotuloDoStatusPublico(sequencia('pausada', { motivoPause: 'Contato respondeu' }))).toBe(
+      'Pausada: Contato respondeu',
+    )
+  })
+
+  it('pausada pela Conta-alvo arquivada mantém o texto próprio', () => {
+    expect(
+      rotuloDoStatusPublico(sequencia('pausada', { pausadaPelaConta: true, motivoPause: 'Conta arquivada' })),
+    ).toBe('Pausada: Conta-alvo arquivada')
+  })
+
+  it('pausada pela Conta remetente desconectada mantém o texto próprio', () => {
+    expect(
+      rotuloDoStatusPublico(sequencia('pausada', { pausadaPelaContaRemetente: 'email' })),
+    ).toBe('Pausada: conta remetente do responsável desconectada')
   })
 })

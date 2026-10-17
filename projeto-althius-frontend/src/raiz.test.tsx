@@ -1075,7 +1075,7 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
       },
     })
 
-    expect(await screen.findByText('Contato respondeu; sequência pausada')).toBeInTheDocument()
+    expect(await screen.findByText('Pausada')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Respostas recebidas' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Podemos falar/)).not.toBeInTheDocument()
   })

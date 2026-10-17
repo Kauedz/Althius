@@ -2782,7 +2782,7 @@ function MiniaturaDoAnexoGuardado({ anexo, carregar }: { anexo: AnexoStep; carre
 
 const ROTULO_DO_STATUS_PUBLICO: Record<StatusSequencia, string> = {
   ativa: 'Ativa',
-  pausada: 'Contato respondeu; sequência pausada',
+  pausada: 'Pausada',
   reuniao: 'Reunião',
   esgotada: 'Esgotada',
   encerrada: 'Encerrada',
@@ -2793,6 +2793,10 @@ export function rotuloDoStatusPublico(sequencia: Sequencia): string {
   if (sequencia.status === 'encerrada') return ROTULO_DO_STATUS_PUBLICO.encerrada
   if (sequencia.pausadaPelaConta) return 'Pausada: Conta-alvo arquivada'
   if (sequencia.pausadaPelaContaRemetente) return 'Pausada: conta remetente do responsável desconectada'
+  if (sequencia.status === 'pausada' && sequencia.motivoPause) {
+    const motivo = sequencia.motivoPause.trim()
+    return motivo.toLowerCase().startsWith('pausada') ? motivo : `Pausada: ${motivo}`
+  }
   return ROTULO_DO_STATUS_PUBLICO[sequencia.status]
 }
 
