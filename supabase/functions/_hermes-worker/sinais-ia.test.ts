@@ -86,3 +86,14 @@ Deno.test('o banco falhar ao reservar não derruba o worker: volta 0 e registra 
   assertEquals(await processarPedidosDeIa({ db, hermes: hermesFalso({ status: 'completed', output: '{}' }).hermes, log: (c) => logs.push(c) }), 0)
   assertEquals(logs[0].outcome, 'reservar_falhou')
 })
+
+Deno.test('o pedido de Proposta de resposta vai com a instrução de rascunho, não a de classificação', async () => {
+  const { db, fins } = filaFalsa([pedido('r1', { finalidade: 'resposta', sistema: 'Você é o Rhetor.', usuario: 'Conversa...' })])
+  const { hermes, corpos } = hermesFalso({ status: 'completed', output: 'Oi, Maria.' })
+  await processarPedidosDeIa({ db, hermes, log: () => {} })
+  assertEquals(corpos[0].chave, 'althius-resposta-ia-r1')
+  assert(corpos[0].corpo.instructions.startsWith('Você é o Rhetor.'))
+  assert(corpos[0].corpo.instructions.includes('só com o texto da resposta'))
+  assert(!corpos[0].corpo.instructions.includes('classificado'))
+  assertEquals(fins[0].status, 'done')
+})

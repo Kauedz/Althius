@@ -18,6 +18,7 @@ import {
   type UnipileChat,
 } from '../_shared/send-chat-step.ts'
 import type { StepAttachmentSource } from '../_shared/anexos-do-envio.ts'
+import type { SendStepDeps } from '../_shared/send-step.ts'
 
 export interface DueSend {
   send_id: string
@@ -118,6 +119,8 @@ export interface Deps {
   /** Sorteio de 0 a 1 da pausa. Padrão Math.random. */
   random?: () => number
   sendTimeoutMs?: number
+  /** Os links de descadastro do rodapé e do List-Unsubscribe. */
+  unsubscribeLinks?: SendStepDeps['unsubscribeLinks']
   /** Continua o trabalho depois da resposta (EdgeRuntime.waitUntil). Padrão: fire-and-forget. */
   waitUntil?: (work: Promise<unknown>) => void
   log?: (fields: Record<string, unknown>) => void

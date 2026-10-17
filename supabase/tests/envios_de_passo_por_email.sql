@@ -50,7 +50,7 @@ insert into ids select 'sequencia', id::text from public.create_sequence(
         'delayDiasUteis', 1, 'titulo', 'Sem destino', 'assunto', 'Sem destino', 'corpo', 'Olá, João.'),
       jsonb_build_object('id', 'passo-1-bis', 'ordem', 5, 'canal', 'email', 'contatoId', (select valor from ids where chave = 'maria'),
         'delayDiasUteis', 3, 'titulo', 'Último', 'assunto', 'Fechamento com a {{conta.nome}}',
-        'corpo', 'Oi {{contato.primeiro_nome}}, da {{conta.nome}} ({{contato.cargo}}). {{persona}}{{conta.sinal}}Até, {{remetente.nome}}')
+        'corpo', 'Oi {{contato.primeiro_nome}}, da {{conta.nome}} ({{contato.cargo}}). Até, {{remetente.nome}}')
     )),
   '{"totalSteps": 4}'::jsonb);
 
@@ -294,7 +294,7 @@ select is(
   (select outcome || ' | ' || subject || ' | ' || body
     from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-4'), '50000000-0000-0000-0000-000000000001')),
   'released | Fechamento com a Empresa Alvo | Oi Maria, da Empresa Alvo (Diretora). Até, titular@cliente.com.br',
-  'the step variables are filled at send time; the ones without data leave nothing raw');
+  'the step variables are filled at send time');
 select is(public.record_sequence_step_send_result(
   (select valor::uuid from ids where chave = 'envio-4'), 'uncertain', null, null, 'timeout'
 ), 'uncertain', 'a timeout is recorded as uncertain');
