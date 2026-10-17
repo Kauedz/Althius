@@ -137,7 +137,7 @@ function Entrada({ emailTravado, aoAcessarDemonstracao }: { emailTravado: string
             onClick={aoAcessarDemonstracao}
             className="border-al-accent/40 text-al-accent hover:bg-al-accent/10"
           >
-            Abrir Demonstração (sem login)
+            Ver a Demonstração
           </Button>
         </>
       )}

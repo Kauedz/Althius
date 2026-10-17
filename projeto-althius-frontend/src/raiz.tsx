@@ -10,12 +10,27 @@ import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
 
 /**
  * O ambiente deste navegador: o último escolhido, ou o Workspace operacional de quem abriu uma tela de acesso ou um
- * convite. O nome antigo da chave fica, para não perder as escolhas já salvas.
+ * convite.
  */
-const CHAVE_DO_AMBIENTE = 'althius:modo_demo'
+const CHAVE_DO_AMBIENTE = 'althius:ambiente'
+/**
+ * A chave do protótipo, que guardava `true` para a Demonstração. Em produção ela não vale mais: quem abriu a
+ * Demonstração antes não fica preso nela. No desenvolvimento, o valor dela passa para a chave nova. Nos dois, é apagada.
+ */
+const CHAVE_DO_PROTOTIPO = 'althius:modo_demo'
 
 function lembrarAmbiente(ambiente: ModoDoAmbiente) {
-  localStorage.setItem(CHAVE_DO_AMBIENTE, String(ambiente === 'demonstracao'))
+  localStorage.setItem(CHAVE_DO_AMBIENTE, ambiente)
+}
+
+function ambienteLembrado(): ModoDoAmbiente | null {
+  const doPrototipo = localStorage.getItem(CHAVE_DO_PROTOTIPO)
+  if (doPrototipo !== null) {
+    localStorage.removeItem(CHAVE_DO_PROTOTIPO)
+    if (import.meta.env.DEV) lembrarAmbiente(doPrototipo === 'true' ? 'demonstracao' : 'real')
+  }
+  const salvo = localStorage.getItem(CHAVE_DO_AMBIENTE)
+  return salvo === 'demonstracao' || salvo === 'real' ? salvo : null
 }
 
 /**
@@ -28,14 +43,14 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
   const [abriuPeloAcesso] = useState(() => ehCaminhoDeAcesso(window.location.pathname))
   const [documentoPublico] = useState(() => documentoPublicoDoCaminho(window.location.pathname))
   const [ambiente, setAmbiente] = useState<ModoDoAmbiente>(() => {
+    const salvo = ambienteLembrado()
     const params = new URLSearchParams(window.location.search)
     if (params.get('auth') === 'true' || params.get('demo') === 'false') return 'real'
     if (params.get('demo') === 'true') return 'demonstracao'
     if (abriuPeloAcesso) return 'real'
-    const salvo = localStorage.getItem(CHAVE_DO_AMBIENTE)
-    if (salvo !== null) return salvo === 'true' ? 'demonstracao' : 'real'
-    // No protótipo, a Demonstração é o padrão.
-    return 'demonstracao'
+    if (salvo) return salvo
+    // Em produção, quem chega sem escolha vê a tela de entrada; no desenvolvimento, a Demonstração é o padrão.
+    return import.meta.env.DEV ? 'demonstracao' : 'real'
   })
 
   // E fica lembrado neste navegador: os links de confirmação do cadastro e de entrada por código voltam ao destino, fora
@@ -59,12 +74,16 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
   return <AplicativoAutenticado cliente={cliente} servicos={servicos} aoAcessarDemonstracao={() => escolherAmbiente('demonstracao')} />
 }
 
+/**
+ * A Demonstração sem login. No desenvolvimento, com o banner do protótipo; em produção, só o aviso de que é uma
+ * demonstração e o caminho de volta à tela de entrada, para quem a abriu não ficar preso nela.
+ */
 function AplicativoDeDemonstracao({ aoAlternarParaAutenticado }: { aoAlternarParaAutenticado?: () => void }) {
   const ambiente = useMemo(() => criarAmbienteDeDemonstracao({ armazenamento: window.localStorage }), [])
 
   return (
     <>
-      {aoAlternarParaAutenticado && (
+      {aoAlternarParaAutenticado && import.meta.env.DEV && (
         <div className="flex items-center justify-between border-b border-al-line bg-al-surface/40 px-4 py-1.5 text-xs text-al-muted">
           <div className="flex items-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-al-sucesso" />
@@ -77,6 +96,18 @@ function AplicativoDeDemonstracao({ aoAlternarParaAutenticado }: { aoAlternarPar
             className="cursor-pointer text-al-accent hover:underline"
           >
             Acessar tela de login Supabase
+          </button>
+        </div>
+      )}
+      {aoAlternarParaAutenticado && !import.meta.env.DEV && (
+        <div className="flex items-center justify-between border-b border-al-line bg-al-surface/40 px-4 py-1.5 text-xs text-al-muted">
+          <span className="font-medium text-al-ink">Você está vendo uma demonstração</span>
+          <button
+            type="button"
+            onClick={aoAlternarParaAutenticado}
+            className="cursor-pointer text-al-accent hover:underline"
+          >
+            Entrar no Workspace
           </button>
         </div>
       )}
