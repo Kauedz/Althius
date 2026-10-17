@@ -251,6 +251,9 @@ describe('Composer de Step por Canal (Ticket 06)', () => {
     // Tokens de conta
     expect(screen.getByRole('button', { name: /Inserir variável \{\{conta\.nome\}\}/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Inserir variável \{\{contato\.primeiro_nome\}\}/i })).toBeInTheDocument()
+    // Sinal e Persona não são variáveis do envio: o banco seguraria o passo.
+    expect(screen.queryByRole('button', { name: /Inserir variável \{\{conta\.sinal\}\}/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Inserir variável \{\{persona\}\}/i })).not.toBeInTheDocument()
     // Botão de preview
     expect(screen.getByRole('button', { name: 'Pré-visualizar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Modo edição' })).toBeInTheDocument()

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(27);
+select plan(42);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -30,6 +30,8 @@ insert into ids select 'maria', id::text from public.create_contact(
   (select valor::uuid from ids where chave = 'conta'), 'Maria Souza', 'Diretora', 'maria@empresa-alvo.test');
 insert into ids select 'pedro', id::text from public.create_contact(
   (select valor::uuid from ids where chave = 'conta'), 'Pedro', null, 'pedro@empresa-alvo.test');
+insert into ids select 'joao', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta'), 'João Lima', 'Gerente', 'joao@empresa-alvo.test');
 insert into ids select 'sequencia', id::text from public.create_sequence(
   '51000000-0000-0000-0000-000000000001',
   (select valor from ids where chave = 'conta'),
@@ -64,6 +66,8 @@ reset role;
 set local role service_role;
 create temporary table liberado as
   select * from public.release_sequence_step_send((select valor::uuid from ids where chave = 'envio-1'), '50000000-0000-0000-0000-000000000001');
+-- Daqui em diante o teste lê e grava em `private`, que só o dono do banco enxerga (o service_role não tem uso do schema).
+reset role;
 select is((select outcome || ' | ' || subject || ' | ' || body from liberado),
   'released | Maria, uma ideia para a Empresa Alvo | Oi Maria Souza (Diretora), vi a Empresa Alvo.',
   '{{primeiro_nome}}, {{nome}}, {{cargo}} e {{empresa}} saem preenchidos no assunto e no corpo');
@@ -84,6 +88,11 @@ select is(private.missing_step_variables('{{empresa}} {{sobrenome}} {{dominio}} 
   'Titular'), '{}'::text[], 'account and contact data cover the documented variables');
 select is(private.missing_step_variables('{{desconhecida}}', null, null, null), array['desconhecida'],
   'an unknown variable counts as missing');
+select is(private.missing_step_variables('{{conta.sinal}} para {{persona}} na {{empresa}}',
+  (select a from public.target_accounts a where a.id = (select valor::uuid from ids where chave = 'conta')),
+  (select c from public.contacts c where c.id = (select valor::uuid from ids where chave = 'maria')),
+  'Titular'), array['conta.sinal', 'persona'],
+  'Sinal and Persona are not send variables: the step is held, as the editor and the preview show');
 
 -- 3. O link do descadastro registra a Supressão, pausa a Sequência e é idempotente.
 select is(public.unsubscribe_by_token((select unsubscribe_token from liberado)), 'registered', 'the link registers the suppression');
@@ -118,11 +127,22 @@ select ok(private.reply_asks_unsubscribe('SAIR'), 'SAIR in capitals');
 select ok(private.reply_asks_unsubscribe('Por favor, me remova da lista.'), 'me remova');
 select ok(private.reply_asks_unsubscribe('quero me descadastrar'), 'descadastrar');
 select ok(private.reply_asks_unsubscribe(' remover '), 'a reply that is just remover');
+select ok(private.reply_asks_unsubscribe('Me tire da lista, por favor.'), 'me tire da lista');
+select ok(private.reply_asks_unsubscribe('Podem me remover dos e-mails?'), 'me remover dos e-mails');
+select ok(private.reply_asks_unsubscribe('Remova meu e-mail da base.'), 'remova meu e-mail');
+select ok(private.reply_asks_unsubscribe('Me remova.'), 'a reply that is just me remova');
 select ok(not private.reply_asks_unsubscribe('Vou sair de férias, falamos na volta.'), 'sair inside a sentence does not count');
+select ok(not private.reply_asks_unsubscribe('Me tire uma dúvida: o plano anual tem desconto?'), 'me tire uma dúvida does not count');
+select ok(not private.reply_asks_unsubscribe('Pode me tirar uma dúvida sobre o envio da proposta?'), 'tirar uma dúvida sobre o envio does not count');
+select ok(not private.reply_asks_unsubscribe('Tirei esse e-mail do spam, vamos conversar.'), 'tirei esse e-mail do spam does not count');
 select ok(not private.reply_asks_unsubscribe(E'Tenho interesse!\n\nEm qui., 15 de out. de 2026, Titular escreveu:\n> Não quer mais receber estes e-mails? Descadastre-se: https://app.test'),
   'the quoted footer of the original e-mail does not count');
 
--- A resposta gravada pela ingestão registra a Supressão no fim da transação.
+-- A resposta gravada pela ingestão registra a Supressão na hora, sem Proposta de resposta, e a pausa da ingestão
+-- ("Contato respondeu", gravada depois) mantém o motivo "Descadastro".
+update public.sequences set status = 'ativa' where id = (select valor::uuid from ids where chave = 'sequencia');
+update private.sequence_documents set document = document - 'motivoPause'
+where sequence_id = (select valor::uuid from ids where chave = 'sequencia');
 with i as (
   insert into public.account_interactions (workspace_id, target_account_id, contact_id, kind, occurred_at, source, recorded_by)
   values ('51000000-0000-0000-0000-000000000001', (select valor::uuid from ids where chave = 'conta'),
@@ -136,9 +156,61 @@ values ((select valor::uuid from ids where chave = 'interacao'), '51000000-0000-
   (select valor::uuid from ids where chave = 'pedro'),
   (select id from private.sender_accounts where unipile_account_id = 'unipile-google-1'),
   'resp-1', 'Pedro@Empresa-Alvo.test', 'SAIR', now());
-set constraints all immediate;
 select is((select reason from public.contact_suppressions where value = 'pedro@empresa-alvo.test'), 'resposta',
   'a reply asking to leave registers the suppression');
+update private.sequence_documents set document = document || '{"motivoPause": "Contato respondeu"}'::jsonb
+where sequence_id = (select valor::uuid from ids where chave = 'sequencia');
+select is((select document ->> 'motivoPause' from private.sequence_documents where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
+  'Descadastro', 'the ingestion pause after the reply keeps Descadastro as the reason');
+select is((select count(*)::int from private.reply_proposals where origin_interaction_id = (select valor::uuid from ids where chave = 'interacao')),
+  0, 'a reply asking to leave does not get a reply proposal');
+
+-- Uma resposta comum continua gerando a Proposta (controle) e não suprime ninguém.
+with i as (
+  insert into public.account_interactions (workspace_id, target_account_id, contact_id, kind, occurred_at, source, recorded_by)
+  values ('51000000-0000-0000-0000-000000000001', (select valor::uuid from ids where chave = 'conta'),
+    (select valor::uuid from ids where chave = 'joao'), 'email-recebido', now(), 'sequencia', '50000000-0000-0000-0000-000000000001')
+  returning id)
+insert into ids select 'interacao-joao', id::text from i;
+insert into private.received_emails (interaction_id, workspace_id, owner_user_id, sequence_id, contact_id, sender_account_id,
+  provider_email_id, from_email, subject, body, received_at)
+values ((select valor::uuid from ids where chave = 'interacao-joao'), '51000000-0000-0000-0000-000000000001',
+  '50000000-0000-0000-0000-000000000001', (select valor::uuid from ids where chave = 'sequencia'),
+  (select valor::uuid from ids where chave = 'joao'),
+  (select id from private.sender_accounts where unipile_account_id = 'unipile-google-1'),
+  'resp-2', 'joao@empresa-alvo.test', 'Ideia', 'Me tire uma dúvida: vocês atendem varejo?', now());
+select is((select count(*)::int from private.reply_proposals where origin_interaction_id = (select valor::uuid from ids where chave = 'interacao-joao')),
+  1, 'an ordinary reply still gets a reply proposal');
+-- Fora da transação da resposta de descadastro, a pausa "Contato respondeu" vale normalmente.
+select set_config('althius.descadastro_pela_resposta', '', true);
+update private.sequence_documents set document = document || '{"motivoPause": "Contato respondeu"}'::jsonb
+where sequence_id = (select valor::uuid from ids where chave = 'sequencia');
+select is((select document ->> 'motivoPause' from private.sequence_documents where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
+  'Contato respondeu', 'only the reply that unsubscribed keeps the Descadastro reason');
+
+-- A resposta aprovada não sai para o Contato que se descadastrou depois da Aprovação.
+update private.reply_proposals set
+  status = 'aprovada', body = 'Oi João, atendemos sim.', approved_revision = revision,
+  approved_by = '50000000-0000-0000-0000-000000000001', approved_at = now(), approved_recipient = recipient,
+  approved_channel = channel
+where origin_interaction_id = (select valor::uuid from ids where chave = 'interacao-joao');
+insert into ids select 'proposta-joao', id::text from private.reply_proposals
+where origin_interaction_id = (select valor::uuid from ids where chave = 'interacao-joao');
+select private.register_suppression('51000000-0000-0000-0000-000000000001', 'joao@empresa-alvo.test',
+  (select valor::uuid from ids where chave = 'joao'), null, 'manual');
+set local role service_role;
+create temporary table resposta_suprimida as select * from public.release_approved_reply(
+  (select valor::uuid from ids where chave = 'proposta-joao'), '50000000-0000-0000-0000-000000000001');
+reset role;
+select is((select outcome from resposta_suprimida), 'contact_suppressed', 'an approved reply is not released to a suppressed contact');
+select is((select status from private.reply_proposals where origin_interaction_id = (select valor::uuid from ids where chave = 'interacao-joao')),
+  'aprovada', 'the blocked reply is not marked as sending');
+delete from public.contact_suppressions where value = 'joao@empresa-alvo.test';
+set local role service_role;
+create temporary table resposta_liberada as select * from public.release_approved_reply(
+  (select valor::uuid from ids where chave = 'proposta-joao'), '50000000-0000-0000-0000-000000000001');
+reset role;
+select is((select outcome from resposta_liberada), 'released', 'without the suppression, the release works as before');
 
 -- 6. Criação em lote: uma Sequência por Conta-alvo.
 reset role;

@@ -1223,11 +1223,9 @@ const VARIAVEIS: Array<{ nome: string; grupo: string; token: string }> = [
   { nome: 'cargo', grupo: 'Contato', token: '{{cargo}}' },
   { nome: 'empresa', grupo: 'Conta', token: '{{empresa}}' },
   { nome: 'conta.nome', grupo: 'Conta', token: '{{conta.nome}}' },
-  { nome: 'conta.sinal', grupo: 'Conta', token: '{{conta.sinal}}' },
   { nome: 'conta.segmento', grupo: 'Conta', token: '{{conta.segmento}}' },
   { nome: 'contato.primeiro_nome', grupo: 'Contato', token: '{{contato.primeiro_nome}}' },
   { nome: 'contato.cargo', grupo: 'Contato', token: '{{contato.cargo}}' },
-  { nome: 'persona', grupo: 'Persona', token: '{{persona}}' },
   { nome: 'remetente.nome', grupo: 'Você', token: '{{remetente.nome}}' },
 ]
 
@@ -1256,8 +1254,8 @@ function resolverVariavel(
 ): string | null {
   // Os mesmos nomes e valores do envio: {{primeiro_nome}}, {{empresa}}, {{cargo}}… e os nomes com grupo.
   return valorDaVariavel(nome, {
-    conta: { nome: conta?.nome, segmento: conta?.segmento, dominio: conta?.dominio, sinal: conta?.ultimoSinal?.frase },
-    contato: { nome: contato?.nome, cargo: contato?.cargo, email: contato?.email, persona: contato?.persona },
+    conta: { nome: conta?.nome, segmento: conta?.segmento, dominio: conta?.dominio },
+    contato: { nome: contato?.nome, cargo: contato?.cargo, email: contato?.email },
     remetente: { nome: remetente?.nome },
   })
 }

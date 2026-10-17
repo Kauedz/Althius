@@ -18,8 +18,9 @@ supressão pela resposta que pede para sair.
 - [x] Página pública em pt-BR no app, com botão de confirmação (o Supabase não serve HTML no domínio padrão das functions).
 - [x] Rodapé no corpo e `List-Unsubscribe`/`List-Unsubscribe-Post` (a Unipile aceita em custom_headers).
 - [x] A liberação barra o Contato suprimido (`contact_suppressed`): pgTAP e Deno.
-- [x] Resposta com SAIR, descadastrar ou "me remova" registra a Supressão: pgTAP.
-- [ ] pgTAP rodado num banco local (sem Docker no Mac nem no box nesta sessão).
+- [x] Resposta com SAIR, descadastrar ou "me remova" registra a Supressão: pgTAP. "Me tire uma dúvida" e "tirei esse e-mail do spam" não contam (casos negativos no pgTAP).
+- [x] A resposta que pede para sair não gera Proposta de resposta, e a resposta aprovada não sai para Contato suprimido (`contact_suppressed`): pgTAP e Deno.
+- [x] pgTAP rodado do zero num Postgres 16 local (129 arquivos verdes).
 
 ## Passos humanos
 
