@@ -36,8 +36,15 @@ const MOTIVOS: Record<string, string> = {
   attachment_not_supported_on_invite: 'o convite do LinkedIn não leva anexo',
   attachment_not_supported: 'este canal não aceita anexos',
   attachment_download_failed: 'não foi possível ler o anexo; o passo será tentado de novo',
+  // Descadastro (cadencia/descadastro-e-variaveis).
+  contact_suppressed: 'o Contato se descadastrou e não recebe mais e-mails deste Workspace',
 }
 
 export function motivoDoEnvio(codigo: string): string {
+  // "missing_variable:cargo,empresa": a variável sem valor segura o passo de E-mail até o dado ou o texto mudar.
+  if (codigo.startsWith('missing_variable:')) {
+    const nomes = codigo.slice('missing_variable:'.length).split(',').filter(Boolean).map((nome) => `{{${nome}}}`)
+    return `o passo usa variáveis sem valor para este Contato (${nomes.join(', ')}); preencha o dado ou ajuste o texto e reconfirme`
+  }
   return MOTIVOS[codigo] ?? codigo
 }

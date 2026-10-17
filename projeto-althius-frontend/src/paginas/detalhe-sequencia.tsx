@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { valorDaVariavel } from '@/fonte/variaveis-do-passo'
 import {
   ArrowLeft,
   Calendar,
@@ -1217,6 +1218,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
 // ---------- Variáveis disponíveis para inserção ----------
 
 const VARIAVEIS: Array<{ nome: string; grupo: string; token: string }> = [
+  { nome: 'primeiro_nome', grupo: 'Contato', token: '{{primeiro_nome}}' },
+  { nome: 'nome', grupo: 'Contato', token: '{{nome}}' },
+  { nome: 'cargo', grupo: 'Contato', token: '{{cargo}}' },
+  { nome: 'empresa', grupo: 'Conta', token: '{{empresa}}' },
   { nome: 'conta.nome', grupo: 'Conta', token: '{{conta.nome}}' },
   { nome: 'conta.sinal', grupo: 'Conta', token: '{{conta.sinal}}' },
   { nome: 'conta.segmento', grupo: 'Conta', token: '{{conta.segmento}}' },
@@ -1249,17 +1254,12 @@ function resolverVariavel(
   contato: Contato | undefined,
   remetente: Remetente | undefined,
 ): string | null {
-  const primeiroNome = (contato?.nome ?? '').split(/\s+/)[0] ?? ''
-  const mapa: Record<string, string | undefined | null> = {
-    'conta.nome': conta?.nome,
-    'conta.sinal': conta?.ultimoSinal?.frase,
-    'conta.segmento': conta?.segmento,
-    'contato.primeiro_nome': primeiroNome || undefined,
-    'contato.cargo': contato?.cargo,
-    persona: contato?.persona,
-    'remetente.nome': remetente?.nome,
-  }
-  return mapa[nome] ?? null
+  // Os mesmos nomes e valores do envio: {{primeiro_nome}}, {{empresa}}, {{cargo}}… e os nomes com grupo.
+  return valorDaVariavel(nome, {
+    conta: { nome: conta?.nome, segmento: conta?.segmento, dominio: conta?.dominio, sinal: conta?.ultimoSinal?.frase },
+    contato: { nome: contato?.nome, cargo: contato?.cargo, email: contato?.email, persona: contato?.persona },
+    remetente: { nome: remetente?.nome },
+  })
 }
 
 function renderizarPreview(
@@ -1886,10 +1886,13 @@ function descreverEnvio(envio: EnvioDoPasso, canal: CanalStep): string {
         envio.ultimoErro ? ` Última tentativa: ${motivoDoEnvio(envio.ultimoErro)}.` : ''
       }`
     case 'cancelled':
-      return 'Cancelado: a Sequência mudou depois da ativação.'
+      return envio.ultimoErro === 'contact_suppressed'
+        ? 'Cancelado: o Contato se descadastrou e não recebe mais e-mails deste Workspace.'
+        : 'Cancelado: a Sequência mudou depois da ativação.'
     case 'sent':
       return `Enviado em ${formatarDataCompleta(envio.enviadoEm ?? envio.confirmadoEm)} para ${envio.destino}. Aceito pelo provedor; não é entrega nem leitura.`
     case 'awaiting_reconfirmation':
+      if (envio.ultimoErro?.startsWith('missing_variable:')) return `Não saiu: ${motivoDoEnvio(envio.ultimoErro)}.`
       return envio.ultimoErro === 'contact_unlinked'
         ? 'O Contato saiu da Conta-alvo. Ajuste o passo e confirme de novo.'
         : `O Contato não tem mais o ${nomeDoDestino(canal)} confirmado (${envio.destino}). Reconfirme para escolher o Destino.`
