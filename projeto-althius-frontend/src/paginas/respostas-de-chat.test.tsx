@@ -140,7 +140,7 @@ describe('O titular vê as respostas de WhatsApp e LinkedIn', () => {
   it('outro participante não vê o corpo das respostas de chat nem o de e-mail', async () => {
     const { chamadasDeChat } = abrir({ titular: false })
 
-    expect(await screen.findByText('Contato respondeu; sequência pausada')).toBeInTheDocument()
+    expect(await screen.findByText('Pausada')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Respostas recebidas' })).not.toBeInTheDocument()
     expect(screen.queryByText(CORPO_WHATSAPP)).not.toBeInTheDocument()
     expect(screen.queryByText(CORPO_LINKEDIN)).not.toBeInTheDocument()
