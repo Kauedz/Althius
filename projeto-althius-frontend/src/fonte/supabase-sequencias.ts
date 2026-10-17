@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDoLoteDeSequencias, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
@@ -499,6 +499,27 @@ export function criarFonteDeSequenciasSupabase(
       if (!row) throw new Error('O banco não retornou a Sequência criada.')
       notificar()
       return privada(row.id)
+    },
+    async criarSequenciasEmLote(contaIds, template) {
+      const { data, error } = await cliente.rpc('create_sequences_in_batch', {
+        p_workspace_id: workspace(),
+        p_target_account_ids: contaIds,
+        p_template: template,
+      })
+      if (error) throw converterErro(error)
+      notificar()
+      return ((data ?? []) as { target_account_id: string; outcome: string; sequence_id: string | null }[]).map(
+        (linha): ResultadoDoLoteDeSequencias => ({
+          contaId: linha.target_account_id,
+          desfecho: linha.outcome,
+          ...(linha.sequence_id ? { sequenciaId: linha.sequence_id } : {}),
+        }),
+      )
+    },
+    async supressoesDoWorkspace() {
+      const { data, error } = await cliente.from('contact_suppressions').select('kind, value').eq('workspace_id', workspace())
+      if (error) return []
+      return (data ?? []) as { kind: 'email' | 'domain'; value: string }[]
     },
     async atualizarDocumento(id: string, atualizacao: AtualizacaoDocumento) {
       const atual = await privada(id)
