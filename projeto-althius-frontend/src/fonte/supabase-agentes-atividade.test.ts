@@ -9,6 +9,9 @@ function fonteCom(rpcs: Record<string, (parametros: Record<string, unknown>) => 
   return criarFonteDeAgentesSupabase(cliente, 'ws-norte')
 }
 
+// As datas em hora local: a Atividade mostra o horário no fuso de quem vê, e o teste não pode depender do fuso da máquina.
+const emHoraLocal = (...partes: [number, number, number, number, number]) => new Date(...partes).toISOString()
+
 /** Uma Execução como a função do banco devolve. */
 function execucao(campos: Record<string, unknown>) {
   return {
@@ -21,8 +24,8 @@ function execucao(campos: Record<string, unknown>) {
     request_text: 'Pontue a Alfa',
     result_text: null,
     error_code: null,
-    created_at: '2026-10-15T11:00:00Z',
-    finished_at: '2026-10-15T11:01:00Z',
+    created_at: emHoraLocal(2026, 9, 15, 8, 0),
+    finished_at: emHoraLocal(2026, 9, 15, 8, 1),
     ...campos,
   }
 }
@@ -30,7 +33,7 @@ function execucao(campos: Record<string, unknown>) {
 describe('Atividade do Agente no Workspace operacional', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-10-15T15:00:00Z'))
+    vi.setSystemTime(new Date(2026, 9, 15, 12, 0))
   })
   afterEach(() => vi.useRealTimers())
 
@@ -41,7 +44,7 @@ describe('Atividade do Agente no Workspace operacional', () => {
         chamadas.push(p)
         return [
           execucao({ id: 'r2', trigger_kind: 'canal', request_text: 'Resuma a Alfa', result_text: 'A Alfa subiu para 91.' }),
-          execucao({ id: 'r1', created_at: '2026-10-14T20:30:00Z' }),
+          execucao({ id: 'r1', created_at: emHoraLocal(2026, 9, 14, 17, 30) }),
         ]
       },
     })
@@ -67,7 +70,7 @@ describe('Atividade do Agente no Workspace operacional', () => {
   it('marca a Execução que falhou e mostra a que ainda roda como em andamento', async () => {
     const fonte = fonteCom({
       agent_activity: () => [
-        execucao({ id: 'r1', status: 'failed', error_code: 'model_error', finished_at: '2026-10-15T11:01:00Z' }),
+        execucao({ id: 'r1', status: 'failed', error_code: 'model_error' }),
         execucao({ id: 'r2', status: 'running', finished_at: null }),
       ],
     })
