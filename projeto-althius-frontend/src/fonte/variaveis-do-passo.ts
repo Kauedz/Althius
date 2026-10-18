@@ -1,10 +1,11 @@
 // As variáveis de personalização do passo, com os mesmos nomes e valores que o banco usa no envio
 // (private.step_variable_value). Uma variável sem valor (ou desconhecida) segura o passo de E-mail no envio; a
-// pré-visualização a mostra destacada para o Vendedor ver antes.
+// pré-visualização a mostra destacada para o Vendedor ver antes. Sinal e Persona não são variáveis do envio (o banco
+// as segura como qualquer variável desconhecida), então a prévia também as mostra como faltando.
 
 export interface DadosDasVariaveis {
-  conta?: { nome?: string | null; segmento?: string | null; dominio?: string | null; sinal?: string | null }
-  contato?: { nome?: string | null; cargo?: string | null; email?: string | null; persona?: string | null }
+  conta?: { nome?: string | null; segmento?: string | null; dominio?: string | null }
+  contato?: { nome?: string | null; cargo?: string | null; email?: string | null }
   remetente?: { nome?: string | null }
 }
 
@@ -34,9 +35,6 @@ export function valorDaVariavel(nome: string, dados: DadosDasVariaveis): string 
     'conta.dominio': dados.conta?.dominio,
     'remetente.nome': dados.remetente?.nome,
     remetente: dados.remetente?.nome,
-    // Só a pré-visualização da Demonstração tem Sinal e Persona; no envio real elas ainda seguram o passo.
-    'conta.sinal': dados.conta?.sinal,
-    persona: dados.contato?.persona,
   }
   const valor = mapa[nome.toLowerCase()]?.trim()
   return valor ? valor : null

@@ -212,8 +212,10 @@ revoke all on function public.add_contact_suppression(uuid, text, text) from pub
 grant execute on function public.add_contact_suppression(uuid, text, text) to authenticated;
 
 -- A resposta que pede para sair. Só o texto novo conta: a citação do e-mail original (que traz o rodapé com
--- "descadastre-se") é cortada antes. "SAIR" vale em maiúsculas em qualquer lugar; "sair", "remover" e "parar"
--- valem quando são a resposta inteira; "descadastrar", "unsubscribe" e "me tire/remova da lista" valem sempre.
+-- "descadastre-se") é cortada antes. "SAIR" vale em maiúsculas em qualquer lugar; "sair", "remover", "parar" e
+-- "me remova" valem quando são a resposta inteira; "descadastrar", "unsubscribe", "me tire/remova da lista (dos
+-- e-mails, do envio…)" e "remova meu e-mail" valem sempre. "Me tire uma dúvida" e "tirei esse e-mail do spam" não
+-- contam: o verbo só vale com o lugar de onde sair ou com o próprio endereço.
 create function private.reply_asks_unsubscribe(p_text text)
 returns boolean
 language plpgsql
@@ -226,20 +228,23 @@ declare
 begin
   v := regexp_replace(v, '<[^>]*>', ' ', 'g');
   v := regexp_replace(v,
-    '((^|\n)\s*>|(^|\n)\s*Em [^\n]{0,300}escreveu:|(^|\n)\s*On [^\n]{0,300}wrote:|-{3,}\s*(Original|Mensagem original)|(^|\n)\s*(De|From):\s|Não quer mais receber estes e-mails).*$',
+    '((^|\n)\s*>|(^|\n)\s*Em [^\n]{0,250}escreveu:|(^|\n)\s*On [^\n]{0,250}wrote:|-{3,}\s*(Original|Mensagem original)|(^|\n)\s*(De|From):\s|Não quer mais receber estes e-mails).*$',
     '');
   v_lower := lower(v);
   return v ~ '(^|[^[:alpha:]])SAIR([^[:alpha:]]|$)'
     or v_lower ~ 'descadastr|unsubscribe'
-    or v_lower ~ '(me|nos) (tire|tirem|retire|retirem|remova|removam|exclua|excluam)\M'
-    or v_lower ~ '(remov|exclu|tir)[[:alpha:]]* (meu|o meu|este|esse) (e-?mail|contato|endere)'
-    or btrim(v_lower) ~ '^[[:punct:][:space:]]*(sair|remover|remova|parar|pare|stop)[[:punct:][:space:]]*$';
+    or v_lower ~ '\m(me|nos) (tire|tirem|tirar|retire|retirem|retirar|remova|removam|remover|exclua|excluam|excluir) (da|das|do|dos|de) (sua |suas |seu |seus |vossa |esta |essa |este |esse )?(lista|listas|mailing|e-?mails?|envios?|comunica[[:alpha:]]*|base|cadastro|contatos?|newsletter)\M'
+    or v_lower ~ '\m(remova|removam|remover|exclua|excluam|excluir|retire|retirem|retirar) (o |os )?(meu|meus|nosso|nossos) (e-?mails?|contatos?|endere)'
+    or btrim(v_lower) ~ '^[[:punct:][:space:]]*(sair|remover|remova|parar|pare|stop)[[:punct:][:space:]]*$'
+    or btrim(v_lower) ~ '^[[:punct:][:space:]]*(por favor,? )?(me|nos) (tire|retire|remova|exclua)[[:punct:][:space:]]*$';
 end;
 $$;
 revoke all on function private.reply_asks_unsubscribe(text) from public, anon, authenticated;
 
--- Roda no fim da transação da ingestão (constraint trigger adiado): a ingestão pausa com "Contato respondeu" depois de
--- gravar a resposta, e o motivo final fica "Descadastro".
+-- Roda logo depois de a resposta ser gravada (gatilho comum, não adiado: um evento pendente impediria ALTER TABLE em
+-- received_emails na mesma transação). A ingestão pausa com "Contato respondeu" DEPOIS de gravar a resposta; por isso a
+-- Sequência fica marcada nesta transação (althius.descadastro_pela_resposta) e o gatilho de sequence_documents mantém o
+-- motivo "Descadastro".
 create function private.unsubscribe_from_reply()
 returns trigger
 language plpgsql
@@ -249,22 +254,143 @@ as $$
 begin
   if private.reply_asks_unsubscribe(coalesce(new.body, new.snippet)) then
     perform private.register_suppression(new.workspace_id, new.from_email, new.contact_id, new.send_id, 'resposta');
+    if new.sequence_id is not null then
+      perform set_config('althius.descadastro_pela_resposta',
+        coalesce(nullif(current_setting('althius.descadastro_pela_resposta', true), ''), '') || ',' || new.sequence_id::text,
+        true);
+    end if;
   end if;
   return null;
 end;
 $$;
 revoke all on function private.unsubscribe_from_reply() from public, anon, authenticated;
 
-create constraint trigger received_email_unsubscribe
+create trigger received_email_unsubscribe
   after insert on private.received_emails
-  deferrable initially deferred
   for each row execute function private.unsubscribe_from_reply();
+
+-- A pausa "Contato respondeu" da ingestão não apaga o "Descadastro" que a mesma resposta acabou de registrar.
+create function private.keep_unsubscribe_pause_reason()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.document ->> 'motivoPause' = 'Contato respondeu'
+    and old.document ->> 'motivoPause' = 'Descadastro'
+    and new.sequence_id::text = any (
+      string_to_array(coalesce(current_setting('althius.descadastro_pela_resposta', true), ''), ',')) then
+    new.document := new.document || jsonb_build_object('motivoPause', 'Descadastro');
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.keep_unsubscribe_pause_reason() from public, anon, authenticated;
+
+create trigger sequence_documents_keep_unsubscribe_reason
+  before update on private.sequence_documents
+  for each row execute function private.keep_unsubscribe_pause_reason();
+
+-- A resposta que pediu para sair (ou que vem de quem já se descadastrou) não gera Proposta de resposta: não há o que
+-- responder a quem pediu para não receber mais e-mail. Definição de 20261001180000 (a mais recente), com essa condição;
+-- as Propostas abertas da conversa continuam ficando desatualizadas.
+create or replace function private.reply_proposal_on_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sequence public.sequences;
+  v_ref text;
+begin
+  begin
+    select s.* into v_sequence from public.sequences s where s.id = new.sequence_id;
+    if not found then
+      return null;
+    end if;
+    v_ref := coalesce(nullif(btrim(new.provider_thread_id), ''), 'de:' || lower(coalesce(new.from_email, '')));
+    perform private.mark_reply_proposals_outdated(new.sequence_id, 'email', v_ref, new.interaction_id);
+
+    -- Sem Vendedor responsável ativo, Sequência encerrada ou remetente desconhecido, não há a quem propor nem para quem.
+    if v_sequence.status = 'encerrada'
+      or nullif(btrim(new.from_email), '') is null
+      or v_sequence.target_account_id !~* '^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$'
+      or not exists (
+        select 1 from public.sales_responsibilities r
+        where r.workspace_id = new.workspace_id and r.target_account_id = v_sequence.target_account_id
+          and r.owner_user_id = new.owner_user_id)
+      or not exists (
+        select 1 from public.workspace_memberships m
+        where m.workspace_id = new.workspace_id and m.user_id = new.owner_user_id and m.active) then
+      return null;
+    end if;
+
+    -- Descadastro: nem Proposta nem resposta.
+    if private.reply_asks_unsubscribe(coalesce(new.body, new.snippet))
+      or private.is_suppressed(new.workspace_id, new.from_email) then
+      return null;
+    end if;
+
+    perform private.enqueue_reply_proposal(
+      new.workspace_id, new.sequence_id, v_sequence.target_account_id::uuid, new.contact_id, new.owner_user_id,
+      new.sender_account_id, 'email', new.interaction_id, v_ref, new.from_email, new.from_name,
+      new.provider_message_id, new.subject);
+  exception when others then
+    raise warning 'reply proposal was not queued: %', sqlerrm;
+  end;
+  return null;
+end;
+$$;
+revoke all on function private.reply_proposal_on_email() from public, anon, authenticated, service_role;
+
+-- A resposta aprovada também não sai para o Contato suprimido (a Aprovação pode ser anterior ao descadastro). A
+-- liberação de 20261001180000 vira o núcleo; esta confere a Supressão antes, com a mesma ordem de trava (Sequência,
+-- depois Proposta).
+alter function public.release_approved_reply(uuid, uuid, text[]) set schema private;
+alter function private.release_approved_reply(uuid, uuid, text[]) rename to release_approved_reply_core;
+revoke all on function private.release_approved_reply_core(uuid, uuid, text[]) from public, anon, authenticated, service_role;
+
+create function public.release_approved_reply(
+  p_proposal_id uuid, p_user_id uuid, p_channels text[] default array['email']
+) returns table (
+  outcome text, proposal_id uuid, channel text, unipile_account_id text, destination text, contact_name text,
+  subject text, body text, reply_to_message_id text, tracking_header_name text, tracking_header_value text,
+  revision integer
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_proposal private.reply_proposals;
+begin
+  select p.* into v_proposal from private.reply_proposals p where p.id = p_proposal_id;
+  if found then
+    perform 1 from public.sequences s where s.id = v_proposal.sequence_id for update;
+    select p.* into v_proposal from private.reply_proposals p where p.id = p_proposal_id for update;
+    if v_proposal.status = 'aprovada' and v_proposal.channel = 'email'
+      and private.is_suppressed(v_proposal.workspace_id, v_proposal.recipient) then
+      return query select 'contact_suppressed', v_proposal.id, v_proposal.channel, null::text, null::text, null::text,
+        null::text, null::text, null::text, null::text, null::text, v_proposal.revision;
+      return;
+    end if;
+  end if;
+  return query select * from private.release_approved_reply_core(p_proposal_id, p_user_id, p_channels);
+end;
+$$;
+revoke all on function public.release_approved_reply(uuid, uuid, text[]) from public, anon, authenticated;
+grant execute on function public.release_approved_reply(uuid, uuid, text[]) to service_role;
 
 -- ---------------------------------------------------------------------------------------------------------------
 -- 3. Variáveis
 -- ---------------------------------------------------------------------------------------------------------------
 
 -- O valor de uma variável do passo, ou null quando o Contato/a Conta-alvo não tem o dado (ou a variável não existe).
+-- {{conta.sinal}} e {{persona}} não são variáveis do envio (a Persona é classificação interna do Comitê e o Sinal é texto
+-- da Althius, nenhum dos dois vai para o Contato): o editor não as oferece e um passo antigo que as use fica seguro com
+-- missing_variable, em vez de sair com um buraco no texto.
 create function private.step_variable_value(
   p_name text,
   p_account public.target_accounts,

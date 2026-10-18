@@ -244,6 +244,17 @@ Deno.test('cada bloqueio do banco devolve 409 com o motivo em português e nada 
   }
 })
 
+Deno.test('o Contato descadastrado depois da Aprovação: 409 com o motivo e nada é enviado', async () => {
+  const { db, registros } = bancoFalso({ outcome: 'contact_suppressed', proposal_id: PROPOSTA, channel: 'email', revision: 3 })
+  const { unipile, enviados } = unipileFalsa(ENVIADA)
+  const resposta = await montar(db, unipile)(pedido(corpo))
+  assertEquals(resposta.status, 409)
+  const dado = await resposta.json()
+  assertEquals(dado.outcome, 'contact_suppressed')
+  assert(String(dado.message).includes('Descadastro'))
+  assertEquals([enviados.length, registros.length], [0, 0])
+})
+
 Deno.test('o provedor recusou: nada saiu, o resultado é gravado como recusa e a resposta fica para tentar de novo', async () => {
   const { db, registros } = bancoFalso(LIBERADA)
   const { unipile } = unipileFalsa(new UnipileRequestError(502))
