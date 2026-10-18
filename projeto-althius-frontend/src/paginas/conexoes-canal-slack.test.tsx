@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { idaAoApp } from '@/paginas/ida-ao-app'
@@ -146,7 +146,8 @@ describe('O Canal Slack em Conexões', () => {
     abrir({ rota: '/conexoes?conexao=ok&canal=slack', estado: 'ativo' })
 
     expect(await screen.findByText('Slack conectado.')).toBeInTheDocument()
-    expect(window.location.search).toBe('')
+    // O aviso sai no primeiro render; a URL só é limpa depois, num efeito.
+    await waitFor(() => expect(window.location.search).toBe(''))
   })
 
   const recusas: [string, string][] = [

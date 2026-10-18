@@ -79,8 +79,11 @@ describe('Vitrine de Sinais', () => {
   it('sem disparos, a prévia mostra o estado vazio', async () => {
     renderizarApp('/sinais', {}, {}, {}, { vazia: true })
     const destaque = await screen.findByRole('region', { name: /^Sinal da semana: / })
-    expect(within(destaque).getByText('Nenhuma empresa detectada ainda neste Workspace.')).toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'Mais ativados' })).getByText('Nenhum Monitoramento ativo ainda.')).toBeInTheDocument()
+    // A região aparece antes dos disparos carregarem: o estado vazio chega depois.
+    expect(await within(destaque).findByText('Nenhuma empresa detectada ainda neste Workspace.')).toBeInTheDocument()
+    expect(
+      await within(screen.getByRole('region', { name: 'Mais ativados' })).findByText('Nenhum Monitoramento ativo ainda.'),
+    ).toBeInTheDocument()
   })
 
   it('as prateleiras são um Cover Flow: um card no centro, as setas trocam o centro e o card do lado vem para o centro', async () => {
