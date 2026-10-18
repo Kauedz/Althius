@@ -15,7 +15,7 @@ import {
 import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvisoDeContratoInativo } from '@/components/aviso-de-contrato-inativo'
-import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, ROTULO_DO_ESTADO } from '@/components/marca'
+import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, rotuloDoEstado } from '@/components/marca'
 import { IndicadorDeSecoes } from '@/components/indicador-de-secoes'
 import { LogoDoWorkspace } from '@/components/logos'
 import { RolagemDiscreta } from '@/components/rolagem-discreta'
@@ -108,7 +108,7 @@ function LogoDaBarra({ recolhida }: { recolhida: boolean }) {
 
 function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
   const recolhida = useContext(BarraRecolhida)
-  const { modo } = useAmbiente()
+  const { modo, disponivel } = useAmbiente()
   const workspace = useDados((fonte) => fonte.workspace(), [])
   const fonteDeOnboarding = useFonteDeOnboarding()
   const onboarding = useDados(fonteDeOnboarding, (fonte) => fonte.ler(), [])
@@ -175,7 +175,7 @@ function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
                 ativo={pathname.startsWith(`/agentes/${agente.id}/`)}
                 icone={<IconeDaEspecialidade especialidade={agente.especialidade.id} />}
                 fim={
-                  <span title={ROTULO_DO_ESTADO[agente.estado]}>
+                  <span title={rotuloDoEstado(agente.estado, disponivel('conversas'))}>
                     <IndicadorDeEstado estado={agente.estado} />
                   </span>
                 }

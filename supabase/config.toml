@@ -128,3 +128,7 @@ verify_jwt = true
 # da senha atual ("Require current password when updating") não tem chave no config do CLI 2.118: liga-se no painel
 # (ver supabase/functions/account-password/README.md).
 secure_password_change = true
+
+# Link público de descadastro do rodapé e do List-Unsubscribe: sem JWT, o token aleatório do Envio é o único dado.
+[functions.descadastro]
+verify_jwt = false

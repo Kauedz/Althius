@@ -1,4 +1,5 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
+import { MAX_CARACTERES_DO_SISTEMA_NA_FILA } from '../_shared/modelo-hermes.ts'
 import type { ChaveDoCliente } from '../_shared/orquestracao.ts'
 import { ErroDoModelo, type Modelo } from '../agent-conversation/runner.ts'
 import {
@@ -215,6 +216,7 @@ Deno.test('só os motivos passageiros pedem nova tentativa', async () => {
       ['model_rate_limited', true],
       ['model_http_503', true],
       ['model_http_400', false],
+      ['model_invalid_request', false],
       ['model_refusal', false],
       ['model_empty', false],
       ['insufficient_credits', false],
@@ -364,4 +366,31 @@ Deno.test('o pedido e as instruções não carregam mais que o contexto recebido
   assertStringIncludes(vazio, 'Você é o Rhetor')
   assertStringIncludes(vazio, 'não tem seções escritas')
   assertStringIncludes(vazio, 'sem inventar um nome')
+})
+
+Deno.test('com o Playbook e as instruções no máximo, o sistema ainda cabe na fila do Hermes', () => {
+  const sistema = instrucoesDoRhetor({
+    ...CONTEXTO,
+    workspace: 'W'.repeat(200),
+    playbook: Array.from({ length: 12 }, (_, i) => ({
+      section: `secao-${i}`, name: `Seção ${i}`, content: { texto: 'p'.repeat(5000) },
+    })),
+    agent: { name: 'R'.repeat(200), instructions: 'i'.repeat(4000), voice_tone: 't'.repeat(500) },
+  })
+  assertStringIncludes(sistema, 'o Playbook foi cortado por ser longo')
+  assert(sistema.length <= MAX_CARACTERES_DO_SISTEMA_NA_FILA, `sistema com ${sistema.length} caracteres`)
+})
+
+Deno.test('com o Hermes, o modelo é montado por trabalho (a fila sabe de qual Proposta é) e o rascunho é gravado', async () => {
+  const montados: string[] = []
+  const { modelo: doHermes } = modeloFalso('hermes', () => resposta('Oi, Maria. Podemos falar amanhã?'))
+  const { handler, espera, salvos } = montar({ jobs: [trabalho(1)] }, null, {
+    modeloParaTrabalho: (job) => {
+      montados.push(job.job_id)
+      return doHermes
+    },
+  })
+  await chamar(handler, espera)
+  assertEquals(montados, [trabalho(1).job_id])
+  assertEquals(salvos.length, 1)
 })

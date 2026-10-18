@@ -4,6 +4,7 @@
 // titular (release_sequence_step_send) ou pelo Executor (release_due_step_send).
 import type { IngestedEmail, IngestEmailEventInput } from './ingest-email-event.ts'
 import { type OutgoingAttachment, prepareAttachments, type StepAttachmentSource } from './anexos-do-envio.ts'
+import { type UnsubscribeLinks, withUnsubscribe } from './descadastro.ts'
 
 export type SendOutcome = 'sent' | 'failed' | 'uncertain'
 
@@ -29,6 +30,8 @@ export type BlockedOutcome =
   | 'rate_limited'
   | 'daily_cap'
   | 'weekly_cap'
+  | 'contact_suppressed'
+  | 'missing_variable'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -41,6 +44,8 @@ export interface ReleasedSend {
   reply_to_message_id: string | null
   tracking_header_name: string
   tracking_header_value: string
+  /** O token do link de descadastro deste Envio (aleatório, sem ids). Ausente nos envios liberados antes dele. */
+  unsubscribe_token?: string | null
 }
 
 export interface BlockedSend {
@@ -129,6 +134,9 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   rate_limited: 'Sua Conta remetente enviou há pouco e precisa esperar um intervalo antes do próximo envio.',
   daily_cap: 'Sua Conta remetente chegou ao limite de envios de hoje. O passo sai no próximo dia útil.',
   weekly_cap: 'Sua Conta remetente chegou ao limite de envios desta semana. O passo sai na próxima semana.',
+  contact_suppressed: 'Este Contato se descadastrou e não recebe mais e-mails deste Workspace. O passo foi cancelado.',
+  missing_variable:
+    'O passo usa uma variável que este Contato ou a Conta-alvo não tem preenchida. Preencha o dado ou ajuste o texto e reconfirme o passo.',
 }
 
 export type StepSendResult =
@@ -148,6 +156,8 @@ export interface SendStepDeps {
   sendTimeoutMs?: number
   /** Os anexos do passo (canais-10). Sem isto, o passo sai só com o texto, como antes. */
   attachments?: StepAttachmentSource
+  /** Os links de descadastro. Com eles, todo passo liberado com token sai com o rodapé e o List-Unsubscribe. */
+  unsubscribeLinks?: UnsubscribeLinks
 }
 
 /**
@@ -278,7 +288,7 @@ export async function sendStep(
     return { kind: 'attempted', outcome: 'failed', recorded: true, reason: 'attachment_download_failed' }
   }
 
-  const email: OutgoingEmail = {
+  const base: OutgoingEmail = {
     to: [{
       email: released.destination,
       ...(released.contact_name ? { display_name: released.contact_name } : {}),
@@ -289,6 +299,9 @@ export async function sendStep(
     ...(released.reply_to_message_id ? { reply_to_message_id: released.reply_to_message_id } : {}),
     ...(prepared.attachments.length ? { attachments: prepared.attachments } : {}),
   }
+  const email = released.unsubscribe_token && deps.unsubscribeLinks
+    ? withUnsubscribe(base, released.unsubscribe_token, deps.unsubscribeLinks)
+    : base
 
   const result = await enviarEmailComPrazo(deps.unipile, released.unipile_account_id, email, deps.sendTimeoutMs)
 

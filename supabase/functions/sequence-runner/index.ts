@@ -3,6 +3,7 @@ import { sendStepDbVia } from '../_shared/send-step-adapters.ts'
 import { sendChatStepDbVia } from '../_shared/send-chat-step-adapters.ts'
 import { createUnipileRuntime, unipileUnavailableResponse } from '../_shared/unipile/index.ts'
 import { stepAttachmentSourceVia } from '../_shared/anexos-do-envio.ts'
+import { unsubscribeLinksFrom } from '../_shared/descadastro.ts'
 import {
   type ChatRunnerDb,
   type ChatToReconcile,
@@ -120,6 +121,8 @@ const handlerFor = (bridge: NonNullable<Awaited<ReturnType<typeof unipile.bridge
     unipile: bridge,
     chat: { db: chatDb, unipile: bridge },
     attachments: stepAttachmentSourceVia(admin),
+    // Todo e-mail da Sequência sai com o link de descadastro (rodapé e List-Unsubscribe).
+    unsubscribeLinks: unsubscribeLinksFrom(required('APP_ORIGIN'), required('SUPABASE_URL')),
     // Ritmo de envio: 1 a 4 s entre dois envios da mesma execução. O intervalo por Conta remetente é do banco.
     pauseBetweenSendsMs: { min: 1000, max: 4000 },
     async holdForUnreadySend(sendId) {

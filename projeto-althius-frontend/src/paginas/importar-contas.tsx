@@ -23,6 +23,7 @@ import { baixarTexto, montarCsvDoRelatorio, ROTULO_DA_SITUACAO } from '@/fonte/r
 import type { Participante } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
 import { CABECALHO, CELULA } from './modulo-contas-e-contatos'
+import { DialogoCriacaoEmLote } from './dialogo-criacao-em-lote'
 
 const CAMPO = 'rounded-md h-9 border border-al-line bg-al-surface px-3 text-sm text-al-ink'
 const TAMANHO_DA_PAGINA = 50
@@ -736,6 +737,23 @@ function Processamento({
 
 function Relatorio({ lote, importacao }: { lote: LoteDeImportacao; importacao: FonteDeImportacaoDeContas }) {
   const [erro, setErro] = useState<string | null>(null)
+  const [idsDoLote, setIdsDoLote] = useState<string[]>([])
+  const [loteAberto, setLoteAberto] = useState(false)
+
+  useEffect(() => {
+    let ativo = true
+    importacao.contasDistribuiveis(lote.id).then(
+      (contas) => {
+        if (ativo) setIdsDoLote([...new Set(contas.map((c) => c.contaId))])
+      },
+      () => {
+        if (ativo) setIdsDoLote([])
+      },
+    )
+    return () => {
+      ativo = false
+    }
+  }, [importacao, lote.id])
 
   async function baixar(filtro: 'problemas' | 'todas') {
     setErro(null)
@@ -764,11 +782,17 @@ function Relatorio({ lote, importacao }: { lote: LoteDeImportacao; importacao: F
           <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void baixar('todas')}>
             Baixar relatório completo (CSV)
           </button>
+          {idsDoLote.length > 0 && (
+            <button type="button" className={BOTAO_SECUNDARIO} onClick={() => setLoteAberto(true)}>
+              Criar Sequências
+            </button>
+          )}
         </div>
         <Mensagem tipo="erro">{erro}</Mensagem>
       </Bloco>
       <TabelaDeLinhas lote={lote} importacao={importacao} filtros={['problemas', 'todas']} />
       <Distribuicao lote={lote} importacao={importacao} />
+      <DialogoCriacaoEmLote aberto={loteAberto} aoMudar={setLoteAberto} contaIds={idsDoLote} />
     </>
   )
 }

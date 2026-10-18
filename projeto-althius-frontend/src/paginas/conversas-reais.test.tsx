@@ -45,7 +45,8 @@ function abrir(
       bootstrap_personal_workspace: () => PESSOAL,
       list_owned_sender_accounts: () => [],
       ...rpcsDeAgentes(criarBancoDeAgentes()),
-      list_agent_conversations: () => salvas,
+      // Como na rede: a leitura das Conversas salvas chega depois de a tela já ter aberto.
+      list_agent_conversations: () => new Promise((responder) => setTimeout(() => responder(salvas), 50)),
       get_agent_conversation: () => conversa,
       get_agent_run_events: () => ({ status, error_code: status === 'failed' ? 'timeout' : null, events: eventos }),
     },

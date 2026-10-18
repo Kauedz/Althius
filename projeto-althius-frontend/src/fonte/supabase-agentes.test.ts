@@ -106,8 +106,8 @@ describe('Configuração dos Agentes no Workspace operacional', () => {
     ])
   })
 
-  it('não traz Atividade nem conexões: nenhuma Execução aconteceu e nenhum Canal ou Integração está conectado', async () => {
-    const fonte = fonteCom({})
+  it('sem Execuções nem Canal Slack, não traz Atividade nem conexões', async () => {
+    const fonte = fonteCom({ agent_activity: () => [], slack_channel_status: () => [{ state: 'nao_instalado', team_name: null }] })
 
     expect(await fonte.atividade('a1')).toEqual([])
     expect((await fonte.canais()).some((canal) => canal.conectado)).toBe(false)

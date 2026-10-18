@@ -102,6 +102,9 @@ export function rpcsDeAgentes(banco: BancoDeAgentes, papel: 'admin' | 'member' =
     list_agent_memory: ({ p_agent_id }: Record<string, unknown>) => achar(p_agent_id).memory,
     list_agent_skills: ({ p_agent_id }: Record<string, unknown>) => achar(p_agent_id).skills,
     list_agent_routines: ({ p_agent_id }: Record<string, unknown>) => achar(p_agent_id).routines,
+    // Sem Execuções e sem o Canal Slack instalado, a não ser que o teste diga outra coisa.
+    agent_activity: () => [],
+    slack_channel_status: () => [{ state: 'nao_instalado', team_name: null }],
     create_agent: escrita('create_agent', (p) => {
       const padrao = banco.agentes.find((a) => a.kind === 'padrao' && a.specialty === p.p_specialty)
       if (!padrao) recusar('invalid specialty', '22023')

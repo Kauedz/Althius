@@ -93,6 +93,11 @@ export interface Deps {
   modelo: Modelo | null
   /** O modelo com a chave do cliente; null quando o provedor dela não é aceito aqui. */
   modeloDoCliente?: (chave: ChaveDoCliente) => Modelo | null
+  /**
+   * O modelo montado para um trabalho (o Hermes, ADR-0018): a fila do Hermes precisa saber de qual Proposta é o pedido.
+   * Quando existe, vale no lugar de `modelo`; a chave de IA do cliente continua mandando mais.
+   */
+  modeloParaTrabalho?: (job: TrabalhoReservado) => Modelo
   /** Trabalhos por chamada. Padrão 5. */
   maxPerRun?: number
   /** Continua o trabalho depois da resposta (EdgeRuntime.waitUntil). Padrão: fire-and-forget. */
@@ -202,6 +207,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (!doCliente) throw new ErroDoModelo('workspace_ai_key_unsupported')
       return comAChaveDoCliente(doCliente, chave.apiKey)
     }
+    if (deps.modeloParaTrabalho) return deps.modeloParaTrabalho(job)
     if (!deps.modelo) throw new ErroDoModelo('model_unavailable')
     return deps.modelo
   }

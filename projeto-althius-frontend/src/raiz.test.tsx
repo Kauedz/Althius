@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { idaAoStripe } from '@/auth/assinatura'
 import { RaizDoAplicativo } from '@/raiz'
 import { renderizarApp } from '@/test/renderizar'
@@ -47,7 +47,7 @@ function abrirAlthius({
   /** Como os serviços do navegador (Pwned Passwords, Google, Turnstile) respondem; nenhum chama a rede. */
   navegador?: OpcoesDosServicosFalsos
 } = {}) {
-  if (ultimoAmbiente) localStorage.setItem('althius:modo_demo', String(ultimoAmbiente === 'demonstracao'))
+  if (ultimoAmbiente) localStorage.setItem('althius:ambiente', ultimoAmbiente)
   if (ultimoWorkspace) sessionStorage.setItem('althius:workspace', ultimoWorkspace)
   const supabase = criarSupabaseFalso({
     ...opcoes,
@@ -734,6 +734,95 @@ describe('Alternar entre a Demonstração e o Workspace operacional', () => {
   })
 })
 
+describe('A escolha do ambiente em produção', () => {
+  beforeEach(() => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('PROD', true)
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('um navegador sem nada salvo abre a tela de entrada, sem o banner do protótipo', async () => {
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/entrar')
+    expect(screen.queryByText('Modo Protótipo (Completo)')).not.toBeInTheDocument()
+  })
+
+  it('a escolha antiga do protótipo pela Demonstração não vale mais e é apagada', async () => {
+    localStorage.setItem('althius:modo_demo', 'true')
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(localStorage.getItem('althius:modo_demo')).toBeNull()
+  })
+
+  it('?demo=true abre a Demonstração, que diz ser uma demonstração e volta à tela de entrada', async () => {
+    demonstracaoJaIniciada()
+    window.history.replaceState(null, '', '/contas?demo=true')
+    const { usuario } = abrirAlthius()
+
+    expect(await screen.findByRole('link', { name: 'OpenAI' })).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Demonstração')).toBeInTheDocument()
+    expect(screen.queryByText('Modo Protótipo (Completo)')).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Entrar no Workspace' }))
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+  })
+
+  it('"Ver a Demonstração" na tela de entrada abre a Demonstração, que continua aberta ao atualizar a página', async () => {
+    demonstracaoJaIniciada()
+    const { usuario, cliente, servicos } = abrirAlthius()
+
+    await usuario.click(await screen.findByRole('button', { name: 'Ver a Demonstração' }))
+    expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+
+    cleanup()
+    render(<RaizDoAplicativo cliente={cliente} servicos={servicos} />)
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Demonstração')).toBeInTheDocument()
+  })
+
+  it.each(['/?auth=true', '/?demo=false'])('%s abre a tela de entrada mesmo depois de escolher a Demonstração', async (endereco) => {
+    window.history.replaceState(null, '', endereco)
+    abrirAlthius({ ultimoAmbiente: 'demonstracao' })
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+  })
+
+  it('o visitante sem Contrato entra e vê a Demonstração, com o aviso de que é uma demonstração', async () => {
+    const { iniciarSessao } = abrirAlthius({
+      rpcs: { bootstrap_personal_workspace: () => ({ id: null, kind: null, name: null, owner_user_id: null }) },
+    })
+    await screen.findByRole('heading', { name: 'Entrar' })
+
+    act(() => iniciarSessao(sessaoDe(MARINA)))
+
+    expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()
+    expect(screen.queryByText('Modo Protótipo (Completo)')).not.toBeInTheDocument()
+  })
+})
+
+describe('A escolha do ambiente no desenvolvimento', () => {
+  it('um navegador sem nada salvo abre a Demonstração, com o banner do protótipo', async () => {
+    demonstracaoJaIniciada()
+    abrirAlthius()
+
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Demonstração')).toBeInTheDocument()
+    expect(screen.getByText('Modo Protótipo (Completo)')).toBeInTheDocument()
+  })
+
+  it('a escolha salva na chave antiga do protótipo continua valendo e passa para a chave nova', async () => {
+    localStorage.setItem('althius:modo_demo', 'false')
+    abrirAlthius()
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(localStorage.getItem('althius:modo_demo')).toBeNull()
+    expect(localStorage.getItem('althius:ambiente')).toBe('real')
+  })
+})
+
 /** A Sequência de que a sessão é a Vendedora responsável, aberta no detalhe, com o documento privado dela. */
 function abrirASequenciaDaMarina({
   status = 'ativa',
@@ -1075,7 +1164,7 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
       },
     })
 
-    expect(await screen.findByText('Contato respondeu; sequência pausada')).toBeInTheDocument()
+    expect(await screen.findByText('Pausada')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Respostas recebidas' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Podemos falar/)).not.toBeInTheDocument()
   })
@@ -1172,7 +1261,7 @@ describe('Telas de acesso', () => {
     window.history.replaceState(null, '', '/entrar')
     const { usuario } = abrirAlthius({ ultimoAmbiente: 'real' })
 
-    await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Ver a Demonstração' }))
     expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
   })
 
@@ -1181,7 +1270,7 @@ describe('Telas de acesso', () => {
     window.history.replaceState(null, '', '/entrar')
     const { usuario, cliente, servicos } = abrirAlthius()
 
-    await usuario.click(await screen.findByRole('button', { name: 'Abrir Demonstração (sem login)' }))
+    await usuario.click(await screen.findByRole('button', { name: 'Ver a Demonstração' }))
     expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
 
     cleanup()
@@ -1536,7 +1625,7 @@ describe('Termos de Uso e Política de Privacidade', () => {
     // Nada na página leva ao início, que abriria a Demonstração.
     expect(screen.queryAllByRole('link').map((link) => link.getAttribute('href'))).not.toContain('/')
     // Ler os Termos não escolhe ambiente: o próximo acesso a este navegador abre como antes.
-    expect(localStorage.getItem('althius:modo_demo')).toBeNull()
+    expect(localStorage.getItem('althius:ambiente')).toBeNull()
   })
 
   it('/termos mostra o documento também a quem já tem sessão, sem abrir o Workspace', async () => {
