@@ -6,7 +6,7 @@
 
 **Blocked by:** nenhum.
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Pode mexer
 

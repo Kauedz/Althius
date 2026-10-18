@@ -1,6 +1,6 @@
 # 03: Falar com a equipe Althius
 
-**Status:** ready-for-agent
+**Status:** closed
 
 **GATE:** pode seguir na mesma PR. Sem aplicar migração, sem deploy e sem alterar segredo. O e-mail reusa `resend.ts` de `workspace-invitation-email`. Destino fixo `althius.relacionamento@gmail.com` (não vem do cliente). Sem cobrança.
 
@@ -26,9 +26,9 @@
 
 ## Critérios
 
-- [ ] Membro insere e lê o pedido do próprio Workspace; outro Workspace não lê; anon não chama; quem não é equipe não atualiza o status.
-- [ ] O teste da função cobre o envio ao endereço da equipe, sem rede.
-- [ ] O formulário recusa evento vazio e mostra a confirmação e a lista.
+- [x] Membro insere e lê o pedido do próprio Workspace; outro Workspace não lê; anon não chama; quem não é equipe não atualiza o status.
+- [x] O teste da função cobre o envio ao endereço da equipe, sem rede.
+- [x] O formulário recusa evento vazio e mostra a confirmação e a lista.
 
 ## Passos do Nan
 
