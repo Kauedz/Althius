@@ -1,13 +1,14 @@
 // A configuração dos Agentes do Workspace operacional, no Supabase (CRM-13): os Agentes padrão e criados, a
-// Personalização, a Permissão por Integração, a Memória, as Habilidades e as Rotinas. Tudo passa pelas funções do banco,
-// que conferem a Participação ativa de quem chama: todo participante consulta, e só o Administrador cria, exclui e
-// altera. O banco também guarda que o Agente padrão não é excluído nem renomeado. Nada aqui executa um Agente: não há
-// Execução, Atividade nem Aprovação de Agente ainda (CRM-14), e o estado do Agente é sempre ocioso.
+// Personalização, a Permissão por Integração, a Memória, as Habilidades, as Rotinas e a Atividade. Tudo passa pelas
+// funções do banco, que conferem a Participação ativa de quem chama: todo participante consulta, e só o Administrador
+// cria, exclui e altera. O banco também guarda que o Agente padrão não é excluído nem renomeado. Nada aqui executa um
+// Agente: a Atividade só lê as Execuções que já existem (agent_activity), e o estado do Agente é sempre ocioso.
 // Conectar Canais e Integrações é do módulo de Conexões. Aqui os Canais só dizem se estão conectados, pela mesma leitura
 // de Conexões (o Slack quando instalado e ativo); as Integrações vêm do catálogo, todas não conectadas.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { integracoesConectadas } from './catalogo-de-conexoes'
+import { formatarDataDoModulo } from './formatar-data'
 import { especialidade, especialidades } from './especialidades'
 import { ERRO_SEM_PARTICIPACAO, ERRO_SO_ADMINISTRADOR, nomeDeAgenteCriado } from './regras'
 import { lerCanaisDoWorkspace } from './supabase-conexoes'
@@ -21,8 +22,10 @@ import type {
   FonteDeAgentes,
   FonteDeConhecimento,
   Frequencia,
+  Gatilho,
   Habilidade,
   IntegracaoId,
+  ItemDeAtividade,
   NovaRotina,
   Permissao,
   Personalizacao,
@@ -55,6 +58,47 @@ interface RegistroDaPersonalizacao {
   channels: CanalId[]
   knowledge: { id: string; kind: FonteDeConhecimento['tipo']; name: string }[]
   permissions: Partial<Record<IntegracaoId, Permissao>>
+}
+
+interface RegistroDaExecucao {
+  id: string
+  agent_id: string
+  conversation_id: string
+  trigger_kind: Gatilho
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  request_text: string
+  result_text: string | null
+  created_at: string
+}
+
+/** Quantas Execuções a Atividade mostra de uma vez. */
+const EXECUCOES_NA_ATIVIDADE = 50
+
+/** Quando a Execução começou, como a Atividade mostra: "Hoje, 08:00", "Ontem, 17:30", "Há 3 dias, 09:00". */
+function quandoDaExecucao(criadaEm: string): string {
+  const data = new Date(criadaEm)
+  const horario = `${String(data.getHours()).padStart(2, '0')}:${String(data.getMinutes()).padStart(2, '0')}`
+  return `${formatarDataDoModulo(data, new Date(), { maiuscula: true })}, ${horario}`
+}
+
+function converterExecucao(linha: RegistroDaExecucao): ItemDeAtividade {
+  const falhou = linha.status === 'failed'
+  const resultado = falhou
+    ? 'A Execução não se concluiu e nada foi alterado.'
+    : linha.status === 'succeeded'
+      ? linha.result_text || 'Concluída.'
+      : 'Em andamento.'
+  return {
+    id: linha.id,
+    agenteId: linha.agent_id,
+    tipo: 'execucao',
+    gatilho: linha.trigger_kind,
+    quando: quandoDaExecucao(linha.created_at),
+    descricao: linha.request_text,
+    resultado,
+    link: { rotulo: 'Ver Conversa', para: `/agentes/${linha.agent_id}/conversa?conversa=${linha.conversation_id}` },
+    ...(falhou ? { falhou: true } : {}),
+  }
 }
 
 interface RegistroDoFato {
@@ -319,8 +363,16 @@ export function criarFonteDeAgentesSupabase(cliente: SupabaseClient, workspaceId
       gravar('set_agent_routine_paused', { p_routine_id: rotinaId, p_paused: pausada }),
     excluirRotina: (rotinaId) => gravar('delete_agent_routine', { p_routine_id: rotinaId }),
 
-    // A Atividade nasce das Execuções, que ainda não existem neste Workspace: não há o que listar.
-    atividade: async () => [],
+    // A Atividade são as Execuções do Agente nas Conversas de quem chama (a Conversa é de quem a começou), as mais
+    // recentes primeiro.
+    async atividade(id, gatilho): Promise<ItemDeAtividade[]> {
+      const linhas = await chamar<RegistroDaExecucao[] | null>(
+        'agent_activity',
+        { p_workspace_id: workspaceId, p_agent_id: id, p_trigger_kind: gatilho ?? null, p_limit: EXECUCOES_NA_ATIVIDADE },
+        FALHA_AO_CARREGAR,
+      )
+      return (linhas ?? []).map(converterExecucao)
+    },
 
     async personalizacao(id): Promise<Personalizacao> {
       const [linha] = await chamar<RegistroDaPersonalizacao[]>('get_agent_settings', { p_agent_id: id }, FALHA_AO_CARREGAR)
