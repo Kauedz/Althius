@@ -3,15 +3,15 @@
 // funções do banco, que conferem a Participação ativa de quem chama: todo participante consulta, e só o Administrador
 // cria, exclui e altera. O banco também guarda que o Agente padrão não é excluído nem renomeado. Nada aqui executa um
 // Agente: a Atividade só lê as Execuções que já existem (agent_activity), e o estado do Agente é sempre ocioso.
-// Conectar Canais e Integrações é do módulo de Conexões: aqui o Slack aparece conectado quando o Canal Slack está ativo
-// no Workspace (a mesma leitura das Conexões), e o resto do catálogo, não conectado.
+// Conectar Canais e Integrações é do módulo de Conexões. Aqui os Canais só dizem se estão conectados, pela mesma leitura
+// de Conexões (o Slack quando instalado e ativo); as Integrações vêm do catálogo, todas não conectadas.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { canaisConectados, integracoesConectadas } from './catalogo-de-conexoes'
+import { integracoesConectadas } from './catalogo-de-conexoes'
 import { formatarDataDoModulo } from './formatar-data'
 import { especialidade, especialidades } from './especialidades'
 import { ERRO_SEM_PARTICIPACAO, ERRO_SO_ADMINISTRADOR, nomeDeAgenteCriado } from './regras'
-import { lerCanalSlack } from './supabase-conexoes'
+import { lerCanaisDoWorkspace } from './supabase-conexoes'
 import type {
   Agente,
   AgenteId,
@@ -394,10 +394,10 @@ export function criarFonteDeAgentesSupabase(cliente: SupabaseClient, workspaceId
         p_permissions: personalizacao.permissoes,
       }),
 
-    // Conectar Canais é do módulo de Conexões; aqui só se o Canal Slack do Workspace está ativo. Os outros, não conectados.
+    // Conectar Canais e Integrações é o módulo de Conexões: aqui o Canal só diz se está conectado, para o Agente atender nele.
     async canais() {
-      const slack = await lerCanalSlack(cliente, workspaceId)
-      return canaisConectados(slack?.estado === 'conectado' ? ['slack'] : [])
+      const canais = await lerCanaisDoWorkspace(cliente, workspaceId)
+      return canais.map(({ id, nome, descricao, conectado }) => ({ id, nome, descricao, conectado }))
     },
     integracoes: async () => integracoesConectadas([]),
     integracoesFuturas: async () => [],

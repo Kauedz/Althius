@@ -80,7 +80,7 @@ Deno.test('sem sessão, sem Integração conhecida e sem ação válida, nada é
   assertEquals((await montar({ semSessao: true }).pedir({ action: 'iniciar', workspaceId: WS, integrationId: 'hubspot' })).status, 401)
   const { pedir, c } = montar({ ambiente: HUBSPOT })
   assertEquals((await pedir({ action: 'iniciar', workspaceId: 'x', integrationId: 'hubspot' })).status, 400)
-  assertEquals((await pedir({ action: 'iniciar', workspaceId: WS, integrationId: 'clay' })).status, 404)
+  assertEquals((await pedir({ action: 'iniciar', workspaceId: WS, integrationId: 'kommo' })).status, 404)
   assertEquals((await pedir({ action: 'apagar', workspaceId: WS, integrationId: 'hubspot' })).status, 400)
   assertEquals(c.tentativas, [])
 })

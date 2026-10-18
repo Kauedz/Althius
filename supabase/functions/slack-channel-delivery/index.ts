@@ -15,7 +15,7 @@ const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_
 Deno.serve(createHandler({
   segredoInterno: required('SLACK_CHANNEL_DELIVERY_SECRET'),
   db: {
-    // A migration 20261029100000: marca a Execução como entregue e devolve o que postar.
+    // As migrations 20261029100000 e 20261102110000: marca a Execução como entregue e devolve o que postar.
     async reservarEntrega(runId) {
       const { data, error } = await admin.rpc('claim_slack_channel_delivery', { p_run_id: runId })
       if (error) throw new Error(`claim_slack_channel_delivery: ${error.code ?? ''} ${error.message}`)
@@ -26,6 +26,7 @@ Deno.serve(createHandler({
         channel_id: string
         thread_ts: string
         bot_token: string | null
+        pending_approvals: string[] | null
       }[]
       return linha
         ? {
@@ -35,8 +36,19 @@ Deno.serve(createHandler({
           canal: linha.channel_id,
           threadTs: linha.thread_ts,
           token: linha.bot_token,
+          aprovacoesPendentes: linha.pending_approvals ?? [],
         }
         : null
+    },
+    // A migration 20261102130000: confirmar depois do post, ou soltar a reserva e registrar a falha.
+    async confirmarEntrega(runId) {
+      const { error } = await admin.rpc('confirm_slack_channel_delivery', { p_run_id: runId })
+      if (error) throw new Error(`confirm_slack_channel_delivery: ${error.code ?? ''} ${error.message}`)
+    },
+    async falharEntrega(runId, motivo, final) {
+      const { data, error } = await admin.rpc('fail_slack_channel_delivery', { p_run_id: runId, p_error: motivo, p_final: final })
+      if (error) throw new Error(`fail_slack_channel_delivery: ${error.code ?? ''} ${error.message}`)
+      return data as 'nova_tentativa' | 'desistiu' | 'nada'
     },
   },
 }))

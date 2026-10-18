@@ -1,6 +1,6 @@
 // O catálogo fixo dos Canais e das Integrações que os Agentes usam: nome, descrição e o que cada Integração escreve. É
 // o que existe de Conexão, com ou sem conexão feita. Se ela está conectada é outra pergunta: a Demonstração responde com
-// dados de exemplo, e o Workspace operacional, com "não conectada" enquanto o módulo de Conexões não existir nele. O
+// dados de exemplo, e o Workspace operacional, com o que o banco diz (hoje só o Canal Slack conecta). O
 // catálogo de Integrações do banco (private.integration_catalog) tem os mesmos identificadores.
 import type { Canal, CanalId, Integracao, IntegracaoId } from './tipos'
 

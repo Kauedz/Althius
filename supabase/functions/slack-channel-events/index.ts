@@ -57,6 +57,22 @@ const db: Db = {
     if (!linha?.conversation_id || !linha.run_id) throw new Error('start_slack_channel_run não devolveu a Execução')
     return { kind: 'aberto', conversationId: linha.conversation_id, runId: linha.run_id }
   },
+  // O fio pela chave (slack-canal 04, migration 20261102100000): o dono e o Agente, para continuar ou recusar.
+  async lerFio(chave) {
+    const linhas = await chamar<{ owner_id: string; owner_name: string | null; agent_id: string; agent_name: string }[] | null>(
+      'slack_channel_thread',
+      { p_workspace_id: chave.workspaceId, p_team_id: chave.teamId, p_channel_id: chave.canal, p_thread_ts: chave.threadTs },
+    )
+    const linha = linhas?.[0]
+    return linha
+      ? { donoId: linha.owner_id, donoNome: linha.owner_name, agenteId: linha.agent_id, agenteNome: linha.agent_name }
+      : null
+  },
+  // O limite de uso por pessoa e por Workspace (slack-canal 08, migration 20261102120000).
+  async limiteDeUso(workspaceId, userId) {
+    const limite = await chamar<string>('slack_channel_usage_limit', { p_workspace_id: workspaceId, p_user_id: userId })
+    return limite === 'pessoa' || limite === 'workspace' ? limite : 'ok'
+  },
 }
 
 function recusaDoFio(codigo: string, mensagem: string): Extract<AberturaDoFio, { kind: 'recusado' }>['motivo'] {

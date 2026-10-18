@@ -104,7 +104,7 @@ select throws_ok(
 
 -- Tentativa de habilitar integração em_breve.
 select throws_ok(
-  $$select public.enable_workspace_integration('ee000000-0000-0000-0000-000000000001', 'clay')$$,
+  $$select public.enable_workspace_integration('ee000000-0000-0000-0000-000000000001', 'zoho-crm')$$,
   '22023', 'integration is not available for enablement',
   'recusa habilitar integração que ainda está em breve'
 );

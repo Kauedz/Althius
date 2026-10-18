@@ -23,7 +23,7 @@ Deno.test('os perfis e o seed do banco têm as mesmas Integrações, caminhos de
     assertEquals(perfil.portalFixo, seed.pinsPortal, id)
     assertEquals(perfil.id, id)
   }
-  assertEquals(perfilDaIntegracao('clay'), null)
+  assertEquals(perfilDaIntegracao('kommo'), null)
   assertEquals(perfilDaIntegracao('constructor'), null)
 })
 

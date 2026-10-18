@@ -116,7 +116,7 @@ Deno.test('o Acesso a reconectar, ausente, de Participação desativada ou de In
   )
   assert(!desabilitada.ok && desabilitada.erro.tipo === 'nao_habilitada')
 
-  const semPerfil = await listarFerramentas(montar().deps, { ...PEDIDO, integrationId: 'clay' })
+  const semPerfil = await listarFerramentas(montar().deps, { ...PEDIDO, integrationId: 'kommo' })
   assert(!semPerfil.ok && semPerfil.erro.tipo === 'nao_habilitada')
 })
 
