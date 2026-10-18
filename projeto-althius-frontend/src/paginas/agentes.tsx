@@ -44,7 +44,7 @@ export function PaginaAgentes() {
         <ul aria-label="Agentes do Workspace" className="grid grid-cols-3 gap-4">
           {agentes.map((agente) => (
             <li key={agente.id}>
-              <CartaoDeAgente agente={agente} integracoes={integracoes} />
+              <CartaoDeAgente agente={agente} integracoes={integracoes} conversasDisponiveis={disponivel('conversas')} />
             </li>
           ))}
         </ul>
@@ -118,7 +118,15 @@ function PedidoCoordenado() {
   )
 }
 
-function CartaoDeAgente({ agente, integracoes }: { agente: Agente; integracoes: Integracao[] }) {
+function CartaoDeAgente({
+  agente,
+  integracoes,
+  conversasDisponiveis,
+}: {
+  agente: Agente
+  integracoes: Integracao[]
+  conversasDisponiveis: boolean
+}) {
   const quando = agente.rotinaAtiva ? descreverFrequencia(agente.rotinaAtiva) : 'Sob demanda'
   const IconeDoGatilho = agente.rotinaAtiva ? CalendarClock : MousePointerClick
 
@@ -131,7 +139,7 @@ function CartaoDeAgente({ agente, integracoes }: { agente: Agente; integracoes: 
       <div className="flex items-center gap-2.5">
         <IconeAgente especialidade={agente.especialidade.id} />
         <span className="min-w-0 flex-1 leading-tight font-normal">{agente.nome}</span>
-        <SeloDeEstado estado={agente.estado} />
+        <SeloDeEstado estado={agente.estado} conversasDisponiveis={conversasDisponiveis} />
       </div>
       <p className="line-clamp-2 text-sm leading-relaxed text-al-muted">{agente.descricao}</p>
       <div className="mt-auto flex items-center gap-3 pt-2 text-sm text-al-muted">
