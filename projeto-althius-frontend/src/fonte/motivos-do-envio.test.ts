@@ -18,3 +18,12 @@ describe('motivoDoEnvio', () => {
     expect(motivoDoEnvio('HTTP 500')).toBe('HTTP 500')
   })
 })
+
+describe('motivoDoEnvio na Cadência', () => {
+  it('explica a variável sem valor e o descadastro', () => {
+    expect(motivoDoEnvio('missing_variable:cargo,empresa')).toBe(
+      'o passo usa variáveis sem valor para este Contato ({{cargo}}, {{empresa}}); preencha o dado ou ajuste o texto e reconfirme',
+    )
+    expect(motivoDoEnvio('contact_suppressed')).toBe('o Contato se descadastrou e não recebe mais e-mails deste Workspace')
+  })
+})

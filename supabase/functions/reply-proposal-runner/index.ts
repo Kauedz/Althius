@@ -3,6 +3,7 @@ import type { ChaveDoCliente } from '../_shared/orquestracao.ts'
 import { modeloDaAnthropic } from '../agent-conversation/model.ts'
 import { modeloDoGroq } from '../agent-conversation/model-groq.ts'
 import { ErroDoModelo, type Modelo } from '../agent-conversation/runner.ts'
+import { filaDaPropostaPorRpc, modeloDoHermes } from '../_shared/modelo-hermes.ts'
 import {
   type ContextoDaResposta,
   createHandler,
@@ -24,14 +25,15 @@ const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_
 })
 
 /**
- * O modelo da Althius, pelo mesmo caminho da `agent-conversation`: `anthropic` (padrão) ou `groq` (só para teste), pelo
- * AGENT_PROVIDER. REPLY_PROPOSAL_PROVIDER manda mais, para as Propostas de resposta usarem outro provedor que os Agentes
- * (o Hermes roda fora do Supabase e não atende esta função). Sem a chave do provedor, nenhum modelo: o trabalho falha
- * com `model_unavailable` e a tela diz que a IA não está configurada, em vez de fingir um rascunho.
+ * O modelo da Althius, pelo mesmo caminho da `agent-conversation`: `hermes` (a fila do worker do Hermes, ADR-0018, sem
+ * chave de API aqui), `anthropic` (padrão, enquanto nada for configurado) ou `groq` (só para teste), pelo AGENT_PROVIDER.
+ * REPLY_PROPOSAL_PROVIDER manda mais. Sem a chave do provedor, nenhum modelo: o trabalho falha com `model_unavailable` e
+ * a tela diz que a IA não está configurada, em vez de fingir um rascunho.
  */
+const provedor = (Deno.env.get('REPLY_PROPOSAL_PROVIDER') || Deno.env.get('AGENT_PROVIDER') || 'anthropic')
+  .trim().toLowerCase()
+
 function modeloConfigurado(): Modelo | null {
-  const provedor = (Deno.env.get('REPLY_PROPOSAL_PROVIDER') || Deno.env.get('AGENT_PROVIDER') || 'anthropic')
-    .trim().toLowerCase()
   if (provedor === 'groq') {
     const apiKey = Deno.env.get('GROQ_API_KEY') || ''
     const modelo = Deno.env.get('GROQ_MODEL') || ''
@@ -122,7 +124,10 @@ const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unkn
 
 Deno.serve(createHandler({
   db,
-  modelo: modeloConfigurado(),
+  modelo: provedor === 'hermes' ? null : modeloConfigurado(),
+  ...(provedor === 'hermes'
+    ? { modeloParaTrabalho: (job: TrabalhoReservado) => modeloDoHermes({ fila: filaDaPropostaPorRpc(admin, job) }) }
+    : {}),
   modeloDoCliente,
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : undefined,
 }))

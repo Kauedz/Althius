@@ -4,6 +4,7 @@ import { App } from '@/App'
 import { AplicativoAutenticado } from '@/auth/aplicativo'
 import { ehCaminhoDeAcesso } from '@/auth/destino'
 import { PaginaDoDocumentoPublico, documentoPublicoDoCaminho } from '@/auth/documento-publico'
+import { PaginaDeDescadastro, confirmarDescadastroPelaFuncao, tokenDeDescadastroDoCaminho } from '@/auth/pagina-de-descadastro'
 import type { ServicosDoNavegador } from '@/auth/servicos-do-navegador'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
 import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
@@ -27,6 +28,7 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
   // operacional, mesmo num navegador que nunca o escolheu.
   const [abriuPeloAcesso] = useState(() => ehCaminhoDeAcesso(window.location.pathname))
   const [documentoPublico] = useState(() => documentoPublicoDoCaminho(window.location.pathname))
+  const [tokenDeDescadastro] = useState(() => tokenDeDescadastroDoCaminho(window.location.pathname, window.location.search))
   const [ambiente, setAmbiente] = useState<ModoDoAmbiente>(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('auth') === 'true' || params.get('demo') === 'false') return 'real'
@@ -51,6 +53,15 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
 
   // Os Termos e a Política de Privacidade são públicos: não pedem login, não abrem a Demonstração nem escolhem ambiente.
   if (documentoPublico) return <PaginaDoDocumentoPublico documento={documentoPublico} />
+  // O link de descadastro do rodapé dos e-mails também é público: quem abre é o Contato, não um usuário.
+  if (tokenDeDescadastro !== null) {
+    return (
+      <PaginaDeDescadastro
+        token={tokenDeDescadastro}
+        confirmar={confirmarDescadastroPelaFuncao(import.meta.env.VITE_SUPABASE_URL ?? '')}
+      />
+    )
+  }
 
   if (ambiente === 'demonstracao' || !cliente) {
     return <AplicativoDeDemonstracao aoAlternarParaAutenticado={cliente ? () => escolherAmbiente('real') : undefined} />

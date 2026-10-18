@@ -92,3 +92,13 @@ segredos de cliente OAuth das Integrações, que não ficam neste `.env` (nesse 
 ## As classificações dos Sinais
 
 Com `SIGNALS_LLM_PROVIDER=hermes` nas Edge Functions `signal-runner` e `signal-cascade`, os passos de IA dos Sinais (notícia e diário oficial) não chamam um modelo direto: enfileiram o pedido no banco (`claim_signal_llm_request`) e este worker o responde pelo Hermes, que já usa a OpenAI. O worker reserva até 5 pedidos por volta, entrega ao Hermes só o texto do pedido (público) e a regra de marca, e grava a resposta e os tokens (`finish_signal_llm_request`); o erro real fica só no log, sem segredo, e o pedido guarda uma mensagem neutra. As classificações têm uma volta própria (a cada 1 s), separada da dos pedidos dos Agentes, para a Edge Function não vencer o prazo enquanto um Agente conversa. O texto classificado vem da internet: o Hermes o recebe como dado, com a ordem de ignorar instruções dentro dele, e **os toolsets do passo 3 acima precisam estar desligados** (sem terminal, arquivos, navegador nem execução de código). Se o worker não está ligado, a Edge Function desiste no prazo e o passo usa a regra de palavra-chave. `HERMES_SINAIS_IA=off` no `.env` desliga só isto.
+
+## As Propostas de resposta
+
+Com `REPLY_PROPOSAL_PROVIDER=hermes` (ou `AGENT_PROVIDER=hermes`) nos segredos das Edge Functions, o
+`reply-proposal-runner` não chama nenhuma API de modelo: enfileira o rascunho na mesma fila dos Sinais
+(`enqueue_reply_proposal_llm_request`, com `purpose = 'resposta'`), espera até 120 s e grava a Proposta. Este worker
+responde esses pedidos na mesma volta das classificações (`processarPedidosDeIa`), com a instrução de rascunho (a conversa
+é dado, sem ferramentas, só o texto da resposta) e a chave de idempotência `althius-resposta-ia-<id>`. `HERMES_SINAIS_IA=off`
+desliga as duas coisas. Sem o worker ligado, o pedido vence em 3 minutos e o trabalho falha como `model_unreachable` ou
+`model_timeout` (passageiros: o runner tenta de novo).

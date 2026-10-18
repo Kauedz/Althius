@@ -391,3 +391,45 @@ Deno.test('se a conta caiu de novo durante a reconciliação, ela não é libera
   assertEquals(finished, [])
   assertEquals(logs[0].outcome, 'dropped_again')
 })
+
+Deno.test('o passo sai com o rodapé de descadastro no corpo e o List-Unsubscribe de um clique no cabeçalho', async () => {
+  const { db } = fakeDb(
+    [{ send_id: SEND_1, owner_user_id: TITULAR }],
+    { [SEND_1]: { ...released(SEND_1), unsubscribe_token: 'tok123' } as ReleaseResult },
+  )
+  const { unipile, sent } = fakeUnipile({ id: 'email-abc', message_id: null })
+  const { handle, finished } = runner(db, unipile, {
+    unsubscribeLinks: {
+      page: (token) => `https://app.test/descadastro?t=${token}`,
+      oneClick: (token) => `https://fn.test/functions/v1/descadastro?t=${token}`,
+    },
+  })
+  await handle(call())
+  await finished()
+
+  const email = sent[0].email
+  assertEquals(email.plain_text.startsWith('Olá, Maria.'), true)
+  assertEquals(email.plain_text.includes('https://app.test/descadastro?t=tok123'), true)
+  assertEquals(email.plain_text.includes(SEND_1), false)
+  assertEquals(email.custom_headers, [
+    { name: 'X-Althius-Envio', value: SEND_1 },
+    { name: 'List-Unsubscribe', value: '<https://fn.test/functions/v1/descadastro?t=tok123>' },
+    { name: 'List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
+  ])
+})
+
+Deno.test('Contato descadastrado ou variável sem valor: o banco barra e a Unipile nem é chamada', async () => {
+  const { db, recorded } = fakeDb(
+    [{ send_id: SEND_1, owner_user_id: TITULAR }, { send_id: SEND_2, owner_user_id: TITULAR }],
+    {
+      [SEND_1]: { outcome: 'contact_suppressed', send_id: SEND_1 },
+      [SEND_2]: { outcome: 'missing_variable', send_id: SEND_2 },
+    },
+  )
+  const { unipile, sent } = fakeUnipile({ id: 'e1', message_id: null })
+  const { handle, finished } = runner(db, unipile)
+  await handle(call())
+  await finished()
+  assertEquals(sent.length, 0)
+  assertEquals(recorded.length, 0)
+})

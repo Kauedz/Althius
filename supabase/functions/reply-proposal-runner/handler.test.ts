@@ -365,3 +365,17 @@ Deno.test('o pedido e as instruções não carregam mais que o contexto recebido
   assertStringIncludes(vazio, 'não tem seções escritas')
   assertStringIncludes(vazio, 'sem inventar um nome')
 })
+
+Deno.test('com o Hermes, o modelo é montado por trabalho (a fila sabe de qual Proposta é) e o rascunho é gravado', async () => {
+  const montados: string[] = []
+  const { modelo: doHermes } = modeloFalso('hermes', () => resposta('Oi, Maria. Podemos falar amanhã?'))
+  const { handler, espera, salvos } = montar({ jobs: [trabalho(1)] }, null, {
+    modeloParaTrabalho: (job) => {
+      montados.push(job.job_id)
+      return doHermes
+    },
+  })
+  await chamar(handler, espera)
+  assertEquals(montados, [trabalho(1).job_id])
+  assertEquals(salvos.length, 1)
+})
