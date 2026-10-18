@@ -1,5 +1,5 @@
 import { PreviewCard } from '@base-ui/react/preview-card'
-import { Archive, Building2, ExternalLink, Plus, RadioTower, Upload } from 'lucide-react'
+import { Archive, Building2, ExternalLink, Plus, RadioTower, Route, Upload } from 'lucide-react'
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SeloDeAderencia } from '@/components/aderencia'
@@ -15,6 +15,7 @@ import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn, normalizarParaBusca } from '@/lib/utils'
 import { BOTAO_DO_CABECALHO, ContasArquivadas } from './arquivar-e-apagar'
 import { DetalheConta } from './detalhe-conta'
+import { DialogoCriacaoEmLote } from './dialogo-criacao-em-lote'
 import { KanbanDeContas } from './kanban-de-contas'
 import {
   AbasDoModulo,
@@ -243,6 +244,8 @@ function ListaContas() {
   const estadoDoLink = useEstadoParaODetalhe('Contas')
   const [cadastrando, setCadastrando] = useState(false)
   const [verArquivadas, setVerArquivadas] = useState(false)
+  const [selecionadas, setSelecionadas] = useState<string[]>([])
+  const [loteAberto, setLoteAberto] = useState(false)
   // A vista Kanban (kanban 03) vive no parâmetro `vista` do endereço, como o recorte; sem `moverEstagio`, só a tabela.
   const kanban = !!fonte.moverEstagio && recorte.parametros.get('vista') === 'kanban'
   // Os critérios de passagem (kanban 04) saem da seção SLA e metas; sem Playbook, o cartão segue sem eles.
@@ -291,6 +294,17 @@ function ListaContas() {
           <Button type="button" variant="outline" onClick={() => setVerArquivadas(true)} className={BOTAO_DO_CABECALHO}>
             <Archive className="mr-1.5 size-3.5" aria-hidden />
             Arquivadas
+          </Button>
+        )}
+        {selecionadas.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setLoteAberto(true)}
+            className={BOTAO_DO_CABECALHO}
+          >
+            <Route className="mr-1.5 size-3.5" aria-hidden />
+            Criar Sequências
           </Button>
         )}
         {fonte.importacao && (
@@ -426,12 +440,25 @@ function ListaContas() {
                   key={conta.id}
                   className="h-11 cursor-pointer transition-colors hover:bg-al-hover"
                   onClick={(e) => {
-                    if ((e.target as HTMLElement).closest('a, button')) return
+                    if ((e.target as HTMLElement).closest('a, button, input')) return
                     navegar(`/contas/${conta.id}`, { state: estadoDoLink })
                   }}
                 >
                   <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
-                    <CelulaEmpresa conta={conta} estadoDoLink={estadoDoLink} />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Selecionar ${conta.nome}`}
+                        className={CAIXA}
+                        checked={selecionadas.includes(conta.id)}
+                        onChange={() =>
+                          setSelecionadas((atuais) =>
+                            atuais.includes(conta.id) ? atuais.filter((id) => id !== conta.id) : [...atuais, conta.id],
+                          )
+                        }
+                      />
+                      <CelulaEmpresa conta={conta} estadoDoLink={estadoDoLink} />
+                    </div>
                   </td>
                   <td className={CELULA}>
                     <CelulaQuente totalSinaisValidos={conta.totalSinaisValidos ?? 0} />
@@ -457,6 +484,7 @@ function ListaContas() {
           </table>
         </div>
       )}
+      <DialogoCriacaoEmLote aberto={loteAberto} aoMudar={setLoteAberto} contaIds={selecionadas} />
     </Pagina>
   )
 }

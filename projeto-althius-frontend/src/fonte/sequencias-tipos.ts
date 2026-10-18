@@ -103,6 +103,13 @@ export interface Sequencia {
   atualizadaEm?: string
 }
 
+/** O desfecho de uma Conta-alvo na criação em lote. */
+export interface ResultadoDoLoteDeSequencias {
+  contaId: string
+  desfecho: string
+  sequenciaId?: string
+}
+
 export interface NovaSequencia {
   contaId: string
   participantesIds?: string[]
@@ -320,6 +327,18 @@ export interface FonteDeSequencias extends FonteObservavel {
    * for o Vendedor responsável pela Conta. Depois de uma Transferência de responsabilidade, o novo responsável cria a dele.
    */
   criarSequencia(nova: NovaSequencia): Promise<Sequencia>
+
+  /**
+   * Cria uma Sequência por Conta-alvo com a mesma Cadência (`create_sequences_in_batch`).
+   * Contas puladas voltam no desfecho, sem desfazer as outras.
+   */
+  criarSequenciasEmLote?(
+    contaIds: string[],
+    template: { steps: Omit<StepSequencia, 'contatoId'>[]; janelaPadrao?: JanelaHorario; regraDePause?: string },
+  ): Promise<ResultadoDoLoteDeSequencias[]>
+
+  /** E-mails e domínios suprimidos do Workspace, para a prévia do lote. */
+  supressoesDoWorkspace?(): Promise<{ kind: 'email' | 'domain'; value: string }[]>
 
   /** Atualiza o documento de uma sequência (participantes, steps, delays, janela, pause). */
   atualizarDocumento(id: string, atualizacao: AtualizacaoDocumento): Promise<Sequencia>

@@ -351,13 +351,9 @@ describe('Células da tabela de Contas', () => {
     expect(bbva).toHaveTextContent(/^—$/)
   })
 
-  it('não há caixas de seleção nas linhas, e nenhuma nota, letra, score, "Etapa" ou "CRM" aparece no módulo', async () => {
+  it('não há nota, letra, score, "Etapa" ou "CRM" no módulo', async () => {
     renderizarApp('/contas')
-
     const tabela = await screen.findByRole('table', { name: 'Tabela de Contas' })
-    expect(within(tabela).queryAllByRole('checkbox')).toHaveLength(0)
-
-    // A Aderência é só a classificação: nenhuma linha traz nota, letra ou número no lugar dela
     const aderencias = within(tabela)
       .getAllByRole('row')
       .slice(1)

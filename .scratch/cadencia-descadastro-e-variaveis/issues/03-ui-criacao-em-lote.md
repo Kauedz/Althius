@@ -6,11 +6,11 @@
 
 **Blocked by:** 02 (RPC na branch `cadencia/descadastro-e-variaveis`).
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Critérios
 
-- [ ] Seleção múltipla na lista de Contas e no lote importado, sem mudar rota nem menu.
-- [ ] Escolha da Cadência e prévia do primeiro passo para uma Conta.
-- [ ] Resultado por Conta com os motivos traduzidos.
-- [ ] Vitest.
+- [x] Seleção múltipla na lista de Contas e no lote importado, sem mudar rota nem menu.
+- [x] Escolha da Cadência e prévia do primeiro passo para uma Conta.
+- [x] Resultado por Conta com os motivos traduzidos.
+- [x] Vitest.
