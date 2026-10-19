@@ -349,3 +349,13 @@ Deno.test('as ferramentas do Clay gastam créditos do Cliente: todas escrevem ou
   assert(r.ok)
   assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
 })
+
+Deno.test('as ferramentas do Lusha gastam créditos do Cliente: todas escrevem ou gastam, mesmo com readOnlyHint', async () => {
+  const { deps } = montar({
+    acesso: { kind: 'api_key', segredo: JSON.stringify({ api_key: 'chave-lusha-123' }), appPortal: null },
+    mcp: { chave: { cabecalho: 'x-api-key', valor: 'chave-lusha-123' } },
+  })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'lusha' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})

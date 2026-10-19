@@ -535,6 +535,9 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       url: 'https://mcp.lusha.com',
       // A documentação oficial manda a chave no cabeçalho x-api-key (e diz que Authorization: Bearer é recusado).
       chave: { cabecalho: 'x-api-key' },
+      // As ferramentas gastam os créditos do Lusha do Cliente (e-mail 1, telefone 5, empresa 1; a busca sem resultado
+      // não cobra): toda chamada vale como gasto (conector-lusha 01).
+      ferramentasGastam: true,
     },
     chaveDeApi: { via: 'mcp' },
     naoConfirmado: ['OAuth do Lusha para cliente de terceiros (o blog oficial fala em OAuth; a documentação só mostra a chave).'],
