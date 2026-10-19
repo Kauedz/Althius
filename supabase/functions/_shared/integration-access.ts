@@ -530,18 +530,20 @@ async function revogarNoApp(
       token: mcp.oauth.token,
       fetch: deps.fetch,
     })
-    if (!descoberta.revocation_endpoint) return 'nao_suportado'
+    // O anunciado pelo servidor vale primeiro; sem ele, o declarado no perfil (o Calendly não anuncia o dele).
+    const endereco = descoberta.revocation_endpoint ?? mcp.oauth.revogacao
+    if (!endereco) return 'nao_suportado'
     // O token só vai ao servidor que o emitiu, com o cliente que o recebeu, e a revogação fica na mesma origem do
     // endpoint de token: um metadado não manda o token para outro host.
     if (!segredo.issuer || !segredo.client_id || descoberta.issuer !== segredo.issuer) return 'falhou'
-    if (new URL(descoberta.revocation_endpoint).origin !== new URL(descoberta.token_endpoint).origin) return 'falhou'
+    if (!endereco.startsWith('https://') || new URL(endereco).origin !== new URL(descoberta.token_endpoint).origin) return 'falhou'
     const cliente = await clienteDaRenovacao(
       { banco: deps.banco, ambiente: deps.ambiente, fetch: deps.fetch },
       perfil,
       { clientId: segredo.client_id, issuer: segredo.issuer },
     )
     if (!cliente) return 'falhou'
-    const base = { endpoint: descoberta.revocation_endpoint, cliente, fetch: deps.fetch }
+    const base = { endpoint: endereco, cliente, fetch: deps.fetch }
     if (segredo.refresh_token) await revogarToken({ ...base, token: segredo.refresh_token, dica: 'refresh_token' })
     await revogarToken({ ...base, token: segredo.access_token, dica: 'access_token' })
     return 'revogado'

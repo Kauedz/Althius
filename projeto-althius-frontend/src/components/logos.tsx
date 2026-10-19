@@ -72,7 +72,24 @@ export function LogoDaIntegracao({ id, nome, className }: { id: IntegracaoId; no
       </svg>
     )
   }
-  return <img src={IMAGENS[id]} alt={nome} title={nome} className={cn('size-4 shrink-0 rounded-[3px] object-contain', className)} />
+  const imagem = IMAGENS[id]
+  if (imagem) {
+    return <img src={imagem} alt={nome} title={nome} className={cn('size-4 shrink-0 rounded-[3px] object-contain', className)} />
+  }
+  // Sem logo cadastrado, as iniciais num quadrado discreto, como nas Contas-alvo: nunca uma imagem quebrada.
+  return (
+    <span
+      role="img"
+      aria-label={nome}
+      title={nome}
+      className={cn(
+        'grid size-4 shrink-0 place-items-center rounded-[3px] border border-al-line bg-al-surface text-[0.5rem] font-semibold text-al-muted',
+        className,
+      )}
+    >
+      {iniciais(nome)}
+    </span>
+  )
 }
 
 /**

@@ -44,6 +44,11 @@ export interface PerfilOAuth {
   autenticacaoDoToken?: 'client_secret_post' | 'client_secret_basic'
   /** Manda o parâmetro `resource` (RFC 8707) no consentimento e na troca, como o MCP pede. */
   enviarRecurso: boolean
+  /**
+   * Onde revogar o token (RFC 7009) quando o metadado do servidor não anuncia `revocation_endpoint` (Calendly). Vale só
+   * com a mesma origem do endpoint de token, como o anunciado.
+   */
+  revogacao?: string
   identificacao: Identificacao
 }
 

@@ -121,12 +121,21 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
         // Registro dinâmico em calendly.com/oauth/register, uma vez por ambiente e reaproveitado (a Calendly recomenda).
         registro: 'dinamico',
         segredos: { clientId: 'CALENDLY_MCP_CLIENT_ID', clientSecret: 'CALENDLY_MCP_CLIENT_SECRET' },
-        escopos: ['mcp:scheduling:read', 'mcp:scheduling:write'],
+        // Só leitura na primeira versão (conector-calendly 02): marcar reunião (`mcp:scheduling:write`) espera decisão.
+        escopos: ['mcp:scheduling:read'],
         enviarRecurso: true,
-        identificacao: {},
+        // O metadado não anuncia a revogação, mas ela existe (developer.calendly.com/frequently-asked-questions).
+        revogacao: 'https://calendly.com/oauth/revoke',
+        identificacao: {
+          // A ferramenta equivale a GET /users/me. não confirmado: o formato do resultado pelo MCP; vale o e-mail, ou o nome.
+          porFerramentaMcp: {
+            ferramenta: 'users-get_current_user',
+            conta: ['resource.email', 'email', 'user.email', 'resource.name', 'name'],
+          },
+        },
       },
     },
-    naoConfirmado: ['Como a conta do Calendly é identificada para o cartão (a resposta do token não foi lida).'],
+    naoConfirmado: ['O formato do resultado de `users-get_current_user` pelo MCP (a conta do cartão).'],
   },
   bitrix24: {
     id: 'bitrix24',
