@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { idaAoApp } from '@/paginas/ida-ao-app'
@@ -238,7 +238,7 @@ describe('O cartão do Clay no Workspace operacional', () => {
     abrir({ rota: '/conexoes?conexao=ok&integracao=clay', acessos: [CLAY_CONECTADO] })
 
     expect(await screen.findByText('Clay conectado.')).toBeInTheDocument()
-    expect(window.location.search).toBe('')
+    await waitFor(() => expect(window.location.search).toBe(''))
   })
 
   it.each([

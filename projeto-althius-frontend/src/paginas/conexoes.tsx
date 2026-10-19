@@ -548,6 +548,11 @@ function CartaoDeIntegracaoReal({
   )
 }
 
+// O que os Agentes precisam saber para usar as ferramentas de um app.
+const AVISO_DAS_FERRAMENTAS: Partial<Record<IntegracaoId, string>> = {
+  'google-sheets': 'O servidor do Google Sheets não lista planilhas: peça aos Agentes com a URL da planilha.',
+}
+
 // Por que um Acesso de cada app volta a pedir autorização, quando é do jeito do app e não uma falha.
 const AVISO_DE_RECONEXAO: Partial<Record<IntegracaoId, string>> = {
   'tiktok-ads': 'O TikTok pede uma nova autorização a cada 30 dias.',
@@ -750,6 +755,9 @@ function DialogoDeFerramentas({
         <DialogDescription className="text-al-muted">
           O que os agentes podem usar com o seu Acesso. As que escrevem ou gastam seguem a Permissão de cada agente.
         </DialogDescription>
+        {integracao && AVISO_DAS_FERRAMENTAS[integracao.id] && (
+          <p className="text-sm text-al-atencao">{AVISO_DAS_FERRAMENTAS[integracao.id]}</p>
+        )}
         {demonstracao && <p className="anotacao">exemplos da Demonstração: no Workspace, a lista vem do próprio app</p>}
         {!podeMudar && ferramentas && ferramentas.length > 0 && (
           <p className="text-xs text-al-muted">Só um Administrador muda a permissão de cada ferramenta.</p>

@@ -237,8 +237,11 @@ export function urlDeConsentimento(opcoes: {
   desafio: string
   escopo?: string
   recurso?: string
+  /** Parâmetros do app (ex.: `access_type=offline` do Google). Os do OAuth vêm depois e nunca são sobrescritos. */
+  extras?: Record<string, string>
 }): string {
   const url = new URL(opcoes.endpointDeAutorizacao)
+  for (const [nome, valor] of Object.entries(opcoes.extras ?? {})) url.searchParams.set(nome, valor)
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('client_id', opcoes.clientId)
   url.searchParams.set('redirect_uri', opcoes.urlDeRetorno)

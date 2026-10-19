@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { idaAoApp } from '@/paginas/ida-ao-app'
@@ -236,7 +236,7 @@ describe('O cartão do Calendly no Workspace operacional', () => {
     abrir({ rota: '/conexoes?conexao=ok&integracao=calendly', acessos: [CALENDLY_CONECTADO] })
 
     expect(await screen.findByText('Calendly conectado.')).toBeInTheDocument()
-    expect(window.location.search).toBe('')
+    await waitFor(() => expect(window.location.search).toBe(''))
   })
 
   it.each([

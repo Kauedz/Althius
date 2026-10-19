@@ -153,6 +153,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           desafio: await desafioPkce(tentativa.codeVerifier),
           escopo: oauth.escopos?.join(' '),
           recurso,
+          extras: oauth.parametrosDeAutorizacao,
         })
         log({ type: 'integration_connect', integrationId, resultado: 'iniciada' })
         return responder({ url })

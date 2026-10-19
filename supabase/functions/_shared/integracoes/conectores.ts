@@ -10,6 +10,21 @@ import type { PerfilDeIntegracao } from './perfis.ts'
 
 const GOOGLE = 'https://www.googleapis.com/auth/'
 
+// O Google só devolve refresh token com acesso offline; `prompt=consent` garante um novo ao reconectar.
+const GOOGLE_OFFLINE = { access_type: 'offline', prompt: 'consent' }
+
+// A conta pelo userinfo do OpenID Connect, com o token novo (o escopo `openid email` vem no consentimento).
+const IDENTIFICACAO_GOOGLE = {
+  requisicoes: [
+    {
+      metodo: 'GET' as const,
+      url: 'https://openidconnect.googleapis.com/v1/userinfo',
+      cabecalhos: { Authorization: 'Bearer {credencial}' },
+      conta: ['email', 'name'],
+    },
+  ],
+}
+
 export const CONECTORES: Record<string, PerfilDeIntegracao> = {
   slack: {
     id: 'slack',
@@ -42,20 +57,24 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
         // Um cliente OAuth num projeto do Google Cloud, com a tela de consentimento e estes escopos.
         registro: 'preregistrado',
         segredos: { clientId: 'GOOGLE_CALENDAR_MCP_CLIENT_ID', clientSecret: 'GOOGLE_CALENDAR_MCP_CLIENT_SECRET' },
+        // Só leitura e disponibilidade (conector-google-calendar 02); criar evento (`calendar.events`) espera decisão.
+        // `openid email` identifica a conta. Os escopos de Calendar são sensíveis: verificação do Google de 3 a 5 dias úteis.
         escopos: [
+          'openid',
+          'email',
           `${GOOGLE}calendar.calendarlist.readonly`,
           `${GOOGLE}calendar.events.freebusy`,
           `${GOOGLE}calendar.events.readonly`,
-          `${GOOGLE}calendar.events`,
         ],
+        // Sem access_type=offline o Google não devolve refresh token e o Acesso cai em uma hora.
+        parametrosDeAutorizacao: GOOGLE_OFFLINE,
         // não confirmado: se o Google aceita o parâmetro `resource`; fora por segurança.
         enviarRecurso: false,
-        identificacao: {},
+        identificacao: IDENTIFICACAO_GOOGLE,
       },
     },
     naoConfirmado: [
-      'Se o servidor publica o metadado de autorização (RFC 9728) apontando para o OAuth do Google.',
-      'Se o refresh token vem sem access_type=offline no consentimento (o cliente OAuth da Althius não manda esse parâmetro).',
+      'O servidor está em Developer Preview: só para teste interno até o GA (pesquisa-2026-10-19-agenda-e-planilhas.md).',
       'A verificação do app pelo Google para escopos sensíveis antes de servir a muitos usuários.',
     ],
   },
@@ -68,15 +87,17 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
       oauth: {
         registro: 'preregistrado',
         segredos: { clientId: 'GOOGLE_SHEETS_MCP_CLIENT_ID', clientSecret: 'GOOGLE_SHEETS_MCP_CLIENT_SECRET' },
-        escopos: [`${GOOGLE}spreadsheets`, `${GOOGLE}drive.file`],
+        // Só leitura (conector-google-sheets 01). O servidor não lista nem busca planilhas: o Agente precisa da URL. Nada de
+        // `drive`/`drive.readonly` (escopos restritos, com CASA anual).
+        escopos: ['openid', 'email', `${GOOGLE}spreadsheets.readonly`],
+        parametrosDeAutorizacao: GOOGLE_OFFLINE,
         enviarRecurso: false,
-        identificacao: {},
+        identificacao: IDENTIFICACAO_GOOGLE,
       },
     },
     naoConfirmado: [
-      'Se o servidor publica o metadado de autorização (RFC 9728) apontando para o OAuth do Google.',
-      'Se o refresh token vem sem access_type=offline no consentimento.',
-      'Se drive.file basta para achar as planilhas ou se é preciso drive.readonly (escopo restrito).',
+      'O servidor está em Developer Preview: só para teste interno até o GA (pesquisa-2026-10-19-agenda-e-planilhas.md).',
+      'Se a escrita (`spreadsheets`) entra; espera decisão.',
     ],
   },
   clay: {

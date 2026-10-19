@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { idaAoApp } from '@/paginas/ida-ao-app'
@@ -258,7 +258,7 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
     abrir({ rota: '/conexoes?conexao=ok&integracao=meta-ads', acessos: [META_CONECTADO] })
 
     expect(await screen.findByText('Meta Ads conectado.')).toBeInTheDocument()
-    expect(window.location.search).toBe('')
+    await waitFor(() => expect(window.location.search).toBe(''))
   })
 
   it.each([

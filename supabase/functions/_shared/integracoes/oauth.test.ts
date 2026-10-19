@@ -336,3 +336,21 @@ Deno.test('TikTok Ads: o emissor com caminho tem o metadado em <emissor>/.well-k
   assertEquals(achado.resource, 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer')
   assert(chamadas.some((c) => c.url === `${emissor}/.well-known/openid-configuration`))
 })
+
+Deno.test('o consentimento leva os parâmetros extras do perfil (access_type=offline), sem deixar sobrescrever os do OAuth', () => {
+  const url = new URL(urlDeConsentimento({
+    endpointDeAutorizacao: 'https://accounts.google.com/o/oauth2/v2/auth',
+    clientId: 'cid',
+    urlDeRetorno: 'https://x.test/cb',
+    state: 'estado-1',
+    desafio: 'desafio-1',
+    escopo: 'openid email',
+    extras: { access_type: 'offline', prompt: 'consent', client_id: 'forjado', state: 'forjado', redirect_uri: 'https://mal.test' },
+  }))
+  assertEquals(url.searchParams.get('access_type'), 'offline')
+  assertEquals(url.searchParams.get('prompt'), 'consent')
+  assertEquals(url.searchParams.get('client_id'), 'cid')
+  assertEquals(url.searchParams.get('state'), 'estado-1')
+  assertEquals(url.searchParams.get('redirect_uri'), 'https://x.test/cb')
+  assertEquals(url.searchParams.getAll('client_id').length, 1)
+})

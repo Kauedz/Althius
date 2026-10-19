@@ -54,6 +54,8 @@ export interface PerfilOAuth {
    * com a mesma origem do endpoint de token, como o anunciado.
    */
   revogacao?: string
+  /** Parâmetros extras do consentimento (o Google só devolve refresh token com `access_type=offline`). */
+  parametrosDeAutorizacao?: Record<string, string>
   identificacao: Identificacao
 }
 
