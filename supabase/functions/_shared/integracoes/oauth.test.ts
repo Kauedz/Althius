@@ -354,3 +354,18 @@ Deno.test('o consentimento leva os parâmetros extras do perfil (access_type=off
   assertEquals(url.searchParams.get('redirect_uri'), 'https://x.test/cb')
   assertEquals(url.searchParams.getAll('client_id').length, 1)
 })
+
+Deno.test('os extras nunca trazem scope, resource nem PKCE, mesmo quando o perfil não os define', () => {
+  const url = new URL(urlDeConsentimento({
+    endpointDeAutorizacao: 'https://auth.falso.test/authorize',
+    clientId: 'cid',
+    urlDeRetorno: 'https://x.test/cb',
+    state: 'estado-1',
+    desafio: 'desafio-1',
+    extras: { scope: 'tudo', resource: 'https://mal.test', code_challenge_method: 'plain', response_type: 'token' },
+  }))
+  assertEquals(url.searchParams.get('scope'), null)
+  assertEquals(url.searchParams.get('resource'), null)
+  assertEquals(url.searchParams.get('code_challenge_method'), 'S256')
+  assertEquals(url.searchParams.get('response_type'), 'code')
+})

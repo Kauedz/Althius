@@ -25,3 +25,5 @@
   - `integration-access.test.ts`: a chave vai no `x-api-key` em todas as chamadas ao MCP.
 - Diálogo da chave: `AVISO_DA_CHAVE` em `conexoes.tsx` troca o aviso genérico por "Use a chave mestra da sua própria conta do Apollo: chaves com escopo não funcionam no MCP." ([print](prints/03-dialogo-chave.jpg)).
 - `deno test supabase/functions`: 1637 passaram.
+
+**Revisão (19/10):** pelo caminho da chave, o cartão mostra só "Conectado", sem a conta, porque o MCP não tem identificação documentada; a REST antiga tentava mostrar. Uma chave guardada antes desta mudança foi validada na REST e agora vai ao MCP: se for uma chave com escopo, o Acesso vira "Precisa reconectar". Na pré-produção isso não pesa (o Apollo segue `available = false`).

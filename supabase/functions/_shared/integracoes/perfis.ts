@@ -515,7 +515,8 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
         registro: 'preregistrado',
         clientePublico: true,
         segredos: { clientId: 'META_ADS_MCP_CLIENT_ID', clientSecret: 'META_ADS_MCP_CLIENT_SECRET' },
-        // O mínimo que a documentação exige; só leitura. A gestão (`ads_management`…) espera decisão (índice, decisão 3).
+        // O mínimo que a documentação exige. `ads_read` é leitura, mas `ads_mcp_management` é o escopo do caso de uso do MCP
+        // e pode permitir gestão pelo servidor: por isso toda ferramenta pede Aprovação. `ads_management` espera decisão.
         escopos: ['ads_mcp_management', 'ads_read'],
         enviarRecurso: true,
         identificacao: {},

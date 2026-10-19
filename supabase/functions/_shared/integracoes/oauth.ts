@@ -229,6 +229,18 @@ export async function desafioPkce(verificador: string): Promise<string> {
 }
 
 /** O endereço de consentimento: o navegador vai para ele, e o app autoriza com a conta da pessoa. */
+/** O que só o OAuth define no consentimento: nenhum parâmetro extra do perfil entra no lugar deles. */
+const PARAMETROS_DO_OAUTH = new Set([
+  'response_type',
+  'client_id',
+  'redirect_uri',
+  'state',
+  'code_challenge',
+  'code_challenge_method',
+  'scope',
+  'resource',
+])
+
 export function urlDeConsentimento(opcoes: {
   endpointDeAutorizacao: string
   clientId: string
@@ -241,7 +253,9 @@ export function urlDeConsentimento(opcoes: {
   extras?: Record<string, string>
 }): string {
   const url = new URL(opcoes.endpointDeAutorizacao)
-  for (const [nome, valor] of Object.entries(opcoes.extras ?? {})) url.searchParams.set(nome, valor)
+  for (const [nome, valor] of Object.entries(opcoes.extras ?? {})) {
+    if (!PARAMETROS_DO_OAUTH.has(nome)) url.searchParams.set(nome, valor)
+  }
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('client_id', opcoes.clientId)
   url.searchParams.set('redirect_uri', opcoes.urlDeRetorno)

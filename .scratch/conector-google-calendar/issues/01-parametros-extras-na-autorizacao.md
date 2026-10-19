@@ -18,3 +18,5 @@
 - `PerfilOAuth.parametrosDeAutorizacao` e `urlDeConsentimento({ extras })`. Os extras entram antes, e os parâmetros do OAuth (`client_id`, `state`, `redirect_uri`, PKCE, `scope`, `resource`) vêm depois, sem poder ser sobrescritos.
 - O Calendar e o Sheets mandam `access_type=offline` e `prompt=consent`.
 - Testes: `oauth.test.ts` (os extras entram; um `client_id`, `state` ou `redirect_uri` forjado é ignorado) e `integration-connect/handler-google.test.ts` (o consentimento do Calendar e do Sheets), vermelhos antes e verdes depois.
+
+**Revisão (19/10):** os extras também não podem trazer `scope`, `resource` nem os nomes do PKCE quando o perfil não os define (`PARAMETROS_DO_OAUTH` em `oauth.ts`). O teste novo ficou vermelho antes da correção.

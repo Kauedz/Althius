@@ -29,3 +29,5 @@
   - `integration-callback/handler-meta-ads.test.ts`: a troca em `graph.facebook.com` como cliente público (`client_id` e PKCE, sem segredo). Passou de primeira: com o perfil antigo (registro dinâmico, mais o App ID do ambiente) a troca já saía assim; o teste trava o comportamento.
   - `integration-access.test.ts`: as ferramentas do Meta Ads saem todas como gasto.
 - `deno test supabase/functions`: 1646 passaram.
+
+**Revisão (19/10):** `ads_mcp_management` é o escopo do caso de uso do MCP e pode permitir gestão pelo servidor: "só leitura" vale para `ads_read`, não para o par. Por isso `ferramentasGastam` é a trava; o comentário do perfil foi corrigido.
