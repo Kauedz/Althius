@@ -34,3 +34,5 @@
 3. No Google Cloud Console, um cliente OAuth "Aplicativo da Web" com a URL de retorno `https://ycbdilsmydvzezhlymty.supabase.co/functions/v1/integration-callback` e os escopos `spreadsheets` e `drive.file`; gravar `npx supabase secrets set GOOGLE_SHEETS_MCP_CLIENT_ID=... GOOGLE_SHEETS_MCP_CLIENT_SECRET=... --project-ref ycbdilsmydvzezhlymty`.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-google-sheets/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

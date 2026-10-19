@@ -34,3 +34,5 @@
 3. Nenhum app a criar (registro dinâmico). Só se o Calendly recusar o registro: `CALENDLY_MCP_CLIENT_ID` e `CALENDLY_MCP_CLIENT_SECRET`.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-calendly/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

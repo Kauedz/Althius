@@ -28,3 +28,7 @@
 1. Criar a conta de teste no app e autorizar o Acesso no navegador.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-rd-station/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

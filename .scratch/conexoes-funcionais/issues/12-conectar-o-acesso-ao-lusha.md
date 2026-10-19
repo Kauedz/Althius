@@ -27,3 +27,5 @@ Falta (código):
 - migration aditiva com `kinds = {oauth_mcp, api_key}`;
 - testes do cartão com os dois caminhos;
 - prints.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-lusha/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

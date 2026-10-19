@@ -26,3 +26,5 @@ O que o Apollo publica hoje (lido com `curl`):
 - **Novo:** `scopes_supported` tem dezenas de escopos, de leitura (`contacts_search`, `organizations_search`), de gasto de crédito (`people_match`, `organizations_enrich`) e de envio (`emailer_messages_send_now`, `emailer_campaigns_create`). O perfil não pede escopo nenhum, e não sei o que o Apollo concede sem `scope`. É decisão de produto quais pedir; pela regra da plataforma, o Apollo do cliente só traz o que ele já tem.
 
 Falta: decidir os escopos, os testes do cartão (formato de `conexoes-clay.test.tsx`), os prints e decidir se o Apollo também conta como gasto (`ferramentasGastam`), como o Clay.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-apollo/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

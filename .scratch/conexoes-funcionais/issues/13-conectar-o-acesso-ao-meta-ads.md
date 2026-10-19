@@ -29,3 +29,5 @@ O que a Meta publica hoje (lido com `curl`):
 - A descoberta da Althius já lê metadado de emissor com caminho (`candidatosDoMetadadoDoServidor`), então o código atual chega lá. Não há teste específico desse caminho com a Meta.
 - **Pendente (produto):** os escopos. A Meta oferece `ads_read`, `ads_management`, `business_management`, `catalog_management`, `pages_show_list`, `pages_manage_ads`, `instagram_basic`, `instagram_branded_content_ads_brand` e `ads_mcp_management`, e o perfil não pede nenhum. `ads_management` cria e altera campanhas, ou seja, **gasta verba**. Começar só com leitura (`ads_read`) ou já pedir gestão?
 - **Não confirmado:** se a Meta exige revisão do app (Advanced Access) para esses escopos com um cliente registrado dinamicamente.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-meta-ads/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

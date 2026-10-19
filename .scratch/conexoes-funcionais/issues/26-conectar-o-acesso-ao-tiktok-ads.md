@@ -34,3 +34,5 @@
 3. Se o servidor recusar o registro dinâmico: `TIKTOK_ADS_MCP_CLIENT_ID` e `TIKTOK_ADS_MCP_CLIENT_SECRET`.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-tiktok-ads/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

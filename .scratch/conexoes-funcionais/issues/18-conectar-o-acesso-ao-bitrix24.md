@@ -34,3 +34,5 @@
 3. Na conta de teste, ligar "Permitir conexão de IAs externas" em Configurações > Servidores MCP. Se o servidor não aceitar registro dinâmico, criar o app OAuth no Bitrix24 e gravar `BITRIX24_MCP_CLIENT_ID` e `BITRIX24_MCP_CLIENT_SECRET`.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-bitrix24/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.
