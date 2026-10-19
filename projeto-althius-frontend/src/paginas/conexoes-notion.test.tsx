@@ -99,18 +99,19 @@ function abrir({
       ...rpcsDeConexoes(banco),
       // Como no banco: o estado do Acesso só existe para as Integrações habilitadas no Workspace.
       integration_access_status: () => linhas.filter((l) => banco.habilitadas.some((h) => h.integrationId === l.integration_id)),
-      disconnect_integration_access: (parametros) => {
-        pedidos.desconectar.push(parametros)
-        linhas = linhas.map((l) =>
-          l.integration_id === parametros.p_integration_id
-            ? { ...l, state: 'desconectado', kind: null, account_label: null, connected_count: l.connected_count - 1 }
-            : l,
-        )
-        return true
-      },
     },
     funcoes: {
       'integration-connect': (corpo) => {
+        // Desconectar passa pela Edge Function, que revoga o token no app antes de apagar o Acesso (conector-clay 02).
+        if (corpo.action === 'desconectar') {
+          pedidos.desconectar.push(corpo)
+          linhas = linhas.map((l) =>
+            l.integration_id === corpo.integrationId
+              ? { ...l, state: 'desconectado', kind: null, account_label: null, connected_count: l.connected_count - 1 }
+              : l,
+          )
+          return { corpo: { desconectado: true, revogacao: 'revogado' } }
+        }
         pedidos.conectar.push(corpo)
         return { corpo: { url: 'https://mcp.notion.com/authorize?client_id=cid-notion&state=x' } }
       },
@@ -198,7 +199,7 @@ describe('O cartão do Notion no Workspace operacional', () => {
     const notion = await screen.findByRole('article', { name: 'Notion' })
     await usuario.click(await within(notion).findByRole('button', { name: 'Desconectar' }))
 
-    expect(pedidos.desconectar).toEqual([{ p_workspace_id: NORTE.id, p_integration_id: 'notion' }])
+    expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'notion' }])
     expect(await within(notion).findByText('Você ainda não conectou')).toBeInTheDocument()
     expect(within(notion).getByText('1 participante conectou')).toBeInTheDocument()
     const hubspot = screen.getByRole('article', { name: 'HubSpot' })

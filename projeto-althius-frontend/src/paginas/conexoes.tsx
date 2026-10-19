@@ -78,6 +78,8 @@ export function PaginaConexoes() {
   const [previa, setPrevia] = useState<CanalId | null>(null)
   const [habilitando, setHabilitando] = useState<IntegracaoId | null>(null)
   const [erro, setErro] = useState('')
+  // O que deu certo pela metade: desconectou na Althius, mas o app não confirmou a revogação do token.
+  const [aviso, setAviso] = useState('')
   const [desabilitando, setDesabilitando] = useState<IntegracaoDeConexao | null>(null)
   const [erroAoDesabilitar, setErroAoDesabilitar] = useState('')
   const [parametros, setParametros] = useSearchParams()
@@ -121,9 +123,15 @@ export function PaginaConexoes() {
   async function desconectar(integracao: IntegracaoDeConexao) {
     if (!fonteDeConexoes.desconectarAcesso) return
     setErro('')
+    setAviso('')
     setTrabalhando(integracao.id)
     try {
-      await fonteDeConexoes.desconectarAcesso(integracao.id)
+      const { revogacaoFalhou } = await fonteDeConexoes.desconectarAcesso(integracao.id)
+      if (revogacaoFalhou) {
+        setAviso(
+          `Desconectado da Althius, mas a Althius não conseguiu avisar o ${integracao.nome}. Para garantir, remova a autorização da Althius nas configurações do ${integracao.nome}.`,
+        )
+      }
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : 'Não foi possível desconectar agora.')
     } finally {
@@ -174,6 +182,11 @@ export function PaginaConexoes() {
           </p>
         )}
         {erro && <p className="text-sm text-al-erro">{erro}</p>}
+        {aviso && (
+          <p role="status" className="text-sm text-al-atencao">
+            {aviso}
+          </p>
+        )}
       </div>
 
       <section aria-label="Canais" className="flex flex-col gap-6">

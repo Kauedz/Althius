@@ -342,3 +342,10 @@ Deno.test('REST: 401 do app pede reconexão; 400 do app é erro da ferramenta, c
   assert(r2.ok && r2.valor.erro === true)
   semToken(r2, 'pd-token-123456')
 })
+
+Deno.test('as ferramentas do Clay gastam créditos do Cliente: todas escrevem ou gastam, mesmo com readOnlyHint', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://api.clay.com' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'clay' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})

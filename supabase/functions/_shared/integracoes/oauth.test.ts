@@ -8,6 +8,7 @@ import {
   metadadoDoRecursoNoDesafio,
   registrarClienteDinamico,
   renovarToken,
+  revogarToken,
   trocarCodigo,
   urlDeConsentimento,
 } from './oauth.ts'
@@ -254,4 +255,60 @@ Deno.test('uma renovação recusada traz o código do OAuth; queda do servidor v
   assertEquals((await assertRejects(() => renovarToken({ ...base, fetch: queda.fetch }), ErroDeOAuth)).tipo, 'indisponivel')
   const vazio = rede({ 'POST https://auth.falso.test/token': () => json({ token_type: 'bearer' }) })
   assertEquals((await assertRejects(() => renovarToken({ ...base, fetch: vazio.fetch }), ErroDeOAuth)).tipo, 'protocolo')
+})
+
+Deno.test('a descoberta lê o endereço de revogação (RFC 7009) só quando é https', async () => {
+  const com = rede({
+    'GET https://mcp.falso.test/.well-known/oauth-protected-resource/mcp': () =>
+      json({ resource: 'https://mcp.falso.test/mcp', authorization_servers: ['https://auth.falso.test'] }),
+    'GET https://auth.falso.test/.well-known/oauth-authorization-server': () =>
+      json({ ...META_AS, revocation_endpoint: 'https://auth.falso.test/revoke' }),
+  })
+  const achado = await descobrirServidorDeAutorizacao({ urlMcp: 'https://mcp.falso.test/mcp', fetch: com.fetch })
+  assertEquals(achado.revocation_endpoint, 'https://auth.falso.test/revoke')
+  const inseguro = rede({
+    'GET https://mcp.falso.test/.well-known/oauth-protected-resource/mcp': () =>
+      json({ resource: 'https://mcp.falso.test/mcp', authorization_servers: ['https://auth.falso.test'] }),
+    'GET https://auth.falso.test/.well-known/oauth-authorization-server': () =>
+      json({ ...META_AS, revocation_endpoint: 'http://auth.falso.test/revoke' }),
+  })
+  const semRevogacao = await descobrirServidorDeAutorizacao({ urlMcp: 'https://mcp.falso.test/mcp', fetch: inseguro.fetch })
+  assertEquals(semRevogacao.revocation_endpoint, undefined)
+})
+
+Deno.test('revoga o token com a dica do tipo e a autenticação do cliente (RFC 7009)', async () => {
+  const { fetch, chamadas } = rede({ 'POST https://auth.falso.test/revoke': () => new Response('', { status: 200 }) })
+  await revogarToken({
+    endpoint: 'https://auth.falso.test/revoke',
+    cliente: { clientId: 'cid', clientSecret: 'sec', autenticacao: 'client_secret_basic' },
+    token: 'ref-1',
+    dica: 'refresh_token',
+    fetch,
+  })
+  const corpo = new URLSearchParams(chamadas[0].corpo)
+  assertEquals([corpo.get('token'), corpo.get('token_type_hint'), corpo.get('client_id')], ['ref-1', 'refresh_token', null])
+  assertEquals(chamadas[0].cabecalhos.get('Authorization'), `Basic ${btoa('cid:sec')}`)
+  await revogarToken({
+    endpoint: 'https://auth.falso.test/revoke',
+    cliente: { clientId: 'cid', clientSecret: null, autenticacao: 'none' },
+    token: 'acc-1',
+    dica: 'access_token',
+    fetch,
+  })
+  assertEquals(new URLSearchParams(chamadas[1].corpo).get('client_id'), 'cid')
+})
+
+Deno.test('uma revogação recusada vira recusado e a queda vira indisponivel, sem expor o token', async () => {
+  const base = {
+    endpoint: 'https://auth.falso.test/revoke',
+    cliente: { clientId: 'cid', clientSecret: 'sec-do-cliente', autenticacao: 'client_secret_post' as const },
+    token: 'ref-secreto-1',
+    dica: 'refresh_token' as const,
+  }
+  const recusa = rede({ 'POST https://auth.falso.test/revoke': () => json({ error: 'invalid_client' }, 401) })
+  const erro = await assertRejects(() => revogarToken({ ...base, fetch: recusa.fetch }), ErroDeOAuth)
+  assertEquals([erro.tipo, erro.codigo], ['recusado', 'invalid_client'])
+  assert(!erro.message.includes('ref-secreto-1') && !erro.message.includes('sec-do-cliente'))
+  const queda = rede({ 'POST https://auth.falso.test/revoke': () => json({}, 503) })
+  assertEquals((await assertRejects(() => revogarToken({ ...base, fetch: queda.fetch }), ErroDeOAuth)).tipo, 'indisponivel')
 })

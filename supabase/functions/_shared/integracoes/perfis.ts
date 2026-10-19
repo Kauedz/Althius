@@ -52,6 +52,11 @@ export interface PerfilMcp {
   oauth?: PerfilOAuth
   /** Como a chave de API entra no servidor MCP, quando ele aceita (Lusha). */
   chave?: { cabecalho: string; prefixo?: string }
+  /**
+   * Toda ferramenta do servidor gasta (créditos do Cliente no app, como no Clay): vale como escrita mesmo com
+   * `readOnlyHint`, então pede Aprovação até o Administrador decidir outra regra (ADR-0022).
+   */
+  ferramentasGastam?: boolean
 }
 
 export interface PerfilDeChaveDeApi {

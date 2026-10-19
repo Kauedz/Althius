@@ -228,13 +228,14 @@ export function criarFonteDeConexoesSupabase(
       avisar()
     },
 
-    async desconectarAcesso(id: IntegracaoId): Promise<void> {
-      const { error } = await cliente.rpc('disconnect_integration_access', {
-        p_workspace_id: obterWorkspaceId(),
-        p_integration_id: id,
+    async desconectarAcesso(id: IntegracaoId): Promise<{ revogacaoFalhou: boolean }> {
+      // Pela Edge Function, que revoga o token no app (RFC 7009) antes de apagar o Acesso (conector-clay 02).
+      const { data, error } = await cliente.functions.invoke('integration-connect', {
+        body: { action: 'desconectar', workspaceId: obterWorkspaceId(), integrationId: id },
       })
-      if (error) throw new Error('Não foi possível desconectar agora. Tente de novo em instantes.')
+      if (error) throw new Error(await mensagemDaFuncao(error, 'Não foi possível desconectar agora. Tente de novo em instantes.'))
       avisar()
+      return { revogacaoFalhou: (data as { revogacao?: unknown } | null)?.revogacao === 'falhou' }
     },
 
     async ferramentas(id: IntegracaoId): Promise<FerramentaDaIntegracao[]> {

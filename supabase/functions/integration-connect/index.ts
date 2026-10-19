@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
+import type { BancoDeDesconexao } from '../_shared/integration-access.ts'
 import { createHandler, type Db } from './handler.ts'
 
 function required(name: string) {
@@ -24,7 +25,7 @@ function clienteDaSessao(authorization: string, apikey: string) {
   })
 }
 
-const db: Db = {
+const db: Db & BancoDeDesconexao = {
   ...bancoDasIntegracoes((nome, parametros) => admin.rpc(nome, parametros)),
   async userFromJwt(authorization, apikey) {
     const { data, error } = await clienteDaSessao(authorization, apikey).auth.getUser(authorization.slice(7))
@@ -35,6 +36,7 @@ const db: Db = {
 
 Deno.serve(createHandler({
   db,
+  acessos: db,
   ambiente: (nome) => Deno.env.get(nome),
   appOrigin: APP_ORIGIN,
   urlDeRetorno: `${SUPABASE_URL.replace(/\/+$/, '')}/functions/v1/integration-callback`,

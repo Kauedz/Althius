@@ -90,6 +90,9 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
       // metadado do recurso fica no caminho com sufixo (/.well-known/oauth-protected-resource/v3/mcp, RFC 9728), que a
       // descoberta já tenta antes da raiz (a raiz responde 404).
       url: 'https://api.clay.com/v3/mcp',
+      // As ferramentas gastam os créditos do workspace Clay do Cliente, no mesmo valor do trabalho feito no Clay
+      // (https://university.clay.com/docs/connect-to-clay-mcp): toda chamada vale como gasto (conector-clay 01).
+      ferramentasGastam: true,
       oauth: {
         // Registro dinâmico em https://api.clay.com/oauth/register; aceitou o redirect do integration-callback (teste de
         // 15/10/2026). Autorização em app.clay.com, token em api.clay.com, PKCE S256, escopo `mcp`.
