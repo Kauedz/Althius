@@ -15,7 +15,7 @@ O Clay já está no catálogo e tem perfil de conexão, mas não está pronto pa
 
 ## Solution
 
-O Clay passa a valer como Integração que **gasta**: a Permissão padrão dos Agentes nele passa a ser Propor, e toda ferramenta do Clay é tratada como escrita ou gasto, mesmo com `readOnlyHint`, então pede Aprovação até o Administrador decidir outra regra (ADR-0022). Desconectar o próprio Acesso passa a revogar o token no app (RFC 7009) sempre que o servidor de autorização anunciar `revocation_endpoint`. Isso vale para qualquer conector por OAuth, não só para o Clay, e acontece pela arquitetura compartilhada. O cartão do Clay ganha cobertura de teste e prints. O Clay só passa a "disponível" depois do teste com conta real.
+O Clay passa a valer como Integração que **gasta**: toda ferramenta do Clay é tratada como escrita ou gasto, mesmo com `readOnlyHint`, então pede Aprovação até o Administrador decidir outra regra (ADR-0022). A Permissão padrão dos Agentes nele (Propor, decisão do usuário) espera confirmação, porque muda testes antigos; até lá fica em Ler (ticket 01). Desconectar o próprio Acesso passa a revogar o token no app (RFC 7009) sempre que o servidor de autorização anunciar `revocation_endpoint`. Isso vale para qualquer conector por OAuth, não só para o Clay, e acontece pela arquitetura compartilhada. O cartão do Clay ganha cobertura de teste e prints. O Clay só passa a "disponível" depois do teste com conta real.
 
 ## Fluxo visível ao usuário
 
@@ -44,6 +44,7 @@ O Clay passa a valer como Integração que **gasta**: a Permissão padrão dos A
 
 ## Isolamento e credenciais
 
+- A revogação só manda o token ao emissor que o emitiu (`issuer` guardado no Acesso), com o cliente que o recebeu, e só a um `revocation_endpoint` https na mesma origem do `token_endpoint`.
 - O Acesso é por participante, Workspace e Integração. Só quem conectou usa o próprio Acesso; desconectar e revogar mexem só no Acesso de quem pediu, identificado pelo JWT.
 - O token fica no Vault (`private.integration_accesses`) e só a Edge Function o lê. A revogação acontece na Edge Function, e nenhum token aparece em resposta, log ou mensagem de erro.
 - O cliente OAuth do Clay é registrado dinamicamente uma vez por ambiente e reaproveitado. O Clay limita o registro público a uma rajada de 4 e a 10 por hora por IP.
@@ -57,7 +58,7 @@ O Clay passa a valer como Integração que **gasta**: a Permissão padrão dos A
 ## Testes
 
 - **Deno**: revogação RFC 7009 (`oauth.ts`): corpo, autenticação do cliente, 200, 4xx e 5xx; `desconectarAcesso` (`integration-access.ts`): revoga o refresh e o access token e apaga o Acesso, apaga mesmo quando a revogação falha, não revoga Acesso por chave de API e não toca no Acesso de outra pessoa; o handler `integration-connect` com `action: 'desconectar'`; e o perfil do Clay marcando toda ferramenta como gasto.
-- **pgTAP**: `writes` do Clay, o padrão Propor das Especialidades e a nova RPC de serviço de desconectar (só `service_role`, só o Acesso do próprio participante, Participação ativa).
+- **pgTAP**: `writes` do Clay, o padrão das Especialidades (Ler, até a decisão do ticket 01) e a nova RPC de serviço de desconectar (só `service_role`, só o Acesso do próprio participante, Participação ativa).
 - **App (vitest)**: o cartão do Clay em todos os estados, a desconexão pela Edge Function e o aviso quando a revogação falha.
 - **Conferência visual**: prints em `issues/prints/`.
 - **Real**: ticket humano (04).

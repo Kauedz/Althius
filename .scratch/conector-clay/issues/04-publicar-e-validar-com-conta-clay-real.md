@@ -69,7 +69,7 @@ update private.integration_catalog set available = true where id = 'clay';
 2. Na Althius, como Administrador: Conexões > Clay > **Habilitar**.
 3. **Conectar no Clay**: entrar no Clay, escolher o workspace, ver "Unverified application" com o retorno `https://ycbdilsmydvzezhlymty.supabase.co/functions/v1/integration-callback` e autorizar. Esperado: "Clay conectado." e o cartão "Conectado".
 4. **Ver ferramentas**: anotar aqui os nomes reais. Todas devem aparecer como "Escreve ou gasta", com "Pedir aprovação".
-5. Pedir a um Agente com Propor no Clay uma busca pequena: deve nascer uma Aprovação, não uma chamada. Aprovar uma só e conferir no Clay quantos créditos foram gastos.
+5. Em Agentes, subir o Scopus no Clay de Ler para **Propor** (o padrão continua Ler até a decisão do ticket 01). Pedir a ele uma busca pequena: deve nascer uma Aprovação, não uma chamada. Aprovar uma só e conferir no Clay quantos créditos foram gastos.
 6. **Desconectar**: sem aviso amarelo, o cartão volta a "Você ainda não conectou". No Clay, a autorização da Althius não deve mais aparecer como ativa.
 7. **Reconectar** pelo mesmo botão.
 8. No Clay, desligar **Unknown**, e na Althius pedir de novo "Ver ferramentas" depois que o token vencer (ou forçar uma renovação): o cartão deve ir para "Precisa reconectar". Religar **Unknown** no fim.

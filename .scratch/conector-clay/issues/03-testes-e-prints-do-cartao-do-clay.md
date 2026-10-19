@@ -13,7 +13,7 @@
 - `projeto-althius-frontend/src/paginas/conexoes-clay.test.tsx`, `src/test/conexoes-no-banco.ts`, `.scratch/conector-clay/issues/prints/`
 
 ## Não mexa
-- Os testes existentes do Notion e do HubSpot.
+- Os testes existentes do Notion e do HubSpot (o dublê de desconectar deles muda no ticket 02, não aqui).
 
 ## Comments
 

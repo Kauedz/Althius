@@ -6,16 +6,16 @@
 
 **Status:** ready-for-human (código e testes prontos; falta aplicar, publicar e conferir com conta real no ticket 04)
 
-- [x] `revogarToken` em `oauth.ts`, e `revocation_endpoint` lido na descoberta (https e mesmo host do emissor).
+- [x] `revogarToken` em `oauth.ts`, e `revocation_endpoint` lido na descoberta (https e na mesma origem do `token_endpoint`; o emissor descoberto tem de ser o que emitiu o token).
 - [x] `desconectarAcesso` em `integration-access.ts`: revoga e depois apaga; nunca devolve token.
 - [x] RPC `public.disconnect_integration_access_for_user(workspace, user, integration)`, só `service_role`, que confere a Participação ativa e apaga só o Acesso daquela pessoa, com pgTAP. A RPC antiga, chamada pelo navegador, continua existindo.
 - [x] `integration-connect` com `action: 'desconectar'` → `{ desconectado, revogadoNoApp }`.
 - [x] A Fonte de Conexões real chama a Edge Function e devolve o aviso; a tela mostra o aviso sem tratá-lo como erro.
 
 ## Pode mexer
-- `supabase/functions/_shared/integracoes/oauth.ts`, `_shared/integration-access.ts`, `_shared/integracoes/banco-supabase.ts`, `integration-connect/handler.ts` e testes
-- `supabase/migrations/<novo>_desconectar_revoga_no_app.sql`, `supabase/tests/desconectar_revoga_no_app.sql`
-- `projeto-althius-frontend/src/fonte/conexoes-tipos.ts`, `supabase-conexoes.ts`, `src/paginas/conexoes.tsx`, `src/test/conexoes-no-banco.ts` e testes
+- `supabase/functions/_shared/integracoes/oauth.ts`, `_shared/integration-access.ts`, `_shared/integracoes/banco-supabase.ts`, `integration-connect/handler.ts`, `integration-connect/index.ts` e testes
+- `supabase/migrations/<novo>_desconectar_pelo_servidor.sql`, `supabase/tests/desconectar_pelo_servidor.sql`
+- `projeto-althius-frontend/src/fonte/conexoes-tipos.ts`, `supabase-conexoes.ts`, `src/paginas/conexoes.tsx`, `src/test/conexoes-no-banco.ts` e testes, incluindo os dublês de desconectar de `conexoes-notion.test.tsx` e `conexoes-acessos.test.tsx`
 
 ## Não mexa
 - `disable_workspace_integration` (retirar a Integração; a revogação ali é follow-up), as funções da Unipile e das Contas remetentes.
@@ -32,3 +32,7 @@
 - A RPC antiga `disconnect_integration_access` continua e não muda: o app publicado até o próximo deploy ainda a usa.
 - **Revogação: só "best effort" por desenho.** Rede, 5xx ou recusa não impedem desconectar, e a tela mostra o aviso (print `03-aviso-revogacao.jpg`). O HubSpot fixa endpoints no perfil e não passa pela descoberta, então devolve `nao_suportado`, sem aviso.
 - **Fora daqui (follow-up):** retirar a Integração (`disable_workspace_integration`) e desativar uma Participação apagam ou invalidam Acessos sem revogar no app.
+- **Revisão de código (19/10/2026):**
+  - Faltava conferir a origem do `revocation_endpoint`. Agora ele precisa ter a mesma origem do `token_endpoint`; o teste novo ficou vermelho antes da correção, porque o dublê registra revogações em qualquer host.
+  - Ficam assim, de propósito: se a leitura do Acesso falha por erro de banco ou Vault (fora o 22023), nada é apagado e a pessoa vê "tente de novo"; e se a revogação do refresh token falha, o access token não é enviado, mas o resultado é "falhou" e o aviso aparece do mesmo jeito.
+  - A RPC antiga `disconnect_integration_access` continua aberta a `authenticated`: o app publicado até o deploy depende dela, e o pgTAP antigo fixa o grant. Por ela, a pessoa pode apagar o próprio Acesso sem revogar. Não há risco entre usuários. Fechá-la é follow-up, depois do deploy do frontend.

@@ -1,6 +1,6 @@
 # 01: O Clay conta como Integração que gasta
 
-**What to build:** as ferramentas do Clay gastam créditos do workspace Clay do Cliente. Por isso o Clay passa a `writes = true`, com Propor como padrão das Especialidades que o usam, e toda ferramenta do Clay é tratada como escrita ou gasto, mesmo com `readOnlyHint`. Sem regra do Administrador, toda chamada pede Aprovação (ADR-0022). Decisão do usuário em 19/10/2026.
+**What to build:** as ferramentas do Clay gastam créditos do workspace Clay do Cliente. Por isso o Clay passa a `writes = true` (e Propor como padrão das Especialidades que o usam, pendente: ver Comments), e toda ferramenta do Clay é tratada como escrita ou gasto, mesmo com `readOnlyHint`. Sem regra do Administrador, toda chamada pede Aprovação (ADR-0022). Decisão do usuário em 19/10/2026.
 
 **Blocked by:** nenhum.
 

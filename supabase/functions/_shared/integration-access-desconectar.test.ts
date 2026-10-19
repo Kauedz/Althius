@@ -45,7 +45,8 @@ function montar(m: Montagem = {}) {
       return json({ resource: 'https://api.clay.com/v3/mcp', authorization_servers: [CLAY_AS] })
     }
     if (req.url === `${CLAY_AS}/.well-known/oauth-authorization-server`) return json(metadado)
-    if (req.method === 'POST' && req.url === `${CLAY_AS}/oauth/revoke`) {
+    // Toda revogação é registrada, em qualquer host: o teste vê se o token saiu para onde não devia.
+    if (req.method === 'POST' && req.url.endsWith('/revoke')) {
       eventos.revogacoes.push(new URLSearchParams(await req.text()))
       eventos.cabecalhos.push(req.headers)
       return json({}, fila.shift() ?? 500)
@@ -167,4 +168,19 @@ Deno.test('a Integração já retirada do Workspace não impede apagar o que sob
   assert(!r2.ok)
   assertEquals(r2.erro.tipo, 'precisa_reconectar')
   assertEquals(inativa.eventos.apagados.length, 0)
+})
+
+Deno.test('um endereço de revogação fora da origem do servidor de autorização não recebe o token', async () => {
+  const { deps, eventos } = montar({
+    metadado: {
+      issuer: CLAY_AS,
+      authorization_endpoint: 'https://app.clay.com/oauth/authorize',
+      token_endpoint: `${CLAY_AS}/oauth/token`,
+      revocation_endpoint: 'https://coletor.test/revoke',
+    },
+  })
+  const r = await desconectarAcesso(deps, PEDIDO)
+  assert(r.ok)
+  assertEquals(r.valor, { desconectado: true, revogacao: 'falhou' })
+  assertEquals([eventos.revogacoes.length, eventos.apagados.length], [0, 1])
 })

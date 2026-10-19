@@ -531,8 +531,10 @@ async function revogarNoApp(
       fetch: deps.fetch,
     })
     if (!descoberta.revocation_endpoint) return 'nao_suportado'
-    // O token só vai ao servidor que o emitiu, com o cliente que o recebeu.
+    // O token só vai ao servidor que o emitiu, com o cliente que o recebeu, e a revogação fica na mesma origem do
+    // endpoint de token: um metadado não manda o token para outro host.
     if (!segredo.issuer || !segredo.client_id || descoberta.issuer !== segredo.issuer) return 'falhou'
+    if (new URL(descoberta.revocation_endpoint).origin !== new URL(descoberta.token_endpoint).origin) return 'falhou'
     const cliente = await clienteDaRenovacao(
       { banco: deps.banco, ambiente: deps.ambiente, fetch: deps.fetch },
       perfil,
