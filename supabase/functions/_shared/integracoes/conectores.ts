@@ -164,8 +164,12 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
     mcp: {
       // A variante "layer" (cerca de 40 ferramentas e as demais sob demanda), para a lista caber na conversa dos Agentes.
       url: 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer',
+      // O escopo único (`mcp:tt4b`) dá tudo, inclusive criar campanha e mexer em orçamento e lance: toda chamada vale como
+      // gasto e pede Aprovação até o Administrador decidir outra regra (conector-tiktok-ads 01).
+      ferramentasGastam: true,
       oauth: {
-        // não confirmado: a autorização no TikTok Ads Manager dispensa app de desenvolvedor, o que sugere registro dinâmico.
+        // Metadado lido em 19/10/2026: o emissor tem caminho (.../tt-ads-mcp-layer/oauth) e publica o documento em
+        // <emissor>/.well-known/openid-configuration, com registro dinâmico, cliente público, PKCE S256 e revogação.
         registro: 'dinamico',
         segredos: { clientId: 'TIKTOK_ADS_MCP_CLIENT_ID', clientSecret: 'TIKTOK_ADS_MCP_CLIENT_SECRET' },
         enviarRecurso: true,
@@ -173,7 +177,8 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
       },
     },
     naoConfirmado: [
-      'Se o servidor anuncia registro dinâmico de cliente (RFC 7591).',
+      // O registro dinâmico foi confirmado ao vivo em 19/10/2026; a entrada fica pelo teste de conectores.test.ts.
+      'Se o servidor anuncia registro dinâmico de cliente (RFC 7591): anuncia (19/10/2026), falta a conexão real.',
       'A autorização vale 30 dias: depois, o Acesso aparece "Precisa reconectar".',
       'Os escopos e os nomes das ferramentas (gestão de campanhas e públicos gasta verba: a regra padrão pede Aprovação).',
     ],

@@ -312,3 +312,27 @@ Deno.test('uma revogação recusada vira recusado e a queda vira indisponivel, s
   const queda = rede({ 'POST https://auth.falso.test/revoke': () => json({}, 503) })
   assertEquals((await assertRejects(() => revogarToken({ ...base, fetch: queda.fetch }), ErroDeOAuth)).tipo, 'indisponivel')
 })
+
+Deno.test('TikTok Ads: o emissor com caminho tem o metadado em <emissor>/.well-known/openid-configuration (lido em 19/10/2026)', async () => {
+  const emissor = 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer/oauth'
+  const { fetch, chamadas } = rede({
+    'GET https://business-api.tiktok.com/.well-known/oauth-protected-resource/open_mcp/tt-ads-mcp-layer': () =>
+      json({ resource: 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer', authorization_servers: [emissor], scopes_supported: ['mcp:tt4b'] }),
+    [`GET ${emissor}/.well-known/openid-configuration`]: () =>
+      json({
+        issuer: emissor,
+        authorization_endpoint: 'https://business-api.tiktok.com/portal/mcp-tt4b-authorize',
+        token_endpoint: `${emissor}/token`,
+        registration_endpoint: `${emissor}/register`,
+        revocation_endpoint: `${emissor}/revoke`,
+        code_challenge_methods_supported: ['S256'],
+        token_endpoint_auth_methods_supported: ['none'],
+      }),
+  })
+  const achado = await descobrirServidorDeAutorizacao({ urlMcp: 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer', fetch })
+  assertEquals(achado.issuer, emissor)
+  assertEquals(achado.registration_endpoint, `${emissor}/register`)
+  assertEquals(achado.revocation_endpoint, `${emissor}/revoke`)
+  assertEquals(achado.resource, 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer')
+  assert(chamadas.some((c) => c.url === `${emissor}/.well-known/openid-configuration`))
+})

@@ -520,6 +520,7 @@ function CartaoDeIntegracaoReal({
             )}
             {acesso && (
               <SeuAcesso
+                id={integracao.id}
                 nome={integracao.nome}
                 acesso={acesso}
                 trabalhando={trabalhando}
@@ -547,7 +548,13 @@ function CartaoDeIntegracaoReal({
   )
 }
 
+// Por que um Acesso de cada app volta a pedir autorização, quando é do jeito do app e não uma falha.
+const AVISO_DE_RECONEXAO: Partial<Record<IntegracaoId, string>> = {
+  'tiktok-ads': 'O TikTok pede uma nova autorização a cada 30 dias.',
+}
+
 function SeuAcesso({
+  id,
   nome,
   acesso,
   trabalhando,
@@ -556,6 +563,7 @@ function SeuAcesso({
   aoDesconectar,
   aoVerFerramentas,
 }: {
+  id: IntegracaoId
   nome: string
   acesso: AcessoDaIntegracao
   trabalhando: boolean
@@ -576,7 +584,10 @@ function SeuAcesso({
           {acesso.conta ? `Conectado como ${acesso.conta}` : 'Conectado'}
         </span>
       ) : acesso.estado === 'precisa_reconectar' ? (
-        <span className="text-sm text-al-erro">Precisa reconectar</span>
+        <>
+          <span className="text-sm text-al-erro">Precisa reconectar</span>
+          {AVISO_DE_RECONEXAO[id] && <span className="text-xs text-al-muted">{AVISO_DE_RECONEXAO[id]}</span>}
+        </>
       ) : (
         <span className="text-sm text-al-muted">Você ainda não conectou</span>
       )}

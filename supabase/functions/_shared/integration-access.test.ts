@@ -378,3 +378,10 @@ Deno.test('a chave de API do Apollo vai ao servidor MCP no cabeçalho X-Api-Key,
   assert(servidor.chamadas.every((c) => c.cabecalhos['x-api-key'] === 'chave-mestra-apollo-1'))
   semToken(r, 'chave-mestra-apollo-1')
 })
+
+Deno.test('as ferramentas do TikTok Ads gastam verba: o escopo único não separa leitura, e todas pedem Aprovação', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer/oauth' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'tiktok-ads' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})
