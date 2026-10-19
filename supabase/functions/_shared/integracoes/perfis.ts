@@ -356,61 +356,6 @@ const RD_STATION_REST: PerfilRest = {
   ],
 }
 
-// Apollo por chave de API: a Althius fala com a API REST (o MCP do Apollo só aceita OAuth). O que gasta crédito do Apollo
-// conta como "escreve" para a Permissão do Agente.
-// não confirmado: os nomes dos parâmetros de busca e enriquecimento.
-const APOLLO_REST: PerfilRest = {
-  base: 'https://api.apollo.io/api/v1',
-  autenticacao: { tipo: 'cabecalho', nome: 'x-api-key' },
-  ferramentas: [
-    {
-      nome: 'search_people',
-      descricao: 'Busca pessoas no Apollo por cargo e domínio da empresa (não gasta crédito; não traz e-mail nem telefone).',
-      escreve: false,
-      metodo: 'POST',
-      caminho: '/mixed_people/api_search',
-      corpo: ['person_titles', 'q_organization_domains_list', 'q_keywords', 'per_page', 'page'],
-      esquema: {
-        type: 'object',
-        properties: {
-          person_titles: { type: 'array', items: { type: 'string' } },
-          q_organization_domains_list: { type: 'array', items: { type: 'string' } },
-          q_keywords: { type: 'string' },
-          per_page: { type: 'integer' },
-          page: { type: 'integer' },
-        },
-      },
-    },
-    {
-      nome: 'enrich_organization',
-      descricao: 'Enriquece uma empresa no Apollo pelo domínio (gasta crédito).',
-      escreve: true,
-      metodo: 'GET',
-      caminho: '/organizations/enrich',
-      consulta: ['domain'],
-      esquema: { type: 'object', properties: { domain: { type: 'string' } }, required: ['domain'] },
-    },
-    {
-      nome: 'match_person',
-      descricao: 'Encontra e enriquece uma pessoa no Apollo (gasta crédito).',
-      escreve: true,
-      metodo: 'POST',
-      caminho: '/people/match',
-      corpo: ['first_name', 'last_name', 'domain', 'organization_name', 'linkedin_url', 'email'],
-      esquema: {
-        type: 'object',
-        properties: {
-          first_name: { type: 'string' },
-          last_name: { type: 'string' },
-          domain: { type: 'string' },
-          organization_name: { type: 'string' },
-          linkedin_url: { type: 'string' },
-          email: { type: 'string' },
-        },
-      },
-    },
-  ],
-}
 
 export const PERFIS: Record<string, PerfilDeIntegracao> = {
   hubspot: {
@@ -503,28 +448,27 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
     portalFixo: false,
     mcp: {
       url: 'https://mcp.apollo.io/mcp',
+      // A busca e o CRM são gratuitos, mas o enriquecimento gasta créditos do Apollo do Cliente (1 a 9 por pessoa) e há
+      // ferramentas que enviam e-mail e mexem em sequências pela conta da pessoa: toda chamada vale como gasto, e o
+      // Administrador libera a busca uma a uma (conector-apollo 01; https://docs.apollo.io/docs/apollo-mcp).
+      ferramentasGastam: true,
+      // O MCP do Apollo aceita a chave no cabeçalho X-Api-Key, para clientes sem navegador; chave com escopo é recusada
+      // (403 API_INACCESSIBLE): só a chave mestra serve (conector-apollo 02).
+      chave: { cabecalho: 'X-Api-Key' },
       oauth: {
-        // O metadado de autorização do Apollo é público (mcp.apollo.io/.well-known/oauth-authorization-server).
-        // não confirmado: se o Apollo aceita registro dinâmico de cliente de terceiros; se não, o app é registrado à mão
-        // e o client id e o secret entram nos segredos abaixo.
+        // O metadado (mcp.apollo.io/.well-known/oauth-authorization-server, lido em 19/10/2026) anuncia registro dinâmico
+        // (/api/v1/oauth/applications/register_oauth_client), revogação, PKCE S256 e cliente público.
         registro: 'dinamico',
         segredos: { clientId: 'APOLLO_MCP_CLIENT_ID', clientSecret: 'APOLLO_MCP_CLIENT_SECRET' },
         enviarRecurso: true,
+        // não confirmado: o que o Apollo concede sem `scope` explícito; o consentimento mostra as permissões.
         identificacao: {},
       },
     },
-    chaveDeApi: {
-      via: 'rest',
-      identificacao: {
-        // não confirmado: o endereço de verificação da chave.
-        requisicoes: [{ metodo: 'GET', url: 'https://api.apollo.io/v1/auth/health', cabecalhos: { 'x-api-key': '{credencial}' } }],
-      },
-    },
-    rest: APOLLO_REST,
+    chaveDeApi: { via: 'mcp' },
     naoConfirmado: [
-      // Pesquisa de 2026-10-02: quem integra como parceiro registra um app OAuth antes (APOLLO_MCP_CLIENT_ID e _SECRET).
-      'Registro do cliente OAuth no Apollo (dinâmico ou pré-registrado como app de parceiro).',
-      'Endereço de verificação da chave de API e nomes dos parâmetros de busca e enriquecimento da API REST.',
+      'Quais permissões o Apollo concede sem `scope` explícito (o metadado anuncia dezenas de escopos).',
+      'Se a chave mestra pelo MCP traz as mesmas ferramentas que o OAuth.',
     ],
   },
   lusha: {

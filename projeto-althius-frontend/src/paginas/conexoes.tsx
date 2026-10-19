@@ -610,6 +610,11 @@ function SeuAcesso({
   )
 }
 
+// O que muda na chave de cada app, além de ser da própria conta.
+const AVISO_DA_CHAVE: Partial<Record<IntegracaoId, string>> = {
+  apollo: 'Use a chave mestra da sua própria conta do Apollo: chaves com escopo não funcionam no MCP.',
+}
+
 function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeConexao | null; aoFechar: () => void }) {
   const fonte = useFonteDeConexoes()
   const [chave, setChave] = useState('')
@@ -641,7 +646,8 @@ function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeCone
       <DialogContent className="gap-6 p-6">
         <DialogTitle className="titulo-secao text-2xl">Conectar o {integracao?.nome} com chave de API</DialogTitle>
         <DialogDescription className="text-al-muted">
-          A chave fica guardada só no backend da Althius e não volta a aparecer aqui. Use uma chave da sua própria conta.
+          A chave fica guardada só no backend da Althius e não volta a aparecer aqui.{' '}
+          {(integracao && AVISO_DA_CHAVE[integracao.id]) ?? 'Use uma chave da sua própria conta.'}
         </DialogDescription>
         <label className="flex flex-col gap-2 text-sm">
           Chave de API

@@ -359,3 +359,22 @@ Deno.test('as ferramentas do Lusha gastam créditos do Cliente: todas escrevem o
   assert(r.ok)
   assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
 })
+
+Deno.test('as ferramentas do Apollo gastam créditos ou enviam pela conta da pessoa: todas escrevem ou gastam', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://mcp.apollo.io' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'apollo' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})
+
+Deno.test('a chave de API do Apollo vai ao servidor MCP no cabeçalho X-Api-Key, com as mesmas ferramentas do OAuth', async () => {
+  const { deps, servidor } = montar({
+    acesso: { kind: 'api_key', segredo: JSON.stringify({ api_key: 'chave-mestra-apollo-1' }), appPortal: null },
+    mcp: { chave: { cabecalho: 'x-api-key', valor: 'chave-mestra-apollo-1' } },
+  })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'apollo' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => f.nome), ['buscar', 'criar'])
+  assert(servidor.chamadas.every((c) => c.cabecalhos['x-api-key'] === 'chave-mestra-apollo-1'))
+  semToken(r, 'chave-mestra-apollo-1')
+})
