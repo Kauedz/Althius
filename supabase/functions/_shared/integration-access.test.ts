@@ -385,3 +385,10 @@ Deno.test('as ferramentas do TikTok Ads gastam verba: o escopo único não separ
   assert(r.ok)
   assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
 })
+
+Deno.test('as ferramentas do Meta Ads gastam verba: todas pedem Aprovação, mesmo as de relatório', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://www.facebook.com/ads' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'meta-ads' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})

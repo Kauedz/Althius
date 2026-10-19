@@ -4,9 +4,11 @@
 
 **Blocked by:** nenhum.
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent (feito; vira closed no merge)
 
 ## Pode mexer
 - `supabase/tests/meta_ads_catalogo.sql`
 
 ## Comments
+
+**19/10/2026 (agente).** pgTAP novo `supabase/tests/meta_ads_catalogo.sql` (3 asserções: `writes`, `kinds = {oauth_mcp}` e sem portal fixo). Não precisou de migration: o seed já estava assim. Roda no CI.

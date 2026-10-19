@@ -56,8 +56,9 @@ export async function clienteDaConexao(
   const oauth = perfil.mcp?.oauth
   if (!oauth) return { ok: false, motivo: 'nao_configurada' }
   const doApp = doAmbiente(deps, perfil)
-  // O app pré-registrado do HubSpot é confidencial: sem o secret, não há como trocar o código.
-  if (doApp && (doApp.clientSecret || oauth.registro === 'dinamico')) return { ok: true, cliente: doApp }
+  // O app pré-registrado do HubSpot é confidencial: sem o secret, não há como trocar o código. O app Meta é público
+  // (`clientePublico`): o client id basta.
+  if (doApp && (doApp.clientSecret || oauth.registro === 'dinamico' || oauth.clientePublico)) return { ok: true, cliente: doApp }
   if (oauth.registro === 'preregistrado') return { ok: false, motivo: 'nao_configurada' }
 
   const guardado = await deps.banco.clienteOAuth({ integrationId: perfil.id, issuer: descoberta.issuer, redirectUri: urlDeRetorno })

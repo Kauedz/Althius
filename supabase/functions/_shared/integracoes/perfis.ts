@@ -35,6 +35,11 @@ export interface PerfilOAuth {
    * uso; os segredos, se existirem, têm prioridade (para quando o servidor não aceita registro).
    */
   registro: 'preregistrado' | 'dinamico'
+  /**
+   * O app pré-registrado é um cliente público (PKCE, sem segredo), como o app Meta: o client id basta. Sem esta marca, o
+   * pré-registrado exige o segredo (o MCP Auth App do HubSpot é confidencial).
+   */
+  clientePublico?: boolean
   /** Os nomes dos segredos de ambiente (`npx supabase secrets set`) com o client id e o client secret. */
   segredos: { clientId: string; clientSecret: string }
   /** Endereços explícitos: o servidor não publica o metadado de autorização, ou o perfil fixa os que ele publica. */
@@ -497,19 +502,26 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
     portalFixo: false,
     mcp: {
       url: 'https://mcp.facebook.com/ads',
+      // A gestão de anúncios cria e edita campanhas, conjuntos e anúncios (gasta verba): toda chamada vale como gasto e
+      // pede Aprovação até o Administrador decidir outra regra (conector-meta-ads 01).
+      ferramentasGastam: true,
       oauth: {
-        // não confirmado: se a Meta aceita OAuth de cliente de terceiros e como registrar (pode exigir revisão do app).
-        registro: 'dinamico',
+        // A documentação oficial (developers.facebook.com/.../ads-mcp-server-get-started) manda o cliente de terceiros usar
+        // o próprio app de desenvolvedor Meta, com o caso de uso do ads MCP server e o Facebook Login for Business: o App
+        // ID é o client_id. O token aceita cliente público (`none`) com PKCE, então o segredo é opcional. O metadado também
+        // anuncia registro dinâmico (mcp.facebook.com/.well-known/register/ads), que a documentação não oferece a terceiros.
+        registro: 'preregistrado',
+        clientePublico: true,
         segredos: { clientId: 'META_ADS_MCP_CLIENT_ID', clientSecret: 'META_ADS_MCP_CLIENT_SECRET' },
+        // O mínimo que a documentação exige; só leitura. A gestão (`ads_management`…) espera decisão (índice, decisão 3).
+        escopos: ['ads_mcp_management', 'ads_read'],
         enviarRecurso: true,
         identificacao: {},
       },
     },
     naoConfirmado: [
-      'OAuth do servidor MCP da Meta para cliente de terceiros e a revisão do app, se exigida.',
-      // Pesquisa de 2026-10-02: a Meta deixa conectar qualquer agente com o próprio app de desenvolvedor (Facebook Login
-      // for Business). Sem registro dinâmico, o app é criado à mão e entra em META_ADS_MCP_CLIENT_ID e _SECRET.
-      'Se o servidor aceita registro dinâmico; a pesquisa indica app de desenvolvedor Meta próprio (pré-registrado).',
+      'Se `ads_mcp_management` pede revisão do app (Advanced Access) e verificação da empresa para contas fora do app.',
+      'Como a conta de anúncio de quem conectou é identificada para o cartão.',
     ],
   },
   pipedrive: {
