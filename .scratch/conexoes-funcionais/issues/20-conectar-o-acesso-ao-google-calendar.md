@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Conectar e desconectar o próprio Acesso ao HubSpot (o mecanismo); 01: pesquisa dos servidores MCP, estendida para este app.
 
-**Status:** needs-triage
+**Status:** wontfix (substituído por `.scratch/conector-google-calendar/`)
 
 ## Pode mexer
 
@@ -34,3 +34,5 @@
 3. No Google Cloud Console (APIs e serviços > Credenciais), criar um cliente OAuth "Aplicativo da Web" com a URL de retorno `https://ycbdilsmydvzezhlymty.supabase.co/functions/v1/integration-callback`, a tela de consentimento com `calendar.calendarlist.readonly`, `calendar.events.freebusy`, `calendar.events.readonly` e `calendar.events`; gravar `npx supabase secrets set GOOGLE_CALENDAR_MCP_CLIENT_ID=... GOOGLE_CALENDAR_MCP_CLIENT_SECRET=... --project-ref ycbdilsmydvzezhlymty`.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-google-calendar/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

@@ -10,6 +10,8 @@ export interface MetadadosDoServidorDeAutorizacao {
   authorization_endpoint: string
   token_endpoint: string
   registration_endpoint?: string
+  /** Onde revogar um token (RFC 7009), quando o servidor anuncia. */
+  revocation_endpoint?: string
   code_challenge_methods_supported?: string[]
   token_endpoint_auth_methods_supported?: string[]
   scopes_supported?: string[]
@@ -151,6 +153,7 @@ export async function descobrirServidorDeAutorizacao(opcoes: {
     const meta = json as Partial<MetadadosDoServidorDeAutorizacao>
     if (!ehHttps(meta.authorization_endpoint) || !ehHttps(meta.token_endpoint)) continue
     if (meta.registration_endpoint !== undefined && !ehHttps(meta.registration_endpoint)) delete meta.registration_endpoint
+    if (meta.revocation_endpoint !== undefined && !ehHttps(meta.revocation_endpoint)) delete meta.revocation_endpoint
     if (meta.code_challenge_methods_supported && !meta.code_challenge_methods_supported.includes('S256')) {
       throw new ErroDeOAuth('protocolo', 'O servidor de autorização não aceita PKCE com S256.')
     }
@@ -226,6 +229,18 @@ export async function desafioPkce(verificador: string): Promise<string> {
 }
 
 /** O endereço de consentimento: o navegador vai para ele, e o app autoriza com a conta da pessoa. */
+/** O que só o OAuth define no consentimento: nenhum parâmetro extra do perfil entra no lugar deles. */
+const PARAMETROS_DO_OAUTH = new Set([
+  'response_type',
+  'client_id',
+  'redirect_uri',
+  'state',
+  'code_challenge',
+  'code_challenge_method',
+  'scope',
+  'resource',
+])
+
 export function urlDeConsentimento(opcoes: {
   endpointDeAutorizacao: string
   clientId: string
@@ -234,8 +249,13 @@ export function urlDeConsentimento(opcoes: {
   desafio: string
   escopo?: string
   recurso?: string
+  /** Parâmetros do app (ex.: `access_type=offline` do Google). Os do OAuth vêm depois e nunca são sobrescritos. */
+  extras?: Record<string, string>
 }): string {
   const url = new URL(opcoes.endpointDeAutorizacao)
+  for (const [nome, valor] of Object.entries(opcoes.extras ?? {})) {
+    if (!PARAMETROS_DO_OAUTH.has(nome)) url.searchParams.set(nome, valor)
+  }
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('client_id', opcoes.clientId)
   url.searchParams.set('redirect_uri', opcoes.urlDeRetorno)
@@ -257,12 +277,8 @@ export interface TokensOAuth {
   bruto: Record<string, unknown>
 }
 
-async function pedirToken(
-  tokenEndpoint: string,
-  cliente: ClienteOAuth,
-  parametros: Record<string, string>,
-  buscar: typeof fetch,
-): Promise<TokensOAuth> {
+/** Corpo e cabeçalhos com a autenticação do cliente no endpoint de token ou de revogação. */
+function comAutenticacaoDoCliente(cliente: ClienteOAuth, parametros: Record<string, string>) {
   const corpo = new URLSearchParams(parametros)
   const cabecalhos: Record<string, string> = {
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -274,6 +290,16 @@ async function pedirToken(
     corpo.set('client_id', cliente.clientId)
     if (cliente.autenticacao === 'client_secret_post' && cliente.clientSecret) corpo.set('client_secret', cliente.clientSecret)
   }
+  return { corpo, cabecalhos }
+}
+
+async function pedirToken(
+  tokenEndpoint: string,
+  cliente: ClienteOAuth,
+  parametros: Record<string, string>,
+  buscar: typeof fetch,
+): Promise<TokensOAuth> {
+  const { corpo, cabecalhos } = comAutenticacaoDoCliente(cliente, parametros)
   const { status, json } = await buscarJson(buscar, tokenEndpoint, { method: 'POST', headers: cabecalhos, body: corpo.toString() })
   const resposta = (json ?? {}) as Record<string, unknown>
   if (status >= 500) throw new ErroDeOAuth('indisponivel', 'O servidor de autorização está indisponível.', undefined, status)
@@ -326,4 +352,29 @@ export function renovarToken(opcoes: {
     refresh_token: opcoes.refreshToken,
     ...(opcoes.recurso ? { resource: opcoes.recurso } : {}),
   }, opcoes.fetch ?? fetch)
+}
+
+/**
+ * Revoga um token no servidor de autorização (RFC 7009), com a autenticação do cliente que o recebeu. O servidor responde
+ * 200 também para um token que já não vale; um 4xx é `recusado` (com o código do OAuth) e rede ou 5xx é `indisponivel`.
+ */
+export async function revogarToken(opcoes: {
+  endpoint: string
+  cliente: ClienteOAuth
+  token: string
+  dica: 'refresh_token' | 'access_token'
+  fetch?: typeof fetch
+}): Promise<void> {
+  const { corpo, cabecalhos } = comAutenticacaoDoCliente(opcoes.cliente, { token: opcoes.token, token_type_hint: opcoes.dica })
+  const { status, json } = await buscarJson(opcoes.fetch ?? fetch, opcoes.endpoint, {
+    method: 'POST',
+    headers: cabecalhos,
+    body: corpo.toString(),
+  })
+  if (status >= 500) throw new ErroDeOAuth('indisponivel', 'O servidor de autorização está indisponível.', undefined, status)
+  if (status >= 400) {
+    const resposta = (json ?? {}) as Record<string, unknown>
+    const codigo = typeof resposta.error === 'string' ? resposta.error : undefined
+    throw new ErroDeOAuth('recusado', `O servidor de autorização recusou a revogação${codigo ? ` (${codigo})` : ''}.`, codigo, status)
+  }
 }

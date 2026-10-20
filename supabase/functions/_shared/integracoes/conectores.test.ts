@@ -15,6 +15,7 @@ Deno.test('os conectores com servidor MCP remoto e OAuth para terceiros confirma
     calendly: 'https://mcp.calendly.com',
     bitrix24: 'https://mcp.bitrix24.com/mcp/',
     'tiktok-ads': 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer',
+    make: 'https://mcp.make.com',
   })
 })
 
@@ -23,7 +24,7 @@ Deno.test('o registro do cliente segue a pesquisa: pré-registrado no Slack e no
   assertEquals(CONECTORES['google-calendar'].mcp!.oauth!.registro, 'preregistrado')
   assertEquals(CONECTORES['google-sheets'].mcp!.oauth!.registro, 'preregistrado')
   assertEquals(CONECTORES.calendly.mcp!.oauth!.registro, 'dinamico')
-  assertEquals(CONECTORES.calendly.mcp!.oauth!.escopos, ['mcp:scheduling:read', 'mcp:scheduling:write'])
+  assertEquals(CONECTORES.calendly.mcp!.oauth!.escopos, ['mcp:scheduling:read'])
   assertEquals(CONECTORES.slack.mcp!.oauth!.segredos, { clientId: 'SLACK_MCP_CLIENT_ID', clientSecret: 'SLACK_MCP_CLIENT_SECRET' })
   assertEquals(CONECTORES['google-calendar'].mcp!.oauth!.segredos, {
     clientId: 'GOOGLE_CALENDAR_MCP_CLIENT_ID',

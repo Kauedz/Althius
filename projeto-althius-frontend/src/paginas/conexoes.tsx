@@ -56,7 +56,7 @@ function avisoDaVolta(parametros: URLSearchParams): { texto: string; ok: boolean
   return { texto: motivo ? motivo(nome) : `Não foi possível conectar o ${nome}. Tente de novo.`, ok: false }
 }
 
-const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga', 'Agenda', 'Comunicação']
+const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga', 'Agenda', 'Comunicação', 'Automação']
 
 export function PaginaConexoes() {
   const { modo } = useAmbiente()
@@ -78,6 +78,8 @@ export function PaginaConexoes() {
   const [previa, setPrevia] = useState<CanalId | null>(null)
   const [habilitando, setHabilitando] = useState<IntegracaoId | null>(null)
   const [erro, setErro] = useState('')
+  // O que deu certo pela metade: desconectou na Althius, mas o app não confirmou a revogação do token.
+  const [aviso, setAviso] = useState('')
   const [desabilitando, setDesabilitando] = useState<IntegracaoDeConexao | null>(null)
   const [erroAoDesabilitar, setErroAoDesabilitar] = useState('')
   const [parametros, setParametros] = useSearchParams()
@@ -121,9 +123,15 @@ export function PaginaConexoes() {
   async function desconectar(integracao: IntegracaoDeConexao) {
     if (!fonteDeConexoes.desconectarAcesso) return
     setErro('')
+    setAviso('')
     setTrabalhando(integracao.id)
     try {
-      await fonteDeConexoes.desconectarAcesso(integracao.id)
+      const { revogacaoFalhou } = await fonteDeConexoes.desconectarAcesso(integracao.id)
+      if (revogacaoFalhou) {
+        setAviso(
+          `Desconectado da Althius, mas a Althius não conseguiu avisar o ${integracao.nome}. Para garantir, remova a autorização da Althius nas configurações do ${integracao.nome}.`,
+        )
+      }
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : 'Não foi possível desconectar agora.')
     } finally {
@@ -174,6 +182,11 @@ export function PaginaConexoes() {
           </p>
         )}
         {erro && <p className="text-sm text-al-erro">{erro}</p>}
+        {aviso && (
+          <p role="status" className="text-sm text-al-atencao">
+            {aviso}
+          </p>
+        )}
       </div>
 
       <section aria-label="Canais" className="flex flex-col gap-6">
@@ -507,6 +520,7 @@ function CartaoDeIntegracaoReal({
             )}
             {acesso && (
               <SeuAcesso
+                id={integracao.id}
                 nome={integracao.nome}
                 acesso={acesso}
                 trabalhando={trabalhando}
@@ -534,7 +548,20 @@ function CartaoDeIntegracaoReal({
   )
 }
 
+// O que os Agentes precisam saber para usar as ferramentas de um app.
+const AVISO_DAS_FERRAMENTAS: Partial<Record<IntegracaoId, string>> = {
+  'google-sheets': 'O servidor do Google Sheets não lista planilhas: peça aos Agentes com a URL da planilha.',
+  zapier: 'Cada chamada que dá certo gasta 2 tasks do seu plano no Zapier.',
+  make: 'Cada cenário rodado gasta operações do seu plano no Make.',
+}
+
+// Por que um Acesso de cada app volta a pedir autorização, quando é do jeito do app e não uma falha.
+const AVISO_DE_RECONEXAO: Partial<Record<IntegracaoId, string>> = {
+  'tiktok-ads': 'O TikTok pede uma nova autorização a cada 30 dias.',
+}
+
 function SeuAcesso({
+  id,
   nome,
   acesso,
   trabalhando,
@@ -543,6 +570,7 @@ function SeuAcesso({
   aoDesconectar,
   aoVerFerramentas,
 }: {
+  id: IntegracaoId
   nome: string
   acesso: AcessoDaIntegracao
   trabalhando: boolean
@@ -563,7 +591,10 @@ function SeuAcesso({
           {acesso.conta ? `Conectado como ${acesso.conta}` : 'Conectado'}
         </span>
       ) : acesso.estado === 'precisa_reconectar' ? (
-        <span className="text-sm text-al-erro">Precisa reconectar</span>
+        <>
+          <span className="text-sm text-al-erro">Precisa reconectar</span>
+          {AVISO_DE_RECONEXAO[id] && <span className="text-xs text-al-muted">{AVISO_DE_RECONEXAO[id]}</span>}
+        </>
       ) : (
         <span className="text-sm text-al-muted">Você ainda não conectou</span>
       )}
@@ -597,6 +628,12 @@ function SeuAcesso({
   )
 }
 
+// O que muda na chave de cada app, além de ser da própria conta.
+const AVISO_DA_CHAVE: Partial<Record<IntegracaoId, string>> = {
+  apollo: 'Use a chave mestra da sua própria conta do Apollo: chaves com escopo não funcionam no MCP.',
+  zapier: 'Use o token de conexão criado em mcp.zapier.com com a sua própria conta do Zapier.',
+}
+
 function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeConexao | null; aoFechar: () => void }) {
   const fonte = useFonteDeConexoes()
   const [chave, setChave] = useState('')
@@ -628,7 +665,8 @@ function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeCone
       <DialogContent className="gap-6 p-6">
         <DialogTitle className="titulo-secao text-2xl">Conectar o {integracao?.nome} com chave de API</DialogTitle>
         <DialogDescription className="text-al-muted">
-          A chave fica guardada só no backend da Althius e não volta a aparecer aqui. Use uma chave da sua própria conta.
+          A chave fica guardada só no backend da Althius e não volta a aparecer aqui.{' '}
+          {(integracao && AVISO_DA_CHAVE[integracao.id]) ?? 'Use uma chave da sua própria conta.'}
         </DialogDescription>
         <label className="flex flex-col gap-2 text-sm">
           Chave de API
@@ -720,6 +758,9 @@ function DialogoDeFerramentas({
         <DialogDescription className="text-al-muted">
           O que os agentes podem usar com o seu Acesso. As que escrevem ou gastam seguem a Permissão de cada agente.
         </DialogDescription>
+        {integracao && AVISO_DAS_FERRAMENTAS[integracao.id] && (
+          <p className="text-sm text-al-atencao">{AVISO_DAS_FERRAMENTAS[integracao.id]}</p>
+        )}
         {demonstracao && <p className="anotacao">exemplos da Demonstração: no Workspace, a lista vem do próprio app</p>}
         {!podeMudar && ferramentas && ferramentas.length > 0 && (
           <p className="text-xs text-al-muted">Só um Administrador muda a permissão de cada ferramenta.</p>

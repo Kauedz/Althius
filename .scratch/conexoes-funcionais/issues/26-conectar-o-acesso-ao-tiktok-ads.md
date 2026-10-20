@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Conectar e desconectar o próprio Acesso ao HubSpot (o mecanismo); 01: pesquisa dos servidores MCP, estendida para este app.
 
-**Status:** needs-triage
+**Status:** wontfix (substituído por `.scratch/conector-tiktok-ads/`)
 
 ## Pode mexer
 
@@ -34,3 +34,5 @@
 3. Se o servidor recusar o registro dinâmico: `TIKTOK_ADS_MCP_CLIENT_ID` e `TIKTOK_ADS_MCP_CLIENT_SECRET`.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-tiktok-ads/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

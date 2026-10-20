@@ -84,3 +84,15 @@ Deno.test('uma Permissão desconhecida do banco vale como nenhuma', async () => 
   const banco = bancoDasIntegracoes(rpcFalso({ integration_agent_permission: 'admin' }).rpc)
   assertEquals(await banco.permissaoDoAgente({ workspaceId: 'w', agenteId: 'g', integrationId: 'hubspot' }), null)
 })
+
+Deno.test('apagar o Acesso chama a RPC de serviço com quem pediu e diz se havia um', async () => {
+  const { rpc, chamadas } = rpcFalso({ disconnect_integration_access_for_user: true })
+  const banco = bancoDasIntegracoes(rpc)
+  assertEquals(await banco.apagarAcesso({ workspaceId: 'w', userId: 'u', integrationId: 'clay' }), true)
+  assertEquals(chamadas[0], {
+    nome: 'disconnect_integration_access_for_user',
+    parametros: { p_workspace_id: 'w', p_user_id: 'u', p_integration_id: 'clay' },
+  })
+  const sem = bancoDasIntegracoes(rpcFalso({ disconnect_integration_access_for_user: false }).rpc)
+  assertEquals(await sem.apagarAcesso({ workspaceId: 'w', userId: 'u', integrationId: 'clay' }), false)
+})

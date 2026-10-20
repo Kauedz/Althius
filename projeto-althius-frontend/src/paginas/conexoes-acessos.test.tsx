@@ -58,14 +58,15 @@ function abrir({
       bootstrap_personal_workspace: () => NORTE,
       ...rpcsDeConexoes(banco),
       integration_access_status: () => linhas,
-      disconnect_integration_access: (parametros) => {
-        pedidos.desconectar.push(parametros)
-        linhas = linhas.map((l) => (l.integration_id === parametros.p_integration_id ? { ...l, state: 'desconectado', kind: null, account_label: null } : l))
-        return true
-      },
     },
     funcoes: {
       'integration-connect': (corpo) => {
+        // Desconectar passa pela Edge Function, que revoga o token no app antes de apagar o Acesso (conector-clay 02).
+        if (corpo.action === 'desconectar') {
+          pedidos.desconectar.push(corpo)
+          linhas = linhas.map((l) => (l.integration_id === corpo.integrationId ? { ...l, state: 'desconectado', kind: null, account_label: null } : l))
+          return { corpo: { desconectado: true, revogacao: 'revogado' } }
+        }
         pedidos.conectar.push(corpo)
         const resposta = conectar(corpo)
         if ((resposta.status ?? 200) < 400 && corpo.action === 'chave') {
@@ -175,7 +176,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     await usuario.keyboard('{Escape}')
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Desconectar' }))
-    expect(pedidos.desconectar).toEqual([{ p_workspace_id: NORTE.id, p_integration_id: 'hubspot' }])
+    expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'hubspot' }])
     expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
   })
 

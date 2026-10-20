@@ -80,7 +80,7 @@ select is(
   (select string_agg(p.integration_id || '=' || p.permission, ', ' order by p.integration_id)
     from private.agent_permissions p join private.agents a on a.id = p.agent_id
     where a.workspace_id = 'aaaaaaaa-1300-0000-0000-000000000001' and a.name = 'Scopus'),
-  'apollo=ler, clay=ler, hubspot=propor, lusha=ler', 'o Scopus começa com Ler, e Propor onde a Integração escreve');
+  'apollo=ler, clay=propor, hubspot=propor, lusha=ler', 'o Scopus começa com Ler, e Propor onde a Integração escreve ou gasta (o Clay, desde 20261104133000)');
 select is(
   (select string_agg(p.integration_id || '=' || p.permission, ', ' order by p.integration_id)
     from private.agent_permissions p join private.agents a on a.id = p.agent_id

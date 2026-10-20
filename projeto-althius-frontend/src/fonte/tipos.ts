@@ -425,6 +425,9 @@ export type IntegracaoId =
   | 'zoho-crm'
   | 'bitrix24'
   | 'tiktok-ads'
+  // Automação (migration 20261104135000).
+  | 'make'
+  | 'zapier'
 
 export interface Canal {
   id: CanalId
@@ -433,7 +436,7 @@ export interface Canal {
   conectado: boolean
 }
 
-export type CategoriaDeIntegracao = 'CRM' | 'Enriquecimento' | 'Conhecimento' | 'Mídia paga' | 'Agenda' | 'Comunicação'
+export type CategoriaDeIntegracao = 'CRM' | 'Enriquecimento' | 'Conhecimento' | 'Mídia paga' | 'Agenda' | 'Comunicação' | 'Automação'
 
 export interface Integracao {
   id: IntegracaoId
@@ -638,6 +641,11 @@ export interface ConversaRetomada<P> {
   emAndamento?: AsyncIterable<P>
 }
 
+/** Uma Conversa que nasceu no Slack, com o Agente do thread. Na Althius, ela é só para leitura. */
+export interface ConversaDoSlack extends ConversaRetomada<PassoDaConversa> {
+  agenteId: AgenteId
+}
+
 /** As Conversas que a sessão tinha antes de recarregar a página: a do composer e a mais recente de cada Agente. */
 export interface ConversasRetomadas {
   coordenada: ConversaRetomada<PassoDaCoordenacao> | null
@@ -812,6 +820,8 @@ export interface FonteDeAgentes extends FonteObservavel {
   abrirConversa?(id: string): Promise<ConversaRetomada<PassoDaCoordenacao>>
   /** A Conversa coordenada em curso (a que o próximo pedido continua), ou nulo numa Conversa nova. */
   conversaCoordenadaAtual?(): string | null
+  /** Abre, só para leitura, uma Conversa que nasceu no Slack. Não muda a Conversa em curso de nenhum lugar. */
+  abrirConversaDoSlack?(id: string): Promise<ConversaDoSlack>
   /**
    * O histórico de Conversas de quem está na sessão com um Agente (ou com a Coordenação, sem Agente), da mais recente
    * à mais antiga, sem as arquivadas; `antesDe` pede a página seguinte. Só no Workspace operacional.

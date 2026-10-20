@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Conectar e desconectar o próprio Acesso ao HubSpot (o mecanismo); 01: pesquisa dos servidores MCP, estendida para este app.
 
-**Status:** needs-triage
+**Status:** wontfix (substituído por `.scratch/conector-microsoft-teams/`)
 
 ## Pode mexer
 
@@ -28,3 +28,7 @@
 1. Criar a conta de teste no app e autorizar o Acesso no navegador.
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+## Comments
+
+**19/10/2026 (agente).** Substituído pela spec própria em `.scratch/conector-microsoft-teams/` (índice em [`conectores-indice.md`](../conectores-indice.md)). Daqui em diante, os tickets de lá valem.

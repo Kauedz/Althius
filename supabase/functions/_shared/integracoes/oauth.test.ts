@@ -8,6 +8,7 @@ import {
   metadadoDoRecursoNoDesafio,
   registrarClienteDinamico,
   renovarToken,
+  revogarToken,
   trocarCodigo,
   urlDeConsentimento,
 } from './oauth.ts'
@@ -254,4 +255,117 @@ Deno.test('uma renovação recusada traz o código do OAuth; queda do servidor v
   assertEquals((await assertRejects(() => renovarToken({ ...base, fetch: queda.fetch }), ErroDeOAuth)).tipo, 'indisponivel')
   const vazio = rede({ 'POST https://auth.falso.test/token': () => json({ token_type: 'bearer' }) })
   assertEquals((await assertRejects(() => renovarToken({ ...base, fetch: vazio.fetch }), ErroDeOAuth)).tipo, 'protocolo')
+})
+
+Deno.test('a descoberta lê o endereço de revogação (RFC 7009) só quando é https', async () => {
+  const com = rede({
+    'GET https://mcp.falso.test/.well-known/oauth-protected-resource/mcp': () =>
+      json({ resource: 'https://mcp.falso.test/mcp', authorization_servers: ['https://auth.falso.test'] }),
+    'GET https://auth.falso.test/.well-known/oauth-authorization-server': () =>
+      json({ ...META_AS, revocation_endpoint: 'https://auth.falso.test/revoke' }),
+  })
+  const achado = await descobrirServidorDeAutorizacao({ urlMcp: 'https://mcp.falso.test/mcp', fetch: com.fetch })
+  assertEquals(achado.revocation_endpoint, 'https://auth.falso.test/revoke')
+  const inseguro = rede({
+    'GET https://mcp.falso.test/.well-known/oauth-protected-resource/mcp': () =>
+      json({ resource: 'https://mcp.falso.test/mcp', authorization_servers: ['https://auth.falso.test'] }),
+    'GET https://auth.falso.test/.well-known/oauth-authorization-server': () =>
+      json({ ...META_AS, revocation_endpoint: 'http://auth.falso.test/revoke' }),
+  })
+  const semRevogacao = await descobrirServidorDeAutorizacao({ urlMcp: 'https://mcp.falso.test/mcp', fetch: inseguro.fetch })
+  assertEquals(semRevogacao.revocation_endpoint, undefined)
+})
+
+Deno.test('revoga o token com a dica do tipo e a autenticação do cliente (RFC 7009)', async () => {
+  const { fetch, chamadas } = rede({ 'POST https://auth.falso.test/revoke': () => new Response('', { status: 200 }) })
+  await revogarToken({
+    endpoint: 'https://auth.falso.test/revoke',
+    cliente: { clientId: 'cid', clientSecret: 'sec', autenticacao: 'client_secret_basic' },
+    token: 'ref-1',
+    dica: 'refresh_token',
+    fetch,
+  })
+  const corpo = new URLSearchParams(chamadas[0].corpo)
+  assertEquals([corpo.get('token'), corpo.get('token_type_hint'), corpo.get('client_id')], ['ref-1', 'refresh_token', null])
+  assertEquals(chamadas[0].cabecalhos.get('Authorization'), `Basic ${btoa('cid:sec')}`)
+  await revogarToken({
+    endpoint: 'https://auth.falso.test/revoke',
+    cliente: { clientId: 'cid', clientSecret: null, autenticacao: 'none' },
+    token: 'acc-1',
+    dica: 'access_token',
+    fetch,
+  })
+  assertEquals(new URLSearchParams(chamadas[1].corpo).get('client_id'), 'cid')
+})
+
+Deno.test('uma revogação recusada vira recusado e a queda vira indisponivel, sem expor o token', async () => {
+  const base = {
+    endpoint: 'https://auth.falso.test/revoke',
+    cliente: { clientId: 'cid', clientSecret: 'sec-do-cliente', autenticacao: 'client_secret_post' as const },
+    token: 'ref-secreto-1',
+    dica: 'refresh_token' as const,
+  }
+  const recusa = rede({ 'POST https://auth.falso.test/revoke': () => json({ error: 'invalid_client' }, 401) })
+  const erro = await assertRejects(() => revogarToken({ ...base, fetch: recusa.fetch }), ErroDeOAuth)
+  assertEquals([erro.tipo, erro.codigo], ['recusado', 'invalid_client'])
+  assert(!erro.message.includes('ref-secreto-1') && !erro.message.includes('sec-do-cliente'))
+  const queda = rede({ 'POST https://auth.falso.test/revoke': () => json({}, 503) })
+  assertEquals((await assertRejects(() => revogarToken({ ...base, fetch: queda.fetch }), ErroDeOAuth)).tipo, 'indisponivel')
+})
+
+Deno.test('TikTok Ads: o emissor com caminho tem o metadado em <emissor>/.well-known/openid-configuration (lido em 19/10/2026)', async () => {
+  const emissor = 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer/oauth'
+  const { fetch, chamadas } = rede({
+    'GET https://business-api.tiktok.com/.well-known/oauth-protected-resource/open_mcp/tt-ads-mcp-layer': () =>
+      json({ resource: 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer', authorization_servers: [emissor], scopes_supported: ['mcp:tt4b'] }),
+    [`GET ${emissor}/.well-known/openid-configuration`]: () =>
+      json({
+        issuer: emissor,
+        authorization_endpoint: 'https://business-api.tiktok.com/portal/mcp-tt4b-authorize',
+        token_endpoint: `${emissor}/token`,
+        registration_endpoint: `${emissor}/register`,
+        revocation_endpoint: `${emissor}/revoke`,
+        code_challenge_methods_supported: ['S256'],
+        token_endpoint_auth_methods_supported: ['none'],
+      }),
+  })
+  const achado = await descobrirServidorDeAutorizacao({ urlMcp: 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer', fetch })
+  assertEquals(achado.issuer, emissor)
+  assertEquals(achado.registration_endpoint, `${emissor}/register`)
+  assertEquals(achado.revocation_endpoint, `${emissor}/revoke`)
+  assertEquals(achado.resource, 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer')
+  assert(chamadas.some((c) => c.url === `${emissor}/.well-known/openid-configuration`))
+})
+
+Deno.test('o consentimento leva os parâmetros extras do perfil (access_type=offline), sem deixar sobrescrever os do OAuth', () => {
+  const url = new URL(urlDeConsentimento({
+    endpointDeAutorizacao: 'https://accounts.google.com/o/oauth2/v2/auth',
+    clientId: 'cid',
+    urlDeRetorno: 'https://x.test/cb',
+    state: 'estado-1',
+    desafio: 'desafio-1',
+    escopo: 'openid email',
+    extras: { access_type: 'offline', prompt: 'consent', client_id: 'forjado', state: 'forjado', redirect_uri: 'https://mal.test' },
+  }))
+  assertEquals(url.searchParams.get('access_type'), 'offline')
+  assertEquals(url.searchParams.get('prompt'), 'consent')
+  assertEquals(url.searchParams.get('client_id'), 'cid')
+  assertEquals(url.searchParams.get('state'), 'estado-1')
+  assertEquals(url.searchParams.get('redirect_uri'), 'https://x.test/cb')
+  assertEquals(url.searchParams.getAll('client_id').length, 1)
+})
+
+Deno.test('os extras nunca trazem scope, resource nem PKCE, mesmo quando o perfil não os define', () => {
+  const url = new URL(urlDeConsentimento({
+    endpointDeAutorizacao: 'https://auth.falso.test/authorize',
+    clientId: 'cid',
+    urlDeRetorno: 'https://x.test/cb',
+    state: 'estado-1',
+    desafio: 'desafio-1',
+    extras: { scope: 'tudo', resource: 'https://mal.test', code_challenge_method: 'plain', response_type: 'token' },
+  }))
+  assertEquals(url.searchParams.get('scope'), null)
+  assertEquals(url.searchParams.get('resource'), null)
+  assertEquals(url.searchParams.get('code_challenge_method'), 'S256')
+  assertEquals(url.searchParams.get('response_type'), 'code')
 })

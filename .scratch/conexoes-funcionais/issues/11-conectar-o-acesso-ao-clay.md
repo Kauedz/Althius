@@ -31,3 +31,15 @@
 2. Deploy de `integration-connect`, `integration-callback` e `integration-tools`.
 3. `update private.integration_catalog set available = true where id = 'clay';`
 4. Teste real: habilitar, conectar uma conta do Clay, ver o Acesso e as ferramentas, reconectar, desconectar; registrar prints aqui (inclui a conferência visual e os estados do cartão, ainda pendentes).
+
+**19/10/2026 (agente, branch `conector-clay-funcional`): o Clay ainda não é funcional.** A conferência desta data mostrou:
+- O perfil, a migration `20261102140000` e o pgTAP estão na `main` (PR #226).
+- O que foi publicado não pôde ser conferido: o MCP do Supabase recusou a permissão. As consultas prontas estão em `conector-clay/issues/04`.
+- A documentação oficial (https://university.clay.com/docs/connect-to-clay-mcp) traz o que não estava aqui:
+  - as ferramentas gastam créditos do workspace Clay do Cliente;
+  - o admin do Clay precisa ligar **Unknown** em *Allowed MCP clients*;
+  - o Clay reconfere essa política a cada emissão de token;
+  - o registro dinâmico é limitado a 4 em rajada e 10 por hora por IP;
+  - há `revocation_endpoint`.
+
+O resto da leva segue em [`.scratch/conector-clay/`](../../conector-clay/spec.md): Clay como gasto (01), revogar ao desconectar (02), testes e prints (03, que cobrem os dois itens abertos acima) e publicar e validar com conta real (04).

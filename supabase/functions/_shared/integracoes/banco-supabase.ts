@@ -1,7 +1,7 @@
 // O banco das Integrações como as Edge Functions o usam: as RPCs de serviço da migration 20261001160000 (chamadas com a
 // chave de serviço), traduzidas para as interfaces tipadas de `integration-access.ts` e da conexão. Recebe só uma função
 // `rpc`, para o teste trocar o Supabase por um dublê sem importar o SDK aqui.
-import { type AcessoLido, type BancoDeAcessos, ErroDoBanco } from '../integration-access.ts'
+import { type AcessoLido, type BancoDeDesconexao, ErroDoBanco } from '../integration-access.ts'
 import type { BancoDeClientesOAuth, ClienteGuardado } from './cliente-oauth.ts'
 import type { RegraDaFerramenta, RegrasDaIntegracao } from './regras.ts'
 import type { Permissao, TipoDeAcesso } from './tipos.ts'
@@ -57,7 +57,7 @@ export interface BancoDaConexao extends BancoDeClientesOAuth {
   }): Promise<string>
 }
 
-export function bancoDasIntegracoes(rpc: Rpc): BancoDeAcessos & BancoDaConexao {
+export function bancoDasIntegracoes(rpc: Rpc): BancoDeDesconexao & BancoDaConexao {
   async function chamar<T>(nome: string, parametros: Record<string, unknown>): Promise<T> {
     const { data, error } = await rpc(nome, parametros)
     if (error) throw new ErroDoBanco(error.code ?? '', error.message)
@@ -102,6 +102,13 @@ export function bancoDasIntegracoes(rpc: Rpc): BancoDeAcessos & BancoDaConexao {
         p_refresh_token: a.refreshToken,
         p_expires_in: a.expiresIn,
       })
+    },
+    async apagarAcesso(a) {
+      return (await chamar<boolean | null>('disconnect_integration_access_for_user', {
+        p_workspace_id: a.workspaceId,
+        p_user_id: a.userId,
+        p_integration_id: a.integrationId,
+      })) === true
     },
     async marcarReconexao(accessId, motivo) {
       await chamar('mark_integration_access_reconnect', { p_access_id: accessId, p_reason: motivo })

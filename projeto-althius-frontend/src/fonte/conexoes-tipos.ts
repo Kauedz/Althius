@@ -97,8 +97,11 @@ export interface FonteDeConexoes extends FonteObservavel {
   conectarPorAutorizacao?(id: IntegracaoId): Promise<string>
   /** Valida a chave de API no app e guarda no backend; a chave nunca volta ao navegador. */
   conectarPorChave?(id: IntegracaoId, chave: string): Promise<void>
-  /** Desconecta só o próprio Acesso. */
-  desconectarAcesso?(id: IntegracaoId): Promise<void>
+  /**
+   * Desconecta só o próprio Acesso e revoga o token no app quando dá. `revogacaoFalhou`: a Althius desconectou, mas não
+   * conseguiu confirmar a revogação no app.
+   */
+  desconectarAcesso?(id: IntegracaoId): Promise<{ revogacaoFalhou: boolean }>
   /** Abre a instalação do Canal no app e devolve o endereço para o navegador ir; exige Administrador ativo. */
   instalarCanal?(id: CanalId): Promise<string>
   /** Retira o Canal: o app para de responder e nada é apagado; exige Administrador ativo. */

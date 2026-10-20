@@ -9,6 +9,7 @@ import { reconhecerMencoes } from './mencoes'
 import type {
   AgenteId,
   AnexoDaMensagem,
+  ConversaDoSlack,
   ConversaRetomada,
   ConversasRetomadas,
   FonteDeAgentes,
@@ -22,6 +23,9 @@ import type {
 } from './tipos'
 
 type Tipo = 'agente' | 'coordenada'
+
+/** De onde veio a Conversa: da Althius ou de um thread do Slack (slack-canal 06). */
+type Origem = 'althius' | 'slack'
 
 interface Evento {
   seq: number
@@ -53,6 +57,7 @@ type Fonte = Pick<
   | 'renomearConversa'
   | 'abrirConversa'
   | 'conversaCoordenadaAtual'
+  | 'abrirConversaDoSlack'
   | 'historicoDeConversas'
   | 'arquivarConversa'
   | 'abrirConversaDoAgente'
@@ -68,11 +73,13 @@ type Fonte = Pick<
 interface ConversaListada {
   id: string
   kind: Tipo
+  agent_id: string | null
   title: string | null
   named?: boolean
   first_request: string | null
   updated_at: string
   open_run_id: string | null
+  origin?: Origem
 }
 
 const MOTIVOS: Record<string, string> = {
@@ -306,10 +313,16 @@ export function criarFonteDeConversasSupabase(
   }
 
   /** Uma Conversa salva: os pedidos terminados com os passos, e a leitura do que ainda está rodando. */
-  async function lerConversa<P>(id: string, converter: (evento: Evento) => P | null, lugar: AgenteId | null) {
+  async function lerConversa<P>(
+    id: string,
+    converter: (evento: Evento) => P | null,
+    lugar: AgenteId | null,
+    registrarEmCurso = true,
+  ) {
     const { data, error } = await cliente.rpc('get_agent_conversation', { p_conversation_id: id })
     if (error) throw new Error('Não foi possível carregar a Conversa.')
-    const execucoes = (data as { runs: ExecucaoSalva[] }).runs
+    const salva = data as { agent_id: string | null; origin?: Origem; runs: ExecucaoSalva[] }
+    const execucoes = salva.runs
     const anexos = await anexosDaConversa(id)
     const turnos: TurnoRetomado<P>[] = execucoes.map((execucao) => ({
       pedido: execucao.request_text,
@@ -320,14 +333,16 @@ export function criarFonteDeConversasSupabase(
     const emAndamento = aberta && !terminou(aberta.status)
       ? acompanhar(aberta.id, aberta.events.at(-1)?.seq ?? 0, converter)
       : undefined
-    if (aberta && emAndamento) emCurso.set(lugar, aberta.id)
-    return { turnos, emAndamento }
+    if (registrarEmCurso && aberta && emAndamento) emCurso.set(lugar, aberta.id)
+    return { turnos, emAndamento, agenteId: salva.agent_id, origem: salva.origin ?? 'althius' }
   }
 
   async function retomarConversas(): Promise<ConversasRetomadas> {
     const { data, error } = await cliente.rpc('list_agent_conversations', { p_workspace_id: workspaceId })
     if (error) throw new Error('Não foi possível carregar as Conversas.')
-    const linhas = data as { id: string; kind: Tipo; agent_id: string | null }[]
+    // A Conversa do Slack continua no thread: a página do Agente retoma só a da Althius.
+    const linhas = (data as { id: string; kind: Tipo; agent_id: string | null; origin?: Origem }[])
+      .filter((linha) => linha.origin !== 'slack')
     // A mais recente de cada lugar, como estava antes de recarregar.
     const ultimaCoordenada = linhas.find((linha) => linha.kind === 'coordenada')
     const ultimas = new Map<AgenteId, string>()
@@ -337,11 +352,13 @@ export function criarFonteDeConversasSupabase(
     const retomadas: ConversasRetomadas = { coordenada: null, porAgente: {} }
     if (ultimaCoordenada) {
       coordenada = ultimaCoordenada.id
-      retomadas.coordenada = await lerConversa(ultimaCoordenada.id, passoDaCoordenacao, null)
+      const { turnos, emAndamento } = await lerConversa(ultimaCoordenada.id, passoDaCoordenacao, null)
+      retomadas.coordenada = { turnos, emAndamento }
     }
     for (const [agenteId, id] of ultimas) {
       porAgente.set(agenteId, id)
-      retomadas.porAgente[agenteId] = await lerConversa(id, passoDaConversa, agenteId)
+      const { turnos, emAndamento } = await lerConversa(id, passoDaConversa, agenteId)
+      retomadas.porAgente[agenteId] = { turnos, emAndamento }
     }
     return retomadas
   }
@@ -358,13 +375,17 @@ export function criarFonteDeConversasSupabase(
       p_before: antesDe ?? null,
     })
     if (error) throw new Error('Não foi possível carregar as Conversas.')
-    return (data as ConversaListada[]).map((linha) => ({
-      id: linha.id,
-      titulo: linha.named ? linha.title : null,
-      primeiroPedido: linha.first_request ?? '',
-      atualizadaEm: linha.updated_at,
-      emAndamento: linha.open_run_id !== null,
-    }))
+    return (data as ConversaListada[]).map((linha) => {
+      const doSlack = linha.origin === 'slack' && linha.agent_id ? { agenteId: linha.agent_id } : undefined
+      return {
+        id: linha.id,
+        titulo: linha.named ? linha.title : null,
+        primeiroPedido: linha.first_request ?? '',
+        atualizadaEm: linha.updated_at,
+        emAndamento: linha.open_run_id !== null,
+        ...(doSlack ? { doSlack } : {}),
+      }
+    })
   }
 
   /** As Conversas coordenadas salvas, da mais recente à mais antiga. */
@@ -409,9 +430,16 @@ export function criarFonteDeConversasSupabase(
 
   /** Abre uma Conversa salva: o próximo pedido da Coordenação passa a continuar esta. */
   async function abrirConversa(id: string): Promise<ConversaRetomada<PassoDaCoordenacao>> {
-    const conversa = await lerConversa(id, passoDaCoordenacao, null)
+    const { turnos, emAndamento } = await lerConversa(id, passoDaCoordenacao, null)
     coordenada = id
-    return conversa
+    return { turnos, emAndamento }
+  }
+
+  /** Só lê: a Conversa do Slack continua no thread, e nenhum pedido daqui a continua. */
+  async function abrirConversaDoSlack(id: string): Promise<ConversaDoSlack> {
+    const { turnos, emAndamento, agenteId, origem } = await lerConversa(id, passoDaConversa, null, false)
+    if (origem !== 'slack' || !agenteId) throw new Error('Esta Conversa não veio do Slack.')
+    return { turnos, emAndamento, agenteId }
   }
 
   return {
@@ -424,6 +452,7 @@ export function criarFonteDeConversasSupabase(
     renomearConversa,
     abrirConversa,
     conversaCoordenadaAtual: () => coordenada,
+    abrirConversaDoSlack,
     historicoDeConversas,
     arquivarConversa,
     abrirConversaDoAgente,

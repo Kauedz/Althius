@@ -5,6 +5,8 @@
 //            devolve `{ url }`, o endereço de consentimento para onde o navegador vai. O retorno cai em `integration-callback`.
 //   chave    caminho da chave de API (`chave`): valida a chave chamando o app e só então a guarda no Vault; devolve a conta
 //            e o portal. A chave nunca volta ao navegador.
+//   desconectar  desconecta o PRÓPRIO Acesso (conector-clay 02): revoga o token no app quando o servidor de autorização
+//            anuncia onde (RFC 7009) e apaga o Acesso mesmo se a revogação falhar; devolve `{ desconectado, revogacao }`.
 // O banco confere a Participação ativa e a habilitação (RPCs de serviço com o participante que o JWT identificou). O token
 // e a chave nunca aparecem em resposta, em log nem em mensagem de erro. Banco, rede e segredos entram por injeção de
 // dependência: o teste vai da requisição à resposta sem rede.
@@ -16,7 +18,7 @@ import { listarFerramentasMcp } from '../_shared/integracoes/mcp-cliente.ts'
 import { desafioPkce, descobrirServidorDeAutorizacao, ErroDeOAuth, urlDeConsentimento } from '../_shared/integracoes/oauth.ts'
 import { perfilDaIntegracao } from '../_shared/integracoes/perfis.ts'
 import { ErroDeProvedor } from '../_shared/integracoes/tipos.ts'
-import { ErroDoBanco } from '../_shared/integration-access.ts'
+import { type BancoDeDesconexao, desconectarAcesso, ErroDoBanco } from '../_shared/integration-access.ts'
 
 export interface Db extends BancoDaConexao {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string; email: string | null } | null>
@@ -24,6 +26,8 @@ export interface Db extends BancoDaConexao {
 
 export interface Deps {
   db: Db
+  /** Os Acessos, para desconectar. Sem eles, `desconectar` responde indisponível. */
+  acessos?: BancoDeDesconexao
   /** Os segredos de ambiente (`Deno.env.get`). */
   ambiente: (nome: string) => string | undefined
   appOrigin: string
@@ -84,6 +88,21 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const integrationId = typeof corpo?.integrationId === 'string' ? corpo.integrationId : ''
     if (!UUID.test(workspaceId)) return erro(400, 'workspace', 'Workspace obrigatório.')
     if (!ID_DA_INTEGRACAO.test(integrationId)) return erro(400, 'integracao', 'Integração obrigatória.')
+    if (corpo.action === 'desconectar') {
+      if (!deps.acessos) return erro(503, 'indisponivel', 'Não foi possível desconectar agora. Tente de novo em instantes.')
+      const r = await desconectarAcesso(
+        { banco: deps.acessos, ambiente: deps.ambiente, fetch: deps.fetch },
+        { workspaceId, userId: user.userId, integrationId },
+      )
+      if (!r.ok) {
+        log({ type: 'integration_disconnect', integrationId, resultado: r.erro.tipo })
+        if (r.erro.tipo === 'precisa_reconectar') return erro(403, 'sem_participacao', r.erro.mensagem)
+        return erro(502, 'indisponivel', 'Não foi possível desconectar agora. Tente de novo em instantes.')
+      }
+      log({ type: 'integration_disconnect', integrationId, resultado: r.valor.revogacao, desconectado: r.valor.desconectado })
+      return responder(r.valor)
+    }
+
     const perfil = perfilDaIntegracao(integrationId)
     if (!perfil) return erro(404, 'em_breve', 'Esta Integração ainda não conecta.')
 
@@ -134,6 +153,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           desafio: await desafioPkce(tentativa.codeVerifier),
           escopo: oauth.escopos?.join(' '),
           recurso,
+          extras: oauth.parametrosDeAutorizacao,
         })
         log({ type: 'integration_connect', integrationId, resultado: 'iniciada' })
         return responder({ url })

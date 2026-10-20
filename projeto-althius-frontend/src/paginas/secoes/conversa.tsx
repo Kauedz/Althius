@@ -1,27 +1,29 @@
-import { ArrowRight, Check, Copy, PanelLeftClose, PanelLeftOpen, Wrench } from 'lucide-react'
+import { ArrowRight, ArrowUp, Check, Copy, PanelLeftClose, PanelLeftOpen, Wrench } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente, Pulso } from '@/components/marca'
+import { Mensagem } from '@/components/mensagem'
 import { AvisoDeModuloIndisponivel } from '@/components/modulo-indisponivel'
 import { Button } from '@/components/ui/button'
 import { AnexosDaMensagem } from '@/conversa/anexos-da-mensagem'
 import { Composer } from '@/conversa/composer'
 import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
-import { HistoricoDeConversas } from '@/conversa/historico'
+import { HistoricoDeConversas, MarcaDoSlack } from '@/conversa/historico'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { TextoDigitado } from '@/conversa/texto'
 import { quemEstaRespondendo } from '@/conversa/vez'
 import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
-import type { Agente, AgenteId, AprovacaoDeAcao } from '@/fonte/tipos'
+import type { Agente, AgenteId, AprovacaoDeAcao, ResumoDeConversa } from '@/fonte/tipos'
 import { mensagemDeErro, porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
 
 export function SecaoConversa({ agente }: { agente: Agente }) {
   const { disponivel } = useAmbiente()
-  // Perguntar algo a um Agente é executá-lo: sem provedor de modelo, a tela diz que não dá, sem sugestão nem composer.
-  if (!disponivel('conversas')) {
+  const [parametros] = useSearchParams()
+  // A Conversa do Slack só é lida aqui: não precisa do provedor de modelo.
+  if (!parametros.get('slack') && !disponivel('conversas')) {
     return (
       <section aria-labelledby="titulo-conversa" className="flex max-w-3xl flex-col gap-6">
         <h2 id="titulo-conversa" className="sr-only">
@@ -45,33 +47,41 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
   const [aberto, setAberto] = useState(true)
   const [erro, setErro] = useState('')
   const pedida = parametros.get('conversa')
+  const slack = parametros.get('slack')
   const respondendo = conversas.respondendo(agente.id)
   const atual = fonte.conversaDoAgenteAtual?.(agente.id) ?? null
   const abrirDoAgente = conversas.abrirDoAgente
 
   useEffect(() => {
+    if (slack) return
     if (!pedida || !fonte.abrirConversaDoAgente || fonte.conversaDoAgenteAtual?.(agente.id) === pedida) return
     abrirDoAgente(agente.id, pedida).catch((falha) => setErro(mensagemDeErro(falha)))
-  }, [pedida, agente.id, fonte, abrirDoAgente])
+  }, [pedida, slack, agente.id, fonte, abrirDoAgente])
 
   // Depois do primeiro pedido de uma Conversa nova, o endereço passa a apontar para ela.
   useEffect(() => {
-    if (!respondendo && atual && atual !== pedida) {
-      setParametros((anteriores) => {
-        const proximos = new URLSearchParams(anteriores)
-        proximos.set('conversa', atual)
-        return proximos
-      }, { replace: true })
-    }
-  }, [respondendo, atual, pedida, setParametros])
+    if (slack || respondendo || !atual || atual === pedida) return
+    setParametros((anteriores) => {
+      const proximos = new URLSearchParams(anteriores)
+      proximos.set('conversa', atual)
+      return proximos
+    }, { replace: true })
+  }, [respondendo, atual, pedida, slack, setParametros])
 
+  if (slack && !fonte.historicoDeConversas) return <LeituraDoSlack key={slack} agente={agente} id={slack} />
   if (!fonte.historicoDeConversas) return <ConversaComOAgente agente={agente} />
 
-  function escolher(id: string) {
+  function escolher(conversa: ResumoDeConversa) {
     setErro('')
     setParametros((anteriores) => {
       const proximos = new URLSearchParams(anteriores)
-      proximos.set('conversa', id)
+      if (conversa.doSlack) {
+        proximos.delete('conversa')
+        proximos.set('slack', conversa.id)
+      } else {
+        proximos.delete('slack')
+        proximos.set('conversa', conversa.id)
+      }
       return proximos
     })
   }
@@ -82,6 +92,7 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
     setParametros((anteriores) => {
       const proximos = new URLSearchParams(anteriores)
       proximos.delete('conversa')
+      proximos.delete('slack')
       return proximos
     })
   }
@@ -102,10 +113,10 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
         {aberto && (
           <HistoricoDeConversas
             agenteId={agente.id}
-            atual={atual}
+            atual={slack ?? atual}
             aoAbrir={escolher}
             aoNova={nova}
-            versao={`${respondendo}-${atual}`}
+            versao={`${respondendo}-${atual}-${slack ?? ''}`}
           />
         )}
       </div>
@@ -115,9 +126,113 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
             {erro}
           </p>
         )}
-        <ConversaComOAgente agente={agente} />
+        {slack ? <LeituraDoSlack key={slack} agente={agente} id={slack} /> : <ConversaComOAgente agente={agente} />}
       </div>
     </div>
+  )
+}
+
+/**
+ * Uma Conversa que nasceu no Slack (slack-canal 06, Q15): os passos como em qualquer Conversa, só para leitura, porque
+ * responder continua sendo pelo thread. A Conversa da Althius com o Agente fica onde estava.
+ */
+function LeituraDoSlack({ agente, id }: { agente: Agente; id: string }) {
+  const fonte = useFonte()
+  const agentes = useDados((f) => f.agentes(), []) ?? []
+  const agentesPorId = porId(agentes)
+  const [itens, setItens] = useState<ItemDaConversa[]>([])
+  const [respondendo, setRespondendo] = useState(false)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    let ativo = true
+    let proximo = 1
+    const abrir = fonte.abrirConversaDoSlack
+      ? fonte.abrirConversaDoSlack(id)
+      : Promise.reject(new Error('Esta Conversa não está disponível aqui.'))
+    abrir.then(
+      async (conversa) => {
+        if (!ativo) return
+        if (conversa.agenteId !== agente.id) {
+          setErro('Esta Conversa do Slack é de outro Agente.')
+          return
+        }
+        setItens(
+          conversa.turnos.flatMap((turno): ItemDaConversa[] => [
+            { id: proximo++, tipo: 'usuario', texto: turno.pedido },
+            ...turno.passos.map((passo) => ({ id: proximo++, ...passo })),
+          ]),
+        )
+        if (!conversa.emAndamento) return
+        setRespondendo(true)
+        try {
+          for await (const passo of conversa.emAndamento) {
+            if (!ativo) return
+            setItens((atuais) => [...atuais, { id: proximo++, ...passo }])
+          }
+        } finally {
+          if (ativo) setRespondendo(false)
+        }
+      },
+      (falha) => {
+        if (ativo) setErro(mensagemDeErro(falha))
+      },
+    )
+    return () => {
+      ativo = false
+    }
+  }, [fonte, id, agente.id])
+
+  return (
+    <section aria-labelledby="titulo-conversa" className="flex max-w-3xl flex-col gap-6">
+      <h2 id="titulo-conversa" className="sr-only">
+        Conversa do Slack
+      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <MarcaDoSlack />
+        <Link to={`/agentes/${agente.id}/conversa`} className="text-sm underline underline-offset-4">
+          Voltar à Conversa na Althius
+        </Link>
+      </div>
+
+      {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
+
+      <div aria-live="polite" className="flex flex-col gap-6">
+        {itens.map((item) => (
+          <Item key={item.id} item={item} agentes={agentesPorId} animar={false} />
+        ))}
+        {respondendo && (
+          <div role="status" className="flex items-center gap-4 text-al-muted">
+            <span className="relative size-5">
+              <Pulso className="absolute inset-0" />
+            </span>
+            <span className="rotulo">{agente.nome} está respondendo no Slack</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="composer flex-row items-center gap-2 p-1.5 pl-2 opacity-60">
+          <label htmlFor="mensagem-do-slack" className="sr-only">
+            {`Mensagem para ${agente.nome}`}
+          </label>
+          <input
+            id="mensagem-do-slack"
+            aria-describedby="conversa-continua-no-slack"
+            disabled
+            placeholder="Responda pelo thread do Slack."
+            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-[0.9375rem] placeholder:text-al-ink-3"
+          />
+          <Button type="button" disabled className="h-10 gap-1.5 rounded-full pr-3 pl-4 tracking-[0.04em]">
+            Enviar
+            <ArrowUp strokeWidth={1.8} className="size-4" aria-hidden />
+          </Button>
+        </div>
+        <p id="conversa-continua-no-slack" className="text-sm text-al-muted">
+          Esta Conversa continua no Slack
+        </p>
+      </div>
+    </section>
   )
 }
 

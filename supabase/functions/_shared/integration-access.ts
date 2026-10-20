@@ -4,6 +4,7 @@
 //
 //   listarFerramentas(deps, { workspaceId, userId, integrationId })
 //   chamarFerramenta(deps, { workspaceId, userId, integrationId, ferramenta, argumentos, agenteId? })
+//   desconectarAcesso(deps, { workspaceId, userId, integrationId })
 //
 // Ambas renovam o token quando ele está vencendo ou o app o recusa (gravando o refresh token novo junto com o access
 // token), devolvem erros TIPADOS (`precisa_reconectar`, `nao_habilitada`, `permissao_negada`, `indisponivel`,
@@ -11,7 +12,7 @@
 // por injeção de dependência: os testes vão do pedido ao resultado sem rede.
 import { clienteDaRenovacao, type BancoDeClientesOAuth } from './integracoes/cliente-oauth.ts'
 import { comSessaoMcp, type FerramentaMcp } from './integracoes/mcp-cliente.ts'
-import { ErroDeOAuth, renovarToken } from './integracoes/oauth.ts'
+import { descobrirServidorDeAutorizacao, ErroDeOAuth, renovarToken, revogarToken } from './integracoes/oauth.ts'
 import { type PerfilDeIntegracao, perfilDaIntegracao } from './integracoes/perfis.ts'
 import { decidirChamada, type RegraDaFerramenta, type RegrasDaIntegracao, regraVigente } from './integracoes/regras.ts'
 import { executarFerramentaRest, ferramentasRest } from './integracoes/rest.ts'
@@ -69,6 +70,12 @@ export interface BancoDeAcessos extends BancoDeClientesOAuth {
    * em todo caminho, e uma falha ao ler as regras não chama nada.
    */
   regrasDasFerramentas?(a: { workspaceId: string; integrationId: string }): Promise<RegrasDaIntegracao>
+}
+
+/** O banco para desconectar: o de sempre e a RPC de serviço que apaga o Acesso de quem pediu. */
+export interface BancoDeDesconexao extends BancoDeAcessos {
+  /** RPC `disconnect_integration_access_for_user`; falso quando não havia Acesso. Lança ErroDoBanco (42501). */
+  apagarAcesso(a: { workspaceId: string; userId: string; integrationId: string }): Promise<boolean>
 }
 
 export interface DepsDeAcesso {
@@ -268,13 +275,14 @@ interface SessaoDeFerramentas {
 
 type Transporte = <T>(fn: (sessao: SessaoDeFerramentas) => Promise<T>) => Promise<T>
 
-function ferramentaDoMcp(f: FerramentaMcp): FerramentaDaIntegracao {
+function ferramentaDoMcp(f: FerramentaMcp, gastam: boolean): FerramentaDaIntegracao {
   return {
     nome: f.name,
     descricao: f.description ?? '',
     esquema: f.inputSchema ?? { type: 'object' },
-    // Só quem declara `readOnlyHint` é leitura; o que não declara é tratado como escrita (padrão seguro).
-    escreve: f.annotations?.readOnlyHint !== true,
+    // Só quem declara `readOnlyHint` é leitura; o que não declara é tratado como escrita (padrão seguro). Num servidor
+    // cujas ferramentas gastam (`ferramentasGastam`), nenhuma é leitura.
+    escreve: gastam || f.annotations?.readOnlyHint !== true,
   }
 }
 
@@ -288,7 +296,7 @@ function transporteDe(
   if (acesso.kind === 'oauth_mcp' && mcp && 'access_token' in segredo) {
     return (fn) => comSessaoMcp({ url: mcp.url, cabecalhos: { Authorization: `Bearer ${segredo.access_token}` }, fetch: buscar }, (s) =>
       fn({
-        ferramentas: async () => (await s.ferramentas()).map(ferramentaDoMcp),
+        ferramentas: async () => (await s.ferramentas()).map((f) => ferramentaDoMcp(f, mcp.ferramentasGastam === true)),
         chamar: async (nome, argumentos) => {
           const r = await s.chamar(nome, argumentos)
           return { conteudo: r.content, estruturado: r.structuredContent, erro: r.isError === true }
@@ -300,7 +308,7 @@ function transporteDe(
       const cabecalho = { [mcp.chave.cabecalho]: `${mcp.chave.prefixo ?? ''}${segredo.api_key}` }
       return (fn) => comSessaoMcp({ url: mcp.url, cabecalhos: cabecalho, fetch: buscar }, (s) =>
         fn({
-          ferramentas: async () => (await s.ferramentas()).map(ferramentaDoMcp),
+          ferramentas: async () => (await s.ferramentas()).map((f) => ferramentaDoMcp(f, mcp.ferramentasGastam === true)),
           chamar: async (nome, argumentos) => {
             const r = await s.chamar(nome, argumentos)
             return { conteudo: r.content, estruturado: r.structuredContent, erro: r.isError === true }
@@ -471,4 +479,75 @@ export async function chamarFerramenta(
     }
     return await sessao.chamar(pedido.ferramenta, pedido.argumentos ?? {})
   })
+}
+
+/**
+ * O que aconteceu com o token no app ao desconectar: `revogado` (RFC 7009), `nao_suportado` (o servidor não anuncia onde
+ * revogar), `falhou` (o app recusou, não respondeu, ou não havia como revogar com segurança) ou `nao_se_aplica` (chave de
+ * API, Acesso sem token legível ou nenhum Acesso).
+ */
+export type RevogacaoNoApp = 'revogado' | 'nao_suportado' | 'falhou' | 'nao_se_aplica'
+
+/**
+ * Desconecta o próprio Acesso: revoga o token no app quando dá e depois apaga o Acesso (e, pelo gatilho, o segredo no
+ * Vault). Uma revogação que falha não impede apagar: a pessoa pediu para a Althius parar de usar a conta dela.
+ */
+export async function desconectarAcesso(
+  deps: Omit<DepsDeAcesso, 'banco'> & { banco: BancoDeDesconexao },
+  pedido: PedidoDeAcesso,
+): Promise<Resultado<{ desconectado: boolean; revogacao: RevogacaoNoApp }>> {
+  let acesso: AcessoLido | null = null
+  try {
+    acesso = await deps.banco.acessoParaUso(pedido)
+  } catch (erro) {
+    // A Integração já retirada do Workspace não deixa ler o Acesso, mas o que sobrou ainda pode ser apagado.
+    if (!(erro instanceof ErroDoBanco && erro.codigo === '22023')) return falha(erroDoBanco(erro))
+  }
+  let revogacao: RevogacaoNoApp = 'nao_se_aplica'
+  const perfil = perfilDaIntegracao(pedido.integrationId)
+  const segredo = acesso?.kind === 'oauth_mcp' ? lerSegredo(acesso) : null
+  if (perfil && segredo && 'access_token' in segredo) revogacao = await revogarNoApp(deps, perfil, segredo)
+  let desconectado: boolean
+  try {
+    desconectado = await deps.banco.apagarAcesso(pedido)
+  } catch (erro) {
+    return falha(erroDoBanco(erro))
+  }
+  return ok({ desconectado, revogacao })
+}
+
+async function revogarNoApp(
+  deps: Omit<DepsDeAcesso, 'banco'> & { banco: BancoDeAcessos },
+  perfil: PerfilDeIntegracao,
+  segredo: SegredoOAuth,
+): Promise<RevogacaoNoApp> {
+  const mcp = perfil.mcp
+  if (!mcp?.oauth) return 'nao_suportado'
+  try {
+    const descoberta = await descobrirServidorDeAutorizacao({
+      urlMcp: mcp.url,
+      autorizacao: mcp.oauth.autorizacao,
+      token: mcp.oauth.token,
+      fetch: deps.fetch,
+    })
+    // O anunciado pelo servidor vale primeiro; sem ele, o declarado no perfil (o Calendly não anuncia o dele).
+    const endereco = descoberta.revocation_endpoint ?? mcp.oauth.revogacao
+    if (!endereco) return 'nao_suportado'
+    // O token só vai ao servidor que o emitiu, com o cliente que o recebeu, e a revogação fica na mesma origem do
+    // endpoint de token: um metadado não manda o token para outro host.
+    if (!segredo.issuer || !segredo.client_id || descoberta.issuer !== segredo.issuer) return 'falhou'
+    if (!endereco.startsWith('https://') || new URL(endereco).origin !== new URL(descoberta.token_endpoint).origin) return 'falhou'
+    const cliente = await clienteDaRenovacao(
+      { banco: deps.banco, ambiente: deps.ambiente, fetch: deps.fetch },
+      perfil,
+      { clientId: segredo.client_id, issuer: segredo.issuer },
+    )
+    if (!cliente) return 'falhou'
+    const base = { endpoint: endereco, cliente, fetch: deps.fetch }
+    if (segredo.refresh_token) await revogarToken({ ...base, token: segredo.refresh_token, dica: 'refresh_token' })
+    await revogarToken({ ...base, token: segredo.access_token, dica: 'access_token' })
+    return 'revogado'
+  } catch {
+    return 'falhou'
+  }
 }

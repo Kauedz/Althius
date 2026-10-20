@@ -35,6 +35,11 @@ export interface PerfilOAuth {
    * uso; os segredos, se existirem, têm prioridade (para quando o servidor não aceita registro).
    */
   registro: 'preregistrado' | 'dinamico'
+  /**
+   * O app pré-registrado é um cliente público (PKCE, sem segredo), como o app Meta: o client id basta. Sem esta marca, o
+   * pré-registrado exige o segredo (o MCP Auth App do HubSpot é confidencial).
+   */
+  clientePublico?: boolean
   /** Os nomes dos segredos de ambiente (`npx supabase secrets set`) com o client id e o client secret. */
   segredos: { clientId: string; clientSecret: string }
   /** Endereços explícitos: o servidor não publica o metadado de autorização, ou o perfil fixa os que ele publica. */
@@ -44,6 +49,13 @@ export interface PerfilOAuth {
   autenticacaoDoToken?: 'client_secret_post' | 'client_secret_basic'
   /** Manda o parâmetro `resource` (RFC 8707) no consentimento e na troca, como o MCP pede. */
   enviarRecurso: boolean
+  /**
+   * Onde revogar o token (RFC 7009) quando o metadado do servidor não anuncia `revocation_endpoint` (Calendly). Vale só
+   * com a mesma origem do endpoint de token, como o anunciado.
+   */
+  revogacao?: string
+  /** Parâmetros extras do consentimento (o Google só devolve refresh token com `access_type=offline`). */
+  parametrosDeAutorizacao?: Record<string, string>
   identificacao: Identificacao
 }
 
@@ -52,6 +64,11 @@ export interface PerfilMcp {
   oauth?: PerfilOAuth
   /** Como a chave de API entra no servidor MCP, quando ele aceita (Lusha). */
   chave?: { cabecalho: string; prefixo?: string }
+  /**
+   * Toda ferramenta do servidor gasta (créditos do Cliente no app, como no Clay): vale como escrita mesmo com
+   * `readOnlyHint`, então pede Aprovação até o Administrador decidir outra regra (ADR-0022).
+   */
+  ferramentasGastam?: boolean
 }
 
 export interface PerfilDeChaveDeApi {
@@ -351,61 +368,6 @@ const RD_STATION_REST: PerfilRest = {
   ],
 }
 
-// Apollo por chave de API: a Althius fala com a API REST (o MCP do Apollo só aceita OAuth). O que gasta crédito do Apollo
-// conta como "escreve" para a Permissão do Agente.
-// não confirmado: os nomes dos parâmetros de busca e enriquecimento.
-const APOLLO_REST: PerfilRest = {
-  base: 'https://api.apollo.io/api/v1',
-  autenticacao: { tipo: 'cabecalho', nome: 'x-api-key' },
-  ferramentas: [
-    {
-      nome: 'search_people',
-      descricao: 'Busca pessoas no Apollo por cargo e domínio da empresa (não gasta crédito; não traz e-mail nem telefone).',
-      escreve: false,
-      metodo: 'POST',
-      caminho: '/mixed_people/api_search',
-      corpo: ['person_titles', 'q_organization_domains_list', 'q_keywords', 'per_page', 'page'],
-      esquema: {
-        type: 'object',
-        properties: {
-          person_titles: { type: 'array', items: { type: 'string' } },
-          q_organization_domains_list: { type: 'array', items: { type: 'string' } },
-          q_keywords: { type: 'string' },
-          per_page: { type: 'integer' },
-          page: { type: 'integer' },
-        },
-      },
-    },
-    {
-      nome: 'enrich_organization',
-      descricao: 'Enriquece uma empresa no Apollo pelo domínio (gasta crédito).',
-      escreve: true,
-      metodo: 'GET',
-      caminho: '/organizations/enrich',
-      consulta: ['domain'],
-      esquema: { type: 'object', properties: { domain: { type: 'string' } }, required: ['domain'] },
-    },
-    {
-      nome: 'match_person',
-      descricao: 'Encontra e enriquece uma pessoa no Apollo (gasta crédito).',
-      escreve: true,
-      metodo: 'POST',
-      caminho: '/people/match',
-      corpo: ['first_name', 'last_name', 'domain', 'organization_name', 'linkedin_url', 'email'],
-      esquema: {
-        type: 'object',
-        properties: {
-          first_name: { type: 'string' },
-          last_name: { type: 'string' },
-          domain: { type: 'string' },
-          organization_name: { type: 'string' },
-          linkedin_url: { type: 'string' },
-          email: { type: 'string' },
-        },
-      },
-    },
-  ],
-}
 
 export const PERFIS: Record<string, PerfilDeIntegracao> = {
   hubspot: {
@@ -498,28 +460,27 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
     portalFixo: false,
     mcp: {
       url: 'https://mcp.apollo.io/mcp',
+      // A busca e o CRM são gratuitos, mas o enriquecimento gasta créditos do Apollo do Cliente (1 a 9 por pessoa) e há
+      // ferramentas que enviam e-mail e mexem em sequências pela conta da pessoa: toda chamada vale como gasto, e o
+      // Administrador libera a busca uma a uma (conector-apollo 01; https://docs.apollo.io/docs/apollo-mcp).
+      ferramentasGastam: true,
+      // O MCP do Apollo aceita a chave no cabeçalho X-Api-Key, para clientes sem navegador; chave com escopo é recusada
+      // (403 API_INACCESSIBLE): só a chave mestra serve (conector-apollo 02).
+      chave: { cabecalho: 'X-Api-Key' },
       oauth: {
-        // O metadado de autorização do Apollo é público (mcp.apollo.io/.well-known/oauth-authorization-server).
-        // não confirmado: se o Apollo aceita registro dinâmico de cliente de terceiros; se não, o app é registrado à mão
-        // e o client id e o secret entram nos segredos abaixo.
+        // O metadado (mcp.apollo.io/.well-known/oauth-authorization-server, lido em 19/10/2026) anuncia registro dinâmico
+        // (/api/v1/oauth/applications/register_oauth_client), revogação, PKCE S256 e cliente público.
         registro: 'dinamico',
         segredos: { clientId: 'APOLLO_MCP_CLIENT_ID', clientSecret: 'APOLLO_MCP_CLIENT_SECRET' },
         enviarRecurso: true,
+        // não confirmado: o que o Apollo concede sem `scope` explícito; o consentimento mostra as permissões.
         identificacao: {},
       },
     },
-    chaveDeApi: {
-      via: 'rest',
-      identificacao: {
-        // não confirmado: o endereço de verificação da chave.
-        requisicoes: [{ metodo: 'GET', url: 'https://api.apollo.io/v1/auth/health', cabecalhos: { 'x-api-key': '{credencial}' } }],
-      },
-    },
-    rest: APOLLO_REST,
+    chaveDeApi: { via: 'mcp' },
     naoConfirmado: [
-      // Pesquisa de 2026-10-02: quem integra como parceiro registra um app OAuth antes (APOLLO_MCP_CLIENT_ID e _SECRET).
-      'Registro do cliente OAuth no Apollo (dinâmico ou pré-registrado como app de parceiro).',
-      'Endereço de verificação da chave de API e nomes dos parâmetros de busca e enriquecimento da API REST.',
+      'Quais permissões o Apollo concede sem `scope` explícito (o metadado anuncia dezenas de escopos).',
+      'Se a chave mestra pelo MCP traz as mesmas ferramentas que o OAuth.',
     ],
   },
   lusha: {
@@ -530,9 +491,26 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       url: 'https://mcp.lusha.com',
       // A documentação oficial manda a chave no cabeçalho x-api-key (e diz que Authorization: Bearer é recusado).
       chave: { cabecalho: 'x-api-key' },
+      // As ferramentas gastam os créditos do Lusha do Cliente (e-mail 1, telefone 5, empresa 1; a busca sem resultado
+      // não cobra): toda chamada vale como gasto (conector-lusha 01).
+      ferramentasGastam: true,
+      oauth: {
+        // O metadado de mcp.lusha.com aponta auth.lusha.com (lido em 19/10/2026): registro dinâmico em /oauth/register,
+        // escopo `mcp`, PKCE S256 e revogação. Só cliente confidencial (client_secret_post/basic, sem `none`): o registro
+        // devolve o segredo, que fica guardado para a troca e a renovação (conector-lusha 02).
+        registro: 'dinamico',
+        segredos: { clientId: 'LUSHA_MCP_CLIENT_ID', clientSecret: 'LUSHA_MCP_CLIENT_SECRET' },
+        escopos: ['mcp'],
+        enviarRecurso: true,
+        // não confirmado: não há endpoint documentado da conta do Lusha; o cartão mostra só "Conectado".
+        identificacao: {},
+      },
     },
     chaveDeApi: { via: 'mcp' },
-    naoConfirmado: ['OAuth do Lusha para cliente de terceiros (o blog oficial fala em OAuth; a documentação só mostra a chave).'],
+    naoConfirmado: [
+      // A documentação diz que o OAuth é para Claude, ChatGPT e Codex pelos diretórios; o registro dinâmico existe.
+      'Se o Lusha aceita a autorização de um cliente registrado dinamicamente fora do diretório (conector-lusha 04).',
+    ],
   },
   'meta-ads': {
     id: 'meta-ads',
@@ -540,19 +518,64 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
     portalFixo: false,
     mcp: {
       url: 'https://mcp.facebook.com/ads',
+      // A gestão de anúncios cria e edita campanhas, conjuntos e anúncios (gasta verba): toda chamada vale como gasto e
+      // pede Aprovação até o Administrador decidir outra regra (conector-meta-ads 01).
+      ferramentasGastam: true,
       oauth: {
-        // não confirmado: se a Meta aceita OAuth de cliente de terceiros e como registrar (pode exigir revisão do app).
-        registro: 'dinamico',
+        // A documentação oficial (developers.facebook.com/.../ads-mcp-server-get-started) manda o cliente de terceiros usar
+        // o próprio app de desenvolvedor Meta, com o caso de uso do ads MCP server e o Facebook Login for Business: o App
+        // ID é o client_id. O token aceita cliente público (`none`) com PKCE, então o segredo é opcional. O metadado também
+        // anuncia registro dinâmico (mcp.facebook.com/.well-known/register/ads), que a documentação não oferece a terceiros.
+        registro: 'preregistrado',
+        clientePublico: true,
         segredos: { clientId: 'META_ADS_MCP_CLIENT_ID', clientSecret: 'META_ADS_MCP_CLIENT_SECRET' },
+        // O mínimo que a documentação exige. `ads_read` é leitura, mas `ads_mcp_management` é o escopo do caso de uso do MCP
+        // e pode permitir gestão pelo servidor: por isso toda ferramenta pede Aprovação. `ads_management` espera decisão.
+        escopos: ['ads_mcp_management', 'ads_read'],
         enviarRecurso: true,
         identificacao: {},
       },
     },
     naoConfirmado: [
-      'OAuth do servidor MCP da Meta para cliente de terceiros e a revisão do app, se exigida.',
-      // Pesquisa de 2026-10-02: a Meta deixa conectar qualquer agente com o próprio app de desenvolvedor (Facebook Login
-      // for Business). Sem registro dinâmico, o app é criado à mão e entra em META_ADS_MCP_CLIENT_ID e _SECRET.
-      'Se o servidor aceita registro dinâmico; a pesquisa indica app de desenvolvedor Meta próprio (pré-registrado).',
+      'Se `ads_mcp_management` pede revisão do app (Advanced Access) e verificação da empresa para contas fora do app.',
+      'Como a conta de anúncio de quem conectou é identificada para o cartão.',
+    ],
+  },
+  zapier: {
+    id: 'zapier',
+    nome: 'Zapier',
+    portalFixo: false,
+    mcp: {
+      // https://mcp.zapier.com/api/v1/connect: as ferramentas são as ações dos apps que a pessoa ligou no Zapier, e cada
+      // chamada bem-sucedida gasta 2 tasks do plano Zapier dela: toda chamada vale como gasto (conector-zapier 01).
+      url: 'https://mcp.zapier.com/api/v1/connect',
+      ferramentasGastam: true,
+      // O token de conexão (criado em mcp.zapier.com) vai como Bearer, o caminho que a documentação dá a clientes fora da
+      // lista suportada.
+      chave: { cabecalho: 'Authorization', prefixo: 'Bearer ' },
+      oauth: {
+        // Lido em 19/10/2026: registro dinâmico (/api/v1/oauth/register), revogação, userinfo, PKCE S256 e cliente público.
+        registro: 'dinamico',
+        segredos: { clientId: 'ZAPIER_MCP_CLIENT_ID', clientSecret: 'ZAPIER_MCP_CLIENT_SECRET' },
+        escopos: ['openid', 'email'],
+        enviarRecurso: true,
+        identificacao: {
+          requisicoes: [
+            {
+              metodo: 'GET',
+              url: 'https://mcp.zapier.com/api/v1/oauth/userinfo',
+              cabecalhos: { Authorization: 'Bearer {credencial}' },
+              conta: ['email', 'name'],
+            },
+          ],
+        },
+      },
+    },
+    chaveDeApi: { via: 'mcp' },
+    naoConfirmado: [
+      // A documentação limita o OAuth aos clientes da lista (Claude, ChatGPT, Cursor…); o registro dinâmico existe.
+      'Se o Zapier aceita a autorização de um cliente registrado dinamicamente fora da lista (conector-zapier 03).',
+      'Se o token de conexão vale na URL /api/v1/connect ou só na URL do servidor a que ele está ligado.',
     ],
   },
   pipedrive: {

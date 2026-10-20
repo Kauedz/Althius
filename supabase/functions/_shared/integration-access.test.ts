@@ -342,3 +342,73 @@ Deno.test('REST: 401 do app pede reconexão; 400 do app é erro da ferramenta, c
   assert(r2.ok && r2.valor.erro === true)
   semToken(r2, 'pd-token-123456')
 })
+
+Deno.test('as ferramentas do Clay gastam créditos do Cliente: todas escrevem ou gastam, mesmo com readOnlyHint', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://api.clay.com' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'clay' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})
+
+Deno.test('as ferramentas do Lusha gastam créditos do Cliente: todas escrevem ou gastam, mesmo com readOnlyHint', async () => {
+  const { deps } = montar({
+    acesso: { kind: 'api_key', segredo: JSON.stringify({ api_key: 'chave-lusha-123' }), appPortal: null },
+    mcp: { chave: { cabecalho: 'x-api-key', valor: 'chave-lusha-123' } },
+  })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'lusha' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})
+
+Deno.test('as ferramentas do Apollo gastam créditos ou enviam pela conta da pessoa: todas escrevem ou gastam', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://mcp.apollo.io' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'apollo' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})
+
+Deno.test('a chave de API do Apollo vai ao servidor MCP no cabeçalho X-Api-Key, com as mesmas ferramentas do OAuth', async () => {
+  const { deps, servidor } = montar({
+    acesso: { kind: 'api_key', segredo: JSON.stringify({ api_key: 'chave-mestra-apollo-1' }), appPortal: null },
+    mcp: { chave: { cabecalho: 'x-api-key', valor: 'chave-mestra-apollo-1' } },
+  })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'apollo' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => f.nome), ['buscar', 'criar'])
+  assert(servidor.chamadas.every((c) => c.cabecalhos['x-api-key'] === 'chave-mestra-apollo-1'))
+  semToken(r, 'chave-mestra-apollo-1')
+})
+
+Deno.test('as ferramentas do TikTok Ads gastam verba: o escopo único não separa leitura, e todas pedem Aprovação', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer/oauth' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'tiktok-ads' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})
+
+Deno.test('as ferramentas do Meta Ads gastam verba: todas pedem Aprovação, mesmo as de relatório', async () => {
+  const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://www.facebook.com/ads' }), appPortal: null } })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'meta-ads' })
+  assert(r.ok)
+  assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
+})
+
+Deno.test('as ferramentas do Make e do Zapier gastam do plano do Cliente (operações e tasks): todas pedem Aprovação', async () => {
+  for (const integrationId of ['make', 'zapier']) {
+    const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://x.test' }), appPortal: null } })
+    const r = await listarFerramentas(deps, { ...PEDIDO, integrationId })
+    assert(r.ok, integrationId)
+    assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]], integrationId)
+  }
+})
+
+Deno.test('o token de conexão do Zapier vai ao servidor MCP como Bearer', async () => {
+  const { deps, servidor } = montar({
+    acesso: { kind: 'api_key', segredo: JSON.stringify({ api_key: 'token-conexao-zapier-1' }), appPortal: null },
+    mcp: { token: 'token-conexao-zapier-1' },
+  })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'zapier' })
+  assert(r.ok)
+  assert(servidor.chamadas.every((c) => c.cabecalhos.authorization === 'Bearer token-conexao-zapier-1'))
+  semToken(r, 'token-conexao-zapier-1')
+})

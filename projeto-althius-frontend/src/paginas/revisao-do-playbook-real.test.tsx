@@ -148,7 +148,7 @@ describe('A revisão do Playbook na fila de Aprovações', () => {
     expect(within(cartao).getByRole('link', { name: 'Playbook · ICP' })).toHaveAttribute('href', '/configuracoes/playbook/icp')
     expect(within(cartao).getByText(/Os três últimos fechamentos/)).toBeInTheDocument()
     const vigente = await within(cartao).findByRole('region', { name: 'Versão vigente' })
-    expect(within(vigente).getByText('Vigente · versão 2')).toBeInTheDocument()
+    expect(await within(vigente).findByText('Vigente · versão 2')).toBeInTheDocument()
     expect(await within(vigente).findByText('Empresas de 50 a 200 pessoas no Brasil')).toBeInTheDocument()
     const proposta = within(cartao).getByRole('region', { name: 'Proposta' })
     expect(within(proposta).getByText('Indústrias de 200 a 500 pessoas no Sul')).toBeInTheDocument()
