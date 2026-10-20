@@ -19,3 +19,7 @@ Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/ag
 ### Platform guide
 
 Before any spec or ticket, read `docs/visao-geral-da-plataforma.md`: the funnel, which spec covers each layer, the rules that hold everywhere, how to work a ticket without breaking another, the "Passos do Nan" rule and the order between specs.
+
+### Publishing the frontend
+
+`app.althius.com.br` is published by `.github/workflows/publicar-frontend.yml` after CI passes on `main`, which runs `/opt/althius-web/publish.sh main` on the Hostinger VPS. How it works, the cache headers and what to do by hand when it fails: `docs/agents/publicacao.md`.
