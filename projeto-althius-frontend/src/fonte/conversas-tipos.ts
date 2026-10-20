@@ -10,6 +10,8 @@ export interface ResumoDeConversa {
   atualizadaEm: string
   /** O último pedido ainda está rodando. */
   emAndamento: boolean
+  /** A Conversa nasceu num thread do Slack, com este Agente, e continua lá. Ausente, ela é da Althius. */
+  doSlack?: { agenteId: string }
 }
 
 /** O nome que a tela mostra: o que a pessoa deu ou, sem ele, o primeiro pedido. */

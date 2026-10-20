@@ -256,7 +256,7 @@ describe('O cartão do Slack no Workspace operacional', () => {
   it('o cartão do Canal Slack continua na seção Canais, separado do Acesso da Integração', async () => {
     abrir({ acessos: [CONECTOR_CONECTADO] })
     const canais = await screen.findByRole('region', { name: 'Canais' })
-    expect(within(canais).getByRole('article', { name: 'Slack' })).toBeInTheDocument()
+    expect(await within(canais).findByRole('article', { name: 'Slack' })).toBeInTheDocument()
     expect(within(within(canais).getByRole('article', { name: 'Slack' })).queryByText('Conectado como marina')).not.toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { Archive, Check, MessageSquare, Pencil, Plus, Search, X } from 'lucide-react'
+import { Archive, Check, Hash, MessageSquare, Pencil, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { BOTAO_DISCRETO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Mensagem } from '@/components/mensagem'
@@ -10,12 +10,22 @@ import { agruparConversas } from './historico-grupos'
 
 const POR_PAGINA = 30
 
+/** A marca da Conversa que nasceu num thread do Slack. */
+export function MarcaDoSlack() {
+  return (
+    <span className="rotulo inline-flex items-center gap-1">
+      <Hash strokeWidth={1.8} className="size-3.5" aria-hidden />
+      Slack
+    </span>
+  )
+}
+
 interface Props {
   /** O Agente do histórico, ou nulo para a Coordenação. */
   agenteId: AgenteId | null
   /** A Conversa aberta agora, para marcar na lista. */
   atual?: string | null
-  aoAbrir(id: string): Promise<void> | void
+  aoAbrir(conversa: ResumoDeConversa): Promise<void> | void
   aoNova?(): void
   /** Muda quando a lista deve ser lida de novo (um pedido terminou, por exemplo). */
   versao?: unknown
@@ -71,10 +81,10 @@ function Historico({ agenteId, atual, aoAbrir, aoNova, versao, ocultarVazio, cla
     }
   }
 
-  async function abrir(id: string) {
+  async function abrir(conversa: ResumoDeConversa) {
     setErro('')
     try {
-      await aoAbrir(id)
+      await aoAbrir(conversa)
     } catch (falha) {
       setErro(mensagemDeErro(falha))
     }
@@ -165,9 +175,12 @@ function Historico({ agenteId, atual, aoAbrir, aoNova, versao, ocultarVazio, cla
                         <MessageSquare strokeWidth={1.8} className="size-4 shrink-0 text-al-muted" aria-hidden />
                         <span className="flex min-w-0 flex-col">
                           <span className="truncate">{titulo}</span>
-                          <span className="text-sm text-al-muted">
-                            {formatarDataCompleta(conversa.atualizadaEm)}
-                            {conversa.emAndamento && ' · respondendo'}
+                          <span className="flex flex-wrap items-center gap-2 text-sm text-al-muted">
+                            <span>
+                              {formatarDataCompleta(conversa.atualizadaEm)}
+                              {conversa.emAndamento && ' · respondendo'}
+                            </span>
+                            {conversa.doSlack && <MarcaDoSlack />}
                           </span>
                         </span>
                       </span>
@@ -197,7 +210,7 @@ function Historico({ agenteId, atual, aoAbrir, aoNova, versao, ocultarVazio, cla
                         )}
                         <button
                           type="button"
-                          onClick={() => abrir(conversa.id)}
+                          onClick={() => abrir(conversa)}
                           aria-label={`Abrir a Conversa ${titulo}`}
                           className={BOTAO_SECUNDARIO}
                         >
