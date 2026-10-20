@@ -17,4 +17,10 @@ describe('O logo de uma Integração', () => {
     const { container } = render(<LogoDaIntegracao id="clay" nome="Clay" />)
     expect(container.querySelector('img')?.getAttribute('src')).toBeTruthy()
   })
+
+  it('a Integração Slack usa o mesmo logo do Canal Slack', () => {
+    const { container } = render(<LogoDaIntegracao id="slack" nome="Slack" />)
+    expect(container.querySelector('svg path')).not.toBeNull()
+    expect(screen.getByRole('img', { name: 'Slack' })).toBeInTheDocument()
+  })
 })

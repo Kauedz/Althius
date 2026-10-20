@@ -33,18 +33,39 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
     mcp: {
       url: 'https://mcp.slack.com/mcp',
       oauth: {
-        // O cliente MCP precisa ser um app Slack registrado (app ID fixo, aprovado pelos administradores do Slack); o
-        // servidor não aceita registro dinâmico.
+        // O cliente MCP precisa ser um app Slack registrado (app ID fixo): o metadado de mcp.slack.com (lido em 19/10/2026)
+        // não tem registro dinâmico. É o mesmo app do Canal Slack, com o MCP ligado (conector-slack 01): os segredos
+        // SLACK_MCP_CLIENT_* recebem os mesmos valores de SLACK_CHANNEL_CLIENT_*. Só app interno ou listado no Slack
+        // Marketplace usa o MCP.
         registro: 'preregistrado',
         segredos: { clientId: 'SLACK_MCP_CLIENT_ID', clientSecret: 'SLACK_MCP_CLIENT_SECRET' },
+        autenticacaoDoToken: 'client_secret_post',
+        // Os escopos de usuário que o servidor anuncia (o consentimento é do usuário, em slack.com/oauth/v2_user/authorize).
+        escopos: [
+          'canvases:read', 'canvases:write', 'channels:history', 'channels:read', 'channels:write', 'chat:write',
+          'emoji:read', 'files:read', 'files:write', 'groups:history', 'groups:read', 'groups:write', 'im:history',
+          'im:read', 'im:write', 'lists:read', 'lists:write', 'mpim:history', 'mpim:read', 'mpim:write',
+          'reactions:read', 'reactions:write', 'search:read.files', 'search:read.im', 'search:read.mpim',
+          'search:read.private', 'search:read.public', 'search:read.users', 'users:read', 'users:read.email',
+        ],
         // não confirmado: se o Slack aceita o parâmetro `resource` (RFC 8707); fora por segurança.
         enviarRecurso: false,
-        identificacao: {},
+        identificacao: {
+          // auth.test devolve o usuário e o time de qualquer token do Slack.
+          requisicoes: [
+            {
+              metodo: 'GET',
+              url: 'https://slack.com/api/auth.test',
+              cabecalhos: { Authorization: 'Bearer {credencial}' },
+              conta: ['user'],
+            },
+          ],
+        },
       },
     },
     naoConfirmado: [
-      'Se mcp.slack.com publica o metadado de autorização (RFC 9728/8414) ou se os endereços de autorização do app Slack precisam ir no perfil.',
-      'Os escopos de usuário que o consentimento pede (a pesquisa lista os escopos por ferramenta) e os nomes exatos das ferramentas.',
+      'Os nomes exatos das ferramentas (ler no tools/list da conexão real).',
+      'Se auth.test e auth.revoke aceitam o token de usuário emitido pelo MCP.',
     ],
   },
   'google-calendar': {
