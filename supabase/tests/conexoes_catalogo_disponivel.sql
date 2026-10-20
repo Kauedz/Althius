@@ -28,6 +28,6 @@ select is((select array_agg(id order by id) from public.list_workspace_integrati
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);
 select is((select array_agg(id order by id) from public.list_workspace_integrations('ee000000-0000-0000-0000-000000000001')), array['hubspot', 'notion']::text[], 'Membro também vê somente HubSpot e Notion');
 reset role;
-select is((select array_agg(id order by id) from private.integration_catalog where not available), array['apollo', 'bitrix24', 'calendly', 'clay', 'google-ads', 'google-calendar', 'google-sheets', 'lusha', 'meta-ads', 'pipedrive', 'rd-station', 'salesforce', 'slack', 'tiktok-ads', 'zoho-crm']::text[], 'Integrações ocultas continuam no catálogo para preservar suas referências');
+select is((select array_agg(id order by id) from private.integration_catalog where not available), array['apollo', 'bitrix24', 'calendly', 'clay', 'google-ads', 'google-calendar', 'google-sheets', 'lusha', 'make', 'meta-ads', 'pipedrive', 'rd-station', 'salesforce', 'slack', 'tiktok-ads', 'zapier', 'zoho-crm']::text[], 'Integrações ocultas continuam no catálogo para preservar suas referências (Make e Zapier entraram ocultos em 20261104135000)');
 select * from finish();
 rollback;

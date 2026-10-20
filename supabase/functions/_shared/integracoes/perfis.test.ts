@@ -13,6 +13,8 @@ const SEED_DO_BANCO: Record<string, { kinds: string[]; pinsPortal: boolean }> = 
   'meta-ads': { kinds: ['oauth_mcp'], pinsPortal: false },
   pipedrive: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: true },
   'rd-station': { kinds: ['api_key'], pinsPortal: false },
+  // O Zapier entrou em 20261104135000 (conector-zapier 01).
+  zapier: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: false },
 }
 
 Deno.test('os perfis e o seed do banco têm as mesmas Integrações, caminhos de conexão e portal fixo', () => {

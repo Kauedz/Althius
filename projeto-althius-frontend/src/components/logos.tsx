@@ -54,6 +54,8 @@ const NOME_DA_INTEGRACAO: Record<IntegracaoId, string> = {
   'zoho-crm': 'Zoho CRM',
   bitrix24: 'Bitrix24',
   'tiktok-ads': 'TikTok Ads',
+  make: 'Make',
+  zapier: 'Zapier',
 }
 
 /** O nome da Integração para o logo, já na primeira pintura, antes da lista assíncrona chegar. */

@@ -425,6 +425,9 @@ export type IntegracaoId =
   | 'zoho-crm'
   | 'bitrix24'
   | 'tiktok-ads'
+  // Automação (migration 20261104135000).
+  | 'make'
+  | 'zapier'
 
 export interface Canal {
   id: CanalId
@@ -433,7 +436,7 @@ export interface Canal {
   conectado: boolean
 }
 
-export type CategoriaDeIntegracao = 'CRM' | 'Enriquecimento' | 'Conhecimento' | 'Mídia paga' | 'Agenda' | 'Comunicação'
+export type CategoriaDeIntegracao = 'CRM' | 'Enriquecimento' | 'Conhecimento' | 'Mídia paga' | 'Agenda' | 'Comunicação' | 'Automação'
 
 export interface Integracao {
   id: IntegracaoId

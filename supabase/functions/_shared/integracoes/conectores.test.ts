@@ -15,6 +15,7 @@ Deno.test('os conectores com servidor MCP remoto e OAuth para terceiros confirma
     calendly: 'https://mcp.calendly.com',
     bitrix24: 'https://mcp.bitrix24.com/mcp/',
     'tiktok-ads': 'https://business-api.tiktok.com/open_mcp/tt-ads-mcp-layer',
+    make: 'https://mcp.make.com',
   })
 })
 

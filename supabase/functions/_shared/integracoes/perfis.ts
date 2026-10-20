@@ -541,6 +541,43 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       'Como a conta de anúncio de quem conectou é identificada para o cartão.',
     ],
   },
+  zapier: {
+    id: 'zapier',
+    nome: 'Zapier',
+    portalFixo: false,
+    mcp: {
+      // https://mcp.zapier.com/api/v1/connect: as ferramentas são as ações dos apps que a pessoa ligou no Zapier, e cada
+      // chamada bem-sucedida gasta 2 tasks do plano Zapier dela: toda chamada vale como gasto (conector-zapier 01).
+      url: 'https://mcp.zapier.com/api/v1/connect',
+      ferramentasGastam: true,
+      // O token de conexão (criado em mcp.zapier.com) vai como Bearer, o caminho que a documentação dá a clientes fora da
+      // lista suportada.
+      chave: { cabecalho: 'Authorization', prefixo: 'Bearer ' },
+      oauth: {
+        // Lido em 19/10/2026: registro dinâmico (/api/v1/oauth/register), revogação, userinfo, PKCE S256 e cliente público.
+        registro: 'dinamico',
+        segredos: { clientId: 'ZAPIER_MCP_CLIENT_ID', clientSecret: 'ZAPIER_MCP_CLIENT_SECRET' },
+        escopos: ['openid', 'email'],
+        enviarRecurso: true,
+        identificacao: {
+          requisicoes: [
+            {
+              metodo: 'GET',
+              url: 'https://mcp.zapier.com/api/v1/oauth/userinfo',
+              cabecalhos: { Authorization: 'Bearer {credencial}' },
+              conta: ['email', 'name'],
+            },
+          ],
+        },
+      },
+    },
+    chaveDeApi: { via: 'mcp' },
+    naoConfirmado: [
+      // A documentação limita o OAuth aos clientes da lista (Claude, ChatGPT, Cursor…); o registro dinâmico existe.
+      'Se o Zapier aceita a autorização de um cliente registrado dinamicamente fora da lista (conector-zapier 03).',
+      'Se o token de conexão vale na URL /api/v1/connect ou só na URL do servidor a que ele está ligado.',
+    ],
+  },
   pipedrive: {
     id: 'pipedrive',
     nome: 'Pipedrive',

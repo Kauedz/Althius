@@ -56,7 +56,7 @@ function avisoDaVolta(parametros: URLSearchParams): { texto: string; ok: boolean
   return { texto: motivo ? motivo(nome) : `Não foi possível conectar o ${nome}. Tente de novo.`, ok: false }
 }
 
-const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga', 'Agenda', 'Comunicação']
+const CATEGORIAS: CategoriaDeIntegracao[] = ['CRM', 'Enriquecimento', 'Conhecimento', 'Mídia paga', 'Agenda', 'Comunicação', 'Automação']
 
 export function PaginaConexoes() {
   const { modo } = useAmbiente()
@@ -551,6 +551,8 @@ function CartaoDeIntegracaoReal({
 // O que os Agentes precisam saber para usar as ferramentas de um app.
 const AVISO_DAS_FERRAMENTAS: Partial<Record<IntegracaoId, string>> = {
   'google-sheets': 'O servidor do Google Sheets não lista planilhas: peça aos Agentes com a URL da planilha.',
+  zapier: 'Cada chamada que dá certo gasta 2 tasks do seu plano no Zapier.',
+  make: 'Cada cenário rodado gasta operações do seu plano no Make.',
 }
 
 // Por que um Acesso de cada app volta a pedir autorização, quando é do jeito do app e não uma falha.
@@ -629,6 +631,7 @@ function SeuAcesso({
 // O que muda na chave de cada app, além de ser da própria conta.
 const AVISO_DA_CHAVE: Partial<Record<IntegracaoId, string>> = {
   apollo: 'Use a chave mestra da sua própria conta do Apollo: chaves com escopo não funcionam no MCP.',
+  zapier: 'Use o token de conexão criado em mcp.zapier.com com a sua própria conta do Zapier.',
 }
 
 function DialogoDeChave({ integracao, aoFechar }: { integracao: IntegracaoDeConexao | null; aoFechar: () => void }) {

@@ -210,4 +210,28 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
       'Os escopos e os nomes das ferramentas (gestão de campanhas e públicos gasta verba: a regra padrão pede Aprovação).',
     ],
   },
+  make: {
+    id: 'make',
+    nome: 'Make',
+    portalFixo: false,
+    mcp: {
+      // https://mcp.make.com (não /mcp, cujo metadado aponta um servidor de autorização do ChatGPT). Cada cenário "on demand"
+      // vira uma ferramenta; rodar um cenário consome operações do plano Make do Cliente: toda chamada vale como gasto.
+      url: 'https://mcp.make.com',
+      ferramentasGastam: true,
+      oauth: {
+        // Lido em 19/10/2026: emissor https://www.make.com/mcp, metadado em /.well-known/oauth-authorization-server/mcp,
+        // registro dinâmico (www.make.com/oauth/v2/register/mcp) só confidencial (client_secret_post), PKCE S256 e revogação.
+        registro: 'dinamico',
+        segredos: { clientId: 'MAKE_MCP_CLIENT_ID', clientSecret: 'MAKE_MCP_CLIENT_SECRET' },
+        enviarRecurso: true,
+        // não confirmado: como ler a conta e a organização Make escolhidas no consentimento (sem userinfo no metadado).
+        identificacao: {},
+      },
+    },
+    naoConfirmado: [
+      'Os nomes técnicos dos escopos (o usuário escolhe no consentimento) e o custo exato por chamada.',
+      'Como a conta e a organização Make são identificadas para o cartão.',
+    ],
+  },
 }

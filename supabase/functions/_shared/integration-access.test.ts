@@ -392,3 +392,23 @@ Deno.test('as ferramentas do Meta Ads gastam verba: todas pedem Aprovação, mes
   assert(r.ok)
   assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]])
 })
+
+Deno.test('as ferramentas do Make e do Zapier gastam do plano do Cliente (operações e tasks): todas pedem Aprovação', async () => {
+  for (const integrationId of ['make', 'zapier']) {
+    const { deps } = montar({ acesso: { segredo: segredoOAuth({ issuer: 'https://x.test' }), appPortal: null } })
+    const r = await listarFerramentas(deps, { ...PEDIDO, integrationId })
+    assert(r.ok, integrationId)
+    assertEquals(r.valor.map((f) => [f.nome, f.escreve]), [['buscar', true], ['criar', true]], integrationId)
+  }
+})
+
+Deno.test('o token de conexão do Zapier vai ao servidor MCP como Bearer', async () => {
+  const { deps, servidor } = montar({
+    acesso: { kind: 'api_key', segredo: JSON.stringify({ api_key: 'token-conexao-zapier-1' }), appPortal: null },
+    mcp: { token: 'token-conexao-zapier-1' },
+  })
+  const r = await listarFerramentas(deps, { ...PEDIDO, integrationId: 'zapier' })
+  assert(r.ok)
+  assert(servidor.chamadas.every((c) => c.cabecalhos.authorization === 'Bearer token-conexao-zapier-1'))
+  semToken(r, 'token-conexao-zapier-1')
+})
