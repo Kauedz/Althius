@@ -9,12 +9,11 @@ select is(
   true,
   'o Clay conta como Integração que escreve ou gasta'
 );
--- O padrão das Especialidades continua o de antes (Ler): com todas as ferramentas do Clay contando como gasto, Ler não
--- chama nenhuma, e subir o padrão espera decisão.
+-- O padrão das Especialidades no Clay é Propor (migration 20261104133000, decisão do usuário em 19/10/2026).
 select is(
   (select array_agg(distinct permission) from private.specialty_default_permissions where integration_id = 'clay'),
-  array['ler']::text[],
-  'o padrão das Especialidades no Clay continua Ler'
+  array['propor']::text[],
+  'o padrão das Especialidades no Clay é Propor'
 );
 
 select * from finish();

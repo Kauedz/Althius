@@ -1,14 +1,15 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { idaAoApp } from '@/paginas/ida-ao-app'
 import { RaizDoAplicativo } from '@/raiz'
 import { criarBancoDeConexoes, rpcsDeConexoes } from '@/test/conexoes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
-// O cartão do Lusha no Workspace operacional (conector-lusha 03): o Acesso pela chave de API da própria conta, validada
-// no servidor MCP do Lusha e guardada só no backend, sem Sincronização, com toda ferramenta contando como gasto
-// (créditos do Lusha do Cliente). A autorização no próprio Lusha (OAuth) espera o conector-lusha 02.
+// O cartão do Lusha no Workspace operacional (conector-lusha 02 e 03): dois caminhos, a autorização no próprio Lusha
+// (OAuth, primeiro) e a chave de API da própria conta, validada no servidor MCP e guardada só no backend; sem
+// Sincronização; toda ferramenta conta como gasto (créditos do Lusha do Cliente).
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
@@ -34,7 +35,7 @@ const LUSHA_DESCONECTADO: LinhaDeAcesso = {
   failure: null,
   connected_at: null,
   connected_count: 0,
-  kinds: ['api_key'],
+  kinds: ['oauth_mcp', 'api_key'],
 }
 
 // O Lusha não identifica a conta (sem endpoint documentado): o cartão mostra só "Conectado".
@@ -121,6 +122,7 @@ function abrir({
           return { corpo: { desconectado: true, revogacao } }
         }
         pedidos.conectar.push(corpo)
+        if (corpo.action === 'iniciar') return { corpo: { url: 'https://auth.lusha.com/oauth-ui/authorize?client_id=cid-lusha&state=x' } }
         const resposta = chave(corpo)
         if ((resposta.status ?? 200) < 400 && corpo.action === 'chave') {
           linhas = linhas.map((l) =>
@@ -164,14 +166,29 @@ describe('O cartão do Lusha no Workspace operacional', () => {
     expect(within(cartao).queryByRole('button', { name: 'Usar chave de API' })).not.toBeInTheDocument()
   })
 
-  it('sem Acesso, conecta só pela chave de API, sem autorização no app e sem Sincronização', async () => {
-    abrir()
+  it('sem Acesso, oferece a autorização no Lusha e a chave de API, sem Sincronização', async () => {
+    const indo = vi.spyOn(idaAoApp, 'ir').mockImplementation(() => {})
+    const { usuario, pedidos } = abrir()
 
     const cartao = await screen.findByRole('article', { name: 'Lusha' })
     expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
     expect(within(cartao).getByRole('button', { name: 'Usar chave de API' })).toBeInTheDocument()
-    expect(within(cartao).queryByRole('button', { name: 'Conectar no Lusha' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
+    await usuario.click(within(cartao).getByRole('button', { name: 'Conectar no Lusha' }))
+
+    expect(pedidos.conectar).toEqual([{ action: 'iniciar', workspaceId: NORTE.id, integrationId: 'lusha' }])
+    expect(indo).toHaveBeenCalledWith('https://auth.lusha.com/oauth-ui/authorize?client_id=cid-lusha&state=x')
+  })
+
+  it.each([
+    ['recusada', 'Você não autorizou o acesso no Lusha. Nada foi conectado.'],
+    ['expirada', 'A autorização demorou demais e venceu. Comece de novo.'],
+    ['indisponivel', 'Não foi possível falar com o Lusha agora. Tente de novo em instantes.'],
+  ])('a volta "%s" da autorização avisa, e a chave continua como saída', async (motivo, aviso) => {
+    abrir({ rota: `/conexoes?conexao=erro&integracao=lusha&motivo=${motivo}` })
+    expect(await screen.findByText(aviso)).toBeInTheDocument()
+    const cartao = await screen.findByRole('article', { name: 'Lusha' })
+    expect(await within(cartao).findByRole('button', { name: 'Usar chave de API' })).toBeInTheDocument()
   })
 
   it('conecta pela chave da própria conta, que vai só ao backend e não volta à tela', async () => {
@@ -233,6 +250,7 @@ describe('O cartão do Lusha no Workspace operacional', () => {
     expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Ver ferramentas' })).not.toBeInTheDocument()
     expect(within(cartao).getByRole('button', { name: 'Usar chave de API' })).toBeInTheDocument()
+    expect(within(cartao).getByRole('button', { name: 'Reconectar no Lusha' })).toBeInTheDocument()
   })
 
   it('desconectar apaga só o próprio Acesso pela Edge Function, sem aviso (a chave não tem revogação no app)', async () => {

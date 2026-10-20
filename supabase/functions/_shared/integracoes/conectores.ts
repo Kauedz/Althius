@@ -161,20 +161,26 @@ export const CONECTORES: Record<string, PerfilDeIntegracao> = {
   bitrix24: {
     id: 'bitrix24',
     nome: 'Bitrix24',
-    portalFixo: false,
+    // Um CRM: o primeiro Acesso fixa o portal do Workspace (ADR-0017; conector-bitrix24 01, migration 20261104134000).
+    portalFixo: true,
     mcp: {
       url: 'https://mcp.bitrix24.com/mcp/',
       oauth: {
-        // não confirmado: se o servidor anuncia registro dinâmico; se não, o app OAuth é criado no Bitrix24 e o client id e
-        // o secret entram nestes segredos.
+        // Registro dinâmico aberto em https://mcp.bitrix24.com/oauth/register/mcp/ (lido em 19/10/2026); só
+        // client_secret_post; sem revogação anunciada. O `resource` sai da descoberta (https://mcp.bitrix24.com).
         registro: 'dinamico',
         segredos: { clientId: 'BITRIX24_MCP_CLIENT_ID', clientSecret: 'BITRIX24_MCP_CLIENT_SECRET' },
         enviarRecurso: true,
-        identificacao: {},
+        identificacao: {
+          // não confirmado: se o token do servidor MCP traz os campos do OAuth do Bitrix24 (`member_id`, `domain`). Sem
+          // eles, a conexão é recusada com "portal não identificado" (conector-bitrix24 03 confere com um portal real).
+          daRespostaDoToken: { portal: ['member_id', 'domain'] },
+        },
       },
     },
     naoConfirmado: [
-      'Se o servidor anuncia registro dinâmico de cliente (RFC 7591); se não, o app OAuth é criado no Bitrix24.',
+      'Se o servidor anuncia registro dinâmico de cliente (RFC 7591): anuncia (19/10/2026), falta a conexão real.',
+      'De onde vem a identidade do portal no token do servidor MCP (member_id ou domain).',
       'Os escopos e os nomes das ferramentas; o administrador do Bitrix24 precisa ligar "Permitir conexão de IAs externas".',
     ],
   },

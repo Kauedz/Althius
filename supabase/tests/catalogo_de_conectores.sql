@@ -56,16 +56,16 @@ select is(
   'Salesforce e Zoho CRM não têm perfil de conexão'
 );
 
--- 5. Os perfis novos conectam só pela autorização no app e não fixam portal.
+-- 5. Os perfis novos conectam só pela autorização no app; só o Bitrix24, um CRM, fixa o portal (20261104134000).
 select is(
   (select array_agg(integration_id || ':' || array_to_string(kinds, ',') || ':' || pins_portal::text order by integration_id)
      from private.integration_connection_profiles
     where integration_id in ('slack', 'google-calendar', 'google-sheets', 'calendly', 'bitrix24', 'tiktok-ads')),
   array[
-    'bitrix24:oauth_mcp:false', 'calendly:oauth_mcp:false', 'google-calendar:oauth_mcp:false',
+    'bitrix24:oauth_mcp:true', 'calendly:oauth_mcp:false', 'google-calendar:oauth_mcp:false',
     'google-sheets:oauth_mcp:false', 'slack:oauth_mcp:false', 'tiktok-ads:oauth_mcp:false'
   ],
-  'os conectores novos conectam por OAuth no servidor MCP, sem portal fixo'
+  'os conectores novos conectam por OAuth no servidor MCP; só o Bitrix24 fixa o portal'
 );
 
 -- 6. Não se habilita um app em breve.

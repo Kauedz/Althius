@@ -494,9 +494,23 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = {
       // As ferramentas gastam os créditos do Lusha do Cliente (e-mail 1, telefone 5, empresa 1; a busca sem resultado
       // não cobra): toda chamada vale como gasto (conector-lusha 01).
       ferramentasGastam: true,
+      oauth: {
+        // O metadado de mcp.lusha.com aponta auth.lusha.com (lido em 19/10/2026): registro dinâmico em /oauth/register,
+        // escopo `mcp`, PKCE S256 e revogação. Só cliente confidencial (client_secret_post/basic, sem `none`): o registro
+        // devolve o segredo, que fica guardado para a troca e a renovação (conector-lusha 02).
+        registro: 'dinamico',
+        segredos: { clientId: 'LUSHA_MCP_CLIENT_ID', clientSecret: 'LUSHA_MCP_CLIENT_SECRET' },
+        escopos: ['mcp'],
+        enviarRecurso: true,
+        // não confirmado: não há endpoint documentado da conta do Lusha; o cartão mostra só "Conectado".
+        identificacao: {},
+      },
     },
     chaveDeApi: { via: 'mcp' },
-    naoConfirmado: ['OAuth do Lusha para cliente de terceiros (o blog oficial fala em OAuth; a documentação só mostra a chave).'],
+    naoConfirmado: [
+      // A documentação diz que o OAuth é para Claude, ChatGPT e Codex pelos diretórios; o registro dinâmico existe.
+      'Se o Lusha aceita a autorização de um cliente registrado dinamicamente fora do diretório (conector-lusha 04).',
+    ],
   },
   'meta-ads': {
     id: 'meta-ads',

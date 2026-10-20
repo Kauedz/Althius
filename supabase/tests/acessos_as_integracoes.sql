@@ -107,10 +107,11 @@ select throws_ok(
   '42501', 'active workspace membership required',
   'quem não participa do Workspace não inicia a conexão'
 );
-select throws_ok(
-  $$select * from public.start_integration_connect('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000002', 'lusha', 'https://mcp.lusha.com', 'https://x.test/cb', 'https://mcp.lusha.com/token', 'cid', null, 'https://app.test')$$,
-  '22023', 'integration kind not supported',
-  'o Lusha só conecta por chave de API: sem OAuth não há tentativa'
+-- O Lusha passou a conectar também pela autorização no app (migration 20261104131000, conector-lusha 02); a recusa de
+-- uma Integração só por chave de API ficou em lusha_por_oauth.sql.
+select lives_ok(
+  $$select * from public.start_integration_connect('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000002', 'lusha', 'https://auth.lusha.com', 'https://x.test/cb', 'https://auth.lusha.com/oauth/token', 'cid', null, 'https://app.test')$$,
+  'o Lusha conecta também pela autorização no app'
 );
 select lives_ok(
   $$insert into guardado select 'st_bruno', state || ' ' || code_verifier from public.start_integration_connect('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000002', 'hubspot', 'https://mcp.hubspot.com', 'https://x.test/cb', 'https://mcp.hubspot.com/oauth/v3/token', 'cid-hubspot', 'https://mcp.hubspot.com', 'https://app.test')$$,

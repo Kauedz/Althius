@@ -3,13 +3,13 @@ import { caminhosDe, PERFIS, perfilDaIntegracao } from './perfis.ts'
 import { executarFerramentaRest, pedidoRest } from './rest.ts'
 import { ErroDeProvedor } from './tipos.ts'
 
-// O que a migration 20261001160000 grava em private.integration_connection_profiles (kinds e pins_portal). Se mudar um,
+// O que a migration 20261001160000 grava (o Lusha ganhou `oauth_mcp` em 20261104131000) em private.integration_connection_profiles (kinds e pins_portal). Se mudar um,
 // mude o outro: o banco decide quem pode ser habilitado; estes perfis, como conectar.
 const SEED_DO_BANCO: Record<string, { kinds: string[]; pinsPortal: boolean }> = {
   hubspot: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: true },
   notion: { kinds: ['oauth_mcp'], pinsPortal: false },
   apollo: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: false },
-  lusha: { kinds: ['api_key'], pinsPortal: false },
+  lusha: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: false },
   'meta-ads': { kinds: ['oauth_mcp'], pinsPortal: false },
   pipedrive: { kinds: ['oauth_mcp', 'api_key'], pinsPortal: true },
   'rd-station': { kinds: ['api_key'], pinsPortal: false },

@@ -56,7 +56,10 @@ select ok(
   'as permissões: tabela fechada, propor e executar pelo servidor, ler e decidir pelo app'
 );
 
--- 2. Permissão Ler recusa; Integração desligada recusa; Propor nasce pendente.
+-- 2. Permissão Ler recusa; Integração desligada recusa; Propor nasce pendente. O Scopus nasce com Propor no Clay desde
+-- 20261104133000: o teste o põe em Ler para continuar provando a recusa.
+update private.agent_permissions set permission = 'ler'
+where agent_id = pg_temp.agente('fa000000-0000-0000-0000-000000000001', 'scopus') and integration_id = 'clay';
 select throws_ok(
   $$select * from pg_temp.propor('clay', '{}'::jsonb)$$,
   '42501', 'the agent may only read this integration', 'com a Permissão Ler, a ação é recusada'
