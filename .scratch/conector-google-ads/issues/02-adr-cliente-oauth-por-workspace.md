@@ -4,6 +4,8 @@
 
 **Blocked by:** nenhum.
 
-**Status:** ready-for-agent
+**Status:** needs-info (ADR proposto; aguarda a aprovação do usuário)
 
 ## Comments
+
+**20/10/2026 (agente).** Escrito como proposta (`status: proposed`) em [`docs/adr/0028-cliente-oauth-do-workspace-para-apps-que-exigem-o-app-do-cliente.md`](../../../docs/adr/0028-cliente-oauth-do-workspace-para-apps-que-exigem-o-app-do-cliente.md). Nada foi implementado. Ponto aberto que o ADR registra: se, no Google Ads, os Agentes chamando a API pelo cliente do Workspace contam como "proxy" pela política. Antes de construir, vale um parecer do Google ou o piloto (ticket 01).

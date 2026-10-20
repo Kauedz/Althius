@@ -20,8 +20,8 @@ Atualizado em 19/10/2026 (fim do dia). O código está na branch local `conector
 | **Zapier** | MCP OAuth e token de conexão, gasto | código pronto; o real decide o caminho | [conector-zapier](../conector-zapier/spec.md) |
 | **Google Calendar** | MCP OAuth (app Google), `access_type=offline`, só leitura | código pronto; clientes só depois do GA do Google | [conector-google-calendar](../conector-google-calendar/spec.md) |
 | **Google Sheets** | igual ao Calendar | código pronto; clientes só depois do GA | [conector-google-sheets](../conector-google-sheets/spec.md) |
-| **Slack (Integração)** | MCP OAuth (o mesmo app do Canal) | para construir; clientes só depois do Marketplace | [conector-slack](../conector-slack/spec.md) |
-| **RD Station** | chave (já existe); MCP a sondar | humano primeiro | [conector-rd-station](../conector-rd-station/spec.md) |
+| **Slack (Integração)** | MCP OAuth (o mesmo app do Canal), 30 escopos de usuário | código pronto; clientes só depois do Marketplace | [conector-slack](../conector-slack/spec.md) |
+| **RD Station** | chave (já existe, agora com testes do cartão); MCP a sondar | humano primeiro | [conector-rd-station](../conector-rd-station/spec.md) |
 | **Zoho CRM** | MCP OAuth (dinâmico), mas URL fora da Índia não confirmada | "Em breve"; humano primeiro | [conector-zoho-crm](../conector-zoho-crm/spec.md) |
 | **Salesforce** | MCP OAuth com app em cada org | depende de ADR | [conector-salesforce](../conector-salesforce/spec.md) |
 | **Google Ads** | sem MCP público; a política proíbe proxy | "Em breve"; piloto e ADR | [conector-google-ads](../conector-google-ads/spec.md) |
@@ -42,7 +42,7 @@ Atualizado em 19/10/2026 (fim do dia). O código está na branch local `conector
 | 6 | Escrita no Calendar, Sheets e Calendly | Só leitura na primeira versão | Já pedir escrita |
 | 7 | Google Ads | Piloto do MCP hospedado; ADR do cliente por Workspace como plano B | Esperar |
 | 8 | Microsoft Teams | Cartão "Microsoft 365 (Work IQ)" | Manter "Em breve" |
-| 9 | ADRs novos | Escrever sem implementar: cliente OAuth por Workspace (Google Ads, Salesforce), REST com OAuth (LinkedIn, Kommo), Webhooks | Não fazer agora |
+| 9 | ADRs novos | **Escritos como propostas:** [0028](../../docs/adr/0028-cliente-oauth-do-workspace-para-apps-que-exigem-o-app-do-cliente.md) cliente OAuth do Workspace, [0029](../../docs/adr/0029-integracao-por-api-rest-com-oauth-quando-nao-ha-mcp.md) REST com OAuth, [0030](../../docs/adr/0030-webhooks-de-saida-assinados.md) webhooks de saída. Aguardam aprovação | Rejeitar ou ajustar |
 
 ## Trabalho comum, que serve a vários conectores
 

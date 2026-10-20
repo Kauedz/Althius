@@ -4,6 +4,8 @@
 
 **Blocked by:** nenhum.
 
-**Status:** ready-for-agent
+**Status:** needs-info (ADR proposto; aguarda a aprovação do usuário)
 
 ## Comments
+
+**20/10/2026 (agente).** Escrito como proposta em [`docs/adr/0029-integracao-por-api-rest-com-oauth-quando-nao-ha-mcp.md`](../../../docs/adr/0029-integracao-por-api-rest-com-oauth-quando-nao-ha-mcp.md). Nada foi implementado. O ADR diz que o Kommo só entra se tiver OAuth **por usuário**; com o OAuth só de administrador que a pesquisa encontrou, ele continua "Em breve".

@@ -7,3 +7,5 @@
 **Status:** needs-info
 
 ## Comments
+
+**20/10/2026 (agente).** O ADR proposto é o [`0028`](../../../docs/adr/0028-cliente-oauth-do-workspace-para-apps-que-exigem-o-app-do-cliente.md). Este ticket continua parado até ele ser aprovado.
