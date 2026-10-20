@@ -4,14 +4,14 @@
 
 **Blocked by:** 03 (Conectar e desconectar o próprio Acesso ao HubSpot).
 
-**Status:** ready-for-agent (quase tudo feito pelo 03 e pelo 31; falta um pgTAP, ver Comments)
+**Status:** ready-for-agent (código e testes completos na branch local `conectores-em-construcao`; vira closed no merge)
 
 - [x] Só um Administrador retira, inclusive por chamada direta ao backend.
 - [x] A confirmação diz o efeito antes de retirar.
 - [x] Retirar apaga os Acessos, as tentativas, o portal fixado e as Identidades externas da Integração no Workspace.
-- [ ] Nenhuma Conta-alvo, Contato, Vínculo ou Interação é apagado.
+- [x] Nenhuma Conta-alvo, Contato, Vínculo ou Interação é apagado.
 - [x] Habilitar de novo aceita o primeiro Acesso de qualquer portal.
-- [ ] pgTAP cobre o papel, o que é apagado e o que fica; os testes do app cobrem a confirmação e o estado depois.
+- [x] pgTAP cobre o papel, o que é apagado e o que fica; os testes do app cobrem a confirmação e o estado depois.
 - [x] Conferência visual no navegador da confirmação, com prints no `## Comments` deste ticket.
 
 **19/10/2026 (agente, conferência com o código da `main`).** O ticket estava desatualizado. O que já existe:
@@ -23,3 +23,5 @@
 Falta:
 - Um pgTAP que prove que nenhuma Conta-alvo, Contato, Vínculo ou Interação é apagado. A função não toca nessas tabelas, mas nenhum teste afirma isso.
 - Retirar não revoga os tokens no app. É o follow-up anotado em `conector-clay/issues/02`.
+
+**20/10/2026 (agente).** Entrou o pgTAP que faltava, `supabase/tests/retirar_integracao_preserva_dados.sql` (6 asserções): depois de retirar o HubSpot, os Acessos e a habilitação somem, e a Conta-alvo, o Contato, o Vínculo e a Interação continuam. No PGlite, 6/6. Não houve mudança de código, porque `disable_workspace_integration` já não tocava nessas tabelas. Continua de fora a revogação no app ao retirar (follow-up anotado em `conector-clay/issues/02`).

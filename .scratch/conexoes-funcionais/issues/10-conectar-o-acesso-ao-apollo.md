@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Conectar o Acesso ao Notion).
 
-**Status:** ready-for-agent (perfil e caminhos já no código; faltam escopos, testes do cartão e prints, ver Comments)
+**Status:** wontfix (substituído por `.scratch/conector-apollo/`)
 
 - [ ] Confirmar com fonte oficial como o servidor do Apollo registra um cliente OAuth de terceiros (registro dinâmico ou cliente pré-registrado) e registrar a resposta no `## Comments`. Se exigir cliente pré-registrado, o registro no Apollo vira pendência humana.
 - [x] O Apollo entra no catálogo do backend com o que foi confirmado; a tela não muda para recebê-lo.

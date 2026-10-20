@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Conectar o Acesso ao Notion).
 
-**Status:** ready-for-agent (hoje só chave de API; o servidor passou a publicar OAuth com registro dinâmico, ver Comments)
+**Status:** wontfix (substituído por `.scratch/conector-lusha/`)
 
 - [ ] Confirmar com fonte oficial como o servidor do Lusha registra um cliente OAuth de terceiros (registro dinâmico ou cliente pré-registrado) e registrar a resposta no `## Comments`. A documentação mostra chave de API e o blog oficial fala em OAuth: se o servidor não aceitar OAuth de um cliente de terceiros, o ticket para e volta para decisão de produto.
 - [ ] O Lusha entra no catálogo do backend com o que foi confirmado; a tela não muda para recebê-lo.

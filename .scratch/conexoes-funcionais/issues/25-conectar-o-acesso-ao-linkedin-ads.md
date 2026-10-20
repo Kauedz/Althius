@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Conectar e desconectar o próprio Acesso ao HubSpot (o mecanismo); 01: pesquisa dos servidores MCP, estendida para este app.
 
-**Status:** needs-triage
+**Status:** wontfix (substituído por `.scratch/conector-linkedin-ads/`)
 
 ## Pode mexer
 

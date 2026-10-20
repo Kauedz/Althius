@@ -4,7 +4,7 @@
 
 **Blocked by:** 08 (Conectar o Acesso ao Notion).
 
-**Status:** needs-info (perfil existe, mas sem escopos; quais escopos pedir é decisão de produto, ver Comments)
+**Status:** wontfix (substituído por `.scratch/conector-meta-ads/`)
 
 - [ ] Confirmar com fonte oficial como o servidor do Meta Ads registra um cliente OAuth de terceiros (registro dinâmico ou cliente pré-registrado) e registrar a resposta no `## Comments`. Se a Meta exigir revisão do app, o registro vira pendência humana. As ferramentas que gastam verba só serão usadas por Agentes sob a Permissão Propor ou Executar (ADR-0002), fora deste ticket.
 - [ ] O Meta Ads entra no catálogo do backend com o que foi confirmado; a tela não muda para recebê-lo.
