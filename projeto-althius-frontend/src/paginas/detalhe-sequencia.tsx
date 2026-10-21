@@ -1941,10 +1941,11 @@ function ComposerStep({
                 Escolha o passo
               </option>
               {passos
-                .filter((p) => p.id !== step.id)
-                .map((p, i) => (
+                .map((p, posicao) => ({ p, posicao }))
+                .filter(({ p }) => p.id !== step.id)
+                .map(({ p, posicao }) => (
                   <option key={p.id} value={p.id}>
-                    {p.titulo || `Passo ${i + 1}`}
+                    {p.titulo || `Passo ${posicao + 1}`}
                   </option>
                 ))}
             </select>

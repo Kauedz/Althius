@@ -4,6 +4,8 @@ import { NOME_DO_PUBLICO_RECOMENDADO } from '@/fonte/regras-memoria'
 import type { RodadaDoMonitoramento } from '@/fonte/sinais-tipos'
 import { LISTAS, type EstadoDoMonitoramento, type Monitoramento, type Publico } from './dados-mock'
 import { resumoDoPerfil } from './perfil'
+import { nichoPorSlug } from './nichos'
+import { NICHO_CUSTOM } from './criterios-custom'
 
 // Textos de resumo de um Monitoramento, compartilhados pela página do tipo e pela revisão.
 
@@ -47,13 +49,22 @@ export function criteriosFormatados(monitoramento: Pick<Monitoramento, 'tipoId' 
   const tipo = tipoPorId(monitoramento.tipoId)
   const formulario = tipo && formularioDoTipo(tipo)
   if (!formulario) return []
-  return CAMPOS[formulario].flatMap((campo) => {
+  return [...nichoFormatado(monitoramento), ...CAMPOS[formulario].flatMap((campo) => {
     const valor = monitoramento.criterios[campo.id]
     const texto = Array.isArray(valor) ? valor.join(', ') : valor
     if (!texto) return []
     const numerico = campo.tipo === 'numero'
     return [{ rotulo: campo.rotulo, texto: numerico ? `${texto} ${campo.sufixo}` : texto, numerico }]
-  })
+  })]
+}
+
+/** O nicho do cargo de Abertura de vagas, pelo nome (nunca a letra interna); o Custom, como o usuário escreveu. */
+function nichoFormatado({ tipoId, criterios }: Pick<Monitoramento, 'tipoId' | 'criterios'>): CriterioFormatado[] {
+  if (tipoId !== 'abertura-de-vagas' || typeof criterios.nicho !== 'string') return []
+  const texto = criterios.nicho === NICHO_CUSTOM
+    ? (typeof criterios.nichoCustom === 'string' ? criterios.nichoCustom.trim() : '')
+    : nichoPorSlug(criterios.nicho)?.nome ?? ''
+  return texto ? [{ rotulo: 'Nicho do cargo', texto, numerico: false }] : []
 }
 
 export function resumoDosCriterios(monitoramento: Monitoramento): string {

@@ -132,7 +132,8 @@ describe('A Conversa do Slack na Althius', () => {
     await usuario.click(await screen.findByRole('button', { name: 'Abrir a Conversa Quem são as Contas Quentes?' }))
 
     const leitura = await screen.findByRole('region', { name: 'Conversa do Slack' })
-    expect(within(leitura).getByText('São três: Norte, Sul e Leste.')).toBeInTheDocument()
+    // Os passos chegam depois da região: espera por eles em vez de ler na hora (o teste falhava às vezes no CI).
+    expect(await within(leitura).findByText('São três: Norte, Sul e Leste.')).toBeInTheDocument()
     expect(within(leitura).getByText('Quem são as Contas Quentes?')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Scopus' })).toBeInTheDocument()
     expect(within(leitura).getByText('Slack')).toBeInTheDocument()
@@ -146,13 +147,14 @@ describe('A Conversa do Slack na Althius', () => {
     const { usuario } = abrir('/agentes/agente-scopus/conversa?slack=c-slack')
 
     const leitura = await screen.findByRole('region', { name: 'Conversa do Slack' })
-    expect(within(leitura).getByText('São três: Norte, Sul e Leste.')).toBeInTheDocument()
+    // Os passos chegam depois da região: espera por eles em vez de ler na hora (o teste falhava às vezes no CI).
+    expect(await within(leitura).findByText('São três: Norte, Sul e Leste.')).toBeInTheDocument()
     await usuario.click(screen.getByRole('link', { name: 'Voltar à Conversa na Althius' }))
 
     expect(screen.queryByRole('region', { name: 'Conversa do Slack' })).not.toBeInTheDocument()
     expect(screen.queryByText('Esta Conversa continua no Slack')).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Mensagem para Scopus' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Mensagem para Scopus' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).toBeInTheDocument()
   })
 
   it('uma Conversa que não é deste Agente não abre aqui', async () => {

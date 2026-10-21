@@ -1,4 +1,7 @@
+import { SINAIS_MOCK } from '@/paginas/sinais/dados-mock'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO, criarSequenciasIniciais } from './dados-sequencias-demo'
+import { TEMPLATES_DA_ALTHIUS, sugerirTemplateDaAlthius } from './templates-althius'
+import { previaParametrizada, sugerirTemplateProprio, templateProntoParaSalvar, type TemplateProprio } from './templates-proprios'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import {
   ehCanalSuportado,
@@ -89,6 +92,8 @@ export function criarFonteDeSequenciasSimulada(
   }>()
 
   let dados: Sequencia[] = vazia ? [] : criarSequenciasIniciais(hoje)
+  let templatesProprios: TemplateProprio[] = []
+  const donoDemo = 'vendedor-demo'
 
   if (armazenamento && !vazia) {
     try {
@@ -416,6 +421,83 @@ export function criarFonteDeSequenciasSimulada(
 
     async resolverIncerto() {
       throw new Error('Na Demonstração nenhum passo é enviado.')
+    },
+
+    async templatesDaAlthius() {
+      await aguardar()
+      return TEMPLATES_DA_ALTHIUS.map((template) => ({
+        ...template,
+        passos: template.passos.map((passo) => ({ ...passo })),
+      }))
+    },
+
+    async sugerirTemplateDaAlthius(contaId: string) {
+      await aguardar()
+      const sinal = SINAIS_MOCK.find((item) => item.contaId === contaId)
+      const conta = contaId
+      return sugerirTemplateDaAlthius({
+        templates: TEMPLATES_DA_ALTHIUS,
+        conta,
+        sinal: sinal ? { frase: sinal.frase, data: sinal.data } : null,
+      })
+    },
+
+    async templatesProprios() {
+      await aguardar()
+      return templatesProprios.map((template) => ({
+        ...template,
+        passos: template.passos.map((passo) => ({ ...passo })),
+      }))
+    },
+
+    async previaDeTemplateProprio(entrada) {
+      await aguardar()
+      return previaParametrizada(entrada)
+    },
+
+    async salvarTemplateProprio(entrada) {
+      await aguardar()
+      if (!templateProntoParaSalvar(entrada)) {
+        throw new Error('Salve só a prévia já parametrizada, sem dados reais.')
+      }
+      const salvo: TemplateProprio = {
+        id: `proprio-${templatesProprios.length + 1}`,
+        donoId: donoDemo,
+        nome: entrada.nome,
+        resumo: entrada.resumo,
+        passos: entrada.passos.map((passo) => ({ ...passo })),
+      }
+      templatesProprios = [salvo, ...templatesProprios]
+      notificar()
+      return {
+        ...salvo,
+        passos: salvo.passos.map((passo) => ({ ...passo })),
+      }
+    },
+
+    async atualizarTemplateProprio(id, entrada) {
+      await aguardar()
+      if (!templateProntoParaSalvar(entrada)) {
+        throw new Error('Salve só a prévia já parametrizada, sem dados reais.')
+      }
+      const atual = templatesProprios.find((template) => template.id === id && template.donoId === donoDemo)
+      if (!atual) throw new Error('Só quem criou o template pode alterá-lo.')
+      atual.nome = entrada.nome
+      atual.resumo = entrada.resumo
+      atual.passos = entrada.passos.map((passo) => ({ ...passo }))
+      notificar()
+      return { ...atual, passos: atual.passos.map((passo) => ({ ...passo })) }
+    },
+
+    async sugerirTemplateProprio(contaId: string) {
+      await aguardar()
+      const sinal = SINAIS_MOCK.find((item) => item.contaId === contaId)
+      return sugerirTemplateProprio({
+        templates: templatesProprios,
+        leitorId: donoDemo,
+        conta: contaId,
+        sinal: sinal ? { frase: sinal.frase } : null,
+      })
     },
 
     async resumoPublico(id: string): Promise<ResumoPublicoSequencia | null> {

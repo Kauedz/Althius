@@ -19,6 +19,7 @@ import {
 } from '@/fonte/contexto'
 import type { Contato } from '@/fonte/contas-tipos'
 import { modeloDeCadencia, passosDoModelo } from '@/fonte/modelo-de-cadencia'
+import { copiarTemplate, type TemplateDaAlthius } from '@/fonte/templates-althius'
 
 interface Props {
   aberto: boolean
@@ -62,6 +63,16 @@ function FormularioNovaSequencia({
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState('')
   const [usarModelo, setUsarModelo] = useState(true)
+  const [templateId, setTemplateId] = useState('')
+  const [templateProprioId, setTemplateProprioId] = useState('')
+  const [templateProprioLocal, setTemplateProprioLocal] = useState<TemplateDaAlthius | null>(null)
+  const [previaPropria, setPreviaPropria] = useState<{ nome: string; resumo: string; passos: { id: string; titulo: string; canal: string }[] } | null>(null)
+  const [nomeProprio, setNomeProprio] = useState('')
+  const [salvandoTemplate, setSalvandoTemplate] = useState(false)
+  const [avisoProprio, setAvisoProprio] = useState('')
+  const [justificativa, setJustificativa] = useState('')
+  const [avisoSugestao, setAvisoSugestao] = useState('')
+  const [sugerindo, setSugerindo] = useState(false)
 
   // O modelo vem da Cadência do Playbook (playbook 05); sem Playbook ou sem Cadência preenchida, a Sequência nasce vazia.
   const fonteDoPlaybook = useFonteDoPlaybook()
@@ -76,9 +87,23 @@ function FormularioNovaSequencia({
     [cadenciaDoPlaybook, templatesDoPlaybook],
   )
   const comModelo = modelo.toques.length > 0
+  const { dados: templatesDaAlthius } = useDadosDeSequencias((f) => f.templatesDaAlthius(), [])
+  const { dados: templatesProprios } = useDadosDeSequencias((f) => f.templatesProprios(), [])
+  const templates = templatesDaAlthius ?? []
+  const meusTemplates = templatesProprios ?? []
+  const opcoesProprias = templateProprioLocal && !meusTemplates.some((template) => template.id === templateProprioLocal.id)
+    ? [templateProprioLocal, ...meusTemplates]
+    : meusTemplates
+  const templateEscolhido = templates.find((template) => template.id === templateId)
+  const templateProprioEscolhido = meusTemplates.find((template) => template.id === templateProprioId)
+    ?? (templateProprioLocal?.id === templateProprioId ? templateProprioLocal : undefined)
 
   function aoMudarConta(novoId: string) {
     setContaId(novoId)
+    setJustificativa('')
+    setAvisoSugestao('')
+    setAvisoProprio('')
+    setPreviaPropria(null)
     if (!novoId) {
       setContatos([])
       setParticipantesIds([])
@@ -144,16 +169,159 @@ function FormularioNovaSequencia({
     setErro('')
 
     try {
+      const steps = templateProprioEscolhido
+        ? copiarTemplate(templateProprioEscolhido, participantesIds[0])
+        : templateEscolhido
+          ? copiarTemplate(templateEscolhido, participantesIds[0])
+          : comModelo && usarModelo
+            ? passosDoModelo(modelo.toques, participantesIds[0])
+            : undefined
       const nova = await fonteSequencias.criarSequencia({
         contaId,
         participantesIds,
-        ...(comModelo && usarModelo ? { steps: passosDoModelo(modelo.toques, participantesIds[0]) } : {}),
+        ...(steps ? { steps } : {}),
       })
       aoFechar()
       navegar(`/sequencias/${nova.id}`)
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível criar a sequência.')
       setCriando(false)
+    }
+  }
+
+  async function pedirSugestao() {
+    if (!contaId || sugerindo) return
+    setSugerindo(true)
+    setAvisoSugestao('')
+    setJustificativa('')
+    try {
+      const sugestao = await fonteSequencias.sugerirTemplateDaAlthius(contaId)
+      if (sugestao.motivo === 'ok' && sugestao.templateId && templates.some((template) => template.id === sugestao.templateId)) {
+        setTemplateId(sugestao.templateId)
+        setUsarModelo(false)
+        setJustificativa(sugestao.justificativa)
+        return
+      }
+      setAvisoSugestao(
+        sugestao.motivo === 'teto'
+          ? 'A sugestão não rodou por causa do limite de créditos. A escolha manual continua.'
+          : 'Não há Sinal recente desta Conta para sugerir um template. A escolha manual continua.',
+      )
+    } catch {
+      setAvisoSugestao('A sugestão falhou. A escolha manual continua.')
+    } finally {
+      setSugerindo(false)
+    }
+  }
+
+  function literaisAtuais() {
+    const conta = contas?.find((item) => item.id === contaId)
+    return contatos
+      .filter((contato) => participantesIds.includes(contato.id))
+      .map((contato) => ({
+        nome: contato.nome,
+        email: contato.email,
+        cargo: contato.cargo,
+        empresa: conta?.nome,
+      }))
+  }
+
+  function estruturaAtual() {
+    if (templateEscolhido) {
+      return { nome: templateEscolhido.nome, resumo: templateEscolhido.resumo, passos: templateEscolhido.passos }
+    }
+    if (templateProprioEscolhido) {
+      return {
+        nome: templateProprioEscolhido.nome,
+        resumo: templateProprioEscolhido.resumo,
+        passos: templateProprioEscolhido.passos,
+      }
+    }
+    if (comModelo && usarModelo && modelo.toques.length > 0) {
+      return {
+        nome: 'Cadência do Playbook',
+        resumo: 'Estrutura da Cadência, sem destinatário.',
+        passos: passosDoModelo(modelo.toques, participantesIds[0] ?? 'sem-contato'),
+      }
+    }
+    return null
+  }
+
+  async function abrirPrevia() {
+    const estrutura = estruturaAtual()
+    if (!estrutura || salvandoTemplate) return
+    setSalvandoTemplate(true)
+    setAvisoProprio('')
+    setErro('')
+    try {
+      const previa = await fonteSequencias.previaDeTemplateProprio({
+        ...estrutura,
+        literais: literaisAtuais(),
+      })
+      setPreviaPropria(previa)
+      setNomeProprio(previa.nome)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível montar a prévia.')
+    } finally {
+      setSalvandoTemplate(false)
+    }
+  }
+
+  async function confirmarSalvamento() {
+    if (!previaPropria || salvandoTemplate) return
+    setSalvandoTemplate(true)
+    setErro('')
+    try {
+      const literais = literaisAtuais()
+      const segura = await fonteSequencias.previaDeTemplateProprio({
+        nome: nomeProprio.trim() || previaPropria.nome,
+        resumo: previaPropria.resumo,
+        passos: previaPropria.passos,
+        literais,
+      })
+      if (segura.nome !== (nomeProprio.trim() || previaPropria.nome)) {
+        setPreviaPropria(segura)
+        setNomeProprio(segura.nome)
+        setAvisoProprio('O nome foi parametrizado. Confira a prévia e confirme de novo.')
+        return
+      }
+      const gravado = await fonteSequencias.salvarTemplateProprio({ ...segura, literais })
+      setTemplateProprioLocal(gravado)
+      setTemplateProprioId(gravado.id)
+      setTemplateId('')
+      setUsarModelo(false)
+      setPreviaPropria(null)
+      setAvisoProprio('')
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível salvar o template.')
+    } finally {
+      setSalvandoTemplate(false)
+    }
+  }
+
+  async function pedirSugestaoPropria() {
+    if (!contaId || sugerindo) return
+    setSugerindo(true)
+    setAvisoProprio('')
+    try {
+      const sugestao = await fonteSequencias.sugerirTemplateProprio(contaId)
+      const legivel = meusTemplates.some((template) => template.id === sugestao.templateId)
+      if (sugestao.motivo === 'ok' && sugestao.templateId && legivel) {
+        setTemplateProprioId(sugestao.templateId)
+        setTemplateId('')
+        setUsarModelo(false)
+        setJustificativa(sugestao.justificativa)
+        return
+      }
+      setAvisoProprio(
+        sugestao.motivo === 'teto'
+          ? 'A sugestão não rodou por causa do limite de créditos. A escolha manual continua.'
+          : 'Não há template próprio seu para sugerir. A escolha manual e os templates da Althius continuam.',
+      )
+    } catch {
+      setAvisoProprio('A sugestão falhou. A escolha manual e os templates da Althius continuam.')
+    } finally {
+      setSugerindo(false)
     }
   }
 
@@ -253,6 +421,142 @@ function FormularioNovaSequencia({
                   </label>
                 )
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {contaId && !jaTemSequencia && templates.length > 0 && (
+        <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
+          <label htmlFor="select-template-althius" className="rotulo text-xs text-al-muted">
+            Template da Althius
+          </label>
+          <select
+            id="select-template-althius"
+            aria-label="Template da Althius"
+            value={templateId}
+            onChange={(e) => {
+              setTemplateId(e.target.value)
+              setAvisoSugestao('')
+              if (e.target.value) setUsarModelo(false)
+            }}
+            className="campo h-10 text-sm text-al-ink bg-al-bg"
+          >
+            <option value="">Do zero</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.nome}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={pedirSugestao}
+              disabled={sugerindo}
+              className="text-xs font-medium text-al-ink underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              {sugerindo ? 'Sugerindo...' : 'Sugerir com os dados da Conta'}
+            </button>
+          </div>
+          {avisoSugestao && (
+            <p role="status" className="text-al-muted">
+              {avisoSugestao}
+            </p>
+          )}
+          {justificativa && <p className="text-al-muted">{justificativa}</p>}
+          {templateEscolhido && (
+            <>
+              <ol className="flex flex-col gap-1 text-al-muted">
+                {templateEscolhido.passos.map((passo) => (
+                  <li key={passo.id}>
+                    {passo.titulo} ({passo.canal === 'email' ? 'E-mail' : passo.canal === 'linkedin' ? 'LinkedIn' : 'WhatsApp'})
+                  </li>
+                ))}
+              </ol>
+              <p className="text-al-muted">A cópia é sua. Criar a Sequência não envia nada.</p>
+            </>
+          )}
+        </div>
+      )}
+
+      {contaId && !jaTemSequencia && (
+        <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
+          <label htmlFor="select-template-proprio" className="rotulo text-xs text-al-muted">
+            Meu template
+          </label>
+          <select
+            id="select-template-proprio"
+            aria-label="Meu template"
+            value={templateProprioId}
+            onChange={(e) => {
+              setTemplateProprioId(e.target.value)
+              setAvisoProprio('')
+              setPreviaPropria(null)
+              if (e.target.value) {
+                setTemplateId('')
+                setUsarModelo(false)
+              }
+            }}
+            className="campo h-10 text-sm text-al-ink bg-al-bg"
+          >
+            <option value="">Não usar</option>
+            {opcoesProprias.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.nome}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={abrirPrevia}
+              disabled={!estruturaAtual() || salvandoTemplate}
+              className="text-xs font-medium text-al-ink underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Salvar esta estrutura como meu template
+            </button>
+            <button
+              type="button"
+              onClick={pedirSugestaoPropria}
+              disabled={sugerindo}
+              className="text-xs font-medium text-al-ink underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Sugerir meu template
+            </button>
+          </div>
+          {avisoProprio && (
+            <p role="status" className="text-al-muted">
+              {avisoProprio}
+            </p>
+          )}
+          {previaPropria && (
+            <div role="region" aria-label="Prévia do template" className="flex flex-col gap-2">
+              <label htmlFor="nome-template-proprio" className="rotulo text-xs text-al-muted">
+                Nome do meu template
+              </label>
+              <input
+                id="nome-template-proprio"
+                aria-label="Nome do meu template"
+                value={nomeProprio}
+                onChange={(e) => setNomeProprio(e.target.value)}
+                className="campo h-10 text-sm text-al-ink bg-al-bg"
+              />
+              <ol className="flex flex-col gap-1 text-al-muted">
+                {previaPropria.passos.map((passo) => {
+                  const canal = passo.canal === 'email' ? 'E-mail' : passo.canal === 'linkedin' ? 'LinkedIn' : 'WhatsApp'
+                  return <li key={passo.id}>{`${passo.titulo} (${canal})`}</li>
+                })}
+              </ol>
+              <p className="text-al-muted">A prévia não leva destinatário, histórico nem autorização.</p>
+              <button
+                type="button"
+                onClick={confirmarSalvamento}
+                disabled={salvandoTemplate}
+                className="text-xs font-medium text-al-ink underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                Confirmar salvamento
+              </button>
             </div>
           )}
         </div>

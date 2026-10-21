@@ -711,7 +711,7 @@ describe('Foto pública do Contato no Workspace operacional', () => {
 })
 
 describe('Alternar entre a Demonstração e o Workspace operacional', () => {
-  it('cada ambiente mantém o próprio selo e os próprios dados', async () => {
+  it('cada ambiente mantém o próprio selo e os próprios dados, e o Workspace não oferece a Demonstração', async () => {
     window.history.replaceState(null, '', '/contas')
     demonstracaoJaIniciada()
     const { usuario } = abrirAlthius({
@@ -727,10 +727,7 @@ describe('Alternar entre a Demonstração e o Workspace operacional', () => {
     expect(await screen.findByText(/Nenhuma Conta-alvo ainda\./)).toBeInTheDocument()
     expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'OpenAI' })).not.toBeInTheDocument()
-
-    await usuario.click(screen.getByRole('button', { name: 'Abrir Demonstração' }))
-    expect(await screen.findByRole('link', { name: 'OpenAI' })).toBeInTheDocument()
-    expect(within(navegacao()).getByText('Demonstração')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Demonstração/ })).not.toBeInTheDocument()
   })
 })
 
@@ -759,29 +756,29 @@ describe('A escolha do ambiente em produção', () => {
     expect(localStorage.getItem('althius:modo_demo')).toBeNull()
   })
 
-  it('?demo=true abre a Demonstração, que diz ser uma demonstração e volta à tela de entrada', async () => {
+  it('?demo=true não abre a Demonstração sem login: abre a tela de entrada', async () => {
     demonstracaoJaIniciada()
     window.history.replaceState(null, '', '/contas?demo=true')
-    const { usuario } = abrirAlthius()
+    abrirAlthius()
 
-    expect(await screen.findByRole('link', { name: 'OpenAI' })).toBeInTheDocument()
-    expect(within(navegacao()).getByText('Demonstração')).toBeInTheDocument()
-    expect(screen.queryByText('Modo Protótipo (Completo)')).not.toBeInTheDocument()
-
-    await usuario.click(screen.getByRole('button', { name: 'Entrar no Workspace' }))
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'OpenAI' })).not.toBeInTheDocument()
   })
 
-  it('"Ver a Demonstração" na tela de entrada abre a Demonstração, que continua aberta ao atualizar a página', async () => {
+  it('a tela de entrada não oferece a Demonstração, e a escolha antiga por ela não vale mais', async () => {
     demonstracaoJaIniciada()
-    const { usuario, cliente, servicos } = abrirAlthius()
+    abrirAlthius({ ultimoAmbiente: 'demonstracao' })
 
-    await usuario.click(await screen.findByRole('button', { name: 'Ver a Demonstração' }))
-    expect(await within(navegacao()).findByText('Demonstração')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Demonstração/ })).not.toBeInTheDocument()
+  })
 
-    cleanup()
-    render(<RaizDoAplicativo cliente={cliente} servicos={servicos} />)
-    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Demonstração')).toBeInTheDocument()
+  it('a barra do Workspace operacional não oferece a Demonstração', async () => {
+    abrirAlthius({ sessao: sessaoDe(MARINA), tabelas: { workspace_memberships: [participacao('ws-norte')] } })
+
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Demonstração/ })).not.toBeInTheDocument()
   })
 
   it.each(['/?auth=true', '/?demo=false'])('%s abre a tela de entrada mesmo depois de escolher a Demonstração', async (endereco) => {
@@ -801,6 +798,73 @@ describe('A escolha do ambiente em produção', () => {
 
     expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()
     expect(screen.queryByText('Modo Protótipo (Completo)')).not.toBeInTheDocument()
+  })
+})
+
+describe('A Demonstração da equipe Althius em /demonstracao', () => {
+  beforeEach(() => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('PROD', true)
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  /** A Marina logada, num Workspace contratado, com a resposta do banco sobre ser da equipe Althius. */
+  function abrirComoMarina(daEquipe: () => unknown) {
+    return abrirAlthius({
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+      rpcs: { viewer_is_althius_staff: daEquipe },
+    })
+  }
+
+  it('abre para a equipe, com as rotas sob /demonstracao, e sair volta ao Workspace operacional', async () => {
+    demonstracaoJaIniciada()
+    window.history.replaceState(null, '', '/demonstracao/contas')
+    const { usuario } = abrirComoMarina(() => true)
+
+    expect(await screen.findByRole('link', { name: 'OpenAI' })).toBeInTheDocument()
+    expect(within(navegacao()).getByText('Demonstração')).toBeInTheDocument()
+    expect(screen.getByText('Você está vendo uma demonstração')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/demonstracao/contas')
+
+    await usuario.click(screen.getByRole('button', { name: 'Sair da demonstração' }))
+    expect(await within(navegacao()).findByText('Operacional')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(screen.queryByRole('link', { name: 'OpenAI' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['o banco diz que não é da equipe', () => false],
+    ['a pergunta ao banco falha', () => { throw new Error('permission denied for function viewer_is_althius_staff') }],
+  ])('quem não é da equipe cai no início, sem nada que revele a Demonstração (%s)', async (_, daEquipe) => {
+    demonstracaoJaIniciada()
+    window.history.replaceState(null, '', '/demonstracao/contas')
+    abrirComoMarina(daEquipe)
+
+    expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(screen.queryByText(/demonstra/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'OpenAI' })).not.toBeInTheDocument()
+  })
+
+  it('sem login, leva à tela de entrada lembrando /demonstracao, e abre depois do login da equipe', async () => {
+    demonstracaoJaIniciada()
+    window.history.replaceState(null, '', '/demonstracao')
+    const { iniciarSessao } = abrirAlthius({
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+      rpcs: { viewer_is_althius_staff: () => true },
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/entrar')
+    expect(new URLSearchParams(window.location.search).get('destino')).toBe('/demonstracao')
+    expect(screen.queryByRole('button', { name: /Demonstração/ })).not.toBeInTheDocument()
+
+    act(() => iniciarSessao(sessaoDe(MARINA)))
+    expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/demonstracao')
   })
 })
 

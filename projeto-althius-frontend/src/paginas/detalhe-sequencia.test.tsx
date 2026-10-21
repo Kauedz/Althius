@@ -117,61 +117,45 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     expect(await screen.findByText(/Step 1 de 6/i)).toBeInTheDocument()
   })
 
-  it('mostra condição de liberação no editor e grava predecessor sem Persona/Playbook', async () => {
-    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+  it('o editor mostra a condição de liberação; documento antigo continua na ordem da lista', async () => {
+    const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 
     expect(await screen.findByDisplayValue('Abertura pelo Sinal')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Condição de liberação do passo/i)).toBeInTheDocument()
-
     await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
-    const liberacao = screen.getByLabelText(/Condição de liberação do passo/i)
-    await usuario.selectOptions(liberacao, 'predecessor')
 
-    const predecessor = await screen.findByLabelText(/Passo predecessor/i)
-    const abertura = (await fonteDeSequencias.sequencia('sequencia-openai')).steps[0]
-    await usuario.selectOptions(predecessor, abertura.id)
-
-    await waitFor(async () => {
-      const seq = await fonteDeSequencias.sequencia('sequencia-openai')
-      const convite = seq.steps.find((s) => s.titulo === 'Convite no LinkedIn')
-      expect(convite?.liberacao).toBe('predecessor')
-      expect(convite?.predecessorId).toBe(abertura.id)
-    })
-
-    // Destinatário real permanece editável na mesma linha Para:
-    const destinatario = screen.getByLabelText(/Destinatário/i)
-    await usuario.selectOptions(destinatario, 'contato-openai-2')
-    await waitFor(async () => {
-      const seq = await fonteDeSequencias.sequencia('sequencia-openai')
-      const convite = seq.steps.find((s) => s.titulo === 'Convite no LinkedIn')
-      expect(convite?.contatoId).toBe('contato-openai-2')
-    })
+    const liberacao = screen.getByLabelText(/Condição de liberação do passo/i) as HTMLSelectElement
+    expect(Array.from(liberacao.options).map((o) => o.textContent)).toEqual([
+      'Ordem da lista (legado)',
+      'Após a ativação',
+      'Após o envio de outro passo',
+      'Liberação manual',
+    ])
+    expect(liberacao.value).toBe('legado')
+    expect(screen.queryByLabelText(/Passo predecessor/i)).not.toBeInTheDocument()
+    // Sem liberação gravada, o "Quando" segue o serial de hoje
+    expect(screen.getByText(/dias úteis após o step 1/i)).toBeInTheDocument()
   })
 
-  it('reordenar na timeline não altera predecessorId explícito', async () => {
+  it('passo novo grava condição explícita: os seguintes saem após o envio do anterior', async () => {
     const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
 
-    expect(await screen.findByDisplayValue('Abertura pelo Sinal')).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
-    await usuario.selectOptions(screen.getByLabelText(/Condição de liberação do passo/i), 'predecessor')
-    const pred = await screen.findByLabelText(/Passo predecessor/i)
-    const antes = await fonteDeSequencias.sequencia('sequencia-openai')
-    const idAbertura = antes.steps.find((s) => s.titulo === 'Abertura pelo Sinal')!.id
-    await usuario.selectOptions(pred, idAbertura)
+    expect(await screen.findByText(/6 steps · 9 dias úteis/i)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Adicionar step/i }))
+    await usuario.click(screen.getByRole('button', { name: /Adicionar step WhatsApp/i }))
+    expect(await screen.findByText(/7 steps ordenados/i)).toBeInTheDocument()
 
     await waitFor(async () => {
-      const mid = await fonteDeSequencias.sequencia('sequencia-openai')
-      expect(mid.steps.find((s) => s.titulo === 'Convite no LinkedIn')?.predecessorId).toBe(idAbertura)
+      const seq = await fonteDeSequencias.sequencia('sequencia-openai')
+      expect(seq.steps).toHaveLength(7)
+      const novo = seq.steps[6]
+      expect(novo.liberacao).toBe('predecessor')
+      expect(novo.predecessorId).toBe(seq.steps[5].id)
+      // Os passos antigos não ganham liberação por causa do passo novo
+      for (const passo of seq.steps.slice(0, 6)) {
+        expect(passo.liberacao).toBeUndefined()
+      }
     })
-
-    await usuario.click(screen.getByRole('button', { name: /Mover para cima/i }))
-    expect(await screen.findByText(/Step 1 de 6/i)).toBeInTheDocument()
-
-    const depois = await fonteDeSequencias.sequencia('sequencia-openai')
-    const convite = depois.steps.find((s) => s.titulo === 'Convite no LinkedIn')
-    expect(convite?.predecessorId).toBe(idAbertura)
-    expect(convite?.liberacao).toBe('predecessor')
-    expect(depois.steps[0].titulo).toBe('Convite no LinkedIn')
+    expect(screen.getByText(/dias úteis após o envio do predecessor/i)).toBeInTheDocument()
   })
 
   it('permite excluir um step da timeline', async () => {
