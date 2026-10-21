@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDoLoteDeSequencias, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
+import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDaDecisaoDeRetencao, type ResultadoDoLoteDeSequencias, type ResumoPublicoSequencia, type RevisaoDeRetencao, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
@@ -315,6 +315,61 @@ function anexosDoDocumento(steps: StepSequencia[]): StepSequencia[] {
   )
 }
 
+function mapearRevisaoDeRetencao(bruto: unknown): RevisaoDeRetencao {
+  const corpo = (bruto ?? {}) as Record<string, unknown>
+  const estado = corpo.state === 'preventive' || corpo.state === 'decided_pause' ? corpo.state : 'none'
+  const pendentes = Array.isArray(corpo.pending) ? corpo.pending : []
+  const decisoes = Array.isArray(corpo.decisions) ? corpo.decisions : []
+  return {
+    aberta: corpo.open === true,
+    estado: estado === 'preventive' ? 'preventiva' : estado === 'decided_pause' ? 'pausa_decidida' : 'nenhuma',
+    versao: typeof corpo.version === 'number' ? corpo.version : Number(corpo.version ?? 0),
+    podeLerConteudo: corpo.can_read_content === true,
+    podeDecidir: corpo.can_decide === true,
+    pendentes: pendentes.flatMap((item) => {
+      if (!item || typeof item !== 'object') return []
+      const linha = item as Record<string, unknown>
+      if (typeof linha.id !== 'string') return []
+      const canal = linha.channel === 'email' || linha.channel === 'whatsapp' || linha.channel === 'linkedin'
+        ? linha.channel
+        : undefined
+      return [{
+        id: linha.id,
+        ...(canal ? { canal } : {}),
+        ...(typeof linha.contact_id === 'string' ? { contatoId: linha.contact_id } : {}),
+        recebidaEm: typeof linha.received_at === 'string' ? linha.received_at : '',
+        ...(typeof linha.subject === 'string' ? { assunto: linha.subject } : {}),
+        ...(typeof linha.snippet === 'string' ? { trecho: linha.snippet } : {}),
+        ...(typeof linha.from_name === 'string' || typeof linha.from_email === 'string'
+          ? { de: (typeof linha.from_name === 'string' ? linha.from_name : linha.from_email) as string }
+          : {}),
+      }]
+    }),
+    decisoes: decisoes.flatMap((item) => {
+      if (!item || typeof item !== 'object') return []
+      const linha = item as Record<string, unknown>
+      if (linha.decision !== 'pause' && linha.decision !== 'continue') return []
+      return [{
+        decisao: linha.decision,
+        versao: typeof linha.version === 'number' ? linha.version : Number(linha.version ?? 0),
+        criadaEm: typeof linha.created_at === 'string' ? linha.created_at : '',
+      }]
+    }),
+  }
+}
+
+function resultadoDaDecisao(data: unknown): ResultadoDaDecisaoDeRetencao {
+  const linha = (Array.isArray(data) ? data[0] : data) as { outcome?: string; version?: number } | null
+  const outcome = linha?.outcome
+  if (
+    outcome !== 'paused' && outcome !== 'continued' && outcome !== 'reviewed_other_hold'
+    && outcome !== 'stale' && outcome !== 'not_open'
+  ) {
+    throw new Error('O banco não respondeu à revisão das respostas.')
+  }
+  return { outcome, versao: Number(linha?.version ?? 0) }
+}
+
 /**
  * Se os anexos dos passos já funcionam neste servidor (canais-10): o módulo foi ligado depois de publicada a Edge
  * Function sequence-attachments. Até lá, ou se a leitura falhar, os anexos ficam indisponíveis no Workspace operacional.
@@ -345,6 +400,9 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('target account not found')) return new Error('Conta-alvo não encontrada neste Workspace.')
   if (error.message.includes('the sequence is paused because its target account is archived')) {
     return new Error('A Conta-alvo está arquivada: a Sequência só pode ser retomada depois que a Conta for restaurada.')
+  }
+  if (error.message.includes('account retained pending reply review')) {
+    return new Error('Há respostas pendentes nesta Conta. Revise o conjunto atual antes de continuar.')
   }
   if (error.message.includes('the target account is archived')) {
     return new Error('A Conta-alvo está arquivada: restaure a Conta para criar uma Sequência nela.')
@@ -792,6 +850,27 @@ export function criarFonteDeSequenciasSupabase(
       if (chats.error) return deEmail.sort(porMaisRecente)
       const deChat = ((chats.data ?? []) as LinhaDaRespostaDeChat[]).map(mapearRespostaDeChat)
       return [...deEmail, ...deChat].sort(porMaisRecente)
+    },
+    async revisaoDeRetencao(sequenciaId) {
+      const { data, error } = await cliente.rpc('list_sequence_reply_review', { p_sequence_id: sequenciaId })
+      if (error) {
+        if ((error as { code?: string }).code === '42501') {
+          return mapearRevisaoDeRetencao({ open: false, can_read_content: false, can_decide: false })
+        }
+        throw converterErro(error)
+      }
+      return mapearRevisaoDeRetencao(data)
+    },
+    async decidirRetencao(pedido) {
+      const { data, error } = await cliente.rpc('decide_sequence_retention', {
+        p_sequence_id: pedido.sequenciaId,
+        p_decision: pedido.decisao,
+        p_reviewed_version: pedido.versao,
+        p_reviewed_reply_ids: pedido.respostasRevisadas,
+      })
+      if (error) throw converterErro(error)
+      notificar()
+      return resultadoDaDecisao(data)
     },
     async urlDoAnexo(interacaoId, anexoId) {
       const { data, error } = await cliente.functions.invoke('received-email-attachments', {

@@ -187,4 +187,50 @@ describe('FonteDeSequenciasSimulada', () => {
     expect(await fonte.sequencias()).toEqual([])
     expect(await fonte.sequenciaPorConta('openai')).toBeNull()
   })
+
+  it('resposta correlacionada retém a Conta sem IA; duplicata não reabre e decisão velha não libera', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const primeira = await fonte.registrarRespostaCorrelacionada({
+      sequenciaId: 'sequencia-openai',
+      eventoId: 'evt-1',
+      de: 'Sarah Chen',
+      assunto: 'Re: Abertura',
+    })
+    const segunda = await fonte.registrarRespostaCorrelacionada({
+      sequenciaId: 'sequencia-openai',
+      eventoId: 'evt-2',
+      de: 'Marcus Vance',
+      assunto: 'Re: Outro',
+    })
+    expect(primeira.aberta).toBe(true)
+    expect(segunda.pendentes.map((item) => item.assunto)).toEqual(['Re: Abertura', 'Re: Outro'])
+    expect((await fonte.sequencia('sequencia-openai')).status).toBe('pausada')
+
+    const velha = await fonte.decidirRetencao!({
+      sequenciaId: 'sequencia-openai',
+      decisao: 'continue',
+      versao: primeira.versao,
+      respostasRevisadas: primeira.pendentes.map((item) => item.id),
+    })
+    expect(velha.outcome).toBe('stale')
+    expect((await fonte.sequencia('sequencia-openai')).status).toBe('pausada')
+
+    const atual = await fonte.decidirRetencao!({
+      sequenciaId: 'sequencia-openai',
+      decisao: 'continue',
+      versao: segunda.versao,
+      respostasRevisadas: segunda.pendentes.map((item) => item.id),
+    })
+    expect(atual.outcome).toBe('continued')
+    expect((await fonte.sequencia('sequencia-openai')).status).toBe('ativa')
+
+    await fonte.registrarRespostaCorrelacionada({
+      sequenciaId: 'sequencia-openai',
+      eventoId: 'evt-1',
+      de: 'Sarah Chen',
+      assunto: 'Re: Abertura',
+    })
+    expect((await fonte.revisaoDeRetencao!('sequencia-openai')).aberta).toBe(false)
+    await expect(fonte.atualizarDocumento('sequencia-openai', { status: 'ativa' })).resolves.toBeTruthy()
+  })
 })
