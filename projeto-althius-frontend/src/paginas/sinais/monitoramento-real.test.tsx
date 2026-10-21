@@ -283,12 +283,13 @@ describe('Criar Monitoramento no Workspace operacional', () => {
     expect(gravacoes()[0]).toMatchObject({ p_id: MONITOR, p_audience: { accountIds: [CONTA] } })
   })
 
-  it('um card visível abre o editor mesmo quando o registro ainda diz em teste', async () => {
+  // catalogo-so-funcionais: o card cujo registro ainda diz em teste não aparece para o cliente e não abre o editor.
+  it('um card que o registro ainda diz em teste não abre o editor e volta ao catálogo', async () => {
     abrir('/sinais/tipos/nova-lideranca/novo')
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeInTheDocument()
-    expect(screen.queryByText(/ainda não roda de verdade/)).not.toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Novo monitoramento' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Salvar rascunho' })).not.toBeInTheDocument()
   })
 
   it('a Demonstração continua oferecendo as listas de exemplo e a descoberta', async () => {

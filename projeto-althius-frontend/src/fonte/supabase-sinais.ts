@@ -99,6 +99,18 @@ async function estadosDosSinaisReais(cliente: SupabaseClient): Promise<Map<strin
 }
 
 /**
+ * O estado de cada coletor, para decidir quais cards o cliente vê. Diferente de `estadosDosSinaisReais`, uma leitura que
+ * falha não vira "em breve" em silêncio: sem nenhuma das duas leituras, rejeita, e a tela mostra o erro em vez do
+ * catálogo errado.
+ */
+async function estadosDosColetores(cliente: SupabaseClient): Promise<Map<string, string>> {
+  const [actors, catalogo] = await Promise.all([cliente.rpc('list_signal_actors'), cliente.rpc('list_signal_catalog')])
+  if (actors.error && catalogo.error) throw new Error('Não foi possível carregar os sinais.')
+  const linhas = [actors, catalogo].flatMap(({ data, error }) => (error ? [] : ((data ?? []) as { signal_type: string; state: string }[])))
+  return new Map(linhas.map((l) => [l.signal_type, l.state]))
+}
+
+/**
  * Se o módulo Sinais já roda de verdade: algum actor do registro passou no teste (sinais-reais 03) ou há um Sinal
  * interno disponível (CRM-10). Até lá, ou se nada puder ser lido, o módulo fica indisponível no Workspace operacional.
  */
@@ -420,6 +432,17 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         contato: pedido.contato,
         status: 'novo',
         criadoEm: new Date().toISOString(),
+      }
+    },
+
+    estadosDosColetores: () => estadosDosColetores(cliente),
+
+    async souDaEquipeAlthius(): Promise<boolean> {
+      try {
+        const { data, error } = await cliente.rpc('viewer_is_althius_staff')
+        return !error && data === true
+      } catch {
+        return false
       }
     },
 

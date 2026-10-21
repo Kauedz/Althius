@@ -122,6 +122,8 @@ function abrir(rota: string, opcoes: { monitores?: MonitorNoBanco[]; sinais?: Si
       list_signal_catalog: () => [
         { signal_type: 'negociacao_parada', origin: 'interno', state: 'available' },
         { signal_type: 'sem_resposta', origin: 'interno', state: 'available' },
+        // Como em produção: o catálogo só mostra ao cliente o Sinal que roda (catalogo-so-funcionais).
+        { signal_type: 'proposta_recusada', origin: 'interno', state: 'available' },
         { signal_type: 'nova_lideranca', origin: 'externo', state: 'testing' },
         { signal_type: 'vaga_linkedin', origin: 'externo', state: 'testing' },
       ],

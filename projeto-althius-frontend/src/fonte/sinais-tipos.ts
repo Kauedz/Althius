@@ -229,6 +229,16 @@ export interface FonteDeSinais extends FonteObservavel {
    * Sem a migração, ou se a leitura falhar, devolve lista vazia.
    */
   catalogoDoWorkspace(): Promise<CardSobPedido[]>
+
+  /**
+   * O estado de cada coletor (`signal_type` do banco): 'available', 'testing' ou 'out'. É o que decide quais cards o
+   * cliente vê (catalogo-so-funcionais). A Demonstração dá todos por disponíveis. Rejeita quando nada pôde ser lido;
+   * quem não implementa não informa, e o catálogo aparece inteiro.
+   */
+  estadosDosColetores?(): Promise<ReadonlyMap<string, string>>
+
+  /** Se quem está logado é da equipe Althius e vê também os Sinais internos. Qualquer erro vale `false`. */
+  souDaEquipeAlthius?(): Promise<boolean>
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'

@@ -28,6 +28,7 @@ import { SecaoDoFormulario, SeloDoEstado } from './componentes'
 import { LISTAS, VALIDADE_EM_DIAS, publicoInicial, type ModoDePublico, type Monitoramento, type Publico } from './dados-mock'
 import { ajudaDoCusto, cardPorId, cardQueConta, cargosDoNicho } from './catalogo-visivel'
 import { sinalArquivado } from './arquivados'
+import { useCatalogoFuncional } from './catalogo-funcional'
 import { NICHOS } from './nichos'
 import { podeMonitorar } from './disponibilidade'
 import { useSinaisDoMockup } from './estado'
@@ -145,6 +146,7 @@ export function RotaDoEditor() {
   const { tipoId = '', monitoramentoId } = useParams<{ tipoId: string; monitoramentoId?: string }>()
   const { monitoramentos, carregando, erro, recarregar } = useSinaisDoMockup()
   const { dados: tipoDaFonte } = useDadosDeSinais((f) => f.tipo(tipoId), [tipoId])
+  const visao = useCatalogoFuncional()
   if (tipoId === 'personalizado') return <Navigate to="/sinais/pedidos" replace />
   const unido = cardQueConta(tipoId)
   if (!monitoramentoId && unido && unido.id !== tipoId) return <Navigate to={`/sinais/tipos/${unido.id}/novo`} replace />
@@ -152,6 +154,14 @@ export function RotaDoEditor() {
   // Card do catálogo visível sempre abre o editor. Tipo fora do catálogo, em teste ou em breve, volta para a página.
   if (tipoDaFonte && !monitoramentoId && !cardPorId(tipoId) && !podeMonitorar(tipoDaFonte)) {
     return <Navigate to={`/sinais/tipos/${tipoId}`} replace />
+  }
+  // No operacional, card do catálogo que não roda de verdade não abre Monitoramento novo: volta para a página dele, que
+  // decide se o card aparece. O Monitoramento que já existe continua abrindo.
+  const card = cardPorId(tipoId)
+  if (!monitoramentoId && card) {
+    if (visao.carregando) return <Carregando />
+    const disponibilidade = visao.erro ? 'em-breve' : visao.disponibilidadeDe(card)
+    if (disponibilidade && !podeMonitorar({ disponibilidade })) return <Navigate to={`/sinais/tipos/${tipoId}`} replace />
   }
   const tipo = tipoPorId(tipoId)
   const existente = monitoramentos.find((m) => m.id === monitoramentoId && m.tipoId === tipoId)

@@ -19,6 +19,7 @@ import { FAMILIAS, tipoPorId } from './catalogo'
 import { CATALOGO_VISIVEL, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { GRADE_DE_CARTOES } from './cascatas'
+import { useCatalogoFuncional, type VisaoDoCatalogo } from './catalogo-funcional'
 import { useMonitoramentos } from './estado'
 import {
   ZONA_DA_VITRINE,
@@ -63,6 +64,14 @@ export function PaginaSinais() {
     erro,
     recarregar,
   } = useDadosDeSinais((f) => f.tipos(), [])
+  // No Workspace operacional o cliente vê só os Sinais que rodam. Sem os estados, a página mostra o erro, nunca tudo.
+  const visao = useCatalogoFuncional()
+  const falhou = Boolean(erro || visao.erro)
+  const esperando = (carregando && !tiposCarregados) || visao.carregando
+  const tentarDeNovo = () => {
+    if (erro) recarregar()
+    if (visao.erro) visao.recarregar()
+  }
 
   return (
     <Pagina
@@ -74,14 +83,14 @@ export function PaginaSinais() {
         <SinaisEncontrados aoVoltar={() => setParametros({})} />
       ) : (
         <>
-          {carregando && !tiposCarregados && <Carregando />}
+          {esperando && !falhou && <Carregando />}
 
-          {erro && (
+          {falhou && (
             <div role="alert" className="rounded-2xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-6">
               <p className="text-sm text-al-muted">Não foi possível carregar os sinais.</p>
               <button
                 type="button"
-                onClick={recarregar}
+                onClick={tentarDeNovo}
                 className={BOTAO_SECUNDARIO}
               >
                 Tentar de novo
@@ -95,8 +104,8 @@ export function PaginaSinais() {
             </p>
           )}
 
-          {!erro && (!carregando || tiposCarregados) && (
-            <Catalogo aoVerEncontrados={() => setParametros({ vista: 'encontrados' })} />
+          {!falhou && !esperando && (
+            <Catalogo visao={visao} aoVerEncontrados={() => setParametros({ vista: 'encontrados' })} />
           )}
         </>
       )}
@@ -105,13 +114,15 @@ export function PaginaSinais() {
   )
 }
 
-function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
+function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
   const [busca, setBusca] = useState('')
   const [familiaId, setFamiliaId] = useState('todos')
   const { dados: extras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
-  const exclusivos = (extras ?? []).map(cardDoExtra)
-  const cards = [...CATALOGO_VISIVEL, ...exclusivos]
+  // O cliente vê só os cards funcionais e os que o Workspace já monitora; a equipe e a Demonstração veem todos.
+  const doCatalogo = visao.visiveis(CATALOGO_VISIVEL, monitoramentos)
+  const exclusivos = visao.visiveis((extras ?? []).map(cardDoExtra), monitoramentos)
+  const cards = [...doCatalogo, ...exclusivos]
   const operacional = useAmbiente().modo === 'real'
   const hoje = useFonteDeContas().hoje()
   const { dados: sinaisCarregados, recarregar: recarregarSinais } = useDadosDeSinais((f) => f.sinaisEncontrados(), [])
@@ -146,9 +157,11 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
   const seloDe = (card: CardDoCatalogo) =>
     idsExclusivos.has(card.id) ? 'Exclusivo' : eLancamento(card.id) ? 'Lançamento' : undefined
   const ativosDe = (card: CardDoCatalogo) => ativosDoCard(card, monitoramentos)
+  const estadoDe = (card: CardDoCatalogo) => visao.estadoDe(card)
 
-  const prateleiras = montarPrateleiras({ cards: CATALOGO_VISIVEL, exclusivos, monitoramentos, nicho: nichoDoIcp })
-  const destaque = sinalDaSemana({ cards, sinais: sinais ?? [], hoje, nicho: nichoDoIcp })
+  const prateleiras = montarPrateleiras({ cards: doCatalogo, exclusivos, monitoramentos, nicho: nichoDoIcp })
+  // O destaque é sempre um Sinal que roda: nem o interno da equipe nem o card mantido só pelo Monitoramento.
+  const destaque = sinalDaSemana({ cards: cards.filter((card) => !estadoDe(card)), sinais: sinais ?? [], hoje, nicho: nichoDoIcp })
   const emProducao = exclusivosEmProducao(pedidos)
   const disparosPorMonitoramento = (id: string) => (sinais ?? []).filter((s) => s.monitoramentoId === id && foiDisparado(s.data, hoje)).length
   // Só os Monitoramentos de um Sinal da vitrine: os de um tipo arquivado não têm página para abrir.
@@ -204,12 +217,12 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
                 : 'Sinais que valem para qualquer nicho. Descreva os Segmentos do ICP na Memória para afinar.'
             }
           >
-            <CartoesDaPrateleira cards={prateleiras.paraOSeuNicho} ativosDe={ativosDe} />
+            <CartoesDaPrateleira cards={prateleiras.paraOSeuNicho} ativosDe={ativosDe} estadoDe={estadoDe} />
           </Prateleira>
 
           <Prateleira id="mais-ativados" titulo="Mais ativados" subtitulo="Pelos Monitoramentos ativos do seu Workspace">
             {prateleiras.maisAtivados.length > 0 ? (
-              <CartoesDaPrateleira cards={prateleiras.maisAtivados} ativosDe={ativosDe} />
+              <CartoesDaPrateleira cards={prateleiras.maisAtivados} ativosDe={ativosDe} estadoDe={estadoDe} />
             ) : (
               <PrateleiraVazia titulo="Nenhum Monitoramento ativo ainda.">
                 Os Sinais que você ativar aparecem aqui, do mais usado ao menos usado.
@@ -218,15 +231,15 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
           </Prateleira>
 
           <Prateleira id="novos" titulo="Novos" subtitulo="Os últimos Sinais que entraram no catálogo">
-            <CartoesDaPrateleira cards={prateleiras.novos} ativosDe={ativosDe} seloDe={(card) => seloDe(card) ?? 'Novo'} />
+            <CartoesDaPrateleira cards={prateleiras.novos} ativosDe={ativosDe} seloDe={(card) => seloDe(card) ?? 'Novo'} estadoDe={estadoDe} />
           </Prateleira>
 
           <Prateleira id="movimento-de-equipe" titulo="Movimento de equipe" subtitulo="Vagas, chegadas, saídas e promoções">
-            <CartoesDaPrateleira cards={prateleiras.movimentoDeEquipe} ativosDe={ativosDe} />
+            <CartoesDaPrateleira cards={prateleiras.movimentoDeEquipe} ativosDe={ativosDe} estadoDe={estadoDe} />
           </Prateleira>
 
           <Prateleira id="midia-e-anuncios" titulo="Mídia e anúncios" subtitulo="Campanhas, publicações e reputação pública">
-            <CartoesDaPrateleira cards={prateleiras.midiaEAnuncios} ativosDe={ativosDe} />
+            <CartoesDaPrateleira cards={prateleiras.midiaEAnuncios} ativosDe={ativosDe} estadoDe={estadoDe} />
           </Prateleira>
 
           <Prateleira
@@ -234,7 +247,7 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
             titulo="Exclusivos do seu Workspace"
             subtitulo="Sinais que a equipe Althius monta só para você"
           >
-            <CartoesDaPrateleira cards={exclusivos} ativosDe={ativosDe} seloDe={() => 'Exclusivo'} />
+            <CartoesDaPrateleira cards={exclusivos} ativosDe={ativosDe} seloDe={() => 'Exclusivo'} estadoDe={estadoDe} />
             {emProducao.map(({ pedido, situacao }) => (
               <CartaoEmProducao key={pedido.id} pedido={pedido} situacao={situacao} />
             ))}
@@ -251,7 +264,7 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
           {prateleiras.lancamentos.length > 0 && (
             <Prateleira id="lancamentos" titulo="Lançamentos" subtitulo="Em preparação pela equipe Althius. Peça para ser avisado.">
               {prateleiras.lancamentos.map((card) => (
-                <CartaoDeLancamento key={card.id} card={card} avisado={avisado(card)} aoAvisar={avisar} />
+                <CartaoDeLancamento key={card.id} card={card} avisado={avisado(card)} aoAvisar={avisar} estado={estadoDe(card)} />
               ))}
             </Prateleira>
           )}
@@ -314,7 +327,7 @@ function Catalogo({ aoVerEncontrados }: { aoVerEncontrados: () => void }) {
           <section aria-label="Catálogo de sinais">
             <ul className={GRADE_DE_CARTOES}>
               {visiveis.map((card) => (
-                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} />
+                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} />
               ))}
             </ul>
           </section>
