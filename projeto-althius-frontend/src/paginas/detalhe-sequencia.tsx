@@ -57,6 +57,10 @@ import { textoDaResposta } from '@/fonte/texto-do-email'
 import { carregarAnexo, formaDoAnexo } from '@/fonte/anexo-recebido'
 import {
   CANAIS_SUPORTADOS,
+  DIAS_UTEIS_PADRAO,
+  FUSO_PADRAO,
+  INTERVALO_MINUTOS_SUGERIDO,
+  MAXIMO_DIARIO_SUGERIDO,
   type AnexoRecebido,
   type AnexoStep,
   type AutorizacaoDosEnvios,
@@ -104,6 +108,22 @@ const HORARIOS_DISPONIVEIS = [
   '18:00',
   '19:00',
 ]
+
+const FUSOS_VISIVEIS = [
+  { valor: 'America/Sao_Paulo', rotulo: 'Horário de Brasília' },
+  { valor: 'America/Manaus', rotulo: 'Horário de Manaus' },
+  { valor: 'America/Rio_Branco', rotulo: 'Horário do Acre' },
+  { valor: 'America/Noronha', rotulo: 'Horário de Fernando de Noronha' },
+  { valor: 'UTC', rotulo: 'UTC' },
+] as const
+
+const DIAS_VISIVEIS = [
+  { valor: 1, rotulo: 'Seg' },
+  { valor: 2, rotulo: 'Ter' },
+  { valor: 3, rotulo: 'Qua' },
+  { valor: 4, rotulo: 'Qui' },
+  { valor: 5, rotulo: 'Sex' },
+] as const
 
 function iniciais(nome: string): string {
   return nome
@@ -196,6 +216,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     [sequenciaId],
   )
   const [dialogoAtivacaoAberto, setDialogoAtivacaoAberto] = useState(false)
+  const [agendaConfirmada, setAgendaConfirmada] = useState(false)
+  const [passosMarcados, setPassosMarcados] = useState<string[]>([])
   const [ativando, setAtivando] = useState(false)
   const [avisoDaAtivacao, setAvisoDaAtivacao] = useState<AvisoDoEnvio | null>(null)
   const [enviandoStepId, setEnviandoStepId] = useState<string | null>(null)
@@ -380,24 +402,47 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     }
   }
 
-  // Ativar autoriza o documento atual (a versão que o Executor envia) e fixa o Destino de cada passo
-  // pendente (ADR-0014). Um bloqueio volta como desfecho, com o passo que o causou.
+  // Ativar autoriza só os caminhos marcados e a agenda confirmada. Um passo de fora fica pendente.
   const passosDaAtivacao = sequencia.steps.filter((s) =>
     passoEntraNaAtivacao(s) && !envios?.some((e) => e.stepId === s.id && ENVIO_JA_SAIU.has(e.status)),
   )
-  // Sem a leitura, um passo de chat pode sair ou ser pulado sem a tela saber. Não confirma nesse intervalo.
+  const fusoDaAgenda = sequencia.fuso ?? FUSO_PADRAO
+  const diasDaAgenda = sequencia.diasUteis ?? DIAS_UTEIS_PADRAO
+  const maximoDaAgenda = sequencia.maximoDiario ?? MAXIMO_DIARIO_SUGERIDO
+  const intervaloDaAgenda = sequencia.intervaloMinutos ?? INTERVALO_MINUTOS_SUGERIDO
+  const agendaVisivel = {
+    fuso: fusoDaAgenda,
+    diasUteis: diasDaAgenda,
+    maximoDiario: maximoDaAgenda,
+    intervaloMinutos: intervaloDaAgenda,
+    janela: sequencia.janelaPadrao,
+  }
   const chatAindaSemLeitura = passosDaAtivacao.some((s) => s.canal === 'whatsapp' || s.canal === 'linkedin')
     && (canaisDeChat === undefined || canaisDeChat === null)
-  const podeConfirmarAtivacao = !chatAindaSemLeitura
-    && passosDaAtivacao.some((s) => situacaoNaAtivacao(s, contatosMap.get(s.contatoId), canaisDeChat) === 'sai')
-    && passosDaAtivacao.every((s) => situacaoNaAtivacao(s, contatosMap.get(s.contatoId), canaisDeChat) !== 'falta-destino')
+  const passosSelecionados = passosDaAtivacao.filter((s) => passosMarcados.includes(s.id))
+  const agendaValida = diasDaAgenda.length > 0 && maximoDaAgenda >= 1 && intervaloDaAgenda >= 0
+  const podeConfirmarAtivacao = agendaConfirmada && agendaValida && !chatAindaSemLeitura
+    && passosSelecionados.length > 0
+    && passosSelecionados.every((s) => situacaoNaAtivacao(s, contatosMap.get(s.contatoId), canaisDeChat) === 'sai')
+
+  function abrirAtivacao() {
+    setAvisoDaAtivacao(null)
+    setAgendaConfirmada(false)
+    setPassosMarcados(passosDaAtivacao
+      .filter((s) => situacaoNaAtivacao(s, contatosMap.get(s.contatoId), canaisDeChat) === 'sai')
+      .map((s) => s.id))
+    setDialogoAtivacaoAberto(true)
+  }
 
   async function handleAtivarEnvios() {
     if (!podeConfirmarAtivacao) return
     setAtivando(true)
     setAvisoDaAtivacao(null)
     try {
-      const resultado = await fonteDeSequencias.ativarEnvios(sequencia!.id)
+      const resultado = await fonteDeSequencias.ativarEnvios(sequencia!.id, {
+        stepIds: passosSelecionados.map((s) => s.id),
+        agenda: agendaVisivel,
+      })
       if (resultado.outcome === 'activated') {
         const passo = resultado.stepId ? sequencia!.steps.find((s) => s.id === resultado.stepId) : undefined
         setAvisoDaAtivacao({
@@ -521,6 +566,31 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         [campo]: valor,
       },
     }))
+  }
+
+  async function handleAlterarAgenda(patch: Partial<Pick<Sequencia, 'fuso' | 'diasUteis' | 'maximoDiario' | 'intervaloMinutos'>>) {
+    await atualizarDoc(patch)
+  }
+
+  async function handleLiberarPasso(step: StepSequencia) {
+    if (!fonteDeSequencias.liberarPassoManual) return
+    setEnviandoStepId(step.id)
+    setAvisoDoEnvio(null)
+    try {
+      const resultado = await fonteDeSequencias.liberarPassoManual(sequencia!.id, step.id)
+      setAvisoDoEnvio({
+        stepId: step.id,
+        tipo: resultado.outcome === 'released' ? 'ok' : 'atencao',
+        texto: resultado.outcome === 'released'
+          ? 'Passo liberado. O Destino autorizado não muda.'
+          : 'A liberação manual não autoriza o passo. Confirme a mensagem e o Destino antes.',
+      })
+    } catch (erro) {
+      setAvisoDoEnvio({ stepId: step.id, texto: erro instanceof Error ? erro.message : 'O passo não foi liberado.', tipo: 'atencao' })
+    } finally {
+      setEnviandoStepId(null)
+      recarregarEnvios()
+    }
   }
 
   async function handleSalvarStep(modificacoes: Partial<StepSequencia>) {
@@ -923,7 +993,35 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             Janela padrão
           </span>
           <div className="flex flex-wrap items-center gap-2 text-xs text-al-ink">
-            <span className="text-al-muted">Seg a sex, dias úteis ·</span>
+            <select
+              aria-label="Fuso da agenda"
+              value={fusoDaAgenda}
+              onChange={(e) => handleAlterarAgenda({ fuso: e.target.value })}
+              className="rounded-md h-7 border border-al-line bg-al-bg px-2 text-xs text-al-ink outline-none"
+            >
+              {FUSOS_VISIVEIS.map((fuso) => (
+                <option key={fuso.valor} value={fuso.valor} className="bg-al-surface">
+                  {fuso.rotulo}
+                </option>
+              ))}
+            </select>
+            <span className="text-al-muted" role="group" aria-label="Dias úteis">
+              {DIAS_VISIVEIS.map((dia) => (
+                <label key={dia.valor} className="mr-1.5 inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={diasDaAgenda.includes(dia.valor)}
+                    onChange={(e) => {
+                      const proximos = e.target.checked
+                        ? [...diasDaAgenda, dia.valor].sort((a, b) => a - b)
+                        : diasDaAgenda.filter((d) => d !== dia.valor)
+                      void handleAlterarAgenda({ diasUteis: proximos })
+                    }}
+                  />
+                  {dia.rotulo}
+                </label>
+              ))}
+            </span>
             <select
               aria-label="Horário inicial"
               value={sequencia.janelaPadrao.de}
@@ -949,8 +1047,35 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 </option>
               ))}
             </select>
-            <span className="text-[0.6875rem] text-al-muted">horário de Brasília</span>
+            <label className="inline-flex items-center gap-1 text-al-muted">
+              Máximo diário
+              <input
+                aria-label="Máximo diário da Conta"
+                type="number"
+                min={1}
+                max={50}
+                value={maximoDaAgenda}
+                onChange={(e) => handleAlterarAgenda({ maximoDiario: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                className="rounded-md w-14 h-7 border border-al-line bg-al-bg px-2 text-center text-xs text-al-ink outline-none"
+              />
+            </label>
+            <label className="inline-flex items-center gap-1 text-al-muted">
+              Intervalo
+              <input
+                aria-label="Intervalo mínimo em minutos"
+                type="number"
+                min={0}
+                max={1440}
+                value={intervaloDaAgenda}
+                onChange={(e) => handleAlterarAgenda({ intervaloMinutos: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="rounded-md w-16 h-7 border border-al-line bg-al-bg px-2 text-center text-xs text-al-ink outline-none"
+              />
+              min
+            </label>
           </div>
+          <span className="text-[0.6875rem] text-al-muted">
+            Estes valores aparecem antes de ativar. Uma mudança depois não altera o que já foi autorizado.
+          </span>
         </div>
       </div>
 
@@ -960,10 +1085,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           autorizacao={autorizacao ?? null}
           envios={envios ?? []}
           aviso={avisoDaAtivacao}
-          onAtivar={() => {
-            setAvisoDaAtivacao(null)
-            setDialogoAtivacaoAberto(true)
-          }}
+          onAtivar={abrirAtivacao}
         />
       )}
 
@@ -972,25 +1094,57 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           <DialogHeader>
             <DialogTitle>Ativar envios</DialogTitle>
             <DialogDescription>
-              Cada passo abaixo mostra o canal e o Destino que a ativação vai fixar. Os que estão liberados saem
-              sozinhos, na ordem, em dias úteis e dentro da janela de horário, mesmo com o navegador fechado. Uma resposta
-              do Contato pausa a Sequência.
+              Cada passo marcado fixa canal, mensagem, Contato e Destino. O que ficar de fora continua pendente e
+              só sai depois de uma nova confirmação. A agenda abaixo é a que o Executor vai usar.
             </DialogDescription>
           </DialogHeader>
+          <p className="text-xs text-al-muted" aria-label="Agenda a confirmar">
+            {FUSOS_VISIVEIS.find((fuso) => fuso.valor === agendaVisivel.fuso)?.rotulo ?? agendaVisivel.fuso}
+            {' · '}
+            {DIAS_VISIVEIS.filter((dia) => agendaVisivel.diasUteis.includes(dia.valor)).map((dia) => dia.rotulo).join(', ') || 'nenhum dia'}
+            {' · '}
+            {agendaVisivel.janela.de}–{agendaVisivel.janela.ate}
+            {' · '}
+            máximo diário {agendaVisivel.maximoDiario}
+            {' · '}
+            intervalo {agendaVisivel.intervaloMinutos} min
+          </p>
+          <label className="flex items-start gap-2 text-xs text-al-ink">
+            <input
+              type="checkbox"
+              checked={agendaConfirmada}
+              onChange={(e) => setAgendaConfirmada(e.target.checked)}
+            />
+            Confirmo o fuso, os dias úteis, a janela, o máximo diário e o intervalo
+          </label>
           <ol aria-label="Passos a ativar" className="flex min-w-0 flex-col gap-2 list-none p-0 m-0 text-xs">
             {passosDaAtivacao.map((s) => {
               const contato = contatosMap.get(s.contatoId)
               const leitura = leituraDoDestino(s, contato)
               const aviso = avisoDeChatQueNaoSai(s, canaisDeChat)
+              const situacao = situacaoNaAtivacao(s, contato, canaisDeChat)
+              const podeMarcar = situacao === 'sai'
               return (
                 <li key={s.id} className="flex min-w-0 flex-col gap-0.5 border-t border-al-line pt-2 first:border-t-0 first:pt-0">
-                  <span className="text-al-ink font-medium">{s.titulo}</span>
+                  <label className="flex items-center gap-2 text-al-ink font-medium">
+                    <input
+                      type="checkbox"
+                      aria-label={`Incluir ${s.titulo} nesta ativação`}
+                      checked={podeMarcar && passosMarcados.includes(s.id)}
+                      disabled={!podeMarcar}
+                      onChange={(e) => setPassosMarcados((atual) => e.target.checked
+                        ? [...atual, s.id]
+                        : atual.filter((id) => id !== s.id))}
+                    />
+                    <span>{s.titulo}</span>
+                  </label>
                   <span className="min-w-0 break-all text-al-muted">
                     {CANAIS_CONFIG[s.canal].rotulo} · {leitura.valor ?? leitura.ausencia}
                     {s.canal === 'email' ? ` · ${s.modoEmail === 'manual' ? 'manual: espera você enviar' : 'automático'}` : ''}
                     {s.delayDiasUteis > 0 ? ` · ${s.delayDiasUteis} ${s.delayDiasUteis === 1 ? 'dia útil' : 'dias úteis'} depois do anterior` : ''}
                   </span>
                   {aviso && <span className="text-al-atencao">{aviso}</span>}
+                  {!podeMarcar && !aviso && <span className="text-al-atencao">Este caminho fica pendente até ter Destino e conteúdo.</span>}
                 </li>
               )
             })}
@@ -1218,6 +1372,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             enviando={enviandoStepId === stepAtivo.id}
             avisoDoEnvio={avisoDoEnvio?.stepId === stepAtivo.id ? avisoDoEnvio : null}
             onConfirmarEEnviar={permiteAcoesDeDemonstracao ? undefined : () => handleConfirmarEEnviar(stepAtivo)}
+            onLiberar={permiteAcoesDeDemonstracao ? undefined : () => handleLiberarPasso(stepAtivo)}
             onResolverIncerto={permiteAcoesDeDemonstracao ? undefined : (saiu) => handleResolverIncerto(stepAtivo, saiu)}
             onEditarDestinos={(c) => {
               setContatoParaEditarDestinos(c)
@@ -1339,6 +1494,8 @@ interface ComposerStepProps {
   avisoDoEnvio?: AvisoDoEnvio | null
   /** Sem ele (Demonstração), nenhum envio real é oferecido. */
   onConfirmarEEnviar?: () => void
+  /** Libera um passo manual já autorizado. Não dispensa a autorização. */
+  onLiberar?: () => void
   onResolverIncerto?: (saiu: boolean) => void
 }
 
@@ -1420,6 +1577,7 @@ function ComposerStep({
   enviando = false,
   avisoDoEnvio = null,
   onConfirmarEEnviar,
+  onLiberar,
   onResolverIncerto,
 }: ComposerStepProps) {
   const naDemonstracao = useAmbiente().modo === 'demonstracao'
@@ -1736,7 +1894,19 @@ function ComposerStep({
             </select>
           )}
           {step.liberacao === 'manual' ? (
-            <span className="text-al-muted">Só sai quando você liberar</span>
+            <span className="inline-flex items-center gap-2 text-al-muted">
+              Só sai quando você liberar
+              {envio?.status === 'waiting' && onLiberar && (
+                <button
+                  type="button"
+                  onClick={onLiberar}
+                  disabled={enviando}
+                  className="rounded-md border border-al-line px-2 py-0.5 text-al-ink hover:border-al-ink"
+                >
+                  Liberar passo
+                </button>
+              )}
+            </span>
           ) : step.liberacao == null && indice === 0 ? (
             <span className="text-al-muted">Começa assim que a sequência for aprovada</span>
           ) : (

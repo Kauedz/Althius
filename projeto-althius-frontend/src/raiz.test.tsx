@@ -924,9 +924,22 @@ describe('Envios automáticos da Sequência no Workspace operacional', () => {
     const passos = within(dialogo).getByRole('list', { name: 'Passos a ativar' })
     expect(within(passos).getByText('Primeiro contato')).toBeInTheDocument()
     expect(within(passos).getByText(/automático/)).toBeInTheDocument()
+    expect(within(dialogo).getByLabelText('Agenda a confirmar')).toHaveTextContent(/máximo diário 3/)
+    expect(within(dialogo).getByRole('button', { name: 'Ativar' })).toBeDisabled()
+    await usuario.click(within(dialogo).getByRole('checkbox', { name: /Confirmo o fuso/i }))
     await usuario.click(within(dialogo).getByRole('button', { name: 'Ativar' }))
 
-    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina' }])
+    expect(pedidos).toEqual([{
+      p_sequence_id: 'sequencia-da-marina',
+      p_step_ids: ['passo-1'],
+      p_agenda: {
+        fuso: 'America/Sao_Paulo',
+        diasUteis: [1, 2, 3, 4, 5],
+        janela: { de: '09:00', ate: '17:00' },
+        maximoDiario: 3,
+        intervaloMinutos: 30,
+      },
+    }])
     expect(await within(painel).findByRole('status')).toHaveTextContent('Envios ativados. "Primeiro contato" sai qua., 30/09, 10:00.')
     expect(await within(painel).findByText('Envios ativos. Próximo: "Primeiro contato", qua., 30/09, 10:00.')).toBeInTheDocument()
     expect(within(painel).queryByRole('button', { name: /Ativar/ })).not.toBeInTheDocument()
@@ -940,7 +953,9 @@ describe('Envios automáticos da Sequência no Workspace operacional', () => {
       rpcs: { activate_sequence: () => [{ outcome: 'contact_without_email', step_id: 'passo-1', version: null, scheduled_for: null }] },
     })
     await usuario.click(await screen.findByRole('button', { name: 'Ativar envios' }))
-    await usuario.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ativar' }))
+    const dialogoSemEmail = await screen.findByRole('dialog')
+    await usuario.click(within(dialogoSemEmail).getByRole('checkbox', { name: /Confirmo o fuso/i }))
+    await usuario.click(within(dialogoSemEmail).getByRole('button', { name: 'Ativar' }))
     const painel = screen.getByRole('region', { name: 'Envios automáticos' })
     expect(await within(painel).findByRole('status')).toHaveTextContent(
       'O Contato de um passo não tem e-mail. Cadastre o e-mail antes de ativar. Passo: "Primeiro contato".')
@@ -951,7 +966,9 @@ describe('Envios automáticos da Sequência no Workspace operacional', () => {
       rpcs: { activate_sequence: () => [{ outcome: 'destination_not_found', step_id: 'passo-1', version: null, scheduled_for: null }] },
     })
     await usuario.click(await screen.findByRole('button', { name: 'Ativar envios' }))
-    await usuario.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ativar' }))
+    const dialogoSemEmail = await screen.findByRole('dialog')
+    await usuario.click(within(dialogoSemEmail).getByRole('checkbox', { name: /Confirmo o fuso/i }))
+    await usuario.click(within(dialogoSemEmail).getByRole('button', { name: 'Ativar' }))
     const painel = screen.getByRole('region', { name: 'Envios automáticos' })
     expect(await within(painel).findByRole('status')).toHaveTextContent(
       'Um passo escolhe um número de e-mail que o Contato não tem. Ajuste o passo antes de ativar. Passo: "Primeiro contato".')

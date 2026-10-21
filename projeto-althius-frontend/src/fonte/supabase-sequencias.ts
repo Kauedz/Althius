@@ -30,6 +30,10 @@ const MOTIVO_DE_ENCERRAMENTO: Record<string, MotivoDeEncerramento> = {
 interface DocumentoPrivado {
   participantesIds?: string[]
   janelaPadrao?: { de: string; ate: string }
+  fuso?: string
+  diasUteis?: number[]
+  maximoDiario?: number
+  intervaloMinutos?: number
   regraDePause?: string
   steps?: StepSequencia[]
   passoAtual?: number
@@ -74,6 +78,8 @@ const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   linkedin_profile_invalid: 'O LinkedIn do Contato não é o endereço de um perfil (linkedin.com/in/...). Corrija antes de ativar.',
   invalid_linkedin_subtype: 'Um passo de LinkedIn está sem tipo válido (convite ou mensagem). Ajuste o passo.',
   invite_note_too_long: 'A nota de um convite do LinkedIn passou do limite de caracteres. Encurte a nota antes de ativar.',
+  agenda_invalida: 'Confirme um fuso válido, dias úteis de segunda a sexta, janela, máximo diário e intervalo antes de ativar.',
+  predecessor_not_confirmed: 'Um passo depende de outro que ainda não foi confirmado nesta ativação nem enviado.',
   whatsapp_sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar. Conecte o WhatsApp antes de ativar.',
   linkedin_sender_not_ready: 'Sua Conta remetente de LinkedIn não está pronta para enviar. Conecte o LinkedIn antes de ativar.',
   // Os anexos do passo (canais-10).
@@ -270,6 +276,10 @@ function mapear(row: RegistroSequencia, ehResponsavel: boolean, canalDaPausa?: C
     totalSteps: ehResponsavel ? steps.length : numeroSeguro(resumo.totalSteps),
     participantesIds,
     janelaPadrao: documento?.janelaPadrao ?? JANELA_PADRAO,
+    ...(documento?.fuso ? { fuso: documento.fuso } : {}),
+    ...(documento?.diasUteis ? { diasUteis: documento.diasUteis } : {}),
+    ...(documento?.maximoDiario != null ? { maximoDiario: documento.maximoDiario } : {}),
+    ...(documento?.intervaloMinutos != null ? { intervaloMinutos: documento.intervaloMinutos } : {}),
     regraDePause: documento?.regraDePause ?? REGRA_DE_PAUSE_PADRAO,
     steps,
     passoAtual: documento?.passoAtual ?? numeroSeguro(resumo.passoAtual),
@@ -550,6 +560,10 @@ export function criarFonteDeSequenciasSupabase(
       const novoDocumento: DocumentoPrivado = {
         participantesIds: atualizacao.participantesIds ?? atual.participantesIds,
         janelaPadrao: atualizacao.janelaPadrao ?? atual.janelaPadrao,
+        fuso: atualizacao.fuso ?? atual.fuso,
+        diasUteis: atualizacao.diasUteis ?? atual.diasUteis,
+        maximoDiario: atualizacao.maximoDiario ?? atual.maximoDiario,
+        intervaloMinutos: atualizacao.intervaloMinutos ?? atual.intervaloMinutos,
         regraDePause: atualizacao.regraDePause ?? atual.regraDePause,
         steps: atualizacao.steps ? anexosDoDocumento(atualizacao.steps) : atual.steps,
         passoAtual: atual.passoAtual,
@@ -662,8 +676,20 @@ export function criarFonteDeSequenciasSupabase(
         ...(linha.revoked_reason ? { motivoDaRevogacao: linha.revoked_reason } : {}),
       }
     },
-    async ativarEnvios(sequenciaId) {
-      const { data, error } = await cliente.rpc('activate_sequence', { p_sequence_id: sequenciaId })
+    async ativarEnvios(sequenciaId, pedido) {
+      const { data, error } = await cliente.rpc('activate_sequence', pedido
+        ? {
+            p_sequence_id: sequenciaId,
+            p_step_ids: pedido.stepIds,
+            p_agenda: {
+              fuso: pedido.agenda.fuso,
+              diasUteis: pedido.agenda.diasUteis,
+              janela: pedido.agenda.janela,
+              maximoDiario: pedido.agenda.maximoDiario,
+              intervaloMinutos: pedido.agenda.intervaloMinutos,
+            },
+          }
+        : { p_sequence_id: sequenciaId })
       if (error) throw converterErro(error)
       notificar()
       const linha = (Array.isArray(data) ? data[0] : data) as
@@ -676,6 +702,20 @@ export function criarFonteDeSequenciasSupabase(
         ...(linha.version ? { versao: linha.version } : {}),
         ...(linha.scheduled_for ? { programadoPara: linha.scheduled_for } : {}),
         ...(MENSAGEM_DA_ATIVACAO[linha.outcome] ? { mensagem: MENSAGEM_DA_ATIVACAO[linha.outcome] } : {}),
+      }
+    },
+    async liberarPassoManual(sequenciaId, stepId) {
+      const { data, error } = await cliente.rpc('release_manual_sequence_step', {
+        p_sequence_id: sequenciaId,
+        p_step_id: stepId,
+      })
+      if (error) throw converterErro(error)
+      notificar()
+      const linha = (Array.isArray(data) ? data[0] : data) as { outcome: string; scheduled_for: string | null } | null
+      if (!linha) throw new Error('O banco não respondeu à liberação do passo.')
+      return {
+        outcome: linha.outcome,
+        ...(linha.scheduled_for ? { programadoPara: linha.scheduled_for } : {}),
       }
     },
     async canaisDeChatLiberados() {

@@ -28,7 +28,9 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
 
     // Janela padrão
     expect(screen.getByText(/Janela padrão/i)).toBeInTheDocument()
-    expect(screen.getByText(/Seg a sex, dias úteis/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Fuso da agenda')).toBeInTheDocument()
+    expect(screen.getByLabelText('Máximo diário da Conta')).toBeInTheDocument()
+    expect(screen.getByLabelText('Intervalo mínimo em minutos')).toBeInTheDocument()
 
     // Timeline lateral com resumo e steps
     expect(screen.getByText(/6 steps · 9 dias úteis/i)).toBeInTheDocument()
