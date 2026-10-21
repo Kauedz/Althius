@@ -31,7 +31,7 @@ interface RegistroDoMonitor {
   signal_type: string
   name: string
   state: EstadoDoMonitoramento
-  audience: { accountIds?: string[] } | null
+  audience: { accountIds?: string[]; escopo?: string } | null
   criteria: Record<string, unknown> | null
   last_error: string | null
   last_run?: {
@@ -79,6 +79,18 @@ function converterErro(error: { message: string; code?: string }): Error {
   }
   if (error.message.includes('an active monitor needs at least one target account')) {
     return new Error('Escolha ao menos uma Conta-alvo para ativar o Monitoramento.')
+  }
+  if (error.message.includes('a market monitor needs at least one role and a country')) {
+    return new Error('No mercado endereçável, escolha ao menos um cargo e o país para ativar.')
+  }
+  if (error.message.includes('market monitor limits exceeded')) {
+    return new Error('Confira os critérios: nicho e cargos Custom têm até 60 caracteres, até 10 cargos Custom, sem repetir.')
+  }
+  if (error.message.includes('the market scope needs an active contract')) {
+    return new Error('O mercado endereçável precisa de contrato ativo. Fale com a equipe Althius.')
+  }
+  if (error.message.includes('the market scope is only for job openings')) {
+    return new Error('O mercado endereçável existe só em Abertura de vagas.')
   }
   if (error.message.includes('only the creator or an administrator')) {
     return new Error('Só quem criou o Monitoramento, ou um Administrador, pode mudá-lo.')
@@ -200,7 +212,12 @@ function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<str
     tipoId,
     nome: linha.name,
     estado: linha.state,
-    publico: { modo: 'listas', listas: linha.audience?.accountIds ?? [], usaRecomendado: false },
+    publico: {
+      modo: 'listas',
+      listas: linha.audience?.accountIds ?? [],
+      usaRecomendado: false,
+      ...(linha.audience?.escopo === 'mercado' ? { escopo: 'mercado' as const } : {}),
+    },
     criterios: linha.criteria ?? {},
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
@@ -358,7 +375,8 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         p_signal_type: sinal,
         p_name: m.nome,
         p_state: m.estado ?? 'rascunho',
-        p_audience: { accountIds: m.publico?.listas ?? [] },
+        // No mercado endereçável não há Conta-alvo escolhida; no modo Contas-alvo, o público é o de sempre.
+        p_audience: m.publico?.escopo === 'mercado' ? { escopo: 'mercado', accountIds: [] } : { accountIds: m.publico?.listas ?? [] },
         p_criteria: m.criterios ?? {},
         p_every_hours: 24,
       })) as string

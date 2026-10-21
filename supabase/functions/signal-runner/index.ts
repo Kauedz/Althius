@@ -136,6 +136,11 @@ const db: Db = {
     })
     if (error) throw falha(error)
   },
+  async escopo(monitorId) {
+    const { data, error } = await admin.rpc('signal_monitor_scope', { p_monitor_id: monitorId })
+    if (error) throw falha(error)
+    return data === 'mercado' ? 'mercado' : 'contas'
+  },
   async finish(monitorId, attempted, error, continuar) {
     const { error: e } = await admin.rpc('finish_signal_monitor_run', {
       p_monitor_id: monitorId,

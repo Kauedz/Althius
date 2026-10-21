@@ -40,6 +40,18 @@ import {
   manterCargosCustom,
 } from './criterios-custom'
 import { podeMonitorar } from './disponibilidade'
+import {
+  ESTADOS_DO_BRASIL,
+  PAISES_DO_MERCADO,
+  comEstado,
+  comPais,
+  custoDoMercado,
+  estadoDoMercado,
+  noMercado,
+  paisDoMercado,
+  resumoDoMercado,
+  trocarEscopo,
+} from './mercado-enderecavel'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
 import { criteriosFormatados, resumoDasContas, resumoDoPublico } from './resumos'
@@ -196,6 +208,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const personalizado = tipo.id === TIPO_PERSONALIZADO.id
   // O Sinal interno real sai só das Interações do Workspace: sem fornecedor, sem crédito e só com o prazo.
   const interno = operacional && TIPOS_INTERNOS_REAIS.has(tipo.id)
+  // Abertura de vagas no Workspace operacional escolhe onde procurar: nas Contas-alvo ou no mercado endereçável.
+  const vagasReais = operacional && !interno && tipo.id === 'abertura-de-vagas'
 
   const [monitoramento, setMonitoramento] = useState<MonitoramentoNoEditor>(
     () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional, interno),
@@ -305,6 +319,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                   aoMudar={(criterios) => mudar({ criterios })}
                   tipoInterno={interno ? tipo.id : undefined}
                   tipoId={tipo.id}
+                  ocultar={vagasReais && noMercado(monitoramento.publico) ? ['localizacao'] : undefined}
                 />
               )
             )}
@@ -317,6 +332,14 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                   interno
                     ? 'O Monitoramento interno lê só as Interações destas Contas e não gasta crédito.'
                     : ajudaDoCusto(tipo.id)
+                }
+                mercado={
+                  vagasReais
+                    ? {
+                        criterios: monitoramento.criterios,
+                        aoMudar: (publico, criterios) => mudar({ publico, criterios }),
+                      }
+                    : undefined
                 }
               />
             ) : (
@@ -459,6 +482,7 @@ function CriteriosProntos({
   aoMudar,
   tipoInterno,
   tipoId,
+  ocultar,
 }: {
   formulario: Formulario
   criterios: Criterios
@@ -466,8 +490,11 @@ function CriteriosProntos({
   /** O tipo, quando é um Sinal interno real: só os critérios que a avaliação usa e o que ele observa nas Interações. */
   tipoInterno?: string
   tipoId?: string
+  /** Campos que outra seção cuida (a Localização, no público do mercado endereçável). */
+  ocultar?: string[]
 }) {
-  const campos = tipoInterno ? CAMPOS[formulario].filter((campo) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo.id)) : CAMPOS[formulario]
+  const campos = (tipoInterno ? CAMPOS[formulario].filter((campo) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo.id)) : CAMPOS[formulario])
+    .filter((campo) => !ocultar?.includes(campo.id))
   const nichoDoCargo = tipoId === 'abertura-de-vagas' ? (typeof criterios.nicho === 'string' && criterios.nicho ? criterios.nicho : 'qualquer') : null
   const cargosDoFiltro = nichoDoCargo && nichoDoCargo !== 'qualquer' && nichoDoCargo !== NICHO_CUSTOM ? cargosDoNicho(nichoDoCargo) : null
   const funcoesMarcadas = Array.isArray(criterios.funcoes) ? criterios.funcoes : []
@@ -703,52 +730,128 @@ function CampoDeCriterio({
 
 /**
  * O público no Workspace operacional: as Contas-alvo do Workspace que o Monitoramento varre. A descoberta por perfil não
- * roda de verdade e não aparece; as listas de exemplo ficam só na Demonstração.
+ * roda de verdade e não aparece; as listas de exemplo ficam só na Demonstração. Em Abertura de vagas (`mercado`), a pessoa
+ * escolhe também o mercado endereçável: em vez das Contas-alvo, o país e o estado em que procurar empresas contratando.
  */
 function PublicoDeContasReais({
   publico,
   aoMudar,
   ajuda,
+  mercado,
 }: {
   publico: Publico
   aoMudar: (publico: Publico) => void
   ajuda: string
+  mercado?: { criterios: Criterios; aoMudar: (publico: Publico, criterios: Criterios) => void }
 }) {
-  const { dados: contas, erro, recarregar } = useDadosDeContas((f) => f.contas(), [])
+  const noMercadoAgora = !!mercado && noMercado(publico)
+  const escolher = (escopo: 'contas' | 'mercado') => {
+    if (!mercado || (escopo === 'mercado') === noMercadoAgora) return
+    const novo = trocarEscopo(publico, mercado.criterios, escopo)
+    mercado.aoMudar(novo.publico, novo.criterios)
+  }
 
   return (
-    <SecaoDoFormulario numero="03" titulo="Público" descricao="As Contas-alvo do Workspace em que procurar os Sinais.">
-      {erro ? (
-        <div role="alert" className="rounded-xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-4">
-          <p className="text-sm text-al-muted">Não foi possível carregar as Contas-alvo.</p>
-          <button type="button" onClick={recarregar} className={BOTAO_SECUNDARIO}>
-            Tentar de novo
-          </button>
-        </div>
-      ) : !contas ? (
-        <Carregando />
-      ) : contas.length === 0 ? (
-        <p className="text-sm text-al-muted">
-          Nenhuma Conta-alvo neste Workspace. Cadastre ou importe em{' '}
-          <Link to="/contas" className="text-al-ink underline-offset-4 hover:underline">
-            Contas
-          </Link>{' '}
-          para escolher o público.
-        </p>
-      ) : (
-        <Grupo rotulo="Contas-alvo" ajuda={ajuda} papel="group">
-          {contas.map((conta) => (
-            <Opcao
-              key={conta.id}
-              marcada={publico.listas.includes(conta.id)}
-              aoClicar={() => aoMudar({ ...publico, listas: alternar(publico.listas, conta.id) })}
-            >
-              {conta.nome} {conta.dominio && <span className="text-al-muted">· {conta.dominio}</span>}
-            </Opcao>
-          ))}
+    <SecaoDoFormulario
+      numero="03"
+      titulo="Público"
+      descricao={
+        noMercadoAgora
+          ? 'Empresas do mercado endereçável que estão contratando os cargos escolhidos.'
+          : 'As Contas-alvo do Workspace em que procurar os Sinais.'
+      }
+    >
+      {mercado && (
+        <Grupo rotulo="Onde procurar" papel="radiogroup">
+          <Opcao papel="radio" marcada={!noMercadoAgora} aoClicar={() => escolher('contas')}>
+            Contas-alvo
+          </Opcao>
+          <Opcao papel="radio" marcada={noMercadoAgora} aoClicar={() => escolher('mercado')}>
+            Mercado endereçável (ICP)
+          </Opcao>
         </Grupo>
       )}
+      {mercado && noMercadoAgora ? (
+        <PublicoDoMercado criterios={mercado.criterios} aoMudar={(criterios) => mercado.aoMudar(publico, criterios)} />
+      ) : (
+        <ContasDoWorkspace publico={publico} aoMudar={aoMudar} ajuda={ajuda} />
+      )}
     </SecaoDoFormulario>
+  )
+}
+
+function ContasDoWorkspace({ publico, aoMudar, ajuda }: { publico: Publico; aoMudar: (publico: Publico) => void; ajuda: string }) {
+  const { dados: contas, erro, recarregar } = useDadosDeContas((f) => f.contas(), [])
+  if (erro) {
+    return (
+      <div role="alert" className="rounded-xl flex flex-col items-start gap-3 border border-al-line bg-al-surface p-4">
+        <p className="text-sm text-al-muted">Não foi possível carregar as Contas-alvo.</p>
+        <button type="button" onClick={recarregar} className={BOTAO_SECUNDARIO}>
+          Tentar de novo
+        </button>
+      </div>
+    )
+  }
+  if (!contas) return <Carregando />
+  if (contas.length === 0) {
+    return (
+      <p className="text-sm text-al-muted">
+        Nenhuma Conta-alvo neste Workspace. Cadastre ou importe em{' '}
+        <Link to="/contas" className="text-al-ink underline-offset-4 hover:underline">
+          Contas
+        </Link>{' '}
+        para escolher o público.
+      </p>
+    )
+  }
+  return (
+    <Grupo rotulo="Contas-alvo" ajuda={ajuda} papel="group">
+      {contas.map((conta) => (
+        <Opcao
+          key={conta.id}
+          marcada={publico.listas.includes(conta.id)}
+          aoClicar={() => aoMudar({ ...publico, listas: alternar(publico.listas, conta.id) })}
+        >
+          {conta.nome} {conta.dominio && <span className="text-al-muted">· {conta.dominio}</span>}
+        </Opcao>
+      ))}
+    </Grupo>
+  )
+}
+
+/** O país (obrigatório para ativar) e o estado (opcional, só no Brasil) do mercado endereçável, e o custo da rodada. */
+function PublicoDoMercado({ criterios, aoMudar }: { criterios: Criterios; aoMudar: (criterios: Criterios) => void }) {
+  const pais = paisDoMercado(criterios)
+  return (
+    <div className="flex flex-col gap-6">
+      <Grupo rotulo="País" papel="radiogroup">
+        {PAISES_DO_MERCADO.map((opcao) => (
+          <Opcao key={opcao} papel="radio" marcada={pais === opcao} aoClicar={() => aoMudar(comPais(criterios, opcao))}>
+            {opcao}
+          </Opcao>
+        ))}
+      </Grupo>
+      {pais === 'Brasil' && (
+        <Rotulado rotulo="Estado" ajuda="Opcional. Sem estado, a busca vale para o país todo.">
+          <select
+            value={estadoDoMercado(criterios)}
+            onChange={(e) => aoMudar(comEstado(criterios, e.target.value))}
+            className="campo h-10"
+          >
+            <option value="">Todos os estados</option>
+            {ESTADOS_DO_BRASIL.map((estado) => (
+              <option key={estado} value={estado}>
+                {estado}
+              </option>
+            ))}
+          </select>
+        </Rotulado>
+      )}
+      <p className="rounded-xl bg-al-atencao-suave px-4 py-3 text-sm text-al-ink">
+        {custoDoMercado()} As empresas que ainda não são Contas-alvo entram na Caixa de Descobertas para você aceitar ou
+        descartar; nenhuma vira Conta nem recebe mensagem sozinha.
+      </p>
+    </div>
   )
 }
 
@@ -1067,9 +1170,14 @@ function Revisao({
   } else {
     for (const { rotulo, texto } of criteriosFormatados(monitoramento)) linhas.push([rotulo, texto])
   }
+  const mercado = operacional && noMercado(monitoramento.publico)
   linhas.push([
     'Público',
-    operacional ? <ContasDoPublico key="publico" ids={monitoramento.publico.listas} /> : resumoDoPublico(monitoramento.publico),
+    mercado
+      ? resumoDoMercado(monitoramento.criterios)
+      : operacional
+        ? <ContasDoPublico key="publico" ids={monitoramento.publico.listas} />
+        : resumoDoPublico(monitoramento.publico),
   ])
   linhas.push(['Validade', `Cada Sinal deixa a Conta-alvo Quente por ${VALIDADE_EM_DIAS} dias a partir do disparo`])
 
@@ -1094,7 +1202,7 @@ function Revisao({
         </p>
       ) : operacional ? (
         <p className="text-sm text-al-muted">
-          {ajudaDoCusto(monitoramento.tipoId)} A varredura automática só roda dentro do teto aprovado em{' '}
+          {mercado ? custoDoMercado() : ajudaDoCusto(monitoramento.tipoId)} A varredura automática só roda dentro do teto aprovado em{' '}
           <Link to="/configuracoes/automacao" className="text-al-ink underline-offset-4 hover:underline">
             Automação e tetos
           </Link>

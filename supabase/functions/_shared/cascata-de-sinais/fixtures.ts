@@ -52,3 +52,43 @@ export function cascataVagaComex(extra: Partial<CascataDef> = {}): CascataDef {
     ...extra,
   }
 }
+
+/** A cascata da descoberta no mercado endereçável como o banco a registra (20261114120000_vagas_no_mercado_enderecavel.sql). */
+export function cascataVagaMercado(extra: Partial<CascataDef> = {}): CascataDef {
+  return {
+    id: 'cascata-mercado',
+    signalType: 'vaga_mercado',
+    icp: '*',
+    name: 'Vagas no mercado endereçável',
+    version: 1,
+    state: 'available',
+    semFonteMotivo: null,
+    scope: 'conta',
+    multiplier: 1,
+    capUsd: 0.5,
+    capCredits: 4,
+    cadenceHours: 24,
+    maxAccounts: 500,
+    steps: [
+      {
+        ordem: 1, kind: 'actor', handler: 'linkedin_vagas_mercado', actorId: 'curious_coder~linkedin-jobs-scraper',
+        fallbacks: [{ kind: 'actor', actorId: 'valig~linkedin-jobs-scraper', priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.001, estPerItemUsd: 0.0004 }],
+        inputTemplate: { pais: 'Brazil', janelaDias: 30 },
+        priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.00005, estPerItemUsd: 0.002, estItems: 100, maxItems: 100,
+      },
+      {
+        ordem: 2, kind: 'regra', handler: 'confirmar_vaga_mercado', actorId: null, fallbacks: [], inputTemplate: {},
+        priceModel: 'NONE', estFixedUsd: 0, estPerItemUsd: 0, estItems: 0, maxItems: null,
+      },
+      {
+        ordem: 3, kind: 'actor', handler: 'linkedin_empresa_mercado', actorId: 'harvestapi~linkedin-company', fallbacks: [], inputTemplate: {},
+        priceModel: 'PAY_PER_EVENT', estFixedUsd: 0.00005, estPerItemUsd: 0.004, estItems: 25, maxItems: 25,
+      },
+      {
+        ordem: 4, kind: 'regra', handler: 'casar_com_contas', actorId: null, fallbacks: [], inputTemplate: { semSiteViraCandidata: true },
+        priceModel: 'NONE', estFixedUsd: 0, estPerItemUsd: 0, estItems: 0, maxItems: null,
+      },
+    ],
+    ...extra,
+  }
+}
