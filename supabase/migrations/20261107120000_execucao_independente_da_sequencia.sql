@@ -265,6 +265,7 @@ begin
       and e.scheduled_for <= private.clock_now()
       and (e.claimed_until is null or e.claimed_until < now())
       and (a.document ->> 'maximoDiario') ~ '^[0-9]+$'
+      and private.automation_contract_block(s.workspace_id) is null
   loop
     perform pg_catalog.pg_advisory_xact_lock(hashtext(v_workspace::text || ':' || v_account));
     v_kept := array[]::timestamptz[];
@@ -557,6 +558,7 @@ begin
     where e.channel = 'email'
       and e.status = 'scheduled' and e.scheduled_for <= private.clock_now()
       and (e.claimed_until is null or e.claimed_until < now())
+      and private.automation_contract_block(e.workspace_id) is null
   ), due as (
     select e.id from private.sequence_step_sends e
     join eligible g on g.id = e.id and g.rn = 1
@@ -597,6 +599,7 @@ begin
     where e.channel in ('whatsapp', 'linkedin') and private.chat_channel_enabled(e.channel)
       and e.status = 'scheduled' and e.scheduled_for <= private.clock_now()
       and (e.claimed_until is null or e.claimed_until < now())
+      and private.automation_contract_block(e.workspace_id) is null
   ), due as (
     select e.id from private.sequence_step_sends e
     join eligible g on g.id = e.id and g.rn = 1
@@ -805,7 +808,7 @@ begin
   where sequence_id = v_sequence.id and revoked_at is null;
   select coalesce(max(a.version), 0) + 1 into v_version
   from private.sequence_authorizations a where a.sequence_id = v_sequence.id;
-  insert into private.sequence_authorizations (sequence_id, version, document, authorized_by)
+  insert into private.sequence_authorizations (sequence_id, version, document, authorized_by, authorized_at)
   values (v_sequence.id, v_version, jsonb_build_object(
     'steps', v_authorized_steps,
     'janelaPadrao', p_agenda -> 'janela',
@@ -813,7 +816,7 @@ begin
     'diasUteis', p_agenda -> 'diasUteis',
     'maximoDiario', (p_agenda ->> 'maximoDiario')::integer,
     'intervaloMinutos', (p_agenda ->> 'intervaloMinutos')::integer
-  ), v_user_id)
+  ), v_user_id, private.clock_now())
   returning * into v_auth;
 
   for v_item in select value from jsonb_array_elements(v_pending) loop

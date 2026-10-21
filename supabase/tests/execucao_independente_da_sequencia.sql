@@ -41,6 +41,17 @@ select is(
   '2026-10-05 09:00-03'::timestamptz,
   'a Wednesday is not eligible when only Monday was confirmed');
 
+create function pg_temp.envios(p_sequence uuid, p_step text default null)
+returns setof private.sequence_step_sends
+language sql
+security definer
+set search_path = ''
+as $f$
+  select e.* from private.sequence_step_sends e
+  where e.sequence_id = p_sequence and (p_step is null or e.step_id = p_step);
+$f$;
+grant execute on function pg_temp.envios(uuid, text) to authenticated, service_role;
+
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', 'e2000000-0000-0000-0000-000000000001', true);
@@ -213,12 +224,10 @@ select set_config('request.jwt.claim.sub', 'e2000000-0000-0000-0000-000000000001
 select public.activate_sequence(
   (select valor::uuid from ids where chave = 'parcial'), array['p2'], pg_temp.agenda(1, 0));
 select is(
-  (select destination from private.sequence_step_sends
-    where sequence_id = (select valor::uuid from ids where chave = 'parcial') and step_id = 'p1'),
+  (select destination from pg_temp.envios((select valor::uuid from ids where chave = 'parcial'), 'p1')),
   'maria-parcial@e2.test', 'a later confirmation does not rewrite a destination already sent');
 select is(
-  (select count(*)::int from private.sequence_step_sends
-    where sequence_id = (select valor::uuid from ids where chave = 'parcial') and step_id = 'p2'),
+  (select count(*)::int from pg_temp.envios((select valor::uuid from ids where chave = 'parcial'), 'p2')),
   1, 'the newly confirmed path gets one send');
 
 reset role;
@@ -235,18 +244,18 @@ set local role service_role;
 select is(
   (select count(*)::int from public.claim_due_step_sends(10)
     where send_id in (
-      select id from private.sequence_step_sends
-      where sequence_id = (select valor::uuid from ids where chave = 'paralela') and step_id in ('a', 'b'))),
+      select id from pg_temp.envios((select valor::uuid from ids where chave = 'paralela'))
+      where step_id in ('a', 'b'))),
   1, 'two due paths of the same account reserve only one slot');
 select is(
-  (select count(*)::int from private.sequence_step_sends
-    where sequence_id = (select valor::uuid from ids where chave = 'paralela') and step_id in ('a', 'b')),
+  (select count(*)::int from pg_temp.envios((select valor::uuid from ids where chave = 'paralela'))
+    where step_id in ('a', 'b')),
   2, 'the deferred path is the same row, not a duplicate send');
 select is(
   (select count(*)::int from public.claim_due_step_sends(10)
     where send_id in (
-      select id from private.sequence_step_sends
-      where sequence_id = (select valor::uuid from ids where chave = 'paralela') and step_id in ('a', 'b'))),
+      select id from pg_temp.envios((select valor::uuid from ids where chave = 'paralela'))
+      where step_id in ('a', 'b'))),
   0, 'a second reservation does not take the claimed or deferred path');
 
 select * from finish();
