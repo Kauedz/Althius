@@ -10,30 +10,43 @@ Tudo fica em `/opt/althius-web/`:
 
 | Caminho | Para que serve |
 | --- | --- |
-| `publish.sh <ref>` | Publica: `git fetch` em `src/`, build num container `node:22`, backup do `dist` atual, troca do `dist`, conferência e rollback automático se a conferência falhar. Exige `SSH_AUTH_SOCK` (agente SSH encaminhado). |
+| `publish.sh <ref>` | Publica: `git fetch` em `src/`, build num container `node:22`, backup do `dist` atual, troca do `dist`, conferência e rollback automático se a conferência falhar. Exige `SSH_AUTH_SOCK` (um agente SSH, mesmo vazio: o `src/` busca por https). Guarda os 5 backups mais recentes. |
+| `auto-publish.sh` | A publicação automática (abaixo): confere a `main` e, se mudou e o CI passou, chama o `publish.sh main`. |
+| `COMMIT` | O commit no ar, gravado pelo `publish.sh`. |
 | `rollback.sh` | Volta o `dist` para um backup anterior. Leia o cabeçalho antes de usar: `sed -n 1,40p /opt/althius-web/rollback.sh`. |
-| `src/` | Clone do repositório `Kauedz/althius` usado no build. |
+| `src/` | Clone do repositório `Kauedz/althius` usado no build, com o remoto em https (o repositório é público). |
 | `Caddyfile` | Configuração do Caddy, montada no container `althius-web`. Cabeçalhos de segurança (CSP, HSTS) e de cache. |
+
+Fora dela: as unidades `althius-auto-publish.service` e `althius-auto-publish.timer` em `/etc/systemd/system/`, o
+estado em `/var/lib/althius-auto-publish/` e o log em `/var/log/althius-auto-publish.log`.
 
 ## Como uma publicação acontece
 
-1. Um push chega na `main` do `Kauedz/althius` (merge de PR).
-2. O workflow `CI` roda.
-3. Se o CI passar, o workflow `Publicar frontend` (`.github/workflows/publicar-frontend.yml`) confere que o commit
-   ainda é a ponta da `main`, abre SSH como `root` na VPS e roda `/opt/althius-web/publish.sh main`. Se a `main` já
-   andou, ele não publica: o CI do commit mais novo chama a publicação dele.
-4. No fim, confere que `https://app.althius.com.br/` responde 200 e mostra o `Cache-Control` do `index.html`.
+A VPS puxa; o GitHub não precisa de nenhum segredo.
 
-Para publicar sem push (repetir uma publicação que falhou, por exemplo): Actions > Publicar frontend > Run workflow,
-ou `gh workflow run publicar-frontend.yml --repo Kauedz/althius`.
+1. Um push chega na `main` do `Kauedz/althius` (merge de PR) e o workflow `CI` roda.
+2. A cada 5 minutos, o timer `althius-auto-publish.timer` roda `/opt/althius-web/auto-publish.sh`, que:
+   - lê a ponta da `main` com `git ls-remote` (https, sem chave);
+   - se ela já é o `COMMIT` no ar, não faz nada;
+   - pergunta à API pública do GitHub (sem token) pelo workflow `ci.yml` do push desse commit. Ainda rodando: espera a
+     próxima rodada. Falhou: não publica e registra no log. Passou: roda `publish.sh main` com um agente SSH vazio;
+   - se a publicação falha, grava o commit em `/var/lib/althius-auto-publish/last-failed` e não tenta de novo esse
+     commit sozinho (o próximo merge tenta normalmente).
+3. O `publish.sh` faz o build, a troca, a conferência e, se a conferência falha, o rollback.
 
-Segredos do repositório `Kauedz/althius` que o workflow lê:
+Uma rodada por vez (`flock`), e o `publish.sh` tem a própria trava. A API sem token aceita 60 chamadas por hora por IP;
+o script só a chama quando a `main` mudou.
 
-| Segredo | Conteúdo |
-| --- | --- |
-| `VPS_SSH_KEY` | Chave privada ed25519 só para publicar. A pública está em `/root/.ssh/authorized_keys` com `command=` fixo no `publish.sh main`. |
-| `VPS_HOST` | `179.236.255.222` |
-| `VPS_KNOWN_HOSTS` | As linhas de `ssh-keyscan` da VPS, conferidas contra as chaves do próprio servidor. |
+Conferir e operar (na VPS):
+
+```bash
+systemctl list-timers althius-auto-publish.timer
+tail -n 30 /var/log/althius-auto-publish.log
+/opt/althius-web/auto-publish.sh -v                      # uma rodada agora, registrando também o "nada a fazer"
+rm -f /var/lib/althius-auto-publish/last-failed          # deixar tentar de novo um commit que falhou
+systemctl disable --now althius-auto-publish.timer       # desligar a publicação automática
+systemctl enable --now althius-auto-publish.timer        # religar
+```
 
 ## Cache
 
@@ -49,18 +62,17 @@ curl -sI https://app.althius.com.br/ | grep -i cache-control
 curl -sI "https://app.althius.com.br$(curl -s https://app.althius.com.br/ | grep -o '/assets/[^"]*\.js' | head -1)" | grep -i cache-control
 ```
 
-## Se o workflow falhar
+## Publicar à mão
 
-Abra o log da execução em Actions > Publicar frontend. O passo que falhou diz onde olhar:
+Para repetir uma publicação que falhou, ou publicar com o timer desligado. Pelo Mac, com a chave restrita `althius-publicar`
+(no `authorized_keys` da VPS ela só roda `publish.sh main`):
 
-- **Preparar a chave**: segredo `VPS_SSH_KEY` vazio ou mal colado (precisa das linhas `-----BEGIN` e `-----END`).
-- **Rodar o publish.sh**, com `Host key verification failed`: a VPS mudou de chave (reinstalação) ou `VPS_KNOWN_HOSTS`
-  está errado. Refaça o `VPS_KNOWN_HOSTS` como nos passos abaixo. Nunca troque para `StrictHostKeyChecking=no`.
-- **Rodar o publish.sh**, com `Permission denied (publickey)`: a linha da chave saiu do `/root/.ssh/authorized_keys`.
-- **Rodar o publish.sh**, com erro do próprio script (fetch, build, conferência): o `publish.sh` já desfez a troca se a
-  conferência falhou, então o site continua na versão anterior. Corrija a causa e rode de novo pelo Run workflow.
+```bash
+ssh -A -i ~/.ssh/althius-publicar -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/althius-known-hosts \
+  -o StrictHostKeyChecking=yes root@179.236.255.222 '/opt/althius-web/publish.sh main'
+```
 
-Publicar à mão (o caminho antigo, pelo terminal do navegador do hPanel, VPS > srv2043190 > Terminal):
+Ou pelo terminal do navegador do hPanel (VPS > srv2043190 > Terminal):
 
 ```bash
 eval "$(ssh-agent -s)"
@@ -74,75 +86,24 @@ sed -n 1,40p /opt/althius-web/rollback.sh
 /opt/althius-web/rollback.sh
 ```
 
-## Passos do Nan (configuração inicial)
+Depois de um rollback, a `main` continua diferente do `COMMIT` no ar, então o timer publicaria a `main` de novo na
+próxima rodada. Para segurar a versão anterior, desligue o timer antes (`systemctl disable --now althius-auto-publish.timer`).
 
-Uma vez só. Os segredos têm de ser criados por quem é admin do `Kauedz/althius` (o Kauê, se o Nan não for).
+## Configuração inicial (uma vez, terminal do hPanel)
 
-### 1. Gerar o par de chaves (PowerShell, no computador do Nan)
+### Publicação automática
 
-Sem senha (aperte Enter duas vezes quando pedir):
-
-```powershell
-ssh-keygen -t ed25519 -C "github-actions publicar-frontend" -f "$env:USERPROFILE\.ssh\althius-publicar"
-Get-Content "$env:USERPROFILE\.ssh\althius-publicar.pub"
-```
-
-### 2. Autorizar a chave na VPS (terminal do hPanel)
-
-Troque `COLE_AQUI` pela linha inteira que o `Get-Content` mostrou (começa com `ssh-ed25519`). O `command=` faz a chave só
-conseguir rodar a publicação; `agent-forwarding` deixa o `SSH_AUTH_SOCK` chegar ao script.
+As cópias versionadas ficam em `scripts/vps/`. Para instalar ou atualizar na VPS (como root), copie os três arquivos para
+lá e rode:
 
 ```bash
-cp -a /root/.ssh/authorized_keys /root/.ssh/authorized_keys.bak-$(date +%Y%m%d%H%M%S)
-echo 'command="/opt/althius-web/publish.sh main",restrict,agent-forwarding COLE_AQUI' >> /root/.ssh/authorized_keys
-tail -1 /root/.ssh/authorized_keys
+install -m 750 auto-publish.sh /opt/althius-web/auto-publish.sh
+install -m 644 althius-auto-publish.service althius-auto-publish.timer /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now althius-auto-publish.timer
+/opt/althius-web/auto-publish.sh -v && tail -n 3 /var/log/althius-auto-publish.log
 ```
 
-### 3. Trocar o remoto do `src/` para https (terminal do hPanel)
-
-O repositório é público, então o `git fetch` não precisa de chave do GitHub. Com isso o fetch não depende de qual
-agente foi encaminhado.
-
-```bash
-git -C /opt/althius-web/src remote -v
-git -C /opt/althius-web/src remote set-url origin https://github.com/Kauedz/althius.git
-git -C /opt/althius-web/src fetch origin main
-grep -n 'SSH_AUTH_SOCK' /opt/althius-web/publish.sh
-```
-
-Se o `remote -v` mostrar outro nome no lugar de `origin`, use esse nome. O `grep` mostra onde o script exige o agente;
-com o remoto em https a checagem continua satisfeita pelo `ssh -A` do workflow.
-
-### 4. Conferir as chaves da VPS (terminal do hPanel)
-
-```bash
-for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done
-```
-
-No PowerShell, compare com o que a rede mostra; as impressões (`SHA256:...`) têm de ser iguais:
-
-```powershell
-ssh-keyscan -t ed25519,ecdsa,rsa 179.236.255.222 2>$null | Out-File -Encoding ascii "$env:TEMP\althius-known-hosts"
-ssh-keygen -lf "$env:TEMP\althius-known-hosts"
-```
-
-### 5. Criar os segredos (PowerShell, com `gh` logado como admin do `Kauedz/althius`)
-
-```powershell
-Get-Content "$env:USERPROFILE\.ssh\althius-publicar" -Raw | gh secret set VPS_SSH_KEY --repo Kauedz/althius
-gh secret set VPS_HOST --repo Kauedz/althius --body "179.236.255.222"
-Get-Content "$env:TEMP\althius-known-hosts" -Raw | gh secret set VPS_KNOWN_HOSTS --repo Kauedz/althius
-gh secret list --repo Kauedz/althius
-```
-
-Depois, testar sem esperar um merge:
-
-```powershell
-gh workflow run publicar-frontend.yml --repo Kauedz/althius
-gh run watch --repo Kauedz/althius
-```
-
-### 6. Cache no Caddyfile (terminal do hPanel)
+### Cache no Caddyfile (terminal do hPanel)
 
 Primeiro olhe o arquivo e ache o bloco do site (a linha com `app.althius.com.br` terminando em `{`):
 

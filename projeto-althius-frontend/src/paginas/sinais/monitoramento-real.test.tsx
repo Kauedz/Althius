@@ -138,6 +138,8 @@ function abrir(
         { signal_type: 'vaga_linkedin', state: 'available' },
         { signal_type: 'nova_lideranca', state: 'testing' },
       ],
+      // O banco sempre responde as duas leituras de estado; sem Sinal interno aqui, o catálogo vem vazio.
+      list_signal_catalog: () => [],
       list_signal_monitors: () => monitores,
       list_signals: (p) => {
         chamadas.push({ nome: 'list_signals', parametros: p })

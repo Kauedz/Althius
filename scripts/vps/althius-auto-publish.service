@@ -1,0 +1,10 @@
+[Unit]
+Description=Althius: publica o frontend quando a main muda e o CI passou
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/althius-web/auto-publish.sh
+TimeoutStartSec=30min
+Nice=5
