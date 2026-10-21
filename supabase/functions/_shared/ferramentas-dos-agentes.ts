@@ -17,7 +17,11 @@
 //                                                Créditos; sem o Sinal, lista o catálogo e os que não têm fonte;
 //   propor_mudanca_no_playbook (Scopus, Ethos)   propõe uma nova versão de uma seção do Playbook da Especialidade (CRM-09,
 //                                                ADR-0010): nasce uma Aprovação que só um Administrador decide, e o
-//                                                Playbook só muda quando ela é aprovada.
+//                                                Playbook só muda quando ela é aprovada;
+//   propor_sequencia        (Rhetor)            propõe uma Sequência de E-mail para uma Conta-alvo (cadencia-pela-ia 01):
+//                                                nasce sempre uma Aprovação, mesmo com Executar, que só o Vendedor
+//                                                responsável decide; aprovada, a Sequência é criada sem envio, e nada sai
+//                                                antes de ele clicar "Ativar envios". Sem Contatos, lista os da Conta.
 //
 // O que pode ser feito é sempre conferido de novo no banco (a Especialidade, a Permissão, a Participação, a Integração
 // ligada) e no Acesso (`chamarFerramenta` com o `agenteId`). Uma falha de ferramenta vira texto para o Agente, nunca
@@ -121,6 +125,22 @@ export interface RevisaoProposta {
   versaoBase: number
 }
 
+/** Um passo de E-mail da Sequência proposta, como vai a `agent_propose_sequence`. */
+export interface PassoProposto {
+  esperaEmDias: number
+  assunto: string
+  corpo: string
+}
+
+/** A Sequência que o Rhetor propôs (cadencia-pela-ia 01), como `agent_propose_sequence` devolve. */
+export interface SequenciaProposta {
+  approvalId: string
+  /** `pendente` (nasceu agora) ou `existente` (a mesma proposta já tinha sido feita nesta Execução). */
+  outcome: 'pendente' | 'existente' | string
+  /** O nome da Conta-alvo. */
+  conta: string
+}
+
 /** O contrato com o banco das ferramentas (migration 20261001210000). Erros do banco chegam como ErroDoBanco. */
 export interface BancoDasFerramentas {
   contexto(runId: string): Promise<ContextoDasFerramentas>
@@ -147,6 +167,17 @@ export interface BancoDasFerramentas {
     agenteId: string,
     a: { secao: string; conteudo: ConteudoDoPlaybook; justificativa: string },
   ): Promise<RevisaoProposta>
+  /**
+   * RPC `agent_propose_sequence` (cadencia-pela-ia 01): a Sequência de E-mail proposta vira uma Aprovação da categoria
+   * sequencia, que só o Vendedor responsável decide. Sem ela, `propor_sequencia` não é oferecida.
+   */
+  proporSequencia?(
+    runId: string,
+    agenteId: string,
+    a: { targetAccountId: string; contatos: string[]; passos: PassoProposto[]; justificativa: string },
+  ): Promise<SequenciaProposta>
+  /** RPC `agent_read_sequence_contacts`: os Contatos da Conta-alvo com o id e se podem entrar na Sequência. */
+  contatosParaSequencia?(runId: string, targetAccountId: string): Promise<unknown>
 }
 
 /** Um Sinal do catálogo como o Hermes o vê: sem fornecedor, actor nem custo em dólar. */
@@ -283,6 +314,7 @@ function falhou(descricao: string, paraOAgente: string): ResultadoDaFerramentaDo
 function motivoDoBanco(erro: unknown): string {
   if (erro instanceof ErroDoBanco) {
     const m = erro.message
+    if (m.startsWith('sequence: ')) return motivoDaSequencia(m)
     if (m.includes('only the responsible seller')) {
       return 'Só o Vendedor responsável pela Conta-alvo a envia ao CRM, e quem fez este pedido não é o responsável. Diga isso ao usuário.'
     }
@@ -306,6 +338,35 @@ function motivoDoBanco(erro: unknown): string {
     if (m.includes('invalid')) return 'A entrada da ferramenta é inválida.'
   }
   return 'A ferramenta falhou agora. Não use dados dela e siga com o que você tem.'
+}
+
+/** As recusas de `agent_propose_sequence`, em palavras para o Rhetor. */
+function motivoDaSequencia(m: string): string {
+  if (m.includes('not the responsible seller')) {
+    return 'Só o Vendedor responsável pela Conta-alvo pede a Sequência dela, e quem fez este pedido não é o responsável ' +
+      '(ADR-0009). Diga isso ao usuário e não proponha de novo.'
+  }
+  if (m.includes('sequence in progress')) {
+    return 'Esta Conta-alvo já tem uma Sequência em andamento: cada Conta tem no máximo uma. Diga isso ao usuário.'
+  }
+  if (m.includes('not linked')) {
+    return 'Um dos Contatos não é desta Conta-alvo. Chame propor_sequencia sem contatos para ver os Contatos dela.'
+  }
+  if (m.includes('no e-mail')) return 'Um dos Contatos não tem e-mail. Tire-o da proposta.'
+  if (m.includes('suppressed')) return 'Um dos Contatos se descadastrou e não recebe mais e-mails do Workspace. Tire-o da proposta.'
+  if (m.includes('another active sequence')) return 'Um dos Contatos já está em outra Sequência ativa ou pausada. Tire-o da proposta.'
+  const variavel = m.match(/unknown variable: (.+)$/)
+  if (variavel) {
+    return `A variável {{${variavel[1].split(', ').join('}}, {{')}}} não existe no envio. Use só: ${VARIAVEIS_DO_ENVIO}.`
+  }
+  if (m.includes('only e-mail')) return 'Por enquanto a Sequência proposta é só de E-mail: LinkedIn e WhatsApp ficam de fora.'
+  if (m.includes('steps')) return 'A Sequência tem de 1 a 8 passos de E-mail.'
+  if (m.includes('contacts')) return 'A Sequência tem de 1 a 5 Contatos.'
+  if (m.includes('step wait')) return 'A espera de cada passo é um número inteiro de dias, de 0 a 60.'
+  if (m.includes('step text')) return 'Cada passo precisa de assunto (até 200 caracteres) e corpo (até 5000).'
+  if (m.includes('may only read')) return 'Sua Permissão é só Ler: você não propõe Sequências. Diga isso ao usuário.'
+  if (m.includes('cadence specialist')) return 'Só o Rhetor propõe Sequências.'
+  return 'A proposta foi recusada.'
 }
 
 const LER_CONTAS: FerramentaDoAgente = {
@@ -960,6 +1021,169 @@ const PROPOR_MUDANCA_NO_PLAYBOOK: FerramentaDoAgente = {
   },
 }
 
+/** As variáveis que o envio preenche (`private.step_variable_value`, PR #227). O Sinal e a Persona não são variáveis. */
+export const VARIAVEIS_DO_ENVIO =
+  '{{primeiro_nome}}, {{nome}}, {{sobrenome}}, {{cargo}}, {{email}}, {{empresa}}, {{segmento}}, {{dominio}} e ' +
+  '{{remetente.nome}} (também com os prefixos contato. e conta., como {{contato.primeiro_nome}} e {{conta.nome}})'
+
+const MAX_PASSOS_DA_SEQUENCIA = 8
+const MAX_CONTATOS_DA_SEQUENCIA = 5
+/** O padrão sem a seção Cadência do Playbook: 3 E-mails, no dia 0, 3 e 7 (esperas de 0, 3 e 4 dias). */
+const ESPERAS_DO_PADRAO = [0, 3, 4]
+const VARIAVEL = /\{\{\s*([A-Za-z_.]+)\s*\}\}/g
+const CONHECIDAS = new Set([
+  'primeiro_nome', 'nome', 'sobrenome', 'cargo', 'email', 'empresa', 'segmento', 'dominio', 'remetente', 'remetente.nome',
+  'contato.primeiro_nome', 'contato.nome', 'contato.sobrenome', 'contato.cargo', 'contato.email', 'conta.nome',
+  'conta.segmento', 'conta.dominio',
+])
+
+/** As variáveis do texto que o envio não conhece, sem repetição (a mesma lista do banco, que confere de novo). */
+export function variaveisDesconhecidas(texto: string): string[] {
+  const nomes = [...texto.matchAll(VARIAVEL)].map((m) => m[1].toLowerCase())
+  return [...new Set(nomes)].filter((nome) => !CONHECIDAS.has(nome))
+}
+
+const PROPOR_SEQUENCIA: FerramentaDoAgente = {
+  nome: 'propor_sequencia',
+  descricao:
+    'Propõe uma Sequência de E-mail para uma Conta-alvo: os Contatos e os passos, cada um com a espera em dias desde o ' +
+    'passo anterior, o assunto e o corpo. Use quando pedirem uma Sequência ou uma Cadência para uma Conta, ou quando a ' +
+    'Conta estiver Quente por um Sinal. Antes, leia a Conta e o Sinal com ler_contas_e_sinais e chame esta ferramenta ' +
+    'sem contatos para ver os Contatos da Conta (com o id e se cada um pode entrar). Use o Sinal no primeiro e-mail, com ' +
+    'as suas palavras. Siga a seção Cadência do Playbook (número de passos, esperas e tom); se ela estiver vazia, ' +
+    'proponha 3 passos de E-mail (dia 0, 3 e 7: esperas de 0, 3 e 4 dias), passe playbook_vazio e diga ao usuário que o ' +
+    `Playbook não tem Cadência. Use só as variáveis ${VARIAVEIS_DO_ENVIO}. Nada é enviado: nasce uma Aprovação que só ` +
+    'o Vendedor responsável pela Conta decide; aprovada, a Sequência é criada sem envio, e os e-mails só saem depois ' +
+    'que ele clicar em "Ativar envios".',
+  esquema: {
+    type: 'object',
+    properties: {
+      conta_id: { type: 'string', description: 'O id da Conta-alvo (de ler_contas_e_sinais).' },
+      contatos: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Os ids dos Contatos (de 1 a 5). Vazio: a ferramenta lista os Contatos da Conta, e nada é proposto.',
+      },
+      passos: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            canal: { type: 'string', enum: ['email'] },
+            espera_em_dias: { type: 'integer', description: 'Dias desde o passo anterior (0 no primeiro).' },
+            assunto: { type: 'string' },
+            corpo: { type: 'string' },
+          },
+          required: ['espera_em_dias', 'assunto', 'corpo'],
+          additionalProperties: false,
+        },
+        description: 'De 1 a 8 passos de E-mail, em ordem; cada passo vai para cada Contato.',
+      },
+      justificativa: { type: 'string', description: 'Por que esta Sequência agora (o Sinal), para quem decide.' },
+      playbook_vazio: { type: 'boolean', description: 'true quando a seção Cadência do Playbook está vazia.' },
+    },
+    required: ['conta_id'],
+    additionalProperties: false,
+  },
+  especialidades: ['rhetor'],
+  exige: null,
+  disponivel: (_agente, _ctx, deps) => !!deps.banco.proporSequencia && !!deps.banco.contatosParaSequencia,
+  async executar({ runId, agente, entrada, deps }) {
+    const proporSequencia = deps.banco.proporSequencia
+    const lerContatos = deps.banco.contatosParaSequencia
+    const contaId = texto(entrada.conta_id, 64)
+    if (!proporSequencia || !lerContatos) {
+      return falhou(`${agente.name} tentou propor uma Sequência`, 'A proposta de Sequência não está disponível agora.')
+    }
+    if (!UUID_DA_CONTA.test(contaId)) {
+      return falhou(`${agente.name} tentou propor uma Sequência`, 'Informe o id da Conta-alvo que ler_contas_e_sinais devolve.')
+    }
+
+    const contatos = textos(entrada.contatos, MAX_CONTATOS_DA_SEQUENCIA + 1)
+    if (contatos.length === 0) {
+      try {
+        const lidos = await lerContatos(runId, contaId)
+        return {
+          erro: false,
+          paraOAgente: `${cortar(lidos)}\nEscolha os Contatos que podem entrar (pode_entrar) e chame propor_sequencia de novo com os ids.`,
+          passo: { descricao: `${agente.name} viu os Contatos que podem entrar na Sequência`, estado: 'concluida' },
+        }
+      } catch (erro) {
+        return falhou(`${agente.name} tentou ler os Contatos da Conta`, `A leitura falhou. ${motivoDoBanco(erro)}`)
+      }
+    }
+    const recusar = (motivo: string) => falhou(`${agente.name} tentou propor uma Sequência`, motivo)
+    if (contatos.length > MAX_CONTATOS_DA_SEQUENCIA || contatos.some((id) => !UUID_DA_CONTA.test(id))) {
+      return recusar(`Passe de 1 a ${MAX_CONTATOS_DA_SEQUENCIA} ids de Contatos, como a lista da Conta mostra.`)
+    }
+
+    const brutos = Array.isArray(entrada.passos) ? entrada.passos : []
+    if (brutos.length === 0 || brutos.length > MAX_PASSOS_DA_SEQUENCIA) {
+      return recusar(`A Sequência tem de 1 a ${MAX_PASSOS_DA_SEQUENCIA} passos de E-mail.`)
+    }
+    const passos: PassoProposto[] = []
+    for (const bruto of brutos) {
+      const passo = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto as Record<string, unknown> : {}
+      if (passo.canal !== undefined && passo.canal !== 'email') {
+        return recusar('Por enquanto a Sequência proposta é só de E-mail: LinkedIn e WhatsApp ficam de fora.')
+      }
+      const espera = passo.espera_em_dias
+      if (!Number.isInteger(espera) || (espera as number) < 0 || (espera as number) > 60) {
+        return recusar('A espera de cada passo é um número inteiro de dias, de 0 a 60.')
+      }
+      const assunto = texto(passo.assunto, 200)
+      const corpo = texto(passo.corpo, 5000)
+      if (!assunto || !corpo) return recusar('Cada passo precisa de assunto e corpo.')
+      const desconhecidas = variaveisDesconhecidas(`${assunto} ${corpo}`)
+      if (desconhecidas.length) {
+        return recusar(
+          `A variável {{${desconhecidas.join('}}, {{')}}} não existe no envio. Use só: ${VARIAVEIS_DO_ENVIO}. ` +
+            'Escreva o Sinal com as suas palavras.',
+        )
+      }
+      passos.push({ esperaEmDias: espera as number, assunto, corpo })
+    }
+    const playbookVazio = entrada.playbook_vazio === true
+    if (playbookVazio && passos.map((p) => p.esperaEmDias).join() !== ESPERAS_DO_PADRAO.join()) {
+      return recusar('Sem a seção Cadência no Playbook, proponha 3 passos de E-mail: no dia 0, 3 e 7 (esperas de 0, 3 e 4 dias).')
+    }
+    const justificativa = [
+      texto(entrada.justificativa, 1800),
+      playbookVazio ? 'O Playbook não tem a seção Cadência: a proposta segue o padrão de 3 e-mails (dia 0, 3 e 7).' : '',
+    ].filter(Boolean).join(' ')
+
+    let proposta: SequenciaProposta
+    try {
+      proposta = await proporSequencia(runId, agente.id, { targetAccountId: contaId, contatos, passos, justificativa })
+    } catch (erro) {
+      return falhou(`${agente.name} tentou propor uma Sequência`, `A proposta falhou. ${motivoDoBanco(erro)}`)
+    }
+    const link: LinkDoPasso = { tipo: 'aprovacao', id: proposta.approvalId }
+    const resumo = `${plural(contatos.length, 'Contato', 'Contatos')}, ${plural(passos.length, 'e-mail', 'e-mails')}`
+    if (proposta.outcome === 'existente') {
+      return {
+        erro: false,
+        paraOAgente: `Esta mesma Sequência para a ${proposta.conta} já existe nesta Conversa. Nada novo foi criado.`,
+        passo: { descricao: `${agente.name} lembrou a Sequência proposta para a ${proposta.conta}`, estado: 'aguardando', link },
+      }
+    }
+    const aviso = playbookVazio
+      ? ' Diga também que a seção Cadência do Playbook está vazia e que a proposta seguiu o padrão de 3 e-mails (dia 0, 3 e 7).'
+      : ''
+    return {
+      erro: false,
+      paraOAgente:
+        `Proposta criada: a Sequência para a ${proposta.conta} (${resumo}) espera a decisão do Vendedor responsável, aqui ` +
+        'na Conversa ou em Aprovações. Nada foi enviado: aprovada, a Sequência é criada sem envio, e os e-mails só saem ' +
+        `depois que ele clicar em "Ativar envios". Termine dizendo isso, sem repetir o texto dos e-mails.${aviso}`,
+      passo: {
+        descricao: `${agente.name} propôs uma Sequência para a ${proposta.conta} (${resumo}) — aguardando o Vendedor responsável`,
+        estado: 'aguardando',
+        link,
+      },
+    }
+  },
+}
 
 const TETO_PADRAO_DA_BUSCA_DE_SINAIS = 5
 const TETO_MAXIMO_DA_BUSCA_DE_SINAIS = 20
@@ -1115,7 +1339,13 @@ export const CATALOGO: readonly FerramentaDoAgente[] = [LER_CONTAS, BUSCAR_PELO_
  * à parte do `CATALOGO` das ferramentas da Etapa 5b porque dependem de contratos novos do banco (as regras, a proposta de
  * chamada, a proposta de revisão): quem não os tem continua vendo só as quatro de antes.
  */
-export const FERRAMENTAS: readonly FerramentaDoAgente[] = [...CATALOGO, USAR_CONECTOR, PROPOR_MUDANCA_NO_PLAYBOOK, BUSCAR_SINAIS]
+export const FERRAMENTAS: readonly FerramentaDoAgente[] = [
+  ...CATALOGO,
+  USAR_CONECTOR,
+  PROPOR_MUDANCA_NO_PLAYBOOK,
+  BUSCAR_SINAIS,
+  PROPOR_SEQUENCIA,
+]
 
 /** A ferramenta como o modelo a recebe. */
 export interface FerramentaParaOModelo {
@@ -1319,6 +1549,22 @@ export function bancoDasFerramentas(
         versaoBase: Number(linha.base_version ?? 0),
       }
     },
+    // Migration 20261105100000 (cadencia-pela-ia 01).
+    async proporSequencia(runId, agenteId, a) {
+      const linha = primeira<{ approval_id: string; outcome: string; account_name: string }>(
+        await chamar('agent_propose_sequence', {
+          p_run_id: runId,
+          p_agent_id: agenteId,
+          p_target_account_id: a.targetAccountId,
+          p_contacts: a.contatos,
+          p_steps: a.passos,
+          p_justification: a.justificativa,
+        }),
+      )
+      return { approvalId: linha.approval_id, outcome: linha.outcome, conta: linha.account_name }
+    },
+    contatosParaSequencia: (runId, targetAccountId) =>
+      chamar<unknown>('agent_read_sequence_contacts', { p_run_id: runId, p_target_account_id: targetAccountId }),
   }
 }
 

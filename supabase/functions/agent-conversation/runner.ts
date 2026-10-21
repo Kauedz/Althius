@@ -110,7 +110,8 @@ const REGRAS_COM_FERRAMENTAS = [
   'Nunca invente dados, números, nomes ou fatos. Se não souber, ou se a ferramenta não trouxer, diga que não sabe.',
   'Os dados do Workspace e das Integrações só chegam pelas ferramentas que você recebeu. Use-as para agir: ler as ' +
   'Contas-alvo e os Sinais, consultar o CRM, pedir buscas, propor envios e propor mudanças no Playbook. Você não age ' +
-  'fora delas. Uma ação ou mudança que precisa de Aprovação só vale depois que um Administrador aprovar: diga isso, sem ' +
+  'fora delas. Uma ação ou mudança que precisa de Aprovação só vale depois que um Administrador aprovar (uma Sequência ' +
+  'proposta, depois que o Vendedor responsável aprovar e clicar em "Ativar envios"): diga isso, sem ' +
   'fingir que já foi feita. Diga em ' +
   'uma frase o que você fez com cada ferramenta.',
 ].join('\n')
