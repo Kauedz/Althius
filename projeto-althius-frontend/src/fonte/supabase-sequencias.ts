@@ -5,6 +5,7 @@ import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { templateDaResposta, type SugestaoDeTemplate } from './templates-althius'
+import type { LiteralDeTemplate, PreviaDeTemplateProprio, TemplateProprio } from './templates-proprios'
 
 interface RegistroSequencia {
   id: string
@@ -31,6 +32,10 @@ const MOTIVO_DE_ENCERRAMENTO: Record<string, MotivoDeEncerramento> = {
 interface DocumentoPrivado {
   participantesIds?: string[]
   janelaPadrao?: { de: string; ate: string }
+  fuso?: string
+  diasUteis?: number[]
+  maximoDiario?: number
+  intervaloMinutos?: number
   regraDePause?: string
   steps?: StepSequencia[]
   passoAtual?: number
@@ -75,6 +80,8 @@ const MENSAGEM_DA_ATIVACAO: Record<string, string> = {
   linkedin_profile_invalid: 'O LinkedIn do Contato não é o endereço de um perfil (linkedin.com/in/...). Corrija antes de ativar.',
   invalid_linkedin_subtype: 'Um passo de LinkedIn está sem tipo válido (convite ou mensagem). Ajuste o passo.',
   invite_note_too_long: 'A nota de um convite do LinkedIn passou do limite de caracteres. Encurte a nota antes de ativar.',
+  agenda_invalida: 'Confirme um fuso válido, dias úteis de segunda a sexta, janela, máximo diário e intervalo antes de ativar.',
+  predecessor_not_confirmed: 'Um passo depende de outro que ainda não foi confirmado nesta ativação nem enviado.',
   whatsapp_sender_not_ready: 'Sua Conta remetente de WhatsApp não está pronta para enviar. Conecte o WhatsApp antes de ativar.',
   linkedin_sender_not_ready: 'Sua Conta remetente de LinkedIn não está pronta para enviar. Conecte o LinkedIn antes de ativar.',
   // Os anexos do passo (canais-10).
@@ -271,6 +278,10 @@ function mapear(row: RegistroSequencia, ehResponsavel: boolean, canalDaPausa?: C
     totalSteps: ehResponsavel ? steps.length : numeroSeguro(resumo.totalSteps),
     participantesIds,
     janelaPadrao: documento?.janelaPadrao ?? JANELA_PADRAO,
+    ...(documento?.fuso ? { fuso: documento.fuso } : {}),
+    ...(documento?.diasUteis ? { diasUteis: documento.diasUteis } : {}),
+    ...(documento?.maximoDiario != null ? { maximoDiario: documento.maximoDiario } : {}),
+    ...(documento?.intervaloMinutos != null ? { intervaloMinutos: documento.intervaloMinutos } : {}),
     regraDePause: documento?.regraDePause ?? REGRA_DE_PAUSE_PADRAO,
     steps,
     passoAtual: documento?.passoAtual ?? numeroSeguro(resumo.passoAtual),
@@ -352,6 +363,9 @@ function converterErro(error: { message: string; code?: string }): Error {
   }
   if (error.code === '22023' && error.message === 'contact has no active link with this target account') return new Error('O Contato deste passo não está vinculado à Conta-alvo.')
   if (error.code === '55000') return new Error('Este passo já foi enviado ou está sendo enviado.')
+  if (error.message.includes('own template: not the owner')) {
+    return new Error('Só quem criou o template pode alterá-lo.')
+  }
   if (error.code === '42501') return new Error('Apenas o responsável ativo pode abrir ou alterar o documento desta Sequência.')
   if (error.code === '23505') return new Error('Esta Conta-alvo já tem uma Sequência em andamento.')
   if (error.message.includes('passo nao pode depender de si mesmo')) {
@@ -365,6 +379,16 @@ function converterErro(error: { message: string; code?: string }): Error {
   }
   if (error.message.includes('liberacao predecessor exige predecessorId')) {
     return new Error('Passo com liberação por predecessor precisa de predecessorId.')
+  }
+  if (error.message.includes('template requires safe preview')) {
+    return new Error('Salve só a prévia já parametrizada, sem dados reais.')
+  }
+  if (error.message.includes('own template: limit reached')) {
+    return new Error('Você já tem 50 templates neste Workspace. Edite um existente.')
+  }
+  if (error.message.includes('own template: at most 8 steps')) return new Error('Um template tem no máximo 8 passos.')
+  if (error.message.includes('own template: step text too long') || error.message.includes('own template: input too large')) {
+    return new Error('O texto do template passou do limite. Encurte o título, o assunto ou o corpo.')
   }
   if (error.message.includes('predecessorId so e permitido')) {
     return new Error('predecessorId só é permitido com liberação predecessor.')
@@ -415,6 +439,26 @@ export function criarFonteDeSequenciasSupabase(
   let workspaceInscrito = ''
 
   function notificar() { for (const ouvinte of ouvintes) ouvinte() }
+
+  async function gravarTemplateProprio(
+    rpc: 'save_own_sequence_template' | 'update_own_sequence_template',
+    entrada: PreviaDeTemplateProprio & { literais?: LiteralDeTemplate[] },
+    id?: string,
+  ): Promise<TemplateProprio> {
+    const { data, error } = await cliente.rpc(rpc, {
+      p_workspace_id: workspace(),
+      ...(id ? { p_template_id: id } : {}),
+      p_nome: entrada.nome,
+      p_resumo: entrada.resumo,
+      p_passos: entrada.passos,
+      p_literals: entrada.literais ?? [],
+    })
+    if (error) throw converterErro(error)
+    const linha = Array.isArray(data) ? data[0] : data
+    const template = templateDaResposta(linha)
+    if (!template) throw new Error('O banco não devolveu o template salvo.')
+    return { ...template, donoId: obterUsuarioId() }
+  }
   /** Os desfechos dos Envios da Sequência (motor-hermes 03). Se a leitura falhar, os Envios aparecem sem desfecho. */
   async function desfechosDaSequencia(sequenciaId: string): Promise<Map<string, DesfechoDoEnvio>> {
     const { data, error } = await cliente.rpc('list_send_outcomes', { p_sequence_id: sequenciaId })
@@ -561,6 +605,55 @@ export function criarFonteDeSequenciasSupabase(
       } | null
       return sugestaoLida(linha)
     },
+    async templatesProprios() {
+      const { data, error } = await cliente.rpc('list_own_sequence_templates', {
+        p_workspace_id: workspace(),
+      })
+      if (error) throw converterErro(error)
+      const donoId = obterUsuarioId()
+      return (Array.isArray(data) ? data : []).flatMap((linha) => {
+        const template = templateDaResposta(linha)
+        return template ? [{ ...template, ...(donoId ? { donoId } : {}) }] : []
+      })
+    },
+    async previaDeTemplateProprio(entrada) {
+      const { data, error } = await cliente.rpc('preview_own_sequence_template', {
+        p_workspace_id: workspace(),
+        p_nome: entrada.nome,
+        p_resumo: entrada.resumo,
+        p_passos: entrada.passos,
+        p_literals: entrada.literais ?? [],
+      })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as { nome?: string; resumo?: string; passos?: unknown[] } | null
+      if (!linha?.nome || !linha.resumo || !Array.isArray(linha.passos)) {
+        throw new Error('Salve só a prévia já parametrizada, sem dados reais.')
+      }
+      return { nome: linha.nome, resumo: linha.resumo, passos: linha.passos as PreviaDeTemplateProprio['passos'] }
+    },
+    async salvarTemplateProprio(entrada) {
+      const salvo = await gravarTemplateProprio('save_own_sequence_template', entrada)
+      notificar()
+      return salvo
+    },
+    async atualizarTemplateProprio(id, entrada) {
+      const salvo = await gravarTemplateProprio('update_own_sequence_template', entrada, id)
+      notificar()
+      return salvo
+    },
+    async sugerirTemplateProprio(contaId) {
+      const { data, error } = await cliente.rpc('suggest_own_sequence_template', {
+        p_workspace_id: workspace(),
+        p_target_account_id: contaId,
+      })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as {
+        template_id?: string | null
+        justification?: string | null
+        outcome?: string | null
+      } | null
+      return sugestaoLida(linha)
+    },
     async criarSequenciasEmLote(contaIds, template) {
       const { data, error } = await cliente.rpc('create_sequences_in_batch', {
         p_workspace_id: workspace(),
@@ -588,6 +681,10 @@ export function criarFonteDeSequenciasSupabase(
       const novoDocumento: DocumentoPrivado = {
         participantesIds: atualizacao.participantesIds ?? atual.participantesIds,
         janelaPadrao: atualizacao.janelaPadrao ?? atual.janelaPadrao,
+        fuso: atualizacao.fuso ?? atual.fuso,
+        diasUteis: atualizacao.diasUteis ?? atual.diasUteis,
+        maximoDiario: atualizacao.maximoDiario ?? atual.maximoDiario,
+        intervaloMinutos: atualizacao.intervaloMinutos ?? atual.intervaloMinutos,
         regraDePause: atualizacao.regraDePause ?? atual.regraDePause,
         steps: atualizacao.steps ? anexosDoDocumento(atualizacao.steps) : atual.steps,
         passoAtual: atual.passoAtual,
@@ -700,8 +797,20 @@ export function criarFonteDeSequenciasSupabase(
         ...(linha.revoked_reason ? { motivoDaRevogacao: linha.revoked_reason } : {}),
       }
     },
-    async ativarEnvios(sequenciaId) {
-      const { data, error } = await cliente.rpc('activate_sequence', { p_sequence_id: sequenciaId })
+    async ativarEnvios(sequenciaId, pedido) {
+      const { data, error } = await cliente.rpc('activate_sequence', pedido
+        ? {
+            p_sequence_id: sequenciaId,
+            p_step_ids: pedido.stepIds,
+            p_agenda: {
+              fuso: pedido.agenda.fuso,
+              diasUteis: pedido.agenda.diasUteis,
+              janela: pedido.agenda.janela,
+              maximoDiario: pedido.agenda.maximoDiario,
+              intervaloMinutos: pedido.agenda.intervaloMinutos,
+            },
+          }
+        : { p_sequence_id: sequenciaId })
       if (error) throw converterErro(error)
       notificar()
       const linha = (Array.isArray(data) ? data[0] : data) as
@@ -714,6 +823,20 @@ export function criarFonteDeSequenciasSupabase(
         ...(linha.version ? { versao: linha.version } : {}),
         ...(linha.scheduled_for ? { programadoPara: linha.scheduled_for } : {}),
         ...(MENSAGEM_DA_ATIVACAO[linha.outcome] ? { mensagem: MENSAGEM_DA_ATIVACAO[linha.outcome] } : {}),
+      }
+    },
+    async liberarPassoManual(sequenciaId, stepId) {
+      const { data, error } = await cliente.rpc('release_manual_sequence_step', {
+        p_sequence_id: sequenciaId,
+        p_step_id: stepId,
+      })
+      if (error) throw converterErro(error)
+      notificar()
+      const linha = (Array.isArray(data) ? data[0] : data) as { outcome: string; scheduled_for: string | null } | null
+      if (!linha) throw new Error('O banco não respondeu à liberação do passo.')
+      return {
+        outcome: linha.outcome,
+        ...(linha.scheduled_for ? { programadoPara: linha.scheduled_for } : {}),
       }
     },
     async canaisDeChatLiberados() {

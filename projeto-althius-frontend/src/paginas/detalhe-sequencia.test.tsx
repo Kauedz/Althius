@@ -28,7 +28,9 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
 
     // Janela padrão
     expect(screen.getByText(/Janela padrão/i)).toBeInTheDocument()
-    expect(screen.getByText(/Seg a sex, dias úteis/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Fuso da agenda')).toBeInTheDocument()
+    expect(screen.getByLabelText('Máximo diário da Conta')).toBeInTheDocument()
+    expect(screen.getByLabelText('Intervalo mínimo em minutos')).toBeInTheDocument()
 
     // Timeline lateral com resumo e steps
     expect(screen.getByText(/6 steps · 9 dias úteis/i)).toBeInTheDocument()
@@ -115,22 +117,26 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     expect(await screen.findByText(/Step 1 de 6/i)).toBeInTheDocument()
   })
 
-  it('até o ticket 02 o editor não mostra condição de liberação nem predecessor', async () => {
+  it('o editor mostra a condição de liberação; documento antigo continua na ordem da lista', async () => {
     const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 
     expect(await screen.findByDisplayValue('Abertura pelo Sinal')).toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
 
-    expect(screen.queryByLabelText(/Condição de liberação do passo/i)).not.toBeInTheDocument()
+    const liberacao = screen.getByLabelText(/Condição de liberação do passo/i) as HTMLSelectElement
+    expect(Array.from(liberacao.options).map((o) => o.textContent)).toEqual([
+      'Ordem da lista (legado)',
+      'Após a ativação',
+      'Após o envio de outro passo',
+      'Liberação manual',
+    ])
+    expect(liberacao.value).toBe('legado')
     expect(screen.queryByLabelText(/Passo predecessor/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Liberação manual/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Após a ativação/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Só sai quando você liberar/i)).not.toBeInTheDocument()
-    // O "Quando" continua o serial de hoje
+    // Sem liberação gravada, o "Quando" segue o serial de hoje
     expect(screen.getByText(/dias úteis após o step 1/i)).toBeInTheDocument()
   })
 
-  it('até o ticket 02 o passo novo é gravado sem liberação explícita (serial pela lista)', async () => {
+  it('passo novo grava condição explícita: os seguintes saem após o envio do anterior', async () => {
     const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
 
     expect(await screen.findByText(/6 steps · 9 dias úteis/i)).toBeInTheDocument()
@@ -141,11 +147,15 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     await waitFor(async () => {
       const seq = await fonteDeSequencias.sequencia('sequencia-openai')
       expect(seq.steps).toHaveLength(7)
-      for (const passo of seq.steps) {
+      const novo = seq.steps[6]
+      expect(novo.liberacao).toBe('predecessor')
+      expect(novo.predecessorId).toBe(seq.steps[5].id)
+      // Os passos antigos não ganham liberação por causa do passo novo
+      for (const passo of seq.steps.slice(0, 6)) {
         expect(passo.liberacao).toBeUndefined()
-        expect(passo.predecessorId).toBeUndefined()
       }
     })
+    expect(screen.getByText(/dias úteis após o envio do predecessor/i)).toBeInTheDocument()
   })
 
   it('permite excluir um step da timeline', async () => {

@@ -17,6 +17,23 @@ const EMAIL = 'maria@empresa-alvo.test'
 const WHATSAPP = '+5511999998888'
 const PERFIL = 'https://www.linkedin.com/in/maria-souza'
 
+function agendaConfirmada(stepIds: string[]) {
+  return {
+    p_step_ids: stepIds,
+    p_agenda: {
+      fuso: 'America/Sao_Paulo',
+      diasUteis: [1, 2, 3, 4, 5],
+      janela: { de: '09:00', ate: '17:00' },
+      maximoDiario: 3,
+      intervaloMinutos: 30,
+    },
+  }
+}
+
+async function confirmarAgenda(usuario: ReturnType<typeof userEvent.setup>, dialogo: HTMLElement) {
+  await usuario.click(within(dialogo).getByRole('checkbox', { name: /Confirmo o fuso/i }))
+}
+
 afterEach(() => {
   window.history.replaceState(null, '', '/')
   sessionStorage.clear()
@@ -164,9 +181,11 @@ describe('Ativar pela tela uma Sequência de WhatsApp ou LinkedIn', () => {
     expect(within(passos).getByText(`WhatsApp · ${WHATSAPP}`, { exact: false })).toBeInTheDocument()
 
     const ativar = within(dialogo).getByRole('button', { name: 'Ativar' })
+    expect(ativar).toBeDisabled()
+    await confirmarAgenda(usuario, dialogo)
     await waitFor(() => expect(ativar).toBeEnabled())
     await usuario.click(ativar)
-    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina' }])
+    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina', ...agendaConfirmada(['passo-1']) }])
     expect(within(dialogo).getByRole('button', { name: 'Ativando…' })).toBeDisabled()
 
     liberar([{ outcome: 'activated', step_id: 'passo-1', version: 1, scheduled_for: '2026-09-30T13:00:00Z' }])
@@ -202,8 +221,10 @@ describe('Ativar pela tela uma Sequência de WhatsApp ou LinkedIn', () => {
     expect(dialogo).not.toHaveTextContent('Os passos de E-mail abaixo')
     const passos = within(dialogo).getByRole('list', { name: 'Passos a ativar' })
     expect(within(passos).getByText(`E-mail · ${EMAIL}`, { exact: false })).toBeInTheDocument()
+    expect(within(dialogo).getByRole('button', { name: 'Ativar' })).toBeDisabled()
+    await confirmarAgenda(usuario, dialogo)
     await usuario.click(within(dialogo).getByRole('button', { name: 'Ativar' }))
-    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina' }])
+    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina', ...agendaConfirmada(['passo-1']) }])
   })
 
   it('uma Sequência sem nenhum Destino não ativa calada', async () => {
@@ -250,6 +271,8 @@ describe('Ativar pela tela uma Sequência de WhatsApp ou LinkedIn', () => {
     await usuario.click(await screen.findByRole('button', { name: 'Ativar envios' }))
     const dialogo = await screen.findByRole('dialog', { name: 'Ativar envios' })
     const ativar = within(dialogo).getByRole('button', { name: 'Ativar' })
+    expect(ativar).toBeDisabled()
+    await confirmarAgenda(usuario, dialogo)
     await waitFor(() => expect(ativar).toBeEnabled())
     await usuario.click(ativar)
     const painel = screen.getByRole('region', { name: 'Envios automáticos' })
@@ -273,9 +296,11 @@ describe('Ativar pela tela uma Sequência de WhatsApp ou LinkedIn', () => {
     expect(await within(dialogo).findByText(/WhatsApp está desligado/)).toBeInTheDocument()
     expect(within(dialogo).getByText(/Este passo não sai/)).toBeInTheDocument()
     const ativar = within(dialogo).getByRole('button', { name: 'Ativar' })
+    expect(ativar).toBeDisabled()
+    await confirmarAgenda(usuario, dialogo)
     await waitFor(() => expect(ativar).toBeEnabled())
     await usuario.click(ativar)
-    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina' }])
+    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina', ...agendaConfirmada(['passo-1']) }])
   })
 
   it('sem conseguir ler o canal, a Sequência mista não ativa e não afirma que o chat ficou de fora', async () => {
@@ -293,6 +318,22 @@ describe('Ativar pela tela uma Sequência de WhatsApp ou LinkedIn', () => {
     expect(dialogo).not.toHaveTextContent('Este passo não sai')
     expect(within(dialogo).getByRole('button', { name: 'Ativar' })).toBeDisabled()
     expect(pedidos).toEqual([])
+  })
+
+  it('desmarcar um caminho completo tira ele da ativação', async () => {
+    const { usuario, pedidos } = abrir({
+      canal: 'email',
+      titulo: 'Primeiro contato',
+      contato: { email: EMAIL },
+      passosExtra: [{ canal: 'email', titulo: 'Outro caminho' }],
+    })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Ativar envios' }))
+    const dialogo = await screen.findByRole('dialog', { name: 'Ativar envios' })
+    await usuario.click(within(dialogo).getByRole('checkbox', { name: 'Incluir Outro caminho nesta ativação' }))
+    await confirmarAgenda(usuario, dialogo)
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Ativar' }))
+    expect(pedidos).toEqual([{ p_sequence_id: 'sequencia-da-marina', ...agendaConfirmada(['passo-1']) }])
   })
 
   it('a Demonstração não mostra o painel de ativação real', async () => {

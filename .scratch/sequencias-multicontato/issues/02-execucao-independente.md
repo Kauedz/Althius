@@ -23,7 +23,7 @@ Análise de respostas por IA. Nenhuma mudança estrutural de layout.
 - [ ] Fuso, dias úteis, janela, máximo diário e intervalo são visíveis e confirmados antes de ativar.
 - [ ] Reservas concorrentes respeitam limites por Conta/canal, sem starvation ou duplicação.
 - [ ] Guardas atuais de resposta/pausa permanecem efetivas até ticket 03; não abrir regressão de segurança intermediária.
-- [ ] Ligar `LIBERACAO_DOS_PASSOS_NA_TELA` (escondida desde o ticket 01) só neste PR, junto com o Executor que respeita `liberacao` e `predecessorId`.
+- [x] Ligar `LIBERACAO_DOS_PASSOS_NA_TELA` (escondida desde o ticket 01) só neste PR, junto com o Executor que respeita `liberacao` e `predecessorId`. — PR #249: a constante foi retirada e os seletores ficam sempre visíveis; passo novo volta a gravar liberação explícita.
 - [ ] Liberação manual não dispensa autorização; retrocompatibilidade serial e Destino confirmado continuam válidos.
 - [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
 

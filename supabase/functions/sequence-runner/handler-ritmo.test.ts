@@ -287,3 +287,15 @@ Deno.test('intervalo da Conta, limite do dia e limite da semana não enviam nada
     ['runner-chat', 'weekly_cap'],
   ])
 })
+
+Deno.test('um envio incerto não é liberado de novo na mesma rodada', async () => {
+  const parts = setup({
+    dueEmails: [{ send_id: E1, owner_user_id: TITULAR }],
+    emailReleases: { [E1]: { outcome: 'reconcile_required', send_id: E1 } },
+  })
+  const { call, finished } = runner(parts)
+  await call()
+  await finished()
+  assertEquals(parts.order.filter((item) => item.startsWith('release-email')), [`release-email:${E1}`])
+  assertEquals(parts.sent, [])
+})

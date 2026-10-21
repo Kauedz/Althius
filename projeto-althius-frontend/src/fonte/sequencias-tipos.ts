@@ -1,5 +1,6 @@
 import type { BloqueioDoTeto } from './automacao-tipos'
 import type { SugestaoDeTemplate, TemplateDaAlthius } from './templates-althius'
+import type { EntradaDeTemplateProprio, LiteralDeTemplate, PreviaDeTemplateProprio, TemplateProprio } from './templates-proprios'
 import type { FonteObservavel } from './tipos'
 
 export type StatusSequencia = 'ativa' | 'pausada' | 'reuniao' | 'esgotada' | 'encerrada'
@@ -29,6 +30,19 @@ export type SubtipoLinkedIn = 'convite' | 'mensagem' | 'inmail'
 export interface JanelaHorario {
   de: string
   ate: string
+}
+
+/** Sugestões visíveis. A ativação só vale depois que o Vendedor confirma estes valores. */
+export const FUSO_PADRAO = 'America/Sao_Paulo'
+export const DIAS_UTEIS_PADRAO = [1, 2, 3, 4, 5]
+export const MAXIMO_DIARIO_SUGERIDO = 3
+export const INTERVALO_MINUTOS_SUGERIDO = 30
+
+export interface AgendaDaSequencia {
+  fuso: string
+  diasUteis: number[]
+  maximoDiario: number
+  intervaloMinutos: number
 }
 
 export interface AnexoStep {
@@ -110,6 +124,11 @@ export interface Sequencia {
   pausadaPelaContaRemetente?: CanalStep
   participantesIds: string[]
   janelaPadrao: JanelaHorario
+  /** Ausente no documento antigo: a tela mostra a sugestão e exige confirmação antes de ativar. */
+  fuso?: string
+  diasUteis?: number[]
+  maximoDiario?: number
+  intervaloMinutos?: number
   regraDePause: string
   steps: StepSequencia[]
   /** Quantos steps já foram concluídos na demo (índice do próximo step). */
@@ -140,6 +159,10 @@ export interface AtualizacaoDocumento {
   participantesIds?: string[]
   steps?: StepSequencia[]
   janelaPadrao?: JanelaHorario
+  fuso?: string
+  diasUteis?: number[]
+  maximoDiario?: number
+  intervaloMinutos?: number
   regraDePause?: string
   status?: StatusSequencia
   motivoPause?: string
@@ -417,8 +440,14 @@ export interface FonteDeSequencias extends FonteObservavel {
   /** A autorização mais recente dos envios automáticos, ou null quando nunca foram ativados. Só para o Responsável. */
   autorizacao(sequenciaId: string): Promise<AutorizacaoDosEnvios | null>
 
-  /** Ativa os envios: autoriza o documento atual e programa o próximo passo. Um bloqueio volta como resultado. */
-  ativarEnvios(sequenciaId: string): Promise<ResultadoDaAtivacao>
+  /** Ativa os caminhos confirmados. Sem a lista, o contrato antigo autoriza o documento inteiro. */
+  ativarEnvios(sequenciaId: string, pedido?: {
+    stepIds: string[]
+    agenda: AgendaDaSequencia & { janela: JanelaHorario }
+  }): Promise<ResultadoDaAtivacao>
+
+  /** Libera um passo de liberação manual já autorizado. Não cria autorização nem troca o Destino. */
+  liberarPassoManual?(sequenciaId: string, stepId: string): Promise<{ outcome: string; programadoPara?: string }>
 
   /**
    * Quais canais de chat estão liberados para envio. Null quando a leitura falha: a tela não trata isso como canal
@@ -439,4 +468,28 @@ export interface FonteDeSequencias extends FonteObservavel {
    * Não cria Sequência e não ativa envio.
    */
   sugerirTemplateDaAlthius(contaId: string): Promise<SugestaoDeTemplate>
+
+  /**
+   * Templates próprios do criador neste Workspace. Outro participante não recebe a lista.
+   * Não é biblioteca compartilhada.
+   */
+  templatesProprios(): Promise<TemplateProprio[]>
+
+  /** A prévia parametrizada, sem persistir. O salvamento só aceita este resultado. */
+  previaDeTemplateProprio(entrada: EntradaDeTemplateProprio): Promise<PreviaDeTemplateProprio>
+
+  /** Grava só a prévia já segura. Não autoriza Contato e não altera Sequências. */
+  salvarTemplateProprio(entrada: PreviaDeTemplateProprio & { literais?: LiteralDeTemplate[] }): Promise<TemplateProprio>
+
+  /** Só o criador edita. A Sequência já copiada não muda. */
+  atualizarTemplateProprio(
+    id: string,
+    entrada: PreviaDeTemplateProprio & { literais?: LiteralDeTemplate[] },
+  ): Promise<TemplateProprio>
+
+  /**
+   * Sugere um template próprio que o leitor pode ler. Sem template legível, sem Sinal ou com o teto fechado, não escolhe.
+   * Não substitui a sugestão da Althius e não ativa envio.
+   */
+  sugerirTemplateProprio(contaId: string): Promise<SugestaoDeTemplate>
 }

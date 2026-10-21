@@ -1,12 +1,8 @@
 import { screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { renderizarApp } from '@/test/renderizar'
 
-// Os controles de liberação ficam desligados na tela até o ticket 02. Aqui eles são ligados
-// para manter coberto o comportamento que o ticket 02 vai expor.
-vi.mock('@/fonte/liberacao-dos-passos-na-tela', () => ({ LIBERACAO_DOS_PASSOS_NA_TELA: true }))
-
-describe('Detalhe da Sequência - liberação dos passos ligada (ticket 02)', () => {
+describe('Detalhe da Sequência - liberação dos passos', () => {
   it('mostra condição de liberação no editor e grava predecessor sem Persona/Playbook', async () => {
     const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
 
@@ -74,5 +70,23 @@ describe('Detalhe da Sequência - liberação dos passos ligada (ticket 02)', ()
     const seq = await fonteDeSequencias.sequencia('sequencia-openai')
     const opcoes = Array.from((pred as HTMLSelectElement).options).filter((o) => o.value !== '')
     expect(opcoes.map((o) => o.value)).toEqual(seq.steps.filter((s) => s.titulo !== 'Encerramento').map((s) => s.id))
+  })
+
+  it('Liberação manual troca o prazo por "Só sai quando você liberar" e grava sem predecessor', async () => {
+    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+
+    expect(await screen.findByDisplayValue('Abertura pelo Sinal')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Convite no LinkedIn/i }))
+    await usuario.selectOptions(screen.getByLabelText(/Condição de liberação do passo/i), 'manual')
+
+    expect(await screen.findByText(/Só sai quando você liberar/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Dias úteis de espera/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Passo predecessor/i)).not.toBeInTheDocument()
+    await waitFor(async () => {
+      const seq = await fonteDeSequencias.sequencia('sequencia-openai')
+      const convite = seq.steps.find((s) => s.titulo === 'Convite no LinkedIn')
+      expect(convite?.liberacao).toBe('manual')
+      expect(convite?.predecessorId).toBeUndefined()
+    })
   })
 })
