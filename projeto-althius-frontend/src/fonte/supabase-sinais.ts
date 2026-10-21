@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
 import { CATALOGO_VISIVEL, cardQueConta } from '@/paginas/sinais/catalogo-visivel'
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
+import { viewerEhDaEquipeAlthius } from './supabase-equipe'
 import type { ContaAlvo, Sinal } from './contas-tipos'
 import type {
   CardSobPedido,
@@ -437,14 +438,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
 
     estadosDosColetores: () => estadosDosColetores(cliente),
 
-    async souDaEquipeAlthius(): Promise<boolean> {
-      try {
-        const { data, error } = await cliente.rpc('viewer_is_althius_staff')
-        return !error && data === true
-      } catch {
-        return false
-      }
-    },
+    souDaEquipeAlthius: () => viewerEhDaEquipeAlthius(cliente),
 
     async catalogoDoWorkspace(): Promise<CardSobPedido[]> {
       try {
