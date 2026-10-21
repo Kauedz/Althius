@@ -1,4 +1,5 @@
 import type { BloqueioDoTeto } from './automacao-tipos'
+import type { SugestaoDeTemplate, TemplateDaAlthius } from './templates-althius'
 import type { FonteObservavel } from './tipos'
 
 export type StatusSequencia = 'ativa' | 'pausada' | 'reuniao' | 'esgotada' | 'encerrada'
@@ -427,4 +428,15 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Resolve um envio incerto que o provedor não confirmou: o titular diz se ele saiu. */
   resolverIncerto(sequenciaId: string, stepId: string, saiu: boolean): Promise<void>
+
+  /**
+   * Templates da Althius: estruturas sem Contato, destino ou histórico. O Cliente lê; não edita o original.
+   */
+  templatesDaAlthius(): Promise<TemplateDaAlthius[]>
+
+  /**
+   * Sugere um template existente a partir de um Sinal real da Conta. Sem contexto ou com o teto fechado, não escolhe.
+   * Não cria Sequência e não ativa envio.
+   */
+  sugerirTemplateDaAlthius(contaId: string): Promise<SugestaoDeTemplate>
 }
