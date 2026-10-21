@@ -204,20 +204,25 @@ select is(
 );
 
 -- 10. O Rhetor recebe a sugestão pelo servidor; o Ethos não. Nada é enviado.
+-- Os ids dos Agentes saem de private antes da troca de papel: o service_role não lê o schema private.
+insert into ids select 'rhetor', pg_temp.rhetor();
+insert into ids select 'ethos', id from private.agents
+  where workspace_id = 'b7100000-0000-0000-0000-000000000001' and specialty = 'ethos' and kind = 'padrao';
 set local role service_role;
 select is(
   (select template_id from public.agent_suggest_althius_sequence_template(
-    'b7300000-0000-0000-0000-000000000001', pg_temp.rhetor(), (select id from ids where k = 'beta'))),
+    'b7300000-0000-0000-0000-000000000001', (select id from ids where k = 'rhetor'), (select id from ids where k = 'beta'))),
   null,
   'o Rhetor, sem Sinal, também não inventa template'
 );
 select throws_ok(
   $$select public.agent_suggest_althius_sequence_template(
     'b7300000-0000-0000-0000-000000000001',
-    (select id from private.agents where workspace_id = 'b7100000-0000-0000-0000-000000000001' and specialty = 'ethos' and kind = 'padrao'),
+    (select id from ids where k = 'ethos'),
     (select id from ids where k = 'alfa'))$$,
-  '42501', null, 'só o Rhetor sugere template'
+  '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor sugere template'
 );
+reset role;
 select is(
   (select count(*)::integer from private.sequence_step_sends
    where workspace_id = 'b7100000-0000-0000-0000-000000000001'),
