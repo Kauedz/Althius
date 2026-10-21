@@ -41,7 +41,7 @@ try:
 except Exception:
     print("erro"); sys.exit()
 if not runs: print("pendente"); sys.exit()
-r = max(runs, key=lambda r: r.get("run_attempt", 1))
+r = max(runs, key=lambda r: (r.get("created_at", ""), r.get("run_attempt", 1)))  # a mais nova; re-run conta
 if r["status"] != "completed": print("pendente")
 elif r["conclusion"] == "success": print("ok")
 else: print("falhou:" + str(r["conclusion"]))

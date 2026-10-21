@@ -180,7 +180,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
     const { usuario, decisoes } = abrir('/agentes/agente-rhetor/conversa', { papel: 'admin', responsavel: false })
     const cartao = await pedirAoRhetor(usuario)
 
-    expect(within(cartao).getByText('Só o Vendedor responsável pela Conta-alvo decide esta Sequência.')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Só o Vendedor responsável pela Conta-alvo decide esta Sequência.')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
     expect(within(cartao).getByText('2 Contatos')).toBeInTheDocument()
     expect(within(cartao).getByText(/só o Vendedor responsável pela Conta-alvo vê/)).toBeInTheDocument()

@@ -45,13 +45,15 @@ interface Props {
   ambiente: Ambiente
   /** Usado nos testes: roteia em memória a partir desta rota. */
   rotaInicial?: string
+  /** O prefixo das rotas no navegador: a Demonstração da equipe roda sob `/demonstracao`. */
+  basename?: string
   animarDigitacao?: boolean
 }
 
 const PLAYBOOK_INDISPONIVEL = criarFonteDoPlaybookIndisponivel()
 const AUTOMACAO_INDISPONIVEL = criarFonteDeAutomacaoIndisponivel()
 
-export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
+export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }: Props) {
   const [posicoesDasListas] = useState(criarPosicoesDasListas)
   const rotas = (
     <Routes>
@@ -114,7 +116,7 @@ export function App({ ambiente, rotaInicial, animarDigitacao = true }: Props) {
                                 {rotas}
                               </MemoryRouter>
                             ) : (
-                              <BrowserRouter>
+                              <BrowserRouter basename={basename}>
                                 <AvisosDoNavegador />
                                 {rotas}
                               </BrowserRouter>

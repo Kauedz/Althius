@@ -55,6 +55,7 @@ import { CotasDeEntradaDaSequencia } from '@/paginas/cotas-de-entrada-da-sequenc
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { textoDaResposta } from '@/fonte/texto-do-email'
 import { carregarAnexo, formaDoAnexo } from '@/fonte/anexo-recebido'
+import { LIBERACAO_DOS_PASSOS_NA_TELA } from '@/fonte/liberacao-dos-passos-na-tela'
 import {
   CANAIS_SUPORTADOS,
   type AnexoRecebido,
@@ -592,6 +593,10 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         modoEmail: canal === 'email' ? 'auto' : undefined,
         subtipoLinkedIn: canal === 'linkedin' ? 'convite' : undefined,
         anexos: [],
+      }
+      // Até o ticket 02 o passo novo nasce legado (serial pela lista), como antes do ticket 01.
+      if (!LIBERACAO_DOS_PASSOS_NA_TELA) {
+        return base
       }
       // Passo novo grava condição explícita; a ordem visual não vira dependência implícita.
       if (!anterior) {
@@ -1422,6 +1427,8 @@ function ComposerStep({
   onConfirmarEEnviar,
   onResolverIncerto,
 }: ComposerStepProps) {
+  // Até o ticket 02 a tela mostra o "Quando" serial de hoje, mesmo que o documento tenha liberação gravada.
+  const liberacaoNaTela = LIBERACAO_DOS_PASSOS_NA_TELA ? step.liberacao : undefined
   const naDemonstracao = useAmbiente().modo === 'demonstracao'
   const contato = contatosMap.get(step.contatoId)
   const ehNota = step.canal === 'ligacao' || step.canal === 'tarefa'
@@ -1685,6 +1692,7 @@ function ComposerStep({
       <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
         <span className="text-xs text-al-muted">Quando:</span>
         <div className="flex flex-wrap items-center gap-2 text-xs text-al-ink">
+          {LIBERACAO_DOS_PASSOS_NA_TELA && (
           <select
             aria-label="Condição de liberação do passo"
             value={step.liberacao ?? 'legado'}
@@ -1716,7 +1724,8 @@ function ComposerStep({
             <option value="predecessor">Após o envio de outro passo</option>
             <option value="manual">Liberação manual</option>
           </select>
-          {step.liberacao === 'predecessor' && (
+          )}
+          {liberacaoNaTela === 'predecessor' && (
             <select
               aria-label="Passo predecessor"
               value={step.predecessorId ?? ''}
@@ -1727,17 +1736,18 @@ function ComposerStep({
                 Escolha o passo
               </option>
               {passos
-                .filter((p) => p.id !== step.id)
-                .map((p, i) => (
+                .map((p, posicao) => ({ p, posicao }))
+                .filter(({ p }) => p.id !== step.id)
+                .map(({ p, posicao }) => (
                   <option key={p.id} value={p.id}>
-                    {p.titulo || `Passo ${i + 1}`}
+                    {p.titulo || `Passo ${posicao + 1}`}
                   </option>
                 ))}
             </select>
           )}
-          {step.liberacao === 'manual' ? (
+          {liberacaoNaTela === 'manual' ? (
             <span className="text-al-muted">Só sai quando você liberar</span>
-          ) : step.liberacao == null && indice === 0 ? (
+          ) : liberacaoNaTela == null && indice === 0 ? (
             <span className="text-al-muted">Começa assim que a sequência for aprovada</span>
           ) : (
             <>
@@ -1756,9 +1766,9 @@ function ComposerStep({
                 className="rounded-md w-14 border border-al-line bg-al-bg px-2 py-0.5 text-center text-xs text-al-ink outline-none"
               />
               <span className="text-al-muted">
-                {step.liberacao === 'predecessor'
+                {liberacaoNaTela === 'predecessor'
                   ? 'dias úteis após o envio do predecessor'
-                  : step.liberacao === 'ativacao'
+                  : liberacaoNaTela === 'ativacao'
                     ? 'dias úteis após a ativação'
                     : `dias úteis após o step ${indice}`}
               </span>
