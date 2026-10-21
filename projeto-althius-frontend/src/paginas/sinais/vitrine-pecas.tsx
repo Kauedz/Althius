@@ -23,7 +23,9 @@ import type { PedidoDeSinal, SinalEncontrado } from '@/fonte/sinais-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn } from '@/lib/utils'
+import type { EstadoDoCard } from './catalogo-funcional'
 import { nomesDosNichos, valeParaTodosOsNichos, type CardDoCatalogo } from './catalogo-visivel'
+import { SeloDaDisponibilidade } from './disponibilidade'
 import { capaDoCard, iconeDaFamilia, type SituacaoDoExclusivo } from './vitrine'
 
 /** A capa de um Sinal: uma imagem da marca, com o véu escuro que deixa o texto legível. */
@@ -58,16 +60,31 @@ function NichosDoCard({ card }: { card: CardDoCatalogo }) {
   )
 }
 
+/**
+ * Os selos de um card que ainda não roda de verdade, no Workspace operacional: "Em teste" ou "Em breve" e, para a equipe
+ * Althius, "Interno", porque o cliente não vê o card.
+ */
+export function SelosDoEstado({ estado, className }: { estado: EstadoDoCard; className?: string }) {
+  return (
+    <span className={cn('flex flex-wrap justify-center gap-1.5', className)}>
+      <SeloDaDisponibilidade disponibilidade={estado.disponibilidade} />
+      {estado.interno && <span className="selo" title="O cliente não vê este Sinal">Interno</span>}
+    </span>
+  )
+}
+
 /** O card da vitrine: capa, nome, frase, nichos e quantos Monitoramentos estão ativos. Abre a página do Sinal. */
 export function CartaoDaVitrine({
   card,
   ativos,
   selo,
+  estado,
   className,
 }: {
   card: CardDoCatalogo
   ativos: number
   selo?: string
+  estado?: EstadoDoCard
   className?: string
 }) {
   return (
@@ -93,6 +110,7 @@ export function CartaoDaVitrine({
           <h3 className="text-base leading-snug font-normal">{card.nome}</h3>
           <p className="line-clamp-2 text-sm text-al-muted">{card.frase}</p>
           <NichosDoCard card={card} />
+          {estado && <SelosDoEstado estado={estado} />}
           <div className="mt-auto flex w-full items-end justify-between gap-3 pt-2">
             <span className="rotulo inline-flex items-center gap-2 text-al-ink">
               {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
@@ -308,13 +326,22 @@ export function CartoesDaPrateleira({
   cards,
   ativosDe,
   seloDe,
+  estadoDe,
 }: {
   cards: readonly CardDoCatalogo[]
   ativosDe: (card: CardDoCatalogo) => number
   seloDe?: (card: CardDoCatalogo) => string | undefined
+  estadoDe?: (card: CardDoCatalogo) => EstadoDoCard | undefined
 }) {
   return cards.map((card) => (
-    <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe?.(card)} className="w-60 shrink-0 sm:w-64" />
+    <CartaoDaVitrine
+      key={card.id}
+      card={card}
+      ativos={ativosDe(card)}
+      selo={seloDe?.(card)}
+      estado={estadoDe?.(card)}
+      className="w-60 shrink-0 sm:w-64"
+    />
   ))
 }
 
@@ -385,10 +412,12 @@ export function CartaoDeLancamento({
   card,
   avisado,
   aoAvisar,
+  estado,
 }: {
   card: CardDoCatalogo
   avisado: boolean
   aoAvisar: (card: CardDoCatalogo) => Promise<void>
+  estado?: EstadoDoCard
 }) {
   return (
     <CartaoSimples
@@ -402,6 +431,7 @@ export function CartaoDeLancamento({
       }
     >
       <p className="line-clamp-2 text-sm text-al-muted">{card.frase}</p>
+      {estado && <SelosDoEstado estado={estado} />}
       <BotaoAviseMe card={card} avisado={avisado} aoAvisar={aoAvisar} className="mt-auto pt-2" />
     </CartaoSimples>
   )

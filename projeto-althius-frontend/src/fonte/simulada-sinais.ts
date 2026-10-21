@@ -1,4 +1,5 @@
 import { TIPOS, TIPO_PERSONALIZADO } from '@/paginas/sinais/catalogo'
+import { CATALOGO_VISIVEL } from '@/paginas/sinais/catalogo-visivel'
 import { MONITORAMENTOS_INICIAIS, SINAIS_MOCK, publicoInicial } from '@/paginas/sinais/dados-mock'
 import { foiDisparado, parseDataDisparo } from '@/fonte/regras-sinais'
 import type { FonteDeContas } from './contas-tipos'
@@ -411,6 +412,15 @@ export function criarFonteDeSinaisSimulada(
 
     catalogoDoWorkspace(): Promise<CardSobPedido[]> {
       return Promise.resolve([])
+    },
+
+    // A Demonstração mostra o catálogo inteiro, simulado: todo coletor conta como disponível.
+    estadosDosColetores(): Promise<ReadonlyMap<string, string>> {
+      return Promise.resolve(new Map(CATALOGO_VISIVEL.flatMap((card) => card.coletores.map((coletor) => [coletor, 'available'] as const))))
+    },
+
+    souDaEquipeAlthius(): Promise<boolean> {
+      return Promise.resolve(false)
     },
   }
 }

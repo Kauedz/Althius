@@ -10,6 +10,7 @@ import type { CardSobPedido, EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, familiaDoTipo, tipoPorId, type TipoDeSinal } from './catalogo'
 import { cardPorId, cardQueConta, nomesDosNichos, valeParaTodosOsNichos } from './catalogo-visivel'
 import { sinalArquivado } from './arquivados'
+import { useCatalogoFuncional } from './catalogo-funcional'
 import { SeloDoEstado } from './componentes'
 import { motivoDaIndisponibilidade, podeMonitorar } from './disponibilidade'
 import { useMonitoramentos, useSinaisDoMockup } from './estado'
@@ -24,7 +25,7 @@ import {
   ultimasDetectadas,
   usePedidosDaVitrine,
 } from './vitrine'
-import { BotaoAviseMe, CapaDoSinal, PreviaDasDetectadas } from './vitrine-pecas'
+import { BotaoAviseMe, CapaDoSinal, PreviaDasDetectadas, SelosDoEstado } from './vitrine-pecas'
 import { ACAO_DO_ESTADO, resumoDaRodada, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
 
 function tipoDoExtra(extra: CardSobPedido): TipoDeSinal {
@@ -50,6 +51,7 @@ export function PaginaDoTipo() {
   const { dados: extras, carregando: carregandoExtras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { avisar, avisado } = usePedidosDaVitrine()
+  const visao = useCatalogoFuncional()
   const extra = extras?.find((card) => card.id === tipoId)
   const card = cardPorId(tipoId)
   const tipo = tipoPorId(tipoId) ?? (extra ? tipoDoExtra(extra) : undefined)
@@ -63,12 +65,26 @@ export function PaginaDoTipo() {
   if (sinalArquivado(tipoId)) return <Navigate to="/sinais" replace />
   if (!tipo && carregandoExtras && !extras) return <Carregando />
   if (!tipo) return <Navigate to="/sinais" replace />
-  const visivel = Boolean(card || extra)
-  const permiteCriar = visivel || !tipoDaFonte || podeMonitorar(tipoDaFonte)
-  const motivoDeNaoCriar = visivel || !tipoDaFonte ? null : motivoDaIndisponibilidade(tipoDaFonte)
+  const detalhe = card ?? (extra ? cardDoExtra(extra) : undefined)
+  // No operacional, o cliente só abre um card que roda de verdade ou que o Workspace já monitora. Sem os estados, volta
+  // ao catálogo, que mostra o erro.
+  if (operacional && detalhe) {
+    if (visao.erro) return <Navigate to="/sinais" replace />
+    if (visao.carregando || (carregando && todos.length === 0)) return <Carregando />
+    if (visao.visiveis([detalhe], todos).length === 0) return <Navigate to="/sinais" replace />
+  }
+  const visivel = Boolean(detalhe)
+  const disponibilidadeDoCard = detalhe ? visao.disponibilidadeDe(detalhe) : undefined
+  const estadoDoCard = detalhe ? visao.estadoDe(detalhe) : undefined
+  // Card que não roda (o que o Workspace já monitora, ou o interno da equipe) não abre Monitoramento novo.
+  const permiteCriar = disponibilidadeDoCard
+    ? podeMonitorar({ disponibilidade: disponibilidadeDoCard })
+    : visivel || !tipoDaFonte || podeMonitorar(tipoDaFonte)
+  const motivoDeNaoCriar = disponibilidadeDoCard
+    ? motivoDaIndisponibilidade({ disponibilidade: disponibilidadeDoCard })
+    : visivel || !tipoDaFonte ? null : motivoDaIndisponibilidade(tipoDaFonte)
   const familia = familiaDoTipo(tipo)
   const ativos = monitoramentos.filter((m) => m.estado === 'ativo').length
-  const detalhe = card ?? (extra ? cardDoExtra(extra) : undefined)
 
   const alternarEstado = async (id: string, novoEstado: EstadoDoMonitoramento) => {
     setErroAcao(null)
@@ -111,6 +127,7 @@ export function PaginaDoTipo() {
             {exclusivo && <span className="selo border-al-ink/30 bg-al-bg/60 text-al-ink">Exclusivo</span>}
             {lancamento && <span className="selo border-al-ink/30 bg-al-bg/60 text-al-ink">Lançamento</span>}
           </div>
+          {estadoDoCard && <SelosDoEstado estado={estadoDoCard} className="justify-start" />}
           <p className="titulo-display max-w-3xl text-4xl md:text-6xl" aria-hidden>
             {tipo.nome}
           </p>
