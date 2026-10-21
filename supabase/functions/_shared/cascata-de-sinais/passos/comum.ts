@@ -125,10 +125,13 @@ export const MAX_EMPRESAS_SEM_CONTA = 50
 /**
  * Guarda o Sinal de uma empresa que não é Conta, para o motor entregá-lo ao banco depois dos Sinais das Contas. Fica na
  * memória da execução, e não no fluxo dos itens, para os passos seguintes (a Receita, por exemplo) só verem Contas.
- * Sem CNPJ válido nem site, o banco não consegue deduplicar a empresa com segurança e nada seria gravado: nem guarda.
+ * Sem CNPJ válido nem site, o banco não consegue deduplicar a empresa com segurança e nada seria gravado: nem guarda. A
+ * exceção é a empresa marcada `semSite` pela descoberta no mercado endereçável: com a página do LinkedIn, o banco a
+ * deduplica por ela e cria a candidata com a etiqueta "sem site".
  */
 export function guardarSinalDeEmpresa(memoria: Map<string, unknown>, s: SinalDeEmpresa): void {
-  if (!cnpjLimpo(s.empresa.cnpj) && !texto(s.empresa.site)) return
+  const pelaPagina = s.empresa.semSite === true && !!paginaDoLinkedin(s.empresa.linkedinUrl ?? '')
+  if (!cnpjLimpo(s.empresa.cnpj) && !texto(s.empresa.site) && !pelaPagina) return
   const atual = memoria.get('sinaisDeEmpresas')
   const lista = Array.isArray(atual) ? atual as SinalDeEmpresa[] : []
   if (lista.length >= MAX_EMPRESAS_SEM_CONTA * 10) return

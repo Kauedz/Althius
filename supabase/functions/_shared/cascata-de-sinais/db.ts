@@ -142,6 +142,7 @@ export function criarDbDaCascata(admin: ClienteRpc): DbDaCascata {
           ...(e.linkedinUrl ? { linkedinUrl: e.linkedinUrl } : {}),
           ...(e.uf ? { uf: e.uf } : {}),
           ...(e.municipio ? { city: e.municipio } : {}),
+          ...(e.semSite ? { semSite: true } : {}),
         },
         p_monitor_id: monitorId,
         p_signal_type: signalType,

@@ -6,6 +6,7 @@ import { casarComContas } from './casar-com-contas.ts'
 import { casarFatosComContas } from './empresas.ts'
 import { linkedinEmpresa } from './empresa-linkedin.ts'
 import { confirmarVaga, linkedinVagas } from './vagas.ts'
+import { passosDoMercado } from './vagas-mercado.ts'
 import { passosDoIcp_a_resto } from './icp-a-resto.ts'
 import { passosDoIcp_b } from './icp-b.ts'
 import { passosDoIcp_c } from './icp-c.ts'
@@ -26,6 +27,7 @@ export function registroDePassos(fetchFn: typeof fetch = fetch): RegistroDePasso
       linkedin_empresa: linkedinEmpresa,
       casar_com_contas: casarComContas,
       cnpj_da_conta: cnpjDaConta,
+      ...passosDoMercado,
     },
     fontes: {
       ...Object.assign({}, ...dosIcps.map((r) => r.fontes)),

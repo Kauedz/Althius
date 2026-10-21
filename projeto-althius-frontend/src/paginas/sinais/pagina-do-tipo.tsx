@@ -27,6 +27,7 @@ import {
 } from './vitrine'
 import { BotaoAviseMe, CapaDoSinal, PreviaDasDetectadas, SelosDoEstado } from './vitrine-pecas'
 import { ACAO_DO_ESTADO, resumoDaRodada, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
+import { noMercado, resumoDoMercado } from './mercado-enderecavel'
 
 function tipoDoExtra(extra: CardSobPedido): TipoDeSinal {
   return {
@@ -266,7 +267,9 @@ export function PaginaDoTipo() {
                     {resumoDosCriterios(m)}
                   </p>
                   <p className="text-xs text-al-muted">
-                    {operacional ? resumoDasContas(m.publico.listas.length) : resumoDoPublico(m.publico)}
+                    {operacional
+                      ? noMercado(m.publico) ? resumoDoMercado(m.criterios) : resumoDasContas(m.publico.listas.length)
+                      : resumoDoPublico(m.publico)}
                     {disparados > 0 && ` · ${disparados} ${disparados === 1 ? 'Sinal disparado' : 'Sinais disparados'}`}
                   </p>
                   {m.ultimaFalha && (
