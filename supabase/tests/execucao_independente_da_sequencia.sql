@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(24);
+select plan(37);
 
 create function pg_temp.relogio(p_at timestamptz) returns void language plpgsql as $f$
 begin
@@ -257,6 +257,131 @@ select is(
       select id from pg_temp.envios((select valor::uuid from ids where chave = 'paralela'))
       where step_id in ('a', 'b'))),
   0, 'a second reservation does not take the claimed or deferred path');
+
+-- O excedente da Conta espera o próximo dia permitido: continua programado, não é cancelado.
+select is(
+  (select string_agg(status || ' ' || ((scheduled_for at time zone 'America/Sao_Paulo')::date = '2026-10-01'), ',')
+    from pg_temp.envios((select valor::uuid from ids where chave = 'paralela'))
+    where step_id in ('a', 'b') and claimed_until is null),
+  'scheduled true', 'the path over the daily limit waits for the next allowed day');
+
+-- Documento antigo (sem liberação): a fila serial de hoje, sem os limites novos da Conta.
+reset role;
+update private.sequence_step_sends
+set status = 'sent', sent_at = '2026-09-30 10:00-03', claimed_until = null
+where sequence_id = (select valor::uuid from ids where chave = 'legado') and step_id = 'l1';
+select private.schedule_next_step((select valor::uuid from ids where chave = 'legado'), '2026-09-30 10:00-03');
+select is(
+  (select status || ' ' || (scheduled_for = '2026-09-30 10:00-03')
+    from pg_temp.envios((select valor::uuid from ids where chave = 'legado'), 'l2')),
+  'scheduled true', 'a legacy step follows the previous send exactly like the serial queue');
+create temporary table reservados (send_id uuid, owner_user_id uuid);
+grant all on reservados to authenticated, service_role;
+set local role service_role;
+insert into reservados select * from public.claim_due_step_sends(50);
+select is(
+  (select count(*)::int from reservados
+    where send_id in (select id from pg_temp.envios((select valor::uuid from ids where chave = 'legado'), 'l2'))),
+  1, 'a legacy authorization without daily limit is claimed as before');
+
+-- Garantias da reserva: nada antes de Ativar envios; manual e dependente fora até a vez deles.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'e2000000-0000-0000-0000-000000000001', true);
+insert into ids select 'conta-garantias', id::text from public.save_target_account(
+  'e2100000-0000-0000-0000-000000000001', 'Empresa Garantias', 'https://garantias.e2.test');
+insert into ids select 'ana', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta-garantias'), 'Ana Reis', 'Diretora', 'ana@e2.test');
+insert into ids select 'beto', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta-garantias'), 'Beto Dias', 'Gerente', 'beto@e2.test');
+insert into ids select 'garantias', id::text from public.create_sequence(
+  'e2100000-0000-0000-0000-000000000001', (select valor from ids where chave = 'conta-garantias'),
+  jsonb_build_object('steps', jsonb_build_array(
+    pg_temp.passo('g1', 'ana', 0, 'ativacao'),
+    pg_temp.passo('g2', 'beto', 0, 'ativacao'),
+    pg_temp.passo('gp', 'beto', 0, 'predecessor', 'g1'),
+    pg_temp.passo('gm', 'ana', 0, 'manual'))));
+select is(
+  (select count(*)::int from pg_temp.envios((select valor::uuid from ids where chave = 'garantias'))),
+  0, 'nothing is queued before Ativar envios');
+select is(
+  (select count(*)::int from public.activate_sequence(
+    (select valor::uuid from ids where chave = 'garantias'), array['g1','g2','gp','gm'], pg_temp.agenda(10, 0))),
+  4, 'the four steps are authorized together');
+
+set local role service_role;
+delete from reservados;
+insert into reservados select * from public.claim_due_step_sends(50);
+select is(
+  (select string_agg(e.step_id, ',' order by e.step_id)
+    from pg_temp.envios((select valor::uuid from ids where chave = 'garantias')) e
+    join reservados r on r.send_id = e.id),
+  'g1,g2', 'only the paths released by activation are claimed');
+select is(
+  (select string_agg(step_id || ' ' || status || ' ' || (scheduled_for is null), ',' order by step_id)
+    from pg_temp.envios((select valor::uuid from ids where chave = 'garantias'))
+    where step_id in ('gm', 'gp')),
+  'gm waiting true,gp waiting true', 'the manual and the dependent step stay unscheduled');
+
+reset role;
+update private.sequence_step_sends
+set status = 'sent', sent_at = '2026-09-30 10:00-03'
+where sequence_id = (select valor::uuid from ids where chave = 'garantias') and step_id = 'g1';
+select private.schedule_next_step((select valor::uuid from ids where chave = 'garantias'), '2026-09-30 10:00-03');
+select pg_temp.relogio('2026-09-30 11:00-03');
+set local role service_role;
+delete from reservados;
+insert into reservados select * from public.claim_due_step_sends(50);
+select is(
+  (select string_agg(e.step_id, ',' order by e.step_id)
+    from pg_temp.envios((select valor::uuid from ids where chave = 'garantias')) e
+    join reservados r on r.send_id = e.id),
+  'gp', 'the dependent is claimed after the predecessor is sent; the manual step still is not');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'e2000000-0000-0000-0000-000000000001', true);
+select is(
+  (select outcome from public.release_manual_sequence_step(
+    (select valor::uuid from ids where chave = 'garantias'), 'gm')),
+  'released', 'the owner releases the manual step');
+set local role service_role;
+delete from reservados;
+insert into reservados select * from public.claim_due_step_sends(50);
+select is(
+  (select string_agg(e.step_id, ',' order by e.step_id)
+    from pg_temp.envios((select valor::uuid from ids where chave = 'garantias')) e
+    join reservados r on r.send_id = e.id),
+  'gm', 'the manual step is claimed only after it is released');
+
+-- O teto diário da Conta remetente conta os envios de todos os caminhos juntos.
+reset role;
+select private.set_send_rate_enabled(true);
+insert into private.send_caps (workspace_id, kind, period, max_sends)
+values ('e2100000-0000-0000-0000-000000000001', 'email', 'day', 1)
+on conflict (workspace_id, kind, period) do update set max_sends = excluded.max_sends;
+update private.sequence_step_sends
+set sender_account_id = (select id from private.sender_accounts where unipile_account_id = 'unipile-e2'),
+    rate_kind = 'email'
+where sequence_id = (select valor::uuid from ids where chave = 'garantias') and step_id = 'g1';
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send(
+    (select id from pg_temp.envios((select valor::uuid from ids where chave = 'garantias'), 'g2')))),
+  'daily_cap', 'a parallel path does not exceed the sender daily cap already used by the other path');
+select is(
+  (select status || ' ' || deferred_reason || ' '
+      || ((scheduled_for at time zone 'America/Sao_Paulo')::date > '2026-09-30')
+    from pg_temp.envios((select valor::uuid from ids where chave = 'garantias'), 'g2')),
+  'scheduled daily_cap true', 'the capped path waits for another day');
+reset role;
+update private.send_caps set max_sends = 2
+where workspace_id = 'e2100000-0000-0000-0000-000000000001' and kind = 'email' and period = 'day';
+update private.sequence_step_sends set scheduled_for = '2026-09-30 10:00-03', claimed_until = null
+where sequence_id = (select valor::uuid from ids where chave = 'garantias') and step_id = 'g2';
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send(
+    (select id from pg_temp.envios((select valor::uuid from ids where chave = 'garantias'), 'g2')))),
+  'released', 'with room under the cap the same path goes out');
 
 select * from finish();
 rollback;
