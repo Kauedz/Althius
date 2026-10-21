@@ -36,6 +36,7 @@ $$;
 
 select pg_temp.entrar('b7000000-0000-0000-0000-000000000001');
 create temporary table ids (k text primary key, id uuid) on commit drop;
+grant all on ids to authenticated, service_role;
 insert into ids select 'alfa', id from public.save_target_account(
   'b7100000-0000-0000-0000-000000000001', 'Alfa', 'https://alfa.tpl.test');
 insert into ids select 'beta', id from public.save_target_account(
