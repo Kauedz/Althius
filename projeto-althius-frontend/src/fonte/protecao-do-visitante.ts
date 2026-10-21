@@ -22,7 +22,7 @@ export const ACOES_PAGAS_DO_VISITANTE: Record<Fontes, readonly string[]> = {
   // Comitê e revelar contato; enriquecer e buscar Sinais de novo gastam créditos; o envio ao CRM sai da Althius.
   fonteDeContas: ['buscarComite', 'revelarContato', 'aceitarContatoProposto', 'enriquecerReceita', 'buscarSinaisDeNovo', 'enviarAoCrm'],
   // Sequência: confirmar, enviar e ativar.
-  fonteDeSequencias: ['criarSequencia', 'confirmarParticipantes', 'confirmarPasso', 'enviarPasso', 'ativarEnvios', 'aprovarEEnviarProposta'],
+  fonteDeSequencias: ['criarSequencia', 'confirmarParticipantes', 'confirmarPasso', 'enviarPasso', 'ativarEnvios', 'liberarPassoManual', 'aprovarEEnviarProposta'],
   // Monitoramento.
   fonteDeSinais: ['salvarMonitoramento', 'mudarEstado', 'simularDisparo', 'pedirSinal'],
   // Descoberta.

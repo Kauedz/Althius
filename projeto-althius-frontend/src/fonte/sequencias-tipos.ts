@@ -32,6 +32,19 @@ export interface JanelaHorario {
   ate: string
 }
 
+/** Sugestões visíveis. A ativação só vale depois que o Vendedor confirma estes valores. */
+export const FUSO_PADRAO = 'America/Sao_Paulo'
+export const DIAS_UTEIS_PADRAO = [1, 2, 3, 4, 5]
+export const MAXIMO_DIARIO_SUGERIDO = 3
+export const INTERVALO_MINUTOS_SUGERIDO = 30
+
+export interface AgendaDaSequencia {
+  fuso: string
+  diasUteis: number[]
+  maximoDiario: number
+  intervaloMinutos: number
+}
+
 export interface AnexoStep {
   tipo: 'imagem' | 'video'
   nome: string
@@ -111,6 +124,11 @@ export interface Sequencia {
   pausadaPelaContaRemetente?: CanalStep
   participantesIds: string[]
   janelaPadrao: JanelaHorario
+  /** Ausente no documento antigo: a tela mostra a sugestão e exige confirmação antes de ativar. */
+  fuso?: string
+  diasUteis?: number[]
+  maximoDiario?: number
+  intervaloMinutos?: number
   regraDePause: string
   steps: StepSequencia[]
   /** Quantos steps já foram concluídos na demo (índice do próximo step). */
@@ -141,6 +159,10 @@ export interface AtualizacaoDocumento {
   participantesIds?: string[]
   steps?: StepSequencia[]
   janelaPadrao?: JanelaHorario
+  fuso?: string
+  diasUteis?: number[]
+  maximoDiario?: number
+  intervaloMinutos?: number
   regraDePause?: string
   status?: StatusSequencia
   motivoPause?: string
@@ -418,8 +440,14 @@ export interface FonteDeSequencias extends FonteObservavel {
   /** A autorização mais recente dos envios automáticos, ou null quando nunca foram ativados. Só para o Responsável. */
   autorizacao(sequenciaId: string): Promise<AutorizacaoDosEnvios | null>
 
-  /** Ativa os envios: autoriza o documento atual e programa o próximo passo. Um bloqueio volta como resultado. */
-  ativarEnvios(sequenciaId: string): Promise<ResultadoDaAtivacao>
+  /** Ativa os caminhos confirmados. Sem a lista, o contrato antigo autoriza o documento inteiro. */
+  ativarEnvios(sequenciaId: string, pedido?: {
+    stepIds: string[]
+    agenda: AgendaDaSequencia & { janela: JanelaHorario }
+  }): Promise<ResultadoDaAtivacao>
+
+  /** Libera um passo de liberação manual já autorizado. Não cria autorização nem troca o Destino. */
+  liberarPassoManual?(sequenciaId: string, stepId: string): Promise<{ outcome: string; programadoPara?: string }>
 
   /**
    * Quais canais de chat estão liberados para envio. Null quando a leitura falha: a tela não trata isso como canal

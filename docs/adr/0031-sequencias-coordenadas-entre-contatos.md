@@ -1,6 +1,6 @@
 # ADR-0031 — Sequência coordenada entre Contatos, com retenção por resposta
 
-Status: decisão de produto confirmada. Ticket 01 entregue no PR #244 (contrato e validação no banco; seletores de liberação escondidos na tela até o ticket 02). Demais tickets pendentes.
+Status: decisão de produto confirmada. Ticket 01 entregue no PR #244 (contrato e validação no banco; seletores de liberação escondidos na tela até o ticket 02). Ticket 02 no PR #249 (Executor respeita liberação e predecessor, migration 20261111120000; seletores visíveis). Demais tickets pendentes.
 
 ## Contexto
 
