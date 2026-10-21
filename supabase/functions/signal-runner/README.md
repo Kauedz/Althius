@@ -59,6 +59,15 @@ Um tipo genérico da tela (Novo escritório, Registros empresariais, Investiment
 - a cascata de **mercado** nunca atende um tipo genérico (o motor a recusa; o banco também): o evento tem de ser numa empresa compradora do Workspace;
 - a "Buscar Sinais de novo" continua só com os Sinais com actor.
 
+## Abertura de vagas no mercado endereçável
+
+O Monitoramento de Abertura de vagas (`vaga_linkedin`) com `audience.escopo = 'mercado'` não varre Contas-alvo: procura empresas que estão contratando os cargos dele no nicho, no país e no estado. O runner lê o escopo (`signal_monitor_scope`) antes de tudo e roda a cascata da descoberta (`vaga_mercado`, `_shared/cascata-de-sinais/passos/vagas-mercado.ts`) pelo mesmo motor:
+
+- a busca usa os cargos (`criteria.funcoes`) e o nicho (Custom ou pronto) como palavras-chave, no país e no estado; a confirmação passa cada vaga pelos cargos, senioridade, palavras e período do Monitoramento, pelo estado e pelo filtro do nicho (`vagasDoNicho`: o modelo dos Sinais quando `SIGNALS_LLM_PROVIDER` está ligado, senão palavra-chave); a mesma vaga (empresa e cargo) conta uma vez;
+- as empresas que não são Conta e não têm site ganham site e LinkedIn pela página da empresa (até 25 por rodada); a que continua sem site vira candidata pela página do LinkedIn, com a etiqueta "sem site";
+- a empresa que é Conta recebe o Sinal no tipo do Monitoramento; o resto vai a `record_signal_for_company` e vira candidata da Caixa de Descobertas, com aceite manual. Nada cria Conta nem Sequência e nada envia mensagem;
+- o preço é fixo: 4 créditos por rodada (`private.market_discovery_credits_per_run()`), reservados por `begin_cascade_run` (contrato ativo, saldo, teto da varredura automática). A chave é `monitor:<id>:<hora marcada>:mercado`. A cascata nasce em teste e só roda pelo Monitoramento de mercado; ela não aparece no catálogo de cascatas.
+
 Diagnóstico de "o Monitoramento nunca roda": `select private.signal_runner_diagnostics();` (só leitura, no SQL Editor).
 
 O relógio diário (`private.kick_comexstat_cache`, onde o agendador existe) chama esta mesma função com `{ "action": "aquecer" }` e o token do relógio. Isso só guarda a estatística de comércio exterior do mês e não reivindica Monitoramento. Corpo vazio continua a varredura de sempre.

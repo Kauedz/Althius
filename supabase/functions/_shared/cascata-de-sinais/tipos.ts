@@ -86,6 +86,12 @@ export interface PedidoDeCascata {
    * crédito e o rastro continuam sendo da cascata. O Sinal de mercado nunca troca de tipo: não tem Conta.
    */
   registrarComo?: string
+  /**
+   * Descoberta no mercado endereçável (Monitoramento de Abertura de vagas no modo mercado): a cascata procura empresas pelos
+   * termos, sem Conta-alvo. As Contas do Workspace só servem para casar; sem nenhuma, a execução roda mesmo assim, e as
+   * empresas que não são Conta viram candidatas da Caixa de Descobertas.
+   */
+  descoberta?: boolean
 }
 
 /** Um Sinal confirmado pela cascata, pronto para o `record_signal`. */
@@ -105,7 +111,16 @@ export type SinalConfirmado = {
  * (`record_signal_for_company`). Só dado da empresa: nunca nome de pessoa.
  */
 export type SinalDeEmpresa = {
-  empresa: { nome: string; cnpj?: string; site?: string; linkedinUrl?: string; uf?: string; municipio?: string }
+  empresa: {
+    nome: string
+    cnpj?: string
+    site?: string
+    linkedinUrl?: string
+    uf?: string
+    municipio?: string
+    /** A descoberta não achou o site nem depois do enriquecimento: o banco cria a candidata pela página do LinkedIn, com a etiqueta "sem site". */
+    semSite?: boolean
+  }
   eventKey: string
   phrase: string
   firedAt: string
@@ -164,6 +179,8 @@ export interface ResultadoDaCascata {
   semConta: number
   /** Os nomes (até 10) das empresas que não são Conta, para o Hermes dizer; vazio quando não há. */
   semContaNomes: string[]
+  /** Candidatas novas da Caixa de Descobertas que a execução criou ou reabriu (as empresas que não são Conta). */
+  candidatas?: number
   /** Os Sinais de mercado (cascatas de escopo `mercado`): vão para o feed do Workspace, não para uma Conta. */
   mercado: SinalDeMercado[]
   passos: PassoExecutado[]

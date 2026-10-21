@@ -13,7 +13,14 @@ export interface Publico {
   /** Na descoberta, usa o público recomendado das configurações do Cliente; senão, o perfil personalizado. */
   usaRecomendado: boolean
   perfil?: PerfilFirmografico
+  /**
+   * Só no Workspace operacional, em Abertura de vagas: 'mercado' procura empresas do mercado endereçável que estão
+   * contratando, sem Conta-alvo. Ausente é 'contas', o de sempre.
+   */
+  escopo?: EscopoDoPublico
 }
+
+export type EscopoDoPublico = 'contas' | 'mercado'
 
 export type Criterios = Record<string, any>
 

@@ -9,6 +9,7 @@
 // injeção, para o teste ir do token à resposta sem rede.
 import { gravarCustoDaExecucao } from '../_shared/apify-ambiente.ts'
 import type { PedidoDeCascata, ResultadoDaCascata } from '../_shared/cascata-de-sinais/tipos.ts'
+import { CASCATA_DO_MERCADO, CREDITOS_POR_RODADA_NO_MERCADO } from '../_shared/cascata-de-sinais/passos/vagas-mercado.ts'
 import type { Apify, ActorDoRegistro } from '../signal-scan/handler.ts'
 
 export interface ContaParaVarrer {
@@ -164,6 +165,11 @@ export interface Db {
   recordHeadcount?(workspaceId: string, accountId: string, foto: FotoDeHeadcount, fonte: string): Promise<void>
   /** Quantos Sinais de vaga a Conta teve desde a data (PR-8). */
   countJobSignals?(workspaceId: string, accountId: string, desdeIso: string): Promise<number>
+  /**
+   * O escopo do público do Monitoramento (`signal_monitor_scope`): 'contas', o de sempre, ou 'mercado', a descoberta no
+   * mercado endereçável. Sem este método, todo Monitoramento é de Contas-alvo.
+   */
+  escopo?(monitorId: string): Promise<'contas' | 'mercado'>
 }
 
 /** Uma busca da fila (reativação de Sinais): varre uma Conta com os Monitoramentos ativos do Workspace. */
@@ -419,12 +425,44 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     return { scanned: alguma ? m.accounts.length : 0, signals: sinais }
   }
 
+  /**
+   * Um Monitoramento no mercado endereçável: uma execução da cascata da descoberta, sem Conta-alvo. Os cargos, o nicho, o
+   * país e o estado vêm dos critérios; as Contas do Workspace só servem para casar (a cascata as lê). O preço é o fixo da
+   * rodada, reservado pelo banco; a chave junta o Monitoramento e a hora marcada, então repetir a rodada nunca cobra nem
+   * grava duas vezes. A empresa que é Conta recebe o Sinal; o resto vira candidata da Caixa de Descobertas, com aceite
+   * manual. Nada cria Conta nem Sequência e nada envia mensagem.
+   */
+  async function varrerMercado(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
+    if (!deps.cascatas) {
+      await deps.db.finish(m.monitorId, 0, 'A busca no mercado endereçável não está disponível agora.', false)
+      return { scanned: 0, signals: 0 }
+    }
+    const r = await deps.cascatas.rodar({
+      workspaceId: m.workspaceId,
+      userId: m.createdBy,
+      signalType: CASCATA_DO_MERCADO,
+      registrarComo: m.signalType,
+      origem: 'monitor',
+      monitorId: m.monitorId,
+      chave: `monitor:${m.monitorId}:${m.slot}:mercado`,
+      criterios: m.criteria,
+      tetoCreditos: CREDITOS_POR_RODADA_NO_MERCADO,
+      descoberta: true,
+      prazoFinal: prazo - PRAZO_PARA_COMECAR_EM_MS + PRAZO_DA_CASCATA_EM_MS,
+    })
+    const semProblema = r.desfecho === 'concluida' || r.desfecho === 'ja_rodou_hoje' || r.desfecho === 'ja_concluida'
+    log({ type: 'signal_runner', monitorId: m.monitorId, outcome: `market_${r.desfecho}`, novos: r.novos, candidatas: r.candidatas ?? 0 })
+    await deps.db.finish(m.monitorId, 0, semProblema ? null : r.mensagem, false)
+    return { scanned: 0, signals: r.novos }
+  }
+
   async function varrerMonitor(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
     // O tempo já acabou nos Monitoramentos anteriores: este nem começa; solta a reserva e volta já.
     if (agora() > prazo) {
       await deps.db.finish(m.monitorId, 0, null, true)
       return { scanned: 0, signals: 0 }
     }
+    if (deps.db.escopo && (await deps.db.escopo(m.monitorId)) === 'mercado') return await varrerMercado(m, prazo)
     if (deps.cascatas && await deps.cascatas.ehCascata(m.signalType)) return await varrerPorCascata(m, prazo)
     const adaptador = deps.adaptadores[m.signalType]
     const actor = adaptador ? await deps.db.actorForType(m.signalType) : null

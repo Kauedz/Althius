@@ -3,7 +3,8 @@
 // sem custo. Cada vaga confirmada vira um Sinal da Conta, com a mesma chave de acontecimento dos Sinais de vaga de
 // sempre (empresa + cargo + ano). As empresas que não são Conta ficam na contagem (e nos nomes, para o Hermes dizer) e, com
 // site, vão à memória da execução como Sinais de empresa: o motor os entrega ao banco, que os leva a uma Conta (por domínio)
-// ou à candidata da Caixa de Descobertas.
+// ou à candidata da Caixa de Descobertas. Com `semSiteViraCandidata` no modelo de entrada (a descoberta no mercado
+// endereçável), a empresa que continua sem site vai também, marcada `semSite`: vira candidata pela página do LinkedIn.
 import { mesmaEmpresa } from '../../../signal-runner/adaptadores/comum.ts'
 import { sinalDaVaga } from '../../../signal-runner/adaptadores/vagas.ts'
 import type { ImplDoPasso, Item } from '../tipos.ts'
@@ -15,6 +16,7 @@ export const casarComContas: ImplDoPasso = {
     const sinais = new Map<string, Item>()
     const semConta: string[] = []
     const fora: { cnpj: null; nome: string }[] = []
+    const semSiteViraCandidata = ctx.def?.inputTemplate?.semSiteViraCandidata === true
     for (const item of entrada) {
       const c = candidataDoItem(item)
       if (!c) continue
@@ -26,7 +28,12 @@ export const casarComContas: ImplDoPasso = {
         for (const vaga of c.vagas) {
           const s = sinalDaVaga(vaga, virtual, vaga.fonte, ctx.agora)
           guardarSinalDeEmpresa(ctx.memoria, {
-            empresa: { nome: c.empresa.nome, ...(c.empresa.site ? { site: c.empresa.site } : {}), ...(c.empresa.linkedinUrl ? { linkedinUrl: c.empresa.linkedinUrl } : {}) },
+            empresa: {
+              nome: c.empresa.nome,
+              ...(c.empresa.site ? { site: c.empresa.site } : {}),
+              ...(c.empresa.linkedinUrl ? { linkedinUrl: c.empresa.linkedinUrl } : {}),
+              ...(semSiteViraCandidata && !c.empresa.site ? { semSite: true } : {}),
+            },
             eventKey: s.eventKey,
             phrase: s.phrase,
             firedAt: s.firedAt,

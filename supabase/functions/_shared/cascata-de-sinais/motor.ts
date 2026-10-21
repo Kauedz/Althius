@@ -204,7 +204,8 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     contas = await db.contas(pedido.workspaceId, pedido.idsDeContas ?? null, def.maxAccounts)
   }
   contas = (contas ?? []).slice(0, def.maxAccounts)
-  if (def.scope === 'conta' && contas.length === 0) return vazio('sem_contas', MENSAGENS.sem_contas)
+  // A descoberta no mercado endereçável não parte das Contas: elas só servem para casar.
+  if (def.scope === 'conta' && contas.length === 0 && !pedido.descoberta) return vazio('sem_contas', MENSAGENS.sem_contas)
 
   const abertura = await db.abrir({
     workspaceId: pedido.workspaceId,
@@ -216,7 +217,7 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
     estimativaUsd: estimativaDaCascata(def),
     tetoCreditos: pedido.tetoCreditos ?? null,
     permitirTeste: pedido.permitirTeste ?? false,
-    contas: def.scope === 'conta' ? contas.length : 0,
+    contas: def.scope === 'conta' && !pedido.descoberta ? contas.length : 0,
   })
   if (abertura.outcome !== 'go' || !abertura.runId) {
     const [desfecho, mensagem] = DESFECHO_DA_ABERTURA[abertura.outcome] ?? ['indisponivel', MENSAGENS.indisponivel]
@@ -622,6 +623,6 @@ export async function rodarCascata(deps: DepsDoMotor, pedido: PedidoDeCascata): 
   const semContaNomes = Array.isArray(nomes) ? nomes.filter((n): n is string => typeof n === 'string').slice(0, 10) : []
   return {
     desfecho, mensagem, creditosCobrados: fechado.creditosCobrados, custoUsd: custo,
-    sinais: confirmados, novos, repetidos, semConta, semContaNomes, mercado: deMercado, passos: executados,
+    sinais: confirmados, novos, repetidos, semConta, semContaNomes, candidatas, mercado: deMercado, passos: executados,
   }
 }
