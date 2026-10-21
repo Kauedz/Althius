@@ -19,6 +19,7 @@ import {
 } from '@/fonte/contexto'
 import type { Contato } from '@/fonte/contas-tipos'
 import { modeloDeCadencia, passosDoModelo } from '@/fonte/modelo-de-cadencia'
+import { copiarTemplate } from '@/fonte/templates-althius'
 
 interface Props {
   aberto: boolean
@@ -62,6 +63,10 @@ function FormularioNovaSequencia({
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState('')
   const [usarModelo, setUsarModelo] = useState(true)
+  const [templateId, setTemplateId] = useState('')
+  const [justificativa, setJustificativa] = useState('')
+  const [avisoSugestao, setAvisoSugestao] = useState('')
+  const [sugerindo, setSugerindo] = useState(false)
 
   // O modelo vem da Cadência do Playbook (playbook 05); sem Playbook ou sem Cadência preenchida, a Sequência nasce vazia.
   const fonteDoPlaybook = useFonteDoPlaybook()
@@ -76,9 +81,14 @@ function FormularioNovaSequencia({
     [cadenciaDoPlaybook, templatesDoPlaybook],
   )
   const comModelo = modelo.toques.length > 0
+  const { dados: templatesDaAlthius } = useDadosDeSequencias((f) => f.templatesDaAlthius(), [])
+  const templates = templatesDaAlthius ?? []
+  const templateEscolhido = templates.find((template) => template.id === templateId)
 
   function aoMudarConta(novoId: string) {
     setContaId(novoId)
+    setJustificativa('')
+    setAvisoSugestao('')
     if (!novoId) {
       setContatos([])
       setParticipantesIds([])
@@ -144,16 +154,46 @@ function FormularioNovaSequencia({
     setErro('')
 
     try {
+      const steps = templateEscolhido
+        ? copiarTemplate(templateEscolhido, participantesIds[0])
+        : comModelo && usarModelo
+          ? passosDoModelo(modelo.toques, participantesIds[0])
+          : undefined
       const nova = await fonteSequencias.criarSequencia({
         contaId,
         participantesIds,
-        ...(comModelo && usarModelo ? { steps: passosDoModelo(modelo.toques, participantesIds[0]) } : {}),
+        ...(steps ? { steps } : {}),
       })
       aoFechar()
       navegar(`/sequencias/${nova.id}`)
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível criar a sequência.')
       setCriando(false)
+    }
+  }
+
+  async function pedirSugestao() {
+    if (!contaId || sugerindo) return
+    setSugerindo(true)
+    setAvisoSugestao('')
+    setJustificativa('')
+    try {
+      const sugestao = await fonteSequencias.sugerirTemplateDaAlthius(contaId)
+      if (sugestao.motivo === 'ok' && sugestao.templateId && templates.some((template) => template.id === sugestao.templateId)) {
+        setTemplateId(sugestao.templateId)
+        setUsarModelo(false)
+        setJustificativa(sugestao.justificativa)
+        return
+      }
+      setAvisoSugestao(
+        sugestao.motivo === 'teto'
+          ? 'A sugestão não rodou por causa do limite de créditos. A escolha manual continua.'
+          : 'Não há Sinal recente desta Conta para sugerir um template. A escolha manual continua.',
+      )
+    } catch {
+      setAvisoSugestao('A sugestão falhou. A escolha manual continua.')
+    } finally {
+      setSugerindo(false)
     }
   }
 
@@ -254,6 +294,60 @@ function FormularioNovaSequencia({
                 )
               })}
             </div>
+          )}
+        </div>
+      )}
+
+      {contaId && !jaTemSequencia && templates.length > 0 && (
+        <div className="rounded-xl flex flex-col gap-2 border border-al-line bg-al-surface p-3 text-xs text-al-ink">
+          <label htmlFor="select-template-althius" className="rotulo text-xs text-al-muted">
+            Template da Althius
+          </label>
+          <select
+            id="select-template-althius"
+            aria-label="Template da Althius"
+            value={templateId}
+            onChange={(e) => {
+              setTemplateId(e.target.value)
+              setAvisoSugestao('')
+              if (e.target.value) setUsarModelo(false)
+            }}
+            className="campo h-10 text-sm text-al-ink bg-al-bg"
+          >
+            <option value="">Do zero</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.nome}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={pedirSugestao}
+              disabled={sugerindo}
+              className="text-xs font-medium text-al-ink underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              {sugerindo ? 'Sugerindo...' : 'Sugerir com os dados da Conta'}
+            </button>
+          </div>
+          {avisoSugestao && (
+            <p role="status" className="text-al-muted">
+              {avisoSugestao}
+            </p>
+          )}
+          {justificativa && <p className="text-al-muted">{justificativa}</p>}
+          {templateEscolhido && (
+            <>
+              <ol className="flex flex-col gap-1 text-al-muted">
+                {templateEscolhido.passos.map((passo) => (
+                  <li key={passo.id}>
+                    {passo.titulo} ({passo.canal === 'email' ? 'E-mail' : passo.canal === 'linkedin' ? 'LinkedIn' : 'WhatsApp'})
+                  </li>
+                ))}
+              </ol>
+              <p className="text-al-muted">A cópia é sua. Criar a Sequência não envia nada.</p>
+            </>
           )}
         </div>
       )}
