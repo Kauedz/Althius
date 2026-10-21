@@ -190,6 +190,15 @@ export interface BancoDasFerramentas {
     agenteId: string,
     targetAccountId: string,
   ): Promise<{ templateId: string | null; justificativa: string; outcome: string }>
+  /**
+   * RPC `agent_suggest_own_sequence_template` (ticket 08): sugere um template próprio que o solicitante pode ler.
+   * Sem ela, `sugerir_template_proprio` não é oferecida. Não cria Sequência nem ativa envio.
+   */
+  sugerirTemplateProprio?(
+    runId: string,
+    agenteId: string,
+    targetAccountId: string,
+  ): Promise<{ templateId: string | null; justificativa: string; outcome: string }>
 }
 
 /** Um Sinal do catálogo como o Hermes o vê: sem fornecedor, actor nem custo em dólar. */
@@ -1066,7 +1075,8 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
     `Playbook não tem Cadência. Use só as variáveis ${VARIAVEIS_DO_ENVIO}. Nada é enviado: nasce uma Aprovação que só ` +
     'o Vendedor responsável pela Conta decide; aprovada, a Sequência é criada sem envio, e os e-mails só saem depois ' +
     'que ele clicar em "Ativar envios". Para partir de um template da Althius, chame sugerir_template_de_sequencia ' +
-    'antes e use só o id que ela devolver. A justificativa é visível a todos os membros do Workspace: diga nela por que ' +
+    'antes e use só o id que ela devolver. Para um template próprio do vendedor, chame sugerir_template_proprio: ' +
+    'ela só devolve um template que ele pode ler. A justificativa é visível a todos os membros do Workspace: diga nela por que ' +
     'esta Sequência agora (o Sinal), sem copiar o assunto nem o corpo dos e-mails.',
   esquema: {
     type: 'object',
@@ -1263,6 +1273,67 @@ const SUGERIR_TEMPLATE: FerramentaDoAgente = {
   },
 }
 
+const SUGERIR_TEMPLATE_PROPRIO: FerramentaDoAgente = {
+  nome: 'sugerir_template_proprio',
+  descricao:
+    'Sugere um template próprio do vendedor que pediu a Conversa, para uma Conta-alvo. Chame com o id da Conta que ' +
+    'ler_contas_e_sinais devolve. A ferramenta só devolve um template que esse vendedor pode ler. Se ele não tiver ' +
+    'template próprio, não houver Sinal ou não houver crédito, ela não escolhe: a sugestão da Althius continua em ' +
+    'sugerir_template_de_sequencia, e a escolha manual também. Não invente template, não use template de outra pessoa ' +
+    'e não diga que aumenta resposta ou conversão. Não cria Sequência, não autoriza Contato e não ativa envio.',
+  esquema: {
+    type: 'object',
+    properties: {
+      conta_id: { type: 'string', description: 'O id da Conta-alvo (de ler_contas_e_sinais).' },
+    },
+    required: ['conta_id'],
+    additionalProperties: false,
+  },
+  especialidades: ['rhetor'],
+  exige: null,
+  disponivel: (_agente, _ctx, deps) => !!deps.banco.sugerirTemplateProprio,
+  async executar({ runId, agente, entrada, deps }) {
+    const sugerir = deps.banco.sugerirTemplateProprio
+    if (!sugerir) {
+      return falhou(`${agente.name} tentou sugerir um template próprio`, 'A sugestão de template próprio não está disponível agora.')
+    }
+    const contaId = texto(entrada.conta_id, 64)
+    if (!UUID_DA_CONTA.test(contaId)) {
+      return falhou(`${agente.name} tentou sugerir um template próprio`, 'Informe o id da Conta-alvo que ler_contas_e_sinais devolve.')
+    }
+    let sugestao: { templateId: string | null; justificativa: string; outcome: string }
+    try {
+      sugestao = await sugerir(runId, agente.id, contaId)
+    } catch (erro) {
+      return falhou(`${agente.name} tentou sugerir um template próprio`, `A sugestão falhou. ${motivoDoBanco(erro)}`)
+    }
+    if (sugestao.outcome === 'ok' && sugestao.templateId) {
+      return {
+        erro: false,
+        paraOAgente:
+          `${sugestao.justificativa}\nTemplate próprio acessível: ${sugestao.templateId}. Use só este id. ` +
+          'Ele não autoriza Contatos novos. Não diga que aumenta resposta, conversão ou tem eficácia comprovada. ' +
+          'Nada foi criado e nada foi enviado. A sugestão da Althius continua em sugerir_template_de_sequencia.',
+        passo: {
+          descricao: `${agente.name} sugeriu o template próprio ${sugestao.templateId} — sem criar Sequência e sem envio`,
+          estado: 'concluida',
+        },
+      }
+    }
+    const peloTeto = sugestao.outcome === 'teto_atingido' || sugestao.outcome === 'sem_teto' || sugestao.outcome === 'sem_espaco'
+    return {
+      erro: false,
+      paraOAgente: peloTeto
+        ? 'A sugestão não rodou por causa do limite de créditos. O vendedor escolhe o template manualmente, usa um template da Althius ou cria do zero. Não invente um template.'
+        : 'Não há template próprio seu para sugerir, ou não há Sinal recente. Escolha manualmente, use um template da Althius ou crie do zero. Não invente adequação nem eficácia.',
+      passo: {
+        descricao: `${agente.name} não sugeriu template próprio — a escolha manual continua`,
+        estado: 'concluida',
+      },
+    }
+  },
+}
+
 const TETO_PADRAO_DA_BUSCA_DE_SINAIS = 5
 const TETO_MAXIMO_DA_BUSCA_DE_SINAIS = 20
 const MAX_SINAIS_NO_RESULTADO = 15
@@ -1424,6 +1495,7 @@ export const FERRAMENTAS: readonly FerramentaDoAgente[] = [
   BUSCAR_SINAIS,
   PROPOR_SEQUENCIA,
   SUGERIR_TEMPLATE,
+  SUGERIR_TEMPLATE_PROPRIO,
 ]
 
 /** A ferramenta como o modelo a recebe. */
@@ -1651,6 +1723,20 @@ export function bancoDasFerramentas(
     async sugerirTemplate(runId, agenteId, targetAccountId) {
       const linha = primeira<{ template_id: string | null; justification: string; outcome: string }>(
         await chamar('agent_suggest_althius_sequence_template', {
+          p_run_id: runId,
+          p_agent_id: agenteId,
+          p_target_account_id: targetAccountId,
+        }),
+      )
+      return {
+        templateId: linha.template_id,
+        justificativa: linha.justification ?? '',
+        outcome: linha.outcome,
+      }
+    },
+    async sugerirTemplateProprio(runId, agenteId, targetAccountId) {
+      const linha = primeira<{ template_id: string | null; justification: string; outcome: string }>(
+        await chamar('agent_suggest_own_sequence_template', {
           p_run_id: runId,
           p_agent_id: agenteId,
           p_target_account_id: targetAccountId,

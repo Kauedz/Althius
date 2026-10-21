@@ -474,3 +474,90 @@ describe('Templates da Althius na Fonte operacional', () => {
     expect(chamadas).toEqual(['conta-alfa', 'sem-sinal', 'sem-teto'])
   })
 })
+
+describe('Templates próprios na Fonte operacional', () => {
+  it('salva só a prévia, lista o do criador e não escolhe template de outra pessoa', async () => {
+    const chamadas: { nome: string; passos?: unknown }[] = []
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      rpcs: {
+        preview_own_sequence_template: ({ p_passos }) => {
+          chamadas.push({ nome: 'preview', passos: p_passos })
+          return [{
+            nome: 'Abertura da {{nome}}',
+            resumo: 'Sem destinatário.',
+            passos: [{ id: 'passo-1', ordem: 1, canal: 'email', titulo: 'Abertura', corpo: '{{email}}' }],
+          }]
+        },
+        save_own_sequence_template: ({ p_passos }) => {
+          chamadas.push({ nome: 'save', passos: p_passos })
+          return [{
+            id: 'tpl-marina',
+            nome: 'Abertura da {{nome}}',
+            resumo: 'Sem destinatário.',
+            passos: p_passos,
+          }]
+        },
+        list_own_sequence_templates: () => [{
+          id: 'tpl-marina',
+          nome: 'Abertura da {{nome}}',
+          resumo: 'Sem destinatário.',
+          passos: [{ id: 'passo-1', ordem: 1, canal: 'email', titulo: 'Abertura', contatoId: 'nao-pode-vir' }],
+        }],
+        suggest_own_sequence_template: ({ p_target_account_id }) => {
+          chamadas.push({ nome: String(p_target_account_id) })
+          if (p_target_account_id === 'sem-sinal') return [{ template_id: null, justification: '', outcome: 'sem_contexto' }]
+          return [{ template_id: 'tpl-marina', justification: 'A Conta Alfa tem o Sinal “vagas”.', outcome: 'ok' }]
+        },
+        update_own_sequence_template: () => {
+          throw Object.assign(new Error('own template: not the owner'), { code: '42501' })
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+    const previa = await fonte.previaDeTemplateProprio({
+      nome: 'Abertura da Maria',
+      resumo: 'Com maria@alfa.com',
+      passos: [{ id: '11111111-1111-4111-8111-111111111111', ordem: 1, canal: 'email', titulo: 'Abertura', corpo: 'maria@alfa.com', contatoId: 'x' }],
+    })
+    expect(previa.passos[0]).not.toHaveProperty('contatoId')
+    expect(previa.passos[0].corpo).toBe('{{email}}')
+
+    const salvo = await fonte.salvarTemplateProprio(previa)
+    expect(salvo.id).toBe('tpl-marina')
+    expect(salvo.donoId).toBe(MARINA.id)
+    expect(chamadas[1]?.passos).toEqual(previa.passos)
+
+    const lista = await fonte.templatesProprios()
+    expect(lista[0].passos[0]).not.toHaveProperty('contatoId')
+    expect(lista[0].donoId).toBe(MARINA.id)
+
+    await expect(fonte.sugerirTemplateProprio('conta-alfa')).resolves.toMatchObject({
+      templateId: 'tpl-marina',
+      motivo: 'ok',
+    })
+    await expect(fonte.sugerirTemplateProprio('sem-sinal')).resolves.toMatchObject({ templateId: null, motivo: 'sem_contexto' })
+    await expect(fonte.atualizarTemplateProprio('tpl-da-ana', previa)).rejects.toThrow(/quem criou o template/)
+  })
+
+  it('os limites recusados pelo banco viram mensagens para quem salva', async () => {
+    const recusas: Record<string, string> = {
+      'quota': 'own template: limit reached',
+      'passos': 'own template: at most 8 steps',
+      'texto': 'own template: step text too long',
+    }
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      rpcs: {
+        save_own_sequence_template: ({ p_nome }) => {
+          throw Object.assign(new Error(recusas[String(p_nome)]), { code: '22023' })
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+    const passos = [{ id: 'passo-1', ordem: 1, canal: 'email' as const, delayDiasUteis: 0, titulo: 'Abertura' }]
+    await expect(fonte.salvarTemplateProprio({ nome: 'quota', resumo: 'r', passos })).rejects.toThrow(/50 templates/)
+    await expect(fonte.salvarTemplateProprio({ nome: 'passos', resumo: 'r', passos })).rejects.toThrow(/no máximo 8 passos/)
+    await expect(fonte.salvarTemplateProprio({ nome: 'texto', resumo: 'r', passos })).rejects.toThrow(/passou do limite/)
+  })
+})
