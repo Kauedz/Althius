@@ -13,7 +13,7 @@ O espaço de trabalho dentro da Althius, com seus agentes, conexões e dados pr�
 _Avoid_: conta, tenant, organização
 
 **Workspace visitante**:
-O ambiente que uma Conta de usuário vê quando não participa de nenhum Workspace contratado: a Demonstração, só leitura, com o banner "Você está vendo uma demonstração". Toda ação paga abre "Fale com a equipe Althius". Não é um Workspace no banco; nada do que acontece nele chega a um Workspace operacional.
+O ambiente que uma Conta de usuário vê quando não participa de nenhum Workspace contratado: a Demonstração, só leitura, com o banner "Você está vendo uma demonstração". Toda ação paga abre "Fale com a equipe Althius". Com `VISITANTE_VE_DEMONSTRACAO` desligado, o visitante vê só "Fale com a equipe Althius", sem a Demonstração. Não é um Workspace no banco; nada do que acontece nele chega a um Workspace operacional.
 
 **Contrato**:
 O acordo externo, por faixa, que abre um Workspace operacional (`private.workspace_contracts`). É cobrado fora da plataforma; só a Althius cria o Workspace e o contrato, depois de fechar o negócio. Sem contrato ativo (ou sem créditos ilimitados), nenhuma ação paga roda.
@@ -25,7 +25,7 @@ O plano único do contrato, com número de usuários, créditos mensais e uma gu
 Um Workspace real, aberto por uma Conta de usuário autenticada com Participação ativa. Só mostra o que foi guardado e confirmado; um módulo ainda sem backend aparece como indisponível, sem dados, resultados ou ações da Demonstração.
 
 **Demonstração**:
-O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário. Em produção, só a equipe Althius a abre, logada, em `/demonstracao` (conferido no banco por `viewer_is_althius_staff`); nenhum menu a oferece, e para quem não é da equipe o endereço cai no início. O Workspace visitante continua a mostrá-la, só leitura.
+O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário. Em produção, só a equipe Althius a abre, logada, em `/demonstracao` (conferido no banco por `viewer_is_althius_staff`); nenhum menu a oferece, e para quem não é da equipe o endereço cai no início. Os links antigos com `?demo=true` abrem a tela de entrada, sem aviso. O código e os dados de exemplo da Demonstração ficam fora do pacote principal e só são baixados por quem vai vê-la. O Workspace visitante continua a mostrá-la, só leitura.
 _Avoid_: modo demo
 
 **Workspace pessoal**:

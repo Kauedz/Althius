@@ -9,6 +9,17 @@ import { criarBancoDeConexoes, rpcsDeConexoes } from '@/test/conexoes-no-banco'
 import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, type RespostaDaFuncao, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
+import { carregarDemonstracaoDaEquipe } from '@/auth/carregar-demonstracao'
+
+// O `import()` da Demonstração vira espião, sem mudar o que ele carrega: os testes conferem quem chega a pedi-la.
+vi.mock('@/auth/carregar-demonstracao', async (original) => {
+  const modulo = await original<typeof import('@/auth/carregar-demonstracao')>()
+  return {
+    carregarDemonstracaoDaEquipe: vi.fn(modulo.carregarDemonstracaoDaEquipe),
+    carregarDemonstracaoDoVisitante: vi.fn(modulo.carregarDemonstracaoDoVisitante),
+    carregarDemonstracaoSemLogin: vi.fn(modulo.carregarDemonstracaoSemLogin),
+  }
+})
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 /** A Conta de usuário da Marina já verificada no Supabase Auth, com senha. */
@@ -805,6 +816,7 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
   beforeEach(() => {
     vi.stubEnv('DEV', false)
     vi.stubEnv('PROD', true)
+    vi.mocked(carregarDemonstracaoDaEquipe).mockClear()
   })
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -828,6 +840,7 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
     expect(within(navegacao()).getByText('Demonstração')).toBeInTheDocument()
     expect(screen.getByText('Você está vendo uma demonstração')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/demonstracao/contas')
+    expect(carregarDemonstracaoDaEquipe).toHaveBeenCalled()
 
     await usuario.click(screen.getByRole('button', { name: 'Sair da demonstração' }))
     expect(await within(navegacao()).findByText('Operacional')).toBeInTheDocument()
@@ -847,6 +860,8 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
     expect(window.location.pathname).toBe('/')
     expect(screen.queryByText(/demonstra/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'OpenAI' })).not.toBeInTheDocument()
+    // O código e os dados da Demonstração nem chegam ao navegador de quem não é da equipe.
+    expect(carregarDemonstracaoDaEquipe).not.toHaveBeenCalled()
   })
 
   it('sem login, leva à tela de entrada lembrando /demonstracao, e abre depois do login da equipe', async () => {
@@ -861,6 +876,7 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
     expect(window.location.pathname).toBe('/entrar')
     expect(new URLSearchParams(window.location.search).get('destino')).toBe('/demonstracao')
     expect(screen.queryByRole('button', { name: /Demonstração/ })).not.toBeInTheDocument()
+    expect(carregarDemonstracaoDaEquipe).not.toHaveBeenCalled()
 
     act(() => iniciarSessao(sessaoDe(MARINA)))
     expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()

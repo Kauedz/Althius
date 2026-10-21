@@ -1,4 +1,6 @@
-// O ponto de composição: escolhe as fontes de cada ambiente. As telas não sabem qual receberam.
+// O ponto de composição: escolhe as fontes de cada ambiente. As telas não sabem qual receberam. A Demonstração fica
+// em `composicao-da-demonstracao`, carregada sob demanda: as fontes simuladas e os dados de exemplo não entram no
+// pacote principal do app.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Ambiente, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
@@ -6,15 +8,6 @@ import {
   criarFonteDeAgentesIndisponivel,
   criarFonteDeOnboardingIndisponivel,
 } from './indisponivel'
-import { criarFonteDeAutomacaoSimulada } from './simulada-automacao'
-import { criarFonteDoPlaybookSimulada } from './simulada-playbook'
-import { criarFonteSimulada } from './simulada'
-import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
-import { criarFonteDeContasSimulada } from './simulada-contas'
-import { criarFonteDeContasRemetentesDaDemonstracao } from './simulada-contas-remetentes'
-import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
-import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
-import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
 import { criarFonteDeAprovacoesSupabase } from './supabase-aprovacoes'
 import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
@@ -27,34 +20,9 @@ import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
-import { criarFonteDeDescobertasSimulada } from './simulada-descobertas'
 import { criarFonteDeDescobertasSupabase } from './supabase-descobertas'
 import { lerSaldoDeCreditos } from './creditos'
 import { lerResumoDoContrato } from './supabase-contrato'
-
-/** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
-export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: Storage }): Ambiente {
-  const fonteDeContas = criarFonteDeContasSimulada({ armazenamento })
-  const fonteDeSequencias = criarFonteDeSequenciasSimulada({ armazenamento })
-  const fonteDeSinais = criarFonteDeSinaisSimulada({ fonteDeContas })
-  fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
-  fonteDeSinais.vincularFonteDeContas(fonteDeContas)
-  const fonte = criarFonteSimulada({ armazenamento })
-  return {
-    modo: 'demonstracao',
-    fonte,
-    fonteDeContas,
-    fonteDeSequencias,
-    fonteDeOnboarding: criarFonteDeOnboardingSimulada({ armazenamento }),
-    fonteDeSinais,
-    fonteDeConexoes: criarFonteDeConexoesSimulada({ armazenamento }),
-    fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
-    fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
-    fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
-    fonteDeDescobertas: criarFonteDeDescobertasSimulada({ armazenamento, fonteDeContas }),
-    indisponiveis: new Set(),
-  }
-}
 
 /**
  * Um Workspace operacional: as fontes ligadas ao backend pela sessão e pelo Workspace escolhido. Um módulo sem

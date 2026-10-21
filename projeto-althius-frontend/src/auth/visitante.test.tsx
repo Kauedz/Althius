@@ -1,9 +1,21 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
+import { carregarDemonstracaoDoVisitante } from '@/auth/carregar-demonstracao'
+import { AplicativoDoVisitante, VISITANTE_VE_DEMONSTRACAO } from '@/auth/visitante'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
+
+// O `import()` da Demonstração vira espião, sem mudar o que ele carrega: os testes conferem se o visitante a pede.
+vi.mock('@/auth/carregar-demonstracao', async (original) => {
+  const modulo = await original<typeof import('@/auth/carregar-demonstracao')>()
+  return {
+    carregarDemonstracaoDaEquipe: vi.fn(modulo.carregarDemonstracaoDaEquipe),
+    carregarDemonstracaoDoVisitante: vi.fn(modulo.carregarDemonstracaoDoVisitante),
+    carregarDemonstracaoSemLogin: vi.fn(modulo.carregarDemonstracaoSemLogin),
+  }
+})
 
 const EVA = { id: 'usuario-eva', email: 'eva@visitante.com.br' }
 
@@ -60,6 +72,17 @@ function abrirComoVisitante({
 }
 
 describe('Workspace visitante', () => {
+  beforeEach(() => {
+    vi.mocked(carregarDemonstracaoDoVisitante).mockClear()
+  })
+
+  it('por padrão (VISITANTE_VE_DEMONSTRACAO), o visitante vê a Demonstração, carregada só para ele', async () => {
+    expect(VISITANTE_VE_DEMONSTRACAO).toBe(true)
+    abrirComoVisitante()
+    expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()
+    expect(carregarDemonstracaoDoVisitante).toHaveBeenCalled()
+  })
+
   it('quem entra sem Participação num Workspace contratado vê a demonstração, com o banner fixo, e nenhum Workspace é criado', async () => {
     const { criacoes } = abrirComoVisitante()
 
@@ -139,5 +162,71 @@ describe('Workspace visitante', () => {
     const banner = (await screen.findByRole('status')).parentElement!
     expect(within(banner).getByText(EVA.email)).toBeInTheDocument()
     expect(within(banner).getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+  })
+})
+
+describe('Workspace visitante sem a Demonstração (VISITANTE_VE_DEMONSTRACAO = false)', () => {
+  beforeEach(() => {
+    vi.mocked(carregarDemonstracaoDoVisitante).mockClear()
+  })
+
+  function abrirSemDemonstracao() {
+    const pedidosEnviados: Record<string, unknown>[] = []
+    const avisos: Record<string, unknown>[] = []
+    const supabase = criarSupabaseFalso({
+      sessao: sessaoDe(EVA),
+      rpcs: {
+        submit_access_request: (parametros) => {
+          pedidosEnviados.push(parametros)
+          return 'a0000000-0000-4000-8000-000000000001'
+        },
+      },
+      funcoes: {
+        'access-request-notify': (corpo) => {
+          avisos.push(corpo)
+          return { corpo: { sent: true } }
+        },
+      },
+    })
+    const usuario = userEvent.setup()
+    render(
+      <AplicativoDoVisitante
+        cliente={supabase.cliente}
+        email={EVA.email}
+        sair={<button type="button">Sair</button>}
+        veDemonstracao={false}
+      />,
+    )
+    return { usuario, pedidosEnviados, avisos }
+  }
+
+  it('vê só "Fale com a equipe Althius", sem nada da Demonstração, que nem é carregada', async () => {
+    abrirSemDemonstracao()
+
+    expect(await screen.findByRole('heading', { name: 'Fale com a equipe Althius' })).toBeInTheDocument()
+    expect(screen.getByText(`Você entrou como ${EVA.email}.`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+    expect(screen.queryByText(/demonstra/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
+    expect(carregarDemonstracaoDoVisitante).not.toHaveBeenCalled()
+  })
+
+  it('o pedido à equipe grava o pedido de acesso e avisa a equipe, sem mencionar a Demonstração', async () => {
+    const { usuario, pedidosEnviados, avisos } = abrirSemDemonstracao()
+    await usuario.click(await screen.findByRole('button', { name: 'Fale com a equipe Althius' }))
+
+    const modal = within(await screen.findByRole('dialog', { name: 'Fale com a equipe Althius' }))
+    expect(modal.queryByText(/demonstra/i)).not.toBeInTheDocument()
+    await usuario.type(modal.getByLabelText('Nome'), 'Eva Dias')
+    await usuario.type(modal.getByLabelText('Empresa'), 'Cliente SA')
+    await usuario.type(modal.getByLabelText('Telefone'), '11 99999-0000')
+    await usuario.type(modal.getByLabelText('Mensagem'), 'Quero conhecer a Althius.')
+    await usuario.click(modal.getByRole('button', { name: 'Enviar' }))
+
+    expect(await screen.findByText('Recebemos seu pedido')).toBeInTheDocument()
+    expect(pedidosEnviados).toEqual([
+      { p_name: 'Eva Dias', p_company: 'Cliente SA', p_phone: '11 99999-0000', p_message: 'Quero conhecer a Althius.' },
+    ])
+    expect(avisos).toEqual([{ requestId: 'a0000000-0000-4000-8000-000000000001' }])
   })
 })

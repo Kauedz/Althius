@@ -1,20 +1,14 @@
 import { useMemo } from 'react'
 import { App } from '@/App'
 import { BOTAO_SECUNDARIO } from '@/components/botoes'
-import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
-
-/** Onde a equipe Althius abre a Demonstração para mostrar a plataforma. Não aparece em nenhum menu. */
-export const ROTA_DA_DEMONSTRACAO = '/demonstracao'
-
-/** Se o caminho é a Demonstração da equipe ou uma tela dentro dela (`/demonstracao/contas`). */
-export function ehCaminhoDaDemonstracao(caminho: string): boolean {
-  return caminho === ROTA_DA_DEMONSTRACAO || caminho.startsWith(`${ROTA_DA_DEMONSTRACAO}/`)
-}
+import { criarAmbienteDeDemonstracao } from '@/fonte/composicao-da-demonstracao'
+import { ROTA_DA_DEMONSTRACAO } from './rota-da-demonstracao'
 
 /**
  * A Demonstração aberta pela equipe Althius, logada. As fontes são as simuladas, só no navegador: nada lê nem grava no
  * banco, e nada chega ao Workspace operacional. As rotas ficam sob `/demonstracao`, para atualizar a página continuar
- * nela; sair volta ao início do app normal.
+ * nela; sair volta ao início do app normal. Carregado por `carregarDemonstracaoDaEquipe`, só depois de o banco confirmar
+ * a equipe.
  */
 export function AplicativoDaDemonstracaoDaEquipe({ aoSair }: { aoSair: () => void }) {
   const ambiente = useMemo(() => criarAmbienteDeDemonstracao({ armazenamento: window.localStorage }), [])
