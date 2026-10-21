@@ -42,7 +42,7 @@ function useAcaoDoStripe(cliente: SupabaseClient, workspaceId: string) {
 
 /**
  * Sem assinatura ativa, o Workspace operacional fica fechado (ticket 06): o Administrador assina pelo Stripe, com um
- * assento por Participante ativo; os outros pedem ao Administrador. A Demonstração continua aberta.
+ * assento por Participante ativo; os outros pedem ao Administrador.
  */
 export function TelaDeAssinatura({
   cliente,
@@ -50,7 +50,6 @@ export function TelaDeAssinatura({
   nomeDoWorkspace,
   administrador,
   acesso,
-  aoAcessarDemonstracao,
   aoTrocarDeWorkspace,
   sair,
 }: {
@@ -59,7 +58,6 @@ export function TelaDeAssinatura({
   nomeDoWorkspace: string
   administrador: boolean
   acesso: AcessoAoWorkspace
-  aoAcessarDemonstracao?: () => void
   aoTrocarDeWorkspace?: () => void
   sair: ReactNode
 }) {
@@ -70,7 +68,6 @@ export function TelaDeAssinatura({
       <TelaDeContrato
         nomeDoWorkspace={nomeDoWorkspace}
         motivo={acesso.motivo}
-        aoAcessarDemonstracao={aoAcessarDemonstracao}
         aoTrocarDeWorkspace={aoTrocarDeWorkspace}
         sair={sair}
       />
@@ -110,11 +107,6 @@ export function TelaDeAssinatura({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          {aoAcessarDemonstracao && (
-            <Button variant="outline" onClick={aoAcessarDemonstracao}>
-              Abrir Demonstração
-            </Button>
-          )}
           {aoTrocarDeWorkspace && (
             <Button variant="outline" onClick={aoTrocarDeWorkspace}>
               Trocar de Workspace
@@ -146,13 +138,11 @@ const CONTRATO_FECHADO: Record<string, { titulo: (nome: string) => string; texto
 function TelaDeContrato({
   nomeDoWorkspace,
   motivo,
-  aoAcessarDemonstracao,
   aoTrocarDeWorkspace,
   sair,
 }: {
   nomeDoWorkspace: string
   motivo: string
-  aoAcessarDemonstracao?: () => void
   aoTrocarDeWorkspace?: () => void
   sair: ReactNode
 }) {
@@ -169,11 +159,6 @@ function TelaDeContrato({
           .
         </p>
         <div className="flex flex-wrap gap-2">
-          {aoAcessarDemonstracao && (
-            <Button variant="outline" onClick={aoAcessarDemonstracao}>
-              Abrir Demonstração
-            </Button>
-          )}
           {aoTrocarDeWorkspace && (
             <Button variant="outline" onClick={aoTrocarDeWorkspace}>
               Trocar de Workspace
