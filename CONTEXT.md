@@ -25,7 +25,7 @@ O plano único do contrato, com número de usuários, créditos mensais e uma gu
 Um Workspace real, aberto por uma Conta de usuário autenticada com Participação ativa. Só mostra o que foi guardado e confirmado; um módulo ainda sem backend aparece como indisponível, sem dados, resultados ou ações da Demonstração.
 
 **Demonstração**:
-O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário.
+O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário. Em produção, só a equipe Althius a abre, logada, em `/demonstracao` (conferido no banco por `viewer_is_althius_staff`); nenhum menu a oferece, e para quem não é da equipe o endereço cai no início. O Workspace visitante continua a mostrá-la, só leitura.
 _Avoid_: modo demo
 
 **Workspace pessoal**:

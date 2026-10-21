@@ -8,8 +8,10 @@ import { sinaisDisponiveis } from '@/fonte/supabase-sinais'
 import { anexosDisponiveis } from '@/fonte/supabase-sequencias'
 import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
 import { lerWorkspacesContratados } from '@/fonte/supabase-contrato'
+import { viewerEhDaEquipeAlthius } from '@/fonte/supabase-equipe'
 import { BotoesDaAssinatura, TelaDeAssinatura, useAcessoAoWorkspace } from './assinatura'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
+import { AplicativoDaDemonstracaoDaEquipe, ehCaminhoDaDemonstracao } from './demonstracao-da-equipe'
 import { destinoDepoisDoAcesso, enderecoDeEntrada, tokenDoConviteNoEndereco } from './destino'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
 import { VERSAO_DOS_TERMOS } from './termos'
@@ -104,6 +106,8 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   const [recusaDoConvite, setRecusaDoConvite] = useState<string | null>(null)
   /** Na recusa, o convite ainda pendente: de qual Workspace é e para qual e-mail, para a pessoa saber com qual entrar. */
   const [conviteRecusado, setConviteRecusado] = useState<{ workspace: string; email: string } | null>(null)
+  /** A resposta do banco sobre a Demonstração da equipe, para esta Conta de usuário. */
+  const [demonstracao, setDemonstracao] = useState<{ usuarioId: string; liberada: boolean } | null>(null)
   // A renovação do token troca o objeto da sessão; só outra Conta de usuário recarrega as Participações.
   const usuarioId = sessao?.user.id
 
@@ -113,6 +117,19 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     const destino = destinoDepoisDoAcesso()
     if (destino) window.history.replaceState(null, '', destino)
   }, [usuarioId])
+
+  // /demonstracao só abre para a equipe Althius, pela função do banco. Quem não é da equipe cai no início, como numa
+  // rota que não existe: nada na tela diz que a Demonstração existe.
+  useEffect(() => {
+    if (!usuarioId || !ehCaminhoDaDemonstracao(window.location.pathname)) return
+    let ativo = true
+    void viewerEhDaEquipeAlthius(cliente).then((daEquipe) => {
+      if (!ativo) return
+      if (!daEquipe) window.history.replaceState(null, '', '/')
+      setDemonstracao({ usuarioId, liberada: daEquipe })
+    })
+    return () => { ativo = false }
+  }, [cliente, usuarioId])
 
   // O acesso é fechado: o bootstrap só grava o aceite dos Termos e devolve o Workspace pessoal que a Conta de usuário já
   // tinha, se tinha; nunca cria Workspace. O Workspace da empresa só nasce do contrato, e só a Althius o cria.
@@ -206,6 +223,16 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   if (!sessao) return <TelasDeAcesso aoAcessarDemonstracao={aoAcessarDemonstracao} />
   // Quem entrou pelo código ou link de redefinição define a nova senha antes de abrir o Workspace de entrada.
   if (redefinindoSenha) return <CascaDeAcesso><TelaDeNovaSenha /></CascaDeAcesso>
+  if (ehCaminhoDaDemonstracao(window.location.pathname)) {
+    if (demonstracao?.usuarioId !== sessao.user.id) return <TelaDeEstado>Preparando seu acesso…</TelaDeEstado>
+    if (demonstracao.liberada) {
+      const sairDaDemonstracao = () => {
+        window.history.pushState(null, '', '/')
+        setDemonstracao(null)
+      }
+      return <AplicativoDaDemonstracaoDaEquipe aoSair={sairDaDemonstracao} />
+    }
+  }
   if (erroWorkspacePessoal) {
     return (
       <TelaDeEstado>
@@ -294,7 +321,6 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
       participacao={participacao}
       cliente={cliente}
       aoTrocarDeWorkspace={participacoes.length > 1 ? trocarDeWorkspace : undefined}
-      aoAcessarDemonstracao={aoAcessarDemonstracao}
     />
   )
 }
@@ -305,13 +331,11 @@ function AplicativoDoWorkspace({
   participacao,
   cliente,
   aoTrocarDeWorkspace,
-  aoAcessarDemonstracao,
 }: {
   sessao: Session
   participacao: Participacao
   cliente: SupabaseClient
   aoTrocarDeWorkspace?: () => void
-  aoAcessarDemonstracao?: () => void
 }) {
   const { id: usuarioId, email = '' } = sessao.user
   const { workspace_id: workspaceId, role, nome: nomeDoWorkspace = 'Workspace' } = participacao
@@ -363,7 +387,6 @@ function AplicativoDoWorkspace({
         nomeDoWorkspace={nomeDoWorkspace}
         administrador={role === 'admin'}
         acesso={acesso}
-        aoAcessarDemonstracao={aoAcessarDemonstracao}
         aoTrocarDeWorkspace={aoTrocarDeWorkspace}
         sair={<Sair />}
       />
@@ -377,7 +400,6 @@ function AplicativoDoWorkspace({
         <span>{sessao.user.email}</span>
         {acesso && role === 'admin' && <BotoesDaAssinatura cliente={cliente} workspaceId={workspaceId} acesso={acesso} />}
         {aoTrocarDeWorkspace && <Button variant="outline" onClick={aoTrocarDeWorkspace}>Trocar de Workspace</Button>}
-        {aoAcessarDemonstracao && <Button variant="outline" onClick={aoAcessarDemonstracao}>Abrir Demonstração</Button>}
         <Sair />
       </div>
       <App ambiente={ambiente} />
