@@ -111,12 +111,18 @@ export function criarAmbienteDoWorkspace({
       saldoDeCreditos: () => lerSaldoDeCreditos(cliente, participacao.workspaceId),
       contratoDoWorkspace: () => lerResumoDoContrato(cliente, participacao.workspaceId),
       ...conversas,
-      ...(aprovacoes ? { aprovacoes: aprovacoes.aprovacoes, decidirAprovacao: aprovacoes.decidirAprovacao } : {}),
+      ...(aprovacoes
+        ? {
+            aprovacoes: aprovacoes.aprovacoes,
+            filaDeAprovacoes: aprovacoes.filaDeAprovacoes,
+            decidirAprovacao: aprovacoes.decidirAprovacao,
+          }
+        : {}),
       // Com a fila ligada, o número na navegação conta as pendentes dela; uma leitura que falha não tira o Workspace.
       ...(aprovacoes && aprovacoesDisponiveis
         ? {
             async workspace() {
-              const [dados, lista] = await Promise.all([perfil.workspace(), aprovacoes.aprovacoes().catch(() => [])])
+              const [dados, lista] = await Promise.all([perfil.workspace(), aprovacoes.filaDeAprovacoes().catch(() => [])])
               return { ...dados, aprovacoesPendentes: lista.filter((a) => a.estado === 'pendente').length }
             },
           }

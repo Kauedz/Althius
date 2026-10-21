@@ -32,7 +32,7 @@ vire Sequência. Descadastro, variáveis e criação em lote estão no PR #227/#
 7. Como participante que não é o Vendedor responsável, quero que o Rhetor recuse propor Sequência para a Conta de outro (ADR-0009).
 8. Como Vendedor responsável, quero que a proposta recuse Conta-alvo que já tem Sequência em andamento.
 9. Como Vendedor responsável, quero que Contato suprimido (descadastrado) fique de fora da proposta.
-10. Como Administrador, quero que propor Sequência respeite a Permissão do Rhetor (Ler/Propor/Executar).
+10. ~~Como Administrador, quero que propor Sequência respeite a Permissão do Rhetor (Ler/Propor/Executar).~~ Recusada na revisão do PR #240 (21/10): a Sequência não passa por Integração, e a Permissão é por Integração. A proteção é só a Especialidade rhetor, quem pediu ser o Vendedor responsável, a Aprovação sempre pendente e só o responsável decidir.
 11. Como Renan, quero mandar a primeira Cadência de e-mail para contatos reais e ver envio, resposta, Proposta de resposta e descadastro funcionando.
 
 ## Implementation Decisions

@@ -25,7 +25,8 @@ export function AprovacaoNaConversa({
 }) {
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   // Aqui só as ações em Integrações. A revisão da Memória do Workspace (Demonstração) fica na fila, e a do Playbook (CRM-09)
-  // tem cartão próprio no passo da Conversa (`CartaoDeRevisaoDoPlaybook`).
+  // tem cartão próprio no passo da Conversa (`CartaoDeRevisaoDoPlaybook`). A Sequência proposta nem vem nesta leitura: ela
+  // está só na fila inteira, com cartão próprio (`PropostaDeSequencia`).
   const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
   if (!aprovacao || aprovacao.revisao) return null
 

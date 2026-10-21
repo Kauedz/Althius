@@ -496,11 +496,11 @@ interface AprovacaoBase extends Omit<AcaoProposta, 'integracaoId'> {
   gatilho: Gatilho
   /** Até quando a pendente pode ser decidida, em ISO. Sem prazo, não vence. */
   venceEm?: string
-  /** O tipo, para filtrar a fila: envio, chamada numa Integração ou revisão do Playbook. */
+  /** O tipo, para filtrar a fila: envio, chamada numa Integração, revisão do Playbook ou Sequência proposta. */
   tipo?: TipoDeAprovacao
 }
 
-export type TipoDeAprovacao = 'envio' | 'integracao' | 'revisao'
+export type TipoDeAprovacao = 'envio' | 'integracao' | 'revisao' | 'sequencia'
 
 /** Uma ação que um Agente quer fazer numa Integração, pela Permissão Propor (ADR 0002). */
 export interface AprovacaoDeAcao extends AprovacaoBase {
@@ -551,6 +551,53 @@ export interface RevisaoDoPlaybook {
 export type EstadoDaRevisaoDoPlaybook = 'pendente' | 'aprovada' | 'rejeitada' | 'cancelada' | 'expirada' | 'desatualizada'
 export type AprovacaoDeRevisaoDoPlaybook = AprovacaoBase & { estado: EstadoDaRevisaoDoPlaybook; revisao: RevisaoDoPlaybook }
 
+/** Um Contato da Sequência proposta, como o Vendedor responsável o vê. */
+export interface ContatoDaSequenciaProposta {
+  id: string
+  nome: string
+  cargo: string | null
+}
+
+/** Um passo de E-mail da Sequência proposta: a espera desde o passo anterior (dias úteis), o assunto e o corpo. */
+export interface PassoDaSequenciaProposta {
+  esperaEmDias: number
+  assunto: string
+  corpo: string
+}
+
+/**
+ * A Sequência de E-mail que o Rhetor propôs para uma Conta-alvo (cadencia-pela-ia): só o Vendedor responsável pela Conta
+ * decide, e só ele lê os Contatos, o assunto e o corpo, enquanto pendente. Os outros leem a Conta e as quantidades.
+ * Aprovada, a Sequência é criada sem envio (`sequenciaCriadaId`): os envios só começam no "Ativar envios".
+ */
+export interface SequenciaProposta {
+  contaId: string
+  contaNome: string
+  totalContatos: number
+  totalPassos: number
+  contatos: ContatoDaSequenciaProposta[] | null
+  passos: PassoDaSequenciaProposta[] | null
+  sequenciaCriadaId: string | null
+  /** Se quem lê é o Vendedor responsável pela Conta-alvo. */
+  responsavel: boolean
+  /** Por que o sistema recusou na decisão (a Conta ganhou Sequência, um Contato saiu), quando recusou. */
+  motivo: string | null
+}
+
+export interface AprovacaoDeSequencia extends AprovacaoBase {
+  tipo: 'sequencia'
+  estado: EstadoAprovacao
+  sequencia: SequenciaProposta
+  // Os campos da ação ficam vazios: a Conta e a Sequência criada estão em `sequencia`.
+  revisao?: undefined
+  integracaoId?: undefined
+  contaId?: undefined
+  contaNome?: undefined
+  sequenciaId?: undefined
+  execucao?: undefined
+  falha?: undefined
+}
+
 /**
  * As duas revisões (a da Memória na Demonstração e a do Playbook no Workspace operacional) são a mesma categoria da ADR
  * 0010: têm `revisao`, não têm Integração e só um Administrador as decide (`podeDecidir`, por `categoriaDa`).
@@ -558,10 +605,16 @@ export type AprovacaoDeRevisaoDoPlaybook = AprovacaoBase & { estado: EstadoDaRev
 export type Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao | AprovacaoDeRevisaoDoPlaybook
 
 /**
+ * A fila inteira: as Aprovações e a Sequência proposta pelo Rhetor, que só o Vendedor responsável decide. Fica fora de
+ * `Aprovacao` para quem lê só as Aprovações (o Canal, a Memória, o Playbook) nunca receber uma Sequência.
+ */
+export type AprovacaoDaFila = Aprovacao | AprovacaoDeSequencia
+
+/**
  * A categoria de uma Aprovação define quem a decide: a Revisão da Memória do Workspace (na Demonstração, os documentos;
  * no Workspace operacional, as seções do Playbook), só Administradores.
  */
-export type CategoriaDeAprovacao = 'acao' | 'revisao-da-memoria'
+export type CategoriaDeAprovacao = 'acao' | 'revisao-da-memoria' | 'sequencia'
 
 export interface NovaAprovacao {
   agenteId: AgenteId
@@ -786,7 +839,13 @@ export interface FonteDeAgentes extends FonteObservavel {
    */
   solicitarRevisao(documento: DocumentoDaMemoria, pedido: string): Promise<AprovacaoDeRevisao>
 
+  /** As Aprovações, sem a Sequência proposta pelo Rhetor (essa vem só em `filaDeAprovacoes`). */
   aprovacoes(): Promise<Aprovacao[]>
+  /**
+   * A fila inteira, com a Sequência proposta pelo Rhetor (cadencia-pela-ia), para /aprovacoes e o passo da Conversa.
+   * Quem não implementa não tem Sequência proposta: a fila são as Aprovações.
+   */
+  filaDeAprovacoes?(): Promise<AprovacaoDaFila[]>
   /**
    * Decide uma Aprovação: é uma ação da Execução que a propôs, não uma Execução nova. Uma revisão da Memória do
    * Workspace exige Administrador ativo; aprovada, substitui o documento vigente numa mudança só, e todas as
