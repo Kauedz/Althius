@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { App } from '@/App'
 import { AplicativoAutenticado } from '@/auth/aplicativo'
+import { ehCaminhoDaDemonstracao } from '@/auth/demonstracao-da-equipe'
 import { ehCaminhoDeAcesso } from '@/auth/destino'
 import { PaginaDoDocumentoPublico, documentoPublicoDoCaminho } from '@/auth/documento-publico'
 import { PaginaDeDescadastro, confirmarDescadastroPelaFuncao, tokenDeDescadastroDoCaminho } from '@/auth/pagina-de-descadastro'
@@ -37,22 +38,27 @@ function ambienteLembrado(): ModoDoAmbiente | null {
 /**
  * A escolha do ambiente: a Demonstração ou o acesso ao Workspace operacional. Sem Supabase configurado, só existe a
  * Demonstração. Cada ambiente monta as próprias fontes; trocar de um para outro desmonta o anterior inteiro.
+ *
+ * Fora do desenvolvimento, não há Demonstração sem login: só a equipe Althius a abre, logada, em /demonstracao.
  */
 export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClient | null; servicos: ServicosDoNavegador }) {
   // As telas de acesso, inclusive o link de redefinição de senha, e o link de um convite são sempre do Workspace
   // operacional, mesmo num navegador que nunca o escolheu.
   const [abriuPeloAcesso] = useState(() => ehCaminhoDeAcesso(window.location.pathname))
+  // A Demonstração da equipe pede login: é o Workspace operacional que confere, no banco, quem é da equipe.
+  const [abriuADemonstracaoDaEquipe] = useState(() => ehCaminhoDaDemonstracao(window.location.pathname))
   const [documentoPublico] = useState(() => documentoPublicoDoCaminho(window.location.pathname))
   const [tokenDeDescadastro] = useState(() => tokenDeDescadastroDoCaminho(window.location.pathname, window.location.search))
   const [ambiente, setAmbiente] = useState<ModoDoAmbiente>(() => {
     const salvo = ambienteLembrado()
     const params = new URLSearchParams(window.location.search)
     if (params.get('auth') === 'true' || params.get('demo') === 'false') return 'real'
+    // Em produção, a escolha antiga pela Demonstração e o ?demo=true não valem: todos veem a tela de entrada.
+    if (abriuADemonstracaoDaEquipe || !import.meta.env.DEV) return 'real'
     if (params.get('demo') === 'true') return 'demonstracao'
     if (abriuPeloAcesso) return 'real'
-    if (salvo) return salvo
-    // Em produção, quem chega sem escolha vê a tela de entrada; no desenvolvimento, a Demonstração é o padrão.
-    return import.meta.env.DEV ? 'demonstracao' : 'real'
+    // No desenvolvimento, a Demonstração é o padrão.
+    return salvo ?? 'demonstracao'
   })
 
   // E fica lembrado neste navegador: os links de confirmação do cadastro e de entrada por código voltam ao destino, fora
@@ -82,12 +88,14 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
     return <AplicativoDeDemonstracao aoAlternarParaAutenticado={cliente ? () => escolherAmbiente('real') : undefined} />
   }
 
-  return <AplicativoAutenticado cliente={cliente} servicos={servicos} aoAcessarDemonstracao={() => escolherAmbiente('demonstracao')} />
+  // O atalho para a Demonstração na tela de entrada é só do protótipo local.
+  const aoAcessarDemonstracao = import.meta.env.DEV ? () => escolherAmbiente('demonstracao') : undefined
+  return <AplicativoAutenticado cliente={cliente} servicos={servicos} aoAcessarDemonstracao={aoAcessarDemonstracao} />
 }
 
 /**
- * A Demonstração sem login. No desenvolvimento, com o banner do protótipo; em produção, só o aviso de que é uma
- * demonstração e o caminho de volta à tela de entrada, para quem a abriu não ficar preso nela.
+ * A Demonstração sem login: o protótipo do desenvolvimento, com o banner para ir à tela de login, ou o app sem
+ * Supabase configurado.
  */
 function AplicativoDeDemonstracao({ aoAlternarParaAutenticado }: { aoAlternarParaAutenticado?: () => void }) {
   const ambiente = useMemo(() => criarAmbienteDeDemonstracao({ armazenamento: window.localStorage }), [])
@@ -107,18 +115,6 @@ function AplicativoDeDemonstracao({ aoAlternarParaAutenticado }: { aoAlternarPar
             className="cursor-pointer text-al-accent hover:underline"
           >
             Acessar tela de login Supabase
-          </button>
-        </div>
-      )}
-      {aoAlternarParaAutenticado && !import.meta.env.DEV && (
-        <div className="flex items-center justify-between border-b border-al-line bg-al-surface/40 px-4 py-1.5 text-xs text-al-muted">
-          <span className="font-medium text-al-ink">Você está vendo uma demonstração</span>
-          <button
-            type="button"
-            onClick={aoAlternarParaAutenticado}
-            className="cursor-pointer text-al-accent hover:underline"
-          >
-            Entrar no Workspace
           </button>
         </div>
       )}

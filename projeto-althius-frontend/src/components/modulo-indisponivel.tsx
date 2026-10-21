@@ -12,8 +12,7 @@ export function AvisoDeModuloIndisponivel({ modulo }: { modulo: ModuloDoWorkspac
       <span className="selo">Indisponível</span>
       <p className="text-al-ink">{MODULO_INDISPONIVEL[modulo]}</p>
       <p className="text-sm text-al-muted">
-        Ele ainda não foi conectado ao Workspace operacional, e nada aqui é simulado. Os dados de exemplo continuam só
-        na Demonstração.
+        Ele ainda não foi conectado ao Workspace operacional, e nada aqui é simulado.
       </p>
     </div>
   )

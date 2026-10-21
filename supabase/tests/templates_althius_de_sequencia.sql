@@ -36,6 +36,7 @@ $$;
 
 select pg_temp.entrar('b7000000-0000-0000-0000-000000000001');
 create temporary table ids (k text primary key, id uuid) on commit drop;
+grant all on ids to authenticated, service_role;
 insert into ids select 'alfa', id from public.save_target_account(
   'b7100000-0000-0000-0000-000000000001', 'Alfa', 'https://alfa.tpl.test');
 insert into ids select 'beta', id from public.save_target_account(
@@ -124,7 +125,9 @@ select ok(
 );
 select is(
   (select count(*)::integer from public.sequences where workspace_id = 'b7100000-0000-0000-0000-000000000001')
-    + (select count(*)::integer from private.sequence_authorizations where workspace_id = 'b7100000-0000-0000-0000-000000000001')
+    + (select count(*)::integer from private.sequence_authorizations a
+       join public.sequences s on s.id = a.sequence_id
+       where s.workspace_id = 'b7100000-0000-0000-0000-000000000001')
     + (select count(*)::integer from private.sequence_step_sends where workspace_id = 'b7100000-0000-0000-0000-000000000001'),
   0,
   'sugerir não cria Sequência, autorização nem envio'
@@ -201,20 +204,25 @@ select is(
 );
 
 -- 10. O Rhetor recebe a sugestão pelo servidor; o Ethos não. Nada é enviado.
+-- Os ids dos Agentes saem de private antes da troca de papel: o service_role não lê o schema private.
+insert into ids select 'rhetor', pg_temp.rhetor();
+insert into ids select 'ethos', id from private.agents
+  where workspace_id = 'b7100000-0000-0000-0000-000000000001' and specialty = 'ethos' and kind = 'padrao';
 set local role service_role;
 select is(
   (select template_id from public.agent_suggest_althius_sequence_template(
-    'b7300000-0000-0000-0000-000000000001', pg_temp.rhetor(), (select id from ids where k = 'beta'))),
+    'b7300000-0000-0000-0000-000000000001', (select id from ids where k = 'rhetor'), (select id from ids where k = 'beta'))),
   null,
   'o Rhetor, sem Sinal, também não inventa template'
 );
 select throws_ok(
   $$select public.agent_suggest_althius_sequence_template(
     'b7300000-0000-0000-0000-000000000001',
-    (select id from private.agents where workspace_id = 'b7100000-0000-0000-0000-000000000001' and specialty = 'ethos' and kind = 'padrao'),
+    (select id from ids where k = 'ethos'),
     (select id from ids where k = 'alfa'))$$,
-  '42501', null, 'só o Rhetor sugere template'
+  '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor sugere template'
 );
+reset role;
 select is(
   (select count(*)::integer from private.sequence_step_sends
    where workspace_id = 'b7100000-0000-0000-0000-000000000001'),

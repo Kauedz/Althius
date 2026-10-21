@@ -165,3 +165,106 @@ Deno.test('LinkedIn e Indeed: a mesma vaga datada em meses diferentes pelas duas
   assertEquals(reaberta.eventKey === doLinkedin.eventKey, false)
 })
 
+
+// Critérios Custom (nicho e cargos escritos pelo usuário).
+import type { ContextoDoAdaptador } from '../handler.ts'
+import { termosDaBusca } from './vaga-linkedin.ts'
+import { funcoesDoMonitoramento, lerRespostaDoNicho, nichoCustom, termosDoNicho, vagasDoNicho, type Vaga } from './vagas.ts'
+
+const CUSTOM = { ...CRITERIOS, funcoes: [], nicho: 'custom', nichoCustom: 'Óleo e gás' }
+
+function contextoComModelo(json: unknown, falha = false) {
+  const pedidos: { sistema: string; usuario: string }[] = []
+  const custos: number[] = []
+  const ctx = {
+    workspaceId: 'ws-1',
+    headcount: { base: () => Promise.resolve(null), gravar: () => Promise.resolve() },
+    vagasAbertas: () => Promise.resolve(0),
+    llm: {
+      json: (a: { sistema: string; usuario: string }) => {
+        pedidos.push(a)
+        return falha ? Promise.reject(new Error('fora do ar')) : Promise.resolve({ json, custoUsd: 0.001 })
+      },
+    },
+    custo: { adicionar: (usd: number) => { custos.push(usd) } },
+  } as ContextoDoAdaptador
+  return { ctx, pedidos, custos }
+}
+
+Deno.test('Custom: cargo escrito entra exatamente na busca e no filtro, sem repetir', () => {
+  const criterios = { ...CRITERIOS, funcoes: ['SDR', 'sdr', ' BDR ', 'LDR'] }
+  assertEquals(funcoesDoMonitoramento(criterios), ['SDR', 'BDR', 'LDR'])
+  const { input } = vagaLinkedin.entrada(CONTA, criterios, AGORA)
+  const urls = (input.urls as string[]).map((u) => new URL(u).searchParams.get('keywords'))
+  assertEquals(urls, ['Acme Logística S.A. SDR', 'Acme Logística S.A. BDR', 'Acme Logística S.A. LDR'])
+  const sinais = vagaLinkedin.sinais(
+    [itemDoLinkedin({ title: 'SDR Pleno' }), itemDoLinkedin({ id: '4100000002', title: 'Analista de Marketing' })],
+    CONTA,
+    criterios,
+    AGORA,
+  )
+  assertEquals(sinais.map((s) => s.phrase), ['Abriu vaga de SDR Pleno em São Paulo, SP'])
+})
+
+Deno.test('Custom: no máximo 10 cargos escritos; as opções prontas não contam', () => {
+  const escritos = Array.from({ length: 12 }, (_, i) => `Cargo ${i + 1}`)
+  const funcoes = funcoesDoMonitoramento({ funcoes: ['Engenharia de dados', ...escritos] })
+  assertEquals(funcoes.length, 11)
+  assertEquals(funcoes[0], 'Engenharia de dados')
+})
+
+Deno.test('Custom: mais cargos que buscas viram OR, sem perder nenhum', () => {
+  assertEquals(termosDaBusca('Acme', ['SDR', 'BDR', 'LDR', 'AE', 'CSM'], 4), [
+    'Acme (SDR OR CSM)',
+    'Acme BDR',
+    'Acme LDR',
+    'Acme AE',
+  ])
+  const { input } = vagaLinkedin.entrada(CONTA, { ...CRITERIOS, funcoes: ['SDR', 'BDR', 'LDR', 'AE', 'CSM', 'SE'] }, AGORA)
+  assertEquals((input.urls as string[]).length, 4)
+})
+
+Deno.test('Custom: nicho só vale com a opção Custom e é cortado em 60 letras', () => {
+  assertEquals(nichoCustom({ nicho: 'custom', nichoCustom: '  Naval ' }), 'Naval')
+  assertEquals(nichoCustom({ nicho: 'comex-e-importacao', nichoCustom: 'Naval' }), '')
+  assertEquals(nichoCustom({ nicho: 'custom', nichoCustom: 'x'.repeat(80) }).length, 60)
+  assertEquals(termosDoNicho('Óleo e gás'), ['oleo e gas', 'oleo', 'gas'])
+})
+
+Deno.test('Custom: sem modelo, a vaga só vira Sinal quando cita o nicho', () => {
+  const itens = [
+    itemDoLinkedin({ title: 'Engenheiro de Dados', descriptionText: 'Projetos de exploração de óleo e gás offshore.' }),
+    itemDoLinkedin({ id: '4100000002', title: 'Engenheiro de Dados Pleno', descriptionText: 'Varejo e e-commerce.' }),
+  ]
+  const sinais = vagaLinkedin.sinais(itens, CONTA, { ...CUSTOM, funcoes: ['Engenharia de dados'] }, AGORA)
+  assertEquals(sinais.length, 1)
+  assert(sinais[0].evidence?.includes('óleo e gás'))
+  const indeed = vagaIndeed.sinais([itemDoIndeed()], CONTA, CUSTOM, AGORA)
+  assertEquals(indeed.length, 0)
+})
+
+Deno.test('Custom: com o modelo (Hermes), ele decide quais vagas são do nicho e o custo é somado', async () => {
+  const { ctx, pedidos, custos } = contextoComModelo({ vagas: [{ id: '0', do_nicho: false }, { id: '1', do_nicho: true }] })
+  const itens = [
+    itemDoLinkedin({ title: 'SDR', descriptionText: 'Óleo e gás' }),
+    itemDoLinkedin({ id: '4100000002', title: 'BDR', descriptionText: 'Estaleiro e plataformas offshore.' }),
+  ]
+  const sinais = await vagaLinkedin.sinaisComContexto!(itens, CONTA, { ...CUSTOM, funcoes: ['SDR', 'BDR'] }, AGORA, ctx)
+  assertEquals(sinais.map((s) => s.phrase), ['Abriu vaga de BDR em São Paulo, SP'])
+  assertEquals(pedidos.length, 1)
+  assert(pedidos[0].usuario.startsWith('{"nicho":"Óleo e gás"}'))
+  assertEquals(custos, [0.001])
+})
+
+Deno.test('Custom: se o modelo falha, vale a regra; sem nicho Custom, o modelo nem é chamado', async () => {
+  const vagas: Vaga[] = [
+    { titulo: 'SDR', local: '', descricao: 'Construção naval', nivel: '', link: '', publicadaEm: null },
+    { titulo: 'BDR', local: '', descricao: 'Software', nivel: '', link: '', publicadaEm: null },
+  ]
+  const falho = contextoComModelo(null, true)
+  assertEquals((await vagasDoNicho(vagas, { nicho: 'custom', nichoCustom: 'Naval' }, falho.ctx)).map((v) => v.titulo), ['SDR'])
+  const semNicho = contextoComModelo({})
+  assertEquals((await vagasDoNicho(vagas, { nicho: 'comex-e-importacao' }, semNicho.ctx)).length, 2)
+  assertEquals(semNicho.pedidos.length, 0)
+  assertEquals(lerRespostaDoNicho({ vagas: [{ id: '0', do_nicho: 'sim' }, { id: '1', do_nicho: true }] }), new Map([['1', true]]))
+})
