@@ -125,7 +125,9 @@ select ok(
 );
 select is(
   (select count(*)::integer from public.sequences where workspace_id = 'b7100000-0000-0000-0000-000000000001')
-    + (select count(*)::integer from private.sequence_authorizations where workspace_id = 'b7100000-0000-0000-0000-000000000001')
+    + (select count(*)::integer from private.sequence_authorizations a
+       join public.sequences s on s.id = a.sequence_id
+       where s.workspace_id = 'b7100000-0000-0000-0000-000000000001')
     + (select count(*)::integer from private.sequence_step_sends where workspace_id = 'b7100000-0000-0000-0000-000000000001'),
   0,
   'sugerir não cria Sequência, autorização nem envio'
