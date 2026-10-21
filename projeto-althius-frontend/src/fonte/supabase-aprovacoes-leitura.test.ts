@@ -46,4 +46,31 @@ describe('A leitura da fila de Aprovações', () => {
     expect((await f.aprovacoes())[0]?.estado).toBe('rejeitada')
     expect(leituras()).toBe(2)
   })
+
+  it('a Sequência proposta pelo Rhetor vem só na fila inteira, nunca em aprovacoes()', async () => {
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(ANA),
+      tabelas: {},
+      rpcs: {
+        list_approvals: () => [
+          {
+            id: 'ap-1', agent_id: 'agente-rhetor', integration_id: 'hubspot', action: 'Enviar a Alfa ao HubSpot',
+            impact: 'Cria no HubSpot a empresa.', justification: '', payload: { tipo: 'envio_ao_crm' },
+            target_account_id: null, state: 'pendente', failure: null,
+          },
+          {
+            id: 'ap-seq', agent_id: 'agente-rhetor', integration_id: null, action: 'Sequência de E-mail para Alfa',
+            impact: 'Aprovar cria a Sequência.', justification: '', category: 'sequencia',
+            payload: { tipo: 'sequencia', conta: 'Alfa', total_contatos: 1, total_passos: 3 },
+            target_account_id: '11111111-1111-4111-8111-111111111111', state: 'pendente', failure: null,
+          },
+        ],
+      },
+    })
+    const f = criarFonteDeAprovacoesSupabase(cliente, 'ws-norte')
+
+    // Quem lê só Aprovações (o Canal, a Memória, o Playbook) não recebe a Sequência: ela não tem Integração.
+    expect((await f.aprovacoes()).map((a) => a.id)).toEqual(['ap-1'])
+    expect((await f.filaDeAprovacoes()).map((a) => [a.id, a.tipo])).toEqual([['ap-1', 'envio'], ['ap-seq', 'sequencia']])
+  })
 })

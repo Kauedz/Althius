@@ -10,6 +10,7 @@ import { ehSecaoDoPlaybook } from './playbook-tipos'
 import { conteudoLido } from './supabase-playbook'
 import type {
   Aprovacao,
+  AprovacaoDaFila,
   AprovacaoDeAcao,
   AprovacaoDeRevisaoDoPlaybook,
   AprovacaoDeSequencia,
@@ -116,7 +117,7 @@ function tipoDa(linha: RegistroDaAprovacao): TipoDeAprovacao {
   return linha.payload?.tipo === 'ferramenta' ? 'integracao' : 'envio'
 }
 
-function aprovacaoDa(linha: RegistroDaAprovacao): Aprovacao {
+function aprovacaoDa(linha: RegistroDaAprovacao): AprovacaoDaFila {
   const base = {
     id: linha.id,
     agenteId: linha.agent_id,
@@ -200,20 +201,32 @@ function aprovacaoDeSequencia(
 export function criarFonteDeAprovacoesSupabase(
   cliente: SupabaseClient,
   workspaceId: string,
-): Pick<FonteDeAgentes, 'aprovacoes' | 'decidirAprovacao' | 'observar'> & { invalidar(): void } {
+): Pick<FonteDeAgentes, 'aprovacoes' | 'decidirAprovacao' | 'observar'> & {
+  filaDeAprovacoes(): Promise<AprovacaoDaFila[]>
+  invalidar(): void
+} {
   const ouvintes = new Set<() => void>()
   // O tipo de cada Aprovação lida, para a execução depois de aprovar ir a quem sabe fazê-la.
   const tipos = new Map<string, string>()
   // O que abre junto (a navegação, a fila, cada cartão na Conversa) divide a mesma leitura em andamento.
-  let leituraEmAndamento: Promise<Aprovacao[]> | null = null
+  let leituraEmAndamento: Promise<AprovacaoDaFila[]> | null = null
 
-  async function lerAFila(): Promise<Aprovacao[]> {
+  async function lerAFila(): Promise<AprovacaoDaFila[]> {
     const { data, error } = await cliente.rpc('list_approvals', { p_workspace_id: workspaceId })
     if (error) throw converterErro(error)
     for (const linha of (data ?? []) as RegistroDaAprovacao[]) {
       if (typeof linha.payload?.tipo === 'string') tipos.set(linha.id, linha.payload.tipo)
     }
     return ((data ?? []) as RegistroDaAprovacao[]).map(aprovacaoDa)
+  }
+
+  function filaDeAprovacoes(): Promise<AprovacaoDaFila[]> {
+    if (leituraEmAndamento) return leituraEmAndamento
+    const leitura = lerAFila().finally(() => {
+      if (leituraEmAndamento === leitura) leituraEmAndamento = null
+    })
+    leituraEmAndamento = leitura
+    return leitura
   }
 
   return {
@@ -228,13 +241,11 @@ export function criarFonteDeAprovacoesSupabase(
       for (const ouvinte of ouvintes) ouvinte()
     },
 
-    aprovacoes() {
-      if (leituraEmAndamento) return leituraEmAndamento
-      const leitura = lerAFila().finally(() => {
-        if (leituraEmAndamento === leitura) leituraEmAndamento = null
-      })
-      leituraEmAndamento = leitura
-      return leitura
+    filaDeAprovacoes,
+
+    // A mesma leitura, sem a Sequência proposta: quem lê só Aprovações (o Canal, o Playbook) nunca a recebe.
+    async aprovacoes() {
+      return (await filaDeAprovacoes()).filter((a): a is Aprovacao => a.tipo !== 'sequencia')
     },
 
     async decidirAprovacao(aprovacaoId: string, decisao: Decisao, onde: LugarDaDecisao) {

@@ -600,10 +600,15 @@ export interface AprovacaoDeSequencia extends AprovacaoBase {
 
 /**
  * As duas revisões (a da Memória na Demonstração e a do Playbook no Workspace operacional) são a mesma categoria da ADR
- * 0010: têm `revisao`, não têm Integração e só um Administrador as decide (`podeDecidir`, por `categoriaDa`). A Sequência
- * proposta pelo Rhetor só o Vendedor responsável decide.
+ * 0010: têm `revisao`, não têm Integração e só um Administrador as decide (`podeDecidir`, por `categoriaDa`).
  */
-export type Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao | AprovacaoDeRevisaoDoPlaybook | AprovacaoDeSequencia
+export type Aprovacao = AprovacaoDeAcao | AprovacaoDeRevisao | AprovacaoDeRevisaoDoPlaybook
+
+/**
+ * A fila inteira: as Aprovações e a Sequência proposta pelo Rhetor, que só o Vendedor responsável decide. Fica fora de
+ * `Aprovacao` para quem lê só as Aprovações (o Canal, a Memória, o Playbook) nunca receber uma Sequência.
+ */
+export type AprovacaoDaFila = Aprovacao | AprovacaoDeSequencia
 
 /**
  * A categoria de uma Aprovação define quem a decide: a Revisão da Memória do Workspace (na Demonstração, os documentos;
@@ -834,7 +839,13 @@ export interface FonteDeAgentes extends FonteObservavel {
    */
   solicitarRevisao(documento: DocumentoDaMemoria, pedido: string): Promise<AprovacaoDeRevisao>
 
+  /** As Aprovações, sem a Sequência proposta pelo Rhetor (essa vem só em `filaDeAprovacoes`). */
   aprovacoes(): Promise<Aprovacao[]>
+  /**
+   * A fila inteira, com a Sequência proposta pelo Rhetor (cadencia-pela-ia), para /aprovacoes e o passo da Conversa.
+   * Quem não implementa não tem Sequência proposta: a fila são as Aprovações.
+   */
+  filaDeAprovacoes?(): Promise<AprovacaoDaFila[]>
   /**
    * Decide uma Aprovação: é uma ação da Execução que a propôs, não uma Execução nova. Uma revisão da Memória do
    * Workspace exige Administrador ativo; aprovada, substitui o documento vigente numa mudança só, e todas as

@@ -1,11 +1,11 @@
 // A fila de Aprovações: o prazo de cada pendente, o motivo da vencida e os filtros por tipo e por Agente.
 
-import type { Aprovacao, TipoDeAprovacao } from './tipos'
+import type { AprovacaoDaFila, FonteDeAgentes, TipoDeAprovacao } from './tipos'
 
 const HORA = 60 * 60 * 1000
 
 /** "vence em 6 h", "vence em 3 dias", "vence em menos de 1 h"; nada se não é pendente ou não tem prazo. */
-export function prazoDaAprovacao(aprovacao: Aprovacao, agora: Date = new Date()): string | null {
+export function prazoDaAprovacao(aprovacao: AprovacaoDaFila, agora: Date = new Date()): string | null {
   if (aprovacao.estado !== 'pendente' || !aprovacao.venceEm) return null
   const falta = new Date(aprovacao.venceEm).getTime() - agora.getTime()
   if (Number.isNaN(falta)) return null
@@ -32,15 +32,20 @@ export interface FiltroDaFila {
 }
 
 /** O tipo de uma Aprovação; sem o campo, a revisão pela forma e o resto como envio. */
-export function tipoDaAprovacao(aprovacao: Aprovacao): TipoDeAprovacao {
+export function tipoDaAprovacao(aprovacao: AprovacaoDaFila): TipoDeAprovacao {
   if (aprovacao.tipo) return aprovacao.tipo
   return aprovacao.revisao ? 'revisao' : 'envio'
 }
 
-export function filtrarFila(aprovacoes: Aprovacao[], filtro: FiltroDaFila): Aprovacao[] {
+export function filtrarFila(aprovacoes: AprovacaoDaFila[], filtro: FiltroDaFila): AprovacaoDaFila[] {
   return aprovacoes.filter(
     (a) =>
       (filtro.tipo === 'todos' || tipoDaAprovacao(a) === filtro.tipo) &&
       (filtro.agenteId === 'todos' || a.agenteId === filtro.agenteId),
   )
+}
+
+/** A fila inteira, com a Sequência proposta pelo Rhetor; a Fonte que não a tem devolve só as Aprovações. */
+export function lerFilaDeAprovacoes(fonte: FonteDeAgentes): Promise<AprovacaoDaFila[]> {
+  return fonte.filaDeAprovacoes ? fonte.filaDeAprovacoes() : fonte.aprovacoes()
 }

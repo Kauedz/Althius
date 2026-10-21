@@ -9,13 +9,14 @@ import { useAmbiente, useDados } from '@/fonte/contexto'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
 import {
   filtrarFila,
+  lerFilaDeAprovacoes,
   MOTIVO_DA_VENCIDA,
   prazoDaAprovacao,
   ROTULO_DO_TIPO,
   type FiltroDaFila,
 } from '@/fonte/fila-de-aprovacoes'
 import { ehRevisaoDoPlaybook, ehSequenciaProposta, podeDecidir } from '@/fonte/regras'
-import type { Agente, Aprovacao, AprovacaoDeAcao, Integracao, TipoDeAprovacao } from '@/fonte/tipos'
+import type { Agente, AprovacaoDaFila, AprovacaoDeAcao, Integracao, TipoDeAprovacao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'
 import { PropostaDeSequencia } from '@/paginas/proposta-de-sequencia'
@@ -29,7 +30,7 @@ const INTRODUCAO: Record<ModoDoAmbiente, string> = {
 
 export function PaginaAprovacoes() {
   const { modo } = useAmbiente()
-  const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
+  const aprovacoes = useDados(lerFilaDeAprovacoes, [])
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
   const workspace = useDados((fonte) => fonte.workspace(), [])
@@ -88,7 +89,7 @@ export function PaginaAprovacoes() {
 }
 
 /** O prazo da pendente ("vence em 6 h") ou, na vencida, o motivo. */
-function PrazoDaAprovacao({ aprovacao }: { aprovacao: Aprovacao }) {
+function PrazoDaAprovacao({ aprovacao }: { aprovacao: AprovacaoDaFila }) {
   if (aprovacao.estado === 'expirada') {
     return (
       <p className="flex items-center gap-2 text-sm text-al-muted">

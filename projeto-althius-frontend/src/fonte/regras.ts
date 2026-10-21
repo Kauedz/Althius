@@ -1,6 +1,6 @@
 import type { ModoDoAmbiente } from './ambiente'
 import type {
-  Aprovacao,
+  AprovacaoDaFila,
   AprovacaoDeRevisaoDoPlaybook,
   AprovacaoDeSequencia,
   CategoriaDeAprovacao,
@@ -42,15 +42,15 @@ export function rotuloDoEstadoDaAprovacao(aprovacao: {
   return ROTULO_DA_DECISAO[aprovacao.estado]
 }
 
-export const categoriaDa = (aprovacao: Aprovacao): CategoriaDeAprovacao =>
+export const categoriaDa = (aprovacao: AprovacaoDaFila): CategoriaDeAprovacao =>
   aprovacao.revisao ? 'revisao-da-memoria' : ehSequenciaProposta(aprovacao) ? 'sequencia' : 'acao'
 
 /** Se a Aprovação é a Sequência que o Rhetor propôs (cadencia-pela-ia). */
-export const ehSequenciaProposta = (aprovacao: Aprovacao): aprovacao is AprovacaoDeSequencia =>
+export const ehSequenciaProposta = (aprovacao: AprovacaoDaFila): aprovacao is AprovacaoDeSequencia =>
   aprovacao.tipo === 'sequencia' && 'sequencia' in aprovacao
 
 /** Se a Aprovação é a revisão de uma seção do Playbook, a do Workspace operacional (CRM-09). */
-export const ehRevisaoDoPlaybook = (aprovacao: Aprovacao): aprovacao is AprovacaoDeRevisaoDoPlaybook =>
+export const ehRevisaoDoPlaybook = (aprovacao: AprovacaoDaFila): aprovacao is AprovacaoDeRevisaoDoPlaybook =>
   aprovacao.revisao?.tipo === 'playbook'
 
 /**
