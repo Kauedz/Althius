@@ -181,6 +181,15 @@ export interface BancoDasFerramentas {
    * lê, e só de uma Conta que não está arquivada.
    */
   contatosParaSequencia?(runId: string, agenteId: string, targetAccountId: string): Promise<unknown>
+  /**
+   * RPC `agent_suggest_althius_sequence_template` (ticket 07): sugere um template existente e acessível.
+   * Sem ela, `sugerir_template_de_sequencia` não é oferecida. Não cria Sequência nem ativa envio.
+   */
+  sugerirTemplate?(
+    runId: string,
+    agenteId: string,
+    targetAccountId: string,
+  ): Promise<{ templateId: string | null; justificativa: string; outcome: string }>
 }
 
 /** Um Sinal do catálogo como o Hermes o vê: sem fornecedor, actor nem custo em dólar. */
@@ -1056,7 +1065,8 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
     'proponha 3 passos de E-mail (dia 0, 3 e 7: esperas de 0, 3 e 4 dias), passe playbook_vazio e diga ao usuário que o ' +
     `Playbook não tem Cadência. Use só as variáveis ${VARIAVEIS_DO_ENVIO}. Nada é enviado: nasce uma Aprovação que só ` +
     'o Vendedor responsável pela Conta decide; aprovada, a Sequência é criada sem envio, e os e-mails só saem depois ' +
-    'que ele clicar em "Ativar envios". A justificativa é visível a todos os membros do Workspace: diga nela por que ' +
+    'que ele clicar em "Ativar envios". Para partir de um template da Althius, chame sugerir_template_de_sequencia ' +
+    'antes e use só o id que ela devolver. A justificativa é visível a todos os membros do Workspace: diga nela por que ' +
     'esta Sequência agora (o Sinal), sem copiar o assunto nem o corpo dos e-mails.',
   esquema: {
     type: 'object',
@@ -1186,6 +1196,68 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
         descricao: `${agente.name} propôs uma Sequência para a ${proposta.conta} (${resumo}) — aguardando o Vendedor responsável`,
         estado: 'aguardando',
         link,
+      },
+    }
+  },
+}
+
+const SUGERIR_TEMPLATE: FerramentaDoAgente = {
+  nome: 'sugerir_template_de_sequencia',
+  descricao:
+    'Sugere um template da Althius para uma Conta-alvo. Chame antes de propor os e-mails, com o id da Conta que ' +
+    'ler_contas_e_sinais devolve. A ferramenta escolhe só um template que já existe e está acessível, e justifica com ' +
+    'o Sinal real da Conta. Se não houver Sinal, contexto ou crédito, ela não escolhe: diga ao usuário para escolher ' +
+    'manualmente ou criar do zero. Não invente template, adequação ou eficácia (não diga que aumenta resposta, ' +
+    'conversão ou que está comprovado). Não cria Sequência e não ativa envio. Ajustes de mensagem continuam em ' +
+    'propor_sequencia; a Aprovação dessa proposta não ativa envios.',
+  esquema: {
+    type: 'object',
+    properties: {
+      conta_id: { type: 'string', description: 'O id da Conta-alvo (de ler_contas_e_sinais).' },
+    },
+    required: ['conta_id'],
+    additionalProperties: false,
+  },
+  especialidades: ['rhetor'],
+  exige: null,
+  disponivel: (_agente, _ctx, deps) => !!deps.banco.sugerirTemplate,
+  async executar({ runId, agente, entrada, deps }) {
+    const sugerir = deps.banco.sugerirTemplate
+    if (!sugerir) {
+      return falhou(`${agente.name} tentou sugerir um template`, 'A sugestão de template não está disponível agora.')
+    }
+    const contaId = texto(entrada.conta_id, 64)
+    if (!UUID_DA_CONTA.test(contaId)) {
+      return falhou(`${agente.name} tentou sugerir um template`, 'Informe o id da Conta-alvo que ler_contas_e_sinais devolve.')
+    }
+    let sugestao: { templateId: string | null; justificativa: string; outcome: string }
+    try {
+      sugestao = await sugerir(runId, agente.id, contaId)
+    } catch (erro) {
+      return falhou(`${agente.name} tentou sugerir um template`, `A sugestão falhou. ${motivoDoBanco(erro)}`)
+    }
+    if (sugestao.outcome === 'ok' && sugestao.templateId) {
+      return {
+        erro: false,
+        paraOAgente:
+          `${sugestao.justificativa}\nTemplate acessível: ${sugestao.templateId}. Use só este id. ` +
+          'Não diga que ele aumenta resposta, conversão ou tem eficácia comprovada. Nada foi criado e nada foi enviado. ' +
+          'Se for propor os e-mails, chame propor_sequencia: a Aprovação não ativa envios.',
+        passo: {
+          descricao: `${agente.name} sugeriu o template ${sugestao.templateId} — sem criar Sequência e sem envio`,
+          estado: 'concluida',
+        },
+      }
+    }
+    const peloTeto = sugestao.outcome === 'teto_atingido' || sugestao.outcome === 'sem_teto' || sugestao.outcome === 'sem_espaco'
+    return {
+      erro: false,
+      paraOAgente: peloTeto
+        ? 'A sugestão não rodou por causa do limite de créditos. O vendedor escolhe o template manualmente ou cria do zero. Não invente um template.'
+        : 'Não há Sinal recente para sugerir um template. O vendedor escolhe manualmente ou cria do zero. Não invente adequação nem eficácia.',
+      passo: {
+        descricao: `${agente.name} não sugeriu template — a escolha manual continua`,
+        estado: 'concluida',
       },
     }
   },
@@ -1351,6 +1423,7 @@ export const FERRAMENTAS: readonly FerramentaDoAgente[] = [
   PROPOR_MUDANCA_NO_PLAYBOOK,
   BUSCAR_SINAIS,
   PROPOR_SEQUENCIA,
+  SUGERIR_TEMPLATE,
 ]
 
 /** A ferramenta como o modelo a recebe. */
@@ -1575,6 +1648,20 @@ export function bancoDasFerramentas(
         p_agent_id: agenteId,
         p_target_account_id: targetAccountId,
       }),
+    async sugerirTemplate(runId, agenteId, targetAccountId) {
+      const linha = primeira<{ template_id: string | null; justification: string; outcome: string }>(
+        await chamar('agent_suggest_althius_sequence_template', {
+          p_run_id: runId,
+          p_agent_id: agenteId,
+          p_target_account_id: targetAccountId,
+        }),
+      )
+      return {
+        templateId: linha.template_id,
+        justificativa: linha.justification ?? '',
+        outcome: linha.outcome,
+      }
+    },
   }
 }
 

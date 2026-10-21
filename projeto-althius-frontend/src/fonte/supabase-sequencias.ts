@@ -4,6 +4,7 @@ import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
+import { templateDaResposta, type SugestaoDeTemplate } from './templates-althius'
 
 interface RegistroSequencia {
   id: string
@@ -387,6 +388,22 @@ function converterErro(error: { message: string; code?: string }): Error {
   return new Error(error.message)
 }
 
+function sugestaoLida(linha: {
+  template_id?: string | null
+  justification?: string | null
+  outcome?: string | null
+} | null): SugestaoDeTemplate {
+  const outcome = linha?.outcome ?? ''
+  if (outcome === 'ok' && linha?.template_id) {
+    return { templateId: linha.template_id, justificativa: linha.justification ?? '', motivo: 'ok' }
+  }
+  if (outcome === 'sem_contexto') return { templateId: null, justificativa: '', motivo: 'sem_contexto' }
+  if (outcome === 'teto_atingido' || outcome === 'sem_teto' || outcome === 'sem_espaco') {
+    return { templateId: null, justificativa: '', motivo: 'teto' }
+  }
+  return { templateId: null, justificativa: '', motivo: 'indisponivel' }
+}
+
 /** Uma linha de send_outcome_rates; as contagens chegam como bigint, que o PostgREST pode mandar em texto. */
 interface RegistroDaTaxa {
   channel: string
@@ -532,6 +549,27 @@ export function criarFonteDeSequenciasSupabase(
       if (!row) throw new Error('O banco não retornou a Sequência criada.')
       notificar()
       return privada(row.id)
+    },
+    async templatesDaAlthius() {
+      const { data, error } = await cliente.rpc('list_althius_sequence_templates')
+      if (error) throw converterErro(error)
+      return (Array.isArray(data) ? data : []).flatMap((linha) => {
+        const template = templateDaResposta(linha)
+        return template ? [template] : []
+      })
+    },
+    async sugerirTemplateDaAlthius(contaId) {
+      const { data, error } = await cliente.rpc('suggest_althius_sequence_template', {
+        p_workspace_id: workspace(),
+        p_target_account_id: contaId,
+      })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as {
+        template_id?: string | null
+        justification?: string | null
+        outcome?: string | null
+      } | null
+      return sugestaoLida(linha)
     },
     async criarSequenciasEmLote(contaIds, template) {
       const { data, error } = await cliente.rpc('create_sequences_in_batch', {

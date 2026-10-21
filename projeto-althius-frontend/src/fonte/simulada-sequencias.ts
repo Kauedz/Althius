@@ -1,4 +1,6 @@
+import { SINAIS_MOCK } from '@/paginas/sinais/dados-mock'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO, criarSequenciasIniciais } from './dados-sequencias-demo'
+import { TEMPLATES_DA_ALTHIUS, sugerirTemplateDaAlthius } from './templates-althius'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import {
   ehCanalSuportado,
@@ -273,6 +275,25 @@ export function criarFonteDeSequenciasSimulada(
 
     async resolverIncerto() {
       throw new Error('Na Demonstração nenhum passo é enviado.')
+    },
+
+    async templatesDaAlthius() {
+      await aguardar()
+      return TEMPLATES_DA_ALTHIUS.map((template) => ({
+        ...template,
+        passos: template.passos.map((passo) => ({ ...passo })),
+      }))
+    },
+
+    async sugerirTemplateDaAlthius(contaId: string) {
+      await aguardar()
+      const sinal = SINAIS_MOCK.find((item) => item.contaId === contaId)
+      const conta = contaId
+      return sugerirTemplateDaAlthius({
+        templates: TEMPLATES_DA_ALTHIUS,
+        conta,
+        sinal: sinal ? { frase: sinal.frase, data: sinal.data } : null,
+      })
     },
 
     async resumoPublico(id: string): Promise<ResumoPublicoSequencia | null> {

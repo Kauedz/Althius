@@ -437,3 +437,40 @@ describe('Sequência de uma Conta-alvo real (CRM-17)', () => {
     await expect(fonte.atualizarDocumento('sequencia-do-diego', { status: 'ativa' })).rejects.toThrow(/Conta-alvo está arquivada/)
   })
 })
+
+describe('Templates da Althius na Fonte operacional', () => {
+  it('lê o catálogo sem destino e traduz teto, falta de Sinal e template existente', async () => {
+    const chamadas: string[] = []
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      rpcs: {
+        list_althius_sequence_templates: () => [{
+          id: 'abertura-por-sinal',
+          nome: 'Abertura pelo Sinal',
+          resumo: 'Sem destinatário.',
+          passos: [{ id: 'abertura-1', ordem: 1, canal: 'email', titulo: 'Abertura com o Sinal', contatoId: 'nao-pode-vir', destino: 2 }],
+        }],
+        suggest_althius_sequence_template: ({ p_target_account_id }) => {
+          chamadas.push(String(p_target_account_id))
+          if (p_target_account_id === 'sem-sinal') return [{ template_id: null, justification: '', outcome: 'sem_contexto' }]
+          if (p_target_account_id === 'sem-teto') return [{ template_id: null, justification: '', outcome: 'teto_atingido' }]
+          return [{ template_id: 'abertura-por-sinal', justification: 'A Conta Alfa tem o Sinal “vagas”.', outcome: 'ok' }]
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+
+    const catalogo = await fonte.templatesDaAlthius()
+    expect(catalogo[0].passos[0]).not.toHaveProperty('contatoId')
+    expect(catalogo[0].passos[0]).not.toHaveProperty('destino')
+
+    await expect(fonte.sugerirTemplateDaAlthius('conta-alfa')).resolves.toEqual({
+      templateId: 'abertura-por-sinal',
+      justificativa: 'A Conta Alfa tem o Sinal “vagas”.',
+      motivo: 'ok',
+    })
+    await expect(fonte.sugerirTemplateDaAlthius('sem-sinal')).resolves.toMatchObject({ templateId: null, motivo: 'sem_contexto' })
+    await expect(fonte.sugerirTemplateDaAlthius('sem-teto')).resolves.toMatchObject({ templateId: null, motivo: 'teto' })
+    expect(chamadas).toEqual(['conta-alfa', 'sem-sinal', 'sem-teto'])
+  })
+})
