@@ -264,7 +264,7 @@ _Avoid_: orquestração, orquestrador, 5º agente
 ## Sequências
 
 **Sequência**:
-O plano de abordagem de uma Conta-alvo, com Contatos participantes e passos ordenados que definem canal, mensagem e momento de contato. Cada Conta-alvo tem no máximo uma Sequência em andamento no Workspace, sob seu vendedor responsável (as encerradas ficam como histórico); lista de Sequências, detalhe da Conta-alvo e Conversa refletem o mesmo plano, respeitando a visibilidade de cada participante.
+O plano de abordagem de uma Conta-alvo, com Contatos participantes e passos que definem canal, mensagem e momento de contato. As abordagens dos Contatos podem avançar em paralelo, sob regras comuns da Conta-alvo: um passo em espera não impede outro independente, e um passo pode depender do histórico de abordagem de outro Contato da mesma Conta-alvo. Variáveis de mensagem usam dados reais da Conta-alvo, do Contato e dos Sinais e são distintas das condições de avanço. Uma resposta recebida fica registrada e é analisada pela IA. Os próximos envios da Conta-alvo inteira ficam retidos preventivamente até o Vendedor responsável decidir se a Sequência deve pausar ou continuar, preservando os caminhos e o histórico; essa espera não representa uma decisão da IA de pausar. Cada Conta-alvo tem no máximo uma Sequência em andamento no Workspace, sob seu Vendedor responsável (as encerradas ficam como histórico); lista de Sequências, detalhe da Conta-alvo e Conversa refletem o mesmo plano, respeitando a visibilidade de cada participante.
 _Avoid_: cadência como rótulo de interface
 
 **Sequência encerrada**:
