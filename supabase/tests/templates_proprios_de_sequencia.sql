@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(26);
+select plan(34);
 
 -- Templates próprios (ticket 08). Bia cria. Ana é Administradora no mesmo Workspace e não lê.
 -- Carlos está em outro Workspace. O catálogo da Althius permanece.
@@ -39,6 +39,7 @@ $$;
 
 select pg_temp.entrar('b8000000-0000-0000-0000-000000000001');
 create temporary table ids (k text primary key, id uuid) on commit drop;
+grant all on ids to anon, authenticated, service_role;
 insert into ids select 'alfa', id from public.save_target_account(
   'b8100000-0000-0000-0000-000000000001', 'Alfa', 'https://alfa.own.test');
 insert into ids select 'beta', id from public.save_target_account(
@@ -182,6 +183,16 @@ select is(
   0,
   'o Workspace do Carlos não recebe o template da Bia'
 );
+select throws_ok(
+  $$select public.update_own_sequence_template(
+    'b8100000-0000-0000-0000-000000000001',
+    (select id from ids where k = 'tpl'),
+    'De fora',
+    'Outro Workspace.',
+    (select passos from previa),
+    '[]'::jsonb)$$,
+  '42501', null, 'outro Workspace não edita o template da Bia'
+);
 
 -- 4. Cópia independente: mudar a Sequência não muda o template, e o contrário também não.
 select pg_temp.entrar('b8000000-0000-0000-0000-000000000001');
@@ -234,12 +245,15 @@ select public.update_own_sequence_template(
   (select passos from previa),
   '[]'::jsonb
 );
+-- private não é lido como authenticated: a conferência sai do papel antes.
+reset role;
 select is(
   (select document -> 'steps' -> 0 ->> 'titulo' from private.sequence_documents
    where sequence_id = (select id from ids where k = 'seq')),
   'Passo acrescentado na cópia',
   'editar o template não propaga para a Sequência'
 );
+set local role authenticated;
 
 -- 5. A sugestão só devolve o template de quem pode ler. Não autoriza Contato nem envia.
 select is(
@@ -272,9 +286,11 @@ select throws_ok(
     'b8100000-0000-0000-0000-000000000001', (select id from ids where k = 'alfa'))$$,
   '42501', null, 'quem não é o responsável não recebe o template da Bia'
 );
+reset role;
 select is(
-  (select count(*)::int from private.sequence_authorizations
-    where workspace_id = 'b8100000-0000-0000-0000-000000000001')
+  (select count(*)::int from private.sequence_authorizations a
+    join public.sequences s on s.id = a.sequence_id
+    where s.workspace_id = 'b8100000-0000-0000-0000-000000000001')
   + (select count(*)::int from private.sequence_step_sends
     where workspace_id = 'b8100000-0000-0000-0000-000000000001'),
   0,
@@ -282,27 +298,94 @@ select is(
 );
 
 -- 6. O Rhetor usa o pedido de quem pode ler. O Ethos não. O Cliente não chama a RPC do servidor.
-reset role;
+-- Os ids dos Agentes saem de private antes da troca de papel: o service_role não lê o schema private.
+insert into ids select 'rhetor', pg_temp.rhetor();
+insert into ids select 'ethos', id from private.agents
+  where workspace_id = 'b8100000-0000-0000-0000-000000000001' and specialty = 'ethos' and kind = 'padrao';
 set local role service_role;
 select is(
   (select template_id from public.agent_suggest_own_sequence_template(
-    'b8300000-0000-0000-0000-000000000001', pg_temp.rhetor(), (select id from ids where k = 'alfa'))),
+    'b8300000-0000-0000-0000-000000000001', (select id from ids where k = 'rhetor'), (select id from ids where k = 'alfa'))),
   (select id from ids where k = 'tpl'),
   'o Rhetor sugere o template de quem pediu, não o da Ana'
 );
 select throws_ok(
   $$select public.agent_suggest_own_sequence_template(
     'b8300000-0000-0000-0000-000000000001',
-    (select id from private.agents where workspace_id = 'b8100000-0000-0000-0000-000000000001' and specialty = 'ethos' and kind = 'padrao'),
+    (select id from ids where k = 'ethos'),
     (select id from ids where k = 'alfa'))$$,
-  '42501', null, 'só o Rhetor sugere template próprio'
+  '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor sugere template próprio'
 );
+reset role;
 select is(
   (select count(*)::int from private.sequence_step_sends
    where workspace_id = 'b8100000-0000-0000-0000-000000000001'),
   0,
   'a sugestão do Rhetor não grava envio'
 );
+
+-- 7. Anônimo não lê nem usa.
+select ok(
+  not has_function_privilege('anon', 'public.preview_own_sequence_template(uuid, text, text, jsonb, jsonb)', 'execute')
+    and not has_function_privilege('anon', 'public.save_own_sequence_template(uuid, text, text, jsonb, jsonb)', 'execute')
+    and not has_function_privilege('anon', 'public.update_own_sequence_template(uuid, uuid, text, text, jsonb, jsonb)', 'execute')
+    and not has_function_privilege('anon', 'public.suggest_own_sequence_template(uuid, uuid)', 'execute')
+    and not has_function_privilege('anon', 'public.agent_suggest_own_sequence_template(uuid, uuid, uuid)', 'execute'),
+  'anon não executa nenhuma RPC de template próprio'
+);
+set local role anon;
+select set_config('request.jwt.claim.sub', '', true), set_config('request.jwt.claim.role', 'anon', true);
+select throws_ok(
+  $$select public.list_own_sequence_templates('b8100000-0000-0000-0000-000000000001')$$,
+  '42501', null, 'anon não lista o template da Bia'
+);
+select throws_ok(
+  $$select public.suggest_own_sequence_template(
+    'b8100000-0000-0000-0000-000000000001', (select id from ids where k = 'alfa'))$$,
+  '42501', null, 'anon não usa o template da Bia'
+);
+reset role;
+
+-- 8. Limites aplicados na função, não só na tela.
+set local role authenticated;
+select pg_temp.entrar('b8000000-0000-0000-0000-000000000001');
+select throws_ok(
+  $$select public.save_own_sequence_template(
+    'b8100000-0000-0000-0000-000000000001', 'Muitos passos', 'Nove passos.',
+    (select jsonb_agg(jsonb_build_object(
+      'id', 'passo-' || n, 'ordem', n, 'canal', 'email', 'delayDiasUteis', 0, 'titulo', 'Passo ' || n) order by n)
+     from generate_series(1, 9) n),
+    '[]'::jsonb)$$,
+  '22023', 'own template: at most 8 steps', 'mais de 8 passos é recusado no servidor'
+);
+select throws_ok(
+  $$select public.save_own_sequence_template(
+    'b8100000-0000-0000-0000-000000000001', 'Corpo longo', 'Corpo acima do limite.',
+    jsonb_build_array(jsonb_build_object(
+      'id', 'passo-1', 'ordem', 1, 'canal', 'email', 'delayDiasUteis', 0, 'titulo', 'Longo',
+      'corpo', repeat('a', 5001))),
+    '[]'::jsonb)$$,
+  '22023', 'own template: step text too long', 'corpo acima de 5000 caracteres é recusado no servidor'
+);
+select throws_ok(
+  $$select public.save_own_sequence_template(
+    'b8100000-0000-0000-0000-000000000001', repeat('n', 81), 'Nome acima do limite.',
+    (select passos from previa), '[]'::jsonb)$$,
+  '22023', null, 'nome acima de 80 caracteres é recusado no servidor'
+);
+reset role;
+insert into private.own_sequence_templates (workspace_id, owner_user_id, nome, resumo, passos)
+select 'b8100000-0000-0000-0000-000000000001', 'b8000000-0000-0000-0000-000000000001',
+       'Lote ' || n, 'Preenche a cota.', '[{"id":"passo-1","ordem":1,"canal":"email","delayDiasUteis":0,"titulo":"Oi"}]'::jsonb
+from generate_series(1, 49) n;
+set local role authenticated;
+select throws_ok(
+  $$select public.save_own_sequence_template(
+    'b8100000-0000-0000-0000-000000000001', (select nome from previa), (select resumo from previa),
+    (select passos from previa), '[]'::jsonb)$$,
+  '22023', 'own template: limit reached', 'o 51º template da mesma pessoa no Workspace é recusado'
+);
+reset role;
 
 select * from finish();
 rollback;

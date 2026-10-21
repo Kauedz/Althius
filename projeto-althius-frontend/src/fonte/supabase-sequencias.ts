@@ -373,6 +373,13 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('template requires safe preview')) {
     return new Error('Salve só a prévia já parametrizada, sem dados reais.')
   }
+  if (error.message.includes('own template: limit reached')) {
+    return new Error('Você já tem 50 templates neste Workspace. Edite um existente.')
+  }
+  if (error.message.includes('own template: at most 8 steps')) return new Error('Um template tem no máximo 8 passos.')
+  if (error.message.includes('own template: step text too long') || error.message.includes('own template: input too large')) {
+    return new Error('O texto do template passou do limite. Encurte o título, o assunto ou o corpo.')
+  }
   if (error.message.includes('predecessorId so e permitido')) {
     return new Error('predecessorId só é permitido com liberação predecessor.')
   }

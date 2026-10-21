@@ -539,4 +539,25 @@ describe('Templates próprios na Fonte operacional', () => {
     await expect(fonte.sugerirTemplateProprio('sem-sinal')).resolves.toMatchObject({ templateId: null, motivo: 'sem_contexto' })
     await expect(fonte.atualizarTemplateProprio('tpl-da-ana', previa)).rejects.toThrow(/quem criou o template/)
   })
+
+  it('os limites recusados pelo banco viram mensagens para quem salva', async () => {
+    const recusas: Record<string, string> = {
+      'quota': 'own template: limit reached',
+      'passos': 'own template: at most 8 steps',
+      'texto': 'own template: step text too long',
+    }
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      rpcs: {
+        save_own_sequence_template: ({ p_nome }) => {
+          throw Object.assign(new Error(recusas[String(p_nome)]), { code: '22023' })
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => MARINA.id)
+    const passos = [{ id: 'passo-1', ordem: 1, canal: 'email' as const, delayDiasUteis: 0, titulo: 'Abertura' }]
+    await expect(fonte.salvarTemplateProprio({ nome: 'quota', resumo: 'r', passos })).rejects.toThrow(/50 templates/)
+    await expect(fonte.salvarTemplateProprio({ nome: 'passos', resumo: 'r', passos })).rejects.toThrow(/no máximo 8 passos/)
+    await expect(fonte.salvarTemplateProprio({ nome: 'texto', resumo: 'r', passos })).rejects.toThrow(/passou do limite/)
+  })
 })

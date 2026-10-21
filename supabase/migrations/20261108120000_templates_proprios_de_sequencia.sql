@@ -185,6 +185,42 @@ $$;
 
 revoke all on function private.own_template_steps(jsonb, jsonb) from public, anon, authenticated, service_role;
 
+-- Limites aplicados no servidor, não só na tela. A entrada crua é medida antes da sanitização por regex.
+create function private.own_template_limits(p_nome text, p_resumo text, p_passos jsonb)
+returns void
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_passo jsonb;
+begin
+  if length(coalesce(p_nome, '')) > 200
+     or length(coalesce(p_resumo, '')) > 1000
+     or length(coalesce(p_passos::text, '')) > 65536
+  then
+    raise exception 'own template: input too large' using errcode = '22023';
+  end if;
+  if jsonb_typeof(coalesce(p_passos, 'null'::jsonb)) = 'array' then
+    if jsonb_array_length(p_passos) > 8 then
+      raise exception 'own template: at most 8 steps' using errcode = '22023';
+    end if;
+    for v_passo in select value from jsonb_array_elements(p_passos) loop
+      if jsonb_typeof(v_passo) = 'object' and (
+        length(coalesce(v_passo ->> 'titulo', '')) > 120
+        or length(coalesce(v_passo ->> 'assunto', '')) > 200
+        or length(coalesce(v_passo ->> 'objetivo', '')) > 500
+        or length(coalesce(v_passo ->> 'corpo', '')) > 5000
+      ) then
+        raise exception 'own template: step text too long' using errcode = '22023';
+      end if;
+    end loop;
+  end if;
+end;
+$$;
+
+revoke all on function private.own_template_limits(text, text, jsonb) from public, anon, authenticated, service_role;
+
 create function public.preview_own_sequence_template(
   p_workspace_id uuid,
   p_nome text,
@@ -204,6 +240,7 @@ declare
   v_passos jsonb;
 begin
   perform private.require_active_membership(p_workspace_id);
+  perform private.own_template_limits(p_nome, p_resumo, p_passos);
   v_nome := private.own_template_text(p_nome, p_literals);
   v_resumo := private.own_template_text(p_resumo, p_literals);
   v_passos := private.own_template_steps(p_passos, p_literals);
@@ -237,6 +274,7 @@ declare
   v_id uuid;
 begin
   perform private.require_active_membership(p_workspace_id);
+  perform private.own_template_limits(p_nome, p_resumo, p_passos);
   v_nome := left(private.own_template_text(p_nome, p_literals), 80);
   v_resumo := left(private.own_template_text(p_resumo, p_literals), 300);
   v_passos := private.own_template_steps(p_passos, p_literals);
@@ -246,6 +284,12 @@ begin
      or jsonb_array_length(coalesce(v_passos, '[]'::jsonb)) < 1
   then
     raise exception 'template requires safe preview' using errcode = '22023';
+  end if;
+  -- Até 50 templates por pessoa no Workspace. O lock evita que dois salvamentos simultâneos passem do limite.
+  perform pg_advisory_xact_lock(hashtextextended(p_workspace_id::text || ':' || v_user::text, 0));
+  if (select count(*) from private.own_sequence_templates t
+      where t.workspace_id = p_workspace_id and t.owner_user_id = v_user) >= 50 then
+    raise exception 'own template: limit reached' using errcode = '22023';
   end if;
   insert into private.own_sequence_templates (workspace_id, owner_user_id, nome, resumo, passos)
   values (p_workspace_id, v_user, v_nome, v_resumo, v_passos)
@@ -280,6 +324,7 @@ declare
   v_passos jsonb;
 begin
   perform private.require_active_membership(p_workspace_id);
+  perform private.own_template_limits(p_nome, p_resumo, p_passos);
   v_nome := left(private.own_template_text(p_nome, p_literals), 80);
   v_resumo := left(private.own_template_text(p_resumo, p_literals), 300);
   v_passos := private.own_template_steps(p_passos, p_literals);
