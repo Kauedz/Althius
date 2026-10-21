@@ -51,8 +51,8 @@ function montar(opcoes: {
         const resposta = opcoes.resposta ?? { approvalId: 'ap-seq', outcome: 'pendente', conta: 'Alfa' }
         return resposta instanceof Error ? Promise.reject(resposta) : Promise.resolve(resposta)
       },
-      contatosParaSequencia: (runId: string, contaId: string) => {
-        leituras.push(`${runId}:${contaId}`)
+      contatosParaSequencia: (runId: string, agenteId: string, contaId: string) => {
+        leituras.push(`${runId}:${agenteId}:${contaId}`)
         return Promise.resolve({ conta: 'Alfa', contatos: [{ id: MARIA, nome: 'Maria Souza', pode_entrar: true }] })
       },
     }),
@@ -137,7 +137,7 @@ Deno.test('com a Permissão Executar, a proposta continua por Aprovação: nenhu
 Deno.test('sem Contatos, a ferramenta lista os da Conta e não propõe nada', async () => {
   const { sessao, pedidos, leituras } = montar()
   const r = await sessao.chamar(RHETOR, 'propor_sequencia', { conta_id: CONTA })
-  assertEquals(leituras, [`execucao-9:${CONTA}`])
+  assertEquals(leituras, [`execucao-9:${RHETOR.id}:${CONTA}`])
   assertEquals(pedidos, [])
   assertEquals(r.passo, { descricao: 'Rhetor viu os Contatos que podem entrar na Sequência', estado: 'concluida' })
   assertStringIncludes(r.paraOAgente, MARIA)
@@ -189,7 +189,7 @@ Deno.test('cada recusa do banco volta ao Rhetor com o próprio motivo', async ()
     ['22023', 'sequence: contact is in another active sequence', 'outra Sequência ativa'],
     ['22023', 'sequence: unknown variable: cupom', 'A variável {{cupom}} não existe'],
     ['22023', 'sequence: only e-mail steps', 'só de E-mail'],
-    ['42501', 'sequence: the agent may only read', 'só Ler'],
+    ['42501', 'sequence: only the cadence specialist proposes sequences', 'Só o Rhetor'],
   ]
   for (const [codigo, mensagem, esperado] of casos) {
     const { sessao } = montar({ resposta: new ErroDoBanco(codigo, mensagem) })
@@ -239,7 +239,7 @@ Deno.test('o banco das ferramentas chama agent_propose_sequence e agent_read_seq
     passos,
     justificativa: 'Sinal.',
   })
-  await banco.contatosParaSequencia!('execucao-9', CONTA)
+  await banco.contatosParaSequencia!('execucao-9', 'agente-rhetor', CONTA)
   assertEquals(chamadas, [
     {
       nome: 'agent_propose_sequence',
@@ -252,7 +252,10 @@ Deno.test('o banco das ferramentas chama agent_propose_sequence e agent_read_seq
         p_justification: 'Sinal.',
       },
     },
-    { nome: 'agent_read_sequence_contacts', parametros: { p_run_id: 'execucao-9', p_target_account_id: CONTA } },
+    {
+      nome: 'agent_read_sequence_contacts',
+      parametros: { p_run_id: 'execucao-9', p_agent_id: 'agente-rhetor', p_target_account_id: CONTA },
+    },
   ])
   assertEquals(r, { approvalId: 'ap-1', outcome: 'pendente', conta: 'Alfa' })
 })

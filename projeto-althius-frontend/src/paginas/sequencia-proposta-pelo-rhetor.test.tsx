@@ -145,9 +145,9 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
     expect(within(cartao).getByText('Maria Souza (Diretora), João Lima')).toBeInTheDocument()
     const passos = within(cartao).getByRole('list', { name: 'Passos propostos' })
     expect(within(passos).getAllByRole('listitem')).toHaveLength(3)
-    expect(within(passos).getByText('E-mail 1 · dia 0')).toBeInTheDocument()
-    expect(within(passos).getByText(/E-mail 2 · dia 3/)).toBeInTheDocument()
-    expect(within(passos).getByText(/E-mail 3 · dia 7/)).toBeInTheDocument()
+    expect(within(passos).getByText('E-mail 1 · dia útil 0')).toBeInTheDocument()
+    expect(within(passos).getByText('E-mail 2 · dia útil 3 (3 dias úteis depois do anterior)')).toBeInTheDocument()
+    expect(within(passos).getByText('E-mail 3 · dia útil 7 (4 dias úteis depois do anterior)')).toBeInTheDocument()
     const variaveis = [...cartao.querySelectorAll('[data-variavel]')].map((v) => v.textContent)
     expect(variaveis).toContain('{{primeiro_nome}}')
     expect(variaveis).toContain('{{remetente.nome}}')
@@ -156,7 +156,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
   it('o Vendedor responsável aprova no passo: a Sequência é criada sem envio, com o link para ela', async () => {
     const { usuario, decisoes, executores } = abrir('/agentes/agente-rhetor/conversa')
     const cartao = await pedirAoRhetor(usuario)
-    expect(within(cartao).getByText(/os e-mails só saem depois que você clicar em "Ativar envios"/)).toBeInTheDocument()
+    expect(await within(cartao).findByText(/os e-mails só saem depois que você clicar em "Ativar envios"/)).toBeInTheDocument()
 
     await usuario.click(await within(cartao).findByRole('button', { name: 'Aprovar' }))
 

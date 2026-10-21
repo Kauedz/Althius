@@ -176,8 +176,11 @@ export interface BancoDasFerramentas {
     agenteId: string,
     a: { targetAccountId: string; contatos: string[]; passos: PassoProposto[]; justificativa: string },
   ): Promise<SequenciaProposta>
-  /** RPC `agent_read_sequence_contacts`: os Contatos da Conta-alvo com o id e se podem entrar na Sequência. */
-  contatosParaSequencia?(runId: string, targetAccountId: string): Promise<unknown>
+  /**
+   * RPC `agent_read_sequence_contacts`: os Contatos da Conta-alvo com o id e se podem entrar na Sequência. Só o Rhetor
+   * lê, e só de uma Conta que não está arquivada.
+   */
+  contatosParaSequencia?(runId: string, agenteId: string, targetAccountId: string): Promise<unknown>
 }
 
 /** Um Sinal do catálogo como o Hermes o vê: sem fornecedor, actor nem custo em dólar. */
@@ -364,7 +367,6 @@ function motivoDaSequencia(m: string): string {
   if (m.includes('contacts')) return 'A Sequência tem de 1 a 5 Contatos.'
   if (m.includes('step wait')) return 'A espera de cada passo é um número inteiro de dias, de 0 a 60.'
   if (m.includes('step text')) return 'Cada passo precisa de assunto (até 200 caracteres) e corpo (até 5000).'
-  if (m.includes('may only read')) return 'Sua Permissão é só Ler: você não propõe Sequências. Diga isso ao usuário.'
   if (m.includes('cadence specialist')) return 'Só o Rhetor propõe Sequências.'
   return 'A proposta foi recusada.'
 }
@@ -1054,7 +1056,8 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
     'proponha 3 passos de E-mail (dia 0, 3 e 7: esperas de 0, 3 e 4 dias), passe playbook_vazio e diga ao usuário que o ' +
     `Playbook não tem Cadência. Use só as variáveis ${VARIAVEIS_DO_ENVIO}. Nada é enviado: nasce uma Aprovação que só ` +
     'o Vendedor responsável pela Conta decide; aprovada, a Sequência é criada sem envio, e os e-mails só saem depois ' +
-    'que ele clicar em "Ativar envios".',
+    'que ele clicar em "Ativar envios". A justificativa é visível a todos os membros do Workspace: diga nela por que ' +
+    'esta Sequência agora (o Sinal), sem copiar o assunto nem o corpo dos e-mails.',
   esquema: {
     type: 'object',
     properties: {
@@ -1079,7 +1082,10 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
         },
         description: 'De 1 a 8 passos de E-mail, em ordem; cada passo vai para cada Contato.',
       },
-      justificativa: { type: 'string', description: 'Por que esta Sequência agora (o Sinal), para quem decide.' },
+      justificativa: {
+        type: 'string',
+        description: 'Por que esta Sequência agora (o Sinal). Todos os membros leem: não copie o assunto nem o corpo.',
+      },
       playbook_vazio: { type: 'boolean', description: 'true quando a seção Cadência do Playbook está vazia.' },
     },
     required: ['conta_id'],
@@ -1102,7 +1108,7 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
     const contatos = textos(entrada.contatos, MAX_CONTATOS_DA_SEQUENCIA + 1)
     if (contatos.length === 0) {
       try {
-        const lidos = await lerContatos(runId, contaId)
+        const lidos = await lerContatos(runId, agente.id, contaId)
         return {
           erro: false,
           paraOAgente: `${cortar(lidos)}\nEscolha os Contatos que podem entrar (pode_entrar) e chame propor_sequencia de novo com os ids.`,
@@ -1563,8 +1569,12 @@ export function bancoDasFerramentas(
       )
       return { approvalId: linha.approval_id, outcome: linha.outcome, conta: linha.account_name }
     },
-    contatosParaSequencia: (runId, targetAccountId) =>
-      chamar<unknown>('agent_read_sequence_contacts', { p_run_id: runId, p_target_account_id: targetAccountId }),
+    contatosParaSequencia: (runId, agenteId, targetAccountId) =>
+      chamar<unknown>('agent_read_sequence_contacts', {
+        p_run_id: runId,
+        p_agent_id: agenteId,
+        p_target_account_id: targetAccountId,
+      }),
   }
 }
 

@@ -52,3 +52,4 @@ Spec: [../spec.md](../spec.md) (US 1–3, 5, 7–10).
 ## Comments
 
 - 2026-10-17, decisão do Renan (dúvida 4 da fila): confirmado. Aprovar a proposta do Rhetor cria a Sequência sem Versão autorizada; o envio só começa no "Ativar envios". Segue blocked até o #227 entrar em `main`.
+- 2026-10-21, revisão do PR #240: a exigência de Permissão Propor/Executar em alguma Integração saiu (decisão 1 recusada). `agent_read_sequence_contacts` passou a receber o Agente, recusa quem não é Rhetor e não lista Contatos de Conta arquivada. A Execução r3 do pgTAP foi para uma terceira Conversa (`agent_runs_one_open_per_conversation`).

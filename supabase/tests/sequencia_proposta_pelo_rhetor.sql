@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(60);
+select plan(61);
 
 -- A Sequência proposta pelo Rhetor (cadencia-pela-ia 01). Norte: Bia (Membro, Vendedora responsável pelas Contas e quem
 -- pede ao Rhetor), Ana (Administradora, não é responsável) e Caio (Membro, pede numa Conversa dele).
@@ -21,14 +21,16 @@ insert into public.workspace_memberships (workspace_id, user_id, role, active) v
 
 insert into private.agent_conversations (id, workspace_id, owner_id, kind) values
   ('ca000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'coordenada'),
-  ('ca000000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000003', 'coordenada');
--- r1 e r3: pedidos da Bia; r2: pedido do Caio; r4: da Bia, já terminado.
+  ('ca000000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000003', 'coordenada'),
+  ('ca000000-0000-0000-0000-000000000003', 'fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'coordenada');
+-- r1 e r3: pedidos da Bia, cada um na sua Conversa (uma Conversa tem no máximo uma Execução aberta); r2: pedido do Caio;
+-- r4: da Bia, já terminado.
 insert into private.agent_runs (id, workspace_id, conversation_id, requested_by, client_request_id, request_text, status, started_at) values
   ('aa000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000001',
    '5a000000-0000-0000-0000-000000000001', gen_random_uuid(), 'Monte uma Sequência para a Alfa', 'running', now()),
   ('aa000000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000002',
    '5a000000-0000-0000-0000-000000000003', gen_random_uuid(), 'Monte uma Sequência para a Alfa', 'running', now()),
-  ('aa000000-0000-0000-0000-000000000003', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000001',
+  ('aa000000-0000-0000-0000-000000000003', 'fa000000-0000-0000-0000-000000000001', 'ca000000-0000-0000-0000-000000000003',
    '5a000000-0000-0000-0000-000000000001', gen_random_uuid(), 'E para as outras Contas', 'running', now());
 insert into private.agent_runs (id, workspace_id, conversation_id, requested_by, client_request_id, request_text, status,
                                 started_at, finished_at) values
@@ -83,6 +85,10 @@ insert into ids select 'pedro', id from public.create_contact(pg_temp.id('beta')
 insert into ids select 'gil', id from public.create_contact(pg_temp.id('gama'), 'Gil Gama', 'CEO', 'gil@gama.test');
 insert into ids select 'davi', id from public.create_contact(pg_temp.id('delta'), 'Davi Delta', 'CEO', 'davi@delta.test');
 insert into ids select 'eva', id from public.create_contact(pg_temp.id('eps'), 'Eva Epsilon', 'CEO', 'eva@epsilon.test');
+-- A Zeta foi arquivada: os Contatos dela não aparecem para o Rhetor.
+insert into ids select 'zeta', id from public.save_target_account('fa000000-0000-0000-0000-000000000001', 'Zeta', 'https://zeta.test');
+insert into ids select 'zeca', id from public.create_contact(pg_temp.id('zeta'), 'Zeca Zeta', 'CEO', 'zeca@zeta.test');
+update public.target_accounts set archived_at = now() where id = pg_temp.id('zeta');
 insert into public.contact_suppressions (workspace_id, kind, value, reason)
 values ('fa000000-0000-0000-0000-000000000001', 'email', 'sara@alfa.test', 'manual');
 -- A Beta já tem Sequência em andamento, com o Pedro e a Lia (que também é da Alfa).
@@ -98,15 +104,15 @@ select ok(
   has_function_privilege('service_role', 'public.agent_propose_sequence(uuid, uuid, uuid, uuid[], jsonb, text)', 'execute')
     and not has_function_privilege('authenticated', 'public.agent_propose_sequence(uuid, uuid, uuid, uuid[], jsonb, text)', 'execute')
     and not has_function_privilege('anon', 'public.agent_propose_sequence(uuid, uuid, uuid, uuid[], jsonb, text)', 'execute')
-    and has_function_privilege('service_role', 'public.agent_read_sequence_contacts(uuid, uuid)', 'execute')
-    and not has_function_privilege('authenticated', 'public.agent_read_sequence_contacts(uuid, uuid)', 'execute'),
+    and has_function_privilege('service_role', 'public.agent_read_sequence_contacts(uuid, uuid, uuid)', 'execute')
+    and not has_function_privilege('authenticated', 'public.agent_read_sequence_contacts(uuid, uuid, uuid)', 'execute'),
   'só o servidor propõe a Sequência pelo Rhetor e lê os Contatos para ela'
 );
 
 -- O Rhetor lê os Contatos da Conta com o id e se cada um pode entrar, sem o e-mail.
 select is(
   (select jsonb_agg(jsonb_build_array(c ->> 'nome', c -> 'pode_entrar', c -> 'motivo', c ? 'email') order by c ->> 'nome')
-   from jsonb_array_elements(public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', pg_temp.id('alfa')) -> 'contatos') c),
+   from jsonb_array_elements(public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', pg_temp.agente('rhetor'), pg_temp.id('alfa')) -> 'contatos') c),
   '[["João Lima", true, null, false], ["Lia Dupla", false, "in_other_sequence", false], ["Maria Souza", true, null, false],
     ["Rui Sem", false, "no_email", false], ["Sara Saiu", false, "suppressed", false]]'::jsonb,
   'cada Contato da Conta vem com se pode entrar na Sequência, ou por que não'
@@ -114,10 +120,20 @@ select is(
 select is(
   (select jsonb_build_array(a -> 'contatos' -> 0 ->> 'id', a -> 'responsavel_e_quem_pediu', a -> 'sequencia_em_andamento',
      b -> 'sequencia_em_andamento')
-   from public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', pg_temp.id('alfa')) a,
-     public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000002', pg_temp.id('beta')) b),
+   from public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', pg_temp.agente('rhetor'), pg_temp.id('alfa')) a,
+     public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000002', pg_temp.agente('rhetor'), pg_temp.id('beta')) b),
   jsonb_build_array(pg_temp.id('joao'), true, false, true),
   'com o id para propor, quem é o responsável e se a Conta já tem Sequência em andamento'
+);
+select throws_ok(
+  format($$select public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', %L, %L)$$,
+    pg_temp.agente('scopus'), pg_temp.id('alfa')),
+  '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor lê os Contatos para a Sequência'
+);
+select throws_ok(
+  format($$select public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', pg_temp.agente('rhetor'), %L)$$,
+    pg_temp.id('zeta')),
+  'P0002', 'target account not found', 'os Contatos de uma Conta arquivada não são listados'
 );
 
 -- 2. A proposta válida nasce pendente, sem Integração, com a Conta-alvo, e não cria Sequência.
@@ -156,12 +172,6 @@ select throws_ok(
     pg_temp.agente('scopus'), pg_temp.id('alfa'), pg_temp.id('maria')),
   '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor propõe Sequência'
 );
-update private.agent_permissions set permission = 'ler' where agent_id = pg_temp.agente('rhetor');
-select throws_ok(
-  format($$select * from pg_temp.r1(%L, array[%L]::uuid[], pg_temp.passos(' 2'))$$, pg_temp.id('alfa'), pg_temp.id('maria')),
-  '42501', 'sequence: the agent may only read', 'o Rhetor só com Ler não propõe'
-);
-update private.agent_permissions set permission = 'propor' where agent_id = pg_temp.agente('rhetor');
 select throws_ok(
   format($$select * from pg_temp.propor('aa000000-0000-0000-0000-000000000002', pg_temp.agente('rhetor'), %L, array[%L]::uuid[], pg_temp.passos())$$,
     pg_temp.id('alfa'), pg_temp.id('maria')),

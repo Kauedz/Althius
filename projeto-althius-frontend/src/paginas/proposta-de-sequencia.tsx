@@ -34,7 +34,7 @@ export function TextoComVariaveis({ texto }: { texto: string }) {
   )
 }
 
-/** O dia de cada passo, somando as esperas desde o primeiro (dia 0). */
+/** O dia útil de cada passo, somando as esperas desde o primeiro (dia útil 0). */
 function diasDosPassos(passos: PassoDaSequenciaProposta[]): number[] {
   let dia = 0
   return passos.map((p, i) => (dia = i === 0 ? p.esperaEmDias : dia + p.esperaEmDias))
@@ -130,7 +130,7 @@ function PassosPropostos({ passos }: { passos: PassoDaSequenciaProposta[] }) {
       {passos.map((passo, i) => (
         <li key={i} className="flex flex-col gap-1 rounded-xl border border-al-line bg-al-surface p-4">
           <span className="rotulo text-al-muted">
-            E-mail {i + 1} · dia {dias[i]}
+            E-mail {i + 1} · dia útil {dias[i]}
             {i > 0 && ` (${contar(passo.esperaEmDias, 'dia útil', 'dias úteis')} depois do anterior)`}
           </span>
           <p className="font-normal">

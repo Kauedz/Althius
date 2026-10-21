@@ -152,8 +152,9 @@ revoke all on function private.sequence_document_from_proposal(jsonb) from publi
 -- 3. Os Contatos que podem entrar na Sequência de uma Conta-alvo, para o Rhetor escolher pelo id. `ler_contas_e_sinais`
 --    não devolve o id dos Contatos (e a saída dela fica como está): esta leitura devolve, para cada Contato com Vínculo
 --    ativo, o id, o nome, o cargo e se pode entrar (ou por que não), além de quem é o responsável e se já há Sequência em
---    andamento. Como na outra leitura, o modelo não recebe o e-mail nem o telefone.
-create or replace function public.agent_read_sequence_contacts(p_run_id uuid, p_target_account_id uuid)
+--    andamento. Como na outra leitura, o modelo não recebe o e-mail nem o telefone. Só o Rhetor lê, e só de uma Conta
+--    que não está arquivada.
+create or replace function public.agent_read_sequence_contacts(p_run_id uuid, p_agent_id uuid, p_target_account_id uuid)
 returns jsonb
 language plpgsql
 stable
@@ -162,10 +163,19 @@ set search_path = ''
 as $$
 declare
   v_run private.agent_runs%rowtype := private.running_agent_run(p_run_id);
+  v_agent private.agents%rowtype;
   v_account public.target_accounts%rowtype;
 begin
+  select * into v_agent from private.agents a where a.id = p_agent_id and a.workspace_id = v_run.workspace_id;
+  if v_agent.id is null then
+    raise exception 'agent not found' using errcode = 'P0002';
+  end if;
+  if v_agent.specialty <> 'rhetor' then
+    raise exception 'sequence: only the cadence specialist proposes sequences' using errcode = '42501';
+  end if;
   select * into v_account from public.target_accounts a
-  where a.id = p_target_account_id and a.workspace_id = v_run.workspace_id and a.deleted_at is null;
+  where a.id = p_target_account_id and a.workspace_id = v_run.workspace_id and a.archived_at is null
+    and a.deleted_at is null;
   if v_account.id is null then
     raise exception 'target account not found' using errcode = 'P0002';
   end if;
@@ -197,12 +207,12 @@ begin
 end;
 $$;
 
-revoke all on function public.agent_read_sequence_contacts(uuid, uuid) from public, anon, authenticated;
-grant execute on function public.agent_read_sequence_contacts(uuid, uuid) to service_role;
+revoke all on function public.agent_read_sequence_contacts(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.agent_read_sequence_contacts(uuid, uuid, uuid) to service_role;
 
 -- 4. O Rhetor propõe a Sequência. Só o servidor, a partir de uma Execução em andamento. Confere que o Agente é do
---    Workspace da Execução, que é da Especialidade Rhetor e que tem a Permissão Propor ou Executar em alguma Integração
---    (com só Ler, ele não propõe nada); que quem pediu participa e é o Vendedor responsável pela Conta-alvo (ADR-0009);
+--    Workspace da Execução e da Especialidade Rhetor (a Sequência não passa por Integração, então as Permissões por
+--    Integração não entram); que quem pediu participa e é o Vendedor responsável pela Conta-alvo (ADR-0009);
 --    que a Conta não tem Sequência em andamento; que cada Contato tem Vínculo ativo com a Conta, e-mail, não está
 --    suprimido nem em outra Sequência ativa ou pausada; e que os passos são de E-mail, de 1 a 8, com espera, assunto e
 --    corpo, sem variável desconhecida. Nasce sempre pendente. A mesma proposta repetida na mesma Execução devolve a
@@ -243,11 +253,6 @@ begin
   end if;
   if v_agent.specialty <> 'rhetor' then
     raise exception 'sequence: only the cadence specialist proposes sequences' using errcode = '42501';
-  end if;
-  if not exists (
-    select 1 from private.agent_permissions p where p.agent_id = p_agent_id and p.permission in ('propor', 'executar')
-  ) then
-    raise exception 'sequence: the agent may only read' using errcode = '42501';
   end if;
   if not exists (
     select 1 from public.workspace_memberships m
