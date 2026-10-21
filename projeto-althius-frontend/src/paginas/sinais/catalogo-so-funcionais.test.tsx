@@ -29,7 +29,12 @@ afterEach(() => {
 
 function abrir(
   rota: string,
-  opcoes: { staff?: boolean; monitores?: Record<string, unknown>[]; falhaNosEstados?: boolean } = {},
+  opcoes: {
+    staff?: boolean
+    monitores?: Record<string, unknown>[]
+    falhaNosEstados?: boolean
+    falhaSoNo?: 'actors' | 'catalogo'
+  } = {},
 ) {
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', NORTE.id)
@@ -38,7 +43,7 @@ function abrir(
   const leituras = { actors: 0, catalogo: 0 }
   const depoisDaPrimeira = <T,>(chave: keyof typeof leituras, linhas: T) => () => {
     leituras[chave] += 1
-    if (opcoes.falhaNosEstados && leituras[chave] > 1) throw new Error('permission denied')
+    if ((opcoes.falhaNosEstados || opcoes.falhaSoNo === chave) && leituras[chave] > 1) throw new Error('permission denied')
     return linhas
   }
   const supabase = criarSupabaseFalso({
@@ -157,6 +162,17 @@ describe('Catálogo do cliente no Workspace operacional', () => {
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Catálogo de sinais' })).not.toBeInTheDocument()
   })
+
+  it.each(['actors', 'catalogo'] as const)(
+    'se só a leitura de %s falha, mostra o erro em vez de esconder os cards dela',
+    async (falhaSoNo) => {
+      abrir('/sinais', { falhaSoNo })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar os sinais.')
+      expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Catálogo de sinais' })).not.toBeInTheDocument()
+    },
+  )
 })
 
 describe('Monitoramento num card que deixou de ser funcional', () => {

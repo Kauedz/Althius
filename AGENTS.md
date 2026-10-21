@@ -22,4 +22,4 @@ Before any spec or ticket, read `docs/visao-geral-da-plataforma.md`: the funnel,
 
 ### Publishing the frontend
 
-`app.althius.com.br` is published by `.github/workflows/publicar-frontend.yml` after CI passes on `main`, which runs `/opt/althius-web/publish.sh main` on the Hostinger VPS. How it works, the cache headers and what to do by hand when it fails: `docs/agents/publicacao.md`.
+`app.althius.com.br` is published by the Hostinger VPS itself: a systemd timer (`althius-auto-publish.timer`, every 5 minutes) pulls `main` and, once CI on that commit is green, runs `/opt/althius-web/publish.sh main`. No GitHub secrets are involved. How it works, the cache headers and what to do by hand when it fails: `docs/agents/publicacao.md`.

@@ -100,12 +100,12 @@ async function estadosDosSinaisReais(cliente: SupabaseClient): Promise<Map<strin
 
 /**
  * O estado de cada coletor, para decidir quais cards o cliente vê. Diferente de `estadosDosSinaisReais`, uma leitura que
- * falha não vira "em breve" em silêncio: sem nenhuma das duas leituras, rejeita, e a tela mostra o erro em vez do
- * catálogo errado.
+ * falha não vira "em breve" em silêncio: se qualquer uma das duas falhar, rejeita, e a tela mostra o erro em vez de
+ * esconder os cards daquela leitura.
  */
 async function estadosDosColetores(cliente: SupabaseClient): Promise<Map<string, string>> {
   const [actors, catalogo] = await Promise.all([cliente.rpc('list_signal_actors'), cliente.rpc('list_signal_catalog')])
-  if (actors.error && catalogo.error) throw new Error('Não foi possível carregar os sinais.')
+  if (actors.error || catalogo.error) throw new Error('Não foi possível carregar os sinais.')
   const linhas = [actors, catalogo].flatMap(({ data, error }) => (error ? [] : ((data ?? []) as { signal_type: string; state: string }[])))
   return new Map(linhas.map((l) => [l.signal_type, l.state]))
 }
