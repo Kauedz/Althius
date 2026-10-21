@@ -90,6 +90,42 @@ describe('FonteDeSequenciasSimulada', () => {
     cancelar()
   })
 
+  it('salva e reabre liberação/predecessor; rejeita ciclo; legado serial continua válido', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const atual = await fonte.sequencia('sequencia-openai')
+    const [a, b, ...resto] = atual.steps
+
+    const comDeps = await fonte.atualizarDocumento('sequencia-openai', {
+      steps: [
+        { ...a, liberacao: 'ativacao' },
+        { ...b, liberacao: 'predecessor', predecessorId: a.id, contatoId: 'contato-openai-2' },
+        ...resto,
+      ],
+    })
+    expect(comDeps.steps[1].predecessorId).toBe(a.id)
+    expect(comDeps.steps[1].contatoId).toBe('contato-openai-2')
+
+    const reaberta = await fonte.sequencia('sequencia-openai')
+    expect(reaberta.steps[1].liberacao).toBe('predecessor')
+    expect(reaberta.steps[1].predecessorId).toBe(a.id)
+
+    await expect(
+      fonte.atualizarDocumento('sequencia-openai', {
+        steps: [
+          { ...a, liberacao: 'predecessor', predecessorId: b.id },
+          { ...b, liberacao: 'predecessor', predecessorId: a.id },
+        ],
+      }),
+    ).rejects.toThrow(/ciclo/i)
+
+    // Legado sem liberacao continua aceito
+    await expect(
+      fonte.atualizarDocumento('sequencia-openai', {
+        steps: atual.steps.map(({ liberacao: _l, predecessorId: _p, ...s }) => s),
+      }),
+    ).resolves.toBeTruthy()
+  })
+
   it('confirmarParticipantes atualiza os participantes da sequência', async () => {
     const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
     const seq = await fonte.confirmarParticipantes('sequencia-openai', [

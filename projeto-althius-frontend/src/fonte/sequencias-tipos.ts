@@ -51,6 +51,12 @@ export interface MetricasDemoStep {
   desfecho?: string
 }
 
+/**
+ * Como o passo fica elegível (ADR-0031). Ausente = documento legado: a execução serial segue a ordem visual.
+ * Com valor, a ordem visual não define dependência nem autorização.
+ */
+export type LiberacaoDoPasso = 'ativacao' | 'predecessor' | 'manual'
+
 export interface StepSequencia {
   id: string
   ordem: number
@@ -71,6 +77,16 @@ export interface StepSequencia {
   janela?: JanelaHorario | null
   anexos?: AnexoStep[]
   metricas?: MetricasDemoStep | null
+  /**
+   * Condição de liberação explícita. Sem este campo o passo é legado (serial pela lista).
+   * Ticket 01 grava e valida; o paralelismo na execução fica para o ticket 02.
+   */
+  liberacao?: LiberacaoDoPasso
+  /**
+   * Id estável do predecessor na mesma Sequência. Só com liberacao === 'predecessor'.
+   * No máximo um; reordenar a lista não altera este id.
+   */
+  predecessorId?: string
 }
 
 export interface Sequencia {

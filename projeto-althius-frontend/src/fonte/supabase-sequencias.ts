@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDoLoteDeSequencias, type ResumoPublicoSequencia, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
+import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 
 interface RegistroSequencia {
@@ -287,6 +288,7 @@ function validarPassos(steps: StepSequencia[]) {
     if (!ehCanalSuportado(step.canal)) throw new Error(`Canal "${step.canal}" fora do escopo.`)
     if (step.anexos?.some((anexo) => !anexo.id)) throw new ErroDeModuloIndisponivel('anexos')
   }
+  validarDependenciasDosPassos(steps)
 }
 
 /** Só o que identifica o anexo guardado vai para o documento: nunca um endereço. */
@@ -351,6 +353,27 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.code === '55000') return new Error('Este passo já foi enviado ou está sendo enviado.')
   if (error.code === '42501') return new Error('Apenas o responsável ativo pode abrir ou alterar o documento desta Sequência.')
   if (error.code === '23505') return new Error('Esta Conta-alvo já tem uma Sequência em andamento.')
+  if (error.message.includes('passo nao pode depender de si mesmo')) {
+    return new Error('Um passo não pode depender de si mesmo.')
+  }
+  if (error.message.includes('predecessor inexistente')) {
+    return new Error('O predecessor precisa existir na mesma Sequência.')
+  }
+  if (error.message.includes('dependencia circular')) {
+    return new Error('Há um ciclo de dependência entre os passos.')
+  }
+  if (error.message.includes('liberacao predecessor exige predecessorId')) {
+    return new Error('Passo com liberação por predecessor precisa de predecessorId.')
+  }
+  if (error.message.includes('predecessorId so e permitido')) {
+    return new Error('predecessorId só é permitido com liberação predecessor.')
+  }
+  if (error.message.includes('liberacao invalida')) {
+    return new Error('Liberação inválida: use ativacao, predecessor ou manual.')
+  }
+  if (error.message.includes('dois passos com o mesmo id')) {
+    return new Error('Há dois passos com o mesmo id.')
+  }
   return new Error(error.message)
 }
 

@@ -55,6 +55,7 @@ import { CotasDeEntradaDaSequencia } from '@/paginas/cotas-de-entrada-da-sequenc
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { textoDaResposta } from '@/fonte/texto-do-email'
 import { carregarAnexo, formaDoAnexo } from '@/fonte/anexo-recebido'
+import { LIBERACAO_DOS_PASSOS_NA_TELA } from '@/fonte/liberacao-dos-passos-na-tela'
 import {
   CANAIS_SUPORTADOS,
   type AnexoRecebido,
@@ -64,6 +65,7 @@ import {
   type CanalStep,
   type DesfechoDoEnvio,
   type EnvioDoPasso,
+  type LiberacaoDoPasso,
   type RespostaRecebida,
   type Sequencia,
   type StatusSequencia,
@@ -559,25 +561,53 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     const restantes = sequencia!.steps.filter((s) => s.id !== id)
     setStepSelecionadoId(restantes[Math.max(0, indiceStepAtivo - 1)]?.id ?? restantes[0]?.id)
     await atualizarDoc((atual) => ({
-      steps: atual.steps.filter((s) => s.id !== id).map((s, idx) => ({ ...s, ordem: idx + 1 })),
+      steps: atual.steps
+        .filter((s) => s.id !== id)
+        .map((s, idx) => {
+          const semPredecessor =
+            s.predecessorId === id
+              ? {
+                  ...s,
+                  predecessorId: undefined,
+                  liberacao: s.liberacao === 'predecessor' ? ('ativacao' as const) : s.liberacao,
+                }
+              : s
+          return { ...semPredecessor, ordem: idx + 1 }
+        }),
     }))
   }
 
   async function handleAdicionarStep(canal: CanalStep) {
     const novoId = `step-${Date.now()}`
-    const novoStep = (atual: Sequencia): StepSequencia => ({
-      id: novoId,
-      ordem: atual.steps.length + 1,
-      canal,
-      contatoId: atual.participantesIds[0] ?? '',
-      delayDiasUteis: atual.steps.length === 0 ? 0 : 2,
-      titulo: CANAIS_CONFIG[canal].titulo,
-      corpo: '',
-      objetivo: '',
-      modoEmail: canal === 'email' ? 'auto' : undefined,
-      subtipoLinkedIn: canal === 'linkedin' ? 'convite' : undefined,
-      anexos: [],
-    })
+    const novoStep = (atual: Sequencia): StepSequencia => {
+      const anterior = atual.steps[atual.steps.length - 1]
+      const base: StepSequencia = {
+        id: novoId,
+        ordem: atual.steps.length + 1,
+        canal,
+        contatoId: atual.participantesIds[0] ?? '',
+        delayDiasUteis: atual.steps.length === 0 ? 0 : 2,
+        titulo: CANAIS_CONFIG[canal].titulo,
+        corpo: '',
+        objetivo: '',
+        modoEmail: canal === 'email' ? 'auto' : undefined,
+        subtipoLinkedIn: canal === 'linkedin' ? 'convite' : undefined,
+        anexos: [],
+      }
+      // Até o ticket 02 o passo novo nasce legado (serial pela lista), como antes do ticket 01.
+      if (!LIBERACAO_DOS_PASSOS_NA_TELA) {
+        return base
+      }
+      // Passo novo grava condição explícita; a ordem visual não vira dependência implícita.
+      if (!anterior) {
+        return { ...base, liberacao: 'ativacao', delayDiasUteis: 0 }
+      }
+      return {
+        ...base,
+        liberacao: 'predecessor',
+        predecessorId: anterior.id,
+      }
+    }
     setStepSelecionadoId(novoId)
     setMenuAdicionarAberto(false)
     setModoPrevia(false)
@@ -1167,6 +1197,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             step={stepAtivo}
             indice={indiceStepAtivo}
             total={stepsMesclados.length}
+            passos={stepsMesclados}
             janelaPadrao={sequencia.janelaPadrao}
             participantesIds={sequencia.participantesIds}
             contatosMap={contatosMap}
@@ -1279,6 +1310,8 @@ interface ComposerStepProps {
   step: StepSequencia
   indice: number
   total: number
+  /** Todos os passos da Sequência, para escolher predecessor sem redesenhar a tela. */
+  passos: StepSequencia[]
   janelaPadrao: { de: string; ate: string }
   participantesIds: string[]
   contatosMap: Map<string, Contato>
@@ -1366,6 +1399,7 @@ function ComposerStep({
   step,
   indice,
   total,
+  passos,
   janelaPadrao,
   participantesIds,
   contatosMap,
@@ -1393,6 +1427,8 @@ function ComposerStep({
   onConfirmarEEnviar,
   onResolverIncerto,
 }: ComposerStepProps) {
+  // Até o ticket 02 a tela mostra o "Quando" serial de hoje, mesmo que o documento tenha liberação gravada.
+  const liberacaoNaTela = LIBERACAO_DOS_PASSOS_NA_TELA ? step.liberacao : undefined
   const naDemonstracao = useAmbiente().modo === 'demonstracao'
   const contato = contatosMap.get(step.contatoId)
   const ehNota = step.canal === 'ligacao' || step.canal === 'tarefa'
@@ -1652,11 +1688,66 @@ function ComposerStep({
         />
       )}
 
-      {/* Quando: Delay e Janela */}
+      {/* Quando: condição de liberação, delay e janela — na mesma linha do layout atual */}
       <div className="grid grid-cols-[80px_1fr] items-center gap-3 border-b border-al-line px-4 py-2.5">
         <span className="text-xs text-al-muted">Quando:</span>
         <div className="flex flex-wrap items-center gap-2 text-xs text-al-ink">
-          {indice === 0 ? (
+          {LIBERACAO_DOS_PASSOS_NA_TELA && (
+          <select
+            aria-label="Condição de liberação do passo"
+            value={step.liberacao ?? 'legado'}
+            onChange={(e) => {
+              const valor = e.target.value
+              if (valor === 'legado') {
+                onSalvar({ liberacao: undefined, predecessorId: undefined })
+                return
+              }
+              const liberacao = valor as LiberacaoDoPasso
+              if (liberacao === 'predecessor') {
+                const fallback = passos.find((p) => p.id !== step.id)?.id
+                onSalvar({
+                  liberacao,
+                  predecessorId: step.predecessorId && step.predecessorId !== step.id
+                    ? step.predecessorId
+                    : fallback,
+                })
+                return
+              }
+              onSalvar({ liberacao, predecessorId: undefined })
+            }}
+            className="rounded-md border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none"
+          >
+            {step.liberacao == null && (
+              <option value="legado">Ordem da lista (legado)</option>
+            )}
+            <option value="ativacao">Após a ativação</option>
+            <option value="predecessor">Após o envio de outro passo</option>
+            <option value="manual">Liberação manual</option>
+          </select>
+          )}
+          {liberacaoNaTela === 'predecessor' && (
+            <select
+              aria-label="Passo predecessor"
+              value={step.predecessorId ?? ''}
+              onChange={(e) => onSalvar({ predecessorId: e.target.value || undefined })}
+              className="rounded-md border border-al-line bg-al-bg px-2 py-0.5 text-xs text-al-ink outline-none max-w-[14rem]"
+            >
+              <option value="" disabled>
+                Escolha o passo
+              </option>
+              {passos
+                .map((p, posicao) => ({ p, posicao }))
+                .filter(({ p }) => p.id !== step.id)
+                .map(({ p, posicao }) => (
+                  <option key={p.id} value={p.id}>
+                    {p.titulo || `Passo ${posicao + 1}`}
+                  </option>
+                ))}
+            </select>
+          )}
+          {liberacaoNaTela === 'manual' ? (
+            <span className="text-al-muted">Só sai quando você liberar</span>
+          ) : liberacaoNaTela == null && indice === 0 ? (
             <span className="text-al-muted">Começa assim que a sequência for aprovada</span>
           ) : (
             <>
@@ -1674,7 +1765,13 @@ function ComposerStep({
                 }
                 className="rounded-md w-14 border border-al-line bg-al-bg px-2 py-0.5 text-center text-xs text-al-ink outline-none"
               />
-              <span className="text-al-muted">dias úteis após o step {indice}</span>
+              <span className="text-al-muted">
+                {liberacaoNaTela === 'predecessor'
+                  ? 'dias úteis após o envio do predecessor'
+                  : liberacaoNaTela === 'ativacao'
+                    ? 'dias úteis após a ativação'
+                    : `dias úteis após o step ${indice}`}
+              </span>
             </>
           )}
           <span className="text-al-muted">·</span>

@@ -1,4 +1,5 @@
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO, criarSequenciasIniciais } from './dados-sequencias-demo'
+import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import {
   ehCanalSuportado,
   type AtualizacaoDocumento,
@@ -26,6 +27,7 @@ function validarStepsAlteradosOuNovos(novosSteps?: StepSequencia[], stepsAntigos
       throw new Error(`Canal "${step.canal}" fora do escopo. Apenas E-mail, LinkedIn e WhatsApp são permitidos.`)
     }
   }
+  validarDependenciasDosPassos(novosSteps)
 }
 
 /** O Resultado dos Envios de exemplo da Demonstração, por canal e segmento. */
