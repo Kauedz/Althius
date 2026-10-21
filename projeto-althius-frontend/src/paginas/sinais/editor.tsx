@@ -30,6 +30,15 @@ import { ajudaDoCusto, cardPorId, cardQueConta, cargosDoNicho } from './catalogo
 import { sinalArquivado } from './arquivados'
 import { useCatalogoFuncional } from './catalogo-funcional'
 import { NICHOS } from './nichos'
+import {
+  MAX_CARGOS_CUSTOM,
+  MAX_TEXTO_CUSTOM,
+  NICHO_CUSTOM,
+  adicionarCargosCustom,
+  cargosCustom,
+  limparTextoCustom,
+  manterCargosCustom,
+} from './criterios-custom'
 import { podeMonitorar } from './disponibilidade'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
@@ -460,28 +469,63 @@ function CriteriosProntos({
 }) {
   const campos = tipoInterno ? CAMPOS[formulario].filter((campo) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo.id)) : CAMPOS[formulario]
   const nichoDoCargo = tipoId === 'abertura-de-vagas' ? (typeof criterios.nicho === 'string' && criterios.nicho ? criterios.nicho : 'qualquer') : null
-  const cargosDoFiltro = nichoDoCargo && nichoDoCargo !== 'qualquer' ? cargosDoNicho(nichoDoCargo) : null
+  const cargosDoFiltro = nichoDoCargo && nichoDoCargo !== 'qualquer' && nichoDoCargo !== NICHO_CUSTOM ? cargosDoNicho(nichoDoCargo) : null
+  const funcoesMarcadas = Array.isArray(criterios.funcoes) ? criterios.funcoes : []
+  // Trocar de nicho troca os cargos sugeridos; os cargos Custom ficam.
+  const trocarNicho = (nicho: string) => {
+    if (nicho === nichoDoCargo) return
+    aoMudar({ ...criterios, nicho, funcoes: manterCargosCustom(funcoesMarcadas) })
+  }
   return (
     <SecaoDoFormulario numero="02" titulo="Critérios" descricao="O que precisa acontecer para disparar um Sinal. Ajuste ao seu negócio.">
       {nichoDoCargo && (
-        <Grupo rotulo="Nicho do cargo" papel="radiogroup" ajuda="Qualquer mantém a lista geral. Um nicho troca os cargos sugeridos.">
-          <Opcao papel="radio" marcada={nichoDoCargo === 'qualquer'} aoClicar={() => aoMudar({ ...criterios, nicho: 'qualquer' })}>
-            Qualquer
-          </Opcao>
-          {NICHOS.map((nicho) => (
-            <Opcao
-              key={nicho.slug}
-              papel="radio"
-              marcada={nichoDoCargo === nicho.slug}
-              aoClicar={() => aoMudar({ ...criterios, nicho: nicho.slug, funcoes: [] })}
-            >
-              {nicho.nome}
+        <div className="flex flex-col gap-3">
+          <Grupo
+            rotulo="Nicho do cargo"
+            papel="radiogroup"
+            ajuda="Qualquer mantém a lista geral. Um nicho troca os cargos sugeridos. Custom busca o nicho que você escrever."
+          >
+            <Opcao papel="radio" marcada={nichoDoCargo === 'qualquer'} aoClicar={() => trocarNicho('qualquer')}>
+              Qualquer
             </Opcao>
-          ))}
-        </Grupo>
+            {NICHOS.map((nicho) => (
+              <Opcao key={nicho.slug} papel="radio" marcada={nichoDoCargo === nicho.slug} aoClicar={() => trocarNicho(nicho.slug)}>
+                {nicho.nome}
+              </Opcao>
+            ))}
+            <Opcao papel="radio" marcada={nichoDoCargo === NICHO_CUSTOM} aoClicar={() => trocarNicho(NICHO_CUSTOM)}>
+              Custom
+            </Opcao>
+          </Grupo>
+          {nichoDoCargo === NICHO_CUSTOM && (
+            <Rotulado
+              rotulo="Nicho Custom"
+              ajuda={`Até ${MAX_TEXTO_CUSTOM} caracteres. A IA usa este nicho para ficar só com as vagas dele.`}
+            >
+              <input
+                value={typeof criterios.nichoCustom === 'string' ? criterios.nichoCustom : ''}
+                maxLength={MAX_TEXTO_CUSTOM}
+                onChange={(e) => aoMudar({ ...criterios, nichoCustom: e.target.value.replace(/^\s+/, '').replace(/\s{2,}/g, ' ') })}
+                onBlur={(e) => aoMudar({ ...criterios, nichoCustom: limparTextoCustom(e.target.value) })}
+                placeholder="Ex.: Naval, Óleo e gás"
+                className="campo h-10"
+              />
+            </Rotulado>
+          )}
+        </div>
       )}
       {campos.map((campo) => {
         const campoEfetivo = campo.id === 'funcoes' && cargosDoFiltro ? { ...campo, opcoes: [...cargosDoFiltro] } : campo
+        if (nichoDoCargo && campoEfetivo.id === 'funcoes' && campoEfetivo.tipo === 'opcoes') {
+          return (
+            <CargosComCustom
+              key={campo.id}
+              campo={campoEfetivo}
+              marcadas={funcoesMarcadas}
+              aoMudar={(funcoes) => aoMudar({ ...criterios, funcoes })}
+            />
+          )
+        }
         return (
           <CampoDeCriterio
             key={campo.id}
@@ -514,6 +558,85 @@ function CriteriosProntos({
         </p>
       )}
     </SecaoDoFormulario>
+  )
+}
+
+/** "Cargos ou funções" de Abertura de vagas: as sugestões, os cargos Custom marcados (removíveis) e o campo para escrever. */
+function CargosComCustom({
+  campo,
+  marcadas,
+  aoMudar,
+}: {
+  campo: Extract<Campo, { tipo: 'opcoes' }>
+  marcadas: string[]
+  aoMudar: (funcoes: string[]) => void
+}) {
+  const [escrevendo, setEscrevendo] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const custom = cargosCustom(marcadas, campo.opcoes)
+  const adicionar = () => {
+    const { funcoes, erro: motivo } = adicionarCargosCustom(marcadas, texto, campo.opcoes)
+    aoMudar(funcoes)
+    setErro(motivo ?? null)
+    if (!motivo) setTexto('')
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <Grupo
+        rotulo={campo.rotulo}
+        ajuda={campo.ajuda ?? `Custom adiciona cargos exatos, como SDR, LDR e BDR. Até ${MAX_CARGOS_CUSTOM}.`}
+        papel="group"
+      >
+        {campo.opcoes.map((opcao) => (
+          <Opcao key={opcao} marcada={marcadas.includes(opcao)} aoClicar={() => aoMudar(alternar(marcadas, opcao))}>
+            {opcao}
+          </Opcao>
+        ))}
+        {custom.map((cargo) => (
+          <Opcao key={`custom-${cargo}`} marcada aoClicar={() => aoMudar(marcadas.filter((f) => f !== cargo))}>
+            <span className="inline-flex items-center gap-1.5">
+              {cargo}
+              <X strokeWidth={1.8} className="size-3.5" aria-hidden />
+            </span>
+          </Opcao>
+        ))}
+        <Opcao marcada={escrevendo} aoClicar={() => setEscrevendo((v) => !v)}>
+          Custom
+        </Opcao>
+      </Grupo>
+      {escrevendo && (
+        <div className="flex flex-col gap-2">
+          <Rotulado rotulo="Cargo Custom" ajuda="Escreva o cargo exato. Para vários, separe por vírgulas.">
+            <input
+              value={texto}
+              maxLength={MAX_TEXTO_CUSTOM}
+              onChange={(e) => {
+                setTexto(e.target.value)
+                setErro(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  adicionar()
+                }
+              }}
+              placeholder="Ex.: SDR, LDR, BDR"
+              className="campo h-10"
+            />
+          </Rotulado>
+          <button type="button" onClick={adicionar} disabled={!texto.trim()} className={cn(BOTAO_SECUNDARIO, 'self-start')}>
+            <Plus strokeWidth={1.8} className="size-4" aria-hidden />
+            Adicionar cargo
+          </button>
+          {erro && (
+            <p role="alert" className="text-xs text-al-muted">
+              {erro}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
