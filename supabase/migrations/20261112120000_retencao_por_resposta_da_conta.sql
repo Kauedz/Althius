@@ -85,6 +85,19 @@ comment on table private.sequence_retention_decisions is
 comment on table private.sequence_retention_audits is
   'Envio já em trânsito ou já aceito quando a retenção estava aberta. Não repete o envio.';
 
+-- Serializa, por Conta, o registro de uma resposta e a liberação de um envio de qualquer Sequência dela.
+-- O lock da linha da Sequência só cobre a própria Sequência; a retenção vale para a Conta inteira.
+create function private.lock_account_retention(p_workspace_id uuid, p_target_account_id text)
+returns void
+language sql
+set search_path = ''
+as $$
+  select pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('reply_retention:' || p_workspace_id::text || ':' || coalesce(p_target_account_id, ''), 0));
+$$;
+
+revoke all on function private.lock_account_retention(uuid, text) from public, anon, authenticated;
+
 -- -------------------------------------------------------------------------------------------------------------
 -- Registro. Idempotente pelo evento do provedor: duplicata não reabre retenção já resolvida.
 -- -------------------------------------------------------------------------------------------------------------
@@ -122,6 +135,7 @@ begin
   if not found then
     return;
   end if;
+  perform private.lock_account_retention(p_workspace_id, v_account);
 
   insert into private.sequence_correlated_replies (
     sequence_id, workspace_id, source_kind, source_id, provider_event_id, contact_id, received_at
@@ -512,6 +526,8 @@ begin
 
   select s.* into v_sequence from public.sequences s where s.id = v_send.sequence_id for update;
   select e.* into v_send from private.sequence_step_sends e where e.id = p_send_id for update;
+  -- Outra Sequência da mesma Conta pode estar registrando uma resposta agora: espera por ela e só então lê as retenções.
+  perform private.lock_account_retention(v_sequence.workspace_id, v_sequence.target_account_id);
 
   select h.version, true into v_version, v_open
   from private.sequence_reply_holds h
