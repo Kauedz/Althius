@@ -233,4 +233,16 @@ describe('FonteDeSequenciasSimulada', () => {
     expect((await fonte.revisaoDeRetencao!('sequencia-openai')).aberta).toBe(false)
     await expect(fonte.atualizarDocumento('sequencia-openai', { status: 'ativa' })).resolves.toBeTruthy()
   })
+
+  it('retomar explicitamente pelo responsável fecha a retenção e registra a decisão de continuar', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const revisao = await fonte.registrarRespostaCorrelacionada({ sequenciaId: 'sequencia-openai', eventoId: 'evt-r' })
+    expect(revisao.aberta).toBe(true)
+
+    const retomada = await fonte.atualizarDocumento('sequencia-openai', { status: 'ativa' })
+    expect(retomada.status).toBe('ativa')
+    const depois = await fonte.revisaoDeRetencao!('sequencia-openai')
+    expect(depois.aberta).toBe(false)
+    expect(depois.decisoes.map((item) => [item.decisao, item.versao])).toEqual([['continue', revisao.versao]])
+  })
 })

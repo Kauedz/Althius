@@ -240,8 +240,17 @@ export function criarFonteDeSequenciasSimulada(
       }
 
       const atual = dados[indice]
-      if (atualizacao.status === 'ativa' && atual.status !== 'ativa' && retencoes.get(id)?.aberta) {
-        throw new Error('Há respostas pendentes nesta Conta. Revise o conjunto atual antes de continuar.')
+      // Retomar explicitamente é a decisão "continuar" do Vendedor responsável: fecha a retenção e fica registrada.
+      const retencaoAberta = retencoes.get(id)
+      if (atualizacao.status === 'ativa' && atual.status !== 'ativa' && retencaoAberta?.aberta) {
+        if (atual.responsavel === false) {
+          throw new Error('Há respostas pendentes nesta Conta. Revise o conjunto atual antes de continuar.')
+        }
+        retencaoAberta.aberta = false
+        retencaoAberta.decisoes = [
+          { decisao: 'continue', versao: retencaoAberta.versao, criadaEm: hoje.toISOString() },
+          ...retencaoAberta.decisoes,
+        ]
       }
       validarStepsAlteradosOuNovos(atualizacao.steps, atual.steps)
       const novosParticipantes = atualizacao.participantesIds

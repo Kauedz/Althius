@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(34);
+select plan(44);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -53,9 +53,10 @@ set local role service_role;
 select is(public.complete_sender_connection_attempt(
   (select valor::uuid from ids where chave = 'tentativa'), 'unipile-retencao-1', 'GOOGLE', 'CREATION_SUCCESS'
 ), 'completed', 'sender account linked');
-insert into ids select 'remetente', id::text from private.sender_accounts where unipile_account_id = 'unipile-retencao-1';
 select public.apply_unipile_sender_status('unipile-retencao-1', 'SYNC_SUCCESS');
 reset role;
+-- O service_role não lê o schema private: os ids saem como dono do banco.
+insert into ids select 'remetente', id::text from private.sender_accounts where unipile_account_id = 'unipile-retencao-1';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
@@ -142,6 +143,7 @@ grant execute on function pg_temp.envio(text, text) to authenticated, service_ro
 set local role service_role;
 select pg_temp.receber('evt-maria', (select valor::uuid from ids where chave = 'maria'), 'Re: Apresentação', 'Podemos falar amanhã?');
 select pg_temp.receber('evt-joao', (select valor::uuid from ids where chave = 'joao'), 'Re: Oi', 'Manda a proposta.');
+reset role;
 insert into ids select 'resp-maria', id::text from private.sequence_correlated_replies where provider_event_id = 'evt-maria';
 insert into ids select 'resp-joao', id::text from private.sequence_correlated_replies where provider_event_id = 'evt-joao';
 
@@ -155,7 +157,9 @@ select is(
   'true:2:preventive', 'the account hold opens and versions each new reply');
 
 -- Duplicata do mesmo evento não cria outra resposta nem muda a versão.
+set local role service_role;
 select pg_temp.receber('evt-maria', (select valor::uuid from ids where chave = 'maria'), 'Re: Apresentação', 'Podemos falar amanhã?');
+reset role;
 select is(
   (select count(*)::int from private.sequence_correlated_replies
     where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
@@ -167,23 +171,34 @@ select is(
 
 update private.sequence_step_sends set status = 'scheduled', scheduled_for = now() - interval '1 minute'
 where id = (select valor::uuid from ids where chave = 'envio');
+-- A retenção é a última recusa: quem não é o titular recebe a recusa de sempre.
+select is(
+  (select outcome from private.release_step_send((select valor::uuid from ids where chave = 'envio'),
+    '63000000-0000-0000-0000-000000000002', false)),
+  'owner_not_responsible', 'the older refusals come before the retention');
+set local role service_role;
 select is(
   (select outcome from public.release_due_step_send((select valor::uuid from ids where chave = 'envio'))),
   'account_retained', 'the executor revalidates the hold before releasing the send');
+reset role;
 select is(
   (select status from private.sequence_step_sends where id = (select valor::uuid from ids where chave = 'envio')),
   'scheduled', 'a retained send is not marked sending');
 
 update private.sequence_step_sends set status = 'sending', sending_at = now()
 where id = (select valor::uuid from ids where chave = 'envio');
+set local role service_role;
 select is(
   (select outcome from public.release_due_step_send((select valor::uuid from ids where chave = 'envio'))),
   'in_flight', 'an in-transit send is not released again');
+reset role;
 select is(
   (select count(*)::int from private.sequence_retention_audits
     where send_id = (select valor::uuid from ids where chave = 'envio') and kind = 'in_transit'),
   1, 'the in-transit send is audited');
+set local role service_role;
 select public.release_due_step_send((select valor::uuid from ids where chave = 'envio'));
+reset role;
 select is(
   (select count(*)::int from private.sequence_retention_audits
     where send_id = (select valor::uuid from ids where chave = 'envio')),
@@ -193,7 +208,6 @@ select is(
   'sending', 'the in-transit send is not duplicated');
 update private.sequence_step_sends set status = 'scheduled', sending_at = null
 where id = (select valor::uuid from ids where chave = 'envio');
-reset role;
 
 -- Colega administrador não lê conteúdo e não decide.
 set local role authenticated;
@@ -277,6 +291,7 @@ select is(
 reset role;
 set local role service_role;
 select pg_temp.receber('evt-maria', (select valor::uuid from ids where chave = 'maria'), 'Re: Apresentação', 'Podemos falar amanhã?');
+reset role;
 select is(
   (select open from private.sequence_reply_holds
     where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
@@ -284,8 +299,15 @@ select is(
 
 
 -- Caminhos paralelos (execução independente): a resposta de um Contato segura também o caminho do outro.
--- A Conta sem resposta segue o fluxo de sempre.
+-- A Conta sem resposta segue o fluxo de sempre. O relógio fica numa quarta-feira futura, dentro da janela.
 reset role;
+do $f$
+begin
+  execute format(
+    'create or replace function private.clock_now() returns timestamptz language sql stable set search_path = '''' '
+    'as $c$ select %L::timestamptz $c$', date_trunc('week', now()) + interval '9 days 15 hours');
+end
+$f$;
 create function pg_temp.passo(p_id text, p_contato text) returns jsonb language sql as $f$
   select jsonb_build_object(
     'id', p_id, 'canal', 'email', 'contatoId', (select valor from ids where chave = p_contato),
@@ -331,28 +353,32 @@ select is(
 reset role;
 
 set local role service_role;
-select pg_temp.receber_em('par', 'conta-par', 'evt-beto', (select valor::uuid from ids where chave = 'beto'));
+insert into ids select 'int-beto', pg_temp.receber_em('par', 'conta-par', 'evt-beto', (select valor::uuid from ids where chave = 'beto'))::text;
+reset role;
 insert into ids select 'resp-beto', id::text from private.sequence_correlated_replies where provider_event_id = 'evt-beto';
 update private.sequence_step_sends set status = 'scheduled', scheduled_for = now() - interval '1 minute'
 where id in (pg_temp.envio('par', 'p-ana'), pg_temp.envio('par', 'p-beto'), pg_temp.envio('livre', 'l-caio'));
+set local role service_role;
 select is(
   (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-ana'))),
   'account_retained', 'a reply from one contact holds the parallel path of another contact');
 select is(
   (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-beto'))),
   'account_retained', 'the path of the contact who replied is held too');
+reset role;
 select is(
   (select string_agg(status, ',' order by step_id) from private.sequence_step_sends
     where sequence_id = (select valor::uuid from ids where chave = 'par')),
   'scheduled,scheduled', 'no held path is marked sending');
+set local role service_role;
 select isnt(
   (select outcome from public.release_due_step_send(pg_temp.envio('livre', 'l-caio'))),
   'account_retained', 'an account without reply is not held');
+reset role;
 select is(
   (select count(*)::int from private.sequence_reply_holds
     where sequence_id = (select valor::uuid from ids where chave = 'livre')),
   0, 'an account without reply has no retention');
-reset role;
 
 -- Decidir sem IA: pausar só segura; nada sai e a retenção continua até uma ação humana.
 set local role authenticated;
@@ -368,10 +394,56 @@ set local role service_role;
 select is(
   (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-ana'))),
   'account_retained', 'after a pause decision the account is still held');
+reset role;
 select is(
   (select count(*)::int from private.sequence_step_sends
     where sequence_id = (select valor::uuid from ids where chave = 'par') and status in ('sending', 'sent')),
   0, 'deciding without AI sends nothing');
+
+-- Sequência pausada com a retenção aberta: a recusa de sempre vem primeiro.
+update public.sequences set status = 'pausada' where id = (select valor::uuid from ids where chave = 'par');
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-ana'))),
+  'sequence_not_active', 'a paused sequence is refused as before, not as retained');
+reset role;
+
+-- Retomar explicitamente é a decisão "continuar" do Vendedor responsável. Quem não é o titular não retoma.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000002', true);
+select throws_ok(
+  $$select public.update_owned_sequence((select valor::uuid from ids where chave = 'par'), null, null, 'ativa')$$,
+  '42501', 'sequence not found or not owned by active user', 'someone who is not the owner cannot resume');
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  $$select public.update_owned_sequence((select valor::uuid from ids where chave = 'par'), null, null, 'ativa')$$,
+  'the owner resumes the held sequence explicitly');
+select is(
+  (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'par')) ->> 'open'),
+  'false', 'resuming closes the retention');
+select ok(
+  (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'par')) -> 'decisions')
+    @> '[{"decision": "continue", "version": 1}]'::jsonb,
+  'and is recorded as a continue decision on the current version');
+reset role;
+select is(
+  (select string_agg(actor_user_id::text || ':' || array_length(reviewed_reply_ids, 1)::text, ',')
+    from private.sequence_retention_decisions
+    where sequence_id = (select valor::uuid from ids where chave = 'par') and outcome = 'resumed'),
+  '63000000-0000-0000-0000-000000000001:1', 'the owner decision covers the reply recorded until then');
+select is(
+  (select count(*)::int from private.sequence_step_sends
+    where sequence_id = (select valor::uuid from ids where chave = 'par') and status in ('sending', 'sent')),
+  0, 'resuming sends nothing by itself');
+
+-- Apagar a resposta (Conta-alvo, Contato ou Workspace apagados) leva a resposta correlacionada junto.
+select fk_ok('private', 'sequence_correlated_replies', 'contact_id', 'public', 'contacts', 'id',
+  'the correlated reply points to the Contato, so deleting the Contato clears it');
+delete from private.received_emails where interaction_id = (select valor::uuid from ids where chave = 'int-beto');
+select is(
+  (select count(*)::int from private.sequence_correlated_replies where provider_event_id = 'evt-beto'),
+  0, 'deleting the received e-mail deletes its correlated reply');
 
 select * from finish();
 rollback;
