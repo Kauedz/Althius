@@ -56,6 +56,31 @@ describe('FonteDeSequencias do Workspace operacional', () => {
     expect((await fonte.sequencia('sequencia-da-marina')).steps[0].titulo).toBe('Abertura')
   })
 
+  it('guarda liberação e predecessor e recusa ciclo antes de chamar o backend', async () => {
+    const fonte = sequenciaDaMarina()
+    const a = { ...PASSO, id: 'a', liberacao: 'ativacao' as const }
+    const b = {
+      ...PASSO,
+      id: 'b',
+      ordem: 2,
+      liberacao: 'predecessor' as const,
+      predecessorId: 'a',
+      contatoId: 'contato-2',
+    }
+
+    await fonte.atualizarDocumento('sequencia-da-marina', { steps: [a, b] })
+    expect((await fonte.sequencia('sequencia-da-marina')).steps[1].predecessorId).toBe('a')
+
+    await expect(
+      fonte.atualizarDocumento('sequencia-da-marina', {
+        steps: [
+          { ...a, liberacao: 'predecessor', predecessorId: 'b' },
+          { ...b, predecessorId: 'a' },
+        ],
+      }),
+    ).rejects.toThrow(/ciclo/i)
+  })
+
   it('editar o documento não regrava o status lido antes, para não desfazer uma pausa feita pelo backend', async () => {
     const statusEnviados: unknown[] = []
     const linha = linhaDaMarina()
