@@ -1,5 +1,6 @@
 import type { BloqueioDoTeto } from './automacao-tipos'
 import type { SugestaoDeTemplate, TemplateDaAlthius } from './templates-althius'
+import type { EntradaDeTemplateProprio, LiteralDeTemplate, PreviaDeTemplateProprio, TemplateProprio } from './templates-proprios'
 import type { FonteObservavel } from './tipos'
 
 export type StatusSequencia = 'ativa' | 'pausada' | 'reuniao' | 'esgotada' | 'encerrada'
@@ -439,4 +440,28 @@ export interface FonteDeSequencias extends FonteObservavel {
    * Não cria Sequência e não ativa envio.
    */
   sugerirTemplateDaAlthius(contaId: string): Promise<SugestaoDeTemplate>
+
+  /**
+   * Templates próprios do criador neste Workspace. Outro participante não recebe a lista.
+   * Não é biblioteca compartilhada.
+   */
+  templatesProprios(): Promise<TemplateProprio[]>
+
+  /** A prévia parametrizada, sem persistir. O salvamento só aceita este resultado. */
+  previaDeTemplateProprio(entrada: EntradaDeTemplateProprio): Promise<PreviaDeTemplateProprio>
+
+  /** Grava só a prévia já segura. Não autoriza Contato e não altera Sequências. */
+  salvarTemplateProprio(entrada: PreviaDeTemplateProprio & { literais?: LiteralDeTemplate[] }): Promise<TemplateProprio>
+
+  /** Só o criador edita. A Sequência já copiada não muda. */
+  atualizarTemplateProprio(
+    id: string,
+    entrada: PreviaDeTemplateProprio & { literais?: LiteralDeTemplate[] },
+  ): Promise<TemplateProprio>
+
+  /**
+   * Sugere um template próprio que o leitor pode ler. Sem template legível, sem Sinal ou com o teto fechado, não escolhe.
+   * Não substitui a sugestão da Althius e não ativa envio.
+   */
+  sugerirTemplateProprio(contaId: string): Promise<SugestaoDeTemplate>
 }

@@ -5,6 +5,7 @@ import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './dados-sequencias-demo'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { templateDaResposta, type SugestaoDeTemplate } from './templates-althius'
+import type { LiteralDeTemplate, PreviaDeTemplateProprio, TemplateProprio } from './templates-proprios'
 
 interface RegistroSequencia {
   id: string
@@ -352,6 +353,9 @@ function converterErro(error: { message: string; code?: string }): Error {
   }
   if (error.code === '22023' && error.message === 'contact has no active link with this target account') return new Error('O Contato deste passo não está vinculado à Conta-alvo.')
   if (error.code === '55000') return new Error('Este passo já foi enviado ou está sendo enviado.')
+  if (error.message.includes('own template: not the owner')) {
+    return new Error('Só quem criou o template pode alterá-lo.')
+  }
   if (error.code === '42501') return new Error('Apenas o responsável ativo pode abrir ou alterar o documento desta Sequência.')
   if (error.code === '23505') return new Error('Esta Conta-alvo já tem uma Sequência em andamento.')
   if (error.message.includes('passo nao pode depender de si mesmo')) {
@@ -365,6 +369,9 @@ function converterErro(error: { message: string; code?: string }): Error {
   }
   if (error.message.includes('liberacao predecessor exige predecessorId')) {
     return new Error('Passo com liberação por predecessor precisa de predecessorId.')
+  }
+  if (error.message.includes('template requires safe preview')) {
+    return new Error('Salve só a prévia já parametrizada, sem dados reais.')
   }
   if (error.message.includes('predecessorId so e permitido')) {
     return new Error('predecessorId só é permitido com liberação predecessor.')
@@ -415,6 +422,26 @@ export function criarFonteDeSequenciasSupabase(
   let workspaceInscrito = ''
 
   function notificar() { for (const ouvinte of ouvintes) ouvinte() }
+
+  async function gravarTemplateProprio(
+    rpc: 'save_own_sequence_template' | 'update_own_sequence_template',
+    entrada: PreviaDeTemplateProprio & { literais?: LiteralDeTemplate[] },
+    id?: string,
+  ): Promise<TemplateProprio> {
+    const { data, error } = await cliente.rpc(rpc, {
+      p_workspace_id: workspace(),
+      ...(id ? { p_template_id: id } : {}),
+      p_nome: entrada.nome,
+      p_resumo: entrada.resumo,
+      p_passos: entrada.passos,
+      p_literals: entrada.literais ?? [],
+    })
+    if (error) throw converterErro(error)
+    const linha = Array.isArray(data) ? data[0] : data
+    const template = templateDaResposta(linha)
+    if (!template) throw new Error('O banco não devolveu o template salvo.')
+    return { ...template, donoId: obterUsuarioId() }
+  }
   /** Os desfechos dos Envios da Sequência (motor-hermes 03). Se a leitura falhar, os Envios aparecem sem desfecho. */
   async function desfechosDaSequencia(sequenciaId: string): Promise<Map<string, DesfechoDoEnvio>> {
     const { data, error } = await cliente.rpc('list_send_outcomes', { p_sequence_id: sequenciaId })
@@ -550,6 +577,55 @@ export function criarFonteDeSequenciasSupabase(
     },
     async sugerirTemplateDaAlthius(contaId) {
       const { data, error } = await cliente.rpc('suggest_althius_sequence_template', {
+        p_workspace_id: workspace(),
+        p_target_account_id: contaId,
+      })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as {
+        template_id?: string | null
+        justification?: string | null
+        outcome?: string | null
+      } | null
+      return sugestaoLida(linha)
+    },
+    async templatesProprios() {
+      const { data, error } = await cliente.rpc('list_own_sequence_templates', {
+        p_workspace_id: workspace(),
+      })
+      if (error) throw converterErro(error)
+      const donoId = obterUsuarioId()
+      return (Array.isArray(data) ? data : []).flatMap((linha) => {
+        const template = templateDaResposta(linha)
+        return template ? [{ ...template, ...(donoId ? { donoId } : {}) }] : []
+      })
+    },
+    async previaDeTemplateProprio(entrada) {
+      const { data, error } = await cliente.rpc('preview_own_sequence_template', {
+        p_workspace_id: workspace(),
+        p_nome: entrada.nome,
+        p_resumo: entrada.resumo,
+        p_passos: entrada.passos,
+        p_literals: entrada.literais ?? [],
+      })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as { nome?: string; resumo?: string; passos?: unknown[] } | null
+      if (!linha?.nome || !linha.resumo || !Array.isArray(linha.passos)) {
+        throw new Error('Salve só a prévia já parametrizada, sem dados reais.')
+      }
+      return { nome: linha.nome, resumo: linha.resumo, passos: linha.passos as PreviaDeTemplateProprio['passos'] }
+    },
+    async salvarTemplateProprio(entrada) {
+      const salvo = await gravarTemplateProprio('save_own_sequence_template', entrada)
+      notificar()
+      return salvo
+    },
+    async atualizarTemplateProprio(id, entrada) {
+      const salvo = await gravarTemplateProprio('update_own_sequence_template', entrada, id)
+      notificar()
+      return salvo
+    },
+    async sugerirTemplateProprio(contaId) {
+      const { data, error } = await cliente.rpc('suggest_own_sequence_template', {
         p_workspace_id: workspace(),
         p_target_account_id: contaId,
       })
