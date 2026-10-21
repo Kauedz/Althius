@@ -23,6 +23,7 @@ export const ROTULO_DO_TIPO: Record<TipoDeAprovacao, string> = {
   envio: 'Envio',
   integracao: 'Integração',
   revisao: 'Revisão do Playbook',
+  sequencia: 'Sequência',
 }
 
 export interface FiltroDaFila {

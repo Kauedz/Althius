@@ -1,7 +1,9 @@
 // As Aprovações reais do Workspace operacional (CRM-15): a fila que os Agentes alimentam quando a Permissão é Propor.
 // Tudo passa pelas funções do banco (migration aprovacoes_reais): todo Participante ativo lê a fila; só um
 // Administrador decide, e a pendente vence em 7 dias. Na mesma fila vem a revisão de uma seção do Playbook que o Scopus
-// ou o Ethos propôs (CRM-09, ADR-0010): ela não tem Integração, e aprovar já grava a versão nova no banco.
+// ou o Ethos propôs (CRM-09, ADR-0010): ela não tem Integração, e aprovar já grava a versão nova no banco. E vem a
+// Sequência que o Rhetor propôs (cadencia-pela-ia): só o Vendedor responsável a decide e lê o assunto e o corpo, e
+// aprovar já cria a Sequência no banco, sem envio.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ehSecaoDoPlaybook } from './playbook-tipos'
@@ -10,10 +12,13 @@ import type {
   Aprovacao,
   AprovacaoDeAcao,
   AprovacaoDeRevisaoDoPlaybook,
+  AprovacaoDeSequencia,
+  ContatoDaSequenciaProposta,
   Decisao,
   FonteDeAgentes,
   IntegracaoId,
   LugarDaDecisao,
+  PassoDaSequenciaProposta,
   TipoDeAprovacao,
 } from './tipos'
 
@@ -42,13 +47,17 @@ interface RegistroDaAprovacao {
   failure: string | null
   decided_by?: string | null
   expires_at?: string | null
-  /** `revisao` na revisão do Playbook (CRM-09); sem ela, ação. */
-  category?: 'acao' | 'revisao' | null
+  /** `revisao` na revisão do Playbook (CRM-09), `sequencia` na Sequência proposta pelo Rhetor; sem ela, ação. */
+  category?: 'acao' | 'revisao' | 'sequencia' | null
   playbook_section?: string | null
   base_version?: number | null
   applied_version?: number | null
-  /** Só enquanto pendente. */
-  proposed_content?: { texto?: unknown; linhas?: unknown } | null
+  /** Só enquanto pendente; na Sequência, só para o Vendedor responsável. */
+  proposed_content?: { texto?: unknown; linhas?: unknown; contatos?: unknown; passos?: unknown } | null
+  /** A Sequência que a aprovação da proposta do Rhetor criou. */
+  created_sequence_id?: string | null
+  /** Se quem lê é o Vendedor responsável pela Conta-alvo. */
+  responsible_seller?: boolean | null
 }
 
 /** O estado do banco na linguagem da fila; executando, executada e falhou são de uma Aprovação já aprovada. */
@@ -80,6 +89,9 @@ function estadoDaRevisao(state: EstadoNoBanco): AprovacaoDeRevisaoDoPlaybook['es
 }
 
 function converterErro(error: { message: string }): Error {
+  if (error.message.includes('only the responsible seller of the target account decides this sequence')) {
+    return new Error('Só o Vendedor responsável pela Conta-alvo decide esta Sequência.')
+  }
   if (error.message.includes('only administrators can decide approvals')) {
     return new Error('Só Administradores do Workspace decidem Aprovações.')
   }
@@ -95,11 +107,12 @@ const ONDE: Record<string, 'fila' | 'conversa' | 'canal'> = { fila: 'fila', conv
  * Quem executa a Aprovação depois de aprovada: a chamada de ferramenta de conector, o envio ao CRM (o padrão) ou ninguém,
  * na revisão do Playbook, que o banco já gravou ao aprovar.
  */
-const EXECUTOR: Record<string, string | null> = { ferramenta: 'integration-tools', revisao_do_playbook: null }
+const EXECUTOR: Record<string, string | null> = { ferramenta: 'integration-tools', revisao_do_playbook: null, sequencia: null }
 
 /** O tipo da Aprovação para a fila: a revisão do Playbook, a chamada de ferramenta de um conector ou o envio. */
 function tipoDa(linha: RegistroDaAprovacao): TipoDeAprovacao {
   if (linha.category === 'revisao') return 'revisao'
+  if (linha.category === 'sequencia') return 'sequencia'
   return linha.payload?.tipo === 'ferramenta' ? 'integracao' : 'envio'
 }
 
@@ -115,6 +128,7 @@ function aprovacaoDa(linha: RegistroDaAprovacao): Aprovacao {
     ...(linha.expires_at ? { venceEm: linha.expires_at } : {}),
     tipo: tipoDa(linha),
   }
+  if (linha.category === 'sequencia' && linha.target_account_id) return aprovacaoDeSequencia(linha, base)
   const secao = linha.playbook_section ?? undefined
   if (linha.category === 'revisao' && ehSecaoDoPlaybook(secao)) {
     return {
@@ -135,6 +149,51 @@ function aprovacaoDa(linha: RegistroDaAprovacao): Aprovacao {
     integracaoId: linha.integration_id as IntegracaoId,
     ...(linha.target_account_id ? { contaId: linha.target_account_id } : {}),
     ...estadoDa(linha),
+  }
+}
+
+const objetos = (valor: unknown): Record<string, unknown>[] =>
+  Array.isArray(valor) ? valor.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object') : []
+
+/** A Sequência proposta: o conteúdo só chega ao Vendedor responsável, e só enquanto pendente. */
+function aprovacaoDeSequencia(
+  linha: RegistroDaAprovacao,
+  base: Omit<AprovacaoDeSequencia, 'estado' | 'sequencia' | 'tipo'>,
+): AprovacaoDeSequencia {
+  const payload = (linha.payload ?? {}) as Record<string, unknown>
+  const conteudo = linha.state === 'pendente' ? linha.proposed_content : null
+  const contatos: ContatoDaSequenciaProposta[] | null = conteudo
+    ? objetos(conteudo.contatos).map((c) => ({
+        id: String(c.id ?? ''),
+        nome: String(c.nome ?? ''),
+        cargo: typeof c.cargo === 'string' ? c.cargo : null,
+      }))
+    : null
+  const passos: PassoDaSequenciaProposta[] | null = conteudo
+    ? objetos(conteudo.passos).map((p) => ({
+        esperaEmDias: Number(p.esperaEmDias ?? 0),
+        assunto: String(p.assunto ?? ''),
+        corpo: String(p.corpo ?? ''),
+      }))
+    : null
+  const estado = linha.state === 'recusada' ? 'rejeitada' : linha.state
+  return {
+    ...base,
+    tipo: 'sequencia',
+    estado: estado === 'pendente' || estado === 'aprovada' || estado === 'rejeitada' || estado === 'cancelada' || estado === 'expirada'
+      ? estado
+      : 'cancelada',
+    sequencia: {
+      contaId: linha.target_account_id ?? '',
+      contaNome: typeof payload.conta === 'string' ? payload.conta : '',
+      totalContatos: Number(payload.total_contatos ?? contatos?.length ?? 0),
+      totalPassos: Number(payload.total_passos ?? passos?.length ?? 0),
+      contatos,
+      passos,
+      sequenciaCriadaId: linha.created_sequence_id ?? null,
+      responsavel: linha.responsible_seller === true,
+      motivo: linha.failure ?? null,
+    },
   }
 }
 

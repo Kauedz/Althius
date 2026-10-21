@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { DecisaoDeAprovacao } from '@/components/decisao'
 import { useDados } from '@/fonte/contexto'
-import { rotuloDoEstadoDaAprovacao } from '@/fonte/regras'
+import { ehSequenciaProposta, rotuloDoEstadoDaAprovacao } from '@/fonte/regras'
 import type { AprovacaoDeAcao } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
@@ -25,9 +25,9 @@ export function AprovacaoNaConversa({
 }) {
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   // Aqui só as ações em Integrações. A revisão da Memória do Workspace (Demonstração) fica na fila, e a do Playbook (CRM-09)
-  // tem cartão próprio no passo da Conversa (`CartaoDeRevisaoDoPlaybook`).
+  // tem cartão próprio no passo da Conversa (`CartaoDeRevisaoDoPlaybook`), como a Sequência proposta (`PropostaDeSequencia`).
   const aprovacao = aprovacoes?.find((a) => a.id === aprovacaoId)
-  if (!aprovacao || aprovacao.revisao) return null
+  if (!aprovacao || aprovacao.revisao || ehSequenciaProposta(aprovacao)) return null
 
   const rotuloDoEstado = aprovacao.estado === 'pendente' ? 'Aprovação pendente' : rotuloDoEstadoDaAprovacao(aprovacao)
   return (

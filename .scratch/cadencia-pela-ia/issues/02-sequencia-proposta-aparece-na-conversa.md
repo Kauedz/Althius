@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (US 4–6).
 
 **Blocked by:** 01 (O Rhetor propõe uma Sequência de e-mail por Aprovação).
 
-**Status:** blocked
+**Status:** ready-for-human — feito na branch `cursor/cadencia-pela-ia`, no mesmo PR do 01 (espera o merge do Kauê). Prints em `prints/02-*.jpg`; frontend não publicado.
 
 **Quem faz:** agente de código. **Esforço:** M.
 

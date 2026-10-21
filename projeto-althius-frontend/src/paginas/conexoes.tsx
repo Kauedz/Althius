@@ -8,6 +8,7 @@ import { Pagina } from '@/components/pagina'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { useAmbiente, useDados, useFonte, useFonteDeConexoes } from '@/fonte/contexto'
+import { ehSequenciaProposta } from '@/fonte/regras'
 import type { Aprovacao, CanalId, CategoriaDeIntegracao, IntegracaoId } from '@/fonte/tipos'
 import {
   type AcessoDaIntegracao,
@@ -929,7 +930,7 @@ function DecisaoNoCanal({
   integracoes?: IntegracaoDeConexao[]
   canalId: CanalId
 }) {
-  if (!aprovacao || aprovacao.revisao) return null
+  if (!aprovacao || aprovacao.revisao || ehSequenciaProposta(aprovacao)) return null
   const nome = nomeDaIntegracao(
     aprovacao.integracaoId,
     integracoes?.find((i) => i.id === aprovacao.integracaoId)?.nome,

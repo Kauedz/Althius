@@ -14,10 +14,11 @@ import {
   ROTULO_DO_TIPO,
   type FiltroDaFila,
 } from '@/fonte/fila-de-aprovacoes'
-import { ehRevisaoDoPlaybook, podeDecidir } from '@/fonte/regras'
+import { ehRevisaoDoPlaybook, ehSequenciaProposta, podeDecidir } from '@/fonte/regras'
 import type { Agente, Aprovacao, AprovacaoDeAcao, Integracao, TipoDeAprovacao } from '@/fonte/tipos'
 import { CartaoDeRevisao } from '@/paginas/cartao-de-revisao'
 import { CartaoDeRevisaoDoPlaybook } from '@/paginas/cartao-de-revisao-do-playbook'
+import { PropostaDeSequencia } from '@/paginas/proposta-de-sequencia'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
 
 /** O que a fila é em cada ambiente: no Workspace operacional, só um Administrador decide, e o Canal ainda não decide. */
@@ -63,7 +64,9 @@ export function PaginaAprovacoes() {
             {ordenadas.map((aprovacao) => (
               <li key={aprovacao.id} className="flex flex-col gap-2">
                 <PrazoDaAprovacao aprovacao={aprovacao} />
-                {ehRevisaoDoPlaybook(aprovacao) ? (
+                {ehSequenciaProposta(aprovacao) ? (
+                  <PropostaDeSequencia aprovacao={aprovacao} onde="fila" />
+                ) : ehRevisaoDoPlaybook(aprovacao) ? (
                   <CartaoDeRevisaoDoPlaybook aprovacao={aprovacao} onde="fila" />
                 ) : aprovacao.revisao ? (
                   <CartaoDeRevisao aprovacao={aprovacao} papel={workspace.papel} />
@@ -106,7 +109,7 @@ function PrazoDaAprovacao({ aprovacao }: { aprovacao: Aprovacao }) {
   )
 }
 
-const TIPOS: (TipoDeAprovacao | 'todos')[] = ['todos', 'envio', 'integracao', 'revisao']
+const TIPOS: (TipoDeAprovacao | 'todos')[] = ['todos', 'envio', 'integracao', 'revisao', 'sequencia']
 
 function FiltrosDaFila({
   filtro,

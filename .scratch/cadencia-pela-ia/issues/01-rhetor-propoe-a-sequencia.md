@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (US 1–3, 5, 7–10).
 
 **Blocked by:** PR #227 em `main` (variáveis, Supressão e criação de Sequência do lote).
 
-**Status:** blocked
+**Status:** ready-for-human — feito na branch `cursor/cadencia-pela-ia` (PR aberto contra a `main`, espera o merge do Kauê). Migration `20261105100000_sequencia_proposta_pelo_rhetor.sql` não aplicada; Edge Functions não publicadas.
 
 **Quem faz:** agente de código; Nan aplica e publica. **Esforço:** M.
 
