@@ -54,6 +54,8 @@ import {
 } from './mercado-enderecavel'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
+import { RodadasDoMonitoramento, RodarAgora } from './rodadas'
+import { useRodadas } from './usar-rodadas'
 import { ResumoDoPlano } from './resumo-do-plano'
 import { criteriosFormatados, resumoDasContas, resumoDoPublico } from './resumos'
 
@@ -203,6 +205,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const [parametros] = useSearchParams()
   const navegar = useNavigate()
   const { salvar } = useSinaisDoMockup()
+  const rodadas = useRodadas(existente?.id)
   const operacional = useAmbiente().modo === 'real'
   const familia = familiaDoTipo(tipo)
   const formulario = formularioDoTipo(tipo)
@@ -241,6 +244,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
         </div>
 
         {existente?.plano && <ResumoDoPlano monitoramento={existente} />}
+
+        {existente && etapa === 'editar' && <RodarAgora monitoramento={existente} rodadas={rodadas} />}
 
         {erroSalvar && (
           <div role="alert" className="flex items-center justify-between rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
@@ -395,6 +400,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                 </>
               )}
             </BarraDeAcoes>
+
+            {existente && <RodadasDoMonitoramento rodadas={rodadas} />}
           </>
         )}
 

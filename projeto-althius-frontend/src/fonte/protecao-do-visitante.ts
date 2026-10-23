@@ -27,7 +27,7 @@ export const ACOES_PAGAS_DO_VISITANTE: Record<Fontes, readonly string[]> = {
     'aprovarEEnviarProposta', 'decidirRetencao',
   ],
   // Monitoramento.
-  fonteDeSinais: ['salvarMonitoramento', 'mudarEstado', 'simularDisparo', 'pedirSinal', 'montarPlano', 'salvarPlano'],
+  fonteDeSinais: ['salvarMonitoramento', 'mudarEstado', 'simularDisparo', 'pedirSinal', 'montarPlano', 'salvarPlano', 'rodarAgora'],
   // Descoberta.
   fonteDeDescobertas: ['buscarContas', 'aceitarDescoberta'],
 }

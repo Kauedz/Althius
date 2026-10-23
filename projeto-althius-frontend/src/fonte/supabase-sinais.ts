@@ -8,6 +8,16 @@ import { CATALOGO_VISIVEL, cardQueConta } from '@/paginas/sinais/catalogo-visive
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import { corpoDoErroDaFuncao } from './falha-da-edge-function'
 import { ErroDoPlano, MENSAGEM_DA_FALHA_DO_PLANO, type PedidoDePlano, type PlanoDoSinal, type PlanoMontado, type PlanoParaSalvar } from './plano-do-sinal'
+import {
+  BLOQUEIOS_DA_RODADA,
+  ErroDaRodada,
+  MENSAGEM_DA_FALHA_DA_RODADA,
+  type AchadoDaRodada,
+  type BloqueioDaRodada,
+  type HistoricoDeRodadas,
+  type MotivoDaParada,
+  type PreviaDaRodada,
+} from './rodadas-do-sinal'
 import { viewerEhDaEquipeAlthius } from './supabase-equipe'
 import type { ContaAlvo, Sinal } from './contas-tipos'
 import type {
@@ -49,6 +59,50 @@ interface RegistroDoMonitor {
   } | null
 }
 
+interface RegistroDaPrevia {
+  contas: number | string
+  contas_sem_dado: number | string
+  creditos_por_conta: number | string
+  ate_creditos: number | string
+  saldo: number | string
+  ilimitado: boolean
+  bloqueio: string | null
+  liberado_em: string | null
+}
+
+interface RegistroDoHistorico {
+  rodadas?: {
+    id: string
+    origem: 'agenda' | 'manual'
+    estado: 'rodando' | 'concluida' | 'falhou'
+    iniciadaEm: string
+    terminouEm?: string | null
+    contasNoEscopo?: number | null
+    contasVerificadas: number
+    contasSemDado: number
+    sinaisNovos: number
+    sinaisRepetidos: number
+    creditos: number
+    motivoDaParada?: MotivoDaParada | null
+    versaoDoPlano?: number | null
+    observacao?: string | null
+  }[]
+  solicitacoes?: { id: string; estado: 'pendente' | 'rodando'; pedidaEm: string; ateCreditos: number; rodadaId?: string | null }[]
+}
+
+interface RegistroDoAchado {
+  signal_id: string
+  target_account_id: string
+  account_name: string
+  signal_type: string
+  phrase: string
+  fired_at: string
+  source: string | null
+  evidence: string | null
+  kind: string
+  why: string
+}
+
 interface RegistroDoSinal {
   id: string
   target_account_id: string
@@ -78,7 +132,15 @@ const ESTADO_DA_CASCATA: Readonly<Record<string, CascataDoCatalogo['estado']>> =
   sem_fonte: 'sem-fonte',
 }
 
+/** O bloqueio que o banco recusou (`signal run blocked: <código>`), ou nada. */
+function bloqueioDoErro(error: { message: string }): BloqueioDaRodada | null {
+  const achado = /signal run blocked: ([a-z_]+)/.exec(error.message)?.[1]
+  return BLOQUEIOS_DA_RODADA.find((b) => b === achado) ?? null
+}
+
 function converterErro(error: { message: string; code?: string }): Error {
+  const bloqueio = bloqueioDoErro(error)
+  if (bloqueio) return new ErroDaRodada(bloqueio)
   if (error.message.includes('signal type is not available')) {
     return new Error('Este Sinal ainda está em teste e não roda de verdade.')
   }
@@ -502,6 +564,76 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         p_plan: plano.plano,
       })) as string
       return monitoramento(id)
+    },
+
+    async previaDaRodada(monitoramentoId): Promise<PreviaDaRodada> {
+      const { data, error } = await cliente.rpc('quote_signal_run', { p_workspace_id: workspaceId(), p_monitor_id: monitoramentoId })
+      if (error) throw converterErro(error)
+      const [linha] = (Array.isArray(data) ? data : [data]) as (RegistroDaPrevia | null)[]
+      if (!linha) throw new Error(MENSAGEM_DA_FALHA_DA_RODADA)
+      const bloqueio = BLOQUEIOS_DA_RODADA.find((b) => b === linha.bloqueio) ?? null
+      return {
+        contas: Number(linha.contas),
+        contasSemDado: Number(linha.contas_sem_dado),
+        creditosPorConta: Number(linha.creditos_por_conta),
+        ateCreditos: Number(linha.ate_creditos),
+        saldo: Number(linha.saldo),
+        ilimitado: linha.ilimitado === true,
+        bloqueio,
+        ...(linha.liberado_em ? { liberadoEm: linha.liberado_em } : {}),
+      }
+    },
+
+    async rodarAgora(monitoramentoId): Promise<void> {
+      await chamar('request_signal_run_now', { p_workspace_id: workspaceId(), p_monitor_id: monitoramentoId })
+    },
+
+    async rodadas(monitoramentoId): Promise<HistoricoDeRodadas> {
+      const { data, error } = await cliente.rpc('list_signal_runs', { p_workspace_id: workspaceId(), p_monitor_id: monitoramentoId })
+      if (error) throw new Error('Não foi possível carregar as rodadas.')
+      const historico = (data ?? { rodadas: [], solicitacoes: [] }) as RegistroDoHistorico
+      return {
+        rodadas: (historico.rodadas ?? []).map((r) => ({
+          id: r.id,
+          origem: r.origem,
+          estado: r.estado,
+          iniciadaEm: r.iniciadaEm,
+          terminouEm: r.terminouEm ?? null,
+          contasNoEscopo: r.contasNoEscopo ?? null,
+          contasVerificadas: r.contasVerificadas,
+          contasSemDado: r.contasSemDado,
+          sinaisNovos: r.sinaisNovos,
+          sinaisRepetidos: r.sinaisRepetidos,
+          creditos: r.creditos,
+          motivoDaParada: r.motivoDaParada ?? null,
+          versaoDoPlano: r.versaoDoPlano ?? null,
+          observacao: r.observacao ?? null,
+        })),
+        pedidos: (historico.solicitacoes ?? []).map((p) => ({
+          id: p.id,
+          estado: p.estado,
+          pedidoEm: p.pedidaEm,
+          ateCreditos: p.ateCreditos,
+          rodadaId: p.rodadaId ?? null,
+        })),
+      }
+    },
+
+    async achadosDaRodada(rodadaId): Promise<AchadoDaRodada[]> {
+      const { data, error } = await cliente.rpc('list_signal_run_findings', { p_workspace_id: workspaceId(), p_run_id: rodadaId })
+      if (error) throw new Error('Não foi possível carregar os Sinais da rodada.')
+      return ((data ?? []) as RegistroDoAchado[]).map((a) => ({
+        id: a.signal_id,
+        contaId: a.target_account_id,
+        contaNome: a.account_name,
+        tipo: a.signal_type,
+        frase: a.phrase,
+        data: a.fired_at,
+        fonte: a.source,
+        evidencia: a.evidence,
+        situacao: a.kind === 'novo' ? 'novo' : 'visto_de_novo',
+        porQue: a.why,
+      }))
     },
 
     souDaEquipeAlthius: () => viewerEhDaEquipeAlthius(cliente),
