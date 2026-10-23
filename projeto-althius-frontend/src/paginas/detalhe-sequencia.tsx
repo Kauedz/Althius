@@ -76,7 +76,7 @@ import {
   type StepSequencia,
 } from '@/fonte/sequencias-tipos'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
-import { normalizarWhatsApp, validarEmail } from '@/fonte/simulada-contas'
+import { normalizarWhatsApp, validarEmail } from '@/fonte/validar-destinos'
 
 interface Props {
   sequenciaId: string

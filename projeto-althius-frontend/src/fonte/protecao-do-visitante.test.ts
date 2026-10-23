@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { criarAmbienteDeDemonstracao } from './composicao'
+import { criarAmbienteDeDemonstracao } from './composicao-da-demonstracao'
 import {
   ACOES_PAGAS_DO_VISITANTE,
   ErroDeAcaoDoVisitante,

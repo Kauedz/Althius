@@ -15,7 +15,7 @@ import {
   useFonteDeSequencias,
   useFonteDoPlaybook,
 } from '@/fonte/contexto'
-import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from '@/fonte/dados-sequencias-demo'
+import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from '@/fonte/padroes-da-sequencia'
 import { modeloDeCadencia, passosDoModelo, type ToqueDoModelo } from '@/fonte/modelo-de-cadencia'
 import {
   classificarContasDoLote,

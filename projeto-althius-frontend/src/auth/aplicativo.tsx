@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { App } from '@/App'
@@ -11,13 +11,19 @@ import { lerWorkspacesContratados } from '@/fonte/supabase-contrato'
 import { viewerEhDaEquipeAlthius } from '@/fonte/supabase-equipe'
 import { BotoesDaAssinatura, TelaDeAssinatura, useAcessoAoWorkspace } from './assinatura'
 import { ContextoDeAutenticacao, useAutenticacao } from './contexto'
-import { AplicativoDaDemonstracaoDaEquipe, ehCaminhoDaDemonstracao } from './demonstracao-da-equipe'
+import { carregarDemonstracaoDaEquipe } from './carregar-demonstracao'
 import { destinoDepoisDoAcesso, enderecoDeEntrada, tokenDoConviteNoEndereco } from './destino'
+import { ehCaminhoDaDemonstracao } from './rota-da-demonstracao'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
 import { VERSAO_DOS_TERMOS } from './termos'
 import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
 import { CascaDeAcesso, TelasDeAcesso } from './telas-de-acesso'
 import { AplicativoDoVisitante } from './visitante'
+
+/** A Demonstração da equipe só é baixada depois de o banco confirmar a equipe: antes, ela nem está no navegador. */
+const AplicativoDaDemonstracaoDaEquipe = lazy(() =>
+  carregarDemonstracaoDaEquipe().then((modulo) => ({ default: modulo.AplicativoDaDemonstracaoDaEquipe })),
+)
 
 /** O Workspace escolhido nesta aba, para um refresh não pedir a escolha de novo. */
 const CHAVE_DO_WORKSPACE = 'althius:workspace'
@@ -230,7 +236,11 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
         window.history.pushState(null, '', '/')
         setDemonstracao(null)
       }
-      return <AplicativoDaDemonstracaoDaEquipe aoSair={sairDaDemonstracao} />
+      return (
+        <Suspense fallback={<TelaDeEstado>Preparando seu acesso…</TelaDeEstado>}>
+          <AplicativoDaDemonstracaoDaEquipe aoSair={sairDaDemonstracao} />
+        </Suspense>
+      )
     }
   }
   if (erroWorkspacePessoal) {
@@ -285,9 +295,14 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
     )
   }
   if (participacoes === null || contratados === null) return <TelaDeEstado>Carregando seus Workspaces…</TelaDeEstado>
-  // Sem Participação num Workspace contratado, a pessoa vê a demonstração, só leitura. O contrato abre o Workspace.
+  // Sem Participação num Workspace contratado, a pessoa é visitante: vê a demonstração, só leitura, ou só o pedido à
+  // equipe, conforme VISITANTE_VE_DEMONSTRACAO. O contrato abre o Workspace.
   if (!participacoes.some((p) => contratados.has(p.workspace_id))) {
-    return <AplicativoDoVisitante cliente={cliente} email={sessao.user.email ?? ''} sair={<Sair />} />
+    return (
+      <Suspense fallback={<TelaDeEstado>Preparando seu acesso…</TelaDeEstado>}>
+        <AplicativoDoVisitante cliente={cliente} email={sessao.user.email ?? ''} sair={<Sair />} />
+      </Suspense>
+    )
   }
   if (!workspaceId) {
     return (

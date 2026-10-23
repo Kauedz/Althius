@@ -1,12 +1,7 @@
-import type { JanelaHorario, Sequencia, StepSequencia } from './sequencias-tipos'
+import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './padroes-da-sequencia'
+import type { Sequencia, StepSequencia } from './sequencias-tipos'
 
-export const REGRA_DE_PAUSE_PADRAO =
-  'Qualquer resposta nesta Conta-alvo (positiva ou negativa) pausa a sequência inteira para análise humana.'
-
-export const JANELA_PADRAO: JanelaHorario = {
-  de: '09:00',
-  ate: '17:00',
-}
+export { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO }
 
 function deslocarDias(hoje: Date, dias: number): string {
   const d = new Date(hoje.getTime() + dias * 24 * 60 * 60 * 1000)
