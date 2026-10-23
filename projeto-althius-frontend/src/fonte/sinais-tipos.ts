@@ -1,5 +1,6 @@
 import type { PerfilFirmografico } from '@/paginas/sinais/perfil'
 import type { FonteObservavel } from './tipos'
+import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
 
 export type Origem = 'externo' | 'interno' | 'originado'
 
@@ -40,6 +41,11 @@ export interface Monitoramento {
   ultimaFalha?: string
   /** A última avaliação gravada no banco (só o Workspace operacional informa). */
   ultimaRodada?: RodadaDoMonitoramento
+  /** O Briefing e o Plano de onde o Monitoramento veio, quando nasceu de um Plano (agente-de-sinal 01). */
+  briefing?: string
+  plano?: PlanoDoSinal
+  /** Quantas vezes o Plano foi gravado. */
+  versaoDoPlano?: number
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */
@@ -246,6 +252,15 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Se quem está logado é da equipe Althius e vê também os Sinais internos. Qualquer erro vale `false`. */
   souDaEquipeAlthius?(): Promise<boolean>
+
+  /**
+   * Monta o Plano do Sinal a partir do Briefing e das Contas escolhidas, sem gravar nada e sem cobrar crédito
+   * (agente-de-sinal 01). Rejeita com `ErroDoPlano`. Quem não implementa não oferece "Descrever um Sinal".
+   */
+  montarPlano?(pedido: PedidoDePlano): Promise<PlanoMontado>
+
+  /** Grava o Plano revisado como rascunho do Monitoramento (cria ou atualiza). Nunca ativa. */
+  salvarPlano?(plano: PlanoParaSalvar): Promise<Monitoramento>
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'

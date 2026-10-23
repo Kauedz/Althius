@@ -21,6 +21,10 @@ verify_jwt = true
 [functions.signal-request-notify]
 verify_jwt = true
 
+# O Plano do Sinal a partir do Briefing (agente-de-sinal 01): o navegador chama com o JWT; o banco confere a Participação e o limite do dia.
+[functions.signal-plan]
+verify_jwt = true
+
 # Pedido de acesso do visitante (acesso-e-planos): o navegador chama com o JWT; o banco reserva o aviso uma vez e limita os envios por usuário.
 [functions.access-request-notify]
 verify_jwt = true

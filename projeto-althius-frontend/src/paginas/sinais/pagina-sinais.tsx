@@ -1,4 +1,4 @@
-import { ArrowLeft, RadioTower, Search } from 'lucide-react'
+import { ArrowLeft, RadioTower, Search, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
@@ -19,6 +19,7 @@ import { FAMILIAS, tipoPorId } from './catalogo'
 import { CATALOGO_VISIVEL, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { GRADE_DE_CARTOES } from './cascatas'
+import { usePodeDescreverSinal } from './pode-descrever-sinal'
 import { useCatalogoFuncional, type VisaoDoCatalogo } from './catalogo-funcional'
 import { useMonitoramentos } from './estado'
 import {
@@ -116,6 +117,7 @@ export function PaginaSinais() {
 
 function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
+  const podeDescrever = usePodeDescreverSinal(visao)
   const [busca, setBusca] = useState('')
   const [familiaId, setFamiliaId] = useState('todos')
   const { dados: extras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
@@ -196,6 +198,14 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
           disparos={disparos}
           contasQuentes={contas?.filter((conta) => conta.quente).length}
           sequenciasAtivas={sequencias?.filter((sequencia) => sequencia.status === 'ativa').length}
+          acaoDeDescrever={
+            podeDescrever ? (
+              <Link to="/sinais/novo" className={BOTAO_SECUNDARIO}>
+                <Sparkles strokeWidth={1.8} className="size-4" aria-hidden />
+                Descrever um Sinal
+              </Link>
+            ) : undefined
+          }
           acaoDosEncontrados={
             <button type="button" onClick={aoVerEncontrados} className={cn(BOTAO_DISCRETO, 'underline-offset-4 hover:underline')}>
               <RadioTower strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
