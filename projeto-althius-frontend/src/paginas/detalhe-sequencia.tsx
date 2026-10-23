@@ -70,6 +70,7 @@ import {
   type EnvioDoPasso,
   type LiberacaoDoPasso,
   type RespostaRecebida,
+  type RevisaoDeRetencao,
   type Sequencia,
   type StatusSequencia,
   type StepSequencia,
@@ -215,6 +216,11 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     (f) => (f.canaisDeChatLiberados ? f.canaisDeChatLiberados() : Promise.resolve(null)),
     [sequenciaId],
   )
+  const { dados: revisao, recarregar: recarregarRevisao } = useDadosDeSequencias(
+    (f) => (f.revisaoDeRetencao ? f.revisaoDeRetencao(sequenciaId) : Promise.resolve(null)),
+    [sequenciaId],
+  )
+  const [erroDaRetencao, setErroDaRetencao] = useState<string | null>(null)
   const [dialogoAtivacaoAberto, setDialogoAtivacaoAberto] = useState(false)
   const [agendaConfirmada, setAgendaConfirmada] = useState(false)
   const [passosMarcados, setPassosMarcados] = useState<string[]>([])
@@ -522,6 +528,29 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       status: 'ativa',
       motivoPause: undefined,
     })
+  }
+
+  async function handleDecidirRetencao(decisao: 'pause' | 'continue') {
+    if (!revisao || !fonteDeSequencias.decidirRetencao) return
+    setErroDaRetencao(null)
+    try {
+      const resultado = await fonteDeSequencias.decidirRetencao({
+        sequenciaId: sequencia!.id,
+        decisao,
+        versao: revisao.versao,
+        respostasRevisadas: revisao.pendentes.map((item) => item.id),
+      })
+      if (resultado.outcome === 'stale') {
+        setErroDaRetencao('Chegou outra resposta. Revise o conjunto atual antes de continuar.')
+      } else if (resultado.outcome === 'reviewed_other_hold') {
+        setErroDaRetencao('As respostas foram revistas, mas outra pausa da Conta continua valendo.')
+      }
+    } catch (erro) {
+      setErroDaRetencao(erro instanceof Error ? erro.message : 'Não foi possível registrar a decisão.')
+    } finally {
+      recarregarRevisao()
+      recarregar()
+    }
   }
 
   async function handleMarcarReuniao() {
@@ -874,11 +903,37 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             <span className="text-xs text-al-muted">
               Regra do produto: qualquer resposta de qualquer Contato (positiva ou negativa) pausa a sequência inteira da empresa.
             </span>
+            {revisao?.aberta && (
+              <RevisaoDaRetencao revisao={revisao} erro={erroDaRetencao} />
+            )}
           </div>
         </div>
 
         {/* Ações da regra de pause quando pausada; com a Conta arquivada, só restaurar a Conta libera a retomada */}
-        {sequencia.status === 'pausada' && !sequencia.pausadaPelaConta && (
+        <div className="flex items-center gap-2 shrink-0">
+          {revisao?.aberta && revisao.podeDecidir && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleDecidirRetencao('pause')}
+                className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
+              >
+                Pausar abordagem
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleDecidirRetencao('continue')}
+                className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
+              >
+                Continuar envios da Conta
+              </Button>
+            </>
+          )}
+          {sequencia.status === 'pausada' && !sequencia.pausadaPelaConta && !revisao?.aberta && (
           <div className="flex items-center gap-2 shrink-0">
             {/* canais-11: a Conta remetente caiu. Reconectar não retoma; depois, a pessoa retoma quando quiser. */}
             {sequencia.pausadaPelaContaRemetente && (
@@ -908,7 +963,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               Marcar reunião
             </Button>}
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Configurações da Sequência (seq-settings): Participantes e Janela padrão */}
@@ -2456,6 +2512,32 @@ function MiniaturaDoAnexo({
     >
       <img src={url} alt={anexo.nome} className="h-32 max-w-[240px] object-contain" />
     </button>
+  )
+}
+
+/** As respostas que retêm a Conta, dentro do bloco de pause. Sem conteúdo para quem não é o titular. */
+function RevisaoDaRetencao({ revisao, erro }: { revisao: RevisaoDeRetencao; erro: string | null }) {
+  const rotulo = revisao.estado === 'pausa_decidida' ? 'Pausa decidida' : 'Retenção preventiva'
+  return (
+    <div className="mt-2 flex flex-col gap-1.5" aria-label="Revisão das respostas pendentes">
+      <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">{rotulo}</span>
+      <p className="text-xs text-al-muted">
+        {revisao.podeLerConteudo
+          ? 'Revise as respostas pendentes juntas. Continuar vale só para este conjunto; uma resposta nova não libera com esta confirmação. A análise da IA não é necessária.'
+          : `${revisao.pendentes.length === 1 ? '1 resposta pendente' : `${revisao.pendentes.length} respostas pendentes`}. Só o Vendedor responsável lê o conteúdo e decide.`}
+      </p>
+      {revisao.podeLerConteudo && revisao.pendentes.map((item) => (
+        <p key={item.id} className="text-sm text-al-ink">
+          {`${item.de ?? 'Contato'}${item.assunto ? `: ${item.assunto}` : item.trecho ? `: ${item.trecho}` : ''}`}
+        </p>
+      ))}
+      {revisao.podeLerConteudo && revisao.decisoes.length > 0 && (
+        <p className="text-xs text-al-muted">
+          {revisao.decisoes.length === 1 ? '1 decisão registrada' : `${revisao.decisoes.length} decisões registradas`}
+        </p>
+      )}
+      {erro && <p role="alert" className="text-xs text-al-atencao">{erro}</p>}
+    </div>
   )
 }
 

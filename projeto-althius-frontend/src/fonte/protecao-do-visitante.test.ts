@@ -37,6 +37,16 @@ describe('Workspace visitante: as ações pagas abrem o modal e recusam', () => 
     expect(aoBloquear).toHaveBeenCalledTimes(2)
   })
 
+  it('a retenção por resposta: o visitante lê a revisão, mas não pausa nem continua a Conta', async () => {
+    const { ambiente, aoBloquear, original } = ambienteProtegido()
+    const decidir = vi.spyOn(original.fonteDeSequencias, 'decidirRetencao' as never)
+    await expect(
+      ambiente.fonteDeSequencias.decidirRetencao!({ sequenciaId: 'sequencia', decisao: 'continue', versao: 1, respostasRevisadas: [] }),
+    ).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
+    expect(aoBloquear).toHaveBeenCalledTimes(1)
+    expect(decidir).not.toHaveBeenCalled()
+  })
+
   it('ler continua livre: a Demonstração mostra os dados que já existem', async () => {
     const { ambiente, aoBloquear } = ambienteProtegido()
     expect((await ambiente.fonteDeContas.contas()).length).toBeGreaterThan(0)

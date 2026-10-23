@@ -32,6 +32,7 @@ export type BlockedOutcome =
   | 'weekly_cap'
   | 'contact_suppressed'
   | 'missing_variable'
+  | 'account_retained'
 
 export interface ReleasedSend {
   outcome: 'released'
@@ -137,6 +138,7 @@ export const BLOCKED_MESSAGES: Record<BlockedOutcome, string> = {
   contact_suppressed: 'Este Contato se descadastrou e não recebe mais e-mails deste Workspace. O passo foi cancelado.',
   missing_variable:
     'O passo usa uma variável que este Contato ou a Conta-alvo não tem preenchida. Preencha o dado ou ajuste o texto e reconfirme o passo.',
+  account_retained: 'Uma resposta desta Conta está em revisão. Nada sai até o Vendedor responsável decidir.',
 }
 
 export type StepSendResult =

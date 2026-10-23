@@ -180,8 +180,39 @@ export interface ResumoPublicoSequencia {
   atualizadaEm?: string
 }
 
-/**
- * O Resultado dos Envios do Workspace por canal e segmento da Conta (motor-hermes 03): quantos Envios saíram e quantos
+export interface RespostaPendenteDeRetencao {
+  id: string
+  canal?: CanalStep
+  contatoId?: string
+  recebidaEm: string
+  assunto?: string
+  trecho?: string
+  de?: string
+}
+
+export interface DecisaoDeRetencaoRegistrada {
+  decisao: 'pause' | 'continue'
+  versao: number
+  criadaEm: string
+}
+
+/** Estado consultável da retenção. Conteúdo só quando podeLerConteudo. */
+export interface RevisaoDeRetencao {
+  aberta: boolean
+  estado: 'nenhuma' | 'preventiva' | 'pausa_decidida'
+  versao: number
+  pendentes: RespostaPendenteDeRetencao[]
+  decisoes: DecisaoDeRetencaoRegistrada[]
+  podeLerConteudo: boolean
+  podeDecidir: boolean
+}
+
+export interface ResultadoDaDecisaoDeRetencao {
+  outcome: 'paused' | 'continued' | 'reviewed_other_hold' | 'stale' | 'not_open'
+  versao: number
+}
+
+/** O Resultado dos Envios do Workspace por canal e segmento da Conta (motor-hermes 03): quantos Envios saíram e quantos
  * tiveram resposta, resposta positiva, reunião e oportunidade. Positiva conta reunião e oportunidade; negativa só conta
  * como resposta. Só números: nenhum texto de mensagem.
  */
@@ -457,6 +488,20 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Resolve um envio incerto que o provedor não confirmou: o titular diz se ele saiu. */
   resolverIncerto(sequenciaId: string, stepId: string, saiu: boolean): Promise<void>
+
+  /**
+   * Revisão conjunta das respostas que retêm a Conta. Sem o método, a tela não oferece a decisão.
+   * Outro participante recebe o estado sem conteúdo.
+   */
+  revisaoDeRetencao?(sequenciaId: string): Promise<RevisaoDeRetencao>
+
+  /** Pausa ou continua a Conta inteira para o conjunto revisado. Não escolhe Contatos e não chama IA. */
+  decidirRetencao?(pedido: {
+    sequenciaId: string
+    decisao: 'pause' | 'continue'
+    versao: number
+    respostasRevisadas: string[]
+  }): Promise<ResultadoDaDecisaoDeRetencao>
 
   /**
    * Templates da Althius: estruturas sem Contato, destino ou histórico. O Cliente lê; não edita o original.

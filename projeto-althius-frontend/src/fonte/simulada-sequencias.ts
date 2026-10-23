@@ -9,7 +9,10 @@ import {
   type FonteDeSequencias,
   type MetricasDemoSequencia,
   type NovaSequencia,
+  type RespostaPendenteDeRetencao,
+  type ResultadoDaDecisaoDeRetencao,
   type ResumoPublicoSequencia,
+  type RevisaoDeRetencao,
   type Sequencia,
   type StepSequencia,
   type TaxaDosEnvios,
@@ -58,6 +61,15 @@ export interface OpcoesFonteDeSequenciasSimulada {
 export interface FonteDeSequenciasSimulada extends FonteDeSequencias {
   definirFalha(falha: boolean): void
   definirVazia(vazia: boolean): void
+  /** Registra uma resposta correlacionada e retém a Conta, sem IA. Duplicata do mesmo evento não reabre. */
+  registrarRespostaCorrelacionada(pedido: {
+    sequenciaId: string
+    eventoId: string
+    contatoId?: string
+    de?: string
+    assunto?: string
+    trecho?: string
+  }): Promise<RevisaoDeRetencao>
 }
 
 /**
@@ -70,6 +82,14 @@ export function criarFonteDeSequenciasSimulada(
   const CHAVE_STORAGE = 'althius:sequencias:v1'
   let { atrasoMs = 0, hoje = new Date(), falha = false, vazia = false, armazenamento } = opcoes
   const ouvintes = new Set<() => void>()
+  const retencoes = new Map<string, {
+    versao: number
+    aberta: boolean
+    estado: 'preventiva' | 'pausa_decidida'
+    abertaEm: string
+    respostas: Array<RespostaPendenteDeRetencao & { eventoId: string; criadaEm: string }>
+    decisoes: RevisaoDeRetencao['decisoes']
+  }>()
 
   let dados: Sequencia[] = vazia ? [] : criarSequenciasIniciais(hoje)
   let templatesProprios: TemplateProprio[] = []
@@ -98,6 +118,33 @@ export function criarFonteDeSequenciasSimulada(
   function notificar(): void {
     for (const ouvinte of ouvintes) {
       ouvinte()
+    }
+  }
+
+  function revisaoDe(id: string, podeLerConteudo: boolean): RevisaoDeRetencao {
+    const hold = retencoes.get(id)
+    if (!hold || !hold.aberta) {
+      return {
+        aberta: false,
+        estado: 'nenhuma',
+        versao: hold?.versao ?? 0,
+        pendentes: [],
+        decisoes: podeLerConteudo ? (hold?.decisoes ?? []) : [],
+        podeLerConteudo,
+        podeDecidir: podeLerConteudo,
+      }
+    }
+    const pendentes = hold.respostas.filter((r) => r.criadaEm >= hold.abertaEm)
+    return {
+      aberta: true,
+      estado: hold.estado,
+      versao: hold.versao,
+      pendentes: pendentes.map((r) => podeLerConteudo
+        ? { id: r.id, contatoId: r.contatoId, recebidaEm: r.recebidaEm, assunto: r.assunto, trecho: r.trecho, de: r.de, canal: r.canal }
+        : { id: r.id, recebidaEm: r.recebidaEm }),
+      decisoes: podeLerConteudo ? hold.decisoes : [],
+      podeLerConteudo,
+      podeDecidir: podeLerConteudo,
     }
   }
 
@@ -193,6 +240,18 @@ export function criarFonteDeSequenciasSimulada(
       }
 
       const atual = dados[indice]
+      // Retomar explicitamente é a decisão "continuar" do Vendedor responsável: fecha a retenção e fica registrada.
+      const retencaoAberta = retencoes.get(id)
+      if (atualizacao.status === 'ativa' && atual.status !== 'ativa' && retencaoAberta?.aberta) {
+        if (atual.responsavel === false) {
+          throw new Error('Há respostas pendentes nesta Conta. Revise o conjunto atual antes de continuar.')
+        }
+        retencaoAberta.aberta = false
+        retencaoAberta.decisoes = [
+          { decisao: 'continue', versao: retencaoAberta.versao, criadaEm: hoje.toISOString() },
+          ...retencaoAberta.decisoes,
+        ]
+      }
       validarStepsAlteradosOuNovos(atualizacao.steps, atual.steps)
       const novosParticipantes = atualizacao.participantesIds
         ? [...atualizacao.participantesIds]
@@ -263,6 +322,99 @@ export function criarFonteDeSequenciasSimulada(
     async respostasRecebidas() {
       await aguardar()
       return []
+    },
+    async revisaoDeRetencao(sequenciaId) {
+      await aguardar()
+      const encontrada = dados.find((s) => s.id === sequenciaId)
+      return revisaoDe(sequenciaId, encontrada?.responsavel !== false)
+    },
+    async decidirRetencao(pedido): Promise<ResultadoDaDecisaoDeRetencao> {
+      await aguardar()
+      const indice = dados.findIndex((s) => s.id === pedido.sequenciaId)
+      const hold = retencoes.get(pedido.sequenciaId)
+      if (indice === -1 || !hold?.aberta) return { outcome: 'not_open', versao: hold?.versao ?? 0 }
+      const pendentes = hold.respostas.filter((r) => r.criadaEm >= hold.abertaEm).map((r) => r.id)
+      const mesmoConjunto = pendentes.length === pedido.respostasRevisadas.length
+        && pendentes.every((id) => pedido.respostasRevisadas.includes(id))
+      if (hold.versao !== pedido.versao || !mesmoConjunto) {
+        return { outcome: 'stale', versao: hold.versao }
+      }
+      const agora = hoje.toISOString()
+      if (pedido.decisao === 'pause') {
+        hold.estado = 'pausa_decidida'
+        hold.decisoes = [{ decisao: 'pause', versao: hold.versao, criadaEm: agora }, ...hold.decisoes]
+        const atual = dados[indice]
+        if (atual.motivoPause !== 'Descadastro') {
+          dados[indice] = { ...atual, status: 'pausada', motivoPause: 'Pausa decidida após resposta', atualizadaEm: agora }
+        }
+        notificar()
+        return { outcome: 'paused', versao: hold.versao }
+      }
+      hold.aberta = false
+      hold.decisoes = [{ decisao: 'continue', versao: hold.versao, criadaEm: agora }, ...hold.decisoes]
+      const atual = dados[indice]
+      const motivoDeResposta = atual.motivoPause === 'Contato respondeu' || atual.motivoPause === 'Pausa decidida após resposta'
+      if (!atual.pausadaPelaConta && !atual.pausadaPelaContaRemetente) {
+        dados[indice] = {
+          ...atual,
+          status: 'ativa',
+          motivoPause: motivoDeResposta ? undefined : atual.motivoPause,
+          atualizadaEm: agora,
+        }
+      }
+      notificar()
+      return {
+        outcome: atual.pausadaPelaConta || atual.pausadaPelaContaRemetente ? 'reviewed_other_hold' : 'continued',
+        versao: hold.versao,
+      }
+    },
+    async registrarRespostaCorrelacionada(pedido) {
+      await aguardar()
+      const indice = dados.findIndex((s) => s.id === pedido.sequenciaId)
+      if (indice === -1) throw new Error(`Sequência "${pedido.sequenciaId}" não encontrada`)
+      const agora = hoje.toISOString()
+      const hold = retencoes.get(pedido.sequenciaId) ?? {
+        versao: 0,
+        aberta: false,
+        estado: 'preventiva' as const,
+        abertaEm: agora,
+        respostas: [],
+        decisoes: [],
+      }
+      if (!hold.respostas.some((r) => r.eventoId === pedido.eventoId)) {
+        if (hold.aberta) {
+          hold.versao += 1
+          hold.estado = 'preventiva'
+        } else {
+          hold.versao += 1
+          hold.aberta = true
+          hold.estado = 'preventiva'
+          hold.abertaEm = agora
+        }
+        hold.respostas.push({
+          id: `resposta-${pedido.eventoId}`,
+          eventoId: pedido.eventoId,
+          contatoId: pedido.contatoId,
+          de: pedido.de,
+          assunto: pedido.assunto,
+          trecho: pedido.trecho,
+          canal: 'email',
+          recebidaEm: agora,
+          criadaEm: agora,
+        })
+        const atual = dados[indice]
+        if (atual.motivoPause !== 'Descadastro' && !atual.pausadaPelaConta) {
+          dados[indice] = {
+            ...atual,
+            status: 'pausada',
+            motivoPause: atual.motivoPause === 'Pausa decidida após resposta' ? 'Contato respondeu' : (atual.motivoPause ?? 'Contato respondeu'),
+            atualizadaEm: agora,
+          }
+        }
+        retencoes.set(pedido.sequenciaId, hold)
+        notificar()
+      }
+      return revisaoDe(pedido.sequenciaId, true)
     },
     async urlDoAnexo() {
       throw new Error('Na Demonstração não há anexos recebidos.')
