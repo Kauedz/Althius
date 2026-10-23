@@ -4,6 +4,7 @@ import { MONITORAMENTOS_INICIAIS, SINAIS_MOCK, publicoInicial } from '@/paginas/
 import { foiDisparado, parseDataDisparo } from '@/fonte/regras-sinais'
 import type { FonteDeContas } from './contas-tipos'
 import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
+import { ErroDaRodada, type AchadoDaRodada, type HistoricoDeRodadas, type PedidoDeRodada, type PreviaDaRodada } from './rodadas-do-sinal'
 import { TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import type {
   CardSobPedido,
@@ -73,6 +74,8 @@ export function criarFonteDeSinaisSimulada(
 
   let sinais: SinalEncontrado[] = vazia ? [] : [...SINAIS_MOCK]
   let pedidos: PedidoDeSinal[] = []
+  // O Rodar agora da Demonstração: o pedido fica "na fila" (nada roda de verdade) e as Rodadas são as fixas.
+  let pedidosDeRodada: (PedidoDeRodada & { monitoramentoId: string })[] = []
 
   function notificar(): void {
     for (const ouvinte of ouvintes) {
@@ -425,6 +428,39 @@ export function criarFonteDeSinaisSimulada(
       return Promise.resolve(false)
     },
 
+    // A Rodada da Demonstração é fixa: a prévia, o histórico e os achados são sempre os mesmos, e nada é cobrado nem roda.
+    async previaDaRodada(): Promise<PreviaDaRodada> {
+      await aguardar()
+      return { ...PREVIA_DA_DEMONSTRACAO }
+    },
+
+    async rodarAgora(monitoramentoId: string): Promise<void> {
+      await aguardar()
+      if (pedidosDeRodada.some((p) => p.monitoramentoId === monitoramentoId)) throw new ErroDaRodada('ja_na_fila')
+      pedidosDeRodada = [...pedidosDeRodada, {
+        id: `pedido-demo-${pedidosDeRodada.length + 1}`,
+        monitoramentoId,
+        estado: 'pendente',
+        pedidoEm: hoje.toISOString(),
+        ateCreditos: PREVIA_DA_DEMONSTRACAO.ateCreditos,
+        rodadaId: null,
+      }]
+      notificar()
+    },
+
+    async rodadas(monitoramentoId: string): Promise<HistoricoDeRodadas> {
+      await aguardar()
+      return {
+        rodadas: vazia ? [] : [{ ...RODADA_DA_DEMONSTRACAO }],
+        pedidos: pedidosDeRodada.filter((p) => p.monitoramentoId === monitoramentoId).map(({ monitoramentoId: _, ...p }) => p),
+      }
+    },
+
+    async achadosDaRodada(rodadaId: string): Promise<AchadoDaRodada[]> {
+      await aguardar()
+      return rodadaId === RODADA_DA_DEMONSTRACAO.id ? ACHADOS_DA_DEMONSTRACAO.map((a) => ({ ...a })) : []
+    },
+
     // O Plano da Demonstração é fixo: a IA não roda aqui, e o Briefing não muda o que volta (só as Contas escolhidas).
     async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
       await aguardar()
@@ -474,3 +510,51 @@ function planoFixoDaDemonstracao(contaIds: string[]): PlanoDoSinal {
   }
 }
 
+
+const PREVIA_DA_DEMONSTRACAO: PreviaDaRodada = {
+  contas: 12, contasSemDado: 0, creditosPorConta: 2, ateCreditos: 24, saldo: 180, ilimitado: false, bloqueio: null,
+}
+
+const RODADA_DA_DEMONSTRACAO = {
+  id: 'rodada-demo-1',
+  origem: 'manual' as const,
+  estado: 'concluida' as const,
+  iniciadaEm: '2026-10-20T13:00:00.000Z',
+  terminouEm: '2026-10-20T13:04:00.000Z',
+  contasNoEscopo: 12,
+  contasVerificadas: 12,
+  contasSemDado: 0,
+  sinaisNovos: 2,
+  sinaisRepetidos: 0,
+  creditos: 24,
+  motivoDaParada: 'concluida' as const,
+  versaoDoPlano: 1,
+  observacao: null,
+}
+
+const ACHADOS_DA_DEMONSTRACAO: AchadoDaRodada[] = [
+  {
+    id: 'achado-demo-1',
+    contaId: 'nubank',
+    contaNome: 'Nubank',
+    tipo: 'vaga_linkedin',
+    frase: 'Abriu vaga: Head de RevOps',
+    data: '2026-10-18T10:00:00.000Z',
+    fonte: 'LinkedIn',
+    evidencia: 'https://exemplo.com.br/vagas/head-de-revops',
+    situacao: 'novo',
+    porQue: 'Combina com o Plano: Abertura de vagas (função: RevOps e GTM; em Brasil; período: Últimos 30 dias)',
+  },
+  {
+    id: 'achado-demo-2',
+    contaId: 'stripe',
+    contaNome: 'Stripe',
+    tipo: 'vaga_linkedin',
+    frase: 'Abriu vaga: Analista de GTM',
+    data: '2026-10-19T09:00:00.000Z',
+    fonte: 'LinkedIn',
+    evidencia: 'https://exemplo.com.br/vagas/analista-de-gtm',
+    situacao: 'novo',
+    porQue: 'Combina com o Plano: Abertura de vagas (função: RevOps e GTM; em Brasil; período: Últimos 30 dias)',
+  },
+]

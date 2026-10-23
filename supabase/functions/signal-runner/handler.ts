@@ -7,6 +7,12 @@
 // fila de buscas da reativação (ticket 08): a busca do clique numa Conta e a mensal automática varrem uma Conta com todos
 // os Monitoramentos ativos do Workspace, e vêm antes dos Monitoramentos do relógio. Banco, Apify e relógio entram por
 // injeção, para o teste ir do token à resposta sem rede.
+//
+// Rodar agora e o registro da Rodada (agente-de-sinal 02): a fila de pedidos manuais (`private.signal_run_requests`) é lida
+// depois das buscas e antes dos Monitoramentos do relógio; o pedido roda o Plano do Monitoramento só nas Contas do escopo, com
+// a varredura em modo manual (cobra crédito, respeita o saldo e os limites, não consome o Teto de automação). Toda Rodada,
+// agendada ou manual, grava uma linha (`abrirRodada`/`somarRodada`), e uma Rodada que continua na chamada seguinte usa a
+// mesma. O motivo da parada vira um código estável (`MotivoDaRodada`); a frase continua igual no Monitoramento e no log.
 import { gravarCustoDaExecucao } from '../_shared/apify-ambiente.ts'
 import type { PedidoDeCascata, ResultadoDaCascata } from '../_shared/cascata-de-sinais/tipos.ts'
 import { CASCATA_DO_MERCADO, CREDITOS_POR_RODADA_NO_MERCADO } from '../_shared/cascata-de-sinais/passos/vagas-mercado.ts'
@@ -123,6 +129,51 @@ function montarEntrada(
 export type MotivoDeParada = 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido' | 'contrato_inativo'
 export type ResultadoDaAbertura = 'go' | 'resume' | 'done' | 'skip' | MotivoDeParada
 
+/** Por que uma Rodada parou, em código estável (`private.signal_monitor_runs.stop_reason`). A tela escreve a frase. */
+export type MotivoDaRodada = 'sem_creditos' | 'teto' | 'contrato_inativo' | 'prazo' | 'concluida' | 'erro'
+
+const MOTIVO_DA_RODADA: Record<MotivoDeParada, MotivoDaRodada> = {
+  no_credits: 'sem_creditos',
+  confirmar: 'teto',
+  sem_teto: 'teto',
+  teto_atingido: 'teto',
+  contrato_inativo: 'contrato_inativo',
+}
+
+/** O que uma chamada do runner soma à Rodada aberta. */
+export interface ResumoDaRodada {
+  /** As Contas que a fonte verificou de fato (não conta a Conta sem dado nem a que falhou). */
+  verificadas?: number
+  novos?: number
+  repetidos?: number
+  /** As Contas que o adaptador pulou por falta de dado: não são cobradas. */
+  semDado?: number
+  /** As reservas de crédito que esta chamada liquidou; o banco soma o que elas custaram. */
+  reservas?: string[]
+  /** Créditos cobrados por fora das reservas por Conta (a cascata reserva por rodada). */
+  creditos?: number
+  motivo?: MotivoDaRodada
+}
+
+/** Como o motor de cascata terminou, em código estável da Rodada. */
+function motivoDaCascata(desfecho: string): MotivoDaRodada {
+  switch (desfecho) {
+    case 'concluida':
+    case 'ja_rodou_hoje':
+    case 'ja_concluida':
+      return 'concluida'
+    case 'parcial':
+      return 'prazo'
+    case 'sem_creditos':
+      return 'sem_creditos'
+    case 'automatico_parado':
+    case 'limite_diario':
+      return 'teto'
+    default:
+      return 'erro'
+  }
+}
+
 /**
  * Workspace ilimitado com reserva já feita: confirmar, sem teto e teto atingido não param a varredura.
  * contrato_inativo continua parando: o ilimitado não recebe esse desfecho do banco.
@@ -138,7 +189,17 @@ export interface Db {
   claim(limit: number): Promise<MonitorReivindicado[]>
   actorForType(signalType: string): Promise<ActorDoRegistro | null>
   /** begin_account_scan: reserva o crédito e confere o teto, de uma vez e sem deixar rastro quando recusa. */
-  beginScan(args: { workspaceId: string; userId: string | null; monitorId: string; accountId: string; slot: string }): Promise<{
+  beginScan(args: {
+    workspaceId: string
+    userId: string | null
+    monitorId: string
+    accountId: string
+    slot: string
+    /** `manual` é o Rodar agora: cobra crédito e não consome o Teto de automação. Ausente é `agenda`. */
+    origem?: 'agenda' | 'manual'
+    /** O pedido do Rodar agora: com o Monitoramento e a Conta, identifica a cobrança. */
+    pedidoId?: string
+  }): Promise<{
     outcome: ResultadoDaAbertura
     reservationId: string | null
   }>
@@ -154,10 +215,19 @@ export interface Db {
     firedAt: string
     source: string | null
     evidence: string | null
+    /** A Rodada que achou o Sinal (nova ou vista de novo). Sem ela, o Sinal é gravado como sempre. */
+    runId?: string | null
   }): Promise<boolean>
   recordCost(args: { workspaceId: string; actorId: string; runId: string; items: number; costUsd: number | null }): Promise<void>
   /** finish_signal_monitor_run: `attempted` são as Contas que a rodada tentou (a rotação avança por elas); `continuar` pede a próxima rodada já. */
   finish(monitorId: string, attempted: number, error: string | null, continuar: boolean): Promise<void>
+  /**
+   * Abre a Rodada (ou devolve a que já está aberta: a continuação da agendada, a do pedido manual). Sem este método, a
+   * Rodada não é registrada. Uma falha ao registrar nunca derruba a varredura.
+   */
+  abrirRodada?(args: { monitorId: string; slot: string; pedidoId?: string }): Promise<string>
+  /** Soma o que a chamada fez à Rodada e diz por que parou. */
+  somarRodada?(rodadaId: string, resumo: ResumoDaRodada): Promise<void>
   /** Créditos ilimitados neste Workspace. Ausente, ou falha de leitura, trata como limitado. */
   creditsUnlimited?(workspaceId: string): Promise<boolean>
   /** As fotos de headcount (PR-8). Sem elas, os adaptadores com contexto não rodam com estado. */
@@ -201,6 +271,29 @@ export interface Buscas {
   kick(): Promise<void>
 }
 
+/** Um pedido do Rodar agora, reivindicado da fila: as Contas do escopo, a partir de onde a rotação parou. */
+export interface PedidoManual {
+  pedidoId: string
+  workspaceId: string
+  monitorId: string
+  signalType: string
+  criteria: Record<string, unknown>
+  /** Quem pediu e ainda participa do Workspace; nulo quando saiu (o crédito é do Workspace). */
+  requestedBy: string | null
+  /** A hora do pedido: com o Monitoramento e a Conta, identifica a Rodada. */
+  requestedAt: string
+  accounts: ContaParaVarrer[]
+}
+
+/** A fila de pedidos do Rodar agora no banco. */
+export interface Manuais {
+  claim(limit: number): Promise<PedidoManual[]>
+  /** finish_signal_run_request: `pendente` solta a reserva e continua depois; `feita` e `falhou` encerram o pedido e a Rodada. */
+  finish(pedidoId: string, estado: 'pendente' | 'feita' | 'falhou', tentadas: number, erro: string | null): Promise<void>
+  /** Chama o relógio de novo: o pedido que não coube no tempo da função continua sem esperar a próxima volta. */
+  kick?(): Promise<void>
+}
+
 /**
  * O motor de cascata de Sinais (um Sinal = uma cascata de passos, sinais em cascata): o Monitoramento de um tipo de Sinal
  * que é cascata roda uma vez por rodada, pelo MESMO motor da conversa do Hermes, e não pelo caminho de uma varredura por
@@ -230,6 +323,8 @@ export interface Deps {
   cascatas?: Cascatas
   /** A fila de buscas; sem ela, a função cuida só dos Monitoramentos. */
   buscas?: Buscas
+  /** A fila do Rodar agora; sem ela, a função não atende pedido manual. */
+  manuais?: Manuais
   /** Guarda a estatística de comércio exterior do mês. O corpo `{ action: 'aquecer' }` usa isto e não reivindica Monitoramento. */
   aquecer?: () => Promise<ResultadoDoAquecimento>
   /** O modelo de linguagem dos Sinais (`SIGNALS_LLM_PROVIDER`), para os adaptadores que classificam texto (PR-8). */
@@ -242,6 +337,7 @@ const MONITORES_POR_CHAMADA = 5
 // O tempo da função é de 150 s; a cascata de um Monitoramento termina antes disto (a partir do início da chamada).
 const PRAZO_DA_CASCATA_EM_MS = 140_000
 const BUSCAS_POR_CHAMADA = 5
+const PEDIDOS_POR_CHAMADA = 3
 // O tempo da Edge Function é de 150 s. Uma Conta nova só começa até este prazo; o cliente do Apify desta função espera no
 // máximo 70 s por Conta, mais 3 s para reler o custo (index.ts), então a última termina antes do limite. O que faltar fica
 // para a rodada seguinte.
@@ -267,6 +363,14 @@ const MOTIVO_DA_BUSCA_PARADA: Record<MotivoDeParada, string> = {
   no_credits: 'Sem créditos ou no limite mensal de quem pediu: a busca parou.',
 }
 
+// O Rodar agora fala com quem clicou: o saldo e o limite mensal são de quem pediu, e o limite do mês volta na renovação.
+const MOTIVO_DA_PARADA_MANUAL: Record<MotivoDeParada, string> = {
+  ...MOTIVO_DA_PARADA,
+  no_credits: 'Sem créditos ou no limite mensal de quem pediu: a rodada parou.',
+  teto_atingido: 'Limite do mês atingido. Ele volta na renovação ou fale com a equipe Althius.',
+}
+const MENSAGEM_DO_PEDIDO_QUE_FALHOU = 'A rodada falhou. Tente de novo.'
+
 function responder(corpo: unknown, status = 200) {
   return new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } })
 }
@@ -284,14 +388,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const log = deps.log ?? ((campos) => console.log(JSON.stringify(campos)))
   const agora = deps.agora ?? (() => Date.now())
 
-  /** Varre uma Conta já aberta no banco. Devolve quantos Sinais achou; lança quando a varredura não pôde concluir. */
+  /**
+   * Varre uma Conta já aberta no banco. Devolve quantos Sinais achou (novos e vistos de novo); lança quando a varredura não
+   * pôde concluir. `rodadaId` liga os Sinais à Rodada que os achou.
+   */
   async function varrerConta(
     m: Pick<MonitorReivindicado, 'monitorId' | 'workspaceId' | 'signalType' | 'criteria'>,
     conta: ContaParaVarrer,
     adaptador: AdaptadorDeSinal,
     actor: ActorDoRegistro,
     { input, maxItems }: Entrada,
-  ): Promise<number> {
+    rodadaId: string | null = null,
+  ): Promise<{ novos: number; repetidos: number }> {
     const execucao = await deps.apify.run({ actorId: actor.actorId, input, maxItems, maxTotalChargeUsd: actor.maxCostUsd })
     const ctx = contextoDoAdaptador(m.workspaceId)
     let custoDoModelo = 0
@@ -301,8 +409,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       ? await adaptador.sinaisComContexto(execucao.items, conta, m.criteria, agora(), ctx)
       : adaptador.sinais(execucao.items, conta, m.criteria, agora())
     const encontrados = sinaisComDataValida(brutos, agora())
+    let novos = 0
     for (const s of encontrados) {
-      await deps.db.recordSignal({
+      const novo = await deps.db.recordSignal({
         workspaceId: m.workspaceId,
         accountId: conta.id,
         monitorId: m.monitorId,
@@ -312,7 +421,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         firedAt: s.firedAt,
         source: s.source ?? null,
         evidence: s.evidence ?? null,
+        ...(rodadaId ? { runId: rodadaId } : {}),
       })
+      if (novo !== false) novos++
     }
     await gravarCustoDaExecucao(
       {
@@ -336,7 +447,27 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         log({ type: 'signal_runner', monitorId: m.monitorId, outcome: 'cost_failed', message: String(erro) })
       }
     }
-    return encontrados.length
+    return { novos, repetidos: encontrados.length - novos }
+  }
+
+  /** Abre (ou reencontra) a Rodada no banco. O registro nunca derruba a varredura: sem ele, a Rodada segue sem linha. */
+  async function abrirRodada(args: { monitorId: string; slot: string; pedidoId?: string }): Promise<string | null> {
+    if (!deps.db.abrirRodada) return null
+    try {
+      return await deps.db.abrirRodada(args)
+    } catch (e) {
+      log({ type: 'signal_runner', monitorId: args.monitorId, outcome: 'run_open_failed', message: String(e) })
+      return null
+    }
+  }
+
+  async function somarRodada(rodadaId: string | null, resumo: ResumoDaRodada): Promise<void> {
+    if (!rodadaId || !deps.db.somarRodada) return
+    try {
+      await deps.db.somarRodada(rodadaId, resumo)
+    } catch (e) {
+      log({ type: 'signal_runner', outcome: 'run_progress_failed', message: String(e) })
+    }
   }
 
   /** O contexto dos adaptadores com estado, quando o banco tem as fotos e a contagem de vagas. */
@@ -360,7 +491,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
    * da rodada, então repetir a rodada nunca cobra nem grava duas vezes. O motivo de não ter rodado (saldo, automático em
    * "confirmar", teto, falha da fonte) volta em palavras do produto e fica no Monitoramento.
    */
-  async function varrerPorCascata(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
+  async function varrerPorCascata(
+    m: MonitorReivindicado,
+    prazo: number,
+    rodadaId: string | null,
+  ): Promise<{ scanned: number; signals: number }> {
     const r = await deps.cascatas!.rodar({
       workspaceId: m.workspaceId,
       userId: m.createdBy,
@@ -373,8 +508,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       prazoFinal: prazo - PRAZO_PARA_COMECAR_EM_MS + PRAZO_DA_CASCATA_EM_MS,
     })
     const semProblema = r.desfecho === 'concluida' || r.desfecho === 'ja_rodou_hoje' || r.desfecho === 'ja_concluida'
+    const verificadas = r.desfecho === 'concluida' || r.desfecho === 'parcial' ? m.accounts.length : 0
+    await somarRodada(rodadaId, {
+      verificadas, novos: r.novos, repetidos: r.repetidos, creditos: r.creditosCobrados, motivo: motivoDaCascata(r.desfecho),
+    })
     await deps.db.finish(m.monitorId, m.accounts.length, semProblema ? null : r.mensagem, false)
-    return { scanned: r.desfecho === 'concluida' || r.desfecho === 'parcial' ? m.accounts.length : 0, signals: r.novos }
+    return { scanned: verificadas, signals: r.novos }
   }
 
   /**
@@ -388,14 +527,24 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     m: MonitorReivindicado,
     devidas: string[],
     prazo: number,
+    rodadaId: string | null,
   ): Promise<{ scanned: number; signals: number }> {
     let sinais = 0
+    let repetidos = 0
+    let creditos = 0
     let alguma = false
+    let acabouOTempo = false
+    let falhou = false
+    let semCreditos = false
+    let teto = false
     let feitas = 0
     const problemas: string[] = []
     for (const tipo of devidas) {
       // Uma cascata nova só começa até o prazo para começar; o resto fica devido para a próxima rodada.
-      if (agora() > prazo) break
+      if (agora() > prazo) {
+        acabouOTempo = true
+        break
+      }
       feitas++
       try {
         const r = await deps.cascatas!.rodar({
@@ -411,16 +560,30 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           prazoFinal: prazo - PRAZO_PARA_COMECAR_EM_MS + PRAZO_DA_CASCATA_EM_MS,
         })
         sinais += r.novos
+        repetidos += r.repetidos
+        creditos += r.creditosCobrados
         alguma ||= r.desfecho === 'concluida' || r.desfecho === 'parcial'
+        const motivo = motivoDaCascata(r.desfecho)
+        if (motivo === 'sem_creditos') semCreditos = true
+        else if (motivo === 'teto') teto = true
+        else if (motivo === 'erro') falhou = true
         if (!(r.desfecho === 'concluida' || r.desfecho === 'ja_rodou_hoje' || r.desfecho === 'ja_concluida')) problemas.push(r.mensagem)
       } catch (e) {
         log({ type: 'signal_runner', monitorId: m.monitorId, signalType: tipo, outcome: 'cascade_failed', message: String(e) })
+        falhou = true
         problemas.push(MENSAGEM_DA_RODADA_QUE_FALHOU)
       }
     }
     const faltam = devidas.length - feitas
     if (faltam > 0) problemas.push(`Rodamos ${feitas} de ${devidas.length} fontes; as outras entram na próxima rodada.`)
     const erro = [...new Set(problemas)].join(' ')
+    await somarRodada(rodadaId, {
+      verificadas: alguma ? m.accounts.length : 0,
+      novos: sinais,
+      repetidos,
+      creditos,
+      motivo: semCreditos ? 'sem_creditos' : teto ? 'teto' : acabouOTempo && faltam > 0 ? 'prazo' : falhou ? 'erro' : 'concluida',
+    })
     await deps.db.finish(m.monitorId, m.accounts.length, erro || null, faltam > 0)
     return { scanned: alguma ? m.accounts.length : 0, signals: sinais }
   }
@@ -432,8 +595,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
    * grava duas vezes. A empresa que é Conta recebe o Sinal; o resto vira candidata da Caixa de Descobertas, com aceite
    * manual. Nada cria Conta nem Sequência e nada envia mensagem.
    */
-  async function varrerMercado(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
+  async function varrerMercado(
+    m: MonitorReivindicado,
+    prazo: number,
+    rodadaId: string | null,
+  ): Promise<{ scanned: number; signals: number }> {
     if (!deps.cascatas) {
+      await somarRodada(rodadaId, { motivo: 'erro' })
       await deps.db.finish(m.monitorId, 0, 'A busca no mercado endereçável não está disponível agora.', false)
       return { scanned: 0, signals: 0 }
     }
@@ -452,45 +620,65 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     })
     const semProblema = r.desfecho === 'concluida' || r.desfecho === 'ja_rodou_hoje' || r.desfecho === 'ja_concluida'
     log({ type: 'signal_runner', monitorId: m.monitorId, outcome: `market_${r.desfecho}`, novos: r.novos, candidatas: r.candidatas ?? 0 })
+    await somarRodada(rodadaId, { novos: r.novos, repetidos: r.repetidos, creditos: r.creditosCobrados, motivo: motivoDaCascata(r.desfecho) })
     await deps.db.finish(m.monitorId, 0, semProblema ? null : r.mensagem, false)
     return { scanned: 0, signals: r.novos }
   }
 
-  async function varrerMonitor(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
-    // O tempo já acabou nos Monitoramentos anteriores: este nem começa; solta a reserva e volta já.
-    if (agora() > prazo) {
-      await deps.db.finish(m.monitorId, 0, null, true)
-      return { scanned: 0, signals: 0 }
-    }
-    if (deps.db.escopo && (await deps.db.escopo(m.monitorId)) === 'mercado') return await varrerMercado(m, prazo)
-    if (deps.cascatas && await deps.cascatas.ehCascata(m.signalType)) return await varrerPorCascata(m, prazo)
-    const adaptador = deps.adaptadores[m.signalType]
-    const actor = adaptador ? await deps.db.actorForType(m.signalType) : null
-    // O tipo genérico do catálogo é atendido por cascatas; o tipo com actor disponível segue pelo actor, como sempre.
-    if (deps.cascatas?.planoDoMonitor && !(adaptador && actor?.state === 'available')) {
-      const plano = await deps.cascatas.planoDoMonitor(m.monitorId)
-      if (plano.disponiveis.length > 0) return await varrerPorCascatasDoTipo(m, plano.devidas, prazo)
-    }
-    if (!adaptador) {
-      await deps.db.finish(m.monitorId, 0, `Ainda não há adaptador para o Sinal ${m.signalType}.`, false)
-      return { scanned: 0, signals: 0 }
-    }
-    if (!actor || actor.state !== 'available') {
-      await deps.db.finish(m.monitorId, 0, 'A fonte de dados deste Sinal não está disponível.', false)
-      return { scanned: 0, signals: 0 }
-    }
+  /** O que uma volta pelas Contas do Plano fez. */
+  interface ResultadoDasContas {
+    tentadas: number
+    varridas: number
+    novos: number
+    repetidos: number
+    /** As Contas que o adaptador pulou por falta de dado: nada foi reservado nem cobrado por elas. */
+    semDado: number
+    erro: string | null
+    continuar: boolean
+    motivo: MotivoDaRodada
+    /** As reservas que esta volta liquidou. */
+    reservas: string[]
+  }
 
+  /**
+   * A volta pelas Contas de um Plano com actor e adaptador, a mesma na Rodada agendada e no Rodar agora: a Conta sem o dado que
+   * o actor precisa é pulada antes de abrir a varredura (nada é reservado nem cobrado); as outras abrem a varredura no banco
+   * (que reserva o crédito e, só no automático, o Teto), rodam o actor e gravam os Sinais; a que falha não é cobrada. Uma
+   * Conta nova só começa até o prazo; o que faltar fica para a chamada seguinte (`continuar`).
+   */
+  async function varrerContas(
+    v: {
+      workspaceId: string
+      monitorId: string
+      signalType: string
+      criteria: Record<string, unknown>
+      userId: string | null
+      slot: string
+      accounts: ContaParaVarrer[]
+      origem: 'agenda' | 'manual'
+      pedidoId?: string
+      rodadaId: string | null
+    },
+    adaptador: AdaptadorDeSinal,
+    actor: ActorDoRegistro,
+    prazo: number,
+  ): Promise<ResultadoDasContas> {
+    const manual = v.origem === 'manual'
+    const motivos = manual ? MOTIVO_DA_PARADA_MANUAL : MOTIVO_DA_PARADA
     let tentadas = 0
     let varridas = 0
-    let sinais = 0
+    let novos = 0
+    let repetidos = 0
     let erro: string | null = null
     let continuar = false
+    let parou: MotivoDeParada | null = null
     const falhas: string[] = []
+    const reservas: string[] = []
     const semDado = new Map<string, string[]>()
-    const ilimitado = deps.db.creditsUnlimited ? await deps.db.creditsUnlimited(m.workspaceId) : false
-    for (const conta of m.accounts) {
+    const ilimitado = deps.db.creditsUnlimited ? await deps.db.creditsUnlimited(v.workspaceId) : false
+    for (const conta of v.accounts) {
       if (agora() > prazo) {
-        erro = `Varridas ${varridas} de ${m.accounts.length} Contas; o resto na próxima rodada.`
+        erro = `Varridas ${varridas} de ${v.accounts.length} Contas; o resto na próxima rodada.`
         continuar = true
         break
       }
@@ -498,11 +686,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       // na entrada é falha só desta Conta.
       let entrada: Entrada | SemDadoParaVarrer
       try {
-        entrada = montarEntrada(adaptador, conta, m.criteria, agora())
+        entrada = montarEntrada(adaptador, conta, v.criteria, agora())
       } catch (e) {
         tentadas++
         falhas.push(conta.name)
-        log({ type: 'signal_runner', monitorId: m.monitorId, accountId: conta.id, outcome: 'input_failed', message: String(e) })
+        log({ type: 'signal_runner', monitorId: v.monitorId, accountId: conta.id, outcome: 'input_failed', message: String(e) })
         continue
       }
       if (entrada instanceof SemDadoParaVarrer) {
@@ -511,11 +699,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         continue
       }
       const aberto = await deps.db.beginScan({
-        workspaceId: m.workspaceId,
-        userId: m.createdBy,
-        monitorId: m.monitorId,
+        workspaceId: v.workspaceId,
+        userId: v.userId,
+        monitorId: v.monitorId,
         accountId: conta.id,
-        slot: m.slot,
+        slot: v.slot,
+        ...(manual ? { origem: 'manual' as const, pedidoId: v.pedidoId } : {}),
       })
       const reservationId = aberto.reservationId
       const outcome = outcomeEfetivo(aberto.outcome, ilimitado, reservationId !== null)
@@ -524,27 +713,158 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         continue
       }
       if (outcome !== 'go' && outcome !== 'resume') {
-        erro = MOTIVO_DA_PARADA[outcome]
+        parou = outcome
+        erro = motivos[outcome]
         break
       }
       tentadas++
       try {
-        sinais += await varrerConta(m, conta, adaptador, actor, entrada)
+        const achados = await varrerConta(v, conta, adaptador, actor, entrada, v.rodadaId)
+        novos += achados.novos
+        repetidos += achados.repetidos
         await deps.db.endScan(reservationId!, true)
+        reservas.push(reservationId!)
         varridas++
       } catch (e) {
         // A Conta que não pôde ser varrida não é cobrada e devolve o teto; as outras seguem.
         await deps.db.endScan(reservationId!, false).catch((f) =>
-          log({ type: 'signal_runner', monitorId: m.monitorId, outcome: 'end_failed', message: String(f) }))
+          log({ type: 'signal_runner', monitorId: v.monitorId, outcome: 'end_failed', message: String(f) }))
         falhas.push(conta.name)
-        log({ type: 'signal_runner', monitorId: m.monitorId, accountId: conta.id, outcome: 'account_failed', message: String(e) })
+        log({ type: 'signal_runner', monitorId: v.monitorId, accountId: conta.id, outcome: 'account_failed', message: String(e) })
       }
     }
     const avisos = [...semDado].map(([motivo, contas]) => `${motivo}: ${contas.join(', ')}.`)
     if (falhas.length) avisos.push(`Não foi possível varrer: ${falhas.join(', ')}.`)
     if (avisos.length) erro = [erro, ...avisos].filter(Boolean).join(' ')
-    await deps.db.finish(m.monitorId, tentadas, erro, continuar)
-    return { scanned: varridas, signals: sinais }
+    const semDadoTotal = [...semDado.values()].reduce((total, contas) => total + contas.length, 0)
+    const motivo: MotivoDaRodada = parou
+      ? MOTIVO_DA_RODADA[parou]
+      : continuar
+      ? 'prazo'
+      : varridas === 0 && falhas.length > 0
+      ? 'erro'
+      : 'concluida'
+    return { tentadas, varridas, novos, repetidos, semDado: semDadoTotal, erro, continuar, motivo, reservas }
+  }
+
+  async function varrerMonitor(m: MonitorReivindicado, prazo: number): Promise<{ scanned: number; signals: number }> {
+    // O tempo já acabou nos Monitoramentos anteriores: este nem começa; solta a reserva e volta já.
+    if (agora() > prazo) {
+      await deps.db.finish(m.monitorId, 0, null, true)
+      return { scanned: 0, signals: 0 }
+    }
+    // Toda Rodada grava uma linha; a que continua da chamada anterior usa a mesma.
+    const rodadaId = await abrirRodada({ monitorId: m.monitorId, slot: m.slot })
+    try {
+      return await varrerMonitorNaRodada(m, prazo, rodadaId)
+    } catch (e) {
+      await somarRodada(rodadaId, { motivo: 'erro' })
+      throw e
+    }
+  }
+
+  async function varrerMonitorNaRodada(
+    m: MonitorReivindicado,
+    prazo: number,
+    rodadaId: string | null,
+  ): Promise<{ scanned: number; signals: number }> {
+    if (deps.db.escopo && (await deps.db.escopo(m.monitorId)) === 'mercado') return await varrerMercado(m, prazo, rodadaId)
+    if (deps.cascatas && await deps.cascatas.ehCascata(m.signalType)) return await varrerPorCascata(m, prazo, rodadaId)
+    const adaptador = deps.adaptadores[m.signalType]
+    const actor = adaptador ? await deps.db.actorForType(m.signalType) : null
+    // O tipo genérico do catálogo é atendido por cascatas; o tipo com actor disponível segue pelo actor, como sempre.
+    if (deps.cascatas?.planoDoMonitor && !(adaptador && actor?.state === 'available')) {
+      const plano = await deps.cascatas.planoDoMonitor(m.monitorId)
+      if (plano.disponiveis.length > 0) return await varrerPorCascatasDoTipo(m, plano.devidas, prazo, rodadaId)
+    }
+    if (!adaptador) {
+      await somarRodada(rodadaId, { motivo: 'erro' })
+      await deps.db.finish(m.monitorId, 0, `Ainda não há adaptador para o Sinal ${m.signalType}.`, false)
+      return { scanned: 0, signals: 0 }
+    }
+    if (!actor || actor.state !== 'available') {
+      await somarRodada(rodadaId, { motivo: 'erro' })
+      await deps.db.finish(m.monitorId, 0, 'A fonte de dados deste Sinal não está disponível.', false)
+      return { scanned: 0, signals: 0 }
+    }
+
+    const r = await varrerContas(
+      {
+        workspaceId: m.workspaceId,
+        monitorId: m.monitorId,
+        signalType: m.signalType,
+        criteria: m.criteria,
+        userId: m.createdBy,
+        slot: m.slot,
+        accounts: m.accounts,
+        origem: 'agenda',
+        rodadaId,
+      },
+      adaptador,
+      actor,
+      prazo,
+    )
+    await somarRodada(rodadaId, {
+      verificadas: r.varridas, novos: r.novos, repetidos: r.repetidos, semDado: r.semDado, reservas: r.reservas, motivo: r.motivo,
+    })
+    await deps.db.finish(m.monitorId, r.tentadas, r.erro, r.continuar)
+    return { scanned: r.varridas, signals: r.novos + r.repetidos }
+  }
+
+  /**
+   * Um pedido do Rodar agora: roda o Plano do Monitoramento só nas Contas do escopo, com a varredura em modo manual. A
+   * cobrança é a de toda varredura (o crédito por Conta verificada, o saldo e os limites), menos o Teto de automação: o clique
+   * é a confirmação. A Rodada tem a sua linha; se o tempo da função acabar no meio, o pedido volta à fila e a Rodada continua
+   * na chamada seguinte, sem cobrar a mesma Conta duas vezes. O Monitoramento (estado e horário da próxima Rodada) não muda.
+   */
+  async function varrerPedido(
+    p: PedidoManual,
+    manuais: Manuais,
+    prazo: number,
+  ): Promise<{ scanned: number; signals: number; continua: boolean }> {
+    // O tempo já acabou nos pedidos anteriores: este nem começa e volta à fila.
+    if (agora() > prazo) {
+      await manuais.finish(p.pedidoId, 'pendente', 0, null)
+      return { scanned: 0, signals: 0, continua: false }
+    }
+    const rodadaId = await abrirRodada({ monitorId: p.monitorId, slot: p.requestedAt, pedidoId: p.pedidoId })
+    try {
+      const adaptador = deps.adaptadores[p.signalType]
+      const actor = adaptador ? await deps.db.actorForType(p.signalType) : null
+      if (!adaptador || !actor || actor.state !== 'available') {
+        await somarRodada(rodadaId, { motivo: 'erro' })
+        await manuais.finish(p.pedidoId, 'falhou', 0, 'A fonte de dados deste Sinal não está disponível.')
+        return { scanned: 0, signals: 0, continua: false }
+      }
+      const r = await varrerContas(
+        {
+          workspaceId: p.workspaceId,
+          monitorId: p.monitorId,
+          signalType: p.signalType,
+          criteria: p.criteria,
+          userId: p.requestedBy,
+          slot: p.requestedAt,
+          accounts: p.accounts,
+          origem: 'manual',
+          pedidoId: p.pedidoId,
+          rodadaId,
+        },
+        adaptador,
+        actor,
+        prazo,
+      )
+      await somarRodada(rodadaId, {
+        verificadas: r.varridas, novos: r.novos, repetidos: r.repetidos, semDado: r.semDado, reservas: r.reservas, motivo: r.motivo,
+      })
+      await manuais.finish(p.pedidoId, r.continuar ? 'pendente' : r.motivo === 'erro' ? 'falhou' : 'feita', r.tentadas, r.erro)
+      // Só chama o relógio se algo andou: um pedido que volta sem tentar nenhuma Conta espera a próxima volta, sem laço.
+      return { scanned: r.varridas, signals: r.novos + r.repetidos, continua: r.continuar && r.tentadas > 0 }
+    } catch (e) {
+      log({ type: 'signal_runner', monitorId: p.monitorId, requestId: p.pedidoId, outcome: 'run_request_failed', message: String(e) })
+      await somarRodada(rodadaId, { motivo: 'erro' })
+      await manuais.finish(p.pedidoId, 'falhou', 0, MENSAGEM_DO_PEDIDO_QUE_FALHOU).catch(() => {})
+      return { scanned: 0, signals: 0, continua: false }
+    }
   }
 
   /**
@@ -604,7 +924,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
       tentadas++
       try {
-        sinais += await varrerConta({ ...m, workspaceId: b.workspaceId }, b.account, adaptador, actor, entrada)
+        const achados = await varrerConta({ ...m, workspaceId: b.workspaceId }, b.account, adaptador, actor, entrada)
+        sinais += achados.novos + achados.repetidos
         await buscas.endScan(b.rescanId, reservationId!, true)
         varridas++
       } catch (e) {
@@ -697,6 +1018,23 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         log({ type: 'signal_runner', outcome: 'rescan_claim_failed', message: String(e) })
       }
     }
+    // Os pedidos do Rodar agora vêm depois das buscas (que são curtas) e antes dos Monitoramentos do relógio: quem clicou espera.
+    const totalDosPedidos = { count: 0, scanned: 0, signals: 0 }
+    let algumPedidoContinua = false
+    if (deps.manuais) {
+      try {
+        const fila = await deps.manuais.claim(PEDIDOS_POR_CHAMADA)
+        for (const p of fila) {
+          totalDosPedidos.count++
+          const r = await varrerPedido(p, deps.manuais, prazo)
+          totalDosPedidos.scanned += r.scanned
+          totalDosPedidos.signals += r.signals
+          algumPedidoContinua ||= r.continua
+        }
+      } catch (e) {
+        log({ type: 'signal_runner', outcome: 'run_request_claim_failed', message: String(e) })
+      }
+    }
     const monitores = await deps.db.claim(MONITORES_POR_CHAMADA)
     let scanned = 0
     let signals = 0
@@ -710,11 +1048,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         await deps.db.finish(m.monitorId, 0, MENSAGEM_DA_RODADA_QUE_FALHOU, false).catch(() => {})
       }
     }
-    log({ type: 'signal_runner', outcome: 'done', monitors: monitores.length, scanned, signals, rescans: totalDasBuscas.count })
+    log({
+      type: 'signal_runner', outcome: 'done', monitors: monitores.length, scanned, signals, rescans: totalDasBuscas.count,
+      ...(deps.manuais ? { runRequests: totalDosPedidos.count } : {}),
+    })
     // Uma busca que voltou à fila espera o relógio; chamá-lo já poupa 10 minutos a quem clicou.
     if (algumaVoltou) await deps.buscas?.kick().catch((e) => log({ type: 'signal_runner', outcome: 'kick_failed', message: String(e) }))
-    return responder(
-      deps.buscas ? { monitors: monitores.length, scanned, signals, rescans: totalDasBuscas } : { monitors: monitores.length, scanned, signals },
-    )
+    if (algumPedidoContinua) await deps.manuais?.kick?.().catch((e) => log({ type: 'signal_runner', outcome: 'kick_failed', message: String(e) }))
+    return responder({
+      monitors: monitores.length,
+      scanned,
+      signals,
+      ...(deps.buscas ? { rescans: totalDasBuscas } : {}),
+      ...(deps.manuais ? { runRequests: totalDosPedidos } : {}),
+    })
   }
 }

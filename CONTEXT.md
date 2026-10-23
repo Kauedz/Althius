@@ -160,7 +160,8 @@ Quantas Rodadas por dia o Sinal faz e em quais horários. Antes de ativar, o Cli
 _Avoid_: frequência, cron
 
 **Rodada**:
-Cada vez que o Plano aprovado de um Sinal roda: **agendada**, no horário da Agenda, ou **Rodar agora**, por clique de uma pessoa. Cada Rodada gasta créditos e fica registrada. Não é uma Execução de Agente nem uma Busca de Sinais (a da reativação, numa Conta).
+Cada vez que o Plano aprovado de um Sinal roda: **agendada**, no horário da Agenda, ou **Rodar agora**, por clique de uma pessoa. Cada Rodada gasta créditos e fica registrada, sem exceção: a origem (agendada ou manual), a versão do Plano, quando começou e terminou, quantas Contas foram verificadas (e quantas ficaram de fora por falta de dado), quantos Sinais novos e repetidos, quantos créditos gastou e, se parou antes, por que parou (acabaram os créditos, limite do mês, contrato inativo, tempo da função, erro). Uma Rodada que não cabe numa chamada do `signal-runner` continua na seguinte, na mesma linha do registro, sem cobrar a mesma Conta duas vezes. O que a Rodada achou aparece como **Sinais encontrados**, cada um com a Conta, a evidência e o "por que apareceu" (o critério do Plano que bateu). Não é uma Execução de Agente nem uma Busca de Sinais (a da reativação, numa Conta).
+**Rodar agora** pede uma Rodada manual do Plano salvo, só nas Contas do escopo, e começa em até 10 minutos (o relógio de sempre). Antes de pedir, a pessoa vê a prévia em créditos (as Contas, o máximo e o saldo). A Rodada manual cobra créditos por Conta verificada e respeita o saldo, o limite do contrato e o limite mensal de quem pediu; a Conta sem dado suficiente não é cobrada, e a Rodada sem novidade cobra o que verificou. Só uma Rodada manual por Monitoramento fica na fila, e há um intervalo mínimo entre duas (2 horas, **padrão em uso, ainda pendente**, ADR-0032 decisão 3). Rodar agora não exige nem consome o Teto de automação (**padrão em uso, ainda pendente**, ADR-0032 decisão 4).
 _Avoid_: varredura (é o termo técnico por Conta), disparo
 
 **Modelo de Sinal**:
@@ -211,7 +212,7 @@ Quantos Créditos uma Rodada de Sinal gasta. A cobrança é por Rodada (decidida
 _Avoid_: tarifa, mensalidade do Sinal
 
 **Teto**:
-O limite mensal de Créditos que uma ação automática pode gastar. Nada automático roda sem Teto; ao atingi-lo, a ação volta a pedir confirmação até o próximo ciclo. A Rodada agendada é automática, então o Teto mensal vale para ela. Se "Rodar agora" (clique de uma pessoa) também exige Teto está em aberto na ADR-0032; enquanto isso, o Teto mensal vale para o automático. O teto diário por Sinal é outro limite, do Preço por rodada, e não substitui o Teto mensal.
+O limite mensal de Créditos que uma ação automática pode gastar. Nada automático roda sem Teto; ao atingi-lo, a ação volta a pedir confirmação até o próximo ciclo. A Rodada agendada é automática, então o Teto mensal vale para ela. "Rodar agora" (clique de uma pessoa) não exige nem consome o Teto, como o "Buscar Sinais de novo" manual: é o padrão em uso, mas a decisão segue em aberto na ADR-0032 (decisão 4) e está isolada num lugar só do banco. Gasta créditos e respeita o saldo e os limites sempre. O teto diário por Sinal é outro limite, do Preço por rodada, e não substitui o Teto mensal.
 _Avoid_: orçamento, budget
 
 **Observador**:

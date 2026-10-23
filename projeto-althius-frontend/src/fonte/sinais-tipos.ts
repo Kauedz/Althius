@@ -1,6 +1,7 @@
 import type { PerfilFirmografico } from '@/paginas/sinais/perfil'
 import type { FonteObservavel } from './tipos'
 import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
+import type { AchadoDaRodada, HistoricoDeRodadas, PreviaDaRodada } from './rodadas-do-sinal'
 
 export type Origem = 'externo' | 'interno' | 'originado'
 
@@ -261,6 +262,24 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Grava o Plano revisado como rascunho do Monitoramento (cria ou atualiza). Nunca ativa. */
   salvarPlano?(plano: PlanoParaSalvar): Promise<Monitoramento>
+
+  /**
+   * A prévia do "Rodar agora" de um Monitoramento (agente-de-sinal 02): as Contas, o preço em créditos, o saldo e o bloqueio.
+   * Só créditos; nunca US$ nem Teto. Quem não implementa não oferece o botão.
+   */
+  previaDaRodada?(monitoramentoId: string): Promise<PreviaDaRodada>
+
+  /**
+   * Pede a Rodada agora. Cobra créditos e não consome o Teto de automação. Rejeita com `ErroDaRodada` quando há bloqueio
+   * (por exemplo, já há uma Rodada na fila).
+   */
+  rodarAgora?(monitoramentoId: string): Promise<void>
+
+  /** As Rodadas mais recentes do Monitoramento e os pedidos ainda abertos. */
+  rodadas?(monitoramentoId: string): Promise<HistoricoDeRodadas>
+
+  /** Os Sinais que uma Rodada achou, com a Conta e o "por que apareceu". */
+  achadosDaRodada?(rodadaId: string): Promise<AchadoDaRodada[]>
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'
