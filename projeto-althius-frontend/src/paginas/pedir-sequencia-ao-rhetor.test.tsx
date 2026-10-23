@@ -1,7 +1,7 @@
 // O atalho "Pedir Sequência ao Rhetor" no detalhe da Conta Quente (cadencia-pela-ia 02): só no Workspace operacional, só
 // para o Vendedor responsável e só sem Sequência em andamento. Abre a Conversa com o Rhetor já com o pedido e o nome da
 // Conta. Na Demonstração, nada muda. As Fontes são as simuladas, num ambiente operacional montado só aqui.
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '@/App'
@@ -46,7 +46,8 @@ describe('Pedir Sequência ao Rhetor, a partir da Conta Quente', () => {
   it('o Vendedor responsável abre a Conversa com o Rhetor já com o pedido e o nome da Conta', async () => {
     const usuario = abrir('real', QUENTE_E_MINHA)
     await usuario.click(await screen.findByRole('button', { name: 'Pedir Sequência ao Rhetor' }))
-    expect(await screen.findByText(/Monte uma Sequência de e-mail para a Conta-alvo OpenAI/)).toBeInTheDocument()
+    const conversa = await screen.findByRole('region', { name: 'Conversa' })
+    expect(await within(conversa).findByText(/Monte uma Sequência de e-mail para a Conta-alvo OpenAI/)).toBeInTheDocument()
   })
 
   it('não aparece para quem não é o Vendedor responsável', async () => {

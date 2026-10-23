@@ -115,10 +115,10 @@ function abrir(rota: string) {
 }
 
 describe('A Conversa do Slack na Althius', () => {
-  it('aparece nas Conversas anteriores com a marca do Slack; a da Althius fica sem marca', async () => {
+  it('aparece nas Conversas recentes com a marca do Slack; a da Althius fica sem marca', async () => {
     abrir('/')
 
-    const lista = within(await screen.findByRole('region', { name: 'Conversas anteriores' }))
+    const lista = within(await screen.findByRole('region', { name: 'Recentes' }))
     const [doSlack, daAlthius] = lista.getAllByRole('listitem')
     expect(within(doSlack).getByText('Quem são as Contas Quentes?')).toBeInTheDocument()
     expect(within(doSlack).getByText('Slack')).toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('A Conversa do Slack na Althius', () => {
   it('abrir mostra os passos na Conversa do Agente, com o composer desabilitado', async () => {
     const { usuario, enviados } = abrir('/')
 
-    await usuario.click(await screen.findByRole('button', { name: 'Abrir a Conversa Quem são as Contas Quentes?' }))
+    await usuario.click(await screen.findByRole('button', { name: /^Quem são as Contas Quentes/ }))
 
     const leitura = await screen.findByRole('region', { name: 'Conversa do Slack' })
     // Os passos chegam depois da região: espera por eles em vez de ler na hora (o teste falhava às vezes no CI).

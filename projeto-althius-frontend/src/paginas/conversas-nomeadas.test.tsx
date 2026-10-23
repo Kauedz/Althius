@@ -102,7 +102,7 @@ describe('Conversas nomeadas no Workspace operacional', () => {
       linha({ id: 'c3', kind: 'agente', agent_id: 'agente-scopus', first_request: 'Conversa na página do Scopus' }),
     ])
 
-    const lista = within(await screen.findByRole('region', { name: 'Conversas anteriores' }))
+    const lista = within(await screen.findByRole('region', { name: 'Recentes' }))
     expect(lista.getAllByRole('listitem')).toHaveLength(2)
     expect(lista.getByText('ICP da Norte')).toBeInTheDocument()
     expect(lista.getByText('Campanha do quarto trimestre')).toBeInTheDocument()
@@ -116,7 +116,7 @@ describe('Conversas nomeadas no Workspace operacional', () => {
       { c2: conversaSalva('Campanha do quarto trimestre', 'Aqui vai o plano da campanha.') },
     )
 
-    await usuario.click(await screen.findByRole('button', { name: 'Abrir a Conversa Campanha do quarto trimestre' }))
+    await usuario.click(await screen.findByRole('button', { name: /^Campanha do quarto trimestre/ }))
 
     expect(await screen.findByText('Aqui vai o plano da campanha.')).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Campanha do quarto trimestre' })).toBeInTheDocument()
@@ -133,7 +133,7 @@ describe('Conversas nomeadas no Workspace operacional', () => {
       { c2: conversaSalva('Campanha do quarto trimestre', 'Aqui vai o plano da campanha.') },
     )
 
-    await usuario.click(await screen.findByRole('button', { name: 'Abrir a Conversa Campanha do quarto trimestre' }))
+    await usuario.click(await screen.findByRole('button', { name: /^Campanha do quarto trimestre/ }))
     await usuario.click(await screen.findByRole('button', { name: 'Renomear' }))
     const campo = screen.getByRole('textbox', { name: 'Nome da Conversa' })
     await usuario.type(campo, 'Campanha Q4')
@@ -143,13 +143,14 @@ describe('Conversas nomeadas no Workspace operacional', () => {
     expect(renomeadas).toEqual([{ id: 'c2', titulo: 'Campanha Q4' }])
 
     await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
-    expect(await screen.findByRole('button', { name: 'Abrir a Conversa Campanha Q4' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Campanha Q4/ })).toBeInTheDocument()
   })
 
   it('sem Conversas salvas, a lista não aparece', async () => {
     abrir('/', [])
 
     expect(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Conversas anteriores' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Recentes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ver todas' })).not.toBeInTheDocument()
   })
 })
