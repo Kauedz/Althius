@@ -57,6 +57,15 @@ describe('Agentes no Workspace operacional', () => {
     ])
     expect(screen.queryByText(/Enterprise LATAM|Databricks/)).not.toBeInTheDocument()
     expect(within(grade).getAllByText('0')).toHaveLength(4)
+    expect(grade).toHaveClass('md:grid-cols-4')
+
+    const scopus = within(grade).getByRole('link', { name: 'Scopus' })
+    expect(within(scopus).getByText('Sem conversas no momento')).toBeInTheDocument()
+    expect(within(scopus).getByText('Sob demanda')).toBeInTheDocument()
+    expect(within(scopus).queryByText(/Define o ICP/)).not.toBeInTheDocument()
+    for (const integracao of ['Apollo', 'Clay', 'HubSpot', 'Lusha']) {
+      expect(within(scopus).getByRole('img', { name: integracao })).toBeInTheDocument()
+    }
   })
 
   it('pedir algo aos Agentes diz que não está disponível, sem composer nem resposta simulada', async () => {

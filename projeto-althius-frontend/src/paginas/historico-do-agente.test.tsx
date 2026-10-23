@@ -114,12 +114,14 @@ describe('Histórico de Conversas do Agente', () => {
       { a1: conversaSalvaDoAgente('Aderência da Alfa', 'A Alfa tem aderência alta.') },
     )
 
-    const historico = within(await screen.findByRole('region', { name: 'Conversas anteriores' }))
+    expect(screen.queryByRole('button', { name: 'Recolher o histórico' })).not.toBeInTheDocument()
+    await usuario.click(await screen.findByRole('button', { name: 'Histórico' }))
+    const historico = within(await screen.findByRole('dialog', { name: 'Conversas do Scopus' }))
     expect(await historico.findByRole('heading', { name: 'Hoje' })).toBeInTheDocument()
     expect(historico.getByRole('heading', { name: 'Mais antigas' })).toBeInTheDocument()
     expect(historico.queryByText('Pedido coordenado')).not.toBeInTheDocument()
 
-    await usuario.click(historico.getByRole('button', { name: 'Abrir a Conversa Aderência da Alfa' }))
+    await usuario.click(historico.getByRole('button', { name: /^Aderência da Alfa/ }))
     expect(await screen.findByText('A Alfa tem aderência alta.')).toBeInTheDocument()
     expect(window.location.search).toBe('?conversa=a1')
 
@@ -136,20 +138,22 @@ describe('Histórico de Conversas do Agente', () => {
     ], { a1: conversaSalvaDoAgente('Aderência da Alfa', 'A Alfa tem aderência alta.') })
 
     expect(await screen.findByText('A Alfa tem aderência alta.')).toBeInTheDocument()
-    const historico = within(await screen.findByRole('region', { name: 'Conversas anteriores' }))
-    await usuario.type(historico.getByRole('textbox', { name: 'Buscar nas Conversas' }), 'previsao')
+    await usuario.click(screen.getByRole('button', { name: 'Histórico' }))
+    const historico = within(await screen.findByRole('dialog', { name: 'Conversas do Scopus' }))
+    await usuario.type(historico.getByRole('textbox', { name: 'Buscar conversas' }), 'previsao')
     expect(historico.queryByText('Aderência da Alfa')).not.toBeInTheDocument()
     expect(historico.getByText('Previsão do trimestre')).toBeInTheDocument()
 
-    await usuario.click(historico.getByRole('button', { name: 'Arquivar a Conversa Previsão do trimestre' }))
+    await usuario.click(historico.getByRole('button', { name: 'Arquivar Previsão do trimestre' }))
     expect(historico.queryByText('Previsão do trimestre')).not.toBeInTheDocument()
 
-    await usuario.click(historico.getByRole('button', { name: 'Nova conversa' }))
+    await usuario.keyboard('{Escape}')
+    await usuario.click(screen.getByRole('button', { name: 'Nova conversa' }))
     expect(screen.queryByText('A Alfa tem aderência alta.')).not.toBeInTheDocument()
     expect(window.location.search).toBe('')
     await usuario.type(screen.getByRole('textbox', { name: 'Mensagem para Scopus' }), 'Do zero')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
-    await screen.findByText('Do zero')
+    expect(await screen.findAllByText('Do zero')).not.toHaveLength(0)
     expect(enviados.at(-1)).toEqual(expect.objectContaining({ conversationId: null, text: 'Do zero' }))
   })
 

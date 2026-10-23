@@ -1,6 +1,7 @@
-import { ArrowRight, ArrowUp, Check, Copy, PanelLeftClose, PanelLeftOpen, Wrench } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowRight, ArrowUp, Check, Copy, History, Pencil, Plus, Wrench, X } from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { BOTAO_DISCRETO } from '@/components/botoes'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente, Pulso } from '@/components/marca'
 import { Mensagem } from '@/components/mensagem'
@@ -9,13 +10,14 @@ import { Button } from '@/components/ui/button'
 import { AnexosDaMensagem } from '@/conversa/anexos-da-mensagem'
 import { Composer } from '@/conversa/composer'
 import { useConversas, type ItemDaConversa } from '@/conversa/contexto'
-import { HistoricoDeConversas, MarcaDoSlack } from '@/conversa/historico'
+import { GavetaDeHistorico, temHistorico } from '@/conversa/gaveta-de-historico'
+import { MarcaDoSlack } from '@/conversa/linha-de-conversa'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { TextoDigitado } from '@/conversa/texto'
 import { quemEstaRespondendo } from '@/conversa/vez'
 import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
-import type { Agente, AgenteId, AprovacaoDeAcao, ResumoDeConversa } from '@/fonte/tipos'
-import { mensagemDeErro, porId } from '@/lib/utils'
+import { nomeDaConversa, tituloAutomatico, type Agente, type AgenteId, type AprovacaoDeAcao, type ResumoDeConversa } from '@/fonte/tipos'
+import { cn, mensagemDeErro, porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
 
@@ -36,21 +38,43 @@ export function SecaoConversa({ agente }: { agente: Agente }) {
   return <ConversaComHistorico agente={agente} />
 }
 
+/** O atalho do histórico não dispara enquanto a pessoa escreve. */
+function emCampoDeTexto(alvo: EventTarget | null): boolean {
+  if (!(alvo instanceof HTMLElement)) return false
+  return alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable
+}
+
 /**
- * A Conversa com o Agente e, no Workspace operacional, o histórico dele ao lado, que dá para recolher. A Conversa
- * aberta fica no endereço (?conversa=<id>), para voltar a ela pelo link.
+ * A Conversa com o Agente, numa coluna central. No Workspace operacional, o histórico abre numa gaveta. A Conversa
+ * aberta fica no endereço (?conversa=<id>, ou ?slack=<id>), para voltar a ela pelo link.
  */
 function ConversaComHistorico({ agente }: { agente: Agente }) {
   const fonte = useFonte()
   const conversas = useConversas()
   const [parametros, setParametros] = useSearchParams()
-  const [aberto, setAberto] = useState(true)
+  const [historicoAberto, setHistoricoAberto] = useState(false)
   const [erro, setErro] = useState('')
+  const [versaoDoNome, setVersaoDoNome] = useState(0)
   const pedida = parametros.get('conversa')
   const slack = parametros.get('slack')
   const respondendo = conversas.respondendo(agente.id)
   const atual = fonte.conversaDoAgenteAtual?.(agente.id) ?? null
   const abrirDoAgente = conversas.abrirDoAgente
+  const comHistorico = temHistorico(fonte)
+  const itens = conversas.itens(agente.id)
+  const idSalvo = slack ?? pedida ?? atual
+  const lista = useDados(
+    (f) => (f.historicoDeConversas ? f.historicoDeConversas(agente.id) : Promise.resolve([] as ResumoDeConversa[])),
+    [agente.id, idSalvo, respondendo, versaoDoNome],
+  )
+  const resumo = idSalvo ? lista?.find((conversa) => conversa.id === idSalvo) : undefined
+  const primeiro = slack ? undefined : itens.find((item) => item.tipo === 'usuario')
+  const titulo = resumo
+    ? nomeDaConversa(resumo)
+    : primeiro?.tipo === 'usuario'
+      ? tituloAutomatico(primeiro.texto)
+      : ''
+  const vazia = !slack && itens.length === 0 && !pedida && !atual
 
   useEffect(() => {
     if (slack) return
@@ -68,8 +92,17 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
     }, { replace: true })
   }, [respondendo, atual, pedida, slack, setParametros])
 
-  if (slack && !fonte.historicoDeConversas) return <LeituraDoSlack key={slack} agente={agente} id={slack} />
-  if (!fonte.historicoDeConversas) return <ConversaComOAgente agente={agente} />
+  useEffect(() => {
+    if (!comHistorico) return
+    function noTeclado(evento: KeyboardEvent) {
+      if (!(evento.ctrlKey || evento.metaKey) || !evento.shiftKey || evento.code !== 'KeyH') return
+      if (emCampoDeTexto(evento.target)) return
+      evento.preventDefault()
+      setHistoricoAberto(true)
+    }
+    window.addEventListener('keydown', noTeclado)
+    return () => window.removeEventListener('keydown', noTeclado)
+  }, [comHistorico])
 
   function escolher(conversa: ResumoDeConversa) {
     setErro('')
@@ -88,6 +121,7 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
 
   function nova() {
     setErro('')
+    setHistoricoAberto(false)
     conversas.novaDoAgente(agente.id)
     setParametros((anteriores) => {
       const proximos = new URLSearchParams(anteriores)
@@ -98,36 +132,184 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
   }
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-      <div className={aberto ? 'flex w-full shrink-0 flex-col gap-3 lg:w-72' : 'flex shrink-0 flex-col'}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setAberto((valor) => !valor)}
-          aria-expanded={aberto}
-          aria-label={aberto ? 'Recolher o histórico' : 'Mostrar o histórico'}
-          className="self-start"
+    <div className="mx-auto flex w-full max-w-[720px] flex-col">
+      <BarraDaConversa
+        idSalvo={idSalvo}
+        titulo={titulo}
+        nomeInicial={resumo?.titulo ?? ''}
+        podeRenomear={Boolean(idSalvo && fonte.renomearConversa)}
+        aoRenomear={async (nome) => {
+          if (!idSalvo) return
+          await fonte.renomearConversa?.(idSalvo, nome)
+          setVersaoDoNome((n) => n + 1)
+        }}
+        comHistorico={comHistorico}
+        historicoAberto={historicoAberto}
+        aoAbrirHistorico={() => setHistoricoAberto(true)}
+        mostrarNova={!vazia || !comHistorico}
+        aoNova={nova}
+      />
+      {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
+      {slack ? (
+        <LeituraDoSlack key={slack} agente={agente} id={slack} />
+      ) : (
+        <ConversaComOAgente agente={agente} />
+      )}
+      <GavetaDeHistorico
+        aberto={historicoAberto}
+        aoMudar={setHistoricoAberto}
+        agenteId={agente.id}
+        nome={agente.nome}
+        atual={slack ?? atual}
+        aoAbrir={escolher}
+        versao={`${respondendo}-${atual ?? ''}-${slack ?? ''}-${versaoDoNome}`}
+      />
+    </div>
+  )
+}
+
+/** O nome da Conversa aberta. A chave é o id, para a edição recomeçar sem mexer no restante da faixa. */
+function TituloDaConversa({
+  titulo,
+  nomeInicial,
+  podeRenomear,
+  aoRenomear,
+  aoFalhar,
+}: {
+  titulo: string
+  nomeInicial: string
+  podeRenomear: boolean
+  aoRenomear(nome: string): Promise<void>
+  aoFalhar(mensagem: string): void
+}) {
+  const [editando, setEditando] = useState(false)
+  const [nome, setNome] = useState('')
+  const semTitulo = !titulo
+
+  function cancelarNoEscape(evento: ReactKeyboardEvent) {
+    if (evento.key !== 'Escape') return
+    evento.preventDefault()
+    evento.stopPropagation()
+    setEditando(false)
+  }
+
+  async function salvar(evento: FormEvent) {
+    evento.preventDefault()
+    aoFalhar('')
+    try {
+      await aoRenomear(nome)
+      setEditando(false)
+    } catch (falha) {
+      aoFalhar(mensagemDeErro(falha))
+    }
+  }
+
+  if (editando) {
+    return (
+      <form onSubmit={(evento) => void salvar(evento)} onKeyDown={cancelarNoEscape} className="flex min-w-0 flex-1 items-center gap-1">
+        <input
+          aria-label="Novo nome da Conversa"
+          value={nome}
+          maxLength={80}
+          placeholder={titulo}
+          autoFocus
+          onChange={(evento) => setNome(evento.target.value)}
+          className="min-w-0 flex-1 rounded-[10px] border border-al-line bg-transparent px-2 py-1 text-sm"
+        />
+        <button type="submit" aria-label="Salvar o nome" className={BOTAO_DISCRETO}>
+          <Check strokeWidth={1.8} className="size-4" aria-hidden />
+        </button>
+        <button type="button" aria-label="Cancelar" onClick={() => setEditando(false)} className={BOTAO_DISCRETO}>
+          <X strokeWidth={1.8} className="size-4" aria-hidden />
+        </button>
+      </form>
+    )
+  }
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1">
+      <span className={cn('min-w-0 truncate text-sm', semTitulo ? 'text-al-muted' : 'text-al-ink')}>
+        {semTitulo ? 'Nova conversa' : titulo}
+      </span>
+      {podeRenomear && (
+        <button
+          type="button"
+          aria-label="Renomear conversa"
+          onClick={() => {
+            setNome(nomeInicial)
+            aoFalhar('')
+            setEditando(true)
+          }}
+          className={cn(BOTAO_DISCRETO, 'size-7 justify-center px-0')}
         >
-          {aberto ? <PanelLeftClose strokeWidth={1.8} aria-hidden /> : <PanelLeftOpen strokeWidth={1.8} aria-hidden />}
-        </Button>
-        {aberto && (
-          <HistoricoDeConversas
-            agenteId={agente.id}
-            atual={slack ?? atual}
-            aoAbrir={escolher}
-            aoNova={nova}
-            versao={`${respondendo}-${atual}-${slack ?? ''}`}
-          />
-        )}
+          <Pencil strokeWidth={1.8} className="size-4" aria-hidden />
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** A faixa de 52px: o título da Conversa aberta, o histórico e uma Conversa nova. */
+function BarraDaConversa({
+  idSalvo,
+  titulo,
+  nomeInicial,
+  podeRenomear,
+  aoRenomear,
+  comHistorico,
+  historicoAberto,
+  aoAbrirHistorico,
+  mostrarNova,
+  aoNova,
+}: {
+  /** Trocar de Conversa recomeça a edição sem remontar os botões da faixa. */
+  idSalvo: string | null
+  titulo: string
+  /** O nome já gravado, vazio enquanto vale o primeiro pedido. */
+  nomeInicial: string
+  podeRenomear: boolean
+  aoRenomear(nome: string): Promise<void>
+  comHistorico: boolean
+  historicoAberto: boolean
+  aoAbrirHistorico(): void
+  mostrarNova: boolean
+  aoNova(): void
+}) {
+  const [erro, setErro] = useState('')
+
+  return (
+    <div className="mb-6 flex flex-col gap-2">
+      <div className="flex h-[52px] items-center justify-between gap-3 border-b border-al-divisor">
+        <TituloDaConversa
+          key={idSalvo ?? 'nova'}
+          titulo={titulo}
+          nomeInicial={nomeInicial}
+          podeRenomear={podeRenomear}
+          aoRenomear={aoRenomear}
+          aoFalhar={setErro}
+        />
+        <div className="flex shrink-0 items-center gap-2">
+          {comHistorico && (
+            <Button
+              variant="outline"
+              aria-haspopup="dialog"
+              aria-expanded={historicoAberto}
+              onClick={aoAbrirHistorico}
+              className="rounded-full px-3"
+            >
+              <History strokeWidth={1.8} aria-hidden />
+              Histórico
+            </Button>
+          )}
+          {mostrarNova && (
+            <Button variant="outline" onClick={aoNova} className="rounded-full px-3">
+              <Plus strokeWidth={1.8} aria-hidden />
+              Nova conversa
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        {erro && (
-          <p role="alert" className="text-sm text-al-atencao">
-            {erro}
-          </p>
-        )}
-        {slack ? <LeituraDoSlack key={slack} agente={agente} id={slack} /> : <ConversaComOAgente agente={agente} />}
-      </div>
+      {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
     </div>
   )
 }
@@ -184,7 +366,7 @@ function LeituraDoSlack({ agente, id }: { agente: Agente; id: string }) {
   }, [fonte, id, agente.id])
 
   return (
-    <section aria-labelledby="titulo-conversa" className="flex max-w-3xl flex-col gap-6">
+    <section aria-labelledby="titulo-conversa" className="flex w-full flex-col gap-6">
       <h2 id="titulo-conversa" className="sr-only">
         Conversa do Slack
       </h2>
@@ -255,15 +437,20 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
     fim.current?.scrollIntoView({ block: 'end' })
   }, [itens.length])
 
+  const vazia = itens.length === 0
+
   return (
-    <section aria-labelledby="titulo-conversa" className="flex max-w-3xl flex-col gap-6">
+    <section aria-labelledby="titulo-conversa" className="flex w-full flex-col gap-6">
       <h2 id="titulo-conversa" className="sr-only">
         Conversa
       </h2>
 
       <div aria-live="polite" className="flex flex-col gap-6">
-        {itens.length === 0 && (
-          <p className="anotacao text-lg">comece por uma sugestão, ou mencione outro agente com @</p>
+        {vazia && (
+          <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4">
+            <IconeAgente especialidade={agente.especialidade.id} tamanho="lg" />
+            <p className="anotacao text-lg">comece por uma sugestão, ou mencione outro agente com @</p>
+          </div>
         )}
         {itens.map((item) => (
           <Item key={item.id} item={item} agentes={agentesPorId} animar={conversas.animarDigitacao} />
@@ -279,29 +466,33 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
         <div ref={fim} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {sugestoes.map((sugestao) => (
-          <Button
-            key={sugestao.id}
-            variant="outline"
-            disabled={respondendo}
-            onClick={() => conversas.enviar(agente.id, { texto: sugestao.texto, sugestaoId: sugestao.id })}
-            className="h-auto rounded-full px-4 py-2 font-light whitespace-normal"
-          >
-            {sugestao.texto}
-          </Button>
-        ))}
-      </div>
+      <div className="sticky bottom-0 flex flex-col gap-3 bg-al-bg pb-6">
+        {vazia && (
+          <div className="flex flex-wrap justify-center gap-2">
+            {sugestoes.map((sugestao) => (
+              <Button
+                key={sugestao.id}
+                variant="outline"
+                disabled={respondendo}
+                onClick={() => conversas.enviar(agente.id, { texto: sugestao.texto, sugestaoId: sugestao.id })}
+                className="h-auto rounded-full px-4 py-2 font-light whitespace-normal"
+              >
+                {sugestao.texto}
+              </Button>
+            ))}
+          </div>
+        )}
 
-      <Composer
-        nome={`Conversa com ${agente.nome}`}
-        rotulo={`Mensagem para ${agente.nome}`}
-        placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
-        ocupado={respondendo}
-        aoEnviar={(mensagem, anexos) =>
-          conversas.enviar(agente.id, { texto: mensagem, ...(anexos.length ? { anexos } : {}) })}
-        aoParar={conversas.parar ? () => conversas.parar?.(agente.id) : undefined}
-      />
+        <Composer
+          nome={`Conversa com ${agente.nome}`}
+          rotulo={`Mensagem para ${agente.nome}`}
+          placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
+          ocupado={respondendo}
+          aoEnviar={(mensagem, anexos) =>
+            conversas.enviar(agente.id, { texto: mensagem, ...(anexos.length ? { anexos } : {}) })}
+          aoParar={conversas.parar ? () => conversas.parar?.(agente.id) : undefined}
+        />
+      </div>
     </section>
   )
 }
@@ -312,7 +503,7 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
     case 'usuario':
       return (
         <div className="flex flex-col items-end gap-2 self-end">
-          <p className="bg-al-surface px-4 py-2">{item.texto}</p>
+          <p className="max-w-[78%] self-end rounded-[18px] rounded-br-md bg-al-surface px-4 py-2.5">{item.texto}</p>
           <AnexosDaMensagem anexos={item.anexos} />
         </div>
       )
