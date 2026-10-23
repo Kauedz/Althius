@@ -215,9 +215,13 @@ select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000002
 select is(
   (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'sequencia')) ->> 'can_read_content'),
   'false', 'another participant cannot read reply content');
+-- As duas respostas entram na mesma transação (mesmo created_at): a ordem entre elas não é garantida,
+-- então o teste olha o conjunto das pendentes, não a posição no array.
 select is(
-  (select ((public.list_sequence_reply_review((select valor::uuid from ids where chave = 'sequencia')) -> 'pending' -> 0) ? 'subject')),
-  false, 'the shared review has no subject');
+  (select bool_or(p ? 'subject')
+     from jsonb_array_elements(public.list_sequence_reply_review(
+       (select valor::uuid from ids where chave = 'sequencia')) -> 'pending') p),
+  false, 'the shared review has no subject in any pending reply');
 select throws_ok(
   $$select * from public.decide_sequence_retention(
     (select valor::uuid from ids where chave = 'sequencia'), 'continue', 2, '{}'::uuid[])$$,
@@ -232,9 +236,11 @@ select is(
     (select valor::uuid from ids where chave = 'sequencia')) -> 'pending')),
   2, 'the owner reviews both pending replies together');
 select is(
-  (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'sequencia'))
-    -> 'pending' -> 0 ->> 'subject'),
-  'Re: Apresentação', 'the owner reads the correlated content');
+  (select array_agg(p ->> 'subject' order by p ->> 'subject')
+     from jsonb_array_elements(public.list_sequence_reply_review(
+       (select valor::uuid from ids where chave = 'sequencia')) -> 'pending') p),
+  array['Re: Apresentação', 'Re: Oi'],
+  'the owner reads the correlated content of both pending replies');
 
 select is(
   (select outcome from public.decide_sequence_retention(
