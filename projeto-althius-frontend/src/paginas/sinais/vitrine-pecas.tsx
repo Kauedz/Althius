@@ -613,12 +613,15 @@ export function MeusSinais({
   contasQuentes,
   sequenciasAtivas,
   acaoDosEncontrados,
+  acaoDeDescrever,
 }: {
   monitoramentosAtivos: { id: string; tipoId: string; nome: string; disparos: number }[]
   disparos: number | undefined
   contasQuentes: number | undefined
   sequenciasAtivas: number | undefined
   acaoDosEncontrados: ReactNode
+  /** O botão "Descrever um Sinal"; ausente onde a pessoa não pode criar Monitoramento. */
+  acaoDeDescrever?: ReactNode
 }) {
   return (
     <section aria-labelledby="titulo-meus-sinais" className="flex min-w-0 flex-col gap-3">
@@ -626,7 +629,10 @@ export function MeusSinais({
         <h2 id="titulo-meus-sinais" className="titulo-secao text-lg">
           Meus Sinais
         </h2>
-        {acaoDosEncontrados}
+        <div className="flex flex-wrap items-center gap-2">
+          {acaoDeDescrever}
+          {acaoDosEncontrados}
+        </div>
       </div>
       <ul className="grid min-w-0 gap-3 md:grid-cols-3">
         <PecaDeMeusSinais

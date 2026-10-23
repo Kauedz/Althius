@@ -54,6 +54,7 @@ import {
 } from './mercado-enderecavel'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
+import { ResumoDoPlano } from './resumo-do-plano'
 import { criteriosFormatados, resumoDasContas, resumoDoPublico } from './resumos'
 
 type Etapa = 'descrever' | 'preparando' | 'editar' | 'revisar'
@@ -238,6 +239,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
           {familia && <span className="selo">{ROTULO_DA_ORIGEM[familia.origem]} · {familia.nome}</span>}
           {!personalizado && <span className="text-sm text-al-muted">{tipo.descricao}</span>}
         </div>
+
+        {existente?.plano && <ResumoDoPlano monitoramento={existente} />}
 
         {erroSalvar && (
           <div role="alert" className="flex items-center justify-between rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
@@ -427,7 +430,7 @@ function resumir(descricao: string): string {
 }
 
 /** Um campo com rótulo; a ajuda e o sufixo ficam fora do nome acessível, e a ajuda descreve o campo. */
-function Rotulado({
+export function Rotulado({
   rotulo,
   ajuda,
   sufixo,
@@ -458,7 +461,7 @@ function Rotulado({
   )
 }
 
-function Grupo({ rotulo, ajuda, papel, children }: { rotulo: string; ajuda?: string; papel: 'group' | 'radiogroup'; children: ReactNode }) {
+export function Grupo({ rotulo, ajuda, papel, children }: { rotulo: string; ajuda?: string; papel: 'group' | 'radiogroup'; children: ReactNode }) {
   return (
     <div role={papel} aria-label={rotulo} className="flex flex-col gap-2">
       <span className="rotulo text-al-ink" aria-hidden>
@@ -470,13 +473,13 @@ function Grupo({ rotulo, ajuda, papel, children }: { rotulo: string; ajuda?: str
   )
 }
 
-function BarraDeAcoes({ children }: { children: ReactNode }) {
+export function BarraDeAcoes({ children }: { children: ReactNode }) {
   return (
     <div className="sticky bottom-0 z-1 flex flex-wrap justify-end gap-2 border-t border-al-line bg-al-bg py-4">{children}</div>
   )
 }
 
-function CriteriosProntos({
+export function CriteriosProntos({
   formulario,
   criterios,
   aoMudar,
@@ -780,7 +783,7 @@ function PublicoDeContasReais({
   )
 }
 
-function ContasDoWorkspace({ publico, aoMudar, ajuda }: { publico: Publico; aoMudar: (publico: Publico) => void; ajuda: string }) {
+export function ContasDoWorkspace({ publico, aoMudar, ajuda }: { publico: Publico; aoMudar: (publico: Publico) => void; ajuda: string }) {
   const { dados: contas, erro, recarregar } = useDadosDeContas((f) => f.contas(), [])
   if (erro) {
     return (

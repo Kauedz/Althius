@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 
+export { PaginaDoBriefing } from './briefing'
 export { ContaComSinais } from './conta-com-sinais'
 export { RotaDoEditor } from './editor'
 export { RotaDoEditorDeCascata } from './editor-de-cascata'

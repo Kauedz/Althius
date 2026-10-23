@@ -3,6 +3,8 @@ import { CATALOGO_VISIVEL } from '@/paginas/sinais/catalogo-visivel'
 import { MONITORAMENTOS_INICIAIS, SINAIS_MOCK, publicoInicial } from '@/paginas/sinais/dados-mock'
 import { foiDisparado, parseDataDisparo } from '@/fonte/regras-sinais'
 import type { FonteDeContas } from './contas-tipos'
+import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
+import { TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import type {
   CardSobPedido,
   CascataDoCatalogo,
@@ -422,6 +424,53 @@ export function criarFonteDeSinaisSimulada(
     souDaEquipeAlthius(): Promise<boolean> {
       return Promise.resolve(false)
     },
+
+    // O Plano da Demonstração é fixo: a IA não roda aqui, e o Briefing não muda o que volta (só as Contas escolhidas).
+    async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
+      await aguardar()
+      return { plano: planoFixoDaDemonstracao(pedido.contaIds), avisos: [] }
+    },
+
+    async salvarPlano(plano: PlanoParaSalvar): Promise<Monitoramento> {
+      await aguardar()
+      const existente = plano.id ? monitoramentos.find((m) => m.id === plano.id) : undefined
+      const sinal = plano.plano.sinais[0]
+      const salvo: Monitoramento = {
+        id: existente?.id ?? `mon-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        tipoId: TIPO_DO_SINAL_REAL[sinal.tipo] ?? 'abertura-de-vagas',
+        nome: plano.nome,
+        estado: existente?.estado ?? 'rascunho',
+        publico: {
+          modo: 'listas',
+          listas: plano.plano.escopo.tipo === 'contas' ? [...plano.plano.escopo.contaIds] : [],
+          usaRecomendado: false,
+        },
+        criterios: { ...sinal.criterios },
+        briefing: plano.briefing,
+        plano: plano.plano,
+        versaoDoPlano: (existente?.versaoDoPlano ?? 0) + 1,
+      }
+      const index = monitoramentos.findIndex((m) => m.id === salvo.id)
+      if (index >= 0) monitoramentos[index] = salvo
+      else monitoramentos.push(salvo)
+      notificar()
+      return clonarMonitoramento(salvo)
+    },
+  }
+}
+
+/** O Plano que a Demonstração devolve para qualquer Briefing: Abertura de vagas de RevOps nas Contas escolhidas. */
+function planoFixoDaDemonstracao(contaIds: string[]): PlanoDoSinal {
+  return {
+    versao: 1,
+    origem: 'briefing',
+    escopo: { tipo: 'contas', contaIds: [...contaIds] },
+    sinais: [{
+      tipo: 'vaga_linkedin',
+      criterios: { funcoes: ['RevOps e GTM'], senioridade: 'Qualquer', localizacao: ['Brasil'], periodo: 'Últimos 30 dias' },
+    }],
+    explicacao: 'Vamos acompanhar “Abertura de vagas” nas Contas escolhidas: a empresa abre vagas de RevOps e GTM. Revise e ajuste antes de salvar.',
+    maxEmpresasPorRodada: 50,
   }
 }
 

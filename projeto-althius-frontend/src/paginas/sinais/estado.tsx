@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFonteDeSinais } from '@/fonte/contexto'
+import type { PlanoParaSalvar } from '@/fonte/plano-do-sinal'
 import type { FonteDeSinais, NovoMonitoramento, ParametrosSimulacaoDisparo, SinalEncontrado } from '@/fonte/sinais-tipos'
 import type { EstadoDoMonitoramento, Monitoramento } from './dados-mock'
 
@@ -9,6 +10,8 @@ interface SinaisDoMockup {
   erro: boolean
   recarregar: () => Promise<void>
   salvar: (monitoramento: Monitoramento | NovoMonitoramento) => Promise<Monitoramento>
+  /** Grava o Plano revisado como rascunho do Monitoramento (agente-de-sinal 01). Rejeita se a Fonte não oferece Planos. */
+  salvarPlano: (plano: PlanoParaSalvar) => Promise<Monitoramento>
   mudarEstado: (id: string, estado: EstadoDoMonitoramento) => Promise<Monitoramento>
   simularDisparo: (parametros: ParametrosSimulacaoDisparo) => Promise<SinalEncontrado>
 }
@@ -83,6 +86,18 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
     [fonte],
   )
 
+  const salvarPlano = useCallback(
+    async (plano: PlanoParaSalvar): Promise<Monitoramento> => {
+      if (!fonte?.salvarPlano) throw new Error('Fonte de sinais não oferece Planos')
+      const salvo = await fonte.salvarPlano(plano)
+      setMonitoramentos((atuais) =>
+        atuais.some((m) => m.id === salvo.id) ? atuais.map((m) => (m.id === salvo.id ? salvo : m)) : [...atuais, salvo],
+      )
+      return salvo
+    },
+    [fonte],
+  )
+
   const mudarEstado = useCallback(
     async (id: string, estado: EstadoDoMonitoramento): Promise<Monitoramento> => {
       if (fonte) {
@@ -112,8 +127,8 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
   )
 
   const valor = useMemo(
-    () => ({ monitoramentos, carregando, erro, recarregar, salvar, mudarEstado, simularDisparo }),
-    [monitoramentos, carregando, erro, recarregar, salvar, mudarEstado, simularDisparo],
+    () => ({ monitoramentos, carregando, erro, recarregar, salvar, salvarPlano, mudarEstado, simularDisparo }),
+    [monitoramentos, carregando, erro, recarregar, salvar, salvarPlano, mudarEstado, simularDisparo],
   )
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
 }

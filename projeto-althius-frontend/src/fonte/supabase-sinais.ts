@@ -6,6 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
 import { CATALOGO_VISIVEL, cardQueConta } from '@/paginas/sinais/catalogo-visivel'
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
+import { corpoDoErroDaFuncao } from './falha-da-edge-function'
+import { ErroDoPlano, MENSAGEM_DA_FALHA_DO_PLANO, type PedidoDePlano, type PlanoDoSinal, type PlanoMontado, type PlanoParaSalvar } from './plano-do-sinal'
 import { viewerEhDaEquipeAlthius } from './supabase-equipe'
 import type { ContaAlvo, Sinal } from './contas-tipos'
 import type {
@@ -34,6 +36,9 @@ interface RegistroDoMonitor {
   audience: { accountIds?: string[]; escopo?: string } | null
   criteria: Record<string, unknown> | null
   last_error: string | null
+  brief?: string | null
+  plan?: PlanoDoSinal | null
+  plan_version?: number | null
   last_run?: {
     state: 'rodando' | 'concluida' | 'falhou'
     startedAt: string
@@ -95,10 +100,28 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('only the creator or an administrator')) {
     return new Error('Só quem criou o Monitoramento, ou um Administrador, pode mudá-lo.')
   }
+  if (error.message.includes('invalid signal plan')) {
+    return new Error('O plano tem Contas, critérios ou limites inválidos. Confira e tente de novo.')
+  }
+  if (error.message.includes('the target account is archived') || error.message.includes('the target account was deleted')) {
+    return new Error('Uma das Contas escolhidas está arquivada ou foi apagada. Tire-a do plano e tente de novo.')
+  }
   if (error.message.includes('invalid monitor')) {
     return new Error('O Monitoramento tem um nome, um público ou critérios inválidos.')
   }
   return new Error('Não foi possível concluir. Tente de novo.')
+}
+
+/**
+ * Por que a Edge Function `signal-plan` não devolveu o Plano, em palavras do produto: o limite do dia e a falta de Sinais
+ * disponíveis têm código próprio; o resto é uma falha recuperável. Nunca repete texto técnico da função.
+ */
+async function erroDoPlano(error: unknown): Promise<ErroDoPlano> {
+  const corpo = await corpoDoErroDaFuncao(error)
+  const mensagem = typeof corpo?.error === 'string' ? corpo.error : MENSAGEM_DA_FALHA_DO_PLANO
+  if (corpo?.codigo === 'limite_diario') return new ErroDoPlano('limite_diario', mensagem)
+  if (corpo?.codigo === 'sem_tipos') return new ErroDoPlano('sem_tipos', mensagem)
+  return new ErroDoPlano('falha', MENSAGEM_DA_FALHA_DO_PLANO)
 }
 
 /**
@@ -219,6 +242,8 @@ function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<str
       ...(linha.audience?.escopo === 'mercado' ? { escopo: 'mercado' as const } : {}),
     },
     criterios: linha.criteria ?? {},
+    // O Briefing só aparece com o Plano: depois de o editor mudar o que roda, o Plano antigo deixa de valer.
+    ...(linha.plan ? { plano: linha.plan, versaoDoPlano: linha.plan_version ?? 1, ...(linha.brief ? { briefing: linha.brief } : {}) } : {}),
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
       ? {
@@ -455,6 +480,29 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
     },
 
     estadosDosColetores: () => estadosDosColetores(cliente),
+
+    async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
+      const { data, error } = await cliente.functions.invoke('signal-plan', {
+        body: { workspaceId: workspaceId(), briefing: pedido.briefing, escopo: { tipo: 'contas', contaIds: pedido.contaIds } },
+      })
+      if (error) throw await erroDoPlano(error)
+      const resposta = data as { plano?: PlanoDoSinal; avisos?: unknown } | null
+      if (!resposta?.plano || !Array.isArray(resposta.plano.sinais) || resposta.plano.sinais.length === 0) {
+        throw new ErroDoPlano('falha', MENSAGEM_DA_FALHA_DO_PLANO)
+      }
+      return { plano: resposta.plano, avisos: Array.isArray(resposta.avisos) ? resposta.avisos.filter((a): a is string => typeof a === 'string') : [] }
+    },
+
+    async salvarPlano(plano: PlanoParaSalvar): Promise<Monitoramento> {
+      const id = (await chamar('save_signal_plan', {
+        p_workspace_id: workspaceId(),
+        p_monitor_id: plano.id ?? null,
+        p_name: plano.nome,
+        p_brief: plano.briefing,
+        p_plan: plano.plano,
+      })) as string
+      return monitoramento(id)
+    },
 
     souDaEquipeAlthius: () => viewerEhDaEquipeAlthius(cliente),
 
