@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
@@ -157,8 +157,10 @@ describe('Rodar agora no Workspace operacional', () => {
   ])('o bloqueio %s do banco vira o texto do produto, com o botão desabilitado', async (bloqueio, frase) => {
     abrir({ bloqueio })
 
-    expect(await screen.findByText(frase)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rodar agora' })).toBeDisabled()
+    // O aviso de contrato inativo da Casca usa a mesma frase, então o texto do botão se confere pela descrição dele.
+    const botao = await screen.findByRole('button', { name: 'Rodar agora' })
+    await waitFor(() => expect(botao).toBeDisabled())
+    expect(botao).toHaveAccessibleDescription(frase)
   })
 
   it('a recusa do banco na hora de pedir (já tem uma na fila) aparece na confirmação', async () => {
