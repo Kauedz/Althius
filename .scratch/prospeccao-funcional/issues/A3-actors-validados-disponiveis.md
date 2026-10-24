@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately). A validação dos 5 está nos comentários de `.scratch/sinais-reais/issues/` 04, 05 e 06 com o id do run, e o Renan aceitou esse registro em 07/10. A autorização para trocar a asserção `registro_de_actors.sql:18` foi dada na mesma decisão.
 
-**Status:** ready-for-agent (refeito em 24/10 contra a `main` 515c2eb)
+**Status:** done (implementado em 24/10 contra a `main` 515c2eb, pending apply no remoto)
 
 ## Estado atual (24/10, `main` 515c2eb)
 
@@ -15,12 +15,12 @@
 
 ## Critérios
 
-- [ ] Uma migration nova, timestamp maior que `20261120120000` (a do PR #261, em rascunho, já usa essa versão), promove a `available` exatamente estes 5 e nenhum outro: `harvestapi~linkedin-profile-scraper`, `harvestapi~linkedin-profile-search`, `harvestapi~linkedin-post-search`, `silva95gustavo~linkedin-ad-library-scraper`, `compass~google-maps-reviews-scraper`. Os outros 7 seguem `testing`.
-- [ ] A migration não preenche `version` nem `known_price`, e é idempotente (rodar de novo no remoto, onde os 5 já estão `available`, não muda nada).
-- [ ] `supabase/tests/registro_de_actors.sql:18` troca "todos nascem em teste" pelo conjunto final (5 `available`, 7 `testing`), com o mesmo `plan(18)`. Nenhuma outra asserção desse arquivo muda.
-- [ ] Um pgTAP novo em `supabase/tests/` prova o estado final: os 5 `available` por `actor_id`, os 7 `testing`, preço e versão nulos nos 12, e `authenticated` não escreve no registro (`set_signal_actor_state` dá 42501).
-- [ ] A migration não edita `20260930130000_registro_de_actors.sql` nem nenhuma outra antiga.
-- [ ] pgTAP do zero verde em todos os arquivos de `supabase/tests/` (`PGPORT=55432 scripts/pgtap-local.sh <banco>`).
+- [x] Uma migration nova, timestamp maior que `20261120120000` (a do PR #261, em rascunho, já usa essa versão), promove a `available` exatamente estes 5 e nenhum outro: `harvestapi~linkedin-profile-scraper`, `harvestapi~linkedin-profile-search`, `harvestapi~linkedin-post-search`, `silva95gustavo~linkedin-ad-library-scraper`, `compass~google-maps-reviews-scraper`. Os outros 7 seguem `testing`. (`supabase/migrations/20261121100000_actors_validados_disponiveis.sql`)
+- [x] A migration não preenche `version` nem `known_price`, e é idempotente (rodar de novo no remoto, onde os 5 já estão `available`, não muda nada). Conferido rodando o `update` duas vezes no banco pgTAP: a segunda vez não afeta nenhuma linha (filtro `state <> 'available'`) e `updated_at` não muda.
+- [x] `supabase/tests/registro_de_actors.sql:18` troca "todos nascem em teste" pelo conjunto final (5 `available`, 7 `testing`), com o mesmo `plan(18)`. Nenhuma outra asserção desse arquivo muda.
+- [x] Um pgTAP novo em `supabase/tests/` prova o estado final: os 5 `available` por `actor_id`, os 7 `testing`, preço e versão nulos nos 12, e `authenticated` não escreve no registro (`set_signal_actor_state` dá 42501). (`supabase/tests/actors_validados_disponiveis.sql`)
+- [x] A migration não edita `20260930130000_registro_de_actors.sql` nem nenhuma outra antiga.
+- [x] pgTAP do zero verde em todos os arquivos de `supabase/tests/` (`PGPORT=55432 scripts/pgtap-local.sh <banco>`). 152 arquivos, todos `ok`, nenhuma falha.
 
 ## Pode mexer
 
@@ -67,3 +67,10 @@
   - Passo do Nan depois do merge: aplicar a migration no projeto `ycbdilsmydvzezhlymty` conforme `docs/agents/migrations.md`. No remoto ela não muda nada (os 5 já estão `available` lá).
 
 - 2026-10-24 (matriz Ralph): ticket refeito contra a `main` 515c2eb. O registro cresceu para 12 actors (Google Ads em 21/10, Equipes e Publicações em 22/10), todos `testing`; `registro_de_actors.sql:18` conta 12. Estado final esperado: 5 `available`, 7 `testing`. Timestamp da migration depois de `20261120120000` (PR #261). Blocked by passa a None: a decisão de 07/10 já é o registro aceito e a autorização para a linha 18.
+
+- 2026-10-24 (implementação, sessão Ralph half): criada `supabase/migrations/20261121100000_actors_validados_disponiveis.sql` — um `update private.signal_actors set state = 'available', updated_at = now() where actor_id in (<os 5>) and state <> 'available'`, sem tocar `version` nem `known_price`. Idempotência conferida empiricamente: rodar o mesmo `update` duas vezes no banco pgTAP afeta 0 linhas na segunda vez e `updated_at` não muda.
+  - TDD: editada só a linha 18 de `supabase/tests/registro_de_actors.sql` (trocado "todos nascem em teste" por uma asserção `jsonb_build_object` que exige 5 `available` e 7 `testing`, mantendo `plan(18)` com 18 asserções); rodado antes da migration e confirmado o vermelho (`have: {"testing": 12, "available": 0}`, `want: {"testing": 7, "available": 5}`); depois da migration, verde.
+  - Novo pgTAP `supabase/tests/actors_validados_disponiveis.sql` (`plan(5)`): os 5 `actor_id` `available` exatos, os 7 `testing` exatos, contagem total 12, preço/versão nulos nos 12, e `throws_ok` 42501 para `authenticated` chamando `set_signal_actor_state`.
+  - `/code-review` (Standards + Spec em paralelo): Spec sem achados (todos os critérios cobertos, sem scope creep, migration antiga intocada). Standards sem violação hard; um smell de judgement call (faltava `reset role` antes do `finish()` no pgTAP novo, diferente do padrão do resto da suíte) — corrigido num segundo commit.
+  - Suíte pgTAP do zero (`PGPORT=55432 scripts/pgtap-local.sh pgtap_a3`, Postgres 17 local): 152 arquivos, todos `ok`, nenhuma falha — incluindo os do PR #261 (`briefing_e_plano_do_sinal.sql`, `rodar_agora_e_registro_da_rodada.sql`, `preco_por_rodada_e_limites.sql`, `agenda_do_sinal.sql`) e `monitoramento_real_de_sinais.sql`, intocados.
+  - AC 6/6. Pending apply no remoto (`ycbdilsmydvzezhlymty`): quem fecha o ticket não aplica, conforme "Passos do Nan".
