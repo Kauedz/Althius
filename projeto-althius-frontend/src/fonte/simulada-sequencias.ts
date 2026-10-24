@@ -89,6 +89,7 @@ export function criarFonteDeSequenciasSimulada(
     abertaEm: string
     respostas: Array<RespostaPendenteDeRetencao & { eventoId: string; criadaEm: string }>
     decisoes: RevisaoDeRetencao['decisoes']
+    contatosPausados: string[]
   }>()
 
   let dados: Sequencia[] = vazia ? [] : criarSequenciasIniciais(hoje)
@@ -130,6 +131,7 @@ export function criarFonteDeSequenciasSimulada(
         versao: hold?.versao ?? 0,
         pendentes: [],
         decisoes: podeLerConteudo ? (hold?.decisoes ?? []) : [],
+        contatosPausados: podeLerConteudo ? (hold?.contatosPausados ?? []) : [],
         podeLerConteudo,
         podeDecidir: podeLerConteudo,
       }
@@ -143,6 +145,7 @@ export function criarFonteDeSequenciasSimulada(
         ? { id: r.id, contatoId: r.contatoId, recebidaEm: r.recebidaEm, assunto: r.assunto, trecho: r.trecho, de: r.de, canal: r.canal }
         : { id: r.id, recebidaEm: r.recebidaEm }),
       decisoes: podeLerConteudo ? hold.decisoes : [],
+      contatosPausados: podeLerConteudo ? hold.contatosPausados : [],
       podeLerConteudo,
       podeDecidir: podeLerConteudo,
     }
@@ -350,9 +353,11 @@ export function criarFonteDeSequenciasSimulada(
         notificar()
         return { outcome: 'paused', versao: hold.versao }
       }
+      const atual = dados[indice]
+      const selecionados = pedido.contatosSelecionados ?? atual.participantesIds
+      hold.contatosPausados = atual.participantesIds.filter((id) => !selecionados.includes(id))
       hold.aberta = false
       hold.decisoes = [{ decisao: 'continue', versao: hold.versao, criadaEm: agora }, ...hold.decisoes]
-      const atual = dados[indice]
       const motivoDeResposta = atual.motivoPause === 'Contato respondeu' || atual.motivoPause === 'Pausa decidida após resposta'
       if (!atual.pausadaPelaConta && !atual.pausadaPelaContaRemetente) {
         dados[indice] = {
@@ -380,6 +385,7 @@ export function criarFonteDeSequenciasSimulada(
         abertaEm: agora,
         respostas: [],
         decisoes: [],
+        contatosPausados: [],
       }
       if (!hold.respostas.some((r) => r.eventoId === pedido.eventoId)) {
         if (hold.aberta) {
@@ -415,6 +421,10 @@ export function criarFonteDeSequenciasSimulada(
         notificar()
       }
       return revisaoDe(pedido.sequenciaId, true)
+    },
+    async confirmarNaoContatar() {
+      await aguardar()
+      notificar()
     },
     async urlDoAnexo() {
       throw new Error('Na Demonstração não há anexos recebidos.')

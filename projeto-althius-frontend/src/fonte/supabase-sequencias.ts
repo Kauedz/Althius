@@ -357,6 +357,9 @@ function mapearRevisaoDeRetencao(bruto: unknown): RevisaoDeRetencao {
         criadaEm: typeof linha.created_at === 'string' ? linha.created_at : '',
       }]
     }),
+    contatosPausados: Array.isArray(corpo.paused_contacts)
+      ? corpo.paused_contacts.filter((id): id is string => typeof id === 'string')
+      : [],
   }
 }
 
@@ -988,10 +991,19 @@ export function criarFonteDeSequenciasSupabase(
         p_decision: pedido.decisao,
         p_reviewed_version: pedido.versao,
         p_reviewed_reply_ids: pedido.respostasRevisadas,
+        p_selected_contact_ids: pedido.contatosSelecionados,
       })
       if (error) throw converterErro(error)
       notificar()
       return resultadoDaDecisao(data)
+    },
+    async confirmarNaoContatar(sequenciaId, interacaoId) {
+      const { error } = await cliente.rpc('confirm_sequence_no_contact', {
+        p_sequence_id: sequenciaId,
+        p_interaction_id: interacaoId,
+      })
+      if (error) throw converterErro(error)
+      notificar()
     },
     async urlDoAnexo(interacaoId, anexoId) {
       const { data, error } = await cliente.functions.invoke('received-email-attachments', {

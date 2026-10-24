@@ -221,6 +221,11 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     [sequenciaId],
   )
   const [erroDaRetencao, setErroDaRetencao] = useState<string | null>(null)
+  const [selecaoDaRetomada, setSelecaoDaRetomada] = useState<{
+    sequenciaId: string
+    versao: number
+    contatos: string[]
+  } | null>(null)
   const [dialogoAtivacaoAberto, setDialogoAtivacaoAberto] = useState(false)
   const [agendaConfirmada, setAgendaConfirmada] = useState(false)
   const [passosMarcados, setPassosMarcados] = useState<string[]>([])
@@ -230,6 +235,12 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const [avisoDoEnvio, setAvisoDoEnvio] = useState<(AvisoDoEnvio & { stepId: string }) | null>(null)
   const [erroDoAnexo, setErroDoAnexo] = useState<string | null>(null)
   const [imagemAmpliada, setImagemAmpliada] = useState<{ nome: string; url: string } | null>(null)
+
+  const contatosSelecionadosParaRetomar = revisao?.aberta && sequencia
+    ? selecaoDaRetomada?.sequenciaId === sequencia.id && selecaoDaRetomada.versao === revisao.versao
+      ? selecaoDaRetomada.contatos
+      : sequencia.participantesIds.filter((id) => !revisao.contatosPausados.includes(id))
+    : []
 
   const [stepSelecionadoId, setStepSelecionadoId] = useState<string | null>(null)
   const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false)
@@ -539,6 +550,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
         decisao,
         versao: revisao.versao,
         respostasRevisadas: revisao.pendentes.map((item) => item.id),
+        contatosSelecionados: decisao === 'continue' ? contatosSelecionadosParaRetomar : [],
       })
       if (resultado.outcome === 'stale') {
         setErroDaRetencao('Chegou outra resposta. Revise o conjunto atual antes de continuar.')
@@ -550,6 +562,21 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     } finally {
       recarregarRevisao()
       recarregar()
+    }
+  }
+
+  async function handleConfirmarNaoContatar(resposta: RespostaRecebida) {
+    if (!sequencia || !fonteDeSequencias.confirmarNaoContatar) return
+    const nome = resposta.de.nome ?? resposta.de.email ?? 'este Contato'
+    if (!window.confirm(`Confirmar que ${nome} pediu para não receber novos contatos? A resposta será guardada como evidência e o e-mail será bloqueado neste Workspace.`)) return
+    try {
+      await fonteDeSequencias.confirmarNaoContatar(sequencia.id, resposta.interacaoId)
+      recarregarRevisao()
+      recarregarEnvios()
+      recarregarRespostas()
+      recarregar()
+    } catch (erro) {
+      setErroDaRetencao(erro instanceof Error ? erro.message : 'Não foi possível registrar o pedido de não contato.')
     }
   }
 
@@ -904,7 +931,31 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               Regra do produto: qualquer resposta de qualquer Contato (positiva ou negativa) pausa a sequência inteira da empresa.
             </span>
             {revisao?.aberta && (
-              <RevisaoDaRetencao revisao={revisao} erro={erroDaRetencao} />
+              <RevisaoDaRetencao
+                revisao={revisao}
+                erro={erroDaRetencao}
+                participantesIds={sequencia.participantesIds}
+                contatosMap={contatosMap}
+                selecionados={contatosSelecionadosParaRetomar}
+                aoAlternarContato={(id, marcado) => setSelecaoDaRetomada((atual) => {
+                  const selecionados = atual?.sequenciaId === sequencia.id && atual.versao === revisao.versao
+                    ? atual.contatos
+                    : sequencia.participantesIds.filter((participanteId) => !revisao.contatosPausados.includes(participanteId))
+                  return {
+                    sequenciaId: sequencia.id,
+                    versao: revisao.versao,
+                    contatos: marcado
+                      ? [...new Set([...selecionados, id])]
+                      : selecionados.filter((contatoId) => contatoId !== id),
+                  }
+                })}
+              />
+            )}
+            {!revisao?.aberta && revisao?.podeLerConteudo && revisao.contatosPausados.length > 0 && (
+              <p className="text-xs text-al-muted" aria-label="Contatos em pausa local">
+                Pausa local após revisão: {revisao.contatosPausados.map((id) => contatosMap.get(id)?.nome ?? 'Contato').join(', ')}.
+                A pausa da Conta foi encerrada; esses Contatos seguem retidos até uma nova decisão.
+              </p>
             )}
           </div>
         </div>
@@ -927,6 +978,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 variant="outline"
                 size="sm"
                 onClick={() => handleDecidirRetencao('continue')}
+                disabled={contatosSelecionadosParaRetomar.length === 0}
                 className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
               >
                 Continuar envios da Conta
@@ -1224,6 +1276,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           carregarImagem={arquivoDoAnexo}
           onAmpliarImagem={setImagemAmpliada}
           erro={erroDoAnexo}
+          onConfirmarNaoContatar={handleConfirmarNaoContatar}
         />
       )}
 
@@ -2516,7 +2569,21 @@ function MiniaturaDoAnexo({
 }
 
 /** As respostas que retêm a Conta, dentro do bloco de pause. Sem conteúdo para quem não é o titular. */
-function RevisaoDaRetencao({ revisao, erro }: { revisao: RevisaoDeRetencao; erro: string | null }) {
+function RevisaoDaRetencao({
+  revisao,
+  erro,
+  participantesIds,
+  contatosMap,
+  selecionados,
+  aoAlternarContato,
+}: {
+  revisao: RevisaoDeRetencao
+  erro: string | null
+  participantesIds: string[]
+  contatosMap: Map<string, Contato>
+  selecionados: string[]
+  aoAlternarContato: (contatoId: string, marcado: boolean) => void
+}) {
   const rotulo = revisao.estado === 'pausa_decidida' ? 'Pausa decidida' : 'Retenção preventiva'
   return (
     <div className="mt-2 flex flex-col gap-1.5" aria-label="Revisão das respostas pendentes">
@@ -2531,6 +2598,29 @@ function RevisaoDaRetencao({ revisao, erro }: { revisao: RevisaoDeRetencao; erro
           {`${item.de ?? 'Contato'}${item.assunto ? `: ${item.assunto}` : item.trecho ? `: ${item.trecho}` : ''}`}
         </p>
       ))}
+      {revisao.podeLerConteudo && (
+        <fieldset className="mt-1 flex flex-col gap-1 border-0 p-0" aria-label="Contatos que continuam">
+          <legend className="text-xs font-medium text-al-ink">Contatos que continuam depois da revisão</legend>
+          {participantesIds.map((id) => {
+            const nome = contatosMap.get(id)?.nome ?? 'Contato'
+            return (
+              <label key={id} className="flex items-center gap-2 text-xs text-al-ink">
+                <input
+                  type="checkbox"
+                  aria-label={nome}
+                  checked={selecionados.includes(id)}
+                  onChange={(evento) => aoAlternarContato(id, evento.target.checked)}
+                />
+                <span>{nome}</span>
+                {revisao.contatosPausados.includes(id) && <span className="text-al-muted">· pausa local</span>}
+              </label>
+            )
+          })}
+          {revisao.contatosPausados.length > 0 && (
+            <p className="text-xs text-al-muted">Os Contatos desmarcados permanecem em pausa local; supressões e dependências continuam valendo.</p>
+          )}
+        </fieldset>
+      )}
       {revisao.podeLerConteudo && revisao.decisoes.length > 0 && (
         <p className="text-xs text-al-muted">
           {revisao.decisoes.length === 1 ? '1 decisão registrada' : `${revisao.decisoes.length} decisões registradas`}
@@ -2549,6 +2639,7 @@ function RespostasRecebidas({
   carregarImagem,
   onAmpliarImagem,
   erro,
+  onConfirmarNaoContatar,
 }: {
   respostas: RespostaRecebida[]
   contatosMap: Map<string, Contato>
@@ -2556,6 +2647,7 @@ function RespostasRecebidas({
   carregarImagem: (resposta: RespostaRecebida, anexo: AnexoRecebido) => Promise<Blob>
   onAmpliarImagem: (imagem: { nome: string; url: string }) => void
   erro: string | null
+  onConfirmarNaoContatar: (resposta: RespostaRecebida) => void
 }) {
   return (
     <section aria-label="Respostas recebidas" className="flex min-w-0 flex-col gap-3 break-words rounded-2xl border border-al-line bg-al-surface p-4 max-sm:-mx-10 max-sm:w-[calc(100%+5rem)] max-sm:p-3">
@@ -2582,6 +2674,17 @@ function RespostasRecebidas({
             {resposta.assunto && <p className="text-sm font-medium text-al-ink break-words">{resposta.assunto}</p>}
             {resposta.corpo && (
               <p className="text-sm text-al-ink whitespace-pre-wrap break-words leading-relaxed">{textoDaResposta(resposta.corpo)}</p>
+            )}
+            {resposta.de.email && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onConfirmarNaoContatar(resposta)}
+                className="mt-1 h-7 w-fit border-al-line text-xs"
+              >
+                Confirmar pedido de não contato
+              </Button>
             )}
             {resposta.quantidadeDeAnexos != null && resposta.quantidadeDeAnexos > 0 && (
               <p className="text-xs text-al-muted">

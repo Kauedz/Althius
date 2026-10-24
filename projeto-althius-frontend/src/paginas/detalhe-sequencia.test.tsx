@@ -73,6 +73,35 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     expect(screen.getByText('Esgotada')).toBeInTheDocument()
   })
 
+  it('permite escolher os Contatos que continuam após revisar as respostas da Conta', async () => {
+    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+    const sequencia = await fonteDeSequencias.sequencia('sequencia-openai')
+    await fonteDeSequencias.registrarRespostaCorrelacionada?.({
+      sequenciaId: sequencia.id,
+      eventoId: 'resposta-seletiva',
+      contatoId: 'contato-openai-1',
+      de: 'Sarah Chen',
+      trecho: 'Podemos conversar na semana que vem.',
+    })
+
+    const retomarSarah = await screen.findByRole('checkbox', { name: /Sarah Chen/ })
+    const retomarMarcus = screen.getByRole('checkbox', { name: /Marcus Vance/ })
+    await waitFor(() => {
+      expect(retomarSarah).toBeChecked()
+      expect(retomarMarcus).toBeChecked()
+    })
+    await usuario.click(retomarMarcus)
+    await usuario.click(screen.getByRole('button', { name: 'Continuar envios da Conta' }))
+
+    await waitFor(async () => {
+      const revisao = await fonteDeSequencias.revisaoDeRetencao?.(sequencia.id)
+      expect(revisao?.aberta).toBe(false)
+      expect(revisao?.contatosPausados).toContain('contato-openai-2')
+      expect(revisao?.contatosPausados).not.toContain('contato-openai-1')
+    })
+    expect(await screen.findByLabelText('Contatos em pausa local')).toHaveTextContent('Marcus Vance')
+  })
+
   it('permite alternar o step selecionado ao clicar na timeline', async () => {
     const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 

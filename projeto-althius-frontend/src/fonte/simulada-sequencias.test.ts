@@ -211,6 +211,7 @@ describe('FonteDeSequenciasSimulada', () => {
       decisao: 'continue',
       versao: primeira.versao,
       respostasRevisadas: primeira.pendentes.map((item) => item.id),
+      contatosSelecionados: [],
     })
     expect(velha.outcome).toBe('stale')
     expect((await fonte.sequencia('sequencia-openai')).status).toBe('pausada')
@@ -220,6 +221,7 @@ describe('FonteDeSequenciasSimulada', () => {
       decisao: 'continue',
       versao: segunda.versao,
       respostasRevisadas: segunda.pendentes.map((item) => item.id),
+      contatosSelecionados: ['contato-openai-1', 'contato-openai-2', 'contato-openai-3'],
     })
     expect(atual.outcome).toBe('continued')
     expect((await fonte.sequencia('sequencia-openai')).status).toBe('ativa')
