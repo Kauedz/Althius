@@ -11,15 +11,14 @@ export interface AgendaDoSinal {
 }
 
 /**
- * Os limites e o padrão. DECISÃO PENDENTE 3 (passo, máximo por dia, intervalo e dias úteis) e 10 (mais de 50 Contas, 1 Rodada
- * por dia): o Kauê ainda não decidiu; são os valores recomendados e ficam aqui e em `private.signal_schedule_limit`.
+ * Os limites e o padrão. Decidido pelo Kauê em 24/10/2026: passo de 15 minutos, até 12 Rodadas por dia, 1 hora entre elas e
+ * dias úteis como padrão. O tamanho da lista não limita mais a Agenda (a lista gira em lotes). Ficam aqui e em
+ * `private.signal_schedule_limit`.
  */
 export const LIMITES_DA_AGENDA = {
   passoEmMinutos: 15,
-  maximoPorDia: 6,
-  intervaloMinimoEmMinutos: 120,
-  contasDoEscopoGrande: 50,
-  maximoNoEscopoGrande: 1,
+  maximoPorDia: 12,
+  intervaloMinimoEmMinutos: 60,
 } as const
 
 export const DIAS_UTEIS: readonly number[] = [1, 2, 3, 4, 5]
@@ -37,25 +36,19 @@ export type CodigoDeErroDaAgenda =
   | 'sem_dia'
   | 'dia_invalido'
   | 'fuso_invalido'
-  | 'muitas_contas'
   | 'tipo_sem_agenda'
 
 export const CODIGOS_DE_ERRO_DA_AGENDA: readonly CodigoDeErroDaAgenda[] = [
   'formato_invalido', 'sem_horario', 'muitos_horarios', 'horario_invalido', 'horario_repetido', 'intervalo_curto', 'sem_dia',
-  'dia_invalido', 'fuso_invalido', 'muitas_contas', 'tipo_sem_agenda',
+  'dia_invalido', 'fuso_invalido', 'tipo_sem_agenda',
 ]
 
-const { maximoPorDia, intervaloMinimoEmMinutos, contasDoEscopoGrande, maximoNoEscopoGrande } = LIMITES_DA_AGENDA
+const { maximoPorDia, intervaloMinimoEmMinutos } = LIMITES_DA_AGENDA
 const horas = (minutos: number) => (minutos % 60 === 0 ? `${minutos / 60} ${minutos === 60 ? 'hora' : 'horas'}` : `${minutos} minutos`)
-const vezes = (n: number) => (n === 1 ? '1 vez' : `${n} vezes`)
 
 /** A regra da Agenda em uma frase, para quem vai editar. */
 export const REGRA_DA_AGENDA =
   `Até ${maximoPorDia} rodadas por dia, com pelo menos ${horas(intervaloMinimoEmMinutos)} entre elas.`
-
-/** O aviso do escopo grande (DECISÃO PENDENTE 10). */
-export const AVISO_DO_ESCOPO_GRANDE =
-  `Com mais de ${contasDoEscopoGrande} Contas, o Sinal roda ${vezes(maximoNoEscopoGrande)} por dia.`
 
 /** As frases do produto para cada recusa. Nada de termo técnico. */
 export const TEXTO_DO_ERRO_DA_AGENDA: Readonly<Record<CodigoDeErroDaAgenda, string>> = {
@@ -68,7 +61,6 @@ export const TEXTO_DO_ERRO_DA_AGENDA: Readonly<Record<CodigoDeErroDaAgenda, stri
   sem_dia: 'Escolha ao menos um dia da semana.',
   dia_invalido: 'Um dos dias escolhidos não existe.',
   fuso_invalido: 'Por enquanto a agenda vale no horário de Brasília.',
-  muitas_contas: AVISO_DO_ESCOPO_GRANDE,
   tipo_sem_agenda: 'Este Sinal não tem agenda: ele avalia as Interações no ritmo dele.',
 }
 
@@ -92,7 +84,7 @@ export function codigoDoErroDaAgenda(mensagem: string): CodigoDeErroDaAgenda | n
 
 /** Os erros que dizem respeito aos horários (os demais são dos dias). */
 export const ERROS_DE_HORARIO: readonly CodigoDeErroDaAgenda[] = [
-  'sem_horario', 'muitos_horarios', 'horario_invalido', 'horario_repetido', 'intervalo_curto', 'muitas_contas',
+  'sem_horario', 'muitos_horarios', 'horario_invalido', 'horario_repetido', 'intervalo_curto',
 ]
 
 const HORARIO = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
@@ -100,9 +92,10 @@ const HORARIO = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
 const emMinutos = (horario: string) => Number(horario.slice(0, 2)) * 60 + Number(horario.slice(3, 5))
 
 /**
- * Confere a Agenda como o servidor confere, na mesma ordem. `contas`: as Contas no escopo. Devolve o primeiro problema ou nada.
+ * Confere a Agenda como o servidor confere, na mesma ordem. Devolve o primeiro problema ou nada. O tamanho da lista de Contas não
+ * entra: a lista gira em lotes e nenhuma quantidade de Contas recusa um horário.
  */
-export function validarAgenda(agenda: AgendaDoSinal, contas = 0): CodigoDeErroDaAgenda | null {
+export function validarAgenda(agenda: AgendaDoSinal): CodigoDeErroDaAgenda | null {
   const { horarios, dias } = agenda
   if (horarios.length === 0) return 'sem_horario'
   if (horarios.length > maximoPorDia) return 'muitos_horarios'
@@ -112,11 +105,10 @@ export function validarAgenda(agenda: AgendaDoSinal, contas = 0): CodigoDeErroDa
   for (let i = 1; i < minutos.length; i++) {
     if (minutos[i] - minutos[i - 1] < intervaloMinimoEmMinutos) return 'intervalo_curto'
   }
-  // A virada do dia: do último horário de um dia ao primeiro do dia seguinte (23:00 e 01:00 são 2 horas).
+  // A virada do dia: do último horário de um dia ao primeiro do dia seguinte (23:00 e 00:00 são 1 hora).
   if (minutos.length >= 2 && minutos[0] + 1440 - minutos[minutos.length - 1] < intervaloMinimoEmMinutos) return 'intervalo_curto'
   if (dias.length === 0) return 'sem_dia'
   if (dias.some((d) => !Number.isInteger(d) || d < 1 || d > 7) || new Set(dias).size !== dias.length) return 'dia_invalido'
-  if (contas > contasDoEscopoGrande && horarios.length > maximoNoEscopoGrande) return 'muitas_contas'
   return null
 }
 

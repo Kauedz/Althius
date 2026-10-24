@@ -14,9 +14,23 @@ async function ler(pasta: URL, arquivo: string): Promise<string> {
 
 /** O corpo de uma função da migration do Plano, do `create function` ao `$$;` final. */
 function corpoDa(sql: string, funcao: string): string {
-  const inicio = sql.indexOf(`create function ${funcao}(`)
+  const inicio = sql.search(new RegExp(`create (or replace )?function ${funcao.replace('.', '\\.')}\\(`))
   assert(inicio >= 0, `a função ${funcao} não está na migration`)
   return sql.slice(inicio, sql.indexOf('\n$$;', inicio))
+}
+
+/** O texto da migration que tem a ÚLTIMA definição da função: percorre as migrations em ordem e fica com a mais nova. */
+async function ultimaDefinicao(funcao: string): Promise<string> {
+  const nomes: string[] = []
+  for await (const arquivo of Deno.readDir(MIGRATIONS)) if (arquivo.name.endsWith('.sql')) nomes.push(arquivo.name)
+  const regex = new RegExp(`create (or replace )?function ${funcao.replace('.', '\\.')}\\(`)
+  let ultimo = ''
+  for (const nome of nomes.toSorted()) {
+    const sql = await ler(MIGRATIONS, nome)
+    if (regex.test(sql)) ultimo = sql
+  }
+  assert(ultimo !== '', `nenhuma migration define ${funcao}`)
+  return ultimo
 }
 
 const strings = (trecho: string) => [...trecho.matchAll(/'([^']*)'/g)].map((m) => m[1])
@@ -25,7 +39,7 @@ Deno.test({
   name: 'os limites do banco são os do servidor',
   ignore: !podeLer,
   async fn() {
-    const sql = await ler(MIGRATIONS, '20261116120000_briefing_e_plano_do_sinal.sql')
+    const sql = await ultimaDefinicao('private.signal_plan_limit')
     const doBanco = new Map([...corpoDa(sql, 'private.signal_plan_limit').matchAll(/when '(\w+)' then (\d+)/g)].map((m) => [m[1], Number(m[2])]))
     const esperado = new Map(Object.entries({
       brief_max: LIMITES_DO_PLANO.briefingMax,
@@ -35,6 +49,7 @@ Deno.test({
       accounts_max: LIMITES_DO_PLANO.contasEscolhidasMax,
       per_round_min: LIMITES_DO_PLANO.empresasPorRodadaMin,
       per_round_max: LIMITES_DO_PLANO.empresasPorRodadaMax,
+      per_round_default: LIMITES_DO_PLANO.empresasPorRodadaPadrao,
       custom_text_max: LIMITES_DO_PLANO.textoCustomMax,
       custom_roles_max: LIMITES_DO_PLANO.cargosCustomMax,
       list_items_max: LIMITES_DO_PLANO.itensDeListaMax,

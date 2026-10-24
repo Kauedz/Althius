@@ -25,7 +25,7 @@ import { parseDataDisparo } from '@/fonte/regras-sinais'
 import { cn } from '@/lib/utils'
 import type { EstadoDoCard } from './catalogo-funcional'
 import { nomesDosNichos, valeParaTodosOsNichos, type CardDoCatalogo } from './catalogo-visivel'
-import { AvisoDePausaPorCreditos } from './aviso-de-pausa'
+import { AvisoDePausaPorCreditos, AvisoDeRodadaPulada } from './aviso-de-pausa'
 import { SeloDaDisponibilidade } from './disponibilidade'
 import { capaDoCard, iconeDaFamilia, type SituacaoDoExclusivo } from './vitrine'
 
@@ -611,6 +611,7 @@ function PecaDeMeusSinais({
 export function MeusSinais({
   monitoramentosAtivos,
   pausadosPorCreditos = [],
+  comRodadaPulada = [],
   disparos,
   contasQuentes,
   sequenciasAtivas,
@@ -620,6 +621,8 @@ export function MeusSinais({
   monitoramentosAtivos: { id: string; tipoId: string; nome: string; disparos: number }[]
   /** Os Sinais que o sistema pausou por falta de créditos: o aviso com "Ver créditos" e "Reativar" (agente-de-sinal 04). */
   pausadosPorCreditos?: Monitoramento[]
+  /** Os Sinais ativos cuja última Rodada foi pulada por falta de créditos: o aviso com "Ver créditos" (agente-de-sinal 05). */
+  comRodadaPulada?: Monitoramento[]
   disparos: number | undefined
   contasQuentes: number | undefined
   sequenciasAtivas: number | undefined
@@ -683,6 +686,13 @@ export function MeusSinais({
         <div role="group" aria-label="Sinais pausados por falta de créditos" className="flex flex-col gap-2">
           {pausadosPorCreditos.map((m) => (
             <AvisoDePausaPorCreditos key={m.id} monitoramento={m} comNome />
+          ))}
+        </div>
+      )}
+      {comRodadaPulada.length > 0 && (
+        <div role="group" aria-label="Sinais com rodada pulada por falta de créditos" className="flex flex-col gap-2">
+          {comRodadaPulada.map((m) => (
+            <AvisoDeRodadaPulada key={m.id} monitoramento={m} comNome />
           ))}
         </div>
       )}

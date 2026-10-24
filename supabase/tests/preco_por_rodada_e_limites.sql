@@ -183,8 +183,8 @@ select is(
 -- A conferência da Agenda proposta é a do servidor.
 select throws_ok(
   $$select * from public.quote_signal_schedule('fb100000-0000-4000-8000-000000000001', 'fb300000-0000-4000-8000-000000000001',
-    '{"horarios":["08:00","09:00"],"dias":[1]}')$$,
-  '22023', 'signal schedule invalid: intervalo_curto', 'a Agenda proposta com menos de 2 horas entre as rodadas é recusada');
+    '{"horarios":["08:00","08:45"],"dias":[1]}')$$,
+  '22023', 'signal schedule invalid: intervalo_curto', 'a Agenda proposta com menos de 1 hora entre as rodadas é recusada');
 select throws_ok(
   $$select * from public.quote_signal_schedule('fb100000-0000-4000-8000-000000000001', 'fb300000-0000-4000-8000-000000000001',
     '{"horarios":[],"dias":[1]}')$$,
@@ -507,7 +507,8 @@ select is(
   (select count(*)::int from private.signal_monitor_runs x where x.monitor_id = 'fb300000-0000-4000-8000-000000000005'), 3,
   'foram três Rodadas registradas, e a continuação ficou na mesma linha');
 select is(
-  (select concat_ws('|', n.kind, n.title, n.link) from private.workspace_notices n where n.workspace_id = 'fb100000-0000-4000-8000-000000000001'),
+  (select concat_ws('|', n.kind, n.title, n.link) from private.workspace_notices n
+   where n.workspace_id = 'fb100000-0000-4000-8000-000000000001' and n.kind = 'sinal_pausado'),
   'sinal_pausado|Sinal pausado por falta de créditos: Vagas do Beto|/sinais',
   'e os Administradores recebem um Aviso do Workspace, uma vez');
 select is(
