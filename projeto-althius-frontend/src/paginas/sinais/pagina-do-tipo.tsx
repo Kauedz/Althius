@@ -6,7 +6,7 @@ import { Pagina } from '@/components/pagina'
 import { cn } from '@/lib/utils'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeContas } from '@/fonte/contexto'
-import type { CardSobPedido, EstadoDoMonitoramento } from '@/fonte/sinais-tipos'
+import type { CardSobPedido, EstadoDoMonitoramento, Monitoramento } from '@/fonte/sinais-tipos'
 import { ROTULO_DA_ORIGEM, familiaDoTipo, tipoPorId, type TipoDeSinal } from './catalogo'
 import { cardPorId, cardQueConta, nomesDosNichos, valeParaTodosOsNichos } from './catalogo-visivel'
 import { sinalArquivado } from './arquivados'
@@ -27,7 +27,26 @@ import {
 } from './vitrine'
 import { BotaoAviseMe, CapaDoSinal, PreviaDasDetectadas, SelosDoEstado } from './vitrine-pecas'
 import { ACAO_DO_ESTADO, resumoDaRodada, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
+import { useAtivacaoDoSinal } from './usar-ativacao'
+import { AvisoDePausaPorCreditos } from './aviso-de-pausa'
 import { noMercado, resumoDoMercado } from './mercado-enderecavel'
+
+/**
+ * Retomar o Sinal pausado pela pessoa. Com Agenda, passa pela confirmação "Ativar Sinal" (retomar volta a gastar créditos); sem
+ * Agenda, retoma direto, como sempre.
+ */
+function BotaoDeRetomar({ monitoramento, aoFalhar }: { monitoramento: Monitoramento; aoFalhar: (mensagem: string) => void }) {
+  const { pedir, dialogo } = useAtivacaoDoSinal(monitoramento, () => aoFalhar('Não foi possível retomar o monitoramento. Tente de novo.'))
+  return (
+    <>
+      <button type="button" onClick={pedir} className={BOTAO_DISCRETO}>
+        <Play strokeWidth={1.8} className="size-3.5" aria-hidden />
+        Retomar
+      </button>
+      {dialogo}
+    </>
+  )
+}
 
 function tipoDoExtra(extra: CardSobPedido): TipoDeSinal {
   return {
@@ -286,16 +305,18 @@ export function PaginaDoTipo() {
                       Pausar
                     </button>
                   )}
-                  {m.estado === 'pausado' && (
-                    <button type="button" onClick={() => alternarEstado(m.id, 'ativo')} className={BOTAO_DISCRETO}>
-                      <Play strokeWidth={1.8} className="size-3.5" aria-hidden />
-                      Retomar
-                    </button>
+                  {m.estado === 'pausado' && m.pausadoPor !== 'sem_creditos' && (
+                    <BotaoDeRetomar monitoramento={m} aoFalhar={setErroAcao} />
                   )}
                   <Link to={`/sinais/tipos/${tipo.id}/${m.id}`} className={BOTAO_DISCRETO}>
                     {ACAO_DO_ESTADO[m.estado]}
                   </Link>
                 </div>
+                {m.pausadoPor === 'sem_creditos' && (
+                  <div className="col-span-2 pt-2">
+                    <AvisoDePausaPorCreditos monitoramento={m} />
+                  </div>
+                )}
               </li>
               )
             })}

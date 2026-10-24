@@ -7,6 +7,7 @@ import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from 
 import { ErroDaRodada, type AchadoDaRodada, type HistoricoDeRodadas, type PedidoDeRodada, type PreviaDaRodada } from './rodadas-do-sinal'
 import { TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import { ErroDaAgenda, normalizarAgenda, proximasRodadas, validarAgenda, type AgendaDoSinal } from './agenda-do-sinal'
+import { ErroDoLimite, estimativaLocal, type EstimativaDoSinal } from './preco-por-rodada'
 import type {
   CardSobPedido,
   CascataDoCatalogo,
@@ -56,6 +57,7 @@ function clonarMonitoramento(m: Monitoramento): Monitoramento {
     criterios: { ...m.criterios },
     criteriosLivres: m.criteriosLivres ? [...m.criteriosLivres] : undefined,
     agenda: m.agenda ? { horarios: [...m.agenda.horarios], dias: [...m.agenda.dias] } : undefined,
+    limitePorDia: m.limitePorDia,
   }
 }
 
@@ -205,8 +207,9 @@ export function criarFonteDeSinaisSimulada(
         fonte: novoOuExistente.fonte,
         origem: novoOuExistente.origem,
         criteriosLivres: novoOuExistente.criteriosLivres,
-        // A Agenda tem a sua própria gravação: salvar o formulário não a muda.
+        // A Agenda e o limite por dia têm a sua própria gravação: salvar o formulário não os muda.
         agenda: monitoramentos.find((m) => m.id === id)?.agenda,
+        limitePorDia: monitoramentos.find((m) => m.id === id)?.limitePorDia,
       }
 
       const index = monitoramentos.findIndex((m) => m.id === id)
@@ -483,6 +486,41 @@ export function criarFonteDeSinaisSimulada(
       if (codigo) throw new ErroDaAgenda(codigo)
       const referencia = fonteDeContasVinculada ? fonteDeContasVinculada.hoje() : hoje
       return proximasRodadas(agenda, referencia, Math.min(Math.max(n, 1), 20)).map((d) => d.toISOString())
+    },
+
+    // A estimativa da Demonstração usa o preço fixo da prévia de exemplo (2 créditos por Conta) e as Contas do Monitoramento; o
+    // saldo é o de exemplo. A conta é a do servidor (`estimativaLocal`).
+    async estimarAgenda(monitoramentoId: string, agenda?: AgendaDoSinal): Promise<EstimativaDoSinal> {
+      await aguardar()
+      const m = monitoramentos.find((item) => item.id === monitoramentoId)
+      if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
+      const proposta = agenda ?? m.agenda
+      if (agenda) {
+        const codigo = validarAgenda(agenda, m.publico.listas.length)
+        if (codigo) throw new ErroDaAgenda(codigo)
+      }
+      return estimativaLocal({
+        porRodada: m.publico.listas.length * PREVIA_DA_DEMONSTRACAO.creditosPorConta,
+        ...(proposta ? { agenda: proposta } : {}),
+        saldo: PREVIA_DA_DEMONSTRACAO.saldo,
+      })
+    },
+
+    async salvarLimitePorDia(monitoramentoId: string, limite: number): Promise<Monitoramento> {
+      await aguardar()
+      const m = monitoramentos.find((item) => item.id === monitoramentoId)
+      if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
+      const { limiteSugeridoPorDia: sugerido } = estimativaLocal({
+        porRodada: m.publico.listas.length * PREVIA_DA_DEMONSTRACAO.creditosPorConta,
+        ...(m.agenda ? { agenda: m.agenda } : {}),
+        saldo: PREVIA_DA_DEMONSTRACAO.saldo,
+      })
+      if (sugerido === 0) throw new ErroDoLimite('sem_estimativa')
+      if (!Number.isInteger(limite) || limite < 1) throw new ErroDoLimite('limite_invalido')
+      if (limite > sugerido) throw new ErroDoLimite('acima_do_sugerido', sugerido)
+      m.limitePorDia = limite
+      notificar()
+      return clonarMonitoramento(m)
     },
 
     // O Plano da Demonstração é fixo: a IA não roda aqui, e o Briefing não muda o que volta (só as Contas escolhidas).

@@ -6,7 +6,7 @@ import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
 import { textoDaAgenda } from '@/fonte/agenda-do-sinal'
-import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
+import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { CRITERIOS_DOS_SINAIS_INTERNOS, TIPOS_INTERNOS_REAIS } from '@/fonte/sinais-reais-mapa'
 import { publicoRecomendado } from '@/fonte/regras-memoria'
@@ -56,6 +56,8 @@ import {
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
 import { AgendaDoSinalNoMonitoramento } from './agenda'
+import { AtivarSinal } from './ativar-sinal'
+import { AvisoDePausaPorCreditos } from './aviso-de-pausa'
 import { RodadasDoMonitoramento, RodarAgora } from './rodadas'
 import { useRodadas } from './usar-rodadas'
 import { ResumoDoPlano } from './resumo-do-plano'
@@ -207,6 +209,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const [parametros] = useSearchParams()
   const navegar = useNavigate()
   const { salvar } = useSinaisDoMockup()
+  const fonteDeSinais = useFonteDeSinais()
   const rodadas = useRodadas(existente?.id)
   const operacional = useAmbiente().modo === 'real'
   const familia = familiaDoTipo(tipo)
@@ -228,11 +231,29 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
 
   const jaFunciona = existente?.estado === 'ativo' || existente?.estado === 'pausado'
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
+  // Ativar um Sinal com Agenda passa pela confirmação "Ativar Sinal": o Plano, a Agenda e a estimativa em créditos.
+  const [confirmandoAtivacao, setConfirmandoAtivacao] = useState(false)
+  const confirmaAtivacao = !!existente?.agenda && !!fonteDeSinais.estimarAgenda
   const mudar = (parcial: Partial<MonitoramentoNoEditor>) => setMonitoramento((atual) => ({ ...atual, ...parcial }))
   const voltarAoTipo = (aviso: string) => navegar(`/sinais/tipos/${tipo.id}`, { state: { aviso } })
   // No operacional a recusa do banco já vem em palavras do produto (ex.: falta escolher uma Conta-alvo para ativar).
   const motivoDaFalha = (erro: unknown, padrao: string) => (operacional && erro instanceof Error ? erro.message : padrao)
   const nomeValido = monitoramento.nome.trim().length > 0
+  // Salva o que está na tela e ativa. Devolve a frase de erro, ou nada quando deu certo.
+  const ativar = async (): Promise<string | null> => {
+    try {
+      setErroSalvar(null)
+      await salvar({ ...monitoramento, estado: 'ativo' })
+      voltarAoTipo(
+        operacional
+          ? `“${monitoramento.nome}” está ativo.`
+          : `“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`,
+      )
+      return null
+    } catch (erro) {
+      return motivoDaFalha(erro, 'Não foi possível ativar o monitoramento. Tente de novo.')
+    }
+  }
 
   const titulo = existente?.nome ?? (personalizado ? 'Novo sinal personalizado' : 'Novo monitoramento')
 
@@ -244,6 +265,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
           {familia && <span className="selo">{ROTULO_DA_ORIGEM[familia.origem]} · {familia.nome}</span>}
           {!personalizado && <span className="text-sm text-al-muted">{tipo.descricao}</span>}
         </div>
+
+        {existente?.pausadoPor === 'sem_creditos' && <AvisoDePausaPorCreditos monitoramento={existente} />}
 
         {existente?.plano && <ResumoDoPlano monitoramento={existente} />}
 
@@ -415,19 +438,16 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
             operacional={operacional}
             interno={interno}
             aoVoltar={() => setEtapa('editar')}
-            aoAtivar={async () => {
-              try {
-                setErroSalvar(null)
-                await salvar({ ...monitoramento, estado: 'ativo' })
-                voltarAoTipo(
-                  operacional
-                    ? `“${monitoramento.nome}” está ativo.`
-                    : `“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`,
-                )
-              } catch (erro) {
-                setErroSalvar(motivoDaFalha(erro, 'Não foi possível ativar o monitoramento. Tente de novo.'))
-              }
-            }}
+            aoAtivar={() => (confirmaAtivacao ? setConfirmandoAtivacao(true) : void ativar().then((falha) => falha && setErroSalvar(falha)))}
+          />
+        )}
+
+        {confirmaAtivacao && existente && (
+          <AtivarSinal
+            monitoramento={{ ...existente, nome: monitoramento.nome }}
+            aberto={confirmandoAtivacao}
+            aoCancelar={() => setConfirmandoAtivacao(false)}
+            aoAtivar={ativar}
           />
         )}
       </div>

@@ -10,12 +10,13 @@ export type BloqueioDaRodada =
   | 'contrato_inativo'
   | 'ja_na_fila'
   | 'intervalo_minimo'
+  | 'teto_diario'
   | 'sem_creditos'
   | 'limite_do_mes'
   | 'limite_do_participante'
 
 export const BLOQUEIOS_DA_RODADA: readonly BloqueioDaRodada[] = [
-  'sem_permissao', 'sem_fonte', 'sem_contas', 'contrato_inativo', 'ja_na_fila', 'intervalo_minimo', 'sem_creditos',
+  'sem_permissao', 'sem_fonte', 'sem_contas', 'contrato_inativo', 'ja_na_fila', 'intervalo_minimo', 'teto_diario', 'sem_creditos',
   'limite_do_mes', 'limite_do_participante',
 ]
 
@@ -38,7 +39,7 @@ export interface PreviaDaRodada {
 }
 
 /** Por que uma Rodada parou, em código estável. A tela escreve a frase. */
-export type MotivoDaParada = 'sem_creditos' | 'teto' | 'contrato_inativo' | 'prazo' | 'concluida' | 'erro'
+export type MotivoDaParada = 'sem_creditos' | 'teto' | 'teto_diario' | 'contrato_inativo' | 'prazo' | 'concluida' | 'erro'
 
 export type OrigemDaRodada = 'agenda' | 'manual'
 
@@ -114,6 +115,8 @@ export function frasesDoBloqueio(bloqueio: BloqueioDaRodada, liberadoEm?: string
   switch (bloqueio) {
     case 'sem_creditos':
       return 'Sem créditos suficientes. Fale com o responsável pelo plano.'
+    case 'teto_diario':
+      return 'Este Sinal chegou ao limite de créditos de hoje. Tente de novo amanhã.'
     case 'limite_do_mes':
       return 'Limite do mês atingido. Ele volta na renovação ou fale com a equipe Althius.'
     case 'limite_do_participante':
@@ -155,6 +158,8 @@ export function textoDaParada(rodada: Pick<RodadaRegistrada, 'estado' | 'motivoD
       return 'Parou: acabaram os créditos.'
     case 'teto':
       return 'Parou: limite do mês ou da automação.'
+    case 'teto_diario':
+      return 'Parou: limite de créditos por dia.'
     case 'contrato_inativo':
       return 'Parou: contrato inativo.'
     case 'prazo':

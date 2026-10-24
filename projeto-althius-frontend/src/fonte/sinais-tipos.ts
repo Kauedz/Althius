@@ -3,6 +3,7 @@ import type { FonteObservavel } from './tipos'
 import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
 import type { AchadoDaRodada, HistoricoDeRodadas, PreviaDaRodada } from './rodadas-do-sinal'
 import type { AgendaDoSinal } from './agenda-do-sinal'
+import type { EstimativaDoSinal } from './preco-por-rodada'
 
 export type Origem = 'externo' | 'interno' | 'originado'
 
@@ -50,6 +51,10 @@ export interface Monitoramento {
   versaoDoPlano?: number
   /** A Agenda do Sinal (agente-de-sinal 03). Ausente é o Monitoramento de antes, que roda a cada 24 horas. */
   agenda?: AgendaDoSinal
+  /** O limite de créditos por dia (agente-de-sinal 04). Ausente é o Sinal sem limite próprio. */
+  limitePorDia?: number
+  /** Quando foi o sistema que pausou o Sinal: `sem_creditos` depois de 3 Rodadas seguidas puladas. Ausente na pausa da pessoa. */
+  pausadoPor?: 'sem_creditos'
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */
@@ -295,6 +300,20 @@ export interface FonteDeSinais extends FonteObservavel {
    * escopo. Rejeita com `ErroDaAgenda` quando a Agenda não vale.
    */
   proximasRodadas?(agenda: AgendaDoSinal, contas: number, n: number): Promise<string[]>
+
+  /**
+   * A estimativa em créditos antes de ativar (agente-de-sinal 04): por Rodada, por dia e por mês, quantos dias o saldo aguenta e o
+   * que ainda bloqueia a ativação. `agenda`: a que a tela propõe e ainda não gravou; ausente, a gravada. Só créditos: nunca US$,
+   * custo de fornecedor nem valor de Teto. Rejeita com `ErroDaAgenda` quando a Agenda proposta não vale. Quem não implementa não
+   * mostra a estimativa nem a confirmação de ativação.
+   */
+  estimarAgenda?(monitoramentoId: string, agenda?: AgendaDoSinal): Promise<EstimativaDoSinal>
+
+  /**
+   * Grava o limite de créditos por dia do Sinal, de 1 ao máximo de um dia da Agenda gravada (só se baixa). Rejeita com
+   * `ErroDoLimite`.
+   */
+  salvarLimitePorDia?(monitoramentoId: string, limite: number): Promise<Monitoramento>
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'
