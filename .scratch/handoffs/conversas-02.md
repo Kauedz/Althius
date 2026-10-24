@@ -1,3 +1,16 @@
+# Correção da revisão cruzada concluída — 2026-10-24
+
+Base desta sessão: `0c90182`, branch `ralph/conversas-02-heartbeat-do-hermes`. Esta seção substitui pendências de cache/testes registradas historicamente abaixo.
+
+- Achado corrigido: heartbeat vencendo durante processamento legítimo. `worker.ts` agenda renovação a cada 30s durante a rodada, com saúde do motor confirmada em cada renovação. Impede sobreposição, registra falhas periódicas e cancela no `finally`, aguardando consulta em andamento.
+- Teste Deno novo em `_hermes-worker/heartbeat.test.ts`: interfaces reais `rodada` e capability do handler, banco/motor/tempo injetados. Execução fica pendente aos 150s simulados; capability deve continuar disponível. Também verifica expiração após queda, recuperação e cancelamento do temporizador. Sem sleep real longo.
+- Vermelho primeiro: 117 passaram/1 falhou pela capability indevidamente indisponível (`/tmp/c02-correcao-red.log`). Verde: **118 passaram/0 falharam** (`/tmp/c02-correcao-green.log`) com o único comando de testes autorizado: `deno test --cached-only --allow-all supabase/functions/_hermes-worker supabase/functions/agent-conversation`. `git diff --check` verde.
+- Matriz informou suíte completa anterior 1832/1832 e pgTAP novo 10/10 fora do sandbox. Não repetidos nesta sessão; nenhuma mudança SQL/frontend.
+- Ticket Comments e `/workspace/ralph-wt/_pr/conversas-02.md` atualizados. Sem commit/push, acesso remoto, deploy, migration aplicada ou Hermes ligado; git somente leitura. Nenhum pkill/killall.
+- Próxima ação da matriz: revisar/incorporar este diff e validar CI. Publicação continua exclusivamente nos Passos do Nan do ticket/rascunho, após CI; nenhuma publicação autorizada nesta sessão.
+
+---
+
 # Retomada concluída — 2026-10-24
 
 Código de frontend concluído e autorização da matriz registrada em Comments/Pode mexer do ticket. Estado anterior abaixo é histórico, substituído por esta seção.

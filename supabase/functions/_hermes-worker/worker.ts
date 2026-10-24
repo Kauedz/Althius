@@ -266,6 +266,8 @@ export interface WorkerDeps {
   db: FilaDb
   hermes: Hermes
   log?: (fields: Record<string, unknown>) => void
+  /** Temporizador periódico; devolve o cancelamento ao encerrar a rodada. */
+  agendarSinal?: (renovar: () => Promise<void>, intervaloMs: number) => () => void
   /**
    * Cada Agente vira uma chamada separada ao Hermes, na sua vez e em rodadas (agentes-em-conversa, ticket 02). Sem isso,
    * o worker faz uma chamada só, que devolve as etapas de todos os Agentes juntas (o primeiro modo do motor Hermes).
@@ -475,33 +477,56 @@ export function createWorker(deps: WorkerDeps) {
   async function rodada(limite = 5): Promise<number | null> {
     if (!(await hermes.vivo().catch(() => false))) return null
     await db.sinalDeVida?.()
-    let feitos = 0
-    for (const runId of await db.listQueued(limite)) {
-      const reservada = await db.claim(runId)
-      if (!reservada) continue
-      // Os anexos do pedido (PR-10) entram como texto: o Hermes não recebe imagem, só o nome dela.
-      // A Execução do Canal (slack-canal 03) segue só com o Agente do fio, e o anexo continua no pedido.
-      const reserva = soComOAgenteDoFio(reservaComAnexos(reservada, await lerAnexos(db, runId, log, 'hermes_worker')))
-      // Sem saber se há chave do cliente, a Execução não roda: seria cobrada como se usasse o modelo dele.
-      let comChaveDoCliente = false
-      try {
-        comChaveDoCliente = (await db.usaChaveDoCliente?.(runId)) === true
-      } catch (error) {
-        await falhar(runId, 'internal_error', String(error))
+    // A fila é sequencial e cada chamada pode levar minutos. O sinal não pode depender do fim do lote.
+    let encerrada = false
+    let renovacao: Promise<void> | undefined
+    const agendar = deps.agendarSinal ?? ((renovar, intervaloMs) => {
+      const timer = setInterval(() => { void renovar() }, intervaloMs)
+      return () => clearInterval(timer)
+    })
+    const cancelar = db.sinalDeVida ? agendar(() => {
+      if (encerrada) return Promise.resolve()
+      if (renovacao) return renovacao
+      renovacao = (async () => {
+        if (await hermes.vivo() && !encerrada) await db.sinalDeVida?.()
+      })().catch((error) => {
+        log({ type: 'hermes_worker', outcome: 'heartbeat_failed', message: String(error) })
+      }).finally(() => { renovacao = undefined })
+      return renovacao
+    }, 30_000) : () => {}
+    try {
+      let feitos = 0
+      for (const runId of await db.listQueued(limite)) {
+        const reservada = await db.claim(runId)
+        if (!reservada) continue
+        // Os anexos do pedido (PR-10) entram como texto: o Hermes não recebe imagem, só o nome dela.
+        // A Execução do Canal (slack-canal 03) segue só com o Agente do fio, e o anexo continua no pedido.
+        const reserva = soComOAgenteDoFio(reservaComAnexos(reservada, await lerAnexos(db, runId, log, 'hermes_worker')))
+        // Sem saber se há chave do cliente, a Execução não roda: seria cobrada como se usasse o modelo dele.
+        let comChaveDoCliente = false
+        try {
+          comChaveDoCliente = (await db.usaChaveDoCliente?.(runId)) === true
+        } catch (error) {
+          await falhar(runId, 'internal_error', String(error))
+          feitos++
+          continue
+        }
+        if (comChaveDoCliente) {
+          await falhar(runId, 'workspace_ai_key_unsupported')
+          feitos++
+          continue
+        }
+        // A Menção e a página de um Agente vão sempre pelo modo por Agente, mesmo com HERMES_UMA_CHAMADA=true (PR-11):
+        // no modo de uma chamada, o mencionado não falava. A chamada única fica só para a Coordenação sem Menção.
+        await (precisaDoModoPorAgente(reserva, deps.porAgente) ? processarPorAgente(reserva) : processar(reserva))
         feitos++
-        continue
       }
-      if (comChaveDoCliente) {
-        await falhar(runId, 'workspace_ai_key_unsupported')
-        feitos++
-        continue
-      }
-      // A Menção e a página de um Agente vão sempre pelo modo por Agente, mesmo com HERMES_UMA_CHAMADA=true (PR-11):
-      // no modo de uma chamada, o mencionado não falava. A chamada única fica só para a Coordenação sem Menção.
-      await (precisaDoModoPorAgente(reserva, deps.porAgente) ? processarPorAgente(reserva) : processar(reserva))
-      feitos++
+      return feitos
+    } finally {
+      encerrada = true
+      cancelar()
+      await renovacao
     }
-    return feitos
   }
 
   return { rodada, processar }
