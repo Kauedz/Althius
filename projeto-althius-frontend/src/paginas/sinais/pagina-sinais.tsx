@@ -45,6 +45,7 @@ import {
   PrateleiraVazia,
   SinalDaSemana,
 } from './vitrine-pecas'
+import { sinalComRodadaPulada } from '@/fonte/preco-por-rodada'
 
 function normalizar(texto: string): string {
   return texto
@@ -172,6 +173,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
     .map((m) => ({ id: m.id, tipoId: m.tipoId, nome: m.nome, disparos: disparosPorMonitoramento(m.id) }))
     .toSorted((a, b) => b.disparos - a.disparos)
   const pausadosPorCreditos = monitoramentos.filter((m) => m.estado === 'pausado' && m.pausadoPor === 'sem_creditos')
+  const comRodadaPulada = monitoramentos.filter(sinalComRodadaPulada)
   const idsAtivos = new Set(ativos.map((m) => m.id))
   const disparos = sinais === undefined ? undefined : sinais.filter((s) => idsAtivos.has(s.monitoramentoId) && foiDisparado(s.data, hoje)).length
 
@@ -197,6 +199,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
         <MeusSinais
           monitoramentosAtivos={ativos}
           pausadosPorCreditos={pausadosPorCreditos}
+          comRodadaPulada={comRodadaPulada}
           disparos={disparos}
           contasQuentes={contas?.filter((conta) => conta.quente).length}
           sequenciasAtivas={sequencias?.filter((sequencia) => sequencia.status === 'ativa').length}
