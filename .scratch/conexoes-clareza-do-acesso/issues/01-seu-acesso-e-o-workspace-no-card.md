@@ -48,3 +48,15 @@ Teste novo `conexoes-acesso-vs-workspace.test.tsx` cobre os três estados de Ace
 Demonstração usa o mesmo componente `SeuAcesso` (não há texto duplicado fora dele), então mostra o mesmo texto por construção. Print 1400×900 do card do Notion tirado via Chrome headless, salvo em `issues/prints/01-notion.jpg`, mostrando "Seu acesso: não conectado" e "No Workspace: 1 participante conectado" lado a lado.
 
 Testes: `npx vitest run --maxWorkers=2 src/paginas/conexoes` → 194 passed (21 arquivos, baseline 191 + 3 novos). `npx oxlint` e `npx tsc -b` sem erros.
+
+## Comentário (2026-10-24) — correção de um achado da revisão cruzada
+
+A revisão cruzada (Codex) achou que o comentário acima estava errado: a Demonstração **não** usa `SeuAcesso`. Em Integrações, o modo Demonstração (`modo !== 'real'`) renderiza `CartaoDeConexaoDemo` (`conexoes.tsx` ~linha 281), um componente totalmente separado que não tinha o bloco "Seu acesso" / "No Workspace". O AC "Demonstração mostra o mesmo texto" estava marcado `[x]` sem estar atendido, e o print `01-notion.jpg` era de um card real isolado (não da Demonstração).
+
+Corrigido: extraída a função `textoNoWorkspace(conectados)` (a mesma regra de singular/plural de `SeuAcesso`) e adicionado um prop opcional `acesso?: { seuAcesso; noWorkspace }` em `CartaoDeConexaoDemo` (`conexoes.tsx:812-846`). Esse prop só é passado no branch de Integrações (`conexoes.tsx:288-291`): conectado → "Seu acesso: Conectado" / "No Workspace: 1 participante conectado"; não conectado → "Seu acesso: não conectado" / "No Workspace: 0 participantes conectados" (a Fonte simulada não guarda uma contagem real de participantes por Integração, então uso o fallback 1/0 coerente que o achado autorizou). A seção Canais usa o mesmo `CartaoDeConexaoDemo` mas sem o prop `acesso`, então continua exatamente como estava. `fonte/supabase-conexoes.ts` não foi tocado.
+
+Teste vermelho primeiro: `conexoes-acesso-demonstracao.test.tsx` (2 casos, conectado e não conectado) — confirmei que falha sem a mudança em `conexoes.tsx` (via `git stash` só desse arquivo), depois corrigi e o teste passou.
+
+Print 1400×900 refeito em `issues/prints/01-notion.jpg`: agora mostra a página de Conexões **na Demonstração** (Chrome headless, `--remote-debugging-port` + CDP `Page.captureScreenshot` via WebSocket do Node 22; Vite e Chrome encerrados pelo PID ao final), com o card do Notion mostrando "Seu acesso: Conectado" e "No Workspace: 1 participante conectado".
+
+Testes: `npx vitest run --maxWorkers=2 src/paginas/conexoes` → 196 passed (22 arquivos, 194 + 2 novos). `npx oxlint` e `npx tsc -b` sem erros. `/code-review` (Standards e Spec) sem findings bloqueantes.
