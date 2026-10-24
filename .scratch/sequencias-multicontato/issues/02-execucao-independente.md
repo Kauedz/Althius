@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Preparar passos e dependências na tela atual
 
-**Status:** ready-for-agent
+**Status:** entregue no PR #249 (migration 20261111120000); 8/9 critérios verificados em 2026-10-24; pendente conferência visual humana.
 
 ## Objetivo e escopo
 
@@ -17,15 +17,15 @@ Análise de respostas por IA. Nenhuma mudança estrutural de layout.
 
 ## Critérios de aceite
 
-- [ ] Ativação parcial fixa passos, conteúdo, Contatos e destinos revisados; completar depois exige nova confirmação.
-- [ ] Passos independentes avançam; predecessor só libera dependente após envio confirmado e espera.
-- [ ] Falha/incerteza não libera dependente; envio incerto não é repetido automaticamente.
-- [ ] Fuso, dias úteis, janela, máximo diário e intervalo são visíveis e confirmados antes de ativar.
-- [ ] Reservas concorrentes respeitam limites por Conta/canal, sem starvation ou duplicação.
-- [ ] Guardas atuais de resposta/pausa permanecem efetivas até ticket 03; não abrir regressão de segurança intermediária.
-- [x] Ligar `LIBERACAO_DOS_PASSOS_NA_TELA` (escondida desde o ticket 01) só neste PR, junto com o Executor que respeita `liberacao` e `predecessorId`. — PR #249: a constante foi retirada e os seletores ficam sempre visíveis; passo novo volta a gravar liberação explícita.
-- [ ] Liberação manual não dispensa autorização; retrocompatibilidade serial e Destino confirmado continuam válidos.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Ativação parcial fixa passos, conteúdo, Contatos e destinos revisados; completar depois exige nova confirmação. Evidência: `supabase/tests/execucao_independente_da_sequencia.sql:287` (snapshot selecionado e apenas seus envios reservados).
+- [x] Passos independentes avançam; predecessor só libera dependente após envio confirmado e espera. Evidência: `supabase/tests/execucao_independente_da_sequencia.sql:141`, `:162`.
+- [x] Falha/incerteza não libera dependente; envio incerto não é repetido automaticamente. Evidência: `supabase/tests/execucao_independente_da_sequencia.sql:168`, `supabase/functions/sequence-runner/handler-ritmo.test.ts`.
+- [x] Fuso, dias úteis, janela, máximo diário e intervalo são visíveis e confirmados antes de ativar. Evidência: `projeto-althius-frontend/src/raiz.test.tsx:1007` (agenda exibida; ativar fica desabilitado até confirmar fuso e envia os valores confirmados); pgTAP de limites em `supabase/tests/execucao_independente_da_sequencia.sql:358`.
+- [x] Reservas concorrentes respeitam limites por Conta/canal, sem starvation ou duplicação. Evidência: `supabase/tests/execucao_independente_da_sequencia.sql:358` (37/37 pgTAP) e `supabase/functions/sequence-runner/handler-ritmo.test.ts`.
+- [x] Guardas atuais de resposta/pausa permanecem efetivas até ticket 03; não abrir regressão de segurança intermediária. Evidência: `supabase/tests/retencao_por_resposta_da_conta.sql` (44/44) e `supabase/functions/sequence-runner/handler.test.ts`.
+- [x] Ligar `LIBERACAO_DOS_PASSOS_NA_TELA` (escondida desde o ticket 01) só neste PR, junto com o Executor que respeita `liberacao` e `predecessorId`. — PR #249: constante retirada, seletores visíveis, e passo novo grava liberação explícita; ver `projeto-althius-frontend/src/paginas/detalhe-sequencia-liberacao.test.tsx:6`.
+- [x] Liberação manual não dispensa autorização; retrocompatibilidade serial e Destino confirmado continuam válidos. Evidência: `supabase/tests/execucao_independente_da_sequencia.sql:152`, `:195`, `:268`; `projeto-althius-frontend/src/fonte/supabase-sequencias.test.ts:162`.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente verificação humana: comparar a estrutura em desktop e viewport estreita; os relatórios não trazem capturas visuais.
 
 ## Pode mexer
 
@@ -87,4 +87,6 @@ Ordem após merge e autorização explícita: migration → Edge Functions → w
 
 ## Comments
 
-Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout. Status indica ticket especificado, não implementação pronta; blockers e gates humanos continuam obrigatórios.
+Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout.
+
+2026-10-24 — Conferência dos PRs #249 e #251 e dos testes na `origin/main`. Rodei `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_mc01 supabase/tests/execucao_independente_da_sequencia.sql supabase/tests/retencao_por_resposta_da_conta.sql`: 37/37 e 44/44. Vitest direcionado: 13 arquivos/121 testes passaram; adicionalmente, `PATH=/workspace/tools/node22/bin:$PATH npx vitest run --maxWorkers=2 src/raiz.test.tsx -t 'a Vendedora ativa os envios'`: 1 passou (151 skipped). `deno test -A` nos handlers de `sequence-runner`/`sequence-step-sends` e ferramentas Rhetor: 60 testes passaram. Falta conferência visual humana; sem prova de publicação/E2E com provedor.
