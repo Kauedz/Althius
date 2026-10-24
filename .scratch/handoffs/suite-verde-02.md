@@ -47,3 +47,7 @@ problema; ver a seção de comentários do ticket para os detalhes do red-first.
 - PR ainda não aberto nem enviado (push) — corpo pronto em `.scratch/handoffs/suite-verde-02-pr.md`, a matriz decide
   quando abrir depois de verificar.
 - Tickets 01 e 03 da mesma spec (`suite-verde`) seguem pendentes, não tocados nesta sessão.
+
+## Revisão cruzada (Codex, 2026-10-24)
+
+A matriz aplicou os achados reais: caso novo com actors e catálogo só em `testing`/`out` (o módulo fica indisponível, sem dado da Demonstração) e as sentinelas da Demonstração no caso de erro. Vermelho conferido trocando temporariamente `.includes('available')` por `.length > 0` em `supabase-sinais.ts:254` (o caso novo falha) e revertido. `npx vitest run src/paginas/sinais-no-operacional.test.tsx` 5/5. O handoff fica no diff porque o protocolo Ralph exige `.scratch/handoffs/<ticket>.md`.

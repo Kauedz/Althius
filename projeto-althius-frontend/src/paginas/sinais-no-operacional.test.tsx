@@ -111,6 +111,27 @@ describe('Regra do módulo Sinais no Workspace operacional', () => {
 
     expect(screen.getByText(AVISO_INDISPONIVEL)).toBeInTheDocument()
     expect(screen.queryByText('Alfa Varejo')).not.toBeInTheDocument()
+    expect(screen.queryByText(/OpenAI|Databricks|Vagas no LinkedIn/)).not.toBeInTheDocument()
+  })
+
+  it('actors e catálogo com registros só em `testing`/`out` não ligam o módulo', async () => {
+    const { leituraDosSinais } = abrirContaComSinais({
+      rpcs: {
+        list_signal_actors: () => [
+          { signal_type: 'vaga_linkedin', state: 'testing' },
+          { signal_type: 'noticia', state: 'out' },
+        ],
+        list_signal_catalog: () => [
+          { signal_type: 'sem_resposta', state: 'testing' },
+          { signal_type: 'visita_ao_site', state: 'out' },
+        ],
+      },
+    })
+    await aguardarRegraAssentada(leituraDosSinais)
+
+    expect(screen.getByText(AVISO_INDISPONIVEL)).toBeInTheDocument()
+    expect(screen.queryByText('Alfa Varejo')).not.toBeInTheDocument()
+    expect(screen.queryByText(/OpenAI|Databricks|Vagas no LinkedIn/)).not.toBeInTheDocument()
   })
 
   it('um Sinal interno `available` no catálogo do banco já liga o módulo, mesmo sem nenhum actor', async () => {
