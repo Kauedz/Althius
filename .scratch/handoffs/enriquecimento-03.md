@@ -1,41 +1,44 @@
-# Handoff: enriquecimento-03, ação em lote de revelar e-mail com custo máximo
+# Handoff: enriquecimento-03 — correção da revisão cruzada
 
-Branch: `ralph/enriquecimento-03-lote-email-custo-maximo`. Ticket: `.scratch/enriquecimento-em-cascata/issues/03-revelar-email-e-telefone.md`. Worktree a partir da `main` 515c2eb.
+Data: 2026-10-24. Branch `ralph/enriquecimento-03-lote-email-custo-maximo`.
+Ticket: `.scratch/enriquecimento-em-cascata/issues/03-revelar-email-e-telefone.md`.
+Commits anteriores: `be6baac`, `ae754ed`. Correções desta sessão ficam no worktree, sem commit ou push; a matriz commita.
 
-## Gate
+## Escopo e correções
 
-Passou, com escopo reduzido pelos próprios Comments do ticket (datados de 2026-10-07 e 2026-10-08): os critérios 1 (não achou não debita) e 2 (unicidade entre Contatos) já estão cobertos pelo B3 da `prospeccao-funcional`, já em `main`. O único em aberto era o critério 3: "Ação em lote mostra o custo máximo antes de rodar". Telefone fica fora de tudo: o PR #263 (B5, recusa de telefone na RPC `begin_reveal_contact`) ainda não está em `main` nesta data, mas isso não bloqueava o critério 3 — a tela e o handler já recusavam telefone antes desta sessão, e a UI nova nunca o oferece.
+Gate satisfeito: AC 3 depende apenas do B3 já em main; AC 1 e 2 reutilizam a implementação e os pgTAP existentes. Telefone continua fora do lote.
 
-## O que entrou
+- Achado 1 corrigido: o diálogo consulta `fonte.cotarRevelacaoContato(id, 'email')` para os selecionados sem e-mail e soma os créditos retornados antes de permitir confirmação. Não há preço fixo. Cotação pendente, indisponível, com erro ou `podeRevelar=false` bloqueia a confirmação e informa o problema. Para repetir a cotação após erro, fechar e reabrir o diálogo.
+- Achado 2 corrigido: durante a execução, Cancelar fica desabilitado, X fica oculto e a mudança de abertura por Escape/clique fora é bloqueada. Os resultados permanecem visíveis até o fechamento após concluir. Reabrir consulta novamente, sem iniciar outro lote automaticamente.
+- Revisão própria encontrou e corrigiu uma inferência extra de saldo que recusava créditos ilimitados: a decisão de permissão respeita `podeRevelar` da Fonte.
 
-Só frontend, sem migration:
+Código: `projeto-althius-frontend/src/paginas/revelar-email-em-lote.tsx`.
+Regressões novas: `projeto-althius-frontend/src/paginas/revelar-email-em-lote-correcao.test.tsx` (6 casos). Nenhum teste antigo alterado.
 
-- `src/paginas/revelar-email-em-lote.tsx` (novo): `DialogoRevelarEmailEmLote`. Custo máximo calculado no cliente, sem RPC — `2 × quantidade de Contatos selecionados sem e-mail` (quem já tem e-mail entra na seleção mas custa 0, é só informativo no resumo). Confirmar chama `fonte.revelarContato(id, 'email')` um Contato de cada vez, só para quem precisa; a falha de um (try/catch por item) não trava os demais. Reaproveita `mensagemDaRevelacaoDeEmail`.
-- `src/paginas/comite-e-enriquecimento.tsx`: extraída `mensagemDaRevelacaoDeEmail(res)` (já encontrado / encontrado com custo / nenhum novo) de dentro de `confirmarRevelacao` em `BotoesRevelarContato`, para a ação por linha e a em lote não duplicarem o texto. Comportamento e as três frases são exatamente as mesmas de antes; os testes existentes dessa tela não mudaram.
-- `src/paginas/tabela-de-contatos.tsx`: `TabelaDeContatos` ganhou duas props opcionais, `selecionados` e `aoAlternarSelecao`. Sem elas (como em `detalhe-conta.tsx`, que não foi tocado), a tabela fica idêntica a antes. Com elas, cada linha ganha um checkbox `aria-label="Selecionar <nome>"`, inserido como **primeiro filho** da `div` da célula Nome, **antes** do `AvatarDoContato` — de propósito, para não mudar qual elemento é o `lastElementChild` dessa `div` (`contatos.test.tsx` usa `getAllByRole('cell')[0].lastElementChild?.lastElementChild?.textContent` para pegar o nome em dois testes).
-- `src/paginas/contatos.tsx`: estado `selecionados`/`loteAberto`, botão "Revelar E-mail em lote" no cabeçalho (só aparece com `fonte.revelarContato` e pelo menos um selecionado, mesmo padrão de `contas.tsx`/"Criar Sequências"), e o `DialogoRevelarEmailEmLote` montado com os Contatos selecionados.
-- `src/paginas/revelar-email-em-lote.test.tsx` (novo, 4 testes).
+## Evidências desta sessão
 
-Nenhuma migration, Edge Function ou `set_contact_channels` tocados. Nenhum arquivo da lista "Não mexa" do ticket.
+Node 22 em todos os comandos frontend: `export PATH=/workspace/tools/node22/bin:$PATH`.
 
-## Loop
+Vermelhos executados antes das correções:
 
-Vermelho primeiro: com a implementação revertida via `git stash` (e o arquivo novo movido para fora do repo), `revelar-email-em-lote.test.tsx` deu 3 de 4 vermelhos (o único verde era "sem seleção o botão não aparece", trivial sem a feature). Restaurado e verde de novo.
+1. Cotação pendente com preços 7 e 4: falhou `toBeDisabled()`; implementação anterior permitia confirmar. Verde com soma de 11 créditos.
+2. Revelação pendente e Cancelar: falhou porque o diálogo sumiu. Verde com bloqueio e resultado preservado, Escape/X tratados, fechamento e reabertura depois do término sem novas revelações.
+3. Créditos ilimitados e saldo zero: falhou `toBeEnabled()`; removida a inferência extra por saldo.
 
-Resultados:
+Validação final:
 
-- `npx tsc -b`: limpo.
-- `npx oxlint`: só os avisos pré-existentes do tipo `react(only-export-components)` (o mesmo padrão já usado em `tabela-de-contatos.tsx` para `temDadosDeContato` e em `contas.tsx`); nenhum erro.
-- `npx vitest run` nos arquivos tocados e em todo consumidor conhecido de `TabelaDeContatos`/`BotoesRevelarContato`: `revelar-email-em-lote.test.tsx` (4), `contatos.test.tsx` (18), `contas.test.tsx`, `arquivar-e-apagar.test.tsx`, `comite-e-enriquecimento-revelar.test.tsx`, `cotacao-revelacao.test.tsx`, `comite-e-enriquecimento-nao-recobrar.test.tsx`, `detalhe-conta.test.tsx` — 84 testes, todos verdes, nenhum teste existente mudou.
-- Suíte Vitest completa (`npx vitest run`, disparada em background por rodar devagar numa máquina compartilhada com outras sessões Ralph): terminou depois do commit, **220 arquivos passed, 1911 testes passed, 4 skipped (preexistentes), 0 failed**.
-- pgTAP: confirmados de novo (sem alterar nada) os dois arquivos que provam os critérios 1 e 2, já em `main`: `revelar_email_so_cobra_valor_novo.sql` 29/29 e `enriquecimento_e_comite.sql` 29/29, via `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_enriquecimento_03 <arquivo>`. Nenhum pgTAP novo: nenhuma migration nesta sessão.
-- Autorrevisão (`code-review`, dois agentes paralelos Standards/Spec): nenhuma violação de padrão documentado nem scope creep (telefone não aparece em lugar nenhum da UI nova; o cálculo do custo é 100% local, sem chamada de rede). Achado aplicado: duplicação literal da mensagem de resultado entre `BotoesRevelarContato` e o lote — corrigida extraindo `mensagemDaRevelacaoDeEmail`. Também limpo, no mesmo gesto, um estado `erro` morto que sobrou de um rascunho anterior do `FormularioDoLote` (nunca era populado, já que o erro por Contato vai para a lista de resultados).
+- `npx vitest run --maxWorkers=2 src/paginas/revelar-email-em-lote*.test.tsx src/paginas/contatos* src/paginas/comite-e-enriquecimento*.test.tsx src/paginas/cotacao-revelacao.test.tsx`: 7 arquivos, 48 testes verdes.
+- `npx oxlint`: sem erros; avisos, incluindo `react(set-state-in-effect)` no carregamento da cotação.
+- `npx tsc -b`: sem erros.
+- `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_enriquecimento_03_correcao`: suíte completa verde, 152 arquivos, 5333 asserções; inclui os pgTAP existentes de AC 1 e 2.
+- `git diff --check`: limpo. Revisão `code-review` sobre `git diff origin/main...HEAD` e correções locais em dois agentes: Standards sem achados; Spec apontou créditos ilimitados, corrigido com vermelho primeiro.
 
-## Avisos
+## Próxima sessão / matriz
 
-- Depois de fechar o diálogo do lote, a seleção (`selecionados`) não é limpa automaticamente — mesmo comportamento de `contas.tsx`/`DialogoCriacaoEmLote` (não limpa `selecionadas` ao fechar), mantido por consistência. Reabrir o lote com os mesmos Contatos marcados já mostra custo 0 para quem foi revelado com sucesso.
-- O botão do lote é gated só por `fonte.revelarContato` (não pelo `comAcoes` que controla a coluna Ações/BotoesRevelarContato por linha): são capacidades diferentes, e a tela de Contatos da Demonstração tem `revelarContato` mas não tem `editarContato`/`arquivarContato`/`apagarContato`, então o botão em lote aparece ali mesmo sem a coluna Ações.
+Corpo do PR atualizado fora do repo em `/workspace/ralph-wt/_pr/enriquecimento-03.md`. Commit e publicação cabem à matriz. Chrome não sobe neste sandbox: se precisar de print/conferência visual, a matriz faz.
 
-## Pendente de deploy
+Nenhuma migration criada ou alterada, Edge Function, segredo ou arquivo proibido tocado. Sem mudança em RLS, security definer, grants ou search_path. Migration pendente de apply: não. Nenhum passo manual do Nan de migration, deploy ou segredo para esta entrega frontend.
 
-Nenhum. Sem migration, sem Edge Function, sem segredo.
+## Suggested skills
+
+`code-review` para conferir o diff final; `pr` para preparar publicação pela matriz. `diagnosing-bugs` se surgir falha sem causa clara.
