@@ -43,6 +43,8 @@ import {
 } from '../_shared/orquestracao.ts'
 
 export interface FilaDb extends RunDb {
+  /** Renova o sinal somente depois de confirmar que o motor responde. */
+  sinalDeVida?(): Promise<void>
   /** list_queued_agent_runs: os pedidos na fila, do mais antigo ao mais novo. */
   listQueued(limit: number): Promise<string[]>
   /**
@@ -472,6 +474,7 @@ export function createWorker(deps: WorkerDeps) {
    */
   async function rodada(limite = 5): Promise<number | null> {
     if (!(await hermes.vivo().catch(() => false))) return null
+    await db.sinalDeVida?.()
     let feitos = 0
     for (const runId of await db.listQueued(limite)) {
       const reservada = await db.claim(runId)

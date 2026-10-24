@@ -62,6 +62,9 @@ export interface Db {
 
 export interface Deps {
   db: Db
+  comHermes?: boolean
+  agora?: () => number
+  ultimoSinalDoMotor?: () => Promise<string | null>
   /** Roda a Execução; null quando o modelo não está configurado. */
   executar: ((runId: string) => Promise<void>) | null
   /** Continua um trabalho depois da resposta (EdgeRuntime.waitUntil). */
@@ -171,7 +174,27 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return respond({ error: 'Corpo inválido.' }, 400)
     }
 
-    if (body?.action === 'capability') return respond({ available: deps.executar !== null })
+    let motivo: 'motor_fora_do_ar' | 'sem_modelo' | undefined
+    if (deps.comHermes) {
+      let sinal: string | null = null
+      try {
+        sinal = await deps.ultimoSinalDoMotor?.() ?? null
+      } catch {
+        // Sem confirmar o sinal de vida, não aceitamos pedidos.
+      }
+      const idade = (deps.agora ?? Date.now)() - Date.parse(sinal ?? '')
+      if (!deps.executar || !Number.isFinite(idade) || idade < 0 || idade >= 120_000) motivo = 'motor_fora_do_ar'
+    } else if (!deps.executar) motivo = 'sem_modelo'
+    if (body?.action === 'capability') return respond(motivo ? { available: false, motivo } : { available: true })
+    if (motivo && (body?.action === 'send' || body?.action === 'enviar_ao_crm')) {
+      return respond({
+        error: motivo === 'motor_fora_do_ar'
+          ? 'O motor dos Agentes está fora do ar agora. Tente de novo em alguns minutos.'
+          : 'As Conversas ainda não estão disponíveis neste ambiente.',
+        code: 'model_unavailable',
+        motivo,
+      }, 503)
+    }
     if (body?.action === 'enviar_ao_crm') return await enviarAoCrm(user.userId, body)
     if (body?.action !== 'send') return respond({ error: 'Ação desconhecida.' }, 400)
 
