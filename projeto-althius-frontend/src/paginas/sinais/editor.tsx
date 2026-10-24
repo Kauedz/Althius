@@ -5,6 +5,7 @@ import { Carregando, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
+import { textoDaAgenda } from '@/fonte/agenda-do-sinal'
 import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { CRITERIOS_DOS_SINAIS_INTERNOS, TIPOS_INTERNOS_REAIS } from '@/fonte/sinais-reais-mapa'
@@ -54,6 +55,7 @@ import {
 } from './mercado-enderecavel'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
+import { AgendaDoSinalNoMonitoramento } from './agenda'
 import { RodadasDoMonitoramento, RodarAgora } from './rodadas'
 import { useRodadas } from './usar-rodadas'
 import { ResumoDoPlano } from './resumo-do-plano'
@@ -247,6 +249,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
 
         {existente && etapa === 'editar' && <RodarAgora monitoramento={existente} rodadas={rodadas} />}
 
+        {existente && etapa === 'editar' && (existente.plano || existente.agenda) && <AgendaDoSinalNoMonitoramento monitoramento={existente} />}
+
         {erroSalvar && (
           <div role="alert" className="flex items-center justify-between rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
             <span>{erroSalvar}</span>
@@ -407,7 +411,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
 
         {etapa === 'revisar' && (
           <Revisao
-            monitoramento={monitoramento}
+            monitoramento={existente?.agenda ? { ...monitoramento, agenda: existente.agenda } : monitoramento}
             operacional={operacional}
             interno={interno}
             aoVoltar={() => setEtapa('editar')}
@@ -1189,6 +1193,7 @@ function Revisao({
         ? <ContasDoPublico key="publico" ids={monitoramento.publico.listas} />
         : resumoDoPublico(monitoramento.publico),
   ])
+  if (monitoramento.agenda) linhas.push(['Agenda', textoDaAgenda(monitoramento.agenda)])
   linhas.push(['Validade', `Cada Sinal deixa a Conta-alvo Quente por ${VALIDADE_EM_DIAS} dias a partir do disparo`])
 
   return (

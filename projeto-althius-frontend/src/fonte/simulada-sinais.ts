@@ -6,6 +6,7 @@ import type { FonteDeContas } from './contas-tipos'
 import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
 import { ErroDaRodada, type AchadoDaRodada, type HistoricoDeRodadas, type PedidoDeRodada, type PreviaDaRodada } from './rodadas-do-sinal'
 import { TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
+import { ErroDaAgenda, normalizarAgenda, proximasRodadas, validarAgenda, type AgendaDoSinal } from './agenda-do-sinal'
 import type {
   CardSobPedido,
   CascataDoCatalogo,
@@ -54,6 +55,7 @@ function clonarMonitoramento(m: Monitoramento): Monitoramento {
     },
     criterios: { ...m.criterios },
     criteriosLivres: m.criteriosLivres ? [...m.criteriosLivres] : undefined,
+    agenda: m.agenda ? { horarios: [...m.agenda.horarios], dias: [...m.agenda.dias] } : undefined,
   }
 }
 
@@ -203,6 +205,8 @@ export function criarFonteDeSinaisSimulada(
         fonte: novoOuExistente.fonte,
         origem: novoOuExistente.origem,
         criteriosLivres: novoOuExistente.criteriosLivres,
+        // A Agenda tem a sua própria gravação: salvar o formulário não a muda.
+        agenda: monitoramentos.find((m) => m.id === id)?.agenda,
       }
 
       const index = monitoramentos.findIndex((m) => m.id === id)
@@ -459,6 +463,26 @@ export function criarFonteDeSinaisSimulada(
     async achadosDaRodada(rodadaId: string): Promise<AchadoDaRodada[]> {
       await aguardar()
       return rodadaId === RODADA_DA_DEMONSTRACAO.id ? ACHADOS_DA_DEMONSTRACAO.map((a) => ({ ...a })) : []
+    },
+
+    // A Agenda da Demonstração fica em memória e não roda nada: o cálculo dos próximos horários é o mesmo do servidor.
+    async salvarAgenda(monitoramentoId: string, agenda: AgendaDoSinal): Promise<Monitoramento> {
+      await aguardar()
+      const m = monitoramentos.find((item) => item.id === monitoramentoId)
+      if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
+      const codigo = validarAgenda(agenda, m.publico.listas.length)
+      if (codigo) throw new ErroDaAgenda(codigo)
+      m.agenda = normalizarAgenda(agenda)
+      notificar()
+      return clonarMonitoramento(m)
+    },
+
+    async proximasRodadas(agenda: AgendaDoSinal, contas: number, n: number): Promise<string[]> {
+      await aguardar()
+      const codigo = validarAgenda(agenda, contas)
+      if (codigo) throw new ErroDaAgenda(codigo)
+      const referencia = fonteDeContasVinculada ? fonteDeContasVinculada.hoje() : hoje
+      return proximasRodadas(agenda, referencia, Math.min(Math.max(n, 1), 20)).map((d) => d.toISOString())
     },
 
     // O Plano da Demonstração é fixo: a IA não roda aqui, e o Briefing não muda o que volta (só as Contas escolhidas).

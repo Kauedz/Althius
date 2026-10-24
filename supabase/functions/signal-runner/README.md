@@ -82,3 +82,12 @@ O clique de uma pessoa ("Rodar agora" na página do Sinal) entra na fila `privat
 - **Toda Rodada grava uma linha** em `private.signal_monitor_runs`, agendada ou manual: `open_signal_run` abre (ou reencontra) a Rodada, `record_signal_in_run` liga cada Sinal (novo ou visto de novo) a ela, `add_signal_run_progress` soma as Contas verificadas, os Sinais, as Contas sem dado, os créditos (conferidos nas reservas liquidadas) e o motivo da parada, e `finish_signal_monitor_run` (agendada) ou `finish_signal_run_request` (manual) a fecha. Uma falha ao registrar nunca derruba a varredura.
 - **Motivo da parada** (`stop_reason`, código estável): `sem_creditos`, `teto` (limite do mês ou da automação), `contrato_inativo`, `prazo` (o tempo da função acabou), `concluida` e `erro`. A frase dos Monitoramentos (`MOTIVO_DA_PARADA`) continua igual; o pedido manual usa a mesma com o texto de quem clicou.
 - Só o caminho por Conta (Plano com actor e adaptador) roda sob demanda. Cascata, Sinal interno e mercado ficam de fora do Rodar agora (a prévia devolve `sem_fonte`), mas as Rodadas agendadas deles também são registradas, com as contagens.
+
+## Agenda do Sinal (agente-de-sinal 03)
+
+O Monitoramento pode ter uma Agenda (`private.signal_monitors.schedule`: horários, dias e fuso, gravada por `save_signal_schedule`). O runner **não calcula horário nenhum**: `claim_due_signal_monitors` devolve o `slot` e o runner o repassa, sem mudança, para `abrirRodada` e para a chave de cobrança de `begin_account_scan` (`handler-agenda.test.ts`).
+
+- **O `slot` da Rodada agendada** é o horário marcado da Agenda (`current_slot_at`), não a hora em que o relógio acordou: o `pg_cron` roda a cada 10 minutos, então a Rodada começa em até 10 minutos depois do horário, e a tela diz "por volta de".
+- **Na continuação o `slot` é o mesmo.** Quando o tempo da função acaba no meio, `finish_signal_monitor_run(..., p_continue => true)` põe `next_run_at = now()` para a próxima chamada vir já, mas mantém `current_slot_at`; a chamada seguinte recebe o mesmo `slot`, a chave `scan:<Monitoramento>:<Conta>:<slot>` não muda e a Conta já cobrada volta como `done` (o runner não a envia ao fornecedor).
+- **Quando a Rodada termina**, `finish_signal_monitor_run` agenda o primeiro horário depois de agora e limpa `current_slot_at`. A Rodada perdida (runner parado, sem créditos, Monitoramento pausado) não é compensada: não acumula Rodada nem volta no tempo (DECISÃO PENDENTE).
+- **Sem Agenda nada muda**: o Monitoramento legado segue em `every_hours`, com `slot = next_run_at`.
