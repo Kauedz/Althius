@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(11);
+select plan(13);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -111,6 +111,17 @@ select is(
    where id = (select reservation_id from t_res_email) and action = 'email_revealed' and status = 'reserved'),
   1::bigint,
   'begin_reveal_contact ainda reserva email_revealed'
+);
+
+-- 7. Canal desconhecido segue com o erro de antes (22023), nas duas RPCs.
+select throws_ok(
+  format($$ select * from public.quote_reveal_contact(%L, 'fax') $$, pg_temp.id('sem_telefone')),
+  '22023', 'invalid channel for reveal', 'quote_reveal_contact: canal desconhecido segue 22023'
+);
+select throws_ok(
+  format($$ select * from public.begin_reveal_contact(%L, %L, 'fax') $$,
+    'b5200000-0000-0000-0000-000000000001', pg_temp.id('sem_telefone')),
+  '22023', 'invalid channel for reveal', 'begin_reveal_contact: canal desconhecido segue 22023'
 );
 
 select * from finish();
