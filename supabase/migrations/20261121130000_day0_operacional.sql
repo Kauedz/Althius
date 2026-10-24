@@ -34,11 +34,22 @@ create policy "participants read only own completion" on public.day0_completions
   using (user_id = (select auth.uid()) and exists (select 1 from public.workspace_memberships m
     where m.workspace_id = day0_completions.workspace_id and m.user_id = (select auth.uid()) and m.active));
 
--- Administrador que aceitou convite também pula empresa. O histórico é a fonte, nunca a URL.
+-- O convite inicial do provisionamento permite empresa; convites posteriores pulam.
+-- O histórico persistido identifica o convite, sem confiar no papel ou no remetente sozinho.
 create function private.day0_is_invited(p_workspace_id uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
   select exists (select 1 from private.workspace_invitations i
-    where i.workspace_id = p_workspace_id and i.accepted_by = auth.uid() and i.status = 'aceito')
+    where i.workspace_id = p_workspace_id and i.accepted_by = auth.uid() and i.status = 'aceito'
+      and not exists (
+        select 1 from private.workspace_participation_events c
+        join private.workspace_participation_events e on e.workspace_id = c.workspace_id
+          and e.event = 'convite_criado' and e.actor_user_id = c.actor_user_id
+          and e.subject_email = c.subject_email and e.created_at = c.created_at
+        where c.workspace_id = i.workspace_id and c.event = 'workspace_criado'
+          and e.invitation_id = i.id
+          and e.id = (select min(first_invite.id) from private.workspace_participation_events first_invite
+            where first_invite.workspace_id = i.workspace_id and first_invite.event = 'convite_criado')
+      ))
 $$;
 revoke all on function private.day0_is_invited(uuid) from public, anon, authenticated;
 
@@ -100,7 +111,9 @@ begin
   elsif p_action in ('empresa', 'dominio') then
     if v_invited then raise exception 'company Day0 requires original administrator' using errcode = '42501'; end if;
     if p_value is null or btrim(p_value) = '' then raise exception 'invalid Day0 value' using errcode = '22023'; end if;
-    if p_action = 'dominio' and (length(p_value) > 253 or p_value !~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$') then
+    if p_action = 'dominio' and (length(p_value) > 253 or p_value !~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$'
+      or exists (select 1 from unnest(string_to_array(p_value, '.')) as labels(label)
+        where length(label) > 63 or label !~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$')) then
       raise exception 'invalid Day0 domain' using errcode = '22023';
     end if;
     insert into public.day0_companies (workspace_id) values (p_workspace_id) on conflict do nothing;
