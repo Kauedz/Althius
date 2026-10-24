@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(80);
+select plan(81);
 
 -- Briefing e Plano do Sinal (agente-de-sinal 01, escopo Contas): quem participa grava o Plano como rascunho do
 -- Monitoramento e o anônimo não; o servidor recusa tipo que não está disponível, Conta de outro Workspace ou arquivada,
@@ -27,14 +27,14 @@ insert into public.workspace_memberships (workspace_id, user_id, role, active) v
   ('e8100000-0000-4000-8000-000000000001', 'e8000000-0000-4000-8000-000000000004', 'admin', true),
   ('e8100000-0000-4000-8000-000000000002', 'e8000000-0000-4000-8000-000000000003', 'admin', true);
 
--- 51 Contas no Norte (a 52ª está arquivada) e uma no Sul.
+-- 501 Contas no Norte (a 502ª está arquivada) e uma no Sul.
 insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, created_by)
 select ('e8200000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid, 'e8100000-0000-4000-8000-000000000001',
        'Conta ' || i, 'https://conta' || i || '.test', 'conta' || i || '.test', 'e8000000-0000-4000-8000-000000000001'
-from generate_series(1, 52) i;
-update public.target_accounts set archived_at = now() where id = 'e8200000-0000-4000-8000-000000000052';
+from generate_series(1, 502) i;
+update public.target_accounts set archived_at = now() where id = 'e8200000-0000-4000-8000-000000000502';
 insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, created_by) values
-  ('e8200000-0000-4000-8000-000000000101', 'e8100000-0000-4000-8000-000000000002', 'Conta do Sul', 'https://sul.test', 'sul.test',
+  ('e8200000-0000-4000-8000-000000009101', 'e8100000-0000-4000-8000-000000000002', 'Conta do Sul', 'https://sul.test', 'sul.test',
    'e8000000-0000-4000-8000-000000000003');
 
 -- Só dois Sinais estão disponíveis: Abertura de vagas e Anunciando na Meta. Nova liderança está em teste, e
@@ -50,10 +50,10 @@ create temporary table ids (k text primary key, v jsonb) on commit drop;
 grant select on ids to authenticated;
 insert into ids values
   ('duas', '["e8200000-0000-4000-8000-000000000001","e8200000-0000-4000-8000-000000000002"]'),
-  ('cinquenta', (select jsonb_agg('e8200000-0000-4000-8000-' || lpad(i::text, 12, '0')) from generate_series(1, 50) i)),
-  ('cinquenta_e_uma', (select jsonb_agg('e8200000-0000-4000-8000-' || lpad(i::text, 12, '0')) from generate_series(1, 51) i)),
-  ('do_sul', '["e8200000-0000-4000-8000-000000000101"]'),
-  ('arquivada', '["e8200000-0000-4000-8000-000000000001","e8200000-0000-4000-8000-000000000052"]'),
+  ('quinhentas', (select jsonb_agg('e8200000-0000-4000-8000-' || lpad(i::text, 12, '0')) from generate_series(1, 500) i)),
+  ('quinhentas_e_uma', (select jsonb_agg('e8200000-0000-4000-8000-' || lpad(i::text, 12, '0')) from generate_series(1, 501) i)),
+  ('do_sul', '["e8200000-0000-4000-8000-000000009101"]'),
+  ('arquivada', '["e8200000-0000-4000-8000-000000000001","e8200000-0000-4000-8000-000000000502"]'),
   ('repetida', '["e8200000-0000-4000-8000-000000000001","E8200000-0000-4000-8000-000000000001"]'),
   ('inexistente', '["e8200000-0000-4000-8000-000000000999"]');
 -- O Plano de base: Abertura de vagas em duas Contas do Norte. Os testes mudam uma chave de cada vez com `||`.
@@ -72,7 +72,8 @@ select is(
   (select array[private.signal_plan_limit('brief_max'), private.signal_plan_limit('explanation_max'), private.signal_plan_limit('accounts_max'),
     private.signal_plan_limit('per_round_min'), private.signal_plan_limit('per_round_max'), private.signal_plan_limit('signals_per_plan'),
     private.signal_plan_limit('plans_per_day')]),
-  array[1000, 600, 50, 1, 100, 1, 20], 'os limites do Plano estão num lugar só do banco');
+  array[1000, 600, 500, 1, 100, 1, 20], 'os limites do Plano (decididos pelo Kauê em 24/10/2026) estão num lugar só do banco');
+select is(private.signal_plan_limit('per_round_default'), 25, 'e o padrão de empresas por Rodada é 25');
 select is(private.signal_plan_criteria_keys('anuncio_meta'), array['localizacao', 'periodo', 'palavras'],
   'cada tipo diz os campos que o adaptador lê');
 select is(private.signal_plan_criteria_keys('sem_resposta'), null, 'um tipo sem adaptador de Conta não tem campos');
@@ -178,13 +179,13 @@ select throws_ok(
     (select p from base) || jsonb_build_object('escopo', jsonb_build_object('tipo', 'contas', 'contaIds', (select v from ids where k = 'repetida'))))$$,
   '22023', 'invalid signal plan', 'Conta repetida é recusada');
 select throws_ok(
-  $$select public.save_signal_plan('e8100000-0000-4000-8000-000000000001', 'Cinquenta e uma', null,
-    (select p from base) || jsonb_build_object('escopo', jsonb_build_object('tipo', 'contas', 'contaIds', (select v from ids where k = 'cinquenta_e_uma'))))$$,
-  '22023', 'invalid signal plan', 'mais de 50 Contas é recusado');
+  $$select public.save_signal_plan('e8100000-0000-4000-8000-000000000001', 'Quinhentas e uma', null,
+    (select p from base) || jsonb_build_object('escopo', jsonb_build_object('tipo', 'contas', 'contaIds', (select v from ids where k = 'quinhentas_e_uma'))))$$,
+  '22023', 'invalid signal plan', 'mais de 500 Contas é recusado');
 select lives_ok(
-  $$select public.save_signal_plan('e8100000-0000-4000-8000-000000000001', 'Cinquenta', null,
-    (select p from base) || jsonb_build_object('escopo', jsonb_build_object('tipo', 'contas', 'contaIds', (select v from ids where k = 'cinquenta'))))$$,
-  'exatamente 50 Contas é aceito');
+  $$select public.save_signal_plan('e8100000-0000-4000-8000-000000000001', 'Quinhentas', null,
+    (select p from base) || jsonb_build_object('escopo', jsonb_build_object('tipo', 'contas', 'contaIds', (select v from ids where k = 'quinhentas'))))$$,
+  'exatamente 500 Contas é aceito');
 select throws_ok(
   $$select public.save_signal_plan('e8100000-0000-4000-8000-000000000001', 'Nenhuma', null,
     (select p from base) || '{"escopo":{"tipo":"contas","contaIds":[]}}')$$,
