@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(124);
+select plan(126);
 
 -- Ajustes das decisões do Kauê sobre o Agente de Sinal (agente-de-sinal 05): a Agenda de até 12 Rodadas por dia com 1 h entre elas,
 -- o fim da regra do escopo grande, o Plano com 500 Contas e 25 empresas por Rodada, o lote com rotação (agendado e manual), o preço
@@ -139,6 +139,9 @@ insert into private.signal_monitors
   ('fd300000-0000-4000-8000-000000000016', 'fd100000-0000-4000-8000-000000000001', 'vaga_linkedin', 'MP6', 'ativo', pg_temp.norte(1, 3), '{}', 24,
    'fd000000-0000-4000-8000-000000000001', '2026-10-26 08:07:00-03',
    '{"horarios":["08:00","12:00","16:00"],"dias":[1,2,3,4,5,6,7],"fuso":"America/Sao_Paulo"}', null),
+  ('fd300000-0000-4000-8000-000000000019', 'fd100000-0000-4000-8000-000000000001', 'vaga_linkedin', 'MP7', 'ativo', pg_temp.norte(1, 3), '{}', 24,
+   'fd000000-0000-4000-8000-000000000001', '2026-01-02 08:00:00-03',
+   '{"horarios":["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"],"dias":[1,2,3,4,5,6,7],"fuso":"America/Sao_Paulo"}', null),
   ('fd300000-0000-4000-8000-000000000017', 'fd100000-0000-4000-8000-000000000001', 'vaga_linkedin', 'MPC', 'ativo', pg_temp.norte(1, 3), '{}', 24,
    'fd000000-0000-4000-8000-000000000001', '2999-01-01 00:00:00+00',
    '{"horarios":["00:00","12:00"],"dias":[1,2,3,4,5,6,7],"fuso":"America/Sao_Paulo"}', null),
@@ -162,6 +165,11 @@ insert into private.signal_monitors
    'fd000000-0000-4000-8000-000000000001', null, null, null),
   ('fd300000-0000-4000-8000-000000000034', 'fd100000-0000-4000-8000-000000000006', 'vaga_linkedin', 'T4', 'rascunho', '{"accountIds":[]}', '{}', 24,
    'fd000000-0000-4000-8000-000000000001', null, null, null);
+
+-- Os Monitoramentos da Rodada perdida têm horário marcado em outubro de 2026 e são testados com um "agora" passado por parâmetro:
+-- o relógio de verdade (`claim_due_signal_monitors`) não pode pegá-los quando esse dia chegar. A reserva num futuro distante os tira da fila.
+update private.signal_monitors set claimed_until = '2999-01-01 00:00:00+00'
+where id in (select ('fd300000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid from unnest(array[12, 13, 14, 15, 16, 19]) n);
 
 -- 1. A estrutura, os limites e quem pode chamar o quê.
 select ok(exists (select 1 from information_schema.columns where table_schema = 'private' and table_name = 'signal_monitors' and column_name = 'round_attempted'),
@@ -493,6 +501,12 @@ select is(private.register_missed_signal_slots('fd300000-0000-4000-8000-00000000
   'muitos horários vencidos juntos: a Rodada roda no mais recente');
 select is((select count(*)::int from private.signal_monitor_runs x where x.monitor_id = 'fd300000-0000-4000-8000-000000000014' and x.stop_reason = 'perdida'), 20,
   'e no máximo 20 linhas perdidas por chamada');
+select is(private.register_missed_signal_slots('fd300000-0000-4000-8000-000000000019', '2026-10-26 20:00:00-03'), '2026-10-26 19:00:00-03'::timestamptz,
+  'depois de uma parada de meses, o horário que roda continua sendo o vencido mais recente');
+select is(
+  (select min(x.slot_at) >= '2026-10-18 00:00:00-03'::timestamptz from private.signal_monitor_runs x
+   where x.monitor_id = 'fd300000-0000-4000-8000-000000000019' and x.stop_reason = 'perdida'),
+  true, 'e as linhas perdidas são só as dos últimos 8 dias');
 select is(private.register_missed_signal_slots('fd300000-0000-4000-8000-000000000015', '2026-10-26 20:00:00-03'), null,
   'o Monitoramento sem Agenda não tem Rodada perdida');
 select is(private.register_missed_signal_slots('fd300000-0000-4000-8000-000000000016', '2026-10-26 16:05:00-03'), '2026-10-26 16:00:00-03'::timestamptz,
@@ -655,8 +669,8 @@ select is(
 select is(
   (select concat_ws('|', n.title, n.link) from private.workspace_notices n
    where n.workspace_id = 'fd100000-0000-4000-8000-000000000001' and n.kind = 'sinal_rodada_pulada'),
-  'Rodada pulada por falta de créditos: MS|/sinais/tipos/vaga_linkedin/fd300000-0000-4000-8000-000000000009',
-  'e grava um aviso do Workspace com o link da página do Sinal');
+  'Rodada pulada por falta de créditos: MS|/sinais',
+  'e grava um aviso do Workspace com o link da página de Sinais');
 select pg_temp.pular('fd300000-0000-4000-8000-000000000009', '2026-03-03 11:00:00+00');
 select is(
   (select m.consecutive_skips || '|' || m.state from private.signal_monitors m where m.id = 'fd300000-0000-4000-8000-000000000009'),

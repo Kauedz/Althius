@@ -80,8 +80,6 @@ export function criarFonteDeSinaisSimulada(
   let pedidos: PedidoDeSinal[] = []
   // O Rodar agora da Demonstração: o pedido fica "na fila" (nada roda de verdade) e as Rodadas são as fixas.
   let pedidosDeRodada: (PedidoDeRodada & { monitoramentoId: string })[] = []
-  // O limite mensal da automação que a pessoa liberou nesta sessão da Demonstração (só em memória; nunca aparece na tela).
-  let automacaoLiberadaNaDemonstracao: number | null = null
 
   function notificar(): void {
     for (const ouvinte of ouvintes) {
@@ -507,7 +505,7 @@ export function criarFonteDeSinaisSimulada(
         if (codigo) throw new ErroDaAgenda(codigo)
       }
       return estimativaLocal({
-        porRodada: contasDaRodada(m.publico.listas.length, m.plano) * PREVIA_DA_DEMONSTRACAO.creditosPorConta,
+        porRodada: porRodadaDe(m),
         ...(proposta ? { agenda: proposta } : {}),
         saldo: PREVIA_DA_DEMONSTRACAO.saldo,
       })
@@ -518,7 +516,7 @@ export function criarFonteDeSinaisSimulada(
       const m = monitoramentos.find((item) => item.id === monitoramentoId)
       if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
       const { limiteSugeridoPorDia: sugerido } = estimativaLocal({
-        porRodada: contasDaRodada(m.publico.listas.length, m.plano) * PREVIA_DA_DEMONSTRACAO.creditosPorConta,
+        porRodada: porRodadaDe(m),
         ...(m.agenda ? { agenda: m.agenda } : {}),
         saldo: PREVIA_DA_DEMONSTRACAO.saldo,
       })
@@ -531,14 +529,15 @@ export function criarFonteDeSinaisSimulada(
     },
 
     // O limite mensal da automação da Demonstração fica em memória: o sugerido é o custo do mês mais 20% (a mesma conta do
-    // servidor, sem a faixa do contrato, que a Demonstração não tem), e liberar só confere o número.
+    // servidor, sem a faixa do contrato, que a Demonstração não tem). Liberar só confere o número: a Demonstração nunca bloqueia a
+    // ativação por automação, então não guarda nada.
     async limiteMensalSugerido(monitoramentoId: string, agenda?: AgendaDoSinal): Promise<number> {
       await aguardar()
       const m = monitoramentos.find((item) => item.id === monitoramentoId)
       if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
       const proposta = agenda ?? m.agenda
       const { porMesAprox } = estimativaLocal({
-        porRodada: contasDaRodada(m.publico.listas.length, m.plano) * PREVIA_DA_DEMONSTRACAO.creditosPorConta,
+        porRodada: porRodadaDe(m),
         ...(proposta ? { agenda: proposta } : {}),
         saldo: PREVIA_DA_DEMONSTRACAO.saldo,
       })
@@ -548,7 +547,6 @@ export function criarFonteDeSinaisSimulada(
     async liberarAutomacao(_monitoramentoId: string, limiteMensal: number): Promise<void> {
       await aguardar()
       if (validarLimiteMensal(String(limiteMensal))) throw new ErroDaAutomacao('limite_invalido')
-      automacaoLiberadaNaDemonstracao = Math.max(automacaoLiberadaNaDemonstracao ?? 0, limiteMensal)
     },
 
     // O Plano da Demonstração é fixo: a IA não roda aqui, e o Briefing não muda o que volta (só as Contas escolhidas).
@@ -583,6 +581,11 @@ export function criarFonteDeSinaisSimulada(
       return clonarMonitoramento(salvo)
     },
   }
+}
+
+/** O preço de uma Rodada na Demonstração: o lote do Monitoramento vezes o preço fixo de exemplo por Conta. */
+function porRodadaDe(m: Monitoramento): number {
+  return contasDaRodada(m.publico.listas.length, m.plano) * PREVIA_DA_DEMONSTRACAO.creditosPorConta
 }
 
 /** O Plano que a Demonstração devolve para qualquer Briefing: Abertura de vagas de RevOps nas Contas escolhidas. */

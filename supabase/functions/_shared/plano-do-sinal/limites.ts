@@ -1,5 +1,6 @@
-// Os limites do Plano do Sinal v1, num lugar só do servidor. A migration `20261116120000_briefing_e_plano_do_sinal.sql`
-// repete os mesmos números em `private.signal_plan_limits()`, e um teste confere que os dois dizem o mesmo.
+// Os limites do Plano do Sinal v1, num lugar só do servidor. O banco repete os mesmos números em `private.signal_plan_limit()`
+// (criada em `20261116120000_briefing_e_plano_do_sinal.sql` e redefinida pelas migrations seguintes, a última em
+// `20261120120000_ajustes_das_decisoes_do_agente_de_sinal.sql`), e um teste confere que os dois dizem o mesmo.
 // As linhas marcadas com DECISÃO PENDENTE não foram decididas pelo Kauê: são o padrão recomendado, fáceis de trocar aqui
 // e na função do banco. As marcadas com "Decidido pelo Kauê em 24/10/2026" foram decididas.
 
@@ -15,7 +16,7 @@ export const LIMITES_DO_PLANO = {
   explicacaoMax: 600,
   /** O Plano inteiro, em caracteres do JSON. 500 ids de Conta passam de 20 mil caracteres, então o limite é de 32 mil. */
   planoMaxCaracteres: 32_000,
-  /** DECISÃO PENDENTE 8: por enquanto o Plano tem exatamente 1 Sinal; o array já existe para o Sinal com vários tipos. */
+  /** Decidido pelo Kauê em 24/10/2026 (decisão 8): 1 Sinal por Plano; o array já existe para o Sinal com vários tipos. */
   sinaisPorPlano: 1,
   /** Decidido pelo Kauê em 24/10/2026: até 500 Contas escolhidas, em rotação (cada Rodada leva um lote). */
   contasEscolhidasMax: 500,

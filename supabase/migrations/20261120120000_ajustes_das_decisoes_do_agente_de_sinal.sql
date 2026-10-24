@@ -101,7 +101,7 @@ as $$
     when 'brief_max' then 1000
     when 'explanation_max' then 600
     when 'plan_max_chars' then 32000              -- 500 Contas escolhidas cabem (Decidido pelo Kauê em 24/10/2026)
-    when 'signals_per_plan' then 1                -- DECISÃO PENDENTE 8
+    when 'signals_per_plan' then 1                -- Decidido pelo Kauê em 24/10/2026
     when 'accounts_max' then 500                  -- Decidido pelo Kauê em 24/10/2026
     when 'per_round_min' then 1                   -- Decidido pelo Kauê em 24/10/2026
     when 'per_round_max' then 100                 -- Decidido pelo Kauê em 24/10/2026
@@ -404,7 +404,7 @@ $$;
 -- vencido mais recente. Os anteriores viram uma linha cada (`origin = 'agenda'`, `state = 'concluida'`, `stop_reason = 'perdida'`,
 -- contagens e créditos em 0). Sem compensação: nunca roda mais de uma Rodada. O runner atrasado dentro de UM horário (o relógio de
 -- 10 em 10 minutos) não é Rodada perdida: só há linha quando existe um horário seguinte também vencido. `p_now` é parâmetro para o
--- teste ser determinístico. No máximo 20 linhas por chamada (as mais antigas); o horário devolvido é sempre o mais recente. O
+-- teste ser determinístico. No máximo 20 linhas por chamada (as mais antigas dos últimos 8 dias); o horário devolvido é sempre o mais recente. O
 -- índice `signal_monitor_runs_one_per_slot_idx` impede a repetição. Só o servidor.
 create function private.register_missed_signal_slots(p_monitor_id uuid, p_now timestamptz)
 returns timestamptz
@@ -426,6 +426,11 @@ begin
     return null;
   end if;
   v_slot := v_m.next_run_at;
+  -- Depois de uma parada muito longa, a conta começa 8 dias antes de agora (com 12 horários por dia são ~100 passos): os
+  -- horários mais antigos que isso não viram linha, e o horário que roda continua sendo o vencido mais recente.
+  if v_slot < p_now - interval '8 days' then
+    v_slot := coalesce(private.next_signal_run(v_m.schedule, p_now - interval '8 days'), v_slot);
+  end if;
   for v_i in 1 .. 1000 loop
     v_next := private.next_signal_run(v_m.schedule, v_slot);
     exit when v_next is null or v_next > p_now;
@@ -579,7 +584,7 @@ begin
       v_m.workspace_id, 'sinal_rodada_pulada', 'Rodada pulada por falta de créditos: ' || left(v_m.name, 120),
       'A última rodada foi pulada porque os créditos acabaram. Depois de '
         || private.signal_price_limit('pause_after_skips')::text || ' rodadas puladas seguidas, o Sinal pausa.',
-      '/sinais/tipos/' || v_m.signal_type || '/' || v_m.id::text);
+      '/sinais');
   end if;
 end;
 $$;

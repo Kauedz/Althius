@@ -45,7 +45,7 @@ Deno.test('o tipo precisa estar entre os aceitos: inexistente, em teste ou sem c
   assertEquals(tiposAceitosNoPlano(['vaga_linkedin', 'sem_adaptador_conhecido', 'vaga_linkedin']), ['vaga_linkedin'])
 })
 
-Deno.test('exatamente um Sinal por Plano (DECISÃO PENDENTE 8)', () => {
+Deno.test('exatamente um Sinal por Plano (decidido pelo Kauê em 24/10/2026)', () => {
   const um = { tipo: 'vaga_linkedin', criterios: {} }
   recusado(plano({ sinais: [] }), 'sinais')
   recusado(plano({ sinais: [um, um] }), 'sinais')

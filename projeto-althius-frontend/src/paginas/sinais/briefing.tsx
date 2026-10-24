@@ -9,6 +9,7 @@ import {
   ErroDoPlano,
   LIMITES_DO_PLANO,
   MENSAGEM_DA_FALHA_DO_PLANO,
+  loteDaRodada,
   type OrigemDoPlano,
   type PlanoDoSinal,
 } from '@/fonte/plano-do-sinal'
@@ -287,7 +288,7 @@ function PassoDoPlano({
   const temCriterios = tipo ? CAMPOS[tipo.formulario].some((c) => tipo.campos.includes(c.id)) : false
   const nomeValido = nome.trim().length > 0 && nome.trim().length <= NOME_MAXIMO
   const { empresasPorRodadaMin: loteMin, empresasPorRodadaMax: loteMax } = LIMITES_DO_PLANO
-  const loteValido = Number.isInteger(plano.maxEmpresasPorRodada) && plano.maxEmpresasPorRodada >= loteMin && plano.maxEmpresasPorRodada <= loteMax
+  const loteValido = Number.isInteger(plano.maxEmpresasPorRodada) && loteDaRodada(plano) === plano.maxEmpresasPorRodada
 
   return (
     <>

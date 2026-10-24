@@ -2,7 +2,8 @@
 // servidor (`public.quote_signal_schedule`, `public.save_signal_daily_cap`, `public.finish_signal_monitor_run`); aqui estão a
 // mesma conta, para a Demonstração, que não tem servidor, e as frases do produto. O preço de uma Rodada é o do LOTE: as Contas do
 // Sinal, no máximo `maxEmpresasPorRodada` (`loteDaRodada`). O cliente vê só créditos: nunca US$, custo de fornecedor, nome de
-// actor nem valor de Teto. Um teste confere estes números contra a migration.
+// actor nem valor de Teto. A única exceção é o limite mensal SUGERIDO ao liberar a automação ao ativar (o custo estimado do mês mais
+// 20%, em créditos): nunca o limite que o Workspace já tem. Um teste confere estes números contra a migration.
 
 import { type AgendaDoSinal, rodadasPorSemana } from './agenda-do-sinal'
 import type { Monitoramento } from './sinais-tipos'
@@ -112,7 +113,8 @@ export const AUTOMACAO_NAO_LIBERADA = 'A automação ainda não está liberada n
 // ---- Liberar a automação ao ativar (o limite mensal já vem preenchido) ----
 
 export const ROTULO_DO_LIMITE_MENSAL = 'Limite mensal da automação (créditos)'
-export const AJUDA_DO_LIMITE_MENSAL = 'Já preenchido com o custo estimado do mês mais 20%. Você pode mudar.'
+export const AJUDA_DO_LIMITE_MENSAL =
+  `Já preenchido com o custo estimado do mês mais ${LIMITES_DO_PRECO.margemDoTetoMensalEmPercentual}%. Você pode mudar.`
 export const BOTAO_LIBERAR_E_ATIVAR = 'Liberar e ativar'
 
 export type CodigoDeErroDaAutomacao = 'nao_administrador' | 'limite_invalido' | 'acima_da_faixa' | 'contrato_inativo'
@@ -153,8 +155,6 @@ export function validarLimiteMensal(texto: string): 'limite_invalido' | null {
   return /^\d{1,9}$/.test(limpo) && Number(limpo) >= 1 ? null : 'limite_invalido'
 }
 
-// ---- Pausado por falta de créditos ----
-
 // ---- A 1ª Rodada pulada por falta de créditos ----
 
 /** O Sinal ativo cuja última Rodada foi pulada por falta de créditos: a tela já avisa na primeira (agente-de-sinal 05). */
@@ -166,6 +166,8 @@ export const TITULO_DA_RODADA_PULADA = 'Rodada pulada por falta de créditos'
 /** O aviso do Sinal ativo cuja última Rodada foi pulada: o número da pausa vem do limite, não do texto. */
 export const TEXTO_DA_RODADA_PULADA =
   `A última rodada foi pulada porque os créditos acabaram. Depois de ${LIMITES_DO_PRECO.rodadasPuladasParaPausar} rodadas puladas seguidas, o Sinal pausa.`
+
+// ---- Pausado por falta de créditos ----
 
 export const TITULO_DA_PAUSA_POR_CREDITOS = 'Pausado por falta de créditos'
 export const TEXTO_DA_PAUSA_POR_CREDITOS =

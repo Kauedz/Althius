@@ -30,7 +30,7 @@ import {
   validarLimitePorDia,
 } from './preco-por-rodada'
 import { contasDaRodada, loteDaRodada } from './plano-do-sinal'
-import { ultimaDefinicaoNoBanco } from './ultima-definicao-no-banco'
+import { ultimaDefinicaoNoBanco } from '@/test/ultima-definicao-no-banco'
 
 // A conta da Demonstração é a do servidor (`public.quote_signal_schedule`). Estes testes leem a migration e o pgTAP: os mesmos
 // números e a mesma fórmula, para a tela nunca prometer uma conta que o banco não faz.

@@ -244,9 +244,9 @@ export function RodadasDoMonitoramento({ rodadas, monitoramento }: { rodadas: Es
     )
   }
   if (!historico) return <Carregando rotulo="Carregando as rodadas" />
-  // O aviso da 1ª Rodada pulada fica na linha da Rodada mais recente que parou por falta de créditos.
+  // O aviso da 1ª Rodada pulada fica na linha da Rodada agendada mais recente que parou por falta de créditos (só a agendada conta).
   const idDaRodadaPulada = monitoramento && sinalComRodadaPulada(monitoramento)
-    ? historico.rodadas.find((r) => r.motivoDaParada === 'sem_creditos')?.id
+    ? historico.rodadas.find((r) => r.origem === 'agenda' && r.motivoDaParada === 'sem_creditos')?.id
     : undefined
 
   return (

@@ -26,7 +26,7 @@ import {
   validarAgenda,
   type AgendaDoSinal,
 } from './agenda-do-sinal'
-import { ultimaDefinicaoNoBanco } from './ultima-definicao-no-banco'
+import { ultimaDefinicaoNoBanco } from '@/test/ultima-definicao-no-banco'
 
 // A Agenda vale no servidor (`private.validate_signal_schedule`, `private.next_signal_run`). Estes testes leem as migrations e o
 // pgTAP como texto e falham se os limites, os códigos de recusa ou a tabela de casos da próxima Rodada divergirem do código
