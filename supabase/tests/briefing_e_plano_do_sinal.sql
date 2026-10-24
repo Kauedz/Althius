@@ -337,10 +337,11 @@ select is((select concat_ws('|', plan is null, brief)
   from public.list_signal_monitors('e8100000-0000-4000-8000-000000000001') where id = (select id from r where k = 'ativo')),
   'f|Briefing', 'o Monitoramento com Plano que o editor não mexeu segue com Plano e Briefing');
 
--- 12. A lista: os campos antigos na mesma ordem e os quatro novos no fim.
+-- 12. A lista: os campos antigos na mesma ordem e os quatro novos no fim. A Agenda do Sinal (20261118120000) acrescentou
+-- schedule e next_run_at depois deles; a ordem de tudo o que veio antes não mudou.
 select is(pg_get_function_result('public.list_signal_monitors(uuid)'::regprocedure),
-  'TABLE(id uuid, signal_type text, name text, state text, audience jsonb, criteria jsonb, every_hours integer, created_by uuid, last_run_at timestamp with time zone, last_error text, created_at timestamp with time zone, last_run jsonb, brief text, plan jsonb, plan_version integer, plan_origin text)',
-  'list_signal_monitors mantém as colunas de antes e acrescenta brief, plan, plan_version e plan_origin no fim');
+  'TABLE(id uuid, signal_type text, name text, state text, audience jsonb, criteria jsonb, every_hours integer, created_by uuid, last_run_at timestamp with time zone, last_error text, created_at timestamp with time zone, last_run jsonb, brief text, plan jsonb, plan_version integer, plan_origin text, schedule jsonb, next_run_at timestamp with time zone)',
+  'list_signal_monitors mantém as colunas de antes, acrescenta brief, plan, plan_version e plan_origin no fim e, depois, schedule e next_run_at');
 
 -- 13. O limite de Planos por dia (DECISÃO PENDENTE 13), contado por horários fixos.
 reset role;

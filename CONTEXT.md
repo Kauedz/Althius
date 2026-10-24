@@ -156,7 +156,10 @@ Onde o Plano procura: **mercado** (descobre empresas novas, que chegam como Cand
 _Avoid_: público (é o nome técnico do campo), alvo
 
 **Agenda do Sinal**:
-Quantas Rodadas por dia o Sinal faz e em quais horários. Antes de ativar, o Cliente vê os créditos por Rodada, por dia e por mês. É o que o relógio (`pg_cron` `althius-signal-runner`) usa para acordar o `signal-runner`.
+Quantas Rodadas por dia o Sinal faz, em quais horários e em quais dias. Antes de ativar, o Cliente vê os créditos por Rodada, por dia e por mês. É o que o relógio (`pg_cron` `althius-signal-runner`) usa para acordar o `signal-runner`.
+Os horários são de 15 em 15 minutos, no horário de Brasília (o único fuso por enquanto), e os dias são os da semana, de segunda a sexta por padrão. O servidor recusa Agenda fora dos limites, mesmo que a tela deixe passar: até 6 Rodadas por dia, com pelo menos 2 horas entre os horários (a virada do dia conta: 23:00 e 01:00 são 2 horas) e, num Sinal com mais de 50 Contas no escopo, 1 Rodada por dia. Esses valores são o **padrão em uso, ainda pendente** (ADR-0032, decisões 3 e 10), e ficam num lugar só do banco (`private.signal_schedule_limit`).
+O relógio acorda o Sinal a cada 10 minutos, então a Rodada começa **por volta** do horário marcado, em até 10 minutos depois, e a tela diz assim. O horário marcado é a identidade da Rodada agendada: continuar numa chamada seguinte do `signal-runner` mantém o mesmo horário, e por isso a mesma Conta nunca é cobrada duas vezes na mesma Rodada.
+**Sem compensação de Rodada perdida**: a Rodada que não rodou no horário (runner parado, sem créditos, Sinal pausado) não é recuperada. O próximo horário é sempre o primeiro depois de agora, e nunca se acumulam Rodadas (**padrão em uso, ainda pendente**). O Monitoramento sem Agenda é o de antes (legado): continua rodando a cada 24 horas, sem mudança, até alguém salvar uma Agenda.
 _Avoid_: frequência, cron
 
 **Rodada**:

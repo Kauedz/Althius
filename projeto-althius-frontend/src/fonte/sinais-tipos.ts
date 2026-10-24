@@ -2,6 +2,7 @@ import type { PerfilFirmografico } from '@/paginas/sinais/perfil'
 import type { FonteObservavel } from './tipos'
 import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
 import type { AchadoDaRodada, HistoricoDeRodadas, PreviaDaRodada } from './rodadas-do-sinal'
+import type { AgendaDoSinal } from './agenda-do-sinal'
 
 export type Origem = 'externo' | 'interno' | 'originado'
 
@@ -47,6 +48,8 @@ export interface Monitoramento {
   plano?: PlanoDoSinal
   /** Quantas vezes o Plano foi gravado. */
   versaoDoPlano?: number
+  /** A Agenda do Sinal (agente-de-sinal 03). Ausente é o Monitoramento de antes, que roda a cada 24 horas. */
+  agenda?: AgendaDoSinal
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */
@@ -280,6 +283,18 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Os Sinais que uma Rodada achou, com a Conta e o "por que apareceu". */
   achadosDaRodada?(rodadaId: string): Promise<AchadoDaRodada[]>
+
+  /**
+   * Grava a Agenda do Sinal (agente-de-sinal 03). O servidor confere os limites e rejeita com `ErroDaAgenda`. Quem não
+   * implementa não oferece a Agenda.
+   */
+  salvarAgenda?(monitoramentoId: string, agenda: AgendaDoSinal): Promise<Monitoramento>
+
+  /**
+   * Os próximos `n` horários da Agenda (ISO), a partir de agora, no mesmo cálculo que o relógio usa. `contas`: as Contas no
+   * escopo. Rejeita com `ErroDaAgenda` quando a Agenda não vale.
+   */
+  proximasRodadas?(agenda: AgendaDoSinal, contas: number, n: number): Promise<string[]>
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'

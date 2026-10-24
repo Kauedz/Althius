@@ -6,6 +6,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
 import { CATALOGO_VISIVEL, cardQueConta } from '@/paginas/sinais/catalogo-visivel'
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
+import {
+  ErroDaAgenda,
+  FUSO_DA_AGENDA,
+  MENSAGEM_DA_FALHA_DA_AGENDA,
+  codigoDoErroDaAgenda,
+  type AgendaDoSinal,
+} from './agenda-do-sinal'
 import { corpoDoErroDaFuncao } from './falha-da-edge-function'
 import { ErroDoPlano, MENSAGEM_DA_FALHA_DO_PLANO, type PedidoDePlano, type PlanoDoSinal, type PlanoMontado, type PlanoParaSalvar } from './plano-do-sinal'
 import {
@@ -49,6 +56,7 @@ interface RegistroDoMonitor {
   brief?: string | null
   plan?: PlanoDoSinal | null
   plan_version?: number | null
+  schedule?: { horarios?: unknown; dias?: unknown } | null
   last_run?: {
     state: 'rodando' | 'concluida' | 'falhou'
     startedAt: string
@@ -141,6 +149,8 @@ function bloqueioDoErro(error: { message: string }): BloqueioDaRodada | null {
 function converterErro(error: { message: string; code?: string }): Error {
   const bloqueio = bloqueioDoErro(error)
   if (bloqueio) return new ErroDaRodada(bloqueio)
+  const agenda = codigoDoErroDaAgenda(error.message)
+  if (agenda) return new ErroDaAgenda(agenda)
   if (error.message.includes('signal type is not available')) {
     return new Error('Este Sinal ainda está em teste e não roda de verdade.')
   }
@@ -289,9 +299,17 @@ function tipoDaTela(signalType: string, tiposDeCascata: ReadonlySet<string>): st
   return CATALOGO_VISIVEL.find((card) => card.coletores.includes(signalType))?.id ?? null
 }
 
+/** A Agenda guardada no banco como a tela a lê; o que não tem a forma esperada vale como "sem Agenda". */
+function agendaDoRegistro(schedule: RegistroDoMonitor['schedule']): AgendaDoSinal | null {
+  if (!schedule || !Array.isArray(schedule.horarios) || !Array.isArray(schedule.dias)) return null
+  if (!schedule.horarios.every((h) => typeof h === 'string') || !schedule.dias.every((d) => typeof d === 'number')) return null
+  return { horarios: [...schedule.horarios as string[]], dias: [...schedule.dias as number[]] }
+}
+
 function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<string>): Monitoramento | null {
   const tipoId = tipoDaTela(linha.signal_type, tiposDeCascata)
   if (!tipoId) return null
+  const agenda = agendaDoRegistro(linha.schedule)
   return {
     id: linha.id,
     tipoId,
@@ -306,6 +324,7 @@ function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<str
     criterios: linha.criteria ?? {},
     // O Briefing só aparece com o Plano: depois de o editor mudar o que roda, o Plano antigo deixa de valer.
     ...(linha.plan ? { plano: linha.plan, versaoDoPlano: linha.plan_version ?? 1, ...(linha.brief ? { briefing: linha.brief } : {}) } : {}),
+    ...(agenda ? { agenda } : {}),
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
       ? {
@@ -582,6 +601,28 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         bloqueio,
         ...(linha.liberado_em ? { liberadoEm: linha.liberado_em } : {}),
       }
+    },
+
+    async salvarAgenda(monitoramentoId, agenda): Promise<Monitoramento> {
+      await chamar('save_signal_schedule', {
+        p_workspace_id: workspaceId(),
+        p_monitor_id: monitoramentoId,
+        p_schedule: { horarios: agenda.horarios, dias: agenda.dias, fuso: FUSO_DA_AGENDA },
+      })
+      return monitoramento(monitoramentoId)
+    },
+
+    async proximasRodadas(agenda, contas, n): Promise<string[]> {
+      const { data, error } = await cliente.rpc('preview_signal_schedule', {
+        p_schedule: { horarios: agenda.horarios, dias: agenda.dias, fuso: FUSO_DA_AGENDA },
+        p_n: n,
+        p_accounts: contas,
+      })
+      if (error) {
+        const convertido = converterErro(error)
+        throw convertido instanceof ErroDaAgenda ? convertido : new Error(MENSAGEM_DA_FALHA_DA_AGENDA)
+      }
+      return ((data ?? []) as string[]).map((instante) => new Date(instante).toISOString())
     },
 
     async rodarAgora(monitoramentoId): Promise<void> {
