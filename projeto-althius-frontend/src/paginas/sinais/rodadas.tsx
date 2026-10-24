@@ -24,6 +24,8 @@ import {
 } from '@/fonte/rodadas-do-sinal'
 import type { Monitoramento } from '@/fonte/sinais-tipos'
 import { cn } from '@/lib/utils'
+import { sinalComRodadaPulada } from '@/fonte/preco-por-rodada'
+import { AvisoDeRodadaPulada } from './aviso-de-pausa'
 import { TIPOS_DO_PLANO } from './campos-do-plano'
 import type { EstadoDasRodadas } from './usar-rodadas'
 
@@ -98,7 +100,7 @@ export function RodarAgora({ monitoramento, rodadas }: { monitoramento: Monitora
           <DialogHeader>
             <DialogTitle>Rodar agora</DialogTitle>
             <DialogDescription className="flex flex-col gap-2 text-sm text-al-muted">
-              <span>{textoDaPrevia(previa)}</span>
+              <span>{textoDaPrevia(previa, monitoramento.publico.listas.length)}</span>
               {previa.contasSemDado > 0 && (
                 <span>
                   Pelo que sabemos, {plural(previa.contasSemDado, 'Conta não tem', 'Contas não têm')} dado suficiente e deve ficar de fora.
@@ -128,6 +130,8 @@ export function RodarAgora({ monitoramento, rodadas }: { monitoramento: Monitora
 
 /** A linha de uma Rodada: quando, de onde veio, o que verificou, o que achou, quanto custou e por que parou. */
 function ResumoDaRodada({ rodada }: { rodada: RodadaRegistrada }) {
+  // A Rodada perdida nunca começou: o que importa é o horário marcado da Agenda, e não a hora em que o relógio a registrou.
+  const quando = rodada.motivoDaParada === 'perdida' && rodada.horarioMarcado ? rodada.horarioMarcado : rodada.iniciadaEm
   const partes = [
     plural(rodada.contasVerificadas, 'Conta verificada', 'Contas verificadas'),
     plural(rodada.sinaisNovos, 'Sinal novo', 'Sinais novos'),
@@ -136,7 +140,7 @@ function ResumoDaRodada({ rodada }: { rodada: RodadaRegistrada }) {
   return (
     <span className="flex min-w-0 flex-col gap-1 text-left">
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="tabular-nums">{dataEHoraEmBrasilia(rodada.iniciadaEm)}</span>
+        <span className="tabular-nums">{dataEHoraEmBrasilia(quando)}</span>
         <span className="selo">{rodada.origem === 'manual' ? 'Manual' : 'Agendada'}</span>
         <span className="text-sm text-al-muted">{textoDaParada(rodada)}</span>
       </span>
@@ -221,7 +225,7 @@ function SinaisEncontrados({ rodada }: { rodada: RodadaRegistrada }) {
  * A seção "Rodadas" do Monitoramento: o histórico, com a origem (agendada ou manual), as Contas verificadas, os Sinais novos,
  * os créditos e por que parou. Clicar numa Rodada abre os Sinais encontrados nela.
  */
-export function RodadasDoMonitoramento({ rodadas }: { rodadas: EstadoDasRodadas }) {
+export function RodadasDoMonitoramento({ rodadas, monitoramento }: { rodadas: EstadoDasRodadas; monitoramento?: Monitoramento }) {
   const { historico, erroDoHistorico: erro, recarregar } = rodadas
   const [aberta, setAberta] = useState<string | null>(null)
 
@@ -240,6 +244,10 @@ export function RodadasDoMonitoramento({ rodadas }: { rodadas: EstadoDasRodadas 
     )
   }
   if (!historico) return <Carregando rotulo="Carregando as rodadas" />
+  // O aviso da 1ª Rodada pulada fica na linha da Rodada mais recente que parou por falta de créditos.
+  const idDaRodadaPulada = monitoramento && sinalComRodadaPulada(monitoramento)
+    ? historico.rodadas.find((r) => r.motivoDaParada === 'sem_creditos')?.id
+    : undefined
 
   return (
     <section aria-labelledby="titulo-das-rodadas" className="flex flex-col gap-4 border-t border-al-line pt-6">
@@ -266,6 +274,7 @@ export function RodadasDoMonitoramento({ rodadas }: { rodadas: EstadoDasRodadas 
                     : <ChevronRight strokeWidth={1.8} className="mt-1 size-4 shrink-0 text-al-muted" aria-hidden />}
                 </button>
                 {rodada.observacao && <p className="text-xs text-al-muted">{rodada.observacao}</p>}
+                {monitoramento && rodada.id === idDaRodadaPulada && <AvisoDeRodadaPulada monitoramento={monitoramento} />}
                 {expandida && <SinaisEncontrados rodada={rodada} />}
               </li>
             )

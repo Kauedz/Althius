@@ -4,7 +4,6 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   AGENDA_PADRAO,
-  AVISO_DO_ESCOPO_GRANDE,
   CODIGOS_DE_ERRO_DA_AGENDA,
   DIAS_UTEIS,
   ErroDaAgenda,
@@ -27,35 +26,45 @@ import {
   validarAgenda,
   type AgendaDoSinal,
 } from './agenda-do-sinal'
+import { ultimaDefinicaoNoBanco } from './ultima-definicao-no-banco'
 
-// A Agenda vale no servidor (`private.validate_signal_schedule`, `private.next_signal_run`). Estes testes leem a migration e o
+// A Agenda vale no servidor (`private.validate_signal_schedule`, `private.next_signal_run`). Estes testes leem as migrations e o
 // pgTAP como texto e falham se os limites, os códigos de recusa ou a tabela de casos da próxima Rodada divergirem do código
-// da tela. O arquivo do servidor fica fora de `src`: lê-se do disco.
+// da tela. Os limites e a validação foram redefinidos por migrations novas: lê-se a ÚLTIMA definição de cada função. Os arquivos
+// do servidor ficam fora de `src`: lêem-se do disco.
 
 const RAIZ = path.resolve(import.meta.dirname, '../../..')
-const MIGRATION = readFileSync(path.join(RAIZ, 'supabase/migrations/20261118120000_agenda_do_sinal.sql'), 'utf8')
+const MIGRATION_DA_AGENDA = readFileSync(path.join(RAIZ, 'supabase/migrations/20261118120000_agenda_do_sinal.sql'), 'utf8')
+const LIMITES_NO_BANCO = ultimaDefinicaoNoBanco('private.signal_schedule_limit')
 const PGTAP = readFileSync(path.join(RAIZ, 'supabase/tests/agenda_do_sinal.sql'), 'utf8')
 
 const agenda = (horarios: string[], dias: number[] = [...DIAS_UTEIS]): AgendaDoSinal => ({ horarios, dias })
 
 describe('os limites e os códigos são os do servidor', () => {
-  const limite = (nome: string) => Number(new RegExp(`when '${nome}' then (\\d+)`).exec(MIGRATION)?.[1])
+  const limite = (nome: string) => Number(new RegExp(`when '${nome}' then (\\d+)`).exec(LIMITES_NO_BANCO)?.[1])
 
-  it('o passo, o máximo por dia, o intervalo e o escopo grande', () => {
+  it('o passo, o máximo por dia e o intervalo (decididos pelo Kauê em 24/10/2026)', () => {
     expect(limite('step_minutes')).toBe(LIMITES_DA_AGENDA.passoEmMinutos)
     expect(limite('max_per_day')).toBe(LIMITES_DA_AGENDA.maximoPorDia)
     expect(limite('min_gap_minutes')).toBe(LIMITES_DA_AGENDA.intervaloMinimoEmMinutos)
-    expect(limite('big_scope_accounts')).toBe(LIMITES_DA_AGENDA.contasDoEscopoGrande)
-    expect(limite('big_scope_max_per_day')).toBe(LIMITES_DA_AGENDA.maximoNoEscopoGrande)
+    expect([LIMITES_DA_AGENDA.maximoPorDia, LIMITES_DA_AGENDA.intervaloMinimoEmMinutos]).toEqual([12, 60])
+  })
+
+  it('o escopo grande saiu do banco e da tela', () => {
+    expect(LIMITES_NO_BANCO).not.toContain('big_scope')
+    expect(Object.keys(LIMITES_DA_AGENDA).sort()).toEqual(['intervaloMinimoEmMinutos', 'maximoPorDia', 'passoEmMinutos'])
   })
 
   it('os dias úteis são o padrão do servidor', () => {
-    expect(MIGRATION).toContain(`select '${JSON.stringify([...DIAS_UTEIS])}'::jsonb;`)
+    expect(MIGRATION_DA_AGENDA).toContain(`select '${JSON.stringify([...DIAS_UTEIS])}'::jsonb;`)
   })
 
   it('cada código de recusa da tela existe no servidor, e o servidor não recusa com código que a tela não conhece', () => {
-    const doServidor = [...MIGRATION.matchAll(/fail_signal_schedule\('([a-z_]+)'\)/g)].map((m) => m[1])
+    const validacao = ultimaDefinicaoNoBanco('private.validate_signal_schedule')
+    const gravacao = ultimaDefinicaoNoBanco('public.save_signal_schedule')
+    const doServidor = [...(validacao + gravacao).matchAll(/fail_signal_schedule\('([a-z_]+)'\)/g)].map((m) => m[1])
     expect(new Set(doServidor)).toEqual(new Set(CODIGOS_DE_ERRO_DA_AGENDA))
+    expect(doServidor).not.toContain('muitas_contas')
     for (const codigo of CODIGOS_DE_ERRO_DA_AGENDA) expect(TEXTO_DO_ERRO_DA_AGENDA[codigo]).toBeTruthy()
   })
 
@@ -67,16 +76,19 @@ describe('os limites e os códigos são os do servidor', () => {
     expect(HORARIOS_POSSIVEIS.every((h) => validarAgenda(agenda([h])) === null)).toBe(true)
   })
 
-  it('o texto da regra e o aviso do escopo grande saem dos limites', () => {
-    expect(REGRA_DA_AGENDA).toBe('Até 6 rodadas por dia, com pelo menos 2 horas entre elas.')
-    expect(AVISO_DO_ESCOPO_GRANDE).toBe('Com mais de 50 Contas, o Sinal roda 1 vez por dia.')
+  it('o texto da regra sai dos limites e nenhum texto fala de "mais de 50 Contas"', () => {
+    expect(REGRA_DA_AGENDA).toBe('Até 12 rodadas por dia, com pelo menos 1 hora entre elas.')
+    expect(TEXTO_DO_ERRO_DA_AGENDA.intervalo_curto).toBe('Deixe pelo menos 1 hora entre uma rodada e outra.')
+    expect(TEXTO_DO_ERRO_DA_AGENDA.muitos_horarios).toBe('Até 12 rodadas por dia.')
+    expect(JSON.stringify(TEXTO_DO_ERRO_DA_AGENDA)).not.toMatch(/mais de 50 Contas|muitas_contas/)
   })
 
   it('o código do banco vira o código da tela', () => {
     expect(codigoDoErroDaAgenda('signal schedule invalid: intervalo_curto')).toBe('intervalo_curto')
     expect(codigoDoErroDaAgenda('signal schedule invalid: coisa_nova')).toBeNull()
     expect(codigoDoErroDaAgenda('outra mensagem')).toBeNull()
-    expect(new ErroDaAgenda('muitas_contas').message).toBe('Com mais de 50 Contas, o Sinal roda 1 vez por dia.')
+    expect(new ErroDaAgenda('intervalo_curto').message).toBe('Deixe pelo menos 1 hora entre uma rodada e outra.')
+    expect(codigoDoErroDaAgenda('signal schedule invalid: muitas_contas')).toBeNull()
   })
 })
 
@@ -121,11 +133,10 @@ describe('validar a Agenda: as recusas do pgTAP, conferidas aqui', () => {
   // Os casos de `private.validate_signal_schedule` que a tela sabe representar (horários em texto, dias em número).
   const aceitos = [...PGTAP.matchAll(/lives_ok\(\$\$select private\.validate_signal_schedule\('(\{[^']*\})', (\d+)\)\$\$/g)].map((m) => ({
     json: JSON.parse(m[1]) as { horarios?: unknown; dias?: unknown },
-    contas: Number(m[2]),
   }))
   const recusados = [
     ...PGTAP.matchAll(/throws_ok\(\$\$select private\.validate_signal_schedule\('(\{[^']*\})', (\d+)\)\$\$,\s*'22023', 'signal schedule invalid: ([a-z_]+)'/g),
-  ].map((m) => ({ json: JSON.parse(m[1]) as { horarios?: unknown; dias?: unknown; fuso?: unknown; extra?: unknown }, contas: Number(m[2]), codigo: m[3] }))
+  ].map((m) => ({ json: JSON.parse(m[1]) as { horarios?: unknown; dias?: unknown; fuso?: unknown; extra?: unknown }, codigo: m[3] }))
 
   /** A Agenda que a tela representa: horários em texto e dias em número (os dias que faltam valem os dias úteis). */
   function daTela(json: { horarios?: unknown; dias?: unknown; fuso?: unknown; extra?: unknown }): AgendaDoSinal | null {
@@ -137,7 +148,7 @@ describe('validar a Agenda: as recusas do pgTAP, conferidas aqui', () => {
 
   it('lê os casos do pgTAP', () => {
     expect(aceitos.length).toBeGreaterThanOrEqual(6)
-    expect(recusados.length).toBeGreaterThanOrEqual(20)
+    expect(recusados.length).toBeGreaterThanOrEqual(18)
   })
 
   it('o que o servidor aceita, a tela aceita', () => {
@@ -146,7 +157,7 @@ describe('validar a Agenda: as recusas do pgTAP, conferidas aqui', () => {
       const doServidor = daTela(caso.json)
       if (!doServidor) continue
       conferidos++
-      expect(validarAgenda(doServidor, caso.contas), JSON.stringify(caso.json)).toBeNull()
+      expect(validarAgenda(doServidor), JSON.stringify(caso.json)).toBeNull()
     }
     expect(conferidos).toBe(aceitos.length)
   })
@@ -157,24 +168,28 @@ describe('validar a Agenda: as recusas do pgTAP, conferidas aqui', () => {
       const doServidor = daTela(caso.json)
       if (!doServidor) continue
       conferidos++
-      expect(validarAgenda(doServidor, caso.contas), JSON.stringify(caso.json)).toBe(caso.codigo)
+      expect(validarAgenda(doServidor), JSON.stringify(caso.json)).toBe(caso.codigo)
     }
     // Só ficam de fora os formatos que a tela nunca produz (fuso, campo desconhecido, horário que não é texto, dia em texto).
     expect(conferidos).toBeGreaterThanOrEqual(recusados.length - 6)
   })
 
-  it('1h45 de intervalo, 7 horários e mais de 50 Contas com 2 horários', () => {
-    expect(validarAgenda(agenda(['08:00', '09:45']))).toBe('intervalo_curto')
-    expect(validarAgenda(agenda(['08:00', '10:00']))).toBeNull()
-    expect(validarAgenda(agenda(['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00']))).toBe('muitos_horarios')
-    expect(validarAgenda(agenda(['08:00', '14:00']), 51)).toBe('muitas_contas')
-    expect(validarAgenda(agenda(['08:00', '14:00']), 50)).toBeNull()
-    expect(validarAgenda(agenda(['08:00']), 51)).toBeNull()
+  const dePorHora = (n: number) => Array.from({ length: n }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`)
+
+  it('12 horários de hora em hora passam, 13 não, e 45 minutos de intervalo não', () => {
+    expect(validarAgenda(agenda(dePorHora(12)))).toBeNull()
+    expect(validarAgenda(agenda(dePorHora(13)))).toBe('muitos_horarios')
+    expect(validarAgenda(agenda(['08:00', '09:00']))).toBeNull()
+    expect(validarAgenda(agenda(['08:00', '08:45']))).toBe('intervalo_curto')
   })
 
-  it('a virada do dia conta: 23:00 e 01:00 são 2 horas, 23:15 e 01:00 são 1h45', () => {
-    expect(validarAgenda(agenda(['23:00', '01:00']))).toBeNull()
-    expect(validarAgenda(agenda(['23:15', '01:00']))).toBe('intervalo_curto')
+  it('a virada do dia conta: 23:00 e 00:00 são 1 hora, 23:30 e 00:15 são 45 minutos', () => {
+    expect(validarAgenda(agenda(['23:00', '00:00']))).toBeNull()
+    expect(validarAgenda(agenda(['23:30', '00:15']))).toBe('intervalo_curto')
+  })
+
+  it('a Agenda não depende do tamanho da lista: ela não recebe mais o número de Contas', () => {
+    expect(validarAgenda.length).toBe(1)
   })
 })
 

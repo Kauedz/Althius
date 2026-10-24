@@ -164,8 +164,10 @@ insert into private.signal_monitors
    'fd000000-0000-4000-8000-000000000001', null, null, null);
 
 -- 1. A estrutura, os limites e quem pode chamar o quê.
-select has_column('private', 'signal_monitors', 'round_attempted', 'o Monitoramento guarda as Contas que a Rodada já tentou');
-select has_column('private', 'signal_run_requests', 'start_offset', 'e o pedido do Rodar agora guarda de onde a rotação partiu');
+select ok(exists (select 1 from information_schema.columns where table_schema = 'private' and table_name = 'signal_monitors' and column_name = 'round_attempted'),
+  'o Monitoramento guarda as Contas que a Rodada já tentou');
+select ok(exists (select 1 from information_schema.columns where table_schema = 'private' and table_name = 'signal_run_requests' and column_name = 'start_offset'),
+  'e o pedido do Rodar agora guarda de onde a rotação partiu');
 select is(
   (select array[private.signal_schedule_limit('step_minutes'), private.signal_schedule_limit('max_per_day'),
                 private.signal_schedule_limit('min_gap_minutes')]),

@@ -286,6 +286,8 @@ function PassoDoPlano({
   const escondidos = tipo ? CAMPOS[tipo.formulario].map((c) => c.id).filter((id) => !tipo.campos.includes(id)) : []
   const temCriterios = tipo ? CAMPOS[tipo.formulario].some((c) => tipo.campos.includes(c.id)) : false
   const nomeValido = nome.trim().length > 0 && nome.trim().length <= NOME_MAXIMO
+  const { empresasPorRodadaMin: loteMin, empresasPorRodadaMax: loteMax } = LIMITES_DO_PLANO
+  const loteValido = Number.isInteger(plano.maxEmpresasPorRodada) && plano.maxEmpresasPorRodada >= loteMin && plano.maxEmpresasPorRodada <= loteMax
 
   return (
     <>
@@ -343,6 +345,25 @@ function PassoDoPlano({
             {avisoDasContas}
           </p>
         )}
+        <Rotulado
+          rotulo="Empresas por rodada"
+          ajuda={
+            loteValido
+              ? `Cada rodada verifica até ${plano.maxEmpresasPorRodada} Contas e continua de onde parou na próxima.`
+              : `Use um número de ${loteMin} a ${loteMax}.`
+          }
+        >
+          <input
+            type="number"
+            inputMode="numeric"
+            min={loteMin}
+            max={loteMax}
+            step={1}
+            value={Number.isNaN(plano.maxEmpresasPorRodada) ? '' : plano.maxEmpresasPorRodada}
+            onChange={(e) => aoMudarPlano({ maxEmpresasPorRodada: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
+            className="campo h-10 w-28"
+          />
+        </Rotulado>
       </SecaoDoFormulario>
 
       {erroSalvar && (
@@ -360,7 +381,7 @@ function PassoDoPlano({
         </button>
         <button
           type="button"
-          disabled={!nomeValido || salvando || publico.listas.length === 0}
+          disabled={!nomeValido || !loteValido || salvando || publico.listas.length === 0}
           onClick={aoSalvar}
           className={BOTAO_PRIMARIO}
         >

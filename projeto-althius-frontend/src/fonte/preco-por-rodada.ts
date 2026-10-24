@@ -1,19 +1,28 @@
-// Preço por rodada, estimativa por dia e por mês, e limites ao ativar o Sinal (agente-de-sinal 04). As regras valem no servidor
-// (`public.quote_signal_schedule`, `public.save_signal_daily_cap`, `public.finish_signal_monitor_run`); aqui estão a mesma conta,
-// para a Demonstração, que não tem servidor, e as frases do produto. O cliente vê só créditos: nunca US$, custo de fornecedor,
-// nome de actor nem valor de Teto. Um teste confere estes números contra a migration.
+// Preço por rodada, estimativa por dia e por mês, e limites ao ativar o Sinal (agente-de-sinal 04 e 05). As regras valem no
+// servidor (`public.quote_signal_schedule`, `public.save_signal_daily_cap`, `public.finish_signal_monitor_run`); aqui estão a
+// mesma conta, para a Demonstração, que não tem servidor, e as frases do produto. O preço de uma Rodada é o do LOTE: as Contas do
+// Sinal, no máximo `maxEmpresasPorRodada` (`loteDaRodada`). O cliente vê só créditos: nunca US$, custo de fornecedor, nome de
+// actor nem valor de Teto. Um teste confere estes números contra a migration.
 
 import { type AgendaDoSinal, rodadasPorSemana } from './agenda-do-sinal'
+import type { Monitoramento } from './sinais-tipos'
 
 /**
- * Os limites e o padrão. DECISÃO PENDENTE 14 (pausa depois de 3 Rodadas seguidas puladas por falta de créditos) e DECISÃO PENDENTE
- * do aviso de repetição (acima de 2 Rodadas por dia): o Kauê ainda não decidiu; são os valores recomendados e ficam aqui e em
+ * Os limites e o padrão. Decidido pelo Kauê em 24/10/2026: pausa depois de 3 Rodadas seguidas puladas por falta de créditos, aviso
+ * de repetição acima de 2 Rodadas por dia e Teto mensal sugerido de 20% acima do custo estimado do mês. Ficam aqui e em
  * `private.signal_price_limit`.
  */
 export const LIMITES_DO_PRECO = {
   rodadasPorDiaParaOAviso: 2,
   rodadasPuladasParaPausar: 3,
+  margemDoTetoMensalEmPercentual: 20,
 } as const
+
+/** O Teto mensal sugerido: o custo estimado do mês mais a margem, em créditos inteiros e para cima (`suggest_signal_monthly_cap`). */
+export function tetoMensalSugerido(porMesAprox: number, limiteDaFaixa?: number): number {
+  const sugerido = Math.ceil((porMesAprox * (100 + LIMITES_DO_PRECO.margemDoTetoMensalEmPercentual)) / 100)
+  return Math.max(limiteDaFaixa === undefined ? sugerido : Math.min(sugerido, limiteDaFaixa), 1)
+}
 
 /** Por que o Sinal ainda não pode ser ativado (ou nulo): o código estável de `quote_signal_schedule`. */
 export type BloqueioDaAtivacao = 'contrato_inativo' | 'sem_teto_automacao' | 'sem_creditos'
@@ -90,7 +99,7 @@ export function estimativaLocal(
 
 export const TITULO_DA_ATIVACAO = 'Ativar Sinal'
 
-/** O que acontece sem créditos (DECISÃO PENDENTE 14). */
+/** O que acontece sem créditos (decidido pelo Kauê em 24/10/2026). */
 export const TEXTO_DO_SEM_CREDITOS =
   `Se os créditos acabarem, a rodada é pulada sem cobrança. Depois de ${LIMITES_DO_PRECO.rodadasPuladasParaPausar} rodadas puladas, o Sinal pausa e avisamos aqui.`
 
@@ -100,7 +109,63 @@ export const PEDIDO_DE_AUTOMACAO = 'Peça ao responsável pelo plano para libera
 /** Para quem pode (Administrador): o que falta, sem valor de Teto, antes do caminho para configurar. */
 export const AUTOMACAO_NAO_LIBERADA = 'A automação ainda não está liberada neste Workspace, e o Sinal não roda sozinho sem ela.'
 
+// ---- Liberar a automação ao ativar (o limite mensal já vem preenchido) ----
+
+export const ROTULO_DO_LIMITE_MENSAL = 'Limite mensal da automação (créditos)'
+export const AJUDA_DO_LIMITE_MENSAL = 'Já preenchido com o custo estimado do mês mais 20%. Você pode mudar.'
+export const BOTAO_LIBERAR_E_ATIVAR = 'Liberar e ativar'
+
+export type CodigoDeErroDaAutomacao = 'nao_administrador' | 'limite_invalido' | 'acima_da_faixa' | 'contrato_inativo'
+
+export const CODIGOS_DE_ERRO_DA_AUTOMACAO: readonly CodigoDeErroDaAutomacao[] = [
+  'nao_administrador', 'limite_invalido', 'acima_da_faixa', 'contrato_inativo',
+]
+
+/** A frase de cada recusa de liberar a automação. Só créditos: nunca o valor do limite que o Workspace tem. */
+export const TEXTO_DO_ERRO_DA_AUTOMACAO: Readonly<Record<CodigoDeErroDaAutomacao, string>> = {
+  nao_administrador: 'Só um Administrador libera a automação.',
+  limite_invalido: 'Use um número inteiro de créditos, de 1 em diante.',
+  acima_da_faixa: 'O limite não pode passar dos créditos do plano. Escolha um valor menor ou fale com a equipe Althius.',
+  contrato_inativo: 'Contrato inativo. Fale com a equipe Althius para reativar.',
+}
+
+export const MENSAGEM_DA_FALHA_DA_AUTOMACAO = 'Não foi possível liberar a automação. Tente de novo.'
+
+/** A recusa de liberar a automação, com o código para a tela agir. */
+export class ErroDaAutomacao extends Error {
+  readonly codigo: CodigoDeErroDaAutomacao
+  constructor(codigo: CodigoDeErroDaAutomacao) {
+    super(TEXTO_DO_ERRO_DA_AUTOMACAO[codigo])
+    this.name = 'ErroDaAutomacao'
+    this.codigo = codigo
+  }
+}
+
+/** O código que o banco recusou (`signal automation invalid: <código>`), ou nada. */
+export function codigoDoErroDaAutomacao(mensagem: string): CodigoDeErroDaAutomacao | null {
+  const achado = /signal automation invalid: ([a-z_]+)/.exec(mensagem)?.[1]
+  return CODIGOS_DE_ERRO_DA_AUTOMACAO.find((c) => c === achado) ?? null
+}
+
+/** O limite digitado: inteiro de 1 em diante. A faixa do contrato quem confere é o servidor. */
+export function validarLimiteMensal(texto: string): 'limite_invalido' | null {
+  const limpo = texto.trim()
+  return /^\d{1,9}$/.test(limpo) && Number(limpo) >= 1 ? null : 'limite_invalido'
+}
+
 // ---- Pausado por falta de créditos ----
+
+// ---- A 1ª Rodada pulada por falta de créditos ----
+
+/** O Sinal ativo cuja última Rodada foi pulada por falta de créditos: a tela já avisa na primeira (agente-de-sinal 05). */
+export function sinalComRodadaPulada(monitoramento: Pick<Monitoramento, 'estado' | 'rodadasPuladas'>): boolean {
+  return monitoramento.estado === 'ativo' && (monitoramento.rodadasPuladas ?? 0) >= 1
+}
+
+export const TITULO_DA_RODADA_PULADA = 'Rodada pulada por falta de créditos'
+/** O aviso do Sinal ativo cuja última Rodada foi pulada: o número da pausa vem do limite, não do texto. */
+export const TEXTO_DA_RODADA_PULADA =
+  `A última rodada foi pulada porque os créditos acabaram. Depois de ${LIMITES_DO_PRECO.rodadasPuladasParaPausar} rodadas puladas seguidas, o Sinal pausa.`
 
 export const TITULO_DA_PAUSA_POR_CREDITOS = 'Pausado por falta de créditos'
 export const TEXTO_DA_PAUSA_POR_CREDITOS =

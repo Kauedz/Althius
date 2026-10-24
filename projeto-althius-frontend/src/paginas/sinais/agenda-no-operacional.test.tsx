@@ -22,7 +22,7 @@ const PLANO = {
   escopo: { tipo: 'contas', contaIds: [CONTA] },
   sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'], periodo: 'Últimos 30 dias' } }],
   explicacao: 'Vamos acompanhar “Abertura de vagas”.',
-  maxEmpresasPorRodada: 50,
+  maxEmpresasPorRodada: 25,
 }
 
 afterEach(() => {
@@ -168,16 +168,16 @@ describe('A Agenda no Workspace operacional', () => {
     await usuario.click(within(bloco).getByRole('button', { name: 'Salvar agenda' }))
 
     const alerta = await within(bloco).findByRole('alert')
-    expect(alerta).toHaveTextContent('Deixe pelo menos 2 horas entre uma rodada e outra.')
+    expect(alerta).toHaveTextContent('Deixe pelo menos 1 hora entre uma rodada e outra.')
     expect(alerta.textContent).not.toMatch(/signal|invalid|intervalo_curto/)
   })
 
-  it('o escopo grande: o aviso aparece e a prévia leva as Contas ao banco, que confere o limite', async () => {
+  it('uma lista grande não limita a Agenda: sem aviso, e a prévia leva as Contas ao banco', async () => {
     const contas = Array.from({ length: 51 }, (_, i) => `6f1c2d3e-4a5b-4c6d-8e7f-${String(i).padStart(12, '0')}`)
     const { chamou } = abrir({ contas, schedule: { horarios: ['08:00'], dias: [1, 2, 3, 4, 5], fuso: 'America/Sao_Paulo' } })
 
     const bloco = await screen.findByRole('region', { name: 'Agenda' })
-    expect(within(bloco).getByText('Com mais de 50 Contas, o Sinal roda 1 vez por dia.')).toBeInTheDocument()
+    expect(bloco.textContent).not.toMatch(/mais de 50 Contas/)
     await waitFor(() => expect(chamou('preview_signal_schedule').at(-1)?.p_accounts).toBe(51))
   })
 

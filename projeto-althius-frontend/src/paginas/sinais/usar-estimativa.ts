@@ -15,12 +15,13 @@ const chaveDaAgenda = (agenda: AgendaDoSinal | undefined) => (agenda ? `${agenda
 /**
  * A estimativa em créditos de um Monitoramento (agente-de-sinal 04): para a Agenda que a tela propõe, ou para a gravada quando
  * `agenda` é ausente. Só calcula com `ativo` (por exemplo, enquanto a Agenda proposta vale ou a confirmação está aberta). Uma
- * resposta velha nunca aparece no lugar da nova: o resultado leva a chave do que foi pedido.
+ * resposta velha nunca aparece no lugar da nova: o resultado leva a chave do que foi pedido. `versao` refaz o cálculo (por exemplo,
+ * depois de liberar a automação).
  */
-export function useEstimativa(monitoramentoId: string, agenda: AgendaDoSinal | undefined, ativo = true): EstadoDaEstimativa {
+export function useEstimativa(monitoramentoId: string, agenda: AgendaDoSinal | undefined, ativo = true, versao = 0): EstadoDaEstimativa {
   const fonte = useFonteDeSinais()
   const suportada = !!fonte.estimarAgenda
-  const chave = `${monitoramentoId}|${chaveDaAgenda(agenda)}`
+  const chave = `${monitoramentoId}|${chaveDaAgenda(agenda)}|${versao}`
   const [resultado, setResultado] = useState<{ chave: string; estimativa: EstimativaDoSinal | null } | null>(null)
 
   useEffect(() => {
