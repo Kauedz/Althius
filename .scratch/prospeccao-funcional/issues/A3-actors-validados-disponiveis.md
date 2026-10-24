@@ -1,40 +1,44 @@
 # A3: Actors validados passam a disponível
 
-**What to build:** um banco novo, e o CI, nascem com o mesmo estado dos actors de Sinal que a validação real já aprovou. Só esses ficam `available`. Os outros continuam `testing`. Criar Monitoramento real deixa de depender de um `UPDATE` feito à mão no remoto.
+**What to build:** um banco novo, e o CI, nascem com o mesmo estado dos actors de Sinal que a validação real já aprovou. Uma migration nova promove a `available` só os 5 actors cuja execução real está registrada com o id do run e o dado devolvido (decisão do Renan de 07/10, lista nos Comments). Os outros 7 do registro continuam `testing`. Criar Monitoramento real deixa de depender de um `UPDATE` feito à mão no remoto.
 
-**Blocked by:** a validação real de cada actor com `scripts/validar-sinais-reais.ts`. Sem esse registro, este ticket não promove ninguém. O merge na `main` espera o 00.
+**Blocked by:** None (can start immediately). A validação dos 5 está nos comentários de `.scratch/sinais-reais/issues/` 04, 05 e 06 com o id do run, e o Renan aceitou esse registro em 07/10. A autorização para trocar a asserção `registro_de_actors.sql:18` foi dada na mesma decisão.
 
-O registro que existe hoje está nos comentários de `.scratch/sinais-reais/issues/` 03, 04, 05 e 06 (rodadas de 30/09 e 01/10, com contagem e custo). Não há pasta `validacao-sinais/` na árvore. `.scratch/sinais-reais/registro-apos-o-teste.sql` é o SQL que foi aplicado à mão no remoto e marca os nove; não é, sozinho, a prova. Onde o comentário e uma saída do script discordarem, vale a saída do script. Onde só houver o comentário, pare e pergunte ao Nan se aquele comentário é a validação, antes de promover o actor.
+**Status:** ready-for-agent (refeito em 24/10 contra a `main` 515c2eb)
 
-**Status:** ready-for-agent (promover só os 5 actors com execução real registrada com o id do run e o dado devolvido; os outros 4 seguem `testing`)
+## Estado atual (24/10, `main` 515c2eb)
 
-- [ ] A migration promove a `available` apenas os actors cujo registro de validação o Nan confirmou. Actor sem esse registro permanece `testing`.
-- [ ] A migration não preenche `version` nem `known_price`. O pgTAP `registro_de_actors.sql` exige os dois em branco até alguém conferir, e este ticket não está autorizado a mudar essa asserção.
-- [ ] O pgTAP novo prova o estado final: os promovidos estão `available`, os demais `testing`, preço e versão continuam nulos, e outro papel não escreve no registro.
-- [ ] A migration não edita `20260930130000_registro_de_actors.sql`.
+- O registro `private.signal_actors` tem 12 actors, todos `testing`: os 9 do lançamento (`20260930130000_registro_de_actors.sql`), `solidcode~ads-transparency-scraper` / `anuncio_google` (`20261021100000_coletor_google_ads.sql`) e `harvestapi~linkedin-company` / `crescimento_de_equipes` e `harvestapi~linkedin-company-posts` / `publicacao_da_empresa` (`20261022100000_equipes_e_publicacoes.sql`). Nenhuma migration até `20261119120000` muda o estado de um actor (o único `update private.signal_actors` é o corpo de `set_signal_actor_state`).
+- `supabase/tests/registro_de_actors.sql:17` conta 12 actors e `:18` ("todos nascem em teste") conta 12 em `testing`.
+- Estado final esperado depois da migration: 5 `available`, 7 `testing` (os 4 do lançamento sem id do run mais os 3 novos de 21/10 e 22/10), 12 no total.
+- Rodada de conferência feita pela matriz em 24/10 (pgTAP do zero, Postgres 17 local, `scripts/pgtap-local.sh`): com só o `update` dos 5, a única asserção que cai em 152 arquivos é `registro_de_actors.sql:18` (have 7, want 12). `registro_de_actors.sql:56-58` e `monitoramento_real_de_sinais.sql:39-43` usam `vaga_linkedin`, que segue `testing`, e continuam verdes. Os pgTAP que tocam `anuncio_linkedin` (`briefing_e_plano_do_sinal.sql:45`, `rodar_agora_e_registro_da_rodada.sql:92`) põem o estado eles mesmos.
+
+## Critérios
+
+- [ ] Uma migration nova, timestamp maior que `20261120120000` (a do PR #261, em rascunho, já usa essa versão), promove a `available` exatamente estes 5 e nenhum outro: `harvestapi~linkedin-profile-scraper`, `harvestapi~linkedin-profile-search`, `harvestapi~linkedin-post-search`, `silva95gustavo~linkedin-ad-library-scraper`, `compass~google-maps-reviews-scraper`. Os outros 7 seguem `testing`.
+- [ ] A migration não preenche `version` nem `known_price`, e é idempotente (rodar de novo no remoto, onde os 5 já estão `available`, não muda nada).
+- [ ] `supabase/tests/registro_de_actors.sql:18` troca "todos nascem em teste" pelo conjunto final (5 `available`, 7 `testing`), com o mesmo `plan(18)`. Nenhuma outra asserção desse arquivo muda.
+- [ ] Um pgTAP novo em `supabase/tests/` prova o estado final: os 5 `available` por `actor_id`, os 7 `testing`, preço e versão nulos nos 12, e `authenticated` não escreve no registro (`set_signal_actor_state` dá 42501).
+- [ ] A migration não edita `20260930130000_registro_de_actors.sql` nem nenhuma outra antiga.
+- [ ] pgTAP do zero verde em todos os arquivos de `supabase/tests/` (`PGPORT=55432 scripts/pgtap-local.sh <banco>`).
 
 ## Pode mexer
 
 - Uma migration nova em `supabase/migrations/`
 - Um pgTAP novo em `supabase/tests/`
+- `supabase/tests/registro_de_actors.sql`, só a linha 18 (autorizado pelo Renan em 07/10)
+- Este ticket (status, critérios, comentário)
 
 ## Não mexa
 
-- `supabase/tests/registro_de_actors.sql`. Ele afirma que os 9 actors terminam `testing` (`todos nascem em teste`). Uma migration que promove actors faz essa asserção falhar no banco do zero. Não a edite. Antes de escrever a migration, peça ao Nan autorização para trocar só essa asserção pelo conjunto final (quem ficou `available` e quem ficou `testing`). Sem esse sim, o ticket não faz merge.
-- Adaptadores, `signal-scan`, `signal-runner` e o editor. A validação já aconteceu fora daqui; este ticket só grava o estado.
-- Actors de descoberta (`private.discovery_actors`). Continuam `testing` até uma validação própria.
-- `grant_credits`.
-- Conexões, InMail, seam de Canal, Stripe, sinais jurídicos.
-
-## Migration
-
-Uma, timestamp UTC maior que `20261002112000`. Parte do registro como a `main` o deixa (todos `testing`) e só então atualiza o estado dos validados. pgTAP próprio, arquivo novo.
+- Os outros pgTAP, em especial `briefing_e_plano_do_sinal.sql`, `rodar_agora_e_registro_da_rodada.sql`, `preco_por_rodada_e_limites.sql` e `agenda_do_sinal.sql` (estão no PR #261). Se algum cair, pare e reporte.
+- Adaptadores, `signal-scan`, `signal-runner` e o editor.
+- Actors de descoberta (`private.discovery_actors`).
+- `grant_credits`, Conexões, InMail, seam de Canal, Stripe, sinais jurídicos.
 
 ## Passos do Nan
 
-1. Confirmar, fora do chat de chaves, quais actors a rodada de `scripts/validar-sinais-reais.ts` aprovou. Se faltar actor, o comando está no cabeçalho do próprio script (PowerShell, na raiz). A chave `service_role` não entra no chat.
-2. Autorizar, ou não, a troca da asserção `todos nascem em teste` em `supabase/tests/registro_de_actors.sql`.
-3. Com o CI verde, aplicar a migration no projeto `ycbdilsmydvzezhlymty` como manda `docs/agents/migrations.md`. Quem executa o ticket não aplica no remoto.
+1. Com o CI verde, aplicar a migration no projeto `ycbdilsmydvzezhlymty` como manda `docs/agents/migrations.md`. No remoto ela não muda nada (os 5 já estão `available` lá); serve para o banco do zero e o CI. Quem executa o ticket não aplica no remoto.
 
 ## Comments
 
@@ -61,3 +65,5 @@ Uma, timestamp UTC maior que `20261002112000`. Parte do registro como a `main` o
   - A migration tem timestamp maior que `20261002121000`, parte do registro todo em `testing`, não preenche `version` nem `known_price` e não edita `20260930130000_registro_de_actors.sql`. O pgTAP novo prova os 5 em `available`, os 4 em `testing`, preço e versão nulos e que outro papel não escreve no registro.
   - Consequência: num banco novo e no CI, vagas do LinkedIn e do Indeed, entradas e Meta nascem `testing`, enquanto no remoto os 9 estão `available`. Para promover os 4, basta rodar de novo `scripts/validar-sinais-reais.ts` e registrar o id do run num comentário.
   - Passo do Nan depois do merge: aplicar a migration no projeto `ycbdilsmydvzezhlymty` conforme `docs/agents/migrations.md`. No remoto ela não muda nada (os 5 já estão `available` lá).
+
+- 2026-10-24 (matriz Ralph): ticket refeito contra a `main` 515c2eb. O registro cresceu para 12 actors (Google Ads em 21/10, Equipes e Publicações em 22/10), todos `testing`; `registro_de_actors.sql:18` conta 12. Estado final esperado: 5 `available`, 7 `testing`. Timestamp da migration depois de `20261120120000` (PR #261). Blocked by passa a None: a decisão de 07/10 já é o registro aceito e a autorização para a linha 18.
