@@ -24,8 +24,18 @@ import {
   type CodigoDeErroDaAgenda,
 } from '@/fonte/agenda-do-sinal'
 import { useFonteDeSinais } from '@/fonte/contexto'
+import {
+  AVISO_DE_REPETICAO,
+  ErroDoLimite,
+  MENSAGEM_DA_FALHA_DO_LIMITE,
+  creditos,
+  textoDaEstimativa,
+  textoDoErroDoLimite,
+  validarLimitePorDia,
+} from '@/fonte/preco-por-rodada'
 import type { Monitoramento } from '@/fonte/sinais-tipos'
 import { cn } from '@/lib/utils'
+import { useEstimativa } from './usar-estimativa'
 
 const QUANTAS_PROXIMAS = 3
 const DIAS = [1, 2, 3, 4, 5, 6, 7]
@@ -40,12 +50,16 @@ function avisoDoEstado(estado: Monitoramento['estado']): string | null {
 /**
  * A Agenda do Sinal (agente-de-sinal 03): quantas Rodadas por dia, em quais horários e em quais dias. Os horários são de 15 em
  * 15 minutos, no horário de Brasília. O relógio acorda o Sinal a cada 10 minutos, então a Rodada começa por volta do horário
- * marcado. O servidor confere os limites de novo ao gravar. A estimativa de créditos por dia e por mês é do ticket 30-05, que
- * ocupa o lugar marcado abaixo; aqui só se mostra quantas Rodadas por semana a Agenda faz.
+ * marcado. O servidor confere os limites de novo ao gravar.
+ *
+ * A Estimativa (agente-de-sinal 04) mostra quanto a Agenda pode gastar por Rodada, por dia e por mês, e quanto tempo o saldo dura
+ * nesse ritmo, e muda a cada horário ou dia que a pessoa mexe. O "Limite por dia" (opcional) vem preenchido com o máximo de um dia
+ * da Agenda, que a pessoa só pode baixar; "Salvar agenda" grava a Agenda e o limite.
  */
 export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento: Monitoramento }) {
   const fonte = useFonteDeSinais()
   const idDoHorario = useId()
+  const idDoLimite = useId()
   const salva = monitoramento.agenda
   const contas = monitoramento.publico.listas.length
   const [rascunho, setRascunho] = useState<AgendaDoSinal>(() => salva ?? { ...AGENDA_PADRAO, horarios: [...AGENDA_PADRAO.horarios], dias: [...AGENDA_PADRAO.dias] })
@@ -56,11 +70,34 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
   const [salvando, setSalvando] = useState(false)
   const [salvou, setSalvou] = useState(false)
   const [erroAoSalvar, setErroAoSalvar] = useState<string | null>(null)
+  // O que a pessoa digitou no limite por dia; nulo enquanto ela não mexeu (o campo segue o que está gravado ou o sugerido).
+  const [textoDoLimite, setTextoDoLimite] = useState<string | null>(null)
 
   const problema = validarAgenda(rascunho, contas)
   const problemaDosHorarios = problema && ERROS_DE_HORARIO.includes(problema) ? problema : null
   const problemaDosDias = problema && !ERROS_DE_HORARIO.includes(problema) ? problema : null
-  const mudou = !salva || !mesmaAgenda(rascunho, salva)
+  const agendaMudou = !salva || !mesmaAgenda(rascunho, salva)
+  // A estimativa segue a Agenda que a pessoa está montando, sem gravar nada; só enquanto a Agenda vale.
+  const { estimativa } = useEstimativa(monitoramento.id, problema ? undefined : rascunho, !problema)
+
+  // O limite por dia: de 1 ao máximo de um dia da Agenda (a pessoa só baixa). Sem mexer, o campo mostra o limite gravado, ou o
+  // sugerido enquanto o gravado é o padrão (o máximo da Agenda gravada): assim ele acompanha a Agenda.
+  const limiteSalvo = monitoramento.limitePorDia
+  const sugerido = estimativa?.limiteSugeridoPorDia
+  const mostraLimite = !!fonte.salvarLimitePorDia && sugerido !== undefined && sugerido > 0
+  const sugeridoDaGravada = estimativa && salva ? estimativa.porRodada * salva.horarios.length : null
+  const seguePadrao = limiteSalvo === undefined || (sugeridoDaGravada !== null && limiteSalvo >= sugeridoDaGravada)
+  const problemaDoLimite = mostraLimite && textoDoLimite !== null ? validarLimitePorDia(textoDoLimite, sugerido) : null
+  const limiteEfetivo: number | null = !mostraLimite
+    ? null
+    : textoDoLimite !== null
+    ? (problemaDoLimite ? null : Number(textoDoLimite.trim()))
+    : seguePadrao
+    ? sugerido
+    : Math.min(limiteSalvo, sugerido)
+  const limiteParaSalvar =
+    limiteEfetivo !== null && limiteEfetivo !== limiteSalvo && (agendaMudou || textoDoLimite !== null) ? limiteEfetivo : null
+  const mudou = agendaMudou || limiteParaSalvar !== null
 
   // Os próximos horários vêm do mesmo cálculo que o relógio usa; só quando a Agenda vale.
   useEffect(() => {
@@ -99,11 +136,20 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
     setSalvando(true)
     setSalvou(false)
     setErroAoSalvar(null)
+    let etapa: 'agenda' | 'limite' = 'agenda'
     try {
-      await fonte.salvarAgenda!(monitoramento.id, rascunho)
+      if (agendaMudou) await fonte.salvarAgenda!(monitoramento.id, rascunho)
+      etapa = 'limite'
+      // O limite só vale depois da Agenda: o servidor confere contra o máximo de um dia da Agenda gravada.
+      if (limiteParaSalvar !== null) await fonte.salvarLimitePorDia!(monitoramento.id, limiteParaSalvar)
+      setTextoDoLimite(null)
       setSalvou(true)
     } catch (e) {
-      setErroAoSalvar(e instanceof ErroDaAgenda ? e.message : MENSAGEM_DA_FALHA_DA_AGENDA)
+      setErroAoSalvar(
+        e instanceof ErroDaAgenda || e instanceof ErroDoLimite
+          ? e.message
+          : etapa === 'agenda' ? MENSAGEM_DA_FALHA_DA_AGENDA : MENSAGEM_DA_FALHA_DO_LIMITE,
+      )
     } finally {
       setSalvando(false)
     }
@@ -219,8 +265,15 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
             {rodadasPorSemana(rascunho).toLocaleString('pt-BR')}
           </p>
         )}
-        {/* A estimativa de créditos por dia e por mês entra aqui (30-05). */}
-        <div data-lugar="estimativa-de-creditos" />
+        {estimativa && (
+          <>
+            <p>
+              <span className="rotulo mr-2">Estimativa</span>
+              {textoDaEstimativa(estimativa)}
+            </p>
+            {estimativa.avisoDeRepeticao && <p className="text-xs text-al-muted">{AVISO_DE_REPETICAO}</p>}
+          </>
+        )}
         {proximas && proximas.length > 0 && <p className="text-al-muted">{textoDasProximasRodadas(proximas)}</p>}
         {!problema && calculo?.para === rascunho && calculo.lista === null && (
           <p className="text-al-muted">Não foi possível calcular as próximas rodadas agora.</p>
@@ -228,6 +281,39 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
         {aviso && !problema && <p className="text-xs text-al-muted">{aviso}</p>}
       </div>
 
+      {mostraLimite && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor={idDoLimite} className="rotulo text-al-ink">
+            Limite por dia
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id={idDoLimite}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={textoDoLimite ?? String(limiteEfetivo ?? '')}
+              aria-invalid={problemaDoLimite ? true : undefined}
+              onChange={(e) => {
+                setTextoDoLimite(e.target.value)
+                setSalvou(false)
+                setErroAoSalvar(null)
+              }}
+              className="campo h-10 w-32"
+            />
+            <span className="text-sm text-al-muted">créditos</span>
+          </div>
+          <p className="text-xs text-al-muted">
+            Opcional. O Sinal para de rodar no dia quando chega a esse limite, somando as rodadas agendadas e as manuais. Você
+            pode baixar o limite; o máximo é {creditos(sugerido)}, o que a agenda gasta num dia.
+          </p>
+          {problemaDoLimite && (
+            <p role="alert" className="text-xs text-al-erro">
+              {textoDoErroDoLimite(problemaDoLimite, sugerido)}
+            </p>
+          )}
+        </div>
+      )}
       {erroAoSalvar && (
         <p role="alert" className={cn('rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro')}>
           {erroAoSalvar}
@@ -239,7 +325,7 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
             Agenda salva.
           </p>
         )}
-        <button type="button" onClick={salvar} disabled={salvando || !!problema || !mudou} className={BOTAO_PRIMARIO}>
+        <button type="button" onClick={salvar} disabled={salvando || !!problema || !!problemaDoLimite || !mudou} className={BOTAO_PRIMARIO}>
           Salvar agenda
         </button>
       </div>

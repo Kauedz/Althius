@@ -14,6 +14,13 @@ import {
   type AgendaDoSinal,
 } from './agenda-do-sinal'
 import { corpoDoErroDaFuncao } from './falha-da-edge-function'
+import {
+  BLOQUEIOS_DA_ATIVACAO,
+  ErroDoLimite,
+  MENSAGEM_DA_FALHA_DO_LIMITE,
+  codigoDoErroDoLimite,
+  type EstimativaDoSinal,
+} from './preco-por-rodada'
 import { ErroDoPlano, MENSAGEM_DA_FALHA_DO_PLANO, type PedidoDePlano, type PlanoDoSinal, type PlanoMontado, type PlanoParaSalvar } from './plano-do-sinal'
 import {
   BLOQUEIOS_DA_RODADA,
@@ -57,6 +64,9 @@ interface RegistroDoMonitor {
   plan?: PlanoDoSinal | null
   plan_version?: number | null
   schedule?: { horarios?: unknown; dias?: unknown } | null
+  daily_credit_cap?: number | null
+  consecutive_skips?: number | null
+  paused_reason?: string | null
   last_run?: {
     state: 'rodando' | 'concluida' | 'falhou'
     startedAt: string
@@ -76,6 +86,19 @@ interface RegistroDaPrevia {
   ilimitado: boolean
   bloqueio: string | null
   liberado_em: string | null
+}
+
+interface RegistroDaEstimativa {
+  por_rodada: number | string
+  rodadas_por_semana: number | string
+  por_dia: number | string
+  por_mes_aprox: number | string
+  saldo: number | string
+  dias_de_saldo: number | string | null
+  aviso_repeticao: boolean
+  teto_diario_sugerido: number | string
+  bloqueio_ativacao: string | null
+  ilimitado: boolean
 }
 
 interface RegistroDoHistorico {
@@ -146,11 +169,15 @@ function bloqueioDoErro(error: { message: string }): BloqueioDaRodada | null {
   return BLOQUEIOS_DA_RODADA.find((b) => b === achado) ?? null
 }
 
+const MENSAGEM_DA_FALHA_DA_ESTIMATIVA = 'Não foi possível calcular a estimativa agora.'
+
 function converterErro(error: { message: string; code?: string }): Error {
   const bloqueio = bloqueioDoErro(error)
   if (bloqueio) return new ErroDaRodada(bloqueio)
   const agenda = codigoDoErroDaAgenda(error.message)
   if (agenda) return new ErroDaAgenda(agenda)
+  const limite = codigoDoErroDoLimite(error.message)
+  if (limite) return new ErroDoLimite(limite)
   if (error.message.includes('signal type is not available')) {
     return new Error('Este Sinal ainda está em teste e não roda de verdade.')
   }
@@ -325,6 +352,8 @@ function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<str
     // O Briefing só aparece com o Plano: depois de o editor mudar o que roda, o Plano antigo deixa de valer.
     ...(linha.plan ? { plano: linha.plan, versaoDoPlano: linha.plan_version ?? 1, ...(linha.brief ? { briefing: linha.brief } : {}) } : {}),
     ...(agenda ? { agenda } : {}),
+    ...(typeof linha.daily_credit_cap === 'number' ? { limitePorDia: linha.daily_credit_cap } : {}),
+    ...(linha.state === 'pausado' && linha.paused_reason === 'sem_creditos' ? { pausadoPor: 'sem_creditos' as const } : {}),
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
       ? {
@@ -623,6 +652,46 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         throw convertido instanceof ErroDaAgenda ? convertido : new Error(MENSAGEM_DA_FALHA_DA_AGENDA)
       }
       return ((data ?? []) as string[]).map((instante) => new Date(instante).toISOString())
+    },
+
+    async estimarAgenda(monitoramentoId, agenda): Promise<EstimativaDoSinal> {
+      const { data, error } = await cliente.rpc('quote_signal_schedule', {
+        p_workspace_id: workspaceId(),
+        p_monitor_id: monitoramentoId,
+        p_schedule: agenda ? { horarios: agenda.horarios, dias: agenda.dias, fuso: FUSO_DA_AGENDA } : null,
+      })
+      if (error) {
+        const convertido = converterErro(error)
+        throw convertido instanceof ErroDaAgenda ? convertido : new Error(MENSAGEM_DA_FALHA_DA_ESTIMATIVA)
+      }
+      const [linha] = (Array.isArray(data) ? data : [data]) as (RegistroDaEstimativa | null)[]
+      if (!linha) throw new Error(MENSAGEM_DA_FALHA_DA_ESTIMATIVA)
+      return {
+        porRodada: Number(linha.por_rodada),
+        rodadasPorSemana: Number(linha.rodadas_por_semana),
+        porDia: Number(linha.por_dia),
+        porMesAprox: Number(linha.por_mes_aprox),
+        saldo: Number(linha.saldo),
+        ilimitado: linha.ilimitado === true,
+        diasDeSaldo: linha.dias_de_saldo === null || linha.dias_de_saldo === undefined ? null : Number(linha.dias_de_saldo),
+        avisoDeRepeticao: linha.aviso_repeticao === true,
+        limiteSugeridoPorDia: Number(linha.teto_diario_sugerido),
+        bloqueio: BLOQUEIOS_DA_ATIVACAO.find((b) => b === linha.bloqueio_ativacao) ?? null,
+      }
+    },
+
+    async salvarLimitePorDia(monitoramentoId, limite): Promise<Monitoramento> {
+      const { error } = await cliente.rpc('save_signal_daily_cap', {
+        p_workspace_id: workspaceId(),
+        p_monitor_id: monitoramentoId,
+        p_cap: limite,
+      })
+      if (error) {
+        const convertido = converterErro(error)
+        throw convertido instanceof ErroDoLimite ? convertido : new Error(MENSAGEM_DA_FALHA_DO_LIMITE)
+      }
+      notificar()
+      return monitoramento(monitoramentoId)
     },
 
     async rodarAgora(monitoramentoId): Promise<void> {

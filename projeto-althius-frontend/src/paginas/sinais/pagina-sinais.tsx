@@ -171,6 +171,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
     .filter((m) => m.estado === 'ativo' && cards.some((card) => card.contados.includes(m.tipoId)))
     .map((m) => ({ id: m.id, tipoId: m.tipoId, nome: m.nome, disparos: disparosPorMonitoramento(m.id) }))
     .toSorted((a, b) => b.disparos - a.disparos)
+  const pausadosPorCreditos = monitoramentos.filter((m) => m.estado === 'pausado' && m.pausadoPor === 'sem_creditos')
   const idsAtivos = new Set(ativos.map((m) => m.id))
   const disparos = sinais === undefined ? undefined : sinais.filter((s) => idsAtivos.has(s.monitoramentoId) && foiDisparado(s.data, hoje)).length
 
@@ -195,6 +196,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
       {!filtrando && (
         <MeusSinais
           monitoramentosAtivos={ativos}
+          pausadosPorCreditos={pausadosPorCreditos}
           disparos={disparos}
           contasQuentes={contas?.filter((conta) => conta.quente).length}
           sequenciasAtivas={sequencias?.filter((sequencia) => sequencia.status === 'ativa').length}

@@ -13,6 +13,12 @@
 // a varredura em modo manual (cobra crédito, respeita o saldo e os limites, não consome o Teto de automação). Toda Rodada,
 // agendada ou manual, grava uma linha (`abrirRodada`/`somarRodada`), e uma Rodada que continua na chamada seguinte usa a
 // mesma. O motivo da parada vira um código estável (`MotivoDaRodada`); a frase continua igual no Monitoramento e no log.
+//
+// Preço por rodada e limites (agente-de-sinal 04): o banco devolve `teto_diario` na Conta que estouraria o limite de créditos por
+// dia do Sinal (agenda e manual somam no dia); a Rodada para ali, sem reservar nem cobrar essa Conta, e o motivo é `teto_diario`.
+// Cascata e mercado reservam o crédito por Rodada, não por Conta: antes deles o runner pergunta ao banco se a Rodada inteira cabe
+// no que falta do dia (`rodadaEstouraOLimiteDoDia`). Sem créditos, a Rodada é pulada sem cobrar (`sem_creditos`); quem conta as
+// puladas e pausa o Sinal na terceira seguida é `finish_signal_monitor_run`, lendo o motivo que a Rodada gravou.
 import { gravarCustoDaExecucao } from '../_shared/apify-ambiente.ts'
 import type { PedidoDeCascata, ResultadoDaCascata } from '../_shared/cascata-de-sinais/tipos.ts'
 import { CASCATA_DO_MERCADO, CREDITOS_POR_RODADA_NO_MERCADO } from '../_shared/cascata-de-sinais/passos/vagas-mercado.ts'
@@ -126,11 +132,11 @@ function montarEntrada(
  * nesta rodada) não; `no_credits` para o Monitoramento por falta de saldo ou de limite; `confirmar`, `sem_teto` e
  * `teto_atingido` param o Monitoramento porque o automático não roda.
  */
-export type MotivoDeParada = 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido' | 'contrato_inativo'
+export type MotivoDeParada = 'no_credits' | 'confirmar' | 'sem_teto' | 'teto_atingido' | 'contrato_inativo' | 'teto_diario'
 export type ResultadoDaAbertura = 'go' | 'resume' | 'done' | 'skip' | MotivoDeParada
 
 /** Por que uma Rodada parou, em código estável (`private.signal_monitor_runs.stop_reason`). A tela escreve a frase. */
-export type MotivoDaRodada = 'sem_creditos' | 'teto' | 'contrato_inativo' | 'prazo' | 'concluida' | 'erro'
+export type MotivoDaRodada = 'sem_creditos' | 'teto' | 'teto_diario' | 'contrato_inativo' | 'prazo' | 'concluida' | 'erro'
 
 const MOTIVO_DA_RODADA: Record<MotivoDeParada, MotivoDaRodada> = {
   no_credits: 'sem_creditos',
@@ -138,6 +144,7 @@ const MOTIVO_DA_RODADA: Record<MotivoDeParada, MotivoDaRodada> = {
   sem_teto: 'teto',
   teto_atingido: 'teto',
   contrato_inativo: 'contrato_inativo',
+  teto_diario: 'teto_diario',
 }
 
 /** O que uma chamada do runner soma à Rodada aberta. */
@@ -221,6 +228,12 @@ export interface Db {
   recordCost(args: { workspaceId: string; actorId: string; runId: string; items: number; costUsd: number | null }): Promise<void>
   /** finish_signal_monitor_run: `attempted` são as Contas que a rodada tentou (a rotação avança por elas); `continuar` pede a próxima rodada já. */
   finish(monitorId: string, attempted: number, error: string | null, continuar: boolean): Promise<void>
+  /**
+   * A Rodada inteira passaria do limite de créditos por dia do Sinal? Só para o que reserva por Rodada (cascata e mercado): o
+   * caminho por Conta confere Conta a Conta em `begin_account_scan`. Sem este método, ou se a leitura falhar, a Rodada segue
+   * (a cascata tem os seus próprios limites).
+   */
+  rodadaEstouraOLimiteDoDia?(monitorId: string): Promise<boolean>
   /**
    * Abre a Rodada (ou devolve a que já está aberta: a continuação da agendada, a do pedido manual). Sem este método, a
    * Rodada não é registrada. Uma falha ao registrar nunca derruba a varredura.
@@ -355,6 +368,7 @@ const MOTIVO_DA_PARADA: Record<MotivoDeParada, string> = {
   sem_teto: 'A varredura automática não roda sem um teto mensal aprovado (Configurações › Automação e tetos).',
   teto_atingido: 'Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius.',
   contrato_inativo: 'Contrato inativo. Fale com a equipe Althius para reativar.',
+  teto_diario: 'Este Sinal chegou ao limite de créditos de hoje. Ele volta a rodar amanhã.',
 }
 
 // A busca do clique fala com quem pediu; a mensal, com o teto. O saldo e o limite mensal são de quem pediu.
@@ -368,6 +382,7 @@ const MOTIVO_DA_PARADA_MANUAL: Record<MotivoDeParada, string> = {
   ...MOTIVO_DA_PARADA,
   no_credits: 'Sem créditos ou no limite mensal de quem pediu: a rodada parou.',
   teto_atingido: 'Limite do mês atingido. Ele volta na renovação ou fale com a equipe Althius.',
+  teto_diario: 'Este Sinal chegou ao limite de créditos de hoje: a rodada parou. Ele volta amanhã.',
 }
 const MENSAGEM_DO_PEDIDO_QUE_FALHOU = 'A rodada falhou. Tente de novo.'
 
@@ -487,6 +502,28 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   }
 
   /**
+   * O limite de créditos por dia do Sinal, para o que reserva o crédito por Rodada (cascata e mercado). Se a Rodada inteira não
+   * cabe no que falta de hoje, ela nem começa: nada é reservado, e o motivo `teto_diario` fica na Rodada e no Monitoramento.
+   * Uma leitura que falha deixa a Rodada seguir: a cascata tem os seus próprios limites e o registro vai para o log.
+   */
+  async function estouraOLimiteDoDia(monitorId: string): Promise<boolean> {
+    if (!deps.db.rodadaEstouraOLimiteDoDia) return false
+    try {
+      return await deps.db.rodadaEstouraOLimiteDoDia(monitorId)
+    } catch (e) {
+      log({ type: 'signal_runner', monitorId, outcome: 'daily_cap_check_failed', message: String(e) })
+      return false
+    }
+  }
+
+  /** Encerra a Rodada que nem começou porque o limite por dia do Sinal já foi gasto. */
+  async function pararNoLimiteDoDia(m: MonitorReivindicado, rodadaId: string | null): Promise<{ scanned: number; signals: number }> {
+    await somarRodada(rodadaId, { motivo: 'teto_diario' })
+    await deps.db.finish(m.monitorId, 0, MOTIVO_DA_PARADA.teto_diario, false)
+    return { scanned: 0, signals: 0 }
+  }
+
+  /**
    * Um Monitoramento de cascata: uma execução do motor para o público inteiro. A chave é o Monitoramento e a hora marcada
    * da rodada, então repetir a rodada nunca cobra nem grava duas vezes. O motivo de não ter rodado (saldo, automático em
    * "confirmar", teto, falha da fonte) volta em palavras do produto e fica no Monitoramento.
@@ -496,6 +533,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     prazo: number,
     rodadaId: string | null,
   ): Promise<{ scanned: number; signals: number }> {
+    if (await estouraOLimiteDoDia(m.monitorId)) return await pararNoLimiteDoDia(m, rodadaId)
     const r = await deps.cascatas!.rodar({
       workspaceId: m.workspaceId,
       userId: m.createdBy,
@@ -529,6 +567,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     prazo: number,
     rodadaId: string | null,
   ): Promise<{ scanned: number; signals: number }> {
+    if (devidas.length > 0 && await estouraOLimiteDoDia(m.monitorId)) return await pararNoLimiteDoDia(m, rodadaId)
     let sinais = 0
     let repetidos = 0
     let creditos = 0
@@ -605,6 +644,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       await deps.db.finish(m.monitorId, 0, 'A busca no mercado endereçável não está disponível agora.', false)
       return { scanned: 0, signals: 0 }
     }
+    if (await estouraOLimiteDoDia(m.monitorId)) return await pararNoLimiteDoDia(m, rodadaId)
     const r = await deps.cascatas.rodar({
       workspaceId: m.workspaceId,
       userId: m.createdBy,
