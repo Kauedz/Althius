@@ -581,24 +581,26 @@ function SeuAcesso({
 }) {
   const porAutorizacao = acesso.caminhos.includes('autorizacao')
   const porChave = acesso.caminhos.includes('chave')
-  const conectados =
-    acesso.conectados === 1 ? '1 participante conectou' : `${acesso.conectados} participantes conectaram`
+  const noWorkspace =
+    acesso.conectados === 1
+      ? 'No Workspace: 1 participante conectado'
+      : `No Workspace: ${acesso.conectados} participantes conectados`
 
   return (
     <div className="flex flex-col gap-2 border-t border-al-line pt-3">
       {acesso.estado === 'conectado' ? (
         <span className="text-sm text-al-sucesso">
-          {acesso.conta ? `Conectado como ${acesso.conta}` : 'Conectado'}
+          {acesso.conta ? `Seu acesso: Conectado como ${acesso.conta}` : 'Seu acesso: Conectado'}
         </span>
       ) : acesso.estado === 'precisa_reconectar' ? (
         <>
-          <span className="text-sm text-al-erro">Precisa reconectar</span>
+          <span className="text-sm text-al-erro">Seu acesso: Precisa reconectar</span>
           {AVISO_DE_RECONEXAO[id] && <span className="text-xs text-al-muted">{AVISO_DE_RECONEXAO[id]}</span>}
         </>
       ) : (
-        <span className="text-sm text-al-muted">Você ainda não conectou</span>
+        <span className="text-sm text-al-muted">Seu acesso: não conectado</span>
       )}
-      <span className="text-xs text-al-muted">{conectados}</span>
+      <span className="text-xs text-al-muted">{noWorkspace}</span>
       <div className="flex flex-wrap gap-2">
         {acesso.estado === 'conectado' ? (
           <>
