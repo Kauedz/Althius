@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Preparar passos e dependências na tela atual
 
-**Status:** ready-for-agent
+**Status:** entregue no PR #248 (migration 20261107120000); 7/8 critérios verificados em 2026-10-24; pendente conferência visual humana.
 
 ## Objetivo e escopo
 
@@ -17,14 +17,14 @@ Importador da internet, marketplace, templates pessoais e propaganda de eficáci
 
 ## Critérios de aceite
 
-- [ ] Templates selecionáveis são estruturas sem Contatos/destinos/histórico reais; original não é editável pelo Cliente.
-- [ ] Selecionar e adaptar cópia independente sem exigir Playbook/Persona; criar do zero continua disponível.
-- [ ] IA sugere apenas templates existentes e acessíveis, justifica usando dados reais; não inventa adequação ou eficácia.
-- [ ] Reaproveitar proposta pelo Rhetor para sugerir ajustes/mensagens; aceite humano não ativa envios.
-- [ ] Sem contexto suficiente ou IA disponível, seleção e edição manuais continuam completas.
-- [ ] Nenhuma edição do template original propaga para Sequências existentes; nenhuma nova navegação/layout.
-- [ ] Sugestões pagas passam pelas guardas de créditos/Teto existentes.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Templates selecionáveis são estruturas sem Contatos/destinos/histórico reais; original não é editável pelo Cliente. Evidência: `projeto-althius-frontend/src/fonte/templates-althius.test.ts:12`, `supabase/tests/templates_althius_de_sequencia.sql` (19/19).
+- [x] Selecionar e adaptar cópia independente sem exigir Playbook/Persona; criar do zero continua disponível. Evidência: `projeto-althius-frontend/src/fonte/templates-althius.test.ts:19`, `projeto-althius-frontend/src/paginas/templates-althius-na-criacao.test.tsx:61`.
+- [x] IA sugere apenas templates existentes e acessíveis, justifica usando dados reais; não inventa adequação ou eficácia. Evidência: `supabase/functions/_shared/ferramentas-dos-agentes-template.test.ts:57`, `projeto-althius-frontend/src/fonte/templates-althius.test.ts:57`.
+- [x] Reaproveitar proposta pelo Rhetor para sugerir ajustes/mensagens; aceite humano não ativa envios. Evidência: `supabase/functions/_shared/ferramentas-dos-agentes-sequencia.test.ts:98`, `projeto-althius-frontend/src/paginas/templates-althius-na-criacao.test.tsx:35`.
+- [x] Sem contexto suficiente ou IA disponível, seleção e edição manuais continuam completas. Evidência: `projeto-althius-frontend/src/fonte/templates-althius.test.ts:75`, `projeto-althius-frontend/src/paginas/templates-althius-na-criacao.test.tsx:61`.
+- [x] Nenhuma edição do template original propaga para Sequências existentes; nenhuma nova navegação/layout. Evidência: `projeto-althius-frontend/src/fonte/templates-althius.test.ts:19`, `projeto-althius-frontend/src/paginas/templates-althius-na-criacao.test.tsx:14`.
+- [x] Sugestões pagas passam pelas guardas de créditos/Teto existentes. Evidência: `projeto-althius-frontend/src/fonte/templates-althius.test.ts:89`, `supabase/tests/templates_althius_de_sequencia.sql`.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente verificação humana: conferir a criação no layout atual em desktop e viewport estreita; relatórios sem capturas visuais.
 
 ## Pode mexer
 
@@ -87,4 +87,6 @@ Ordem após merge e autorização explícita: migration → Edge Functions → w
 
 ## Comments
 
-Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout. Status indica ticket especificado, não implementação pronta; blockers e gates humanos continuam obrigatórios.
+Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout.
+
+2026-10-24 — Conferência do PR #248 e da implementação na `origin/main`. Rodei `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_mc01 supabase/tests/templates_althius_de_sequencia.sql`: 19/19. Vitest direcionado (incluído na execução relevante de 13 arquivos): 121 testes passaram. `deno test -A` das ferramentas de template e proposta do Rhetor: 60 testes passaram no conjunto direcionado. Falta conferência visual humana; testes locais não comprovam publicação ou eficácia comercial.
