@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (US 1, 5).
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** closed
 
 **Quem faz:** agente de código. **Esforço:** P.
 

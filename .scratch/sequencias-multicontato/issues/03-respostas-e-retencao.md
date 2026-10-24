@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Autorizar e executar caminhos independentes com limites
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Objetivo e escopo
 

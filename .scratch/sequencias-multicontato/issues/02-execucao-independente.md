@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Preparar passos e dependências na tela atual
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Objetivo e escopo
 

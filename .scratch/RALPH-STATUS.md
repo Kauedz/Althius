@@ -1,5 +1,32 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Ralph matriz: tickets fechados e onda de 24/10 (2026-10-24)
+
+- **Fechados neste PR (só o status muda, cada um conferido contra o PR mergeado na main 6e384dc):**
+  - CRM 08 (#68 + #167), CRM 09 (#73 + #167), CRM 18 (#78);
+  - sequencias-multicontato 02 (#249), 03 (#251), 07 (#248), 08 (#250);
+  - agente-de-sinal 01 (#257), 02 (#258), 03 (#259), 04 (#260);
+  - entrada 01 (#232), suite-verde 01 (#233), conversas-pelo-hermes 03 (#231), slack-canal 06 (#239), conexoes-funcionais 07 (#239).
+- **Nota do CRM 18:** o PR #78 entregou o ticket e o status vira `closed`. Mesmo assim, os itens 1–8 listados nos Comments continuam abertos: revisá-los à parte, porque não fazem parte deste fechamento.
+- **Não fechado:** agente-de-sinal 05 (escopo por lista e todas as Contas). O #261 (`feat/agente-de-sinal-05-ajustes-das-decisoes`) trouxe o lote em rotação para as Contas escolhidas no Plano, o Teto sugerido, a Agenda de 12 por dia e o aviso na 1ª rodada pulada. Mas os escopos `lista` e `todas_as_contas` não aparecem nas migrations, e o ticket 05 ainda pede o detalhamento. Ele segue `open`.
+- **entrada-03 não foi superado** pelo onboarding-pos-login 02/03: esses dois cobrem só a Fonte simulada (Demonstração). No modo real, o onboarding estava fora (`composicao.ts:59`), então o build seguiu.
+- **Onda de 24/10 (PRs abertos, nenhum mergeado daqui):**
+
+| Ticket | PR | Testes | Migration pendente | Implementou / revisou |
+|---|---|---|---|---|
+| prospeccao-funcional A3 | #262 | pgTAP 153/153 | sim, 20261121100000 (depois das do Kauê) | Claude / Codex |
+| prospeccao-funcional B5 | #263 | pgTAP 153/153 + 13/13 | sim, 20261121110000 (depois das do Kauê) | Claude / Codex |
+| entrada 02 | #264 | vitest src/auth 57/57, oxlint, tsc | não | Codex / Claude |
+| suite-verde 02 | #265 | vitest sinais 281 ok + novo 5/5, oxlint, tsc | não | Claude / Codex |
+| CRM 11 (re-escopo, rascunho) | #266 | n/a (doc) | não | Codex / Claude |
+| conexoes-clareza 01 | #267 | vitest conexoes 196 ok, oxlint, tsc | não | Claude / Codex |
+| enriquecimento 03 | #268 | vitest completo 221 arq/1917 ok, oxlint, tsc | não | Claude / Codex (correção pelo Codex) |
+| entrada 03 | #273 | vitest completo 220 arq/1914 ok, oxlint, tsc, pgTAP novo 44/44 | sim, 20261121130000 | Codex / Codex (Claude pendente) |
+| conversas-pelo-hermes 02 | #271 | deno completo 1833 ok, pgTAP novo 10/10, vitest 1948 ok, oxlint, tsc | sim, 20261121140000 | Codex / Codex (Claude pendente) |
+
+- **Ordem de apply:** primeiro as migrations do Kauê, 20261116120000…20261120120000 (#256–#261, mergeadas e ainda não aplicadas em produção); depois 20261121100000 (A3), 20261121110000 (B5), 20261121130000 (entrada-03) e 20261121140000 (conversas-02).
+- **cadencia-pela-ia 01/02 não marcados aqui:** o orquestrador de canais cuida deles (`PROGRESS-canais.md`).
+
 ## Canal Slack 04 e 05, Canais do Agente e spec do Canal WhatsApp (2026-10-15)
 
 - **Tickets:** `.scratch/slack-canal/issues/04` e `05` (código pronto); `01` a `03` já no `main` (PR #220); `06` segue ready-for-agent. Spec nova: `.scratch/canais-althius/` (Canal WhatsApp com controle total, 19 issues, ADR-0027 `proposed`).

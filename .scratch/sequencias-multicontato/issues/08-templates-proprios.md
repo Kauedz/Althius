@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 — Criar Sequência a partir de templates da Althius
 
-**Status:** ready-for-agent
+**Status:** closed
 
 ## Objetivo e escopo
 
