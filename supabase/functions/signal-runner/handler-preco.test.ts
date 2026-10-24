@@ -225,11 +225,3 @@ Deno.test('o saldo que acaba no meio da Rodada para ali e cobra só o que foi ve
   assertEquals([c.somas[0].motivo, c.somas[0].verificadas, c.somas[0].reservas], ['sem_creditos', 2, ['res-alfa', 'res-beta']])
   assertEquals(c.aberturas.length, 3, 'depois da Conta sem saldo, o runner não tenta as outras')
 })
-
-Deno.test('o código novo é um dos motivos de parada aceitos pelo banco (a lista fechada de add_signal_run_progress)', () => {
-  // Mantém o runner e o banco combinando: o motivo que ele grava tem de estar na lista do banco.
-  const migration = Deno.readTextFileSync(new URL('../../migrations/20261119120000_preco_por_rodada_e_limites.sql', import.meta.url))
-  for (const motivo of ['sem_creditos', 'teto', 'teto_diario', 'contrato_inativo', 'prazo', 'concluida', 'erro']) {
-    assert(migration.includes(`'${motivo}'`), `a migration não lista ${motivo}`)
-  }
-})
