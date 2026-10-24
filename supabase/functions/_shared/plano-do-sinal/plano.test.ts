@@ -52,7 +52,7 @@ Deno.test('exatamente um Sinal por Plano (DECISÃO PENDENTE 8)', () => {
   recusado(plano({ sinais: { tipo: 'vaga_linkedin' } }), 'sinais')
 })
 
-Deno.test('as Contas: de 1 a 50, uuid, sem repetir (DECISÃO PENDENTE 10)', () => {
+Deno.test('as Contas: de 1 a 500, uuid, sem repetir (decidido pelo Kauê em 24/10/2026)', () => {
   const contas = (n: number) => Array.from({ length: n }, (_, i) => `b0000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`)
   assert(validarPlano(plano({ escopo: { tipo: 'contas', contaIds: contas(LIMITES_DO_PLANO.contasEscolhidasMax) } }), ACEITOS).ok)
   recusado(plano({ escopo: { tipo: 'contas', contaIds: contas(LIMITES_DO_PLANO.contasEscolhidasMax + 1) } }), 'contas')
@@ -66,7 +66,7 @@ Deno.test('o escopo mercado está previsto, mas não é oferecido', () => {
   recusado(plano({ escopo: { tipo: 'todas_as_contas' } }), 'escopo_nao_oferecido')
 })
 
-Deno.test('o máximo de empresas por Rodada é inteiro de 1 a 100 (DECISÃO PENDENTE 10)', () => {
+Deno.test('o máximo de empresas por Rodada é inteiro de 1 a 100 (decidido pelo Kauê em 24/10/2026)', () => {
   assert(validarPlano(plano({ maxEmpresasPorRodada: 1 }), ACEITOS).ok)
   assert(validarPlano(plano({ maxEmpresasPorRodada: 100 }), ACEITOS).ok)
   for (const invalido of [0, 101, 2.5, '50', null]) recusado(plano({ maxEmpresasPorRodada: invalido }), 'max_empresas')
