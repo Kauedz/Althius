@@ -55,6 +55,7 @@ select throws_ok(
   $$select public.set_signal_actor_state('compass~google-maps-reviews-scraper', 'testing')$$,
   '42501', null, 'a Conta de usuário não reverte um actor já validado'
 );
+reset role;
 
 select * from finish();
 rollback;
