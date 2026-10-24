@@ -185,11 +185,26 @@ export function createCanalCloud(opcoes: OpcoesCloud): AdaptadorCanal {
       type: 'interactive',
       interactive: { type: 'button', body: { text: texto }, action: { buttons: botoes.map(({ id, titulo }) => ({ type: 'reply', reply: { id, title: titulo } })) } },
     }),
-    enviarTemplate: ({ para, nome, idioma, parametros }) => postar({
-      to: para,
-      type: 'template',
-      template: { name: nome, language: { code: idioma }, components: parametros.length ? [{ type: 'body', parameters: parametros.map((text) => ({ type: 'text', text })) }] : [] },
-    }),
+    enviarTemplate: ({ para, nome, idioma, parametros, categoria }) => {
+      if (categoria === 'autenticacao' && parametros.length !== 1) throw new ErroCanal()
+      const components: Record<string, unknown>[] = parametros.length
+        ? [{ type: 'body', parameters: parametros.map((text) => ({ type: 'text', text })) }]
+        : []
+      if (categoria === 'autenticacao') {
+        const codigo = parametros[0]
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: '0',
+          parameters: [{ type: 'text', text: codigo }],
+        })
+      }
+      return postar({
+        to: para,
+        type: 'template',
+        template: { name: nome, language: { code: idioma }, components },
+      })
+    },
     async baixarMidia(id) {
       try {
         const meta = await fetcher(`${endpoint.replace(/\/[^/]+$/, '')}/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${opcoes.token}` } })

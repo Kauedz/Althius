@@ -80,7 +80,19 @@ Deno.test('o adaptador real traduz texto, botões e template e baixa a mídia id
   assertEquals(pedidos.slice(0, 3).map((request) => request.headers.get('Authorization')), Array(3).fill('Bearer token-secreto'))
   assertEquals(await pedidos[0].json(), { messaging_product: 'whatsapp', to: '5511', type: 'text', text: { body: 'Olá' } })
   assertEquals(await pedidos[1].json(), { messaging_product: 'whatsapp', to: '5511', type: 'interactive', interactive: { type: 'button', body: { text: 'Confirmar?' }, action: { buttons: [{ type: 'reply', reply: { id: 'ok', title: 'Aprovar' } }] } } })
-  assertEquals(await pedidos[2].json(), { messaging_product: 'whatsapp', to: '5511', type: 'template', template: { name: 'codigo_login', language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: [{ type: 'text', text: '123456' }] }] } })
+  assertEquals(await pedidos[2].json(), {
+    messaging_product: 'whatsapp',
+    to: '5511',
+    type: 'template',
+    template: {
+      name: 'codigo_login',
+      language: { code: 'pt_BR' },
+      components: [
+        { type: 'body', parameters: [{ type: 'text', text: '123456' }] },
+        { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '123456' }] },
+      ],
+    },
+  })
   assertEquals([...media.bytes], [7, 8])
   assertEquals(pedidos[3].url, 'https://graph.facebook.com/vXX.0/media-1')
 
