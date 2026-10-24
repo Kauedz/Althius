@@ -54,8 +54,8 @@ Verificações reais:
 - `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_entrada_02`: exit 0, 152 arquivos / 5.333 asserções.
 - Revisão Standards: 0 achados; Spec: 0 achados. `git diff origin/main...HEAD` está vazio: revisão complementar feita no diff de trabalho e teste novo, pois não foi possível criar commit.
 
-Pendências (não verificados):
+Pendências (resolvidas pela matriz em 2026-10-24):
 - [x] Print 1400×900 em `prints/02-entrar.jpg`: tirado pela matriz com Chrome headless via CDP, Vite com `VITE_GOOGLE_CLIENT_ID=` vazio e Supabase local fictício, em `/entrar?auth=true`. A tela não cita o Google.
 - [x] Commit na branch atual: feito pela matriz (o sandbox do Codex deixava o Git só leitura).
 
-Handoffs: `.scratch/handoffs/entrada-02.md` e `.scratch/handoffs/entrada-02-pr.md`. AC 4/4 por testes; evidência visual pendente. O ticket permanece aberto para concluir as duas pendências em ambiente com suporte.
+Handoff: `.scratch/handoffs/entrada-02.md`. AC 4/4 por testes, com o print e o commit concluídos; revisão cruzada do Claude Code (code-review) sem achados bloqueantes.
