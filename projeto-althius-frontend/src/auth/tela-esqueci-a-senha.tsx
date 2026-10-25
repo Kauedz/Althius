@@ -18,7 +18,7 @@ export function TelaEsqueciASenha() {
 }
 
 function EsqueciASenha({ emailTravado }: { emailTravado: string | null }) {
-  const { pedirRedefinicaoDeSenha, confirmarCodigoDeRedefinicao, carregando } = useAutenticacao()
+  const { pedirRedefinicaoDeSenha, confirmarCodigoDeRedefinicao, carregando, iniciarGoogle } = useAutenticacao()
   const { search } = useLocation()
   const { email, campo: campoDeEmail } = useEmailDoAcesso(emailTravado)
   /** O e-mail para o qual a redefinição foi pedida; enquanto houver, a tela pede o código. */
@@ -88,7 +88,8 @@ function EsqueciASenha({ emailTravado }: { emailTravado: string | null }) {
       <div>
         <h1 className="titulo-secao text-2xl">Esqueci a senha</h1>
         <p className="mt-2 text-sm text-al-muted">
-          Enviaremos um código e um link para definir uma nova senha. Também serve para quem só entra com Google criar uma senha.
+          Enviaremos um código e um link para definir uma nova senha.
+          {iniciarGoogle && ' Também serve para quem só entra com Google criar uma senha.'}
         </p>
       </div>
       <CampoDeEmailDoAcesso id="email-redefinicao" {...campoDeEmail} />
