@@ -171,7 +171,8 @@ describe('Minhas Contas remetentes no Workspace operacional', () => {
 
     await usuario.click(await within(await canal('E-mail')).findByRole('button', { name: 'Conectar E-mail' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('A Unipile não conseguiu iniciar a conexão. Tente novamente.')
+    const mensagem = await screen.findByText('A Unipile não conseguiu iniciar a conexão. Tente novamente.')
+    expect(mensagem.closest('[role="alert"]')).not.toBeNull()
     expect(abrir).not.toHaveBeenCalled()
   })
 

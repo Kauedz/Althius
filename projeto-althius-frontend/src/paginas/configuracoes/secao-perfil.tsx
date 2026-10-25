@@ -66,9 +66,96 @@ export function SecaoPerfilDoWorkspaceOperacional() {
           sucesso="Perfil salvo. Seu nome e sua foto já aparecem no seu menu pessoal, e o nome também para as outras pessoas do Workspace."
         />
       )}
+      {perfil && <BlocoTelefoneVerificado />}
       <BlocoDeContasRemetentes />
       <BlocoDeSenhaDaConta />
     </SecaoDeConfiguracoes>
+  )
+}
+
+function BlocoTelefoneVerificado() {
+  const fonte = useFonte()
+  const { dados, erro, recarregar } = useCarregamento(fonte, (f) => f.telefoneVerificadoDoCanal?.() ?? Promise.resolve({ telefone: null, suspenso: false, emailPendente: false }), [])
+  const [telefone, setTelefone] = useState('')
+  const [codigo, setCodigo] = useState('')
+  const [pendente, setPendente] = useState(false)
+  const [mensagem, setMensagem] = useState('')
+  const [falha, setFalha] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const avisosCarregados = useCarregamento(fonte, (f) => f.preferenciasDeAvisosDoCanal?.() ?? Promise.resolve({
+    resposta_lead: false, aprovacao_pendente: false, rotina_terminada: false, sinal_novo: false, sequencia_pausada: false, creditos_baixos: false,
+  }), [])
+
+  async function operar(acao: 'start' | 'confirm' | 'resend' | 'change' | 'remove' | 'retry-email') {
+    setOcupado(true)
+    setFalha('')
+    setMensagem('')
+    try {
+      if (!fonte.operarTelefoneVerificadoDoCanal) throw new Error('Telefone indisponível neste ambiente.')
+      const resultado = await fonte.operarTelefoneVerificadoDoCanal(acao, { telefone, codigo })
+      setMensagem(acao === 'confirm'
+        ? resultado.emailPendente ? 'Telefone verificado. O e-mail ainda não foi enviado; você pode tentar novamente.' : 'Telefone verificado. Enviamos um e-mail para confirmar a alteração.'
+        : acao === 'retry-email' ? 'Aviso enviado ao e-mail da sua Conta.' : 'Pedido atualizado.')
+      setPendente(acao === 'start' || acao === 'change' || acao === 'resend')
+      setCodigo('')
+      await recarregar()
+    } catch (e) {
+      setFalha(e instanceof Error ? e.message : 'Não foi possível atualizar o telefone.')
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  async function alternarAviso(campo: keyof NonNullable<typeof avisosCarregados.dados>, habilitado: boolean) {
+    if (!avisosCarregados.dados || !fonte.salvarPreferenciasDeAvisosDoCanal) return
+    try {
+      await fonte.salvarPreferenciasDeAvisosDoCanal({ [campo]: habilitado })
+      await avisosCarregados.recarregar()
+    } catch {
+      setFalha('Não foi possível salvar a preferência de avisos.')
+    }
+  }
+
+  return (
+    <Bloco titulo="Telefone verificado" descricao="Usado para reconhecer você no WhatsApp da Althius. Não há verificação por SMS.">
+      {erro ? <Mensagem tipo="erro">{erro.message}</Mensagem> : dados?.telefone ? (
+        <p>{dados.telefone}{dados.suspenso ? ' · Suspenso: entre na Althius para reativar.' : ' · Verificado'}</p>
+      ) : <p>Nenhum telefone verificado.</p>}
+      {dados?.emailPendente && <div className="flex items-center gap-3"><p>O aviso por e-mail está pendente.</p><Button type="button" variant="outline" disabled={ocupado} onClick={() => operar('retry-email')}>Reenviar aviso por e-mail</Button></div>}
+      {pendente ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-2">Código de 6 dígitos<input className="campo" inputMode="numeric" maxLength={6} value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ''))} /></label>
+          <Button type="button" disabled={ocupado || codigo.length !== 6} onClick={() => operar('confirm')}>Confirmar telefone</Button>
+          <Button type="button" variant="outline" disabled={ocupado} onClick={() => operar('resend')}>Reenviar código</Button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-2">Telefone internacional<input className="campo" type="tel" placeholder="+5511999990000" value={telefone} onChange={(e) => setTelefone(e.target.value)} /></label>
+          <Button type="button" disabled={ocupado || telefone.trim() === ''} onClick={() => operar(dados?.telefone ? 'change' : 'start')}>{dados?.telefone ? 'Trocar telefone' : 'Enviar código'}</Button>
+          {dados?.telefone && <Button type="button" variant="outline" disabled={ocupado} onClick={() => operar('remove')}>Remover telefone</Button>}
+        </div>
+      )}
+      {mensagem && <p role="status">{mensagem}</p>}
+      {falha && <p role="alert" className="text-sm text-al-erro">{falha}</p>}
+      <fieldset className="mt-4 flex flex-col gap-2" aria-label="Avisos pelo WhatsApp">
+        <legend className="mb-2 font-medium">Avisos pelo WhatsApp</legend>
+        {([
+          ['resposta_lead', 'Resposta de lead'],
+          ['aprovacao_pendente', 'Aprovação esperando'],
+          ['rotina_terminada', 'Rotina terminada'],
+          ['sinal_novo', 'Sinal novo'],
+          ['sequencia_pausada', 'Sequência pausada'],
+          ['creditos_baixos', 'Créditos acabando'],
+        ] as const).map(([campo, rotulo]) => (
+          <label key={campo} className="flex items-center gap-2">
+            <input type="checkbox" checked={avisosCarregados.dados?.[campo] ?? false} disabled={avisosCarregados.carregando || avisosCarregados.erro !== null}
+              onChange={(e) => void alternarAviso(campo, e.target.checked)} />
+            {rotulo}
+          </label>
+        ))}
+        <p className="text-sm text-al-muted">Você pode alterar essas escolhas a qualquer momento. PARAR desliga todos os avisos no WhatsApp.</p>
+      </fieldset>
+    </Bloco>
   )
 }
 

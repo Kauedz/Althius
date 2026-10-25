@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ContaDeUsuarioDaSessao, ParticipacaoNoWorkspace } from './ambiente'
-import type { FonteDeAgentes, Perfil, Preferencias, TemaEscolhido } from './tipos'
+import type { FonteDeAgentes, Perfil, Preferencias, PreferenciasDeAvisosDoCanal, TemaEscolhido } from './tipos'
 
 interface RegistroDoPerfil {
   name: string | null
@@ -37,7 +37,7 @@ const FALHA_AO_SALVAR_AS_PREFERENCIAS = 'Não foi possível salvar agora. Nada f
 
 export type FonteDoPerfil = Pick<
   FonteDeAgentes,
-  'observar' | 'workspace' | 'perfil' | 'salvarPerfil' | 'preferencias' | 'salvarPreferencias'
+  'observar' | 'workspace' | 'perfil' | 'salvarPerfil' | 'preferencias' | 'salvarPreferencias' | 'telefoneVerificadoDoCanal' | 'operarTelefoneVerificadoDoCanal' | 'preferenciasDeAvisosDoCanal' | 'salvarPreferenciasDeAvisosDoCanal'
 >
 
 export function criarFonteDoPerfilSupabase(
@@ -101,6 +101,34 @@ export function criarFonteDoPerfilSupabase(
         p_theme: tema ?? null,
         p_browser_notifications: notificacoesDoNavegador ?? null,
       })
+      if (error) throw converterErro(error, FALHA_AO_SALVAR_AS_PREFERENCIAS)
+      avisar()
+    },
+
+    async telefoneVerificadoDoCanal() {
+      const { data, error } = await cliente.rpc('get_my_channel_phone')
+      if (error) throw converterErro(error, FALHA_AO_CARREGAR_O_PERFIL)
+      const [linha] = (data ?? []) as { phone_e164: string | null; suspended: boolean; email_pending: boolean }[]
+      return { telefone: linha?.phone_e164 ?? null, suspenso: linha?.suspended ?? false, emailPendente: linha?.email_pending ?? false }
+    },
+
+    async operarTelefoneVerificadoDoCanal(acao, dados = {}) {
+      const { data, error } = await cliente.functions.invoke('canal-phone-verification', {
+        body: { action: acao, phone: dados.telefone, code: dados.codigo },
+      })
+      if (error) throw new Error('Não foi possível atualizar o telefone. Verifique os dados e tente novamente.')
+      avisar()
+      return { emailPendente: data?.emailPending === true }
+    },
+
+    async preferenciasDeAvisosDoCanal() {
+      const { data, error } = await cliente.rpc('get_my_channel_notice_preferences')
+      if (error) throw converterErro(error, FALHA_AO_CARREGAR_O_PERFIL)
+      return data as PreferenciasDeAvisosDoCanal
+    },
+
+    async salvarPreferenciasDeAvisosDoCanal(preferencias) {
+      const { error } = await cliente.rpc('save_my_channel_notice_preferences', { p_preferences: preferencias })
       if (error) throw converterErro(error, FALHA_AO_SALVAR_AS_PREFERENCIAS)
       avisar()
     },
