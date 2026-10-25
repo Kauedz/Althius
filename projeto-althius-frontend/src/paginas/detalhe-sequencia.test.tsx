@@ -102,6 +102,57 @@ describe('Detalhe da Sequência - Documento e Timeline (Ticket 05)', () => {
     expect(await screen.findByLabelText('Contatos em pausa local')).toHaveTextContent('Marcus Vance')
   })
 
+  it('exibe a interpretação, evidência e recomendação da IA sobre a resposta, distinguindo o tipo (ticket 05)', async () => {
+    const { fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+    const sequencia = await fonteDeSequencias.sequencia('sequencia-openai')
+    await fonteDeSequencias.registrarRespostaCorrelacionada?.({
+      sequenciaId: sequencia.id,
+      eventoId: 'resposta-com-analise',
+      contatoId: 'contato-openai-1',
+      de: 'Sarah Chen',
+      trecho: 'Preciso pensar, me chame mês que vem.',
+      analise: {
+        status: 'pronta',
+        classificacao: 'humana',
+        interpretacao: 'A pessoa pediu para ser contatada depois; não é uma recusa definitiva.',
+        evidencia: 'me chame mês que vem',
+        recomendacao: 'pausar',
+      },
+    })
+
+    expect(await screen.findByText('Resposta humana')).toBeInTheDocument()
+    expect(screen.getByText(/não é uma recusa definitiva/)).toBeInTheDocument()
+    expect(screen.getByText(/“me chame mês que vem”/)).toBeInTheDocument()
+    expect(screen.getByText(/Sugestão da IA: pausar \(decisão sua\)/)).toBeInTheDocument()
+
+    // A sugestão não decide nada sozinha: o botão de continuar segue disponível e funcional mesmo com a IA sugerindo pausar.
+    const botaoContinuar = screen.getByRole('button', { name: 'Continuar envios da Conta' })
+    expect(botaoContinuar).toBeEnabled()
+  })
+
+  it('sem análise disponível (falha, teto ou créditos), a revisão e a decisão manual continuam funcionando normalmente', async () => {
+    const { usuario, fonteDeSequencias } = renderizarApp('/sequencias/sequencia-openai')
+    const sequencia = await fonteDeSequencias.sequencia('sequencia-openai')
+    await fonteDeSequencias.registrarRespostaCorrelacionada?.({
+      sequenciaId: sequencia.id,
+      eventoId: 'resposta-sem-analise',
+      contatoId: 'contato-openai-1',
+      de: 'Sarah Chen',
+      trecho: 'Pode ser.',
+      analise: { status: 'falhou' },
+    })
+
+    expect(await screen.findByText(/Sarah Chen: Pode ser\./)).toBeInTheDocument()
+    expect(screen.queryByText('Resposta humana')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sugestão da IA/)).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Pausar abordagem' }))
+    await waitFor(async () => {
+      const revisao = await fonteDeSequencias.revisaoDeRetencao?.(sequencia.id)
+      expect(revisao?.estado).toBe('pausa_decidida')
+    })
+  })
+
   it('permite alternar o step selecionado ao clicar na timeline', async () => {
     const { usuario } = renderizarApp('/sequencias/sequencia-openai')
 
