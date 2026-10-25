@@ -203,6 +203,8 @@ export interface RevisaoDeRetencao {
   versao: number
   pendentes: RespostaPendenteDeRetencao[]
   decisoes: DecisaoDeRetencaoRegistrada[]
+  /** Contatos mantidos em pausa local depois de uma retomada seletiva. */
+  contatosPausados: string[]
   podeLerConteudo: boolean
   podeDecidir: boolean
 }
@@ -495,13 +497,17 @@ export interface FonteDeSequencias extends FonteObservavel {
    */
   revisaoDeRetencao?(sequenciaId: string): Promise<RevisaoDeRetencao>
 
-  /** Pausa ou continua a Conta inteira para o conjunto revisado. Não escolhe Contatos e não chama IA. */
+  /** Pausa a Conta inteira ou continua os Contatos escolhidos para o conjunto revisado. Não chama IA. */
   decidirRetencao?(pedido: {
     sequenciaId: string
     decisao: 'pause' | 'continue'
     versao: number
     respostasRevisadas: string[]
+    contatosSelecionados: string[]
   }): Promise<ResultadoDaDecisaoDeRetencao>
+
+  /** Confirma um pedido textual de não contato usando uma resposta privada como evidência. */
+  confirmarNaoContatar?(sequenciaId: string, interacaoId: string): Promise<void>
 
   /**
    * Templates da Althius: estruturas sem Contato, destino ou histórico. O Cliente lê; não edita o original.
