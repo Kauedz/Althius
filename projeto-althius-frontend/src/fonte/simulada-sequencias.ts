@@ -422,8 +422,16 @@ export function criarFonteDeSequenciasSimulada(
       }
       return revisaoDe(pedido.sequenciaId, true)
     },
-    async confirmarNaoContatar() {
+    async confirmarNaoContatar(sequenciaId, interacaoId) {
       await aguardar()
+      const hold = retencoes.get(sequenciaId)
+      const resposta = hold?.respostas.find((r) => r.id === interacaoId)
+      if (!hold || !resposta) {
+        throw new Error('Na Demonstração não há resposta recebida real para confirmar como pedido de não contato.')
+      }
+      if (resposta.contatoId && !hold.contatosPausados.includes(resposta.contatoId)) {
+        hold.contatosPausados = [...hold.contatosPausados, resposta.contatoId]
+      }
       notificar()
     },
     async urlDoAnexo() {

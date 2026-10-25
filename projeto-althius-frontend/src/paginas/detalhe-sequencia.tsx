@@ -221,6 +221,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     [sequenciaId],
   )
   const [erroDaRetencao, setErroDaRetencao] = useState<string | null>(null)
+  const [confirmacaoNaoContatar, setConfirmacaoNaoContatar] = useState(false)
   const [selecaoDaRetomada, setSelecaoDaRetomada] = useState<{
     sequenciaId: string
     versao: number
@@ -571,6 +572,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     if (!window.confirm(`Confirmar que ${nome} pediu para não receber novos contatos? A resposta será guardada como evidência e o e-mail será bloqueado neste Workspace.`)) return
     try {
       await fonteDeSequencias.confirmarNaoContatar(sequencia.id, resposta.interacaoId)
+      setConfirmacaoNaoContatar(true)
       recarregarRevisao()
       recarregarEnvios()
       recarregarRespostas()
@@ -956,6 +958,9 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
                 Pausa local após revisão: {revisao.contatosPausados.map((id) => contatosMap.get(id)?.nome ?? 'Contato').join(', ')}.
                 A pausa da Conta foi encerrada; esses Contatos seguem retidos até uma nova decisão.
               </p>
+            )}
+            {confirmacaoNaoContatar && (
+              <p role="status" className="text-xs text-al-muted">Pedido de não contato registrado; este Contato foi suprimido no Workspace.</p>
             )}
           </div>
         </div>

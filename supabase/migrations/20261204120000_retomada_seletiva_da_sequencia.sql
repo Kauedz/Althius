@@ -46,6 +46,7 @@ $$;
 revoke all on function private.sequence_contact_is_paused(uuid, uuid) from public, anon, authenticated;
 
 alter function public.list_sequence_reply_review(uuid) rename to list_sequence_reply_review_core;
+revoke all on function public.list_sequence_reply_review_core(uuid) from public, anon, authenticated;
 create function public.list_sequence_reply_review(p_sequence_id uuid)
 returns jsonb
 language plpgsql
