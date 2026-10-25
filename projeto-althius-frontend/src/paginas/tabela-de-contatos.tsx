@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { AcoesDoContato } from './arquivar-e-apagar'
 import { BotaoDeFotoDoContato } from './botao-de-foto-do-contato'
 import { BotoesRevelarContato } from './comite-e-enriquecimento'
-import { AvatarDoContato, CABECALHO, CELULA, CelulaUltimoContato } from './modulo-contas-e-contatos'
+import { AvatarDoContato, CABECALHO, CAIXA, CELULA, CelulaUltimoContato } from './modulo-contas-e-contatos'
 import type { EstadoDaNavegacao } from './voltar-para-a-lista'
 
 // O Lucide tirou os ícones de marca; este é o desenho do antigo "linkedin" dele, no mesmo traço dos outros dois.
@@ -44,6 +44,8 @@ export function TabelaDeContatos({
   rotulo,
   comEmpresa = true,
   estadoDoLink,
+  selecionados,
+  aoAlternarSelecao,
 }: {
   linhas: LinhaDeContato[]
   hoje: Date
@@ -51,6 +53,10 @@ export function TabelaDeContatos({
   comEmpresa?: boolean
   /** O estado da navegação do link da empresa, para o detalhe saber voltar a esta lista. */
   estadoDoLink?: EstadoDaNavegacao
+  /** Os ids dos Contatos marcados, para uma ação em lote. Sem isto e sem `aoAlternarSelecao`, a linha não tem caixa. */
+  selecionados?: string[]
+  /** Marca ou desmarca um Contato na seleção; sem isto a coluna Nome não ganha caixa de seleção. */
+  aoAlternarSelecao?: (contatoId: string) => void
 }) {
   // A Persona do Contato aponta para a definição vigente na Memória do Workspace, lida uma vez para a tabela toda.
   const personas = useDados((fonte) => fonte.memoriaDoWorkspace(), [])?.personas.secoes
@@ -103,6 +109,15 @@ export function TabelaDeContatos({
           <tr key={`${contato.id}:${contato.contaId}`} className="h-11">
             <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg')}>
               <div className="flex min-w-0 items-center gap-2.5">
+                {aoAlternarSelecao && (
+                  <input
+                    type="checkbox"
+                    aria-label={`Selecionar ${contato.nome}`}
+                    className={CAIXA}
+                    checked={selecionados?.includes(contato.id) ?? false}
+                    onChange={() => aoAlternarSelecao(contato.id)}
+                  />
+                )}
                 <AvatarDoContato contato={contato} />
                 <span className="truncate text-al-ink">{contato.nome}</span>
                 <BotaoDeFotoDoContato contato={contato} />

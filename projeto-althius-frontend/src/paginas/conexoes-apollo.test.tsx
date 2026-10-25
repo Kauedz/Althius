@@ -149,7 +149,7 @@ describe('O cartão do Apollo no Workspace operacional', () => {
     const { usuario, banco } = abrir({ papel: 'admin', habilitadas: [] })
     const cartao = await screen.findByRole('article', { name: 'Apollo' })
     await usuario.click(within(cartao).getByRole('button', { name: 'Habilitar' }))
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['apollo'])
     cleanup()
 
@@ -182,7 +182,7 @@ describe('O cartão do Apollo no Workspace operacional', () => {
     await usuario.click(within(dialogo).getByRole('button', { name: 'Conectar' }))
 
     expect(pedidos.conectar).toEqual([{ action: 'chave', workspaceId: NORTE.id, integrationId: 'apollo', chave: 'chave-mestra-apollo-1' }])
-    expect(await within(cartao).findByText('Conectado')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado')).toBeInTheDocument()
     expect(screen.queryByDisplayValue('chave-mestra-apollo-1')).not.toBeInTheDocument()
   })
 
@@ -216,7 +216,7 @@ describe('O cartão do Apollo no Workspace operacional', () => {
   it('precisa reconectar mostra os dois caminhos de novo', async () => {
     abrir({ acessos: [{ ...APOLLO_CONECTADO, state: 'precisa_reconectar' }] })
     const cartao = await screen.findByRole('article', { name: 'Apollo' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).getByRole('button', { name: 'Reconectar no Apollo' })).toBeInTheDocument()
     expect(within(cartao).getByRole('button', { name: 'Usar chave de API' })).toBeInTheDocument()
   })
@@ -229,7 +229,7 @@ describe('O cartão do Apollo no Workspace operacional', () => {
     abrir({ rota: `/conexoes?conexao=erro&integracao=apollo&motivo=${motivo}` })
     expect(await screen.findByText(aviso)).toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'Apollo' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 
   it('desconectar passa pela Edge Function e avisa quando o Apollo não confirma a revogação', async () => {
@@ -237,7 +237,7 @@ describe('O cartão do Apollo no Workspace operacional', () => {
     const cartao = await screen.findByRole('article', { name: 'Apollo' })
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'apollo' }])
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(await screen.findByText(/não conseguiu avisar o Apollo/)).toBeInTheDocument()
   })
 })
