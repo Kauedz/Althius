@@ -749,6 +749,11 @@ export interface FonteDeAgentes extends FonteObservavel {
    * só aparece, e um e-mail diferente do da sessão é recusado sem gravar nada.
    */
   salvarPerfil(perfil: Perfil): Promise<void>
+  /** Telefone verificado da Conta no Canal WhatsApp. Só existe no Workspace operacional. */
+  telefoneVerificadoDoCanal?(): Promise<{ telefone: string | null; suspenso: boolean; emailPendente: boolean }>
+  operarTelefoneVerificadoDoCanal?(acao: 'start' | 'confirm' | 'resend' | 'change' | 'remove' | 'retry-email', dados?: { telefone?: string; codigo?: string }): Promise<{ emailPendente: boolean }>
+  preferenciasDeAvisosDoCanal?(): Promise<PreferenciasDeAvisosDoCanal>
+  salvarPreferenciasDeAvisosDoCanal?(preferencias: Partial<PreferenciasDeAvisosDoCanal>): Promise<void>
   /** As preferências da Conta de usuário da sessão; sem nada salvo, as notificações do navegador ficam desligadas. */
   preferencias(): Promise<Preferencias>
   /** Grava só as preferências informadas; as demais continuam como estavam. */
@@ -904,6 +909,15 @@ export interface FonteDeAgentes extends FonteObservavel {
   urlDoAnexo?(id: string): Promise<string>
   /** Para o pedido que ainda roda no Agente (ou na Coordenação, sem Agente). */
   pararPedido?(agenteId: AgenteId | null): Promise<void>
+}
+
+export interface PreferenciasDeAvisosDoCanal {
+  resposta_lead: boolean
+  aprovacao_pendente: boolean
+  rotina_terminada: boolean
+  sinal_novo: boolean
+  sequencia_pausada: boolean
+  creditos_baixos: boolean
 }
 
 export * from './contas-tipos'

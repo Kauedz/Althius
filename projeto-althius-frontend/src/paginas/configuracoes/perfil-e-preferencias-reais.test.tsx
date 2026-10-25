@@ -30,6 +30,15 @@ interface PreferenciasNoBanco {
   browser_notifications: boolean
 }
 
+const AVISOS_WHATSAPP = {
+  resposta_lead: false,
+  aprovacao_pendente: false,
+  rotina_terminada: false,
+  sinal_novo: false,
+  sequencia_pausada: false,
+  creditos_baixos: false,
+}
+
 /**
  * O perfil e as preferências da Marina como as funções do banco os guardam, entre uma sessão e outra e entre
  * dispositivos. As regras de quem lê e grava o quê são do banco (pgTAP); aqui ele só guarda o que as funções gravariam.
@@ -42,6 +51,7 @@ function bancoDaMarina({
   const banco = {
     perfil: { ...perfil },
     preferencias: { ...preferencias },
+    avisosWhatsApp: { ...AVISOS_WHATSAPP },
     segurar: false,
     falhas: 0,
     /** O perfil não é lido enquanto o teste não religar a leitura, como numa queda de rede. */
@@ -69,6 +79,12 @@ function bancoDaMarina({
       if (banco.leituraFora) throw new Error('Failed to fetch')
       return [{ ...banco.perfil, email: MARINA.email }]
     },
+    get_my_channel_phone: () => [{ phone_e164: '+5511999990000', verified_at: '2026-10-20T12:00:00Z', suspended: false }],
+    get_my_channel_notice_preferences: () => ({ ...banco.avisosWhatsApp }),
+    save_my_channel_notice_preferences: ({ p_preferences }) => gravar(() => {
+      banco.avisosWhatsApp = { ...banco.avisosWhatsApp, ...(p_preferences as typeof AVISOS_WHATSAPP) }
+      return { ...banco.avisosWhatsApp }
+    }),
     save_my_profile: ({ p_display_name, p_avatar_data_url }) =>
       gravar(() => {
         const nome = String(p_display_name ?? '').trim()
@@ -151,6 +167,24 @@ describe('Meu perfil no Workspace operacional', () => {
     expect(screen.getByRole('region', { name: 'Minhas Contas remetentes' })).toBeInTheDocument()
     expect(screen.queryByText(/ainda não estão disponíveis/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Marina Alves|Databricks|Demonstração: o novo e-mail/)).not.toBeInTheDocument()
+  })
+
+  it('mostra o Telefone verificado no perfil operacional', async () => {
+    abrir(bancoDaMarina(), '/configuracoes/perfil')
+    await screen.findByRole('region', { name: 'Telefone verificado' })
+    expect(await screen.findByText('+5511999990000 · Verificado')).toBeInTheDocument()
+    expect(screen.getByText(/Não há verificação por SMS/)).toBeInTheDocument()
+  })
+
+  it('permite escolher os tipos de aviso do WhatsApp no Meu perfil', async () => {
+    const banco = bancoDaMarina()
+    const { usuario } = abrir(banco, '/configuracoes/perfil')
+    const avisos = await screen.findByRole('group', { name: 'Avisos pelo WhatsApp' })
+    const resposta = within(avisos).getByRole('checkbox', { name: 'Resposta de lead' })
+    expect(resposta).not.toBeChecked()
+    await usuario.click(resposta)
+    await waitFor(() => expect(resposta).toBeChecked())
+    expect(banco.avisosWhatsApp.resposta_lead).toBe(true)
   })
 
   it('só confirma o perfil salvo depois do backend, e o encontra salvo depois de sair e entrar de novo', async () => {
