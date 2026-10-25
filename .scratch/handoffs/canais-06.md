@@ -1,48 +1,38 @@
-# Handoff: canais-cadencia-backend 06, ciclo real por WhatsApp
+# Handoff — canais 06
 
-Branch: `kaue/canais-06-ciclo-real-whatsapp`. Ticket: `.scratch/canais-cadencia-backend/issues/06-ciclo-real-whatsapp.md`. Status do ticket: segue `ready-for-human`.
+## Estado
 
-## Tarefa
+Implementação do ticket `.scratch/canais-althius/issues/06-coordenacao-no-motor-para-execucoes-de-canal.md` concluída e validada. As alterações estão no worktree `ralph/canais-06-coordenacao-no-motor-para-execucoes-d`; por regra do runner, não foram adicionadas nem commitadas. Não aplicar migration remota e não publicar nesta etapa.
 
-O gate passou (Blocked by 05 está `closed`). Os sete critérios já estavam no código da `main`, com teste (reconciliação de
-2026-10-07 no próprio ticket). Esta sessão fechou a única lacuna que o ticket deixou para agente: nenhum teste Deno cobria
-o roteamento de `message.new` do webhook até `ingestChatEvent`.
+## O que mudou
 
-## Arquivos
+- Nova migration `supabase/migrations/20261122130600_coordenacao_whatsapp_no_motor.sql`: inclui `whatsapp` nas origens de Conversa e atualiza `claim_agent_run` para transportar a origem e retornar apenas Agentes configurados para WhatsApp quando a origem for WhatsApp.
+- `agent-conversation` e Hermes restringem a regra de um Agente por fio ao Slack; o caminho WhatsApp preserva a Coordenação.
+- Teste pgTAP próprio e testes Deno de WhatsApp/Slack. Detalhes e evidências no ticket e no diff.
+- Corpo do PR em `/workspace/ralph-wt/_pr/canais-06.md`.
 
-- `supabase/functions/unipile-account-status/handler.test.ts`: 6 testes novos. `message.new` vai à ingestão de conversa com
-  id do evento, conta e payload e não toca a ingestão de e-mail; conversa pessoal (outcome `unrelated`) é confirmada com 2xx;
-  sem id de evento ou sem payload dá 400 e não chega ao banco; erro na ingestão dá 500 (a Unipile tenta de novo);
-  `relation.new` só chega ao banco para registro; sem `ingestChatEvent` o evento é ignorado com 200.
-- `.scratch/canais-cadencia-backend/issues/06-ciclo-real-whatsapp.md`: comentário curto sobre a lacuna fechada.
-- `.scratch/handoffs/canais-06.md` (este arquivo).
+## Testes executados
 
-Nenhum código de produção mudou. Sem migration. Sem deploy.
+- Red TDD observado nos testes focados, seguido do verde.
+- `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_ca06 supabase/tests/canal_whatsapp_coordenacao.sql`: 3/3.
+- `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_ca06`: suíte completa passou.
+- `deno check supabase/functions/*/index.ts`: passou.
+- `deno test supabase/functions`: 1.798 passed, 0 failed, 39 ignored.
+- Frontend `npm run lint` e `npx tsc -b`: passaram; lint reportou avisos preexistentes.
 
-## Loop
+## Decisões de processo
 
-Os testes já nascem verdes, porque o roteamento existe. Para provar que não são vazios, troquei a condição do roteamento em
-`handler.ts` por `false`: 5 dos 6 testes ficaram vermelhos (16 passed, 5 failed). Voltei o arquivo ao original. O sexto
-(sem `ingestChatEvent`) cobre o caminho que já ignora o evento.
+- Test seams pré-confirmados pela instrução headless: contrato de reserva/origem nos motores e teste pgTAP da migration.
+- Nenhum arquivo de Sequência ou Sinais foi editado.
+- Revisão Standards: sem violações documentadas; a observação sobre teste SQL acoplado à implementação foi corrigida com um teste comportamental de `claim_agent_run`.
+- Revisão Spec: sem achados após a cobertura comportamental do filtro de canais.
+- Guardrail do worktree proíbe `git add` e `git commit`, sobrepondo a etapa de commit da skill.
 
-Resultado final: `deno test supabase/functions/unipile-account-status/handler.test.ts` 21 passed; junto com `send-chat-step`,
-`send-chat-step-adapters` e `sequence-runner`: 96 passed, 0 failed.
+## Próxima sessão
 
-## Contagem de critérios
+A matriz pode adicionar e commitar as alterações e abrir o PR conforme o fluxo do repositório. A revisão final já foi feita contra a base empilhada e o ticket. Não trabalhar em outro ticket desta fila.
 
-AC 7/7 no código e nos testes com dublês. Os checkboxes do ticket ficam desmarcados de propósito: o ticket os reserva à
-confirmação com WhatsApp real (campos `users_ids`, `is_sender`, `sender_id` marcados "não confirmado"). Não marquei nada
-que só o envio real prova.
+## Suggested skills
 
-## Pendente (humano)
-
-Os "Passos do Nan" do ticket, sem mudança: conectar o WhatsApp, `bash scripts/wizard-unipile.sh` (webhook com `message.new`),
-deploy de `sequence-runner` e `unipile-account-status --no-verify-jwt`, ligar o canal com
-`select private.set_chat_channel_enabled('whatsapp', true);`, enviar a um número real, responder e conferir.
-Esta sessão não tinha número real de teste nem acesso à Unipile: BLOCKED para a validação externa (AC 12 da spec).
-
-## Aprendizados
-
-- O ambiente não tinha Deno; `npm install -g deno` resolve.
-- `deno lint` já acusa 11 problemas nessa pasta na `main` (o CI só roda `deno check` e `deno test`); os testes novos somam 1
-  (`require-await` em dublê assíncrono), igual aos dublês existentes.
+- `code-review` para revisar o diff final contra a branch base e o ticket 06.
+- `pr` para formatar o corpo do PR se ele precisar de ajustes.
