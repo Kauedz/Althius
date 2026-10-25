@@ -13,7 +13,7 @@ const PLANO: PlanoDoSinal = {
   escopo: { tipo: 'contas', contaIds: [CONTA] },
   sinais: [{ tipo: 'anuncio_meta', criterios: { periodo: 'Últimos 14 dias' } }],
   explicacao: 'Vamos acompanhar “Anunciando na Meta”.',
-  maxEmpresasPorRodada: 50,
+  maxEmpresasPorRodada: 25,
 }
 
 function fonteCom(opcoes: { funcao?: (corpo: Record<string, unknown>) => RespostaDaFuncao; rpcs?: Record<string, (p: Record<string, unknown>) => unknown> }) {

@@ -28,7 +28,8 @@ import {
 import { BotaoAviseMe, CapaDoSinal, PreviaDasDetectadas, SelosDoEstado } from './vitrine-pecas'
 import { ACAO_DO_ESTADO, resumoDaRodada, resumoDasContas, resumoDoPublico, resumoDosCriterios } from './resumos'
 import { useAtivacaoDoSinal } from './usar-ativacao'
-import { AvisoDePausaPorCreditos } from './aviso-de-pausa'
+import { AvisoDePausaPorCreditos, AvisoDeRodadaPulada } from './aviso-de-pausa'
+import { sinalComRodadaPulada } from '@/fonte/preco-por-rodada'
 import { noMercado, resumoDoMercado } from './mercado-enderecavel'
 
 /**
@@ -315,6 +316,11 @@ export function PaginaDoTipo() {
                 {m.pausadoPor === 'sem_creditos' && (
                   <div className="col-span-2 pt-2">
                     <AvisoDePausaPorCreditos monitoramento={m} />
+                  </div>
+                )}
+                {sinalComRodadaPulada(m) && (
+                  <div className="col-span-2 pt-2">
+                    <AvisoDeRodadaPulada monitoramento={m} />
                   </div>
                 )}
               </li>

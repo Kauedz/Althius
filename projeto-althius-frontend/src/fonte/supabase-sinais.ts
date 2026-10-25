@@ -17,7 +17,10 @@ import { corpoDoErroDaFuncao } from './falha-da-edge-function'
 import {
   BLOQUEIOS_DA_ATIVACAO,
   ErroDoLimite,
+  ErroDaAutomacao,
+  MENSAGEM_DA_FALHA_DA_AUTOMACAO,
   MENSAGEM_DA_FALHA_DO_LIMITE,
+  codigoDoErroDaAutomacao,
   codigoDoErroDoLimite,
   type EstimativaDoSinal,
 } from './preco-por-rodada'
@@ -108,6 +111,7 @@ interface RegistroDoHistorico {
     estado: 'rodando' | 'concluida' | 'falhou'
     iniciadaEm: string
     terminouEm?: string | null
+    horarioMarcado?: string | null
     contasNoEscopo?: number | null
     contasVerificadas: number
     contasSemDado: number
@@ -178,6 +182,8 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (agenda) return new ErroDaAgenda(agenda)
   const limite = codigoDoErroDoLimite(error.message)
   if (limite) return new ErroDoLimite(limite)
+  const automacao = codigoDoErroDaAutomacao(error.message)
+  if (automacao) return new ErroDaAutomacao(automacao)
   if (error.message.includes('signal type is not available')) {
     return new Error('Este Sinal ainda está em teste e não roda de verdade.')
   }
@@ -354,6 +360,7 @@ function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<str
     ...(agenda ? { agenda } : {}),
     ...(typeof linha.daily_credit_cap === 'number' ? { limitePorDia: linha.daily_credit_cap } : {}),
     ...(linha.state === 'pausado' && linha.paused_reason === 'sem_creditos' ? { pausadoPor: 'sem_creditos' as const } : {}),
+    ...(typeof linha.consecutive_skips === 'number' && linha.consecutive_skips > 0 ? { rodadasPuladas: linha.consecutive_skips } : {}),
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
       ? {
@@ -694,6 +701,34 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
       return monitoramento(monitoramentoId)
     },
 
+    async limiteMensalSugerido(monitoramentoId, agenda): Promise<number> {
+      const { data, error } = await cliente.rpc('suggest_signal_monthly_cap', {
+        p_workspace_id: workspaceId(),
+        p_monitor_id: monitoramentoId,
+        p_schedule: agenda ? { horarios: agenda.horarios, dias: agenda.dias, fuso: FUSO_DA_AGENDA } : null,
+      })
+      if (error) {
+        const convertido = converterErro(error)
+        throw convertido instanceof ErroDaAgenda ? convertido : new Error(MENSAGEM_DA_FALHA_DA_AUTOMACAO)
+      }
+      const valor = Number(data)
+      if (!Number.isInteger(valor) || valor < 1) throw new Error(MENSAGEM_DA_FALHA_DA_AUTOMACAO)
+      return valor
+    },
+
+    async liberarAutomacao(monitoramentoId, limiteMensal): Promise<void> {
+      const { error } = await cliente.rpc('enable_signal_automation', {
+        p_workspace_id: workspaceId(),
+        p_monitor_id: monitoramentoId,
+        p_monthly_limit: limiteMensal,
+      })
+      if (error) {
+        const convertido = converterErro(error)
+        throw convertido instanceof ErroDaAutomacao ? convertido : new Error(MENSAGEM_DA_FALHA_DA_AUTOMACAO)
+      }
+      notificar()
+    },
+
     async rodarAgora(monitoramentoId): Promise<void> {
       await chamar('request_signal_run_now', { p_workspace_id: workspaceId(), p_monitor_id: monitoramentoId })
     },
@@ -709,6 +744,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
           estado: r.estado,
           iniciadaEm: r.iniciadaEm,
           terminouEm: r.terminouEm ?? null,
+          horarioMarcado: r.horarioMarcado ?? null,
           contasNoEscopo: r.contasNoEscopo ?? null,
           contasVerificadas: r.contasVerificadas,
           contasSemDado: r.contasSemDado,

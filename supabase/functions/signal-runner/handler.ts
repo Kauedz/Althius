@@ -137,6 +137,8 @@ export type ResultadoDaAbertura = 'go' | 'resume' | 'done' | 'skip' | MotivoDePa
 
 /** Por que uma Rodada parou, em código estável (`private.signal_monitor_runs.stop_reason`). A tela escreve a frase. */
 export type MotivoDaRodada = 'sem_creditos' | 'teto' | 'teto_diario' | 'contrato_inativo' | 'prazo' | 'concluida' | 'erro'
+/** Quem grava `perdida` é o banco (o horário passou sem a Rodada começar); o runner não a produz, mas a lista de Rodadas a devolve. */
+export type MotivoRegistradoDaRodada = MotivoDaRodada | 'perdida'
 
 const MOTIVO_DA_RODADA: Record<MotivoDeParada, MotivoDaRodada> = {
   no_credits: 'sem_creditos',
@@ -623,7 +625,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       creditos,
       motivo: semCreditos ? 'sem_creditos' : teto ? 'teto' : acabouOTempo && faltam > 0 ? 'prazo' : falhou ? 'erro' : 'concluida',
     })
-    await deps.db.finish(m.monitorId, m.accounts.length, erro || null, faltam > 0)
+    // As fontes que faltam entram numa continuação da MESMA Rodada, com o mesmo lote de Contas: a rotação só avança quando a Rodada
+    // fecha. Dizer que o lote foi tentado a cada continuação o esgotaria no banco (`round_attempted`) antes de a última fonte rodar.
+    await deps.db.finish(m.monitorId, faltam > 0 ? 0 : m.accounts.length, erro || null, faltam > 0)
     return { scanned: alguma ? m.accounts.length : 0, signals: sinais }
   }
 

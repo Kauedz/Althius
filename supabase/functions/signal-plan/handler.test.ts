@@ -110,7 +110,7 @@ Deno.test('Briefing com tentativa de instrução: Plano válido do catálogo, me
   assertEquals(r.resposta.status, 200)
   const plano = r.corpo.plano as { sinais: { tipo: string }[]; maxEmpresasPorRodada: number; escopo: unknown }
   assert(CATALOGO.includes(plano.sinais[0].tipo))
-  assertEquals(plano.maxEmpresasPorRodada, 50)
+  assertEquals(plano.maxEmpresasPorRodada, 25)
   assertEquals(plano.escopo, { tipo: 'contas', contaIds: CONTAS })
   assert(validarPlano(r.corpo.plano, CATALOGO).ok)
   // O ataque só vai no texto do usuário do motor, nunca no de sistema.
@@ -192,7 +192,7 @@ Deno.test('entrada inválida é recusada antes de abrir o pedido (e de gastar o 
     ['sem Contas', pedido('vagas', { escopo: { tipo: 'contas', contaIds: [] } })],
     ['Conta repetida', pedido('vagas', { escopo: { tipo: 'contas', contaIds: [CONTAS[0], CONTAS[0].toUpperCase()] } })],
     ['Conta que não é uuid', pedido('vagas', { escopo: { tipo: 'contas', contaIds: ['x'] } })],
-    ['mais de 50 Contas', pedido('vagas', { escopo: { tipo: 'contas', contaIds: Array.from({ length: 51 }, (_, i) => `b0000000-0000-4000-8000-${String(i).padStart(12, '0')}`) } })],
+    ['mais de 500 Contas', pedido('vagas', { escopo: { tipo: 'contas', contaIds: Array.from({ length: 501 }, (_, i) => `b0000000-0000-4000-8000-${String(i).padStart(12, '0')}`) } })],
     ['Workspace inválido', pedido('vagas', { workspaceId: 'x' })],
   ]
   for (const [nome, corpo] of entradas) {
