@@ -3,11 +3,11 @@ import { CATALOGO_VISIVEL } from '@/paginas/sinais/catalogo-visivel'
 import { MONITORAMENTOS_INICIAIS, SINAIS_MOCK, publicoInicial } from '@/paginas/sinais/dados-mock'
 import { foiDisparado, parseDataDisparo } from '@/fonte/regras-sinais'
 import type { FonteDeContas } from './contas-tipos'
-import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
+import { LIMITES_DO_PLANO, contasDaRodada, type PedidoDePlano, type PlanoDoSinal, type PlanoMontado, type PlanoParaSalvar } from './plano-do-sinal'
 import { ErroDaRodada, type AchadoDaRodada, type HistoricoDeRodadas, type PedidoDeRodada, type PreviaDaRodada } from './rodadas-do-sinal'
 import { TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import { ErroDaAgenda, normalizarAgenda, proximasRodadas, validarAgenda, type AgendaDoSinal } from './agenda-do-sinal'
-import { ErroDoLimite, estimativaLocal, type EstimativaDoSinal } from './preco-por-rodada'
+import { ErroDaAutomacao, ErroDoLimite, estimativaLocal, tetoMensalSugerido, validarLimiteMensal, type EstimativaDoSinal } from './preco-por-rodada'
 import type {
   CardSobPedido,
   CascataDoCatalogo,
@@ -435,10 +435,15 @@ export function criarFonteDeSinaisSimulada(
       return Promise.resolve(false)
     },
 
-    // A Rodada da Demonstração é fixa: a prévia, o histórico e os achados são sempre os mesmos, e nada é cobrado nem roda.
-    async previaDaRodada(): Promise<PreviaDaRodada> {
+    // A Rodada da Demonstração não roda nada nem cobra: o histórico e os achados são sempre os mesmos. A prévia é a de exemplo,
+    // salvo no Monitoramento que nasceu de um Plano com Contas escolhidas: aí conta o lote (as Contas do Plano, no máximo as
+    // empresas por Rodada), como o servidor.
+    async previaDaRodada(monitoramentoId?: string): Promise<PreviaDaRodada> {
       await aguardar()
-      return { ...PREVIA_DA_DEMONSTRACAO }
+      const plano = monitoramentoId ? monitoramentos.find((item) => item.id === monitoramentoId)?.plano : undefined
+      if (plano?.escopo.tipo !== 'contas' || plano.escopo.contaIds.length === 0) return { ...PREVIA_DA_DEMONSTRACAO }
+      const contas = contasDaRodada(plano.escopo.contaIds.length, plano)
+      return { ...PREVIA_DA_DEMONSTRACAO, contas, ateCreditos: contas * PREVIA_DA_DEMONSTRACAO.creditosPorConta }
     },
 
     async rodarAgora(monitoramentoId: string): Promise<void> {
@@ -473,16 +478,16 @@ export function criarFonteDeSinaisSimulada(
       await aguardar()
       const m = monitoramentos.find((item) => item.id === monitoramentoId)
       if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
-      const codigo = validarAgenda(agenda, m.publico.listas.length)
+      const codigo = validarAgenda(agenda)
       if (codigo) throw new ErroDaAgenda(codigo)
       m.agenda = normalizarAgenda(agenda)
       notificar()
       return clonarMonitoramento(m)
     },
 
-    async proximasRodadas(agenda: AgendaDoSinal, contas: number, n: number): Promise<string[]> {
+    async proximasRodadas(agenda: AgendaDoSinal, _contas: number, n: number): Promise<string[]> {
       await aguardar()
-      const codigo = validarAgenda(agenda, contas)
+      const codigo = validarAgenda(agenda)
       if (codigo) throw new ErroDaAgenda(codigo)
       const referencia = fonteDeContasVinculada ? fonteDeContasVinculada.hoje() : hoje
       return proximasRodadas(agenda, referencia, Math.min(Math.max(n, 1), 20)).map((d) => d.toISOString())
@@ -496,11 +501,11 @@ export function criarFonteDeSinaisSimulada(
       if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
       const proposta = agenda ?? m.agenda
       if (agenda) {
-        const codigo = validarAgenda(agenda, m.publico.listas.length)
+        const codigo = validarAgenda(agenda)
         if (codigo) throw new ErroDaAgenda(codigo)
       }
       return estimativaLocal({
-        porRodada: m.publico.listas.length * PREVIA_DA_DEMONSTRACAO.creditosPorConta,
+        porRodada: porRodadaDe(m),
         ...(proposta ? { agenda: proposta } : {}),
         saldo: PREVIA_DA_DEMONSTRACAO.saldo,
       })
@@ -511,7 +516,7 @@ export function criarFonteDeSinaisSimulada(
       const m = monitoramentos.find((item) => item.id === monitoramentoId)
       if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
       const { limiteSugeridoPorDia: sugerido } = estimativaLocal({
-        porRodada: m.publico.listas.length * PREVIA_DA_DEMONSTRACAO.creditosPorConta,
+        porRodada: porRodadaDe(m),
         ...(m.agenda ? { agenda: m.agenda } : {}),
         saldo: PREVIA_DA_DEMONSTRACAO.saldo,
       })
@@ -521,6 +526,27 @@ export function criarFonteDeSinaisSimulada(
       m.limitePorDia = limite
       notificar()
       return clonarMonitoramento(m)
+    },
+
+    // O limite mensal da automação da Demonstração fica em memória: o sugerido é o custo do mês mais 20% (a mesma conta do
+    // servidor, sem a faixa do contrato, que a Demonstração não tem). Liberar só confere o número: a Demonstração nunca bloqueia a
+    // ativação por automação, então não guarda nada.
+    async limiteMensalSugerido(monitoramentoId: string, agenda?: AgendaDoSinal): Promise<number> {
+      await aguardar()
+      const m = monitoramentos.find((item) => item.id === monitoramentoId)
+      if (!m) throw new Error(`Monitoramento "${monitoramentoId}" não encontrado`)
+      const proposta = agenda ?? m.agenda
+      const { porMesAprox } = estimativaLocal({
+        porRodada: porRodadaDe(m),
+        ...(proposta ? { agenda: proposta } : {}),
+        saldo: PREVIA_DA_DEMONSTRACAO.saldo,
+      })
+      return tetoMensalSugerido(porMesAprox)
+    },
+
+    async liberarAutomacao(_monitoramentoId: string, limiteMensal: number): Promise<void> {
+      await aguardar()
+      if (validarLimiteMensal(String(limiteMensal))) throw new ErroDaAutomacao('limite_invalido')
     },
 
     // O Plano da Demonstração é fixo: a IA não roda aqui, e o Briefing não muda o que volta (só as Contas escolhidas).
@@ -557,6 +583,11 @@ export function criarFonteDeSinaisSimulada(
   }
 }
 
+/** O preço de uma Rodada na Demonstração: o lote do Monitoramento vezes o preço fixo de exemplo por Conta. */
+function porRodadaDe(m: Monitoramento): number {
+  return contasDaRodada(m.publico.listas.length, m.plano) * PREVIA_DA_DEMONSTRACAO.creditosPorConta
+}
+
 /** O Plano que a Demonstração devolve para qualquer Briefing: Abertura de vagas de RevOps nas Contas escolhidas. */
 function planoFixoDaDemonstracao(contaIds: string[]): PlanoDoSinal {
   return {
@@ -568,7 +599,7 @@ function planoFixoDaDemonstracao(contaIds: string[]): PlanoDoSinal {
       criterios: { funcoes: ['RevOps e GTM'], senioridade: 'Qualquer', localizacao: ['Brasil'], periodo: 'Últimos 30 dias' },
     }],
     explicacao: 'Vamos acompanhar “Abertura de vagas” nas Contas escolhidas: a empresa abre vagas de RevOps e GTM. Revise e ajuste antes de salvar.',
-    maxEmpresasPorRodada: 50,
+    maxEmpresasPorRodada: LIMITES_DO_PLANO.empresasPorRodadaPadrao,
   }
 }
 

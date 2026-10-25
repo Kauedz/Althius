@@ -4,7 +4,6 @@ import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
 import {
   AGENDA_PADRAO,
-  AVISO_DO_ESCOPO_GRANDE,
   ErroDaAgenda,
   ERROS_DE_HORARIO,
   HORARIOS_POSSIVEIS,
@@ -73,7 +72,7 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
   // O que a pessoa digitou no limite por dia; nulo enquanto ela não mexeu (o campo segue o que está gravado ou o sugerido).
   const [textoDoLimite, setTextoDoLimite] = useState<string | null>(null)
 
-  const problema = validarAgenda(rascunho, contas)
+  const problema = validarAgenda(rascunho)
   const problemaDosHorarios = problema && ERROS_DE_HORARIO.includes(problema) ? problema : null
   const problemaDosDias = problema && !ERROS_DE_HORARIO.includes(problema) ? problema : null
   const agendaMudou = !salva || !mesmaAgenda(rascunho, salva)
@@ -123,7 +122,7 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
   function adicionar() {
     const candidata = adicionarHorario(rascunho, novoHorario)
     // Só conta o que diz respeito aos horários: os dias são escolhidos à parte.
-    const codigo = validarAgenda({ ...candidata, dias: rascunho.dias.length > 0 ? rascunho.dias : AGENDA_PADRAO.dias }, contas)
+    const codigo = validarAgenda({ ...candidata, dias: rascunho.dias.length > 0 ? rascunho.dias : AGENDA_PADRAO.dias })
     if (codigo && ERROS_DE_HORARIO.includes(codigo)) {
       setRecusaDoHorario(codigo)
       return
@@ -232,7 +231,6 @@ export function AgendaDoSinalNoMonitoramento({ monitoramento }: { monitoramento:
         <p className="text-xs text-al-muted">
           De {LIMITES_DA_AGENDA.passoEmMinutos} em {LIMITES_DA_AGENDA.passoEmMinutos} minutos. O relógio acorda o Sinal a cada 10 minutos, então a rodada começa por volta do horário.
         </p>
-        {contas > LIMITES_DA_AGENDA.contasDoEscopoGrande && <p className="text-xs text-al-muted">{AVISO_DO_ESCOPO_GRANDE}</p>}
         {erroDosHorarios && (
           <p role="alert" className="text-xs text-al-erro">
             {TEXTO_DO_ERRO_DA_AGENDA[erroDosHorarios]}

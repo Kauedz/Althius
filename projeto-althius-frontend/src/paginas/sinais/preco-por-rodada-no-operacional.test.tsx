@@ -22,7 +22,7 @@ const PLANO = {
   escopo: { tipo: 'contas', contaIds: [CONTA] },
   sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'], periodo: 'Últimos 30 dias' } }],
   explicacao: 'Vamos acompanhar “Abertura de vagas”.',
-  maxEmpresasPorRodada: 50,
+  maxEmpresasPorRodada: 25,
 }
 
 const AGENDA = { horarios: ['08:00', '14:00'], dias: [1, 2, 3, 4, 5], fuso: 'America/Sao_Paulo' }
@@ -42,6 +42,16 @@ interface Estado {
   papel: 'admin' | 'member'
   bloqueio: string | null
   recusaDoLimite?: string
+  /** As Rodadas seguidas puladas por falta de créditos (`consecutive_skips`); o Sinal pausado por falta de créditos conta 3. */
+  puladas?: number
+  /** O que `enable_signal_automation` recusa (código do banco), ou nada. */
+  recusaDaAutomacao?: string
+  /** O que `list_signal_runs` devolve. */
+  rodadas?: unknown[]
+  /** A prévia do Rodar agora: o lote das Contas. */
+  previa?: Record<string, unknown>
+  /** As Contas do Sinal (por padrão, uma). */
+  contasDoSinal?: string[]
 }
 
 /** A linha que `quote_signal_schedule` devolve para a Agenda pedida (12 Contas a 2 créditos, saldo de 110). */
@@ -98,7 +108,7 @@ function abrir(parcial: Partial<Estado> = {}, rota = `/sinais/tipos/abertura-de-
         signal_type: 'vaga_linkedin',
         name: 'Vagas de RevOps',
         state: estado.state,
-        audience: { accountIds: [CONTA] },
+        audience: { accountIds: estado.contasDoSinal ?? [CONTA] },
         criteria: PLANO.sinais[0].criterios,
         last_error: null,
         brief: 'Quero saber quando abrirem vaga de RevOps.',
@@ -109,15 +119,26 @@ function abrir(parcial: Partial<Estado> = {}, rota = `/sinais/tipos/abertura-de-
         schedule: estado.schedule,
         next_run_at: null,
         daily_credit_cap: estado.dailyCap,
-        consecutive_skips: estado.pausedReason ? 3 : 0,
+        consecutive_skips: estado.puladas ?? (estado.pausedReason ? 3 : 0),
         paused_reason: estado.pausedReason,
       }],
       list_signals: () => [],
       list_account_signals: () => [],
       quote_signal_run: () => [{
         contas: 1, contas_sem_dado: 0, creditos_por_conta: 2, ate_creditos: 2, saldo: 180, ilimitado: false, bloqueio: null, liberado_em: null,
+        ...estado.previa,
       }],
-      list_signal_runs: () => ({ rodadas: [], solicitacoes: [] }),
+      list_signal_runs: () => ({ rodadas: estado.rodadas ?? [], solicitacoes: [] }),
+      suggest_signal_monthly_cap: (p) => {
+        registrar('suggest_signal_monthly_cap', p)
+        return 2601
+      },
+      enable_signal_automation: (p) => {
+        registrar('enable_signal_automation', p)
+        if (estado.recusaDaAutomacao) throw new Error(`signal automation invalid: ${estado.recusaDaAutomacao}`)
+        estado.bloqueio = null
+        return null
+      },
       preview_signal_schedule: () => ['2026-10-26T11:00:00+00:00'],
       quote_signal_schedule: (p) => {
         registrar('quote_signal_schedule', p)
@@ -287,5 +308,95 @@ describe('Ativar e reativar no Workspace operacional', () => {
     expect(await within(dialogo).findByText('Sem créditos suficientes. Fale com o responsável pelo plano.')).toBeInTheDocument()
     expect(within(dialogo).getByRole('button', { name: 'Ativar' })).toBeDisabled()
     expect(chamou('set_signal_monitor_state')).toEqual([])
+  })
+})
+
+describe('Liberar a automação ao ativar, no Workspace operacional', () => {
+  async function abrirConfirmacao(parcial: Partial<Estado> = {}) {
+    const aberto = abrir({ state: 'pausado', pausedReason: 'sem_creditos', bloqueio: 'sem_teto_automacao', papel: 'admin', ...parcial })
+    await aberto.usuario.click(within(await screen.findByRole('complementary', { name: /Pausado por falta de créditos/ })).getByRole('button', { name: 'Reativar' }))
+    return { ...aberto, dialogo: await screen.findByRole('dialog', { name: 'Ativar Sinal' }) }
+  }
+
+  it('o campo vem preenchido com o sugerido do banco; "Liberar e ativar" libera com esse limite e ativa o Sinal', async () => {
+    const { usuario, chamou, dialogo, estado } = await abrirConfirmacao()
+
+    const campo = await within(dialogo).findByLabelText('Limite mensal da automação (créditos)')
+    await waitFor(() => expect(campo).toHaveValue('2601'))
+    expect(chamou('suggest_signal_monthly_cap')).toEqual([{ p_workspace_id: NORTE.id, p_monitor_id: MONITOR, p_schedule: null }])
+    expect(dialogo.textContent).not.toMatch(/US\$|\$|teto/i)
+
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Liberar e ativar' }))
+
+    await waitFor(() => expect(chamou('enable_signal_automation')).toEqual([{ p_workspace_id: NORTE.id, p_monitor_id: MONITOR, p_monthly_limit: 2601 }]))
+    await waitFor(() => expect(chamou('set_signal_monitor_state')).toEqual([{ p_id: MONITOR, p_state: 'ativo' }]))
+    expect(estado.state).toBe('ativo')
+  })
+
+  it('a recusa do banco vira a frase do produto, e o Sinal não ativa', async () => {
+    const { usuario, chamou, dialogo } = await abrirConfirmacao({ recusaDaAutomacao: 'acima_da_faixa' })
+    await waitFor(() => expect(within(dialogo).getByLabelText('Limite mensal da automação (créditos)')).toHaveValue('2601'))
+
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Liberar e ativar' }))
+
+    const alerta = await within(dialogo).findByText(/O limite não pode passar dos créditos do plano/)
+    expect(alerta.textContent).not.toMatch(/signal|invalid|acima_da_faixa/)
+    expect(chamou('set_signal_monitor_state')).toEqual([])
+  })
+
+  it('quem não é Administrador não vê o campo e o banco não é chamado', async () => {
+    const { dialogo, chamou } = await abrirConfirmacao({ papel: 'member' })
+
+    expect(await within(dialogo).findByText('Peça ao responsável pelo plano para liberar a automação.')).toBeInTheDocument()
+    expect(within(dialogo).queryByLabelText('Limite mensal da automação (créditos)')).not.toBeInTheDocument()
+    expect(chamou('suggest_signal_monthly_cap')).toEqual([])
+  })
+})
+
+describe('A 1ª Rodada pulada e a Rodada perdida no Workspace operacional', () => {
+  it('uma Rodada pulada (consecutive_skips = 1) avisa no Sinal ativo, sem pausar', async () => {
+    abrir({ state: 'ativo', puladas: 1 })
+
+    const aviso = await screen.findByRole('complementary', { name: 'Rodada pulada por falta de créditos: Vagas de RevOps' })
+    expect(within(aviso).getByRole('link', { name: 'Ver créditos' })).toHaveAttribute('href', '/configuracoes/plano')
+    expect(screen.queryByRole('complementary', { name: /Pausado por falta de créditos/ })).not.toBeInTheDocument()
+  })
+
+  it('"Meus Sinais" também avisa, e sem Rodada pulada não há aviso', async () => {
+    abrir({ state: 'ativo', puladas: 2 }, '/sinais')
+    const meus = await screen.findByRole('region', { name: 'Meus Sinais' })
+    expect(await within(meus).findByRole('group', { name: 'Sinais com rodada pulada por falta de créditos' })).toBeInTheDocument()
+    cleanup()
+
+    abrir({ state: 'ativo', puladas: 0 })
+    await screen.findByRole('region', { name: 'Agenda' })
+    expect(screen.queryByText('Rodada pulada por falta de créditos')).not.toBeInTheDocument()
+  })
+
+  it('a Rodada perdida vem do banco com o horário marcado, o motivo e 0 créditos', async () => {
+    abrir({
+      state: 'ativo',
+      rodadas: [{
+        id: 'perdida-1', origem: 'agenda', estado: 'concluida', iniciadaEm: '2026-10-26T18:30:00+00:00', terminouEm: '2026-10-26T18:30:00+00:00',
+        horarioMarcado: '2026-10-26T11:00:00+00:00', contasNoEscopo: null, contasVerificadas: 0, contasSemDado: 0, sinaisNovos: 0, sinaisRepetidos: 0,
+        creditos: 0, motivoDaParada: 'perdida', versaoDoPlano: null, observacao: null,
+      }],
+    })
+
+    const lista = await screen.findByRole('list', { name: 'Rodadas do Sinal' })
+    const [linha] = within(lista).getAllByRole('listitem')
+    expect(within(linha).getByText('Não rodou no horário. Rodadas perdidas não são compensadas.')).toBeInTheDocument()
+    expect(within(linha).getByText('26/10/2026 08:00')).toBeInTheDocument()
+    expect(linha.textContent).toContain('0 créditos')
+  })
+
+  it('a prévia do Rodar agora conta o lote: 25 de 60 Contas', async () => {
+    const contasDoSinal = Array.from({ length: 60 }, (_, i) => `6f1c2d3e-4a5b-4c6d-8e7f-${String(i).padStart(12, '0')}`)
+    const { usuario } = abrir({ state: 'ativo', contasDoSinal, previa: { contas: 25, ate_creditos: 50 } })
+
+    await usuario.click(await screen.findByRole('button', { name: 'Rodar agora' }))
+
+    const dialogo = await screen.findByRole('dialog')
+    expect(within(dialogo).getByText(/Vai verificar até 25 Contas nesta rodada \(de 60 no Sinal\)\. Até 50 créditos \(2 por Conta\)/)).toBeInTheDocument()
   })
 })

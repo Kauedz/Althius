@@ -27,11 +27,32 @@ export interface PlanoDoSinal {
   modeloId?: string
 }
 
-/** Os limites que a tela mostra (o servidor os confere: `_shared/plano-do-sinal/limites.ts`). */
+/**
+ * Os limites que a tela mostra (o servidor os confere: `_shared/plano-do-sinal/limites.ts`). Decidido pelo Kauê em 24/10/2026:
+ * até 500 Contas escolhidas, em rotação; cada Rodada leva um lote de 1 a 100 empresas, e o padrão é 25.
+ */
 export const LIMITES_DO_PLANO = {
   briefingMax: 1000,
-  contasEscolhidasMax: 50,
+  contasEscolhidasMax: 500,
+  empresasPorRodadaMin: 1,
+  empresasPorRodadaMax: 100,
+  empresasPorRodadaPadrao: 25,
 } as const
+
+/**
+ * O lote da Rodada: quantas Contas ela verifica no máximo (`maxEmpresasPorRodada` do Plano, ou o padrão sem Plano), dentro da
+ * faixa. É a mesma conta de `private.signal_round_batch`; a lista de Contas gira de lote em lote.
+ */
+export function loteDaRodada(plano?: Pick<PlanoDoSinal, 'maxEmpresasPorRodada'> | null): number {
+  const { empresasPorRodadaMin: min, empresasPorRodadaMax: max, empresasPorRodadaPadrao: padrao } = LIMITES_DO_PLANO
+  const valor = plano && Number.isFinite(plano.maxEmpresasPorRodada) ? Math.trunc(plano.maxEmpresasPorRodada) : padrao
+  return Math.min(Math.max(valor, min), max)
+}
+
+/** Quantas Contas uma Rodada verifica: as do Sinal, no máximo o lote. */
+export function contasDaRodada(totalDeContas: number, plano?: Pick<PlanoDoSinal, 'maxEmpresasPorRodada'> | null): number {
+  return Math.min(totalDeContas, loteDaRodada(plano))
+}
 
 export interface PedidoDePlano {
   briefing: string
