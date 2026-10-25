@@ -48,7 +48,7 @@ describe('a Fonte de Sinais da Demonstração guarda a Agenda em memória', () =
   it('recusa o que o servidor recusa, com o código', async () => {
     const fonte = criarFonteDeSinaisSimulada({ hoje: HOJE })
 
-    await expect(fonte.salvarAgenda!(MONITOR, { horarios: ['08:00', '09:45'], dias: [1] })).rejects.toMatchObject({
+    await expect(fonte.salvarAgenda!(MONITOR, { horarios: ['08:00', '08:45'], dias: [1] })).rejects.toMatchObject({
       name: 'ErroDaAgenda', codigo: 'intervalo_curto',
     })
     await expect(fonte.salvarAgenda!(MONITOR, { horarios: [], dias: [1] })).rejects.toBeInstanceOf(ErroDaAgenda)
@@ -72,10 +72,11 @@ describe('a Fonte de Sinais da Demonstração guarda a Agenda em memória', () =
     ])
   })
 
-  it('a prévia recusa a Agenda inválida e a de mais de 50 Contas com dois horários', async () => {
+  it('a prévia recusa a Agenda inválida, mas não recusa mais a de uma lista grande', async () => {
     const fonte = criarFonteDeSinaisSimulada({ hoje: HOJE })
 
-    await expect(fonte.proximasRodadas!({ horarios: ['08:00', '09:00'], dias: [1] }, 3, 3)).rejects.toMatchObject({ codigo: 'intervalo_curto' })
-    await expect(fonte.proximasRodadas!({ horarios: ['08:00', '14:00'], dias: [1] }, 51, 3)).rejects.toMatchObject({ codigo: 'muitas_contas' })
+    await expect(fonte.proximasRodadas!({ horarios: ['08:00', '08:45'], dias: [1] }, 3, 3)).rejects.toMatchObject({ codigo: 'intervalo_curto' })
+    expect(await fonte.proximasRodadas!({ horarios: ['08:00', '14:00'], dias: [1] }, 500, 3)).toHaveLength(3)
+    expect(await fonte.proximasRodadas!({ horarios: ['08:00', '09:00'], dias: [1] }, 3, 3)).toHaveLength(3)
   })
 })

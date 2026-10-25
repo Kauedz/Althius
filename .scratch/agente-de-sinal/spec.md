@@ -1,6 +1,6 @@
 # Spec: Agente de Sinal e Agente de Contas
 
-**Status:** open (a direção foi aprovada pelo Kauê em 23/10/2026; a [ADR-0032](../../docs/adr/0032-agente-de-sinal-e-agente-de-contas.md) está como Proposta e as decisões marcadas `DECISÃO PENDENTE` seguem em aberto)
+**Status:** open (a direção foi aprovada pelo Kauê em 23/10/2026; a [ADR-0032](../../docs/adr/0032-agente-de-sinal-e-agente-de-contas.md) está como Proposta e as decisões marcadas `DECISÃO PENDENTE` seguem em aberto; as de 2, 3, 4, 8, 10, 13, 14 e 15 foram decididas em 24/10/2026)
 
 **Frente:** Sinais e Contas. Guia geral: [`docs/visao-geral-da-plataforma.md`](../../docs/visao-geral-da-plataforma.md). Decisões que valem aqui: [ADR-0002](../../docs/adr/0002-permissoes-ler-propor-executar.md) (o Agente propõe, a pessoa decide), [ADR-0004](../../docs/adr/0004-coordenacao-sem-quinto-agente.md), [ADR-0005](../../docs/adr/0005-agentes-criados-a-partir-de-especialidades.md), [ADR-0007](../../docs/adr/0007-sinal-disparado-torna-conta-quente.md), [ADR-0018](../../docs/adr/0018-motor-dos-agentes-na-edge-function.md) e [ADR-0019](../../docs/adr/0019-creditos-e-cobranca-por-usuario.md). Pontos de partida: [`.scratch/modulo-de-sinais/`](../modulo-de-sinais/spec.md), [`.scratch/sinais-reais/`](../sinais-reais/spec.md) e [`.scratch/sinal-candidata-e-descoberta/`](../sinal-candidata-e-descoberta/spec.md).
 
@@ -48,26 +48,27 @@ flowchart LR
 11. A Demonstração é só dos fundadores: não pode quebrar, mas não ganha conteúdo novo além do mínimo para os testes.
 12. Conectores e canais (`conexoes.tsx`, `integration-*`, `slack-*`) são do Renan e não entram nesta frente.
 
-## Decisões pendentes
+## Decisões
 
-Texto completo e padrão recomendado de cada uma na [ADR-0032](../../docs/adr/0032-agente-de-sinal-e-agente-de-contas.md#decisões-em-aberto). Em qual ticket cada uma pesa:
+As de 2, 3, 4, 8, 10, 13, 14 e 15 foram decididas pelo Kauê em 24/10/2026 (ticket 05, ajustes das decisões); as demais seguem pendentes. Texto completo e padrão recomendado de cada uma na [ADR-0032](../../docs/adr/0032-agente-de-sinal-e-agente-de-contas.md#decisões-em-aberto). Em qual ticket cada uma pesa:
 
 | # | Decisão | Ticket |
 | --- | --- | --- |
 | 1 | Barra lateral; o Agente de Contas é Especialidade nova ou o Scopus reposicionado | 13, 14 |
-| 2 | Preço por rodada: fixo por fonte | 04 |
-| 3 | Agenda: intervalo mínimo, Rodadas por dia, dias úteis | 03 |
-| 4 | Teto: o automático exige, "Rodar agora" não | 02, 04 |
+| 2 | Preço por rodada: fixo por fonte, pelo lote. **Decidido pelo Kauê em 24/10/2026** | 04, 05 |
+| 3 | Agenda: 1 h entre Rodadas, até 12 por dia, padrão 08:00 em dias úteis. **Decidido pelo Kauê em 24/10/2026** | 03, 05 |
+| 4 | Teto: o automático exige, "Rodar agora" não; o campo já vem preenchido (custo do mês + 20%). **Decidido pelo Kauê em 24/10/2026** | 02, 04, 05 |
 | 5 | Validar `vaga_mercado` em produção (operacional) | fora do código |
 | 6 | Página de Sinais em "Meus Sinais" e "Modelos" | 14 |
 | 7 | Lista importada: "Importar como Contas-alvo" ou "Só monitorar" | 07 |
-| 8 | Sinal com vários tipos como Sinal pai | 08 |
+| 8 | Um Sinal por Plano; o Sinal pai fica de fora por ora. **Decidido pelo Kauê em 24/10/2026** | 08 |
 | 9 | Lista fixa ou dinâmica | 06 |
-| 10 | Limites para listas | 05 |
+| 10 | Limites para listas: até 500 Contas, até 100 por Rodada com padrão 25, em rotação, sem limite de Rodadas por tamanho de lista. **Decidido pelo Kauê em 24/10/2026** | 05 |
 | 11 | Conta nova roda Sinais | 10 |
 | 12 | Ordem: começar pelo escopo Contas | todos |
-| 13 | Gerar o Plano pela IA: sem crédito, 20 por dia | 01 |
-| 14 | Pausa automática depois de 3 Rodadas puladas | 04 |
+| 13 | Gerar o Plano pela IA: sem crédito, 20 por dia. **Decidido pelo Kauê em 24/10/2026** | 01 |
+| 14 | Pausa automática depois de 3 Rodadas puladas; aviso já na 1ª. **Decidido pelo Kauê em 24/10/2026** | 04, 05 |
+| 15 | Limite por dia opcional (sugerido: custo máximo de um dia) e aviso de repetição acima de 2 por dia. **Decidido pelo Kauê em 24/10/2026** | 04 |
 
 ## Ordem dos tickets
 

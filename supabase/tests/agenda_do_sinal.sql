@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(131);
+select plan(132);
 
 -- Agenda do Sinal (agente-de-sinal 03): os horários, os dias, a próxima Rodada, a recusa no servidor, a continuação que mantém o
 -- horário (e não cobra a mesma Conta duas vezes), a Rodada perdida que não é compensada e o Monitoramento legado, que segue igual.
@@ -46,6 +46,11 @@ from generate_series(1, 51) i;
 
 select public.set_signal_actor_state(a.actor_id, 'available', 'v1') from private.signal_actors a where a.signal_type = 'vaga_linkedin';
 
+-- O horário marcado de A1: um instante fixo dentro da transação, 1 segundo atrás. Com a Rodada perdida (agente-de-sinal 05), o
+-- relógio roda no horário vencido MAIS RECENTE; um horário que o relógio ainda não ultrapassou é o único jeito de a Rodada de A1
+-- ter um horário previsível sem depender do dia em que o teste roda.
+create temporary table ancora on commit drop as select date_trunc('second', now() - interval '1 second') as slot;
+
 -- Os Monitoramentos. Quem não deve ser reivindicado pelo relógio tem a hora marcada num futuro distante (2999).
 -- A1: com Agenda (08:00 e 14:00, seg-sex), ativo e vencido (seg 05/01/2026 08:00 BRT). L1 e L4: legados, ativos e vencidos.
 -- L2: legado pausado. L3: legado em rascunho. S1: legado ativo (a Agenda chega depois). D1 e D2: rascunhos com Agenda.
@@ -55,7 +60,7 @@ insert into private.signal_monitors
   (id, workspace_id, signal_type, name, state, audience, criteria, every_hours, created_by, next_run_at, schedule, current_slot_at) values
   ('fa300000-0000-4000-8000-000000000001', 'fa100000-0000-4000-8000-000000000001', 'vaga_linkedin', 'A1', 'ativo',
    '{"accountIds":["fa200000-0000-4000-8000-000000000001","fa200000-0000-4000-8000-000000000002"]}', '{}', 24,
-   'fa000000-0000-4000-8000-000000000001', '2026-01-05 11:00:00+00',
+   'fa000000-0000-4000-8000-000000000001', (select slot from ancora),
    '{"horarios":["08:00","14:00"],"dias":[1,2,3,4,5],"fuso":"America/Sao_Paulo"}', null),
   ('fa300000-0000-4000-8000-000000000002', 'fa100000-0000-4000-8000-000000000001', 'vaga_linkedin', 'L1', 'ativo',
    '{"accountIds":["fa200000-0000-4000-8000-000000000001"]}', '{}', 6,
@@ -109,7 +114,7 @@ insert into private.signal_monitors
   ('fa300000-0000-4000-8000-000000000019', 'fa100000-0000-4000-8000-000000000001', 'vaga_linkedin', 'G4', 'ativo',
    '{"accountIds":["fa200000-0000-4000-8000-000000000001"]}', '{}', 24,
    'fa000000-0000-4000-8000-000000000001', '2999-01-01 00:00:00+00',
-   '{"horarios":["08:00","09:45"],"dias":[1,2,3,4,5],"fuso":"America/Sao_Paulo"}', null),
+   '{"horarios":["08:00","08:45"],"dias":[1,2,3,4,5],"fuso":"America/Sao_Paulo"}', null),
   ('fa300000-0000-4000-8000-000000000018', 'fa100000-0000-4000-8000-000000000001', 'vaga_linkedin', 'L4', 'ativo',
    '{"accountIds":["fa200000-0000-4000-8000-000000000001"]}', '{}', 48,
    'fa000000-0000-4000-8000-000000000001', '2026-01-05 11:00:00+00', null, null);
@@ -149,9 +154,11 @@ select is(
   true, 'o relógio continua só do servidor');
 select is(
   (select array[private.signal_schedule_limit('step_minutes'), private.signal_schedule_limit('max_per_day'),
-                private.signal_schedule_limit('min_gap_minutes'), private.signal_schedule_limit('big_scope_accounts'),
-                private.signal_schedule_limit('big_scope_max_per_day')]),
-  array[15, 6, 120, 50, 1], 'os limites padrão (DECISÃO PENDENTE 3 e 10) estão numa função só');
+                private.signal_schedule_limit('min_gap_minutes')]),
+  array[15, 12, 60], 'os limites (decididos pelo Kauê em 24/10/2026: 12 por dia, 1 h entre horários) estão numa função só');
+select is(
+  private.signal_schedule_limit('big_scope_accounts') is null and private.signal_schedule_limit('big_scope_max_per_day') is null,
+  true, 'e as chaves do escopo grande saíram');
 select is(private.signal_schedule_default_days(), '[1,2,3,4,5]'::jsonb, 'o padrão dos dias é seg-sex');
 select is((select p.provolatile::text from pg_proc p where p.oid = 'private.next_signal_run(jsonb, timestamptz)'::regprocedure),
   'i', 'o cálculo da próxima Rodada é imutável');
@@ -205,18 +212,20 @@ select lives_ok($$select private.validate_signal_schedule('{"horarios":["00:00",
   'seis horários, 4 h entre eles, são válidos');
 select lives_ok($$select private.validate_signal_schedule('{"horarios":["14:00","08:00"],"dias":[3,1]}', 0)$$,
   'a ordem dos horários e dos dias não importa');
-select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00","10:00"],"dias":[1]}', 0)$$,
-  'exatamente 2 h entre dois horários é válido');
-select lives_ok($$select private.validate_signal_schedule('{"horarios":["23:00","01:00"],"dias":[1]}', 0)$$,
-  'a virada do dia: 23:00 e 01:00 são 2 h');
+select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00","09:00"],"dias":[1]}', 0)$$,
+  'exatamente 1 h entre dois horários é válido');
+select lives_ok($$select private.validate_signal_schedule('{"horarios":["23:00","00:00"],"dias":[1]}', 0)$$,
+  'a virada do dia: 23:00 e 00:00 são 1 h');
+select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"],"dias":[1]}', 0)$$,
+  'doze horários, de hora em hora, são válidos');
 select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00"]}', 0)$$,
   'sem dias nem fuso valem os padrões');
-select throws_ok($$select private.validate_signal_schedule('{"horarios":["00:00","03:00","06:00","09:00","12:00","15:00","18:00"],"dias":[1]}', 0)$$,
-  '22023', 'signal schedule invalid: muitos_horarios', 'sete horários são recusados (o máximo são seis por dia)');
-select throws_ok($$select private.validate_signal_schedule('{"horarios":["08:00","09:45"],"dias":[1]}', 0)$$,
-  '22023', 'signal schedule invalid: intervalo_curto', '1h45 entre dois horários é recusado');
-select throws_ok($$select private.validate_signal_schedule('{"horarios":["23:15","01:00"],"dias":[1]}', 0)$$,
-  '22023', 'signal schedule invalid: intervalo_curto', 'a virada do dia também conta: 23:15 e 01:00 são 1h45');
+select throws_ok($$select private.validate_signal_schedule('{"horarios":["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"],"dias":[1]}', 0)$$,
+  '22023', 'signal schedule invalid: muitos_horarios', 'treze horários são recusados (o máximo são doze por dia)');
+select throws_ok($$select private.validate_signal_schedule('{"horarios":["08:00","08:45"],"dias":[1]}', 0)$$,
+  '22023', 'signal schedule invalid: intervalo_curto', '45 minutos entre dois horários é recusado');
+select throws_ok($$select private.validate_signal_schedule('{"horarios":["23:30","00:15"],"dias":[1]}', 0)$$,
+  '22023', 'signal schedule invalid: intervalo_curto', 'a virada do dia também conta: 23:30 e 00:15 são 45 minutos');
 select throws_ok($$select private.validate_signal_schedule('{"horarios":["08:00","08:00"],"dias":[1]}', 0)$$,
   '22023', 'signal schedule invalid: horario_repetido', 'o mesmo horário duas vezes é recusado');
 select throws_ok($$select private.validate_signal_schedule('{"horarios":[],"dias":[1]}', 0)$$,
@@ -253,12 +262,10 @@ select throws_ok($$select private.validate_signal_schedule('{"horarios":["08:00"
   '22023', 'signal schedule invalid: formato_invalido', 'e a que traz campo desconhecido também');
 select throws_ok($$select private.validate_signal_schedule(null, 0)$$,
   '22023', 'signal schedule invalid: formato_invalido', 'nula não vale');
-select throws_ok($$select private.validate_signal_schedule('{"horarios":["08:00","14:00"],"dias":[1]}', 51)$$,
-  '22023', 'signal schedule invalid: muitas_contas', 'mais de 50 Contas com dois horários é recusado (DECISÃO PENDENTE 10)');
-select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00","14:00"],"dias":[1]}', 50)$$,
-  'com 50 Contas, dois horários ainda cabem');
-select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00"],"dias":[1]}', 51)$$,
-  'e com mais de 50 Contas, um horário cabe');
+select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00","14:00"],"dias":[1]}', 51)$$,
+  'com mais de 50 Contas, dois horários cabem: a lista gira em lotes e a regra do escopo grande acabou');
+select lives_ok($$select private.validate_signal_schedule('{"horarios":["08:00","12:00","16:00"],"dias":[1]}', 500)$$,
+  'e com 500 Contas, três horários também');
 select is(private.normalize_signal_schedule('{"horarios":["14:00","08:00"],"dias":[3,1]}'),
   '{"horarios":["08:00","14:00"],"dias":[1,3],"fuso":"America/Sao_Paulo"}'::jsonb,
   'a Agenda é guardada em ordem e com o fuso escrito');
@@ -274,10 +281,10 @@ select is(
   'o relógio reivindica o Monitoramento com Agenda e os dois legados vencidos');
 select is(
   (select r.slot from reivindicados r where r.k = '1' and r.monitor_id = 'fa300000-0000-4000-8000-000000000001'),
-  '2026-01-05 11:00:00+00'::timestamptz, 'o slot do Monitoramento com Agenda é a hora marcada da Rodada');
+  (select slot from ancora), 'o slot do Monitoramento com Agenda é a hora marcada da Rodada');
 select is(
   (select m.current_slot_at from private.signal_monitors m where m.id = 'fa300000-0000-4000-8000-000000000001'),
-  '2026-01-05 11:00:00+00'::timestamptz, 'e ela fica gravada em current_slot_at');
+  (select slot from ancora), 'e ela fica gravada em current_slot_at');
 select is(
   (select r.slot from reivindicados r where r.k = '1' and r.monitor_id = 'fa300000-0000-4000-8000-000000000002'),
   '2026-01-05 11:00:00+00'::timestamptz, 'o legado tem o slot de sempre: o next_run_at');
@@ -287,15 +294,15 @@ select is(
 
 -- A Rodada de A1 abre uma vez só por horário.
 create temporary table rodadas_abertas (k text primary key, id uuid) on commit drop;
-insert into rodadas_abertas select 'a', public.open_signal_run('fa300000-0000-4000-8000-000000000001', '2026-01-05 11:00:00+00');
-select is(public.open_signal_run('fa300000-0000-4000-8000-000000000001', '2026-01-05 11:00:00+00'), (select id from rodadas_abertas where k = 'a'),
+insert into rodadas_abertas select 'a', public.open_signal_run('fa300000-0000-4000-8000-000000000001', (select slot from ancora));
+select is(public.open_signal_run('fa300000-0000-4000-8000-000000000001', (select slot from ancora)), (select id from rodadas_abertas where k = 'a'),
   'abrir a Rodada de novo, no mesmo horário, devolve a mesma');
 
 -- Alfa é cobrada na primeira chamada; a chamada tem tempo só para ela.
 create temporary table varreduras (k text primary key, outcome text, reservation_id uuid) on commit drop;
 insert into varreduras select 'alfa1', outcome, reservation_id
 from public.begin_account_scan('fa100000-0000-4000-8000-000000000001', 'fa000000-0000-4000-8000-000000000001',
-  'fa300000-0000-4000-8000-000000000001', 'fa200000-0000-4000-8000-000000000001', '2026-01-05 11:00:00+00');
+  'fa300000-0000-4000-8000-000000000001', 'fa200000-0000-4000-8000-000000000001', (select slot from ancora));
 select is((select outcome from varreduras where k = 'alfa1'), 'go', 'a primeira chamada abre a varredura da Alfa');
 select public.end_account_scan((select reservation_id from varreduras where k = 'alfa1'), true);
 
@@ -303,7 +310,7 @@ select public.end_account_scan((select reservation_id from varreduras where k = 
 select public.finish_signal_monitor_run('fa300000-0000-4000-8000-000000000001', 1, null, true);
 select is(
   (select m.current_slot_at from private.signal_monitors m where m.id = 'fa300000-0000-4000-8000-000000000001'),
-  '2026-01-05 11:00:00+00'::timestamptz, 'a continuação mantém o horário da Rodada');
+  (select slot from ancora), 'a continuação mantém o horário da Rodada');
 select is(
   (select m.next_run_at = now() and m.claimed_until is null from private.signal_monitors m where m.id = 'fa300000-0000-4000-8000-000000000001'),
   true, 'e pede a próxima chamada já');
@@ -313,7 +320,7 @@ select is(
   (select array_agg(r.monitor_id::text order by r.monitor_id::text) from reivindicados r where r.k = '2'),
   array['fa300000-0000-4000-8000-000000000001'], 'a chamada seguinte reivindica o Monitoramento que continua');
 select is(
-  (select r.slot from reivindicados r where r.k = '2'), '2026-01-05 11:00:00+00'::timestamptz,
+  (select r.slot from reivindicados r where r.k = '2'), (select slot from ancora),
   'com o mesmo slot de antes, e não com o next_run_at = now() da continuação');
 select is(public.open_signal_run('fa300000-0000-4000-8000-000000000001', (select r.slot from reivindicados r where r.k = '2')),
   (select id from rodadas_abertas where k = 'a'), 'a continuação segue na mesma linha do registro da Rodada');
@@ -334,7 +341,7 @@ select is(
   (2 * private.scan_credits('vaga_linkedin'))::numeric, 'e o total é o preço fixo vezes as duas Contas');
 select is(
   (select r.action_key from private.credit_reservations r where r.id = (select reservation_id from varreduras where k = 'alfa1')),
-  'scan:fa300000-0000-4000-8000-000000000001:fa200000-0000-4000-8000-000000000001:' || extract(epoch from '2026-01-05 11:00:00+00'::timestamptz)::bigint,
+  'scan:fa300000-0000-4000-8000-000000000001:fa200000-0000-4000-8000-000000000001:' || extract(epoch from (select slot from ancora))::bigint,
   'a chave de cobrança é a do horário marcado');
 
 -- A Rodada termina: a próxima é o primeiro horário depois de agora, e a Rodada perdida (14:00 do dia 05/01) não é compensada.
@@ -425,8 +432,8 @@ select is(
   '{"horarios":["09:00"],"dias":[1,2,3,4,5],"fuso":"America/Sao_Paulo"}'::jsonb, 'mas a Agenda nova já fica gravada');
 set local role authenticated;
 select throws_ok(
-  $$select public.save_signal_schedule('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000005', '{"horarios":["08:00","09:45"]}')$$,
-  '22023', 'signal schedule invalid: intervalo_curto', 'o servidor recusa a Agenda com menos de 2 h, mesmo que a tela deixe passar');
+  $$select public.save_signal_schedule('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000005', '{"horarios":["08:00","08:45"]}')$$,
+  '22023', 'signal schedule invalid: intervalo_curto', 'o servidor recusa a Agenda com menos de 1 h, mesmo que a tela deixe passar');
 select throws_ok(
   $$select public.save_signal_schedule('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000005', '{"horarios":[]}')$$,
   '22023', 'signal schedule invalid: sem_horario', 'sem horário também');
@@ -438,12 +445,12 @@ select is(
   (select m.schedule from private.signal_monitors m where m.id = 'fa300000-0000-4000-8000-000000000005'),
   '{"horarios":["08:00","14:00"],"dias":[1,3],"fuso":"America/Sao_Paulo"}'::jsonb, 'a recusa não muda a Agenda que estava gravada');
 set local role authenticated;
-select throws_ok(
-  $$select public.save_signal_schedule('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000009', '{"horarios":["08:00","14:00"]}')$$,
-  '22023', 'signal schedule invalid: muitas_contas', 'com 51 Contas no escopo, dois horários são recusados');
+select is(
+  public.save_signal_schedule('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000009', '{"horarios":["08:00","14:00"]}') ->> 'horarios',
+  '["08:00", "14:00"]', 'com 51 Contas no escopo, dois horários são aceitos (a regra do escopo grande acabou)');
 select is(
   public.save_signal_schedule('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000009', '{"horarios":["08:00"]}') ->> 'horarios',
-  '["08:00"]', 'e um horário por dia é aceito');
+  '["08:00"]', 'e um horário por dia também');
 select throws_ok(
   $$select public.save_signal_schedule('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000012', '{"horarios":["08:00"]}')$$,
   '22023', 'signal schedule invalid: tipo_sem_agenda', 'o Sinal interno, que sai das Interações com o relógio dele, não tem Agenda');
@@ -467,11 +474,11 @@ select is(
   (select count(*)::int from public.preview_signal_schedule('{"horarios":["08:00"]}', '2026-10-23 18:00:00-03', 0)), 1,
   'e pelo menos 1');
 select throws_ok(
-  $$select * from public.preview_signal_schedule('{"horarios":["08:00","09:00"]}', '2026-10-23 18:00:00-03', 3)$$,
+  $$select * from public.preview_signal_schedule('{"horarios":["08:00","08:45"]}', '2026-10-23 18:00:00-03', 3)$$,
   '22023', 'signal schedule invalid: intervalo_curto', 'a prévia recusa a Agenda que o servidor recusaria ao gravar');
-select throws_ok(
-  $$select * from public.preview_signal_schedule('{"horarios":["08:00","14:00"]}', '2026-10-23 18:00:00-03', 3, 51)$$,
-  '22023', 'signal schedule invalid: muitas_contas', 'e a de mais de 50 Contas com dois horários');
+select is(
+  (select count(*)::int from public.preview_signal_schedule('{"horarios":["08:00","14:00"]}', '2026-10-23 18:00:00-03', 3, 500)), 3,
+  'e não recusa mais a Agenda de uma lista grande: com 500 Contas e dois horários a prévia vem');
 
 -- A ativação aponta para o próximo horário.
 select public.set_signal_monitor_state('fa300000-0000-4000-8000-000000000006', 'ativo');
@@ -506,19 +513,19 @@ select is(
   (select m.next_run_at from private.signal_monitors m where m.id = 'fa300000-0000-4000-8000-000000000008'),
   private.next_signal_run('{"horarios":["10:00"],"dias":[1,2,3,4,5]}', now()), 'e editar o que já está ativo mantém a hora marcada');
 set local role authenticated;
-select throws_ok(
+select lives_ok(
   $$select public.save_signal_monitor('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000016', 'vaga_linkedin', 'G2', 'ativo',
     (select jsonb_build_object('accountIds', jsonb_agg(t.id)) from public.target_accounts t where t.name like 'Grande %'), '{}', 24)$$,
-  '22023', 'signal schedule invalid: muitas_contas', 'o editor não passa de 50 Contas num Sinal com dois horários');
+  'o editor passa de 50 Contas num Sinal com dois horários: o escopo grande acabou');
 select lives_ok(
   $$select public.save_signal_monitor('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000017', 'vaga_linkedin', 'G3', 'ativo',
     (select jsonb_build_object('accountIds', jsonb_agg(t.id)) from public.target_accounts t where t.name like 'Grande %'), '{}', 24)$$,
-  'mas passa num Sinal com um horário só');
+  'e num Sinal com um horário só também');
 
 select lives_ok(
   $$select public.save_signal_monitor('fa100000-0000-4000-8000-000000000001', 'fa300000-0000-4000-8000-000000000019', 'vaga_linkedin', 'G4 editado', 'ativo',
     '{"accountIds":["fa200000-0000-4000-8000-000000000001"]}', '{}', 24)$$,
-  'o editor não trava por uma Agenda que deixou de valer (um limite mudado depois): só confere o público novo');
+  'o editor não revalida a Agenda (ela se corrige na tela da Agenda), nem a que deixou de valer por um limite mudado depois');
 
 -- O legado, na ativação: igual a antes.
 select public.set_signal_monitor_state('fa300000-0000-4000-8000-000000000003', 'ativo');
