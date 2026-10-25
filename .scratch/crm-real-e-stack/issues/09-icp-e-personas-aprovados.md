@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Convidar e gerenciar participantes; 08: Persistir perfil e preferências; 13: Persistir Agentes e permissões por integração; 14: Executar Conversas e Coordenação com estado recuperável.
 
-**Status:** ready-for-human (código pronto em 2026-10-09, branch `crm/09-revisao-do-playbook-por-aprovacao`; faltam os Passos do Renan)
+**Status:** closed
 
 - [x] ICP e Personas são persistidos como configuração compartilhada do Workspace, não como cópias por participante. (São as seções `icp` e `personas` do Playbook, uma versão por Workspace. pgTAP `revisao_do_playbook_por_aprovacao.sql`, bloco 9: o Membro lê a mesma versão aprovada, e o outro Workspace continua vazio.)
 - [x] Propostas, decisão administrativa e auditoria têm estado e autor persistidos. (`private.approvals` com `category = 'revisao'`, seção, versão de partida, versão gravada, Agente, Execução, quem pediu, quem decidiu e onde; `private.approval_events` com cada estado e o autor. pgTAP, blocos 2, 8, 10 e 13.)

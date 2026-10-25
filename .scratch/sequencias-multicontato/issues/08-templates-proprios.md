@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 — Criar Sequência a partir de templates da Althius
 
-**Status:** entregue no PR #250 (migration 20261108120000); 6/7 critérios verificados em 2026-10-24; pendente conferência visual humana.
+**Status:** closed — entregue no PR #250 (migration 20261108120000); 6/7 critérios verificados em 2026-10-24; pendente conferência visual humana.
 
 ## Objetivo e escopo
 

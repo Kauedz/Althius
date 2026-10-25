@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Autorizar e executar caminhos independentes com limites
 
-**Status:** entregue nos PRs #251 e #255 (migration 20261112120000; ajuste de teste); 5/7 critérios verificados em 2026-10-24; há lacuna de versão na retomada e pendente conferência visual humana.
+**Status:** closed — entregue nos PRs #251 e #255 (migration 20261112120000; ajuste de teste); 5/7 critérios verificados em 2026-10-24; há lacuna de versão na retomada e pendente conferência visual humana.
 
 ## Objetivo e escopo
 

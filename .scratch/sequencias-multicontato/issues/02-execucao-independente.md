@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Preparar passos e dependências na tela atual
 
-**Status:** entregue no PR #249 (migration 20261111120000); 8/9 critérios verificados em 2026-10-24; pendente conferência visual humana.
+**Status:** closed — entregue no PR #249 (migration 20261111120000); 8/9 critérios verificados em 2026-10-24; pendente conferência visual humana.
 
 ## Objetivo e escopo
 
