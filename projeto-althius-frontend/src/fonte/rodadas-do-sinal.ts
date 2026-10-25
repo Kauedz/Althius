@@ -22,12 +22,12 @@ export const BLOQUEIOS_DA_RODADA: readonly BloqueioDaRodada[] = [
 
 /** A prévia da confirmação do "Rodar agora": Contas, preço em créditos, saldo e o bloqueio, se houver. */
 export interface PreviaDaRodada {
-  /** As Contas no escopo do Sinal. */
+  /** As Contas da próxima Rodada: o lote, que é no máximo as empresas por Rodada do Plano (a lista gira de lote em lote). */
   contas: number
   /** As Contas que devem ficar de fora por falta de dado (estimativa): não são cobradas. */
   contasSemDado: number
   creditosPorConta: number
-  /** O máximo de créditos da Rodada (todas as Contas). */
+  /** O máximo de créditos da Rodada: o lote (as Contas do Sinal, no máximo as empresas por Rodada) vezes o preço por Conta. */
   ateCreditos: number
   /** O saldo disponível, o mesmo número da tela de créditos. */
   saldo: number
@@ -39,7 +39,16 @@ export interface PreviaDaRodada {
 }
 
 /** Por que uma Rodada parou, em código estável. A tela escreve a frase. */
-export type MotivoDaParada = 'sem_creditos' | 'teto' | 'teto_diario' | 'contrato_inativo' | 'prazo' | 'concluida' | 'erro'
+export type MotivoDaParada =
+  | 'sem_creditos'
+  | 'teto'
+  | 'teto_diario'
+  | 'contrato_inativo'
+  | 'prazo'
+  | 'concluida'
+  | 'erro'
+  /** O horário da Agenda passou sem a Rodada começar (o relógio parado, o contrato inativo...). Não é compensada. */
+  | 'perdida'
 
 export type OrigemDaRodada = 'agenda' | 'manual'
 
@@ -49,6 +58,8 @@ export interface RodadaRegistrada {
   estado: 'rodando' | 'concluida' | 'falhou'
   iniciadaEm: string
   terminouEm: string | null
+  /** O horário marcado da Rodada agendada (ISO), ou a hora do pedido na manual. É o que a Rodada perdida mostra. */
+  horarioMarcado?: string | null
   /** As Contas no escopo quando a Rodada começou (nulo nas Rodadas de antes do registro). */
   contasNoEscopo: number | null
   contasVerificadas: number
@@ -150,6 +161,8 @@ export class ErroDaRodada extends Error {
 
 export const MENSAGEM_DA_FALHA_DA_RODADA = 'Não foi possível pedir a rodada. Tente de novo.'
 
+export const TEXTO_DA_RODADA_PERDIDA = 'Não rodou no horário. Rodadas perdidas não são compensadas.'
+
 /** O motivo da parada em texto, para a linha da Rodada. `rodando` vale enquanto a Rodada está aberta. */
 export function textoDaParada(rodada: Pick<RodadaRegistrada, 'estado' | 'motivoDaParada'>): string {
   if (rodada.estado === 'rodando') return rodada.motivoDaParada === 'prazo' ? 'Rodando. Continua na próxima volta.' : 'Rodando.'
@@ -166,6 +179,8 @@ export function textoDaParada(rodada: Pick<RodadaRegistrada, 'estado' | 'motivoD
       return 'Parou: o tempo da rodada acabou.'
     case 'erro':
       return 'Terminou com erro.'
+    case 'perdida':
+      return TEXTO_DA_RODADA_PERDIDA
     default:
       return rodada.estado === 'falhou' ? 'Terminou com erro.' : 'Concluída.'
   }
@@ -177,11 +192,18 @@ export const INTERVALO_DA_CONFERENCIA_EM_MS = 30_000
 const plural = (n: number, singular: string, pluralizado: string) => `${n.toLocaleString('pt-BR')} ${n === 1 ? singular : pluralizado}`
 const creditos = (n: number) => plural(n, 'crédito', 'créditos')
 
-/** O texto da confirmação: o que a Rodada pode custar, antes de a pessoa clicar. Só créditos. */
-export function textoDaPrevia(previa: PreviaDaRodada): string {
+/**
+ * O texto da confirmação: o que a Rodada pode custar, antes de a pessoa clicar. Só créditos. A Rodada verifica um lote: quando o
+ * Sinal tem mais Contas que o lote, o texto diz o lote e o total ("até 25 Contas nesta rodada (de 60 no Sinal)"). `contasNoSinal`:
+ * todas as Contas do Sinal.
+ */
+export function textoDaPrevia(previa: PreviaDaRodada, contasNoSinal?: number): string {
   const saldo = previa.ilimitado ? 'Ilimitado' : creditos(previa.saldo)
+  const doLote = contasNoSinal !== undefined && contasNoSinal > previa.contas
   return [
-    `Vai verificar até ${plural(previa.contas, 'Conta', 'Contas')}.`,
+    doLote
+      ? `Vai verificar até ${plural(previa.contas, 'Conta', 'Contas')} nesta rodada (de ${contasNoSinal.toLocaleString('pt-BR')} no Sinal).`
+      : `Vai verificar até ${plural(previa.contas, 'Conta', 'Contas')}.`,
     `Até ${creditos(previa.ateCreditos)} (${previa.creditosPorConta.toLocaleString('pt-BR')} por Conta).`,
     `Seu saldo: ${saldo}.`,
     'Contas sem dado suficiente não são cobradas.',

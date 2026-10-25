@@ -57,7 +57,7 @@ import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
 import { AgendaDoSinalNoMonitoramento } from './agenda'
 import { AtivarSinal } from './ativar-sinal'
-import { AvisoDePausaPorCreditos } from './aviso-de-pausa'
+import { AvisoDePausaPorCreditos, AvisoDeRodadaPulada } from './aviso-de-pausa'
 import { RodadasDoMonitoramento, RodarAgora } from './rodadas'
 import { useRodadas } from './usar-rodadas'
 import { ResumoDoPlano } from './resumo-do-plano'
@@ -267,6 +267,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
         </div>
 
         {existente?.pausadoPor === 'sem_creditos' && <AvisoDePausaPorCreditos monitoramento={existente} />}
+        {existente && <AvisoDeRodadaPulada monitoramento={existente} />}
 
         {existente?.plano && <ResumoDoPlano monitoramento={existente} />}
 
@@ -428,7 +429,7 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
               )}
             </BarraDeAcoes>
 
-            {existente && <RodadasDoMonitoramento rodadas={rodadas} />}
+            {existente && <RodadasDoMonitoramento rodadas={rodadas} monitoramento={existente} />}
           </>
         )}
 

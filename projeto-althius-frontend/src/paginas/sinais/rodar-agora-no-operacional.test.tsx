@@ -24,7 +24,7 @@ const PLANO = {
   escopo: { tipo: 'contas', contaIds: [CONTA] },
   sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'], periodo: 'Últimos 30 dias' } }],
   explicacao: 'Vamos acompanhar “Abertura de vagas”.',
-  maxEmpresasPorRodada: 50,
+  maxEmpresasPorRodada: 25,
 }
 
 afterEach(() => {

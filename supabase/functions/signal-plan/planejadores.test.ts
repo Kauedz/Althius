@@ -110,7 +110,7 @@ Deno.test('IA: uma saída válida vira o Plano, com origem, escopo e limite do s
   assertEquals(plano.sinais, [{ tipo: 'nova_lideranca', criterios: { cargos: ['CTO', 'CDO'], movimento: ['Chegada'], periodo: 'Últimos 90 dias' } }])
   assertEquals(plano.origem, 'briefing')
   assertEquals(plano.escopo, { tipo: 'contas', contaIds: CONTAS })
-  assertEquals(plano.maxEmpresasPorRodada, 50)
+  assertEquals(plano.maxEmpresasPorRodada, 25)
   assertEquals(plano.explicacao, 'Avisamos quando chegar um CTO ou CDO nas Contas escolhidas.')
   assertEquals(llm.chamadas[0].workspaceId, 'w1')
 })

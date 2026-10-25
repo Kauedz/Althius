@@ -1,7 +1,8 @@
 import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AgendaDoSinal } from '@/fonte/agenda-do-sinal'
-import { ErroDoLimite, estimativaLocal, type BloqueioDaAtivacao } from '@/fonte/preco-por-rodada'
+import { ErroDaAutomacao, ErroDoLimite, estimativaLocal, type BloqueioDaAtivacao } from '@/fonte/preco-por-rodada'
+import type { HistoricoDeRodadas, RodadaRegistrada } from '@/fonte/rodadas-do-sinal'
 import type { PlanoDoSinal } from '@/fonte/plano-do-sinal'
 import type { FonteDeSinais, Monitoramento } from '@/fonte/sinais-tipos'
 import type { FonteDeAgentes, Papel } from '@/fonte/tipos'
@@ -20,7 +21,7 @@ const PLANO: PlanoDoSinal = {
   escopo: { tipo: 'contas', contaIds: ['nubank'] },
   sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'], periodo: 'Últimos 30 dias' } }],
   explicacao: 'Vamos acompanhar “Abertura de vagas”.',
-  maxEmpresasPorRodada: 50,
+  maxEmpresasPorRodada: 25,
 }
 
 const DOIS_HORARIOS: AgendaDoSinal = { horarios: ['08:00', '14:00'], dias: [1, 2, 3, 4, 5] }
@@ -31,6 +32,14 @@ interface Ajustes {
   agenda?: AgendaDoSinal
   limitePorDia?: number
   pausadoPor?: 'sem_creditos'
+  /** As Rodadas seguidas puladas por falta de créditos (o Sinal segue ativo). */
+  rodadasPuladas?: number
+  /** O limite mensal da automação que a Fonte sugere. */
+  limiteMensal?: number
+  /** Troca a liberação da automação (para o servidor recusar, por exemplo). */
+  liberar?: (limite: number) => Promise<void>
+  /** O histórico de Rodadas que a Fonte devolve. */
+  historico?: HistoricoDeRodadas
   porRodada?: number
   saldo?: number
   bloqueio?: BloqueioDaAtivacao | null
@@ -66,6 +75,7 @@ function montar(ajustes: Ajustes = {}) {
           ...(agenda ? { agenda } : {}),
           ...(limite !== undefined ? { limitePorDia: limite } : {}),
           ...(ajustes.pausadoPor ? { pausadoPor: ajustes.pausadoPor } : {}),
+          ...(ajustes.rodadasPuladas ? { rodadasPuladas: ajustes.rodadasPuladas } : {}),
         }
     const { estimarAgenda: _estimar, salvarLimitePorDia: _limite, ...resto } = fonte
     return {
@@ -86,6 +96,12 @@ function montar(ajustes: Ajustes = {}) {
         agenda = nova
         return ajustar(await fonte.salvarAgenda!(id, nova))
       },
+      limiteMensalSugerido: () => Promise.resolve(ajustes.limiteMensal ?? 2601),
+      liberarAutomacao: async (_id, valor) => {
+        registro.gravacoes.push(`liberar:${valor}`)
+        await ajustes.liberar?.(valor)
+      },
+      ...(ajustes.historico ? { rodadas: () => Promise.resolve(ajustes.historico!) } : {}),
       salvarMonitoramento: (m) => (registro.gravacoes.push(`salvar:${m.estado}`), fonte.salvarMonitoramento(m)),
       mudarEstado: (id, estado) => (registro.gravacoes.push(`estado:${estado}`), fonte.mudarEstado(id, estado)),
       ...(ajustes.semEstimativa
@@ -511,5 +527,168 @@ describe('Pausado por falta de créditos', () => {
 
     await screen.findByRole('region', { name: 'Agenda' })
     expect(screen.queryByText('Pausado por falta de créditos')).not.toBeInTheDocument()
+  })
+})
+
+describe('Liberar a automação ao ativar, com o limite mensal já preenchido', () => {
+  async function abrirConfirmacao(ajustes: Ajustes = {}) {
+    const aberto = await abrir({ estado: 'rascunho', agenda: DOIS_HORARIOS, bloqueio: 'sem_teto_automacao', papel: 'administrador', ...ajustes })
+    await aberto.usuario.click(await screen.findByRole('button', { name: 'Revisar e ativar' }))
+    await aberto.usuario.click(await screen.findByRole('button', { name: 'Ativar monitoramento' }))
+    return { ...aberto, dialogo: await screen.findByRole('dialog', { name: 'Ativar Sinal' }) }
+  }
+
+  it('o Administrador vê o campo já preenchido com o sugerido, o botão e o caminho de sempre, só em créditos', async () => {
+    const { dialogo } = await abrirConfirmacao()
+
+    const campo = await within(dialogo).findByLabelText('Limite mensal da automação (créditos)')
+    await waitFor(() => expect(campo).toHaveValue('2601'))
+    expect(within(dialogo).getByRole('button', { name: 'Liberar e ativar' })).toBeEnabled()
+    expect(within(dialogo).getByRole('link', { name: 'Configurar a automação' })).toHaveAttribute('href', '/configuracoes/automacao')
+    expect(within(dialogo).getByRole('button', { name: 'Ativar' })).toBeDisabled()
+    // Só o sugerido, em créditos: nenhum dólar, nenhuma palavra Teto, nenhum limite que o Workspace já tenha.
+    expect(dialogo.textContent).not.toMatch(/US\$|\$|teto/i)
+  })
+
+  it('"Liberar e ativar" libera a automação com o limite e ativa o Sinal de sempre, nessa ordem', async () => {
+    const { usuario, dialogo, registro } = await abrirConfirmacao()
+    await waitFor(() => expect(within(dialogo).getByLabelText('Limite mensal da automação (créditos)')).toHaveValue('2601'))
+
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Liberar e ativar' }))
+
+    await waitFor(() => expect(registro.gravacoes).toEqual(['liberar:2601', 'limite:48', 'salvar:ativo']))
+  })
+
+  it('o Administrador pode editar o limite antes de liberar', async () => {
+    const { usuario, dialogo, registro } = await abrirConfirmacao()
+    const campo = await within(dialogo).findByLabelText('Limite mensal da automação (créditos)')
+    await waitFor(() => expect(campo).toHaveValue('2601'))
+
+    await usuario.clear(campo)
+    await usuario.type(campo, '3000')
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Liberar e ativar' }))
+
+    await waitFor(() => expect(registro.gravacoes[0]).toBe('liberar:3000'))
+  })
+
+  it('um limite que não é inteiro de 1 em diante é recusado na tela, sem chamar o servidor', async () => {
+    const { usuario, dialogo, registro } = await abrirConfirmacao()
+    const campo = await within(dialogo).findByLabelText('Limite mensal da automação (créditos)')
+    await waitFor(() => expect(campo).toHaveValue('2601'))
+
+    for (const invalido of ['0', '2,5', 'muito']) {
+      await usuario.clear(campo)
+      await usuario.type(campo, invalido)
+      await usuario.click(within(dialogo).getByRole('button', { name: 'Liberar e ativar' }))
+      expect(await within(dialogo).findByRole('alert')).toHaveTextContent('Use um número inteiro de créditos, de 1 em diante.')
+    }
+    expect(registro.gravacoes).toEqual([])
+  })
+
+  it('a recusa do servidor vira a frase do produto e nada é ativado', async () => {
+    const { usuario, dialogo, registro } = await abrirConfirmacao({ liberar: () => Promise.reject(new ErroDaAutomacao('acima_da_faixa')) })
+    await waitFor(() => expect(within(dialogo).getByLabelText('Limite mensal da automação (créditos)')).toHaveValue('2601'))
+
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Liberar e ativar' }))
+
+    expect(await within(dialogo).findByText(/O limite não pode passar dos créditos do plano/)).toBeInTheDocument()
+    expect(registro.gravacoes).toEqual(['liberar:2601'])
+    expect(within(dialogo).getByRole('button', { name: 'Liberar e ativar' })).toBeEnabled()
+  })
+
+  it('quem não é Administrador continua vendo só o pedido, sem campo nem botão', async () => {
+    const { dialogo } = await abrirConfirmacao({ papel: 'membro' })
+
+    expect(await within(dialogo).findByText('Peça ao responsável pelo plano para liberar a automação.')).toBeInTheDocument()
+    expect(within(dialogo).queryByLabelText('Limite mensal da automação (créditos)')).not.toBeInTheDocument()
+    expect(within(dialogo).queryByRole('button', { name: 'Liberar e ativar' })).not.toBeInTheDocument()
+  })
+})
+
+describe('A 1ª Rodada pulada por falta de créditos', () => {
+  const PULADA: Ajustes = { estado: 'ativo', rodadasPuladas: 1, agenda: DOIS_HORARIOS }
+  const TEXTO = 'A última rodada foi pulada porque os créditos acabaram. Depois de 3 rodadas puladas seguidas, o Sinal pausa.'
+
+  it('o aviso no topo da página do Monitoramento tem "Ver créditos" e o Sinal segue ativo', async () => {
+    await abrir(PULADA)
+
+    const aviso = await screen.findByRole('complementary', { name: 'Rodada pulada por falta de créditos: Vagas de engenharia de dados' })
+    expect(within(aviso).getByText(TEXTO)).toBeInTheDocument()
+    expect(within(aviso).getByRole('link', { name: 'Ver créditos' })).toHaveAttribute('href', '/configuracoes/plano')
+    expect(within(aviso).queryByRole('button', { name: 'Reativar' })).not.toBeInTheDocument()
+    expect(aviso.textContent).not.toMatch(/US\$|\$|teto/i)
+    expect(screen.queryByText('Pausado por falta de créditos')).not.toBeInTheDocument()
+  })
+
+  it('"Meus Sinais" lista o Sinal ativo com a Rodada pulada, com "Ver créditos"', async () => {
+    await abrir(PULADA, '/sinais')
+
+    const meus = await screen.findByRole('region', { name: 'Meus Sinais' })
+    const grupo = await within(meus).findByRole('group', { name: 'Sinais com rodada pulada por falta de créditos' })
+    expect(within(grupo).getByText('Rodada pulada por falta de créditos')).toBeInTheDocument()
+    expect(within(grupo).getByText(/Vagas de engenharia de dados/)).toBeInTheDocument()
+    expect(within(grupo).getByRole('link', { name: 'Ver créditos' })).toHaveAttribute('href', '/configuracoes/plano')
+  })
+
+  it('a página do tipo mostra o aviso no Monitoramento que teve a Rodada pulada', async () => {
+    await abrir(PULADA, '/sinais/tipos/abertura-de-vagas')
+
+    const lista = await screen.findByRole('list', { name: 'Monitoramentos deste tipo' })
+    const item = within(lista).getByRole('listitem', { name: 'Vagas de engenharia de dados' })
+    expect(within(item).getByText('Rodada pulada por falta de créditos')).toBeInTheDocument()
+    expect(within(item).getByRole('link', { name: 'Ver créditos' })).toHaveAttribute('href', '/configuracoes/plano')
+  })
+
+  it('em Rodadas, o aviso fica na linha da Rodada que parou por falta de créditos', async () => {
+    const historico: HistoricoDeRodadas = {
+      rodadas: [rodada('r2', 'sem_creditos', '2026-10-26T11:00:03.000Z'), rodada('r1', 'concluida', '2026-10-25T11:00:00.000Z')],
+      pedidos: [],
+    }
+    await abrir({ ...PULADA, historico })
+
+    const lista = await screen.findByRole('list', { name: 'Rodadas do Sinal' })
+    const [pulada, normal] = within(lista).getAllByRole('listitem')
+    expect(within(pulada).getByText('Parou: acabaram os créditos.')).toBeInTheDocument()
+    expect(within(pulada).getByText('Rodada pulada por falta de créditos')).toBeInTheDocument()
+    expect(within(pulada).getByRole('link', { name: 'Ver créditos' })).toHaveAttribute('href', '/configuracoes/plano')
+    expect(within(normal).queryByText('Rodada pulada por falta de créditos')).not.toBeInTheDocument()
+  })
+
+  it('some quando nenhuma Rodada foi pulada, e o Sinal pausado tem o aviso da pausa, não este', async () => {
+    await abrir({ estado: 'ativo', agenda: DOIS_HORARIOS })
+    await screen.findByRole('region', { name: 'Agenda' })
+    expect(screen.queryByText('Rodada pulada por falta de créditos')).not.toBeInTheDocument()
+    cleanup()
+
+    await abrir({ estado: 'pausado', pausadoPor: 'sem_creditos', rodadasPuladas: 3, agenda: DOIS_HORARIOS })
+    await screen.findByRole('complementary', { name: /Pausado por falta de créditos/ })
+    expect(screen.queryByText('Rodada pulada por falta de créditos')).not.toBeInTheDocument()
+  })
+})
+
+function rodada(id: string, motivoDaParada: RodadaRegistrada['motivoDaParada'], iniciadaEm: string): RodadaRegistrada {
+  return {
+    id, origem: 'agenda', estado: 'concluida', iniciadaEm, terminouEm: iniciadaEm, contasNoEscopo: 12, contasVerificadas: 0, contasSemDado: 0,
+    sinaisNovos: 0, sinaisRepetidos: 0, creditos: 0, motivoDaParada, versaoDoPlano: 1, observacao: null,
+  }
+}
+
+describe('A Rodada perdida em Rodadas', () => {
+  it('mostra o horário marcado em Brasília, "Não rodou no horário" e 0 créditos', async () => {
+    const perdida: RodadaRegistrada = {
+      ...rodada('perdida-1', 'perdida', '2026-10-26T18:30:00.000Z'),
+      horarioMarcado: '2026-10-26T11:00:00.000Z',
+      contasNoEscopo: null,
+    }
+    await abrir({ estado: 'ativo', agenda: DOIS_HORARIOS, historico: { rodadas: [perdida], pedidos: [] } })
+
+    const lista = await screen.findByRole('list', { name: 'Rodadas do Sinal' })
+    const [linha] = within(lista).getAllByRole('listitem')
+    expect(within(linha).getByText('Não rodou no horário. Rodadas perdidas não são compensadas.')).toBeInTheDocument()
+    // O horário marcado (08:00 em Brasília), e não a hora em que o relógio a registrou (15:30).
+    expect(within(linha).getByText('26/10/2026 08:00')).toBeInTheDocument()
+    expect(within(linha).queryByText('26/10/2026 15:30')).not.toBeInTheDocument()
+    expect(linha.textContent).toContain('0 créditos')
+    expect(linha.textContent).toContain('Agendada')
   })
 })

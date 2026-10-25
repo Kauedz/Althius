@@ -19,7 +19,7 @@ const PLANO: PlanoDoSinal = {
   escopo: { tipo: 'contas', contaIds: ['nubank'] },
   sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'], periodo: 'Últimos 30 dias' } }],
   explicacao: 'Vamos acompanhar “Abertura de vagas”.',
-  maxEmpresasPorRodada: 50,
+  maxEmpresasPorRodada: 25,
 }
 
 interface Ajustes {
@@ -85,7 +85,7 @@ describe('A Agenda na página do Monitoramento', () => {
     expect(chips(bloco)).toEqual(['08:00'])
     for (const dia of ['Seg', 'Ter', 'Qua', 'Qui', 'Sex']) expect(within(bloco).getByRole('checkbox', { name: dia })).toBeChecked()
     for (const dia of ['Sáb', 'Dom']) expect(within(bloco).getByRole('checkbox', { name: dia })).not.toBeChecked()
-    expect(within(bloco).getByText(/Até 6 rodadas por dia, com pelo menos 2 horas entre elas\./)).toBeInTheDocument()
+    expect(within(bloco).getByText(/Até 12 rodadas por dia, com pelo menos 1 hora entre elas\./)).toBeInTheDocument()
     expect(bloco.textContent).toMatch(/Rodadas por semana\s*5/)
     expect(within(bloco).getByText(/o relógio acorda o Sinal a cada 10 minutos/i)).toBeInTheDocument()
     // Sem agenda salva, o Sinal segue a cada 24 horas; a sugestão pode ser salva como está.
@@ -117,30 +117,33 @@ describe('A Agenda na página do Monitoramento', () => {
     expect(opcoes.at(-1)).toBe('23:45')
   })
 
-  it('recusa em linha o horário com menos de 2 horas, o repetido e o sétimo, sem adicioná-los', async () => {
+  it('recusa em linha o horário com menos de 1 hora, o repetido e o décimo terceiro, sem adicioná-los', async () => {
     const { usuario, bloco } = await abrir()
     const adicionar = async (horario: string) => {
       await usuario.selectOptions(within(bloco).getByLabelText('Novo horário'), horario)
       await usuario.click(within(bloco).getByRole('button', { name: 'Adicionar horário' }))
     }
 
-    await adicionar('09:45')
-    expect(within(bloco).getByRole('alert')).toHaveTextContent('Deixe pelo menos 2 horas entre uma rodada e outra.')
+    await adicionar('08:45')
+    expect(within(bloco).getByRole('alert')).toHaveTextContent('Deixe pelo menos 1 hora entre uma rodada e outra.')
     expect(chips(bloco)).toEqual(['08:00'])
 
     await adicionar('08:00')
     expect(within(bloco).getByRole('alert')).toHaveTextContent('Esse horário já está na agenda.')
 
-    for (const horario of ['00:00', '04:00', '12:00', '16:00', '20:00']) await adicionar(horario)
-    expect(chips(bloco)).toHaveLength(6)
+    // De hora em hora, a partir das 09:00: com o das 08:00 são 12 horários, o máximo por dia.
+    for (const horario of ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00']) {
+      await adicionar(horario)
+    }
+    expect(chips(bloco)).toHaveLength(12)
     expect(within(bloco).queryByRole('alert')).not.toBeInTheDocument()
 
-    await adicionar('22:00')
-    expect(within(bloco).getByRole('alert')).toHaveTextContent('Até 6 rodadas por dia.')
-    expect(chips(bloco)).toHaveLength(6)
+    await adicionar('20:00')
+    expect(within(bloco).getByRole('alert')).toHaveTextContent('Até 12 rodadas por dia.')
+    expect(chips(bloco)).toHaveLength(12)
   })
 
-  it('a virada do dia vale: 23:00 e 01:00 são 2 horas; 23:15 e 01:00, não', async () => {
+  it('a virada do dia vale: 23:00 e 00:00 são 1 hora; 23:30 e 00:15, não', async () => {
     const { usuario, bloco } = await abrir()
     const adicionar = async (horario: string) => {
       await usuario.selectOptions(within(bloco).getByLabelText('Novo horário'), horario)
@@ -148,10 +151,10 @@ describe('A Agenda na página do Monitoramento', () => {
     }
     await usuario.click(within(bloco).getByRole('button', { name: 'Remover 08:00' }))
 
-    await adicionar('23:15')
-    await adicionar('01:00')
-    expect(within(bloco).getByRole('alert')).toHaveTextContent('Deixe pelo menos 2 horas entre uma rodada e outra.')
-    expect(chips(bloco)).toEqual(['23:15'])
+    await adicionar('23:30')
+    await adicionar('00:15')
+    expect(within(bloco).getByRole('alert')).toHaveTextContent('Deixe pelo menos 1 hora entre uma rodada e outra.')
+    expect(chips(bloco)).toEqual(['23:30'])
   })
 
   it('sem nenhum horário, avisa em linha e não deixa salvar', async () => {
@@ -207,24 +210,16 @@ describe('A Agenda na página do Monitoramento', () => {
     expect(await within(bloco).findByText('O Sinal está pausado: as rodadas voltam quando você o retomar.')).toBeInTheDocument()
   })
 
-  it('com mais de 50 Contas no escopo, o aviso aparece e o segundo horário é recusado', async () => {
-    const { usuario, bloco } = await abrir({ contas: 51 })
+  it('uma lista grande não limita a Agenda: com 500 Contas não há aviso e vários horários cabem', async () => {
+    const { usuario, bloco } = await abrir({ contas: 500 })
 
-    expect(within(bloco).getByText('Com mais de 50 Contas, o Sinal roda 1 vez por dia.')).toBeInTheDocument()
-    await usuario.selectOptions(within(bloco).getByLabelText('Novo horário'), '14:00')
-    await usuario.click(within(bloco).getByRole('button', { name: 'Adicionar horário' }))
-
-    expect(within(bloco).getByRole('alert')).toHaveTextContent('Com mais de 50 Contas, o Sinal roda 1 vez por dia.')
-    expect(chips(bloco)).toEqual(['08:00'])
-  })
-
-  it('com 50 Contas, o aviso não aparece e dois horários cabem', async () => {
-    const { usuario, bloco } = await abrir({ contas: 50 })
-
-    expect(within(bloco).queryByText('Com mais de 50 Contas, o Sinal roda 1 vez por dia.')).not.toBeInTheDocument()
-    await usuario.selectOptions(within(bloco).getByLabelText('Novo horário'), '14:00')
-    await usuario.click(within(bloco).getByRole('button', { name: 'Adicionar horário' }))
-    expect(chips(bloco)).toHaveLength(2)
+    expect(bloco.textContent).not.toMatch(/mais de 50 Contas|Com mais de/)
+    for (const horario of ['14:00', '18:00']) {
+      await usuario.selectOptions(within(bloco).getByLabelText('Novo horário'), horario)
+      await usuario.click(within(bloco).getByRole('button', { name: 'Adicionar horário' }))
+    }
+    expect(chips(bloco)).toEqual(['08:00', '14:00', '18:00'])
+    expect(within(bloco).queryByRole('alert')).not.toBeInTheDocument()
   })
 })
 
@@ -249,7 +244,7 @@ describe('Salvar a Agenda', () => {
 
     await usuario.click(within(bloco).getByRole('button', { name: 'Salvar agenda' }))
 
-    expect(await within(bloco).findByRole('alert')).toHaveTextContent('Deixe pelo menos 2 horas entre uma rodada e outra.')
+    expect(await within(bloco).findByRole('alert')).toHaveTextContent('Deixe pelo menos 1 hora entre uma rodada e outra.')
     expect(within(bloco).getByRole('button', { name: 'Salvar agenda' })).toBeEnabled()
   })
 

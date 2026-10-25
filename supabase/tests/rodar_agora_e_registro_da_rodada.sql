@@ -297,7 +297,7 @@ set local role authenticated;
 insert into cot select q.bloqueio, q.liberado_em from public.quote_signal_run('f9100000-0000-4000-8000-000000000001', 'f9300000-0000-4000-8000-000000000001') q;
 reset role;
 select is(
-  (select c.bloqueio || '|' || (c.liberado_em = (select s.requested_at + interval '120 minutes' from private.signal_run_requests s where s.id = (select id from r where k = 'm1')))::text from cot c),
+  (select c.bloqueio || '|' || (c.liberado_em = (select s.requested_at + interval '60 minutes' from private.signal_run_requests s where s.id = (select id from r where k = 'm1')))::text from cot c),
   'intervalo_minimo|true', 'uma Rodada manual de 30 minutos atrás bloqueia, e a prévia diz quando libera');
 set local role authenticated;
 select throws_ok(
@@ -710,8 +710,8 @@ select set_config('request.jwt.claim.sub', 'f9000000-0000-4000-8000-000000000001
 -- 9. O histórico: as Rodadas do Monitoramento e os pedidos ainda abertos.
 select is(
   (select ((public.list_signal_runs('f9100000-0000-4000-8000-000000000001', 'f9300000-0000-4000-8000-000000000001') -> 'rodadas') -> 0)
-          - 'id' - 'iniciadaEm' - 'terminouEm'),
-  jsonb_build_object('origem', 'manual', 'estado', 'concluida', 'contasNoEscopo', 3, 'contasVerificadas', 2, 'contasSemDado', 0,
+          - 'id' - 'iniciadaEm' - 'terminouEm' - 'horarioMarcado'),
+  jsonb_build_object('origem', 'manual', 'estado', 'concluida', 'contasNoEscopo', 3,  'contasVerificadas', 2, 'contasSemDado', 0,
     'sinaisNovos', 1, 'sinaisRepetidos', 0, 'creditos', 4, 'motivoDaParada', 'concluida', 'versaoDoPlano', 2,
     'observacao', 'Contas sem a página da empresa no LinkedIn ficaram de fora: Gama.'),
   'o histórico traz origem, contagens, créditos, motivo da parada e a versão do Plano');
