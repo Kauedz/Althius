@@ -36,7 +36,11 @@ export function useTema() {
   const [tema, setTema] = useState<Tema>(lerTema)
 
   useEffect(() => {
-    document.documentElement.dataset.theme = tema
+    // Lê de novo na montagem: outro componente pode ter aplicado o tema salvo entre o render e este efeito, e o
+    // estado inicial já estaria velho (ex.: a Casca abre depois do Day0, junto com o tema salvo na Conta).
+    const atual = lerTema()
+    document.documentElement.dataset.theme = atual
+    setTema(atual)
     const ouvinte = () => setTema(lerTema())
     ouvintes.add(ouvinte)
     return () => {

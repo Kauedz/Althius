@@ -144,7 +144,7 @@ describe('O cartão do Calendly no Workspace operacional', () => {
     await usuario.click(within(cartao).getByRole('button', { name: 'Habilitar' }))
 
     expect(await within(cartao).findByText('Habilitada no Workspace')).toBeInTheDocument()
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['calendly'])
   })
 
@@ -162,7 +162,7 @@ describe('O cartão do Calendly no Workspace operacional', () => {
     const { usuario, pedidos } = abrir()
 
     const cartao = await screen.findByRole('article', { name: 'Calendly' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Usar chave de API' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
 
@@ -186,7 +186,7 @@ describe('O cartão do Calendly no Workspace operacional', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'Calendly' })
-    expect(await within(cartao).findByText('Conectado como marina@cliente.com.br')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado como marina@cliente.com.br')).toBeInTheDocument()
     await usuario.click(within(cartao).getByRole('button', { name: 'Ver ferramentas' }))
     const dialogo = await screen.findByRole('dialog', { name: 'Ferramentas do Calendly' })
     expect(await within(dialogo).findByText('event_types-list_event_types')).toBeInTheDocument()
@@ -201,8 +201,8 @@ describe('O cartão do Calendly no Workspace operacional', () => {
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'calendly' }])
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(cartao).getByText('1 participante conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 1 participante conectado')).toBeInTheDocument()
     expect(screen.queryByText(/não conseguiu avisar o Calendly/)).not.toBeInTheDocument()
   })
 
@@ -212,7 +212,7 @@ describe('O cartão do Calendly no Workspace operacional', () => {
     const cartao = await screen.findByRole('article', { name: 'Calendly' })
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(
       await screen.findByText(
         'Desconectado da Althius, mas a Althius não conseguiu avisar o Calendly. Para garantir, remova a autorização da Althius nas configurações do Calendly.',
@@ -225,7 +225,7 @@ describe('O cartão do Calendly no Workspace operacional', () => {
     const { usuario, pedidos } = abrir({ acessos: [{ ...CALENDLY_CONECTADO, state: 'precisa_reconectar' }] })
 
     const cartao = await screen.findByRole('article', { name: 'Calendly' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Ver ferramentas' })).not.toBeInTheDocument()
     await usuario.click(within(cartao).getByRole('button', { name: 'Reconectar no Calendly' }))
 
@@ -248,6 +248,6 @@ describe('O cartão do Calendly no Workspace operacional', () => {
 
     expect(await screen.findByText(aviso)).toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'Calendly' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 })

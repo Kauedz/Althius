@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 — Criar Sequência a partir de templates da Althius
 
-**Status:** closed
+**Status:** closed — entregue no PR #250 (migration 20261108120000); 6/7 critérios verificados em 2026-10-24; pendente conferência visual humana.
 
 ## Objetivo e escopo
 
@@ -17,13 +17,13 @@ Compartilhamento entre usuários/Workspaces e importação externa. Nenhuma muda
 
 ## Critérios de aceite
 
-- [ ] Salvar exige prévia parametrizada segura, sem IDs/destinos, dados reais em texto livre, respostas, evidências pessoais ou autorização.
-- [ ] Listar/ler/editar template é restrito ao criador no Workspace; outro participante/Workspace não acessa via API direta.
-- [ ] Criar cópia e adicionar passos não altera template nem outras Sequências.
-- [ ] IA pode sugerir template próprio somente a quem pode lê-lo; manter sugestões da Althius e fallback manual.
-- [ ] Template próprio não leva histórico nem autoriza novos Contatos; validar novamente ao instanciar.
-- [ ] Biblioteca compartilhada não é criada.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Salvar exige prévia parametrizada segura, sem IDs/destinos, dados reais em texto livre, respostas, evidências pessoais ou autorização. Evidência: `projeto-althius-frontend/src/fonte/templates-proprios.test.ts:13`, `supabase/tests/templates_proprios_de_sequencia.sql:82`.
+- [x] Listar/ler/editar template é restrito ao criador no Workspace; outro participante/Workspace não acessa via API direta. Evidência: `supabase/tests/templates_proprios_de_sequencia.sql:148` (34/34 pgTAP).
+- [x] Criar cópia e adicionar passos não altera template nem outras Sequências. Evidência: `projeto-althius-frontend/src/fonte/templates-proprios.test.ts:104`, `supabase/tests/templates_proprios_de_sequencia.sql:220`.
+- [x] IA pode sugerir template próprio somente a quem pode lê-lo; manter sugestões da Althius e fallback manual. Evidência: `supabase/functions/_shared/ferramentas-dos-agentes-template-proprio.test.ts:63`, `:87`, `:111`; `supabase/tests/templates_proprios_de_sequencia.sql:258`.
+- [x] Template próprio não leva histórico nem autoriza novos Contatos; validar novamente ao instanciar. Evidência: `supabase/tests/templates_proprios_de_sequencia.sql:220`, `:297`; `projeto-althius-frontend/src/paginas/templates-proprios-na-criacao.test.tsx:31`.
+- [x] Biblioteca compartilhada não é criada. Evidência: `supabase/tests/templates_proprios_de_sequencia.sql:74`.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente verificação humana: conferir os controles no diálogo atual em desktop e viewport estreita; relatórios sem capturas visuais.
 
 ## Pode mexer
 
@@ -86,4 +86,6 @@ Ordem após merge e autorização explícita: migration → Edge Functions → w
 
 ## Comments
 
-Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout. Status indica ticket especificado, não implementação pronta; blockers e gates humanos continuam obrigatórios.
+Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout.
+
+2026-10-24 — Conferência do PR #250 e dos testes na `origin/main`. Rodei `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_mc01 supabase/tests/templates_proprios_de_sequencia.sql`: 34/34. Vitest direcionado de templates próprios (junto da suíte relevante): 121 testes passaram nos 13 arquivos executados. `deno test -A supabase/functions/_shared/ferramentas-dos-agentes-template-proprio.test.ts`: 4/4; conjunto Deno com as outras ferramentas/handlers: 60/60. Falta conferência visual humana; sem prova de publicação/produção.

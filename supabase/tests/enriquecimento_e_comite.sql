@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(29);
+select plan(28);
 
 -- Usuários e Workspaces de teste
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -226,10 +226,11 @@ select is(
   'cotação de e-mail é de 2 créditos'
 );
 
-select is(
-  (select credits from public.quote_reveal_contact((select id from t_contato_aceito), 'telefone')),
-  5,
-  'cotação de telefone é de 5 créditos'
+select throws_ok(
+  $$ select public.quote_reveal_contact((select id from t_contato_aceito), 'telefone') $$,
+  '0A000',
+  'phone reveal unavailable',
+  'cotação de telefone é recusada enquanto o preço não for decidido'
 );
 
 -- Início de revelação de e-mail (reserva 2 créditos)
@@ -276,39 +277,19 @@ select is(
   'e-mail foi registrado no contato'
 );
 
--- Finalização quando o dado NÃO é encontrado: NENHUM crédito debitado!
+-- Telefone: a revelação fica indisponível enquanto o preço não for decidido (FILA 2.11)
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000001', true);
 
-create temporary table t_res_tel as
-  select * from public.begin_reveal_contact(
-    '62000000-0000-0000-0000-000000000001'::uuid,
-    (select id from t_contato_aceito),
-    'telefone'
-  );
+select throws_ok(
+  format($$ select * from public.begin_reveal_contact(%L, %L, 'telefone') $$,
+    '62000000-0000-0000-0000-000000000001'::uuid, (select id from t_contato_aceito)),
+  '0A000',
+  'phone reveal unavailable',
+  'begin_reveal_contact recusa telefone sem reservar crédito'
+);
 
 reset role;
-
-create temporary table t_fin_tel as
-  select * from public.finish_reveal_contact(
-    (select reservation_id from t_res_tel),
-    (select id from t_contato_aceito),
-    'telefone',
-    null, -- Telefone não encontrado!
-    'apify'
-  );
-
-select is(
-  (select success from t_fin_tel),
-  false,
-  'finish_reveal_contact indicou que telefone não foi encontrado'
-);
-
-select is(
-  (select debited_credits from t_fin_tel),
-  0,
-  'ZERO créditos foram debitados quando o dado não foi encontrado'
-);
 
 -- 5. Imutabilidade e integridade das funções protegidas
 select ok(

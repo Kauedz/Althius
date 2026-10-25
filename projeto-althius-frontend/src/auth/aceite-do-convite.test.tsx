@@ -242,7 +242,8 @@ describe('Aceite do convite', () => {
     expect(await screen.findByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
     expect(banco.aceites).toEqual([TOKEN, TOKEN])
     expect(banco.participacoes.filter((p) => p.workspace_id === NORTE.id).map((p) => p.user_id)).toEqual([CARLA.id])
-    expect(window.location.pathname).toBe('/')
+    // A Casca espera o Day0 do banco (entrada 03) antes de abrir; o endereço chega a '/' logo depois.
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
   })
 
   it('uma falha ao aceitar não é confundida com recusa: a pessoa pode abrir o link de novo', async () => {
