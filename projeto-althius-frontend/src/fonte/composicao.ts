@@ -3,7 +3,7 @@
 // pacote principal do app.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ambiente, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
+import type { Ambiente, MotivoDasConversasIndisponiveis, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
 import { criarFonteDeAgentesIndisponivel } from './indisponivel'
 import { criarFonteDeOnboardingSupabase } from './supabase-onboarding'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
@@ -33,6 +33,7 @@ export function criarAmbienteDoWorkspace({
   usuario,
   participacao,
   conversasDisponiveis = false,
+  motivoDasConversas,
   sinaisDisponiveis = false,
   aprovacoesDisponiveis = false,
   anexosDisponiveis = false,
@@ -41,6 +42,7 @@ export function criarAmbienteDoWorkspace({
   usuario: ContaDeUsuarioDaSessao
   participacao: ParticipacaoNoWorkspace
   conversasDisponiveis?: boolean
+  motivoDasConversas?: MotivoDasConversasIndisponiveis
   sinaisDisponiveis?: boolean
   /** A fila real de Aprovações (CRM-15); o aplicativo a liga junto com as Conversas, onde os Agentes as pedem. */
   aprovacoesDisponiveis?: boolean
@@ -67,6 +69,7 @@ export function criarAmbienteDoWorkspace({
     : undefined
   return {
     modo: 'real',
+    motivoDasConversas,
     // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões, as Conversas e as
     // Aprovações (com o modelo configurado) já têm backend; o resto de Configurações, ainda não.
     fonte: {
