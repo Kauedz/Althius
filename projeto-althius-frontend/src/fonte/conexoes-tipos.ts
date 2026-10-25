@@ -104,6 +104,8 @@ export interface FonteDeConexoes extends FonteObservavel {
   desconectarAcesso?(id: IntegracaoId): Promise<{ revogacaoFalhou: boolean }>
   /** Abre a instalação do Canal no app e devolve o endereço para o navegador ir; exige Administrador ativo. */
   instalarCanal?(id: CanalId): Promise<string>
+  /** Habilita o WhatsApp no Workspace; o simulador do adaptador já está disponível em desenvolvimento. */
+  habilitarCanal?(id: CanalId): Promise<void>
   /** Retira o Canal: o app para de responder e nada é apagado; exige Administrador ativo. */
   retirarCanal?(id: CanalId): Promise<void>
   /** As ferramentas que o servidor da Integração oferece, lidas com o próprio Acesso. */
