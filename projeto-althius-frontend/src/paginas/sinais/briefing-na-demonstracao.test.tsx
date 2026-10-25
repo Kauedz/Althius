@@ -44,6 +44,24 @@ describe('Descrever um Sinal na Demonstração', () => {
     expect(within(plano).getByRole('link', { name: 'Editar plano' })).toHaveAttribute('href', expect.stringMatching(/^\/sinais\/novo\?monitor=mon-/))
   })
 
+  it('o Plano fixo vem com 25 empresas por rodada, e o campo deixa trocar de 1 a 100', async () => {
+    const { usuario } = renderizarApp('/sinais/novo')
+
+    await escreverEEscolher(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Montar plano' }))
+
+    const campo = await screen.findByRole('spinbutton', { name: 'Empresas por rodada' })
+    expect(campo).toHaveValue(25)
+    expect(screen.getByText('Cada rodada verifica até 25 Contas e continua de onde parou na próxima.')).toBeInTheDocument()
+    await usuario.clear(campo)
+    await usuario.type(campo, '100')
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeEnabled()
+    await usuario.clear(campo)
+    await usuario.type(campo, '0')
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
+    expect(screen.getByText('Use um número de 1 a 100.')).toBeInTheDocument()
+  })
+
   it('volta ao briefing sem perder o texto', async () => {
     const { usuario } = renderizarApp('/sinais/novo')
 

@@ -39,6 +39,16 @@ describe('as frases da Rodada', () => {
     expect(textoDaPrevia({ ...base, ilimitado: true })).toContain('Seu saldo: Ilimitado.')
   })
 
+  it('a prévia conta o lote: com mais Contas no Sinal que o lote, diz o lote e o total', () => {
+    const lote = { contas: 25, contasSemDado: 0, creditosPorConta: 2, ateCreditos: 50, saldo: 180, ilimitado: false, bloqueio: null }
+    expect(textoDaPrevia(lote, 60)).toBe(
+      'Vai verificar até 25 Contas nesta rodada (de 60 no Sinal). Até 50 créditos (2 por Conta). Seu saldo: 180 créditos. Contas sem dado suficiente não são cobradas.',
+    )
+    // Sem Contas além do lote, o texto é o de sempre.
+    expect(textoDaPrevia(lote, 25)).toBe(textoDaPrevia(lote))
+    expect(textoDaPrevia(lote)).toContain('Vai verificar até 25 Contas. ')
+  })
+
   it('cada motivo da parada tem a sua frase', () => {
     const motivos: [MotivoDaParada | null, 'rodando' | 'concluida' | 'falhou', string][] = [
       ['concluida', 'concluida', 'Concluída.'],
@@ -47,6 +57,7 @@ describe('as frases da Rodada', () => {
       ['teto', 'concluida', 'Parou: limite do mês ou da automação.'],
       ['contrato_inativo', 'concluida', 'Parou: contrato inativo.'],
       ['prazo', 'concluida', 'Parou: o tempo da rodada acabou.'],
+      ['perdida', 'concluida', 'Não rodou no horário. Rodadas perdidas não são compensadas.'],
       ['erro', 'falhou', 'Terminou com erro.'],
       [null, 'falhou', 'Terminou com erro.'],
       [null, 'rodando', 'Rodando.'],

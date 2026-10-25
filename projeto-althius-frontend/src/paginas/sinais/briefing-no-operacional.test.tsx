@@ -28,7 +28,7 @@ const PLANO = {
     criterios: { funcoes: ['RevOps e GTM'], senioridade: 'Qualquer', localizacao: ['Brasil'], periodo: 'Últimos 30 dias' },
   }],
   explicacao: 'Vamos acompanhar “Abertura de vagas” na Conta escolhida: a empresa abre vagas de RevOps e GTM.',
-  maxEmpresasPorRodada: 50,
+  maxEmpresasPorRodada: 25,
 }
 
 afterEach(() => {
@@ -206,6 +206,30 @@ describe('Descrever um Sinal no Workspace operacional', () => {
     expect(chamou('save_signal_monitor')).toHaveLength(0)
   })
 
+  it('o Plano vem com 25 empresas por rodada, editáveis de 1 a 100, e o que a pessoa escolhe é o que o banco recebe', async () => {
+    const { usuario, chamou } = abrir('/sinais/novo')
+    await escreverEEscolher(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Montar plano' }))
+    await screen.findByText(PLANO.explicacao)
+
+    const campo = screen.getByRole('spinbutton', { name: 'Empresas por rodada' })
+    expect(campo).toHaveValue(25)
+    expect(screen.getByText('Cada rodada verifica até 25 Contas e continua de onde parou na próxima.')).toBeInTheDocument()
+
+    await usuario.clear(campo)
+    expect(screen.getByText('Use um número de 1 a 100.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
+    await usuario.type(campo, '101')
+    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled()
+    await usuario.clear(campo)
+    await usuario.type(campo, '40')
+    expect(screen.getByText('Cada rodada verifica até 40 Contas e continua de onde parou na próxima.')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
+
+    await waitFor(() => expect(chamou('save_signal_plan')).toHaveLength(1))
+    expect((chamou('save_signal_plan')[0].p_plan as { maxEmpresasPorRodada: number }).maxEmpresasPorRodada).toBe(40)
+  })
+
   it('volta ao briefing sem perder o texto nem as Contas, e monta de novo', async () => {
     const { usuario, chamou } = abrir('/sinais/novo')
 
@@ -310,20 +334,20 @@ describe('Descrever um Sinal no Workspace operacional', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Uma das Contas escolhidas está arquivada ou foi apagada.')
   })
 
-  it('só deixa escolher até 50 Contas', async () => {
-    const contas = Array.from({ length: 51 }, (_, i) =>
+  it('só deixa escolher até 500 Contas', async () => {
+    const contas = Array.from({ length: 501 }, (_, i) =>
       contaNoBanco(`6f1c2d3e-4a5b-4c6d-8e7f-${String(i + 1).padStart(12, '0')}`, `Empresa ${String(i + 1).padStart(2, '0')}`, `empresa${i + 1}.com.br`))
     const { usuario } = abrir('/sinais/novo', { contas })
 
     const grupo = await screen.findByRole('group', { name: 'Contas-alvo' })
     const caixas = within(grupo).getAllByRole('checkbox')
-    expect(caixas).toHaveLength(51)
-    for (const caixa of caixas.slice(0, 50)) await usuario.click(caixa)
-    expect(screen.getByText('50 de 50 escolhidas')).toBeInTheDocument()
-    await usuario.click(caixas[50])
-    expect(caixas[50]).toHaveAttribute('aria-checked', 'false')
-    expect(screen.getByText('Escolha até 50 Contas por Sinal.')).toBeInTheDocument()
-    expect(screen.getByText('50 de 50 escolhidas')).toBeInTheDocument()
+    expect(caixas).toHaveLength(501)
+    for (const caixa of caixas.slice(0, 500)) await usuario.click(caixa)
+    expect(screen.getByText('500 de 500 escolhidas')).toBeInTheDocument()
+    await usuario.click(caixas[500])
+    expect(caixas[500]).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('Escolha até 500 Contas por Sinal.')).toBeInTheDocument()
+    expect(screen.getByText('500 de 500 escolhidas')).toBeInTheDocument()
   })
 
   it('"Editar plano" abre o Plano do Monitoramento com o Briefing, e salvar atualiza o mesmo Monitoramento', async () => {

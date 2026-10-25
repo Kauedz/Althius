@@ -55,6 +55,8 @@ export interface Monitoramento {
   limitePorDia?: number
   /** Quando foi o sistema que pausou o Sinal: `sem_creditos` depois de 3 Rodadas seguidas puladas. Ausente na pausa da pessoa. */
   pausadoPor?: 'sem_creditos'
+  /** Quantas Rodadas seguidas foram puladas por falta de créditos (agente-de-sinal 05). Ausente ou 0: nenhuma. Uma Rodada que verifica zera. */
+  rodadasPuladas?: number
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */
@@ -314,6 +316,19 @@ export interface FonteDeSinais extends FonteObservavel {
    * `ErroDoLimite`.
    */
   salvarLimitePorDia?(monitoramentoId: string, limite: number): Promise<Monitoramento>
+
+  /**
+   * O limite mensal da automação sugerido ao ativar (agente-de-sinal 05): o custo estimado do mês mais 20%, em créditos inteiros,
+   * até os créditos da faixa. `agenda`: a que a tela propõe e ainda não gravou. Só o número sugerido: nunca o limite que o
+   * Workspace tem hoje nem US$. Quem não implementa não oferece liberar a automação ao ativar.
+   */
+  limiteMensalSugerido?(monitoramentoId: string, agenda?: AgendaDoSinal): Promise<number>
+
+  /**
+   * Libera a automação da varredura de Sinais com o limite mensal escolhido (só o Administrador). Nunca baixa um limite que já
+   * existe. Rejeita com `ErroDaAutomacao`.
+   */
+  liberarAutomacao?(monitoramentoId: string, limiteMensal: number): Promise<void>
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'
