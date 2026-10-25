@@ -39,7 +39,36 @@ describe('a estimativa da Demonstração', () => {
   it('recusa a Agenda que o servidor recusa', async () => {
     const { fonte } = await contasDoMonitor()
 
-    await expect(fonte.estimarAgenda!(MONITOR, { horarios: ['08:00', '09:00'], dias: [1] })).rejects.toBeInstanceOf(ErroDaAgenda)
+    await expect(fonte.estimarAgenda!(MONITOR, { horarios: ['08:00', '08:45'], dias: [1] })).rejects.toBeInstanceOf(ErroDaAgenda)
+  })
+
+  it('conta o lote: uma Agenda de 12 horários de hora em hora vale, e o preço da rodada é o do lote', async () => {
+    const { fonte, contas } = await contasDoMonitor()
+    const horarios = Array.from({ length: 12 }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`)
+
+    const e = await fonte.estimarAgenda!(MONITOR, { horarios, dias: [1] })
+
+    expect(e.porRodada).toBe(Math.min(contas, 25) * 2)
+    expect(e.avisoDeRepeticao).toBe(true)
+    await expect(fonte.estimarAgenda!(MONITOR, { horarios: [...horarios, '20:00'], dias: [1] })).rejects.toMatchObject({ codigo: 'muitos_horarios' })
+  })
+})
+
+describe('o limite mensal da automação da Demonstração', () => {
+  it('o sugerido é o custo do mês mais 20%, em créditos inteiros', async () => {
+    const { fonte, contas } = await contasDoMonitor()
+    const agenda = { horarios: ['08:00', '14:00'], dias: [1, 2, 3, 4, 5] }
+    const mes = Math.ceil((10 * 52 * contas * 2) / 12)
+
+    expect(await fonte.limiteMensalSugerido!(MONITOR, agenda)).toBe(Math.ceil(mes * 1.2))
+  })
+
+  it('liberar aceita um inteiro de 1 em diante, em memória, e recusa o resto com o código', async () => {
+    const { fonte } = await contasDoMonitor()
+
+    await expect(fonte.liberarAutomacao!(MONITOR, 1500)).resolves.toBeUndefined()
+    await expect(fonte.liberarAutomacao!(MONITOR, 0)).rejects.toMatchObject({ name: 'ErroDaAutomacao', codigo: 'limite_invalido' })
+    await expect(fonte.liberarAutomacao!(MONITOR, 2.5)).rejects.toMatchObject({ codigo: 'limite_invalido' })
   })
 })
 
