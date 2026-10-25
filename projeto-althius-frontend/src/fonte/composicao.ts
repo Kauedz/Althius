@@ -4,10 +4,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Ambiente, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
-import {
-  criarFonteDeAgentesIndisponivel,
-  criarFonteDeOnboardingIndisponivel,
-} from './indisponivel'
+import { criarFonteDeAgentesIndisponivel } from './indisponivel'
+import { criarFonteDeOnboardingSupabase } from './supabase-onboarding'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
 import { criarFonteDeAprovacoesSupabase } from './supabase-aprovacoes'
 import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
@@ -56,7 +54,7 @@ export function criarAmbienteDoWorkspace({
     ? criarFonteDeConversasSupabase(cliente, participacao.workspaceId, { agentes: () => agentes.agentes() })
     : {}
   const indisponiveis = new Set<ModuloDoWorkspace>([
-    'conversas', 'sinais', 'aprovacoes', 'configuracoes', 'onboarding', 'anexos',
+    'conversas', 'sinais', 'aprovacoes', 'configuracoes', 'anexos',
   ])
   if (conversasDisponiveis) indisponiveis.delete('conversas')
   if (sinaisDisponiveis) indisponiveis.delete('sinais')
@@ -107,7 +105,7 @@ export function criarAmbienteDoWorkspace({
       () => participacao.papel === 'administrador',
     ),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
-    fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
+    fonteDeOnboarding: criarFonteDeOnboardingSupabase(cliente, participacao.workspaceId),
     // O módulo Sinais aparece quando o primeiro actor passa no teste (sinais-reais 03); cada card mostra o próprio estado.
     fonteDeSinais: criarFonteDeSinaisSupabase(cliente, () => participacao.workspaceId),
     fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId),
