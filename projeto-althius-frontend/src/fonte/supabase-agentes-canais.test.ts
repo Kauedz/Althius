@@ -5,7 +5,11 @@ import { criarFonteDeAgentesSupabase } from './supabase-agentes'
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 
 function fonteCom(rpcs: Record<string, (parametros: Record<string, unknown>) => unknown>) {
-  const { cliente } = criarSupabaseFalso({ sessao: sessaoDe(MARINA), rpcs })
+  const { cliente } = criarSupabaseFalso({
+    sessao: sessaoDe(MARINA),
+    rpcs,
+    funcoes: { 'canal-whatsapp-status': () => ({ corpo: { configurado: false } }) },
+  })
   return criarFonteDeAgentesSupabase(cliente, 'ws-norte')
 }
 
@@ -35,6 +39,13 @@ describe('Canais do Agente no Workspace operacional', () => {
       slack_channel_status: () => {
         throw new Error('falhou')
       },
+    })
+    expect(await conectados(fonte)).toEqual([])
+  })
+
+  it('mantém o WhatsApp fora dos Canais conectados do Agente sem adaptador configurado', async () => {
+    const fonte = fonteCom({
+      whatsapp_channel_status: () => [{ state: 'ativo' }],
     })
     expect(await conectados(fonte)).toEqual([])
   })

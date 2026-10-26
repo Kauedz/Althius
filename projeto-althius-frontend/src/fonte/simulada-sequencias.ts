@@ -5,6 +5,7 @@ import { previaParametrizada, sugerirTemplateProprio, templateProntoParaSalvar, 
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import {
   ehCanalSuportado,
+  type AnaliseDaResposta,
   type AtualizacaoDocumento,
   type FonteDeSequencias,
   type MetricasDemoSequencia,
@@ -61,7 +62,9 @@ export interface OpcoesFonteDeSequenciasSimulada {
 export interface FonteDeSequenciasSimulada extends FonteDeSequencias {
   definirFalha(falha: boolean): void
   definirVazia(vazia: boolean): void
-  /** Registra uma resposta correlacionada e retém a Conta, sem IA. Duplicata do mesmo evento não reabre. */
+  /** Registra uma resposta correlacionada e retém a Conta. Duplicata do mesmo evento não reabre. `analise` simula o
+   * resultado da IA (ticket 05) para os testes de recomendação e fallback; ausente, a resposta fica sem análise, como
+   * uma falha ou indisponibilidade real deixaria. */
   registrarRespostaCorrelacionada(pedido: {
     sequenciaId: string
     eventoId: string
@@ -69,6 +72,7 @@ export interface FonteDeSequenciasSimulada extends FonteDeSequencias {
     de?: string
     assunto?: string
     trecho?: string
+    analise?: AnaliseDaResposta
   }): Promise<RevisaoDeRetencao>
 }
 
@@ -89,6 +93,7 @@ export function criarFonteDeSequenciasSimulada(
     abertaEm: string
     respostas: Array<RespostaPendenteDeRetencao & { eventoId: string; criadaEm: string }>
     decisoes: RevisaoDeRetencao['decisoes']
+    contatosPausados: string[]
   }>()
 
   let dados: Sequencia[] = vazia ? [] : criarSequenciasIniciais(hoje)
@@ -130,6 +135,7 @@ export function criarFonteDeSequenciasSimulada(
         versao: hold?.versao ?? 0,
         pendentes: [],
         decisoes: podeLerConteudo ? (hold?.decisoes ?? []) : [],
+        contatosPausados: podeLerConteudo ? (hold?.contatosPausados ?? []) : [],
         podeLerConteudo,
         podeDecidir: podeLerConteudo,
       }
@@ -140,9 +146,10 @@ export function criarFonteDeSequenciasSimulada(
       estado: hold.estado,
       versao: hold.versao,
       pendentes: pendentes.map((r) => podeLerConteudo
-        ? { id: r.id, contatoId: r.contatoId, recebidaEm: r.recebidaEm, assunto: r.assunto, trecho: r.trecho, de: r.de, canal: r.canal }
+        ? { id: r.id, contatoId: r.contatoId, recebidaEm: r.recebidaEm, assunto: r.assunto, trecho: r.trecho, de: r.de, canal: r.canal, analise: r.analise }
         : { id: r.id, recebidaEm: r.recebidaEm }),
       decisoes: podeLerConteudo ? hold.decisoes : [],
+      contatosPausados: podeLerConteudo ? hold.contatosPausados : [],
       podeLerConteudo,
       podeDecidir: podeLerConteudo,
     }
@@ -350,9 +357,11 @@ export function criarFonteDeSequenciasSimulada(
         notificar()
         return { outcome: 'paused', versao: hold.versao }
       }
+      const atual = dados[indice]
+      const selecionados = pedido.contatosSelecionados ?? atual.participantesIds
+      hold.contatosPausados = atual.participantesIds.filter((id) => !selecionados.includes(id))
       hold.aberta = false
       hold.decisoes = [{ decisao: 'continue', versao: hold.versao, criadaEm: agora }, ...hold.decisoes]
-      const atual = dados[indice]
       const motivoDeResposta = atual.motivoPause === 'Contato respondeu' || atual.motivoPause === 'Pausa decidida após resposta'
       if (!atual.pausadaPelaConta && !atual.pausadaPelaContaRemetente) {
         dados[indice] = {
@@ -380,6 +389,7 @@ export function criarFonteDeSequenciasSimulada(
         abertaEm: agora,
         respostas: [],
         decisoes: [],
+        contatosPausados: [],
       }
       if (!hold.respostas.some((r) => r.eventoId === pedido.eventoId)) {
         if (hold.aberta) {
@@ -401,6 +411,7 @@ export function criarFonteDeSequenciasSimulada(
           canal: 'email',
           recebidaEm: agora,
           criadaEm: agora,
+          analise: pedido.analise,
         })
         const atual = dados[indice]
         if (atual.motivoPause !== 'Descadastro' && !atual.pausadaPelaConta) {
@@ -415,6 +426,18 @@ export function criarFonteDeSequenciasSimulada(
         notificar()
       }
       return revisaoDe(pedido.sequenciaId, true)
+    },
+    async confirmarNaoContatar(sequenciaId, interacaoId) {
+      await aguardar()
+      const hold = retencoes.get(sequenciaId)
+      const resposta = hold?.respostas.find((r) => r.id === interacaoId)
+      if (!hold || !resposta) {
+        throw new Error('Na Demonstração não há resposta recebida real para confirmar como pedido de não contato.')
+      }
+      if (resposta.contatoId && !hold.contatosPausados.includes(resposta.contatoId)) {
+        hold.contatosPausados = [...hold.contatosPausados, resposta.contatoId]
+      }
+      notificar()
     },
     async urlDoAnexo() {
       throw new Error('Na Demonstração não há anexos recebidos.')

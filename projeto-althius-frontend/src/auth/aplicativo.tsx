@@ -3,7 +3,7 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { App } from '@/App'
 import { criarAmbienteDoWorkspace } from '@/fonte/composicao'
-import { conversasDisponiveis } from '@/fonte/supabase-conversas'
+import { conversasDisponiveis, type DisponibilidadeDasConversas } from '@/fonte/supabase-conversas'
 import { sinaisDisponiveis } from '@/fonte/supabase-sinais'
 import { anexosDisponiveis } from '@/fonte/supabase-sequencias'
 import { aceitarConvite, lerPreviaDoConvite } from '@/fonte/supabase-participantes'
@@ -361,15 +361,16 @@ function AplicativoDoWorkspace({
   const { id: usuarioId, email = '' } = sessao.user
   const { workspace_id: workspaceId, role, nome: nomeDoWorkspace = 'Workspace' } = participacao
   // As Conversas dependem do modelo configurado no backend: até a função confirmar, ficam indisponíveis.
-  const [comConversas, setComConversas] = useState(false)
+  const [capabilityDasConversas, setCapabilityDasConversas] = useState<DisponibilidadeDasConversas>({ available: false })
+  const comConversas = capabilityDasConversas.available
   // Os Sinais dependem de um actor que passou no teste: até o registro confirmar, ficam indisponíveis.
   const [comSinais, setComSinais] = useState(false)
   // Os anexos dos passos dependem do módulo ligado no backend (canais-10): até lá, ficam indisponíveis.
   const [comAnexos, setComAnexos] = useState(false)
   useEffect(() => {
     let ativo = true
-    void conversasDisponiveis(cliente).then((disponivel) => {
-      if (ativo) setComConversas(disponivel)
+    void conversasDisponiveis(cliente, true).then((disponivel) => {
+      if (ativo) setCapabilityDasConversas(disponivel)
     })
     void sinaisDisponiveis(cliente).then((disponivel) => {
       if (ativo) setComSinais(disponivel)
@@ -388,13 +389,14 @@ function AplicativoDoWorkspace({
         usuario: { id: usuarioId, email },
         participacao: { workspaceId, nomeDoWorkspace, papel: role === 'admin' ? 'administrador' : 'membro' },
         conversasDisponiveis: comConversas,
+        motivoDasConversas: capabilityDasConversas.motivo,
         sinaisDisponiveis: comSinais,
         // A fila de Aprovações (CRM-15) liga com as Conversas: é nelas que os Agentes pedem Aprovações, e o crm-handoff
         // que executa o envio aprovado é publicado junto com o agent-conversation.
         aprovacoesDisponiveis: comConversas,
         anexosDisponiveis: comAnexos,
       }),
-    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, comSinais, comAnexos],
+    [cliente, usuarioId, email, workspaceId, nomeDoWorkspace, role, comConversas, capabilityDasConversas.motivo, comSinais, comAnexos],
   )
 
   // A assinatura (creditos-e-planos 06): o Workspace abre enquanto o banco responde, e fecha só quando ele diz que não

@@ -82,4 +82,16 @@ describe('Canal WhatsApp em Conexões', () => {
     expect(await within(cartao).findByText('Em breve')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button')).not.toBeInTheDocument()
   })
+
+  it('permite retirar um Canal ativo quando o adaptador não está configurado', async () => {
+    const usuario = abrir('admin', 'ativo', false)
+    const cartao = await cartaoWhatsapp()
+
+    expect(await within(cartao).findByText('Ativo')).toBeInTheDocument()
+    await usuario.click(within(cartao).getByRole('button', { name: 'Retirar' }))
+    const dialogo = await screen.findByRole('dialog', { name: 'Retirar o WhatsApp' })
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Retirar' }))
+
+    expect(await within(cartao).findByText('Retirado')).toBeInTheDocument()
+  })
 })

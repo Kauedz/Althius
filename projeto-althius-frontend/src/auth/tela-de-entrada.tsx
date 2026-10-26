@@ -23,7 +23,7 @@ export function TelaDeEntrada({ aoAcessarDemonstracao }: { aoAcessarDemonstracao
 }
 
 function Entrada({ emailTravado, aoAcessarDemonstracao }: { emailTravado: string | null; aoAcessarDemonstracao?: () => void }) {
-  const { entrarComSenha, pedirCodigoDeEntrada, confirmarCodigoDeEntrada, carregando } = useAutenticacao()
+  const { entrarComSenha, pedirCodigoDeEntrada, confirmarCodigoDeEntrada, carregando, iniciarGoogle } = useAutenticacao()
   // O cadastro e o "Esqueci a senha" lembram o mesmo destino (como o link de um convite) para depois do acesso.
   const { search } = useLocation()
   const campoDeEmail = useRef<HTMLInputElement>(null)
@@ -89,8 +89,8 @@ function Entrada({ emailTravado, aoAcessarDemonstracao }: { emailTravado: string
       <div>
         <h1 className="titulo-secao text-2xl">Entrar</h1>
         <p className="mt-2 text-sm text-al-muted">
-          O Workspace da sua empresa nasce do contrato com a Althius. Quem foi convidado entra pelo link do convite; com o
-          Google, você vê a demonstração.
+          O Workspace da sua empresa nasce do contrato com a Althius. Quem foi convidado entra pelo link do convite.
+          {iniciarGoogle && ' Com o Google, você vê a demonstração.'}
         </p>
       </div>
       <ContinuarComGoogle contexto="signin" />

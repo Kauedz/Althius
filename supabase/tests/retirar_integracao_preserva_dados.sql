@@ -52,9 +52,12 @@ select public.enable_workspace_integration('fe070000-0000-0000-0000-000000000001
 set local role service_role;
 select public.save_integration_api_key('fe070000-0000-0000-0000-000000000001', '5e070000-0000-0000-0000-000000000001', 'hubspot', 'token-ana-07', 'Ana', 'portal-07');
 
--- Ela retira o HubSpot.
-set local role authenticated;
-select public.disable_workspace_integration('fe070000-0000-0000-0000-000000000001', 'hubspot');
+-- O servidor revoga primeiro e então registra o resultado e remove os Acessos.
+set local role service_role;
+select public.disable_workspace_integration_with_revocation_results(
+  'fe070000-0000-0000-0000-000000000001', '5e070000-0000-0000-0000-000000000001', 'hubspot',
+  '[{"user_id":"5e070000-0000-0000-0000-000000000001","result":"nao_se_aplica"}]'::jsonb
+);
 reset role;
 
 select is((select count(*)::integer from private.integration_accesses where workspace_id = 'fe070000-0000-0000-0000-000000000001'), 0,

@@ -428,6 +428,21 @@ export function SecaoComiteDeCompra({
   )
 }
 
+/**
+ * A frase do resultado de revelar um e-mail: já tinha (sem custo), achou um novo, ou não achou nada novo. Usada
+ * tanto na ação por linha (`BotoesRevelarContato`) quanto na ação em lote.
+ */
+export function mensagemDaRevelacaoDeEmail(res: {
+  sucesso: boolean
+  valor: string | null
+  creditosDebitados: number
+  jaExistia?: boolean
+}): string {
+  if (res.jaExistia && res.valor) return `Já encontrado, sem custo: ${res.valor}`
+  if (res.sucesso && res.valor) return `Encontrado: ${res.valor} (${res.creditosDebitados} créditos debitados)`
+  return 'Nenhum e-mail novo encontrado. Nenhum crédito foi debitado.'
+}
+
 export function BotoesRevelarContato({
   contato,
   aoRevelar,
@@ -460,8 +475,8 @@ export function BotoesRevelarContato({
       try {
         const c = await fonte.cotarRevelacaoContato(contato.id, 'email')
         setCotacao(c)
-      } catch (e) {
-        setErro(e instanceof Error ? e.message : 'Não foi possível consultar a cotação.')
+      } catch {
+        setErro('A cotação da revelação está indisponível.')
       }
     } else {
       setErro('A cotação da revelação está indisponível.')
@@ -474,17 +489,9 @@ export function BotoesRevelarContato({
     setErro(null)
     try {
       const res = await fonte.revelarContato(contato.id, 'email')
-      if (res.jaExistia && res.valor) {
-        // O Contato já tinha o e-mail: volta o que existe, sem busca e sem crédito.
-        setResultado(`Já encontrado, sem custo: ${res.valor}`)
-        aoRevelar()
-      } else if (res.sucesso && res.valor) {
-        setResultado(`Encontrado: ${res.valor} (${res.creditosDebitados} créditos debitados)`)
-        aoRevelar()
-      } else {
-        // Só a busca que terminou chega aqui: a falha é exceção e aparece como erro.
-        setResultado('Nenhum e-mail novo encontrado. Nenhum crédito foi debitado.')
-      }
+      setResultado(mensagemDaRevelacaoDeEmail(res))
+      // Só a busca que terminou chega aqui: a falha é exceção e aparece como erro.
+      if ((res.jaExistia || res.sucesso) && res.valor) aoRevelar()
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'A busca do e-mail falhou.')
     } finally {
@@ -547,6 +554,11 @@ export function BotoesRevelarContato({
                   <span className="text-sm font-semibold text-al-ink">
                     {cotacao ? `${cotacao.creditos} créditos` : erro ? 'Cotação indisponível' : 'Consultando cotação...'}
                   </span>
+                  {cotacao && (
+                    <span className="block mt-1 text-[0.6875rem] text-al-muted">
+                      Saldo informado na cotação: {cotacao.saldo} créditos
+                    </span>
+                  )}
                   <span className="block mt-1 text-[0.6875rem] text-al-muted">
                     Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.
                   </span>
