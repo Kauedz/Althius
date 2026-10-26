@@ -43,21 +43,39 @@ interface LinhaDoCanalSlack {
   team_name: string | null
 }
 
+interface LinhaDoCanalWhatsapp {
+  state: string
+}
+
 const ESTADO_DO_CANAL_SLACK: Record<string, EstadoDeCanal> = {
   nao_instalado: 'nao_conectado',
   ativo: 'conectado',
   retirado: 'retirado',
 }
+const ESTADO_DO_CANAL_WHATSAPP: Record<string, EstadoDeCanal> = {
+  nao_habilitado: 'nao_conectado',
+  ativo: 'conectado',
+  retirado: 'retirado',
+}
 
 /**
- * Os Canais do Workspace com o estado real: o Slack lido da instalação (`slack_channel_status`), os outros "Em breve".
- * É a mesma leitura para Conexões e para a aba Canais do Agente. Sem a leitura (banco sem a migration, ou falha), o Slack
- * fica "Em breve" como os outros.
+ * Os Canais do Workspace com o estado real: Slack e WhatsApp são lidos pelas RPCs próprias; os demais ficam "Em breve".
+ * É a mesma leitura para Conexões e para a aba Canais do Agente. Sem estado ou sem adaptador configurado, cada Canal fica
+ * indisponível para o Agente.
  */
 export async function lerCanaisDoWorkspace(cliente: SupabaseClient, workspaceId: string): Promise<CanalDeConexao[]> {
-  const { data, error } = await cliente.rpc('slack_channel_status', { p_workspace_id: workspaceId })
-  const slack = error ? undefined : ((Array.isArray(data) ? data[0] : data) as LinhaDoCanalSlack | null | undefined)
+  const [{ data: dadosSlack, error: erroSlack }, { data: dadosWhatsapp, error: erroWhatsapp }, adaptador] = await Promise.all([
+    cliente.rpc('slack_channel_status', { p_workspace_id: workspaceId }),
+    cliente.rpc('whatsapp_channel_status', { p_workspace_id: workspaceId }),
+    cliente.functions.invoke('canal-whatsapp-status', { body: {} }),
+  ])
+  const slack = erroSlack ? undefined : ((Array.isArray(dadosSlack) ? dadosSlack[0] : dadosSlack) as LinhaDoCanalSlack | null | undefined)
   const estadoDoSlack = slack ? ESTADO_DO_CANAL_SLACK[slack.state] : undefined
+  const whatsapp = erroWhatsapp
+    ? undefined
+    : ((Array.isArray(dadosWhatsapp) ? dadosWhatsapp[0] : dadosWhatsapp) as LinhaDoCanalWhatsapp | null | undefined)
+  const configurado = !adaptador.error && (adaptador.data as { configurado?: unknown } | null)?.configurado === true
+  const estadoDoWhatsapp = configurado && whatsapp ? ESTADO_DO_CANAL_WHATSAPP[whatsapp.state] : undefined
   return catalogoDeCanais.map((canal) => {
     if (canal.id === 'slack' && estadoDoSlack) {
       return {
@@ -67,6 +85,15 @@ export async function lerCanaisDoWorkspace(cliente: SupabaseClient, workspaceId:
         estado: estadoDoSlack,
         conectado: estadoDoSlack === 'conectado',
         instaladoEm: slack?.team_name ?? undefined,
+      }
+    }
+    if (canal.id === 'whatsapp' && estadoDoWhatsapp) {
+      return {
+        id: canal.id,
+        nome: canal.nome,
+        descricao: canal.descricao,
+        estado: estadoDoWhatsapp,
+        conectado: estadoDoWhatsapp === 'conectado',
       }
     }
     return { id: canal.id, nome: canal.nome, descricao: canal.descricao, estado: 'em_breve', conectado: false }
@@ -87,8 +114,7 @@ async function mensagemDaFuncao(error: unknown, padrao: string): Promise<string>
 
 /**
  * A Fonte de Conexões do Workspace operacional: lê o catálogo e as habilitações do Supabase.
- * O Slack é o único Canal real (slack-canal 01); os outros Canais aparecem "Em breve". O catálogo visível oferece
- * HubSpot e Notion.
+ * O Slack e o WhatsApp são Canais operacionais; os outros aparecem "Em breve". O catálogo visível oferece HubSpot e Notion.
  */
 export function criarFonteDeConexoesSupabase(
   cliente: SupabaseClient,
@@ -100,7 +126,7 @@ export function criarFonteDeConexoesSupabase(
     ouvintes.forEach((ouvinte) => ouvinte())
   }
 
-  /** Chama a `slack-channel-connect`; o Slack é o único Canal que instala. */
+  /** Chama a `slack-channel-connect`; o Slack é instalado por OAuth. */
   async function noCanalSlack(id: CanalId, action: 'iniciar' | 'retirar', padrao: string): Promise<unknown> {
     if (id !== 'slack') throw new Error('Este Canal ainda não está disponível.')
     const { data, error } = await cliente.functions.invoke('slack-channel-connect', {
@@ -108,6 +134,21 @@ export function criarFonteDeConexoesSupabase(
     })
     if (error) throw new Error(await mensagemDaFuncao(error, padrao))
     return data
+  }
+
+  async function definirWhatsappHabilitado(habilitado: boolean): Promise<void> {
+    if (habilitado) {
+      const { data, error } = await cliente.functions.invoke('canal-whatsapp-status', { body: {} })
+      if (error || (data as { configurado?: unknown } | null)?.configurado !== true) {
+        throw new Error('O adaptador do WhatsApp ainda não está configurado neste ambiente.')
+      }
+    }
+    const { error } = await cliente.rpc('set_whatsapp_channel_enabled', {
+      p_workspace_id: obterWorkspaceId(),
+      p_enabled: habilitado,
+    })
+    if (error) throw new Error(error.message || 'Não foi possível atualizar o Canal WhatsApp agora.')
+    avisar()
   }
 
   return {
@@ -127,7 +168,13 @@ export function criarFonteDeConexoesSupabase(
       return url
     },
 
+    async habilitarCanal(id: CanalId): Promise<void> {
+      if (id !== 'whatsapp') throw new Error('Este Canal ainda não está disponível.')
+      await definirWhatsappHabilitado(true)
+    },
+
     async retirarCanal(id: CanalId): Promise<void> {
+      if (id === 'whatsapp') return definirWhatsappHabilitado(false)
       await noCanalSlack(id, 'retirar', 'Não foi possível retirar o Slack agora. Tente de novo em instantes.')
       avisar()
     },
