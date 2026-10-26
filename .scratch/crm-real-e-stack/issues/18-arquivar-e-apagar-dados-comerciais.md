@@ -4,7 +4,7 @@
 
 **Blocked by:** 05: Manter Contatos e Vínculos do Contato; 17: Vincular Sequências e responsabilidades às Contas reais.
 
-**Status:** ready-for-agent (falta a verificação visual no navegador e os passos remotos listados nos Comments)
+**Status:** closed
 
 - [x] Arquivar Conta/Contato remove da operação e busca padrão, preservando histórico e permitindo restauração autorizada. — Conta: `archived_at`; as listas padrão e a busca deixam de trazê-la (e os Contatos dela), o detalhe e a lista "Arquivadas" a mostram; sem Interação manual, Contato, Vínculo nem Sequência nova. Contato: os Vínculos ativos são encerrados (marcados `ended_reason = 'contact_archived'`) e voltam, como Vínculos novos, na restauração. pgTAP e Vitest. Aberto: verificação no navegador.
 - [x] Arquivar Conta com Sequência ativa aplica pausa/cancelamento definidos no ticket de Sequências e mostra confirmação. — `archive_target_account` chama `private.pause_sequences_of_archived_account` (pausa com trava, revoga a autorização, cancela os passos pendentes); restaurar só destrava. O diálogo de arquivar avisa da pausa quando a Conta tem Sequência em andamento e o resultado diz quantas foram pausadas.

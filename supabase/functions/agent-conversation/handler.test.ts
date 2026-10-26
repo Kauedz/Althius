@@ -63,7 +63,7 @@ Deno.test('capacidade: disponível só com o modelo configurado', async () => {
   const com = await montar().handler(pedido({ action: 'capability' }))
   assertEquals([com.status, await com.json()], [200, { available: true }])
   const sem = await montar({ semModelo: true }).handler(pedido({ action: 'capability' }))
-  assertEquals([sem.status, await sem.json()], [200, { available: false }])
+  assertEquals([sem.status, await sem.json()], [200, { available: false, motivo: 'sem_modelo' }])
 })
 
 Deno.test('sem sessão válida, nada', async () => {

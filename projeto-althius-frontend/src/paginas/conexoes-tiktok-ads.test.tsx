@@ -139,7 +139,7 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
   it('o aviso dos 30 dias é só do TikTok e só quando precisa reconectar', async () => {
     abrir({ acessos: [TIKTOK_CONECTADO] })
     const cartao = await screen.findByRole('article', { name: 'TikTok Ads' })
-    expect(await within(cartao).findByText('Conectado')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado')).toBeInTheDocument()
     expect(within(cartao).queryByText('O TikTok pede uma nova autorização a cada 30 dias.')).not.toBeInTheDocument()
   })
 
@@ -151,7 +151,7 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
     await usuario.click(within(cartao).getByRole('button', { name: 'Habilitar' }))
 
     expect(await within(cartao).findByText('Habilitada no Workspace')).toBeInTheDocument()
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['tiktok-ads'])
   })
 
@@ -169,7 +169,7 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
     const { usuario, pedidos } = abrir()
 
     const cartao = await screen.findByRole('article', { name: 'TikTok Ads' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Usar chave de API' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
 
@@ -193,8 +193,8 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'TikTok Ads' })
-    expect(await within(cartao).findByText('Conectado')).toBeInTheDocument()
-    expect(within(cartao).getByText('2 participantes conectaram')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 2 participantes conectados')).toBeInTheDocument()
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Ver ferramentas' }))
     const dialogo = await screen.findByRole('dialog', { name: 'Ferramentas do TikTok Ads' })
@@ -210,8 +210,8 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'tiktok-ads' }])
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(cartao).getByText('1 participante conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 1 participante conectado')).toBeInTheDocument()
     expect(screen.queryByText(/não conseguiu avisar o TikTok Ads/)).not.toBeInTheDocument()
   })
 
@@ -221,7 +221,7 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
     const cartao = await screen.findByRole('article', { name: 'TikTok Ads' })
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(
       await screen.findByText(
         'Desconectado da Althius, mas a Althius não conseguiu avisar o TikTok Ads. Para garantir, remova a autorização da Althius nas configurações do TikTok Ads.',
@@ -234,7 +234,7 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
     const { usuario, pedidos } = abrir({ acessos: [{ ...TIKTOK_CONECTADO, state: 'precisa_reconectar' }] })
 
     const cartao = await screen.findByRole('article', { name: 'TikTok Ads' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).getByText('O TikTok pede uma nova autorização a cada 30 dias.')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Ver ferramentas' })).not.toBeInTheDocument()
     await usuario.click(within(cartao).getByRole('button', { name: 'Reconectar no TikTok Ads' }))
@@ -258,6 +258,6 @@ describe('O cartão do TikTok Ads no Workspace operacional', () => {
 
     expect(await screen.findByText(aviso)).toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'TikTok Ads' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 })

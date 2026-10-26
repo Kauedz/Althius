@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (US 7–9). Ticket pai: [crm-real-e-stack/24](../
 
 **Blocked by:** None (decisões do Renan nos Comments; rodar depois do 01 por causa da `raiz`).
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (implementado e verificado localmente; migration pendente de apply pelo Nan)
 
 **Quem faz:** agente de código depois das decisões; Nan aplica a migration. **Esforço:** M.
 
@@ -25,13 +25,13 @@ Spec: [../spec.md](../spec.md) (US 7–9). Ticket pai: [crm-real-e-stack/24](../
 
 ## Critérios
 
-- [ ] Primeira entrada sem Day0 → `/onboarding`; depois de concluir ou pular, a Casca abre direto
-- [ ] Recarregar ou entrar de outro navegador não pede o Day0 de novo (estado no backend)
-- [ ] Papel e HDYHAU são da Conta de usuário e perguntados uma vez, em qualquer Workspace
-- [ ] Empresa é do Workspace; o convidado pula essas perguntas e não altera a empresa
-- [ ] Nada cria nem renomeia Workspace (ADR-0025)
-- [ ] pgTAP: outro participante não lê o estado de onboarding alheio
-- [ ] lint, `tsc -b`, vitest e pgTAP do zero verdes
+- [x] Primeira entrada sem Day0 → `/onboarding`; depois de concluir ou pular, a Casca abre direto
+- [x] Recarregar ou entrar de outro navegador não pede o Day0 de novo (estado no backend)
+- [x] Papel e HDYHAU são da Conta de usuário e perguntados uma vez, em qualquer Workspace
+- [x] Empresa é do Workspace; o convidado pula essas perguntas e não altera a empresa
+- [x] Nada cria nem renomeia Workspace (ADR-0025)
+- [x] pgTAP: outro participante não lê o estado de onboarding alheio
+- [x] lint, `tsc -b`, vitest e pgTAP do zero verdes
 
 ## Como testar
 
@@ -56,3 +56,10 @@ Spec: [../spec.md](../spec.md) (US 7–9). Ticket pai: [crm-real-e-stack/24](../
   3. A empresa do Day0 só preenche o Workspace que o staff criou (ADR-0025), sem renomear?
   4. O mini-ICP fica fora desta fatia (vai com o crm-real-e-stack/24 e o Playbook)?
 - 2026-10-17, decisão do Renan (dúvida 1 da fila): (1) sim, papel e HDYHAU na Conta de usuário, perguntados uma vez; empresa, domínio e logo no Workspace. (2) "Pular" conta como concluído: nunca mais força o Day0; o que falta fica para o checklist. (3) sim, a empresa só preenche o Workspace que o staff criou, sem renomear. (4) mini-ICP fora desta fatia. Destravado.
+
+- 2026-10-24 (entrada-03, Codex): implementada a primeira fatia operacional conforme as decisões do Renan de 2026-10-17. Respostas pessoais globais, empresa por Workspace e conclusão por Conta + Workspace persistidas na migration nova `20261121130000_day0_operacional.sql`. Pular também conclui; convidado (inclusive Administrador por convite aceito) não informa nem altera empresa. Nenhum Workspace criado/renomeado. Fonte Supabase conectada à composição e tela operacional sem convites/checklist/mini-ICP; o acesso ao Day0 já concluído informa que o checklist completo está indisponível. A Casca aguarda a leitura e oferece nova tentativa em caso de erro.
+- 2026-10-24 (evidência): vermelho pgTAP inicial: `get_my_day0` inexistente; verde final: `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_e03 supabase/tests/day0_operacional.sql` → 32/32. `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_e03_full` → 153 arquivos verdes, banco recriado do zero. Node 22: `npx vitest run --maxWorkers=2 src/paginas/onboarding src/fonte/regras-onboarding.test.ts` → 57/57; `npx oxlint` e `npx tsc -b` → exit 0 (avisos de lint preexistentes). Sem Edge Functions alteradas. Revisão Standards/Spec: nenhum achado pendente; usada a comparação de trabalho, pois `git diff origin/main...HEAD` está vazio neste sandbox sem commits.
+- 2026-10-24 (navegador): Chrome/CDP com harness temporário fora do repo, componentes operacionais reais e respostas RPC falsas mantidas no servidor do harness, sem Auth real. Conferidos redirecionamento inicial, preenchimento, recarga no domínio, conclusão, recarga na Casca e reabertura do resumo concluído. [Desktop](prints/03-papel-desktop.jpg), [mobile 360 px](prints/03-papel-mobile.jpg), [Day0 concluído](prints/03-concluido-mobile.jpg). O harness usa um destino de Casca mínimo; autenticação e publicação reais seguem nos passos do Nan.
+- 2026-10-24 (entrega): sem commit/push/deploy/apply remoto e sem acesso a `.env*`, conforme instrução explícita do sandbox. Corpo do PR em `/tmp/entrada-03-pr.md`; handoff em `.scratch/handoffs/entrada-03.md`. Os ACs marcados refletem verificação local; a conferência com conta real exige aplicar a migration e publicar depois.
+
+- 2026-10-24 (correção da revisão de `8350877`): corrigida a migration ainda não aplicada no próprio arquivo. Administrador inicial reconhecido pelo convite registrado no histórico de provisionamento; administrador convidado posteriormente continua sem acesso à alteração da empresa/domínio. Backend valida cada segmento de domínio. TDD: provisionamento real vermelho 4 falhas/39 → verde 39/39; domínios vermelho 2 falhas/44 → verde final 44/44 (`PGPORT=55432 bash scripts/pgtap-local.sh pgtap_e03fix supabase/tests/day0_operacional.sql`). Vitest onboarding 52/52 com Node 22.23.4; `git diff --check` verde. Handoff e `/tmp/entrada-03-pr.md` atualizados; sem commit, push, apply remoto ou deploy. Suíte completa anterior não repetida nesta sessão.
