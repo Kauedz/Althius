@@ -19,6 +19,7 @@ function reserva(gatilho: string, extra: Partial<Reserva> = {}): Reserva {
     run_id: 'r1',
     kind: 'agente',
     trigger_kind: gatilho,
+    origin: 'slack',
     workspace_name: 'Norte',
     request_text: '@Scopus quem são as contas quentes?',
     agent_id: SCOPUS.id,
@@ -50,7 +51,7 @@ async function rodar(reservada: Reserva, respostas: string[], anexos: AnexoDaExe
     },
   }
   await createRunner({ db, modelo, log: () => {} })('r1')
-  return { falas: eventos.filter((e) => e.kind === 'texto').map((e) => e.agentId), fechamentos, pedidos }
+  return { falas: eventos.filter((e) => e.kind === 'texto' || e.kind === 'feito').map((e) => e.agentId), fechamentos, pedidos }
 }
 
 Deno.test('Execução do Canal: a Menção escrita pelo Agente não faz outro Agente falar', async () => {
@@ -79,4 +80,13 @@ Deno.test('Execução do Canal com anexo: roda só com o Agente do fio e o anexo
   assertEquals(falas, [SCOPUS.id])
   assertEquals(fechamentos, ['succeeded'])
   assertEquals(pedidos.length > 0 && pedidos.every((p) => p.includes('Início do anexo tabela.csv')), true, 'o anexo segue no pedido')
+})
+
+Deno.test('Execução canal WhatsApp coordenada preserva os Agentes habilitados para WhatsApp', async () => {
+  const { falas, fechamentos } = await rodar(
+    reserva('canal', { kind: 'coordenada', origin: 'whatsapp', agent_id: null, mentions: [] }),
+    ['{"agentes":["a-scopus","a-rhetor"],"resposta_direta":""}', 'A Alfa.\nSTATUS: pronto', 'A Beta.\nSTATUS: pronto', 'Resumo.'],
+  )
+  assertEquals(falas, [SCOPUS.id, RHETOR.id])
+  assertEquals(fechamentos, ['succeeded'])
 })
