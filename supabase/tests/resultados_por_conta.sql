@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(7);
+select plan(8);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at,
                         raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
@@ -10,10 +10,12 @@ values
   ('57000000-0000-0000-0000-000000000092', 'authenticated', 'authenticated', 'sul@resultado.test', '', now(), now(), now(), '{}', '{}', false, false);
 insert into public.workspaces (id, kind, name) values
   ('f7000000-0000-0000-0000-000000000091', 'empresa', 'Norte'),
-  ('f7000000-0000-0000-0000-000000000092', 'empresa', 'Sul');
+  ('f7000000-0000-0000-0000-000000000092', 'empresa', 'Sul'),
+  ('f7000000-0000-0000-0000-000000000093', 'empresa', 'Sem envios');
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('f7000000-0000-0000-0000-000000000091', '57000000-0000-0000-0000-000000000091', 'admin', true),
-  ('f7000000-0000-0000-0000-000000000092', '57000000-0000-0000-0000-000000000092', 'admin', true);
+  ('f7000000-0000-0000-0000-000000000092', '57000000-0000-0000-0000-000000000092', 'admin', true),
+  ('f7000000-0000-0000-0000-000000000093', '57000000-0000-0000-0000-000000000092', 'admin', true);
 insert into public.target_accounts (id, workspace_id, name, canonical_url, domain, created_by) values
   ('d7000000-0000-0000-0000-000000000091', 'f7000000-0000-0000-0000-000000000091', 'Alfa', 'https://alfa.resultado.test', 'alfa.resultado.test', '57000000-0000-0000-0000-000000000091'),
   ('d7000000-0000-0000-0000-000000000092', 'f7000000-0000-0000-0000-000000000091', 'Beta', 'https://beta.resultado.test', 'beta.resultado.test', '57000000-0000-0000-0000-000000000091'),
@@ -56,6 +58,9 @@ select ok((select cutoff_at < clock_timestamp() and cutoff_at > clock_timestamp(
   'o resultado declara o corte e exclui envio futuro');
 select throws_ok($$select * from public.sequence_account_outcome_summary('f7000000-0000-0000-0000-000000000092')$$,
   '42501', null, 'não lê o agregado de outro Workspace');
+select set_config('request.jwt.claim.sub', '57000000-0000-0000-0000-000000000092', true);
+select is((select count(*) from public.sequence_account_outcome_summary('f7000000-0000-0000-0000-000000000093')), 0::bigint,
+  'Workspace sem envios não recebe uma linha de resultado vazia');
 reset role;
 select ok(not has_function_privilege('anon', 'public.sequence_account_outcome_summary(uuid)', 'execute'), 'anônimo não pode ler o agregado');
 

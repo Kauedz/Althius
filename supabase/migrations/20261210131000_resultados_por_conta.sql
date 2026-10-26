@@ -37,7 +37,8 @@ begin
          count(*) filter (where positiva)::bigint,
          count(*) filter (where reuniao)::bigint,
          count(*) filter (where negativa)::bigint
-  from por_conta;
+  from por_conta
+  having count(*) > 0;
 end;
 $$;
 
