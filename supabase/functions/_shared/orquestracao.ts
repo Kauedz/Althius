@@ -19,6 +19,8 @@ export interface AgenteDoWorkspace {
 export interface Reserva {
   run_id: string
   kind: 'agente' | 'coordenada'
+  /** Origem da Conversa que deu contexto ao gatilho do Canal. */
+  origin?: string
   workspace_name: string
   request_text: string
   agent_id: string | null
