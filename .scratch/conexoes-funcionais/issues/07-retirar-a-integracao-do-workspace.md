@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Conectar e desconectar o próprio Acesso ao HubSpot).
 
-**Status:** ready-for-agent (código e testes completos na branch local `conectores-em-construcao`; vira closed no merge)
+**Status:** closed
 
 - [x] Só um Administrador retira, inclusive por chamada direta ao backend.
 - [x] A confirmação diz o efeito antes de retirar.

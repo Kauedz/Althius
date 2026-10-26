@@ -3,6 +3,7 @@
 // do último passo lido. Assim, recarregar a página ou perder a conexão só retoma a leitura: o pedido não roda de novo,
 // e a mesma tentativa reenviada (mesmo clientRequestId) cai na mesma Execução. Falha é passo de falha, nunca resposta.
 
+import type { MotivoDasConversasIndisponiveis } from './ambiente'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { reconhecerMencoes } from './mencoes'
@@ -146,13 +147,31 @@ function descricaoDaConsulta(payload: Evento['payload']): string {
  * Se o Workspace operacional tem Conversas: a Edge Function responde se o modelo está configurado. Qualquer falha
  * (função não publicada, sem rede) conta como indisponível, e a tela diz isso em vez de simular.
  */
-export async function conversasDisponiveis(cliente: SupabaseClient): Promise<boolean> {
+export interface DisponibilidadeDasConversas {
+  available: boolean
+  motivo?: MotivoDasConversasIndisponiveis
+}
+
+// A leitura detalhada preserva também o contrato booleano dos consumidores existentes.
+export function conversasDisponiveis(cliente: SupabaseClient): Promise<boolean>
+export function conversasDisponiveis(cliente: SupabaseClient, comMotivo: true): Promise<DisponibilidadeDasConversas>
+export async function conversasDisponiveis(cliente: SupabaseClient, comMotivo = false): Promise<boolean | DisponibilidadeDasConversas> {
+  let resultado: DisponibilidadeDasConversas = { available: false }
   try {
     const { data, error } = await cliente.functions.invoke('agent-conversation', { body: { action: 'capability' } })
-    return !error && (data as { available?: unknown } | null)?.available === true
+    if (!error) {
+      const resposta = data as { available?: unknown; motivo?: unknown } | null
+      const available = resposta?.available === true
+      const motivo = resposta?.motivo
+      resultado = {
+        available,
+        ...(!available && (motivo === 'motor_fora_do_ar' || motivo === 'sem_modelo') ? { motivo } : {}),
+      }
+    }
   } catch {
-    return false
+    // Falha de comunicação mantém o módulo indisponível, sem inventar o motivo.
   }
+  return comMotivo ? resultado : resultado.available
 }
 
 const terminou = (status: Leitura['status']) => status === 'succeeded' || status === 'failed'

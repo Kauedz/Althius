@@ -297,6 +297,10 @@ export function PaginaConexoes() {
                         descricao={integracao.descricao}
                         conectado={integracao.habilitada}
                         aoConectar={() => setConectando(integracao)}
+                        acesso={{
+                          seuAcesso: integracao.habilitada ? 'Seu acesso: Conectado' : 'Seu acesso: não conectado',
+                          noWorkspace: textoNoWorkspace(integracao.habilitada ? 1 : 0),
+                        }}
                         extra={
                           integracao.habilitada && (
                             <>
@@ -584,6 +588,13 @@ const AVISO_DE_RECONEXAO: Partial<Record<IntegracaoId, string>> = {
   'tiktok-ads': 'O TikTok pede uma nova autorização a cada 30 dias.',
 }
 
+// Singular só em 1; 0 e qualquer outro valor ficam no plural (ex.: "No Workspace: 0 participantes conectados").
+function textoNoWorkspace(conectados: number): string {
+  return conectados === 1
+    ? 'No Workspace: 1 participante conectado'
+    : `No Workspace: ${conectados} participantes conectados`
+}
+
 function SeuAcesso({
   id,
   nome,
@@ -605,24 +616,23 @@ function SeuAcesso({
 }) {
   const porAutorizacao = acesso.caminhos.includes('autorizacao')
   const porChave = acesso.caminhos.includes('chave')
-  const conectados =
-    acesso.conectados === 1 ? '1 participante conectou' : `${acesso.conectados} participantes conectaram`
+  const noWorkspace = textoNoWorkspace(acesso.conectados)
 
   return (
     <div className="flex flex-col gap-2 border-t border-al-line pt-3">
       {acesso.estado === 'conectado' ? (
         <span className="text-sm text-al-sucesso">
-          {acesso.conta ? `Conectado como ${acesso.conta}` : 'Conectado'}
+          {acesso.conta ? `Seu acesso: Conectado como ${acesso.conta}` : 'Seu acesso: Conectado'}
         </span>
       ) : acesso.estado === 'precisa_reconectar' ? (
         <>
-          <span className="text-sm text-al-erro">Precisa reconectar</span>
+          <span className="text-sm text-al-erro">Seu acesso: Precisa reconectar</span>
           {AVISO_DE_RECONEXAO[id] && <span className="text-xs text-al-muted">{AVISO_DE_RECONEXAO[id]}</span>}
         </>
       ) : (
-        <span className="text-sm text-al-muted">Você ainda não conectou</span>
+        <span className="text-sm text-al-muted">Seu acesso: não conectado</span>
       )}
-      <span className="text-xs text-al-muted">{conectados}</span>
+      <span className="text-xs text-al-muted">{noWorkspace}</span>
       <div className="flex flex-wrap gap-2">
         {acesso.estado === 'conectado' ? (
           <>
@@ -838,6 +848,7 @@ function CartaoDeConexaoDemo({
   conectado,
   aoConectar,
   extra,
+  acesso,
 }: {
   nome: string
   descricao: string
@@ -845,6 +856,8 @@ function CartaoDeConexaoDemo({
   aoConectar: () => void
   extra?: React.ReactNode
   logo?: React.ReactNode
+  /** Nas Integrações, os mesmos textos rotulados do cartão real (SeuAcesso); Canais não usam este bloco. */
+  acesso?: { seuAcesso: string; noWorkspace: string }
 }) {
   return (
     <article aria-label={nome} className="cartao flex flex-col gap-4 p-6">
@@ -855,6 +868,12 @@ function CartaoDeConexaoDemo({
         </span>
       </div>
       <p className="text-sm text-al-muted">{descricao}</p>
+      {acesso && (
+        <div className="flex flex-col gap-2 border-t border-al-line pt-3">
+          <span className={conectado ? 'text-sm text-al-sucesso' : 'text-sm text-al-muted'}>{acesso.seuAcesso}</span>
+          <span className="text-xs text-al-muted">{acesso.noWorkspace}</span>
+        </div>
+      )}
       <div className="mt-auto flex gap-2">
         {!conectado && (
           <Button variant="outline" onClick={aoConectar} className="px-4">
