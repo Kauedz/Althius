@@ -227,10 +227,14 @@ begin
       and c.kind = 'coordenada' and c.updated_at >= now() - interval '4 hours'
     order by c.updated_at desc limit 1 for update;
   end if;
-  if v_conversation_id is not null and exists (
-    select 1 from private.agent_runs r where r.conversation_id = v_conversation_id and r.status in ('queued', 'running')
-      and private.expire_run_if_stale(r.id)
-  ) then raise exception 'conversation busy' using errcode = '55006'; end if;
+  if v_conversation_id is not null then
+    perform private.expire_run_if_stale(r.id)
+    from private.agent_runs r
+    where r.conversation_id = v_conversation_id and r.status in ('queued', 'running');
+    if exists (
+      select 1 from private.agent_runs r where r.conversation_id = v_conversation_id and r.status in ('queued', 'running')
+    ) then raise exception 'conversation busy' using errcode = '55006'; end if;
+  end if;
   if v_conversation_id is null then
     insert into private.agent_conversations(workspace_id, owner_id, kind, origin)
     values (p_workspace_id, p_user_id, 'coordenada', 'whatsapp') returning id into v_conversation_id;
