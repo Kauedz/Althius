@@ -100,6 +100,13 @@ verify_jwt = false
 [functions.slack-channel-delivery]
 verify_jwt = false
 
+# A Meta chama o webhook sem JWT; a Edge valida X-Hub-Signature-256. O banco chama a entrega com segredo interno.
+[functions.canal-whatsapp-events]
+verify_jwt = false
+
+[functions.canal-delivery]
+verify_jwt = false
+
 # O gerador das Propostas de resposta (canais-08): chamado pelo próprio banco (pg_cron + pg_net), sem JWT; a função confere
 # o token que o banco guarda (reply_proposal_runner_token_matches).
 [functions.reply-proposal-runner]

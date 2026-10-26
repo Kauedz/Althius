@@ -10,6 +10,7 @@ import type {
   AgenteId,
   AnexoDaMensagem,
   ConversaDoSlack,
+  ConversaDoWhatsApp,
   ConversaRetomada,
   ConversasRetomadas,
   FonteDeAgentes,
@@ -25,7 +26,7 @@ import type {
 type Tipo = 'agente' | 'coordenada'
 
 /** De onde veio a Conversa: da Althius ou de um thread do Slack (slack-canal 06). */
-type Origem = 'althius' | 'slack'
+type Origem = 'althius' | 'slack' | 'whatsapp'
 
 interface Evento {
   seq: number
@@ -58,6 +59,7 @@ type Fonte = Pick<
   | 'abrirConversa'
   | 'conversaCoordenadaAtual'
   | 'abrirConversaDoSlack'
+  | 'abrirConversaDoWhatsApp'
   | 'historicoDeConversas'
   | 'arquivarConversa'
   | 'abrirConversaDoAgente'
@@ -342,7 +344,7 @@ export function criarFonteDeConversasSupabase(
     if (error) throw new Error('Não foi possível carregar as Conversas.')
     // A Conversa do Slack continua no thread: a página do Agente retoma só a da Althius.
     const linhas = (data as { id: string; kind: Tipo; agent_id: string | null; origin?: Origem }[])
-      .filter((linha) => linha.origin !== 'slack')
+      .filter((linha) => linha.origin !== 'slack' && linha.origin !== 'whatsapp')
     // A mais recente de cada lugar, como estava antes de recarregar.
     const ultimaCoordenada = linhas.find((linha) => linha.kind === 'coordenada')
     const ultimas = new Map<AgenteId, string>()
@@ -384,6 +386,7 @@ export function criarFonteDeConversasSupabase(
         atualizadaEm: linha.updated_at,
         emAndamento: linha.open_run_id !== null,
         ...(doSlack ? { doSlack } : {}),
+        ...(linha.origin === 'whatsapp' ? { doWhatsapp: true as const } : {}),
       }
     })
   }
@@ -442,6 +445,13 @@ export function criarFonteDeConversasSupabase(
     return { turnos, emAndamento, agenteId }
   }
 
+  /** Abre só para leitura: as Conversas do WhatsApp continuam pelo Canal, nunca pelo composer do app. */
+  async function abrirConversaDoWhatsApp(id: string): Promise<ConversaDoWhatsApp> {
+    const { turnos, emAndamento, origem } = await lerConversa(id, passoDaCoordenacao, null, false)
+    if (origem !== 'whatsapp') throw new Error('Esta Conversa não veio do WhatsApp.')
+    return { turnos, emAndamento }
+  }
+
   return {
     conversar,
     conversarCoordenado,
@@ -453,6 +463,7 @@ export function criarFonteDeConversasSupabase(
     abrirConversa,
     conversaCoordenadaAtual: () => coordenada,
     abrirConversaDoSlack,
+    abrirConversaDoWhatsApp,
     historicoDeConversas,
     arquivarConversa,
     abrirConversaDoAgente,

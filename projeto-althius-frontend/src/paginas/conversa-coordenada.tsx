@@ -1,6 +1,6 @@
 import { ChevronRight, Wrench } from 'lucide-react'
-import { useEffect, useRef, type RefObject } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { LogoDaIntegracao } from '@/components/logos'
 import { IconeAgente, IndicadorDeEstado, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
@@ -9,13 +9,14 @@ import { Composer } from '@/conversa/composer'
 import { LinkDoPasso } from '@/conversa/link-do-passo'
 import { useConversas, type ItemDaCoordenacao } from '@/conversa/contexto'
 import { TextoDigitado } from '@/conversa/texto'
-import { useDados } from '@/fonte/contexto'
+import { useDados, useFonte } from '@/fonte/contexto'
 import type { AcaoProposta, Agente, AgenteId, Integracao, LinkDoPasso as DestinoDoPasso } from '@/fonte/tipos'
 import { porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
 import { NomeDaConversa } from '@/paginas/nome-da-conversa'
 import { NascimentoSequenciaNaConversa } from '@/paginas/nascimento-sequencia-na-conversa'
+import { MarcaDoWhatsApp } from '@/conversa/linha-de-conversa'
 
 /** Cada Agente chamado é uma etapa: ativa enquanto não diz o que fez. */
 interface Etapa {
@@ -77,6 +78,13 @@ function emTurnos(itens: ItemDaCoordenacao[]): Turno[] {
  * continua a Conversa: cada pedido seguinte aparece abaixo da resposta anterior.
  */
 export function PaginaConversaCoordenada() {
+  const [parametros] = useSearchParams()
+  const whatsapp = parametros.get('whatsapp')
+  if (whatsapp) return <LeituraDoWhatsApp key={whatsapp} id={whatsapp} />
+  return <ConversaCoordenadaAtiva />
+}
+
+function ConversaCoordenadaAtiva() {
   const conversas = useConversas()
   const agentes = useDados((fonte) => fonte.agentes(), [])
   const integracoes = useDados((fonte) => fonte.integracoes(), [])
@@ -135,6 +143,60 @@ export function PaginaConversaCoordenada() {
           />
         </div>
         <div ref={fim} />
+      </div>
+    </Pagina>
+  )
+}
+
+function LeituraDoWhatsApp({ id }: { id: string }) {
+  const fonte = useFonte()
+  const agentes = useDados((dados) => dados.agentes(), []) ?? []
+  const integracoes = useDados((dados) => dados.integracoes(), []) ?? []
+  const [itens, setItens] = useState<ItemDaCoordenacao[]>([])
+  const [erro, setErro] = useState('')
+  const [respondendo, setRespondendo] = useState(false)
+
+  useEffect(() => {
+    let ativo = true
+    let proximo = 1
+    const abrir = fonte.abrirConversaDoWhatsApp
+      ? fonte.abrirConversaDoWhatsApp(id)
+      : Promise.reject(new Error('Esta Conversa não está disponível aqui.'))
+    abrir.then(async (conversa) => {
+      if (!ativo) return
+      setItens(conversa.turnos.flatMap((turno): ItemDaCoordenacao[] => [
+        { id: proximo++, tipo: 'pedido', texto: turno.pedido },
+        ...turno.passos.map((passo) => ({ id: proximo++, ...passo })),
+      ]))
+      if (!conversa.emAndamento) return
+      setRespondendo(true)
+      try {
+        for await (const passo of conversa.emAndamento) {
+          if (!ativo) return
+          setItens((atuais) => [...atuais, { id: proximo++, ...passo }])
+        }
+      } finally {
+        if (ativo) setRespondendo(false)
+      }
+    }, (falha) => { if (ativo) setErro(falha instanceof Error ? falha.message : 'Não foi possível abrir esta Conversa.') })
+    return () => { ativo = false }
+  }, [fonte, id])
+
+  const referencias: Referencias = { agentes: porId(agentes), integracoes }
+  const turnos = emTurnos(itens)
+  return (
+    <Pagina titulo="Conversa do WhatsApp" voltar={{ para: '/', rotulo: 'Agentes' }} className="flex-1 pb-0">
+      <div className="mx-auto flex w-full max-w-180 flex-1 flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <MarcaDoWhatsApp />
+          <Link to="/" className="text-sm underline underline-offset-4">Voltar para a grade</Link>
+        </div>
+        {erro && <p role="alert" className="text-sm text-al-atencao">{erro}</p>}
+        <div aria-live="polite" className="flex flex-col gap-10 pb-10">
+          {turnos.map((turno, i) => <TurnoDaConversa key={turno.pedido.id} turno={turno} emAndamento={respondendo && i === turnos.length - 1} animar={false} referencias={referencias} />)}
+        </div>
+        {respondendo && <p role="status" className="rotulo">A Althius está trabalhando no WhatsApp</p>}
+        <p className="text-sm text-al-muted">Esta Conversa é somente leitura. Continue pelo WhatsApp.</p>
       </div>
     </Pagina>
   )
