@@ -69,9 +69,14 @@ returns trigger language plpgsql security definer set search_path = '' as $$
 declare v_limit integer;
 begin
   if new.trigger_kind is distinct from 'canal' then return new; end if;
+  if not exists (
+    select 1 from private.agent_conversations c
+    where c.id = new.conversation_id and c.origin = 'whatsapp'
+  ) then return new; end if;
   perform pg_advisory_xact_lock(hashtextextended('whatsapp_workspace_runs:' || new.workspace_id::text, 0));
   select runs_per_workspace_hour into v_limit from private.whatsapp_channel_security_limits where singleton;
   if (select count(*) from private.agent_runs r
+      join private.agent_conversations c on c.id = r.conversation_id and c.origin = 'whatsapp'
       where r.workspace_id = new.workspace_id and r.trigger_kind = 'canal'
         and r.created_at >= now() - interval '1 hour') >= v_limit then
     raise exception 'WhatsApp workspace run limit reached' using errcode = '55000';

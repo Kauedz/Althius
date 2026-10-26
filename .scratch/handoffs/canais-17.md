@@ -103,6 +103,13 @@ Nenhum destes formatos foi visto com tráfego real; vêm da documentação como 
 
 Ticket `.scratch/canais-althius/issues/17-seguranca-operacional.md` implementado na branch `ralph/canais-17-seguranca-operacional`, sobre a entrega empilhada do ticket 07. Consulte o ticket e o diff do worktree para o escopo. A migration `20261122131700_seguranca_operacional_whatsapp.sql` é nova e não foi aplicada em remoto. O worktree contém as alterações; não houve commit porque a matriz fará o commit.
 
+## Correção de review — rfix1
+
+- Os ramos `limite_por_numero`, `numero_desconhecido` e `sem_workspace` agora emitem log estruturado com `tipo`, `resultado` e `eventId`. A Atividade continua sendo tentada; quando `userId` ou `workspaceId` não existem, o adapter não chama a RPC que exige ambos. A suposição conservadora é manter esses casos observáveis só nos logs, sem telefone, texto nem hash adicional.
+- O trigger do teto por Workspace agora verifica `agent_conversations.origin = 'whatsapp'` tanto para a Execução nova quanto para as Execuções contadas. Assim, Slack não consome nem é bloqueado pelo teto WhatsApp, mesmo compartilhando `trigger_kind = 'canal'`.
+- Seams de regressão escolhidos: teste do handler com logger injetado para os três resultados sem identidade/Workspace; pgTAP com Slack e WhatsApp no mesmo Workspace e teto WhatsApp igual a uma Execução. Ambos ficaram vermelhos antes das correções.
+- Validação rfix1: pgTAP completo verde (inclui 20/20 neste arquivo); `deno check supabase/functions/*/index.ts` verde; `deno test supabase/functions` 1813 passed, 0 failed, 39 ignored; lint frontend verde com avisos; `tsc -b` verde; Vitest 221 arquivos, 1952 passed, 4 skipped.
+
 ## Decisão de implementação
 
 A spec fixa 20 mensagens por número em 10 minutos e 200 por dia, e exige um teto configurável por Workspace por hora, sem definir o valor inicial. Foi adotado 20 Execuções/hora por Workspace como padrão conservador, configurável via RPC exclusiva de `service_role`. Limites e contadores guardam somente hash do telefone; Atividade guarda hash do payload e resultado, sem o texto.

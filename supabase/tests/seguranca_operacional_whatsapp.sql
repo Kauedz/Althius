@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(19);
+select plan(20);
 
 select has_table('private', 'whatsapp_channel_security_limits', 'limites operacionais são configuráveis');
 select has_function('public', 'set_whatsapp_channel_security_limits', array['integer', 'integer', 'integer'], 'há RPC para configurar limites');
@@ -33,14 +33,18 @@ values ('67100000-0000-0000-0000-000000000017', 'authenticated', 'authenticated'
 insert into public.workspaces (id, kind, name) values ('a7100000-0000-0000-0000-000000000017', 'empresa', 'Workspace de segurança');
 insert into private.agent_conversations (id, workspace_id, owner_id, kind, origin) values
   ('c7100000-0000-0000-0000-000000000017', 'a7100000-0000-0000-0000-000000000017', '67100000-0000-0000-0000-000000000017', 'coordenada', 'whatsapp'),
-  ('c7100000-0000-0000-0000-000000000018', 'a7100000-0000-0000-0000-000000000017', '67100000-0000-0000-0000-000000000017', 'coordenada', 'whatsapp');
+  ('c7100000-0000-0000-0000-000000000018', 'a7100000-0000-0000-0000-000000000017', '67100000-0000-0000-0000-000000000017', 'coordenada', 'slack'),
+  ('c7100000-0000-0000-0000-000000000019', 'a7100000-0000-0000-0000-000000000017', '67100000-0000-0000-0000-000000000017', 'coordenada', 'whatsapp');
 select lives_ok($$insert into private.agent_runs(workspace_id, conversation_id, requested_by, client_request_id, request_text, trigger_kind)
   values ('a7100000-0000-0000-0000-000000000017', 'c7100000-0000-0000-0000-000000000017', '67100000-0000-0000-0000-000000000017',
     'd7100000-0000-0000-0000-000000000017', 'mensagem de teste', 'canal')$$, 'primeira Execução do Workspace é aceita');
-select throws_ok($$insert into private.agent_runs(workspace_id, conversation_id, requested_by, client_request_id, request_text, trigger_kind)
+select lives_ok($$insert into private.agent_runs(workspace_id, conversation_id, requested_by, client_request_id, request_text, trigger_kind)
   values ('a7100000-0000-0000-0000-000000000017', 'c7100000-0000-0000-0000-000000000018', '67100000-0000-0000-0000-000000000017',
-    'd7100000-0000-0000-0000-000000000018', 'outra mensagem de teste', 'canal')$$,
-  '55000', 'WhatsApp workspace run limit reached', 'segunda Execução na hora é recusada pelo teto do Workspace');
+    'd7100000-0000-0000-0000-000000000018', 'execucao do slack', 'canal')$$, 'o limite WhatsApp não bloqueia Execução do Slack');
+select throws_ok($$insert into private.agent_runs(workspace_id, conversation_id, requested_by, client_request_id, request_text, trigger_kind)
+  values ('a7100000-0000-0000-0000-000000000017', 'c7100000-0000-0000-0000-000000000019', '67100000-0000-0000-0000-000000000017',
+    'd7100000-0000-0000-0000-000000000019', 'outra mensagem de teste', 'canal')$$,
+  '55000', 'WhatsApp workspace run limit reached', 'segunda Execução WhatsApp na hora é recusada pelo teto do Workspace');
 
 select has_trigger('private', 'agent_runs', 'whatsapp_workspace_run_limit', 'Execuções do Canal passam pelo teto por Workspace');
 select * from finish();

@@ -19,6 +19,7 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; bloqueios?: number; 
   const recusasDesconhecidos = new Set<string>()
   const chamadas: Record<string, unknown>[] = []
   const auditoria: Record<string, unknown>[] = []
+  const logs: Record<string, unknown>[] = []
   const pendentes: Promise<unknown>[] = []
   const sessoes = new Map<string, SessaoWhatsApp>()
   const db: Db = {
@@ -51,6 +52,7 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; bloqueios?: number; 
     adaptador,
     segredoWebhook: SEGREDO,
     esperarDepois: (promise) => { pendentes.push(promise) },
+    log: (campos) => { logs.push(campos) },
   })
   const enviar = async (id: string, telefone: string, texto: string) => {
     const corpo = JSON.stringify({ entry: [{ changes: [{ value: { messages: [{ id, from: telefone, timestamp: '1792800000', type: 'text', text: { body: texto } }] } }] }] })
@@ -60,7 +62,7 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; bloqueios?: number; 
     await Promise.all(pendentes.splice(0))
     return resposta
   }
-  return { adaptador, chamadas, auditoria, enviar }
+  return { adaptador, chamadas, auditoria, logs, enviar }
 }
 
 Deno.test('número desconhecido recebe uma recusa sem iniciar execução, uma vez por dia', async () => {
@@ -69,6 +71,8 @@ Deno.test('número desconhecido recebe uma recusa sem iniciar execução, uma ve
   await m.enviar('wamid-2', '5511888888888', 'oi de novo')
   assertEquals(m.adaptador.envios, [{ tipo: 'texto', para: '5511888888888', texto: 'Não reconheci seu número. Conecte seu telefone em Meu perfil: https://app.althius.com.br/configuracoes/perfil' }])
   assertEquals(m.chamadas, [])
+  assertEquals(m.logs.map((log) => log.resultado), ['numero_desconhecido', 'numero_desconhecido'])
+  assertEquals(JSON.stringify(m.logs).includes('5511888888888'), false)
 })
 
 Deno.test('limite por número recusa mensagens excedentes sem abrir execução', async () => {
@@ -76,6 +80,7 @@ Deno.test('limite por número recusa mensagens excedentes sem abrir execução',
   await m.enviar('wamid-limitado', TELEFONE, 'oi')
   assertEquals(m.chamadas, [])
   assertEquals(m.adaptador.envios.map((envio) => envio.tipo === 'texto' ? envio.texto : ''), ['Você atingiu o limite de mensagens. Tente novamente mais tarde.'])
+  assertEquals(m.logs.map((log) => log.resultado), ['limite_por_numero'])
 })
 
 Deno.test('auditoria registra hash e resultado sem guardar o texto recebido', async () => {
@@ -95,6 +100,15 @@ Deno.test('telefone sem login recente é tratado como desconhecido pelo handler'
   assertEquals(m.chamadas, [])
   assertEquals(m.adaptador.envios[0]?.tipo, 'texto')
   assertEquals(m.adaptador.envios[0]?.tipo === 'texto' ? m.adaptador.envios[0].texto : '', 'Não reconheci seu número. Conecte seu telefone em Meu perfil: https://app.althius.com.br/configuracoes/perfil')
+  assertEquals(m.logs.map((log) => log.resultado), ['numero_desconhecido'])
+})
+
+Deno.test('sem Workspace registra o resultado sem conteúdo ou telefone', async () => {
+  const m = montar({ workspaces: [] })
+  await m.enviar('wamid-sem-workspace', TELEFONE, 'texto confidencial')
+  assertEquals(m.logs.map((log) => log.resultado), ['sem_workspace'])
+  assertEquals(JSON.stringify(m.logs).includes('texto confidencial'), false)
+  assertEquals(JSON.stringify(m.logs).includes(TELEFONE), false)
 })
 
 Deno.test('PARAR, VOLTAR e AJUDA são respondidos sem abrir execução', async () => {

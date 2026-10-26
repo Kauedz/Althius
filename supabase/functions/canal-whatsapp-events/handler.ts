@@ -63,6 +63,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!(await deps.db.permitirMensagem(evento.de))) {
       await enviarTexto(evento.de, 'Você atingiu o limite de mensagens. Tente novamente mais tarde.')
       await deps.db.registrarAuditoria({ eventId: evento.id, userId: null, workspaceId: null, ferramenta: 'mensagem', resultado: 'limite_por_numero', hashPayload: await hashTexto(JSON.stringify(evento.conteudo)) })
+      log({ tipo: 'canal_whatsapp_event', resultado: 'limite_por_numero', eventId: evento.id })
       return
     }
     if (evento.conteudo.tipo !== 'texto') return
@@ -72,6 +73,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!userId) {
       if (await deps.db.registrarRecusaDesconhecido(evento.de)) await enviarTexto(evento.de, RESPOSTA_DESCONHECIDO)
       await deps.db.registrarAuditoria({ eventId: evento.id, userId: null, workspaceId: null, ferramenta: 'mensagem', resultado: 'numero_desconhecido', hashPayload: await hashTexto(texto) })
+      log({ tipo: 'canal_whatsapp_event', resultado: 'numero_desconhecido', eventId: evento.id })
       return
     }
     const respostaPendente = await deps.db.respostaPendente(userId)
@@ -93,6 +95,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const workspaces = await deps.db.workspacesElegiveis(userId)
     if (workspaces.length === 0) {
       await deps.db.registrarAuditoria({ eventId: evento.id, userId, workspaceId: null, ferramenta: 'mensagem', resultado: 'sem_workspace', hashPayload: await hashTexto(texto) })
+      log({ tipo: 'canal_whatsapp_event', resultado: 'sem_workspace', eventId: evento.id })
       return await enviarTexto(evento.de, RESPOSTAS.semWorkspace)
     }
     const sessao = await deps.db.sessao(userId)
