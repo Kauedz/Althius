@@ -12,6 +12,7 @@ import {
   type RespostaPendenteDeRetencao,
   type ResultadoDaDecisaoDeRetencao,
   type ResumoPublicoSequencia,
+  type ResultadosPorConta,
   type RevisaoDeRetencao,
   type Sequencia,
   type StepSequencia,
@@ -290,6 +291,19 @@ export function criarFonteDeSequenciasSimulada(
     async taxasDosEnvios(): Promise<TaxaDosEnvios[]> {
       await aguardar()
       return dados.length === 0 ? [] : TAXAS_DA_DEMONSTRACAO.map((taxa) => ({ ...taxa }))
+    },
+
+    async resultadosPorConta(): Promise<ResultadosPorConta | null> {
+      await aguardar()
+      return dados.length === 0
+        ? null
+        : {
+            dataCorte: hoje.toISOString(),
+            contasAbordadas: 18,
+            respostasPositivas: 6,
+            reunioes: 4,
+            respostasNegativas: 3,
+          }
     },
 
     async metricasDeDemo(id: string): Promise<MetricasDemoSequencia | null> {

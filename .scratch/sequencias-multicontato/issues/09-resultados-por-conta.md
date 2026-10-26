@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Autorizar e executar caminhos independentes com limites, 03 — Reter envios ao receber resposta e decidir em conjunto
 
-**Status:** ready-for-agent
+**Status:** ready-for-human — implementação local; 6/7 critérios verificados em 2026-10-25; pendente conferência visual humana.
 
 ## Objetivo e escopo
 
@@ -16,13 +16,13 @@ Dashboard novo, atribuição causal e experimento estatístico. Nenhuma mudança
 
 ## Critérios de aceite
 
-- [ ] Reutilizar desfechos e taxas existentes; não criar painel adicional.
-- [ ] Período e denominador explícitos: Contas abordadas no período, com resultados observados até data de corte declarada.
-- [ ] Uma Conta com múltiplos Contatos/respostas conta uma vez em cada resultado; reentrega de evento não duplica.
-- [ ] Negativa/ausência/automática não contam como positiva; classificação usada permanece auditável.
-- [ ] Mostrar ou disponibilizar agregado no contrato existente com volume e negativas, sem dados privados de outros titulares.
-- [ ] Demonstração permanece identificada; não alegar causalidade ou aumento comprovado de conversão.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Reutilizar desfechos e taxas existentes; não criar painel adicional. Evidência: nova visão integrada ao bloco “Resultado dos envios”, usando `private.send_outcomes` e as taxas existentes.
+- [x] Período e denominador explícitos: Contas abordadas no período, com resultados observados até data de corte declarada. Evidência: histórico completo até `cutoff_at`; denominador Conta com ao menos um envio realizado; `supabase/tests/resultados_por_conta.sql`.
+- [x] Uma Conta com múltiplos Contatos/respostas conta uma vez em cada resultado; reentrega de evento não duplica. Evidência: duas respostas de Contatos distintos numa Conta resultam em uma Conta; desfechos permanecem únicos por Envio (`send_outcomes.send_id`); pgTAP 7/7.
+- [x] Negativa/ausência/automática não contam como positiva; classificação usada permanece auditável. Evidência: a agregação só considera `resposta_positiva`, `reuniao_marcada` ou `oportunidade` como positiva e lê os desfechos auditáveis existentes; negativa fica separada; pgTAP 7/7.
+- [x] Mostrar ou disponibilizar agregado no contrato existente com volume e negativas, sem dados privados de outros titulares. Evidência: método da Fonte de Sequências e RPC limitada a membro ativo do Workspace; pgTAP verifica isolamento.
+- [x] Demonstração permanece identificada; não alegar causalidade ou aumento comprovado de conversão. Evidência: teste da tela confirma o selo “Demonstração”; rótulos exibem resultados observados sem atribuição causal.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente verificação humana: conferir visualmente a tela em desktop e viewport estreita; segurança e testes locais passaram.
 
 ## Pode mexer
 
@@ -81,4 +81,6 @@ Ordem após merge e autorização explícita: migration → Edge Functions → w
 
 ## Comments
 
-Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout. Status indica ticket especificado, não implementação pronta; blockers e gates humanos continuam obrigatórios.
+Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout.
+
+2026-10-25 — Implementado o agregado por Conta no bloco existente de Resultado dos envios, com histórico completo, corte declarado e denominador de Contas com envio realizado. A migration aditiva cria `sequence_account_outcome_summary`; Demonstração segue marcada. Verificados 6/7 ACs. Vitest direcionado: 24/24; suíte completa: 228 arquivos, 1.990 passaram e 4 foram pulados. Lint, `tsc -b`, build e pgTAP completo passaram (incluindo 7/7 do novo teste). Conferência visual humana permanece pendente. Migration não aplicada em remoto; nenhum envio real feito.

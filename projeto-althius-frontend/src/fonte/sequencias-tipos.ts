@@ -239,6 +239,15 @@ export interface TaxaPorAbordagem {
   oportunidades: number
 }
 
+/** Resultados únicos por Conta no histórico de envios até o corte informado pelo banco. */
+export interface ResultadosPorConta {
+  dataCorte: string
+  contasAbordadas: number
+  respostasPositivas: number
+  reunioes: number
+  respostasNegativas: number
+}
+
 export interface MetricasDemoSequencia {
   sequenciaId: string
   status: StatusSequencia
@@ -433,6 +442,9 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** O Resultado dos Envios do Workspace por abordagem (o título do passo) e canal. */
   taxasPorAbordagem?(): Promise<TaxaPorAbordagem[]>
+
+  /** Apuração por Conta-alvo no histórico completo, até o corte do banco. */
+  resultadosPorConta?(): Promise<ResultadosPorConta | null>
 
   /** Os Envios dos passos da sequência. Só o Responsável pela Sequência os vê; os demais recebem uma lista vazia. */
   envios(sequenciaId: string): Promise<EnvioDoPasso[]>
