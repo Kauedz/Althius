@@ -7,7 +7,7 @@ Ticket `.scratch/canais-althius/issues/05-identidade-do-usuario-nas-ferramentas.
 ## Mudanças
 
 - `supabase/functions/_shared/canal/jwt-usuario.ts`: emite JWT HS256 com `sub` da Conta, `role=authenticated`, `aud=authenticated`, `canal=whatsapp`, `iat` e expiração fixa de 60 segundos. Só recebe segredo do lado servidor; não há logging do token.
-- `supabase/migrations/20261122130500_identidade_whatsapp_nas_ferramentas.sql`: registra Conta, Workspace, canal, ferramenta, hash e resultado em tabela privada, sem conteúdo da mensagem. Escrita restrita ao service role.
+- `supabase/migrations/20261206120000_identidade_whatsapp_nas_ferramentas.sql`: registra Conta, Workspace, canal, ferramenta, hash e resultado em tabela privada, sem conteúdo da mensagem. Escrita restrita ao service role.
 - Testes Deno do contrato do token e pgTAP da tabela/RPC.
 - Não existe ainda catálogo/executor de ferramentas de plataforma conectado a esta função. Ainda é necessário ligar o signer ao executor, chamar uma RPC de tela pelo JWT e verificar a mesma recusa da tela e token expirado. O ticket 10 implementa o catálogo e é o ponto de integração natural.
 
@@ -33,3 +33,12 @@ Ticket `.scratch/canais-althius/issues/05-identidade-do-usuario-nas-ferramentas.
 - `code-review` para revisão da implementação após integração com o catálogo.
 - `tdd` para a integração do executor de ferramentas com as RPCs.
 - `supabase` para aplicação futura da migration, conforme autorização e fluxo do projeto.
+
+## Correção da revisão (2026-10-25)
+
+- Renomeada a migration para `20261206120000_identidade_whatsapp_nas_ferramentas.sql`, acima das migrations da base empilhada e da `main`; o SQL permaneceu igual, salvo permissões e validação abaixo. A migration não foi aplicada remotamente.
+- PgTAP agora exerce a gravação como `service_role`, confere Conta, Workspace, canal, ferramenta, hash e resultado sem guardar mensagem; cobre hash malformado/nulo, ferramenta e resultado vazios; e confirma que `anon` e `authenticated` não executam a RPC nem leem/escrevem a tabela privada.
+- Vermelho → verde: o teste inicialmente falhou ao invocar a RPC por falta de `USAGE` do schema `private` para `service_role`. A migration passou a conceder esse uso. A validação explícita também foi ajustada para rejeitar hash nulo com `22023`. Depois, pgTAP específico passou 21/21.
+- Referências ao nome antigo foram atualizadas. Suposição conservadora: as regras aceitam qualquer ferramenta/resultado não vazios dentro dos limites existentes; esta correção testa os limites que a função já declara, sem inventar catálogo para o ticket.
+- Suíte pgTAP completa: `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_rvfix_279` — todos os arquivos passaram, incluindo `canal_whatsapp_identidade.sql` (21/21).
+- Conferência de nomes: `rg 20261206120000` não encontrou ocorrências; só existe um arquivo em `supabase/migrations` com `20261206120000`.

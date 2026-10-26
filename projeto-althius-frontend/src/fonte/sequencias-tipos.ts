@@ -180,6 +180,16 @@ export interface ResumoPublicoSequencia {
   atualizadaEm?: string
 }
 
+/** Interpretação, evidência e recomendação da IA sobre uma resposta pendente (sequencias-multicontato 05). A IA só
+ * propõe: a decisão de pausar/continuar continua exclusivamente do Vendedor responsável. */
+export interface AnaliseDaResposta {
+  status: 'gerando' | 'pronta' | 'falhou'
+  classificacao?: 'humana' | 'automatica' | 'possivel_nao_contato' | 'indeterminada'
+  interpretacao?: string
+  evidencia?: string
+  recomendacao?: 'pausar' | 'continuar' | 'indeterminado'
+}
+
 export interface RespostaPendenteDeRetencao {
   id: string
   canal?: CanalStep
@@ -188,6 +198,8 @@ export interface RespostaPendenteDeRetencao {
   assunto?: string
   trecho?: string
   de?: string
+  /** Ausente enquanto a resposta não tem análise, falhou ou o modelo ainda está gerando. */
+  analise?: AnaliseDaResposta
 }
 
 export interface DecisaoDeRetencaoRegistrada {
@@ -203,6 +215,8 @@ export interface RevisaoDeRetencao {
   versao: number
   pendentes: RespostaPendenteDeRetencao[]
   decisoes: DecisaoDeRetencaoRegistrada[]
+  /** Contatos mantidos em pausa local depois de uma retomada seletiva. */
+  contatosPausados: string[]
   podeLerConteudo: boolean
   podeDecidir: boolean
 }
@@ -495,13 +509,17 @@ export interface FonteDeSequencias extends FonteObservavel {
    */
   revisaoDeRetencao?(sequenciaId: string): Promise<RevisaoDeRetencao>
 
-  /** Pausa ou continua a Conta inteira para o conjunto revisado. Não escolhe Contatos e não chama IA. */
+  /** Pausa a Conta inteira ou continua os Contatos escolhidos para o conjunto revisado. Não chama IA. */
   decidirRetencao?(pedido: {
     sequenciaId: string
     decisao: 'pause' | 'continue'
     versao: number
     respostasRevisadas: string[]
+    contatosSelecionados: string[]
   }): Promise<ResultadoDaDecisaoDeRetencao>
+
+  /** Confirma um pedido textual de não contato usando uma resposta privada como evidência. */
+  confirmarNaoContatar?(sequenciaId: string, interacaoId: string): Promise<void>
 
   /**
    * Templates da Althius: estruturas sem Contato, destino ou histórico. O Cliente lê; não edita o original.

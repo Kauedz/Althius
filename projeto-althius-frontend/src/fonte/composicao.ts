@@ -3,11 +3,9 @@
 // pacote principal do app.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ambiente, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
-import {
-  criarFonteDeAgentesIndisponivel,
-  criarFonteDeOnboardingIndisponivel,
-} from './indisponivel'
+import type { Ambiente, MotivoDasConversasIndisponiveis, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
+import { criarFonteDeAgentesIndisponivel } from './indisponivel'
+import { criarFonteDeOnboardingSupabase } from './supabase-onboarding'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
 import { criarFonteDeAprovacoesSupabase } from './supabase-aprovacoes'
 import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
@@ -35,6 +33,7 @@ export function criarAmbienteDoWorkspace({
   usuario,
   participacao,
   conversasDisponiveis = false,
+  motivoDasConversas,
   sinaisDisponiveis = false,
   aprovacoesDisponiveis = false,
   anexosDisponiveis = false,
@@ -43,6 +42,7 @@ export function criarAmbienteDoWorkspace({
   usuario: ContaDeUsuarioDaSessao
   participacao: ParticipacaoNoWorkspace
   conversasDisponiveis?: boolean
+  motivoDasConversas?: MotivoDasConversasIndisponiveis
   sinaisDisponiveis?: boolean
   /** A fila real de Aprovações (CRM-15); o aplicativo a liga junto com as Conversas, onde os Agentes as pedem. */
   aprovacoesDisponiveis?: boolean
@@ -56,7 +56,7 @@ export function criarAmbienteDoWorkspace({
     ? criarFonteDeConversasSupabase(cliente, participacao.workspaceId, { agentes: () => agentes.agentes() })
     : {}
   const indisponiveis = new Set<ModuloDoWorkspace>([
-    'conversas', 'sinais', 'aprovacoes', 'configuracoes', 'onboarding', 'anexos',
+    'conversas', 'sinais', 'aprovacoes', 'configuracoes', 'anexos',
   ])
   if (conversasDisponiveis) indisponiveis.delete('conversas')
   if (sinaisDisponiveis) indisponiveis.delete('sinais')
@@ -69,6 +69,7 @@ export function criarAmbienteDoWorkspace({
     : undefined
   return {
     modo: 'real',
+    motivoDasConversas,
     // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões, as Conversas e as
     // Aprovações (com o modelo configurado) já têm backend; o resto de Configurações, ainda não.
     fonte: {
@@ -107,7 +108,7 @@ export function criarAmbienteDoWorkspace({
       () => participacao.papel === 'administrador',
     ),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
-    fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
+    fonteDeOnboarding: criarFonteDeOnboardingSupabase(cliente, participacao.workspaceId),
     // O módulo Sinais aparece quando o primeiro actor passa no teste (sinais-reais 03); cada card mostra o próprio estado.
     fonteDeSinais: criarFonteDeSinaisSupabase(cliente, () => participacao.workspaceId),
     fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId),

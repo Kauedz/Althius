@@ -423,6 +423,14 @@ export function criarSupabaseFalso({ sessao = null, tabelas = {}, esperarLeitura
       }
       // Estágios fazem parte da leitura obrigatória das Contas. Uma base vazia saudável não é RPC indisponível.
       if (!responder && nome === 'list_prospecting_stages') return { data: [], error: null }
+      // Day0 operacional (entrada 03): sem outra resposta do teste, a sessão já concluiu o primeiro acesso, e a Casca abre.
+      // Um teste do Day0 responde `get_my_day0` com o registro que quer.
+      if (!responder && nome === 'get_my_day0') {
+        return {
+          data: { ramo: 'criador', etapa: 'checklist', papel: null, comoConheceu: null, empresa: '', dominio: '', logoDoSite: null, concluido: true },
+          error: null,
+        }
+      }
       if (!responder) return { data: null, error: { message: `RPC ${nome} indisponível no teste`, code: 'PGRST202' } }
       // Uma resposta que lança vira o erro do PostgREST, como uma exceção levantada pela função no banco.
       try {

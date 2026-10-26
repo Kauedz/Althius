@@ -60,8 +60,8 @@ const ESTADO_DO_CANAL_WHATSAPP: Record<string, EstadoDeCanal> = {
 
 /**
  * Os Canais do Workspace com o estado real: Slack e WhatsApp são lidos pelas RPCs próprias; os demais ficam "Em breve".
- * É a mesma leitura para Conexões e para a aba Canais do Agente. Sem estado ou sem adaptador configurado, cada Canal fica
- * indisponível para o Agente.
+ * É a mesma leitura para Conexões e para a aba Canais do Agente. O estado salvo permanece visível sem adaptador; por
+ * segurança, um WhatsApp ativo sem adaptador não aparece conectado para o Agente, que não conseguiria atendê-lo.
  */
 export async function lerCanaisDoWorkspace(cliente: SupabaseClient, workspaceId: string): Promise<CanalDeConexao[]> {
   const [{ data: dadosSlack, error: erroSlack }, { data: dadosWhatsapp, error: erroWhatsapp }, adaptador] = await Promise.all([
@@ -75,7 +75,9 @@ export async function lerCanaisDoWorkspace(cliente: SupabaseClient, workspaceId:
     ? undefined
     : ((Array.isArray(dadosWhatsapp) ? dadosWhatsapp[0] : dadosWhatsapp) as LinhaDoCanalWhatsapp | null | undefined)
   const configurado = !adaptador.error && (adaptador.data as { configurado?: unknown } | null)?.configurado === true
-  const estadoDoWhatsapp = configurado && whatsapp ? ESTADO_DO_CANAL_WHATSAPP[whatsapp.state] : undefined
+  const estadoDoWhatsapp = whatsapp && (configurado || whatsapp.state !== 'nao_habilitado')
+    ? ESTADO_DO_CANAL_WHATSAPP[whatsapp.state]
+    : undefined
   return catalogoDeCanais.map((canal) => {
     if (canal.id === 'slack' && estadoDoSlack) {
       return {
@@ -93,7 +95,8 @@ export async function lerCanaisDoWorkspace(cliente: SupabaseClient, workspaceId:
         nome: canal.nome,
         descricao: canal.descricao,
         estado: estadoDoWhatsapp,
-        conectado: estadoDoWhatsapp === 'conectado',
+        conectado: estadoDoWhatsapp === 'conectado' && configurado,
+        habilitarDisponivel: configurado,
       }
     }
     return { id: canal.id, nome: canal.nome, descricao: canal.descricao, estado: 'em_breve', conectado: false }

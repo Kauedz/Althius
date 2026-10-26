@@ -41,7 +41,7 @@ describe('Workspace visitante: as ações pagas abrem o modal e recusam', () => 
     const { ambiente, aoBloquear, original } = ambienteProtegido()
     const decidir = vi.spyOn(original.fonteDeSequencias, 'decidirRetencao' as never)
     await expect(
-      ambiente.fonteDeSequencias.decidirRetencao!({ sequenciaId: 'sequencia', decisao: 'continue', versao: 1, respostasRevisadas: [] }),
+      ambiente.fonteDeSequencias.decidirRetencao!({ sequenciaId: 'sequencia', decisao: 'continue', versao: 1, respostasRevisadas: [], contatosSelecionados: [] }),
     ).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
     expect(aoBloquear).toHaveBeenCalledTimes(1)
     expect(decidir).not.toHaveBeenCalled()

@@ -15,7 +15,9 @@ insert into public.workspace_memberships (workspace_id, user_id, role, active) v
 
 -- O registro de lançamento: os 9 actors, o do Google (PR-7) e os de Equipes e Publicações (PR-8), todos em teste, sem preço nem versão inventados.
 select is((select count(*)::int from private.signal_actors), 12, 'os 9 actors do lançamento, o do Google e os de Equipes e Publicações estão cadastrados');
-select is((select count(*)::int from private.signal_actors where state = 'testing'), 12, 'todos nascem em teste');
+select is(
+  (select jsonb_build_object('available', count(*) filter (where state = 'available'), 'testing', count(*) filter (where state = 'testing')) from private.signal_actors),
+  jsonb_build_object('available', 5, 'testing', 7), 'os 5 validados com id do run nascem disponíveis, os outros 7 seguem em teste');
 select is((select count(*)::int from private.signal_actors where known_price is not null or version is not null), 0,
   'preço e versão ficam em branco até alguém conferir no Apify');
 select is(

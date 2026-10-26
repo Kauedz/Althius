@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** entregue no PR #244 (migration 20261106120000), com os seletores de liberação escondidos na tela até o ticket 02
+**Status:** entregue no PR #244 (migration 20261106120000); 6/7 critérios verificados em 2026-10-24; pendente conferência visual humana.
 
 ## Como foi entregue
 
@@ -21,13 +21,13 @@ Execução paralela e templates novos. Nenhuma mudança estrutural de layout.
 
 ## Critérios de aceite
 
-- [ ] Sem Persona/Playbook, atribuir Contatos reais e salvar/reabrir o plano pela tela existente.
-- [ ] Validar no servidor no máximo um predecessor da mesma Sequência; rejeitar ciclos, autorreferência e referência ausente.
-- [ ] Reordenação visual não altera dependência nem autorização silenciosamente.
-- [ ] Documentos legados mantêm ordem serial, IDs, destinos e histórico, sem ativação por conversão.
-- [ ] Propostas pelo Rhetor e criação existente continuam funcionando; documento novo não executa paralelismo antes do ticket 02.
-- [ ] Demonstração acompanha contrato sem acessar dados operacionais.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Sem Persona/Playbook, atribuir Contatos reais e salvar/reabrir o plano pela tela existente. Evidência: `projeto-althius-frontend/src/paginas/detalhe-sequencia-liberacao.test.tsx:6`, `supabase/tests/dependencias_dos_passos.sql:58`.
+- [x] Validar no servidor no máximo um predecessor da mesma Sequência; rejeitar ciclos, autorreferência e referência ausente. Evidência: `supabase/tests/dependencias_dos_passos.sql:76` (15/15 pgTAP).
+- [x] Reordenação visual não altera dependência nem autorização silenciosamente. Evidência: `supabase/tests/dependencias_dos_passos.sql:128`.
+- [x] Documentos legados mantêm ordem serial, IDs, destinos e histórico, sem ativação por conversão. Evidência: `supabase/tests/dependencias_dos_passos.sql:30`, `supabase/tests/execucao_independente_da_sequencia.sql:268`.
+- [x] Propostas pelo Rhetor e criação existente continuam funcionando; documento novo não executa paralelismo antes do ticket 02. Evidência: `supabase/functions/_shared/ferramentas-dos-agentes-sequencia.test.ts:81`; os seletores ficaram desligados no PR #244 e a tela passou a registrá-los no #249.
+- [x] Demonstração acompanha contrato sem acessar dados operacionais. Evidência: `projeto-althius-frontend/src/fonte/simulada-sequencias.test.ts:12` e `:93`.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente verificação humana: comparar visualmente a tela antes/depois em desktop e viewport estreita; os relatórios dos PRs não incluem capturas. Segurança/validação automatizada coberta em `supabase/tests/dependencias_dos_passos.sql`.
 
 ## Pode mexer
 
@@ -90,4 +90,6 @@ Ordem após merge e autorização explícita: migration → Edge Functions → w
 
 ## Comments
 
-Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout. Status indica ticket especificado, não implementação pronta; blockers e gates humanos continuam obrigatórios.
+Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout.
+
+2026-10-24 — Conferência do merge #244 (migration `20261106120000`); implementação e testes correspondentes na `origin/main`. Rodei `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_mc01 supabase/tests/dependencias_dos_passos.sql supabase/tests/execucao_independente_da_sequencia.sql supabase/tests/retencao_por_resposta_da_conta.sql supabase/tests/templates_althius_de_sequencia.sql supabase/tests/templates_proprios_de_sequencia.sql`: cinco arquivos passaram (15/15, 37/37, 44/44, 19/19 e 34/34). Vitest direcionado: 13 arquivos, 121 testes passaram. Deno direcionado: 60 testes passaram. Critérios funcionais marcados acima; falta conferência visual humana, sem prova de publicação/produção.

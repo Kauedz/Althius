@@ -29,6 +29,10 @@ export type ModuloDoWorkspace =
   | 'onboarding'
   | 'anexos'
 
+export type MotivoDasConversasIndisponiveis = 'motor_fora_do_ar' | 'sem_modelo'
+
+export const MOTOR_FORA_DO_AR = 'O motor dos Agentes está fora do ar agora. Tente de novo em alguns minutos.'
+
 /** Como a tela anuncia um módulo que o Workspace operacional ainda não conectou. */
 export const MODULO_INDISPONIVEL: Record<ModuloDoWorkspace, string> = {
   agentes: 'Agentes ainda não estão disponíveis neste Workspace.',
@@ -77,6 +81,7 @@ export interface Ambiente {
   /** As Descobertas de contas pelo ICP (enriquecimento-em-cascata). */
   fonteDeDescobertas?: FonteDeDescobertas
   /** Os módulos sem backend neste ambiente, que as telas mostram como indisponíveis. Na Demonstração, nenhum. */
+  motivoDasConversas?: MotivoDasConversasIndisponiveis
   indisponiveis: ReadonlySet<ModuloDoWorkspace>
 }
 

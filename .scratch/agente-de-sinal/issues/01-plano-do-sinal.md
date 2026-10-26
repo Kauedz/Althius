@@ -1,6 +1,6 @@
 # 01: Plano do Sinal (Briefing, Plano versionado e aprovação)
 
-**Status:** ready-for-agent
+**Status:** closed
 
 **GATE:** Segue a [ADR-0032](../../../docs/adr/0032-agente-de-sinal-e-agente-de-contas.md) (Proposta) e a [spec](../spec.md). Migration só aditiva (sem `drop table`, `truncate`, `delete` de dados nem `drop column`), com o número do prompt e pgTAP próprio; migration já aplicada nunca é editada, e função existente é redefinida a partir da última definição na `main`. Sem aplicar no remoto, sem deploy, sem segredo. Sem emoji, só ícones `lucide` que já existem; o Cliente vê só créditos; nada de letras de nicho A–H; nada envia mensagem, cria Conta-alvo ou Sequência sozinho. Prompt 30-02. Primeiro corte no escopo Contas (decisão 12).
 

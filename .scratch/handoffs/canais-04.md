@@ -28,6 +28,15 @@ Branch atual: `ralph/canais-04-habilitar-o-canal-whatsapp-em-conexoe`, baseada e
 - `deno test supabase/functions`: 1796 passaram, 0 falhas, 39 ignorados.
 - Migration não aplicada remotamente; nenhuma Edge Function deployada; nenhum segredo ou arquivo `.env` tocado; nenhuma chamada real à Meta.
 
+## Correção da revisão (2026-10-26)
+
+- `supabase-conexoes.ts` agora preserva o estado persistido (`ativo` ou `retirado`) mesmo se o adaptador estiver indisponível. O adaptador continua bloqueando a habilitação inicial e a reabilitação; `nao_habilitado` sem adaptador permanece “Em breve”. O Administrador ainda pode retirar um Canal ativo sem adaptador.
+- Decisão conservadora: a Conexão mostra o estado real `Ativo`, mas o WhatsApp não aparece conectado na aba Canais do Agente enquanto não houver adaptador configurado. Assim a interface não sugere que o Agente possa atender nesse Canal quando o runtime não está pronto.
+- `ever_enabled` agora tem default `false`; pgTAP verifica esse default.
+- TDD: Vitest novo primeiro falhou em estado, conexão do Agente e botão Retirar (3 falhas); após a correção, focal passou 14/14. pgTAP novo falhou primeiro porque o default era `true`; após corrigir a migration, focal passou 9/9.
+- Suítes: pgTAP completo em `pgtap_rvfix_277` passou; `deno check supabase/functions/*/index.ts` e `deno test supabase/functions` passaram (1796, 0 falhas, 39 ignorados); frontend `npm run lint` passou com avisos existentes, `npx tsc -b` passou e `npm run build` passou. Vitest completo com Node 22: 221 arquivos, 1954 passaram, 4 ignorados. Uma primeira execução teve timeout isolado ao iniciar worker após 1948 testes sem falha de asserção; a repetição completa terminou verde.
+- Suposição registrada: estado do Workspace e disponibilidade operacional do runtime são informações distintas; o primeiro continua visível, enquanto a segunda governa a conexão dos Agentes e a ação Habilitar.
+
 ## Continuação
 
 O código está pronto para revisão humana. Não executar trabalho de outro ticket.
