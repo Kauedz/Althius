@@ -12,6 +12,8 @@ export interface ResumoDeConversa {
   emAndamento: boolean
   /** A Conversa nasceu num thread do Slack, com este Agente, e continua lá. Ausente, ela é da Althius. */
   doSlack?: { agenteId: string }
+  /** A Conversa nasceu no WhatsApp e só pode ser lida pelo app. */
+  doWhatsapp?: true
 }
 
 /** O nome que a tela mostra: o que a pessoa deu ou, sem ele, o primeiro pedido. */

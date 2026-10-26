@@ -16,6 +16,11 @@ export function MarcaDoSlack() {
   )
 }
 
+/** A marca da Conversa que nasceu no WhatsApp. */
+export function MarcaDoWhatsApp() {
+  return <span className="rotulo inline-flex items-center gap-1">WhatsApp</span>
+}
+
 interface Props {
   conversa: ResumoDeConversa
   atual?: boolean
@@ -103,6 +108,7 @@ export function LinhaDeConversa({
                 )}
                 <span>{tempoRelativo(conversa.atualizadaEm, agora)}</span>
                 {conversa.doSlack && <MarcaDoSlack />}
+                {conversa.doWhatsapp && <MarcaDoWhatsApp />}
               </span>
             </span>
           </button>

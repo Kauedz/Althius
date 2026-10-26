@@ -24,7 +24,7 @@ interface Linha {
   first_request: string | null
   updated_at: string
   open_run_id: string | null
-  origin: 'althius' | 'slack'
+  origin: 'althius' | 'slack' | 'whatsapp'
 }
 
 const agora = new Date().toISOString()
@@ -40,6 +40,16 @@ const SALVAS: Linha[] = [
     updated_at: agora,
     open_run_id: null,
     origin: 'slack',
+  },
+  {
+    id: 'c-whatsapp',
+    kind: 'coordenada',
+    agent_id: null,
+    title: null,
+    first_request: 'Quantos Créditos temos?',
+    updated_at: agora,
+    open_run_id: null,
+    origin: 'whatsapp',
   },
   {
     id: 'c-althius',
@@ -64,6 +74,18 @@ const CONVERSAS: Record<string, unknown> = {
       request_text: 'Quem são as Contas Quentes?',
       status: 'succeeded',
       events: [{ seq: 1, kind: 'texto', agent_id: 'agente-scopus', payload: { texto: 'São três: Norte, Sul e Leste.' } }],
+    }],
+  },
+  'c-whatsapp': {
+    id: 'c-whatsapp',
+    kind: 'coordenada',
+    agent_id: null,
+    origin: 'whatsapp',
+    runs: [{
+      id: 'run-whatsapp',
+      request_text: 'Quantos Créditos temos?',
+      status: 'succeeded',
+      events: [{ seq: 1, kind: 'resposta', agent_id: null, payload: { texto: 'Temos 42 Créditos.' } }],
     }],
   },
 }
@@ -119,9 +141,14 @@ describe('A Conversa do Slack na Althius', () => {
     abrir('/')
 
     const lista = within(await screen.findByRole('region', { name: 'Recentes' }))
-    const [doSlack, daAlthius] = lista.getAllByRole('listitem')
+    const linhas = lista.getAllByRole('listitem')
+    const doSlack = linhas.find((linha) => within(linha).queryByText('Slack'))!
+    const doWhatsApp = linhas.find((linha) => within(linha).queryByText('WhatsApp'))!
+    const daAlthius = linhas.find((linha) => within(linha).queryByText('ICP da Norte'))!
     expect(within(doSlack).getByText('Quem são as Contas Quentes?')).toBeInTheDocument()
     expect(within(doSlack).getByText('Slack')).toBeInTheDocument()
+    expect(within(doWhatsApp).getByText('Quantos Créditos temos?')).toBeInTheDocument()
+    expect(within(doWhatsApp).getByText('WhatsApp')).toBeInTheDocument()
     expect(within(daAlthius).getByText('ICP da Norte')).toBeInTheDocument()
     expect(within(daAlthius).queryByText('Slack')).not.toBeInTheDocument()
   })
@@ -162,5 +189,17 @@ describe('A Conversa do Slack na Althius', () => {
 
     expect(await screen.findByText('Esta Conversa do Slack é de outro Agente.')).toBeInTheDocument()
     expect(screen.queryByText('São três: Norte, Sul e Leste.')).not.toBeInTheDocument()
+  })
+
+  it('a Conversa do WhatsApp aparece com origem e abre somente para leitura', async () => {
+    const { usuario } = abrir('/')
+    await usuario.click(await screen.findByRole('button', { name: /^Quantos Créditos temos/ }))
+
+    expect(await screen.findByRole('heading', { name: 'Conversa do WhatsApp' })).toBeInTheDocument()
+    expect(await screen.findByText('Temos 42 Créditos.')).toBeInTheDocument()
+    expect(screen.getByText('WhatsApp')).toBeInTheDocument()
+    expect(screen.getByText('Esta Conversa é somente leitura. Continue pelo WhatsApp.')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enviar' })).not.toBeInTheDocument()
   })
 })
