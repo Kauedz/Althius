@@ -17,6 +17,8 @@ export interface ItemDeCanal {
   descricao: string
   estado: EstadoDeCanal
   conectado: boolean
+  /** O adaptador pode receber habilitação nova; o estado atual pode continuar visível sem ele. */
+  habilitarDisponivel?: boolean
   /** Onde o Canal está instalado (o nome do workspace Slack). */
   instaladoEm?: string
 }

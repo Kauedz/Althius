@@ -413,7 +413,12 @@ function CartaoDeCanalReal({
             Retirar
           </Button>
         ) : (
-          <Button variant="outline" onClick={aoInstalar} disabled={instalando} className="self-start px-4">
+          <Button
+            variant="outline"
+            onClick={aoInstalar}
+            disabled={instalando || (canal.id === 'whatsapp' && canal.habilitarDisponivel === false)}
+            className="self-start px-4"
+          >
             {instalando
               ? 'Abrindo...'
             : canal.id === 'whatsapp'
