@@ -4,9 +4,9 @@
 
 **Blocked by:** 10.
 
-**Status:** ready-for-human
+**Status:** ready-for-agent
 
-- [x] Clique ou SIM repetido, vencido ou alterado não faz nada
+- [ ] Clique ou SIM repetido, vencido ou alterado não faz nada (integração ao executor pendente)
 - [x] Cotação em Créditos antes de ações pagas
 - [x] pgTAP e Deno
 
