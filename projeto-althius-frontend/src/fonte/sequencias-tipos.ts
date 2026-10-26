@@ -180,6 +180,16 @@ export interface ResumoPublicoSequencia {
   atualizadaEm?: string
 }
 
+/** Interpretação, evidência e recomendação da IA sobre uma resposta pendente (sequencias-multicontato 05). A IA só
+ * propõe: a decisão de pausar/continuar continua exclusivamente do Vendedor responsável. */
+export interface AnaliseDaResposta {
+  status: 'gerando' | 'pronta' | 'falhou'
+  classificacao?: 'humana' | 'automatica' | 'possivel_nao_contato' | 'indeterminada'
+  interpretacao?: string
+  evidencia?: string
+  recomendacao?: 'pausar' | 'continuar' | 'indeterminado'
+}
+
 export interface RespostaPendenteDeRetencao {
   id: string
   canal?: CanalStep
@@ -188,6 +198,8 @@ export interface RespostaPendenteDeRetencao {
   assunto?: string
   trecho?: string
   de?: string
+  /** Ausente enquanto a resposta não tem análise, falhou ou o modelo ainda está gerando. */
+  analise?: AnaliseDaResposta
 }
 
 export interface DecisaoDeRetencaoRegistrada {
