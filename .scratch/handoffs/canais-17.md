@@ -94,3 +94,37 @@ Nenhum destes formatos foi visto com tráfego real; vêm da documentação como 
    Confira a saída e repita com `--aplicar`. Webhooks antigos só são avisados; apague no painel da Unipile se sobrarem.
 4. Mensagem de teste na conta v1 para ver o evento chegar e ser traduzido (log da função: `outcome` e `type`, sem conteúdo). Registre nos Comments do canais-12 o que a v1 devolveu de diferente.
 5. Se ainda não foram aplicadas no remoto, as migrations do canais-15 e do 16 (a conexão ativa v1 precisa delas). O `APP_ORIGIN` em produção deve ser `https://app.althius.com.br,http://localhost:5173`.
+
+---
+
+# Handoff da sessão atual — WhatsApp, ticket 17
+
+## Estado
+
+Ticket `.scratch/canais-althius/issues/17-seguranca-operacional.md` implementado na branch `ralph/canais-17-seguranca-operacional`, sobre a entrega empilhada do ticket 07. Consulte o ticket e o diff do worktree para o escopo. A migration `20261122131700_seguranca_operacional_whatsapp.sql` é nova e não foi aplicada em remoto. O worktree contém as alterações; não houve commit porque a matriz fará o commit.
+
+## Correção de review — rfix1
+
+- Os ramos `limite_por_numero`, `numero_desconhecido` e `sem_workspace` agora emitem log estruturado com `tipo`, `resultado` e `eventId`. A Atividade continua sendo tentada; quando `userId` ou `workspaceId` não existem, o adapter não chama a RPC que exige ambos. A suposição conservadora é manter esses casos observáveis só nos logs, sem telefone, texto nem hash adicional.
+- O trigger do teto por Workspace agora verifica `agent_conversations.origin = 'whatsapp'` tanto para a Execução nova quanto para as Execuções contadas. Assim, Slack não consome nem é bloqueado pelo teto WhatsApp, mesmo compartilhando `trigger_kind = 'canal'`.
+- Seams de regressão escolhidos: teste do handler com logger injetado para os três resultados sem identidade/Workspace; pgTAP com Slack e WhatsApp no mesmo Workspace e teto WhatsApp igual a uma Execução. Ambos ficaram vermelhos antes das correções.
+- Validação rfix1: pgTAP completo verde (inclui 20/20 neste arquivo); `deno check supabase/functions/*/index.ts` verde; `deno test supabase/functions` 1813 passed, 0 failed, 39 ignored; lint frontend verde com avisos; `tsc -b` verde; Vitest 221 arquivos, 1952 passed, 4 skipped.
+
+## Decisão de implementação
+
+A spec fixa 20 mensagens por número em 10 minutos e 200 por dia, e exige um teto configurável por Workspace por hora, sem definir o valor inicial. Foi adotado 20 Execuções/hora por Workspace como padrão conservador, configurável via RPC exclusiva de `service_role`. Limites e contadores guardam somente hash do telefone; Atividade guarda hash do payload e resultado, sem o texto.
+
+E-mail de telefone recém-verificado e suspensão do vínculo após 30 dias sem login já estavam implementados nos tickets anteriores; conferir `canal-phone-verification` e `whatsapp_channel_account_by_phone`/`start_channel_run`.
+
+## Verificações
+
+`deno check supabase/functions/*/index.ts` e `deno test supabase/functions` passaram (1812 passed, 39 ignored). pgTAP focado passou 19/19; suíte completa passou após o ajuste final (todos os arquivos verdes). A migration nunca foi aplicada remotamente.
+
+## Próximo foco
+
+A revisão final corrigiu a chamada RPC para `record_whatsapp_tool_activity`. Sem pendências de implementação. A resposta final deve reportar que não houve commit por regra da matriz.
+
+## Suggested skills
+
+- `code-review` para revisar a entrega do ticket 17.
+- `tdd` se algum comportamento precisar de ajuste.
