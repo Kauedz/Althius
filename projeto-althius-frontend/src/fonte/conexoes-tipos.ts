@@ -88,8 +88,9 @@ export interface FonteDeConexoes extends FonteObservavel {
   canais(): Promise<ItemDeCanal[]>
   integracoes(): Promise<ItemDeIntegracao[]>
   integracoesFuturas(): Promise<IntegracaoFutura[]>
+  resultadosDeRetirada?(): Promise<{ integracaoId: IntegracaoId; resultado: 'revogado' | 'nao_suportado' | 'falhou' | 'nao_se_aplica' }[]>
   /** Desabilita a Integração para todos os participantes; exige Administrador ativo. */
-  desabilitarIntegracao?(id: IntegracaoId): Promise<void>
+  desabilitarIntegracao?(id: IntegracaoId): Promise<{ revogado: number; naoSuportado: number; falhou: number; naoSeAplica: number } | void>
   habilitarIntegracao(id: IntegracaoId): Promise<void>
   conectar(conexao: CanalId | IntegracaoId): Promise<void>
   previaDeCanal(canalId: CanalId): Promise<PreviaDeCanal>

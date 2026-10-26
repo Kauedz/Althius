@@ -67,6 +67,7 @@ export function PaginaConexoes() {
   const canais = useDados(fonteDeConexoes, (fonte) => fonte.canais(), [])
   const integracoes = useDados(fonteDeConexoes, (fonte) => fonte.integracoes(), [])
   const futuras = useDados(fonteDeConexoes, (fonte) => fonte.integracoesFuturas(), [])
+  const retiradas = useDados(fonteDeConexoes, (fonte) => fonte.resultadosDeRetirada?.() ?? Promise.resolve([]), []) ?? []
   // Sem a leitura dos Acessos (ou se ela falhar), o cartão fica só com a habilitação, como antes.
   const acessos = useDados(
     fonteDeConexoes,
@@ -82,6 +83,7 @@ export function PaginaConexoes() {
   const [aviso, setAviso] = useState('')
   const [desabilitando, setDesabilitando] = useState<IntegracaoDeConexao | null>(null)
   const [erroAoDesabilitar, setErroAoDesabilitar] = useState('')
+  const [resultadoRetirada, setResultadoRetirada] = useState('')
   const [parametros, setParametros] = useSearchParams()
   const [volta] = useState(() => avisoDaVolta(parametros))
   // O resultado da autorização é lido uma vez e sai do endereço, para não reaparecer ao recarregar.
@@ -156,7 +158,12 @@ export function PaginaConexoes() {
     setErroAoDesabilitar('')
     setTrabalhando(desabilitando.id)
     try {
-      await fonteDeConexoes.desabilitarIntegracao(desabilitando.id)
+      const resultado = await fonteDeConexoes.desabilitarIntegracao(desabilitando.id)
+      if (resultado && (resultado.falhou > 0 || resultado.naoSuportado > 0)) {
+        setResultadoRetirada(`Integração retirada. Revogação: ${resultado.revogado} confirmada(s), ${resultado.naoSuportado} não suportada(s), ${resultado.falhou} com falha e ${resultado.naoSeAplica} sem token OAuth.`)
+      } else {
+        setResultadoRetirada('Integração retirada e os Acessos do Workspace foram desconectados.')
+      }
       setDesabilitando(null)
     } catch (falha) {
       setErroAoDesabilitar(falha instanceof Error ? falha.message : 'Não foi possível desabilitar a Integração agora.')
@@ -200,6 +207,17 @@ export function PaginaConexoes() {
           </p>
         )}
       </div>
+      {resultadoRetirada && <p role="status" className="text-sm text-al-muted">{resultadoRetirada}</p>}
+      {retiradas.length > 0 && (
+        <section aria-label="Resultados das retiradas recentes" className="flex flex-col gap-1 text-sm text-al-muted">
+          <h2 className="font-medium">Resultados das retiradas recentes</h2>
+          {retiradas.slice(0, 3).map(({ integracaoId, resultado }, indice) => (
+            <p key={`${integracaoId}-${indice}`}>
+              {nomeDaIntegracao(integracaoId) ?? integracaoId}: {resultado === 'revogado' ? 'acesso revogado no app' : resultado === 'falhou' ? 'falha ao revogar no app' : resultado === 'nao_suportado' ? 'o app não oferece revogação' : 'sem token OAuth para revogar'}.
+            </p>
+          ))}
+        </section>
+      )}
 
       <section aria-label="Canais" className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
