@@ -11,7 +11,7 @@
 
 **Blocked by:** nenhum.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Pode mexer
 
@@ -24,11 +24,12 @@
 
 ## Critérios
 
-- [ ] Cada uma das 6 perguntas tem resposta com a fonte (link e data da consulta) ou "não sei".
-- [ ] A nota diz, no topo, quais Sinais JURI são viáveis com o que se descobriu (J, R, U, I) e por quê.
-- [ ] Nenhum dado pessoal real foi copiado para o repositório (exemplos fictícios).
+- [x] Cada uma das 6 perguntas tem resposta com a fonte (link e data da consulta) ou "não sei".
+- [x] A nota diz, no topo, quais Sinais JURI são viáveis com o que se descobriu (J, R, U, I) e por quê.
+- [x] Nenhum dado pessoal real foi copiado para o repositório (exemplos fictícios).
 
 ## Comments
 
 - 01/10/2026: primeiro rascunho em [`pesquisa-fontes.md`](../pesquisa-fontes.md), feito só com busca na web. A rede do ambiente da IA bloqueia `*.jus.br`, então nenhuma fonte oficial foi lida na íntegra. Veredito provisório: o J é viável pelos dados abertos do STJ (e talvez do STF). O R, o U e o I não saem do DataJud, que pelos resumos não traz as partes; dependem de um agregador pago ou do DJEN (não se sabe se filtra por parte). Para fechar o ticket, falta liberar os domínios listados no topo da nota e confirmar cada item marcado "a confirmar" ou "não sei". O ticket segue aberto.
 - 01/10/2026: [`pesquisa-fontes.md`](../pesquisa-fontes.md) reescrita com a pesquisa do Nan no Antigravity, feita nas fontes primárias e com trecho literal em cada resposta. As 6 perguntas têm resposta ou "não sei". Veredito: o J é viável pelo `Temas.csv` do STJ (licença CC BY), com o risco do frescor, porque o arquivo diz "atualizado pela última vez em 24/10/2025". O DataJud fica fora para a Althius, porque a norma do CNJ veda a exploração comercial dos dados. O DJEN também fica fora: a API documentada é a dos tribunais, com usuário e senha. O R, o U e o I só saem por agregador pago; JUDIT e Jusbrasil confirmam aviso de processo novo por CNPJ, com preço e licença sob consulta. Proposta para o Nan decidir: a primeira entrega do spec fica só com o J. O ticket segue aberto até colar os links marcados "(link a incluir)", porque o texto colado veio sem vários endereços.
+- 25/10/2026: links ausentes foram preenchidos e a nota foi atualizada após conferência das páginas oficiais do CNJ, STF, STJ e documentação/páginas dos fornecedores (consulta realizada em 26/10/2026). Os pontos não comprovados continuam explicitamente como “não sei”; a nota descreve a viabilidade de J/R/U/I e não inclui dado pessoal real. Critérios deste ticket conferidos; segue aberto em `ready-for-human` para decisão/validação jurídica em ticket próprio e confirmação comercial dos fornecedores, sem marcar o ticket como fechado.
