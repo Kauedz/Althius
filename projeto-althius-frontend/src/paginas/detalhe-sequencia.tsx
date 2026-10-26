@@ -61,6 +61,7 @@ import {
   FUSO_PADRAO,
   INTERVALO_MINUTOS_SUGERIDO,
   MAXIMO_DIARIO_SUGERIDO,
+  type AnaliseDaResposta,
   type AnexoRecebido,
   type AnexoStep,
   type AutorizacaoDosEnvios,
@@ -2573,6 +2574,35 @@ function MiniaturaDoAnexo({
   )
 }
 
+/** O rótulo de cada classificação da IA (ticket 05): distingue resposta humana, automática e possível não contato. */
+const ROTULO_DA_CLASSIFICACAO_DA_ANALISE: Record<NonNullable<AnaliseDaResposta['classificacao']>, string> = {
+  humana: 'Resposta humana',
+  automatica: 'Resposta automática',
+  possivel_nao_contato: 'Possível pedido de não contato',
+  indeterminada: 'IA não conseguiu classificar',
+}
+
+/** A análise da IA sobre uma resposta pendente: só interpretação, evidência e sugestão. Nunca decide nem é
+ * pré-requisito para a Vendedor decidir — por isso não aparece nada quando `analise` está ausente ou falhou. */
+function AnaliseDaRespostaPendente({ analise }: { analise?: AnaliseDaResposta }) {
+  if (!analise || analise.status === 'falhou') return null
+  if (analise.status === 'gerando') {
+    return <p className="text-xs text-al-muted">Analisando com IA…</p>
+  }
+  return (
+    <p className="text-xs text-al-muted">
+      {analise.classificacao && (
+        <span className="font-medium text-al-ink">{ROTULO_DA_CLASSIFICACAO_DA_ANALISE[analise.classificacao]}</span>
+      )}
+      {analise.interpretacao && <> · {analise.interpretacao}</>}
+      {analise.evidencia && <> · “{analise.evidencia}”</>}
+      {analise.recomendacao && analise.recomendacao !== 'indeterminado' && (
+        <> · Sugestão da IA: {analise.recomendacao === 'pausar' ? 'pausar' : 'continuar'} (decisão sua)</>
+      )}
+    </p>
+  )
+}
+
 /** As respostas que retêm a Conta, dentro do bloco de pause. Sem conteúdo para quem não é o titular. */
 function RevisaoDaRetencao({
   revisao,
@@ -2599,9 +2629,12 @@ function RevisaoDaRetencao({
           : `${revisao.pendentes.length === 1 ? '1 resposta pendente' : `${revisao.pendentes.length} respostas pendentes`}. Só o Vendedor responsável lê o conteúdo e decide.`}
       </p>
       {revisao.podeLerConteudo && revisao.pendentes.map((item) => (
-        <p key={item.id} className="text-sm text-al-ink">
-          {`${item.de ?? 'Contato'}${item.assunto ? `: ${item.assunto}` : item.trecho ? `: ${item.trecho}` : ''}`}
-        </p>
+        <div key={item.id} className="flex flex-col gap-0.5">
+          <p className="text-sm text-al-ink">
+            {`${item.de ?? 'Contato'}${item.assunto ? `: ${item.assunto}` : item.trecho ? `: ${item.trecho}` : ''}`}
+          </p>
+          <AnaliseDaRespostaPendente analise={item.analise} />
+        </div>
       ))}
       {revisao.podeLerConteudo && (
         <fieldset className="mt-1 flex flex-col gap-1 border-0 p-0" aria-label="Contatos que continuam">

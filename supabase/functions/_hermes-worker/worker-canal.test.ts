@@ -14,6 +14,7 @@ function reserva(gatilho: string, extra: Partial<Reserva> = {}): Reserva {
     run_id: 'r1',
     kind: 'agente',
     trigger_kind: gatilho,
+    origin: 'slack',
     workspace_name: 'Norte',
     request_text: '@Scopus quem são as contas quentes?',
     agent_id: SCOPUS.id,
@@ -46,11 +47,13 @@ function montar(reservada: Reserva, porAgente = false, anexos: AnexoDaExecucao[]
     aguardar: () =>
       Promise.resolve<FimDoHermes>({
         status: 'completed',
-        output: quem(atual!) === 'Scopus' ? 'A Alfa. @Rhetor, escreva a mensagem.\nSTATUS: pronto' : 'Mensagem pronta.\nSTATUS: pronto',
+        output: atual!.instructions.includes('Você coordena:')
+          ? '{"etapas":[{"agente":"Scopus","texto":"A Alfa."},{"agente":"Rhetor","texto":"A Beta."}],"resposta":"Resumo."}'
+          : quem(atual!) === 'Scopus' ? 'A Alfa. @Rhetor, escreva a mensagem.\nSTATUS: pronto' : 'Mensagem pronta.\nSTATUS: pronto',
       }),
   }
   const worker = createWorker({ db, hermes, log: () => {}, porAgente })
-  const falas = () => eventos.filter((e) => e.kind === 'texto').map((e) => e.agentId)
+  const falas = () => eventos.filter((e) => e.kind === 'texto' || e.kind === 'feito').map((e) => e.agentId)
   return { worker, falas, fechamentos, chamadas }
 }
 
@@ -94,4 +97,11 @@ Deno.test('Execução do Canal com anexo: roda só com o Agente do fio e o anexo
     assertEquals(chamadas[0].instructions.includes('@Rhetor'), false, 'as instruções não oferecem outro Agente')
     assertEquals(chamadas[0].input.includes('--- Início do anexo tabela.csv ---\nconta;nota\nAlfa;9'), true, 'o anexo segue no pedido')
   }
+})
+
+Deno.test('Execução canal WhatsApp coordenada oferece todos os Agentes elegíveis ao Hermes', async () => {
+  const run = reserva('canal', { kind: 'coordenada', origin: 'whatsapp', agent_id: null, mentions: [] })
+  const { worker, falas } = montar(run)
+  await worker.processar(run)
+  assertEquals(falas(), [SCOPUS.id, RHETOR.id])
 })
