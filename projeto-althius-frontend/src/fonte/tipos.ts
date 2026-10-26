@@ -699,6 +699,9 @@ export interface ConversaDoSlack extends ConversaRetomada<PassoDaConversa> {
   agenteId: AgenteId
 }
 
+/** Uma Conversa que nasceu no WhatsApp. O app só a lê; a pessoa continua pelo Canal. */
+export interface ConversaDoWhatsApp extends ConversaRetomada<PassoDaCoordenacao> {}
+
 /** As Conversas que a sessão tinha antes de recarregar a página: a do composer e a mais recente de cada Agente. */
 export interface ConversasRetomadas {
   coordenada: ConversaRetomada<PassoDaCoordenacao> | null
@@ -886,6 +889,7 @@ export interface FonteDeAgentes extends FonteObservavel {
   conversaCoordenadaAtual?(): string | null
   /** Abre, só para leitura, uma Conversa que nasceu no Slack. Não muda a Conversa em curso de nenhum lugar. */
   abrirConversaDoSlack?(id: string): Promise<ConversaDoSlack>
+  abrirConversaDoWhatsApp?(id: string): Promise<ConversaDoWhatsApp>
   /**
    * O histórico de Conversas de quem está na sessão com um Agente (ou com a Coordenação, sem Agente), da mais recente
    * à mais antiga, sem as arquivadas; `antesDe` pede a página seguinte. Só no Workspace operacional.

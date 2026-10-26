@@ -41,6 +41,10 @@ export function ConversasSalvas() {
       navegar(`/agentes/${encodeURIComponent(conversa.doSlack.agenteId)}/conversa?slack=${encodeURIComponent(conversa.id)}`)
       return
     }
+    if (conversa.doWhatsapp) {
+      navegar(`/conversa?whatsapp=${encodeURIComponent(conversa.id)}`)
+      return
+    }
     await conversas.abrir(conversa.id)
     navegar('/conversa')
   }
