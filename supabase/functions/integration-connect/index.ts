@@ -1,7 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
-import type { BancoDeDesconexao, RevogacaoNoApp } from '../_shared/integration-access.ts'
+import type { BancoDeDesconexao } from '../_shared/integration-access.ts'
 import { createHandler, type Db } from './handler.ts'
+import { criarRetiradaIntegracao } from './rpc-retirada.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -27,16 +28,7 @@ function clienteDaSessao(authorization: string, apikey: string) {
 
 const db: Db & BancoDeDesconexao = {
   ...bancoDasIntegracoes((nome, parametros) => admin.rpc(nome, parametros)),
-  async retirarIntegracao(a) {
-    const { data, error } = await admin.rpc('disable_workspace_integration_with_revocation_results', {
-      p_workspace_id: a.workspaceId,
-      p_user_id: a.userId,
-      p_integration_id: a.integrationId,
-      p_results: a.resultados.map((r: { userId: string; resultado: RevogacaoNoApp }) => ({ user_id: r.userId, result: r.resultado })),
-    })
-    if (error) throw new Error(error.message)
-    return Number(data ?? 0)
-  },
+  retirarIntegracao: criarRetiradaIntegracao((nome, parametros) => admin.rpc(nome, parametros)),
   async userFromJwt(authorization, apikey) {
     const { data, error } = await clienteDaSessao(authorization, apikey).auth.getUser(authorization.slice(7))
     if (error || !data.user) return null

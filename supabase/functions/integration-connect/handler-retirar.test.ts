@@ -1,15 +1,20 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
-import { type BancoDeDesconexao, ErroDoBanco } from '../_shared/integration-access.ts'
+import { type BancoDeDesconexao } from '../_shared/integration-access.ts'
 import { createHandler, type Db } from './handler.ts'
+import { criarRetiradaIntegracao } from './rpc-retirada.ts'
 
 const WS = '6f1c2d3e-4a5b-4c6d-8e7f-000000000001'
 const segredo = JSON.stringify({ access_token: 'segredo-acc', refresh_token: 'segredo-ref', client_id: 'cid', issuer: 'https://api.clay.com' })
 
-function montar({ negar = false, falharRevogacao = false, semEndpoint = false } = {}) {
+function montar({ negar = false, naoHabilitada = false, falharRevogacao = false, semEndpoint = false } = {}) {
   const eventos = { revogacoes: [] as string[], retirada: [] as unknown[], logs: [] as Record<string, unknown>[] }
   const db = {
     userFromJwt: () => Promise.resolve({ userId: 'admin', email: null }),
-    retirarIntegracao: async (pedido: unknown) => { if (negar) throw new ErroDoBanco('42501', 'only administrators'); eventos.retirada.push(pedido); return 2 },
+    retirarIntegracao: criarRetiradaIntegracao(async (_nome, parametros) => {
+      if (negar || naoHabilitada) return { data: null, error: { code: negar ? '42501' : '22023', message: negar ? 'only administrators' : 'integration not enabled' } }
+      eventos.retirada.push(parametros)
+      return { data: 2, error: null }
+    }),
   } as unknown as Db
   const acessos = {
     acessosParaRetirada: () => Promise.resolve([
@@ -64,4 +69,9 @@ Deno.test('Membro não consegue retirar pela ação do backend', async () => {
   const { eventos, pedir } = montar({ negar: true })
   assertEquals((await pedir()).status, 403)
   assertEquals(eventos.retirada.length, 0)
+})
+
+Deno.test('retirada já desabilitada responde conflito quando a RPC retorna erro do Postgres', async () => {
+  const { pedir } = montar({ naoHabilitada: true })
+  assertEquals((await pedir()).status, 409)
 })

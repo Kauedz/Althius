@@ -14,9 +14,10 @@ Ticket implementado no worktree `ralph/conexoes-32-retirar-a-integracao-revoga-n
 
 ## Verificações
 
+- Correção `conexoes-32-rfix2`: a RPC de retirada agora converte a resposta de erro do PostgREST em `ErroDoBanco`, preservando código e mensagem para o handler responder 403/409. Seam confirmado: teste do handler HTTP com o adaptador RPC real e Postgres simulado; o teste ficou vermelho com o `Error` genérico (403/409 esperados, 502 recebido) e verde após o ajuste. O teste unitário do adaptador também verifica a preservação do código e da mensagem.
 - pgTAP específico e suíte completa passaram; comandos anotados no ticket.
-- Deno das Edge Functions passou (1.847 testes antes de adicionar o caso de endpoint ausente; teste direcionado atualizado passou com 4 casos). `deno check` da função passou.
-- Vitest direcionado de Conexões passou (12 testes), a suíte completa passou (1.989 testes, 4 ignorados), lint e `tsc -b` passaram. A primeira execução completa teve dois timeouts em outro arquivo, passou isolado e a repetição completa passou.
+- Deno das Edge Functions: `deno check supabase/functions/*/index.ts` passou; `deno test -A supabase/functions` passou (1.850 testes).
+- Frontend nesta correção: `npm run lint` passou com avisos preexistentes, `npx tsc -b` passou e `npm run build` passou. A suíte completa, com reporter de progresso, terminou com 227 arquivos e 1.988 testes aprovados, 4 ignorados e uma falha em `src/conversa/gaveta-de-historico.test.tsx` (esperava localizar “Previsão do trimestre”, mas a lista ainda estava em carregamento). É fora do caminho alterado e ficou sem mudança conforme o escopo deste fix.
 - A tentativa literal `deno test -A` na raiz coleta arquivos de frontend fora da configuração DOM e falha com erros de tipo; `deno test -A supabase/functions` passou.
 
 ## Próximo passo
