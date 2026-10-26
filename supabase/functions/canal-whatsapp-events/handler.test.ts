@@ -96,3 +96,28 @@ Deno.test('primeiro pedido em mais de um Workspace lista opções e uma escolha 
   assertEquals(m.adaptador.envios[0], { tipo: 'texto', para: TELEFONE, texto: 'Em qual Workspace?\n1. Norte\n2. Sul\nResponda com o número.' })
   assertEquals(m.chamadas[0], { workspaceId: 'workspace-sul', userId: USUARIO, texto: 'Quantos Créditos?', eventId: 'wamid-seguinte', novaConversa: false })
 })
+
+Deno.test('trocar de Workspace e escolher outro abre a próxima Conversa como nova sem iniciar execução', async () => {
+  const m = montar({ workspaces: [{ id: WORKSPACE, nome: 'Norte' }, { id: 'workspace-sul', nome: 'Sul' }] })
+  await m.enviar('wamid-inicial', TELEFONE, 'oi')
+  await m.enviar('wamid-trocar', TELEFONE, 'trocar de workspace')
+  await m.enviar('wamid-selecionar-sul', TELEFONE, '2')
+
+  assertEquals(m.chamadas, [])
+  assertEquals(m.adaptador.envios.slice(1).map((envio) => envio.tipo === 'texto' ? envio.texto : ''), [
+    'Em qual Workspace?\n1. Norte\n2. Sul\nResponda com o número.',
+    'Workspace *Sul* selecionado. Envie sua pergunta.',
+  ])
+
+  await m.enviar('wamid-pergunta-sul', TELEFONE, 'oi no Sul')
+  assertEquals(m.chamadas[0], { workspaceId: 'workspace-sul', userId: USUARIO, texto: 'oi no Sul', eventId: 'wamid-pergunta-sul', novaConversa: true })
+})
+
+Deno.test('nova conversa é comando sem IA e não abre execução', async () => {
+  const m = montar()
+  await m.enviar('wamid-nova', TELEFONE, 'nova conversa')
+  assertEquals(m.chamadas, [])
+  assertEquals(m.adaptador.envios[0], { tipo: 'texto', para: TELEFONE, texto: 'Certo. Sua próxima mensagem começa uma Conversa nova.' })
+  await m.enviar('wamid-depois-da-nova', TELEFONE, 'oi')
+  assertEquals(m.chamadas[0], { workspaceId: WORKSPACE, userId: USUARIO, texto: 'oi', eventId: 'wamid-depois-da-nova', novaConversa: true })
+})
