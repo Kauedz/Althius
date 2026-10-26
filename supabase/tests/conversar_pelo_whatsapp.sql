@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(17);
+select plan(21);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at,
   raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous, last_sign_in_at)
@@ -54,6 +54,35 @@ select is((select run_id::text from public.start_channel_run(
 select throws_ok($$select * from public.start_channel_run(
   'a7000000-0000-0000-0000-000000000007', '67000000-0000-0000-0000-000000000007', 'Outra pergunta', 'wamid.08')$$,
   '55006', 'conversation busy', 'a segunda mensagem durante Execução recebe a recusa de ocupado');
+
+-- A resposta de uma falha precisa sobreviver ao template enviado fora da janela de 24 horas.
+update private.whatsapp_last_inbound
+set received_at = now() - interval '25 hours'
+where phone_hash = encode(extensions.digest('5511999990007', 'sha256'), 'hex');
+insert into private.whatsapp_last_inbound(phone_hash, received_at)
+values (encode(extensions.digest('5511999990007', 'sha256'), 'hex'), now() - interval '25 hours')
+on conflict (phone_hash) do update set received_at = excluded.received_at;
+update private.agent_runs set status = 'failed', error_code = 'timeout', finished_at = now()
+where id = current_setting('test.run')::uuid;
+insert into private.agent_run_events(run_id, seq, kind, payload)
+values (current_setting('test.run')::uuid, 1, 'falha', '{"motivo":"timeout"}');
+select is((select within_window from public.claim_whatsapp_channel_delivery(current_setting('test.run')::uuid)), false,
+  'a falha é detectada fora da janela de 24 horas');
+select is(public.claim_whatsapp_pending_answer('67000000-0000-0000-0000-000000000007'),
+  'O pedido passou do tempo e foi interrompido, sem resposta. Tente de novo.',
+  'a falha fora da janela fica pendente para a próxima mensagem');
+
+-- Duas Execuções do mesmo usuário devem manter ambas as respostas pendentes e consumi-las em ordem.
+select set_config('test.run2', (select run_id::text from public.start_channel_run(
+  'a7000000-0000-0000-0000-000000000007', '67000000-0000-0000-0000-000000000007', 'Segundo pedido', 'wamid.09')), true);
+insert into private.whatsapp_pending_answers(user_id, run_id, answer, created_at)
+values ('67000000-0000-0000-0000-000000000007', current_setting('test.run')::uuid, 'primeira', now() - interval '2 seconds');
+insert into private.whatsapp_pending_answers(user_id, run_id, answer, created_at)
+values ('67000000-0000-0000-0000-000000000007', current_setting('test.run2')::uuid, 'segunda', now());
+select is((select count(*)::int from private.whatsapp_pending_answers
+  where user_id = '67000000-0000-0000-0000-000000000007'), 2, 'respostas pendentes distintas não se sobrescrevem');
+select is(public.claim_whatsapp_pending_answer('67000000-0000-0000-0000-000000000007'), 'primeira',
+  'a resposta pendente mais antiga é entregue primeiro');
 
 select * from finish();
 rollback;

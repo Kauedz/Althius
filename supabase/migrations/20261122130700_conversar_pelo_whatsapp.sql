@@ -44,11 +44,13 @@ alter table private.whatsapp_last_inbound enable row level security;
 revoke all on private.whatsapp_last_inbound from public, anon, authenticated, service_role;
 
 create table private.whatsapp_pending_answers (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
   run_id uuid not null references private.agent_runs(id) on delete cascade,
   answer text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  primary key (user_id, run_id)
 );
+create index whatsapp_pending_answers_queue_idx on private.whatsapp_pending_answers (user_id, created_at, run_id);
 alter table private.whatsapp_pending_answers enable row level security;
 revoke all on private.whatsapp_pending_answers from public, anon, authenticated, service_role;
 
@@ -99,7 +101,12 @@ create function public.claim_whatsapp_pending_answer(p_user_id uuid)
 returns text language plpgsql security definer set search_path = '' as $$
 declare v_answer text;
 begin
-  delete from private.whatsapp_pending_answers where user_id = p_user_id returning answer into v_answer;
+  with next_answer as (
+    select user_id, run_id from private.whatsapp_pending_answers
+    where user_id = p_user_id order by created_at, run_id for update skip locked limit 1
+  )
+  delete from private.whatsapp_pending_answers p using next_answer n
+  where p.user_id = n.user_id and p.run_id = n.run_id returning p.answer into v_answer;
   return v_answer;
 end; $$;
 
@@ -259,13 +266,26 @@ begin
   from private.whatsapp_last_inbound i
   where i.phone_hash = encode(extensions.digest(regexp_replace(v_phone, '\\D', '', 'g'), 'sha256'), 'hex');
   v_within_window := coalesce(v_within_window, false);
-  select string_agg(e.payload ->> 'texto', E'\n\n' order by e.seq) into v_answer
-  from private.agent_run_events e where e.run_id = p_run_id and e.kind in ('texto', 'resposta')
-    and coalesce(e.payload ->> 'texto', '') <> '';
+  if v_run.status = 'failed' then
+    select case coalesce(e.payload ->> 'motivo', v_run.error_code)
+      when 'insufficient_credits' then 'Não foi possível responder: o Workspace está sem Créditos para este pedido, ou você chegou ao seu limite do mês. Avise o Administrador.'
+      when 'contrato_inativo' then 'Não foi possível responder: este Workspace está sem contrato ativo na Althius.'
+      when 'membership_inactive' then 'Não foi possível responder: você não participa mais deste Workspace.'
+      when 'timeout' then 'O pedido passou do tempo e foi interrompido, sem resposta. Tente de novo.'
+      else 'Não consegui terminar a resposta a este pedido. Tente de novo em instantes.'
+    end into v_answer
+    from private.agent_run_events e where e.run_id = p_run_id and e.kind = 'falha'
+    order by e.seq desc limit 1;
+    v_answer := coalesce(v_answer, 'Não consegui terminar a resposta a este pedido. Tente de novo em instantes.');
+  else
+    select string_agg(e.payload ->> 'texto', E'\n\n' order by e.seq) into v_answer
+    from private.agent_run_events e where e.run_id = p_run_id and e.kind in ('texto', 'resposta')
+      and coalesce(e.payload ->> 'texto', '') <> '';
+  end if;
   if not v_within_window and v_answer is not null then
     insert into private.whatsapp_pending_answers(user_id, run_id, answer)
     values (v_run.requested_by, p_run_id, v_answer)
-    on conflict (user_id) do update set run_id = excluded.run_id, answer = excluded.answer, created_at = now();
+    on conflict (user_id, run_id) do update set answer = excluded.answer, created_at = now();
   end if;
   update private.agent_runs r set channel_delivered_at = now(), channel_delivery_attempts = r.channel_delivery_attempts + 1 where r.id = p_run_id;
   return query select v_run.status, v_run.error_code, case when v_within_window then v_answer else null end,
