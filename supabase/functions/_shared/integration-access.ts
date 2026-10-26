@@ -76,6 +76,8 @@ export interface BancoDeAcessos extends BancoDeClientesOAuth {
 export interface BancoDeDesconexao extends BancoDeAcessos {
   /** RPC `disconnect_integration_access_for_user`; falso quando não havia Acesso. Lança ErroDoBanco (42501). */
   apagarAcesso(a: { workspaceId: string; userId: string; integrationId: string }): Promise<boolean>
+  /** Lista os Acessos da Integração para a retirada; segredos só são lidos no servidor. */
+  acessosParaRetirada?(a: { workspaceId: string; userId: string; integrationId: string }): Promise<(Pick<AcessoLido, 'kind' | 'state' | 'segredo'> & { userId: string })[]>
 }
 
 export interface DepsDeAcesso {
@@ -482,7 +484,7 @@ export async function chamarFerramenta(
 }
 
 /**
- * O que aconteceu com o token no app ao desconectar: `revogado` (RFC 7009), `nao_suportado` (o servidor não anuncia onde
+ * O que aconteceu com o token no app ao desconectar ou retirar: `revogado` (RFC 7009), `nao_suportado` (o servidor não anuncia onde
  * revogar), `falhou` (o app recusou, não respondeu, ou não havia como revogar com segurança) ou `nao_se_aplica` (chave de
  * API, Acesso sem token legível ou nenhum Acesso).
  */
@@ -550,4 +552,16 @@ async function revogarNoApp(
   } catch {
     return 'falhou'
   }
+}
+
+/** Mesmo revogador do desconectar, exposto ao fluxo de retirada para cada Acesso conectado. */
+export async function revogarAcessoDaIntegracao(
+  deps: Omit<DepsDeAcesso, 'banco'> & { banco: BancoDeAcessos },
+  integrationId: string,
+  acesso: Pick<AcessoLido, 'kind' | 'segredo'>,
+): Promise<RevogacaoNoApp> {
+  const perfil = perfilDaIntegracao(integrationId)
+  const segredo = acesso.kind === 'oauth_mcp' ? lerSegredo(acesso as AcessoLido) : null
+  if (!perfil || !segredo || !('access_token' in segredo)) return 'nao_se_aplica'
+  return await revogarNoApp(deps, perfil, segredo)
 }

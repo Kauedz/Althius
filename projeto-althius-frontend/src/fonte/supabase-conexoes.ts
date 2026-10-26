@@ -36,6 +36,11 @@ interface LinhaDeAcesso {
   kinds: string[] | null
 }
 
+interface LinhaDeResultadoDeRetirada {
+  integration_id: string
+  result: 'revogado' | 'nao_suportado' | 'falhou' | 'nao_se_aplica'
+}
+
 const CAMINHO: Record<string, CaminhoDeConexao> = { oauth_mcp: 'autorizacao', api_key: 'chave' }
 
 interface LinhaDoCanalSlack {
@@ -160,6 +165,21 @@ export function criarFonteDeConexoesSupabase(
       return []
     },
 
+    async resultadosDeRetirada() {
+      const { data } = await cliente.auth.getSession()
+      const userId = data.session?.user.id
+      if (!userId) return []
+      const { data: resultados, error } = await cliente.rpc('integration_revocation_results_for_user', {
+        p_workspace_id: obterWorkspaceId(),
+        p_user_id: userId,
+      })
+      if (error) throw new Error(error.message)
+      return ((resultados ?? []) as LinhaDeResultadoDeRetirada[]).map((linha) => ({
+        integracaoId: linha.integration_id as IntegracaoId,
+        resultado: linha.result,
+      }))
+    },
+
     async habilitarIntegracao(id: IntegracaoId): Promise<void> {
       const workspaceId = obterWorkspaceId()
       const { error } = await cliente.rpc('enable_workspace_integration', {
@@ -178,18 +198,25 @@ export function criarFonteDeConexoesSupabase(
       avisar()
     },
 
-    async desabilitarIntegracao(id: IntegracaoId): Promise<void> {
-      const { error } = await cliente.rpc('disable_workspace_integration', {
-        p_workspace_id: obterWorkspaceId(),
-        p_integration_id: id,
+    async desabilitarIntegracao(id: IntegracaoId) {
+      const { data, error } = await cliente.functions.invoke('integration-connect', {
+        body: { action: 'retirar', workspaceId: obterWorkspaceId(), integrationId: id },
       })
       if (error) {
-        if (error.message.includes('only administrators')) throw new Error('Só um Administrador desabilita Integrações no Workspace.')
-        if (error.message.includes('active workspace membership required')) throw new Error('Sua Participação neste Workspace não está ativa.')
-        if (error.message.includes('integration not enabled')) throw new Error('Esta Integração já está desabilitada.')
-        throw new Error('Não foi possível desabilitar a Integração agora. Tente novamente.')
+        const mensagem = await mensagemDaFuncao(error, 'Não foi possível desabilitar a Integração agora. Tente novamente.')
+        if (mensagem.includes('Só um Administrador')) throw new Error('Só um Administrador desabilita Integrações no Workspace.')
+        if (mensagem.includes('Participação neste Workspace')) throw new Error('Sua Participação neste Workspace não está ativa.')
+        if (mensagem.includes('já está desabilitada')) throw new Error('Esta Integração já está desabilitada.')
+        throw new Error(mensagem)
       }
       avisar()
+      const resultados = (data as { resultados?: Record<string, number> } | null)?.resultados
+      return resultados ? {
+        revogado: resultados.revogado ?? 0,
+        naoSuportado: resultados.nao_suportado ?? 0,
+        falhou: resultados.falhou ?? 0,
+        naoSeAplica: resultados.nao_se_aplica ?? 0,
+      } : undefined
     },
 
     async conectar(_conexao: CanalId | IntegracaoId): Promise<void> {
