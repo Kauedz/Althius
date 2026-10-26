@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(16);
+select plan(18);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -126,6 +126,10 @@ select is(exists (select 1 from public.contact_suppressions
 reset role;
 select is(has_function_privilege('authenticated', 'public.list_sequence_reply_review_core(uuid)', 'execute'),
   false, 'the renamed core function does not keep the old public grant to authenticated');
+select is(has_function_privilege('anon', 'public.list_sequence_reply_review_core(uuid)', 'execute'),
+  false, 'the core review function is not executable by anon');
+select is(has_function_privilege('authenticated', 'public.list_sequence_reply_review(uuid)', 'execute'),
+  true, 'authenticated keeps execute on the review wrapper');
 
 select * from finish();
 rollback;
