@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { idaAoApp } from '@/paginas/ida-ao-app'
@@ -189,7 +189,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     expect(
       await screen.findByText('Esta conta é de outro portal do HubSpot. O Workspace já usa um portal; fale com um Administrador.'),
     ).toBeInTheDocument()
-    expect(window.location.search).toBe('')
+    await waitFor(() => expect(window.location.search).toBe(''))
   })
 
   it('confirma a conexão concluída na volta da autorização', async () => {

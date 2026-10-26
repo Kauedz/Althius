@@ -110,6 +110,16 @@ export function bancoDasIntegracoes(rpc: Rpc): BancoDeDesconexao & BancoDaConexa
         p_integration_id: a.integrationId,
       })) === true
     },
+    async acessosParaRetirada(a) {
+      const linhas = await chamar<{ user_id: string; kind: TipoDeAcesso; state: 'conectado' | 'precisa_reconectar'; secret: string | null }[]>(
+        'integration_accesses_for_revocation', {
+          p_workspace_id: a.workspaceId,
+          p_user_id: a.userId,
+          p_integration_id: a.integrationId,
+        },
+      )
+      return (linhas ?? []).map((linha) => ({ userId: linha.user_id, kind: linha.kind, state: linha.state, segredo: linha.secret }))
+    },
     async marcarReconexao(accessId, motivo) {
       await chamar('mark_integration_access_reconnect', { p_access_id: accessId, p_reason: motivo })
     },
