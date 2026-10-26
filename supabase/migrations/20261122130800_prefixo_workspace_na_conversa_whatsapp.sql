@@ -26,7 +26,7 @@ begin
   select w.name into v_workspace_name from public.workspaces w where w.id = v_run.workspace_id;
   select i.received_at >= now() - interval '24 hours' into v_within_window
   from private.whatsapp_last_inbound i
-  where i.phone_hash = encode(extensions.digest(regexp_replace(v_phone, '\\D', '', 'g'), 'sha256'), 'hex');
+  where i.phone_hash = encode(extensions.digest(regexp_replace(v_phone, '\D', '', 'g'), 'sha256'), 'hex');
   v_within_window := coalesce(v_within_window, false);
   if v_run.status = 'failed' then
     select case coalesce(e.payload ->> 'motivo', v_run.error_code)

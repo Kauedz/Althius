@@ -1,6 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1'
 import { createCanalSimulado } from '../_shared/canal/index.ts'
-import { createHandler, type Db, type SessaoWhatsApp, type WorkspaceElegivel } from './handler.ts'
+import { createHandler, type AberturaDeExecucao, type Db, type SessaoWhatsApp, type WorkspaceElegivel } from './handler.ts'
 
 const SEGREDO = 'segredo-de-teste'
 const USUARIO = '5d000000-0000-0000-0000-000000000001'
@@ -13,13 +13,14 @@ async function assinatura(corpo: string) {
   return `sha256=${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
-function montar(opcoes: { workspaces?: WorkspaceElegivel[] } = {}) {
+function montar(opcoes: { workspaces?: WorkspaceElegivel[]; aberturas?: AberturaDeExecucao[] } = {}) {
   const adaptador = createCanalSimulado()
   const eventosReservados = new Set<string>()
   const recusasDesconhecidos = new Set<string>()
   const chamadas: Record<string, unknown>[] = []
   const pendentes: Promise<unknown>[] = []
   const sessoes = new Map<string, SessaoWhatsApp>()
+  let indiceAbertura = 0
   const db: Db = {
     reservarEvento: async (id) => {
       if (eventosReservados.has(id)) return false
@@ -40,6 +41,8 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[] } = {}) {
     },
     abrirExecucao: async (pedido) => {
       chamadas.push({ ...pedido })
+      const abertura = opcoes.aberturas?.[indiceAbertura++]
+      if (abertura) return abertura
       return { kind: 'aberto', conversationId: 'conversa-1', runId: 'execucao-1' }
     },
   }
@@ -120,4 +123,13 @@ Deno.test('nova conversa é comando sem IA e não abre execução', async () => 
   assertEquals(m.adaptador.envios[0], { tipo: 'texto', para: TELEFONE, texto: 'Certo. Sua próxima mensagem começa uma Conversa nova.' })
   await m.enviar('wamid-depois-da-nova', TELEFONE, 'oi')
   assertEquals(m.chamadas[0], { workspaceId: WORKSPACE, userId: USUARIO, texto: 'oi', eventId: 'wamid-depois-da-nova', novaConversa: true })
+})
+
+Deno.test('nova conversa continua marcada quando a abertura da Execução é recusada', async () => {
+  const m = montar({ aberturas: [{ kind: 'recusado', motivo: 'ocupado' }] })
+  await m.enviar('wamid-nova-recusada', TELEFONE, 'nova conversa')
+  await m.enviar('wamid-tentativa-recusada', TELEFONE, 'primeira pergunta')
+  await m.enviar('wamid-tentativa-seguinte', TELEFONE, 'segunda pergunta')
+
+  assertEquals(m.chamadas.map((chamada) => (chamada as { novaConversa: boolean }).novaConversa), [true, true])
 })

@@ -37,9 +37,6 @@ select set_config('test.run', (select run_id::text from public.start_channel_run
   'a8000000-0000-0000-0000-000000000008', '68000000-0000-0000-0000-000000000008', 'Olá', 'wamid.08a')), true);
 select set_config('test.conversation', (select conversation_id::text from private.agent_runs where id = current_setting('test.run')::uuid), true);
 select public.claim_whatsapp_channel_event('wamid.08a', '5511999990008');
-insert into private.whatsapp_last_inbound(phone_hash, received_at)
-values (encode(extensions.digest('+5511999990008', 'sha256'), 'hex'), now())
-on conflict (phone_hash) do update set received_at = excluded.received_at;
 insert into private.agent_run_events(run_id, seq, kind, payload)
 values (current_setting('test.run')::uuid, 1, 'resposta', '{"texto":"Olá"}');
 update private.agent_runs set status = 'succeeded', finished_at = now() where id = current_setting('test.run')::uuid;
