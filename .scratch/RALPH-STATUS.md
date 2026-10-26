@@ -1,5 +1,34 @@
 # Ralph status: consolidado das frentes (2026-10-08)
 
+## Sinais first: ADR-0033, spec e tickets (2026-10-26)
+
+- **Branch:** `docs/sinais-first`, a partir da `origin/main` `32e134e`.
+- **O que isto é:** só documentação. Nenhum código, migration, tela ou deploy saiu deste trabalho. Decisão do Renan, 26/10/2026 15:40 BRT: as quatro Especialidades (Scopus, Ethos, Rhetor, Oraculum) saem do produto; o composer de `/` passa a criar Sinais.
+- **Escrito:** `docs/adr/0033-sinais-first.md` (Aceita); uma linha de remissão em `docs/adr/0032-agente-de-sinal-e-agente-de-contas.md`, `docs/adr/0004-coordenacao-sem-quinto-agente.md` e `docs/adr/0005-agentes-criados-a-partir-de-especialidades.md`; edições mínimas de glossário em `CONTEXT.md` (Especialidade, Agente, Agente de Sinal, Agente de Contas, Agente padrão/criado, Scopus/Ethos/Rhetor/Oraculum, Coordenação, ICP); `.scratch/sinais-first/spec.md` e 15 tickets em `.scratch/sinais-first/issues/`.
+- **ADR-0032, decisão 1 (barra lateral/Agente de Contas):** superada pela ADR-0033 — não é mais "reposicionar", os 4 Especialistas saem da interface (ticket 10).
+- **`.scratch/agente-de-sinal/` absorvido/adiado:** o ticket 11 ("Modelos") é absorvido pelo ticket 06 daqui; o ticket 14 ("Página de Sinais reorganizada") é absorvido pelo ticket 09; o ticket 13 ("Agente de Contas") segue adiado (ADR-0033, D8); o ticket 15 ("Limpeza" dos formulários antigos por tipo) continua à parte, sem relação com a retirada das 4 Especialidades. Nota de uma linha adicionada em `.scratch/agente-de-sinal/spec.md` apontando para cá.
+
+| Ticket | Título | Blocked by | Status | Hermes | Kauê |
+| --- | --- | --- | --- | --- | --- |
+| 01 | ICP estruturado único | nenhum | ready-for-agent | não | não |
+| 02 | ICP editável pela Revisão do Playbook | 01 | ready-for-agent | não | não |
+| 03 | ICP no prompt do Plano do Sinal | 01 | ready-for-agent | não | não |
+| 04 | Catálogo "Para o seu nicho" pelo ICP | 01 | ready-for-agent | não | não |
+| 05 | Aderência nas empresas achadas por Sinais | 01 | ready-for-agent | não | não |
+| 06 | Modelos: card lança um Plano-semente | nenhum | ready-for-agent | não | não |
+| 07 | Composer classifica a intenção do pedido | 06 | ready-for-agent | não | não |
+| 08 | Composer cria o Sinal | 07 | ready-for-agent | não | não |
+| 09 | Página do Sinal e Meus Sinais | 08 | ready-for-agent | não | não |
+| 10 | Esconder os quatro Agentes da interface | 08 | ready-for-agent | não | não |
+| 11 | Sequência sem exigir o Rhetor | 10 | ready-for-agent | não | sim |
+| 12 | Auditoria de presença em LLM como ferramenta interna | nenhum | ready-for-agent | não | não |
+| 13 | Parar de semear os quatro Agentes | 10, 11 | ready-for-agent | não | não |
+| 14 | Hermes: limpeza do mapa de personas | 10 | needs-hermes | sim | não |
+| 15 | Retirada de schema dos quatro Agentes | 10, 11, 12, 13, 14 | ready-for-agent | não | não |
+
+- **Ordem segura da retirada (ADR-0033, D9):** 10 (esconder) → 11 (desacoplar o Rhetor) → 13 (parar de semear) → 15 (schema, por último, sem apagar dado). Nenhum passo da trilha 10–15 faz `drop table`, `truncate`, `delete` de linha nem `drop column` de dado existente; dado órfão fica só leitura, sem migração.
+- **Próximo passo:** nenhum agente deve começar a implementar antes de uma decisão humana de priorização; os tickets 01–09 (ICP, Modelos, composer, página do Sinal) são aditivos e podem andar em paralelo com a trilha de retirada 10–15, que só depende deles no ticket 10.
+
 ## Ralph matriz: tickets fechados e onda de 24/10 (2026-10-24)
 
 - **Fechados neste PR (só o status muda, cada um conferido contra o PR mergeado na main 6e384dc):**

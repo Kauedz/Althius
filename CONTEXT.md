@@ -66,7 +66,7 @@ A situação comercial de um Workspace na Althius, e não de uma Conta de usuár
 _Avoid_: assinatura, plano do usuário
 
 **ICP**:
-O perfil de cliente ideal do Cliente, documentado na memória compartilhada do Workspace e utilizado como referência pelos Agentes e módulos da Althius.
+O perfil de cliente ideal do Cliente, documentado na memória compartilhada do Workspace e utilizado como referência pelos Agentes e módulos da Althius. Pela [ADR-0033](docs/adr/0033-sinais-first.md), passa a existir um único registro de ICP estruturado, que o catálogo de Sinais, o `signal-plan` e a Aderência das empresas achadas por Sinais leem; editá-lo pelo composer passa pela Revisão da Memória do Workspace.
 _Avoid_: CP
 
 **Memória do Workspace**:
@@ -236,39 +236,38 @@ _Avoid_: onboarding pago, implantação
 ## Agentes
 
 **Especialidade**:
-Um dos quatro tipos fixos de trabalho do catálogo da Althius (Scopus, Ethos, Rhetor, Oraculum). O Cliente não cria Especialidades. O Agente de Sinal e o Agente de Contas não são Especialidades novas do catálogo; se o Agente de Contas passa a ser uma ou é o Scopus reposicionado está em aberto na ADR-0032.
+Um dos quatro tipos fixos de trabalho do catálogo da Althius (Scopus, Ethos, Rhetor, Oraculum). **Retirada do produto pela [ADR-0033](docs/adr/0033-sinais-first.md)** em 26/10/2026: o Cliente não vê, não usa e não cria mais Agentes a partir de uma Especialidade. Os dados dos Agentes que existiam (Memória, Conversas, Habilidades, Rotinas) ficam só leitura, sem migração. Este termo e os quatro nomes abaixo seguem no glossário como referência histórica, para quem lê código ou dado anterior à retirada.
 _Avoid_: template, modelo de agente, tipo de agente
 
 **Agente**:
-Um trabalhador de uma Especialidade dentro de um Workspace. É um Agente padrão ou um Agente criado. "Agente de Sinal" e "Agente de Contas" são os únicos "agente de X" aceitos, e nomeiam experiências ([ADR-0032](docs/adr/0032-agente-de-sinal-e-agente-de-contas.md), proposta), não Especialidades.
+Um trabalhador dentro de um Workspace. Antes da [ADR-0033](docs/adr/0033-sinais-first.md), era sempre de uma Especialidade (padrão ou criado); depois dela, o único "agente de X" que o Cliente vê é o **Agente de Sinal**. "Agente de Contas" nomeia uma experiência futura (ADR-0032, decisão 6; adiada pela ADR-0033, D8), não um Agente de Especialidade.
 _Avoid_: bot, assistente, "agente de X" (exceto Agente de Sinal e Agente de Contas)
 
 **Agente de Sinal**:
-O nome que o Cliente vê para o fluxo em que descreve o que quer (Briefing), revisa o Plano que a IA monta, escolhe a Agenda e vê o Preço por rodada antes de ativar. Por trás roda um Monitoramento, e só o Plano aprovado.
+O nome que o Cliente vê para o fluxo em que descreve o que quer (Briefing), revisa o Plano que a IA monta, escolhe a Agenda e vê o Preço por rodada antes de ativar. Por trás roda um Monitoramento, e só o Plano aprovado. Pela [ADR-0033](docs/adr/0033-sinais-first.md), nasce do composer da tela inicial: a pessoa descreve o pedido, a Althius sugere um Modelo compatível ou monta um Plano novo, e o Sinal resultante tem nome automático editável e página própria.
 _Avoid_: bot de Sinais
 
 **Agente de Contas**:
-Um chat dentro de Contas e Contatos que busca, filtra e lê Contas-alvo e Candidatas, pede enriquecimento (com o custo à vista), propõe aceitar ou descartar e transforma uma conversa num rascunho de Sinal ("roda Sinais nessas Contas"). Propõe e rascunha: aceitar, descartar e ativar são decisões de uma pessoa. Não é a Coordenação (que não tem nome).
+Um chat dentro de Contas e Contatos que busca, filtra e lê Contas-alvo e Candidatas, pede enriquecimento (com o custo à vista), propõe aceitar ou descartar e transforma uma conversa num rascunho de Sinal ("roda Sinais nessas Contas"). Propõe e rascunha: aceitar, descartar e ativar são decisões de uma pessoa. Não é a Coordenação (que não tem nome). Adiado para depois do lançamento pela [ADR-0033](docs/adr/0033-sinais-first.md), D8.
 _Avoid_: bot de Contas, assistente de Contas
 
-**Agente padrão**:
-O Agente que todo Workspace tem para cada Especialidade, com o nome dela (ex.: "Scopus"). Não pode ser excluído.
+**Agente padrão** (retirado pela [ADR-0033](docs/adr/0033-sinais-first.md)):
+O Agente que todo Workspace tinha para cada Especialidade, com o nome dela (ex.: "Scopus"). Não podia ser excluído. Termo histórico: Workspaces novos não ganham mais esses Agentes.
 
-**Agente criado**:
-Um Agente que o Cliente cria a partir de uma Especialidade, nomeado "Especialidade · complemento" (ex.: "Scopus · Enterprise LATAM"). Começa com uma cópia da Personalização, das Permissões e das Habilidades do Agente padrão, com Memória vazia e sem Rotinas, e pode ser excluído.
-_Avoid_: agente personalizado, cópia, clone
+**Agente criado** (retirado pela [ADR-0033](docs/adr/0033-sinais-first.md)):
+Um Agente que o Cliente criava a partir de uma Especialidade, nomeado "Especialidade · complemento" (ex.: "Scopus · Enterprise LATAM"). Termo histórico: o Cliente não cria mais Agentes a partir de Especialidade.
 
-**Scopus**:
-A Especialidade de ICP: define o perfil de cliente ideal e avalia a Aderência das Contas-alvo.
+**Scopus** (Especialidade retirada pela [ADR-0033](docs/adr/0033-sinais-first.md)):
+A Especialidade de ICP: definia o perfil de cliente ideal e avaliava a Aderência das Contas-alvo.
 
-**Ethos**:
-A Especialidade de Persona: descreve dores, objeções e gatilhos de cada papel do Comitê de compra.
+**Ethos** (Especialidade retirada pela [ADR-0033](docs/adr/0033-sinais-first.md)):
+A Especialidade de Persona: descrevia dores, objeções e gatilhos de cada papel do Comitê de compra.
 
-**Rhetor**:
-A Especialidade de escrita persuasiva: produz e-mails, sequências, posts e copy no tom da marca e por persona.
+**Rhetor** (Especialidade retirada pela [ADR-0033](docs/adr/0033-sinais-first.md)):
+A Especialidade de escrita persuasiva: produzia e-mails, sequências, posts e copy no tom da marca e por persona. A escrita de Sequência vira passo interno (ADR-0033, D3).
 
-**Oraculum**:
-A Especialidade de GEO (Generative Engine Optimization): mede e melhora como a marca aparece e é citada em respostas de LLMs.
+**Oraculum** (Especialidade retirada pela [ADR-0033](docs/adr/0033-sinais-first.md)):
+A Especialidade de GEO (Generative Engine Optimization): media e melhorava como a marca aparece e é citada em respostas de LLMs. A auditoria de presença em LLM vira ferramenta interna (ADR-0033, D3).
 _Avoid_: agente de SEO, agente geográfico
 
 **Personalização**:
@@ -305,7 +304,7 @@ Quando um Agente repassa trabalho a outro por conta própria (ex.: Scopus → Et
 _Avoid_: orquestração, pipeline
 
 **Coordenação**:
-Quando a Althius, sem ser um Agente e sem nome próprio, divide um pedido de uma Conversa coordenada entre os Agentes necessários e junta as respostas numa só. Um Agente @mencionado no pedido é sempre incluído; um pedido genérico pode ser respondido sem chamar nenhum Agente. A Coordenação não usa Integrações: quem age são os Agentes, cada um com a sua Permissão.
+Quando a Althius, sem ser um Agente e sem nome próprio, divide um pedido de uma Conversa coordenada entre os Agentes necessários e junta as respostas numa só. Um Agente @mencionado no pedido é sempre incluído; um pedido genérico pode ser respondido sem chamar nenhum Agente. A Coordenação não usa Integrações: quem age são os Agentes, cada um com a sua Permissão. Pela [ADR-0033](docs/adr/0033-sinais-first.md), o composer da tela inicial deixa de dividir pedidos entre Especialidades (não há mais nenhuma) e passa a classificar o pedido entre criar um Agente de Sinal (direto ou a partir de um Modelo) e responder direto a um pedido geral; continua sem nome, sem página e sem Memória.
 _Avoid_: orquestração, orquestrador, 5º agente
 
 ## Sequências
