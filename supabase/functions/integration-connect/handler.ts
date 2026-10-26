@@ -18,15 +18,16 @@ import { listarFerramentasMcp } from '../_shared/integracoes/mcp-cliente.ts'
 import { desafioPkce, descobrirServidorDeAutorizacao, ErroDeOAuth, urlDeConsentimento } from '../_shared/integracoes/oauth.ts'
 import { perfilDaIntegracao } from '../_shared/integracoes/perfis.ts'
 import { ErroDeProvedor } from '../_shared/integracoes/tipos.ts'
-import { type BancoDeDesconexao, desconectarAcesso, ErroDoBanco } from '../_shared/integration-access.ts'
+import { type BancoDeDesconexao, desconectarAcesso, ErroDoBanco, revogarAcessoDaIntegracao, type RevogacaoNoApp } from '../_shared/integration-access.ts'
 
 export interface Db extends BancoDaConexao {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string; email: string | null } | null>
+  retirarIntegracao?(pedido: { workspaceId: string; userId: string; integrationId: string; resultados: { userId: string; resultado: RevogacaoNoApp }[] }): Promise<number>
 }
 
 export interface Deps {
   db: Db
-  /** Os Acessos, para desconectar. Sem eles, `desconectar` responde indisponível. */
+  /** Os Acessos, para desconectar e revogar antes de retirar. */
   acessos?: BancoDeDesconexao
   /** Os segredos de ambiente (`Deno.env.get`). */
   ambiente: (nome: string) => string | undefined
@@ -101,6 +102,26 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
       log({ type: 'integration_disconnect', integrationId, resultado: r.valor.revogacao, desconectado: r.valor.desconectado })
       return responder(r.valor)
+    }
+    if (corpo.action === 'retirar') {
+      if (!deps.acessos || !deps.db.retirarIntegracao) return erro(503, 'indisponivel', 'Não foi possível retirar a Integração agora. Tente novamente.')
+      try {
+        const acessos = await deps.acessos.acessosParaRetirada?.({ workspaceId, userId: user.userId, integrationId })
+        if (!acessos) return erro(503, 'indisponivel', 'Não foi possível retirar a Integração agora. Tente novamente.')
+        const resultados = await Promise.all(acessos.map(async (acesso) => ({
+          userId: acesso.userId,
+          resultado: await revogarAcessoDaIntegracao({ banco: deps.acessos!, ambiente: deps.ambiente, fetch: deps.fetch }, integrationId, acesso),
+        })))
+        const removidos = await deps.db.retirarIntegracao({ workspaceId, userId: user.userId, integrationId, resultados })
+        const contagens = { revogado: 0, nao_suportado: 0, falhou: 0, nao_se_aplica: 0 }
+        resultados.forEach(({ resultado }) => { contagens[resultado] += 1 })
+        log({ type: 'integration_disable', integrationId, removidos, resultados: contagens })
+        return responder({ removidos, resultados: contagens })
+      } catch (e) {
+        if (e instanceof ErroDoBanco && e.codigo === '42501') return erro(403, 'sem_permissao', 'Só um Administrador ativo pode retirar esta Integração.')
+        if (e instanceof ErroDoBanco && e.message.includes('integration not enabled')) return erro(409, 'nao_habilitada', 'Esta Integração já está desabilitada.')
+        return falhaDoBanco(e)
+      }
     }
 
     const perfil = perfilDaIntegracao(integrationId)

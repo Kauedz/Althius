@@ -5,6 +5,7 @@ import { previaParametrizada, sugerirTemplateProprio, templateProntoParaSalvar, 
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
 import {
   ehCanalSuportado,
+  type AnaliseDaResposta,
   type AtualizacaoDocumento,
   type FonteDeSequencias,
   type MetricasDemoSequencia,
@@ -62,7 +63,9 @@ export interface OpcoesFonteDeSequenciasSimulada {
 export interface FonteDeSequenciasSimulada extends FonteDeSequencias {
   definirFalha(falha: boolean): void
   definirVazia(vazia: boolean): void
-  /** Registra uma resposta correlacionada e retém a Conta, sem IA. Duplicata do mesmo evento não reabre. */
+  /** Registra uma resposta correlacionada e retém a Conta. Duplicata do mesmo evento não reabre. `analise` simula o
+   * resultado da IA (ticket 05) para os testes de recomendação e fallback; ausente, a resposta fica sem análise, como
+   * uma falha ou indisponibilidade real deixaria. */
   registrarRespostaCorrelacionada(pedido: {
     sequenciaId: string
     eventoId: string
@@ -70,6 +73,7 @@ export interface FonteDeSequenciasSimulada extends FonteDeSequencias {
     de?: string
     assunto?: string
     trecho?: string
+    analise?: AnaliseDaResposta
   }): Promise<RevisaoDeRetencao>
 }
 
@@ -143,7 +147,7 @@ export function criarFonteDeSequenciasSimulada(
       estado: hold.estado,
       versao: hold.versao,
       pendentes: pendentes.map((r) => podeLerConteudo
-        ? { id: r.id, contatoId: r.contatoId, recebidaEm: r.recebidaEm, assunto: r.assunto, trecho: r.trecho, de: r.de, canal: r.canal }
+        ? { id: r.id, contatoId: r.contatoId, recebidaEm: r.recebidaEm, assunto: r.assunto, trecho: r.trecho, de: r.de, canal: r.canal, analise: r.analise }
         : { id: r.id, recebidaEm: r.recebidaEm }),
       decisoes: podeLerConteudo ? hold.decisoes : [],
       contatosPausados: podeLerConteudo ? hold.contatosPausados : [],
@@ -421,6 +425,7 @@ export function criarFonteDeSequenciasSimulada(
           canal: 'email',
           recebidaEm: agora,
           criadaEm: agora,
+          analise: pedido.analise,
         })
         const atual = dados[indice]
         if (atual.motivoPause !== 'Descadastro' && !atual.pausadaPelaConta) {

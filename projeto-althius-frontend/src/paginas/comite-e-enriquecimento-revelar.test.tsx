@@ -62,6 +62,70 @@ describe('Botões de revelar do Contato', () => {
     expect(screen.queryByText(/não encontrado/i)).not.toBeInTheDocument()
   })
 
+  it('mostra o preço e o saldo que vieram da cotação', async () => {
+    renderizar(contato(), {
+      cotarRevelacaoContato: vi.fn().mockResolvedValue({ creditos: 7, saldo: 13, podeRevelar: true }),
+      revelarContato: vi.fn(),
+    })
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Revelar E-mail/ }))
+
+    expect(await screen.findByText('7 créditos')).toBeInTheDocument()
+    expect(screen.getByText('Saldo informado na cotação: 13 créditos')).toBeInTheDocument()
+  })
+
+  it('quando a cotação diz que já foi encontrado, revela sem custo adicional', async () => {
+    const revelarContato = vi.fn().mockResolvedValue({
+      sucesso: false,
+      valor: 'mariana@acme.test',
+      creditosDebitados: 0,
+      jaExistia: true,
+    })
+    renderizar(contato(), {
+      cotarRevelacaoContato: vi.fn().mockResolvedValue({
+        creditos: 0,
+        saldo: 13,
+        podeRevelar: true,
+        jaEncontrado: true,
+      }),
+      revelarContato,
+    })
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Revelar E-mail/ }))
+
+    expect(await screen.findByText('Já encontrado, sem custo')).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Confirmar e Revelar' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Já encontrado, sem custo: mariana@acme.test')
+    expect(revelarContato).toHaveBeenCalledWith('contato-1', 'email')
+  })
+
+  it('sem cotação disponível, não mostra preço nem permite confirmar', async () => {
+    const revelarContato = vi.fn()
+    renderizar(contato(), {
+      cotarRevelacaoContato: vi.fn().mockRejectedValue(new Error('Falha na cotação')),
+      revelarContato,
+    })
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Revelar E-mail/ }))
+
+    expect(await screen.findByText('Cotação indisponível')).toBeInTheDocument()
+    expect(screen.queryByText(/\d+ créditos/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirmar e Revelar' })).toBeDisabled()
+    expect(revelarContato).not.toHaveBeenCalled()
+  })
+
+  it('sem método de cotação, não mostra preço nem permite confirmar', async () => {
+    const revelarContato = vi.fn()
+    renderizar(contato(), { revelarContato })
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Revelar E-mail/ }))
+
+    expect(await screen.findByText('Cotação indisponível')).toBeInTheDocument()
+    expect(screen.queryByText(/\d+ créditos/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirmar e Revelar' })).toBeDisabled()
+    expect(revelarContato).not.toHaveBeenCalled()
+  })
+
   it('sem e-mail novo, diz que nada foi debitado', async () => {
     const revelarContato = vi.fn().mockResolvedValue({ sucesso: false, valor: null, creditosDebitados: 0 })
     renderizar(contato(), {

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDaDecisaoDeRetencao, type ResultadoDoLoteDeSequencias, type ResultadosPorConta, type ResumoPublicoSequencia, type RevisaoDeRetencao, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
+import { ehCanalSuportado, type AnaliseDaResposta, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDaDecisaoDeRetencao, type ResultadoDoLoteDeSequencias, type ResultadosPorConta, type ResumoPublicoSequencia, type RevisaoDeRetencao, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './padroes-da-sequencia'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
@@ -317,6 +317,29 @@ function anexosDoDocumento(steps: StepSequencia[]): StepSequencia[] {
   )
 }
 
+const CLASSIFICACOES_DA_ANALISE = ['humana', 'automatica', 'possivel_nao_contato', 'indeterminada'] as const
+const RECOMENDACOES_DA_ANALISE = ['pausar', 'continuar', 'indeterminado'] as const
+
+/** A análise da IA sobre uma resposta pendente (ticket 05): ela só interpreta e recomenda, nunca decide. */
+function mapearAnaliseDaResposta(bruto: unknown): AnaliseDaResposta | undefined {
+  if (!bruto || typeof bruto !== 'object') return undefined
+  const linha = bruto as Record<string, unknown>
+  if (linha.status !== 'gerando' && linha.status !== 'pronta' && linha.status !== 'falhou') return undefined
+  const classificacao = (CLASSIFICACOES_DA_ANALISE as readonly string[]).includes(linha.classification as string)
+    ? (linha.classification as AnaliseDaResposta['classificacao'])
+    : undefined
+  const recomendacao = (RECOMENDACOES_DA_ANALISE as readonly string[]).includes(linha.recommendation as string)
+    ? (linha.recommendation as AnaliseDaResposta['recomendacao'])
+    : undefined
+  return {
+    status: linha.status,
+    ...(classificacao ? { classificacao } : {}),
+    ...(typeof linha.interpretation === 'string' && linha.interpretation ? { interpretacao: linha.interpretation } : {}),
+    ...(typeof linha.evidence === 'string' && linha.evidence ? { evidencia: linha.evidence } : {}),
+    ...(recomendacao ? { recomendacao } : {}),
+  }
+}
+
 function mapearRevisaoDeRetencao(bruto: unknown): RevisaoDeRetencao {
   const corpo = (bruto ?? {}) as Record<string, unknown>
   const estado = corpo.state === 'preventive' || corpo.state === 'decided_pause' ? corpo.state : 'none'
@@ -345,6 +368,10 @@ function mapearRevisaoDeRetencao(bruto: unknown): RevisaoDeRetencao {
         ...(typeof linha.from_name === 'string' || typeof linha.from_email === 'string'
           ? { de: (typeof linha.from_name === 'string' ? linha.from_name : linha.from_email) as string }
           : {}),
+        ...(() => {
+          const analise = mapearAnaliseDaResposta(linha.analysis)
+          return analise ? { analise } : {}
+        })(),
       }]
     }),
     decisoes: decisoes.flatMap((item) => {

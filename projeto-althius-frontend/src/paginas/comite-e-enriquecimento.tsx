@@ -475,8 +475,8 @@ export function BotoesRevelarContato({
       try {
         const c = await fonte.cotarRevelacaoContato(contato.id, 'email')
         setCotacao(c)
-      } catch (e) {
-        setErro(e instanceof Error ? e.message : 'Não foi possível consultar a cotação.')
+      } catch {
+        setErro('A cotação da revelação está indisponível.')
       }
     } else {
       setErro('A cotação da revelação está indisponível.')
@@ -554,6 +554,11 @@ export function BotoesRevelarContato({
                   <span className="text-sm font-semibold text-al-ink">
                     {cotacao ? `${cotacao.creditos} créditos` : erro ? 'Cotação indisponível' : 'Consultando cotação...'}
                   </span>
+                  {cotacao && (
+                    <span className="block mt-1 text-[0.6875rem] text-al-muted">
+                      Saldo informado na cotação: {cotacao.saldo} créditos
+                    </span>
+                  )}
                   <span className="block mt-1 text-[0.6875rem] text-al-muted">
                     Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.
                   </span>

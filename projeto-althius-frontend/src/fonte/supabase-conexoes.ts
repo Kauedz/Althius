@@ -36,6 +36,11 @@ interface LinhaDeAcesso {
   kinds: string[] | null
 }
 
+interface LinhaDeResultadoDeRetirada {
+  integration_id: string
+  result: 'revogado' | 'nao_suportado' | 'falhou' | 'nao_se_aplica'
+}
+
 const CAMINHO: Record<string, CaminhoDeConexao> = { oauth_mcp: 'autorizacao', api_key: 'chave' }
 
 interface LinhaDoCanalSlack {
@@ -43,21 +48,41 @@ interface LinhaDoCanalSlack {
   team_name: string | null
 }
 
+interface LinhaDoCanalWhatsapp {
+  state: string
+}
+
 const ESTADO_DO_CANAL_SLACK: Record<string, EstadoDeCanal> = {
   nao_instalado: 'nao_conectado',
   ativo: 'conectado',
   retirado: 'retirado',
 }
+const ESTADO_DO_CANAL_WHATSAPP: Record<string, EstadoDeCanal> = {
+  nao_habilitado: 'nao_conectado',
+  ativo: 'conectado',
+  retirado: 'retirado',
+}
 
 /**
- * Os Canais do Workspace com o estado real: o Slack lido da instalação (`slack_channel_status`), os outros "Em breve".
- * É a mesma leitura para Conexões e para a aba Canais do Agente. Sem a leitura (banco sem a migration, ou falha), o Slack
- * fica "Em breve" como os outros.
+ * Os Canais do Workspace com o estado real: Slack e WhatsApp são lidos pelas RPCs próprias; os demais ficam "Em breve".
+ * É a mesma leitura para Conexões e para a aba Canais do Agente. O estado salvo permanece visível sem adaptador; por
+ * segurança, um WhatsApp ativo sem adaptador não aparece conectado para o Agente, que não conseguiria atendê-lo.
  */
 export async function lerCanaisDoWorkspace(cliente: SupabaseClient, workspaceId: string): Promise<CanalDeConexao[]> {
-  const { data, error } = await cliente.rpc('slack_channel_status', { p_workspace_id: workspaceId })
-  const slack = error ? undefined : ((Array.isArray(data) ? data[0] : data) as LinhaDoCanalSlack | null | undefined)
+  const [{ data: dadosSlack, error: erroSlack }, { data: dadosWhatsapp, error: erroWhatsapp }, adaptador] = await Promise.all([
+    cliente.rpc('slack_channel_status', { p_workspace_id: workspaceId }),
+    cliente.rpc('whatsapp_channel_status', { p_workspace_id: workspaceId }),
+    cliente.functions.invoke('canal-whatsapp-status', { body: {} }),
+  ])
+  const slack = erroSlack ? undefined : ((Array.isArray(dadosSlack) ? dadosSlack[0] : dadosSlack) as LinhaDoCanalSlack | null | undefined)
   const estadoDoSlack = slack ? ESTADO_DO_CANAL_SLACK[slack.state] : undefined
+  const whatsapp = erroWhatsapp
+    ? undefined
+    : ((Array.isArray(dadosWhatsapp) ? dadosWhatsapp[0] : dadosWhatsapp) as LinhaDoCanalWhatsapp | null | undefined)
+  const configurado = !adaptador.error && (adaptador.data as { configurado?: unknown } | null)?.configurado === true
+  const estadoDoWhatsapp = whatsapp && (configurado || whatsapp.state !== 'nao_habilitado')
+    ? ESTADO_DO_CANAL_WHATSAPP[whatsapp.state]
+    : undefined
   return catalogoDeCanais.map((canal) => {
     if (canal.id === 'slack' && estadoDoSlack) {
       return {
@@ -67,6 +92,16 @@ export async function lerCanaisDoWorkspace(cliente: SupabaseClient, workspaceId:
         estado: estadoDoSlack,
         conectado: estadoDoSlack === 'conectado',
         instaladoEm: slack?.team_name ?? undefined,
+      }
+    }
+    if (canal.id === 'whatsapp' && estadoDoWhatsapp) {
+      return {
+        id: canal.id,
+        nome: canal.nome,
+        descricao: canal.descricao,
+        estado: estadoDoWhatsapp,
+        conectado: estadoDoWhatsapp === 'conectado' && configurado,
+        habilitarDisponivel: configurado,
       }
     }
     return { id: canal.id, nome: canal.nome, descricao: canal.descricao, estado: 'em_breve', conectado: false }
@@ -87,8 +122,7 @@ async function mensagemDaFuncao(error: unknown, padrao: string): Promise<string>
 
 /**
  * A Fonte de Conexões do Workspace operacional: lê o catálogo e as habilitações do Supabase.
- * O Slack é o único Canal real (slack-canal 01); os outros Canais aparecem "Em breve". O catálogo visível oferece
- * HubSpot e Notion.
+ * O Slack e o WhatsApp são Canais operacionais; os outros aparecem "Em breve". O catálogo visível oferece HubSpot e Notion.
  */
 export function criarFonteDeConexoesSupabase(
   cliente: SupabaseClient,
@@ -100,7 +134,7 @@ export function criarFonteDeConexoesSupabase(
     ouvintes.forEach((ouvinte) => ouvinte())
   }
 
-  /** Chama a `slack-channel-connect`; o Slack é o único Canal que instala. */
+  /** Chama a `slack-channel-connect`; o Slack é instalado por OAuth. */
   async function noCanalSlack(id: CanalId, action: 'iniciar' | 'retirar', padrao: string): Promise<unknown> {
     if (id !== 'slack') throw new Error('Este Canal ainda não está disponível.')
     const { data, error } = await cliente.functions.invoke('slack-channel-connect', {
@@ -108,6 +142,21 @@ export function criarFonteDeConexoesSupabase(
     })
     if (error) throw new Error(await mensagemDaFuncao(error, padrao))
     return data
+  }
+
+  async function definirWhatsappHabilitado(habilitado: boolean): Promise<void> {
+    if (habilitado) {
+      const { data, error } = await cliente.functions.invoke('canal-whatsapp-status', { body: {} })
+      if (error || (data as { configurado?: unknown } | null)?.configurado !== true) {
+        throw new Error('O adaptador do WhatsApp ainda não está configurado neste ambiente.')
+      }
+    }
+    const { error } = await cliente.rpc('set_whatsapp_channel_enabled', {
+      p_workspace_id: obterWorkspaceId(),
+      p_enabled: habilitado,
+    })
+    if (error) throw new Error(error.message || 'Não foi possível atualizar o Canal WhatsApp agora.')
+    avisar()
   }
 
   return {
@@ -127,7 +176,13 @@ export function criarFonteDeConexoesSupabase(
       return url
     },
 
+    async habilitarCanal(id: CanalId): Promise<void> {
+      if (id !== 'whatsapp') throw new Error('Este Canal ainda não está disponível.')
+      await definirWhatsappHabilitado(true)
+    },
+
     async retirarCanal(id: CanalId): Promise<void> {
+      if (id === 'whatsapp') return definirWhatsappHabilitado(false)
       await noCanalSlack(id, 'retirar', 'Não foi possível retirar o Slack agora. Tente de novo em instantes.')
       avisar()
     },
@@ -160,6 +215,21 @@ export function criarFonteDeConexoesSupabase(
       return []
     },
 
+    async resultadosDeRetirada() {
+      const { data } = await cliente.auth.getSession()
+      const userId = data.session?.user.id
+      if (!userId) return []
+      const { data: resultados, error } = await cliente.rpc('integration_revocation_results_for_user', {
+        p_workspace_id: obterWorkspaceId(),
+        p_user_id: userId,
+      })
+      if (error) throw new Error(error.message)
+      return ((resultados ?? []) as LinhaDeResultadoDeRetirada[]).map((linha) => ({
+        integracaoId: linha.integration_id as IntegracaoId,
+        resultado: linha.result,
+      }))
+    },
+
     async habilitarIntegracao(id: IntegracaoId): Promise<void> {
       const workspaceId = obterWorkspaceId()
       const { error } = await cliente.rpc('enable_workspace_integration', {
@@ -178,18 +248,25 @@ export function criarFonteDeConexoesSupabase(
       avisar()
     },
 
-    async desabilitarIntegracao(id: IntegracaoId): Promise<void> {
-      const { error } = await cliente.rpc('disable_workspace_integration', {
-        p_workspace_id: obterWorkspaceId(),
-        p_integration_id: id,
+    async desabilitarIntegracao(id: IntegracaoId) {
+      const { data, error } = await cliente.functions.invoke('integration-connect', {
+        body: { action: 'retirar', workspaceId: obterWorkspaceId(), integrationId: id },
       })
       if (error) {
-        if (error.message.includes('only administrators')) throw new Error('Só um Administrador desabilita Integrações no Workspace.')
-        if (error.message.includes('active workspace membership required')) throw new Error('Sua Participação neste Workspace não está ativa.')
-        if (error.message.includes('integration not enabled')) throw new Error('Esta Integração já está desabilitada.')
-        throw new Error('Não foi possível desabilitar a Integração agora. Tente novamente.')
+        const mensagem = await mensagemDaFuncao(error, 'Não foi possível desabilitar a Integração agora. Tente novamente.')
+        if (mensagem.includes('Só um Administrador')) throw new Error('Só um Administrador desabilita Integrações no Workspace.')
+        if (mensagem.includes('Participação neste Workspace')) throw new Error('Sua Participação neste Workspace não está ativa.')
+        if (mensagem.includes('já está desabilitada')) throw new Error('Esta Integração já está desabilitada.')
+        throw new Error(mensagem)
       }
       avisar()
+      const resultados = (data as { resultados?: Record<string, number> } | null)?.resultados
+      return resultados ? {
+        revogado: resultados.revogado ?? 0,
+        naoSuportado: resultados.nao_suportado ?? 0,
+        falhou: resultados.falhou ?? 0,
+        naoSeAplica: resultados.nao_se_aplica ?? 0,
+      } : undefined
     },
 
     async conectar(_conexao: CanalId | IntegracaoId): Promise<void> {

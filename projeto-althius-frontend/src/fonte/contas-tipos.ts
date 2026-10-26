@@ -499,8 +499,7 @@ export interface FonteDeContas extends FonteObservavel {
   descartarContatoProposto?(propostaId: string, motivo?: string): Promise<void>
 
   /**
-   * Cota o custo prévio de revelação de canal (e-mail: 2 créditos, telefone: 5 créditos). Se o Contato já tem o dado,
-   * cota 0 e `jaEncontrado`.
+   * Cota o custo prévio de revelação de canal. Se o Contato já tem o dado, cota 0 e `jaEncontrado`.
    */
   cotarRevelacaoContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ creditos: number; saldo: number; podeRevelar: boolean; jaEncontrado?: boolean }>
 

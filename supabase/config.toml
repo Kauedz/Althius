@@ -83,6 +83,10 @@ verify_jwt = true
 [functions.slack-channel-connect]
 verify_jwt = true
 
+# O navegador consulta se o simulador ou a Cloud API estão configurados antes de mostrar Habilitar em Conexões.
+[functions.canal-whatsapp-status]
+verify_jwt = true
+
 [functions.slack-channel-callback]
 verify_jwt = false
 
@@ -94,6 +98,13 @@ verify_jwt = false
 # A entrega no thread do Canal Slack (slack-canal 03): chamada pelo próprio banco (gatilho + pg_net), sem JWT; a função
 # confere o segredo interno da entrega (SLACK_CHANNEL_DELIVERY_SECRET, o mesmo do Vault).
 [functions.slack-channel-delivery]
+verify_jwt = false
+
+# A Meta chama o webhook sem JWT; a Edge valida X-Hub-Signature-256. O banco chama a entrega com segredo interno.
+[functions.canal-whatsapp-events]
+verify_jwt = false
+
+[functions.canal-delivery]
 verify_jwt = false
 
 # O gerador das Propostas de resposta (canais-08): chamado pelo próprio banco (pg_cron + pg_net), sem JWT; a função confere

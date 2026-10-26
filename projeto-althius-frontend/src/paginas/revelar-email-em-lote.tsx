@@ -73,8 +73,8 @@ function FormularioDoLote({ contatos, aoFechar, revelando, setRevelando }: {
         if (!fonte.cotarRevelacaoContato) throw new Error('Cotação indisponível.')
         const cotadas = await Promise.all(idsSemEmail.split(',').filter(Boolean).map((id) => fonte.cotarRevelacaoContato!(id, 'email')))
         if (ativo) setCotacoes(cotadas)
-      } catch (e) {
-        if (ativo) setErroCotacao(e instanceof Error ? e.message : 'Não foi possível consultar a cotação.')
+      } catch {
+        if (ativo) setErroCotacao('A cotação não está disponível.')
       }
     }
     void cotar()

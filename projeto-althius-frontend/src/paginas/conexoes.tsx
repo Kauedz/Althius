@@ -67,6 +67,7 @@ export function PaginaConexoes() {
   const canais = useDados(fonteDeConexoes, (fonte) => fonte.canais(), [])
   const integracoes = useDados(fonteDeConexoes, (fonte) => fonte.integracoes(), [])
   const futuras = useDados(fonteDeConexoes, (fonte) => fonte.integracoesFuturas(), [])
+  const retiradas = useDados(fonteDeConexoes, (fonte) => fonte.resultadosDeRetirada?.() ?? Promise.resolve([]), []) ?? []
   // Sem a leitura dos Acessos (ou se ela falhar), o cartão fica só com a habilitação, como antes.
   const acessos = useDados(
     fonteDeConexoes,
@@ -82,6 +83,7 @@ export function PaginaConexoes() {
   const [aviso, setAviso] = useState('')
   const [desabilitando, setDesabilitando] = useState<IntegracaoDeConexao | null>(null)
   const [erroAoDesabilitar, setErroAoDesabilitar] = useState('')
+  const [resultadoRetirada, setResultadoRetirada] = useState('')
   const [parametros, setParametros] = useSearchParams()
   const [volta] = useState(() => avisoDaVolta(parametros))
   // O resultado da autorização é lido uma vez e sai do endereço, para não reaparecer ao recarregar.
@@ -95,6 +97,18 @@ export function PaginaConexoes() {
   const [retirandoCanal, setRetirandoCanal] = useState<CanalDeConexao | null>(null)
 
   async function instalarCanal(canal: CanalDeConexao) {
+    if (canal.id === 'whatsapp' && fonteDeConexoes.habilitarCanal) {
+      setErro('')
+      setInstalandoCanal(canal.id)
+      try {
+        await fonteDeConexoes.habilitarCanal(canal.id)
+      } catch (falha) {
+        setErro(falha instanceof Error ? falha.message : 'Não foi possível habilitar o WhatsApp agora.')
+      } finally {
+        setInstalandoCanal(null)
+      }
+      return
+    }
     if (!fonteDeConexoes.instalarCanal) return
     setErro('')
     setInstalandoCanal(canal.id)
@@ -144,7 +158,12 @@ export function PaginaConexoes() {
     setErroAoDesabilitar('')
     setTrabalhando(desabilitando.id)
     try {
-      await fonteDeConexoes.desabilitarIntegracao(desabilitando.id)
+      const resultado = await fonteDeConexoes.desabilitarIntegracao(desabilitando.id)
+      if (resultado && (resultado.falhou > 0 || resultado.naoSuportado > 0)) {
+        setResultadoRetirada(`Integração retirada. Revogação: ${resultado.revogado} confirmada(s), ${resultado.naoSuportado} não suportada(s), ${resultado.falhou} com falha e ${resultado.naoSeAplica} sem token OAuth.`)
+      } else {
+        setResultadoRetirada('Integração retirada e os Acessos do Workspace foram desconectados.')
+      }
       setDesabilitando(null)
     } catch (falha) {
       setErroAoDesabilitar(falha instanceof Error ? falha.message : 'Não foi possível desabilitar a Integração agora.')
@@ -188,6 +207,17 @@ export function PaginaConexoes() {
           </p>
         )}
       </div>
+      {resultadoRetirada && <p role="status" className="text-sm text-al-muted">{resultadoRetirada}</p>}
+      {retiradas.length > 0 && (
+        <section aria-label="Resultados das retiradas recentes" className="flex flex-col gap-1 text-sm text-al-muted">
+          <h2 className="font-medium">Resultados das retiradas recentes</h2>
+          {retiradas.slice(0, 3).map(({ integracaoId, resultado }, indice) => (
+            <p key={`${integracaoId}-${indice}`}>
+              {nomeDaIntegracao(integracaoId) ?? integracaoId}: {resultado === 'revogado' ? 'acesso revogado no app' : resultado === 'falhou' ? 'falha ao revogar no app' : resultado === 'nao_suportado' ? 'o app não oferece revogação' : 'sem token OAuth para revogar'}.
+            </p>
+          ))}
+        </section>
+      )}
 
       <section aria-label="Canais" className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
@@ -393,15 +423,26 @@ function CartaoDeCanalReal({
           <span className="text-xs text-al-muted">Workspace do {canal.nome}: {canal.instaladoEm}</span>
         )}
         {!ehAdministrador ? (
-          <span className="text-xs text-al-muted">Só um Administrador conecta ou retira o {canal.nome}.</span>
+          <span className="text-xs text-al-muted">
+            Só um Administrador {canal.id === 'whatsapp' ? 'habilita ou retira' : 'conecta ou retira'} o {canal.nome}.
+          </span>
         ) : ativo ? (
           <Button variant="ghost" onClick={aoRetirar} className="self-start px-4">
             Retirar
           </Button>
         ) : (
-          <Button variant="outline" onClick={aoInstalar} disabled={instalando} className="self-start px-4">
+          <Button
+            variant="outline"
+            onClick={aoInstalar}
+            disabled={instalando || (canal.id === 'whatsapp' && canal.habilitarDisponivel === false)}
+            className="self-start px-4"
+          >
             {instalando
               ? 'Abrindo...'
+            : canal.id === 'whatsapp'
+              ? canal.estado === 'retirado'
+                ? 'Habilitar o WhatsApp de novo'
+                : 'Habilitar o WhatsApp'
               : canal.estado === 'retirado'
                 ? `Conectar o ${canal.nome} de novo`
                 : `Conectar o ${canal.nome}`}
@@ -442,8 +483,9 @@ function DialogoDeRetirarCanal({ canal, aoFechar }: { canal: CanalDeConexao | nu
       <DialogContent className="gap-6 p-6">
         <DialogTitle className="titulo-secao text-2xl">Retirar o {canal?.nome}</DialogTitle>
         <DialogDescription className="text-al-muted">
-          O bot @Althius para de responder no {canal?.nome}. As Conversas e a Atividade ficam. Para voltar, conecte de novo
-          no mesmo {canal?.nome}.
+          {canal?.id === 'whatsapp'
+            ? 'O Canal para de atender neste Workspace. As Conversas e a Atividade ficam. Um Administrador pode habilitá-lo de novo quando quiser.'
+            : `O bot @Althius para de responder no ${canal?.nome}. As Conversas e a Atividade ficam. Para voltar, conecte de novo no mesmo ${canal?.nome}.`}
         </DialogDescription>
         {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
         <DialogFooter className="flex gap-2">
