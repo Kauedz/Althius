@@ -83,6 +83,10 @@ verify_jwt = true
 [functions.slack-channel-connect]
 verify_jwt = true
 
+# O navegador consulta se o simulador ou a Cloud API estão configurados antes de mostrar Habilitar em Conexões.
+[functions.canal-whatsapp-status]
+verify_jwt = true
+
 [functions.slack-channel-callback]
 verify_jwt = false
 

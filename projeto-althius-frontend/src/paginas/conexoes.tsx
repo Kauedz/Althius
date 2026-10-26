@@ -95,6 +95,18 @@ export function PaginaConexoes() {
   const [retirandoCanal, setRetirandoCanal] = useState<CanalDeConexao | null>(null)
 
   async function instalarCanal(canal: CanalDeConexao) {
+    if (canal.id === 'whatsapp' && fonteDeConexoes.habilitarCanal) {
+      setErro('')
+      setInstalandoCanal(canal.id)
+      try {
+        await fonteDeConexoes.habilitarCanal(canal.id)
+      } catch (falha) {
+        setErro(falha instanceof Error ? falha.message : 'Não foi possível habilitar o WhatsApp agora.')
+      } finally {
+        setInstalandoCanal(null)
+      }
+      return
+    }
     if (!fonteDeConexoes.instalarCanal) return
     setErro('')
     setInstalandoCanal(canal.id)
@@ -393,15 +405,26 @@ function CartaoDeCanalReal({
           <span className="text-xs text-al-muted">Workspace do {canal.nome}: {canal.instaladoEm}</span>
         )}
         {!ehAdministrador ? (
-          <span className="text-xs text-al-muted">Só um Administrador conecta ou retira o {canal.nome}.</span>
+          <span className="text-xs text-al-muted">
+            Só um Administrador {canal.id === 'whatsapp' ? 'habilita ou retira' : 'conecta ou retira'} o {canal.nome}.
+          </span>
         ) : ativo ? (
           <Button variant="ghost" onClick={aoRetirar} className="self-start px-4">
             Retirar
           </Button>
         ) : (
-          <Button variant="outline" onClick={aoInstalar} disabled={instalando} className="self-start px-4">
+          <Button
+            variant="outline"
+            onClick={aoInstalar}
+            disabled={instalando || (canal.id === 'whatsapp' && canal.habilitarDisponivel === false)}
+            className="self-start px-4"
+          >
             {instalando
               ? 'Abrindo...'
+            : canal.id === 'whatsapp'
+              ? canal.estado === 'retirado'
+                ? 'Habilitar o WhatsApp de novo'
+                : 'Habilitar o WhatsApp'
               : canal.estado === 'retirado'
                 ? `Conectar o ${canal.nome} de novo`
                 : `Conectar o ${canal.nome}`}
@@ -442,8 +465,9 @@ function DialogoDeRetirarCanal({ canal, aoFechar }: { canal: CanalDeConexao | nu
       <DialogContent className="gap-6 p-6">
         <DialogTitle className="titulo-secao text-2xl">Retirar o {canal?.nome}</DialogTitle>
         <DialogDescription className="text-al-muted">
-          O bot @Althius para de responder no {canal?.nome}. As Conversas e a Atividade ficam. Para voltar, conecte de novo
-          no mesmo {canal?.nome}.
+          {canal?.id === 'whatsapp'
+            ? 'O Canal para de atender neste Workspace. As Conversas e a Atividade ficam. Um Administrador pode habilitá-lo de novo quando quiser.'
+            : `O bot @Althius para de responder no ${canal?.nome}. As Conversas e a Atividade ficam. Para voltar, conecte de novo no mesmo ${canal?.nome}.`}
         </DialogDescription>
         {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
         <DialogFooter className="flex gap-2">
