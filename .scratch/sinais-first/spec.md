@@ -27,7 +27,7 @@ flowchart LR
   S --> X[Página do Sinal / Meus Sinais]
 ```
 
-**As quatro Especialidades saem do produto.** Scopus, Ethos, Rhetor e Oraculum deixam de ser Agentes que o Cliente vê, usa ou cria. Seus dados (Memória, Conversas, Habilidades, Rotinas) ficam só leitura, sem migração ([ADR-0033](../../docs/adr/0033-sinais-first.md), D1). A escrita de Sequência e a auditoria de presença em LLM — hoje "Rhetor" e "Oraculum" — viram passo e ferramenta internos (D3). A retirada segue uma ordem segura: esconder da interface, desacoplar o Rhetor, parar de semear Agente novo, só por último mexer no schema, sem apagar nada (D9).
+**As quatro Especialidades saem do produto.** Scopus, Ethos, Rhetor e Oraculum deixam de ser Agentes que o Cliente vê, usa ou cria. Seus dados (Memória, Conversas, Habilidades, Rotinas) ficam só leitura, sem migração ([ADR-0033](../../docs/adr/0033-sinais-first.md), D1). A escrita de Sequência e a auditoria de presença em LLM — hoje "Rhetor" e "Oraculum" — viram passo e ferramenta internos (D3). A auditoria fica registrada como candidata a ferramenta interna, sem Especialidade proprietária e sem implementação de produção neste momento. A retirada segue uma ordem segura: esconder da interface, desacoplar o Rhetor, parar de semear Agente novo, só por último mexer no schema, sem apagar nada (D9).
 
 **Um ICP estruturado único.** Passa a existir um registro de ICP por Workspace, estruturado, que o onboarding semeia, o Playbook aprova ao editar, o catálogo usa para ranquear ("Para o seu nicho"), o `signal-plan` usa como contexto do prompt, e que dá Nível de Aderência às empresas que um Sinal de escopo mercado encontra (D5).
 
