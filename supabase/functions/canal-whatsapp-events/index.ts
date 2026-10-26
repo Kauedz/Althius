@@ -22,6 +22,14 @@ async function chamar<T>(nome: string, parametros: Record<string, unknown>): Pro
 
 const db: Db = {
   reservarEvento: (eventId, telefone) => chamar<boolean>('claim_whatsapp_channel_event', { p_event_id: eventId, p_phone: telefone }),
+  permitirMensagem: (telefone) => chamar<boolean>('claim_whatsapp_channel_message', { p_phone: telefone }),
+  registrarAuditoria: async (registro) => {
+    if (!registro.userId || !registro.workspaceId) return
+    await chamar('record_whatsapp_tool_activity', {
+      p_user_id: registro.userId, p_workspace_id: registro.workspaceId,
+      p_tool: registro.ferramenta, p_outcome: registro.resultado, p_payload_hash: registro.hashPayload.replace(/^sha256:/, ''),
+    })
+  },
   registrarStatus: async (evento) => {
     await chamar('record_whatsapp_channel_status', {
       p_message_id: evento.id,
@@ -62,6 +70,7 @@ const db: Db = {
     })
     if (error) {
       if (error.code === '55006') return { kind: 'recusado', motivo: 'ocupado' }
+      if (error.code === '55000') return { kind: 'recusado', motivo: 'limite' }
       if (error.code === '42501' || error.code === 'P0001') return { kind: 'recusado', motivo: 'nao_elegivel' }
       return { kind: 'recusado', motivo: 'indisponivel' }
     }
