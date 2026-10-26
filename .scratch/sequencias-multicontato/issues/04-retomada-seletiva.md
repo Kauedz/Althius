@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 — Reter envios ao receber resposta e decidir em conjunto
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Objetivo e escopo
 
@@ -17,13 +17,13 @@ Classificação automática de conteúdo e novos canais. Nenhuma mudança estrut
 
 ## Critérios de aceite
 
-- [ ] Titular escolhe todos ou alguns Contatos e decisão persiste com ator e respostas revisadas.
-- [ ] Passos não selecionados não saem; dependências não satisfeitas continuam pendentes.
-- [ ] Retomada não provoca rajada; horários e limites são reaplicados.
-- [ ] Descadastro registrado não é removido por continuar, mesmo via chamada direta.
-- [ ] Humano pode confirmar pedido textual de não contato com evidência e bloquear destinatário; IA não é necessária.
-- [ ] Pausa local e bloqueio comum têm motivos distintos; histórico e envios anteriores permanecem intactos.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Titular escolhe todos ou alguns Contatos e decisão persiste com ator e respostas revisadas.
+- [x] Passos não selecionados não saem; dependências não satisfeitas continuam pendentes.
+- [x] Retomada não provoca rajada; horários e limites são reaplicados.
+- [x] Descadastro registrado não é removido por continuar, mesmo via chamada direta.
+- [x] Humano pode confirmar pedido textual de não contato com evidência e bloquear destinatário; IA não é necessária.
+- [x] Pausa local e bloqueio comum têm motivos distintos; histórico e envios anteriores permanecem intactos.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais — pendente evidência visual humana.
 
 ## Pode mexer
 
@@ -85,3 +85,5 @@ Ordem após merge e autorização explícita: migration → Edge Functions → w
 ## Comments
 
 Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout. Status indica ticket especificado, não implementação pronta; blockers e gates humanos continuam obrigatórios.
+
+2026-10-24 — Implementada retomada seletiva com auditoria de Contatos/respostas, guarda local no Executor, manutenção de dependências e supressões, e confirmação humana de não contato com referência privada à resposta. Vitest focado (39 testes) e suíte completa (219 arquivos, 1.942 passaram, 4 ignorados), lint, tsc, build, Deno e pgTAP direcionado/completo passaram; migration nova `20261204120000_retomada_seletiva_da_sequencia.sql`. Status `ready-for-human`: falta conferência visual antes/depois na tela atual; não houve aplicação remota nem publicação.

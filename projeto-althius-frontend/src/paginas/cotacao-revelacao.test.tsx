@@ -52,7 +52,7 @@ it('mostra falha de cotação, bloqueia revelar e permite tentar novamente com p
   })
   const usuario = userEvent.setup()
   await usuario.click(screen.getByRole('button', { name: 'Revelar E-mail' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível consultar a cotação.')
+  expect(await screen.findByRole('alert')).toHaveTextContent('A cotação da revelação está indisponível.')
   await usuario.click(screen.getByRole('button', { name: 'Confirmar e Revelar' }))
   expect(revelarContato).not.toHaveBeenCalled()
   expect(screen.queryByText('2 créditos')).not.toBeInTheDocument()

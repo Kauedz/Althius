@@ -137,7 +137,6 @@ describe('Workspace operacional e Demonstração', () => {
     ['/sinais', 'Sinais ainda não estão disponíveis neste Workspace.', 'Vagas'],
     ['/sinais/contas/openai', 'Sinais ainda não estão disponíveis neste Workspace.', 'OpenAI'],
     ['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads'],
-    ['/onboarding', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Qual é o seu papel'],
   ])('%s mostra que o módulo está indisponível, sem dados da Demonstração', async (rota, aviso, daDemonstracao) => {
     window.history.replaceState(null, '', rota)
     abrirAlthius({
@@ -148,6 +147,19 @@ describe('Workspace operacional e Demonstração', () => {
 
     expect((await screen.findAllByText(new RegExp(aviso))).length).toBeGreaterThan(0)
     expect(screen.queryByText(new RegExp(daDemonstracao))).not.toBeInTheDocument()
+  })
+
+  // O Day0 é real desde a entrada 03: /onboarding lê o banco, e não a Demonstração.
+  it('/onboarding mostra o Day0 do banco, sem dados da Demonstração', async () => {
+    window.history.replaceState(null, '', '/onboarding')
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Day0 concluído' })).toBeInTheDocument()
+    expect(screen.queryByText(/Qual é o seu papel/)).not.toBeInTheDocument()
   })
 
   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e

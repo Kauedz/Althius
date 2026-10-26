@@ -143,7 +143,7 @@ describe('O cartão do Google Sheets no Workspace operacional', () => {
     await usuario.click(within(cartao).getByRole('button', { name: 'Habilitar' }))
 
     expect(await within(cartao).findByText('Habilitada no Workspace')).toBeInTheDocument()
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['google-sheets'])
   })
 
@@ -161,7 +161,7 @@ describe('O cartão do Google Sheets no Workspace operacional', () => {
     const { usuario, pedidos } = abrir()
 
     const cartao = await screen.findByRole('article', { name: 'Google Sheets' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Usar chave de API' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
 
@@ -185,8 +185,8 @@ describe('O cartão do Google Sheets no Workspace operacional', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'Google Sheets' })
-    expect(await within(cartao).findByText("Conectado como marina@cliente.com.br")).toBeInTheDocument()
-    expect(within(cartao).getByText('2 participantes conectaram')).toBeInTheDocument()
+    expect(await within(cartao).findByText("Seu acesso: Conectado como marina@cliente.com.br")).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 2 participantes conectados')).toBeInTheDocument()
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Ver ferramentas' }))
     const dialogo = await screen.findByRole('dialog', { name: 'Ferramentas do Google Sheets' })
@@ -202,8 +202,8 @@ describe('O cartão do Google Sheets no Workspace operacional', () => {
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'google-sheets' }])
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(cartao).getByText('1 participante conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 1 participante conectado')).toBeInTheDocument()
     expect(screen.queryByText(/não conseguiu avisar/)).not.toBeInTheDocument()
   })
 
@@ -213,7 +213,7 @@ describe('O cartão do Google Sheets no Workspace operacional', () => {
     const cartao = await screen.findByRole('article', { name: 'Google Sheets' })
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(
       await screen.findByText(
         'Desconectado da Althius, mas a Althius não conseguiu avisar o Google Sheets. Para garantir, remova a autorização da Althius nas configurações do Google Sheets.',
@@ -226,7 +226,7 @@ describe('O cartão do Google Sheets no Workspace operacional', () => {
     const { usuario, pedidos } = abrir({ acessos: [{ ...CONECTOR_CONECTADO, state: 'precisa_reconectar' }] })
 
     const cartao = await screen.findByRole('article', { name: 'Google Sheets' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Ver ferramentas' })).not.toBeInTheDocument()
     await usuario.click(within(cartao).getByRole('button', { name: 'Reconectar no Google Sheets' }))
 
@@ -249,7 +249,7 @@ describe('O cartão do Google Sheets no Workspace operacional', () => {
 
     expect(await screen.findByText(aviso)).toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'Google Sheets' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 
   it('as ferramentas avisam que os Agentes precisam da URL da planilha', async () => {

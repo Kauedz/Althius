@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (seções "Fio e Conversa" e "Frontend"; US 28–
 
 **Blocked by:** 03 (Abrir um fio e o Agente responde no thread).
 
-**Status:** done (na unificação; pgTAP no CI do PR)
+**Status:** closed
 
 ## Pode mexer
 

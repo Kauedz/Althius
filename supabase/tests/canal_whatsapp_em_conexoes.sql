@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(8);
+select plan(9);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at,
                         raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
@@ -11,6 +11,7 @@ values
 insert into public.workspaces (id, kind, name) values ('d1000000-0000-0000-0000-000000000001', 'empresa', 'Workspace CA04');
 insert into private.workspace_contracts (workspace_id, tier_id, starts_at)
   values ('d1000000-0000-0000-0000-000000000001', 'escala', date_trunc('month', now())) on conflict (workspace_id) do nothing;
+select col_default_is('private', 'whatsapp_channel_settings', 'ever_enabled', 'false', 'ever_enabled defaults to false');
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('d1000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', 'admin', true),
   ('d1000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000002', 'member', true);

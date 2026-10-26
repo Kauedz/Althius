@@ -146,7 +146,7 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
     await usuario.click(within(cartao).getByRole('button', { name: 'Habilitar' }))
 
     expect(await within(cartao).findByText('Habilitada no Workspace')).toBeInTheDocument()
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['meta-ads'])
   })
 
@@ -164,7 +164,7 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
     const { usuario, pedidos } = abrir()
 
     const cartao = await screen.findByRole('article', { name: 'Meta Ads' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Usar chave de API' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
 
@@ -188,8 +188,8 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'Meta Ads' })
-    expect(await within(cartao).findByText('Conectado')).toBeInTheDocument()
-    expect(within(cartao).getByText('2 participantes conectaram')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 2 participantes conectados')).toBeInTheDocument()
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Ver ferramentas' }))
     const dialogo = await screen.findByRole('dialog', { name: 'Ferramentas do Meta Ads' })
@@ -205,8 +205,8 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'meta-ads' }])
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(cartao).getByText('1 participante conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 1 participante conectado')).toBeInTheDocument()
     expect(screen.queryByText(/não conseguiu avisar/)).not.toBeInTheDocument()
   })
 
@@ -216,7 +216,7 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
     const cartao = await screen.findByRole('article', { name: 'Meta Ads' })
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(screen.queryByText(/não conseguiu avisar/)).not.toBeInTheDocument()
   })
 
@@ -239,7 +239,7 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
       await screen.findByText('Precisa configurar: o app de autorização do Meta Ads ainda não foi cadastrado na Althius. Fale com quem administra a Althius.'),
     ).toBeInTheDocument()
     expect(indo).not.toHaveBeenCalled()
-    expect(within(cartao).getByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(within(cartao).getByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 
   it('quando a Meta revoga o Acesso, o mesmo botão reconecta', async () => {
@@ -247,7 +247,7 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
     const { usuario, pedidos } = abrir({ acessos: [{ ...META_CONECTADO, state: 'precisa_reconectar' }] })
 
     const cartao = await screen.findByRole('article', { name: 'Meta Ads' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Ver ferramentas' })).not.toBeInTheDocument()
     await usuario.click(within(cartao).getByRole('button', { name: 'Reconectar no Meta Ads' }))
 
@@ -270,6 +270,6 @@ describe('O cartão do Meta Ads no Workspace operacional', () => {
 
     expect(await screen.findByText(aviso)).toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'Meta Ads' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 })

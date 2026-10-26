@@ -1,6 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1'
 import { createCanalSimulado } from '../_shared/canal/index.ts'
-import { createHandler, type Db, type SessaoWhatsApp, type WorkspaceElegivel } from './handler.ts'
+import { createHandler, type AberturaDeExecucao, type Db, type SessaoWhatsApp, type WorkspaceElegivel } from './handler.ts'
 
 const SEGREDO = 'segredo-de-teste'
 const USUARIO = '5d000000-0000-0000-0000-000000000001'
@@ -13,7 +13,7 @@ async function assinatura(corpo: string) {
   return `sha256=${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
-function montar(opcoes: { workspaces?: WorkspaceElegivel[]; bloqueios?: number; suspenso?: boolean } = {}) {
+function montar(opcoes: { workspaces?: WorkspaceElegivel[]; aberturas?: AberturaDeExecucao[]; bloqueios?: number; suspenso?: boolean } = {}) {
   const adaptador = createCanalSimulado()
   const eventosReservados = new Set<string>()
   const recusasDesconhecidos = new Set<string>()
@@ -22,6 +22,7 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; bloqueios?: number; 
   const logs: Record<string, unknown>[] = []
   const pendentes: Promise<unknown>[] = []
   const sessoes = new Map<string, SessaoWhatsApp>()
+  let indiceAbertura = 0
   const db: Db = {
     reservarEvento: async (id) => {
       if (eventosReservados.has(id)) return false
@@ -44,6 +45,8 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; bloqueios?: number; 
     },
     abrirExecucao: async (pedido) => {
       chamadas.push({ ...pedido })
+      const abertura = opcoes.aberturas?.[indiceAbertura++]
+      if (abertura) return abertura
       return { kind: 'aberto', conversationId: 'conversa-1', runId: 'execucao-1' }
     },
   }
@@ -138,4 +141,38 @@ Deno.test('primeiro pedido em mais de um Workspace lista opções e uma escolha 
   await m.enviar('wamid-seguinte', TELEFONE, 'Quantos Créditos?')
   assertEquals(m.adaptador.envios[0], { tipo: 'texto', para: TELEFONE, texto: 'Em qual Workspace?\n1. Norte\n2. Sul\nResponda com o número.' })
   assertEquals(m.chamadas[0], { workspaceId: 'workspace-sul', userId: USUARIO, texto: 'Quantos Créditos?', eventId: 'wamid-seguinte', novaConversa: false })
+})
+
+Deno.test('trocar de Workspace e escolher outro abre a próxima Conversa como nova sem iniciar execução', async () => {
+  const m = montar({ workspaces: [{ id: WORKSPACE, nome: 'Norte' }, { id: 'workspace-sul', nome: 'Sul' }] })
+  await m.enviar('wamid-inicial', TELEFONE, 'oi')
+  await m.enviar('wamid-trocar', TELEFONE, 'trocar de workspace')
+  await m.enviar('wamid-selecionar-sul', TELEFONE, '2')
+
+  assertEquals(m.chamadas, [])
+  assertEquals(m.adaptador.envios.slice(1).map((envio) => envio.tipo === 'texto' ? envio.texto : ''), [
+    'Em qual Workspace?\n1. Norte\n2. Sul\nResponda com o número.',
+    'Workspace *Sul* selecionado. Envie sua pergunta.',
+  ])
+
+  await m.enviar('wamid-pergunta-sul', TELEFONE, 'oi no Sul')
+  assertEquals(m.chamadas[0], { workspaceId: 'workspace-sul', userId: USUARIO, texto: 'oi no Sul', eventId: 'wamid-pergunta-sul', novaConversa: true })
+})
+
+Deno.test('nova conversa é comando sem IA e não abre execução', async () => {
+  const m = montar()
+  await m.enviar('wamid-nova', TELEFONE, 'nova conversa')
+  assertEquals(m.chamadas, [])
+  assertEquals(m.adaptador.envios[0], { tipo: 'texto', para: TELEFONE, texto: 'Certo. Sua próxima mensagem começa uma Conversa nova.' })
+  await m.enviar('wamid-depois-da-nova', TELEFONE, 'oi')
+  assertEquals(m.chamadas[0], { workspaceId: WORKSPACE, userId: USUARIO, texto: 'oi', eventId: 'wamid-depois-da-nova', novaConversa: true })
+})
+
+Deno.test('nova conversa continua marcada quando a abertura da Execução é recusada', async () => {
+  const m = montar({ aberturas: [{ kind: 'recusado', motivo: 'ocupado' }] })
+  await m.enviar('wamid-nova-recusada', TELEFONE, 'nova conversa')
+  await m.enviar('wamid-tentativa-recusada', TELEFONE, 'primeira pergunta')
+  await m.enviar('wamid-tentativa-seguinte', TELEFONE, 'segunda pergunta')
+
+  assertEquals(m.chamadas.map((chamada) => (chamada as { novaConversa: boolean }).novaConversa), [true, true])
 })

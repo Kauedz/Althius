@@ -23,6 +23,7 @@ function abrirConexoes({
   banco = criarBancoDeConexoes(),
   modoDemo = false,
   falharAoDesabilitar = false,
+  resultadoRetirada = undefined as 'falhou' | 'revogado' | undefined,
 } = {}) {
   localStorage.setItem('althius:modo_demo', String(modoDemo))
   if (modoDemo) {
@@ -35,6 +36,7 @@ function abrirConexoes({
   window.history.replaceState(null, '', '/conexoes')
 
   const chamadasRpc: { nome: string; parametros: Record<string, unknown> }[] = []
+  const chamadasFuncoes: { nome: string; corpo: Record<string, unknown> }[] = []
   const rpcs = rpcsDeConexoes(banco)
   const supabase = criarSupabaseFalso({
     sessao: sessaoDe(usuarioAtual),
@@ -47,10 +49,22 @@ function abrirConexoes({
     rpcs: {
       bootstrap_personal_workspace: () => NORTE,
       ...rpcs,
+      integration_revocation_results_for_user: () => resultadoRetirada ? [{ integration_id: 'hubspot', result: resultadoRetirada, recorded_at: '2026-10-25T12:00:00Z' }] : [],
       disable_workspace_integration: (parametros) => {
         chamadasRpc.push({ nome: 'disable_workspace_integration', parametros })
         if (falharAoDesabilitar) throw new Error('database unavailable')
         return rpcs.disable_workspace_integration(parametros)
+      },
+    },
+    funcoes: {
+      'integration-connect': async (corpo) => {
+        chamadasFuncoes.push({ nome: 'integration-connect', corpo })
+        if (corpo.action !== 'retirar') return { corpo: {} }
+        const parametros = { p_workspace_id: corpo.workspaceId as string, p_integration_id: corpo.integrationId as string }
+        chamadasRpc.push({ nome: 'disable_workspace_integration', parametros })
+        if (falharAoDesabilitar) return { status: 503, corpo: { error: 'Não foi possível desabilitar a Integração agora. Tente novamente.' } }
+        await rpcs.disable_workspace_integration(parametros)
+        return { corpo: { removidos: 0, resultados: { revogado: 0, nao_suportado: 0, falhou: 0, nao_se_aplica: 0 } } }
       },
     },
   })
@@ -58,7 +72,7 @@ function abrirConexoes({
   const { servicos } = criarServicosDoNavegadorFalsos()
   const usuario = userEvent.setup()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={servicos} />)
-  return { ...supabase, servicos, usuario, banco, chamadasRpc }
+  return { ...supabase, servicos, usuario, banco, chamadasRpc, chamadasFuncoes }
 }
 
 describe('Conexões reais no Workspace operacional', () => {
@@ -154,7 +168,7 @@ it('na Demonstração mostra só HubSpot e Notion em Conexões', async () => {
 it('Administrador confirma antes de desabilitar e pode cancelar', async () => {
   const banco = criarBancoDeConexoes()
   banco.habilitadas.push({ workspaceId: NORTE.id, integrationId: 'hubspot', enabledBy: MARINA.id, enabledAt: '2026-10-09T12:00:00Z' })
-  const { usuario, chamadasRpc } = abrirConexoes({ banco })
+  const { usuario, chamadasRpc, chamadasFuncoes } = abrirConexoes({ banco })
   const cartao = await screen.findByRole('article', { name: 'HubSpot' })
   await usuario.click(within(cartao).getByRole('button', { name: 'Desabilitar' }))
   const dialogo = await screen.findByRole('dialog', { name: 'Desabilitar HubSpot' })
@@ -169,6 +183,7 @@ it('Administrador confirma antes de desabilitar e pode cancelar', async () => {
   expect(chamadasRpc.filter((c) => c.nome === 'disable_workspace_integration')).toEqual([
     { nome: 'disable_workspace_integration', parametros: { p_workspace_id: NORTE.id, p_integration_id: 'hubspot' } },
   ])
+  expect(chamadasFuncoes).toEqual([{ nome: 'integration-connect', corpo: { action: 'retirar', workspaceId: NORTE.id, integrationId: 'hubspot' } }])
   expect(banco.habilitadas).toHaveLength(0)
 })
 
@@ -191,6 +206,12 @@ it('recusa do servidor mantém a Integração habilitada e explica a falha em po
   await usuario.click(within(dialogo).getByRole('button', { name: 'Desabilitar' }))
   expect(await within(dialogo).findByRole('alert')).toHaveTextContent('Não foi possível desabilitar a Integração agora. Tente novamente.')
   expect(banco.habilitadas).toHaveLength(1)
+})
+
+it('mostra o resultado persistido de uma retirada depois de recarregar Conexões', async () => {
+  abrirConexoes({ resultadoRetirada: 'falhou' })
+  const resultados = await screen.findByRole('region', { name: 'Resultados das retiradas recentes' })
+  expect(within(resultados).getByText(/HubSpot: falha ao revogar no app/)).toBeInTheDocument()
 })
 
 it('desabilitar na Demonstração muda só o estado simulado', async () => {

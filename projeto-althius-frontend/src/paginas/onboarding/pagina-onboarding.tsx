@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { LogoDoWorkspace } from '@/components/logos'
 import { Carregando } from '@/components/marca'
-import { useDados, useFonteDeOnboarding } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonteDeOnboarding } from '@/fonte/contexto'
 import { normalizarDominio } from '@/fonte/dominio-do-site'
 import {
   ORIGENS_HDYHAU,
@@ -15,12 +15,18 @@ import {
 import { EtapaChecklist } from './checklist'
 import { Campo, EscolhaUnica, PARAMETRO_DE_CONVITE, type PropsDaEtapa } from './componentes'
 import { Moldura } from './moldura'
+import { Day0Operacional } from './day0-operacional'
 
 /**
  * Onboarding fora da Casca. O estado vem só da Fonte de onboarding. Sem link de convite, a pessoa entra como
  * criadora; o parâmetro `convite` no endereço simula a chegada por um link de convite.
  */
 export function PaginaOnboarding() {
+  const ambiente = useAmbiente()
+  return ambiente.modo === 'real' ? <Day0Operacional /> : <PaginaOnboardingDaDemonstracao />
+}
+
+function PaginaOnboardingDaDemonstracao() {
   const fonte = useFonteDeOnboarding()
   const estado = useDados(fonte, (f) => f.ler(), [])
   const [parametros] = useSearchParams()

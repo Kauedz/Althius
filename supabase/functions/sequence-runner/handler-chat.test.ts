@@ -235,6 +235,19 @@ Deno.test('o motivo de um impedimento do provedor vai para o log e para o banco,
   assertEquals(logs[0], { type: 'runner-chat', sendId: CHAT_1, outcome: 'blocked', reason: 'http_403' })
 })
 
+Deno.test('Contato não selecionado na retomada não chama a Unipile de chat', async () => {
+  const parts = setup({
+    dueChats: [{ send_id: CHAT_1, owner_user_id: TITULAR }],
+    releases: { [CHAT_1]: { outcome: 'contact_paused', send_id: CHAT_1 } },
+  })
+  const { call, finished, logs } = runner(parts)
+  await call()
+  await finished()
+  assertEquals(parts.sent.length, 0)
+  assertEquals(parts.recorded.length, 0)
+  assertEquals(logs.map((entry) => entry.outcome), ['contact_paused'])
+})
+
 // ---------- Reconciliação depois de uma queda ----------
 
 const ACCOUNT: SenderToReconcile = {
