@@ -35,7 +35,19 @@ describe('Canal WhatsApp em Conexões', () => {
     expect(whatsapp?.conectado).toBe(false)
   })
 
-  it('não apresenta estado operacional se o adaptador não está configurado', async () => {
+  it('preserva o estado ativo do Workspace quando o adaptador não está configurado', async () => {
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(MARINA),
+      rpcs: { whatsapp_channel_status: () => [{ state: 'ativo' }] },
+      funcoes: { 'canal-whatsapp-status': () => ({ corpo: { configurado: false } }) },
+    })
+
+    const whatsapp = (await lerCanaisDoWorkspace(cliente, 'ws-norte')).find((canal) => canal.id === 'whatsapp')
+
+    expect(whatsapp).toMatchObject({ estado: 'conectado', conectado: false })
+  })
+
+  it('mantém nao_habilitado como Em breve quando o adaptador não está configurado', async () => {
     const { cliente } = criarSupabaseFalso({
       sessao: sessaoDe(MARINA),
       rpcs: { whatsapp_channel_status: () => [{ state: 'nao_habilitado' }] },

@@ -2,7 +2,7 @@
 create table private.whatsapp_channel_settings (
   workspace_id uuid primary key references public.workspaces(id) on delete cascade,
   enabled boolean not null default false,
-  ever_enabled boolean not null default true,
+  ever_enabled boolean not null default false,
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id) on delete set null
 );
