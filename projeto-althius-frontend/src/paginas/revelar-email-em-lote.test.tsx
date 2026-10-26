@@ -33,9 +33,14 @@ describe('Revelar E-mail em lote', () => {
     expect(screen.queryByRole('button', { name: 'Revelar E-mail em lote' })).not.toBeInTheDocument()
   })
 
-  it('mostra o custo máximo (2 créditos por Contato sem e-mail; quem já tem custa 0) antes de rodar', async () => {
+  it('mostra a soma das cotações individuais antes de rodar', async () => {
     const revelarContato = vi.fn()
-    const { usuario } = renderizarComDuasSemEmail({ revelarContato })
+    const cotarRevelacaoContato = vi.fn((id: string) => Promise.resolve({
+      creditos: id === 'contato-anthropic-3' ? 7 : 3,
+      saldo: 20,
+      podeRevelar: true,
+    }))
+    const { usuario } = renderizarComDuasSemEmail({ revelarContato, cotarRevelacaoContato })
 
     await selecionar(usuario, 'Clara Dupont')
     await selecionar(usuario, 'Carlos Mendoza')
@@ -44,11 +49,28 @@ describe('Revelar E-mail em lote', () => {
     await usuario.click(screen.getByRole('button', { name: 'Revelar E-mail em lote' }))
 
     const dialogo = await screen.findByRole('dialog', { name: 'Revelar E-mail em lote' })
-    expect(within(dialogo).getByText('4 créditos')).toBeInTheDocument()
+    expect(within(dialogo).getByText('10 créditos')).toBeInTheDocument()
     expect(within(dialogo).getByText(/3 selecionados/)).toHaveTextContent(
-      '3 selecionados · 2 sem e-mail (2 créditos cada) · 1 já com e-mail (sem custo).',
+      '3 selecionados · 2 sem e-mail · 1 já com e-mail (sem custo).',
     )
     // O custo aparece antes de rodar: nenhuma chamada a revelarContato ainda.
+    expect(revelarContato).not.toHaveBeenCalled()
+  })
+
+  it('sem cotação disponível, não mostra um custo numérico nem permite confirmar', async () => {
+    const revelarContato = vi.fn()
+    const cotarRevelacaoContato = vi.fn().mockRejectedValue(new Error('Falha na cotação'))
+    const { usuario } = renderizarComDuasSemEmail({ revelarContato, cotarRevelacaoContato })
+
+    await selecionar(usuario, 'Clara Dupont')
+    await usuario.click(screen.getByRole('button', { name: 'Revelar E-mail em lote' }))
+
+    const dialogo = await screen.findByRole('dialog', { name: 'Revelar E-mail em lote' })
+    expect(await within(dialogo).findByText('Cotação indisponível')).toBeInTheDocument()
+    expect(within(dialogo).queryByText(/\d+ créditos?/)).not.toBeInTheDocument()
+    expect(within(dialogo).getByRole('button', { name: 'Confirmar e Revelar' })).toBeDisabled()
+
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Confirmar e Revelar' }))
     expect(revelarContato).not.toHaveBeenCalled()
   })
 
