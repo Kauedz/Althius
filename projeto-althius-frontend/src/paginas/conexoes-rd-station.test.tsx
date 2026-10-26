@@ -151,7 +151,7 @@ describe('O cartão do RD Station CRM no Workspace operacional', () => {
     await usuario.click(within(cartao).getByRole('button', { name: 'Habilitar' }))
 
     expect(await within(cartao).findByText('Habilitada no Workspace')).toBeInTheDocument()
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['rd-station'])
   })
 
@@ -168,7 +168,7 @@ describe('O cartão do RD Station CRM no Workspace operacional', () => {
     abrir()
 
     const cartao = await screen.findByRole('article', { name: 'RD Station CRM' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(within(cartao).getByRole('button', { name: 'Usar chave de API' })).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Conectar no RD Station CRM' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
@@ -184,8 +184,8 @@ describe('O cartão do RD Station CRM no Workspace operacional', () => {
     await usuario.click(within(dialogo).getByRole('button', { name: 'Conectar' }))
 
     expect(pedidos.conectar).toEqual([{ action: 'chave', workspaceId: NORTE.id, integrationId: 'rd-station', chave: 'token-rd-secreto-123' }])
-    expect(await within(cartao).findByText('Conectado')).toBeInTheDocument()
-    expect(within(cartao).getByText('1 participante conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 1 participante conectado')).toBeInTheDocument()
     expect(screen.queryByDisplayValue('token-rd-secreto-123')).not.toBeInTheDocument()
   })
 
@@ -201,7 +201,7 @@ describe('O cartão do RD Station CRM no Workspace operacional', () => {
     await usuario.click(within(dialogo).getByRole('button', { name: 'Conectar' }))
 
     expect(await within(dialogo).findByText('O RD Station CRM recusou a chave. Confira se copiou a chave inteira e se ela está ativa.')).toBeInTheDocument()
-    expect(within(cartao).getByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(within(cartao).getByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 
   it('conectado, mostra as ferramentas REST do RD Station, com a escrita marcada', async () => {
@@ -218,7 +218,7 @@ describe('O cartão do RD Station CRM no Workspace operacional', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'RD Station CRM' })
-    expect(await within(cartao).findByText('Conectado')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado')).toBeInTheDocument()
     await usuario.click(within(cartao).getByRole('button', { name: 'Ver ferramentas' }))
     const dialogo = await screen.findByRole('dialog', { name: 'Ferramentas do RD Station CRM' })
     expect(await within(dialogo).findByText('buscar_contatos')).toBeInTheDocument()
@@ -230,7 +230,7 @@ describe('O cartão do RD Station CRM no Workspace operacional', () => {
     abrir({ acessos: [{ ...RD_CONECTADO, state: 'precisa_reconectar' }] })
 
     const cartao = await screen.findByRole('article', { name: 'RD Station CRM' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Ver ferramentas' })).not.toBeInTheDocument()
     expect(within(cartao).getByRole('button', { name: 'Usar chave de API' })).toBeInTheDocument()
   })
@@ -242,8 +242,8 @@ describe('O cartão do RD Station CRM no Workspace operacional', () => {
     await usuario.click(await within(cartao).findByRole('button', { name: 'Desconectar' }))
 
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'rd-station' }])
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(cartao).getByText('1 participante conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 1 participante conectado')).toBeInTheDocument()
     expect(screen.queryByText(/não conseguiu avisar/)).not.toBeInTheDocument()
   })
 })

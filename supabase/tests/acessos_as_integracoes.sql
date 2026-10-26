@@ -457,18 +457,19 @@ select lives_ok(
 select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000002', true);
 select throws_ok(
   $$select public.disable_workspace_integration('fa000000-0000-0000-0000-000000000001', 'hubspot')$$,
-  '42501', 'only administrators can enable integrations',
-  'um Membro não retira a Integração, nem por chamada direta'
+  '42501', 'permission denied for function disable_workspace_integration',
+  'a RPC antiga não permite contornar a revogação por chamada direta'
 );
 select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000004', true);
 select throws_ok(
   $$select public.disable_workspace_integration('fa000000-0000-0000-0000-000000000001', 'hubspot')$$,
-  '42501', 'active workspace membership required',
-  'o Administrador de outro Workspace não retira a Integração deste'
+  '42501', 'permission denied for function disable_workspace_integration',
+  'o Administrador de outro Workspace não pode usar diretamente a RPC antiga'
 );
-select set_config('request.jwt.claim.sub', '5a000000-0000-0000-0000-000000000001', true);
+reset role;
+set local role service_role;
 select is(
-  public.disable_workspace_integration('fa000000-0000-0000-0000-000000000001', 'hubspot'),
+  public.disable_workspace_integration_with_revocation_results('fa000000-0000-0000-0000-000000000001', '5a000000-0000-0000-0000-000000000001', 'hubspot', '[]'::jsonb),
   1,
   'o Administrador retira o HubSpot e 1 Acesso é desconectado'
 );

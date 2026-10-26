@@ -18,4 +18,4 @@
 - Criada auditoria privada de ferramentas para Conta, Workspace, canal, ferramenta, hash do payload e resultado. A tabela não guarda texto da mensagem e a RPC fica acessível somente ao service role.
 - A recusa idêntica à tela e a rejeição de token expirado continuam pendentes: este ticket não tem executor de ferramentas de plataforma conectado para exercitar as RPCs. Não marquei esses critérios sem essa verificação comportamental.
 - Testes: `deno test supabase/functions/_shared/canal/jwt-usuario.test.ts` (2/2); `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_ca05 supabase/tests/canal_whatsapp_identidade.sql` (4/4); `deno check supabase/functions/*/index.ts`; `deno test supabase/functions` (1800 passaram, 0 falhas, 39 ignorados); `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_ca05` (suíte completa verde); frontend `npm run lint` e `npx tsc -b`.
-- Migration `20261122130500_identidade_whatsapp_nas_ferramentas.sql` não aplicada remotamente.
+- Migration `20261206120000_identidade_whatsapp_nas_ferramentas.sql` não aplicada remotamente.

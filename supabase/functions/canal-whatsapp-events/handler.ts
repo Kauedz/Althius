@@ -100,7 +100,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const sessao = await deps.db.sessao(userId)
     if (comando === 'TROCAR DE WORKSPACE') {
-      await deps.db.salvarSessao(userId, { ...sessao, workspaceId: null, aguardandoWorkspace: true })
+      await deps.db.salvarSessao(userId, { ...sessao, workspaceId: null, aguardandoWorkspace: true, novaConversa: true })
       return await enviarTexto(evento.de, RESPOSTAS.escolherWorkspace(workspaces))
     }
     if (sessao.aguardandoWorkspace) {
@@ -121,7 +121,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const abertura = await deps.db.abrirExecucao({ workspaceId: workspace.id, userId, texto, eventId: evento.id, novaConversa: sessao.novaConversa })
     await deps.db.registrarAuditoria({ eventId: evento.id, userId, workspaceId: workspace.id, ferramenta: 'mensagem', resultado: abertura.kind === 'aberto' ? 'execucao_aberta' : abertura.motivo, hashPayload: await hashTexto(texto) })
-    if (sessao.novaConversa) await deps.db.salvarSessao(userId, { ...sessao, novaConversa: false })
+    if (sessao.novaConversa && abertura.kind === 'aberto') await deps.db.salvarSessao(userId, { ...sessao, novaConversa: false })
     if (abertura.kind === 'recusado') {
       await enviarTexto(evento.de, abertura.motivo === 'ocupado' ? RESPOSTAS.ocupado : abertura.motivo === 'limite' ? 'Este Workspace atingiu o limite de Execuções por hora. Tente novamente mais tarde.' : RESPOSTAS.falha)
     }

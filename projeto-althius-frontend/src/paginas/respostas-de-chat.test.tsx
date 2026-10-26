@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { renderizarApp } from '@/test/renderizar'
 import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
@@ -71,6 +72,8 @@ function abrir({ titular = true }: { titular?: boolean } = {}) {
     motivoPause: 'Contato respondeu',
   }
   const chamadasDeChat: unknown[] = []
+  const chamadasDeNaoContatar: unknown[] = []
+  let contatosPausados: string[] = []
   const tabelas: Record<string, Record<string, unknown>[]> = {
     workspace_memberships: [participacao('ws-norte')],
     sequences: [sequencia],
@@ -112,11 +115,26 @@ function abrir({ titular = true }: { titular?: boolean } = {}) {
         chamadasDeChat.push(parametros)
         return respostasDeChat()
       },
+      confirm_sequence_no_contact: (parametros) => {
+        chamadasDeNaoContatar.push(parametros)
+        contatosPausados = ['contato-1']
+        return 'suppressed'
+      },
+      list_sequence_reply_review: () => ({
+        open: false,
+        state: 'none',
+        version: 1,
+        can_read_content: true,
+        can_decide: true,
+        pending: [],
+        decisions: [],
+        paused_contacts: contatosPausados,
+      }),
     },
   })
   const { servicos } = criarServicosDoNavegadorFalsos()
   render(<RaizDoAplicativo cliente={supabase.cliente} servicos={servicos} />)
-  return { chamadasDeChat }
+  return { chamadasDeChat, chamadasDeNaoContatar }
 }
 
 describe('O titular vê as respostas de WhatsApp e LinkedIn', () => {
@@ -135,6 +153,36 @@ describe('O titular vê as respostas de WhatsApp e LinkedIn', () => {
     expect(within(respostas).getAllByText(/26 de setembro de 2026/)).toHaveLength(3)
     expect(within(respostas).getByText('2 anexos')).toBeInTheDocument()
     expect(within(respostas).queryByRole('button', { name: /Baixar|Abrir/ })).not.toBeInTheDocument()
+  })
+
+  it('titular confirma pedido de não contato: aceita o confirm, chama o RPC com a interação e não mostra erro', async () => {
+    const confirmarSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const usuario = userEvent.setup()
+    const { chamadasDeNaoContatar } = abrir()
+
+    const respostas = await screen.findByRole('region', { name: 'Respostas recebidas' })
+    await usuario.click(within(respostas).getByRole('button', { name: 'Confirmar pedido de não contato' }))
+
+    expect(confirmarSpy).toHaveBeenCalledWith(expect.stringContaining('Maria Souza'))
+    await screen.findByText(CORPO_EMAIL)
+    expect(chamadasDeNaoContatar).toEqual([{ p_sequence_id: 'sequencia-da-marina', p_interaction_id: 'inter-email' }])
+    expect(await screen.findByRole('status')).toHaveTextContent('este Contato foi suprimido no Workspace')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    confirmarSpy.mockRestore()
+  })
+
+  it('cancelar o confirm não chama o RPC de não contato', async () => {
+    const confirmarSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const usuario = userEvent.setup()
+    const { chamadasDeNaoContatar } = abrir()
+
+    const respostas = await screen.findByRole('region', { name: 'Respostas recebidas' })
+    await usuario.click(within(respostas).getByRole('button', { name: 'Confirmar pedido de não contato' }))
+
+    expect(chamadasDeNaoContatar).toEqual([])
+
+    confirmarSpy.mockRestore()
   })
 
   it('outro participante não vê o corpo das respostas de chat nem o de e-mail', async () => {

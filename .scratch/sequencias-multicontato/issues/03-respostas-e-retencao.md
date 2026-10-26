@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Autorizar e executar caminhos independentes com limites
 
-**Status:** ready-for-agent
+**Status:** closed — entregue nos PRs #251 e #255 (migration 20261112120000; ajuste de teste); 5/7 critérios verificados em 2026-10-24; há lacuna de versão na retomada e pendente conferência visual humana.
 
 ## Objetivo e escopo
 
@@ -17,13 +17,13 @@ Retomada seletiva e classificação por IA. Nenhuma mudança estrutural de layou
 
 ## Critérios de aceite
 
-- [ ] Resposta correlacionada persiste e retém a Conta antes de qualquer análise; não analisar caixa pessoal indiscriminadamente.
-- [ ] Duplicata não recria resposta/retenção já resolvida; ausência automática não libera por conta própria.
-- [ ] Titular vê todas as respostas pendentes, decide e reabre a tela com histórico persistido.
-- [ ] Decisão obsoleta não libera Conta quando nova resposta chega; leitura/decisão valida versão ou conjunto revisado.
-- [ ] Executor revalida retenção antes de liberar envio; envio já em trânsito é auditado sem repetição.
-- [ ] Outros participantes não leem conteúdo ou decidem em nome do titular; integração não exige IA.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Resposta correlacionada persiste e retém a Conta antes de qualquer análise; não analisar caixa pessoal indiscriminadamente. Evidência: `supabase/tests/retencao_por_resposta_da_conta.sql` (44/44), registro/retenção sem chamada de IA.
+- [x] Duplicata não recria resposta/retenção já resolvida; ausência automática não libera por conta própria. Evidência: `projeto-althius-frontend/src/fonte/simulada-sequencias.test.ts:191`; pgTAP de idempotência no arquivo de retenção.
+- [x] Titular vê todas as respostas pendentes, decide e reabre a tela com histórico persistido. Evidência: `projeto-althius-frontend/src/paginas/revisao-da-retencao.test.tsx:6`, `supabase/tests/retencao_por_resposta_da_conta.sql`.
+- [ ] Decisão obsoleta não libera Conta quando nova resposta chega; leitura/decisão valida versão ou conjunto revisado. `decide_sequence_retention` rejeita versão/conjunto obsoleto (`supabase/tests/retencao_por_resposta_da_conta.sql:255`), mas não cumprido na rota alternativa de retomada: `update_owned_sequence(..., 'ativa')` fecha a retenção e registra o conjunto pendente atual sem receber a versão/conjunto que foi lido (`supabase/migrations/20261112120000_retencao_por_resposta_da_conta.sql:1055`, `:1110`). A ressalva também está no relatório do PR #251. O PR #255 apenas estabiliza a ordem do teste.
+- [x] Executor revalida retenção antes de liberar envio; envio já em trânsito é auditado sem repetição. Evidência: `supabase/functions/sequence-runner/handler.test.ts` (caso “retenção da Conta e envio em trânsito”) e pgTAP de retenção.
+- [x] Outros participantes não leem conteúdo ou decidem em nome do titular; integração não exige IA. Evidência: `supabase/tests/retencao_por_resposta_da_conta.sql` (privacidade/decisão) e `projeto-althius-frontend/src/fonte/simulada-sequencias.test.ts:191`.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente verificação humana: comparar o bloco atual de revisão em desktop e viewport estreita; sem capturas nos relatórios.
 
 ## Pode mexer
 
@@ -84,4 +84,6 @@ Ordem após merge e autorização explícita: migration → Edge Functions → w
 
 ## Comments
 
-Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout. Status indica ticket especificado, não implementação pronta; blockers e gates humanos continuam obrigatórios.
+Divisão e dependências aprovadas pelo usuário. Reforço final aprovado: templates com assistência de IA e preservação integral da estrutura de layout.
+
+2026-10-24 — Conferência dos PRs #251 e #255. Rodei `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_mc01 supabase/tests/retencao_por_resposta_da_conta.sql`: 44/44. Vitest direcionado: `revisao-da-retencao.test.tsx` passou junto da suíte relevante (13 arquivos, 121 testes). `deno test -A` dos handlers de envio/Executor: 60 testes passaram. A RPC versionada tem teste de decisão obsoleta; a retomada alternativa mantém a lacuna descrita acima. Também falta conferência visual humana; não foi feita operação em produção.

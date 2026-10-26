@@ -43,7 +43,7 @@ const db: Db = {
     const linhas = await chamar<{ workspace_id: string; workspace_name: string }[] | null>('whatsapp_channel_eligible_workspaces', { p_user_id: userId })
     return (linhas ?? []).map((linha) => ({ id: linha.workspace_id, nome: linha.workspace_name }))
   },
-  respostaPendente: (userId) => chamar<string | null>('claim_whatsapp_pending_answer', { p_user_id: userId }),
+  respostaPendente: (userId) => chamar<string | null>('claim_whatsapp_pending_answer_with_workspace', { p_user_id: userId }),
   async sessao(userId) {
     const linhas = await chamar<{ workspace_id: string | null; awaiting_workspace: boolean; new_conversation: boolean }[] | null>(
       'get_whatsapp_channel_session', { p_user_id: userId },

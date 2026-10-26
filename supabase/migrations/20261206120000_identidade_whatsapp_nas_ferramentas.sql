@@ -11,6 +11,7 @@ create table private.channel_tool_activity (
 );
 alter table private.channel_tool_activity enable row level security;
 revoke all on private.channel_tool_activity from public, anon, authenticated;
+grant usage on schema private to service_role;
 grant select, insert on private.channel_tool_activity to service_role;
 
 create function public.record_whatsapp_tool_activity(
@@ -28,7 +29,7 @@ as $$
 declare v_id uuid;
 begin
   if p_user_id is null or p_workspace_id is null or p_tool is null or length(btrim(p_tool)) not between 1 and 100
-    or p_payload_hash !~ '^[0-9a-f]{64}$' or p_outcome is null or length(btrim(p_outcome)) not between 1 and 80 then
+    or p_payload_hash is null or p_payload_hash !~ '^[0-9a-f]{64}$' or p_outcome is null or length(btrim(p_outcome)) not between 1 and 80 then
     raise exception 'invalid channel activity' using errcode = '22023';
   end if;
   insert into private.channel_tool_activity(user_id, workspace_id, channel, tool, payload_hash, outcome)

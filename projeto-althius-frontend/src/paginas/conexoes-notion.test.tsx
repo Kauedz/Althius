@@ -137,7 +137,7 @@ describe('O cartão do Notion no Workspace operacional', () => {
     await usuario.click(within(cartao).getByRole('button', { name: 'Habilitar' }))
 
     expect(await within(cartao).findByText('Habilitada no Workspace')).toBeInTheDocument()
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
     expect(banco.habilitadas.map((h) => h.integrationId)).toEqual(['notion'])
   })
 
@@ -156,8 +156,8 @@ describe('O cartão do Notion no Workspace operacional', () => {
     const { usuario, pedidos } = abrir()
 
     const cartao = await screen.findByRole('article', { name: 'Notion' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(cartao).getByText('0 participantes conectaram')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 0 participantes conectados')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Usar chave de API' })).not.toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
 
@@ -181,8 +181,8 @@ describe('O cartão do Notion no Workspace operacional', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'Notion' })
-    expect(await within(cartao).findByText('Conectado como marina@cliente.com.br')).toBeInTheDocument()
-    expect(within(cartao).getByText('2 participantes conectaram')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado como marina@cliente.com.br')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 2 participantes conectados')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: /Sincroniz/ })).not.toBeInTheDocument()
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Ver ferramentas' }))
@@ -200,10 +200,10 @@ describe('O cartão do Notion no Workspace operacional', () => {
     await usuario.click(await within(notion).findByRole('button', { name: 'Desconectar' }))
 
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'notion' }])
-    expect(await within(notion).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(notion).getByText('1 participante conectou')).toBeInTheDocument()
+    expect(await within(notion).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(notion).getByText('No Workspace: 1 participante conectado')).toBeInTheDocument()
     const hubspot = screen.getByRole('article', { name: 'HubSpot' })
-    expect(within(hubspot).getByText('Conectado como marina@norte-crm.com.br')).toBeInTheDocument()
+    expect(within(hubspot).getByText('Seu acesso: Conectado como marina@norte-crm.com.br')).toBeInTheDocument()
   })
 
   it('quando o Notion revoga o Acesso ou ele vence, o mesmo botão reconecta', async () => {
@@ -211,7 +211,7 @@ describe('O cartão do Notion no Workspace operacional', () => {
     const { usuario, pedidos } = abrir({ acessos: [{ ...NOTION_CONECTADO, state: 'precisa_reconectar' }] })
 
     const cartao = await screen.findByRole('article', { name: 'Notion' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Ver ferramentas' })).not.toBeInTheDocument()
     await usuario.click(within(cartao).getByRole('button', { name: 'Reconectar no Notion' }))
 
@@ -234,6 +234,6 @@ describe('O cartão do Notion no Workspace operacional', () => {
 
     expect(await screen.findByText(aviso)).toBeInTheDocument()
     const cartao = await screen.findByRole('article', { name: 'Notion' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 })
