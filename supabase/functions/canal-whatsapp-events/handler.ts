@@ -9,7 +9,7 @@ export interface Db {
   reservarEvento(eventId: string, telefone: string): Promise<boolean>
   permitirMensagem(telefone: string): Promise<boolean>
   registrarAuditoria(registro: { eventId: string; userId: string | null; workspaceId: string | null; ferramenta: string; resultado: string; hashPayload: string }): Promise<void>
-  registrarStatus(evento: Extract<EventoWhatsApp, { tipo: 'status' }>): Promise<void>
+  registrarStatus(evento: Extract<EventoWhatsApp, { tipo: 'status' }>): Promise<800 | 1000 | null>
   contaPorTelefone(telefone: string): Promise<string | null>
   workspacesElegiveis(userId: string): Promise<WorkspaceElegivel[]>
   respostaPendente(userId: string): Promise<string | null>
@@ -25,6 +25,7 @@ export interface Deps {
   adaptador: AdaptadorCanal
   segredoWebhook: string
   esperarDepois: (trabalho: Promise<unknown>) => void
+  alertarEquipe: (limite: 800 | 1000) => Promise<void>
   log?: (campos: Record<string, unknown>) => void
 }
 
@@ -41,6 +42,14 @@ const RESPOSTAS = {
 
 const normalizarComando = (texto: string) => texto.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleUpperCase('pt-BR')
 
+export function montarEmailAlertaUsoWhatsApp(limite: 800 | 1000, remetente: string) {
+  const assunto = `Canal WhatsApp da Althius: ${limite} mensagens no mês`
+  const texto = limite === 800
+    ? 'O número da Althius atingiu 800 respostas de serviço e templates somados neste mês. O Canal continua enviando; acompanhe o contador mensal.'
+    : 'O número da Althius atingiu 1.000 respostas de serviço e templates somados neste mês. O Canal continua enviando e o custo fica com a Althius.'
+  return { from: remetente, to: 'althius.relacionamento@gmail.com', subject: assunto, text: texto, html: `<p>${texto}</p>` }
+}
+
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const log = deps.log ?? ((campos) => console.log(JSON.stringify(campos)))
   const responder = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } })
@@ -53,7 +62,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
   async function tratar(evento: EventoWhatsApp) {
     if (evento.tipo === 'status') {
-      await deps.db.registrarStatus(evento)
+      const limite = await deps.db.registrarStatus(evento)
+      if (limite) {
+        try {
+          await deps.alertarEquipe(limite)
+        } catch (erro) {
+          log({ tipo: 'canal_whatsapp_status', resultado: 'falha_ao_alertar_equipe', limite, erro: erro instanceof Error ? erro.name : 'desconhecido' })
+        }
+      }
       return
     }
     if (!(await deps.db.reservarEvento(evento.id, evento.de))) {
@@ -76,8 +92,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       log({ tipo: 'canal_whatsapp_event', resultado: 'numero_desconhecido', eventId: evento.id })
       return
     }
-    const respostaPendente = await deps.db.respostaPendente(userId)
-    if (respostaPendente) await enviarTexto(evento.de, respostaPendente)
+    let respostaPendente = await deps.db.respostaPendente(userId)
+    while (respostaPendente) {
+      await enviarTexto(evento.de, respostaPendente)
+      respostaPendente = await deps.db.respostaPendente(userId)
+    }
     if (comando === 'PARAR') {
       await deps.db.alterarPreferenciaDeAvisos(userId, true)
       await enviarTexto(evento.de, RESPOSTAS.parar)
