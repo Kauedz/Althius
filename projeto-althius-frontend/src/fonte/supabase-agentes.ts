@@ -73,6 +73,7 @@ interface RegistroDaExecucao {
   created_at: string
   started_at: string | null
   retried_by: string | null
+  can_view_conversation: boolean
 }
 
 /** Quantas Execuções a Atividade mostra de uma vez. */
@@ -94,8 +95,6 @@ function converterExecucao(linha: RegistroDaExecucao): ItemDeAtividade {
       : motivoDaFalha
     : linha.status === 'succeeded'
       ? linha.result_text || 'Concluída.'
-      : linha.started_at === undefined
-        ? 'Em andamento.'
       : (() => {
           const inicio = new Date(linha.started_at ?? linha.created_at).getTime()
           const minutos = Math.max(0, Math.floor((Date.now() - inicio) / 60_000))
@@ -109,7 +108,7 @@ function converterExecucao(linha: RegistroDaExecucao): ItemDeAtividade {
     quando: quandoDaExecucao(linha.created_at),
     descricao: linha.request_text,
     resultado,
-    ...(linha.trigger_kind !== 'rotina'
+    ...(linha.trigger_kind !== 'rotina' || linha.can_view_conversation
       ? { link: { rotulo: 'Ver Conversa', para: `/agentes/${linha.agent_id}/conversa?conversa=${linha.conversation_id}` } }
       : {}),
     ...(falhou ? { falhou: true } : {}),

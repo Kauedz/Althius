@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(25);
+select plan(28);
 
 select has_function('private', 'expire_stale_agent_runs', array[]::text[], 'o relógio de Execuções paradas existe');
 select has_function('public', 'retry_agent_run', array['uuid', 'uuid']::text[], 'a RPC de nova tentativa existe');
@@ -68,6 +68,8 @@ select is((select id from public.retry_agent_run('a3000000-0000-4000-8000-000000
   (select id from public.retry_agent_run('a3000000-0000-4000-8000-000000000050', 'a3000000-0000-4000-8000-000000000052')), 'repetir a RPC com a mesma chave devolve a mesma Execução');
 select ok(exists (select 1 from public.list_agent_run_attention('a3000000-0000-4000-8000-000000000010', current_setting('t.agent')::uuid)
   where id = 'a3000000-0000-4000-8000-000000000050' and retried_by is not null), 'a Atividade relaciona a nova Execução à original');
+select ok((select can_view_conversation from public.list_agent_run_attention('a3000000-0000-4000-8000-000000000010', current_setting('t.agent')::uuid)
+  where id = 'a3000000-0000-4000-8000-000000000050'), 'o dono da Rotina pode abrir sua Conversa');
 select throws_ok($$select * from public.retry_agent_run('a3000000-0000-4000-8000-000000000050', 'a3000000-0000-4000-8000-000000000053')$$,
   '55006', 'conversation busy', 'não abre outra Execução enquanto a Conversa está ocupada');
 select is((select count(*)::int from public.list_agent_run_attention('a3000000-0000-4000-8000-000000000010', current_setting('t.agent')::uuid)
@@ -77,6 +79,18 @@ select is((select array_agg(id) from public.list_agent_run_attention('a3000000-0
   array['a3000000-0000-4000-8000-000000000042']::uuid[], 'Membro vê somente a própria Conversa pessoal');
 select throws_ok($$select * from public.retry_agent_run('a3000000-0000-4000-8000-000000000050', 'a3000000-0000-4000-8000-000000000054')$$,
   '42501', 'not allowed to retry this run', 'Membro não retoma a Execução de outra pessoa');
+reset role;
+update private.agent_conversations set owner_id = 'a3000000-0000-4000-8000-000000000002'
+  where id = 'a3000000-0000-4000-8000-000000000030';
+update private.agent_routines set owner_id = 'a3000000-0000-4000-8000-000000000002'
+  where id = 'a3000000-0000-4000-8000-000000000020';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
+select ok(not (select can_view_conversation from public.list_agent_run_attention('a3000000-0000-4000-8000-000000000010', current_setting('t.agent')::uuid)
+  where id = 'a3000000-0000-4000-8000-000000000050'), 'Administrador vê a Execução da Rotina, mas não sua Conversa pessoal');
+select set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000002', true);
+select ok((select can_view_conversation from public.list_agent_run_attention('a3000000-0000-4000-8000-000000000010', current_setting('t.agent')::uuid)
+  where id = 'a3000000-0000-4000-8000-000000000050'), 'dono da Conversa da Rotina pode abri-la');
 reset role;
 update private.agent_runs set error_code = 'membership_inactive' where id = 'a3000000-0000-4000-8000-000000000042';
 set local role authenticated;

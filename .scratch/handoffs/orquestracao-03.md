@@ -32,6 +32,15 @@ Os AC do job no cron remoto e da retomada da agenda de Rotina continuam desmarca
 - Migration nova: `supabase/migrations/20261211132000_execucoes_presas_ou_com_falha.sql`
 - pgTAP: `supabase/tests/execucoes_presas_ou_com_falha.sql`
 
+## Correção de revisão — rfix1
+
+- Removido o ramo impossível `started_at === undefined`; Execuções `queued` sem início usam `created_at` para mostrar o tempo parada. A fixture de `running` agora fornece `started_at`.
+- A RPC `list_agent_run_attention` informa `can_view_conversation` por linha. A Atividade mantém o link da Rotina para o dono e o oculta para Administrador que só pode ver a Execução da Rotina.
+- No conflito de unicidade de `retry_agent_run`, uma colisão concorrente de `client_request_id` agora conserva o erro `request id already used`; conflito de Execução aberta continua `conversation busy`.
+- TDD: Vitest falhou antes para o link indevido; pgTAP falhou antes porque a RPC ainda não retornava a permissão de leitura. Depois das correções, Vitest direcionada 6/6 e pgTAP 28/28.
+- Verificação final: pgTAP local completo verde; Deno check e testes (1.868); lint; `tsc -b`; Vitest completa (2.005 passaram, 4 ignorados); build. Lint/build emitiram avisos já existentes de lint, `VITE_GOOGLE_CLIENT_ID` vazio e tamanho dos chunks.
+- Decisão: link é exibido apenas quando a linha da RPC confirma que a pessoa autenticada é dona da Conversa; o Administrador mantém acesso ao item de Atividade da Rotina, sem navegação para a Conversa privada de outra pessoa.
+
 ## Suggested skills
 
 Para uma sessão que continuar: `code-review` (revisar `origin/main` contra o diff do worktree e atender achados), `tdd` (se ajustar comportamento, red primeiro), `implement` (se concluir pendências de código do ticket) e `handoff` (ao transferir de novo). O ticket está pronto para revisão humana; o handoff não duplica o spec ou o patch.

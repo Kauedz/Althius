@@ -85,7 +85,7 @@ create function public.list_agent_run_attention(p_workspace_id uuid, p_agent_id 
 returns table (
   id uuid, agent_id uuid, agent_name text, conversation_id uuid, trigger_kind text, routine_id uuid,
   status text, request_text text, result_text text, error_code text, created_at timestamptz, started_at timestamptz,
-  finished_at timestamptz, retry_of uuid, retried_by uuid
+  finished_at timestamptz, retry_of uuid, retried_by uuid, can_view_conversation boolean
 )
 language plpgsql stable security definer set search_path = '' as $$
 declare
@@ -97,7 +97,8 @@ begin
       r.request_text, (select left(e.payload ->> 'texto', 280) from private.agent_run_events e
         where e.run_id = r.id and e.kind = 'resposta' and coalesce(e.payload ->> 'texto', '') <> ''
         order by e.seq desc limit 1), r.error_code, r.created_at, r.started_at, r.finished_at, r.retry_of,
-      (select child.id from private.agent_runs child where child.retry_of = r.id order by child.created_at desc limit 1)
+      (select child.id from private.agent_runs child where child.retry_of = r.id order by child.created_at desc limit 1),
+      c.owner_id = v_user_id
     from private.agent_runs r
     join private.agent_conversations c on c.workspace_id = r.workspace_id and c.id = r.conversation_id
     join private.agents a on a.workspace_id = c.workspace_id and a.id = c.agent_id
@@ -152,9 +153,12 @@ begin
   exception when unique_violation then
     select * into v_existing from private.agent_runs r
       where r.requested_by = v_user_id and r.client_request_id = p_client_request_id;
-    if found and v_existing.retry_of = p_run_id then
-      return query select v_existing.id, v_existing.status;
-      return;
+    if found then
+      if v_existing.retry_of = p_run_id then
+        return query select v_existing.id, v_existing.status;
+        return;
+      end if;
+      raise exception 'request id already used' using errcode = '22023';
     end if;
     raise exception 'conversation busy' using errcode = '55006';
   end;
