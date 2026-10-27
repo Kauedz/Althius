@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { adaptadorCanalDoAmbiente } from '../_shared/canal/index.ts'
-import { createHandler, type Db, type SessaoWhatsApp } from './handler.ts'
+import { createHandler, montarEmailAlertaUsoWhatsApp, type Db, type SessaoWhatsApp } from './handler.ts'
+import { resendMail } from '../workspace-invitation-email/resend.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -13,6 +14,8 @@ const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_
 })
 const segredoWebhook = required('WHATSAPP_APP_SECRET')
 const adaptador = adaptadorCanalDoAmbiente()
+const mail = resendMail(required('RESEND_API_KEY'))
+const remetente = Deno.env.get('INVITE_EMAIL_FROM') || 'Althius <contato@althius.com.br>'
 
 async function chamar<T>(nome: string, parametros: Record<string, unknown>): Promise<T> {
   const { data, error } = await admin.rpc(nome, parametros)
@@ -31,7 +34,7 @@ const db: Db = {
     })
   },
   registrarStatus: async (evento) => {
-    await chamar('record_whatsapp_channel_status', {
+    return chamar<800 | 1000 | null>('record_whatsapp_channel_status', {
       p_message_id: evento.id,
       p_status: evento.estado,
       p_updated_at: new Date(Number(evento.atualizadoEm) * 1000).toISOString(),
@@ -81,4 +84,10 @@ const db: Db = {
 }
 
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unknown>) => void } }).EdgeRuntime
-Deno.serve(createHandler({ db, adaptador, segredoWebhook, esperarDepois: (trabalho) => runtime?.waitUntil ? runtime.waitUntil(trabalho) : void trabalho }))
+Deno.serve(createHandler({
+  db,
+  adaptador,
+  segredoWebhook,
+  esperarDepois: (trabalho) => runtime?.waitUntil ? runtime.waitUntil(trabalho) : void trabalho,
+  alertarEquipe: async (limite) => { await mail.send(montarEmailAlertaUsoWhatsApp(limite, remetente)) },
+}))

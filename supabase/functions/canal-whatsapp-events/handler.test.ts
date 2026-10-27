@@ -1,6 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1'
 import { createCanalSimulado } from '../_shared/canal/index.ts'
-import { createHandler, type AberturaDeExecucao, type Db, type SessaoWhatsApp, type WorkspaceElegivel } from './handler.ts'
+import { createHandler, montarEmailAlertaUsoWhatsApp, type AberturaDeExecucao, type Db, type SessaoWhatsApp, type WorkspaceElegivel } from './handler.ts'
 
 const SEGREDO = 'segredo-de-teste'
 const USUARIO = '5d000000-0000-0000-0000-000000000001'
@@ -13,12 +13,14 @@ async function assinatura(corpo: string) {
   return `sha256=${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
-function montar(opcoes: { workspaces?: WorkspaceElegivel[]; aberturas?: AberturaDeExecucao[]; bloqueios?: number; suspenso?: boolean } = {}) {
+function montar(opcoes: { workspaces?: WorkspaceElegivel[]; aberturas?: AberturaDeExecucao[]; bloqueios?: number; suspenso?: boolean; respostasPendentes?: string[]; alertasStatus?: (800 | 1000)[] } = {}) {
   const adaptador = createCanalSimulado()
   const eventosReservados = new Set<string>()
   const recusasDesconhecidos = new Set<string>()
   const chamadas: Record<string, unknown>[] = []
   const auditoria: Record<string, unknown>[] = []
+  const statusRegistrados: unknown[] = []
+  const alertasEquipe: number[] = []
   const logs: Record<string, unknown>[] = []
   const pendentes: Promise<unknown>[] = []
   const sessoes = new Map<string, SessaoWhatsApp>()
@@ -32,9 +34,12 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; aberturas?: Abertura
     permitirMensagem: async () => (opcoes.bloqueios ?? 0) === 0,
     registrarAuditoria: async (registro) => { auditoria.push(registro) },
     contaPorTelefone: async (telefone) => telefone === TELEFONE && !opcoes.suspenso ? USUARIO : null,
-    registrarStatus: async () => {},
+    registrarStatus: async (evento) => {
+      statusRegistrados.push(evento)
+      return opcoes.alertasStatus?.shift() ?? null
+    },
     workspacesElegiveis: async () => opcoes.workspaces ?? [{ id: WORKSPACE, nome: 'Norte' }],
-    respostaPendente: async () => null,
+    respostaPendente: async () => opcoes.respostasPendentes?.shift() ?? null,
     sessao: async (userId) => sessoes.get(userId) ?? { workspaceId: null, aguardandoWorkspace: false, novaConversa: false },
     salvarSessao: async (userId, sessao) => { sessoes.set(userId, sessao) },
     alterarPreferenciaDeAvisos: async (_userId, parar) => { chamadas.push({ comando: parar ? 'parar' : 'voltar' }) },
@@ -55,6 +60,7 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; aberturas?: Abertura
     adaptador,
     segredoWebhook: SEGREDO,
     esperarDepois: (promise) => { pendentes.push(promise) },
+    alertarEquipe: async (limite) => { alertasEquipe.push(limite) },
     log: (campos) => { logs.push(campos) },
   })
   const enviar = async (id: string, telefone: string, texto: string) => {
@@ -65,8 +71,47 @@ function montar(opcoes: { workspaces?: WorkspaceElegivel[]; aberturas?: Abertura
     await Promise.all(pendentes.splice(0))
     return resposta
   }
-  return { adaptador, chamadas, auditoria, logs, enviar }
+  const enviarStatus = async (id: string, estado: string, atualizadoEm: string) => {
+    const corpo = JSON.stringify({ entry: [{ changes: [{ value: { statuses: [{ id, status: estado, timestamp: atualizadoEm, pricing: { billable: true, category: 'service' } }] } }] }] })
+    const resposta = await handler(new Request('https://exemplo.test', {
+      method: 'POST', headers: { 'X-Hub-Signature-256': await assinatura(corpo) }, body: corpo,
+    }))
+    await Promise.all(pendentes.splice(0))
+    return resposta
+  }
+  return { adaptador, chamadas, auditoria, logs, statusRegistrados, alertasEquipe, enviar, enviarStatus }
 }
+
+Deno.test('entrega todas as respostas pendentes em ordem antes de tratar a mensagem nova', async () => {
+  const m = montar({ respostasPendentes: ['Em *Norte*:\nprimeira resposta', 'Em *Sul*:\nsegunda resposta'] })
+  await m.enviar('wamid-depois-das-pendentes', TELEFONE, 'pergunta nova')
+
+  assertEquals(m.adaptador.envios, [
+    { tipo: 'texto', para: TELEFONE, texto: 'Em *Norte*:\nprimeira resposta' },
+    { tipo: 'texto', para: TELEFONE, texto: 'Em *Sul*:\nsegunda resposta' },
+  ])
+  assertEquals(m.chamadas.length, 1)
+})
+
+Deno.test('avisos de 800 e 1.000 respostas chegam à equipe sem interromper o Canal', async () => {
+  const agoraOriginal = Date.now
+  Date.now = () => new Date('2026-10-26T15:00:00Z').getTime()
+  try {
+    const m = montar({ alertasStatus: [800, 1000] })
+    const atualizadoEm = String(Math.floor(Date.now() / 1000))
+    await m.enviarStatus('wamid-alerta-800', 'sent', atualizadoEm)
+    await m.enviarStatus('wamid-alerta-1000', 'sent', atualizadoEm)
+
+    assertEquals(m.alertasEquipe, [800, 1000])
+    assertEquals(m.statusRegistrados.map((evento) => (evento as { atualizadoEm: string }).atualizadoEm), [atualizadoEm, atualizadoEm])
+    assertEquals(m.adaptador.envios, [])
+    assertEquals(montarEmailAlertaUsoWhatsApp(1000, 'Althius <contato@althius.com.br>').to, 'althius.relacionamento@gmail.com')
+    assertEquals(montarEmailAlertaUsoWhatsApp(1000, 'Althius <contato@althius.com.br>').text.includes('continua enviando'), true)
+    assertEquals(montarEmailAlertaUsoWhatsApp(800, 'Althius <contato@althius.com.br>').text.includes('respostas de serviço e templates somados'), true)
+  } finally {
+    Date.now = agoraOriginal
+  }
+})
 
 Deno.test('número desconhecido recebe uma recusa sem iniciar execução, uma vez por dia', async () => {
   const m = montar()
