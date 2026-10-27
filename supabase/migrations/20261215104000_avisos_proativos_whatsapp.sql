@@ -29,17 +29,18 @@ returns boolean language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function private.channel_notice_opted_in(uuid, text) from public, anon, authenticated, service_role;
 
-create function public.enqueue_whatsapp_channel_notice(p_user_id uuid, p_workspace_id uuid, p_type text, p_summary text)
+create function public.enqueue_whatsapp_channel_notice(p_user_id uuid, p_workspace_id uuid, p_type text, p_summary text, p_origin_id text)
 returns boolean language plpgsql security definer set search_path = '' as $$
 declare v_inserted boolean;
 begin
   if p_type not in ('resposta_lead','aprovacao_pendente','rotina_terminada','sinal_novo','sequencia_pausada','creditos_baixos')
-    or p_user_id is null or p_workspace_id is null or p_summary is null or length(btrim(p_summary)) not between 1 and 500 then
+    or p_user_id is null or p_workspace_id is null or p_summary is null or length(btrim(p_summary)) not between 1 and 500
+    or p_origin_id is null or btrim(p_origin_id) = '' then
     raise exception 'invalid channel notice' using errcode = '22023';
   end if;
   if not coalesce(private.channel_notice_opted_in(p_user_id, p_type), false) then return false; end if;
   insert into private.channel_notices(event_key,user_id,workspace_id,notice_type,summary)
-  values (p_type || ':' || gen_random_uuid()::text,p_user_id,p_workspace_id,p_type,btrim(p_summary))
+  values (p_type || ':' || p_user_id::text || ':' || p_origin_id,p_user_id,p_workspace_id,p_type,btrim(p_summary))
   on conflict (event_key) do nothing returning true into v_inserted;
   return coalesce(v_inserted,false);
 end; $$;
@@ -80,21 +81,21 @@ begin
   insert into private.channel_notice_deliveries(user_id,notice_count,delivered_at) values(p_user_id,v_count,v_now);
   return v_count;
 end; $$;
-create function public.release_whatsapp_channel_notices(p_user_id uuid)
+create function public.release_whatsapp_channel_notices(p_user_id uuid, p_now timestamptz default now())
 returns integer language plpgsql security definer set search_path = '' as $$
 declare v_count integer;
 begin
-  update private.channel_notices set claimed_at=null where user_id=p_user_id and sent_at is null and claimed_at>now()-interval '10 minutes';
+  update private.channel_notices set claimed_at=null where user_id=p_user_id and sent_at is null and claimed_at>coalesce(p_now,now())-interval '10 minutes';
   get diagnostics v_count=row_count; return v_count;
 end; $$;
-revoke all on function public.enqueue_whatsapp_channel_notice(uuid,uuid,text,text) from public,anon,authenticated;
+revoke all on function public.enqueue_whatsapp_channel_notice(uuid,uuid,text,text,text) from public,anon,authenticated;
 revoke all on function public.claim_whatsapp_channel_notices(uuid,timestamptz) from public,anon,authenticated;
 revoke all on function public.confirm_whatsapp_channel_notices(uuid,timestamptz) from public,anon,authenticated;
-revoke all on function public.release_whatsapp_channel_notices(uuid) from public,anon,authenticated;
-grant execute on function public.enqueue_whatsapp_channel_notice(uuid,uuid,text,text) to service_role;
+revoke all on function public.release_whatsapp_channel_notices(uuid,timestamptz) from public,anon,authenticated;
+grant execute on function public.enqueue_whatsapp_channel_notice(uuid,uuid,text,text,text) to service_role;
 grant execute on function public.claim_whatsapp_channel_notices(uuid,timestamptz) to service_role;
 grant execute on function public.confirm_whatsapp_channel_notices(uuid,timestamptz) to service_role;
-grant execute on function public.release_whatsapp_channel_notices(uuid) to service_role;
+grant execute on function public.release_whatsapp_channel_notices(uuid,timestamptz) to service_role;
 
 -- Gatilhos somente nesta migration: não alteram os fluxos que produzem os eventos.
 create function private.notify_channel_notice()
@@ -103,21 +104,21 @@ declare v_owner uuid;
 begin
   if tg_table_name='reply_proposals' then
     if new.status<>'pronta' or (tg_op='UPDATE' and old.status is not distinct from new.status) then return new; end if;
-    perform public.enqueue_whatsapp_channel_notice(new.owner_user_id,new.workspace_id,'resposta_lead','Uma Proposta de resposta está pronta para revisar.');
+    perform public.enqueue_whatsapp_channel_notice(new.owner_user_id,new.workspace_id,'resposta_lead','Uma Proposta de resposta está pronta para revisar.',new.id::text);
   elsif tg_table_name='approvals' then
     if new.state<>'pendente' then return new; end if;
     for v_owner in select m.user_id from public.workspace_memberships m where m.workspace_id=new.workspace_id and m.active and m.role='admin'
-    loop perform public.enqueue_whatsapp_channel_notice(v_owner,new.workspace_id,'aprovacao_pendente','Há uma Aprovação esperando sua decisão.'); end loop;
+    loop perform public.enqueue_whatsapp_channel_notice(v_owner,new.workspace_id,'aprovacao_pendente','Há uma Aprovação esperando sua decisão.',new.id::text); end loop;
   elsif tg_table_name='agent_runs' then
     if new.trigger_kind<>'rotina' or new.status not in ('succeeded','failed') or (tg_op='UPDATE' and old.status is not distinct from new.status) then return new; end if;
-    perform public.enqueue_whatsapp_channel_notice(new.requested_by,new.workspace_id,'rotina_terminada','Uma Rotina terminou.');
+    perform public.enqueue_whatsapp_channel_notice(new.requested_by,new.workspace_id,'rotina_terminada','Uma Rotina terminou.',new.id::text);
   elsif tg_table_name='signals' then
     select r.owner_user_id into v_owner from public.sales_responsibilities r where r.workspace_id=new.workspace_id and r.target_account_id=new.target_account_id::text;
-    if v_owner is not null then perform public.enqueue_whatsapp_channel_notice(v_owner,new.workspace_id,'sinal_novo','Um Sinal novo chegou a uma Conta sua.'); end if;
+    if v_owner is not null then perform public.enqueue_whatsapp_channel_notice(v_owner,new.workspace_id,'sinal_novo','Um Sinal novo chegou a uma Conta sua.',new.id::text); end if;
   elsif tg_table_name='sequence_reply_holds' then
     if not new.open or (tg_op='UPDATE' and old.open) then return new; end if;
     select s.owner_user_id into v_owner from public.sequences s where s.id=new.sequence_id;
-    if v_owner is not null then perform public.enqueue_whatsapp_channel_notice(v_owner,new.workspace_id,'sequencia_pausada','Uma Sequência ficou retida após uma resposta.'); end if;
+    if v_owner is not null then perform public.enqueue_whatsapp_channel_notice(v_owner,new.workspace_id,'sequencia_pausada','Uma Sequência ficou retida após uma resposta.',new.sequence_id::text || ':' || new.version::text); end if;
   end if;
   return new;
 end; $$;
@@ -137,7 +138,7 @@ begin
   if public.workspace_credits_unlimited(new.workspace_id) then return new; end if;
   select t.booked-t.reserved into v_available from private.credit_totals(new.workspace_id) t;
   if coalesce(v_available,0)>0 or coalesce(v_available-new.amount,0)<=0 then return new; end if;
-  perform public.enqueue_whatsapp_channel_notice(m.user_id,new.workspace_id,'creditos_baixos','Os Créditos deste Workspace acabaram.')
+  perform public.enqueue_whatsapp_channel_notice(m.user_id,new.workspace_id,'creditos_baixos','Os Créditos deste Workspace acabaram.',new.id::text)
     from public.workspace_memberships m where m.workspace_id=new.workspace_id and m.active;
   return new;
 end; $$;

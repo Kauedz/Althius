@@ -100,3 +100,11 @@ Detalhes completos, decisões de produto e testes estão em [issue 15](../canais
 - `code-review` para revisar uma futura versão commitada desde o commit-base fixado.
 - `implement` e `tdd` se houver nova decisão sobre aviso antecipado de Créditos ou alteração no protocolo de template.
 - `migrations` antes de validar/aplicar a migration no ambiente remoto.
+
+## Correção de revisão rfix1 (2026-10-27)
+
+Decisão de teste pré-confirmada pela sessão headless: pgTAP verifica os seis gatilhos reais inserindo eventos nas tabelas de origem; a fila é observada no banco. A chave de idempotência combina tipo, usuário destinatário e id da origem, para que um mesmo evento possa avisar mais de um Administrador sem duplicar para cada pessoa. A liberação também recebe `p_now` para teste determinístico.
+
+O teste pgTAP agora cobre Proposta pronta, Aprovação pendente, Execução de Rotina terminada, Sinal em Conta atribuída, retenção aberta e saldo chegando a zero; confirma que repetir o id de origem não duplica e que a falha de entrega libera o lote para nova reivindicação. O primeiro ciclo vermelho falhou na chamada de enfileiramento sem id de origem; durante a correção, um fixture reutilizava a chave de uma Aprovação e foi separado para manter o caso do limite diário independente da deduplicação.
+
+Alterados nesta correção: apenas esta migration nova e seu teste pgTAP. Nenhuma migration antiga ou arquivo vedado foi tocado. Não houve aplicação remota, publicação, PR, merge ou commit.
