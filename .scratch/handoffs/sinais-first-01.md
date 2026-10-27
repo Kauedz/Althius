@@ -24,6 +24,12 @@ Ticket implementado na branch `ralph/sinais-first-01-icp-estruturado-unico`, a p
 
 Revisei o diff desde `1541363` contra o ticket e as convenções de migrations. O diff está limitado à fonte do onboarding, migration e pgTAP permitidos. Não encontrei defeito pendente nessa revisão.
 
+## Correção rfix1 — fonte única com a seção `icp` do Playbook
+
+A revisão posterior encontrou que `save_playbook_section('icp', ...)` atualizava só `private.playbook_section_versions`, deixando `get_my_workspace_icp` com o valor anterior. A migration do ticket agora instala um trigger `AFTER INSERT` que cria a próxima versão estruturada, preservando os campos Mini-ICP/produto vigentes. A regressão em `supabase/tests/icp_estruturado_unico.sql` confirma que a leitura vê o novo texto e mantém Mini-ICP vindo do Day0; a suíte pgTAP local completa passou com 24/24 nesse arquivo.
+
+Durante a verificação, o Vitest isolado da fonte Supabase passou (1/1). Duas execuções da suíte Vitest completa ficaram sem progresso após a inicialização; uma delas excedeu 180 segundos com mensagens `Not implemented: Window's focus() method` e a outra foi encerrada após mais de quatro minutos sem conclusão. `deno check`, `deno test` (1868 testes), lint, `tsc -b` e build passaram. Build emite os avisos existentes de Google Client ID vazio e bundle grande.
+
 ## Próximo passo
 
 Verificar CI nos três jobs e, após a revisão humana, seguir o fluxo autorizado para a migration conforme `docs/agents/migrations.md`. Não aplicar migration nem publicar nada sem a autorização posterior indicada no ticket.

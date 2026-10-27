@@ -67,6 +67,45 @@ end;
 $$;
 revoke all on function private.seed_workspace_icp(uuid, text, text, text, jsonb) from public, anon, authenticated, service_role;
 
+-- Toda gravação da seção ICP do Playbook também cria uma versão na fonte consumida pelos módulos. Isso mantém
+-- a tela existente como caminho de edição e evita que a tabela estruturada fique defasada.
+create function private.sync_playbook_icp_to_workspace_icp() returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_current private.workspace_icp_versions%rowtype;
+begin
+  if new.section <> 'icp' then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('workspace-icp:' || new.workspace_id::text));
+  select * into v_current
+  from private.workspace_icp_versions v
+  where v.workspace_id = new.workspace_id
+  order by v.version desc
+  limit 1;
+
+  insert into private.workspace_icp_versions
+    (workspace_id, version, sector, company_size, geography, target_roles, free_text, playbook_content,
+     o_que_vende, mini_icp, por_que_compram, created_by, created_at)
+  values
+    (new.workspace_id, coalesce(v_current.version, 0) + 1,
+     coalesce(v_current.sector, ''), coalesce(v_current.company_size, ''), coalesce(v_current.geography, ''),
+     coalesce(v_current.target_roles, '[]'::jsonb), coalesce(new.content ->> 'texto', ''), new.content,
+     coalesce(v_current.o_que_vende, ''), coalesce(v_current.mini_icp, ''),
+     coalesce(v_current.por_que_compram, ''), new.created_by, new.created_at);
+  return new;
+end;
+$$;
+revoke all on function private.sync_playbook_icp_to_workspace_icp() from public, anon, authenticated, service_role;
+
+create trigger sync_playbook_icp_to_workspace_icp
+  after insert on private.playbook_section_versions
+  for each row execute function private.sync_playbook_icp_to_workspace_icp();
+
 -- Fronteira estável de leitura para o ICP vigente; a tabela privada não é exposta diretamente ao PostgREST.
 create function public.get_my_workspace_icp(p_workspace_id uuid) returns jsonb
 language plpgsql

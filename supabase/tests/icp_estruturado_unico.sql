@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(22);
+select plan(24);
 
 insert into auth.users (id, email, email_confirmed_at) values
  ('e0310000-0000-0000-0000-000000000001', 'icp-admin@example.test', now()),
@@ -49,6 +49,12 @@ select is(public.get_my_workspace_icp('e0310000-0000-0000-0000-000000000020')->>
   'ICP da seção existente', 'a seção ICP preenche o texto livre da fonte única');
 select is(public.get_my_workspace_icp('e0310000-0000-0000-0000-000000000020')->'playbookContent'->'linhas'->0->>'papel',
   'Decisor', 'a representação completa da seção ICP continua acessível na fonte única');
+select public.save_playbook_section('e0310000-0000-0000-0000-000000000010', 'icp',
+  '{"texto":"ICP atualizado pelo Playbook","linhas":[{"papel":"Influenciador","cargo":"COO"}]}');
+select is(public.get_my_workspace_icp('e0310000-0000-0000-0000-000000000010')->>'freeText',
+  'ICP atualizado pelo Playbook', 'editar a seção ICP atualiza a fonte lida pelos módulos');
+select is(public.get_my_workspace_icp('e0310000-0000-0000-0000-000000000010')->>'miniIcp',
+  'Fintechs B2B', 'sincronizar o Playbook preserva os campos estruturados já semeados');
 select is(public.get_my_workspace_icp('e0310000-0000-0000-0000-000000000030')->>'version',
   null, 'sem Day0 nem Playbook não cria versão vazia');
 select is(public.get_my_workspace_icp('e0310000-0000-0000-0000-000000000030')->>'miniIcp',
@@ -92,8 +98,8 @@ select is((select free_text from private.workspace_icp_versions where workspace_
   'ICP do Workspace pessoal', 'sem Mini-ICP, a criação usa o texto do Playbook pessoal');
 select is((select count(*)::int from private.workspace_icp_versions where workspace_id = (select id from icp_criado_vazio)),
   0, 'sem Mini-ICP nem Playbook, o Workspace nasce sem versão ou aprovação pendente');
-select is((select count(*)::int from private.workspace_icp_versions
-  where workspace_id = 'e0310000-0000-0000-0000-000000000010'), 1,
-  'um Workspace mantém uma única versão vigente sem edição');
+select is((select max(version)::int from private.workspace_icp_versions
+  where workspace_id = 'e0310000-0000-0000-0000-000000000010'), 2,
+  'a edição cria a versão 2 do ICP, que passa a ser a vigente');
 select * from finish();
 rollback;
