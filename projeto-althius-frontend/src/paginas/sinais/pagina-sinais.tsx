@@ -33,6 +33,7 @@ import {
   sinalDaSemana,
   ultimasDetectadas,
   usePedidosDaVitrine,
+  nichoDoIcp,
 } from './vitrine'
 import {
   CartaoDaVitrine,
@@ -132,12 +133,16 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: sequencias } = useDadosDeSequencias((f) => f.sequencias(), [])
   const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
+  const icpEstruturado = useDadosDeSinais((f) => f.icpDoWorkspace?.() ?? Promise.resolve(null), [operacional])
+  const idsDoCatalogoParaIcp = useDadosDeSinais((f) => f.catalogoParaIcp?.() ?? Promise.resolve([]), [operacional])
   const { pedidos, avisar, avisado } = usePedidosDaVitrine()
   const sinais = sinaisCarregados ?? (operacional ? undefined : SINAIS_MOCK)
   const encontrados = sinais?.length
   const totalAtivos = cards.reduce((soma, card) => soma + ativosDoCard(card, monitoramentos), 0)
   const segmentos = memoria?.icp.secoes.find((secao) => secao.titulo === 'Segmentos')?.texto ?? ''
-  const nichoDoIcp = nichoDoWorkspace(segmentos)
+  const nichoDoIcpAtual = operacional
+    ? nichoDoIcp(icpEstruturado.dados ?? {})
+    : nichoDoWorkspace(segmentos)
 
   // No Workspace operacional, a prévia do Sinal da semana busca disparos novos a cada minuto.
   useEffect(() => {
@@ -162,9 +167,15 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
   const ativosDe = (card: CardDoCatalogo) => ativosDoCard(card, monitoramentos)
   const estadoDe = (card: CardDoCatalogo) => visao.estadoDe(card)
 
-  const prateleiras = montarPrateleiras({ cards: doCatalogo, exclusivos, monitoramentos, nicho: nichoDoIcp })
+  const prateleiras = montarPrateleiras({
+    cards: doCatalogo,
+    exclusivos,
+    monitoramentos,
+    nicho: nichoDoIcpAtual,
+    idsDoCatalogoParaIcp: operacional ? idsDoCatalogoParaIcp.dados : undefined,
+  })
   // O destaque é sempre um Sinal que roda: nem o interno da equipe nem o card mantido só pelo Monitoramento.
-  const destaque = sinalDaSemana({ cards: cards.filter((card) => !estadoDe(card)), sinais: sinais ?? [], hoje, nicho: nichoDoIcp })
+  const destaque = sinalDaSemana({ cards: cards.filter((card) => !estadoDe(card)), sinais: sinais ?? [], hoje, nicho: nichoDoIcpAtual })
   const emProducao = exclusivosEmProducao(pedidos)
   const disparosPorMonitoramento = (id: string) => (sinais ?? []).filter((s) => s.monitoramentoId === id && foiDisparado(s.data, hoje)).length
   // Só os Monitoramentos de um Sinal da vitrine: os de um tipo arquivado não têm página para abrir.
@@ -227,9 +238,9 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
             id="para-o-seu-nicho"
             titulo="Para o seu nicho"
             subtitulo={
-              nichoDoIcp
-                ? `${nichoDoIcp.nome}, pelos Segmentos do ICP do Workspace`
-                : 'Sinais que valem para qualquer nicho. Descreva os Segmentos do ICP na Memória para afinar.'
+              nichoDoIcpAtual
+                ? `${nichoDoIcpAtual.nome}, pelo ICP do Workspace`
+                : 'Sinais que valem para qualquer nicho. Preencha o ICP do Workspace para afinar.'
             }
           >
             <CartoesDaPrateleira cards={prateleiras.paraOSeuNicho} ativosDe={ativosDe} estadoDe={estadoDe} />
