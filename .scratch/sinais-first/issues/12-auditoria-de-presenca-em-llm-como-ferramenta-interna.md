@@ -1,6 +1,6 @@
 # 12: Auditoria de presença em LLM como ferramenta interna
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -31,13 +31,15 @@
 
 ## Critérios
 
-- [ ] Nenhum código de produção muda de comportamento (não havia implementação real a mudar).
-- [ ] A documentação do protótipo (se mantida) não nomeia mais essa capacidade como exclusiva do "Oraculum".
-- [ ] A spec e a ADR-0033 continuam descrevendo a auditoria como ferramenta interna candidata, não como Especialidade.
-- [ ] Nenhum teste de produção quebra (não há suíte cobrindo uma implementação que não existe).
+- [x] Nenhum código de produção muda de comportamento (não havia implementação real a mudar).
+- [x] A documentação do protótipo (se mantida) não nomeia mais essa capacidade como exclusiva do "Oraculum".
+- [x] A spec e a ADR-0033 continuam descrevendo a auditoria como ferramenta interna candidata, não como Especialidade.
+- [x] Nenhum teste de produção quebra (não há suíte cobrindo uma implementação que não existe).
 
 ## Passos do Nan
 
 Nenhum passo manual: ticket só de documentação/protótipo, sem migration nem deploy.
 
 ## Comments
+
+- 2026-10-25 — Retirei do protótipo a atribuição exclusiva da auditoria de presença em LLM ao Oraculum e registrei na spec e na ADR-0033 que ela é candidata a ferramenta interna, sem implementação de produção. As verificações documentais passaram; `src/App.test.tsx` passou (69 testes), lint e TypeScript passaram. A suíte Vitest completa excedeu 300 s sem concluir e sem relatar falhas antes do timeout. O diff não toca código de produção; status `ready-for-human` para revisão e integração.
