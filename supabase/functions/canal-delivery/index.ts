@@ -11,6 +11,20 @@ function required(name: string) {
 const admin = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false, autoRefreshToken: false } })
 const adaptador = adaptadorCanalDoAmbiente()
 const db: Db = {
+  async claimAvisos(userId) {
+    const { data, error } = await admin.rpc('claim_whatsapp_channel_notices', { p_user_id: userId })
+    if (error) throw new Error(`claim_whatsapp_channel_notices: ${error.code ?? ''}`)
+    const [linha] = (data ?? []) as { phone: string; summary: string; dentro_da_janela: boolean; notice_count: number }[]
+    return linha ? { telefone: linha.phone, resumo: linha.summary, dentroDaJanela: linha.dentro_da_janela, quantidade: linha.notice_count } : null
+  },
+  async confirmarAvisos(userId) {
+    const { error } = await admin.rpc('confirm_whatsapp_channel_notices', { p_user_id: userId })
+    if (error) throw new Error(`confirm_whatsapp_channel_notices: ${error.code ?? ''}`)
+  },
+  async liberarAvisos(userId) {
+    const { error } = await admin.rpc('release_whatsapp_channel_notices', { p_user_id: userId })
+    if (error) throw new Error(`release_whatsapp_channel_notices: ${error.code ?? ''}`)
+  },
   async reservarEntrega(runId) {
     const { data, error } = await admin.rpc('claim_whatsapp_channel_delivery', { p_run_id: runId })
     if (error) throw new Error(`claim_whatsapp_channel_delivery: ${error.code ?? ''}`)

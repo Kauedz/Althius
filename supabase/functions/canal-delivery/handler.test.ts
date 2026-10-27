@@ -5,10 +5,28 @@ import { createHandler, type Db, type Entrega } from './handler.ts'
 const RUN = '59000000-0000-0000-0000-000000000007'
 const SEGREDO = 'segredo-interno'
 
+function dbDeAvisos(
+  reivindicar: Db['claimAvisos'],
+  confirmar: () => Promise<void>,
+  liberar: () => Promise<void>,
+): Db {
+  return {
+    claimAvisos: reivindicar,
+    confirmarAvisos: confirmar,
+    liberarAvisos: liberar,
+    reservarEntrega: async () => null,
+    confirmarEntrega: async () => {},
+    falharEntrega: async () => 'nada',
+  }
+}
+
 function montar(entrega: Entrega | null) {
   const adaptador = createCanalSimulado()
   const chamadas: string[] = []
   const db: Db = {
+    claimAvisos: async () => null,
+    confirmarAvisos: async () => {},
+    liberarAvisos: async () => {},
     reservarEntrega: async () => entrega,
     confirmarEntrega: async () => { chamadas.push('confirmada') },
     falharEntrega: async (_run, erro) => { chamadas.push(`falhou:${erro}`); return 'nova_tentativa' },
@@ -61,4 +79,48 @@ Deno.test('a entrega exige segredo interno válido', async () => {
   const m = montar({ status: 'succeeded', codigoDoErro: null, resposta: 'Olá.', telefone: '5511999990007', dentroDaJanela: true })
   assertEquals((await m.handler(pedido('segredo-incorreto'))).status, 401)
   assertEquals(m.adaptador.envios, [])
+})
+
+Deno.test('agrupa avisos opt-in numa mensagem de serviço', async () => {
+  const adaptador = createCanalSimulado()
+  const chamadas: string[] = []
+  const handler = createHandler({
+    db: dbDeAvisos(
+      async () => ({ telefone: '+5511999990007', resumo: 'Uma Aprovação espera.\nUma Rotina terminou.', dentroDaJanela: true, quantidade: 2 }),
+      async () => { chamadas.push('confirmados') },
+      async () => { chamadas.push('liberados') },
+    ),
+    adaptador,
+    segredoInterno: SEGREDO,
+  })
+  const response = await handler(new Request('https://exemplo.test', {
+    method: 'POST', headers: { 'x-whatsapp-delivery-secret': SEGREDO, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notice_user_id: '59000000-0000-0000-0000-000000000007' }),
+  }))
+  assertEquals(response.status, 200)
+  assertEquals(adaptador.envios, [{ tipo: 'texto', para: '5511999990007', texto: 'Uma Aprovação espera.\nUma Rotina terminou.' }])
+  assertEquals(chamadas, ['confirmados'])
+})
+
+Deno.test('aviso fora da janela usa template sem conteúdo e falha libera a fila', async () => {
+  const adaptador = createCanalSimulado()
+  const chamadas: string[] = []
+  const templates: unknown[] = []
+  adaptador.enviarTemplate = async (template) => { templates.push(template); throw new Error('simulador offline') }
+  const handler = createHandler({
+    db: dbDeAvisos(
+      async () => ({ telefone: '5511999990007', resumo: 'Há uma Aprovação esperando.', dentroDaJanela: false, quantidade: 1 }),
+      async () => { chamadas.push('confirmados') },
+      async () => { chamadas.push('liberados') },
+    ),
+    adaptador,
+    segredoInterno: SEGREDO,
+  })
+  const response = await handler(new Request('https://exemplo.test', {
+    method: 'POST', headers: { 'x-whatsapp-delivery-secret': SEGREDO, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notice_user_id: '59000000-0000-0000-0000-000000000007' }),
+  }))
+  assertEquals(response.status, 502)
+  assertEquals(templates, [{ para: '5511999990007', nome: 'althius_aviso_proativo', idioma: 'pt_BR', parametros: [], categoria: 'utilidade' }])
+  assertEquals(chamadas, ['liberados'])
 })

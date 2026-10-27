@@ -5,6 +5,9 @@ export interface Db {
   reservarEntrega(runId: string): Promise<Entrega | null>
   confirmarEntrega(runId: string): Promise<void>
   falharEntrega(runId: string, erro: string): Promise<string>
+  claimAvisos(userId: string): Promise<{ telefone: string; resumo: string; dentroDaJanela: boolean; quantidade: number } | null>
+  confirmarAvisos(userId: string): Promise<void>
+  liberarAvisos(userId: string): Promise<void>
 }
 export interface Deps { db: Db; adaptador: AdaptadorCanal; segredoInterno: string; log?: (campos: Record<string, unknown>) => void }
 
@@ -29,8 +32,32 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   return async (req) => {
     if (req.method !== 'POST') return responder({ erro: 'Método não permitido.' }, 405)
     if (!deps.segredoInterno || !iguais(req.headers.get('x-whatsapp-delivery-secret') ?? '', deps.segredoInterno)) return responder({ erro: 'Não autorizado.' }, 401)
-    let runId: unknown
-    try { runId = (await req.json())?.run_id } catch { runId = null }
+    let payload: { run_id?: unknown; notice_user_id?: unknown }
+    try { payload = await req.json() } catch { payload = {} }
+    if (typeof payload.notice_user_id === 'string' && UUID.test(payload.notice_user_id)) {
+      const userId = payload.notice_user_id
+      const aviso = await deps.db.claimAvisos(userId)
+      if (!aviso) return responder({ ok: true, entregue: false })
+      try {
+        if (aviso.dentroDaJanela) {
+          await deps.adaptador.enviarTexto({ para: aviso.telefone.replace(/^\+/, ''), texto: aviso.resumo })
+        } else {
+          await deps.adaptador.enviarTemplate({
+            para: aviso.telefone.replace(/^\+/, ''), nome: 'althius_aviso_proativo', idioma: 'pt_BR', parametros: [], categoria: 'utilidade',
+          })
+        }
+      } catch (erro) {
+        await deps.db.liberarAvisos(userId)
+        log({ tipo: 'canal_whatsapp_notice', resultado: 'falha_ao_enviar', quantidade: aviso.quantidade, erro: erro instanceof Error ? erro.name : 'desconhecido' })
+        return responder({ ok: false }, 502)
+      }
+      try { await deps.db.confirmarAvisos(userId) } catch (erro) {
+        log({ tipo: 'canal_whatsapp_notice', resultado: 'falha_ao_confirmar', erro: erro instanceof Error ? erro.name : 'desconhecido' })
+      }
+      log({ tipo: 'canal_whatsapp_notice', resultado: aviso.dentroDaJanela ? 'avisos_enviados' : 'template_enviado', quantidade: aviso.quantidade })
+      return responder({ ok: true, entregue: true })
+    }
+    const runId = payload.run_id
     if (typeof runId !== 'string' || !UUID.test(runId)) return responder({ erro: 'Execução inválida.' }, 400)
     const entrega = await deps.db.reservarEntrega(runId)
     if (!entrega) return responder({ ok: true, entregue: false })
