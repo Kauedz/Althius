@@ -28,8 +28,12 @@ select is((select count(*)::integer from public.list_signal_catalog_for_my_icp('
   (select count(*)::integer from public.signal_catalog c join public.signal_catalog_niches n on n.catalog_id = c.id
    where c.workspace_id is null and n.niche_slug = 'comex-e-importacao'),
   'o ICP de comércio exterior retorna os cards do nicho correspondente');
+select set_config('request.jwt.claim.sub', 'a4000000-0000-0000-0000-000000000002', true);
+create temporary table prateleira_agro on commit drop as
+  select id from public.list_signal_catalog_for_my_icp('a5000000-0000-0000-0000-000000000002') where matches_icp;
+select set_config('request.jwt.claim.sub', 'a4000000-0000-0000-0000-000000000001', true);
 select isnt((select array_agg(id order by id) from public.list_signal_catalog_for_my_icp('a5000000-0000-0000-0000-000000000001') where matches_icp),
-  (select array_agg(id order by id) from public.list_signal_catalog_for_my_icp('a5000000-0000-0000-0000-000000000002') where matches_icp),
+  (select array_agg(id order by id) from prateleira_agro),
   'ICPs de nichos diferentes produzem prateleiras diferentes');
 select throws_ok($$select * from public.list_signal_catalog_for_my_icp('a5000000-0000-0000-0000-000000000002')$$,
   '42501', 'active workspace membership required', 'um participante não consulta catálogo cruzado de outro workspace');

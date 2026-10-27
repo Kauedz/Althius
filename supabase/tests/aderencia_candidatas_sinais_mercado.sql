@@ -22,8 +22,8 @@ values
 select is(private.score_market_discovery_icp('ad000000-0000-0000-0000-000000000001'), 100, 'a avaliação estruturada coincidente é 100');
 select is(private.score_market_discovery_icp('ad000000-0000-0000-0000-000000000002'), 0, 'a avaliação divergente é 0 sem depender da ordem');
 select is(private.score_market_discovery_icp('ad000000-0000-0000-0000-000000000003'), null, 'candidata sem ICP no Workspace fica sem dado');
-update private.workspace_icp_versions set sector = 'varejo'
-where workspace_id = 'ac000000-0000-0000-0000-000000000001' and version = 1;
+insert into private.workspace_icp_versions (workspace_id, version, sector, company_size, geography)
+values ('ac000000-0000-0000-0000-000000000001', 2, 'varejo', 'médio', 'Brasil');
 select is((select fit_score::integer from private.discovered_accounts where id = 'ad000000-0000-0000-0000-000000000001'), 67,
   'publicar uma nova versão do ICP recalcula o score da candidata');
 
