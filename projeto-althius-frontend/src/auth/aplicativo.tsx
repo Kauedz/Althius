@@ -17,6 +17,7 @@ import { ehCaminhoDaDemonstracao } from './rota-da-demonstracao'
 import type { ServicosDoNavegador } from './servicos-do-navegador'
 import { VERSAO_DOS_TERMOS } from './termos'
 import { TelaDeNovaSenha } from './tela-esqueci-a-senha'
+import { PaginaLinkDeAcao } from './pagina-link-acao'
 import { CascaDeAcesso, TelasDeAcesso } from './telas-de-acesso'
 import { AplicativoDoVisitante } from './visitante'
 
@@ -229,6 +230,11 @@ function EntradaDoAplicativo({ aoAcessarDemonstracao }: { aoAcessarDemonstracao?
   if (!sessao) return <TelasDeAcesso aoAcessarDemonstracao={aoAcessarDemonstracao} />
   // Quem entrou pelo código ou link de redefinição define a nova senha antes de abrir o Workspace de entrada.
   if (redefinindoSenha) return <CascaDeAcesso><TelaDeNovaSenha /></CascaDeAcesso>
+  if (window.location.pathname.startsWith('/a/')) {
+    let token = ''
+    try { token = decodeURIComponent(window.location.pathname.slice(3)) } catch { /* token inválido */ }
+    return <PaginaLinkDeAcao cliente={cliente} token={token} />
+  }
   if (ehCaminhoDaDemonstracao(window.location.pathname)) {
     if (demonstracao?.usuarioId !== sessao.user.id) return <TelaDeEstado>Preparando seu acesso…</TelaDeEstado>
     if (demonstracao.liberada) {
