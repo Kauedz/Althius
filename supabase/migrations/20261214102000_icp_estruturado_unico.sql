@@ -13,7 +13,8 @@ create table private.workspace_icp_versions (
   company_size text not null default '' check (length(company_size) <= 2000),
   geography text not null default '' check (length(geography) <= 2000),
   target_roles jsonb not null default '[]'::jsonb check (jsonb_typeof(target_roles) = 'array'),
-  free_text text not null default '' check (length(free_text) <= 2000),
+  -- Espelha o texto da seção ICP do Playbook, que aceita até 200000 caracteres (save_playbook_section).
+  free_text text not null default '' check (length(free_text) <= 200000),
   playbook_content jsonb not null default '{}'::jsonb check (jsonb_typeof(playbook_content) = 'object'),
   o_que_vende text not null default '' check (length(o_que_vende) <= 2000),
   mini_icp text not null default '' check (length(mini_icp) <= 2000),

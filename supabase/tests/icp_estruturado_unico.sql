@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(24);
+select plan(25);
 
 insert into auth.users (id, email, email_confirmed_at) values
  ('e0310000-0000-0000-0000-000000000001', 'icp-admin@example.test', now()),
@@ -101,5 +101,12 @@ select is((select count(*)::int from private.workspace_icp_versions where worksp
 select is((select max(version)::int from private.workspace_icp_versions
   where workspace_id = 'e0310000-0000-0000-0000-000000000010'), 2,
   'a edição cria a versão 2 do ICP, que passa a ser a vigente');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'e0310000-0000-0000-0000-000000000001', true);
+select public.save_playbook_section('e0310000-0000-0000-0000-000000000010', 'icp',
+  jsonb_build_object('texto', repeat('a', 5332)));
+select is(length(public.get_my_workspace_icp('e0310000-0000-0000-0000-000000000010')->>'freeText'),
+  5332, 'texto livre acima de 2000 caracteres (ICP real de produção) entra na fonte única');
+reset role;
 select * from finish();
 rollback;
