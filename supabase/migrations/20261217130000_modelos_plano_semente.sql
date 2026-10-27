@@ -152,7 +152,7 @@ language plpgsql stable security definer set search_path = '' as $$
 begin
   perform private.require_active_membership(p_workspace_id);
   return query
-    select v.catalog_id, v.version, v.fingerprint, v.source_snapshot, v.seed_plan, v.suggested_schedule, v.created_at
+    select v.catalog_id, v.version, v.fingerprint, v.source_snapshot - 'estimated_cost_label' - 'estimated_cost_usd', v.seed_plan, v.suggested_schedule, v.created_at
     from public.current_signal_models v
     join public.signal_catalog c on c.id = v.catalog_id
     where c.workspace_id is null or c.workspace_id = p_workspace_id
