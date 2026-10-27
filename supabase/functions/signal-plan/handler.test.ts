@@ -117,6 +117,39 @@ Deno.test('sem ICP preenchido, a IA recebe só o Briefing e o Plano continua fun
   assert(validarPlano(r.corpo.plano, CATALOGO).ok)
 })
 
+Deno.test('falha ao ler ICP: a IA segue sem contexto e o pedido termina normalmente', async () => {
+  const { db } = fakeDb()
+  db.lerIcp = () => Promise.reject(new Error('banco indisponível'))
+  const { llm, chamadas } = llmFalso(() => Promise.resolve({
+    sinais: [{ tipo: 'nova_lideranca', criterios: { cargos: ['CTO'], movimento: ['Chegada'] } }],
+    explicacao: 'Avisamos quando um CTO chegar nas Contas escolhidas.',
+  }))
+  const r = await chamar(pedido('Quero saber quando chegar um novo CTO'), { db, llm })
+  assertEquals(r.resposta.status, 200)
+  assertEquals(chamadas.length, 1)
+  assert(!chamadas[0].usuario.includes('<icp>'))
+  assert(r.logs.some((l) => l.outcome === 'icp_indisponivel'))
+  assert(validarPlano(r.corpo.plano, CATALOGO).ok)
+})
+
+Deno.test('leitura de ICP que não responde: o Plano termina sem esperar pelo banco', async () => {
+  const { db } = fakeDb()
+  db.lerIcp = () => new Promise(() => {})
+  const { llm, chamadas } = llmFalso(() => Promise.resolve({
+    sinais: [{ tipo: 'nova_lideranca', criterios: { cargos: ['CTO'], movimento: ['Chegada'] } }],
+    explicacao: 'Avisamos quando um CTO chegar nas Contas escolhidas.',
+  }))
+  const resultado = await Promise.race([
+    chamar(pedido('Quero saber quando chegar um novo CTO'), { db, llm }),
+    new Promise<null>((resolver) => setTimeout(() => resolver(null), 2600)),
+  ])
+  assert(resultado, 'a leitura do ICP não pode segurar a resposta')
+  assertEquals(resultado.resposta.status, 200)
+  assertEquals(chamadas.length, 1)
+  assert(!chamadas[0].usuario.includes('<icp>'))
+  assert(resultado.logs.some((l) => l.outcome === 'icp_indisponivel'))
+})
+
 Deno.test('IA com tipo fora do catálogo: cai na regra, com o aviso neutro', async () => {
   const { db, registro } = fakeDb()
   const { llm } = llmFalso(() => Promise.resolve({ sinais: [{ tipo: 'vaga_comex', criterios: {} }], explicacao: 'x' }))

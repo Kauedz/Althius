@@ -61,6 +61,8 @@ export const MENSAGENS = {
   falha: 'Não deu para montar o plano agora. Tente de novo.',
 } as const
 
+const ESPERA_DA_LEITURA_ICP_MS = 2_000
+
 /** A promessa só vale até o prazo; passou dele, o motor é largado e o chamador usa a regra. */
 async function comPrazo<T>(promessa: Promise<T>, ms: number): Promise<T> {
   let relogio: ReturnType<typeof setTimeout> | undefined
@@ -147,7 +149,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       try {
         let icp: ContextoIcp | null = null
         try {
-          icp = await deps.db.lerIcp({ workspaceId, authorization, apikey })
+          icp = await comPrazo(
+            deps.db.lerIcp({ workspaceId, authorization, apikey }),
+            ESPERA_DA_LEITURA_ICP_MS,
+          )
         } catch {
           log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'icp_indisponivel' })
         }
