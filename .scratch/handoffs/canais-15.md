@@ -60,3 +60,43 @@ Nenhum fora da área. `docs/agents/migrations.md` é compartilhado (só ganhou u
 3. Na tela de Conexões, conferir que a Conta remetente volta como "pronta" depois da reconexão e que as respostas de antes continuam na Sequência.
 
 Sem deploy de função.
+
+---
+
+# Handoff: canais-15 avisos proativos (2026-10-26)
+
+## Estado
+
+Ticket implementado no worktree `ralph/canais-15-avisos-proativos`, empilhado sobre `ralph/canais-09-janela-de-24h-e-contador-de-custo` (base inicial `80e58b3`). O sandbox impede `git add`/`git commit`; as mudanças ficaram sem commit para a matriz.
+
+Detalhes completos, decisões de produto e testes estão em [issue 15](../canais-althius/issues/15-avisos-proativos.md), [migration](../../supabase/migrations/20261215104000_avisos_proativos_whatsapp.sql), [teste pgTAP](../../supabase/tests/avisos_proativos_whatsapp.sql) e [rascunho do PR](/workspace/ralph-wt/_pr/canais-15.md).
+
+## O que foi feito
+
+- Fila privada de avisos com gatilhos em migration nova para Proposta de resposta pronta, Aprovação pendente, Rotina concluída, Sinal novo, Sequência retida e saldo de Créditos zerado.
+- Opt-in por tipo e `PARAR` são conferidos na criação e na entrega; agrupamento ordenado, janela local 09h–21h, 30 minutos entre entregas e teto de 10 por dia.
+- `canal-delivery` envia texto quando há janela de serviço de 24 horas e template utilitário vazio fora dela; falha libera a fila para retentativa.
+- Nenhuma chamada real à Meta/Resend, aplicação remota, deploy ou alteração de arquivos vedados.
+
+## Decisões e pendências
+
+- “Créditos baixos” não tem limiar numérico na spec/ADR. Implementado aviso na transição positiva → saldo disponível zero; esse limite conservador está anotado no ticket e PR. Se o produto exigir aviso antecipado, será necessária decisão explícita do limiar.
+- O nome do template `althius_aviso_proativo` é usado sem parâmetros. Pendente aprovação humana no WhatsApp Manager antes de uso real.
+- Migration a aplicar: `20261215104000_avisos_proativos_whatsapp.sql`. Não aplicar sem o fluxo humano normal de migrations.
+- Se os avisos forem habilitados em produção, conferir configuração de URL/segredo de entrega já usada pelo `canal-delivery` e o cron criado pela migration.
+- Seams TDD pré-confirmados: fila e limites via RPCs do banco observados em pgTAP; saída WhatsApp via handler de `canal-delivery` com simulador.
+
+## Verificação
+
+- Vermelho antes da migration: teste pgTAP falhou por não haver `channel_notices`/RPC.
+- Verde: pgTAP focado 18/18 e suíte pgTAP inteira.
+- `deno test -A` em `supabase/functions`: 1.903 passados, 0 falhas.
+- `deno check supabase/functions/canal-delivery/index.ts`.
+- Revisão Standards: nenhuma violação documentada; possível smell leve de parâmetro `p_now` como relógio de teste, limitado a `service_role`.
+- Revisão Spec: sem achado aberto após corrigir opt-in ausente e ampliar a cobertura pgTAP. A lacuna de limiar de Créditos está documentada como decisão conservadora, não como requisito integralmente antecipado.
+
+## Suggested skills
+
+- `code-review` para revisar uma futura versão commitada desde o commit-base fixado.
+- `implement` e `tdd` se houver nova decisão sobre aviso antecipado de Créditos ou alteração no protocolo de template.
+- `migrations` antes de validar/aplicar a migration no ambiente remoto.
