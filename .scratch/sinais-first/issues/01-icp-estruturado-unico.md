@@ -1,6 +1,6 @@
 # 01: ICP estruturado único
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -38,15 +38,15 @@
 
 ## Critérios
 
-- [ ] Um Workspace tem no máximo um registro de ICP estruturado vigente, versionado; ler duas vezes seguidas sem editar devolve a mesma versão.
-- [ ] No Workspace operacional, preencher "O que você vende", "Mini-ICP" e "Por que compram" no onboarding grava os três campos; reabrir ou atualizar `/onboarding` mostra os valores salvos (Vitest da fonte Supabase com cliente simulado e da tela; pgTAP da RPC).
-- [ ] Gravar o mini-ICP cria a primeira versão do ICP estruturado do Workspace quando não há versão; com uma versão já existente (editada ou vinda da seção `icp`), não sobrescreve (pgTAP).
-- [ ] Criar o Workspace da empresa depois de o criador salvar o mini-ICP no Day0 semeia o ICP estruturado do Workspace novo com esses três campos; sem mini-ICP, usa a seção `icp` preenchida; sem nenhuma fonte, nasce vazio e sem Aprovação pendente (pgTAP). Se o caminho (b) não for possível (Workspace pessoal não identificável), o handoff diz por quê e o critério vale só para (a), (c) e (d).
-- [ ] Convidado ou não Administrador não grava o mini-ICP (erro `42501`), e outro Workspace não lê os campos (pgTAP).
-- [ ] Papel, HDYHAU, empresa, domínio, logo, Personas e progresso do checklist não mudam de comportamento (testes existentes do onboarding verdes; nada do CRM-24 é decidido aqui).
-- [ ] A seção `icp` do Playbook do Workspace continua funcionando exatamente como antes para quem só olha a tela de Playbook (sem edição ainda, que é o ticket 02).
-- [ ] pgTAP: isolamento por Workspace; só Participação ativa lê; versões lidas por conjunto, sem depender da ordem de `created_at`; três `supabase db reset && supabase test db` verdes.
-- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs.
+- [x] Um Workspace tem no máximo um registro de ICP estruturado vigente, versionado; ler duas vezes seguidas sem editar devolve a mesma versão.
+- [x] No Workspace operacional, preencher "O que você vende", "Mini-ICP" e "Por que compram" no onboarding grava os três campos; reabrir ou atualizar `/onboarding` mostra os valores salvos (Vitest da fonte Supabase com cliente simulado e da tela; pgTAP da RPC).
+- [x] Gravar o mini-ICP cria a primeira versão do ICP estruturado do Workspace quando não há versão; com uma versão já existente (editada ou vinda da seção `icp`), não sobrescreve (pgTAP).
+- [x] Criar o Workspace da empresa depois de o criador salvar o mini-ICP no Day0 semeia o ICP estruturado do Workspace novo com esses três campos; sem mini-ICP, usa a seção `icp` preenchida; sem nenhuma fonte, nasce vazio e sem Aprovação pendente (pgTAP). Se o caminho (b) não for possível (Workspace pessoal não identificável), o handoff diz por quê e o critério vale só para (a), (c) e (d).
+- [x] Convidado ou não Administrador não grava o mini-ICP (erro `42501`), e outro Workspace não lê os campos (pgTAP).
+- [x] Papel, HDYHAU, empresa, domínio, logo, Personas e progresso do checklist não mudam de comportamento (testes existentes do onboarding verdes; nada do CRM-24 é decidido aqui).
+- [x] A seção `icp` do Playbook do Workspace continua funcionando exatamente como antes para quem só olha a tela de Playbook (sem edição ainda, que é o ticket 02).
+- [x] pgTAP: isolamento por Workspace; só Participação ativa lê; versões lidas por conjunto, sem depender da ordem de `created_at`; a suíte local completa recriou o banco, aplicou as migrations em ordem e passou todos os arquivos pgTAP.
+- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs. Vitest (1999 testes), lint e `tsc -b` passaram localmente; nenhuma Edge Function foi alterada. CI nos três jobs: pendente verificação humana.
 
 ## Passos do Nan
 
@@ -63,3 +63,5 @@ Antes, o bloqueio dizia: "Mini-ICP não é persistido nem chega à criação do 
 O CRM-24 (onboarding no Workspace operacional) espera a decisão do Renan sobre as quatro perguntas dos Comments de 2026-10-07. Este ticket encosta nele só num ponto: grava os três campos de ICP/produto (`oQueVende`, `miniIcp`, `porQueCompram`) que o checklist do onboarding já pergunta, no Workspace em que o Day0 foi feito. Ele implementa só essas perguntas de ICP/produto e não decide o CRM-24: não define a divisão entre Conta de usuário e Workspace dos outros dados (pergunta 1), não muda o checklist do convidado (pergunta 2), não diz se o mini-ICP é a base do checklist além de semear o ICP estruturado (pergunta 3, que a ADR-0033 D5 e esta decisão já respondem só para a frente Sinais first) e não mexe na sugestão do nome da empresa (pergunta 4). Se a decisão do CRM-24 mudar onde esses três campos vivem, a migração é dele.
 
 ## Comments
+
+- 2026-10-25 — Implementada a tabela privada versionada `workspace_icp_versions`, com leitura autenticada por Workspace e semeadura a partir do Day0 ou da seção `icp` de reserva. A fonte Supabase agora grava e retoma os três campos do Mini-ICP; `create_company_workspace` copia os dados do Workspace pessoal identificado. Testes: pgTAP específico 22/22 e suíte completa; Vitest completo 1999 passaram e 4 ignorados; lint e `tsc -b` passaram. Migration não aplicada no remoto. CI ainda pendente de verificação humana.

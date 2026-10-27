@@ -1,26 +1,32 @@
 # Handoff — sinais-first-01: ICP estruturado único
 
-## Estado
+## Estado atual
 
-`BLOCKED`: o ticket `.scratch/sinais-first/issues/01-icp-estruturado-unico.md` exige semear o ICP estruturado a partir de `MiniIcpEProduto` quando esse mini-ICP existir. No caminho operacional atual, esses dados não são persistidos nem chegam à criação do Workspace.
+Ticket implementado na branch `ralph/sinais-first-01-icp-estruturado-unico`, a partir de `1541363` (decisões do Renan de 26/10/2026). O status do ticket está `ready-for-human`; falta a confirmação dos três jobs do CI. Foi tratado somente `.scratch/sinais-first/issues/01-icp-estruturado-unico.md`.
 
-## O que foi conferido
+## O que mudou
 
-- Branch: `ralph/sinais-first-01-icp-estruturado-unico`.
-- A branch contém somente o commit base `d8dcd00 docs(sinais-first): ADR-0033, spec e 15 tickets da frente Sinais first` sobre `main`; o `Blocked by` do ticket é nenhum.
-- O ticket e a spec estão completos para este gate, e a ADR-0033 está aceita. Nenhum código foi alterado e nenhum teste foi executado.
-- `MiniIcpEProduto` está definido em `projeto-althius-frontend/src/fonte/onboarding-tipos.ts`, mas suas operações de gravação existem apenas na fonte simulada `simulada-onboarding.ts`.
-- `criarFonteDeOnboardingSupabase` em `projeto-althius-frontend/src/fonte/supabase-onboarding.ts` retorna `miniIcp`, `oQueVende` e `porQueCompram` vazios. A migration `20261121130000_day0_operacional.sql` persiste Day0, não os campos de produto/ICP.
-- `public.create_company_workspace(text, uuid)` em `supabase/migrations/20260928111628_workspace_da_empresa.sql` recebe apenas nome e chave idempotente. Não há outro caminho encontrado que transporte os campos de `MiniIcpEProduto` para a criação do Workspace.
-- A seção `icp` do Playbook atual é versionada em `private.playbook_section_versions`; qualquer uso como fonte alternativa precisa preservar a exigência de tabela nova do ticket e de uma única fonte de verdade.
+- Migration nova `supabase/migrations/20261214102000_icp_estruturado_unico.sql`: adiciona os campos Mini-ICP ao Day0, cria a tabela privada versionada com RLS, expõe a leitura autenticada do ICP, semeia a partir do Day0/seção `icp` e redefine `save_my_day0`, `get_my_day0` e `create_company_workspace` preservando as assinaturas e permissões efetivas.
+- `projeto-althius-frontend/src/fonte/supabase-onboarding.ts` persiste e retoma os campos; teste em `projeto-althius-frontend/src/fonte/supabase-onboarding.test.ts`.
+- pgTAP em `supabase/tests/icp_estruturado_unico.sql`.
+- Critérios e comentário do ticket atualizados; detalhes completos nos arquivos citados e no diff.
 
-## O que falta para retomar
+## Verificações
 
-Definir/implementar, antes ou junto deste ticket, um caminho operacional já autorizado para persistir e disponibilizar `MiniIcpEProduto` ao semeador na criação do Workspace, ou esclarecer que a semeadura pode usar somente a seção existente do Playbook neste momento. Não escolher esse comportamento por conta própria: altera a origem de dados definida no critério do ticket.
+- TDD: o teste novo da fonte falhou no estado-base (`salvarProduto` indisponível), depois passou com a implementação.
+- pgTAP específico: 22/22; suíte local completa: todos os arquivos passaram após recriar o banco local `pgtap_lu1_sinais_first_01`.
+- Vitest completo: 231 arquivos; 1999 testes passaram e 4 foram ignorados. Uma primeira execução parcial mostrou falhas transitórias, mas a execução completa posterior passou.
+- `npm run lint` e `npx tsc -b`: código zero. Lint reportou avisos preexistentes fora dos arquivos alterados.
+- Nenhuma Edge Function foi alterada; Deno não se aplica.
+- Migration não foi aplicada no remoto. CI não foi executado.
 
-## Próxima sessão
+## Revisão
 
-Retomar este mesmo ticket e branch depois que a fonte operacional estiver definida. Não começar outro ticket. Então fazer TDD com pgTAP na fronteira de leitura autenticada e isolamento por Workspace, implementar somente o escopo do ticket, rodar a suíte local indicada no ticket, revisar `git diff BASE...HEAD` e atualizar o ticket com resultados verificados.
+Revisei o diff desde `1541363` contra o ticket e as convenções de migrations. O diff está limitado à fonte do onboarding, migration e pgTAP permitidos. Não encontrei defeito pendente nessa revisão.
+
+## Próximo passo
+
+Verificar CI nos três jobs e, após a revisão humana, seguir o fluxo autorizado para a migration conforme `docs/agents/migrations.md`. Não aplicar migration nem publicar nada sem a autorização posterior indicada no ticket.
 
 ## Skills sugeridas
 
@@ -29,6 +35,6 @@ Retomar este mesmo ticket e branch depois que a fonte operacional estiver defini
 - `code-review`
 - `handoff`
 
-## Observação de git
+## Git
 
-O handoff foi salvo no repositório conforme solicitado. Nenhum `git add` ou `git commit` foi executado, conforme o guardrail de sandbox informado para esta sessão.
+Nenhum `git add`, `git commit`, push, merge ou PR foi executado. A regra de sandbox desta sessão determina que a matriz commita as alterações do worktree.
