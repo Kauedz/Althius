@@ -19,6 +19,13 @@ const monitorNoBanco = {
 }
 
 describe('Sinais reais no Workspace operacional', () => {
+  it('lê o ICP estruturado do Workspace atual pela RPC isolada', async () => {
+    let parametros: Record<string, unknown> | undefined
+    const f = fonte({ get_my_workspace_icp: (p) => { parametros = p; return { sector: 'Comércio exterior', miniIcp: 'Importadoras' } } })
+    await expect(f.icpDoWorkspace?.()).resolves.toMatchObject({ sector: 'Comércio exterior', miniIcp: 'Importadoras' })
+    expect(parametros).toEqual({ p_workspace_id: 'ws-norte' })
+  })
+
   it('cada tipo do catálogo diz se está disponível, em teste ou em breve', async () => {
     const f = fonte({
       list_signal_actors: () => [

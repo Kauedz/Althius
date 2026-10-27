@@ -1,6 +1,6 @@
 # 04: Catálogo "Para o seu nicho" ranqueado pelo ICP
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -31,9 +31,9 @@
 
 ## Critérios
 
-- [ ] Com ICP preenchido, a prateleira "Para o seu nicho" mostra cards diferentes para Workspaces com ICPs diferentes.
-- [ ] Sem ICP preenchido, a prateleira mantém o comportamento de hoje (cards que valem para qualquer nicho, convite a preencher).
-- [ ] Nenhuma letra A–H nem termo técnico de cascata aparece na tela.
+- [x] Com ICP preenchido, a prateleira "Para o seu nicho" mostra cards diferentes para Workspaces com ICPs diferentes.
+- [x] Sem ICP preenchido, a prateleira mantém o comportamento de hoje (cards que valem para qualquer nicho, convite a preencher).
+- [x] Nenhuma letra A–H nem termo técnico de cascata aparece na tela.
 - [ ] pgTAP: isolamento por Workspace na leitura cruzada; três `supabase db reset && supabase test db` verdes.
 - [ ] Vitest, lint e build verdes; CI verde nos três jobs.
 
@@ -42,3 +42,5 @@
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot aplica a migration (se houver) e publica o frontend.
 
 ## Comments
+
+- 2026-10-27 — Criada a migration aditiva `20261217110000_catalogo_ranqueado_pelo_icp.sql` com a RPC somente de leitura `list_signal_catalog_for_my_icp`, que confere a participação ativa e cruza a versão vigente do ICP com os nichos do catálogo já existente. A prateleira operacional consome os IDs retornados; cards universais continuam aparecendo e a Demonstração preserva a Memória simulada. Incluído pgTAP para validar correspondência por ICP, diferença entre nichos, isolamento entre Workspaces e `security definer`. Vitest focado passou (33 testes), lint passou com avisos já existentes no repo, typecheck e build passaram (build avisa que o ID do Google está vazio e sobre o tamanho do bundle), e `deno check supabase/functions/*/index.ts && deno test supabase/functions` passou (1.873 testes, 39 ignorados). O Vitest completo ficou sem progresso após iniciar; pgTAP, os três `db reset && supabase test db` e CI continuam pendentes de execução em CI/ambiente com banco. Não houve deploy; depois do CI verde, a migration precisa ser aplicada e o frontend publicado conforme os Passos do Nan.

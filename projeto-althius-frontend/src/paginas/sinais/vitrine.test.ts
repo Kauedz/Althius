@@ -9,6 +9,7 @@ import {
   exclusivosEmProducao,
   frequenciaDoCard,
   montarPrateleiras,
+  nichoDoIcp,
   nichoDoWorkspace,
   resultadoDoCard,
   sinalDaSemana,
@@ -36,6 +37,28 @@ describe('vitrine de Sinais', () => {
     expect(nichoDoWorkspace('Cooperativas agrícolas do Centro-Oeste')?.slug).toBe('agro-b2b')
     expect(nichoDoWorkspace('Serviços financeiros, varejo e telecomunicações.')).toBeUndefined()
     expect(nichoDoWorkspace('')).toBeUndefined()
+  })
+
+  it('usa os campos do ICP estruturado para reconhecer o nicho da prateleira', () => {
+    const comex = nichoDoIcp({ sector: 'Comércio exterior', miniIcp: 'Importadoras e tradings' })
+    const agro = nichoDoIcp({ sector: 'Agro', miniIcp: 'Cooperativas agrícolas do Centro-Oeste' })
+    expect(comex?.slug).toBe('comex-e-importacao')
+    expect(agro?.slug).toBe('agro-b2b')
+    expect(montarPrateleiras({ cards: CATALOGO_VISIVEL, exclusivos: [], monitoramentos: [], nicho: comex }).paraOSeuNicho.map((card) => card.id))
+      .not.toEqual(montarPrateleiras({ cards: CATALOGO_VISIVEL, exclusivos: [], monitoramentos: [], nicho: agro }).paraOSeuNicho.map((card) => card.id))
+    expect(nichoDoIcp({ sector: '', miniIcp: '', freeText: '' })).toBeUndefined()
+  })
+
+  it('usa os ids devolvidos pela leitura do catálogo para montar a prateleira operacional', () => {
+    const prateleira = montarPrateleiras({
+      cards: CATALOGO_VISIVEL,
+      exclusivos: [],
+      monitoramentos: [],
+      idsDoCatalogoParaIcp: ['nova-cooperativa'],
+    }).paraOSeuNicho
+    expect(prateleira.map((card) => card.id)).toContain('nova-cooperativa')
+    expect(prateleira.map((card) => card.id)).not.toContain('entrada-de-socio')
+    expect(prateleira.every((card) => card.nichos.length === 8 || card.id === 'nova-cooperativa')).toBe(true)
   })
 
   it('o card sem coletor só aparece em Lançamentos', () => {

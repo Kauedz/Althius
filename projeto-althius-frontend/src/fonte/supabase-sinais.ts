@@ -43,6 +43,7 @@ import type {
   Disponibilidade,
   EstadoDoMonitoramento,
   FonteDeSinais,
+  IcpDoWorkspace,
   Monitoramento,
   NovoMonitoramento,
   NovoPedidoDeSinal,
@@ -417,6 +418,20 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
       return () => ouvintes.delete(ouvinte)
     },
     hoje: () => new Date(),
+
+    async icpDoWorkspace(): Promise<IcpDoWorkspace | null> {
+      const { data, error } = await cliente.rpc('get_my_workspace_icp', { p_workspace_id: workspaceId() })
+      if (error) throw new Error('Não foi possível carregar o ICP do Workspace.')
+      return data as IcpDoWorkspace | null
+    },
+
+    async catalogoParaIcp(): Promise<string[]> {
+      const { data, error } = await cliente.rpc('list_signal_catalog_for_my_icp', { p_workspace_id: workspaceId() })
+      if (error) throw new Error('Não foi possível carregar os Sinais para o ICP do Workspace.')
+      return ((data ?? []) as { id: string; matches_icp: boolean }[])
+        .filter((linha) => linha.matches_icp)
+        .map((linha) => linha.id)
+    },
 
     async tipos(): Promise<TipoDeSinal[]> {
       // A disponibilidade é um enfeite do catálogo: se o registro não puder ser lido, todos ficam "em breve".
