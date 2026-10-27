@@ -90,14 +90,14 @@ select throws_ok(
 -- 3. Ativar no mercado exige cargo e país; o rascunho não.
 select throws_ok(
   $$select public.save_signal_monitor('e7100000-0000-4000-8000-000000000001', null, 'vaga_linkedin', 'Sem cargo', 'ativo',
-      '{"escopo":"mercado"}', '{"localizacao":["Brasil"]}', 24)$$,
+      '{"escopo":"mercado"}', '{"nichos":["logistica-e-transporte"],"localizacao":["Brasil"]}', 24)$$,
   '22023', 'a market monitor needs at least one role and a country', 'ativar sem cargo é recusado');
 select throws_ok(
   $$select public.save_signal_monitor('e7100000-0000-4000-8000-000000000001', null, 'vaga_linkedin', 'Sem país', 'ativo',
-      '{"escopo":"mercado"}', '{"funcoes":["SDR"]}', 24)$$,
+      '{"escopo":"mercado"}', '{"nichos":["logistica-e-transporte"],"funcoes":["SDR"]}', 24)$$,
   '22023', 'a market monitor needs at least one role and a country', 'ativar sem país é recusado');
 insert into r select 'rascunho', public.save_signal_monitor('e7100000-0000-4000-8000-000000000001', null, 'vaga_linkedin',
-  'Rascunho sem país', 'rascunho', '{"escopo":"mercado"}', '{"funcoes":["SDR"]}', 24);
+  'Rascunho sem país', 'rascunho', '{"escopo":"mercado"}', '{"nichos":["logistica-e-transporte"],"funcoes":["SDR"]}', 24);
 select ok((select id from r where k = 'rascunho') is not null, 'o rascunho de mercado salva sem país');
 select throws_ok(
   format('select public.set_signal_monitor_state(%L, %L)', (select id from r where k = 'rascunho'), 'ativo'),
@@ -135,10 +135,10 @@ select ok((select id from r where k = 'contas') is not null, 'Contas-alvo ativa 
 select set_config('request.jwt.claim.sub', 'e7000000-0000-4000-8000-000000000002', true);
 select throws_ok(
   $$select public.save_signal_monitor('e7100000-0000-4000-8000-000000000002', null, 'vaga_linkedin', 'Mercado sem contrato', 'ativo',
-      '{"escopo":"mercado"}', '{"funcoes":["SDR"],"localizacao":["Brasil"]}', 24)$$,
+      '{"escopo":"mercado"}', '{"nichos":["logistica-e-transporte"],"funcoes":["SDR"],"localizacao":["Brasil"]}', 24)$$,
   '42501', 'the market scope needs an active contract', 'sem contrato, o mercado não ativa');
 insert into r select 'sem_contrato', public.save_signal_monitor('e7100000-0000-4000-8000-000000000002', null, 'vaga_linkedin',
-  'Mercado sem contrato', 'rascunho', '{"escopo":"mercado"}', '{"funcoes":["SDR"],"localizacao":["Brasil"]}', 24);
+  'Mercado sem contrato', 'rascunho', '{"escopo":"mercado"}', '{"nichos":["logistica-e-transporte"],"funcoes":["SDR"],"localizacao":["Brasil"]}', 24);
 select ok((select id from r where k = 'sem_contrato') is not null, 'sem contrato, o rascunho de mercado salva');
 select throws_ok(
   format('select public.set_signal_monitor_state(%L, %L)', (select id from r where k = 'sem_contrato'), 'ativo'),
@@ -147,7 +147,7 @@ select throws_ok(
 -- 7. A Equipe Althius, ilimitada, ativa.
 select set_config('request.jwt.claim.sub', 'e7000000-0000-4000-8000-000000000003', true);
 insert into r select 'equipe', public.save_signal_monitor('e0a17e00-0000-4000-8000-000000000001', null, 'vaga_linkedin',
-  'Mercado da Equipe', 'ativo', '{"escopo":"mercado"}', '{"funcoes":["SDR"],"localizacao":["Brasil"]}', 24);
+  'Mercado da Equipe', 'ativo', '{"escopo":"mercado"}', '{"nichos":["logistica-e-transporte"],"funcoes":["SDR"],"localizacao":["Brasil"]}', 24);
 select ok((select id from r where k = 'equipe') is not null, 'a Equipe ativa o mercado');
 
 -- O catálogo de cascatas da tela não mostra a descoberta.

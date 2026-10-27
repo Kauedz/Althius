@@ -32,6 +32,7 @@ import {
 import { frasesDoBloqueio } from '@/fonte/rodadas-do-sinal'
 import type { Monitoramento } from '@/fonte/sinais-tipos'
 import { TIPOS_DO_PLANO } from './campos-do-plano'
+import { recortesDoMonitoramento } from './criterios-custom'
 import { resumoDasContas } from './resumos'
 import { useEstimativa } from './usar-estimativa'
 
@@ -88,6 +89,8 @@ export function AtivarSinal({
   const bloqueio = estimativa?.bloqueio ?? null
   const motivo = bloqueio === 'sem_teto_automacao' ? null : bloqueio ? frasesDoBloqueio(bloqueio) : null
   const plano = monitoramento.plano
+  const semRecorteObrigatorio = monitoramento.tipoId === 'abertura-de-vagas' && monitoramento.publico.escopo === 'mercado'
+    && recortesDoMonitoramento(monitoramento.criterios).length === 0
   const tipo = plano ? TIPOS_DO_PLANO[plano.sinais[0]?.tipo ?? '']?.rotulo : undefined
   const limite = monitoramento.limitePorDia ?? estimativa?.limiteSugeridoPorDia
   // O Administrador libera a automação aqui mesmo, com o limite mensal já preenchido, quando a Fonte sabe sugerir e liberar.
@@ -191,6 +194,9 @@ export function AtivarSinal({
           </Linha>
           {limite !== undefined && limite > 0 && <Linha rotulo="Limite por dia">{creditos(limite)}</Linha>}
         </dl>
+      {semRecorteObrigatorio && (
+        <p className="text-sm text-al-muted">Escolha ao menos um nicho ou escreva um setor para ativar.</p>
+      )}
 
         <p className="text-sm text-al-muted">{TEXTO_DO_SEM_CREDITOS}</p>
 
@@ -258,7 +264,7 @@ export function AtivarSinal({
           <button type="button" className={BOTAO_SECUNDARIO} disabled={ativando} onClick={aoCancelar}>
             Cancelar
           </button>
-          <button type="button" className={BOTAO_PRIMARIO} disabled={ativando || !estimativa || bloqueio !== null} onClick={confirmar}>
+          <button type="button" className={BOTAO_PRIMARIO} disabled={ativando || !estimativa || bloqueio !== null || semRecorteObrigatorio} onClick={confirmar}>
             Ativar
           </button>
         </DialogFooter>
