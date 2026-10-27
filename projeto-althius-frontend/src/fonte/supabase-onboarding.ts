@@ -4,7 +4,11 @@ import type { EstadoDeOnboarding, FonteDeOnboarding } from './onboarding-tipos'
 import { criarFonteDeOnboardingIndisponivel } from './indisponivel'
 import { normalizarDominio } from './dominio-do-site'
 
-type Registro = Pick<EstadoDeOnboarding, 'ramo' | 'etapa' | 'papel' | 'comoConheceu' | 'empresa' | 'dominio' | 'logoDoSite' | 'concluido'>
+type Registro = Pick<EstadoDeOnboarding, 'ramo' | 'etapa' | 'papel' | 'comoConheceu' | 'empresa' | 'dominio' | 'logoDoSite' | 'concluido'> & {
+  miniIcp?: string
+  oQueVende?: string
+  porQueCompram?: string
+}
 
 export function criarFonteDeOnboardingSupabase(cliente: SupabaseClient, workspaceId: string): FonteDeOnboarding {
   const ouvintes = new Set<() => void>()
@@ -19,7 +23,15 @@ export function criarFonteDeOnboardingSupabase(cliente: SupabaseClient, workspac
       ...registro,
       workspace: null, // A identidade da Casca continua sendo a do Workspace provisionado pela equipe.
       leitura: { situacao: 'inativa', resultado: null },
-      checklist: { miniIcp: '', oQueVende: '', porQueCompram: '', personas: [], produto: 'pendente', persona: 'pendente', sinal: 'pendente' },
+      checklist: {
+        miniIcp: registro.miniIcp ?? '',
+        oQueVende: registro.oQueVende ?? '',
+        porQueCompram: registro.porQueCompram ?? '',
+        personas: [],
+        produto: 'pendente',
+        persona: 'pendente',
+        sinal: 'pendente',
+      },
       convitePulado: false,
       retornoAoChecklist: false,
       day0Concluido: registro.concluido,
@@ -45,6 +57,7 @@ export function criarFonteDeOnboardingSupabase(cliente: SupabaseClient, workspac
       return consultar('dominio', host)
     },
     definirComoConheceu: (origem) => consultar('hdyhau', origem),
+    salvarProduto: (campos) => consultar('produto', JSON.stringify(campos)),
     concluirOnboarding: () => consultar('concluir'),
     // Leitura do site e resolução do logo ficam fora desta fatia. Nenhum resultado é inventado.
     buscarLogo: async () => null,

@@ -92,6 +92,8 @@ O primeiro corte ponta a ponta é 01 a 04, no escopo Contas (decisão 12: os act
 | 14 | [Página de Sinais reorganizada](issues/14-pagina-de-sinais-reorganizada.md) | | open |
 | 15 | [Limpeza](issues/15-limpeza.md) | | open |
 
+Nota (26/10/2026): os tickets 11 (Modelos) e 14 (Página de Sinais reorganizada) são absorvidos pelos tickets 06 e 09 de [`.scratch/sinais-first/`](../sinais-first/spec.md); o 13 (Agente de Contas) segue adiado (ADR-0033, D8); o 15 (Limpeza) continua aqui, sem relação com a retirada das quatro Especialidades tratada em `sinais-first`.
+
 ## Fora de escopo
 
 - Conectores e integrações (HubSpot, Slack, WhatsApp, Clay, canais).

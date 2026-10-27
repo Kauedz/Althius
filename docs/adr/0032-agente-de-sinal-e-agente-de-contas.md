@@ -1,5 +1,7 @@
 # ADR-0032 — Agente de Sinal e Agente de Contas: o Sinal como um bot com Briefing, Plano e Agenda
 
+> Parcialmente substituída pela [ADR-0033](0033-sinais-first.md) em 26/10/2026: as quatro Especialidades saem do produto (não "continuam" nem são "reposicionadas"); o resto (Briefing, Plano, Agenda, Rodada, Modelos, cobrança por Rodada, decisões 2–15) segue valendo.
+
 Status: Proposta. A direção foi aprovada pelo Kauê em 23/10/2026 (análise `analises/sinais-contas-2026-10-23.md`); duas decisões já estavam tomadas (os Modelos e a cobrança por rodada) e, em 24/10/2026, o Kauê decidiu as de número 2, 3, 4, 8, 10, 13, 14 e 15 (marcadas "Decidido pelo Kauê em 24/10/2026" na seção "Decisões em aberto"). As demais seguem como recomendação.
 
 ## Contexto
