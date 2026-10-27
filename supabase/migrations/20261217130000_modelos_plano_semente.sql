@@ -76,7 +76,7 @@ begin
   v_criteria := case
     when v_plan_type = 'vaga_linkedin' then jsonb_build_object(
       'periodo', 'Últimos 30 dias',
-      'funcoes', coalesce((select jsonb_agg(distinct value) from jsonb_each(v_card.job_filters) j cross join lateral jsonb_array_elements_text(j.value) value), '[]'::jsonb)
+      'funcoes', coalesce((select jsonb_agg(distinct f.funcao) from jsonb_each(v_card.job_filters) j cross join lateral jsonb_array_elements_text(j.value) as f(funcao)), '[]'::jsonb)
     )
     when v_plan_type in ('nova_lideranca','entradas_e_saidas','mudanca_de_emprego','anuncio_de_movimentacao')
       then jsonb_build_object('periodo', 'Últimos 30 dias')
