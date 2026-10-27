@@ -342,7 +342,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
           <section aria-label="Catálogo de sinais">
             <ul className={GRADE_DE_CARTOES}>
               {visiveis.map((card) => (
-                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} />
+                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} abrirModelo />
               ))}
             </ul>
           </section>

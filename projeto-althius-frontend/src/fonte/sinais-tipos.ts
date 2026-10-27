@@ -254,6 +254,12 @@ export interface FonteDeSinais extends FonteObservavel {
    */
   catalogoDoWorkspace(): Promise<CardSobPedido[]>
 
+  /** Plano-semente vigente do card; só disponível no Workspace operacional. */
+  modelo?(catalogoId: string): Promise<ModeloDeSinal>
+
+  /** Cotação em créditos do Plano-semente antes de existir Monitoramento. */
+  cotarModelo?(tipo: string, contas: number, agenda: AgendaDoSinal): Promise<{ porRodada: number; porDia: number; porMesAprox: number }>
+
   /**
    * O estado de cada coletor (`signal_type` do banco): 'available', 'testing' ou 'out'. É o que decide quais cards o
    * cliente vê (catalogo-so-funcionais). A Demonstração dá todos por disponíveis. Rejeita quando nada pôde ser lido;
@@ -329,6 +335,15 @@ export interface FonteDeSinais extends FonteObservavel {
    * existe. Rejeita com `ErroDaAutomacao`.
    */
   liberarAutomacao?(monitoramentoId: string, limiteMensal: number): Promise<void>
+}
+
+export interface ModeloDeSinal {
+  catalogoId: string
+  versao: number
+  nome: string
+  briefing: string
+  plano: import('./plano-do-sinal').PlanoDoSinal
+  agenda: import('./agenda-do-sinal').AgendaDoSinal
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'

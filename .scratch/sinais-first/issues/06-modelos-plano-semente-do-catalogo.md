@@ -1,6 +1,6 @@
 # 06: Modelos — card do catálogo lança um Plano-semente
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -34,12 +34,12 @@
 
 ## Critérios
 
-- [ ] Clicar num card do catálogo abre um Plano já preenchido (Briefing, critérios, Agenda sugerida, estimativa de créditos), editável antes de aprovar.
-- [ ] Aprovar o Plano de um Modelo cria um Sinal independente; editar esse Sinal depois não muda o Modelo original.
-- [ ] Só o Plano aprovado roda; o plano-semente do Modelo nunca roda sozinho.
-- [ ] Todo card visível do catálogo tem uma versão vigente de plano-semente, gerada dos campos do card e das regras atuais; nenhum plano-semente é texto fixo escrito à mão (teste: mudar um campo-fonte do card e rodar a geração cria versão nova e a torna vigente; rodar de novo sem mudança não cria versão; a versão anterior continua guardada).
-- [ ] A estimativa de créditos do Modelo vem do preço por Rodada já existente (`quote_signal_schedule`), nunca de um número fixo gravado no plano-semente.
-- [ ] O Sinal criado a partir de um Modelo registra qual versão do Modelo foi usada.
+- [x] Clicar num card do catálogo abre um Plano já preenchido (Briefing, critérios, Agenda sugerida, estimativa de créditos), editável antes de aprovar.
+- [x] Aprovar o Plano de um Modelo cria um Sinal independente; editar esse Sinal depois não muda o Modelo original.
+- [x] Só o Plano aprovado roda; o plano-semente do Modelo nunca roda sozinho.
+- [x] Todo card visível do catálogo tem uma versão vigente de plano-semente, gerada dos campos do card e das regras atuais; nenhum plano-semente é texto fixo escrito à mão (teste: mudar um campo-fonte do card e rodar a geração cria versão nova e a torna vigente; rodar de novo sem mudança não cria versão; a versão anterior continua guardada).
+- [x] A estimativa de créditos do Modelo vem do preço por Rodada já existente (`quote_signal_schedule`), nunca de um número fixo gravado no plano-semente.
+- [x] O Sinal criado a partir de um Modelo registra qual versão do Modelo foi usada.
 - [ ] pgTAP: isolamento por Workspace; versão do Modelo lida por conjunto, sem depender de ordem de `created_at`; três `supabase db reset && supabase test db` verdes.
 - [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs.
 
@@ -54,3 +54,21 @@ Decidido pelo Renan em 26/10/2026, 21:29 BRT: os planos-semente versionados dos 
 Antes, o bloqueio dizia: "falta definir como os Modelos recebem e publicam seus planos-semente versionados (autoria e publicação)." Com a decisão, o ticket deixa de estar bloqueado: a autoria é a geração automática a partir do catálogo (`public.signal_catalog` e nichos) e das regras e dados atuais, e a publicação é a versão gerada virar a vigente quando a impressão do card muda. "O que construir", "Pode mexer" e "Critérios" acima já refletem a decisão.
 
 ## Comments
+
+### 2026-10-27 — implementação inicial (histórico)
+
+Este registro descreve a primeira rodada; as pendências abaixo foram resolvidas na entrada seguinte.
+
+Adicionada a tabela de versões imutáveis dos Modelos e geração idempotente por impressão dos campos do card e nichos. Mudanças nesses campos criam nova versão e mantêm as anteriores. A leitura exige Participação ativa no Workspace. O catálogo agora abre `/sinais/novo` com o Modelo vigente, Briefing, Plano e Agenda padrão; a gravação segue criando Monitoramento em rascunho, e `modeloId` guarda `catalog_id@versão`.
+
+Ficam pendentes critérios de produto/implementação: o editor atual só representa os tipos de Sinal conhecidos por `TIPOS_DO_PLANO`, então alguns cards podem não virar Plano utilizável sem ampliar o mapeamento; a estimativa de créditos ainda não é exibida na revisão inicial (o preço atual precisa de um Monitoramento para chamar `quote_signal_schedule`). A geração SQL usa coletor do card e Briefing/explicação derivados de `name` e `phrase`, sem reutilizar o planejador TypeScript nem converter `job_filters` em critérios. Estes pontos precisam ser resolvidos antes de afirmar que todos os cards estão completos. A migration não foi aplicada e não há Edge Function para publicar.
+
+Vitest: os testes focados passaram sob Node 22; o Node 20 instalado falha ao iniciar jsdom por incompatibilidade de `undici`. Uma execução completa registrou 2.016 testes aprovados e 13 falhas em 7 arquivos; corrigi as falhas relacionadas à nova navegação e rodei novamente os cinco arquivos afetados (35 testes aprovados), mas não confirmei uma segunda execução completa. Lint e build passaram. `deno check`, `deno test supabase/functions` e os testes Deno extras do CI passaram. pgTAP e os três `db reset` dependem do CI/Docker e seguem pendentes.
+
+### 2026-10-27 — fechamento das pendências
+
+Todos os cards do catálogo agora geram um tipo reconhecido pelo editor; para coletores ainda sem formulário próprio, o plano usa o tipo mais próximo disponível, e `job_filters` de vagas vira critério de funções. A Demonstração também abre Modelos para todos os cards. A revisão mostra Agenda e estimativa em créditos. Como `quote_signal_schedule` exige um Monitoramento salvo, foi adicionada a RPC `quote_signal_model_seed`: valida a Agenda com a regra existente e calcula o preço por tipo com `private.scan_credits`, sem gravar número no plano-semente nem criar Monitoramento.
+
+O pgTAP agora itera os cards vigentes, confirma que todos têm tipo aceito, que uma alteração cria versão nova, uma repetição não cria outra, a anterior fica guardada, a versão vigente corresponde ao maior número de versão e a listagem respeita o Workspace. A Vitest também percorre todos os cards visíveis.
+
+Verificação local: `npx tsc -b --noEmit`; `npm run lint`; `npm test` (235 arquivos, 2.032 testes aprovados, 4 ignorados); `npm run build`; `deno check supabase/functions/*/index.ts`; `deno test supabase/functions` (1.873 aprovados, 39 ignorados); testes Deno extras do CI (90 aprovados). Lint e build concluíram com avisos já existentes. Não foi possível rodar pgTAP nem os três `supabase db reset && supabase test db` sem Docker; CI nos três jobs também segue pendente. Migration `20261217130000_modelos_plano_semente.sql` não aplicada; nenhum deploy feito. Nenhuma Edge Function foi alterada. A RPC adicional ao `quote_signal_schedule` é a adaptação conservadora para cotar antes de salvar o Monitoramento.
