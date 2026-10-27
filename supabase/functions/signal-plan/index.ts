@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { type ClienteRpc, escolherLlmDosSinais } from '../_shared/cascata-de-sinais/index.ts'
 import { LIMITES_DO_PLANO } from '../_shared/plano-do-sinal/index.ts'
 import { createHandler, type Db, ErroDoPedido, type ResultadoDoPedido } from './handler.ts'
+import type { ContextoIcp } from './planejador-por-ia.ts'
 
 function required(name: string) {
   const value = Deno.env.get(name)
@@ -45,6 +46,25 @@ const db: Db = {
     const resposta = data as { requestId?: unknown; tipos?: unknown } | null
     if (typeof resposta?.requestId !== 'string' || !Array.isArray(resposta.tipos)) throw new ErroDoPedido('indisponivel')
     return { pedidoId: resposta.requestId, tipos: resposta.tipos.filter((t): t is string => typeof t === 'string') }
+  },
+  async lerIcp({ workspaceId, authorization, apikey }): Promise<ContextoIcp | null> {
+    const { data, error } = await clienteDaSessao(authorization, apikey).rpc('get_my_workspace_icp', {
+      p_workspace_id: workspaceId,
+    })
+    if (error) throw new Error(error.code ?? 'icp_indisponivel')
+    const icp = data as Record<string, unknown> | null
+    if (!icp || typeof icp.version !== 'number') return null
+    const texto = (campo: string) => typeof icp[campo] === 'string' ? icp[campo] as string : ''
+    return {
+      sector: texto('sector'),
+      companySize: texto('companySize'),
+      geography: texto('geography'),
+      targetRoles: Array.isArray(icp.targetRoles) ? icp.targetRoles.filter((papel): papel is string => typeof papel === 'string') : [],
+      freeText: texto('freeText'),
+      oQueVende: texto('oQueVende'),
+      miniIcp: texto('miniIcp'),
+      porQueCompram: texto('porQueCompram'),
+    }
   },
   async fecharPedido({ workspaceId, pedidoId, resultado, authorization, apikey }: {
     workspaceId: string

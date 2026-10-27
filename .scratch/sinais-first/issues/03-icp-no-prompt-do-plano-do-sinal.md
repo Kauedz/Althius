@@ -1,6 +1,6 @@
 # 03: ICP no prompt do Plano do Sinal
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -32,15 +32,17 @@
 
 ## Critérios
 
-- [ ] Com ICP preenchido, o Plano proposto pela IA reflete setor/porte/geografia do ICP quando o Briefing não os especifica.
-- [ ] Sem ICP preenchido, o `signal-plan` continua funcionando como hoje, sem erro nem Plano vazio por falta desse contexto.
-- [ ] O Briefing continua sendo dado não confiável: um Briefing que tenta contradizer o ICP não muda fonte, preço ou limite fora do que o servidor valida.
-- [ ] Deno test do `signal-plan` com e sem ICP; `deno check` limpo.
-- [ ] pgTAP (se a leitura do ICP ganhar alguma função nova de apoio): isolamento por Workspace; três `supabase db reset && supabase test db` verdes.
-- [ ] Vitest, lint e build verdes (se alguma tela ligar o fio); CI verde nos três jobs.
+- [ ] Com ICP preenchido, o Plano proposto pela IA reflete setor/porte/geografia do ICP quando o Briefing não os especifica. **Pendente verificação humana com provedor real**; o teste local confirma que esses campos chegam ao prompt, sem chamar fornecedor real.
+- [x] Sem ICP preenchido, o `signal-plan` continua funcionando como hoje, sem erro nem Plano vazio por falta desse contexto (Deno test).
+- [x] O Briefing continua sendo dado não confiável: um Briefing que tenta contradizer o ICP não muda fonte, preço ou limite fora do que o servidor valida (Deno test e validação existente conferida).
+- [x] Deno test do `signal-plan` com e sem ICP; `deno check` limpo.
+- [x] pgTAP não se aplica: nenhuma função de apoio foi criada; o ticket reutiliza a RPC de leitura existente do ticket 01.
+- [ ] CI verde nos três jobs. **Pendente verificação humana**; Vitest, lint e build não se aplicam porque nenhuma tela foi alterada.
 
 ## Passos do Nan
 
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot publica `signal-plan` e, se houver migration, confere o md5 do arquivo antes.
 
 ## Comments
+
+- 2026-10-25 — `signal-plan` passou a ler o ICP vigente pela RPC autenticada `get_my_workspace_icp` e a incluí-lo como dado contextual no prompt da IA; falhas/ausência da leitura mantêm o caminho sem ICP. Incluídos testes Deno com e sem ICP e para Briefing/ICP hostis, preservando a validação de tipo, escopo e limite no servidor. Verificações: `deno test -A supabase/functions/signal-plan` (26 testes) e `deno check supabase/functions/signal-plan/index.ts` passaram. `deno test -A` na raiz falhou ao incluir testes Vitest do frontend como testes Deno; sem alteração de frontend. Sem migration. A confirmação com provedor real e CI seguem pendentes de verificação humana.
