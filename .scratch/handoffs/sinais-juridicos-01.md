@@ -18,6 +18,10 @@ A pesquisa foi consultada em 26/10/2026 em páginas do CNJ, STF, STJ e documenta
 
 Se for continuar, comece conferindo `git status` e os diffs dos artefatos citados. A pendência comercial precisa de confirmação escrita do fornecedor sobre preço, polo passivo e licença para guardar/exibir dados em SaaS; a validação ética pertence ao ticket 02.
 
+## Correção rfix1
+
+A revisão encontrou “333 transações” sem suporte na página de preços do JUDIT. A linha foi corrigida para informar os valores publicados por faixa (R$ 15,00 a R$ 10,00 e R$ 0,25 por processo capturado) e explicitar que a página não informa uma quantidade de transações. Seam TDD pré-confirmado: regressão textual sobre a frase sem suporte, reproduzida na versão-base e aprovada na nota corrigida. A verificação não cria fixture nem altera código. A decisão e o resultado também constam nos Comments do ticket.
+
 ## Suggested skills
 
 - `research`: caso alguém prossiga verificando fontes/documentação primária.
