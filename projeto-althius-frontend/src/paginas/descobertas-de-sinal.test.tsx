@@ -107,6 +107,14 @@ describe('Descobertas que vieram de um Sinal', () => {
     expect(document.body.textContent).not.toMatch(/\bnota\b|\bscore\b/i)
   })
 
+  it('a candidata de Sinal mostra só o nível de Aderência, sem expor uma nota numérica', async () => {
+    const { ajuste } = descobertasCom([SEM_SITE])
+    renderizarAppCom('/contas/descobertas', { descobertas: ajuste })
+    const linha = (await screen.findByText('Ômega Energia S.A.')).closest('tr')!
+    expect(within(linha).getByText('Encaixe baixo')).toBeInTheDocument()
+    expect(linha.textContent).not.toMatch(/\b(?:score|nota)\s*:?\s*\d+/i)
+  })
+
   it('"Ver candidata" abre a Caixa na aba certa, com o detalhe aberto', async () => {
     renderizarApp('/contas/descobertas?candidata=desc-4')
     expect(await screen.findByRole('group', { name: 'Detalhes de Órbita Agroindustrial S.A.' })).toBeInTheDocument()
