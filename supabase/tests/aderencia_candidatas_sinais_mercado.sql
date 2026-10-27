@@ -18,6 +18,12 @@ values
   ('ad000000-0000-0000-0000-000000000001', 'ac000000-0000-0000-0000-000000000001', 'sinal', 'Compatível', 'compativel', 'sinal:mercado', 'Tecnologia', 'Médio', 'Brasil', 100, 'alto'),
   ('ad000000-0000-0000-0000-000000000002', 'ac000000-0000-0000-0000-000000000001', 'sinal', 'Divergente', 'divergente', 'sinal:mercado', 'Varejo', 'Grande', 'Argentina', 0, 'baixo'),
   ('ad000000-0000-0000-0000-000000000003', 'ac000000-0000-0000-0000-000000000002', 'sinal', 'Outro workspace', 'outro workspace', 'sinal:mercado', 'Tecnologia', 'Médio', 'Brasil', 100, 'alto');
+insert into private.market_signals (id, workspace_id, signal_type, event_key, phrase, fired_at)
+values ('ae000000-0000-0000-0000-000000000001', 'ac000000-0000-0000-0000-000000000001', 'vaga_comex', 'mercado-aderencia', 'Sinal de mercado', now());
+insert into private.signals (workspace_id, discovered_account_id, signal_type, event_key, phrase, fired_at, market_signal_id)
+values
+  ('ac000000-0000-0000-0000-000000000001', 'ad000000-0000-0000-0000-000000000001', 'vaga_comex', 'mercado-aderencia', 'Sinal de mercado', now(), 'ae000000-0000-0000-0000-000000000001'),
+  ('ac000000-0000-0000-0000-000000000001', 'ad000000-0000-0000-0000-000000000002', 'vaga_comex', 'mercado-aderencia', 'Sinal de mercado', now(), 'ae000000-0000-0000-0000-000000000001');
 
 select is(private.score_market_discovery_icp('ad000000-0000-0000-0000-000000000001'), 100, 'a avaliação estruturada coincidente é 100');
 select is(private.score_market_discovery_icp('ad000000-0000-0000-0000-000000000002'), 0, 'a avaliação divergente é 0 sem depender da ordem');
