@@ -4,6 +4,7 @@
 // recusa o Monitoramento em palavras do produto. Disparo simulado só existe na Demonstração.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
+import { TIPOS_DO_PLANO } from '@/paginas/sinais/campos-do-plano'
 import { CATALOGO_VISIVEL, cardQueConta } from '@/paginas/sinais/catalogo-visivel'
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import {
@@ -52,6 +53,7 @@ import type {
   SinalDeMercado,
   SinalEncontrado,
   TipoDeSinal,
+  ModeloDeSinal,
   UrgenciaDoPedido,
   StatusDoPedido,
 } from './sinais-tipos'
@@ -615,6 +617,50 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
     },
 
     estadosDosColetores: () => estadosDosColetores(cliente),
+
+    async modelo(catalogoId: string): Promise<ModeloDeSinal> {
+      const { data, error } = await cliente.rpc('list_signal_models', { p_workspace_id: workspaceId() })
+      if (error) throw new Error('Não foi possível carregar este Modelo.')
+      const linha = ((data ?? []) as {
+        catalog_id: string
+        version: number
+        source_snapshot: { name?: string; phrase?: string }
+        seed_plan: PlanoDoSinal
+        suggested_schedule: { horarios?: unknown; dias?: unknown }
+      }[]).find((item) => item.catalog_id === catalogoId)
+      if (!linha || typeof linha.source_snapshot.name !== 'string' || typeof linha.source_snapshot.phrase !== 'string') {
+        throw new Error('Este Modelo não está disponível.')
+      }
+      const sinal = linha.seed_plan.sinais?.[0]
+      if (!sinal || !TIPOS_DO_PLANO[sinal.tipo]) throw new Error('Este Modelo ainda não pode ser usado.')
+      const horarios = Array.isArray(linha.suggested_schedule.horarios)
+        ? linha.suggested_schedule.horarios.filter((item): item is string => typeof item === 'string')
+        : ['08:00']
+      const dias = Array.isArray(linha.suggested_schedule.dias)
+        ? linha.suggested_schedule.dias.filter((item): item is number => typeof item === 'number')
+        : [1, 2, 3, 4, 5]
+      return {
+        catalogoId: linha.catalog_id,
+        versao: Number(linha.version),
+        nome: linha.source_snapshot.name,
+        briefing: `${linha.source_snapshot.name}. ${linha.source_snapshot.phrase}`.slice(0, 1000),
+        plano: linha.seed_plan,
+        agenda: { horarios, dias },
+      }
+    },
+
+    async cotarModelo(tipo, contas, agenda) {
+      const { data, error } = await cliente.rpc('quote_signal_model_seed', {
+        p_workspace_id: workspaceId(),
+        p_signal_type: tipo,
+        p_account_count: contas,
+        p_schedule: { horarios: agenda.horarios, dias: agenda.dias, fuso: FUSO_DA_AGENDA },
+      })
+      if (error) throw new Error(MENSAGEM_DA_FALHA_DA_ESTIMATIVA)
+      const [linha] = (Array.isArray(data) ? data : [data]) as { por_rodada: number | string; por_dia: number | string; por_mes_aprox: number | string }[]
+      if (!linha) throw new Error(MENSAGEM_DA_FALHA_DA_ESTIMATIVA)
+      return { porRodada: Number(linha.por_rodada), porDia: Number(linha.por_dia), porMesAprox: Number(linha.por_mes_aprox) }
+    },
 
     async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
       const { data, error } = await cliente.functions.invoke('signal-plan', {
