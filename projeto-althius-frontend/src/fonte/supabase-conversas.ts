@@ -87,6 +87,9 @@ interface ConversaListada {
 
 const MOTIVOS: Record<string, string> = {
   timeout: 'O pedido passou do tempo e foi interrompido. Tente de novo.',
+  timeout_queued: 'O motor dos Agentes não pegou o pedido em até 10 minutos. Tente de novo.',
+  timeout_running: 'O motor dos Agentes parou antes de concluir o pedido. Tente de novo.',
+  routine_paused: 'A Rotina foi pausada antes de a Execução começar.',
   model_refusal: 'O modelo recusou este pedido.',
   model_incomplete: 'A resposta ficou longa demais e foi cortada. Tente um pedido menor.',
   model_rate_limited: 'O modelo está sobrecarregado agora. Tente de novo em alguns minutos.',

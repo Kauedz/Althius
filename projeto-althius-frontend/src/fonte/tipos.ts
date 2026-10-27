@@ -403,6 +403,8 @@ export interface ItemDeAtividade {
   link?: { rotulo: string; para: string }
   /** A ação não se concluiu e nada foi alterado: a Atividade registra a falha para quem a acompanha. */
   falhou?: boolean
+  /** Permite tentar novamente a Execução quando o motivo admite retomada. */
+  tentarDeNovo?: boolean
 }
 
 export type CanalId = 'slack' | 'whatsapp' | 'teams' | 'email'
@@ -828,6 +830,8 @@ export interface FonteDeAgentes extends FonteObservavel {
   excluirRotina(rotinaId: string): Promise<void>
 
   atividade(id: AgenteId, gatilho?: Gatilho): Promise<ItemDeAtividade[]>
+  /** Cria uma nova Execução ligada à original e devolve seu id. */
+  tentarDeNovo?(runId: string): Promise<string>
 
   personalizacao(id: AgenteId): Promise<Personalizacao>
   salvarPersonalizacao(id: AgenteId, personalizacao: Personalizacao): Promise<void>

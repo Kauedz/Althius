@@ -12,6 +12,7 @@ import { formatarDataDoModulo } from './formatar-data'
 import { especialidade, especialidades } from './especialidades'
 import { ERRO_SEM_PARTICIPACAO, ERRO_SO_ADMINISTRADOR, nomeDeAgenteCriado } from './regras'
 import { lerCanaisDoWorkspace } from './supabase-conexoes'
+import { mensagemDaFalha } from './supabase-conversas'
 import type {
   Agente,
   AgenteId,
@@ -68,7 +69,11 @@ interface RegistroDaExecucao {
   status: 'queued' | 'running' | 'succeeded' | 'failed'
   request_text: string
   result_text: string | null
+  error_code: string | null
   created_at: string
+  started_at: string | null
+  retried_by: string | null
+  can_view_conversation: boolean
 }
 
 /** Quantas Execuções a Atividade mostra de uma vez. */
@@ -83,11 +88,18 @@ function quandoDaExecucao(criadaEm: string): string {
 
 function converterExecucao(linha: RegistroDaExecucao): ItemDeAtividade {
   const falhou = linha.status === 'failed'
+  const motivoDaFalha = mensagemDaFalha(linha.error_code)
   const resultado = falhou
-    ? 'A Execução não se concluiu e nada foi alterado.'
+    ? motivoDaFalha === 'Não foi possível responder agora.'
+      ? 'A Execução não se concluiu e nada foi alterado.'
+      : motivoDaFalha
     : linha.status === 'succeeded'
       ? linha.result_text || 'Concluída.'
-      : 'Em andamento.'
+      : (() => {
+          const inicio = new Date(linha.started_at ?? linha.created_at).getTime()
+          const minutos = Math.max(0, Math.floor((Date.now() - inicio) / 60_000))
+          return minutos >= 10 ? `Parada há ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.` : 'Em andamento.'
+        })()
   return {
     id: linha.id,
     agenteId: linha.agent_id,
@@ -96,8 +108,11 @@ function converterExecucao(linha: RegistroDaExecucao): ItemDeAtividade {
     quando: quandoDaExecucao(linha.created_at),
     descricao: linha.request_text,
     resultado,
-    link: { rotulo: 'Ver Conversa', para: `/agentes/${linha.agent_id}/conversa?conversa=${linha.conversation_id}` },
+    ...(linha.trigger_kind !== 'rotina' || linha.can_view_conversation
+      ? { link: { rotulo: 'Ver Conversa', para: `/agentes/${linha.agent_id}/conversa?conversa=${linha.conversation_id}` } }
+      : {}),
     ...(falhou ? { falhou: true } : {}),
+    ...(falhou && linha.error_code !== 'membership_inactive' && !linha.retried_by ? { tentarDeNovo: true } : {}),
   }
 }
 
@@ -245,6 +260,7 @@ export type FonteDaConfiguracaoDosAgentes = Pick<
   | 'definirRotinaPausada'
   | 'excluirRotina'
   | 'atividade'
+  | 'tentarDeNovo'
   | 'personalizacao'
   | 'salvarPersonalizacao'
   | 'canais'
@@ -366,12 +382,30 @@ export function criarFonteDeAgentesSupabase(cliente: SupabaseClient, workspaceId
     // A Atividade são as Execuções do Agente nas Conversas de quem chama (a Conversa é de quem a começou), as mais
     // recentes primeiro.
     async atividade(id, gatilho): Promise<ItemDeAtividade[]> {
-      const linhas = await chamar<RegistroDaExecucao[] | null>(
-        'agent_activity',
-        { p_workspace_id: workspaceId, p_agent_id: id, p_trigger_kind: gatilho ?? null, p_limit: EXECUCOES_NA_ATIVIDADE },
-        FALHA_AO_CARREGAR,
+      const atual = await cliente.rpc('list_agent_run_attention', { p_workspace_id: workspaceId, p_agent_id: id })
+      if (atual.error && atual.error.code !== 'PGRST202') throw converterErro(atual.error, FALHA_AO_CARREGAR)
+      let linhas = (atual.error ? null : atual.data) as RegistroDaExecucao[] | null
+      // Um banco anterior à migration ainda tem a leitura privada da Atividade. Ela preserva a tela até a RPC nova existir.
+      if (!linhas) {
+        linhas = await chamar<RegistroDaExecucao[] | null>(
+          'agent_activity',
+          { p_workspace_id: workspaceId, p_agent_id: id, p_trigger_kind: gatilho ?? null, p_limit: EXECUCOES_NA_ATIVIDADE },
+          FALHA_AO_CARREGAR,
+        )
+      }
+      return (linhas ?? []).filter((linha) => !gatilho || linha.trigger_kind === gatilho).slice(0, EXECUCOES_NA_ATIVIDADE).map(converterExecucao)
+    },
+
+    async tentarDeNovo(runId) {
+      const linhas = await chamar<{ id: string; status: string }[] | null>(
+        'retry_agent_run',
+        { p_run_id: runId, p_client_request_id: crypto.randomUUID() },
+        FALHA_AO_GRAVAR,
       )
-      return (linhas ?? []).map(converterExecucao)
+      const id = linhas?.[0]?.id
+      if (!id) throw new Error(FALHA_AO_GRAVAR)
+      avisar()
+      return id
     },
 
     async personalizacao(id): Promise<Personalizacao> {
