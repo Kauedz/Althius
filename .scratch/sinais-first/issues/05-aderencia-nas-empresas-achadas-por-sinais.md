@@ -1,6 +1,6 @@
 # 05: Aderência nas empresas achadas por Sinais de mercado
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -33,9 +33,9 @@
 
 ## Critérios
 
-- [ ] Uma Candidata trazida por um Sinal de escopo mercado mostra um Nível de Aderência (alto/médio/baixo/sem dado), nunca a nota numérica.
-- [ ] O nível é calculado contra o ICP estruturado único do ticket 01; sem ICP preenchido, mostra "sem dado".
-- [ ] Nada neste ticket aceita, descarta ou cria Conta-alvo sozinho.
+- [x] Uma Candidata trazida por um Sinal de escopo mercado mostra um Nível de Aderência (alto/médio/baixo/sem dado), nunca a nota numérica.
+- [x] O nível é calculado contra o ICP estruturado único do ticket 01; sem ICP preenchido, mostra "sem dado".
+- [x] Nada neste ticket aceita, descarta ou cria Conta-alvo sozinho.
 - [ ] pgTAP: isolamento por Workspace; cálculo determinístico, sem depender de ordem de linhas; três `supabase db reset && supabase test db` verdes.
 - [ ] Vitest, lint e build verdes; CI verde nos três jobs.
 
@@ -44,3 +44,5 @@
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot aplica a migration e publica as Edge Functions tocadas.
 
 ## Comments
+
+- 2026-10-27: adicionada pontuação determinística para candidatas de Sinais de mercado, gravando o score interno e o nível com base nos critérios estruturados preenchidos de setor, porte e geografia do ICP vigente. A Caixa já exibia `fitLevel` para todas as origens e segue mostrando apenas o nível. Critérios vazios não pontuam; sem critérios estruturados o nível permanece "sem dado". Como o ticket não especifica pesos nem correspondência aproximada, usei pesos iguais e correspondência literal parcial sem diferenciar maiúsculas/minúsculas; confirmar essa regra de pontuação na revisão. Sem aplicar/deploy: há apenas migration aditiva; nenhuma Edge Function foi alterada. Lint, TypeScript, build e Deno passaram; Vitest não iniciou por incompatibilidade do Node 20 com `undici` (`webidl.util.markAsUncloneable`). pgTAP foi escrito, mas não executado localmente. CI e os três ciclos `supabase db reset && supabase test db` continuam pendentes.
