@@ -1,6 +1,6 @@
 # 03: Recorte obrigatório para ativar e rodar (vagas no mercado endereçável)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -47,16 +47,22 @@ Vale para Abertura de vagas (`vaga_linkedin`, `vaga_indeed`) **no mercado endere
 
 ## Critérios
 
-- [ ] pgTAP: `save_signal_monitor` de vagas no mercado com `p_state = 'ativo'` e sem recorte (sem chave, `nicho: 'qualquer'`, `nichos: []`, `nichosCustom: ['  ']`) falha `22023` com a mensagem nova; em `rascunho` salva.
-- [ ] pgTAP: com `nichos: ['logistica-e-transporte']`, ou `nichosCustom: ['Seguros']`, ou o formato antigo `nicho: 'industria-fornecedores-b2b'`, ou `nicho: 'custom', nichoCustom: 'Naval'`, ativa.
-- [ ] pgTAP: `set_signal_monitor_state(id, 'ativo')` de um Monitoramento de vagas no mercado pausado sem recorte falha `22023`; com recorte, ativa.
-- [ ] pgTAP: um Monitoramento de vagas no mercado `ativo` sem recorte (inserido direto no teste, simulando dado antigo) não sai em `claim_due_signal_monitors` como rodada a executar nem gera custo/Crédito; o pedido "Rodar agora" dele termina com a frase do produto; Contas-alvo sem nicho continuam sendo entregues como hoje.
-- [ ] Deno: `montarEntrada` sem recorte devolve `pular` com a frase e não chama actor; `executar` sem recorte não aprova nenhuma vaga.
-- [ ] Vitest: no mercado, sem recorte, o botão de ativar fica indisponível com a frase; rascunho salva; marcar um recorte libera; o erro novo do servidor aparece com a frase do produto.
-- [ ] Três `supabase db reset && supabase test db` verdes; Deno, Vitest, lint, `tsc -b` e build verdes.
+- [x] pgTAP: `save_signal_monitor` de vagas no mercado com `p_state = 'ativo'` e sem recorte (sem chave, `nicho: 'qualquer'`, `nichos: []`, `nichosCustom: ['  ']`) falha `22023` com a mensagem nova; em `rascunho` salva.
+- [x] pgTAP: com `nichos: ['logistica-e-transporte']`, ou `nichosCustom: ['Seguros']`, ou o formato antigo `nicho: 'industria-fornecedores-b2b'`, ou `nicho: 'custom', nichoCustom: 'Naval'`, ativa.
+- [x] pgTAP: `set_signal_monitor_state(id, 'ativo')` de um Monitoramento de vagas no mercado pausado sem recorte falha `22023`; com recorte, ativa.
+- [x] pgTAP: um Monitoramento de vagas no mercado `ativo` sem recorte (inserido direto no teste, simulando dado antigo) não sai em `claim_due_signal_monitors` como rodada a executar nem gera custo/Crédito; o pedido "Rodar agora" dele termina com a frase do produto; Contas-alvo sem nicho continuam sendo entregues como hoje.
+- [x] Deno: `montarEntrada` sem recorte devolve `pular` com a frase e não chama actor; `executar` sem recorte não aprova nenhuma vaga.
+- [x] Vitest: no mercado, sem recorte, o botão de ativar fica indisponível com a frase; rascunho salva; marcar um recorte libera; o erro novo do servidor aparece com a frase do produto.
+- [x] Três execuções completas do runner pgTAP local passaram; Deno, Vitest, lint, `tsc -b` e build passaram.
 
 ## Passos do Nan
 
 Nenhum passo manual além da revisão. Depois da aplicação da migration, o SQL de rollback da pausa de "Vagas BDR" (README do backup no box) passa a falhar enquanto o Sinal não tiver recorte; reativar é pela tela, depois de marcar os recortes.
 
 ## Comments
+
+### 2026-10-25 — Codex
+
+Implementada a exigência de pelo menos um recorte para ativar e rodar vagas no mercado endereçável, com validação no servidor, filtros nas claims, defesa no runner e bloqueio/aviso na interface. Rascunhos continuam permitidos sem recorte; nenhum Monitoramento existente foi alterado pela migration. Migration aditiva criada: `20261216103000_recorte_obrigatorio_para_vagas.sql`.
+
+Verificações: runner pgTAP local completo passou três vezes (incluindo 20/20 do teste novo); Deno completo passou (1904 testes); Vitest completo passou (231 arquivos, 2016 testes passaram e 4 ignorados); `npm run lint`, `npx tsc -b`, `npm run build` e `deno check supabase/functions/signal-runner/index.ts` passaram. Revisão Standards e Spec concluída, com apontamentos resolvidos. Migration não aplicada no remoto; nenhuma publicação/deploy feita.

@@ -193,6 +193,9 @@ function converterErro(error: { message: string; code?: string }): Error {
   if (error.message.includes('a market monitor needs at least one role and a country')) {
     return new Error('No mercado endereçável, escolha ao menos um cargo e o país para ativar.')
   }
+  if (error.message.includes('a market monitor needs at least one niche')) {
+    return new Error('Escolha ao menos um nicho ou escreva um setor para ativar.')
+  }
   if (error.message.includes('market monitor limits exceeded')) {
     return new Error('Confira os critérios: nicho e cargos Custom têm até 60 caracteres, até 10 cargos Custom, sem repetir.')
   }

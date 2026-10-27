@@ -126,6 +126,18 @@ describe('Mercado endereçável: regras', () => {
 })
 
 describe('Mercado endereçável: tela', () => {
+  it('não permite revisar e ativar vagas sem recorte, mas deixa salvar o rascunho', async () => {
+    const { usuario, gravacoes } = abrir('/sinais/tipos/abertura-de-vagas/novo')
+    await usuario.click(within(await screen.findByRole('radiogroup', { name: 'Onde procurar' })).getByRole('radio', { name: 'Mercado endereçável (ICP)' }))
+    await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
+    expect(screen.queryByRole('region', { name: 'Revisão antes de ativar' })).not.toBeInTheDocument()
+    expect(screen.getByText('Escolha ao menos um nicho ou escreva um setor para ativar.')).toBeInTheDocument()
+    await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Vagas sem recorte')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
+    expect(await screen.findByText('Rascunho “Vagas sem recorte” salvo.')).toBeInTheDocument()
+    expect(gravacoes[0]).toMatchObject({ p_state: 'rascunho', p_criteria: { nichos: [], nichosCustom: [] } })
+  })
+
   it('o seletor esconde as Contas-alvo, mostra país e estado, e grava o mercado sem Conta', async () => {
     const { usuario, gravacoes } = abrir('/sinais/tipos/abertura-de-vagas/novo')
 
@@ -175,6 +187,13 @@ describe('Mercado endereçável: tela', () => {
     await prepararMercado(usuario)
     await usuario.click(screen.getByRole('button', { name: 'Ativar monitoramento' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('O mercado endereçável precisa de contrato ativo. Fale com a equipe Althius.')
+  })
+
+  it('traduz a recusa do servidor quando falta recorte', async () => {
+    const { usuario } = abrir('/sinais/tipos/abertura-de-vagas/novo', { recusa: 'a market monitor needs at least one niche' })
+    await prepararMercado(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Ativar monitoramento' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Escolha ao menos um nicho ou escreva um setor para ativar.')
   })
 
   it('o modo Contas-alvo grava o mesmo público de antes', async () => {

@@ -246,6 +246,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   // No operacional a recusa do banco já vem em palavras do produto (ex.: falta escolher uma Conta-alvo para ativar).
   const motivoDaFalha = (erro: unknown, padrao: string) => (operacional && erro instanceof Error ? erro.message : padrao)
   const nomeValido = monitoramento.nome.trim().length > 0
+  const mercadoSemRecorte = vagasReais && monitoramento.publico.escopo === 'mercado'
+    && recortesDoMonitoramento(monitoramento.criterios).length === 0
   // Salva o que está na tela e ativa. Devolve a frase de erro, ou nada quando deu certo.
   const ativar = async (): Promise<string | null> => {
     try {
@@ -429,9 +431,10 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                   >
                     Salvar rascunho
                   </button>
-                  <button type="button" disabled={!nomeValido} onClick={() => setEtapa('revisar')} className={BOTAO_PRIMARIO}>
+                  <button type="button" disabled={!nomeValido || mercadoSemRecorte} onClick={() => setEtapa('revisar')} className={BOTAO_PRIMARIO}>
                     Revisar e ativar
                   </button>
+                  {mercadoSemRecorte && <p className="w-full text-sm text-al-muted">Escolha ao menos um nicho ou escreva um setor para ativar.</p>}
                 </>
               )}
             </BarraDeAcoes>

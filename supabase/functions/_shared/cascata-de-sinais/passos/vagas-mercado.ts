@@ -70,7 +70,7 @@ export function termosDoMercado(criterios: Record<string, unknown>, maximo = MAX
   const funcoes = buscasDasFuncoes(criterios)
   if (!funcoes.length) return []
   const nichos = nichoDoMonitoramento(criterios)
-  if (!nichos.length) return termosDaBusca('', funcoes, maximo).map((t) => t.trim())
+  if (!nichos.length) return []
   const buscasPorNicho = nichos.map((nicho) => termosDaBusca(nicho, funcoes, maximo).map((termo) => termo.trim()))
   return Array.from({ length: Math.min(maximo, buscasPorNicho.reduce((soma, termos) => soma + termos.length, 0)) }, (_, indice) => {
     const nicho = indice % buscasPorNicho.length
@@ -81,6 +81,9 @@ export function termosDoMercado(criterios: Record<string, unknown>, maximo = MAX
 
 export const linkedinVagasMercado: ImplDoPasso = {
   montarEntrada(_entrada, ctx, actorId) {
+    if (!recortesDoMonitoramento(ctx.criterios).length) {
+      return { pular: 'Escolha ao menos um nicho ou setor para buscar as vagas.' }
+    }
     const paises = paisesDaLocalizacao(ctx.criterios)
     const estado = estadoDoMonitoramento(ctx.criterios)
     const porPais = Math.max(1, Math.floor(MAX_BUSCAS / paises.length))
@@ -129,6 +132,8 @@ function contextoDoNicho(ctx: ContextoDoPasso): ContextoDoAdaptador {
 
 export const confirmarVagaMercado: ImplDoPasso = {
   async executar(entrada, ctx) {
+    const recortes = recortesDoMonitoramento(ctx.criterios)
+    if (!recortes.length) return []
     const estado = estadoDoMonitoramento(ctx.criterios)
     const lidas = entrada.flatMap((item) => {
       const v = vagaDoItem(item)
@@ -138,18 +143,15 @@ export const confirmarVagaMercado: ImplDoPasso = {
       return [{ ...v, comparada: vaga }]
     })
     // O modelo avalia a lista inteira num pedido; os critérios antigos são lidos pela mesma normalização.
-    const recortes = recortesDoMonitoramento(ctx.criterios)
-    const doNicho = recortes.length
-      ? new Set(await vagasDoNicho(lidas.map((l) => l.comparada), {
+    const doNicho = new Set(await vagasDoNicho(lidas.map((l) => l.comparada), {
         ...ctx.criterios,
         nichos: recortes.filter((r) => r.tipo === 'pronto').map((r) => r.valor),
         nichosCustom: recortes.filter((r) => r.tipo === 'custom').map((r) => r.valor),
       }, contextoDoNicho(ctx)))
-      : null
     const porEmpresa = new Map<string, Candidata>()
     const vistas = new Set<string>()
     for (const l of lidas) {
-      if (doNicho && !doNicho.has(l.comparada)) continue
+      if (!doNicho.has(l.comparada)) continue
       const chave = chaveDaEmpresa(l.empresa)
       // A mesma vaga (empresa e cargo) que veio de duas buscas conta uma vez: é a chave do acontecimento.
       const daVaga = `${chave}|${cargoDaVaga(l.vaga.titulo)}`
