@@ -2,6 +2,7 @@
 // tabela de `supabase/functions/_shared/plano-do-sinal/campos.ts` (a fonte única, conferida de novo no banco); um teste
 // confere os dois. Quais destes tipos estão disponíveis vem do banco (o estado de cada coletor), nunca desta lista.
 import type { Formulario } from '@/fonte/sinais-tipos'
+import { criteriosComRecortes, recortesDoMonitoramento } from './criterios-custom'
 
 export interface TipoDoPlano {
   rotulo: string
@@ -11,7 +12,7 @@ export interface TipoDoPlano {
   campos: readonly string[]
 }
 
-const VAGAS = ['funcoes', 'senioridade', 'localizacao', 'periodo', 'palavras', 'nicho', 'nichoCustom']
+const VAGAS = ['funcoes', 'senioridade', 'localizacao', 'periodo', 'palavras', 'nichos', 'nichosCustom', 'nicho', 'nichoCustom']
 const PESSOAS_COMPLETO = ['cargos', 'movimento', 'pessoas', 'localizacao', 'periodo']
 
 // Uma linha por tipo: o teste lê este bloco.
@@ -51,6 +52,15 @@ export function criteriosParaSalvar(tipo: string, criterios: Record<string, unkn
     } else if (typeof valor === 'string' && valor.trim() !== '') {
       saida[campo] = valor.trim()
     }
+  }
+  if (tipo === 'vaga_linkedin' || tipo === 'vaga_indeed') {
+    const recortes = recortesDoMonitoramento(criterios)
+    delete saida.nicho
+    delete saida.nichoCustom
+    const novos = criteriosComRecortes(saida, recortes) as Record<string, string | string[]>
+    if (!recortes.some((r) => r.tipo === 'pronto')) delete novos.nichos
+    if (!recortes.some((r) => r.tipo === 'custom')) delete novos.nichosCustom
+    return novos
   }
   return saida
 }

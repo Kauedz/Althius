@@ -35,6 +35,8 @@ const NIVEIS_DO_LINKEDIN: Readonly<Record<string, string[]>> = {
 
 /** O maior texto de um nicho ou cargo escrito pelo usuário (Custom), o mesmo limite da tela. */
 export const MAX_TEXTO_CUSTOM = 60
+/** Quantos setores escritos um Monitoramento aceita. O frontend e o banco usam o mesmo limite. */
+export const MAX_RECORTES_CUSTOM = 5
 /** Quantos cargos escritos pelo usuário (Custom) um Monitoramento usa, o mesmo limite da tela. */
 export const MAX_CARGOS_CUSTOM = 10
 
@@ -67,6 +69,60 @@ export function nichoCustom(criterios: Record<string, unknown>): string {
   return texto(criterios.nicho) === 'custom' ? texto(criterios.nichoCustom).slice(0, MAX_TEXTO_CUSTOM).trim() : ''
 }
 
+const NICHOS_PRONTOS: Readonly<Record<string, string>> = {
+  'comex-e-importacao': 'Comex e importação',
+  'contabilidade-e-tributario': 'Contabilidade e tributário',
+  'juridico-empresarial': 'Jurídico empresarial',
+  'energia-e-mercado-livre': 'Energia e mercado livre',
+  'industria-fornecedores-b2b': 'Indústria, fornecedores B2B',
+  'logistica-e-transporte': 'Logística e transporte',
+  'corretoras-de-beneficios': 'Corretoras de benefícios',
+  'agro-b2b': 'Agro B2B',
+}
+
+export interface RecorteDoMonitoramento {
+  tipo: 'pronto' | 'custom'
+  valor: string
+  nome: string
+}
+
+/** Lê recortes novos e antigos, limpa e remove repetidos mantendo a primeira grafia. */
+export function recortesDoMonitoramento(criterios: Record<string, unknown>): RecorteDoMonitoramento[] {
+  const nichos = Array.isArray(criterios.nichos)
+    ? criterios.nichos
+    : typeof criterios.nicho === 'string' && criterios.nicho !== 'custom' && criterios.nicho !== 'qualquer'
+      ? [criterios.nicho]
+      : []
+  const custom = Array.isArray(criterios.nichosCustom)
+    ? criterios.nichosCustom
+    : criterios.nicho === 'custom' && typeof criterios.nichoCustom === 'string'
+      ? [criterios.nichoCustom]
+      : []
+  const saida: RecorteDoMonitoramento[] = []
+  const vistos = new Set<string>()
+  for (const valor of nichos) {
+    if (typeof valor !== 'string' || !NICHOS_PRONTOS[valor] || vistos.has(`n:${valor}`)) continue
+    vistos.add(`n:${valor}`)
+    saida.push({ tipo: 'pronto', valor, nome: NICHOS_PRONTOS[valor] })
+  }
+  for (const valor of custom) {
+    if (typeof valor !== 'string') continue
+    const nome = valor.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXTO_CUSTOM).trim()
+    const chave = normalizar(nome)
+    if (!chave || vistos.has(`c:${chave}`) || saida.filter((r) => r.tipo === 'custom').length >= MAX_RECORTES_CUSTOM) continue
+    vistos.add(`c:${chave}`)
+    saida.push({ tipo: 'custom', valor: nome, nome })
+  }
+  return saida
+}
+
+/** Critérios antigos de nicho pronto não filtravam vagas das Contas-alvo; preserva esse resultado ao ler o legado. */
+export function recortesParaFiltrar(criterios: Record<string, unknown>): RecorteDoMonitoramento[] {
+  const legado = !Array.isArray(criterios.nichos) && !Array.isArray(criterios.nichosCustom)
+  if (legado && typeof criterios.nicho === 'string' && criterios.nicho !== 'custom' && criterios.nicho !== 'qualquer') return []
+  return recortesDoMonitoramento(criterios)
+}
+
 const PALAVRAS_VAZIAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'para', 'com', 'a', 'o', 'as', 'os', 'no', 'na'])
 
 /** Os termos do nicho para a regra sem modelo: o nicho inteiro e cada palavra dele com 3 letras ou mais. */
@@ -84,8 +140,8 @@ export function vagaDoNichoPelaRegra(vaga: Vaga, nicho: string): boolean {
 
 const SISTEMA_DO_NICHO = [
   'Você avalia vagas de emprego para uma equipe de vendas B2B que prospecta empresas de um nicho.',
-  'A primeira linha traz o nicho escolhido; as outras, uma vaga cada, com id, cargo e descrição.',
-  'Para cada vaga, diga se ela é do nicho: o cargo, a área ou a descrição da vaga e da empresa mostram atuação nele.',
+  'A primeira linha traz a lista de recortes escolhidos; as outras, uma vaga cada, com id, cargo e descrição.',
+  'Para cada vaga, diga se ela pertence a algum dos recortes: o cargo, a área ou a descrição da vaga e da empresa mostram atuação neles.',
   'Na dúvida, responda false. Responda só JSON: {"vagas":[{"id":"<id>","do_nicho":true}]}',
 ].join(' ')
 
@@ -105,13 +161,13 @@ export function lerRespostaDoNicho(json: unknown): Map<string, boolean> {
  * pelo mesmo caminho das publicações), ele decide; sem modelo, quando ele falha ou não responde uma vaga, vale a regra.
  */
 export async function vagasDoNicho(vagas: Vaga[], criterios: Record<string, unknown>, ctx?: ContextoDoAdaptador): Promise<Vaga[]> {
-  const nicho = nichoCustom(criterios)
-  if (!nicho || !vagas.length) return vagas
+  const recortes = recortesParaFiltrar(criterios)
+  if (!recortes.length || !vagas.length) return vagas
   let doModelo = new Map<string, boolean>()
   if (ctx?.llm) {
     try {
       const usuario = [
-        JSON.stringify({ nicho }),
+        JSON.stringify({ nichos: recortes.map((r) => r.nome) }),
         ...vagas.map((v, i) => JSON.stringify({ id: String(i), cargo: v.titulo, descricao: recortar(v.descricao, 800) })),
       ].join('\n')
       const { json, custoUsd } = await ctx.llm.json({ sistema: SISTEMA_DO_NICHO, usuario, maxTokens: 400 })
@@ -121,7 +177,7 @@ export async function vagasDoNicho(vagas: Vaga[], criterios: Record<string, unkn
       // O modelo falhou: a regra decide.
     }
   }
-  return vagas.filter((v, i) => doModelo.get(String(i)) ?? vagaDoNichoPelaRegra(v, nicho))
+  return vagas.filter((v, i) => doModelo.get(String(i)) ?? recortes.some((r) => vagaDoNichoPelaRegra(v, r.nome)))
 }
 
 /** O cargo para comparação: sem marca de gênero ("Engenheiro(a)") e com as abreviações por extenso. */

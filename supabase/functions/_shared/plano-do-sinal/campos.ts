@@ -19,13 +19,15 @@ export type CampoDoPlano =
   | 'nota'
   | 'nicho'
   | 'nichoCustom'
+  | 'nichos'
+  | 'nichosCustom'
 
 export type Criterios = Record<string, string | string[]>
 
 // Uma linha por tipo: o teste da migration lê este bloco.
 export const CAMPOS_POR_TIPO: Readonly<Record<string, readonly CampoDoPlano[]>> = {
-  vaga_linkedin: ['funcoes', 'senioridade', 'localizacao', 'periodo', 'palavras', 'nicho', 'nichoCustom'],
-  vaga_indeed: ['funcoes', 'senioridade', 'localizacao', 'periodo', 'palavras', 'nicho', 'nichoCustom'],
+  vaga_linkedin: ['funcoes', 'senioridade', 'localizacao', 'periodo', 'palavras', 'nichos', 'nichosCustom', 'nicho', 'nichoCustom'],
+  vaga_indeed: ['funcoes', 'senioridade', 'localizacao', 'periodo', 'palavras', 'nichos', 'nichosCustom', 'nicho', 'nichoCustom'],
   mudanca_de_emprego: ['cargos', 'movimento', 'periodo'],
   nova_lideranca: ['cargos', 'movimento', 'pessoas', 'localizacao', 'periodo'],
   entradas_e_saidas: ['cargos', 'movimento', 'pessoas', 'localizacao', 'periodo'],
@@ -115,6 +117,33 @@ const PRONTAS_POR_CAMPO: Readonly<Record<'funcoes' | 'cargos', ReadonlySet<strin
 }
 
 const SLUG_DE_NICHO = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const SLUGS_DE_NICHO = ['comex-e-importacao', 'contabilidade-e-tributario', 'juridico-empresarial', 'energia-e-mercado-livre',
+  'industria-fornecedores-b2b', 'logistica-e-transporte', 'corretoras-de-beneficios', 'agro-b2b']
+
+function recortesProntos(valor: unknown): string[] | null {
+  if (!Array.isArray(valor)) return null
+  const vistos = new Set<string>()
+  for (const item of valor) {
+    if (typeof item !== 'string' || !SLUGS_DE_NICHO.includes(item) || vistos.has(item)) return null
+    vistos.add(item)
+  }
+  return [...vistos]
+}
+
+function recortesCustom(valor: unknown): string[] | null {
+  if (!Array.isArray(valor) || valor.length > 5) return null
+  const vistos = new Set<string>()
+  const saida: string[] = []
+  for (const item of valor) {
+    if (typeof item !== 'string') return null
+    const texto = item.replace(/\s+/g, ' ').trim()
+    const chave = chaveDoCargo(texto)
+    if (!chave || texto.length > LIMITES_DO_PLANO.textoCustomMax || vistos.has(chave)) return null
+    vistos.add(chave)
+    saida.push(texto)
+  }
+  return saida
+}
 
 function texto(valor: unknown): string | null {
   return typeof valor === 'string' ? valor : null
@@ -181,5 +210,9 @@ export function valorDoCampo(campo: CampoDoPlano, valor: unknown): string | stri
       const t = texto(valor)?.replace(/\s+/g, ' ').trim()
       return t !== undefined && t.length <= LIMITES_DO_PLANO.textoCustomMax ? t : null
     }
+    case 'nichos':
+      return recortesProntos(valor)
+    case 'nichosCustom':
+      return recortesCustom(valor)
   }
 }

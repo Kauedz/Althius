@@ -89,14 +89,14 @@ function abrir(rota: string, opcoes: { recusa?: string } = {}) {
   return { usuario, gravacoes }
 }
 
-/** Preenche o Monitoramento de mercado: nicho Custom, cargo SDR, Rio de Janeiro, e vai à revisão. */
+/** Preenche o Monitoramento de mercado: setor escrito, cargo SDR, Rio de Janeiro, e vai à revisão. */
 async function prepararMercado(usuario: ReturnType<typeof userEvent.setup>) {
   expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
   const onde = await screen.findByRole('radiogroup', { name: 'Onde procurar' })
   await usuario.click(within(onde).getByRole('radio', { name: 'Mercado endereçável (ICP)' }))
 
-  await usuario.click(within(screen.getByRole('radiogroup', { name: 'Nicho do cargo' })).getByRole('radio', { name: 'Custom' }))
-  await usuario.type(screen.getByRole('textbox', { name: 'Nicho Custom' }), 'Óleo e gás')
+  await usuario.type(screen.getByRole('textbox', { name: 'Setor escrito' }), 'Óleo e gás')
+  await usuario.click(screen.getByRole('button', { name: 'Adicionar setor' }))
   const cargos = screen.getByRole('group', { name: 'Cargos ou funções' })
   await usuario.click(within(cargos).getByRole('checkbox', { name: 'Custom' }))
   await usuario.type(screen.getByRole('textbox', { name: 'Cargo Custom' }), 'SDR, BDR{Enter}')
@@ -160,7 +160,7 @@ describe('Mercado endereçável: tela', () => {
     expect(gravacoes[0]).toMatchObject({
       p_signal_type: 'vaga_linkedin',
       p_state: 'ativo',
-      p_criteria: { nicho: 'custom', nichoCustom: 'Óleo e gás', localizacao: ['Brasil'], estado: 'Rio de Janeiro' },
+      p_criteria: { nichos: [], nichosCustom: ['Óleo e gás'], localizacao: ['Brasil'], estado: 'Rio de Janeiro' },
     })
     expect((gravacoes[0].p_criteria as { funcoes: string[] }).funcoes).toEqual(expect.arrayContaining(['SDR', 'BDR']))
 

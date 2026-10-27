@@ -74,6 +74,18 @@ Deno.test('a busca usa os cargos e o nicho como palavras-chave, no estado e no p
   assertEquals([banco.aberturas[0].tetoCreditos, banco.aberturas[0].contas], [4, 0])
 })
 
+Deno.test('a busca distribui os cargos entre dois recortes sem exceder MAX_BUSCAS', () => {
+  const termos = termosDoMercado({
+    nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'], funcoes: ['SDR', 'BDR'],
+  })
+  assertEquals(termos, [
+    'Logística e transporte SDR', 'Seguros SDR', 'Logística e transporte BDR', 'Seguros BDR',
+  ])
+  assertEquals(termosDoMercado({ nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'], funcoes: ['SDR'] }, 1), [
+    'Logística e transporte SDR',
+  ])
+})
+
 Deno.test('a descoberta confirma pelos cargos e pelo nicho, enriquece só quem não é Conta e entrega Conta e candidatas', async () => {
   const banco = dbFalso(cascataVagaMercado(), { contas: [ALFA], abertura: { estCredits: 4 } })
   const { fonte, chamadas } = fonteFalsa()
@@ -115,7 +127,7 @@ Deno.test('com o modelo dos Sinais ligado, ele decide o nicho das vagas', async 
   }
   await rodarCascata({ db: banco.db, fonte, registro: registroDePassos(), llm, agora: () => AGORA, log: () => {} }, pedido())
   assertEquals(pedidos.length, 1)
-  assert(pedidos[0].startsWith(JSON.stringify({ nicho: 'Óleo e gás' })))
+  assert(pedidos[0].startsWith(JSON.stringify({ nichos: ['Óleo e gás'] })))
   assertEquals(banco.empresas.map((e) => e.sinal.empresa.nome), ['Petro Sul'])
   assertEquals(banco.sinais.length, 0)
 })

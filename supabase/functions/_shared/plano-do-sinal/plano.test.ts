@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
-import { CAMPOS_POR_TIPO, LIMITES_DO_PLANO, type PlanoDoSinal, tiposAceitosNoPlano, validarCriterios, validarPlano } from './index.ts'
+import { CAMPOS_POR_TIPO, LIMITES_DO_PLANO, type PlanoDoSinal, tiposAceitosNoPlano, validarCriterios, validarPlano, valorDoCampo } from './index.ts'
 
 const CONTA_A = 'a1000000-0000-4000-8000-000000000001'
 const CONTA_B = 'a1000000-0000-4000-8000-000000000002'
@@ -122,6 +122,19 @@ Deno.test('palavras, nicho e texto Custom têm limite', () => {
   assertEquals(validarCriterios('vaga_linkedin', { nichoCustom: 'a'.repeat(61) }).ok, false)
   assert(validarCriterios('vaga_linkedin', { nicho: 'custom', nichoCustom: 'Óleo e gás' }).ok)
   assert(validarCriterios('vaga_linkedin', { nicho: 'logistica-e-transporte' }).ok)
+})
+
+Deno.test('os recortes prontos e escritos têm limites próprios e mantêm compatibilidade', () => {
+  assert(validarCriterios('vaga_linkedin', { nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'] }).ok)
+  assert(validarCriterios('vaga_indeed', { nichos: ['agro-b2b'], nichosCustom: ['Naval'] }).ok)
+  assert(validarCriterios('vaga_linkedin', { nicho: 'custom', nichoCustom: 'Naval' }).ok)
+  for (const nichos of [['desconhecido'], ['agro-b2b', 'agro-b2b'], [2]]) {
+    assertEquals(validarCriterios('vaga_linkedin', { nichos }).ok, false)
+  }
+  for (const nichosCustom of [[''], ['x'.repeat(61)], ['Seguros', 'seguros'], [1], ['A', 'B', 'C', 'D', 'E', 'F']]) {
+    assertEquals(validarCriterios('vaga_linkedin', { nichosCustom }).ok, false)
+  }
+  assertEquals(valorDoCampo('nichosCustom', ['Logística e transporte', 'Seguros']), ['Logística e transporte', 'Seguros'])
 })
 
 Deno.test('todo tipo conhecido aceita critérios vazios', () => {

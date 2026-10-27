@@ -33,12 +33,14 @@ import { useCatalogoFuncional } from './catalogo-funcional'
 import { NICHOS } from './nichos'
 import {
   MAX_CARGOS_CUSTOM,
+  MAX_RECORTES_CUSTOM,
   MAX_TEXTO_CUSTOM,
-  NICHO_CUSTOM,
   adicionarCargosCustom,
+  adicionarRecorteCustom,
   cargosCustom,
-  limparTextoCustom,
+  criteriosComRecortes,
   manterCargosCustom,
+  recortesDoMonitoramento,
 } from './criterios-custom'
 import { podeMonitorar } from './disponibilidade'
 import {
@@ -221,7 +223,12 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const vagasReais = operacional && !interno && tipo.id === 'abertura-de-vagas'
 
   const [monitoramento, setMonitoramento] = useState<MonitoramentoNoEditor>(
-    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional, interno),
+    () => {
+      const base = existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional, interno)
+      return tipo.id === 'abertura-de-vagas'
+        ? { ...base, criterios: criteriosComRecortes(base.criterios, recortesDoMonitoramento(base.criterios)) }
+        : base
+    },
   )
   const [etapa, setEtapa] = useState<Etapa>(() => {
     if (!personalizado) return 'editar'
@@ -530,50 +537,63 @@ export function CriteriosProntos({
 }) {
   const campos = (tipoInterno ? CAMPOS[formulario].filter((campo) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo.id)) : CAMPOS[formulario])
     .filter((campo) => !ocultar?.includes(campo.id))
-  const nichoDoCargo = tipoId === 'abertura-de-vagas' ? (typeof criterios.nicho === 'string' && criterios.nicho ? criterios.nicho : 'qualquer') : null
-  const cargosDoFiltro = nichoDoCargo && nichoDoCargo !== 'qualquer' && nichoDoCargo !== NICHO_CUSTOM ? cargosDoNicho(nichoDoCargo) : null
+  const recortes = tipoId === 'abertura-de-vagas' ? recortesDoMonitoramento(criterios) : []
+  const nichoDoCargo = tipoId === 'abertura-de-vagas'
+  const nichosDoFiltro = recortes.filter((r) => r.tipo === 'pronto')
+  const cargosDoFiltro = nichosDoFiltro.length ? [...new Set(nichosDoFiltro.flatMap((r) => cargosDoNicho(r.valor)))] : null
   const funcoesMarcadas = Array.isArray(criterios.funcoes) ? criterios.funcoes : []
-  // Trocar de nicho troca os cargos sugeridos; os cargos Custom ficam.
-  const trocarNicho = (nicho: string) => {
-    if (nicho === nichoDoCargo) return
-    aoMudar({ ...criterios, nicho, funcoes: manterCargosCustom(funcoesMarcadas) })
+  const atualizarRecortes = (novos: typeof recortes) => {
+    aoMudar({ ...criteriosComRecortes(criterios, novos), funcoes: manterCargosCustom(funcoesMarcadas) })
+  }
+  const [entradaSetor, setEntradaSetor] = useState('')
+  const [erroSetor, setErroSetor] = useState<string | null>(null)
+  const acrescentarSetor = () => {
+    const resultado = adicionarRecorteCustom(recortes, entradaSetor)
+    setErroSetor(resultado.erro ?? null)
+    if (resultado.recortes.length > recortes.length) {
+      atualizarRecortes(resultado.recortes)
+      setEntradaSetor('')
+    }
   }
   return (
     <SecaoDoFormulario numero="02" titulo="Critérios" descricao="O que precisa acontecer para disparar um Sinal. Ajuste ao seu negócio.">
       {nichoDoCargo && (
         <div className="flex flex-col gap-3">
           <Grupo
-            rotulo="Nicho do cargo"
-            papel="radiogroup"
-            ajuda="Qualquer mantém a lista geral. Um nicho troca os cargos sugeridos. Custom busca o nicho que você escrever."
+            rotulo="Nichos e setores"
+            papel="group"
+            ajuda="Escolha um ou mais nichos, ou escreva o setor. A busca fica só com as vagas deles."
           >
-            <Opcao papel="radio" marcada={nichoDoCargo === 'qualquer'} aoClicar={() => trocarNicho('qualquer')}>
-              Qualquer
-            </Opcao>
             {NICHOS.map((nicho) => (
-              <Opcao key={nicho.slug} papel="radio" marcada={nichoDoCargo === nicho.slug} aoClicar={() => trocarNicho(nicho.slug)}>
+              <Opcao key={nicho.slug} marcada={recortes.some((r) => r.tipo === 'pronto' && r.valor === nicho.slug)} aoClicar={() => {
+                const novos = recortes.some((r) => r.tipo === 'pronto' && r.valor === nicho.slug)
+                  ? recortes.filter((r) => !(r.tipo === 'pronto' && r.valor === nicho.slug))
+                  : [...recortes, { tipo: 'pronto' as const, valor: nicho.slug, nome: nicho.nome }]
+                atualizarRecortes(novos)
+              }}>
                 {nicho.nome}
               </Opcao>
             ))}
-            <Opcao papel="radio" marcada={nichoDoCargo === NICHO_CUSTOM} aoClicar={() => trocarNicho(NICHO_CUSTOM)}>
-              Custom
-            </Opcao>
           </Grupo>
-          {nichoDoCargo === NICHO_CUSTOM && (
+          <div className="flex flex-col gap-2">
             <Rotulado
-              rotulo="Nicho Custom"
-              ajuda={`Até ${MAX_TEXTO_CUSTOM} caracteres. A IA usa este nicho para ficar só com as vagas dele.`}
+              rotulo="Setor escrito"
+              ajuda={`Até ${MAX_TEXTO_CUSTOM} caracteres por setor, no máximo ${MAX_RECORTES_CUSTOM}.`}
             >
-              <input
-                value={typeof criterios.nichoCustom === 'string' ? criterios.nichoCustom : ''}
-                maxLength={MAX_TEXTO_CUSTOM}
-                onChange={(e) => aoMudar({ ...criterios, nichoCustom: e.target.value.replace(/^\s+/, '').replace(/\s{2,}/g, ' ') })}
-                onBlur={(e) => aoMudar({ ...criterios, nichoCustom: limparTextoCustom(e.target.value) })}
-                placeholder="Ex.: Naval, Óleo e gás"
-                className="campo h-10"
-              />
+              <input value={entradaSetor} onChange={(e) => { setEntradaSetor(e.target.value); setErroSetor(null) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); acrescentarSetor() } }} placeholder="Ex.: Seguros" className="campo h-10" />
             </Rotulado>
-          )}
+            <button type="button" aria-label="Adicionar setor" onClick={acrescentarSetor} className={BOTAO_SECUNDARIO}><Plus aria-hidden="true" size={16} /> Adicionar</button>
+            {erroSetor && <p role="alert" className="text-xs text-al-erro">{erroSetor}</p>}
+            {recortes.filter((r) => r.tipo === 'custom').length > 0 && (
+              <ul aria-label="Setores escritos" className="flex flex-wrap gap-2">
+                {recortes.filter((r) => r.tipo === 'custom').map((recorte) => (
+                  <li key={recorte.valor} className="flex items-center gap-1 rounded-md border border-al-line px-2 py-1 text-sm">
+                    {recorte.nome}<button type="button" aria-label={`Remover ${recorte.nome}`} onClick={() => atualizarRecortes(recortes.filter((r) => r !== recorte))}><X size={14} aria-hidden="true" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
       {campos.map((campo) => {

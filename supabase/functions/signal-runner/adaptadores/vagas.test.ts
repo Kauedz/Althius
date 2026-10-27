@@ -1,7 +1,7 @@
 // Os adaptadores de vaga (sinais-reais 03) com resultados de exemplo no formato do README de cada actor. Empresas,
 // pessoas e vagas são fictícias: nenhum dado pessoal real.
 import { assert, assertEquals } from 'jsr:@std/assert@1'
-import type { ContaParaVarrer } from '../handler.ts'
+import type { ContaParaVarrer, ContextoDoAdaptador } from '../handler.ts'
 import { vagaIndeed } from './vaga-indeed.ts'
 import { vagaLinkedin } from './vaga-linkedin.ts'
 
@@ -167,11 +167,21 @@ Deno.test('LinkedIn e Indeed: a mesma vaga datada em meses diferentes pelas duas
 
 
 // Critérios Custom (nicho e cargos escritos pelo usuário).
-import type { ContextoDoAdaptador } from '../handler.ts'
 import { termosDaBusca } from './vaga-linkedin.ts'
-import { funcoesDoMonitoramento, lerRespostaDoNicho, nichoCustom, termosDoNicho, vagasDoNicho, type Vaga } from './vagas.ts'
+import { funcoesDoMonitoramento, lerRespostaDoNicho, nichoCustom, recortesDoMonitoramento, termosDoNicho, vagasDoNicho, type Vaga } from './vagas.ts'
 
 const CUSTOM = { ...CRITERIOS, funcoes: [], nicho: 'custom', nichoCustom: 'Óleo e gás' }
+
+Deno.test('os recortes aceitam listas novas e critérios antigos', () => {
+  assertEquals(recortesDoMonitoramento({ nichos: ['logistica-e-transporte'], nichosCustom: [' Seguros '] }), [
+    { tipo: 'pronto', valor: 'logistica-e-transporte', nome: 'Logística e transporte' },
+    { tipo: 'custom', valor: 'Seguros', nome: 'Seguros' },
+  ])
+  assertEquals(recortesDoMonitoramento({ nicho: 'custom', nichoCustom: ' Naval ' }), [
+    { tipo: 'custom', valor: 'Naval', nome: 'Naval' },
+  ])
+  assertEquals(recortesDoMonitoramento({ nicho: 'qualquer' }), [])
+})
 
 function contextoComModelo(json: unknown, falha = false) {
   const pedidos: { sistema: string; usuario: string }[] = []
@@ -252,8 +262,26 @@ Deno.test('Custom: com o modelo (Hermes), ele decide quais vagas são do nicho e
   const sinais = await vagaLinkedin.sinaisComContexto!(itens, CONTA, { ...CUSTOM, funcoes: ['SDR', 'BDR'] }, AGORA, ctx)
   assertEquals(sinais.map((s) => s.phrase), ['Abriu vaga de BDR em São Paulo, SP'])
   assertEquals(pedidos.length, 1)
-  assert(pedidos[0].usuario.startsWith('{"nicho":"Óleo e gás"}'))
+  assert(pedidos[0].usuario.startsWith('{"nichos":["Óleo e gás"]}'))
   assertEquals(custos, [0.001])
+})
+
+Deno.test('o modelo avalia vários recortes num pedido e uma vaga de qualquer recorte passa', async () => {
+  const pedidos: string[] = []
+  const ctx = {
+    llm: { json: async ({ usuario }: { usuario: string }) => {
+      pedidos.push(usuario)
+      return { json: { vagas: [{ id: '0', do_nicho: true }, { id: '1', do_nicho: false }] }, custoUsd: 0.001 }
+    } },
+    custo: { adicionar: () => {} },
+  } as unknown as ContextoDoAdaptador
+  const resultado = await vagasDoNicho([
+    { titulo: 'SDR', local: '', descricao: '', nivel: '', link: '', publicadaEm: null },
+    { titulo: 'BDR', local: '', descricao: '', nivel: '', link: '', publicadaEm: null },
+  ], { nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'] }, ctx)
+  assertEquals(resultado.map((vaga) => vaga.titulo), ['SDR'])
+  assertEquals(pedidos.length, 1)
+  assert(pedidos[0].startsWith('{"nichos":["Logística e transporte","Seguros"]}'))
 })
 
 Deno.test('Custom: se o modelo falha, vale a regra; sem nicho Custom, o modelo nem é chamado', async () => {

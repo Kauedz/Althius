@@ -36,7 +36,7 @@ describe('a tabela de campos do Plano', () => {
     for (const [tipo, t] of Object.entries(TIPOS_DO_PLANO)) {
       const ids = CAMPOS[t.formulario].map((c) => c.id)
       for (const campo of t.campos) {
-        if (campo === 'nicho' || campo === 'nichoCustom') continue
+        if (campo === 'nicho' || campo === 'nichoCustom' || campo === 'nichos' || campo === 'nichosCustom') continue
         expect(ids, `${tipo}: ${campo}`).toContain(campo)
       }
     }
