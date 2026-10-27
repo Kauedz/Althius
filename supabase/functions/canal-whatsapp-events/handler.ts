@@ -3,10 +3,12 @@ import { assinaturaWhatsAppValida, type AdaptadorCanal, type EventoWhatsApp } fr
 export interface WorkspaceElegivel { id: string; nome: string }
 export interface PedidoDeExecucao { workspaceId: string; userId: string; texto: string; eventId: string; novaConversa: boolean }
 export interface SessaoWhatsApp { workspaceId: string | null; aguardandoWorkspace: boolean; novaConversa: boolean }
-export type AberturaDeExecucao = { kind: 'aberto'; conversationId: string; runId: string } | { kind: 'recusado'; motivo: 'ocupado' | 'nao_elegivel' | 'indisponivel' }
+export type AberturaDeExecucao = { kind: 'aberto'; conversationId: string; runId: string } | { kind: 'recusado'; motivo: 'ocupado' | 'nao_elegivel' | 'indisponivel' | 'limite' }
 
 export interface Db {
   reservarEvento(eventId: string, telefone: string): Promise<boolean>
+  permitirMensagem(telefone: string): Promise<boolean>
+  registrarAuditoria(registro: { eventId: string; userId: string | null; workspaceId: string | null; ferramenta: string; resultado: string; hashPayload: string }): Promise<void>
   registrarStatus(evento: Extract<EventoWhatsApp, { tipo: 'status' }>): Promise<void>
   contaPorTelefone(telefone: string): Promise<string | null>
   workspacesElegiveis(userId: string): Promise<WorkspaceElegivel[]>
@@ -44,6 +46,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const responder = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } })
 
   async function enviarTexto(para: string, texto: string) { await deps.adaptador.enviarTexto({ para, texto }) }
+  async function hashTexto(texto: string) {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto)))
+    return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`
+  }
 
   async function tratar(evento: EventoWhatsApp) {
     if (evento.tipo === 'status') {
@@ -54,12 +60,20 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       log({ tipo: 'canal_whatsapp_event', resultado: 'reenvio', eventId: evento.id })
       return
     }
+    if (!(await deps.db.permitirMensagem(evento.de))) {
+      await enviarTexto(evento.de, 'Você atingiu o limite de mensagens. Tente novamente mais tarde.')
+      await deps.db.registrarAuditoria({ eventId: evento.id, userId: null, workspaceId: null, ferramenta: 'mensagem', resultado: 'limite_por_numero', hashPayload: await hashTexto(JSON.stringify(evento.conteudo)) })
+      log({ tipo: 'canal_whatsapp_event', resultado: 'limite_por_numero', eventId: evento.id })
+      return
+    }
     if (evento.conteudo.tipo !== 'texto') return
     const texto = evento.conteudo.texto.trim()
     const comando = normalizarComando(texto)
     const userId = await deps.db.contaPorTelefone(evento.de)
     if (!userId) {
       if (await deps.db.registrarRecusaDesconhecido(evento.de)) await enviarTexto(evento.de, RESPOSTA_DESCONHECIDO)
+      await deps.db.registrarAuditoria({ eventId: evento.id, userId: null, workspaceId: null, ferramenta: 'mensagem', resultado: 'numero_desconhecido', hashPayload: await hashTexto(texto) })
+      log({ tipo: 'canal_whatsapp_event', resultado: 'numero_desconhecido', eventId: evento.id })
       return
     }
     const respostaPendente = await deps.db.respostaPendente(userId)
@@ -79,7 +93,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return
     }
     const workspaces = await deps.db.workspacesElegiveis(userId)
-    if (workspaces.length === 0) return await enviarTexto(evento.de, RESPOSTAS.semWorkspace)
+    if (workspaces.length === 0) {
+      await deps.db.registrarAuditoria({ eventId: evento.id, userId, workspaceId: null, ferramenta: 'mensagem', resultado: 'sem_workspace', hashPayload: await hashTexto(texto) })
+      log({ tipo: 'canal_whatsapp_event', resultado: 'sem_workspace', eventId: evento.id })
+      return await enviarTexto(evento.de, RESPOSTAS.semWorkspace)
+    }
     const sessao = await deps.db.sessao(userId)
     if (comando === 'TROCAR DE WORKSPACE') {
       await deps.db.salvarSessao(userId, { ...sessao, workspaceId: null, aguardandoWorkspace: true, novaConversa: true })
@@ -102,9 +120,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return await enviarTexto(evento.de, RESPOSTAS.escolherWorkspace(workspaces))
     }
     const abertura = await deps.db.abrirExecucao({ workspaceId: workspace.id, userId, texto, eventId: evento.id, novaConversa: sessao.novaConversa })
+    await deps.db.registrarAuditoria({ eventId: evento.id, userId, workspaceId: workspace.id, ferramenta: 'mensagem', resultado: abertura.kind === 'aberto' ? 'execucao_aberta' : abertura.motivo, hashPayload: await hashTexto(texto) })
     if (sessao.novaConversa && abertura.kind === 'aberto') await deps.db.salvarSessao(userId, { ...sessao, novaConversa: false })
     if (abertura.kind === 'recusado') {
-      await enviarTexto(evento.de, abertura.motivo === 'ocupado' ? RESPOSTAS.ocupado : RESPOSTAS.falha)
+      await enviarTexto(evento.de, abertura.motivo === 'ocupado' ? RESPOSTAS.ocupado : abertura.motivo === 'limite' ? 'Este Workspace atingiu o limite de Execuções por hora. Tente novamente mais tarde.' : RESPOSTAS.falha)
     }
   }
 
