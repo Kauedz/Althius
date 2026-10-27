@@ -194,6 +194,10 @@ export interface SinalDeCandidata {
  * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
  */
 export interface FonteDeSinais extends FonteObservavel {
+  /** Leitura do ICP estruturado vigente do Workspace, isolada por Participação ativa. */
+  icpDoWorkspace?(): Promise<IcpDoWorkspace | null>
+  /** Ids do catálogo global que correspondem ao ICP estruturado vigente. */
+  catalogoParaIcp?(): Promise<string[]>
   /** A data de referência de "hoje" adotada pela fonte. */
   hoje(): Date
 
@@ -329,6 +333,17 @@ export interface FonteDeSinais extends FonteObservavel {
    * existe. Rejeita com `ErroDaAutomacao`.
    */
   liberarAutomacao?(monitoramentoId: string, limiteMensal: number): Promise<void>
+}
+
+export interface IcpDoWorkspace {
+  sector: string
+  companySize: string
+  geography: string
+  targetRoles: unknown[]
+  freeText: string
+  oQueVende: string
+  miniIcp: string
+  porQueCompram: string
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'
