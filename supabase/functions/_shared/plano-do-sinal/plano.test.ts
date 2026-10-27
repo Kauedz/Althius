@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
-import { CAMPOS_POR_TIPO, LIMITES_DO_PLANO, type PlanoDoSinal, tiposAceitosNoPlano, validarCriterios, validarPlano } from './index.ts'
+import { CAMPOS_POR_TIPO, LIMITES_DO_PLANO, type PlanoDoSinal, tiposAceitosNoPlano, validarCriterios, validarPlano, valorDoCampo } from './index.ts'
 
 const CONTA_A = 'a1000000-0000-4000-8000-000000000001'
 const CONTA_B = 'a1000000-0000-4000-8000-000000000002'
@@ -134,6 +134,7 @@ Deno.test('os recortes prontos e escritos têm limites próprios e mantêm compa
   for (const nichosCustom of [[''], ['x'.repeat(61)], ['Seguros', 'seguros'], [1], ['A', 'B', 'C', 'D', 'E', 'F']]) {
     assertEquals(validarCriterios('vaga_linkedin', { nichosCustom }).ok, false)
   }
+  assertEquals(valorDoCampo('nichosCustom', ['Logística e transporte', 'Seguros']), ['Logística e transporte', 'Seguros'])
 })
 
 Deno.test('todo tipo conhecido aceita critérios vazios', () => {

@@ -133,14 +133,16 @@ function recortesProntos(valor: unknown): string[] | null {
 function recortesCustom(valor: unknown): string[] | null {
   if (!Array.isArray(valor) || valor.length > 5) return null
   const vistos = new Set<string>()
+  const saida: string[] = []
   for (const item of valor) {
     if (typeof item !== 'string') return null
     const texto = item.replace(/\s+/g, ' ').trim()
     const chave = chaveDoCargo(texto)
     if (!chave || texto.length > LIMITES_DO_PLANO.textoCustomMax || vistos.has(chave)) return null
     vistos.add(chave)
+    saida.push(texto)
   }
-  return [...vistos]
+  return saida
 }
 
 function texto(valor: unknown): string | null {

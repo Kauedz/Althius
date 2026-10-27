@@ -28,6 +28,12 @@ Após merge e aplicação da migration pelo processo normal de publicação, rea
 - Consultas de busca mantêm `MAX_BUSCAS=4` por distribuição determinística entre as combinações de nicho e cargo.
 - `MAX_RECORTES_CUSTOM` permanece constante configurável com padrão 5.
 
+## Correção rfix1
+
+- Seam TDD pré-confirmado usado: `valorDoCampo('nichosCustom', ...)`, que expõe os critérios limpos aceitos pelo Plano. A regressão verifica que o valor legível preserva caixa e acentos, enquanto espaços são limpos e a chave normalizada serve apenas para deduplicação.
+- `recortesCustom` agora devolve os textos limpos originais. O teste regressivo passou depois da correção.
+- Verificações: pgTAP local passou; `deno check` e `deno test` passaram; lint, `tsc -b` e build passaram. Vitest completo teve uma falha intermitente em `gaveta-de-historico.test.tsx` (230/231 arquivos); rodar esse arquivo isoladamente passou (11/11).
+
 ## Suggested skills
 
 - `code-review` para revisar o diff se ele mudar antes do merge.
