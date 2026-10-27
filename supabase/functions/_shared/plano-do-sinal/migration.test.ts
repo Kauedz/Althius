@@ -65,7 +65,7 @@ Deno.test({
   name: 'os campos de cada tipo são os mesmos no banco e no servidor',
   ignore: !podeLer,
   async fn() {
-    const sql = await ler(MIGRATIONS, '20261116120000_briefing_e_plano_do_sinal.sql')
+    const sql = await ultimaDefinicao('private.signal_plan_criteria_keys')
     const doBanco = new Map(
       [...corpoDa(sql, 'private.signal_plan_criteria_keys').matchAll(/when '(\w+)' then array\[([^\]]*)\]/g)]
         .map((m) => [m[1], strings(m[2]).toSorted()]),

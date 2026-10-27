@@ -89,6 +89,17 @@ describe('Sinais reais no Workspace operacional', () => {
     expect(salvo.id).toBe(MONITOR)
   })
 
+  it('salva os recortes novos em nichos e nichosCustom', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const f = fonte({ save_signal_monitor: (p) => (chamadas.push(p), MONITOR), list_signal_monitors: () => [monitorNoBanco] })
+    await f.salvarMonitoramento({
+      tipoId: 'abertura-de-vagas', nome: 'Transporte e seguros', estado: 'rascunho',
+      publico: { modo: 'listas', listas: [CONTA], usaRecomendado: false },
+      criterios: { nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'], funcoes: ['SDR'] },
+    })
+    expect(chamadas[0].p_criteria).toEqual({ nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'], funcoes: ['SDR'] })
+  })
+
   it('salvar um Monitoramento de cascata disponível chama save_signal_monitor com o tipo da cascata', async () => {
     const chamadas: Record<string, unknown>[] = []
     const f = fonte({

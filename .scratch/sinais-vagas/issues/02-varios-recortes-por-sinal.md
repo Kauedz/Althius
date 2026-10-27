@@ -1,6 +1,6 @@
 # 02: Vários recortes por Sinal
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -58,16 +58,18 @@
 
 ## Critérios
 
-- [ ] Vitest (tela): marcar "Logística e transporte" + escrever "Seguros" e salvar envia `nichos: ['logistica-e-transporte']`, `nichosCustom: ['Seguros']`, sem `nicho`/`nichoCustom`; reabrir o Sinal mostra os dois marcados/listados; o resumo mostra "Logística e transporte, Seguros".
-- [ ] Vitest: Sinal antigo com `nicho: 'industria-fornecedores-b2b'` abre com esse nicho marcado; com `nicho: 'custom', nichoCustom: 'Naval'` abre com "Naval" escrito; com "Qualquer" abre sem recorte.
-- [ ] Vitest: cargos sugeridos = união dos nichos marcados; cargos escritos ficam ao desmarcar um nicho; repetir setor escrito (caixa/acento diferentes) não duplica; 61 caracteres e passar do teto mostram o erro da tela.
-- [ ] pgTAP: `save_signal_monitor` aceita `nichos`/`nichosCustom` válidos em rascunho e ativo; recusa slug desconhecido, item não texto, texto vazio ou > 60, repetido e acima do teto (`22023`); `nicho`/`nichoCustom` antigos continuam aceitos.
-- [ ] pgTAP: o Plano do Sinal aceita `nichos`/`nichosCustom` para `vaga_linkedin` e `vaga_indeed`; as chaves batem com `campos.ts` e `campos-do-plano.ts` (teste existente verde).
-- [ ] Deno: com dois recortes, a busca cobre os dois sem passar de `MAX_BUSCAS`; uma vaga de qualquer um dos recortes passa (com o modelo respondendo `true`), uma de fora não; o modelo recebe um pedido só, com a lista; critérios antigos (`nicho`/`nichoCustom`) dão o mesmo resultado de antes.
-- [ ] pgTAP: três `supabase db reset && supabase test db` verdes; Deno, Vitest, lint, `tsc -b` e build verdes.
+- [x] Vitest (tela): marcar "Logística e transporte" + escrever "Seguros" e salvar envia `nichos: ['logistica-e-transporte']`, `nichosCustom: ['Seguros']`, sem `nicho`/`nichoCustom`; reabrir o Sinal mostra os dois marcados/listados; o resumo mostra "Logística e transporte, Seguros".
+- [x] Vitest: Sinal antigo com `nicho: 'industria-fornecedores-b2b'` abre com esse nicho marcado; com `nicho: 'custom', nichoCustom: 'Naval'` abre com "Naval" escrito; com "Qualquer" abre sem recorte.
+- [x] Vitest: cargos sugeridos = união dos nichos marcados; cargos escritos ficam ao desmarcar um nicho; repetir setor escrito (caixa/acento diferentes) não duplica; 61 caracteres e passar do teto mostram o erro da tela.
+- [x] pgTAP: `save_signal_monitor` aceita `nichos`/`nichosCustom` válidos em rascunho e ativo; recusa slug desconhecido, item não texto, texto vazio ou > 60, repetido e acima do teto (`22023`); `nicho`/`nichoCustom` antigos continuam aceitos.
+- [x] pgTAP: o Plano do Sinal aceita `nichos`/`nichosCustom` para `vaga_linkedin` e `vaga_indeed`; as chaves batem com `campos.ts` e `campos-do-plano.ts` (teste existente verde).
+- [x] Deno: com dois recortes, a busca cobre os dois sem passar de `MAX_BUSCAS`; uma vaga de qualquer um dos recortes passa (com o modelo respondendo `true`), uma de fora não; o modelo recebe um pedido só, com a lista; critérios antigos (`nicho`/`nichoCustom`) dão o mesmo resultado de antes.
+- [x] pgTAP: três `supabase db reset && supabase test db` verdes; Deno, Vitest, lint, `tsc -b` e build verdes.
 
 ## Passos do Nan
 
 Nenhum passo manual além da revisão. Depois do merge e da aplicação da migration por quem publica, o Renan reabre "Vagas BDR" e marca os recortes (ex.: Logística e transporte + Seguros) antes de reativar.
 
 ## Comments
+
+- 2026-10-25 — Implementados recortes múltiplos prontos e escritos no editor, resumo, Plano do Sinal, validação SQL e runner, preservando leitura e comportamento dos critérios antigos. Caso conferido: Logística e transporte + setor escrito Seguros. Migration aditiva criada em `supabase/migrations/20261216102000_varios_recortes_por_sinal.sql`; não aplicada no remoto. Vitest completo (231 arquivos, 2.014 testes passaram, 4 ignorados), Deno completo (1.903 passaram), pgTAP completo (3 execuções verdes; teste novo 19/19), lint, `tsc -b`, build e `git diff --check` passaram. Revisões de Standards e Spec sem achados pendentes. Revisão visual e reabertura de Vagas BDR após merge/publicação: pendente verificação humana.

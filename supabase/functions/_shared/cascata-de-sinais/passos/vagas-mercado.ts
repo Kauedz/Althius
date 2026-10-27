@@ -12,7 +12,7 @@
 import { contemAlgum, mesmaEmpresa, paisesDaLocalizacao } from '../../../signal-runner/adaptadores/comum.ts'
 import type { ContextoDoAdaptador } from '../../../signal-runner/handler.ts'
 import { termosDaBusca } from '../../../signal-runner/adaptadores/vaga-linkedin.ts'
-import { buscasDasFuncoes, cargoDaVaga, nichoCustom, type Vaga, vagaAtende, vagasDoNicho } from '../../../signal-runner/adaptadores/vagas.ts'
+import { buscasDasFuncoes, cargoDaVaga, recortesDoMonitoramento, type Vaga, vagaAtende, vagasDoNicho } from '../../../signal-runner/adaptadores/vagas.ts'
 import type { ContextoDoPasso, ImplDoPasso, Item } from '../tipos.ts'
 import {
   type Candidata,
@@ -36,18 +36,6 @@ export const CREDITOS_POR_RODADA_NO_MERCADO = 4
 const MAX_BUSCAS = 4
 const VAGAS_POR_EMPRESA = 3
 
-/** Os nichos prontos da tela (`nichos.ts`), pelo slug que fica nos critérios. A letra interna não entra aqui. */
-const NICHOS_PRONTOS: Readonly<Record<string, string>> = {
-  'comex-e-importacao': 'Comex e importação',
-  'contabilidade-e-tributario': 'Contabilidade e tributário',
-  'juridico-empresarial': 'Jurídico empresarial',
-  'energia-e-mercado-livre': 'Energia e mercado livre',
-  'industria-fornecedores-b2b': 'Indústria, fornecedores B2B',
-  'logistica-e-transporte': 'Logística e transporte',
-  'corretoras-de-beneficios': 'Corretoras de benefícios',
-  'agro-b2b': 'Agro B2B',
-}
-
 /** Os estados do Brasil e a sigla de cada um, para a busca e para conferir o local da vaga. */
 const ESTADOS: Readonly<Record<string, string>> = {
   'Acre': 'AC', 'Alagoas': 'AL', 'Amapá': 'AP', 'Amazonas': 'AM', 'Bahia': 'BA', 'Ceará': 'CE', 'Distrito Federal': 'DF',
@@ -57,9 +45,9 @@ const ESTADOS: Readonly<Record<string, string>> = {
   'Santa Catarina': 'SC', 'São Paulo': 'SP', 'Sergipe': 'SE', 'Tocantins': 'TO',
 }
 
-/** O nicho do Monitoramento em palavras: o Custom como foi escrito, o pronto pelo nome; vazio em "Qualquer". */
-export function nichoDoMonitoramento(criterios: Record<string, unknown>): string {
-  return nichoCustom(criterios) || NICHOS_PRONTOS[texto(criterios.nicho)] || ''
+/** Os nomes dos recortes do Monitoramento; critérios antigos são normalizados no adaptador compartilhado. */
+export function nichoDoMonitoramento(criterios: Record<string, unknown>): string[] {
+  return recortesDoMonitoramento(criterios).map((recorte) => recorte.nome)
 }
 
 /** O estado escolhido, quando é um estado do Brasil e o Brasil está na Localização. */
@@ -77,11 +65,18 @@ export function vagaDoEstado(local: string, estado: string): boolean {
   return new RegExp(`(^|[^A-Za-z])${sigla}([^A-Za-z]|$)`).test(local)
 }
 
-/** As buscas do mercado: cargos e nicho como palavras-chave, até `MAX_BUSCAS` (os cargos a mais vão juntos, com OR). */
+/** Combina recortes e cargos em buscas balanceadas; limita as buscas e escolhe recortes por ordem estável. */
 export function termosDoMercado(criterios: Record<string, unknown>, maximo = MAX_BUSCAS): string[] {
   const funcoes = buscasDasFuncoes(criterios)
   if (!funcoes.length) return []
-  return termosDaBusca(nichoDoMonitoramento(criterios), funcoes, maximo).map((t) => t.trim())
+  const nichos = nichoDoMonitoramento(criterios)
+  if (!nichos.length) return termosDaBusca('', funcoes, maximo).map((t) => t.trim())
+  const buscasPorNicho = nichos.map((nicho) => termosDaBusca(nicho, funcoes, maximo).map((termo) => termo.trim()))
+  return Array.from({ length: Math.min(maximo, buscasPorNicho.reduce((soma, termos) => soma + termos.length, 0)) }, (_, indice) => {
+    const nicho = indice % buscasPorNicho.length
+    const busca = Math.floor(indice / buscasPorNicho.length)
+    return buscasPorNicho[nicho][busca]
+  })
 }
 
 export const linkedinVagasMercado: ImplDoPasso = {
@@ -142,10 +137,14 @@ export const confirmarVagaMercado: ImplDoPasso = {
       if (!vagaAtende(vaga, ctx.criterios, ctx.agora) || !vagaDoEstado(vaga.local, estado)) return []
       return [{ ...v, comparada: vaga }]
     })
-    // O nicho (pronto ou Custom) filtra pelo mesmo caminho do nicho Custom dos adaptadores: o modelo, ou a palavra-chave.
-    const nicho = nichoDoMonitoramento(ctx.criterios)
-    const doNicho = nicho
-      ? new Set(await vagasDoNicho(lidas.map((l) => l.comparada), { nicho: 'custom', nichoCustom: nicho }, contextoDoNicho(ctx)))
+    // O modelo avalia a lista inteira num pedido; os critérios antigos são lidos pela mesma normalização.
+    const recortes = recortesDoMonitoramento(ctx.criterios)
+    const doNicho = recortes.length
+      ? new Set(await vagasDoNicho(lidas.map((l) => l.comparada), {
+        ...ctx.criterios,
+        nichos: recortes.filter((r) => r.tipo === 'pronto').map((r) => r.valor),
+        nichosCustom: recortes.filter((r) => r.tipo === 'custom').map((r) => r.valor),
+      }, contextoDoNicho(ctx)))
       : null
     const porEmpresa = new Map<string, Candidata>()
     const vistas = new Set<string>()

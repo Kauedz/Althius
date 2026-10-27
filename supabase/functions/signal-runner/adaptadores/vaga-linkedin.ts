@@ -6,7 +6,7 @@
 import type { AdaptadorDeSinal } from '../handler.ts'
 import { dataIso, diasDoPeriodo, mesmaEmpresa, objetos, paisesDaLocalizacao, primeiroTexto, semRepetidos } from './comum.ts'
 import type { ContaParaVarrer } from '../handler.ts'
-import { buscasDasFuncoes, sinalDaVaga, type Vaga, vagaAtende, vagaDoNichoPelaRegra, vagasDoNicho, nichoCustom } from './vagas.ts'
+import { buscasDasFuncoes, recortesParaFiltrar, sinalDaVaga, type Vaga, vagaAtende, vagaDoNichoPelaRegra, vagasDoNicho } from './vagas.ts'
 
 const MAX_ITENS = 50
 // O LinkedIn aceita até algumas buscas por execução sem estourar o tempo da função (60 s por Conta).
@@ -40,8 +40,8 @@ export const vagaLinkedin: AdaptadorDeSinal = {
   },
 
   sinais(itens, conta, criterios, agora) {
-    const nicho = nichoCustom(criterios)
-    const vagas = vagasDaConta(itens, conta, criterios, agora).filter((v) => !nicho || vagaDoNichoPelaRegra(v, nicho))
+    const nichos = recortesParaFiltrar(criterios)
+    const vagas = vagasDaConta(itens, conta, criterios, agora).filter((v) => !nichos.length || nichos.some((n) => vagaDoNichoPelaRegra(v, n.nome)))
     return semRepetidos(vagas.map((v) => sinalDaVaga(v, conta, FONTE, agora)))
   },
 

@@ -5,7 +5,7 @@
 // (build 0.0.16); a execução real que os confirma é passo do Nan.
 import type { AdaptadorDeSinal, ContaParaVarrer } from '../handler.ts'
 import { dataIso, diasDoPeriodo, mesmaEmpresa, objeto, objetos, paisesDaLocalizacao, primeiroTexto, semRepetidos } from './comum.ts'
-import { nichoCustom, sinalDaVaga, type Vaga, vagaAtende, vagaDoNichoPelaRegra, vagasDoNicho } from './vagas.ts'
+import { recortesParaFiltrar, sinalDaVaga, type Vaga, vagaAtende, vagaDoNichoPelaRegra, vagasDoNicho } from './vagas.ts'
 
 const MAX_ITENS = 100
 // Os períodos que o Indeed aceita, em dias; acima de 14, a busca não limita e o filtro fica aqui.
@@ -35,8 +35,8 @@ export const vagaIndeed: AdaptadorDeSinal = {
   },
 
   sinais(itens, conta, criterios, agora) {
-    const nicho = nichoCustom(criterios)
-    const vagas = vagasDaConta(itens, conta, criterios, agora).filter((v) => !nicho || vagaDoNichoPelaRegra(v, nicho))
+    const nichos = recortesParaFiltrar(criterios)
+    const vagas = vagasDaConta(itens, conta, criterios, agora).filter((v) => !nichos.length || nichos.some((n) => vagaDoNichoPelaRegra(v, n.nome)))
     return semRepetidos(vagas.map((v) => sinalDaVaga(v, conta, 'Indeed', agora)))
   },
 
