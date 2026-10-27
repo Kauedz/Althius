@@ -32,6 +32,21 @@ describe('Módulo Sequências e Casca (Ticket 02 & Ticket 03)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
   })
 
+  it('mostra resultados únicos por Conta no bloco existente e identifica que os números são da Demonstração', async () => {
+    const { usuario } = renderizarApp('/sequencias')
+    await screen.findByRole('heading', { level: 1, name: 'Sequências' })
+    expect(screen.getByRole('button', { name: /^Workspace:/ })).toHaveTextContent('Demonstração')
+    await usuario.click(await screen.findByRole('button', { name: 'Conta' }))
+
+    const tabela = await screen.findByRole('table', { name: 'Resultado por Conta-alvo' })
+    expect(within(tabela).getByText(/^Todo o histórico até \d{2}\/\d{2}\/\d{4}$/)).toBeInTheDocument()
+    expect(within(tabela).getByText('18')).toBeInTheDocument()
+    expect(within(tabela).getByText('6 (33%)')).toBeInTheDocument()
+    expect(within(tabela).getByText('4 (22%)')).toBeInTheDocument()
+    expect(within(tabela).getByText('3')).toBeInTheDocument()
+    expect(screen.getByText(/denominador é o número de Contas com ao menos um envio realizado/)).toBeInTheDocument()
+  })
+
   it('a tela de Sequências exibe o título, descrição, contagem e a tabela com as 5 colunas', async () => {
     renderizarApp('/sequencias')
 

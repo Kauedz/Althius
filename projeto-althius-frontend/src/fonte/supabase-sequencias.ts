@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ehCanalSuportado, type AnaliseDaResposta, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDaDecisaoDeRetencao, type ResultadoDoLoteDeSequencias, type ResumoPublicoSequencia, type RevisaoDeRetencao, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
+import { ehCanalSuportado, type AnaliseDaResposta, type AnexoRecebido, type AtualizacaoDocumento, type AutorizacaoDosEnvios, type CanalStep, type DesfechoDoEnvio, type EnvioDoPasso, type FonteDeSequencias, type MetricasDemoSequencia, type MotivoDeEncerramento, type NovaSequencia, type PropostaDeResposta, type RespostaRecebida, type ResultadoDaDecisaoDeRetencao, type ResultadoDoLoteDeSequencias, type ResultadosPorConta, type ResumoPublicoSequencia, type RevisaoDeRetencao, type Sequencia, type StatusDoEnvio, type StepSequencia, type StatusSequencia, type TaxaDosEnvios, type TaxaPorAbordagem } from './sequencias-tipos'
 import { ErroDeModuloIndisponivel } from './ambiente'
 import { JANELA_PADRAO, REGRA_DE_PAUSE_PADRAO } from './padroes-da-sequencia'
 import { validarDependenciasDosPassos } from './dependencias-dos-passos'
@@ -827,6 +827,25 @@ export function criarFonteDeSequenciasSupabase(
         reunioes: Number(linha.meetings),
         oportunidades: Number(linha.opportunities),
       }))
+    },
+    async resultadosPorConta(): Promise<ResultadosPorConta | null> {
+      const { data, error } = await cliente.rpc('sequence_account_outcome_summary', { p_workspace_id: workspace() })
+      if (error) throw converterErro(error)
+      const linha = (Array.isArray(data) ? data[0] : data) as {
+        cutoff_at?: string | null
+        approached_accounts?: number | string | null
+        positive_accounts?: number | string | null
+        meeting_accounts?: number | string | null
+        negative_accounts?: number | string | null
+      } | null
+      if (!linha?.cutoff_at) return null
+      return {
+        dataCorte: linha.cutoff_at,
+        contasAbordadas: Number(linha.approached_accounts ?? 0),
+        respostasPositivas: Number(linha.positive_accounts ?? 0),
+        reunioes: Number(linha.meeting_accounts ?? 0),
+        respostasNegativas: Number(linha.negative_accounts ?? 0),
+      }
     },
     async envios(sequenciaId) {
       const row = await registroPorId(sequenciaId)
