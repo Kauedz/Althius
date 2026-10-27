@@ -9,7 +9,7 @@
 import { comCors } from '../_shared/cors.ts'
 import type { Llm } from '../_shared/cascata-de-sinais/tipos.ts'
 import { LIMITES_DO_PLANO, type PlanoDoSinal, tiposAceitosNoPlano } from '../_shared/plano-do-sinal/index.ts'
-import { planoPorIa } from './planejador-por-ia.ts'
+import { planoPorIa, type ContextoIcp } from './planejador-por-ia.ts'
 import { AVISO_DO_PLANO_INICIAL, planoPorRegra } from './planejador-por-regra.ts'
 
 export type FalhaDoPedido = 'limite' | 'sem_participacao' | 'indisponivel'
@@ -30,6 +30,8 @@ export interface Db {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
   /** begin_signal_plan_request, com a sessão da pessoa. Lança ErroDoPedido quando o banco recusa. */
   abrirPedido(a: { workspaceId: string; authorization: string; apikey: string }): Promise<{ pedidoId: string; tipos: string[] }>
+  /** ICP vigente, lido com a sessão da pessoa; nulo quando não há ICP preenchido. */
+  lerIcp(a: { workspaceId: string; authorization: string; apikey: string }): Promise<ContextoIcp | null>
   /** finish_signal_plan_request: registra como o Plano saiu. Uma falha aqui não derruba a resposta. */
   fecharPedido(a: { workspaceId: string; pedidoId: string; resultado: ResultadoDoPedido; authorization: string; apikey: string }): Promise<void>
 }
@@ -58,6 +60,8 @@ export const MENSAGENS = {
   semTipos: 'Ainda não há Sinais disponíveis para montar um plano.',
   falha: 'Não deu para montar o plano agora. Tente de novo.',
 } as const
+
+const ESPERA_DA_LEITURA_ICP_MS = 2_000
 
 /** A promessa só vale até o prazo; passou dele, o motor é largado e o chamador usa a regra. */
 async function comPrazo<T>(promessa: Promise<T>, ms: number): Promise<T> {
@@ -143,7 +147,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     let motivoDaRegra: 'motor_desligado' | 'saida_invalida' | 'motor_falhou' = 'motor_desligado'
     if (deps.llm) {
       try {
-        plano = await comPrazo(planoPorIa(deps.llm, workspaceId, dados), espera)
+        let icp: ContextoIcp | null = null
+        try {
+          icp = await comPrazo(
+            deps.db.lerIcp({ workspaceId, authorization, apikey }),
+            ESPERA_DA_LEITURA_ICP_MS,
+          )
+        } catch {
+          log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'icp_indisponivel' })
+        }
+        plano = await comPrazo(planoPorIa(deps.llm, workspaceId, dados, icp), espera)
         if (!plano) motivoDaRegra = 'saida_invalida'
       } catch (erro) {
         // O erro real fica só no log técnico, sem texto do modelo nem do fornecedor.
