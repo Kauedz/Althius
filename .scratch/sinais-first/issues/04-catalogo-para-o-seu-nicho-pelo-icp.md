@@ -34,8 +34,8 @@
 - [x] Com ICP preenchido, a prateleira "Para o seu nicho" mostra cards diferentes para Workspaces com ICPs diferentes.
 - [x] Sem ICP preenchido, a prateleira mantém o comportamento de hoje (cards que valem para qualquer nicho, convite a preencher).
 - [x] Nenhuma letra A–H nem termo técnico de cascata aparece na tela.
-- [ ] pgTAP: isolamento por Workspace na leitura cruzada; três `supabase db reset && supabase test db` verdes.
-- [ ] Vitest, lint e build verdes; CI verde nos três jobs.
+- [ ] pgTAP: isolamento por Workspace na leitura cruzada; três `supabase db reset && supabase test db` verdes. Os testes pgTAP deste ticket passaram no job Banco do CI do PR #304; os três `db reset` locais não rodaram (sem Docker no ambiente): coberto pelo job Banco do CI.
+- [x] Vitest, lint e build verdes; CI verde nos três jobs. (CI do PR #304 verde nos três jobs, head 9488b8e)
 
 ## Passos do Nan
 

@@ -36,8 +36,8 @@
 - [x] Uma Candidata trazida por um Sinal de escopo mercado mostra um Nível de Aderência (alto/médio/baixo/sem dado), nunca a nota numérica.
 - [x] O nível é calculado contra o ICP estruturado único do ticket 01; sem ICP preenchido, mostra "sem dado".
 - [x] Nada neste ticket aceita, descarta ou cria Conta-alvo sozinho.
-- [ ] pgTAP: isolamento por Workspace; cálculo determinístico, sem depender de ordem de linhas; três `supabase db reset && supabase test db` verdes.
-- [ ] Vitest, lint e build verdes; CI verde nos três jobs.
+- [ ] pgTAP: isolamento por Workspace; cálculo determinístico, sem depender de ordem de linhas; três `supabase db reset && supabase test db` verdes. Os testes pgTAP deste ticket passaram no job Banco do CI do PR #304; os três `db reset` locais não rodaram (sem Docker no ambiente): coberto pelo job Banco do CI.
+- [x] Vitest, lint e build verdes; CI verde nos três jobs. (CI do PR #304 verde nos três jobs, head 9488b8e)
 
 ## Passos do Nan
 
