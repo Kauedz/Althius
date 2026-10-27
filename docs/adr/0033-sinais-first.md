@@ -20,7 +20,11 @@ As decisões abaixo foram tomadas pelo Renan, proprietário do produto, em 26/10
 
 **D4. O catálogo continua, como Modelos.** Mantém a decisão 4 do corpo da ADR-0032 ("Modelos são planos-semente versionados") e o ticket 11 ("Modelos") de `.scratch/agente-de-sinal/`: cada card do catálogo vira um plano-semente versionado que o composer e a página de Sinais podem usar para abrir um Plano já pronto.
 
+Complemento (Renan, 26/10/2026): os planos-semente versionados dos Modelos são GERADOS A PARTIR DO QUE JÁ EXISTE (catálogo e dados atuais), e não escritos pela equipe Althius.
+
 **D5. Um ICP estruturado único.** Passa a existir um único registro de ICP, estruturado, construído dentro da própria plataforma (preenchido no onboarding, editável depois), que todo o resto lê: ele ranqueia o catálogo ("Para o seu nicho"), alimenta o prompt do `signal-plan`, e o Nível de Aderência (Fit) passa a valer também para as empresas que os Sinais acham no escopo mercado. Editar esse ICP a partir do composer passa pela aprovação do Playbook (Revisão da Memória do Workspace, [ADR-0002](0002-permissoes-ler-propor-executar.md)) — nunca um atalho sem aprovação.
+
+Complemento (Renan, 26/10/2026): os campos do Mini-ICP/produto (`MiniIcpEProduto`: o que a empresa vende, para quem etc.) passam a ser PERGUNTADOS NO ONBOARDING, salvos e levados até a criação do Workspace.
 
 **D6. O preço do Sinal criado pelo composer é o preço de sempre.** Cobrança por Rodada, em créditos, com `quote_signal_schedule`, os tetos e os limites já decididos pelo Kauê em 24/10/2026 (ADR-0032, decisões 2–4, 10, 13–15). Nenhum modelo de preço novo.
 
