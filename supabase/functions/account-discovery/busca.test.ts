@@ -198,6 +198,25 @@ Deno.test('encaixe: todos os critérios batem, nível alto e um motivo por crit�
   assertEquals(a.reasons[1].texto, 'Região: sede em SP.')
 })
 
+Deno.test('encaixe: setor usa atividade declarada, vocabulário e não o nome ou a descrição', () => {
+  const criterios = normalizarCriterios({ setores: ['Logística', 'Corretora de seguros'] })
+  const total = avaliar(candidata({ name: 'Logistica Total', sector: 'IT Services and IT Consulting', description: 'Portal de logística.' }), criterios)
+  const talks = avaliar(candidata({ name: 'Logistica Talks', sector: 'Professional Training and Coaching', description: 'Conteúdo sobre logística.' }), criterios)
+  const truck = avaliar(candidata({ name: 'Logística em tudo', sector: 'Truck Transportation', description: 'Transporte rodoviário.' }), criterios)
+  const insurance = avaliar(candidata({ sector: 'Insurance Agencies and Brokerages' }), criterios)
+  assertEquals(total.reasons.find((m) => m.criterio === 'setor')?.atende, false)
+  assertEquals(talks.reasons.find((m) => m.criterio === 'setor')?.atende, false)
+  assertEquals(truck.reasons.find((m) => m.criterio === 'setor')?.atende, true)
+  assertEquals(insurance.reasons.find((m) => m.criterio === 'setor')?.atende, true)
+})
+
+Deno.test('encaixe: sem setor e sem CNAE, texto editorial deixa Setor sem dado', () => {
+  const a = avaliar(candidata({ sector: undefined, cnae: undefined, description: 'Logística para empresas.' }), normalizarCriterios({ setores: ['Logística'] }))
+  assertEquals(a.reasons.find((m) => m.criterio === 'setor'), {
+    criterio: 'setor', atende: null, texto: 'Setor: a descrição cita "Logística"; a fonte não informou o setor.',
+  })
+})
+
 Deno.test('encaixe: o que não bate pesa contra, pelo peso de cada critério', () => {
   const a = avaliar(
     candidata({ uf: 'RJ', city: 'Rio de Janeiro', location: 'Rio de Janeiro, Brasil' }),
@@ -264,4 +283,27 @@ Deno.test('encaixe: um termo de "excluir" tira a empresa da busca', () => {
   const a = avaliar(candidata({ description: 'Software para o governo e prefeituras.' }), normalizarCriterios({ setores: ['software'], excluir: ['governo'] }))
   assertEquals(a.excluida, true)
   assertEquals(a.reasons[0].texto, 'Tem o termo que o ICP exclui: "governo".')
+})
+
+Deno.test('encaixe: CNAE da Receita em português bate com o setor do ICP', () => {
+  const criterios = normalizarCriterios({ setores: ['Logística'] })
+  const receita = avaliar(candidata({ sector: undefined, cnae: 'Transporte rodoviário de carga, exceto produtos perigosos' }), criterios)
+  assertEquals(receita.reasons.find((m) => m.criterio === 'setor')?.atende, true)
+  const seguros = avaliar(candidata({ sector: 'Corretores e agentes de seguros' }), normalizarCriterios({ setores: ['Corretoras de seguros'] }))
+  assertEquals(seguros.reasons.find((m) => m.criterio === 'setor')?.atende, true)
+})
+
+Deno.test('encaixe: palavra-chave não salva setor declarado que não bate, nem o nome conta', () => {
+  const a = avaliar(
+    candidata({ name: 'Logística Total', sector: 'IT Services and IT Consulting', description: 'Portal de logística.' }),
+    normalizarCriterios({ setores: ['Logística'], palavrasChave: ['logística'] }),
+  )
+  const setor = a.reasons.find((m) => m.criterio === 'setor')
+  assertEquals(setor?.atende, false)
+  assertEquals(setor?.texto, 'Setor: atua em IT Services and IT Consulting; só o nome ou a descrição cita "Logística".')
+})
+
+Deno.test('encaixe: só palavras-chave, sem setor no ICP, ainda batem na descrição', () => {
+  const a = avaliar(candidata({ sector: 'Software Development', description: 'Plataforma de roteirização.' }), normalizarCriterios({ palavrasChave: ['roteirização'] }))
+  assertEquals(a.reasons.find((m) => m.criterio === 'setor')?.atende, true)
 })
