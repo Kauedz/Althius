@@ -45,27 +45,15 @@ function abrir(
 }
 
 describe('Agentes no Workspace operacional', () => {
-  it('a grade mostra os Agentes padrão do Workspace, sem os da Demonstração', async () => {
+  // Sinais first 10: a grade, a criação e a seção "Especialistas" saíram; a / fica só com o composer.
+  it('a / não mostra a grade dos Agentes nem a criação, sem dados da Demonstração', async () => {
     abrir(criarBancoDeAgentes(), '/')
 
-    const grade = await screen.findByRole('list', { name: 'Agentes do Workspace' })
-    expect(within(grade).getAllByRole('link').map((cartao) => cartao.getAttribute('aria-label'))).toEqual([
-      'Scopus',
-      'Ethos',
-      'Rhetor',
-      'Oraculum',
-    ])
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Novo agente' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Especialistas' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Enterprise LATAM|Databricks/)).not.toBeInTheDocument()
-    expect(within(grade).getAllByText('0')).toHaveLength(4)
-    expect(grade).toHaveClass('md:grid-cols-4')
-
-    const scopus = within(grade).getByRole('link', { name: 'Scopus' })
-    expect(within(scopus).getByText('Sem conversas no momento')).toBeInTheDocument()
-    expect(within(scopus).getByText('Sob demanda')).toBeInTheDocument()
-    expect(within(scopus).queryByText(/Define o ICP/)).not.toBeInTheDocument()
-    for (const integracao of ['Apollo', 'Clay', 'HubSpot', 'Lusha']) {
-      expect(within(scopus).getByRole('img', { name: integracao })).toBeInTheDocument()
-    }
   })
 
   it('pedir algo aos Agentes diz que não está disponível, sem composer nem resposta simulada', async () => {
@@ -84,95 +72,47 @@ describe('Agentes no Workspace operacional', () => {
     expect(screen.queryByRole('button', { name: /aderência da OpenAI/ })).not.toBeInTheDocument()
   })
 
-  it('o Administrador cria um Agente, e ele reaparece com a configuração copiada em outra sessão', async () => {
+  it('o Agente criado antes continua com a página só para leitura, sem criar outro nem excluir', async () => {
     const banco = criarBancoDeAgentes()
-    const { usuario } = abrir(banco, '/')
+    banco.agentes.push({ ...structuredClone(banco.agentes[0]), id: 'agente-criado-x', name: 'Scopus · Norte', kind: 'criado', complement: 'Norte' })
+    abrir(banco, '/agentes/agente-criado-x/memoria')
 
-    await usuario.click(await screen.findByRole('button', { name: 'Novo agente' }))
-    await usuario.click(await screen.findByRole('radio', { name: 'Scopus' }))
-    await usuario.type(screen.getByLabelText('Complemento do nome'), 'Enterprise LATAM')
-    await usuario.click(screen.getByRole('button', { name: 'Criar agente' }))
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Scopus · Enterprise LATAM' })).toBeInTheDocument()
-    expect(banco.agentes.map((a) => a.name)).toContain('Scopus · Enterprise LATAM')
-
-    cleanup()
-    window.history.replaceState(null, '', '/')
-    abrir(banco, '/')
-    expect(await screen.findByRole('link', { name: 'Scopus · Enterprise LATAM' })).toBeInTheDocument()
-  })
-
-  it('um nome repetido é recusado com a mensagem do banco, sem criar outro Agente', async () => {
-    const banco = criarBancoDeAgentes()
-    const { usuario } = abrir(banco, '/')
-
-    await usuario.click(await screen.findByRole('button', { name: 'Novo agente' }))
-    await usuario.click(await screen.findByRole('radio', { name: 'Ethos' }))
-    await usuario.type(screen.getByLabelText('Complemento do nome'), 'Comitê')
-    await usuario.click(screen.getByRole('button', { name: 'Criar agente' }))
-    await screen.findByRole('heading', { level: 1, name: 'Ethos · Comitê' })
-
-    await usuario.click(screen.getAllByRole('link', { name: 'Agentes' })[0])
-    await usuario.click(await screen.findByRole('button', { name: 'Novo agente' }))
-    await usuario.click(await screen.findByRole('radio', { name: 'Ethos' }))
-    await usuario.type(screen.getByLabelText('Complemento do nome'), 'comitê')
-    await usuario.click(screen.getByRole('button', { name: 'Criar agente' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Já existe um Agente chamado Ethos · comitê.')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Scopus · Norte' })).toBeInTheDocument()
+    expect(screen.getByText(/Este Agente foi retirado do produto/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Excluir agente|Novo agente|Criar agente/ })).not.toBeInTheDocument()
     expect(banco.agentes.filter((a) => a.kind === 'criado')).toHaveLength(1)
   })
 
-  it('a Permissão por Integração persiste e volta como estava salva, com a Integração não conectada', async () => {
-    const banco = criarBancoDeAgentes()
-    const { usuario } = abrir(banco, '/agentes/agente-scopus/configuracao')
+  it('a Configuração e os Canais saíram da página do Agente e levam à Conversa, sem gravar nada', async () => {
+    for (const secao of ['configuracao', 'canais']) {
+      const banco = criarBancoDeAgentes()
+      const antes = structuredClone(banco.agentes)
+      abrir(banco, `/agentes/agente-scopus/${secao}`)
 
-    const grupo = await screen.findByRole('radiogroup', { name: 'Permissão em HubSpot' })
-    expect(within(grupo).getByRole('radio', { name: 'Propor' })).toBeChecked()
-    expect(screen.getAllByText('Não conectada no Workspace').length).toBeGreaterThan(0)
-
-    await usuario.click(within(grupo).getByRole('radio', { name: 'Ler' }))
-    await usuario.click(screen.getByRole('button', { name: 'Salvar personalização' }))
-    expect(await screen.findByText('Personalização salva.')).toBeInTheDocument()
-    expect(banco.agentes[0].permissions.hubspot).toBe('ler')
-
-    cleanup()
-    window.history.replaceState(null, '', '/')
-    abrir(banco, '/agentes/agente-scopus/configuracao')
-    const depois = await screen.findByRole('radiogroup', { name: 'Permissão em HubSpot' })
-    expect(within(depois).getByRole('radio', { name: 'Ler' })).toBeChecked()
+      expect(await screen.findByRole('heading', { level: 1, name: 'Scopus' })).toBeInTheDocument()
+      await waitFor(() => expect(window.location.pathname).toBe('/agentes/agente-scopus/conversa'))
+      const abas = screen.getByRole('navigation', { name: 'Seções do agente' })
+      expect(within(abas).queryByRole('link', { name: /Configuração|Canais/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('radiogroup', { name: 'Permissão em HubSpot' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Salvar personalização|Excluir agente/ })).not.toBeInTheDocument()
+      expect(banco.agentes).toEqual(antes)
+      cleanup()
+      window.history.replaceState(null, '', '/')
+    }
   })
 
-  it('o Agente padrão não oferece exclusão, e o criado é excluído com confirmação', async () => {
-    const banco = criarBancoDeAgentes()
-    abrir(banco, '/agentes/agente-scopus/configuracao')
-
-    await screen.findByRole('heading', { level: 1, name: 'Scopus' })
-    expect(screen.queryByRole('button', { name: 'Excluir agente' })).not.toBeInTheDocument()
-
-    cleanup()
-    banco.agentes.push({ ...structuredClone(banco.agentes[0]), id: 'agente-criado-x', name: 'Scopus · Norte', kind: 'criado', complement: 'Norte' })
-    window.history.replaceState(null, '', '/')
-    const segunda = abrir(banco, '/agentes/agente-criado-x/configuracao')
-    await segunda.usuario.click(await screen.findByRole('button', { name: 'Excluir agente' }))
-    await segunda.usuario.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Excluir' }))
-
-    await waitFor(() => expect(banco.agentes.map((a) => a.id)).not.toContain('agente-criado-x'))
-    expect(await screen.findByRole('list', { name: 'Agentes do Workspace' })).toBeInTheDocument()
-  })
-
-  it('o Membro consulta os Agentes e a configuração, sem criar, excluir nem alterar', async () => {
+  it('o Membro vê a / e a página do Agente como o Administrador: nada para criar, excluir nem alterar', async () => {
     const banco = criarBancoDeAgentes()
     abrir(banco, '/', 'member')
 
-    expect(await screen.findByRole('list', { name: 'Agentes do Workspace' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Novo agente' })).not.toBeInTheDocument()
 
     cleanup()
     window.history.replaceState(null, '', '/')
-    abrir(banco, '/agentes/agente-scopus/configuracao', 'member')
-    expect(await screen.findByText(/Só Administradores alteram a configuração dos Agentes/)).toBeInTheDocument()
-    expect(within(await screen.findByRole('radiogroup', { name: 'Permissão em HubSpot' })).getByRole('radio', { name: 'Ler' })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: 'Salvar personalização' })).not.toBeInTheDocument()
+    abrir(banco, '/agentes/agente-scopus/memoria', 'member')
+    expect(await screen.findByText(/Este Agente foi retirado do produto/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Salvar personalização|Excluir agente/ })).not.toBeInTheDocument()
   })
 
   it('as Rotinas dizem que ficam salvas mas ainda não rodam', async () => {
@@ -185,33 +125,5 @@ describe('Agentes no Workspace operacional', () => {
     abrir(criarBancoDeAgentes(), '/agentes/agente-scopus/atividade')
 
     expect(await screen.findByText(/Scopus não executou nada neste Workspace/)).toBeInTheDocument()
-  })
-
-  it('os Canais e as Integrações não escolhidos aparecem como não conectados, sem aceitar conexão simulada', async () => {
-    abrir(criarBancoDeAgentes(), '/agentes/agente-scopus/canais')
-
-    const slack = (await screen.findByText('Slack')).closest('li')!
-    expect(within(slack).getByText('Canal não conectado no Workspace.')).toBeInTheDocument()
-    expect(within(slack).getByRole('switch')).toHaveAttribute('aria-disabled', 'true')
-  })
-
-  it('com o Canal Slack ativo no Workspace, o Administrador liga o Slack no Agente e a Personalização grava', async () => {
-    const banco = criarBancoDeAgentes()
-    const { usuario } = abrir(banco, '/agentes/agente-scopus/canais', 'admin', {
-      slack_channel_status: (p) => {
-        expect(p).toEqual({ p_workspace_id: NORTE.id })
-        return [{ state: 'ativo', team_name: 'Norte no Slack' }]
-      },
-    })
-
-    const slack = (await screen.findByText('Slack')).closest('li')!
-    expect(within(slack).getByText('Mencione um Agente em qualquer canal ou thread.')).toBeInTheDocument()
-    const teams = screen.getByText('Microsoft Teams').closest('li')!
-    expect(within(teams).getByRole('switch')).toHaveAttribute('aria-disabled', 'true')
-
-    await usuario.click(within(slack).getByRole('switch'))
-
-    await waitFor(() => expect(banco.agentes.find((a) => a.id === 'agente-scopus')!.channels).toEqual(['slack']))
-    await waitFor(() => expect(within(slack).getByRole('switch')).toHaveAttribute('aria-checked', 'true'))
   })
 })

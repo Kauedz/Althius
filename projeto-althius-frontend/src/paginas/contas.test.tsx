@@ -20,10 +20,11 @@ describe('Aba Contas (ponta a ponta)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Contas' })).toBeInTheDocument()
   })
 
-  it('a página inicial continua sendo a grade de Agentes', async () => {
+  it('a página inicial continua sendo a dos Agentes, só com o composer (Sinais first 10)', async () => {
     renderizarApp('/')
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
-    expect(await screen.findByRole('list', { name: 'Agentes do Workspace' })).toBeInTheDocument()
+    expect(await screen.findByRole('form', { name: 'Pedido aos agentes' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()
   })
 
   it('a aba Contas mostra o título, a descrição, a contagem "N contas" e a tabela com as sete colunas nessa ordem', async () => {

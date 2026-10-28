@@ -1,5 +1,5 @@
 // O selo do Agente não promete conversa que o Workspace não tem: com as Conversas indisponíveis, o Agente ocioso diz
-// "Sem conversas no momento" na grade, na página dele e na barra lateral; com elas disponíveis, diz "Disponível".
+// "Sem conversas no momento" na página dele (a grade e a barra lateral de Agentes saíram no Sinais first 10); com elas disponíveis, diz "Disponível".
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
@@ -45,28 +45,28 @@ function abrir(rota: string, conversasDisponiveis: boolean) {
 }
 
 describe('O selo do Agente e as Conversas', () => {
-  it('com as Conversas indisponíveis, nenhum card diz "Disponível"', async () => {
-    abrir('/', false)
-
-    const grade = await screen.findByRole('list', { name: 'Agentes do Workspace' })
-    expect(within(grade).getAllByText('Sem conversas no momento')).toHaveLength(4)
-    expect(screen.queryByText('Disponível')).not.toBeInTheDocument()
-  })
-
-  it('com as Conversas indisponíveis, a página do Agente e a barra lateral também não dizem "Disponível"', async () => {
+  // A grade e a seção "Especialistas" da barra lateral saíram (Sinais first 10): o selo fica só na página, agora só leitura.
+  it('com as Conversas indisponíveis, a página do Agente não diz "Disponível", e a barra lateral não lista Agentes', async () => {
     abrir('/agentes/agente-scopus/memoria', false)
 
     expect(await screen.findByText('Sem conversas no momento')).toBeInTheDocument()
     expect(screen.queryByText('Disponível')).not.toBeInTheDocument()
-    const lateral = screen.getByRole('link', { name: /Scopus/ })
-    expect(lateral.querySelector('[title]')).toHaveAttribute('title', 'Sem conversas no momento')
+    const lateral = screen.getByRole('complementary', { name: 'Navegação' })
+    expect(within(lateral).queryByRole('link', { name: /Scopus/ })).not.toBeInTheDocument()
   })
 
-  it('com as Conversas disponíveis, o Agente ocioso segue "Disponível"', async () => {
+  it('com as Conversas disponíveis, o Agente ocioso segue "Disponível" na página dele', async () => {
+    abrir('/agentes/agente-scopus/memoria', true)
+
+    expect(await screen.findByText('Disponível')).toBeInTheDocument()
+    expect(screen.queryByText('Sem conversas no momento')).not.toBeInTheDocument()
+  })
+
+  it('a / não mostra a grade de Agentes com selo', async () => {
     abrir('/', true)
 
-    const grade = await screen.findByRole('list', { name: 'Agentes do Workspace' })
-    expect(await within(grade).findAllByText('Disponível')).toHaveLength(4)
-    expect(screen.queryByText('Sem conversas no momento')).not.toBeInTheDocument()
+    expect(await screen.findByRole('form', { name: 'Pedido aos agentes' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Disponível')).not.toBeInTheDocument()
   })
 })

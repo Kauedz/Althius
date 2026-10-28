@@ -13,6 +13,7 @@ import { SECOES_DO_PLAYBOOK, type ConteudoDoPlaybook, type IdDaSecaoDoPlaybook }
 import { podeDecidir } from '@/fonte/regras'
 import type { AprovacaoDeRevisaoDoPlaybook, Decisao, Papel } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
+import { DecidirEmAprovacoes, useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 const nomeDaSecaoDoPlaybook = (secao: IdDaSecaoDoPlaybook) =>
   SECOES_DO_PLAYBOOK.find((s) => s.id === secao)?.nome ?? secao
@@ -116,6 +117,7 @@ function DecisaoDaRevisao({
   const dados = useDados((f) => f.participantesDoWorkspace(), [])
   const [erro, setErro] = useState('')
   const [decidindo, setDecidindo] = useState(false)
+  const somenteLeitura = useSomenteLeituraDoAgente()
 
   if (aprovacao.estado !== 'pendente') {
     const quemDecidiu = dados?.participantes.find((p) => p.conta.id === aprovacao.revisao.decididaPor)?.conta.nome
@@ -125,6 +127,7 @@ function DecisaoDaRevisao({
       </span>
     )
   }
+  if (somenteLeitura) return <DecidirEmAprovacoes />
   if (papel === undefined) return null
   if (!podeDecidir('revisao-da-memoria', papel)) {
     return <p className="text-xs text-al-muted">Só um Administrador decide esta Aprovação.</p>

@@ -20,7 +20,8 @@ afterEach(() => {
 
 type Evento = { seq: number; kind: string; agent_id: string | null; payload: Record<string, unknown> }
 
-function abrir(rota: string, eventos: Evento[]) {
+/** `salva`: a Conversa direta com o Rhetor já existia (de antes do Sinais first 10) e terminou com os `eventos`. */
+function abrir(rota: string, eventos: Evento[], salva = false) {
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', NORTE.id)
   window.history.replaceState(null, '', rota)
@@ -37,8 +38,10 @@ function abrir(rota: string, eventos: Evento[]) {
       bootstrap_personal_workspace: () => PESSOAL,
       list_owned_sender_accounts: () => [],
       ...rpcsDeAgentes(criarBancoDeAgentes()),
-      list_agent_conversations: () => [],
-      get_agent_conversation: () => ({ runs: [] }),
+      list_agent_conversations: () => (salva ? [{ id: 'conv-r', kind: 'agente', agent_id: 'agente-rhetor' }] : []),
+      get_agent_conversation: () => (salva
+        ? { runs: [{ id: 'run-0', request_text: 'Leve a Acme ao HubSpot', status: 'succeeded', events: eventos }] }
+        : { runs: [] }),
       get_agent_run_events: () => ({ status: 'succeeded', error_code: null, events: eventos }),
     },
     funcoes: {
@@ -91,8 +94,9 @@ describe('Os passos das ferramentas dos Agentes na Conversa', () => {
     expect(within(agentes).getByRole('link', { name: 'Ver a Aprovação' })).toHaveAttribute('href', '/aprovacoes')
   })
 
+  // A página do Agente ficou só leitura (Sinais first 10): a Conversa salva mostra os passos como eram.
   it('na página do Agente, o passo leva à Aprovação; um link de tipo desconhecido não aparece', async () => {
-    const { usuario } = abrir('/agentes/agente-rhetor/conversa', [
+    abrir('/agentes/agente-rhetor/conversa?conversa=conv-r', [
       {
         seq: 1,
         kind: 'ferramenta',
@@ -106,10 +110,7 @@ describe('Os passos das ferramentas dos Agentes na Conversa', () => {
         payload: { descricao: 'Rhetor leu as Contas-alvo (3 Contas)', estado: 'concluida', link: { tipo: 'outro' } },
       },
       { seq: 3, kind: 'texto', agent_id: 'agente-rhetor', payload: { texto: 'Propus o envio; depende da Aprovação.' } },
-    ])
-
-    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' }), 'Leve a Acme ao HubSpot')
-    await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
+    ], true)
 
     expect(await screen.findByText('Propus o envio; depende da Aprovação.')).toBeInTheDocument()
     expect(screen.getByText('Rhetor propôs enviar a Acme ao HubSpot — aguardando Aprovação')).toBeInTheDocument()

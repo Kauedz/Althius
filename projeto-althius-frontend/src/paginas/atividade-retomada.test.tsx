@@ -1,5 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RaizDoAplicativo } from '@/raiz'
 import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
@@ -18,7 +17,8 @@ afterEach(() => {
 })
 
 describe('Atividade de Execuções', () => {
-  it('a falha mostra o motivo, e Tentar de novo cria e mostra uma Execução nova', async () => {
+  // Sinais first 10: a Atividade do Agente retirado é só leitura; o motivo da falha segue visível, sem Tentar de novo.
+  it('a falha mostra o motivo, sem Tentar de novo nem nova Execução', async () => {
     localStorage.setItem('althius:modo_demo', 'false')
     sessionStorage.setItem('althius:workspace', NORTE.id)
     window.history.replaceState(null, '', '/agentes/agente-scopus/atividade')
@@ -58,47 +58,12 @@ describe('Atividade de Execuções', () => {
         },
       },
     })
-    const usuario = userEvent.setup()
     render(<RaizDoAplicativo cliente={cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
 
     expect(await screen.findByText(/não pegou o pedido em até 10 minutos/)).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: 'Tentar de novo' }))
-    expect(await screen.findByText('Nova Execução na fila.')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getAllByText('Resuma o mercado')).toHaveLength(2))
-    expect(chamadasDeRetomada).toHaveLength(1)
-    expect(chamadasDeRetomada[0]).toMatchObject({ p_run_id: 'execucao-falha' })
-  })
-
-  it('mostra quando não foi possível tentar de novo', async () => {
-    localStorage.setItem('althius:modo_demo', 'false')
-    sessionStorage.setItem('althius:workspace', NORTE.id)
-    window.history.replaceState(null, '', '/agentes/agente-scopus/atividade')
-    const { cliente } = criarSupabaseFalso({
-      sessao: sessaoDe(MARINA),
-      tabelas: {
-        workspaces: [PESSOAL, NORTE],
-        workspace_memberships: [
-          { workspace_id: PESSOAL.id, role: 'admin', user_id: MARINA.id, active: true },
-          { workspace_id: NORTE.id, role: 'admin', user_id: MARINA.id, active: true },
-        ],
-      },
-      rpcs: {
-        bootstrap_personal_workspace: () => PESSOAL,
-        list_owned_sender_accounts: () => [],
-        ...rpcsDeAgentes(criarBancoDeAgentes(), 'admin'),
-        list_agent_run_attention: () => [{
-          id: 'execucao-falha', agent_id: 'agente-scopus', agent_name: 'Scopus', conversation_id: 'conversa-1',
-          trigger_kind: 'rotina', status: 'failed', request_text: 'Resuma o mercado', result_text: null,
-          error_code: 'timeout_queued', created_at: new Date().toISOString(), started_at: null,
-          finished_at: new Date().toISOString(), retry_of: null, retried_by: null,
-        }],
-        retry_agent_run: () => { throw new Error('indisponível') },
-      },
-    })
-    const usuario = userEvent.setup()
-    render(<RaizDoAplicativo cliente={cliente} servicos={criarServicosDoNavegadorFalsos().servicos} />)
-
-    await usuario.click(await screen.findByRole('button', { name: 'Tentar de novo' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível tentar de novo agora.')
+    expect(screen.getAllByText('Resuma o mercado')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).not.toBeInTheDocument()
+    expect(chamadasDeRetomada).toEqual([])
+    expect(retomou).toBe(false)
   })
 })
