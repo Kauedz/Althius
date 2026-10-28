@@ -90,7 +90,7 @@ export function Composer({
   const [menuAberto, setMenuAberto] = useState(false)
   const [conexoesAbertas, setConexoesAbertas] = useState(false)
   const integracoes = useDados((f) => (mostrarConexoes ? f.integracoes() : Promise.resolve([])), [mostrarConexoes])
-  const conectadas = (integracoes ?? []).filter((integracao) => integracao.conectada)
+  const conectadas = (Array.isArray(integracoes) ? integracoes : []).filter((integracao) => integracao.conectada)
   const barra = useRef<HTMLDivElement>(null)
   const [arrastando, setArrastando] = useState(false)
   const mencao = useMencao(texto, setTexto, agentes)
