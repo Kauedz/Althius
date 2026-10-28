@@ -191,9 +191,9 @@ describe('Sinais internos no catálogo do Workspace operacional', () => {
     abrir('/sinais')
 
     const catalogo = await screen.findByRole('region', { name: 'Catálogo de sinais' })
-    expect(await within(catalogo).findByRole('link', { name: /Ausência de resposta/ })).toHaveAttribute('href', '/sinais/tipos/sem-resposta')
-    expect(within(catalogo).getByRole('link', { name: /Negociação parada/ })).toHaveAttribute('href', '/sinais/tipos/negociacao-parada')
-    expect(within(catalogo).getByRole('link', { name: /Proposta recusada/ })).toHaveAttribute('href', '/sinais/tipos/proposta-recusada')
+    expect(await within(catalogo).findByRole('link', { name: /Ausência de resposta/ })).toHaveAttribute('href', '/sinais/novo?modelo=sem-resposta')
+    expect(within(catalogo).getByRole('link', { name: /Negociação parada/ })).toHaveAttribute('href', '/sinais/novo?modelo=negociacao-parada')
+    expect(within(catalogo).getByRole('link', { name: /Proposta recusada/ })).toHaveAttribute('href', '/sinais/novo?modelo=proposta-recusada')
     expect(screen.queryByText('Disponível')).not.toBeInTheDocument()
     expect(screen.queryByText('Em breve')).not.toBeInTheDocument()
   })

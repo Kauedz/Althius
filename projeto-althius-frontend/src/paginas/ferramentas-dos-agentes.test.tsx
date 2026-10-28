@@ -81,7 +81,7 @@ describe('Os passos das ferramentas dos Agentes na Conversa', () => {
       },
     ])
 
-    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Ache contas e leve ao CRM')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode achar contas e levar ao CRM?')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
     const agentes = await screen.findByRole('list', { name: 'Agentes chamados' })

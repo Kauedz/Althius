@@ -16,7 +16,7 @@ import {
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import { FAMILIAS, tipoPorId } from './catalogo'
-import { CATALOGO_VISIVEL, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
+import { CATALOGO_VISIVEL, correspondeBuscaDoCatalogo, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { GRADE_DE_CARTOES } from './cascatas'
 import { usePodeDescreverSinal } from './pode-descrever-sinal'
@@ -158,7 +158,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
     if (!termo) return true
     const nomes = nomesDosNichos(card.nichos).join(' ')
     const familia = FAMILIAS.find((item) => item.id === card.familiaId)?.nome ?? ''
-    return normalizar(`${card.nome} ${card.frase} ${familia} ${nomes}`).includes(termo)
+    return correspondeBuscaDoCatalogo(normalizar(`${card.nome} ${card.frase} ${familia} ${nomes}`), termo)
   })
   const familiasDoCatalogo = FAMILIAS.filter((familia) => cards.some((card) => card.familiaId === familia.id))
   const idsExclusivos = new Set(exclusivos.map((card) => card.id))
@@ -353,7 +353,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
           <section aria-label="Catálogo de sinais">
             <ul className={GRADE_DE_CARTOES}>
               {visiveis.map((card) => (
-                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} />
+                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} abrirModelo />
               ))}
             </ul>
           </section>

@@ -80,18 +80,22 @@ export function CartaoDaVitrine({
   ativos,
   selo,
   estado,
+  abrirModelo = false,
+  mostrarAtivos = true,
   className,
 }: {
   card: CardDoCatalogo
   ativos: number
   selo?: string
   estado?: EstadoDoCard
+  abrirModelo?: boolean
+  mostrarAtivos?: boolean
   className?: string
 }) {
   return (
     <li className={cn('min-w-0', className)}>
       <Link
-        to={`/sinais/tipos/${card.id}`}
+        to={abrirModelo ? `/sinais/novo?modelo=${encodeURIComponent(card.id)}` : `/sinais/tipos/${card.id}`}
         // O clip-path arredondado segura os cantos enquanto a capa cresce no hover: só com overflow-hidden, o navegador
         // anima a capa numa camada própria e os cantos ficam quadrados até a animação acabar.
         className="group flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-al-line bg-al-surface [clip-path:inset(0_round_var(--radius-card))] transition-colors hover:border-al-accent"
@@ -113,10 +117,12 @@ export function CartaoDaVitrine({
           <NichosDoCard card={card} />
           {estado && <SelosDoEstado estado={estado} />}
           <div className="mt-auto flex w-full items-end justify-between gap-3 pt-2">
-            <span className="rotulo inline-flex items-center gap-2 text-al-ink">
-              {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
-              {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
-            </span>
+            {mostrarAtivos ? (
+              <span className="rotulo inline-flex items-center gap-2 text-al-ink">
+                {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
+                {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
+              </span>
+            ) : <span />}
             <span
               className="grid size-8 place-items-center rounded-full border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
               aria-hidden

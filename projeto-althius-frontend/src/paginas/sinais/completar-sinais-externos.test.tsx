@@ -27,9 +27,9 @@ describe('Ticket 05: Completar os sinais externos', () => {
     const card = screen.getByRole('link', { name: /Avaliações no Google Maps/ })
     await usuario.click(card)
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Avaliações no Google Maps' })).toBeInTheDocument()
-    expect(screen.getByText('Externo')).toBeInTheDocument()
-    expect(screen.getByText('Reputação e concorrência')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Revisar Modelo' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Tipo de Sinal' })).toHaveValue('avaliacoes_google_maps')
+    expect(screen.getByText('Modelo · versão 1')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/\b[A-H] ·/)
   })
 
