@@ -46,7 +46,7 @@ export function frasePorExtensoDoSinal(sinal: SinalDoMotivo): string {
 /** A primeira frase do aviso depois de aceitar: a Conta e os Sinais que vieram com ela. */
 function baseDoAviso(nome: string, r: ResultadoDoAceite): string {
   const sinais = r.sinaisMigrados > 0 ? ` com ${r.sinaisMigrados} ${r.sinaisMigrados === 1 ? 'Sinal' : 'Sinais'}` : ''
-  return `${nome} agora é uma Conta-alvo${sinais}.`
+  return r.created ? `${nome} agora é uma Conta-alvo${sinais}.` : `${nome} já era uma Conta-alvo${sinais}.`
 }
 
 /** O que a pessoa lê depois de aceitar, e o que aconteceu com o Comitê (o aceite confere o saldo e o limite do mês). */
@@ -263,14 +263,24 @@ export function PaginaDescobertas() {
       setAvisoDeAceite(avisoDoAceite(candidata.nome, resultado))
       recarregarLista()
       // O Comitê só dispara se o saldo e o limite do mês permitem (o aceite confere); senão a Conta fica com "Enriquecer Comitê".
+      let aviso = avisoDoAceite(candidata.nome, resultado)
       if (resultado.comite === 'liberado' && fonteDeContas.buscarComite) {
-        const base = baseDoAviso(candidata.nome, resultado)
         try {
           const comite = await fonteDeContas.buscarComite(resultado.targetAccountId)
-          setAvisoDeAceite(`${base} Comitê de compra: ${comite.novas} ${comite.novas === 1 ? 'pessoa sugerida' : 'pessoas sugeridas'} para abordagem.`)
-        } catch {
-          setAvisoDeAceite(`${base} Não foi possível enriquecer o Comitê agora: use Enriquecer Comitê na Conta.`)
+          aviso = `${baseDoAviso(candidata.nome, resultado)} Comitê de compra: ${comite.novas} ${comite.novas === 1 ? 'pessoa sugerida' : 'pessoas sugeridas'} para abordagem.`
+        } catch (e) {
+          aviso = `${baseDoAviso(candidata.nome, resultado)} Não foi possível enriquecer o Comitê agora: use Enriquecer Comitê na Conta.${e instanceof Error && e.message ? ` Motivo: ${e.message}.` : ''}`
         }
+        setAvisoDeAceite(aviso)
+      }
+      if (candidata.cnpj && fonteDeContas.enriquecerReceita) {
+        try {
+          await fonteDeContas.enriquecerReceita(resultado.targetAccountId, candidata.cnpj)
+          aviso += ' Dados da Receita: ok.'
+        } catch (e) {
+          aviso += ` Dados da Receita: não foi possível consultar agora.${e instanceof Error && e.message ? ` Motivo: ${e.message}.` : ''}`
+        }
+        setAvisoDeAceite(aviso)
       }
     } catch (e) {
       setErroAcao(e instanceof Error ? e.message : 'Não foi possível aceitar a candidata.')
