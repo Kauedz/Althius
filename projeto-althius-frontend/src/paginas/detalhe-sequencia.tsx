@@ -996,7 +996,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             {/* canais-11: a Conta remetente caiu. Reconectar não retoma; depois, a pessoa retoma quando quiser. */}
             {sequencia.pausadaPelaContaRemetente && (
               <Link
-                to="/configuracoes/perfil"
+                to="/conexoes"
                 className="rounded-md inline-flex h-8 items-center border border-al-ink bg-al-ink px-3 text-sm tracking-[0.04em] text-al-bg hover:opacity-90"
               >
                 Reconectar
@@ -2389,6 +2389,14 @@ function RodapeDoEnvio({
       {aviso && (
         <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
           {aviso.texto}
+          {aviso.tipo === 'atencao' && /Conta remetente/.test(aviso.texto) && (
+            <>
+              {' '}
+              <Link to="/conexoes" className="underline underline-offset-2">
+                Abrir Canais de envio
+              </Link>
+            </>
+          )}
         </span>
       )}
     </>
@@ -2505,6 +2513,14 @@ function PainelDosEnvios({
       {aviso && (
         <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
           {aviso.texto}
+          {aviso.tipo === 'atencao' && /Conta remetente/.test(aviso.texto) && (
+            <>
+              {' '}
+              <Link to="/conexoes" className="underline underline-offset-2">
+                Abrir Canais de envio
+              </Link>
+            </>
+          )}
         </span>
       )}
     </section>
