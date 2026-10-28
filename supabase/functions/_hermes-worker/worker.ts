@@ -278,6 +278,22 @@ export interface WorkerDeps {
    * compartilhado. Sem elas, o Agente só lê as Contas-alvo das instruções, como antes.
    */
   ferramentas?: DepsDasFerramentas
+  /**
+   * Fase 7 (HERMES_CANAL_PELO_AGENTE=true): o pedido do Slack ou do WhatsApp vai para o agente único no app. O worker não
+   * chama o Hermes: responde no Canal com o link do pedido, e a pessoa confere e envia na `/` com a sessão dela.
+   */
+  canalPeloAgente?: { appOrigin: string }
+}
+
+/** O link da `/` que abre o pedido do Canal no agente único (a tela lê o texto por `get_my_channel_request`). */
+export function linkDoPedidoDoCanal(appOrigin: string, runId: string): string {
+  return `${appOrigin.replace(/\/+$/, '')}/?pedido_do_canal=${encodeURIComponent(runId)}`
+}
+
+/** A resposta no Canal: o pedido segue no app, onde nada roda sem a confirmação da pessoa. */
+export function respostaDoCanalPeloAgente(appOrigin: string, runId: string): string {
+  return 'Recebi o pedido. Para eu fazer isso com o seu acesso e pedir a sua confirmação antes de qualquer ação, ' +
+    `continue no Althius: ${linkDoPedidoDoCanal(appOrigin, runId)}`
 }
 
 export function createWorker(deps: WorkerDeps) {
@@ -501,6 +517,17 @@ export function createWorker(deps: WorkerDeps) {
         if (!reservada) continue
         // Os anexos do pedido (PR-10) entram como texto: o Hermes não recebe imagem, só o nome dela.
         // A Execução do Canal (slack-canal 03) segue só com o Agente do fio, e o anexo continua no pedido.
+        if (deps.canalPeloAgente && (reservada as Reserva & { trigger_kind?: string }).trigger_kind === 'canal') {
+          try {
+            await registrador(db, runId).resposta(respostaDoCanalPeloAgente(deps.canalPeloAgente.appOrigin, runId))
+            await db.finish(runId, 'succeeded', null, null)
+            log({ type: 'hermes_worker', runId, origin: reservada.origin, outcome: 'canal_pelo_agente' })
+          } catch (error) {
+            await falhar(runId, 'internal_error', String(error))
+          }
+          feitos++
+          continue
+        }
         const reserva = soComOAgenteDoFio(reservaComAnexos(reservada, await lerAnexos(db, runId, log, 'hermes_worker')))
         // Sem saber se há chave do cliente, a Execução não roda: seria cobrada como se usasse o modelo dele.
         let comChaveDoCliente = false

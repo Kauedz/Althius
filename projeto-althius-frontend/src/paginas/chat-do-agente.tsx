@@ -13,7 +13,7 @@ import { tempoRelativo } from '@/conversa/tempo-relativo'
 import {
   type CartaoDoAgente, type ConversaDoAgente, type EmpresaDoCartao, type EscolhaDoCartao, type FonteDoAgente,
   type PassoDoAgente, type ResumoDaConversaDoAgente, type TurnoDoAgente, turnoEmAndamento, ErroDoAgente,
-  type DivergenciaDoIcp,
+  type DivergenciaDoIcp, type PedidoDoCanal,
 } from '@/fonte/agente-tipos'
 import { useAmbiente, useFonteDoAgente } from '@/fonte/contexto'
 import { cn, mensagemDeErro } from '@/lib/utils'
@@ -63,6 +63,23 @@ export function PaginaChatDoAgente() {
   const [carregando, setCarregando] = useState(Boolean(conversaId))
   const [verHistorico, setVerHistorico] = useState(false)
   const fim = useRef<HTMLDivElement>(null)
+  const execucaoDoCanal = parametros.get('pedido_do_canal')
+  const [pedidoDoCanal, setPedidoDoCanal] = useState<PedidoDoCanal | null>(null)
+
+  // Fase 7: o link da resposta no Slack ou no WhatsApp. Mostra o pedido para a pessoa conferir; nada vai ao agente sem ela.
+  useEffect(() => {
+    if (!execucaoDoCanal) return
+    let ativo = true
+    fonte.pedidoDoCanal(execucaoDoCanal)
+      .then((p) => ativo && setPedidoDoCanal(p))
+      .catch(() => ativo && setAviso('Não encontrei este pedido. Ele é de outra pessoa ou já não está neste Workspace.'))
+    return () => { ativo = false }
+  }, [fonte, execucaoDoCanal])
+
+  const tirarPedidoDoCanal = useCallback(() => {
+    setPedidoDoCanal(null)
+    setParametros((p) => { const n = new URLSearchParams(p); n.delete('pedido_do_canal'); return n }, { replace: true })
+  }, [setParametros])
 
   const recarregarHistorico = useCallback(() => {
     fonte.conversas().then(setHistorico).catch(() => setHistorico([]))
@@ -213,6 +230,25 @@ export function PaginaChatDoAgente() {
       <div className="rodape-da-conversa">
         {erro && <div className="pb-3"><Mensagem tipo="erro">{erro}</Mensagem></div>}
         {aviso && <div className="pb-3"><Mensagem tipo="info">{aviso}</Mensagem></div>}
+        {pedidoDoCanal && (
+          <section aria-label={`Pedido recebido pelo ${nomeDoCanal(pedidoDoCanal.origem)}`} className="mb-3 rounded-md border border-al-line p-3 text-sm">
+            <p className="text-xs text-al-muted">Pedido recebido pelo {nomeDoCanal(pedidoDoCanal.origem)}. Confira antes de enviar ao agente.</p>
+            <p className="mt-1 whitespace-pre-wrap text-al-ink">{pedidoDoCanal.texto}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={BOTAO_PRIMARIO}
+                disabled={ocupado || semMotor}
+                onClick={() => { const t = pedidoDoCanal.texto; tirarPedidoDoCanal(); void enviar(t) }}
+              >
+                Enviar ao agente
+              </button>
+              <button type="button" className={BOTAO_SECUNDARIO} onClick={tirarPedidoDoCanal}>
+                Descartar
+              </button>
+            </div>
+          </section>
+        )}
         {vazia && (
           <div className="flex flex-wrap gap-2 pb-3">
             {SUGESTOES.map((s) => (
@@ -436,6 +472,8 @@ function CartaoNaTela({ cartao, passo, fonte, agir, ocupado }: { cartao: CartaoD
       return null
   }
 }
+
+const nomeDoCanal = (origem: string) => (origem === 'whatsapp' ? 'WhatsApp' : origem === 'slack' ? 'Slack' : 'Canal')
 
 const ROTULO_DO_CAMPO: Record<DivergenciaDoIcp['campo'], string> = { setor: 'Setor', porte: 'Porte', regiao: 'Região' }
 

@@ -90,6 +90,10 @@ const worker = createWorker({
   hermes,
   // Cada Agente numa chamada própria, na sua vez e em rodadas. HERMES_UMA_CHAMADA=true volta ao modo de uma chamada só.
   porAgente: Deno.env.get('HERMES_UMA_CHAMADA') !== 'true',
+  // Fase 7: HERMES_CANAL_PELO_AGENTE=true (com APP_ORIGIN) leva o pedido do Slack e do WhatsApp ao agente único no app.
+  ...(Deno.env.get('HERMES_CANAL_PELO_AGENTE') === 'true' && Deno.env.get('APP_ORIGIN')
+    ? { canalPeloAgente: { appOrigin: Deno.env.get('APP_ORIGIN')! } }
+    : {}),
 })
 
 // As classificações dos Sinais têm a volta própria: um pedido de Agente pode levar minutos no Hermes, e a Edge Function só

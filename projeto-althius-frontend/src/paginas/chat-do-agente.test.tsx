@@ -92,4 +92,47 @@ describe('A tela inicial é a conversa com o agente', () => {
     expect(within(proposta).getAllByText('Sugerido: o do CRM')).toHaveLength(2)
     expect(within(proposta).getByText(/Ainda não salvo/)).toBeInTheDocument()
   })
+  it('o link de um pedido do Slack mostra o pedido para conferir; só vai ao agente quando a pessoa envia', async () => {
+    let enviados: string[] = []
+    const { usuario } = renderizarAppCom('/?pedido_do_canal=run-do-slack', {
+      agente: (f): FonteDoAgente => ({
+        ...f,
+        pedidoDoCanal: async (id) => {
+          expect(id).toBe('run-do-slack')
+          return { texto: 'Mostre o ICP salvo do Workspace', origem: 'slack' }
+        },
+        enviar: async (texto, c) => { enviados = [...enviados, texto]; return f.enviar(texto, c) },
+      }),
+    })
+    const pedido = await screen.findByRole('region', { name: 'Pedido recebido pelo Slack' })
+    expect(within(pedido).getByText('Mostre o ICP salvo do Workspace')).toBeInTheDocument()
+    expect(enviados).toEqual([])
+    await usuario.click(within(pedido).getByRole('button', { name: 'Enviar ao agente' }))
+    expect(await screen.findByRole('region', { name: 'Pedido: Mostre o ICP salvo do Workspace' })).toBeInTheDocument()
+    expect(enviados).toEqual(['Mostre o ICP salvo do Workspace'])
+    expect(screen.queryByRole('region', { name: 'Pedido recebido pelo Slack' })).not.toBeInTheDocument()
+  })
+
+  it('descartar o pedido do Canal não envia nada', async () => {
+    let enviados = 0
+    const { usuario } = renderizarAppCom('/?pedido_do_canal=run-do-whats', {
+      agente: (f): FonteDoAgente => ({
+        ...f,
+        pedidoDoCanal: async () => ({ texto: 'Ache empresas de logística', origem: 'whatsapp' }),
+        enviar: async (texto, c) => { enviados++; return f.enviar(texto, c) },
+      }),
+    })
+    const pedido = await screen.findByRole('region', { name: 'Pedido recebido pelo WhatsApp' })
+    await usuario.click(within(pedido).getByRole('button', { name: 'Descartar' }))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Pedido recebido pelo WhatsApp' })).not.toBeInTheDocument())
+    expect(enviados).toBe(0)
+  })
+
+  it('um link de pedido do Canal que não é seu avisa sem quebrar a tela', async () => {
+    renderizarAppCom('/?pedido_do_canal=de-outra-pessoa', {
+      agente: (f): FonteDoAgente => ({ ...f, pedidoDoCanal: async () => { throw new ErroDoAgente('x', 'nao_encontrado') } }),
+    })
+    expect(await screen.findByText('Não encontrei este pedido. Ele é de outra pessoa ou já não está neste Workspace.')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Peça algo ao agente' })).toBeInTheDocument()
+  })
 })
