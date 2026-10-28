@@ -4,7 +4,7 @@ import { renderizarApp } from '@/test/renderizar'
 
 describe('Espelho e Fecho da Demo (Ticket 10)', () => {
   it('roteiro demo fecha ponta a ponta: Sinal quente -> Conversa -> Participantes -> Documento -> Conta -> Lista sem divergência', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     // 1. Ponto de partida: Grade de Agentes continua sendo a home
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
@@ -137,7 +137,7 @@ describe('Espelho e Fecho da Demo (Ticket 10)', () => {
   })
 
   it('editar na Conversa reflete imediatamente no detalhe da Conta e na Lista Global', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     // Gera a sequência na Conversa
     await usuario.click(
@@ -227,7 +227,7 @@ describe('Espelho e Fecho da Demo (Ticket 10)', () => {
     // Navega para a grade de Agentes e depois para Contas comprovando convivência perfeita
     const navWorkspace = screen.getByRole('navigation', { name: 'Workspace' })
     await usuario.click(within(navWorkspace).getByRole('link', { name: 'Agentes' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
 
     await usuario.click(within(navWorkspace).getByRole('link', { name: 'Contas e Contatos' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Contas' })).toBeInTheDocument()

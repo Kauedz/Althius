@@ -5,7 +5,7 @@ import { renderizarApp, renderizarAppNoNavegador } from '@/test/renderizar'
 
 describe('Aprovação simulada pós-documento (Ticket 08)', () => {
   it('após gravar a sequência na Conversa, surge Aprovação pendente identificando Conta-alvo e sequência', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     // Inicia fluxo coordenado a partir da sugestão de sinal quente
     await usuario.click(
@@ -59,7 +59,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
   })
 
   it('aprovar na Conversa marca como aprovada e registra na Atividade sem disparar envio externo', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
 
     await usuario.click(
       await screen.findByRole('button', {
@@ -104,7 +104,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
   })
 
   it('a Aprovação gerada aparece na Fila de Aprovações (/aprovacoes) e pode ser rejeitada sem side-effects', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
 
     await usuario.click(
       await screen.findByRole('button', {
@@ -172,7 +172,7 @@ describe('Aprovação simulada pós-documento (Ticket 08)', () => {
   })
 
   it('Conta com 1 Contato (Okta) também propõe Aprovação pós-documento identificando Conta e Sequência', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     await usuario.click(
       await screen.findByRole('button', {

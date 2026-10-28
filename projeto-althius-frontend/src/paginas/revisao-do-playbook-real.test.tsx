@@ -11,6 +11,9 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
+// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
+window.history.replaceState(null, '', '/conversa')
+
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
@@ -18,7 +21,7 @@ const ANA = 'usuario-ana'
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/conversa')
   sessionStorage.clear()
 })
 
@@ -193,7 +196,7 @@ describe('A revisão do Playbook na fila de Aprovações', () => {
 describe('A revisão do Playbook no passo da Conversa', () => {
   // Desde o Sinais first 10 a Conversa direta com o Scopus é só leitura: o pedido novo vai pela Coordenação da /.
   it('a Conversa mostra a proposta e o estado dela, e o Administrador aprova ali mesmo', async () => {
-    const { usuario, decisoes } = abrir('/', 'admin')
+    const { usuario, decisoes } = abrir('/conversa', 'admin')
     await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode ajustar o ICP?')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 

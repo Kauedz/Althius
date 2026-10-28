@@ -128,7 +128,7 @@ describe('Workspace operacional e Demonstração', () => {
   })
 
   it.each([
-    ['/', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Enterprise LATAM'],
+    ['/', 'O que você quer prospectar hoje?', 'Enterprise LATAM'],
     ['/agentes/agente-scopus/conversa', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Peça algo a Scopus'],
     ['/conversa', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Peça algo aos agentes'],
     ['/contas', 'Nenhuma Conta-alvo ainda.', 'OpenAI'],
@@ -1412,7 +1412,7 @@ describe('Primeiro acesso depois do fechamento do acesso', () => {
       tabelas: { workspace_memberships: [participacao('ws-norte')] },
     })
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Trocar de Workspace' })).toBeInTheDocument()
   })
 
@@ -1443,7 +1443,7 @@ describe('Primeiro acesso depois do fechamento do acesso', () => {
     expect(screen.queryByText('connection reset')).not.toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: 'Tentar novamente' }))
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
@@ -1559,7 +1559,7 @@ describe('Cadastro com senha', () => {
     await usuario.click(screen.getByRole('button', { name: 'Confirmar' }))
 
     expect(await within(await screen.findByRole('complementary', { name: 'Navegação' })).findByText('Operacional')).toBeInTheDocument()
-    expect(screen.getByText('Marina Souza')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(versoesAceitas).toEqual([VERSAO_DOS_TERMOS])
     expect(window.location.pathname).toBe('/')
   })
@@ -1576,7 +1576,7 @@ describe('Cadastro com senha', () => {
     expect(new URL(linkEnviadoPara(MARINA.email)!).pathname).toBe(`/convite/${PREFIXO_DO_CONVITE}${MARINA.email}`)
 
     act(() => abrirLinkDeConfirmacao(MARINA.email))
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   it('o link do e-mail abre o Workspace pessoal, e não a Demonstração, num navegador que nunca escolheu o Workspace operacional', async () => {
@@ -1593,7 +1593,7 @@ describe('Cadastro com senha', () => {
     supabase.abrirLinkDeConfirmacao(MARINA.email)
     render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
   })
 
@@ -1694,7 +1694,7 @@ describe('Cadastro com senha', () => {
 
     await supabase.usuario.type(screen.getByLabelText('Código de 6 dígitos'), supabase.codigoEnviadoPara(MARINA.email)!)
     await supabase.usuario.click(screen.getByRole('button', { name: 'Confirmar' }))
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   it('"Reenviar código" só fica disponível depois do intervalo mínimo, que a tela mostra', async () => {
@@ -1788,7 +1788,7 @@ describe('Entrar com senha ou com código', () => {
 
     await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
   })
 
@@ -1823,7 +1823,7 @@ describe('Entrar com senha ou com código', () => {
     await usuario.type(campo, codigoEnviadoPara(MARINA.email)!)
     await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   it('"Entrar com código" não cria Conta de usuário e responde igual para um e-mail desconhecido', async () => {
@@ -1889,7 +1889,7 @@ describe('Workspace de entrada depois do login', () => {
     // Removida do Workspace da empresa, cai no pessoal e não vê nada do Workspace anterior.
     tabelas.workspace_memberships[0].active = false
     await entrarNumaAbaNova(tabelas)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'conta-do-norte' })).not.toBeInTheDocument()
   })
 })
@@ -2044,7 +2044,7 @@ describe('Esqueci a senha', () => {
     expect(screen.queryByRole('complementary', { name: 'Navegação' })).not.toBeInTheDocument()
     await definirNovaSenha(usuario)
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
     expect(sessoesAbertasDe(MARINA.email)).toHaveLength(1)
     expect(sessoesAbertasDe(MARINA.email)).not.toContain(noCelular)
@@ -2056,7 +2056,7 @@ describe('Esqueci a senha', () => {
     await usuario.clear(screen.getByLabelText('E-mail'))
     await usuario.clear(screen.getByLabelText('Senha'))
     await entrarComSenha(usuario, MARINA.email, NOVA_SENHA)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   it('o link do e-mail, aberto neste navegador, também leva à nova senha e depois ao destino lembrado', async () => {
@@ -2076,7 +2076,7 @@ describe('Esqueci a senha', () => {
     render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
 
     await definirNovaSenha(supabase.usuario)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/sinais')
   })
 
@@ -2096,7 +2096,7 @@ describe('Esqueci a senha', () => {
     render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
 
     await definirNovaSenha(supabase.usuario)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(within(navegacao()).getByText('Operacional')).toBeInTheDocument()
   })
 
@@ -2109,7 +2109,7 @@ describe('Esqueci a senha', () => {
     await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
     await definirNovaSenha(usuario)
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   // "Require current password when updating" no Supabase Auth (CRM-08): a sessão aberta pelo código ou pelo link de
@@ -2126,11 +2126,11 @@ describe('Esqueci a senha', () => {
     await usuario.type(await screen.findByLabelText('Código de 6 dígitos'), codigoEnviadoPara(MARINA.email)!)
     await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
     await definirNovaSenha(usuario)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: 'Sair' }))
     await entrarComSenha(usuario, MARINA.email, NOVA_SENHA)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   it('com a senha atual exigida pelo Supabase Auth, o link do e-mail também leva à nova senha', async () => {
@@ -2146,7 +2146,7 @@ describe('Esqueci a senha', () => {
     render(<RaizDoAplicativo cliente={supabase.cliente} servicos={supabase.servicos} />)
 
     await definirNovaSenha(supabase.usuario)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   it('/redefinir-a-senha sem link válido explica e oferece pedir outro', async () => {
@@ -2217,7 +2217,7 @@ describe('Bloqueio de senhas vazadas', () => {
     expect(screen.getByRole('heading', { name: 'Defina uma nova senha' })).toBeInTheDocument()
 
     await salvarNovaSenha(supabase.usuario, BOA)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(contas[0].senha).toBe(BOA)
   })
 
@@ -2236,7 +2236,7 @@ describe('Bloqueio de senhas vazadas', () => {
     const redefinicao = abrirAlthius({ ultimoAmbiente: 'real', contas, navegador: { consultaDeVazadas: 'falha' } })
     await chegarANovaSenha(redefinicao)
     await salvarNovaSenha(redefinicao.usuario, BOA)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(contas[0].senha).toBe(BOA)
   })
 
@@ -2331,14 +2331,14 @@ describe('Continuar com Google', () => {
     await waitFor(() => expect(google.oneTapVisivel()).toBe(true))
     act(() => google.aceitarOneTap())
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(contasDoAuthCom(MARINA.email)).toEqual([MARINA.id])
     expect(google.oneTapVisivel()).toBe(false)
 
     // A senha continua valendo para a mesma conta, e o Workspace pessoal não se repete.
     await usuario.click(screen.getByRole('button', { name: 'Sair' }))
     await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(contasDoAuthCom(MARINA.email)).toEqual([MARINA.id])
     expect(tabelas.workspace_memberships).toEqual([participacao(WORKSPACE_PESSOAL_DA_MARINA.id)])
   })
@@ -2353,7 +2353,7 @@ describe('Continuar com Google', () => {
     expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
   })
 
   it('quem se cadastrou com Google define uma senha pelo "Esqueci a senha" e entra com ela na mesma Conta de usuário', async () => {
@@ -2363,7 +2363,7 @@ describe('Continuar com Google', () => {
 
     await usuario.click(await botaoDoGoogle())
     act(() => google.escolherConta(MARINA_NO_GOOGLE))
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     const [contaDoGoogle] = contasDoAuthCom(MARINA.email)
     await usuario.click(screen.getByRole('button', { name: 'Sair' }))
 
@@ -2374,11 +2374,11 @@ describe('Continuar com Google', () => {
     await usuario.click(screen.getByRole('button', { name: 'Confirmar código' }))
     await usuario.type(await screen.findByLabelText('Nova senha'), NOVA_SENHA)
     await usuario.click(screen.getByRole('button', { name: 'Salvar nova senha' }))
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: 'Sair' }))
     await entrarComSenha(usuario, MARINA.email, NOVA_SENHA)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(contasDoAuthCom(MARINA.email)).toEqual([contaDoGoogle])
     expect(tabelas.workspace_memberships).toEqual([participacao(WORKSPACE_PESSOAL_DA_MARINA.id)])
   })
@@ -2390,7 +2390,7 @@ describe('Continuar com Google', () => {
       navegador: { google: { contaNoNavegador: MARINA_NO_GOOGLE } },
     })
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(google.vezesIniciado()).toBe(0)
     expect(google.oneTapVisivel()).toBe(false)
   })
@@ -2433,7 +2433,7 @@ describe('CAPTCHA invisível', () => {
     window.history.replaceState(null, '', '/entrar')
     const login = abrirAlthius({ ultimoAmbiente: 'real', contas: [CONTA_DA_MARINA], exigeCaptcha: true, navegador: { captcha: 'ligado' } })
     await entrarComSenha(login.usuario, MARINA.email, CONTA_DA_MARINA.senha)
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
 
     expect(captchasPedidos()).toEqual(['cadastro'])
     expect(captchasRecebidos()).toEqual([{ chamada: 'signUp', token: 'token-captcha-1' }])
@@ -2483,7 +2483,7 @@ describe('CAPTCHA invisível', () => {
     expect(captchasRecebidos()).toEqual([])
 
     await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(captchasRecebidos()).toEqual([{ chamada: 'signInWithPassword', token: 'token-captcha-2' }])
   })
 
@@ -2527,7 +2527,7 @@ describe('CAPTCHA invisível', () => {
     await usuario.click(await screen.findByRole('button', { name: 'Continuar com Google' }))
     act(() => google.escolherConta({ email: MARINA.email, nome: 'Marina Souza' }))
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(captchasPedidos()).toEqual(['login_com_google'])
     expect(captchasRecebidos()).toEqual([{ chamada: 'signInWithIdToken', token: 'token-captcha-1' }])
   })
@@ -2554,7 +2554,7 @@ describe('CAPTCHA invisível', () => {
 
     await entrarComSenha(usuario, MARINA.email, CONTA_DA_MARINA.senha)
 
-    expect(await screen.findByText('Marina Souza')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Workspace: Marina Souza' })).toBeInTheDocument()
     expect(captchasPedidos()).toEqual([])
     expect(captchasRecebidos()).toEqual([{ chamada: 'signInWithPassword', token: undefined }])
   })

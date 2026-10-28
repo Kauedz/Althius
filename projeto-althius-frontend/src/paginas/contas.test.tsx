@@ -4,7 +4,7 @@ import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 describe('Aba Contas (ponta a ponta)', () => {
   it('o item "Contas e Contatos" aparece na seção Workspace da sidebar acima de Agentes e abre a aba Contas', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     const nav = screen.getByRole('navigation', { name: 'Workspace' })
     const links = within(nav).getAllByRole('link')
@@ -21,7 +21,7 @@ describe('Aba Contas (ponta a ponta)', () => {
   })
 
   it('a página inicial continua sendo a dos Agentes, só com o composer (Sinais first 10)', async () => {
-    renderizarApp('/')
+    renderizarApp('/conversa')
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(await screen.findByRole('form', { name: 'Pedido aos agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()

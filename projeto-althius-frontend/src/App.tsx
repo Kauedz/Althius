@@ -20,10 +20,13 @@ import {
   FonteDeAutomacaoProvider,
   FonteDoPlaybookProvider,
   FonteDeDescobertasProvider,
+  FonteDoAgenteProvider,
   FonteProvider,
 } from '@/fonte/contexto'
 import { PaginaAgente } from '@/paginas/agente'
 import { PaginaAgentes } from '@/paginas/agentes'
+import { Pagina } from '@/components/pagina'
+import { PaginaChatDoAgente } from '@/paginas/chat-do-agente'
 import { PaginaAprovacoes } from '@/paginas/aprovacoes'
 import { PaginaConexoes } from '@/paginas/conexoes'
 import { PaginaConfiguracoes } from '@/paginas/configuracoes/pagina-configuracoes'
@@ -60,7 +63,9 @@ export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }:
       <Route path="onboarding" element={<TelaDoModulo modulo="onboarding" quandoIndisponivel={<Navigate to="/" replace />}><PaginaOnboarding /></TelaDoModulo>} />
       <Route element={<EntradaNaCasca />}>
         <Route element={<Casca />}>
-          <Route index element={<TelaDoModulo modulo="agentes" titulo="Agentes" icone={Bot}><PaginaAgentes /></TelaDoModulo>} />
+          <Route index element={<PaginaInicial />} />
+          {/* A tela inicial antiga (pedido aos Agentes) fica aqui até a fatia 3d tirá-la. */}
+          <Route path="agentes" element={<TelaDoModulo modulo="agentes" titulo="Agentes" icone={Bot}><PaginaAgentes /></TelaDoModulo>} />
           <Route path="contas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
           <Route path="contas/descobertas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaDescobertas /></TelaDoModulo>} />
           <Route path="contas/importar" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaImportarContas /></TelaDoModulo>} />
@@ -107,6 +112,7 @@ export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }:
                     <FonteDoPlaybookProvider fonte={ambiente.fonteDoPlaybook ?? PLAYBOOK_INDISPONIVEL}>
                     <FonteDeAutomacaoProvider fonte={ambiente.fonteDeAutomacao ?? AUTOMACAO_INDISPONIVEL}>
                     <FonteDeDescobertasProvider fonte={ambiente.fonteDeDescobertas}>
+                    <FonteDoAgenteProvider fonte={ambiente.fonteDoAgente}>
                       <SinaisDoMockupProvider>
                         <ConversasProvider animarDigitacao={animarDigitacao}>
                           <ContextoDasPosicoesDasListas.Provider value={posicoesDasListas}>
@@ -125,6 +131,7 @@ export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }:
                           </ContextoDasPosicoesDasListas.Provider>
                         </ConversasProvider>
                       </SinaisDoMockupProvider>
+                    </FonteDoAgenteProvider>
                     </FonteDeDescobertasProvider>
                     </FonteDeAutomacaoProvider>
                     </FonteDoPlaybookProvider>
@@ -159,6 +166,15 @@ function TelaDoModulo({
   const { disponivel } = useAmbiente()
   if (disponivel(modulo)) return children
   return quandoIndisponivel ?? <PaginaDeModuloIndisponivel modulo={modulo} titulo={titulo} icone={icone} />
+}
+
+/** A tela inicial: a conversa com o agente único (Fase 3). */
+function PaginaInicial() {
+  return (
+    <Pagina titulo="Agente" icone={Bot} className="flex-1 pb-0">
+      <PaginaChatDoAgente />
+    </Pagina>
+  )
 }
 
 function SinaisNaCasca() {

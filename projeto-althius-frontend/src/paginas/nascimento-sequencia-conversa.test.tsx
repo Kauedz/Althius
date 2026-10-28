@@ -4,7 +4,7 @@ import { renderizarApp } from '@/test/renderizar'
 
 describe('Nascimento de Sequência na Conversa (Ticket 07)', () => {
   it('o roteiro oferece a sequência e exige confirmação humana antes de gravar na fonte', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     // Sugestão clicável na página inicial de Agentes
     const botaoSugestao = await screen.findByRole('button', {
@@ -40,7 +40,7 @@ describe('Nascimento de Sequência na Conversa (Ticket 07)', () => {
   })
 
   it('o Rhetor sugere participantes e a confirmação humana altera a lista antes de persistir', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     await usuario.click(
       await screen.findByRole('button', {
@@ -110,7 +110,7 @@ describe('Nascimento de Sequência na Conversa (Ticket 07)', () => {
   })
 
   it('o documento na Conversa usa a mesma sequência da fonte que o detalhe e espelha alterações', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     await usuario.click(
       await screen.findByRole('button', {
@@ -160,7 +160,7 @@ describe('Nascimento de Sequência na Conversa (Ticket 07)', () => {
   })
 
   it('Conta com 1 Contato no roteiro ainda consegue nascer sequência', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     // Sugestão clicável para Conta com 1 Contato (Okta)
     const botaoOkta = await screen.findByRole('button', {

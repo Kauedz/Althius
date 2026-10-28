@@ -32,7 +32,7 @@ async function definirPermissao(fonte: FonteDeAgentes, id: AgenteId, integracao:
 
 describe('Página de Agentes (/)', () => {
   it('mostra o composer da Coordenação, sem a grade dos 9 Agentes nem os cartões deles', async () => {
-    renderizarApp('/')
+    renderizarApp('/conversa')
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(await composerDaRaiz()).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()
@@ -43,7 +43,7 @@ describe('Página de Agentes (/)', () => {
   })
 
   it('não tem painel de métricas, barra de comando nem busca', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await composerDaRaiz()
     expect(screen.queryByRole('region', { name: 'Painel' })).not.toBeInTheDocument()
     expect(screen.queryByText('Horas economizadas')).not.toBeInTheDocument()
@@ -72,7 +72,7 @@ describe('Página de Agentes (/)', () => {
 
 describe('Casca', () => {
   it('a sidebar tem o Workspace e o selo de demonstração, sem a seção de Especialistas', async () => {
-    renderizarApp('/')
+    renderizarApp('/conversa')
     const sidebar = await screen.findByRole('complementary', { name: 'Navegação' })
     expect(await within(sidebar).findByText('Databricks')).toBeInTheDocument()
     expect(within(sidebar).getByText('Demonstração')).toBeInTheDocument()
@@ -106,7 +106,7 @@ describe('Casca', () => {
 
 describe('Criar e excluir Agente', () => {
   it('não há mais como criar Agente: nem Novo agente na / nem na página de um Agente', async () => {
-    const { fonte } = renderizarApp('/')
+    const { fonte } = renderizarApp('/conversa')
     await composerDaRaiz()
     expect(screen.queryByRole('button', { name: 'Novo agente' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Novo agente' })).not.toBeInTheDocument()
@@ -283,7 +283,7 @@ describe('Conexões e Aprovações', () => {
 
 describe('Tema', () => {
   it('começa no claro e troca para o escuro pelo menu do usuário', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await composerDaRaiz()
     expect(document.documentElement.dataset.theme).toBe('claro')
     await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
@@ -293,19 +293,19 @@ describe('Tema', () => {
 
   it('um tema gravado no navegador volta na abertura seguinte', () => {
     localStorage.setItem('althius:tema', 'escuro')
-    renderizarApp('/')
+    renderizarApp('/conversa')
     expect(document.documentElement.dataset.theme).toBe('escuro')
   })
 
   it('a escolha de tema persiste depois de a app ser remontada', async () => {
-    const { usuario, unmount } = renderizarApp('/')
+    const { usuario, unmount } = renderizarApp('/conversa')
     await composerDaRaiz()
     await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
     await usuario.click(await screen.findByRole('menuitem', { name: 'Tema escuro' }))
     expect(document.documentElement.dataset.theme).toBe('escuro')
 
     unmount()
-    renderizarApp('/')
+    renderizarApp('/conversa')
     expect(document.documentElement.dataset.theme).toBe('escuro')
   })
 })
@@ -358,7 +358,7 @@ async function voltarPeloNavegador() {
 
 describe('Composer e Coordenação', () => {
   it('o composer fica na /, com o Workspace, sem as Especialidades e com o Enviar apagado', async () => {
-    renderizarApp('/')
+    renderizarApp('/conversa')
     const composer = await composerDaRaiz()
     expect(await within(composer).findByText('Databricks')).toBeInTheDocument()
     expect(within(composer).queryByRole('list', { name: 'Especialidades disponíveis' })).not.toBeInTheDocument()
@@ -366,7 +366,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('o pedido da OpenAI chama Scopus, Ethos e Rhetor, consolida e termina numa Aprovação no HubSpot', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
 
     const aprovacao = await screen.findByRole('article', { name: /Aprovação pendente: Criar sequência de 3 e-mails/ })
@@ -387,7 +387,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('com a Permissão Executar no HubSpot, o Rhetor age sem pedir Aprovação', async () => {
-    const { usuario, fonte } = renderizarApp('/')
+    const { usuario, fonte } = renderizarApp('/conversa')
     await composerDaRaiz()
     await definirPermissao(fonte, 'rhetor', 'hubspot', 'executar')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
@@ -396,7 +396,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('com a Permissão Ler no HubSpot, o Rhetor não age e nada é alterado', async () => {
-    const { usuario, fonte } = renderizarApp('/')
+    const { usuario, fonte } = renderizarApp('/conversa')
     await composerDaRaiz()
     await definirPermissao(fonte, 'rhetor', 'hubspot', 'ler')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
@@ -405,7 +405,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('texto livre sem @ recebe resposta direta, sem chamar nenhum Agente', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await pedirNoComposer(usuario, 'o que é ICP?')
     expect(await screen.findByText(/ICP é o perfil da empresa/)).toBeInTheDocument()
     await coordenacaoTerminada()
@@ -415,7 +415,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('um @Agente digitado no composer é sempre incluído, e o Agente criado pelo nome completo no lugar do padrão', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await pedirNoComposer(usuario, '@Scopus · Enterprise LATAM e o Nubank?')
     await screen.findByRole('region', { name: 'Resposta consolidada' })
     await coordenacaoTerminada()
@@ -425,7 +425,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('no pedido roteirizado, o Agente criado mencionado substitui o padrão, e outro mencionado também é chamado', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await pedirNoComposer(usuario, '@Scopus · Enterprise LATAM @Oraculum monte a abordagem completa para a OpenAI?')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
@@ -433,7 +433,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('o trabalho de cada Agente chamado entra na Atividade dele com o gatilho Coordenação', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
@@ -448,7 +448,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('a Conversa coordenada continua depois de abrir um Agente e voltar', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
     await pedirNoComposer(usuario, 'o que é ICP?')
     await screen.findByText(/ICP é o perfil da empresa/)
     await coordenacaoTerminada()
@@ -457,7 +457,7 @@ describe('Composer e Coordenação', () => {
     await composerDaRaiz()
     navegarPara('/agentes/oraculum')
     await screen.findByRole('heading', { level: 1, name: 'Oraculum' })
-    await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
+    navegarPara('/agentes')
 
     await composerDaRaiz()
     expect(screen.queryByRole('region', { name: 'Conversa coordenada em andamento' })).not.toBeInTheDocument()
@@ -469,7 +469,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('o pedido do Perplexity, pela sugestão, chama o Oraculum e o Rhetor e consolida', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await pedirPelaSugestao(usuario, 'Como estamos no Perplexity e o que publicar?')
     await screen.findByRole('region', { name: 'Resposta consolidada' })
     await coordenacaoTerminada()
@@ -483,7 +483,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('o composer continua a Conversa, só com o chip do Workspace', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await pedirNoComposer(usuario, 'o que é ICP?')
     const composer = screen.getByRole('form', { name: 'Continuar a Conversa' })
     expect(within(composer).getByText('Databricks')).toBeInTheDocument()
@@ -495,7 +495,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('um pedido seguinte aparece abaixo da resposta anterior e continua a partir dela', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
@@ -525,7 +525,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('a continuação chama o mesmo Agente criado que trabalhou no pedido anterior', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     await pedirNoComposer(usuario, '@Rhetor · Sequências outbound monte a abordagem completa para a OpenAI?')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
@@ -537,7 +537,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('o trabalho da continuação e do pedido do Perplexity entra na Atividade com o gatilho Coordenação', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
     await pedirPelaSugestao(usuario, 'Como estamos no Perplexity e o que publicar?')
     await screen.findByRole('region', { name: 'Resposta consolidada' })
     await coordenacaoTerminada()
@@ -580,7 +580,7 @@ describe('Composer e Coordenação', () => {
 // Os números esperados são os da demo mais as Execuções do teste (ex.: Rhetor tem 244 na demo).
 describe('Execuções', () => {
   it('um pedido coordenado aumenta em 1 as execuções de cada Agente chamado; o que o Agente executa sozinho não conta', async () => {
-    const { usuario, fonte } = renderizarApp('/')
+    const { usuario, fonte } = renderizarApp('/conversa')
     await composerDaRaiz()
     await definirPermissao(fonte, 'rhetor', 'hubspot', 'executar')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
@@ -607,7 +607,7 @@ describe('Gatilho das ações', () => {
   })
 
   it('a Aprovação da Coordenação, decidida na página da Conversa, entra na Atividade com o gatilho Coordenação', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     const aprovacao = await screen.findByRole('article', { name: /Aprovação pendente: Criar sequência de 3 e-mails/ })
     await coordenacaoTerminada()
@@ -619,7 +619,7 @@ describe('Gatilho das ações', () => {
   })
 
   it('a Aprovação da Coordenação, decidida na fila, entra na Atividade com o gatilho Coordenação', async () => {
-    const { usuario } = renderizarAppNoNavegador('/')
+    const { usuario } = renderizarAppNoNavegador('/conversa')
     await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     await screen.findByRole('article', { name: /Aprovação pendente: Criar sequência de 3 e-mails/ })
     await coordenacaoTerminada()

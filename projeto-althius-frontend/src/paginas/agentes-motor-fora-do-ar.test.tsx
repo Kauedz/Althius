@@ -6,13 +6,16 @@ import { criarBancoDeAgentes, rpcsDeAgentes, type BancoDeAgentes } from '@/test/
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
+// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
+window.history.replaceState(null, '', '/conversa')
+
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/conversa')
   sessionStorage.clear()
 })
 
@@ -46,7 +49,7 @@ function abrir(
 }
 
 describe('Conversas com o motor fora do ar', () => {
-  it.each(['/', '/conversa'])('explica a indisponibilidade em %s sem composer nem fornecedor', async (rota) => {
+  it.each(['/conversa'])('explica a indisponibilidade em %s sem composer nem fornecedor', async (rota) => {
     abrir(criarBancoDeAgentes(), rota)
     expect(await screen.findByText('O motor dos Agentes está fora do ar agora. Tente de novo em alguns minutos.')).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
