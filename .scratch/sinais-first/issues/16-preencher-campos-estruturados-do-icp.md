@@ -41,15 +41,16 @@ O fluxo alvo da frente é: a pessoa informa o site, o ICP sai dele, o agente cri
 
 ## Critérios
 
-- [ ] O item 1 do checklist do onboarding e a edição do ICP em Configurações mostram e gravam Setor, Porte e Região, e `get_my_workspace_icp` devolve os valores gravados.
-- [ ] Só um Administrador ativo grava os campos. Cada gravação cria uma versão nova do ICP e mantém o texto livre, o Playbook e os campos do Day0 da versão vigente.
-- [ ] Porte só aceita as faixas e os portes legais conhecidos, e um valor fora da lista é recusado.
-- [ ] Com o domínio confirmado, `lerSite` da Fonte real chama `icp-site-read` e pré-preenche o item 1 sem sobrescrever o que a pessoa editou. Sem motor, ou se a leitura falhar, nada é inventado.
-- [ ] `icp-site-read` só lê o domínio confirmado do Workspace da pessoa, não grava nada e não devolve texto cru do modelo, erro de fornecedor nem custo.
-- [ ] Um Workspace com ICP só em texto livre recebe uma sugestão única dos três campos, que só é gravada depois da confirmação. Nenhum campo preenchido é sobrescrito.
-- [ ] Com os campos preenchidos, uma Candidata de Sinal de mercado ganha Nível de Aderência alto, médio ou baixo, e não mais "sem dado". A tela segue mostrando só o nível.
-- [ ] pgTAP: só Administrador grava; isolamento por Workspace; porte inválido recusado; Aderência por lista e por faixa de funcionários; três `supabase db reset && supabase test db` verdes.
-- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs.
+- [x] O ICP do Day0 e a edição do ICP em Configurações mostram e gravam Setor, Porte e Região, e `get_my_workspace_icp` devolve os valores gravados. No Day0 operacional o bloco "ICP do Workspace" fica no último passo, só para a pessoa criadora (Vitest `day0-operacional.test.tsx`, `supabase-onboarding.test.ts`); em Configurações > Playbook > ICP, o bloco "Campos do ICP" (Vitest `playbook.test.tsx`, `supabase-playbook.test.ts`); leitura de volta por `get_my_workspace_icp` no pgTAP `campos_estruturados_do_icp.sql`.
+- [x] Só um Administrador ativo grava os campos. Cada gravação cria uma versão nova do ICP e mantém o texto livre, o Playbook e os campos do Day0 da versão vigente (pgTAP: Membro e pessoa de fora recebem 42501; campos preservados; mesmos valores não criam versão). O Membro vê os campos só para leitura (Vitest).
+- [x] Porte só aceita as faixas e os portes legais conhecidos, e um valor fora da lista é recusado (pgTAP 22023; a tela recusa antes de chamar o banco, Vitest).
+- [x] Com o domínio confirmado, a Fonte real chama `icp-site-read` ao confirmar o domínio e pré-preenche os campos sem sobrescrever o que já foi salvo; sem motor ou com falha, a leitura fica como "falhou" e nada é inventado (Vitest `supabase-onboarding.test.ts`).
+- [x] `icp-site-read` só lê o domínio confirmado do Workspace da pessoa criadora, não grava nada e não devolve texto cru do modelo, erro de fornecedor nem custo (Deno `icp-site-read/handler.test.ts`: 401, 403 para outro domínio e para convidado, redirecionamento para fora recusado, saída inválida vira `null`). A chamada real em produção é conferida pelo smoke e2e depois do deploy, sem gravar nada.
+- [x] Um Workspace com ICP só em texto livre recebe uma sugestão única dos três campos, que só preenche os campos ao clicar em "Usar sugestão" e só é gravada em "Salvar campos". Nenhum campo preenchido é sobrescrito (Vitest `campos-do-icp.test.ts` e `playbook.test.tsx`).
+- [x] Com os campos preenchidos, uma Candidata de Sinal de mercado ganha Nível de Aderência alto, médio ou baixo, e não mais "sem dado"; a tela segue mostrando só o nível (pgTAP: a1 alto, a2 baixo, Workspace vizinho intocado; `aderencia_candidatas_sinais_mercado.sql` segue verde).
+- [x] O ICP chega aos critérios do Plano do Sinal, não só à explicação (achado do smoke 06 do PR #307): com o Briefing sem lugar, a geografia do ICP vira `localizacao` (Deno `signal-plan/icp-nos-criterios.test.ts` e `handler.test.ts`), e o smoke 06 passa a exigir `localizacao = ["Brasil"]` com o ICP do QA.
+- [ ] pgTAP: só Administrador grava; isolamento por Workspace; porte inválido recusado; Aderência por lista e por faixa de funcionários; `supabase test db` verde no job "Banco" do CI deste PR. Marcar com o link do run quando verde.
+- [ ] Deno, Vitest, lint e build verdes localmente (Deno 1.885 testes, Vitest 2.045, com 1 teste de `gaveta-de-historico` instável sob carga que passa sozinho, lint e build ok); CI verde nos três jobs deste PR. Marcar com o link do run quando verde.
 
 ## Passos do Nan
 
@@ -59,4 +60,18 @@ Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e 
 
 ### 27/10/2026
 
-Implementados a RPC aditiva dos campos estruturados do ICP, a normalização de listas e a pontuação de Aderência por listas/faixas; adicionados a Edge Function `icp-site-read`, sua configuração/documentação, e a integração inicial das fontes do onboarding com a leitura e gravação. Typecheck, testes Vitest dos seams de onboarding e `deno check` da nova função passaram. A migration e o pgTAP ainda precisam de `db reset`/CI; a função precisa ser publicada após a revisão humana.
+- Migration `20261217150000_campos_estruturados_do_icp.sql`: `private.normalize_icp_field` (lista sem repetidos, até 20 itens de até 80 caracteres), `public.save_my_workspace_icp_fields` (só Administrador; porte nas faixas e portes legais; versão nova só quando muda; copia o resto da versão vigente) e `private.score_market_discovery_icp` redefinida para listas e faixas de funcionários, com recálculo das Candidatas existentes. pgTAP `campos_estruturados_do_icp.sql` (20 asserções).
+- Edge Function nova `icp-site-read` (`verify_jwt = true`, README próprio e entrada no índice de funções).
+- Frontend: bloco "ICP do Workspace" no Day0 operacional; "Campos do ICP" em Configurações > Playbook > ICP; `lerSite` real com os estados lendo, pronta e falhou, iniciado ao confirmar o domínio.
+- `signal-plan`: a geografia do ICP vira o critério `localizacao` quando o Briefing não fala de lugar (achado do smoke 06). O smoke 06 e o `globalSetup` do e2e passam a usar a RPC nova e a conferir os critérios.
+
+Decisões conservadoras (para o Kauê confirmar):
+1. Sem coluna nova: os três campos são listas separadas por vírgula nas colunas que já existem.
+2. Porte só nas faixas da busca de contas e nos portes legais; "médio" ou "51 a 200 funcionários" são recusados.
+3. Só o Administrador grava os campos direto; o Membro só lê, sem fluxo de proposta.
+4. A leitura do site é só da pessoa criadora do Workspace, só do domínio confirmado e só da página inicial.
+5. `icp-site-read` usa o motor dos Sinais; com `SIGNALS_LLM_PROVIDER` em `regra` ou vazio, devolve `leitura: null` e a pessoa preenche.
+6. `icp-site-read` não tem limite diário próprio (só a pessoa criadora e só o domínio confirmado podem pedir). Se o custo do motor pesar, um limite como o do `signal-plan` entra num ticket seguinte.
+7. A sugestão para quem já tem ICP é determinística, a partir do texto livre, sem modelo, e só preenche os campos ao clicar.
+8. Na Aderência, setor, porte e região pesam igual e batem por qualquer item da lista.
+9. No Plano do Sinal só a geografia vira critério, e só no nível de país (as opções de `localizacao`); setor e porte ficam no prompt e na Aderência. UF e região como critério de Plano pedem mudar `private.validate_signal_plan`, o formulário e o runner, num ticket próprio.

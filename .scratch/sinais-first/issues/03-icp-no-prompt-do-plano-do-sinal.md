@@ -32,12 +32,12 @@
 
 ## Critérios
 
-- [ ] Com ICP preenchido, o Plano proposto pela IA reflete setor/porte/geografia do ICP quando o Briefing não os especifica. **Pendente verificação humana com provedor real**; o teste local confirma que esses campos chegam ao prompt, sem chamar fornecedor real.
+- [ ] Com ICP preenchido, o Plano proposto pela IA reflete setor/porte/geografia do ICP quando o Briefing não os especifica. **Bloqueado pela publicação do ticket 16**: o primeiro smoke de produção (PR #307, teste `e2e/tests/api/06-signal-plan.spec.ts`) mostrou a geografia só na explicação, com `localizacao` sem vir do ICP. O ticket 16 põe a geografia no critério `localizacao` (`signal-plan/icp-nos-criterios.ts`, Deno test) e o teste 06 passa a exigir `localizacao = ["Brasil"]` com o ICP do QA. Marcar com a saída do smoke 06 depois do deploy do `signal-plan` do ticket 16. Setor e porte não têm critério no Plano (escopo Contas escolhidas): entram no prompt e na Aderência (tickets 05 e 16).
 - [x] Sem ICP preenchido, o `signal-plan` continua funcionando como hoje, sem erro nem Plano vazio por falta desse contexto (Deno test).
 - [x] O Briefing continua sendo dado não confiável: um Briefing que tenta contradizer o ICP não muda fonte, preço ou limite fora do que o servidor valida (Deno test e validação existente conferida).
 - [x] Deno test do `signal-plan` com e sem ICP; `deno check` limpo.
 - [x] pgTAP não se aplica: nenhuma função de apoio foi criada; o ticket reutiliza a RPC de leitura existente do ticket 01.
-- [ ] CI verde nos três jobs. **Pendente verificação humana**; Vitest, lint e build não se aplicam porque nenhuma tela foi alterada.
+- [x] CI verde nos três jobs no PR #303 (head `8e0c5ed`, run https://github.com/Kauedz/Althius/actions/runs/40564407008: Banco, Edge Functions e Frontend verdes).
 
 ## Passos do Nan
 
@@ -46,3 +46,5 @@ Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e 
 ## Comments
 
 - 2026-10-25 — `signal-plan` passou a ler o ICP vigente pela RPC autenticada `get_my_workspace_icp` e a incluí-lo como dado contextual no prompt da IA; falhas/ausência da leitura mantêm o caminho sem ICP. Incluídos testes Deno com e sem ICP e para Briefing/ICP hostis, preservando a validação de tipo, escopo e limite no servidor. Verificações: `deno test -A supabase/functions/signal-plan` (26 testes) e `deno check supabase/functions/signal-plan/index.ts` passaram. `deno test -A` na raiz falhou ao incluir testes Vitest do frontend como testes Deno; sem alteração de frontend. Sem migration. A confirmação com provedor real e CI seguem pendentes de verificação humana.
+
+- 2026-10-27 — Regra nova: nenhum critério fica como verificação humana. CI marcado com o run do PR #303. O critério 1 passa a ser verificado pelo smoke de produção 06 (conta QA), fortalecido no PR do ticket 16 para conferir os critérios do Plano, não só a explicação. O achado do primeiro smoke (geografia fora de `localizacao`) foi corrigido no ticket 16.

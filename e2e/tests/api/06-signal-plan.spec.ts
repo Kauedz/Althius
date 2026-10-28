@@ -3,7 +3,7 @@
 // Conta 1 no limite de 20 Planos por dia do Workspace QA.
 import { expect, test } from '@playwright/test'
 import { ambiente } from '../../support/ambiente.js'
-import { normalizar, TERMOS_DO_ICP } from '../../support/fixture-icp.js'
+import { LOCALIZACAO_DO_ICP, normalizar, TERMOS_DO_ICP, TIPOS_COM_LOCALIZACAO } from '../../support/fixture-icp.js'
 import { tokenDoQa } from '../../support/sessao.js'
 
 test('signal-plan: o Plano da IA usa setor, porte ou geografia do ICP', async ({ request }, testInfo) => {
@@ -18,7 +18,7 @@ test('signal-plan: o Plano da IA usa setor, porte ou geografia do ICP', async ({
     },
     timeout: 50_000,
   })
-  const corpo = (await resposta.json()) as { plano?: { sinais: unknown[]; explicacao: string }; avisos?: string[]; error?: string }
+  const corpo = (await resposta.json()) as { plano?: { sinais: { tipo: string; criterios: Record<string, unknown> }[]; explicacao: string }; avisos?: string[]; error?: string }
   await testInfo.attach('plano.json', { body: JSON.stringify(corpo, null, 2), contentType: 'application/json' })
   expect(resposta.status(), corpo.error ?? '').toBe(200)
   expect(corpo.avisos, 'com aviso, o Plano saiu do planejador por regra e não da IA').toEqual([])
@@ -30,4 +30,11 @@ test('signal-plan: o Plano da IA usa setor, porte ou geografia do ICP', async ({
     .map(([campo]) => campo)
   testInfo.annotations.push({ type: 'info', description: `campos do ICP refletidos no Plano: ${achados.join(', ') || 'nenhum'}` })
   expect(achados, 'o Plano deveria citar setor, porte ou geografia do ICP').not.toEqual([])
+
+  // O ICP tem que chegar aos critérios, não só à explicação: o Briefing não fala de lugar, então a geografia do ICP
+  // (Sul do Brasil) vira `localizacao` = ["Brasil"] (ticket sinais-first 16). Setor e porte não têm critério no Plano.
+  const [sinal] = corpo.plano!.sinais
+  testInfo.annotations.push({ type: 'info', description: `tipo ${sinal.tipo}; criterios ${JSON.stringify(sinal.criterios)}` })
+  expect(TIPOS_COM_LOCALIZACAO as readonly string[], `o tipo ${sinal.tipo} não lê localizacao`).toContain(sinal.tipo)
+  expect(sinal.criterios.localizacao, 'a geografia do ICP deveria virar o critério localizacao').toEqual([...LOCALIZACAO_DO_ICP])
 })
