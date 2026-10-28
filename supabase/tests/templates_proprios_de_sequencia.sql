@@ -314,7 +314,7 @@ select throws_ok(
     'b8300000-0000-0000-0000-000000000001',
     (select id from ids where k = 'ethos'),
     (select id from ids where k = 'alfa'))$$,
-  '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor sugere template próprio'
+  '42501', 'sequence: the agent has no permission to propose sequences', 'sem Permissão de Propor em Sequência não sugere template próprio'
 );
 reset role;
 select is(

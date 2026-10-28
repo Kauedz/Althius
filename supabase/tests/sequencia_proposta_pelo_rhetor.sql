@@ -128,7 +128,7 @@ select is(
 select throws_ok(
   format($$select public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', %L, %L)$$,
     pg_temp.agente('scopus'), pg_temp.id('alfa')),
-  '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor lê os Contatos para a Sequência'
+  '42501', 'sequence: the agent has no permission to propose sequences', 'sem Permissão de Propor em Sequência não lê os Contatos'
 );
 select throws_ok(
   format($$select public.agent_read_sequence_contacts('aa000000-0000-0000-0000-000000000001', pg_temp.agente('rhetor'), %L)$$,
@@ -170,7 +170,7 @@ select is((select count(*)::integer from private.approvals where category = 'seq
 select throws_ok(
   format($$select * from pg_temp.propor('aa000000-0000-0000-0000-000000000001', %L, %L, array[%L]::uuid[], pg_temp.passos())$$,
     pg_temp.agente('scopus'), pg_temp.id('alfa'), pg_temp.id('maria')),
-  '42501', 'sequence: only the cadence specialist proposes sequences', 'só o Rhetor propõe Sequência'
+  '42501', 'sequence: the agent has no permission to propose sequences', 'sem Permissão de Propor em Sequência não propõe Sequência'
 );
 select throws_ok(
   format($$select * from pg_temp.propor('aa000000-0000-0000-0000-000000000002', pg_temp.agente('rhetor'), %L, array[%L]::uuid[], pg_temp.passos())$$,
