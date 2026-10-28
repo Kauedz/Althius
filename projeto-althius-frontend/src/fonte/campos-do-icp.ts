@@ -19,6 +19,14 @@ export interface CamposDoIcp {
   regiao: string
 }
 
+/** O resto do ICP salvo (cargos e textos), que Configurações só mostra: quem muda é o Agente. */
+export interface DetalhesDoIcp {
+  cargos: string[]
+  oQueVende: string
+  miniIcp: string
+  porQueCompram: string
+}
+
 const ROTULOS: Record<keyof CamposDoIcp, string[]> = {
   setor: ['setor', 'setores', 'segmento', 'segmentos', 'industria', 'industrias', 'vertical', 'verticais', 'nicho', 'nichos'],
   porte: ['porte', 'portes', 'tamanho', 'tamanho da empresa', 'faixa de funcionarios', 'numero de funcionarios', 'funcionarios', 'colaboradores', 'headcount'],
