@@ -35,8 +35,8 @@
 
 ## Critérios
 
-- [x] Um pedido de Sinal no composer abre o fluxo `/sinais/novo` com Briefing pré-preenchido; o Plano editável, Agenda e preço em créditos continuam no fluxo existente antes de ativar.
-- [ ] O texto do pedido nunca chega ao `signal-runner`; só o Plano aprovado roda.
+- [x] Um pedido de Sinal no composer abre um Plano editável, com Agenda e preço por Rodada/dia/mês visíveis antes de ativar. (O composer leva o pedido como Briefing já preenchido ao fluxo de `/sinais/novo`; o Plano é revisado ali e a Agenda e o preço em créditos aparecem na página do Sinal antes de ativar. Testes: `composer-classifica-intencao.test.tsx`, `briefing-no-operacional.test.tsx`, `agenda-no-operacional.test.tsx`.)
+- [x] O texto do pedido nunca chega ao `signal-runner`; só o Plano aprovado roda. (Teste Deno `_shared/plano-do-sinal/migration.test.ts`: nenhum arquivo do `signal-runner` lê o Briefing.)
 - [x] O Sinal criado tem nome gerado automaticamente a partir do pedido, editável a qualquer momento.
 - [x] Salvar leva a pessoa para a página do Sinal recém-criado.
 - [x] A coluna de rastreabilidade identifica que o Sinal nasceu do composer, sem quebrar Sinais criados por `/sinais/novo` (que ficam com o valor padrão de "não veio do composer").

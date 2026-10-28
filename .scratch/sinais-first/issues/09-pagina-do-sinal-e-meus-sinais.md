@@ -37,7 +37,7 @@
 - [ ] A página de um Sinal mostra Briefing, Plano vigente com histórico de versões, Agenda, preço e Rodadas, sem exigir navegação extra. A página atual mostra Briefing, versão vigente, Agenda, preço em créditos e Rodadas; não há RPC de leitura do histórico por versão. O histórico fica bloqueado pela ausência desse contrato e será verificado por teste de página completa quando a leitura existir.
 - [x] "Meus Sinais" e "Modelos" são destinos claramente distintos na mesma tela de Sinais.
 - [x] Nenhum dado de Sinal muda de forma pela reorganização (mesmos valores, mesma tabela), verificado pelo mapeamento da fonte Supabase e pelo teste do payload do rename.
-- [ ] Vitest cobrindo a listagem de "Meus Sinais" com Sinais de origens diferentes (composer, Modelo, `/sinais/novo`); lint e build verdes; CI verde nos três jobs. Os testes focados (40 testes), lint e build passaram; a suíte completa ainda falha nos seis testes preexistentes de `src/App.test.tsx` e em quatro testes preexistentes de memória. CI-only: verificado pelo CI do PR (jobs frontend, functions e banco); marcar com o link do run quando verde.
+- [ ] Vitest cobrindo a listagem de "Meus Sinais" com Sinais de origens diferentes (composer, Modelo, `/sinais/novo`); lint e build verdes; CI verde nos três jobs. Vitest das três origens em `pagina-sinais-reorganizada.test.tsx`; lint, build e a suíte completa passaram no lote 3. CI: verificado pelo CI do PR (três jobs); marcar com o link do run quando verde.
 
 ## Passos do Nan
 

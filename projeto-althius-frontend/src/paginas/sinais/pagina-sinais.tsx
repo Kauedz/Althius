@@ -354,14 +354,12 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
             </button>
           </div>
         ) : (
-          <section aria-label="Modelos">
-            <section aria-label="Catálogo de sinais">
-              <ul className={GRADE_DE_CARTOES}>
-                {visiveis.map((card) => (
-                  <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} abrirModelo />
-                ))}
-              </ul>
-            </section>
+          <section aria-label="Catálogo de sinais">
+            <ul className={GRADE_DE_CARTOES}>
+              {visiveis.map((card) => (
+                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} abrirModelo />
+              ))}
+            </ul>
           </section>
         )}
       </section>
