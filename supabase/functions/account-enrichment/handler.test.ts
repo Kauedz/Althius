@@ -817,7 +817,7 @@ function pedidoDeRevelar(canal: string) {
   })
 }
 
-Deno.test('revelar-contato: telefone é recusado antes de reservar crédito e de chamar o actor', async () => {
+Deno.test('revelar-contato: telefone reserva phone_revealed; sem fonte de telefone, não roda o actor e não cobra', async () => {
   const registro = registroDoRevelar()
   let execucoes = 0
   const apify: Apify = {
@@ -830,11 +830,40 @@ Deno.test('revelar-contato: telefone é recusado antes de reservar crédito e de
   const res = await handler(pedidoDeRevelar('telefone'))
   const body = await res.json()
 
-  assertEquals(res.status, 400)
-  assertEquals(body.error, 'A revelação de telefone está indisponível.')
-  assertEquals(registro.passos.some((p) => p.startsWith('begin')), false)
-  assertEquals(registro.finish, [])
+  assertEquals(res.status, 200)
+  assertEquals(registro.passos.includes('begin:telefone'), true)
+  assertEquals(registro.finish, [{ value: undefined, source: undefined }])
+  assertEquals(body.sucesso, false)
+  assertEquals(body.canal, 'telefone')
+  assertEquals(body.creditosDebitados, 0)
   assertEquals(execucoes, 0)
+})
+
+Deno.test('revelar-contato: telefone achado pela cascata vai ao banco, que decide a cobrança', async () => {
+  const registro = registroDoRevelar()
+  const provedorContatos: ProvedorDeContatos = {
+    nome: 'teste',
+    buscarPessoas: () => Promise.resolve([]),
+    revelarContato: (_p, canal) =>
+      Promise.resolve(canal === 'telefone' ? { canal, valor: '+5511912345678', fonte: 'apollo' } : null),
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro, { success: true, debitedCredits: 0 }), provedorContatos })
+  const body = await (await handler(pedidoDeRevelar('telefone'))).json()
+
+  assertEquals(registro.passos.includes('begin:telefone'), true)
+  assertEquals(registro.finish, [{ value: '+5511912345678', source: 'apollo' }])
+  assertEquals(body.sucesso, true)
+  assertEquals(body.valor, '+5511912345678')
+  assertEquals(body.creditosDebitados, 0)
+})
+
+Deno.test('revelar-contato: canal desconhecido é recusado antes da reserva', async () => {
+  const registro = registroDoRevelar()
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro) })
+  const res = await handler(pedidoDeRevelar('fax'))
+  assertEquals(res.status, 400)
+  assertEquals((await res.json()).error, 'Canal de revelação inválido.')
+  assertEquals(registro.passos, [])
 })
 
 Deno.test('revelar-contato: falha do actor libera a reserva, grava o custo e não parece "não encontrado"', async () => {

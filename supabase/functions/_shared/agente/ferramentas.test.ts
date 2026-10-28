@@ -59,7 +59,7 @@ Deno.test('o registro tem as ferramentas da fatia 3a e do ICP (Fases 4 e 7), de 
   assertEquals(nomes, [
     'ler_icp:livre', 'montar_criterios_da_busca:livre', 'buscar_empresas:teto', 'aceitar_empresa:livre',
     'descartar_empresa:livre', 'enriquecer_comite:teto', 'consultar_receita:teto',
-    'explicar_aderencia:livre', 'revelar_email:teto', 'listar_sinais:livre', 'ativar_sinal:sempre', 'ler_site_para_icp:livre', 'ler_icp_do_crm:livre',
+    'explicar_aderencia:livre', 'revelar_email:teto', 'revelar_telefone:teto', 'listar_sinais:livre', 'ativar_sinal:sempre', 'ler_site_para_icp:livre', 'ler_icp_do_crm:livre',
     'salvar_icp:sempre',
   ])
 })

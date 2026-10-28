@@ -391,7 +391,7 @@ export function SecaoComiteDeCompra({
                   </div>
 
                   {p.location && (
-                    <span className="text-[0.6875rem] text-al-muted">📍 {p.location}</span>
+                    <span className="text-[0.6875rem] text-al-muted">{p.location}</span>
                   )}
                 </div>
 
@@ -443,6 +443,41 @@ export function mensagemDaRevelacaoDeEmail(res: {
   return 'Nenhum e-mail novo encontrado. Nenhum crédito foi debitado.'
 }
 
+/** A frase do resultado de revelar um telefone, no mesmo molde da do e-mail. */
+export function mensagemDaRevelacaoDeTelefone(res: {
+  sucesso: boolean
+  valor: string | null
+  creditosDebitados: number
+  jaExistia?: boolean
+}): string {
+  if (res.jaExistia && res.valor) return `Já encontrado, sem custo: ${res.valor}`
+  if (res.sucesso && res.valor) {
+    return res.creditosDebitados > 0
+      ? `Encontrado: ${res.valor} (${res.creditosDebitados} créditos debitados)`
+      : `Encontrado: ${res.valor} (sem custo em créditos)`
+  }
+  return 'Nenhum telefone novo encontrado. Nenhum crédito foi debitado.'
+}
+
+type CanalDeRevelacao = 'email' | 'telefone'
+
+const TEXTO_DO_CANAL: Record<CanalDeRevelacao, { nome: string; descricao: string; jaTem: string; regra: string; falha: string }> = {
+  email: {
+    nome: 'E-mail',
+    descricao: 'A Althius busca o e-mail profissional a partir do perfil público do LinkedIn.',
+    jaTem: 'Este Contato já tem e-mail. Nenhuma busca nova é feita e nenhum crédito é debitado.',
+    regra: 'Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.',
+    falha: 'A busca do e-mail falhou.',
+  },
+  telefone: {
+    nome: 'Telefone',
+    descricao: 'A Althius busca o telefone da pessoa nas fontes de contato do Workspace.',
+    jaTem: 'Este Contato já tem telefone. Nenhuma busca nova é feita e nenhum crédito é debitado.',
+    regra: 'Importante: os créditos só são debitados do saldo se um telefone novo for encontrado e gravado no Contato.',
+    falha: 'A busca do telefone falhou.',
+  },
+}
+
 export function BotoesRevelarContato({
   contato,
   aoRevelar,
@@ -451,6 +486,7 @@ export function BotoesRevelarContato({
   aoRevelar: () => void
 }) {
   const fonte = useFonteDeContas()
+  const [canal, setCanal] = useState<CanalDeRevelacao>('email')
   const [aberto, setAberto] = useState(false)
   const [cotacao, setCotacao] = useState<
     { creditos: number; saldo: number; podeRevelar: boolean; jaEncontrado?: boolean } | null
@@ -466,14 +502,17 @@ export function BotoesRevelarContato({
     return null
   }
 
-  async function abrirModal() {
+  const texto = TEXTO_DO_CANAL[canal]
+
+  async function abrirModal(qual: CanalDeRevelacao = canal) {
+    setCanal(qual)
     setAberto(true)
     setCotacao(null)
     setResultado(null)
     setErro(null)
     if (fonte.cotarRevelacaoContato) {
       try {
-        const c = await fonte.cotarRevelacaoContato(contato.id, 'email')
+        const c = await fonte.cotarRevelacaoContato(contato.id, qual)
         setCotacao(c)
       } catch {
         setErro('A cotação da revelação está indisponível.')
@@ -488,12 +527,12 @@ export function BotoesRevelarContato({
     setRevelando(true)
     setErro(null)
     try {
-      const res = await fonte.revelarContato(contato.id, 'email')
-      setResultado(mensagemDaRevelacaoDeEmail(res))
+      const res = await fonte.revelarContato(contato.id, canal)
+      setResultado(canal === 'email' ? mensagemDaRevelacaoDeEmail(res) : mensagemDaRevelacaoDeTelefone(res))
       // Só a busca que terminou chega aqui: a falha é exceção e aparece como erro.
       if ((res.jaExistia || res.sucesso) && res.valor) aoRevelar()
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'A busca do e-mail falhou.')
+      setErro(e instanceof Error ? e.message : texto.falha)
     } finally {
       setRevelando(false)
     }
@@ -507,8 +546,8 @@ export function BotoesRevelarContato({
             type="button"
             variant="outline"
             size="sm"
-            onClick={abrirModal}
-            title="Consultar o custo de revelar e-mail"
+            onClick={() => abrirModal('email')}
+            title="Consultar o custo de revelar e-mail (2 créditos)"
             className="h-7 gap-1 border-al-line px-2 text-[0.6875rem] hover:border-al-accent hover:text-al-accent"
           >
             <Mail className="size-3" />
@@ -516,15 +555,18 @@ export function BotoesRevelarContato({
           </Button>
         )}
 
-        {/* Telefone está fora (prospeccao-funcional B3): sem cotação, sem revelação, sem crédito. */}
         {precisaTelefone && (
-          <span
-            title="A revelação de telefone está indisponível."
-            className="inline-flex h-7 items-center gap-1 px-2 text-[0.6875rem] text-al-muted"
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => abrirModal('telefone')}
+            title="Consultar o custo de revelar telefone (5 créditos)"
+            className="h-7 gap-1 border-al-line px-2 text-[0.6875rem] hover:border-al-accent hover:text-al-accent"
           >
             <Phone className="size-3" />
-            Telefone indisponível
-          </span>
+            Revelar Telefone
+          </Button>
         )}
       </div>
 
@@ -532,10 +574,10 @@ export function BotoesRevelarContato({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Revelar E-mail de {contato.nome}
+              Revelar {texto.nome} de {contato.nome}
             </DialogTitle>
             <DialogDescription>
-              A Althius busca o e-mail profissional a partir do perfil público do LinkedIn.
+              {texto.descricao}
             </DialogDescription>
           </DialogHeader>
 
@@ -546,7 +588,7 @@ export function BotoesRevelarContato({
                 <>
                   <span className="text-sm font-semibold text-al-ink">Já encontrado, sem custo</span>
                   <span className="block mt-1 text-[0.6875rem] text-al-muted">
-                    Este Contato já tem e-mail. Nenhuma busca nova é feita e nenhum crédito é debitado.
+                    {texto.jaTem}
                   </span>
                 </>
               ) : (
@@ -560,7 +602,7 @@ export function BotoesRevelarContato({
                     </span>
                   )}
                   <span className="block mt-1 text-[0.6875rem] text-al-muted">
-                    Importante: os créditos só são debitados do saldo se um e-mail novo for encontrado e gravado no Contato.
+                    {texto.regra}
                   </span>
                 </>
               )}
@@ -583,7 +625,7 @@ export function BotoesRevelarContato({
             {erro && (
               <div role="alert" className="rounded bg-al-erro/10 p-3 text-al-erro">
                 {erro}
-                {!cotacao && <Button type="button" variant="outline" onClick={abrirModal}>Tentar de novo</Button>}
+                {!cotacao && <Button type="button" variant="outline" onClick={() => abrirModal(canal)}>Tentar de novo</Button>}
               </div>
             )}
           </div>

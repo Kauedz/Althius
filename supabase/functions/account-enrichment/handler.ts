@@ -652,14 +652,17 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         }, 200)
       }
 
-      // 3. Revelar o e-mail de um contato. Telefone está fora (spec prospeccao-funcional): recusado antes da reserva.
+      // 3. Revelar o e-mail (2 créditos) ou o telefone (5 créditos, decisão de 28/10/2026) de um contato. O preço é o do
+      // catálogo de créditos; o banco só debita quando grava um valor novo achado pela Althius.
       if (action === 'revelar-contato') {
-        if (body.canal === 'telefone') {
-          return json({ error: 'A revelação de telefone está indisponível.' }, 400)
+        const pedido = String(body.canal ?? 'email').trim()
+        if (pedido !== 'email' && pedido !== 'telefone') {
+          return json({ error: 'Canal de revelação inválido.' }, 400)
         }
+        const canal: 'email' | 'telefone' = pedido
+        const dado = canal === 'email' ? 'e-mail' : 'telefone'
         const workspaceId = String(body.workspaceId ?? '').trim()
         const contactId = String(body.contactId ?? '').trim()
-        const canal = 'email'
 
         if (!workspaceId || !contactId) {
           return new Response(JSON.stringify({ error: 'workspaceId and contactId are required' }), {
@@ -690,7 +693,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           })
         }
 
-        // Já encontrado: o banco devolve o e-mail que o Contato tem, sem reserva, sem actor e sem crédito. Só o deste
+        // Já encontrado: o banco devolve o valor que o Contato tem no canal, sem reserva, sem actor e sem crédito. Só o deste
         // Contato, no Workspace da sessão: nunca o de outro Workspace.
         if (deps.db.existingRevealValue) {
           const existente = await deps.db.existingRevealValue({
@@ -717,7 +720,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           }
         }
 
-        // Reserva os 2 créditos do e-mail
+        // Reserva o preço do canal (e-mail 2, telefone 5)
         const reserva = await deps.db.beginRevealContact({
           workspaceId,
           contactId,
@@ -744,7 +747,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
 
         let revelado: DadoRevelado | null
         try {
-          if (!revelador.revelarContato) throw new Error('nenhum provedor revela e-mail')
+          if (!revelador.revelarContato) throw new Error(`nenhum provedor revela ${dado}`)
           revelado = await revelador.revelarContato(
             {
               nome: contato.name,
@@ -759,10 +762,10 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           const mensagem = mensagemSegura(e, 'erro desconhecido')
           await deps.db.finishRevealContact({ reservationId: reserva.reservationId, contactId, channel: canal })
           await gravarCusto()
-          return json({ error: `A busca do e-mail falhou: ${mensagem}` }, 502)
+          return json({ error: `A busca do ${dado} falhou: ${mensagem}` }, 502)
         }
 
-        // O banco decide: debita 2 só quando grava um e-mail que o Contato ainda não tinha; senão libera a reserva.
+        // O banco decide: debita só quando grava um valor que o Contato ainda não tinha; senão libera a reserva.
         const finalizado = await deps.db.finishRevealContact({
           reservationId: reserva.reservationId,
           contactId,

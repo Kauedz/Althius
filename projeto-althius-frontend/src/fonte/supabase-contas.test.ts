@@ -584,7 +584,7 @@ describe('Vários e-mails e telefones por Contato no Workspace operacional', () 
   })
 })
 
-describe('Revelar o e-mail de um Contato no Workspace operacional (prospeccao-funcional B3)', () => {
+describe('Revelar o e-mail e o telefone de um Contato no Workspace operacional', () => {
   function fonteDoRevelar(
     funcoes: OpcoesDoSupabaseFalso['funcoes'] = {},
     rpcs: Record<string, (parametros: Record<string, unknown>) => unknown> = {},
@@ -598,16 +598,30 @@ describe('Revelar o e-mail de um Contato no Workspace operacional (prospeccao-fu
     await expect(fonte.cotarRevelacaoContato!(ID_DA_MARIA, 'email')).rejects.toThrow('Não foi possível consultar a cotação.')
   })
 
-  it('recusa o telefone sem cotar nem chamar a revelação', async () => {
+  it('cota e revela o telefone pelo canal telefone, com o preço do servidor', async () => {
     const chamadas: string[] = []
     const fonte = fonteDoRevelar(
-      { 'account-enrichment': (corpo) => { chamadas.push(`funcao:${corpo.canal}`); return { corpo: {} } } },
-      { quote_reveal_contact: (p) => { chamadas.push(`cotacao:${p.p_channel}`); return [] } },
+      {
+        'account-enrichment': (corpo) => {
+          chamadas.push(`funcao:${corpo.canal}`)
+          return { corpo: { sucesso: true, canal: 'telefone', valor: '+5511912345678', creditosDebitados: 5 } }
+        },
+      },
+      {
+        quote_reveal_contact: (p) => {
+          chamadas.push(`cotacao:${p.p_channel}`)
+          return [{ credits: 5, current_balance: 40, can_reveal: true, already_known: false }]
+        },
+      },
     )
 
-    await expect(fonte.cotarRevelacaoContato!(ID_DA_MARIA, 'telefone')).rejects.toThrow('A revelação de telefone está indisponível.')
-    await expect(fonte.revelarContato!(ID_DA_MARIA, 'telefone')).rejects.toThrow('A revelação de telefone está indisponível.')
-    expect(chamadas).toEqual([])
+    await expect(fonte.cotarRevelacaoContato!(ID_DA_MARIA, 'telefone')).resolves.toEqual({
+      creditos: 5, saldo: 40, podeRevelar: true, jaEncontrado: false,
+    })
+    await expect(fonte.revelarContato!(ID_DA_MARIA, 'telefone')).resolves.toEqual({
+      sucesso: true, valor: '+5511912345678', creditosDebitados: 5, jaExistia: false,
+    })
+    expect(chamadas).toEqual(['cotacao:telefone', 'funcao:telefone'])
   })
 
   it('a falha da busca chega como falha, com a mensagem da função', async () => {

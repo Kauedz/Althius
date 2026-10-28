@@ -226,11 +226,10 @@ select is(
   'cotação de e-mail é de 2 créditos'
 );
 
-select throws_ok(
-  $$ select public.quote_reveal_contact((select id from t_contato_aceito), 'telefone') $$,
-  '0A000',
-  'phone reveal unavailable',
-  'cotação de telefone é recusada enquanto o preço não for decidido'
+select is(
+  (select credits from public.quote_reveal_contact((select id from t_contato_aceito), 'telefone')),
+  5,
+  'cotação de telefone é de 5 créditos'
 );
 
 -- Início de revelação de e-mail (reserva 2 créditos)
@@ -277,19 +276,25 @@ select is(
   'e-mail foi registrado no contato'
 );
 
--- Telefone: a revelação fica indisponível enquanto o preço não for decidido (FILA 2.11)
+-- Telefone: 5 créditos (decisão de 28/10/2026). A reserva é phone_revealed; nada achado libera sem cobrar.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000001', true);
 
-select throws_ok(
-  format($$ select * from public.begin_reveal_contact(%L, %L, 'telefone') $$,
-    '62000000-0000-0000-0000-000000000001'::uuid, (select id from t_contato_aceito)),
-  '0A000',
-  'phone reveal unavailable',
-  'begin_reveal_contact recusa telefone sem reservar crédito'
-);
+create temporary table t_res_tel as
+  select * from public.begin_reveal_contact(
+    '62000000-0000-0000-0000-000000000001'::uuid,
+    (select id from t_contato_aceito),
+    'telefone'
+  );
 
 reset role;
+
+select is(
+  (select row(f.success, f.debited_credits)::text
+   from public.finish_reveal_contact((select reservation_id from t_res_tel), (select id from t_contato_aceito), 'telefone', null, 'apify') f),
+  '(f,0)',
+  'begin_reveal_contact reserva o telefone e, sem telefone achado, nada é debitado'
+);
 
 -- 5. Imutabilidade e integridade das funções protegidas
 select ok(

@@ -306,7 +306,8 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
     canal: 'email' | 'telefone',
     medicao?: { runId: string | null; costUsd: number | null },
   ): Promise<DadoRevelado | null> {
-    // Telefone: nenhum actor validado traz telefone. Sem LinkedIn, não há perfil para consultar.
+    // Telefone: nenhum actor do Apify validado traz telefone (o do perfil só busca e-mail); o telefone vem do Apollo ou do
+    // CRM do Cliente. Sem LinkedIn, não há perfil para consultar.
     const perfil = pessoa.linkedinUrl?.trim()
     if (canal !== 'email' || !perfil) return null
 
@@ -379,10 +380,33 @@ function corpoDaFerramenta(resposta: unknown): Record<string, unknown> {
 
 const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
 
+/** O telefone da pessoa na resposta do Apollo: a lista phone_numbers (o número limpo primeiro) ou os campos diretos. */
+export function telefoneDaPessoaApollo(p: Record<string, unknown>): string | null {
+  const candidatos: unknown[] = []
+  if (Array.isArray(p.phone_numbers)) {
+    for (const n of p.phone_numbers) {
+      if (n && typeof n === 'object') {
+        const r = n as Record<string, unknown>
+        candidatos.push(r.sanitized_number, r.raw_number)
+      } else {
+        candidatos.push(n)
+      }
+    }
+  }
+  candidatos.push(p.sanitized_phone, p.mobile_phone, p.phone)
+  for (const c of candidatos) {
+    const t = texto(c)
+    if (!t) continue
+    const digitos = t.replace(/\D/g, '')
+    if (digitos.length >= 8 && digitos.length <= 15) return t
+  }
+  return null
+}
+
 /**
  * O Apollo conectado pelo Workspace (MCP do Apollo, https://docs.apollo.io/docs/apollo-mcp). A busca de pessoas
  * (`apollo_people_search`) não gasta crédito do Apollo; a revelação (`apollo_people_enrichment`) gasta o do Cliente. A
- * fonte é `apollo`: o dado não cobra Créditos Althius. Telefone fica fora, como no resto do produto.
+ * fonte é `apollo`: o dado não cobra Créditos Althius, nem o e-mail nem o telefone.
  */
 export class ApolloProvedorDeContatos implements ProvedorDeContatos {
   readonly nome = 'apollo'
@@ -420,12 +444,17 @@ export class ApolloProvedorDeContatos implements ProvedorDeContatos {
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
   ): Promise<DadoRevelado | null> {
-    if (canal !== 'email') return null
+    // O pedido de telefone do Apollo (reveal_phone_number) só responde depois, por webhook; aqui vale o telefone que o
+    // Apollo do Cliente já devolve na própria resposta. O telefone da empresa não conta como o da pessoa.
     const argumentos: Record<string, unknown> = { name: pessoa.nome, reveal_personal_emails: false, reveal_phone_number: false }
     if (pessoa.linkedinUrl) argumentos.linkedin_url = pessoa.linkedinUrl
     if (pessoa.empresa) argumentos.organization_name = pessoa.empresa
     const corpo = corpoDaFerramenta(await this.chamar('apollo_people_enrichment', argumentos))
     const pessoaApollo = corpo.person && typeof corpo.person === 'object' ? corpo.person as Record<string, unknown> : corpo
+    if (canal === 'telefone') {
+      const telefone = telefoneDaPessoaApollo(pessoaApollo)
+      return telefone ? { canal, valor: telefone, fonte: 'apollo' } : null
+    }
     const valor = texto(pessoaApollo.email)
     // O Apollo devolve um marcador quando não libera o e-mail; só e-mail de verdade conta.
     if (!valor || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(valor) || /email_not_unlocked/i.test(valor)) return null
