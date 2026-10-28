@@ -1,4 +1,4 @@
-import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
+import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
 import { cartaoDeConfirmacao, formatarCreditos, portao } from './registro.ts'
 
 Deno.test('portão: livre roda sempre, mesmo acima do teto', () => {
@@ -22,4 +22,15 @@ Deno.test('cartão de confirmação fala em créditos, nunca em dólar', () => {
   assertStringIncludes(String(c.texto), '48 créditos de 50 créditos')
   assertEquals(String(c.texto).includes('US$'), false)
   assertEquals(formatarCreditos(1), '1 crédito')
+})
+
+Deno.test('portão: sempre usa o motivo da ferramenta quando ela muda algo salvo (ICP)', () => {
+  assertEquals(portao({ aprovacao: 'sempre', motivo: 'alteracao' }, 0, 0, 50), { estado: 'aguardar', motivo: 'alteracao' })
+})
+
+Deno.test('confirmação de alteração diz que vira uma versão nova, sem falar de prospect', () => {
+  const c = cartaoDeConfirmacao({ titulo: 'Salvar o ICP', custo: 0, motivo: 'alteracao', gastos: 0, teto: 50 })
+  assertEquals(c.motivo, 'alteracao')
+  assert(String(c.texto).includes('nova versão'))
+  assert(!String(c.texto).includes('prospect'))
 })
