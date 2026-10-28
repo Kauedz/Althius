@@ -1,3 +1,4 @@
+import type { ExplicacaoDeAderencia } from './aderencia-explicada'
 import type { AjusteAprendido, CodigoDoDescarte, DimensaoAprendida } from './aprendizado-da-descoberta'
 import type { FonteDeContas } from './tipos'
 import type {
@@ -121,6 +122,8 @@ const CANDIDATAS_INICIAIS: CandidataDaDemonstracao[] = [
     criadaEm: '2026-05-10T10:00:00.000Z',
   },
 ]
+
+const ROTULO_DO_NIVEL: Record<string, string> = { alto: 'alta', medio: 'média', baixo: 'baixa', sem_dado: 'sem dado' }
 
 export function criarFonteDeDescobertasSimulada({
   fonteDeContas,
@@ -275,6 +278,13 @@ export function criarFonteDeDescobertasSimulada({
       candidata.voltouPorSinalEm = undefined
       candidata.motivoDoDescarteAnterior = undefined
       notificar()
+    },
+
+    async explicarAderencia(id: string): Promise<ExplicacaoDeAderencia> {
+      const candidata = candidatas.find((c) => c.id === id)
+      if (!candidata) throw new Error('Descoberta não encontrada.')
+      const motivos = candidata.motivos.length > 0 ? ` ${candidata.motivos.join('. ')}.` : ' Sem motivos registrados.'
+      return { explicacao: `Aderência ${ROTULO_DO_NIVEL[candidata.fitLevel] ?? 'baixa'}.${motivos}`, origem: 'regra', nivel: candidata.fitLevel }
     },
 
     async restaurarDescoberta(id: string): Promise<void> {

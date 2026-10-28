@@ -1,3 +1,4 @@
+import { explicarAderencia, type ExplicacaoDeAderencia } from './aderencia-explicada'
 import type { AjusteAprendido, CodigoDoDescarte, DimensaoAprendida } from './aprendizado-da-descoberta'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
@@ -194,6 +195,10 @@ export function criarFonteDeDescobertasSupabase(
       })
       if (error) throw new Error(error.message)
       notificar()
+    },
+
+    explicarAderencia(id: string): Promise<ExplicacaoDeAderencia> {
+      return explicarAderencia(cliente, id)
     },
 
     async restaurarDescoberta(id: string): Promise<void> {

@@ -35,7 +35,8 @@ A Aderência de uma Descoberta é determinística (`account-discovery/pontuacao.
 - [x] Só membro lê; outro Workspace recebe 404; só service_role grava (pgTAP).
 - [x] Cache por impressão digital da nota; nota mudou, explicação antiga não volta (pgTAP).
 - [x] Componente e fonte no front com testes Vitest (6).
-- [ ] CI 3/3, backup + apply, deploy e conferência em produção (gate).
+- [x] CI 3/3, backup + apply, deploy e conferência em produção (gate): #329 mesclado 10bf925; backup 20261028-1616 completo; 20261218004000 aplicada; account-fit-explanation v1 com a fonte de 10bf925; smoke 19/19 verde em 28/10 16h38.
+- [ ] Ligado na Caixa de Descobertas: botão no detalhe da candidata, fonte Supabase e Demonstração (este PR).
 
 ## Comments
 
