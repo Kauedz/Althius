@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Flame,
   Hammer,
+  Pencil,
   RadioTower,
   Sparkles,
   Workflow,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { LogoDaConta } from '@/components/logos'
-import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
+import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import type { ContaAlvo } from '@/fonte/contas-tipos'
 import type { Monitoramento, PedidoDeSinal, SinalEncontrado } from '@/fonte/sinais-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
@@ -623,8 +624,9 @@ export function MeusSinais({
   sequenciasAtivas,
   acaoDosEncontrados,
   acaoDeDescrever,
+  aoRenomear,
 }: {
-  monitoramentosAtivos: { id: string; tipoId: string; nome: string; disparos: number }[]
+  monitoramentosAtivos: { id: string; tipoId: string; nome: string; disparos: number; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }[]
   /** Os Sinais que o sistema pausou por falta de créditos: o aviso com "Ver créditos" e "Reativar" (agente-de-sinal 04). */
   pausadosPorCreditos?: Monitoramento[]
   /** Os Sinais ativos cuja última Rodada foi pulada por falta de créditos: o aviso com "Ver créditos" (agente-de-sinal 05). */
@@ -635,6 +637,7 @@ export function MeusSinais({
   acaoDosEncontrados: ReactNode
   /** O botão "Descrever um Sinal"; ausente onde a pessoa não pode criar Monitoramento. */
   acaoDeDescrever?: ReactNode
+  aoRenomear?: (monitoramento: { id: string; tipoId: string; nome: string; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }, nome: string) => Promise<void>
 }) {
   return (
     <section aria-labelledby="titulo-meus-sinais" className="flex min-w-0 flex-col gap-3">
@@ -688,6 +691,18 @@ export function MeusSinais({
           para="/sequencias"
         />
       </ul>
+      <div className="flex flex-col gap-2">
+        <h3 className="titulo-secao text-base">Sinais ativos</h3>
+        {monitoramentosAtivos.length === 0 ? (
+          <p className="text-sm text-al-muted">Você ainda não tem Sinais ativos.</p>
+        ) : (
+          <ul aria-label="Meus Sinais ativos" className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {monitoramentosAtivos.map((monitoramento) => (
+              <CartaoDeMeuSinal key={monitoramento.id} monitoramento={monitoramento} aoRenomear={aoRenomear} />
+            ))}
+          </ul>
+        )}
+      </div>
       {pausadosPorCreditos.length > 0 && (
         <div role="group" aria-label="Sinais pausados por falta de créditos" className="flex flex-col gap-2">
           {pausadosPorCreditos.map((m) => (
@@ -703,6 +718,44 @@ export function MeusSinais({
         </div>
       )}
     </section>
+  )
+}
+
+function CartaoDeMeuSinal({
+  monitoramento,
+  aoRenomear,
+}: {
+  monitoramento: { id: string; tipoId: string; nome: string; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }
+  aoRenomear?: (monitoramento: { id: string; tipoId: string; nome: string; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }, nome: string) => Promise<void>
+}) {
+  const [editando, setEditando] = useState(false)
+  const [nome, setNome] = useState(monitoramento.nome)
+  const [salvando, setSalvando] = useState(false)
+  const salvarNome = async () => {
+    const novoNome = nome.trim()
+    if (!novoNome || !aoRenomear) { setNome(monitoramento.nome); setEditando(false); return }
+    setSalvando(true)
+    try { await aoRenomear(monitoramento, novoNome); setEditando(false) } finally { setSalvando(false) }
+  }
+  return (
+    <li className="flex min-w-0 flex-col gap-1 rounded-xl border border-al-line bg-al-surface p-3">
+      {editando ? (
+        <div className="flex flex-col gap-2">
+          <input aria-label={`Nome de ${monitoramento.nome}`} value={nome} onChange={(e) => setNome(e.target.value)} className="campo h-9" />
+          <div className="flex gap-2">
+            <button type="button" disabled={salvando} onClick={() => void salvarNome()} className={BOTAO_DISCRETO}>Salvar</button>
+            <button type="button" disabled={salvando} onClick={() => { setNome(monitoramento.nome); setEditando(false) }} className={BOTAO_DISCRETO}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Link to={`/sinais/tipos/${monitoramento.tipoId}/${monitoramento.id}`} className="truncate hover:text-al-accent hover:underline">{monitoramento.nome}</Link>
+          {aoRenomear && <button type="button" aria-label={`Renomear ${monitoramento.nome}`} onClick={() => setEditando(true)} className={BOTAO_DISCRETO}><Pencil strokeWidth={1.8} className="size-3.5" aria-hidden />Renomear</button>}
+        </div>
+      )}
+      {monitoramento.criadoVia === 'composer' && <span className="selo w-fit">Criado pelo composer</span>}
+      {monitoramento.criadoVia === 'modelo' && <span className="selo w-fit">Criado de um Modelo</span>}
+    </li>
   )
 }
 
