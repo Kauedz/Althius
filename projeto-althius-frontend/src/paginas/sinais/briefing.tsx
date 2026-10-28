@@ -99,10 +99,10 @@ export function PaginaDoBriefing() {
   }
   // Um Monitoramento sem Plano (ou que o editor mudou depois) se edita no editor de sempre.
   if (existente && !existente.plano) return <Navigate to={`/sinais/tipos/${existente.tipoId}/${existente.id}`} replace />
-  return <DescreverUmSinal key={existente?.id ?? modeloId ?? 'novo'} existente={existente} modeloId={existente ? undefined : modeloId ?? undefined} briefingInicial={!existente && estado?.origem === 'composer' && typeof estado.briefing === 'string' ? estado.briefing : undefined} origem={estado?.origem === 'composer' && !existente ? 'composer' : undefined} />
+  return <DescreverUmSinal key={existente?.id ?? modeloId ?? 'novo'} existente={existente} modeloId={existente ? undefined : modeloId ?? undefined} briefingInicial={!existente && estado?.origem === 'composer' && typeof estado.briefing === 'string' ? estado.briefing : undefined} origem={!existente ? (estado?.origem === 'composer' ? 'composer' : modeloId ? 'modelo' : undefined) : undefined} />
 }
 
-function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { existente?: Monitoramento; modeloId?: string; briefingInicial?: string; origem?: 'composer' }) {
+function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { existente?: Monitoramento; modeloId?: string; briefingInicial?: string; origem?: 'composer' | 'modelo' }) {
   const fonte = useFonteDeSinais()
   const { salvarPlano } = useSinaisDoMockup()
   const navegar = useNavigate()

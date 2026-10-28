@@ -163,6 +163,13 @@ describe('salvarPlano e a lista de Monitoramentos', () => {
     expect(salvo.criadoVia).toBe('composer')
   })
 
+  it('envia a origem modelo ao salvar um Plano vindo do catálogo', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, created_via: 'modelo' }] } })
+    await fonte.salvarPlano!({ nome: 'Meta', briefing: 'Quem anuncia na Meta', plano: PLANO, criadoVia: 'modelo' })
+    expect(chamadas[0]).toMatchObject({ p_created_via: 'modelo' })
+  })
+
   it('edita um Monitoramento existente sem deixar de funcionar', async () => {
     const chamadas: Record<string, unknown>[] = []
     const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, id: 'mon-1', created_via: 'composer' }] } })

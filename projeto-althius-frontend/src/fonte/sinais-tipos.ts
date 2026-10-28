@@ -236,6 +236,9 @@ export interface FonteDeSinais extends FonteObservavel {
   /** Salva ou atualiza um Monitoramento (cria se novo, atualiza se existente). */
   salvarMonitoramento(monitoramento: Monitoramento | NovoMonitoramento): Promise<Monitoramento>
 
+  /** Renomeia sem reenviar o restante do Monitoramento. */
+  renomearMonitoramento?(id: string, nome: string): Promise<Monitoramento>
+
   /** Altera o estado de um Monitoramento ('rascunho' | 'em-preparacao' | 'ativo' | 'pausado'). */
   mudarEstado(id: string, estado: EstadoDoMonitoramento): Promise<Monitoramento>
 

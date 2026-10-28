@@ -628,6 +628,15 @@ export function criarFonteDeSinaisSimulada(
       notificar()
       return clonarMonitoramento(salvo)
     },
+
+    async renomearMonitoramento(id, nome): Promise<Monitoramento> {
+      await aguardar()
+      const monitoramento = monitoramentos.find((m) => m.id === id)
+      if (!monitoramento) throw new Error(`Monitoramento "${id}" não encontrado`)
+      monitoramento.nome = nome.trim()
+      notificar()
+      return clonarMonitoramento(monitoramento)
+    },
   }
 }
 

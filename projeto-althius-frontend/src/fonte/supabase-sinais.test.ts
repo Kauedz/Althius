@@ -96,6 +96,16 @@ describe('Sinais reais no Workspace operacional', () => {
     expect(salvo.id).toBe(MONITOR)
   })
 
+  it('renomeia só pelo RPC dedicado e recarrega o Monitoramento', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const f = fonte({
+      rename_signal_monitor: (p) => (chamadas.push(p), MONITOR),
+      list_signal_monitors: () => [monitorNoBanco],
+    })
+    await expect(f.renomearMonitoramento?.(MONITOR, 'Nome novo')).resolves.toMatchObject({ id: MONITOR })
+    expect(chamadas).toEqual([{ p_workspace_id: 'ws-norte', p_id: MONITOR, p_name: 'Nome novo' }])
+  })
+
   it('salva os recortes novos em nichos e nichosCustom', async () => {
     const chamadas: Record<string, unknown>[] = []
     const f = fonte({ save_signal_monitor: (p) => (chamadas.push(p), MONITOR), list_signal_monitors: () => [monitorNoBanco] })

@@ -688,6 +688,16 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
       return monitoramento(id)
     },
 
+    async renomearMonitoramento(id, nome): Promise<Monitoramento> {
+      const { error } = await cliente.rpc('rename_signal_monitor', {
+        p_workspace_id: workspaceId(),
+        p_id: id,
+        p_name: nome,
+      })
+      if (error) throw converterErro(error)
+      return monitoramento(id)
+    },
+
     async previaDaRodada(monitoramentoId): Promise<PreviaDaRodada> {
       const { data, error } = await cliente.rpc('quote_signal_run', { p_workspace_id: workspaceId(), p_monitor_id: monitoramentoId })
       if (error) throw converterErro(error)

@@ -119,7 +119,7 @@ export function PaginaSinais() {
 
 function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
-  const { salvar } = useSinaisDoMockup()
+  const { renomearMonitoramento } = useSinaisDoMockup()
   const podeDescrever = usePodeDescreverSinal(visao)
   const [busca, setBusca] = useState('')
   const [familiaId, setFamiliaId] = useState('todos')
@@ -211,8 +211,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
         <MeusSinais
           monitoramentosAtivos={ativos}
           aoRenomear={async (monitoramento, nome) => {
-            const original = monitoramentos.find((item) => item.id === monitoramento.id)
-            if (original) await salvar({ ...original, nome })
+            await renomearMonitoramento(monitoramento.id, nome)
           }}
           pausadosPorCreditos={pausadosPorCreditos}
           comRodadaPulada={comRodadaPulada}
