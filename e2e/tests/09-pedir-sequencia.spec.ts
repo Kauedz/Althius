@@ -1,4 +1,4 @@
-// Pedir Sequência sem o Rhetor (Sinais first 11). No detalhe de uma Conta Quente, "Pedir Sequência" começa uma Conversa
+// Gerar Sequência sem o Rhetor (Sinais first 11). No detalhe de uma Conta Quente, "Gerar Sequência" começa uma Conversa
 // coordenada nova com o pedido e vai para /conversa, sem procurar um Agente pela Especialidade e sem abrir a Conversa só
 // leitura de um Agente (/agentes/:id/conversa, ticket 10).
 //
@@ -21,7 +21,7 @@ function usuarioDoQa(): string {
   return (JSON.parse(Buffer.from(carga, 'base64url').toString('utf8')) as { sub: string }).sub
 }
 
-test('Pedir Sequência abre uma Conversa coordenada nova, sem a Conversa só leitura de um Agente e sem escrever', async ({ page }, testInfo) => {
+test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só leitura de um Agente e sem escrever', async ({ page }, testInfo) => {
   const conferir = vigiar(page, testInfo)
   const e = ambiente()
   const usuario = usuarioDoQa()
@@ -80,7 +80,7 @@ test('Pedir Sequência abre uma Conversa coordenada nova, sem a Conversa só lei
   await page.goto(`/contas/${CONTA}`)
   await conferirWorkspaceOperacional(page)
   await expect(page.getByRole('heading', { level: 2, name: NOME })).toBeVisible()
-  const botao = page.getByRole('button', { name: 'Pedir Sequência', exact: true })
+  const botao = page.getByRole('button', { name: 'Gerar Sequência', exact: true })
   await expect(botao).toBeVisible()
   await expect(page.getByRole('button', { name: /Rhetor/ })).toHaveCount(0)
   await botao.click()

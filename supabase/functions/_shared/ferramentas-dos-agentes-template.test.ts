@@ -54,11 +54,11 @@ function montar(resposta: { templateId: string | null; justificativa: string; ou
 
 const nomes = (sessao: ReturnType<typeof montar>['sessao'], a: AgenteDoWorkspace) => sessao.paraOAgente(a).map((f) => f.nome)
 
-Deno.test('só o Rhetor recebe sugerir_template_de_sequencia, e só com o contrato do banco', () => {
+Deno.test('as quatro Especialidades recebem sugerir_template_de_sequencia, e só com o contrato do banco', () => {
   const { sessao } = montar({ templateId: 'abertura-por-sinal', justificativa: 'A Conta Alfa tem o Sinal “vagas”.', outcome: 'ok' })
   assert(nomes(sessao, RHETOR).includes('sugerir_template_de_sequencia'))
   for (const outro of ['scopus', 'ethos', 'oraculum']) {
-    assert(!nomes(sessao, agente(outro)).includes('sugerir_template_de_sequencia'))
+    assert(nomes(sessao, agente(outro)).includes('sugerir_template_de_sequencia'))
   }
   const semContrato = criarSessaoDeFerramentas({
     banco: {

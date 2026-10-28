@@ -60,13 +60,13 @@ function montar(resposta: { templateId: string | null; justificativa: string; ou
 
 const nomes = (sessao: ReturnType<typeof montar>['sessao'], a: AgenteDoWorkspace) => sessao.paraOAgente(a).map((f) => f.nome)
 
-Deno.test('só o Rhetor recebe sugerir_template_proprio, e a sugestão da Althius continua', () => {
+Deno.test('as quatro Especialidades recebem sugerir_template_proprio, e a sugestão da Althius continua', () => {
   const { sessao } = montar({ templateId: DA_BIA, justificativa: 'A Conta Alfa tem o Sinal “vagas”.', outcome: 'ok' })
   const doRhetor = nomes(sessao, RHETOR)
   assert(doRhetor.includes('sugerir_template_proprio'))
   assert(doRhetor.includes('sugerir_template_de_sequencia'))
   for (const outro of ['scopus', 'ethos', 'oraculum']) {
-    assert(!nomes(sessao, agente(outro)).includes('sugerir_template_proprio'))
+    assert(nomes(sessao, agente(outro)).includes('sugerir_template_proprio'))
   }
   const semContrato = criarSessaoDeFerramentas({
     banco: {

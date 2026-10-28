@@ -21,7 +21,7 @@ import { EnviarAoCrm } from './enviar-ao-crm'
 import { CAMPO, CamposDoContato } from './formulario-de-contato'
 import { FalhaAoCarregar } from './modulo-contas-e-contatos'
 import { DialogoNovaSequencia } from './nova-sequencia'
-import { PedirSequenciaAoRhetor } from './pedir-sequencia-ao-rhetor'
+import { GerarSequencia } from './gerar-sequencia'
 import { Foguinho } from './sinais/componentes'
 import { TabelaDeContatos } from './tabela-de-contatos'
 import { TransferirResponsabilidade } from './transferir-responsabilidade'
@@ -323,7 +323,7 @@ export function DetalheConta({ contaId }: Props) {
               </div>
 
               <div className="flex flex-wrap gap-2">
-              <PedirSequenciaAoRhetor conta={conta} />
+              <GerarSequencia conta={conta} />
               <Button
                 type="button"
                 onClick={() => setDialogoNovaAberto(true)}
