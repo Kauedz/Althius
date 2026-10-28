@@ -36,13 +36,13 @@
 
 ## Critérios
 
-- [ ] `/` mostra só o composer de Sinal, sem a grade dos 4 Agentes.
-- [ ] A barra lateral não mostra mais "Especialistas".
-- [ ] Não existe mais caminho na interface para criar um Agente a partir de uma Especialidade.
-- [ ] O @menção não sugere mais nenhum dos 4 Especialistas.
-- [ ] As rotas antigas de cada Agente abrem uma versão só leitura das sub-abas existentes, sem ação de escrever nem continuar Conversa.
-- [ ] Nenhuma linha de `private.agents` ou tabela dependente é apagada ou alterada por este ticket (conferido por teste que lê o dado antes e depois).
-- [ ] Vitest cobrindo a ausência da grade, da seção "Especialistas" e do botão "Novo agente", e a leitura só-leitura das sub-abas antigas; lint e build verdes; CI verde nos três jobs.
+- [x] `/` mostra só o composer de Sinal, sem a grade dos 4 Agentes. (Vitest `agentes-somente-leitura.test.tsx`, `App.test.tsx`, `contas.test.tsx`, `agentes-reais.test.tsx`; smoke `e2e/tests/08-agentes-so-leitura.spec.ts`, teste 1, verde no build do PR.)
+- [x] A barra lateral não mostra mais "Especialistas". (Vitest `raiz.test.tsx`, `App.test.tsx`, `agentes-somente-leitura.test.tsx`; smoke 08, teste 1.)
+- [x] Não existe mais caminho na interface para criar um Agente a partir de uma Especialidade. (`novo-agente.tsx` removido; Vitest `App.test.tsx`, `agentes-reais.test.tsx`; smoke 08 falha se `create_agent` for chamado.)
+- [x] O @menção não sugere mais nenhum dos 4 Especialistas. (Vitest `agentes-somente-leitura.test.tsx`, na `/` e em `/conversa`; smoke 08, teste 1.)
+- [x] As rotas antigas de cada Agente abrem uma versão só leitura das sub-abas existentes, sem ação de escrever nem continuar Conversa. Aprovação pendente numa Conversa antiga mostra "Decidir em Aprovações", e `configuracao` e `canais` levam à Conversa. (Vitest `agentes-somente-leitura.test.tsx`, `historico-do-agente.test.tsx`, `conversa-gaveta.test.tsx`, `conversas-reais.test.tsx`, `aprovacao-do-passo.test.tsx`, `sequencia-proposta-pelo-rhetor.test.tsx`; smoke 08, teste 2: as 5 sub-abas de cada Agente do QA, sem RPC de escrita.)
+- [x] Nenhuma linha de `private.agents` ou tabela dependente é apagada ou alterada por este ticket (conferido por teste que lê o dado antes e depois). Sem migration. Vitest `agentes-somente-leitura.test.tsx` compara a Fonte antes e depois. O smoke 08 lê `list_agents`, `list_agent_memory`, `list_agent_skills` e `list_agent_routines` do Workspace QA de produção antes e depois, exige o mesmo dado e zero escritas; ficou verde no build do PR.
+- [x] Vitest cobrindo a ausência da grade, da seção "Especialistas" e do botão "Novo agente", e a leitura só-leitura das sub-abas antigas; lint e build verdes; CI verde nos três jobs. Banco, Edge Functions e Frontend verdes no run [40633272398](https://github.com/Kauedz/Althius/actions/runs/40633272398); o run do head final do PR é o seguinte.
 
 ## Passos do Nan
 
