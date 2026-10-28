@@ -32,7 +32,7 @@ test('signal-plan: o Plano da IA usa setor, porte ou geografia do ICP', async ({
   expect(achados, 'o Plano deveria citar setor, porte ou geografia do ICP').not.toEqual([])
 
   // O ICP tem que chegar aos critérios, não só à explicação: o Briefing não fala de lugar, então a geografia do ICP
-  // (Sul do Brasil) vira `localizacao` = ["Brasil"] (ticket sinais-first 16). Setor e porte não têm critério no Plano.
+  // (Sul do Brasil e México) vira `localizacao` = ["Brasil", "México"], diferente do padrão ["Brasil"] (ticket sinais-first 16). Setor e porte não têm critério no Plano.
   const [sinal] = corpo.plano!.sinais
   testInfo.annotations.push({ type: 'info', description: `tipo ${sinal.tipo}; criterios ${JSON.stringify(sinal.criterios)}` })
   expect(TIPOS_COM_LOCALIZACAO as readonly string[], `o tipo ${sinal.tipo} não lê localizacao`).toContain(sinal.tipo)

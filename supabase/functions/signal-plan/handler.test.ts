@@ -128,6 +128,18 @@ Deno.test('geografia do ICP chega ao critério localizacao quando o Briefing nã
   assertEquals((omitido.corpo.plano as { sinais: { criterios: Record<string, unknown> }[] }).sinais[0].criterios.localizacao, ['Brasil'])
 })
 
+Deno.test('ICP com geografia fora do Brasil não deixa o critério localizacao no padrão ["Brasil"]', async () => {
+  const { db } = fakeDb({ icp: { ...ICP_DO_SUL, geography: 'Sul do Brasil e México' } })
+  const { llm } = llmFalso(() => Promise.resolve({
+    sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'], localizacao: ['Brasil'] } }],
+    explicacao: 'Vagas comerciais.',
+  }))
+  const r = await chamar(pedido('Quero saber quando empresas abrirem vagas de liderança comercial.'), { db, llm })
+  assertEquals(r.resposta.status, 200)
+  assertEquals((r.corpo.plano as { sinais: { criterios: Record<string, unknown> }[] }).sinais[0].criterios.localizacao, ['Brasil', 'México'])
+  assert(validarPlano(r.corpo.plano, CATALOGO).ok)
+})
+
 Deno.test('Briefing que fala de lugar vence a geografia do ICP; tipo sem localizacao não ganha o critério', async () => {
   const { db } = fakeDb({ icp: ICP_DO_SUL })
   const { llm } = llmFalso(() => Promise.resolve({
