@@ -82,9 +82,10 @@ Deno.test('o Rhetor propõe a Sequência pelo Hermes: o worker cria a Aprovaçã
   assertStringIncludes(m.chamadas[1].input, 'espera a decisão do Vendedor responsável')
 })
 
-Deno.test('o Ethos não recebe propor_sequencia, e o pedido dele não cria nada', async () => {
-  const m = montar([PEDIDO, 'Não consigo.\nSTATUS: pronto'], ETHOS)
+Deno.test('o Ethos também recebe propor_sequencia: o pedido dele vai à RPC, e a guarda do banco decide', async () => {
+  const m = montar([PEDIDO, 'Propus a Sequência; ela espera a sua Aprovação.\nSTATUS: pronto'], ETHOS)
   await m.worker.rodada()
-  assert(!m.chamadas[0].instructions.includes('### propor_sequencia'))
-  assertEquals(m.propostas, [])
+  assert(m.chamadas[0].instructions.includes('### propor_sequencia'))
+  assertEquals(m.propostas.length, 1)
+  assert(m.propostas[0].includes(':a-ethos:'))
 })

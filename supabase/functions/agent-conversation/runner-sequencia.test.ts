@@ -85,6 +85,7 @@ Deno.test('o Rhetor propõe a Sequência na Conversa: nasce a Aprovação, e o p
   }]])
   assertStringIncludes(JSON.stringify(chamadas[2].messages.at(-1)), 'Nada foi enviado')
   assert(nomes(chamadas[1]).includes('propor_sequencia'))
-  assert(!nomes(chamadas[3]).includes('propor_sequencia'))
+  // Fase 2 (Sequência de qualquer Conta): o Scopus também recebe a ferramenta; a guarda do banco decide quem propõe.
+  assert(nomes(chamadas[3]).includes('propor_sequencia'))
   assertStringIncludes(String(chamadas[1].system), 'Vendedor responsável aprovar')
 })
