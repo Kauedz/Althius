@@ -226,6 +226,9 @@ export interface SaldoDeCreditos {
   ilimitado: boolean
 }
 
+export interface PrecoDeCredito { acao: string; creditos: number; descricao: string }
+export interface LancamentoDeCredito { id: string; creditos: number; tipo: string; acao: string | null; sinal: string | null; criadoEm: string }
+
 /**
  * O contrato do Workspace operacional (acesso-e-planos), para a tela Plano. Tudo em créditos: nenhum valor em dólar chega
  * ao cliente.
@@ -799,6 +802,8 @@ export interface FonteDeAgentes extends FonteObservavel {
    * No Workspace ilimitado, `ilimitado` é verdadeiro.
    */
   saldoDeCreditos?(): Promise<SaldoDeCreditos | null>
+  precosDeCreditos?(): Promise<PrecoDeCredito[]>
+  extratoDeCreditos?(): Promise<LancamentoDeCredito[]>
 
   /** O contrato do Workspace operacional. Ausente na Demonstração. Nulo sem contrato, ou quando o banco não responde. */
   contratoDoWorkspace?(): Promise<ResumoDoContrato | null>
