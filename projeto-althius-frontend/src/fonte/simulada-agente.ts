@@ -75,6 +75,16 @@ export function criarFonteDoAgenteSimulada({ agora = () => new Date() }: { agora
         passo('buscar_empresas', 'Buscar até 20 empresas pelo ICP', [{ tipo: 'empresas', empresas: EMPRESAS.map((e) => ({ ...e })) }], 5),
       ], 'Encontrei 3 empresas novas; a Translog Cargas tem a aderência mais alta. Aceite as que fazem sentido para virarem Contas-alvo.')
     }
+    if (/neg[oó]cios ganhos|\bcrm\b/.test(t)) {
+      return turno(pedido, [passo('ler_icp_do_crm', 'Ler os negócios ganhos do CRM para propor o ICP', [{
+        tipo: 'icp_proposto', origem: 'crm', crms: ['HubSpot'], negocios: 12,
+        setor: 'Logística e transporte', porte: '201-500', geografia: 'PR',
+        divergencias: [
+          { campo: 'porte', doCrm: '201-500', doSite: '51-200', sugerido: 'crm' },
+          { campo: 'regiao', doCrm: 'PR', doSite: 'SP', sugerido: 'crm' },
+        ],
+      }])], 'Pelos 12 negócios ganhos no HubSpot, o porte e a região divergem do ICP salvo. Qual você quer manter?')
+    }
     const site = /site\s+(?:de\s+|da\s+|do\s+)?([a-z0-9.-]+\.[a-z]{2,})/.exec(t)
     if (site) {
       return turno(pedido, [passo('ler_site_para_icp', `Ler o site ${site[1]} para propor o ICP`, [{ ...PROPOSTA, dominio: site[1] }])],

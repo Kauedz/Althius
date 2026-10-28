@@ -59,7 +59,13 @@ export type CartaoDoAgente =
     }
   | {
       tipo: 'icp_proposto'
-      dominio: string
+      /** O site lido (Fase 4); ausente quando a proposta vem do CRM. */
+      dominio?: string
+      /** `crm`: pelos negócios ganhos (Fase 7). */
+      origem?: 'crm'
+      crms?: string[]
+      negocios?: number
+      divergencias?: DivergenciaDoIcp[]
       setor?: string
       porte?: string
       geografia?: string
@@ -141,4 +147,12 @@ export class ErroDoAgente extends Error {
     this.name = 'ErroDoAgente'
     this.codigo = codigo
   }
+}
+
+/** Onde o ICP pelos negócios ganhos discorda do ICP salvo (decisão 6: o CRM pesa mais, a pessoa escolhe). */
+export interface DivergenciaDoIcp {
+  campo: 'setor' | 'porte' | 'regiao'
+  doCrm: string
+  doSite: string
+  sugerido: 'crm'
 }
