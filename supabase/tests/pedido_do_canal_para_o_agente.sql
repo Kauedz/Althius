@@ -11,7 +11,7 @@ values
 insert into public.workspaces (id, kind, name) values ('e7e10000-0000-4000-8000-000000000001', 'empresa', 'Canal para o agente');
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('e7e10000-0000-4000-8000-000000000001', 'e7e00000-0000-4000-8000-000000000001', 'admin', true),
-  ('e7e10000-0000-4000-8000-000000000001', 'e7e00000-0000-4000-8000-000000000002', 'member', true);
+  ('e7e10000-0000-4000-8000-000000000001', 'e7e00000-0000-4000-8000-000000000002', 'admin', true);
 insert into private.agent_conversations (id, workspace_id, owner_id, kind, origin) values
   ('e7e20000-0000-4000-8000-000000000001', 'e7e10000-0000-4000-8000-000000000001', 'e7e00000-0000-4000-8000-000000000001', 'coordenada', 'slack'),
   ('e7e20000-0000-4000-8000-000000000002', 'e7e10000-0000-4000-8000-000000000001', 'e7e00000-0000-4000-8000-000000000001', 'coordenada', 'althius');
