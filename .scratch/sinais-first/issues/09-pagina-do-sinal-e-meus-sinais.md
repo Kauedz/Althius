@@ -1,6 +1,6 @@
 # 09: Página do Sinal e "Meus Sinais"
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -33,14 +33,24 @@
 
 ## Critérios
 
-- [ ] Um Sinal criado pelo composer aparece em "Meus Sinais" com o nome gerado, editável ali mesmo.
-- [ ] A página de um Sinal mostra Briefing, Plano vigente com histórico de versões, Agenda, preço e Rodadas, sem exigir navegação extra.
-- [ ] "Meus Sinais" e "Modelos" são destinos claramente distintos na mesma tela de Sinais.
-- [ ] Nenhum dado de Sinal muda de forma pela reorganização (mesmos valores, mesma tabela).
-- [ ] Vitest cobrindo a listagem de "Meus Sinais" com Sinais de origens diferentes (composer, Modelo, `/sinais/novo`); lint e build verdes; CI verde nos três jobs.
+- [x] Um Sinal criado pelo composer aparece em "Meus Sinais" com o nome gerado, editável ali mesmo.
+- [ ] A página de um Sinal mostra Briefing, Plano vigente com histórico de versões, Agenda, preço e Rodadas, sem exigir navegação extra. A página atual mostra Briefing, versão vigente, Agenda, preço em créditos e Rodadas; não há RPC de leitura do histórico por versão. O histórico fica bloqueado pela ausência desse contrato e será verificado por teste de página completa quando a leitura existir.
+- [x] "Meus Sinais" e "Modelos" são destinos claramente distintos na mesma tela de Sinais.
+- [x] Nenhum dado de Sinal muda de forma pela reorganização (mesmos valores, mesma tabela), verificado pelo mapeamento da fonte Supabase e pelo teste do payload do rename.
+- [x] Vitest cobrindo a listagem de "Meus Sinais" com Sinais de origens diferentes (composer, Modelo, `/sinais/novo`); lint e build verdes; CI verde nos três jobs. Vitest das três origens em `pagina-sinais-reorganizada.test.tsx`; lint, build e a suíte completa passaram no lote 3. CI: Frontend (Vitest completo, lint e build) e Edge Functions verdes no run [40614376642](https://github.com/Kauedz/Althius/actions/runs/40614376642); Banco (com `renomear_sinal.sql` corrigido) e Edge Functions verdes no run [40615938204](https://github.com/Kauedz/Althius/actions/runs/40615938204).
 
 ## Passos do Nan
 
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot publica o frontend.
 
 ## Comments
+
+### 2026-10-27
+
+Reorganizei a tela de Sinais em áreas distintas de **Meus Sinais** e **Modelos**. Meus Sinais agora lista todo Monitoramento ativo do Workspace, independentemente do card de catálogo, com link para a página do Sinal e rótulo neutro para composer/Modelo; o fluxo antigo não exibe rótulo. A página do Sinal continua usando os componentes existentes para Briefing/Plano, Agenda, preço em créditos e Rodadas, sem alteração de dados ou SQL. O mapeamento aceita `created_via` opcional para integração com o ticket 08. Adicionei cobertura Vitest para as três origens e marquei o ticket 14 como absorvido.
+
+Os testes focados (40 testes), lint e build passaram. A suíte completa ainda falha nos seis testes conhecidos de `src/App.test.tsx` e em quatro testes preexistentes de memória; nenhum banco remoto, deploy ou histórico do git foi alterado. A edição inline agora chama `rename_signal_monitor`, sem reenviar o Monitoramento inteiro. O contrato de Plano ainda não oferece histórico por versão; a página mostra a versão vigente e deixa essa limitação registrada.
+
+### 2026-10-27 (continuação)
+
+Adicionada a migration `20261217180000_renomear_sinal.sql`, com RPC aditiva para renomear somente `name`, preservar o Plano e aplicar as mesmas regras de nome do Monitoramento. A fonte Supabase, a Demonstração e o estado da tela foram atualizados, com teste do payload exato do RPC. O fluxo `/sinais/novo?modelo=...` agora salva `criadoVia: 'modelo'`.

@@ -21,7 +21,7 @@ import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, 
 import { GRADE_DE_CARTOES } from './cascatas'
 import { usePodeDescreverSinal } from './pode-descrever-sinal'
 import { useCatalogoFuncional, type VisaoDoCatalogo } from './catalogo-funcional'
-import { useMonitoramentos } from './estado'
+import { useMonitoramentos, useSinaisDoMockup } from './estado'
 import {
   ZONA_DA_VITRINE,
   ativosDoCard,
@@ -119,6 +119,7 @@ export function PaginaSinais() {
 
 function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
+  const { renomearMonitoramento } = useSinaisDoMockup()
   const podeDescrever = usePodeDescreverSinal(visao)
   const [busca, setBusca] = useState('')
   const [familiaId, setFamiliaId] = useState('todos')
@@ -180,8 +181,8 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
   const disparosPorMonitoramento = (id: string) => (sinais ?? []).filter((s) => s.monitoramentoId === id && foiDisparado(s.data, hoje)).length
   // Só os Monitoramentos de um Sinal da vitrine: os de um tipo arquivado não têm página para abrir.
   const ativos = monitoramentos
-    .filter((m) => m.estado === 'ativo' && cards.some((card) => card.contados.includes(m.tipoId)))
-    .map((m) => ({ id: m.id, tipoId: m.tipoId, nome: m.nome, disparos: disparosPorMonitoramento(m.id) }))
+    .filter((m) => m.estado === 'ativo' && tipoPorId(m.tipoId))
+    .map((m) => ({ ...m, disparos: disparosPorMonitoramento(m.id) }))
     .toSorted((a, b) => b.disparos - a.disparos)
   const pausadosPorCreditos = monitoramentos.filter((m) => m.estado === 'pausado' && m.pausadoPor === 'sem_creditos')
   const comRodadaPulada = monitoramentos.filter(sinalComRodadaPulada)
@@ -209,6 +210,9 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
       {!filtrando && (
         <MeusSinais
           monitoramentosAtivos={ativos}
+          aoRenomear={async (monitoramento, nome) => {
+            await renomearMonitoramento(monitoramento.id, nome)
+          }}
           pausadosPorCreditos={pausadosPorCreditos}
           comRodadaPulada={comRodadaPulada}
           disparos={disparos}
@@ -300,7 +304,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
       <section aria-labelledby="titulo-todos-os-sinais" className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 id="titulo-todos-os-sinais" className="titulo-secao text-lg">
-            Todos os Sinais
+            Modelos
           </h2>
           <span className="rotulo">
             {cards.length} Sinais · {totalAtivos} {totalAtivos === 1 ? 'Monitoramento ativo' : 'Monitoramentos ativos'}
