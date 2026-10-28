@@ -53,4 +53,4 @@ Os testes focados (40 testes), lint e build passaram. A suíte completa ainda fa
 
 ### 2026-10-27 (continuação)
 
-Adicionada a migration `20261217160000_renomear_sinal.sql`, com RPC aditiva para renomear somente `name`, preservar o Plano e aplicar as mesmas regras de nome do Monitoramento. A fonte Supabase, a Demonstração e o estado da tela foram atualizados, com teste do payload exato do RPC. O fluxo `/sinais/novo?modelo=...` agora salva `criadoVia: 'modelo'`.
+Adicionada a migration `20261217180000_renomear_sinal.sql`, com RPC aditiva para renomear somente `name`, preservar o Plano e aplicar as mesmas regras de nome do Monitoramento. A fonte Supabase, a Demonstração e o estado da tela foram atualizados, com teste do payload exato do RPC. O fluxo `/sinais/novo?modelo=...` agora salva `criadoVia: 'modelo'`.

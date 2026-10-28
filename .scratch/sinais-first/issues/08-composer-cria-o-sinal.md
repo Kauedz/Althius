@@ -51,7 +51,7 @@ Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e 
 
 ### 2026-10-27
 
-Implementado o fluxo inicial do composer para `plano_novo`: o pedido é usado como Briefing, o Plano fica revisável com nome editável, Agenda/preço em créditos visíveis e o salvamento navega para a página do Monitoramento. A Fonte de Sinais agora transmite e lê `criadoVia`, e a migration `20261217150000_origem_sinal_composer.sql` adiciona `created_via`, atualiza `save_signal_plan` e `list_signal_monitors`. O pgTAP dedicado está em `supabase/tests/origem_sinal_composer.sql`. A origem `modelo` foi mantida no CHECK para uso futuro; o ticket 06 já registra a origem do Plano em `plan_origin`.
+Implementado o fluxo inicial do composer para `plano_novo`: o pedido é usado como Briefing, o Plano fica revisável com nome editável, Agenda/preço em créditos visíveis e o salvamento navega para a página do Monitoramento. A Fonte de Sinais agora transmite e lê `criadoVia`, e a migration `20261217170000_origem_sinal_composer.sql` adiciona `created_via`, atualiza `save_signal_plan` e `list_signal_monitors`. O pgTAP dedicado está em `supabase/tests/origem_sinal_composer.sql`. A origem `modelo` foi mantida no CHECK para uso futuro; o ticket 06 já registra a origem do Plano em `plan_origin`.
 
 O fluxo reutiliza `DescreverUmSinal`; a rota transmite o pedido por state do router e não envia a mensagem à Conversa. Edições não enviam `criadoVia`, preservando a origem existente no banco. O nome é derivado deterministicamente por `resumirNome` porque `signal-plan` ainda não retorna nome; ele permanece editável, sem alterar o contrato do `signal-plan`.
 
