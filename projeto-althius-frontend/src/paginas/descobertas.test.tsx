@@ -133,8 +133,8 @@ describe('Caixa de Descobertas por ICP', () => {
     const linha = (await screen.findByText('LogiFlow Brasil S.A.')).closest('tr')!
     await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
 
-    expect(await screen.findByText(/Conta criada: LogiFlow Brasil S.A./)).toBeInTheDocument()
-    expect(screen.getByText(/Comitê: 2 pessoas sugeridas/)).toBeInTheDocument()
+    expect(await screen.findByText(/LogiFlow Brasil S.A. agora é uma Conta-alvo/)).toBeInTheDocument()
+    expect(screen.getByText(/Comitê de compra: 2 pessoas sugeridas/)).toBeInTheDocument()
     expect(screen.getByText(/Dados da Receita: ok/)).toBeInTheDocument()
     expect(comite).toHaveBeenCalledWith('conta-orbita')
     expect(receita).toHaveBeenCalledWith('conta-orbita', '45.123.890/0001-12')
@@ -149,7 +149,7 @@ describe('Caixa de Descobertas por ICP', () => {
     await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
 
     expect(await screen.findByText(/Receita indisponível no momento/)).toBeInTheDocument()
-    expect(screen.getByText(/Conta criada: LogiFlow Brasil S.A./)).toBeInTheDocument()
+    expect(screen.getByText(/LogiFlow Brasil S.A. agora é uma Conta-alvo/)).toBeInTheDocument()
   })
 
   it('não consulta Receita sem CNPJ e explica quando o Comitê está bloqueado', async () => {
@@ -166,7 +166,7 @@ describe('Caixa de Descobertas por ICP', () => {
     await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
     // A candidata já tem site; o modal só aparece quando faltam site e CNPJ.
 
-    expect(await screen.findByText(/sem créditos suficientes agora/)).toBeInTheDocument()
+    expect(await screen.findByText(/Sem créditos suficientes para enriquecer o Comitê agora/)).toBeInTheDocument()
     expect(comite).not.toHaveBeenCalled()
     expect(receita).not.toHaveBeenCalled()
   })

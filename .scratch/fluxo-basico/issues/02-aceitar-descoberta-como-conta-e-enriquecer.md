@@ -32,11 +32,11 @@ Aceitar uma empresa descoberta precisa criar ou localizar uma Conta-alvo e deixa
 
 ## Critérios de aceite
 
-- [x] Aceite com Comitê e Receita bem-sucedidos mostra Conta criada, pessoas do Comitê e Receita ok (Vitest `descobertas.test.tsx`).
+- [x] Aceite com Comitê e Receita bem-sucedidos mostra "agora é uma Conta-alvo" (ou "já era" quando a Conta existia), as pessoas do Comitê e Receita ok (Vitest `descobertas.test.tsx`).
 - [x] Falha de Receita mostra a mensagem real e mantém a Conta aceita (Vitest `descobertas.test.tsx`).
 - [x] Sem CNPJ não chama Receita; gate do Comitê diferente de `liberado` não chama Comitê (Vitest `descobertas.test.tsx`).
 - [x] pgTAP cobre criação, campos carregados, estado, decisor, idempotência e isolamento (`aceite_da_descoberta_fluxo_basico.sql`).
-- [ ] pgTAP cobre todos os estados de saldo/contrato do Comitê e deduplicação por domínio/CNPJ.
+- [x] pgTAP cobre deduplicação por domínio e por CNPJ e o estado `sem_contrato` do Comitê (`aceite_da_descoberta_fluxo_basico.sql`); os demais estados seguem cobertos por `descoberta_de_contas_pelo_icp.sql`.
 - [ ] Smoke e2e intercepta aceite/enriquecimentos e prova que nenhuma escrita real ocorre.
 - [ ] CI frontend, Edge Functions e Banco verdes.
 

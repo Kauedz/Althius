@@ -35,7 +35,7 @@ test('aceitar Descoberta chama Comitê e Receita sem escrever além do fluxo int
   await conferirWorkspaceOperacional(page)
   const linha = page.getByText('Conta Smoke Descoberta').locator('..')
   await linha.getByRole('button', { name: /Aceitar/i }).click()
-  await expect(page.getByText(/Conta criada: Conta Smoke Descoberta/)).toBeVisible()
+  await expect(page.getByText(/Conta Smoke Descoberta agora é uma Conta-alvo/)).toBeVisible()
   await expect(page.getByText(/Dados da Receita: ok/)).toBeVisible()
   expect(chamadas).toEqual(['accept', `comite-compra:${conta}:`, `cnpj-receita:${conta}:00000000000191`])
   expect(escritas.filter((path) => !path.includes('/rpc/accept_discovered_account') && !path.includes('/functions/v1/account-enrichment'))).toEqual([])
