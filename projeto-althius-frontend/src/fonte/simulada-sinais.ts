@@ -620,12 +620,22 @@ export function criarFonteDeSinaisSimulada(
         briefing: plano.briefing,
         plano: plano.plano,
         versaoDoPlano: (existente?.versaoDoPlano ?? 0) + 1,
+        ...(plano.criadoVia ? { criadoVia: plano.criadoVia } : existente?.criadoVia ? { criadoVia: existente.criadoVia } : {}),
       }
       const index = monitoramentos.findIndex((m) => m.id === salvo.id)
       if (index >= 0) monitoramentos[index] = salvo
       else monitoramentos.push(salvo)
       notificar()
       return clonarMonitoramento(salvo)
+    },
+
+    async renomearMonitoramento(id, nome): Promise<Monitoramento> {
+      await aguardar()
+      const monitoramento = monitoramentos.find((m) => m.id === id)
+      if (!monitoramento) throw new Error(`Monitoramento "${id}" não encontrado`)
+      monitoramento.nome = nome.trim()
+      notificar()
+      return clonarMonitoramento(monitoramento)
     },
   }
 }

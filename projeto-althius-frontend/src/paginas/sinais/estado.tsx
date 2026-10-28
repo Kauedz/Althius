@@ -12,6 +12,7 @@ interface SinaisDoMockup {
   salvar: (monitoramento: Monitoramento | NovoMonitoramento) => Promise<Monitoramento>
   /** Grava o Plano revisado como rascunho do Monitoramento (agente-de-sinal 01). Rejeita se a Fonte não oferece Planos. */
   salvarPlano: (plano: PlanoParaSalvar) => Promise<Monitoramento>
+  renomearMonitoramento: (id: string, nome: string) => Promise<Monitoramento>
   mudarEstado: (id: string, estado: EstadoDoMonitoramento) => Promise<Monitoramento>
   simularDisparo: (parametros: ParametrosSimulacaoDisparo) => Promise<SinalEncontrado>
 }
@@ -98,6 +99,19 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
     [fonte],
   )
 
+  const renomearMonitoramento = useCallback(async (id: string, nome: string) => {
+    if (fonte?.renomearMonitoramento) {
+      const atualizado = await fonte.renomearMonitoramento(id, nome)
+      setMonitoramentos((atuais) => atuais.map((m) => (m.id === id ? atualizado : m)))
+      return atualizado
+    }
+    const atualizado = monitoramentos.find((m) => m.id === id)
+    if (!atualizado) throw new Error(`Monitoramento "${id}" não encontrado`)
+    const resultado = { ...atualizado, nome: nome.trim() }
+    setMonitoramentos((atuais) => atuais.map((m) => (m.id === id ? resultado : m)))
+    return resultado
+  }, [fonte, monitoramentos])
+
   const mudarEstado = useCallback(
     async (id: string, estado: EstadoDoMonitoramento): Promise<Monitoramento> => {
       if (fonte) {
@@ -127,8 +141,8 @@ export function SinaisDoMockupProvider({ children }: { children: ReactNode }) {
   )
 
   const valor = useMemo(
-    () => ({ monitoramentos, carregando, erro, recarregar, salvar, salvarPlano, mudarEstado, simularDisparo }),
-    [monitoramentos, carregando, erro, recarregar, salvar, salvarPlano, mudarEstado, simularDisparo],
+    () => ({ monitoramentos, carregando, erro, recarregar, salvar, salvarPlano, renomearMonitoramento, mudarEstado, simularDisparo }),
+    [monitoramentos, carregando, erro, recarregar, salvar, salvarPlano, renomearMonitoramento, mudarEstado, simularDisparo],
   )
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
 }

@@ -109,3 +109,26 @@ Deno.test({
     for (const campo of campos) assert(fontes.includes(`criterios.${campo}`), `nenhum adaptador lê criterios.${campo}`)
   },
 })
+
+// ADR-0032, decisão 2 (Sinais first 08): só o Plano aprovado roda. O Briefing, inclusive o pedido vindo do composer,
+// fica guardado para a pessoa revisar, mas o código do signal-runner nunca lê esse texto.
+Deno.test({
+  name: 'o signal-runner não lê o Briefing (o pedido do composer nunca chega ao runner)',
+  ignore: !podeLer,
+  async fn() {
+    const RUNNER = new URL('../../signal-runner/', import.meta.url)
+    const arquivos: string[] = []
+    async function percorrer(pasta: URL) {
+      for await (const item of Deno.readDir(pasta)) {
+        if (item.isDirectory) await percorrer(new URL(`${item.name}/`, pasta))
+        else if (item.name.endsWith('.ts') && !item.name.endsWith('.test.ts')) arquivos.push(new URL(item.name, pasta).href)
+      }
+    }
+    await percorrer(RUNNER)
+    assert(arquivos.length > 0, 'o signal-runner tem código para ler')
+    for (const arquivo of arquivos) {
+      const texto = await Deno.readTextFile(new URL(arquivo))
+      assert(!/\bbrief(ing)?\b/i.test(texto), `${arquivo} não pode ler o Briefing`)
+    }
+  },
+})

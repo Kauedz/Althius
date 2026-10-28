@@ -1,6 +1,6 @@
 import { Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
@@ -76,6 +76,8 @@ export function PaginaDoBriefing() {
   const [parametros] = useSearchParams()
   const monitorId = parametros.get('monitor')
   const modeloId = parametros.get('modelo')
+  const localizacao = useLocation()
+  const estado = localizacao.state as { briefing?: unknown; origem?: unknown } | null
   const { monitoramentos, carregando, erro, recarregar } = useSinaisDoMockup()
   const existente = monitorId ? monitoramentos.find((m) => m.id === monitorId) : undefined
 
@@ -97,17 +99,17 @@ export function PaginaDoBriefing() {
   }
   // Um Monitoramento sem Plano (ou que o editor mudou depois) se edita no editor de sempre.
   if (existente && !existente.plano) return <Navigate to={`/sinais/tipos/${existente.tipoId}/${existente.id}`} replace />
-  return <DescreverUmSinal key={existente?.id ?? modeloId ?? 'novo'} existente={existente} modeloId={existente ? undefined : modeloId ?? undefined} />
+  return <DescreverUmSinal key={existente?.id ?? modeloId ?? 'novo'} existente={existente} modeloId={existente ? undefined : modeloId ?? undefined} briefingInicial={!existente && estado?.origem === 'composer' && typeof estado.briefing === 'string' ? estado.briefing : undefined} origem={!existente ? (estado?.origem === 'composer' ? 'composer' : modeloId ? 'modelo' : undefined) : undefined} />
 }
 
-function DescreverUmSinal({ existente, modeloId }: { existente?: Monitoramento; modeloId?: string }) {
+function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { existente?: Monitoramento; modeloId?: string; briefingInicial?: string; origem?: 'composer' | 'modelo' }) {
   const fonte = useFonteDeSinais()
   const { salvarPlano } = useSinaisDoMockup()
   const navegar = useNavigate()
   const tiposAceitos = useTiposAceitos()
 
   const [passo, setPasso] = useState<'briefing' | 'plano'>(existente ? 'plano' : 'briefing')
-  const [briefing, setBriefing] = useState(existente?.briefing ?? '')
+  const [briefing, setBriefing] = useState((briefingInicial ?? existente?.briefing ?? '').slice(0, LIMITES_DO_PLANO.briefingMax))
   const [contas, setContas] = useState<string[]>(() =>
     existente?.plano?.escopo.tipo === 'contas' ? [...existente.plano.escopo.contaIds] : [],
   )
@@ -200,7 +202,7 @@ function DescreverUmSinal({ existente, modeloId }: { existente?: Monitoramento; 
         maxEmpresasPorRodada: plano.maxEmpresasPorRodada,
         ...(plano.modeloId ? { modeloId: plano.modeloId } : {}),
       }
-      const salvo = await salvarPlano({ id: existente?.id, nome: nome.trim(), briefing: briefing.trim(), plano: paraSalvar })
+      const salvo = await salvarPlano({ id: existente?.id, nome: nome.trim(), briefing: briefing.trim(), plano: paraSalvar, ...(origem && !existente ? { criadoVia: origem } : {}) })
       navegar(`/sinais/tipos/${salvo.tipoId}/${salvo.id}`)
     } catch (erro) {
       setErroSalvar(erro instanceof Error && erro.message ? erro.message : 'Não foi possível salvar o rascunho. Tente de novo.')

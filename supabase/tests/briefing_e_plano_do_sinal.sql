@@ -340,10 +340,10 @@ select is((select concat_ws('|', plan is null, brief)
 
 -- 12. A lista: os campos antigos na mesma ordem e os quatro novos no fim. A Agenda do Sinal (20261118120000) acrescentou
 -- schedule e next_run_at depois deles, e o Preço por rodada (20261119120000) daily_credit_cap, consecutive_skips e paused_reason;
--- a ordem de tudo o que veio antes não mudou.
+-- a ordem de tudo o que veio antes não mudou. A origem do Sinal (20261217170000, Sinais first 08) acrescentou created_via no fim.
 select is(pg_get_function_result('public.list_signal_monitors(uuid)'::regprocedure),
-  'TABLE(id uuid, signal_type text, name text, state text, audience jsonb, criteria jsonb, every_hours integer, created_by uuid, last_run_at timestamp with time zone, last_error text, created_at timestamp with time zone, last_run jsonb, brief text, plan jsonb, plan_version integer, plan_origin text, schedule jsonb, next_run_at timestamp with time zone, daily_credit_cap integer, consecutive_skips integer, paused_reason text)',
-  'list_signal_monitors mantém as colunas de antes, acrescenta brief, plan, plan_version e plan_origin no fim e, depois, schedule, next_run_at, daily_credit_cap, consecutive_skips e paused_reason');
+  'TABLE(id uuid, signal_type text, name text, state text, audience jsonb, criteria jsonb, every_hours integer, created_by uuid, last_run_at timestamp with time zone, last_error text, created_at timestamp with time zone, last_run jsonb, brief text, plan jsonb, plan_version integer, plan_origin text, schedule jsonb, next_run_at timestamp with time zone, daily_credit_cap integer, consecutive_skips integer, paused_reason text, created_via text)',
+  'list_signal_monitors mantém as colunas de antes, acrescenta brief, plan, plan_version e plan_origin no fim e, depois, schedule, next_run_at, daily_credit_cap, consecutive_skips, paused_reason e created_via');
 
 -- 13. O limite de Planos por dia (DECISÃO PENDENTE 13), contado por horários fixos.
 reset role;

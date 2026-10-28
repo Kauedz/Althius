@@ -65,6 +65,7 @@ function PedidoCoordenado() {
   const sugestoes = useDados((fonte) => fonte.sugestoesCoordenadas(), [])
   const navegar = useNavigate()
   const { respondendo } = conversas.coordenada
+  const { modo, disponivel } = useAmbiente()
 
   function coordenar(pedido: Mensagem) {
     conversas.coordenar(pedido)
@@ -79,6 +80,7 @@ function PedidoCoordenado() {
         placeholder="Descreva o trabalho. A Althius chama os agentes certos. Use @ para chamar um agente específico."
         comEspecialidades
         classificarIntencao
+        criarSinalNoComposer={modo === 'real' && disponivel('sinais')}
         ocupado={respondendo}
         aoEnviar={(texto, anexos) => coordenar({ texto, ...(anexos.length ? { anexos } : {}) })}
       />

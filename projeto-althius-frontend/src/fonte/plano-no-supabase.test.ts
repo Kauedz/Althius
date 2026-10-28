@@ -149,8 +149,35 @@ describe('salvarPlano e a lista de Monitoramentos', () => {
 
     const salvo = await fonte.salvarPlano!({ nome: 'Meta', briefing: 'Quem anuncia na Meta', plano: PLANO })
 
-    expect(chamadas).toEqual([{ p_workspace_id: WORKSPACE, p_monitor_id: null, p_name: 'Meta', p_brief: 'Quem anuncia na Meta', p_plan: PLANO }])
+    expect(chamadas).toEqual([{ p_workspace_id: WORKSPACE, p_monitor_id: null, p_name: 'Meta', p_brief: 'Quem anuncia na Meta', p_plan: PLANO, p_created_via: 'sinais_novo' }])
     expect(salvo).toMatchObject({ id: 'mon-1', tipoId: 'anuncios-meta', briefing: 'Quem anuncia na Meta', plano: PLANO, versaoDoPlano: 2 })
+  })
+
+  it('envia a origem composer ao salvar um Plano iniciado no composer', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, created_via: 'composer' }] } })
+
+    const salvo = await fonte.salvarPlano!({ nome: 'Meta', briefing: 'Quem anuncia na Meta', plano: PLANO, criadoVia: 'composer' })
+
+    expect(chamadas[0]).toMatchObject({ p_created_via: 'composer' })
+    expect(salvo.criadoVia).toBe('composer')
+  })
+
+  it('envia a origem modelo ao salvar um Plano vindo do catálogo', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, created_via: 'modelo' }] } })
+    await fonte.salvarPlano!({ nome: 'Meta', briefing: 'Quem anuncia na Meta', plano: PLANO, criadoVia: 'modelo' })
+    expect(chamadas[0]).toMatchObject({ p_created_via: 'modelo' })
+  })
+
+  it('edita um Monitoramento existente sem deixar de funcionar', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, id: 'mon-1', created_via: 'composer' }] } })
+
+    await fonte.salvarPlano!({ id: 'mon-1', nome: 'Meta editado', briefing: 'Atualizado', plano: PLANO })
+
+    expect(chamadas[0]).toMatchObject({ p_monitor_id: 'mon-1' })
+    expect(chamadas[0]).not.toHaveProperty('p_created_via')
   })
 
   it('o Monitoramento sem Plano (ou com o Plano solto pelo editor) não leva Briefing nem versão', async () => {
