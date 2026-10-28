@@ -1,6 +1,8 @@
 begin;
-
-select plan(21);
+create extension if not exists pgtap with schema extensions;
+set local search_path = extensions, public;
+-- Sinais first 13: o Workspace novo nasce sem os quatro Agentes padrão; os que já existem ficam como estão.
+select plan(15);
 
 create function pg_temp.semear_agentes_padrao(p_workspace_id uuid)
 returns void
@@ -61,20 +63,11 @@ select is((select count(*)::int from private.agents where workspace_id = '130000
 select is((select count(*)::int from private.agents where workspace_id = '13000000-0000-4000-8000-000000000002'), 4,
   'criar outro Workspace não altera o Workspace antigo');
 
-select lives_ok($$select private.crm_handoff_waits_for_agents('13000000-0000-4000-8000-000000000000')$$,
-  'CRM sem Agente não gera erro não tratado');
-select is(private.reply_proposal_cap_scopes(null), array['acao:agentes']::text[],
-  'teto de Proposta sem Agente fica só no escopo geral');
-select is(private.automation_scope_runs('13000000-0000-4000-8000-000000000001', 'agente:13000000-0000-4000-8000-000000000000'), false,
-  'automação de Agente sem Agente fica indisponível');
-select lives_ok($$select private.enqueue_due_agent_routines('2030-01-01 00:00:00+00')$$,
-  'scheduler de Rotinas sem Agente não gera erro não tratado');
-select is((select count(*)::int from private.agent_runs where workspace_id = '13000000-0000-4000-8000-000000000001'), 0,
-  'scheduler sem Agente não cria Execução');
-select is(private.enqueue_reply_analysis('13000000-0000-4000-8000-000000000000'), null::uuid,
-  'análise de resposta sem resposta correlacionada não faz nada');
-select lives_ok($$select private.enqueue_reply_analysis('13000000-0000-4000-8000-000000000000')$$,
-  'enfileirar análise sem Agente não gera erro não tratado');
+-- Um Rhetor criado depois (pelo caminho de antes ou por um Agente personalizado futuro) continua recebendo a permissão de
+-- Sequência pelo gatilho do ticket 11; a auditoria das funções que procuravam o Agente padrão está em
+-- auditoria_sem_agentes_padrao.sql, com cenário real.
+select is((select count(*)::int from private.agent_step_permissions where workspace_id = '13000000-0000-4000-8000-000000000002'), 1,
+  'o Rhetor do Workspace antigo segue com a permissão de Sequência');
 
 select * from finish();
 rollback;
