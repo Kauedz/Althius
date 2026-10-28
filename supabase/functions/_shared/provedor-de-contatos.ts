@@ -1,7 +1,7 @@
 // O contrato único da cascata de contatos (enriquecimento-em-cascata, tickets 01 e 02):
 // - Busca de pessoas da empresa para formação do comitê de compra (Decisor, Influenciador, Campeão);
 // - Revelação de e-mail e telefone;
-// - Provedores plugáveis (Apify como base nativa; Apollo, Lusha e Clay como stubs, fora da cascata da Althius);
+// - Provedores plugáveis (Apify como base nativa; Apollo e CRM como conexões do Workspace);
 // - Cascata que percorre os fornecedores de `fornecedoresDaCascata` na ordem.
 import type { Apify } from '../signal-scan/handler.ts'
 
@@ -51,6 +51,23 @@ export interface ProvedorDeContatos {
     canal: 'email' | 'telefone',
     medicao?: { runId: string | null; costUsd: number | null },
   ): Promise<DadoRevelado | null>
+}
+
+/**
+ * Uma ferramenta da Integração do Cliente, já com o Workspace, a pessoa e a autorização resolvidos pela camada de
+ * Integrações (`integration-access`). Devolve o resultado da ferramenta; lança quando a chamada não deu certo. Nunca recebe
+ * nem devolve segredo.
+ */
+export type ChamarFerramentaDoCliente = (ferramenta: string, argumentos: Record<string, unknown>) => Promise<unknown>
+
+/**
+ * As fontes que são conexões do Cliente (Apollo, CRM): o dado achado por elas não cobra Créditos Althius, porque o Cliente
+ * já paga o próprio provedor. O banco usa a mesma regra (`private.is_customer_contact_source`).
+ */
+export const FONTES_DO_CLIENTE = ['apollo', 'crm'] as const
+export function fonteDoCliente(fonte: string | null | undefined): boolean {
+  const f = (fonte ?? '').trim().toLowerCase()
+  return FONTES_DO_CLIENTE.some((prefixo) => f === prefixo || f.startsWith(`${prefixo}:`))
 }
 
 /**
@@ -339,24 +356,95 @@ export class ApifyProvedorDeContatos implements ProvedorDeContatos {
   }
 }
 
-/** Stub para integração com Apollo (cliente conecta sua conta no Agente). */
+/** O conteúdo de uma ferramenta MCP: o estruturado, ou o primeiro texto que for JSON. */
+function corpoDaFerramenta(resposta: unknown): Record<string, unknown> {
+  if (!resposta || typeof resposta !== 'object') return {}
+  const r = resposta as Record<string, unknown>
+  if (r.estruturado && typeof r.estruturado === 'object') return r.estruturado as Record<string, unknown>
+  if (Array.isArray(r.conteudo)) {
+    for (const item of r.conteudo) {
+      const texto = item && typeof item === 'object' ? (item as Record<string, unknown>).text : undefined
+      if (typeof texto !== 'string') continue
+      try {
+        const lido = JSON.parse(texto)
+        if (lido && typeof lido === 'object') return lido as Record<string, unknown>
+      } catch {
+        // Texto que não é JSON: segue para o próximo.
+      }
+    }
+    return {}
+  }
+  return r
+}
+
+const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
+
+/**
+ * O Apollo conectado pelo Workspace (MCP do Apollo, https://docs.apollo.io/docs/apollo-mcp). A busca de pessoas
+ * (`apollo_people_search`) não gasta crédito do Apollo; a revelação (`apollo_people_enrichment`) gasta o do Cliente. A
+ * fonte é `apollo`: o dado não cobra Créditos Althius. Telefone fica fora, como no resto do produto.
+ */
+export class ApolloProvedorDeContatos implements ProvedorDeContatos {
+  readonly nome = 'apollo'
+
+  constructor(private readonly chamar: ChamarFerramentaDoCliente) {}
+
+  async buscarPessoas(empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]> {
+    const argumentos: Record<string, unknown> = { per_page: Math.min(Math.max(empresa.limite ?? 10, 1), 30), page: 1 }
+    if (empresa.dominio) argumentos.q_organization_domains_list = [empresa.dominio]
+    else argumentos.q_keywords = empresa.nome
+    if (empresa.cargos?.length) argumentos.person_titles = empresa.cargos
+    const corpo = corpoDaFerramenta(await this.chamar('apollo_people_search', argumentos))
+    const pessoas = Array.isArray(corpo.people) ? corpo.people : Array.isArray(corpo.contacts) ? corpo.contacts : []
+    return pessoas.flatMap((raw): PessoaEncontrada[] => {
+      if (!raw || typeof raw !== 'object') return []
+      const p = raw as Record<string, unknown>
+      const nome = texto(p.name) ?? [texto(p.first_name), texto(p.last_name)].filter(Boolean).join(' ')
+      if (!nome) return []
+      const cargo = texto(p.title)
+      const local = [texto(p.city), texto(p.state), texto(p.country)].filter(Boolean).join(', ')
+      return [{
+        nome,
+        cargo,
+        headline: texto(p.headline),
+        linkedinUrl: texto(p.linkedin_url),
+        localizacao: local || undefined,
+        foto: texto(p.photo_url),
+        persona: classificarPersona(cargo),
+        fonte: 'apollo',
+      }]
+    })
+  }
+
+  async revelarContato(
+    pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
+    canal: 'email' | 'telefone',
+  ): Promise<DadoRevelado | null> {
+    if (canal !== 'email') return null
+    const argumentos: Record<string, unknown> = { name: pessoa.nome, reveal_personal_emails: false, reveal_phone_number: false }
+    if (pessoa.linkedinUrl) argumentos.linkedin_url = pessoa.linkedinUrl
+    if (pessoa.empresa) argumentos.organization_name = pessoa.empresa
+    const corpo = corpoDaFerramenta(await this.chamar('apollo_people_enrichment', argumentos))
+    const pessoaApollo = corpo.person && typeof corpo.person === 'object' ? corpo.person as Record<string, unknown> : corpo
+    const valor = texto(pessoaApollo.email)
+    // O Apollo devolve um marcador quando não libera o e-mail; só e-mail de verdade conta.
+    if (!valor || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(valor) || /email_not_unlocked/i.test(valor)) return null
+    return { canal, valor, fonte: 'apollo' }
+  }
+}
+
+/** Stub para testes: devolve as pessoas dadas como vieram, sem rede, e não revela nada. */
 export class ApolloProvedorStub implements ProvedorDeContatos {
   readonly nome = 'apollo'
 
   constructor(private readonly mockPessoas: PessoaEncontrada[] = []) {}
 
-  async buscarPessoas(_empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]> {
-    return this.mockPessoas
+  buscarPessoas(_empresa: FiltrosEmpresaParaBusca): Promise<PessoaEncontrada[]> {
+    return Promise.resolve(this.mockPessoas)
   }
 
-  async revelarContato(
-    _pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
-    canal: 'email' | 'telefone',
-  ): Promise<DadoRevelado | null> {
-    if (canal === 'email') {
-      return null
-    }
-    return null
+  revelarContato(): Promise<DadoRevelado | null> {
+    return Promise.resolve(null)
   }
 }
 
@@ -397,11 +485,16 @@ export class ClayProvedorStub implements ProvedorDeContatos {
 }
 
 /**
- * Os fornecedores da cascata da Althius, na ordem em que a cascata os tenta. Só os actors do Apify: Apollo, Lusha e
- * Clay são do cliente e entram pelas Conexões, nunca aqui (decisão do Nan, 01/10/2026). Sem o Apify, a lista é vazia.
+ * Os fornecedores da cascata, na ordem em que ela os tenta: o Apify da Althius é a base; o Apollo e o CRM conectados pelo
+ * Workspace entram depois, só quando o Cliente os conectou (decisão 3 do plano "Como o Althius deve ser"). Sem nenhum, a
+ * lista é vazia.
  */
-export function fornecedoresDaCascata(deps: { apify?: Apify }): ProvedorDeContatos[] {
-  return deps.apify ? [new ApifyProvedorDeContatos({ apify: deps.apify })] : []
+export function fornecedoresDaCascata(deps: { apify?: Apify; apollo?: ProvedorDeContatos; crm?: ProvedorDeContatos }): ProvedorDeContatos[] {
+  return [
+    ...(deps.apify ? [new ApifyProvedorDeContatos({ apify: deps.apify })] : []),
+    ...(deps.apollo ? [deps.apollo] : []),
+    ...(deps.crm ? [deps.crm] : []),
+  ]
 }
 
 /**
@@ -424,8 +517,9 @@ export class CascataProvedorDeContatos implements ProvedorDeContatos {
   revelarContato(
     pessoa: { nome: string; linkedinUrl?: string; empresa?: string },
     canal: 'email' | 'telefone',
+    medicao?: { runId: string | null; costUsd: number | null },
   ): Promise<DadoRevelado | null> {
-    return this.primeiroQueAcha(async (provedor) => await provedor.revelarContato?.(pessoa, canal) ?? null)
+    return this.primeiroQueAcha(async (provedor) => await provedor.revelarContato?.(pessoa, canal, medicao) ?? null)
   }
 
   /** O primeiro fornecedor que acha, em ordem; null quando nenhum acha. A falha só volta se nenhum achar. */
