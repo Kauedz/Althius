@@ -14,6 +14,8 @@ import {
   extrairIdentificadorLinkedin,
   ApifyProvedorDeContatos,
   CascataProvedorDeContatos,
+  ApolloProvedorDeContatos,
+  type ProvedorDeContatos,
   ApolloProvedorStub,
 } from '../_shared/provedor-de-contatos.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
@@ -1386,4 +1388,123 @@ Deno.test('revelar-contato: o e-mail de outro Workspace não é reaproveitado; a
     'begin:email',
     'finish',
   ])
+})
+
+// --- 6c: Apollo do Cliente depois do Apify ---
+function apolloQueAcha(chamadas: string[], pessoas: unknown[] = [], email?: string): ProvedorDeContatos {
+  return new ApolloProvedorDeContatos(async (ferramenta) => {
+    chamadas.push(ferramenta)
+    return ferramenta === 'apollo_people_search'
+      ? { estruturado: { people: pessoas } }
+      : { estruturado: { person: email ? { email } : null } }
+  })
+}
+const apifyVazioDoComite: Apify = {
+  async run() {
+    return { runId: 'apify-run-vazia', items: [] }
+  },
+  async custoDaExecucao() {
+    return 0.02
+  },
+}
+
+Deno.test('comite-compra 6c: Apify vazio, o Apollo do Cliente acha; a origem é apollo e o custo do Apify segue gravado', async () => {
+  const registro = registroDoComite()
+  const fontes: Array<{ provider?: string; actor?: string }> = []
+  const db = dbDoComite(registro)
+  const gravar = db.recordProposedContact
+  db.recordProposedContact = async (args) => {
+    fontes.push({ provider: args.sourceProvider, actor: args.sourceActor })
+    return await gravar(args)
+  }
+  const chamadas: string[] = []
+  const pedidosDoCliente: unknown[] = []
+  const handler = criarHandlerEnrichment({
+    db,
+    apify: apifyVazioDoComite,
+    provedoresDoCliente: async (p) => {
+      pedidosDoCliente.push(p)
+      return { apollo: apolloQueAcha(chamadas, [{ name: 'Ana Souza', title: 'Diretora de Operações', linkedin_url: 'https://linkedin.com/in/ana' }]) }
+    },
+  })
+  const res = await handler(pedidoDeComite())
+  assertEquals(res.status, 200)
+  assertEquals((await res.json()).contactsAdded, 1)
+  assertEquals(pedidosDoCliente, [{ workspaceId: 'ws-1', userId: 'user-1' }])
+  assertEquals(chamadas, ['apollo_people_search'])
+  assertEquals(fontes, [{ provider: 'apollo', actor: 'apollo' }])
+  assertEquals(registro.finish[0].success, true)
+  assertEquals(registro.custos[0]?.runId, 'apify-run-vazia')
+})
+
+Deno.test('comite-compra 6c: Apify acha, o Apollo do Cliente nem é chamado', async () => {
+  const registro = registroDoComite()
+  const chamadas: string[] = []
+  const apify: Apify = {
+    async run() {
+      return { runId: 'apify-run-1', items: [{ firstName: 'Bruno', lastName: 'Lima', position: 'Diretor de Operações', linkedinUrl: 'https://www.linkedin.com/in/bruno' }] }
+    },
+    async custoDaExecucao() {
+      return 0.01
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoComite(registro), apify, provedoresDoCliente: async () => ({ apollo: apolloQueAcha(chamadas) }) })
+  const res = await handler(pedidoDeComite())
+  assertEquals(res.status, 200)
+  assertEquals(registro.propostas.length > 0, true)
+  assertEquals(chamadas, [])
+})
+
+Deno.test('comite-compra 6c: sem Apollo conectado ou com a leitura das conexões falhando, segue só com o Apify', async () => {
+  for (const provedoresDoCliente of [async () => ({}), async () => { throw new Error('banco fora') }]) {
+    const registro = registroDoComite()
+    const handler = criarHandlerEnrichment({ db: dbDoComite(registro), apify: apifyVazioDoComite, provedoresDoCliente })
+    const res = await handler(pedidoDeComite())
+    assertEquals(res.status, 200)
+    assertEquals(registro.finish[0], { success: true, contactsFound: 0, costUsd: 0.02, error: undefined })
+  }
+})
+
+Deno.test('revelar-contato 6c: Apify sem e-mail, o Apollo acha; o banco recebe a fonte apollo (que não cobra)', async () => {
+  const registro = registroDoRevelar()
+  const chamadas: string[] = []
+  const apify: Apify = {
+    async run() {
+      return { runId: 'apify-run-sem-email', items: [{ firstName: 'Mariana', lastName: 'Souza', linkedinUrl: 'https://www.linkedin.com/in/marianasouza', emails: null }] }
+    },
+    async custoDaExecucao() {
+      return 0.01
+    },
+  }
+  const handler = criarHandlerEnrichment({
+    db: dbDoRevelar(registro, { success: true, debitedCredits: 0 }),
+    apify,
+    provedoresDoCliente: async () => ({ apollo: apolloQueAcha(chamadas, [], 'mariana@acme.test') }),
+  })
+  const res = await handler(pedidoDeRevelar('email'))
+  const body = await res.json()
+  assertEquals(res.status, 200)
+  assertEquals(chamadas, ['apollo_people_enrichment'])
+  assertEquals(registro.finish, [{ value: 'mariana@acme.test', source: 'apollo' }])
+  assertEquals(body.fonte, 'apollo')
+  assertEquals(body.creditosDebitados, 0)
+  assertEquals(registro.custos[0]?.runId, 'apify-run-sem-email')
+})
+
+Deno.test('revelar-contato 6c: Apify falha e o Apollo não acha: a falha volta e libera a reserva', async () => {
+  const registro = registroDoRevelar()
+  const chamadas: string[] = []
+  const apify: Apify = {
+    async run() {
+      throw new ApifyTimeoutError('apify-run-revelar')
+    },
+    async custoDaExecucao() {
+      return 0.01
+    },
+  }
+  const handler = criarHandlerEnrichment({ db: dbDoRevelar(registro), apify, provedoresDoCliente: async () => ({ apollo: apolloQueAcha(chamadas) }) })
+  const res = await handler(pedidoDeRevelar('email'))
+  assertEquals(res.status, 502)
+  assertEquals(chamadas, ['apollo_people_enrichment'])
+  assertEquals(registro.finish, [{ value: undefined, source: undefined }])
 })
