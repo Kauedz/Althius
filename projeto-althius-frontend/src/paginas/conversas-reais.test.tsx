@@ -96,7 +96,7 @@ describe('Conversas no Workspace operacional, com o modelo configurado', () => {
       ],
     })
 
-    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Oi')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Oi, tudo bem?')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('O pedido passou do tempo e foi interrompido.')
