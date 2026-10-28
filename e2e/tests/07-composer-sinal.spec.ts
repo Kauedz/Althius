@@ -1,4 +1,4 @@
-// Composer cria o Sinal (Sinais first 08) e "Meus Sinais" (09). O pedido de monitoramento na / leva ao fluxo de
+// Composer cria o Sinal (Sinais first 08) e "Meus Sinais" (09). O pedido de monitoramento na /agentes (o composer antigo, que saiu da / na Fase 3b) leva ao fluxo de
 // /sinais/novo com o Briefing já preenchido. O teste para aí: não monta o Plano (não gasta Plano do dia), não salva,
 // não ativa e não cobra nada. Só a conta QA.
 import { expect, test } from '@playwright/test'
@@ -15,7 +15,7 @@ test('composer: um pedido de Sinal novo abre /sinais/novo com o Briefing preench
       chamadasQueGravam.push(url)
     }
   })
-  await page.goto('/')
+  await page.goto('/agentes')
   await conferirWorkspaceOperacional(page)
   const formulario = page.getByRole('form', { name: 'Pedido aos agentes' })
   await formulario.getByRole('textbox').fill(PEDIDO)
