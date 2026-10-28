@@ -314,8 +314,8 @@ select throws_ok(
 
 -- 6. O registro dos Actors de descoberta: nasce tudo em teste; só o servidor muda o estado.
 select is(
-  (select count(*)::integer from public.list_discovery_actors() where state = 'testing'), 5,
-  'os cinco Actors nascem "em teste": nenhum foi rodado de verdade'
+  (select count(*)::integer from public.list_discovery_actors() where state = 'testing'), 4,
+  'quatro Actors seguem "em teste"; a busca do LinkedIn foi validada numa execução real (migration 20261217210000)'
 );
 select throws_ok(
   $$select * from public.discovery_actors_for('buscar_contas')$$,

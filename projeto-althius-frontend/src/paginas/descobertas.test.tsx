@@ -115,6 +115,10 @@ describe('Caixa de Descobertas por ICP', () => {
     const botaoBuscar = screen.getByRole('button', { name: /Buscar contas pelo ICP/i })
     await usuario.click(botaoBuscar)
 
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    expect(within(painel).getByLabelText('Setores')).toHaveValue('Logística e tecnologia')
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+
     // Nova candidata aparece
     expect(await screen.findByText('AgroTech Soluções de Precisão')).toBeInTheDocument()
     expect(screen.getAllByText('Encaixe alto').length).toBeGreaterThanOrEqual(1)
@@ -169,6 +173,112 @@ describe('Caixa de Descobertas por ICP', () => {
     expect(await screen.findByText(/Sem créditos suficientes para enriquecer o Comitê agora/)).toBeInTheDocument()
     expect(comite).not.toHaveBeenCalled()
     expect(receita).not.toHaveBeenCalled()
+  })
+
+  it('os filtros da busca aceitam vírgula ao digitar e exigem setor ou palavra-chave', async () => {
+    const { usuario } = renderizarApp('/contas/descobertas')
+    expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    const setores = within(painel).getByLabelText('Setores')
+    const palavras = within(painel).getByLabelText('Palavras-chave')
+    await usuario.clear(setores)
+    await usuario.clear(palavras)
+    expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeDisabled()
+    expect(within(painel).getByText(/Informe ao menos um setor ou uma palavra-chave/)).toBeInTheDocument()
+    await usuario.type(setores, 'Seguros, Logística')
+    expect(setores).toHaveValue('Seguros, Logística')
+    expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeEnabled()
+    await usuario.click(within(painel).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog', { name: 'Confirmar filtros da busca' })).not.toBeInTheDocument()
+  })
+
+  it('administrador em testing confirma com allowTesting, filtros editados e versão do ICP', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'testing', podeTestar: true })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.clear(within(painel).getByLabelText('Setores'))
+    await usuario.type(within(painel).getByLabelText('Setores'), 'SaaS')
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({
+      criterios: expect.objectContaining({ setores: ['SaaS'] }),
+      icpVersion: 1,
+      allowTesting: true,
+    })
+  })
+
+  it('ator available confirma sem allowTesting', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'available', podeTestar: true })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith(expect.objectContaining({ allowTesting: false }))
+  })
+
+  it('não administrador em testing não busca e mostra a validação', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'testing', podeTestar: false })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).not.toHaveBeenCalled()
+    expect(await screen.findByRole('alert')).toHaveTextContent('A fonte desta busca ainda está em validação pela equipe Althius.')
+  })
+
+  it('mostra a mensagem real quando a busca falha', async () => {
+    const mensagem = 'Informe ao menos um setor ou uma palavra-chave.'
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'buscarContas').mockRejectedValue(new Error(mensagem))
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(mensagem)
+  })
+
+  it('mostra ilimitado interno no painel, nunca US$', async () => {
+    renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      fonte: (fonte) => ({ ...fonte, saldoDeCreditos: async () => ({ lancado: 100, reservado: 0, disponivel: 100, ilimitado: true }) }),
+    })
+    await screen.findByText('Ilimitado (interno)')
+    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument()
+  })
+
+  it('mostra o custo normal em créditos no painel de confirmação', async () => {
+    const { usuario } = renderizarApp('/contas/descobertas')
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    expect(within(painel).getByText(/Custo: 5 créditos/)).toBeInTheDocument()
+    expect(within(painel).queryByText(/US\$/)).not.toBeInTheDocument()
   })
 })
 

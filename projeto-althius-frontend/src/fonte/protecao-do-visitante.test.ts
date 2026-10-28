@@ -19,7 +19,7 @@ describe('Workspace visitante: as ações pagas abrem o modal e recusam', () => 
     const salvar = vi.spyOn(original.fonteDeSinais, 'salvarMonitoramento')
 
     await expect(ambiente.fonteDeSinais.salvarMonitoramento({} as never)).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
-    await expect(ambiente.fonteDeDescobertas!.buscarContas()).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
+    await expect(ambiente.fonteDeDescobertas!.buscarContas({ criterios: { fonte: 'linkedin', setores: ['Software'], palavrasChave: [], portes: [], regioes: [], tecnologias: [], excluir: [], cnaes: [] }, icpVersion: 1 })).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
     await expect(ambiente.fonteDeContas.buscarComite!('conta')).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
     await expect(ambiente.fonteDeContas.revelarContato!('contato', 'email')).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
     await expect(ambiente.fonteDeSequencias.ativarEnvios('sequencia')).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
