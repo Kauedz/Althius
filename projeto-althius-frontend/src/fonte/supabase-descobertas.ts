@@ -118,7 +118,7 @@ export function criarFonteDeDescobertasSupabase(
         descricao: d.description ?? undefined,
         tags: Array.isArray(d.tags) ? d.tags : [],
         fitLevel: (d.fit_level ?? 'baixo') as NivelDeEncaixe,
-        motivos: Array.isArray(d.reasons) ? d.reasons : [],
+        motivos: textosDosMotivos(d.reasons),
         sinais: Array.isArray(d.signals) ? (d.signals as SinalDaCandidata[]) : [],
         origem: (['busca', 'sinal', 'sincronizacao'].includes(d.origin) ? d.origin : 'busca') as OrigemDaDescoberta,
         motivosDeSinal: Array.isArray(d.signal_reasons)
@@ -209,4 +209,21 @@ export function criarFonteDeDescobertasSupabase(
       return () => ouvintes.delete(ouvinte)
     },
   }
+}
+
+/**
+ * Os motivos do encaixe, como texto para a tela. A busca (account-discovery) grava cada motivo como
+ * `{ criterio, atende, texto }`; linhas antigas e a Demonstração trazem só o texto. Qualquer outra forma é descartada,
+ * porque um objeto desenhado direto no React derruba a tela inteira.
+ */
+export function textosDosMotivos(motivos: unknown): string[] {
+  if (!Array.isArray(motivos)) return []
+  return motivos.flatMap((m): string[] => {
+    if (typeof m === 'string') return m.trim() ? [m] : []
+    if (m && typeof m === 'object' && typeof (m as { texto?: unknown }).texto === 'string') {
+      const texto = (m as { texto: string }).texto
+      return texto.trim() ? [texto] : []
+    }
+    return []
+  })
 }
