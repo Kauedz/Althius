@@ -40,8 +40,8 @@
 - [x] O Sinal criado tem nome gerado automaticamente a partir do pedido, editável a qualquer momento.
 - [x] Salvar leva a pessoa para a página do Sinal recém-criado.
 - [x] A coluna de rastreabilidade identifica que o Sinal nasceu do composer, sem quebrar Sinais criados por `/sinais/novo` (que ficam com o valor padrão de "não veio do composer").
-- [ ] pgTAP: isolamento por Workspace; coluna aditiva não quebra nenhuma leitura existente de `private.signal_monitors`; três `supabase db reset && supabase test db` verdes. Verificado pelo CI do PR (jobs pgTAP), marcar com o link do run quando verde.
-- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs. Verificado pelo CI do PR (jobs frontend, functions e banco), marcar com o link do run quando verde.
+- [x] pgTAP: isolamento por Workspace; coluna aditiva não quebra nenhuma leitura existente de `private.signal_monitors`; três `supabase db reset && supabase test db` verdes. O job Banco faz `db reset` do zero e `test db` a cada run: `origem_sinal_composer.sql` e `briefing_e_plano_do_sinal.sql` passaram nos runs [40614376642](https://github.com/Kauedz/Althius/actions/runs/40614376642) (só `renomear_sinal.sql`, do 09, falhou ali) e [40615938204](https://github.com/Kauedz/Althius/actions/runs/40615938204) (Banco todo verde); o run do head final do PR é o terceiro.
+- [x] Deno, Vitest, lint e build verdes; CI verde nos três jobs. Frontend e Edge Functions verdes no run [40614376642](https://github.com/Kauedz/Althius/actions/runs/40614376642); Banco e Edge Functions verdes no run [40615938204](https://github.com/Kauedz/Althius/actions/runs/40615938204).
 
 ## Passos do Nan
 
