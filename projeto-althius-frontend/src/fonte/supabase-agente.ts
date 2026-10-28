@@ -89,6 +89,12 @@ export function criarFonteDoAgenteSupabase(cliente: SupabaseClient, workspaceId:
       if (error || !data) throw new ErroDoAgente('Esta conversa não existe ou não é sua.', 'nao_encontrada')
       return lerConversaDoAgente(data as Bruto)
     },
+    async pedidoDoCanal(execucaoId) {
+      const { data, error } = await cliente.rpc('get_my_channel_request', { p_run_id: execucaoId })
+      const linha = (Array.isArray(data) ? data[0] : data) as { request_text?: string; origin?: string } | null
+      if (error || !linha?.request_text) throw new ErroDoAgente('Não encontrei este pedido. Ele é de outra pessoa ou já não está neste Workspace.', 'nao_encontrado')
+      return { texto: linha.request_text, origem: linha.origin ?? '' }
+    },
     async enviar(pedido, conversaId) {
       const r = await invocar({
         action: 'enviar', workspaceId: workspaceId(), conversaId, texto: pedido, clientRequestId: crypto.randomUUID(),

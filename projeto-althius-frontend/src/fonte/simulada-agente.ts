@@ -123,6 +123,9 @@ export function criarFonteDoAgenteSimulada({ agora = () => new Date() }: { agora
 
   return {
     disponivel: () => Promise.resolve(true),
+    pedidoDoCanal: (id) => id === 'demo-pedido-do-slack'
+      ? Promise.resolve({ texto: 'Ache empresas de logística no PR', origem: 'slack' })
+      : Promise.reject(new ErroDoAgente('Não encontrei este pedido. Ele é de outra pessoa ou já não está neste Workspace.', 'nao_encontrado')),
     conversas() {
       const lista: ResumoDaConversaDoAgente[] = [...conversas.values()].map((c) => ({
         id: c.id, titulo: c.titulo, atualizadaEm: atualizadas.get(c.id) ?? agora().toISOString(), ultimoStatus: c.turnos.at(-1)?.status ?? null,

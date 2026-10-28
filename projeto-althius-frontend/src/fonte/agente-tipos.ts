@@ -131,6 +131,14 @@ export interface FonteDoAgente {
   escolher(passoId: string, escolha: EscolhaDoCartao, alvoId: string, motivo?: string): Promise<void>
   /** Confere uma tarefa longa; devolve se ela ainda está em andamento. */
   atualizar(passoId: string): Promise<boolean>
+  /** Fase 7: o pedido que chegou pelo Slack ou pelo WhatsApp (o link da resposta no Canal). Só lê; enviar é da pessoa. */
+  pedidoDoCanal(execucaoId: string): Promise<PedidoDoCanal>
+}
+
+export interface PedidoDoCanal {
+  texto: string
+  /** `slack`, `whatsapp`. */
+  origem: string
 }
 
 /** O turno ainda pode mudar sozinho: a tela relê a conversa. */

@@ -197,6 +197,7 @@ const AGENTE_INDISPONIVEL: FonteDoAgente = {
   cancelar: () => Promise.reject(new ErroDoAgente('O agente está fora do ar agora.', 'model_unavailable')),
   escolher: () => Promise.reject(new ErroDoAgente('O agente está fora do ar agora.', 'model_unavailable')),
   atualizar: () => Promise.resolve(false),
+  pedidoDoCanal: () => Promise.reject(new ErroDoAgente('Não encontrei este pedido. Ele é de outra pessoa ou já não está neste Workspace.', 'nao_encontrado')),
 }
 
 const ContextoDaFonteDoAgente = createContext<FonteDoAgente>(AGENTE_INDISPONIVEL)
