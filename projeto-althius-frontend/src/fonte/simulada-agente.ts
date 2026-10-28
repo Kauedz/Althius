@@ -46,6 +46,11 @@ const ICP: CartaoDoAgente = {
   cargos: ['Diretor de Operações', 'Gerente de Logística'], oQueVende: 'Roteirização e rastreio de frota para operações B2B.',
 }
 
+const PROPOSTA = {
+  tipo: 'icp_proposto' as const, setor: 'Logística e transporte', porte: '51-200, 201-500', geografia: 'SP e PR',
+  cargos: ['Diretor de Operações'], oQueVende: 'Roteirização e rastreio de frota para operações B2B.',
+}
+
 let contador = 0
 const novoId = (prefixo: string) => `${prefixo}-${++contador}`
 
@@ -69,6 +74,20 @@ export function criarFonteDoAgenteSimulada({ agora = () => new Date() }: { agora
         passo('ler_icp', 'Ler o ICP do Workspace', [ICP]),
         passo('buscar_empresas', 'Buscar até 20 empresas pelo ICP', [{ tipo: 'empresas', empresas: EMPRESAS.map((e) => ({ ...e })) }], 5),
       ], 'Encontrei 3 empresas novas; a Translog Cargas tem a aderência mais alta. Aceite as que fazem sentido para virarem Contas-alvo.')
+    }
+    const site = /site\s+(?:de\s+|da\s+|do\s+)?([a-z0-9.-]+\.[a-z]{2,})/.exec(t)
+    if (site) {
+      return turno(pedido, [passo('ler_site_para_icp', `Ler o site ${site[1]} para propor o ICP`, [{ ...PROPOSTA, dominio: site[1] }])],
+        'Li o site e montei esta proposta de ICP. Diga o que ajustar ou peça para salvar.')
+    }
+    if (/pode salvar|\bsalve\b/.test(t)) {
+      const p = passo('salvar_icp', 'Salvar o ICP do Workspace', [{
+        tipo: 'confirmacao', titulo: 'Salvar o ICP do Workspace', custo: 0, motivo: 'alteracao', gastos: 0, teto: 50,
+        texto: 'Salvar o ICP do Workspace grava uma nova versão no Workspace. Confira os campos antes de confirmar.',
+      }])
+      p.estado = 'aguardando_confirmacao'
+      p.motivoConfirmacao = 'alteracao'
+      return { ...turno(pedido, [p], ''), status: 'aguardando' }
     }
     if (/icp|perfil|para quem/.test(t)) {
       return turno(pedido, [passo('ler_icp', 'Ler o ICP do Workspace', [ICP])], 'Este é o ICP salvo hoje, versão 3.')
@@ -110,7 +129,18 @@ export function criarFonteDoAgenteSimulada({ agora = () => new Date() }: { agora
       atualizadas.set(conversa.id, agora().toISOString())
       return Promise.resolve({ conversaId: conversa.id, turnoId: t.id })
     },
-    confirmar: () => Promise.resolve(),
+    confirmar(passoId) {
+      const { conversa, passo: p } = acharPasso(passoId)
+      if (p.estado === 'aguardando_confirmacao' && p.ferramenta === 'salvar_icp') {
+        p.estado = 'ok'
+        p.motivoConfirmacao = null
+        p.cartoes = [{ ...ICP, ...PROPOSTA, tipo: 'icp', versao: 4 }]
+        const t = conversa.turnos.find((x) => x.passos.includes(p))
+        if (t) { t.status = 'concluido'; t.resposta = 'ICP salvo como versão 4.' }
+        atualizadas.set(conversa.id, agora().toISOString())
+      }
+      return Promise.resolve()
+    },
     cancelar: () => Promise.resolve(),
     escolher(passoId, escolha, alvoId) {
       const { conversa, passo: origem } = acharPasso(passoId)

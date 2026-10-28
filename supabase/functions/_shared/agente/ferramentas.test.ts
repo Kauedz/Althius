@@ -54,11 +54,11 @@ function servicos(over: Partial<ServicosDoAgente> & { runState?: string } = {}) 
 
 const pegar = (s: ServicosDoAgente, nome: string) => ferramentasDoAgente(s).find((f) => f.nome === nome)!
 
-Deno.test('o registro tem as 7 ferramentas da fatia 3a, cada uma com aprovação', () => {
+Deno.test('o registro tem as ferramentas da fatia 3a e do ICP (Fase 4), cada uma com aprovação', () => {
   const nomes = ferramentasDoAgente(servicos().s).map((f) => `${f.nome}:${f.aprovacao}`)
   assertEquals(nomes, [
     'ler_icp:livre', 'montar_criterios_da_busca:livre', 'buscar_empresas:teto', 'aceitar_empresa:livre',
-    'descartar_empresa:livre', 'enriquecer_comite:teto', 'consultar_receita:teto',
+    'descartar_empresa:livre', 'enriquecer_comite:teto', 'consultar_receita:teto', 'ler_site_para_icp:livre', 'salvar_icp:sempre',
   ])
 })
 
@@ -131,4 +131,67 @@ Deno.test('ler_icp sem ICP avisa em vez de inventar', async () => {
   const r = await pegar(s, 'ler_icp').executar(ctx, {})
   assertEquals(r.cartoes[0].tipo, 'aviso')
   assert(r.resumo.includes('ainda não tem ICP'))
+})
+
+const LEITURA = {
+  oQueVende: 'Software de roteirização de frotas.', miniIcp: 'Transportadoras médias do Sul.', porQueCompram: 'Cortar custo de frete.',
+  personas: ['Diretor de Operações'], setor: 'Logística, Transporte', porte: '51-200, 201-500', regiao: 'RS, SC, PR',
+}
+
+Deno.test('ler_site_para_icp lê o site pela icp-site-read e propõe os campos, sem salvar', async () => {
+  const { s, funcoes, rpcs } = servicos({
+    funcao: (_c, nome, corpo) => { funcoes.push({ nome, corpo }); return Promise.resolve({ leitura: LEITURA }) },
+  })
+  const f = pegar(s, 'ler_site_para_icp')
+  assertEquals(f.aprovacao, 'livre')
+  assertEquals(await f.cotar(ctx, { dominio: 'https://www.frota.com.br/' }), 0)
+  const r = await f.executar(ctx, { dominio: 'https://www.frota.com.br/' })
+  assertEquals(funcoes[0], { nome: 'icp-site-read', corpo: { workspaceId: ctx.workspaceId, dominio: 'https://www.frota.com.br/' } })
+  assertEquals(r.cartoes[0], {
+    tipo: 'icp_proposto', dominio: 'https://www.frota.com.br/', setor: 'Logística, Transporte', porte: '51-200, 201-500',
+    geografia: 'RS, SC, PR', cargos: ['Diretor de Operações'], oQueVende: 'Software de roteirização de frotas.',
+    miniIcp: 'Transportadoras médias do Sul.', porQueCompram: 'Cortar custo de frete.',
+  })
+  assert(r.resumo.includes('salvar_icp'))
+  assertEquals(r.custo, 0)
+  assert(!rpcs.some((x) => x.nome === 'save_my_workspace_icp_fields'))
+})
+
+Deno.test('ler_site_para_icp sem leitura avisa em vez de inventar', async () => {
+  const { s } = servicos({ funcao: () => Promise.resolve({ leitura: null }) })
+  const r = await pegar(s, 'ler_site_para_icp').executar(ctx, { dominio: 'frota.com.br' })
+  assertEquals(r.cartoes[0].tipo, 'aviso')
+  assertEquals(r.custo, 0)
+})
+
+Deno.test('ler_site_para_icp exige o domínio', async () => {
+  const { s } = servicos()
+  await assertRejects(() => pegar(s, 'ler_site_para_icp').executar(ctx, {}), Error, 'site')
+})
+
+Deno.test('salvar_icp sempre pergunta e salva setor, porte e geografia como nova versão', async () => {
+  const { s, rpcs } = servicos({
+    rpc: (_c, nome, args) => {
+      rpcs.push({ nome, args })
+      return Promise.resolve({ version: 4, sector: 'Logística', companySize: '51-200', geography: 'RS', targetRoles: [] })
+    },
+  })
+  const f = pegar(s, 'salvar_icp')
+  assertEquals(f.aprovacao, 'sempre')
+  assertEquals(f.motivo, 'alteracao')
+  assertEquals(await f.cotar(ctx, {}), 0)
+  const r = await f.executar(ctx, { setor: ' Logística ', porte: '51-200', geografia: 'RS' })
+  assertEquals(rpcs[0], {
+    nome: 'save_my_workspace_icp_fields',
+    args: { p_workspace_id: ctx.workspaceId, p_sector: 'Logística', p_company_size: '51-200', p_geography: 'RS' },
+  })
+  assertEquals(r.cartoes[0].tipo, 'icp')
+  assertEquals(r.cartoes[0].versao, 4)
+  assert(r.resumo.includes('versão 4'))
+})
+
+Deno.test('salvar_icp recusa porte fora da lista antes de chamar o banco', async () => {
+  const { s, rpcs } = servicos()
+  await assertRejects(() => pegar(s, 'salvar_icp').executar(ctx, { setor: 'Logística', porte: 'grande' }), Error, 'porte')
+  assertEquals(rpcs.length, 0)
 })

@@ -72,6 +72,24 @@ describe('Playbook do Workspace: edição pelo Administrador', () => {
     expect(salvarCampos).not.toHaveBeenCalled()
   })
 
+  it('mostra também cargos, o que vende, para quem e por que compram, só para leitura', async () => {
+    renderizarAppCom('/configuracoes/playbook/icp', {
+      playbook: (fonte) => ({
+        ...fonte,
+        camposDoIcp: async () => ({
+          setor: 'Logística', porte: '51-200', regiao: 'RS', versao: 4,
+          detalhes: { cargos: ['Diretor de Operações', 'Gerente de Logística'], oQueVende: 'Roteirização de frota.', miniIcp: 'Transportadoras médias do Sul.', porQueCompram: '' },
+        }),
+      }),
+    })
+    const detalhes = within(await screen.findByRole('region', { name: 'Mais do ICP' }))
+    expect(detalhes.getByText('Diretor de Operações, Gerente de Logística')).toBeInTheDocument()
+    expect(detalhes.getByText('Roteirização de frota.')).toBeInTheDocument()
+    expect(detalhes.getByText('Transportadoras médias do Sul.')).toBeInTheDocument()
+    expect(detalhes.getByText('Por que compram').nextElementSibling).toHaveTextContent('Não preenchido')
+    expect(detalhes.getByRole('link', { name: 'Ajustar com o Agente' })).toHaveAttribute('href', '/')
+  })
+
   it('mostra a sugestão do texto e só preenche ao usar a sugestão', async () => {
     const { usuario } = renderizarAppCom('/configuracoes/playbook/icp', {
       playbook: (fonte) => ({

@@ -130,18 +130,36 @@ const HUBSPOT_REST: PerfilRest = {
       },
     },
     {
+      nome: 'search_deals',
+      descricao: 'Busca Deals do HubSpot por filtro (ex.: dealstage igual a closedwon).',
+      escreve: false,
+      metodo: 'POST',
+      caminho: '/crm/v3/objects/deals/search',
+      corpo: ['filterGroups', 'properties', 'limit', 'after'],
+      esquema: {
+        type: 'object',
+        properties: {
+          filterGroups: { type: 'array', items: { type: 'object' }, description: 'Filtros da busca do HubSpot.' },
+          properties: { type: 'array', items: { type: 'string' } },
+          limit: { type: 'integer', description: 'Até 200 por página.' },
+          after: { type: 'string' },
+        },
+      },
+    },
+    {
       nome: 'get_record',
       descricao: 'Lê um registro do HubSpot pelo tipo (contacts, companies, deals) e pelo id.',
       escreve: false,
       metodo: 'GET',
       caminho: '/crm/v3/objects/{objeto}/{id}',
-      consulta: ['properties'],
+      consulta: ['properties', 'associations'],
       esquema: {
         type: 'object',
         properties: {
           objeto: { type: 'string', enum: ['contacts', 'companies', 'deals'] },
           id: { type: 'string' },
           properties: { type: 'string', description: 'Propriedades separadas por vírgula.' },
+          associations: { type: 'string', description: 'Tipos associados a devolver, separados por vírgula (ex.: companies).' },
         },
         required: ['objeto', 'id'],
       },
@@ -253,6 +271,14 @@ const PIPEDRIVE_REST: PerfilRest = {
           start: { type: 'integer' },
         },
       },
+    },
+    {
+      nome: 'get_organization',
+      descricao: 'Lê uma organização do Pipedrive pelo id.',
+      escreve: false,
+      metodo: 'GET',
+      caminho: '/organizations/{id}',
+      esquema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
     },
     {
       nome: 'get_person',

@@ -13,6 +13,8 @@ function normalizar(texto: string): string {
 export interface OpcaoDaSelecao {
   valor: string
   detalhe?: string
+  /** Quando existe, a tela mostra só o rótulo; o valor fica interno (ex.: porte '11-50' vira "11 a 50 funcionários"). */
+  rotulo?: string
 }
 
 /** Escolha de vários itens com busca: as escolhas viram etiquetas removíveis acima do campo. */
@@ -32,11 +34,16 @@ export function SelecaoMultipla({
   const id = useId()
   const [busca, setBusca] = useState('')
   const [aberta, setAberta] = useState(false)
-  const detalhes = useMemo(() => new Map(opcoes.map((o) => [o.valor, o.detalhe])), [opcoes])
+  const porValor = useMemo(() => new Map(opcoes.map((o) => [o.valor, o])), [opcoes])
+  const nomeDe = (valor: string) => porValor.get(valor)?.rotulo ?? valor
+  const detalheDe = (valor: string) => {
+    const opcao = porValor.get(valor)
+    return opcao?.rotulo ? undefined : opcao?.detalhe
+  }
 
   const termo = normalizar(busca.trim())
   const encontradas = opcoes.filter(
-    (o) => !selecionadas.includes(o.valor) && (!termo || normalizar(`${o.valor} ${o.detalhe ?? ''}`).includes(termo)),
+    (o) => !selecionadas.includes(o.valor) && (!termo || normalizar(o.rotulo ?? `${o.valor} ${o.detalhe ?? ''}`).includes(termo)),
   )
   const visiveis = encontradas.slice(0, LIMITE_DE_SUGESTOES)
 
@@ -54,18 +61,18 @@ export function SelecaoMultipla({
         <ul aria-label={`${rotulo} escolhidas`} className="flex flex-wrap gap-1.5">
           {selecionadas.map((valor) => (
             <li key={valor} className="rounded-md flex max-w-full items-center gap-1 border border-al-accent/60 bg-al-accent/10 py-0.5 pr-1 pl-2 text-xs">
-              <span className="truncate" title={detalhes.get(valor) ? `${valor} · ${detalhes.get(valor)}` : valor}>
-                {valor}
-                {detalhes.get(valor) && (
+              <span className="truncate" title={detalheDe(valor) ? `${nomeDe(valor)} · ${detalheDe(valor)}` : nomeDe(valor)}>
+                {nomeDe(valor)}
+                {detalheDe(valor) && (
                   <>
                     {' · '}
-                    <span className="text-al-muted">{detalhes.get(valor)}</span>
+                    <span className="text-al-muted">{detalheDe(valor)}</span>
                   </>
                 )}
               </span>
               <button
                 type="button"
-                aria-label={`Remover ${valor}`}
+                aria-label={`Remover ${nomeDe(valor)}`}
                 onClick={() => aoMudar(selecionadas.filter((s) => s !== valor))}
                 className="grid size-5 shrink-0 place-items-center text-al-muted hover:text-al-ink"
               >
@@ -116,8 +123,8 @@ export function SelecaoMultipla({
                 onClick={() => escolher(opcao.valor)}
                 className="cursor-pointer px-3 py-2 text-sm hover:bg-al-bg"
               >
-                {opcao.valor}
-                {opcao.detalhe && (
+                {opcao.rotulo ?? opcao.valor}
+                {!opcao.rotulo && opcao.detalhe && (
                   <>
                     {' '}
                     <span className="text-al-muted">{opcao.detalhe}</span>
