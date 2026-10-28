@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(21);
 
 create function pg_temp.semear_agentes_padrao(p_workspace_id uuid)
 returns void

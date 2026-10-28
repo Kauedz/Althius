@@ -21,8 +21,8 @@ $$;
 
 
 -- Workspace da empresa Norte: Ana é Administradora, Bruno é Membro e Eva já foi removida. Workspace Sul: Carla é
--- Administradora. O Workspace nasce sem Agentes; a fixture abaixo os cria quando o cenário histórico precisa deles.
--- cada um é do Workspace dele, e só Administrador a altera.
+-- Administradora. Diego não participa de nada. Os Agentes padrão são criados pela fixture logo depois dos Workspaces; a
+-- configuração de cada um é do Workspace dele, e só Administrador a altera.
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
                         is_sso_user, is_anonymous)
@@ -36,6 +36,9 @@ values
 insert into public.workspaces (id, kind, name) values
   ('aaaaaaaa-1300-0000-0000-000000000001', 'empresa', 'Norte'),
   ('aaaaaaaa-1300-0000-0000-000000000002', 'empresa', 'Sul');
+-- Desde o ticket 13 o Workspace novo nasce sem Agentes; o cenário destes testes é o de antes, com os quatro padrão.
+select pg_temp.semear_agentes_padrao('aaaaaaaa-1300-0000-0000-000000000001');
+select pg_temp.semear_agentes_padrao('aaaaaaaa-1300-0000-0000-000000000002');
 
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('aaaaaaaa-1300-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'admin', true),
@@ -85,16 +88,14 @@ select is(
         or has_table_privilege('service_role', c.oid, 'select'))),
   0, 'nenhum papel do app lê as tabelas de Agentes direto: só pelas funções');
 
--- Um Workspace novo nasce sem os quatro Agentes padrão (ADR-0033 D9(c)).
+-- Um Workspace novo nasce sem os quatro Agentes padrão (ADR-0033 D9(c)); os que já tinham continuam com eles.
+insert into public.workspaces (id, kind, name) values ('aaaaaaaa-1300-0000-0000-000000000013', 'empresa', 'Novo');
+select is((select count(*)::int from private.agents where workspace_id = 'aaaaaaaa-1300-0000-0000-000000000013'), 0,
+  'o Workspace novo nasce sem Agentes padrão');
 select is(
   (select string_agg(name || ':' || kind, ', ' order by name) from private.agents
     where workspace_id = 'aaaaaaaa-1300-0000-0000-000000000001'),
-  '', 'o Workspace novo nasce sem Agentes padrão');
-select is(
-  (select count(*)::int from private.agents where workspace_id = 'aaaaaaaa-1300-0000-0000-000000000002'),
-  0, 'o outro Workspace também nasce sem os quatro');
-select pg_temp.semear_agentes_padrao('aaaaaaaa-1300-0000-0000-000000000001');
-select pg_temp.semear_agentes_padrao('aaaaaaaa-1300-0000-0000-000000000002');
+  'Ethos:padrao, Oraculum:padrao, Rhetor:padrao, Scopus:padrao', 'o Workspace que já tinha os quatro continua com eles');
 select is(
   (select string_agg(p.integration_id || '=' || p.permission, ', ' order by p.integration_id)
     from private.agent_permissions p join private.agents a on a.id = p.agent_id
