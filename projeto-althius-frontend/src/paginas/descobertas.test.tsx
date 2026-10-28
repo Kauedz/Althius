@@ -240,13 +240,18 @@ describe('Caixa de Descobertas por ICP', () => {
 
     // Pré-preenchido pelo ICP.
     expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Logística')
-    expect(within(painel).getByRole('list', { name: 'Porte (faixas) escolhidas' })).toHaveTextContent('51-200')
+    // O porte aparece só pelo rótulo legível, sem o código interno.
+    const portesEscolhidos = within(painel).getByRole('list', { name: 'Porte (faixas) escolhidas' })
+    expect(portesEscolhidos).toHaveTextContent('51 a 200 funcionários')
+    expect(portesEscolhidos).not.toHaveTextContent('51-200')
 
     // Setor pela busca na lista; porte pela faixa legível; região por cidade.
     await usuario.type(within(painel).getByRole('combobox', { name: 'Setores' }), 'Segur')
     await usuario.click(within(painel).getByRole('option', { name: /Seguros/ }))
     await usuario.type(within(painel).getByRole('combobox', { name: 'Porte (faixas)' }), '11 a 50')
-    await usuario.click(within(painel).getByRole('option', { name: /11-50/ }))
+    const opcaoDePorte = within(painel).getByRole('option', { name: '11 a 50 funcionários' })
+    expect(opcaoDePorte).toHaveTextContent(/^11 a 50 funcionários$/)
+    await usuario.click(opcaoDePorte)
     expect(within(painel).queryByRole('option', { name: /MEI/ })).not.toBeInTheDocument()
     const regiao = await within(painel).findByRole('combobox', { name: 'Região' }, { timeout: 5000 })
     await usuario.type(regiao, 'Campinas')
@@ -255,7 +260,7 @@ describe('Caixa de Descobertas por ICP', () => {
     // Palavras-chave e exclusões continuam livres, em etiquetas.
     await usuario.type(within(painel).getByLabelText('Palavras-chave'), 'frota{Enter}')
     await usuario.type(within(painel).getByLabelText('Excluir'), 'consultoria,')
-    await usuario.click(within(painel).getByRole('button', { name: 'Remover 51-200' }))
+    await usuario.click(within(painel).getByRole('button', { name: 'Remover 51 a 200 funcionários' }))
 
     await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
     expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({

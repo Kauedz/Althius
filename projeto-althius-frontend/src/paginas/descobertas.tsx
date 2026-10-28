@@ -230,7 +230,7 @@ export function PaginaDescobertas() {
   const opcoesDePorte = (fonte: CriteriosDaBusca['fonte']) =>
     PORTES_DO_ICP.filter((p) => fonte === 'receita' || !PORTES_DA_RECEITA.includes(p)).map((valor) => ({
       valor,
-      detalhe: ROTULOS_DOS_PORTES[valor],
+      rotulo: ROTULOS_DOS_PORTES[valor] ?? valor,
     }))
   const opcoesDeSetor = [...new Set([...(criteriosBusca?.criterios.setores ?? []), ...SETORES_DA_BUSCA])].map((valor) => ({ valor }))
   const criteriosDoDialog = criteriosEditados ?? criteriosBusca?.criterios ?? null
