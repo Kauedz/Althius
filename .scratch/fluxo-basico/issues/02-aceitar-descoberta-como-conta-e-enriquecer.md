@@ -36,7 +36,7 @@ Aceitar uma empresa descoberta precisa criar ou localizar uma Conta-alvo e deixa
 - [x] Falha de Receita mostra a mensagem real e mantém a Conta aceita (Vitest `descobertas.test.tsx`).
 - [x] Sem CNPJ não chama Receita; gate do Comitê diferente de `liberado` não chama Comitê (Vitest `descobertas.test.tsx`).
 - [x] pgTAP cobre criação, campos carregados, estado, decisor, idempotência e isolamento (`aceite_da_descoberta_fluxo_basico.sql`).
-- [x] pgTAP cobre deduplicação por domínio e por CNPJ e o estado `sem_contrato` do Comitê (`aceite_da_descoberta_fluxo_basico.sql`); os demais estados seguem cobertos por `descoberta_de_contas_pelo_icp.sql`.
+- [x] pgTAP cobre deduplicação por domínio e por CNPJ e o estado `sem_contrato` do Comitê (`aceite_da_descoberta_fluxo_basico.sql`); `sem_saldo` e `limite_do_mes` seguem cobertos por `sinal_candidata_e_descoberta.sql`.
 - [ ] Smoke e2e intercepta aceite/enriquecimentos e prova que nenhuma escrita real ocorre.
 - [ ] CI frontend, Edge Functions e Banco verdes.
 
