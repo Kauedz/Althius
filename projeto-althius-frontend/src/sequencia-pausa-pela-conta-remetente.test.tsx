@@ -87,7 +87,7 @@ describe('Sequência pausada pela Conta remetente (canais-11)', () => {
     const { usuario, atualizacoes } = abrir()
 
     expect(await screen.findByText(new RegExp(`Sequência pausada: ${MOTIVO}`))).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Reconectar' })).toHaveAttribute('href', '/configuracoes/perfil')
+    expect(screen.getByRole('link', { name: 'Reconectar' })).toHaveAttribute('href', '/conexoes')
 
     await usuario.click(screen.getByRole('button', { name: 'Retomar' }))
     await waitFor(() => expect(atualizacoes.at(-1)?.p_status).toBe('ativa'))

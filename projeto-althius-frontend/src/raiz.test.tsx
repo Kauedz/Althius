@@ -1137,6 +1137,7 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
     await usuario.click(await screen.findByRole('button', { name: 'Confirmar e enviar' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('Sua Conta remetente de E-mail não está pronta para enviar.')
+    expect(within(screen.getByRole('status')).getByRole('link', { name: 'Abrir Canais de envio' })).toHaveAttribute('href', '/conexoes')
     expect(await screen.findByText(/^Confirmado para maria@empresa-alvo\.test\. Ainda não enviado\./)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Confirmar e enviar' })).toBeInTheDocument()
   })
