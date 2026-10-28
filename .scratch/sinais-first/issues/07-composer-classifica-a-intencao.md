@@ -40,7 +40,7 @@
 - [x] Um pedido que não combina com nenhum Modelo é reconhecido como candidato a Plano novo, mas não cria nem salva nada neste ticket (mensagem clara de "em construção" ou equivalente, sem quebrar a experiência).
 - [x] Nenhuma letra de nicho A–H nem termo técnico de cascata aparece na resposta do composer.
 - [x] pgTAP (se houver tabela nova): isolamento por Workspace; três `supabase db reset && supabase test db` verdes. Não se aplica: o ticket não criou tabela nem migration.
-- [ ] Vitest, lint e build verdes; CI verde nos três jobs. Pendente: lint e build passaram e os testes focados passaram, mas o Vitest completo teve seis falhas em testes antigos da Coordenação que esperam o roteamento anterior. Falta ajustar esses testes e rodar o CI; este branch ainda não entrou no PR #305 (trabalho parado a pedido do Kauê até o apply em produção).
+- [x] Vitest, lint e build verdes; CI verde nos três jobs. CI do PR #305 verde nos três jobs no run 40609786176 (head 01f3bf9). Os testes antigos da Coordenação (seis no `App.test.tsx` e três em `aprovacao-do-passo`, `conversas-reais` e `ferramentas-dos-agentes`) passaram a pedir pela sugestão clicável ou em forma de pergunta, que é o roteamento novo; o classificador não mudou (3012d8c).
 
 ## Passos do Nan
 
