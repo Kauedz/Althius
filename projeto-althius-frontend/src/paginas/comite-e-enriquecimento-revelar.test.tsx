@@ -5,7 +5,7 @@ import type { Contato, FonteDeContas } from '@/fonte/contas-tipos'
 import { FonteDeContasProvider } from '@/fonte/contexto'
 import { BotoesRevelarContato } from './comite-e-enriquecimento'
 
-// Revelar o e-mail (prospeccao-funcional B3): o telefone aparece indisponível, e a falha da busca não vira "não encontrado".
+// Revelar e-mail (2 créditos) e telefone (5 créditos, 28/10/2026); a falha da busca não vira "não encontrado".
 
 function contato(extra: Partial<Contato> = {}): Contato {
   return {
@@ -33,19 +33,61 @@ async function revelarEmail() {
 }
 
 describe('Botões de revelar do Contato', () => {
-  it('mostra o telefone como indisponível, sem botão, sem cotação e sem 5 créditos', () => {
-    const cotarRevelacaoContato = vi.fn()
-    const revelarContato = vi.fn()
+  it('revela o telefone pela cotação de 5 créditos e confirma pelo canal telefone', async () => {
+    const cotarRevelacaoContato = vi.fn().mockResolvedValue({ creditos: 5, saldo: 40, podeRevelar: true })
+    const revelarContato = vi.fn().mockResolvedValue({ sucesso: true, valor: '+5511912345678', creditosDebitados: 5 })
     renderizar(contato({ email: 'mariana@acme.test', canais: { email: true, telefone: false, linkedin: true } }), {
       cotarRevelacaoContato,
       revelarContato,
     })
+    const usuario = userEvent.setup()
 
-    expect(screen.getByText('Telefone indisponível')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Telefone/ })).not.toBeInTheDocument()
-    expect(screen.queryByText(/5 créditos/)).not.toBeInTheDocument()
-    expect(cotarRevelacaoContato).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /Revelar E-mail/ })).not.toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Revelar Telefone/ }))
+
+    expect(cotarRevelacaoContato).toHaveBeenCalledWith('contato-1', 'telefone')
+    expect(await screen.findByText('5 créditos')).toBeInTheDocument()
+    expect(screen.getByText('Revelar Telefone de Mariana Souza')).toBeInTheDocument()
+    expect(screen.getByText(/se um telefone novo for encontrado/)).toBeInTheDocument()
+    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument()
+
+    await usuario.click(screen.getByRole('button', { name: 'Confirmar e Revelar' }))
+    expect(revelarContato).toHaveBeenCalledWith('contato-1', 'telefone')
+    expect(await screen.findByText('Encontrado: +5511912345678 (5 créditos debitados)')).toBeInTheDocument()
+  })
+
+  it('telefone não achado avisa que nada foi debitado', async () => {
+    renderizar(contato({ email: 'mariana@acme.test', canais: { email: true, telefone: false, linkedin: true } }), {
+      cotarRevelacaoContato: vi.fn().mockResolvedValue({ creditos: 5, saldo: 40, podeRevelar: true }),
+      revelarContato: vi.fn().mockResolvedValue({ sucesso: false, valor: null, creditosDebitados: 0 }),
+    })
+    const usuario = userEvent.setup()
+    await usuario.click(screen.getByRole('button', { name: /Revelar Telefone/ }))
+    await usuario.click(await screen.findByRole('button', { name: 'Confirmar e Revelar' }))
+
+    expect(await screen.findByText('Nenhum telefone novo encontrado. Nenhum crédito foi debitado.')).toBeInTheDocument()
+  })
+
+  it('saldo abaixo de 5 créditos bloqueia a revelação do telefone', async () => {
+    const revelarContato = vi.fn()
+    renderizar(contato({ email: 'mariana@acme.test', canais: { email: true, telefone: false, linkedin: true } }), {
+      cotarRevelacaoContato: vi.fn().mockResolvedValue({ creditos: 5, saldo: 3, podeRevelar: false }),
+      revelarContato,
+    })
+    await userEvent.setup().click(screen.getByRole('button', { name: /Revelar Telefone/ }))
+
+    expect(await screen.findByText('Saldo insuficiente: 3 créditos disponíveis; são necessários 5.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirmar e Revelar' })).toBeDisabled()
     expect(revelarContato).not.toHaveBeenCalled()
+  })
+
+  it('com telefone já gravado, não mostra o botão de telefone', () => {
+    renderizar(contato({ whatsapp: '+5511900000001', canais: { email: false, telefone: true, linkedin: true } }), {
+      cotarRevelacaoContato: vi.fn(),
+      revelarContato: vi.fn(),
+    })
+    expect(screen.queryByRole('button', { name: /Revelar Telefone/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Revelar E-mail/ })).toBeInTheDocument()
   })
 
   it('a falha da busca aparece como falha, não como "não encontrado"', async () => {

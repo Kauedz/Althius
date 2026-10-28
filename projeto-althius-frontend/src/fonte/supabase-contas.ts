@@ -783,9 +783,8 @@ export function criarFonteDeContasSupabase(
       notificar()
     },
 
-    // Telefone está fora (prospeccao-funcional B3): nem cotação nem revelação.
+    // E-mail 2 créditos, telefone 5 (decisão de 28/10/2026): o preço vem da cotação do banco.
     async cotarRevelacaoContato(contatoId: string, canal: 'email' | 'telefone') {
-      if (canal === 'telefone') throw new Error('A revelação de telefone está indisponível.')
       const { data, error } = await cliente.rpc('quote_reveal_contact', {
         p_contact_id: contatoId,
         p_channel: canal,
@@ -809,7 +808,6 @@ export function criarFonteDeContasSupabase(
     },
 
     async revelarContato(contatoId: string, canal: 'email' | 'telefone') {
-      if (canal === 'telefone') throw new Error('A revelação de telefone está indisponível.')
       const { data, error } = await cliente.functions.invoke('account-enrichment', {
         body: {
           action: 'revelar-contato',

@@ -13,4 +13,4 @@ O Comitê de compra de uma Conta reúne as pessoas que decidem. Cada pessoa enco
 
 ## Revelar e-mail e telefone
 
-O custo de revelar e-mail é informado pela cotação antes da confirmação. Um e-mail já encontrado não custa nada. A revelação de telefone está indisponível.
+O custo de revelar é informado pela cotação antes da confirmação: 2 créditos por e-mail e 5 créditos por telefone. Os créditos só saem quando um dado novo é encontrado e gravado no Contato; um dado que o Contato já tem, ou uma busca sem resultado, não custa nada.

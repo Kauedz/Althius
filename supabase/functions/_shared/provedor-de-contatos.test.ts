@@ -9,6 +9,7 @@ import {
   fornecedoresDaCascata,
   type PessoaEncontrada,
   type ProvedorDeContatos,
+  telefoneDaPessoaApollo,
 } from './provedor-de-contatos.ts'
 import type { Apify } from '../signal-scan/handler.ts'
 
@@ -190,21 +191,45 @@ Deno.test('Apollo: sem domínio, busca pelo nome da empresa', async () => {
   assertEquals('q_organization_domains_list' in argumentos, false)
 })
 
-Deno.test('Apollo: revela só e-mail de verdade, com origem apollo; telefone não chama o Apollo', async () => {
+Deno.test('Apollo: revela só e-mail de verdade, com origem apollo', async () => {
   const chamadas: string[] = []
   let resposta: unknown = { estruturado: { person: { email: ' ana@acme.test ' } } }
   const provedor = new ApolloProvedorDeContatos(async (ferramenta) => {
     chamadas.push(ferramenta)
     return resposta
   })
-  assertEquals(await provedor.revelarContato(contato, 'telefone'), null)
-  assertEquals(chamadas, [])
   assertEquals(await provedor.revelarContato(contato, 'email'), { canal: 'email', valor: 'ana@acme.test', fonte: 'apollo' })
   assertEquals(chamadas, ['apollo_people_enrichment'])
   resposta = { estruturado: { person: { email: 'email_not_unlocked@domain.com' } } }
   assertEquals(await provedor.revelarContato(contato, 'email'), null)
   resposta = { estruturado: { person: null } }
   assertEquals(await provedor.revelarContato(contato, 'email'), null)
+})
+
+Deno.test('Apollo: revela o telefone da pessoa que vem na resposta, sem pedir o webhook nem usar o da empresa', async () => {
+  const pedidos: Array<Record<string, unknown>> = []
+  let resposta: unknown = {
+    estruturado: { person: { phone_numbers: [{ raw_number: '(11) 91234-5678', sanitized_number: '+5511912345678' }] } },
+  }
+  const provedor = new ApolloProvedorDeContatos(async (_f, argumentos) => {
+    pedidos.push(argumentos)
+    return resposta
+  })
+  assertEquals(await provedor.revelarContato(contato, 'telefone'), { canal: 'telefone', valor: '+5511912345678', fonte: 'apollo' })
+  assertEquals(pedidos[0].reveal_phone_number, false)
+  resposta = { estruturado: { person: { sanitized_phone: '+55 21 98888-1111' } } }
+  assertEquals((await provedor.revelarContato(contato, 'telefone'))?.valor, '+55 21 98888-1111')
+  resposta = { estruturado: { person: { phone_numbers: [] }, organization: { phone: '+55 11 3000-0000' } } }
+  assertEquals(await provedor.revelarContato(contato, 'telefone'), null)
+  resposta = { estruturado: { person: { phone_numbers: [{ sanitized_number: '123' }] } } }
+  assertEquals(await provedor.revelarContato(contato, 'telefone'), null)
+})
+
+Deno.test('telefoneDaPessoaApollo: lista primeiro, depois os campos diretos; número curto não conta', () => {
+  assertEquals(telefoneDaPessoaApollo({ phone_numbers: ['+55 11 90000-0001'] }), '+55 11 90000-0001')
+  assertEquals(telefoneDaPessoaApollo({ mobile_phone: '11 98888-7777' }), '11 98888-7777')
+  assertEquals(telefoneDaPessoaApollo({ phone: '12' }), null)
+  assertEquals(telefoneDaPessoaApollo({}), null)
 })
 
 Deno.test('fontes do cliente: Apollo e CRM não cobram Créditos Althius; Apify e o resto cobram', () => {
