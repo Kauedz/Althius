@@ -180,6 +180,14 @@ export function PaginaChatDoAgente() {
   const vazia = !conversaId && !conversa
   const semMotor = motorNoAr === false
 
+  // Erros e avisos ficam logo acima do composer, no início vazio ou no rodapé da conversa.
+  const avisos = (
+    <>
+      {erro && <div className="pb-3"><Mensagem tipo="erro">{erro}</Mensagem></div>}
+      {aviso && <div className="pb-3"><Mensagem tipo="info">{aviso}</Mensagem></div>}
+    </>
+  )
+
   // O agente ainda não lê arquivos: o composer da / não oferece anexos. As Conexões ativas aparecem só para leitura.
   const composer = (
     <Composer
@@ -241,8 +249,7 @@ export function PaginaChatDoAgente() {
                 prospect sem você aprovar.
               </p>
             </div>
-            {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
-            {aviso && <Mensagem tipo="info">{aviso}</Mensagem>}
+            {avisos}
             {composer}
             <ul aria-label="Sugestões de pedido" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {SUGESTOES.map(({ pedido, descricao, icone: Icone }, i) => (
@@ -274,8 +281,7 @@ export function PaginaChatDoAgente() {
 
       {!vazia && (
         <div className="rodape-da-conversa">
-          {erro && <div className="pb-3"><Mensagem tipo="erro">{erro}</Mensagem></div>}
-          {aviso && <div className="pb-3"><Mensagem tipo="info">{aviso}</Mensagem></div>}
+          {avisos}
           {composer}
           {conversa && (
             <p className="pt-2 text-center text-xs text-al-muted tabular-nums">
