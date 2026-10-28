@@ -35,9 +35,9 @@ async function lerAgentes(request: APIRequestContext) {
   return { agentes, porAgente }
 }
 
-test('/ sem a grade dos 4 Agentes, sem "Novo agente" e sem "Especialistas"; o composer fica e o @ não sugere Agente', async ({ page }, testInfo) => {
+test('/agentes sem a grade dos 4 Agentes, sem "Novo agente" e sem "Especialistas"; o composer fica e o @ não sugere Agente', async ({ page }, testInfo) => {
   const conferir = vigiar(page, testInfo)
-  await page.goto('/')
+  await page.goto('/agentes')
   await conferirWorkspaceOperacional(page)
   const formulario = page.getByRole('form', { name: 'Pedido aos agentes' })
   await expect(formulario).toBeVisible()
