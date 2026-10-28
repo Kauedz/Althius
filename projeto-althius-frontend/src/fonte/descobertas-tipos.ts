@@ -1,3 +1,4 @@
+import type { ExplicacaoDeAderencia } from './aderencia-explicada'
 import type { AjusteAprendido, CodigoDoDescarte } from './aprendizado-da-descoberta'
 import type { FonteObservavel } from './tipos'
 export interface CriteriosDaBusca {
@@ -103,4 +104,6 @@ export interface FonteDeDescobertas extends FonteObservavel {
   /** Desfaz um ajuste ou, sem argumentos, recomeça o aprendizado. Só Administrador. */
   desfazerAprendizado?(ajuste?: Pick<AjusteAprendido, 'dimensao' | 'valor'>): Promise<void>
   restaurarDescoberta(id: string): Promise<void>
+  /** Por que essa Aderência: texto que explica os motivos da Descoberta. A nota não muda. */
+  explicarAderencia?(id: string): Promise<ExplicacaoDeAderencia>
 }

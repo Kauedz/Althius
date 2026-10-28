@@ -2,6 +2,8 @@ import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateC
 import { Fragment, useEffect, useId, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Pagina } from '@/components/pagina'
+import { PorQueEssaAderencia } from '@/components/por-que-essa-aderencia'
+import type { ExplicacaoDeAderencia } from '@/fonte/aderencia-explicada'
 import { Button } from '@/components/ui/button'
 import { Carregando } from '@/components/marca'
 import { useDados, useDadosDeDescobertas, useFonteDeContas, useFonteDeDescobertas } from '@/fonte/contexto'
@@ -66,7 +68,15 @@ function avisoDoAceite(nome: string, r: ResultadoDoAceite): string {
 }
 
 /** O detalhe de uma candidata: o que a descreve e todos os Sinais que a trouxeram, com data e fonte pública. */
-function DetalheDaCandidata({ candidata, ajustes = [] }: { candidata: ContaDescoberta; ajustes?: AjusteAprendido[] }) {
+function DetalheDaCandidata({
+  candidata,
+  ajustes = [],
+  explicar,
+}: {
+  candidata: ContaDescoberta
+  ajustes?: AjusteAprendido[]
+  explicar?: (id: string) => Promise<ExplicacaoDeAderencia>
+}) {
   const aprendido = ajustesDaCandidata(candidata, ajustes)[0]
   return (
     <div aria-label={`Detalhes de ${candidata.nome}`} role="group" className="flex flex-col gap-3 text-xs">
@@ -74,6 +84,7 @@ function DetalheDaCandidata({ candidata, ajustes = [] }: { candidata: ContaDesco
         <span>Origem: {ROTULO_DA_ORIGEM[candidata.origem]}</span>
         {candidata.descricao && <span className="text-al-ink">{candidata.descricao}</span>}
       </div>
+      {explicar && <PorQueEssaAderencia key={candidata.id} explicar={() => explicar(candidata.id)} />}
       {aprendido && <p className="text-al-muted">{fraseDoAjuste(aprendido)}.</p>}
       {candidata.voltouPorSinalEm && (
         <p className="text-al-ink">
@@ -664,7 +675,7 @@ export function PaginaDescobertas() {
                 {detalheAberto === c.id && (
                   <tr className="bg-al-surface/30">
                     <td colSpan={6} className="p-3">
-                      <DetalheDaCandidata candidata={c} ajustes={ajustes} />
+                      <DetalheDaCandidata candidata={c} ajustes={ajustes} explicar={fonte?.explicarAderencia?.bind(fonte)} />
                     </td>
                   </tr>
                 )}

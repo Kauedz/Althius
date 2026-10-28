@@ -25,6 +25,18 @@ describe('Caixa de Descobertas por ICP', () => {
     expect(screen.getByText('Encaixe medio')).toBeInTheDocument()
   })
 
+  it('o detalhe da candidata explica a Aderência sem mudar o encaixe', async () => {
+    const { usuario } = renderizarApp('/contas/descobertas')
+    const nome = await screen.findByText('LogiFlow Brasil S.A.')
+    const linha = nome.closest('tr') as HTMLElement
+    await usuario.click(within(linha).getByRole('button', { name: /Ver detalhes de LogiFlow/ }))
+    const detalhe = screen.getByRole('group', { name: 'Detalhes de LogiFlow Brasil S.A.' })
+    await usuario.click(within(detalhe).getByRole('button', { name: 'Por que essa Aderência?' }))
+    expect(await within(detalhe).findByRole('status')).toHaveTextContent(/Aderência alta\. Setor: Logística/)
+    expect(within(detalhe).queryByText('Escrita por IA; a nota não muda.')).not.toBeInTheDocument()
+    expect(within(linha).getByText('Encaixe alto')).toBeInTheDocument()
+  })
+
   it('a busca em tempo real filtra candidatas por nome ou domínio', async () => {
     const { usuario } = renderizarApp('/contas/descobertas')
 

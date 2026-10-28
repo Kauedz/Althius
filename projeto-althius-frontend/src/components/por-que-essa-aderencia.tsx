@@ -1,5 +1,5 @@
 // "Por que essa Aderência?": pede a explicação da Descoberta e mostra o texto. A nota não muda; quando o texto é da IA,
-// a tela diz isso. Ainda não está ligado na Caixa de Descobertas (entra num PR seguinte).
+// a tela diz isso. Aparece no detalhe de cada candidata da Caixa de Descobertas.
 import { Info } from 'lucide-react'
 import { useState } from 'react'
 import { BOTAO_DISCRETO } from '@/components/botoes'
