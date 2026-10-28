@@ -152,8 +152,9 @@ Cada ticket traz o seu: pgTAP para o que mexer no banco (determinístico, sem de
 | 13 | [Parar de semear os quatro Agentes](issues/13-parar-de-semear-os-quatro-agentes.md) | 10, 11 | ready-for-agent | não | não |
 | 14 | [Hermes: limpeza do mapa de personas](issues/14-hermes-limpeza-do-mapa-de-personas.md) | 10 | needs-hermes | sim | não |
 | 15 | [Retirada de schema dos quatro Agentes](issues/15-retirada-de-schema-dos-quatro-agentes.md) | 10, 11, 12, 13, 14 | ready-for-agent | não | não |
+| 16 | [Preencher os campos estruturados do ICP](issues/16-preencher-campos-estruturados-do-icp.md) | 01, 05 | ready-for-agent | não | não |
 
-As tickets 01–09 (ICP, Modelos, composer, página do Sinal) formam a parte "aditiva" da frente e podem andar lado a lado com a trilha de retirada (10–15), que só depende dela no ticket 10 (a interface nova precisa existir antes de esconder a antiga, para `/` nunca ficar sem composer). Dentro da trilha de retirada, a ordem da D9 é uma cadeia estrita: 10 (D9a, esconder) bloqueia 11 (D9b, Rhetor) e 14 (persona do Hermes); 10 e 11 juntos bloqueiam 13 (D9c, parar de semear); e 15 (D9d, schema) é o último, bloqueado por 10, 11, 12, 13 e 14. O ticket 12 (Oraculum) não faz parte da cadeia D9(a–d) — é D3 pura — e por isso não tem bloqueio nem bloqueia ninguém, mas conclui antes do ticket 15 por listagem.
+As tickets 01–09 e 16 (ICP, Modelos, composer, página do Sinal e os campos estruturados do ICP) formam a parte "aditiva" da frente e podem andar lado a lado com a trilha de retirada (10–15), que só depende dela no ticket 10 (a interface nova precisa existir antes de esconder a antiga, para `/` nunca ficar sem composer). Dentro da trilha de retirada, a ordem da D9 é uma cadeia estrita: 10 (D9a, esconder) bloqueia 11 (D9b, Rhetor) e 14 (persona do Hermes); 10 e 11 juntos bloqueiam 13 (D9c, parar de semear); e 15 (D9d, schema) é o último, bloqueado por 10, 11, 12, 13 e 14. O ticket 12 (Oraculum) não faz parte da cadeia D9(a–d) — é D3 pura — e por isso não tem bloqueio nem bloqueia ninguém, mas conclui antes do ticket 15 por listagem.
 
 ## Fora de escopo
 

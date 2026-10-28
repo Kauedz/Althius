@@ -4,6 +4,7 @@ import { Logo, Carregando } from '@/components/marca'
 import { useFonteDeOnboarding } from '@/fonte/contexto'
 import { ORIGENS_HDYHAU, PAPEIS_DO_DAY0, type EstadoDeOnboarding, type OrigemHdyhau, type PapelNoDay0 } from '@/fonte/onboarding-tipos'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO, Campo, EscolhaUnica } from './componentes'
+import { IcpDoDay0 } from './icp-do-day0'
 
 export function Day0Operacional() {
   const fonte = useFonteDeOnboarding()
@@ -23,6 +24,11 @@ export function Day0Operacional() {
     })
     return () => { ativo = false }
   }, [fonte, tentativa])
+
+  // A leitura do site termina depois do passo do domínio; o estado novo chega por aqui.
+  useEffect(() => fonte.observar(() => {
+    fonte.ler().then(setEstado).catch(() => {})
+  }), [fonte])
 
   async function salvar(acao: () => Promise<EstadoDeOnboarding>) {
     setOcupado(true)
@@ -76,8 +82,9 @@ export function Day0Operacional() {
               </Campo>
             )}
             {etapa === 'empresa' && <p>Estes dados preenchem a empresa do Workspace já aberto pela equipe Althius. O nome do Workspace permanece o mesmo.</p>}
-            {etapa === 'dominio' && <p>A leitura do site e a busca do logo ainda não estão disponíveis.</p>}
+            {etapa === 'dominio' && <p>Ao continuar, lemos a página inicial do site para sugerir o ICP no checklist. Você revisa tudo antes de salvar.</p>}
             {etapa === 'convite' && <p>Seu progresso está salvo. Você já pode abrir o Workspace.</p>}
+            {etapa === 'convite' && estado.ramo === 'criador' && <IcpDoDay0 estado={estado} fonte={fonte} aoSalvar={setEstado} />}
             <div className="flex flex-wrap justify-end gap-3">
               <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void salvar(() => fonte.concluirOnboarding())}>Pular Day0</button>
               <button type="button" className={BOTAO_PRIMARIO} disabled={!preenchido} onClick={() => void continuar()}>{ocupado ? 'Salvando…' : etapa === 'convite' ? 'Concluir Day0' : 'Continuar'}</button>

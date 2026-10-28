@@ -57,25 +57,16 @@ async function garantirIcpDoQa(http: Awaited<ReturnType<typeof request.newContex
     icp.geography === FIXTURE_ICP.geography
   if (igual) return
 
-  // Ninguém na tela grava setor, porte e geografia ainda (ticket 16). Até lá, o fixture entra como uma NOVA versão do
-  // ICP, só no Workspace QA: o SQL confere id e nome do Workspace e nunca altera nem apaga versão existente.
-  const texto = (campo: string) => (typeof icp[campo] === 'string' ? (icp[campo] as string) : '')
-  const sql = `insert into private.workspace_icp_versions
-  (workspace_id, version, sector, company_size, geography, target_roles, free_text, o_que_vende, mini_icp, por_que_compram)
-select w.id,
-  coalesce((select max(v.version) from private.workspace_icp_versions v where v.workspace_id = w.id), 0) + 1,
-  ${lit(FIXTURE_ICP.sector)}, ${lit(FIXTURE_ICP.companySize)}, ${lit(FIXTURE_ICP.geography)},
-  ${lit(JSON.stringify(FIXTURE_ICP.targetRoles))}::jsonb, ${lit(texto('freeText'))},
-  ${lit(texto('oQueVende'))}, ${lit(texto('miniIcp'))}, ${lit(texto('porQueCompram'))}
-from public.workspaces w
-where w.id = ${lit(e.workspaceId)}::uuid and w.name = ${lit(NOME_DO_WORKSPACE_QA)}`
-  const resposta = await http.post(`https://api.supabase.com/v1/projects/${e.projectRef}/database/query`, {
-    headers: { Authorization: `Bearer ${segredo('SUPABASE_ACCESS_TOKEN')}` },
-    data: { query: sql },
+  // Desde o ticket sinais-first 16, a mesma RPC da tela grava setor, porte e geografia, com a sessão do QA
+  // (Administrador do Workspace QA). Ela cria uma NOVA versão do ICP e nunca altera nem apaga versão existente.
+  const gravacao = await http.post(`${e.supabaseUrl}/rest/v1/rpc/save_my_workspace_icp_fields`, {
+    headers: { apikey: e.publishableKey, Authorization: `Bearer ${token}` },
+    data: {
+      p_workspace_id: e.workspaceId,
+      p_sector: FIXTURE_ICP.sector,
+      p_company_size: FIXTURE_ICP.companySize,
+      p_geography: FIXTURE_ICP.geography,
+    },
   })
-  if (!resposta.ok()) throw new Error(`Não deu para gravar o ICP de teste do QA (HTTP ${resposta.status()}).`)
-}
-
-function lit(valor: string) {
-  return `'${valor.replace(/'/g, "''")}'`
+  if (!gravacao.ok()) throw new Error(`Não deu para gravar o ICP de teste do QA (HTTP ${gravacao.status()}).`)
 }

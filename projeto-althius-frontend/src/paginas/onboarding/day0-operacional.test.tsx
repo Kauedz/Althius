@@ -106,3 +106,46 @@ describe('Day0 operacional', () => {
     expect(await screen.findByRole('heading', { name: 'Casca operacional' })).toBeInTheDocument()
   })
 })
+
+describe('Day0 operacional: ICP do Workspace (sinais-first 16)', () => {
+  it('a pessoa criadora revisa a sugestão do site e só grava Setor, Porte e Região ao salvar', async () => {
+    const registro = { ...INICIAL, etapa: 'convite', papel: 'Founder', comoConheceu: 'Indicação', empresa: 'Norte', dominio: 'norte.test', miniIcp: '', oQueVende: '', porQueCompram: '' }
+    const icp = { version: null as number | null, sector: '', companySize: '', geography: '' }
+    const pedidos: { url: string; body: Record<string, string> }[] = []
+    const responder = async (url: string, body: Record<string, string>) => {
+      pedidos.push({ url, body })
+      if (url.endsWith('/save_my_workspace_icp_fields')) {
+        Object.assign(icp, { version: 1, sector: body.p_sector, companySize: body.p_company_size, geography: body.p_geography })
+        return icp as never
+      }
+      if (url.endsWith('/get_my_workspace_icp')) return icp as never
+      if (url.endsWith('/save_my_day0') && body.p_action === 'produto') Object.assign(registro, JSON.parse(body.p_value))
+      return registro as never
+    }
+    const { usuario } = montar(responder)
+    const secao = await screen.findByRole('region', { name: 'ICP do Workspace' })
+    expect(secao).toBeInTheDocument()
+    expect(pedidos.some((p) => p.url.endsWith('/save_my_workspace_icp_fields'))).toBe(false)
+
+    await usuario.type(screen.getByRole('textbox', { name: 'Setor' }), 'Logística')
+    await usuario.type(screen.getByRole('textbox', { name: 'Porte' }), 'grande')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar ICP' }))
+    expect(await screen.findByText(/Porte inválido: grande/)).toBeInTheDocument()
+    expect(pedidos.some((p) => p.url.endsWith('/save_my_workspace_icp_fields'))).toBe(false)
+
+    await usuario.clear(screen.getByRole('textbox', { name: 'Porte' }))
+    await usuario.type(screen.getByRole('textbox', { name: 'Porte' }), '51-200')
+    await usuario.type(screen.getByRole('textbox', { name: 'Região' }), 'SP')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar ICP' }))
+    expect(await screen.findByText('ICP salvo.')).toBeInTheDocument()
+    expect(pedidos.find((p) => p.url.endsWith('/save_my_workspace_icp_fields'))?.body).toEqual({
+      p_workspace_id: 'workspace', p_sector: 'Logística', p_company_size: '51-200', p_geography: 'SP',
+    })
+  })
+
+  it('um convidado não vê o bloco do ICP', async () => {
+    montar(async () => ({ ...INICIAL, ramo: 'convidado', etapa: 'convite' }))
+    expect(await screen.findByRole('heading', { name: 'Tudo pronto para começar' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'ICP do Workspace' })).not.toBeInTheDocument()
+  })
+})

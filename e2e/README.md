@@ -35,7 +35,7 @@ Lidas do ambiente ou de um arquivo `KEY=VALUE` fora do repositório (`ALTHIUS_QA
 - `ALTHIUS_QA_BASE_URL`, `ALTHIUS_QA_SUPABASE_URL`, `ALTHIUS_QA_PUBLISHABLE_KEY` (a chave publicável, a mesma do app)
 - `ALTHIUS_QA_EMAIL`, `ALTHIUS_QA_WORKSPACE_ID`
 - `SUPABASE_SERVICE_ROLE_KEY`: só para abrir a sessão do QA (veja abaixo)
-- `SUPABASE_ACCESS_TOKEN`: só para gravar o ICP de teste quando ele não estiver lá
+- `SUPABASE_ACCESS_TOKEN`: não é mais usado pela suíte (o ICP de teste entra pela RPC com a sessão do QA, ticket sinais-first 16)
 - `ALTHIUS_QA_PROJECT_REF` (opcional; sai do `ALTHIUS_QA_SUPABASE_URL`)
 
 ## Por que a sessão vem de um link mágico do Admin
@@ -46,4 +46,5 @@ O login com senha de produção tem CAPTCHA (Turnstile), que um robô não resol
 
 - O Workspace "QA Althius (automação)" é só do QA: sem Contas-alvo nem Contatos reais, sem créditos, sem canais conectados, sem Automação e com o Teto interno no mínimo. Ele não consegue enviar LinkedIn, WhatsApp nem e-mail, nem disparar uma varredura paga.
 - Os testes nunca ativam Sinal, enviam mensagem, conectam canal, compram ou criam Sequência.
-- O ICP de teste (setor "Logística e transporte", porte "51 a 200 funcionários", geografia "Sul do Brasil") entra como uma versão nova do ICP, só no Workspace QA (o SQL confere id e nome). Enquanto o ticket 16 não chega, ninguém grava esses campos pela tela.
+- O ICP de teste (setor "Logística e transporte", porte "51-200", geografia "Sul do Brasil") entra, quando falta, como uma versão nova do ICP pela RPC `save_my_workspace_icp_fields` (ticket sinais-first 16), com a sessão do QA e só no Workspace QA.
+- O teste 06 confere também os critérios do Plano: com o Briefing sem lugar, a geografia do ICP tem que virar `localizacao` = `["Brasil"]`.
