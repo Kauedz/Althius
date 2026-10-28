@@ -453,6 +453,20 @@ Deno.test('cnpj-receita com sessão e sem saldo não chama o actor', async () =>
   assertEquals(passos, ['sessao', 'begin'])
 })
 
+Deno.test('cnpj-receita encaminha a recusa do RPC como erro claro em pt-BR', async () => {
+  const passos: string[] = []
+  const handler = criarHandlerEnrichment({
+    db: dbDaReceita({
+      passos,
+      begin: () => Promise.reject(new Error('discovery actor is still in testing')),
+    }),
+  })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 403)
+  assertEquals(await res.json(), { error: 'Não foi possível reservar o crédito.' })
+  assertEquals(passos, ['sessao', 'begin'])
+})
+
 Deno.test('cnpj-receita com reserva, falha do actor libera a reserva e não debita', async () => {
   const passos: string[] = []
   const apify: Apify = {

@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { renderizarApp } from '@/test/renderizar'
+import { describe, expect, it, vi } from 'vitest'
+import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 describe('Caixa de Descobertas por ICP', () => {
   it('o endereço /contas/descobertas abre a Caixa com a cotação prévia e a lista de candidatas', async () => {
@@ -118,6 +118,57 @@ describe('Caixa de Descobertas por ICP', () => {
     // Nova candidata aparece
     expect(await screen.findByText('AgroTech Soluções de Precisão')).toBeInTheDocument()
     expect(screen.getAllByText('Encaixe alto').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('aceitar com CNPJ informa Conta, Comitê e Receita quando os dois enriquecimentos concluem', async () => {
+    const comite = vi.fn(async () => ({ encontradas: 2, novas: 2, jaEncontradas: 0 }))
+    const receita = vi.fn(async () => ({}) as never)
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      contas: (fonte) => ({ ...fonte, buscarComite: comite, enriquecerReceita: receita }),
+      descobertas: (fonte) => ({
+        ...fonte,
+        aceitarDescoberta: async () => ({ targetAccountId: 'conta-orbita', created: true, sinaisMigrados: 0, comite: 'liberado' as const }),
+      }),
+    })
+    const linha = (await screen.findByText('LogiFlow Brasil S.A.')).closest('tr')!
+    await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
+
+    expect(await screen.findByText(/Conta criada: LogiFlow Brasil S.A./)).toBeInTheDocument()
+    expect(screen.getByText(/Comitê: 2 pessoas sugeridas/)).toBeInTheDocument()
+    expect(screen.getByText(/Dados da Receita: ok/)).toBeInTheDocument()
+    expect(comite).toHaveBeenCalledWith('conta-orbita')
+    expect(receita).toHaveBeenCalledWith('conta-orbita', '45.123.890/0001-12')
+  })
+
+  it('mantém a Conta aceita e mostra a mensagem real quando o enriquecimento falha', async () => {
+    const receita = vi.fn(async () => { throw new Error('Receita indisponível no momento') })
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      contas: (fonte) => ({ ...fonte, enriquecerReceita: receita }),
+    })
+    const linha = (await screen.findByText('LogiFlow Brasil S.A.')).closest('tr')!
+    await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
+
+    expect(await screen.findByText(/Receita indisponível no momento/)).toBeInTheDocument()
+    expect(screen.getByText(/Conta criada: LogiFlow Brasil S.A./)).toBeInTheDocument()
+  })
+
+  it('não consulta Receita sem CNPJ e explica quando o Comitê está bloqueado', async () => {
+    const comite = vi.fn()
+    const receita = vi.fn()
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      contas: (fonte) => ({ ...fonte, buscarComite: comite, enriquecerReceita: receita }),
+      descobertas: (fonte) => ({
+        ...fonte,
+        aceitarDescoberta: async () => ({ targetAccountId: 'conta-orbita', created: true, sinaisMigrados: 0, comite: 'sem_saldo' as const }),
+      }),
+    })
+    const linha = (await screen.findByText('Vértice Embalagens Ltda')).closest('tr')!
+    await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
+    // A candidata já tem site; o modal só aparece quando faltam site e CNPJ.
+
+    expect(await screen.findByText(/sem créditos suficientes agora/)).toBeInTheDocument()
+    expect(comite).not.toHaveBeenCalled()
+    expect(receita).not.toHaveBeenCalled()
   })
 })
 

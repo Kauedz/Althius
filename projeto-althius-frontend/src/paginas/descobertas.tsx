@@ -46,18 +46,19 @@ export function frasePorExtensoDoSinal(sinal: SinalDoMotivo): string {
 /** A primeira frase do aviso depois de aceitar: a Conta e os Sinais que vieram com ela. */
 function baseDoAviso(nome: string, r: ResultadoDoAceite): string {
   const sinais = r.sinaisMigrados > 0 ? ` com ${r.sinaisMigrados} ${r.sinaisMigrados === 1 ? 'Sinal' : 'Sinais'}` : ''
-  return `${nome} agora é uma Conta-alvo${sinais}.`
+  const situacao = r.created ? 'Conta criada' : 'Conta já existia'
+  return `${situacao}: ${nome}${sinais}.`
 }
 
 /** O que a pessoa lê depois de aceitar, e o que aconteceu com o Comitê (o aceite confere o saldo e o limite do mês). */
 function avisoDoAceite(nome: string, r: ResultadoDoAceite): string {
   const base = baseDoAviso(nome, r)
-  if (r.comite === 'liberado') return `${base} Buscando o Comitê de compra…`
+  if (r.comite === 'liberado') return `${base} Comitê: buscando…`
   if (r.comite === 'limite_do_mes') {
-    return `${base} Limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius. Use Enriquecer Comitê na Conta quando houver limite.`
+    return `${base} Comitê: limite do mês atingido. A Automação volta na renovação ou fale com a equipe Althius. Use Enriquecer Comitê na Conta quando houver limite.`
   }
-  if (r.comite === 'sem_contrato') return `${base} Sem contrato ativo, o Comitê não pode ser enriquecido agora.`
-  return `${base} Sem créditos suficientes para enriquecer o Comitê agora: use Enriquecer Comitê na Conta quando houver saldo.`
+  if (r.comite === 'sem_contrato') return `${base} Comitê: sem contrato ativo, não pode ser enriquecido agora.`
+  return `${base} Comitê: sem créditos suficientes agora; use Enriquecer Comitê na Conta quando houver saldo.`
 }
 
 /** O detalhe de uma candidata: o que a descreve e todos os Sinais que a trouxeram, com data e fonte pública. */
@@ -222,14 +223,24 @@ export function PaginaDescobertas() {
       setAvisoDeAceite(avisoDoAceite(candidata.nome, resultado))
       recarregarLista()
       // O Comitê só dispara se o saldo e o limite do mês permitem (o aceite confere); senão a Conta fica com "Enriquecer Comitê".
+      let aviso = avisoDoAceite(candidata.nome, resultado)
       if (resultado.comite === 'liberado' && fonteDeContas.buscarComite) {
-        const base = baseDoAviso(candidata.nome, resultado)
         try {
           const comite = await fonteDeContas.buscarComite(resultado.targetAccountId)
-          setAvisoDeAceite(`${base} Comitê de compra: ${comite.novas} ${comite.novas === 1 ? 'pessoa sugerida' : 'pessoas sugeridas'} para abordagem.`)
-        } catch {
-          setAvisoDeAceite(`${base} Não foi possível enriquecer o Comitê agora: use Enriquecer Comitê na Conta.`)
+          aviso = `${baseDoAviso(candidata.nome, resultado)} Comitê: ${comite.novas} ${comite.novas === 1 ? 'pessoa sugerida' : 'pessoas sugeridas'} para abordagem.`
+        } catch (e) {
+          aviso = `${baseDoAviso(candidata.nome, resultado)} Comitê: não foi possível enriquecer agora — ${e instanceof Error ? e.message : 'erro desconhecido'}.`
         }
+        setAvisoDeAceite(aviso)
+      }
+      if (candidata.cnpj && fonteDeContas.enriquecerReceita) {
+        try {
+          await fonteDeContas.enriquecerReceita(resultado.targetAccountId, candidata.cnpj)
+          aviso += ' Dados da Receita: ok.'
+        } catch (e) {
+          aviso += ` Dados da Receita: não foi possível enriquecer agora — ${e instanceof Error ? e.message : 'erro desconhecido'}.`
+        }
+        setAvisoDeAceite(aviso)
       }
     } catch (e) {
       setErroAcao(e instanceof Error ? e.message : 'Não foi possível aceitar a candidata.')
