@@ -1,3 +1,4 @@
+import { criteriosDaBuscaVazios } from '@/fonte/descobertas-tipos'
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
@@ -116,7 +117,7 @@ describe('Caixa de Descobertas por ICP', () => {
     await usuario.click(botaoBuscar)
 
     const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
-    expect(within(painel).getByLabelText('Setores')).toHaveValue('Logística e tecnologia')
+    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Logística e tecnologia')
     await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
 
     // Nova candidata aparece
@@ -182,12 +183,13 @@ describe('Caixa de Descobertas por ICP', () => {
     const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
     const setores = within(painel).getByLabelText('Setores')
     const palavras = within(painel).getByLabelText('Palavras-chave')
-    await usuario.clear(setores)
+    await usuario.click(within(painel).getByRole('button', { name: 'Remover Logística e tecnologia' }))
     await usuario.clear(palavras)
     expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeDisabled()
     expect(within(painel).getByText(/Informe ao menos um setor ou uma palavra-chave/)).toBeInTheDocument()
-    await usuario.type(setores, 'Seguros, Logística')
-    expect(setores).toHaveValue('Seguros, Logística')
+    await usuario.type(setores, 'Seguros')
+    await usuario.keyboard('{Enter}')
+    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Seguros')
     expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeEnabled()
     await usuario.click(within(painel).getByRole('button', { name: 'Cancelar' }))
     expect(screen.queryByRole('dialog', { name: 'Confirmar filtros da busca' })).not.toBeInTheDocument()
@@ -205,13 +207,67 @@ describe('Caixa de Descobertas por ICP', () => {
     expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
     const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
-    await usuario.clear(within(painel).getByLabelText('Setores'))
+    await usuario.click(within(painel).getByRole('button', { name: 'Remover Logística e tecnologia' }))
     await usuario.type(within(painel).getByLabelText('Setores'), 'SaaS')
+    await usuario.keyboard('{Enter}')
+    await waitFor(() => expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeEnabled())
     await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
     expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({
       criterios: expect.objectContaining({ setores: ['SaaS'] }),
       icpVersion: 1,
       allowTesting: true,
+    })
+  })
+
+  it('os filtros são escolhidos em listas: porte, região e setor vão no formato que a busca entende', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'available', podeTestar: true })
+        vi.spyOn(fonte, 'criteriosDaBusca').mockResolvedValue({
+          criterios: { ...criteriosDaBuscaVazios(), setores: ['Logística'], portes: ['51-200'], regioes: ['SP'] },
+          icpVersion: 3,
+          icpResumo: 'Logística no Sudeste',
+          temIcp: true,
+        })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+
+    // Pré-preenchido pelo ICP.
+    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Logística')
+    expect(within(painel).getByRole('list', { name: 'Porte (faixas) escolhidas' })).toHaveTextContent('51-200')
+
+    // Setor pela busca na lista; porte pela faixa legível; região por cidade.
+    await usuario.type(within(painel).getByRole('combobox', { name: 'Setores' }), 'Segur')
+    await usuario.click(within(painel).getByRole('option', { name: /Seguros/ }))
+    await usuario.type(within(painel).getByRole('combobox', { name: 'Porte (faixas)' }), '11 a 50')
+    await usuario.click(within(painel).getByRole('option', { name: /11-50/ }))
+    expect(within(painel).queryByRole('option', { name: /MEI/ })).not.toBeInTheDocument()
+    const regiao = await within(painel).findByRole('combobox', { name: 'Região' }, { timeout: 5000 })
+    await usuario.type(regiao, 'Campinas')
+    await usuario.click(await within(painel).findByRole('option', { name: /^Campinas, SP/ }))
+
+    // Palavras-chave e exclusões continuam livres, em etiquetas.
+    await usuario.type(within(painel).getByLabelText('Palavras-chave'), 'frota{Enter}')
+    await usuario.type(within(painel).getByLabelText('Excluir'), 'consultoria,')
+    await usuario.click(within(painel).getByRole('button', { name: 'Remover 51-200' }))
+
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({
+      criterios: expect.objectContaining({
+        setores: ['Logística', 'Seguros'],
+        portes: ['11-50'],
+        regioes: ['SP', 'Campinas, SP'],
+        palavrasChave: ['frota'],
+        excluir: ['consultoria'],
+      }),
+      icpVersion: 3,
+      allowTesting: false,
     })
   })
 
