@@ -166,10 +166,11 @@ select is(
 select is(
   (select array_agg(tabela || '=' || linhas order by tabela)
      from pg_temp.linhas_do_workspace((select id from empresa)) where linhas > 0),
-  array['private.agent_permissions=14', 'private.agent_settings=4', 'private.agents=4',
+  array['private.agent_permissions=14', 'private.agent_settings=4', 'private.agent_step_permissions=1',
+        'private.agents=4',
         'private.company_workspace_requests=1', 'private.workspace_participation_events=1',
         'private.workspace_signal_budget=1', 'public.workspace_memberships=1'],
-  'o Workspace da empresa nasce só com a Participação da criadora, o pedido, o histórico, os Agentes padrão e o teto de US$ 20');
+  'o Workspace da empresa nasce só com a Participação da criadora, o pedido, o histórico, os Agentes padrão (o Rhetor com a Permissão de Propor em Sequência) e o teto de US$ 20');
 select is(
   (select event || ':' || new_role from private.workspace_participation_events where workspace_id = (select id from empresa)),
   'workspace_criado:admin', 'o histórico de participação registra a criação do Workspace e o papel da criadora');
