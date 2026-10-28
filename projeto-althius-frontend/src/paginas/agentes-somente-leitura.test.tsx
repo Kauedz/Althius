@@ -12,7 +12,7 @@ afterEach(() => {
 // mostram o que já existia, só para leitura, sem gravar nada.
 describe('Agentes retirados da interface', () => {
   it('mantém a Coordenação e remove o catálogo de Agentes da página inicial', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
 
     expect(await screen.findByRole('form', { name: 'Pedido aos agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()
@@ -45,7 +45,7 @@ describe('Agentes retirados da interface', () => {
   })
 
   it('expõe todos os Agentes e dados existentes somente para leitura', async () => {
-    const inicial = renderizarApp('/')
+    const inicial = renderizarApp('/conversa')
     const agentes = await inicial.fonte.agentes()
     const escritas = [
       'criarAgente',

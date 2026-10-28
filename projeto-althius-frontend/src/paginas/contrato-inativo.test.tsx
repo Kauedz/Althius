@@ -28,14 +28,14 @@ function comContrato(contrato: ResumoDoContrato | null) {
 
 describe('Contrato inativo', () => {
   it('a demonstração, sem leitura de contrato, não mostra o aviso', async () => {
-    renderizarApp('/')
+    renderizarApp('/conversa')
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(screen.queryByText(AVISO)).not.toBeInTheDocument()
   })
 
   it('suspenso mostra o aviso na home e abre o pedido para a equipe', async () => {
     const { usuario } = renderizarAppCom('/', { fonte: comContrato(resumo('suspenso')) })
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
     expect(await screen.findByText(AVISO)).toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: 'Fale com a equipe Althius' }))
     const dialogo = within(await screen.findByRole('dialog', { name: 'Fale com a equipe Althius' }))
@@ -53,11 +53,11 @@ describe('Contrato inativo', () => {
   })
 
   it('contrato ativo e Workspace ilimitado não mostram o aviso', async () => {
-    const { unmount } = renderizarAppCom('/', { fonte: comContrato(resumo('ativo')) })
+    const { unmount } = renderizarAppCom('/conversa', { fonte: comContrato(resumo('ativo')) })
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(screen.queryByText(AVISO)).not.toBeInTheDocument()
     unmount()
-    renderizarAppCom('/', { fonte: comContrato(resumo('suspenso', true)) })
+    renderizarAppCom('/conversa', { fonte: comContrato(resumo('suspenso', true)) })
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(screen.queryByText(AVISO)).not.toBeInTheDocument()
   })

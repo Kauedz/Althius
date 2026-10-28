@@ -6,13 +6,16 @@ import { criarBancoDeAgentes, rpcsDeAgentes, type BancoDeAgentes } from '@/test/
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
+// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
+window.history.replaceState(null, '', '/conversa')
+
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/conversa')
   sessionStorage.clear()
 })
 
@@ -49,7 +52,7 @@ describe('Agentes no Workspace operacional', () => {
   it('a / não mostra a grade dos Agentes nem a criação, sem dados da Demonstração', async () => {
     abrir(criarBancoDeAgentes(), '/')
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Novo agente' })).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Especialistas' })).not.toBeInTheDocument()
@@ -57,7 +60,7 @@ describe('Agentes no Workspace operacional', () => {
   })
 
   it('pedir algo aos Agentes diz que não está disponível, sem composer nem resposta simulada', async () => {
-    abrir(criarBancoDeAgentes(), '/')
+    abrir(criarBancoDeAgentes(), '/conversa')
 
     expect(await screen.findByText(/Conversas e Coordenação com os Agentes ainda não estão disponíveis/)).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /Peça algo/ })).not.toBeInTheDocument()
@@ -97,7 +100,7 @@ describe('Agentes no Workspace operacional', () => {
       expect(screen.queryByRole('button', { name: /Salvar personalização|Excluir agente/ })).not.toBeInTheDocument()
       expect(banco.agentes).toEqual(antes)
       cleanup()
-      window.history.replaceState(null, '', '/')
+      window.history.replaceState(null, '', '/conversa')
     }
   })
 
@@ -105,11 +108,11 @@ describe('Agentes no Workspace operacional', () => {
     const banco = criarBancoDeAgentes()
     abrir(banco, '/', 'member')
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Novo agente' })).not.toBeInTheDocument()
 
     cleanup()
-    window.history.replaceState(null, '', '/')
+    window.history.replaceState(null, '', '/conversa')
     abrir(banco, '/agentes/agente-scopus/memoria', 'member')
     expect(await screen.findByText(/Este Agente foi retirado do produto/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Salvar personalização|Excluir agente/ })).not.toBeInTheDocument()

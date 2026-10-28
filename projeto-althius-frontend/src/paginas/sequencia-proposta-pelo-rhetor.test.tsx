@@ -10,6 +10,9 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
+// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
+window.history.replaceState(null, '', '/conversa')
+
 const BIA = { id: 'usuario-bia', email: 'bia@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-bia', kind: 'pessoal', name: 'Bia Lima', owner_user_id: BIA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
@@ -17,7 +20,7 @@ const ACAO = 'Sequência de E-mail para Alfa Engenharia'
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/conversa')
   sessionStorage.clear()
 })
 
@@ -139,7 +142,7 @@ async function pedirAoRhetor(usuario: ReturnType<typeof userEvent.setup>) {
 
 describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional', () => {
   it('mostra a Conta-alvo, os Contatos e os passos, com o dia, o assunto, o corpo e as variáveis em destaque', async () => {
-    const { usuario } = abrir('/')
+    const { usuario } = abrir('/conversa')
     const cartao = await pedirAoRhetor(usuario)
 
     expect(within(cartao).getByRole('link', { name: 'Alfa Engenharia' })).toHaveAttribute('href', '/contas/conta-alfa')
@@ -155,7 +158,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
   })
 
   it('o Vendedor responsável aprova no passo: a Sequência é criada sem envio, com o link para ela', async () => {
-    const { usuario, decisoes, executores } = abrir('/')
+    const { usuario, decisoes, executores } = abrir('/conversa')
     const cartao = await pedirAoRhetor(usuario)
     expect(await within(cartao).findByText(/os e-mails só saem depois que você clicar em "Ativar envios"/)).toBeInTheDocument()
 
@@ -169,7 +172,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
   })
 
   it('o Vendedor responsável recusa, e nada é criado', async () => {
-    const { usuario, decisoes } = abrir('/')
+    const { usuario, decisoes } = abrir('/conversa')
     const cartao = await pedirAoRhetor(usuario)
     await usuario.click(await within(cartao).findByRole('button', { name: 'Recusar' }))
 
@@ -178,7 +181,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
   })
 
   it('a Administradora que não é a responsável vê a proposta sem o assunto e o corpo, e não decide', async () => {
-    const { usuario, decisoes } = abrir('/', { papel: 'admin', responsavel: false })
+    const { usuario, decisoes } = abrir('/conversa', { papel: 'admin', responsavel: false })
     const cartao = await pedirAoRhetor(usuario)
 
     expect(await within(cartao).findByText('Só o Vendedor responsável pela Conta-alvo decide esta Sequência.')).toBeInTheDocument()

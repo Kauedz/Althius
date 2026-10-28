@@ -6,13 +6,16 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
+// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
+window.history.replaceState(null, '', '/conversa')
+
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/conversa')
   sessionStorage.clear()
 })
 
@@ -138,7 +141,7 @@ function abrir(rota: string) {
 
 describe('A Conversa do Slack na Althius', () => {
   it('aparece nas Conversas recentes com a marca do Slack; a da Althius fica sem marca', async () => {
-    abrir('/')
+    abrir('/conversa')
 
     const lista = within(await screen.findByRole('region', { name: 'Recentes' }))
     const linhas = lista.getAllByRole('listitem')
@@ -154,7 +157,7 @@ describe('A Conversa do Slack na Althius', () => {
   })
 
   it('abrir mostra os passos na Conversa do Agente, com o composer desabilitado', async () => {
-    const { usuario, enviados } = abrir('/')
+    const { usuario, enviados } = abrir('/conversa')
 
     await usuario.click(await screen.findByRole('button', { name: /^Quem são as Contas Quentes/ }))
 
@@ -195,7 +198,7 @@ describe('A Conversa do Slack na Althius', () => {
   })
 
   it('a Conversa do WhatsApp aparece com origem e abre somente para leitura', async () => {
-    const { usuario } = abrir('/')
+    const { usuario } = abrir('/conversa')
     await usuario.click(await screen.findByRole('button', { name: /^Quantos Créditos temos/ }))
 
     expect(await screen.findByRole('heading', { name: 'Conversa do WhatsApp' })).toBeInTheDocument()

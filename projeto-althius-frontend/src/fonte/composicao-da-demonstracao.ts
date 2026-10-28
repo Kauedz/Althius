@@ -12,6 +12,7 @@ import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
 import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
 import { criarFonteDeSinaisSimulada } from './simulada-sinais'
 import { criarFonteDeDescobertasSimulada } from './simulada-descobertas'
+import { criarFonteDoAgenteSimulada } from './simulada-agente'
 
 /** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
 export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: Storage }): Ambiente {
@@ -33,6 +34,7 @@ export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: 
     fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
     fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
     fonteDeDescobertas: criarFonteDeDescobertasSimulada({ armazenamento, fonteDeContas }),
+    fonteDoAgente: criarFonteDoAgenteSimulada(),
     indisponiveis: new Set(),
   }
 }

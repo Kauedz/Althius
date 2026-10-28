@@ -6,13 +6,16 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
+// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
+window.history.replaceState(null, '', '/conversa')
+
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/conversa')
   sessionStorage.clear()
 })
 
@@ -66,7 +69,7 @@ function abrir(
 
 describe('Conversas no Workspace operacional, com o modelo configurado', () => {
   it('o pedido à Coordenação mostra o Agente chamado, a consulta real e a resposta consolidada', async () => {
-    const { usuario, enviados } = abrir('/', {
+    const { usuario, enviados } = abrir('/conversa', {
       eventos: [
         { seq: 1, kind: 'chamada', agent_id: 'agente-scopus', payload: {} },
         { seq: 2, kind: 'ferramenta', agent_id: 'agente-scopus', payload: { descricao: 'Consultou as Contas-alvo: "Alfa"', estado: 'concluida' } },
@@ -88,7 +91,7 @@ describe('Conversas no Workspace operacional, com o modelo configurado', () => {
   })
 
   it('a falha aparece como falha, sem resposta no lugar', async () => {
-    const { usuario } = abrir('/', {
+    const { usuario } = abrir('/conversa', {
       status: 'failed',
       eventos: [
         { seq: 1, kind: 'chamada', agent_id: 'agente-scopus', payload: {} },

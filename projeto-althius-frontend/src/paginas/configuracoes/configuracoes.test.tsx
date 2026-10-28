@@ -11,14 +11,14 @@ function arquivoDeImagem(nome = 'foto.png') {
 
 describe('Navegação até Configurações', () => {
   it('o item Configurações abre Meu perfil, e o menu pessoal também leva até lá', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarApp('/conversa')
     const workspace = within(screen.getByRole('navigation', { name: 'Workspace' }))
     await usuario.click(workspace.getByRole('link', { name: 'Configurações' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Configurações' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Meu perfil' })).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('link', { name: 'Agentes' }))
-    await screen.findByRole('heading', { level: 1, name: 'Agentes' })
+    await screen.findByRole('heading', { level: 1, name: 'Agente' })
     await usuario.click(screen.getByRole('button', { name: /Menu do usuário/ }))
     await usuario.click(await screen.findByRole('menuitem', { name: 'Meu perfil' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Meu perfil' })).toBeInTheDocument()

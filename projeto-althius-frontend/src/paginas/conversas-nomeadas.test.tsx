@@ -6,13 +6,16 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
+// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
+window.history.replaceState(null, '', '/conversa')
+
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/')
+  window.history.replaceState(null, '', '/conversa')
   sessionStorage.clear()
 })
 
@@ -96,7 +99,7 @@ function abrir(rota: string, salvas: Linha[], conversas: Record<string, unknown>
 
 describe('Conversas nomeadas no Workspace operacional', () => {
   it('a página de Agentes lista as Conversas anteriores, com o nome ou o primeiro pedido', async () => {
-    abrir('/', [
+    abrir('/conversa', [
       linha({ id: 'c1', title: 'ICP da Norte' }),
       linha({ id: 'c2', first_request: 'Campanha do quarto trimestre', updated_at: '2026-09-29T12:00:00Z' }),
       linha({ id: 'c3', kind: 'agente', agent_id: 'agente-scopus', first_request: 'Conversa na página do Scopus' }),
@@ -111,7 +114,7 @@ describe('Conversas nomeadas no Workspace operacional', () => {
 
   it('reabrir uma Conversa mostra os pedidos dela, e o próximo pedido a continua', async () => {
     const { usuario, enviados } = abrir(
-      '/',
+      '/conversa',
       [linha({ id: 'c1', title: 'ICP da Norte' }), linha({ id: 'c2', first_request: 'Campanha do quarto trimestre' })],
       { c2: conversaSalva('Campanha do quarto trimestre', 'Aqui vai o plano da campanha.') },
     )
@@ -128,7 +131,7 @@ describe('Conversas nomeadas no Workspace operacional', () => {
 
   it('renomear guarda o nome, mostra na Conversa e na lista', async () => {
     const { usuario, renomeadas } = abrir(
-      '/',
+      '/agentes',
       [linha({ id: 'c2', first_request: 'Campanha do quarto trimestre' })],
       { c2: conversaSalva('Campanha do quarto trimestre', 'Aqui vai o plano da campanha.') },
     )
@@ -147,7 +150,7 @@ describe('Conversas nomeadas no Workspace operacional', () => {
   })
 
   it('sem Conversas salvas, a lista não aparece', async () => {
-    abrir('/', [])
+    abrir('/conversa', [])
 
     expect(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Recentes' })).not.toBeInTheDocument()
