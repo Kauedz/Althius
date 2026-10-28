@@ -16,6 +16,14 @@ function clienteCom(rpc: (funcao: string, parametros: Record<string, unknown>) =
 }
 
 describe('Playbook no Supabase', () => {
+  it('lê também cargos e textos do ICP, ignorando o que não é texto', async () => {
+    const { cliente } = clienteCom(() => ({
+      data: { sector: 'Logística', companySize: '51-200', geography: 'SP', version: 5, targetRoles: ['CFO', 3, ' '], oQueVende: ' Frota. ', miniIcp: null, porQueCompram: 'Custo.' },
+    }))
+    const fonte = criarFonteDoPlaybookSupabase(cliente, () => 'ws-1', NOMES)
+    expect((await fonte.camposDoIcp!()).detalhes).toEqual({ cargos: ['CFO'], oQueVende: 'Frota.', miniIcp: '', porQueCompram: 'Custo.' })
+  })
+
   it('lê e grava os campos estruturados do ICP', async () => {
     const { cliente, chamadas } = clienteCom((funcao) => ({
       data:
@@ -27,12 +35,13 @@ describe('Playbook no Supabase', () => {
     const ouvinte = vi.fn()
     fonte.observar(ouvinte)
 
-    expect(await fonte.camposDoIcp!()).toEqual({ setor: 'Logística', porte: '51-200', regiao: 'SP', versao: 3 })
+    expect(await fonte.camposDoIcp!()).toEqual({ setor: 'Logística', porte: '51-200', regiao: 'SP', versao: 3, detalhes: { cargos: [], oQueVende: '', miniIcp: '', porQueCompram: '' } })
     expect(await fonte.salvarCamposDoIcp!({ setor: 'Seguros', porte: 'ME', regiao: 'RJ' })).toEqual({
       setor: 'Seguros',
       porte: 'ME',
       regiao: 'RJ',
       versao: 4,
+      detalhes: { cargos: [], oQueVende: '', miniIcp: '', porQueCompram: '' },
     })
     expect(chamadas.slice(0, 2)).toEqual([
       { funcao: 'get_my_workspace_icp', parametros: { p_workspace_id: 'ws-1' } },

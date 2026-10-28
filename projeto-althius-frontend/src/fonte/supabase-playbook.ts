@@ -11,7 +11,7 @@ import {
   type IdDaSecaoDoPlaybook,
   type SecaoDoPlaybook,
 } from './playbook-tipos'
-import type { CamposDoIcp } from './campos-do-icp'
+import type { CamposDoIcp, DetalhesDoIcp } from './campos-do-icp'
 
 interface RegistroDaVersao {
   version: number
@@ -35,6 +35,10 @@ interface RegistroDosCamposDoIcp {
   companySize?: unknown
   geography?: unknown
   version?: unknown
+  targetRoles?: unknown
+  oQueVende?: unknown
+  miniIcp?: unknown
+  porQueCompram?: unknown
 }
 
 const ERRO_SO_ADMINISTRADOR = 'Só um Administrador edita o Playbook.'
@@ -59,8 +63,15 @@ function recusaDosCamposDoIcp(erro: { code?: string; message?: string }): Error 
   return recusa(erro)
 }
 
-function camposLidos(registro: RegistroDosCamposDoIcp | null): CamposDoIcp & { versao: number | null } {
+function camposLidos(registro: RegistroDosCamposDoIcp | null): CamposDoIcp & { versao: number | null; detalhes: DetalhesDoIcp } {
+  const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
   return {
+    detalhes: {
+      cargos: Array.isArray(registro?.targetRoles) ? registro.targetRoles.filter((c): c is string => typeof c === 'string' && c.trim() !== '') : [],
+      oQueVende: texto(registro?.oQueVende),
+      miniIcp: texto(registro?.miniIcp),
+      porQueCompram: texto(registro?.porQueCompram),
+    },
     setor: typeof registro?.sector === 'string' ? registro.sector : '',
     porte: typeof registro?.companySize === 'string' ? registro.companySize : '',
     regiao: typeof registro?.geography === 'string' ? registro.geography : '',

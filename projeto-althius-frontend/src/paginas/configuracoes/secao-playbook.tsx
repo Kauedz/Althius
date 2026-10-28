@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Carregando } from '@/components/marca'
@@ -18,7 +18,7 @@ import { ehRevisaoDoPlaybook } from '@/fonte/regras'
 import { COLUNAS_DO_PLAYBOOK, linhaVazia, type ColunaDoPlaybook } from '@/fonte/regras-playbook'
 import type { AprovacaoDeRevisaoDoPlaybook } from '@/fonte/tipos'
 import { mensagemDeErro } from '@/lib/utils'
-import { portesInvalidos, sugerirCamposDoIcp, type CamposDoIcp } from '@/fonte/campos-do-icp'
+import { portesInvalidos, sugerirCamposDoIcp, type CamposDoIcp, type DetalhesDoIcp } from '@/fonte/campos-do-icp'
 import { SecaoDeConfiguracoes } from './componentes'
 import { ImportarPlaybook } from './importar-playbook'
 
@@ -146,7 +146,37 @@ function CamposDoIcp({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEditar
   const [salvo, setSalvo] = useState(false)
   if (!dados) return null
   return (
-    <CamposDoIcpEditor key={dados.versao ?? 0} salvos={dados} secao={secao} podeEditar={podeEditar} salvo={salvo} setSalvo={setSalvo} />
+    <>
+      <CamposDoIcpEditor key={dados.versao ?? 0} salvos={dados} secao={secao} podeEditar={podeEditar} salvo={salvo} setSalvo={setSalvo} />
+      {dados.detalhes && <MaisDoIcp detalhes={dados.detalhes} />}
+    </>
+  )
+}
+
+/** Cargos e textos do ICP salvo: aqui só para leitura; o Agente propõe e grava as mudanças (Fase 4). */
+function MaisDoIcp({ detalhes }: { detalhes: DetalhesDoIcp }) {
+  const linhas: [string, string][] = [
+    ['Cargos', detalhes.cargos.join(', ')],
+    ['O que vende', detalhes.oQueVende],
+    ['Para quem', detalhes.miniIcp],
+    ['Por que compram', detalhes.porQueCompram],
+  ]
+  return (
+    <section aria-label="Mais do ICP" className="flex flex-col gap-4 rounded-xl border border-al-line p-5">
+      <div className="flex flex-col gap-1">
+        <h3 className="titulo-secao text-xl">Mais do ICP</h3>
+        <p className="text-sm text-al-muted">Cargos e textos da versão salva. Para mudar, peça ao Agente: ele propõe e você confirma.</p>
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+        {linhas.map(([rotulo, valor]) => (
+          <Fragment key={rotulo}>
+            <dt className="text-al-muted">{rotulo}</dt>
+            <dd className={valor ? 'text-al-ink' : 'text-al-muted'}>{valor || 'Não preenchido'}</dd>
+          </Fragment>
+        ))}
+      </dl>
+      <Link to="/" className={`${BOTAO_SECUNDARIO} self-start`}>Ajustar com o Agente</Link>
+    </section>
   )
 }
 
