@@ -61,6 +61,7 @@ select is((select version from public.current_signal_models where catalog_id = '
   'a leitura vigente acompanha o maior conjunto de versão, sem ordenar por created_at');
 select is((select count(*) from public.signal_model_versions where catalog_id = 'abertura-de-vagas' and version = 1), 1::bigint,
   'a versão anterior continua guardada');
+select set_config('request.jwt.claim.sub', 'e6000000-0000-4000-8000-000000000002', true);
 select is((select count(*) from public.list_signal_models('e6100000-0000-4000-8000-000000000002')),
   (select count(*) from public.current_signal_models where catalog_id in
     (select id from public.signal_catalog where workspace_id is null or workspace_id = 'e6100000-0000-4000-8000-000000000002')),

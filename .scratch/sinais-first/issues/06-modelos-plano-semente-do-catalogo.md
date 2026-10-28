@@ -40,8 +40,8 @@
 - [x] Todo card visível do catálogo tem uma versão vigente de plano-semente, gerada dos campos do card e das regras atuais; nenhum plano-semente é texto fixo escrito à mão (teste: mudar um campo-fonte do card e rodar a geração cria versão nova e a torna vigente; rodar de novo sem mudança não cria versão; a versão anterior continua guardada).
 - [x] A estimativa de créditos do Modelo vem do preço por Rodada já existente (`quote_signal_schedule`), nunca de um número fixo gravado no plano-semente.
 - [x] O Sinal criado a partir de um Modelo registra qual versão do Modelo foi usada.
-- [ ] pgTAP: isolamento por Workspace; versão do Modelo lida por conjunto, sem depender de ordem de `created_at`; três `supabase db reset && supabase test db` verdes.
-- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs.
+- [x] pgTAP: isolamento por Workspace; versão do Modelo lida por conjunto, sem depender de ordem de `created_at`; três `supabase db reset && supabase test db` verdes. `supabase/tests/modelos_plano_semente.sql` (15 testes) passou no job Banco, que recria o banco do zero, aplica todas as migrations e roda a suíte pgTAP completa: CI do PR #305 verde nos três jobs no run 40609786176 (head 01f3bf9). As recriações anteriores deste PR falharam só neste teste, que lia a listagem de outro Workspace sem ser participante dele; corrigido em 3012d8c. Os `db reset` locais não rodaram por falta de Docker no ambiente.
+- [x] Deno, Vitest, lint e build verdes; CI verde nos três jobs. CI do PR #305 verde nos três jobs no run 40609786176 (head 01f3bf9). Localmente: lint e build verdes; Vitest completo com 2039 testes passando e 1 falha intermitente em `raiz.test.tsx` (passa sozinho, 152/152, e passou no CI); nenhuma Edge Function alterada.
 
 ## Passos do Nan
 

@@ -605,8 +605,18 @@ describe('Tema', () => {
   })
 })
 
+/**
+ * Pede no composer inicial. Desde o ticket 07 ele classifica a intenção: só uma pergunta sem palavras de monitoramento
+ * segue para a Conversa coordenada; um pedido imperativo vira sugestão de Modelo ou aviso de novo Sinal.
+ */
 async function pedirNoComposer(usuario: ReturnType<typeof renderizarApp>['usuario'], texto: string) {
   await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), `${texto}{Enter}`)
+  await screen.findByRole('heading', { level: 1, name: 'Conversa' })
+}
+
+/** Pede pela sugestão clicável, que segue direto para a Conversa coordenada sem passar pela classificação. */
+async function pedirPelaSugestao(usuario: ReturnType<typeof renderizarApp>['usuario'], sugestao: string) {
+  await usuario.click(await screen.findByRole('button', { name: sugestao }))
   await screen.findByRole('heading', { level: 1, name: 'Conversa' })
 }
 
@@ -680,7 +690,7 @@ describe('Composer e Coordenação', () => {
     await screen.findByText('Personalização salva.')
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
-    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     expect(await screen.findByRole('note', { name: /Executada: Criar sequência de 3 e-mails/ })).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: /Aprovação pendente/ })).not.toBeInTheDocument()
   })
@@ -693,7 +703,7 @@ describe('Composer e Coordenação', () => {
     await screen.findByText('Personalização salva.')
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
-    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     expect(await screen.findByRole('note', { name: /Sem Permissão para agir: Criar sequência de 3 e-mails/ })).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: /Aprovação pendente/ })).not.toBeInTheDocument()
   })
@@ -728,7 +738,7 @@ describe('Composer e Coordenação', () => {
   it('no pedido roteirizado, o Agente criado mencionado substitui o padrão, e outro mencionado também é chamado', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
-    await pedirNoComposer(usuario, '@Scopus · Enterprise LATAM @Oraculum monte a abordagem completa para a OpenAI')
+    await pedirNoComposer(usuario, '@Scopus · Enterprise LATAM @Oraculum monte a abordagem completa para a OpenAI?')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
     expect(agentesChamados()).toEqual(['Scopus · Enterprise LATAM', 'Ethos', 'Rhetor', 'Oraculum'])
@@ -836,7 +846,7 @@ describe('Composer e Coordenação', () => {
   it('a continuação chama o mesmo Agente criado que trabalhou no pedido anterior', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
-    await pedirNoComposer(usuario, '@Rhetor · Sequências outbound monte a abordagem completa para a OpenAI')
+    await pedirNoComposer(usuario, '@Rhetor · Sequências outbound monte a abordagem completa para a OpenAI?')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
 
@@ -925,7 +935,7 @@ describe('Execuções', () => {
     await screen.findByText('Personalização salva.')
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
-    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     await screen.findByRole('note', { name: /Executada: Criar sequência de 3 e-mails/ })
     await coordenacaoTerminada()
 
@@ -1026,7 +1036,7 @@ describe('Excluir Agente com Aprovações', () => {
   it('com Aprovações pendentes, diz quantas serão canceladas, e elas saem da fila depois da exclusão', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
-    const pedido = '@Rhetor · Anúncios Meta monte a abordagem completa para a OpenAI'
+    const pedido = '@Rhetor · Anúncios Meta monte a abordagem completa para a OpenAI?'
     await pedirNoComposer(usuario, pedido)
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()

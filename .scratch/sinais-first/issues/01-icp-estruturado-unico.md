@@ -46,7 +46,7 @@
 - [x] Papel, HDYHAU, empresa, domínio, logo, Personas e progresso do checklist não mudam de comportamento (testes existentes do onboarding verdes; nada do CRM-24 é decidido aqui).
 - [x] A seção `icp` do Playbook do Workspace continua funcionando exatamente como antes para quem só olha a tela de Playbook (sem edição ainda, que é o ticket 02).
 - [x] pgTAP: isolamento por Workspace; só Participação ativa lê; versões lidas por conjunto, sem depender da ordem de `created_at`; a suíte local completa recriou o banco, aplicou as migrations em ordem e passou todos os arquivos pgTAP.
-- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs. Vitest (1999 testes), lint e `tsc -b` passaram localmente; nenhuma Edge Function foi alterada. CI nos três jobs: pendente verificação humana.
+- [x] Deno, Vitest, lint e build verdes; CI verde nos três jobs. Vitest (1999 testes), lint e `tsc -b` passaram localmente; nenhuma Edge Function foi alterada. CI da main verde nos três jobs (Frontend, Edge Functions, Banco) no run 40580668372 (d73ba30, merge do PR #304) e no run 40598223846 (6e2dea6, merge do PR #306).
 
 ## Passos do Nan
 
@@ -64,4 +64,4 @@ O CRM-24 (onboarding no Workspace operacional) espera a decisão do Renan sobre 
 
 ## Comments
 
-- 2026-10-25 — Implementada a tabela privada versionada `workspace_icp_versions`, com leitura autenticada por Workspace e semeadura a partir do Day0 ou da seção `icp` de reserva. A fonte Supabase agora grava e retoma os três campos do Mini-ICP; `create_company_workspace` copia os dados do Workspace pessoal identificado. Testes: pgTAP específico 22/22 e suíte completa; Vitest completo 1999 passaram e 4 ignorados; lint e `tsc -b` passaram. Migration não aplicada no remoto. CI ainda pendente de verificação humana.
+- 2026-10-25 — Implementada a tabela privada versionada `workspace_icp_versions`, com leitura autenticada por Workspace e semeadura a partir do Day0 ou da seção `icp` de reserva. A fonte Supabase agora grava e retoma os três campos do Mini-ICP; `create_company_workspace` copia os dados do Workspace pessoal identificado. Testes: pgTAP específico 22/22 e suíte completa; Vitest completo 1999 passaram e 4 ignorados; lint e `tsc -b` passaram. Atualizado em 2026-10-27: migration aplicada em produção (203 migrations) e CI verde nos três jobs na main (runs 40580668372 e 40598223846).
