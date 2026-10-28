@@ -5,8 +5,8 @@
 //   aceitar_empresa, descartar_empresa: a decisão da pessoa sobre uma empresa da busca;
 //   enriquecer_comite: o comitê de compra de uma Conta-alvo (account-enrichment, até 10 pessoas novas);
 //   consultar_receita: os dados da Receita de um CNPJ (account-enrichment).
-// Fases 5 e 6 (ferramentas-de-conta-e-sinal.ts): explicar_aderencia, revelar_email, listar_sinais e ativar_sinal (sempre
-// pergunta).
+// Fases 5 e 6 (ferramentas-de-conta-e-sinal.ts): explicar_aderencia, revelar_email, revelar_telefone, listar_sinais e
+// ativar_sinal (sempre pergunta).
 // Fase 4 (o ICP pelo agente):
 //   ler_site_para_icp: lê o site do Workspace (icp-site-read) e propõe os campos do ICP, sem salvar;
 //   salvar_icp: grava setor, porte e geografia como nova versão (save_my_workspace_icp_fields), sempre com confirmação.

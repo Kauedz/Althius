@@ -1,13 +1,15 @@
 // Ferramentas do agente sobre o que a TRILHA C publicou (Fases 5 e 6): explicar a Aderência de uma Descoberta, revelar o
-// e-mail de um Contato e ligar um Sinal. Todas com a sessão de quem pede; o banco confere a Participação.
+// e-mail ou o telefone de um Contato e ligar um Sinal. Todas com a sessão de quem pede; o banco confere a Participação.
 //   - explicar_aderencia: livre e grátis (account-fit-explanation; a nota é sempre a do banco).
-//   - revelar_email: teto, até 2 créditos; o banco só debita quando grava um e-mail novo. Telefone fica fora.
+//   - revelar_email: teto, até 2 créditos; o banco só debita quando grava um e-mail novo.
+//   - revelar_telefone: teto, até 5 créditos (decisão de 28/10/2026); o banco só debita quando grava um telefone novo.
 //   - ativar_sinal: sempre pergunta. Confere a prévia da Rodada (quote_signal_run) e não liga com bloqueio. As Rodadas
 //     cobram depois, dentro do Teto do Sinal; o passo em si não gasta crédito da conversa.
 import type { ServicosDoAgente } from './ferramentas.ts'
 import { type Ferramenta, formatarCreditos } from './registro.ts'
 
 export const CREDITOS_DO_EMAIL = 2
+export const CREDITOS_DO_TELEFONE = 5
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 function uuid(v: unknown, campo: string): string {
@@ -58,25 +60,33 @@ export function ferramentasDeContaESinal(s: ServicosDoAgente): Ferramenta[] {
     },
   }
 
-  const revelar: Ferramenta = {
-    nome: 'revelar_email',
-    descricao: `Procura o e-mail profissional de um Contato (até ${CREDITOS_DO_EMAIL} créditos, só se achar um novo). Não envia nada.`,
-    esquema: { contatoId: 'o id do Contato' },
-    aprovacao: 'teto',
-    titulo: () => 'Revelar o e-mail do Contato',
-    cotar: () => Promise.resolve(CREDITOS_DO_EMAIL),
-    async executar(ctx, e) {
-      const id = uuid(e.contatoId, 'o Contato')
-      const r = await s.funcao(ctx, 'account-enrichment', { action: 'revelar-contato', workspaceId: ctx.workspaceId, contactId: id, canal: 'email' })
-      const custo = Math.max(0, Number(r.creditosDebitados) || 0)
-      const valor = texto(r.valor)
-      const frase = !valor
-        ? 'Não achei o e-mail deste Contato; nada foi cobrado.'
-        : r.jaExistia === true || custo === 0
-        ? `O Contato já tinha o e-mail ${valor}; nada foi cobrado.`
-        : `E-mail encontrado: ${valor} (${formatarCreditos(custo)}).`
-      return { resumo: frase, cartoes: [{ tipo: 'aviso', texto: frase }], custo }
-    },
+  // Os mesmos passos para os dois canais: a função cota, reserva e só acerta o débito quando grava um dado novo.
+  const revelarCanal = (canal: 'email' | 'telefone'): Ferramenta => {
+    const email = canal === 'email'
+    const creditos = email ? CREDITOS_DO_EMAIL : CREDITOS_DO_TELEFONE
+    const dado = email ? 'o e-mail' : 'o telefone'
+    return {
+      nome: email ? 'revelar_email' : 'revelar_telefone',
+      descricao: email
+        ? `Procura o e-mail profissional de um Contato (até ${creditos} créditos, só se achar um novo). Não envia nada.`
+        : `Procura o telefone de um Contato (até ${creditos} créditos, só se achar um novo). Não liga nem manda mensagem.`,
+      esquema: { contatoId: 'o id do Contato' },
+      aprovacao: 'teto',
+      titulo: () => (email ? 'Revelar o e-mail do Contato' : 'Revelar o telefone do Contato'),
+      cotar: () => Promise.resolve(creditos),
+      async executar(ctx, e) {
+        const id = uuid(e.contatoId, 'o Contato')
+        const r = await s.funcao(ctx, 'account-enrichment', { action: 'revelar-contato', workspaceId: ctx.workspaceId, contactId: id, canal })
+        const custo = Math.max(0, Number(r.creditosDebitados) || 0)
+        const valor = texto(r.valor)
+        const frase = !valor
+          ? `Não achei ${dado} deste Contato; nada foi cobrado.`
+          : r.jaExistia === true || custo === 0
+          ? `O Contato já tinha ${dado} ${valor}; nada foi cobrado.`
+          : `${email ? 'E-mail' : 'Telefone'} encontrado: ${valor} (${formatarCreditos(custo)}).`
+        return { resumo: frase, cartoes: [{ tipo: 'aviso', texto: frase }], custo }
+      },
+    }
   }
 
   const listar: Ferramenta = {
@@ -122,5 +132,5 @@ export function ferramentasDeContaESinal(s: ServicosDoAgente): Ferramenta[] {
     },
   }
 
-  return [explicar, revelar, listar, ativar]
+  return [explicar, revelarCanal('email'), revelarCanal('telefone'), listar, ativar]
 }

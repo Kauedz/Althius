@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1'
-import { ferramentasDeContaESinal, CREDITOS_DO_EMAIL } from './ferramentas-de-conta-e-sinal.ts'
+import { ferramentasDeContaESinal, CREDITOS_DO_EMAIL, CREDITOS_DO_TELEFONE } from './ferramentas-de-conta-e-sinal.ts'
 import type { ServicosDoAgente } from './ferramentas.ts'
 import { type ContextoDaFerramenta, type Ferramenta, portao } from './registro.ts'
 
@@ -29,7 +29,7 @@ function servicos(opcoes: { funcao?: (c: Chamada) => Record<string, unknown>; rp
 Deno.test('as ferramentas de Conta e Sinal declaram custo e aprovação: ativar um Sinal sempre pergunta', () => {
   const { lista } = servicos()
   assertEquals(lista.map((f) => `${f.nome}:${f.aprovacao}`), [
-    'explicar_aderencia:livre', 'revelar_email:teto', 'listar_sinais:livre', 'ativar_sinal:sempre',
+    'explicar_aderencia:livre', 'revelar_email:teto', 'revelar_telefone:teto', 'listar_sinais:livre', 'ativar_sinal:sempre',
   ])
   const ativar = lista.find((f) => f.nome === 'ativar_sinal')!
   assertEquals(portao(ativar, 0, 0, 50).estado, 'aguardar')
@@ -77,6 +77,40 @@ Deno.test('revelar_email: já conhecido ou não achado não cobra', async () => 
   const r2 = await nada.pegar('revelar_email').executar(ctx, { contatoId: CONTATO })
   assertEquals(r2.custo, 0)
   assertEquals(r2.cartoes[0].texto, 'Não achei o e-mail deste Contato; nada foi cobrado.')
+})
+
+Deno.test('revelar_telefone cota 5 créditos, pede o canal telefone e conta o que o banco debitou', async () => {
+  const { pegar, funcoes } = servicos({ funcao: () => ({ sucesso: true, canal: 'telefone', valor: '+5511912345678', creditosDebitados: 5 }) })
+  const f = pegar('revelar_telefone')
+  assertEquals(CREDITOS_DO_TELEFONE, 5)
+  assertEquals(await f.cotar(ctx, { contatoId: CONTATO }), 5)
+  const r = await f.executar(ctx, { contatoId: CONTATO })
+  assertEquals(funcoes[0], {
+    nome: 'account-enrichment', corpo: { action: 'revelar-contato', workspaceId: ctx.workspaceId, contactId: CONTATO, canal: 'telefone' },
+  })
+  assertEquals(r.custo, 5)
+  assertEquals(r.cartoes, [{ tipo: 'aviso', texto: 'Telefone encontrado: +5511912345678 (5 créditos).' }])
+})
+
+Deno.test('revelar_telefone: não achado ou já conhecido não cobra', async () => {
+  const nada = servicos({ funcao: () => ({ sucesso: false, valor: null, creditosDebitados: 0 }) })
+  const r1 = await nada.pegar('revelar_telefone').executar(ctx, { contatoId: CONTATO })
+  assertEquals(r1.custo, 0)
+  assertEquals(r1.cartoes[0].texto, 'Não achei o telefone deste Contato; nada foi cobrado.')
+  const ja = servicos({ funcao: () => ({ sucesso: true, valor: '+5511912345678', creditosDebitados: 0, jaExistia: true }) })
+  const r2 = await ja.pegar('revelar_telefone').executar(ctx, { contatoId: CONTATO })
+  assertEquals(r2.custo, 0)
+  assertEquals(r2.cartoes[0].texto, 'O Contato já tinha o telefone +5511912345678; nada foi cobrado.')
+})
+
+Deno.test('revelar_telefone respeita o teto de 50 créditos da conversa', async () => {
+  const { pegar, funcoes } = servicos()
+  const f = pegar('revelar_telefone')
+  const custo = await f.cotar(ctx, { contatoId: CONTATO })
+  assertEquals(portao(f, custo, 45, 50).estado, 'rodar')
+  assertEquals(portao(f, custo, 46, 50), { estado: 'aguardar', motivo: 'teto' })
+  await assertRejects(() => f.executar(ctx, { contatoId: 'acme' }))
+  assertEquals(funcoes.length, 0)
 })
 
 const MONITORES = [
