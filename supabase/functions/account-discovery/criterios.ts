@@ -191,7 +191,7 @@ export function criteriosDoIcp(conteudo: ConteudoDoIcp): CriteriosDeBusca {
       campos.portes.push(
         ...valores.flatMap((v) => [
           ...faixasDoTexto(v),
-          ...(v.match(/\b(MEI|EPP|DEMAIS)\b/g) ?? []),
+          ...(v.match(/\b(MEI|ME|EPP|DEMAIS)\b/g) ?? []),
         ]),
       )
     } else if (campo === 'cnaes') {
