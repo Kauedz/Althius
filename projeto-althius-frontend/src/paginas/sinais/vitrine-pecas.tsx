@@ -12,6 +12,7 @@ import {
   Hammer,
   Pencil,
   RadioTower,
+  Search,
   Sparkles,
   Workflow,
   type LucideIcon,
@@ -639,6 +640,12 @@ export function MeusSinais({
   acaoDeDescrever?: ReactNode
   aoRenomear?: (monitoramento: { id: string; tipoId: string; nome: string; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }, nome: string) => Promise<void>
 }) {
+  const [filtroSinais, setFiltroSinais] = useState('')
+  const termo = filtroSinais.trim().toLowerCase()
+  const sinaisExibidos = termo
+    ? monitoramentosAtivos.filter((m) => m.nome.toLowerCase().includes(termo))
+    : monitoramentosAtivos
+
   return (
     <section aria-labelledby="titulo-meus-sinais" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -691,18 +698,47 @@ export function MeusSinais({
           para="/sequencias"
         />
       </ul>
-      <div className="flex flex-col gap-2">
-        <h3 className="titulo-secao text-base">Sinais ativos</h3>
+
+      {/* Bloco contido e minimalista de Sinais Ativos */}
+      <div className="rounded-2xl border border-al-line bg-al-surface overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-al-line px-4 py-3 bg-al-surface-2/30">
+          <div className="flex items-center gap-2.5">
+            <RadioTower className="size-4 text-al-accent shrink-0" aria-hidden />
+            <h3 className="text-sm font-medium text-al-ink">Sinais ativos</h3>
+            <span className="rounded-full bg-al-accent/10 px-2 py-0.5 text-xs font-medium text-al-accent tabular-nums">
+              {monitoramentosAtivos.length}
+            </span>
+          </div>
+          {monitoramentosAtivos.length > 6 && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-al-muted" aria-hidden />
+              <input
+                type="search"
+                placeholder="Filtrar Sinais ativos…"
+                aria-label="Filtrar Sinais ativos"
+                value={filtroSinais}
+                onChange={(e) => setFiltroSinais(e.target.value)}
+                className="h-7 w-48 rounded-lg border border-al-line bg-al-bg pl-8 pr-2 text-xs text-al-ink placeholder:text-al-muted outline-none focus:border-al-accent"
+              />
+            </div>
+          )}
+        </div>
+
         {monitoramentosAtivos.length === 0 ? (
-          <p className="text-sm text-al-muted">Você ainda não tem Sinais ativos.</p>
+          <p className="p-4 text-xs text-al-muted">Você ainda não tem Sinais ativos.</p>
+        ) : sinaisExibidos.length === 0 ? (
+          <p className="p-4 text-xs text-al-muted">Nenhum Sinal ativo corresponde a “{filtroSinais.trim()}”.</p>
         ) : (
-          <ul aria-label="Meus Sinais ativos" className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {monitoramentosAtivos.map((monitoramento) => (
-              <CartaoDeMeuSinal key={monitoramento.id} monitoramento={monitoramento} aoRenomear={aoRenomear} />
-            ))}
-          </ul>
+          <div className="max-h-72 overflow-y-auto rolagem-discreta p-2.5">
+            <ul aria-label="Meus Sinais ativos" className="grid min-w-0 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {sinaisExibidos.map((monitoramento) => (
+                <CartaoDeMeuSinal key={monitoramento.id} monitoramento={monitoramento} aoRenomear={aoRenomear} />
+              ))}
+            </ul>
+          </div>
         )}
       </div>
+
       {pausadosPorCreditos.length > 0 && (
         <div role="group" aria-label="Sinais pausados por falta de créditos" className="flex flex-col gap-2">
           {pausadosPorCreditos.map((m) => (
@@ -738,23 +774,75 @@ function CartaoDeMeuSinal({
     try { await aoRenomear(monitoramento, novoNome); setEditando(false) } finally { setSalvando(false) }
   }
   return (
-    <li className="flex min-w-0 flex-col gap-1 rounded-xl border border-al-line bg-al-surface p-3">
+    <li className="group flex min-w-0 flex-col justify-center rounded-lg border border-al-line/60 bg-al-bg/50 p-2.5 transition-colors hover:border-al-accent/40 hover:bg-al-hover">
       {editando ? (
-        <div className="flex flex-col gap-2">
-          <input aria-label={`Nome de ${monitoramento.nome}`} value={nome} onChange={(e) => setNome(e.target.value)} className="campo h-9" />
-          <div className="flex gap-2">
-            <button type="button" disabled={salvando} onClick={() => void salvarNome()} className={BOTAO_DISCRETO}>Salvar</button>
-            <button type="button" disabled={salvando} onClick={() => { setNome(monitoramento.nome); setEditando(false) }} className={BOTAO_DISCRETO}>Cancelar</button>
+        <div className="flex flex-col gap-1.5">
+          <input
+            aria-label={`Nome de ${monitoramento.nome}`}
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            className="campo h-7 text-xs"
+            autoFocus
+          />
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() => void salvarNome()}
+              className={cn(BOTAO_DISCRETO, 'h-6 px-2 text-xs text-al-accent')}
+            >
+              Salvar
+            </button>
+            <button
+              type="button"
+              disabled={salvando}
+              onClick={() => { setNome(monitoramento.nome); setEditando(false) }}
+              className={cn(BOTAO_DISCRETO, 'h-6 px-2 text-xs text-al-muted')}
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2">
-          <Link to={`/sinais/tipos/${monitoramento.tipoId}/${monitoramento.id}`} className="truncate hover:text-al-accent hover:underline">{monitoramento.nome}</Link>
-          {aoRenomear && <button type="button" aria-label={`Renomear ${monitoramento.nome}`} onClick={() => setEditando(true)} className={BOTAO_DISCRETO}><Pencil strokeWidth={1.8} className="size-3.5" aria-hidden />Renomear</button>}
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="size-1.5 shrink-0 rounded-full bg-al-sucesso" title="Monitoramento ativo" aria-hidden />
+            <Link
+              to={`/sinais/tipos/${monitoramento.tipoId}/${monitoramento.id}`}
+              className="truncate text-xs font-normal text-al-ink hover:text-al-accent"
+              title={monitoramento.nome}
+            >
+              {monitoramento.nome}
+            </Link>
+          </div>
+          {aoRenomear && (
+            <button
+              type="button"
+              aria-label={`Renomear ${monitoramento.nome}`}
+              title={`Renomear ${monitoramento.nome}`}
+              onClick={() => setEditando(true)}
+              className="shrink-0 p-1 text-al-muted opacity-0 transition-opacity hover:text-al-ink group-hover:opacity-100 focus:opacity-100"
+            >
+              <Pencil strokeWidth={1.8} className="size-3" aria-hidden />
+              <span className="sr-only">Renomear</span>
+            </button>
+          )}
         </div>
       )}
-      {monitoramento.criadoVia === 'composer' && <span className="selo w-fit">Criado pelo composer</span>}
-      {monitoramento.criadoVia === 'modelo' && <span className="selo w-fit">Criado de um Modelo</span>}
+      {!editando && (monitoramento.criadoVia === 'composer' || monitoramento.criadoVia === 'modelo') && (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-3.5">
+          {monitoramento.criadoVia === 'composer' && (
+            <span className="rounded bg-al-accent/10 px-1.5 py-px text-[0.625rem] font-medium text-al-accent">
+              Criado pelo composer
+            </span>
+          )}
+          {monitoramento.criadoVia === 'modelo' && (
+            <span className="rounded bg-zinc-500/10 px-1.5 py-px text-[0.625rem] font-medium text-al-muted">
+              Criado de um Modelo
+            </span>
+          )}
+        </div>
+      )}
     </li>
   )
 }

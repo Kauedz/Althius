@@ -2,9 +2,10 @@
 // que deu (o que leu, o que buscou, quanto custou) e os resultados em cartões com as escolhas da pessoa. O histórico
 // fica em `/?c=<id>`. Enquanto um turno roda, a tela relê a conversa a cada 1,5 s.
 import {
-  Building2, Check, ChevronRight, CircleAlert, CircleCheck, Coins, ExternalLink, History, LoaderCircle, Plus, Users, X,
+  Building2, Check, ChevronRight, CircleAlert, CircleCheck, Coins, ExternalLink, History, ListChecks, LoaderCircle, Plus, Search,
+  Sparkles, Users, X, type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Mensagem } from '@/components/mensagem'
@@ -14,17 +15,29 @@ import {
   type CartaoDoAgente, type ConversaDoAgente, type EmpresaDoCartao, type EscolhaDoCartao, type FonteDoAgente,
   type PassoDoAgente, type ResumoDaConversaDoAgente, type TurnoDoAgente, turnoEmAndamento, ErroDoAgente,
 } from '@/fonte/agente-tipos'
-import { useAmbiente, useFonteDoAgente } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonteDoAgente } from '@/fonte/contexto'
 import { cn, mensagemDeErro } from '@/lib/utils'
 
 export const INTERVALO_DA_RELEITURA_MS = 1500
 const INTERVALO_DA_BUSCA_LONGA_MS = 8000
 
-const SUGESTOES = [
-  'Ache 20 empresas com aderência ao meu ICP',
-  'Mostre o ICP salvo do Workspace',
-  'Quem é o comitê de compra das minhas Contas-alvo novas?',
+/** Os atalhos da conversa vazia: o pedido que vai ao agente e o que ele faz. */
+const SUGESTOES: { pedido: string; descricao: string; icone: LucideIcon }[] = [
+  { pedido: 'Ache 20 empresas com aderência ao meu ICP', descricao: 'Busca pelo ICP e mostra por que cada empresa combina.', icone: Search },
+  { pedido: 'Mostre o ICP salvo do Workspace', descricao: 'Setor, porte, região e cargos da versão vigente.', icone: ListChecks },
+  {
+    pedido: 'Quem é o comitê de compra das minhas Contas-alvo novas?',
+    descricao: 'Os decisores das Contas-alvo aceitas há pouco.',
+    icone: Users,
+  },
 ]
+
+/** A saudação pela hora local de quem usa. */
+function saudacao(hora: number): string {
+  if (hora >= 5 && hora < 12) return 'Bom dia'
+  if (hora >= 12 && hora < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
 
 const ROTULO_DO_NIVEL: Record<EmpresaDoCartao['nivel'], string> = {
   alto: 'Aderência alta',
@@ -61,7 +74,10 @@ export function PaginaChatDoAgente() {
   const [aviso, setAviso] = useState('')
   const [carregando, setCarregando] = useState(Boolean(conversaId))
   const [verHistorico, setVerHistorico] = useState(false)
+  const idDasSugestoes = useId()
   const fim = useRef<HTMLDivElement>(null)
+  const workspace = useDados((f) => f.workspace(), [])
+  const primeiroNome = workspace?.usuario?.nome?.trim().split(/\s+/)[0] ?? ''
 
   const recarregarHistorico = useCallback(() => {
     fonte.conversas().then(setHistorico).catch(() => setHistorico([]))
@@ -164,6 +180,19 @@ export function PaginaChatDoAgente() {
   const vazia = !conversaId && !conversa
   const semMotor = motorNoAr === false
 
+  // O agente ainda não lê arquivos: o composer da / não oferece anexos. As Conexões ativas aparecem só para leitura.
+  const composer = (
+    <Composer
+      nome="Pedido ao agente"
+      rotulo="Peça algo ao agente"
+      placeholder={conversa ? 'Ex.: agora enriqueça o comitê das que eu aceitei' : 'Ex.: ache 20 empresas de logística em SP com aderência alta'}
+      ocupado={ocupado || semMotor}
+      aceitaAnexos={false}
+      mostrarConexoes
+      aoEnviar={(texto, anexos) => void enviar(texto, anexos)}
+    />
+  )
+
   return (
     <div className="mx-auto flex w-full max-w-180 flex-1 flex-col">
       <div className="flex items-center justify-between gap-3 pb-4">
@@ -195,13 +224,47 @@ export function PaginaChatDoAgente() {
       <div aria-live="polite" className="flex flex-1 flex-col gap-10 pt-2 pb-10">
         {carregando && <p className="text-sm text-al-muted">Carregando a conversa…</p>}
         {vazia && !carregando && (
-          <div className="flex flex-col gap-3 pt-6">
-            <h2 className="text-lg font-normal text-al-ink">O que você quer prospectar hoje?</h2>
-            <p className="max-w-[60ch] text-sm text-al-muted">
-              O agente busca empresas pelo seu ICP, mostra por que cada uma combina, aceita as que você escolher como Conta-alvo e
-              enriquece o comitê de compra. Ações que gastam acima do teto da conversa pedem a sua confirmação; nada fala com um
-              prospect sem você aprovar.
-            </p>
+          <div className="flex flex-col gap-6 pt-6">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-al-line bg-al-surface px-3 py-1 text-xs text-al-muted">
+                <Sparkles strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />
+                Agente de prospecção
+              </span>
+              <p className="pt-1 text-sm text-al-muted">
+                {saudacao(new Date().getHours())}
+                {primeiroNome && <>, <span className="text-al-ink">{primeiroNome}</span></>}
+              </p>
+              <h2 className="text-2xl font-light tracking-tight text-al-ink sm:text-3xl">O que você quer prospectar hoje?</h2>
+              <p className="max-w-[60ch] text-sm text-al-muted">
+                O agente busca empresas pelo seu ICP, mostra por que cada uma combina, aceita as que você escolher como Conta-alvo e
+                enriquece o comitê de compra. Ações que gastam acima do teto da conversa pedem a sua confirmação; nada fala com um
+                prospect sem você aprovar.
+              </p>
+            </div>
+            {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
+            {aviso && <Mensagem tipo="info">{aviso}</Mensagem>}
+            {composer}
+            <ul aria-label="Sugestões de pedido" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {SUGESTOES.map(({ pedido, descricao, icone: Icone }, i) => (
+                <li key={pedido} className="flex">
+                  <button
+                    type="button"
+                    disabled={ocupado || semMotor}
+                    onClick={() => void enviar(pedido)}
+                    aria-describedby={`${idDasSugestoes}-${i}`}
+                    className="group flex w-full flex-col rounded-xl border border-al-line bg-al-bg p-3.5 text-left transition-colors hover:border-al-muted hover:bg-al-hover disabled:opacity-50"
+                  >
+                    <span className="mb-2 grid size-8 place-items-center rounded-lg bg-al-surface text-al-ink transition-colors group-hover:bg-al-ink group-hover:text-al-bg">
+                      <Icone strokeWidth={1.8} className="size-4" aria-hidden />
+                    </span>
+                    <span className="text-xs text-al-ink">{pedido}</span>
+                    <span id={`${idDasSugestoes}-${i}`} aria-hidden className="mt-1 text-[0.6875rem] leading-relaxed text-al-muted">
+                      {descricao}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {conversa?.turnos.map((turno) => (
@@ -209,37 +272,18 @@ export function PaginaChatDoAgente() {
         ))}
       </div>
 
-      <div className="rodape-da-conversa">
-        {erro && <div className="pb-3"><Mensagem tipo="erro">{erro}</Mensagem></div>}
-        {aviso && <div className="pb-3"><Mensagem tipo="info">{aviso}</Mensagem></div>}
-        {vazia && (
-          <div className="flex flex-wrap gap-2 pb-3">
-            {SUGESTOES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={ocupado || semMotor}
-                onClick={() => void enviar(s)}
-                className="inline-flex items-center rounded-full border border-al-line px-4 py-2 text-sm font-light hover:border-al-muted disabled:opacity-50"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-        <Composer
-          nome="Pedido ao agente"
-          rotulo="Peça algo ao agente"
-          placeholder={conversa ? 'Ex.: agora enriqueça o comitê das que eu aceitei' : 'Ex.: ache 20 empresas de logística em SP com aderência alta'}
-          ocupado={ocupado || semMotor}
-          aoEnviar={(texto, anexos) => void enviar(texto, anexos)}
-        />
-        {conversa && (
-          <p className="pt-2 text-center text-xs text-al-muted tabular-nums">
-            Gasto nesta conversa: {conversa.gastos.toLocaleString('pt-BR')} de {creditos(conversa.teto)}
-          </p>
-        )}
-      </div>
+      {!vazia && (
+        <div className="rodape-da-conversa">
+          {erro && <div className="pb-3"><Mensagem tipo="erro">{erro}</Mensagem></div>}
+          {aviso && <div className="pb-3"><Mensagem tipo="info">{aviso}</Mensagem></div>}
+          {composer}
+          {conversa && (
+            <p className="pt-2 text-center text-xs text-al-muted tabular-nums">
+              Gasto nesta conversa: {conversa.gastos.toLocaleString('pt-BR')} de {creditos(conversa.teto)}
+            </p>
+          )}
+        </div>
+      )}
       <div ref={fim} />
     </div>
   )
