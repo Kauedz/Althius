@@ -130,15 +130,16 @@ function abrir(
   return { usuario: userEvent.setup(), decisoes, enviados, executores }
 }
 
+/** Desde o Sinais first 10 a Conversa direta com o Rhetor é só leitura: o pedido novo vai pela Coordenação da /. */
 async function pedirAoRhetor(usuario: ReturnType<typeof userEvent.setup>) {
-  await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' }), 'Monte uma Sequência para a Alfa')
+  await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode montar uma Sequência para a Alfa?')
   await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
   return screen.findByRole('article', { name: ACAO })
 }
 
 describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional', () => {
   it('mostra a Conta-alvo, os Contatos e os passos, com o dia, o assunto, o corpo e as variáveis em destaque', async () => {
-    const { usuario } = abrir('/agentes/agente-rhetor/conversa')
+    const { usuario } = abrir('/')
     const cartao = await pedirAoRhetor(usuario)
 
     expect(within(cartao).getByRole('link', { name: 'Alfa Engenharia' })).toHaveAttribute('href', '/contas/conta-alfa')
@@ -154,7 +155,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
   })
 
   it('o Vendedor responsável aprova no passo: a Sequência é criada sem envio, com o link para ela', async () => {
-    const { usuario, decisoes, executores } = abrir('/agentes/agente-rhetor/conversa')
+    const { usuario, decisoes, executores } = abrir('/')
     const cartao = await pedirAoRhetor(usuario)
     expect(await within(cartao).findByText(/os e-mails só saem depois que você clicar em "Ativar envios"/)).toBeInTheDocument()
 
@@ -168,7 +169,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
   })
 
   it('o Vendedor responsável recusa, e nada é criado', async () => {
-    const { usuario, decisoes } = abrir('/agentes/agente-rhetor/conversa')
+    const { usuario, decisoes } = abrir('/')
     const cartao = await pedirAoRhetor(usuario)
     await usuario.click(await within(cartao).findByRole('button', { name: 'Recusar' }))
 
@@ -177,7 +178,7 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
   })
 
   it('a Administradora que não é a responsável vê a proposta sem o assunto e o corpo, e não decide', async () => {
-    const { usuario, decisoes } = abrir('/agentes/agente-rhetor/conversa', { papel: 'admin', responsavel: false })
+    const { usuario, decisoes } = abrir('/', { papel: 'admin', responsavel: false })
     const cartao = await pedirAoRhetor(usuario)
 
     expect(await within(cartao).findByText('Só o Vendedor responsável pela Conta-alvo decide esta Sequência.')).toBeInTheDocument()
@@ -187,6 +188,21 @@ describe('A Sequência proposta pelo Rhetor na Conversa do Workspace operacional
     expect(cartao).not.toHaveTextContent('vi as vagas na')
     expect(cartao).not.toHaveTextContent('Maria Souza')
     expect(decisoes).toEqual([])
+  })
+
+  it('na Conversa direta antiga com o Rhetor, só leitura, a proposta pendente leva à fila', async () => {
+    const { decisoes, enviados } = abrir('/agentes/agente-rhetor/conversa?conversa=conv-r', {
+      salvas: [{ id: 'conv-r', kind: 'agente', agent_id: 'agente-rhetor' }],
+      conversa: { runs: [{ id: 'run-0', request_text: 'Monte uma Sequência para a Alfa', status: 'succeeded', events: [PASSO] }] },
+    })
+
+    const cartao = await screen.findByRole('article', { name: ACAO })
+    expect(within(cartao).getByRole('link', { name: 'Alfa Engenharia' })).toHaveAttribute('href', '/contas/conta-alfa')
+    expect(within(cartao).getByRole('link', { name: 'Decidir em Aprovações' })).toHaveAttribute('href', '/aprovacoes')
+    expect(within(cartao).queryByRole('button', { name: /Aprovar|Recusar/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Mensagem para Rhetor' })).not.toBeInTheDocument()
+    expect(decisoes).toEqual([])
+    expect(enviados).toEqual([])
   })
 
   it('depois de recarregar, a Conversa mostra a Sequência criada, sem reenviar o pedido', async () => {

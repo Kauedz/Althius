@@ -8,6 +8,8 @@ afterEach(() => {
   sessionStorage.clear()
 })
 
+// Sinais first 10: a /, a barra lateral e o @menção não oferecem mais os quatro Agentes, e as páginas antigas deles
+// mostram o que já existia, só para leitura, sem gravar nada.
 describe('Agentes retirados da interface', () => {
   it('mantém a Coordenação e remove o catálogo de Agentes da página inicial', async () => {
     const { usuario } = renderizarApp('/')
@@ -72,7 +74,7 @@ describe('Agentes retirados da interface', () => {
         atividade: await app.fonte.atividade(agente.id),
       }
       estadosAntes.push(antes)
-      const espiões = escritas
+      const espias = escritas
         .filter((nome) => typeof app.fonte[nome] === 'function')
         .map((nome) => vi.spyOn(app.fonte, nome as never))
       const abas = await screen.findByRole('navigation', { name: 'Seções do agente' })
@@ -89,7 +91,8 @@ describe('Agentes retirados da interface', () => {
         if (secao === 'Memória' && antes.memoria[0]) expect(screen.getByText(antes.memoria[0].texto)).toBeInTheDocument()
         if (secao === 'Habilidades' && antes.habilidades[0]) {
           expect(screen.getByText(antes.habilidades[0].nome)).toBeInTheDocument()
-          expect(screen.getByRole('switch', { name: new RegExp(antes.habilidades[0].nome) })).toBeDisabled()
+          // O Switch do base-ui é um span: desligado, ele diz aria-disabled.
+          expect(screen.getByRole('switch', { name: new RegExp(antes.habilidades[0].nome) })).toHaveAttribute('aria-disabled', 'true')
         }
         if (secao === 'Rotinas' && antes.rotinas[0]) expect(screen.getByText(antes.rotinas[0].tarefa)).toBeInTheDocument()
         if (secao === 'Atividade' && antes.atividade[0]) expect(screen.getByText(antes.atividade[0].descricao)).toBeInTheDocument()
@@ -101,9 +104,11 @@ describe('Agentes retirados da interface', () => {
         rotinas: await app.fonte.rotinas(agente.id),
         atividade: await app.fonte.atividade(agente.id),
       })
-      for (const espião of espiões) expect(espião).not.toHaveBeenCalled()
+      for (const espia of espias) expect(espia).not.toHaveBeenCalled()
     }
     expect(estadosDepois).toEqual(estadosAntes)
+    // Nenhum Agente some nem muda: o dado de antes continua lá.
+    expect(await inicial.fonte.agentes()).toEqual(agentes)
 
     for (const agente of agentes) {
       for (const secao of ['configuracao', 'canais']) {

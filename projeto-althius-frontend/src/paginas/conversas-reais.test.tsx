@@ -104,16 +104,25 @@ describe('Conversas no Workspace operacional, com o modelo configurado', () => {
     expect(screen.queryByText('Trabalhando')).not.toBeInTheDocument()
   })
 
-  it('na página do Agente, a resposta dele chega pelo banco', async () => {
-    const { usuario, enviados } = abrir('/agentes/agente-scopus/conversa', {
-      eventos: [{ seq: 1, kind: 'texto', agent_id: 'agente-scopus', payload: { texto: 'A Alfa tem aderência.' } }],
+  // Sinais first 10: a Conversa direta com o Agente é só leitura; a resposta já salva chega pelo banco, sem composer.
+  it('na página do Agente, a Conversa salva volta do banco só para leitura, sem composer nem envio', async () => {
+    const { enviados } = abrir('/agentes/agente-scopus/conversa?conversa=conv-s', {
+      salvas: [{ id: 'conv-s', kind: 'agente', agent_id: 'agente-scopus' }],
+      conversa: {
+        runs: [{
+          id: 'run-0',
+          request_text: 'E a Alfa?',
+          status: 'succeeded',
+          events: [{ seq: 1, kind: 'texto', agent_id: 'agente-scopus', payload: { texto: 'A Alfa tem aderência.' } }],
+        }],
+      },
     })
 
-    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Scopus' }), 'E a Alfa?')
-    await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
-
     expect(await screen.findByText('A Alfa tem aderência.')).toBeInTheDocument()
-    expect(enviados[0]).toEqual(expect.objectContaining({ agentId: 'agente-scopus', conversationId: null }))
+    expect(screen.getAllByText('E a Alfa?').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('textbox', { name: 'Mensagem para Scopus' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enviar' })).not.toBeInTheDocument()
+    expect(enviados).toEqual([])
   })
 
   it('depois de recarregar, a Conversa coordenada volta como estava, sem reenviar o pedido', async () => {

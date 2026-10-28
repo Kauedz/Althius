@@ -31,7 +31,8 @@ const PASSO = {
   },
 }
 
-function abrir(rota: string, papel: 'admin' | 'member') {
+/** `salva`: a Marina já tinha uma Conversa direta com o Rhetor, de antes do Sinais first 10, parada nesta Aprovação. */
+function abrir(rota: string, papel: 'admin' | 'member', salva = false) {
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', NORTE.id)
   window.history.replaceState(null, '', rota)
@@ -51,8 +52,10 @@ function abrir(rota: string, papel: 'admin' | 'member') {
       bootstrap_personal_workspace: () => PESSOAL,
       list_owned_sender_accounts: () => [],
       ...rpcsDeAgentes(criarBancoDeAgentes()),
-      list_agent_conversations: () => [],
-      get_agent_conversation: () => ({ runs: [] }),
+      list_agent_conversations: () => (salva ? [{ id: 'conv-r', kind: 'agente', agent_id: 'agente-rhetor' }] : []),
+      get_agent_conversation: () => (salva
+        ? { runs: [{ id: 'run-0', request_text: 'Crie a pauta da Alfa no Notion', status: 'succeeded', events: [PASSO] }] }
+        : { runs: [] }),
       get_agent_run_events: () => ({
         status: 'succeeded',
         error_code: null,
@@ -87,9 +90,10 @@ function abrir(rota: string, papel: 'admin' | 'member') {
 }
 
 describe('A Aprovação pedida por um Agente, decidida dentro da Conversa', () => {
-  it('o Administrador aprova no passo da Conversa, e a chamada aprovada é executada', async () => {
-    const { usuario, decisoes, execucoes } = abrir('/agentes/agente-rhetor/conversa', 'admin')
-    await usuario.type(await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' }), 'Crie a pauta da Alfa no Notion')
+  // Desde o Sinais first 10 a Conversa direta com o Agente é só leitura: o pedido novo vai pela Coordenação da /.
+  it('na Coordenação, o Administrador aprova no passo da Conversa, e a chamada aprovada é executada', async () => {
+    const { usuario, decisoes, execucoes } = abrir('/', 'admin')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode criar a pauta da Alfa no Notion?')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
     const cartao = await screen.findByRole('article', { name: 'Aprovação pendente: Usar criar_pagina no Notion' })
@@ -110,5 +114,16 @@ describe('A Aprovação pedida por um Agente, decidida dentro da Conversa', () =
     expect(within(cartao).getByText('Só um Administrador decide esta Aprovação.')).toBeInTheDocument()
     expect(within(cartao).queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
     expect(decisoes).toEqual([])
+  })
+
+  it('na Conversa direta antiga, só leitura, a Aprovação pendente leva à fila em vez de ser decidida ali', async () => {
+    const { decisoes, execucoes } = abrir('/agentes/agente-rhetor/conversa?conversa=conv-r', 'admin', true)
+
+    const cartao = await screen.findByRole('article', { name: 'Aprovação pendente: Usar criar_pagina no Notion' })
+    expect(within(cartao).getByRole('link', { name: 'Decidir em Aprovações' })).toHaveAttribute('href', '/aprovacoes')
+    expect(within(cartao).queryByRole('button', { name: /Aprovar|Recusar/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Mensagem para Rhetor' })).not.toBeInTheDocument()
+    expect(decisoes).toEqual([])
+    expect(execucoes).toEqual([])
   })
 })

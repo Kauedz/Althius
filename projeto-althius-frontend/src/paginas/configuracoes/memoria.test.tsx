@@ -2,11 +2,13 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
 import { armazenamentoEmMemoria, armazenamentoQueFalha } from '@/test/armazenamento'
+import { navegarPara } from '@/test/navegar'
 import { renderizarApp } from '@/test/renderizar'
 
 /** Abre a app numa rota com a identidade (e, se preciso, o papel) escolhida para o cenário. */
+/** No histórico do navegador, para ir às páginas dos Agentes antigos, que saíram da barra lateral (Sinais first 10). */
 function abrir(rota: string, opcoesFonte: OpcoesFonteSimulada = {}) {
-  return renderizarApp(rota, {}, {}, {}, {}, opcoesFonte)
+  return renderizarApp(rota, {}, {}, {}, {}, opcoesFonte, true)
 }
 
 describe('Memória do Workspace: ICP vigente', () => {
@@ -108,14 +110,10 @@ describe('Aprovação da revisão do ICP', () => {
     expect(publico).toHaveTextContent('Brasil, México, Colômbia e Chile')
     expect(publico).not.toHaveTextContent('2.000')
 
-    await usuario.click(within(screen.getByRole('complementary', { name: 'Navegação' })).getByRole('link', { name: /Agentes/ }))
-    await usuario.click((await screen.findAllByRole('link', { name: /Ethos/ }))[0])
-    await usuario.click(await screen.findByRole('link', { name: 'Memória' }))
+    navegarPara('/agentes/ethos/memoria')
     const contexto = within(await screen.findByRole('region', { name: 'Contexto do Workspace' }))
     expect(contexto.getByText('Empresas com 1.000 funcionários ou mais.')).toBeInTheDocument()
-    await usuario.click(within(screen.getByRole('complementary', { name: 'Navegação' })).getByRole('link', { name: /Agentes/ }))
-    await usuario.click((await screen.findAllByRole('link', { name: /Scopus/ }))[0])
-    await usuario.click(await screen.findByRole('link', { name: 'Habilidades' }))
+    navegarPara('/agentes/scopus/habilidades')
     const habilidade = within(await screen.findByRole('listitem', { name: 'Pontuar aderência ao ICP' }))
     expect(habilidade.getByText(/Empresas com 1.000 funcionários ou mais · Brasil, México, Colômbia e Chile/)).toBeInTheDocument()
   })

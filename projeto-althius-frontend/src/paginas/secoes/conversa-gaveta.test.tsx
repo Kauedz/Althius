@@ -116,60 +116,51 @@ describe('Conversa do Agente com a gaveta', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('Nova conversa limpa ?conversa= e ?slack=', async () => {
-    const { usuario } = abrir('/agentes/agente-scopus/conversa?slack=c-slack', [
+  // Sinais first 10: a Conversa do Agente é só leitura. A gaveta e o atalho continuam para consultar; Nova conversa,
+  // renomear, sugestões e o composer saíram.
+  it('com a Conversa do Slack aberta, não há Nova conversa para trocar por uma vazia', async () => {
+    abrir('/agentes/agente-scopus/conversa?slack=c-slack', [
       linha({ id: 'c-slack', origin: 'slack', first_request: 'Quem são as Contas Quentes?' }),
     ])
 
     await screen.findByRole('region', { name: 'Conversa do Slack' })
-    await usuario.click(screen.getByRole('button', { name: 'Nova conversa' }))
-    expect(window.location.search).toBe('')
-    expect(await screen.findByRole('region', { name: 'Conversa' })).toBeInTheDocument()
-  })
-
-  it('o lápis da faixa renomeia a Conversa aberta', async () => {
-    const { usuario, renomeadas } = abrir('/agentes/agente-scopus/conversa?conversa=a1', [linha({ id: 'a1' })])
-
-    await usuario.click(await screen.findByRole('button', { name: 'Renomear conversa' }))
-    await usuario.type(screen.getByRole('textbox', { name: 'Novo nome da Conversa' }), 'Nome da barra{Enter}')
-
-    expect(renomeadas).toEqual([{ id: 'a1', titulo: 'Nome da barra' }])
-    expect(await screen.findByText('Nome da barra')).toBeInTheDocument()
-  })
-
-  it('a Conversa vazia mostra a anotação e as sugestões, e o chip envia', async () => {
-    const { usuario } = abrir('/agentes/agente-scopus/conversa', [])
-
-    expect(await screen.findByText('comece por uma sugestão, ou mencione outro agente com @')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Nova conversa' })).not.toBeInTheDocument()
-    await usuario.click(await screen.findByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' }))
-    expect(await screen.findAllByText('Pontue a aderência da Alfa ao nosso ICP')).not.toHaveLength(0)
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).not.toBeInTheDocument(),
-    )
+    expect(window.location.search).toBe('?slack=c-slack')
   })
 
-  it('Ctrl+Shift+H abre a gaveta, e não abre com o foco num campo de texto', async () => {
+  it('a faixa não oferece renomear a Conversa aberta', async () => {
+    const { renomeadas } = abrir('/agentes/agente-scopus/conversa?conversa=a1', [linha({ id: 'a1' })])
+
+    expect(await screen.findByRole('button', { name: 'Histórico' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Renomear conversa' })).not.toBeInTheDocument()
+    expect(renomeadas).toEqual([])
+  })
+
+  it('a Conversa vazia não mostra sugestões nem composer', async () => {
+    abrir('/agentes/agente-scopus/conversa', [])
+
+    expect(await screen.findByText('Nenhuma Conversa aberta')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nova conversa' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Mensagem para Scopus' })).not.toBeInTheDocument()
+  })
+
+  it('Ctrl+Shift+H abre a gaveta', async () => {
     const { usuario } = abrir('/agentes/agente-scopus/conversa', [linha({ id: 'a1' })])
-    const campo = await screen.findByRole('textbox', { name: 'Mensagem para Scopus' })
+    await screen.findByRole('button', { name: 'Histórico' })
 
-    campo.focus()
-    await usuario.keyboard('{Control>}{Shift>}h{/Shift}{/Control}')
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-
-    campo.blur()
     await usuario.keyboard('{Control>}{Shift>}h{/Shift}{/Control}')
     expect(await screen.findByRole('dialog', { name: 'Conversas do Scopus' })).toBeInTheDocument()
   })
 
-  it('na Demonstração não há Histórico, e a Conversa continua funcionando', async () => {
-    const { usuario } = renderizarApp('/agentes/scopus/conversa')
+  it('na Demonstração não há Histórico, e a Conversa do Agente fica só leitura', async () => {
+    renderizarApp('/agentes/scopus/conversa')
 
-    expect(await screen.findByText('comece por uma sugestão, ou mencione outro agente com @')).toBeInTheDocument()
+    expect(await screen.findByText('Nenhuma Conversa aberta')).toBeInTheDocument()
+    expect(screen.getByText(/Este Agente foi retirado do produto/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Histórico' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Nova conversa' })).toBeInTheDocument()
-    await usuario.click(screen.getByRole('button', { name: 'Pontue a aderência da OpenAI ao nosso ICP' }))
-    expect(await screen.findAllByText('Pontue a aderência da OpenAI ao nosso ICP')).not.toHaveLength(0)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nova conversa' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pontue a aderência da OpenAI ao nosso ICP' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 })

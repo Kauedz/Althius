@@ -452,7 +452,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
         {vazia && (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4">
             <IconeAgente especialidade={agente.especialidade.id} tamanho="lg" />
-            <p className="anotacao text-lg">{somenteLeitura ? 'Histórico da conversa' : 'comece por uma sugestão'}</p>
+            <p className="anotacao text-lg">{somenteLeitura ? 'Nenhuma Conversa aberta' : 'comece por uma sugestão, ou mencione outro agente com @'}</p>
           </div>
         )}
         {itens.map((item) => (
@@ -503,7 +503,6 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
 }
 
 function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record<AgenteId, Agente>; animar: boolean }) {
-  const somenteLeitura = useSomenteLeituraDoAgente()
   const nome = (id: AgenteId) => agentes[id]?.nome
   switch (item.tipo) {
     case 'usuario':
@@ -521,7 +520,7 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
             {item.descricao}
             <LinkDoPasso link={item.link} />
           </p>
-          {!somenteLeitura && <AprovacaoDoPasso link={item.link} />}
+          <AprovacaoDoPasso link={item.link} />
         </div>
       )
     case 'texto':
@@ -562,7 +561,6 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
       return (
         <AprovacaoNaConversa
           aprovacaoId={item.aprovacaoId}
-          somenteLeitura={somenteLeitura}
           cabecalho={(aprovacao, rotuloDoEstado) => (
             <CabecalhoDaAprovacao aprovacao={aprovacao} rotulo={rotuloDoEstado} />
           )}

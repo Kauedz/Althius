@@ -6,26 +6,26 @@ import { rotuloDoEstadoDaAprovacao } from '@/fonte/regras'
 import type { AprovacaoDeAcao } from '@/fonte/tipos'
 import { cn } from '@/lib/utils'
 import { ROTULO_DO_CANAL } from '@/paginas/rotulos'
+import { DecidirEmAprovacoes, useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 /**
  * Uma Aprovação dentro de uma Conversa, direta ou coordenada: a ação, o impacto, o Canal que também
  * a recebeu e, enquanto pendente, a decisão. Cada Conversa mostra o estado do seu jeito, no cabeçalho.
- * Sem `podeDecidir` (quem não é Administrador), a pendente mostra quem decide em vez dos botões.
+ * Sem `podeDecidir` (quem não é Administrador), a pendente mostra quem decide em vez dos botões. Na página só leitura de
+ * um Agente antigo (Sinais first 10), a pendente aponta para Aprovações, sem decidir aqui.
  */
 export function AprovacaoNaConversa({
   aprovacaoId,
   cabecalho,
   className,
   podeDecidir = true,
-  somenteLeitura = false,
 }: {
   aprovacaoId: string
   cabecalho: (aprovacao: AprovacaoDeAcao, rotuloDoEstado: string) => ReactNode
   className?: string
   podeDecidir?: boolean
-  /** Na página só leitura de um Agente antigo (Sinais first 10): a pendente aponta para Aprovações, sem decidir aqui. */
-  somenteLeitura?: boolean
 }) {
+  const somenteLeitura = useSomenteLeituraDoAgente()
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   // Aqui só as ações em Integrações. A revisão da Memória do Workspace (Demonstração) fica na fila, e a do Playbook (CRM-09)
   // tem cartão próprio no passo da Conversa (`CartaoDeRevisaoDoPlaybook`). A Sequência proposta nem vem nesta leitura: ela
@@ -68,9 +68,9 @@ export function AprovacaoNaConversa({
         <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>
       )}
       {aprovacao.estado === 'pendente' && somenteLeitura && (
-        <Link to="/aprovacoes" className="self-start pt-1.5 text-sm underline underline-offset-4">
-          Decidir em Aprovações
-        </Link>
+        <div className="pt-1.5">
+          <DecidirEmAprovacoes />
+        </div>
       )}
       {aprovacao.estado === 'pendente' && !somenteLeitura && (
         <div className="pt-1.5">

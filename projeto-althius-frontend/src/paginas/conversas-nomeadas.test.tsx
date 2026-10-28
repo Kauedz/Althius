@@ -142,7 +142,7 @@ describe('Conversas nomeadas no Workspace operacional', () => {
     expect(await screen.findByRole('heading', { name: 'Campanha Q4' })).toBeInTheDocument()
     expect(renomeadas).toEqual([{ id: 'c2', titulo: 'Campanha Q4' }])
 
-    await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
+    await usuario.click(screen.getByRole('link', { name: 'Voltar para Agentes' }))
     expect(await screen.findByRole('button', { name: /^Campanha Q4/ })).toBeInTheDocument()
   })
 
