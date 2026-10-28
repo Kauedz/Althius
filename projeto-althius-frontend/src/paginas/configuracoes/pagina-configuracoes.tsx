@@ -13,6 +13,7 @@ import { SecaoPlano, SecaoPlanoDoWorkspaceOperacional } from './secao-plano'
 import { SecaoPlaybook } from './secao-playbook'
 import { SecaoPreferencias } from './secao-preferencias'
 import { SecaoWorkspace } from './secao-workspace'
+import { SecaoCreditos } from './secao-creditos'
 
 /**
  * As seções aprovadas no mockup (ticket 01). Memória do Workspace e Ajuda e informações têm uma página por aba
@@ -49,6 +50,7 @@ const SECOES: Record<
   // O automático e os tetos têm backend (creditos-e-planos 03): a mesma seção serve aos dois ambientes.
   automacao: { rotulo: 'Automação e tetos', Componente: SecaoAutomacao, NoWorkspaceOperacional: SecaoAutomacao },
   plano: { rotulo: 'Plano', Componente: SecaoPlano, NoWorkspaceOperacional: SecaoPlanoDoWorkspaceOperacional },
+  creditos: { rotulo: 'Créditos', Componente: SecaoCreditos, NoWorkspaceOperacional: SecaoCreditos },
   ajuda: { rotulo: 'Ajuda e informações', Componente: SecaoAjuda, comPaginas: true, informativa: true },
 }
 
