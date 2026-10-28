@@ -71,9 +71,11 @@ select is(public.get_my_workspace_icp('e1600000-0000-0000-0000-000000000010')->'
   'os papéis-alvo da versão vigente são mantidos');
 select is(public.save_my_workspace_icp_fields('e1600000-0000-0000-0000-000000000010',
   'Logística, Seguros', '51-200, ME', 'SP, RJ')->>'version', '2', 'gravar os mesmos valores não cria versão');
-select is(public.get_my_workspace_icp('e1600000-0000-0000-0000-000000000020')->>'version', null,
-  'o outro Workspace não recebe versão');
 reset role;
+
+select is((select count(*)::int from private.workspace_icp_versions
+  where workspace_id = 'e1600000-0000-0000-0000-000000000020'), 0,
+  'o outro Workspace não recebe versão');
 
 select is(private.score_market_discovery_icp('e1600000-0000-0000-0000-0000000000a1'), 100,
   'setor por qualquer item da lista, porte pela faixa de funcionários e região pela UF');
