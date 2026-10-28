@@ -11,6 +11,7 @@ import type {
   SinalDaCandidata,
   SinalDoMotivo,
   SituacaoDoComite,
+  CriteriosDaBusca,
 } from './descobertas-tipos'
 
 export function criarFonteDeDescobertasSupabase(
@@ -47,7 +48,7 @@ export function criarFonteDeDescobertasSupabase(
       }
     },
 
-    async buscarContas(args = {}): Promise<void> {
+    async buscarContas(args): Promise<void> {
       const workspaceId = obterWorkspaceId()
       const maxResults = args.maxResults ?? 50
       const requestKey = `busca-manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -58,11 +59,37 @@ export function criarFonteDeDescobertasSupabase(
           workspaceId,
           requestKey,
           maxResults,
+          criteria: args.criterios,
+          icpVersion: args.icpVersion,
           allowTesting: args.allowTesting ?? false,
         },
       })
-      if (error) throw new Error(error.message)
+      if (error) {
+        let mensagem = error.message
+        if (error.context) {
+          try {
+            const corpo = await error.context.json()
+            if (typeof corpo?.error === 'string') mensagem = corpo.error
+          } catch { /* mantém a mensagem genérica */ }
+        }
+        throw new Error(mensagem)
+      }
       notificar()
+    },
+
+    async criteriosDaBusca() {
+      const workspaceId = obterWorkspaceId()
+      const { data, error } = await cliente.functions.invoke('account-discovery', {
+        body: { action: 'criteria', workspaceId },
+      })
+      if (error) {
+        let mensagem = error.message
+        if (error.context) {
+          try { const corpo = await error.context.json(); if (typeof corpo?.error === 'string') mensagem = corpo.error } catch { /* mantém */ }
+        }
+        throw new Error(mensagem)
+      }
+      return { temIcp: Boolean(data?.temIcp), icpVersion: data?.icpVersion ?? null, icpResumo: data?.icpResumo ?? '', criterios: data?.criteria as CriteriosDaBusca }
     },
 
     async listarDescobertas(estado = 'nova'): Promise<ContaDescoberta[]> {

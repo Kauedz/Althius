@@ -37,12 +37,44 @@ export interface IcpLido {
   conteudo: ConteudoDoIcp
 }
 
+export interface IcpEstruturadoLido {
+  version: number | null
+  sector: string
+  companySize: string
+  geography: string
+}
+
 export interface InicioDaBusca {
   runId: string
   /** `go`: a busca começou e o saldo está reservado; `existing`: essa chave já tinha busca, nada roda de novo. */
   outcome: 'go' | 'existing'
   state: string
   actorVersion: string | null
+}
+
+export function criteriosComIcpEstruturado(icp: IcpLido | null, estruturado: IcpEstruturadoLido | null) {
+  const playbook = icp ? criteriosDoIcp(icp.conteudo) : criteriosVazios()
+  const estruturadoCriterios = estruturado
+    ? criteriosDoIcp({
+      // O Porte estruturado é uma lista ("1-10, 11-50, EPP"): cada item vira uma linha, para cada faixa ser lida inteira.
+      texto: [
+        `Setor: ${estruturado.sector}`,
+        ...estruturado.companySize.split(/\s*[,;]\s*/).filter(Boolean).map((porte) => `Porte: ${porte}`),
+        `Região: ${estruturado.geography}`,
+      ].join('\n'),
+    })
+    : criteriosVazios()
+  const texto = icp ? textoDoIcp(icp.conteudo) : ''
+  return {
+    temIcp: Boolean(texto.length || (Array.isArray(icp?.conteudo.linhas) && icp!.conteudo.linhas.length) || estruturado?.sector.trim() || estruturado?.companySize.trim() || estruturado?.geography.trim()),
+    icpVersion: icp?.version ?? estruturado?.version ?? null,
+    criteria: normalizarCriterios({ ...playbook,
+      setores: [...playbook.setores, ...estruturadoCriterios.setores],
+      palavrasChave: [...playbook.palavrasChave, ...estruturadoCriterios.palavrasChave],
+      portes: [...playbook.portes, ...estruturadoCriterios.portes],
+      regioes: [...playbook.regioes, ...estruturadoCriterios.regioes],
+    }),
+  }
 }
 
 /** Um erro do banco com o código SQLSTATE e a mensagem, para o handler traduzir. */
@@ -81,6 +113,7 @@ export interface Db {
   userFromJwt(authorization: string, apikey: string): Promise<{ userId: string } | null>
   /** A seção ICP do Playbook, com a sessão de quem pede (só Participação ativa lê). Nulo se não há ICP escrito. */
   lerIcp(args: { workspaceId: string; authorization: string; apikey: string }): Promise<IcpLido | null>
+  lerIcpEstruturado?(args: { workspaceId: string; authorization: string; apikey: string }): Promise<IcpEstruturadoLido | null>
   /** Os Actors de busca de empresas do registro, na ordem da cascata. */
   actoresDeBusca(): Promise<ActorRegistrado[]>
   /** begin_account_discovery, com a sessão de quem pede. Lança ErroDoBanco quando o banco recusa. */
@@ -408,13 +441,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         log({ type: 'account_discovery', outcome: 'icp_failed', message: String(erro) })
         return responder({ code: 'erro', error: 'Não foi possível ler o ICP do Playbook agora.' }, 500)
       }
-      const texto = icp ? textoDoIcp(icp.conteudo) : ''
-      const temIcp = !!icp && (texto.length > 0 || (Array.isArray(icp.conteudo.linhas) && icp.conteudo.linhas.length > 0))
+      let estruturado: IcpEstruturadoLido | null = null
+      try {
+        estruturado = await deps.db.lerIcpEstruturado?.({ workspaceId, authorization, apikey }) ?? null
+      } catch (erro) {
+        log({ type: 'account_discovery', outcome: 'structured_icp_failed', message: String(erro) })
+      }
+      const combinado = criteriosComIcpEstruturado(icp, estruturado)
       return responder({
-        temIcp,
-        icpVersion: icp?.version ?? null,
-        icpResumo: texto.slice(0, RESUMO_DO_ICP),
-        criteria: temIcp ? criteriosDoIcp(icp!.conteudo) : criteriosVazios(),
+        temIcp: combinado.temIcp,
+        icpVersion: combinado.icpVersion,
+        icpResumo: (icp ? textoDoIcp(icp.conteudo) : '').slice(0, RESUMO_DO_ICP),
+        criteria: combinado.temIcp ? combinado.criteria : criteriosVazios(),
       })
     }
 
