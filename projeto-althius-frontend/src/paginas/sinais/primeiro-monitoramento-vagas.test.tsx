@@ -30,28 +30,20 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
     expect(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas/ })).toBeInTheDocument()
   })
 
-  it('abre Abertura de vagas em página própria com retorno ao catálogo, contagem de ativos excluindo rascunhos e lista de monitoramentos', async () => {
+  it('abre o Modelo de Abertura de vagas preenchido e mantém retorno ao catálogo', async () => {
     const { usuario } = renderizarApp('/sinais')
 
     // Clica no card de Abertura de vagas
     await usuario.click(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas/ }))
 
-    // Página própria do tipo
-    expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
-    expect(screen.getByText(/Cada Sinal disparado deixa a Conta-alvo Quente por \d+ dias/)).toBeInTheDocument()
+    // Revisão do Plano-semente do card
+    expect(await screen.findByRole('heading', { level: 1, name: 'Revisar Modelo' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Tipo de Sinal' })).toHaveValue('vaga_linkedin')
+    expect(screen.getByText('Modelo · versão 1')).toBeInTheDocument()
 
     // Retorno explícito ao catálogo
     const linkVoltar = within(screen.getByRole('main')).getByRole('link', { name: 'Sinais' })
     expect(linkVoltar).toBeInTheDocument()
-
-    // Lista de monitoramentos do tipo
-    const lista = screen.getByRole('list', { name: 'Monitoramentos deste tipo' })
-    expect(within(lista).getByRole('listitem', { name: 'Vagas de engenharia de dados' })).toHaveTextContent('Ativo')
-    expect(within(lista).getByRole('listitem', { name: 'Vagas de IA no México' })).toHaveTextContent('Pausado')
-    expect(within(lista).getByRole('listitem', { name: 'Vagas de finanças em fintechs' })).toHaveTextContent('Rascunho')
-
-    // Contagem: 3 no total, mas apenas 1 ativo (Rascunho e Pausado não contam como ativos)
-    expect(screen.getByText(/3 no total · 1 ativo/)).toBeInTheDocument()
 
     // Clica em voltar e confere retorno ao catálogo
     await usuario.click(linkVoltar)
@@ -116,7 +108,7 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
   })
 
   it('preserva o Rascunho ao navegar para fora para outros módulos (Contas) e voltar na mesma sessão', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/abertura-de-vagas')
+    const { usuario, fonteDeSinais } = renderizarApp('/sinais/tipos/abertura-de-vagas')
 
     // 1. Criar e salvar um Rascunho
     await usuario.click(await screen.findByRole('link', { name: 'Ativar Monitoramento' }))
@@ -144,22 +136,13 @@ describe('Ticket 03: Primeiro Monitoramento de vagas', () => {
 
     // 4. Abrir Abertura de vagas
     await usuario.click(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas/ }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Revisar Modelo' })).toBeInTheDocument()
 
-    // 5. O rascunho continua presente
-    const lista = screen.getByRole('list', { name: 'Monitoramentos deste tipo' })
-    const itemRascunho = within(lista).getByRole('listitem', { name: 'Rascunho Persistente na Sessão' })
-    expect(itemRascunho).toHaveTextContent('Rascunho')
-
-    // 6. Clica no rascunho para reabri-lo
-    await usuario.click(within(itemRascunho).getByRole('link', { name: 'Rascunho Persistente na Sessão' }))
-
-    // 7. O editor abre com o nome e os critérios preservados
-    expect(await screen.findByRole('heading', { level: 1, name: 'Rascunho Persistente na Sessão' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Nome do monitoramento' })).toHaveValue(
-      'Rascunho Persistente na Sessão',
-    )
-    expect(screen.getByRole('textbox', { name: 'Palavras na descrição da vaga' })).toHaveValue('data mesh')
+    // 5. O rascunho continua guardado mesmo com a revisão do Modelo aberta.
+    const rascunhos = await fonteDeSinais.monitoramentos()
+    expect(rascunhos).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nome: 'Rascunho Persistente na Sessão', estado: 'rascunho', criterios: expect.objectContaining({ palavras: 'data mesh' }) }),
+    ]))
   })
 
   it('exibe estado de vazio quando não há monitoramentos configurados e permite criar o primeiro', async () => {

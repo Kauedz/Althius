@@ -35,8 +35,8 @@
 - [x] Uma proposta de mudança do ICP só um Administrador ativo aprova ou recusa.
 - [x] Aprovada, a versão vigente do ICP (ticket 01) muda de uma vez; recusada ou pendente, nada muda.
 - [x] Um Administrador pode editar o ICP direto, sem passar pela fila de Aprovação.
-- [ ] pgTAP: só Administrador decide; Membro propõe mas não decide; isolamento por Workspace; três `supabase db reset && supabase test db` verdes.
-- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs.
+- [x] pgTAP: só Administrador decide; Membro propõe mas não decide; isolamento por Workspace; três `supabase db reset && supabase test db` verdes. Os testes pgTAP deste ticket passaram no job Banco do CI, que recria o banco do zero, aplica todas as migrations em ordem e roda a suíte pgTAP completa: verde no PR #304, no run 40580668372 (d73ba30) e no run 40598223846 (6e2dea6), três recriações completas. As migrations estão aplicadas em produção (203). Os `db reset` locais não rodaram por falta de Docker no ambiente.
+- [x] Deno, Vitest, lint e build verdes; CI verde nos três jobs. (CI do PR #304 verde nos três jobs, head 9488b8e; CI da main verde nos três jobs (Frontend, Edge Functions, Banco) no run 40580668372 (d73ba30, merge do PR #304) e no run 40598223846 (6e2dea6, merge do PR #306))
 
 ## Passos do Nan
 

@@ -37,7 +37,7 @@
 - [x] O Briefing continua sendo dado não confiável: um Briefing que tenta contradizer o ICP não muda fonte, preço ou limite fora do que o servidor valida (Deno test e validação existente conferida).
 - [x] Deno test do `signal-plan` com e sem ICP; `deno check` limpo.
 - [x] pgTAP não se aplica: nenhuma função de apoio foi criada; o ticket reutiliza a RPC de leitura existente do ticket 01.
-- [x] CI verde nos três jobs no PR #303 (head `8e0c5ed`, run https://github.com/Kauedz/Althius/actions/runs/40564407008: Banco, Edge Functions e Frontend verdes).
+- [x] CI verde nos três jobs. CI da main verde nos três jobs (Frontend, Edge Functions, Banco) no run 40580668372 (d73ba30, merge do PR #304) e no run 40598223846 (6e2dea6, merge do PR #306). Vitest, lint e build não se aplicam porque nenhuma tela foi alterada.
 
 ## Passos do Nan
 
@@ -45,6 +45,6 @@ Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e 
 
 ## Comments
 
-- 2026-10-25 — `signal-plan` passou a ler o ICP vigente pela RPC autenticada `get_my_workspace_icp` e a incluí-lo como dado contextual no prompt da IA; falhas/ausência da leitura mantêm o caminho sem ICP. Incluídos testes Deno com e sem ICP e para Briefing/ICP hostis, preservando a validação de tipo, escopo e limite no servidor. Verificações: `deno test -A supabase/functions/signal-plan` (26 testes) e `deno check supabase/functions/signal-plan/index.ts` passaram. `deno test -A` na raiz falhou ao incluir testes Vitest do frontend como testes Deno; sem alteração de frontend. Sem migration. A confirmação com provedor real e CI seguem pendentes de verificação humana.
+- 2026-10-25 — `signal-plan` passou a ler o ICP vigente pela RPC autenticada `get_my_workspace_icp` e a incluí-lo como dado contextual no prompt da IA; falhas/ausência da leitura mantêm o caminho sem ICP. Incluídos testes Deno com e sem ICP e para Briefing/ICP hostis, preservando a validação de tipo, escopo e limite no servidor. Verificações: `deno test -A supabase/functions/signal-plan` (26 testes) e `deno check supabase/functions/signal-plan/index.ts` passaram. `deno test -A` na raiz falhou ao incluir testes Vitest do frontend como testes Deno; sem alteração de frontend. Sem migration. Atualizado em 2026-10-27: CI verde nos três jobs na main (runs 40580668372 e 40598223846). A confirmação com provedor real está bloqueada até haver Workspace com setor, porte e geografia do ICP preenchidos (ticket 16); depois disso será verificada por uma chamada real automatizada na suíte de smoke de produção (pasta e2e, conta de QA).
 
-- 2026-10-27 — Regra nova: nenhum critério fica como verificação humana. CI marcado com o run do PR #303. O critério 1 passa a ser verificado pelo smoke de produção 06 (conta QA), fortalecido no PR do ticket 16 para conferir os critérios do Plano, não só a explicação. O achado do primeiro smoke (geografia fora de `localizacao`) foi corrigido no ticket 16.
+- 2026-10-27 — Regra nova: nenhum critério fica como verificação humana. O critério 1 passa a ser verificado pelo smoke de produção 06 (conta QA), fortalecido no PR do ticket 16 para conferir os critérios do Plano, não só a explicação. O achado do primeiro smoke (geografia fora de `localizacao`) foi corrigido no ticket 16.
