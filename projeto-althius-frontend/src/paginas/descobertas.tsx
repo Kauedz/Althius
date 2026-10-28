@@ -1,4 +1,4 @@
-import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateCcw, Sparkles, RefreshCw } from 'lucide-react'
+import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateCcw, Sparkles, RefreshCw, RadioTower } from 'lucide-react'
 import { Fragment, useEffect, useId, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Pagina } from '@/components/pagina'
@@ -6,6 +6,7 @@ import { PorQueEssaAderencia } from '@/components/por-que-essa-aderencia'
 import type { ExplicacaoDeAderencia } from '@/fonte/aderencia-explicada'
 import { Button } from '@/components/ui/button'
 import { Carregando } from '@/components/marca'
+import { LogoDaConta } from '@/components/logos'
 import { useDados, useDadosDeDescobertas, useFonteDeContas, useFonteDeDescobertas } from '@/fonte/contexto'
 import type { ContaDescoberta, CriteriosDaBusca, EstadoContaDescoberta, OrigemDaDescoberta, ResultadoDoAceite, SinalDoMotivo } from '@/fonte/descobertas-tipos'
 import { formatarDataCompleta } from '@/fonte/formatar-data'
@@ -22,7 +23,7 @@ import { SelecaoMultipla } from '@/components/selecao-multipla'
 import { PORTES_DO_ICP } from '@/fonte/campos-do-icp'
 import { PORTES_DA_RECEITA, ROTULOS_DOS_PORTES, SETORES_DA_BUSCA } from '@/fonte/opcoes-da-busca'
 import { useDadosDoBrasil } from './sinais/dados-do-brasil'
-import { AbasDoModulo, CampoDeBusca, Contagem } from './modulo-contas-e-contatos'
+import { AbasDoModulo, CABECALHO, CampoDeBusca, CELULA, Contagem } from './modulo-contas-e-contatos'
 
 const INTERVALO_POLLING_MS = 5_000
 
@@ -82,6 +83,7 @@ function DetalheDaCandidata({
     <div aria-label={`Detalhes de ${candidata.nome}`} role="group" className="flex flex-col gap-3 text-xs">
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-al-muted">
         <span>Origem: {ROTULO_DA_ORIGEM[candidata.origem]}</span>
+        {candidata.cnpj && <span>CNPJ: {candidata.cnpj}</span>}
         {candidata.descricao && <span className="text-al-ink">{candidata.descricao}</span>}
       </div>
       {explicar && <PorQueEssaAderencia key={candidata.id} explicar={() => explicar(candidata.id)} />}
@@ -479,62 +481,85 @@ export function PaginaDescobertas() {
         <div className="min-h-0 overflow-auto">
           <table
             aria-label="Tabela de Descobertas"
-            className="w-full min-w-[56rem] table-fixed border-separate border-spacing-0 text-left text-sm"
+            className="w-full min-w-[64rem] table-fixed border-separate border-spacing-0 text-left text-sm"
           >
             <thead>
-              <tr className="border-b border-al-line text-xs tracking-rotulo uppercase text-al-muted">
-                <th scope="col" className="p-3 font-medium">Empresa</th>
-                <th scope="col" className="p-3 font-medium w-36">Encaixe ICP</th>
-                <th scope="col" className="p-3 font-medium w-40">Localização</th>
-                <th scope="col" className="p-3 font-medium w-48">Setor / Porte</th>
-                <th scope="col" className="p-3 font-medium">Motivos / Sinais</th>
-                <th scope="col" className="p-3 font-medium w-36 text-right">Ações</th>
+              <tr>
+                <th scope="col" className={cn(CABECALHO, 'left-0 z-3 w-56 pl-3')}>Empresa</th>
+                <th scope="col" className={cn(CABECALHO, 'w-24')}>Quente</th>
+                <th scope="col" className={cn(CABECALHO, 'w-36')}>Encaixe</th>
+                <th scope="col" className={cn(CABECALHO, 'w-40')}>Localização</th>
+                {/* Sem largura fixa: Último sinal e motivos ocupa o espaço restante. */}
+                <th scope="col" className={CABECALHO}>Último sinal / Motivos</th>
+                <th scope="col" className={cn(CABECALHO, 'w-44')}>Segmento</th>
+                <th scope="col" className={cn(CABECALHO, 'w-44 text-right')}>Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-al-line">
-              {listaFiltrada.map((c) => (
+            <tbody>
+              {listaFiltrada.map((c) => {
+                const sinaisValidos = c.motivosDeSinal.filter((m) => m.valido).length || c.sinais.length
+                const ultimoSinal = c.motivosDeSinal[0]
+                const local = c.localizacao || c.uf || '—'
+                return (
                 <Fragment key={c.id}>
-                <tr className="hover:bg-al-surface/40 transition-colors">
-                  <td className="p-3 align-top">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium text-al-ink">{c.nome}</span>
-                      <div className="flex items-center gap-2 text-xs text-al-muted">
-                        {c.website ? (
-                          <a
-                            href={c.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 hover:text-al-accent hover:underline"
-                          >
-                            {c.dominio || 'Site'}
-                            <ExternalLink className="size-2.5" aria-hidden />
-                          </a>
-                        ) : (
-                          <span className="italic">Sem site</span>
-                        )}
-                        {c.linkedinUrl && (
-                          <>
-                            <span>·</span>
+                <tr className="h-11 transition-colors hover:bg-al-hover">
+                  <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg py-1.5 pl-3')}>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <LogoDaConta nome={c.nome} />
+                      <div className="flex min-w-0 flex-col leading-tight">
+                        <span className="truncate text-al-ink" title={c.nome}>{c.nome}</span>
+                        <div className="flex min-w-0 items-center gap-1.5 text-[0.6875rem] text-al-muted">
+                          {c.website ? (
                             <a
-                              href={c.linkedinUrl}
+                              href={c.website}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 hover:text-al-accent hover:underline"
+                              className="inline-flex min-w-0 items-center gap-1 hover:text-al-accent hover:underline"
                             >
-                              LinkedIn
-                              <ExternalLink className="size-2.5" aria-hidden />
+                              <span className="truncate">{c.dominio || 'Site'}</span>
+                              <ExternalLink className="size-2.5 shrink-0" aria-hidden />
                             </a>
-                          </>
-                        )}
+                          ) : (
+                            <span>Sem site</span>
+                          )}
+                          {c.linkedinUrl && (
+                            <>
+                              <span aria-hidden>·</span>
+                              <a
+                                href={c.linkedinUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex shrink-0 items-center gap-1 hover:text-al-accent hover:underline"
+                              >
+                                LinkedIn
+                                <ExternalLink className="size-2.5" aria-hidden />
+                              </a>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      {c.cnpj && <span className="text-[0.75rem] text-al-muted">CNPJ: {c.cnpj}</span>}
                     </div>
                   </td>
 
-                  <td className="p-3 align-top">
+                  <td className={CELULA}>
+                    {sinaisValidos > 0 ? (
+                      <span
+                        title={`${sinaisValidos} ${sinaisValidos === 1 ? 'Sinal válido' : 'Sinais válidos'}`}
+                        aria-label={`${sinaisValidos} ${sinaisValidos === 1 ? 'Sinal válido' : 'Sinais válidos'}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-al-accent tabular-nums"
+                      >
+                        <RadioTower strokeWidth={1.8} className="size-3.5" aria-hidden />
+                        {sinaisValidos}
+                      </span>
+                    ) : (
+                      <span title="Sem Sinais válidos" aria-label="Sem Sinais válidos" className="text-al-muted">—</span>
+                    )}
+                  </td>
+
+                  <td className={CELULA}>
                     <span
                       className={cn(
-                        'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded',
+                        'inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium',
                         c.fitLevel === 'alto' && 'bg-al-sucesso-suave text-al-sucesso',
                         c.fitLevel === 'medio' && 'bg-al-atencao-suave text-al-atencao',
                         (c.fitLevel === 'baixo' || c.fitLevel === 'sem_dado') && 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
@@ -544,65 +569,68 @@ export function PaginaDescobertas() {
                     </span>
                   </td>
 
-                  <td className="p-3 align-top text-xs text-al-ink">
-                    {c.localizacao || c.uf || '—'}
+                  <td className={CELULA}>
+                    <span className="block truncate text-xs text-al-ink" title={local}>{local}</span>
                   </td>
 
-                  <td className="p-3 align-top text-xs">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-al-ink truncate">{c.setor || '—'}</span>
-                      {c.tamanho && <span className="text-al-muted">{c.tamanho}</span>}
-                    </div>
-                  </td>
-
-                  <td className="p-3 align-top">
-                    <div className="flex flex-col gap-1 text-xs">
+                  <td className={cn(CELULA, 'py-1.5')}>
+                    <div className="flex min-w-0 flex-col gap-0.5 text-xs">
                       {c.voltouPorSinalEm && (
-                        <span className="text-[0.75rem] font-medium text-al-accent">
+                        <span className="truncate text-[0.6875rem] font-medium text-al-accent">
                           Voltou por novo Sinal
                           {c.motivoDoDescarteAnterior && (
                             <span className="font-normal text-al-muted"> · Descarte anterior: {c.motivoDoDescarteAnterior}</span>
                           )}
                         </span>
                       )}
-                      {c.motivos.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {c.motivos.map((m, i) => (
-                            <span key={i} className="rounded-md inline-block bg-al-surface px-1.5 py-0.5 text-[0.75rem] text-al-ink border border-al-line">
-                              {m}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {c.motivosDeSinal.length > 0 ? (
-                        <div className="flex items-baseline gap-1.5 pt-0.5">
-                          <span className="truncate text-[0.75rem] text-al-ink">{frasePorExtensoDoSinal(c.motivosDeSinal[0])}</span>
+                      {ultimoSinal ? (
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            title={`${frasePorExtensoDoSinal(ultimoSinal)} · ${formatarDataCompleta(ultimoSinal.data)}`}
+                            className="flex min-w-0 items-center gap-1.5 text-al-ink"
+                          >
+                            <RadioTower strokeWidth={1.8} className="size-3.5 shrink-0 text-al-accent" aria-hidden />
+                            <span className="truncate">{frasePorExtensoDoSinal(ultimoSinal)}</span>
+                          </span>
                           {c.motivosDeSinal.length > 1 && (
                             <button
                               type="button"
                               onClick={() => setDetalheAberto(c.id)}
                               aria-label={`Mais ${c.motivosDeSinal.length - 1} ${c.motivosDeSinal.length - 1 === 1 ? 'Sinal' : 'Sinais'} de ${c.nome}`}
-                              className="shrink-0 text-[0.75rem] font-medium text-al-accent hover:underline"
+                              className="shrink-0 font-medium text-al-accent hover:underline"
                             >
                               +{c.motivosDeSinal.length - 1}
                             </button>
                           )}
                         </div>
+                      ) : c.sinais.length > 0 ? (
+                        <span className="truncate text-al-ink" title={c.sinais.map((s) => s.frase).join(' · ')}>
+                          {c.sinais[0].frase}
+                        </span>
+                      ) : null}
+                      {c.motivos.length > 0 ? (
+                        <span className="truncate text-al-muted" title={c.motivos.join(' · ')}>
+                          {c.motivos.map((m, i) => (
+                            <Fragment key={i}>
+                              {i > 0 && ' · '}
+                              <span>{m}</span>
+                            </Fragment>
+                          ))}
+                        </span>
                       ) : (
-                        c.sinais.length > 0 && (
-                          <div className="flex flex-col gap-0.5 pt-0.5">
-                            {c.sinais.slice(0, 2).map((s, i) => (
-                              <span key={i} className="text-[0.75rem] text-al-muted truncate">
-                                • {s.frase}
-                              </span>
-                            ))}
-                          </div>
-                        )
+                        !ultimoSinal && c.sinais.length === 0 && !c.voltouPorSinalEm && <span className="text-al-muted">Nenhum sinal</span>
                       )}
                     </div>
                   </td>
 
-                  <td className="p-3 align-top text-right">
+                  <td className={cn(CELULA, 'py-1.5')}>
+                    <div className="flex min-w-0 flex-col gap-0.5 text-xs leading-tight">
+                      <span className="truncate text-al-ink" title={c.setor || '—'}>{c.setor || '—'}</span>
+                      {c.tamanho && <span className="truncate text-al-muted" title={c.tamanho}>{c.tamanho}</span>}
+                    </div>
+                  </td>
+
+                  <td className={cn(CELULA, 'text-right')}>
                     <div className="flex items-center justify-end gap-1.5">
                       <Button
                         type="button"
@@ -674,13 +702,14 @@ export function PaginaDescobertas() {
                 </tr>
                 {detalheAberto === c.id && (
                   <tr className="bg-al-surface/30">
-                    <td colSpan={6} className="p-3">
+                    <td colSpan={7} className="border-b border-al-divisor p-3">
                       <DetalheDaCandidata candidata={c} ajustes={ajustes} explicar={fonte?.explicarAderencia?.bind(fonte)} />
                     </td>
                   </tr>
                 )}
                 </Fragment>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
