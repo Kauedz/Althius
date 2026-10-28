@@ -19,7 +19,7 @@ import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
 import { criarFonteDeDescobertasSupabase } from './supabase-descobertas'
-import { lerSaldoDeCreditos } from './creditos'
+import { lerSaldoDeCreditos, lerExtratoDeCreditos, lerPrecosDeCreditos } from './creditos'
 import { lerResumoDoContrato } from './supabase-contrato'
 
 /**
@@ -78,6 +78,8 @@ export function criarAmbienteDoWorkspace({
       ...perfil,
       ...agentes,
       saldoDeCreditos: () => lerSaldoDeCreditos(cliente, participacao.workspaceId),
+      precosDeCreditos: () => lerPrecosDeCreditos(cliente),
+      extratoDeCreditos: () => lerExtratoDeCreditos(cliente, participacao.workspaceId),
       contratoDoWorkspace: () => lerResumoDoContrato(cliente, participacao.workspaceId),
       ...conversas,
       ...(aprovacoes
