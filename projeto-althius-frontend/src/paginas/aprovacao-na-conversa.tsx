@@ -17,11 +17,14 @@ export function AprovacaoNaConversa({
   cabecalho,
   className,
   podeDecidir = true,
+  somenteLeitura = false,
 }: {
   aprovacaoId: string
   cabecalho: (aprovacao: AprovacaoDeAcao, rotuloDoEstado: string) => ReactNode
   className?: string
   podeDecidir?: boolean
+  /** Na página só leitura de um Agente antigo (Sinais first 10): a pendente aponta para Aprovações, sem decidir aqui. */
+  somenteLeitura?: boolean
 }) {
   const aprovacoes = useDados((fonte) => fonte.aprovacoes(), [])
   // Aqui só as ações em Integrações. A revisão da Memória do Workspace (Demonstração) fica na fila, e a do Playbook (CRM-09)
@@ -64,7 +67,12 @@ export function AprovacaoNaConversa({
       {aprovacao.origem !== 'althius' && (
         <p className="anotacao">também enviada ao {ROTULO_DO_CANAL[aprovacao.origem]}</p>
       )}
-      {aprovacao.estado === 'pendente' && (
+      {aprovacao.estado === 'pendente' && somenteLeitura && (
+        <Link to="/aprovacoes" className="self-start pt-1.5 text-sm underline underline-offset-4">
+          Decidir em Aprovações
+        </Link>
+      )}
+      {aprovacao.estado === 'pendente' && !somenteLeitura && (
         <div className="pt-1.5">
           <DecisaoDeAprovacao aprovacao={aprovacao} onde="conversa" podeDecidir={podeDecidir} />
         </div>

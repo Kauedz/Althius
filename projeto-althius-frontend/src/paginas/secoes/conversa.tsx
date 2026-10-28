@@ -20,6 +20,7 @@ import { nomeDaConversa, tituloAutomatico, type Agente, type AgenteId, type Apro
 import { cn, mensagemDeErro, porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
+import { useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 export function SecaoConversa({ agente }: { agente: Agente }) {
   const { disponivel } = useAmbiente()
@@ -49,6 +50,7 @@ function emCampoDeTexto(alvo: EventTarget | null): boolean {
  * aberta fica no endereço (?conversa=<id>, ou ?slack=<id>), para voltar a ela pelo link.
  */
 function ConversaComHistorico({ agente }: { agente: Agente }) {
+  const somenteLeitura = useSomenteLeituraDoAgente()
   const fonte = useFonte()
   const conversas = useConversas()
   const [parametros, setParametros] = useSearchParams()
@@ -137,7 +139,7 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
         idSalvo={idSalvo}
         titulo={titulo}
         nomeInicial={resumo?.titulo ?? ''}
-        podeRenomear={Boolean(idSalvo && fonte.renomearConversa)}
+        podeRenomear={!somenteLeitura && Boolean(idSalvo && fonte.renomearConversa)}
         aoRenomear={async (nome) => {
           if (!idSalvo) return
           await fonte.renomearConversa?.(idSalvo, nome)
@@ -146,7 +148,7 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
         comHistorico={comHistorico}
         historicoAberto={historicoAberto}
         aoAbrirHistorico={() => setHistoricoAberto(true)}
-        mostrarNova={!vazia || !comHistorico}
+        mostrarNova={!somenteLeitura && (!vazia || !comHistorico)}
         aoNova={nova}
       />
       {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
@@ -419,6 +421,7 @@ function LeituraDoSlack({ agente, id }: { agente: Agente; id: string }) {
 }
 
 function ConversaComOAgente({ agente }: { agente: Agente }) {
+  const somenteLeitura = useSomenteLeituraDoAgente()
   const fonteDaConversa = useFonte()
   const conversas = useConversas()
   const agentes = useDados((fonte) => fonte.agentes(), []) ?? []
@@ -449,7 +452,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
         {vazia && (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4">
             <IconeAgente especialidade={agente.especialidade.id} tamanho="lg" />
-            <p className="anotacao text-lg">comece por uma sugestão, ou mencione outro agente com @</p>
+            <p className="anotacao text-lg">{somenteLeitura ? 'Histórico da conversa' : 'comece por uma sugestão'}</p>
           </div>
         )}
         {itens.map((item) => (
@@ -469,7 +472,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
       <div className="sticky bottom-0 flex flex-col gap-3 bg-al-bg pb-6">
         {vazia && (
           <div className="flex flex-wrap justify-center gap-2">
-            {sugestoes.map((sugestao) => (
+            {!somenteLeitura && sugestoes.map((sugestao) => (
               <Button
                 key={sugestao.id}
                 variant="outline"
@@ -483,21 +486,24 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
           </div>
         )}
 
-        <Composer
-          nome={`Conversa com ${agente.nome}`}
-          rotulo={`Mensagem para ${agente.nome}`}
-          placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
-          ocupado={respondendo}
-          aoEnviar={(mensagem, anexos) =>
-            conversas.enviar(agente.id, { texto: mensagem, ...(anexos.length ? { anexos } : {}) })}
-          aoParar={conversas.parar ? () => conversas.parar?.(agente.id) : undefined}
-        />
+        {!somenteLeitura && (
+          <Composer
+            nome={`Conversa com ${agente.nome}`}
+            rotulo={`Mensagem para ${agente.nome}`}
+            placeholder={`Peça algo a ${agente.nome}.`}
+            ocupado={respondendo}
+            aoEnviar={(mensagem, anexos) =>
+              conversas.enviar(agente.id, { texto: mensagem, ...(anexos.length ? { anexos } : {}) })}
+            aoParar={conversas.parar ? () => conversas.parar?.(agente.id) : undefined}
+          />
+        )}
       </div>
     </section>
   )
 }
 
 function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record<AgenteId, Agente>; animar: boolean }) {
+  const somenteLeitura = useSomenteLeituraDoAgente()
   const nome = (id: AgenteId) => agentes[id]?.nome
   switch (item.tipo) {
     case 'usuario':
@@ -515,7 +521,7 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
             {item.descricao}
             <LinkDoPasso link={item.link} />
           </p>
-          <AprovacaoDoPasso link={item.link} />
+          {!somenteLeitura && <AprovacaoDoPasso link={item.link} />}
         </div>
       )
     case 'texto':
@@ -556,6 +562,7 @@ function Item({ item, agentes, animar }: { item: ItemDaConversa; agentes: Record
       return (
         <AprovacaoNaConversa
           aprovacaoId={item.aprovacaoId}
+          somenteLeitura={somenteLeitura}
           cabecalho={(aprovacao, rotuloDoEstado) => (
             <CabecalhoDaAprovacao aprovacao={aprovacao} rotulo={rotuloDoEstado} />
           )}

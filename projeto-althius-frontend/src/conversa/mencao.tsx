@@ -8,11 +8,14 @@ import { cn } from '@/lib/utils'
  * Autocompletar de @menção: abre enquanto o que vem depois do último @ é o começo do nome de um
  * Agente (inclusive o nome completo de um Agente criado) e completa com o nome escolhido.
  */
+/** As quatro Especialidades saíram do produto (ADR 0033 D1): nenhum Agente delas, padrão ou criado, é sugerido no @. */
+const ESPECIALIDADES_RETIRADAS: ReadonlySet<string> = new Set(['scopus', 'ethos', 'rhetor', 'oraculum'])
+
 export function useMencao(valor: string, setValor: (valor: string) => void, agentes: Agente[]) {
   const [destacada, setDestacada] = useState(0)
   const [fechadaEm, setFechadaEm] = useState<string | null>(null)
 
-  const opcoes = sugerirMencoes(valor, agentes)
+  const opcoes = sugerirMencoes(valor, agentes).filter((agente) => !ESPECIALIDADES_RETIRADAS.has(agente.especialidade.id))
   const aberta = opcoes.length > 0 && fechadaEm !== valor
   const indice = Math.min(destacada, Math.max(opcoes.length - 1, 0))
 
