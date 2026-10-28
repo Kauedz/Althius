@@ -666,7 +666,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
 
     async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
       const { data, error } = await cliente.functions.invoke('signal-plan', {
-        body: { workspaceId: workspaceId(), briefing: pedido.briefing, escopo: { tipo: 'contas', contaIds: pedido.contaIds } },
+        body: { workspaceId: workspaceId(), briefing: pedido.briefing, escopo: pedido.escopo ?? { tipo: 'contas', contaIds: pedido.contaIds ?? [] } },
       })
       if (error) throw await erroDoPlano(error)
       const resposta = data as { plano?: PlanoDoSinal; avisos?: unknown } | null
@@ -894,6 +894,7 @@ interface RegistroDoPedido {
   contato: { nome?: string; email?: string; whatsapp?: string }
   status: StatusDoPedido
   created_at: string
+  model_id: string | null
 }
 
 function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
@@ -910,6 +911,7 @@ function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
     },
     status: linha.status,
     criadoEm: linha.created_at,
+    ...(linha.model_id ? { modeloId: linha.model_id } : {}),
   }
 }
 

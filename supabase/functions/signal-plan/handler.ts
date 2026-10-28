@@ -8,7 +8,7 @@
 // sai daqui: o erro real fica no log técnico.
 import { comCors } from '../_shared/cors.ts'
 import type { Llm } from '../_shared/cascata-de-sinais/tipos.ts'
-import { LIMITES_DO_PLANO, type PlanoDoSinal, tiposAceitosNoPlano } from '../_shared/plano-do-sinal/index.ts'
+import { LIMITES_DO_PLANO, type PlanoDoSinal, TIPOS_NO_MERCADO, tiposAceitosNoPlano } from '../_shared/plano-do-sinal/index.ts'
 import { planoPorIa, type ContextoIcp } from './planejador-por-ia.ts'
 import { AVISO_DO_PLANO_INICIAL, planoPorRegra } from './planejador-por-regra.ts'
 import { completarComIcp } from './icp-nos-criterios.ts'
@@ -55,10 +55,11 @@ export const MENSAGENS = {
   semBriefing: 'Escreva o que você quer acompanhar.',
   briefingLongo: `O briefing tem até ${LIMITES_DO_PLANO.briefingMax} caracteres.`,
   contas: `Escolha de 1 a ${LIMITES_DO_PLANO.contasEscolhidasMax} Contas.`,
-  escopo: 'Por enquanto o Sinal vale para as Contas que você escolher.',
+  escopo: 'Escolha onde procurar o Sinal: no mercado ou nas Contas.',
   semParticipacao: 'Você não participa deste Workspace.',
   limite: 'Você chegou ao limite de planos de hoje. Tente de novo amanhã.',
   semTipos: 'Ainda não há Sinais disponíveis para montar um plano.',
+  semTiposNoMercado: 'No mercado, por enquanto o Sinal procura empresas do ICP abrindo vagas, e ele não está disponível agora. Escolha suas Contas ou peça à equipe Althius.',
   falha: 'Não deu para montar o plano agora. Tente de novo.',
 } as const
 
@@ -105,16 +106,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!briefing) return responder({ error: MENSAGENS.semBriefing }, 400)
     if (briefing.length > LIMITES_DO_PLANO.briefingMax) return responder({ error: MENSAGENS.briefingLongo }, 400)
     const escopo = corpo.escopo as { tipo?: unknown; contaIds?: unknown } | null | undefined
-    if (escopo?.tipo !== 'contas') return responder({ error: MENSAGENS.escopo }, 400)
-    const ids = escopo.contaIds
+    if (escopo?.tipo !== 'contas' && escopo?.tipo !== 'mercado') return responder({ error: MENSAGENS.escopo }, 400)
+    const ids = escopo.tipo === 'contas' ? escopo.contaIds : undefined
     if (
-      !Array.isArray(ids) || ids.length < 1 || ids.length > LIMITES_DO_PLANO.contasEscolhidasMax ||
+      escopo.tipo === 'contas' && (!Array.isArray(ids) || ids.length < 1 || ids.length > LIMITES_DO_PLANO.contasEscolhidasMax ||
       !ids.every((id) => typeof id === 'string' && UUID.test(id)) ||
       new Set(ids.map((id) => id.toLowerCase())).size !== ids.length
-    ) {
+      )) {
       return responder({ error: MENSAGENS.contas }, 400)
     }
-    const contaIds = ids.map((id: string) => id.toLowerCase())
+    const contaIds = escopo.tipo === 'contas' ? (ids as string[]).map((id) => id.toLowerCase()) : undefined
 
     // O pedido conta no limite do dia desde aqui; um pedido inválido (acima) não conta.
     let pedido: { pedidoId: string; tipos: string[] }
@@ -136,14 +137,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
     }
 
-    const tiposAceitos = tiposAceitosNoPlano(pedido.tipos)
+    // No mercado endereçável só os tipos que rodam lá (hoje, Abertura de vagas) entram no plano.
+    const noMercado = escopo.tipo === 'mercado'
+    const tiposAceitos = tiposAceitosNoPlano(pedido.tipos).filter((tipo) => !noMercado || TIPOS_NO_MERCADO.includes(tipo))
     if (!tiposAceitos.length) {
       await fechar('falhou')
-      log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'sem_tipos' })
-      return responder({ error: MENSAGENS.semTipos, codigo: 'sem_tipos' }, 409)
+      log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'sem_tipos', escopo: escopo.tipo })
+      return responder({ error: noMercado ? MENSAGENS.semTiposNoMercado : MENSAGENS.semTipos, codigo: 'sem_tipos' }, 409)
     }
 
-    const dados = { briefing, contaIds, tiposAceitos }
+    const dados = { briefing, contaIds: contaIds ?? [], escopo: escopo.tipo as 'contas' | 'mercado', tiposAceitos }
     let plano: PlanoDoSinal | null = null
     let motivoDaRegra: 'motor_desligado' | 'saida_invalida' | 'motor_falhou' = 'motor_desligado'
     if (deps.llm) {
@@ -167,13 +170,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'motor_falhou', erro: erro instanceof Error ? erro.name : 'erro' })
       }
     }
+    if (plano && noMercado) plano = comPaisNoMercado(plano)
     if (plano) {
       await fechar('ia')
       log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'ia', tipo: plano.sinais[0].tipo })
       return responder({ plano, avisos: [] })
     }
 
-    const porRegra = planoPorRegra(dados)
+    const regra = planoPorRegra(dados)
+    const porRegra = regra && noMercado ? comPaisNoMercado(regra) : regra
     if (!porRegra) {
       await fechar('falhou')
       log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'falhou' })
@@ -183,4 +188,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     log({ type: 'signal_plan', pedidoId: pedido.pedidoId, outcome: 'regra', motivo: motivoDaRegra, tipo: porRegra.sinais[0].tipo })
     return responder({ plano: porRegra, avisos: [AVISO_DO_PLANO_INICIAL] })
   })
+}
+
+/** No mercado a busca precisa de um país; sem lugar no Briefing nem no ICP, começa no Brasil (a pessoa troca no editor). */
+export function comPaisNoMercado(plano: PlanoDoSinal): PlanoDoSinal {
+  const [sinal, ...resto] = plano.sinais
+  if (!sinal || Array.isArray(sinal.criterios.localizacao) && sinal.criterios.localizacao.length) return plano
+  return { ...plano, sinais: [{ ...sinal, criterios: { ...sinal.criterios, localizacao: ['Brasil'] } }, ...resto] }
 }

@@ -561,7 +561,7 @@ export function criarFonteDeSinaisSimulada(
     // O Plano da Demonstração é fixo: a IA não roda aqui, e o Briefing não muda o que volta (só as Contas escolhidas).
     async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
       await aguardar()
-      return { plano: planoFixoDaDemonstracao(pedido.contaIds), avisos: [] }
+      return { plano: planoFixoDaDemonstracao(pedido.escopo?.tipo === 'contas' ? pedido.escopo.contaIds : pedido.contaIds ?? []), avisos: [] }
     },
 
     async modelo(catalogoId: string): Promise<ModeloDeSinal> {

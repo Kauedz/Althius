@@ -4,7 +4,8 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-route
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
-import { useAmbiente, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
+import { useAmbiente, useDadosDeContas, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
+import { Opcao } from '@/components/opcao'
 import { textoDaAgenda } from '@/fonte/agenda-do-sinal'
 import {
   ErroDoPlano,
@@ -13,12 +14,13 @@ import {
   loteDaRodada,
   type OrigemDoPlano,
   type PlanoDoSinal,
+  TIPOS_NO_MERCADO,
 } from '@/fonte/plano-do-sinal'
 import type { Monitoramento, Publico } from '@/fonte/sinais-tipos'
 import { CAMPOS } from './catalogo'
 import { TIPOS_DO_PLANO, criteriosPadraoDoTipo, criteriosParaSalvar } from './campos-do-plano'
 import { SecaoDoFormulario } from './componentes'
-import { BarraDeAcoes, ContasDoWorkspace, CriteriosProntos, Rotulado } from './editor'
+import { BarraDeAcoes, ContasDoWorkspace, CriteriosProntos, Grupo, Rotulado } from './editor'
 import { useSinaisDoMockup } from './estado'
 
 /** Exemplos curtos de Briefing, em texto cinza: a pessoa vê o tom, não escolhe um. */
@@ -113,11 +115,20 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
   const [contas, setContas] = useState<string[]>(() =>
     existente?.plano?.escopo.tipo === 'contas' ? [...existente.plano.escopo.contaIds] : [],
   )
+  // Onde procurar: o mercado endereçável (só Abertura de vagas roda lá, e só no operacional) ou as Contas escolhidas.
+  // Sem escolha feita, começa no mercado quando o pedido veio da conversa ou o Workspace ainda não tem Contas.
+  const operacional = useAmbiente().modo === 'real'
+  const mercadoDisponivel = operacional && (tiposAceitos?.some((tipo) => TIPOS_NO_MERCADO.includes(tipo)) ?? false)
+  const { dados: contasDoWorkspace } = useDadosDeContas((f) => f.contas(), [])
+  const [escopoEscolhido, setEscopo] = useState<'contas' | 'mercado' | null>(() => existente?.plano?.escopo.tipo ?? null)
+  const escopo: 'contas' | 'mercado' = escopoEscolhido
+    ?? (mercadoDisponivel && (origem === 'composer' || contasDoWorkspace?.length === 0) ? 'mercado' : 'contas')
   const [plano, setPlano] = useState<PlanoEmEdicao | null>(() => (existente?.plano ? emEdicao(existente.plano, []) : null))
   const [nome, setNome] = useState(existente?.nome ?? '')
   const [montando, setMontando] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erroDoBriefing, setErroDoBriefing] = useState<string | null>(null)
+  const [podePedirAjuda, setPodePedirAjuda] = useState(false)
   const [avisoDasContas, setAvisoDasContas] = useState<string | null>(null)
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
   const [modeloCarregando, setModeloCarregando] = useState(Boolean(modeloId))
@@ -167,14 +178,15 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
   }
 
   const briefingPronto = briefing.trim().length > 0
-  const podeMontar = briefingPronto && contas.length > 0 && !montando
+  const podeMontar = briefingPronto && (escopo === 'mercado' || contas.length > 0) && !montando
 
   async function montar() {
     if (!podeMontar || !fonte.montarPlano) return
     setMontando(true)
     setErroDoBriefing(null)
+    setPodePedirAjuda(false)
     try {
-      const { plano: montado, avisos } = await fonte.montarPlano({ briefing: briefing.trim(), contaIds: contas })
+      const { plano: montado, avisos } = await fonte.montarPlano({ briefing: briefing.trim(), escopo: escopo === 'mercado' ? { tipo: 'mercado' } : { tipo: 'contas', contaIds: contas } })
       const novo = emEdicao(montado, avisos)
       setPlano(novo)
       setNome((atual) => atual.trim() || resumirNome(briefing, TIPOS_DO_PLANO[novo.tipo]?.rotulo ?? 'Sinal'))
@@ -182,6 +194,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
     } catch (erro) {
       // O limite do dia tem mensagem própria; qualquer outra falha é recuperável e fica sem detalhe técnico.
       setErroDoBriefing(erro instanceof ErroDoPlano && erro.codigo !== 'falha' ? erro.message : MENSAGEM_DA_FALHA_DO_PLANO)
+      setPodePedirAjuda(erro instanceof ErroDoPlano && erro.codigo === 'sem_tipos')
     } finally {
       setMontando(false)
     }
@@ -196,7 +209,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
       const paraSalvar: PlanoDoSinal = {
         versao: 1,
         origem: plano.origem,
-        escopo: { tipo: 'contas', contaIds: contas },
+        escopo: escopo === 'mercado' ? { tipo: 'mercado' } : { tipo: 'contas', contaIds: contas },
         sinais: [{ tipo: plano.tipo, criterios }],
         explicacao: plano.explicacao,
         maxEmpresasPorRodada: plano.maxEmpresasPorRodada,
@@ -258,10 +271,22 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
 
             <SecaoDoFormulario
               numero="02"
-              titulo="Contas"
-              descricao={`As Contas-alvo em que procurar o Sinal: de 1 a ${LIMITES_DO_PLANO.contasEscolhidasMax}.`}
+              titulo={mercadoDisponivel ? 'Onde procurar' : 'Contas'}
+              descricao={escopo === 'mercado'
+                ? 'Empresas do mercado do seu ICP abrindo vagas. As que ainda não são Contas entram na Caixa de Descobertas.'
+                : `As Contas-alvo em que procurar o Sinal: de 1 a ${LIMITES_DO_PLANO.contasEscolhidasMax}.`}
             >
-              <ContasDoWorkspace publico={publico} aoMudar={escolherContas} ajuda={`${contas.length} de ${LIMITES_DO_PLANO.contasEscolhidasMax} escolhidas`} />
+              {mercadoDisponivel && (
+                <Grupo rotulo="Onde procurar" papel="radiogroup">
+                  <Opcao papel="radio" marcada={escopo === 'mercado'} aoClicar={() => setEscopo('mercado')}>
+                    Mercado endereçável (ICP)
+                  </Opcao>
+                  <Opcao papel="radio" marcada={escopo === 'contas'} aoClicar={() => setEscopo('contas')}>
+                    Contas-alvo
+                  </Opcao>
+                </Grupo>
+              )}
+              {escopo === 'contas' && <ContasDoWorkspace publico={publico} aoMudar={escolherContas} ajuda={`${contas.length} de ${LIMITES_DO_PLANO.contasEscolhidasMax} escolhidas`} />}
               {avisoDasContas && (
                 <p role="status" className="text-xs text-al-muted">
                   {avisoDasContas}
@@ -274,6 +299,11 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
             {erroDoBriefing && (
               <div role="alert" className="rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
                 {erroDoBriefing}
+                {podePedirAjuda && (
+                  <button type="button" className={`${BOTAO_SECUNDARIO} mt-3`} onClick={() => navegar('/sinais/pedidos', { state: { briefing } })}>
+                    Pedir à equipe Althius
+                  </button>
+                )}
               </div>
             )}
 
@@ -295,6 +325,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
             aoMudarNome={setNome}
             publico={publico}
             aoMudarContas={escolherContas}
+            escopo={escopo}
             avisoDasContas={avisoDasContas}
             erroSalvar={erroSalvar}
             aoFecharErro={() => setErroSalvar(null)}
@@ -315,6 +346,7 @@ function PassoDoPlano({
   nome,
   aoMudarNome,
   publico,
+  escopo,
   aoMudarContas,
   avisoDasContas,
   erroSalvar,
@@ -329,6 +361,7 @@ function PassoDoPlano({
   nome: string
   aoMudarNome: (nome: string) => void
   publico: Publico
+  escopo: 'contas' | 'mercado'
   aoMudarContas: (publico: Publico) => void
   avisoDasContas: string | null
   erroSalvar: string | null
@@ -395,8 +428,14 @@ function PassoDoPlano({
         </SecaoDoFormulario>
       )}
 
-      <SecaoDoFormulario numero="03" titulo="Contas" descricao="As Contas-alvo em que procurar o Sinal.">
-        <ContasDoWorkspace publico={publico} aoMudar={aoMudarContas} ajuda={`${publico.listas.length} de ${LIMITES_DO_PLANO.contasEscolhidasMax} escolhidas`} />
+      <SecaoDoFormulario
+        numero="03"
+        titulo={escopo === 'mercado' ? 'Mercado endereçável' : 'Contas'}
+        descricao={escopo === 'mercado'
+          ? 'Empresas do mercado do seu ICP. O país e o nicho você confere no próximo passo, antes de ativar.'
+          : 'As Contas-alvo em que procurar o Sinal.'}
+      >
+        {escopo === 'contas' && <ContasDoWorkspace publico={publico} aoMudar={aoMudarContas} ajuda={`${publico.listas.length} de ${LIMITES_DO_PLANO.contasEscolhidasMax} escolhidas`} />}
         {avisoDasContas && (
           <p role="status" className="text-xs text-al-muted">
             {avisoDasContas}
@@ -406,7 +445,7 @@ function PassoDoPlano({
           rotulo="Empresas por rodada"
           ajuda={
             loteValido
-              ? `Cada rodada verifica até ${plano.maxEmpresasPorRodada} Contas e continua de onde parou na próxima.`
+              ? `Cada rodada verifica até ${plano.maxEmpresasPorRodada} ${escopo === 'mercado' ? 'empresas do mercado' : 'Contas'} e continua de onde parou na próxima.`
               : `Use um número de ${loteMin} a ${loteMax}.`
           }
         >
@@ -438,7 +477,7 @@ function PassoDoPlano({
         </button>
         <button
           type="button"
-          disabled={!nomeValido || !loteValido || salvando || publico.listas.length === 0}
+          disabled={!nomeValido || !loteValido || salvando || (escopo === 'contas' && publico.listas.length === 0)}
           onClick={aoSalvar}
           className={BOTAO_PRIMARIO}
         >

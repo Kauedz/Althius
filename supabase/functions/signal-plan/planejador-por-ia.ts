@@ -139,12 +139,12 @@ export function planoDaSaidaDaIa(saida: unknown, pedido: PedidoDoPlano): Resulta
   const dita = typeof bruto?.explicacao === 'string' ? bruto.explicacao.replace(/\s+/g, ' ').trim() : ''
   const explicacao = dita && dita.length <= LIMITES_DO_PLANO.explicacaoMax && !MARCA_INTERNA.test(dita)
     ? dita
-    : explicacaoDoPlano(tipo, criterios.criterios, pedido.contaIds.length)
+    : explicacaoDoPlano(tipo, criterios.criterios, pedido.escopo === 'mercado' ? 'mercado' : pedido.contaIds.length)
 
   return validarPlano({
     versao: VERSAO_DO_PLANO,
     origem: 'briefing',
-    escopo: { tipo: 'contas', contaIds: pedido.contaIds },
+    escopo: pedido.escopo === 'mercado' ? { tipo: 'mercado' } : { tipo: 'contas', contaIds: pedido.contaIds },
     sinais: [{ tipo, criterios: criterios.criterios }],
     explicacao,
     maxEmpresasPorRodada: LIMITES_DO_PLANO.empresasPorRodadaPadrao,

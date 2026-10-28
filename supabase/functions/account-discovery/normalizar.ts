@@ -131,6 +131,7 @@ export function candidatasDaReceita(itens: unknown[], agora: number, sourceRunId
       city: cidade,
       country: 'BR',
       sector: atividade ? recortar(atividade, 200) : undefined,
+      cnae: atividade ? recortar(atividade, 200) : undefined,
       sizeLabel: primeiroTexto(item, 'porte').toUpperCase() || undefined,
       description: atividade ? recortar(atividade, 1000) : undefined,
       tags: [],

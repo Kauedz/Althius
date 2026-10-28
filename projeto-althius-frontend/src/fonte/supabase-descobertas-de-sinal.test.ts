@@ -42,6 +42,22 @@ describe('Descobertas reais com Sinais', () => {
     expect([c.origem, c.motivosDeSinal, c.voltouPorSinalEm, c.motivoDoDescarteAnterior]).toEqual(['busca', [], undefined, undefined])
   })
 
+  it('os motivos da busca chegam como objetos {criterio, atende, texto} e viram o texto de cada um', async () => {
+    const daBusca = {
+      ...linhaDaCaixa, origin: 'busca', signal_reasons: [],
+      reasons: [
+        { texto: 'Setor: combina com "Logistica".', atende: true, criterio: 'setor' },
+        { texto: 'Região: sede em SP.', atende: true, criterio: 'regiao' },
+        'Porte: até 50 funcionários',
+        { criterio: 'porte', atende: null },
+        null,
+      ],
+    }
+    const f = criarFonteDeDescobertasSupabase(cliente({ list_discovered_accounts: () => [daBusca] }), () => 'ws-norte')
+    const [c] = await f.listarDescobertas('nova')
+    expect(c.motivos).toEqual(['Setor: combina com "Logistica".', 'Região: sede em SP.', 'Porte: até 50 funcionários'])
+  })
+
   it('o aceite devolve a Conta, os Sinais migrados e o que dá para fazer com o Comitê; sem site manda p_url nulo', async () => {
     const chamadas: Record<string, unknown>[] = []
     const f = criarFonteDeDescobertasSupabase(cliente({

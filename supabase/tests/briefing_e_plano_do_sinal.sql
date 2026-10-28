@@ -192,8 +192,8 @@ select throws_ok(
   '22023', 'invalid signal plan', 'Plano sem Conta é recusado');
 select throws_ok(
   $$select public.save_signal_plan('e8100000-0000-4000-8000-000000000001', 'Mercado', null,
-    (select p from base) || '{"escopo":{"tipo":"mercado"}}')$$,
-  '22023', 'invalid signal plan', 'o escopo mercado está no esquema, mas não é oferecido');
+    (select p from base) || '{"escopo":{"tipo":"mercado","contaIds":[]}}')$$,
+  '22023', 'invalid signal plan', 'o escopo mercado não leva Contas (o caso aceito está em plano_do_sinal_no_mercado.sql)');
 
 -- 6. Um Sinal só por Plano (DECISÃO PENDENTE 8).
 select throws_ok(
