@@ -81,6 +81,7 @@ export function CartaoDaVitrine({
   selo,
   estado,
   abrirModelo = false,
+  mostrarAtivos = true,
   className,
 }: {
   card: CardDoCatalogo
@@ -88,6 +89,7 @@ export function CartaoDaVitrine({
   selo?: string
   estado?: EstadoDoCard
   abrirModelo?: boolean
+  mostrarAtivos?: boolean
   className?: string
 }) {
   return (
@@ -115,10 +117,12 @@ export function CartaoDaVitrine({
           <NichosDoCard card={card} />
           {estado && <SelosDoEstado estado={estado} />}
           <div className="mt-auto flex w-full items-end justify-between gap-3 pt-2">
-            <span className="rotulo inline-flex items-center gap-2 text-al-ink">
-              {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
-              {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
-            </span>
+            {mostrarAtivos ? (
+              <span className="rotulo inline-flex items-center gap-2 text-al-ink">
+                {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
+                {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
+              </span>
+            ) : <span />}
             <span
               className="grid size-8 place-items-center rounded-full border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
               aria-hidden

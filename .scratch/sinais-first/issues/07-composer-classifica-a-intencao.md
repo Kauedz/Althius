@@ -1,6 +1,6 @@
 # 07: Composer classifica a intenção do pedido
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -35,15 +35,19 @@
 
 ## Critérios
 
-- [ ] Um pedido parecido com um Modelo existente mostra a sugestão daquele Modelo, clicável, sem criar nada sozinho.
-- [ ] Um pedido genérico ("o que é Aderência?") recebe resposta direta, sem sugestão de Modelo nem indício de que um Sinal será criado.
-- [ ] Um pedido que não combina com nenhum Modelo é reconhecido como candidato a Plano novo, mas não cria nem salva nada neste ticket (mensagem clara de "em construção" ou equivalente, sem quebrar a experiência).
-- [ ] Nenhuma letra de nicho A–H nem termo técnico de cascata aparece na resposta do composer.
-- [ ] pgTAP (se houver tabela nova): isolamento por Workspace; três `supabase db reset && supabase test db` verdes.
-- [ ] Vitest, lint e build verdes; CI verde nos três jobs.
+- [x] Um pedido parecido com um Modelo existente mostra a sugestão daquele Modelo, clicável, sem criar nada sozinho.
+- [x] Um pedido genérico ("o que é Aderência?") recebe resposta direta, sem sugestão de Modelo nem indício de que um Sinal será criado.
+- [x] Um pedido que não combina com nenhum Modelo é reconhecido como candidato a Plano novo, mas não cria nem salva nada neste ticket (mensagem clara de "em construção" ou equivalente, sem quebrar a experiência).
+- [x] Nenhuma letra de nicho A–H nem termo técnico de cascata aparece na resposta do composer.
+- [ ] pgTAP (se houver tabela nova): isolamento por Workspace; três `supabase db reset && supabase test db` verdes. Não se aplica até aqui: o ticket não criou tabela nem migration.
+- [ ] Vitest, lint e build verdes; CI verde nos três jobs. Pendente: lint e build passaram e os testes focados passaram, mas o Vitest completo teve seis falhas em testes antigos da Coordenação que esperam o roteamento anterior. Falta ajustar esses testes e rodar o CI; este branch ainda não entrou no PR #305 (trabalho parado a pedido do Kauê até o apply em produção).
 
 ## Passos do Nan
 
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot aplica a migration (se houver) e publica o frontend.
 
 ## Comments
+
+### 2026-10-27 — Implementação
+
+Classificação determinística no frontend com limiar provisório isolado; busca do catálogo compartilhada com a vitrine. O composer sugere até três Modelos usando os cartões existentes, deixa continuar descrevendo o próprio Sinal e apresenta o aviso/link do caminho de Plano novo. Perguntas gerais continuam seguindo o envio atual. Nenhum registro é criado e nenhuma migration é necessária. Typecheck, lint e build passaram. Os testes focados passaram; a suíte completa ainda tem falhas em testes antigos da Coordenação que esperam pedidos de abordagem no fluxo anterior. `deno check` e `deno test supabase/functions` passaram (1.873 testes, 39 ignorados). Não há apply ou deploy neste ticket. CI e os três resets de banco continuam pendentes da CI; o full Vitest precisa ser alinhado com a nova classificação.

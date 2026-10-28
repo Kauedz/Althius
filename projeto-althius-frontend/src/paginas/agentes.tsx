@@ -78,6 +78,7 @@ function PedidoCoordenado() {
         rotulo="Peça algo aos agentes"
         placeholder="Descreva o trabalho. A Althius chama os agentes certos. Use @ para chamar um agente específico."
         comEspecialidades
+        classificarIntencao
         ocupado={respondendo}
         aoEnviar={(texto, anexos) => coordenar({ texto, ...(anexos.length ? { anexos } : {}) })}
       />

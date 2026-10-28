@@ -11,6 +11,9 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { IconeDaEspecialidade } from '@/components/marca'
+import { Link } from 'react-router-dom'
+import { classificarPedido, type ClassificacaoDoPedido } from '@/conversa/classificar-pedido'
+import { CartaoDaVitrine } from '@/paginas/sinais/vitrine-pecas'
 import {
   ACEITOS_ARQUIVO,
   ACEITOS_IMAGEM,
@@ -38,6 +41,8 @@ interface Props {
   aoEnviar: (texto: string, anexos: AnexoDaMensagem[]) => void
   /** Com ele, o Enviar vira Parar enquanto o pedido roda. */
   aoParar?: () => void
+  /** Classifica pedidos do composer inicial antes de encaminhar à conversa. */
+  classificarIntencao?: boolean
 }
 
 let proximaChave = 1
@@ -57,7 +62,7 @@ function miniaturaLocal(arquivo: File): string | undefined {
  * dica do teclado e o Enviar (que vira Parar enquanto o pedido roda). Dá para arrastar e soltar ou colar uma imagem. O @
  * abre o autocompletar de Agentes. Os anexos só existem onde há onde guardá-los (o Workspace operacional).
  */
-export function Composer({ nome, rotulo, placeholder, comEspecialidades = false, ocupado = false, aoEnviar, aoParar }: Props) {
+export function Composer({ nome, rotulo, placeholder, comEspecialidades = false, ocupado = false, aoEnviar, aoParar, classificarIntencao = false }: Props) {
   const fonte = useFonte()
   const workspace = useDados((f) => f.workspace(), [])
   const agentes = useDados((f) => f.agentes(), []) ?? []
@@ -65,6 +70,7 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
   const [texto, setTexto] = useState('')
   const [anexos, setAnexos] = useState<EstadoDoAnexo[]>([])
   const [aviso, setAviso] = useState('')
+  const [classificacao, setClassificacao] = useState<ClassificacaoDoPedido | null>(null)
   const [menuAberto, setMenuAberto] = useState(false)
   const [arrastando, setArrastando] = useState(false)
   const mencao = useMencao(texto, setTexto, agentes)
@@ -132,6 +138,17 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
   function enviar(evento?: FormEvent) {
     evento?.preventDefault()
     if (!podeEnviar) return
+    if (classificarIntencao) {
+      const resultado = classificarPedido(texto.trim())
+      if (resultado.caminho !== 'geral') {
+        setClassificacao(resultado)
+        setTexto('')
+        setAnexos([])
+        setAviso('')
+        return
+      }
+      setClassificacao(null)
+    }
     const prontos = anexos.flatMap((anexo) => (anexo.estado === 'pronto' ? [anexo.anexo] : []))
     aoEnviar(texto.trim(), prontos)
     setTexto('')
@@ -257,6 +274,21 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
         <p role="alert" className="px-3.5 text-sm text-al-atencao">
           {aviso}
         </p>
+      )}
+      {classificacao?.caminho === 'plano_novo' && (
+        <div role="status" className="mx-3.5 rounded-md border border-al-line bg-al-bg p-3 text-sm">
+          Entendi que você quer acompanhar algo novo. A criação por aqui está em construção.{' '}
+          <Link className="text-al-accent underline" to="/sinais/novo">Descrever meu Sinal</Link>
+        </div>
+      )}
+      {classificacao?.caminho === 'modelo' && (
+        <div role="status" className="mx-3.5 rounded-md border border-al-line bg-al-bg p-3 text-sm">
+          <p className="mb-2">Encontrei Modelos que podem ajudar:</p>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {classificacao.modelos.map((modelo) => <CartaoDaVitrine key={modelo.id} card={modelo} ativos={0} abrirModelo mostrarAtivos={false} />)}
+          </ul>
+          <button type="button" className="mt-3 text-al-accent underline" onClick={() => setClassificacao(null)}>Descrever meu próprio Sinal</button>
+        </div>
       )}
       <div className="flex items-center gap-1.5 pt-1.5 pr-2.5 pb-2.5 pl-3.5">
         {comAnexos && (
