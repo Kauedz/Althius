@@ -54,11 +54,12 @@ function servicos(over: Partial<ServicosDoAgente> & { runState?: string } = {}) 
 
 const pegar = (s: ServicosDoAgente, nome: string) => ferramentasDoAgente(s).find((f) => f.nome === nome)!
 
-Deno.test('o registro tem as ferramentas da fatia 3a e do ICP (Fases 4 e 7), cada uma com aprovação', () => {
+Deno.test('o registro tem as ferramentas da fatia 3a e do ICP (Fases 4 e 7), de Conta e de Sinal, cada uma com aprovação', () => {
   const nomes = ferramentasDoAgente(servicos().s).map((f) => `${f.nome}:${f.aprovacao}`)
   assertEquals(nomes, [
     'ler_icp:livre', 'montar_criterios_da_busca:livre', 'buscar_empresas:teto', 'aceitar_empresa:livre',
-    'descartar_empresa:livre', 'enriquecer_comite:teto', 'consultar_receita:teto', 'ler_site_para_icp:livre', 'ler_icp_do_crm:livre',
+    'descartar_empresa:livre', 'enriquecer_comite:teto', 'consultar_receita:teto',
+    'explicar_aderencia:livre', 'revelar_email:teto', 'listar_sinais:livre', 'ativar_sinal:sempre', 'ler_site_para_icp:livre', 'ler_icp_do_crm:livre',
     'salvar_icp:sempre',
   ])
 })
