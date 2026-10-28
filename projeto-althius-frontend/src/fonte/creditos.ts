@@ -44,9 +44,14 @@ export async function lerPrecosDeCreditos(cliente: SupabaseClient): Promise<Prec
 }
 /** O extrato do Workspace (`list_credit_entries`): o Administrador vê tudo; o Membro, as entradas e as próprias ações. */
 export async function lerExtratoDeCreditos(cliente: SupabaseClient, workspaceId: string): Promise<LancamentoDeCredito[]> {
-  const { data, error } = await cliente.rpc('list_credit_entries', { p_workspace_id: workspaceId, p_limit: 500 })
+  let { data, error } = await cliente.rpc('list_credit_statement', { p_workspace_id: workspaceId, p_limit: 500 })
+  if (error?.code === 'PGRST202' || (error as { status?: number } | null)?.status === 404) {
+    const antigo = await cliente.rpc('list_credit_entries', { p_workspace_id: workspaceId, p_limit: 500 })
+    data = antigo.data
+    error = antigo.error
+  }
   if (error || !Array.isArray(data)) return []
-  return data.map((item) => ({ id: item.id, creditos: Number(item.amount), tipo: item.kind, acao: item.action, sinal: null, criadoEm: item.created_at }))
+  return data.map((item) => ({ id: item.id, creditos: Number(item.amount), tipo: item.kind, acao: item.action, sinal: item.signal_name ?? null, criadoEm: item.created_at }))
 }
 
 /** O que a tela escreve no lugar do número: "Ilimitado" ou o disponível formatado. */
