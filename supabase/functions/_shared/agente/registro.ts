@@ -6,11 +6,12 @@
 // O portão é puro: o orquestrador o chama antes de executar.
 
 export type Aprovacao = 'livre' | 'teto' | 'sempre'
-export type MotivoConfirmacao = 'teto' | 'prospect'
+/** teto: passa do teto da conversa; prospect: fala com um prospect; alteracao: muda algo salvo do Workspace (o ICP). */
+export type MotivoConfirmacao = 'teto' | 'prospect' | 'alteracao'
 
 /** Um cartão que a tela desenha abaixo do passo. `tipo` escolhe o desenho. */
 export interface Cartao {
-  tipo: 'empresas' | 'pessoas' | 'receita' | 'icp' | 'criterios' | 'sinal' | 'sequencia' | 'confirmacao' | 'aviso'
+  tipo: 'empresas' | 'pessoas' | 'receita' | 'icp' | 'icp_proposto' | 'criterios' | 'sinal' | 'sequencia' | 'confirmacao' | 'aviso'
   [chave: string]: unknown
 }
 
@@ -39,6 +40,8 @@ export interface Ferramenta {
   /** Os campos da entrada, para o modelo (nome: descrição). */
   esquema: Record<string, string>
   aprovacao: Aprovacao
+  /** Por que uma ferramenta `sempre` pergunta (o padrão é `prospect`). */
+  motivo?: MotivoConfirmacao
   titulo(entrada: Record<string, unknown>): string
   /** Créditos que a ferramenta pode gastar com esta entrada (o pior caso). */
   cotar(ctx: ContextoDaFerramenta, entrada: Record<string, unknown>): Promise<number>
@@ -49,8 +52,8 @@ export interface Ferramenta {
 
 export type Portao = { estado: 'rodar' } | { estado: 'aguardar'; motivo: MotivoConfirmacao }
 
-export function portao(ferramenta: Pick<Ferramenta, 'aprovacao'>, custo: number, gastos: number, teto: number): Portao {
-  if (ferramenta.aprovacao === 'sempre') return { estado: 'aguardar', motivo: 'prospect' }
+export function portao(ferramenta: Pick<Ferramenta, 'aprovacao' | 'motivo'>, custo: number, gastos: number, teto: number): Portao {
+  if (ferramenta.aprovacao === 'sempre') return { estado: 'aguardar', motivo: ferramenta.motivo ?? 'prospect' }
   if (ferramenta.aprovacao === 'teto' && custo > 0 && gastos + custo > teto) return { estado: 'aguardar', motivo: 'teto' }
   return { estado: 'rodar' }
 }
@@ -70,6 +73,8 @@ export function cartaoDeConfirmacao(a: {
 }): Cartao {
   const texto = a.motivo === 'teto'
     ? `${a.titulo} custa até ${formatarCreditos(a.custo)}. Esta conversa já gastou ${formatarCreditos(a.gastos)} de ${formatarCreditos(a.teto)}; confirmar passa do teto.`
+    : a.motivo === 'alteracao'
+    ? `${a.titulo} grava uma nova versão no Workspace. Confira os campos antes de confirmar.`
     : `${a.titulo} fala com um prospect ou liga algo que fala por você. Nada sai sem a sua confirmação.`
   return { tipo: 'confirmacao', titulo: a.titulo, custo: a.custo, motivo: a.motivo, gastos: a.gastos, teto: a.teto, texto }
 }

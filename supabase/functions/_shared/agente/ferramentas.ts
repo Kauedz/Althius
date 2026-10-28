@@ -5,6 +5,9 @@
 //   aceitar_empresa, descartar_empresa: a decisão da pessoa sobre uma empresa da busca;
 //   enriquecer_comite: o comitê de compra de uma Conta-alvo (account-enrichment, até 10 pessoas novas);
 //   consultar_receita: os dados da Receita de um CNPJ (account-enrichment).
+// Fase 4 (o ICP pelo agente):
+//   ler_site_para_icp: lê o site do Workspace (icp-site-read) e propõe os campos do ICP, sem salvar;
+//   salvar_icp: grava setor, porte e geografia como nova versão (save_my_workspace_icp_fields), sempre com confirmação.
 import type { Cartao, ContextoDaFerramenta, Ferramenta, ResultadoDaFerramenta } from './registro.ts'
 
 /** O acesso ao Althius com a sessão de quem pede (o JWT do contexto). */
@@ -18,6 +21,8 @@ export interface ServicosDoAgente {
 
 const UUID = /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 export const PADRAO_DE_EMPRESAS = 20
+/** Os portes que save_my_workspace_icp_fields aceita. */
+export const PORTES_DO_ICP = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10001+', 'MEI', 'ME', 'EPP', 'DEMAIS']
 export const MAXIMO_DE_EMPRESAS = 50
 export const PESSOAS_DO_COMITE = 10
 /** Quanto a busca espera dentro do turno antes de seguir em segundo plano. */
@@ -343,5 +348,81 @@ export function ferramentasDoAgente(s: ServicosDoAgente): Ferramenta[] {
     },
   }
 
-  return [lerIcp, criterios, buscar, aceitar, descartar, comite, receita]
+  const lerSite: Ferramenta = {
+    nome: 'ler_site_para_icp',
+    descricao: 'Lê o site da empresa do Workspace e propõe os campos do ICP (setor, porte, geografia, cargos, o que vende). ' +
+      'Não salva: mostre a proposta e só chame salvar_icp quando a pessoa aprovar ou ajustar.',
+    esquema: { dominio: 'o site da empresa do Workspace (ex.: empresa.com.br)' },
+    aprovacao: 'livre',
+    titulo: (e) => `Ler o site ${texto(e.dominio) || 'da empresa'} para propor o ICP`,
+    cotar: () => Promise.resolve(0),
+    async executar(ctx, e) {
+      const dominio = texto(e.dominio)
+      if (!dominio) throw new Error('Informe o site da empresa do Workspace.')
+      const r = await s.funcao(ctx, 'icp-site-read', { workspaceId: ctx.workspaceId, dominio })
+      const l = r.leitura as Record<string, unknown> | null | undefined
+      if (!l || typeof l !== 'object') {
+        return {
+          resumo: `Não consegui ler o site ${dominio}. Peça para a pessoa descrever para quem vende.`,
+          cartoes: [{ tipo: 'aviso', texto: `Não consegui ler o site ${dominio}. Descreva para quem você vende e eu monto o ICP.` }],
+          custo: 0,
+        }
+      }
+      const proposta = {
+        setor: texto(l.setor),
+        porte: texto(l.porte),
+        geografia: texto(l.regiao),
+        cargos: Array.isArray(l.personas) ? (l.personas as unknown[]).map(String) : [],
+        oQueVende: texto(l.oQueVende),
+        miniIcp: texto(l.miniIcp),
+        porQueCompram: texto(l.porQueCompram),
+      }
+      const resumo = [
+        `Proposta de ICP lida de ${dominio}`,
+        proposta.setor && `setor: ${proposta.setor}`,
+        proposta.porte && `porte: ${proposta.porte}`,
+        proposta.geografia && `geografia: ${proposta.geografia}`,
+        proposta.cargos.length ? `cargos: ${proposta.cargos.join(', ')}` : '',
+        proposta.oQueVende && `o que vende: ${proposta.oQueVende.slice(0, 300)}`,
+        'Ainda não salva: mostre e chame salvar_icp com os campos que a pessoa aprovar.',
+      ].filter(Boolean).join('; ')
+      return { resumo, cartoes: [{ tipo: 'icp_proposto', dominio, ...proposta }], custo: 0 }
+    },
+  }
+
+  const salvarIcp: Ferramenta = {
+    nome: 'salvar_icp',
+    descricao: 'Salva setor, porte e geografia do ICP como nova versão do Workspace. Só depois de a pessoa revisar a proposta. ' +
+      `Porte: lista separada por vírgula de ${PORTES_DO_ICP.join(', ')}.`,
+    esquema: { setor: 'os setores, separados por vírgula', porte: 'os portes, separados por vírgula', geografia: 'as regiões' },
+    aprovacao: 'sempre',
+    motivo: 'alteracao',
+    titulo: () => 'Salvar o ICP do Workspace',
+    cotar: () => Promise.resolve(0),
+    async executar(ctx, e) {
+      const setor = texto(e.setor)
+      const geografia = texto(e.geografia)
+      const portes = texto(e.porte).split(',').map((p) => p.trim().toUpperCase()).filter(Boolean)
+      const invalido = portes.find((p) => !PORTES_DO_ICP.includes(p))
+      if (invalido) throw new Error(`O porte "${invalido}" não está na lista: ${PORTES_DO_ICP.join(', ')}.`)
+      if (!setor && !portes.length && !geografia) throw new Error('Informe ao menos setor, porte ou geografia.')
+      const icp = (await s.rpc(ctx, 'save_my_workspace_icp_fields', {
+        p_workspace_id: ctx.workspaceId, p_sector: setor, p_company_size: portes.join(', '), p_geography: geografia,
+      })) as Record<string, unknown> | null
+      const versao = icp?.version ?? null
+      const campos = {
+        versao,
+        setor: texto(icp?.sector),
+        porte: texto(icp?.companySize),
+        geografia: texto(icp?.geography),
+        cargos: Array.isArray(icp?.targetRoles) ? (icp!.targetRoles as unknown[]).map(String) : [],
+        oQueVende: texto(icp?.oQueVende),
+        miniIcp: texto(icp?.miniIcp),
+        porQueCompram: texto(icp?.porQueCompram),
+      }
+      return { resumo: `ICP salvo como versão ${versao ?? '?'}.`, cartoes: [{ tipo: 'icp', ...campos }], custo: 0 }
+    },
+  }
+
+  return [lerIcp, criterios, buscar, aceitar, descartar, comite, receita, lerSite, salvarIcp]
 }

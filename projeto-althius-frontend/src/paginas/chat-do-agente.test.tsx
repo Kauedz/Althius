@@ -62,4 +62,19 @@ describe('A tela inicial é a conversa com o agente', () => {
     await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo ao agente' }), 'Oi{Enter}')
     expect(await screen.findByText('Muitos pedidos ao mesmo tempo neste Workspace. Espere um pouco e tente de novo.')).toBeInTheDocument()
   })
+
+  it('ler o site propõe o ICP sem salvar; salvar pede confirmação de nova versão e mostra o ICP salvo', async () => {
+    const { usuario } = renderizarApp('/')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo ao agente' }), 'Monte o ICP lendo o site translog.com.br{Enter}')
+
+    const proposta = await screen.findByRole('region', { name: 'Proposta de ICP lida de translog.com.br' })
+    expect(within(proposta).getByText('Logística e transporte')).toBeInTheDocument()
+    expect(within(proposta).getByText(/Ainda não salvo/)).toBeInTheDocument()
+
+    await usuario.type(screen.getByRole('textbox', { name: 'Peça algo ao agente' }), 'Pode salvar{Enter}')
+    expect(await screen.findByText(/grava uma nova versão no Workspace/)).toBeInTheDocument()
+    expect(screen.queryByText(/prospect/)).not.toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Salvar nova versão' }))
+    expect(await screen.findByText('ICP, versão 4')).toBeInTheDocument()
+  })
 })

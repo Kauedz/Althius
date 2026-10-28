@@ -13,7 +13,9 @@ import {
   type RespostaDoModelo,
   type ResultadoNoTurno,
 } from './protocolo.ts'
-import { cartaoDeConfirmacao, type ContextoDaFerramenta, type Ferramenta, portao, type ResultadoDaFerramenta } from './registro.ts'
+import {
+  cartaoDeConfirmacao, type ContextoDaFerramenta, type Ferramenta, type MotivoConfirmacao, portao, type ResultadoDaFerramenta,
+} from './registro.ts'
 
 export interface BancoDoAgente {
   gravarPasso(a: {
@@ -21,7 +23,7 @@ export interface BancoDoAgente {
     ferramenta: string
     titulo: string
     estado: 'rodando' | 'erro' | 'aguardando_confirmacao'
-    motivo?: 'teto' | 'prospect'
+    motivo?: MotivoConfirmacao
     entrada: Record<string, unknown>
   }): Promise<string>
   atualizarPasso(a: {

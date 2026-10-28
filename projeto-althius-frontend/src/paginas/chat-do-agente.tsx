@@ -374,6 +374,22 @@ function CartaoNaTela({ cartao, passo, fonte, agir, ocupado }: { cartao: CartaoD
           </Link>
         </div>
       )
+    case 'icp_proposto':
+      return (
+        <section aria-label={`Proposta de ICP lida de ${cartao.dominio}`} className="rounded-md border border-al-line p-3 text-sm">
+          <p className="text-al-ink">Proposta de ICP lida de {cartao.dominio}</p>
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+            {cartao.setor && (<><dt className="text-al-muted">Setor</dt><dd>{cartao.setor}</dd></>)}
+            {cartao.porte && (<><dt className="text-al-muted">Porte</dt><dd>{cartao.porte}</dd></>)}
+            {cartao.geografia && (<><dt className="text-al-muted">Região</dt><dd>{cartao.geografia}</dd></>)}
+            {Boolean(cartao.cargos?.length) && (<><dt className="text-al-muted">Cargos</dt><dd>{cartao.cargos!.join(', ')}</dd></>)}
+            {cartao.oQueVende && (<><dt className="text-al-muted">O que vende</dt><dd>{cartao.oQueVende}</dd></>)}
+            {cartao.miniIcp && (<><dt className="text-al-muted">Para quem</dt><dd>{cartao.miniIcp}</dd></>)}
+            {cartao.porQueCompram && (<><dt className="text-al-muted">Por que compram</dt><dd>{cartao.porQueCompram}</dd></>)}
+          </dl>
+          <p className="mt-2 text-xs text-al-muted">Ainda não salvo. Diga o que ajustar ou peça para salvar como nova versão.</p>
+        </section>
+      )
     case 'criterios':
       return null
     case 'confirmacao':
@@ -383,7 +399,7 @@ function CartaoNaTela({ cartao, passo, fonte, agir, ocupado }: { cartao: CartaoD
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className={BOTAO_PRIMARIO} disabled={ocupado} onClick={() => void agir(() => fonte.confirmar(passo.id))}>
               <Check strokeWidth={1.8} className="size-4" aria-hidden />
-              {cartao.motivo === 'teto' ? `Confirmar ${creditos(cartao.custo)}` : 'Confirmar'}
+              {cartao.motivo === 'teto' ? `Confirmar ${creditos(cartao.custo)}` : cartao.motivo === 'alteracao' ? 'Salvar nova versão' : 'Confirmar'}
             </button>
             <button type="button" className={BOTAO_SECUNDARIO} disabled={ocupado} onClick={() => void agir(() => fonte.cancelar(passo.id))}>
               Cancelar

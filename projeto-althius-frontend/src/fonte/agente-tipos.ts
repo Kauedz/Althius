@@ -1,6 +1,9 @@
 // O agente único (Fase 3): uma conversa em `/` com turnos, passos visíveis e cartões. O contrato vem de
 // `agente_ler_conversa` e da Edge Function `agente`; a Demonstração tem a versão simulada.
 
+/** teto: passa do teto da conversa; prospect: fala com um prospect; alteracao: grava uma nova versão (o ICP). */
+export type MotivoDaConfirmacao = 'teto' | 'prospect' | 'alteracao'
+
 export type EstadoDoPasso = 'rodando' | 'ok' | 'erro' | 'aguardando_confirmacao' | 'cancelado'
 export type StatusDoTurno = 'fila' | 'rodando' | 'aguardando' | 'concluido' | 'falhou'
 export type NivelDeAderencia = 'alto' | 'medio' | 'baixo' | 'sem_dado'
@@ -54,8 +57,19 @@ export type CartaoDoAgente =
       miniIcp?: string
       porQueCompram?: string
     }
+  | {
+      tipo: 'icp_proposto'
+      dominio: string
+      setor?: string
+      porte?: string
+      geografia?: string
+      cargos?: string[]
+      oQueVende?: string
+      miniIcp?: string
+      porQueCompram?: string
+    }
   | { tipo: 'criterios'; icpVersion: number | null; criterios: Record<string, unknown> }
-  | { tipo: 'confirmacao'; titulo: string; custo: number; motivo: 'teto' | 'prospect'; gastos: number; teto: number; texto: string }
+  | { tipo: 'confirmacao'; titulo: string; custo: number; motivo: MotivoDaConfirmacao; gastos: number; teto: number; texto: string }
   | { tipo: 'aviso'; texto: string; contaId?: string; descobertaId?: string }
   | { tipo: 'sinal' | 'sequencia'; [campo: string]: unknown }
 
@@ -65,7 +79,7 @@ export interface PassoDoAgente {
   ferramenta: string
   titulo: string
   estado: EstadoDoPasso
-  motivoConfirmacao: 'teto' | 'prospect' | null
+  motivoConfirmacao: MotivoDaConfirmacao | null
   cartoes: CartaoDoAgente[]
   custo: number
   erro: string | null
