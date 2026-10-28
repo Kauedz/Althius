@@ -1,6 +1,6 @@
 # 09: Página do Sinal e "Meus Sinais"
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -33,14 +33,20 @@
 
 ## Critérios
 
-- [ ] Um Sinal criado pelo composer aparece em "Meus Sinais" com o nome gerado, editável ali mesmo.
-- [ ] A página de um Sinal mostra Briefing, Plano vigente com histórico de versões, Agenda, preço e Rodadas, sem exigir navegação extra.
-- [ ] "Meus Sinais" e "Modelos" são destinos claramente distintos na mesma tela de Sinais.
-- [ ] Nenhum dado de Sinal muda de forma pela reorganização (mesmos valores, mesma tabela).
-- [ ] Vitest cobrindo a listagem de "Meus Sinais" com Sinais de origens diferentes (composer, Modelo, `/sinais/novo`); lint e build verdes; CI verde nos três jobs.
+- [x] Um Sinal criado pelo composer aparece em "Meus Sinais" com o nome gerado, editável ali mesmo.
+- [ ] A página de um Sinal mostra Briefing, Plano vigente com histórico de versões, Agenda, preço e Rodadas, sem exigir navegação extra. Automated coverage for the complete composed page and per-version history is still missing; current data exposes only the current Plan version.
+- [x] "Meus Sinais" e "Modelos" são destinos claramente distintos na mesma tela de Sinais.
+- [x] Nenhum dado de Sinal muda de forma pela reorganização (mesmos valores, mesma tabela), verified by the Supabase source mapping and rename payload test.
+- [ ] Vitest cobrindo a listagem de "Meus Sinais" com Sinais de origens diferentes (composer, Modelo, `/sinais/novo`); lint e build verdes; CI verde nos três jobs. Focused Vitest (37 tests), lint, and build pass; full `npm test` remains blocked by six pre-existing ticket-07 failures in `src/App.test.tsx`. CI-only portions stay unticked until the PR jobs are green.
 
 ## Passos do Nan
 
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot publica o frontend.
 
 ## Comments
+
+### 2026-10-27
+
+Reorganizei a tela de Sinais em áreas distintas de **Meus Sinais** e **Modelos**. Meus Sinais agora lista todo Monitoramento ativo do Workspace, independentemente do card de catálogo, com link para a página do Sinal e rótulo neutro para composer/Modelo; o fluxo antigo não exibe rótulo. A página do Sinal continua usando os componentes existentes para Briefing/Plano, Agenda, preço em créditos e Rodadas, sem alteração de dados ou SQL. O mapeamento aceita `created_via` opcional para integração com o ticket 08. Adicionei cobertura Vitest para as três origens e marquei o ticket 14 como absorvido.
+
+Focused Vitest (37 tests), lint, and build pass. Full `npm test` still fails only in the known ticket-07 App tests (six failures); those tests were left unchanged. The Plan contract has no per-version history, so the page continues to show the current version and needs a read RPC in a follow-up; no migration, deploy, or remote database action was performed.
