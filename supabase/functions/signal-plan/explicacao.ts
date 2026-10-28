@@ -8,9 +8,11 @@ function lista(valor: string | string[] | undefined): string {
   return (Array.isArray(valor) ? valor : valor ? [valor] : []).join(', ')
 }
 
-export function explicacaoDoPlano(tipo: string, criterios: Criterios, totalDeContas: number): string {
+export function explicacaoDoPlano(tipo: string, criterios: Criterios, totalDeContas: number | 'mercado'): string {
   const rotulo = ROTULO_DO_TIPO[tipo] ?? 'Sinal'
-  const contas = totalDeContas === 1 ? 'na Conta escolhida' : `nas ${totalDeContas} Contas escolhidas`
+  const contas = totalDeContas === 'mercado'
+    ? 'no mercado do seu ICP'
+    : totalDeContas === 1 ? 'na Conta escolhida' : `nas ${totalDeContas} Contas escolhidas`
   const partes = [`Vamos acompanhar “${rotulo}” ${contas}: ${FRASE_DO_TIPO[tipo] ?? 'o que você descreveu'}.`]
   const cargos = lista(criterios.funcoes ?? criterios.cargos)
   if (cargos) partes.push(`Cargos: ${cargos}.`)

@@ -666,7 +666,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
 
     async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
       const { data, error } = await cliente.functions.invoke('signal-plan', {
-        body: { workspaceId: workspaceId(), briefing: pedido.briefing, escopo: { tipo: 'contas', contaIds: pedido.contaIds } },
+        body: { workspaceId: workspaceId(), briefing: pedido.briefing, escopo: pedido.escopo ?? { tipo: 'contas', contaIds: pedido.contaIds ?? [] } },
       })
       if (error) throw await erroDoPlano(error)
       const resposta = data as { plano?: PlanoDoSinal; avisos?: unknown } | null

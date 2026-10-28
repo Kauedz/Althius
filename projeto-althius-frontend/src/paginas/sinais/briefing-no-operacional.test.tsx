@@ -19,7 +19,7 @@ const MONITOR = '8a1c2d3e-4a5b-4c6d-8e7f-0000000000bb'
 const MONITOR_NOVO = '8a1c2d3e-4a5b-4c6d-8e7f-0000000000cc'
 
 const BRIEFING = 'Quero saber quando a Norte abrir vaga de RevOps.'
-const PLANO = {
+const PLANO: { versao: number; origem: string; escopo: { tipo: string; contaIds?: string[] }; sinais: { tipo: string; criterios: Record<string, unknown> }[]; explicacao: string; maxEmpresasPorRodada: number } = {
   versao: 1,
   origem: 'briefing',
   escopo: { tipo: 'contas', contaIds: [CONTA] },
@@ -43,7 +43,7 @@ interface MonitorNoBanco {
   signal_type: string
   name: string
   state: string
-  audience: { accountIds: string[] }
+  audience: { escopo?: string; accountIds: string[] }
   criteria: Record<string, unknown>
   last_error: string | null
   brief?: string | null
@@ -125,7 +125,7 @@ function abrir(rota: string, opcoes: Opcoes = {}) {
           signal_type: plano.sinais[0].tipo,
           name: String(p.p_name),
           state: anterior?.state ?? 'rascunho',
-          audience: { accountIds: plano.escopo.contaIds },
+          audience: plano.escopo.tipo === 'mercado' ? { escopo: 'mercado', accountIds: [] } : { accountIds: plano.escopo.contaIds ?? [] },
           criteria: plano.sinais[0].criterios,
           last_error: null,
           brief: (p.p_brief as string | null) || null,
@@ -154,6 +154,50 @@ async function escreverEEscolher(usuario: ReturnType<typeof userEvent.setup>, te
 }
 
 describe('Descrever um Sinal no Workspace operacional', () => {
+  it('sem Contas no Workspace, procura no mercado do ICP: o Plano monta e salva sem escolher Contas', async () => {
+    const PLANO_DE_MERCADO = {
+      ...PLANO,
+      escopo: { tipo: 'mercado' },
+      explicacao: 'Vamos acompanhar “Abertura de vagas” no mercado do seu ICP: a empresa abre vagas de RevOps e GTM.',
+    }
+    const { usuario, chamou } = abrir('/sinais/novo', { contas: [], planejar: () => ({ corpo: { plano: PLANO_DE_MERCADO, avisos: [] } }) })
+
+    await usuario.type(await screen.findByRole('textbox', { name: 'O que você quer acompanhar' }), BRIEFING)
+    const onde = await screen.findByRole('radiogroup', { name: 'Onde procurar' })
+    expect(within(onde).getByRole('radio', { name: 'Mercado endereçável (ICP)' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('group', { name: 'Contas-alvo' })).not.toBeInTheDocument()
+    expect(screen.getByText(/Empresas do mercado do seu ICP abrindo vagas/)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Montar plano' }))
+
+    expect(await screen.findByText(PLANO_DE_MERCADO.explicacao)).toBeInTheDocument()
+    expect(chamou('signal-plan')).toEqual([{ workspaceId: NORTE.id, briefing: BRIEFING, escopo: { tipo: 'mercado' } }])
+    expect(screen.getByText(/O país e o nicho você confere no próximo passo/)).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
+
+    await waitFor(() => expect(chamou('save_signal_plan')).toHaveLength(1))
+    expect((chamou('save_signal_plan')[0].p_plan as { escopo: unknown }).escopo).toEqual({ tipo: 'mercado' })
+    expect(chamou('save_signal_monitor')).toHaveLength(0)
+  })
+
+  it('com Contas, começa nas Contas-alvo e pode trocar para o mercado', async () => {
+    const { usuario, chamou } = abrir('/sinais/novo')
+    await usuario.type(await screen.findByRole('textbox', { name: 'O que você quer acompanhar' }), BRIEFING)
+    const onde = await screen.findByRole('radiogroup', { name: 'Onde procurar' })
+    expect(within(onde).getByRole('radio', { name: 'Contas-alvo' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: 'Montar plano' })).toBeDisabled()
+    await usuario.click(within(onde).getByRole('radio', { name: 'Mercado endereçável (ICP)' }))
+    expect(screen.queryByRole('group', { name: 'Contas-alvo' })).not.toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: 'Montar plano' }))
+    await waitFor(() => expect(chamou('signal-plan')).toHaveLength(1))
+    expect(chamou('signal-plan')[0].escopo).toEqual({ tipo: 'mercado' })
+  })
+
+  it('sem Abertura de vagas disponível, não oferece o mercado', async () => {
+    abrir('/sinais/novo', { actors: [{ signal_type: 'nova_lideranca', state: 'available' }] })
+    expect(await screen.findByRole('group', { name: 'Contas-alvo' })).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'Onde procurar' })).not.toBeInTheDocument()
+  })
+
   it('briefing, Plano, critério editado e rascunho salvo: nada é ativado e a página do Monitoramento mostra o Plano', async () => {
     const { usuario, chamou } = abrir('/sinais')
 

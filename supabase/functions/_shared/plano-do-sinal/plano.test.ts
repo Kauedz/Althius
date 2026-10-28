@@ -61,8 +61,13 @@ Deno.test('as Contas: de 1 a 500, uuid, sem repetir (decidido pelo Kauê em 24/1
   recusado(plano({ escopo: { tipo: 'contas', contaIds: [CONTA_A, CONTA_A.toUpperCase()] } }), 'contas')
 })
 
-Deno.test('o escopo mercado está previsto, mas não é oferecido', () => {
-  recusado(plano({ escopo: { tipo: 'mercado' } }), 'escopo_nao_oferecido')
+Deno.test('o escopo mercado vale só para Abertura de vagas e não leva Contas', () => {
+  const vaga = validarPlano(plano({ escopo: { tipo: 'mercado' }, sinais: [{ tipo: 'vaga_linkedin', criterios: { localizacao: ['Brasil'] } }] }), ['vaga_linkedin', 'nova_lideranca'])
+  assert(vaga.ok)
+  assertEquals(vaga.ok && vaga.plano.escopo, { tipo: 'mercado' })
+  recusado(plano({ escopo: { tipo: 'mercado', contaIds: [CONTA_A] }, sinais: [{ tipo: 'vaga_linkedin', criterios: {} }] }), 'escopo')
+  const lideranca = validarPlano(plano({ escopo: { tipo: 'mercado' }, sinais: [{ tipo: 'nova_lideranca', criterios: {} }] }), ['vaga_linkedin', 'nova_lideranca'])
+  assertEquals(lideranca.ok ? '' : lideranca.motivo, 'tipo_fora_do_mercado')
   recusado(plano({ escopo: { tipo: 'todas_as_contas' } }), 'escopo_nao_oferecido')
 })
 

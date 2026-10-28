@@ -170,6 +170,7 @@ function criteriosValidos(tipo: string, criterios: Criterios): Criterios {
 export interface PedidoDoPlano {
   briefing: string
   contaIds: string[]
+  escopo?: 'contas' | 'mercado'
   /** Os tipos que o banco diz que estão disponíveis (já cruzados com os campos conhecidos). */
   tiposAceitos: readonly string[]
 }
@@ -183,9 +184,9 @@ export function planoPorRegra(pedido: PedidoDoPlano): PlanoDoSinal | null {
   const resultado = validarPlano({
     versao: VERSAO_DO_PLANO,
     origem: 'briefing',
-    escopo: { tipo: 'contas', contaIds: pedido.contaIds },
+    escopo: pedido.escopo === 'mercado' ? { tipo: 'mercado' } : { tipo: 'contas', contaIds: pedido.contaIds },
     sinais: [{ tipo, criterios }],
-    explicacao: explicacaoDoPlano(tipo, criterios, pedido.contaIds.length),
+    explicacao: explicacaoDoPlano(tipo, criterios, pedido.escopo === 'mercado' ? 'mercado' : pedido.contaIds.length),
     maxEmpresasPorRodada: LIMITES_DO_PLANO.empresasPorRodadaPadrao,
   }, aceitos)
   return resultado.ok ? resultado.plano : null
