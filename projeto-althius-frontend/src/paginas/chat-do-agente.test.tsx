@@ -77,6 +77,18 @@ describe('A tela inicial é a conversa com o agente', () => {
     await usuario.click(screen.getByRole('button', { name: 'Salvar nova versão' }))
     expect(await screen.findByText('ICP, versão 4')).toBeInTheDocument()
   })
+
+  it('o composer da / não oferece anexos e mostra as Conexões ativas só para leitura', async () => {
+    const { usuario } = renderizarApp('/')
+    await screen.findByRole('textbox', { name: 'Peça algo ao agente' })
+    expect(screen.queryByRole('button', { name: 'Anexar' })).not.toBeInTheDocument()
+    await usuario.click(await screen.findByRole('button', { name: /Conexões/ }))
+    const painel = screen.getByRole('dialog', { name: 'Conexões ativas do Workspace' })
+    expect(within(painel).getByRole('link', { name: 'Gerenciar' })).toHaveAttribute('href', '/conexoes')
+    await usuario.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Conexões ativas do Workspace' })).not.toBeInTheDocument()
+  })
+
   it('o ICP pelos negócios ganhos do CRM mostra onde diverge do salvo, com o CRM sugerido', async () => {
     const { usuario } = renderizarApp('/')
     await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo ao agente' }), 'Proponha o ICP pelos negócios ganhos do CRM{Enter}')

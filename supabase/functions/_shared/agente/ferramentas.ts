@@ -5,6 +5,8 @@
 //   aceitar_empresa, descartar_empresa: a decisão da pessoa sobre uma empresa da busca;
 //   enriquecer_comite: o comitê de compra de uma Conta-alvo (account-enrichment, até 10 pessoas novas);
 //   consultar_receita: os dados da Receita de um CNPJ (account-enrichment).
+// Fases 5 e 6 (ferramentas-de-conta-e-sinal.ts): explicar_aderencia, revelar_email, listar_sinais e ativar_sinal (sempre
+// pergunta).
 // Fase 4 (o ICP pelo agente):
 //   ler_site_para_icp: lê o site do Workspace (icp-site-read) e propõe os campos do ICP, sem salvar;
 //   salvar_icp: grava setor, porte e geografia como nova versão (save_my_workspace_icp_fields), sempre com confirmação.
@@ -12,6 +14,7 @@
 //   ler_icp_do_crm: propõe o ICP pelos negócios ganhos do HubSpot ou do Pipedrive (ferramenta-icp-do-crm.ts), sem salvar.
 import type { Cartao, ContextoDaFerramenta, Ferramenta, ResultadoDaFerramenta } from './registro.ts'
 import { ferramentaIcpDoCrm } from './ferramenta-icp-do-crm.ts'
+import { ferramentasDeContaESinal } from './ferramentas-de-conta-e-sinal.ts'
 
 /** O acesso ao Althius com a sessão de quem pede (o JWT do contexto). */
 export interface ServicosDoAgente {
@@ -427,5 +430,5 @@ export function ferramentasDoAgente(s: ServicosDoAgente): Ferramenta[] {
     },
   }
 
-  return [lerIcp, criterios, buscar, aceitar, descartar, comite, receita, lerSite, ferramentaIcpDoCrm(s), salvarIcp]
+  return [lerIcp, criterios, buscar, aceitar, descartar, comite, receita, ...ferramentasDeContaESinal(s), lerSite, ferramentaIcpDoCrm(s), salvarIcp]
 }

@@ -122,8 +122,8 @@ function Sidebar({ alternarBarra }: { alternarBarra: () => void }) {
   const cliente = doOnboarding?.nome || workspace?.cliente
   const descricao = doOnboarding?.descricao || workspace?.descricao
   const { pathname } = useLocation()
-  // A aba de Agentes inclui a página de cada Agente e a Conversa coordenada.
-  const naAbaDeAgentes = pathname === '/' || pathname.startsWith('/agentes/') || pathname.startsWith('/conversa')
+  // A aba do Agente inclui a tela inicial, a tela antiga dos Agentes (/agentes e /agentes/:id) e a Conversa coordenada.
+  const naAbaDeAgentes = pathname === '/' || pathname.startsWith('/agentes') || pathname.startsWith('/conversa')
   const naAbaDeContas = pathname === '/contas' || pathname.startsWith('/contas/') || pathname.startsWith('/contatos')
   const naAbaDeSequencias = pathname === '/sequencias' || pathname.startsWith('/sequencias/')
   const naAbaDeSinais = pathname === '/sinais' || pathname.startsWith('/sinais/')

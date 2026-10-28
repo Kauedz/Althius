@@ -1,4 +1,4 @@
-import { ArrowUp, Building2, FileText, Image as IconeDeImagem, Paperclip, Plus, Square, X } from 'lucide-react'
+import { ArrowUp, Building2, FileText, Image as IconeDeImagem, Paperclip, Plug, Plus, Settings, Square, X } from 'lucide-react'
 import {
   useEffect,
   useId,
@@ -23,6 +23,7 @@ import {
   type EstadoDoAnexo,
 } from '@/conversa/anexos-do-composer'
 import { ListaDeMencoes, useMencao } from '@/conversa/mencao'
+import { LogoDaIntegracao } from '@/components/logos'
 import { useDados, useFonte } from '@/fonte/contexto'
 import type { AnexoDaMensagem } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
@@ -42,6 +43,10 @@ interface Props {
   classificarIntencao?: boolean
   /** Só o Workspace operacional abre o Plano no composer; a Demonstração mantém o fluxo simulado. */
   criarSinalNoComposer?: boolean
+  /** Sem ele, o composer não oferece anexos: quem recebe o pedido (o agente único) ainda não lê arquivos. */
+  aceitaAnexos?: boolean
+  /** Mostra as Conexões ativas do Workspace (só leitura), com o atalho para gerenciá-las em Conexões. */
+  mostrarConexoes?: boolean
 }
 
 let proximaChave = 1
@@ -61,7 +66,18 @@ function miniaturaLocal(arquivo: File): string | undefined {
  * dica do teclado e o Enviar (que vira Parar enquanto o pedido roda). Dá para arrastar e soltar ou colar uma imagem. O @
  * abre o autocompletar de Agentes. Os anexos só existem onde há onde guardá-los (o Workspace operacional).
  */
-export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar, aoParar, classificarIntencao = false, criarSinalNoComposer = false }: Props) {
+export function Composer({
+  nome,
+  rotulo,
+  placeholder,
+  ocupado = false,
+  aoEnviar,
+  aoParar,
+  classificarIntencao = false,
+  criarSinalNoComposer = false,
+  aceitaAnexos = true,
+  mostrarConexoes = false,
+}: Props) {
   const fonte = useFonte()
   const navegar = useNavigate()
   const workspace = useDados((f) => f.workspace(), [])
@@ -72,6 +88,10 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
   const [classificacao, setClassificacao] = useState<ClassificacaoDoPedido | null>(null)
   const [briefingDoSinal, setBriefingDoSinal] = useState('')
   const [menuAberto, setMenuAberto] = useState(false)
+  const [conexoesAbertas, setConexoesAbertas] = useState(false)
+  const integracoes = useDados((f) => (mostrarConexoes ? f.integracoes() : Promise.resolve([])), [mostrarConexoes])
+  const conectadas = (Array.isArray(integracoes) ? integracoes : []).filter((integracao) => integracao.conectada)
+  const barra = useRef<HTMLDivElement>(null)
   const [arrastando, setArrastando] = useState(false)
   const mencao = useMencao(texto, setTexto, agentes)
   const campo = useRef<HTMLTextAreaElement>(null)
@@ -80,7 +100,8 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
   const idDoCampo = useId()
   const idDasMencoes = useId()
   const idDoMenu = useId()
-  const comAnexos = typeof fonte.anexarArquivo === 'function'
+  const idDasConexoes = useId()
+  const comAnexos = aceitaAnexos && typeof fonte.anexarArquivo === 'function'
   const subindo = anexos.some((anexo) => anexo.estado === 'subindo')
   const podeEnviar = !!texto.trim() && !ocupado && !subindo
   const previas = useRef(new Set<string>())
@@ -92,6 +113,27 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
     elemento.style.height = 'auto'
     elemento.style.height = `${elemento.scrollHeight}px`
   }, [texto])
+
+  // Os menus da barra fecham com Esc ou com um clique fora deles.
+  useEffect(() => {
+    if (!menuAberto && !conexoesAbertas) return
+    function fechar() {
+      setMenuAberto(false)
+      setConexoesAbertas(false)
+    }
+    function aoClicar(evento: MouseEvent) {
+      if (!barra.current?.contains(evento.target as Node)) fechar()
+    }
+    function aoTeclarFora(evento: globalThis.KeyboardEvent) {
+      if (evento.key === 'Escape') fechar()
+    }
+    document.addEventListener('mousedown', aoClicar)
+    document.addEventListener('keydown', aoTeclarFora)
+    return () => {
+      document.removeEventListener('mousedown', aoClicar)
+      document.removeEventListener('keydown', aoTeclarFora)
+    }
+  }, [menuAberto, conexoesAbertas])
 
   // As miniaturas locais saem da memória quando o composer sai da tela.
   useEffect(() => {
@@ -180,7 +222,7 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
       aria-label={nome}
       onSubmit={enviar}
       onClick={(evento) => {
-        if (!(evento.target as HTMLElement).closest('button, textarea, input, a, [role="option"], [role="menu"]')) {
+        if (!(evento.target as HTMLElement).closest('button, textarea, input, a, [role="option"], [role="menu"], [role="dialog"]')) {
           campo.current?.focus()
         }
       }}
@@ -291,7 +333,7 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
           <button type="button" className="mt-3 text-al-accent underline" onClick={() => setClassificacao(null)}>Descrever meu próprio Sinal</button>
         </div>
       )}
-      <div className="flex items-center gap-1.5 pt-1.5 pr-2.5 pb-2.5 pl-3.5">
+      <div ref={barra} className="flex items-center gap-1.5 pt-1.5 pr-2.5 pb-2.5 pl-3.5">
         {comAnexos && (
           <div className="relative">
             <button
@@ -301,8 +343,11 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
               aria-expanded={menuAberto}
               aria-controls={menuAberto ? idDoMenu : undefined}
               disabled={anexos.filter((a) => a.estado !== 'falhou').length >= MAXIMO_DE_ANEXOS}
-              onClick={() => setMenuAberto((aberto) => !aberto)}
-              className="grid size-7.5 place-items-center rounded-full bg-al-bg text-al-muted hover:text-al-ink disabled:opacity-50"
+              onClick={() => {
+                setMenuAberto((aberto) => !aberto)
+                setConexoesAbertas(false)
+              }}
+              className="grid size-7.5 place-items-center rounded-full bg-al-bg text-al-muted transition-colors hover:bg-al-hover hover:text-al-ink disabled:opacity-50"
             >
               <Plus strokeWidth={1.8} className="size-4" aria-hidden />
             </button>
@@ -310,8 +355,9 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
               <div
                 id={idDoMenu}
                 role="menu"
-                className="absolute bottom-full left-0 z-20 mb-2 flex w-48 flex-col rounded-md border border-al-line bg-al-bg p-1 shadow-(--al-sombra-cartao)"
+                className="absolute bottom-full left-0 z-30 mb-2 flex w-56 flex-col rounded-lg border border-al-line bg-al-bg p-1.5 shadow-(--al-sombra-cartao)"
               >
+                <p className="rotulo px-2 py-1 text-[0.6875rem] text-al-muted">Adicionar ao pedido</p>
                 <button
                   type="button"
                   role="menuitem"
@@ -319,7 +365,7 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
                     setMenuAberto(false)
                     seletorDeArquivo.current?.click()
                   }}
-                  className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-al-surface"
+                  className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-al-ink transition-colors hover:bg-al-surface"
                 >
                   <Paperclip strokeWidth={1.8} className="size-4 text-al-muted" aria-hidden />
                   Anexar arquivo
@@ -331,7 +377,7 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
                     setMenuAberto(false)
                     seletorDeImagem.current?.click()
                   }}
-                  className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-al-surface"
+                  className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-al-ink transition-colors hover:bg-al-surface"
                 >
                   <IconeDeImagem strokeWidth={1.8} className="size-4 text-al-muted" aria-hidden />
                   Anexar imagem
@@ -366,10 +412,72 @@ export function Composer({ nome, rotulo, placeholder, ocupado = false, aoEnviar,
             />
           </div>
         )}
-        <span className="inline-flex h-7.5 items-center gap-1.5 rounded-full bg-al-bg pr-3 pl-2.5 text-sm whitespace-nowrap">
+        {mostrarConexoes && integracoes && (
+          <div className="relative">
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={conexoesAbertas}
+              aria-controls={conexoesAbertas ? idDasConexoes : undefined}
+              onClick={() => {
+                setConexoesAbertas((aberto) => !aberto)
+                setMenuAberto(false)
+              }}
+              className="inline-flex h-7.5 items-center gap-1.5 rounded-full bg-al-bg px-2.5 text-xs text-al-ink transition-colors hover:bg-al-hover"
+            >
+              <Plug strokeWidth={1.8} className="size-3.5 text-al-muted" aria-hidden />
+              Conexões
+              <span className="rounded-full bg-al-surface px-1.5 text-[0.6875rem] tabular-nums" aria-label={`${conectadas.length} ativas`}>
+                {conectadas.length}
+              </span>
+            </button>
+            {conexoesAbertas && (
+              <div
+                id={idDasConexoes}
+                role="dialog"
+                aria-label="Conexões ativas do Workspace"
+                className="absolute bottom-full left-0 z-30 mb-2 w-80 rounded-xl border border-al-line bg-al-bg p-3 shadow-(--al-sombra-cartao)"
+              >
+                <div className="mb-2 flex items-start justify-between gap-3 border-b border-al-line pb-2">
+                  <div>
+                    <p className="rotulo text-[0.6875rem] text-al-ink">Conexões ativas</p>
+                    <p className="text-[0.6875rem] text-al-muted">O que está conectado neste Workspace</p>
+                  </div>
+                  <Link
+                    to="/conexoes"
+                    onClick={() => setConexoesAbertas(false)}
+                    className="inline-flex shrink-0 items-center gap-1 text-[0.6875rem] text-al-accent hover:underline"
+                  >
+                    <Settings strokeWidth={1.8} className="size-3" aria-hidden />
+                    Gerenciar
+                  </Link>
+                </div>
+                {conectadas.length === 0 ? (
+                  <p className="py-2 text-xs text-al-muted">Nenhuma conexão ativa. Conecte CRM, enriquecimento ou canais em Conexões.</p>
+                ) : (
+                  <ul className="rolagem-discreta flex max-h-64 flex-col gap-0.5 overflow-y-auto">
+                    {conectadas.map((integracao) => (
+                      <li key={integracao.id} className="flex items-center gap-2.5 rounded-lg p-2">
+                        <LogoDaIntegracao id={integracao.id} nome={integracao.nome} />
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1.5 text-xs text-al-ink">
+                            {integracao.nome}
+                            <span className="rounded bg-al-surface px-1 text-[0.625rem] text-al-muted">{integracao.categoria}</span>
+                          </p>
+                          <p className="truncate text-[0.6875rem] text-al-muted">{integracao.descricao}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        <span className="inline-flex h-7.5 min-w-0 items-center gap-1.5 rounded-full bg-al-bg pr-3 pl-2.5 text-xs whitespace-nowrap text-al-ink">
           <Building2 strokeWidth={1.8} className="size-3.5 text-al-muted" aria-hidden />
-          <span className="rotulo text-[0.6875rem]">Workspace</span>
-          {workspace?.cliente}
+          <span className="rotulo text-[0.6875rem] text-al-muted">Workspace</span>
+          <span className="max-w-[12rem] truncate">{workspace?.cliente}</span>
         </span>
         <span className="ml-auto hidden text-xs text-al-muted md:inline">Enter envia, Shift+Enter quebra linha</span>
         {ocupado && aoParar ? (

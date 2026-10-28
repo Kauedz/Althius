@@ -42,6 +42,8 @@ export interface Ferramenta {
   aprovacao: Aprovacao
   /** Por que uma ferramenta `sempre` pergunta (o padrão é `prospect`). */
   motivo?: MotivoConfirmacao
+  /** O que a confirmação diz no lugar do texto de prospect (ex.: ativar um Sinal não fala com ninguém). */
+  explicacao?: string
   titulo(entrada: Record<string, unknown>): string
   /** Créditos que a ferramenta pode gastar com esta entrada (o pior caso). */
   cotar(ctx: ContextoDaFerramenta, entrada: Record<string, unknown>): Promise<number>
@@ -70,8 +72,11 @@ export function cartaoDeConfirmacao(a: {
   motivo: MotivoConfirmacao
   gastos: number
   teto: number
+  explicacao?: string
 }): Cartao {
-  const texto = a.motivo === 'teto'
+  const texto = a.motivo === 'prospect' && a.explicacao
+    ? `${a.titulo}: ${a.explicacao} Nada muda sem a sua confirmação.`
+    : a.motivo === 'teto'
     ? `${a.titulo} custa até ${formatarCreditos(a.custo)}. Esta conversa já gastou ${formatarCreditos(a.gastos)} de ${formatarCreditos(a.teto)}; confirmar passa do teto.`
     : a.motivo === 'alteracao'
     ? `${a.titulo} grava uma nova versão no Workspace. Confira os campos antes de confirmar.`

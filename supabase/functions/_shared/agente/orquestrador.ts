@@ -178,7 +178,7 @@ export async function executarTurno(t: TurnoReservado, d: DependenciasDoTurno): 
         }
         const gate = portao(f, custo, gastos, teto)
         if (gate.estado === 'aguardar') {
-          const cartao = cartaoDeConfirmacao({ titulo, custo, motivo: gate.motivo, gastos, teto })
+          const cartao = cartaoDeConfirmacao({ titulo, custo, motivo: gate.motivo, gastos, teto, explicacao: f.explicacao })
           const passoId = await d.banco.gravarPasso({
             turnoId: t.turnoId, ferramenta: f.nome, titulo, estado: 'aguardando_confirmacao', motivo: gate.motivo,
             entrada: chamada.entrada,
@@ -222,7 +222,7 @@ export async function executarEscolha(
     const custo = Math.max(0, Number(await f.cotar(ctx(''), escolha.entrada)) || 0)
     const gate = portao(f, custo, Number(t.gastos) || 0, Number(t.teto) || 50)
     if (gate.estado === 'aguardar') {
-      const cartao = cartaoDeConfirmacao({ titulo, custo, motivo: gate.motivo, gastos: Number(t.gastos) || 0, teto: Number(t.teto) || 50 })
+      const cartao = cartaoDeConfirmacao({ titulo, custo, motivo: gate.motivo, gastos: Number(t.gastos) || 0, teto: Number(t.teto) || 50, explicacao: f.explicacao })
       const passoId = await d.banco.gravarPasso({
         turnoId: t.turnoId, ferramenta: f.nome, titulo, estado: 'aguardando_confirmacao', motivo: gate.motivo, entrada: escolha.entrada,
       })

@@ -34,3 +34,8 @@ Deno.test('confirmação de alteração diz que vira uma versão nova, sem falar
   assert(String(c.texto).includes('nova versão'))
   assert(!String(c.texto).includes('prospect'))
 })
+
+Deno.test('uma ferramenta sempre pode explicar o que liga; o texto padrão fica para a mensagem a prospect', () => {
+  const c = cartaoDeConfirmacao({ titulo: 'Ativar o Sinal', custo: 0, motivo: 'prospect', gastos: 0, teto: 50, explicacao: 'Liga o Sinal na Agenda dele.' })
+  assertEquals(c.texto, 'Ativar o Sinal: Liga o Sinal na Agenda dele. Nada muda sem a sua confirmação.')
+})
