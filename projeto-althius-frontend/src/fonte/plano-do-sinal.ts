@@ -11,10 +11,13 @@ export interface EscopoDoPlanoContas {
   contaIds: string[]
 }
 
-/** Previsto no esquema; a tela ainda não oferece. */
+/** O mercado endereçável do ICP, sem Contas escolhidas. Só os tipos de `TIPOS_NO_MERCADO` rodam assim. */
 export interface EscopoDoPlanoMercado {
   tipo: 'mercado'
 }
+
+/** Os tipos que procuram no mercado endereçável (o servidor confere o mesmo): hoje só Abertura de vagas. */
+export const TIPOS_NO_MERCADO: readonly string[] = ['vaga_linkedin']
 
 export interface PlanoDoSinal {
   versao: 1
@@ -56,7 +59,8 @@ export function contasDaRodada(totalDeContas: number, plano?: Pick<PlanoDoSinal,
 
 export interface PedidoDePlano {
   briefing: string
-  contaIds: string[]
+  escopo?: EscopoDoPlanoContas | EscopoDoPlanoMercado
+  contaIds?: string[]
 }
 
 export interface PlanoMontado {

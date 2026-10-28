@@ -11,10 +11,17 @@ export interface EscopoContas {
   contaIds: string[]
 }
 
-/** Previsto no esquema; ainda não é oferecido: nenhum tipo é aceito nele até a `vaga_mercado` ser validada. */
+/**
+ * O mercado endereçável: em vez de Contas escolhidas, a busca acha empresas do ICP (nicho, país, estado) e as que ainda
+ * não são Contas vão para a Caixa de Descobertas. Só os tipos de `TIPOS_NO_MERCADO` rodam assim (o banco confere o
+ * mesmo em `private.validate_signal_plan` e no gatilho do Monitoramento de mercado).
+ */
 export interface EscopoMercado {
   tipo: 'mercado'
 }
+
+/** Os tipos que procuram no mercado endereçável: hoje só Abertura de vagas. */
+export const TIPOS_NO_MERCADO: readonly string[] = ['vaga_linkedin']
 
 export type EscopoDoPlano = EscopoContas | EscopoMercado
 
@@ -78,18 +85,25 @@ export function validarPlano(entrada: unknown, tiposAceitos: readonly string[]):
   const origem = bruto.origem as OrigemDoPlano
 
   const escopoBruto = objeto(bruto.escopo)
-  if (!escopoBruto || escopoBruto.tipo !== 'contas') return { ok: false, motivo: 'escopo_nao_oferecido' }
-  if (Object.keys(escopoBruto).some((chave) => chave !== 'tipo' && chave !== 'contaIds')) return { ok: false, motivo: 'escopo' }
-  const ids = escopoBruto.contaIds
-  if (!Array.isArray(ids) || ids.length < 1 || ids.length > LIMITES_DO_PLANO.contasEscolhidasMax) {
-    return { ok: false, motivo: 'contas' }
+  if (!escopoBruto || (escopoBruto.tipo !== 'contas' && escopoBruto.tipo !== 'mercado')) {
+    return { ok: false, motivo: 'escopo_nao_oferecido' }
   }
+  const noMercado = escopoBruto.tipo === 'mercado'
   const contaIds: string[] = []
-  for (const id of ids) {
-    if (typeof id !== 'string' || !UUID.test(id)) return { ok: false, motivo: 'contas' }
-    const chave = id.toLowerCase()
-    if (contaIds.includes(chave)) return { ok: false, motivo: 'contas' }
-    contaIds.push(chave)
+  if (noMercado) {
+    if (Object.keys(escopoBruto).some((chave) => chave !== 'tipo')) return { ok: false, motivo: 'escopo' }
+  } else {
+    if (Object.keys(escopoBruto).some((chave) => chave !== 'tipo' && chave !== 'contaIds')) return { ok: false, motivo: 'escopo' }
+    const ids = escopoBruto.contaIds
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > LIMITES_DO_PLANO.contasEscolhidasMax) {
+      return { ok: false, motivo: 'contas' }
+    }
+    for (const id of ids) {
+      if (typeof id !== 'string' || !UUID.test(id)) return { ok: false, motivo: 'contas' }
+      const chave = id.toLowerCase()
+      if (contaIds.includes(chave)) return { ok: false, motivo: 'contas' }
+      contaIds.push(chave)
+    }
   }
 
   if (!Array.isArray(bruto.sinais) || bruto.sinais.length !== LIMITES_DO_PLANO.sinaisPorPlano) {
@@ -100,6 +114,7 @@ export function validarPlano(entrada: unknown, tiposAceitos: readonly string[]):
     const s = objeto(item)
     if (!s || Object.keys(s).some((chave) => chave !== 'tipo' && chave !== 'criterios')) return { ok: false, motivo: 'sinais' }
     if (typeof s.tipo !== 'string' || !tiposAceitos.includes(s.tipo)) return { ok: false, motivo: 'tipo_indisponivel' }
+    if (noMercado && !TIPOS_NO_MERCADO.includes(s.tipo)) return { ok: false, motivo: 'tipo_fora_do_mercado' }
     const criterios = validarCriterios(s.tipo, s.criterios ?? {})
     if (!criterios.ok) return criterios
     sinais.push({ tipo: s.tipo, criterios: criterios.criterios })
@@ -131,7 +146,7 @@ export function validarPlano(entrada: unknown, tiposAceitos: readonly string[]):
   const plano: PlanoDoSinal = {
     versao: VERSAO_DO_PLANO,
     origem,
-    escopo: { tipo: 'contas', contaIds },
+    escopo: noMercado ? { tipo: 'mercado' } : { tipo: 'contas', contaIds },
     sinais,
     explicacao,
     maxEmpresasPorRodada: max,

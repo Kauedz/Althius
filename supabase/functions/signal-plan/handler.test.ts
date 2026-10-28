@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
 import { MARCA_INTERNA } from '../_shared/marca.ts'
 import type { Llm } from '../_shared/cascata-de-sinais/tipos.ts'
-import { validarPlano } from '../_shared/plano-do-sinal/index.ts'
+import { type PlanoDoSinal, validarPlano } from '../_shared/plano-do-sinal/index.ts'
 import { createHandler, type Db, ErroDoPedido, MENSAGENS, type ResultadoDoPedido } from './handler.ts'
 import type { ContextoIcp } from './planejador-por-ia.ts'
 import { AVISO_DO_PLANO_INICIAL } from './planejador-por-regra.ts'
@@ -314,7 +314,7 @@ Deno.test('entrada inválida é recusada antes de abrir o pedido (e de gastar o 
   const entradas: [string, unknown][] = [
     ['sem briefing', pedido('   ')],
     ['briefing longo', pedido('a'.repeat(1001))],
-    ['escopo mercado', pedido('vagas', { escopo: { tipo: 'mercado' } })],
+    ['escopo desconhecido', pedido('vagas', { escopo: { tipo: 'todas_as_contas' } })],
     ['sem escopo', { workspaceId: WORKSPACE, briefing: 'vagas' }],
     ['sem Contas', pedido('vagas', { escopo: { tipo: 'contas', contaIds: [] } })],
     ['Conta repetida', pedido('vagas', { escopo: { tipo: 'contas', contaIds: [CONTAS[0], CONTAS[0].toUpperCase()] } })],
@@ -336,6 +336,25 @@ Deno.test('entrada inválida é recusada antes de abrir o pedido (e de gastar o 
   assertEquals(registro.abertos, 0)
   const get = await createHandler({ db, appOrigin: 'https://app.althius.com.br' })(new Request('https://funcoes.invalid/signal-plan'))
   assertEquals(get.status, 405)
+})
+
+Deno.test('no mercado: sem Contas, só Abertura de vagas, país padrão Brasil e explicação do mercado', async () => {
+  const { db } = fakeDb()
+  const r = await chamar(pedido('empresas contratando analista de comércio exterior', { escopo: { tipo: 'mercado' } }), { db })
+  assertEquals(r.resposta.status, 200)
+  const plano = r.corpo.plano as PlanoDoSinal
+  assertEquals(plano.escopo, { tipo: 'mercado' })
+  assertEquals(plano.sinais[0].tipo, 'vaga_linkedin')
+  assertEquals(plano.sinais[0].criterios.localizacao, ['Brasil'])
+  assertStringIncludes(plano.explicacao, 'no mercado do seu ICP')
+})
+
+Deno.test('no mercado sem Abertura de vagas disponível: recusa com codigo sem_tipos e mensagem do mercado', async () => {
+  const { db } = fakeDb({ tipos: ['anuncio_meta', 'nova_lideranca'] })
+  const r = await chamar(pedido('novos diretores', { escopo: { tipo: 'mercado' } }), { db })
+  assertEquals(r.resposta.status, 409)
+  assertEquals(r.corpo.codigo, 'sem_tipos')
+  assertEquals(r.corpo.error, MENSAGENS.semTiposNoMercado)
 })
 
 Deno.test('sem tipo disponível: recusa neutra e pedido fechado como falhou', async () => {
