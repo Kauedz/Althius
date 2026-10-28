@@ -14,6 +14,7 @@ import { tempoRelativo } from '@/conversa/tempo-relativo'
 import {
   type CartaoDoAgente, type ConversaDoAgente, type EmpresaDoCartao, type EscolhaDoCartao, type FonteDoAgente,
   type PassoDoAgente, type ResumoDaConversaDoAgente, type TurnoDoAgente, turnoEmAndamento, ErroDoAgente,
+  type DivergenciaDoIcp,
 } from '@/fonte/agente-tipos'
 import { useAmbiente, useDados, useFonteDoAgente } from '@/fonte/contexto'
 import { cn, mensagemDeErro } from '@/lib/utils'
@@ -426,8 +427,13 @@ function CartaoNaTela({ cartao, passo, fonte, agir, ocupado }: { cartao: CartaoD
       )
     case 'icp_proposto':
       return (
-        <section aria-label={`Proposta de ICP lida de ${cartao.dominio}`} className="rounded-md border border-al-line p-3 text-sm">
-          <p className="text-al-ink">Proposta de ICP lida de {cartao.dominio}</p>
+        <section aria-label={tituloDaProposta(cartao)} className="rounded-md border border-al-line p-3 text-sm">
+          <p className="text-al-ink">{tituloDaProposta(cartao)}</p>
+          {cartao.origem === 'crm' && typeof cartao.negocios === 'number' && (
+            <p className="mt-0.5 text-xs text-al-muted tabular-nums">
+              {cartao.negocios === 1 ? '1 negócio ganho lido' : `${cartao.negocios.toLocaleString('pt-BR')} negócios ganhos lidos`}
+            </p>
+          )}
           <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
             {cartao.setor && (<><dt className="text-al-muted">Setor</dt><dd>{cartao.setor}</dd></>)}
             {cartao.porte && (<><dt className="text-al-muted">Porte</dt><dd>{cartao.porte}</dd></>)}
@@ -437,6 +443,23 @@ function CartaoNaTela({ cartao, passo, fonte, agir, ocupado }: { cartao: CartaoD
             {cartao.miniIcp && (<><dt className="text-al-muted">Para quem</dt><dd>{cartao.miniIcp}</dd></>)}
             {cartao.porQueCompram && (<><dt className="text-al-muted">Por que compram</dt><dd>{cartao.porQueCompram}</dd></>)}
           </dl>
+          {Boolean(cartao.divergencias?.length) && (
+            <div className="mt-3 border-t border-al-line pt-2">
+              <p className="text-xs text-al-ink">Onde diverge do ICP salvo</p>
+              <ul aria-label="Onde o CRM diverge do ICP salvo" className="mt-1 flex flex-col gap-1.5 text-xs">
+                {cartao.divergencias!.map((d) => (
+                  <li key={d.campo} className="grid grid-cols-[6rem_1fr] gap-x-4">
+                    <span className="text-al-muted">{ROTULO_DO_CAMPO[d.campo]}</span>
+                    <span className="flex flex-col">
+                      <span>CRM: {d.doCrm}</span>
+                      <span className="text-al-muted">Salvo: {d.doSite}</span>
+                      <span className="text-al-muted">Sugerido: o do CRM</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="mt-2 text-xs text-al-muted">Ainda não salvo. Diga o que ajustar ou peça para salvar como nova versão.</p>
         </section>
       )
@@ -462,6 +485,13 @@ function CartaoNaTela({ cartao, passo, fonte, agir, ocupado }: { cartao: CartaoD
     default:
       return null
   }
+}
+
+const ROTULO_DO_CAMPO: Record<DivergenciaDoIcp['campo'], string> = { setor: 'Setor', porte: 'Porte', regiao: 'Região' }
+
+function tituloDaProposta(cartao: { origem?: 'crm'; crms?: string[]; dominio?: string }): string {
+  if (cartao.origem === 'crm') return `Proposta de ICP pelos negócios ganhos${cartao.crms?.length ? ` (${cartao.crms.join(', ')})` : ''}`
+  return `Proposta de ICP lida de ${cartao.dominio ?? 'site'}`
 }
 
 function CartaoDeEmpresas({ empresas, passo, fonte, agir, ocupado }: { empresas: EmpresaDoCartao[]; passo: PassoDoAgente } & Omit<PropsDoTurno, 'turno'>) {

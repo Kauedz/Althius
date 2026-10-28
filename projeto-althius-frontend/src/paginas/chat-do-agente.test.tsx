@@ -88,4 +88,20 @@ describe('A tela inicial é a conversa com o agente', () => {
     await usuario.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Conexões ativas do Workspace' })).not.toBeInTheDocument()
   })
+
+  it('o ICP pelos negócios ganhos do CRM mostra onde diverge do salvo, com o CRM sugerido', async () => {
+    const { usuario } = renderizarApp('/')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo ao agente' }), 'Proponha o ICP pelos negócios ganhos do CRM{Enter}')
+
+    const proposta = await screen.findByRole('region', { name: 'Proposta de ICP pelos negócios ganhos (HubSpot)' })
+    expect(within(proposta).getByText('12 negócios ganhos lidos')).toBeInTheDocument()
+    const divergencias = within(proposta).getByRole('list', { name: 'Onde o CRM diverge do ICP salvo' })
+    const itens = within(divergencias).getAllByRole('listitem')
+    expect(itens).toHaveLength(2)
+    expect(itens[0]).toHaveTextContent('Porte')
+    expect(itens[0]).toHaveTextContent('CRM: 201-500')
+    expect(itens[0]).toHaveTextContent('Salvo: 51-200')
+    expect(within(proposta).getAllByText('Sugerido: o do CRM')).toHaveLength(2)
+    expect(within(proposta).getByText(/Ainda não salvo/)).toBeInTheDocument()
+  })
 })
