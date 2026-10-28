@@ -9,7 +9,7 @@ import { conferirWorkspaceOperacional, vigiar } from '../support/vigia.js'
 
 const SECOES = ['conversa', 'memoria', 'habilidades', 'rotinas', 'atividade'] as const
 
-const ESCRITAS = /\/rest\/v1\/rpc\/(create_agent|delete_agent|edit_agent_memory_fact|delete_agent_memory_fact|set_agent_skill_active|create_agent_routine|update_agent_routine|set_agent_routine_paused|delete_agent_routine|retry_agent_run|save_agent_personalization|rename_agent_conversation|start_agent_conversation|append_agent_message)\b|\/functions\/v1\/agent-conversation\b/
+const ESCRITAS = /\/rest\/v1\/rpc\/(create_agent|delete_agent|edit_agent_memory_fact|delete_agent_memory_fact|set_agent_skill_active|create_agent_routine|update_agent_routine|set_agent_routine_paused|delete_agent_routine|retry_agent_run|save_agent_settings|rename_agent_conversation|archive_agent_conversation|cancel_agent_run)\b/
 
 async function rpc<T>(request: APIRequestContext, nome: string, dados: Record<string, unknown>): Promise<T> {
   const e = ambiente()
@@ -63,7 +63,11 @@ test('rotas antigas de cada Agente abrem só leitura e o dado dos Agentes não m
   const conferir = vigiar(page, testInfo)
   const escritas: string[] = []
   page.on('request', (req) => {
-    if (ESCRITAS.test(req.url()) || (req.method() !== 'GET' && /\/rest\/v1\/(?!rpc\/)/.test(req.url()))) escritas.push(`${req.method()} ${new URL(req.url()).pathname}`)
+    const url = req.url()
+    // A agent-conversation também atende a leitura `capability` (o app pergunta se há modelo configurado); qualquer outra
+    // ação dela é pedido novo a um Agente.
+    const pedidoAoAgente = /\/functions\/v1\/agent-conversation\b/.test(url) && req.method() === 'POST' && !/"action"\s*:\s*"capability"/.test(req.postData() ?? '')
+    if (ESCRITAS.test(url) || pedidoAoAgente || (req.method() !== 'GET' && /\/rest\/v1\/(?!rpc\/)/.test(url))) escritas.push(`${req.method()} ${new URL(url).pathname}`)
   })
 
   const antes = await lerAgentes(request)
