@@ -10,6 +10,7 @@ import {
   type DadoRevelado,
   ApifyProvedorDeContatos,
   CascataProvedorDeContatos,
+  fonteDoCliente,
   fornecedoresDaCascata,
 } from '../_shared/provedor-de-contatos.ts'
 import { mensagemSegura } from '../_shared/marca.ts'
@@ -155,6 +156,11 @@ export interface DbEnrichment {
 export interface DepsEnrichment {
   db: DbEnrichment
   apify?: Apify
+  /**
+   * As fontes do Cliente para esta pessoa no Workspace (Apollo e, quando houver, CRM), chamadas pela camada de
+   * Integrações. Entram na cascata depois do Apify e o que acham não cobra Créditos Althius.
+   */
+  provedoresDoCliente?: (pedido: { workspaceId: string; userId: string }) => Promise<{ apollo?: ProvedorDeContatos; crm?: ProvedorDeContatos }>
   provedorContatos?: ProvedorDeContatos
   fetchFn?: typeof fetch
   actorReceita?: string
@@ -393,7 +399,22 @@ function json(corpo: unknown, status: number) {
 }
 
 export function criarHandlerEnrichment(deps: DepsEnrichment) {
-  const provedor = deps.provedorContatos ?? new CascataProvedorDeContatos(fornecedoresDaCascata({ apify: deps.apify }))
+  // O comitê e o revelar chamam o actor do Apify direto quando ele é a única fonte: a cascata engolia a exceção e a falha
+  // virava "não encontrado". Com Apollo ou CRM do Cliente, a cascata tenta o Apify primeiro e só depois as conexões.
+  const provedorDaChamada = async (workspaceId: string, userId: string): Promise<ProvedorDeContatos> => {
+    if (deps.provedorContatos) return deps.provedorContatos
+    let doCliente: { apollo?: ProvedorDeContatos; crm?: ProvedorDeContatos } = {}
+    try {
+      doCliente = (await deps.provedoresDoCliente?.({ workspaceId, userId })) ?? {}
+    } catch {
+      // Sem conseguir ler as conexões, segue só com o Apify.
+      doCliente = {}
+    }
+    if (!doCliente.apollo && !doCliente.crm) {
+      return deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : new CascataProvedorDeContatos([])
+    }
+    return new CascataProvedorDeContatos(fornecedoresDaCascata({ apify: deps.apify, ...doCliente }))
+  }
 
   const handler = async function handler(req: Request): Promise<Response> {
     if (req.method === 'OPTIONS') {
@@ -531,9 +552,8 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           apikey,
         })
 
-        // O comitê chama o actor direto, e a medição (id e custo) é a da execução dele.
-        const buscaDePessoas = deps.provedorContatos
-          ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
+        // A medição (id e custo) é a da execução do actor do Apify; as conexões do Cliente não a preenchem.
+        const buscaDePessoas = await provedorDaChamada(workspaceId, user.userId)
         const medicao = { runId: null as string | null, costUsd: null as number | null }
         const gravarCusto = (itens: number) => {
           if (!medicao.runId || !deps.db.recordDiscoveryCost) return Promise.resolve()
@@ -599,7 +619,8 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
               location: p.localizacao,
               photoUrl: p.foto,
               persona: p.persona,
-              sourceActor: actorId,
+              // A origem LGPD: o actor do Apify ou a conexão do Cliente que achou a pessoa.
+              sourceActor: fonteDoCliente(p.fonte) ? String(p.fonte) : actorId,
               sourceProvider: p.fonte,
               sourceData: p,
             })
@@ -706,9 +727,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           apikey,
         })
 
-        // O revelar chama o actor direto, como o comitê: a cascata engolia a exceção e a falha virava "não encontrado".
-        const revelador = deps.provedorContatos
-          ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
+        const revelador = await provedorDaChamada(workspaceId, user.userId)
         const actorId = 'harvestapi~linkedin-profile-scraper'
         const medicao = { runId: null as string | null, costUsd: null as number | null }
         // Um perfil consultado por execução, achando ou não: input_units é a entrada do actor.

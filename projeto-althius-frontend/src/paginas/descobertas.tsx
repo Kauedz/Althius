@@ -15,6 +15,11 @@ import {
   type CodigoDoDescarte,
 } from '@/fonte/aprendizado-da-descoberta'
 import { cn } from '@/lib/utils'
+import { EtiquetasDeTexto } from '@/components/etiquetas-de-texto'
+import { SelecaoMultipla } from '@/components/selecao-multipla'
+import { PORTES_DO_ICP } from '@/fonte/campos-do-icp'
+import { PORTES_DA_RECEITA, ROTULOS_DOS_PORTES, SETORES_DA_BUSCA } from '@/fonte/opcoes-da-busca'
+import { useDadosDoBrasil } from './sinais/dados-do-brasil'
 import { AbasDoModulo, CampoDeBusca, Contagem } from './modulo-contas-e-contatos'
 
 const INTERVALO_POLLING_MS = 5_000
@@ -96,32 +101,16 @@ function DetalheDaCandidata({ candidata, ajustes = [] }: { candidata: ContaDesco
   )
 }
 
-type CampoDoFiltro = 'setores' | 'palavrasChave' | 'portes' | 'regioes'
-const CAMPOS_DO_FILTRO: CampoDoFiltro[] = ['setores', 'palavrasChave', 'portes', 'regioes']
-const TEXTOS_VAZIOS: Record<CampoDoFiltro, string> = { setores: '', palavrasChave: '', portes: '', regioes: '' }
-
-function textosDe(criterios: CriteriosDaBusca): Record<CampoDoFiltro, string> {
-  return Object.fromEntries(CAMPOS_DO_FILTRO.map((c) => [c, (criterios[c] ?? []).join(', ')])) as Record<CampoDoFiltro, string>
-}
-
-/** Os filtros que vão para a busca: os do ICP com os campos editados pela pessoa, em listas sem itens vazios. */
-function comTextos(criterios: CriteriosDaBusca, textos: Record<CampoDoFiltro, string>): CriteriosDaBusca {
-  const editados = Object.fromEntries(
-    CAMPOS_DO_FILTRO.map((c) => [c, textos[c].split(/\s*[,;]\s*/).map((v) => v.trim()).filter(Boolean)]),
-  )
-  return { ...criterios, ...editados }
-}
-
 export function PaginaDescobertas() {
   const fonte = useFonteDeDescobertas()
+  const dadosDoBrasil = useDadosDoBrasil()
   const fonteDeContas = useFonteDeContas()
   const saldo = useDados((f) => (f.saldoDeCreditos ? f.saldoDeCreditos() : Promise.resolve(null)), [])
   const [estadoAba, setEstadoAba] = useState<EstadoContaDescoberta>('nova')
   const [busca, setBusca] = useState('')
   const [pedindoBusca, setPedindoBusca] = useState(false)
   const [criteriosBusca, setCriteriosBusca] = useState<{ criterios: CriteriosDaBusca; icpVersion: number | null; resumo: string; temIcp: boolean } | null>(null)
-  // O texto de cada filtro como a pessoa digita ("A, B"); vira lista só ao confirmar, para a vírgula não sumir enquanto digita.
-  const [textosDosFiltros, setTextosDosFiltros] = useState<Record<CampoDoFiltro, string>>(TEXTOS_VAZIOS)
+  const [criteriosEditados, setCriteriosEditados] = useState<CriteriosDaBusca | null>(null)
   const [erroAcao, setErroAcao] = useState<string | null>(null)
   const [modalUrl, setModalUrl] = useState<{ id: string; nome: string } | null>(null)
   const [urlInformada, setUrlInformada] = useState('')
@@ -217,7 +206,7 @@ export function PaginaDescobertas() {
     try {
       const resultado = await fonte.criteriosDaBusca()
       setCriteriosBusca({ criterios: resultado.criterios, icpVersion: resultado.icpVersion, resumo: resultado.icpResumo, temIcp: resultado.temIcp })
-      setTextosDosFiltros(textosDe(resultado.criterios))
+      setCriteriosEditados(resultado.criterios)
     } catch (e) {
       setErroAcao(e instanceof Error ? e.message : 'Erro ao iniciar busca de contas.')
     } finally {
@@ -225,11 +214,30 @@ export function PaginaDescobertas() {
     }
   }
 
-  const criteriosEditados = criteriosBusca ? comTextos(criteriosBusca.criterios, textosDosFiltros) : null
-  const criteriosValidos = criteriosEditados ? criteriosEditados.setores.length > 0 || criteriosEditados.palavrasChave.length > 0 : false
+  // Região no formato que a busca já entende (account-discovery/regioes.ts): "Brasil", a sigla da UF ou "Cidade, UF".
+  const opcoesDeRegiao = dadosDoBrasil
+    ? [
+        { valor: 'Brasil' },
+        ...dadosDoBrasil.localidades.ufs.map(([uf, nome]) => ({ valor: uf, detalhe: nome })),
+        ...dadosDoBrasil.localidades.cidades.map(([cidade, uf]) => ({ valor: `${cidade}, ${uf}` })),
+      ]
+    : []
+  const opcoesDeCnae = dadosDoBrasil
+    ? (['subclasses'] as const).flatMap((nivel) =>
+        (dadosDoBrasil.cnae[nivel] as [string, string, string?][]).map(([codigo, descricao]) => ({ valor: codigo, detalhe: descricao })),
+      )
+    : []
+  const opcoesDePorte = (fonte: CriteriosDaBusca['fonte']) =>
+    PORTES_DO_ICP.filter((p) => fonte === 'receita' || !PORTES_DA_RECEITA.includes(p)).map((valor) => ({
+      valor,
+      detalhe: ROTULOS_DOS_PORTES[valor],
+    }))
+  const opcoesDeSetor = [...new Set([...(criteriosBusca?.criterios.setores ?? []), ...SETORES_DA_BUSCA])].map((valor) => ({ valor }))
+  const criteriosDoDialog = criteriosEditados ?? criteriosBusca?.criterios ?? null
+  const criteriosValidos = criteriosDoDialog ? criteriosDoDialog.setores.length > 0 || criteriosDoDialog.palavrasChave.length > 0 : false
 
   async function confirmarBusca() {
-    if (!criteriosBusca || !criteriosEditados || !criteriosValidos) return
+    if (!criteriosBusca || !criteriosDoDialog || !criteriosValidos) return
     setPedindoBusca(true)
     setErroAcao(null)
     try {
@@ -238,7 +246,7 @@ export function PaginaDescobertas() {
         setErroAcao('A fonte desta busca ainda está em validação pela equipe Althius.')
         return
       }
-      await fonte.buscarContas({ criterios: criteriosEditados, icpVersion: criteriosBusca.icpVersion, allowTesting })
+      await fonte.buscarContas({ criterios: criteriosDoDialog, icpVersion: criteriosBusca.icpVersion, allowTesting })
       setCriteriosBusca(null)
       recarregarCotacao()
       recarregarLista()
@@ -714,13 +722,52 @@ export function PaginaDescobertas() {
             <h3 className="text-base font-semibold text-al-ink">Confirmar filtros da busca</h3>
             <p className="mt-1 text-xs text-al-muted">Do seu ICP{criteriosBusca.resumo ? `: ${criteriosBusca.resumo}` : '.'}</p>
             <div className="mt-4 grid gap-3">
-              {([
-                ['setores', 'Setores'], ['palavrasChave', 'Palavras-chave'], ['portes', 'Porte (faixas)'], ['regioes', 'Região'],
-              ] as const).map(([campo, rotulo]) => (
-                <label key={campo} className="text-xs font-medium text-al-ink">{rotulo}
-                  <input aria-label={rotulo} value={textosDosFiltros[campo]} placeholder={campo === 'portes' ? '1-10, 11-50' : 'Separe por vírgula'} onChange={(e) => setTextosDosFiltros({ ...textosDosFiltros, [campo]: e.target.value })} className="mt-1 w-full rounded-lg border border-al-line bg-al-bg px-3 py-2 text-sm font-normal" />
-                </label>
-              ))}
+              {criteriosDoDialog && (
+                <>
+                  <SelecaoMultipla
+                    rotulo="Setores"
+                    opcoes={opcoesDeSetor}
+                    selecionadas={criteriosDoDialog.setores}
+                    aoMudar={(setores) => setCriteriosEditados({ ...criteriosDoDialog, setores })}
+                  />
+                  <EtiquetasDeTexto
+                    rotulo="Palavras-chave"
+                    valores={criteriosDoDialog.palavrasChave}
+                    aoMudar={(palavrasChave) => setCriteriosEditados({ ...criteriosDoDialog, palavrasChave })}
+                  />
+                  <SelecaoMultipla
+                    rotulo="Porte (faixas)"
+                    opcoes={opcoesDePorte(criteriosDoDialog.fonte)}
+                    selecionadas={criteriosDoDialog.portes}
+                    aoMudar={(portes) => setCriteriosEditados({ ...criteriosDoDialog, portes })}
+                  />
+                  {dadosDoBrasil ? (
+                    <SelecaoMultipla
+                      rotulo="Região"
+                      opcoes={opcoesDeRegiao}
+                      selecionadas={criteriosDoDialog.regioes}
+                      aoMudar={(regioes) => setCriteriosEditados({ ...criteriosDoDialog, regioes })}
+                      dica="Buscar estado ou cidade"
+                    />
+                  ) : (
+                    <Carregando rotulo="Carregando as localidades" />
+                  )}
+                  {criteriosDoDialog.fonte === 'receita' && dadosDoBrasil && (
+                    <SelecaoMultipla
+                      rotulo="CNAEs"
+                      opcoes={opcoesDeCnae}
+                      selecionadas={criteriosDoDialog.cnaes}
+                      aoMudar={(cnaes) => setCriteriosEditados({ ...criteriosDoDialog, cnaes })}
+                      dica="Buscar por código ou descrição"
+                    />
+                  )}
+                  <EtiquetasDeTexto
+                    rotulo="Excluir"
+                    valores={criteriosDoDialog.excluir}
+                    aoMudar={(excluir) => setCriteriosEditados({ ...criteriosDoDialog, excluir })}
+                  />
+                </>
+              )}
             </div>
             {!criteriosBusca.temIcp || !criteriosValidos ? <p className="mt-3 text-xs text-al-atencao">Informe ao menos um setor ou uma palavra-chave. <Link className="underline" to="/configuracoes/playbook/icp">Edite o ICP em Configurações</Link>.</p> : null}
             <p className="mt-3 text-xs text-al-muted">Custo: {ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.creditos) : 'calculando'} · Saldo: {ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.saldoDisponivel) : 'calculando'}</p>
