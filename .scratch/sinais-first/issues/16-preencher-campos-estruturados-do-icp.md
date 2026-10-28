@@ -60,7 +60,7 @@ Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e 
 
 ### 27/10/2026
 
-- Migration `20261217150000_campos_estruturados_do_icp.sql`: `private.normalize_icp_field` (lista sem repetidos, até 20 itens de até 80 caracteres), `public.save_my_workspace_icp_fields` (só Administrador; porte nas faixas e portes legais; versão nova só quando muda; copia o resto da versão vigente) e `private.score_market_discovery_icp` redefinida para listas e faixas de funcionários, com recálculo das Candidatas existentes. pgTAP `campos_estruturados_do_icp.sql` (20 asserções).
+- Migration `20261217190000_campos_estruturados_do_icp.sql`: `private.normalize_icp_field` (lista sem repetidos, até 20 itens de até 80 caracteres), `public.save_my_workspace_icp_fields` (só Administrador; porte nas faixas e portes legais; versão nova só quando muda; copia o resto da versão vigente) e `private.score_market_discovery_icp` redefinida para listas e faixas de funcionários, com recálculo das Candidatas existentes. pgTAP `campos_estruturados_do_icp.sql` (20 asserções).
 - Edge Function nova `icp-site-read` (`verify_jwt = true`, README próprio e entrada no índice de funções).
 - Frontend: bloco "ICP do Workspace" no Day0 operacional; "Campos do ICP" em Configurações > Playbook > ICP; `lerSite` real com os estados lendo, pronta e falhou, iniciado ao confirmar o domínio.
 - `signal-plan`: a geografia do ICP vira o critério `localizacao` quando o Briefing não fala de lugar (achado do smoke 06). O smoke 06 e o `globalSetup` do e2e passam a usar a RPC nova e a conferir os critérios.
@@ -77,3 +77,4 @@ Decisões conservadoras (para o Kauê confirmar):
 9. No Plano do Sinal só a geografia vira critério, e só no nível de país (as opções de `localizacao`); setor e porte ficam no prompt e na Aderência. UF e região como critério de Plano pedem mudar `private.validate_signal_plan`, o formulário e o runner, num ticket próprio.
 
 - 27/10/2026 — CI do PR #308 verde nos três jobs (run https://github.com/Kauedz/Althius/actions/runs/40613481170). A primeira rodada pegou um pgTAP que lia o ICP do outro Workspace pela RPC sem participar dele; o teste passou a conferir a tabela direto.
+- 27/10/2026 — Migration renomeada de `20261217150000` para `20261217190000`: o lote 3 (PR #309) aplicou `20261217170000` e `20261217180000` em produção antes, e o histórico de migrations de produção fica em ordem crescente. Conteúdo sem mudança.
