@@ -110,6 +110,8 @@ export function Extrato({ lancamentos }: { lancamentos: LancamentoDeCredito[] })
   const visiveis = lancamentos.filter(
     (l) => (acao === 'todas' || l.acao === acao) && (sinal === 'todos' || l.sinal === sinal),
   )
+  const porSinal = resumoDoUso(lancamentos, (l) => l.sinal)
+  const porAcao = resumoDoUso(lancamentos, (l) => l.acao)
 
   const filtros = (
     <>
@@ -139,30 +141,65 @@ export function Extrato({ lancamentos }: { lancamentos: LancamentoDeCredito[] })
       {lancamentos.length === 0 ? (
         <p className="text-sm text-al-muted">Nenhum lançamento ainda.</p>
       ) : (
-        <table aria-label="Extrato de créditos" className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-al-line text-xs tracking-rotulo uppercase text-al-muted">
-              <th className="py-2 font-normal">Data</th>
-              <th className="py-2 font-normal">Ação</th>
-              <th className="py-2 font-normal">Sinal</th>
-              <th className="py-2 text-right font-normal">Créditos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visiveis.map((l) => (
-              <tr className="border-b border-al-line" key={l.id}>
-                <td className="py-3 tabular-nums">{DATA.format(new Date(l.criadoEm))}</td>
-                <td className="py-3">{nomeDoLancamento(l)}</td>
-                <td className="py-3 text-al-muted">{l.sinal ?? '—'}</td>
-                <td className="py-3 text-right tabular-nums">
-                  {l.creditos > 0 ? '+' : ''}
-                  {NUMERO.format(l.creditos)}
-                </td>
+        <>
+          {porSinal.length > 0 && <ResumoDeUso titulo="Uso por Sinal" itens={porSinal} nome={String} />}
+          {porAcao.length > 0 && <ResumoDeUso titulo="Uso por ação" itens={porAcao} nome={nomeDaAcao} />}
+          <table aria-label="Extrato de créditos" className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-al-line text-xs tracking-rotulo uppercase text-al-muted">
+                <th className="py-2 font-normal">Data</th>
+                <th className="py-2 font-normal">Ação</th>
+                <th className="py-2 font-normal">Sinal</th>
+                <th className="py-2 text-right font-normal">Créditos</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visiveis.map((l) => (
+                <tr className="border-b border-al-line" key={l.id}>
+                  <td className="py-3 tabular-nums">{DATA.format(new Date(l.criadoEm))}</td>
+                  <td className="py-3">{nomeDoLancamento(l)}</td>
+                  <td className="py-3 text-al-muted">{l.sinal ?? '—'}</td>
+                  <td className="py-3 text-right tabular-nums">
+                    {l.creditos > 0 ? '+' : ''}
+                    {NUMERO.format(l.creditos)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </Bloco>
+  )
+}
+
+type ItemDeUso = { chave: string; creditos: number; acoes: number }
+
+function resumoDoUso(lancamentos: LancamentoDeCredito[], chave: (l: LancamentoDeCredito) => string | null): ItemDeUso[] {
+  const itens = new Map<string, ItemDeUso>()
+  for (const lancamento of lancamentos) {
+    const nome = chave(lancamento)
+    if (!nome || lancamento.creditos >= 0) continue
+    const item = itens.get(nome) ?? { chave: nome, creditos: 0, acoes: 0 }
+    item.creditos += Math.abs(lancamento.creditos)
+    item.acoes += 1
+    itens.set(nome, item)
+  }
+  return [...itens.values()].sort((a, b) => b.creditos - a.creditos || b.acoes - a.acoes || a.chave.localeCompare(b.chave))
+}
+
+function ResumoDeUso({ titulo, itens, nome }: { titulo: string; itens: ItemDeUso[]; nome: (chave: string) => string }) {
+  return (
+    <section aria-label={titulo} className="mb-5 rounded border border-al-line p-4">
+      <h3 className="mb-3 text-sm font-medium">{titulo}</h3>
+      <ul className="space-y-2 text-sm">
+        {itens.map((item) => (
+          <li className="flex items-baseline justify-between gap-4" key={item.chave}>
+            <span>{nome(item.chave)}</span>
+            <span className="text-al-muted tabular-nums">{NUMERO.format(item.creditos)} {item.creditos === 1 ? 'crédito' : 'créditos'} · {item.acoes} {item.acoes === 1 ? 'ação' : 'ações'}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

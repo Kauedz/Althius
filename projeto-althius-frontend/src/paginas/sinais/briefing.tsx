@@ -118,6 +118,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
   const [montando, setMontando] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erroDoBriefing, setErroDoBriefing] = useState<string | null>(null)
+  const [podePedirAjuda, setPodePedirAjuda] = useState(false)
   const [avisoDasContas, setAvisoDasContas] = useState<string | null>(null)
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
   const [modeloCarregando, setModeloCarregando] = useState(Boolean(modeloId))
@@ -173,6 +174,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
     if (!podeMontar || !fonte.montarPlano) return
     setMontando(true)
     setErroDoBriefing(null)
+    setPodePedirAjuda(false)
     try {
       const { plano: montado, avisos } = await fonte.montarPlano({ briefing: briefing.trim(), contaIds: contas })
       const novo = emEdicao(montado, avisos)
@@ -182,6 +184,7 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
     } catch (erro) {
       // O limite do dia tem mensagem própria; qualquer outra falha é recuperável e fica sem detalhe técnico.
       setErroDoBriefing(erro instanceof ErroDoPlano && erro.codigo !== 'falha' ? erro.message : MENSAGEM_DA_FALHA_DO_PLANO)
+      setPodePedirAjuda(erro instanceof ErroDoPlano && erro.codigo === 'sem_tipos')
     } finally {
       setMontando(false)
     }
@@ -274,6 +277,11 @@ function DescreverUmSinal({ existente, modeloId, briefingInicial, origem }: { ex
             {erroDoBriefing && (
               <div role="alert" className="rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
                 {erroDoBriefing}
+                {podePedirAjuda && (
+                  <button type="button" className={`${BOTAO_SECUNDARIO} mt-3`} onClick={() => navegar('/sinais/pedidos', { state: { briefing } })}>
+                    Pedir à equipe Althius
+                  </button>
+                )}
               </div>
             )}
 

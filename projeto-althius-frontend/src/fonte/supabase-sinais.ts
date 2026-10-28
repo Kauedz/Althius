@@ -894,6 +894,7 @@ interface RegistroDoPedido {
   contato: { nome?: string; email?: string; whatsapp?: string }
   status: StatusDoPedido
   created_at: string
+  model_id: string | null
 }
 
 function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
@@ -910,6 +911,7 @@ function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
     },
     status: linha.status,
     criadoEm: linha.created_at,
+    ...(linha.model_id ? { modeloId: linha.model_id } : {}),
   }
 }
 

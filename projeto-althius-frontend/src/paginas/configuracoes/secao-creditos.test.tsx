@@ -91,6 +91,21 @@ describe('Créditos: extrato', () => {
     render(<Extrato lancamentos={[]} />)
     expect(screen.getByText('Nenhum lançamento ainda.')).toBeInTheDocument()
   })
+
+  it('resume uso por Sinal e por ação, em ordem decrescente, e esconde Sinais ausentes', () => {
+    render(<Extrato lancamentos={EXTRATO} />)
+    expect(screen.getByRole('heading', { name: 'Uso por Sinal' })).toBeInTheDocument()
+    expect(screen.getAllByText('Expansão de frota')).toHaveLength(3)
+    expect(screen.getAllByText('1 crédito · 1 ação')).toHaveLength(3)
+    expect(screen.getByRole('heading', { name: 'Uso por ação' })).toBeInTheDocument()
+    expect(screen.getAllByText('E-mail revelado')).toHaveLength(3)
+  })
+
+  it('não mostra os resumos quando não há lançamentos associados', () => {
+    render(<Extrato lancamentos={EXTRATO.filter((l) => !l.sinal).map((l) => ({ ...l, acao: null }))} />)
+    expect(screen.queryByRole('heading', { name: 'Uso por Sinal' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Uso por ação' })).not.toBeInTheDocument()
+  })
 })
 
 describe('Créditos: nomes', () => {

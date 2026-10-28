@@ -18,6 +18,7 @@ import {
   regraDaFerramenta,
 } from '@/fonte/conexoes-tipos'
 import { idaAoApp } from '@/paginas/ida-ao-app'
+import { BlocoDeContasRemetentes } from '@/paginas/configuracoes/bloco-contas-remetentes'
 
 /** O que a volta da autorização (`?conexao=erro&motivo=…`, da Edge Function integration-callback) quer dizer. */
 const MOTIVOS_DA_VOLTA: Record<string, (nome: string) => string> = {
@@ -208,6 +209,7 @@ export function PaginaConexoes() {
         )}
       </div>
       {resultadoRetirada && <p role="status" className="text-sm text-al-muted">{resultadoRetirada}</p>}
+      <BlocoDeContasRemetentes titulo="Canais de envio" />
       {retiradas.length > 0 && (
         <section aria-label="Resultados das retiradas recentes" className="flex flex-col gap-1 text-sm text-al-muted">
           <h2 className="font-medium">Resultados das retiradas recentes</h2>

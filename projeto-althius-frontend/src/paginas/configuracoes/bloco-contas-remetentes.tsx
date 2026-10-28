@@ -77,19 +77,19 @@ interface Espera {
  * tela relê a lista ao voltar para ela e, enquanto espera o backend, de tempos em tempos. Na Demonstração, nada é
  * conectado.
  */
-export function BlocoDeContasRemetentes() {
+export function BlocoDeContasRemetentes({ titulo = TITULO }: { titulo?: string } = {}) {
   const { modo } = useAmbiente()
   if (modo === 'demonstracao') {
     return (
-      <Bloco titulo={TITULO} descricao={DESCRICAO}>
+      <Bloco titulo={titulo} descricao={DESCRICAO}>
         <p className="text-sm text-al-muted">{CONTAS_REMETENTES_NA_DEMONSTRACAO}</p>
       </Bloco>
     )
   }
-  return <ContasRemetentesDoTitular />
+  return <ContasRemetentesDoTitular titulo={titulo} />
 }
 
-function ContasRemetentesDoTitular() {
+function ContasRemetentesDoTitular({ titulo }: { titulo: string }) {
   const fonte = useFonteDeContasRemetentes()
   const { dados: contas, erro: erroDaLista, recarregar } = useCarregamento(fonte, (f) => f.minhas(), [])
   const { dados: cotas } = useCarregamento(fonte, (f) => f.cotasDeEntrada(), [])
@@ -173,7 +173,7 @@ function ContasRemetentesDoTitular() {
 
   return (
     <Bloco
-      titulo={TITULO}
+      titulo={titulo}
       descricao={DESCRICAO}
       acoes={
         <button type="button" onClick={atualizar} disabled={atualizando} className={BOTAO_DISCRETO}>

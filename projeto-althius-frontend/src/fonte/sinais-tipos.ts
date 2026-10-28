@@ -385,6 +385,7 @@ export interface PedidoDeSinal {
   contato: ContatoDoPedido
   status: StatusDoPedido
   criadoEm: string
+  modeloId?: string
 }
 
 export interface NovoPedidoDeSinal {
