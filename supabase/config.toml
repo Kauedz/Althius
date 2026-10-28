@@ -25,6 +25,10 @@ verify_jwt = true
 [functions.signal-plan]
 verify_jwt = true
 
+# Leitura do domínio confirmado no Day0; a função confere o JWT e a confirmação no banco.
+[functions.icp-site-read]
+verify_jwt = true
+
 # Pedido de acesso do visitante (acesso-e-planos): o navegador chama com o JWT; o banco reserva o aviso uma vez e limita os envios por usuário.
 [functions.access-request-notify]
 verify_jwt = true

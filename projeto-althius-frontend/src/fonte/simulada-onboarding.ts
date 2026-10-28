@@ -33,6 +33,9 @@ export const LEITURA_FIXA: LeituraDoSite = {
     'Head de Engenharia de Dados: avalia a integração com o que já existe.',
     'CFO: aprova o investimento quando vê o custo cair.',
   ],
+  setor: 'dados, tecnologia',
+  porte: '51-200, 201-500',
+  regiao: 'Brasil',
 }
 
 export interface ArmazenamentoDeOnboarding {
@@ -234,6 +237,7 @@ export function criarFonteDeOnboardingSimulada(
     async salvarProduto(campos: MiniIcpEProduto) {
       if (!estado.day0Concluido) return devolver()
       for (const campo of CAMPOS_DO_MINI_ICP_E_PRODUTO) estado.checklist[campo] = campos[campo].trim()
+      for (const campo of ['setor', 'porte', 'regiao'] as const) estado.checklist[campo] = campos[campo]?.trim() ?? ''
       publicar()
       return devolver()
     },
@@ -335,6 +339,7 @@ function estadoInicial(): EstadoDeOnboarding {
       miniIcp: '',
       oQueVende: '',
       porQueCompram: '',
+      setor: '', porte: '', regiao: '',
       personas: [],
       produto: 'pendente',
       persona: 'pendente',

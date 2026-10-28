@@ -2,6 +2,7 @@
 // tela e o banco (playbook-do-workspace, tickets 01 e 02); a Demonstração usa a implementação simulada.
 
 import type { FonteObservavel } from './tipos'
+import type { CamposDoIcp } from './campos-do-icp'
 
 /** As seções, na ordem do modelo do setup. */
 export const SECOES_DO_PLAYBOOK = [
@@ -55,6 +56,8 @@ export interface SecaoDoPlaybook {
 }
 
 export interface FonteDoPlaybook extends FonteObservavel {
+  camposDoIcp?(): Promise<CamposDoIcp & { versao: number | null }>
+  salvarCamposDoIcp?(campos: CamposDoIcp): Promise<CamposDoIcp & { versao: number | null }>
   /** A seção com a versão vigente e o histórico. Todo participante ativo consulta. */
   secao(id: IdDaSecaoDoPlaybook): Promise<SecaoDoPlaybook>
   /** Grava o conteúdo como a próxima versão da seção. Só Administrador. Devolve o número da versão criada. */

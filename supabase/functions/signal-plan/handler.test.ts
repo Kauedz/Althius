@@ -103,6 +103,48 @@ Deno.test('IA recebe o ICP do Workspace como contexto para completar critérios 
   assertStringIncludes(chamadas[0].usuario, 'Brasil')
 })
 
+const ICP_DO_SUL: ContextoIcp = {
+  sector: 'Logística e transporte', companySize: '51-200', geography: 'Sul do Brasil (Paraná, Santa Catarina e Rio Grande do Sul)',
+  targetRoles: [], freeText: '', oQueVende: '', miniIcp: '', porQueCompram: '',
+}
+
+Deno.test('geografia do ICP chega ao critério localizacao quando o Briefing não fala de lugar, mesmo se a IA omitir', async () => {
+  const { db } = fakeDb({ icp: ICP_DO_SUL })
+  const { llm } = llmFalso(() => Promise.resolve({
+    sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'], localizacao: ['Brasil', 'México'] } }],
+    explicacao: 'Avisamos quando as Contas abrirem vagas comerciais.',
+  }))
+  const r = await chamar(pedido('Quero saber quando empresas abrirem vagas de liderança comercial.'), { db, llm })
+  assertEquals(r.resposta.status, 200)
+  const plano = r.corpo.plano as { sinais: { criterios: Record<string, unknown> }[] }
+  assertEquals(plano.sinais[0].criterios.localizacao, ['Brasil'])
+  assertEquals(plano.sinais[0].criterios.funcoes, ['RevOps e GTM'])
+  assert(validarPlano(r.corpo.plano, CATALOGO).ok)
+
+  const { llm: semLugar } = llmFalso(() => Promise.resolve({
+    sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['RevOps e GTM'] } }], explicacao: 'Vagas comerciais.',
+  }))
+  const omitido = await chamar(pedido('Quero saber quando empresas abrirem vagas de liderança comercial.'), { db, llm: semLugar })
+  assertEquals((omitido.corpo.plano as { sinais: { criterios: Record<string, unknown> }[] }).sinais[0].criterios.localizacao, ['Brasil'])
+})
+
+Deno.test('Briefing que fala de lugar vence a geografia do ICP; tipo sem localizacao não ganha o critério', async () => {
+  const { db } = fakeDb({ icp: ICP_DO_SUL })
+  const { llm } = llmFalso(() => Promise.resolve({
+    sinais: [{ tipo: 'vaga_linkedin', criterios: { funcoes: ['Finanças'], localizacao: ['México'] } }], explicacao: 'Vagas no México.',
+  }))
+  const r = await chamar(pedido('Vagas de finanças no México'), { db, llm })
+  assertEquals((r.corpo.plano as { sinais: { criterios: Record<string, unknown> }[] }).sinais[0].criterios.localizacao, ['México'])
+
+  const { db: db2 } = fakeDb({ icp: ICP_DO_SUL, tipos: ['anuncio_de_movimentacao', ...CATALOGO] })
+  const { llm: llm2 } = llmFalso(() => Promise.resolve({
+    sinais: [{ tipo: 'anuncio_de_movimentacao', criterios: { cargos: ['CFO'] } }], explicacao: 'Anúncios de CFO.',
+  }))
+  const r2 = await chamar(pedido('Quando alguém anunciar que virou CFO'), { db: db2, llm: llm2 })
+  assertEquals(r2.resposta.status, 200)
+  assertEquals('localizacao' in (r2.corpo.plano as { sinais: { criterios: Record<string, unknown> }[] }).sinais[0].criterios, false)
+})
+
 Deno.test('sem ICP preenchido, a IA recebe só o Briefing e o Plano continua funcionando', async () => {
   const { db } = fakeDb()
   const { llm, chamadas } = llmFalso(() => Promise.resolve({
