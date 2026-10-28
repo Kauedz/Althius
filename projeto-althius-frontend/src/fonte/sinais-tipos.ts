@@ -57,6 +57,8 @@ export interface Monitoramento {
   pausadoPor?: 'sem_creditos'
   /** Quantas Rodadas seguidas foram puladas por falta de créditos (agente-de-sinal 05). Ausente ou 0: nenhuma. Uma Rodada que verifica zera. */
   rodadasPuladas?: number
+  /** Origem do fluxo de criação, quando informada pelo backend. */
+  criadoVia?: 'sinais_novo' | 'composer' | 'modelo'
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */

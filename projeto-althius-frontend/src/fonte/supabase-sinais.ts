@@ -73,6 +73,7 @@ interface RegistroDoMonitor {
   daily_credit_cap?: number | null
   consecutive_skips?: number | null
   paused_reason?: string | null
+  created_via?: 'sinais_novo' | 'composer' | 'modelo' | null
   last_run?: {
     state: 'rodando' | 'concluida' | 'falhou'
     startedAt: string
@@ -367,6 +368,7 @@ function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<str
     ...(typeof linha.daily_credit_cap === 'number' ? { limitePorDia: linha.daily_credit_cap } : {}),
     ...(linha.state === 'pausado' && linha.paused_reason === 'sem_creditos' ? { pausadoPor: 'sem_creditos' as const } : {}),
     ...(typeof linha.consecutive_skips === 'number' && linha.consecutive_skips > 0 ? { rodadasPuladas: linha.consecutive_skips } : {}),
+    ...(linha.created_via ? { criadoVia: linha.created_via } : {}),
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
       ? {
@@ -681,6 +683,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         p_name: plano.nome,
         p_brief: plano.briefing,
         p_plan: plano.plano,
+        ...(plano.id ? {} : { p_created_via: plano.criadoVia ?? 'sinais_novo' }),
       })) as string
       return monitoramento(id)
     },

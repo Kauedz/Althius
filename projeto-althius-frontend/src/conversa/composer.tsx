@@ -11,7 +11,7 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { IconeDaEspecialidade } from '@/components/marca'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { classificarPedido, type ClassificacaoDoPedido } from '@/conversa/classificar-pedido'
 import { CartaoDaVitrine } from '@/paginas/sinais/vitrine-pecas'
 import {
@@ -43,6 +43,8 @@ interface Props {
   aoParar?: () => void
   /** Classifica pedidos do composer inicial antes de encaminhar à conversa. */
   classificarIntencao?: boolean
+  /** Só o Workspace operacional abre o Plano no composer; a Demonstração mantém o fluxo simulado. */
+  criarSinalNoComposer?: boolean
 }
 
 let proximaChave = 1
@@ -62,8 +64,9 @@ function miniaturaLocal(arquivo: File): string | undefined {
  * dica do teclado e o Enviar (que vira Parar enquanto o pedido roda). Dá para arrastar e soltar ou colar uma imagem. O @
  * abre o autocompletar de Agentes. Os anexos só existem onde há onde guardá-los (o Workspace operacional).
  */
-export function Composer({ nome, rotulo, placeholder, comEspecialidades = false, ocupado = false, aoEnviar, aoParar, classificarIntencao = false }: Props) {
+export function Composer({ nome, rotulo, placeholder, comEspecialidades = false, ocupado = false, aoEnviar, aoParar, classificarIntencao = false, criarSinalNoComposer = false }: Props) {
   const fonte = useFonte()
+  const navegar = useNavigate()
   const workspace = useDados((f) => f.workspace(), [])
   const agentes = useDados((f) => f.agentes(), []) ?? []
   const especialidades = useDados((f) => f.especialidades(), [])
@@ -71,6 +74,7 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
   const [anexos, setAnexos] = useState<EstadoDoAnexo[]>([])
   const [aviso, setAviso] = useState('')
   const [classificacao, setClassificacao] = useState<ClassificacaoDoPedido | null>(null)
+  const [briefingDoSinal, setBriefingDoSinal] = useState('')
   const [menuAberto, setMenuAberto] = useState(false)
   const [arrastando, setArrastando] = useState(false)
   const mencao = useMencao(texto, setTexto, agentes)
@@ -141,6 +145,7 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
     if (classificarIntencao) {
       const resultado = classificarPedido(texto.trim())
       if (resultado.caminho !== 'geral') {
+        setBriefingDoSinal(resultado.caminho === 'plano_novo' ? texto.trim() : '')
         setClassificacao(resultado)
         setTexto('')
         setAnexos([])
@@ -275,11 +280,11 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
           {aviso}
         </p>
       )}
-      {classificacao?.caminho === 'plano_novo' && (
-        <div role="status" className="mx-3.5 rounded-md border border-al-line bg-al-bg p-3 text-sm">
-          Entendi que você quer acompanhar algo novo. A criação por aqui está em construção.{' '}
-          <Link className="text-al-accent underline" to="/sinais/novo">Descrever meu Sinal</Link>
-        </div>
+      {classificacao?.caminho === 'plano_novo' && criarSinalNoComposer && (
+        <NavegarParaNovoSinal briefing={briefingDoSinal} aoNavegar={navegar} />
+      )}
+      {classificacao?.caminho === 'plano_novo' && !criarSinalNoComposer && (
+        <div role="status" className="mx-3.5 rounded-md border border-al-line bg-al-bg p-3 text-sm">Entendi que você quer acompanhar algo novo. A criação por aqui está em construção.{' '}<Link className="text-al-accent underline" to="/sinais/novo">Descrever meu Sinal</Link></div>
       )}
       {classificacao?.caminho === 'modelo' && (
         <div role="status" className="mx-3.5 rounded-md border border-al-line bg-al-bg p-3 text-sm">
@@ -416,4 +421,9 @@ export function Composer({ nome, rotulo, placeholder, comEspecialidades = false,
       </div>
     </form>
   )
+}
+
+function NavegarParaNovoSinal({ briefing, aoNavegar }: { briefing: string; aoNavegar: ReturnType<typeof useNavigate> }) {
+  useEffect(() => { aoNavegar('/sinais/novo', { state: { briefing, origem: 'composer' } }) }, [aoNavegar, briefing])
+  return null
 }

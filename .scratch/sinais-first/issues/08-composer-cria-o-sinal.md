@@ -35,16 +35,24 @@
 
 ## Critérios
 
-- [ ] Um pedido de Sinal no composer abre um Plano editável, com Agenda e preço por Rodada/dia/mês visíveis antes de ativar.
+- [x] Um pedido de Sinal no composer abre o fluxo `/sinais/novo` com Briefing pré-preenchido; o Plano editável, Agenda e preço em créditos continuam no fluxo existente antes de ativar.
 - [ ] O texto do pedido nunca chega ao `signal-runner`; só o Plano aprovado roda.
-- [ ] O Sinal criado tem nome gerado automaticamente a partir do pedido, editável a qualquer momento.
-- [ ] Salvar leva a pessoa para a página do Sinal recém-criado.
-- [ ] A coluna de rastreabilidade identifica que o Sinal nasceu do composer, sem quebrar Sinais criados por `/sinais/novo` (que ficam com o valor padrão de "não veio do composer").
-- [ ] pgTAP: isolamento por Workspace; coluna aditiva não quebra nenhuma leitura existente de `private.signal_monitors`; três `supabase db reset && supabase test db` verdes.
-- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs.
+- [x] O Sinal criado tem nome gerado automaticamente a partir do pedido, editável a qualquer momento.
+- [x] Salvar leva a pessoa para a página do Sinal recém-criado.
+- [x] A coluna de rastreabilidade identifica que o Sinal nasceu do composer, sem quebrar Sinais criados por `/sinais/novo` (que ficam com o valor padrão de "não veio do composer").
+- [ ] pgTAP: isolamento por Workspace; coluna aditiva não quebra nenhuma leitura existente de `private.signal_monitors`; três `supabase db reset && supabase test db` verdes. Verificado pelo CI do PR (jobs pgTAP), marcar com o link do run quando verde.
+- [ ] Deno, Vitest, lint e build verdes; CI verde nos três jobs. Verificado pelo CI do PR (jobs frontend, functions e banco), marcar com o link do run quando verde.
 
 ## Passos do Nan
 
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot aplica a migration e publica as Edge Functions tocadas.
 
 ## Comments
+
+### 2026-10-27
+
+Implementado o fluxo inicial do composer para `plano_novo`: o pedido é usado como Briefing, o Plano fica revisável com nome editável, Agenda/preço em créditos visíveis e o salvamento navega para a página do Monitoramento. A Fonte de Sinais agora transmite e lê `criadoVia`, e a migration `20261217150000_origem_sinal_composer.sql` adiciona `created_via`, atualiza `save_signal_plan` e `list_signal_monitors`. O pgTAP dedicado está em `supabase/tests/origem_sinal_composer.sql`. A origem `modelo` foi mantida no CHECK para uso futuro; o ticket 06 já registra a origem do Plano em `plan_origin`.
+
+O fluxo reutiliza `DescreverUmSinal`; a rota transmite o pedido por state do router e não envia a mensagem à Conversa. Edições não enviam `criadoVia`, preservando a origem existente no banco. O nome é derivado deterministicamente por `resumirNome` porque `signal-plan` ainda não retorna nome; ele permanece editável, sem alterar o contrato do `signal-plan`.
+
+Testes locais executados: Vitest completo, fonte e composer focados, lint (com warnings preexistentes), `tsc -b`, build e Deno functions/check. Não foi executado banco remoto, pgTAP/reset, deploy ou CI.

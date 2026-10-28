@@ -620,6 +620,7 @@ export function criarFonteDeSinaisSimulada(
         briefing: plano.briefing,
         plano: plano.plano,
         versaoDoPlano: (existente?.versaoDoPlano ?? 0) + 1,
+        ...(plano.criadoVia ? { criadoVia: plano.criadoVia } : existente?.criadoVia ? { criadoVia: existente.criadoVia } : {}),
       }
       const index = monitoramentos.findIndex((m) => m.id === salvo.id)
       if (index >= 0) monitoramentos[index] = salvo
