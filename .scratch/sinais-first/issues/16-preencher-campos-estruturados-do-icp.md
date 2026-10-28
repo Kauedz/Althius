@@ -49,8 +49,8 @@ O fluxo alvo da frente é: a pessoa informa o site, o ICP sai dele, o agente cri
 - [x] Um Workspace com ICP só em texto livre recebe uma sugestão única dos três campos, que só preenche os campos ao clicar em "Usar sugestão" e só é gravada em "Salvar campos". Nenhum campo preenchido é sobrescrito (Vitest `campos-do-icp.test.ts` e `playbook.test.tsx`).
 - [x] Com os campos preenchidos, uma Candidata de Sinal de mercado ganha Nível de Aderência alto, médio ou baixo, e não mais "sem dado"; a tela segue mostrando só o nível (pgTAP: a1 alto, a2 baixo, Workspace vizinho intocado; `aderencia_candidatas_sinais_mercado.sql` segue verde).
 - [x] O ICP chega aos critérios do Plano do Sinal, não só à explicação (achado do smoke 06 do PR #307): com o Briefing sem lugar, a geografia do ICP vira `localizacao` (Deno `signal-plan/icp-nos-criterios.test.ts` e `handler.test.ts`), e o smoke 06 passa a exigir `localizacao = ["Brasil"]` com o ICP do QA.
-- [ ] pgTAP: só Administrador grava; isolamento por Workspace; porte inválido recusado; Aderência por lista e por faixa de funcionários; `supabase test db` verde no job "Banco" do CI deste PR. Marcar com o link do run quando verde.
-- [ ] Deno, Vitest, lint e build verdes localmente (Deno 1.885 testes, Vitest 2.045, com 1 teste de `gaveta-de-historico` instável sob carga que passa sozinho, lint e build ok); CI verde nos três jobs deste PR. Marcar com o link do run quando verde.
+- [x] pgTAP: só Administrador grava; isolamento por Workspace; porte inválido recusado; Aderência por lista e por faixa de funcionários; `supabase test db` verde no job "Banco" do CI deste PR (PR #308, head `9c6a753`, run https://github.com/Kauedz/Althius/actions/runs/40613481170).
+- [x] Deno, Vitest, lint e build verdes localmente (Deno 1.885 testes, Vitest 2.045, com 1 teste de `gaveta-de-historico` instável sob carga que passa sozinho, lint e build ok); CI verde nos três jobs do PR #308 (Banco, Edge Functions e Frontend, head `9c6a753`, run https://github.com/Kauedz/Althius/actions/runs/40613481170).
 
 ## Passos do Nan
 
@@ -75,3 +75,5 @@ Decisões conservadoras (para o Kauê confirmar):
 7. A sugestão para quem já tem ICP é determinística, a partir do texto livre, sem modelo, e só preenche os campos ao clicar.
 8. Na Aderência, setor, porte e região pesam igual e batem por qualquer item da lista.
 9. No Plano do Sinal só a geografia vira critério, e só no nível de país (as opções de `localizacao`); setor e porte ficam no prompt e na Aderência. UF e região como critério de Plano pedem mudar `private.validate_signal_plan`, o formulário e o runner, num ticket próprio.
+
+- 27/10/2026 — CI do PR #308 verde nos três jobs (run https://github.com/Kauedz/Althius/actions/runs/40613481170). A primeira rodada pegou um pgTAP que lia o ICP do outro Workspace pela RPC sem participar dele; o teste passou a conferir a tabela direto.
