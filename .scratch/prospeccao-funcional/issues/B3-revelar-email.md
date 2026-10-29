@@ -4,7 +4,7 @@
 
 **Blocked by:** B2. Os dois editam o provedor de contatos, o handler e `comite-e-enriquecimento.tsx`. O merge na `main` espera o 00.
 
-**Status:** ready-for-human (código fechado, com a leitura do e-mail confirmada na execução real; faltam aplicar a migration e publicar a função)
+**Status:** closed (migration aplicada no remoto, conferida em 28/10)
 
 - [x] A entrada de `harvestapi~linkedin-profile-scraper` é a do schema do build atual na API do Apify. Leia o schema nessa hora. Não trate `profileUrls` e `findEmail` como corretos e não invente a substituição. Vale o mesmo para o campo do e-mail na saída: o registro do actor já diz que esse nome não estava documentado; confirme no build e, se o schema não trouxer o campo, pare e pergunte. Não chute o nome.
 - [x] `finish_reveal_contact` deixa de usar `coalesce(email, …)`. E-mail igual a um que o Contato já tem (principal ou adicional) não debita e não é regravado. E-mail novo entra no primeiro lugar livre, até três, pela escrita de canais que já existe (`set_contact_channels` e `private.contact_emails`). Com os três lugares ocupados por outros e-mails, não debita e não apaga nenhum.
@@ -81,3 +81,4 @@ Quem executa o ticket não aplica migration nem deploy no remoto.
   - Consequência: o segundo e-mail (posições 2 e 3 de `contact_emails`) deixa de ser buscado pelo actor para quem já tem um. `finish_reveal_contact` não mudou.
   - Tela: "Já encontrado, sem custo" na cotação e no resultado.
 - 2026-10-28 (fechamento da spec): o critério do telefone deixou de valer na `main`. O PR #342 (`fc892c24`, decisão do Kauê de 28/10) pôs o botão "Revelar Telefone" (`comite-e-enriquecimento.tsx:558-563`) e o handler aceita `telefone`. Os critérios de e-mail continuam valendo. A Decisão da spec e o `CONTEXT.md` foram atualizados.
+- 2026-10-28 (fechamento da spec): conferido no remoto `ycbdilsmydvzezhlymty` com consulta só de leitura em `supabase_migrations.schema_migrations`: `20261009030000` aplicada. `account-enrichment` publicada na versão 18 (28/10, 17:17 BRT). O telefone ficou com o PR #342, fora desta spec. `closed`.

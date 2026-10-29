@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately). A validação dos 5 está nos comentários de `.scratch/sinais-reais/issues/` 04, 05 e 06 com o id do run, e o Renan aceitou esse registro em 07/10. A autorização para trocar a asserção `registro_de_actors.sql:18` foi dada na mesma decisão.
 
-**Status:** ready-for-human (código na `main` pelo PR #262; falta o Nan aplicar `20261121100000` no remoto)
+**Status:** closed (migration aplicada no remoto, conferida em 28/10)
 
 ## Estado atual (24/10, `main` 515c2eb)
 
@@ -75,3 +75,4 @@
   - Suíte pgTAP do zero (`PGPORT=55432 scripts/pgtap-local.sh pgtap_a3`, Postgres 17 local): 152 arquivos, todos `ok`, nenhuma falha — incluindo os do PR #261 (`briefing_e_plano_do_sinal.sql`, `rodar_agora_e_registro_da_rodada.sql`, `preco_por_rodada_e_limites.sql`, `agenda_do_sinal.sql`) e `monitoramento_real_de_sinais.sql`, intocados.
   - AC 6/6. Pending apply no remoto (`ycbdilsmydvzezhlymty`): quem fecha o ticket não aplica, conforme "Passos do Nan".
 - 2026-10-28 (fechamento da spec): status `done` não existe em `docs/agents/triage-labels.md`; trocado por `ready-for-human` até o Nan aplicar a migration no remoto. Depois disso, `closed`.
+- 2026-10-28 (fechamento da spec): conferido no remoto `ycbdilsmydvzezhlymty` com consulta só de leitura em `supabase_migrations.schema_migrations`: `20261121100000` aplicada. `private.signal_actors` com os 5 actors validados em `available`. `closed`.

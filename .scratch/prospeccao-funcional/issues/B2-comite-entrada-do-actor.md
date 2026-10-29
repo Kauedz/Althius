@@ -4,7 +4,7 @@
 
 **Blocked by:** B1. Os dois editam `account-enrichment/handler.ts`. O merge na `main` espera o 00.
 
-**Status:** ready-for-human (código fechado; faltam aplicar a migration e publicar a função)
+**Status:** closed (migration aplicada no remoto, conferida em 28/10)
 
 - [x] A entrada de `harvestapi~linkedin-company-employees` é a do schema do build atual na API do Apify (`GET /v2/acts/{actor}` e o build mais recente). Leia o schema nessa hora. Não reuse os nomes que o código manda hoje (`companies` com o slug, leitura de `currentPosition`) e não invente os nomes novos. O comentário da migration `20261001170000` diz que o schema foi lido em 01/10/2026; confira de novo, o build muda.
 - [x] A saída é lida pelos campos que esse schema e o README do build documentam. Campo ausente fica vazio. Nada é estimado para completar cargo, nome ou LinkedIn.
@@ -73,3 +73,4 @@ Quem executa o ticket não aplica migration nem deploy no remoto. Não peça tok
   - Migration `20261009215603_nao_recobrar_o_ja_descoberto.sql`. "Já descoberta" é proposta da Conta em qualquer estado ou Contato com Vínculo com a Conta, pelo LinkedIn sem caixa e normalizado. `finish_committee_discovery` conta as novas pelas propostas que a própria busca criou e liquida só por elas; `found` = examinadas, `added` = novas, `duplicates` = já encontradas. `index.ts` deixou de tratar "sem linha" como `created: true`.
   - O actor (build `0.0.163`, lido em 09/10) não tem campo para excluir perfis. O handler pede ao actor o limite mais as pessoas que a Conta já conhece, até 50, e para no limite de novas. Custo extra: US$ 0,003 por perfil curto, no máximo US$ 0,17 por busca (teto `maxTotalChargeUsd` continua 0,25).
   - Tela: "Custo: 1 crédito por pessoa nova. Pessoas já encontradas não são cobradas." e, depois da busca, "N novas · M já encontradas (sem custo)".
+- 2026-10-28 (fechamento da spec): conferido no remoto `ycbdilsmydvzezhlymty` com consulta só de leitura em `supabase_migrations.schema_migrations`: `20261008223000` e `20261009215603` aplicadas. `account-enrichment` publicada na versão 18 (28/10, 17:17 BRT). `closed`.

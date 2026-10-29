@@ -4,7 +4,7 @@
 
 **Blocked by:** None (pode começar agora). O merge na `main` espera o 00.
 
-**Status:** ready-for-human (código fechado; faltam aplicar a migration e publicar a função)
+**Status:** closed (migration aplicada no remoto, conferida em 28/10)
 
 - [x] A ação `cnpj-receita` identifica o usuário pela sessão antes de qualquer consulta. A chave anon, sozinha, recebe recusa e o actor não é chamado. O furo está em `supabase/functions/account-enrichment/handler.ts`. `account-discovery` não tem esta ação.
 - [x] A consulta paga só começa com crédito reservado para o Workspace e para a pessoa da sessão, no mesmo contrato das outras ações (reservar, liquidar o que achou, liberar o resto). Sem saldo ou fora do teto da pessoa, a consulta não chama o Apify.
@@ -60,3 +60,4 @@ Sem `--no-verify-jwt`. A conferência da sessão é do handler: a chave anon tam
 
 - 2026-10-07, decisão do Renan: a consulta de CNPJ custa 1 crédito, cobrado só quando a Receita devolve dado. Se o actor ou a BrasilAPI falha, ou o CNPJ não é achado, a reserva é liberada e nada é cobrado. Se o preço se mostrar errado, ele se corrige depois numa migration nova; isso não trava o ticket. Com isso, a pergunta do critério 5 está respondida: a migration grava a ação de crédito da consulta com 1 crédito (timestamp maior que `20261002121000`, a última da `main`), e a tela mostra "1 crédito" antes do clique.
 - 2026-10-08: os sete critérios fechados. Migration `20261008203000_consulta_cnpj_reserva_credito.sql` (timestamp maior que `20261008153000` desta branch e que `20261008160000` do acesso). pgTAP `consulta_cnpj_reserva_credito.sql` com `plan(19)`; não rodou nesta máquina (sem psql, Docker nem Supabase CLI). Deno: `deno test supabase/functions` 714 passed, 0 failed. Frontend: `npx vitest run --maxWorkers=2` 108 arquivos, 1075 testes, exit 0; `npm run lint` 49 avisos já existentes e 0 erros; `npm run build` (`tsc -b && vite build`) exit 0. A frase "1 crédito" fica no botão Consultar/Atualizar Receita (`aria-describedby`). Não há print: esta sessão não tem navegador. O teste da seção cobre a frase visível. A tradução de "insufficient credits" na fonte foi retirada na revisão: o ticket não pedia, e o custo está na tela.
+- 2026-10-28 (fechamento da spec): conferido no remoto `ycbdilsmydvzezhlymty` com consulta só de leitura em `supabase_migrations.schema_migrations`: `20261008203000` aplicada. `account-enrichment` publicada na versão 18 (28/10, 17:17 BRT). `closed`.

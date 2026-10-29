@@ -1,6 +1,6 @@
 # Spec: Prospecção funcional
 
-**Status:** ready-for-agent
+**Status:** closed (28/10/2026: todos os tickets `closed`, salvo o B5 `wontfix`; migrations conferidas no remoto)
 
 Sinais, Enriquecimento e Envio no Workspace operacional. Conferido na `origin/main` (`fdafd00`, PRs #145 a #147) em 02/10/2026. A auditoria de 01/10 (`.scratch/AUDITORIA-2026-10-01.md`, base `bda4514`) continua valendo neste recorte: esses PRs mudaram Conexões, o catálogo de conectores e o pedido de envio ao sistema comercial do cliente. Não mudaram o editor de Monitoramento, a ação `cnpj-receita`, o comitê, o revelar, o apagamento definitivo nem a ativação da Sequência.
 
