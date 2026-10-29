@@ -6,12 +6,12 @@
 
 **Status:** closed (entregue pelo PR #150; evidência nos Comments)
 
-- [ ] A Fonte de Contas do Workspace operacional lê os Sinais gravados. `list_account_signals` alimenta o foguinho (Quente, quantidade válida, último Sinal). `list_signals` com a Conta alimenta a seção Sinais do detalhe.
-- [ ] Uma Conta com Sinal válido nos últimos 30 dias mostra esse Sinal no detalhe. A seção deixa de cair em "Nenhum sinal" quando o banco tem Sinal.
-- [ ] Conta sem Sinal continua com a seção vazia. O vazio é vazio, não um Sinal de exemplo.
-- [ ] No operacional, a página de Sinais, a Conta aberta a partir de um Sinal e a página do tipo não usam `SINAIS_MOCK`, `CONTAS_MOCK` nem a contagem simulada quando a fonte ainda não respondeu ou respondeu vazio. A Demonstração segue com esses exemplos.
-- [ ] O único teste antigo que pode mudar é o `it` "não inventa Contatos nem Sinais que o Workspace não guarda" em `supabase-contas.test.ts` (linhas 136–141). O caso sem Sinal gravado continua sem inventar Sinal. Os outros `it` desse arquivo ficam como estão.
-- [ ] Vitest novo prova o Sinal gravado na Conta e a ausência de dado simulado no operacional.
+- [x] A Fonte de Contas do Workspace operacional lê os Sinais gravados. `list_account_signals` alimenta o foguinho (Quente, quantidade válida, último Sinal). `list_signals` com a Conta alimenta a seção Sinais do detalhe.
+- [x] Uma Conta com Sinal válido nos últimos 30 dias mostra esse Sinal no detalhe. A seção deixa de cair em "Nenhum sinal" quando o banco tem Sinal.
+- [x] Conta sem Sinal continua com a seção vazia. O vazio é vazio, não um Sinal de exemplo.
+- [x] No operacional, a página de Sinais, a Conta aberta a partir de um Sinal e a página do tipo não usam `SINAIS_MOCK`, `CONTAS_MOCK` nem a contagem simulada quando a fonte ainda não respondeu ou respondeu vazio. A Demonstração segue com esses exemplos.
+- [x] O único teste antigo que pode mudar é o `it` "não inventa Contatos nem Sinais que o Workspace não guarda" em `supabase-contas.test.ts` (linhas 136–141). O caso sem Sinal gravado continua sem inventar Sinal. Os outros `it` desse arquivo ficam como estão.
+- [x] Vitest novo prova o Sinal gravado na Conta e a ausência de dado simulado no operacional.
 
 ## Pode mexer
 
