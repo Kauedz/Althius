@@ -14,7 +14,7 @@ A Althius é um Revenue OS. O sistema comercial do cliente continua sendo o prin
 
 ## Decisões
 
-- Telefone fica de fora. A tela mostra a revelação de telefone como indisponível e não reserva nem debita crédito.
+- ~~Telefone fica de fora. A tela mostra a revelação de telefone como indisponível e não reserva nem debita crédito.~~ Superada em 28/10/2026 (decisão do Kauê, PR #342, `20261218020000_revelar_telefone_5_creditos.sql`): o telefone se revela por 5 créditos, com as mesmas regras do e-mail. O B5 virou `wontfix` e o critério de telefone do B3 deixou de valer.
 - Crédito do Workspace de teste é passo humano. Nenhum ticket chama `grant_credits` nem altera saldo, teto ou plano.
 - O preço em créditos da consulta de CNPJ não está na tabela (`account_scan` 1, `person_collected` 1, `email_revealed` 2, `phone_revealed` 5, `account_discovery` 5). O B1 pergunta o valor ao Nan antes de gravar a migration. Não inventa.
 - Cada ticket que mexe no banco leva uma migration nova, timestamp UTC maior que `20261002112000`, e um pgTAP novo. Migration já aplicada não se edita. Função redefinida parte da definição mais recente na `main`.
@@ -36,6 +36,8 @@ A Althius é um Revenue OS. O sistema comercial do cliente continua sendo o prin
 | B4 | Apagar a Conta leva Receita, propostas e Sinais com nome e LinkedIn | Merge espera o 00 |
 | C1 | Ativar pela tela Sequência de WhatsApp ou LinkedIn | Merge espera o 00 |
 | C3 | O titular vê as respostas de WhatsApp e LinkedIn | C1; merge espera o 00 |
+| B5 | As RPCs de revelar recusam telefone (acrescentado em 24/10; superado pelo PR #342) | Nenhum |
+| S1 | O aceite confere a permissão antes de devolver (acrescentado da auditoria de arquitetura) | Migration depois da `20261009040000` |
 
 B1, B2 e B3 dividem `account-enrichment/handler.ts`. B2 e B3 dividem o provedor de contatos. C1 e C3 dividem o detalhe da Sequência. Por isso a cadeia, e não por uma dependência de produto entre o CNPJ e o comitê.
 
