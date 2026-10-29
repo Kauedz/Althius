@@ -2,6 +2,24 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 select plan(77);
+create function pg_temp.semear_agentes_padrao(p_workspace_id uuid) returns void
+language plpgsql
+as $$
+begin
+  with novos as (
+    insert into private.agents (workspace_id, specialty, kind)
+    select p_workspace_id, c.specialty, 'padrao' from private.specialty_catalog c
+    on conflict do nothing returning id, workspace_id, specialty
+  ), configuracao as (
+    insert into private.agent_settings (agent_id, workspace_id, channels)
+    select n.id, n.workspace_id, array['whatsapp']::text[] from novos n
+  )
+  insert into private.agent_permissions (agent_id, workspace_id, integration_id, permission)
+  select n.id, n.workspace_id, d.integration_id, d.permission from novos n
+  join private.specialty_default_permissions d on d.specialty = n.specialty;
+end;
+$$;
+
 
 -- Acesso e planos: o Workspace só gasta com contrato ativo (ou ilimitado), a rodada de Agente sempre reserva, o plano
 -- limita os usuários, só o staff provisiona Workspace e o visitante fala com a equipe por um pedido com limite.
@@ -28,6 +46,7 @@ insert into public.workspaces (id, kind, name) values
   ('ac100000-0000-4000-8000-000000000004', 'empresa', 'Oeste'),
   ('ac100000-0000-4000-8000-000000000005', 'empresa', 'Livre'),
   ('ac100000-0000-4000-8000-000000000006', 'empresa', 'Centro');
+select pg_temp.semear_agentes_padrao(w.id) from public.workspaces w;
 insert into private.workspace_contracts (workspace_id, tier_id, status, starts_at, billing_mode) values
   ('ac100000-0000-4000-8000-000000000001', 'essencial', 'ativo', now() - interval '1 day', 'contrato'),
   ('ac100000-0000-4000-8000-000000000003', 'profissional', 'suspenso', now() - interval '1 day', 'contrato'),

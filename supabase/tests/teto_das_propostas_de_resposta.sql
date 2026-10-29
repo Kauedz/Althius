@@ -3,6 +3,23 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 select plan(31);
 
+create function pg_temp.semear_agentes_padrao(p_workspace_id uuid) returns void language plpgsql as $$
+begin
+  with novos as (
+    insert into private.agents (workspace_id, specialty, kind)
+    select p_workspace_id, c.specialty, 'padrao' from private.specialty_catalog c
+    on conflict do nothing returning id, workspace_id, specialty
+  ), configuracao as (
+    insert into private.agent_settings (agent_id, workspace_id, channels)
+    select n.id, n.workspace_id, array['whatsapp']::text[] from novos n
+  )
+  insert into private.agent_permissions (agent_id, workspace_id, integration_id, permission)
+  select n.id, n.workspace_id, d.integration_id, d.permission from novos n
+  join private.specialty_default_permissions d on d.specialty = n.specialty;
+end;
+$$;
+
+
 -- O teto das Propostas de resposta e os escopos sem executor (creditos-e-planos, ticket 03, decisão 6 do Renan em
 -- 08/10/2026). A primeira geração de uma proposta é automática: só roda com Execuções de Agentes e o Rhetor em
 -- automático, cada um com teto, e soma o crédito da rodada aos dois. Gerar de novo é o clique do titular, que vale como
@@ -19,6 +36,8 @@ values
 insert into public.workspaces (id, kind, name) values
   ('6d000000-0000-0000-0000-000000000001', 'empresa', 'Norte'),
   ('6d000000-0000-0000-0000-000000000002', 'empresa', 'Sul');
+select pg_temp.semear_agentes_padrao('6d000000-0000-0000-0000-000000000001');
+select pg_temp.semear_agentes_padrao('6d000000-0000-0000-0000-000000000002');
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('6d000000-0000-0000-0000-000000000001', '6c000000-0000-0000-0000-000000000001', 'admin', true),
   ('6d000000-0000-0000-0000-000000000001', '6c000000-0000-0000-0000-000000000002', 'member', true),

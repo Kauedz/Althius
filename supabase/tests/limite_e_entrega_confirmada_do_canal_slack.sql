@@ -2,6 +2,24 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 select plan(27);
+create function pg_temp.semear_agentes_padrao(p_workspace_id uuid) returns void
+language plpgsql
+as $$
+begin
+  with novos as (
+    insert into private.agents (workspace_id, specialty, kind)
+    select p_workspace_id, c.specialty, 'padrao' from private.specialty_catalog c
+    on conflict do nothing returning id, workspace_id, specialty
+  ), configuracao as (
+    insert into private.agent_settings (agent_id, workspace_id, channels)
+    select n.id, n.workspace_id, array['whatsapp']::text[] from novos n
+  )
+  insert into private.agent_permissions (agent_id, workspace_id, integration_id, permission)
+  select n.id, n.workspace_id, d.integration_id, d.permission from novos n
+  join private.specialty_default_permissions d on d.specialty = n.specialty;
+end;
+$$;
+
 
 -- O limite de uso do Canal Slack (slack-canal 08) e a entrega confirmada depois do post (slack-canal 09).
 
@@ -56,6 +74,7 @@ insert into public.workspaces (id, kind, name) values ('fd000000-0000-0000-0000-
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('fd000000-0000-0000-0000-000000000001', '5d000000-0000-0000-0000-000000000001', 'admin', true),
   ('fd000000-0000-0000-0000-000000000001', '5d000000-0000-0000-0000-000000000002', 'member', true);
+select pg_temp.semear_agentes_padrao(w.id) from public.workspaces w;
 insert into private.workspace_contracts (workspace_id, tier_id, starts_at)
 values ('fd000000-0000-0000-0000-000000000001', 'escala', date_trunc('month', now()));
 select public.grant_credits('fd000000-0000-0000-0000-000000000001', 500, 'plano');

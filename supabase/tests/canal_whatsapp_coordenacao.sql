@@ -3,6 +3,18 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 select plan(3);
 
+create function pg_temp.semear_agentes_padrao(p_workspace_id uuid) returns void language plpgsql as $$
+begin
+  with novos as (insert into private.agents (workspace_id, specialty, kind)
+    select p_workspace_id, c.specialty, 'padrao' from private.specialty_catalog c
+    on conflict do nothing returning id, workspace_id, specialty), configuracao as (
+    insert into private.agent_settings (agent_id, workspace_id, channels)
+    select n.id, n.workspace_id, array['whatsapp']::text[] from novos n)
+  insert into private.agent_permissions (agent_id, workspace_id, integration_id, permission)
+  select n.id, n.workspace_id, d.integration_id, d.permission from novos n
+  join private.specialty_default_permissions d on d.specialty = n.specialty;
+end; $$;
+
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
                         is_sso_user, is_anonymous)
@@ -15,7 +27,7 @@ select 'aaaaaaaa-6000-0000-0000-000000000006', 'escala', date_trunc('month', now
 select public.grant_credits('aaaaaaaa-6000-0000-0000-000000000006', 100, 'plano', 'créditos de teste');
 insert into public.workspace_memberships (workspace_id, user_id, role, active)
 values ('aaaaaaaa-6000-0000-0000-000000000006', '62000000-0000-0000-0000-000000000006', 'admin', true);
-select private.seed_default_agents('aaaaaaaa-6000-0000-0000-000000000006');
+select pg_temp.semear_agentes_padrao('aaaaaaaa-6000-0000-0000-000000000006');
 update private.agent_settings s
 set channels = case when a.specialty in ('scopus', 'ethos') then array['whatsapp']::text[] else array['slack']::text[] end
 from private.agents a
