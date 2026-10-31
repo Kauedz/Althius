@@ -4,7 +4,7 @@
 
 **Blocked by:** None (pode começar agora).
 
-**Status:** ready-for-agent
+**Status:** closed (commits `67e176c9` e `3776fa8f`; falta publicar a `account-enrichment`, ver Passos do Nan)
 
 ## Estado atual (31/10, `origin/main` 02c54ce6)
 
@@ -15,12 +15,12 @@
 
 ## Critérios
 
-- [ ] `cnpj-receita`: o Apify e a BrasilAPI separam "não achou" de "falhou". A BrasilAPI só conta como não achou com 404; 5xx, timeout e exceção são falha. O actor só conta como não achou com execução concluída e lista vazia.
-- [ ] Quando a fonte que respondeu por último falhou e nenhuma achou, a função libera a reserva, debita zero, grava o custo do Apify se houver run, e responde 502 com "A consulta do CNPJ falhou: …". Não achou continua 404 "Dados do CNPJ não encontrados".
-- [ ] A tela da Receita mostra a mensagem de falha da função, não "não encontrado".
-- [ ] `comite-compra`: a resposta traz a quantidade de pessoas achadas que não puderam ser gravadas. A tela do comitê avisa quando ela é maior que zero. Quem não foi gravado continua sem contar e sem cobrar.
-- [ ] Deno cobre: Apify falha e BrasilAPI 404 → 404; Apify falha e BrasilAPI 5xx → 502 com a reserva liberada; Apify vazio e BrasilAPI acha → grava; gravação de proposta que lança → resposta com a contagem de não gravadas e sem cobrança por ela.
-- [ ] Vitest cobre a mensagem de falha da Receita e o aviso do comitê.
+- [x] `cnpj-receita`: o Apify e a BrasilAPI separam "não achou" de "falhou". A BrasilAPI só conta como não achou com 404; 5xx, timeout e exceção são falha. O actor só conta como não achou com execução concluída e lista vazia.
+- [x] Quando a fonte que respondeu por último falhou e nenhuma achou, a função libera a reserva, debita zero, grava o custo do Apify se houver run, e responde 502 com "A consulta do CNPJ falhou: …". Não achou continua 404 "Dados do CNPJ não encontrados".
+- [x] A tela da Receita mostra a mensagem de falha da função, não "não encontrado".
+- [x] `comite-compra`: a resposta traz a quantidade de pessoas achadas que não puderam ser gravadas. A tela do comitê avisa quando ela é maior que zero. Quem não foi gravado continua sem contar e sem cobrar.
+- [x] Deno cobre: Apify falha e BrasilAPI 404 → 404; Apify falha e BrasilAPI 5xx → 502 com a reserva liberada; Apify vazio e BrasilAPI acha → grava; gravação de proposta que lança → resposta com a contagem de não gravadas e sem cobrança por ela.
+- [x] Vitest cobre a mensagem de falha da Receita e o aviso do comitê.
 
 ## Pode mexer
 
@@ -44,3 +44,11 @@ Nenhuma.
 1. Depois do merge, publicar a `account-enrichment` (`supabase functions deploy account-enrichment --project-ref ycbdilsmydvzezhlymty`).
 
 ## Comments
+
+- 31/10/2026 (agente de código): implementado com teste primeiro.
+  - Função (`67e176c9`): `consultarBrasilApi` ganhou o parâmetro opcional `falha`; resposta fora do 404, rede fora ou corpo ilegível preenchem o motivo. O ramo `cnpj-receita` responde 502 "A consulta do CNPJ falhou: a BrasilAPI respondeu 503." (ou "não respondeu") e libera a reserva; 404 segue "Dados do CNPJ não encontrados". O `comite-compra` conta as propostas que não foram gravadas e devolve `contactsNotSaved`.
+  - Deno: 6 testes novos "B6" em `handler.test.ts` (actor falha + BrasilAPI 503 → 502; actor vazio + BrasilAPI fora → 502 com o custo gravado; actor vazio + 404 → 404; actor vazio + BrasilAPI acha → grava; proposta que lança → `contactsNotSaved: 1` sem cobrar; sem falha → 0). "Apify falha e BrasilAPI 404 → 404" já era coberto pelo teste antigo "cnpj-receita com reserva, falha do actor libera a reserva e não debita", que não mudou. `deno test supabase/functions`, como no CI: 2026 passed, 0 failed, 40 ignored; `deno check` limpo.
+  - Tela (`3776fa8f`): `enriquecerReceita` lê a causa no corpo do erro da função; `buscarComite` devolve `naoGravadas` só quando existe; `SecaoComiteDeCompra` avisa "N pessoas encontradas não puderam ser gravadas e não foram cobradas. Busque o comitê de novo." Vitest novo: `supabase-contas-falha-da-consulta.test.ts` (4) e `comite-e-enriquecimento-falha.test.tsx` (4).
+  - Fora do "Pode mexer": um campo opcional `naoGravadas` em `ResultadoDoComite` (`src/fonte/contas-tipos.ts`), necessário para a contagem passar pela Fonte.
+  - Verificação local (Vitest, tsc e oxlint rodados pelo Deno; não há Node nesta máquina): `oxlint` sem erro; `tsc -b` limpo; `vite build` ok; Vitest 248 de 249 arquivos, 2105 testes passaram. A única falha, `conversa/gaveta-de-historico.test.tsx` ("abre como dialog… com o título certo", `toHaveFocus`), falha igual sem esta mudança e passa no CI da `main` (run 40805817709): é do ambiente, não do B6.
+  - Pendente, passo humano: publicar a `account-enrichment` depois do push. Até lá a função em produção segue respondendo 404 para a falha.
