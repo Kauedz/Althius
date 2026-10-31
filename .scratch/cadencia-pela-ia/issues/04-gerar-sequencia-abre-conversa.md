@@ -6,7 +6,7 @@ Spec: [../spec.md](../spec.md) (US 1–3, 5–7).
 
 **Contexto:** na validação automatizada em produção de 31/10/2026, o clique não avançou para `/conversa`. A causa ainda não foi determinada. O teste Vitest do componente passa na `main`; a investigação precisa preservar a evidência da execução real e comparar a versão publicada com a `main`.
 
-**Status:** ready-for-human — todos os critérios marcados em 31/10; falta o merge do PR #346 e a atualização do worker na VPS (Passos do Nan).
+**Status:** closed — todos os critérios marcados e verificados em 31/10; mesclado na `main` pelo PR #346 (`3f5362f3`).
 
 ## Pode mexer
 
@@ -39,8 +39,9 @@ Spec: [../spec.md](../spec.md) (US 1–3, 5–7).
 
 ## Passos do Nan
 
-- Publicar a correção somente depois que a causa estiver identificada e o CI passar.
-- Repetir a validação em `https://app.althius.com.br` e anexar o trace/print ao ticket.
+- ~~Publicar a correção somente depois que a causa estiver identificada e o CI passar.~~ Não houve mudança no frontend: a causa foi o seletor do Playwright.
+- ~~Repetir a validação em `https://app.althius.com.br` e anexar o trace/print ao ticket.~~ Feito pelo smoke 09 em 31/10 (prints em `prints/04-*.jpg`).
+- Atualizar o worker do Hermes na VPS (`/opt/althius-hermes`) com a `main` a partir de `3f5362f3`, para a correção `ec38b183` valer: com ferramentas ligadas, a Conversa coordenada de "Gerar Sequência" vai pelo modo por Agente e o Rhetor recebe `propor_sequencia`. Não bloqueia este ticket.
 
 ## Comments
 
@@ -55,3 +56,4 @@ Spec: [../spec.md](../spec.md) (US 1–3, 5–7).
 - 2026-10-31, smoke 09 verde em produção (`npx playwright test tests/09-pedir-sequencia.spec.ts`, 1 passed, conta `qa+smoke@althius.com.br` no Workspace "QA Althius (automação)"). Bundle no ar `/assets/index-DSU_wtzI.js`, o mesmo lido antes; URL `https://app.althius.com.br/contas/0b110000-0000-4000-8000-00000000c0de` → `https://app.althius.com.br/conversa`; o pedido à `agent-conversation` saiu com `action: send`, `agentId: null`, `conversationId: null` e o id da Conta no texto, e foi interceptado (nada gravado nem cobrado). Prints 1400×900 em `prints/04-antes-do-clique.jpg` e `prints/04-depois-do-clique.jpg`. O trace (`trace.zip`) não entrou no repositório: ele guarda o refresh token e o `Authorization` da sessão do QA; fica em `e2e/relatorio/cadencia-04/` (fora do git) na máquina que rodou. Critério 3 marcado. O 4 segue aberto por decisão do Renan: o trace da tentativa de 31/10 não existe para confirmar a causa.
 - 2026-10-31, achado ligado a este botão (commit `ec38b183`, PR #346): mesmo navegando, em produção o Rhetor não recebia `propor_sequencia`, porque a Conversa coordenada sem Menção caía no modo de uma chamada do worker (`HERMES_UMA_CHAMADA=true`), que não tem ferramentas. Agora, com ferramentas ligadas, a Execução vai pelo modo por Agente. Passos do Nan: atualizar o worker na VPS depois do merge.
 - 2026-10-31, conferência completa do ticket nesta máquina: `npx vitest run src/paginas/gerar-sequencia.test.tsx` 7/7; `npm run lint` código 0 (só avisos antigos em `detalhe-sequencia.tsx`); `npx tsc -b` código 0; `npm run build` código 0. Smoke 09 com 2 testes, 2 passed em produção: o primeiro é o clique em "Gerar Sequência" (critérios 1–3); o segundo, novo, reproduz o sintoma de 31/10: `getByRole('button', { name: /sequência/i })` acerta `Gerar Sequência | Criar sequência`, e "Criar sequência" abre o modal "Nova sequência" sem sair de `/contas/0b110000-…` e sem pedido aos Agentes; o modal fecha sem salvar e nada é escrito. Leitura no banco: a Conta `e501213f-…` está sob a responsabilidade de `renan.zanato@gmail.com` (arquivada depois da validação). A Execução real da validação no Chrome (`a4ab8fe0`, `succeeded`) não criou Aprovação nem Sequência, então não há proposta pendente para recusar; isso bate com o worker sem ferramentas no modo de uma chamada, corrigido em `ec38b183`. Critério 4 marcado.
+- 2026-10-31, ticket fechado: critérios verificados e PR #346 mesclado em `3f5362f3`. A atualização do worker na VPS ficou nos Passos do Nan.
