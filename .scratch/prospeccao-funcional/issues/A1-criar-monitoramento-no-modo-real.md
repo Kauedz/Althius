@@ -10,7 +10,7 @@
 - [x] Editar um Monitoramento já gravado manda o uuid dele, e só esse.
 - [x] O público escolhido são Contas-alvo reais do Workspace. A gravação manda os uuids em `accountIds`. As listas de exemplo (Enterprise LATAM, Fintechs Brasil, Oportunidades do HubSpot) não aparecem no operacional e não são gravadas.
 - [x] A Demonstração segue criando e listando os Monitoramentos de exemplo, isolada do Workspace operacional.
-- [x] Um Sinal que o registro ainda tem como em teste não ganha Monitoramento ativo. No operacional o card não aparece e `/sinais/tipos/<tipo>/novo` volta para a página do tipo sem abrir o editor (reescrito em 28/10: a spec `catalogo-so-funcionais` trocou "a tela diz o motivo" por esconder o card).
+- [x] Um Sinal que o registro ainda tem como em teste não ganha Monitoramento ativo. No operacional o card não aparece e abrir `/sinais/tipos/<tipo>/novo` não abre o editor: passa pela página do tipo e termina no catálogo `/sinais` (reescrito em 28/10, corrigido o destino em 31/10: a spec `catalogo-so-funcionais` trocou "a tela diz o motivo" por esconder o card).
 - [x] Com ao menos um Monitoramento ativo no Workspace, "Buscar Sinais de novo" deixa de mostrar "Nenhum Monitoramento ativo para buscar." e o botão liga quando o saldo cobre o custo.
 - [x] Vitest cobre o id do banco, o público de Contas reais e a ausência das listas de exemplo no operacional.
 

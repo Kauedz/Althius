@@ -1,6 +1,6 @@
 # Spec: Prospecção funcional
 
-**Status:** closed (28/10/2026: todos os tickets `closed`, salvo o B5 `wontfix`; migrations conferidas no remoto)
+**Status:** closed (28/10/2026: todos os tickets `closed`, salvo o B5 `wontfix`; migrations conferidas no remoto). Resíduo aberto em 31/10: B6, `ready-for-agent`.
 
 Sinais, Enriquecimento e Envio no Workspace operacional. Conferido na `origin/main` (`fdafd00`, PRs #145 a #147) em 02/10/2026. A auditoria de 01/10 (`.scratch/AUDITORIA-2026-10-01.md`, base `bda4514`) continua valendo neste recorte: esses PRs mudaram Conexões, o catálogo de conectores e o pedido de envio ao sistema comercial do cliente. Não mudaram o editor de Monitoramento, a ação `cnpj-receita`, o comitê, o revelar, o apagamento definitivo nem a ativação da Sequência.
 
@@ -38,6 +38,7 @@ A Althius é um Revenue OS. O sistema comercial do cliente continua sendo o prin
 | C3 | O titular vê as respostas de WhatsApp e LinkedIn | C1; merge espera o 00 |
 | B5 | As RPCs de revelar recusam telefone (acrescentado em 24/10; superado pelo PR #342) | Nenhum |
 | S1 | O aceite confere a permissão antes de devolver (acrescentado da auditoria de arquitetura) | Migration depois da `20261009040000` |
+| B6 | Falha do CNPJ e do comitê fica falha (acrescentado na revisão de 31/10) | Nenhum |
 
 B1, B2 e B3 dividem `account-enrichment/handler.ts`. B2 e B3 dividem o provedor de contatos. C1 e C3 dividem o detalhe da Sequência. Por isso a cadeia, e não por uma dependência de produto entre o CNPJ e o comitê.
 

@@ -12,7 +12,7 @@
 - [x] Falha do actor (exceção, timeout) libera a reserva, debita zero e a resposta diz que falhou. "Não encontrado" fica para o actor que terminou sem e-mail novo.
 - [x] O custo em dólares da execução fica gravado no mesmo registro de custo dos outros actors.
 - [x] ~~A tela de telefone não abre cotação, não chama `revelar-contato` com `telefone` e não mostra "5 créditos". Mostra que a revelação de telefone está indisponível. O handler recusa `telefone` antes de reservar crédito e antes de chamar o actor.~~ Entregue em 08/10 e superado em 28/10 pelo PR #342 (`fc892c24`): a tela, o handler e as RPCs voltaram a revelar telefone por 5 créditos.
-- [x] Deno cobre: e-mail novo debita 2 e grava; e-mail repetido debita 0; falha não parece "não encontrado"; `telefone` não reserva. pgTAP cobre `contact_emails`, a origem e que outro Workspace não lê o e-mail.
+- [x] Deno cobre: e-mail novo debita 2 e grava; e-mail repetido debita 0; falha não parece "não encontrado"; ~~`telefone` não reserva~~ (superado pelo PR #342: `handler.test.ts:820` prova que o telefone reserva `phone_revealed`). pgTAP cobre `contact_emails`, a origem e que outro Workspace não lê o e-mail.
 
 ## Pode mexer
 
