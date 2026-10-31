@@ -106,3 +106,57 @@ Deno.test('o Vendedor recusa e pede ajuste: o Rhetor recebe a recusa no históri
   ])
   assertEquals(m.fechamentos, [{ status: 'succeeded', errorCode: null }])
 })
+
+// Em produção (d34d955a e a4ab8fe0), "Gerar Sequência" abre uma Conversa coordenada sem Menção (kind = 'coordenada',
+// mentions = []) enquanto o worker da VPS tem HERMES_UMA_CHAMADA=true (porAgente = false). Com ferramentas ligadas,
+// a Execução precisa ir pelo modo por Agente para que o Rhetor receba `propor_sequencia`, em vez de cair no modo de
+// uma chamada sem ferramentas.
+Deno.test('Conversa coordenada sem Menção (Gerar Sequência) com porAgente=false e ferramentas ligadas propõe a Sequência', async () => {
+  const reserva: Reserva = {
+    run_id: 'r-coord',
+    kind: 'coordenada',
+    workspace_name: 'Norte',
+    request_text: `Monte uma Sequência de e-mail para a Conta-alvo Alfa (id ${CONTA}), a partir da Conta enriquecida, do ICP, do Comitê e da Cadência do Playbook.`,
+    agent_id: null,
+    mentions: [],
+    agents: [ETHOS, RHETOR],
+    history: [],
+  }
+  const eventos: { kind: TipoDeEvento; agentId: string | null; payload: Record<string, unknown> }[] = []
+  const fechamentos: { status: string; errorCode: string | null }[] = []
+  const propostas: string[] = []
+  const fila = [
+    JSON.stringify({ agentes: [RHETOR.id], resposta_direta: '' }),
+    PEDIDO,
+    'Propus a Sequência para a Alfa; ela espera a sua Aprovação.\nSTATUS: pergunta',
+  ]
+  const db: FilaDb = {
+    listQueued: () => Promise.resolve(['r-coord']),
+    claim: () => Promise.resolve(reserva),
+    append: (_r, kind, agentId, payload) => (eventos.push({ kind, agentId, payload }), Promise.resolve(eventos.length)),
+    finish: (_r, status, errorCode) => (fechamentos.push({ status, errorCode }), Promise.resolve()),
+    searchAccounts: () => Promise.resolve([]),
+  }
+  const hermes: Hermes = {
+    vivo: () => Promise.resolve(true),
+    iniciar: () => Promise.resolve('h-coord'),
+    aguardar: (): Promise<FimDoHermes> => Promise.resolve({ status: 'completed', output: fila.shift() ?? '' }),
+  }
+  const banco: BancoDasFerramentas = {
+    contexto: () => Promise.resolve({ workspaceId: 'ws-1', requestedBy: 'u-bia', permissoes: [] }),
+    lerContas: () => Promise.resolve([]),
+    pedirDescoberta: () => Promise.reject(new Error('não usado')),
+    proporEnvio: () => Promise.reject(new Error('não usado')),
+    proporSequencia: (runId, agenteId, a) => (
+      propostas.push(`${runId}:${agenteId}:${a.targetAccountId}:${a.contatos.join()}:${a.passos.length}`),
+        Promise.resolve({ approvalId: 'ap-seq', outcome: 'pendente', conta: 'Alfa' })
+    ),
+    contatosParaSequencia: () => Promise.resolve({ contatos: [] }),
+  }
+  const worker = createWorker({ db, hermes, log: () => {}, porAgente: false, ferramentas: { banco, log: () => {} } })
+
+  assertEquals(await worker.rodada(), 1)
+  assertEquals(fechamentos, [{ status: 'succeeded', errorCode: null }])
+  assertEquals(propostas, [`r-coord:a-rhetor:${CONTA}:${MARIA}:1`])
+  assertEquals(eventos.map((e) => e.kind), ['chamada', 'ferramenta', 'feito', 'resposta'])
+})

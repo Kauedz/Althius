@@ -7,7 +7,7 @@
 // `list_account_signals`) são respondidas pelo teste para um id que não existe no banco; todo o resto da tela vem da
 // produção (o bundle publicado, o login do QA, as outras leituras). O pedido à `agent-conversation` é interceptado e
 // respondido com uma recusa, para nada ser gravado nem cobrado; o teste confere o corpo dele. Nenhuma escrita sai.
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { ambiente } from '../support/ambiente.js'
 import { tokenDoQa } from '../support/sessao.js'
 import { conferirWorkspaceOperacional, vigiar } from '../support/vigia.js'
@@ -24,8 +24,11 @@ function usuarioDoQa(): string {
   return (JSON.parse(Buffer.from(carga, 'base64url').toString('utf8')) as { sub: string }).sub
 }
 
-test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só leitura de um Agente e sem escrever', async ({ page }, testInfo) => {
-  const conferir = vigiar(page, testInfo)
+/**
+ * Abre o detalhe da Conta de mentira, sob a responsabilidade do QA, com o pedido aos Agentes interceptado. Devolve o que o
+ * navegador pediu aos Agentes, as escritas em produção e os caminhos por onde a página passou.
+ */
+async function abrirContaDeMentira(page: Page) {
   const e = ambiente()
   const usuario = usuarioDoQa()
   const pedidos: Record<string, unknown>[] = []
@@ -83,6 +86,12 @@ test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só lei
   await page.goto(`/contas/${CONTA}`)
   await conferirWorkspaceOperacional(page)
   await expect(page.getByRole('heading', { level: 2, name: NOME })).toBeVisible()
+  return { e, pedidos, escritas, caminhos }
+}
+
+test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só leitura de um Agente e sem escrever', async ({ page }, testInfo) => {
+  const conferir = vigiar(page, testInfo)
+  const { e, pedidos, escritas, caminhos } = await abrirContaDeMentira(page)
   // A versão no ar: o publish não expõe o commit, mas o nome do bundle muda a cada build (cadencia-pela-ia 04).
   const bundles = await page.locator('script[src*="/assets/"]').evaluateAll((scripts) => scripts.map((script) => script.getAttribute('src') ?? ''))
   testInfo.annotations.push({ type: 'bundle', description: bundles.join(' ') })
@@ -112,6 +121,32 @@ test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só lei
   expect(pedido.workspaceId).toBe(e.workspaceId)
   expect(String(pedido.text)).toContain(`(id ${CONTA})`)
   expect(caminhos.filter((c) => c.startsWith('/agentes/')), 'nunca passa pela Conversa só leitura de um Agente').toEqual([])
+  expect(escritas, 'nenhuma escrita em produção').toEqual([])
+  await conferir()
+})
+
+// A causa provável da tentativa de 31/10 que "não avançou" (cadencia-pela-ia 04): um seletor sem o nome exato. Um regex
+// com "sequência" sem distinguir maiúsculas acerta os dois botões, e "Criar sequência" abre o modal na própria Conta, sem
+// navegar e sem pedir nada aos Agentes. O modal é fechado sem salvar.
+test('Um clique em "Criar sequência", ao lado, não avança para /conversa: o sintoma da tentativa de 31/10', async ({ page }, testInfo) => {
+  const conferir = vigiar(page, testInfo)
+  const { pedidos, escritas } = await abrirContaDeMentira(page)
+  const ambiguo = page.getByRole('button', { name: /sequência/i })
+  const nomes = await ambiguo.evaluateAll((botoes) => botoes.map((b) => b.textContent?.trim() ?? ''))
+  testInfo.annotations.push({ type: 'seletor-ambiguo', description: nomes.join(' | ') })
+  expect(nomes).toEqual(expect.arrayContaining(['Gerar Sequência', 'Criar sequência']))
+
+  const antes = page.url()
+  await page.getByRole('button', { name: 'Criar sequência', exact: true }).click()
+  const modal = page.getByRole('dialog')
+  await expect(modal).toBeVisible()
+  testInfo.annotations.push({ type: 'url', description: `${antes} -> ${page.url()}` })
+  await testInfo.attach('criar-sequencia-nao-navega.png', { body: await page.screenshot(), contentType: 'image/png' })
+  expect(page.url(), 'o clique errado fica na Conta').toBe(antes)
+  expect(pedidos, 'nenhum pedido aos Agentes').toEqual([])
+
+  await page.keyboard.press('Escape')
+  await expect(modal).toBeHidden()
   expect(escritas, 'nenhuma escrita em produção').toEqual([])
   await conferir()
 })

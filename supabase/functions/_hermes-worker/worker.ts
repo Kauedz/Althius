@@ -247,9 +247,17 @@ function lerEscolha(saida: string): { agentes: string[]; resposta_direta: string
   throw new ErroDoModelo('model_invalid_output')
 }
 
-/** Se a Execução vai pelo modo por Agente: sempre com Menção ou na página de um Agente; senão, o modo configurado. */
-export function precisaDoModoPorAgente(reserva: Pick<Reserva, 'kind' | 'mentions'>, porAgente = false): boolean {
-  return porAgente || reserva.kind === 'agente' || reserva.mentions.length > 0
+/**
+ * Se a Execução vai pelo modo por Agente: sempre com ferramentas ligadas, Menção ou na página de um Agente; senão, o
+ * modo configurado. No modo de uma chamada as ferramentas não existem, então um pedido coordenado como "Gerar
+ * Sequência" ficaria sem `ler_contas_e_sinais` e `propor_sequencia`.
+ */
+export function precisaDoModoPorAgente(
+  reserva: Pick<Reserva, 'kind' | 'mentions'>,
+  porAgente = false,
+  temFerramentas = false,
+): boolean {
+  return porAgente || temFerramentas || reserva.kind === 'agente' || reserva.mentions.length > 0
 }
 
 /**
@@ -516,9 +524,14 @@ export function createWorker(deps: WorkerDeps) {
           feitos++
           continue
         }
-        // A Menção e a página de um Agente vão sempre pelo modo por Agente, mesmo com HERMES_UMA_CHAMADA=true (PR-11):
-        // no modo de uma chamada, o mencionado não falava. A chamada única fica só para a Coordenação sem Menção.
-        await (precisaDoModoPorAgente(reserva, deps.porAgente) ? processarPorAgente(reserva) : processar(reserva))
+        // As ferramentas, a Menção e a página de um Agente vão sempre pelo modo por Agente, mesmo com HERMES_UMA_CHAMADA=true
+        // (PR-11): no modo de uma chamada, o mencionado não falava e as ferramentas não existem. A chamada única fica só para
+        // a Coordenação sem Menção e sem ferramentas.
+        await (
+          precisaDoModoPorAgente(reserva, deps.porAgente, Boolean(deps.ferramentas))
+            ? processarPorAgente(reserva)
+            : processar(reserva)
+        )
         feitos++
       }
       return feitos
