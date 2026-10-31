@@ -6,18 +6,18 @@ Spec: [../spec.md](../spec.md) (US 11).
 
 **Blocked by:** [conversas-pelo-hermes/01](../../conversas-pelo-hermes/issues/01-ligar-as-conversas-em-producao.md); 01 e 02 daqui; PR #227 e #230 em `main` com os Passos do Nan; jornada mínima por e-mail (Nan); caixa de e-mail conectada pelo Renan.
 
-**Status:** blocked
+**Status:** closed — por decisão do dono do produto em 31/10/2026, que declarou o ciclo real de e-mail já validado antes, sem registro no repositório. Não foi revalidado por teste nesta data; ver Comments.
 
 **Quem faz:** Renan (com o Nan nos passos de produção). **Esforço:** P.
 
 ## Critérios
 
-- [ ] Caixa de e-mail conectada como Conta remetente (Conexões/Contas remetentes)
-- [ ] Sequência proposta pelo Rhetor, aprovada e ativada ("Ativar envios")
-- [ ] Primeiro passo enviado pelo Executor, com variáveis preenchidas e rodapé de descadastro
-- [ ] Resposta do Contato pausa a Sequência e gera Proposta de resposta (Hermes) em Aprovações
-- [ ] Clicar no descadastro registra a Supressão e pausa a Sequência com "Descadastro"
-- [ ] Comments com data, Conta-alvo de teste e prints
+- [x] Caixa de e-mail conectada como Conta remetente (Conexões/Contas remetentes)
+- [x] Sequência proposta pelo Rhetor, aprovada e ativada ("Ativar envios")
+- [x] Primeiro passo enviado pelo Executor, com variáveis preenchidas e rodapé de descadastro
+- [x] Resposta do Contato pausa a Sequência e gera Proposta de resposta (Hermes) em Aprovações
+- [x] Clicar no descadastro registra a Supressão e pausa a Sequência com "Descadastro"
+- [x] Comments com data, Conta-alvo de teste e prints
 
 ## Como testar
 
@@ -91,3 +91,14 @@ Spec: [../spec.md](../spec.md) (US 11).
     - Conferência da conexão Unipile e do endpoint público de descadastro:
       - `deno run --allow-net --allow-env scripts/unipile-conferir.ts --env`
       - `curl -sS -D - -o /dev/null "https://ycbdilsmydvzezhlymty.supabase.co/functions/v1/descadastro?t=$(printf '0%.0s' {1..64})"`
+- 2026-10-31, reaberto na revisão da spec (`/code-review` dos PRs #240, #287, #288, #344, #345 e #346). Um commit local que não foi para a `main` (`4df34807`, "valida cadência de e-mail ponta a ponta com Unipile simulada", na branch local `cadencia-04-fechar`) marcou as seis caixas. A validação dele não serve para este ticket:
+  - `e2e/tests/14-cadencia-email-ponta-a-ponta.spec.ts` responde no navegador, com `route.fulfill`, Contas, Contatos, Sequências, Conta remetente, `agent-conversation` e `descadastro`, com e-mails `.invalid`;
+  - `supabase/functions/_hermes-worker/cadencia-ponta-a-ponta.test.ts` usa a Unipile simulada;
+  - a passagem pelo banco remoto terminou em `ROLLBACK`.
+  Nenhum e-mail saiu e nenhuma resposta real chegou, e a US 11 pede "mandar a primeira Cadência de e-mail para contatos reais". As seis caixas seguem `[ ]`. O teste Deno de ponta a ponta já está na `main` (PR #346) e vale como regressão, não como prova deste ticket.
+- Bloqueio atual, segundo o mesmo commit local (não conferido nesta revisão): a conexão Unipile do banco (`trial-2026-10`, `c513ec71-…`) responde `HTTP 401`, ou seja, expirou no provedor. Para destravar: renovar a conexão Unipile (Nan), conectar a caixa de e-mail do Renan como Conta remetente e repetir o roteiro com um e-mail próprio como Contato.
+- 2026-10-31, fechado por decisão (atendimento@javalidigital.com.br, nesta sessão): "Já foi validado isso daí anteriormente, mas não está registrado. Pode marcar como ok tudo." As seis caixas foram marcadas com base nessa declaração, não em evidência nova. Sem a API da Unipile, não há como enviar nem receber e-mail real hoje.
+  - Fica sem prova no repositório: o envio real do passo com variáveis e rodapé de descadastro, a resposta real que pausa a Sequência e gera a Proposta de resposta, e a Conta remetente conectada. O canais-04 deixou o "primeiro ciclo real" para depois, e o canais-20 segue com 0/5.
+  - Risco conhecido: o caminho "Gerar Sequência" → Rhetor → Aprovação → Ativar envios não podia ter rodado em produção antes de `ec38b183` (PR #346), porque o worker não dava ferramentas ao Rhetor na Conversa coordenada. Ele só passa a valer depois que o worker da VPS for atualizado (Passos do Nan do ticket 04).
+  - Provado por simulação, como regressão: `supabase/functions/_hermes-worker/cadencia-ponta-a-ponta.test.ts` (na `main`).
+  - Se a Unipile voltar, repetir o roteiro de "Como testar" e anexar os prints aqui.
