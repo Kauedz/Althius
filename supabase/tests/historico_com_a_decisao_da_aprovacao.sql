@@ -14,6 +14,10 @@ insert into public.workspaces (id, kind, name) values
   ('fb000000-0000-0000-0000-000000000001', 'empresa', 'Sul');
 insert into public.workspace_memberships (workspace_id, user_id, role, active) values
   ('fb000000-0000-0000-0000-000000000001', '5b000000-0000-0000-0000-000000000001', 'member', true);
+-- A rodada de Agente sempre reserva créditos (acesso-e-planos).
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at)
+values ('fb000000-0000-0000-0000-000000000001', 'escala', date_trunc('month', now()));
+select public.grant_credits('fb000000-0000-0000-0000-000000000001', 100, 'plano', 'saldo de teste');
 -- c1: a Alfa (pendente, depois recusada pela Bia); c2: a Beta (recusada pelo sistema); c3: a Gama (aprovada).
 insert into private.agent_conversations (id, workspace_id, owner_id, kind) values
   ('cb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000001', '5b000000-0000-0000-0000-000000000001', 'coordenada'),
