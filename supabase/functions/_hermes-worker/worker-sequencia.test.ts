@@ -11,7 +11,7 @@ const ETHOS: AgenteDoWorkspace = { ...RHETOR, id: 'a-ethos', name: 'Ethos', spec
 const CONTA = '11111111-1111-4111-8111-111111111111'
 const MARIA = '22222222-2222-4222-8222-222222222222'
 
-function montar(saidas: string[], agente: AgenteDoWorkspace) {
+function montar(saidas: string[], agente: AgenteDoWorkspace, history: Reserva['history'] = []) {
   const reserva: Reserva = {
     run_id: 'r1',
     kind: 'agente',
@@ -20,7 +20,7 @@ function montar(saidas: string[], agente: AgenteDoWorkspace) {
     agent_id: agente.id,
     mentions: [],
     agents: [agente],
-    history: [],
+    history,
   }
   const eventos: { kind: TipoDeEvento; agentId: string | null; payload: Record<string, unknown> }[] = []
   const fechamentos: { status: string; errorCode: string | null }[] = []
@@ -88,4 +88,21 @@ Deno.test('o Ethos também recebe propor_sequencia: o pedido dele vai à RPC, e 
   assert(m.chamadas[0].instructions.includes('### propor_sequencia'))
   assertEquals(m.propostas.length, 1)
   assert(m.propostas[0].includes(':a-ethos:'))
+})
+
+// A recusa chega ao Rhetor pelo histórico: o banco (`claim_agent_run`) termina a resposta da Execução que propôs com o
+// desfecho da Aprovação, e o worker passa essa resposta ao Hermes como fala do assistente.
+Deno.test('o Vendedor recusa e pede ajuste: o Rhetor recebe a recusa no histórico da Conversa', async () => {
+  const recusada = 'Rhetor: Propus a Sequência para a Alfa.\n\n' +
+    'Aprovação "Sequência de E-mail para Alfa": recusada por quem decide. Nada foi feito.'
+  const m = montar(['Vou refazer o primeiro e-mail.\nSTATUS: pronto'], RHETOR, [
+    { request: 'Monte uma Sequência para a Alfa', answer: recusada },
+  ])
+  assertEquals(await m.worker.rodada(), 1)
+
+  assertEquals(m.chamadas[0].conversation_history, [
+    { role: 'user', content: 'Monte uma Sequência para a Alfa' },
+    { role: 'assistant', content: recusada },
+  ])
+  assertEquals(m.fechamentos, [{ status: 'succeeded', errorCode: null }])
 })
