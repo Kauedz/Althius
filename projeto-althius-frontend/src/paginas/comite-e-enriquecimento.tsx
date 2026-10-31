@@ -238,6 +238,12 @@ function resumoDoComite({ novas, jaEncontradas }: ResultadoDoComite) {
   return `${textoDasNovas} · ${textoDasJaEncontradas}`
 }
 
+function avisoDeNaoGravadas(naoGravadas: number) {
+  return naoGravadas === 1
+    ? '1 pessoa encontrada não pôde ser gravada e não foi cobrada. Busque o comitê de novo.'
+    : `${naoGravadas} pessoas encontradas não puderam ser gravadas e não foram cobradas. Busque o comitê de novo.`
+}
+
 export function SecaoComiteDeCompra({
   contaId,
   propostas,
@@ -340,6 +346,12 @@ export function SecaoComiteDeCompra({
           {resumoDoComite(resumo)}
         </div>
       )}
+
+      {resumo?.naoGravadas ? (
+        <div role="alert" className="rounded bg-al-erro/10 p-3 text-xs text-al-erro">
+          {avisoDeNaoGravadas(resumo.naoGravadas)}
+        </div>
+      ) : null}
 
       {carregando ? (
         <div className="py-6 text-center text-xs text-al-muted">Carregando comitê...</div>

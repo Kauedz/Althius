@@ -758,10 +758,13 @@ export function criarFonteDeContasSupabase(
       }
       notificar()
       // Só as novas custam crédito; as já encontradas voltam sem custo.
+      // A pessoa achada que não foi gravada só aparece quando existe, para a tela avisar.
+      const naoGravadas = Number(data?.contactsNotSaved ?? 0)
       return {
         encontradas: Number(data?.contactsFound ?? 0),
         novas: Number(data?.contactsAdded ?? 0),
         jaEncontradas: Number(data?.contactsAlreadyKnown ?? 0),
+        ...(naoGravadas > 0 ? { naoGravadas } : {}),
       }
     },
 
@@ -840,7 +843,12 @@ export function criarFonteDeContasSupabase(
           cnpj,
         },
       })
-      if (error) throw converterErro(error)
+      if (error) {
+        // A falha da consulta é falha, com a causa que a função deu; não vira "não encontrado" nem o erro genérico.
+        const recusa = await corpoDoErroDaFuncao(error)
+        if (typeof recusa?.error === 'string' && recusa.error.trim()) throw converterErro({ message: recusa.error })
+        throw converterErro(error)
+      }
       notificar()
       return data as DadosDaReceita
     },
