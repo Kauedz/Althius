@@ -200,14 +200,27 @@ export function formatarCnpj(cnpj14: string): string {
   return `${cnpj14.slice(0, 2)}.${cnpj14.slice(2, 5)}.${cnpj14.slice(5, 8)}/${cnpj14.slice(8, 12)}-${cnpj14.slice(12, 14)}`
 }
 
-/** Consulta dados do CNPJ na BrasilAPI como fallback. */
+/**
+ * Consulta dados do CNPJ na BrasilAPI como fallback. Devolve null quando não acha; quando a consulta falha (resposta que
+ * não é 404, rede fora), também devolve null e preenche `falha.motivo`, para quem chama não confundir falha com ausência.
+ */
 export async function consultarBrasilApi(
   cnpjLimpo: string,
   fetchFn: typeof fetch = fetch,
+  falha?: { motivo: string | null },
 ): Promise<DadosReceitaFederal | null> {
+  let res: Response
   try {
-    const res = await fetchFn(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
-    if (!res.ok) return null
+    res = await fetchFn(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
+  } catch {
+    if (falha) falha.motivo = 'a BrasilAPI não respondeu'
+    return null
+  }
+  try {
+    if (!res.ok) {
+      if (falha && res.status !== 404) falha.motivo = `a BrasilAPI respondeu ${res.status}`
+      return null
+    }
     const data = await res.json()
 
     const telefones: string[] = []
@@ -272,6 +285,7 @@ export async function consultarBrasilApi(
       fonte: 'brasilapi',
     }
   } catch {
+    if (falha) falha.motivo = 'a BrasilAPI devolveu uma resposta ilegível'
     return null
   }
 }
@@ -477,8 +491,10 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         if (deps.apify) {
           resultado = await consultarApifyReceita(cnpjLimpo, deps.apify, actorId, medicao)
         }
+        // A BrasilAPI é a última fonte: a resposta dela decide entre "não encontrado" e "a consulta falhou".
+        const falhaDaBrasilApi: { motivo: string | null } = { motivo: null }
         if (!resultado) {
-          resultado = await consultarBrasilApi(cnpjLimpo, deps.fetchFn)
+          resultado = await consultarBrasilApi(cnpjLimpo, deps.fetchFn, falhaDaBrasilApi)
         }
 
         const gravarCusto = () => {
@@ -495,6 +511,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         if (!resultado) {
           await deps.db.finishCnpjReceita({ reservationId, found: false })
           await gravarCusto()
+          if (falhaDaBrasilApi.motivo) return json({ error: `A consulta do CNPJ falhou: ${falhaDaBrasilApi.motivo}.` }, 502)
           return json({ error: 'Dados do CNPJ não encontrados' }, 404)
         }
 
@@ -604,6 +621,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         // tamanho do limite, então a busca para quando chega a ele.
         let novas = 0
         let jaEncontradas = 0
+        let naoGravadas = 0
         const examinadas: Array<PessoaEncontrada & { jaEncontrada: boolean }> = []
         for (const p of pessoas) {
           if (novas >= limite) break
@@ -628,7 +646,8 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
             else jaEncontradas++
             examinadas.push({ ...p, jaEncontrada: !gravada.created })
           } catch {
-            // Gravação que falhou não conta nem cobra; continua com as demais.
+            // Gravação que falhou não conta nem cobra; continua com as demais e volta contada, para a tela avisar.
+            naoGravadas++
           }
         }
 
@@ -648,6 +667,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           contactsFound: novas + jaEncontradas,
           contactsAdded: novas,
           contactsAlreadyKnown: jaEncontradas,
+          contactsNotSaved: naoGravadas,
           proposed: examinadas,
         }, 200)
       }

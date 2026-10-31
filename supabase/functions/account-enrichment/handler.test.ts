@@ -1537,3 +1537,119 @@ Deno.test('revelar-contato 6c: Apify falha e o Apollo não acha: a falha volta e
   assertEquals(chamadas, ['apollo_people_enrichment'])
   assertEquals(registro.finish, [{ value: undefined, source: undefined }])
 })
+
+// prospeccao-funcional B6: falha da consulta de CNPJ é falha, não "não encontrado"; proposta do comitê que não foi
+// gravada aparece na resposta.
+
+const CORPO_BRASILAPI = JSON.stringify({
+  cnpj: CNPJ_LOGIFLOW,
+  razao_social: 'LOGIFLOW PELA BRASILAPI LTDA',
+  cnae_fiscal: 6201501,
+  cnae_fiscal_descricao: 'Desenvolvimento de programas',
+  qsa: [],
+})
+
+function apifySemItem(passos: string[]): Apify {
+  return {
+    async run() {
+      passos.push('actor')
+      return { runId: 'run-vazio', items: [] }
+    },
+  }
+}
+
+function apifyQueFalha(passos: string[]): Apify {
+  return {
+    async run() {
+      passos.push('actor')
+      throw new Error('apify fora')
+    },
+  }
+}
+
+Deno.test('B6 cnpj-receita: o actor falha e a BrasilAPI responde 503, a consulta falhou com 502 e libera a reserva', async () => {
+  const passos: string[] = []
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    return new Response('indisponível', { status: 503 })
+  }
+  const handler = criarHandlerEnrichment({ db: dbDaReceita({ passos }), apify: apifyQueFalha(passos), fetchFn })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 502)
+  assertEquals(await res.json(), { error: 'A consulta do CNPJ falhou: a BrasilAPI respondeu 503.' })
+  assertEquals(passos, ['sessao', 'begin', 'actor', 'brasil', 'finish:false'])
+})
+
+Deno.test('B6 cnpj-receita: o actor não acha e a BrasilAPI não responde, a consulta falhou e grava o custo do actor', async () => {
+  const passos: string[] = []
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    throw new TypeError('rede fora')
+  }
+  const handler = criarHandlerEnrichment({ db: dbDaReceita({ passos }), apify: apifySemItem(passos), fetchFn })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 502)
+  assertEquals(await res.json(), { error: 'A consulta do CNPJ falhou: a BrasilAPI não respondeu.' })
+  assertEquals(passos, ['sessao', 'begin', 'actor', 'brasil', 'finish:false', 'custo:null:run-vazio'])
+})
+
+Deno.test('B6 cnpj-receita: o actor não acha e a BrasilAPI responde 404, segue não encontrado', async () => {
+  const passos: string[] = []
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    return new Response('{}', { status: 404 })
+  }
+  const handler = criarHandlerEnrichment({ db: dbDaReceita({ passos }), apify: apifySemItem(passos), fetchFn })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 404)
+  assertEquals(await res.json(), { error: 'Dados do CNPJ não encontrados' })
+  assertEquals(passos, ['sessao', 'begin', 'actor', 'brasil', 'finish:false', 'custo:null:run-vazio'])
+})
+
+Deno.test('B6 cnpj-receita: o actor não acha e a BrasilAPI acha, grava e liquida', async () => {
+  const passos: string[] = []
+  const fetchFn: typeof fetch = async () => {
+    passos.push('brasil')
+    return new Response(CORPO_BRASILAPI, { status: 200, headers: { 'Content-Type': 'application/json' } })
+  }
+  const handler = criarHandlerEnrichment({ db: dbDaReceita({ passos }), apify: apifySemItem(passos), fetchFn })
+  const res = await handler(pedidoReceita())
+  assertEquals(res.status, 200)
+  const body = await res.json()
+  assertEquals(body.razaoSocial, 'LOGIFLOW PELA BRASILAPI LTDA')
+  assertEquals(body.fonte, 'brasilapi')
+  assertEquals(passos, ['sessao', 'begin', 'actor', 'brasil', 'save', 'finish:true', 'custo:null:run-vazio'])
+})
+
+Deno.test('B6 comite-compra: a proposta que não foi gravada volta contada na resposta, sem contar nem cobrar', async () => {
+  const banco = bancoDoComite()
+  const gravar = banco.db.recordProposedContact.bind(banco.db)
+  banco.db.recordProposedContact = async (args) => {
+    if (args.name === 'Bia Falha') throw new Error('banco fora')
+    return gravar(args)
+  }
+  const handler = criarHandlerEnrichment({
+    db: banco.db,
+    provedorContatos: new ApolloProvedorStub([pessoa('Ana Nova', 'ana-nova'), pessoa('Bia Falha', 'bia-falha')]),
+  })
+  const res = await handler(pedidoDeComiteComLimite(5))
+  const body = await res.json()
+
+  assertEquals(res.status, 200)
+  assertEquals(body.contactsAdded, 1)
+  assertEquals(body.contactsFound, 1)
+  assertEquals(body.contactsNotSaved, 1)
+  assertEquals(body.proposed.map((p: { nome: string }) => p.nome), ['Ana Nova'])
+  assertEquals(banco.finish, [{ success: true, contactsFound: 1 }])
+  assertEquals(banco.debitado, 1)
+})
+
+Deno.test('B6 comite-compra: sem falha de gravação, contactsNotSaved é 0', async () => {
+  const banco = bancoDoComite()
+  const handler = criarHandlerEnrichment({
+    db: banco.db,
+    provedorContatos: new ApolloProvedorStub([pessoa('Ana Nova', 'ana-nova')]),
+  })
+  const body = await (await handler(pedidoDeComiteComLimite(5))).json()
+  assertEquals(body.contactsNotSaved, 0)
+})
