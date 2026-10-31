@@ -16,6 +16,9 @@ const CONTA = '0b110000-0000-4000-8000-00000000c0de'
 const NOME = 'Conta Smoke 11'
 const ESCRITA_POR_RPC = /\/rest\/v1\/rpc\/(create_|save_|update_|delete_|archive_|set_|decide_|cancel_|move_|send_|propose_|agent_|start_|activate_|rename_|erase_|restore_|approve_|reject_|record_|enqueue_|register_)/
 
+// O trace fica também quando passa: é a evidência pedida pelo ticket cadencia-pela-ia 04.
+test.use({ trace: 'on' })
+
 function usuarioDoQa(): string {
   const carga = tokenDoQa().split('.')[1]
   return (JSON.parse(Buffer.from(carga, 'base64url').toString('utf8')) as { sub: string }).sub
@@ -80,12 +83,24 @@ test('Gerar Sequência abre uma Conversa coordenada nova, sem a Conversa só lei
   await page.goto(`/contas/${CONTA}`)
   await conferirWorkspaceOperacional(page)
   await expect(page.getByRole('heading', { level: 2, name: NOME })).toBeVisible()
+  // A versão no ar: o publish não expõe o commit, mas o nome do bundle muda a cada build (cadencia-pela-ia 04).
+  const bundles = await page.locator('script[src*="/assets/"]').evaluateAll((scripts) => scripts.map((script) => script.getAttribute('src') ?? ''))
+  testInfo.annotations.push({ type: 'bundle', description: bundles.join(' ') })
   const botao = page.getByRole('button', { name: 'Gerar Sequência', exact: true })
   await expect(botao).toBeVisible()
   await expect(page.getByRole('button', { name: /Rhetor/ })).toHaveCount(0)
+  // Ao lado fica "Criar sequência", que abre o modal na própria Conta e não navega: o clique tem que ser no outro.
+  await expect(page.getByRole('button', { name: 'Criar sequência', exact: true })).toBeVisible()
+  // A prova do ticket 04 fica no relatório também quando o clique não navega: a URL e os prints vêm antes da asserção.
+  const antes = page.url()
+  await testInfo.attach('antes-do-clique.png', { body: await page.screenshot(), contentType: 'image/png' })
   await botao.click()
-
-  await expect(page).toHaveURL(/\/conversa$/)
+  try {
+    await expect(page).toHaveURL(/\/conversa$/)
+  } finally {
+    testInfo.annotations.push({ type: 'url', description: `${antes} -> ${page.url()}` })
+    await testInfo.attach('depois-do-clique.png', { body: await page.screenshot(), contentType: 'image/png' })
+  }
   await expect(page.getByRole('form', { name: 'Continuar a Conversa' })).toBeVisible()
   await expect(page.getByText(/Monte uma Sequência de e-mail para a Conta-alvo Conta Smoke 11/).first()).toBeVisible()
   await expect.poll(() => pedidos.length).toBe(1)
