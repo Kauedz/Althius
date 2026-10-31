@@ -4,7 +4,7 @@
 
 **Blocked by:** enriquecimento 01 (mesma função). A branch `enriquecimento/01-fornecedores-da-cascata` redefine `accept_proposed_contact` em `20261009040000_origem_do_contato_aceito.sql`; esta correção parte desse corpo e só entra na `main` depois dele.
 
-**Status:** ready-for-human (código fechado; falta aplicar a migration no remoto, depois da `20261009040000`)
+**Status:** closed (migration aplicada no remoto, conferida em 28/10)
 
 - [x] Um usuário de outro Workspace que chama `accept_proposed_contact` com o id de uma proposta já aceita recebe `42501` e nenhum dado do Contato.
 - [x] Um participante com a Participação desativada (`active = false`), que antes podia gerir a Conta e até aceitou a proposta, recebe `42501` e nenhum dado ao chamar de novo.
@@ -55,3 +55,4 @@ Quem executa o ticket não aplica no remoto. Não há deploy de função nem mud
 - Passos do Nan: aplicar `20261009060000` no projeto `ycbdilsmydvzezhlymty` **depois** da `20261009040000`, com o CI verde, pelo `execute_sql` em bloco atômico, como em `docs/agents/migrations.md`. Antes, refazer o diff do passo 2 se o enriquecimento 01 mudou a função. Quem executa o ticket não aplica no remoto.
 
 - 2026-10-09: Teste real de 09/10: aceite repetido foi idempotente, mas gravou em minúsculas o id ACwAA do perfil. PR #160 preserva a caixa, compara identidades por lower (aceite/índice/CSV) e recupera dados de propostas aceitas equivalentes, mantendo autorização antes do retorno. Aplicar migrations e conferir o contato fe45da90-2772-4332-a723-11c922259875 fica com o Renan. [PR #160](https://github.com/Kauedz/Althius/pull/160).
+- 2026-10-28 (fechamento da spec): conferido no remoto `ycbdilsmydvzezhlymty` com consulta só de leitura em `supabase_migrations.schema_migrations`: `20261009040000` e `20261009060000` aplicadas. `closed`.

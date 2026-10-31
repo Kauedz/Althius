@@ -48,3 +48,4 @@ Com o CI verde, aplicar a migration no projeto `ycbdilsmydvzezhlymty` como manda
   - Este ticket cobre em parte o critério 1 do enriquecimento 05 ("Apagar o Contato remove os valores coletados").
 - 2026-10-08: migration `20261008153000_apagar_conta_limpa_dado_pessoal.sql` e pgTAP `apagar_conta_limpa_dado_pessoal.sql` (41). A tela de apagar não mudou: o texto já diz que o dado da empresa e o da pessoa somem. Sem print.
 - Passos do Nan: com o CI verde, aplicar `20261008153000` no projeto `ycbdilsmydvzezhlymty` pelo `execute_sql` em bloco atômico, como em `docs/agents/migrations.md`. Não há deploy de função. Quem executa o ticket não aplica no remoto.
+- 2026-10-28 (fechamento da spec): conferido no remoto `ycbdilsmydvzezhlymty` com consulta só de leitura em `supabase_migrations.schema_migrations`: `20261008153000` aplicada. `closed`.

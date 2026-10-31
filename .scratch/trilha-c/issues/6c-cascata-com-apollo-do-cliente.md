@@ -1,6 +1,6 @@
 # 6c: Cascata com Apollo do Cliente
 
-**Status:** done (PR aberto; deploy de `account-enrichment` após o merge)
+**Status:** closed (PR #325 na `main`; `account-enrichment` publicada na versão 19)
 
 **GATE:** Depois do merge, publicar `account-enrichment` e qualquer Edge Function que importe `provedor-de-contatos.ts`. Se houver migration, fazer backup e aplicar antes do merge.
 
@@ -34,7 +34,7 @@ Adicionar um provedor Apollo real por meio da camada existente de acesso a Integ
 - [x] Resultado Apify cobra pela regra existente; resultado Apollo/CRM grava e libera a reserva (`private.is_customer_contact_source`, migration 20261218003000); nenhum resultado libera.
 - [x] Origem LGPD: `source_provider`/`source_actor` = `apollo` no comitê e `provider` = `apollo` no e-mail revelado, pelos caminhos de gravação existentes.
 - [x] Testes Deno: Apify acha (Apollo não é chamado), Apify vazio e Apollo acha (origem apollo, custo do Apify gravado), Apollo ausente, leitura das conexões falhando, Apify falha + Apollo não acha (falha volta). pgTAP `contatos_da_conexao_sem_cobranca.sql`: e-mail do Apollo debita 0, do Apify cobra; comitê com 1 Apify + 2 Apollo liquida 1.
-- [ ] CI e smoke/deploy (gate).
+- [x] CI e smoke/deploy (gate).
 
 ## Comments
 
@@ -43,3 +43,4 @@ Adicionar um provedor Apollo real por meio da camada existente de acesso a Integ
 - 28/10/2026 — Para a Trilha B (agente): ações `cnpj-receita` (`workspaceId`, `targetAccountId`, `cnpj`, `requestKey`), `comite-compra` (`workspaceId`, `targetAccountId`, `companyName`, `companyDomain`, `companyLinkedinUrl`, `cargos`, `limite`, `requestKey`) e `revelar-contato` (`workspaceId`, `contactId`, `canal: "email"`, `requestKey`; telefone é recusado). O agente pode chamar as três ações quando expostas pelo wrapper de ferramentas.
 - 28/10/2026 — CRM: não foi encontrado nesta leitura um executor existente de busca de pessoa por organização no caminho de Integrações; permanece seam tipado para o próximo ticket.
 - 28/10/2026 — Revisão da Trilha C: os nomes de ferramenta do Codex (`search_people`, `enrich_person`) não existem no MCP do Apollo; trocados pelos do MCP do Apollo (`apollo_people_search`, `apollo_people_enrichment`) e o resultado MCP (texto JSON ou estruturado) passou a ser lido. O handler monta a cascata por chamada com a pessoa e o Workspace; o index só inclui o Apollo quando `integration_access_for_use` acha o Acesso. Sem a migration o Apollo cobraria como Apify: a cobrança é decidida no banco. Regra de cobrança a confirmar com o Kauê; validação real depende de um Workspace com Apollo conectado.
+- 29/10/2026 — Gate fechado. PR #325 mergeado em 28/10; CI da `main` verde nos três jobs (run 40805817709). A migration `20261218003000` está no remoto (conferido pela lista de migrations da `main` que faltavam no remoto: só faltava a `20261218020000`, do PR #342, aplicada em seguida). A `account-enrichment` foi publicada na versão 19 (28/10, 23:51 BRT), já com o PR #342; é a única função que importa `provedor-de-contatos.ts`. Teste em produção: o pgTAP `revelar_telefone_5_creditos.sql` rodou no remoto e passou com 0 falhas em 25 asserções, sem deixar nada gravado. A validação real com um Workspace que tenha Apollo conectado continua pendente.

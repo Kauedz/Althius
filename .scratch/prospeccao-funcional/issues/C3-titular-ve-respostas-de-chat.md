@@ -4,7 +4,7 @@
 
 **Blocked by:** C1. Os dois editam `detalhe-sequencia.tsx`. O merge na `main` espera o 00.
 
-**Status:** closed (tela pronta na `ralph/frente-canais`; sem push. Não sobra passo humano de migration nem de deploy. O merge na `main` espera o 00.)
+**Status:** closed (na `main` pelo PR #151, commit `ba61a073`. Não sobra passo humano de migration nem de deploy.)
 
 - [x] A Fonte de Sequências do Workspace operacional lê `list_received_chat_messages` para o titular e junta essas respostas às de e-mail que `list_received_emails` já devolve. Hoje `respostasRecebidas` só chama a de e-mail, e a função de chat não tem consumidor na tela.
 - [x] Cada resposta de chat mostra canal, texto, quem enviou e quando. O titular distingue WhatsApp de LinkedIn.
@@ -52,3 +52,4 @@ Nenhuma.
   - Duas rodadas anteriores da mesma suíte perderam testes de outras telas por carga da máquina (timeout de 20s; o documento da Demonstração ainda em Carregando). Esses testes passam sozinhos e não fazem parte deste ticket.
   - Revisão: Padrões sem problema aberto. Spec: uma falha qualquer do chat não pode esconder o e-mail nem buscar o texto por outro caminho; isso ficou coberto pelo teste da recusa 42501. Sem problema aberto.
   - Conferência visual do titular: `issues/prints/c3-titular-desktop.jpg`, `c3-titular-pagina.jpg` e `c3-titular-360.jpg` (WhatsApp, LinkedIn e e-mail juntos; no 360 o bloco ocupa a coluna e o texto quebra). Outro participante: `c3-outro-participante.jpg` e `c3-outro-participante-360.jpg` (resumo público, sem o texto).
+- 2026-10-28 (fechamento da spec): `ralph/frente-canais` entrou na `main` via `ralph/consolidado` (PR #151). Status atualizado.

@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** done
+**Status:** wontfix (superado: a `20261218020000_revelar_telefone_5_creditos.sql`, PR #342, desfaz a recusa e libera o telefone por 5 créditos)
 
 **Quem faz:** agente de código. **Esforço:** P.
 
@@ -54,3 +54,4 @@ Uma, aditiva (só `create or replace`, sem `drop`, sem mudança de assinatura). 
 
 - 2026-10-24 (matriz Ralph): ticket criado a partir da pendência do B3 (comentário de 08/10) e da FILA 2.11 (`.scratch/FILA-EXECUCAO-2026-10-17.md:56`). Conferido na `main` 515c2eb que nenhuma migration depois de `20261016110000` redefine as duas RPCs.
 - 2026-10-24 (agente de código): implementado. Migration nova `supabase/migrations/20261121110000_revelar_recusa_telefone_na_rpc.sql` redefine `quote_reveal_contact` e `begin_reveal_contact` com `create or replace`, byte-a-byte iguais aos corpos em vigor exceto o ramo `elsif p_channel = 'telefone'`, que agora lança `raise exception 'phone reveal unavailable' using errcode = '0A000'` antes de qualquer leitura de saldo, `already_known` ou `reserve_credits`. pgTAP novo `supabase/tests/revelar_recusa_telefone_na_rpc.sql` (11 asserções) cobre: sessão/Contato/Participação continuam checados antes do canal (28000/P0002/42501), cotação de telefone recusada com e sem telefone já gravado, `begin_reveal_contact` recusado sem criar reserva `phone_revealed` e sem mudar o saldo reservado, e e-mail intocado (cota 2, reserva `email_revealed`). Ajustadas só as asserções de telefone listadas no critério 25 em `enriquecimento_e_comite.sql` (plan 29→28), `nao_recobrar_o_ja_descoberto.sql` (plan 45 mantido) e `revelar_email_so_cobra_valor_novo.sql` (plan 29 mantido; a reserva de telefone da seção 9 agora é criada direto via `public.reserve_credits` como dono). Suíte pgTAP inteira (153 arquivos) rodada do zero com `PGPORT=55432 bash scripts/pgtap-local.sh pgtap_b5`: 100% verde, zero falhas. Revisão com `/code-review` (Standards + Spec) sem achados bloqueantes. `CONTEXT.md` não foi tocado. Migration pendente de apply no remoto pelo Nan.
+- 2026-10-28 (fechamento da spec): `wontfix`. A `20261218020000_revelar_telefone_5_creditos.sql` (PR #342, decisão do Kauê de 28/10) desfaz a recusa e apagou o pgTAP `revelar_recusa_telefone_na_rpc.sql`. A migration `20261121110000` fica no histórico, sobreposta pela `20261218020000`.
