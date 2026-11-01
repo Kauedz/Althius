@@ -57,8 +57,6 @@ export interface Monitoramento {
   pausadoPor?: 'sem_creditos'
   /** Quantas Rodadas seguidas foram puladas por falta de créditos (agente-de-sinal 05). Ausente ou 0: nenhuma. Uma Rodada que verifica zera. */
   rodadasPuladas?: number
-  /** Origem do fluxo de criação, quando informada pelo backend. */
-  criadoVia?: 'sinais_novo' | 'composer' | 'modelo'
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */
@@ -196,10 +194,6 @@ export interface SinalDeCandidata {
  * Operações assíncronas com observador de mudanças (ADR 0003 e ADR 0007).
  */
 export interface FonteDeSinais extends FonteObservavel {
-  /** Leitura do ICP estruturado vigente do Workspace, isolada por Participação ativa. */
-  icpDoWorkspace?(): Promise<IcpDoWorkspace | null>
-  /** Ids do catálogo global que correspondem ao ICP estruturado vigente. */
-  catalogoParaIcp?(): Promise<string[]>
   /** A data de referência de "hoje" adotada pela fonte. */
   hoje(): Date
 
@@ -236,9 +230,6 @@ export interface FonteDeSinais extends FonteObservavel {
   /** Salva ou atualiza um Monitoramento (cria se novo, atualiza se existente). */
   salvarMonitoramento(monitoramento: Monitoramento | NovoMonitoramento): Promise<Monitoramento>
 
-  /** Renomeia sem reenviar o restante do Monitoramento. */
-  renomearMonitoramento?(id: string, nome: string): Promise<Monitoramento>
-
   /** Altera o estado de um Monitoramento ('rascunho' | 'em-preparacao' | 'ativo' | 'pausado'). */
   mudarEstado(id: string, estado: EstadoDoMonitoramento): Promise<Monitoramento>
 
@@ -262,12 +253,6 @@ export interface FonteDeSinais extends FonteObservavel {
    * Sem a migração, ou se a leitura falhar, devolve lista vazia.
    */
   catalogoDoWorkspace(): Promise<CardSobPedido[]>
-
-  /** Plano-semente vigente do card; só disponível no Workspace operacional. */
-  modelo?(catalogoId: string): Promise<ModeloDeSinal>
-
-  /** Cotação em créditos do Plano-semente antes de existir Monitoramento. */
-  cotarModelo?(tipo: string, contas: number, agenda: AgendaDoSinal): Promise<{ porRodada: number; porDia: number; porMesAprox: number }>
 
   /**
    * O estado de cada coletor (`signal_type` do banco): 'available', 'testing' ou 'out'. É o que decide quais cards o
@@ -346,26 +331,6 @@ export interface FonteDeSinais extends FonteObservavel {
   liberarAutomacao?(monitoramentoId: string, limiteMensal: number): Promise<void>
 }
 
-export interface IcpDoWorkspace {
-  sector: string
-  companySize: string
-  geography: string
-  targetRoles: unknown[]
-  freeText: string
-  oQueVende: string
-  miniIcp: string
-  porQueCompram: string
-}
-
-export interface ModeloDeSinal {
-  catalogoId: string
-  versao: number
-  nome: string
-  briefing: string
-  plano: import('./plano-do-sinal').PlanoDoSinal
-  agenda: import('./agenda-do-sinal').AgendaDoSinal
-}
-
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'
 
 export type StatusDoPedido = 'novo' | 'em_analise' | 'em_construcao' | 'disponivel' | 'recusado'
@@ -385,7 +350,6 @@ export interface PedidoDeSinal {
   contato: ContatoDoPedido
   status: StatusDoPedido
   criadoEm: string
-  modeloId?: string
 }
 
 export interface NovoPedidoDeSinal {

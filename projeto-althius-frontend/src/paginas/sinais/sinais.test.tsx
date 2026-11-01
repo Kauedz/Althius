@@ -45,8 +45,9 @@ describe('Mockup do módulo Sinais', () => {
     expect(await screen.findByRole('region', { name: 'Catálogo de sinais' })).toBeInTheDocument()
   })
 
-  it('a rota de detalhe existente mantém os Monitoramentos do tipo e volta ao catálogo', async () => {
-    const { usuario } = renderizarApp('/sinais/tipos/abertura-de-vagas')
+  it('abre um card numa página própria com os Monitoramentos do tipo e volta ao catálogo', async () => {
+    const { usuario } = renderizarApp('/sinais')
+    await usuario.click(await within(await screen.findByRole('region', { name: 'Catálogo de sinais' })).findByRole('link', { name: /Abertura de vagas.*1 ativo/ }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Abertura de vagas' })).toBeInTheDocument()
     const lista = screen.getByRole('list', { name: 'Monitoramentos deste tipo' })

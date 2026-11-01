@@ -1,12 +1,11 @@
 import { TIPOS, TIPO_PERSONALIZADO } from '@/paginas/sinais/catalogo'
-import { CATALOGO_VISIVEL, cardPorId } from '@/paginas/sinais/catalogo-visivel'
-import { criteriosPadraoDoTipo, criteriosParaSalvar, TIPOS_DO_PLANO } from '@/paginas/sinais/campos-do-plano'
+import { CATALOGO_VISIVEL } from '@/paginas/sinais/catalogo-visivel'
 import { MONITORAMENTOS_INICIAIS, SINAIS_MOCK, publicoInicial } from '@/paginas/sinais/dados-mock'
 import { foiDisparado, parseDataDisparo } from '@/fonte/regras-sinais'
 import type { FonteDeContas } from './contas-tipos'
 import { LIMITES_DO_PLANO, contasDaRodada, type PedidoDePlano, type PlanoDoSinal, type PlanoMontado, type PlanoParaSalvar } from './plano-do-sinal'
 import { ErroDaRodada, type AchadoDaRodada, type HistoricoDeRodadas, type PedidoDeRodada, type PreviaDaRodada } from './rodadas-do-sinal'
-import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
+import { TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import { ErroDaAgenda, normalizarAgenda, proximasRodadas, validarAgenda, type AgendaDoSinal } from './agenda-do-sinal'
 import { ErroDaAutomacao, ErroDoLimite, estimativaLocal, tetoMensalSugerido, validarLimiteMensal, type EstimativaDoSinal } from './preco-por-rodada'
 import type {
@@ -22,7 +21,6 @@ import type {
   PedidoDeSinal,
   SinalEncontrado,
   TipoDeSinal,
-  ModeloDeSinal,
 } from './sinais-tipos'
 
 export interface OpcoesFonteDeSinaisSimulada {
@@ -61,13 +59,6 @@ function clonarMonitoramento(m: Monitoramento): Monitoramento {
     agenda: m.agenda ? { horarios: [...m.agenda.horarios], dias: [...m.agenda.dias] } : undefined,
     limitePorDia: m.limitePorDia,
   }
-}
-
-function tipoPeloGrupoDoModelo(familia: string): string {
-  if (familia === 'vagas-e-equipes') return 'crescimento_de_equipes'
-  if (familia === 'anuncios') return 'anuncio_google'
-  if (familia === 'reputacao-e-concorrencia') return 'avaliacoes_google_maps'
-  return 'publicacao_da_empresa'
 }
 
 /**
@@ -564,44 +555,6 @@ export function criarFonteDeSinaisSimulada(
       return { plano: planoFixoDaDemonstracao(pedido.escopo?.tipo === 'contas' ? pedido.escopo.contaIds : pedido.contaIds ?? []), avisos: [] }
     },
 
-    async modelo(catalogoId: string): Promise<ModeloDeSinal> {
-      await aguardar()
-      const card = cardPorId(catalogoId)
-      if (!card) throw new Error('Este Modelo não está disponível.')
-      const tipoExistente = SINAL_DO_TIPO[card.id] ?? card.contados.map((id) => SINAL_DO_TIPO[id]).find((id) => id && TIPOS_DO_PLANO[id])
-      const tipo = tipoExistente && TIPOS_DO_PLANO[tipoExistente]
-        ? tipoExistente
-        : card.coletores.find((coletor) => TIPOS_DO_PLANO[coletor]) ?? tipoPeloGrupoDoModelo(card.familiaId)
-      const criterios = criteriosParaSalvar(tipo, card.padroes ?? {})
-      return {
-        catalogoId,
-        versao: 1,
-        nome: card.nome,
-        briefing: `${card.nome}. ${card.frase}`.slice(0, 1000),
-        plano: {
-          versao: 1,
-          origem: 'modelo',
-          escopo: { tipo: 'contas', contaIds: [] },
-          sinais: [{ tipo, criterios: { ...criteriosPadraoDoTipo(tipo), ...criterios } }],
-          explicacao: card.frase,
-          maxEmpresasPorRodada: LIMITES_DO_PLANO.empresasPorRodadaPadrao,
-          modeloId: `${catalogoId}@1`,
-        },
-        agenda: { horarios: ['08:00'], dias: [1, 2, 3, 4, 5] },
-      }
-    },
-
-    async cotarModelo(tipo, contas, agenda) {
-      await aguardar()
-      const card = CATALOGO_VISIVEL.find((item) => item.coletores.includes(tipo))
-      const creditosPorConta = card?.creditosPorConta ?? PREVIA_DA_DEMONSTRACAO.creditosPorConta
-      return estimativaLocal({
-        porRodada: Math.min(contas, LIMITES_DO_PLANO.empresasPorRodadaMax) * creditosPorConta,
-        agenda,
-        saldo: PREVIA_DA_DEMONSTRACAO.saldo,
-      })
-    },
-
     async salvarPlano(plano: PlanoParaSalvar): Promise<Monitoramento> {
       await aguardar()
       const existente = plano.id ? monitoramentos.find((m) => m.id === plano.id) : undefined
@@ -620,22 +573,12 @@ export function criarFonteDeSinaisSimulada(
         briefing: plano.briefing,
         plano: plano.plano,
         versaoDoPlano: (existente?.versaoDoPlano ?? 0) + 1,
-        ...(plano.criadoVia ? { criadoVia: plano.criadoVia } : existente?.criadoVia ? { criadoVia: existente.criadoVia } : {}),
       }
       const index = monitoramentos.findIndex((m) => m.id === salvo.id)
       if (index >= 0) monitoramentos[index] = salvo
       else monitoramentos.push(salvo)
       notificar()
       return clonarMonitoramento(salvo)
-    },
-
-    async renomearMonitoramento(id, nome): Promise<Monitoramento> {
-      await aguardar()
-      const monitoramento = monitoramentos.find((m) => m.id === id)
-      if (!monitoramento) throw new Error(`Monitoramento "${id}" não encontrado`)
-      monitoramento.nome = nome.trim()
-      notificar()
-      return clonarMonitoramento(monitoramento)
     },
   }
 }

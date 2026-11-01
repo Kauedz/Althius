@@ -1,6 +1,6 @@
 # 04: Catálogo sem Modelos e sem "Para o seu nicho"
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -29,7 +29,7 @@
 
 ## Critérios
 
-- [ ] "Para o seu nicho" usa os Segmentos do ICP da Memória e não chama `list_signal_catalog_for_my_icp`. (Vitest.)
-- [ ] Abrir um card do catálogo leva ao Briefing do tipo, sem Plano-semente nem "Usar o Modelo". (Vitest.)
-- [ ] Criar um Sinal por `/sinais/novo`, incluindo um Sinal de mercado, continua funcionando e grava `created_via = 'sinais_novo'`. (Vitest `plano-no-supabase.test.ts`.)
-- [ ] Nenhuma tela oferece renomear Sinal. (Vitest.)
+- [x] "Para o seu nicho" usa os Segmentos do ICP da Memória e não chama `list_signal_catalog_for_my_icp`. (Vitest `vitrine.test.ts` e `sinais-internos-reais.test.tsx`; smoke `03-para-o-seu-nicho`.)
+- [x] Abrir um card do catálogo leva ao Briefing do tipo, sem Plano-semente nem "Usar o Modelo". (Vitest `sinais-internos-reais.test.tsx`: os cards abrem `/sinais/tipos/<id>` e nenhum link tem `modelo=`.)
+- [x] Criar um Sinal por `/sinais/novo`, incluindo um Sinal de mercado, continua funcionando e grava `created_via = 'sinais_novo'`. (Vitest `plano-no-supabase.test.ts`: a chamada não manda `p_created_via`, e o banco tem uma só `save_signal_plan`, com padrão `'sinais_novo'`.)
+- [x] Nenhuma tela oferece renomear Sinal. (Vitest `sinais-internos-reais.test.tsx`.)

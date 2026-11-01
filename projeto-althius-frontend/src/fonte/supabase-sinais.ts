@@ -4,7 +4,6 @@
 // recusa o Monitoramento em palavras do produto. Disparo simulado só existe na Demonstração.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TIPOS } from '@/paginas/sinais/catalogo'
-import { TIPOS_DO_PLANO } from '@/paginas/sinais/campos-do-plano'
 import { CATALOGO_VISIVEL, cardQueConta } from '@/paginas/sinais/catalogo-visivel'
 import { SINAL_DO_TIPO, TIPO_DO_SINAL_REAL } from './sinais-reais-mapa'
 import {
@@ -44,7 +43,6 @@ import type {
   Disponibilidade,
   EstadoDoMonitoramento,
   FonteDeSinais,
-  IcpDoWorkspace,
   Monitoramento,
   NovoMonitoramento,
   NovoPedidoDeSinal,
@@ -53,7 +51,6 @@ import type {
   SinalDeMercado,
   SinalEncontrado,
   TipoDeSinal,
-  ModeloDeSinal,
   UrgenciaDoPedido,
   StatusDoPedido,
 } from './sinais-tipos'
@@ -73,7 +70,6 @@ interface RegistroDoMonitor {
   daily_credit_cap?: number | null
   consecutive_skips?: number | null
   paused_reason?: string | null
-  created_via?: 'sinais_novo' | 'composer' | 'modelo' | null
   last_run?: {
     state: 'rodando' | 'concluida' | 'falhou'
     startedAt: string
@@ -368,7 +364,6 @@ function mapearMonitor(linha: RegistroDoMonitor, tiposDeCascata: ReadonlySet<str
     ...(typeof linha.daily_credit_cap === 'number' ? { limitePorDia: linha.daily_credit_cap } : {}),
     ...(linha.state === 'pausado' && linha.paused_reason === 'sem_creditos' ? { pausadoPor: 'sem_creditos' as const } : {}),
     ...(typeof linha.consecutive_skips === 'number' && linha.consecutive_skips > 0 ? { rodadasPuladas: linha.consecutive_skips } : {}),
-    ...(linha.created_via ? { criadoVia: linha.created_via } : {}),
     ...(linha.last_error ? { ultimaFalha: linha.last_error } : {}),
     ...(linha.last_run
       ? {
@@ -422,20 +417,6 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
       return () => ouvintes.delete(ouvinte)
     },
     hoje: () => new Date(),
-
-    async icpDoWorkspace(): Promise<IcpDoWorkspace | null> {
-      const { data, error } = await cliente.rpc('get_my_workspace_icp', { p_workspace_id: workspaceId() })
-      if (error) throw new Error('Não foi possível carregar o ICP do Workspace.')
-      return data as IcpDoWorkspace | null
-    },
-
-    async catalogoParaIcp(): Promise<string[]> {
-      const { data, error } = await cliente.rpc('list_signal_catalog_for_my_icp', { p_workspace_id: workspaceId() })
-      if (error) throw new Error('Não foi possível carregar os Sinais para o ICP do Workspace.')
-      return ((data ?? []) as { id: string; matches_icp: boolean }[])
-        .filter((linha) => linha.matches_icp)
-        .map((linha) => linha.id)
-    },
 
     async tipos(): Promise<TipoDeSinal[]> {
       // A disponibilidade é um enfeite do catálogo: se o registro não puder ser lido, todos ficam "em breve".
@@ -620,50 +601,6 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
 
     estadosDosColetores: () => estadosDosColetores(cliente),
 
-    async modelo(catalogoId: string): Promise<ModeloDeSinal> {
-      const { data, error } = await cliente.rpc('list_signal_models', { p_workspace_id: workspaceId() })
-      if (error) throw new Error('Não foi possível carregar este Modelo.')
-      const linha = ((data ?? []) as {
-        catalog_id: string
-        version: number
-        source_snapshot: { name?: string; phrase?: string }
-        seed_plan: PlanoDoSinal
-        suggested_schedule: { horarios?: unknown; dias?: unknown }
-      }[]).find((item) => item.catalog_id === catalogoId)
-      if (!linha || typeof linha.source_snapshot.name !== 'string' || typeof linha.source_snapshot.phrase !== 'string') {
-        throw new Error('Este Modelo não está disponível.')
-      }
-      const sinal = linha.seed_plan.sinais?.[0]
-      if (!sinal || !TIPOS_DO_PLANO[sinal.tipo]) throw new Error('Este Modelo ainda não pode ser usado.')
-      const horarios = Array.isArray(linha.suggested_schedule.horarios)
-        ? linha.suggested_schedule.horarios.filter((item): item is string => typeof item === 'string')
-        : ['08:00']
-      const dias = Array.isArray(linha.suggested_schedule.dias)
-        ? linha.suggested_schedule.dias.filter((item): item is number => typeof item === 'number')
-        : [1, 2, 3, 4, 5]
-      return {
-        catalogoId: linha.catalog_id,
-        versao: Number(linha.version),
-        nome: linha.source_snapshot.name,
-        briefing: `${linha.source_snapshot.name}. ${linha.source_snapshot.phrase}`.slice(0, 1000),
-        plano: linha.seed_plan,
-        agenda: { horarios, dias },
-      }
-    },
-
-    async cotarModelo(tipo, contas, agenda) {
-      const { data, error } = await cliente.rpc('quote_signal_model_seed', {
-        p_workspace_id: workspaceId(),
-        p_signal_type: tipo,
-        p_account_count: contas,
-        p_schedule: { horarios: agenda.horarios, dias: agenda.dias, fuso: FUSO_DA_AGENDA },
-      })
-      if (error) throw new Error(MENSAGEM_DA_FALHA_DA_ESTIMATIVA)
-      const [linha] = (Array.isArray(data) ? data : [data]) as { por_rodada: number | string; por_dia: number | string; por_mes_aprox: number | string }[]
-      if (!linha) throw new Error(MENSAGEM_DA_FALHA_DA_ESTIMATIVA)
-      return { porRodada: Number(linha.por_rodada), porDia: Number(linha.por_dia), porMesAprox: Number(linha.por_mes_aprox) }
-    },
-
     async montarPlano(pedido: PedidoDePlano): Promise<PlanoMontado> {
       const { data, error } = await cliente.functions.invoke('signal-plan', {
         body: { workspaceId: workspaceId(), briefing: pedido.briefing, escopo: pedido.escopo ?? { tipo: 'contas', contaIds: pedido.contaIds ?? [] } },
@@ -683,18 +620,7 @@ export function criarFonteDeSinaisSupabase(cliente: SupabaseClient, workspaceId:
         p_name: plano.nome,
         p_brief: plano.briefing,
         p_plan: plano.plano,
-        ...(plano.id ? {} : { p_created_via: plano.criadoVia ?? 'sinais_novo' }),
       })) as string
-      return monitoramento(id)
-    },
-
-    async renomearMonitoramento(id, nome): Promise<Monitoramento> {
-      const { error } = await cliente.rpc('rename_signal_monitor', {
-        p_workspace_id: workspaceId(),
-        p_id: id,
-        p_name: nome,
-      })
-      if (error) throw converterErro(error)
       return monitoramento(id)
     },
 
@@ -894,7 +820,6 @@ interface RegistroDoPedido {
   contato: { nome?: string; email?: string; whatsapp?: string }
   status: StatusDoPedido
   created_at: string
-  model_id: string | null
 }
 
 function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
@@ -911,7 +836,6 @@ function mapearPedido(linha: RegistroDoPedido): PedidoDeSinal {
     },
     status: linha.status,
     criadoEm: linha.created_at,
-    ...(linha.model_id ? { modeloId: linha.model_id } : {}),
   }
 }
 

@@ -10,16 +10,14 @@ import {
   ChevronRight,
   Flame,
   Hammer,
-  Pencil,
   RadioTower,
-  Search,
   Sparkles,
   Workflow,
   type LucideIcon,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { LogoDaConta } from '@/components/logos'
-import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
+import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import type { ContaAlvo } from '@/fonte/contas-tipos'
 import type { Monitoramento, PedidoDeSinal, SinalEncontrado } from '@/fonte/sinais-tipos'
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
@@ -82,22 +80,18 @@ export function CartaoDaVitrine({
   ativos,
   selo,
   estado,
-  abrirModelo = false,
-  mostrarAtivos = true,
   className,
 }: {
   card: CardDoCatalogo
   ativos: number
   selo?: string
   estado?: EstadoDoCard
-  abrirModelo?: boolean
-  mostrarAtivos?: boolean
   className?: string
 }) {
   return (
     <li className={cn('min-w-0', className)}>
       <Link
-        to={abrirModelo ? `/sinais/novo?modelo=${encodeURIComponent(card.id)}` : `/sinais/tipos/${card.id}`}
+        to={`/sinais/tipos/${card.id}`}
         // O clip-path arredondado segura os cantos enquanto a capa cresce no hover: só com overflow-hidden, o navegador
         // anima a capa numa camada própria e os cantos ficam quadrados até a animação acabar.
         className="group flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-al-line bg-al-surface [clip-path:inset(0_round_var(--radius-card))] transition-colors hover:border-al-accent"
@@ -119,12 +113,10 @@ export function CartaoDaVitrine({
           <NichosDoCard card={card} />
           {estado && <SelosDoEstado estado={estado} />}
           <div className="mt-auto flex w-full items-end justify-between gap-3 pt-2">
-            {mostrarAtivos ? (
-              <span className="rotulo inline-flex items-center gap-2 text-al-ink">
-                {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
-                {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
-              </span>
-            ) : <span />}
+            <span className="rotulo inline-flex items-center gap-2 text-al-ink">
+              {ativos > 0 && <span className="size-1.5 rounded-full bg-al-sucesso" aria-hidden />}
+              {ativos} {ativos === 1 ? 'ativo' : 'ativos'}
+            </span>
             <span
               className="grid size-8 place-items-center rounded-full border border-al-accent/60 text-al-accent transition-colors group-hover:border-al-accent group-hover:bg-al-accent/10"
               aria-hidden
@@ -625,9 +617,8 @@ export function MeusSinais({
   sequenciasAtivas,
   acaoDosEncontrados,
   acaoDeDescrever,
-  aoRenomear,
 }: {
-  monitoramentosAtivos: { id: string; tipoId: string; nome: string; disparos: number; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }[]
+  monitoramentosAtivos: { id: string; tipoId: string; nome: string; disparos: number }[]
   /** Os Sinais que o sistema pausou por falta de créditos: o aviso com "Ver créditos" e "Reativar" (agente-de-sinal 04). */
   pausadosPorCreditos?: Monitoramento[]
   /** Os Sinais ativos cuja última Rodada foi pulada por falta de créditos: o aviso com "Ver créditos" (agente-de-sinal 05). */
@@ -638,14 +629,7 @@ export function MeusSinais({
   acaoDosEncontrados: ReactNode
   /** O botão "Descrever um Sinal"; ausente onde a pessoa não pode criar Monitoramento. */
   acaoDeDescrever?: ReactNode
-  aoRenomear?: (monitoramento: { id: string; tipoId: string; nome: string; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }, nome: string) => Promise<void>
 }) {
-  const [filtroSinais, setFiltroSinais] = useState('')
-  const termo = filtroSinais.trim().toLowerCase()
-  const sinaisExibidos = termo
-    ? monitoramentosAtivos.filter((m) => m.nome.toLowerCase().includes(termo))
-    : monitoramentosAtivos
-
   return (
     <section aria-labelledby="titulo-meus-sinais" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -698,47 +682,6 @@ export function MeusSinais({
           para="/sequencias"
         />
       </ul>
-
-      {/* Bloco contido e minimalista de Sinais Ativos */}
-      <div className="rounded-2xl border border-al-line bg-al-surface overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-al-line px-4 py-3 bg-al-surface-2/30">
-          <div className="flex items-center gap-2.5">
-            <RadioTower className="size-4 text-al-accent shrink-0" aria-hidden />
-            <h3 className="text-sm font-medium text-al-ink">Sinais ativos</h3>
-            <span className="rounded-full bg-al-accent/10 px-2 py-0.5 text-xs font-medium text-al-accent tabular-nums">
-              {monitoramentosAtivos.length}
-            </span>
-          </div>
-          {monitoramentosAtivos.length > 6 && (
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-al-muted" aria-hidden />
-              <input
-                type="search"
-                placeholder="Filtrar Sinais ativos…"
-                aria-label="Filtrar Sinais ativos"
-                value={filtroSinais}
-                onChange={(e) => setFiltroSinais(e.target.value)}
-                className="h-7 w-48 rounded-lg border border-al-line bg-al-bg pl-8 pr-2 text-xs text-al-ink placeholder:text-al-muted outline-none focus:border-al-accent"
-              />
-            </div>
-          )}
-        </div>
-
-        {monitoramentosAtivos.length === 0 ? (
-          <p className="p-4 text-xs text-al-muted">Você ainda não tem Sinais ativos.</p>
-        ) : sinaisExibidos.length === 0 ? (
-          <p className="p-4 text-xs text-al-muted">Nenhum Sinal ativo corresponde a “{filtroSinais.trim()}”.</p>
-        ) : (
-          <div className="max-h-72 overflow-y-auto rolagem-discreta p-2.5">
-            <ul aria-label="Meus Sinais ativos" className="grid min-w-0 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-              {sinaisExibidos.map((monitoramento) => (
-                <CartaoDeMeuSinal key={monitoramento.id} monitoramento={monitoramento} aoRenomear={aoRenomear} />
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
       {pausadosPorCreditos.length > 0 && (
         <div role="group" aria-label="Sinais pausados por falta de créditos" className="flex flex-col gap-2">
           {pausadosPorCreditos.map((m) => (
@@ -754,96 +697,6 @@ export function MeusSinais({
         </div>
       )}
     </section>
-  )
-}
-
-function CartaoDeMeuSinal({
-  monitoramento,
-  aoRenomear,
-}: {
-  monitoramento: { id: string; tipoId: string; nome: string; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }
-  aoRenomear?: (monitoramento: { id: string; tipoId: string; nome: string; criadoVia?: 'sinais_novo' | 'composer' | 'modelo' }, nome: string) => Promise<void>
-}) {
-  const [editando, setEditando] = useState(false)
-  const [nome, setNome] = useState(monitoramento.nome)
-  const [salvando, setSalvando] = useState(false)
-  const salvarNome = async () => {
-    const novoNome = nome.trim()
-    if (!novoNome || !aoRenomear) { setNome(monitoramento.nome); setEditando(false); return }
-    setSalvando(true)
-    try { await aoRenomear(monitoramento, novoNome); setEditando(false) } finally { setSalvando(false) }
-  }
-  return (
-    <li className="group flex min-w-0 flex-col justify-center rounded-lg border border-al-line/60 bg-al-bg/50 p-2.5 transition-colors hover:border-al-accent/40 hover:bg-al-hover">
-      {editando ? (
-        <div className="flex flex-col gap-1.5">
-          <input
-            aria-label={`Nome de ${monitoramento.nome}`}
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            className="campo h-7 text-xs"
-            autoFocus
-          />
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={salvando}
-              onClick={() => void salvarNome()}
-              className={cn(BOTAO_DISCRETO, 'h-6 px-2 text-xs text-al-accent')}
-            >
-              Salvar
-            </button>
-            <button
-              type="button"
-              disabled={salvando}
-              onClick={() => { setNome(monitoramento.nome); setEditando(false) }}
-              className={cn(BOTAO_DISCRETO, 'h-6 px-2 text-xs text-al-muted')}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between gap-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="size-1.5 shrink-0 rounded-full bg-al-sucesso" title="Monitoramento ativo" aria-hidden />
-            <Link
-              to={`/sinais/tipos/${monitoramento.tipoId}/${monitoramento.id}`}
-              className="truncate text-xs font-normal text-al-ink hover:text-al-accent"
-              title={monitoramento.nome}
-            >
-              {monitoramento.nome}
-            </Link>
-          </div>
-          {aoRenomear && (
-            <button
-              type="button"
-              aria-label={`Renomear ${monitoramento.nome}`}
-              title={`Renomear ${monitoramento.nome}`}
-              onClick={() => setEditando(true)}
-              className="shrink-0 p-1 text-al-muted opacity-0 transition-opacity hover:text-al-ink group-hover:opacity-100 focus:opacity-100"
-            >
-              <Pencil strokeWidth={1.8} className="size-3" aria-hidden />
-              <span className="sr-only">Renomear</span>
-            </button>
-          )}
-        </div>
-      )}
-      {!editando && (monitoramento.criadoVia === 'composer' || monitoramento.criadoVia === 'modelo') && (
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-3.5">
-          {monitoramento.criadoVia === 'composer' && (
-            <span className="rounded bg-al-accent/10 px-1.5 py-px text-[0.625rem] font-medium text-al-accent">
-              Criado pelo composer
-            </span>
-          )}
-          {monitoramento.criadoVia === 'modelo' && (
-            <span className="rounded bg-zinc-500/10 px-1.5 py-px text-[0.625rem] font-medium text-al-muted">
-              Criado de um Modelo
-            </span>
-          )}
-        </div>
-      )}
-    </li>
   )
 }
 

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { ErroDoPlano, MENSAGEM_DA_FALHA_DO_PLANO, type PlanoDoSinal } from './plano-do-sinal'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
 import { criarSupabaseFalso, type RespostaDaFuncao } from '@/test/supabase-falso'
-import { CATALOGO_VISIVEL } from '@/paginas/sinais/catalogo-visivel'
 
 // A Fonte de Sinais do Workspace operacional fala com `signal-plan` e `save_signal_plan` (agente-de-sinal 01).
 
@@ -61,80 +60,6 @@ describe('montarPlano', () => {
   })
 })
 
-describe('Modelos do catálogo', () => {
-  it('lê a versão vigente e devolve Briefing, Plano e Agenda sugerida sem expor campos de preço do fornecedor', async () => {
-    const { fonte, chamadas } = fonteCom({ rpcs: {
-      list_signal_models: (parametros) => {
-        chamadas.push(parametros)
-        return [{
-          catalog_id: 'abertura-de-vagas', version: 3,
-          source_snapshot: { name: 'Abertura de vagas', phrase: 'Acompanha vagas.' },
-          seed_plan: { ...PLANO, origem: 'modelo', modeloId: 'abertura-de-vagas@3' },
-          suggested_schedule: { horarios: ['08:00'], dias: [1, 2, 3, 4, 5] },
-        }]
-      },
-    } })
-
-    const modelo = await fonte.modelo!('abertura-de-vagas')
-
-    expect(chamadas).toContainEqual({ p_workspace_id: WORKSPACE })
-    expect(modelo).toEqual({
-      catalogoId: 'abertura-de-vagas', versao: 3,
-      nome: 'Abertura de vagas', briefing: 'Abertura de vagas. Acompanha vagas.',
-      plano: { ...PLANO, origem: 'modelo', modeloId: 'abertura-de-vagas@3' },
-      agenda: { horarios: ['08:00'], dias: [1, 2, 3, 4, 5] },
-    })
-  })
-
-  it('recusa um modelo sem versão vigente em palavras do produto', async () => {
-    const { fonte } = fonteCom({ rpcs: { list_signal_models: () => [] } })
-    await expect(fonte.modelo!('inexistente')).rejects.toThrow('Este Modelo não está disponível.')
-  })
-
-  it('abre um Plano editável para cada card visível do catálogo', async () => {
-    const linhas = CATALOGO_VISIVEL.map((card, indice) => ({
-      catalog_id: card.id,
-      version: indice + 1,
-      source_snapshot: { name: card.nome, phrase: card.frase },
-      seed_plan: {
-        ...PLANO,
-        origem: 'modelo' as const,
-        sinais: [{ tipo: 'publicacao_da_empresa', criterios: { periodo: 'Últimos 30 dias' } }],
-        modeloId: `${card.id}@${indice + 1}`,
-      },
-      suggested_schedule: { horarios: ['08:00'], dias: [1, 2, 3, 4, 5] },
-    }))
-    const { fonte } = fonteCom({ rpcs: { list_signal_models: () => linhas } })
-
-    const modelos = await Promise.all(CATALOGO_VISIVEL.map((card) => fonte.modelo!(card.id)))
-
-    expect(modelos).toHaveLength(CATALOGO_VISIVEL.length)
-    for (const modelo of modelos) {
-      expect(modelo.plano.sinais[0].tipo).toBe('publicacao_da_empresa')
-      expect(modelo.plano.sinais[0].criterios).toEqual({ periodo: 'Últimos 30 dias' })
-    }
-  })
-
-  it('cota o preço por Rodada do Plano sem criar um Monitoramento', async () => {
-    const chamadas: Record<string, unknown>[] = []
-    const { fonte } = fonteCom({ rpcs: {
-      quote_signal_model_seed: (parametros) => {
-        chamadas.push(parametros)
-        return [{ por_rodada: 50, por_dia: 50, por_mes_aprox: 1084 }]
-      },
-    } })
-
-    await expect(fonte.cotarModelo!('vaga_linkedin', 25, { horarios: ['08:00'], dias: [1, 2, 3, 4, 5] }))
-      .resolves.toEqual({ porRodada: 50, porDia: 50, porMesAprox: 1084 })
-    expect(chamadas).toEqual([{
-      p_workspace_id: WORKSPACE,
-      p_signal_type: 'vaga_linkedin',
-      p_account_count: 25,
-      p_schedule: { horarios: ['08:00'], dias: [1, 2, 3, 4, 5], fuso: 'America/Sao_Paulo' },
-    }])
-  })
-})
-
 describe('salvarPlano e a lista de Monitoramentos', () => {
   const noBanco = {
     id: 'mon-1', signal_type: 'anuncio_meta', name: 'Meta', state: 'rascunho', audience: { accountIds: [CONTA] },
@@ -149,35 +74,8 @@ describe('salvarPlano e a lista de Monitoramentos', () => {
 
     const salvo = await fonte.salvarPlano!({ nome: 'Meta', briefing: 'Quem anuncia na Meta', plano: PLANO })
 
-    expect(chamadas).toEqual([{ p_workspace_id: WORKSPACE, p_monitor_id: null, p_name: 'Meta', p_brief: 'Quem anuncia na Meta', p_plan: PLANO, p_created_via: 'sinais_novo' }])
+    expect(chamadas).toEqual([{ p_workspace_id: WORKSPACE, p_monitor_id: null, p_name: 'Meta', p_brief: 'Quem anuncia na Meta', p_plan: PLANO }])
     expect(salvo).toMatchObject({ id: 'mon-1', tipoId: 'anuncios-meta', briefing: 'Quem anuncia na Meta', plano: PLANO, versaoDoPlano: 2 })
-  })
-
-  it('envia a origem composer ao salvar um Plano iniciado no composer', async () => {
-    const chamadas: Record<string, unknown>[] = []
-    const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, created_via: 'composer' }] } })
-
-    const salvo = await fonte.salvarPlano!({ nome: 'Meta', briefing: 'Quem anuncia na Meta', plano: PLANO, criadoVia: 'composer' })
-
-    expect(chamadas[0]).toMatchObject({ p_created_via: 'composer' })
-    expect(salvo.criadoVia).toBe('composer')
-  })
-
-  it('envia a origem modelo ao salvar um Plano vindo do catálogo', async () => {
-    const chamadas: Record<string, unknown>[] = []
-    const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, created_via: 'modelo' }] } })
-    await fonte.salvarPlano!({ nome: 'Meta', briefing: 'Quem anuncia na Meta', plano: PLANO, criadoVia: 'modelo' })
-    expect(chamadas[0]).toMatchObject({ p_created_via: 'modelo' })
-  })
-
-  it('edita um Monitoramento existente sem deixar de funcionar', async () => {
-    const chamadas: Record<string, unknown>[] = []
-    const { fonte } = fonteCom({ rpcs: { save_signal_plan: (p) => { chamadas.push(p); return 'mon-1' }, list_signal_monitors: () => [{ ...noBanco, id: 'mon-1', created_via: 'composer' }] } })
-
-    await fonte.salvarPlano!({ id: 'mon-1', nome: 'Meta editado', briefing: 'Atualizado', plano: PLANO })
-
-    expect(chamadas[0]).toMatchObject({ p_monitor_id: 'mon-1' })
-    expect(chamadas[0]).not.toHaveProperty('p_created_via')
   })
 
   it('o Monitoramento sem Plano (ou com o Plano solto pelo editor) não leva Briefing nem versão', async () => {

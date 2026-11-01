@@ -16,12 +16,12 @@ import {
 import { formatarDataCompleta, formatarDataDoModulo } from '@/fonte/formatar-data'
 import { cn } from '@/lib/utils'
 import { FAMILIAS, tipoPorId } from './catalogo'
-import { CATALOGO_VISIVEL, correspondeBuscaDoCatalogo, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
+import { CATALOGO_VISIVEL, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { GRADE_DE_CARTOES } from './cascatas'
 import { usePodeDescreverSinal } from './pode-descrever-sinal'
 import { useCatalogoFuncional, type VisaoDoCatalogo } from './catalogo-funcional'
-import { useMonitoramentos, useSinaisDoMockup } from './estado'
+import { useMonitoramentos } from './estado'
 import {
   ZONA_DA_VITRINE,
   ativosDoCard,
@@ -33,7 +33,6 @@ import {
   sinalDaSemana,
   ultimasDetectadas,
   usePedidosDaVitrine,
-  nichoDoIcp,
 } from './vitrine'
 import {
   CartaoDaVitrine,
@@ -119,7 +118,6 @@ export function PaginaSinais() {
 
 function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
-  const { renomearMonitoramento } = useSinaisDoMockup()
   const podeDescrever = usePodeDescreverSinal(visao)
   const [busca, setBusca] = useState('')
   const [familiaId, setFamiliaId] = useState('todos')
@@ -134,16 +132,12 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
   const { dados: contas } = useDadosDeContas((f) => f.contas(), [])
   const { dados: sequencias } = useDadosDeSequencias((f) => f.sequencias(), [])
   const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
-  const icpEstruturado = useDadosDeSinais((f) => f.icpDoWorkspace?.() ?? Promise.resolve(null), [operacional])
-  const idsDoCatalogoParaIcp = useDadosDeSinais((f) => f.catalogoParaIcp?.() ?? Promise.resolve([]), [operacional])
   const { pedidos, avisar, avisado } = usePedidosDaVitrine()
   const sinais = sinaisCarregados ?? (operacional ? undefined : SINAIS_MOCK)
   const encontrados = sinais?.length
   const totalAtivos = cards.reduce((soma, card) => soma + ativosDoCard(card, monitoramentos), 0)
   const segmentos = memoria?.icp.secoes.find((secao) => secao.titulo === 'Segmentos')?.texto ?? ''
-  const nichoDoIcpAtual = operacional
-    ? nichoDoIcp(icpEstruturado.dados ?? {})
-    : nichoDoWorkspace(segmentos)
+  const nichoDoIcp = nichoDoWorkspace(segmentos)
 
   // No Workspace operacional, a prévia do Sinal da semana busca disparos novos a cada minuto.
   useEffect(() => {
@@ -159,7 +153,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
     if (!termo) return true
     const nomes = nomesDosNichos(card.nichos).join(' ')
     const familia = FAMILIAS.find((item) => item.id === card.familiaId)?.nome ?? ''
-    return correspondeBuscaDoCatalogo(normalizar(`${card.nome} ${card.frase} ${familia} ${nomes}`), termo)
+    return normalizar(`${card.nome} ${card.frase} ${familia} ${nomes}`).includes(termo)
   })
   const familiasDoCatalogo = FAMILIAS.filter((familia) => cards.some((card) => card.familiaId === familia.id))
   const idsExclusivos = new Set(exclusivos.map((card) => card.id))
@@ -168,21 +162,15 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
   const ativosDe = (card: CardDoCatalogo) => ativosDoCard(card, monitoramentos)
   const estadoDe = (card: CardDoCatalogo) => visao.estadoDe(card)
 
-  const prateleiras = montarPrateleiras({
-    cards: doCatalogo,
-    exclusivos,
-    monitoramentos,
-    nicho: nichoDoIcpAtual,
-    idsDoCatalogoParaIcp: operacional ? idsDoCatalogoParaIcp.dados : undefined,
-  })
+  const prateleiras = montarPrateleiras({ cards: doCatalogo, exclusivos, monitoramentos, nicho: nichoDoIcp })
   // O destaque é sempre um Sinal que roda: nem o interno da equipe nem o card mantido só pelo Monitoramento.
-  const destaque = sinalDaSemana({ cards: cards.filter((card) => !estadoDe(card)), sinais: sinais ?? [], hoje, nicho: nichoDoIcpAtual })
+  const destaque = sinalDaSemana({ cards: cards.filter((card) => !estadoDe(card)), sinais: sinais ?? [], hoje, nicho: nichoDoIcp })
   const emProducao = exclusivosEmProducao(pedidos)
   const disparosPorMonitoramento = (id: string) => (sinais ?? []).filter((s) => s.monitoramentoId === id && foiDisparado(s.data, hoje)).length
   // Só os Monitoramentos de um Sinal da vitrine: os de um tipo arquivado não têm página para abrir.
   const ativos = monitoramentos
-    .filter((m) => m.estado === 'ativo' && tipoPorId(m.tipoId))
-    .map((m) => ({ ...m, disparos: disparosPorMonitoramento(m.id) }))
+    .filter((m) => m.estado === 'ativo' && cards.some((card) => card.contados.includes(m.tipoId)))
+    .map((m) => ({ id: m.id, tipoId: m.tipoId, nome: m.nome, disparos: disparosPorMonitoramento(m.id) }))
     .toSorted((a, b) => b.disparos - a.disparos)
   const pausadosPorCreditos = monitoramentos.filter((m) => m.estado === 'pausado' && m.pausadoPor === 'sem_creditos')
   const comRodadaPulada = monitoramentos.filter(sinalComRodadaPulada)
@@ -210,9 +198,6 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
       {!filtrando && (
         <MeusSinais
           monitoramentosAtivos={ativos}
-          aoRenomear={async (monitoramento, nome) => {
-            await renomearMonitoramento(monitoramento.id, nome)
-          }}
           pausadosPorCreditos={pausadosPorCreditos}
           comRodadaPulada={comRodadaPulada}
           disparos={disparos}
@@ -242,9 +227,9 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
             id="para-o-seu-nicho"
             titulo="Para o seu nicho"
             subtitulo={
-              nichoDoIcpAtual
-                ? `${nichoDoIcpAtual.nome}, pelo ICP do Workspace`
-                : 'Sinais que valem para qualquer nicho. Preencha o ICP do Workspace para afinar.'
+              nichoDoIcp
+                ? `${nichoDoIcp.nome}, pelos Segmentos do ICP do Workspace`
+                : 'Sinais que valem para qualquer nicho. Descreva os Segmentos do ICP na Memória para afinar.'
             }
           >
             <CartoesDaPrateleira cards={prateleiras.paraOSeuNicho} ativosDe={ativosDe} estadoDe={estadoDe} />
@@ -304,7 +289,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
       <section aria-labelledby="titulo-todos-os-sinais" className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 id="titulo-todos-os-sinais" className="titulo-secao text-lg">
-            Modelos
+            Todos os Sinais
           </h2>
           <span className="rotulo">
             {cards.length} Sinais · {totalAtivos} {totalAtivos === 1 ? 'Monitoramento ativo' : 'Monitoramentos ativos'}
@@ -357,7 +342,7 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
           <section aria-label="Catálogo de sinais">
             <ul className={GRADE_DE_CARTOES}>
               {visiveis.map((card) => (
-                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} abrirModelo />
+                <CartaoDaVitrine key={card.id} card={card} ativos={ativosDe(card)} selo={seloDe(card)} estado={estadoDe(card)} />
               ))}
             </ul>
           </section>
