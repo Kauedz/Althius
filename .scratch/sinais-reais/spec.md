@@ -9,7 +9,35 @@ aviso dos próximos). Pesquisa de actors: [`modulo-de-sinais/pesquisa-actors-api
 Relação com a outra sessão: detalha o CRM-11 (`crm-real-e-stack`), que é da outra sessão. **Quem pegar um ticket daqui
 combina com o Nan antes.**
 
-## Problem Statement
+## Consolidação do escopo — 31/10/2026
+
+Esta é a spec única de Sinais reais. O [ticket 11](issues/11-descoberta-de-empresas-por-todos-os-sinais.md)
+complementa os tickets 01–10 com descoberta de empresas por eventos do mercado, sem lista prévia de empresas.
+As decisões desta seção prevalecem sobre a descrição histórica abaixo quando houver conflito.
+
+- **Estado atual:** os tickets 01–08 estão registrados como fechados; 09–10 continuam pendentes. Existe código de
+  descoberta por vagas no mercado. Isso é referência de implementação, não comprovação de funcionamento em produção:
+  o próximo agente deve conferir a main atual, publicação, configuração e evidências de execução.
+- **Dois públicos:** monitorar Contas existentes continua válido; descobrir empresas no mercado recebe critérios de
+  evento, nicho/ICP e localização, sem exigir nomes, domínios ou IDs de empresas fornecidos pelo cliente.
+- **Coleta específica:** cada fonte tem estratégia de busca, identidade, confirmação do evento, deduplicação, custo
+  e limites próprios. Compartilha-se o resultado de domínio e o caminho até a Descoberta, não um coletor genérico.
+- **Destino:** empresa conhecida recebe o Sinal; empresa nova vira candidata deduplicada com fonte, data e evidência.
+  O aceite humano cria a Conta e preserva os Sinais. Enriquecimento e prospecção seguem suas confirmações existentes.
+  Descobrir ou aceitar não cria Sequência nem envia mensagem automaticamente.
+- **Cobrança da descoberta por Sinal:** buscar, reencontrar ou descartar candidatas não debita créditos do cliente.
+  O débito ocorre somente no aceite bem-sucedido de uma empresa nova, uma única vez por Workspace e empresa.
+  Custos dos provedores continuam medidos e sujeitos a teto operacional, mesmo sem débito ao cliente.
+  Essa decisão substitui a cobrança por rodada do modo mercado, inclusive vagas; não altera a cobrança de varreduras
+  sobre Contas existentes nem a busca independente por ICP. Enriquecimento mantém sua cobrança própria, explícita.
+- **Preço:** o valor do aceite não foi definido nesta conversa. Reutilizar preço aprovado se existir; caso contrário,
+  deixar configurável e impedir a ativação comercial até sua definição. Não inventar preço nem tratar ausência como zero.
+- **Rollout:** avaliar separadamente as nove fontes do catálogo. Liberar descoberta apenas com capacidade demonstrada
+  de achar empresas sem lista prévia e com identidade confiável. Fontes que exigem empresa/pessoa conhecida permanecem
+  identificadas como monitoramento de Contas, com limitação documentada. Google Ads não é Google Maps e não integra os
+  nove actors originais: sua integração nova permanece no ticket 09, sem pressupor que esteja pronta.
+
+## Problem Statement (contexto original)
 
 Sinais são o diferencial da Althius: dizem por que uma Conta deve ser abordada agora. Hoje o módulo de Sinais é um
 mockup com dados simulados; nenhum Monitoramento roda, nenhuma Conta fica Quente de verdade, e as Contas que não

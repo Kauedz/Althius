@@ -16,6 +16,9 @@ const CONTAS: MonitorReivindicado = {
   monitorId: 'mon-contas', workspaceId: WS, signalType: 'vaga_linkedin', criteria: { funcoes: ['SDR'] }, createdBy: 'user-1', slot: SLOT,
   accounts: [{ id: 'c1', name: 'Alfa', domain: 'alfa.test', linkedinUrl: null }],
 }
+const MERCADO_GENERICO: MonitorReivindicado = {
+  monitorId: 'mon-mercado-generico', workspaceId: WS, signalType: 'anuncio_meta', criteria: CRITERIOS, createdBy: 'user-1', slot: SLOT, accounts: [],
+}
 
 const resultado = (extra: Partial<ResultadoDaCascata> = {}): ResultadoDaCascata => ({
   desfecho: 'concluida', mensagem: 'A busca terminou.', creditosCobrados: 4, custoUsd: 0.25, sinais: [], novos: 1, repetidos: 0,
@@ -40,7 +43,7 @@ function montar(monitores: MonitorReivindicado[], r: ResultadoDaCascata = result
     recordSignal: () => Promise.resolve(true),
     recordCost: () => Promise.resolve(),
     finish: (monitorId, attempted, error) => (c.fins.push({ monitorId, attempted, error }), Promise.resolve()),
-    ...(comEscopo ? { escopo: (id: string) => Promise.resolve(id === 'mon-mercado' ? 'mercado' as const : 'contas' as const) } : {}),
+    ...(comEscopo ? { escopo: (id: string) => Promise.resolve(id === 'mon-mercado' || id === 'mon-mercado-generico' || id === 'mon-indeed' ? 'mercado' as const : 'contas' as const) } : {}),
   }
   const cascatas: Cascatas = {
     ehCascata: () => Promise.resolve(false),
@@ -60,7 +63,7 @@ Deno.test('o Monitoramento de mercado roda a cascata da descoberta, sem Contas, 
   const p = c.pedidos[0]
   assertEquals(
     [p.signalType, p.registrarComo, p.origem, p.monitorId, p.chave, p.descoberta, p.tetoCreditos],
-    [CASCATA_DO_MERCADO, 'vaga_linkedin', 'monitor', 'mon-mercado', `monitor:mon-mercado:${SLOT}:mercado`, true, 4],
+    [CASCATA_DO_MERCADO, 'vaga_linkedin', 'monitor', 'mon-mercado', `monitor:mon-mercado:${SLOT}:mercado:${CASCATA_DO_MERCADO}`, true, 4],
   )
   assertEquals(CREDITOS_POR_RODADA_NO_MERCADO, 4)
   assertEquals(p.contas, undefined, 'as Contas do Workspace a cascata lê sozinha, só para casar')
@@ -75,6 +78,25 @@ Deno.test('a recusa da descoberta (em validação, sem crédito, sem contrato) f
   const { c, chamar } = montar([MERCADO], resultado({ desfecho: 'em_teste', mensagem: 'Essa busca ainda está em validação e não roda neste Workspace.', novos: 0 }))
   await chamar()
   assertEquals(c.fins[0].error, 'Essa busca ainda está em validação e não roda neste Workspace.')
+})
+
+Deno.test('uma fonte de descoberta usa a própria cascata e mantém o tipo público do Monitoramento', async () => {
+  const { c, chamar } = montar([MERCADO_GENERICO])
+  await chamar()
+  assertEquals(c.pedidos.length, 1)
+  assertEquals(c.pedidos[0].signalType, 'anuncio_meta')
+  assertEquals(c.pedidos[0].registrarComo, 'anuncio_meta')
+  assertEquals(c.pedidos[0].descoberta, true)
+  assertEquals(c.pedidos[0].chave, `monitor:mon-mercado-generico:${SLOT}:mercado:anuncio_meta`)
+})
+
+Deno.test('Indeed usa uma cascata própria no mercado, sem cair no actor do LinkedIn', async () => {
+  const monitor = { ...MERCADO, monitorId: 'mon-indeed', signalType: 'vaga_indeed' }
+  const { c, chamar } = montar([monitor])
+  await chamar()
+  assertEquals(c.pedidos[0].signalType, 'vaga_indeed_mercado')
+  assertEquals(c.pedidos[0].registrarComo, 'vaga_indeed')
+  assertEquals(c.pedidos[0].chave, `monitor:mon-indeed:${SLOT}:mercado:vaga_indeed_mercado`)
 })
 
 Deno.test('o Monitoramento de Contas-alvo segue pelo actor, Conta por Conta, como antes', async () => {
