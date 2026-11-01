@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { renderizarApp } from '@/test/renderizar'
+import { describe, expect, it, vi } from 'vitest'
+import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 function abrir(rota: string, contaId: 'marina' | 'lucas') {
   return renderizarApp(rota, {}, {}, {}, {}, { sessao: { contaId } })
@@ -24,9 +24,11 @@ describe('Playbook do Workspace: leitura', () => {
     expect(await screen.findByRole('heading', { level: 3, name: 'ICP' })).toBeInTheDocument()
     expect(screen.getByText(/Incorporadoras com 200 a 2.000 funcionários/)).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Versão vigente' })).getByText(/Versão 1 · Ana Lima/)).toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Restaurar/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Campos do ICP' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Setor' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Setor' })).toHaveAttribute('readOnly')
   })
 
   it('mostra a tabela das seções estruturadas para leitura', async () => {
@@ -52,6 +54,62 @@ describe('Playbook do Workspace: leitura', () => {
 })
 
 describe('Playbook do Workspace: edição pelo Administrador', () => {
+  it('o Administrador salva os campos do ICP', async () => {
+    const { usuario } = abrir('/configuracoes/playbook/icp', 'marina')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Setor' }), 'Logística')
+    await usuario.type(screen.getByRole('textbox', { name: 'Porte' }), '51-200')
+    await usuario.type(screen.getByRole('textbox', { name: 'Região' }), 'SP')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar campos' }))
+    expect(await screen.findByText('Campos do ICP salvos.')).toBeInTheDocument()
+  })
+
+  it('recusa porte inválido sem chamar a fonte', async () => {
+    const { usuario, fonteDoPlaybook } = abrir('/configuracoes/playbook/icp', 'marina')
+    const salvarCampos = fonteDoPlaybookSalvarCampos(fonteDoPlaybook!)
+    await usuario.type(await screen.findByRole('textbox', { name: 'Porte' }), 'desconhecido')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar campos' }))
+    expect(await screen.findByText(/Porte inválido: desconhecido/)).toBeInTheDocument()
+    expect(salvarCampos).not.toHaveBeenCalled()
+  })
+
+  it('mostra também cargos, o que vende, para quem e por que compram, só para leitura', async () => {
+    renderizarAppCom('/configuracoes/playbook/icp', {
+      playbook: (fonte) => ({
+        ...fonte,
+        camposDoIcp: async () => ({
+          setor: 'Logística', porte: '51-200', regiao: 'RS', versao: 4,
+          detalhes: { cargos: ['Diretor de Operações', 'Gerente de Logística'], oQueVende: 'Roteirização de frota.', miniIcp: 'Transportadoras médias do Sul.', porQueCompram: '' },
+        }),
+      }),
+    })
+    const detalhes = within(await screen.findByRole('region', { name: 'Mais do ICP' }))
+    expect(detalhes.getByText('Diretor de Operações, Gerente de Logística')).toBeInTheDocument()
+    expect(detalhes.getByText('Roteirização de frota.')).toBeInTheDocument()
+    expect(detalhes.getByText('Transportadoras médias do Sul.')).toBeInTheDocument()
+    expect(detalhes.getByText('Por que compram').nextElementSibling).toHaveTextContent('Não preenchido')
+    expect(detalhes.getByRole('link', { name: 'Ajustar com o Agente' })).toHaveAttribute('href', '/')
+  })
+
+  it('mostra a sugestão do texto e só preenche ao usar a sugestão', async () => {
+    const { usuario } = renderizarAppCom('/configuracoes/playbook/icp', {
+      playbook: (fonte) => ({
+        ...fonte,
+        async secao(id) {
+          const secao = await fonte.secao(id)
+          if (id !== 'icp' || !secao.vigente) return secao
+          return { ...secao, vigente: { ...secao.vigente, conteudo: { texto: 'Setor: Varejo\nPorte: 51 a 200\nRegião: SP', linhas: [] } } }
+        },
+      }),
+    })
+    expect(await screen.findByText(/Sugestão a partir do texto do ICP/)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Setor' })).toHaveValue('')
+    await usuario.click(screen.getByRole('button', { name: 'Usar sugestão' }))
+    expect(screen.getByRole('textbox', { name: 'Setor' })).toHaveValue('Varejo')
+    expect(screen.getByRole('textbox', { name: 'Porte' })).toHaveValue('51-200')
+    expect(screen.getByRole('textbox', { name: 'Região' })).toHaveValue('SP')
+    expect(screen.queryByText('Campos do ICP salvos.')).not.toBeInTheDocument()
+  })
+
   it('edita o texto e grava uma versão nova, que entra no histórico', async () => {
     const { usuario } = abrir('/configuracoes/playbook/icp', 'marina')
 
@@ -106,3 +164,7 @@ describe('Playbook do Workspace: edição pelo Administrador', () => {
     )
   })
 })
+
+function fonteDoPlaybookSalvarCampos(fonte: NonNullable<ReturnType<typeof abrir>['fonteDoPlaybook']>) {
+  return vi.spyOn(fonte, 'salvarCamposDoIcp')
+}

@@ -1,5 +1,21 @@
+import type { ExplicacaoDeAderencia } from './aderencia-explicada'
 import type { AjusteAprendido, CodigoDoDescarte } from './aprendizado-da-descoberta'
 import type { FonteObservavel } from './tipos'
+export interface CriteriosDaBusca {
+  fonte: 'linkedin' | 'receita'
+  setores: string[]
+  palavrasChave: string[]
+  portes: string[]
+  regioes: string[]
+  tecnologias: string[]
+  excluir: string[]
+  cnaes: string[]
+  [campo: string]: unknown
+}
+
+export function criteriosDaBuscaVazios(): CriteriosDaBusca {
+  return { fonte: 'linkedin', setores: [], palavrasChave: [], portes: [], regioes: [], tecnologias: [], excluir: [], cnaes: [] }
+}
 
 export type EstadoContaDescoberta = 'nova' | 'aceita' | 'descartada'
 export type NivelDeEncaixe = 'alto' | 'medio' | 'baixo' | 'sem_dado'
@@ -78,7 +94,8 @@ export interface ResultadoDoAceite {
 
 export interface FonteDeDescobertas extends FonteObservavel {
   cotarBusca(maxResults?: number): Promise<CotacaoDaDescoberta>
-  buscarContas(args?: { maxResults?: number; allowTesting?: boolean }): Promise<void>
+  criteriosDaBusca(): Promise<{ temIcp: boolean; icpVersion: number | null; icpResumo: string; criterios: CriteriosDaBusca }>
+  buscarContas(args: { criterios: CriteriosDaBusca; icpVersion: number | null; maxResults?: number; allowTesting?: boolean }): Promise<void>
   listarDescobertas(estado?: EstadoContaDescoberta): Promise<ContaDescoberta[]>
   aceitarDescoberta(id: string, url?: string): Promise<ResultadoDoAceite>
   descartarDescoberta(id: string, motivo?: string, codigo?: CodigoDoDescarte): Promise<void>
@@ -87,4 +104,6 @@ export interface FonteDeDescobertas extends FonteObservavel {
   /** Desfaz um ajuste ou, sem argumentos, recomeça o aprendizado. Só Administrador. */
   desfazerAprendizado?(ajuste?: Pick<AjusteAprendido, 'dimensao' | 'valor'>): Promise<void>
   restaurarDescoberta(id: string): Promise<void>
+  /** Por que essa Aderência: texto que explica os motivos da Descoberta. A nota não muda. */
+  explicarAderencia?(id: string): Promise<ExplicacaoDeAderencia>
 }

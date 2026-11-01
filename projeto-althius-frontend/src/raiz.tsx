@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { App } from '@/App'
 import { AplicativoAutenticado } from '@/auth/aplicativo'
-import { ehCaminhoDaDemonstracao } from '@/auth/demonstracao-da-equipe'
+import { carregarDemonstracaoSemLogin } from '@/auth/carregar-demonstracao'
 import { ehCaminhoDeAcesso } from '@/auth/destino'
+import { ehCaminhoDaDemonstracao } from '@/auth/rota-da-demonstracao'
 import { PaginaDoDocumentoPublico, documentoPublicoDoCaminho } from '@/auth/documento-publico'
 import { PaginaDeDescadastro, confirmarDescadastroPelaFuncao, tokenDeDescadastroDoCaminho } from '@/auth/pagina-de-descadastro'
 import type { ServicosDoNavegador } from '@/auth/servicos-do-navegador'
 import type { ModoDoAmbiente } from '@/fonte/ambiente'
-import { criarAmbienteDeDemonstracao } from '@/fonte/composicao'
+
+/** A Demonstração sem login vem por `import()`: em produção, com o Supabase configurado, ela nunca é baixada. */
+const AplicativoDeDemonstracao = lazy(() =>
+  carregarDemonstracaoSemLogin().then((modulo) => ({ default: modulo.AplicativoDeDemonstracao })),
+)
 
 /**
  * O ambiente deste navegador: o último escolhido, ou o Workspace operacional de quem abriu uma tela de acesso ou um
@@ -85,40 +89,14 @@ export function RaizDoAplicativo({ cliente, servicos }: { cliente: SupabaseClien
   }
 
   if (ambiente === 'demonstracao' || !cliente) {
-    return <AplicativoDeDemonstracao aoAlternarParaAutenticado={cliente ? () => escolherAmbiente('real') : undefined} />
+    return (
+      <Suspense fallback={null}>
+        <AplicativoDeDemonstracao aoAlternarParaAutenticado={cliente ? () => escolherAmbiente('real') : undefined} />
+      </Suspense>
+    )
   }
 
   // O atalho para a Demonstração na tela de entrada é só do protótipo local.
   const aoAcessarDemonstracao = import.meta.env.DEV ? () => escolherAmbiente('demonstracao') : undefined
   return <AplicativoAutenticado cliente={cliente} servicos={servicos} aoAcessarDemonstracao={aoAcessarDemonstracao} />
-}
-
-/**
- * A Demonstração sem login: o protótipo do desenvolvimento, com o banner para ir à tela de login, ou o app sem
- * Supabase configurado.
- */
-function AplicativoDeDemonstracao({ aoAlternarParaAutenticado }: { aoAlternarParaAutenticado?: () => void }) {
-  const ambiente = useMemo(() => criarAmbienteDeDemonstracao({ armazenamento: window.localStorage }), [])
-
-  return (
-    <>
-      {aoAlternarParaAutenticado && import.meta.env.DEV && (
-        <div className="flex items-center justify-between border-b border-al-line bg-al-surface/40 px-4 py-1.5 text-xs text-al-muted">
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-al-sucesso" />
-            <span className="font-medium text-al-ink">Modo Protótipo (Completo)</span>
-            <span>· Navegação sem necessidade de e-mail</span>
-          </div>
-          <button
-            type="button"
-            onClick={aoAlternarParaAutenticado}
-            className="cursor-pointer text-al-accent hover:underline"
-          >
-            Acessar tela de login Supabase
-          </button>
-        </div>
-      )}
-      <App ambiente={ambiente} />
-    </>
-  )
 }

@@ -1,5 +1,9 @@
 import type { PerfilFirmografico } from '@/paginas/sinais/perfil'
 import type { FonteObservavel } from './tipos'
+import type { PedidoDePlano, PlanoDoSinal, PlanoMontado, PlanoParaSalvar } from './plano-do-sinal'
+import type { AchadoDaRodada, HistoricoDeRodadas, PreviaDaRodada } from './rodadas-do-sinal'
+import type { AgendaDoSinal } from './agenda-do-sinal'
+import type { EstimativaDoSinal } from './preco-por-rodada'
 
 export type Origem = 'externo' | 'interno' | 'originado'
 
@@ -40,6 +44,19 @@ export interface Monitoramento {
   ultimaFalha?: string
   /** A última avaliação gravada no banco (só o Workspace operacional informa). */
   ultimaRodada?: RodadaDoMonitoramento
+  /** O Briefing e o Plano de onde o Monitoramento veio, quando nasceu de um Plano (agente-de-sinal 01). */
+  briefing?: string
+  plano?: PlanoDoSinal
+  /** Quantas vezes o Plano foi gravado. */
+  versaoDoPlano?: number
+  /** A Agenda do Sinal (agente-de-sinal 03). Ausente é o Monitoramento de antes, que roda a cada 24 horas. */
+  agenda?: AgendaDoSinal
+  /** O limite de créditos por dia (agente-de-sinal 04). Ausente é o Sinal sem limite próprio. */
+  limitePorDia?: number
+  /** Quando foi o sistema que pausou o Sinal: `sem_creditos` depois de 3 Rodadas seguidas puladas. Ausente na pausa da pessoa. */
+  pausadoPor?: 'sem_creditos'
+  /** Quantas Rodadas seguidas foram puladas por falta de créditos (agente-de-sinal 05). Ausente ou 0: nenhuma. Uma Rodada que verifica zera. */
+  rodadasPuladas?: number
 }
 
 /** Uma avaliação de um Monitoramento: quando terminou, quantas Contas olhou e o que encontrou. */
@@ -246,6 +263,72 @@ export interface FonteDeSinais extends FonteObservavel {
 
   /** Se quem está logado é da equipe Althius e vê também os Sinais internos. Qualquer erro vale `false`. */
   souDaEquipeAlthius?(): Promise<boolean>
+
+  /**
+   * Monta o Plano do Sinal a partir do Briefing e das Contas escolhidas, sem gravar nada e sem cobrar crédito
+   * (agente-de-sinal 01). Rejeita com `ErroDoPlano`. Quem não implementa não oferece "Descrever um Sinal".
+   */
+  montarPlano?(pedido: PedidoDePlano): Promise<PlanoMontado>
+
+  /** Grava o Plano revisado como rascunho do Monitoramento (cria ou atualiza). Nunca ativa. */
+  salvarPlano?(plano: PlanoParaSalvar): Promise<Monitoramento>
+
+  /**
+   * A prévia do "Rodar agora" de um Monitoramento (agente-de-sinal 02): as Contas, o preço em créditos, o saldo e o bloqueio.
+   * Só créditos; nunca US$ nem Teto. Quem não implementa não oferece o botão.
+   */
+  previaDaRodada?(monitoramentoId: string): Promise<PreviaDaRodada>
+
+  /**
+   * Pede a Rodada agora. Cobra créditos e não consome o Teto de automação. Rejeita com `ErroDaRodada` quando há bloqueio
+   * (por exemplo, já há uma Rodada na fila).
+   */
+  rodarAgora?(monitoramentoId: string): Promise<void>
+
+  /** As Rodadas mais recentes do Monitoramento e os pedidos ainda abertos. */
+  rodadas?(monitoramentoId: string): Promise<HistoricoDeRodadas>
+
+  /** Os Sinais que uma Rodada achou, com a Conta e o "por que apareceu". */
+  achadosDaRodada?(rodadaId: string): Promise<AchadoDaRodada[]>
+
+  /**
+   * Grava a Agenda do Sinal (agente-de-sinal 03). O servidor confere os limites e rejeita com `ErroDaAgenda`. Quem não
+   * implementa não oferece a Agenda.
+   */
+  salvarAgenda?(monitoramentoId: string, agenda: AgendaDoSinal): Promise<Monitoramento>
+
+  /**
+   * Os próximos `n` horários da Agenda (ISO), a partir de agora, no mesmo cálculo que o relógio usa. `contas`: as Contas no
+   * escopo. Rejeita com `ErroDaAgenda` quando a Agenda não vale.
+   */
+  proximasRodadas?(agenda: AgendaDoSinal, contas: number, n: number): Promise<string[]>
+
+  /**
+   * A estimativa em créditos antes de ativar (agente-de-sinal 04): por Rodada, por dia e por mês, quantos dias o saldo aguenta e o
+   * que ainda bloqueia a ativação. `agenda`: a que a tela propõe e ainda não gravou; ausente, a gravada. Só créditos: nunca US$,
+   * custo de fornecedor nem valor de Teto. Rejeita com `ErroDaAgenda` quando a Agenda proposta não vale. Quem não implementa não
+   * mostra a estimativa nem a confirmação de ativação.
+   */
+  estimarAgenda?(monitoramentoId: string, agenda?: AgendaDoSinal): Promise<EstimativaDoSinal>
+
+  /**
+   * Grava o limite de créditos por dia do Sinal, de 1 ao máximo de um dia da Agenda gravada (só se baixa). Rejeita com
+   * `ErroDoLimite`.
+   */
+  salvarLimitePorDia?(monitoramentoId: string, limite: number): Promise<Monitoramento>
+
+  /**
+   * O limite mensal da automação sugerido ao ativar (agente-de-sinal 05): o custo estimado do mês mais 20%, em créditos inteiros,
+   * até os créditos da faixa. `agenda`: a que a tela propõe e ainda não gravou. Só o número sugerido: nunca o limite que o
+   * Workspace tem hoje nem US$. Quem não implementa não oferece liberar a automação ao ativar.
+   */
+  limiteMensalSugerido?(monitoramentoId: string, agenda?: AgendaDoSinal): Promise<number>
+
+  /**
+   * Libera a automação da varredura de Sinais com o limite mensal escolhido (só o Administrador). Nunca baixa um limite que já
+   * existe. Rejeita com `ErroDaAutomacao`.
+   */
+  liberarAutomacao?(monitoramentoId: string, limiteMensal: number): Promise<void>
 }
 
 export type UrgenciaDoPedido = 'esta_semana' | 'este_mes' | 'sem_pressa'

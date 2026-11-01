@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(11);
+select plan(19);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
@@ -108,6 +108,64 @@ select is(
   'em_analise',
   'o status ficou em análise'
 );
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', 'a2100000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $$select public.publish_signal_request_as_model(
+    (select id from public.signal_requests where workspace_id = 'b2100000-0000-0000-0000-000000000001'),
+    'Modelo privado', 'Acompanhar expansão', '{"versao":1,"sinais":[]}'::jsonb)$$,
+  '42501', 'only the Althius team publishes signal models',
+  'membro não publica Modelo'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', 'a2100000-0000-0000-0000-000000000003', true);
+select lives_ok(
+  $$select public.publish_signal_request_as_model(
+    (select id from public.signal_requests where workspace_id = 'b2100000-0000-0000-0000-000000000001'),
+    'Modelo privado', 'Acompanhar expansão',
+    '{"versao":1,"sinais":[{"tipo":"publicacao_da_empresa","criterios":{"periodo":"Últimos 30 dias"}}]}'::jsonb)$$,
+  'equipe publica o Modelo'
+);
+select throws_ok(
+  $$select public.publish_signal_request_as_model(
+    (select id from public.signal_requests where workspace_id = 'b2100000-0000-0000-0000-000000000001'),
+    'Modelo vazio', 'Sem sinais', '{"versao":1,"sinais":[]}'::jsonb)$$,
+  '22023', 'invalid signal model',
+  'plano sem sinais não vira Modelo'
+);
+select is(
+  (select status from public.signal_requests where workspace_id = 'b2100000-0000-0000-0000-000000000001'),
+  'disponivel', 'pedido publicado fica disponível'
+);
+select isnt(
+  (select model_id from public.signal_requests where workspace_id = 'b2100000-0000-0000-0000-000000000001'),
+  null, 'pedido publicado guarda o Modelo'
+);
+select is(
+  (select count(*)::integer from public.list_signal_models('b2100000-0000-0000-0000-000000000001')
+    where catalog_id = (select model_id from public.signal_requests where workspace_id = 'b2100000-0000-0000-0000-000000000001')),
+  1, 'Workspace solicitante vê o Modelo'
+);
+select isnt(
+  (select model_id from public.list_signal_requests('b2100000-0000-0000-0000-000000000001') limit 1),
+  null, 'a lista de pedidos devolve o Modelo publicado'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', 'a2100000-0000-0000-0000-000000000002', true);
+select is(
+  (select count(*)::integer from public.list_signal_models('b2100000-0000-0000-0000-000000000002')
+    where catalog_id = (select model_id from public.signal_requests where workspace_id = 'b2100000-0000-0000-0000-000000000001')),
+  0, 'outro Workspace não vê o Modelo privado'
+);
+reset role;
 
 select * from finish();
 rollback;

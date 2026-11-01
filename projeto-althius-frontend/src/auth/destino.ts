@@ -58,7 +58,7 @@ const TELAS_DE_ACESSO = [ROTA_DE_ENTRADA, ROTA_DE_CADASTRO, ROTA_ESQUECI_A_SENHA
  * um convite, mesmo malformado.
  */
 export function ehCaminhoDeAcesso(caminho: string): boolean {
-  return TELAS_DE_ACESSO.includes(caminho) || caminho.startsWith(`${ROTA_DO_CONVITE}/`)
+  return TELAS_DE_ACESSO.includes(caminho) || caminho.startsWith(`${ROTA_DO_CONVITE}/`) || caminho.startsWith('/a/')
 }
 
 /** O endereço de /entrar que lembra o `destino` que a pessoa tentou abrir, para voltar a ele depois do login. */

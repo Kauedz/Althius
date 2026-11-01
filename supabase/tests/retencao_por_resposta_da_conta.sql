@@ -1,0 +1,455 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = extensions, public;
+
+select plan(44);
+
+insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
+                        created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
+                        is_sso_user, is_anonymous)
+values
+  ('63000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'titular-retencao@cliente.com.br', '', now(), now(), now(), '{}', '{}', false, false),
+  ('63000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'colega-retencao@cliente.com.br', '', now(), now(), now(), '{}', '{}', false, false);
+
+insert into public.workspaces (id, kind, name) values
+  ('63100000-0000-0000-0000-000000000001', 'empresa', 'Cliente Retencao');
+insert into private.workspace_contracts (workspace_id, tier_id, starts_at)
+values ('63100000-0000-0000-0000-000000000001', 'escala', date_trunc('month', now()))
+on conflict (workspace_id) do nothing;
+
+insert into public.workspace_memberships (workspace_id, user_id, role, active) values
+  ('63100000-0000-0000-0000-000000000001', '63000000-0000-0000-0000-000000000001', 'member', true),
+  ('63100000-0000-0000-0000-000000000001', '63000000-0000-0000-0000-000000000002', 'admin', true);
+
+create temporary table ids (chave text primary key, valor text);
+grant all on ids to authenticated, service_role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+
+insert into ids select 'conta', id::text from public.save_target_account(
+  '63100000-0000-0000-0000-000000000001', 'Empresa Alvo', 'https://empresa-alvo.test');
+insert into ids select 'maria', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta'), 'Maria Souza', 'Diretora', 'maria@empresa-alvo.test');
+insert into ids select 'joao', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta'), 'Joao Lima', 'Compras', 'joao@empresa-alvo.test');
+insert into ids select 'sequencia', id::text from public.create_sequence(
+  '63100000-0000-0000-0000-000000000001',
+  (select valor from ids where chave = 'conta'),
+  jsonb_build_object(
+    'participantesIds', jsonb_build_array((select valor from ids where chave = 'maria'), (select valor from ids where chave = 'joao')),
+    'steps', jsonb_build_array(
+      jsonb_build_object('id', 'passo-1', 'ordem', 1, 'canal', 'email', 'contatoId', (select valor from ids where chave = 'maria'),
+        'delayDiasUteis', 0, 'titulo', 'Abertura', 'assunto', 'Apresentação', 'corpo', 'Olá, Maria.'),
+      jsonb_build_object('id', 'passo-2', 'ordem', 2, 'canal', 'email', 'contatoId', (select valor from ids where chave = 'joao'),
+        'delayDiasUteis', 0, 'titulo', 'Outro caminho', 'assunto', 'Oi', 'corpo', 'Olá, João.'))),
+  '{}'::jsonb);
+insert into ids select 'tentativa', attempt_id::text from public.create_sender_connection_attempt(
+  '63100000-0000-0000-0000-000000000001', 'email', null);
+reset role;
+
+set local role service_role;
+select is(public.complete_sender_connection_attempt(
+  (select valor::uuid from ids where chave = 'tentativa'), 'unipile-retencao-1', 'GOOGLE', 'CREATION_SUCCESS'
+), 'completed', 'sender account linked');
+select public.apply_unipile_sender_status('unipile-retencao-1', 'SYNC_SUCCESS');
+reset role;
+-- O service_role não lê o schema private: os ids saem como dono do banco.
+insert into ids select 'remetente', id::text from private.sender_accounts where unipile_account_id = 'unipile-retencao-1';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+insert into ids select 'envio', id::text from public.confirm_sequence_step(
+  (select valor::uuid from ids where chave = 'sequencia'), 'passo-1');
+reset role;
+
+create function pg_temp.receber(
+  p_event text,
+  p_contact uuid,
+  p_subject text,
+  p_body text
+) returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_interaction uuid;
+begin
+  insert into public.account_interactions (
+    workspace_id, target_account_id, contact_id, kind, occurred_at, source, recorded_by
+  ) values (
+    '63100000-0000-0000-0000-000000000001',
+    (select valor::uuid from ids where chave = 'conta'),
+    p_contact, 'email-recebido', now(), 'sequencia', '63000000-0000-0000-0000-000000000001'
+  ) returning id into v_interaction;
+
+  insert into private.received_emails (
+    interaction_id, workspace_id, owner_user_id, sequence_id, contact_id, sender_account_id,
+    provider_email_id, from_email, from_name, subject, body, snippet, received_at
+  ) values (
+    v_interaction, '63100000-0000-0000-0000-000000000001', '63000000-0000-0000-0000-000000000001',
+    (select valor::uuid from ids where chave = 'sequencia'), p_contact,
+    (select valor::uuid from ids where chave = 'remetente'),
+    p_event, 'maria@empresa-alvo.test', 'Maria Souza', p_subject, p_body, left(p_body, 40), now()
+  );
+  return v_interaction;
+end;
+$$;
+grant execute on function pg_temp.receber(text, uuid, text, text) to service_role;
+
+-- A mesma entrada da ingestão, numa Sequência e Conta escolhidas.
+create function pg_temp.receber_em(p_sequencia text, p_conta text, p_event text, p_contact uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_interaction uuid;
+begin
+  insert into public.account_interactions (
+    workspace_id, target_account_id, contact_id, kind, occurred_at, source, recorded_by
+  ) values (
+    '63100000-0000-0000-0000-000000000001', (select valor::uuid from ids where chave = p_conta),
+    p_contact, 'email-recebido', now(), 'sequencia', '63000000-0000-0000-0000-000000000001'
+  ) returning id into v_interaction;
+
+  insert into private.received_emails (
+    interaction_id, workspace_id, owner_user_id, sequence_id, contact_id, sender_account_id,
+    provider_email_id, from_email, from_name, subject, body, snippet, received_at
+  ) values (
+    v_interaction, '63100000-0000-0000-0000-000000000001', '63000000-0000-0000-0000-000000000001',
+    (select valor::uuid from ids where chave = p_sequencia), p_contact,
+    (select valor::uuid from ids where chave = 'remetente'),
+    p_event, 'contato@caminhos.test', 'Contato', 'Re: Oi', 'Me liga.', 'Me liga.', now()
+  );
+  return v_interaction;
+end;
+$$;
+grant execute on function pg_temp.receber_em(text, text, text, uuid) to service_role;
+
+create function pg_temp.envio(p_sequencia text, p_step text) returns uuid
+language sql
+security definer
+set search_path = ''
+as $$
+  select e.id from private.sequence_step_sends e
+  where e.sequence_id = (select valor::uuid from ids where chave = p_sequencia) and e.step_id = p_step;
+$$;
+grant execute on function pg_temp.envio(text, text) to authenticated, service_role;
+
+set local role service_role;
+select pg_temp.receber('evt-maria', (select valor::uuid from ids where chave = 'maria'), 'Re: Apresentação', 'Podemos falar amanhã?');
+select pg_temp.receber('evt-joao', (select valor::uuid from ids where chave = 'joao'), 'Re: Oi', 'Manda a proposta.');
+reset role;
+insert into ids select 'resp-maria', id::text from private.sequence_correlated_replies where provider_event_id = 'evt-maria';
+insert into ids select 'resp-joao', id::text from private.sequence_correlated_replies where provider_event_id = 'evt-joao';
+
+select is(
+  (select count(*)::int from private.sequence_correlated_replies
+    where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
+  2, 'two correlated replies are stored before any analysis');
+select is(
+  (select open::text || ':' || version::text || ':' || state from private.sequence_reply_holds
+    where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
+  'true:2:preventive', 'the account hold opens and versions each new reply');
+
+-- Duplicata do mesmo evento não cria outra resposta nem muda a versão.
+set local role service_role;
+select pg_temp.receber('evt-maria', (select valor::uuid from ids where chave = 'maria'), 'Re: Apresentação', 'Podemos falar amanhã?');
+reset role;
+select is(
+  (select count(*)::int from private.sequence_correlated_replies
+    where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
+  2, 'a duplicate provider event does not create another reply');
+select is(
+  (select version from private.sequence_reply_holds
+    where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
+  2::bigint, 'a duplicate does not bump the retention version');
+
+update private.sequence_step_sends set status = 'scheduled', scheduled_for = now() - interval '1 minute'
+where id = (select valor::uuid from ids where chave = 'envio');
+-- A retenção é a última recusa: quem não é o titular recebe a recusa de sempre.
+select is(
+  (select outcome from private.release_step_send((select valor::uuid from ids where chave = 'envio'),
+    '63000000-0000-0000-0000-000000000002', false)),
+  'owner_not_responsible', 'the older refusals come before the retention');
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send((select valor::uuid from ids where chave = 'envio'))),
+  'account_retained', 'the executor revalidates the hold before releasing the send');
+reset role;
+select is(
+  (select status from private.sequence_step_sends where id = (select valor::uuid from ids where chave = 'envio')),
+  'scheduled', 'a retained send is not marked sending');
+
+update private.sequence_step_sends set status = 'sending', sending_at = now()
+where id = (select valor::uuid from ids where chave = 'envio');
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send((select valor::uuid from ids where chave = 'envio'))),
+  'in_flight', 'an in-transit send is not released again');
+reset role;
+select is(
+  (select count(*)::int from private.sequence_retention_audits
+    where send_id = (select valor::uuid from ids where chave = 'envio') and kind = 'in_transit'),
+  1, 'the in-transit send is audited');
+set local role service_role;
+select public.release_due_step_send((select valor::uuid from ids where chave = 'envio'));
+reset role;
+select is(
+  (select count(*)::int from private.sequence_retention_audits
+    where send_id = (select valor::uuid from ids where chave = 'envio')),
+  1, 'auditing the same in-transit send does not repeat');
+select is(
+  (select status from private.sequence_step_sends where id = (select valor::uuid from ids where chave = 'envio')),
+  'sending', 'the in-transit send is not duplicated');
+update private.sequence_step_sends set status = 'scheduled', sending_at = null
+where id = (select valor::uuid from ids where chave = 'envio');
+
+-- Colega administrador não lê conteúdo e não decide.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000002', true);
+select is(
+  (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'sequencia')) ->> 'can_read_content'),
+  'false', 'another participant cannot read reply content');
+-- As duas respostas entram na mesma transação (mesmo created_at): a ordem entre elas não é garantida,
+-- então o teste olha o conjunto das pendentes, não a posição no array.
+select is(
+  (select bool_or(p ? 'subject')
+     from jsonb_array_elements(public.list_sequence_reply_review(
+       (select valor::uuid from ids where chave = 'sequencia')) -> 'pending') p),
+  false, 'the shared review has no subject in any pending reply');
+select throws_ok(
+  $$select * from public.decide_sequence_retention(
+    (select valor::uuid from ids where chave = 'sequencia'), 'continue', 2, '{}'::uuid[])$$,
+  '42501',
+  'sequence not found or not owned by active user',
+  'another participant cannot decide');
+
+-- Titular vê as duas pendentes. Versão velha não libera.
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+select is(
+  (select jsonb_array_length(public.list_sequence_reply_review(
+    (select valor::uuid from ids where chave = 'sequencia')) -> 'pending')),
+  2, 'the owner reviews both pending replies together');
+select is(
+  (select array_agg(p ->> 'subject' order by p ->> 'subject')
+     from jsonb_array_elements(public.list_sequence_reply_review(
+       (select valor::uuid from ids where chave = 'sequencia')) -> 'pending') p),
+  array['Re: Apresentação', 'Re: Oi'],
+  'the owner reads the correlated content of both pending replies');
+
+select is(
+  (select outcome from public.decide_sequence_retention(
+    (select valor::uuid from ids where chave = 'sequencia'),
+    'continue',
+    1,
+    array[
+      (select valor::uuid from ids where chave = 'resp-maria'),
+      (select valor::uuid from ids where chave = 'resp-joao')
+    ]
+  )),
+  'stale', 'an obsolete version does not release the account');
+select is(
+  (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'sequencia')) ->> 'open'),
+  'true', 'the hold stays open after a stale decision');
+
+reset role;
+update public.sequences set status = 'pausada'
+where id = (select valor::uuid from ids where chave = 'sequencia');
+select throws_ok(
+  $$update public.sequences set status = 'ativa'
+    where id = (select valor::uuid from ids where chave = 'sequencia')$$,
+  '55006',
+  'account retained pending reply review',
+  'setting the sequence active does not bypass an open hold');
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+select is(
+  (select outcome from public.decide_sequence_retention(
+    (select valor::uuid from ids where chave = 'sequencia'),
+    'continue',
+    2,
+    array[
+      (select valor::uuid from ids where chave = 'resp-maria'),
+      (select valor::uuid from ids where chave = 'resp-joao')
+    ]
+  )),
+  'continued', 'the owner releases the account only for the reviewed set');
+select is(
+  (select status from public.sequences where id = (select valor::uuid from ids where chave = 'sequencia')),
+  'ativa', 'a current decision resumes the sequence');
+select is(
+  (select jsonb_array_length(public.list_sequence_reply_review(
+    (select valor::uuid from ids where chave = 'sequencia')) -> 'decisions')),
+  1, 'reopening the review shows the persisted decision');
+
+-- Ausência de retenção aberta não libera sozinha; duplicata não reabre a já resolvida.
+select is(
+  (select outcome from public.decide_sequence_retention(
+    (select valor::uuid from ids where chave = 'sequencia'), 'continue', 2, '{}'::uuid[])),
+  'not_open', 'an automatic or repeated continue does not release a resolved hold');
+reset role;
+set local role service_role;
+select pg_temp.receber('evt-maria', (select valor::uuid from ids where chave = 'maria'), 'Re: Apresentação', 'Podemos falar amanhã?');
+reset role;
+select is(
+  (select open from private.sequence_reply_holds
+    where sequence_id = (select valor::uuid from ids where chave = 'sequencia')),
+  false, 'a duplicate of a reviewed event does not reopen the hold');
+
+
+-- Caminhos paralelos (execução independente): a resposta de um Contato segura também o caminho do outro.
+-- A Conta sem resposta segue o fluxo de sempre. O relógio fica numa quarta-feira futura, dentro da janela.
+reset role;
+do $f$
+begin
+  execute format(
+    'create or replace function private.clock_now() returns timestamptz language sql stable set search_path = '''' '
+    'as $c$ select %L::timestamptz $c$', date_trunc('week', now()) + interval '9 days 15 hours');
+end
+$f$;
+create function pg_temp.passo(p_id text, p_contato text) returns jsonb language sql as $f$
+  select jsonb_build_object(
+    'id', p_id, 'canal', 'email', 'contatoId', (select valor from ids where chave = p_contato),
+    'delayDiasUteis', 0, 'titulo', p_id, 'assunto', p_id, 'corpo', 'Olá.', 'liberacao', 'ativacao');
+$f$;
+create function pg_temp.agenda() returns jsonb language sql as $f$
+  select jsonb_build_object(
+    'fuso', 'America/Sao_Paulo', 'diasUteis', jsonb_build_array(1, 2, 3, 4, 5),
+    'janela', jsonb_build_object('de', '00:00', 'ate', '23:59'),
+    'maximoDiario', 10, 'intervaloMinutos', 0);
+$f$;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+insert into ids select 'conta-par', id::text from public.save_target_account(
+  '63100000-0000-0000-0000-000000000001', 'Empresa Caminhos', 'https://caminhos.test');
+insert into ids select 'ana', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta-par'), 'Ana Reis', 'Diretora', 'ana@caminhos.test');
+insert into ids select 'beto', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta-par'), 'Beto Dias', 'Gerente', 'beto@caminhos.test');
+insert into ids select 'conta-livre', id::text from public.save_target_account(
+  '63100000-0000-0000-0000-000000000001', 'Empresa Sem Resposta', 'https://sem-resposta.test');
+insert into ids select 'caio', id::text from public.create_contact(
+  (select valor::uuid from ids where chave = 'conta-livre'), 'Caio Melo', 'Diretor', 'caio@sem-resposta.test');
+
+insert into ids select 'par', id::text from public.create_sequence(
+  '63100000-0000-0000-0000-000000000001', (select valor from ids where chave = 'conta-par'),
+  jsonb_build_object('steps', jsonb_build_array(pg_temp.passo('p-ana', 'ana'), pg_temp.passo('p-beto', 'beto'))),
+  '{}'::jsonb);
+insert into ids select 'livre', id::text from public.create_sequence(
+  '63100000-0000-0000-0000-000000000001', (select valor from ids where chave = 'conta-livre'),
+  jsonb_build_object('steps', jsonb_build_array(pg_temp.passo('l-caio', 'caio'))),
+  '{}'::jsonb);
+select is(
+  (select string_agg(outcome, ',' order by step_id) from public.activate_sequence(
+    (select valor::uuid from ids where chave = 'par'), array['p-ana', 'p-beto'], pg_temp.agenda())),
+  'activated,activated', 'both independent paths are authorized');
+select is(
+  (select string_agg(outcome, ',') from public.activate_sequence(
+    (select valor::uuid from ids where chave = 'livre'), array['l-caio'], pg_temp.agenda())),
+  'activated', 'the account without reply is authorized as usual');
+reset role;
+
+set local role service_role;
+insert into ids select 'int-beto', pg_temp.receber_em('par', 'conta-par', 'evt-beto', (select valor::uuid from ids where chave = 'beto'))::text;
+reset role;
+insert into ids select 'resp-beto', id::text from private.sequence_correlated_replies where provider_event_id = 'evt-beto';
+update private.sequence_step_sends set status = 'scheduled', scheduled_for = now() - interval '1 minute'
+where id in (pg_temp.envio('par', 'p-ana'), pg_temp.envio('par', 'p-beto'), pg_temp.envio('livre', 'l-caio'));
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-ana'))),
+  'account_retained', 'a reply from one contact holds the parallel path of another contact');
+select is(
+  (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-beto'))),
+  'account_retained', 'the path of the contact who replied is held too');
+reset role;
+select is(
+  (select string_agg(status, ',' order by step_id) from private.sequence_step_sends
+    where sequence_id = (select valor::uuid from ids where chave = 'par')),
+  'scheduled,scheduled', 'no held path is marked sending');
+set local role service_role;
+select isnt(
+  (select outcome from public.release_due_step_send(pg_temp.envio('livre', 'l-caio'))),
+  'account_retained', 'an account without reply is not held');
+reset role;
+select is(
+  (select count(*)::int from private.sequence_reply_holds
+    where sequence_id = (select valor::uuid from ids where chave = 'livre')),
+  0, 'an account without reply has no retention');
+
+-- Decidir sem IA: pausar só segura; nada sai e a retenção continua até uma ação humana.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+select is(
+  (select outcome from public.decide_sequence_retention(
+    (select valor::uuid from ids where chave = 'par'), 'pause', 1,
+    array[(select valor::uuid from ids where chave = 'resp-beto')])),
+  'paused', 'the owner pauses the account for the reviewed reply');
+reset role;
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-ana'))),
+  'account_retained', 'after a pause decision the account is still held');
+reset role;
+select is(
+  (select count(*)::int from private.sequence_step_sends
+    where sequence_id = (select valor::uuid from ids where chave = 'par') and status in ('sending', 'sent')),
+  0, 'deciding without AI sends nothing');
+
+-- Sequência pausada com a retenção aberta: a recusa de sempre vem primeiro.
+update public.sequences set status = 'pausada' where id = (select valor::uuid from ids where chave = 'par');
+set local role service_role;
+select is(
+  (select outcome from public.release_due_step_send(pg_temp.envio('par', 'p-ana'))),
+  'sequence_not_active', 'a paused sequence is refused as before, not as retained');
+reset role;
+
+-- Retomar explicitamente é a decisão "continuar" do Vendedor responsável. Quem não é o titular não retoma.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000002', true);
+select throws_ok(
+  $$select public.update_owned_sequence((select valor::uuid from ids where chave = 'par'), null, null, 'ativa')$$,
+  '42501', 'sequence not found or not owned by active user', 'someone who is not the owner cannot resume');
+select set_config('request.jwt.claim.sub', '63000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  $$select public.update_owned_sequence((select valor::uuid from ids where chave = 'par'), null, null, 'ativa')$$,
+  'the owner resumes the held sequence explicitly');
+select is(
+  (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'par')) ->> 'open'),
+  'false', 'resuming closes the retention');
+select ok(
+  (select public.list_sequence_reply_review((select valor::uuid from ids where chave = 'par')) -> 'decisions')
+    @> '[{"decision": "continue", "version": 1}]'::jsonb,
+  'and is recorded as a continue decision on the current version');
+reset role;
+select is(
+  (select string_agg(actor_user_id::text || ':' || array_length(reviewed_reply_ids, 1)::text, ',')
+    from private.sequence_retention_decisions
+    where sequence_id = (select valor::uuid from ids where chave = 'par') and outcome = 'resumed'),
+  '63000000-0000-0000-0000-000000000001:1', 'the owner decision covers the reply recorded until then');
+select is(
+  (select count(*)::int from private.sequence_step_sends
+    where sequence_id = (select valor::uuid from ids where chave = 'par') and status in ('sending', 'sent')),
+  0, 'resuming sends nothing by itself');
+
+-- Apagar a resposta (Conta-alvo, Contato ou Workspace apagados) leva a resposta correlacionada junto.
+select fk_ok('private', 'sequence_correlated_replies', 'contact_id', 'public', 'contacts', 'id',
+  'the correlated reply points to the Contato, so deleting the Contato clears it');
+delete from private.received_emails where interaction_id = (select valor::uuid from ids where chave = 'int-beto');
+select is(
+  (select count(*)::int from private.sequence_correlated_replies where provider_event_id = 'evt-beto'),
+  0, 'deleting the received e-mail deletes its correlated reply');
+
+select * from finish();
+rollback;

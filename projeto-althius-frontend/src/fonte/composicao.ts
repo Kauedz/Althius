@@ -1,20 +1,11 @@
-// O ponto de composição: escolhe as fontes de cada ambiente. As telas não sabem qual receberam.
+// O ponto de composição: escolhe as fontes de cada ambiente. As telas não sabem qual receberam. A Demonstração fica
+// em `composicao-da-demonstracao`, carregada sob demanda: as fontes simuladas e os dados de exemplo não entram no
+// pacote principal do app.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ambiente, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
-import {
-  criarFonteDeAgentesIndisponivel,
-  criarFonteDeOnboardingIndisponivel,
-} from './indisponivel'
-import { criarFonteDeAutomacaoSimulada } from './simulada-automacao'
-import { criarFonteDoPlaybookSimulada } from './simulada-playbook'
-import { criarFonteSimulada } from './simulada'
-import { criarFonteDeConexoesSimulada } from './simulada-conexoes'
-import { criarFonteDeContasSimulada } from './simulada-contas'
-import { criarFonteDeContasRemetentesDaDemonstracao } from './simulada-contas-remetentes'
-import { criarFonteDeOnboardingSimulada } from './simulada-onboarding'
-import { criarFonteDeSequenciasSimulada } from './simulada-sequencias'
-import { criarFonteDeSinaisSimulada } from './simulada-sinais'
+import type { Ambiente, MotivoDasConversasIndisponiveis, ModuloDoWorkspace, ParticipacaoNoWorkspace, ContaDeUsuarioDaSessao } from './ambiente'
+import { criarFonteDeAgentesIndisponivel } from './indisponivel'
+import { criarFonteDeOnboardingSupabase } from './supabase-onboarding'
 import { criarFonteDeAgentesSupabase } from './supabase-agentes'
 import { criarFonteDeAprovacoesSupabase } from './supabase-aprovacoes'
 import { criarFonteDeConexoesSupabase } from './supabase-conexoes'
@@ -27,34 +18,9 @@ import { criarFonteDoPlaybookSupabase } from './supabase-playbook'
 import { criarFonteDoPerfilSupabase } from './supabase-perfil'
 import { criarFonteDeSequenciasSupabase } from './supabase-sequencias'
 import { criarFonteDeSinaisSupabase } from './supabase-sinais'
-import { criarFonteDeDescobertasSimulada } from './simulada-descobertas'
 import { criarFonteDeDescobertasSupabase } from './supabase-descobertas'
-import { lerSaldoDeCreditos } from './creditos'
+import { lerSaldoDeCreditos, lerExtratoDeCreditos, lerPrecosDeCreditos } from './creditos'
 import { lerResumoDoContrato } from './supabase-contrato'
-
-/** A Demonstração: todas as fontes simuladas, ligadas entre si, com o estado que sobrevive no `armazenamento`. */
-export function criarAmbienteDeDemonstracao({ armazenamento }: { armazenamento: Storage }): Ambiente {
-  const fonteDeContas = criarFonteDeContasSimulada({ armazenamento })
-  const fonteDeSequencias = criarFonteDeSequenciasSimulada({ armazenamento })
-  const fonteDeSinais = criarFonteDeSinaisSimulada({ fonteDeContas })
-  fonteDeContas.vincularFonteDeSequencias(fonteDeSequencias)
-  fonteDeSinais.vincularFonteDeContas(fonteDeContas)
-  const fonte = criarFonteSimulada({ armazenamento })
-  return {
-    modo: 'demonstracao',
-    fonte,
-    fonteDeContas,
-    fonteDeSequencias,
-    fonteDeOnboarding: criarFonteDeOnboardingSimulada({ armazenamento }),
-    fonteDeSinais,
-    fonteDeConexoes: criarFonteDeConexoesSimulada({ armazenamento }),
-    fonteDeContasRemetentes: criarFonteDeContasRemetentesDaDemonstracao(),
-    fonteDoPlaybook: criarFonteDoPlaybookSimulada(),
-    fonteDeAutomacao: criarFonteDeAutomacaoSimulada({ agentes: () => fonte.agentes() }),
-    fonteDeDescobertas: criarFonteDeDescobertasSimulada({ armazenamento, fonteDeContas }),
-    indisponiveis: new Set(),
-  }
-}
 
 /**
  * Um Workspace operacional: as fontes ligadas ao backend pela sessão e pelo Workspace escolhido. Um módulo sem
@@ -67,6 +33,7 @@ export function criarAmbienteDoWorkspace({
   usuario,
   participacao,
   conversasDisponiveis = false,
+  motivoDasConversas,
   sinaisDisponiveis = false,
   aprovacoesDisponiveis = false,
   anexosDisponiveis = false,
@@ -75,6 +42,7 @@ export function criarAmbienteDoWorkspace({
   usuario: ContaDeUsuarioDaSessao
   participacao: ParticipacaoNoWorkspace
   conversasDisponiveis?: boolean
+  motivoDasConversas?: MotivoDasConversasIndisponiveis
   sinaisDisponiveis?: boolean
   /** A fila real de Aprovações (CRM-15); o aplicativo a liga junto com as Conversas, onde os Agentes as pedem. */
   aprovacoesDisponiveis?: boolean
@@ -88,7 +56,7 @@ export function criarAmbienteDoWorkspace({
     ? criarFonteDeConversasSupabase(cliente, participacao.workspaceId, { agentes: () => agentes.agentes() })
     : {}
   const indisponiveis = new Set<ModuloDoWorkspace>([
-    'conversas', 'sinais', 'aprovacoes', 'configuracoes', 'onboarding', 'anexos',
+    'conversas', 'sinais', 'aprovacoes', 'configuracoes', 'anexos',
   ])
   if (conversasDisponiveis) indisponiveis.delete('conversas')
   if (sinaisDisponiveis) indisponiveis.delete('sinais')
@@ -101,6 +69,7 @@ export function criarAmbienteDoWorkspace({
     : undefined
   return {
     modo: 'real',
+    motivoDasConversas,
     // Participantes e convites, Meu perfil e Preferências, a configuração dos Agentes, as Conexões, as Conversas e as
     // Aprovações (com o modelo configurado) já têm backend; o resto de Configurações, ainda não.
     fonte: {
@@ -109,6 +78,8 @@ export function criarAmbienteDoWorkspace({
       ...perfil,
       ...agentes,
       saldoDeCreditos: () => lerSaldoDeCreditos(cliente, participacao.workspaceId),
+      precosDeCreditos: () => lerPrecosDeCreditos(cliente),
+      extratoDeCreditos: () => lerExtratoDeCreditos(cliente, participacao.workspaceId),
       contratoDoWorkspace: () => lerResumoDoContrato(cliente, participacao.workspaceId),
       ...conversas,
       ...(aprovacoes
@@ -139,7 +110,7 @@ export function criarAmbienteDoWorkspace({
       () => participacao.papel === 'administrador',
     ),
     fonteDeSequencias: criarFonteDeSequenciasSupabase(cliente, () => participacao.workspaceId, () => usuario.id),
-    fonteDeOnboarding: criarFonteDeOnboardingIndisponivel(),
+    fonteDeOnboarding: criarFonteDeOnboardingSupabase(cliente, participacao.workspaceId),
     // O módulo Sinais aparece quando o primeiro actor passa no teste (sinais-reais 03); cada card mostra o próprio estado.
     fonteDeSinais: criarFonteDeSinaisSupabase(cliente, () => participacao.workspaceId),
     fonteDeConexoes: criarFonteDeConexoesSupabase(cliente, () => participacao.workspaceId),

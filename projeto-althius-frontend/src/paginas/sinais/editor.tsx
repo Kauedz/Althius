@@ -5,7 +5,8 @@ import { Carregando, Pulso } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Opcao } from '@/components/opcao'
-import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais } from '@/fonte/contexto'
+import { textoDaAgenda } from '@/fonte/agenda-do-sinal'
+import { useAmbiente, useDados, useDadosDeContas, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
 import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { CRITERIOS_DOS_SINAIS_INTERNOS, TIPOS_INTERNOS_REAIS } from '@/fonte/sinais-reais-mapa'
 import { publicoRecomendado } from '@/fonte/regras-memoria'
@@ -32,12 +33,14 @@ import { useCatalogoFuncional } from './catalogo-funcional'
 import { NICHOS } from './nichos'
 import {
   MAX_CARGOS_CUSTOM,
+  MAX_RECORTES_CUSTOM,
   MAX_TEXTO_CUSTOM,
-  NICHO_CUSTOM,
   adicionarCargosCustom,
+  adicionarRecorteCustom,
   cargosCustom,
-  limparTextoCustom,
+  criteriosComRecortes,
   manterCargosCustom,
+  recortesDoMonitoramento,
 } from './criterios-custom'
 import { podeMonitorar } from './disponibilidade'
 import {
@@ -54,6 +57,12 @@ import {
 } from './mercado-enderecavel'
 import { useSinaisDoMockup } from './estado'
 import { PerfilPersonalizado } from './perfil-personalizado'
+import { AgendaDoSinalNoMonitoramento } from './agenda'
+import { AtivarSinal } from './ativar-sinal'
+import { AvisoDePausaPorCreditos, AvisoDeRodadaPulada } from './aviso-de-pausa'
+import { RodadasDoMonitoramento, RodarAgora } from './rodadas'
+import { useRodadas } from './usar-rodadas'
+import { ResumoDoPlano } from './resumo-do-plano'
 import { criteriosFormatados, resumoDasContas, resumoDoPublico } from './resumos'
 
 type Etapa = 'descrever' | 'preparando' | 'editar' | 'revisar'
@@ -202,6 +211,8 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const [parametros] = useSearchParams()
   const navegar = useNavigate()
   const { salvar } = useSinaisDoMockup()
+  const fonteDeSinais = useFonteDeSinais()
+  const rodadas = useRodadas(existente?.id)
   const operacional = useAmbiente().modo === 'real'
   const familia = familiaDoTipo(tipo)
   const formulario = formularioDoTipo(tipo)
@@ -212,7 +223,12 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
   const vagasReais = operacional && !interno && tipo.id === 'abertura-de-vagas'
 
   const [monitoramento, setMonitoramento] = useState<MonitoramentoNoEditor>(
-    () => existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional, interno),
+    () => {
+      const base = existente ?? novoMonitoramento(tipo, familia?.descoberta ?? true, parametros.get('descricao') ?? '', operacional, interno)
+      return tipo.id === 'abertura-de-vagas'
+        ? { ...base, criterios: criteriosComRecortes(base.criterios, recortesDoMonitoramento(base.criterios)) }
+        : base
+    },
   )
   const [etapa, setEtapa] = useState<Etapa>(() => {
     if (!personalizado) return 'editar'
@@ -222,11 +238,31 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
 
   const jaFunciona = existente?.estado === 'ativo' || existente?.estado === 'pausado'
   const [erroSalvar, setErroSalvar] = useState<string | null>(null)
+  // Ativar um Sinal com Agenda passa pela confirmação "Ativar Sinal": o Plano, a Agenda e a estimativa em créditos.
+  const [confirmandoAtivacao, setConfirmandoAtivacao] = useState(false)
+  const confirmaAtivacao = !!existente?.agenda && !!fonteDeSinais.estimarAgenda
   const mudar = (parcial: Partial<MonitoramentoNoEditor>) => setMonitoramento((atual) => ({ ...atual, ...parcial }))
   const voltarAoTipo = (aviso: string) => navegar(`/sinais/tipos/${tipo.id}`, { state: { aviso } })
   // No operacional a recusa do banco já vem em palavras do produto (ex.: falta escolher uma Conta-alvo para ativar).
   const motivoDaFalha = (erro: unknown, padrao: string) => (operacional && erro instanceof Error ? erro.message : padrao)
   const nomeValido = monitoramento.nome.trim().length > 0
+  const mercadoSemRecorte = vagasReais && monitoramento.publico.escopo === 'mercado'
+    && recortesDoMonitoramento(monitoramento.criterios).length === 0
+  // Salva o que está na tela e ativa. Devolve a frase de erro, ou nada quando deu certo.
+  const ativar = async (): Promise<string | null> => {
+    try {
+      setErroSalvar(null)
+      await salvar({ ...monitoramento, estado: 'ativo' })
+      voltarAoTipo(
+        operacional
+          ? `“${monitoramento.nome}” está ativo.`
+          : `“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`,
+      )
+      return null
+    } catch (erro) {
+      return motivoDaFalha(erro, 'Não foi possível ativar o monitoramento. Tente de novo.')
+    }
+  }
 
   const titulo = existente?.nome ?? (personalizado ? 'Novo sinal personalizado' : 'Novo monitoramento')
 
@@ -238,6 +274,15 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
           {familia && <span className="selo">{ROTULO_DA_ORIGEM[familia.origem]} · {familia.nome}</span>}
           {!personalizado && <span className="text-sm text-al-muted">{tipo.descricao}</span>}
         </div>
+
+        {existente?.pausadoPor === 'sem_creditos' && <AvisoDePausaPorCreditos monitoramento={existente} />}
+        {existente && <AvisoDeRodadaPulada monitoramento={existente} />}
+
+        {existente?.plano && <ResumoDoPlano monitoramento={existente} />}
+
+        {existente && etapa === 'editar' && <RodarAgora monitoramento={existente} rodadas={rodadas} />}
+
+        {existente && etapa === 'editar' && (existente.plano || existente.agenda) && <AgendaDoSinalNoMonitoramento monitoramento={existente} />}
 
         {erroSalvar && (
           <div role="alert" className="flex items-center justify-between rounded-xl bg-al-erro/10 px-4 py-3 text-sm text-al-erro">
@@ -386,34 +431,34 @@ function EditorDeMonitoramento({ tipo, existente }: { tipo: TipoDeSinal; existen
                   >
                     Salvar rascunho
                   </button>
-                  <button type="button" disabled={!nomeValido} onClick={() => setEtapa('revisar')} className={BOTAO_PRIMARIO}>
+                  <button type="button" disabled={!nomeValido || mercadoSemRecorte} onClick={() => setEtapa('revisar')} className={BOTAO_PRIMARIO}>
                     Revisar e ativar
                   </button>
+                  {mercadoSemRecorte && <p className="w-full text-sm text-al-muted">Escolha ao menos um nicho ou escreva um setor para ativar.</p>}
                 </>
               )}
             </BarraDeAcoes>
+
+            {existente && <RodadasDoMonitoramento rodadas={rodadas} monitoramento={existente} />}
           </>
         )}
 
         {etapa === 'revisar' && (
           <Revisao
-            monitoramento={monitoramento}
+            monitoramento={existente?.agenda ? { ...monitoramento, agenda: existente.agenda } : monitoramento}
             operacional={operacional}
             interno={interno}
             aoVoltar={() => setEtapa('editar')}
-            aoAtivar={async () => {
-              try {
-                setErroSalvar(null)
-                await salvar({ ...monitoramento, estado: 'ativo' })
-                voltarAoTipo(
-                  operacional
-                    ? `“${monitoramento.nome}” está ativo.`
-                    : `“${monitoramento.nome}” está ativo. Na demonstração, a coleta é simulada.`,
-                )
-              } catch (erro) {
-                setErroSalvar(motivoDaFalha(erro, 'Não foi possível ativar o monitoramento. Tente de novo.'))
-              }
-            }}
+            aoAtivar={() => (confirmaAtivacao ? setConfirmandoAtivacao(true) : void ativar().then((falha) => falha && setErroSalvar(falha)))}
+          />
+        )}
+
+        {confirmaAtivacao && existente && (
+          <AtivarSinal
+            monitoramento={{ ...existente, nome: monitoramento.nome }}
+            aberto={confirmandoAtivacao}
+            aoCancelar={() => setConfirmandoAtivacao(false)}
+            aoAtivar={ativar}
           />
         )}
       </div>
@@ -427,7 +472,7 @@ function resumir(descricao: string): string {
 }
 
 /** Um campo com rótulo; a ajuda e o sufixo ficam fora do nome acessível, e a ajuda descreve o campo. */
-function Rotulado({
+export function Rotulado({
   rotulo,
   ajuda,
   sufixo,
@@ -458,7 +503,7 @@ function Rotulado({
   )
 }
 
-function Grupo({ rotulo, ajuda, papel, children }: { rotulo: string; ajuda?: string; papel: 'group' | 'radiogroup'; children: ReactNode }) {
+export function Grupo({ rotulo, ajuda, papel, children }: { rotulo: string; ajuda?: string; papel: 'group' | 'radiogroup'; children: ReactNode }) {
   return (
     <div role={papel} aria-label={rotulo} className="flex flex-col gap-2">
       <span className="rotulo text-al-ink" aria-hidden>
@@ -470,13 +515,13 @@ function Grupo({ rotulo, ajuda, papel, children }: { rotulo: string; ajuda?: str
   )
 }
 
-function BarraDeAcoes({ children }: { children: ReactNode }) {
+export function BarraDeAcoes({ children }: { children: ReactNode }) {
   return (
     <div className="sticky bottom-0 z-1 flex flex-wrap justify-end gap-2 border-t border-al-line bg-al-bg py-4">{children}</div>
   )
 }
 
-function CriteriosProntos({
+export function CriteriosProntos({
   formulario,
   criterios,
   aoMudar,
@@ -495,50 +540,63 @@ function CriteriosProntos({
 }) {
   const campos = (tipoInterno ? CAMPOS[formulario].filter((campo) => CRITERIOS_DOS_SINAIS_INTERNOS.includes(campo.id)) : CAMPOS[formulario])
     .filter((campo) => !ocultar?.includes(campo.id))
-  const nichoDoCargo = tipoId === 'abertura-de-vagas' ? (typeof criterios.nicho === 'string' && criterios.nicho ? criterios.nicho : 'qualquer') : null
-  const cargosDoFiltro = nichoDoCargo && nichoDoCargo !== 'qualquer' && nichoDoCargo !== NICHO_CUSTOM ? cargosDoNicho(nichoDoCargo) : null
+  const recortes = tipoId === 'abertura-de-vagas' ? recortesDoMonitoramento(criterios) : []
+  const nichoDoCargo = tipoId === 'abertura-de-vagas'
+  const nichosDoFiltro = recortes.filter((r) => r.tipo === 'pronto')
+  const cargosDoFiltro = nichosDoFiltro.length ? [...new Set(nichosDoFiltro.flatMap((r) => cargosDoNicho(r.valor)))] : null
   const funcoesMarcadas = Array.isArray(criterios.funcoes) ? criterios.funcoes : []
-  // Trocar de nicho troca os cargos sugeridos; os cargos Custom ficam.
-  const trocarNicho = (nicho: string) => {
-    if (nicho === nichoDoCargo) return
-    aoMudar({ ...criterios, nicho, funcoes: manterCargosCustom(funcoesMarcadas) })
+  const atualizarRecortes = (novos: typeof recortes) => {
+    aoMudar({ ...criteriosComRecortes(criterios, novos), funcoes: manterCargosCustom(funcoesMarcadas) })
+  }
+  const [entradaSetor, setEntradaSetor] = useState('')
+  const [erroSetor, setErroSetor] = useState<string | null>(null)
+  const acrescentarSetor = () => {
+    const resultado = adicionarRecorteCustom(recortes, entradaSetor)
+    setErroSetor(resultado.erro ?? null)
+    if (resultado.recortes.length > recortes.length) {
+      atualizarRecortes(resultado.recortes)
+      setEntradaSetor('')
+    }
   }
   return (
     <SecaoDoFormulario numero="02" titulo="Critérios" descricao="O que precisa acontecer para disparar um Sinal. Ajuste ao seu negócio.">
       {nichoDoCargo && (
         <div className="flex flex-col gap-3">
           <Grupo
-            rotulo="Nicho do cargo"
-            papel="radiogroup"
-            ajuda="Qualquer mantém a lista geral. Um nicho troca os cargos sugeridos. Custom busca o nicho que você escrever."
+            rotulo="Nichos e setores"
+            papel="group"
+            ajuda="Escolha um ou mais nichos, ou escreva o setor. A busca fica só com as vagas deles."
           >
-            <Opcao papel="radio" marcada={nichoDoCargo === 'qualquer'} aoClicar={() => trocarNicho('qualquer')}>
-              Qualquer
-            </Opcao>
             {NICHOS.map((nicho) => (
-              <Opcao key={nicho.slug} papel="radio" marcada={nichoDoCargo === nicho.slug} aoClicar={() => trocarNicho(nicho.slug)}>
+              <Opcao key={nicho.slug} marcada={recortes.some((r) => r.tipo === 'pronto' && r.valor === nicho.slug)} aoClicar={() => {
+                const novos = recortes.some((r) => r.tipo === 'pronto' && r.valor === nicho.slug)
+                  ? recortes.filter((r) => !(r.tipo === 'pronto' && r.valor === nicho.slug))
+                  : [...recortes, { tipo: 'pronto' as const, valor: nicho.slug, nome: nicho.nome }]
+                atualizarRecortes(novos)
+              }}>
                 {nicho.nome}
               </Opcao>
             ))}
-            <Opcao papel="radio" marcada={nichoDoCargo === NICHO_CUSTOM} aoClicar={() => trocarNicho(NICHO_CUSTOM)}>
-              Custom
-            </Opcao>
           </Grupo>
-          {nichoDoCargo === NICHO_CUSTOM && (
+          <div className="flex flex-col gap-2">
             <Rotulado
-              rotulo="Nicho Custom"
-              ajuda={`Até ${MAX_TEXTO_CUSTOM} caracteres. A IA usa este nicho para ficar só com as vagas dele.`}
+              rotulo="Setor escrito"
+              ajuda={`Até ${MAX_TEXTO_CUSTOM} caracteres por setor, no máximo ${MAX_RECORTES_CUSTOM}.`}
             >
-              <input
-                value={typeof criterios.nichoCustom === 'string' ? criterios.nichoCustom : ''}
-                maxLength={MAX_TEXTO_CUSTOM}
-                onChange={(e) => aoMudar({ ...criterios, nichoCustom: e.target.value.replace(/^\s+/, '').replace(/\s{2,}/g, ' ') })}
-                onBlur={(e) => aoMudar({ ...criterios, nichoCustom: limparTextoCustom(e.target.value) })}
-                placeholder="Ex.: Naval, Óleo e gás"
-                className="campo h-10"
-              />
+              <input value={entradaSetor} onChange={(e) => { setEntradaSetor(e.target.value); setErroSetor(null) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); acrescentarSetor() } }} placeholder="Ex.: Seguros" className="campo h-10" />
             </Rotulado>
-          )}
+            <button type="button" aria-label="Adicionar setor" onClick={acrescentarSetor} className={BOTAO_SECUNDARIO}><Plus aria-hidden="true" size={16} /> Adicionar</button>
+            {erroSetor && <p role="alert" className="text-xs text-al-erro">{erroSetor}</p>}
+            {recortes.filter((r) => r.tipo === 'custom').length > 0 && (
+              <ul aria-label="Setores escritos" className="flex flex-wrap gap-2">
+                {recortes.filter((r) => r.tipo === 'custom').map((recorte) => (
+                  <li key={recorte.valor} className="flex items-center gap-1 rounded-md border border-al-line px-2 py-1 text-sm">
+                    {recorte.nome}<button type="button" aria-label={`Remover ${recorte.nome}`} onClick={() => atualizarRecortes(recortes.filter((r) => r !== recorte))}><X size={14} aria-hidden="true" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
       {campos.map((campo) => {
@@ -780,7 +838,7 @@ function PublicoDeContasReais({
   )
 }
 
-function ContasDoWorkspace({ publico, aoMudar, ajuda }: { publico: Publico; aoMudar: (publico: Publico) => void; ajuda: string }) {
+export function ContasDoWorkspace({ publico, aoMudar, ajuda }: { publico: Publico; aoMudar: (publico: Publico) => void; ajuda: string }) {
   const { dados: contas, erro, recarregar } = useDadosDeContas((f) => f.contas(), [])
   if (erro) {
     return (
@@ -1179,6 +1237,7 @@ function Revisao({
         ? <ContasDoPublico key="publico" ids={monitoramento.publico.listas} />
         : resumoDoPublico(monitoramento.publico),
   ])
+  if (monitoramento.agenda) linhas.push(['Agenda', textoDaAgenda(monitoramento.agenda)])
   linhas.push(['Validade', `Cada Sinal deixa a Conta-alvo Quente por ${VALIDADE_EM_DIAS} dias a partir do disparo`])
 
   return (

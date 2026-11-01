@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDadosDeSequencias } from '@/fonte/contexto'
-import type { TaxaDosEnvios, TaxaPorAbordagem } from '@/fonte/sequencias-tipos'
+import type { ResultadosPorConta, TaxaDosEnvios, TaxaPorAbordagem } from '@/fonte/sequencias-tipos'
 
 const NOME_DO_CANAL: Record<string, string> = { email: 'E-mail', linkedin: 'LinkedIn', whatsapp: 'WhatsApp' }
 
@@ -8,7 +8,7 @@ function percentual(parte: number, total: number): string {
   return total > 0 ? `${Math.round((parte / total) * 100)}%` : '—'
 }
 
-type Vista = 'segmento' | 'abordagem'
+type Vista = 'segmento' | 'abordagem' | 'conta'
 
 /** Uma linha das duas vistas: o que a agrupa (segmento ou abordagem) e os números. */
 interface Linha {
@@ -37,14 +37,20 @@ export function ResultadoDosEnvios() {
     (f) => f.taxasPorAbordagem?.().catch(() => [] as TaxaPorAbordagem[]) ?? Promise.resolve([] as TaxaPorAbordagem[]),
     [],
   )
-  if (!porSegmento || porSegmento.length === 0) return null
+  const { dados: porConta } = useDadosDeSequencias(
+    (f) => f.resultadosPorConta?.().catch(() => null as ResultadosPorConta | null) ?? Promise.resolve(null),
+  )
+  if ((!porSegmento || porSegmento.length === 0) && !porConta) return null
   const temAbordagem = (porAbordagem?.length ?? 0) > 0
-  const vistaAtual: Vista = temAbordagem ? vista : 'segmento'
+  const vistas: Vista[] = ['segmento', ...(temAbordagem ? ['abordagem' as const] : []), ...(porConta ? ['conta' as const] : [])]
+  const vistaAtual: Vista = vistas.includes(vista) ? vista : 'segmento'
 
   const linhas: Linha[] =
     vistaAtual === 'segmento'
-      ? porSegmento.map((t) => ({ ...t, chave: `${t.canal}-${t.segmento}`, grupo: t.segmento }))
-      : (porAbordagem ?? []).map((t) => ({ ...t, chave: `${t.canal}-${t.abordagem}`, grupo: t.abordagem }))
+      ? (porSegmento ?? []).map((t) => ({ ...t, chave: `${t.canal}-${t.segmento}`, grupo: t.segmento }))
+      : vistaAtual === 'abordagem'
+        ? (porAbordagem ?? []).map((t) => ({ ...t, chave: `${t.canal}-${t.abordagem}`, grupo: t.abordagem }))
+        : []
 
   return (
     <section aria-labelledby="resultado-dos-envios" className="flex flex-col gap-2">
@@ -52,21 +58,45 @@ export function ResultadoDosEnvios() {
         <h2 id="resultado-dos-envios" className="rotulo text-xs text-al-muted">
           Resultado dos envios
         </h2>
-        {temAbordagem && (
+        {vistas.length > 1 && (
           <div role="group" aria-label="Agrupar resultado por" className="segmentado">
-            {(['segmento', 'abordagem'] as const).map((v) => (
+            {vistas.map((v) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={vistaAtual === v}
                 onClick={() => setVista(v)}
               >
-                {v === 'segmento' ? 'Segmento' : 'Abordagem'}
+                {v === 'segmento' ? 'Segmento' : v === 'abordagem' ? 'Abordagem' : 'Conta'}
               </button>
             ))}
           </div>
         )}
       </div>
+      {vistaAtual === 'conta' && porConta ? (
+        <div className="overflow-x-auto">
+          <table aria-label="Resultado por Conta-alvo" className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-al-line text-xs font-medium tracking-rotulo text-al-muted uppercase">
+                <th scope="col" className="py-2 pr-4 font-normal">Período</th>
+                <th scope="col" className="py-2 px-4 font-normal">Contas abordadas</th>
+                <th scope="col" className="py-2 px-4 font-normal">Resposta positiva</th>
+                <th scope="col" className="py-2 px-4 font-normal">Reuniões</th>
+                <th scope="col" className="py-2 pl-4 font-normal">Respostas negativas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-al-line">
+              <tr className="h-10 tabular-nums">
+                <td className="py-2 pr-4 text-al-ink">Todo o histórico até {new Intl.DateTimeFormat('pt-BR').format(new Date(porConta.dataCorte))}</td>
+                <td className="py-2 px-4 text-al-muted">{porConta.contasAbordadas}</td>
+                <td className="py-2 px-4 text-al-muted">{porConta.respostasPositivas} ({percentual(porConta.respostasPositivas, porConta.contasAbordadas)})</td>
+                <td className="py-2 px-4 text-al-muted">{porConta.reunioes} ({percentual(porConta.reunioes, porConta.contasAbordadas)})</td>
+                <td className="py-2 pl-4 text-al-muted">{porConta.respostasNegativas}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table aria-label="Resultado dos envios" className="w-full border-collapse text-left text-sm">
           <thead>
@@ -95,9 +125,11 @@ export function ResultadoDosEnvios() {
           </tbody>
         </table>
       </div>
+      )}
       <p className="text-xs text-al-muted">
-        Percentuais sobre os envios. Resposta negativa conta como resposta, não como positiva. A abordagem é o título do
-        passo. Os números são só deste Workspace.
+        {vistaAtual === 'conta'
+          ? 'Cada Conta é contada uma vez em cada resultado; o denominador é o número de Contas com ao menos um envio realizado no período. Desfechos registrados após a data de corte não entram. Os números são só deste Workspace.'
+          : 'Percentuais sobre os envios. Resposta negativa conta como resposta, não como positiva. A abordagem é o título do passo. Os números são só deste Workspace.'}
       </p>
     </section>
   )

@@ -2,6 +2,8 @@
 
 Status: ready-for-agent
 
+Situação em 2026-10-24: 01, 02, 03, 07 e 08 já estão na main (#244, #249, #251/#255, #248 e #250); conferidos ticket a ticket, com validação visual humana pendente.
+
 Divisão aprovada pelo usuário; um PR por ticket. Layout atual é GATE em todos. Sugestões de templates pela IA: 07; templates próprios: 08; análise de respostas: 05. A IA nunca autoriza envios.
 
 | Ticket | Bloqueado por |

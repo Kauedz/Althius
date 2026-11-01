@@ -182,8 +182,8 @@ select is((select row(q.credits, q.can_reveal, q.already_known)::text from publi
   '(0,t,t)', 'e-mail que já existe cota 0 crédito e já encontrado');
 select is((select row(q.credits, q.already_known)::text from public.quote_reveal_contact(pg_temp.id('sem_email'), 'email') q),
   '(2,f)', 'sem e-mail, a cotação continua 2 créditos');
-select is((select row(q.credits, q.already_known)::text from public.quote_reveal_contact(pg_temp.id('com_email'), 'telefone') q),
-  '(0,t)', 'telefone que já existe também cota 0');
+select is((select row(q.credits, q.can_reveal, q.already_known)::text from public.quote_reveal_contact(pg_temp.id('com_email'), 'telefone') q),
+  '(0,t,t)', 'telefone que já existe também cota 0 crédito e já encontrado');
 select is((select e.value from public.existing_reveal_value('c2000000-0000-0000-0000-000000000001', pg_temp.id('com_email'), 'email') e),
   'gilsomar@totvs-recobrar.test', 'o servidor lê com a sessão o e-mail que o Contato já tem');
 select is((select count(*)::integer from public.existing_reveal_value('c2000000-0000-0000-0000-000000000001', pg_temp.id('sem_email'), 'email')),

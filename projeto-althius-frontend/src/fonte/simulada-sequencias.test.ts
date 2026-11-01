@@ -187,4 +187,102 @@ describe('FonteDeSequenciasSimulada', () => {
     expect(await fonte.sequencias()).toEqual([])
     expect(await fonte.sequenciaPorConta('openai')).toBeNull()
   })
+
+  it('resposta correlacionada retém a Conta sem IA; duplicata não reabre e decisão velha não libera', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const primeira = await fonte.registrarRespostaCorrelacionada({
+      sequenciaId: 'sequencia-openai',
+      eventoId: 'evt-1',
+      de: 'Sarah Chen',
+      assunto: 'Re: Abertura',
+    })
+    const segunda = await fonte.registrarRespostaCorrelacionada({
+      sequenciaId: 'sequencia-openai',
+      eventoId: 'evt-2',
+      de: 'Marcus Vance',
+      assunto: 'Re: Outro',
+    })
+    expect(primeira.aberta).toBe(true)
+    expect(segunda.pendentes.map((item) => item.assunto)).toEqual(['Re: Abertura', 'Re: Outro'])
+    expect((await fonte.sequencia('sequencia-openai')).status).toBe('pausada')
+
+    const velha = await fonte.decidirRetencao!({
+      sequenciaId: 'sequencia-openai',
+      decisao: 'continue',
+      versao: primeira.versao,
+      respostasRevisadas: primeira.pendentes.map((item) => item.id),
+      contatosSelecionados: [],
+    })
+    expect(velha.outcome).toBe('stale')
+    expect((await fonte.sequencia('sequencia-openai')).status).toBe('pausada')
+
+    const atual = await fonte.decidirRetencao!({
+      sequenciaId: 'sequencia-openai',
+      decisao: 'continue',
+      versao: segunda.versao,
+      respostasRevisadas: segunda.pendentes.map((item) => item.id),
+      contatosSelecionados: ['contato-openai-1', 'contato-openai-2', 'contato-openai-3'],
+    })
+    expect(atual.outcome).toBe('continued')
+    expect((await fonte.sequencia('sequencia-openai')).status).toBe('ativa')
+
+    await fonte.registrarRespostaCorrelacionada({
+      sequenciaId: 'sequencia-openai',
+      eventoId: 'evt-1',
+      de: 'Sarah Chen',
+      assunto: 'Re: Abertura',
+    })
+    expect((await fonte.revisaoDeRetencao!('sequencia-openai')).aberta).toBe(false)
+    await expect(fonte.atualizarDocumento('sequencia-openai', { status: 'ativa' })).resolves.toBeTruthy()
+  })
+
+  it('retomar explicitamente pelo responsável fecha a retenção e registra a decisão de continuar', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const revisao = await fonte.registrarRespostaCorrelacionada({ sequenciaId: 'sequencia-openai', eventoId: 'evt-r' })
+    expect(revisao.aberta).toBe(true)
+
+    const retomada = await fonte.atualizarDocumento('sequencia-openai', { status: 'ativa' })
+    expect(retomada.status).toBe('ativa')
+    const depois = await fonte.revisaoDeRetencao!('sequencia-openai')
+    expect(depois.aberta).toBe(false)
+    expect(depois.decisoes.map((item) => [item.decisao, item.versao])).toEqual([['continue', revisao.versao]])
+  })
+
+  it('confirmarNaoContatar não finge sucesso: a Demonstração não tem resposta recebida para confirmar', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    await expect(fonte.confirmarNaoContatar!('sequencia-openai', 'interacao-inexistente')).rejects.toThrow(
+      'Na Demonstração',
+    )
+  })
+
+  it('confirmarNaoContatar usa a resposta recebida como evidência e bloqueia o Contato na revisão', async () => {
+    const fonte = criarFonteDeSequenciasSimulada({ hoje: hojeFixo })
+    const ouvinte = vi.fn()
+    fonte.observar(ouvinte)
+    const revisao = await fonte.registrarRespostaCorrelacionada({
+      sequenciaId: 'sequencia-openai',
+      eventoId: 'evt-nao-contatar',
+      contatoId: 'contato-openai-1',
+      de: 'Sarah Chen',
+      assunto: 'Re: Abertura',
+      trecho: 'Por favor não me contate de novo.',
+    })
+    const [pendente] = revisao.pendentes
+    ouvinte.mockClear()
+
+    await fonte.confirmarNaoContatar!('sequencia-openai', pendente.id)
+
+    expect(ouvinte).toHaveBeenCalled()
+    const depois = await fonte.revisaoDeRetencao!('sequencia-openai')
+    expect(depois.contatosPausados).toContain('contato-openai-1')
+    expect(depois.pendentes).toContainEqual(expect.objectContaining({
+      id: pendente.id,
+      trecho: 'Por favor não me contate de novo.',
+    }))
+
+    // Idempotente: confirmar de novo a mesma evidência não duplica o bloqueio.
+    await fonte.confirmarNaoContatar!('sequencia-openai', pendente.id)
+    const final = await fonte.revisaoDeRetencao!('sequencia-openai')
+    expect(final.contatosPausados.filter((id) => id === 'contato-openai-1')).toHaveLength(1)
+  })
 })

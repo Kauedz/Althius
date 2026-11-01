@@ -97,3 +97,13 @@ Deno.test('o pedido de Proposta de resposta vai com a instrução de rascunho, n
   assert(!corpos[0].corpo.instructions.includes('classificado'))
   assertEquals(fins[0].status, 'done')
 })
+
+Deno.test('o pedido do agente único vai com a instrução do agente: o pedido é da pessoa, os resultados são dado', async () => {
+  const { db, fins } = filaFalsa([pedido('a1', { finalidade: 'agente', sistema: 'Você é o agente do Althius.', usuario: 'Ache empresas' })])
+  const { hermes, corpos } = hermesFalso({ status: 'completed', output: '{"resposta":"ok","chamadas":[]}' })
+  await processarPedidosDeIa({ db, hermes, log: () => {} })
+  assertEquals(corpos[0].chave, 'althius-agente-ia-a1')
+  assert(corpos[0].corpo.instructions.includes('O pedido da pessoa está no texto do usuário'))
+  assert(!corpos[0].corpo.instructions.includes('classificado'))
+  assertEquals(fins[0].status, 'done')
+})

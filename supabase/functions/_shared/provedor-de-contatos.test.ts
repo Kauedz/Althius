@@ -1,11 +1,15 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert@1'
 import {
   ApifyProvedorDeContatos,
+  ApolloProvedorDeContatos,
+  ApolloProvedorStub,
   CascataProvedorDeContatos,
   type DadoRevelado,
+  fonteDoCliente,
   fornecedoresDaCascata,
   type PessoaEncontrada,
   type ProvedorDeContatos,
+  telefoneDaPessoaApollo,
 } from './provedor-de-contatos.ts'
 import type { Apify } from '../signal-scan/handler.ts'
 
@@ -152,6 +156,120 @@ Deno.test('fornecedores da cascata: a cascata padrão da Althius tem só o Apify
 
 Deno.test('fornecedores da cascata: sem o Apify configurado, a cascata padrão fica vazia', () => {
   assertEquals(fornecedoresDaCascata({}).map((f) => f.nome), [])
+})
+
+Deno.test('Apollo: busca pelo domínio e cargos no MCP do Apollo e marca a origem apollo', async () => {
+  const pedidos: Array<{ ferramenta: string; argumentos: Record<string, unknown> }> = []
+  const provedor = new ApolloProvedorDeContatos(async (ferramenta, argumentos) => {
+    pedidos.push({ ferramenta, argumentos })
+    // O MCP devolve o JSON como texto no conteúdo.
+    return { erro: false, conteudo: [{ type: 'text', text: JSON.stringify({ people: [
+      { first_name: 'Ana', last_name: 'Souza', title: 'Diretora Comercial', linkedin_url: 'https://linkedin.com/in/ana', city: 'São Paulo', country: 'Brazil' },
+      { title: 'Sem nome' },
+    ] }) }] }
+  })
+  const pessoas = await provedor.buscarPessoas({ nome: 'Acme', dominio: 'acme.test', cargos: ['Diretora'], limite: 3 })
+  assertEquals(pedidos, [{
+    ferramenta: 'apollo_people_search',
+    argumentos: { per_page: 3, page: 1, q_organization_domains_list: ['acme.test'], person_titles: ['Diretora'] },
+  }])
+  assertEquals(pessoas.length, 1)
+  assertEquals(pessoas[0].nome, 'Ana Souza')
+  assertEquals(pessoas[0].localizacao, 'São Paulo, Brazil')
+  assertEquals(pessoas[0].fonte, 'apollo')
+  assertEquals(fonteDoCliente(pessoas[0].fonte), true)
+})
+
+Deno.test('Apollo: sem domínio, busca pelo nome da empresa', async () => {
+  let argumentos: Record<string, unknown> = {}
+  const provedor = new ApolloProvedorDeContatos(async (_f, a) => {
+    argumentos = a
+    return { estruturado: { people: [] } }
+  })
+  assertEquals(await provedor.buscarPessoas({ nome: 'Acme' }), [])
+  assertEquals(argumentos.q_keywords, 'Acme')
+  assertEquals('q_organization_domains_list' in argumentos, false)
+})
+
+Deno.test('Apollo: revela só e-mail de verdade, com origem apollo', async () => {
+  const chamadas: string[] = []
+  let resposta: unknown = { estruturado: { person: { email: ' ana@acme.test ' } } }
+  const provedor = new ApolloProvedorDeContatos(async (ferramenta) => {
+    chamadas.push(ferramenta)
+    return resposta
+  })
+  assertEquals(await provedor.revelarContato(contato, 'email'), { canal: 'email', valor: 'ana@acme.test', fonte: 'apollo' })
+  assertEquals(chamadas, ['apollo_people_enrichment'])
+  resposta = { estruturado: { person: { email: 'email_not_unlocked@domain.com' } } }
+  assertEquals(await provedor.revelarContato(contato, 'email'), null)
+  resposta = { estruturado: { person: null } }
+  assertEquals(await provedor.revelarContato(contato, 'email'), null)
+})
+
+Deno.test('Apollo: revela o telefone da pessoa que vem na resposta, sem pedir o webhook nem usar o da empresa', async () => {
+  const pedidos: Array<Record<string, unknown>> = []
+  let resposta: unknown = {
+    estruturado: { person: { phone_numbers: [{ raw_number: '(11) 91234-5678', sanitized_number: '+5511912345678' }] } },
+  }
+  const provedor = new ApolloProvedorDeContatos(async (_f, argumentos) => {
+    pedidos.push(argumentos)
+    return resposta
+  })
+  assertEquals(await provedor.revelarContato(contato, 'telefone'), { canal: 'telefone', valor: '+5511912345678', fonte: 'apollo' })
+  assertEquals(pedidos[0].reveal_phone_number, false)
+  resposta = { estruturado: { person: { sanitized_phone: '+55 21 98888-1111' } } }
+  assertEquals((await provedor.revelarContato(contato, 'telefone'))?.valor, '+55 21 98888-1111')
+  resposta = { estruturado: { person: { phone_numbers: [] }, organization: { phone: '+55 11 3000-0000' } } }
+  assertEquals(await provedor.revelarContato(contato, 'telefone'), null)
+  resposta = { estruturado: { person: { phone_numbers: [{ sanitized_number: '123' }] } } }
+  assertEquals(await provedor.revelarContato(contato, 'telefone'), null)
+})
+
+Deno.test('telefoneDaPessoaApollo: lista primeiro, depois os campos diretos; número curto não conta', () => {
+  assertEquals(telefoneDaPessoaApollo({ phone_numbers: ['+55 11 90000-0001'] }), '+55 11 90000-0001')
+  assertEquals(telefoneDaPessoaApollo({ mobile_phone: '11 98888-7777' }), '11 98888-7777')
+  assertEquals(telefoneDaPessoaApollo({ phone: '12' }), null)
+  assertEquals(telefoneDaPessoaApollo({}), null)
+})
+
+Deno.test('fontes do cliente: Apollo e CRM não cobram Créditos Althius; Apify e o resto cobram', () => {
+  assertEquals(fonteDoCliente('apollo'), true)
+  assertEquals(fonteDoCliente('crm:hubspot'), true)
+  assertEquals(fonteDoCliente('APOLLO'), true)
+  assertEquals(fonteDoCliente('apify'), false)
+  assertEquals(fonteDoCliente('apollonia'), false)
+  assertEquals(fonteDoCliente(null), false)
+})
+
+Deno.test('cascata: Apify primeiro; Apollo e CRM só quando a fonte anterior não acha ou falha', async () => {
+  const ordem: string[] = []
+  const fonte = (nome: string, acha: boolean | 'falha'): ProvedorDeContatos => ({
+    nome,
+    buscarPessoas: () => {
+      ordem.push(nome)
+      if (acha === 'falha') return Promise.reject(new Error(`${nome} caiu`))
+      return Promise.resolve(acha ? [{ nome: `Pessoa ${nome}`, fonte: nome }] : [])
+    },
+  })
+  const cascata = (apify: boolean | 'falha', apollo: boolean | 'falha', crm: boolean | 'falha') =>
+    new CascataProvedorDeContatos([fonte('apify', apify), fonte('apollo', apollo), fonte('crm', crm)])
+
+  assertEquals((await cascata(true, true, true).buscarPessoas({ nome: 'Acme' }))[0].fonte, 'apify')
+  assertEquals(ordem, ['apify'])
+  ordem.length = 0
+  assertEquals((await cascata(false, true, true).buscarPessoas({ nome: 'Acme' }))[0].fonte, 'apollo')
+  assertEquals(ordem, ['apify', 'apollo'])
+  ordem.length = 0
+  assertEquals((await cascata(false, 'falha', true).buscarPessoas({ nome: 'Acme' }))[0].fonte, 'crm')
+  ordem.length = 0
+  assertEquals(await cascata(false, false, false).buscarPessoas({ nome: 'Acme' }), [])
+})
+
+Deno.test('fornecedores da cascata: Apify, depois Apollo e CRM conectados', () => {
+  const apollo = new ApolloProvedorStub()
+  const crm: ProvedorDeContatos = { nome: 'crm', buscarPessoas: () => Promise.resolve([]) }
+  assertEquals(fornecedoresDaCascata({ apify: apifyQueNaoRoda, apollo, crm }).map((f) => f.nome), ['apify', 'apollo', 'crm'])
+  assertEquals(fornecedoresDaCascata({ apollo }).map((f) => f.nome), ['apollo'])
 })
 
 // --- B3: leitura de emails[i].email na saída real do actor ---

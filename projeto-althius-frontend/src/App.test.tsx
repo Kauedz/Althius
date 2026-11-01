@@ -1,6 +1,6 @@
-import { screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { renderizarApp } from '@/test/renderizar'
+import { act, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { renderizarApp, renderizarAppNoNavegador } from '@/test/renderizar'
 
 const ESPECIALISTAS = ['Scopus', 'Ethos', 'Rhetor', 'Oraculum']
 const AGENTES_CRIADOS = [
@@ -33,10 +33,11 @@ describe('Grade de Agentes', () => {
     const lista = await grade()
 
     const scopus = within(lista).getByRole('link', { name: 'Scopus' })
+    expect(lista).toHaveClass('md:grid-cols-4')
     expect(within(scopus).getByText('Detectou algo')).toBeInTheDocument()
     expect(
-      within(scopus).getByText('Define o ICP a partir dos seus melhores clientes e dá nota de aderência a cada Conta-alvo.'),
-    ).toBeInTheDocument()
+      within(scopus).queryByText('Define o ICP a partir dos seus melhores clientes e dá nota de aderência a cada Conta-alvo.'),
+    ).not.toBeInTheDocument()
     expect(within(scopus).getByText('Toda terça às 08:00')).toBeInTheDocument()
     expect(within(scopus).getByText('312')).toBeInTheDocument()
     for (const integracao of ['HubSpot', 'Clay', 'Apollo', 'Lusha']) {
@@ -54,7 +55,7 @@ describe('Grade de Agentes', () => {
 
     // No Agente criado, a descrição são as instruções dele, e os logos são só os das Integrações que usa.
     const anuncios = within(lista).getByRole('link', { name: 'Rhetor · Anúncios Meta' })
-    expect(within(anuncios).getByText(/copy de anúncios para o Meta Ads/)).toBeInTheDocument()
+    expect(within(anuncios).queryByText(/copy de anúncios para o Meta Ads/)).not.toBeInTheDocument()
     expect(within(anuncios).getByText('Sob demanda')).toBeInTheDocument()
     expect(within(anuncios).getByText('17')).toBeInTheDocument()
     expect(within(anuncios).getByRole('img', { name: 'Meta Ads' })).toBeInTheDocument()
@@ -175,7 +176,7 @@ describe('Criar Agente', () => {
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
     const cartao = within(await grade()).getByRole('link', { name: 'Ethos · Saúde' })
-    expect(within(cartao).getByText('Foque em hospitais privados.')).toBeInTheDocument()
+    expect(within(cartao).queryByText('Foque em hospitais privados.')).not.toBeInTheDocument()
     expect(within(cartao).getByText('Sob demanda')).toBeInTheDocument()
     expect(within(cartao).getByText('0')).toBeInTheDocument()
   })
@@ -308,7 +309,8 @@ describe('Conversa', () => {
     const { usuario } = renderizarApp('/agentes/rhetor/conversa')
     const campo = await screen.findByRole('textbox', { name: 'Mensagem para Rhetor' })
     await usuario.type(campo, 'qual é a previsão do tempo?{Enter}')
-    expect(await screen.findByText('qual é a previsão do tempo?')).toBeInTheDocument()
+    const conversa = screen.getByRole('region', { name: 'Conversa' })
+    expect(await within(conversa).findByText('qual é a previsão do tempo?')).toBeInTheDocument()
     expect(await screen.findByText(/90 palavras/)).toBeInTheDocument()
   })
 
@@ -603,8 +605,18 @@ describe('Tema', () => {
   })
 })
 
+/**
+ * Pede no composer inicial. Desde o ticket 07 ele classifica a intenção: só uma pergunta sem palavras de monitoramento
+ * segue para a Conversa coordenada; um pedido imperativo vira sugestão de Modelo ou aviso de novo Sinal.
+ */
 async function pedirNoComposer(usuario: ReturnType<typeof renderizarApp>['usuario'], texto: string) {
   await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), `${texto}{Enter}`)
+  await screen.findByRole('heading', { level: 1, name: 'Conversa' })
+}
+
+/** Pede pela sugestão clicável, que segue direto para a Conversa coordenada sem passar pela classificação. */
+async function pedirPelaSugestao(usuario: ReturnType<typeof renderizarApp>['usuario'], sugestao: string) {
+  await usuario.click(await screen.findByRole('button', { name: sugestao }))
   await screen.findByRole('heading', { level: 1, name: 'Conversa' })
 }
 
@@ -625,6 +637,17 @@ async function coordenacaoTerminada() {
   await waitFor(() => expect(screen.queryByText('Trabalhando')).not.toBeInTheDocument())
 }
 
+afterEach(() => window.history.replaceState(null, '', '/'))
+
+/** O voltar do navegador, no app montado com o histórico real. */
+async function voltarPeloNavegador() {
+  const voltou = new Promise((resolver) => window.addEventListener('popstate', resolver, { once: true }))
+  await act(async () => {
+    window.history.back()
+    await voltou
+  })
+}
+
 describe('Composer e Coordenação', () => {
   it('o composer fica abaixo da grade, com o Workspace, as Especialidades e o Enviar apagado', async () => {
     renderizarApp('/')
@@ -634,6 +657,21 @@ describe('Composer e Coordenação', () => {
     const especialidades = within(composer).getByRole('list', { name: 'Especialidades disponíveis' })
     expect(within(especialidades).getAllByRole('listitem').map((e) => e.getAttribute('title'))).toEqual(ESPECIALISTAS)
     expect(within(composer).getByRole('button', { name: 'Enviar' })).toBeDisabled()
+  })
+
+  it('um pedido de monitorar vai para a Coordenação, nunca para o Briefing de um Sinal novo', async () => {
+    const { usuario } = renderizarAppNoNavegador('/')
+    await pedirNoComposer(usuario, 'Quero monitorar empresas que abriram vaga de RevOps')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Conversa' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/conversa')
+    expect(screen.getByText('Quero monitorar empresas que abriram vaga de RevOps')).toBeInTheDocument()
+    await coordenacaoTerminada()
+  })
+
+  it('/agentes volta para a /', async () => {
+    renderizarAppNoNavegador('/agentes')
+    await grade()
+    expect(window.location.pathname).toBe('/')
   })
 
   it('o pedido da OpenAI chama Scopus, Ethos e Rhetor, consolida e termina numa Aprovação no HubSpot', async () => {
@@ -667,7 +705,7 @@ describe('Composer e Coordenação', () => {
     await screen.findByText('Personalização salva.')
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
-    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     expect(await screen.findByRole('note', { name: /Executada: Criar sequência de 3 e-mails/ })).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: /Aprovação pendente/ })).not.toBeInTheDocument()
   })
@@ -680,7 +718,7 @@ describe('Composer e Coordenação', () => {
     await screen.findByText('Personalização salva.')
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
-    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     expect(await screen.findByRole('note', { name: /Sem Permissão para agir: Criar sequência de 3 e-mails/ })).toBeInTheDocument()
     expect(screen.queryByRole('article', { name: /Aprovação pendente/ })).not.toBeInTheDocument()
   })
@@ -715,7 +753,7 @@ describe('Composer e Coordenação', () => {
   it('no pedido roteirizado, o Agente criado mencionado substitui o padrão, e outro mencionado também é chamado', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
-    await pedirNoComposer(usuario, '@Scopus · Enterprise LATAM @Oraculum monte a abordagem completa para a OpenAI')
+    await pedirNoComposer(usuario, '@Scopus · Enterprise LATAM @Oraculum monte a abordagem completa para a OpenAI?')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
     expect(agentesChamados()).toEqual(['Scopus · Enterprise LATAM', 'Ethos', 'Rhetor', 'Oraculum'])
@@ -741,7 +779,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('a Conversa coordenada continua depois de abrir um Agente e voltar', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarAppNoNavegador('/')
     await grade()
     await pedirNoComposer(usuario, 'o que é ICP?')
     await screen.findByText(/ICP é o perfil da empresa/)
@@ -752,9 +790,11 @@ describe('Composer e Coordenação', () => {
     await screen.findByRole('heading', { level: 1, name: 'Oraculum' })
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
 
-    const aviso = await screen.findByRole('region', { name: 'Conversa coordenada em andamento' })
-    expect(within(aviso).getByText('o que é ICP?')).toBeInTheDocument()
-    await usuario.click(within(aviso).getByRole('link', { name: 'Abrir conversa' }))
+    await grade()
+    expect(screen.queryByRole('region', { name: 'Conversa coordenada em andamento' })).not.toBeInTheDocument()
+    for (let i = 0; i < 6 && !screen.queryByRole('heading', { level: 1, name: 'Conversa' }); i++) {
+      await voltarPeloNavegador()
+    }
     expect(await screen.findByText('o que é ICP?')).toBeInTheDocument()
     expect(screen.getByText(/ICP é o perfil da empresa/)).toBeInTheDocument()
   })
@@ -788,7 +828,7 @@ describe('Composer e Coordenação', () => {
   })
 
   it('um pedido seguinte aparece abaixo da resposta anterior e continua a partir dela', async () => {
-    const { usuario } = renderizarApp('/')
+    const { usuario } = renderizarAppNoNavegador('/')
     await grade()
     await usuario.click(screen.getByRole('button', { name: 'Monte a abordagem completa para a OpenAI' }))
     await screen.findByRole('article', { name: /Aprovação pendente/ })
@@ -809,11 +849,11 @@ describe('Composer e Coordenação', () => {
     expect(within(seguinte).getByText(/E-mail para o CFO da OpenAI/)).toBeInTheDocument()
     expect(within(segunda).getByText(/Comitê de compra já levantados nesta Conversa/)).toBeInTheDocument()
 
-    // A Conversa inteira continua lá depois de voltar para a grade.
+    // A Conversa inteira continua lá depois de voltar para a grade, pelo histórico do navegador.
     await usuario.click(screen.getByRole('link', { name: 'Voltar para a grade' }))
-    const aviso = await screen.findByRole('region', { name: 'Conversa coordenada em andamento' })
-    expect(within(aviso).getByText('agora faz um e-mail pro CFO')).toBeInTheDocument()
-    await usuario.click(within(aviso).getByRole('link', { name: 'Abrir conversa' }))
+    await grade()
+    expect(screen.queryByRole('region', { name: 'Conversa coordenada em andamento' })).not.toBeInTheDocument()
+    await voltarPeloNavegador()
     expect(await screen.findByText('Monte a abordagem completa para a OpenAI')).toBeInTheDocument()
     expect(screen.getAllByRole('region', { name: 'Resposta consolidada' })).toHaveLength(2)
   })
@@ -821,7 +861,7 @@ describe('Composer e Coordenação', () => {
   it('a continuação chama o mesmo Agente criado que trabalhou no pedido anterior', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
-    await pedirNoComposer(usuario, '@Rhetor · Sequências outbound monte a abordagem completa para a OpenAI')
+    await pedirNoComposer(usuario, '@Rhetor · Sequências outbound monte a abordagem completa para a OpenAI?')
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()
 
@@ -910,7 +950,7 @@ describe('Execuções', () => {
     await screen.findByText('Personalização salva.')
 
     await usuario.click(within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', { name: 'Agentes' }))
-    await pedirNoComposer(usuario, 'Monte a abordagem completa para a OpenAI')
+    await pedirPelaSugestao(usuario, 'Monte a abordagem completa para a OpenAI')
     await screen.findByRole('note', { name: /Executada: Criar sequência de 3 e-mails/ })
     await coordenacaoTerminada()
 
@@ -1011,7 +1051,7 @@ describe('Excluir Agente com Aprovações', () => {
   it('com Aprovações pendentes, diz quantas serão canceladas, e elas saem da fila depois da exclusão', async () => {
     const { usuario } = renderizarApp('/')
     await grade()
-    const pedido = '@Rhetor · Anúncios Meta monte a abordagem completa para a OpenAI'
+    const pedido = '@Rhetor · Anúncios Meta monte a abordagem completa para a OpenAI?'
     await pedirNoComposer(usuario, pedido)
     await screen.findByRole('article', { name: /Aprovação pendente/ })
     await coordenacaoTerminada()

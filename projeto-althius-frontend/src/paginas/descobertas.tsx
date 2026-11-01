@@ -1,11 +1,14 @@
-import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateCcw, Sparkles, RefreshCw } from 'lucide-react'
+import { Building2, ExternalLink, Check, ChevronDown, ChevronUp, Trash2, RotateCcw, Sparkles, RefreshCw, RadioTower } from 'lucide-react'
 import { Fragment, useEffect, useId, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Pagina } from '@/components/pagina'
+import { PorQueEssaAderencia } from '@/components/por-que-essa-aderencia'
+import type { ExplicacaoDeAderencia } from '@/fonte/aderencia-explicada'
 import { Button } from '@/components/ui/button'
 import { Carregando } from '@/components/marca'
+import { LogoDaConta } from '@/components/logos'
 import { useDados, useDadosDeDescobertas, useFonteDeContas, useFonteDeDescobertas } from '@/fonte/contexto'
-import type { ContaDescoberta, EstadoContaDescoberta, OrigemDaDescoberta, ResultadoDoAceite, SinalDoMotivo } from '@/fonte/descobertas-tipos'
+import type { ContaDescoberta, CriteriosDaBusca, EstadoContaDescoberta, OrigemDaDescoberta, ResultadoDoAceite, SinalDoMotivo } from '@/fonte/descobertas-tipos'
 import { formatarDataCompleta } from '@/fonte/formatar-data'
 import {
   ajustesDaCandidata,
@@ -15,7 +18,12 @@ import {
   type CodigoDoDescarte,
 } from '@/fonte/aprendizado-da-descoberta'
 import { cn } from '@/lib/utils'
-import { AbasDoModulo, CampoDeBusca, Contagem } from './modulo-contas-e-contatos'
+import { EtiquetasDeTexto } from '@/components/etiquetas-de-texto'
+import { SelecaoMultipla } from '@/components/selecao-multipla'
+import { PORTES_DO_ICP } from '@/fonte/campos-do-icp'
+import { PORTES_DA_RECEITA, ROTULOS_DOS_PORTES, SETORES_DA_BUSCA } from '@/fonte/opcoes-da-busca'
+import { useDadosDoBrasil } from './sinais/dados-do-brasil'
+import { AbasDoModulo, CABECALHO, CampoDeBusca, CELULA, Contagem } from './modulo-contas-e-contatos'
 
 const INTERVALO_POLLING_MS = 5_000
 
@@ -46,7 +54,7 @@ export function frasePorExtensoDoSinal(sinal: SinalDoMotivo): string {
 /** A primeira frase do aviso depois de aceitar: a Conta e os Sinais que vieram com ela. */
 function baseDoAviso(nome: string, r: ResultadoDoAceite): string {
   const sinais = r.sinaisMigrados > 0 ? ` com ${r.sinaisMigrados} ${r.sinaisMigrados === 1 ? 'Sinal' : 'Sinais'}` : ''
-  return `${nome} agora é uma Conta-alvo${sinais}.`
+  return r.created ? `${nome} agora é uma Conta-alvo${sinais}.` : `${nome} já era uma Conta-alvo${sinais}.`
 }
 
 /** O que a pessoa lê depois de aceitar, e o que aconteceu com o Comitê (o aceite confere o saldo e o limite do mês). */
@@ -61,14 +69,24 @@ function avisoDoAceite(nome: string, r: ResultadoDoAceite): string {
 }
 
 /** O detalhe de uma candidata: o que a descreve e todos os Sinais que a trouxeram, com data e fonte pública. */
-function DetalheDaCandidata({ candidata, ajustes = [] }: { candidata: ContaDescoberta; ajustes?: AjusteAprendido[] }) {
+function DetalheDaCandidata({
+  candidata,
+  ajustes = [],
+  explicar,
+}: {
+  candidata: ContaDescoberta
+  ajustes?: AjusteAprendido[]
+  explicar?: (id: string) => Promise<ExplicacaoDeAderencia>
+}) {
   const aprendido = ajustesDaCandidata(candidata, ajustes)[0]
   return (
     <div aria-label={`Detalhes de ${candidata.nome}`} role="group" className="flex flex-col gap-3 text-xs">
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-al-muted">
         <span>Origem: {ROTULO_DA_ORIGEM[candidata.origem]}</span>
+        {candidata.cnpj && <span>CNPJ: {candidata.cnpj}</span>}
         {candidata.descricao && <span className="text-al-ink">{candidata.descricao}</span>}
       </div>
+      {explicar && <PorQueEssaAderencia key={candidata.id} explicar={() => explicar(candidata.id)} />}
       {aprendido && <p className="text-al-muted">{fraseDoAjuste(aprendido)}.</p>}
       {candidata.voltouPorSinalEm && (
         <p className="text-al-ink">
@@ -98,11 +116,14 @@ function DetalheDaCandidata({ candidata, ajustes = [] }: { candidata: ContaDesco
 
 export function PaginaDescobertas() {
   const fonte = useFonteDeDescobertas()
+  const dadosDoBrasil = useDadosDoBrasil()
   const fonteDeContas = useFonteDeContas()
   const saldo = useDados((f) => (f.saldoDeCreditos ? f.saldoDeCreditos() : Promise.resolve(null)), [])
   const [estadoAba, setEstadoAba] = useState<EstadoContaDescoberta>('nova')
   const [busca, setBusca] = useState('')
   const [pedindoBusca, setPedindoBusca] = useState(false)
+  const [criteriosBusca, setCriteriosBusca] = useState<{ criterios: CriteriosDaBusca; icpVersion: number | null; resumo: string; temIcp: boolean } | null>(null)
+  const [criteriosEditados, setCriteriosEditados] = useState<CriteriosDaBusca | null>(null)
   const [erroAcao, setErroAcao] = useState<string | null>(null)
   const [modalUrl, setModalUrl] = useState<{ id: string; nome: string } | null>(null)
   const [urlInformada, setUrlInformada] = useState('')
@@ -196,14 +217,55 @@ export function PaginaDescobertas() {
     setPedindoBusca(true)
     setErroAcao(null)
     try {
-      await fonte.buscarContas()
-      recarregarCotacao()
-      recarregarLista()
+      const resultado = await fonte.criteriosDaBusca()
+      setCriteriosBusca({ criterios: resultado.criterios, icpVersion: resultado.icpVersion, resumo: resultado.icpResumo, temIcp: resultado.temIcp })
+      setCriteriosEditados(resultado.criterios)
     } catch (e) {
       setErroAcao(e instanceof Error ? e.message : 'Erro ao iniciar busca de contas.')
     } finally {
       setPedindoBusca(false)
     }
+  }
+
+  // Região no formato que a busca já entende (account-discovery/regioes.ts): "Brasil", a sigla da UF ou "Cidade, UF".
+  const opcoesDeRegiao = dadosDoBrasil
+    ? [
+        { valor: 'Brasil' },
+        ...dadosDoBrasil.localidades.ufs.map(([uf, nome]) => ({ valor: uf, detalhe: nome })),
+        ...dadosDoBrasil.localidades.cidades.map(([cidade, uf]) => ({ valor: `${cidade}, ${uf}` })),
+      ]
+    : []
+  const opcoesDeCnae = dadosDoBrasil
+    ? (['subclasses'] as const).flatMap((nivel) =>
+        (dadosDoBrasil.cnae[nivel] as [string, string, string?][]).map(([codigo, descricao]) => ({ valor: codigo, detalhe: descricao })),
+      )
+    : []
+  const opcoesDePorte = (fonte: CriteriosDaBusca['fonte']) =>
+    PORTES_DO_ICP.filter((p) => fonte === 'receita' || !PORTES_DA_RECEITA.includes(p)).map((valor) => ({
+      valor,
+      rotulo: ROTULOS_DOS_PORTES[valor] ?? valor,
+    }))
+  const opcoesDeSetor = [...new Set([...(criteriosBusca?.criterios.setores ?? []), ...SETORES_DA_BUSCA])].map((valor) => ({ valor }))
+  const criteriosDoDialog = criteriosEditados ?? criteriosBusca?.criterios ?? null
+  const criteriosValidos = criteriosDoDialog ? criteriosDoDialog.setores.length > 0 || criteriosDoDialog.palavrasChave.length > 0 : false
+
+  async function confirmarBusca() {
+    if (!criteriosBusca || !criteriosDoDialog || !criteriosValidos) return
+    setPedindoBusca(true)
+    setErroAcao(null)
+    try {
+      const allowTesting = cotacao?.estadoDoActor === 'testing' && cotacao.podeTestar
+      if (cotacao?.estadoDoActor === 'testing' && !cotacao.podeTestar) {
+        setErroAcao('A fonte desta busca ainda está em validação pela equipe Althius.')
+        return
+      }
+      await fonte.buscarContas({ criterios: criteriosDoDialog, icpVersion: criteriosBusca.icpVersion, allowTesting })
+      setCriteriosBusca(null)
+      recarregarCotacao()
+      recarregarLista()
+    } catch (e) {
+      setErroAcao(e instanceof Error ? e.message : 'Erro ao iniciar busca de contas.')
+    } finally { setPedindoBusca(false) }
   }
 
   async function aceitar(candidata: ContaDescoberta, url?: string) {
@@ -222,14 +284,24 @@ export function PaginaDescobertas() {
       setAvisoDeAceite(avisoDoAceite(candidata.nome, resultado))
       recarregarLista()
       // O Comitê só dispara se o saldo e o limite do mês permitem (o aceite confere); senão a Conta fica com "Enriquecer Comitê".
+      let aviso = avisoDoAceite(candidata.nome, resultado)
       if (resultado.comite === 'liberado' && fonteDeContas.buscarComite) {
-        const base = baseDoAviso(candidata.nome, resultado)
         try {
           const comite = await fonteDeContas.buscarComite(resultado.targetAccountId)
-          setAvisoDeAceite(`${base} Comitê de compra: ${comite.novas} ${comite.novas === 1 ? 'pessoa sugerida' : 'pessoas sugeridas'} para abordagem.`)
-        } catch {
-          setAvisoDeAceite(`${base} Não foi possível enriquecer o Comitê agora: use Enriquecer Comitê na Conta.`)
+          aviso = `${baseDoAviso(candidata.nome, resultado)} Comitê de compra: ${comite.novas} ${comite.novas === 1 ? 'pessoa sugerida' : 'pessoas sugeridas'} para abordagem.`
+        } catch (e) {
+          aviso = `${baseDoAviso(candidata.nome, resultado)} Não foi possível enriquecer o Comitê agora: use Enriquecer Comitê na Conta.${e instanceof Error && e.message ? ` Motivo: ${e.message}.` : ''}`
         }
+        setAvisoDeAceite(aviso)
+      }
+      if (candidata.cnpj && fonteDeContas.enriquecerReceita) {
+        try {
+          await fonteDeContas.enriquecerReceita(resultado.targetAccountId, candidata.cnpj)
+          aviso += ' Dados da Receita: ok.'
+        } catch (e) {
+          aviso += ` Dados da Receita: não foi possível consultar agora.${e instanceof Error && e.message ? ` Motivo: ${e.message}.` : ''}`
+        }
+        setAvisoDeAceite(aviso)
       }
     } catch (e) {
       setErroAcao(e instanceof Error ? e.message : 'Não foi possível aceitar a candidata.')
@@ -310,7 +382,7 @@ export function PaginaDescobertas() {
             </Button>
             {cotacao && !emAndamento && (
               <span id={custoId} className="text-xs text-al-muted">
-                {ilimitado ? 'Ilimitado' : rotuloCreditos(cotacao.creditos)}
+                {ilimitado ? 'Ilimitado (interno)' : rotuloCreditos(cotacao.creditos)}
               </span>
             )}
           </div>
@@ -322,7 +394,7 @@ export function PaginaDescobertas() {
           </p>
         )}
 
-        {erroAcao && (
+        {erroAcao && !criteriosBusca && (
           <p role="alert" className="text-xs text-al-atencao">
             {erroAcao}
           </p>
@@ -409,62 +481,85 @@ export function PaginaDescobertas() {
         <div className="min-h-0 overflow-auto">
           <table
             aria-label="Tabela de Descobertas"
-            className="w-full min-w-[56rem] table-fixed border-separate border-spacing-0 text-left text-sm"
+            className="w-full min-w-[64rem] table-fixed border-separate border-spacing-0 text-left text-sm"
           >
             <thead>
-              <tr className="border-b border-al-line text-xs tracking-rotulo uppercase text-al-muted">
-                <th scope="col" className="p-3 font-medium">Empresa</th>
-                <th scope="col" className="p-3 font-medium w-36">Encaixe ICP</th>
-                <th scope="col" className="p-3 font-medium w-40">Localização</th>
-                <th scope="col" className="p-3 font-medium w-48">Setor / Porte</th>
-                <th scope="col" className="p-3 font-medium">Motivos / Sinais</th>
-                <th scope="col" className="p-3 font-medium w-36 text-right">Ações</th>
+              <tr>
+                <th scope="col" className={cn(CABECALHO, 'left-0 z-3 w-56 pl-3')}>Empresa</th>
+                <th scope="col" className={cn(CABECALHO, 'w-24')}>Quente</th>
+                <th scope="col" className={cn(CABECALHO, 'w-36')}>Encaixe</th>
+                <th scope="col" className={cn(CABECALHO, 'w-40')}>Localização</th>
+                {/* Sem largura fixa: Último sinal e motivos ocupa o espaço restante. */}
+                <th scope="col" className={CABECALHO}>Último sinal / Motivos</th>
+                <th scope="col" className={cn(CABECALHO, 'w-44')}>Segmento</th>
+                <th scope="col" className={cn(CABECALHO, 'w-44 text-right')}>Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-al-line">
-              {listaFiltrada.map((c) => (
+            <tbody>
+              {listaFiltrada.map((c) => {
+                const sinaisValidos = c.motivosDeSinal.filter((m) => m.valido).length || c.sinais.length
+                const ultimoSinal = c.motivosDeSinal[0]
+                const local = c.localizacao || c.uf || '—'
+                return (
                 <Fragment key={c.id}>
-                <tr className="hover:bg-al-surface/40 transition-colors">
-                  <td className="p-3 align-top">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium text-al-ink">{c.nome}</span>
-                      <div className="flex items-center gap-2 text-xs text-al-muted">
-                        {c.website ? (
-                          <a
-                            href={c.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 hover:text-al-accent hover:underline"
-                          >
-                            {c.dominio || 'Site'}
-                            <ExternalLink className="size-2.5" aria-hidden />
-                          </a>
-                        ) : (
-                          <span className="italic">Sem site</span>
-                        )}
-                        {c.linkedinUrl && (
-                          <>
-                            <span>·</span>
+                <tr className="h-11 transition-colors hover:bg-al-hover">
+                  <td className={cn(CELULA, 'sticky left-0 z-1 bg-al-bg py-1.5 pl-3')}>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <LogoDaConta nome={c.nome} />
+                      <div className="flex min-w-0 flex-col leading-tight">
+                        <span className="truncate text-al-ink" title={c.nome}>{c.nome}</span>
+                        <div className="flex min-w-0 items-center gap-1.5 text-[0.6875rem] text-al-muted">
+                          {c.website ? (
                             <a
-                              href={c.linkedinUrl}
+                              href={c.website}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 hover:text-al-accent hover:underline"
+                              className="inline-flex min-w-0 items-center gap-1 hover:text-al-accent hover:underline"
                             >
-                              LinkedIn
-                              <ExternalLink className="size-2.5" aria-hidden />
+                              <span className="truncate">{c.dominio || 'Site'}</span>
+                              <ExternalLink className="size-2.5 shrink-0" aria-hidden />
                             </a>
-                          </>
-                        )}
+                          ) : (
+                            <span>Sem site</span>
+                          )}
+                          {c.linkedinUrl && (
+                            <>
+                              <span aria-hidden>·</span>
+                              <a
+                                href={c.linkedinUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex shrink-0 items-center gap-1 hover:text-al-accent hover:underline"
+                              >
+                                LinkedIn
+                                <ExternalLink className="size-2.5" aria-hidden />
+                              </a>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      {c.cnpj && <span className="text-[0.75rem] text-al-muted">CNPJ: {c.cnpj}</span>}
                     </div>
                   </td>
 
-                  <td className="p-3 align-top">
+                  <td className={CELULA}>
+                    {sinaisValidos > 0 ? (
+                      <span
+                        title={`${sinaisValidos} ${sinaisValidos === 1 ? 'Sinal válido' : 'Sinais válidos'}`}
+                        aria-label={`${sinaisValidos} ${sinaisValidos === 1 ? 'Sinal válido' : 'Sinais válidos'}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-al-accent tabular-nums"
+                      >
+                        <RadioTower strokeWidth={1.8} className="size-3.5" aria-hidden />
+                        {sinaisValidos}
+                      </span>
+                    ) : (
+                      <span title="Sem Sinais válidos" aria-label="Sem Sinais válidos" className="text-al-muted">—</span>
+                    )}
+                  </td>
+
+                  <td className={CELULA}>
                     <span
                       className={cn(
-                        'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded',
+                        'inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium',
                         c.fitLevel === 'alto' && 'bg-al-sucesso-suave text-al-sucesso',
                         c.fitLevel === 'medio' && 'bg-al-atencao-suave text-al-atencao',
                         (c.fitLevel === 'baixo' || c.fitLevel === 'sem_dado') && 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
@@ -474,65 +569,68 @@ export function PaginaDescobertas() {
                     </span>
                   </td>
 
-                  <td className="p-3 align-top text-xs text-al-ink">
-                    {c.localizacao || c.uf || '—'}
+                  <td className={CELULA}>
+                    <span className="block truncate text-xs text-al-ink" title={local}>{local}</span>
                   </td>
 
-                  <td className="p-3 align-top text-xs">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-al-ink truncate">{c.setor || '—'}</span>
-                      {c.tamanho && <span className="text-al-muted">{c.tamanho}</span>}
-                    </div>
-                  </td>
-
-                  <td className="p-3 align-top">
-                    <div className="flex flex-col gap-1 text-xs">
+                  <td className={cn(CELULA, 'py-1.5')}>
+                    <div className="flex min-w-0 flex-col gap-0.5 text-xs">
                       {c.voltouPorSinalEm && (
-                        <span className="text-[0.75rem] font-medium text-al-accent">
+                        <span className="truncate text-[0.6875rem] font-medium text-al-accent">
                           Voltou por novo Sinal
                           {c.motivoDoDescarteAnterior && (
                             <span className="font-normal text-al-muted"> · Descarte anterior: {c.motivoDoDescarteAnterior}</span>
                           )}
                         </span>
                       )}
-                      {c.motivos.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {c.motivos.map((m, i) => (
-                            <span key={i} className="rounded-md inline-block bg-al-surface px-1.5 py-0.5 text-[0.75rem] text-al-ink border border-al-line">
-                              {m}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {c.motivosDeSinal.length > 0 ? (
-                        <div className="flex items-baseline gap-1.5 pt-0.5">
-                          <span className="truncate text-[0.75rem] text-al-ink">{frasePorExtensoDoSinal(c.motivosDeSinal[0])}</span>
+                      {ultimoSinal ? (
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            title={`${frasePorExtensoDoSinal(ultimoSinal)} · ${formatarDataCompleta(ultimoSinal.data)}`}
+                            className="flex min-w-0 items-center gap-1.5 text-al-ink"
+                          >
+                            <RadioTower strokeWidth={1.8} className="size-3.5 shrink-0 text-al-accent" aria-hidden />
+                            <span className="truncate">{frasePorExtensoDoSinal(ultimoSinal)}</span>
+                          </span>
                           {c.motivosDeSinal.length > 1 && (
                             <button
                               type="button"
                               onClick={() => setDetalheAberto(c.id)}
                               aria-label={`Mais ${c.motivosDeSinal.length - 1} ${c.motivosDeSinal.length - 1 === 1 ? 'Sinal' : 'Sinais'} de ${c.nome}`}
-                              className="shrink-0 text-[0.75rem] font-medium text-al-accent hover:underline"
+                              className="shrink-0 font-medium text-al-accent hover:underline"
                             >
                               +{c.motivosDeSinal.length - 1}
                             </button>
                           )}
                         </div>
+                      ) : c.sinais.length > 0 ? (
+                        <span className="truncate text-al-ink" title={c.sinais.map((s) => s.frase).join(' · ')}>
+                          {c.sinais[0].frase}
+                        </span>
+                      ) : null}
+                      {c.motivos.length > 0 ? (
+                        <span className="truncate text-al-muted" title={c.motivos.join(' · ')}>
+                          {c.motivos.map((m, i) => (
+                            <Fragment key={i}>
+                              {i > 0 && ' · '}
+                              <span>{m}</span>
+                            </Fragment>
+                          ))}
+                        </span>
                       ) : (
-                        c.sinais.length > 0 && (
-                          <div className="flex flex-col gap-0.5 pt-0.5">
-                            {c.sinais.slice(0, 2).map((s, i) => (
-                              <span key={i} className="text-[0.75rem] text-al-muted truncate">
-                                • {s.frase}
-                              </span>
-                            ))}
-                          </div>
-                        )
+                        !ultimoSinal && c.sinais.length === 0 && !c.voltouPorSinalEm && <span className="text-al-muted">Nenhum sinal</span>
                       )}
                     </div>
                   </td>
 
-                  <td className="p-3 align-top text-right">
+                  <td className={cn(CELULA, 'py-1.5')}>
+                    <div className="flex min-w-0 flex-col gap-0.5 text-xs leading-tight">
+                      <span className="truncate text-al-ink" title={c.setor || '—'}>{c.setor || '—'}</span>
+                      {c.tamanho && <span className="truncate text-al-muted" title={c.tamanho}>{c.tamanho}</span>}
+                    </div>
+                  </td>
+
+                  <td className={cn(CELULA, 'text-right')}>
                     <div className="flex items-center justify-end gap-1.5">
                       <Button
                         type="button"
@@ -604,13 +702,14 @@ export function PaginaDescobertas() {
                 </tr>
                 {detalheAberto === c.id && (
                   <tr className="bg-al-surface/30">
-                    <td colSpan={6} className="p-3">
-                      <DetalheDaCandidata candidata={c} ajustes={ajustes} />
+                    <td colSpan={7} className="border-b border-al-divisor p-3">
+                      <DetalheDaCandidata candidata={c} ajustes={ajustes} explicar={fonte?.explicarAderencia?.bind(fonte)} />
                     </td>
                   </tr>
                 )}
                 </Fragment>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -653,6 +752,67 @@ export function PaginaDescobertas() {
                 Confirmar e Aceitar
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {criteriosBusca && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-label="Confirmar filtros da busca" className="rounded-2xl w-full max-w-lg border border-al-line bg-al-surface p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-al-ink">Confirmar filtros da busca</h3>
+            <p className="mt-1 text-xs text-al-muted">Do seu ICP{criteriosBusca.resumo ? `: ${criteriosBusca.resumo}` : '.'}</p>
+            <div className="mt-4 grid gap-3">
+              {criteriosDoDialog && (
+                <>
+                  <SelecaoMultipla
+                    rotulo="Setores"
+                    opcoes={opcoesDeSetor}
+                    selecionadas={criteriosDoDialog.setores}
+                    aoMudar={(setores) => setCriteriosEditados({ ...criteriosDoDialog, setores })}
+                  />
+                  <EtiquetasDeTexto
+                    rotulo="Palavras-chave"
+                    valores={criteriosDoDialog.palavrasChave}
+                    aoMudar={(palavrasChave) => setCriteriosEditados({ ...criteriosDoDialog, palavrasChave })}
+                  />
+                  <SelecaoMultipla
+                    rotulo="Porte (faixas)"
+                    opcoes={opcoesDePorte(criteriosDoDialog.fonte)}
+                    selecionadas={criteriosDoDialog.portes}
+                    aoMudar={(portes) => setCriteriosEditados({ ...criteriosDoDialog, portes })}
+                  />
+                  {dadosDoBrasil ? (
+                    <SelecaoMultipla
+                      rotulo="Região"
+                      opcoes={opcoesDeRegiao}
+                      selecionadas={criteriosDoDialog.regioes}
+                      aoMudar={(regioes) => setCriteriosEditados({ ...criteriosDoDialog, regioes })}
+                      dica="Buscar estado ou cidade"
+                    />
+                  ) : (
+                    <Carregando rotulo="Carregando as localidades" />
+                  )}
+                  {criteriosDoDialog.fonte === 'receita' && dadosDoBrasil && (
+                    <SelecaoMultipla
+                      rotulo="CNAEs"
+                      opcoes={opcoesDeCnae}
+                      selecionadas={criteriosDoDialog.cnaes}
+                      aoMudar={(cnaes) => setCriteriosEditados({ ...criteriosDoDialog, cnaes })}
+                      dica="Buscar por código ou descrição"
+                    />
+                  )}
+                  <EtiquetasDeTexto
+                    rotulo="Excluir"
+                    valores={criteriosDoDialog.excluir}
+                    aoMudar={(excluir) => setCriteriosEditados({ ...criteriosDoDialog, excluir })}
+                  />
+                </>
+              )}
+            </div>
+            {!criteriosBusca.temIcp || !criteriosValidos ? <p className="mt-3 text-xs text-al-atencao">Informe ao menos um setor ou uma palavra-chave. <Link className="underline" to="/configuracoes/playbook/icp">Edite o ICP em Configurações</Link>.</p> : null}
+            <p className="mt-3 text-xs text-al-muted">Custo: {ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.creditos) : 'calculando'} · Saldo: {ilimitado ? 'Ilimitado (interno)' : cotacao ? rotuloCreditos(cotacao.saldoDisponivel) : 'calculando'}</p>
+            {erroAcao && <p role="alert" className="mt-3 text-xs text-al-atencao">{erroAcao}</p>}
+            <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => { setCriteriosBusca(null); setErroAcao(null) }}>Cancelar</Button><Button type="button" disabled={!criteriosValidos || pedindoBusca} onClick={confirmarBusca} className="bg-al-accent text-al-on-accent hover:bg-al-accent-2">Confirmar</Button></div>
           </div>
         </div>
       )}

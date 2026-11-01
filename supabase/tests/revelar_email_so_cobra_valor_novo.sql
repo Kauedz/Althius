@@ -149,8 +149,8 @@ select is(pg_temp.emails('sem_email'), '1:novo@acme-b3.test', 'e-mail de outro C
 -- 7. Texto que não é e-mail e telefone: zero, sem erro.
 select is((select resultado from pg_temp.revelar('sem_email', 'nao-e-um-email')), 'false:0',
   'texto que não é e-mail debita 0 sem erro');
-select is((select resultado from pg_temp.revelar('outro', '+55 11 99999-0000', 'telefone')), 'false:0',
-  'telefone achado não grava nem debita: a revelação de telefone está indisponível');
+select is((select resultado from pg_temp.revelar('outro', 'nao-e-um-telefone', 'telefone')), 'false:0',
+  'texto que não é telefone debita 0 sem erro');
 select is((select phone from public.contacts where id = pg_temp.id('outro')), null, 'o telefone não é gravado');
 
 select is(pg_temp.disponivel(), (select valor from saldo_inicial) - 4, 'só os dois e-mails novos debitaram');
@@ -161,9 +161,15 @@ select is(pg_temp.procedencia('sem_email'), 'sara@acme-b3.test:manual:',
   'a correção manual troca a origem e não herda o provedor do revelado');
 
 -- 9. A reserva tem de ser deste Workspace e desta revelação.
+-- A reserva phone_revealed é criada direto por reserve_credits, como dono.
 create temporary table t_reserva_de_telefone as
-  select reservation_id from public.begin_reveal_contact(
-    'b3200000-0000-0000-0000-000000000001', pg_temp.id('sem_email'), 'telefone');
+  select public.reserve_credits(
+    'b3200000-0000-0000-0000-000000000001',
+    'b3100000-0000-0000-0000-000000000001',
+    'phone_revealed',
+    'reserve:telefone:' || pg_temp.id('sem_email')::text || ':teste-b5',
+    1
+  ) as reservation_id;
 select throws_ok(
   format($$ select * from public.finish_reveal_contact(%L, %L, 'email', 'x@acme-b3.test', 'apify') $$,
     (select reservation_id from t_reserva_de_telefone), pg_temp.id('sem_email')),

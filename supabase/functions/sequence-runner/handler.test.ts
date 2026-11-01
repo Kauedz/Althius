@@ -185,6 +185,37 @@ Deno.test('com o navegador fechado, o passo vencido sai em nome do titular e o r
   assertEquals(logs, [{ type: 'runner', sendId: SEND_1, outcome: 'sent' }])
 })
 
+Deno.test('retenção da Conta e envio em trânsito não chamam a Unipile de novo', async () => {
+  const { db, recorded } = fakeDb(
+    [{ send_id: SEND_1, owner_user_id: TITULAR }, { send_id: SEND_2, owner_user_id: TITULAR }],
+    {
+      [SEND_1]: { outcome: 'account_retained', send_id: SEND_1 },
+      [SEND_2]: { outcome: 'in_flight', send_id: SEND_2 },
+    },
+  )
+  const { unipile, sent } = fakeUnipile({ id: 'e1', message_id: null })
+  const { handle, finished, logs } = runner(db, unipile)
+  await handle(call())
+  await finished()
+  assertEquals(sent.length, 0)
+  assertEquals(recorded.length, 0)
+  assertEquals(logs.map((l) => l.outcome), ['account_retained', 'in_flight'])
+})
+
+Deno.test('Contato não selecionado na retomada não chama a Unipile', async () => {
+  const { db, recorded } = fakeDb(
+    [{ send_id: SEND_1, owner_user_id: TITULAR }],
+    { [SEND_1]: { outcome: 'contact_paused', send_id: SEND_1 } },
+  )
+  const { unipile, sent } = fakeUnipile({ id: 'e1', message_id: null })
+  const { handle, finished, logs } = runner(db, unipile)
+  await handle(call())
+  await finished()
+  assertEquals(sent.length, 0)
+  assertEquals(recorded.length, 0)
+  assertEquals(logs.map((l) => l.outcome), ['contact_paused'])
+})
+
 Deno.test('um passo barrado pelo banco (pausa, fora da janela) não chama a Unipile', async () => {
   const { db, recorded } = fakeDb(
     [{ send_id: SEND_1, owner_user_id: TITULAR }, { send_id: SEND_2, owner_user_id: TITULAR }],

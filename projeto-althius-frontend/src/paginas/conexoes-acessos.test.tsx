@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { idaAoApp } from '@/paginas/ida-ao-app'
@@ -102,8 +102,8 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     const { usuario, pedidos } = abrir({ acessos: [HUBSPOT_DESCONECTADO] })
 
     const cartao = await screen.findByRole('article', { name: 'HubSpot' })
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
-    expect(within(cartao).getByText('2 participantes conectaram')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
+    expect(within(cartao).getByText('No Workspace: 2 participantes conectados')).toBeInTheDocument()
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Conectar no HubSpot' }))
 
@@ -123,7 +123,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     expect(pedidos.conectar).toEqual([
       { action: 'chave', workspaceId: NORTE.id, integrationId: 'hubspot', chave: 'pat-na1-chave-secreta' },
     ])
-    expect(await within(cartao).findByText('Conectado como marina@cliente.com.br')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado como marina@cliente.com.br')).toBeInTheDocument()
     expect(screen.queryByDisplayValue('pat-na1-chave-secreta')).not.toBeInTheDocument()
   })
 
@@ -140,7 +140,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     await usuario.click(within(dialogo).getByRole('button', { name: 'Conectar' }))
 
     expect(await within(dialogo).findByText('O HubSpot recusou a chave. Confira se copiou a chave inteira e se ela está ativa.')).toBeInTheDocument()
-    expect(within(cartao).getByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(within(cartao).getByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 
   it('pede para reconectar quando o app revogou o Acesso', async () => {
@@ -149,7 +149,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'HubSpot' })
-    expect(await within(cartao).findByText('Precisa reconectar')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Precisa reconectar')).toBeInTheDocument()
     expect(within(cartao).getByRole('button', { name: 'Reconectar no HubSpot' })).toBeInTheDocument()
   })
 
@@ -167,7 +167,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     })
 
     const cartao = await screen.findByRole('article', { name: 'HubSpot' })
-    expect(await within(cartao).findByText('Conectado como marina@cliente.com.br')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: Conectado como marina@cliente.com.br')).toBeInTheDocument()
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Ver ferramentas' }))
     const dialogo = await screen.findByRole('dialog', { name: 'Ferramentas do HubSpot' })
@@ -177,7 +177,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
 
     await usuario.click(within(cartao).getByRole('button', { name: 'Desconectar' }))
     expect(pedidos.desconectar).toEqual([{ action: 'desconectar', workspaceId: NORTE.id, integrationId: 'hubspot' }])
-    expect(await within(cartao).findByText('Você ainda não conectou')).toBeInTheDocument()
+    expect(await within(cartao).findByText('Seu acesso: não conectado')).toBeInTheDocument()
   })
 
   it('avisa o resultado da volta da autorização e limpa o endereço', async () => {
@@ -189,7 +189,7 @@ describe('O próprio Acesso a uma Integração habilitada', () => {
     expect(
       await screen.findByText('Esta conta é de outro portal do HubSpot. O Workspace já usa um portal; fale com um Administrador.'),
     ).toBeInTheDocument()
-    expect(window.location.search).toBe('')
+    await waitFor(() => expect(window.location.search).toBe(''))
   })
 
   it('confirma a conexão concluída na volta da autorização', async () => {

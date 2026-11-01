@@ -1,205 +1,76 @@
 # Pesquisa das fontes de jurimetria (ticket 01)
 
-**Consulta:** 01/10/2026.
+**Consulta das fontes abaixo:** 26/10/2026. Os links apontam para fontes primárias (CNJ, tribunais e documentação/páginas oficiais dos fornecedores). Nenhuma chamada autenticada a fornecedor nem consulta com dado real foi feita. Exemplos de identificadores são omitidos.
 
-**Como foi feita.** O primeiro rascunho saiu de busca na web. A rede do ambiente da IA bloqueia `*.jus.br`. Por isso o
-Nan refez a pesquisa no Antigravity, direto nas fontes primárias: páginas oficiais `.jus.br` e documentação oficial
-dos fornecedores. Cada resposta traz o trecho literal da página, e é esse trecho que vai abaixo, entre aspas. A IA não
-abriu as páginas; só transcreveu e organizou.
+## Veredito: viabilidade dos Sinais JURI
 
-**Legenda.**
-
-- **Confirmado:** há trecho literal em página oficial.
-- **Não sei:** a fonte consultada não comprovou o ponto. Isso não quer dizer que o recurso não existe.
-
-**Links.** O texto colado veio sem os endereços de várias páginas. Os que faltam estão marcados "(link a incluir)".
-Nenhum endereço foi deduzido.
-
-## Veredito (J, U, R, I)
-
-| Sinal | Viável? | Por quê |
+| Sinal | Viabilidade encontrada | Motivo e limite |
 | --- | --- | --- |
-| **J** (tese nova no setor) | **Provável, sim, com um risco** | O STJ publica o `Temas.csv` em dados abertos, com licença Creative Commons Atribuição e link de download direto. O risco é o frescor: a página do arquivo diz que os dados foram atualizados pela última vez em 24/10/2025. Também falta conferir as colunas. No STF, só o painel e a consulta foram confirmados, sem CSV ou API dos temas. Súmula nova não tem feed nem API em nenhum dos dois tribunais. |
-| **R** (volume de ações contra a Conta) | **Só por agregador pago** | O DataJud fica fora: a norma do CNJ **veda a exploração comercial** dos dados (confirmado), e a Althius é um software comercial. O DJEN também fica fora: a API documentada é a dos tribunais, com usuário e senha, e não foi confirmada uma rota pública de leitura. JUDIT e Jusbrasil confirmam aviso por webhook de processo novo **vinculado** a um CNPJ. Nenhum dos dois garante que a Conta está no polo passivo. Preço e licença para mostrar o dado a clientes: não sei, para todos. |
-| **U** (recuperação judicial, execução fiscal) | **Só por agregador pago** | Mesmo caminho do R. Também depende da política do ticket 02. |
-| **I** (condenação grande, ação coletiva) | **Só por agregador pago** | Mesmo caminho do R. Também depende da política do ticket 02. |
+| **J — Janela** | **Viável em princípio pelo STJ; risco de atualização e mapeamento** | O STJ publica Temas em CSV sob licença Creative Commons Atribuição; em 09/10/2026 a página registrava atualização dos dados em 09/10/2026. O arquivo e o dicionário não foram lidos diretamente nesta consulta, então colunas, tema mais recente e regularidade futura continuam sem confirmação. Para relacionar tema a `segment`, a proposta compatível com o spec é uma tabela manual pequena. |
+| **R — Recorrência** | **Tecnicamente possível por fornecedor pago, sob condição** | JUDIT e Escavador documentam monitoramento de CNPJ/novas distribuições. Não confirmei a cobertura por polo passivo em todos os retornos, o preço efetivo da operação necessária nem os termos para armazenar/exibir dados num SaaS. O DataJud não serve ao produto comercial conforme o termo de uso vigente consultado. |
+| **U — Urgência** | **Não confirmada** | As fontes consultadas não demonstram uma integração e termos comerciais suficientes para detectar e exibir recuperação judicial ou execução fiscal por Conta-alvo. Não sei se os fornecedores atendem esse recorte com confiabilidade contratável. |
+| **I — Impacto** | **Não confirmada** | As fontes consultadas não demonstram uma integração e termos comerciais suficientes para detectar condenação grande, ação coletiva ou ação civil pública contra a Conta-alvo. Não sei se os fornecedores atendem esse recorte com confiabilidade contratável. |
 
-**O que isso muda no spec (proposta, quem decide é o Nan).** O spec diz "Primeira entrega: J e R". Pela pesquisa, o R
-só sai com um agregador contratado. A proposta é a primeira entrega ser **só o J**. O R entra depois que um agregador
-for cotado e os termos dele permitirem mostrar o dado ao cliente da Althius (decisão 4 do Nan).
+Este parecer trata de disponibilidade técnica e evidência pública, não aprova política jurídica ou de produto. Os limites de uso ético e a decisão sobre eventual contratação ficam fora deste ticket.
 
-## 1. O DataJud devolve as partes do processo? Que campos traz?
+## 1. DataJud: partes, campos, CNPJ e nome
 
-- **Campos do glossário oficial (confirmado).**
-  - Do processo: `id`, `tribunal`, `numeroProcesso`, `dataAjuizamento`, `grau` e `nivelSigilo`.
-  - Formato e sistema: `formato` (`codigo`, `nome`) e `sistema` (`codigo`, `nome`).
-  - Classe e assuntos: `classe` (`codigo`, `nome`) e `assuntos` (`codigo`, `nome`).
-  - Órgão julgador: `orgaoJulgador` (`codigo`, `nome`, `codigoMunicipioIBGE`).
-  - Movimentos: `movimentos` (`codigo`, `nome`, `dataHora`).
-    - `complementosTabelados`: `codigo`, `descricao`, `valor` e `nome`.
-    - `orgaoJulgador`: `codigoOrgao` e `nomeOrgao`.
-  - Controle interno: `dataHoraUltimaAtualizacao` e `@timestamp`. O glossário diz: "Os atributos abaixo são utilizados
-    para controle interno da aplicação".
-- **Partes: não sei se a API devolve.** O glossário não lista parte, polo, nome, CPF nem CNPJ.
-  - A Portaria CNJ nº 374/2026, de agosto de 2026, passou a prever o dado: "XI – polo ativo e polo passivo, quando
-    pessoas jurídicas."
-  - A pesquisa não comprovou que esses campos já aparecem na resposta da API.
-  - Para a Althius, isso não muda o veredito, por causa da vedação comercial (item 2).
-- **Busca por CNPJ ou nome de parte: não sei.** A documentação não confirma o filtro, nem a falta dele.
-- Fontes:
-  - Glossário do DataJud (link a incluir).
-  - Portaria CNJ nº 374/2026 (link a incluir).
+- **Campos documentados:** o [Glossário da API Pública do DataJud](https://datajud-wiki.cnj.jus.br/api-publica/glossario/) relaciona `id`, `tribunal`, `numeroProcesso`, `dataAjuizamento`, `grau`, `nivelSigilo`, `formato`, `sistema`, `classe`, `assuntos`, `orgaoJulgador`, `movimentos` (com código, nome e `dataHora`) e campos de controle interno `dataHoraUltimaAtualizacao` e `@timestamp`.
+- **Partes, nome, CPF/CNPJ na resposta real:** **não sei**. O glossário da API consultado não enumera campos de parte. A [Portaria CNJ nº 374/2026](https://atos.cnj.jus.br/atos/detalhar/6972) passou a prever envio de polo ativo e passivo quando pessoas jurídicas, mas isso não comprova que a API pública já devolva esses campos em uma resposta real.
+- **Busca/filtro por CNPJ ou nome de parte:** **não sei**. A documentação consultada não confirma nem nega esses filtros e nenhum exemplo autenticado foi executado.
+- Fontes consultadas em 26/10/2026: [Glossário DataJud](https://datajud-wiki.cnj.jus.br/api-publica/glossario/), [Portaria CNJ nº 374/2026](https://atos.cnj.jus.br/atos/detalhar/6972).
 
-## 2. Cobertura, atraso, limites, chave e termos do DataJud
+## 2. DataJud: tribunais, atraso, limite, chave e termos
 
-- **Cobertura (confirmado).** A API tem um endereço por tribunal. A página "Endpoints" lista os tribunais superiores e
-  as Justiças Federal, Estadual, do Trabalho, Eleitoral e Militar, com o alias de cada um. Exemplos: `api_publica_stj`,
-  `api_publica_trf1`, `api_publica_tjsp` e `api_publica_trt2`. A página diz: "A url principal de acesso é a url
-  https://api-publica.datajud.cnj.jus.br/ e deverá ser seguida de um aliase correspondente ao Tribunal que deseja obter
-  os dados processuais." Fonte: página Endpoints do wiki (link a incluir).
-- **Chave (confirmado).** O cabeçalho é `Authorization: APIKey [Chave Pública]`. A chave vigente fica na seção "API Key"
-  da [página Acesso](https://datajud-wiki.cnj.jus.br/api-publica/acesso/). Ela não foi copiada para cá.
-- **Limite.**
-  - Confirmado, pelo termo de uso v1.2, itens 3.13 e 3.14: "O usuário concorda em não realizar mais de 120 requisições
-    por minuto, a menos que tenha autorização expressa por escrito do CNJ." O termo diz também: "O CNJ se reserva o
-    direito de limitar o número de requisições por usuário ou por chave de API a qualquer momento e sem aviso prévio."
-  - Cota diária: não sei.
-- **Atraso por tribunal.**
-  - Não sei: não há tabela oficial do atraso de cada tribunal.
-  - A Portaria 374/2026 manda remessa diária: "Os dados do DataJud serão encaminhados ao CNJ de forma diária." Ela dá
-    aos tribunais 180 dias, contados da publicação, para se adequarem. Isso não garante um atraso máximo na API.
-- **Termos de uso: uso comercial vedado (confirmado).** Os trechos são da Portaria 374/2026 (art. 4º) e do termo v1.2
-  (itens 3.8 e 4.2):
-  - "Os dados são fornecidos exclusivamente para fins legais, não comerciais e autorizados"
-  - "É vedada a modificação, distribuição, venda ou qualquer tipo de exploração comercial dos dados disponibilizados."
-  - Prazo de guarda para dados não pessoais: não sei.
-- Fontes: termo de uso v1.2 (link a incluir) e Portaria CNJ nº 374/2026 (link a incluir).
+- **Cobertura documentada:** a página [Endpoints](https://datajud-wiki.cnj.jus.br/api-publica/endpoints/) lista aliases por tribunal nas Justiças Estadual, Federal, do Trabalho, Eleitoral e Militar, além dos tribunais superiores. A lista de endpoints não é uma medição de completude nem de disponibilidade de cada tribunal.
+- **Atraso:** **não sei** o atraso real por tribunal ou um prazo máximo. A [Portaria nº 374/2026](https://atos.cnj.jus.br/atos/detalhar/6972) determina remessa diária ao CNJ e dá 180 dias desde a publicação para adequações; isso não garante atualização diária observável na API durante nem após a transição.
+- **Chave:** a [documentação de acesso](https://datajud-wiki.cnj.jus.br/api-publica/acesso/) exige o cabeçalho `Authorization: APIKey [Chave Pública]`. A chave publicada no site não foi reproduzida aqui.
+- **Limite:** o [Termo de Uso v1.2](https://formularios.cnj.jus.br/wp-content/uploads/2023/11/Termos-de-uso-api-publica-V1.2.pdf), itens 3.13 e 3.14, estabelece teto de 120 requisições por minuto sem autorização escrita e permite ao CNJ limitar chamadas a qualquer tempo. **Cota diária: não sei.**
+- **Uso comercial:** o [Termo de Uso v1.2](https://datajud-wiki.cnj.jus.br/api-publica/termo-uso/) diz que a API é para fins legais, não comerciais (item 3.3) e veda exploração comercial da API ou de informação derivada (item 3.8). A Portaria CNJ nº 374/2026, art. 4º, também contém vedação à exploração comercial dos dados.
+- **Prazo de guarda de dados não pessoais:** **não sei**; não identifiquei prazo no termo consultado.
+- Fontes consultadas em 26/10/2026: [Endpoints DataJud](https://datajud-wiki.cnj.jus.br/api-publica/endpoints/), [Acesso DataJud](https://datajud-wiki.cnj.jus.br/api-publica/acesso/), [Termo de Uso DataJud](https://datajud-wiki.cnj.jus.br/api-publica/termo-uso/), [Portaria CNJ nº 374/2026](https://atos.cnj.jus.br/atos/detalhar/6972).
 
-## 3. O DJEN traz as partes? Dá para buscar por CNPJ? Quais os termos?
+## 3. DJEN e diários dos tribunais
 
-A API documentada pelo CNJ é a interface dos tribunais. Ela serve para autenticar, enviar e consultar comunicações. A
-pesquisa não a tratou como API pública de busca.
+- O [CNJ descreve o DJEN](https://www.cnj.jus.br/programas-e-acoes/processo-judicial-eletronico-pje/comunicacoes-processuais/) como instrumento de publicação de atos judiciais. As [orientações aos tribunais](https://www.cnj.jus.br/programas-e-acoes/processo-judicial-eletronico-pje/comunicacoes-processuais/orientacoes-aos-tribunais/) descrevem APIs para autenticação, envio e consulta de comunicações de tribunais, com usuário e senha do sistema Corporativo.
+- A documentação citada pelo CNJ é direcionada à integração dos tribunais. **Não sei** se existe uma interface pública distinta para leitura, se o DJEN ou os diários permitem busca por CNPJ, quais campos estruturados de partes expõem, quais limites de consulta se aplicam a um consumidor externo, ou se os termos permitem armazenamento e exibição comercial.
+- A exigência de usuário e senha está confirmada para a API de integração descrita nas orientações aos tribunais; **não sei** se se aplica a eventual interface pública de leitura.
+- Fontes consultadas em 26/10/2026: [Comunicações Processuais / DJEN — CNJ](https://www.cnj.jus.br/programas-e-acoes/processo-judicial-eletronico-pje/comunicacoes-processuais/), [Orientações aos Tribunais — CNJ](https://www.cnj.jus.br/programas-e-acoes/processo-judicial-eletronico-pje/comunicacoes-processuais/orientacoes-aos-tribunais/), [Swagger citado pelo CNJ](https://app.swaggerhub.com/apis-docs/cnj/pcp/1.0.0#/default/post_api_v1_comunicacao).
 
-- **Autenticação (confirmado para a integração dos tribunais).** O CNJ diz: "Para autenticação na API, é necessária a
-  disponibilização de usuário e senha no sistema de controle de acesso do CNJ (Corporativo) com permissão de acesso à
-  plataforma." Não sei se a mesma exigência vale para uma rota pública de leitura.
-- **Filtros, campos da resposta e busca por parte ou CNPJ: não sei.** O CNJ aponta a
-  [documentação em Swagger](https://app.swaggerhub.com/apis-docs/cnj/pcp/1.0.0#/default/post_api_v1_comunicacao), mas a
-  página não abriu. A pesquisa também não usou os filtros do Domicílio Judicial Eletrônico, que é outro sistema.
-- **Limite de requisições: não sei.**
-- **Uso comercial: não sei.** Nenhum termo encontrado autoriza guardar, redistribuir ou usar comercialmente as respostas.
-- **LGPD (vale se um dia for usado):** a comunicação processual traz nomes de pessoas físicas. Só o que for da Conta
-  (CNPJ) pode ser guardado.
-- Fonte: orientações do CNJ aos tribunais (link a incluir).
+## 4. Temas, súmulas e teses que um programa possa ler
 
-## 4. Onde saem os temas repetitivos, súmulas e teses de forma que um programa leia
+### STJ
 
-### STJ: "Precedentes qualificados"
+- O [conjunto oficial Precedentes Qualificados](https://dadosabertos.web.stj.jus.br/dataset/precedentes-qualificados) disponibiliza `Temas.csv`, `Processos.csv` e dicionários; informa que o campo `sequencialPrecedente` liga temas a processos. A licença indicada é Creative Commons Atribuição.
+- A página do recurso [`Temas.csv`](https://dadosabertos.web.stj.jus.br/dataset/precedentes-qualificados/resource/df29da13-7d6b-41ba-ad96-cd1a5bbd191c) registrava em 09/10/2026 que os dados foram atualizados pela última vez em 09/10/2026. **Não sei** qual é o tema mais recente, quais colunas estão no arquivo e qual será a frequência futura: o conteúdo binário do CSV não foi aberto nesta consulta. A página do conjunto também informa acesso automatizado via CKAN API.
+- O portal oficial oferece [Súmulas, Súmulas Anotadas e Canceladas](https://processo.stj.jus.br/SCON/sumstj/) e PDFs consultáveis. **Não sei** se há feed ou API pública para novas súmulas; nenhum foi confirmado nas páginas consultadas.
 
-- **O arquivo existe (confirmado).** O conjunto tem o `Temas.csv` ("Temas - informações gerais a respeito dos temas") e
-  o `dicionario-temas.csv`. O download direto publicado é
-  `https://dadosabertos.web.stj.jus.br/dataset/4238da2f-c07b-4c1a-b345-4402accacdcf/resource/df29da13-7d6b-41ba-ad96-cd1a5bbd191c/download/temas.csv`.
-  Fontes: o [conjunto](https://dadosabertos.web.stj.jus.br/dataset/precedentes-qualificados) e o
-  [portal](https://dadosabertos.web.stj.jus.br/).
-- **Licença (confirmado).** "Licença | Creative Commons Atribuição". A licença CC BY permite uso comercial, desde que a
-  fonte seja citada. A versão exata da licença não foi informada.
-- **Frescor.**
-  - Confirmado: a página do arquivo diz "Dados atualizados pela última vez | 24 de outubro de 2025".
-  - A página do conjunto mostra metadados atualizados em 23/09/2026, mas isso não é o dado.
-  - A frequência de atualização não é declarada.
-- **Colunas: não sei.** O dicionário não abriu. Não se sabe se há data de afetação, data de julgamento, situação do tema
-  ou ramo do direito.
-- **API CKAN.**
-  - Confirmado que existe: "é possível o acesso automatizado aos dados em formato legível por máquina, por meio da CKAN
-    API".
-  - A chamada ao conjunto não respondeu na pesquisa, então nenhum endpoint foi testado.
+### STF
 
-### STF: repercussão geral
+- A página oficial [Listas de Repercussão Geral](https://portal.stf.jus.br/textos/verTexto.asp?pagina=listas_rg&servico=jurisprudenciaRepercussaoGeral) aponta relações completas de temas e listas por situação. O [Programa Corte Aberta](https://portal.stf.jus.br/hotsites/corteaberta/) tem painéis estatísticos sobre repercussão geral. A notícia oficial do lançamento menciona exportação CSV dos dados dos painéis ([STF lança o Programa Corte Aberta](https://portal.stf.jus.br/noticias/verNoticiaDetalhe.asp?idConteudo=486780&ori=1)).
+- **Não sei** se existe download CSV específico da lista de temas de repercussão geral, API ou feed de temas novos. A página das listas fornece relações para consulta, mas não documenta esses mecanismos. **Não sei** a frequência de atualização e não confirmei um esquema de campos apropriado ao J.
+- Para súmulas, a [pesquisa de jurisprudência do STF](https://portal.stf.jus.br/textos/verTexto.asp?pagina=Dicas_de_pesquisa&servico=jurisprudenciaPesquisaGeralNovoPortal) inclui base de súmulas e exportação CSV dos resultados; a exportação é da pesquisa, não confirmação de feed/API de novas súmulas. **Não sei** se há feed ou API.
 
-- **Exportação em CSV (confirmado para o programa Corte Aberta em geral).** O STF diz: "Outra novidade é a possibilidade
-  de baixar os dados no formato .csv, o que atende aos requisitos de dados abertos."
-  - Download da lista completa de temas e API de temas: não sei.
-  - O [painel de repercussão geral](https://transparencia.stf.jus.br/extensions/repercussao_geral/repercussao_geral.html),
-    as [listas](https://portal.stf.jus.br/textos/verTexto.asp?servico=jurisprudenciaRepercussaoGeral&pagina=listas_rg)
-    e a página "Todos os temas" não abriram na pesquisa.
-- **Campos (número, título, situação, datas, ramo) e frequência de atualização: não sei.**
-- Fontes: [Corte Aberta](https://portal.stf.jus.br/hotsites/corteaberta/) e a notícia oficial sobre o Corte Aberta
-  (link a incluir).
+## 5. Agregadores pagos: dados, preço e licença de exibição
 
-### Súmulas novas
+| Fornecedor e fonte oficial consultada | O que a fonte confirma | Preço encontrado | Armazenar e mostrar em SaaS |
+| --- | --- | --- | --- |
+| [JUDIT — documentação de monitoramento](https://juditdocs.mintlify.app/essentials/tracking), [preços da API](https://judit.io/planos-api/) | Consulta e monitoramento por CPF/CNPJ/OAB/CNJ e busca diária nos tribunais; a página de preços descreve novas ações e monitoramento via DJEN. | Para novas ações, a tabela lista cobrança mensal por faixa: de R$ 15,00 nas faixas de R$ 1 mil e R$ 3 mil a R$ 10,00 nas faixas de R$ 20 mil e R$ 35 mil, mais R$ 0,25 por processo capturado. Não informa uma quantidade de transações para esse serviço. A página indica atualização em abril de 2026. Não é cotação para a Althius. | **Não sei.** Os materiais consultados não confirmam licença para persistir e exibir resultados a clientes de outro SaaS. |
+| [Escavador — monitoramento de novos processos](https://api.escavador.com/v2/docs/monitoramento-de-novos-processos), [serviços/API](https://api.escavador.com/servicos) | Permite monitorar termo que pode ser CPF/CNPJ em capas e envolvidos, selecionar tribunais e receber callback de novo processo. Limite padrão indicado: 10.000 movimentações/mês; ao exceder, captura pausa. Não garante que o resultado esteja no polo passivo. | A API aponta para página de serviços, sem preço unitário confirmado nesta consulta. **Não sei** o custo para a operação pretendida. | **Não sei.** A documentação consultada não confirma licença para persistir e exibir resultados a clientes de SaaS. |
+| [Jusbrasil Soluções — dados e tipos de eventos](https://api.jusbrasil.com.br/docs/referencias/eventos.html), [webhooks](https://api.jusbrasil.com.br/docs/webhooks/index.html) | Documenta monitoramento por CPF/CNPJ de parte e eventos de distribuições, publicados via webhook. Não há garantia documentada de que o CNPJ consultado corresponde ao polo passivo. | **Não sei** o preço aplicável; a documentação consultada não o publica. | **Não sei.** A documentação consultada não confirma licença para persistir e exibir resultados a clientes de SaaS. |
 
-- **STF.**
-  - Confirmado: a pesquisa de jurisprudência busca em "Acórdãos, Súmulas, Decisões monocráticas e Informativos".
-  - Ela ordena por mais recentes e exporta em CSV.
-  - Feed, RSS ou API de súmulas novas: não sei.
-  - Fontes: "Dicas de pesquisa" do STF e a notícia sobre a base de súmulas (links a incluir).
-- **STJ.**
-  - Confirmado: o portal tem consulta a "Súmulas · Súmulas Anotadas · Enunciados · Súmulas Canceladas".
-  - Conjunto aberto, RSS ou API de súmulas novas: não sei.
-  - Fonte: portal do STJ (link a incluir).
+Os materiais dos fornecedores confirmam recursos da API, não a contratação, a cobertura efetiva, precisão do polo ou direitos de redistribuição necessários ao produto. Não foi feita chamada autenticada nem consulta de processo real.
 
-### TST: IRR e IAC (extra)
+## 6. Ligar tema a `segment`
 
-- **Confirmado:** há uma página oficial de consulta e um índice em PDF dos IRR e IAC. A notícia do TST diz: "Os
-  usuários podem identificar a tese jurídica em incidentes de recursos de revista repetitivos já julgados, a questão
-  jurídica afetada e os processos representativos das controvérsias".
-- CSV, API ou dicionário de campos: não sei.
-- Fontes: a notícia do TST e o índice em PDF (links a incluir).
+- O conjunto do STJ separa arquivos de temas e processos e traz `sequencialPrecedente` para relacioná-los ([conjunto oficial](https://dadosabertos.web.stj.jus.br/dataset/precedentes-qualificados)). **Não sei** se `Temas.csv`/seu dicionário trazem ramo do direito, assunto ou campo que corresponda a `segment`; não li o conteúdo desses arquivos nesta consulta.
+- A alternativa inicial coerente com o spec é uma tabela editorial manual com três campos: identificador do tema (tribunal + número), `segment` permitido e justificativa/assunto revisado por advogado. Começar pelos 3–5 segmentos dos primeiros clientes jurídicos; não classificar por IA. Exemplos fictícios: tema tributário sobre ICMS → varejo e indústria; tema sobre planos de saúde → operadoras de saúde. A quantidade e o método manual são proposta de início, não mapeamento já validado.
+- Fontes e decisão do escopo consultadas em 26/10/2026: [conjunto de Precedentes Qualificados do STJ](https://dadosabertos.web.stj.jus.br/dataset/precedentes-qualificados) e [spec Sinais de jurimetria](spec.md).
 
-## 5. Agregadores pagos
+## Pendências que permanecem
 
-| | Escavador | JUDIT | Codilo | Jusbrasil Soluções |
-| --- | --- | --- | --- | --- |
-| **Busca por CNPJ** | Confirmado | Confirmado | Confirmado | Confirmado |
-| **Aviso de processo novo por CNPJ** | Não sei | Confirmado | Não sei | Confirmado |
-| **Preço** | Sob consulta | Por CNPJ: sob consulta | Sob consulta | Sob consulta |
-| **Pode guardar e mostrar a clientes de um SaaS?** | Não sei | Não sei | Não sei | Não sei |
-| **Cláusula de LGPD para o contratante** | Não sei | Não sei | Não sei | Não sei |
-
-O que dizem os trechos sobre o aviso de processo novo:
-
-- **Escavador.** Monitora "processos, nomes, e documentos em tribunais", com callbacks "para enviar atualizações do
-  processo". Não garante que avisa só processo novo.
-- **JUDIT.** "O Monitoramento por Documento detecta o nascimento de novos processos vinculados a um CPF, CNPJ ou OAB."
-  Também diz: "Sempre que um novo processo for ajuizado e a Judit detectar, você recebe a notificação por webhook."
-- **Codilo.** Só monitora um processo já identificado: "Este endpoint permite cadastrar um novo processo (CNJ) para
-  monitoramento contínuo."
-- **Jusbrasil.** "Quando um processo novo é detectado para um documento monitorado, a API envia um evento via webhook
-  contendo os dados do processo."
-
-Sobre preço, a JUDIT publica um exemplo: "Monitoramento processual: R$ 0,69/mês". Ele é **por processo** (número CNJ),
-não por CNPJ monitorado, e não deve ser usado para estimar o R.
-
-**O que isso quer dizer para o R e o U.**
-
-- **Quem atende:** JUDIT e Jusbrasil são os dois que confirmam aviso de processo novo por CNPJ.
-- **O polo:** nenhum dos dois garante que a Conta está no polo passivo ("contra"). O adaptador teria de conferir o polo
-  no dado de cada processo.
-- **O que falta saber:** o preço por CNPJ monitorado e se o contrato deixa mostrar o dado ao cliente da Althius.
-- **LGPD:** a Jusbrasil entrega "informações das partes". O adaptador descarta toda parte pessoa física (decisão do
-  spec).
-
-Fontes:
-
-- Escavador: suporte oficial, API Business e documentação Business (links a incluir).
-- JUDIT: consulta histórica, monitoramento por documento, relatório de consumo e introdução à API (links a incluir).
-- Codilo: site oficial, cadastro de monitoramento, casos de uso e política de privacidade (links a incluir).
-- Jusbrasil: página da API e documentação do monitoramento de CPF/CNPJ (links a incluir).
-
-## 6. Como ligar tema a setor da Conta (`segment`)
-
-- **Não sei** se o `Temas.csv` do STJ traz ramo do direito ou área; o dicionário não abriu.
-- **Proposta para começar:** uma **tabela mantida por gente** que liga assunto ou tema aos segmentos de Conta da
-  Althius. Exemplos fictícios:
-  - um tema de ICMS ligado a varejo e indústria;
-  - um tema de plano de saúde ligado a operadora de saúde.
-- Começar com os 3 a 5 segmentos dos primeiros clientes jurídicos. Nada de classificação por IA no começo (decisão do
-  spec).
-
-## O que falta
-
-1. **Links:** colar os endereços marcados "(link a incluir)", tirados da pesquisa original.
-2. **`Temas.csv` do STJ:** abrir o arquivo e o dicionário, e anotar as colunas e a data do tema mais recente. Isso
-   confirma o frescor do J. Pode virar o primeiro passo do ticket 03, se o ticket 01 fechar antes.
-3. **Agregador (decisão do Nan):** cotar JUDIT e Jusbrasil. Perguntar o preço por CNPJ monitorado, se dá para filtrar
-   pelo polo passivo, e se o contrato deixa guardar o dado e mostrá-lo a clientes de um SaaS.
+1. Abrir diretamente os arquivos/dicionários do STJ para conferir cabeçalhos e data do tema mais recente.
+2. Obter confirmação por resposta real do DataJud sobre partes e filtros por CNPJ; a documentação consultada não basta para confirmar o formato atualmente servido.
+3. Confirmar se há interface pública de busca do DJEN por parte/CNPJ e seus termos de uso.
+4. Pedir aos fornecedores cotação e termos escritos que autorizem o tratamento, armazenamento e exibição em SaaS; confirmar polo passivo e cobertura de U/I.
+5. Advogado validar o conteúdo e a política jurídica conforme o ticket 02; esta nota não faz essa validação.

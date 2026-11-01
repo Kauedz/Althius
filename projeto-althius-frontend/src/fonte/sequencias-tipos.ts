@@ -180,8 +180,53 @@ export interface ResumoPublicoSequencia {
   atualizadaEm?: string
 }
 
-/**
- * O Resultado dos Envios do Workspace por canal e segmento da Conta (motor-hermes 03): quantos Envios saíram e quantos
+/** Interpretação, evidência e recomendação da IA sobre uma resposta pendente (sequencias-multicontato 05). A IA só
+ * propõe: a decisão de pausar/continuar continua exclusivamente do Vendedor responsável. */
+export interface AnaliseDaResposta {
+  status: 'gerando' | 'pronta' | 'falhou'
+  classificacao?: 'humana' | 'automatica' | 'possivel_nao_contato' | 'indeterminada'
+  interpretacao?: string
+  evidencia?: string
+  recomendacao?: 'pausar' | 'continuar' | 'indeterminado'
+}
+
+export interface RespostaPendenteDeRetencao {
+  id: string
+  canal?: CanalStep
+  contatoId?: string
+  recebidaEm: string
+  assunto?: string
+  trecho?: string
+  de?: string
+  /** Ausente enquanto a resposta não tem análise, falhou ou o modelo ainda está gerando. */
+  analise?: AnaliseDaResposta
+}
+
+export interface DecisaoDeRetencaoRegistrada {
+  decisao: 'pause' | 'continue'
+  versao: number
+  criadaEm: string
+}
+
+/** Estado consultável da retenção. Conteúdo só quando podeLerConteudo. */
+export interface RevisaoDeRetencao {
+  aberta: boolean
+  estado: 'nenhuma' | 'preventiva' | 'pausa_decidida'
+  versao: number
+  pendentes: RespostaPendenteDeRetencao[]
+  decisoes: DecisaoDeRetencaoRegistrada[]
+  /** Contatos mantidos em pausa local depois de uma retomada seletiva. */
+  contatosPausados: string[]
+  podeLerConteudo: boolean
+  podeDecidir: boolean
+}
+
+export interface ResultadoDaDecisaoDeRetencao {
+  outcome: 'paused' | 'continued' | 'reviewed_other_hold' | 'stale' | 'not_open'
+  versao: number
+}
+
+/** O Resultado dos Envios do Workspace por canal e segmento da Conta (motor-hermes 03): quantos Envios saíram e quantos
  * tiveram resposta, resposta positiva, reunião e oportunidade. Positiva conta reunião e oportunidade; negativa só conta
  * como resposta. Só números: nenhum texto de mensagem.
  */
@@ -204,6 +249,15 @@ export interface TaxaPorAbordagem {
   positivas: number
   reunioes: number
   oportunidades: number
+}
+
+/** Resultados únicos por Conta no histórico de envios até o corte informado pelo banco. */
+export interface ResultadosPorConta {
+  dataCorte: string
+  contasAbordadas: number
+  respostasPositivas: number
+  reunioes: number
+  respostasNegativas: number
 }
 
 export interface MetricasDemoSequencia {
@@ -401,6 +455,9 @@ export interface FonteDeSequencias extends FonteObservavel {
   /** O Resultado dos Envios do Workspace por abordagem (o título do passo) e canal. */
   taxasPorAbordagem?(): Promise<TaxaPorAbordagem[]>
 
+  /** Apuração por Conta-alvo no histórico completo, até o corte do banco. */
+  resultadosPorConta?(): Promise<ResultadosPorConta | null>
+
   /** Os Envios dos passos da sequência. Só o Responsável pela Sequência os vê; os demais recebem uma lista vazia. */
   envios(sequenciaId: string): Promise<EnvioDoPasso[]>
 
@@ -457,6 +514,24 @@ export interface FonteDeSequencias extends FonteObservavel {
 
   /** Resolve um envio incerto que o provedor não confirmou: o titular diz se ele saiu. */
   resolverIncerto(sequenciaId: string, stepId: string, saiu: boolean): Promise<void>
+
+  /**
+   * Revisão conjunta das respostas que retêm a Conta. Sem o método, a tela não oferece a decisão.
+   * Outro participante recebe o estado sem conteúdo.
+   */
+  revisaoDeRetencao?(sequenciaId: string): Promise<RevisaoDeRetencao>
+
+  /** Pausa a Conta inteira ou continua os Contatos escolhidos para o conjunto revisado. Não chama IA. */
+  decidirRetencao?(pedido: {
+    sequenciaId: string
+    decisao: 'pause' | 'continue'
+    versao: number
+    respostasRevisadas: string[]
+    contatosSelecionados: string[]
+  }): Promise<ResultadoDaDecisaoDeRetencao>
+
+  /** Confirma um pedido textual de não contato usando uma resposta privada como evidência. */
+  confirmarNaoContatar?(sequenciaId: string, interacaoId: string): Promise<void>
 
   /**
    * Templates da Althius: estruturas sem Contato, destino ou histórico. O Cliente lê; não edita o original.

@@ -1,6 +1,7 @@
+import { criteriosDaBuscaVazios } from '@/fonte/descobertas-tipos'
 import { screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { renderizarApp } from '@/test/renderizar'
+import { describe, expect, it, vi } from 'vitest'
+import { renderizarApp, renderizarAppCom } from '@/test/renderizar'
 
 describe('Caixa de Descobertas por ICP', () => {
   it('o endereço /contas/descobertas abre a Caixa com a cotação prévia e a lista de candidatas', async () => {
@@ -22,6 +23,18 @@ describe('Caixa de Descobertas por ICP', () => {
     expect(screen.getByText('Setor: Logística')).toBeInTheDocument()
     expect(screen.getByText('OmniVarejo Inteligência Digital Ltda')).toBeInTheDocument()
     expect(screen.getByText('Encaixe medio')).toBeInTheDocument()
+  })
+
+  it('o detalhe da candidata explica a Aderência sem mudar o encaixe', async () => {
+    const { usuario } = renderizarApp('/contas/descobertas')
+    const nome = await screen.findByText('LogiFlow Brasil S.A.')
+    const linha = nome.closest('tr') as HTMLElement
+    await usuario.click(within(linha).getByRole('button', { name: /Ver detalhes de LogiFlow/ }))
+    const detalhe = screen.getByRole('group', { name: 'Detalhes de LogiFlow Brasil S.A.' })
+    await usuario.click(within(detalhe).getByRole('button', { name: 'Por que essa Aderência?' }))
+    expect(await within(detalhe).findByRole('status')).toHaveTextContent(/Aderência alta\. Setor: Logística/)
+    expect(within(detalhe).queryByText('Escrita por IA; a nota não muda.')).not.toBeInTheDocument()
+    expect(within(linha).getByText('Encaixe alto')).toBeInTheDocument()
   })
 
   it('a busca em tempo real filtra candidatas por nome ou domínio', async () => {
@@ -115,9 +128,230 @@ describe('Caixa de Descobertas por ICP', () => {
     const botaoBuscar = screen.getByRole('button', { name: /Buscar contas pelo ICP/i })
     await usuario.click(botaoBuscar)
 
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Logística e tecnologia')
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+
     // Nova candidata aparece
     expect(await screen.findByText('AgroTech Soluções de Precisão')).toBeInTheDocument()
     expect(screen.getAllByText('Encaixe alto').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('aceitar com CNPJ informa Conta, Comitê e Receita quando os dois enriquecimentos concluem', async () => {
+    const comite = vi.fn(async () => ({ encontradas: 2, novas: 2, jaEncontradas: 0 }))
+    const receita = vi.fn(async () => ({}) as never)
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      contas: (fonte) => ({ ...fonte, buscarComite: comite, enriquecerReceita: receita }),
+      descobertas: (fonte) => ({
+        ...fonte,
+        aceitarDescoberta: async () => ({ targetAccountId: 'conta-orbita', created: true, sinaisMigrados: 0, comite: 'liberado' as const }),
+      }),
+    })
+    const linha = (await screen.findByText('LogiFlow Brasil S.A.')).closest('tr')!
+    await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
+
+    expect(await screen.findByText(/LogiFlow Brasil S.A. agora é uma Conta-alvo/)).toBeInTheDocument()
+    expect(screen.getByText(/Comitê de compra: 2 pessoas sugeridas/)).toBeInTheDocument()
+    expect(screen.getByText(/Dados da Receita: ok/)).toBeInTheDocument()
+    expect(comite).toHaveBeenCalledWith('conta-orbita')
+    expect(receita).toHaveBeenCalledWith('conta-orbita', '45.123.890/0001-12')
+  })
+
+  it('mantém a Conta aceita e mostra a mensagem real quando o enriquecimento falha', async () => {
+    const receita = vi.fn(async () => { throw new Error('Receita indisponível no momento') })
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      contas: (fonte) => ({ ...fonte, enriquecerReceita: receita }),
+    })
+    const linha = (await screen.findByText('LogiFlow Brasil S.A.')).closest('tr')!
+    await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
+
+    expect(await screen.findByText(/Receita indisponível no momento/)).toBeInTheDocument()
+    expect(screen.getByText(/LogiFlow Brasil S.A. agora é uma Conta-alvo/)).toBeInTheDocument()
+  })
+
+  it('não consulta Receita sem CNPJ e explica quando o Comitê está bloqueado', async () => {
+    const comite = vi.fn()
+    const receita = vi.fn()
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      contas: (fonte) => ({ ...fonte, buscarComite: comite, enriquecerReceita: receita }),
+      descobertas: (fonte) => ({
+        ...fonte,
+        aceitarDescoberta: async () => ({ targetAccountId: 'conta-orbita', created: true, sinaisMigrados: 0, comite: 'sem_saldo' as const }),
+      }),
+    })
+    const linha = (await screen.findByText('Vértice Embalagens Ltda')).closest('tr')!
+    await usuario.click(within(linha).getByRole('button', { name: /Aceitar/i }))
+    // A candidata já tem site; o modal só aparece quando faltam site e CNPJ.
+
+    expect(await screen.findByText(/Sem créditos suficientes para enriquecer o Comitê agora/)).toBeInTheDocument()
+    expect(comite).not.toHaveBeenCalled()
+    expect(receita).not.toHaveBeenCalled()
+  })
+
+  it('os filtros da busca aceitam vírgula ao digitar e exigem setor ou palavra-chave', async () => {
+    const { usuario } = renderizarApp('/contas/descobertas')
+    expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    const setores = within(painel).getByLabelText('Setores')
+    const palavras = within(painel).getByLabelText('Palavras-chave')
+    await usuario.click(within(painel).getByRole('button', { name: 'Remover Logística e tecnologia' }))
+    await usuario.clear(palavras)
+    expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeDisabled()
+    expect(within(painel).getByText(/Informe ao menos um setor ou uma palavra-chave/)).toBeInTheDocument()
+    await usuario.type(setores, 'Seguros')
+    await usuario.keyboard('{Enter}')
+    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Seguros')
+    expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeEnabled()
+    await usuario.click(within(painel).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog', { name: 'Confirmar filtros da busca' })).not.toBeInTheDocument()
+  })
+
+  it('administrador em testing confirma com allowTesting, filtros editados e versão do ICP', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'testing', podeTestar: true })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    expect(await screen.findByText('LogiFlow Brasil S.A.')).toBeInTheDocument()
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.click(within(painel).getByRole('button', { name: 'Remover Logística e tecnologia' }))
+    await usuario.type(within(painel).getByLabelText('Setores'), 'SaaS')
+    await usuario.keyboard('{Enter}')
+    await waitFor(() => expect(within(painel).getByRole('button', { name: 'Confirmar' })).toBeEnabled())
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({
+      criterios: expect.objectContaining({ setores: ['SaaS'] }),
+      icpVersion: 1,
+      allowTesting: true,
+    })
+  })
+
+  it('os filtros são escolhidos em listas: porte, região e setor vão no formato que a busca entende', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'available', podeTestar: true })
+        vi.spyOn(fonte, 'criteriosDaBusca').mockResolvedValue({
+          criterios: { ...criteriosDaBuscaVazios(), setores: ['Logística'], portes: ['51-200'], regioes: ['SP'] },
+          icpVersion: 3,
+          icpResumo: 'Logística no Sudeste',
+          temIcp: true,
+        })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+
+    // Pré-preenchido pelo ICP.
+    expect(within(painel).getByRole('list', { name: 'Setores escolhidas' })).toHaveTextContent('Logística')
+    // O porte aparece só pelo rótulo legível, sem o código interno.
+    const portesEscolhidos = within(painel).getByRole('list', { name: 'Porte (faixas) escolhidas' })
+    expect(portesEscolhidos).toHaveTextContent('51 a 200 funcionários')
+    expect(portesEscolhidos).not.toHaveTextContent('51-200')
+
+    // Setor pela busca na lista; porte pela faixa legível; região por cidade.
+    await usuario.type(within(painel).getByRole('combobox', { name: 'Setores' }), 'Segur')
+    await usuario.click(within(painel).getByRole('option', { name: /Seguros/ }))
+    await usuario.type(within(painel).getByRole('combobox', { name: 'Porte (faixas)' }), '11 a 50')
+    const opcaoDePorte = within(painel).getByRole('option', { name: '11 a 50 funcionários' })
+    expect(opcaoDePorte).toHaveTextContent(/^11 a 50 funcionários$/)
+    await usuario.click(opcaoDePorte)
+    expect(within(painel).queryByRole('option', { name: /MEI/ })).not.toBeInTheDocument()
+    const regiao = await within(painel).findByRole('combobox', { name: 'Região' }, { timeout: 5000 })
+    await usuario.type(regiao, 'Campinas')
+    await usuario.click(await within(painel).findByRole('option', { name: /^Campinas, SP/ }))
+
+    // Palavras-chave e exclusões continuam livres, em etiquetas.
+    await usuario.type(within(painel).getByLabelText('Palavras-chave'), 'frota{Enter}')
+    await usuario.type(within(painel).getByLabelText('Excluir'), 'consultoria,')
+    await usuario.click(within(painel).getByRole('button', { name: 'Remover 51 a 200 funcionários' }))
+
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith({
+      criterios: expect.objectContaining({
+        setores: ['Logística', 'Seguros'],
+        portes: ['11-50'],
+        regioes: ['SP', 'Campinas, SP'],
+        palavrasChave: ['frota'],
+        excluir: ['consultoria'],
+      }),
+      icpVersion: 3,
+      allowTesting: false,
+    })
+  })
+
+  it('ator available confirma sem allowTesting', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'available', podeTestar: true })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).toHaveBeenCalledWith(expect.objectContaining({ allowTesting: false }))
+  })
+
+  it('não administrador em testing não busca e mostra a validação', async () => {
+    const { usuario, fonteDeDescobertas } = renderizarAppCom('/contas/descobertas', {
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'cotarBusca').mockResolvedValue({ creditos: 5, saldoDisponivel: 100, emAndamento: false, estadoDoActor: 'testing', podeTestar: false })
+        vi.spyOn(fonte, 'buscarContas').mockResolvedValue()
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(fonteDeDescobertas.buscarContas).not.toHaveBeenCalled()
+    expect(await screen.findByRole('alert')).toHaveTextContent('A fonte desta busca ainda está em validação pela equipe Althius.')
+  })
+
+  it('mostra a mensagem real quando a busca falha', async () => {
+    const mensagem = 'Informe ao menos um setor ou uma palavra-chave.'
+    const { usuario } = renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      descobertas: (fonte) => {
+        vi.spyOn(fonte, 'buscarContas').mockRejectedValue(new Error(mensagem))
+        return fonte
+      },
+    })
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    await usuario.click(within(painel).getByRole('button', { name: 'Confirmar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(mensagem)
+  })
+
+  it('mostra ilimitado interno no painel, nunca US$', async () => {
+    renderizarAppCom('/contas/descobertas', {
+      opcoesOnboarding: {},
+      fonte: (fonte) => ({ ...fonte, saldoDeCreditos: async () => ({ lancado: 100, reservado: 0, disponivel: 100, ilimitado: true }) }),
+    })
+    await screen.findByText('Ilimitado (interno)')
+    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument()
+  })
+
+  it('mostra o custo normal em créditos no painel de confirmação', async () => {
+    const { usuario } = renderizarApp('/contas/descobertas')
+    await screen.findByText('LogiFlow Brasil S.A.')
+    await usuario.click(screen.getByRole('button', { name: /Buscar contas pelo ICP/i }))
+    const painel = await screen.findByRole('dialog', { name: 'Confirmar filtros da busca' })
+    expect(within(painel).getByText(/Custo: 5 créditos/)).toBeInTheDocument()
+    expect(within(painel).queryByText(/US\$/)).not.toBeInTheDocument()
   })
 })
 

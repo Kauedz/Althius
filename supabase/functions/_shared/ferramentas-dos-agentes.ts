@@ -1067,17 +1067,18 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
   nome: 'propor_sequencia',
   descricao:
     'Propõe uma Sequência de E-mail para uma Conta-alvo: os Contatos e os passos, cada um com a espera em dias desde o ' +
-    'passo anterior, o assunto e o corpo. Use quando pedirem uma Sequência ou uma Cadência para uma Conta, ou quando a ' +
-    'Conta estiver Quente por um Sinal. Antes, leia a Conta e o Sinal com ler_contas_e_sinais e chame esta ferramenta ' +
-    'sem contatos para ver os Contatos da Conta (com o id e se cada um pode entrar). Use o Sinal no primeiro e-mail, com ' +
-    'as suas palavras. Siga a seção Cadência do Playbook (número de passos, esperas e tom); se ela estiver vazia, ' +
+    'passo anterior, o assunto e o corpo. Use quando pedirem uma Sequência ou uma Cadência para uma Conta-alvo, com ou ' +
+    'sem Sinal. Antes, leia a Conta e, quando houver, o Sinal com ler_contas_e_sinais e chame esta ferramenta sem contatos para ' +
+    'ver os Contatos da Conta (com o id e se cada um pode entrar). Use o Sinal no primeiro e-mail, quando houver; sem Sinal, ' +
+    'use a Conta enriquecida (setor, porte, Receita/CNPJ, Comitê e Contatos), o ICP e o Playbook (Cadência, dores e ' +
+    'proposta de valor); escreva sempre com as suas palavras. Siga a seção Cadência do Playbook (número de passos, esperas e tom); se ela estiver vazia, ' +
     'proponha 3 passos de E-mail (dia 0, 3 e 7: esperas de 0, 3 e 4 dias), passe playbook_vazio e diga ao usuário que o ' +
     `Playbook não tem Cadência. Use só as variáveis ${VARIAVEIS_DO_ENVIO}. Nada é enviado: nasce uma Aprovação que só ` +
     'o Vendedor responsável pela Conta decide; aprovada, a Sequência é criada sem envio, e os e-mails só saem depois ' +
     'que ele clicar em "Ativar envios". Para partir de um template da Althius, chame sugerir_template_de_sequencia ' +
     'antes e use só o id que ela devolver. Para um template próprio do vendedor, chame sugerir_template_proprio: ' +
     'ela só devolve um template que ele pode ler. A justificativa é visível a todos os membros do Workspace: diga nela por que ' +
-    'esta Sequência agora (o Sinal), sem copiar o assunto nem o corpo dos e-mails.',
+    'esta Sequência para esta Conta (o Sinal, se houver, ou o encaixe com o ICP e o Comitê), sem copiar o assunto nem o corpo dos e-mails.',
   esquema: {
     type: 'object',
     properties: {
@@ -1104,14 +1105,14 @@ const PROPOR_SEQUENCIA: FerramentaDoAgente = {
       },
       justificativa: {
         type: 'string',
-        description: 'Por que esta Sequência agora (o Sinal). Todos os membros leem: não copie o assunto nem o corpo.',
+        description: 'Por que esta Sequência para esta Conta: o Sinal, se houver, ou o encaixe com o ICP e o Comitê. Todos os membros leem: não copie o assunto nem o corpo.',
       },
       playbook_vazio: { type: 'boolean', description: 'true quando a seção Cadência do Playbook está vazia.' },
     },
     required: ['conta_id'],
     additionalProperties: false,
   },
-  especialidades: ['rhetor'],
+  especialidades: ['scopus', 'ethos', 'rhetor', 'oraculum'],
   exige: null,
   disponivel: (_agente, _ctx, deps) => !!deps.banco.proporSequencia && !!deps.banco.contatosParaSequencia,
   async executar({ runId, agente, entrada, deps }) {
@@ -1216,7 +1217,7 @@ const SUGERIR_TEMPLATE: FerramentaDoAgente = {
   descricao:
     'Sugere um template da Althius para uma Conta-alvo. Chame antes de propor os e-mails, com o id da Conta que ' +
     'ler_contas_e_sinais devolve. A ferramenta escolhe só um template que já existe e está acessível, e justifica com ' +
-    'o Sinal real da Conta. Se não houver Sinal, contexto ou crédito, ela não escolhe: diga ao usuário para escolher ' +
+    'o Sinal quando houver, ou o contexto enriquecido da Conta, ICP e Playbook. Se não houver contexto ou crédito, ela não escolhe: diga ao usuário para escolher ' +
     'manualmente ou criar do zero. Não invente template, adequação ou eficácia (não diga que aumenta resposta, ' +
     'conversão ou que está comprovado). Não cria Sequência e não ativa envio. Ajustes de mensagem continuam em ' +
     'propor_sequencia; a Aprovação dessa proposta não ativa envios.',
@@ -1228,7 +1229,7 @@ const SUGERIR_TEMPLATE: FerramentaDoAgente = {
     required: ['conta_id'],
     additionalProperties: false,
   },
-  especialidades: ['rhetor'],
+  especialidades: ['scopus', 'ethos', 'rhetor', 'oraculum'],
   exige: null,
   disponivel: (_agente, _ctx, deps) => !!deps.banco.sugerirTemplate,
   async executar({ runId, agente, entrada, deps }) {
@@ -1278,7 +1279,7 @@ const SUGERIR_TEMPLATE_PROPRIO: FerramentaDoAgente = {
   descricao:
     'Sugere um template próprio do vendedor que pediu a Conversa, para uma Conta-alvo. Chame com o id da Conta que ' +
     'ler_contas_e_sinais devolve. A ferramenta só devolve um template que esse vendedor pode ler. Se ele não tiver ' +
-    'template próprio, não houver Sinal ou não houver crédito, ela não escolhe: a sugestão da Althius continua em ' +
+    'template próprio, não houver contexto da Conta ou não houver crédito, ela não escolhe: a sugestão da Althius continua em ' +
     'sugerir_template_de_sequencia, e a escolha manual também. Não invente template, não use template de outra pessoa ' +
     'e não diga que aumenta resposta ou conversão. Não cria Sequência, não autoriza Contato e não ativa envio.',
   esquema: {
@@ -1289,7 +1290,7 @@ const SUGERIR_TEMPLATE_PROPRIO: FerramentaDoAgente = {
     required: ['conta_id'],
     additionalProperties: false,
   },
-  especialidades: ['rhetor'],
+  especialidades: ['scopus', 'ethos', 'rhetor', 'oraculum'],
   exige: null,
   disponivel: (_agente, _ctx, deps) => !!deps.banco.sugerirTemplateProprio,
   async executar({ runId, agente, entrada, deps }) {

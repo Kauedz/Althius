@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
-import { useAmbiente, useDados } from '@/fonte/contexto'
+import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import type { Agente, Gatilho } from '@/fonte/tipos'
 import { ROTULO_DO_GATILHO } from '@/paginas/rotulos'
 
 export function SecaoAtividade({ agente }: { agente: Agente }) {
   const [gatilho, setGatilho] = useState<Gatilho | ''>('')
+  const [tentando, setTentando] = useState<string | null>(null)
+  const [retomada, setRetomada] = useState<string | null>(null)
+  const [falhaNaRetomada, setFalhaNaRetomada] = useState<string | null>(null)
   const itens = useDados((fonte) => fonte.atividade(agente.id, gatilho || undefined), [agente.id, gatilho])
+  const fonte = useFonte()
   const { disponivel } = useAmbiente()
 
   return (
@@ -55,6 +59,31 @@ export function SecaoAtividade({ agente }: { agente: Agente }) {
               <div className="flex flex-col gap-1">
                 <span className="font-normal">{item.descricao}</span>
                 <span className="text-al-muted">{item.resultado}</span>
+                {item.tentarDeNovo && (
+                  <button
+                    type="button"
+                    className="self-start text-sm underline underline-offset-4"
+                    disabled={tentando === item.id}
+                    onClick={async () => {
+                      setTentando(item.id)
+                      setFalhaNaRetomada(null)
+                      try {
+                        await fonte.tentarDeNovo?.(item.id)
+                        setRetomada(item.id)
+                      } catch {
+                        setFalhaNaRetomada(item.id)
+                      } finally {
+                        setTentando(null)
+                      }
+                    }}
+                  >
+                    {tentando === item.id ? 'Enviando…' : 'Tentar de novo'}
+                  </button>
+                )}
+                {retomada === item.id && <span role="status">Nova Execução na fila.</span>}
+                {falhaNaRetomada === item.id && (
+                  <span role="alert">Não foi possível tentar de novo agora. Tente outra vez em alguns minutos.</span>
+                )}
                 {item.link && (
                   <Link to={item.link.para} className="text-sm underline underline-offset-4">
                     {item.link.rotulo}

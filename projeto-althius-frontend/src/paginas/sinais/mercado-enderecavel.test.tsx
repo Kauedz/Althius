@@ -89,14 +89,14 @@ function abrir(rota: string, opcoes: { recusa?: string } = {}) {
   return { usuario, gravacoes }
 }
 
-/** Preenche o Monitoramento de mercado: nicho Custom, cargo SDR, Rio de Janeiro, e vai à revisão. */
+/** Preenche o Monitoramento de mercado: setor escrito, cargo SDR, Rio de Janeiro, e vai à revisão. */
 async function prepararMercado(usuario: ReturnType<typeof userEvent.setup>) {
   expect(await screen.findByRole('heading', { level: 1, name: 'Novo monitoramento' })).toBeInTheDocument()
   const onde = await screen.findByRole('radiogroup', { name: 'Onde procurar' })
   await usuario.click(within(onde).getByRole('radio', { name: 'Mercado endereçável (ICP)' }))
 
-  await usuario.click(within(screen.getByRole('radiogroup', { name: 'Nicho do cargo' })).getByRole('radio', { name: 'Custom' }))
-  await usuario.type(screen.getByRole('textbox', { name: 'Nicho Custom' }), 'Óleo e gás')
+  await usuario.type(screen.getByRole('textbox', { name: 'Setor escrito' }), 'Óleo e gás')
+  await usuario.click(screen.getByRole('button', { name: 'Adicionar setor' }))
   const cargos = screen.getByRole('group', { name: 'Cargos ou funções' })
   await usuario.click(within(cargos).getByRole('checkbox', { name: 'Custom' }))
   await usuario.type(screen.getByRole('textbox', { name: 'Cargo Custom' }), 'SDR, BDR{Enter}')
@@ -126,6 +126,18 @@ describe('Mercado endereçável: regras', () => {
 })
 
 describe('Mercado endereçável: tela', () => {
+  it('não permite revisar e ativar vagas sem recorte, mas deixa salvar o rascunho', async () => {
+    const { usuario, gravacoes } = abrir('/sinais/tipos/abertura-de-vagas/novo')
+    await usuario.click(within(await screen.findByRole('radiogroup', { name: 'Onde procurar' })).getByRole('radio', { name: 'Mercado endereçável (ICP)' }))
+    await usuario.click(screen.getByRole('button', { name: 'Revisar e ativar' }))
+    expect(screen.queryByRole('region', { name: 'Revisão antes de ativar' })).not.toBeInTheDocument()
+    expect(screen.getByText('Escolha ao menos um nicho ou escreva um setor para ativar.')).toBeInTheDocument()
+    await usuario.type(screen.getByRole('textbox', { name: 'Nome do monitoramento' }), 'Vagas sem recorte')
+    await usuario.click(screen.getByRole('button', { name: 'Salvar rascunho' }))
+    expect(await screen.findByText('Rascunho “Vagas sem recorte” salvo.')).toBeInTheDocument()
+    expect(gravacoes[0]).toMatchObject({ p_state: 'rascunho', p_criteria: { nichos: [], nichosCustom: [] } })
+  })
+
   it('o seletor esconde as Contas-alvo, mostra país e estado, e grava o mercado sem Conta', async () => {
     const { usuario, gravacoes } = abrir('/sinais/tipos/abertura-de-vagas/novo')
 
@@ -160,7 +172,7 @@ describe('Mercado endereçável: tela', () => {
     expect(gravacoes[0]).toMatchObject({
       p_signal_type: 'vaga_linkedin',
       p_state: 'ativo',
-      p_criteria: { nicho: 'custom', nichoCustom: 'Óleo e gás', localizacao: ['Brasil'], estado: 'Rio de Janeiro' },
+      p_criteria: { nichos: [], nichosCustom: ['Óleo e gás'], localizacao: ['Brasil'], estado: 'Rio de Janeiro' },
     })
     expect((gravacoes[0].p_criteria as { funcoes: string[] }).funcoes).toEqual(expect.arrayContaining(['SDR', 'BDR']))
 
@@ -175,6 +187,13 @@ describe('Mercado endereçável: tela', () => {
     await prepararMercado(usuario)
     await usuario.click(screen.getByRole('button', { name: 'Ativar monitoramento' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('O mercado endereçável precisa de contrato ativo. Fale com a equipe Althius.')
+  })
+
+  it('traduz a recusa do servidor quando falta recorte', async () => {
+    const { usuario } = abrir('/sinais/tipos/abertura-de-vagas/novo', { recusa: 'a market monitor needs at least one niche' })
+    await prepararMercado(usuario)
+    await usuario.click(screen.getByRole('button', { name: 'Ativar monitoramento' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Escolha ao menos um nicho ou escreva um setor para ativar.')
   })
 
   it('o modo Contas-alvo grava o mesmo público de antes', async () => {

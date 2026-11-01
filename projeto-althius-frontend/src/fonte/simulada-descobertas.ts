@@ -1,3 +1,4 @@
+import type { ExplicacaoDeAderencia } from './aderencia-explicada'
 import type { AjusteAprendido, CodigoDoDescarte, DimensaoAprendida } from './aprendizado-da-descoberta'
 import type { FonteDeContas } from './tipos'
 import type {
@@ -6,6 +7,7 @@ import type {
   FonteDeDescobertas,
   ResultadoDoAceite,
 } from './descobertas-tipos'
+import { criteriosDaBuscaVazios, type CriteriosDaBusca } from './descobertas-tipos'
 
 /** Como a Demonstração escreve uma candidata: sem origem, é da busca; sem Sinais reais, não tem motivos de Sinal. */
 type CandidataDaDemonstracao = Omit<ContaDescoberta, 'origem' | 'motivosDeSinal'> & Partial<Pick<ContaDescoberta, 'origem' | 'motivosDeSinal'>>
@@ -121,6 +123,8 @@ const CANDIDATAS_INICIAIS: CandidataDaDemonstracao[] = [
   },
 ]
 
+const ROTULO_DO_NIVEL: Record<string, string> = { alto: 'alta', medio: 'média', baixo: 'baixa', sem_dado: 'sem dado' }
+
 export function criarFonteDeDescobertasSimulada({
   fonteDeContas,
   candidatasIniciais = CANDIDATAS_INICIAIS,
@@ -146,6 +150,14 @@ export function criarFonteDeDescobertasSimulada({
   const notificar = () => ouvintes.forEach((o) => o())
 
   return {
+    async criteriosDaBusca() {
+      return {
+        temIcp: true,
+        icpVersion: 1,
+        icpResumo: 'Setor: Logística e tecnologia\nPorte: 11-200\nRegião: SP, PR',
+        criterios: { ...criteriosDaBuscaVazios(), setores: ['Logística e tecnologia'], portes: ['11-50', '51-200'], regioes: ['SP', 'PR'] },
+      }
+    },
     async cotarBusca(_maxResults = 50): Promise<CotacaoDaDescoberta> {
       return {
         creditos: 5,
@@ -156,7 +168,7 @@ export function criarFonteDeDescobertasSimulada({
       }
     },
 
-    async buscarContas(_args = {}): Promise<void> {
+    async buscarContas(_args: { criterios: CriteriosDaBusca; icpVersion: number | null; maxResults?: number; allowTesting?: boolean }): Promise<void> {
       if (saldo < 5) {
         throw new Error('Sem créditos suficientes para buscar novas contas.')
       }
@@ -266,6 +278,13 @@ export function criarFonteDeDescobertasSimulada({
       candidata.voltouPorSinalEm = undefined
       candidata.motivoDoDescarteAnterior = undefined
       notificar()
+    },
+
+    async explicarAderencia(id: string): Promise<ExplicacaoDeAderencia> {
+      const candidata = candidatas.find((c) => c.id === id)
+      if (!candidata) throw new Error('Descoberta não encontrada.')
+      const motivos = candidata.motivos.length > 0 ? ` ${candidata.motivos.join('. ')}.` : ' Sem motivos registrados.'
+      return { explicacao: `Aderência ${ROTULO_DO_NIVEL[candidata.fitLevel] ?? 'baixa'}.${motivos}`, origem: 'regra', nivel: candidata.fitLevel }
     },
 
     async restaurarDescoberta(id: string): Promise<void> {

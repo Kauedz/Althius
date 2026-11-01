@@ -8,7 +8,9 @@ import {
   type Buscas,
   createHandler,
   type Db,
+  type Manuais,
   type MonitorReivindicado,
+  type PedidoManual,
   type ResultadoDaAbertura,
 } from './handler.ts'
 
@@ -59,13 +61,15 @@ const db: Db = {
     const [linha] = (data ?? []) as LinhaDoActor[]
     return linha ? actorDoRegistro(linha) : null
   },
-  async beginScan({ workspaceId, userId, monitorId, accountId, slot }) {
+  async beginScan({ workspaceId, userId, monitorId, accountId, slot, origem, pedidoId }) {
     const { data, error } = await admin.rpc('begin_account_scan', {
       p_workspace_id: workspaceId,
       p_user_id: userId,
       p_monitor_id: monitorId,
       p_account_id: accountId,
       p_slot: slot,
+      p_origin: origem ?? 'agenda',
+      p_request_id: pedidoId ?? null,
     })
     if (error) throw falha(error)
     const [linha] = (data ?? []) as { outcome: ResultadoDaAbertura; reservation_id: string | null }[]
@@ -82,7 +86,7 @@ const db: Db = {
     if (error) throw falha(error)
   },
   async recordSignal(a) {
-    const { data, error } = await admin.rpc('record_signal', {
+    const sinal = {
       p_workspace_id: a.workspaceId,
       p_target_account_id: a.accountId,
       p_monitor_id: a.monitorId,
@@ -92,9 +96,36 @@ const db: Db = {
       p_fired_at: a.firedAt,
       p_source: a.source,
       p_evidence: a.evidence,
-    })
+    }
+    // Dentro de uma Rodada, o Sinal (novo ou visto de novo) fica ligado a ela; a dedupe é a mesma.
+    const { data, error } = a.runId
+      ? await admin.rpc('record_signal_in_run', { p_run_id: a.runId, ...sinal })
+      : await admin.rpc('record_signal', sinal)
     if (error) throw falha(error)
     return data === true
+  },
+  async abrirRodada({ monitorId, slot, pedidoId }) {
+    const { data, error } = await admin.rpc('open_signal_run', {
+      p_monitor_id: monitorId,
+      p_slot: slot,
+      p_request_id: pedidoId ?? null,
+    })
+    if (error) throw falha(error)
+    if (typeof data !== 'string') throw new Error('open_signal_run não respondeu')
+    return data
+  },
+  async somarRodada(rodadaId, r) {
+    const { error } = await admin.rpc('add_signal_run_progress', {
+      p_run_id: rodadaId,
+      p_checked: r.verificadas ?? 0,
+      p_new: r.novos ?? 0,
+      p_repeated: r.repetidos ?? 0,
+      p_without_data: r.semDado ?? 0,
+      p_reservation_ids: r.reservas ?? [],
+      p_stop_reason: r.motivo ?? null,
+      p_credits: Math.max(0, Math.round(r.creditos ?? 0)),
+    })
+    if (error) throw falha(error)
   },
   async headcountBase(workspaceId, accountId, desde, antesDe) {
     const { data, error } = await admin.rpc('account_headcount_base', {
@@ -135,6 +166,11 @@ const db: Db = {
       p_cost_usd: costUsd,
     })
     if (error) throw falha(error)
+  },
+  async rodadaEstouraOLimiteDoDia(monitorId) {
+    const { data, error } = await admin.rpc('signal_round_exceeds_daily_cap', { p_monitor_id: monitorId })
+    if (error) throw falha(error)
+    return data === true
   },
   async escopo(monitorId) {
     const { data, error } = await admin.rpc('signal_monitor_scope', { p_monitor_id: monitorId })
@@ -210,6 +246,46 @@ const buscas: Buscas = {
   },
 }
 
+// A fila do Rodar agora: o pedido de uma pessoa, lido depois das buscas e antes dos Monitoramentos do relógio.
+const manuais: Manuais = {
+  async claim(limit) {
+    const { data, error } = await admin.rpc('claim_signal_run_requests', { p_limit: limit })
+    if (error) throw falha(error)
+    return ((data ?? []) as {
+      request_id: string
+      workspace_id: string
+      monitor_id: string
+      signal_type: string
+      criteria: Record<string, unknown> | null
+      requested_by: string | null
+      requested_at: string
+      accounts: PedidoManual['accounts'] | null
+    }[]).map((linha) => ({
+      pedidoId: linha.request_id,
+      workspaceId: linha.workspace_id,
+      monitorId: linha.monitor_id,
+      signalType: linha.signal_type,
+      criteria: linha.criteria ?? {},
+      requestedBy: linha.requested_by,
+      requestedAt: linha.requested_at,
+      accounts: linha.accounts ?? [],
+    }))
+  },
+  async finish(pedidoId, estado, tentadas, erro) {
+    const { error } = await admin.rpc('finish_signal_run_request', {
+      p_request_id: pedidoId,
+      p_state: estado,
+      p_attempted: tentadas,
+      p_error: erro,
+    })
+    if (error) throw falha(error)
+  },
+  async kick() {
+    const { error } = await admin.rpc('kick_signal_runner')
+    if (error) throw falha(error)
+  },
+}
+
 // Esta função tem 150 s; cada Conta espera o Apify no máximo 70 s (60 s de execução) e mais 3 s para reler o custo quando
 // o Apify ainda não fechou a conta da execução, e uma Conta nova só começa até 72 s.
 const contas = contasDeColeta((nome) => Deno.env.get(nome))
@@ -247,6 +323,7 @@ Deno.serve(createHandler({
   apify,
   adaptadores: ADAPTADORES,
   buscas,
+  manuais,
   cascatas,
   aquecer: () => cascatas.aquecer(),
   ...(llm ? { llm } : {}),

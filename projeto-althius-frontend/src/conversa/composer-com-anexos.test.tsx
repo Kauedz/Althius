@@ -138,7 +138,7 @@ describe('Composer com anexos', () => {
 
     await usuario.type(within(composer).getByRole('textbox', { name: 'Mensagem para Scopus' }), 'Leia a proposta')
     await usuario.click(within(composer).getByRole('button', { name: 'Enviar' }))
-    await screen.findByText('Leia a proposta')
+    await within(screen.getByRole('region', { name: 'Conversa' })).findByText('Leia a proposta')
     expect(enviados.at(-1)).toEqual(expect.objectContaining({ text: 'Leia a proposta', attachments: ['anexo-1'] }))
     expect(screen.getByRole('button', { name: 'Abrir o anexo proposta.pdf' })).toBeInTheDocument()
   })

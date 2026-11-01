@@ -74,7 +74,7 @@ export interface RunnerDeps {
  * PR-11 não vale no Canal).
  */
 function soComOAgenteDoFio(reserva: Reserva): Reserva {
-  if ((reserva as Reserva & { trigger_kind?: string }).trigger_kind !== 'canal') return reserva
+  if ((reserva as Reserva & { trigger_kind?: string }).trigger_kind !== 'canal' || reserva.origin === 'whatsapp') return reserva
   return { ...reserva, mentions: [], agents: reserva.agents.filter((agente) => agente.id === reserva.agent_id) }
 }
 

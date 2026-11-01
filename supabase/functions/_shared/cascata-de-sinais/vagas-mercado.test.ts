@@ -7,8 +7,8 @@ import { dbFalso } from './db-falso.ts'
 import { cascataVagaMercado } from './fixtures.ts'
 import { rodarCascata } from './motor.ts'
 import { registroDePassos } from './passos/index.ts'
-import { estadoDoMonitoramento, termosDoMercado, vagaDoEstado } from './passos/vagas-mercado.ts'
-import type { ClienteDaFonte, ContaDoWorkspace, Llm, PedidoDeCascata } from './tipos.ts'
+import { confirmarVagaMercado, estadoDoMonitoramento, linkedinVagasMercado, termosDoMercado, vagaDoEstado } from './passos/vagas-mercado.ts'
+import type { ClienteDaFonte, ContaDoWorkspace, ContextoDoPasso, Llm, PedidoDeCascata } from './tipos.ts'
 
 const AGORA = Date.parse('2026-10-21T12:00:00Z')
 const ALFA: ContaDoWorkspace = { id: 'conta-alfa', name: 'Alfa Petróleo', domain: 'alfapetroleo.test', linkedinUrl: 'https://www.linkedin.com/company/alfa-petroleo' }
@@ -62,6 +62,23 @@ const pedido = (extra: Partial<PedidoDeCascata> = {}): PedidoDeCascata => ({
   chave: 'monitor:mon-mercado:slot:mercado', criterios: CRITERIOS, tetoCreditos: 4, descoberta: true, ...extra,
 })
 
+Deno.test('sem recorte no mercado, o passo de busca pula o fornecedor', async () => {
+  const criterios = { ...CRITERIOS, nichos: [], nichosCustom: [] }
+  const entrada = linkedinVagasMercado.montarEntrada!([], { criterios } as unknown as ContextoDoPasso, '')
+  assertEquals(entrada, { pular: 'Escolha ao menos um nicho ou setor para buscar as vagas.' })
+  assertEquals(await confirmarVagaMercado.executar!([{}], { criterios } as unknown as ContextoDoPasso), [])
+  const banco = dbFalso(cascataVagaMercado(), { contas: [ALFA], abertura: { estCredits: 4 } })
+  const { fonte, chamadas } = fonteFalsa()
+  const resultado = await rodarCascata(
+    { db: banco.db, fonte, registro: registroDePassos(), agora: () => AGORA, log: () => {} },
+    pedido({ criterios }),
+  )
+  assertEquals(chamadas, [])
+  assertEquals(resultado.passos[0]?.estado, 'skipped')
+  assertEquals(resultado.mercado, [])
+  assertEquals(resultado.novos, 0)
+})
+
 Deno.test('a busca usa os cargos e o nicho como palavras-chave, no estado e no país do Monitoramento', async () => {
   const banco = dbFalso(cascataVagaMercado(), { contas: [ALFA], abertura: { estCredits: 4 } })
   const { fonte, chamadas } = fonteFalsa()
@@ -72,6 +89,18 @@ Deno.test('a busca usa os cargos e o nicho como palavras-chave, no estado e no p
   assertEquals(urls[0].get('f_TPR'), `r${30 * 86_400}`)
   // O teto de créditos da rodada vai ao banco, que reserva o preço fixo; nenhuma Conta entra na conta.
   assertEquals([banco.aberturas[0].tetoCreditos, banco.aberturas[0].contas], [4, 0])
+})
+
+Deno.test('a busca distribui os cargos entre dois recortes sem exceder MAX_BUSCAS', () => {
+  const termos = termosDoMercado({
+    nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'], funcoes: ['SDR', 'BDR'],
+  })
+  assertEquals(termos, [
+    'Logística e transporte SDR', 'Seguros SDR', 'Logística e transporte BDR', 'Seguros BDR',
+  ])
+  assertEquals(termosDoMercado({ nichos: ['logistica-e-transporte'], nichosCustom: ['Seguros'], funcoes: ['SDR'] }, 1), [
+    'Logística e transporte SDR',
+  ])
 })
 
 Deno.test('a descoberta confirma pelos cargos e pelo nicho, enriquece só quem não é Conta e entrega Conta e candidatas', async () => {
@@ -115,7 +144,7 @@ Deno.test('com o modelo dos Sinais ligado, ele decide o nicho das vagas', async 
   }
   await rodarCascata({ db: banco.db, fonte, registro: registroDePassos(), llm, agora: () => AGORA, log: () => {} }, pedido())
   assertEquals(pedidos.length, 1)
-  assert(pedidos[0].startsWith(JSON.stringify({ nicho: 'Óleo e gás' })))
+  assert(pedidos[0].startsWith(JSON.stringify({ nichos: ['Óleo e gás'] })))
   assertEquals(banco.empresas.map((e) => e.sinal.empresa.nome), ['Petro Sul'])
   assertEquals(banco.sinais.length, 0)
 })
@@ -158,8 +187,8 @@ Deno.test('sem cargo, a busca não roda e nada é gasto na fonte', async () => {
 
 Deno.test('o nicho pronto entra pelo nome, os muitos cargos se juntam com OR e o estado só vale com o Brasil', () => {
   assertEquals(termosDoMercado({ nicho: 'agro-b2b', funcoes: ['SDR'] }), ['Agro B2B SDR'])
-  assertEquals(termosDoMercado({ nicho: 'qualquer', funcoes: ['SDR'] }), ['SDR'])
-  assertEquals(termosDoMercado({ funcoes: ['A', 'B', 'C', 'D', 'E'] }, 2), ['(A OR C OR E)', '(B OR D)'])
+  assertEquals(termosDoMercado({ nicho: 'qualquer', funcoes: ['SDR'] }), [])
+  assertEquals(termosDoMercado({ funcoes: ['A', 'B', 'C', 'D', 'E'] }, 2), [])
   assertEquals(termosDoMercado({ funcoes: [] }), [])
   assertEquals(estadoDoMonitoramento({ localizacao: ['Brasil'], estado: 'São Paulo' }), 'São Paulo')
   assertEquals(estadoDoMonitoramento({ localizacao: ['México'], estado: 'São Paulo' }), '')

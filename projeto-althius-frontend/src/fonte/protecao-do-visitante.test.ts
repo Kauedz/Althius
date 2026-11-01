@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { criarAmbienteDeDemonstracao } from './composicao'
+import { criarAmbienteDeDemonstracao } from './composicao-da-demonstracao'
 import {
   ACOES_PAGAS_DO_VISITANTE,
   ErroDeAcaoDoVisitante,
@@ -19,7 +19,7 @@ describe('Workspace visitante: as ações pagas abrem o modal e recusam', () => 
     const salvar = vi.spyOn(original.fonteDeSinais, 'salvarMonitoramento')
 
     await expect(ambiente.fonteDeSinais.salvarMonitoramento({} as never)).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
-    await expect(ambiente.fonteDeDescobertas!.buscarContas()).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
+    await expect(ambiente.fonteDeDescobertas!.buscarContas({ criterios: { fonte: 'linkedin', setores: ['Software'], palavrasChave: [], portes: [], regioes: [], tecnologias: [], excluir: [], cnaes: [] }, icpVersion: 1 })).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
     await expect(ambiente.fonteDeContas.buscarComite!('conta')).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
     await expect(ambiente.fonteDeContas.revelarContato!('contato', 'email')).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
     await expect(ambiente.fonteDeSequencias.ativarEnvios('sequencia')).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
@@ -35,6 +35,16 @@ describe('Workspace visitante: as ações pagas abrem o modal e recusam', () => 
     const coordenada = ambiente.fonte.conversarCoordenado({ id: 'm2', autor: 'usuario', texto: 'Oi' } as never, [])
     expect((await coordenada[Symbol.asyncIterator]().next()).value).toMatchObject({ tipo: 'falha', motivo: expect.stringContaining('Fale com a equipe Althius') })
     expect(aoBloquear).toHaveBeenCalledTimes(2)
+  })
+
+  it('a retenção por resposta: o visitante lê a revisão, mas não pausa nem continua a Conta', async () => {
+    const { ambiente, aoBloquear, original } = ambienteProtegido()
+    const decidir = vi.spyOn(original.fonteDeSequencias, 'decidirRetencao' as never)
+    await expect(
+      ambiente.fonteDeSequencias.decidirRetencao!({ sequenciaId: 'sequencia', decisao: 'continue', versao: 1, respostasRevisadas: [], contatosSelecionados: [] }),
+    ).rejects.toBeInstanceOf(ErroDeAcaoDoVisitante)
+    expect(aoBloquear).toHaveBeenCalledTimes(1)
+    expect(decidir).not.toHaveBeenCalled()
   })
 
   it('ler continua livre: a Demonstração mostra os dados que já existem', async () => {

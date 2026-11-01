@@ -40,6 +40,7 @@ async function rpc<T>(nome: string, args: Record<string, unknown>): Promise<T> {
 }
 
 const db: FilaDb = {
+  sinalDeVida: () => rpc<void>('record_agent_engine_heartbeat', {}),
   listQueued: async (limit) =>
     ((await rpc<{ run_id: string }[] | null>('list_queued_agent_runs', { p_limit: limit })) ?? []).map((l) => l.run_id),
   claim: (runId) => rpc<Reserva | null>('claim_agent_run', { p_run_id: runId }),

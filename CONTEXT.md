@@ -13,7 +13,7 @@ O espaço de trabalho dentro da Althius, com seus agentes, conexões e dados pr�
 _Avoid_: conta, tenant, organização
 
 **Workspace visitante**:
-O ambiente que uma Conta de usuário vê quando não participa de nenhum Workspace contratado: a Demonstração, só leitura, com o banner "Você está vendo uma demonstração". Toda ação paga abre "Fale com a equipe Althius". Não é um Workspace no banco; nada do que acontece nele chega a um Workspace operacional.
+O ambiente que uma Conta de usuário vê quando não participa de nenhum Workspace contratado: a Demonstração, só leitura, com o banner "Você está vendo uma demonstração". Toda ação paga abre "Fale com a equipe Althius". Com `VISITANTE_VE_DEMONSTRACAO` desligado, o visitante vê só "Fale com a equipe Althius", sem a Demonstração. Não é um Workspace no banco; nada do que acontece nele chega a um Workspace operacional.
 
 **Contrato**:
 O acordo externo, por faixa, que abre um Workspace operacional (`private.workspace_contracts`). É cobrado fora da plataforma; só a Althius cria o Workspace e o contrato, depois de fechar o negócio. Sem contrato ativo (ou sem créditos ilimitados), nenhuma ação paga roda.
@@ -25,7 +25,7 @@ O plano único do contrato, com número de usuários, créditos mensais e uma gu
 Um Workspace real, aberto por uma Conta de usuário autenticada com Participação ativa. Só mostra o que foi guardado e confirmado; um módulo ainda sem backend aparece como indisponível, sem dados, resultados ou ações da Demonstração.
 
 **Demonstração**:
-O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário. Em produção, só a equipe Althius a abre, logada, em `/demonstracao` (conferido no banco por `viewer_is_althius_staff`); nenhum menu a oferece, e para quem não é da equipe o endereço cai no início. O Workspace visitante continua a mostrá-la, só leitura.
+O ambiente de exemplo da Althius, identificado pelo selo "Demonstração", com dados, resultados e roteiros fictícios. Seus dados e seu estado ficam isolados: nada do que acontece nela chega a um Workspace operacional, nem o contrário. Em produção, só a equipe Althius a abre, logada, em `/demonstracao` (conferido no banco por `viewer_is_althius_staff`); nenhum menu a oferece, e para quem não é da equipe o endereço cai no início. Os links antigos com `?demo=true` abrem a tela de entrada, sem aviso. O código e os dados de exemplo da Demonstração ficam fora do pacote principal e só são baixados por quem vai vê-la. O Workspace visitante continua a mostrá-la, só leitura.
 _Avoid_: modo demo
 
 **Workspace pessoal**:
@@ -128,7 +128,7 @@ A classificação de um Contato por um papel do Comitê de compra descrito pelo 
 _Avoid_: perfil, papel, arquétipo
 
 **Sinal**:
-Uma evidência de possível necessidade comercial de uma Conta-alvo relacionada ao que o Cliente oferece, obtida de acontecimentos externos, condições históricas internas ou ações realizadas para investigar essa necessidade. Tem data e, quando houver, fonte e evidência de origem; uma resposta comercial ou a interpretação de seu conteúdo, por si só, não é um Sinal. Os Sinais de cada ICP detectam acontecimentos nas empresas para quem o ICP vende (as Contas-alvo do Workspace), nunca no próprio ICP: o ICP de contabilidade vende a empresas novas e em mudança de porte, e o Sinal olha essas empresas, não os escritórios de contabilidade.
+Uma evidência de possível necessidade comercial de uma Conta-alvo relacionada ao que o Cliente oferece, obtida de acontecimentos externos, condições históricas internas ou ações realizadas para investigar essa necessidade. Tem data e, quando houver, fonte e evidência de origem; uma resposta comercial ou a interpretação de seu conteúdo, por si só, não é um Sinal. Os Sinais de cada ICP detectam acontecimentos nas empresas para quem o ICP vende (as Contas-alvo do Workspace), nunca no próprio ICP: o ICP de contabilidade vende a empresas novas e em mudança de porte, e o Sinal olha essas empresas, não os escritórios de contabilidade. Este é o Sinal disparado, a evidência. Quando a tela fala do Sinal que o Cliente configura e roda ("Meus Sinais"), é um Monitoramento com Briefing, Plano e Agenda; o que ele acha chega como "Sinal novo" ([ADR-0032](docs/adr/0032-agente-de-sinal-e-agente-de-contas.md), proposta).
 _Avoid_: evento, alerta, gatilho
 
 **Sinal externo**:
@@ -141,7 +141,39 @@ Um Sinal obtido de condições históricas e temporais dos dados comerciais do C
 Um Sinal obtido a partir de uma ação realizada para investigar uma possível necessidade comercial, como um teste de atendimento que identifica ausência de resposta segundo os critérios definidos.
 
 **Monitoramento**:
-Uma configuração que define o que acompanhar e em qual público encontrar Sinais, com critérios e prazos ajustáveis ao negócio do Cliente. O Cliente pode manter vários Monitoramentos do mesmo tipo, cada um com nome e critérios próprios, e pausá-los separadamente.
+Uma configuração que define o que acompanhar e em qual público encontrar Sinais, com critérios e prazos ajustáveis ao negócio do Cliente. O Cliente pode manter vários Monitoramentos do mesmo tipo, cada um com nome e critérios próprios, e pausá-los separadamente. O Sinal que o Cliente configura é a cara do Monitoramento com Briefing, Plano e Agenda: por baixo continua sendo o mesmo registro (`private.signal_monitors`), rodado pelo mesmo relógio e pelo `signal-runner`.
+
+**Briefing**:
+O que o Cliente quer que um Sinal ache, escrito em linguagem natural. É o ponto de partida: a IA o lê para propor o Plano, mas o Briefing nunca roda.
+_Avoid_: prompt, instrução
+
+**Plano do Sinal**:
+A configuração estruturada e editável que a IA monta a partir do Briefing (ou que vem de um Modelo de Sinal): o que procurar, em que fontes e com quais critérios, dentro de um Escopo. É versionado: editar gera uma versão nova, que precisa ser aprovada por uma pessoa. Só o Plano aprovado roda, nunca o texto livre.
+_Avoid_: receita, workflow, prompt
+
+**Escopo do Sinal**:
+Onde o Plano procura: **mercado** (descobre empresas novas, que chegam como Candidatas), **lista** (uma lista importada ou salva), **Contas** (Contas-alvo escolhidas a dedo) ou **todas as Contas** (todas as Contas-alvo do Workspace). Mercado entrega empresa nova em Descobertas; os outros entregam Sinal novo numa Conta conhecida. Sempre com o "por que apareceu".
+_Avoid_: público (é o nome técnico do campo), alvo
+
+**Agenda do Sinal**:
+Quantas Rodadas por dia o Sinal faz, em quais horários e em quais dias. Antes de ativar, o Cliente vê os créditos por Rodada, por dia e por mês. É o que o relógio (`pg_cron` `althius-signal-runner`) usa para acordar o `signal-runner`.
+Os horários são de 15 em 15 minutos, no horário de Brasília (o único fuso por enquanto), e os dias são os da semana, de segunda a sexta por padrão. O servidor recusa Agenda fora dos limites, mesmo que a tela deixe passar: até **12 Rodadas por dia**, com pelo menos **1 hora** entre os horários (a virada do dia conta: 23:00 e 00:00 são 1 hora). O padrão é 1 Rodada por dia às 08:00, de segunda a sexta. O tamanho da lista de Contas não limita a Agenda: a lista gira em lotes (ver **Lote da rodada**). **Decidido pelo Kauê em 24/10/2026** (ADR-0032, decisões 3 e 10); os valores ficam num lugar só do banco (`private.signal_schedule_limit`). Acima de 2 Rodadas por dia a tela avisa que rodar várias vezes por dia costuma repetir resultados.
+O relógio acorda o Sinal a cada 10 minutos, então a Rodada começa **por volta** do horário marcado, em até 10 minutos depois, e a tela diz assim. O horário marcado é a identidade da Rodada agendada: continuar numa chamada seguinte do `signal-runner` mantém o mesmo horário, e por isso a mesma Conta nunca é cobrada duas vezes na mesma Rodada.
+**Sem compensação de Rodada perdida**: a Rodada que não rodou no horário (runner parado, contrato inativo, Sinal pausado) não é recuperada. O próximo horário é sempre o primeiro depois de agora, e nunca se acumulam Rodadas (**decidido pelo Kauê em 24/10/2026**). Quando vários horários vencem juntos, roda só o mais recente, e cada um dos outros aparece em Rodadas como **Rodada perdida** ("Não rodou no horário"), com o horário marcado e 0 créditos. O runner que atrasou dentro de um único horário (o relógio de 10 em 10 minutos) não é Rodada perdida. O Monitoramento sem Agenda é o de antes (legado): continua rodando a cada 24 horas, sem mudança, até alguém salvar uma Agenda.
+_Avoid_: frequência, cron
+
+**Rodada**:
+Cada vez que o Plano aprovado de um Sinal roda: **agendada**, no horário da Agenda, ou **Rodar agora**, por clique de uma pessoa. Cada Rodada gasta créditos e fica registrada, sem exceção: a origem (agendada ou manual), a versão do Plano, quando começou e terminou, quantas Contas foram verificadas (e quantas ficaram de fora por falta de dado), quantos Sinais novos e repetidos, quantos créditos gastou e, se parou antes, por que parou (acabaram os créditos, limite do mês, contrato inativo, tempo da função, erro) ou se o horário passou sem a Rodada começar (**perdida**). Uma Rodada que não cabe numa chamada do `signal-runner` continua na seguinte, na mesma linha do registro, sem cobrar a mesma Conta duas vezes. O que a Rodada achou aparece como **Sinais encontrados**, cada um com a Conta, a evidência e o "por que apareceu" (o critério do Plano que bateu). Não é uma Execução de Agente nem uma Busca de Sinais (a da reativação, numa Conta).
+**Rodar agora** pede uma Rodada manual do Plano salvo, só nas Contas do escopo, e começa em até 10 minutos (o relógio de sempre). Antes de pedir, a pessoa vê a prévia em créditos (as Contas do **lote**, o máximo e o saldo). A Rodada manual cobra créditos por Conta verificada e respeita o saldo, o limite do contrato e o limite mensal de quem pediu; a Conta sem dado suficiente não é cobrada, e a Rodada sem novidade cobra o que verificou. Só uma Rodada manual por Monitoramento fica na fila, e há um intervalo mínimo entre duas (1 hora; **decidido pelo Kauê em 24/10/2026** para as Rodadas em geral, aplicado também à manual por interpretação, ADR-0032 decisão 3). A Rodada manual começa onde a anterior parou na lista, e o cursor avança quando ela termina. Rodar agora não exige nem consome o Teto de automação (**decidido pelo Kauê em 24/10/2026**, ADR-0032 decisão 4).
+_Avoid_: varredura (é o termo técnico por Conta), disparo
+
+**Lote da rodada**:
+As Contas que uma Rodada verifica: até `maxEmpresasPorRodada` do Plano (de 1 a 100, padrão 25; **decidido pelo Kauê em 24/10/2026**). Um Sinal aceita até 500 Contas, e a lista **gira**: cada Rodada processa um lote, a Rodada seguinte (agendada ou manual) começa onde a anterior parou, e no fim da lista volta ao começo. Com 60 Contas e lote 25, três Rodadas seguidas verificam as Contas 1 a 25, 26 a 50 e 51 a 60 mais 1 a 15. O preço, a estimativa, a prévia do Rodar agora e o limite por dia sugerido contam o lote, e não a lista inteira. O Monitoramento sem Plano (o editor antigo) usa o lote padrão. O cursor da rotação é do Monitoramento e não duplica a cobrança: a dedupe dos Sinais e as chaves de cobrança de cada Conta são as de sempre.
+_Avoid_: página, fatia
+
+**Modelo de Sinal**:
+Um plano-semente versionado do catálogo de Sinais, já configurado com a IA: Briefing pronto, Plano editável, Agenda sugerida e estimativa de créditos. Substitui o antigo tipo fixo de formulário. O Cliente usa um Modelo e ajusta, ou descreve o próprio Sinal; nos dois caminhos só roda o Plano aprovado, com o custo em créditos visível antes de ativar.
+_Avoid_: template (é de Sequência), tipo de Sinal como formulário
 
 **Interação**:
 Um contato comercial registrado entre alguém do Cliente e um Contato: e-mail enviado ou recebido, mensagem enviada, ligação ou reunião. Uma sequência só criada, sem envio, não é Interação. A Interação permanece associada à Conta-alvo onde ocorreu mesmo após encerrar ou mudar o Vínculo do Contato. O "Último contato" de uma Conta-alvo é a Interação mais recente ocorrida com um Contato dela.
@@ -179,11 +211,18 @@ _Avoid_: lead, prospect, oportunidade
 O desfecho observado de um Envio de passo que saiu: resposta, resposta positiva, resposta negativa, reunião marcada ou oportunidade. Um Envio sem desfecho está sem resposta. A resposta recebida registra "resposta" sozinha; o resto é dito pela pessoa responsável pela Sequência ou por um Agente, e fica quem classificou e quando. Resposta negativa conta como resposta, nunca como sucesso. As taxas por canal e segmento são do Workspace e não saem dele.
 
 **Crédito**:
-A unidade de consumo de um Workspace. Gastam créditos a varredura de Sinais, a coleta de pessoas (só quem a Conta-alvo ainda não conhecia), a revelação de e-mail (só quando traz um e-mail que o Contato ainda não tinha; quem já tem e-mail nem dispara a busca) e cada Execução de Agente. O que já foi descoberto nunca é cobrado de novo. Telefone não se revela. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
+A unidade de consumo de um Workspace. Gastam créditos a Rodada de um Sinal (pelo Preço por rodada) e a varredura de Sinais de uma Conta (a Busca de Sinais), a coleta de pessoas (só quem a Conta-alvo ainda não conhecia), a revelação de e-mail (só quando traz um e-mail que o Contato ainda não tinha; quem já tem e-mail nem dispara a busca), a revelação de telefone (5 créditos, nas mesmas regras: só quando traz um telefone que o Contato ainda não tinha) e cada Execução de Agente. O que já foi descoberto nunca é cobrado de novo. O saldo é único por Workspace, abastecido pelos assentos do plano e por pacotes, com limite por pessoa definido pelo Administrador. Paga o Workspace onde a ação acontece.
 _Avoid_: token, saldo de uso
 
+**Preço por rodada**:
+Quantos Créditos uma Rodada de Sinal gasta. A cobrança é por Rodada (decidida): mais Rodadas, mais Créditos, por escolha do Cliente, que vê o preço por Rodada, por dia e por mês antes de ativar, sempre em Créditos (nunca em dólar, em custo de fornecedor, em nome de actor, em valor de Teto nem no limite que o Workspace já tem; a única exceção é o limite mensal **sugerido** que o Administrador vê já preenchido ao liberar a automação na ativação, em Créditos).
+O **preço** é fixo por fonte (**decidido pelo Kauê em 24/10/2026**, ADR-0032 decisão 2): o preço de uma Conta verificada vezes as Contas do **lote** (as do escopo, no máximo as empresas por Rodada), ou o preço fixo da descoberta no mercado. A Rodada sem novidade cobra o que verificou, e a Conta sem dado não cobra. A **estimativa** antes de ativar é "até" N Créditos por Rodada, por dia (no dia com mais Rodadas) e por mês (Rodadas por semana × 52 / 12 × o preço da Rodada, arredondado para cima), mais quantos dias o saldo aguenta nesse ritmo e o aviso de que mais de 2 Rodadas por dia costuma repetir resultados (**decidido pelo Kauê em 24/10/2026**). A estimativa vem do servidor (`quote_signal_schedule`) e também diz o que ainda bloqueia a ativação: contrato inativo, automação não liberada (sem mostrar o valor do Teto) ou saldo que não cobre uma Rodada.
+O **Limite por dia** é opcional, em Créditos, e vale por Sinal: soma o que o Sinal já gastou no dia de Brasília, Rodadas agendadas e manuais juntas, e a Conta que o estouraria não é verificada nem cobrada. O sugerido é o custo máximo de um dia da Agenda e a pessoa só pode baixá-lo (**decidido pelo Kauê em 24/10/2026**).
+**Sem Créditos**, a Rodada é pulada sem cobrança e fica registrada; a Rodada que para no meio cobra só o que foi verificado. Depois de **3 Rodadas agendadas seguidas puladas** por falta de Créditos, o Sinal fica **pausado por falta de créditos**: a tela mostra o motivo, com o caminho para ver os créditos e reativar, e os Administradores recebem um Aviso do Workspace; reativar zera a contagem (**decidido pelo Kauê em 24/10/2026**, ADR-0032 decisão 14). Já na **1ª Rodada pulada** a tela avisa (o Sinal segue ativo), com "Ver créditos" para a página de créditos que já existe; o aviso some quando uma Rodada verifica alguma Conta. A Rodada manual não conta nessa contagem.
+_Avoid_: tarifa, mensalidade do Sinal
+
 **Teto**:
-O limite mensal de Créditos que uma ação automática pode gastar. Nada automático roda sem Teto; ao atingi-lo, a ação volta a pedir confirmação até o próximo ciclo.
+O limite mensal de Créditos que uma ação automática pode gastar. Nada automático roda sem Teto; ao atingi-lo, a ação volta a pedir confirmação até o próximo ciclo. A Rodada agendada é automática, então o Teto mensal vale para ela. "Rodar agora" (clique de uma pessoa) não exige nem consome o Teto, como o "Buscar Sinais de novo" manual: é **decidido pelo Kauê em 24/10/2026** (ADR-0032, decisão 4) e está isolado num lugar só do banco. Gasta créditos e respeita o saldo e os limites sempre. Ao ativar um Sinal com Agenda sem a automação liberada, o Administrador vê o limite mensal da automação **já preenchido** com o custo estimado do mês mais 20% (créditos inteiros, para cima, até a faixa do contrato), edita se quiser e libera e ativa num passo; liberar nunca baixa um limite que o Workspace já tem. O Limite por dia de cada Sinal é outro limite, do Preço por rodada, e não substitui o Teto mensal.
 _Avoid_: orçamento, budget
 
 **Observador**:
@@ -197,12 +236,20 @@ _Avoid_: onboarding pago, implantação
 ## Agentes
 
 **Especialidade**:
-Um dos quatro tipos fixos de trabalho do catálogo da Althius (Scopus, Ethos, Rhetor, Oraculum). O Cliente não cria Especialidades.
-_Avoid_: template, modelo, tipo de agente
+Um dos quatro tipos fixos de trabalho do catálogo da Althius (Scopus, Ethos, Rhetor, Oraculum). O Cliente não cria Especialidades. O Agente de Sinal e o Agente de Contas não são Especialidades novas do catálogo; se o Agente de Contas passa a ser uma ou é o Scopus reposicionado está em aberto na ADR-0032.
+_Avoid_: template, modelo de agente, tipo de agente
 
 **Agente**:
-Um trabalhador de uma Especialidade dentro de um Workspace. É um Agente padrão ou um Agente criado.
-_Avoid_: bot, assistente, "agente de X"
+Um trabalhador de uma Especialidade dentro de um Workspace. É um Agente padrão ou um Agente criado. "Agente de Sinal" e "Agente de Contas" são os únicos "agente de X" aceitos, e nomeiam experiências ([ADR-0032](docs/adr/0032-agente-de-sinal-e-agente-de-contas.md), proposta), não Especialidades.
+_Avoid_: bot, assistente, "agente de X" (exceto Agente de Sinal e Agente de Contas)
+
+**Agente de Sinal**:
+O nome que o Cliente vê para o fluxo em que descreve o que quer (Briefing), revisa o Plano que a IA monta, escolhe a Agenda e vê o Preço por rodada antes de ativar. Por trás roda um Monitoramento, e só o Plano aprovado.
+_Avoid_: bot de Sinais
+
+**Agente de Contas**:
+Um chat dentro de Contas e Contatos que busca, filtra e lê Contas-alvo e Candidatas, pede enriquecimento (com o custo à vista), propõe aceitar ou descartar e transforma uma conversa num rascunho de Sinal ("roda Sinais nessas Contas"). Propõe e rascunha: aceitar, descartar e ativar são decisões de uma pessoa. Não é a Coordenação (que não tem nome).
+_Avoid_: bot de Contas, assistente de Contas
 
 **Agente padrão**:
 O Agente que todo Workspace tem para cada Especialidade, com o nome dela (ex.: "Scopus"). Não pode ser excluído.

@@ -3,6 +3,7 @@
 // do último passo lido. Assim, recarregar a página ou perder a conexão só retoma a leitura: o pedido não roda de novo,
 // e a mesma tentativa reenviada (mesmo clientRequestId) cai na mesma Execução. Falha é passo de falha, nunca resposta.
 
+import type { MotivoDasConversasIndisponiveis } from './ambiente'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { corpoDoErroDaFuncao, motivoDaFalhaDaFuncao } from './falha-da-edge-function'
 import { reconhecerMencoes } from './mencoes'
@@ -10,6 +11,7 @@ import type {
   AgenteId,
   AnexoDaMensagem,
   ConversaDoSlack,
+  ConversaDoWhatsApp,
   ConversaRetomada,
   ConversasRetomadas,
   FonteDeAgentes,
@@ -25,7 +27,7 @@ import type {
 type Tipo = 'agente' | 'coordenada'
 
 /** De onde veio a Conversa: da Althius ou de um thread do Slack (slack-canal 06). */
-type Origem = 'althius' | 'slack'
+type Origem = 'althius' | 'slack' | 'whatsapp'
 
 interface Evento {
   seq: number
@@ -58,6 +60,7 @@ type Fonte = Pick<
   | 'abrirConversa'
   | 'conversaCoordenadaAtual'
   | 'abrirConversaDoSlack'
+  | 'abrirConversaDoWhatsApp'
   | 'historicoDeConversas'
   | 'arquivarConversa'
   | 'abrirConversaDoAgente'
@@ -84,6 +87,9 @@ interface ConversaListada {
 
 const MOTIVOS: Record<string, string> = {
   timeout: 'O pedido passou do tempo e foi interrompido. Tente de novo.',
+  timeout_queued: 'O motor dos Agentes não pegou o pedido em até 10 minutos. Tente de novo.',
+  timeout_running: 'O motor dos Agentes parou antes de concluir o pedido. Tente de novo.',
+  routine_paused: 'A Rotina foi pausada antes de a Execução começar.',
   model_refusal: 'O modelo recusou este pedido.',
   model_incomplete: 'A resposta ficou longa demais e foi cortada. Tente um pedido menor.',
   model_rate_limited: 'O modelo está sobrecarregado agora. Tente de novo em alguns minutos.',
@@ -146,13 +152,31 @@ function descricaoDaConsulta(payload: Evento['payload']): string {
  * Se o Workspace operacional tem Conversas: a Edge Function responde se o modelo está configurado. Qualquer falha
  * (função não publicada, sem rede) conta como indisponível, e a tela diz isso em vez de simular.
  */
-export async function conversasDisponiveis(cliente: SupabaseClient): Promise<boolean> {
+export interface DisponibilidadeDasConversas {
+  available: boolean
+  motivo?: MotivoDasConversasIndisponiveis
+}
+
+// A leitura detalhada preserva também o contrato booleano dos consumidores existentes.
+export function conversasDisponiveis(cliente: SupabaseClient): Promise<boolean>
+export function conversasDisponiveis(cliente: SupabaseClient, comMotivo: true): Promise<DisponibilidadeDasConversas>
+export async function conversasDisponiveis(cliente: SupabaseClient, comMotivo = false): Promise<boolean | DisponibilidadeDasConversas> {
+  let resultado: DisponibilidadeDasConversas = { available: false }
   try {
     const { data, error } = await cliente.functions.invoke('agent-conversation', { body: { action: 'capability' } })
-    return !error && (data as { available?: unknown } | null)?.available === true
+    if (!error) {
+      const resposta = data as { available?: unknown; motivo?: unknown } | null
+      const available = resposta?.available === true
+      const motivo = resposta?.motivo
+      resultado = {
+        available,
+        ...(!available && (motivo === 'motor_fora_do_ar' || motivo === 'sem_modelo') ? { motivo } : {}),
+      }
+    }
   } catch {
-    return false
+    // Falha de comunicação mantém o módulo indisponível, sem inventar o motivo.
   }
+  return comMotivo ? resultado : resultado.available
 }
 
 const terminou = (status: Leitura['status']) => status === 'succeeded' || status === 'failed'
@@ -342,7 +366,7 @@ export function criarFonteDeConversasSupabase(
     if (error) throw new Error('Não foi possível carregar as Conversas.')
     // A Conversa do Slack continua no thread: a página do Agente retoma só a da Althius.
     const linhas = (data as { id: string; kind: Tipo; agent_id: string | null; origin?: Origem }[])
-      .filter((linha) => linha.origin !== 'slack')
+      .filter((linha) => linha.origin !== 'slack' && linha.origin !== 'whatsapp')
     // A mais recente de cada lugar, como estava antes de recarregar.
     const ultimaCoordenada = linhas.find((linha) => linha.kind === 'coordenada')
     const ultimas = new Map<AgenteId, string>()
@@ -384,6 +408,7 @@ export function criarFonteDeConversasSupabase(
         atualizadaEm: linha.updated_at,
         emAndamento: linha.open_run_id !== null,
         ...(doSlack ? { doSlack } : {}),
+        ...(linha.origin === 'whatsapp' ? { doWhatsapp: true as const } : {}),
       }
     })
   }
@@ -442,6 +467,13 @@ export function criarFonteDeConversasSupabase(
     return { turnos, emAndamento, agenteId }
   }
 
+  /** Abre só para leitura: as Conversas do WhatsApp continuam pelo Canal, nunca pelo composer do app. */
+  async function abrirConversaDoWhatsApp(id: string): Promise<ConversaDoWhatsApp> {
+    const { turnos, emAndamento, origem } = await lerConversa(id, passoDaCoordenacao, null, false)
+    if (origem !== 'whatsapp') throw new Error('Esta Conversa não veio do WhatsApp.')
+    return { turnos, emAndamento }
+  }
+
   return {
     conversar,
     conversarCoordenado,
@@ -453,6 +485,7 @@ export function criarFonteDeConversasSupabase(
     abrirConversa,
     conversaCoordenadaAtual: () => coordenada,
     abrirConversaDoSlack,
+    abrirConversaDoWhatsApp,
     historicoDeConversas,
     arquivarConversa,
     abrirConversaDoAgente,

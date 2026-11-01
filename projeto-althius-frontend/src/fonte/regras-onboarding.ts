@@ -105,6 +105,9 @@ export function aplicarLeitura(
   for (const campo of CAMPOS_DO_MINI_ICP_E_PRODUTO) {
     if (aindaESugestao(checklist[campo], anterior?.[campo])) novo[campo] = leitura[campo]
   }
+  for (const campo of ['setor', 'porte', 'regiao'] as const) {
+    if (aindaESugestao(checklist[campo] ?? '', anterior?.[campo])) novo[campo] = leitura[campo] ?? ''
+  }
   const emTexto = (personas: readonly string[]) => personas.join('\n')
   if (aindaESugestao(emTexto(checklist.personas), anterior ? emTexto(anterior.personas) : undefined)) {
     novo.personas = [...leitura.personas]

@@ -1,4 +1,4 @@
-import { Archive, Building2 } from 'lucide-react'
+import { Archive, Building2, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { Carregando } from '@/components/marca'
 import { Pagina } from '@/components/pagina'
@@ -21,6 +21,7 @@ import {
 } from './modulo-contas-e-contatos'
 import { ADERENCIAS, type GrupoDaPrioridade, grupoDaConta, posicaoDaAderencia, ROTULO_ADERENCIA } from './ordem-da-aderencia'
 import { useRecorteNoEndereco } from './recorte-no-endereco'
+import { DialogoRevelarEmailEmLote } from './revelar-email-em-lote'
 import { type LinhaDeContato, TabelaDeContatos, temDadosDeContato } from './tabela-de-contatos'
 import { useEstadoParaODetalhe, useRolagemDaLista } from './voltar-para-a-lista'
 
@@ -103,6 +104,12 @@ export function PaginaContatos() {
   const quadro = useRolagemDaLista(listaVisivel)
   const estadoDoLink = useEstadoParaODetalhe('Contatos')
   const [verArquivados, setVerArquivados] = useState(false)
+  // Revelar e-mail em lote (enriquecimento 03): só existe onde a fonte oferece revelar um Contato por vez.
+  const podeRevelarEmLote = !!fonte.revelarContato
+  const [selecionados, setSelecionados] = useState<string[]>([])
+  const [loteAberto, setLoteAberto] = useState(false)
+  const alternarSelecao = (contatoId: string) =>
+    setSelecionados((atuais) => (atuais.includes(contatoId) ? atuais.filter((id) => id !== contatoId) : [...atuais, contatoId]))
 
   // Os Contatos arquivados ficam fora da lista padrão (CRM-18): esta visão os mostra, para restaurar ou apagar.
   if (verArquivados && fonte.contatosArquivados) {
@@ -145,6 +152,12 @@ export function PaginaContatos() {
             Arquivados
           </Button>
         )}
+        {podeRevelarEmLote && selecionados.length > 0 && (
+          <Button type="button" variant="outline" onClick={() => setLoteAberto(true)} className={BOTAO_DO_CABECALHO}>
+            <Mail className="mr-1.5 size-3.5" aria-hidden />
+            Revelar E-mail em lote
+          </Button>
+        )}
       </div>
 
       {contatos && contatos.length > 0 && (
@@ -185,9 +198,22 @@ export function PaginaContatos() {
       {listaVisivel && (
         // O mesmo quadro da tabela de Contas: cabeçalho fixo na rolagem vertical e o Nome fixo na horizontal.
         <div ref={quadro} className="min-h-0 overflow-auto">
-          <TabelaDeContatos linhas={linhas} hoje={hoje} rotulo="Tabela de Contatos" estadoDoLink={estadoDoLink} />
+          <TabelaDeContatos
+            linhas={linhas}
+            hoje={hoje}
+            rotulo="Tabela de Contatos"
+            estadoDoLink={estadoDoLink}
+            selecionados={podeRevelarEmLote ? selecionados : undefined}
+            aoAlternarSelecao={podeRevelarEmLote ? alternarSelecao : undefined}
+          />
         </div>
       )}
+
+      <DialogoRevelarEmailEmLote
+        aberto={loteAberto}
+        aoMudar={setLoteAberto}
+        contatos={(contatos ?? []).filter((contato) => selecionados.includes(contato.id))}
+      />
     </Pagina>
   )
 }

@@ -1,0 +1,16 @@
+{
+  "name": "althius-e2e",
+  "description": "Smoke E2E da produção Althius (rodado pelo bot depois de cada deploy, nunca no CI)",
+  "private": true,
+  "scripts": {
+    "smoke:prod": "playwright test",
+    "smoke:relatorio": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}

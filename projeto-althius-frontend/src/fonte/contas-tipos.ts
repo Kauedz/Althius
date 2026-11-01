@@ -325,6 +325,8 @@ export interface ResultadoDoComite {
   novas: number
   /** Já eram propostas da Conta ou Contatos dela: sem custo. */
   jaEncontradas: number
+  /** Pessoas achadas cuja proposta não foi gravada: não contam nem custam, e a tela avisa. */
+  naoGravadas?: number
 }
 
 /** Em que pé está o Envio ao CRM de uma Conta-alvo (a tentativa mais recente). */
@@ -499,8 +501,7 @@ export interface FonteDeContas extends FonteObservavel {
   descartarContatoProposto?(propostaId: string, motivo?: string): Promise<void>
 
   /**
-   * Cota o custo prévio de revelação de canal (e-mail: 2 créditos, telefone: 5 créditos). Se o Contato já tem o dado,
-   * cota 0 e `jaEncontrado`.
+   * Cota o custo prévio de revelação de canal. Se o Contato já tem o dado, cota 0 e `jaEncontrado`.
    */
   cotarRevelacaoContato?(contatoId: string, canal: 'email' | 'telefone'): Promise<{ creditos: number; saldo: number; podeRevelar: boolean; jaEncontrado?: boolean }>
 

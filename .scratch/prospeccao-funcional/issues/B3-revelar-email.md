@@ -1,18 +1,18 @@
 # B3: Revelar e-mail só cobra valor novo
 
-**What to build:** revelar o e-mail de um Contato cobra os 2 créditos só quando grava um e-mail que esse Contato ainda não tinha. O e-mail entra nos canais dele (o principal ou um adicional em `contact_emails`, até três). A origem gravada respeita `p_source`. Se o actor não acha e-mail novo, nada é debitado e o e-mail que já estava permanece. Se o actor falha, a tela mostra falha, não "não encontrado". O telefone aparece indisponível e não reserva crédito.
+**What to build:** revelar o e-mail de um Contato cobra os 2 créditos só quando grava um e-mail que esse Contato ainda não tinha. O e-mail entra nos canais dele (o principal ou um adicional em `contact_emails`, até três). A origem gravada respeita `p_source`. Se o actor não acha e-mail novo, nada é debitado e o e-mail que já estava permanece. Se o actor falha, a tela mostra falha, não "não encontrado". O telefone aparece indisponível e não reserva crédito (superado em 28/10 pelo PR #342; ver Comments).
 
 **Blocked by:** B2. Os dois editam o provedor de contatos, o handler e `comite-e-enriquecimento.tsx`. O merge na `main` espera o 00.
 
-**Status:** ready-for-human (código fechado, com a leitura do e-mail confirmada na execução real; faltam aplicar a migration e publicar a função)
+**Status:** closed (migration aplicada no remoto, conferida em 28/10)
 
 - [x] A entrada de `harvestapi~linkedin-profile-scraper` é a do schema do build atual na API do Apify. Leia o schema nessa hora. Não trate `profileUrls` e `findEmail` como corretos e não invente a substituição. Vale o mesmo para o campo do e-mail na saída: o registro do actor já diz que esse nome não estava documentado; confirme no build e, se o schema não trouxer o campo, pare e pergunte. Não chute o nome.
 - [x] `finish_reveal_contact` deixa de usar `coalesce(email, …)`. E-mail igual a um que o Contato já tem (principal ou adicional) não debita e não é regravado. E-mail novo entra no primeiro lugar livre, até três, pela escrita de canais que já existe (`set_contact_channels` e `private.contact_emails`). Com os três lugares ocupados por outros e-mails, não debita e não apaga nenhum.
 - [x] `p_source` é usado. A origem do campo fica `automatico`. O texto de `p_source` (o provedor) fica gravado onde o schema já guarda a procedência do dado coletado. A origem não vira o literal `apify` no check que só aceita `manual`, `importacao` e `automatico`. Um `update` direto em `contacts.email` deixa de marcar a origem como manual por acidente do gatilho.
 - [x] Falha do actor (exceção, timeout) libera a reserva, debita zero e a resposta diz que falhou. "Não encontrado" fica para o actor que terminou sem e-mail novo.
 - [x] O custo em dólares da execução fica gravado no mesmo registro de custo dos outros actors.
-- [x] A tela de telefone não abre cotação, não chama `revelar-contato` com `telefone` e não mostra "5 créditos". Mostra que a revelação de telefone está indisponível. O handler recusa `telefone` antes de reservar crédito e antes de chamar o actor.
-- [x] Deno cobre: e-mail novo debita 2 e grava; e-mail repetido debita 0; falha não parece "não encontrado"; `telefone` não reserva. pgTAP cobre `contact_emails`, a origem e que outro Workspace não lê o e-mail.
+- [x] ~~A tela de telefone não abre cotação, não chama `revelar-contato` com `telefone` e não mostra "5 créditos". Mostra que a revelação de telefone está indisponível. O handler recusa `telefone` antes de reservar crédito e antes de chamar o actor.~~ Entregue em 08/10 e superado em 28/10 pelo PR #342 (`fc892c24`): a tela, o handler e as RPCs voltaram a revelar telefone por 5 créditos.
+- [x] Deno cobre: e-mail novo debita 2 e grava; e-mail repetido debita 0; falha não parece "não encontrado"; ~~`telefone` não reserva~~ (superado pelo PR #342: `handler.test.ts:820` prova que o telefone reserva `phone_revealed`). pgTAP cobre `contact_emails`, a origem e que outro Workspace não lê o e-mail.
 
 ## Pode mexer
 
@@ -80,3 +80,5 @@ Quem executa o ticket não aplica migration nem deploy no remoto.
   - Dentro do Workspace, uma pessoa é um Contato só (`contacts_linkedin_per_workspace`, sem caixa) e um e-mail é de um Contato só: o "outro Contato com o mesmo LinkedIn" é o próprio Contato, coberto pela regra acima. Entre Workspaces nunca há reuso: cada um tem a própria base legal e o próprio registro de coleta (LGPD).
   - Consequência: o segundo e-mail (posições 2 e 3 de `contact_emails`) deixa de ser buscado pelo actor para quem já tem um. `finish_reveal_contact` não mudou.
   - Tela: "Já encontrado, sem custo" na cotação e no resultado.
+- 2026-10-28 (fechamento da spec): o critério do telefone deixou de valer na `main`. O PR #342 (`fc892c24`, decisão do Kauê de 28/10) pôs o botão "Revelar Telefone" (`comite-e-enriquecimento.tsx:558-563`) e o handler aceita `telefone`. Os critérios de e-mail continuam valendo. A Decisão da spec e o `CONTEXT.md` foram atualizados.
+- 2026-10-28 (fechamento da spec): conferido no remoto `ycbdilsmydvzezhlymty` com consulta só de leitura em `supabase_migrations.schema_migrations`: `20261009030000` aplicada. `account-enrichment` publicada na versão 18 (28/10, 17:17 BRT). O telefone ficou com o PR #342, fora desta spec. `closed`.

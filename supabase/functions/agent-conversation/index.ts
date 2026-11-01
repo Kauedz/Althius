@@ -45,7 +45,7 @@ const modelo = modeloConfigurado()
 const modeloDoCliente = (chave: { provider: string; model: string; apiKey: string }): Modelo | null =>
   chave.provider === 'anthropic' ? modeloDaAnthropic({ apiKey: chave.apiKey, modelo: chave.model }) : null
 // Com AGENT_PROVIDER=hermes, a função só guarda o pedido: quem roda é o worker do Hermes (`_hermes-worker`), que busca
-// a fila. As Conversas aparecem disponíveis; sem o worker ligado, o pedido vira falha por prazo em 10 minutos.
+// a fila. Só aceita pedidos com sinal de vida recente do motor.
 const comHermes = (Deno.env.get('AGENT_PROVIDER') || '').trim().toLowerCase() === 'hermes'
 
 const admin = createClient(SUPABASE_URL, required('SUPABASE_SERVICE_ROLE_KEY'), {
@@ -184,6 +184,8 @@ const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (work: Promise<unkn
 
 Deno.serve(createHandler({
   db,
+  comHermes,
+  ultimoSinalDoMotor: () => rpc<string | null>('agent_engine_last_heartbeat', {}),
   executar: comHermes ? () => Promise.resolve() : modelo ? createRunner({ db: runDb, modelo, modeloDoCliente, ferramentas }) : null,
   waitUntil: runtime?.waitUntil ? (work) => runtime.waitUntil!(work) : (work) => void work,
   appOrigin: APP_ORIGIN,

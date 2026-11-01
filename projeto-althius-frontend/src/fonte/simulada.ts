@@ -487,6 +487,9 @@ export function criarFonteSimulada({
     removerDoWorkspace: (contaId) => mudar(() => participacoes.remover(contaId)),
 
     plano: () => responder(() => participacoes.plano(execucoesNoMes())),
+    saldoDeCreditos: () => responder(() => ({ lancado: 4380, reservado: 120, disponivel: 4260, ilimitado: false })),
+    precosDeCreditos: () => responder(() => [{ acao: 'agent_round', creditos: 1, descricao: 'Uma rodada de Agente' }, { acao: 'account_scan', creditos: 1, descricao: 'Uma Conta varrida por um Sinal' }, { acao: 'email_revealed', creditos: 2, descricao: 'Um e-mail revelado' }, { acao: 'phone_revealed', creditos: 5, descricao: 'Um telefone revelado' }]),
+    extratoDeCreditos: () => responder(() => [{ id: 'demo-1', creditos: -2, tipo: 'acao', acao: 'email_revealed', sinal: 'Sinal de intenção de compra', criadoEm: '2026-09-23T12:00:00Z' }, { id: 'demo-2', creditos: 4500, tipo: 'plano', acao: null, sinal: null, criadoEm: '2026-09-01T12:00:00Z' }]),
 
     especialidades: () => responder(() => especialidades),
 

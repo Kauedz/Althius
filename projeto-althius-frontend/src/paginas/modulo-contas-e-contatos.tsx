@@ -13,7 +13,7 @@ import { cn, iniciais } from '@/lib/utils'
  */
 
 const ABAS_MODULO = [
-  { rotulo: 'Contas', para: '/contas' },
+  { rotulo: 'Contas', para: '/contas', end: true },
   { rotulo: 'Contatos', para: '/contatos' },
   { rotulo: 'Descobertas', para: '/contas/descobertas' },
 ]

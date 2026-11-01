@@ -15,6 +15,7 @@ import {
 import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AvisoDeContratoInativo } from '@/components/aviso-de-contrato-inativo'
+import { LimiteDeErro } from '@/components/limite-de-erro'
 import { AvatarDePessoa, IconeDaEspecialidade, IndicadorDeEstado, rotuloDoEstado } from '@/components/marca'
 import { IndicadorDeSecoes } from '@/components/indicador-de-secoes'
 import { LogoDoWorkspace } from '@/components/logos'
@@ -63,6 +64,7 @@ function useTelaEstreita() {
 }
 
 export function Casca() {
+  const { pathname } = useLocation()
   const [recolhida, setRecolhida] = useState(lerBarraRecolhida)
   const estreita = useTelaEstreita()
   const recolhidaNaTela = recolhida || estreita
@@ -90,7 +92,9 @@ export function Casca() {
       </BarraRecolhida.Provider>
       <main className="flex min-w-0 flex-col">
         <AvisoDeContratoInativo />
-        <Outlet />
+        <LimiteDeErro chaveDeReinicio={pathname}>
+          <Outlet />
+        </LimiteDeErro>
       </main>
       <IndicadorDeSecoes />
     </div>

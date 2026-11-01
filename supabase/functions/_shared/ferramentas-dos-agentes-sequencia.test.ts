@@ -1,4 +1,5 @@
-// A Sequência proposta pelo Rhetor (cadencia-pela-ia 01): só o Rhetor recebe `propor_sequencia`; a chamada vira uma
+// A Sequência proposta pela IA (cadencia-pela-ia 01): as ferramentas ficam disponíveis às quatro Especialidades que
+// executam ferramentas; a chamada vira uma
 // Aprovação da categoria sequencia pela RPC, sempre esperando o Vendedor responsável, mesmo com a Permissão Executar, e
 // o passo da Conversa leva até ela. Sem Contatos, a ferramenta lista os da Conta. Cada recusa do banco volta ao Rhetor
 // em palavras. O banco é um dublê, e as RPCs são conferidas pelo `bancoDasFerramentas` com um `rpc` falso.
@@ -25,6 +26,7 @@ const agente = (specialty: string): AgenteDoWorkspace => ({
   voice_tone: '',
 })
 const RHETOR = agente('rhetor')
+const SCOPUS = agente('scopus')
 
 const CONTA = '11111111-1111-4111-8111-111111111111'
 const MARIA = '22222222-2222-4222-8222-222222222222'
@@ -78,17 +80,21 @@ const TRES_PASSOS = [
 ]
 const PROPOSTA = { conta_id: CONTA, contatos: [MARIA, JOAO], passos: TRES_PASSOS, justificativa: 'A Alfa abriu 12 vagas de vendas.' }
 
-Deno.test('só o Rhetor recebe propor_sequencia, e só com o contrato do banco', () => {
+Deno.test('um agente não-Rhetor recebe propor_sequencia quando o contrato do banco existe', () => {
   const { sessao } = montar()
   assert(nomes(sessao, RHETOR).includes('propor_sequencia'))
-  for (const outro of ['scopus', 'ethos', 'oraculum']) assert(!nomes(sessao, agente(outro)).includes('propor_sequencia'))
+  assert(nomes(sessao, SCOPUS).includes('propor_sequencia'))
   assert(!nomes(montar({ semContrato: true }).sessao, RHETOR).includes('propor_sequencia'))
 })
 
-Deno.test('a descrição ensina o Sinal no primeiro e-mail, a Cadência do Playbook, o padrão e as variáveis', () => {
+Deno.test('a descrição usa Sinal quando houver e Conta enriquecida quando não houver', () => {
   const descricao = montar().sessao.paraOAgente(RHETOR).find((f) => f.nome === 'propor_sequencia')!.descricao
   assertStringIncludes(descricao, 'ler_contas_e_sinais')
-  assertStringIncludes(descricao, 'Use o Sinal no primeiro e-mail')
+  assertStringIncludes(descricao, 'se houver')
+  assertStringIncludes(descricao, 'Conta enriquecida')
+  assertStringIncludes(descricao, 'ICP')
+  assertStringIncludes(descricao, 'Comitê')
+  assertStringIncludes(descricao, 'Playbook')
   assertStringIncludes(descricao, 'seção Cadência do Playbook')
   assertStringIncludes(descricao, '3 passos de E-mail (dia 0, 3 e 7')
   assertStringIncludes(descricao, '{{primeiro_nome}}')

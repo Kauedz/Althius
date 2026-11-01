@@ -38,7 +38,7 @@ import { RegistrarAberturaDeSinais, RetornoDoChecklist } from '@/paginas/onboard
 import { PaginaSequencias } from '@/paginas/sequencias'
 import { SinaisDoMockupProvider } from '@/paginas/sinais/estado'
 import { ContextoDasPosicoesDasListas, criarPosicoesDasListas } from '@/paginas/voltar-para-a-lista'
-import { ContaComSinais, LayoutSinais, PaginaDePedidoDeSinal, PaginaDeSinaisDeMercado, PaginaDoTipo, PaginaIndiceDeMercado, PaginaSinais, RotaDoEditor, RotaDoEditorDeCascata } from '@/paginas/sinais/rotas'
+import { ContaComSinais, LayoutSinais, PaginaDePedidoDeSinal, PaginaDoBriefing, PaginaDeSinaisDeMercado, PaginaDoTipo, PaginaIndiceDeMercado, PaginaSinais, RotaDoEditor, RotaDoEditorDeCascata } from '@/paginas/sinais/rotas'
 
 interface Props {
   /** As fontes do ambiente, escolhidas no ponto de composição pela sessão e pelo Workspace. */
@@ -61,6 +61,7 @@ export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }:
       <Route element={<EntradaNaCasca />}>
         <Route element={<Casca />}>
           <Route index element={<TelaDoModulo modulo="agentes" titulo="Agentes" icone={Bot}><PaginaAgentes /></TelaDoModulo>} />
+          <Route path="agentes" element={<Navigate to="/" replace />} />
           <Route path="contas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaContas /></TelaDoModulo>} />
           <Route path="contas/descobertas" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaDescobertas /></TelaDoModulo>} />
           <Route path="contas/importar" element={<TelaDoModulo modulo="contas" titulo="Contas" icone={Building2}><PaginaImportarContas /></TelaDoModulo>} />
@@ -71,6 +72,7 @@ export function App({ ambiente, rotaInicial, basename, animarDigitacao = true }:
           <Route path="sequencias/:sequenciaId" element={<PaginaSequencias />} />
           <Route path="sinais" element={<TelaDoModulo modulo="sinais" titulo="Sinais" icone={RadioTower}><SinaisNaCasca /></TelaDoModulo>}>
             <Route index element={<PaginaSinais />} />
+            <Route path="novo" element={<PaginaDoBriefing />} />
             <Route path="tipos/:tipoId" element={<PaginaDoTipo />} />
             <Route path="tipos/:tipoId/novo" element={<RotaDoEditor />} />
             <Route path="tipos/:tipoId/:monitoramentoId" element={<RotaDoEditor />} />

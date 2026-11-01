@@ -1,6 +1,9 @@
 import { contatoParaRevelar } from './contato-para-revelar.ts'
 import { propostaGravada } from './proposta-gravada.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { chamarFerramenta } from '../_shared/integration-access.ts'
+import { bancoDasIntegracoes } from '../_shared/integracoes/banco-supabase.ts'
+import { ApolloProvedorDeContatos } from '../_shared/provedor-de-contatos.ts'
 import { type AdminDeColeta, contasDeColeta, memoriaDasContasDeColeta } from '../_shared/apify-ambiente.ts'
 import { clienteDoApify } from '../signal-scan/apify.ts'
 import { apifyDoEnriquecimento } from './apify-do-enriquecimento.ts'
@@ -205,10 +208,28 @@ const db: DbEnrichment = {
   },
 }
 
+// O Apollo do Cliente pela camada de Integrações: só entra na cascata quando a pessoa tem um Acesso ao Apollo neste
+// Workspace. A própria pessoa pediu o comitê ou o e-mail (decisaoDaPessoa); a regra do Administrador continua valendo.
+const acesso = { banco: bancoDasIntegracoes((nome: string, parametros: Record<string, unknown>) => admin.rpc(nome, parametros)), ambiente: (nome: string) => Deno.env.get(nome) }
+
+async function provedoresDoCliente({ workspaceId, userId }: { workspaceId: string; userId: string }) {
+  const temApollo = await acesso.banco.acessoParaUso({ workspaceId, userId, integrationId: 'apollo' }).then(Boolean, () => false)
+  if (!temApollo) return {}
+  return {
+    apollo: new ApolloProvedorDeContatos(async (ferramenta, argumentos) => {
+      const r = await chamarFerramenta(acesso, { workspaceId, userId, integrationId: 'apollo', ferramenta, argumentos, decisaoDaPessoa: true })
+      if (!r.ok) throw new Error(r.erro.mensagem)
+      if (r.valor.erro) throw new Error('O Apollo recusou a chamada.')
+      return r.valor
+    }),
+  }
+}
+
 Deno.serve(
   criarHandlerEnrichment({
     db,
     apify: apifyInstance,
+    provedoresDoCliente,
     appOrigin: APP_ORIGIN,
   }),
 )

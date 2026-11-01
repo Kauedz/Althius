@@ -61,6 +61,7 @@ import {
   FUSO_PADRAO,
   INTERVALO_MINUTOS_SUGERIDO,
   MAXIMO_DIARIO_SUGERIDO,
+  type AnaliseDaResposta,
   type AnexoRecebido,
   type AnexoStep,
   type AutorizacaoDosEnvios,
@@ -70,12 +71,13 @@ import {
   type EnvioDoPasso,
   type LiberacaoDoPasso,
   type RespostaRecebida,
+  type RevisaoDeRetencao,
   type Sequencia,
   type StatusSequencia,
   type StepSequencia,
 } from '@/fonte/sequencias-tipos'
 import type { ContaAlvo, Contato } from '@/fonte/contas-tipos'
-import { normalizarWhatsApp, validarEmail } from '@/fonte/simulada-contas'
+import { normalizarWhatsApp, validarEmail } from '@/fonte/validar-destinos'
 
 interface Props {
   sequenciaId: string
@@ -215,6 +217,17 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
     (f) => (f.canaisDeChatLiberados ? f.canaisDeChatLiberados() : Promise.resolve(null)),
     [sequenciaId],
   )
+  const { dados: revisao, recarregar: recarregarRevisao } = useDadosDeSequencias(
+    (f) => (f.revisaoDeRetencao ? f.revisaoDeRetencao(sequenciaId) : Promise.resolve(null)),
+    [sequenciaId],
+  )
+  const [erroDaRetencao, setErroDaRetencao] = useState<string | null>(null)
+  const [confirmacaoNaoContatar, setConfirmacaoNaoContatar] = useState(false)
+  const [selecaoDaRetomada, setSelecaoDaRetomada] = useState<{
+    sequenciaId: string
+    versao: number
+    contatos: string[]
+  } | null>(null)
   const [dialogoAtivacaoAberto, setDialogoAtivacaoAberto] = useState(false)
   const [agendaConfirmada, setAgendaConfirmada] = useState(false)
   const [passosMarcados, setPassosMarcados] = useState<string[]>([])
@@ -224,6 +237,12 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
   const [avisoDoEnvio, setAvisoDoEnvio] = useState<(AvisoDoEnvio & { stepId: string }) | null>(null)
   const [erroDoAnexo, setErroDoAnexo] = useState<string | null>(null)
   const [imagemAmpliada, setImagemAmpliada] = useState<{ nome: string; url: string } | null>(null)
+
+  const contatosSelecionadosParaRetomar = revisao?.aberta && sequencia
+    ? selecaoDaRetomada?.sequenciaId === sequencia.id && selecaoDaRetomada.versao === revisao.versao
+      ? selecaoDaRetomada.contatos
+      : sequencia.participantesIds.filter((id) => !revisao.contatosPausados.includes(id))
+    : []
 
   const [stepSelecionadoId, setStepSelecionadoId] = useState<string | null>(null)
   const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false)
@@ -522,6 +541,46 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
       status: 'ativa',
       motivoPause: undefined,
     })
+  }
+
+  async function handleDecidirRetencao(decisao: 'pause' | 'continue') {
+    if (!revisao || !fonteDeSequencias.decidirRetencao) return
+    setErroDaRetencao(null)
+    try {
+      const resultado = await fonteDeSequencias.decidirRetencao({
+        sequenciaId: sequencia!.id,
+        decisao,
+        versao: revisao.versao,
+        respostasRevisadas: revisao.pendentes.map((item) => item.id),
+        contatosSelecionados: decisao === 'continue' ? contatosSelecionadosParaRetomar : [],
+      })
+      if (resultado.outcome === 'stale') {
+        setErroDaRetencao('Chegou outra resposta. Revise o conjunto atual antes de continuar.')
+      } else if (resultado.outcome === 'reviewed_other_hold') {
+        setErroDaRetencao('As respostas foram revistas, mas outra pausa da Conta continua valendo.')
+      }
+    } catch (erro) {
+      setErroDaRetencao(erro instanceof Error ? erro.message : 'Não foi possível registrar a decisão.')
+    } finally {
+      recarregarRevisao()
+      recarregar()
+    }
+  }
+
+  async function handleConfirmarNaoContatar(resposta: RespostaRecebida) {
+    if (!sequencia || !fonteDeSequencias.confirmarNaoContatar) return
+    const nome = resposta.de.nome ?? resposta.de.email ?? 'este Contato'
+    if (!window.confirm(`Confirmar que ${nome} pediu para não receber novos contatos? A resposta será guardada como evidência e o e-mail será bloqueado neste Workspace.`)) return
+    try {
+      await fonteDeSequencias.confirmarNaoContatar(sequencia.id, resposta.interacaoId)
+      setConfirmacaoNaoContatar(true)
+      recarregarRevisao()
+      recarregarEnvios()
+      recarregarRespostas()
+      recarregar()
+    } catch (erro) {
+      setErroDaRetencao(erro instanceof Error ? erro.message : 'Não foi possível registrar o pedido de não contato.')
+    }
   }
 
   async function handleMarcarReuniao() {
@@ -874,16 +933,70 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
             <span className="text-xs text-al-muted">
               Regra do produto: qualquer resposta de qualquer Contato (positiva ou negativa) pausa a sequência inteira da empresa.
             </span>
+            {revisao?.aberta && (
+              <RevisaoDaRetencao
+                revisao={revisao}
+                erro={erroDaRetencao}
+                participantesIds={sequencia.participantesIds}
+                contatosMap={contatosMap}
+                selecionados={contatosSelecionadosParaRetomar}
+                aoAlternarContato={(id, marcado) => setSelecaoDaRetomada((atual) => {
+                  const selecionados = atual?.sequenciaId === sequencia.id && atual.versao === revisao.versao
+                    ? atual.contatos
+                    : sequencia.participantesIds.filter((participanteId) => !revisao.contatosPausados.includes(participanteId))
+                  return {
+                    sequenciaId: sequencia.id,
+                    versao: revisao.versao,
+                    contatos: marcado
+                      ? [...new Set([...selecionados, id])]
+                      : selecionados.filter((contatoId) => contatoId !== id),
+                  }
+                })}
+              />
+            )}
+            {!revisao?.aberta && revisao?.podeLerConteudo && revisao.contatosPausados.length > 0 && (
+              <p className="text-xs text-al-muted" aria-label="Contatos em pausa local">
+                Pausa local após revisão: {revisao.contatosPausados.map((id) => contatosMap.get(id)?.nome ?? 'Contato').join(', ')}.
+                A pausa da Conta foi encerrada; esses Contatos seguem retidos até uma nova decisão.
+              </p>
+            )}
+            {confirmacaoNaoContatar && (
+              <p role="status" className="text-xs text-al-muted">Pedido de não contato registrado; este Contato foi suprimido no Workspace.</p>
+            )}
           </div>
         </div>
 
         {/* Ações da regra de pause quando pausada; com a Conta arquivada, só restaurar a Conta libera a retomada */}
-        {sequencia.status === 'pausada' && !sequencia.pausadaPelaConta && (
+        <div className="flex items-center gap-2 shrink-0">
+          {revisao?.aberta && revisao.podeDecidir && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleDecidirRetencao('pause')}
+                className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
+              >
+                Pausar abordagem
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleDecidirRetencao('continue')}
+                disabled={contatosSelecionadosParaRetomar.length === 0}
+                className="h-8 border-al-line text-sm tracking-[0.04em] hover:bg-al-surface"
+              >
+                Continuar envios da Conta
+              </Button>
+            </>
+          )}
+          {sequencia.status === 'pausada' && !sequencia.pausadaPelaConta && !revisao?.aberta && (
           <div className="flex items-center gap-2 shrink-0">
             {/* canais-11: a Conta remetente caiu. Reconectar não retoma; depois, a pessoa retoma quando quiser. */}
             {sequencia.pausadaPelaContaRemetente && (
               <Link
-                to="/configuracoes/perfil"
+                to="/conexoes"
                 className="rounded-md inline-flex h-8 items-center border border-al-ink bg-al-ink px-3 text-sm tracking-[0.04em] text-al-bg hover:opacity-90"
               >
                 Reconectar
@@ -908,7 +1021,8 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
               Marcar reunião
             </Button>}
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Configurações da Sequência (seq-settings): Participantes e Janela padrão */}
@@ -1168,6 +1282,7 @@ export function DetalheSequencia({ sequenciaId, incorporado = false }: Props) {
           carregarImagem={arquivoDoAnexo}
           onAmpliarImagem={setImagemAmpliada}
           erro={erroDoAnexo}
+          onConfirmarNaoContatar={handleConfirmarNaoContatar}
         />
       )}
 
@@ -2274,6 +2389,14 @@ function RodapeDoEnvio({
       {aviso && (
         <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
           {aviso.texto}
+          {aviso.tipo === 'atencao' && /Conta remetente/.test(aviso.texto) && (
+            <>
+              {' '}
+              <Link to="/conexoes" className="underline underline-offset-2">
+                Abrir Canais de envio
+              </Link>
+            </>
+          )}
         </span>
       )}
     </>
@@ -2390,6 +2513,14 @@ function PainelDosEnvios({
       {aviso && (
         <span role="status" className={`basis-full ${aviso.tipo === 'ok' ? 'text-al-sucesso' : 'text-al-atencao'}`}>
           {aviso.texto}
+          {aviso.tipo === 'atencao' && /Conta remetente/.test(aviso.texto) && (
+            <>
+              {' '}
+              <Link to="/conexoes" className="underline underline-offset-2">
+                Abrir Canais de envio
+              </Link>
+            </>
+          )}
         </span>
       )}
     </section>
@@ -2459,6 +2590,101 @@ function MiniaturaDoAnexo({
   )
 }
 
+/** O rótulo de cada classificação da IA (ticket 05): distingue resposta humana, automática e possível não contato. */
+const ROTULO_DA_CLASSIFICACAO_DA_ANALISE: Record<NonNullable<AnaliseDaResposta['classificacao']>, string> = {
+  humana: 'Resposta humana',
+  automatica: 'Resposta automática',
+  possivel_nao_contato: 'Possível pedido de não contato',
+  indeterminada: 'IA não conseguiu classificar',
+}
+
+/** A análise da IA sobre uma resposta pendente: só interpretação, evidência e sugestão. Nunca decide nem é
+ * pré-requisito para a Vendedor decidir — por isso não aparece nada quando `analise` está ausente ou falhou. */
+function AnaliseDaRespostaPendente({ analise }: { analise?: AnaliseDaResposta }) {
+  if (!analise || analise.status === 'falhou') return null
+  if (analise.status === 'gerando') {
+    return <p className="text-xs text-al-muted">Analisando com IA…</p>
+  }
+  return (
+    <p className="text-xs text-al-muted">
+      {analise.classificacao && (
+        <span className="font-medium text-al-ink">{ROTULO_DA_CLASSIFICACAO_DA_ANALISE[analise.classificacao]}</span>
+      )}
+      {analise.interpretacao && <> · {analise.interpretacao}</>}
+      {analise.evidencia && <> · “{analise.evidencia}”</>}
+      {analise.recomendacao && analise.recomendacao !== 'indeterminado' && (
+        <> · Sugestão da IA: {analise.recomendacao === 'pausar' ? 'pausar' : 'continuar'} (decisão sua)</>
+      )}
+    </p>
+  )
+}
+
+/** As respostas que retêm a Conta, dentro do bloco de pause. Sem conteúdo para quem não é o titular. */
+function RevisaoDaRetencao({
+  revisao,
+  erro,
+  participantesIds,
+  contatosMap,
+  selecionados,
+  aoAlternarContato,
+}: {
+  revisao: RevisaoDeRetencao
+  erro: string | null
+  participantesIds: string[]
+  contatosMap: Map<string, Contato>
+  selecionados: string[]
+  aoAlternarContato: (contatoId: string, marcado: boolean) => void
+}) {
+  const rotulo = revisao.estado === 'pausa_decidida' ? 'Pausa decidida' : 'Retenção preventiva'
+  return (
+    <div className="mt-2 flex flex-col gap-1.5" aria-label="Revisão das respostas pendentes">
+      <span className="text-xs font-semibold tracking-rotulo uppercase text-al-muted">{rotulo}</span>
+      <p className="text-xs text-al-muted">
+        {revisao.podeLerConteudo
+          ? 'Revise as respostas pendentes juntas. Continuar vale só para este conjunto; uma resposta nova não libera com esta confirmação. A análise da IA não é necessária.'
+          : `${revisao.pendentes.length === 1 ? '1 resposta pendente' : `${revisao.pendentes.length} respostas pendentes`}. Só o Vendedor responsável lê o conteúdo e decide.`}
+      </p>
+      {revisao.podeLerConteudo && revisao.pendentes.map((item) => (
+        <div key={item.id} className="flex flex-col gap-0.5">
+          <p className="text-sm text-al-ink">
+            {`${item.de ?? 'Contato'}${item.assunto ? `: ${item.assunto}` : item.trecho ? `: ${item.trecho}` : ''}`}
+          </p>
+          <AnaliseDaRespostaPendente analise={item.analise} />
+        </div>
+      ))}
+      {revisao.podeLerConteudo && (
+        <fieldset className="mt-1 flex flex-col gap-1 border-0 p-0" aria-label="Contatos que continuam">
+          <legend className="text-xs font-medium text-al-ink">Contatos que continuam depois da revisão</legend>
+          {participantesIds.map((id) => {
+            const nome = contatosMap.get(id)?.nome ?? 'Contato'
+            return (
+              <label key={id} className="flex items-center gap-2 text-xs text-al-ink">
+                <input
+                  type="checkbox"
+                  aria-label={nome}
+                  checked={selecionados.includes(id)}
+                  onChange={(evento) => aoAlternarContato(id, evento.target.checked)}
+                />
+                <span>{nome}</span>
+                {revisao.contatosPausados.includes(id) && <span className="text-al-muted">· pausa local</span>}
+              </label>
+            )
+          })}
+          {revisao.contatosPausados.length > 0 && (
+            <p className="text-xs text-al-muted">Os Contatos desmarcados permanecem em pausa local; supressões e dependências continuam valendo.</p>
+          )}
+        </fieldset>
+      )}
+      {revisao.podeLerConteudo && revisao.decisoes.length > 0 && (
+        <p className="text-xs text-al-muted">
+          {revisao.decisoes.length === 1 ? '1 decisão registrada' : `${revisao.decisoes.length} decisões registradas`}
+        </p>
+      )}
+      {erro && <p role="alert" className="text-xs text-al-atencao">{erro}</p>}
+    </div>
+  )
+}
+
 /** As respostas recebidas, com conteúdo: só o Responsável pela Sequência chega aqui. */
 function RespostasRecebidas({
   respostas,
@@ -2467,6 +2693,7 @@ function RespostasRecebidas({
   carregarImagem,
   onAmpliarImagem,
   erro,
+  onConfirmarNaoContatar,
 }: {
   respostas: RespostaRecebida[]
   contatosMap: Map<string, Contato>
@@ -2474,6 +2701,7 @@ function RespostasRecebidas({
   carregarImagem: (resposta: RespostaRecebida, anexo: AnexoRecebido) => Promise<Blob>
   onAmpliarImagem: (imagem: { nome: string; url: string }) => void
   erro: string | null
+  onConfirmarNaoContatar: (resposta: RespostaRecebida) => void
 }) {
   return (
     <section aria-label="Respostas recebidas" className="flex min-w-0 flex-col gap-3 break-words rounded-2xl border border-al-line bg-al-surface p-4 max-sm:-mx-10 max-sm:w-[calc(100%+5rem)] max-sm:p-3">
@@ -2500,6 +2728,17 @@ function RespostasRecebidas({
             {resposta.assunto && <p className="text-sm font-medium text-al-ink break-words">{resposta.assunto}</p>}
             {resposta.corpo && (
               <p className="text-sm text-al-ink whitespace-pre-wrap break-words leading-relaxed">{textoDaResposta(resposta.corpo)}</p>
+            )}
+            {resposta.de.email && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onConfirmarNaoContatar(resposta)}
+                className="mt-1 h-7 w-fit border-al-line text-xs"
+              >
+                Confirmar pedido de não contato
+              </Button>
             )}
             {resposta.quantidadeDeAnexos != null && resposta.quantidadeDeAnexos > 0 && (
               <p className="text-xs text-al-muted">

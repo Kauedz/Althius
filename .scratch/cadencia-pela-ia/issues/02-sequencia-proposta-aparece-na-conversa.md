@@ -8,7 +8,7 @@ Spec: [../spec.md](../spec.md) (US 4–6).
 
 **Blocked by:** 01 (O Rhetor propõe uma Sequência de e-mail por Aprovação).
 
-**Status:** ready-for-human — feito na branch `cursor/cadencia-pela-ia`, no mesmo PR do 01 (espera o merge do Kauê). Prints em `prints/02-*.jpg`; frontend não publicado.
+**Status:** ready-for-human — entregue no PR #240 (merge em 2026-10-21). Critérios verificados nesta branch; migration `20261105100000_sequencia_proposta_pelo_rhetor.sql` ainda consta como não aplicada no ticket 01, sem registro posterior no repositório. Prints 1400×900 presentes; frontend não publicado.
 
 **Quem faz:** agente de código. **Esforço:** M.
 
@@ -25,15 +25,19 @@ Spec: [../spec.md](../spec.md) (US 4–6).
 
 ## Critérios
 
-- [ ] A proposta aparece com Contatos e passos, e Aprovar/Recusar só para o Vendedor responsável
-- [ ] Aprovar mostra "Sequência criada, envios não ativados" e o link para a Sequência
-- [ ] Recarregar mostra o mesmo estado sem reenviar o pedido
-- [ ] Prints 1400×900 em `issues/prints/02-*.jpg`
-- [ ] lint, `tsc -b` e vitest verdes
+- [x] A proposta aparece com Contatos e passos, e Aprovar/Recusar só para o Vendedor responsável
+- [x] Aprovar mostra "Sequência criada, envios não ativados" e o link para a Sequência
+- [x] Recarregar mostra o mesmo estado sem reenviar o pedido
+- [x] Prints 1400×900 em `issues/prints/02-*.jpg`
+- [x] lint, `tsc -b` e vitest verdes
 
 ## Como testar
 
 - `npx vitest run --maxWorkers=2 src/paginas/conversa*`
+
+## Comments
+
+- 2026-10-24 (Codex): conferido na base atual após o merge do PR #240. A implementação atende os três critérios funcionais; os seis prints em `issues/prints/02-*.jpg` têm 1400×900. Validações: `npx vitest run --maxWorkers=2 src/paginas/conversa*` (3 arquivos, 12 testes), `npm run lint` (código 0, avisos existentes) e `npx tsc -b` (código 0). A migration `20261105100000_sequencia_proposta_pelo_rhetor.sql` aparece no ticket 01 como não aplicada; não há confirmação posterior no repositório. Nenhuma migration foi aplicada. Não houve alteração de código porque o comportamento já estava entregue e passou as verificações. Revisão do escopo: nenhuma mudança funcional pendente neste ticket.
 
 ## Evidência (auditoria, vertical C)
 

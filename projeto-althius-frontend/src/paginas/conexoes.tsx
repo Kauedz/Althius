@@ -18,6 +18,7 @@ import {
   regraDaFerramenta,
 } from '@/fonte/conexoes-tipos'
 import { idaAoApp } from '@/paginas/ida-ao-app'
+import { BlocoDeContasRemetentes } from '@/paginas/configuracoes/bloco-contas-remetentes'
 
 /** O que a volta da autorização (`?conexao=erro&motivo=…`, da Edge Function integration-callback) quer dizer. */
 const MOTIVOS_DA_VOLTA: Record<string, (nome: string) => string> = {
@@ -67,6 +68,7 @@ export function PaginaConexoes() {
   const canais = useDados(fonteDeConexoes, (fonte) => fonte.canais(), [])
   const integracoes = useDados(fonteDeConexoes, (fonte) => fonte.integracoes(), [])
   const futuras = useDados(fonteDeConexoes, (fonte) => fonte.integracoesFuturas(), [])
+  const retiradas = useDados(fonteDeConexoes, (fonte) => fonte.resultadosDeRetirada?.() ?? Promise.resolve([]), []) ?? []
   // Sem a leitura dos Acessos (ou se ela falhar), o cartão fica só com a habilitação, como antes.
   const acessos = useDados(
     fonteDeConexoes,
@@ -82,6 +84,7 @@ export function PaginaConexoes() {
   const [aviso, setAviso] = useState('')
   const [desabilitando, setDesabilitando] = useState<IntegracaoDeConexao | null>(null)
   const [erroAoDesabilitar, setErroAoDesabilitar] = useState('')
+  const [resultadoRetirada, setResultadoRetirada] = useState('')
   const [parametros, setParametros] = useSearchParams()
   const [volta] = useState(() => avisoDaVolta(parametros))
   // O resultado da autorização é lido uma vez e sai do endereço, para não reaparecer ao recarregar.
@@ -95,6 +98,18 @@ export function PaginaConexoes() {
   const [retirandoCanal, setRetirandoCanal] = useState<CanalDeConexao | null>(null)
 
   async function instalarCanal(canal: CanalDeConexao) {
+    if (canal.id === 'whatsapp' && fonteDeConexoes.habilitarCanal) {
+      setErro('')
+      setInstalandoCanal(canal.id)
+      try {
+        await fonteDeConexoes.habilitarCanal(canal.id)
+      } catch (falha) {
+        setErro(falha instanceof Error ? falha.message : 'Não foi possível habilitar o WhatsApp agora.')
+      } finally {
+        setInstalandoCanal(null)
+      }
+      return
+    }
     if (!fonteDeConexoes.instalarCanal) return
     setErro('')
     setInstalandoCanal(canal.id)
@@ -144,7 +159,12 @@ export function PaginaConexoes() {
     setErroAoDesabilitar('')
     setTrabalhando(desabilitando.id)
     try {
-      await fonteDeConexoes.desabilitarIntegracao(desabilitando.id)
+      const resultado = await fonteDeConexoes.desabilitarIntegracao(desabilitando.id)
+      if (resultado && (resultado.falhou > 0 || resultado.naoSuportado > 0)) {
+        setResultadoRetirada(`Integração retirada. Revogação: ${resultado.revogado} confirmada(s), ${resultado.naoSuportado} não suportada(s), ${resultado.falhou} com falha e ${resultado.naoSeAplica} sem token OAuth.`)
+      } else {
+        setResultadoRetirada('Integração retirada e os Acessos do Workspace foram desconectados.')
+      }
       setDesabilitando(null)
     } catch (falha) {
       setErroAoDesabilitar(falha instanceof Error ? falha.message : 'Não foi possível desabilitar a Integração agora.')
@@ -188,6 +208,18 @@ export function PaginaConexoes() {
           </p>
         )}
       </div>
+      {resultadoRetirada && <p role="status" className="text-sm text-al-muted">{resultadoRetirada}</p>}
+      <BlocoDeContasRemetentes titulo="Canais de envio" />
+      {retiradas.length > 0 && (
+        <section aria-label="Resultados das retiradas recentes" className="flex flex-col gap-1 text-sm text-al-muted">
+          <h2 className="font-medium">Resultados das retiradas recentes</h2>
+          {retiradas.slice(0, 3).map(({ integracaoId, resultado }, indice) => (
+            <p key={`${integracaoId}-${indice}`}>
+              {nomeDaIntegracao(integracaoId) ?? integracaoId}: {resultado === 'revogado' ? 'acesso revogado no app' : resultado === 'falhou' ? 'falha ao revogar no app' : resultado === 'nao_suportado' ? 'o app não oferece revogação' : 'sem token OAuth para revogar'}.
+            </p>
+          ))}
+        </section>
+      )}
 
       <section aria-label="Canais" className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
@@ -285,6 +317,10 @@ export function PaginaConexoes() {
                         descricao={integracao.descricao}
                         conectado={integracao.habilitada}
                         aoConectar={() => setConectando(integracao)}
+                        acesso={{
+                          seuAcesso: integracao.habilitada ? 'Seu acesso: Conectado' : 'Seu acesso: não conectado',
+                          noWorkspace: textoNoWorkspace(integracao.habilitada ? 1 : 0),
+                        }}
                         extra={
                           integracao.habilitada && (
                             <>
@@ -389,15 +425,26 @@ function CartaoDeCanalReal({
           <span className="text-xs text-al-muted">Workspace do {canal.nome}: {canal.instaladoEm}</span>
         )}
         {!ehAdministrador ? (
-          <span className="text-xs text-al-muted">Só um Administrador conecta ou retira o {canal.nome}.</span>
+          <span className="text-xs text-al-muted">
+            Só um Administrador {canal.id === 'whatsapp' ? 'habilita ou retira' : 'conecta ou retira'} o {canal.nome}.
+          </span>
         ) : ativo ? (
           <Button variant="ghost" onClick={aoRetirar} className="self-start px-4">
             Retirar
           </Button>
         ) : (
-          <Button variant="outline" onClick={aoInstalar} disabled={instalando} className="self-start px-4">
+          <Button
+            variant="outline"
+            onClick={aoInstalar}
+            disabled={instalando || (canal.id === 'whatsapp' && canal.habilitarDisponivel === false)}
+            className="self-start px-4"
+          >
             {instalando
               ? 'Abrindo...'
+            : canal.id === 'whatsapp'
+              ? canal.estado === 'retirado'
+                ? 'Habilitar o WhatsApp de novo'
+                : 'Habilitar o WhatsApp'
               : canal.estado === 'retirado'
                 ? `Conectar o ${canal.nome} de novo`
                 : `Conectar o ${canal.nome}`}
@@ -438,8 +485,9 @@ function DialogoDeRetirarCanal({ canal, aoFechar }: { canal: CanalDeConexao | nu
       <DialogContent className="gap-6 p-6">
         <DialogTitle className="titulo-secao text-2xl">Retirar o {canal?.nome}</DialogTitle>
         <DialogDescription className="text-al-muted">
-          O bot @Althius para de responder no {canal?.nome}. As Conversas e a Atividade ficam. Para voltar, conecte de novo
-          no mesmo {canal?.nome}.
+          {canal?.id === 'whatsapp'
+            ? 'O Canal para de atender neste Workspace. As Conversas e a Atividade ficam. Um Administrador pode habilitá-lo de novo quando quiser.'
+            : `O bot @Althius para de responder no ${canal?.nome}. As Conversas e a Atividade ficam. Para voltar, conecte de novo no mesmo ${canal?.nome}.`}
         </DialogDescription>
         {erro && <p role="alert" className="text-sm text-al-erro">{erro}</p>}
         <DialogFooter className="flex gap-2">
@@ -560,6 +608,13 @@ const AVISO_DE_RECONEXAO: Partial<Record<IntegracaoId, string>> = {
   'tiktok-ads': 'O TikTok pede uma nova autorização a cada 30 dias.',
 }
 
+// Singular só em 1; 0 e qualquer outro valor ficam no plural (ex.: "No Workspace: 0 participantes conectados").
+function textoNoWorkspace(conectados: number): string {
+  return conectados === 1
+    ? 'No Workspace: 1 participante conectado'
+    : `No Workspace: ${conectados} participantes conectados`
+}
+
 function SeuAcesso({
   id,
   nome,
@@ -581,24 +636,23 @@ function SeuAcesso({
 }) {
   const porAutorizacao = acesso.caminhos.includes('autorizacao')
   const porChave = acesso.caminhos.includes('chave')
-  const conectados =
-    acesso.conectados === 1 ? '1 participante conectou' : `${acesso.conectados} participantes conectaram`
+  const noWorkspace = textoNoWorkspace(acesso.conectados)
 
   return (
     <div className="flex flex-col gap-2 border-t border-al-line pt-3">
       {acesso.estado === 'conectado' ? (
         <span className="text-sm text-al-sucesso">
-          {acesso.conta ? `Conectado como ${acesso.conta}` : 'Conectado'}
+          {acesso.conta ? `Seu acesso: Conectado como ${acesso.conta}` : 'Seu acesso: Conectado'}
         </span>
       ) : acesso.estado === 'precisa_reconectar' ? (
         <>
-          <span className="text-sm text-al-erro">Precisa reconectar</span>
+          <span className="text-sm text-al-erro">Seu acesso: Precisa reconectar</span>
           {AVISO_DE_RECONEXAO[id] && <span className="text-xs text-al-muted">{AVISO_DE_RECONEXAO[id]}</span>}
         </>
       ) : (
-        <span className="text-sm text-al-muted">Você ainda não conectou</span>
+        <span className="text-sm text-al-muted">Seu acesso: não conectado</span>
       )}
-      <span className="text-xs text-al-muted">{conectados}</span>
+      <span className="text-xs text-al-muted">{noWorkspace}</span>
       <div className="flex flex-wrap gap-2">
         {acesso.estado === 'conectado' ? (
           <>
@@ -814,6 +868,7 @@ function CartaoDeConexaoDemo({
   conectado,
   aoConectar,
   extra,
+  acesso,
 }: {
   nome: string
   descricao: string
@@ -821,6 +876,8 @@ function CartaoDeConexaoDemo({
   aoConectar: () => void
   extra?: React.ReactNode
   logo?: React.ReactNode
+  /** Nas Integrações, os mesmos textos rotulados do cartão real (SeuAcesso); Canais não usam este bloco. */
+  acesso?: { seuAcesso: string; noWorkspace: string }
 }) {
   return (
     <article aria-label={nome} className="cartao flex flex-col gap-4 p-6">
@@ -831,6 +888,12 @@ function CartaoDeConexaoDemo({
         </span>
       </div>
       <p className="text-sm text-al-muted">{descricao}</p>
+      {acesso && (
+        <div className="flex flex-col gap-2 border-t border-al-line pt-3">
+          <span className={conectado ? 'text-sm text-al-sucesso' : 'text-sm text-al-muted'}>{acesso.seuAcesso}</span>
+          <span className="text-xs text-al-muted">{acesso.noWorkspace}</span>
+        </div>
+      )}
       <div className="mt-auto flex gap-2">
         {!conectado && (
           <Button variant="outline" onClick={aoConectar} className="px-4">

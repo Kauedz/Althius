@@ -10,6 +10,7 @@ import {
   type DadoRevelado,
   ApifyProvedorDeContatos,
   CascataProvedorDeContatos,
+  fonteDoCliente,
   fornecedoresDaCascata,
 } from '../_shared/provedor-de-contatos.ts'
 import { mensagemSegura } from '../_shared/marca.ts'
@@ -155,6 +156,11 @@ export interface DbEnrichment {
 export interface DepsEnrichment {
   db: DbEnrichment
   apify?: Apify
+  /**
+   * As fontes do Cliente para esta pessoa no Workspace (Apollo e, quando houver, CRM), chamadas pela camada de
+   * Integrações. Entram na cascata depois do Apify e o que acham não cobra Créditos Althius.
+   */
+  provedoresDoCliente?: (pedido: { workspaceId: string; userId: string }) => Promise<{ apollo?: ProvedorDeContatos; crm?: ProvedorDeContatos }>
   provedorContatos?: ProvedorDeContatos
   fetchFn?: typeof fetch
   actorReceita?: string
@@ -194,14 +200,27 @@ export function formatarCnpj(cnpj14: string): string {
   return `${cnpj14.slice(0, 2)}.${cnpj14.slice(2, 5)}.${cnpj14.slice(5, 8)}/${cnpj14.slice(8, 12)}-${cnpj14.slice(12, 14)}`
 }
 
-/** Consulta dados do CNPJ na BrasilAPI como fallback. */
+/**
+ * Consulta dados do CNPJ na BrasilAPI como fallback. Devolve null quando não acha; quando a consulta falha (resposta que
+ * não é 404, rede fora), também devolve null e preenche `falha.motivo`, para quem chama não confundir falha com ausência.
+ */
 export async function consultarBrasilApi(
   cnpjLimpo: string,
   fetchFn: typeof fetch = fetch,
+  falha?: { motivo: string | null },
 ): Promise<DadosReceitaFederal | null> {
+  let res: Response
   try {
-    const res = await fetchFn(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
-    if (!res.ok) return null
+    res = await fetchFn(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
+  } catch {
+    if (falha) falha.motivo = 'a BrasilAPI não respondeu'
+    return null
+  }
+  try {
+    if (!res.ok) {
+      if (falha && res.status !== 404) falha.motivo = `a BrasilAPI respondeu ${res.status}`
+      return null
+    }
     const data = await res.json()
 
     const telefones: string[] = []
@@ -266,6 +285,7 @@ export async function consultarBrasilApi(
       fonte: 'brasilapi',
     }
   } catch {
+    if (falha) falha.motivo = 'a BrasilAPI devolveu uma resposta ilegível'
     return null
   }
 }
@@ -393,7 +413,22 @@ function json(corpo: unknown, status: number) {
 }
 
 export function criarHandlerEnrichment(deps: DepsEnrichment) {
-  const provedor = deps.provedorContatos ?? new CascataProvedorDeContatos(fornecedoresDaCascata({ apify: deps.apify }))
+  // O comitê e o revelar chamam o actor do Apify direto quando ele é a única fonte: a cascata engolia a exceção e a falha
+  // virava "não encontrado". Com Apollo ou CRM do Cliente, a cascata tenta o Apify primeiro e só depois as conexões.
+  const provedorDaChamada = async (workspaceId: string, userId: string): Promise<ProvedorDeContatos> => {
+    if (deps.provedorContatos) return deps.provedorContatos
+    let doCliente: { apollo?: ProvedorDeContatos; crm?: ProvedorDeContatos } = {}
+    try {
+      doCliente = (await deps.provedoresDoCliente?.({ workspaceId, userId })) ?? {}
+    } catch {
+      // Sem conseguir ler as conexões, segue só com o Apify.
+      doCliente = {}
+    }
+    if (!doCliente.apollo && !doCliente.crm) {
+      return deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : new CascataProvedorDeContatos([])
+    }
+    return new CascataProvedorDeContatos(fornecedoresDaCascata({ apify: deps.apify, ...doCliente }))
+  }
 
   const handler = async function handler(req: Request): Promise<Response> {
     if (req.method === 'OPTIONS') {
@@ -456,8 +491,10 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         if (deps.apify) {
           resultado = await consultarApifyReceita(cnpjLimpo, deps.apify, actorId, medicao)
         }
+        // A BrasilAPI é a última fonte: a resposta dela decide entre "não encontrado" e "a consulta falhou".
+        const falhaDaBrasilApi: { motivo: string | null } = { motivo: null }
         if (!resultado) {
-          resultado = await consultarBrasilApi(cnpjLimpo, deps.fetchFn)
+          resultado = await consultarBrasilApi(cnpjLimpo, deps.fetchFn, falhaDaBrasilApi)
         }
 
         const gravarCusto = () => {
@@ -474,6 +511,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         if (!resultado) {
           await deps.db.finishCnpjReceita({ reservationId, found: false })
           await gravarCusto()
+          if (falhaDaBrasilApi.motivo) return json({ error: `A consulta do CNPJ falhou: ${falhaDaBrasilApi.motivo}.` }, 502)
           return json({ error: 'Dados do CNPJ não encontrados' }, 404)
         }
 
@@ -531,9 +569,8 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           apikey,
         })
 
-        // O comitê chama o actor direto, e a medição (id e custo) é a da execução dele.
-        const buscaDePessoas = deps.provedorContatos
-          ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
+        // A medição (id e custo) é a da execução do actor do Apify; as conexões do Cliente não a preenchem.
+        const buscaDePessoas = await provedorDaChamada(workspaceId, user.userId)
         const medicao = { runId: null as string | null, costUsd: null as number | null }
         const gravarCusto = (itens: number) => {
           if (!medicao.runId || !deps.db.recordDiscoveryCost) return Promise.resolve()
@@ -584,6 +621,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
         // tamanho do limite, então a busca para quando chega a ele.
         let novas = 0
         let jaEncontradas = 0
+        let naoGravadas = 0
         const examinadas: Array<PessoaEncontrada & { jaEncontrada: boolean }> = []
         for (const p of pessoas) {
           if (novas >= limite) break
@@ -599,7 +637,8 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
               location: p.localizacao,
               photoUrl: p.foto,
               persona: p.persona,
-              sourceActor: actorId,
+              // A origem LGPD: o actor do Apify ou a conexão do Cliente que achou a pessoa.
+              sourceActor: fonteDoCliente(p.fonte) ? String(p.fonte) : actorId,
               sourceProvider: p.fonte,
               sourceData: p,
             })
@@ -607,7 +646,8 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
             else jaEncontradas++
             examinadas.push({ ...p, jaEncontrada: !gravada.created })
           } catch {
-            // Gravação que falhou não conta nem cobra; continua com as demais.
+            // Gravação que falhou não conta nem cobra; continua com as demais e volta contada, para a tela avisar.
+            naoGravadas++
           }
         }
 
@@ -627,18 +667,22 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           contactsFound: novas + jaEncontradas,
           contactsAdded: novas,
           contactsAlreadyKnown: jaEncontradas,
+          contactsNotSaved: naoGravadas,
           proposed: examinadas,
         }, 200)
       }
 
-      // 3. Revelar o e-mail de um contato. Telefone está fora (spec prospeccao-funcional): recusado antes da reserva.
+      // 3. Revelar o e-mail (2 créditos) ou o telefone (5 créditos, decisão de 28/10/2026) de um contato. O preço é o do
+      // catálogo de créditos; o banco só debita quando grava um valor novo achado pela Althius.
       if (action === 'revelar-contato') {
-        if (body.canal === 'telefone') {
-          return json({ error: 'A revelação de telefone está indisponível.' }, 400)
+        const pedido = String(body.canal ?? 'email').trim()
+        if (pedido !== 'email' && pedido !== 'telefone') {
+          return json({ error: 'Canal de revelação inválido.' }, 400)
         }
+        const canal: 'email' | 'telefone' = pedido
+        const dado = canal === 'email' ? 'e-mail' : 'telefone'
         const workspaceId = String(body.workspaceId ?? '').trim()
         const contactId = String(body.contactId ?? '').trim()
-        const canal = 'email'
 
         if (!workspaceId || !contactId) {
           return new Response(JSON.stringify({ error: 'workspaceId and contactId are required' }), {
@@ -669,7 +713,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           })
         }
 
-        // Já encontrado: o banco devolve o e-mail que o Contato tem, sem reserva, sem actor e sem crédito. Só o deste
+        // Já encontrado: o banco devolve o valor que o Contato tem no canal, sem reserva, sem actor e sem crédito. Só o deste
         // Contato, no Workspace da sessão: nunca o de outro Workspace.
         if (deps.db.existingRevealValue) {
           const existente = await deps.db.existingRevealValue({
@@ -696,7 +740,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           }
         }
 
-        // Reserva os 2 créditos do e-mail
+        // Reserva o preço do canal (e-mail 2, telefone 5)
         const reserva = await deps.db.beginRevealContact({
           workspaceId,
           contactId,
@@ -706,9 +750,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           apikey,
         })
 
-        // O revelar chama o actor direto, como o comitê: a cascata engolia a exceção e a falha virava "não encontrado".
-        const revelador = deps.provedorContatos
-          ?? (deps.apify ? new ApifyProvedorDeContatos({ apify: deps.apify }) : provedor)
+        const revelador = await provedorDaChamada(workspaceId, user.userId)
         const actorId = 'harvestapi~linkedin-profile-scraper'
         const medicao = { runId: null as string | null, costUsd: null as number | null }
         // Um perfil consultado por execução, achando ou não: input_units é a entrada do actor.
@@ -725,7 +767,7 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
 
         let revelado: DadoRevelado | null
         try {
-          if (!revelador.revelarContato) throw new Error('nenhum provedor revela e-mail')
+          if (!revelador.revelarContato) throw new Error(`nenhum provedor revela ${dado}`)
           revelado = await revelador.revelarContato(
             {
               nome: contato.name,
@@ -740,10 +782,10 @@ export function criarHandlerEnrichment(deps: DepsEnrichment) {
           const mensagem = mensagemSegura(e, 'erro desconhecido')
           await deps.db.finishRevealContact({ reservationId: reserva.reservationId, contactId, channel: canal })
           await gravarCusto()
-          return json({ error: `A busca do e-mail falhou: ${mensagem}` }, 502)
+          return json({ error: `A busca do ${dado} falhou: ${mensagem}` }, 502)
         }
 
-        // O banco decide: debita 2 só quando grava um e-mail que o Contato ainda não tinha; senão libera a reserva.
+        // O banco decide: debita só quando grava um valor que o Contato ainda não tinha; senão libera a reserva.
         const finalizado = await deps.db.finishRevealContact({
           reservationId: reserva.reservationId,
           contactId,

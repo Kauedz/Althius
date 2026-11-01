@@ -1,4 +1,4 @@
-import { ArrowLeft, RadioTower, Search } from 'lucide-react'
+import { ArrowLeft, RadioTower, Search, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Carregando } from '@/components/marca'
@@ -19,6 +19,7 @@ import { FAMILIAS, tipoPorId } from './catalogo'
 import { CATALOGO_VISIVEL, nomesDosNichos, type CardDoCatalogo } from './catalogo-visivel'
 import { CONTAS_MOCK, SINAIS_MOCK, VALIDADE_EM_DIAS, dataDoDisparo, estaValido, foiDisparado, ordenarSinaisPorData } from './dados-mock'
 import { GRADE_DE_CARTOES } from './cascatas'
+import { usePodeDescreverSinal } from './pode-descrever-sinal'
 import { useCatalogoFuncional, type VisaoDoCatalogo } from './catalogo-funcional'
 import { useMonitoramentos } from './estado'
 import {
@@ -44,6 +45,7 @@ import {
   PrateleiraVazia,
   SinalDaSemana,
 } from './vitrine-pecas'
+import { sinalComRodadaPulada } from '@/fonte/preco-por-rodada'
 
 function normalizar(texto: string): string {
   return texto
@@ -116,6 +118,7 @@ export function PaginaSinais() {
 
 function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEncontrados: () => void }) {
   const monitoramentos = useMonitoramentos()
+  const podeDescrever = usePodeDescreverSinal(visao)
   const [busca, setBusca] = useState('')
   const [familiaId, setFamiliaId] = useState('todos')
   const { dados: extras } = useDadosDeSinais((f) => f.catalogoDoWorkspace(), [])
@@ -169,6 +172,8 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
     .filter((m) => m.estado === 'ativo' && cards.some((card) => card.contados.includes(m.tipoId)))
     .map((m) => ({ id: m.id, tipoId: m.tipoId, nome: m.nome, disparos: disparosPorMonitoramento(m.id) }))
     .toSorted((a, b) => b.disparos - a.disparos)
+  const pausadosPorCreditos = monitoramentos.filter((m) => m.estado === 'pausado' && m.pausadoPor === 'sem_creditos')
+  const comRodadaPulada = monitoramentos.filter(sinalComRodadaPulada)
   const idsAtivos = new Set(ativos.map((m) => m.id))
   const disparos = sinais === undefined ? undefined : sinais.filter((s) => idsAtivos.has(s.monitoramentoId) && foiDisparado(s.data, hoje)).length
 
@@ -193,9 +198,19 @@ function Catalogo({ visao, aoVerEncontrados }: { visao: VisaoDoCatalogo; aoVerEn
       {!filtrando && (
         <MeusSinais
           monitoramentosAtivos={ativos}
+          pausadosPorCreditos={pausadosPorCreditos}
+          comRodadaPulada={comRodadaPulada}
           disparos={disparos}
           contasQuentes={contas?.filter((conta) => conta.quente).length}
           sequenciasAtivas={sequencias?.filter((sequencia) => sequencia.status === 'ativa').length}
+          acaoDeDescrever={
+            podeDescrever ? (
+              <Link to="/sinais/novo" className={BOTAO_SECUNDARIO}>
+                <Sparkles strokeWidth={1.8} className="size-4" aria-hidden />
+                Descrever um Sinal
+              </Link>
+            ) : undefined
+          }
           acaoDosEncontrados={
             <button type="button" onClick={aoVerEncontrados} className={cn(BOTAO_DISCRETO, 'underline-offset-4 hover:underline')}>
               <RadioTower strokeWidth={1.8} className="size-3.5 text-al-accent" aria-hidden />

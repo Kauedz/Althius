@@ -42,3 +42,34 @@ describe('Resultado dos envios por abordagem no Workspace operacional', () => {
     ])
   })
 })
+
+describe('Resultado por Conta-alvo no Workspace operacional', () => {
+  it('lê a apuração por Conta com o corte e converte as contagens', async () => {
+    const chamadas: Record<string, unknown>[] = []
+    const { cliente } = criarSupabaseFalso({
+      sessao: sessaoDe(ANA),
+      tabelas: {},
+      rpcs: {
+        sequence_account_outcome_summary: (p) => {
+          chamadas.push(p)
+          return [{
+            cutoff_at: '2026-10-25T12:00:00Z',
+            approached_accounts: '12',
+            positive_accounts: '4',
+            meeting_accounts: '2',
+            negative_accounts: '3',
+          }]
+        },
+      },
+    })
+    const fonte = criarFonteDeSequenciasSupabase(cliente, () => 'ws-norte', () => ANA.id)
+    expect(await fonte.resultadosPorConta!()).toEqual({
+      dataCorte: '2026-10-25T12:00:00Z',
+      contasAbordadas: 12,
+      respostasPositivas: 4,
+      reunioes: 2,
+      respostasNegativas: 3,
+    })
+    expect(chamadas).toEqual([{ p_workspace_id: 'ws-norte' }])
+  })
+})

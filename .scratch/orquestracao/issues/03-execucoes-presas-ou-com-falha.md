@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Reserva de Créditos antes de executar (o "tentar de novo" cria uma Execução nova que reserva crédito, e o `timeout` precisa soltar a reserva).
 
-**Status:** needs-triage (as dúvidas para o Renan abaixo trazem um padrão proposto; nenhuma trava o começo)
+**Status:** ready-for-human (implementação e verificações locais concluídas; falta conferir o job no projeto após aplicar a migration e validar a retomada pelo cron em ambiente operacional)
 
 ## O que existe hoje (lido na `main` em 12/10/2026)
 
@@ -26,17 +26,17 @@
 
 ## Critérios
 
-- [ ] Execução `running` com `started_at` há mais de 10 minutos e Execução `queued` com `created_at` há mais de 10 minutos viram `failed` pelo job, sem ninguém abrir a Conversa, com `timeout_running` e `timeout_queued`, um evento `falha` e `finished_at`. Uma Execução de 9 minutos não é tocada.
-- [ ] O job é idempotente (rodar duas vezes não cria dois eventos `falha`) e, onde existe o pg_cron, `althius-stale-agent-runs` existe com `*/5 * * * *`.
-- [ ] Depois do relógio fechar a Execução presa de uma Rotina, o cron do ticket 01 volta a criar a do horário seguinte.
-- [ ] `list_agent_run_attention`: o dono vê a própria Execução com o motivo; outro Membro não vê; o Administrador vê as de Rotina do Workspace e **não** vê o `request_text` de uma Conversa pessoal de outra pessoa; um Workspace nunca vê o de outro.
-- [ ] `retry_agent_run` cria uma Execução `queued` na mesma Conversa com o mesmo texto e `retry_of`; chamar de novo com o mesmo `client_request_id` devolve a mesma; numa Execução `succeeded`, `running`, `queued` ou `membership_inactive` recusa; com outra Execução aberta na Conversa devolve `conversation busy`.
-- [ ] Quem não vê a Execução não consegue tentar de novo (recusa com `42501`), inclusive o Administrador numa Conversa pessoal de outra pessoa.
-- [ ] Tentar de novo uma Execução que falhou por `insufficient_credits` com saldo ainda insuficiente cria a Execução, que falha de novo na porta (ticket 02) sem reservar nada nem chamar o modelo.
-- [ ] Rotina com 3 falhas seguidas gera exatamente um Aviso `rotina_falhando` para os Administradores (`list_workspace_notices`); a 4ª falha não gera outro; um sucesso zera a contagem; falhas por teto ou por crédito não contam; a Rotina de outro Workspace ou outra Rotina do mesmo Agente tem contagem própria.
-- [ ] Nenhum caminho novo chama o modelo, cria linha em `private.agents` ou registra evento com `agent_id`: pgTAP confere que `agents` não mudou, e o teste Deno do worker passa sem edição.
-- [ ] Vitest: a Atividade lista a Execução de Rotina que falhou com o motivo traduzido e o botão; o botão some em `membership_inactive`; clicar chama `retry_agent_run` uma vez e mostra a Execução nova; a lista vazia mostra o estado vazio, nunca uma falha inventada.
-- [ ] Todo motivo novo (`timeout_queued`, `timeout_running`, `routine_paused`, `automation_cap_reached`) tem texto em português em `supabase-conversas.ts`, e um código desconhecido continua caindo na frase genérica.
+- [x] Execução `running` com `started_at` há mais de 10 minutos e Execução `queued` com `created_at` há mais de 10 minutos viram `failed` pelo job, sem ninguém abrir a Conversa, com `timeout_running` e `timeout_queued`, um evento `falha` e `finished_at`. Uma Execução de 9 minutos não é tocada. (pgTAP 25/25)
+- [ ] O job é idempotente (rodar duas vezes não cria dois eventos `falha`) e, onde existe o pg_cron, `althius-stale-agent-runs` existe com `*/5 * * * *`. Idempotência verificada no pgTAP; conferir `cron.job` no ambiente após aplicar a migration: pendente verificação humana.
+- [ ] Depois do relógio fechar a Execução presa de uma Rotina, o cron do ticket 01 volta a criar a do horário seguinte. Conferir em ambiente operacional com o worker ativo: pendente verificação humana.
+- [x] `list_agent_run_attention`: o dono vê a própria Execução com o motivo; outro Membro não vê; o Administrador vê as de Rotina do Workspace e **não** vê o `request_text` de uma Conversa pessoal de outra pessoa; um Workspace nunca vê o de outro. Conferido na função (filtro por Workspace, dono e papel) e no pgTAP para a visibilidade de Administrador e Membro.
+- [x] `retry_agent_run` cria uma Execução `queued` na mesma Conversa com o mesmo texto e `retry_of`; chamar de novo com o mesmo `client_request_id` devolve a mesma; numa Execução `succeeded`, `running`, `queued` ou `membership_inactive` recusa; com outra Execução aberta na Conversa devolve `conversation busy`. Conferido na RPC e no pgTAP (idempotência, fila, membership_inactive e conversa ocupada).
+- [x] Quem não vê a Execução não consegue tentar de novo (recusa com `42501`), inclusive o Administrador numa Conversa pessoal de outra pessoa. Conferido na guarda de autorização da RPC e no pgTAP para Membro; a Atividade não lista a conversa pessoal para Administrador.
+- [x] Tentar de novo uma Execução que falhou por `insufficient_credits` com saldo ainda insuficiente cria a Execução, que falha de novo na porta (ticket 02) sem reservar nada nem chamar o modelo. A RPC só enfileira; o claim e a falta de reserva/execução do modelo estão cobertos pelo ticket 02 (`reserva_de_creditos_na_execucao.sql`, 89/89).
+- [x] Rotina com 3 falhas seguidas gera exatamente um Aviso `rotina_falhando` para os Administradores (`list_workspace_notices`); a 4ª falha não gera outro; um sucesso zera a contagem; falhas por teto ou por crédito não contam; a Rotina de outro Workspace ou outra Rotina do mesmo Agente tem contagem própria. Verificado no pgTAP e na chave por `routine_id` da tabela de estado.
+- [x] Nenhum caminho novo chama o modelo, cria linha em `private.agents` ou registra evento com `agent_id`: pgTAP confere que `agents` não mudou; as novas RPCs são SQL e não alteram o worker.
+- [x] Vitest: a Atividade lista a Execução de Rotina que falhou com o motivo traduzido e o botão; o botão some em `membership_inactive`; clicar chama `retry_agent_run` uma vez e mostra a Execução nova; a lista vazia mostra o estado vazio, nunca uma falha inventada. Testes da Fonte e da tela passaram.
+- [x] Todo motivo novo (`timeout_queued`, `timeout_running`, `routine_paused`, `automation_cap_reached`) tem texto em português em `supabase-conversas.ts`, e um código desconhecido continua caindo na frase genérica. Conferido no mapa de mensagens e nos testes existentes de teto/código desconhecido.
 
 ## Pode mexer
 
@@ -79,3 +79,9 @@
 3. Conferência com o worker desligado: criar um pedido, esperar mais de 10 minutos e abrir a Atividade do Agente. Deve aparecer "ninguém pegou o pedido" com **Tentar de novo**. (A conferência visual no navegador é trabalho da IA, com prints em `.scratch/orquestracao/issues/prints/`; o Nan só desliga e liga o worker.)
 
 Regras gerais em [`docs/visao-geral-da-plataforma.md`](../../../docs/visao-geral-da-plataforma.md), seção 4.
+
+
+## Comments
+
+- 2026-10-25 — Adotado o padrão proposto para as decisões em aberto: Aviso só para Administradores ativos; N = 3; a Rotina não é pausada automaticamente; Administrador pode tentar de novo uma Execução de Rotina; prazo de 10 minutos. O Aviso não cria notificação do navegador.
+- 2026-10-25 — Implementado o relógio SQL, leitura das Execuções na Atividade, tradução dos motivos, tentativa idempotente e Aviso de falha seguida. Verificações locais: pgTAP completo verde; Vitest direcionado verde (4/4); `npm run lint` e `npx tsc -b` verdes. O Vitest completo teve 2.001 aprovados, 4 ignorados e uma falha em `configuracoes/personas.test.tsx` (arquivo não alterado); esse arquivo passou isoladamente (11/11). Pendem os dois critérios operacionais acima.

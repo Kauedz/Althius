@@ -4,7 +4,7 @@
 
 **Blocked by:** None (pode começar agora). O merge na `main` espera o 00.
 
-**Status:** closed (tela pronta na `ralph/frente-canais`; sem push. O merge na `main` espera o 00. Não sobra passo humano de migration nem de deploy.)
+**Status:** closed (na `main` pelo PR #151, commit `b7fedae1`. Não sobra passo humano de migration nem de deploy.)
 
 - [x] No Workspace operacional, a Sequência com passo de WhatsApp ou de LinkedIn, e nenhum passo de e-mail, mostra o controle de ativar. Hoje o painel só aparece quando existe passo de e-mail.
 - [x] O diálogo lista os passos de e-mail, WhatsApp e LinkedIn que ainda não saíram. Cada um mostra o canal e o Destino que a ativação vai fixar (ADR-0014). O texto deixa de dizer que só os passos de e-mail saem.
@@ -46,3 +46,4 @@ Nenhuma.
   - Conferência visual depois (agente, desktop e 360px): o detalhe da Sequência do titular com "Envios automáticos", o diálogo "Ativar envios" com Sequência só de WhatsApp, só de LinkedIn e mista, e o rodapé do passo de chat depois de ativar.
 - 2026-10-08: feito na tela, sem migration e sem push. A tela lê `list_enabled_chat_channels`. Canal desligado: o diálogo avisa e uma Sequência só de chat não confirma; numa mista, o e-mail ainda pode ativar. Leitura pendente ou falha: não confirma, e não afirma que o passo ficou de fora. O clique de confirmar, reenviar, resolver incerto e classificar resposta continua só no E-mail.
   - Prints (Chrome, dublê do Supabase, 1400×900 e 360px): [painel](prints/c1-painel-whatsapp.jpg), [diálogo WhatsApp](prints/c1-dialogo-whatsapp.jpg), [WhatsApp a 360px](prints/c1-dialogo-whatsapp-360.jpg), [LinkedIn](prints/c1-dialogo-linkedin.jpg), [LinkedIn a 360px](prints/c1-dialogo-linkedin-360.jpg), [mista](prints/c1-dialogo-mista.jpg), [mista a 360px](prints/c1-dialogo-mista-360.jpg), [depois de ativar](prints/c1-depois-de-ativar-whatsapp.jpg), [rodapé](prints/c1-rodape-whatsapp.jpg), [sem Destino](prints/c1-sem-destino.jpg), [canal desligado](prints/c1-canal-desligado.jpg). O URL longo do LinkedIn quebra dentro do cartão. Ativar fecha o diálogo e o rodapé fica "Programado" com o número.
+- 2026-10-28 (fechamento da spec): `ralph/frente-canais` entrou na `main` via `ralph/consolidado` (PR #151). Status atualizado.

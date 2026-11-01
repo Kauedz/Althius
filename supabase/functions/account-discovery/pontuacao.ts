@@ -5,6 +5,7 @@
 import { contemAlgum, normalizar } from '../signal-runner/adaptadores/comum.ts'
 import { type CriteriosDeBusca, FAIXAS_DE_PORTE, PORTES_LEGAIS } from './criterios.ts'
 import { CAPITAIS, ehBrasil, ufDe } from './regioes.ts'
+import { setorBate } from './setores.ts'
 
 /** Uma empresa como a fonte a descreveu, já numa forma só (cada Actor tem o seu normalizador). */
 export interface CandidataBruta {
@@ -17,6 +18,7 @@ export interface CandidataBruta {
   city?: string
   country?: string
   sector?: string
+  cnae?: string
   sizeLabel?: string
   employeeCount?: number
   description?: string
@@ -64,17 +66,34 @@ function lista(termos: string[]): string {
   return termos.slice(0, 3).join(', ')
 }
 
+// O Setor vem da atividade que a fonte declarou (indústria do LinkedIn, CNAE da Receita), nunca do nome: uma empresa de TI
+// com "Logística" no nome ou na descrição não é de logística. Sem setor declarado, a descrição só informa (sem dado), não
+// soma. As palavras-chave do ICP, quando não há setor no ICP, ainda podem bater na descrição: foi a pessoa que as pediu.
 function avaliarSetor(c: CandidataBruta, criterios: CriteriosDeBusca): Motivo | null {
-  const termos = [...criterios.setores, ...criterios.palavrasChave]
-  if (!termos.length) return null
-  const texto = junta(c.sector, c.tags, c.description)
-  if (!c.sector && !c.description && !c.tags.length) {
-    return { criterio: 'setor', atende: null, texto: 'Setor: a fonte não informou a atividade da empresa.' }
+  const termosSetor = criterios.setores
+  if (!termosSetor.length && !criterios.palavrasChave.length) return null
+  const atividade = junta(c.sector, c.cnae)
+  const palavra = primeiroQueBate(junta(c.sector, c.cnae, c.tags, c.description), criterios.palavrasChave)
+  if (!termosSetor.length) {
+    if (!atividade && !c.description && !c.tags.length) {
+      return { criterio: 'setor', atende: null, texto: 'Setor: a fonte não informou a atividade da empresa.' }
+    }
+    return palavra
+      ? { criterio: 'setor', atende: true, texto: `Setor: cita "${palavra}".` }
+      : { criterio: 'setor', atende: false, texto: `Setor: nada na descrição lembra ${lista(criterios.palavrasChave)}.` }
   }
-  const achado = primeiroQueBate(texto, termos)
-  return achado
-    ? { criterio: 'setor', atende: true, texto: `Setor: combina com "${achado}".` }
-    : { criterio: 'setor', atende: false, texto: `Setor: nada na descrição lembra ${lista(termos)}.` }
+  if (!atividade) {
+    const citado = primeiroQueBate(junta(c.description, c.tags), termosSetor) ?? palavra
+    return citado
+      ? { criterio: 'setor', atende: null, texto: `Setor: a descrição cita "${citado}"; a fonte não informou o setor.` }
+      : { criterio: 'setor', atende: null, texto: 'Setor: a fonte não informou a atividade da empresa.' }
+  }
+  const setor = setorBate(atividade, termosSetor)
+  if (setor) return { criterio: 'setor', atende: true, texto: `Setor: combina com "${setor}".` }
+  const citado = primeiroQueBate(junta(c.name, c.description, c.tags), termosSetor) ?? palavra
+  return citado
+    ? { criterio: 'setor', atende: false, texto: `Setor: atua em ${c.sector ?? c.cnae}; só o nome ou a descrição cita "${citado}".` }
+    : { criterio: 'setor', atende: false, texto: `Setor: atua em ${c.sector ?? c.cnae}, fora de ${lista(termosSetor)}.` }
 }
 
 function bucketsQueCobrem(c: CandidataBruta): { min: number; max: number } | null {

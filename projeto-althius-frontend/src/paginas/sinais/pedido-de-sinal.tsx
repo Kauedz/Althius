@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Pagina } from '@/components/pagina'
 import { BOTAO_PRIMARIO } from '@/components/botoes'
 import { useDados, useDadosDeSinais, useFonteDeSinais } from '@/fonte/contexto'
@@ -21,12 +22,16 @@ const ROTULO_DO_STATUS: Record<StatusDoPedido, string> = {
 /** Pedido de um Sinal que a equipe Althius monta. Não cobra e não cria Monitoramento. */
 export function PaginaDePedidoDeSinal() {
   const fonte = useFonteDeSinais()
+  const localizacao = useLocation()
   const { dados: pedidos, recarregar } = useDadosDeSinais((f) => f.pedidosDeSinal(), [])
   const workspace = useDados((f) => f.workspace(), [])
   const memoria = useDados((f) => f.memoriaDoWorkspace(), [])
   const segmentos = memoria?.icp.secoes.find((secao) => secao.titulo === 'Segmentos')?.texto ?? ''
 
-  const [evento, setEvento] = useState('')
+  const [evento, setEvento] = useState(() => {
+    const estado = localizacao.state as { briefing?: unknown } | null
+    return typeof estado?.briefing === 'string' ? estado.briefing : ''
+  })
   const [empresas, setEmpresas] = useState<string | null>(null)
   const [fontes, setFontes] = useState('')
   const [urgencia, setUrgencia] = useState<UrgenciaDoPedido>('este_mes')

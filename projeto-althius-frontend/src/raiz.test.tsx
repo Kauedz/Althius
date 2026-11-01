@@ -9,6 +9,17 @@ import { criarBancoDeConexoes, rpcsDeConexoes } from '@/test/conexoes-no-banco'
 import { criarSupabaseFalso, type OpcoesDoSupabaseFalso, type RespostaDaFuncao, sessaoDe } from '@/test/supabase-falso'
 import { criarServicosDoNavegadorFalsos, type OpcoesDosServicosFalsos } from '@/test/servicos-do-navegador-falsos'
 import { VERSAO_DOS_TERMOS } from '@/auth/termos'
+import { carregarDemonstracaoDaEquipe } from '@/auth/carregar-demonstracao'
+
+// O `import()` da Demonstração vira espião, sem mudar o que ele carrega: os testes conferem quem chega a pedi-la.
+vi.mock('@/auth/carregar-demonstracao', async (original) => {
+  const modulo = await original<typeof import('@/auth/carregar-demonstracao')>()
+  return {
+    carregarDemonstracaoDaEquipe: vi.fn(modulo.carregarDemonstracaoDaEquipe),
+    carregarDemonstracaoDoVisitante: vi.fn(modulo.carregarDemonstracaoDoVisitante),
+    carregarDemonstracaoSemLogin: vi.fn(modulo.carregarDemonstracaoSemLogin),
+  }
+})
 
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 /** A Conta de usuário da Marina já verificada no Supabase Auth, com senha. */
@@ -126,7 +137,6 @@ describe('Workspace operacional e Demonstração', () => {
     ['/sinais', 'Sinais ainda não estão disponíveis neste Workspace.', 'Vagas'],
     ['/sinais/contas/openai', 'Sinais ainda não estão disponíveis neste Workspace.', 'OpenAI'],
     ['/aprovacoes', 'Aprovações ainda não estão disponíveis neste Workspace.', 'Meta Ads'],
-    ['/onboarding', 'Conversas e Coordenação com os Agentes ainda não estão disponíveis neste Workspace.', 'Qual é o seu papel'],
   ])('%s mostra que o módulo está indisponível, sem dados da Demonstração', async (rota, aviso, daDemonstracao) => {
     window.history.replaceState(null, '', rota)
     abrirAlthius({
@@ -137,6 +147,19 @@ describe('Workspace operacional e Demonstração', () => {
 
     expect((await screen.findAllByText(new RegExp(aviso))).length).toBeGreaterThan(0)
     expect(screen.queryByText(new RegExp(daDemonstracao))).not.toBeInTheDocument()
+  })
+
+  // O Day0 é real desde a entrada 03: /onboarding lê o banco, e não a Demonstração.
+  it('/onboarding mostra o Day0 do banco, sem dados da Demonstração', async () => {
+    window.history.replaceState(null, '', '/onboarding')
+    abrirAlthius({
+      ultimoAmbiente: 'real',
+      sessao: sessaoDe(MARINA),
+      tabelas: { workspace_memberships: [participacao('ws-norte')] },
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Day0 concluído' })).toBeInTheDocument()
+    expect(screen.queryByText(/Qual é o seu papel/)).not.toBeInTheDocument()
   })
 
   // Workspace / Pessoas e acesso já é real (CRM-03): `paginas/configuracoes/participantes-reais.test.tsx`. Meu perfil e
@@ -805,6 +828,7 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
   beforeEach(() => {
     vi.stubEnv('DEV', false)
     vi.stubEnv('PROD', true)
+    vi.mocked(carregarDemonstracaoDaEquipe).mockClear()
   })
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -828,6 +852,7 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
     expect(within(navegacao()).getByText('Demonstração')).toBeInTheDocument()
     expect(screen.getByText('Você está vendo uma demonstração')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/demonstracao/contas')
+    expect(carregarDemonstracaoDaEquipe).toHaveBeenCalled()
 
     await usuario.click(screen.getByRole('button', { name: 'Sair da demonstração' }))
     expect(await within(navegacao()).findByText('Operacional')).toBeInTheDocument()
@@ -847,6 +872,8 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
     expect(window.location.pathname).toBe('/')
     expect(screen.queryByText(/demonstra/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'OpenAI' })).not.toBeInTheDocument()
+    // O código e os dados da Demonstração nem chegam ao navegador de quem não é da equipe.
+    expect(carregarDemonstracaoDaEquipe).not.toHaveBeenCalled()
   })
 
   it('sem login, leva à tela de entrada lembrando /demonstracao, e abre depois do login da equipe', async () => {
@@ -861,6 +888,7 @@ describe('A Demonstração da equipe Althius em /demonstracao', () => {
     expect(window.location.pathname).toBe('/entrar')
     expect(new URLSearchParams(window.location.search).get('destino')).toBe('/demonstracao')
     expect(screen.queryByRole('button', { name: /Demonstração/ })).not.toBeInTheDocument()
+    expect(carregarDemonstracaoDaEquipe).not.toHaveBeenCalled()
 
     act(() => iniciarSessao(sessaoDe(MARINA)))
     expect(await screen.findByText('Você está vendo uma demonstração')).toBeInTheDocument()
@@ -1109,6 +1137,7 @@ describe('Envio e resposta da Sequência no Workspace operacional', () => {
     await usuario.click(await screen.findByRole('button', { name: 'Confirmar e enviar' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('Sua Conta remetente de E-mail não está pronta para enviar.')
+    expect(within(screen.getByRole('status')).getByRole('link', { name: 'Abrir Canais de envio' })).toHaveAttribute('href', '/conexoes')
     expect(await screen.findByText(/^Confirmado para maria@empresa-alvo\.test\. Ainda não enviado\./)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Confirmar e enviar' })).toBeInTheDocument()
   })

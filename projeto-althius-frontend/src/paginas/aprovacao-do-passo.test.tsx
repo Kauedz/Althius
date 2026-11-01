@@ -103,7 +103,7 @@ describe('A Aprovação pedida por um Agente, decidida dentro da Conversa', () =
 
   it('na Coordenação, quem não é Administrador vê a Aprovação, mas não decide', async () => {
     const { usuario, decisoes } = abrir('/', 'member')
-    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Crie a pauta da Alfa')
+    await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode criar a pauta da Alfa?')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
     const cartao = await screen.findByRole('article', { name: 'Aprovação pendente: Usar criar_pagina no Notion' })

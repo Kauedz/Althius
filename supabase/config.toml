@@ -21,6 +21,18 @@ verify_jwt = true
 [functions.signal-request-notify]
 verify_jwt = true
 
+# O Plano do Sinal a partir do Briefing (agente-de-sinal 01): o navegador chama com o JWT; o banco confere a Participação e o limite do dia.
+[functions.signal-plan]
+verify_jwt = true
+
+# Explicação da Aderência (Fase 6b): a função confere o JWT e a Participação no banco; não muda a nota.
+[functions.account-fit-explanation]
+verify_jwt = true
+
+# Leitura do domínio confirmado no Day0; a função confere o JWT e a confirmação no banco.
+[functions.icp-site-read]
+verify_jwt = true
+
 # Pedido de acesso do visitante (acesso-e-planos): o navegador chama com o JWT; o banco reserva o aviso uma vez e limita os envios por usuário.
 [functions.access-request-notify]
 verify_jwt = true
@@ -79,6 +91,10 @@ verify_jwt = true
 [functions.slack-channel-connect]
 verify_jwt = true
 
+# O navegador consulta se o simulador ou a Cloud API estão configurados antes de mostrar Habilitar em Conexões.
+[functions.canal-whatsapp-status]
+verify_jwt = true
+
 [functions.slack-channel-callback]
 verify_jwt = false
 
@@ -90,6 +106,13 @@ verify_jwt = false
 # A entrega no thread do Canal Slack (slack-canal 03): chamada pelo próprio banco (gatilho + pg_net), sem JWT; a função
 # confere o segredo interno da entrega (SLACK_CHANNEL_DELIVERY_SECRET, o mesmo do Vault).
 [functions.slack-channel-delivery]
+verify_jwt = false
+
+# A Meta chama o webhook sem JWT; a Edge valida X-Hub-Signature-256. O banco chama a entrega com segredo interno.
+[functions.canal-whatsapp-events]
+verify_jwt = false
+
+[functions.canal-delivery]
 verify_jwt = false
 
 # O gerador das Propostas de resposta (canais-08): chamado pelo próprio banco (pg_cron + pg_net), sem JWT; a função confere
@@ -110,6 +133,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.agent-attachments]
+verify_jwt = true
+
+[functions.agente]
 verify_jwt = true
 
 # O aviso a quem tenta se cadastrar com um e-mail que já tem conta (auth 03): quem chama ainda não tem sessão, e a chave

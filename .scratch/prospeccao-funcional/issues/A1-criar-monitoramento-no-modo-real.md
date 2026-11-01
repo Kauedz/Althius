@@ -6,13 +6,13 @@
 
 **Status:** closed (entregue pelo PR #150; evidência nos Comments)
 
-- [ ] Criar um Monitoramento no Workspace operacional grava pelo `save_signal_monitor` com `p_id` nulo. O id que volta é o uuid do banco. O editor deixa de mandar `novo-…`.
-- [ ] Editar um Monitoramento já gravado manda o uuid dele, e só esse.
-- [ ] O público escolhido são Contas-alvo reais do Workspace. A gravação manda os uuids em `accountIds`. As listas de exemplo (Enterprise LATAM, Fintechs Brasil, Oportunidades do HubSpot) não aparecem no operacional e não são gravadas.
-- [ ] A Demonstração segue criando e listando os Monitoramentos de exemplo, isolada do Workspace operacional.
-- [ ] Um Sinal que o registro ainda tem como em teste não ganha Monitoramento ativo. A tela diz o motivo, como já faz quando o tipo não pode ser monitorado.
-- [ ] Com ao menos um Monitoramento ativo no Workspace, "Buscar Sinais de novo" deixa de mostrar "Nenhum Monitoramento ativo para buscar." e o botão liga quando o saldo cobre o custo.
-- [ ] Vitest cobre o id do banco, o público de Contas reais e a ausência das listas de exemplo no operacional.
+- [x] Criar um Monitoramento no Workspace operacional grava pelo `save_signal_monitor` com `p_id` nulo. O id que volta é o uuid do banco. O editor deixa de mandar `novo-…`.
+- [x] Editar um Monitoramento já gravado manda o uuid dele, e só esse.
+- [x] O público escolhido são Contas-alvo reais do Workspace. A gravação manda os uuids em `accountIds`. As listas de exemplo (Enterprise LATAM, Fintechs Brasil, Oportunidades do HubSpot) não aparecem no operacional e não são gravadas.
+- [x] A Demonstração segue criando e listando os Monitoramentos de exemplo, isolada do Workspace operacional.
+- [x] Um Sinal que o registro ainda tem como em teste não ganha Monitoramento ativo. No operacional o card não aparece e abrir `/sinais/tipos/<tipo>/novo` não abre o editor: passa pela página do tipo e termina no catálogo `/sinais` (reescrito em 28/10, corrigido o destino em 31/10: a spec `catalogo-so-funcionais` trocou "a tela diz o motivo" por esconder o card).
+- [x] Com ao menos um Monitoramento ativo no Workspace, "Buscar Sinais de novo" deixa de mostrar "Nenhum Monitoramento ativo para buscar." e o botão liga quando o saldo cobre o custo.
+- [x] Vitest cobre o id do banco, o público de Contas reais e a ausência das listas de exemplo no operacional.
 
 ## Pode mexer
 
@@ -47,3 +47,5 @@ Nenhuma. `save_signal_monitor` já cria quando o id vem nulo e já exige `accoun
   - Vitest: `src/paginas/sinais/monitoramento-real.test.tsx`, describe "Criar Monitoramento no Workspace operacional" (7 testes). Rodado agora: `npx vitest run src/paginas/sinais/monitoramento-real.test.tsx src/fonte/supabase-sinais.test.ts src/fonte/supabase-contas.test.ts src/fonte/supabase-contas-sinais.test.ts` → 4 arquivos, 56 passed, 0 failed. CI da `main` (run 37707955273) verde.
   - Conferência visual já feita no sinais-reais 02: [público](../../sinais-reais/issues/prints/02-publico-com-contas-reais.jpg), [revisão](../../sinais-reais/issues/prints/02-revisao.jpg), [lista do tipo](../../sinais-reais/issues/prints/02-lista-do-tipo.jpg).
   - Fora deste ticket e ainda humano: crédito no Workspace de teste (sinais-reais 02, Passos do Nan 3).
+- 2026-10-28 (verificação automatizada): `vitest run` em `monitoramento-real.test.tsx`, `supabase-sinais.test.ts`, `supabase-contas.test.ts` e `supabase-contas-sinais.test.ts` → 4 arquivos, 73 passed, 0 failed; `tsc -b` sem erro. Todas as caixas marcadas. Nota sobre o critério 5: a spec `catalogo-so-funcionais` passou a esconder do cliente o card de Sinal em teste, então o teste prova que ele não abre o editor nem ganha Monitoramento, e a tela não mostra um motivo porque o card não aparece.
+- 2026-10-28 (fechamento da spec): critério 5 reescrito para o comportamento da `main` (`editor.tsx:188-193`, teste `monitoramento-real.test.tsx:289`).

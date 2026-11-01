@@ -13,10 +13,4 @@ O Comitê de compra de uma Conta reúne as pessoas que decidem. Cada pessoa enco
 
 ## Revelar e-mail e telefone
 
-| Item | Créditos |
-|---|---|
-| E-mail revelado (só valor novo) | 2 |
-| Telefone revelado | 5 |
-
-> [!nota]
-> Exemplo: na Conta Metalúrgica Vale do Aço, revelar o e-mail da diretora de compras gasta 2 créditos; revelar o mesmo e-mail de novo não gasta nada.
+O custo de revelar é informado pela cotação antes da confirmação: 2 créditos por e-mail e 5 créditos por telefone. Os créditos só saem quando um dado novo é encontrado e gravado no Contato; um dado que o Contato já tem, ou uma busca sem resultado, não custa nada.

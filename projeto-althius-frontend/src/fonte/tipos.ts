@@ -226,6 +226,9 @@ export interface SaldoDeCreditos {
   ilimitado: boolean
 }
 
+export interface PrecoDeCredito { acao: string; creditos: number; descricao: string }
+export interface LancamentoDeCredito { id: string; creditos: number; tipo: string; acao: string | null; sinal: string | null; criadoEm: string }
+
 /**
  * O contrato do Workspace operacional (acesso-e-planos), para a tela Plano. Tudo em créditos: nenhum valor em dólar chega
  * ao cliente.
@@ -403,6 +406,8 @@ export interface ItemDeAtividade {
   link?: { rotulo: string; para: string }
   /** A ação não se concluiu e nada foi alterado: a Atividade registra a falha para quem a acompanha. */
   falhou?: boolean
+  /** Permite tentar novamente a Execução quando o motivo admite retomada. */
+  tentarDeNovo?: boolean
 }
 
 export type CanalId = 'slack' | 'whatsapp' | 'teams' | 'email'
@@ -699,6 +704,9 @@ export interface ConversaDoSlack extends ConversaRetomada<PassoDaConversa> {
   agenteId: AgenteId
 }
 
+/** Uma Conversa que nasceu no WhatsApp. O app só a lê; a pessoa continua pelo Canal. */
+export interface ConversaDoWhatsApp extends ConversaRetomada<PassoDaCoordenacao> {}
+
 /** As Conversas que a sessão tinha antes de recarregar a página: a do composer e a mais recente de cada Agente. */
 export interface ConversasRetomadas {
   coordenada: ConversaRetomada<PassoDaCoordenacao> | null
@@ -749,6 +757,11 @@ export interface FonteDeAgentes extends FonteObservavel {
    * só aparece, e um e-mail diferente do da sessão é recusado sem gravar nada.
    */
   salvarPerfil(perfil: Perfil): Promise<void>
+  /** Telefone verificado da Conta no Canal WhatsApp. Só existe no Workspace operacional. */
+  telefoneVerificadoDoCanal?(): Promise<{ telefone: string | null; suspenso: boolean; emailPendente: boolean }>
+  operarTelefoneVerificadoDoCanal?(acao: 'start' | 'confirm' | 'resend' | 'change' | 'remove' | 'retry-email', dados?: { telefone?: string; codigo?: string }): Promise<{ emailPendente: boolean }>
+  preferenciasDeAvisosDoCanal?(): Promise<PreferenciasDeAvisosDoCanal>
+  salvarPreferenciasDeAvisosDoCanal?(preferencias: Partial<PreferenciasDeAvisosDoCanal>): Promise<void>
   /** As preferências da Conta de usuário da sessão; sem nada salvo, as notificações do navegador ficam desligadas. */
   preferencias(): Promise<Preferencias>
   /** Grava só as preferências informadas; as demais continuam como estavam. */
@@ -789,6 +802,8 @@ export interface FonteDeAgentes extends FonteObservavel {
    * No Workspace ilimitado, `ilimitado` é verdadeiro.
    */
   saldoDeCreditos?(): Promise<SaldoDeCreditos | null>
+  precosDeCreditos?(): Promise<PrecoDeCredito[]>
+  extratoDeCreditos?(): Promise<LancamentoDeCredito[]>
 
   /** O contrato do Workspace operacional. Ausente na Demonstração. Nulo sem contrato, ou quando o banco não responde. */
   contratoDoWorkspace?(): Promise<ResumoDoContrato | null>
@@ -820,6 +835,8 @@ export interface FonteDeAgentes extends FonteObservavel {
   excluirRotina(rotinaId: string): Promise<void>
 
   atividade(id: AgenteId, gatilho?: Gatilho): Promise<ItemDeAtividade[]>
+  /** Cria uma nova Execução ligada à original e devolve seu id. */
+  tentarDeNovo?(runId: string): Promise<string>
 
   personalizacao(id: AgenteId): Promise<Personalizacao>
   salvarPersonalizacao(id: AgenteId, personalizacao: Personalizacao): Promise<void>
@@ -881,6 +898,7 @@ export interface FonteDeAgentes extends FonteObservavel {
   conversaCoordenadaAtual?(): string | null
   /** Abre, só para leitura, uma Conversa que nasceu no Slack. Não muda a Conversa em curso de nenhum lugar. */
   abrirConversaDoSlack?(id: string): Promise<ConversaDoSlack>
+  abrirConversaDoWhatsApp?(id: string): Promise<ConversaDoWhatsApp>
   /**
    * O histórico de Conversas de quem está na sessão com um Agente (ou com a Coordenação, sem Agente), da mais recente
    * à mais antiga, sem as arquivadas; `antesDe` pede a página seguinte. Só no Workspace operacional.
@@ -904,6 +922,15 @@ export interface FonteDeAgentes extends FonteObservavel {
   urlDoAnexo?(id: string): Promise<string>
   /** Para o pedido que ainda roda no Agente (ou na Coordenação, sem Agente). */
   pararPedido?(agenteId: AgenteId | null): Promise<void>
+}
+
+export interface PreferenciasDeAvisosDoCanal {
+  resposta_lead: boolean
+  aprovacao_pendente: boolean
+  rotina_terminada: boolean
+  sinal_novo: boolean
+  sequencia_pausada: boolean
+  creditos_baixos: boolean
 }
 
 export * from './contas-tipos'

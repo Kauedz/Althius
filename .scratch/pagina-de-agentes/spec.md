@@ -57,7 +57,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 25. Como usuário, quero pedir ao Scopus o ICP da Databricks e a aderência de uma Conta-alvo real (ex.: OpenAI) ao ICP, para priorizar contas.
 26. Como usuário, quero pedir ao Ethos as personas do Comitê de compra de uma Conta-alvo, com dores, objeções, gatilhos e onde se informam, para preparar a abordagem.
 27. Como usuário, quero pedir ao Rhetor um e-mail frio ou uma sequência para uma persona específica, no tom da marca, para ganhar tempo na escrita.
-28. Como usuário, quero pedir ao Oraculum uma auditoria de como a Databricks aparece no ChatGPT, Perplexity, Gemini e Claude para prompts-alvo, com recomendações de conteúdo, para melhorar a presença da marca em IA.
+28. Como usuário, quero auditar como a Databricks aparece no ChatGPT, Perplexity, Gemini e Claude para prompts-alvo, com recomendações de conteúdo, usando uma capacidade interna da plataforma, para melhorar a presença da marca em IA.
 29. Como usuário, quero digitar texto livre na Conversa e receber uma resposta plausível, para que a demo não quebre quando alguém fugir do roteiro.
 30. Como usuário, quero copiar uma resposta do Agente, para usá-la fora da Althius.
 
@@ -77,7 +77,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 39. Como usuário, quero ativar ou desativar uma Habilidade, para controlar como o Agente trabalha.
 
 ### Rotinas
-40. Como usuário, quero ver as Rotinas agendadas de um Agente (ex.: "toda segunda às 9h, o Oraculum audita a marca nos LLMs e posta no Slack"), para saber o que ele faz sozinho.
+40. Como usuário, quero ver as Rotinas agendadas de um Agente (ex.: "toda segunda às 9h, auditar a presença da marca nos LLMs e postar no Slack"), para saber o que ele faz sozinho.
 41. Como usuário, quero criar, editar, pausar e excluir uma Rotina (frequência, horário, tarefa, Canal de destino), para automatizar trabalho recorrente.
 
 ### Atividade
@@ -141,7 +141,7 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
 - **Conversa simulada:** cada Agente padrão tem 2 roteiros acionados por sugestões clicáveis, e existe 1 roteiro de Colaboração (Scopus → Ethos → Rhetor → Aprovação no Slack). Uma mensagem de texto livre recebe uma resposta genérica plausível do Agente atual; um Agente criado usa os roteiros e a resposta genérica da sua Especialidade. Cada resposta é uma sequência de passos (chamada de ferramenta, texto, repasse, proposta de Aprovação), exibidos com efeito de digitação. Isso vale **só para o protótipo**: o produto real precisa responder de forma robusta a qualquer entrada.
 - **Coordenação simulada:** 4 casos roteirizados:
   - "Monte a abordagem completa para a OpenAI": Scopus → Ethos → Rhetor, terminando numa Aprovação no HubSpot;
-  - "Como estamos no Perplexity e o que publicar?": Oraculum e Rhetor;
+  - "Como estamos no Perplexity e o que publicar?": auditoria interna de presença em LLMs e Rhetor;
   - texto livre sem @: a resposta genérica, direta, sem chamar Agentes;
   - texto livre com @Agente: esse Agente responde com a resposta genérica dele.
 - **Permissões** (ADR 0002): Ler, Propor ou Executar, por Agente × Integração. O padrão é Ler, e Propor para ações que escrevem ou gastam.
@@ -149,7 +149,8 @@ Os atores são: **usuário** (alguém de receita no Cliente: SDR, AE, marketing,
   - Scopus → HubSpot, Clay, Apollo, Lusha
   - Ethos → HubSpot, Apollo, Lusha, Notion
   - Rhetor → HubSpot, Notion, Meta Ads, Google Ads
-  - Oraculum → Notion, Google Ads e busca nos LLMs (ChatGPT, Perplexity, Gemini, Claude) como ferramenta nativa
+  - Oraculum → Notion e Google Ads
+  - A auditoria de presença em LLMs é uma capacidade interna candidata, sem Especialidade proprietária; ainda não há implementação de produção.
 - **Canais:** Slack, WhatsApp, Microsoft Teams, E-mail. Cada um tem um fluxo simulado de conectar e uma prévia de conversa; a do Slack inclui botões de Aprovação.
 - **Dados da demo:**
   - Workspace da Databricks e Contas-alvo reais (ex.: OpenAI, Meta, Stripe, Anthropic), só com informação pública;

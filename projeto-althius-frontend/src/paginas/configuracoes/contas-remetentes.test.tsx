@@ -40,14 +40,16 @@ function abrirMeuPerfil({
   contas = [],
   cotas,
   responder = () => ({ corpo: { url: 'https://account.unipile.com/link-novo' } }),
+  rota = '/configuracoes/perfil',
 }: {
+  rota?: string
   contas?: Linha[]
   cotas?: Linha[]
   responder?: (corpo: Record<string, unknown>) => RespostaDaFuncao
 } = {}) {
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', 'ws-norte')
-  window.history.replaceState(null, '', '/configuracoes/perfil')
+  window.history.replaceState(null, '', rota)
   const backend = { contas: [...contas], falhar: false }
   const pedidos: Record<string, unknown>[] = []
   const listagens: Record<string, unknown>[] = []
@@ -86,6 +88,24 @@ function abrirMeuPerfil({
 
 const minhasContas = () => screen.findByRole('region', { name: 'Minhas Contas remetentes' })
 const canal = async (nome: string) => within(await minhasContas()).findByRole('listitem', { name: nome })
+
+describe('Canais de envio em Conexões', () => {
+  it('Conexões mostra os Canais de envio com o estado real e conecta pela autenticação hospedada', async () => {
+    const { pedidos, abrir, usuario } = abrirMeuPerfil({
+      rota: '/conexoes',
+      contas: [contaRemetente({ id: 'e', status: 'ready', provider: 'GOOGLE' })],
+    })
+
+    const envio = await screen.findByRole('region', { name: 'Canais de envio' })
+    expect(await within(await within(envio).findByRole('listitem', { name: 'E-mail' })).findByText('Pronta')).toBeInTheDocument()
+    const linkedin = within(envio).getByRole('listitem', { name: 'LinkedIn' })
+    await usuario.click(within(linkedin).getByRole('button', { name: 'Conectar LinkedIn' }))
+
+    await waitFor(() => expect(pedidos).toEqual([expect.objectContaining({ action: 'connect', channel: 'linkedin' })]))
+    expect(abrir).toHaveBeenCalledWith('https://account.unipile.com/link-novo', '_blank', 'noopener,noreferrer')
+    expect(await within(envio).findByText(/abriu em outra aba/)).toBeInTheDocument()
+  })
+})
 
 describe('Minhas Contas remetentes no Workspace operacional', () => {
   it('o titular vê em Meu perfil cada Canal de abordagem com o estado que o backend registrou', async () => {
@@ -171,7 +191,8 @@ describe('Minhas Contas remetentes no Workspace operacional', () => {
 
     await usuario.click(await within(await canal('E-mail')).findByRole('button', { name: 'Conectar E-mail' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('A Unipile não conseguiu iniciar a conexão. Tente novamente.')
+    const mensagem = await screen.findByText('A Unipile não conseguiu iniciar a conexão. Tente novamente.')
+    expect(mensagem.closest('[role="alert"]')).not.toBeNull()
     expect(abrir).not.toHaveBeenCalled()
   })
 
