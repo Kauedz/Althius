@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, Sparkles, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { LogoDaIntegracao, nomeDaIntegracao } from '@/components/logos'
 import { IconeAgente } from '@/components/marca'
 import { Button } from '@/components/ui/button'
@@ -354,8 +355,18 @@ export function NascimentoSequenciaNaConversa({
           })}
 
           {contatosConta.length === 0 && (
-            <div className="p-4 text-xs text-al-muted">
-              Nenhum contato cadastrado nesta Conta-alvo.
+            <div className="flex flex-col gap-3 p-4 text-xs text-al-muted">
+              <p>Nenhum contato cadastrado nesta Conta-alvo.</p>
+              <p>
+                Enriqueça o Comitê de Compra e aceite os contatos encontrados para continuar a montar a sequência.
+              </p>
+              <Link
+                to={`/contas/${contaId}#comite`}
+                className="inline-flex w-fit items-center gap-1.5 rounded-md border border-al-accent bg-al-accent px-3 py-2 text-xs font-medium text-al-on-accent hover:bg-al-accent-2"
+              >
+                <Users className="size-3.5" />
+                Enriquecer contatos
+              </Link>
             </div>
           )}
         </div>
