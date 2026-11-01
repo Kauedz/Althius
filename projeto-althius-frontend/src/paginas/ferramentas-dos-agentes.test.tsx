@@ -8,16 +8,13 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
-// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
-window.history.replaceState(null, '', '/conversa')
-
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/conversa')
+  window.history.replaceState(null, '', '/')
   sessionStorage.clear()
 })
 
@@ -60,7 +57,7 @@ function abrir(rota: string, eventos: Evento[], salva = false) {
 
 describe('Os passos das ferramentas dos Agentes na Conversa', () => {
   it('na Coordenação, cada Agente mostra o que fez, com o link para a Caixa de Descobertas e para a Aprovação', async () => {
-    const { usuario } = abrir('/conversa', [
+    const { usuario } = abrir('/', [
       { seq: 1, kind: 'chamada', agent_id: 'agente-scopus', payload: {} },
       {
         seq: 2,

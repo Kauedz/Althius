@@ -8,7 +8,6 @@ import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeDescobertas } from './descobertas-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeSequencias, FonteObservavel } from './tipos'
-import { ErroDoAgente, type FonteDoAgente } from './agente-tipos'
 
 /** O que as telas sabem do ambiente atual: o modo, para se identificar, e se um módulo já tem backend. */
 export interface AmbienteAtual {
@@ -185,28 +184,6 @@ export function useFonteDeDescobertas(): FonteDeDescobertas {
   const fonte = useContext(ContextoDaFonteDeDescobertas)
   if (!fonte) throw new Error('useFonteDeDescobertas precisa de um FonteDeDescobertasProvider')
   return fonte
-}
-
-/** Sem a Fonte do agente (um ambiente montado à mão), a tela diz que ele está fora do ar e não inventa resposta. */
-const AGENTE_INDISPONIVEL: FonteDoAgente = {
-  disponivel: () => Promise.resolve(false),
-  conversas: () => Promise.resolve([]),
-  conversa: () => Promise.reject(new ErroDoAgente('Esta conversa não existe ou não é sua.', 'nao_encontrada')),
-  enviar: () => Promise.reject(new ErroDoAgente('O agente está fora do ar agora.', 'model_unavailable')),
-  confirmar: () => Promise.reject(new ErroDoAgente('O agente está fora do ar agora.', 'model_unavailable')),
-  cancelar: () => Promise.reject(new ErroDoAgente('O agente está fora do ar agora.', 'model_unavailable')),
-  escolher: () => Promise.reject(new ErroDoAgente('O agente está fora do ar agora.', 'model_unavailable')),
-  atualizar: () => Promise.resolve(false),
-}
-
-const ContextoDaFonteDoAgente = createContext<FonteDoAgente>(AGENTE_INDISPONIVEL)
-
-export function FonteDoAgenteProvider({ fonte, children }: { fonte?: FonteDoAgente; children: ReactNode }) {
-  return <ContextoDaFonteDoAgente.Provider value={fonte ?? AGENTE_INDISPONIVEL}>{children}</ContextoDaFonteDoAgente.Provider>
-}
-
-export function useFonteDoAgente(): FonteDoAgente {
-  return useContext(ContextoDaFonteDoAgente)
 }
 
 export interface EstadoDoCarregamento<T> {

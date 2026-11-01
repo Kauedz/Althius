@@ -23,13 +23,12 @@ export function PaginaAgentes() {
   )
 }
 
-/** O composer da tela inicial: classifica o pedido; um pedido que não é Sinal abre a Conversa coordenada (ADR 0004). */
+/** O composer abaixo da grade: um pedido sem escolher um Agente abre a Conversa coordenada (ADR 0004). */
 function PedidoCoordenado() {
   const conversas = useConversas()
   const sugestoes = useDados((fonte) => fonte.sugestoesCoordenadas(), [])
   const navegar = useNavigate()
   const { respondendo } = conversas.coordenada
-  const { modo, disponivel } = useAmbiente()
 
   function coordenar(pedido: Mensagem) {
     conversas.coordenar(pedido)
@@ -42,8 +41,6 @@ function PedidoCoordenado() {
         nome="Pedido aos agentes"
         rotulo="Peça algo aos agentes"
         placeholder="Descreva o trabalho. A Althius chama os agentes certos."
-        classificarIntencao
-        criarSinalNoComposer={modo === 'real' && disponivel('sinais')}
         ocupado={respondendo}
         aoEnviar={(texto, anexos) => coordenar({ texto, ...(anexos.length ? { anexos } : {}) })}
       />

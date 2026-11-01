@@ -21,7 +21,6 @@ import { criarFonteDeSinaisSupabase } from './supabase-sinais'
 import { criarFonteDeDescobertasSupabase } from './supabase-descobertas'
 import { lerSaldoDeCreditos, lerExtratoDeCreditos, lerPrecosDeCreditos } from './creditos'
 import { lerResumoDoContrato } from './supabase-contrato'
-import { criarFonteDoAgenteSupabase } from './supabase-agente'
 
 /**
  * Um Workspace operacional: as fontes ligadas ao backend pela sessão e pelo Workspace escolhido. Um módulo sem
@@ -122,7 +121,6 @@ export function criarAmbienteDoWorkspace({
     }, aprovacoes),
     fonteDeAutomacao: criarFonteDeAutomacaoSupabase(cliente, () => participacao.workspaceId),
     fonteDeDescobertas: criarFonteDeDescobertasSupabase(cliente, () => participacao.workspaceId),
-    fonteDoAgente: criarFonteDoAgenteSupabase(cliente, () => participacao.workspaceId),
     indisponiveis,
   }
 }

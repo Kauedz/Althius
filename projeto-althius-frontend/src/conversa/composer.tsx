@@ -10,9 +10,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { classificarPedido, type ClassificacaoDoPedido } from '@/conversa/classificar-pedido'
-import { CartaoDaVitrine } from '@/paginas/sinais/vitrine-pecas'
+import { Link } from 'react-router-dom'
 import {
   ACEITOS_ARQUIVO,
   ACEITOS_IMAGEM,
@@ -39,11 +37,7 @@ interface Props {
   aoEnviar: (texto: string, anexos: AnexoDaMensagem[]) => void
   /** Com ele, o Enviar vira Parar enquanto o pedido roda. */
   aoParar?: () => void
-  /** Classifica pedidos do composer inicial antes de encaminhar à conversa. */
-  classificarIntencao?: boolean
-  /** Só o Workspace operacional abre o Plano no composer; a Demonstração mantém o fluxo simulado. */
-  criarSinalNoComposer?: boolean
-  /** Sem ele, o composer não oferece anexos: quem recebe o pedido (o agente único) ainda não lê arquivos. */
+  /** Sem ele, o composer não oferece anexos, para quem recebe o pedido e ainda não lê arquivos. */
   aceitaAnexos?: boolean
   /** Mostra as Conexões ativas do Workspace (só leitura), com o atalho para gerenciá-las em Conexões. */
   mostrarConexoes?: boolean
@@ -73,20 +67,15 @@ export function Composer({
   ocupado = false,
   aoEnviar,
   aoParar,
-  classificarIntencao = false,
-  criarSinalNoComposer = false,
   aceitaAnexos = true,
   mostrarConexoes = false,
 }: Props) {
   const fonte = useFonte()
-  const navegar = useNavigate()
   const workspace = useDados((f) => f.workspace(), [])
   const agentes = useDados((f) => f.agentes(), []) ?? []
   const [texto, setTexto] = useState('')
   const [anexos, setAnexos] = useState<EstadoDoAnexo[]>([])
   const [aviso, setAviso] = useState('')
-  const [classificacao, setClassificacao] = useState<ClassificacaoDoPedido | null>(null)
-  const [briefingDoSinal, setBriefingDoSinal] = useState('')
   const [menuAberto, setMenuAberto] = useState(false)
   const [conexoesAbertas, setConexoesAbertas] = useState(false)
   const integracoes = useDados((f) => (mostrarConexoes ? f.integracoes() : Promise.resolve([])), [mostrarConexoes])
@@ -180,18 +169,6 @@ export function Composer({
   function enviar(evento?: FormEvent) {
     evento?.preventDefault()
     if (!podeEnviar) return
-    if (classificarIntencao) {
-      const resultado = classificarPedido(texto.trim())
-      if (resultado.caminho !== 'geral') {
-        setBriefingDoSinal(resultado.caminho === 'plano_novo' ? texto.trim() : '')
-        setClassificacao(resultado)
-        setTexto('')
-        setAnexos([])
-        setAviso('')
-        return
-      }
-      setClassificacao(null)
-    }
     const prontos = anexos.flatMap((anexo) => (anexo.estado === 'pronto' ? [anexo.anexo] : []))
     aoEnviar(texto.trim(), prontos)
     setTexto('')
@@ -317,21 +294,6 @@ export function Composer({
         <p role="alert" className="px-3.5 text-sm text-al-atencao">
           {aviso}
         </p>
-      )}
-      {classificacao?.caminho === 'plano_novo' && criarSinalNoComposer && (
-        <NavegarParaNovoSinal briefing={briefingDoSinal} aoNavegar={navegar} />
-      )}
-      {classificacao?.caminho === 'plano_novo' && !criarSinalNoComposer && (
-        <div role="status" className="mx-3.5 rounded-md border border-al-line bg-al-bg p-3 text-sm">Entendi que você quer acompanhar algo novo. A criação por aqui está em construção.{' '}<Link className="text-al-accent underline" to="/sinais/novo">Descrever meu Sinal</Link></div>
-      )}
-      {classificacao?.caminho === 'modelo' && (
-        <div role="status" className="mx-3.5 rounded-md border border-al-line bg-al-bg p-3 text-sm">
-          <p className="mb-2">Encontrei Modelos que podem ajudar:</p>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {classificacao.modelos.map((modelo) => <CartaoDaVitrine key={modelo.id} card={modelo} ativos={0} abrirModelo mostrarAtivos={false} />)}
-          </ul>
-          <button type="button" className="mt-3 text-al-accent underline" onClick={() => setClassificacao(null)}>Descrever meu próprio Sinal</button>
-        </div>
       )}
       <div ref={barra} className="flex items-center gap-1.5 pt-1.5 pr-2.5 pb-2.5 pl-3.5">
         {comAnexos && (
@@ -509,9 +471,4 @@ export function Composer({
       </div>
     </form>
   )
-}
-
-function NavegarParaNovoSinal({ briefing, aoNavegar }: { briefing: string; aoNavegar: ReturnType<typeof useNavigate> }) {
-  useEffect(() => { aoNavegar('/sinais/novo', { state: { briefing, origem: 'composer' } }) }, [aoNavegar, briefing])
-  return null
 }

@@ -93,9 +93,8 @@ function ConversaCoordenadaAtiva() {
   const fim = useRef<HTMLDivElement>(null)
   useSeguirOFim(conteudo, fim)
 
-  // Sem Conversa coordenada, volta ao pedido aos Agentes (a tela inicial antiga, em /agentes até a fatia 3d). Depois
-  // de recarregar, a Conversa salva ainda está chegando do banco.
-  if (itens.length === 0) return conversas.retomando ? null : <Navigate to="/agentes" replace />
+  // Depois de recarregar, a Conversa salva ainda está chegando do banco: só sem ela a tela volta à grade.
+  if (itens.length === 0) return conversas.retomando ? null : <Navigate to="/" replace />
 
   const turnos = emTurnos(itens)
   const referencias: Referencias = {
@@ -106,10 +105,10 @@ function ConversaCoordenadaAtiva() {
   return (
     <Pagina
       titulo="Conversa"
-      voltar={{ para: '/agentes', rotulo: 'Agentes' }}
+      voltar={{ para: '/', rotulo: 'Agentes' }}
       acoes={
         <Link
-          to="/agentes"
+          to="/"
           className="rounded-md inline-flex h-8 items-center border border-al-line px-4 text-sm font-normal tracking-[0.04em] hover:border-al-ink"
         >
           Voltar para Agentes
@@ -186,11 +185,11 @@ function LeituraDoWhatsApp({ id }: { id: string }) {
   const referencias: Referencias = { agentes: porId(agentes), integracoes }
   const turnos = emTurnos(itens)
   return (
-    <Pagina titulo="Conversa do WhatsApp" voltar={{ para: '/agentes', rotulo: 'Agentes' }} className="flex-1 pb-0">
+    <Pagina titulo="Conversa do WhatsApp" voltar={{ para: '/', rotulo: 'Agentes' }} className="flex-1 pb-0">
       <div className="mx-auto flex w-full max-w-180 flex-1 flex-col gap-6">
         <div className="flex items-center justify-between">
           <MarcaDoWhatsApp />
-          <Link to="/agentes" className="text-sm underline underline-offset-4">Voltar para Agentes</Link>
+          <Link to="/" className="text-sm underline underline-offset-4">Voltar para Agentes</Link>
         </div>
         {erro && <p role="alert" className="text-sm text-al-atencao">{erro}</p>}
         <div aria-live="polite" className="flex flex-col gap-10 pb-10">

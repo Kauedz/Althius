@@ -9,16 +9,13 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
-// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
-window.history.replaceState(null, '', '/conversa')
-
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/conversa')
+  window.history.replaceState(null, '', '/')
   sessionStorage.clear()
 })
 
@@ -95,7 +92,7 @@ function abrir(rota: string, papel: 'admin' | 'member', salva = false) {
 describe('A Aprovação pedida por um Agente, decidida dentro da Conversa', () => {
   // Desde o Sinais first 10 a Conversa direta com o Agente é só leitura: o pedido novo vai pela Coordenação da /.
   it('na Coordenação, o Administrador aprova no passo da Conversa, e a chamada aprovada é executada', async () => {
-    const { usuario, decisoes, execucoes } = abrir('/conversa', 'admin')
+    const { usuario, decisoes, execucoes } = abrir('/', 'admin')
     await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode criar a pauta da Alfa no Notion?')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
@@ -109,7 +106,7 @@ describe('A Aprovação pedida por um Agente, decidida dentro da Conversa', () =
   })
 
   it('na Coordenação, quem não é Administrador vê a Aprovação, mas não decide', async () => {
-    const { usuario, decisoes } = abrir('/conversa', 'member')
+    const { usuario, decisoes } = abrir('/', 'member')
     await usuario.type(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' }), 'Pode criar a pauta da Alfa?')
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
 
