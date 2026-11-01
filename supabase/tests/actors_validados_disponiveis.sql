@@ -3,6 +3,18 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 select plan(5);
 
+-- O rollout só de vagas (migration 20261219010000) pôs "out" os actors e desligou as cascatas que não são de vagas, e a
+-- cascata do Indeed no mercado (20261219020000) nasce disponível. Este teste é anterior aos dois e confere cada fonte no
+-- estado que as migrations de antes deixavam, então volta a ele só nesta transação: os 5 actors validados disponíveis, os
+-- outros em teste e as cascatas em teste.
+update private.signal_actors
+set state = case when actor_id in (
+    'harvestapi~linkedin-profile-scraper', 'harvestapi~linkedin-profile-search', 'harvestapi~linkedin-post-search',
+    'silva95gustavo~linkedin-ad-library-scraper', 'compass~google-maps-reviews-scraper'
+  ) then 'available' else 'testing' end
+where state = 'out';
+update private.signal_cascades set state = 'testing' where state = 'disabled' or signal_type = 'vaga_indeed_mercado';
+
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
                         is_sso_user, is_anonymous)
