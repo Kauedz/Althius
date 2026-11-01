@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { Link } from 'react-router-dom'
+import { IconeDaEspecialidade } from '@/components/marca'
 import {
   ACEITOS_ARQUIVO,
   ACEITOS_IMAGEM,
@@ -32,6 +33,8 @@ interface Props {
   /** Rótulo do campo, só para leitores de tela: o texto de ajuda vai no placeholder. */
   rotulo: string
   placeholder: string
+  /** Na página de Agentes, a faixa de baixo mostra também as Especialidades. */
+  comEspecialidades?: boolean
   /** Enquanto o pedido anterior roda, o seguinte espera. */
   ocupado?: boolean
   aoEnviar: (texto: string, anexos: AnexoDaMensagem[]) => void
@@ -56,7 +59,7 @@ function miniaturaLocal(arquivo: File): string | undefined {
 
 /**
  * O composer da Coordenação e da Conversa com um Agente, no padrão de prompt input: uma caixa arredondada com a faixa
- * de anexos em cima, o campo que cresce com a mensagem e, embaixo, o "+" para anexar, o Workspace, a
+ * de anexos em cima, o campo que cresce com a mensagem e, embaixo, o "+" para anexar, o Workspace, as Especialidades, a
  * dica do teclado e o Enviar (que vira Parar enquanto o pedido roda). Dá para arrastar e soltar ou colar uma imagem. O @
  * abre o autocompletar de Agentes. Os anexos só existem onde há onde guardá-los (o Workspace operacional).
  */
@@ -64,6 +67,7 @@ export function Composer({
   nome,
   rotulo,
   placeholder,
+  comEspecialidades = false,
   ocupado = false,
   aoEnviar,
   aoParar,
@@ -73,6 +77,7 @@ export function Composer({
   const fonte = useFonte()
   const workspace = useDados((f) => f.workspace(), [])
   const agentes = useDados((f) => f.agentes(), []) ?? []
+  const especialidades = useDados((f) => f.especialidades(), [])
   const [texto, setTexto] = useState('')
   const [anexos, setAnexos] = useState<EstadoDoAnexo[]>([])
   const [aviso, setAviso] = useState('')
@@ -441,6 +446,22 @@ export function Composer({
           <span className="rotulo text-[0.6875rem] text-al-muted">Workspace</span>
           <span className="max-w-[12rem] truncate">{workspace?.cliente}</span>
         </span>
+        {comEspecialidades && especialidades && (
+          <ul
+            aria-label="Especialidades disponíveis"
+            className="inline-flex h-7.5 items-center gap-0.5 rounded-full bg-al-bg px-1"
+          >
+            {especialidades.map((especialidade) => (
+              <li
+                key={especialidade.id}
+                title={especialidade.nome}
+                className="grid size-6.5 place-items-center rounded-full text-al-muted hover:text-al-ink"
+              >
+                <IconeDaEspecialidade especialidade={especialidade.id} className="size-3.5" />
+              </li>
+            ))}
+          </ul>
+        )}
         <span className="ml-auto hidden text-xs text-al-muted md:inline">Enter envia, Shift+Enter quebra linha</span>
         {ocupado && aoParar ? (
           <button

@@ -2,13 +2,11 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
 import { armazenamentoEmMemoria } from '@/test/armazenamento'
-import { navegarPara } from '@/test/navegar'
 import { renderizarApp } from '@/test/renderizar'
 
 /** Abre Workspace / Pessoas e acesso com a identidade (e, se preciso, o papel) escolhida para o cenário. */
-/** No histórico do navegador, para ir às páginas dos Agentes antigos, que saíram da barra lateral (Sinais first 10). */
 function abrirParticipantes(opcoesFonte: OpcoesFonteSimulada = {}) {
-  return renderizarApp('/configuracoes/workspace', {}, {}, {}, {}, opcoesFonte, true)
+  return renderizarApp('/configuracoes/workspace', {}, {}, {}, {}, opcoesFonte)
 }
 
 function linhaDe(nome: string) {
@@ -306,7 +304,9 @@ describe('Consumidores das pessoas do Workspace', () => {
     expect(await screen.findByRole('menu')).toHaveTextContent('Time comercial da América Latina')
     await usuario.keyboard('{Escape}')
 
-    navegarPara('/agentes/scopus/memoria')
+    await usuario.click(within(screen.getByRole('complementary', { name: 'Navegação' })).getByRole('link', { name: /Agentes/ }))
+    await usuario.click((await screen.findAllByRole('link', { name: /Scopus/ }))[0])
+    await usuario.click(await screen.findByRole('link', { name: 'Memória' }))
     expect(await screen.findByText(/O que Scopus aprendeu sobre a Databricks LATAM/)).toBeInTheDocument()
   })
 

@@ -103,9 +103,7 @@ function abrir(rota: string, salvas: Linha[], conversas: Record<string, unknown>
 const hoje = () => new Date().toISOString()
 
 describe('Histórico de Conversas do Agente', () => {
-  // Sinais first 10: a página do Agente é só leitura. O histórico continua aberto à consulta; continuar, renomear,
-  // arquivar, Nova conversa e as sugestões saíram.
-  it('lista as Conversas do Agente agrupadas e abre pelo endereço, sem continuar a Conversa', async () => {
+  it('lista as Conversas do Agente agrupadas, abre pelo endereço e o próximo pedido a continua', async () => {
     const { usuario, enviados } = abrir(
       '/agentes/agente-scopus/conversa',
       [
@@ -127,33 +125,41 @@ describe('Histórico de Conversas do Agente', () => {
     expect(await screen.findByText('A Alfa tem aderência alta.')).toBeInTheDocument()
     expect(window.location.search).toBe('?conversa=a1')
 
-    expect(screen.queryByRole('textbox', { name: 'Mensagem para Scopus' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Enviar' })).not.toBeInTheDocument()
-    expect(enviados).toEqual([])
+    await usuario.type(screen.getByRole('textbox', { name: 'Mensagem para Scopus' }), 'E a Beta?')
+    await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
+    await screen.findByText('E a Beta?')
+    expect(enviados.at(-1)).toEqual(expect.objectContaining({ conversationId: 'a1', text: 'E a Beta?' }))
   })
 
-  it('a busca filtra, sem arquivar, renomear nem Nova conversa', async () => {
-    const { usuario, enviados, renomeadas } = abrir('/agentes/agente-scopus/conversa?conversa=a1', [
+  it('a busca filtra, arquivar tira da lista e Nova conversa limpa a tela', async () => {
+    const { usuario, enviados } = abrir('/agentes/agente-scopus/conversa?conversa=a1', [
       linha({ id: 'a1', kind: 'agente', agent_id: 'agente-scopus', first_request: 'Aderência da Alfa', updated_at: hoje() }),
       linha({ id: 'a2', kind: 'agente', agent_id: 'agente-scopus', first_request: 'Previsão do trimestre', updated_at: hoje() }),
     ], { a1: conversaSalvaDoAgente('Aderência da Alfa', 'A Alfa tem aderência alta.') })
 
     expect(await screen.findByText('A Alfa tem aderência alta.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Nova conversa' })).not.toBeInTheDocument()
     await usuario.click(screen.getByRole('button', { name: 'Histórico' }))
     const historico = within(await screen.findByRole('dialog', { name: 'Conversas do Scopus' }))
     await usuario.type(historico.getByRole('textbox', { name: 'Buscar conversas' }), 'previsao')
     expect(historico.queryByText('Aderência da Alfa')).not.toBeInTheDocument()
     expect(historico.getByText('Previsão do trimestre')).toBeInTheDocument()
-    expect(historico.queryByRole('button', { name: /^(Arquivar|Renomear) / })).not.toBeInTheDocument()
-    expect(enviados).toEqual([])
-    expect(renomeadas).toEqual([])
+
+    await usuario.click(historico.getByRole('button', { name: 'Arquivar Previsão do trimestre' }))
+    expect(historico.queryByText('Previsão do trimestre')).not.toBeInTheDocument()
+
+    await usuario.keyboard('{Escape}')
+    await usuario.click(screen.getByRole('button', { name: 'Nova conversa' }))
+    expect(screen.queryByText('A Alfa tem aderência alta.')).not.toBeInTheDocument()
+    expect(window.location.search).toBe('')
+    await usuario.type(screen.getByRole('textbox', { name: 'Mensagem para Scopus' }), 'Do zero')
+    await usuario.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(await screen.findAllByText('Do zero')).not.toHaveLength(0)
+    expect(enviados.at(-1)).toEqual(expect.objectContaining({ conversationId: null, text: 'Do zero' }))
   })
 
-  it('não mostra sugestões de pedido novo, nem as do Workspace nem as da Demonstração', async () => {
+  it('as sugestões vêm dos dados do Workspace, sem as frases da Demonstração', async () => {
     abrir('/agentes/agente-scopus/conversa', [])
-    expect(await screen.findByText('Nenhuma Conversa aberta')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Pontue a aderência da Alfa ao nosso ICP' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pontue a aderência da OpenAI ao nosso ICP' })).not.toBeInTheDocument()
   })
 })

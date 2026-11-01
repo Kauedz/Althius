@@ -20,7 +20,6 @@ import { nomeDaConversa, tituloAutomatico, type Agente, type AgenteId, type Apro
 import { cn, mensagemDeErro, porId } from '@/lib/utils'
 import { AprovacaoNaConversa } from '@/paginas/aprovacao-na-conversa'
 import { AprovacaoDoPasso } from '@/paginas/aprovacao-do-passo'
-import { useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 export function SecaoConversa({ agente }: { agente: Agente }) {
   const { disponivel } = useAmbiente()
@@ -50,7 +49,6 @@ function emCampoDeTexto(alvo: EventTarget | null): boolean {
  * aberta fica no endereço (?conversa=<id>, ou ?slack=<id>), para voltar a ela pelo link.
  */
 function ConversaComHistorico({ agente }: { agente: Agente }) {
-  const somenteLeitura = useSomenteLeituraDoAgente()
   const fonte = useFonte()
   const conversas = useConversas()
   const [parametros, setParametros] = useSearchParams()
@@ -139,7 +137,7 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
         idSalvo={idSalvo}
         titulo={titulo}
         nomeInicial={resumo?.titulo ?? ''}
-        podeRenomear={!somenteLeitura && Boolean(idSalvo && fonte.renomearConversa)}
+        podeRenomear={Boolean(idSalvo && fonte.renomearConversa)}
         aoRenomear={async (nome) => {
           if (!idSalvo) return
           await fonte.renomearConversa?.(idSalvo, nome)
@@ -148,7 +146,7 @@ function ConversaComHistorico({ agente }: { agente: Agente }) {
         comHistorico={comHistorico}
         historicoAberto={historicoAberto}
         aoAbrirHistorico={() => setHistoricoAberto(true)}
-        mostrarNova={!somenteLeitura && (!vazia || !comHistorico)}
+        mostrarNova={!vazia || !comHistorico}
         aoNova={nova}
       />
       {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
@@ -421,7 +419,6 @@ function LeituraDoSlack({ agente, id }: { agente: Agente; id: string }) {
 }
 
 function ConversaComOAgente({ agente }: { agente: Agente }) {
-  const somenteLeitura = useSomenteLeituraDoAgente()
   const fonteDaConversa = useFonte()
   const conversas = useConversas()
   const agentes = useDados((fonte) => fonte.agentes(), []) ?? []
@@ -452,7 +449,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
         {vazia && (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4">
             <IconeAgente especialidade={agente.especialidade.id} tamanho="lg" />
-            <p className="anotacao text-lg">{somenteLeitura ? 'Nenhuma Conversa aberta' : 'comece por uma sugestão, ou mencione outro agente com @'}</p>
+            <p className="anotacao text-lg">comece por uma sugestão, ou mencione outro agente com @</p>
           </div>
         )}
         {itens.map((item) => (
@@ -472,7 +469,7 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
       <div className="sticky bottom-0 flex flex-col gap-3 bg-al-bg pb-6">
         {vazia && (
           <div className="flex flex-wrap justify-center gap-2">
-            {!somenteLeitura && sugestoes.map((sugestao) => (
+            {sugestoes.map((sugestao) => (
               <Button
                 key={sugestao.id}
                 variant="outline"
@@ -486,17 +483,15 @@ function ConversaComOAgente({ agente }: { agente: Agente }) {
           </div>
         )}
 
-        {!somenteLeitura && (
-          <Composer
-            nome={`Conversa com ${agente.nome}`}
-            rotulo={`Mensagem para ${agente.nome}`}
-            placeholder={`Peça algo a ${agente.nome}.`}
-            ocupado={respondendo}
-            aoEnviar={(mensagem, anexos) =>
-              conversas.enviar(agente.id, { texto: mensagem, ...(anexos.length ? { anexos } : {}) })}
-            aoParar={conversas.parar ? () => conversas.parar?.(agente.id) : undefined}
-          />
-        )}
+        <Composer
+          nome={`Conversa com ${agente.nome}`}
+          rotulo={`Mensagem para ${agente.nome}`}
+          placeholder={`Peça algo a ${agente.nome}. Use @ para chamar outro agente.`}
+          ocupado={respondendo}
+          aoEnviar={(mensagem, anexos) =>
+            conversas.enviar(agente.id, { texto: mensagem, ...(anexos.length ? { anexos } : {}) })}
+          aoParar={conversas.parar ? () => conversas.parar?.(agente.id) : undefined}
+        />
       </div>
     </section>
   )

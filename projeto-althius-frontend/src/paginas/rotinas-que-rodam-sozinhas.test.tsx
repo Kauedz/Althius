@@ -79,14 +79,21 @@ describe('Rotinas que rodam sozinhas', () => {
     expect(within(rotina).getByText(/Todo mês, dia 15 às 09:00/)).toBeInTheDocument()
   })
 
-  // Sinais first 10: as Rotinas do Agente retirado ficam só leitura; nem o Administrador cria uma nova.
-  it('o Administrador não cria Rotina nova no Agente retirado, e nada é gravado', async () => {
+  it('o Administrador cria a Rotina mensal com o dia do mês', async () => {
     const criadas: Record<string, unknown>[] = []
-    abrir([], criadas)
+    const { usuario } = abrir([], criadas)
 
-    expect(await screen.findByText(/Este Agente foi retirado do produto/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Nova rotina' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('form', { name: 'Nova rotina' })).not.toBeInTheDocument()
-    expect(criadas).toEqual([])
+    await usuario.click(await screen.findByRole('button', { name: 'Nova rotina' }))
+    const formulario = screen.getByRole('form', { name: 'Nova rotina' })
+    expect(within(formulario).queryByLabelText('Dia do mês')).not.toBeInTheDocument()
+    await usuario.type(within(formulario).getByLabelText('Tarefa'), 'Fechar o mês')
+    await usuario.selectOptions(within(formulario).getByLabelText('Frequência'), 'mensal')
+    const dia = within(formulario).getByLabelText('Dia do mês')
+    await usuario.clear(dia)
+    await usuario.type(dia, '20')
+    await usuario.click(within(formulario).getByRole('button', { name: 'Criar rotina' }))
+
+    expect(criadas).toHaveLength(1)
+    expect(criadas[0]).toMatchObject({ p_task: 'Fechar o mês', p_frequency: 'mensal', p_day_of_month: 20 })
   })
 })

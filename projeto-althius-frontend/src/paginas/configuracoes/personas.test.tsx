@@ -2,13 +2,11 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { criarFonteSimulada, type OpcoesFonteSimulada } from '@/fonte/simulada'
 import { armazenamentoEmMemoria, armazenamentoQueFalha } from '@/test/armazenamento'
-import { navegarPara } from '@/test/navegar'
 import { renderizarApp } from '@/test/renderizar'
 
 /** Abre a app numa rota com a identidade (e, se preciso, o papel) escolhida para o cenário. */
-/** No histórico do navegador, para ir às páginas dos Agentes antigos, que saíram da barra lateral (Sinais first 10). */
 function abrir(rota: string, opcoesFonte: OpcoesFonteSimulada = {}) {
-  return renderizarApp(rota, {}, {}, {}, {}, opcoesFonte, true)
+  return renderizarApp(rota, {}, {}, {}, {}, opcoesFonte)
 }
 
 describe('Memória do Workspace: Personas vigentes', () => {
@@ -88,15 +86,19 @@ describe('Revisão das Personas pelo Ethos', () => {
 
 const navegacao = () => within(screen.getByRole('complementary', { name: 'Navegação' }))
 
-/** A Habilidade preexistente "Sequência por persona" de um Agente do Rhetor, na página só leitura dele. */
-async function habilidadeSequenciaPorPersona(agenteId: string) {
-  navegarPara(`/agentes/${agenteId}/habilidades`)
+/** A Habilidade preexistente "Sequência por persona" de um Agente do Rhetor. */
+async function habilidadeSequenciaPorPersona(usuario: Usuario, agente: string) {
+  await usuario.click(navegacao().getByRole('link', { name: /Agentes/ }))
+  await usuario.click((await screen.findAllByRole('link', { name: new RegExp(`^${agente}`) }))[0])
+  await usuario.click(await screen.findByRole('link', { name: 'Habilidades' }))
   return screen.findByRole('listitem', { name: 'Sequência por persona' })
 }
 
-/** O Contexto do Workspace na Memória de um Agente, na página só leitura dele. */
-async function contextoDoWorkspace(agenteId: string) {
-  navegarPara(`/agentes/${agenteId}/memoria`)
+/** O Contexto do Workspace na Memória de um Agente. */
+async function contextoDoWorkspace(usuario: Usuario, agente: string) {
+  await usuario.click(navegacao().getByRole('link', { name: /Agentes/ }))
+  await usuario.click((await screen.findAllByRole('link', { name: new RegExp(`^${agente}`) }))[0])
+  await usuario.click(await screen.findByRole('link', { name: 'Memória' }))
   return screen.findByRole('region', { name: 'Contexto do Workspace' })
 }
 
@@ -130,11 +132,11 @@ describe('Aprovação da revisão das Personas', () => {
     expect(icp.getByText('Empresas com 2.000 funcionários ou mais.')).toBeInTheDocument()
     expect(icp.getByText(/Aprovado em 12 de setembro de 2026 por Marina Alves/)).toBeInTheDocument()
 
-    expect(await habilidadeSequenciaPorPersona('rhetor')).toHaveTextContent(
+    expect(await habilidadeSequenciaPorPersona(usuario, 'Rhetor')).toHaveTextContent(
       'Uma variação para cada uma das 8 Personas: Decisor técnico, Patrocinador executivo, Líder técnico, Comitê executivo, Decisor comercial, Campeão interno, Usuário-chave, Líder de governança de dados',
     )
-    expect(await habilidadeSequenciaPorPersona('rhetor-sequencias-outbound')).toHaveTextContent('Líder de governança de dados')
-    const contexto = within(await contextoDoWorkspace('ethos'))
+    expect(await habilidadeSequenciaPorPersona(usuario, 'Rhetor · Sequências outbound')).toHaveTextContent('Líder de governança de dados')
+    const contexto = within(await contextoDoWorkspace(usuario, 'Ethos'))
     expect(contexto.getByText('Líder de governança de dados')).toBeInTheDocument()
     expect(contexto.getByText(/Head de Governança ou DPO/)).toBeInTheDocument()
     expect(contexto.getByText('Empresas com 2.000 funcionários ou mais.')).toBeInTheDocument()
@@ -163,7 +165,7 @@ describe('Recusa e pendência da revisão das Personas', () => {
     expect(personas.queryByText('Líder de governança de dados')).not.toBeInTheDocument()
     expect(personas.getByText(/A última proposta do Ethos foi recusada por Marina Alves. As Personas vigentes não mudaram./)).toBeInTheDocument()
     expect(personas.getByRole('button', { name: 'Pedir revisão ao Ethos' })).toBeInTheDocument()
-    expect(await habilidadeSequenciaPorPersona('rhetor')).toHaveTextContent('Uma variação para cada uma das 7 Personas')
+    expect(await habilidadeSequenciaPorPersona(usuario, 'Rhetor')).toHaveTextContent('Uma variação para cada uma das 7 Personas')
   })
 
   it('enquanto pendente, a proposta não muda as configurações que dependem das Personas', async () => {
@@ -171,10 +173,10 @@ describe('Recusa e pendência da revisão das Personas', () => {
     await pedirRevisaoAoEthos(usuario)
     await usuario.keyboard('{Escape}')
 
-    const habilidade = await habilidadeSequenciaPorPersona('rhetor')
+    const habilidade = await habilidadeSequenciaPorPersona(usuario, 'Rhetor')
     expect(habilidade).toHaveTextContent('Uma variação para cada uma das 7 Personas')
     expect(habilidade).not.toHaveTextContent('governança')
-    expect(within(await contextoDoWorkspace('scopus')).queryByText('Líder de governança de dados')).not.toBeInTheDocument()
+    expect(within(await contextoDoWorkspace(usuario, 'Scopus')).queryByText('Líder de governança de dados')).not.toBeInTheDocument()
   })
 })
 

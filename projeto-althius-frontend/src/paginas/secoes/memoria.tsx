@@ -8,7 +8,6 @@ import { formatarDiaIsoPorExtenso } from '@/fonte/formatar-data'
 import { DOCUMENTOS_DA_MEMORIA, frasesDo } from '@/fonte/regras-memoria'
 import type { Agente, DocumentoDaMemoria, DocumentoVigente, Fato, MemoriaDoWorkspace } from '@/fonte/tipos'
 import { useEscritaDeAgente, usePodeAdministrarAgentes } from '@/paginas/administracao-de-agentes'
-import { useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 export function SecaoMemoria({ agente }: { agente: Agente }) {
   const fatos = useDados((fonte) => fonte.memoria(agente.id), [agente.id])
@@ -101,7 +100,6 @@ function ItemDeFato({ fato }: { fato: Fato }) {
   const fonte = useFonte()
   const podeAdministrar = usePodeAdministrarAgentes()
   const { erro, escrever } = useEscritaDeAgente()
-  const somenteLeitura = useSomenteLeituraDoAgente()
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState(fato.texto)
 
@@ -128,7 +126,7 @@ function ItemDeFato({ fato }: { fato: Fato }) {
         <Mensagem tipo="erro">{erro}</Mensagem>
       </div>
       <div className="flex gap-2">
-        {somenteLeitura || !podeAdministrar ? null : editando ? (
+        {!podeAdministrar ? null : editando ? (
           <>
             <Button onClick={salvar}>Salvar</Button>
             <Button

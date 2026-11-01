@@ -147,8 +147,9 @@ describe('Recentes na página de Agentes', () => {
   it('na Demonstração não há Recentes nem Ver todas', async () => {
     renderizarApp('/')
 
-    expect(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' })).toBeInTheDocument()
-    expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()
+    const grade = await screen.findByRole('list', { name: 'Agentes do Workspace' })
+    expect(within(grade).getByRole('link', { name: 'Scopus' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Peça algo aos agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Recentes' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Ver todas' })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()

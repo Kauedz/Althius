@@ -1,6 +1,6 @@
 # 02: Os 4 Agentes voltam à interface
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -33,9 +33,9 @@ Desfazer o #311 (merge `360efb0c`), que foi só de interface. O banco e o motor 
 
 ## Critérios
 
-- [ ] A `/` mostra a grade com Scopus, Ethos, Rhetor e Oraculum e o botão "Novo agente". (Vitest `App.test.tsx`, `agentes-reais.test.tsx`.)
-- [ ] A barra lateral mostra "Especialistas" com os 4. (Vitest `raiz.test.tsx`.)
-- [ ] A @menção oferece os 4. (Vitest.)
-- [ ] A página de um Agente aceita novo pedido na Conversa e edição de Memória, Habilidades e Rotinas. (Vitest.)
-- [ ] Criar um Agente a partir de uma Especialidade funciona. (Vitest.)
+- [x] A `/` mostra a grade com Scopus, Ethos, Rhetor e Oraculum e o botão "Novo agente". (Vitest `App.test.tsx` "Grade de Agentes", `agentes-reais.test.tsx`.)
+- [x] A barra lateral mostra "Especialistas" com os 4. (Vitest `App.test.tsx` "a sidebar tem ... os Especialistas".)
+- [x] A @menção oferece os 4. (Vitest `App.test.tsx` "@menção mostra o autocompletar..." e "o autocompletar de @ lista os Agentes criados".)
+- [x] A página de um Agente aceita novo pedido na Conversa e edição de Memória, Habilidades e Rotinas. (Vitest `App.test.tsx` "edita e apaga um fato da Memória", "desativa uma Habilidade", "cria e pausa uma Rotina".)
+- [x] Criar um Agente a partir de uma Especialidade funciona. (Vitest `App.test.tsx` "Novo agente abre o formulário com as 4 Especialidades".)
 - [ ] Smoke 09 (cadência) verde no build do PR.

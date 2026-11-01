@@ -13,7 +13,6 @@ import { useAmbiente, useDados, useFonte } from '@/fonte/contexto'
 import { podeDecidir } from '@/fonte/regras'
 import type { AprovacaoDeSequencia, Decisao, PassoDaSequenciaProposta } from '@/fonte/tipos'
 import { cn, mensagemDeErro } from '@/lib/utils'
-import { DecidirEmAprovacoes, useSomenteLeituraDoAgente } from '@/paginas/secoes/somente-leitura'
 
 const contar = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
 
@@ -152,7 +151,6 @@ function DecisaoDaProposta({ aprovacao, onde }: { aprovacao: AprovacaoDeSequenci
   const workspace = useDados((f) => f.workspace(), [])
   const [erro, setErro] = useState('')
   const [decidindo, setDecidindo] = useState(false)
-  const somenteLeitura = useSomenteLeituraDoAgente()
   const { sequencia } = aprovacao
 
   if (aprovacao.estado === 'aprovada') {
@@ -173,7 +171,6 @@ function DecisaoDaProposta({ aprovacao, onde }: { aprovacao: AprovacaoDeSequenci
   if (aprovacao.estado !== 'pendente') {
     return <span className="rotulo text-al-erro">{rotuloDoFim(aprovacao)}</span>
   }
-  if (somenteLeitura) return <DecidirEmAprovacoes />
   // Indefinido enquanto o Workspace carrega: nem os botões nem o aviso aparecem antes de saber quem é.
   if (workspace === undefined) return null
   if (!podeDecidir('sequencia', workspace?.papel, modo, sequencia.responsavel)) {
