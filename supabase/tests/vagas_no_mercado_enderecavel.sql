@@ -115,7 +115,7 @@ select throws_ok(
 select throws_ok(
   $$select public.save_signal_monitor('e7100000-0000-4000-8000-000000000001', null, 'avaliacoes_google_maps', 'Avaliações no mercado', 'rascunho',
       '{"escopo":"mercado"}', '{}', 24)$$,
-  '22023', 'the market scope is only for job openings', 'só Abertura de vagas tem mercado');
+  '22023', 'the market scope requires a market discovery source', 'só fontes de descoberta marcadas têm mercado');
 
 -- 5. O modo Contas-alvo não muda.
 select throws_ok(
