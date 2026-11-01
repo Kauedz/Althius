@@ -440,7 +440,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     // Vagas mantém um tipo de Monitoramento público (`vaga_linkedin`) e uma cascata privada
     // (`vaga_mercado`). As demais fontes de descoberta usam o próprio signalType como cascata;
     // a guarda do banco só permite tipos explicitamente marcados como market_discovery.
-    const tipoDaCascata = m.signalType === 'vaga_linkedin' ? CASCATA_DO_MERCADO : m.signalType
+    const tipoDaCascata = m.signalType === 'vaga_linkedin'
+      ? CASCATA_DO_MERCADO
+      : m.signalType === 'vaga_indeed' ? 'vaga_indeed_mercado' : m.signalType
     const r = await deps.cascatas.rodar({
       workspaceId: m.workspaceId,
       userId: m.createdBy,

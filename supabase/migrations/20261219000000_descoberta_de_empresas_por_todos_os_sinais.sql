@@ -14,7 +14,11 @@ begin
   end if;
   if not exists (
     select 1 from private.signal_cascades c
-    where c.signal_type = case when new.signal_type = 'vaga_linkedin' then 'vaga_mercado' else new.signal_type end
+    where c.signal_type = case
+      when new.signal_type = 'vaga_linkedin' then 'vaga_mercado'
+      when new.signal_type = 'vaga_indeed' then 'vaga_indeed_mercado'
+      else new.signal_type
+    end
       and c.market_discovery
   ) then
     raise exception 'the market scope requires a market discovery source' using errcode = '22023';
