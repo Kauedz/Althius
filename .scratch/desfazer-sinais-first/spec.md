@@ -24,7 +24,7 @@ Desfazer para a frente, em quatro blocos, cada um em tickets pequenos:
 ## Regras
 
 1. **Nada de `git revert`.** Cada ticket parte da `main` atual. O estado "de antes" de cada arquivo serve de referência (`git show <merge>^1:<arquivo>`), mas a volta é feita à mão, preservando o que os PRs posteriores acrescentaram ao mesmo arquivo.
-2. **A cadência não pode quebrar.** Todo ticket roda, além dos seus testes, `_hermes-worker/cadencia-ponta-a-ponta.test.ts`, o pgTAP de Sequências e o smoke `e2e/tests/09-pedir-sequencia.spec.ts`, todos verdes.
+2. **A cadência não pode quebrar.** Todo ticket roda, além dos seus testes, `_hermes-worker/cadencia-ponta-a-ponta.test.ts`, o pgTAP de Sequências todos verdes; e o smoke `e2e/tests/09-pedir-sequencia.spec.ts` verde depois da publicação (a suíte e2e roda contra a produção depois de cada deploy, nunca no CI).
 3. **Migration só para a frente**, nunca editando uma já aplicada (`docs/agents/migrations.md`). Função existente é redefinida a partir da última definição na `main`.
 4. **Nenhum dado apagado sem pedido.** Sem `drop table`, `truncate`, `delete` de linha, `drop column`, nem escrita em `auth.users` (AGENTS.md). Gatilhos e funções podem sair (`drop trigger`, `drop function`) porque não guardam dado, mas a migration diz cada um que remove. As tabelas `private.workspace_icp_versions`, `private.agente_*`, `private.signal_model_versions` e as colunas `signal_monitors.created_via` e `signal_requests.model_id` ficam no banco sem uso.
 5. **O que veio depois e é independente fica**: o #317 (Sequência em Conta sem Sinal, sem exigir `quente`), o #322 (Sinal de mercado), o #316 (busca pelo ICP, agora pelo ICP do Playbook), o #326 (extrato por Sinal), o #342 (telefone a 5 créditos), o #341 (anexos no composer e Conexões no composer), a explicação da Aderência (#329/#333, agora com o ICP do Playbook) e a leitura de negócios ganhos do CRM (#337).
@@ -55,4 +55,4 @@ Desfazer para a frente, em quatro blocos, cada um em tickets pequenos:
 
 ## Testes
 
-Cada ticket traz o seu. Antes de abrir o PR, em `projeto-althius-frontend`: `npm ci && npm run lint && npm test -- --run && npm run build`; `deno check` e `deno test` das funções tocadas; `supabase db reset && supabase test db`. CI verde nos três jobs e o smoke da cadência (09) verde no build do PR.
+Cada ticket traz o seu. Antes de abrir o PR, em `projeto-althius-frontend`: `npm ci && npm run lint && npm test -- --run && npm run build`; `deno check` e `deno test` das funções tocadas; `supabase db reset && supabase test db`. CI verde nos três jobs antes do merge; o smoke da cadência (09) é conferido depois da publicação.

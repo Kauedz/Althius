@@ -1,15 +1,14 @@
-// ICP do Workspace QA: setor, porte e geografia preenchidos, para o teste do Plano do Sinal conferir que a IA usa o ICP.
+// ICP do Workspace QA, no texto da seção ICP do Playbook (ADR-0034): setor, porte e geografia escritos por extenso, para
+// o teste do Plano do Sinal conferir que a IA usa o ICP.
 export const NOME_DO_WORKSPACE_QA = 'QA Althius (automação)'
 
-export const FIXTURE_ICP = {
-  sector: 'Logística e transporte',
-  companySize: '51-200',
-  geography: 'Sul do Brasil (Paraná, Santa Catarina e Rio Grande do Sul) e México',
-  targetRoles: ['Diretor de Operações', 'Gerente de Logística'],
-} as const
+export const ICP_DO_PLAYBOOK_DO_QA =
+  'Empresas de logística e transporte de porte médio (51 a 200 funcionários) no Sul do Brasil (Paraná, Santa Catarina ' +
+  'e Rio Grande do Sul) e no México. Cargos: Diretor de Operações e Gerente de Logística.'
 
 /**
- * O critério `localizacao` que a geografia do fixture vira no Plano quando o Briefing não fala de lugar (ticket 16).
+ * O critério `localizacao` que a geografia do ICP estruturado virava no Plano (ticket sinais-first 16; sai no ticket 05
+ * de desfazer-sinais-first).
  * O México está no fixture de propósito: o padrão do Plano é ["Brasil"], então só a geografia do ICP explica o México.
  */
 export const LOCALIZACAO_DO_ICP = ['Brasil', 'México'] as const

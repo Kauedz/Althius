@@ -62,9 +62,6 @@ export interface MiniIcpEProduto {
   miniIcp: string
   oQueVende: string
   porQueCompram: string
-  setor?: string
-  porte?: string
-  regiao?: string
 }
 
 export const CAMPOS_DO_MINI_ICP_E_PRODUTO = ['miniIcp', 'oQueVende', 'porQueCompram'] as const satisfies readonly (keyof MiniIcpEProduto)[]
@@ -88,9 +85,6 @@ export interface EstadoDaLeitura {
 }
 
 export interface ChecklistNorte extends MiniIcpEProduto {
-  setor?: string
-  porte?: string
-  regiao?: string
   /**
    * As Personas possíveis do Workspace, uma por item. São uma base do onboarding: não mudam as definições de
    * Personas da Memória do Workspace e não são a Persona de um Contato.

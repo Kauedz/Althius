@@ -12,9 +12,7 @@ const DAY0 = {
 /** Um cliente local falso: responde às RPCs e à Edge Function pelo nome e guarda o que foi pedido. */
 function clienteFalso({
   day0 = { ...DAY0 } as Record<string, unknown>,
-  icp = { version: null, sector: '', companySize: '', geography: '' } as Record<string, unknown>,
   leitura = null as unknown,
-  erroDoIcp = null as { code: string; message: string } | null,
 } = {}) {
   const chamadas: Chamada[] = []
   let liberarLeitura: () => void = () => {}
@@ -34,12 +32,6 @@ function clienteFalso({
           return responder(day0)
         }
         if (nome === 'get_my_day0') return responder(day0)
-        if (nome === 'get_my_workspace_icp') return responder(icp)
-        if (nome === 'save_my_workspace_icp_fields') {
-          if (erroDoIcp) return responder({ ...erroDoIcp, details: null, hint: null }, 400)
-          Object.assign(icp, { sector: parametros.p_sector, companySize: parametros.p_company_size, geography: parametros.p_geography })
-          return responder(icp)
-        }
         if (nome === 'icp-site-read') {
           await leituraPendente
           return responder({ leitura })
@@ -48,52 +40,30 @@ function clienteFalso({
       }),
     },
   })
-  return { cliente, chamadas, liberarLeitura, icp }
+  return { cliente, chamadas, liberarLeitura }
 }
 
 describe('Fonte Supabase do onboarding', () => {
-  it('salva e retoma os três campos do mini-ICP no Workspace do Day0, sem mandar campos extras ao Day0', async () => {
+  it('salva e retoma os três campos do mini-ICP no Workspace do Day0, sem ler nem gravar o ICP estruturado', async () => {
     const { cliente, chamadas } = clienteFalso()
     const fonte = criarFonteDeOnboardingSupabase(cliente, 'workspace-01')
     const produto = { miniIcp: 'Fintechs B2B', oQueVende: 'Software financeiro', porQueCompram: 'Reduzem conciliação' }
 
-    await fonte.salvarProduto({ ...produto, setor: '', porte: '', regiao: '' })
+    await fonte.salvarProduto(produto)
     const retomado = await fonte.retomar()
 
     expect(chamadas[0]).toMatchObject({
       nome: 'save_my_day0',
       parametros: { p_workspace_id: 'workspace-01', p_action: 'produto', p_value: JSON.stringify(produto) },
     })
-    expect(chamadas.some((c) => c.nome === 'save_my_workspace_icp_fields')).toBe(false)
+    expect(chamadas.map((c) => c.nome)).toEqual(['save_my_day0', 'get_my_day0'])
     expect(retomado.checklist).toMatchObject(produto)
-  })
-
-  it('grava Setor, Porte e Região no ICP estruturado e retoma os valores salvos', async () => {
-    const { cliente, chamadas } = clienteFalso()
-    const fonte = criarFonteDeOnboardingSupabase(cliente, 'workspace-01')
-    await fonte.ler()
-
-    await fonte.salvarProduto({ miniIcp: 'Transportadoras', oQueVende: 'Rotas', porQueCompram: 'Frete', setor: 'Logística', porte: '51-200', regiao: 'SP' })
-    const retomado = await fonte.retomar()
-
-    expect(chamadas.find((c) => c.nome === 'save_my_workspace_icp_fields')?.parametros).toEqual({
-      p_workspace_id: 'workspace-01', p_sector: 'Logística', p_company_size: '51-200', p_geography: 'SP',
-    })
-    expect(retomado.checklist).toMatchObject({ setor: 'Logística', porte: '51-200', regiao: 'SP' })
-  })
-
-  it('um porte recusado pelo banco vira uma mensagem em palavras do produto', async () => {
-    const { cliente } = clienteFalso({ erroDoIcp: { code: '22023', message: 'invalid company size' } })
-    const fonte = criarFonteDeOnboardingSupabase(cliente, 'workspace-01')
-    await fonte.ler()
-    await expect(fonte.salvarProduto({ miniIcp: 'a', oQueVende: 'b', porQueCompram: 'c', setor: '', porte: 'médio', regiao: '' }))
-      .rejects.toThrow(/Porte aceita só as faixas/)
   })
 
   it('confirmar o domínio começa a leitura do site, que pré-preenche o checklist sem sobrescrever o que já foi salvo', async () => {
     const leitura = {
       oQueVende: 'Roteirização', miniIcp: 'Transportadoras médias', porQueCompram: 'Cortam frete',
-      personas: ['COO: decide'], setor: 'Logística', porte: '51-200', regiao: 'SP',
+      personas: ['COO: decide'],
     }
     const { cliente, chamadas, liberarLeitura } = clienteFalso({
       day0: { ...DAY0, dominio: '', oQueVende: 'O que eu escrevi' }, leitura,
@@ -114,11 +84,11 @@ describe('Fonte Supabase do onboarding', () => {
     const estado = await fonte.ler()
     expect(estado.checklist).toMatchObject({
       oQueVende: 'O que eu escrevi', miniIcp: 'Transportadoras médias', porQueCompram: 'Cortam frete',
-      setor: 'Logística', porte: '51-200', regiao: 'SP', personas: ['COO: decide'],
+      personas: ['COO: decide'],
     })
     expect(avisos).toHaveBeenCalled()
     // Nada foi gravado pela leitura: só a pessoa salva.
-    expect(chamadas.some((c) => c.nome === 'save_my_workspace_icp_fields')).toBe(false)
+    expect(chamadas.filter((c) => c.nome === 'save_my_day0').map((c) => c.parametros.p_action)).toEqual(['dominio'])
   })
 
   it('sem leitura (motor desligado ou falha), nada é inventado e a leitura fica como falhou', async () => {
@@ -129,7 +99,7 @@ describe('Fonte Supabase do onboarding', () => {
     expect(await fonte.lerSite('norte.test')).toBeNull()
     const estado = await fonte.ler()
     expect(estado.leitura.situacao).toBe('falhou')
-    expect(estado.checklist).toMatchObject({ oQueVende: '', miniIcp: '', setor: '', porte: '', regiao: '' })
+    expect(estado.checklist).toMatchObject({ oQueVende: '', miniIcp: '', porQueCompram: '' })
   })
 
   it('só lê o domínio confirmado no Day0', async () => {

@@ -1,6 +1,6 @@
 // Day0 operacional: o banco decide o ramo, retoma os campos salvos e guarda a conclusão. A leitura do site é da
 // Edge Function `icp-site-read`, que só lê o domínio confirmado e não grava nada; a sugestão fica nesta Fonte até
-// a pessoa salvar. Setor, Porte e Região são do ICP estruturado único (`get_my_workspace_icp`).
+// a pessoa salvar.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EstadoDaLeitura, EstadoDeOnboarding, FonteDeOnboarding, LeituraDoSite, MiniIcpEProduto } from './onboarding-tipos'
 import { criarFonteDeOnboardingIndisponivel } from './indisponivel'
@@ -13,7 +13,7 @@ type Registro = Pick<EstadoDeOnboarding, 'ramo' | 'etapa' | 'papel' | 'comoConhe
   porQueCompram?: string
 }
 
-const CAMPOS_SUGERIDOS = ['miniIcp', 'oQueVende', 'porQueCompram', 'setor', 'porte', 'regiao'] as const
+const CAMPOS_SUGERIDOS = ['miniIcp', 'oQueVende', 'porQueCompram'] as const
 
 function texto(valor: unknown): string {
   return typeof valor === 'string' ? valor : ''
@@ -29,9 +29,6 @@ function leituraDaResposta(dados: unknown): LeituraDoSite | null {
     miniIcp: texto(bruta.miniIcp),
     porQueCompram: texto(bruta.porQueCompram),
     personas: Array.isArray(bruta.personas) ? bruta.personas.filter((p): p is string => typeof p === 'string') : [],
-    setor: texto(bruta.setor),
-    porte: texto(bruta.porte),
-    regiao: texto(bruta.regiao),
   }
 }
 
@@ -44,23 +41,11 @@ export function criarFonteDeOnboardingSupabase(cliente: SupabaseClient, workspac
   let leituraAtual = 0
   const publicar = () => ouvintes.forEach((ouvinte) => ouvinte())
 
-  async function lerIcp(): Promise<Record<string, unknown> | null> {
-    try {
-      const { data, error } = await cliente.rpc('get_my_workspace_icp', { p_workspace_id: workspaceId })
-      return error ? null : (data as Record<string, unknown> | null)
-    } catch {
-      return null // O Day0 continua utilizável sem o ICP estruturado.
-    }
-  }
-
-  function montar(registro: Registro, icp: Record<string, unknown> | null): EstadoDeOnboarding {
+  function montar(registro: Registro): EstadoDeOnboarding {
     const salvo = {
       miniIcp: registro.miniIcp ?? '',
       oQueVende: registro.oQueVende ?? '',
       porQueCompram: registro.porQueCompram ?? '',
-      setor: texto(icp?.sector),
-      porte: texto(icp?.companySize),
-      regiao: texto(icp?.geography),
     }
     const checklist: EstadoDeOnboarding['checklist'] = {
       ...salvo,
@@ -70,7 +55,7 @@ export function criarFonteDeOnboardingSupabase(cliente: SupabaseClient, workspac
       sinal: 'pendente',
     }
     if (sugerido) {
-      for (const campo of CAMPOS_SUGERIDOS) if (!salvo[campo]) checklist[campo] = sugerido[campo] ?? ''
+      for (const campo of CAMPOS_SUGERIDOS) if (!salvo[campo]) checklist[campo] = sugerido[campo]
     }
     return {
       ...registro,
@@ -89,7 +74,7 @@ export function criarFonteDeOnboardingSupabase(cliente: SupabaseClient, workspac
       ...(acao ? { p_action: acao, p_value: valor ?? null } : {}),
     })
     if (error || !data) throw new Error('Não foi possível carregar ou salvar o Day0. Verifique sua conexão e tente novamente.')
-    ultimo = montar(data as Registro, await lerIcp())
+    ultimo = montar(data as Registro)
     if (acao) publicar()
     return ultimo
   }
@@ -150,25 +135,10 @@ export function criarFonteDeOnboardingSupabase(cliente: SupabaseClient, workspac
     definirComoConheceu: (origem) => consultar('hdyhau', origem),
     salvarProduto: async (campos: MiniIcpEProduto) => {
       const produto = { miniIcp: campos.miniIcp, oQueVende: campos.oQueVende, porQueCompram: campos.porQueCompram }
-      const antes = ultimo
-      const icp = { setor: campos.setor?.trim() ?? '', porte: campos.porte?.trim() ?? '', regiao: campos.regiao?.trim() ?? '' }
-      const mudouIcp = !!antes && (icp.setor !== (antes.checklist.setor ?? '') || icp.porte !== (antes.checklist.porte ?? '') ||
-        icp.regiao !== (antes.checklist.regiao ?? ''))
-      await consultar('produto', JSON.stringify(produto))
+      const estado = await consultar('produto', JSON.stringify(produto))
       // O que a pessoa salvou deixa de ser sugestão, inclusive um campo que ela apagou.
-      if (sugerido) sugerido = { ...sugerido, ...produto, ...icp }
-      if ((ultimo?.ramo ?? antes?.ramo) === 'criador' && (mudouIcp || (!antes && (icp.setor || icp.porte || icp.regiao)))) {
-        const { error } = await cliente.rpc('save_my_workspace_icp_fields', {
-          p_workspace_id: workspaceId, p_sector: icp.setor, p_company_size: icp.porte, p_geography: icp.regiao,
-        })
-        if (error) {
-          throw new Error(error.code === '22023'
-            ? 'Porte aceita só as faixas 1-10, 11-50, 51-200, 201-500, 501-1000, 1001-5000, 5001-10000, 10001+ ou ME, EPP, MEI, DEMAIS.'
-            : 'Não foi possível salvar Setor, Porte e Região. Tente de novo.')
-        }
-        return consultar()
-      }
-      return ultimo as EstadoDeOnboarding
+      if (sugerido) sugerido = { ...sugerido, ...produto }
+      return estado
     },
     concluirOnboarding: () => consultar('concluir'),
     // A resolução do logo fica fora desta fatia. Nenhum resultado é inventado.

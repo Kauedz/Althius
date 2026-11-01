@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import { request } from '@playwright/test'
 import { ambiente, segredo } from './ambiente.js'
-import { FIXTURE_ICP, NOME_DO_WORKSPACE_QA } from './fixture-icp.js'
+import { ICP_DO_PLAYBOOK_DO_QA } from './fixture-icp.js'
 import { ESTADO_DO_NAVEGADOR, PASTA_DA_SESSAO, salvarToken } from './sessao.js'
 
 export default async function globalSetup() {
@@ -46,27 +46,23 @@ export default async function globalSetup() {
   }
 }
 
+/**
+ * Garante o texto da seção ICP do Playbook do Workspace QA, com a mesma RPC da tela e a sessão do QA (Administrador).
+ * Salvar cria uma versão nova da seção e nunca altera nem apaga uma versão existente.
+ */
 async function garantirIcpDoQa(http: Awaited<ReturnType<typeof request.newContext>>, e: ReturnType<typeof ambiente>, token: string) {
-  const leitura = await http.post(`${e.supabaseUrl}/rest/v1/rpc/get_my_workspace_icp`, {
-    headers: { apikey: e.publishableKey, Authorization: `Bearer ${token}` },
-    data: { p_workspace_id: e.workspaceId },
+  const cabecalhos = { apikey: e.publishableKey, Authorization: `Bearer ${token}` }
+  const leitura = await http.post(`${e.supabaseUrl}/rest/v1/rpc/get_playbook_section`, {
+    headers: cabecalhos,
+    data: { p_workspace_id: e.workspaceId, p_section: 'icp' },
   })
-  if (!leitura.ok()) throw new Error(`Não deu para ler o ICP do Workspace QA (HTTP ${leitura.status()}).`)
-  const icp = (await leitura.json()) as Record<string, unknown>
-  const igual = icp.sector === FIXTURE_ICP.sector && icp.companySize === FIXTURE_ICP.companySize &&
-    icp.geography === FIXTURE_ICP.geography
-  if (igual) return
+  if (!leitura.ok()) throw new Error(`Não deu para ler a seção ICP do Playbook do Workspace QA (HTTP ${leitura.status()}).`)
+  const secao = (await leitura.json()) as { content?: { texto?: unknown } | null }
+  if (typeof secao.content?.texto === 'string' && secao.content.texto.startsWith(ICP_DO_PLAYBOOK_DO_QA)) return
 
-  // Desde o ticket sinais-first 16, a mesma RPC da tela grava setor, porte e geografia, com a sessão do QA
-  // (Administrador do Workspace QA). Ela cria uma NOVA versão do ICP e nunca altera nem apaga versão existente.
-  const gravacao = await http.post(`${e.supabaseUrl}/rest/v1/rpc/save_my_workspace_icp_fields`, {
-    headers: { apikey: e.publishableKey, Authorization: `Bearer ${token}` },
-    data: {
-      p_workspace_id: e.workspaceId,
-      p_sector: FIXTURE_ICP.sector,
-      p_company_size: FIXTURE_ICP.companySize,
-      p_geography: FIXTURE_ICP.geography,
-    },
+  const gravacao = await http.post(`${e.supabaseUrl}/rest/v1/rpc/save_playbook_section`, {
+    headers: cabecalhos,
+    data: { p_workspace_id: e.workspaceId, p_section: 'icp', p_content: { texto: ICP_DO_PLAYBOOK_DO_QA, linhas: [] } },
   })
-  if (!gravacao.ok()) throw new Error(`Não deu para gravar o ICP de teste do QA (HTTP ${gravacao.status()}).`)
+  if (!gravacao.ok()) throw new Error(`Não deu para gravar o ICP de teste do QA no Playbook (HTTP ${gravacao.status()}).`)
 }

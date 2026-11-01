@@ -1,6 +1,6 @@
 # 06: Telas sem o ICP estruturado
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -29,8 +29,8 @@
 
 ## Critérios
 
-- [ ] O onboarding pergunta e salva os 3 campos do mini-ICP, sem Setor, Porte e Região. (Vitest `day0-operacional.test.tsx`, `supabase-onboarding.test.ts`.)
-- [ ] O Playbook não mostra os campos estruturados do ICP; editar a seção `icp` continua passando pela Revisão. (Vitest `playbook.test.tsx`.)
-- [ ] Nenhum arquivo do frontend chama `get_my_workspace_icp` nem `save_my_workspace_icp_fields`. (`git grep` no PR.)
-- [ ] O filtro de Porte em Descobertas continua igual. (Vitest.)
-- [ ] O `global-setup` do e2e semeia o ICP pelo Playbook e os smokes passam.
+- [x] O onboarding pergunta e salva os 3 campos do mini-ICP, sem Setor, Porte e Região. (Vitest `day0-operacional.test.tsx` "a pessoa criadora preenche os 3 campos do mini-ICP...", `supabase-onboarding.test.ts`.)
+- [x] O Playbook não mostra os campos estruturados do ICP; editar a seção `icp` continua passando pela Revisão. (Vitest `playbook.test.tsx` "a seção ICP é só o editor do Playbook..."; os arquivos do Playbook voltaram à versão de antes do #308.)
+- [x] Nenhum arquivo do frontend chama `get_my_workspace_icp` nem `save_my_workspace_icp_fields`. (`git grep` vazio fora dos testes; os testes de `supabase-onboarding` e `day0-operacional` conferem que nenhuma das duas é chamada.)
+- [x] O filtro de Porte em Descobertas continua igual. (Vitest de `descobertas`, sem mudança; `PORTES_DO_ICP` agora vem de `opcoes-da-busca.ts`.)
+- [ ] O `global-setup` do e2e semeia o ICP pelo Playbook e os smokes passam. (Código pronto e `npm run typecheck` do e2e limpo; os smokes rodam depois da publicação.)

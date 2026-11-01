@@ -55,12 +55,9 @@ const CAMPOS_NA_TELA: readonly { campo: keyof MiniIcpEProduto; rotulo: string }[
   { campo: 'oQueVende', rotulo: 'O que você vende' },
   { campo: 'miniIcp', rotulo: 'Mini-ICP' },
   { campo: 'porQueCompram', rotulo: 'Por que compram' },
-  { campo: 'setor', rotulo: 'Setor' },
-  { campo: 'porte', rotulo: 'Porte' },
-  { campo: 'regiao', rotulo: 'Região' },
 ]
 
-const SEM_MINI_ICP_E_PRODUTO: MiniIcpEProduto = { miniIcp: '', oQueVende: '', porQueCompram: '', setor: '', porte: '', regiao: '' }
+const SEM_MINI_ICP_E_PRODUTO: MiniIcpEProduto = { miniIcp: '', oQueVende: '', porQueCompram: '' }
 
 const AVISO_DA_PERSONA =
   'É uma base do onboarding para começar: não muda as definições de Personas da Memória do Workspace, que só mudam por uma revisão do Ethos aprovada por um Administrador. Não é a classificação de um Contato e não é a Memória do Agente.'
@@ -141,9 +138,9 @@ function useCamposDoChecklist<T>(estado: EstadoDeOnboarding, daFonte: T) {
 }
 
 function ItemProduto({ estado, fonte }: PropsDaEtapa) {
-  const { miniIcp, oQueVende, porQueCompram, setor, porte, regiao } = estado.checklist
-  const [campos, setCampos] = useCamposDoChecklist<MiniIcpEProduto>(estado, { miniIcp, oQueVende, porQueCompram, setor, porte, regiao })
-  const vazio = CAMPOS_NA_TELA.filter(({ campo }) => ['miniIcp', 'oQueVende', 'porQueCompram'].includes(campo)).some(({ campo }) => !campos[campo]?.trim())
+  const { miniIcp, oQueVende, porQueCompram } = estado.checklist
+  const [campos, setCampos] = useCamposDoChecklist<MiniIcpEProduto>(estado, { miniIcp, oQueVende, porQueCompram })
+  const vazio = CAMPOS_NA_TELA.some(({ campo }) => !campos[campo].trim())
 
   function editar(mudanca: Partial<MiniIcpEProduto>) {
     const novos = { ...campos, ...mudanca }
@@ -178,7 +175,6 @@ function ItemProduto({ estado, fonte }: PropsDaEtapa) {
             value={campos[campo]}
             onChange={(evento) => editar({ [campo]: evento.target.value })}
           />
-          {campo === 'porte' && <small>Use faixas como 11-50, 51-200 ou ME, EPP, separadas por vírgula</small>}
         </Campo>
       ))}
     </Item>

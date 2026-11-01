@@ -1,11 +1,11 @@
 // Day0 operacional e ICP do Workspace.
 // 1. Day0: as respostas (papel, empresa, domínio, como conheceu) vão para save_my_day0 e voltam por get_my_day0 depois de
 //    recarregar. O QA pode estar em qualquer etapa; o teste percorre as que faltam com dados de teste e conclui o Day0.
-// 2. ICP: o texto da seção ICP do Playbook é salvo, volta depois de recarregar e chega ao ICP estruturado
-//    (get_my_workspace_icp), sem perder setor, porte e geografia.
+// 2. ICP: o texto da seção ICP do Playbook é salvo e volta depois de recarregar (ADR-0034: o ICP é o do Playbook). O texto
+//    começa pelo ICP de teste do QA, que o Plano do Sinal lê.
 import { expect, type Page, test } from '@playwright/test'
 import { ambiente } from '../support/ambiente.js'
-import { FIXTURE_ICP } from '../support/fixture-icp.js'
+import { ICP_DO_PLAYBOOK_DO_QA } from '../support/fixture-icp.js'
 import { tokenDoQa } from '../support/sessao.js'
 import { esperarRpc, vigiar } from '../support/vigia.js'
 
@@ -69,9 +69,9 @@ test('Day0: as respostas salvas voltam depois de recarregar', async ({ page }, t
   await conferir()
 })
 
-test('ICP: o texto salvo no Playbook volta depois de recarregar e chega ao ICP do Workspace', async ({ page }, testInfo) => {
+test('ICP: o texto salvo no Playbook volta depois de recarregar', async ({ page }, testInfo) => {
   const conferir = vigiar(page, testInfo)
-  const texto = `ICP de teste da automação QA (${new Date().toISOString()}): transportadoras médias do Sul do Brasil.`
+  const texto = `${ICP_DO_PLAYBOOK_DO_QA} Salvo pela automação QA em ${new Date().toISOString()}.`
   await page.goto('/configuracoes/playbook/icp')
   const campo = page.locator('#playbook-texto')
   await expect(campo).toBeVisible({ timeout: 20_000 })
@@ -84,12 +84,7 @@ test('ICP: o texto salvo no Playbook volta depois de recarregar e chega ao ICP d
   await page.reload()
   await expect(page.locator('#playbook-texto')).toHaveValue(texto, { timeout: 20_000 })
 
-  const icp = await rpc<{ freeText: string; sector: string; companySize: string; geography: string; version: number }>(page, 'get_my_workspace_icp')
-  await testInfo.attach('get_my_workspace_icp.json', { body: JSON.stringify({ ...icp, playbookContent: undefined }, null, 2), contentType: 'application/json' })
-  expect(icp.freeText).toBe(texto)
-  // A gravação pelo Playbook cria uma versão nova do ICP e preserva os campos estruturados.
-  expect(icp.sector).toBe(FIXTURE_ICP.sector)
-  expect(icp.companySize).toBe(FIXTURE_ICP.companySize)
-  expect(icp.geography).toBe(FIXTURE_ICP.geography)
+  // O ICP não é mais lido do registro estruturado: a tela do Playbook não oferece Setor, Porte nem Região.
+  await expect(page.getByRole('region', { name: 'Campos do ICP' })).toHaveCount(0)
   await conferir()
 })

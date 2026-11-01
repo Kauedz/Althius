@@ -9,7 +9,7 @@ A suíte **não roda no CI**. Ela fala com a produção e precisa de segredos qu
 | Arquivo | Critério |
 | --- | --- |
 | `tests/01-entrada.spec.ts` | `/entrar` mostra o formulário (sem enviar). Com a sessão do QA, `/` abre o Workspace operacional (não a Demonstração), com `bootstrap_personal_workspace` e `list_my_contracted_workspaces` em 200 e o Workspace QA entre os contratados. |
-| `tests/02-day0-icp.spec.ts` | Day0 operacional: papel, empresa, domínio e "como conheceu" vão para `save_my_day0`, sobrevivem a um recarregamento e voltam por `get_my_day0`; o Day0 termina concluído. ICP: o texto da seção ICP do Playbook é salvo, volta depois de recarregar e chega a `get_my_workspace_icp` sem perder setor, porte e geografia. |
+| `tests/02-day0-icp.spec.ts` | Day0 operacional: papel, empresa, domínio e "como conheceu" vão para `save_my_day0`, sobrevivem a um recarregamento e voltam por `get_my_day0`; o Day0 termina concluído. ICP: o texto da seção ICP do Playbook (começando pelo ICP de teste do QA) é salvo e volta depois de recarregar; a tela não mostra mais os Campos do ICP. |
 | `tests/03-para-o-seu-nicho.spec.ts` | `/sinais`: a prateleira "Para o seu nicho" com cards e o subtítulo pelos Segmentos do ICP da Memória (ou o texto de sem nicho), sem chamar `list_signal_catalog_for_my_icp`. A letra interna do nicho (A–H) não aparece. |
 | `tests/04-link-de-acao.spec.ts` | `/a/<token inválido>` com sessão mostra "Este link não existe ou pertence a outra Conta.", sem botões de decisão. Sem sessão, manda para `/entrar` guardando o destino. |
 | `tests/05-sinais.spec.ts` | `/sinais` abre no Workspace operacional, com `list_signal_monitors` e `list_signal_catalog` em 200 e sem alerta de erro. |
@@ -36,7 +36,7 @@ Lidas do ambiente ou de um arquivo `KEY=VALUE` fora do repositório (`ALTHIUS_QA
 - `ALTHIUS_QA_BASE_URL`, `ALTHIUS_QA_SUPABASE_URL`, `ALTHIUS_QA_PUBLISHABLE_KEY` (a chave publicável, a mesma do app)
 - `ALTHIUS_QA_EMAIL`, `ALTHIUS_QA_WORKSPACE_ID`
 - `SUPABASE_SERVICE_ROLE_KEY`: só para abrir a sessão do QA (veja abaixo)
-- `SUPABASE_ACCESS_TOKEN`: não é mais usado pela suíte (o ICP de teste entra pela RPC com a sessão do QA, ticket sinais-first 16)
+- `SUPABASE_ACCESS_TOKEN`: não é mais usado pela suíte (o ICP de teste entra pela RPC do Playbook com a sessão do QA)
 - `ALTHIUS_QA_PROJECT_REF` (opcional; sai do `ALTHIUS_QA_SUPABASE_URL`)
 
 ## Por que a sessão vem de um link mágico do Admin
@@ -47,5 +47,5 @@ O login com senha de produção tem CAPTCHA (Turnstile), que um robô não resol
 
 - O Workspace "QA Althius (automação)" é só do QA: sem Contas-alvo nem Contatos reais, sem créditos, sem canais conectados, sem Automação e com o Teto interno no mínimo. Ele não consegue enviar LinkedIn, WhatsApp nem e-mail, nem disparar uma varredura paga.
 - Os testes nunca ativam Sinal, enviam mensagem, conectam canal, compram ou criam Sequência.
-- O ICP de teste (setor "Logística e transporte", porte "51-200", geografia "Sul do Brasil") entra, quando falta, como uma versão nova do ICP pela RPC `save_my_workspace_icp_fields` (ticket sinais-first 16), com a sessão do QA e só no Workspace QA.
+- O ICP de teste (logística e transporte, 51 a 200 funcionários, Sul do Brasil e México) entra, quando falta, como uma versão nova da seção ICP do Playbook pela RPC `save_playbook_section` (ADR-0034), com a sessão do QA e só no Workspace QA.
 - O teste 06 confere também os critérios do Plano: com o Briefing sem lugar, a geografia do ICP tem que virar `localizacao` = `["Brasil"]`.

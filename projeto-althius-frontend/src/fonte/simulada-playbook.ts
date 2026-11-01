@@ -9,7 +9,6 @@ import {
   type SecaoDoPlaybook,
   type VersaoDoPlaybook,
 } from './playbook-tipos'
-import type { CamposDoIcp } from './campos-do-icp'
 
 interface VersaoGuardada extends VersaoDoPlaybook {
   conteudo: ConteudoDoPlaybook
@@ -80,7 +79,6 @@ export function criarFonteDoPlaybookSimulada({
   }
   const ouvintes = new Set<() => void>()
   const avisar = () => ouvintes.forEach((ouvinte) => ouvinte())
-  let camposDoIcp: CamposDoIcp & { versao: number | null } = { setor: '', porte: '', regiao: '', versao: null }
 
   function gravar(id: IdDaSecaoDoPlaybook, conteudo: ConteudoDoPlaybook): number {
     const lista = versoes.get(id) ?? []
@@ -94,14 +92,6 @@ export function criarFonteDoPlaybookSimulada({
     observar(ouvinte) {
       ouvintes.add(ouvinte)
       return () => ouvintes.delete(ouvinte)
-    },
-    async camposDoIcp() {
-      return { ...camposDoIcp }
-    },
-    async salvarCamposDoIcp(campos) {
-      camposDoIcp = { ...campos, versao: (camposDoIcp.versao ?? 0) + 1 }
-      avisar()
-      return { ...camposDoIcp }
     },
     async secao(id): Promise<SecaoDoPlaybook> {
       const lista = versoes.get(id) ?? []

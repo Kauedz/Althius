@@ -16,57 +16,6 @@ function clienteCom(rpc: (funcao: string, parametros: Record<string, unknown>) =
 }
 
 describe('Playbook no Supabase', () => {
-  it('lê também cargos e textos do ICP, ignorando o que não é texto', async () => {
-    const { cliente } = clienteCom(() => ({
-      data: { sector: 'Logística', companySize: '51-200', geography: 'SP', version: 5, targetRoles: ['CFO', 3, ' '], oQueVende: ' Frota. ', miniIcp: null, porQueCompram: 'Custo.' },
-    }))
-    const fonte = criarFonteDoPlaybookSupabase(cliente, () => 'ws-1', NOMES)
-    expect((await fonte.camposDoIcp!()).detalhes).toEqual({ cargos: ['CFO'], oQueVende: 'Frota.', miniIcp: '', porQueCompram: 'Custo.' })
-  })
-
-  it('lê e grava os campos estruturados do ICP', async () => {
-    const { cliente, chamadas } = clienteCom((funcao) => ({
-      data:
-        funcao === 'get_my_workspace_icp'
-          ? { sector: 'Logística', companySize: '51-200', geography: 'SP', version: 3 }
-          : { sector: 'Seguros', companySize: 'ME', geography: 'RJ', version: 4 },
-    }))
-    const fonte = criarFonteDoPlaybookSupabase(cliente, () => 'ws-1', NOMES)
-    const ouvinte = vi.fn()
-    fonte.observar(ouvinte)
-
-    expect(await fonte.camposDoIcp!()).toEqual({ setor: 'Logística', porte: '51-200', regiao: 'SP', versao: 3, detalhes: { cargos: [], oQueVende: '', miniIcp: '', porQueCompram: '' } })
-    expect(await fonte.salvarCamposDoIcp!({ setor: 'Seguros', porte: 'ME', regiao: 'RJ' })).toEqual({
-      setor: 'Seguros',
-      porte: 'ME',
-      regiao: 'RJ',
-      versao: 4,
-      detalhes: { cargos: [], oQueVende: '', miniIcp: '', porQueCompram: '' },
-    })
-    expect(chamadas.slice(0, 2)).toEqual([
-      { funcao: 'get_my_workspace_icp', parametros: { p_workspace_id: 'ws-1' } },
-      {
-        funcao: 'save_my_workspace_icp_fields',
-        parametros: { p_workspace_id: 'ws-1', p_sector: 'Seguros', p_company_size: 'ME', p_geography: 'RJ' },
-      },
-    ])
-    expect(ouvinte).toHaveBeenCalledTimes(1)
-  })
-
-  it('traduz recusas de porte inválido e de membro', async () => {
-    const { cliente: porteCliente } = clienteCom(() => ({ error: { code: '22023', message: 'invalid company size' } }))
-    const porteFonte = criarFonteDoPlaybookSupabase(porteCliente, () => 'ws-1', NOMES)
-    await expect(porteFonte.salvarCamposDoIcp!({ setor: '', porte: 'x', regiao: '' })).rejects.toThrow(
-      'Porte aceita só as faixas 1-10, 11-50, 51-200, 201-500, 501-1000, 1001-5000, 5001-10000, 10001+ ou ME, EPP, MEI, DEMAIS.',
-    )
-
-    const { cliente: membroCliente } = clienteCom(() => ({ error: { code: '42501', message: 'only administrators' } }))
-    const membroFonte = criarFonteDoPlaybookSupabase(membroCliente, () => 'ws-1', NOMES)
-    await expect(membroFonte.salvarCamposDoIcp!({ setor: '', porte: '', regiao: '' })).rejects.toThrow(
-      'Só um Administrador edita os campos do ICP.',
-    )
-  })
-
   it('o Membro propõe pela função do banco; a fila e o Playbook relêem juntos', async () => {
     const { cliente, chamadas } = clienteCom(() => ({ data: [{ approval_id: 'ap-1', outcome: 'criada' }] }))
     let ouvinteDaFila: (() => void) | null = null
