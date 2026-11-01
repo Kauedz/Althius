@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { BOTAO_DISCRETO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO } from '@/components/botoes'
 import { Carregando } from '@/components/marca'
@@ -18,7 +18,6 @@ import { ehRevisaoDoPlaybook } from '@/fonte/regras'
 import { COLUNAS_DO_PLAYBOOK, linhaVazia, type ColunaDoPlaybook } from '@/fonte/regras-playbook'
 import type { AprovacaoDeRevisaoDoPlaybook } from '@/fonte/tipos'
 import { mensagemDeErro } from '@/lib/utils'
-import { portesInvalidos, sugerirCamposDoIcp, type CamposDoIcp, type DetalhesDoIcp } from '@/fonte/campos-do-icp'
 import { SecaoDeConfiguracoes } from './componentes'
 import { ImportarPlaybook } from './importar-playbook'
 
@@ -125,9 +124,6 @@ function SecaoAberta({ id, revisoes }: { id: IdDaSecaoDoPlaybook; revisoes: Apro
   return (
     <div className="flex flex-col gap-6">
       {pendente && <PropostaPendente nome={secao.nome} podeEditar={podeEditar} />}
-      {secao.id === 'icp' && fonte.camposDoIcp && (
-        <CamposDoIcp secao={secao} podeEditar={podeEditar} />
-      )}
       <ConteudoDaSecao
         key={secao.vigente?.versao ?? 0}
         secao={secao}
@@ -135,147 +131,6 @@ function SecaoAberta({ id, revisoes }: { id: IdDaSecaoDoPlaybook; revisoes: Apro
         podePropor={podePropor}
       />
     </div>
-  )
-}
-
-/** Setor, Porte e Região do ICP estruturado (ticket sinais-first 16). O editor só monta com os valores salvos. */
-function CamposDoIcp({ secao, podeEditar }: { secao: SecaoDoPlaybook; podeEditar: boolean }) {
-  const fonte = useFonteDoPlaybook()
-  const dados = useDados(fonte, (f) => f.camposDoIcp!(), [])
-  // O aviso de salvo vive aqui para sobreviver ao editor que remonta com a versão nova.
-  const [salvo, setSalvo] = useState(false)
-  if (!dados) return null
-  return (
-    <>
-      <CamposDoIcpEditor key={dados.versao ?? 0} salvos={dados} secao={secao} podeEditar={podeEditar} salvo={salvo} setSalvo={setSalvo} />
-      {dados.detalhes && <MaisDoIcp detalhes={dados.detalhes} />}
-    </>
-  )
-}
-
-/** Cargos e textos do ICP salvo: aqui só para leitura; o Agente propõe e grava as mudanças (Fase 4). */
-function MaisDoIcp({ detalhes }: { detalhes: DetalhesDoIcp }) {
-  const linhas: [string, string][] = [
-    ['Cargos', detalhes.cargos.join(', ')],
-    ['O que vende', detalhes.oQueVende],
-    ['Para quem', detalhes.miniIcp],
-    ['Por que compram', detalhes.porQueCompram],
-  ]
-  return (
-    <section aria-label="Mais do ICP" className="flex flex-col gap-4 rounded-xl border border-al-line p-5">
-      <div className="flex flex-col gap-1">
-        <h3 className="titulo-secao text-xl">Mais do ICP</h3>
-        <p className="text-sm text-al-muted">Cargos e textos da versão salva. Para mudar, peça ao Agente: ele propõe e você confirma.</p>
-      </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-        {linhas.map(([rotulo, valor]) => (
-          <Fragment key={rotulo}>
-            <dt className="text-al-muted">{rotulo}</dt>
-            <dd className={valor ? 'text-al-ink' : 'text-al-muted'}>{valor || 'Não preenchido'}</dd>
-          </Fragment>
-        ))}
-      </dl>
-      <Link to="/" className={`${BOTAO_SECUNDARIO} self-start`}>Ajustar com o Agente</Link>
-    </section>
-  )
-}
-
-function CamposDoIcpEditor({ salvos, secao, podeEditar, salvo, setSalvo }: {
-  salvos: CamposDoIcp
-  secao: SecaoDoPlaybook
-  podeEditar: boolean
-  salvo: boolean
-  setSalvo: (salvo: boolean) => void
-}) {
-  const fonte = useFonteDoPlaybook()
-  const [campos, setCampos] = useState<CamposDoIcp>({ setor: salvos.setor, porte: salvos.porte, regiao: salvos.regiao })
-  const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState('')
-  const conteudo = secao.vigente?.conteudo
-  const sugestao = useMemo(
-    () =>
-      !salvos.setor && !salvos.porte && !salvos.regiao && (conteudo?.texto || conteudo?.linhas.length)
-        ? sugerirCamposDoIcp(conteudo)
-        : { setor: '', porte: '', regiao: '' },
-    [conteudo, salvos],
-  )
-  const temSugestao = Boolean(sugestao.setor || sugestao.porte || sugestao.regiao)
-
-  function mudar(campo: keyof CamposDoIcp, valor: string) {
-    setCampos((atual) => ({ ...atual, [campo]: valor }))
-    setSalvo(false)
-    setErro('')
-  }
-
-  function usarSugestao() {
-    setCampos((atual) => ({
-      setor: atual.setor || sugestao.setor,
-      porte: atual.porte || sugestao.porte,
-      regiao: atual.regiao || sugestao.regiao,
-    }))
-    setSalvo(false)
-  }
-
-  async function salvar() {
-    const invalidos = portesInvalidos(campos.porte)
-    if (invalidos.length) {
-      setErro(`Porte inválido: ${invalidos.join(', ')}. Use faixas como 11-50, 51-200 ou ME, EPP.`)
-      return
-    }
-    setSalvando(true)
-    setErro('')
-    setSalvo(false)
-    try {
-      await fonte.salvarCamposDoIcp!(campos)
-      setSalvo(true)
-    } catch (falha) {
-      setErro(mensagemDeErro(falha))
-    } finally {
-      setSalvando(false)
-    }
-  }
-
-  return (
-    <section aria-label="Campos do ICP" className="flex flex-col gap-4 rounded-xl border border-al-line p-5">
-      <div className="flex flex-col gap-1">
-        <h3 className="titulo-secao text-xl">Campos do ICP</h3>
-        <p className="text-sm text-al-muted">Listas separadas por vírgula. A Aderência das empresas achadas por Sinais compara com estes campos.</p>
-        <p className="text-sm text-al-muted">Para Porte, use faixas como 11-50, 51-200 ou ME, EPP.</p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {([
-          ['setor', 'Setor'],
-          ['porte', 'Porte'],
-          ['regiao', 'Região'],
-        ] as const).map(([campo, rotulo]) => (
-          <div key={campo} className="flex flex-col gap-1.5">
-            <label htmlFor={`icp-${campo}`} className="rotulo">{rotulo}</label>
-            <input
-              id={`icp-${campo}`}
-              value={campos[campo]}
-              placeholder="Não preenchido"
-              readOnly={!podeEditar}
-              onChange={(evento) => mudar(campo, evento.target.value)}
-              className="campo"
-            />
-          </div>
-        ))}
-      </div>
-      {podeEditar && temSugestao && (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span>
-            Sugestão a partir do texto do ICP:{' '}
-            {[sugestao.setor && `Setor ${sugestao.setor}`, sugestao.porte && `Porte ${sugestao.porte}`, sugestao.regiao && `Região ${sugestao.regiao}`]
-              .filter(Boolean)
-              .join('; ')}
-          </span>
-          <button type="button" className={BOTAO_SECUNDARIO} onClick={usarSugestao}>Usar sugestão</button>
-        </div>
-      )}
-      <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{salvo ? 'Campos do ICP salvos.' : ''}</Mensagem>
-      {podeEditar && <button type="button" className={`${BOTAO_PRIMARIO} self-start`} disabled={salvando} onClick={salvar}>Salvar campos</button>}
-    </section>
   )
 }
 

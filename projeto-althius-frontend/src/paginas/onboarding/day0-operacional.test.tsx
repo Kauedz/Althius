@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createClient } from '@supabase/supabase-js'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -107,40 +107,28 @@ describe('Day0 operacional', () => {
   })
 })
 
-describe('Day0 operacional: ICP do Workspace (sinais-first 16)', () => {
-  it('a pessoa criadora revisa a sugestão do site e só grava Setor, Porte e Região ao salvar', async () => {
+describe('Day0 operacional: mini-ICP do Workspace', () => {
+  it('a pessoa criadora preenche os 3 campos do mini-ICP, sem Setor, Porte e Região, e salva pelo Day0', async () => {
     const registro = { ...INICIAL, etapa: 'convite', papel: 'Founder', comoConheceu: 'Indicação', empresa: 'Norte', dominio: 'norte.test', miniIcp: '', oQueVende: '', porQueCompram: '' }
-    const icp = { version: null as number | null, sector: '', companySize: '', geography: '' }
     const pedidos: { url: string; body: Record<string, string> }[] = []
     const responder = async (url: string, body: Record<string, string>) => {
       pedidos.push({ url, body })
-      if (url.endsWith('/save_my_workspace_icp_fields')) {
-        Object.assign(icp, { version: 1, sector: body.p_sector, companySize: body.p_company_size, geography: body.p_geography })
-        return icp as never
-      }
-      if (url.endsWith('/get_my_workspace_icp')) return icp as never
       if (url.endsWith('/save_my_day0') && body.p_action === 'produto') Object.assign(registro, JSON.parse(body.p_value))
       return registro as never
     }
     const { usuario } = montar(responder)
     const secao = await screen.findByRole('region', { name: 'ICP do Workspace' })
-    expect(secao).toBeInTheDocument()
-    expect(pedidos.some((p) => p.url.endsWith('/save_my_workspace_icp_fields'))).toBe(false)
+    for (const campo of ['Setor', 'Porte', 'Região']) expect(within(secao).queryByRole('textbox', { name: campo })).not.toBeInTheDocument()
 
-    await usuario.type(screen.getByRole('textbox', { name: 'Setor' }), 'Logística')
-    await usuario.type(screen.getByRole('textbox', { name: 'Porte' }), 'grande')
-    await usuario.click(screen.getByRole('button', { name: 'Salvar ICP' }))
-    expect(await screen.findByText(/Porte inválido: grande/)).toBeInTheDocument()
-    expect(pedidos.some((p) => p.url.endsWith('/save_my_workspace_icp_fields'))).toBe(false)
-
-    await usuario.clear(screen.getByRole('textbox', { name: 'Porte' }))
-    await usuario.type(screen.getByRole('textbox', { name: 'Porte' }), '51-200')
-    await usuario.type(screen.getByRole('textbox', { name: 'Região' }), 'SP')
-    await usuario.click(screen.getByRole('button', { name: 'Salvar ICP' }))
+    await usuario.type(within(secao).getByRole('textbox', { name: 'O que você vende' }), 'Roteirização')
+    await usuario.type(within(secao).getByRole('textbox', { name: 'Mini-ICP' }), 'Transportadoras médias')
+    await usuario.type(within(secao).getByRole('textbox', { name: 'Por que compram' }), 'Cortam frete')
+    await usuario.click(within(secao).getByRole('button', { name: 'Salvar ICP' }))
     expect(await screen.findByText('ICP salvo.')).toBeInTheDocument()
-    expect(pedidos.find((p) => p.url.endsWith('/save_my_workspace_icp_fields'))?.body).toEqual({
-      p_workspace_id: 'workspace', p_sector: 'Logística', p_company_size: '51-200', p_geography: 'SP',
-    })
+
+    const produto = pedidos.find((p) => p.url.endsWith('/save_my_day0') && p.body.p_action === 'produto')
+    expect(JSON.parse(produto!.body.p_value)).toEqual({ miniIcp: 'Transportadoras médias', oQueVende: 'Roteirização', porQueCompram: 'Cortam frete' })
+    expect(pedidos.some((p) => /\/(get_my_workspace_icp|save_my_workspace_icp_fields)$/.test(p.url))).toBe(false)
   })
 
   it('um convidado não vê o bloco do ICP', async () => {

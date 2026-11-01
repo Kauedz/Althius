@@ -20,8 +20,7 @@ import {
 import { cn } from '@/lib/utils'
 import { EtiquetasDeTexto } from '@/components/etiquetas-de-texto'
 import { SelecaoMultipla } from '@/components/selecao-multipla'
-import { PORTES_DO_ICP } from '@/fonte/campos-do-icp'
-import { PORTES_DA_RECEITA, ROTULOS_DOS_PORTES, SETORES_DA_BUSCA } from '@/fonte/opcoes-da-busca'
+import { PORTES_DA_RECEITA, PORTES_DO_ICP, ROTULOS_DOS_PORTES, SETORES_DA_BUSCA } from '@/fonte/opcoes-da-busca'
 import { useDadosDoBrasil } from './sinais/dados-do-brasil'
 import { AbasDoModulo, CABECALHO, CampoDeBusca, CELULA, Contagem } from './modulo-contas-e-contatos'
 

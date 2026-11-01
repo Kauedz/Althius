@@ -41,6 +41,7 @@ const SAIDA_BOA = {
   portes: ['51-200', 'me', 'médio'],
   regioes: ['SP', 'PR'],
 }
+// O motor ainda pode mandar setores, portes e regiões: a função os descarta (desfazer-sinais-first 06).
 
 function fakeLlm(saida: unknown, registro: { usuario?: string; sistema?: string; chamadas: number } = { chamadas: 0 }): Llm {
   return {
@@ -69,9 +70,6 @@ Deno.test('icp-site-read: lê a página inicial do domínio confirmado e devolve
       miniIcp: 'Transportadoras médias',
       porQueCompram: 'Cortam custo de frete',
       personas: ['COO: decide a compra', 'Gerente de operações: usa no dia a dia'],
-      setor: 'Logística, Transporte rodoviário',
-      porte: '51-200, ME',
-      regiao: 'SP, PR',
     },
   })
   assertEquals(chamadas, ['https://nortedados.com.br/'])
@@ -136,7 +134,7 @@ Deno.test('icp-site-read: redirecionamento para outro domínio é recusado; para
     }, www),
   })
   const corpo = await (await handlerWww(pedido({ workspaceId: WORKSPACE, dominio: 'nortedados.com.br' }))).json()
-  assertEquals(corpo.leitura.porte, '51-200, ME')
+  assertEquals(corpo.leitura.miniIcp, 'Transportadoras médias')
   assertEquals(www, ['https://nortedados.com.br/', 'https://www.nortedados.com.br/inicio'])
 })
 
@@ -162,6 +160,6 @@ Deno.test('icp-site-read: conferências puras da página, do redirecionamento e 
   assert(redirecionamentoPermitido(new URL('https://www.a.com.br/x'), 'a.com.br'))
   assert(!redirecionamentoPermitido(new URL('http://a.com.br/'), 'a.com.br'))
   assert(!redirecionamentoPermitido(new URL('https://a.com.br.mal.io/'), 'a.com.br'))
-  assertEquals(leituraValida({ portes: ['grande'] }), null)
-  assertEquals(leituraValida({ setores: ['Saúde'] })?.setor, 'Saúde')
+  assertEquals(leituraValida({ setores: ['Saúde'], portes: ['51-200'], regioes: ['SP'] }), null)
+  assertEquals(leituraValida({ miniIcp: 'Hospitais', setores: ['Saúde'] }), { oQueVende: '', miniIcp: 'Hospitais', porQueCompram: '', personas: [] })
 })

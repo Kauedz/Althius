@@ -35,4 +35,4 @@
 - [x] Um pedido no composer vai para a Coordenação, nunca para `/sinais/novo`, mesmo que fale de "monitorar" ou "Sinal". (Vitest `App.test.tsx`: "um pedido de monitorar vai para a Coordenação"; smoke 07 removido.)
 - [x] Anexos e o atalho de Conexões do composer continuam funcionando. (Vitest `composer-com-anexos.test.tsx`.)
 - [x] `/agentes` redireciona para `/`. (Vitest `App.test.tsx`: "/agentes volta para a /".)
-- [ ] Smoke 09 (cadência) verde no build do PR.
+- [ ] Smoke 09 (cadência) verde depois da publicação (a suíte e2e não roda no CI).

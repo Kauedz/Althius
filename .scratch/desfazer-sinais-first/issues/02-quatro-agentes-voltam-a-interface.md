@@ -38,4 +38,4 @@ Desfazer o #311 (merge `360efb0c`), que foi só de interface. O banco e o motor 
 - [x] A @menção oferece os 4. (Vitest `App.test.tsx` "@menção mostra o autocompletar..." e "o autocompletar de @ lista os Agentes criados".)
 - [x] A página de um Agente aceita novo pedido na Conversa e edição de Memória, Habilidades e Rotinas. (Vitest `App.test.tsx` "edita e apaga um fato da Memória", "desativa uma Habilidade", "cria e pausa uma Rotina".)
 - [x] Criar um Agente a partir de uma Especialidade funciona. (Vitest `App.test.tsx` "Novo agente abre o formulário com as 4 Especialidades".)
-- [ ] Smoke 09 (cadência) verde no build do PR.
+- [ ] Smoke 09 (cadência) verde depois da publicação (a suíte e2e não roda no CI).
