@@ -1,6 +1,6 @@
 # 15: Retirada de schema dos quatro Agentes
 
-**Status:** ready-for-agent
+**Status:** wontfix
 
 **Hermes:** não
 
@@ -45,3 +45,5 @@
 Nenhum passo manual no PR do ticket além da revisão. Depois do "Sim, aplica e publica" do Kauê, o Grok Bot aplica a migration e confere `md5(statements[1])` contra o `md5sum` do arquivo (`docs/agents/migrations.md`).
 
 ## Comments
+
+31/10/2026: `wontfix`. O Sinais first foi desfeito pela ADR-0034; ver `.scratch/desfazer-sinais-first/`.
