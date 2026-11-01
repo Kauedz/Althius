@@ -1,5 +1,7 @@
 # ADR-0033 — Sinais first: o composer cria Sinais, as quatro Especialidades saem do produto
 
+> Substituída pela [ADR-0034](0034-desfazer-sinais-first.md) em 31/10/2026: o dono do produto decidiu desfazer o Sinais first.
+
 Status: Aceita. Decidida pelo Renan em 26/10/2026, 15:40 BRT.
 
 ## Contexto

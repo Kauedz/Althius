@@ -1,6 +1,6 @@
 # 14: Hermes — limpeza do mapa de personas
 
-**Status:** needs-hermes
+**Status:** wontfix
 
 **Hermes:** sim — `supabase/functions/_shared/orquestracao.ts` perde as quatro entradas de descrição de Especialidade (`scopus:`, `ethos:`, `rhetor:`, `oraculum:`), consumidas por `agent-conversation` e pelo worker do Hermes (`_hermes-worker`); a mudança só tem efeito depois de publicar `agent-conversation` de novo e reiniciar o worker.
 
@@ -44,3 +44,5 @@ Depois do "Sim, aplica e publica" do Kauê e do CI verde: o Grok Bot publica `ag
 ## Comments
 
 - 26/10/2026: na escrita deste ticket, os PRs #280 a #286 (frente canais-althius) estão abertos e mexem em `supabase/functions/_shared/orquestracao.ts`, `_hermes-worker/worker.ts` e `agent-conversation/runner.ts`, sem tocar no mapa de personas. Começar este ticket depois que eles entrarem na `main` (ou rebasear sobre eles) para não gerar conflito no mesmo arquivo.
+
+31/10/2026: `wontfix`. O Sinais first foi desfeito pela ADR-0034; ver `.scratch/desfazer-sinais-first/`.
