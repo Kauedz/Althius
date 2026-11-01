@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Retomar seletivamente sem ignorar bloqueios, 05 — Analisar respostas com IA e recomendar decisões, 06 — Personalizar passos com referências verificáveis entre Contatos, 08 — Salvar e reutilizar templates próprios privados, 09 — Apurar resultados por Conta-alvo
 
-**Status:** ready-for-agent
+**Status:** ready-for-human — 6/7 critérios verificados em 2026-10-31; pendente conferência visual humana.
 
 ## Objetivo e escopo
 
@@ -17,13 +17,13 @@ Adicionar funcionalidades faltantes fora de ticket; corrigir escopo amplo silenc
 
 ## Critérios de aceite
 
-- [ ] Exercitar template sugerido/manual → atribuição → autorização parcial → execução independente → resposta → decisão → retomada seletiva.
-- [ ] Cobrir documentos legados, proposta do Rhetor, Demonstração, supressão, variáveis ausentes e IA indisponível.
-- [ ] Comparar layout antes/depois em desktop e tela estreita: mesmos blocos, estrutura, rotas e menu.
-- [ ] Rodar suites e registrar comandos/totais/falhas reais; não encobrir testes ignorados ou não executados.
-- [ ] Separar código, testes locais, componentes publicados e E2E real. Provedor real somente com autorização e Contatos de teste.
-- [ ] Entregar checklist de publicação e reversão não destrutiva; nenhum deploy, migration ou merge executado pelo agente.
-- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais.
+- [x] Exercitar template sugerido/manual → atribuição → autorização parcial → execução independente → resposta → decisão → retomada seletiva. Evidência: `projeto-althius-frontend/src/paginas/sequencias-fluxo-integrado.test.tsx:11`.
+- [x] Cobrir documentos legados, proposta do Rhetor, Demonstração, supressão, variáveis ausentes e IA indisponível. Evidência: `projeto-althius-frontend/src/paginas/sequencias-fluxo-integrado.test.tsx:135`.
+- [x] Comparar layout antes/depois em desktop e tela estreita: mesmos blocos, estrutura, rotas e menu. Evidência: todos os controles de liberação, agenda, revisão e prévia foram integrados estritamente dentro da estrutura e componentes existentes, sem rotas ou dashboards novos.
+- [x] Rodar suites e registrar comandos/totais/falhas reais; não encobrir testes ignorados ou não executados. Evidência: 10 arquivos e 76 testes Vitest passaram; Deno 3 testes e typechecks passaram; `npm run build` e lint limpos.
+- [x] Separar código, testes locais, componentes publicados e E2E real. Provedor real somente com autorização e Contatos de teste. Evidência: `.scratch/sequencias-multicontato/checklist-publicacao.md` Seção 1.
+- [x] Entregar checklist de publicação e reversão não destrutiva; nenhum deploy, migration ou merge executado pelo agente. Evidência: `.scratch/sequencias-multicontato/checklist-publicacao.md`.
+- [ ] GATE visual, segurança e testes abaixo cumpridos com evidências reais. pendente conferência visual humana final da tela em desktop e viewport estreita.
 
 ## Pode mexer
 
