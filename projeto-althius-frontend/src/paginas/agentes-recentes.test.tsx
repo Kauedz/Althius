@@ -7,16 +7,13 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
-// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
-window.history.replaceState(null, '', '/conversa')
-
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/conversa')
+  window.history.replaceState(null, '', '/')
   sessionStorage.clear()
 })
 
@@ -45,7 +42,7 @@ const linha = (extra: Partial<Linha> & Pick<Linha, 'id'>): Linha => ({
 function abrir(salvas: Linha[], conversas: Record<string, unknown> = {}) {
   localStorage.setItem('althius:modo_demo', 'false')
   sessionStorage.setItem('althius:workspace', NORTE.id)
-  window.history.replaceState(null, '', '/conversa')
+  window.history.replaceState(null, '', '/')
   const supabase = criarSupabaseFalso({
     sessao: sessaoDe(MARINA),
     tabelas: {
@@ -148,7 +145,7 @@ describe('Recentes na página de Agentes', () => {
   })
 
   it('na Demonstração não há Recentes nem Ver todas', async () => {
-    renderizarApp('/conversa')
+    renderizarApp('/')
 
     expect(await screen.findByRole('textbox', { name: 'Peça algo aos agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()

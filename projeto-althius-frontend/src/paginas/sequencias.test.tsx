@@ -4,7 +4,7 @@ import { renderizarApp } from '@/test/renderizar'
 
 describe('Módulo Sequências e Casca (Ticket 02 & Ticket 03)', () => {
   it('o item "Sequências" aparece na seção Workspace da sidebar entre Contas e Contatos e Agentes e abre o módulo', async () => {
-    const { usuario } = renderizarApp('/conversa')
+    const { usuario } = renderizarApp('/')
 
     const nav = screen.getByRole('navigation', { name: 'Workspace' })
     const links = within(nav).getAllByRole('link')
@@ -28,7 +28,7 @@ describe('Módulo Sequências e Casca (Ticket 02 & Ticket 03)', () => {
   })
 
   it('a página inicial continua sendo a grade de Agentes', async () => {
-    renderizarApp('/conversa')
+    renderizarApp('/')
     expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
   })
 

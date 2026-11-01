@@ -7,16 +7,13 @@ import { criarBancoDeAgentes, rpcsDeAgentes } from '@/test/agentes-no-banco'
 import { criarServicosDoNavegadorFalsos } from '@/test/servicos-do-navegador-falsos'
 import { criarSupabaseFalso, sessaoDe } from '@/test/supabase-falso'
 
-// A conversa coordenada (o pedido aos Agentes) mora em /conversa desde que / virou o chat do agente único.
-window.history.replaceState(null, '', '/conversa')
-
 const MARINA = { id: 'usuario-marina', email: 'marina@cliente.com.br' }
 const PESSOAL = { id: 'ws-pessoal-marina', kind: 'pessoal', name: 'Marina Souza', owner_user_id: MARINA.id }
 const NORTE = { id: 'ws-norte', kind: 'empresa', name: 'Norte' }
 
 afterEach(() => {
   cleanup()
-  window.history.replaceState(null, '', '/conversa')
+  window.history.replaceState(null, '', '/')
   sessionStorage.clear()
 })
 
@@ -66,7 +63,7 @@ describe('O selo do Agente e as Conversas', () => {
   })
 
   it('a / não mostra a grade de Agentes com selo', async () => {
-    abrir('/conversa', true)
+    abrir('/', true)
 
     expect(await screen.findByRole('form', { name: 'Pedido aos agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Agentes do Workspace' })).not.toBeInTheDocument()

@@ -13,7 +13,7 @@ export class ErroDeAcaoDoVisitante extends Error {
   }
 }
 
-type Fontes = 'fonte' | 'fonteDeContas' | 'fonteDeSequencias' | 'fonteDeSinais' | 'fonteDeDescobertas' | 'fonteDoAgente'
+type Fontes = 'fonte' | 'fonteDeContas' | 'fonteDeSequencias' | 'fonteDeSinais' | 'fonteDeDescobertas'
 
 /** As ações pagas, por fonte. Ler continua livre. */
 export const ACOES_PAGAS_DO_VISITANTE: Record<Fontes, readonly string[]> = {
@@ -30,8 +30,6 @@ export const ACOES_PAGAS_DO_VISITANTE: Record<Fontes, readonly string[]> = {
   fonteDeSinais: ['salvarMonitoramento', 'mudarEstado', 'simularDisparo', 'pedirSinal', 'montarPlano', 'salvarPlano', 'rodarAgora', 'salvarAgenda', 'liberarAutomacao'],
   // Descoberta.
   fonteDeDescobertas: ['buscarContas', 'aceitarDescoberta'],
-  // O agente único: pedir, confirmar e escolher num cartão rodam ferramentas pagas.
-  fonteDoAgente: ['enviar', 'confirmar', 'escolher'],
 }
 
 const CONVERSAS = new Set(['conversar', 'conversarCoordenado'])
@@ -64,7 +62,6 @@ function proteger<T extends object>(fonte: T, metodos: readonly string[], aoBloq
 export function protegerAmbienteDoVisitante(ambiente: Ambiente, aoBloquear: () => void): Ambiente {
   const protegido: Ambiente = { ...ambiente }
   for (const nome of Object.keys(ACOES_PAGAS_DO_VISITANTE) as Fontes[]) {
-    if (!ambiente[nome]) continue
     protegido[nome] = proteger(ambiente[nome] as object, ACOES_PAGAS_DO_VISITANTE[nome], aoBloquear) as never
   }
   return protegido

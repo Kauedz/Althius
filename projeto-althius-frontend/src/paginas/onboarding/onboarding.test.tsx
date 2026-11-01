@@ -525,7 +525,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
 
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
     expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     // A barra lateral lê o onboarding depois de montar; o nome e o logo do Workspace chegam depois da página.
     expect(await screen.findByRole('button', { name: 'Workspace: Norte Dados' })).toBeInTheDocument()
     expect(await screen.findByRole('img', { name: 'Logo de Norte Dados' })).toHaveAttribute(
@@ -545,7 +545,7 @@ describe('Onboarding pós-login: checklist e próximos passos', () => {
 
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
     expect(await screen.findByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect((await fonteDeOnboarding.ler()).workspace).toBeNull()
   })
 
@@ -620,7 +620,7 @@ describe('Onboarding pós-login: entrada na Casca', () => {
     primeira.unmount()
 
     const segunda = renderizarSemOnboarding('/', { armazenamento })
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'Navegação' })).toBeInTheDocument()
     expect((await segunda.fonteDeOnboarding.ler()).concluido).toBe(false)
   })
@@ -630,7 +630,7 @@ describe('Onboarding pós-login: entrada na Casca', () => {
     const primeira = renderizarSemOnboarding('/onboarding?convite=demo', { armazenamento })
     await day0Convidado(primeira.usuario)
     await primeira.usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     primeira.unmount()
 
     renderizarSemOnboarding('/contas', { armazenamento }, true)
@@ -931,7 +931,7 @@ describe('Onboarding pós-login: progresso gamificado até 100%', () => {
     expect(screen.queryByText(/Próximo:/)).not.toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^Onboarding, / })).not.toBeInTheDocument()
   })
 
@@ -941,14 +941,14 @@ describe('Onboarding pós-login: progresso gamificado até 100%', () => {
     await usuario.click(screen.getByRole('button', { name: 'Concluir mini-ICP' }))
     await usuario.click(screen.getByRole('button', { name: 'Pular Persona' }))
     await usuario.click(screen.getByRole('button', { name: 'Concluir onboarding' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
 
     await usuario.click(await screen.findByRole('link', { name: 'Onboarding, 60% completo' }))
     await usuario.click(await screen.findByRole('button', { name: 'Concluir Persona' }))
     await usuario.click(await screen.findByRole('button', { name: 'Abrir Sinais' }))
     await usuario.click(await screen.findByRole('link', { name: 'Ir para a home' }))
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Agente' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Agentes' })).toBeInTheDocument()
     await vi.waitFor(() => expect(screen.queryByRole('link', { name: /^Onboarding, / })).not.toBeInTheDocument())
   })
 

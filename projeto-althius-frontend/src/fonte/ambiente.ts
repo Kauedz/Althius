@@ -8,7 +8,6 @@ import type { FonteDoPlaybook } from './playbook-tipos'
 import type { FonteDeSinais } from './sinais-tipos'
 import type { FonteDeDescobertas } from './descobertas-tipos'
 import type { FonteDeAgentes, FonteDeContas, FonteDeOnboarding, FonteDeSequencias, Papel } from './tipos'
-import type { FonteDoAgente } from './agente-tipos'
 
 export type ModoDoAmbiente = 'demonstracao' | 'real'
 
@@ -81,8 +80,6 @@ export interface Ambiente {
   fonteDeAutomacao?: FonteDeAutomacao
   /** As Descobertas de contas pelo ICP (enriquecimento-em-cascata). */
   fonteDeDescobertas?: FonteDeDescobertas
-  /** O agente único da tela inicial (Fase 3). */
-  fonteDoAgente?: FonteDoAgente
   /** Os módulos sem backend neste ambiente, que as telas mostram como indisponíveis. Na Demonstração, nenhum. */
   motivoDasConversas?: MotivoDasConversasIndisponiveis
   indisponiveis: ReadonlySet<ModuloDoWorkspace>

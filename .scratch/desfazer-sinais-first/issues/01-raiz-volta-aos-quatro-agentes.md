@@ -1,6 +1,6 @@
 # 01: A `/` volta a ser a página dos 4 Agentes
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Hermes:** não
 
@@ -31,8 +31,8 @@
 
 ## Critérios
 
-- [ ] A `/` mostra o composer da Coordenação; nada do chat do agente único aparece em nenhuma rota. (Vitest `App.test.tsx`, `raiz.test.tsx`.)
-- [ ] Um pedido no composer vai para a Coordenação, nunca para `/sinais/novo`, mesmo que fale de "monitorar" ou "Sinal". (Vitest.)
-- [ ] Anexos e o atalho de Conexões do composer continuam funcionando. (Vitest `composer-com-anexos.test.tsx`.)
-- [ ] `/agentes` redireciona para `/`. (Vitest.)
+- [x] A `/` mostra o composer da Coordenação; nada do chat do agente único aparece em nenhuma rota. (Vitest `App.test.tsx`, `raiz.test.tsx`; `chat-do-agente.tsx` e as Fontes do agente único removidos; smoke 08 agora abre a `/`.)
+- [x] Um pedido no composer vai para a Coordenação, nunca para `/sinais/novo`, mesmo que fale de "monitorar" ou "Sinal". (Vitest `App.test.tsx`: "um pedido de monitorar vai para a Coordenação"; smoke 07 removido.)
+- [x] Anexos e o atalho de Conexões do composer continuam funcionando. (Vitest `composer-com-anexos.test.tsx`.)
+- [x] `/agentes` redireciona para `/`. (Vitest `App.test.tsx`: "/agentes volta para a /".)
 - [ ] Smoke 09 (cadência) verde no build do PR.
