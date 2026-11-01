@@ -84,10 +84,10 @@ Deno.test('uma fonte de descoberta usa a própria cascata e mantém o tipo públ
   const { c, chamar } = montar([MERCADO_GENERICO])
   await chamar()
   assertEquals(c.pedidos.length, 1)
-  assertEquals(c.pedidos[0].signalType, CASCATA_DO_MERCADO)
+  assertEquals(c.pedidos[0].signalType, 'anuncio_meta')
   assertEquals(c.pedidos[0].registrarComo, 'anuncio_meta')
   assertEquals(c.pedidos[0].descoberta, true)
-  assertEquals(c.pedidos[0].chave, `monitor:mon-mercado-generico:${SLOT}:mercado:${CASCATA_DO_MERCADO}`)
+  assertEquals(c.pedidos[0].chave, `monitor:mon-mercado-generico:${SLOT}:mercado:anuncio_meta`)
 })
 
 Deno.test('Indeed usa uma cascata própria no mercado, sem cair no actor do LinkedIn', async () => {

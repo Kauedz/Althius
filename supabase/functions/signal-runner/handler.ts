@@ -649,14 +649,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return { scanned: 0, signals: 0 }
     }
     if (await estouraOLimiteDoDia(m.monitorId)) return await pararNoLimiteDoDia(m, rodadaId)
+    // LinkedIn e Indeed têm tipos públicos distintos das cascatas privadas do mercado.
+    // Cada fonte mantém sua própria chave para não colidir com outra origem.
+    const tipoDaCascata = m.signalType === 'vaga_linkedin'
+      ? CASCATA_DO_MERCADO
+      : m.signalType === 'vaga_indeed' ? 'vaga_indeed_mercado' : m.signalType
     const r = await deps.cascatas.rodar({
       workspaceId: m.workspaceId,
       userId: m.createdBy,
-      signalType: CASCATA_DO_MERCADO,
+      signalType: tipoDaCascata,
       registrarComo: m.signalType,
       origem: 'monitor',
       monitorId: m.monitorId,
-      chave: `monitor:${m.monitorId}:${m.slot}:mercado`,
+      chave: `monitor:${m.monitorId}:${m.slot}:mercado:${tipoDaCascata}`,
       criterios: m.criteria,
       tetoCreditos: CREDITOS_POR_RODADA_NO_MERCADO,
       descoberta: true,
